@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>教師管理 · 華語線上作業簿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-pattern">
+
+  <div id="gate" class="login-wrap">
+    <div class="login-card">
+      <div class="brand-badge">師</div>
+      <h1>教師管理後台</h1>
+      <p class="sub" id="gate-sub">華語線上作業簿</p>
+      <div class="field"><label>管理密碼</label><input id="gate-pw" type="password" placeholder="請輸入密碼" autocomplete="current-password"></div>
+      <div class="err" id="gate-err"></div>
+      <button class="btn btn-primary" style="width:100%" id="gate-btn">登入</button>
+      <p class="sub" style="margin:18px 0 0;font-size:12px">學生請改用「學生頁面」(student.html)</p>
+    </div>
+  </div>
+
+  <div id="app" class="hide">
+    <div class="topbar"><div class="topbar-inner">
+      <div class="brand"><div class="brand-badge">師</div>
+        <div><div class="brand-title" id="app-name">華語線上作業簿</div><div class="brand-sub">教師管理後台</div></div></div>
+      <div class="topbar-spacer"></div>
+      <span class="mode-tag" id="mode-tag"></span>
+      <button class="btn btn-sm btn-ghost" data-act="logout">登出</button>
+    </div></div>
+
+    <div class="container">
+      <div class="tabs">
+        <button class="tab" data-act="tab" data-id="students">學生名冊 <span class="count" id="c-students">0</span></button>
+        <button class="tab" data-act="tab" data-id="lessons">課文練習 <span class="count" id="c-lessons">0</span></button>
+        <button class="tab" data-act="tab" data-id="grades">成績總覽</button>
+      </div>
+
+      <section id="panel-students" class="panel">
+        <div class="section-head"><h2>學生名冊</h2><span class="sub">基本資料與學費</span><span class="grow"></span>
+          <input id="stu-search" type="text" placeholder="搜尋名字 / 國籍…" style="max-width:190px">
+          <button class="btn btn-primary" data-act="addStudent">＋ 新增學生</button></div>
+        <div id="students-list" class="cards cols-2"></div>
+      </section>
+
+      <section id="panel-lessons" class="panel hide">
+        <div class="section-head"><h2>課文與練習</h2><span class="sub">上傳課文、音檔，並出練習題</span><span class="grow"></span>
+          <button class="btn btn-primary" data-act="addLesson">＋ 新增課文</button></div>
+        <div id="lessons-list" class="cards"></div>
+      </section>
+
+      <section id="panel-grades" class="panel hide">
+        <div class="section-head"><h2>成績總覽</h2><span class="sub">每位學生每課的完成與分數</span></div>
+        <div id="grades-list" class="cards"></div>
+      </section>
+
+      <div class="foot-note">華語線上作業簿 · 教師後台</div>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast" class="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script>
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
+function fmtDate(d){if(!d)return'—';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0');}
+function money(n){if(n==null||n==='')return'—';const v=Number(n);return isNaN(v)?n:'NT$'+v.toLocaleString('zh-TW');}
+const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
+function avColor(s){let h=0;for(const c of (s||''))h=(h*31+c.charCodeAt(0))>>>0;return AV[h%AV.length];}
+function genCodeStr(){const c='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<4;i++)s+=c[Math.floor(Math.random()*c.length)];return s;}
+function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);d.setHours(0,0,0,0);
+  const diff=Math.round((d-t)/86400000);
+  if(diff<0)return{cls:'badge-overdue',label:'已過期 · '+fmtDate(due)};
+  if(diff===0)return{cls:'badge-soon',label:'今天截止'};
+  if(diff<=3)return{cls:'badge-soon',label:diff+' 天後截止'};
+  return{cls:'badge-pending',label:'截止 '+fmtDate(due)};}
+function emptyHtml(i,t,d){return `<div class="empty"><div class="big">${i}</div><b>${t}</b><div style="margin-top:6px">${d}</div></div>`;}
+const TYPE_LABELS={choice:'單選',fill:'填空',order:'重組',match:'配對'};
+
+const S={students:[],lessons:[],questions:[],results:[],tab:'students',q:''};
+const sortLessons=(a)=>a.slice().sort((x,y)=>((x.order_index||0)-(y.order_index||0))||((x.created_at||'').localeCompare(y.created_at||'')));
+const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
+const resultOf=(lid,sid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===sid);
+
+async function loadAll(){
+  const [a,b,c,d]=await Promise.all([DB.list('students'),DB.list('lessons'),DB.list('questions'),DB.list('results')]);
+  S.students=a;S.lessons=b;S.questions=c;S.results=d;
+}
+function openModal(h){$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
+function closeModal(){$('#modal-root').innerHTML='';}
+
+function render(){
+  $$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.id===S.tab));
+  $('#c-students').textContent=S.students.length;
+  $('#c-lessons').textContent=S.lessons.length;
+  $$('.panel').forEach(p=>p.classList.add('hide'));
+  $('#panel-'+S.tab).classList.remove('hide');
+  ({students:renderStudents,lessons:renderLessons,grades:renderGrades}[S.tab])();
+}
+
+/* ---------- 學生名冊 ---------- */
+function renderStudents(){
+  const wrap=$('#students-list');let list=S.students;
+  if(S.q){const q=S.q.toLowerCase();list=list.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.nationality||'').toLowerCase().includes(q));}
+  if(!S.students.length){wrap.className='';wrap.innerHTML=emptyHtml('👩‍🏫','還沒有學生','點「新增學生」建立第一位。');return;}
+  if(!list.length){wrap.className='';wrap.innerHTML=emptyHtml('🔍','找不到符合的學生','換個關鍵字。');return;}
+  wrap.className='cards cols-2';
+  wrap.innerHTML=list.map(s=>`<div class="card student-card">
+    <div class="row-between"><div style="display:flex;gap:12px;align-items:center">
+      <div class="avatar" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</div>
+      <div><div class="name">${esc(s.name)}</div>
+        <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap"><span class="tag accent">${esc(s.class_type||'1對1')}</span>${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}</div></div></div>
+      <div class="actions"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
+        <button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button></div></div>
+    <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(s.class_time||'—')}</b></span>
+      <span>💰 學費：<b>${money(s.tuition)}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span><span>👤 帳號：<b>${esc(s.username||'—')}</b></span></div>
+    ${s.reset_requested?`<div class="meta" style="margin-top:8px;align-items:center"><span class="badge badge-soon">🔑 申請重設密碼</span><button class="btn btn-sm" data-act="resetPw" data-id="${s.id}">協助重設</button></div>`:''}
+    ${s.notes?`<div class="meta" style="margin-top:8px"><span>📝 ${esc(s.notes)}</span></div>`:''}</div>`).join('');
+}
+function studentModal(st){const e=!!st;st=st||{};
+  openModal(`<div class="modal"><div class="modal-head"><h3>${e?'編輯學生':'新增學生'}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="form-grid">
+     <div class="field"><label>名字 *</label><input id="f-name" type="text" value="${esc(st.name||'')}"></div>
+     <div class="field"><label>國籍</label><input id="f-nat" type="text" value="${esc(st.nationality||'')}" placeholder="例：美國"></div>
+     <div class="field full"><label>使用教材</label><input id="f-book" type="text" value="${esc(st.textbook||'')}" placeholder="例：當代中文課程 1"></div>
+     <div class="field"><label>班別</label><select id="f-type"><option ${st.class_type==='1對1'?'selected':''}>1對1</option><option ${st.class_type==='團班'?'selected':''}>團班</option></select></div>
+     <div class="field"><label>上課時間</label><input id="f-time" type="text" value="${esc(st.class_time||'')}" placeholder="例：每週二 19:00"></div>
+     <div class="field"><label>付款日期</label><input id="f-pay" type="date" value="${esc(st.payment_date||'')}"></div>
+     <div class="field"><label>學費 <span class="hint">NT$</span></label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：800"></div>
+     <div class="field"><label>登入帳號 <span class="hint">學生登入用</span></label><input id="f-user" type="text" value="${esc(st.username||'')}" placeholder="例：anna2026"></div>
+     <div class="field"><label>登入密碼</label><input id="f-pw" type="text" value="${esc(st.password||'')}" placeholder="可給學生初始密碼"></div>
+     <div class="field full"><label>Email <span class="hint">選填</span></label><input id="f-email" type="text" value="${esc(st.email||'')}"></div>
+     <div class="field full"><label>備註</label><textarea id="f-notes" style="min-height:60px">${esc(st.notes||'')}</textarea></div>
+   </div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
+     <button class="btn btn-primary" data-act="saveStudent" data-id="${st.id||''}">${e?'儲存':'新增'}</button></div></div>`);
+}
+
+/* ---------- 課文與練習 ---------- */
+function renderLessons(){
+  const wrap=$('#lessons-list');const ls=sortLessons(S.lessons);
+  if(!ls.length){wrap.innerHTML=emptyHtml('📚','還沒有課文','點「新增課文」建立第一課：課文、生字、音檔與練習題。');return;}
+  wrap.innerHTML=ls.map((l,i)=>{
+    const vocab=(l.vocabulary||'').split('\n').map(v=>v.trim()).filter(Boolean);
+    const qn=questionsOf(l.id).length, an=(l.assigned_ids||[]).length, di=dueInfo(l.due_date);
+    return `<div class="card">
+      <div class="row-between"><div style="display:flex;gap:14px;align-items:center">
+        <div class="lesson-no">${l.order_index||i+1}</div>
+        <div><h3>${esc(l.title)}</h3><div class="meta" style="margin-top:5px;align-items:center">
+          <span>📝 ${qn} 題</span><span>📖 生字 ${vocab.length}</span>${l.audio_url?'<span class="tag gold">🔊 有音檔</span>':''}
+          <span>👤 指派 ${an}</span>${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}</div></div></div></div>
+      <div class="actions" style="margin-top:14px;flex-wrap:wrap">
+        <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button>
+        <button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題（${qn}）</button>
+        <button class="btn btn-sm" data-act="assign" data-id="${l.id}">指派</button>
+        <button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div></div>`;}).join('');
+}
+function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>${e?'編輯課文':'新增課文'}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="form-grid">
+     <div class="field"><label>課序 <span class="hint">第幾課</span></label><input id="l-order" type="number" min="1" value="${l.order_index||nextNo}"></div>
+     <div class="field"><label>課名 *</label><input id="l-title" type="text" value="${esc(l.title||'')}" placeholder="例：第一課 歡迎你來臺灣"></div></div>
+     <div class="field"><label>課文內容</label><textarea id="l-content" style="min-height:130px" placeholder="貼上或輸入課文…">${esc(l.content||'')}</textarea></div>
+     <div class="field"><label>生字 <span class="hint">每行一個</span></label><textarea id="l-vocab" placeholder="歡迎&#10;臺灣&#10;朋友">${esc(l.vocabulary||'')}</textarea></div>
+     <div class="field"><label>語法 / 重點</label><textarea id="l-key" placeholder="例：「先…再…」的用法">${esc(l.key_points||'')}</textarea></div>
+     <div class="field"><label>課文音檔網址 <span class="hint">選填：mp3 連結或 YouTube</span></label><input id="l-audio" type="text" value="${esc(l.audio_url||'')}" placeholder="https://…mp3 或 YouTube 連結"></div>
+   </div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
+     <button class="btn btn-primary" data-act="saveLesson" data-id="${l.id||''}">${e?'儲存':'新增'}</button></div></div>`);
+}
+
+/* ---------- 練習題管理 ---------- */
+function openQuestionsModal(lid){
+  const l=S.lessons.find(x=>x.id===lid);if(!l)return;const qs=questionsOf(lid);
+  const rows=qs.length?qs.map((q,i)=>`<div class="qe-row"><span class="q-num">${i+1}</span>
+     <div class="grow"><div class="qe-t"><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${q.audio_url?'<span class="tag gold">🔊 聽力</span>':''}</div>
+     <div class="qe-p">${esc(q.prompt||'（無題目）')}</div></div>
+     <button class="btn btn-sm" data-act="editQuestion" data-id="${lid}::${q.id}">編輯</button>
+     <button class="btn btn-sm btn-danger" data-act="delQuestion" data-id="${lid}::${q.id}">刪除</button></div>`).join('')
+   :'<div class="empty" style="padding:26px"><b>還沒有題目</b><div style="margin-top:4px">點下方「新增題目」開始出題。</div></div>';
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>${esc(l.title)} · 練習題</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">${rows}</div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button>
+     <button class="btn btn-primary" data-act="addQuestion" data-id="${lid}">＋ 新增題目</button></div></div>`);
+}
+let QE_TYPE='choice';
+function qeFieldsHTML(type,q){q=q||{};const opt=q.options||[];
+  if(type==='choice'){const lines=Array.isArray(opt)?opt.join('\n'):'';const correct=(typeof q.answer==='number')?(q.answer+1):'';
+    return `<div class="field"><label>選項 <span class="hint">每行一個</span></label><textarea id="qe-options" placeholder="選項一&#10;選項二&#10;選項三">${esc(lines)}</textarea></div>
+      <div class="field"><label>正確答案 <span class="hint">填第幾個選項（1、2、3…）</span></label><input id="qe-correct" type="number" min="1" value="${correct}"></div>`;}
+  if(type==='fill'){const acc=Array.isArray(q.answer)?q.answer.join('\n'):'';
+    return `<div class="hint" style="margin-bottom:8px">提示：題目中用 <b>___</b>（三條底線）代表填空處。</div>
+      <div class="field"><label>可接受答案 <span class="hint">每行一個；學生作答相符即算對（不分大小寫、空格）</span></label><textarea id="qe-accept" placeholder="謝謝&#10;謝謝你">${esc(acc)}</textarea></div>`;}
+  if(type==='order'){const segs=Array.isArray(opt)?opt.join('\n'):'';
+    return `<div class="field"><label>正確順序 <span class="hint">每行一個詞／字，依正確順序</span></label><textarea id="qe-segs" placeholder="我&#10;每天&#10;喝&#10;咖啡">${esc(segs)}</textarea>
+      <div class="hint" style="margin-top:4px">學生會看到打散的詞，要排回正確順序。</div></div>`;}
+  const pairs=Array.isArray(opt)?opt.map(p=>`${p.l}=${p.r}`).join('\n'):'';
+  return `<div class="field"><label>配對 <span class="hint">每行「左=右」</span></label><textarea id="qe-pairs" placeholder="你好=Hello&#10;謝謝=Thank you&#10;再見=Goodbye">${esc(pairs)}</textarea></div>`;
+}
+function questionEditModal(lid,q){const e=!!q;q=q||{};QE_TYPE=q.type||'choice';
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>${e?'編輯題目':'新增題目'}</h3><button class="x" data-act="backToQuestions" data-id="${lid}">×</button></div>
+   <div class="modal-body">
+     <div class="field"><label>題型</label><div class="type-seg" id="qe-typeseg">
+       ${Object.keys(TYPE_LABELS).map(t=>`<button type="button" data-qetype="${t}" class="${t===QE_TYPE?'on':''}">${TYPE_LABELS[t]}</button>`).join('')}</div></div>
+     <div class="field"><label>題目</label><textarea id="qe-prompt" style="min-height:56px" placeholder="輸入題目／題幹…">${esc(q.prompt||'')}</textarea></div>
+     <div id="qe-fields">${qeFieldsHTML(QE_TYPE,q)}</div>
+     <div class="field"><label>聽力音檔網址 <span class="hint">選填，填了即成為聽力題</span></label><input id="qe-audio" type="text" value="${esc(q.audio_url||'')}" placeholder="mp3 連結或 YouTube"></div>
+     <div class="field"><label>解析 <span class="hint">選填，作答後顯示</span></label><input id="qe-explain" type="text" value="${esc(q.explanation||'')}"></div>
+   </div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="backToQuestions" data-id="${lid}">取消</button>
+     <button class="btn btn-primary" data-act="saveQuestion" data-id="${lid}::${q.id||''}">${e?'儲存':'新增'}</button></div></div>`);
+}
+
+/* ---------- 指派 ---------- */
+function assignModal(l){const ids=l.assigned_ids||[];
+  const list=S.students.length?S.students.map(s=>`<label class="check-row"><input type="checkbox" value="${s.id}" ${ids.includes(s.id)?'checked':''}> ${esc(s.name)} <span class="tag">${esc(s.class_type||'1對1')}</span></label>`).join(''):'<div class="hint">尚無學生，請先到「學生名冊」新增。</div>';
+  openModal(`<div class="modal"><div class="modal-head"><h3>指派「${esc(l.title)}」</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="field"><label>截止日期 <span class="hint">選填</span></label><input id="as-due" type="date" value="${esc(l.due_date||'')}"></div>
+     <div class="field"><label>指派給哪些學生 <button class="btn btn-sm btn-ghost" data-act="assignAll" type="button" style="float:right">全選 / 取消</button></label>
+       <div class="check-list" id="as-targets">${list}</div></div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
+     <button class="btn btn-primary" data-act="saveAssign" data-id="${l.id}">儲存</button></div></div>`);
+}
+
+/* ---------- 成績 ---------- */
+function renderGrades(){
+  const wrap=$('#grades-list');const ls=sortLessons(S.lessons).filter(l=>(l.assigned_ids||[]).length);
+  if(!ls.length){wrap.innerHTML=emptyHtml('📊','還沒有成績','到「課文練習」指派課文給學生，學生作答後這裡會顯示分數。');return;}
+  wrap.innerHTML=ls.map(l=>{
+    const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);
+    const qn=questionsOf(l.id).length;
+    const rows=targets.map(s=>{const r=resultOf(l.id,s.id);const done=r&&r.status==='done';
+      return `<tr><td><span class="dot ${done?'ok':'no'}"></span>${esc(s.name)}</td>
+        <td>${done?'<span class="badge badge-ok">已完成</span>':(r?'<span class="badge badge-soon">作答中</span>':'<span class="badge badge-pending">未開始</span>')}</td>
+        <td><b>${r?(r.score+'/'+(r.total||qn)):'—'}</b></td></tr>`;}).join('');
+    const doneCount=targets.filter(s=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;
+    return `<div class="card"><div class="row-between"><div>
+      <h3 style="font-size:17px">${l.order_index?('第'+l.order_index+'課 · '):''}${esc(l.title)}</h3>
+      <div class="meta" style="margin-top:5px"><span>${qn} 題</span><span>完成 <b>${doneCount}/${targets.length}</b></span></div></div></div>
+      <div style="overflow:auto;margin-top:12px"><table class="matrix"><thead><tr><th>學生</th><th>狀態</th><th>分數</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;}).join('');
+}
+
+/* ---------- 動作 ---------- */
+const H={};
+H.tab=(id)=>{S.tab=id;render();};
+H.logout=()=>{sessionStorage.removeItem('teacher_ok');location.reload();};
+H.closeModal=closeModal;
+H.genCode=()=>{$('#f-code').value=genCodeStr();};
+
+H.addStudent=()=>studentModal(null);
+H.editStudent=(id)=>studentModal(S.students.find(s=>s.id===id));
+H.delStudent=async(id)=>{const s=S.students.find(x=>x.id===id);if(!confirm(`確定刪除「${s.name}」？相關成績也會一併刪除。`))return;await DB.remove('students',id);await loadAll();render();toast('已刪除');};
+H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return toast('請輸入名字');
+  const u=$('#f-user').value.trim();
+  if(u&&S.students.some(s=>s.id!==id&&(s.username||'').toLowerCase()===u.toLowerCase()))return toast('此帳號已被其他學生使用');
+  const obj={name,username:u||null,password:$('#f-pw').value.trim()||null,email:$('#f-email').value.trim()||null,
+    nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,class_time:$('#f-time').value.trim(),
+    payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),notes:$('#f-notes').value.trim()};
+  try{id?await DB.update('students',id,obj):await DB.insert('students',obj);closeModal();await loadAll();render();toast('已儲存');}catch(err){toast('儲存失敗：'+err.message);}};
+H.resetPw=async(id)=>{const s=S.students.find(x=>x.id===id);const np=prompt('為「'+s.name+'」設定新密碼：','');if(np==null)return;if(!np.trim())return toast('密碼不可空白');await DB.update('students',id,{password:np.trim(),reset_requested:null});await loadAll();render();toast('已重設密碼');};
+
+H.addLesson=()=>lessonModal(null);
+H.editLesson=(id)=>lessonModal(S.lessons.find(l=>l.id===id));
+H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!confirm(`確定刪除「${l.title}」？課文題目與成績都會一併刪除。`))return;await DB.remove('lessons',id);await loadAll();render();toast('已刪除');};
+H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return toast('請輸入課名');
+  const obj={order_index:Number($('#l-order').value)||0,title,content:$('#l-content').value,vocabulary:$('#l-vocab').value,key_points:$('#l-key').value,audio_url:$('#l-audio').value.trim()||null};
+  try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);closeModal();await loadAll();render();toast('已儲存');}catch(err){toast('儲存失敗：'+err.message);}};
+
+H.questions=(id)=>openQuestionsModal(id);
+H.addQuestion=(id)=>questionEditModal(id,null);
+H.editQuestion=(key)=>{const[lid,qid]=key.split('::');questionEditModal(lid,S.questions.find(q=>q.id===qid));};
+H.backToQuestions=(id)=>openQuestionsModal(id);
+H.delQuestion=async(key)=>{const[lid,qid]=key.split('::');if(!confirm('刪除這一題？'))return;await DB.remove('questions',qid);S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已刪除');};
+H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;const prompt=$('#qe-prompt').value.trim();
+  let options=[],answer=null;
+  if(type==='choice'){options=$('#qe-options').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個選項');
+    const c=Number($('#qe-correct').value);if(!c||c<1||c>options.length)return toast('正確答案需在選項範圍內');answer=c-1;
+    if(!prompt)return toast('請輸入題目');}
+  else if(type==='fill'){answer=$('#qe-accept').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!answer.length)return toast('請輸入至少一個可接受答案');
+    if(!prompt)return toast('請輸入題目（含 ___ 填空處）');}
+  else if(type==='order'){options=$('#qe-segs').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個詞／字');}
+  else{options=$('#qe-pairs').value.split('\n').map(s=>s.trim()).filter(Boolean).map(line=>{const i=line.indexOf('=');return i<0?null:{l:line.slice(0,i).trim(),r:line.slice(i+1).trim()};}).filter(p=>p&&p.l&&p.r);if(options.length<2)return toast('請至少輸入兩組配對');}
+  const obj={lesson_id:lid,type,prompt:prompt||(type==='order'?'請將下列詞語重組成正確的句子':type==='match'?'請將左右配對':''),
+    options,answer,audio_url:$('#qe-audio').value.trim()||null,explanation:$('#qe-explain').value.trim()||null};
+  try{if(qid){await DB.update('questions',qid,obj);}else{obj.order_index=questionsOf(lid).length;await DB.insert('questions',obj);}
+    S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已儲存');}catch(err){toast('儲存失敗：'+err.message);}};
+
+H.assign=(id)=>assignModal(S.lessons.find(l=>l.id===id));
+H.assignAll=()=>{const b=$$('#as-targets input');const all=b.every(x=>x.checked);b.forEach(x=>x.checked=!all);};
+H.saveAssign=async(id)=>{const ids=$$('#as-targets input:checked').map(x=>x.value);await DB.update('lessons',id,{assigned_ids:ids,due_date:$('#as-due').value||null});closeModal();await loadAll();render();toast('已指派');};
+
+document.addEventListener('click',(e)=>{
+  if(e.target.matches('[data-overlay]')){closeModal();return;}
+  const qt=e.target.closest('[data-qetype]');
+  if(qt){QE_TYPE=qt.dataset.qetype;$$('#qe-typeseg button').forEach(b=>b.classList.toggle('on',b.dataset.qetype===QE_TYPE));$('#qe-fields').innerHTML=qeFieldsHTML(QE_TYPE,{});return;}
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const fn=H[b.dataset.act];if(fn){e.preventDefault();fn(b.dataset.id,b);}
+});
+
+function boot(){$('#app-name').textContent=window.APP_NAME||'華語線上作業簿';$('#gate-sub').textContent=window.APP_NAME||'華語線上作業簿';
+  const tag=$('#mode-tag');if(DB.mode!=='local'){tag.textContent='● 雲端同步';tag.classList.remove('demo');}else{tag.textContent='● 示範模式（本機）';tag.classList.add('demo');}}
+async function enter(){$('#gate').classList.add('hide');$('#app').classList.remove('hide');try{await loadAll();render();}catch(e){toast('讀取失敗：'+e.message);}}
+function tryLogin(){const pw=$('#gate-pw').value;if(pw&&pw===(window.TEACHER_PASSWORD||'')){sessionStorage.setItem('teacher_ok','1');enter();}else{$('#gate-err').textContent='密碼不正確';}}
+$('#gate-btn').addEventListener('click',tryLogin);
+$('#gate-pw').addEventListener('keydown',e=>{if(e.key==='Enter')tryLogin();});
+$('#stu-search').addEventListener('input',e=>{S.q=e.target.value.trim();renderStudents();});
+boot();if(sessionStorage.getItem('teacher_ok')==='1')enter();
+</script>
+</body>
+</html>

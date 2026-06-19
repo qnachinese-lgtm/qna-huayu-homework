@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>學習者平台 · 華語線上作業簿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-pattern">
+  <div id="gate" class="login-wrap"></div>
+
+  <div id="app" class="hide">
+    <div class="topbar"><div class="topbar-inner">
+      <div class="brand"><div class="brand-badge">學</div>
+        <div><div class="brand-title" id="app-name">華語線上作業簿</div><div class="brand-sub" id="app-sub"></div></div></div>
+      <div class="topbar-spacer"></div>
+      <span class="langs" id="langs"></span>
+      <span class="settings-wrap"><button class="icon-btn" data-act="toggleMenu" aria-label="settings">⚙️</button>
+        <div id="menu" class="menu hide"></div></span>
+      <span class="who"><b id="me-name">·</b></span>
+      <div class="avatar" id="me-avatar" style="width:32px;height:32px;font-size:13px"></div>
+      <button class="btn btn-sm btn-ghost" data-act="logout" id="btn-logout">登出</button>
+    </div></div>
+    <div class="container narrow">
+      <div class="snav" id="snav"></div>
+      <div id="screen"></div>
+      <div class="foot-note">QNA Chinese · 學習者平台</div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script>
+/* ============ i18n ============ */
+const I18N={
+ zh:{sub:'當代中文課程 · 學習者平台',login:'登入',register:'新建帳號',reset:'忘記密碼',account:'學習者帳號',password:'密碼',show:'顯示',name:'姓名',email:'Email（選填）',nat:'國籍（選填）',doLogin:'登入 →',doReg:'建立帳號 →',doReset:'送出重設申請 →',backLogin:'← 返回登入',regHint:'建立後，老師會為你安排課程內容。',resetHint:'送出後，老師會在後台看到你的申請並協助重設密碼。',needLogin:'本平台需以帳號登入，老師才能掌握每位學習者的學習情形。',errFill:'請完整填寫',errLogin:'帳號或密碼不正確',errDup:'此帳號已被使用，請換一個',errNoUser:'找不到此帳號',regOk:'註冊成功，已為你登入',resetOk:'已送出申請，請聯絡老師協助重設',hello:'你好',logout:'登出',settings:'顯示設定',dark:'深色模式',fontsize:'字級',fsS:'標準',fsL:'大',fsX:'特大',navWork:'作業',navContent:'上課內容',navCards:'生字卡',navGrades:'我的成績',navWrong:'錯題本',noWork:'目前沒有作業',noWorkSub:'老師指派練習後會出現在這裡。',noContent:'還沒有上課內容',noContentSub:'老師上傳課文後會出現在這裡。',noCards:'還沒有生字',noCardsSub:'老師加入生字後會出現在這裡。',noGrades:'還沒有成績',noGradesSub:'完成作業後這裡會顯示分數。',noWrong:'太好了，目前沒有錯題！',noWrongSub:'答錯的題目會自動收進這裡，方便複習。',start:'開始',due:'截止',score:'分數',q:'題',back:'← 返回',text:'課文',audio:'課文朗讀',vocab:'生字',keys:'語法 / 重點',practice:'練習題',submit:'交卷，看分數',retry:'↻ 再做一次',finishBack:'完成，返回',correct:'答對了！',wrong:'答錯了',ans:'正解',great:'太棒了！',done:'完成練習',acc:'答對',flip:'點卡片翻面',prev:'← 上一張',next:'下一張 →',card:'張',noLessonQ:'這一課還沒有練習題',noLessonQSub:'可以先看課文，老師很快會加上練習。',wrongTitle:'錯題複習',wrongRetry:'開始複習錯題',toReview:'待複習',sel:'— 請選擇 —',inputAns:'輸入答案',orderHint:'點下方詞語排成句子…',blank:'（空白）',sDone:'已完成',sDoing:'作答中',sTodo:'未開始',myNote:'我的備註（選填）',nat0:'—',natTW:'臺灣',natCN:'中國大陸',natHK:'香港',natVN:'越南',natJP:'日本',natKR:'韓國',natUS:'美國',natOther:'其他'},
+ cn:{sub:'当代中文课程 · 学习者平台',login:'登入',register:'新建账号',reset:'忘记密码',account:'学习者账号',password:'密码',show:'显示',name:'姓名',email:'Email（选填）',nat:'国籍（选填）',doLogin:'登入 →',doReg:'创建账号 →',doReset:'送出重设申请 →',backLogin:'← 返回登入',regHint:'创建后，老师会为你安排课程内容。',resetHint:'送出后，老师会在后台看到你的申请并协助重设密码。',needLogin:'本平台需以账号登入，老师才能掌握每位学习者的学习情形。',errFill:'请完整填写',errLogin:'账号或密码不正确',errDup:'此账号已被使用，请换一个',errNoUser:'找不到此账号',regOk:'注册成功，已为你登入',resetOk:'已送出申请，请联系老师协助重设',hello:'你好',logout:'登出',settings:'显示设置',dark:'深色模式',fontsize:'字级',fsS:'标准',fsL:'大',fsX:'特大',navWork:'作业',navContent:'上课内容',navCards:'生字卡',navGrades:'我的成绩',navWrong:'错题本',noWork:'目前没有作业',noWorkSub:'老师指派练习后会出现在这里。',noContent:'还没有上课内容',noContentSub:'老师上传课文后会出现在这里。',noCards:'还没有生字',noCardsSub:'老师加入生字后会出现在这里。',noGrades:'还没有成绩',noGradesSub:'完成作业后这里会显示分数。',noWrong:'太好了，目前没有错题！',noWrongSub:'答错的题目会自动收进这里，方便复习。',start:'开始',due:'截止',score:'分数',q:'题',back:'← 返回',text:'课文',audio:'课文朗读',vocab:'生字',keys:'语法 / 重点',practice:'练习题',submit:'交卷，看分数',retry:'↻ 再做一次',finishBack:'完成，返回',correct:'答对了！',wrong:'答错了',ans:'正解',great:'太棒了！',done:'完成练习',acc:'答对',flip:'点卡片翻面',prev:'← 上一张',next:'下一张 →',card:'张',noLessonQ:'这一课还没有练习题',noLessonQSub:'可以先看课文，老师很快会加上练习。',wrongTitle:'错题复习',wrongRetry:'开始复习错题',toReview:'待复习',sel:'— 请选择 —',inputAns:'输入答案',orderHint:'点下方词语排成句子…',blank:'（空白）',sDone:'已完成',sDoing:'作答中',sTodo:'未开始',myNote:'我的备注（选填）',nat0:'—',natTW:'台湾',natCN:'中国大陆',natHK:'香港',natVN:'越南',natJP:'日本',natKR:'韩国',natUS:'美国',natOther:'其他'},
+ en:{sub:'A Course in Contemporary Chinese · Learner',login:'Log in',register:'Sign up',reset:'Forgot password',account:'Username',password:'Password',show:'Show',name:'Name',email:'Email (optional)',nat:'Nationality (optional)',doLogin:'Log in →',doReg:'Create account →',doReset:'Send reset request →',backLogin:'← Back to log in',regHint:'After signing up, your teacher will assign your lessons.',resetHint:'Your teacher will see the request and help reset your password.',needLogin:'Log in so your teacher can track your progress.',errFill:'Please fill in all fields',errLogin:'Wrong username or password',errDup:'Username already taken',errNoUser:'Account not found',regOk:'Signed up — you are logged in',resetOk:'Request sent — please contact your teacher',hello:'Hi',logout:'Log out',settings:'Display',dark:'Dark mode',fontsize:'Text size',fsS:'Standard',fsL:'Large',fsX:'X-Large',navWork:'Homework',navContent:'Lessons',navCards:'Flashcards',navGrades:'My scores',navWrong:'Mistakes',noWork:'No homework yet',noWorkSub:'Assigned practice will appear here.',noContent:'No lessons yet',noContentSub:'Reading content will appear here.',noCards:'No vocabulary yet',noCardsSub:'Vocabulary will appear here.',noGrades:'No scores yet',noGradesSub:'Scores show after you finish homework.',noWrong:'Great — no mistakes!',noWrongSub:'Wrong answers are collected here for review.',start:'Start',due:'Due',score:'Score',q:'Q',back:'← Back',text:'Text',audio:'Listen',vocab:'Vocabulary',keys:'Grammar / Notes',practice:'Exercises',submit:'Submit & see score',retry:'↻ Try again',finishBack:'Done, go back',correct:'Correct!',wrong:'Incorrect',ans:'Answer',great:'Great!',done:'Finished',acc:'correct',flip:'Tap card to flip',prev:'← Prev',next:'Next →',card:'',noLessonQ:'No exercises in this lesson yet',noLessonQSub:'Read the text first.',wrongTitle:'Mistake review',wrongRetry:'Review mistakes',toReview:'to review',sel:'— Select —',inputAns:'Type your answer',orderHint:'Tap the words to form a sentence…',blank:'(blank)',sDone:'Done',sDoing:'In progress',sTodo:'Not started',myNote:'My note (optional)',nat0:'—',natTW:'Taiwan',natCN:'China',natHK:'Hong Kong',natVN:'Vietnam',natJP:'Japan',natKR:'Korea',natUS:'USA',natOther:'Other'},
+ vi:{sub:'Tiếng Trung Đương Đại · Học viên',login:'Đăng nhập',register:'Tạo tài khoản',reset:'Quên mật khẩu',account:'Tên đăng nhập',password:'Mật khẩu',show:'Hiện',name:'Họ tên',email:'Email (tuỳ chọn)',nat:'Quốc tịch (tuỳ chọn)',doLogin:'Đăng nhập →',doReg:'Tạo tài khoản →',doReset:'Gửi yêu cầu đặt lại →',backLogin:'← Quay lại đăng nhập',regHint:'Sau khi tạo, giáo viên sẽ sắp xếp nội dung học cho bạn.',resetHint:'Sau khi gửi, giáo viên sẽ thấy yêu cầu và giúp đặt lại mật khẩu.',needLogin:'Cần đăng nhập để giáo viên theo dõi việc học của bạn.',errFill:'Vui lòng điền đầy đủ',errLogin:'Sai tên đăng nhập hoặc mật khẩu',errDup:'Tên đăng nhập đã tồn tại',errNoUser:'Không tìm thấy tài khoản',regOk:'Đăng ký thành công',resetOk:'Đã gửi yêu cầu, vui lòng liên hệ giáo viên',hello:'Xin chào',logout:'Đăng xuất',settings:'Hiển thị',dark:'Chế độ tối',fontsize:'Cỡ chữ',fsS:'Vừa',fsL:'Lớn',fsX:'Rất lớn',navWork:'Bài tập',navContent:'Nội dung học',navCards:'Thẻ từ',navGrades:'Điểm của tôi',navWrong:'Câu sai',noWork:'Chưa có bài tập',noWorkSub:'Bài tập được giao sẽ hiện ở đây.',noContent:'Chưa có nội dung',noContentSub:'Bài đọc sẽ hiện ở đây.',noCards:'Chưa có từ vựng',noCardsSub:'Từ vựng sẽ hiện ở đây.',noGrades:'Chưa có điểm',noGradesSub:'Điểm hiện sau khi làm bài.',noWrong:'Tuyệt vời, không có câu sai!',noWrongSub:'Câu trả lời sai sẽ được lưu ở đây.',start:'Bắt đầu',due:'Hạn',score:'Điểm',q:'câu',back:'← Quay lại',text:'Bài khoá',audio:'Nghe bài khoá',vocab:'Từ vựng',keys:'Ngữ pháp / Trọng điểm',practice:'Bài luyện',submit:'Nộp bài, xem điểm',retry:'↻ Làm lại',finishBack:'Xong, quay lại',correct:'Đúng rồi!',wrong:'Sai rồi',ans:'Đáp án',great:'Tuyệt vời!',done:'Hoàn thành',acc:'đúng',flip:'Chạm để lật thẻ',prev:'← Trước',next:'Sau →',card:'thẻ',noLessonQ:'Bài này chưa có câu hỏi',noLessonQSub:'Hãy đọc bài khoá trước.',wrongTitle:'Ôn câu sai',wrongRetry:'Bắt đầu ôn câu sai',toReview:'cần ôn',sel:'— Chọn —',inputAns:'Nhập đáp án',orderHint:'Chạm các từ để xếp thành câu…',blank:'(trống)',sDone:'Hoàn thành',sDoing:'Đang làm',sTodo:'Chưa làm',myNote:'Ghi chú của tôi (tuỳ chọn)',nat0:'—',natTW:'Đài Loan',natCN:'Trung Quốc',natHK:'Hồng Kông',natVN:'Việt Nam',natJP:'Nhật Bản',natKR:'Hàn Quốc',natUS:'Hoa Kỳ',natOther:'Khác'}
+};
+const LANGS=[['zh','繁中'],['cn','简中'],['en','EN'],['vi','VI']];
+const NATKEYS=['nat0','natTW','natCN','natHK','natVN','natJP','natKR','natUS','natOther'];
+const TYPE_LABELS={choice:'單選',fill:'填空',order:'重組',match:'配對'};
+
+/* ============ helpers ============ */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function t(k){return (I18N[S.lang]&&I18N[S.lang][k])||I18N.zh[k]||k;}
+function toast(m){const x=$('#toast');x.textContent=m;x.classList.add('show');clearTimeout(x._t);x._t=setTimeout(()=>x.classList.remove('show'),2400);}
+const now=()=>new Date().toISOString();
+function fmtDate(d){if(!d)return'';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0');}
+const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
+function avColor(s){let h=0;for(const c of (s||''))h=(h*31+c.charCodeAt(0))>>>0;return AV[h%AV.length];}
+function dueInfo(due){if(!due)return null;const a=new Date();a.setHours(0,0,0,0);const d=new Date(due);d.setHours(0,0,0,0);
+  const diff=Math.round((d-a)/86400000);
+  if(diff<0)return{cls:'badge-overdue',label:t('due')+' '+fmtDate(due)};
+  if(diff===0)return{cls:'badge-soon',label:t('due')+' '+fmtDate(due)};
+  if(diff<=3)return{cls:'badge-soon',label:diff+'d · '+fmtDate(due)};
+  return{cls:'badge-pending',label:t('due')+' '+fmtDate(due)};}
+function emptyHtml(i,a,b){return `<div class="empty"><div class="big">${i}</div><b>${a}</b><div style="margin-top:6px">${b}</div></div>`;}
+function shuffle(arr,seed){let a=arr.slice();let h=0;for(const c of String(seed))h=(h*31+c.charCodeAt(0))>>>0;
+  for(let i=a.length-1;i>0;i--){h=(h*1103515245+12345)&0x7fffffff;const j=h%(i+1);const x=a[i];a[i]=a[j];a[j]=x;}return a;}
+function audioHtml(url){if(!url)return'';
+  const yt=url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]{11})/);
+  if(yt)return `<div class="audio-wrap"><iframe src="https://www.youtube.com/embed/${yt[1]}" allowfullscreen></iframe></div>`;
+  return `<div class="audio-wrap"><audio controls src="${esc(url)}"></audio></div>`;}
+function parseVocab(text){return (text||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const p=l.split('=').map(s=>s.trim());return {front:p[0],back:p.slice(1).filter(Boolean).join(' · ')};});}
+
+function gradeFill(q,resp){const norm=s=>(s||'').trim().toLowerCase().replace(/\s+/g,'');const r=norm(resp);return r!==''&&(q.answer||[]).map(norm).includes(r);}
+function isCorrect(q,resp){
+  if(q.type==='choice')return resp!=null&&Number(resp)===Number(q.answer);
+  if(q.type==='fill')return gradeFill(q,resp);
+  if(q.type==='order')return (resp||[]).length>0&&(resp||[]).join('')===(q.options||[]).join('');
+  if(q.type==='match')return (q.options||[]).length>0&&(q.options||[]).every((p,i)=>(resp||[])[i]===p.r);
+  return false;}
+
+/* ============ state ============ */
+const S={me:null,lessons:[],questions:[],results:[],section:'work',practiceSet:null,graded:false,
+  lang:localStorage.getItem('hyc_lang')||'zh',theme:localStorage.getItem('hyc_theme')||'light',fs:localStorage.getItem('hyc_fs')||'std',
+  authTab:'login',flashIdx:0,flashFlip:false};
+let responses={},SHUF={},GRADE=null;
+const myLessons=()=>S.lessons.filter(l=>(l.assigned_ids||[]).includes(S.me.id)).sort((a,b)=>((a.order_index||0)-(b.order_index||0))||((a.created_at||'').localeCompare(b.created_at||'')));
+const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
+const resultOf=(lid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===S.me.id);
+function wrongQuestions(){const out=[],seen=new Set();
+  S.results.forEach(r=>{const ans=r.answers||{};Object.keys(ans).forEach(qid=>{if(seen.has(qid))return;const q=S.questions.find(x=>x.id===qid);if(q&&!isCorrect(q,ans[qid])){out.push(q);seen.add(qid);}});});
+  return out;}
+async function loadMine(){const [l,q,r]=await Promise.all([DB.list('lessons'),DB.list('questions'),DB.list('results')]);
+  S.lessons=l;S.questions=q;S.results=r.filter(x=>x.student_id===S.me.id);}
+
+/* ============ theme / chrome ============ */
+function applyTheme(){document.body.classList.toggle('dark',S.theme==='dark');document.body.classList.remove('fs-lg','fs-xl');
+  if(S.fs==='lg')document.body.classList.add('fs-lg');if(S.fs==='xl')document.body.classList.add('fs-xl');}
+function langsHTML(){return LANGS.map(([c,n])=>`<button data-act="setLang" data-id="${c}" class="${S.lang===c?'on':''}">${n}</button>`).join('');}
+function menuHTML(){return `<h4>${t('settings')}</h4>
+  <div class="row"><span>🌙 ${t('dark')}</span><button class="switch ${S.theme==='dark'?'on':''}" data-act="toggleDark" aria-label="dark"></button></div>
+  <div><div style="font-size:12px;color:var(--muted);margin-bottom:6px">🔠 ${t('fontsize')}</div>
+  <div class="seg-mini">${[['std',t('fsS')],['lg',t('fsL')],['xl',t('fsX')]].map(([v,l])=>`<button data-act="setFs" data-id="${v}" class="${S.fs===v?'on':''}">${l}</button>`).join('')}</div></div>`;}
+function applyChrome(){
+  $('#app-name').textContent=window.APP_NAME||'華語線上作業簿';
+  $('#app-sub').textContent=t('sub');
+  $('#langs').innerHTML=langsHTML();
+  $('#menu').innerHTML=menuHTML();
+  $('#btn-logout').textContent=t('logout');
+  $('#me-name').textContent=t('hello')+'，'+(S.me?S.me.name:'');
+  const av=$('#me-avatar');if(S.me){av.textContent=(S.me.name||'?').slice(0,2);av.style.background=avColor(S.me.name);}
+}
+
+/* ============ 登入頁 ============ */
+function renderGate(){
+  const tab=S.authTab;
+  const natOpts=NATKEYS.map((k,i)=>`<option value="${i===0?'':t(k)}">${t(k)}</option>`).join('');
+  let form='';
+  if(tab==='login'){form=`
+    <div class="field"><label>${t('account')}</label><input id="li-user" type="text" autocomplete="username"></div>
+    <div class="field"><label>${t('password')}</label><input id="li-pw" type="password" autocomplete="current-password"></div>
+    <div class="err" id="g-err"></div>
+    <button class="btn btn-primary" style="width:100%" data-act="doLogin">${t('doLogin')}</button>`;}
+  else if(tab==='register'){form=`
+    <div class="field"><label>${t('name')} *</label><input id="rg-name" type="text"></div>
+    <div class="field"><label>${t('account')} *</label><input id="rg-user" type="text" autocomplete="username"></div>
+    <div class="field"><label>${t('password')} *</label><input id="rg-pw" type="password" autocomplete="new-password"></div>
+    <div class="field"><label>${t('email')}</label><input id="rg-email" type="email"></div>
+    <div class="field"><label>${t('nat')}</label><select id="rg-nat">${natOpts}</select></div>
+    <div class="err" id="g-err"></div>
+    <button class="btn btn-primary" style="width:100%" data-act="doReg">${t('doReg')}</button>
+    <div class="notice" style="margin-top:14px">${t('regHint')}</div>`;}
+  else{form=`
+    <div class="field"><label>${t('account')}</label><input id="rs-user" type="text"></div>
+    <div class="err" id="g-err"></div>
+    <button class="btn btn-primary" style="width:100%" data-act="doReset">${t('doReset')}</button>
+    <div class="notice" style="margin-top:14px">${t('resetHint')}</div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" data-act="authTab" data-id="login">${t('backLogin')}</button>`;}
+  const tabs=tab==='reset'?'':`<div class="auth-tabs">
+     <button class="${tab==='login'?'on':''}" data-act="authTab" data-id="login">${t('login')}</button>
+     <button class="${tab==='register'?'on':''}" data-act="authTab" data-id="register">${t('register')}</button></div>`;
+  $('#gate').innerHTML=`<div class="login-card">
+    <div class="langs" style="margin:0 auto 16px">${langsHTML()}</div>
+    <div class="brand-badge">學</div>
+    <h1>QNA Chinese</h1>
+    <p class="sub">${t('sub')}</p>
+    ${tabs}${form}
+    ${tab!=='reset'?`<button class="btn btn-ghost" style="margin-top:14px;font-size:13px" data-act="authTab" data-id="reset">${t('reset')}</button>`:''}
+    <div class="notice" style="margin-top:16px">${t('needLogin')}</div>
+  </div>`;
+}
+
+/* ============ 區塊導覽 ============ */
+function renderNav(){
+  const wrong=wrongQuestions().length;
+  const works=myLessons().filter(l=>questionsOf(l.id).length).length;
+  const items=[['work','✍️',t('navWork'),works],['content','📖',t('navContent'),''],['cards','🃏',t('navCards'),''],['grades','📈',t('navGrades'),''],['wrong','📒',t('navWrong'),wrong||'']];
+  $('#snav').innerHTML=items.map(([id,ic,lb,n])=>`<button class="${S.section===id?'on':''}" data-act="section" data-id="${id}">${ic} ${lb}${n!==''?`<span class="n">${n}</span>`:''}</button>`).join('');
+}
+function renderSection(){
+  renderNav();
+  ({work:renderWork,content:renderContent,cards:renderCards,grades:renderGrades,wrong:renderWrong}[S.section])();
+}
+
+function renderWork(){
+  const ls=myLessons().filter(l=>questionsOf(l.id).length);
+  if(!ls.length){$('#screen').innerHTML=emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
+  $('#screen').innerHTML='<div class="cards">'+ls.map((l,i)=>{
+    const r=resultOf(l.id),qn=questionsOf(l.id).length,done=r&&r.status==='done';
+    const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
+    return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
+      <div class="lesson-no">${done?'✓':(l.order_index||i+1)}</div>
+      <div class="grow"><h3>${esc(l.title)}</h3>
+        <div class="meta" style="margin-top:4px;align-items:center"><span>📝 ${qn} ${t('q')}</span>${l.audio_url?'<span class="tag gold">🔊</span>':''}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}</div>
+        ${done?`<div class="progress"><span style="width:${pct}%"></span></div>`:''}</div>
+      ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`:`<div class="tag accent">${t('start')} →</div>`}</div>`;}).join('')+'</div>';
+}
+function renderContent(){
+  const ls=myLessons();
+  if(!ls.length){$('#screen').innerHTML=emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
+  $('#screen').innerHTML='<div class="cards">'+ls.map((l,i)=>{
+    const vocab=parseVocab(l.vocabulary);
+    return `<div class="card"><div class="row-between"><div style="display:flex;gap:12px;align-items:center">
+      <div class="lesson-no">${l.order_index||i+1}</div><h3>${esc(l.title)}</h3></div>${l.audio_url?'<span class="tag gold">🔊</span>':''}</div>
+      <details class="disc" style="margin-top:12px"><summary>${t('text')}</summary>
+        ${l.audio_url?'<div class="lesson-block"><div class="lesson-label">'+t('audio')+'</div>'+audioHtml(l.audio_url)+'</div>':''}
+        ${l.content?`<div class="lesson-block"><div class="lesson-label">${t('text')}</div><div class="prose">${esc(l.content)}</div></div>`:''}
+        ${vocab.length?`<div class="lesson-block"><div class="lesson-label">${t('vocab')}</div><div class="vocab-list">${vocab.map(v=>`<span class="vocab-chip">${esc(v.front)}</span>`).join('')}</div></div>`:''}
+        ${l.key_points?`<div class="lesson-block"><div class="lesson-label">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div></div>`:''}
+      </details></div>`;}).join('')+'</div>';
+}
+function renderCards(){
+  const all=[];myLessons().forEach(l=>parseVocab(l.vocabulary).forEach(v=>all.push(v)));
+  if(!all.length){$('#screen').innerHTML=emptyHtml('🃏',t('noCards'),t('noCardsSub'));return;}
+  if(S.flashIdx>=all.length)S.flashIdx=0;
+  const v=all[S.flashIdx];
+  $('#screen').innerHTML=`<div class="flash-wrap">
+    <div class="flash ${S.flashFlip?'flip':''}" data-act="flip"><div class="flash-inner">
+      <div class="flash-face flash-front">${esc(v.front)}<small>${t('flip')}</small></div>
+      <div class="flash-face flash-back">${esc(v.back||'—')}</div>
+    </div></div>
+    <div class="flash-controls"><button class="btn" data-act="flprev">${t('prev')}</button>
+      <span class="flash-count">${S.flashIdx+1} / ${all.length}</span>
+      <button class="btn" data-act="flnext">${t('next')}</button></div></div>`;
+}
+function renderGrades(){
+  const ls=myLessons().filter(l=>questionsOf(l.id).length);
+  if(!ls.length){$('#screen').innerHTML=emptyHtml('📈',t('noGrades'),t('noGradesSub'));return;}
+  const rows=ls.map(l=>{const r=resultOf(l.id),done=r&&r.status==='done',qn=questionsOf(l.id).length;
+    return `<tr><td>${l.order_index?('L'+l.order_index+' '):''}${esc(l.title)}</td>
+      <td>${done?`<span class="badge badge-ok">${t('sDone')}</span>`:(r?`<span class="badge badge-soon">${t('sDoing')}</span>`:`<span class="badge badge-pending">${t('sTodo')}</span>`)}</td>
+      <td><b>${r?(r.score+'/'+(r.total||qn)):'—'}</b></td></tr>`;}).join('');
+  $('#screen').innerHTML=`<div class="card"><div style="overflow:auto"><table class="matrix">
+    <thead><tr><th>${t('navContent')}</th><th></th><th>${t('score')}</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+function renderWrong(){
+  const wq=wrongQuestions();
+  if(!wq.length){$('#screen').innerHTML=emptyHtml('🎉',t('noWrong'),t('noWrongSub'));return;}
+  $('#screen').innerHTML=`<div class="card" style="text-align:center">
+    <div style="font-size:34px">📒</div><h3 style="margin:6px 0">${t('wrongTitle')}</h3>
+    <div class="meta" style="justify-content:center"><span>${wq.length} ${t('toReview')}</span></div>
+    <button class="btn btn-accent" style="margin-top:14px" data-act="openWrong">${t('wrongRetry')}</button></div>`;
+}
+
+/* ============ 練習 ============ */
+function orderInner(q){
+  const sh=SHUF[q.id]||(SHUF[q.id]=shuffle((q.options||[]).slice(),q.id));
+  const chosen=responses[q.id]||[];
+  const tray=chosen.length?chosen.map((idx,pos)=>`<span class="seg" data-act="ordel" data-q="${q.id}" data-pos="${pos}">${esc(sh[idx])}</span>`).join(''):`<span class="hint" style="align-self:center">${t('orderHint')}</span>`;
+  const bank=sh.map((seg,idx)=>chosen.includes(idx)?`<span class="seg used">${esc(seg)}</span>`:`<span class="seg" data-act="oradd" data-q="${q.id}" data-idx="${idx}">${esc(seg)}</span>`).join('');
+  return `<div class="order-tray">${tray}</div><div class="order-bank">${bank}</div>`;
+}
+function qHtml(q,idx){
+  let body='',showPrompt=true;
+  if(q.type==='choice'){body='<div class="opts">'+(q.options||[]).map((o,i)=>`<label class="opt"><input type="radio" name="q-${q.id}" value="${i}"><span>${esc(o)}</span></label>`).join('')+'</div>';}
+  else if(q.type==='fill'){const p=esc(q.prompt||'');
+    if(p.includes('___')){showPrompt=false;body=`<div class="q-prompt">${p.replace('___',`<input class="blank-inp" id="fill-${q.id}" type="text" autocomplete="off">`)}</div>`;}
+    else body=`<input class="blank-inp" style="width:100%" id="fill-${q.id}" type="text" placeholder="${t('inputAns')}" autocomplete="off">`;}
+  else if(q.type==='order'){body=`<div id="order-${q.id}">${orderInner(q)}</div>`;}
+  else{const rights=shuffle((q.options||[]).map(p=>p.r),q.id+'r');
+    body=(q.options||[]).map((p,i)=>`<div class="match-row"><span class="l">${esc(p.l)}</span><select data-q="${q.id}" data-i="${i}"><option value="">${t('sel')}</option>${rights.map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join('')}</select></div>`).join('');}
+  return `<div class="q-card"><div class="q-head"><span class="q-num">${idx+1}</span>
+     <div style="flex:1"><span class="q-type-tag tag accent">${TYPE_LABELS[q.type]}</span> ${q.audio_url?'<span class="tag gold">🔊</span>':''}
+     ${showPrompt?`<div class="q-prompt">${esc(q.prompt||'')}</div>`:''}</div></div>${audioHtml(q.audio_url)}${body}</div>`;
+}
+function qHtmlGraded(q,idx){
+  const resp=GRADE.answers[q.id],ok=isCorrect(q,resp);let body='',ct='';
+  if(q.type==='choice'){body='<div class="opts">'+(q.options||[]).map((o,i)=>{let cls='';if(i===Number(q.answer))cls='is-correct';else if(resp!=null&&i===Number(resp))cls='is-wrong';
+      return `<div class="opt ${cls}"><span>${esc(o)}</span><span style="margin-left:auto">${i===Number(q.answer)?'✓':(resp!=null&&i===Number(resp)?'✗':'')}</span></div>`;}).join('')+'</div>';
+    ct=t('ans')+'：'+esc((q.options||[])[Number(q.answer)]||'');}
+  else if(q.type==='fill'){body=`<div class="q-prompt">${esc(resp||t('blank'))}</div>`;ct=t('ans')+'：'+esc((q.answer||[]).join(' / '));}
+  else if(q.type==='order'){body='<div class="order-tray">'+((resp||[]).map(s=>`<span class="seg">${esc(s)}</span>`).join('')||`<span class="hint">${t('blank')}</span>`)+'</div>';ct=t('ans')+'：'+esc((q.options||[]).join(' '));}
+  else{body=(q.options||[]).map((p,i)=>{const r=(resp||[])[i]||'';const good=r===p.r;return `<div class="match-row"><span class="l">${esc(p.l)}</span><span class="badge ${good?'badge-ok':'badge-overdue'}">${esc(r||'—')} ${good?'✓':'✗'}</span></div>`;}).join('');ct=t('ans')+'：'+(q.options||[]).map(p=>esc(p.l)+'→'+esc(p.r)).join('、');}
+  return `<div class="q-card"><div class="q-head"><span class="q-num">${idx+1}</span>
+    <div style="flex:1"><span class="q-type-tag tag accent">${TYPE_LABELS[q.type]}</span><div class="q-prompt">${esc(q.prompt||'')}</div></div></div>${audioHtml(q.audio_url)}${body}
+    <div class="q-feedback ${ok?'ok':'no'}">${ok?'✓ '+t('correct'):'✗ '+t('wrong')} <span class="ans">｜${ct}</span></div>
+    ${q.explanation?`<div class="q-explain">💡 ${esc(q.explanation)}</div>`:''}</div>`;
+}
+function renderPractice(){
+  const set=S.practiceSet,qs=set.questions,l=set.lesson;
+  let head=`<button class="btn btn-sm btn-ghost" data-act="back">${t('back')}</button>
+    <div class="section-head" style="margin-top:12px"><h2>${set.title}</h2></div>`;
+  let textCard='';
+  if(l&&(l.content||parseVocab(l.vocabulary).length||l.key_points||l.audio_url)){
+    const vocab=parseVocab(l.vocabulary);
+    textCard=`<div class="card">
+      ${l.audio_url?'<div class="lesson-label">'+t('audio')+'</div>'+audioHtml(l.audio_url):''}
+      ${l.content?`<div class="lesson-label">${t('text')}</div><div class="prose">${esc(l.content)}</div>`:''}
+      ${vocab.length?`<div class="lesson-label" style="margin-top:14px">${t('vocab')}</div><div class="vocab-list">${vocab.map(v=>`<span class="vocab-chip">${esc(v.front)}</span>`).join('')}</div>`:''}
+      ${l.key_points?`<div class="lesson-label" style="margin-top:14px">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div>`:''}</div>`;
+  }
+  let practice='';
+  if(!qs.length)practice=emptyHtml('📝',t('noLessonQ'),t('noLessonQSub'));
+  else if(S.graded){const g=GRADE,pct=g.total?Math.round(g.score/g.total*100):0;
+    practice=`<div class="score-banner ${pct>=80?'win':''}"><div class="big">${g.score}/${g.total}</div>
+      <div><div style="font-weight:600;font-size:16px">${pct>=80?t('great'):t('done')}</div><div style="color:var(--muted);font-size:14px">${pct}% ${t('acc')}</div></div></div>`+
+      qs.map((q,i)=>qHtmlGraded(q,i)).join('')+
+      `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn" data-act="retry">${t('retry')}</button><button class="btn btn-primary" data-act="back">${t('finishBack')}</button></div>`;
+  }else{practice=`<div class="section-head" style="margin-top:24px"><h2 style="font-size:19px">${t('practice')}</h2><span class="sub">${qs.length} ${t('q')}</span></div>`+
+      qs.map((q,i)=>qHtml(q,i)).join('')+
+      `<button class="btn btn-accent" style="width:100%;padding:13px;font-size:15px" data-act="submit">${t('submit')}</button>`;}
+  $('#screen').innerHTML=head+textCard+practice;
+}
+function gradeAll(qs){let score=0;const answers={};
+  qs.forEach(q=>{let resp=null;
+    if(q.type==='choice'){const c=document.querySelector('input[name="q-'+q.id+'"]:checked');resp=c?Number(c.value):null;}
+    else if(q.type==='fill'){const inp=document.getElementById('fill-'+q.id);resp=inp?inp.value:'';}
+    else if(q.type==='order'){const sh=SHUF[q.id]||[];resp=(responses[q.id]||[]).map(i=>sh[i]);}
+    else if(q.type==='match'){resp=$$('select[data-q="'+q.id+'"]').map(s=>s.value);}
+    answers[q.id]=resp;if(isCorrect(q,resp))score++;});
+  return{score,total:qs.length,answers};}
+
+/* ============ handlers ============ */
+const H={};
+H.setLang=(id)=>{S.lang=id;localStorage.setItem('hyc_lang',id);document.documentElement.lang=(id==='en'?'en':id==='vi'?'vi':'zh-Hant');
+  if(S.me){applyChrome();if($('#screen').dataset.mode==='practice')renderPractice();else renderSection();}else renderGate();};
+H.toggleMenu=()=>{$('#menu').classList.toggle('hide');};
+H.toggleDark=()=>{S.theme=S.theme==='dark'?'light':'dark';localStorage.setItem('hyc_theme',S.theme);applyTheme();$('#menu').innerHTML=menuHTML();};
+H.setFs=(id)=>{S.fs=id;localStorage.setItem('hyc_fs',id);applyTheme();$('#menu').innerHTML=menuHTML();};
+H.authTab=(id)=>{S.authTab=id;renderGate();};
+H.logout=()=>{sessionStorage.removeItem('student_id');location.reload();};
+H.section=(id)=>{S.section=id;S.practiceSet=null;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
+
+H.doLogin=async()=>{const u=$('#li-user').value.trim(),p=$('#li-pw').value;
+  if(!u||!p){$('#g-err').textContent=t('errFill');return;}
+  try{const ss=await DB.list('students');const me=ss.find(s=>(s.username||'').toLowerCase()===u.toLowerCase()&&(s.password||'')===p);
+    if(!me){$('#g-err').textContent=t('errLogin');return;}enter(me);}catch(e){$('#g-err').textContent=e.message;}};
+H.doReg=async()=>{const name=$('#rg-name').value.trim(),u=$('#rg-user').value.trim(),p=$('#rg-pw').value;
+  if(!name||!u||!p){$('#g-err').textContent=t('errFill');return;}
+  try{const ss=await DB.list('students');
+    if(ss.some(s=>(s.username||'').toLowerCase()===u.toLowerCase())){$('#g-err').textContent=t('errDup');return;}
+    const me=await DB.insert('students',{name,username:u,password:p,email:$('#rg-email').value.trim(),nationality:$('#rg-nat').value,class_type:'1對1'});
+    toast(t('regOk'));enter(me);}catch(e){$('#g-err').textContent=e.message;}};
+H.doReset=async()=>{const u=$('#rs-user').value.trim();if(!u){$('#g-err').textContent=t('errFill');return;}
+  try{const ss=await DB.list('students');const me=ss.find(s=>(s.username||'').toLowerCase()===u.toLowerCase());
+    if(!me){$('#g-err').textContent=t('errNoUser');return;}
+    await DB.update('students',me.id,{reset_requested:now()});toast(t('resetOk'));S.authTab='login';renderGate();}catch(e){$('#g-err').textContent=e.message;}};
+
+H.openLesson=(id)=>{const l=S.lessons.find(x=>x.id===id);S.practiceSet={mode:'lesson',lessonId:id,lesson:l,questions:questionsOf(id),title:(l.order_index?('L'+l.order_index+' · '):'')+l.title};
+  S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
+H.openWrong=()=>{S.practiceSet={mode:'wrong',lesson:null,questions:wrongQuestions(),title:'📒 '+t('wrongTitle')};
+  S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
+H.back=()=>{S.practiceSet=null;S.graded=false;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
+H.retry=()=>{S.graded=false;responses={};SHUF={};GRADE=null;window.scrollTo(0,0);renderPractice();};
+H.oradd=(_,b)=>{const qid=b.dataset.q;(responses[qid]||(responses[qid]=[])).push(Number(b.dataset.idx));document.getElementById('order-'+qid).innerHTML=orderInner(S.questions.find(q=>q.id===qid));};
+H.ordel=(_,b)=>{const qid=b.dataset.q;responses[qid].splice(Number(b.dataset.pos),1);document.getElementById('order-'+qid).innerHTML=orderInner(S.questions.find(q=>q.id===qid));};
+H.submit=async()=>{const set=S.practiceSet,qs=set.questions;GRADE=gradeAll(qs);S.graded=true;
+  try{
+    if(set.mode==='lesson'){await DB.upsertResult(set.lessonId,S.me.id,{answers:GRADE.answers,score:GRADE.score,total:qs.length,status:'done',completed_at:now()});}
+    else{const byL={};qs.forEach(q=>{(byL[q.lesson_id]=byL[q.lesson_id]||[]).push(q);});
+      for(const lid of Object.keys(byL)){const r=S.results.find(x=>x.lesson_id===lid);const answers=Object.assign({},(r&&r.answers)||{});
+        byL[lid].forEach(q=>{answers[q.id]=GRADE.answers[q.id];});
+        const lq=S.questions.filter(x=>x.lesson_id===lid);let sc=0;lq.forEach(q=>{if((q.id in answers)&&isCorrect(q,answers[q.id]))sc++;});
+        await DB.upsertResult(lid,S.me.id,{answers,score:sc,total:lq.length,status:'done',completed_at:now()});}}
+    S.results=(await DB.list('results')).filter(x=>x.student_id===S.me.id);
+  }catch(e){toast(e.message);}
+  window.scrollTo(0,0);renderPractice();
+  toast(GRADE.score===GRADE.total?'🎉 '+t('great'):t('done'));};
+H.flip=()=>{S.flashFlip=!S.flashFlip;renderCards();};
+H.flprev=()=>{S.flashFlip=false;const n=[];myLessons().forEach(l=>parseVocab(l.vocabulary).forEach(v=>n.push(v)));if(!n.length)return;S.flashIdx=(S.flashIdx-1+n.length)%n.length;renderCards();};
+H.flnext=()=>{S.flashFlip=false;const n=[];myLessons().forEach(l=>parseVocab(l.vocabulary).forEach(v=>n.push(v)));if(!n.length)return;S.flashIdx=(S.flashIdx+1)%n.length;renderCards();};
+
+document.addEventListener('click',(e)=>{
+  if(!e.target.closest('.settings-wrap')){const m=$('#menu');if(m)m.classList.add('hide');}
+  const b=e.target.closest('[data-act]');if(!b)return;const fn=H[b.dataset.act];if(fn){e.preventDefault();fn(b.dataset.id,b);}});
+
+/* ============ 啟動 ============ */
+async function enter(me){S.me=me;sessionStorage.setItem('student_id',me.id);
+  $('#gate').classList.add('hide');$('#app').classList.remove('hide');
+  applyChrome();
+  try{await loadMine();S.section='work';renderSection();}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}}
+
+applyTheme();
+renderGate();
+(async()=>{const sid=sessionStorage.getItem('student_id');if(sid){try{const ss=await DB.list('students');const me=ss.find(s=>s.id===sid);if(me)enter(me);}catch(e){}}})();
+</script>
+</body>
+</html>
