@@ -16,9 +16,11 @@
       <div class="brand-badge">師</div>
       <h1>教師管理後台</h1>
       <p class="sub" id="gate-sub">華語線上作業簿</p>
-      <div class="field"><label>管理密碼</label><input id="gate-pw" type="password" placeholder="請輸入密碼" autocomplete="current-password"></div>
+      <div class="field hide" id="f-email-wrap"><label>教師 Email</label><input id="gate-email" type="email" placeholder="you@example.com" autocomplete="username"></div>
+      <div class="field"><label>密碼</label><input id="gate-pw" type="password" placeholder="請輸入密碼" autocomplete="current-password"></div>
       <div class="err" id="gate-err"></div>
       <button class="btn btn-primary" style="width:100%" id="gate-btn">登入</button>
+      <button class="btn btn-ghost hide" style="width:100%;margin-top:8px;font-size:13px" id="gate-forgot">忘記密碼？寄送重設信</button>
       <p class="sub" style="margin:18px 0 0;font-size:12px">學生請改用「學生頁面」(student.html)</p>
     </div>
   </div>
@@ -66,6 +68,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="db.js"></script>
@@ -255,7 +258,7 @@ function renderGrades(){
 /* ---------- 動作 ---------- */
 const H={};
 H.tab=(id)=>{S.tab=id;render();};
-H.logout=()=>{sessionStorage.removeItem('teacher_ok');location.reload();};
+H.logout=()=>{try{if(window.firebase&&firebase.auth&&firebase.apps&&firebase.apps.length)firebase.auth().signOut();}catch(e){}sessionStorage.removeItem('teacher_ok');location.reload();};
 H.closeModal=closeModal;
 H.genCode=()=>{$('#f-code').value=genCodeStr();};
 
@@ -309,14 +312,39 @@ document.addEventListener('click',(e)=>{
   const fn=H[b.dataset.act];if(fn){e.preventDefault();fn(b.dataset.id,b);}
 });
 
+const useAuth=!!(window.firebase&&firebase.auth&&window.FIREBASE_CONFIG&&window.FIREBASE_CONFIG.apiKey);
+const TEACHER_EMAIL=(window.TEACHER_EMAIL||'').toLowerCase();
+function authErr(e){const c=(e&&e.code)||'';
+  if(c.indexOf('wrong-password')>=0||c.indexOf('invalid-credential')>=0)return '密碼不正確';
+  if(c.indexOf('user-not-found')>=0)return '查無此帳號';
+  if(c.indexOf('invalid-email')>=0)return 'Email 格式不正確';
+  if(c.indexOf('too-many-requests')>=0)return '嘗試太多次，請稍後再試';
+  return (e&&e.message)||'登入失敗';}
 function boot(){$('#app-name').textContent=window.APP_NAME||'華語線上作業簿';$('#gate-sub').textContent=window.APP_NAME||'華語線上作業簿';
-  const tag=$('#mode-tag');if(DB.mode!=='local'){tag.textContent='● 雲端同步';tag.classList.remove('demo');}else{tag.textContent='● 示範模式（本機）';tag.classList.add('demo');}}
+  const tag=$('#mode-tag');if(DB.mode!=='local'){tag.textContent='● 雲端同步';tag.classList.remove('demo');}else{tag.textContent='● 示範模式（本機）';tag.classList.add('demo');}
+  if(useAuth){$('#f-email-wrap').classList.remove('hide');$('#gate-forgot').classList.remove('hide');if(window.TEACHER_EMAIL)$('#gate-email').value=window.TEACHER_EMAIL;}}
 async function enter(){$('#gate').classList.add('hide');$('#app').classList.remove('hide');try{await loadAll();render();}catch(e){toast('讀取失敗：'+e.message);}}
-function tryLogin(){const pw=$('#gate-pw').value;if(pw&&pw===(window.TEACHER_PASSWORD||'')){sessionStorage.setItem('teacher_ok','1');enter();}else{$('#gate-err').textContent='密碼不正確';}}
+async function tryLogin(){
+  if(useAuth){const email=$('#gate-email').value.trim(),pw=$('#gate-pw').value;
+    if(!email||!pw){$('#gate-err').textContent='請輸入 Email 與密碼';return;}
+    $('#gate-err').textContent='登入中…';
+    try{const cred=await firebase.auth().signInWithEmailAndPassword(email,pw);
+      if((cred.user.email||'').toLowerCase()!==TEACHER_EMAIL){await firebase.auth().signOut();$('#gate-err').textContent='此帳號沒有教師權限';return;}
+      $('#gate-err').textContent='';
+    }catch(e){$('#gate-err').textContent=authErr(e);}
+  }else{const pw=$('#gate-pw').value;if(pw&&pw===(window.TEACHER_PASSWORD||'')){sessionStorage.setItem('teacher_ok','1');enter();}else{$('#gate-err').textContent='密碼不正確';}}
+}
+async function forgot(){const email=$('#gate-email').value.trim()||window.TEACHER_EMAIL||'';
+  if(!email){$('#gate-err').textContent='請先輸入 Email';return;}
+  try{await firebase.auth().sendPasswordResetEmail(email);toast('已寄出重設密碼信，請到信箱收信（含垃圾信匣）');$('#gate-err').textContent='';}
+  catch(e){$('#gate-err').textContent=authErr(e);}}
 $('#gate-btn').addEventListener('click',tryLogin);
+$('#gate-forgot').addEventListener('click',forgot);
 $('#gate-pw').addEventListener('keydown',e=>{if(e.key==='Enter')tryLogin();});
 $('#stu-search').addEventListener('input',e=>{S.q=e.target.value.trim();renderStudents();});
-boot();if(sessionStorage.getItem('teacher_ok')==='1')enter();
+boot();
+if(useAuth){firebase.auth().onAuthStateChanged(function(user){if(user&&(user.email||'').toLowerCase()===TEACHER_EMAIL){if($('#app').classList.contains('hide'))enter();}});}
+else{if(sessionStorage.getItem('teacher_ok')==='1')enter();}
 </script>
 </body>
 </html>

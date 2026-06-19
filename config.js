@@ -25,7 +25,10 @@ window.FIREBASE_CONFIG = {
 window.SUPABASE_URL      = "";
 window.SUPABASE_ANON_KEY = "";
 
-/* 教師管理頁的登入密碼 —— 請務必改成你自己的密碼 */
+/* 教師帳號 Email —— 用 Firebase 帳號登入時的授權信箱（也用來收找回密碼信） */
+window.TEACHER_EMAIL = "qnachinese@gmail.com";
+
+/* 教師管理頁登入密碼 —— 僅在「示範模式（未接 Firebase）」時使用 */
 window.TEACHER_PASSWORD = "teacher2026";
 
 /* 平台名稱（會顯示在每一頁的頁首） */
