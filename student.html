@@ -36,6 +36,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
 <script src="config.js"></script>
 <script src="db.js"></script>
 <script>
@@ -75,7 +76,13 @@ function audioHtml(url){if(!url)return'';
   return `<div class="audio-wrap"><audio controls src="${esc(url)}"></audio></div>`;}
 function parseVocab(text){return (text||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const p=l.split('=').map(s=>s.trim());return {front:p[0],back:p.slice(1).filter(Boolean).join(' · ')};});}
 
-function gradeFill(q,resp){const norm=s=>(s||'').trim().toLowerCase().replace(/\s+/g,'');const r=norm(resp);return r!==''&&(q.answer||[]).map(norm).includes(r);}
+/* ---- 繁簡自動轉換（OpenCC）：簡中→簡體、繁中→繁體；其他語言不轉 ---- */
+let CONV={cn:null,zh:null};
+function initConv(){if(window.OpenCC&&OpenCC.Converter){try{CONV.cn=OpenCC.Converter({from:'tw',to:'cn'});CONV.zh=OpenCC.Converter({from:'cn',to:'tw'});}catch(e){}}}
+function convEl(root){const conv=CONV[S.lang];if(!conv||!root)return;const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);const arr=[];let n;while(n=w.nextNode())arr.push(n);for(const node of arr){const v=node.nodeValue;if(v&&/[㐀-鿿]/.test(v)){const c=conv(v);if(c!==v)node.nodeValue=c;}}}
+function convScreen(){convEl(document.getElementById('screen'));}
+
+function gradeFill(q,resp){const t2s=s=>{try{return CONV.cn?CONV.cn(s):s;}catch(e){return s;}};const norm=s=>t2s((s||'').trim().toLowerCase().replace(/\s+/g,''));const r=norm(resp);return r!==''&&(q.answer||[]).map(norm).includes(r);}
 function isCorrect(q,resp){
   if(q.type==='choice')return resp!=null&&Number(resp)===Number(q.answer);
   if(q.type==='fill')return gradeFill(q,resp);
@@ -164,6 +171,7 @@ function renderNav(){
 function renderSection(){
   renderNav();
   ({work:renderWork,content:renderContent,cards:renderCards,grades:renderGrades,wrong:renderWrong}[S.section])();
+  convScreen();
 }
 
 function renderWork(){
@@ -284,6 +292,7 @@ function renderPractice(){
       qs.map((q,i)=>qHtml(q,i)).join('')+
       `<button class="btn btn-accent" style="width:100%;padding:13px;font-size:15px" data-act="submit">${t('submit')}</button>`;}
   $('#screen').innerHTML=head+textCard+practice;
+  convScreen();
 }
 function gradeAll(qs){let score=0;const answers={};
   qs.forEach(q=>{let resp=null;
@@ -326,8 +335,8 @@ H.openWrong=()=>{S.practiceSet={mode:'wrong',lesson:null,questions:wrongQuestion
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
 H.back=()=>{S.practiceSet=null;S.graded=false;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
 H.retry=()=>{S.graded=false;responses={};SHUF={};GRADE=null;window.scrollTo(0,0);renderPractice();};
-H.oradd=(_,b)=>{const qid=b.dataset.q;(responses[qid]||(responses[qid]=[])).push(Number(b.dataset.idx));document.getElementById('order-'+qid).innerHTML=orderInner(S.questions.find(q=>q.id===qid));};
-H.ordel=(_,b)=>{const qid=b.dataset.q;responses[qid].splice(Number(b.dataset.pos),1);document.getElementById('order-'+qid).innerHTML=orderInner(S.questions.find(q=>q.id===qid));};
+H.oradd=(_,b)=>{const qid=b.dataset.q;(responses[qid]||(responses[qid]=[])).push(Number(b.dataset.idx));const el=document.getElementById('order-'+qid);el.innerHTML=orderInner(S.questions.find(q=>q.id===qid));convEl(el);};
+H.ordel=(_,b)=>{const qid=b.dataset.q;responses[qid].splice(Number(b.dataset.pos),1);const el=document.getElementById('order-'+qid);el.innerHTML=orderInner(S.questions.find(q=>q.id===qid));convEl(el);};
 H.submit=async()=>{const set=S.practiceSet,qs=set.questions;GRADE=gradeAll(qs);S.graded=true;
   try{
     if(set.mode==='lesson'){await DB.upsertResult(set.lessonId,S.me.id,{answers:GRADE.answers,score:GRADE.score,total:qs.length,status:'done',completed_at:now()});}
@@ -354,6 +363,7 @@ async function enter(me){S.me=me;sessionStorage.setItem('student_id',me.id);
   applyChrome();
   try{await loadMine();S.section='work';renderSection();}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}}
 
+initConv();
 applyTheme();
 renderGate();
 (async()=>{const sid=sessionStorage.getItem('student_id');if(sid){try{const ss=await DB.list('students');const me=ss.find(s=>s.id===sid);if(me)enter(me);}catch(e){}}})();
