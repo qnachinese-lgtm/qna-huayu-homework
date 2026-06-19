@@ -49,7 +49,7 @@ const I18N={
 };
 const LANGS=[['zh','繁中'],['cn','简中'],['en','EN'],['vi','VI']];
 const NATKEYS=['nat0','natTW','natCN','natHK','natVN','natJP','natKR','natUS','natOther'];
-const TYPE_LABELS={choice:'單選',fill:'填空',order:'重組',match:'配對'};
+const TYPE_LABELS={choice:'單選',fill:'填空',order:'重組',match:'配對',write:'手寫'};
 
 /* ============ helpers ============ */
 const $=(s,r=document)=>r.querySelector(s);
@@ -86,6 +86,22 @@ function initConv(){if(window.OpenCC&&OpenCC.Converter){try{CONV.cn=OpenCC.Conve
 function convEl(root){const conv=CONV[S.lang];if(!conv||!root)return;const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);const arr=[];let n;while(n=w.nextNode())arr.push(n);for(const node of arr){const v=node.nodeValue;if(v&&/[㐀-鿿]/.test(v)){const c=conv(v);if(c!==v)node.nodeValue=c;}}}
 function convScreen(){convEl(document.getElementById('screen'));}
 
+/* ---- 手寫題：畫布作答 ---- */
+const HW={zh:{clear:'清除',hint:'用滑鼠／手指／觸控筆書寫',pending:'已送出，等老師批改',pendingNote:'題手寫待老師批改'},en:{clear:'Clear',hint:'Write with mouse / finger / stylus',pending:'Submitted — waiting for teacher',pendingNote:'handwriting question(s) pending review'},vi:{clear:'Xoá',hint:'Viết bằng chuột / ngón tay / bút',pending:'Đã nộp — chờ giáo viên chấm',pendingNote:'câu viết tay chờ chấm'}};
+function th(k){if(S.lang==='cn'&&CONV.cn)return CONV.cn(HW.zh[k]);return (HW[S.lang]&&HW[S.lang][k])||HW.zh[k];}
+function setupCanvas(cv){
+  const ctx=cv.getContext('2d');ctx.lineWidth=9;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#16110c';
+  let drawing=false,last=null;
+  const pos=e=>{const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*(cv.width/r.width),y:(e.clientY-r.top)*(cv.height/r.height)};};
+  cv.addEventListener('pointerdown',e=>{drawing=true;last=pos(e);try{cv.setPointerCapture(e.pointerId);}catch(_){}e.preventDefault();});
+  cv.addEventListener('pointermove',e=>{if(!drawing)return;const p=pos(e);ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();last=p;cv.dataset.drawn='1';e.preventDefault();});
+  cv.addEventListener('pointerup',()=>{drawing=false;});
+  cv.addEventListener('pointercancel',()=>{drawing=false;});
+  cv.addEventListener('pointerleave',()=>{drawing=false;});
+}
+function setupCanvases(){document.querySelectorAll('.hw-canvas').forEach(cv=>{if(!cv.dataset.ready){cv.dataset.ready='1';setupCanvas(cv);}});}
+function canvasDataURL(cv){if(!cv||cv.dataset.drawn!=='1')return null;const W=420,H=Math.round(W*cv.height/cv.width);const o=document.createElement('canvas');o.width=W;o.height=H;const c=o.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,W,H);c.drawImage(cv,0,0,W,H);return o.toDataURL('image/png');}
+
 function gradeFill(q,resp){const t2s=s=>{try{return CONV.cn?CONV.cn(s):s;}catch(e){return s;}};const norm=s=>t2s((s||'').trim().toLowerCase().replace(/\s+/g,''));const r=norm(resp);return r!==''&&(q.answer||[]).map(norm).includes(r);}
 function isCorrect(q,resp){
   if(q.type==='choice')return resp!=null&&Number(resp)===Number(q.answer);
@@ -103,7 +119,7 @@ const myLessons=()=>S.lessons.filter(l=>(l.assigned_ids||[]).includes(S.me.id)).
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const resultOf=(lid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===S.me.id);
 function wrongQuestions(){const out=[],seen=new Set();
-  S.results.forEach(r=>{const ans=r.answers||{};Object.keys(ans).forEach(qid=>{if(seen.has(qid))return;const q=S.questions.find(x=>x.id===qid);if(q&&!isCorrect(q,ans[qid])){out.push(q);seen.add(qid);}});});
+  S.results.forEach(r=>{const ans=r.answers||{};Object.keys(ans).forEach(qid=>{if(seen.has(qid))return;const q=S.questions.find(x=>x.id===qid);if(q&&q.type!=='write'&&!isCorrect(q,ans[qid])){out.push(q);seen.add(qid);}});});
   return out;}
 async function loadMine(){const [l,q,r]=await Promise.all([DB.list('lessons'),DB.list('questions'),DB.list('results')]);
   S.lessons=l;S.questions=q;S.results=r.filter(x=>x.student_id===S.me.id);}
@@ -253,6 +269,7 @@ function qHtml(q,idx){
     if(p.includes('___')){showPrompt=false;body=`<div class="q-prompt">${p.replace('___',`<input class="blank-inp" id="fill-${q.id}" type="text" autocomplete="off">`)}</div>`;}
     else body=`<input class="blank-inp" style="width:100%" id="fill-${q.id}" type="text" placeholder="${t('inputAns')}" autocomplete="off">`;}
   else if(q.type==='order'){body=`<div id="order-${q.id}">${orderInner(q)}</div>`;}
+  else if(q.type==='write'){body=`<div class="hw-wrap"><canvas id="hw-${q.id}" class="hw-canvas" width="600" height="240"></canvas><div class="hw-tools"><button class="btn btn-sm" type="button" data-act="hwclear" data-q="${q.id}">${th('clear')}</button><span class="hint">${th('hint')}</span></div></div>`;}
   else{const rights=shuffle((q.options||[]).map(p=>p.r),q.id+'r');
     body=(q.options||[]).map((p,i)=>`<div class="match-row"><span class="l">${esc(p.l)}</span><select data-q="${q.id}" data-i="${i}"><option value="">${t('sel')}</option>${rights.map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join('')}</select></div>`).join('');}
   return `<div class="q-card"><div class="q-head"><span class="q-num">${idx+1}</span>
@@ -266,10 +283,14 @@ function qHtmlGraded(q,idx){
     ct=t('ans')+'：'+esc((q.options||[])[Number(q.answer)]||'');}
   else if(q.type==='fill'){body=`<div class="q-prompt">${esc(resp||t('blank'))}</div>`;ct=t('ans')+'：'+esc((q.answer||[]).join(' / '));}
   else if(q.type==='order'){body='<div class="order-tray">'+((resp||[]).map(s=>`<span class="seg">${esc(s)}</span>`).join('')||`<span class="hint">${t('blank')}</span>`)+'</div>';ct=t('ans')+'：'+esc((q.options||[]).join(' '));}
+  else if(q.type==='write'){body=resp?`<img class="hw-img" src="${resp}" alt="">`:`<div class="hint">${t('blank')}</div>`;ct=(q.answer&&q.answer.length)?(t('ans')+'：'+esc(q.answer.join('')))  :'';}
   else{body=(q.options||[]).map((p,i)=>{const r=(resp||[])[i]||'';const good=r===p.r;return `<div class="match-row"><span class="l">${esc(p.l)}</span><span class="badge ${good?'badge-ok':'badge-overdue'}">${esc(r||'—')} ${good?'✓':'✗'}</span></div>`;}).join('');ct=t('ans')+'：'+(q.options||[]).map(p=>esc(p.l)+'→'+esc(p.r)).join('、');}
+  const fb=q.type==='write'
+    ? `<div class="q-feedback hw-pending">⏳ ${th('pending')}${ct?` <span class="ans">｜${ct}</span>`:''}</div>`
+    : `<div class="q-feedback ${ok?'ok':'no'}">${ok?'✓ '+t('correct'):'✗ '+t('wrong')} <span class="ans">｜${ct}</span></div>`;
   return `<div class="q-card"><div class="q-head"><span class="q-num">${idx+1}</span>
     <div style="flex:1"><span class="q-type-tag tag accent">${TYPE_LABELS[q.type]}</span><div class="q-prompt">${esc(q.prompt||'')}</div></div></div>${audioHtml(q.audio_url)}${body}
-    <div class="q-feedback ${ok?'ok':'no'}">${ok?'✓ '+t('correct'):'✗ '+t('wrong')} <span class="ans">｜${ct}</span></div>
+    ${fb}
     ${q.explanation?`<div class="q-explain">💡 ${esc(q.explanation)}</div>`:''}</div>`;
 }
 function renderPractice(){
@@ -289,7 +310,7 @@ function renderPractice(){
   if(!qs.length)practice=emptyHtml('📝',t('noLessonQ'),t('noLessonQSub'));
   else if(S.graded){const g=GRADE,pct=g.total?Math.round(g.score/g.total*100):0;
     practice=`<div class="score-banner ${pct>=80?'win':''}"><div class="big">${g.score}/${g.total}</div>
-      <div><div style="font-weight:600;font-size:16px">${pct>=80?t('great'):t('done')}</div><div style="color:var(--muted);font-size:14px">${pct}% ${t('acc')}</div></div></div>`+
+      <div><div style="font-weight:600;font-size:16px">${pct>=80?t('great'):t('done')}</div><div style="color:var(--muted);font-size:14px">${pct}% ${t('acc')}</div></div></div>${g.hasWrite?`<div class="notice" style="margin-bottom:14px">⏳ ${qs.filter(q=>q.type==='write').length} ${th('pendingNote')}</div>`:''}`+
       qs.map((q,i)=>qHtmlGraded(q,i)).join('')+
       `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn" data-act="retry">${t('retry')}</button><button class="btn btn-primary" data-act="back">${t('finishBack')}</button></div>`;
   }else{practice=`<div class="section-head" style="margin-top:24px"><h2 style="font-size:19px">${t('practice')}</h2><span class="sub">${qs.length} ${t('q')}</span></div>`+
@@ -297,15 +318,17 @@ function renderPractice(){
       `<button class="btn btn-accent" style="width:100%;padding:13px;font-size:15px" data-act="submit">${t('submit')}</button>`;}
   $('#screen').innerHTML=head+textCard+practice;
   convScreen();
+  if(!S.graded)setupCanvases();
 }
-function gradeAll(qs){let score=0;const answers={};
+function gradeAll(qs){let score=0;const answers={};let hasWrite=false;
   qs.forEach(q=>{let resp=null;
     if(q.type==='choice'){const c=document.querySelector('input[name="q-'+q.id+'"]:checked');resp=c?Number(c.value):null;}
     else if(q.type==='fill'){const inp=document.getElementById('fill-'+q.id);resp=inp?inp.value:'';}
     else if(q.type==='order'){const sh=SHUF[q.id]||[];resp=(responses[q.id]||[]).map(i=>sh[i]);}
     else if(q.type==='match'){resp=$$('select[data-q="'+q.id+'"]').map(s=>s.value);}
-    answers[q.id]=resp;if(isCorrect(q,resp))score++;});
-  return{score,total:qs.length,answers};}
+    else if(q.type==='write'){resp=canvasDataURL(document.getElementById('hw-'+q.id));hasWrite=true;}
+    answers[q.id]=resp;if(q.type!=='write'&&isCorrect(q,resp))score++;});
+  return{score,total:qs.length,answers,hasWrite};}
 
 /* ============ handlers ============ */
 const H={};
@@ -341,14 +364,15 @@ H.back=()=>{S.practiceSet=null;S.graded=false;$('#screen').dataset.mode='';windo
 H.retry=()=>{S.graded=false;responses={};SHUF={};GRADE=null;window.scrollTo(0,0);renderPractice();};
 H.oradd=(_,b)=>{const qid=b.dataset.q;(responses[qid]||(responses[qid]=[])).push(Number(b.dataset.idx));const el=document.getElementById('order-'+qid);el.innerHTML=orderInner(S.questions.find(q=>q.id===qid));convEl(el);};
 H.ordel=(_,b)=>{const qid=b.dataset.q;responses[qid].splice(Number(b.dataset.pos),1);const el=document.getElementById('order-'+qid);el.innerHTML=orderInner(S.questions.find(q=>q.id===qid));convEl(el);};
+H.hwclear=(_,b)=>{const cv=document.getElementById('hw-'+b.dataset.q);if(cv){cv.getContext('2d').clearRect(0,0,cv.width,cv.height);cv.dataset.drawn='';}};
 H.submit=async()=>{const set=S.practiceSet,qs=set.questions;GRADE=gradeAll(qs);S.graded=true;
   try{
-    if(set.mode==='lesson'){await DB.upsertResult(set.lessonId,S.me.id,{answers:GRADE.answers,score:GRADE.score,total:qs.length,status:'done',completed_at:now()});}
+    if(set.mode==='lesson'){await DB.upsertResult(set.lessonId,S.me.id,{answers:GRADE.answers,score:GRADE.score,auto:GRADE.score,total:qs.length,status:GRADE.hasWrite?'pending':'done',manual:{},completed_at:now()});}
     else{const byL={};qs.forEach(q=>{(byL[q.lesson_id]=byL[q.lesson_id]||[]).push(q);});
-      for(const lid of Object.keys(byL)){const r=S.results.find(x=>x.lesson_id===lid);const answers=Object.assign({},(r&&r.answers)||{});
+      for(const lid of Object.keys(byL)){const r=S.results.find(x=>x.lesson_id===lid);const answers=Object.assign({},(r&&r.answers)||{});const manual=(r&&r.manual)||{};
         byL[lid].forEach(q=>{answers[q.id]=GRADE.answers[q.id];});
-        const lq=S.questions.filter(x=>x.lesson_id===lid);let sc=0;lq.forEach(q=>{if((q.id in answers)&&isCorrect(q,answers[q.id]))sc++;});
-        await DB.upsertResult(lid,S.me.id,{answers,score:sc,total:lq.length,status:'done',completed_at:now()});}}
+        const lq=S.questions.filter(x=>x.lesson_id===lid);let autoSc=0,manualSc=0,pend=false;lq.forEach(q=>{if(q.type==='write'){if(manual[q.id]==='done')manualSc++;if(!manual[q.id])pend=true;}else if((q.id in answers)&&isCorrect(q,answers[q.id]))autoSc++;});
+        await DB.upsertResult(lid,S.me.id,{answers,score:autoSc+manualSc,auto:autoSc,total:lq.length,status:pend?'pending':'done',completed_at:now()});}}
     S.results=(await DB.list('results')).filter(x=>x.student_id===S.me.id);
   }catch(e){toast(e.message);}
   window.scrollTo(0,0);renderPractice();
