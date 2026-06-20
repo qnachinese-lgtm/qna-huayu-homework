@@ -39,7 +39,7 @@
         <button class="tab" data-act="tab" data-id="dashboard">📊 總覽</button>
         <button class="tab" data-act="tab" data-id="students">學生名冊 <span class="count" id="c-students">0</span></button>
         <button class="tab" data-act="tab" data-id="lessons">課文練習 <span class="count" id="c-lessons">0</span></button>
-        <button class="tab" data-act="tab" data-id="grades">成績總覽</button>
+        <button class="tab" data-act="tab" data-id="grades">成績總覽 <span class="count alert hide" id="c-pending">0</span></button>
       </div>
 
       <section id="panel-dashboard" class="panel">
@@ -77,6 +77,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.js"></script>
 <script src="config.js"></script>
 <script src="db.js"></script>
 <script>
@@ -163,6 +164,7 @@ function render(){
   $$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.id===S.tab));
   $('#c-students').textContent=S.students.length;
   $('#c-lessons').textContent=S.lessons.length;
+  {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
   try{({dashboard:renderDashboard,students:renderStudents,lessons:renderLessons,grades:renderGrades}[S.tab])();}
@@ -200,7 +202,12 @@ function renderDashboard(){
     </div>`;}).join('');
   const lowSess=S.students.map(s=>({s,left:sessionsLeft(s)})).filter(x=>x.left!=null&&x.left<=1).sort((a,b)=>a.left-b.left);
   const sessHtml=lowSess.length?lowSess.map(({s,left})=>`<div class="dash-row"><span class="avatar sm" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</span><b>${esc(s.name)}</b><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'已用完':'剩 '+left+' 堂'}</span><span class="grow"></span><span class="muted">共 ${esc(String(s.sessions_total))} 堂 · 已上 ${sessionsUsed(s)} 堂</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有快用完堂數的學生 👍</div>`;
-  body.innerHTML=`<div class="card"><div class="lesson-label">💳 付款提醒</div>${payHtml}</div>
+  // 批改提醒（待批改的作答）
+  const pendList=(S.results||[]).filter(r=>r.status==='pending');
+  const pendByLesson={};pendList.forEach(r=>{pendByLesson[r.lesson_id]=(pendByLesson[r.lesson_id]||0)+1;});
+  const gradeHtml=pendList.length?Object.keys(pendByLesson).map(lid=>{const l=S.lessons.find(x=>x.id===lid)||{};return `<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）'))}</b><span class="grow"></span><span class="muted">${pendByLesson[lid]} 份</span><button class="btn btn-sm btn-accent" data-act="tab" data-id="grades">去批改</button></div>`;}).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的作業 👍</div>`;
+  body.innerHTML=`<div class="card"><div class="lesson-label">📥 批改提醒${pendList.length?'（'+pendList.length+'）':''}</div>${gradeHtml}</div>
+    <div class="card" style="margin-top:14px"><div class="lesson-label">💳 付款提醒</div>${payHtml}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">🎟️ 堂數提醒</div>${sessHtml}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">📈 學生進度</div>${progHtml}</div>`;
 }
@@ -272,6 +279,7 @@ function lessonCardHtml(l,i){try{
         <button class="btn btn-sm ${built?'':'btn-accent'}" data-act="toggleBuild" data-id="${l.id}">${built?'↩ 改回進行中':'✅ 標記完成'}</button>
         <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button>
         <button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題（${qn}）</button>
+        <button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button>
         <button class="btn btn-sm" data-act="assign" data-id="${l.id}">指派${an?`（${an}）`:''}</button>
         ${an?`<button class="btn btn-sm btn-warn" data-act="unassign" data-id="${l.id}">↩ 收回</button>`:''}
         <button class="btn btn-sm" data-act="dupLesson" data-id="${l.id}">📋 複製</button>
@@ -334,7 +342,23 @@ function openQuestionsModal(lid){
   openModal(`<div class="modal wide"><div class="modal-head"><h3>${esc(l.title)} · 練習題</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">${tools}${rowsHtml}</div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button>
+     <button class="btn" data-act="bulkImport" data-id="${lid}">⬆ 批次匯入</button>
      <button class="btn btn-primary" data-act="addQuestion" data-id="${lid}">＋ 新增題目</button></div></div>`);
+}
+function bulkImportModal(lid){const l=S.lessons.find(x=>x.id===lid)||{};const gps=l.grammar_points||[];
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>批次匯入題目</h3><button class="x" data-act="backToQuestions" data-id="${lid}">×</button></div>
+   <div class="modal-body">
+     <div class="field"><label>題型</label><select id="bi-type">
+       <option value="fill">填空（題幹=答案）</option><option value="qa">問答（題目=參考答案）</option><option value="note">示範（只顯示，不作答）</option></select></div>
+     <div class="field"><label>都歸到哪個語法點 <span class="hint">選填</span></label>
+       <select id="bi-gp"><option value="">（不指定／綜合練習）</option>${gps.map((g,i)=>`<option value="${i}">${esc('語法 '+(i+1)+'：'+(g.title||''))}</option>`).join('')}</select>
+       <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label style="margin:0;white-space:nowrap;font-weight:600">小節（選填）</label><input id="bi-sub" type="text" style="width:120px" placeholder="例：A、B"></div></div>
+     <div class="field"><label>內容 <span class="hint">一行一題。填空／問答用「=」分開：左邊題目、右邊答案；多個可接受答案用「/」分隔。示範整行顯示。</span></label>
+       <textarea id="bi-text" style="min-height:160px" placeholder="他＿＿不＿＿美國人？=是不是&#10;你叫什麼名字？=我叫…&#10;李明華是哪國人？=美國/美國人"></textarea></div>
+     <div class="hint" id="bi-status"></div>
+   </div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="backToQuestions" data-id="${lid}">取消</button>
+     <button class="btn btn-primary" data-act="doBulkImport" data-id="${lid}">匯入</button></div></div>`);
 }
 let QE_TYPE='choice';
 function qeFieldsHTML(type,q){q=q||{};const opt=q.options||[];
@@ -508,6 +532,13 @@ H.resetPw=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s.email)return t
 H.bookFilter=(id)=>{S.bookFilter=id;renderLessons();};
 H.toggleCard=(id)=>{if(S.openCards.has(id))S.openCards.delete(id);else S.openCards.add(id);renderLessons();};
 H.toggleBuild=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;const nv=l.build==='done'?'wip':'done';try{await DB.update('lessons',id,{build:nv});l.build=nv;renderLessons();toast(nv==='done'?'✅ 已標記「完成」':'🟡 已改回「進行中」');}catch(e){toast(writeErr('更新失敗',e));}};
+H.previewLesson=(id)=>{window.open('student.html?preview='+encodeURIComponent(id),'_blank');};
+H.dlgAutoPinyin=(i)=>{if(!window.pinyinPro){toast('拼音元件還在載入，請稍候再按一次');return;}
+  const ta=document.querySelector('.dlg-vocab-in[data-i="'+i+'"]');if(!ta)return;let n=0;
+  const out=ta.value.split('\n').map(line=>{const raw=line;if(!line.trim()||/[\[【]/.test(line))return raw;
+    let s=line.replace(/[（(][^（）()]*[）)]/,' ');let front;if(/[=＝]/.test(s))front=s.split(/[=＝]/)[0].trim();else{const m=s.search(/[：:\s]/);front=(m<0?s:s.slice(0,m)).trim();}
+    const han=(front||'').replace(/[^㐀-鿿]/g,'');if(!han)return raw;let py='';try{py=pinyinPro.pinyin(han,{toneType:'symbol'});}catch(e){return raw;}if(!py)return raw;n++;return raw.replace(/\s*$/,'')+'['+py+']';});
+  ta.value=out.join('\n');toast(n?('已為 '+n+' 個詞加上拼音（可再修改）'):'每行都已經有拼音了');};
 H.toggleAllCards=()=>{const ls=sortLessons(S.lessons);if(ls.some(l=>S.openCards.has(l.id)))S.openCards.clear();else ls.forEach(l=>S.openCards.add(l.id));renderLessons();};
 H.qExpandAll=(_,b)=>{const ds=[...document.querySelectorAll('.qe-secfold')];if(!ds.length)return;const anyClosed=ds.some(d=>!d.open);ds.forEach(d=>{d.open=anyClosed;});if(b)b.textContent=anyClosed?'▴ 全部收起':'▾ 全部展開';};
 H.autoOrderQuestions=async(lid)=>{const qs=sortQuestionsLogical(questionsOf(lid));
@@ -648,7 +679,9 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
     <input class="dlg-title-in" data-i="${i}" value="${esc(d.title||'')}" placeholder="標題，例：對話一／短文">
     ${DLG.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="dlgDel" data-id="${i}">刪除</button>`:''}</div>
     <label class="dlg-lbl">課文／對話</label><textarea class="dlg-content-in" data-i="${i}" style="min-height:100px" placeholder="貼上或輸入這段對話／課文…">${esc(d.content||'')}</textarea>
-    <label class="dlg-lbl">生詞 <span class="hint">每行一個。格式：<b>詞 (詞類)=英文翻譯</b>；要自訂拼音再加 <b>[拼音]</b>。例：喜歡 (Vst)=to like、的 (Ptc)=modification marker、媽媽 (N)=mom[māma]</span></label><textarea class="dlg-vocab-in" data-i="${i}" placeholder="喜歡 (Vst)=to like&#10;的 (Ptc)=modification marker&#10;媽媽 (N)=mom">${esc(d.vocabulary||'')}</textarea>
+    <label class="dlg-lbl">生詞 <span class="hint">每行一個。格式：<b>詞 (詞類)=英文翻譯</b>；要自訂拼音再加 <b>[拼音]</b>。例：喜歡 (Vst)=to like、的 (Ptc)=modification marker、媽媽 (N)=mom[māma]</span></label>
+    <div style="margin-bottom:6px"><button class="btn btn-sm" type="button" data-act="dlgAutoPinyin" data-id="${i}">✨ 自動加拼音</button> <span class="hint">幫沒有 [拼音] 的詞自動補上(可再改)</span></div>
+    <textarea class="dlg-vocab-in" data-i="${i}" placeholder="喜歡 (Vst)=to like&#10;的 (Ptc)=modification marker&#10;媽媽 (N)=mom">${esc(d.vocabulary||'')}</textarea>
     <label class="dlg-lbl">這段的課文音檔（上傳整段朗讀，會自動切成逐句） <span class="hint">學生上面會有「課文朗讀」播放器；「逐句跟讀」也會改播這個真人朗讀（不用機器音）。切完可逐句微調秒數。</span></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="dlg-audio-in" id="dlg-audio-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.audio_url||'')}" placeholder="上傳整段朗讀，或貼 mp3／YouTube 連結">
       <button class="btn" type="button" data-act="pickDlgAudio" data-id="${i}">⬆ 上傳並切逐句</button></div>
@@ -674,6 +707,16 @@ H.questions=(id)=>openQuestionsModal(id);
 H.addQuestion=(id)=>questionEditModal(id,null);
 H.editQuestion=(key)=>{const[lid,qid]=key.split('::');questionEditModal(lid,S.questions.find(q=>q.id===qid));};
 H.backToQuestions=(id)=>openQuestionsModal(id);
+H.bulkImport=(id)=>bulkImportModal(id);
+H.doBulkImport=async(lid)=>{const type=$('#bi-type').value;const gpv=$('#bi-gp')?$('#bi-gp').value:'';const sub=$('#bi-sub')?$('#bi-sub').value.trim():'';
+  const lines=$('#bi-text').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!lines.length)return toast('請貼上內容');
+  const st=$('#bi-status');if(st)st.textContent='匯入中…';const base=questionsOf(lid).length;
+  const objs=lines.map((ln,i)=>{let prompt=ln,answer=null,a='';
+    if(type!=='note'&&/[=＝]/.test(ln)){const p=ln.split(/[=＝]/);prompt=p[0].trim();a=p.slice(1).join('=').trim();}
+    if(type==='fill')answer=a?a.split(/[\/／]/).map(x=>x.trim()).filter(Boolean):null;else if(type==='qa')answer=a?[a]:null;
+    return {lesson_id:lid,type,prompt,options:[],answer,gp_index:(gpv===''?null:Number(gpv)),gp_sub:sub||null,input_mode:(type==='fill'?'type':null),audio_url:null,image_url:null,instruction:null,explanation:null,order_index:base+i};});
+  try{for(const o of objs)await DB.insert('questions',o);S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已匯入 '+objs.length+' 題');}
+  catch(e){if(st)st.textContent=writeErr('匯入失敗',e);}};
 H.delQuestion=async(key)=>{const[lid,qid]=key.split('::');if(!confirm('刪除這一題？'))return;try{await DB.remove('questions',qid);S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
 H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;const prompt=$('#qe-prompt').value.trim();
   let options=[],answer=null;
