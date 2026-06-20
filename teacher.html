@@ -87,6 +87,12 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');cl
 function fmtDate(d){if(!d)return'—';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0');}
 const CUR={TWD:['NT$','zh-TW'],VND:['₫','vi-VN'],USD:['US$','en-US']};
 function money(n,cur){if(n==null||n==='')return'—';const v=Number(n);if(isNaN(v))return n;const c=CUR[cur||'TWD']||CUR.TWD;return c[0]+v.toLocaleString(c[1]);}
+const DAYS=['週一','週二','週三','週四','週五','週六','週日'];
+function fmtSchedule(s){if(s&&Array.isArray(s.schedule)&&s.schedule.length){return s.schedule.map(r=>(DAYS[(r.d!=null?r.d:0)]||'')+' '+(r.s||'')+(r.e?'–'+r.e:'')).join('、');}return (s&&s.class_time)||'—';}
+function schedRowHTML(r){r=r||{};return `<div class="sched-row">
+  <select class="sched-d">${DAYS.map((d,i)=>`<option value="${i}"${r.d===i?' selected':''}>${d}</option>`).join('')}</select>
+  <input class="sched-s" type="time" value="${esc(r.s||'')}"><span class="sched-dash">–</span><input class="sched-e" type="time" value="${esc(r.e||'')}">
+  <button class="btn btn-sm btn-ghost sched-x" type="button" data-act="schedDel" aria-label="刪除時段">✕</button></div>`;}
 const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
 function avColor(s){let h=0;for(const c of (s||''))h=(h*31+c.charCodeAt(0))>>>0;return AV[h%AV.length];}
 function genCodeStr(){const c='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<4;i++)s+=c[Math.floor(Math.random()*c.length)];return s;}
@@ -168,7 +174,7 @@ function renderStudents(){
         <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap"><span class="tag accent">${esc(s.class_type||'1對1')}</span>${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}</div></div></div>
       <div class="actions"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
         <button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button></div></div>
-    <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(s.class_time||'—')}</b></span>
+    <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(fmtSchedule(s))}</b></span>
       <span>💰 學費：<b>${money(s.tuition,s.currency)}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span><span>✉️ Email：<b>${esc(s.email||'—')}</b></span></div>
     ${s.email?`<div class="meta" style="margin-top:8px;align-items:center">${s.reset_requested?'<span class="badge badge-soon">🔑 學生申請重設</span>':''}<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}">✉️ 寄重設密碼信</button></div>`:''}
     ${s.notes?`<div class="meta" style="margin-top:8px"><span>📝 ${esc(s.notes)}</span></div>`:''}</div>`).join('');
@@ -180,7 +186,9 @@ function studentModal(st){const e=!!st;st=st||{};
      <div class="field"><label>國籍</label><input id="f-nat" type="text" value="${esc(st.nationality||'')}" placeholder="例：美國"></div>
      <div class="field full"><label>使用教材</label><input id="f-book" type="text" value="${esc(st.textbook||'')}" placeholder="例：當代中文課程 1"></div>
      <div class="field"><label>班別</label><select id="f-type"><option ${st.class_type==='1對1'?'selected':''}>1對1</option><option ${st.class_type==='團班'?'selected':''}>團班</option></select></div>
-     <div class="field"><label>上課時間</label><input id="f-time" type="text" value="${esc(st.class_time||'')}" placeholder="例：每週二 19:00"></div>
+     <div class="field full"><label>上課時段 <span class="hint">一週可多個，依學生實際安排（例：週三 20:00–22:00、週五 15:00–17:00）</span></label>
+       <div id="sched-rows">${(Array.isArray(st.schedule)&&st.schedule.length?st.schedule:[{}]).map(r=>schedRowHTML(r)).join('')}</div>
+       <button class="btn btn-sm" type="button" data-act="schedAdd" style="margin-top:6px">＋ 新增時段</button></div>
      <div class="field"><label>付款日期</label><input id="f-pay" type="date" value="${esc(st.payment_date||'')}"></div>
      <div class="field"><label>學費</label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：800"></div>
      <div class="field"><label>幣別</label><select id="f-cur"><option value="TWD"${(st.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${st.currency==='VND'?' selected':''}>越南盾 ₫</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
@@ -338,13 +346,16 @@ H.genCode=()=>{$('#f-code').value=genCodeStr();};
 
 H.addStudent=()=>studentModal(null);
 H.editStudent=(id)=>studentModal(S.students.find(s=>s.id===id));
+H.schedAdd=()=>{const c=$('#sched-rows');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
+H.schedDel=(_,b)=>{const row=b.closest('.sched-row');if(!row)return;const c=row.parentElement;row.remove();if(c&&!c.querySelector('.sched-row'))c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
 H.delStudent=async(id)=>{const s=S.students.find(x=>x.id===id);if(!confirm(`確定刪除「${s.name}」？相關成績也會一併刪除。`))return;await DB.remove('students',id);await loadAll();render();toast('已刪除');};
 function authMsg(err){const c=((err&&err.code)||'')+'';if(c.indexOf('email-already-in-use')>=0)return '這個 Email 已經建立過帳號了';if(c.indexOf('invalid-email')>=0)return 'Email 格式不正確';if(c.indexOf('weak-password')>=0)return '密碼太弱，至少 6 碼';return (err&&err.message)||'發生錯誤';}
 async function createStudentAuth(email,password){
   const sec=firebase.apps.find(a=>a.name==='secondary')||firebase.initializeApp(window.FIREBASE_CONFIG,'secondary');
   const cred=await sec.auth().createUserWithEmailAndPassword(email,password);const u=cred.user.uid;await sec.auth().signOut();return u;}
 H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return toast('請輸入名字');
-  const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,class_time:$('#f-time').value.trim(),
+  const schedule=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);
+  const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),currency:$('#f-cur').value,notes:$('#f-notes').value.trim()};
   if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){toast('儲存失敗：'+err.message);}return;}
   const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
