@@ -93,6 +93,18 @@ function schedRowHTML(r){r=r||{};return `<div class="sched-row">
   <select class="sched-d">${DAYS.map((d,i)=>`<option value="${i}"${r.d===i?' selected':''}>${d}</option>`).join('')}</select>
   <input class="sched-s" type="time" value="${esc(r.s||'')}"><span class="sched-dash">–</span><input class="sched-e" type="time" value="${esc(r.e||'')}">
   <button class="btn btn-sm btn-ghost sched-x" type="button" data-act="schedDel" aria-label="刪除時段">✕</button></div>`;}
+function sessionsUsed(s){
+  if(!s||!Array.isArray(s.schedule)||!s.schedule.length)return 0;
+  const startStr=s.sessions_start||s.created_at;if(!startStr)return 0;
+  const start=new Date(startStr);if(isNaN(start))return 0;start.setHours(0,0,0,0);
+  const now=new Date();if(now<start)return 0;
+  let count=0,guard=0;const cur=new Date(start);
+  while(cur<=now&&guard++<4000){const dow=(cur.getDay()+6)%7;
+    s.schedule.forEach(r=>{const rd=(r.d!=null?r.d:0);if(rd===dow){const end=new Date(cur);if(r.e){const p=r.e.split(':');end.setHours(+p[0]||23,+p[1]||59,0,0);}else end.setHours(23,59,0,0);if(end<=now)count++;}});
+    cur.setDate(cur.getDate()+1);}
+  return count;}
+function sessionsLeft(s){if(!s||s.sessions_total==null||s.sessions_total==='')return null;const tot=Number(s.sessions_total);if(isNaN(tot))return null;return tot-sessionsUsed(s);}
+function sessChip(s){const left=sessionsLeft(s);if(left==null)return '';const cls=left<=0?'sess-out':(left<=1?'sess-low':'');return `<span>🎟️ 堂數：<b class="${cls}">剩 ${left}／共 ${esc(String(s.sessions_total))}</b>${left<=0?' <span class="badge badge-overdue">需續費</span>':''}</span>`;}
 const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
 function avColor(s){let h=0;for(const c of (s||''))h=(h*31+c.charCodeAt(0))>>>0;return AV[h%AV.length];}
 function genCodeStr(){const c='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<4;i++)s+=c[Math.floor(Math.random()*c.length)];return s;}
@@ -156,7 +168,10 @@ function renderDashboard(){
       <span class="muted">${p.total?`完成 ${p.done}/${p.total} 課${p.avg!=null?(' · 平均 '+p.avg+'%'):''}`:'尚未指派作業'}</span>
       <span class="progbar"><span style="width:${p.pct}%"></span></span>
     </div>`;}).join('');
+  const lowSess=S.students.map(s=>({s,left:sessionsLeft(s)})).filter(x=>x.left!=null&&x.left<=1).sort((a,b)=>a.left-b.left);
+  const sessHtml=lowSess.length?lowSess.map(({s,left})=>`<div class="dash-row"><span class="avatar sm" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</span><b>${esc(s.name)}</b><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'已用完':'剩 '+left+' 堂'}</span><span class="grow"></span><span class="muted">共 ${esc(String(s.sessions_total))} 堂 · 已上 ${sessionsUsed(s)} 堂</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有快用完堂數的學生 👍</div>`;
   body.innerHTML=`<div class="card"><div class="lesson-label">💳 付款提醒</div>${payHtml}</div>
+    <div class="card" style="margin-top:14px"><div class="lesson-label">🎟️ 堂數提醒</div>${sessHtml}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">📈 學生進度</div>${progHtml}</div>`;
 }
 
@@ -175,7 +190,7 @@ function renderStudents(){
       <div class="actions"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
         <button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button></div></div>
     <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(fmtSchedule(s))}</b></span>
-      <span>💰 學費：<b>${money(s.tuition,s.currency)}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span><span>✉️ Email：<b>${esc(s.email||'—')}</b></span></div>
+      <span>💰 學費：<b>${money(s.tuition,s.currency)}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span><span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}</div>
     ${s.email?`<div class="meta" style="margin-top:8px;align-items:center">${s.reset_requested?'<span class="badge badge-soon">🔑 學生申請重設</span>':''}<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}">✉️ 寄重設密碼信</button></div>`:''}
     ${s.notes?`<div class="meta" style="margin-top:8px"><span>📝 ${esc(s.notes)}</span></div>`:''}</div>`).join('');
 }
@@ -190,6 +205,8 @@ function studentModal(st){const e=!!st;st=st||{};
        <div id="sched-rows">${(Array.isArray(st.schedule)&&st.schedule.length?st.schedule:[{}]).map(r=>schedRowHTML(r)).join('')}</div>
        <button class="btn btn-sm" type="button" data-act="schedAdd" style="margin-top:6px">＋ 新增時段</button></div>
      <div class="field"><label>付款日期</label><input id="f-pay" type="date" value="${esc(st.payment_date||'')}"></div>
+     <div class="field"><label>堂數（總共） <span class="hint">本期購買的堂數</span></label><input id="f-sess" type="number" min="0" value="${st.sessions_total??''}" placeholder="例：10"></div>
+     <div class="field"><label>堂數起算日 <span class="hint">從這天起，依上課時段自動扣堂</span></label><input id="f-sess-start" type="date" value="${esc(st.sessions_start||'')}"></div>
      <div class="field"><label>學費</label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：800"></div>
      <div class="field"><label>幣別</label><select id="f-cur"><option value="TWD"${(st.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${st.currency==='VND'?' selected':''}>越南盾 ₫</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
      ${e
@@ -356,7 +373,8 @@ async function createStudentAuth(email,password){
 H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return toast('請輸入名字');
   const schedule=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
-    payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),currency:$('#f-cur').value,notes:$('#f-notes').value.trim()};
+    payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),currency:$('#f-cur').value,
+    sessions_total:$('#f-sess').value===''?null:Number($('#f-sess').value),sessions_start:$('#f-sess-start').value||null,notes:$('#f-notes').value.trim()};
   if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){toast('儲存失敗：'+err.message);}return;}
   const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
   if(!email||!pw)return toast('請填 Email 與初始密碼');if(pw.length<6)return toast('初始密碼至少 6 碼');
