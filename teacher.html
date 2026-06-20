@@ -247,7 +247,7 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
      <div class="field"><label>課名 *</label><input id="l-title" type="text" value="${esc(l.title||'')}" placeholder="例：第一課 歡迎你來臺灣／補充作業 6-20"></div></div>
      <div class="hint" style="margin:-2px 0 10px">只想出補充作業？課名填一下即可，下面課文／生字／重點全部留空，存好後在卡片點「練習題」出題。</div>
      <div class="field"><label>課文內容 <span class="hint">選填</span></label><textarea id="l-content" style="min-height:130px" placeholder="貼上或輸入課文…">${esc(l.content||'')}</textarea></div>
-     <div class="field"><label>生字 <span class="hint">每行一個</span></label><textarea id="l-vocab" placeholder="歡迎&#10;臺灣&#10;朋友">${esc(l.vocabulary||'')}</textarea></div>
+     <div class="field"><label>生字 <span class="hint">每行一個。加意思：詞=意思；自訂拼音：詞[拼音]，例 這[zhè／zhèi]</span></label><textarea id="l-vocab" placeholder="歡迎=welcome&#10;這[zhè／zhèi]=this&#10;臺灣">${esc(l.vocabulary||'')}</textarea></div>
      <div class="field"><label>語法 / 重點</label><textarea id="l-key" placeholder="例：「先…再…」的用法">${esc(l.key_points||'')}</textarea></div>
      <div class="field"><label>例句 <span class="hint">每行一句；學生可點來聽發音、看拼音／注音</span></label><textarea id="l-examples" placeholder="今天天氣很好。&#10;我喜歡喝茶。">${esc(l.examples||'')}</textarea></div>
      <div class="field full"><label>生字音檔（自動切割） <span class="hint">上傳一段「依序唸生字、字間有停頓」的錄音，系統會自動切成每字一段；可預覽調整再存。學生生字卡會播這個真人發音。</span></label>
@@ -460,7 +460,7 @@ H.pickAudio=(id)=>{const f=document.getElementById('file-'+id);if(f)f.click();};
 /* ===== 生字音檔自動切割 ===== */
 let VA_FILE=null,VA_LOUD=null,VA_SEGS=null,VA_URL=null,VA_START=0;
 function vaReset(){VA_FILE=null;VA_LOUD=null;VA_SEGS=null;VA_START=0;if(VA_URL){URL.revokeObjectURL(VA_URL);VA_URL=null;}}
-function vaWords(){return ($('#l-vocab')?$('#l-vocab').value:'').split('\n').map(s=>s.trim()).filter(Boolean);}
+function vaWords(){return ($('#l-vocab')?$('#l-vocab').value:'').split('\n').map(s=>s.replace(/[\[【][^\]】]*[\]】]/,'').split('=')[0].trim()).filter(Boolean);}
 function _loudness(buf){const d=buf.getChannelData(0),sr=buf.sampleRate,win=Math.max(1,Math.floor(sr*0.02)),loud=[];for(let i=0;i<d.length;i+=win){let s=0,n=0;for(let j=i;j<i+win&&j<d.length;j++){s+=d[j]*d[j];n++;}loud.push(Math.sqrt(s/(n||1)));}return {loud,winSec:win/sr,dur:buf.duration};}
 function _gate(L,thr,minSil,minDur,startSec){const loud=L.loud,w=L.winSec,segs=[];let start=-1,sil=0;const k0=Math.max(0,Math.floor((startSec||0)/w));for(let k=k0;k<loud.length;k++){if(loud[k]>thr){if(start<0)start=k*w;sil=0;}else{if(start>=0){sil+=w;if(sil>=minSil){const end=k*w-sil+w;if(end-start>=minDur)segs.push({s:+start.toFixed(2),e:+end.toFixed(2)});start=-1;sil=0;}}}}if(start>=0){const end=loud.length*w;if(end-start>=minDur)segs.push({s:+start.toFixed(2),e:+end.toFixed(2)});}return segs;}
 function _thr(L){const s=L.loud.slice().sort((a,b)=>a-b);const noise=s[Math.floor(s.length*0.15)]||0,peak=s[Math.floor(s.length*0.95)]||0.1;return Math.max(noise*3,(noise+peak)*0.18,0.006);}
