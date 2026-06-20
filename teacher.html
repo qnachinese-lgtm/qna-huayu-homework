@@ -375,6 +375,7 @@ function renderGrades(){
 }
 
 /* ---------- 動作 ---------- */
+function writeErr(prefix,err){const m=((err&&(err.code||err.message))||'')+'';return prefix+'：'+(/permission|insufficient|unauth/i.test(m)?'登入可能過期了，請按右上角「登出」再重新登入後再試':(m||'發生錯誤'));}
 const H={};
 H.tab=(id)=>{S.tab=id;render();};
 H.logout=()=>{try{if(window.firebase&&firebase.auth&&firebase.apps&&firebase.apps.length)firebase.auth().signOut();}catch(e){}sessionStorage.removeItem('teacher_ok');location.reload();};
@@ -385,7 +386,7 @@ H.addStudent=()=>studentModal(null);
 H.editStudent=(id)=>studentModal(S.students.find(s=>s.id===id));
 H.schedAdd=()=>{const c=$('#sched-rows');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));refreshFirstSlot();};
 H.schedDel=(_,b)=>{const row=b.closest('.sched-row');if(!row)return;const c=row.parentElement;row.remove();if(c&&!c.querySelector('.sched-row'))c.insertAdjacentHTML('beforeend',schedRowHTML({}));refreshFirstSlot();};
-H.delStudent=async(id)=>{const s=S.students.find(x=>x.id===id);if(!confirm(`確定刪除「${s.name}」？相關成績也會一併刪除。`))return;await DB.remove('students',id);await loadAll();render();toast('已刪除');};
+H.delStudent=async(id)=>{const s=S.students.find(x=>x.id===id);if(!confirm(`確定刪除「${s.name}」？相關成績也會一併刪除。`))return;try{await DB.remove('students',id);await loadAll();render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
 function authMsg(err){const c=((err&&err.code)||'')+'';if(c.indexOf('email-already-in-use')>=0)return '這個 Email 已經建立過帳號了';if(c.indexOf('invalid-email')>=0)return 'Email 格式不正確';if(c.indexOf('weak-password')>=0)return '密碼太弱，至少 6 碼';return (err&&err.message)||'發生錯誤';}
 async function createStudentAuth(email,password){
   const sec=firebase.apps.find(a=>a.name==='secondary')||firebase.initializeApp(window.FIREBASE_CONFIG,'secondary');
@@ -409,7 +410,7 @@ H.resetPw=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s.email)return t
 
 H.addLesson=()=>lessonModal(null);
 H.editLesson=(id)=>lessonModal(S.lessons.find(l=>l.id===id));
-H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!confirm(`確定刪除「${l.title}」？課文題目與成績都會一併刪除。`))return;await DB.remove('lessons',id);await loadAll();render();toast('已刪除');};
+H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!confirm(`確定刪除「${l.title}」？課文題目與成績都會一併刪除。`))return;try{await DB.remove('lessons',id);await loadAll();render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
 H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return toast('請輸入課名');
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   gpSync();const gps=GP.map(g=>({title:(g.title||'').trim(),blocks:(g.blocks||[]).map(b=>({label:(b.label||'').trim(),text:(b.text||'').trim(),ex:(b.ex||'').trim()})).filter(b=>b.label||b.text||b.ex)})).filter(g=>g.title||g.blocks.length);
@@ -502,7 +503,7 @@ H.questions=(id)=>openQuestionsModal(id);
 H.addQuestion=(id)=>questionEditModal(id,null);
 H.editQuestion=(key)=>{const[lid,qid]=key.split('::');questionEditModal(lid,S.questions.find(q=>q.id===qid));};
 H.backToQuestions=(id)=>openQuestionsModal(id);
-H.delQuestion=async(key)=>{const[lid,qid]=key.split('::');if(!confirm('刪除這一題？'))return;await DB.remove('questions',qid);S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已刪除');};
+H.delQuestion=async(key)=>{const[lid,qid]=key.split('::');if(!confirm('刪除這一題？'))return;try{await DB.remove('questions',qid);S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
 H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;const prompt=$('#qe-prompt').value.trim();
   let options=[],answer=null;
   if(type==='choice'){options=$('#qe-options').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個選項');
@@ -518,7 +519,7 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
   const obj={lesson_id:lid,type,prompt:prompt||(type==='order'?'請將下列詞語重組成正確的句子':type==='match'?'請將左右配對':''),
     options,answer,gp_index:(gpv===''?null:Number(gpv)),input_mode:(type==='fill'&&$('#qe-fillmode')?$('#qe-fillmode').value:null),audio_url:$('#qe-audio').value.trim()||null,explanation:$('#qe-explain').value.trim()||null};
   try{if(qid){await DB.update('questions',qid,obj);}else{obj.order_index=questionsOf(lid).length;await DB.insert('questions',obj);}
-    S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已儲存');}catch(err){toast('儲存失敗：'+err.message);}};
+    S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已儲存');}catch(err){toast(writeErr('儲存失敗',err));}};
 
 H.assign=(id)=>assignModal(S.lessons.find(l=>l.id===id));
 H.assignAll=()=>{const b=$$('#as-targets input');const all=b.every(x=>x.checked);b.forEach(x=>x.checked=!all);};
@@ -543,7 +544,7 @@ H.markWrite=async(key)=>{const[rid,qid,mark]=key.split('::');const r=S.results.f
   const l=S.lessons.find(x=>x.id===r.lesson_id);const manual=Object.assign({},r.manual||{});manual[qid]=mark;
   const qs=questionsOf(r.lesson_id);let pend=false;qs.forEach(q=>{if(manualQ(q)&&!manual[q.id])pend=true;});
   const sc=scoreOf(l,Object.assign({},r,{manual}));
-  try{await DB.update('results',rid,{manual,score:sc,status:pend?'pending':'done'});S.results=await DB.list('results');render();toast('已更新批改');}catch(e){toast('更新失敗：'+e.message);}};
+  try{await DB.update('results',rid,{manual,score:sc,status:pend?'pending':'done'});S.results=await DB.list('results');render();toast('已更新批改');}catch(e){toast(writeErr('更新失敗',e));}};
 H.pickAudio=(id)=>{const f=document.getElementById('file-'+id);if(f)f.click();};
 /* ===== 生字音檔自動切割 ===== */
 function vaReset(){}

@@ -26,6 +26,10 @@
     const snap = await fdb.collection(table).where(field, "==", val).get();
     const ps = []; snap.forEach(d => ps.push(d.ref.delete())); await Promise.all(ps);
   }
+  // 寫入前先把登入憑證刷新一次，避免 token 過期造成「Missing or insufficient permissions」
+  async function fbFresh() {
+    try { const u = window.firebase && firebase.auth && firebase.auth().currentUser; if (u) await u.getIdToken(true); } catch (e) {}
+  }
   const firebaseDB = {
     async list(table) {
       const snap = await fdb.collection(table).get();
@@ -38,21 +42,25 @@
         .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
     },
     async insert(table, obj) {
+      await fbFresh();
       const row = Object.assign({ created_at: stamp() }, obj);
       const ref = await fdb.collection(table).add(row);
       return Object.assign({ id: ref.id }, row);
     },
     async update(table, id, patch) {
+      await fbFresh();
       await fdb.collection(table).doc(id).update(patch);
       return Object.assign({ id }, patch);
     },
     async remove(table, id) {
+      await fbFresh();
       await fdb.collection(table).doc(id).delete();
       if (table === "lessons") { await fbDelWhere("questions", "lesson_id", id); await fbDelWhere("results", "lesson_id", id); }
       if (table === "students") { await fbDelWhere("results", "student_id", id); }
       return true;
     },
     async upsertResult(lesson_id, student_id, patch) {
+      await fbFresh();
       const q = (patch && patch.uid)
         ? fdb.collection("results").where("uid", "==", patch.uid)
         : fdb.collection("results").where("student_id", "==", student_id);
