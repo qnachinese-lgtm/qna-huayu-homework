@@ -404,12 +404,13 @@ H.addLesson=()=>lessonModal(null);
 H.editLesson=(id)=>lessonModal(S.lessons.find(l=>l.id===id));
 H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!confirm(`確定刪除「${l.title}」？課文題目與成績都會一併刪除。`))return;await DB.remove('lessons',id);await loadAll();render();toast('已刪除');};
 H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return toast('請輸入課名');
+  try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const obj={order_index:Number($('#l-order').value)||0,title,content:$('#l-content').value,vocabulary:$('#l-vocab').value,key_points:$('#l-key').value,examples:$('#l-examples').value,audio_url:$('#l-audio').value.trim()||null};
   const sbtn=document.querySelector('[data-act="saveLesson"]');
   if(VA_FILE&&VA_SEGS&&VA_SEGS.length){if(sbtn){sbtn.disabled=true;sbtn.textContent='上傳生字音檔…';}
     try{obj.vocab_audio_url=await uploadVocabAudio(VA_FILE);obj.vocab_segments=VA_SEGS;}
     catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('生字音檔上傳失敗：'+(err.message||err));}}
-  try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}toast('儲存失敗：'+err.message);}};
+  try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?'儲存失敗：登入已失效，請按右上角「登出」再重新登入後再試':('儲存失敗：'+m));}};
 
 H.questions=(id)=>openQuestionsModal(id);
 H.addQuestion=(id)=>questionEditModal(id,null);
