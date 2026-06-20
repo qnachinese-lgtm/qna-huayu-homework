@@ -296,7 +296,7 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
 function openQuestionsModal(lid){
   const l=S.lessons.find(x=>x.id===lid);if(!l)return;const qs=questionsOf(lid);
   const rows=qs.length?qs.map((q,i)=>`<div class="qe-row"><span class="q-num">${i+1}</span>
-     <div class="grow"><div class="qe-t"><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${q.audio_url?'<span class="tag gold">🔊 聽力</span>':''}${(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?`<span class="tag">📘 語法${q.gp_index+1}</span>`:''}${(q.type==='fill'&&q.input_mode==='write')?'<span class="tag">✍️ 手寫</span>':''}</div>
+     <div class="grow"><div class="qe-t"><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${q.audio_url?'<span class="tag gold">🔊 聽力</span>':''}${(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?`<span class="tag">📘 語法${q.gp_index+1}${q.gp_sub?(' '+esc(q.gp_sub)):''}</span>`:''}${(q.type==='fill'&&q.input_mode==='write')?'<span class="tag">✍️ 手寫</span>':''}</div>
      <div class="qe-p">${esc(q.prompt||'（無題目）')}</div></div>
      <button class="btn btn-sm" data-act="editQuestion" data-id="${lid}::${q.id}">編輯</button>
      <button class="btn btn-sm btn-danger" data-act="delQuestion" data-id="${lid}::${q.id}">刪除</button></div>`).join('')
@@ -331,6 +331,7 @@ function questionEditModal(lid,q){const e=!!q;q=q||{};QE_TYPE=q.type||'choice';
   const lsn=S.lessons.find(x=>x.id===lid)||{};const gps=lsn.grammar_points||[];
   const gpField=`<div class="field"><label>屬於哪個語法點 <span class="hint">選了之後，這題會出現在「上課內容」該語法卡下面，學生看完解釋就能練</span></label>
      <select id="qe-gp"><option value="">（不指定／放在綜合練習）</option>${gps.map((g,i)=>`<option value="${i}"${q.gp_index===i?' selected':''}>${esc('語法 '+(i+1)+'：'+(g.title||'（未命名）'))}</option>`).join('')}</select>
+     <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><label style="margin:0;white-space:nowrap;font-weight:600">小節（選填）</label><input id="qe-gpsub" type="text" style="flex:0 0 auto;width:120px" value="${esc(q.gp_sub||'')}" placeholder="例：A、B"><span class="hint">同一個語法點裡，標 A／B 就會把練習分成「A」「B」兩組顯示。</span></div>
      ${gps.length?'':'<div class="hint" style="margin-top:4px">這課還沒有語法點，先到「編輯課文」加語法點，題目才能對應。</div>'}</div>`;
   openModal(`<div class="modal wide"><div class="modal-head"><h3>${e?'編輯題目':'新增題目'}</h3><button class="x" data-act="backToQuestions" data-id="${lid}">×</button></div>
    <div class="modal-body">
@@ -554,8 +555,9 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
   else if(type==='speak'){if(!prompt)return toast('請輸入題目（例如：請朗讀課文第一段）');answer=null;options=[];}
   else{options=$('#qe-pairs').value.split('\n').map(s=>s.trim()).filter(Boolean).map(line=>{const i=line.indexOf('=');return i<0?null:{l:line.slice(0,i).trim(),r:line.slice(i+1).trim()};}).filter(p=>p&&p.l&&p.r);if(options.length<2)return toast('請至少輸入兩組配對');}
   const gpv=$('#qe-gp')?$('#qe-gp').value:'';
+  const gpsub=$('#qe-gpsub')?$('#qe-gpsub').value.trim():'';
   const obj={lesson_id:lid,type,prompt:prompt||(type==='order'?'請將下列詞語重組成正確的句子':type==='match'?'請將左右配對':''),
-    options,answer,gp_index:(gpv===''?null:Number(gpv)),input_mode:(type==='fill'&&$('#qe-fillmode')?$('#qe-fillmode').value:null),audio_url:$('#qe-audio').value.trim()||null,explanation:$('#qe-explain').value.trim()||null};
+    options,answer,gp_index:(gpv===''?null:Number(gpv)),gp_sub:gpsub||null,input_mode:(type==='fill'&&$('#qe-fillmode')?$('#qe-fillmode').value:null),audio_url:$('#qe-audio').value.trim()||null,explanation:$('#qe-explain').value.trim()||null};
   try{if(qid){await DB.update('questions',qid,obj);}else{obj.order_index=questionsOf(lid).length;await DB.insert('questions',obj);}
     S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已儲存');}catch(err){toast(writeErr('儲存失敗',err));}};
 

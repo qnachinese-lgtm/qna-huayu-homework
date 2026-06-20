@@ -233,7 +233,19 @@ function grammarPracticeHtml(l){
   }
   const cards=gps.map((g,gi)=>{
     const qs=qsAll.filter(q=>q.gp_index===gi);
-    const prac=qs.length?`<div class="pi-wrap">${qs.map((q,i)=>practiceItemHtml(q,i)).join('')}</div>`:'';
+    let prac='';
+    if(qs.length){
+      const subs=[...new Set(qs.map(q=>(q.gp_sub||'').trim()).filter(Boolean))].sort();
+      if(subs.length){
+        const noSub=qs.filter(q=>!(q.gp_sub||'').trim());
+        const groups=subs.map(s=>{const sq=qs.filter(q=>(q.gp_sub||'').trim()===s);
+          return `<div class="pi-sub"><div class="pi-sub-head">${esc(s)}</div><div class="pi-wrap">${sq.map((q,i)=>practiceItemHtml(q,i)).join('')}</div></div>`;});
+        if(noSub.length)groups.push(`<div class="pi-wrap">${noSub.map((q,i)=>practiceItemHtml(q,i)).join('')}</div>`);
+        prac=groups.join('');
+      }else{
+        prac=`<div class="pi-wrap">${qs.map((q,i)=>practiceItemHtml(q,i)).join('')}</div>`;
+      }
+    }
     return gpFold(g,gi,prac);
   }).join('');
   const untag=qsAll.filter(q=>q.gp_index==null);
@@ -466,6 +478,25 @@ function qHtmlGraded(q,idx){
     ${fb}
     ${q.explanation?`<div class="q-explain">💡 ${esc(q.explanation)}</div>`:''}</div>`;
 }
+function quizBodyHtml(qs,l){
+  const gps=(l&&l.grammar_points)||[];
+  let n=0;const one=q=>qHtml(q,n++);
+  if(!gps.length)return qs.map(one).join('');
+  let html='';
+  gps.forEach((g,gi)=>{
+    const gq=qs.filter(q=>q.gp_index===gi);
+    if(!gq.length)return;
+    html+=`<div class="quiz-gp-head"><span class="gp-tag">${t('grammar')} ${gi+1}</span>${g.title?'<span class="quiz-gp-title">'+esc(g.title)+'</span>':''}</div>`;
+    const subs=[...new Set(gq.map(q=>(q.gp_sub||'').trim()).filter(Boolean))].sort();
+    if(subs.length){
+      subs.forEach(s=>{html+=`<div class="quiz-sub-head">${esc(s)}</div>`+gq.filter(q=>(q.gp_sub||'').trim()===s).map(one).join('');});
+      const noSub=gq.filter(q=>!(q.gp_sub||'').trim());if(noSub.length)html+=noSub.map(one).join('');
+    }else{html+=gq.map(one).join('');}
+  });
+  const untag=qs.filter(q=>q.gp_index==null||!gps[q.gp_index]);
+  if(untag.length)html+=`<div class="quiz-gp-head"><span class="gp-tag">${t('practice')}</span></div>`+untag.map(one).join('');
+  return html;
+}
 function renderPractice(){
   const set=S.practiceSet,qs=set.questions,l=set.lesson;
   let head=`<button class="btn btn-sm btn-ghost" data-act="back">${t('back')}</button>
@@ -485,7 +516,7 @@ function renderPractice(){
       qs.map((q,i)=>qHtmlGraded(q,i)).join('')+
       `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn" data-act="retry">${t('retry')}</button><button class="btn btn-primary" data-act="back">${t('finishBack')}</button></div>`;
   }else{practice=`<div class="section-head" style="margin-top:24px"><h2 style="font-size:19px">${t('practice')}</h2><span class="sub">${qs.length} ${t('q')}</span></div>`+
-      qs.map((q,i)=>qHtml(q,i)).join('')+
+      quizBodyHtml(qs,l)+
       `<button class="btn btn-accent" style="width:100%;padding:13px;font-size:15px" data-act="submit">${t('submit')}</button>`;}
   $('#screen').innerHTML=head+textCard+practice;
   convScreen();
