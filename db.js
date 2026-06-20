@@ -32,6 +32,11 @@
       return snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
         .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
     },
+    async listWhere(table, field, val) {
+      const snap = await fdb.collection(table).where(field, "==", val).get();
+      return snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
+        .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+    },
     async insert(table, obj) {
       const row = Object.assign({ created_at: stamp() }, obj);
       const ref = await fdb.collection(table).add(row);
@@ -48,7 +53,10 @@
       return true;
     },
     async upsertResult(lesson_id, student_id, patch) {
-      const snap = await fdb.collection("results").where("student_id", "==", student_id).get();
+      const q = (patch && patch.uid)
+        ? fdb.collection("results").where("uid", "==", patch.uid)
+        : fdb.collection("results").where("student_id", "==", student_id);
+      const snap = await q.get();
       const found = snap.docs.find(d => d.data().lesson_id === lesson_id);
       if (found) { await found.ref.update(Object.assign({ updated_at: stamp() }, patch)); return Object.assign({ id: found.id }, found.data(), patch); }
       const row = Object.assign({ lesson_id, student_id, created_at: stamp(), updated_at: stamp() }, patch);
@@ -62,6 +70,7 @@
   if (!hasFirebase && hasSupabase) sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
   const supabaseDB = {
     async list(table) { const { data, error } = await sb.from(table).select("*").order("created_at", { ascending: true }); if (error) throw error; return data || []; },
+    async listWhere(table, field, val) { const { data, error } = await sb.from(table).select("*").eq(field, val).order("created_at", { ascending: true }); if (error) throw error; return data || []; },
     async insert(table, obj) { const { data, error } = await sb.from(table).insert(obj).select().single(); if (error) throw error; return data; },
     async update(table, id, patch) { const { data, error } = await sb.from(table).update(patch).eq("id", id).select().single(); if (error) throw error; return data; },
     async remove(table, id) { const { error } = await sb.from(table).delete().eq("id", id); if (error) throw error; return true; },
@@ -78,6 +87,7 @@
   const lsSet = (t, rows) => localStorage.setItem(LS + t, JSON.stringify(rows));
   const localDB = {
     async list(table) { return lsGet(table).slice().sort((a, b) => (a.created_at || "").localeCompare(b.created_at || "")); },
+    async listWhere(table, field, val) { return lsGet(table).filter(r => r[field] === val).sort((a, b) => (a.created_at || "").localeCompare(b.created_at || "")); },
     async insert(table, obj) { const rows = lsGet(table); const row = Object.assign({ id: uid(), created_at: stamp() }, obj); rows.push(row); lsSet(table, rows); return row; },
     async update(table, id, patch) { const rows = lsGet(table); const i = rows.findIndex(r => r.id === id); if (i < 0) return null; rows[i] = Object.assign({}, rows[i], patch); lsSet(table, rows); return rows[i]; },
     async remove(table, id) {
