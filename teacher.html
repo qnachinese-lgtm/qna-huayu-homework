@@ -134,11 +134,12 @@ function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
   if(diff<=3)return{cls:'badge-soon',label:diff+' 天後截止'};
   return{cls:'badge-pending',label:'截止 '+fmtDate(due)};}
 function emptyHtml(i,t,d){return `<div class="empty"><div class="big">${i}</div><b>${t}</b><div style="margin-top:6px">${d}</div></div>`;}
-const TYPE_LABELS={choice:'單選',fill:'填空',qa:'問答',order:'重組',match:'配對',write:'手寫',speak:'口說'};
+const TYPE_LABELS={choice:'單選',fill:'填空',qa:'問答',order:'重組',match:'配對',write:'手寫',speak:'口說',note:'示範'};
 
 const S={students:[],lessons:[],questions:[],results:[],tab:'dashboard',q:'',openCards:new Set()};
 const sortLessons=(a)=>a.slice().sort((x,y)=>((x.order_index||0)-(y.order_index||0))||((x.created_at||'').localeCompare(y.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
+const answerableOf=(lid)=>questionsOf(lid).filter(q=>q.type!=='note'); // 排除示範題（不計分）
 // 邏輯排序：先依語法點，再依小節(A→B→…，無小節排最後)，最後依原順序
 function qSecKey(q){return ((q.gp_index==null)?'none':q.gp_index)+'|'+((q.gp_sub||'').trim());}
 function sortQuestionsLogical(qs){return qs.slice().sort((a,b)=>{
@@ -172,9 +173,9 @@ function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
   if(diff===0)return{cls:'badge-soon',label:'今天到期',sort:0};
   if(diff<=7)return{cls:'badge-soon',label:diff+' 天後到期',sort:diff};
   return null;}
-function studentProgress(s){const assigned=S.lessons.filter(l=>(l.assigned_ids||[]).includes(s.id)&&questionsOf(l.id).length);
+function studentProgress(s){const assigned=S.lessons.filter(l=>(l.assigned_ids||[]).includes(s.id)&&answerableOf(l.id).length);
   let done=0,pct=0,scored=0,sumPct=0;
-  assigned.forEach(l=>{const r=resultOf(l.id,s.id);if(r){if(r.status==='done')done++;const tot=r.total||questionsOf(l.id).length;if(tot){sumPct+=Math.round(scoreOf(l,r)/tot*100);scored++;}}});
+  assigned.forEach(l=>{const r=resultOf(l.id,s.id);if(r){if(r.status==='done')done++;const tot=r.total||answerableOf(l.id).length;if(tot){sumPct+=Math.round(scoreOf(l,r)/tot*100);scored++;}}});
   pct=assigned.length?Math.round(done/assigned.length*100):0;
   return{total:assigned.length,done,pct,avg:scored?Math.round(sumPct/scored):null};}
 function renderDashboard(){
@@ -352,6 +353,7 @@ function qeFieldsHTML(type,q){q=q||{};const opt=q.options||[];
     return `<div class="hint" style="margin-bottom:8px">學生會看到上面的「題目」並在格子裡手寫漢字（例如題目寫「請寫出：謝謝（xièxie）」）。送出後你在「成績總覽」批改。</div>
       <div class="field"><label>參考答案 <span class="hint">選填，批改時顯示給你對照，例如「謝謝」</span></label><input id="qe-ref" type="text" value="${esc(ref)}"></div>`;}
   if(type==='speak'){return `<div class="hint" style="margin-bottom:8px">學生會看到上面的「題目」，按麥克風錄一段唸給你聽；送出後你在「成績總覽」播放並批改。可在下方「聽力音檔」放一段示範發音給學生跟讀（選填）。</div>`;}
+  if(type==='note'){return `<div class="hint" style="margin-bottom:8px">示範題：只給學生「看」課本提供的例句／說明，<b>不用作答、不計分</b>。把要顯示的內容打在上面的「題目」欄（可多行）；也可加照片或音檔。</div>`;}
   if(type==='qa'){const ref=Array.isArray(q.answer)?q.answer.join('\n'):'';
     return `<div class="hint" style="margin-bottom:8px">問答題：學生看到上面的「題目」，用打字寫出完整回答（可多行）。送出後你在「成績總覽」批改。</div>
       <div class="field"><label>參考答案 <span class="hint">選填，批改時顯示給你對照、作答後也給學生對照</span></label><textarea id="qe-ref" placeholder="例：他是美國人。">${esc(ref)}</textarea></div>`;}
@@ -422,7 +424,7 @@ function ansHtml(q,resp){
   if(q.type==='match')return `<div class="gd-text">${esc((q.options||[]).map((p,i)=>p.l+'→'+((resp||[])[i]||'？')).join('、'))}</div>`;
   return `<div class="gd-text">${esc(String(resp))}</div>`;}
 function gdRefText(q){if(q.type==='match')return (q.options||[]).map(p=>p.l+'→'+p.r).join('、');if(q.type==='order')return (q.options||[]).join(' ');if(q.type==='choice')return (q.options||[])[Number(q.answer)]||'';return (q.answer||[]).join(' / ');}
-function studentReviewHtml(l,s,r){const qs=questionsOf(l.id);const qn=qs.length;
+function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length;
   const perQ=qs.map((q,qi)=>{const resp=(r.answers||{})[q.id];const fb=(r.feedback||{})[q.id]||'';const man=manualQ(q);const mk=(r.manual||{})[q.id];
     const corr=man?(mk==='done'?true:(mk==='wrong'?false:null)):qCorrect(q,resp);
     const badge=corr===true?'<span class="gd-ok">✓ 對</span>':corr===false?'<span class="gd-no">✗ 錯</span>':(man?'<span class="badge badge-soon">待批改</span>':'<span class="hint">—</span>');
@@ -443,7 +445,7 @@ function renderGrades(){
   if(!ls.length){wrap.innerHTML=emptyHtml('📊','還沒有成績','到「課文練習」指派課文給學生，學生作答後這裡會顯示分數。');return;}
   wrap.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-sm" data-act="exportGrades">⬇ 匯出成績 CSV</button></div>'+ls.map(l=>{
     const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);
-    const qs=questionsOf(l.id);const qn=qs.length;const writeQs=qs.filter(manualQ);
+    const qn=answerableOf(l.id).length;
     const rows=targets.map(s=>{const r=resultOf(l.id,s.id);const pend=r&&r.status==='pending';
       return `<tr><td><span class="dot ${r&&!pend?'ok':'no'}"></span>${esc(s.name)}</td>
         <td>${!r?'<span class="badge badge-pending">未開始</span>':(pend?'<span class="badge badge-soon">待批改</span>':'<span class="badge badge-ok">已完成</span>')}</td>
@@ -676,6 +678,7 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
   else if(type==='order'){options=$('#qe-segs').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個詞／字');}
   else if(type==='write'){if(!prompt)return toast('請輸入題目（例如：請寫出「謝謝」）');const ref=$('#qe-ref').value.trim();answer=ref?[ref]:null;options=[];}
   else if(type==='qa'){if(!prompt)return toast('請輸入題目（問題）');const ref=$('#qe-ref')?$('#qe-ref').value.trim():'';answer=ref?[ref]:null;options=[];}
+  else if(type==='note'){if(!prompt)return toast('請輸入要顯示的內容（例句／說明）');answer=null;options=[];}
   else if(type==='speak'){if(!prompt)return toast('請輸入題目（例如：請朗讀課文第一段）');answer=null;options=[];}
   else{options=$('#qe-pairs').value.split('\n').map(s=>s.trim()).filter(Boolean).map(line=>{const i=line.indexOf('=');return i<0?null:{l:line.slice(0,i).trim(),r:line.slice(i+1).trim()};}).filter(p=>p&&p.l&&p.r);if(options.length<2)return toast('請至少輸入兩組配對');}
   const gpv=$('#qe-gp')?$('#qe-gp').value:'';
@@ -721,7 +724,7 @@ H.saveReview=async(rid)=>{const r=S.results.find(x=>x.id===rid);if(!r)return;
   catch(e){if(btn){btn.disabled=false;btn.textContent='💾 儲存建議';}toast(writeErr('儲存失敗',e));}};
 H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>(l.assigned_ids||[]).length);if(!ls.length)return toast('還沒有指派的課文');
   const rows=[['學生','Email','課文','狀態','分數','滿分','完成時間']];
-  ls.forEach(l=>{const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const qn=questionsOf(l.id).length;
+  ls.forEach(l=>{const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const qn=answerableOf(l.id).length;
     targets.forEach(s=>{const r=resultOf(l.id,s.id);const status=!r?'未開始':(r.status==='pending'?'待批改':'已完成');
       rows.push([s.name||'',s.email||'',(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||''),status,r?scoreOf(l,r):'',r?(r.total||qn):qn,(r&&r.completed_at)?String(r.completed_at).replace('T',' ').slice(0,16):'']);});});
   const csv='﻿'+rows.map(r=>r.map(c=>{c=(c==null?'':String(c));return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(',')).join('\r\n');

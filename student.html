@@ -226,12 +226,13 @@ function grammarHtml(gps){if(!Array.isArray(gps)||!gps.length)return '';
 /* 上課內容：每個語法卡下面附上該語法的互動練習（不算分、即時對錯／自我對照） */
 function isCanvasQ(q){return q.type==='write'||(q.type==='fill'&&q.input_mode==='write');}
 function isManualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||(q.type==='fill'&&q.input_mode==='write');}
-function practiceItemHtml(q,n){return `<div class="pi-item">${qHtml(q,n)}<div class="pi-actions"><button class="btn btn-sm btn-accent" type="button" data-act="pcheck" data-q="${q.id}">${isManualQ(q)?th('reveal'):th('check')}</button></div><div class="q-feedback hide" id="pfb-${q.id}"></div></div>`;}
+function practiceItemHtml(q,n){if(q.type==='note')return `<div class="pi-item">${qHtml(q,n)}</div>`;return `<div class="pi-item">${qHtml(q,n)}<div class="pi-actions"><button class="btn btn-sm btn-accent" type="button" data-act="pcheck" data-q="${q.id}">${isManualQ(q)?th('reveal'):th('check')}</button></div><div class="q-feedback hide" id="pfb-${q.id}"></div></div>`;}
 function grammarPracticeHtml(l){
   const gps=l.grammar_points||[];const qsAll=questionsOf(l.id);
+  const numbered=arr=>{let n=0;return arr.map(q=>practiceItemHtml(q,q.type==='note'?-1:n++)).join('');};
   if(!gps.length){
     const fb=l.key_points?`<div class="lesson-block"><div class="lesson-label">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div></div>`:'';
-    return fb+(qsAll.length?`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${qsAll.map((q,i)=>practiceItemHtml(q,i)).join('')}</div></div>`:'');
+    return fb+(qsAll.length?`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${numbered(qsAll)}</div></div>`:'');
   }
   const cards=gps.map((g,gi)=>{
     const qs=qsAll.filter(q=>q.gp_index===gi);
@@ -241,17 +242,17 @@ function grammarPracticeHtml(l){
       if(subs.length){
         const noSub=qs.filter(q=>!(q.gp_sub||'').trim());
         const groups=subs.map(s=>{const sq=qs.filter(q=>(q.gp_sub||'').trim()===s);
-          return `<div class="pi-sub"><div class="pi-sub-head">${esc(s)}</div><div class="pi-wrap">${sq.map((q,i)=>practiceItemHtml(q,i)).join('')}</div></div>`;});
-        if(noSub.length)groups.push(`<div class="pi-wrap">${noSub.map((q,i)=>practiceItemHtml(q,i)).join('')}</div>`);
+          return `<div class="pi-sub"><div class="pi-sub-head">${esc(s)}</div><div class="pi-wrap">${numbered(sq)}</div></div>`;});
+        if(noSub.length)groups.push(`<div class="pi-wrap">${numbered(noSub)}</div>`);
         prac=groups.join('');
       }else{
-        prac=`<div class="pi-wrap">${qs.map((q,i)=>practiceItemHtml(q,i)).join('')}</div>`;
+        prac=`<div class="pi-wrap">${numbered(qs)}</div>`;
       }
     }
     return gpFold(g,gi,prac);
   }).join('');
   const untag=qsAll.filter(q=>q.gp_index==null);
-  const untagHtml=untag.length?`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${untag.map((q,i)=>practiceItemHtml(q,i)).join('')}</div></div>`:'';
+  const untagHtml=untag.length?`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${numbered(untag)}</div></div>`:'';
   return `<div class="lesson-block"><div class="lesson-label">${t('grammar')}</div>${cards}</div>${untagHtml}`;}
 function readResp(q){
   if(q.type==='choice'){const c=document.querySelector('input[name="q-'+q.id+'"]:checked');return c?Number(c.value):null;}
@@ -309,6 +310,7 @@ const S={me:null,lessons:[],questions:[],results:[],section:'work',practiceSet:n
 let responses={},SHUF={},GRADE=null;
 const myLessons=()=>S.lessons.filter(l=>(l.assigned_ids||[]).includes(S.me.id)).sort((a,b)=>((a.order_index||0)-(b.order_index||0))||((a.created_at||'').localeCompare(b.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
+const answerableOf=(lid)=>questionsOf(lid).filter(q=>q.type!=='note'); // 排除示範題（不用作答、不計分）
 const resultOf=(lid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===S.me.id);
 function wrongQuestions(){const out=[],seen=new Set();
   S.results.forEach(r=>{const ans=r.answers||{};Object.keys(ans).forEach(qid=>{if(seen.has(qid))return;const q=S.questions.find(x=>x.id===qid);if(q&&!isManualQ(q)&&!isCorrect(q,ans[qid])){out.push(q);seen.add(qid);}});});
@@ -370,7 +372,7 @@ function renderGate(){
 /* ============ 區塊導覽 ============ */
 function renderNav(){
   const wrong=wrongQuestions().length;
-  const works=myLessons().filter(l=>questionsOf(l.id).length).length;
+  const works=myLessons().filter(l=>answerableOf(l.id).length).length;
   const items=[['work','✍️',t('navWork'),works],['content','📖',t('navContent'),''],['cards','🃏',t('navCards'),''],['grades','📈',t('navGrades'),''],['wrong','📒',t('navWrong'),wrong||'']];
   $('#snav').innerHTML=items.map(([id,ic,lb,n])=>`<button class="${S.section===id?'on':''}" data-act="section" data-id="${id}">${ic} ${lb}${n!==''?`<span class="n">${n}</span>`:''}</button>`).join('');
 }
@@ -382,10 +384,10 @@ function renderSection(){
 
 function renderWork(){
   const _st=actStatus();const banner=`<div class="streak-banner">${t('streak')} ${_st.streak} ${t('day')}　·　${t('today')} ${_st.count} ${t('tiUnit')}${_st.count>=5?'　·　'+t('goalMet'):''}</div>`;
-  const ls=myLessons().filter(l=>questionsOf(l.id).length);
+  const ls=myLessons().filter(l=>answerableOf(l.id).length);
   if(!ls.length){$('#screen').innerHTML=banner+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
   $('#screen').innerHTML=banner+'<div class="cards">'+ls.map((l,i)=>{
-    const r=resultOf(l.id),qn=questionsOf(l.id).length,done=r&&r.status==='done';
+    const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
       <div class="lesson-no">${done?'✓':(l.order_index||i+1)}</div>
@@ -428,9 +430,9 @@ function renderCards(){
       <button class="btn" data-act="flnext">${t('next')}</button></div></div>`;
 }
 function renderGrades(){
-  const ls=myLessons().filter(l=>questionsOf(l.id).length);
+  const ls=myLessons().filter(l=>answerableOf(l.id).length);
   if(!ls.length){$('#screen').innerHTML=emptyHtml('📈',t('noGrades'),t('noGradesSub'));return;}
-  const rows=ls.map(l=>{const r=resultOf(l.id),done=r&&r.status==='done',qn=questionsOf(l.id).length;
+  const rows=ls.map(l=>{const r=resultOf(l.id),done=r&&r.status==='done',qn=answerableOf(l.id).length;
     return `<tr><td>${l.order_index?('L'+l.order_index+' '):''}${esc(l.title)}</td>
       <td>${done?`<span class="badge badge-ok">${t('sDone')}</span>`:(r?`<span class="badge badge-soon">${t('sDoing')}</span>`:`<span class="badge badge-pending">${t('sTodo')}</span>`)}</td>
       <td><b>${r?(r.score+'/'+(r.total||qn)):'—'}</b></td></tr>`;}).join('');
@@ -460,6 +462,8 @@ function orderInner(q){
   return `<div class="order-tray">${tray}</div><div class="order-bank">${bank}</div>`;
 }
 function qHtml(q,idx){
+  if(q.type==='note'){const ins=q.instruction?`<div class="q-instr">${esc(q.instruction)}</div>`:'';const pc=q.image_url?`<div class="q-pic"><img src="${esc(q.image_url)}" alt="" loading="lazy"></div>`:'';
+    return `<div class="q-card note-card">${ins}<div class="note-badge">📖 ${TYPE_LABELS.note||'示範'}</div>${q.prompt?`<div class="note-text">${esc(q.prompt).replace(/\n/g,'<br>')}</div>`:''}${audioHtml(q.audio_url)}${pc}<div class="hint" style="margin-top:6px">參考即可，不用作答。</div></div>`;}
   let body='',showPrompt=true;
   if(q.type==='choice'){body='<div class="opts">'+(q.options||[]).map((o,i)=>`<label class="opt"><input type="radio" name="q-${q.id}" value="${i}"><span>${esc(o)}</span></label>`).join('')+'</div>';}
   else if(q.type==='fill'){
@@ -483,6 +487,7 @@ function qHtml(q,idx){
      ${showPrompt?`<div class="q-prompt">${esc(q.prompt||'')}</div>`:''}</div></div>${audioHtml(q.audio_url)}${pic}${body}</div>`;
 }
 function qHtmlGraded(q,idx){
+  if(q.type==='note')return qHtml(q,-1);
   const resp=GRADE.answers[q.id],ok=isCorrect(q,resp);let body='',ct='';
   if(q.type==='choice'){body='<div class="opts">'+(q.options||[]).map((o,i)=>{let cls='';if(i===Number(q.answer))cls='is-correct';else if(resp!=null&&i===Number(resp))cls='is-wrong';
       return `<div class="opt ${cls}"><span>${esc(o)}</span><span style="margin-left:auto">${i===Number(q.answer)?'✓':(resp!=null&&i===Number(resp)?'✗':'')}</span></div>`;}).join('')+'</div>';
@@ -506,7 +511,7 @@ function qHtmlGraded(q,idx){
 // 作業：每個語法收成一個可摺疊的卡（語法說明＋該語法的練習），未指定語法的「綜合練習」放最後
 function quizBodyHtml(qs,l){
   const gps=(l&&l.grammar_points)||[];
-  const sec=arr=>{let i=0;return arr.map(q=>qHtml(q,i++)).join('');};
+  const sec=arr=>{let i=0;return arr.map(q=>qHtml(q,q.type==='note'?-1:i++)).join('');};
   if(!gps.length)return sec(qs);
   let html='';
   gps.forEach((g,gi)=>{
@@ -544,9 +549,9 @@ function renderPractice(){
   else if(S.graded){const g=GRADE,pct=g.total?Math.round(g.score/g.total*100):0;
     practice=`<div class="score-banner ${pct>=80?'win':''}"><div class="big">${g.score}/${g.total}</div>
       <div><div style="font-weight:600;font-size:16px">${pct>=80?t('great'):t('done')}</div><div style="color:var(--muted);font-size:14px">${pct}% ${t('acc')}</div></div></div>${g.hasWrite?`<div class="notice" style="margin-bottom:14px">⏳ ${qs.filter(isManualQ).length} ${th('pendingNote')}</div>`:''}`+
-      qs.map((q,i)=>qHtmlGraded(q,i)).join('')+
+      (()=>{let n=0;return qs.map(q=>qHtmlGraded(q,q.type==='note'?-1:n++)).join('');})()+
       `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn" data-act="retry">${t('retry')}</button><button class="btn btn-primary" data-act="back">${t('finishBack')}</button></div>`;
-  }else{practice=`<div class="section-head" style="margin-top:24px"><h2 style="font-size:19px">${t('practice')}</h2><span class="sub">${qs.length} ${t('q')}</span></div>`+
+  }else{practice=`<div class="section-head" style="margin-top:24px"><h2 style="font-size:19px">${t('practice')}</h2><span class="sub">${qs.filter(q=>q.type!=='note').length} ${t('q')}</span></div>`+
       quizBodyHtml(qs,l)+
       `<button class="btn btn-accent" style="width:100%;padding:13px;font-size:15px" data-act="submit">${t('submit')}</button>`;}
   $('#screen').innerHTML=head+textCard+practice;
@@ -554,9 +559,9 @@ function renderPractice(){
   if(!S.graded)setupCanvases();
 }
 function gradeAll(qs){let score=0;const answers={};let hasWrite=false;
-  qs.forEach(q=>{const resp=readResp(q);answers[q.id]=resp;
+  qs.forEach(q=>{if(q.type==='note')return;const resp=readResp(q);answers[q.id]=resp;
     if(isManualQ(q))hasWrite=true;else if(isCorrect(q,resp))score++;});
-  return{score,total:qs.length,answers,hasWrite};}
+  return{score,total:qs.filter(q=>q.type!=='note').length,answers,hasWrite};}
 
 /* ============ handlers ============ */
 const H={};
@@ -681,11 +686,11 @@ H.submit=async()=>{const set=S.practiceSet,qs=set.questions;GRADE=gradeAll(qs);S
   if(speaks.length){toast(th('recUploading'));for(const q of speaks){try{GRADE.answers[q.id]=await uploadSpeak(RECORD[q.id],q.id);}catch(e){toast('上傳錄音失敗：'+(e.message||e));}}}
   if(set.mode==='vocab'){window.scrollTo(0,0);renderPractice();toast(GRADE.score===GRADE.total?'🎉 '+t('great'):t('done'));return;}
   try{
-    if(set.mode==='lesson'){await DB.upsertResult(set.lessonId,S.me.id,{uid:myUid(),answers:GRADE.answers,score:GRADE.score,auto:GRADE.score,total:qs.length,status:GRADE.hasWrite?'pending':'done',manual:{},completed_at:now()});}
+    if(set.mode==='lesson'){await DB.upsertResult(set.lessonId,S.me.id,{uid:myUid(),answers:GRADE.answers,score:GRADE.score,auto:GRADE.score,total:qs.filter(q=>q.type!=='note').length,status:GRADE.hasWrite?'pending':'done',manual:{},completed_at:now()});}
     else{const byL={};qs.forEach(q=>{(byL[q.lesson_id]=byL[q.lesson_id]||[]).push(q);});
       for(const lid of Object.keys(byL)){const r=S.results.find(x=>x.lesson_id===lid);const answers=Object.assign({},(r&&r.answers)||{});const manual=(r&&r.manual)||{};
         byL[lid].forEach(q=>{answers[q.id]=GRADE.answers[q.id];});
-        const lq=S.questions.filter(x=>x.lesson_id===lid);let autoSc=0,manualSc=0,pend=false;lq.forEach(q=>{if(isManualQ(q)){if(manual[q.id]==='done')manualSc++;if(!manual[q.id])pend=true;}else if((q.id in answers)&&isCorrect(q,answers[q.id]))autoSc++;});
+        const lq=S.questions.filter(x=>x.lesson_id===lid&&x.type!=='note');let autoSc=0,manualSc=0,pend=false;lq.forEach(q=>{if(isManualQ(q)){if(manual[q.id]==='done')manualSc++;if(!manual[q.id])pend=true;}else if((q.id in answers)&&isCorrect(q,answers[q.id]))autoSc++;});
         await DB.upsertResult(lid,S.me.id,{uid:myUid(),answers,score:autoSc+manualSc,auto:autoSc,total:lq.length,status:pend?'pending':'done',completed_at:now()});}}
     {const u=myUid();S.results=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);}
   }catch(e){toast(e.message);}
