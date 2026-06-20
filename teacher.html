@@ -386,7 +386,15 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
 
 H.assign=(id)=>assignModal(S.lessons.find(l=>l.id===id));
 H.assignAll=()=>{const b=$$('#as-targets input');const all=b.every(x=>x.checked);b.forEach(x=>x.checked=!all);};
-H.saveAssign=async(id)=>{const ids=$$('#as-targets input:checked').map(x=>x.value);await DB.update('lessons',id,{assigned_ids:ids,due_date:$('#as-due').value||null});closeModal();await loadAll();render();toast('已指派');};
+H.saveAssign=async(id)=>{
+  if(!id){toast('找不到課文，請重新整理後再試');return;}
+  const ids=$$('#as-targets input:checked').map(x=>x.value);
+  const btn=document.querySelector('[data-act="saveAssign"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
+  try{await DB.update('lessons',id,{assigned_ids:ids,due_date:$('#as-due').value||null});}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='儲存';}toast('儲存失敗：'+(e.code||e.message||e));return;}
+  closeModal();toast('已指派');
+  try{await loadAll();render();}catch(e){}
+};
 H.markWrite=async(key)=>{const[rid,qid,mark]=key.split('::');const r=S.results.find(x=>x.id===rid);if(!r)return;
   const l=S.lessons.find(x=>x.id===r.lesson_id);const manual=Object.assign({},r.manual||{});manual[qid]=mark;
   const qs=questionsOf(r.lesson_id);let pend=false;qs.forEach(q=>{if((q.type==='write'||q.type==='speak')&&!manual[q.id])pend=true;});
