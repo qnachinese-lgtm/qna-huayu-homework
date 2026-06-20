@@ -324,7 +324,7 @@ function openQuestionsModal(lid){
       rows+=`<div class="qe-sec">${gpTag}</div>`;}
     secN++;
     rows+=`<div class="qe-row"><span class="q-num">${secN}</span>
-     <div class="grow"><div class="qe-t"><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${q.audio_url?'<span class="tag gold">🔊 聽力</span>':''}${(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?`<span class="tag">📘 語法${q.gp_index+1}${q.gp_sub?(' '+esc(q.gp_sub)):''}</span>`:''}${(q.type==='fill'&&q.input_mode==='write')?'<span class="tag">✍️ 手寫</span>':''}</div>
+     <div class="grow"><div class="qe-t"><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${q.audio_url?'<span class="tag gold">🔊 聽力</span>':''}${q.image_url?'<span class="tag">🖼 照片</span>':''}${(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?`<span class="tag">📘 語法${q.gp_index+1}${q.gp_sub?(' '+esc(q.gp_sub)):''}</span>`:''}${(q.type==='fill'&&q.input_mode==='write')?'<span class="tag">✍️ 手寫</span>':''}</div>
      <div class="qe-p">${esc(q.prompt||'（無題目）')}</div></div>
      <button class="btn btn-sm" data-act="editQuestion" data-id="${lid}::${q.id}">編輯</button>
      <button class="btn btn-sm btn-danger" data-act="delQuestion" data-id="${lid}::${q.id}">刪除</button></div>`;});
@@ -366,8 +366,15 @@ function questionEditModal(lid,q){const e=!!q;q=q||{};QE_TYPE=q.type||'choice';
      <div class="field"><label>題型</label><div class="type-seg" id="qe-typeseg">
        ${Object.keys(TYPE_LABELS).map(t=>`<button type="button" data-qetype="${t}" class="${t===QE_TYPE?'on':''}">${TYPE_LABELS[t]}</button>`).join('')}</div></div>
      ${gpField}
+     <div class="field"><label>說明 <span class="hint">選填，顯示在題目「上方」的指示語（例：請依照下面的照片回答問題）</span></label><textarea id="qe-instruction" style="min-height:44px" placeholder="例：請看照片回答下列問題。">${esc(q.instruction||'')}</textarea></div>
      <div class="field"><label>題目</label><textarea id="qe-prompt" style="min-height:56px" placeholder="輸入題目／題幹…">${esc(q.prompt||'')}</textarea></div>
      <div id="qe-fields">${qeFieldsHTML(QE_TYPE,q)}</div>
+     <div class="field"><label>照片 <span class="hint">選填，學生會看到這張照片來作答（看圖回答）</span></label>
+       <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="qe-image" type="text" style="flex:1;min-width:160px" value="${esc(q.image_url||'')}" placeholder="上傳照片，或貼圖片網址">
+       <button class="btn" type="button" data-act="pickAudio" data-id="qe-image">⬆ 上傳照片</button></div>
+       <input type="file" id="file-qe-image" class="pic-file hide" accept="image/*" data-target="qe-image" data-status="status-qe-image" data-preview="prev-qe-image">
+       <div class="hint" id="status-qe-image" style="margin-top:4px"></div>
+       <img id="prev-qe-image" class="qe-img-prev${q.image_url?'':' hide'}" src="${esc(q.image_url||'')}" alt=""></div>
      <div class="field"><label>聽力音檔 <span class="hint">選填，有音檔即成為聽力題</span></label>
        <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="qe-audio" type="text" style="flex:1;min-width:160px" value="${esc(q.audio_url||'')}" placeholder="上傳檔案，或貼 mp3／YouTube 連結">
        <button class="btn" type="button" data-act="pickAudio" data-id="qe-audio">⬆ 上傳音檔</button></div>
@@ -592,7 +599,7 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
   const gpv=$('#qe-gp')?$('#qe-gp').value:'';
   const gpsub=$('#qe-gpsub')?$('#qe-gpsub').value.trim():'';
   const obj={lesson_id:lid,type,prompt:prompt||(type==='order'?'請將下列詞語重組成正確的句子':type==='match'?'請將左右配對':''),
-    options,answer,gp_index:(gpv===''?null:Number(gpv)),gp_sub:gpsub||null,input_mode:(type==='fill'&&$('#qe-fillmode')?$('#qe-fillmode').value:null),audio_url:$('#qe-audio').value.trim()||null,explanation:$('#qe-explain').value.trim()||null};
+    options,answer,gp_index:(gpv===''?null:Number(gpv)),gp_sub:gpsub||null,input_mode:(type==='fill'&&$('#qe-fillmode')?$('#qe-fillmode').value:null),audio_url:$('#qe-audio').value.trim()||null,image_url:($('#qe-image')?$('#qe-image').value.trim():'')||null,instruction:($('#qe-instruction')?$('#qe-instruction').value.trim():'')||null,explanation:$('#qe-explain').value.trim()||null};
   try{if(qid){await DB.update('questions',qid,obj);}else{obj.order_index=questionsOf(lid).length;await DB.insert('questions',obj);}
     S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已儲存');}catch(err){toast(writeErr('儲存失敗',err));}};
 
@@ -713,21 +720,25 @@ document.addEventListener('click',(e)=>{
   const fn=H[b.dataset.act];if(fn){e.preventDefault();fn(b.dataset.id,b);}
 });
 document.addEventListener('change',async(e)=>{
-  const inp=e.target;if(!inp||!inp.classList||!inp.classList.contains('audio-file'))return;
+  const inp=e.target;if(!inp||!inp.classList)return;
+  const isPic=inp.classList.contains('pic-file'), isAudio=inp.classList.contains('audio-file');
+  if(!isPic&&!isAudio)return;
   const file=inp.files&&inp.files[0];if(!file)return;
   const target=document.getElementById(inp.dataset.target),status=document.getElementById(inp.dataset.status);
   const setS=v=>{if(status)status.textContent=v;};
   if(!(window.firebase&&firebase.storage)){setS('未連 Firebase Storage，無法上傳；可改貼網址。');return;}
-  if(file.size>25*1024*1024){setS('檔案太大（上限 25MB），請壓縮或改貼網址。');return;}
+  const maxMB=isPic?10:25;
+  if(file.size>maxMB*1024*1024){setS('檔案太大（上限 '+maxMB+'MB），請壓縮或改貼網址。');return;}
   try{await ensureAuthFresh();}catch(err){setS(err.message);return;}
   try{setS('上傳中… 0%');
     const safe=file.name.replace(/[^\w.\-]/g,'_');
-    const ref=firebase.storage().ref('audio/'+Date.now()+'_'+safe);
+    const ref=firebase.storage().ref((isPic?'images/':'audio/')+Date.now()+'_'+safe);
     const task=ref.put(file);
     task.on('state_changed',snap=>{const p=Math.round(snap.bytesTransferred/snap.totalBytes*100);setS('上傳中… '+p+'%');});
     await task;
     const url=await ref.getDownloadURL();
     if(target)target.value=url;
+    if(isPic&&inp.dataset.preview){const pv=document.getElementById(inp.dataset.preview);if(pv){pv.src=url;pv.classList.remove('hide');}}
     setS('✓ 上傳完成');
   }catch(err){setS('上傳失敗：'+((err&&err.message)||err));}
 });
