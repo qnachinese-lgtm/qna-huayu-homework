@@ -401,6 +401,42 @@ function assignModal(l){const ids=l.assigned_ids||[];
      <button class="btn btn-primary" data-act="saveAssign" data-id="${l.id}">儲存</button></div></div>`);
 }
 
+/* ---------- 成績：作答呈現與對錯判斷 ---------- */
+function normT(s){return (s==null?'':s.toString()).trim().toLowerCase().replace(/\s+/g,'');}
+function reconFillT(p,arr){const parts=(p||'').split(/[_＿]{2,}/);const bt=parts.length>2?parts.slice(1,parts.length-1):[];let s=(arr&&arr[0])||'';for(let k=1;k<(arr?arr.length:0);k++)s+=(bt[k-1]||'')+(arr[k]||'');return s;}
+function qCorrect(q,resp){
+  if(resp==null||resp===''||(Array.isArray(resp)&&!resp.join('')))return null;
+  if(q.type==='choice')return Number(resp)===Number(q.answer);
+  if(q.type==='fill'){const r=Array.isArray(resp)?normT(reconFillT(q.prompt,resp)):normT(resp);return (q.answer||[]).map(normT).includes(r);}
+  if(q.type==='order')return (resp||[]).join('')===(q.options||[]).join('');
+  if(q.type==='match')return (q.options||[]).length>0&&(q.options||[]).every((p,i)=>(resp||[])[i]===p.r);
+  return null;}
+function ansHtml(q,resp){
+  if(resp==null||resp===''||(Array.isArray(resp)&&!resp.join('')))return '<span class="hint">（未作答）</span>';
+  if(q.type==='speak')return `<audio class="rec-audio" controls src="${esc(resp)}"></audio>`;
+  if(q.type==='write'||(q.type==='fill'&&q.input_mode==='write'))return `<img class="hw-img" src="${esc(resp)}" alt="">`;
+  if(q.type==='qa')return `<div class="hw-textans">${esc(resp).replace(/\n/g,'<br>')}</div>`;
+  if(q.type==='choice'){const o=(q.options||[])[Number(resp)];return `<div class="gd-text">${esc(o!=null?o:resp)}</div>`;}
+  if(q.type==='fill'){const v=Array.isArray(resp)?reconFillT(q.prompt,resp):resp;return `<div class="gd-text">${esc(v)}</div>`;}
+  if(q.type==='order')return `<div class="gd-text">${esc((resp||[]).join(' '))}</div>`;
+  if(q.type==='match')return `<div class="gd-text">${esc((q.options||[]).map((p,i)=>p.l+'→'+((resp||[])[i]||'？')).join('、'))}</div>`;
+  return `<div class="gd-text">${esc(String(resp))}</div>`;}
+function gdRefText(q){if(q.type==='match')return (q.options||[]).map(p=>p.l+'→'+p.r).join('、');if(q.type==='order')return (q.options||[]).join(' ');if(q.type==='choice')return (q.options||[])[Number(q.answer)]||'';return (q.answer||[]).join(' / ');}
+function studentReviewHtml(l,s,r){const qs=questionsOf(l.id);const qn=qs.length;
+  const perQ=qs.map((q,qi)=>{const resp=(r.answers||{})[q.id];const fb=(r.feedback||{})[q.id]||'';const man=manualQ(q);const mk=(r.manual||{})[q.id];
+    const corr=man?(mk==='done'?true:(mk==='wrong'?false:null)):qCorrect(q,resp);
+    const badge=corr===true?'<span class="gd-ok">✓ 對</span>':corr===false?'<span class="gd-no">✗ 錯</span>':(man?'<span class="badge badge-soon">待批改</span>':'<span class="hint">—</span>');
+    const ref=gdRefText(q);
+    const mark=man?`<span class="gd-mk"><button class="btn btn-sm ${mk==='done'?'btn-accent':''}" data-act="markWrite" data-id="${r.id}::${q.id}::done">✓ 對</button><button class="btn btn-sm ${mk==='wrong'?'btn-danger':''}" data-act="markWrite" data-id="${r.id}::${q.id}::wrong">✗ 錯</button></span>`:'';
+    return `<div class="gd-q"><div class="gd-qhead"><span class="q-num">${qi+1}</span><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${badge}</div>
+      <div class="gd-prompt">${esc(q.prompt||'（無題目）')}</div>
+      <div class="gd-ans">${ansHtml(q,resp)}</div>
+      ${ref?`<div class="gd-refline">參考答案：${esc(ref)}</div>`:''}
+      ${mark}
+      <input class="gd-fb" type="text" data-fb="${r.id}::${q.id}" value="${esc(fb)}" placeholder="這題的修改建議（選填，學生看得到）"></div>`;}).join('');
+  return `<div class="gd-stubody">${perQ}
+    <div class="gd-overall"><label>整體評語 / 修改建議 <span class="hint">學生會在「成績」看到</span></label><textarea class="gd-cmt" id="cmt-${r.id}" placeholder="給這位學生的整體建議…">${esc(r.comment||'')}</textarea></div>
+    <button class="btn btn-primary btn-sm" data-act="saveReview" data-id="${r.id}">💾 儲存建議</button></div>`;}
 /* ---------- 成績 ---------- */
 function renderGrades(){
   const wrap=$('#grades-list');const ls=sortLessons(S.lessons).filter(l=>(l.assigned_ids||[]).length);
@@ -413,26 +449,18 @@ function renderGrades(){
         <td>${!r?'<span class="badge badge-pending">未開始</span>':(pend?'<span class="badge badge-soon">待批改</span>':'<span class="badge badge-ok">已完成</span>')}</td>
         <td><b>${r?(scoreOf(l,r)+'/'+(r.total||qn)):'—'}</b></td></tr>`;}).join('');
     const doneCount=targets.filter(s=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;
-    let hwSection='';
-    if(writeQs.length){
-      const reviewed=targets.map(s=>{const r=resultOf(l.id,s.id);if(!r)return '';
-        const blocks=writeQs.map(q=>{const resp=(r.answers||{})[q.id];const mk=(r.manual||{})[q.id];
-          const media=q.type==='speak'?(resp?`<audio class="rec-audio" controls src="${esc(resp)}"></audio>`:'<div class="hint">（未作答）</div>'):q.type==='qa'?(resp?`<div class="hw-textans">${esc(resp).replace(/\n/g,'<br>')}</div>`:'<div class="hint">（未作答）</div>'):(resp?`<img class="hw-img" src="${resp}" alt="">`:'<div class="hint">（未作答）</div>');
-          return `<div class="hw-review"><div class="meta"><span class="tag accent">${TYPE_LABELS[q.type]}</span> <b>${esc(q.prompt||'')}</b>${q.answer&&q.answer.length?` <span class="tag gold">參考：${esc(q.answer.join(''))}</span>`:''}</div>
-            ${media}
-            <div class="hw-tools" style="margin-top:8px">
-              <button class="btn btn-sm ${mk==='done'?'btn-accent':''}" data-act="markWrite" data-id="${r.id}::${q.id}::done">✓ 正確</button>
-              <button class="btn btn-sm ${mk==='wrong'?'btn-danger':''}" data-act="markWrite" data-id="${r.id}::${q.id}::wrong">✗ 錯誤</button>
-              <span class="hint">${mk?('已標記：'+(mk==='done'?'正確':'錯誤')):'尚未批改'}</span>
-            </div></div>`;}).join('');
-        return `<div style="margin-top:12px"><div class="meta" style="margin-bottom:6px"><b>${esc(s.name)}</b></div>${blocks}</div>`;}).filter(Boolean).join('');
-      hwSection=`<details class="disc" style="margin-top:14px"><summary>✍️🎙️ 批改手寫／口說（${writeQs.length} 題）</summary>${reviewed||'<div class="hint" style="margin-top:8px">還沒有人作答手寫／口說題。</div>'}</details>`;
+    const withResult=targets.map(s=>({s,r:resultOf(l.id,s.id)})).filter(o=>o.r);
+    let reviewSection='';
+    if(withResult.length){
+      const stus=withResult.map(({s,r})=>{const pend=r.status==='pending';const fbCount=Object.keys(r.feedback||{}).length+(r.comment?1:0);
+        return `<details class="disc gd-stu"><summary><b>${esc(s.name)}</b> <span class="badge ${pend?'badge-soon':'badge-ok'}">${pend?'待批改':'已完成'}</span> <span class="gd-score">${scoreOf(l,r)}/${r.total||qn}</span>${fbCount?'<span class="tag gold">📝 已給建議</span>':''}</summary>${studentReviewHtml(l,s,r)}</details>`;}).join('');
+      reviewSection=`<details class="disc" style="margin-top:14px"><summary>📝 逐生作答 ＆ 修改建議（${withResult.length} 人）</summary><div style="margin-top:8px">${stus}</div></details>`;
     }
     return `<div class="card"><div class="row-between"><div>
       <h3 style="font-size:17px">${l.order_index?('第'+l.order_index+'課 · '):''}${esc(l.title)}</h3>
       <div class="meta" style="margin-top:5px"><span>${qn} 題</span><span>完成 <b>${doneCount}/${targets.length}</b></span></div></div></div>
       <div style="overflow:auto;margin-top:12px"><table class="matrix"><thead><tr><th>學生</th><th>狀態</th><th>分數</th></tr></thead><tbody>${rows}</tbody></table></div>
-      ${hwSection}</div>`;}).join('');
+      ${reviewSection}</div>`;}).join('');
 }
 
 /* ---------- 動作 ---------- */
@@ -676,11 +704,21 @@ H.unassign=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;
   closeModal();toast('已收回指派，學生已看不到');
   try{await loadAll();render();}catch(e){}
 };
-H.markWrite=async(key)=>{const[rid,qid,mark]=key.split('::');const r=S.results.find(x=>x.id===rid);if(!r)return;
+H.markWrite=async(key,btn)=>{const[rid,qid,mark]=key.split('::');const r=S.results.find(x=>x.id===rid);if(!r)return;
   const l=S.lessons.find(x=>x.id===r.lesson_id);const manual=Object.assign({},r.manual||{});manual[qid]=mark;
   const qs=questionsOf(r.lesson_id);let pend=false;qs.forEach(q=>{if(manualQ(q)&&!manual[q.id])pend=true;});
   const sc=scoreOf(l,Object.assign({},r,{manual}));
-  try{await DB.update('results',rid,{manual,score:sc,status:pend?'pending':'done'});S.results=await DB.list('results');render();toast('已更新批改');}catch(e){toast(writeErr('更新失敗',e));}};
+  try{await DB.update('results',rid,{manual,score:sc,status:pend?'pending':'done'});
+    r.manual=manual;r.score=sc;r.status=pend?'pending':'done';
+    if(btn){const wrap=btn.closest('.gd-q');if(wrap)wrap.querySelectorAll('[data-act="markWrite"]').forEach(b=>{const m=b.dataset.id.split('::')[2];b.classList.toggle('btn-accent',m==='done'&&mark==='done');b.classList.toggle('btn-danger',m==='wrong'&&mark==='wrong');});}
+    toast('已更新批改（分數已重算）');}catch(e){toast(writeErr('更新失敗',e));}};
+H.saveReview=async(rid)=>{const r=S.results.find(x=>x.id===rid);if(!r)return;
+  const fb={};document.querySelectorAll('[data-fb^="'+rid+'::"]').forEach(el=>{const qid=el.getAttribute('data-fb').split('::')[1];const v=(el.value||'').trim();if(v)fb[qid]=v;});
+  const cmtEl=document.getElementById('cmt-'+rid);const comment=cmtEl?(cmtEl.value||'').trim():'';
+  const btn=document.querySelector('[data-act="saveReview"][data-id="'+rid+'"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
+  try{await DB.update('results',rid,{feedback:fb,comment:comment||null});r.feedback=fb;r.comment=comment||null;
+    if(btn){btn.disabled=false;btn.textContent='✓ 已儲存建議';setTimeout(()=>{if(btn)btn.textContent='💾 儲存建議';},2000);}toast('已儲存建議，學生看得到');}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='💾 儲存建議';}toast(writeErr('儲存失敗',e));}};
 H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>(l.assigned_ids||[]).length);if(!ls.length)return toast('還沒有指派的課文');
   const rows=[['學生','Email','課文','狀態','分數','滿分','完成時間']];
   ls.forEach(l=>{const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const qn=questionsOf(l.id).length;
