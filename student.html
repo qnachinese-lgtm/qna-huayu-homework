@@ -40,6 +40,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.7.0/dist/hanzi-writer.min.js"></script>
 <script src="config.js"></script>
 <script src="db.js"></script>
 <script>
@@ -392,6 +393,7 @@ function renderCards(){
       <button class="btn btn-star ${isStarred(v.front)?'on':''}" data-act="star" data-text="${esc(v.front)}" aria-label="收藏">${isStarred(v.front)?'★':'☆'}</button>
       <button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}" aria-label="發音">🔊</button>
       <button class="btn btn-spk" data-act="shadowRec" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}" aria-label="跟讀">🎤</button>
+      <button class="btn btn-spk" data-act="stroke" data-text="${esc(v.front)}" aria-label="筆順">✍️</button>
       ${(SHADOW&&SHADOW.idx===S.flashIdx)?`<button class="btn btn-sm" data-act="shadowPlay">${t('shadowMine')}</button>`:''}
       <span class="flash-count">${S.flashIdx+1} / ${all.length}</span>
       <button class="btn" data-act="flnext">${t('next')}</button></div></div>`;
@@ -509,6 +511,22 @@ H.zi=(_,b)=>{showZiPopup(b.dataset.z,b);};
 H.ziClose=()=>hideZiPopup();
 H.shadowRec=async(_,b)=>{if(SHADOWMR&&SHADOWMR.state==='recording'){SHADOWMR.stop();return;}if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)){toast(th('recDenied'));return;}let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){toast(th('recDenied'));return;}const chunks=[],idx=S.flashIdx;SHADOWMR=new MediaRecorder(stream);SHADOWMR.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};SHADOWMR.onstop=()=>{const blob=new Blob(chunks,{type:(SHADOWMR&&SHADOWMR.mimeType)||'audio/webm'});stream.getTracks().forEach(tk=>tk.stop());if(SHADOW&&SHADOW.url)URL.revokeObjectURL(SHADOW.url);SHADOW={idx,url:URL.createObjectURL(blob)};SHADOWMR=null;renderCards();try{new Audio(SHADOW.url).play();}catch(e){}};SHADOWMR.start();b.classList.add('recording');b.textContent='⏹';};
 H.shadowPlay=()=>{if(SHADOW&&SHADOW.url){try{new Audio(SHADOW.url).play();}catch(e){}}};
+Object.assign(I18N.zh,{replay:'↻ 重播'});Object.assign(I18N.cn,{replay:'↻ 重播'});Object.assign(I18N.en,{replay:'↻ Replay'});Object.assign(I18N.vi,{replay:'↻ Phát lại'});
+let STROKE_WORD='',STROKE_WRITERS=[];
+function showStroke(word){const chars=[...(word||'')].filter(c=>/[㐀-鿿]/.test(c));if(!chars.length){toast(t('noCards'));return;}
+  if(!window.HanziWriter){toast('筆順元件還在載入，請稍候再點一次');return;}
+  let ov=document.getElementById('stroke-ov');if(ov)ov.remove();
+  ov=document.createElement('div');ov.id='stroke-ov';ov.className='stroke-ov';
+  ov.innerHTML='<div class="stroke-box"><button class="stroke-x" data-act="strokeClose" aria-label="關閉">✕</button><div class="stroke-chars" id="stroke-chars"></div><div style="text-align:center;margin-top:12px"><button class="btn btn-primary btn-sm" data-act="strokeReplay">'+t('replay')+'</button></div></div>';
+  document.body.appendChild(ov);STROKE_WORD=word;renderStroke();}
+function renderStroke(){const wrap=document.getElementById('stroke-chars');if(!wrap||!window.HanziWriter)return;wrap.innerHTML='';STROKE_WRITERS=[];
+  const chars=[...STROKE_WORD].filter(c=>/[㐀-鿿]/.test(c));
+  chars.forEach(c=>{const d=document.createElement('div');d.className='stroke-cell';wrap.appendChild(d);
+    try{const w=HanziWriter.create(d,c,{width:118,height:118,padding:5,showOutline:true,strokeColor:'#16110c',outlineColor:'#d8ccba',radicalColor:'#1F6F78',strokeAnimationSpeed:1,delayBetweenStrokes:240});STROKE_WRITERS.push(w);}catch(e){}});
+  let i=0;const next=()=>{if(i>=STROKE_WRITERS.length)return;try{STROKE_WRITERS[i].animateCharacter({onComplete:()=>{i++;setTimeout(next,320);}});}catch(e){i++;next();}};next();}
+H.stroke=(_,b)=>showStroke(b.dataset.text);
+H.strokeClose=()=>{const ov=document.getElementById('stroke-ov');if(ov)ov.remove();};
+H.strokeReplay=()=>renderStroke();
 H.dictation=()=>{const list=vocabAll().filter(v=>/[㐀-鿿]/.test(v.front));if(!list.length){toast(t('noCards'));return;}S.dict={list:shuffle(list,Math.random()+'').slice(0,12),idx:0,checked:false,val:'',right:0,ok:false};$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderDictation();};
 H.dictReplay=()=>{const dd=S.dict;if(!dd)return;const v=dd.list[dd.idx];vocabPlay(v.lessonId,v.di,v.vi,v.front);};
 H.dictCheck=()=>{const dd=S.dict;if(!dd||dd.checked)return;const inp=document.getElementById('dict-in');dd.val=inp?inp.value:'';const v=dd.list[dd.idx];const norm=s=>{try{return (CONV.cn?CONV.cn(s):s).replace(/\s/g,'');}catch(e){return (s||'').replace(/\s/g,'');}};dd.ok=norm(dd.val)!==''&&norm(dd.val)===norm(v.front);if(dd.ok)dd.right++;dd.checked=true;renderDictation();};

@@ -253,6 +253,7 @@ function renderLessons(){
         <button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題（${qn}）</button>
         <button class="btn btn-sm" data-act="assign" data-id="${l.id}">指派${an?`（${an}）`:''}</button>
         ${an?`<button class="btn btn-sm btn-warn" data-act="unassign" data-id="${l.id}">↩ 收回</button>`:''}
+        <button class="btn btn-sm" data-act="dupLesson" data-id="${l.id}">📋 複製</button>
         <button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div></div>`;}).join('');
 }
 function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaReset();gpInit(l);dlgInit(l);
@@ -411,6 +412,15 @@ H.resetPw=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s.email)return t
 H.addLesson=()=>lessonModal(null);
 H.editLesson=(id)=>lessonModal(S.lessons.find(l=>l.id===id));
 H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!confirm(`確定刪除「${l.title}」？課文題目與成績都會一併刪除。`))return;try{await DB.remove('lessons',id);await loadAll();render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
+H.dupLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!confirm('複製「'+(l.title||'')+'」成一份新課文？（內容、生詞音檔、語法、練習題都會複製；不含指派與學生作答）'))return;
+  try{await ensureAuthFresh();}catch(err){return toast(err.message);}
+  const btn=document.querySelector('[data-act="dupLesson"][data-id="'+id+'"]');if(btn){btn.disabled=true;btn.textContent='複製中…';}
+  const maxOrder=Math.max(0,...S.lessons.map(x=>Number(x.order_index)||0));
+  const copy={order_index:maxOrder+1,title:(l.title||'')+'（複本）',dialogues:l.dialogues||null,content:l.content||null,vocabulary:l.vocabulary||null,audio_url:l.audio_url||null,vocab_audio_url:l.vocab_audio_url||null,vocab_segments:l.vocab_segments||null,grammar_points:l.grammar_points||[],key_points:l.key_points||'',examples:l.examples||'',assigned_ids:[],due_date:null};
+  try{const nl=await DB.insert('lessons',copy);
+    const qs=questionsOf(l.id);for(const q of qs){const r=Object.assign({},q);delete r.id;delete r.created_at;r.lesson_id=nl.id;await DB.insert('questions',r);}
+    await loadAll();render();toast('已複製為「'+copy.title+'」，可直接編輯');}
+  catch(err){if(btn){btn.disabled=false;btn.textContent='📋 複製';}toast(writeErr('複製失敗',err));}};
 H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return toast('請輸入課名');
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   gpSync();const gps=GP.map(g=>({title:(g.title||'').trim(),blocks:(g.blocks||[]).map(b=>({label:(b.label||'').trim(),text:(b.text||'').trim(),ex:(b.ex||'').trim()})).filter(b=>b.label||b.text||b.ex)})).filter(g=>g.title||g.blocks.length);
