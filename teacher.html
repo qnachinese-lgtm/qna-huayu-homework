@@ -483,7 +483,8 @@ function vaRenderPreview(){const words=vaWords(),segs=VA_SEGS||[],match=segs.len
   $('#va-preview').innerHTML='<div class="va-list">'+words.map((w,i)=>{const seg=segs[i];return `<div class="va-row"><span class="va-w">${esc(w)}</span>${seg?`<button class="btn btn-sm" type="button" data-act="vaPlay" data-i="${i}">▶ 試聽</button><span class="hint">${seg.s.toFixed(1)}–${seg.e.toFixed(1)}s</span>`:'<span class="hint" style="color:#c0392b">（沒切到，請調整）</span>'}</div>`;}).join('')+'</div>';}
 H.vaRedetect=()=>{if(!VA_LOUD)return;const ms=Number($('#va-sens').value)/100;VA_START=Number(($('#va-trim')||{value:0}).value)||0;const tv=$('#va-trim-val');if(tv)tv.textContent=VA_START.toFixed(1);VA_SEGS=_gate(VA_LOUD,_thr(VA_LOUD),ms,0.12,VA_START);vaRenderPreview();};
 H.vaPlay=(_,b)=>{const i=+b.dataset.i,seg=(VA_SEGS||[])[i];if(!seg||!VA_URL)return;const a=window._vaAudio||(window._vaAudio=new Audio());a.ontimeupdate=null;a.src=VA_URL;const go=()=>{try{a.currentTime=seg.s;}catch(_){}a.ontimeupdate=()=>{if(a.currentTime>=seg.e){a.pause();a.ontimeupdate=null;}};a.play().catch(()=>{});};if(a.readyState>=1)go();else a.onloadedmetadata=go;};
-async function uploadVocabAudio(file){const ext=((file.name.split('.').pop())||'mp3').replace(/[^a-z0-9]/gi,'')||'mp3';const ref=firebase.storage().ref('vocab_audio/'+Date.now()+'_'+Math.random().toString(16).slice(2)+'.'+ext);await ref.put(file);return await ref.getDownloadURL();}
+async function ensureAuthFresh(){const u=window.firebase&&firebase.auth&&firebase.auth().currentUser;if(!u)throw new Error('登入已失效，請重新整理頁面（Ctrl+Shift+R）並重新登入後再試');try{await u.getIdToken(true);}catch(e){throw new Error('登入已失效，請重新整理並重新登入後再試');}}
+async function uploadVocabAudio(file){await ensureAuthFresh();const ext=((file.name.split('.').pop())||'mp3').replace(/[^a-z0-9]/gi,'')||'mp3';const ref=firebase.storage().ref('vocab_audio/'+Date.now()+'_'+Math.random().toString(16).slice(2)+'.'+ext);await ref.put(file);return await ref.getDownloadURL();}
 document.addEventListener('change',(e)=>{if(e.target&&e.target.id==='file-vocab-audio'){const f=e.target.files&&e.target.files[0];if(f)vaHandleFile(f);}});
 document.addEventListener('input',(e)=>{if(e.target&&(e.target.id==='va-sens'||e.target.id==='va-trim'))H.vaRedetect();});
 
@@ -501,6 +502,7 @@ document.addEventListener('change',async(e)=>{
   const setS=v=>{if(status)status.textContent=v;};
   if(!(window.firebase&&firebase.storage)){setS('未連 Firebase Storage，無法上傳；可改貼網址。');return;}
   if(file.size>25*1024*1024){setS('檔案太大（上限 25MB），請壓縮或改貼網址。');return;}
+  try{await ensureAuthFresh();}catch(err){setS(err.message);return;}
   try{setS('上傳中… 0%');
     const safe=file.name.replace(/[^\w.\-]/g,'_');
     const ref=firebase.storage().ref('audio/'+Date.now()+'_'+safe);
