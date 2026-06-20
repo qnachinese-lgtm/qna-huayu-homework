@@ -491,7 +491,7 @@ H.dupLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!co
   catch(err){if(btn){btn.disabled=false;btn.textContent='📋 複製';}toast(writeErr('複製失敗',err));}};
 H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return toast('請輸入課名');
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
-  gpSync();const gps=GP.map(g=>({title:(g.title||'').trim(),blocks:(g.blocks||[]).map(b=>({label:(b.label||'').trim(),text:(b.text||'').trim(),ex:(b.ex||'').trim()})).filter(b=>b.label==='小節'?!!b.text:(b.label||b.text||b.ex))})).filter(g=>g.title||g.blocks.length);
+  gpSync();const gps=GP.map(g=>({title:(g.title||'').trim(),blocks:(g.blocks||[]).map(b=>{const ex=(b.ex||'').trim();const lines=ex.split('\n').map(s=>s.trim()).filter(Boolean);const ea=Array.isArray(b.exAudio)?lines.map((_,i)=>b.exAudio[i]||''):[];const hasA=ea.some(Boolean);return Object.assign({label:(b.label||'').trim(),text:(b.text||'').trim(),ex},hasA?{exAudio:ea}:{});}).filter(b=>b.label==='小節'?!!b.text:(b.label||b.text||b.ex))})).filter(g=>g.title||g.blocks.length);
   dlgSync();
   const sbtn=document.querySelector('[data-act="saveLesson"]');
   for(let i=0;i<DLG.length;i++){const d=DLG[i];
@@ -509,7 +509,7 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
 let GP=[];const GP_PRESETS=['功能','結構','否定','疑問','用法'];
 function gpInit(l){
   if(l&&Array.isArray(l.grammar_points)&&l.grammar_points.length){
-    GP=l.grammar_points.map(g=>({title:g.title||'',blocks:(g.blocks||[]).map(b=>({label:b.label||'',text:b.text||'',ex:b.ex||''}))}));
+    GP=l.grammar_points.map(g=>({title:g.title||'',blocks:(g.blocks||[]).map(b=>({label:b.label||'',text:b.text||'',ex:b.ex||'',exAudio:Array.isArray(b.exAudio)?b.exAudio.slice():[]}))}));
   }else if(l&&l.key_points&&l.key_points.trim()){
     GP=[{title:'',blocks:[{label:'重點',text:l.key_points,ex:''}]}];
   }else{GP=[];}
@@ -521,6 +521,47 @@ function gpSync(){GP.forEach((g,gi)=>{
     const tx=document.querySelector('.gp-tx[data-gi="'+gi+'"][data-bi="'+bi+'"]');if(tx)b.text=tx.value;
     const ex=document.querySelector('.gp-ex[data-gi="'+gi+'"][data-bi="'+bi+'"]');if(ex)b.ex=ex.value;
   });});}
+// 例句逐句錄音／上傳（教師用自己的聲音取代 AI 朗讀）
+function gpExLines(gi,bi){const b=GP[gi]&&GP[gi].blocks[bi];return ((b&&b.ex)||'').split('\n').map(s=>s.trim()).filter(Boolean);}
+function gpExAudioHtml(gi,bi){const b=GP[gi].blocks[bi];if((b.label||'').trim()==='小節')return '';
+  const lines=gpExLines(gi,bi);if(!lines.length)return '';
+  const aud=b.exAudio||[];
+  return '<div class="gp-exa-hd">例句錄音（用你自己的聲音，取代 AI 朗讀）</div>'+lines.map((s,i)=>{const has=aud[i];
+    return `<div class="gp-exa-row">
+      <span class="gp-exa-txt">${esc(s)}</span>
+      ${has?`<button class="btn btn-sm" type="button" data-act="gpExPlay" data-id="${gi}::${bi}::${i}">▶ 試聽</button>`:'<span class="gp-exa-tts">目前：AI 朗讀</span>'}
+      <button class="btn btn-sm" type="button" data-act="gpExRec" data-id="${gi}::${bi}::${i}">🎙 錄音</button>
+      <button class="btn btn-sm" type="button" data-act="gpExPick" data-id="${gi}::${bi}::${i}">⬆ 上傳</button>
+      ${has?`<button class="btn btn-sm btn-ghost" type="button" data-act="gpExClear" data-id="${gi}::${bi}::${i}">✕</button>`:''}
+      <span class="hint gp-exa-st" id="gpexa-${gi}-${bi}-${i}">${has?'✓ 已錄製':''}</span></div>`;}).join('');}
+function refreshGpExList(gi,bi){const el=document.getElementById('gpexa-list-'+gi+'-'+bi);if(el)el.innerHTML=gpExAudioHtml(gi,bi);}
+function setGpExAudio(gi,bi,li,url){gpSync();const b=GP[gi].blocks[bi];if(!Array.isArray(b.exAudio))b.exAudio=[];b.exAudio[li]=url;refreshGpExList(gi,bi);}
+async function uploadExampleAudio(file){await ensureAuthFresh();let ext='webm';const ty=file.type||'';if(ty.indexOf('mp4')>=0||ty.indexOf('m4a')>=0||ty.indexOf('aac')>=0)ext='m4a';else if(ty.indexOf('mpeg')>=0||ty.indexOf('mp3')>=0)ext='mp3';else if(ty.indexOf('wav')>=0)ext='wav';else if(file.name){const m=file.name.split('.').pop();if(m)ext=m.replace(/[^a-z0-9]/gi,'')||ext;}
+  const ref=firebase.storage().ref('examples/'+Date.now()+'_'+Math.random().toString(16).slice(2)+'.'+ext);await ref.put(file);return await ref.getDownloadURL();}
+let GPREC={mr:null,chunks:[],key:null,stream:null};
+H.gpExPlay=(key)=>{const p=key.split('::').map(Number);const url=((GP[p[0]].blocks[p[1]].exAudio)||[])[p[2]];if(url){try{new Audio(url).play();}catch(e){}}};
+H.gpExClear=(key)=>{gpSync();const p=key.split('::').map(Number);const b=GP[p[0]].blocks[p[1]];if(Array.isArray(b.exAudio))b.exAudio[p[2]]='';refreshGpExList(p[0],p[1]);};
+H.gpExPick=(key)=>{const p=key.split('::').map(Number);const st=document.getElementById('gpexa-'+p[0]+'-'+p[1]+'-'+p[2]);
+  const inp=document.createElement('input');inp.type='file';inp.accept='audio/*';inp.style.display='none';document.body.appendChild(inp);
+  inp.onchange=async()=>{const f=inp.files&&inp.files[0];inp.remove();if(!f)return;if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage';return;}if(st)st.textContent='上傳中…';try{const url=await uploadExampleAudio(f);setGpExAudio(p[0],p[1],p[2],url);}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
+  inp.click();};
+H.gpExRec=async(key)=>{const p=key.split('::').map(Number);const st=document.getElementById('gpexa-'+p[0]+'-'+p[1]+'-'+p[2]);
+  const btn=document.querySelector('[data-act="gpExRec"][data-id="'+key+'"]');
+  if(GPREC.mr&&GPREC.key===key){GPREC.mr.stop();return;}
+  if(GPREC.mr){try{GPREC.mr.stop();}catch(e){}}
+  if(!navigator.mediaDevices||!window.MediaRecorder){if(st)st.textContent='此瀏覽器不支援錄音，請改用上傳';return;}
+  try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});const mr=new MediaRecorder(stream);GPREC={mr,chunks:[],key,stream};
+    mr.ondataavailable=e=>{if(e.data&&e.data.size)GPREC.chunks.push(e.data);};
+    mr.onstop=async()=>{try{stream.getTracks().forEach(t=>t.stop());}catch(e){}
+      const blob=new Blob(GPREC.chunks,{type:(GPREC.chunks[0]&&GPREC.chunks[0].type)||'audio/webm'});const wasKey=GPREC.key;GPREC={mr:null,chunks:[],key:null,stream:null};
+      const bb=document.querySelector('[data-act="gpExRec"][data-id="'+wasKey+'"]');if(bb)bb.textContent='🎙 錄音';
+      if(st)st.textContent='上傳中…';try{const url=await uploadExampleAudio(blob);setGpExAudio(p[0],p[1],p[2],url);}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
+    mr.start();if(st)st.textContent='● 錄音中…再按一次停止';if(btn)btn.textContent='⏹ 停止';
+  }catch(e){if(st)st.textContent='無法使用麥克風，請允許權限或改用上傳';}};
+let gpExTimer=null;
+document.addEventListener('input',(e)=>{const el=e.target;if(!el||!el.classList||!el.classList.contains('gp-ex'))return;
+  const gi=Number(el.getAttribute('data-gi')),bi=Number(el.getAttribute('data-bi'));
+  clearTimeout(gpExTimer);gpExTimer=setTimeout(()=>{if(GP[gi]&&GP[gi].blocks[bi]){GP[gi].blocks[bi].ex=el.value;refreshGpExList(gi,bi);}},500);});
 function gpRender(){const wrap=document.getElementById('gp-editor');if(!wrap)return;
   const dl='<datalist id="gp-labels">'+GP_PRESETS.map(p=>'<option>'+p+'</option>').join('')+'</datalist>';
   const addBtn='<div style="margin-top:8px"><button class="btn btn-sm" type="button" data-act="gpAdd">＋ 新增語法點</button></div>';
@@ -537,7 +578,8 @@ function gpRender(){const wrap=document.getElementById('gp-editor');if(!wrap)ret
       <div class="gp-block-head"><input class="gp-lab" data-gi="${gi}" data-bi="${bi}" list="gp-labels" value="${esc(b.label||'')}" placeholder="標籤（功能／結構…）">
       <button class="gp-bx" type="button" data-act="gpBlockDel" data-id="${gi}::${bi}" aria-label="刪除區塊">✕</button></div>
       <textarea class="gp-tx" data-gi="${gi}" data-bi="${bi}" placeholder="說明…">${esc(b.text||'')}</textarea>
-      <textarea class="gp-ex" data-gi="${gi}" data-bi="${bi}" rows="1" placeholder="例句（選填，一行一句，學生可點來聽）">${esc(b.ex||'')}</textarea></div>`;}).join('');
+      <textarea class="gp-ex" data-gi="${gi}" data-bi="${bi}" rows="1" placeholder="例句（選填，一行一句，學生可點來聽）">${esc(b.ex||'')}</textarea>
+      <div class="gp-exaudio" id="gpexa-list-${gi}-${bi}">${gpExAudioHtml(gi,bi)}</div></div>`;}).join('');
     return `<div class="gp-card"><div class="gp-card-head"><span class="gp-no">語法 ${gi+1}</span>
       <input class="gp-title" data-gi="${gi}" value="${esc(g.title||'')}" placeholder="標題，例：「很」修飾狀態動詞">
       <button class="btn btn-sm btn-danger" type="button" data-act="gpDel" data-id="${gi}">刪除</button></div>
