@@ -95,10 +95,19 @@ function schedRowHTML(r){r=r||{};return `<div class="sched-row">
   <button class="btn btn-sm btn-ghost sched-x" type="button" data-act="schedDel" aria-label="刪除時段">✕</button></div>`;}
 function firstSlotOptions(st){const sch=(Array.isArray(st&&st.schedule)?st.schedule:[]).filter(r=>r&&(r.s||r.e));const sel=st&&st.first_slot;
   return '<option value="">（第一個時段／自動）</option>'+sch.map((r,i)=>`<option value="${i}"${sel===i?' selected':''}>${esc((DAYS[(r.d!=null?r.d:0)]||'')+' '+(r.s||'')+(r.e?'–'+r.e:''))}</option>`).join('');}
-function refreshFirstSlot(){const sel=document.getElementById('f-first-slot');if(!sel)return;const prev=sel.value;
+// 由日期字串(YYYY-MM-DD)算出星期，對應 DAYS：週一=0…週日=6
+function dowOf(dateStr){if(!dateStr)return null;const d=new Date(dateStr+'T00:00:00');if(isNaN(d))return null;return (d.getDay()+6)%7;}
+// 第一堂課時段：依「第一堂課日期」是星期幾，只列出那一天的時段，不預設
+function refreshFirstSlot(desired){const sel=document.getElementById('f-first-slot');if(!sel)return;
+  const want=(desired!=null)?String(desired):sel.value;
+  const dateEl=document.getElementById('f-first-date');const dow=dowOf(dateEl?dateEl.value:'');
   const rows=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);
-  sel.innerHTML='<option value="">（第一個時段／自動）</option>'+rows.map((r,i)=>`<option value="${i}">${esc((DAYS[r.d]||'')+' '+(r.s||'')+(r.e?'–'+r.e:''))}</option>`).join('');
-  if(prev!==''&&rows[Number(prev)])sel.value=prev;}
+  if(dow==null){sel.innerHTML='<option value="">（請先選左邊的日期）</option>';sel.value='';return;}
+  const matches=[];rows.forEach((r,i)=>{if(r.d===dow)matches.push({r,i});});
+  if(!matches.length){sel.innerHTML='<option value="">'+esc(DAYS[dow])+'還沒有上課時段，請先到上面新增</option>';sel.value='';return;}
+  sel.innerHTML=(matches.length>1?'<option value="">請選擇</option>':'')+matches.map(o=>`<option value="${o.i}">${esc((DAYS[o.r.d]||'')+' '+(o.r.s||'')+(o.r.e?'–'+o.r.e:''))}</option>`).join('');
+  if(matches.length===1)sel.value=String(matches[0].i);
+  else if(want!==''&&matches.some(o=>String(o.i)===want))sel.value=want;else sel.value='';}
 function sessionsUsed(s){
   if(!s||!Array.isArray(s.schedule)||!s.schedule.length)return 0;
   const startStr=s.first_class||s.sessions_start||s.created_at;if(!startStr)return 0;
@@ -227,10 +236,10 @@ function studentModal(st){const e=!!st;st=st||{};
        <button class="btn btn-sm" type="button" data-act="schedAdd" style="margin-top:6px">＋ 新增時段</button></div>
      <div class="field"><label>付款日期</label><input id="f-pay" type="date" value="${esc(st.payment_date||'')}"></div>
      <div class="field"><label>堂數（總共） <span class="hint">本期購買的堂數</span></label><input id="f-sess" type="number" min="0" value="${st.sessions_total??''}" placeholder="例：10"></div>
-     <div class="field"><label>第一堂課 <span class="hint">第一次上課是哪天、哪個時段；之後依每週時段自動往後扣堂</span></label>
+     <div class="field"><label>第一堂課 <span class="hint">先選第一次上課的「日期」，右邊會自動帶出那天的時段；之後依每週時段往後扣堂</span></label>
        <div style="display:flex;gap:8px;flex-wrap:wrap">
          <input id="f-first-date" type="date" style="flex:1 1 140px;min-width:130px" value="${esc(st.first_class||st.sessions_start||'')}">
-         <select id="f-first-slot" style="flex:1 1 150px;min-width:140px">${firstSlotOptions(st)}</select></div></div>
+         <select id="f-first-slot" style="flex:1 1 150px;min-width:140px"><option value="">（請先選左邊的日期）</option></select></div></div>
      <div class="field"><label>學費</label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：800"></div>
      <div class="field"><label>幣別</label><select id="f-cur"><option value="TWD"${(st.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${st.currency==='VND'?' selected':''}>越南盾 ₫</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
      ${e
@@ -242,6 +251,7 @@ function studentModal(st){const e=!!st;st=st||{};
    </div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
      <button class="btn btn-primary" data-act="saveStudent" data-id="${st.id||''}">${e?'儲存':'新增'}</button></div></div>`);
+  refreshFirstSlot(st.first_slot!=null?st.first_slot:undefined);
 }
 
 /* ---------- 課文與練習 ---------- */
@@ -693,7 +703,7 @@ document.addEventListener('input',(e)=>{const m=((e.target&&e.target.id)||'').ma
   const t=e.target;if(t&&t.classList){const v=parseFloat(t.value);
     if(t.classList.contains('va-time')){const d=DLG[+t.dataset.di];if(d&&d._va&&d._va.segs&&d._va.segs[+t.dataset.k]&&!isNaN(v))d._va.segs[+t.dataset.k][t.dataset.edge]=v;}
     else if(t.classList.contains('la-time')){const d=DLG[+t.dataset.di];if(d&&d._la&&d._la.segs&&d._la.segs[+t.dataset.k]&&!isNaN(v))d._la.segs[+t.dataset.k][t.dataset.edge]=v;}}});
-document.addEventListener('change',(e)=>{if(e.target&&e.target.classList&&(e.target.classList.contains('sched-d')||e.target.classList.contains('sched-s')||e.target.classList.contains('sched-e')))refreshFirstSlot();});
+document.addEventListener('change',(e)=>{const t=e.target;if(!t)return;if((t.classList&&(t.classList.contains('sched-d')||t.classList.contains('sched-s')||t.classList.contains('sched-e')))||t.id==='f-first-date')refreshFirstSlot();});
 
 document.addEventListener('click',(e)=>{
   if(e.target.matches('[data-overlay]')){closeModal();return;}
