@@ -236,7 +236,8 @@ function renderLessons(){
       <div class="actions" style="margin-top:14px;flex-wrap:wrap">
         <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button>
         <button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題（${qn}）</button>
-        <button class="btn btn-sm" data-act="assign" data-id="${l.id}">指派</button>
+        <button class="btn btn-sm" data-act="assign" data-id="${l.id}">指派${an?`（${an}）`:''}</button>
+        ${an?`<button class="btn btn-sm btn-warn" data-act="unassign" data-id="${l.id}">↩ 收回</button>`:''}
         <button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div></div>`;}).join('');
 }
 function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;
@@ -317,7 +318,7 @@ function assignModal(l){const ids=l.assigned_ids||[];
      <div class="field"><label>截止日期 <span class="hint">選填</span></label><input id="as-due" type="date" value="${esc(l.due_date||'')}"></div>
      <div class="field"><label>指派給哪些學生 <button class="btn btn-sm btn-ghost" data-act="assignAll" type="button" style="float:right">全選 / 取消</button></label>
        <div class="check-list" id="as-targets">${list}</div></div></div>
-   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
+   <div class="modal-foot">${ids.length?`<button class="btn btn-warn" data-act="unassign" data-id="${l.id}">↩ 全部收回</button>`:''}<span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">取消</button>
      <button class="btn btn-primary" data-act="saveAssign" data-id="${l.id}">儲存</button></div></div>`);
 }
 
@@ -423,6 +424,14 @@ H.saveAssign=async(id)=>{
   try{await DB.update('lessons',id,{assigned_ids:ids,due_date:$('#as-due').value||null});}
   catch(e){if(btn){btn.disabled=false;btn.textContent='儲存';}toast('儲存失敗：'+(e.code||e.message||e));return;}
   closeModal();toast('已指派');
+  try{await loadAll();render();}catch(e){}
+};
+H.unassign=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;
+  if(!confirm('確定收回「'+(l.title||'')+'」的指派嗎？\n學生會立刻看不到這份作業，你可以修改後再重新指派。（學生已作答的紀錄會保留）'))return;
+  const btn=document.querySelector('[data-act="unassign"]');if(btn){btn.disabled=true;btn.textContent='收回中…';}
+  try{await DB.update('lessons',id,{assigned_ids:[]});}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='↩ 收回';}toast('收回失敗：'+(e.code||e.message||e));return;}
+  closeModal();toast('已收回指派，學生已看不到');
   try{await loadAll();render();}catch(e){}
 };
 H.markWrite=async(key)=>{const[rid,qid,mark]=key.split('::');const r=S.results.find(x=>x.id===rid);if(!r)return;
