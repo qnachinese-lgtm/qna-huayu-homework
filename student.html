@@ -199,7 +199,7 @@ function dialoguesHtml(l){const ds=lessonDialogues(l);const multi=ds.length>1;
     if(!(d.content||vocab.length||d.audio_url))return '';
     return `<details class="disc dlg-fold" open><summary>${esc(d.title||('對話'+(di+1)))}</summary><div class="dlg-fold-body">
       ${d.audio_url?`<div class="lesson-block"><div class="lesson-label">${t('audio')}</div>${audioHtml(d.audio_url)}</div>`:''}
-      ${d.content?`<div class="lesson-block"><div class="lesson-label">${t('text')}</div><div class="prose lookup">${prose2(d.content)}</div></div>`:''}
+      ${d.content?`<div class="lesson-block"><div class="lesson-label">${t('text')}</div><div class="prose lookup">${prose2(d.content)}</div><div style="margin-top:8px"><button class="btn btn-sm" data-act="shadowDlg" data-id="${l.id}::${di}">🗣 ${t('shadowDlg')}</button></div></div>`:''}
       ${vocab.length?`<div class="lesson-block"><div class="lesson-label">${t('vocab')}</div><div class="vocab-list">${chips}</div></div>`:''}</div></details>`;
   }).join('');}
 function gpLabel(lab){lab=(lab||'').trim();if(!lab)return '';const m=GP_LBL[lab];if(m&&(S.lang==='en'||S.lang==='vi'))return m[S.lang]||lab;return lab;}
@@ -512,6 +512,7 @@ H.ziClose=()=>hideZiPopup();
 H.shadowRec=async(_,b)=>{if(SHADOWMR&&SHADOWMR.state==='recording'){SHADOWMR.stop();return;}if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)){toast(th('recDenied'));return;}let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){toast(th('recDenied'));return;}const chunks=[],idx=S.flashIdx;SHADOWMR=new MediaRecorder(stream);SHADOWMR.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};SHADOWMR.onstop=()=>{const blob=new Blob(chunks,{type:(SHADOWMR&&SHADOWMR.mimeType)||'audio/webm'});stream.getTracks().forEach(tk=>tk.stop());if(SHADOW&&SHADOW.url)URL.revokeObjectURL(SHADOW.url);SHADOW={idx,url:URL.createObjectURL(blob)};SHADOWMR=null;renderCards();try{new Audio(SHADOW.url).play();}catch(e){}};SHADOWMR.start();b.classList.add('recording');b.textContent='⏹';};
 H.shadowPlay=()=>{if(SHADOW&&SHADOW.url){try{new Audio(SHADOW.url).play();}catch(e){}}};
 Object.assign(I18N.zh,{replay:'↻ 重播'});Object.assign(I18N.cn,{replay:'↻ 重播'});Object.assign(I18N.en,{replay:'↻ Replay'});Object.assign(I18N.vi,{replay:'↻ Phát lại'});
+Object.assign(I18N.zh,{listen:'聽',shadowDlg:'逐句跟讀'});Object.assign(I18N.cn,{listen:'听',shadowDlg:'逐句跟读'});Object.assign(I18N.en,{listen:'Listen',shadowDlg:'Read aloud'});Object.assign(I18N.vi,{listen:'Nghe',shadowDlg:'Đọc theo câu'});
 let STROKE_WORD='',STROKE_WRITERS=[];
 function showStroke(word){const chars=[...(word||'')].filter(c=>/[㐀-鿿]/.test(c));if(!chars.length){toast(t('noCards'));return;}
   if(!window.HanziWriter){toast('筆順元件還在載入，請稍候再點一次');return;}
@@ -527,6 +528,25 @@ function renderStroke(){const wrap=document.getElementById('stroke-chars');if(!w
 H.stroke=(_,b)=>showStroke(b.dataset.text);
 H.strokeClose=()=>{const ov=document.getElementById('stroke-ov');if(ov)ov.remove();};
 H.strokeReplay=()=>renderStroke();
+/* ---- 課文逐句跟讀 ---- */
+let SS=null;
+function splitSentences(text){return (text||'').replace(/\r/g,'').split('\n').flatMap(line=>(line.match(/[^。！？!?；;]+[。！？!?；;]*/g)||[])).map(s=>s.trim()).filter(s=>s&&/[㐀-鿿]/.test(s));}
+function renderSS(){let ov=document.getElementById('ss-ov');if(ov)ov.remove();ov=document.createElement('div');ov.id='ss-ov';ov.className='stroke-ov';
+  const rows=SS.sents.map((s,i)=>`<div class="ss-row" id="ss-row-${i}"><div class="ss-sent">${annotate(s)}</div><div class="ss-tools"><button class="btn btn-sm" data-act="ssPlay" data-i="${i}">▶ ${t('listen')}</button><button class="btn btn-sm rec-btn" data-act="ssRec" data-i="${i}" aria-label="跟讀">🎤</button>${SS.recs[i]?`<button class="btn btn-sm" data-act="ssMine" data-i="${i}">▶ ${t('shadowMine')}</button>`:''}</div></div>`).join('');
+  ov.innerHTML=`<div class="stroke-box ss-box"><button class="stroke-x" data-act="ssClose" aria-label="關閉">✕</button><h3 style="margin:0 0 12px;font-size:17px">🗣 ${t('shadowDlg')}</h3><div class="ss-list">${rows}</div></div>`;
+  document.body.appendChild(ov);try{convEl(ov);}catch(e){}}
+H.shadowDlg=(key)=>{const p=String(key).split('::');const l=S.lessons.find(x=>x.id===p[0]);if(!l)return;const d=lessonDialogues(l)[+p[1]];const sents=splitSentences(d&&d.content);if(!sents.length){toast(t('noContent'));return;}SS={sents,recs:{},mr:null};renderSS();};
+H.ssClose=()=>{try{if(SS&&SS.mr&&SS.mr.state==='recording')SS.mr.stop();}catch(e){}try{speechSynthesis.cancel();}catch(e){}const ov=document.getElementById('ss-ov');if(ov)ov.remove();SS=null;};
+H.ssPlay=(_,b)=>{if(!SS)return;const i=+b.dataset.i,row=document.getElementById('ss-row-'+i);try{speechSynthesis.cancel();}catch(e){}document.querySelectorAll('.ss-row.playing').forEach(r=>r.classList.remove('playing'));
+  try{const u=new SpeechSynthesisUtterance(SS.sents[i]);u.lang=(S.lang==='cn'?'zh-CN':'zh-TW');u.rate=.85;u.onstart=()=>{if(row)row.classList.add('playing');};u.onend=()=>{if(row)row.classList.remove('playing');};speechSynthesis.speak(u);}catch(e){}};
+H.ssRec=async(_,b)=>{if(!SS)return;const i=+b.dataset.i;
+  if(SS.mr&&SS.mr.state==='recording'){SS.mr.stop();return;}
+  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)){toast(th('recDenied'));return;}
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){toast(th('recDenied'));return;}
+  const chunks=[];SS.mr=new MediaRecorder(stream);SS.mr.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+  SS.mr.onstop=()=>{const blob=new Blob(chunks,{type:(SS.mr&&SS.mr.mimeType)||'audio/webm'});stream.getTracks().forEach(tk=>tk.stop());if(SS.recs[i])URL.revokeObjectURL(SS.recs[i]);SS.recs[i]=URL.createObjectURL(blob);SS.mr=null;renderSS();try{new Audio(SS.recs[i]).play();}catch(e){}};
+  SS.mr.start();b.classList.add('recording');b.textContent='⏹';};
+H.ssMine=(_,b)=>{if(!SS)return;const i=+b.dataset.i;if(SS.recs[i]){try{new Audio(SS.recs[i]).play();}catch(e){}}};
 H.dictation=()=>{const list=vocabAll().filter(v=>/[㐀-鿿]/.test(v.front));if(!list.length){toast(t('noCards'));return;}S.dict={list:shuffle(list,Math.random()+'').slice(0,12),idx:0,checked:false,val:'',right:0,ok:false};$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderDictation();};
 H.dictReplay=()=>{const dd=S.dict;if(!dd)return;const v=dd.list[dd.idx];vocabPlay(v.lessonId,v.di,v.vi,v.front);};
 H.dictCheck=()=>{const dd=S.dict;if(!dd||dd.checked)return;const inp=document.getElementById('dict-in');dd.val=inp?inp.value:'';const v=dd.list[dd.idx];const norm=s=>{try{return (CONV.cn?CONV.cn(s):s).replace(/\s/g,'');}catch(e){return (s||'').replace(/\s/g,'');}};dd.ok=norm(dd.val)!==''&&norm(dd.val)===norm(v.front);if(dd.ok)dd.right++;dd.checked=true;renderDictation();};
