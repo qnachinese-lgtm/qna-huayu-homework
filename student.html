@@ -313,7 +313,7 @@ const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a
 const answerableOf=(lid)=>questionsOf(lid).filter(q=>q.type!=='note'); // 排除示範題（不用作答、不計分）
 const resultOf=(lid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===S.me.id);
 function wrongQuestions(){const out=[],seen=new Set();
-  S.results.forEach(r=>{const ans=r.answers||{};Object.keys(ans).forEach(qid=>{if(seen.has(qid))return;const q=S.questions.find(x=>x.id===qid);if(q&&!isManualQ(q)&&!isCorrect(q,ans[qid])){out.push(q);seen.add(qid);}});});
+  S.results.forEach(r=>{if(r.status==='draft')return;const ans=r.answers||{};Object.keys(ans).forEach(qid=>{if(seen.has(qid))return;const q=S.questions.find(x=>x.id===qid);if(q&&!isManualQ(q)&&!isCorrect(q,ans[qid])){out.push(q);seen.add(qid);}});});
   return out;}
 function myUid(){return (window.firebase&&firebase.auth&&firebase.auth().currentUser)?firebase.auth().currentUser.uid:((S.me&&S.me.uid)||null);}
 async function loadMine(){const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);
@@ -394,7 +394,7 @@ function renderWork(){
       <div class="grow"><h3>${esc(l.title)}</h3>
         <div class="meta" style="margin-top:4px;align-items:center"><span>📝 ${qn} ${t('q')}</span>${dlgHasAudio(l)?'<span class="tag gold">🔊</span>':''}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}</div>
         ${done?`<div class="progress"><span style="width:${pct}%"></span></div>`:''}</div>
-      ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`:`<div class="tag accent">${t('start')} →</div>`}</div>`;}).join('')+'</div>';
+      ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`:`<div class="tag accent">${(r&&r.status==='draft')?t('resume'):t('start')} →</div>`}</div>`;}).join('')+'</div>';
 }
 function renderContent(){
   const ls=myLessons().filter(lessonHasContent);
@@ -553,15 +553,23 @@ function renderPractice(){
       `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn" data-act="retry">${t('retry')}</button><button class="btn btn-primary" data-act="back">${t('finishBack')}</button></div>`;
   }else{practice=`<div class="section-head" style="margin-top:24px"><h2 style="font-size:19px">${t('practice')}</h2><span class="sub">${qs.filter(q=>q.type!=='note').length} ${t('q')}</span></div>`+
       quizBodyHtml(qs,l)+
-      `<button class="btn btn-accent" style="width:100%;padding:13px;font-size:15px" data-act="submit">${t('submit')}</button>`;}
+      `<div style="display:flex;gap:10px;margin-top:6px">${set.mode==='lesson'?`<button class="btn" style="flex:1 1 0;padding:13px" data-act="saveDraft">💾 ${t('saveDraft')}</button>`:''}<button class="btn btn-accent" style="flex:2 1 0;padding:13px;font-size:15px" data-act="submit">${t('submit')}</button></div>${set.mode==='lesson'?`<div class="hint" style="text-align:center;margin-top:8px">${t('draftHint')}</div>`:''}`;}
   $('#screen').innerHTML=head+textCard+practice;
   convScreen();
-  if(!S.graded)setupCanvases();
+  if(!S.graded){setupCanvases();if(set.mode==='lesson'){const prev=S.results.find(x=>x.lesson_id===set.lessonId);if(prev&&prev.answers)fillSaved(qs,prev.answers);}}
 }
 function gradeAll(qs){let score=0;const answers={};let hasWrite=false;
   qs.forEach(q=>{if(q.type==='note')return;const resp=readResp(q);answers[q.id]=resp;
     if(isManualQ(q))hasWrite=true;else if(isCorrect(q,resp))score++;});
   return{score,total:qs.filter(q=>q.type!=='note').length,answers,hasWrite};}
+// 把之前儲存（草稿或已送出）的答案填回作答畫面，方便接著做
+function fillSaved(qs,saved){if(!saved)return;qs.forEach(q=>{const v=saved[q.id];if(v==null)return;
+  if(q.type==='choice'){const r=document.querySelector('input[name="q-'+q.id+'"][value="'+v+'"]');if(r)r.checked=true;}
+  else if(q.type==='fill'){if(q.input_mode==='write')return;if(Array.isArray(v)){v.forEach((val,k)=>{const el=document.getElementById('fill-'+q.id+(k===0?'':'-'+k));if(el)el.value=val;});}else{const el=document.getElementById('fill-'+q.id);if(el)el.value=v;}}
+  else if(q.type==='qa'){const el=document.getElementById('qa-'+q.id);if(el)el.value=v;}
+  else if(q.type==='match'){(v||[]).forEach((val,i)=>{const sel=document.querySelector('select[data-q="'+q.id+'"][data-i="'+i+'"]');if(sel)sel.value=val;});}
+  else if(q.type==='order'){const sh=SHUF[q.id]||(SHUF[q.id]=shuffle((q.options||[]).slice(),q.id));const idxs=(v||[]).map(x=>sh.indexOf(x)).filter(i=>i>=0);responses[q.id]=idxs;const el=document.getElementById('order-'+q.id);if(el){el.innerHTML=orderInner(q);convEl(el);}}
+});}
 
 /* ============ handlers ============ */
 const H={};
@@ -588,6 +596,7 @@ H.shadowRec=async(_,b)=>{if(SHADOWMR&&SHADOWMR.state==='recording'){SHADOWMR.sto
 H.shadowPlay=()=>{if(SHADOW&&SHADOW.url){try{new Audio(SHADOW.url).play();}catch(e){}}};
 Object.assign(I18N.zh,{replay:'↻ 重播'});Object.assign(I18N.cn,{replay:'↻ 重播'});Object.assign(I18N.en,{replay:'↻ Replay'});Object.assign(I18N.vi,{replay:'↻ Phát lại'});
 Object.assign(I18N.zh,{listen:'聽',shadowDlg:'逐句跟讀',scoreBtn:'發音',youSaid:'你說'});Object.assign(I18N.cn,{listen:'听',shadowDlg:'逐句跟读',scoreBtn:'发音',youSaid:'你说'});Object.assign(I18N.en,{listen:'Listen',shadowDlg:'Read aloud',scoreBtn:'Score',youSaid:'You said'});Object.assign(I18N.vi,{listen:'Nghe',shadowDlg:'Đọc theo câu',scoreBtn:'Chấm',youSaid:'Bạn nói'});
+Object.assign(I18N.zh,{saveDraft:'儲存答案',draftSaved:'已儲存，還沒送出',draftHint:'可先「儲存答案」保留進度；全部做完再按「送出」，老師才會收到。',resume:'繼續'});Object.assign(I18N.cn,{saveDraft:'保存答案',draftSaved:'已保存，还没送出',draftHint:'可先「保存答案」保留进度；全部做完再按「送出」，老师才会收到。',resume:'继续'});Object.assign(I18N.en,{saveDraft:'Save',draftSaved:'Saved (not submitted)',draftHint:'You can Save to keep progress; press Submit only when done — then the teacher receives it.',resume:'Resume'});Object.assign(I18N.vi,{saveDraft:'Lưu',draftSaved:'Đã lưu (chưa nộp)',draftHint:'Có thể Lưu để giữ tiến độ; làm xong hãy Nộp — giáo viên mới nhận được.',resume:'Tiếp tục'});
 let STROKE_WORD='',STROKE_WRITERS=[];
 function showStroke(word){const chars=[...(word||'')].filter(c=>/[㐀-鿿]/.test(c));if(!chars.length){toast(t('noCards'));return;}
   if(!window.HanziWriter){toast('筆順元件還在載入，請稍候再點一次');return;}
@@ -680,6 +689,14 @@ H.recToggle=async(_,b)=>{const qid=b.dataset.q;
   MR.start();b.classList.add('recording');b.textContent=th('recStop');
   const st=document.getElementById('rec-st-'+qid);if(st)st.textContent=th('recing');};
 async function uploadSpeak(blob,qid){const u=myUid();const ty=(blob.type||'');const ext=ty.indexOf('mp4')>=0?'m4a':ty.indexOf('ogg')>=0?'ogg':'webm';const ref=firebase.storage().ref('speech/'+u+'_'+qid+'_'+Date.now()+'.'+ext);await ref.put(blob);return await ref.getDownloadURL();}
+H.saveDraft=async()=>{const set=S.practiceSet;if(!set||set.mode!=='lesson')return;const qs=set.questions;
+  const answers={};qs.forEach(q=>{if(q.type==='note')return;const resp=readResp(q);if(resp!=null&&resp!==''&&!(Array.isArray(resp)&&!resp.join('')))answers[q.id]=resp;});
+  const btn=document.querySelector('[data-act="saveDraft"]');if(btn){btn.disabled=true;btn.textContent='…';}
+  try{const prev=S.results.find(x=>x.lesson_id===set.lessonId);const merged=Object.assign({},(prev&&prev.answers)||{},answers);
+    await DB.upsertResult(set.lessonId,S.me.id,{uid:myUid(),answers:merged,status:'draft',saved_at:now()});
+    {const u=myUid();S.results=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);}
+    if(btn){btn.disabled=false;btn.textContent='💾 '+t('saveDraft');}toast('✓ '+t('draftSaved'));
+  }catch(e){if(btn){btn.disabled=false;btn.textContent='💾 '+t('saveDraft');}toast(e.message);}};
 H.submit=async()=>{const set=S.practiceSet,qs=set.questions;GRADE=gradeAll(qs);S.graded=true;
   bumpActivity(qs.length||1);
   const speaks=qs.filter(q=>q.type==='speak'&&RECORD[q.id]);

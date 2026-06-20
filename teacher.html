@@ -438,7 +438,8 @@ function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length
       <input class="gd-fb" type="text" data-fb="${r.id}::${q.id}" value="${esc(fb)}" placeholder="這題的修改建議（選填，學生看得到）"></div>`;}).join('');
   return `<div class="gd-stubody">${perQ}
     <div class="gd-overall"><label>整體評語 / 修改建議 <span class="hint">學生會在「成績」看到</span></label><textarea class="gd-cmt" id="cmt-${r.id}" placeholder="給這位學生的整體建議…">${esc(r.comment||'')}</textarea></div>
-    <button class="btn btn-primary btn-sm" data-act="saveReview" data-id="${r.id}">💾 儲存建議</button></div>`;}
+    <button class="btn btn-primary btn-sm" data-act="saveReview" data-id="${r.id}">💾 儲存建議</button>
+    <button class="btn btn-sm btn-danger" data-act="delResult" data-id="${r.id}" style="margin-left:8px">🗑 刪除此作答</button></div>`;}
 /* ---------- 成績 ---------- */
 function renderGrades(){
   const wrap=$('#grades-list');const ls=sortLessons(S.lessons).filter(l=>(l.assigned_ids||[]).length);
@@ -446,23 +447,26 @@ function renderGrades(){
   wrap.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-sm" data-act="exportGrades">⬇ 匯出成績 CSV</button></div>'+ls.map(l=>{
     const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);
     const qn=answerableOf(l.id).length;
-    const rows=targets.map(s=>{const r=resultOf(l.id,s.id);const pend=r&&r.status==='pending';
-      return `<tr><td><span class="dot ${r&&!pend?'ok':'no'}"></span>${esc(s.name)}</td>
-        <td>${!r?'<span class="badge badge-pending">未開始</span>':(pend?'<span class="badge badge-soon">待批改</span>':'<span class="badge badge-ok">已完成</span>')}</td>
-        <td><b>${r?(scoreOf(l,r)+'/'+(r.total||qn)):'—'}</b></td></tr>`;}).join('');
+    const rows=targets.map(s=>{const r=resultOf(l.id,s.id);const draft=r&&r.status==='draft';const pend=r&&r.status==='pending';
+      const stBadge=!r?'<span class="badge badge-pending">未開始</span>':draft?'<span class="badge badge-soon">✍️ 作答中（未送出）</span>':pend?'<span class="badge badge-soon">待批改</span>':'<span class="badge badge-ok">已完成</span>';
+      return `<tr><td><span class="dot ${r&&!draft&&!pend?'ok':'no'}"></span>${esc(s.name)}</td>
+        <td>${stBadge}</td>
+        <td><b>${(r&&!draft)?(scoreOf(l,r)+'/'+(r.total||qn)):'—'}</b></td></tr>`;}).join('');
     const doneCount=targets.filter(s=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;
     const withResult=targets.map(s=>({s,r:resultOf(l.id,s.id)})).filter(o=>o.r);
     let reviewSection='';
     if(withResult.length){
-      const stus=withResult.map(({s,r})=>{const pend=r.status==='pending';const fbCount=Object.keys(r.feedback||{}).length+(r.comment?1:0);
-        return `<details class="disc gd-stu"><summary><b>${esc(s.name)}</b> <span class="badge ${pend?'badge-soon':'badge-ok'}">${pend?'待批改':'已完成'}</span> <span class="gd-score">${scoreOf(l,r)}/${r.total||qn}</span>${fbCount?'<span class="tag gold">📝 已給建議</span>':''}</summary>${studentReviewHtml(l,s,r)}</details>`;}).join('');
+      const stus=withResult.map(({s,r})=>{const draft=r.status==='draft';const pend=r.status==='pending';const fbCount=Object.keys(r.feedback||{}).length+(r.comment?1:0);
+        const sb=draft?'<span class="badge badge-soon">✍️ 作答中（未送出）</span>':`<span class="badge ${pend?'badge-soon':'badge-ok'}">${pend?'待批改':'已完成'}</span>`;
+        return `<details class="disc gd-stu"><summary><b>${esc(s.name)}</b> ${sb} <span class="gd-score">${draft?'草稿':(scoreOf(l,r)+'/'+(r.total||qn))}</span>${fbCount?'<span class="tag gold">📝 已給建議</span>':''}</summary>${studentReviewHtml(l,s,r)}</details>`;}).join('');
       reviewSection=`<details class="disc" style="margin-top:14px"><summary>📝 逐生作答 ＆ 修改建議（${withResult.length} 人）</summary><div style="margin-top:8px">${stus}</div></details>`;
     }
     return `<div class="card"><div class="row-between"><div>
       <h3 style="font-size:17px">${l.order_index?('第'+l.order_index+'課 · '):''}${esc(l.title)}</h3>
       <div class="meta" style="margin-top:5px"><span>${qn} 題</span><span>完成 <b>${doneCount}/${targets.length}</b></span></div></div></div>
       <div style="overflow:auto;margin-top:12px"><table class="matrix"><thead><tr><th>學生</th><th>狀態</th><th>分數</th></tr></thead><tbody>${rows}</tbody></table></div>
-      ${reviewSection}</div>`;}).join('');
+      ${reviewSection}
+      ${withResult.length?`<div style="margin-top:10px;text-align:right"><button class="btn btn-sm btn-ghost" style="color:var(--danger)" data-act="clearLessonResults" data-id="${l.id}">🗑 清空本課全部作答（測試用）</button></div>`:''}</div>`;}).join('');
 }
 
 /* ---------- 動作 ---------- */
@@ -722,6 +726,12 @@ H.saveReview=async(rid)=>{const r=S.results.find(x=>x.id===rid);if(!r)return;
   try{await DB.update('results',rid,{feedback:fb,comment:comment||null});r.feedback=fb;r.comment=comment||null;
     if(btn){btn.disabled=false;btn.textContent='✓ 已儲存建議';setTimeout(()=>{if(btn)btn.textContent='💾 儲存建議';},2000);}toast('已儲存建議，學生看得到');}
   catch(e){if(btn){btn.disabled=false;btn.textContent='💾 儲存建議';}toast(writeErr('儲存失敗',e));}};
+H.delResult=async(rid)=>{const r=S.results.find(x=>x.id===rid);if(!r)return;const s=S.students.find(x=>x.id===r.student_id);
+  if(!confirm('確定刪除「'+((s&&s.name)||'這位學生')+'」這一課的作答記錄？\n此動作無法復原（測試用）。'))return;
+  try{await DB.remove('results',rid);S.results=await DB.list('results');render();toast('已刪除作答記錄');}catch(e){toast(writeErr('刪除失敗',e));}};
+H.clearLessonResults=async(lid)=>{const rs=S.results.filter(r=>r.lesson_id===lid);if(!rs.length)return toast('這一課還沒有作答記錄');
+  if(!confirm('確定清空「本課」所有學生的作答記錄？共 '+rs.length+' 筆，無法復原（測試用）。'))return;
+  try{for(const r of rs)await DB.remove('results',r.id);S.results=await DB.list('results');render();toast('已清空本課作答記錄');}catch(e){toast(writeErr('清空失敗',e));}};
 H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>(l.assigned_ids||[]).length);if(!ls.length)return toast('還沒有指派的課文');
   const rows=[['學生','Email','課文','狀態','分數','滿分','完成時間']];
   ls.forEach(l=>{const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const qn=answerableOf(l.id).length;
