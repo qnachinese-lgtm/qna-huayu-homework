@@ -127,7 +127,7 @@ function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
 function emptyHtml(i,t,d){return `<div class="empty"><div class="big">${i}</div><b>${t}</b><div style="margin-top:6px">${d}</div></div>`;}
 const TYPE_LABELS={choice:'單選',fill:'填空',order:'重組',match:'配對',write:'手寫',speak:'口說'};
 
-const S={students:[],lessons:[],questions:[],results:[],tab:'dashboard',q:''};
+const S={students:[],lessons:[],questions:[],results:[],tab:'dashboard',q:'',openCards:new Set()};
 const sortLessons=(a)=>a.slice().sort((x,y)=>((x.order_index||0)-(y.order_index||0))||((x.created_at||'').localeCompare(y.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const resultOf=(lid,sid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===sid);
@@ -241,19 +241,21 @@ function lessonCardHtml(l,i){try{
     const ds=(Array.isArray(l.dialogues)&&l.dialogues.length)?l.dialogues:[{content:l.content,vocabulary:l.vocabulary,audio_url:l.audio_url}];
     const vocab=ds.map(d=>d.vocabulary||'').join('\n').split('\n').map(v=>v.trim()).filter(Boolean);const hasAudio=ds.some(d=>d.audio_url);
     const qn=questionsOf(l.id).length, an=(l.assigned_ids||[]).length, di=dueInfo(l.due_date);
-    return `<div class="card">
-      <div class="row-between"><div style="display:flex;gap:14px;align-items:center">
+    const open=S.openCards&&S.openCards.has(l.id);
+    return `<div class="card lesson-card${open?' open':''}">
+      <div class="row-between lesson-head" data-act="toggleCard" data-id="${l.id}"><div style="display:flex;gap:14px;align-items:center">
         <div class="lesson-no">${l.order_index||i+1}</div>
         <div><h3>${esc(l.title)}</h3><div class="meta" style="margin-top:5px;align-items:center">
           <span>📝 ${qn} 題</span><span>📖 生字 ${vocab.length}</span>${hasAudio?'<span class="tag gold">🔊 有音檔</span>':''}
-          <span>👤 指派 ${an}</span>${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}</div></div></div></div>
-      <div class="actions" style="margin-top:14px;flex-wrap:wrap">
+          <span>👤 指派 ${an}</span>${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}</div></div></div>
+        <span class="card-chev" aria-hidden="true">${open?'▾':'▸'}</span></div>
+      ${open?`<div class="actions" style="margin-top:14px;flex-wrap:wrap">
         <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button>
         <button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題（${qn}）</button>
         <button class="btn btn-sm" data-act="assign" data-id="${l.id}">指派${an?`（${an}）`:''}</button>
         ${an?`<button class="btn btn-sm btn-warn" data-act="unassign" data-id="${l.id}">↩ 收回</button>`:''}
         <button class="btn btn-sm" data-act="dupLesson" data-id="${l.id}">📋 複製</button>
-        <button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div></div>`;
+        <button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div>`:''}</div>`;
   }catch(err){return `<div class="card"><h3>${esc((l&&l.title)||'（未命名課文）')}</h3><div class="hint" style="color:var(--danger);margin-top:6px">這一課顯示時出了點問題（資料沒有遺失，可照常編輯或刪除）。</div><div class="actions" style="margin-top:10px"><button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button><button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題</button><button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div></div>`;}}
 function renderLessons(){
   const wrap=$('#lessons-list');
@@ -266,6 +268,8 @@ function renderLessons(){
     '<button class="book-tab '+(!filter?'on':'')+'" data-act="bookFilter" data-id="">全部</button>'+
     books.map(b=>'<button class="book-tab '+(filter===b?'on':'')+'" data-act="bookFilter" data-id="'+esc(b)+'">'+esc(b)+'</button>').join('')+
     (hasUncat?'<button class="book-tab '+(filter==='__none'?'on':'')+'" data-act="bookFilter" data-id="__none">未分類</button>':'')+'</div>';}
+  const anyOpen=ls.some(l=>S.openCards.has(l.id));
+  html+='<div class="list-tools"><span class="hint">點任一課可展開操作按鈕</span><button class="btn btn-sm btn-ghost" data-act="toggleAllCards">'+(anyOpen?'▴ 全部收起':'▾ 全部展開')+'</button></div>';
   const groups={};ls.forEach(l=>{const b=(l.textbook||'').trim()||'__none';(groups[b]||(groups[b]=[])).push(l);});
   let show;if(filter==='__none')show=['__none'];else if(filter)show=[filter];else{show=books.slice();if(hasUncat)show.push('__none');}
   if(!books.length)show=['__none'];
@@ -432,6 +436,8 @@ H.resetPw=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s.email)return t
   try{await firebase.auth().sendPasswordResetEmail(s.email);if(s.reset_requested)await DB.update('students',id,{reset_requested:null});await loadAll();render();toast('已寄出重設密碼信給學生');}catch(err){toast('寄送失敗：'+authMsg(err));}};
 
 H.bookFilter=(id)=>{S.bookFilter=id;renderLessons();};
+H.toggleCard=(id)=>{if(S.openCards.has(id))S.openCards.delete(id);else S.openCards.add(id);renderLessons();};
+H.toggleAllCards=()=>{const ls=sortLessons(S.lessons);if(ls.some(l=>S.openCards.has(l.id)))S.openCards.clear();else ls.forEach(l=>S.openCards.add(l.id));renderLessons();};
 H.addLesson=()=>lessonModal(null);
 H.editLesson=(id)=>lessonModal(S.lessons.find(l=>l.id===id));
 H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!confirm(`確定刪除「${l.title}」？課文題目與成績都會一併刪除。`))return;try{await DB.remove('lessons',id);await loadAll();render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
