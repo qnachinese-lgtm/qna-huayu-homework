@@ -93,14 +93,24 @@ function schedRowHTML(r){r=r||{};return `<div class="sched-row">
   <select class="sched-d">${DAYS.map((d,i)=>`<option value="${i}"${r.d===i?' selected':''}>${d}</option>`).join('')}</select>
   <input class="sched-s" type="time" value="${esc(r.s||'')}"><span class="sched-dash">–</span><input class="sched-e" type="time" value="${esc(r.e||'')}">
   <button class="btn btn-sm btn-ghost sched-x" type="button" data-act="schedDel" aria-label="刪除時段">✕</button></div>`;}
+function firstSlotOptions(st){const sch=(Array.isArray(st&&st.schedule)?st.schedule:[]).filter(r=>r&&(r.s||r.e));const sel=st&&st.first_slot;
+  return '<option value="">（第一個時段／自動）</option>'+sch.map((r,i)=>`<option value="${i}"${sel===i?' selected':''}>${esc((DAYS[(r.d!=null?r.d:0)]||'')+' '+(r.s||'')+(r.e?'–'+r.e:''))}</option>`).join('');}
+function refreshFirstSlot(){const sel=document.getElementById('f-first-slot');if(!sel)return;const prev=sel.value;
+  const rows=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);
+  sel.innerHTML='<option value="">（第一個時段／自動）</option>'+rows.map((r,i)=>`<option value="${i}">${esc((DAYS[r.d]||'')+' '+(r.s||'')+(r.e?'–'+r.e:''))}</option>`).join('');
+  if(prev!==''&&rows[Number(prev)])sel.value=prev;}
 function sessionsUsed(s){
   if(!s||!Array.isArray(s.schedule)||!s.schedule.length)return 0;
-  const startStr=s.sessions_start||s.created_at;if(!startStr)return 0;
+  const startStr=s.first_class||s.sessions_start||s.created_at;if(!startStr)return 0;
   const start=new Date(startStr);if(isNaN(start))return 0;start.setHours(0,0,0,0);
   const now=new Date();if(now<start)return 0;
-  let count=0,guard=0;const cur=new Date(start);
-  while(cur<=now&&guard++<4000){const dow=(cur.getDay()+6)%7;
-    s.schedule.forEach(r=>{const rd=(r.d!=null?r.d:0);if(rd===dow){const end=new Date(cur);if(r.e){const p=r.e.split(':');end.setHours(+p[0]||23,+p[1]||59,0,0);}else end.setHours(23,59,0,0);if(end<=now)count++;}});
+  const toMin=h=>{const p=(h||'').split(':');return (+p[0]||0)*60+(+p[1]||0);};
+  const fs=(s.first_slot!=null&&s.schedule[s.first_slot])?s.schedule[s.first_slot]:null;const fsDay=fs?(fs.d!=null?fs.d:0):null,fsMin=fs?toMin(fs.s):-1;
+  let count=0,guard=0;const cur=new Date(start);const day0=cur.toDateString();
+  while(cur<=now&&guard++<4000){const dow=(cur.getDay()+6)%7;const first=cur.toDateString()===day0;
+    s.schedule.forEach(r=>{const rd=(r.d!=null?r.d:0);if(rd!==dow)return;
+      if(first&&fs&&fsDay===dow&&toMin(r.s)<fsMin)return;
+      const end=new Date(cur);if(r.e){const p=r.e.split(':');end.setHours(+p[0]||23,+p[1]||59,0,0);}else end.setHours(23,59,0,0);if(end<=now)count++;});
     cur.setDate(cur.getDate()+1);}
   return count;}
 function sessionsLeft(s){if(!s||s.sessions_total==null||s.sessions_total==='')return null;const tot=Number(s.sessions_total);if(isNaN(tot))return null;return tot-sessionsUsed(s);}
@@ -207,7 +217,10 @@ function studentModal(st){const e=!!st;st=st||{};
        <button class="btn btn-sm" type="button" data-act="schedAdd" style="margin-top:6px">＋ 新增時段</button></div>
      <div class="field"><label>付款日期</label><input id="f-pay" type="date" value="${esc(st.payment_date||'')}"></div>
      <div class="field"><label>堂數（總共） <span class="hint">本期購買的堂數</span></label><input id="f-sess" type="number" min="0" value="${st.sessions_total??''}" placeholder="例：10"></div>
-     <div class="field"><label>堂數起算日 <span class="hint">從這天起，依上課時段自動扣堂</span></label><input id="f-sess-start" type="date" value="${esc(st.sessions_start||'')}"></div>
+     <div class="field"><label>第一堂課 <span class="hint">第一次上課是哪天、哪個時段；之後依每週時段自動往後扣堂</span></label>
+       <div style="display:flex;gap:8px;flex-wrap:wrap">
+         <input id="f-first-date" type="date" style="flex:1 1 140px;min-width:130px" value="${esc(st.first_class||st.sessions_start||'')}">
+         <select id="f-first-slot" style="flex:1 1 150px;min-width:140px">${firstSlotOptions(st)}</select></div></div>
      <div class="field"><label>學費</label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：800"></div>
      <div class="field"><label>幣別</label><select id="f-cur"><option value="TWD"${(st.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${st.currency==='VND'?' selected':''}>越南盾 ₫</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
      ${e
@@ -388,19 +401,21 @@ H.genCode=()=>{$('#f-code').value=genCodeStr();};
 
 H.addStudent=()=>studentModal(null);
 H.editStudent=(id)=>studentModal(S.students.find(s=>s.id===id));
-H.schedAdd=()=>{const c=$('#sched-rows');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
-H.schedDel=(_,b)=>{const row=b.closest('.sched-row');if(!row)return;const c=row.parentElement;row.remove();if(c&&!c.querySelector('.sched-row'))c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
+H.schedAdd=()=>{const c=$('#sched-rows');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));refreshFirstSlot();};
+H.schedDel=(_,b)=>{const row=b.closest('.sched-row');if(!row)return;const c=row.parentElement;row.remove();if(c&&!c.querySelector('.sched-row'))c.insertAdjacentHTML('beforeend',schedRowHTML({}));refreshFirstSlot();};
 H.delStudent=async(id)=>{const s=S.students.find(x=>x.id===id);if(!confirm(`確定刪除「${s.name}」？相關成績也會一併刪除。`))return;await DB.remove('students',id);await loadAll();render();toast('已刪除');};
 function authMsg(err){const c=((err&&err.code)||'')+'';if(c.indexOf('email-already-in-use')>=0)return '這個 Email 已經建立過帳號了';if(c.indexOf('invalid-email')>=0)return 'Email 格式不正確';if(c.indexOf('weak-password')>=0)return '密碼太弱，至少 6 碼';return (err&&err.message)||'發生錯誤';}
 async function createStudentAuth(email,password){
   const sec=firebase.apps.find(a=>a.name==='secondary')||firebase.initializeApp(window.FIREBASE_CONFIG,'secondary');
   const cred=await sec.auth().createUserWithEmailAndPassword(email,password);const u=cred.user.uid;await sec.auth().signOut();return u;}
 H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return toast('請輸入名字');
+  try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const schedule=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);
+  const fslot=$('#f-first-slot');
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),currency:$('#f-cur').value,
-    sessions_total:$('#f-sess').value===''?null:Number($('#f-sess').value),sessions_start:$('#f-sess-start').value||null,notes:$('#f-notes').value.trim()};
-  if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){toast('儲存失敗：'+err.message);}return;}
+    sessions_total:$('#f-sess').value===''?null:Number($('#f-sess').value),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,notes:$('#f-notes').value.trim()};
+  if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?'儲存失敗：登入已失效，請按右上角「登出」再重新登入後再試':('儲存失敗：'+m));}return;}
   const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
   if(!email||!pw)return toast('請填 Email 與初始密碼');if(pw.length<6)return toast('初始密碼至少 6 碼');
   if(S.students.some(s=>(s.email||'').toLowerCase()===email))return toast('這個 Email 已被其他學生使用');
@@ -536,6 +551,7 @@ async function ensureAuthFresh(){const u=window.firebase&&firebase.auth&&firebas
 async function uploadVocabAudio(file){await ensureAuthFresh();const ext=((file.name.split('.').pop())||'mp3').replace(/[^a-z0-9]/gi,'')||'mp3';const ref=firebase.storage().ref('vocab_audio/'+Date.now()+'_'+Math.random().toString(16).slice(2)+'.'+ext);await ref.put(file);return await ref.getDownloadURL();}
 document.addEventListener('change',(e)=>{if(e.target&&e.target.id==='file-vocab-audio'){const f=e.target.files&&e.target.files[0];if(f)vaHandleFile(f);}});
 document.addEventListener('input',(e)=>{if(e.target&&(e.target.id==='va-sens'||e.target.id==='va-trim'))H.vaRedetect();});
+document.addEventListener('change',(e)=>{if(e.target&&e.target.classList&&(e.target.classList.contains('sched-d')||e.target.classList.contains('sched-s')||e.target.classList.contains('sched-e')))refreshFirstSlot();});
 
 document.addEventListener('click',(e)=>{
   if(e.target.matches('[data-overlay]')){closeModal();return;}
