@@ -36,6 +36,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.js"></script>
@@ -60,7 +61,7 @@ I18N.en.needLogin='Log in with your email so your teacher can track your progres
 I18N.vi.needLogin='Đăng nhập bằng email để giáo viên theo dõi việc học của bạn.';
 const LANGS=[['zh','繁中'],['cn','简中'],['en','EN'],['vi','VI']];
 const NATKEYS=['nat0','natTW','natCN','natHK','natVN','natJP','natKR','natUS','natOther'];
-const TYPE_LABELS={choice:'單選',fill:'填空',order:'重組',match:'配對',write:'手寫'};
+const TYPE_LABELS={choice:'單選',fill:'填空',order:'重組',match:'配對',write:'手寫',speak:'口說'};
 
 /* ============ helpers ============ */
 const $=(s,r=document)=>r.querySelector(s);
@@ -116,7 +117,7 @@ function convEl(root){const conv=CONV[S.lang];if(!conv||!root)return;const w=doc
 function convScreen(){convEl(document.getElementById('screen'));}
 
 /* ---- 手寫題：畫布作答 ---- */
-const HW={zh:{clear:'清除',hint:'用滑鼠／手指／觸控筆書寫',pending:'已送出，等老師批改',pendingNote:'題手寫待老師批改'},en:{clear:'Clear',hint:'Write with mouse / finger / stylus',pending:'Submitted — waiting for teacher',pendingNote:'handwriting question(s) pending review'},vi:{clear:'Xoá',hint:'Viết bằng chuột / ngón tay / bút',pending:'Đã nộp — chờ giáo viên chấm',pendingNote:'câu viết tay chờ chấm'}};
+const HW={zh:{clear:'清除',hint:'用滑鼠／手指／觸控筆書寫',pending:'已送出，等老師批改',pendingNote:'題手寫／口說待老師批改',recStart:'開始錄音',recStop:'⏹ 停止錄音',recRedo:'🎙️ 重新錄音',recHint:'按下開始，唸出題目內容',recing:'錄音中…',recDone:'✓ 已錄好，可試聽',recDenied:'無法使用麥克風，請允許權限',recUploading:'上傳錄音中…'},en:{clear:'Clear',hint:'Write with mouse / finger / stylus',pending:'Submitted — waiting for teacher',pendingNote:'question(s) pending review',recStart:'Start recording',recStop:'⏹ Stop',recRedo:'🎙️ Re-record',recHint:'Tap start, then say the prompt aloud',recing:'Recording…',recDone:'✓ Recorded — you can play it back',recDenied:'Cannot access microphone — please allow it',recUploading:'Uploading recording…'},vi:{clear:'Xoá',hint:'Viết bằng chuột / ngón tay / bút',pending:'Đã nộp — chờ giáo viên chấm',pendingNote:'câu chờ chấm',recStart:'Bắt đầu ghi âm',recStop:'⏹ Dừng',recRedo:'🎙️ Ghi lại',recHint:'Nhấn bắt đầu rồi đọc to đề bài',recing:'Đang ghi âm…',recDone:'✓ Đã ghi — có thể nghe lại',recDenied:'Không dùng được micro — vui lòng cho phép',recUploading:'Đang tải lên…'}};
 function th(k){if(S.lang==='cn'&&CONV.cn)return CONV.cn(HW.zh[k]);return (HW[S.lang]&&HW[S.lang][k])||HW.zh[k];}
 function setupCanvas(cv){
   const ctx=cv.getContext('2d');ctx.lineWidth=9;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#16110c';
@@ -149,7 +150,7 @@ const myLessons=()=>S.lessons.filter(l=>(l.assigned_ids||[]).includes(S.me.id)).
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const resultOf=(lid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===S.me.id);
 function wrongQuestions(){const out=[],seen=new Set();
-  S.results.forEach(r=>{const ans=r.answers||{};Object.keys(ans).forEach(qid=>{if(seen.has(qid))return;const q=S.questions.find(x=>x.id===qid);if(q&&q.type!=='write'&&!isCorrect(q,ans[qid])){out.push(q);seen.add(qid);}});});
+  S.results.forEach(r=>{const ans=r.answers||{};Object.keys(ans).forEach(qid=>{if(seen.has(qid))return;const q=S.questions.find(x=>x.id===qid);if(q&&q.type!=='write'&&q.type!=='speak'&&!isCorrect(q,ans[qid])){out.push(q);seen.add(qid);}});});
   return out;}
 function myUid(){return (window.firebase&&firebase.auth&&firebase.auth().currentUser)?firebase.auth().currentUser.uid:((S.me&&S.me.uid)||null);}
 async function loadMine(){const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);
@@ -294,6 +295,7 @@ function qHtml(q,idx){
     else body=`<input class="blank-inp" style="width:100%" id="fill-${q.id}" type="text" placeholder="${t('inputAns')}" autocomplete="off">`;}
   else if(q.type==='order'){body=`<div id="order-${q.id}">${orderInner(q)}</div>`;}
   else if(q.type==='write'){body=`<div class="hw-wrap"><canvas id="hw-${q.id}" class="hw-canvas" width="660" height="440"></canvas><div class="hw-tools"><button class="btn btn-sm" type="button" data-act="hwclear" data-q="${q.id}">${th('clear')}</button><span class="hint">${th('hint')}</span></div></div>`;}
+  else if(q.type==='speak'){body=`<div class="rec-wrap"><div class="rec-tools"><button class="btn btn-sm rec-btn" type="button" data-act="recToggle" data-q="${q.id}">🎙️ ${th('recStart')}</button><span class="hint" id="rec-st-${q.id}">${th('recHint')}</span></div><audio id="rec-audio-${q.id}" class="rec-audio hide" controls></audio></div>`;}
   else{const rights=shuffle((q.options||[]).map(p=>p.r),q.id+'r');
     body=(q.options||[]).map((p,i)=>`<div class="match-row"><span class="l">${esc(p.l)}</span><select data-q="${q.id}" data-i="${i}"><option value="">${t('sel')}</option>${rights.map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join('')}</select></div>`).join('');}
   return `<div class="q-card"><div class="q-head"><span class="q-num">${idx+1}</span>
@@ -308,8 +310,9 @@ function qHtmlGraded(q,idx){
   else if(q.type==='fill'){body=`<div class="q-prompt">${esc(resp||t('blank'))}</div>`;ct=t('ans')+'：'+esc((q.answer||[]).join(' / '));}
   else if(q.type==='order'){body='<div class="order-tray">'+((resp||[]).map(s=>`<span class="seg">${esc(s)}</span>`).join('')||`<span class="hint">${t('blank')}</span>`)+'</div>';ct=t('ans')+'：'+esc((q.options||[]).join(' '));}
   else if(q.type==='write'){body=resp?`<img class="hw-img" src="${resp}" alt="">`:`<div class="hint">${t('blank')}</div>`;ct=(q.answer&&q.answer.length)?(t('ans')+'：'+esc(q.answer.join('')))  :'';}
+  else if(q.type==='speak'){body=resp?`<audio class="rec-audio" controls src="${esc(resp)}"></audio>`:`<div class="hint">${t('blank')}</div>`;ct='';}
   else{body=(q.options||[]).map((p,i)=>{const r=(resp||[])[i]||'';const good=r===p.r;return `<div class="match-row"><span class="l">${esc(p.l)}</span><span class="badge ${good?'badge-ok':'badge-overdue'}">${esc(r||'—')} ${good?'✓':'✗'}</span></div>`;}).join('');ct=t('ans')+'：'+(q.options||[]).map(p=>esc(p.l)+'→'+esc(p.r)).join('、');}
-  const fb=q.type==='write'
+  const fb=(q.type==='write'||q.type==='speak')
     ? `<div class="q-feedback hw-pending">⏳ ${th('pending')}${ct?` <span class="ans">｜${ct}</span>`:''}</div>`
     : `<div class="q-feedback ${ok?'ok':'no'}">${ok?'✓ '+t('correct'):'✗ '+t('wrong')} <span class="ans">｜${ct}</span></div>`;
   return `<div class="q-card"><div class="q-head"><span class="q-num">${idx+1}</span>
@@ -334,7 +337,7 @@ function renderPractice(){
   if(!qs.length)practice=emptyHtml('📝',t('noLessonQ'),t('noLessonQSub'));
   else if(S.graded){const g=GRADE,pct=g.total?Math.round(g.score/g.total*100):0;
     practice=`<div class="score-banner ${pct>=80?'win':''}"><div class="big">${g.score}/${g.total}</div>
-      <div><div style="font-weight:600;font-size:16px">${pct>=80?t('great'):t('done')}</div><div style="color:var(--muted);font-size:14px">${pct}% ${t('acc')}</div></div></div>${g.hasWrite?`<div class="notice" style="margin-bottom:14px">⏳ ${qs.filter(q=>q.type==='write').length} ${th('pendingNote')}</div>`:''}`+
+      <div><div style="font-weight:600;font-size:16px">${pct>=80?t('great'):t('done')}</div><div style="color:var(--muted);font-size:14px">${pct}% ${t('acc')}</div></div></div>${g.hasWrite?`<div class="notice" style="margin-bottom:14px">⏳ ${qs.filter(q=>q.type==='write'||q.type==='speak').length} ${th('pendingNote')}</div>`:''}`+
       qs.map((q,i)=>qHtmlGraded(q,i)).join('')+
       `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn" data-act="retry">${t('retry')}</button><button class="btn btn-primary" data-act="back">${t('finishBack')}</button></div>`;
   }else{practice=`<div class="section-head" style="margin-top:24px"><h2 style="font-size:19px">${t('practice')}</h2><span class="sub">${qs.length} ${t('q')}</span></div>`+
@@ -351,7 +354,8 @@ function gradeAll(qs){let score=0;const answers={};let hasWrite=false;
     else if(q.type==='order'){const sh=SHUF[q.id]||[];resp=(responses[q.id]||[]).map(i=>sh[i]);}
     else if(q.type==='match'){resp=$$('select[data-q="'+q.id+'"]').map(s=>s.value);}
     else if(q.type==='write'){resp=canvasDataURL(document.getElementById('hw-'+q.id));hasWrite=true;}
-    answers[q.id]=resp;if(q.type!=='write'&&isCorrect(q,resp))score++;});
+    else if(q.type==='speak'){resp=null;hasWrite=true;}
+    answers[q.id]=resp;if(q.type!=='write'&&q.type!=='speak'&&isCorrect(q,resp))score++;});
   return{score,total:qs.length,answers,hasWrite};}
 
 /* ============ handlers ============ */
@@ -384,13 +388,29 @@ H.retry=()=>{S.graded=false;responses={};SHUF={};GRADE=null;window.scrollTo(0,0)
 H.oradd=(_,b)=>{const qid=b.dataset.q;(responses[qid]||(responses[qid]=[])).push(Number(b.dataset.idx));const el=document.getElementById('order-'+qid);el.innerHTML=orderInner(S.questions.find(q=>q.id===qid));convEl(el);};
 H.ordel=(_,b)=>{const qid=b.dataset.q;responses[qid].splice(Number(b.dataset.pos),1);const el=document.getElementById('order-'+qid);el.innerHTML=orderInner(S.questions.find(q=>q.id===qid));convEl(el);};
 H.hwclear=(_,b)=>{const cv=document.getElementById('hw-'+b.dataset.q);if(cv){cv.getContext('2d').clearRect(0,0,cv.width,cv.height);cv.dataset.drawn='';}};
+let RECORD={},MR=null,MRchunks=[];
+H.recToggle=async(_,b)=>{const qid=b.dataset.q;
+  if(MR&&MR.state==='recording'){MR.stop();return;}
+  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)){toast(th('recDenied'));return;}
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){toast(th('recDenied'));return;}
+  MRchunks=[];MR=new MediaRecorder(stream);
+  MR.ondataavailable=e=>{if(e.data&&e.data.size)MRchunks.push(e.data);};
+  MR.onstop=()=>{const blob=new Blob(MRchunks,{type:(MR&&MR.mimeType)||'audio/webm'});RECORD[qid]=blob;stream.getTracks().forEach(tk=>tk.stop());
+    const au=document.getElementById('rec-audio-'+qid);if(au){au.src=URL.createObjectURL(blob);au.classList.remove('hide');}
+    const bt=document.querySelector('[data-act="recToggle"][data-q="'+qid+'"]');if(bt){bt.classList.remove('recording');bt.textContent=th('recRedo');}
+    const st=document.getElementById('rec-st-'+qid);if(st)st.textContent=th('recDone');};
+  MR.start();b.classList.add('recording');b.textContent=th('recStop');
+  const st=document.getElementById('rec-st-'+qid);if(st)st.textContent=th('recing');};
+async function uploadSpeak(blob,qid){const u=myUid();const ty=(blob.type||'');const ext=ty.indexOf('mp4')>=0?'m4a':ty.indexOf('ogg')>=0?'ogg':'webm';const ref=firebase.storage().ref('speech/'+u+'_'+qid+'_'+Date.now()+'.'+ext);await ref.put(blob);return await ref.getDownloadURL();}
 H.submit=async()=>{const set=S.practiceSet,qs=set.questions;GRADE=gradeAll(qs);S.graded=true;
+  const speaks=qs.filter(q=>q.type==='speak'&&RECORD[q.id]);
+  if(speaks.length){toast(th('recUploading'));for(const q of speaks){try{GRADE.answers[q.id]=await uploadSpeak(RECORD[q.id],q.id);}catch(e){toast('上傳錄音失敗：'+(e.message||e));}}}
   try{
     if(set.mode==='lesson'){await DB.upsertResult(set.lessonId,S.me.id,{uid:myUid(),answers:GRADE.answers,score:GRADE.score,auto:GRADE.score,total:qs.length,status:GRADE.hasWrite?'pending':'done',manual:{},completed_at:now()});}
     else{const byL={};qs.forEach(q=>{(byL[q.lesson_id]=byL[q.lesson_id]||[]).push(q);});
       for(const lid of Object.keys(byL)){const r=S.results.find(x=>x.lesson_id===lid);const answers=Object.assign({},(r&&r.answers)||{});const manual=(r&&r.manual)||{};
         byL[lid].forEach(q=>{answers[q.id]=GRADE.answers[q.id];});
-        const lq=S.questions.filter(x=>x.lesson_id===lid);let autoSc=0,manualSc=0,pend=false;lq.forEach(q=>{if(q.type==='write'){if(manual[q.id]==='done')manualSc++;if(!manual[q.id])pend=true;}else if((q.id in answers)&&isCorrect(q,answers[q.id]))autoSc++;});
+        const lq=S.questions.filter(x=>x.lesson_id===lid);let autoSc=0,manualSc=0,pend=false;lq.forEach(q=>{if(q.type==='write'||q.type==='speak'){if(manual[q.id]==='done')manualSc++;if(!manual[q.id])pend=true;}else if((q.id in answers)&&isCorrect(q,answers[q.id]))autoSc++;});
         await DB.upsertResult(lid,S.me.id,{uid:myUid(),answers,score:autoSc+manualSc,auto:autoSc,total:lq.length,status:pend?'pending':'done',completed_at:now()});}}
     {const u=myUid();S.results=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);}
   }catch(e){toast(e.message);}
