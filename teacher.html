@@ -121,7 +121,8 @@ const S={students:[],lessons:[],questions:[],results:[],tab:'dashboard',q:''};
 const sortLessons=(a)=>a.slice().sort((x,y)=>((x.order_index||0)-(y.order_index||0))||((x.created_at||'').localeCompare(y.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const resultOf=(lid,sid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===sid);
-function scoreOf(l,r){const qs=questionsOf(l.id);const manual=r.manual||{};let md=0;qs.forEach(q=>{if((q.type==='write'||q.type==='speak')&&manual[q.id]==='done')md++;});return (r.auto!=null?r.auto:(r.score||0))+md;}
+function manualQ(q){return q.type==='write'||q.type==='speak'||(q.type==='fill'&&q.input_mode==='write');}
+function scoreOf(l,r){const qs=questionsOf(l.id);const manual=r.manual||{};let md=0;qs.forEach(q=>{if(manualQ(q)&&manual[q.id]==='done')md++;});return (r.auto!=null?r.auto:(r.score||0))+md;}
 
 async function loadAll(){
   const [a,b,c,d]=await Promise.all([DB.list('students'),DB.list('lessons'),DB.list('questions'),DB.list('results')]);
@@ -278,7 +279,7 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
 function openQuestionsModal(lid){
   const l=S.lessons.find(x=>x.id===lid);if(!l)return;const qs=questionsOf(lid);
   const rows=qs.length?qs.map((q,i)=>`<div class="qe-row"><span class="q-num">${i+1}</span>
-     <div class="grow"><div class="qe-t"><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${q.audio_url?'<span class="tag gold">🔊 聽力</span>':''}</div>
+     <div class="grow"><div class="qe-t"><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${q.audio_url?'<span class="tag gold">🔊 聽力</span>':''}${(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?`<span class="tag">📘 語法${q.gp_index+1}</span>`:''}${(q.type==='fill'&&q.input_mode==='write')?'<span class="tag">✍️ 手寫</span>':''}</div>
      <div class="qe-p">${esc(q.prompt||'（無題目）')}</div></div>
      <button class="btn btn-sm" data-act="editQuestion" data-id="${lid}::${q.id}">編輯</button>
      <button class="btn btn-sm btn-danger" data-act="delQuestion" data-id="${lid}::${q.id}">刪除</button></div>`).join('')
@@ -293,9 +294,12 @@ function qeFieldsHTML(type,q){q=q||{};const opt=q.options||[];
   if(type==='choice'){const lines=Array.isArray(opt)?opt.join('\n'):'';const correct=(typeof q.answer==='number')?(q.answer+1):'';
     return `<div class="field"><label>選項 <span class="hint">每行一個</span></label><textarea id="qe-options" placeholder="選項一&#10;選項二&#10;選項三">${esc(lines)}</textarea></div>
       <div class="field"><label>正確答案 <span class="hint">填第幾個選項（1、2、3…）</span></label><input id="qe-correct" type="number" min="1" value="${correct}"></div>`;}
-  if(type==='fill'){const acc=Array.isArray(q.answer)?q.answer.join('\n'):'';
-    return `<div class="hint" style="margin-bottom:8px">提示：題目中用 <b>___</b>（三條底線）代表填空處。</div>
-      <div class="field"><label>可接受答案 <span class="hint">每行一個；學生作答相符即算對（不分大小寫、空格）</span></label><textarea id="qe-accept" placeholder="謝謝&#10;謝謝你">${esc(acc)}</textarea></div>`;}
+  if(type==='fill'){const acc=Array.isArray(q.answer)?q.answer.join('\n'):'';const md=q.input_mode||'type';
+    return `<div class="field"><label>作答方式</label><select id="qe-fillmode">
+        <option value="type"${md==='type'?' selected':''}>打字輸入（自動批改）</option>
+        <option value="write"${md==='write'?' selected':''}>手寫漢字（畫布；上課內容可自我對照，作業由你批改）</option></select></div>
+      <div class="hint" style="margin-bottom:8px">打字模式：題目中用 <b>___</b>（三條底線）代表填空處。手寫模式：學生在格子裡寫漢字。</div>
+      <div class="field"><label>答案 <span class="hint">每行一個；打字模式＝相符即算對；手寫模式＝參考答案／學生自我對照</span></label><textarea id="qe-accept" placeholder="謝謝&#10;謝謝你">${esc(acc)}</textarea></div>`;}
   if(type==='order'){const segs=Array.isArray(opt)?opt.join('\n'):'';
     return `<div class="field"><label>正確順序 <span class="hint">每行一個詞／字，依正確順序</span></label><textarea id="qe-segs" placeholder="我&#10;每天&#10;喝&#10;咖啡">${esc(segs)}</textarea>
       <div class="hint" style="margin-top:4px">學生會看到打散的詞，要排回正確順序。</div></div>`;}
@@ -307,10 +311,15 @@ function qeFieldsHTML(type,q){q=q||{};const opt=q.options||[];
   return `<div class="field"><label>配對 <span class="hint">每行「左=右」</span></label><textarea id="qe-pairs" placeholder="你好=Hello&#10;謝謝=Thank you&#10;再見=Goodbye">${esc(pairs)}</textarea></div>`;
 }
 function questionEditModal(lid,q){const e=!!q;q=q||{};QE_TYPE=q.type||'choice';
+  const lsn=S.lessons.find(x=>x.id===lid)||{};const gps=lsn.grammar_points||[];
+  const gpField=`<div class="field"><label>屬於哪個語法點 <span class="hint">選了之後，這題會出現在「上課內容」該語法卡下面，學生看完解釋就能練</span></label>
+     <select id="qe-gp"><option value="">（不指定／放在綜合練習）</option>${gps.map((g,i)=>`<option value="${i}"${q.gp_index===i?' selected':''}>${esc('語法 '+(i+1)+'：'+(g.title||'（未命名）'))}</option>`).join('')}</select>
+     ${gps.length?'':'<div class="hint" style="margin-top:4px">這課還沒有語法點，先到「編輯課文」加語法點，題目才能對應。</div>'}</div>`;
   openModal(`<div class="modal wide"><div class="modal-head"><h3>${e?'編輯題目':'新增題目'}</h3><button class="x" data-act="backToQuestions" data-id="${lid}">×</button></div>
    <div class="modal-body">
      <div class="field"><label>題型</label><div class="type-seg" id="qe-typeseg">
        ${Object.keys(TYPE_LABELS).map(t=>`<button type="button" data-qetype="${t}" class="${t===QE_TYPE?'on':''}">${TYPE_LABELS[t]}</button>`).join('')}</div></div>
+     ${gpField}
      <div class="field"><label>題目</label><textarea id="qe-prompt" style="min-height:56px" placeholder="輸入題目／題幹…">${esc(q.prompt||'')}</textarea></div>
      <div id="qe-fields">${qeFieldsHTML(QE_TYPE,q)}</div>
      <div class="field"><label>聽力音檔 <span class="hint">選填，有音檔即成為聽力題</span></label>
@@ -342,7 +351,7 @@ function renderGrades(){
   if(!ls.length){wrap.innerHTML=emptyHtml('📊','還沒有成績','到「課文練習」指派課文給學生，學生作答後這裡會顯示分數。');return;}
   wrap.innerHTML=ls.map(l=>{
     const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);
-    const qs=questionsOf(l.id);const qn=qs.length;const writeQs=qs.filter(q=>q.type==='write'||q.type==='speak');
+    const qs=questionsOf(l.id);const qn=qs.length;const writeQs=qs.filter(manualQ);
     const rows=targets.map(s=>{const r=resultOf(l.id,s.id);const pend=r&&r.status==='pending';
       return `<tr><td><span class="dot ${r&&!pend?'ok':'no'}"></span>${esc(s.name)}</td>
         <td>${!r?'<span class="badge badge-pending">未開始</span>':(pend?'<span class="badge badge-soon">待批改</span>':'<span class="badge badge-ok">已完成</span>')}</td>
@@ -353,7 +362,7 @@ function renderGrades(){
       const reviewed=targets.map(s=>{const r=resultOf(l.id,s.id);if(!r)return '';
         const blocks=writeQs.map(q=>{const resp=(r.answers||{})[q.id];const mk=(r.manual||{})[q.id];
           const media=q.type==='speak'?(resp?`<audio class="rec-audio" controls src="${esc(resp)}"></audio>`:'<div class="hint">（未作答）</div>'):(resp?`<img class="hw-img" src="${resp}" alt="">`:'<div class="hint">（未作答）</div>');
-          return `<div class="hw-review"><div class="meta"><span class="tag accent">${TYPE_LABELS[q.type]}</span> <b>${esc(q.prompt||'')}</b>${q.type==='write'&&q.answer&&q.answer.length?` <span class="tag gold">參考：${esc(q.answer.join(''))}</span>`:''}</div>
+          return `<div class="hw-review"><div class="meta"><span class="tag accent">${TYPE_LABELS[q.type]}</span> <b>${esc(q.prompt||'')}</b>${q.answer&&q.answer.length?` <span class="tag gold">參考：${esc(q.answer.join(''))}</span>`:''}</div>
             ${media}
             <div class="hw-tools" style="margin-top:8px">
               <button class="btn btn-sm ${mk==='done'?'btn-accent':''}" data-act="markWrite" data-id="${r.id}::${q.id}::done">✓ 正確</button>
@@ -460,14 +469,15 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
   if(type==='choice'){options=$('#qe-options').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個選項');
     const c=Number($('#qe-correct').value);if(!c||c<1||c>options.length)return toast('正確答案需在選項範圍內');answer=c-1;
     if(!prompt)return toast('請輸入題目');}
-  else if(type==='fill'){answer=$('#qe-accept').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!answer.length)return toast('請輸入至少一個可接受答案');
-    if(!prompt)return toast('請輸入題目（含 ___ 填空處）');}
+  else if(type==='fill'){const fm=($('#qe-fillmode')&&$('#qe-fillmode').value)||'type';answer=$('#qe-accept').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!answer.length)return toast(fm==='write'?'請輸入參考答案（至少一個）':'請輸入至少一個可接受答案');
+    if(!prompt)return toast(fm==='write'?'請輸入題目（例如：請寫出「謝謝」）':'請輸入題目（含 ___ 填空處）');}
   else if(type==='order'){options=$('#qe-segs').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個詞／字');}
   else if(type==='write'){if(!prompt)return toast('請輸入題目（例如：請寫出「謝謝」）');const ref=$('#qe-ref').value.trim();answer=ref?[ref]:null;options=[];}
   else if(type==='speak'){if(!prompt)return toast('請輸入題目（例如：請朗讀課文第一段）');answer=null;options=[];}
   else{options=$('#qe-pairs').value.split('\n').map(s=>s.trim()).filter(Boolean).map(line=>{const i=line.indexOf('=');return i<0?null:{l:line.slice(0,i).trim(),r:line.slice(i+1).trim()};}).filter(p=>p&&p.l&&p.r);if(options.length<2)return toast('請至少輸入兩組配對');}
+  const gpv=$('#qe-gp')?$('#qe-gp').value:'';
   const obj={lesson_id:lid,type,prompt:prompt||(type==='order'?'請將下列詞語重組成正確的句子':type==='match'?'請將左右配對':''),
-    options,answer,audio_url:$('#qe-audio').value.trim()||null,explanation:$('#qe-explain').value.trim()||null};
+    options,answer,gp_index:(gpv===''?null:Number(gpv)),input_mode:(type==='fill'&&$('#qe-fillmode')?$('#qe-fillmode').value:null),audio_url:$('#qe-audio').value.trim()||null,explanation:$('#qe-explain').value.trim()||null};
   try{if(qid){await DB.update('questions',qid,obj);}else{obj.order_index=questionsOf(lid).length;await DB.insert('questions',obj);}
     S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已儲存');}catch(err){toast('儲存失敗：'+err.message);}};
 
@@ -492,7 +502,7 @@ H.unassign=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;
 };
 H.markWrite=async(key)=>{const[rid,qid,mark]=key.split('::');const r=S.results.find(x=>x.id===rid);if(!r)return;
   const l=S.lessons.find(x=>x.id===r.lesson_id);const manual=Object.assign({},r.manual||{});manual[qid]=mark;
-  const qs=questionsOf(r.lesson_id);let pend=false;qs.forEach(q=>{if((q.type==='write'||q.type==='speak')&&!manual[q.id])pend=true;});
+  const qs=questionsOf(r.lesson_id);let pend=false;qs.forEach(q=>{if(manualQ(q)&&!manual[q.id])pend=true;});
   const sc=scoreOf(l,Object.assign({},r,{manual}));
   try{await DB.update('results',rid,{manual,score:sc,status:pend?'pending':'done'});S.results=await DB.list('results');render();toast('已更新批改');}catch(e){toast('更新失敗：'+e.message);}};
 H.pickAudio=(id)=>{const f=document.getElementById('file-'+id);if(f)f.click();};
