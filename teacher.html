@@ -240,7 +240,7 @@ function renderLessons(){
         ${an?`<button class="btn btn-sm btn-warn" data-act="unassign" data-id="${l.id}">↩ 收回</button>`:''}
         <button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div></div>`;}).join('');
 }
-function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaReset();
+function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaReset();gpInit(l);
   openModal(`<div class="modal wide"><div class="modal-head"><h3>${e?'編輯課文':'新增課文'}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="form-grid">
      <div class="field"><label>課序 <span class="hint">第幾課</span></label><input id="l-order" type="number" min="1" value="${l.order_index||nextNo}"></div>
@@ -248,7 +248,7 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
      <div class="hint" style="margin:-2px 0 10px">只想出補充作業？課名填一下即可，下面課文／生字／重點全部留空，存好後在卡片點「練習題」出題。</div>
      <div class="field"><label>課文內容 <span class="hint">選填</span></label><textarea id="l-content" style="min-height:130px" placeholder="貼上或輸入課文…">${esc(l.content||'')}</textarea></div>
      <div class="field"><label>生字 <span class="hint">每行一個。加意思：詞=意思；自訂拼音：詞[拼音]，例 這[zhè／zhèi]</span></label><textarea id="l-vocab" placeholder="歡迎=welcome&#10;這[zhè／zhèi]=this&#10;臺灣">${esc(l.vocabulary||'')}</textarea></div>
-     <div class="field"><label>語法 / 重點</label><textarea id="l-key" placeholder="例：「先…再…」的用法">${esc(l.key_points||'')}</textarea></div>
+     <div class="field full"><label>語法點 <span class="hint">一個語法一張卡。每張卡可挑要用的區塊（功能／結構／否定／疑問／用法或自訂），沒有的就不加。例句選填，學生可點來聽。</span></label><div id="gp-editor" class="gp-editor"></div></div>
      <div class="field"><label>例句 <span class="hint">每行一句；學生可點來聽發音、看拼音／注音</span></label><textarea id="l-examples" placeholder="今天天氣很好。&#10;我喜歡喝茶。">${esc(l.examples||'')}</textarea></div>
      <div class="field full"><label>生字音檔（自動切割） <span class="hint">上傳一段「依序唸生字、字間有停頓」的錄音，系統會自動切成每字一段；可預覽調整再存。學生生字卡會播這個真人發音。</span></label>
        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -271,6 +271,7 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
      <button class="btn btn-primary" data-act="saveLesson" data-id="${l.id||''}">${e?'儲存':'新增'}</button></div></div>`);
+  gpRender();
 }
 
 /* ---------- 練習題管理 ---------- */
@@ -405,13 +406,50 @@ H.editLesson=(id)=>lessonModal(S.lessons.find(l=>l.id===id));
 H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!confirm(`確定刪除「${l.title}」？課文題目與成績都會一併刪除。`))return;await DB.remove('lessons',id);await loadAll();render();toast('已刪除');};
 H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return toast('請輸入課名');
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
-  const obj={order_index:Number($('#l-order').value)||0,title,content:$('#l-content').value,vocabulary:$('#l-vocab').value,key_points:$('#l-key').value,examples:$('#l-examples').value,audio_url:$('#l-audio').value.trim()||null};
+  gpSync();const gps=GP.map(g=>({title:(g.title||'').trim(),blocks:(g.blocks||[]).map(b=>({label:(b.label||'').trim(),text:(b.text||'').trim(),ex:(b.ex||'').trim()})).filter(b=>b.label||b.text||b.ex)})).filter(g=>g.title||g.blocks.length);
+  const obj={order_index:Number($('#l-order').value)||0,title,content:$('#l-content').value,vocabulary:$('#l-vocab').value,grammar_points:gps,key_points:'',examples:$('#l-examples').value,audio_url:$('#l-audio').value.trim()||null};
   const sbtn=document.querySelector('[data-act="saveLesson"]');
   if(VA_FILE&&VA_SEGS&&VA_SEGS.length){if(sbtn){sbtn.disabled=true;sbtn.textContent='上傳生字音檔…';}
     try{obj.vocab_audio_url=await uploadVocabAudio(VA_FILE);obj.vocab_segments=VA_SEGS;}
     catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('生字音檔上傳失敗：'+(err.message||err));}}
   try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?'儲存失敗：登入已失效，請按右上角「登出」再重新登入後再試':('儲存失敗：'+m));}};
 
+/* ===== 語法點結構化編輯器 ===== */
+let GP=[];const GP_PRESETS=['功能','結構','否定','疑問','用法'];
+function gpInit(l){
+  if(l&&Array.isArray(l.grammar_points)&&l.grammar_points.length){
+    GP=l.grammar_points.map(g=>({title:g.title||'',blocks:(g.blocks||[]).map(b=>({label:b.label||'',text:b.text||'',ex:b.ex||''}))}));
+  }else if(l&&l.key_points&&l.key_points.trim()){
+    GP=[{title:'',blocks:[{label:'重點',text:l.key_points,ex:''}]}];
+  }else{GP=[];}
+}
+function gpSync(){GP.forEach((g,gi)=>{
+  const t=document.querySelector('.gp-title[data-gi="'+gi+'"]');if(t)g.title=t.value;
+  g.blocks.forEach((b,bi)=>{
+    const lab=document.querySelector('.gp-lab[data-gi="'+gi+'"][data-bi="'+bi+'"]');if(lab)b.label=lab.value;
+    const tx=document.querySelector('.gp-tx[data-gi="'+gi+'"][data-bi="'+bi+'"]');if(tx)b.text=tx.value;
+    const ex=document.querySelector('.gp-ex[data-gi="'+gi+'"][data-bi="'+bi+'"]');if(ex)b.ex=ex.value;
+  });});}
+function gpRender(){const wrap=document.getElementById('gp-editor');if(!wrap)return;
+  const dl='<datalist id="gp-labels">'+GP_PRESETS.map(p=>'<option>'+p+'</option>').join('')+'</datalist>';
+  const addBtn='<div style="margin-top:8px"><button class="btn btn-sm" type="button" data-act="gpAdd">＋ 新增語法點</button></div>';
+  if(!GP.length){wrap.innerHTML='<div class="gp-empty">還沒有語法點。點下面新增第一個。</div>'+addBtn+dl;return;}
+  wrap.innerHTML=GP.map((g,gi)=>{
+    const blocks=g.blocks.map((b,bi)=>`<div class="gp-block">
+      <div class="gp-block-head"><input class="gp-lab" data-gi="${gi}" data-bi="${bi}" list="gp-labels" value="${esc(b.label||'')}" placeholder="標籤（功能／結構…）">
+      <button class="gp-bx" type="button" data-act="gpBlockDel" data-id="${gi}::${bi}" aria-label="刪除區塊">✕</button></div>
+      <textarea class="gp-tx" data-gi="${gi}" data-bi="${bi}" placeholder="說明…">${esc(b.text||'')}</textarea>
+      <textarea class="gp-ex" data-gi="${gi}" data-bi="${bi}" rows="1" placeholder="例句（選填，一行一句，學生可點來聽）">${esc(b.ex||'')}</textarea></div>`).join('');
+    return `<div class="gp-card"><div class="gp-card-head"><span class="gp-no">語法 ${gi+1}</span>
+      <input class="gp-title" data-gi="${gi}" value="${esc(g.title||'')}" placeholder="標題，例：「很」修飾狀態動詞">
+      <button class="btn btn-sm btn-danger" type="button" data-act="gpDel" data-id="${gi}">刪除</button></div>
+      ${blocks}
+      <div class="gp-addrow"><span class="gp-addlbl">加區塊：</span>${GP_PRESETS.map(p=>`<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::${p}">${p}</button>`).join('')}<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::">＋自訂</button></div></div>`;
+  }).join('')+addBtn+dl;}
+H.gpAdd=()=>{gpSync();GP.push({title:'',blocks:[{label:'功能',text:'',ex:''},{label:'結構',text:'',ex:''}]});gpRender();};
+H.gpDel=(i)=>{gpSync();GP.splice(Number(i),1);gpRender();};
+H.gpBlockAdd=(key)=>{gpSync();const i=String(key).indexOf('::');const gi=Number(String(key).slice(0,i));const label=String(key).slice(i+2);if(GP[gi]){GP[gi].blocks.push({label:label||'',text:'',ex:''});gpRender();}};
+H.gpBlockDel=(key)=>{gpSync();const p=String(key).split('::');const gi=Number(p[0]),bi=Number(p[1]);if(GP[gi]){GP[gi].blocks.splice(bi,1);gpRender();}};
 H.questions=(id)=>openQuestionsModal(id);
 H.addQuestion=(id)=>questionEditModal(id,null);
 H.editQuestion=(key)=>{const[lid,qid]=key.split('::');questionEditModal(lid,S.questions.find(q=>q.id===qid));};
