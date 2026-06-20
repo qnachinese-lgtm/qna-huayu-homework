@@ -317,20 +317,20 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
 /* ---------- 練習題管理 ---------- */
 function openQuestionsModal(lid){
   const l=S.lessons.find(x=>x.id===lid);if(!l)return;const qs=sortQuestionsLogical(questionsOf(lid));
-  let secKey=null,secN=0,rows='';
+  const secs=[];let cur=null;
   qs.forEach(q=>{const k=qSecKey(q);
-    if(k!==secKey){secKey=k;secN=0;
-      const gpTag=(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?('語法 '+(q.gp_index+1)+(q.gp_sub?(' · '+esc((q.gp_sub||'').trim())):'')):'未指定語法（綜合練習）';
-      rows+=`<div class="qe-sec">${gpTag}</div>`;}
-    secN++;
-    rows+=`<div class="qe-row"><span class="q-num">${secN}</span>
+    if(!cur||cur.key!==k){const gpTag=(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?('語法 '+(q.gp_index+1)+(q.gp_sub?(' · '+esc((q.gp_sub||'').trim())):'')):'未指定語法（綜合練習）';cur={key:k,label:gpTag,items:[]};secs.push(cur);}
+    cur.items.push(q);});
+  const rowHtml=(q,i)=>`<div class="qe-row"><span class="q-num">${i+1}</span>
      <div class="grow"><div class="qe-t"><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${q.audio_url?'<span class="tag gold">🔊 聽力</span>':''}${q.image_url?'<span class="tag">🖼 照片</span>':''}${(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?`<span class="tag">📘 語法${q.gp_index+1}${q.gp_sub?(' '+esc(q.gp_sub)):''}</span>`:''}${(q.type==='fill'&&q.input_mode==='write')?'<span class="tag">✍️ 手寫</span>':''}</div>
      <div class="qe-p">${esc(q.prompt||'（無題目）')}</div></div>
      <button class="btn btn-sm" data-act="editQuestion" data-id="${lid}::${q.id}">編輯</button>
-     <button class="btn btn-sm btn-danger" data-act="delQuestion" data-id="${lid}::${q.id}">刪除</button></div>`;});
-  if(!qs.length)rows='<div class="empty" style="padding:26px"><b>還沒有題目</b><div style="margin-top:4px">點下方「新增題目」開始出題。</div></div>';
+     <button class="btn btn-sm btn-danger" data-act="delQuestion" data-id="${lid}::${q.id}">刪除</button></div>`;
+  const body=secs.map(sec=>`<details class="qe-secfold"><summary class="qe-sechd">${sec.label}<span class="qe-sec-n">${sec.items.length} 題</span></summary><div class="qe-secbody">${sec.items.map(rowHtml).join('')}</div></details>`).join('');
+  const rowsHtml=qs.length?body:'<div class="empty" style="padding:26px"><b>還沒有題目</b><div style="margin-top:4px">點下方「新增題目」開始出題。</div></div>';
+  const tools=qs.length?`<div class="qe-tools"><span class="hint">點各節標題展開／收起；題號每節從 1 算。</span><span style="flex:1"></span><button class="btn btn-sm btn-ghost" data-act="qExpandAll">▾ 全部展開</button><button class="btn btn-sm btn-ghost" data-act="autoOrderQuestions" data-id="${lid}">↕ 自動排序</button></div>`:'';
   openModal(`<div class="modal wide"><div class="modal-head"><h3>${esc(l.title)} · 練習題</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body">${qs.length?'<div class="hint" style="margin-bottom:10px">已依「語法 → 小節（A→B）」排序，每節題號從 1 重新計算。':'<div style="display:none">'}${qs.length?'<button class="btn btn-sm btn-ghost" data-act="autoOrderQuestions" data-id="'+lid+'" style="margin-left:8px">↕ 自動排序並重編號</button></div>':'</div>'}${rows}</div>
+   <div class="modal-body">${tools}${rowsHtml}</div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button>
      <button class="btn btn-primary" data-act="addQuestion" data-id="${lid}">＋ 新增題目</button></div></div>`);
 }
@@ -472,6 +472,7 @@ H.resetPw=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s.email)return t
 H.bookFilter=(id)=>{S.bookFilter=id;renderLessons();};
 H.toggleCard=(id)=>{if(S.openCards.has(id))S.openCards.delete(id);else S.openCards.add(id);renderLessons();};
 H.toggleAllCards=()=>{const ls=sortLessons(S.lessons);if(ls.some(l=>S.openCards.has(l.id)))S.openCards.clear();else ls.forEach(l=>S.openCards.add(l.id));renderLessons();};
+H.qExpandAll=(_,b)=>{const ds=[...document.querySelectorAll('.qe-secfold')];if(!ds.length)return;const anyClosed=ds.some(d=>!d.open);ds.forEach(d=>{d.open=anyClosed;});if(b)b.textContent=anyClosed?'▴ 全部收起':'▾ 全部展開';};
 H.autoOrderQuestions=async(lid)=>{const qs=sortQuestionsLogical(questionsOf(lid));
   const btn=document.querySelector('[data-act="autoOrderQuestions"]');if(btn){btn.disabled=true;btn.textContent='排序中…';}
   try{for(let i=0;i<qs.length;i++){if((qs[i].order_index||0)!==i+1){await DB.update('questions',qs[i].id,{order_index:i+1});}}
