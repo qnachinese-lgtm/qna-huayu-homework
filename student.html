@@ -255,7 +255,10 @@ function grammarPracticeHtml(l){
   return `<div class="lesson-block"><div class="lesson-label">${t('grammar')}</div>${cards}</div>${untagHtml}`;}
 function readResp(q){
   if(q.type==='choice'){const c=document.querySelector('input[name="q-'+q.id+'"]:checked');return c?Number(c.value):null;}
-  if(q.type==='fill'){if(q.input_mode==='write')return canvasDataURL(document.getElementById('hw-'+q.id));const inp=document.getElementById('fill-'+q.id);return inp?inp.value:'';}
+  if(q.type==='fill'){if(q.input_mode==='write')return canvasDataURL(document.getElementById('hw-'+q.id));
+    const n=fillBlankCount(q.prompt);
+    if(n>1){const vals=[];for(let k=0;k<n;k++){const el=document.getElementById('fill-'+q.id+(k===0?'':'-'+k));vals.push(el?el.value:'');}return vals;}
+    const inp=document.getElementById('fill-'+q.id);return inp?inp.value:'';}
   if(q.type==='order'){const sh=SHUF[q.id]||[];return (responses[q.id]||[]).map(i=>sh[i]);}
   if(q.type==='match')return $$('select[data-q="'+q.id+'"]').map(s=>s.value);
   if(q.type==='write')return canvasDataURL(document.getElementById('hw-'+q.id));
@@ -285,7 +288,12 @@ function setupCanvas(cv){
 function setupCanvases(){document.querySelectorAll('.hw-canvas').forEach(cv=>{if(!cv.dataset.ready){cv.dataset.ready='1';setupCanvas(cv);}});}
 function canvasDataURL(cv){if(!cv||cv.dataset.drawn!=='1')return null;const W=520,H=Math.round(W*cv.height/cv.width);const o=document.createElement('canvas');o.width=W;o.height=H;const c=o.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,W,H);c.drawImage(cv,0,0,W,H);return o.toDataURL('image/png');}
 
-function gradeFill(q,resp){const t2s=s=>{try{return CONV.cn?CONV.cn(s):s;}catch(e){return s;}};const norm=s=>t2s((s||'').trim().toLowerCase().replace(/\s+/g,''));const r=norm(resp);return r!==''&&(q.answer||[]).map(norm).includes(r);}
+// 填空空格：底線（半形 _ 或全形 ＿）連續 2 個以上＝一個空格
+const BLANK_RE=/[_＿]{2,}/g;
+function fillBlankCount(p){return ((p||'').match(/[_＿]{2,}/g)||[]).length;}
+function fillBetween(p){const parts=(p||'').split(/[_＿]{2,}/);return parts.length>2?parts.slice(1,parts.length-1):[];}
+function reconFill(p,arr){const bt=fillBetween(p);let s=(arr&&arr[0])||'';for(let k=1;k<(arr?arr.length:0);k++)s+=(bt[k-1]||'')+(arr[k]||'');return s;}
+function gradeFill(q,resp){const t2s=s=>{try{return CONV.cn?CONV.cn(s):s;}catch(e){return s;}};const norm=s=>t2s((s||'').trim().toLowerCase().replace(/\s+/g,''));const r=Array.isArray(resp)?norm(reconFill(q.prompt,resp)):norm(resp);return r!==''&&(q.answer||[]).map(norm).includes(r);}
 function isCorrect(q,resp){
   if(q.type==='choice')return resp!=null&&Number(resp)===Number(q.answer);
   if(q.type==='fill')return gradeFill(q,resp);
@@ -451,8 +459,11 @@ function qHtml(q,idx){
   if(q.type==='choice'){body='<div class="opts">'+(q.options||[]).map((o,i)=>`<label class="opt"><input type="radio" name="q-${q.id}" value="${i}"><span>${esc(o)}</span></label>`).join('')+'</div>';}
   else if(q.type==='fill'){
     if(q.input_mode==='write'){body=`<div class="hw-wrap"><canvas id="hw-${q.id}" class="hw-canvas" width="660" height="440"></canvas><div class="hw-tools"><button class="btn btn-sm" type="button" data-act="hwclear" data-q="${q.id}">${th('clear')}</button><span class="hint">${th('hint')}</span></div></div>`;}
-    else{const p=esc(q.prompt||'');
-      if(p.includes('___')){showPrompt=false;body=`<div class="q-prompt">${p.replace('___',`<input class="blank-inp" id="fill-${q.id}" type="text" autocomplete="off">`)}</div>`;}
+    else{const raw=q.prompt||'';
+      if(/[_＿]{2,}/.test(raw)){showPrompt=false;let k=0;const nb=fillBlankCount(raw);
+        const cls='blank-inp '+(nb>1?'blank-multi':'blank-one');
+        const filled=esc(raw).replace(/[_＿]{2,}/g,()=>{const id='fill-'+q.id+(k===0?'':'-'+k);k++;return `<input class="${cls}" id="${id}" type="text" autocomplete="off">`;}).replace(/\n/g,'<br>');
+        body=`<div class="q-prompt fill-prompt">${filled}</div>`;}
       else body=`<input class="blank-inp" style="width:100%" id="fill-${q.id}" type="text" placeholder="${t('inputAns')}" autocomplete="off">`;}}
   else if(q.type==='order'){body=`<div id="order-${q.id}">${orderInner(q)}</div>`;}
   else if(q.type==='write'){body=`<div class="hw-wrap"><canvas id="hw-${q.id}" class="hw-canvas" width="660" height="440"></canvas><div class="hw-tools"><button class="btn btn-sm" type="button" data-act="hwclear" data-q="${q.id}">${th('clear')}</button><span class="hint">${th('hint')}</span></div></div>`;}
@@ -471,7 +482,7 @@ function qHtmlGraded(q,idx){
   if(q.type==='choice'){body='<div class="opts">'+(q.options||[]).map((o,i)=>{let cls='';if(i===Number(q.answer))cls='is-correct';else if(resp!=null&&i===Number(resp))cls='is-wrong';
       return `<div class="opt ${cls}"><span>${esc(o)}</span><span style="margin-left:auto">${i===Number(q.answer)?'✓':(resp!=null&&i===Number(resp)?'✗':'')}</span></div>`;}).join('')+'</div>';
     ct=t('ans')+'：'+esc((q.options||[])[Number(q.answer)]||'');}
-  else if(q.type==='fill'){if(q.input_mode==='write'){body=resp?`<img class="hw-img" src="${resp}" alt="">`:`<div class="hint">${t('blank')}</div>`;}else{body=`<div class="q-prompt">${esc(resp||t('blank'))}</div>`;}ct=t('ans')+'：'+esc((q.answer||[]).join(' / '));}
+  else if(q.type==='fill'){if(q.input_mode==='write'){body=resp?`<img class="hw-img" src="${resp}" alt="">`:`<div class="hint">${t('blank')}</div>`;}else{const shown=Array.isArray(resp)?reconFill(q.prompt,resp):resp;body=`<div class="q-prompt">${esc(shown||t('blank'))}</div>`;}ct=t('ans')+'：'+esc((q.answer||[]).join(' / '));}
   else if(q.type==='order'){body='<div class="order-tray">'+((resp||[]).map(s=>`<span class="seg">${esc(s)}</span>`).join('')||`<span class="hint">${t('blank')}</span>`)+'</div>';ct=t('ans')+'：'+esc((q.options||[]).join(' '));}
   else if(q.type==='write'){body=resp?`<img class="hw-img" src="${resp}" alt="">`:`<div class="hint">${t('blank')}</div>`;ct=(q.answer&&q.answer.length)?(t('ans')+'：'+esc(q.answer.join('')))  :'';}
   else if(q.type==='qa'){body=resp?`<div class="qa-ans">${esc(resp).replace(/\n/g,'<br>')}</div>`:`<div class="hint">${t('blank')}</div>`;ct=(q.answer&&q.answer.length)?(t('ans')+'：'+esc(q.answer.join('\n'))):'';}
