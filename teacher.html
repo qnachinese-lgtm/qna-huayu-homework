@@ -69,6 +69,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="db.js"></script>
@@ -179,7 +180,11 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;
      <div class="field"><label>課文內容 <span class="hint">選填</span></label><textarea id="l-content" style="min-height:130px" placeholder="貼上或輸入課文…">${esc(l.content||'')}</textarea></div>
      <div class="field"><label>生字 <span class="hint">每行一個</span></label><textarea id="l-vocab" placeholder="歡迎&#10;臺灣&#10;朋友">${esc(l.vocabulary||'')}</textarea></div>
      <div class="field"><label>語法 / 重點</label><textarea id="l-key" placeholder="例：「先…再…」的用法">${esc(l.key_points||'')}</textarea></div>
-     <div class="field"><label>課文音檔網址 <span class="hint">選填：mp3 連結或 YouTube</span></label><input id="l-audio" type="text" value="${esc(l.audio_url||'')}" placeholder="https://…mp3 或 YouTube 連結"></div>
+     <div class="field"><label>課文音檔 <span class="hint">選填</span></label>
+       <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="l-audio" type="text" style="flex:1;min-width:160px" value="${esc(l.audio_url||'')}" placeholder="上傳檔案，或貼 mp3／YouTube 連結">
+       <button class="btn" type="button" data-act="pickAudio" data-id="l-audio">⬆ 上傳音檔</button></div>
+       <input type="file" id="file-l-audio" class="audio-file hide" accept="audio/*" data-target="l-audio" data-status="status-l-audio">
+       <div class="hint" id="status-l-audio" style="margin-top:4px"></div></div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
      <button class="btn btn-primary" data-act="saveLesson" data-id="${l.id||''}">${e?'儲存':'新增'}</button></div></div>`);
@@ -223,7 +228,11 @@ function questionEditModal(lid,q){const e=!!q;q=q||{};QE_TYPE=q.type||'choice';
        ${Object.keys(TYPE_LABELS).map(t=>`<button type="button" data-qetype="${t}" class="${t===QE_TYPE?'on':''}">${TYPE_LABELS[t]}</button>`).join('')}</div></div>
      <div class="field"><label>題目</label><textarea id="qe-prompt" style="min-height:56px" placeholder="輸入題目／題幹…">${esc(q.prompt||'')}</textarea></div>
      <div id="qe-fields">${qeFieldsHTML(QE_TYPE,q)}</div>
-     <div class="field"><label>聽力音檔網址 <span class="hint">選填，填了即成為聽力題</span></label><input id="qe-audio" type="text" value="${esc(q.audio_url||'')}" placeholder="mp3 連結或 YouTube"></div>
+     <div class="field"><label>聽力音檔 <span class="hint">選填，有音檔即成為聽力題</span></label>
+       <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="qe-audio" type="text" style="flex:1;min-width:160px" value="${esc(q.audio_url||'')}" placeholder="上傳檔案，或貼 mp3／YouTube 連結">
+       <button class="btn" type="button" data-act="pickAudio" data-id="qe-audio">⬆ 上傳音檔</button></div>
+       <input type="file" id="file-qe-audio" class="audio-file hide" accept="audio/*" data-target="qe-audio" data-status="status-qe-audio">
+       <div class="hint" id="status-qe-audio" style="margin-top:4px"></div></div>
      <div class="field"><label>解析 <span class="hint">選填，作答後顯示</span></label><input id="qe-explain" type="text" value="${esc(q.explanation||'')}"></div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="backToQuestions" data-id="${lid}">取消</button>
@@ -329,6 +338,7 @@ H.markWrite=async(key)=>{const[rid,qid,mark]=key.split('::');const r=S.results.f
   const qs=questionsOf(r.lesson_id);let pend=false;qs.forEach(q=>{if(q.type==='write'&&!manual[q.id])pend=true;});
   const sc=scoreOf(l,Object.assign({},r,{manual}));
   try{await DB.update('results',rid,{manual,score:sc,status:pend?'pending':'done'});S.results=await DB.list('results');render();toast('已更新批改');}catch(e){toast('更新失敗：'+e.message);}};
+H.pickAudio=(id)=>{const f=document.getElementById('file-'+id);if(f)f.click();};
 
 document.addEventListener('click',(e)=>{
   if(e.target.matches('[data-overlay]')){closeModal();return;}
@@ -336,6 +346,24 @@ document.addEventListener('click',(e)=>{
   if(qt){QE_TYPE=qt.dataset.qetype;$$('#qe-typeseg button').forEach(b=>b.classList.toggle('on',b.dataset.qetype===QE_TYPE));$('#qe-fields').innerHTML=qeFieldsHTML(QE_TYPE,{});return;}
   const b=e.target.closest('[data-act]');if(!b)return;
   const fn=H[b.dataset.act];if(fn){e.preventDefault();fn(b.dataset.id,b);}
+});
+document.addEventListener('change',async(e)=>{
+  const inp=e.target;if(!inp||!inp.classList||!inp.classList.contains('audio-file'))return;
+  const file=inp.files&&inp.files[0];if(!file)return;
+  const target=document.getElementById(inp.dataset.target),status=document.getElementById(inp.dataset.status);
+  const setS=v=>{if(status)status.textContent=v;};
+  if(!(window.firebase&&firebase.storage)){setS('未連 Firebase Storage，無法上傳；可改貼網址。');return;}
+  if(file.size>25*1024*1024){setS('檔案太大（上限 25MB），請壓縮或改貼網址。');return;}
+  try{setS('上傳中… 0%');
+    const safe=file.name.replace(/[^\w.\-]/g,'_');
+    const ref=firebase.storage().ref('audio/'+Date.now()+'_'+safe);
+    const task=ref.put(file);
+    task.on('state_changed',snap=>{const p=Math.round(snap.bytesTransferred/snap.totalBytes*100);setS('上傳中… '+p+'%');});
+    await task;
+    const url=await ref.getDownloadURL();
+    if(target)target.value=url;
+    setS('✓ 上傳完成');
+  }catch(err){setS('上傳失敗：'+((err&&err.message)||err));}
 });
 
 const useAuth=!!(window.firebase&&firebase.auth&&window.FIREBASE_CONFIG&&window.FIREBASE_CONFIG.apiKey);
