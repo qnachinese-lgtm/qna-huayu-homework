@@ -141,10 +141,15 @@ function renderReview(){const r=S.review,v=r.list[r.idx];
    ${r.flip?`<div class="flash-controls"><button class="btn btn-danger" data-act="revGrade" data-know="0">${t('dontKnow')}</button><button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-idx="${v.idx}" data-text="${esc(v.front)}">🔊</button><button class="btn btn-primary" data-act="revGrade" data-know="1">${t('know')}</button></div>`:`<div class="flash-controls"><span class="hint">${t('tapFlip')}</span></div>`}</div>`;}
 let SHADOW=null,SHADOWMR=null;
 function vocabMeaning(w){for(const l of S.lessons){const vs=parseVocab(l.vocabulary);for(const v of vs){if(v.front===w&&v.back)return v.back;}}return null;}
-function prose2(text){if(text==null)return '';
-  if(!window.pinyinPro)return esc(text).replace(/([㐀-鿿])/g,'<span class="zi" data-act="zi" data-z="$1">$1</span>');
-  let arr;try{arr=pinyinPro.pinyin(text,{type:'all',toneType:S.ann==='zhuyin'?'num':'symbol'});}catch(e){return esc(text);}
-  return arr.map(o=>{if(!o.isZh||!o.pinyin)return esc(o.origin);const rd=S.ann==='zhuyin'?syl2zh(o.pinyin):o.pinyin;const inner=S.ann==='off'?esc(o.origin):`<ruby>${esc(o.origin)}<rt>${esc(rd)}</rt></ruby>`;return `<span class="zi" data-act="zi" data-z="${esc(o.origin)}">${inner}</span>`;}).join('');}
+function annotateWord(w){if(S.ann==='off'||!window.pinyinPro)return esc(w);
+  let arr;try{arr=pinyinPro.pinyin(w,{type:'all',toneType:S.ann==='zhuyin'?'num':'symbol'});}catch(e){return esc(w);}
+  return arr.map(o=>{if(!o.isZh||!o.pinyin)return esc(o.origin);const rd=S.ann==='zhuyin'?syl2zh(o.pinyin):o.pinyin;return `<ruby>${esc(o.origin)}<rt>${esc(rd)}</rt></ruby>`;}).join('');}
+function vocabDict(){const dict=[],seen=new Set();S.lessons.forEach(l=>parseVocab(l.vocabulary).forEach(v=>{const w=v.front;if(w&&w.length>1&&/[㐀-鿿]/.test(w)&&!seen.has(w)){seen.add(w);dict.push(w);}}));dict.sort((a,b)=>b.length-a.length);return dict;}
+function prose2(text){if(text==null)return '';const dict=vocabDict();let html='',i=0;
+  while(i<text.length){let m=null;for(const w of dict){if(text.substr(i,w.length)===w){m=w;break;}}
+    if(m){html+=`<span class="zi" data-act="zi" data-z="${esc(m)}">${annotateWord(m)}</span>`;i+=m.length;}
+    else{const ch=text[i];if(/[㐀-鿿]/.test(ch))html+=`<span class="zi" data-act="zi" data-z="${esc(ch)}">${annotateWord(ch)}</span>`;else html+=esc(ch);i++;}}
+  return html;}
 function showZiPopup(ch,el){const py=window.pinyinPro?pinyinPro.pinyin(ch,{toneType:'symbol'}):'';let zh='';try{if(window.pinyinPro){const a=pinyinPro.pinyin(ch,{type:'all',toneType:'num'});zh=a.map(o=>o.isZh?syl2zh(o.pinyin):'').join('');}}catch(e){}
   const mean=vocabMeaning(ch);let pop=document.getElementById('zi-pop');if(!pop){pop=document.createElement('div');pop.id='zi-pop';pop.className='zi-pop';document.body.appendChild(pop);}
   pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div><div class="zi-py">${esc(py)}${zh?(' · '+esc(zh)):''}</div>${mean?`<div class="zi-mean">${esc(mean)}</div>`:''}<button class="btn btn-sm" data-act="speak" data-text="${esc(ch)}">🔊</button>`;
