@@ -98,8 +98,11 @@ function audioHtml(url){if(!url)return'';
   return `<div class="audio-wrap"><audio controls src="${esc(url)}"></audio></div>`;}
 function parseVocab(text){return (text||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{
   let py='';const m=l.match(/[\[【]([^\]】]*)[\]】]/);if(m){py=m[1].trim();l=l.replace(m[0],'').trim();}
-  const p=l.split('=').map(s=>s.trim());
-  return {front:(p[0]||'').trim(),py,back:p.slice(1).filter(Boolean).join(' · ')};});}
+  let pos='';const pm=l.match(/[（(]\s*([^（）()]{1,10}?)\s*[）)]/);if(pm){pos=pm[1].trim();l=(l.slice(0,pm.index)+' '+l.slice(pm.index+pm[0].length)).trim();}
+  let front,back;
+  if(/[=＝]/.test(l)){const p=l.split(/[=＝]/).map(s=>s.trim());front=p[0];back=p.slice(1).filter(Boolean).join(' · ');}
+  else{const si=l.search(/[：:\t\s]/);if(si<0){front=l;back='';}else{front=l.slice(0,si).trim();back=l.slice(si+1).replace(/^[：:·\s]+/,'').trim();}}
+  return {front:(front||'').trim(),py,pos,back};});}
 function vocabAnno(v){if(v&&v.py&&S.ann==='pinyin')return `<ruby class="vcust">${esc(v.front)}<rt>${esc(v.py)}</rt></ruby>`;return annotate(v.front);}
 /* ===== 拼音／注音 標音 ===== */
 const ZH_INIT=[['zh','ㄓ'],['ch','ㄔ'],['sh','ㄕ'],['b','ㄅ'],['p','ㄆ'],['m','ㄇ'],['f','ㄈ'],['d','ㄉ'],['t','ㄊ'],['n','ㄋ'],['l','ㄌ'],['g','ㄍ'],['k','ㄎ'],['h','ㄏ'],['j','ㄐ'],['q','ㄑ'],['x','ㄒ'],['r','ㄖ'],['z','ㄗ'],['c','ㄘ'],['s','ㄙ']];
@@ -157,10 +160,10 @@ function renderReview(){const r=S.review,v=r.list[r.idx];
    <div class="section-head" style="margin-top:12px"><h2>📅 ${t('review')}</h2><span class="muted">${r.idx+1} / ${r.list.length}</span></div>
    <div class="flash-wrap"><div class="flash ${r.flip?'flip':''}" data-act="revFlip"><div class="flash-inner">
      <div class="flash-face flash-front">${flashFront(v)}<small>${t('flip')}</small></div>
-     <div class="flash-face flash-back">${esc(v.back||'—')}</div></div></div>
+     <div class="flash-face flash-back">${v.pos?'<span class="vpos">'+esc(v.pos)+'</span> ':''}${esc(v.back||'—')}</div></div></div>
    ${r.flip?`<div class="flash-controls"><button class="btn btn-danger" data-act="revGrade" data-know="0">${t('dontKnow')}</button><button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}">🔊</button><button class="btn btn-primary" data-act="revGrade" data-know="1">${t('know')}</button></div>`:`<div class="flash-controls"><span class="hint">${t('tapFlip')}</span></div>`}</div>`;}
 let SHADOW=null,SHADOWMR=null;
-function vocabMeaning(w){for(const l of S.lessons){const vs=lessonVocab(l);for(const v of vs){if(v.front===w&&v.back)return v.back;}}return null;}
+function vocabMeaning(w){for(const l of S.lessons){const vs=lessonVocab(l);for(const v of vs){if(v.front===w&&(v.back||v.pos))return (v.pos?'('+v.pos+') ':'')+(v.back||'');}}return null;}
 function annotateWord(w){if(S.ann==='off'||!window.pinyinPro)return esc(w);
   let arr;try{arr=pinyinPro.pinyin(w,{type:'all',toneType:S.ann==='zhuyin'?'num':'symbol'});}catch(e){return esc(w);}
   return arr.map(o=>{if(!o.isZh||!o.pinyin)return esc(o.origin);const rd=S.ann==='zhuyin'?syl2zh(o.pinyin):o.pinyin;return `<ruby>${esc(o.origin)}<rt>${esc(rd)}</rt></ruby>`;}).join('');}
@@ -418,7 +421,7 @@ function renderCards(){
     <div class="flash-wrap">
     <div class="flash ${S.flashFlip?'flip':''}" data-act="flip"><div class="flash-inner">
       <div class="flash-face flash-front">${flashFront(v)}<small>${t('flip')}</small></div>
-      <div class="flash-face flash-back">${esc(v.back||'—')}</div>
+      <div class="flash-face flash-back">${v.pos?'<span class="vpos">'+esc(v.pos)+'</span> ':''}${esc(v.back||'—')}</div>
     </div></div>
     <div class="flash-controls"><button class="btn" data-act="flprev">${t('prev')}</button>
       <button class="btn btn-star ${isStarred(v.front)?'on':''}" data-act="star" data-text="${esc(v.front)}" aria-label="收藏">${isStarred(v.front)?'★':'☆'}</button>
