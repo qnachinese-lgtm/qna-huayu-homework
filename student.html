@@ -482,6 +482,7 @@ function qHtmlGraded(q,idx){
     ${fb}
     ${q.explanation?`<div class="q-explain">💡 ${esc(q.explanation)}</div>`:''}</div>`;
 }
+// 作業：每個語法收成一個可摺疊的卡（語法說明＋該語法的練習），未指定語法的「綜合練習」放最後
 function quizBodyHtml(qs,l){
   const gps=(l&&l.grammar_points)||[];
   const sec=arr=>{let i=0;return arr.map(q=>qHtml(q,i++)).join('');};
@@ -489,16 +490,18 @@ function quizBodyHtml(qs,l){
   let html='';
   gps.forEach((g,gi)=>{
     const gq=qs.filter(q=>q.gp_index===gi);
-    if(!gq.length)return;
-    html+=`<div class="quiz-gp-head"><span class="gp-tag">${t('grammar')} ${gi+1}</span>${g.title?'<span class="quiz-gp-title">'+esc(g.title)+'</span>':''}</div>`;
-    const subs=[...new Set(gq.map(q=>(q.gp_sub||'').trim()).filter(Boolean))].sort();
-    if(subs.length){
-      subs.forEach(s=>{html+=`<div class="quiz-sub-head">${esc(s)}</div>`+sec(gq.filter(q=>(q.gp_sub||'').trim()===s));});
-      const noSub=gq.filter(q=>!(q.gp_sub||'').trim());if(noSub.length)html+=sec(noSub);
-    }else{html+=sec(gq);}
+    let prac='';
+    if(gq.length){
+      const subs=[...new Set(gq.map(q=>(q.gp_sub||'').trim()).filter(Boolean))].sort();
+      if(subs.length){
+        subs.forEach(s=>{prac+=`<div class="quiz-sub-head">${esc(s)}</div>`+sec(gq.filter(q=>(q.gp_sub||'').trim()===s));});
+        const noSub=gq.filter(q=>!(q.gp_sub||'').trim());if(noSub.length)prac+=sec(noSub);
+      }else prac=sec(gq);
+    }
+    html+=`<details class="disc gp-fold quiz-fold" open><summary><span class="gp-tag">${t('grammar')} ${gi+1}</span>${g.title?'<span class="gp-fold-title">'+esc(g.title)+'</span>':''}</summary><div class="gp-fold-body">${gpBlocksHtml(g)}${prac}</div></details>`;
   });
   const untag=qs.filter(q=>q.gp_index==null||!gps[q.gp_index]);
-  if(untag.length)html+=`<div class="quiz-gp-head"><span class="gp-tag">${t('practice')}</span></div>`+sec(untag);
+  if(untag.length)html+=`<div class="lesson-block"><div class="lesson-label">${t('practice')}（綜合練習）</div>${sec(untag)}</div>`;
   return html;
 }
 function renderPractice(){
@@ -507,9 +510,12 @@ function renderPractice(){
     <div class="section-head" style="margin-top:12px"><h2>${set.title}</h2></div>`;
   let textCard='';
   if(l&&lessonHasContent(l)){
+    const hasGps=l.grammar_points&&l.grammar_points.length;
+    // 作答時語法說明已收進下方各語法的摺疊卡，這裡不重複；批改後（檢視）才於上方完整列出語法
+    const topG=(hasGps&&!S.graded)?'':(hasGps?grammarHtml(l.grammar_points):(l.key_points?`<div class="lesson-label" style="margin-top:14px">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div>`:''));
     textCard=`<div class="card">
       ${dialoguesHtml(l)}
-      ${(l.grammar_points&&l.grammar_points.length)?grammarHtml(l.grammar_points):(l.key_points?`<div class="lesson-label" style="margin-top:14px">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div>`:'')}
+      ${topG}
       ${examplesHtml(l.examples)}</div>`;
   }
   let practice='';
