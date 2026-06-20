@@ -138,14 +138,20 @@ function _today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMont
 function _yday(){const d=new Date();d.setDate(d.getDate()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function _plus(n){const d=new Date();d.setDate(d.getDate()+n);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function actGet(){try{return JSON.parse(localStorage.getItem('hyc_act')||'{}');}catch(e){return {};}}
-function bumpActivity(n){const a=actGet(),t=_today();if(a.day!==t){a.streak=(a.day===_yday()?(a.streak||0)+1:1);a.day=t;a.count=0;}a.count=(a.count||0)+(n||1);localStorage.setItem('hyc_act',JSON.stringify(a));}
+function bumpActivity(n){const a=actGet(),t=_today();if(a.day!==t){a.streak=(a.day===_yday()?(a.streak||0)+1:1);a.day=t;a.count=0;}a.count=(a.count||0)+(n||1);localStorage.setItem('hyc_act',JSON.stringify(a));saveProgress();}
 function actStatus(){const a=actGet(),t=_today();if(a.day===t)return {streak:a.streak||0,count:a.count||0};if(a.day===_yday())return {streak:a.streak||0,count:0};return {streak:0,count:0};}
 function starGet(){try{return JSON.parse(localStorage.getItem('hyc_star')||'[]');}catch(e){return [];}}
 function isStarred(w){return starGet().includes(w);}
-function toggleStar(w){let a=starGet();if(a.includes(w))a=a.filter(x=>x!==w);else a.push(w);localStorage.setItem('hyc_star',JSON.stringify(a));return a.includes(w);}
+function toggleStar(w){let a=starGet();if(a.includes(w))a=a.filter(x=>x!==w);else a.push(w);localStorage.setItem('hyc_star',JSON.stringify(a));saveProgress();return a.includes(w);}
 function srsGet(){try{return JSON.parse(localStorage.getItem('hyc_srs')||'{}');}catch(e){return {};}}
 function srsDueList(){const m=srsGet(),t=_today(),out=[],seen=new Set();vocabAll().forEach(v=>{if(seen.has(v.front))return;seen.add(v.front);const e=m[v.front];if(!e||e.due<=t)out.push(v);});return out;}
-function srsGrade(w,know){const m=srsGet(),e=m[w]||{ivl:0};let ivl=know?(e.ivl<1?2:Math.min(Math.round(e.ivl*2.2),60)):1;m[w]={ivl,due:_plus(ivl)};localStorage.setItem('hyc_srs',JSON.stringify(m));}
+function srsGrade(w,know){const m=srsGet(),e=m[w]||{ivl:0};let ivl=know?(e.ivl<1?2:Math.min(Math.round(e.ivl*2.2),60)):1;m[w]={ivl,due:_plus(ivl)};localStorage.setItem('hyc_srs',JSON.stringify(m));saveProgress();}
+/* 雲端同步：把連續天數/收藏/SRS 存成一筆特別的 results（lesson_id='__progress'，依 uid，沿用既有規則） */
+let _progT=null;
+function saveProgress(){if(!S.me)return;clearTimeout(_progT);_progT=setTimeout(async()=>{try{await DB.upsertResult('__progress',S.me.id,{uid:myUid(),progress:{act:actGet(),star:starGet(),srs:srsGet()}});}catch(e){}},900);}
+async function loadProgress(){if(!S.me)return;try{const r=(S.results||[]).find(x=>x.lesson_id==='__progress');
+  if(r&&r.progress){const p=r.progress;if(p.act)localStorage.setItem('hyc_act',JSON.stringify(p.act));if(p.star)localStorage.setItem('hyc_star',JSON.stringify(p.star));if(p.srs)localStorage.setItem('hyc_srs',JSON.stringify(p.srs));}
+  else if((actGet().day)||(starGet().length)||(Object.keys(srsGet()).length)){saveProgress();}}catch(e){}}
 function renderReview(){const r=S.review,v=r.list[r.idx];
   $('#screen').innerHTML=`<button class="btn btn-sm btn-ghost" data-act="back">${t('back')}</button>
    <div class="section-head" style="margin-top:12px"><h2>📅 ${t('review')}</h2><span class="muted">${r.idx+1} / ${r.list.length}</span></div>
@@ -626,7 +632,7 @@ document.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&e.target&&e.target
 async function enter(me){S.me=me;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');
   applyChrome();
-  try{await loadMine();S.section='work';renderSection();}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}}
+  try{await loadMine();await loadProgress();S.section='work';renderSection();}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}}
 function showGate(msg){S.me=null;$('#app').classList.add('hide');$('#gate').classList.remove('hide');renderGate();if(msg){const e=$('#g-err');if(e)e.textContent=msg;}}
 
 initConv();
