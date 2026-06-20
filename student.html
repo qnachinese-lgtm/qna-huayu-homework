@@ -122,7 +122,9 @@ function annotate(text){
 function speak(text){if(!window.speechSynthesis||!text)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=(S.lang==='cn'?'zh-CN':'zh-TW');u.rate=.8;speechSynthesis.speak(u);}catch(e){}}
 function wordReading(w){if(!window.pinyinPro)return '';try{if(S.ann==='zhuyin'){const arr=pinyinPro.pinyin(w,{type:'all',toneType:'num'});return arr.map(o=>o.isZh?syl2zh(o.pinyin):o.origin).join(' ');}return pinyinPro.pinyin(w,{toneType:'symbol'});}catch(e){return '';}}
 function flashFront(v){const word=(v&&v.front)||'';const n=[...word].length;const fsz=n<=1?54:n===2?46:n===3?36:n===4?29:n<=6?23:18;return `<span class="flash-word" style="font-size:${fsz}px">${vocabAnno(v)}</span>`;}
-function vocabAll(){const a=[],seen=new Set();myLessons().forEach(l=>parseVocab(l.vocabulary).forEach((v,i)=>{if(v.front&&!seen.has(v.front)){seen.add(v.front);a.push(Object.assign({},v,{lessonId:l.id,idx:i}));}}));return a;}
+function lessonDialogues(l){if(l&&Array.isArray(l.dialogues)&&l.dialogues.length)return l.dialogues;return [{title:'課文',content:(l&&l.content)||'',vocabulary:(l&&l.vocabulary)||'',audio_url:(l&&l.audio_url)||''}];}
+function lessonVocab(l){let gi=0;const out=[];lessonDialogues(l).forEach((d,di)=>{parseVocab(d.vocabulary).forEach(v=>{out.push(Object.assign({},v,{lessonId:l.id,idx:gi,di}));gi++;});});return out;}
+function vocabAll(){const a=[],seen=new Set();myLessons().forEach(l=>lessonVocab(l).forEach(v=>{if(v.front&&!seen.has(v.front)){seen.add(v.front);a.push(v);}}));return a;}
 let _segAudio;
 function playSegment(url,s,e){const a=_segAudio||(_segAudio=new Audio());a.ontimeupdate=null;const same=a.src===url;if(!same)a.src=url;const go=()=>{try{a.currentTime=s;}catch(_){}a.ontimeupdate=()=>{if(a.currentTime>=e){a.pause();a.ontimeupdate=null;}};a.play().catch(()=>{});};if(same&&a.readyState>=1)go();else a.onloadedmetadata=go;}
 function vocabPlay(lid,idx,fallbackText){const l=S.lessons.find(x=>x.id===lid);const seg=l&&Array.isArray(l.vocab_segments)&&l.vocab_segments[idx];if(l&&l.vocab_audio_url&&seg)playSegment(l.vocab_audio_url,seg.s,seg.e);else speak(fallbackText);}
@@ -147,11 +149,11 @@ function renderReview(){const r=S.review,v=r.list[r.idx];
      <div class="flash-face flash-back">${esc(v.back||'—')}</div></div></div>
    ${r.flip?`<div class="flash-controls"><button class="btn btn-danger" data-act="revGrade" data-know="0">${t('dontKnow')}</button><button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-idx="${v.idx}" data-text="${esc(v.front)}">🔊</button><button class="btn btn-primary" data-act="revGrade" data-know="1">${t('know')}</button></div>`:`<div class="flash-controls"><span class="hint">${t('tapFlip')}</span></div>`}</div>`;}
 let SHADOW=null,SHADOWMR=null;
-function vocabMeaning(w){for(const l of S.lessons){const vs=parseVocab(l.vocabulary);for(const v of vs){if(v.front===w&&v.back)return v.back;}}return null;}
+function vocabMeaning(w){for(const l of S.lessons){const vs=lessonVocab(l);for(const v of vs){if(v.front===w&&v.back)return v.back;}}return null;}
 function annotateWord(w){if(S.ann==='off'||!window.pinyinPro)return esc(w);
   let arr;try{arr=pinyinPro.pinyin(w,{type:'all',toneType:S.ann==='zhuyin'?'num':'symbol'});}catch(e){return esc(w);}
   return arr.map(o=>{if(!o.isZh||!o.pinyin)return esc(o.origin);const rd=S.ann==='zhuyin'?syl2zh(o.pinyin):o.pinyin;return `<ruby>${esc(o.origin)}<rt>${esc(rd)}</rt></ruby>`;}).join('');}
-function vocabDict(){const dict=[],seen=new Set();S.lessons.forEach(l=>parseVocab(l.vocabulary).forEach(v=>{const w=v.front;if(w&&w.length>1&&/[㐀-鿿]/.test(w)&&!seen.has(w)){seen.add(w);dict.push(w);}}));dict.sort((a,b)=>b.length-a.length);return dict;}
+function vocabDict(){const dict=[],seen=new Set();S.lessons.forEach(l=>lessonVocab(l).forEach(v=>{const w=v.front;if(w&&w.length>1&&/[㐀-鿿]/.test(w)&&!seen.has(w)){seen.add(w);dict.push(w);}}));dict.sort((a,b)=>b.length-a.length);return dict;}
 function prose2(text){if(text==null)return '';const dict=vocabDict();let html='',i=0;
   while(i<text.length){let m=null;for(const w of dict){if(text.substr(i,w.length)===w){m=w;break;}}
     if(m){html+=`<span class="zi" data-act="zi" data-z="${esc(m)}">${annotateWord(m)}</span>`;i+=m.length;}
@@ -184,6 +186,18 @@ function genVocabMatch(){const pick=shuffle(vocabAll().slice(),Math.random()+'')
   if(opts.length<2)return [];return [{id:'vm',type:'match',options:opts}];}
 function examplesHtml(text){const lines=(text||'').split('\n').map(s=>s.trim()).filter(Boolean);if(!lines.length)return '';
   return `<div class="lesson-block"><div class="lesson-label">${t('examples')}</div><div class="ex-list">${lines.map(s=>`<button type="button" class="ex-item" data-act="speak" data-text="${esc(s)}">${annotate(s)}<span class="spk">🔊</span></button>`).join('')}</div></div>`;}
+function dlgHasAudio(l){return lessonDialogues(l).some(d=>d.audio_url);}
+function lessonHasContent(l){return lessonDialogues(l).some(d=>d.content||parseVocab(d.vocabulary).length||d.audio_url)||(l.grammar_points&&l.grammar_points.length)||questionsOf(l.id).length||l.key_points||l.examples;}
+function dialoguesHtml(l){const ds=lessonDialogues(l);const multi=ds.length>1;let gi=0;
+  return ds.map((d,di)=>{const vocab=parseVocab(d.vocabulary);const start=gi;
+    const chips=vocab.map((v,k)=>`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-idx="${start+k}" data-text="${esc(v.front)}">${vocabAnno(v)}<span class="spk">🔊</span></button>`).join('');
+    gi+=vocab.length;
+    if(!(d.content||vocab.length||d.audio_url))return '';
+    return `<div class="dlg-sec">${(multi||(d.title&&d.title!=='課文'))?`<div class="dlg-title">${esc(d.title||('對話'+(di+1)))}</div>`:''}
+      ${d.audio_url?`<div class="lesson-block"><div class="lesson-label">${t('audio')}</div>${audioHtml(d.audio_url)}</div>`:''}
+      ${d.content?`<div class="lesson-block"><div class="lesson-label">${t('text')}</div><div class="prose lookup">${prose2(d.content)}</div></div>`:''}
+      ${vocab.length?`<div class="lesson-block"><div class="lesson-label">${t('vocab')}</div><div class="vocab-list">${chips}</div></div>`:''}</div>`;
+  }).join('');}
 function gpLabel(lab){lab=(lab||'').trim();if(!lab)return '';const m=GP_LBL[lab];if(m&&(S.lang==='en'||S.lang==='vi'))return m[S.lang]||lab;return lab;}
 function gpCardHtml(g,gi){
   const blocks=(g.blocks||[]).map(b=>{
@@ -343,21 +357,18 @@ function renderWork(){
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
       <div class="lesson-no">${done?'✓':(l.order_index||i+1)}</div>
       <div class="grow"><h3>${esc(l.title)}</h3>
-        <div class="meta" style="margin-top:4px;align-items:center"><span>📝 ${qn} ${t('q')}</span>${l.audio_url?'<span class="tag gold">🔊</span>':''}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}</div>
+        <div class="meta" style="margin-top:4px;align-items:center"><span>📝 ${qn} ${t('q')}</span>${dlgHasAudio(l)?'<span class="tag gold">🔊</span>':''}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}</div>
         ${done?`<div class="progress"><span style="width:${pct}%"></span></div>`:''}</div>
       ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`:`<div class="tag accent">${t('start')} →</div>`}</div>`;}).join('')+'</div>';
 }
 function renderContent(){
-  const ls=myLessons().filter(l=>l.content||parseVocab(l.vocabulary).length||(l.grammar_points&&l.grammar_points.length)||questionsOf(l.id).length||l.key_points||l.examples||l.audio_url);
+  const ls=myLessons().filter(lessonHasContent);
   if(!ls.length){$('#screen').innerHTML=emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
   $('#screen').innerHTML='<div class="cards">'+ls.map((l,i)=>{
-    const vocab=parseVocab(l.vocabulary);
     return `<div class="card"><div class="row-between"><div style="display:flex;gap:12px;align-items:center">
-      <div class="lesson-no">${l.order_index||i+1}</div><h3>${esc(l.title)}</h3></div>${l.audio_url?'<span class="tag gold">🔊</span>':''}</div>
+      <div class="lesson-no">${l.order_index||i+1}</div><h3>${esc(l.title)}</h3></div>${dlgHasAudio(l)?'<span class="tag gold">🔊</span>':''}</div>
       <details class="disc" style="margin-top:12px"><summary>${t('text')}</summary>
-        ${l.audio_url?'<div class="lesson-block"><div class="lesson-label">'+t('audio')+'</div>'+audioHtml(l.audio_url)+'</div>':''}
-        ${l.content?`<div class="lesson-block"><div class="lesson-label">${t('text')}</div><div class="prose lookup">${prose2(l.content)}</div></div>`:''}
-        ${vocab.length?`<div class="lesson-block"><div class="lesson-label">${t('vocab')}</div><div class="vocab-list">${vocab.map((v,vi)=>`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-idx="${vi}" data-text="${esc(v.front)}">${vocabAnno(v)}<span class="spk">🔊</span></button>`).join('')}</div></div>`:''}
+        ${dialoguesHtml(l)}
         ${grammarPracticeHtml(l)}
         ${examplesHtml(l.examples)}
       </details></div>`;}).join('')+'</div>';
@@ -449,12 +460,9 @@ function renderPractice(){
   let head=`<button class="btn btn-sm btn-ghost" data-act="back">${t('back')}</button>
     <div class="section-head" style="margin-top:12px"><h2>${set.title}</h2></div>`;
   let textCard='';
-  if(l&&(l.content||parseVocab(l.vocabulary).length||(l.grammar_points&&l.grammar_points.length)||l.key_points||l.examples||l.audio_url)){
-    const vocab=parseVocab(l.vocabulary);
+  if(l&&lessonHasContent(l)){
     textCard=`<div class="card">
-      ${l.audio_url?'<div class="lesson-label">'+t('audio')+'</div>'+audioHtml(l.audio_url):''}
-      ${l.content?`<div class="lesson-label">${t('text')}</div><div class="prose lookup">${prose2(l.content)}</div>`:''}
-      ${vocab.length?`<div class="lesson-label" style="margin-top:14px">${t('vocab')}</div><div class="vocab-list">${vocab.map((v,vi)=>`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-idx="${vi}" data-text="${esc(v.front)}">${vocabAnno(v)}<span class="spk">🔊</span></button>`).join('')}</div>`:''}
+      ${dialoguesHtml(l)}
       ${(l.grammar_points&&l.grammar_points.length)?grammarHtml(l.grammar_points):(l.key_points?`<div class="lesson-label" style="margin-top:14px">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div>`:'')}
       ${examplesHtml(l.examples)}</div>`;
   }

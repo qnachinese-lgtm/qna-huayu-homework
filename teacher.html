@@ -239,13 +239,14 @@ function renderLessons(){
   const wrap=$('#lessons-list');const ls=sortLessons(S.lessons);
   if(!ls.length){wrap.innerHTML=emptyHtml('📚','還沒有內容','點「新增課文／作業」：可放課文＋練習題，或只出補充作業（課文留空）。');return;}
   wrap.innerHTML=ls.map((l,i)=>{
-    const vocab=(l.vocabulary||'').split('\n').map(v=>v.trim()).filter(Boolean);
+    const ds=(Array.isArray(l.dialogues)&&l.dialogues.length)?l.dialogues:[{content:l.content,vocabulary:l.vocabulary,audio_url:l.audio_url}];
+    const vocab=ds.map(d=>d.vocabulary||'').join('\n').split('\n').map(v=>v.trim()).filter(Boolean);const hasAudio=ds.some(d=>d.audio_url);
     const qn=questionsOf(l.id).length, an=(l.assigned_ids||[]).length, di=dueInfo(l.due_date);
     return `<div class="card">
       <div class="row-between"><div style="display:flex;gap:14px;align-items:center">
         <div class="lesson-no">${l.order_index||i+1}</div>
         <div><h3>${esc(l.title)}</h3><div class="meta" style="margin-top:5px;align-items:center">
-          <span>📝 ${qn} 題</span><span>📖 生字 ${vocab.length}</span>${l.audio_url?'<span class="tag gold">🔊 有音檔</span>':''}
+          <span>📝 ${qn} 題</span><span>📖 生字 ${vocab.length}</span>${hasAudio?'<span class="tag gold">🔊 有音檔</span>':''}
           <span>👤 指派 ${an}</span>${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}</div></div></div></div>
       <div class="actions" style="margin-top:14px;flex-wrap:wrap">
         <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button>
@@ -254,17 +255,14 @@ function renderLessons(){
         ${an?`<button class="btn btn-sm btn-warn" data-act="unassign" data-id="${l.id}">↩ 收回</button>`:''}
         <button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div></div>`;}).join('');
 }
-function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaReset();gpInit(l);
+function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaReset();gpInit(l);dlgInit(l);
   openModal(`<div class="modal wide"><div class="modal-head"><h3>${e?'編輯課文':'新增課文'}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="form-grid">
      <div class="field"><label>課序 <span class="hint">第幾課</span></label><input id="l-order" type="number" min="1" value="${l.order_index||nextNo}"></div>
      <div class="field"><label>課名 *</label><input id="l-title" type="text" value="${esc(l.title||'')}" placeholder="例：第一課 歡迎你來臺灣／補充作業 6-20"></div></div>
-     <div class="hint" style="margin:-2px 0 10px">只想出補充作業？課名填一下即可，下面課文／生字／重點全部留空，存好後在卡片點「練習題」出題。</div>
-     <div class="field"><label>課文內容 <span class="hint">選填</span></label><textarea id="l-content" style="min-height:130px" placeholder="貼上或輸入課文…">${esc(l.content||'')}</textarea></div>
-     <div class="field"><label>生字 <span class="hint">每行一個。加意思：詞=意思；自訂拼音：詞[拼音]，例 這[zhè／zhèi]</span></label><textarea id="l-vocab" placeholder="歡迎=welcome&#10;這[zhè／zhèi]=this&#10;臺灣">${esc(l.vocabulary||'')}</textarea></div>
-     <div class="field full"><label>語法點 <span class="hint">一個語法一張卡。每張卡可挑要用的區塊（功能／結構／否定／疑問／用法或自訂），沒有的就不加。例句選填，學生可點來聽。</span></label><div id="gp-editor" class="gp-editor"></div></div>
-     <div class="field"><label>例句 <span class="hint">每行一句；學生可點來聽發音、看拼音／注音</span></label><textarea id="l-examples" placeholder="今天天氣很好。&#10;我喜歡喝茶。">${esc(l.examples||'')}</textarea></div>
-     <div class="field full"><label>生字音檔（自動切割） <span class="hint">上傳一段「依序唸生字、字間有停頓」的錄音，系統會自動切成每字一段；可預覽調整再存。學生生字卡會播這個真人發音。</span></label>
+     <div class="hint" style="margin:-2px 0 10px">只想出補充作業？課名填一下即可，下面對話／生詞／語法全部留空，存好後在卡片點「練習題」出題。</div>
+     <div class="field full"><label>對話／課文段落 <span class="hint">一課可有多個對話（對話一、對話二…），每段各有自己的課文、生詞、音檔；語法之後再合併講。</span></label><div id="dlg-editor" class="dlg-editor"></div></div>
+     <div class="field full"><label>生詞真人發音（自動切割） <span class="hint">上傳一段「依序唸生詞、字間有停頓」的錄音，涵蓋上面所有對話的生詞（依對話一→對話二順序）；系統自動切成每字一段。學生生字卡會播這個真人發音。</span></label>
        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
          <button class="btn" type="button" data-act="pickVocabAudio">⬆ 上傳並自動切割</button>
          <input type="file" id="file-vocab-audio" class="hide" accept="audio/*">
@@ -277,15 +275,12 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
          <input id="va-sens" type="range" min="8" max="60" value="20" style="width:100%;display:block"></div>
        <div id="va-preview" style="margin-top:8px"></div>
      </div>
-     <div class="field"><label>課文音檔 <span class="hint">選填</span></label>
-       <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="l-audio" type="text" style="flex:1;min-width:160px" value="${esc(l.audio_url||'')}" placeholder="上傳檔案，或貼 mp3／YouTube 連結">
-       <button class="btn" type="button" data-act="pickAudio" data-id="l-audio">⬆ 上傳音檔</button></div>
-       <input type="file" id="file-l-audio" class="audio-file hide" accept="audio/*" data-target="l-audio" data-status="status-l-audio">
-       <div class="hint" id="status-l-audio" style="margin-top:4px"></div></div>
+     <div class="field full"><label>語法點 <span class="hint">一課的語法合併放這裡（對話之後）。一個語法一張卡，挑要用的區塊；例句選填。</span></label><div id="gp-editor" class="gp-editor"></div></div>
+     <div class="field"><label>例句 <span class="hint">每行一句；學生可點來聽發音、看拼音／注音</span></label><textarea id="l-examples" placeholder="今天天氣很好。&#10;我喜歡喝茶。">${esc(l.examples||'')}</textarea></div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
      <button class="btn btn-primary" data-act="saveLesson" data-id="${l.id||''}">${e?'儲存':'新增'}</button></div></div>`);
-  gpRender();
+  dlgRender();gpRender();
 }
 
 /* ---------- 練習題管理 ---------- */
@@ -431,7 +426,8 @@ H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!confirm(`確定
 H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return toast('請輸入課名');
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   gpSync();const gps=GP.map(g=>({title:(g.title||'').trim(),blocks:(g.blocks||[]).map(b=>({label:(b.label||'').trim(),text:(b.text||'').trim(),ex:(b.ex||'').trim()})).filter(b=>b.label||b.text||b.ex)})).filter(g=>g.title||g.blocks.length);
-  const obj={order_index:Number($('#l-order').value)||0,title,content:$('#l-content').value,vocabulary:$('#l-vocab').value,grammar_points:gps,key_points:'',examples:$('#l-examples').value,audio_url:$('#l-audio').value.trim()||null};
+  dlgSync();const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',audio_url:(d.audio_url||'').trim()||null})).filter(d=>d.title||d.content||d.vocabulary||d.audio_url);
+  const obj={order_index:Number($('#l-order').value)||0,title,dialogues,content:null,vocabulary:null,audio_url:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value};
   const sbtn=document.querySelector('[data-act="saveLesson"]');
   if(VA_FILE&&VA_SEGS&&VA_SEGS.length){if(sbtn){sbtn.disabled=true;sbtn.textContent='上傳生字音檔…';}
     try{obj.vocab_audio_url=await uploadVocabAudio(VA_FILE);obj.vocab_segments=VA_SEGS;}
@@ -474,6 +470,30 @@ H.gpAdd=()=>{gpSync();GP.push({title:'',blocks:[{label:'功能',text:'',ex:''},{
 H.gpDel=(i)=>{gpSync();GP.splice(Number(i),1);gpRender();};
 H.gpBlockAdd=(key)=>{gpSync();const i=String(key).indexOf('::');const gi=Number(String(key).slice(0,i));const label=String(key).slice(i+2);if(GP[gi]){GP[gi].blocks.push({label:label||'',text:'',ex:''});gpRender();}};
 H.gpBlockDel=(key)=>{gpSync();const p=String(key).split('::');const gi=Number(p[0]),bi=Number(p[1]);if(GP[gi]){GP[gi].blocks.splice(bi,1);gpRender();}};
+/* ===== 多對話／段落編輯器 ===== */
+let DLG=[];const DLG_CN=['一','二','三','四','五','六','七','八'];
+function dlgInit(l){
+  if(l&&Array.isArray(l.dialogues)&&l.dialogues.length){DLG=l.dialogues.map(d=>({title:d.title||'',content:d.content||'',vocabulary:d.vocabulary||'',audio_url:d.audio_url||''}));}
+  else if(l&&(l.content||l.vocabulary||l.audio_url)){DLG=[{title:'對話一',content:l.content||'',vocabulary:l.vocabulary||'',audio_url:l.audio_url||''}];}
+  else{DLG=[{title:'對話一',content:'',vocabulary:'',audio_url:''}];}}
+function dlgSync(){DLG.forEach((d,i)=>{
+  const t=document.querySelector('.dlg-title-in[data-i="'+i+'"]');if(t)d.title=t.value;
+  const c=document.querySelector('.dlg-content-in[data-i="'+i+'"]');if(c)d.content=c.value;
+  const v=document.querySelector('.dlg-vocab-in[data-i="'+i+'"]');if(v)d.vocabulary=v.value;
+  const a=document.querySelector('.dlg-audio-in[data-i="'+i+'"]');if(a)d.audio_url=a.value;});}
+function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)return;
+  wrap.innerHTML=DLG.map((d,i)=>`<div class="dlg-card"><div class="dlg-card-head"><span class="gp-no">段 ${i+1}</span>
+    <input class="dlg-title-in" data-i="${i}" value="${esc(d.title||'')}" placeholder="標題，例：對話一／短文">
+    ${DLG.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="dlgDel" data-id="${i}">刪除</button>`:''}</div>
+    <label class="dlg-lbl">課文／對話</label><textarea class="dlg-content-in" data-i="${i}" style="min-height:100px" placeholder="貼上或輸入這段對話／課文…">${esc(d.content||'')}</textarea>
+    <label class="dlg-lbl">生詞 <span class="hint">每行一個；詞=意思；自訂拼音 詞[拼音]</span></label><textarea class="dlg-vocab-in" data-i="${i}" placeholder="歡迎=welcome&#10;先生=Mr.">${esc(d.vocabulary||'')}</textarea>
+    <label class="dlg-lbl">這段的課文音檔 <span class="hint">選填</span></label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="dlg-audio-in" id="dlg-audio-${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.audio_url||'')}" placeholder="上傳檔案，或貼 mp3／YouTube 連結">
+      <button class="btn" type="button" data-act="pickAudio" data-id="dlg-audio-${i}">⬆ 上傳音檔</button></div>
+    <input type="file" id="file-dlg-audio-${i}" class="audio-file hide" accept="audio/*" data-target="dlg-audio-${i}" data-status="status-dlg-audio-${i}">
+    <div class="hint" id="status-dlg-audio-${i}" style="margin-top:4px"></div></div>`).join('')+'<div style="margin-top:8px"><button class="btn btn-sm" type="button" data-act="dlgAdd">＋ 新增對話／段落</button></div>';}
+H.dlgAdd=()=>{dlgSync();DLG.push({title:'對話'+(DLG_CN[DLG.length]||(DLG.length+1)),content:'',vocabulary:'',audio_url:''});dlgRender();};
+H.dlgDel=(i)=>{dlgSync();DLG.splice(Number(i),1);if(!DLG.length)DLG.push({title:'對話一',content:'',vocabulary:'',audio_url:''});dlgRender();};
 H.questions=(id)=>openQuestionsModal(id);
 H.addQuestion=(id)=>questionEditModal(id,null);
 H.editQuestion=(key)=>{const[lid,qid]=key.split('::');questionEditModal(lid,S.questions.find(q=>q.id===qid));};
@@ -524,7 +544,7 @@ H.pickAudio=(id)=>{const f=document.getElementById('file-'+id);if(f)f.click();};
 /* ===== 生字音檔自動切割 ===== */
 let VA_FILE=null,VA_LOUD=null,VA_SEGS=null,VA_URL=null,VA_START=0;
 function vaReset(){VA_FILE=null;VA_LOUD=null;VA_SEGS=null;VA_START=0;if(VA_URL){URL.revokeObjectURL(VA_URL);VA_URL=null;}}
-function vaWords(){return ($('#l-vocab')?$('#l-vocab').value:'').split('\n').map(s=>s.replace(/[\[【][^\]】]*[\]】]/,'').split('=')[0].trim()).filter(Boolean);}
+function vaWords(){const txt=$$('.dlg-vocab-in').map(t=>t.value).join('\n');return txt.split('\n').map(s=>s.replace(/[\[【][^\]】]*[\]】]/,'').split('=')[0].trim()).filter(Boolean);}
 function _loudness(buf){const d=buf.getChannelData(0),sr=buf.sampleRate,win=Math.max(1,Math.floor(sr*0.02)),loud=[];for(let i=0;i<d.length;i+=win){let s=0,n=0;for(let j=i;j<i+win&&j<d.length;j++){s+=d[j]*d[j];n++;}loud.push(Math.sqrt(s/(n||1)));}return {loud,winSec:win/sr,dur:buf.duration};}
 function _gate(L,thr,minSil,minDur,startSec){const loud=L.loud,w=L.winSec,segs=[];let start=-1,sil=0;const k0=Math.max(0,Math.floor((startSec||0)/w));for(let k=k0;k<loud.length;k++){if(loud[k]>thr){if(start<0)start=k*w;sil=0;}else{if(start>=0){sil+=w;if(sil>=minSil){const end=k*w-sil+w;if(end-start>=minDur)segs.push({s:+start.toFixed(2),e:+end.toFixed(2)});start=-1;sil=0;}}}}if(start>=0){const end=loud.length*w;if(end-start>=minDur)segs.push({s:+start.toFixed(2),e:+end.toFixed(2)});}return segs;}
 function _thr(L){const s=L.loud.slice().sort((a,b)=>a-b);const noise=s[Math.floor(s.length*0.15)]||0,peak=s[Math.floor(s.length*0.95)]||0.1;return Math.max(noise*3,(noise+peak)*0.18,0.006);}
