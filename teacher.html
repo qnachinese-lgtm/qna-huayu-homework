@@ -430,10 +430,14 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
   gpSync();const gps=GP.map(g=>({title:(g.title||'').trim(),blocks:(g.blocks||[]).map(b=>({label:(b.label||'').trim(),text:(b.text||'').trim(),ex:(b.ex||'').trim()})).filter(b=>b.label||b.text||b.ex)})).filter(g=>g.title||g.blocks.length);
   dlgSync();
   const sbtn=document.querySelector('[data-act="saveLesson"]');
-  for(let i=0;i<DLG.length;i++){const d=DLG[i];if(d._va&&d._va.file&&d._va.segs&&d._va.segs.length){if(sbtn){sbtn.disabled=true;sbtn.textContent='上傳生詞音檔…';}
-    try{d.vocab_audio_url=await uploadVocabAudio(d._va.file);d.vocab_segments=d._va.segs;d._va=null;}
-    catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('生詞音檔上傳失敗：'+(err.message||err));}}}
-  const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.audio_url||d.vocab_audio_url);
+  for(let i=0;i<DLG.length;i++){const d=DLG[i];
+    if(d._va&&d._va.file&&d._va.segs&&d._va.segs.length){if(sbtn){sbtn.disabled=true;sbtn.textContent='上傳生詞音檔…';}
+      try{d.vocab_audio_url=await uploadVocabAudio(d._va.file);d.vocab_segments=d._va.segs;d._va=null;}
+      catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('生詞音檔上傳失敗：'+(err.message||err));}}
+    if(d._la&&d._la.file){if(sbtn){sbtn.disabled=true;sbtn.textContent='上傳課文音檔…';}
+      try{d.audio_url=await uploadVocabAudio(d._la.file);d.line_segments=d._la.segs||[];d._la=null;}
+      catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('課文音檔上傳失敗：'+(err.message||err));}}}
+  const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.audio_url||d.vocab_audio_url);
   const obj={order_index:Number($('#l-order').value)||0,title,dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value};
   try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?'儲存失敗：登入已失效，請按右上角「登出」再重新登入後再試':('儲存失敗：'+m));}};
 
@@ -478,7 +482,7 @@ H.gpBlockDel=(key)=>{gpSync();const p=String(key).split('::');const gi=Number(p[
 let DLG=[];const DLG_CN=['一','二','三','四','五','六','七','八'];
 function dlgInit(l){let arr;
   if(l&&Array.isArray(l.dialogues)&&l.dialogues.length){
-    arr=l.dialogues.map(d=>({title:d.title||'',content:d.content||'',vocabulary:d.vocabulary||'',audio_url:d.audio_url||'',vocab_audio_url:d.vocab_audio_url||'',vocab_segments:d.vocab_segments||[]}));
+    arr=l.dialogues.map(d=>({title:d.title||'',content:d.content||'',vocabulary:d.vocabulary||'',audio_url:d.audio_url||'',vocab_audio_url:d.vocab_audio_url||'',vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]}));
     if(l.vocab_audio_url&&arr[0]&&!arr[0].vocab_audio_url){arr[0].vocab_audio_url=l.vocab_audio_url;arr[0].vocab_segments=l.vocab_segments||[];}}
   else if(l&&(l.content||l.vocabulary||l.audio_url)){arr=[{title:'對話一',content:l.content||'',vocabulary:l.vocabulary||'',audio_url:l.audio_url||'',vocab_audio_url:l.vocab_audio_url||'',vocab_segments:l.vocab_segments||[]}];}
   else{arr=[{title:'對話一',content:'',vocabulary:'',audio_url:'',vocab_audio_url:'',vocab_segments:[]}];}
@@ -494,11 +498,12 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
     ${DLG.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="dlgDel" data-id="${i}">刪除</button>`:''}</div>
     <label class="dlg-lbl">課文／對話</label><textarea class="dlg-content-in" data-i="${i}" style="min-height:100px" placeholder="貼上或輸入這段對話／課文…">${esc(d.content||'')}</textarea>
     <label class="dlg-lbl">生詞 <span class="hint">每行一個；詞=意思；自訂拼音 詞[拼音]</span></label><textarea class="dlg-vocab-in" data-i="${i}" placeholder="歡迎=welcome&#10;先生=Mr.">${esc(d.vocabulary||'')}</textarea>
-    <label class="dlg-lbl">這段的課文音檔 <span class="hint">選填</span></label>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="dlg-audio-in" id="dlg-audio-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.audio_url||'')}" placeholder="上傳檔案，或貼 mp3／YouTube 連結">
-      <button class="btn" type="button" data-act="pickAudio" data-id="dlg-audio-${i}">⬆ 上傳音檔</button></div>
-    <input type="file" id="file-dlg-audio-${i}" class="audio-file hide" accept="audio/*" data-target="dlg-audio-${i}" data-status="status-dlg-audio-${i}">
-    <div class="hint" id="status-dlg-audio-${i}" style="margin-top:4px"></div>
+    <label class="dlg-lbl">這段的課文音檔（上傳整段朗讀，會自動切成逐句） <span class="hint">學生上面會有「課文朗讀」播放器；「逐句跟讀」也會改播這個真人朗讀（不用機器音）。切完可逐句微調秒數。</span></label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="dlg-audio-in" id="dlg-audio-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.audio_url||'')}" placeholder="上傳整段朗讀，或貼 mp3／YouTube 連結">
+      <button class="btn" type="button" data-act="pickDlgAudio" data-id="${i}">⬆ 上傳並切逐句</button></div>
+    <input type="file" id="file-dlgaud-${i}" class="hide" accept="audio/*">
+    <div class="hint" id="dlgaud-status-${i}" style="margin-top:4px">${(d.line_segments&&d.line_segments.length)?('逐句已切：'+d.line_segments.length+' 句（學生逐句跟讀會用真人朗讀）'):''}</div>
+    <div id="la-preview-${i}" style="margin-top:8px"></div>
     <label class="dlg-lbl">這段生詞的真人發音（自動切割） <span class="hint">上傳「依序唸這段生詞、字間有停頓」的錄音；系統自動切片。學生生字卡會播這個真人發音。</span></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-sm" type="button" data-act="pickVocabAudio" data-id="${i}">⬆ 上傳並自動切割</button>
@@ -622,9 +627,27 @@ H.vaRedetect=(i)=>{const d=DLG[i];if(!d||!d._va||!d._va.loud)return;const ms=Num
 H.vaPlay=(key)=>{const p=String(key).split('::');const i=+p[0],k=+p[1];const d=DLG[i];if(!d||!d._va)return;const seg=(d._va.segs||[])[k];if(!seg||!d._va.url)return;const a=window._vaAudio||(window._vaAudio=new Audio());a.ontimeupdate=null;a.src=d._va.url;const go=()=>{try{a.currentTime=seg.s;}catch(_){}a.ontimeupdate=()=>{if(a.currentTime>=seg.e){a.pause();a.ontimeupdate=null;}};a.play().catch(()=>{});};if(a.readyState>=1)go();else a.onloadedmetadata=go;};
 async function ensureAuthFresh(){const u=window.firebase&&firebase.auth&&firebase.auth().currentUser;if(!u)throw new Error('登入已失效，請重新整理頁面（Ctrl+Shift+R）並重新登入後再試');try{await u.getIdToken(true);}catch(e){throw new Error('登入已失效，請重新整理並重新登入後再試');}}
 async function uploadVocabAudio(file){await ensureAuthFresh();const ext=((file.name.split('.').pop())||'mp3').replace(/[^a-z0-9]/gi,'')||'mp3';const ref=firebase.storage().ref('vocab_audio/'+Date.now()+'_'+Math.random().toString(16).slice(2)+'.'+ext);await ref.put(file);return await ref.getDownloadURL();}
-document.addEventListener('change',(e)=>{const m=((e.target&&e.target.id)||'').match(/^file-va-(\d+)$/);if(m){const f=e.target.files&&e.target.files[0];if(f)vaHandleFile(f,+m[1]);}});
+/* ===== 課文逐句切割（用對話朗讀檔，學生逐句跟讀播真人聲音） ===== */
+function dlgSentences(i){const t=document.querySelector('.dlg-content-in[data-i="'+i+'"]');const txt=t?t.value:((DLG[i]&&DLG[i].content)||'');return (txt||'').replace(/\r/g,'').split('\n').flatMap(line=>(line.match(/[^。！？!?；;]+[。！？!?；;]*/g)||[])).map(s=>s.trim()).filter(s=>s&&/[㐀-鿿]/.test(s));}
+H.pickDlgAudio=(i)=>{const f=document.getElementById('file-dlgaud-'+i);if(f){f.dataset.di=i;f.click();}};
+async function dlgAudioHandle(file,i){const d=DLG[i];if(!d)return;const st=document.getElementById('dlgaud-status-'+i);if(st)st.textContent='讀取與分析中…';
+  if(d._la&&d._la.url){try{URL.revokeObjectURL(d._la.url);}catch(_){}}
+  let loud;try{const ab=await file.arrayBuffer();const ctx=new (window.AudioContext||window.webkitAudioContext)();const buf=await ctx.decodeAudioData(ab);ctx.close&&ctx.close();loud=_loudness(buf);}
+  catch(e){if(st)st.textContent='無法讀取音檔：'+(e.message||e);return;}
+  const sents=dlgSentences(i);if(!sents.length){if(st)st.textContent='請先在上面「課文／對話」輸入內容（會依句號切句），再上傳朗讀檔。';return;}
+  const a=vaAutoStart(loud,sents.length);
+  d._la={file,url:URL.createObjectURL(file),loud,start:a.start,ms:a.ms,segs:_gate(loud,_thr(loud),a.ms,0.12,a.start)};
+  laRenderPreview(i);}
+function laRenderPreview(i){const d=DLG[i];if(!d||!d._la)return;const sents=dlgSentences(i);let segs=d._la.segs||[];
+  if(segs.length!==sents.length){const a=[];let cur=0;for(let k=0;k<sents.length;k++){if(segs[k]){a.push({s:+segs[k].s,e:+segs[k].e});cur=segs[k].e;}else{a.push({s:+cur.toFixed(2),e:+(cur+1.5).toFixed(2)});cur+=2;}}d._la.segs=a;segs=a;}
+  const st=document.getElementById('dlgaud-status-'+i);if(st)st.textContent='共 '+sents.length+' 句。每句可直接改「開始～結束」秒數，▶ 試聽確認；存檔後學生逐句跟讀就會播這真人聲音。';
+  const pv=document.getElementById('la-preview-'+i);if(pv)pv.innerHTML='<div class="va-list">'+sents.map((s,k)=>{const sg=segs[k]||{s:0,e:1};return `<div class="va-row"><span class="hint" style="min-width:18px">${k+1}</span><span class="la-sent">${esc(s.length>16?s.slice(0,16)+'…':s)}</span><input class="la-time" type="number" step="0.1" min="0" data-di="${i}" data-k="${k}" data-edge="s" value="${(+sg.s).toFixed(2)}"><span class="va-dash">–</span><input class="la-time" type="number" step="0.1" min="0" data-di="${i}" data-k="${k}" data-edge="e" value="${(+sg.e).toFixed(2)}"><button class="btn btn-sm" type="button" data-act="laPlay" data-id="${i}::${k}">▶ 試聽</button></div>`;}).join('')+'</div>';}
+H.laPlay=(key)=>{const p=String(key).split('::');const i=+p[0],k=+p[1];const d=DLG[i];if(!d||!d._la)return;const seg=(d._la.segs||[])[k];if(!seg||!d._la.url)return;const a=window._laAudio||(window._laAudio=new Audio());a.ontimeupdate=null;a.src=d._la.url;const go=()=>{try{a.currentTime=seg.s;}catch(_){}a.ontimeupdate=()=>{if(a.currentTime>=seg.e){a.pause();a.ontimeupdate=null;}};a.play().catch(()=>{});};if(a.readyState>=1)go();else a.onloadedmetadata=go;};
+document.addEventListener('change',(e)=>{const id=(e.target&&e.target.id)||'';let m=id.match(/^file-va-(\d+)$/);if(m){const f=e.target.files&&e.target.files[0];if(f)vaHandleFile(f,+m[1]);return;}m=id.match(/^file-dlgaud-(\d+)$/);if(m){const f=e.target.files&&e.target.files[0];if(f)dlgAudioHandle(f,+m[1]);}});
 document.addEventListener('input',(e)=>{const m=((e.target&&e.target.id)||'').match(/^va-(?:sens|trim)-(\d+)$/);if(m){H.vaRedetect(+m[1]);return;}
-  const t=e.target;if(t&&t.classList&&t.classList.contains('va-time')){const di=+t.dataset.di,k=+t.dataset.k,edge=t.dataset.edge,v=parseFloat(t.value);const d=DLG[di];if(d&&d._va&&d._va.segs&&d._va.segs[k]&&!isNaN(v))d._va.segs[k][edge]=v;}});
+  const t=e.target;if(t&&t.classList){const v=parseFloat(t.value);
+    if(t.classList.contains('va-time')){const d=DLG[+t.dataset.di];if(d&&d._va&&d._va.segs&&d._va.segs[+t.dataset.k]&&!isNaN(v))d._va.segs[+t.dataset.k][t.dataset.edge]=v;}
+    else if(t.classList.contains('la-time')){const d=DLG[+t.dataset.di];if(d&&d._la&&d._la.segs&&d._la.segs[+t.dataset.k]&&!isNaN(v))d._la.segs[+t.dataset.k][t.dataset.edge]=v;}}});
 document.addEventListener('change',(e)=>{if(e.target&&e.target.classList&&(e.target.classList.contains('sched-d')||e.target.classList.contains('sched-s')||e.target.classList.contains('sched-e')))refreshFirstSlot();});
 
 document.addEventListener('click',(e)=>{
