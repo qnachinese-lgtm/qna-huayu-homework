@@ -53,6 +53,9 @@ const I18N={
 Object.assign(I18N.zh,{loginEmail:'Email',notApproved:'此帳號尚未開通，請聯絡老師為你建立帳號。',resetSent:'重設密碼信已寄出，請查收 Email 收件匣。',annTitle:'標音',annOff:'關',annPy:'拼音',annZh:'注音',vqBtn:'🎯 生字測驗',vmBtn:'🔗 配對遊戲',vqTitle:'生字小測驗',vmTitle:'生字配對',examples:'例句',streak:'🔥 連續',day:'天',today:'今天',tiUnit:'題',goalMet:'今日達標 ✓',review:'複習',revBtn:'📅 複習',revDone:'今天沒有要複習的字 🎉',revFinish:'複習完成！',dontKnow:'不認得',know:'認得',tapFlip:'點卡片看答案'});
 Object.assign(I18N.en,{loginEmail:'Email',notApproved:'This account is not set up yet — please ask your teacher to create it.',resetSent:'Password reset email sent — please check your inbox.',annTitle:'Phonetics',annOff:'Off',annPy:'Pinyin',annZh:'Zhuyin',vqBtn:'🎯 Vocab quiz',vmBtn:'🔗 Matching',vqTitle:'Vocabulary quiz',vmTitle:'Vocabulary matching',examples:'Examples',streak:'🔥 Streak',day:'d',today:'Today',tiUnit:'',goalMet:'Goal met ✓',review:'Review',revBtn:'📅 Review',revDone:'Nothing to review today 🎉',revFinish:'Review done!',dontKnow:"Don't know",know:'Know it',tapFlip:'Tap card for answer'});
 Object.assign(I18N.vi,{loginEmail:'Email',notApproved:'Tài khoản chưa được kích hoạt — vui lòng nhờ giáo viên tạo.',resetSent:'Đã gửi email đặt lại mật khẩu — vui lòng kiểm tra hộp thư.',annTitle:'Phiên âm',annOff:'Tắt',annPy:'Pinyin',annZh:'Chú âm',vqBtn:'🎯 Trắc nghiệm từ',vmBtn:'🔗 Ghép từ',vqTitle:'Trắc nghiệm từ vựng',vmTitle:'Ghép từ vựng',examples:'Câu ví dụ',streak:'🔥 Chuỗi',day:'ngày',today:'Hôm nay',tiUnit:'câu',goalMet:'Đạt mục tiêu ✓',review:'Ôn tập',revBtn:'📅 Ôn tập',revDone:'Hôm nay không có từ cần ôn 🎉',revFinish:'Ôn xong!',dontKnow:'Chưa thuộc',know:'Đã thuộc',tapFlip:'Chạm thẻ để xem đáp án'});
+Object.assign(I18N.zh,{shadow:'🎤 跟讀',shadowMine:'▶ 我的',dictBtn:'✏️ 聽寫',dictTitle:'聽寫練習',dictType:'打出你聽到的字…',dictCheck:'送出',dictNext:'下一個 →',dictReplay:'🔊 重聽',dictFinish:'聽寫完成！',meaning:'意思'});
+Object.assign(I18N.en,{shadow:'🎤 Shadow',shadowMine:'▶ Mine',dictBtn:'✏️ Dictation',dictTitle:'Dictation',dictType:'Type what you hear…',dictCheck:'Check',dictNext:'Next →',dictReplay:'🔊 Replay',dictFinish:'Dictation done!',meaning:'Meaning'});
+Object.assign(I18N.vi,{shadow:'🎤 Nhại',shadowMine:'▶ Của tôi',dictBtn:'✏️ Chính tả',dictTitle:'Luyện chính tả',dictType:'Gõ chữ bạn nghe được…',dictCheck:'Kiểm tra',dictNext:'Tiếp →',dictReplay:'🔊 Nghe lại',dictFinish:'Xong chính tả!',meaning:'Nghĩa'});
 I18N.zh.resetHint='輸入你的 Email，我們會寄一封重設密碼的連結給你。';
 I18N.en.resetHint="Enter your email and we'll send you a reset link.";
 I18N.vi.resetHint='Nhập email của bạn, chúng tôi sẽ gửi liên kết đặt lại.';
@@ -136,7 +139,27 @@ function renderReview(){const r=S.review,v=r.list[r.idx];
      <div class="flash-face flash-front">${annotate(v.front)}<small>${t('flip')}</small></div>
      <div class="flash-face flash-back">${esc(v.back||'—')}</div></div></div>
    ${r.flip?`<div class="flash-controls"><button class="btn btn-danger" data-act="revGrade" data-know="0">${t('dontKnow')}</button><button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-idx="${v.idx}" data-text="${esc(v.front)}">🔊</button><button class="btn btn-primary" data-act="revGrade" data-know="1">${t('know')}</button></div>`:`<div class="flash-controls"><span class="hint">${t('tapFlip')}</span></div>`}</div>`;}
-function renderReviewDone(){const r=S.review;S.review=null;$('#screen').dataset.mode='';convScreen&&0;$('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">🎉</div><h3>${t('revFinish')}</h3><div class="muted" style="margin-top:6px">${t('know')} ${r.know} / ${r.list.length}</div><button class="btn btn-primary" style="margin-top:14px" data-act="section" data-id="cards">${t('finishBack')}</button></div>`;}
+let SHADOW=null,SHADOWMR=null;
+function vocabMeaning(w){for(const l of S.lessons){const vs=parseVocab(l.vocabulary);for(const v of vs){if(v.front===w&&v.back)return v.back;}}return null;}
+function prose2(text){if(text==null)return '';
+  if(!window.pinyinPro)return esc(text).replace(/([㐀-鿿])/g,'<span class="zi" data-act="zi" data-z="$1">$1</span>');
+  let arr;try{arr=pinyinPro.pinyin(text,{type:'all',toneType:S.ann==='zhuyin'?'num':'symbol'});}catch(e){return esc(text);}
+  return arr.map(o=>{if(!o.isZh||!o.pinyin)return esc(o.origin);const rd=S.ann==='zhuyin'?syl2zh(o.pinyin):o.pinyin;const inner=S.ann==='off'?esc(o.origin):`<ruby>${esc(o.origin)}<rt>${esc(rd)}</rt></ruby>`;return `<span class="zi" data-act="zi" data-z="${esc(o.origin)}">${inner}</span>`;}).join('');}
+function showZiPopup(ch,el){const py=window.pinyinPro?pinyinPro.pinyin(ch,{toneType:'symbol'}):'';let zh='';try{if(window.pinyinPro){const a=pinyinPro.pinyin(ch,{type:'all',toneType:'num'});zh=a.map(o=>o.isZh?syl2zh(o.pinyin):'').join('');}}catch(e){}
+  const mean=vocabMeaning(ch);let pop=document.getElementById('zi-pop');if(!pop){pop=document.createElement('div');pop.id='zi-pop';pop.className='zi-pop';document.body.appendChild(pop);}
+  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div><div class="zi-py">${esc(py)}${zh?(' · '+esc(zh)):''}</div>${mean?`<div class="zi-mean">${esc(mean)}</div>`:''}<button class="btn btn-sm" data-act="speak" data-text="${esc(ch)}">🔊</button>`;
+  pop.style.display='block';pop.style.visibility='hidden';const r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight;
+  let left=r.left+r.width/2-pw/2;left=Math.max(8,Math.min(left,window.innerWidth-pw-8));let top=r.top-ph-10;if(top<6)top=r.bottom+10;
+  pop.style.left=(left+window.scrollX)+'px';pop.style.top=(top+window.scrollY)+'px';pop.style.visibility='visible';}
+function hideZiPopup(){const p=document.getElementById('zi-pop');if(p)p.style.display='none';}
+function renderDictation(){const dd=S.dict,v=dd.list[dd.idx];if(!dd.checked)setTimeout(()=>vocabPlay(v.lessonId,v.idx,v.front),300);
+  $('#screen').innerHTML=`<button class="btn btn-sm btn-ghost" data-act="back">${t('back')}</button>
+   <div class="section-head" style="margin-top:12px"><h2>✏️ ${t('dictTitle')}</h2><span class="muted">${dd.idx+1} / ${dd.list.length}</span></div>
+   <div class="card" style="text-align:center"><button class="btn" data-act="dictReplay">${t('dictReplay')}</button>
+     <div style="margin:14px 0"><input id="dict-in" class="blank-inp" style="width:100%;max-width:280px;font-size:22px;text-align:center" ${dd.checked?'disabled':''} value="${esc(dd.val||'')}" placeholder="${esc(t('dictType'))}"></div>
+     ${dd.checked?`<div class="q-feedback ${dd.ok?'ok':'no'}">${dd.ok?'✓ '+t('correct'):'✗ '+t('wrong')} <span class="ans">｜${t('ans')}：${annotate(v.front)}</span></div><button class="btn btn-primary" style="margin-top:12px" data-act="dictNext">${dd.idx+1>=dd.list.length?t('finishBack'):t('dictNext')}</button>`:`<button class="btn btn-primary" data-act="dictCheck">${t('dictCheck')}</button>`}</div>`;
+  if(!dd.checked){const inp=document.getElementById('dict-in');if(inp)inp.focus();}}
+function renderReviewDone(){const r=S.review;S.review=null;$('#screen').dataset.mode='';$('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">🎉</div><h3>${t('revFinish')}</h3><div class="muted" style="margin-top:6px">${t('know')} ${r.know} / ${r.list.length}</div><button class="btn btn-primary" style="margin-top:14px" data-act="section" data-id="cards">${t('finishBack')}</button></div>`;}
 function genVocabQuiz(){const list=vocabAll().filter(v=>/[㐀-鿿]/.test(v.front));if(list.length<2)return [];
   const reads=list.map(v=>wordReading(v.front)||v.front);
   const qs=list.map((v,i)=>{const correct=reads[i];const pool=[...new Set(reads.filter((r,j)=>j!==i&&r&&r!==correct))];
@@ -282,7 +305,7 @@ function renderContent(){
       <div class="lesson-no">${l.order_index||i+1}</div><h3>${esc(l.title)}</h3></div>${l.audio_url?'<span class="tag gold">🔊</span>':''}</div>
       <details class="disc" style="margin-top:12px"><summary>${t('text')}</summary>
         ${l.audio_url?'<div class="lesson-block"><div class="lesson-label">'+t('audio')+'</div>'+audioHtml(l.audio_url)+'</div>':''}
-        ${l.content?`<div class="lesson-block"><div class="lesson-label">${t('text')}</div><div class="prose">${annotate(l.content)}</div></div>`:''}
+        ${l.content?`<div class="lesson-block"><div class="lesson-label">${t('text')}</div><div class="prose lookup">${prose2(l.content)}</div></div>`:''}
         ${vocab.length?`<div class="lesson-block"><div class="lesson-label">${t('vocab')}</div><div class="vocab-list">${vocab.map((v,vi)=>`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-idx="${vi}" data-text="${esc(v.front)}">${annotate(v.front)}<span class="spk">🔊</span></button>`).join('')}</div></div>`:''}
         ${l.key_points?`<div class="lesson-block"><div class="lesson-label">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div></div>`:''}
         ${examplesHtml(l.examples)}
@@ -293,7 +316,7 @@ function renderCards(){
   if(!all.length){$('#screen').innerHTML=emptyHtml('🃏',t('noCards'),t('noCardsSub'));return;}
   if(S.flashIdx>=all.length)S.flashIdx=0;
   const v=all[S.flashIdx];const dueN=srsDueList().length;
-  $('#screen').innerHTML=`<div class="vocab-actions"><button class="btn btn-sm" data-act="review">${t('revBtn')}${dueN?'（'+dueN+'）':''}</button><button class="btn btn-primary btn-sm" data-act="vocabQuiz">${t('vqBtn')}</button><button class="btn btn-sm" data-act="vocabMatch">${t('vmBtn')}</button></div>
+  $('#screen').innerHTML=`<div class="vocab-actions"><button class="btn btn-sm" data-act="review">${t('revBtn')}${dueN?'（'+dueN+'）':''}</button><button class="btn btn-primary btn-sm" data-act="vocabQuiz">${t('vqBtn')}</button><button class="btn btn-sm" data-act="vocabMatch">${t('vmBtn')}</button><button class="btn btn-sm" data-act="dictation">${t('dictBtn')}</button></div>
     <div class="flash-wrap">
     <div class="flash ${S.flashFlip?'flip':''}" data-act="flip"><div class="flash-inner">
       <div class="flash-face flash-front">${annotate(v.front)}<small>${t('flip')}</small></div>
@@ -302,6 +325,8 @@ function renderCards(){
     <div class="flash-controls"><button class="btn" data-act="flprev">${t('prev')}</button>
       <button class="btn btn-star ${isStarred(v.front)?'on':''}" data-act="star" data-text="${esc(v.front)}" aria-label="收藏">${isStarred(v.front)?'★':'☆'}</button>
       <button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-idx="${v.idx}" data-text="${esc(v.front)}" aria-label="發音">🔊</button>
+      <button class="btn btn-spk" data-act="shadowRec" data-lesson="${v.lessonId}" data-idx="${v.idx}" data-text="${esc(v.front)}" aria-label="跟讀">🎤</button>
+      ${(SHADOW&&SHADOW.idx===S.flashIdx)?`<button class="btn btn-sm" data-act="shadowPlay">${t('shadowMine')}</button>`:''}
       <span class="flash-count">${S.flashIdx+1} / ${all.length}</span>
       <button class="btn" data-act="flnext">${t('next')}</button></div></div>`;
 }
@@ -374,7 +399,7 @@ function renderPractice(){
     const vocab=parseVocab(l.vocabulary);
     textCard=`<div class="card">
       ${l.audio_url?'<div class="lesson-label">'+t('audio')+'</div>'+audioHtml(l.audio_url):''}
-      ${l.content?`<div class="lesson-label">${t('text')}</div><div class="prose">${annotate(l.content)}</div>`:''}
+      ${l.content?`<div class="lesson-label">${t('text')}</div><div class="prose lookup">${prose2(l.content)}</div>`:''}
       ${vocab.length?`<div class="lesson-label" style="margin-top:14px">${t('vocab')}</div><div class="vocab-list">${vocab.map((v,vi)=>`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-idx="${vi}" data-text="${esc(v.front)}">${annotate(v.front)}<span class="spk">🔊</span></button>`).join('')}</div>`:''}
       ${l.key_points?`<div class="lesson-label" style="margin-top:14px">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div>`:''}
       ${examplesHtml(l.examples)}</div>`;
@@ -421,6 +446,14 @@ H.star=(_,b)=>{const on=toggleStar(b.dataset.text);b.textContent=on?'★':'☆';
 H.review=()=>{const due=srsDueList();if(!due.length){toast(t('revDone'));return;}S.review={list:shuffle(due,Math.random()+''),idx:0,flip:false,know:0};$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderReview();};
 H.revFlip=()=>{if(S.review){S.review.flip=!S.review.flip;renderReview();}};
 H.revGrade=(_,b)=>{const r=S.review;if(!r)return;const v=r.list[r.idx];srsGrade(v.front,b.dataset.know==='1');if(b.dataset.know==='1')r.know++;r.idx++;r.flip=false;if(r.idx>=r.list.length){bumpActivity(r.list.length);renderReviewDone();}else renderReview();};
+H.zi=(_,b)=>{showZiPopup(b.dataset.z,b);};
+H.ziClose=()=>hideZiPopup();
+H.shadowRec=async(_,b)=>{if(SHADOWMR&&SHADOWMR.state==='recording'){SHADOWMR.stop();return;}if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)){toast(th('recDenied'));return;}let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){toast(th('recDenied'));return;}const chunks=[],idx=S.flashIdx;SHADOWMR=new MediaRecorder(stream);SHADOWMR.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};SHADOWMR.onstop=()=>{const blob=new Blob(chunks,{type:(SHADOWMR&&SHADOWMR.mimeType)||'audio/webm'});stream.getTracks().forEach(tk=>tk.stop());if(SHADOW&&SHADOW.url)URL.revokeObjectURL(SHADOW.url);SHADOW={idx,url:URL.createObjectURL(blob)};SHADOWMR=null;renderCards();try{new Audio(SHADOW.url).play();}catch(e){}};SHADOWMR.start();b.classList.add('recording');b.textContent='⏹';};
+H.shadowPlay=()=>{if(SHADOW&&SHADOW.url){try{new Audio(SHADOW.url).play();}catch(e){}}};
+H.dictation=()=>{const list=vocabAll().filter(v=>/[㐀-鿿]/.test(v.front));if(!list.length){toast(t('noCards'));return;}S.dict={list:shuffle(list,Math.random()+'').slice(0,12),idx:0,checked:false,val:'',right:0,ok:false};$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderDictation();};
+H.dictReplay=()=>{const dd=S.dict;if(!dd)return;const v=dd.list[dd.idx];vocabPlay(v.lessonId,v.idx,v.front);};
+H.dictCheck=()=>{const dd=S.dict;if(!dd||dd.checked)return;const inp=document.getElementById('dict-in');dd.val=inp?inp.value:'';const v=dd.list[dd.idx];const norm=s=>{try{return (CONV.cn?CONV.cn(s):s).replace(/\s/g,'');}catch(e){return (s||'').replace(/\s/g,'');}};dd.ok=norm(dd.val)!==''&&norm(dd.val)===norm(v.front);if(dd.ok)dd.right++;dd.checked=true;renderDictation();};
+H.dictNext=()=>{const dd=S.dict;if(!dd)return;if(dd.idx+1>=dd.list.length){bumpActivity(dd.list.length);S.dict=null;$('#screen').dataset.mode='';$('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">🎉</div><h3>${t('dictFinish')}</h3><div class="muted" style="margin-top:6px">${t('acc')} ${dd.right} / ${dd.list.length}</div><button class="btn btn-primary" style="margin-top:14px" data-act="section" data-id="cards">${t('finishBack')}</button></div>`;return;}dd.idx++;dd.checked=false;dd.val='';dd.ok=false;renderDictation();};
 H.vocabQuiz=()=>{const qs=genVocabQuiz();if(!qs.length){toast(t('noCards'));return;}S.practiceSet={mode:'vocab',lesson:null,questions:qs,title:'🎯 '+t('vqTitle')};S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
 H.vocabMatch=()=>{const qs=genVocabMatch();if(!qs.length){toast(t('noCards'));return;}S.practiceSet={mode:'vocab',lesson:null,questions:qs,title:'🔗 '+t('vmTitle')};S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
 
@@ -473,12 +506,14 @@ H.submit=async()=>{const set=S.practiceSet,qs=set.questions;GRADE=gradeAll(qs);S
   window.scrollTo(0,0);renderPractice();
   toast(GRADE.score===GRADE.total?'🎉 '+t('great'):t('done'));};
 H.flip=()=>{S.flashFlip=!S.flashFlip;renderCards();};
-H.flprev=()=>{S.flashFlip=false;const n=[];myLessons().forEach(l=>parseVocab(l.vocabulary).forEach(v=>n.push(v)));if(!n.length)return;S.flashIdx=(S.flashIdx-1+n.length)%n.length;renderCards();};
-H.flnext=()=>{S.flashFlip=false;const n=[];myLessons().forEach(l=>parseVocab(l.vocabulary).forEach(v=>n.push(v)));if(!n.length)return;S.flashIdx=(S.flashIdx+1)%n.length;renderCards();};
+H.flprev=()=>{S.flashFlip=false;SHADOW=null;const n=vocabAll();if(!n.length)return;S.flashIdx=(S.flashIdx-1+n.length)%n.length;renderCards();};
+H.flnext=()=>{S.flashFlip=false;SHADOW=null;const n=vocabAll();if(!n.length)return;S.flashIdx=(S.flashIdx+1)%n.length;renderCards();};
 
 document.addEventListener('click',(e)=>{
   if(!e.target.closest('.settings-wrap')){const m=$('#menu');if(m)m.classList.add('hide');}
+  if(!e.target.closest('#zi-pop')&&!e.target.closest('.zi'))hideZiPopup();
   const b=e.target.closest('[data-act]');if(!b)return;const fn=H[b.dataset.act];if(fn){e.preventDefault();fn(b.dataset.id,b);}});
+document.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&e.target&&e.target.id==='dict-in'){e.preventDefault();H.dictCheck();}});
 
 /* ============ 啟動 ============ */
 async function enter(me){S.me=me;
