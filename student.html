@@ -112,7 +112,10 @@ function annotate(text){
 /* ===== 發音(TTS)與生字互動 ===== */
 function speak(text){if(!window.speechSynthesis||!text)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=(S.lang==='cn'?'zh-CN':'zh-TW');u.rate=.8;speechSynthesis.speak(u);}catch(e){}}
 function wordReading(w){if(!window.pinyinPro)return '';try{if(S.ann==='zhuyin'){const arr=pinyinPro.pinyin(w,{type:'all',toneType:'num'});return arr.map(o=>o.isZh?syl2zh(o.pinyin):o.origin).join(' ');}return pinyinPro.pinyin(w,{toneType:'symbol'});}catch(e){return '';}}
-function vocabAll(){const a=[],seen=new Set();myLessons().forEach(l=>parseVocab(l.vocabulary).forEach(v=>{if(v.front&&!seen.has(v.front)){seen.add(v.front);a.push(v);}}));return a;}
+function vocabAll(){const a=[],seen=new Set();myLessons().forEach(l=>parseVocab(l.vocabulary).forEach((v,i)=>{if(v.front&&!seen.has(v.front)){seen.add(v.front);a.push(Object.assign({},v,{lessonId:l.id,idx:i}));}}));return a;}
+let _segAudio;
+function playSegment(url,s,e){const a=_segAudio||(_segAudio=new Audio());a.ontimeupdate=null;const same=a.src===url;if(!same)a.src=url;const go=()=>{try{a.currentTime=s;}catch(_){}a.ontimeupdate=()=>{if(a.currentTime>=e){a.pause();a.ontimeupdate=null;}};a.play().catch(()=>{});};if(same&&a.readyState>=1)go();else a.onloadedmetadata=go;}
+function vocabPlay(lid,idx,fallbackText){const l=S.lessons.find(x=>x.id===lid);const seg=l&&Array.isArray(l.vocab_segments)&&l.vocab_segments[idx];if(l&&l.vocab_audio_url&&seg)playSegment(l.vocab_audio_url,seg.s,seg.e);else speak(fallbackText);}
 function genVocabQuiz(){const list=vocabAll().filter(v=>/[㐀-鿿]/.test(v.front));if(list.length<2)return [];
   const reads=list.map(v=>wordReading(v.front)||v.front);
   const qs=list.map((v,i)=>{const correct=reads[i];const pool=[...new Set(reads.filter((r,j)=>j!==i&&r&&r!==correct))];
@@ -258,13 +261,13 @@ function renderContent(){
       <details class="disc" style="margin-top:12px"><summary>${t('text')}</summary>
         ${l.audio_url?'<div class="lesson-block"><div class="lesson-label">'+t('audio')+'</div>'+audioHtml(l.audio_url)+'</div>':''}
         ${l.content?`<div class="lesson-block"><div class="lesson-label">${t('text')}</div><div class="prose">${annotate(l.content)}</div></div>`:''}
-        ${vocab.length?`<div class="lesson-block"><div class="lesson-label">${t('vocab')}</div><div class="vocab-list">${vocab.map(v=>`<button type="button" class="vocab-chip" data-act="speak" data-text="${esc(v.front)}">${annotate(v.front)}<span class="spk">🔊</span></button>`).join('')}</div></div>`:''}
+        ${vocab.length?`<div class="lesson-block"><div class="lesson-label">${t('vocab')}</div><div class="vocab-list">${vocab.map((v,vi)=>`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-idx="${vi}" data-text="${esc(v.front)}">${annotate(v.front)}<span class="spk">🔊</span></button>`).join('')}</div></div>`:''}
         ${l.key_points?`<div class="lesson-block"><div class="lesson-label">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div></div>`:''}
         ${examplesHtml(l.examples)}
       </details></div>`;}).join('')+'</div>';
 }
 function renderCards(){
-  const all=[];myLessons().forEach(l=>parseVocab(l.vocabulary).forEach(v=>all.push(v)));
+  const all=vocabAll();
   if(!all.length){$('#screen').innerHTML=emptyHtml('🃏',t('noCards'),t('noCardsSub'));return;}
   if(S.flashIdx>=all.length)S.flashIdx=0;
   const v=all[S.flashIdx];
@@ -275,7 +278,7 @@ function renderCards(){
       <div class="flash-face flash-back">${esc(v.back||'—')}</div>
     </div></div>
     <div class="flash-controls"><button class="btn" data-act="flprev">${t('prev')}</button>
-      <button class="btn btn-spk" data-act="speak" data-text="${esc(v.front)}" aria-label="發音">🔊</button>
+      <button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-idx="${v.idx}" data-text="${esc(v.front)}" aria-label="發音">🔊</button>
       <span class="flash-count">${S.flashIdx+1} / ${all.length}</span>
       <button class="btn" data-act="flnext">${t('next')}</button></div></div>`;
 }
@@ -349,7 +352,7 @@ function renderPractice(){
     textCard=`<div class="card">
       ${l.audio_url?'<div class="lesson-label">'+t('audio')+'</div>'+audioHtml(l.audio_url):''}
       ${l.content?`<div class="lesson-label">${t('text')}</div><div class="prose">${annotate(l.content)}</div>`:''}
-      ${vocab.length?`<div class="lesson-label" style="margin-top:14px">${t('vocab')}</div><div class="vocab-list">${vocab.map(v=>`<button type="button" class="vocab-chip" data-act="speak" data-text="${esc(v.front)}">${annotate(v.front)}<span class="spk">🔊</span></button>`).join('')}</div>`:''}
+      ${vocab.length?`<div class="lesson-label" style="margin-top:14px">${t('vocab')}</div><div class="vocab-list">${vocab.map((v,vi)=>`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-idx="${vi}" data-text="${esc(v.front)}">${annotate(v.front)}<span class="spk">🔊</span></button>`).join('')}</div>`:''}
       ${l.key_points?`<div class="lesson-label" style="margin-top:14px">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div>`:''}
       ${examplesHtml(l.examples)}</div>`;
   }
@@ -390,6 +393,7 @@ H.authTab=(id)=>{S.authTab=id;renderGate();};
 H.logout=()=>{if(window.firebase&&firebase.auth)firebase.auth().signOut().then(()=>location.reload());else location.reload();};
 H.section=(id)=>{S.section=id;S.practiceSet=null;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
 H.speak=(_,b)=>{speak(b.dataset.text);};
+H.vocabPlay=(_,b)=>{vocabPlay(b.dataset.lesson,+b.dataset.idx,b.dataset.text);};
 H.vocabQuiz=()=>{const qs=genVocabQuiz();if(!qs.length){toast(t('noCards'));return;}S.practiceSet={mode:'vocab',lesson:null,questions:qs,title:'🎯 '+t('vqTitle')};S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
 H.vocabMatch=()=>{const qs=genVocabMatch();if(!qs.length){toast(t('noCards'));return;}S.practiceSet={mode:'vocab',lesson:null,questions:qs,title:'🔗 '+t('vmTitle')};S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
 

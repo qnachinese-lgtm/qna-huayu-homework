@@ -240,7 +240,7 @@ function renderLessons(){
         ${an?`<button class="btn btn-sm btn-warn" data-act="unassign" data-id="${l.id}">↩ 收回</button>`:''}
         <button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div></div>`;}).join('');
 }
-function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;
+function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaReset();
   openModal(`<div class="modal wide"><div class="modal-head"><h3>${e?'編輯課文':'新增課文'}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="form-grid">
      <div class="field"><label>課序 <span class="hint">第幾課</span></label><input id="l-order" type="number" min="1" value="${l.order_index||nextNo}"></div>
@@ -250,6 +250,15 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;
      <div class="field"><label>生字 <span class="hint">每行一個</span></label><textarea id="l-vocab" placeholder="歡迎&#10;臺灣&#10;朋友">${esc(l.vocabulary||'')}</textarea></div>
      <div class="field"><label>語法 / 重點</label><textarea id="l-key" placeholder="例：「先…再…」的用法">${esc(l.key_points||'')}</textarea></div>
      <div class="field"><label>例句 <span class="hint">每行一句；學生可點來聽發音、看拼音／注音</span></label><textarea id="l-examples" placeholder="今天天氣很好。&#10;我喜歡喝茶。">${esc(l.examples||'')}</textarea></div>
+     <div class="field full"><label>生字音檔（自動切割） <span class="hint">上傳一段「依序唸生字、字間有停頓」的錄音，系統會自動切成每字一段；可預覽調整再存。學生生字卡會播這個真人發音。</span></label>
+       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+         <button class="btn" type="button" data-act="pickVocabAudio">⬆ 上傳並自動切割</button>
+         <input type="file" id="file-vocab-audio" class="hide" accept="audio/*">
+         <span class="hint" id="va-status">${l.vocab_audio_url?('目前已有：'+((l.vocab_segments||[]).length)+' 段切片'):''}</span>
+       </div>
+       <div id="va-controls" class="hide" style="margin-top:10px"><label style="font-size:12px;color:var(--muted)">停頓靈敏度（切太多段→往左；字被併在一起→往右）</label><input id="va-sens" type="range" min="8" max="60" value="20" style="width:100%;display:block"></div>
+       <div id="va-preview" style="margin-top:8px"></div>
+     </div>
      <div class="field"><label>課文音檔 <span class="hint">選填</span></label>
        <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="l-audio" type="text" style="flex:1;min-width:160px" value="${esc(l.audio_url||'')}" placeholder="上傳檔案，或貼 mp3／YouTube 連結">
        <button class="btn" type="button" data-act="pickAudio" data-id="l-audio">⬆ 上傳音檔</button></div>
@@ -392,7 +401,11 @@ H.editLesson=(id)=>lessonModal(S.lessons.find(l=>l.id===id));
 H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!confirm(`確定刪除「${l.title}」？課文題目與成績都會一併刪除。`))return;await DB.remove('lessons',id);await loadAll();render();toast('已刪除');};
 H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return toast('請輸入課名');
   const obj={order_index:Number($('#l-order').value)||0,title,content:$('#l-content').value,vocabulary:$('#l-vocab').value,key_points:$('#l-key').value,examples:$('#l-examples').value,audio_url:$('#l-audio').value.trim()||null};
-  try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);closeModal();await loadAll();render();toast('已儲存');}catch(err){toast('儲存失敗：'+err.message);}};
+  const sbtn=document.querySelector('[data-act="saveLesson"]');
+  if(VA_FILE&&VA_SEGS&&VA_SEGS.length){if(sbtn){sbtn.disabled=true;sbtn.textContent='上傳生字音檔…';}
+    try{obj.vocab_audio_url=await uploadVocabAudio(VA_FILE);obj.vocab_segments=VA_SEGS;}
+    catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('生字音檔上傳失敗：'+(err.message||err));}}
+  try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}toast('儲存失敗：'+err.message);}};
 
 H.questions=(id)=>openQuestionsModal(id);
 H.addQuestion=(id)=>questionEditModal(id,null);
@@ -440,6 +453,28 @@ H.markWrite=async(key)=>{const[rid,qid,mark]=key.split('::');const r=S.results.f
   const sc=scoreOf(l,Object.assign({},r,{manual}));
   try{await DB.update('results',rid,{manual,score:sc,status:pend?'pending':'done'});S.results=await DB.list('results');render();toast('已更新批改');}catch(e){toast('更新失敗：'+e.message);}};
 H.pickAudio=(id)=>{const f=document.getElementById('file-'+id);if(f)f.click();};
+/* ===== 生字音檔自動切割 ===== */
+let VA_FILE=null,VA_LOUD=null,VA_SEGS=null,VA_URL=null;
+function vaReset(){VA_FILE=null;VA_LOUD=null;VA_SEGS=null;if(VA_URL){URL.revokeObjectURL(VA_URL);VA_URL=null;}}
+function vaWords(){return ($('#l-vocab')?$('#l-vocab').value:'').split('\n').map(s=>s.trim()).filter(Boolean);}
+function _loudness(buf){const d=buf.getChannelData(0),sr=buf.sampleRate,win=Math.max(1,Math.floor(sr*0.02)),loud=[];for(let i=0;i<d.length;i+=win){let s=0,n=0;for(let j=i;j<i+win&&j<d.length;j++){s+=d[j]*d[j];n++;}loud.push(Math.sqrt(s/(n||1)));}return {loud,winSec:win/sr,dur:buf.duration};}
+function _gate(L,thr,minSil,minDur){const loud=L.loud,w=L.winSec,segs=[];let start=-1,sil=0;for(let k=0;k<loud.length;k++){if(loud[k]>thr){if(start<0)start=k*w;sil=0;}else{if(start>=0){sil+=w;if(sil>=minSil){const end=k*w-sil+w;if(end-start>=minDur)segs.push({s:+start.toFixed(2),e:+end.toFixed(2)});start=-1;sil=0;}}}}if(start>=0){const end=loud.length*w;if(end-start>=minDur)segs.push({s:+start.toFixed(2),e:+end.toFixed(2)});}return segs;}
+function _thr(L){const s=L.loud.slice().sort((a,b)=>a-b);const noise=s[Math.floor(s.length*0.5)]||0,peak=s[Math.floor(s.length*0.97)]||0.1;return Math.max(noise*3,peak*0.08,0.006);}
+function vaAuto(L,wc){const thr=_thr(L),cands=[];for(let ms=0.08;ms<=0.6;ms+=0.02)cands.push({ms,segs:_gate(L,thr,ms,0.1)});const exact=cands.filter(c=>c.segs.length===wc);const best=exact.length?exact[Math.floor(exact.length/2)]:cands.sort((a,b)=>Math.abs(a.segs.length-wc)-Math.abs(b.segs.length-wc)||b.ms-a.ms)[0];return {segs:best.segs,ms:best.ms};}
+H.pickVocabAudio=()=>{const f=$('#file-vocab-audio');if(f)f.click();};
+async function vaHandleFile(file){vaReset();VA_FILE=file;VA_URL=URL.createObjectURL(file);$('#va-status').textContent='分析中…';
+  try{const ab=await file.arrayBuffer();const ctx=new (window.AudioContext||window.webkitAudioContext)();const buf=await ctx.decodeAudioData(ab);ctx.close&&ctx.close();VA_LOUD=_loudness(buf);}
+  catch(e){$('#va-status').textContent='無法讀取音檔：'+(e.message||e);return;}
+  const words=vaWords();if(!words.length){$('#va-status').textContent='請先在上面「生字」欄輸入生字（每行一個），再上傳音檔。';return;}
+  const r=vaAuto(VA_LOUD,words.length);VA_SEGS=r.segs;const sl=$('#va-sens');if(sl){sl.value=Math.round(r.ms*100);$('#va-controls').classList.remove('hide');}vaRenderPreview();}
+function vaRenderPreview(){const words=vaWords(),segs=VA_SEGS||[],match=segs.length===words.length;
+  $('#va-status').textContent=(match?'✓ ':'⚠ ')+'偵測到 '+segs.length+' 段，生字 '+words.length+' 個'+(match?'，剛好對上':'，請拉下方「靈敏度」調到一致');
+  $('#va-preview').innerHTML='<div class="va-list">'+words.map((w,i)=>{const seg=segs[i];return `<div class="va-row"><span class="va-w">${esc(w)}</span>${seg?`<button class="btn btn-sm" type="button" data-act="vaPlay" data-i="${i}">▶ 試聽</button><span class="hint">${seg.s.toFixed(1)}–${seg.e.toFixed(1)}s</span>`:'<span class="hint" style="color:#c0392b">（沒切到，請調整靈敏度）</span>'}</div>`;}).join('')+'</div>';}
+H.vaRedetect=()=>{if(!VA_LOUD)return;const ms=Number($('#va-sens').value)/100;VA_SEGS=_gate(VA_LOUD,_thr(VA_LOUD),ms,0.1);vaRenderPreview();};
+H.vaPlay=(_,b)=>{const i=+b.dataset.i,seg=(VA_SEGS||[])[i];if(!seg||!VA_URL)return;const a=window._vaAudio||(window._vaAudio=new Audio());a.ontimeupdate=null;a.src=VA_URL;const go=()=>{try{a.currentTime=seg.s;}catch(_){}a.ontimeupdate=()=>{if(a.currentTime>=seg.e){a.pause();a.ontimeupdate=null;}};a.play().catch(()=>{});};if(a.readyState>=1)go();else a.onloadedmetadata=go;};
+async function uploadVocabAudio(file){const ext=((file.name.split('.').pop())||'mp3').replace(/[^a-z0-9]/gi,'')||'mp3';const ref=firebase.storage().ref('vocab_audio/'+Date.now()+'_'+Math.random().toString(16).slice(2)+'.'+ext);await ref.put(file);return await ref.getDownloadURL();}
+document.addEventListener('change',(e)=>{if(e.target&&e.target.id==='file-vocab-audio'){const f=e.target.files&&e.target.files[0];if(f)vaHandleFile(f);}});
+document.addEventListener('input',(e)=>{if(e.target&&e.target.id==='va-sens')H.vaRedetect();});
 
 document.addEventListener('click',(e)=>{
   if(e.target.matches('[data-overlay]')){closeModal();return;}
