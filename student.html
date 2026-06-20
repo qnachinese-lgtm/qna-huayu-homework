@@ -518,7 +518,7 @@ H.ziClose=()=>hideZiPopup();
 H.shadowRec=async(_,b)=>{if(SHADOWMR&&SHADOWMR.state==='recording'){SHADOWMR.stop();return;}if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)){toast(th('recDenied'));return;}let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){toast(th('recDenied'));return;}const chunks=[],idx=S.flashIdx;SHADOWMR=new MediaRecorder(stream);SHADOWMR.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};SHADOWMR.onstop=()=>{const blob=new Blob(chunks,{type:(SHADOWMR&&SHADOWMR.mimeType)||'audio/webm'});stream.getTracks().forEach(tk=>tk.stop());if(SHADOW&&SHADOW.url)URL.revokeObjectURL(SHADOW.url);SHADOW={idx,url:URL.createObjectURL(blob)};SHADOWMR=null;renderCards();try{new Audio(SHADOW.url).play();}catch(e){}};SHADOWMR.start();b.classList.add('recording');b.textContent='⏹';};
 H.shadowPlay=()=>{if(SHADOW&&SHADOW.url){try{new Audio(SHADOW.url).play();}catch(e){}}};
 Object.assign(I18N.zh,{replay:'↻ 重播'});Object.assign(I18N.cn,{replay:'↻ 重播'});Object.assign(I18N.en,{replay:'↻ Replay'});Object.assign(I18N.vi,{replay:'↻ Phát lại'});
-Object.assign(I18N.zh,{listen:'聽',shadowDlg:'逐句跟讀'});Object.assign(I18N.cn,{listen:'听',shadowDlg:'逐句跟读'});Object.assign(I18N.en,{listen:'Listen',shadowDlg:'Read aloud'});Object.assign(I18N.vi,{listen:'Nghe',shadowDlg:'Đọc theo câu'});
+Object.assign(I18N.zh,{listen:'聽',shadowDlg:'逐句跟讀',scoreBtn:'發音',youSaid:'你說'});Object.assign(I18N.cn,{listen:'听',shadowDlg:'逐句跟读',scoreBtn:'发音',youSaid:'你说'});Object.assign(I18N.en,{listen:'Listen',shadowDlg:'Read aloud',scoreBtn:'Score',youSaid:'You said'});Object.assign(I18N.vi,{listen:'Nghe',shadowDlg:'Đọc theo câu',scoreBtn:'Chấm',youSaid:'Bạn nói'});
 let STROKE_WORD='',STROKE_WRITERS=[];
 function showStroke(word){const chars=[...(word||'')].filter(c=>/[㐀-鿿]/.test(c));if(!chars.length){toast(t('noCards'));return;}
   if(!window.HanziWriter){toast('筆順元件還在載入，請稍候再點一次');return;}
@@ -538,7 +538,7 @@ H.strokeReplay=()=>renderStroke();
 let SS=null;
 function splitSentences(text){return (text||'').replace(/\r/g,'').split('\n').flatMap(line=>(line.match(/[^。！？!?；;]+[。！？!?；;]*/g)||[])).map(s=>s.trim()).filter(s=>s&&/[㐀-鿿]/.test(s));}
 function renderSS(){let ov=document.getElementById('ss-ov');if(ov)ov.remove();ov=document.createElement('div');ov.id='ss-ov';ov.className='stroke-ov';
-  const rows=SS.sents.map((s,i)=>`<div class="ss-row" id="ss-row-${i}"><div class="ss-sent">${annotate(s)}</div><div class="ss-tools"><button class="btn btn-sm" data-act="ssPlay" data-i="${i}">▶ ${t('listen')}</button><button class="btn btn-sm rec-btn" data-act="ssRec" data-i="${i}" aria-label="跟讀">🎤</button>${SS.recs[i]?`<button class="btn btn-sm" data-act="ssMine" data-i="${i}">▶ ${t('shadowMine')}</button>`:''}</div></div>`).join('');
+  const rows=SS.sents.map((s,i)=>`<div class="ss-row" id="ss-row-${i}"><div class="ss-sent">${annotate(s)}</div><div class="ss-tools"><button class="btn btn-sm" data-act="ssPlay" data-i="${i}">▶ ${t('listen')}</button><button class="btn btn-sm rec-btn" data-act="ssRec" data-i="${i}" aria-label="跟讀">🎤</button>${SS.recs[i]?`<button class="btn btn-sm" data-act="ssMine" data-i="${i}">▶ ${t('shadowMine')}</button>`:''}<button class="btn btn-sm" data-act="ssScore" data-i="${i}" aria-label="發音評分">🎯 ${t('scoreBtn')}</button></div><div class="ss-fb hide" id="ss-fb-${i}"></div></div>`).join('');
   ov.innerHTML=`<div class="stroke-box ss-box"><button class="stroke-x" data-act="ssClose" aria-label="關閉">✕</button><h3 style="margin:0 0 12px;font-size:17px">🗣 ${t('shadowDlg')}</h3><div class="ss-list">${rows}</div></div>`;
   document.body.appendChild(ov);try{convEl(ov);}catch(e){}}
 H.shadowDlg=(key)=>{const p=String(key).split('::');const l=S.lessons.find(x=>x.id===p[0]);if(!l)return;const d=lessonDialogues(l)[+p[1]];const sents=splitSentences(d&&d.content);if(!sents.length){toast(t('noContent'));return;}SS={sents,recs:{},mr:null};renderSS();};
@@ -553,6 +553,13 @@ H.ssRec=async(_,b)=>{if(!SS)return;const i=+b.dataset.i;
   SS.mr.onstop=()=>{const blob=new Blob(chunks,{type:(SS.mr&&SS.mr.mimeType)||'audio/webm'});stream.getTracks().forEach(tk=>tk.stop());if(SS.recs[i])URL.revokeObjectURL(SS.recs[i]);SS.recs[i]=URL.createObjectURL(blob);SS.mr=null;renderSS();try{new Audio(SS.recs[i]).play();}catch(e){}};
   SS.mr.start();b.classList.add('recording');b.textContent='⏹';};
 H.ssMine=(_,b)=>{if(!SS)return;const i=+b.dataset.i;if(SS.recs[i]){try{new Audio(SS.recs[i]).play();}catch(e){}}};
+/* ---- 口說發音評分（瀏覽器語音辨識） ---- */
+function lcsLen(a,b){const n=b.length;if(!a.length||!n)return 0;let prev=new Array(n+1).fill(0);for(let i=1;i<=a.length;i++){const cur=new Array(n+1).fill(0);for(let j=1;j<=n;j++){cur[j]=a[i-1]===b[j-1]?prev[j-1]+1:Math.max(prev[j],cur[j-1]);}prev=cur;}return prev[n];}
+function normHan(s){try{return (CONV.cn?CONV.cn(s):s).replace(/[^㐀-鿿]/g,'');}catch(e){return (s||'').replace(/[^㐀-鿿]/g,'');}}
+function speechRec(onResult,onErr){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){onErr&&onErr('nosupport');return;}const r=new SR();r.lang=(S.lang==='cn'?'zh-CN':'zh-TW');r.interimResults=false;r.maxAlternatives=1;r.onresult=e=>{try{onResult((e.results[0][0].transcript)||'');}catch(x){onResult('');}};r.onerror=e=>{onErr&&onErr(e.error||'error');};try{r.start();}catch(e){onErr&&onErr('busy');}}
+H.ssScore=(_,b)=>{if(!SS)return;const i=+b.dataset.i,target=SS.sents[i],old=b.innerHTML;b.disabled=true;b.textContent='🎙 …';
+  speechRec((tr)=>{b.disabled=false;b.innerHTML=old;const a=normHan(target),c=normHan(tr);const sc=a.length?Math.round(lcsLen(a,c)/a.length*100):0;const fb=document.getElementById('ss-fb-'+i);if(fb){fb.className='ss-fb '+(sc>=80?'ok':sc>=50?'mid':'no');fb.classList.remove('hide');fb.innerHTML='🎯 '+sc+'% · '+t('youSaid')+'：'+esc(tr||'—');}},
+  (err)=>{b.disabled=false;b.innerHTML=old;toast(err==='nosupport'?'此瀏覽器不支援語音辨識，請改用電腦版 Chrome':((err==='not-allowed'||err==='service-not-allowed')?th('recDenied'):'辨識失敗，請再說一次')); });};
 H.dictation=()=>{const list=vocabAll().filter(v=>/[㐀-鿿]/.test(v.front));if(!list.length){toast(t('noCards'));return;}S.dict={list:shuffle(list,Math.random()+'').slice(0,12),idx:0,checked:false,val:'',right:0,ok:false};$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderDictation();};
 H.dictReplay=()=>{const dd=S.dict;if(!dd)return;const v=dd.list[dd.idx];vocabPlay(v.lessonId,v.di,v.vi,v.front);};
 H.dictCheck=()=>{const dd=S.dict;if(!dd||dd.checked)return;const inp=document.getElementById('dict-in');dd.val=inp?inp.value:'';const v=dd.list[dd.idx];const norm=s=>{try{return (CONV.cn?CONV.cn(s):s).replace(/\s/g,'');}catch(e){return (s||'').replace(/\s/g,'');}};dd.ok=norm(dd.val)!==''&&norm(dd.val)===norm(v.front);if(dd.ok)dd.right++;dd.checked=true;renderDictation();};
@@ -644,7 +651,7 @@ if(window.firebase&&firebase.auth){
     if(user){
       try{const ss=await DB.listWhere('students','uid',user.uid);const me=ss[0];
         if(me)enter(me);
-        else{await firebase.auth().signOut();showGate(t('notApproved'));}
+        else{showGate(t('notApproved'));}
       }catch(err){showGate(err.message);}
     }else{showGate();}
   });
