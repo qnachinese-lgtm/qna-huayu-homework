@@ -189,32 +189,31 @@ function genVocabMatch(){const pick=shuffle(vocabAll().slice(),Math.random()+'')
   const opts=pick.map(v=>({l:v.front,r:v.back||wordReading(v.front)||v.front}));
   if(opts.length<2)return [];return [{id:'vm',type:'match',options:opts}];}
 function examplesHtml(text){const lines=(text||'').split('\n').map(s=>s.trim()).filter(Boolean);if(!lines.length)return '';
-  return `<div class="lesson-block"><div class="lesson-label">${t('examples')}</div><div class="ex-list">${lines.map(s=>`<button type="button" class="ex-item" data-act="speak" data-text="${esc(s)}">${annotate(s)}<span class="spk">🔊</span></button>`).join('')}</div></div>`;}
+  return `<details class="disc ex-fold"><summary>${t('examples')}</summary><div class="ex-list" style="margin-top:8px">${lines.map(s=>`<button type="button" class="ex-item" data-act="speak" data-text="${esc(s)}">${annotate(s)}<span class="spk">🔊</span></button>`).join('')}</div></details>`;}
 function dlgHasAudio(l){return lessonDialogues(l).some(d=>d.audio_url);}
 function lessonHasContent(l){return lessonDialogues(l).some(d=>d.content||parseVocab(d.vocabulary).length||d.audio_url)||(l.grammar_points&&l.grammar_points.length)||questionsOf(l.id).length||l.key_points||l.examples;}
 function dialoguesHtml(l){const ds=lessonDialogues(l);const multi=ds.length>1;
   return ds.map((d,di)=>{const vocab=parseVocab(d.vocabulary);
     const chips=vocab.map((v,k)=>`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-di="${di}" data-vi="${k}" data-text="${esc(v.front)}">${vocabAnno(v)}<span class="spk">🔊</span></button>`).join('');
     if(!(d.content||vocab.length||d.audio_url))return '';
-    return `<div class="dlg-sec">${(multi||(d.title&&d.title!=='課文'))?`<div class="dlg-title">${esc(d.title||('對話'+(di+1)))}</div>`:''}
+    return `<details class="disc dlg-fold" open><summary>${esc(d.title||('對話'+(di+1)))}</summary><div class="dlg-fold-body">
       ${d.audio_url?`<div class="lesson-block"><div class="lesson-label">${t('audio')}</div>${audioHtml(d.audio_url)}</div>`:''}
       ${d.content?`<div class="lesson-block"><div class="lesson-label">${t('text')}</div><div class="prose lookup">${prose2(d.content)}</div></div>`:''}
-      ${vocab.length?`<div class="lesson-block"><div class="lesson-label">${t('vocab')}</div><div class="vocab-list">${chips}</div></div>`:''}</div>`;
+      ${vocab.length?`<div class="lesson-block"><div class="lesson-label">${t('vocab')}</div><div class="vocab-list">${chips}</div></div>`:''}</div></details>`;
   }).join('');}
 function gpLabel(lab){lab=(lab||'').trim();if(!lab)return '';const m=GP_LBL[lab];if(m&&(S.lang==='en'||S.lang==='vi'))return m[S.lang]||lab;return lab;}
-function gpCardHtml(g,gi){
-  const blocks=(g.blocks||[]).map(b=>{
+function gpBlocksHtml(g){return (g.blocks||[]).map(b=>{
     const lab=(b.label||'').trim(),txt=(b.text||'').trim(),exl=(b.ex||'').split('\n').map(s=>s.trim()).filter(Boolean);
     if(!lab&&!txt&&!exl.length)return '';
     const mono=/[+＋]/.test(txt)||/結構|句型|structure/i.test(lab);
     const body=txt?(mono?`<div class="gp-struct">${esc(txt).replace(/\n/g,'<br>')}</div>`:`<div class="gp-text">${esc(txt).replace(/\n/g,'<br>')}</div>`):'';
     const ex=exl.length?`<div class="gp-ex-list">${exl.map(s=>`<button type="button" class="ex-item" data-act="speak" data-text="${esc(s)}">${annotate(s)}<span class="spk">🔊</span></button>`).join('')}</div>`:'';
     return `<div class="gp-sec">${lab?`<div class="gp-seclbl">${esc(gpLabel(lab))}</div>`:''}${body}${ex}</div>`;
-  }).join('');
-  return `<div class="gp-card2"><div class="gp-card2-head"><span class="gp-tag">${t('grammar')} ${gi+1}</span>${g.title?`<span class="gp-card2-title">${esc(g.title)}</span>`:''}</div>${blocks}</div>`;
-}
+  }).join('');}
+function gpFold(g,gi,extra){return `<details class="disc gp-fold"><summary><span class="gp-tag">${t('grammar')} ${gi+1}</span>${g.title?'<span class="gp-fold-title">'+esc(g.title)+'</span>':''}</summary><div class="gp-fold-body">${gpBlocksHtml(g)}${extra||''}</div></details>`;}
+function gpCardHtml(g,gi){return `<div class="gp-card2"><div class="gp-card2-head"><span class="gp-tag">${t('grammar')} ${gi+1}</span>${g.title?`<span class="gp-card2-title">${esc(g.title)}</span>`:''}</div>${gpBlocksHtml(g)}</div>`;}
 function grammarHtml(gps){if(!Array.isArray(gps)||!gps.length)return '';
-  return `<div class="lesson-block"><div class="lesson-label">${t('grammar')}</div>${gps.map((g,gi)=>gpCardHtml(g,gi)).join('')}</div>`;}
+  return `<div class="lesson-block"><div class="lesson-label">${t('grammar')}</div>${gps.map((g,gi)=>gpFold(g,gi)).join('')}</div>`;}
 /* 上課內容：每個語法卡下面附上該語法的互動練習（不算分、即時對錯／自我對照） */
 function isCanvasQ(q){return q.type==='write'||(q.type==='fill'&&q.input_mode==='write');}
 function isManualQ(q){return q.type==='write'||q.type==='speak'||(q.type==='fill'&&q.input_mode==='write');}
@@ -227,7 +226,8 @@ function grammarPracticeHtml(l){
   }
   const cards=gps.map((g,gi)=>{
     const qs=qsAll.filter(q=>q.gp_index===gi);
-    return gpCardHtml(g,gi)+(qs.length?`<div class="pi-wrap">${qs.map((q,i)=>practiceItemHtml(q,i)).join('')}</div>`:'');
+    const prac=qs.length?`<div class="pi-wrap">${qs.map((q,i)=>practiceItemHtml(q,i)).join('')}</div>`:'';
+    return gpFold(g,gi,prac);
   }).join('');
   const untag=qsAll.filter(q=>q.gp_index==null);
   const untagHtml=untag.length?`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${untag.map((q,i)=>practiceItemHtml(q,i)).join('')}</div></div>`:'';
