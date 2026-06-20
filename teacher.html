@@ -36,12 +36,18 @@
 
     <div class="container">
       <div class="tabs">
+        <button class="tab" data-act="tab" data-id="dashboard">📊 總覽</button>
         <button class="tab" data-act="tab" data-id="students">學生名冊 <span class="count" id="c-students">0</span></button>
         <button class="tab" data-act="tab" data-id="lessons">課文練習 <span class="count" id="c-lessons">0</span></button>
         <button class="tab" data-act="tab" data-id="grades">成績總覽</button>
       </div>
 
-      <section id="panel-students" class="panel">
+      <section id="panel-dashboard" class="panel">
+        <div class="section-head"><h2>📊 總覽</h2><span class="sub">付款提醒與學生進度</span></div>
+        <div id="dashboard-body"></div>
+      </section>
+
+      <section id="panel-students" class="panel hide">
         <div class="section-head"><h2>學生名冊</h2><span class="sub">基本資料與學費</span><span class="grow"></span>
           <input id="stu-search" type="text" placeholder="搜尋名字 / 國籍…" style="max-width:190px">
           <button class="btn btn-primary" data-act="addStudent">＋ 新增學生</button></div>
@@ -79,7 +85,8 @@ const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 function fmtDate(d){if(!d)return'—';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0');}
-function money(n){if(n==null||n==='')return'—';const v=Number(n);return isNaN(v)?n:'NT$'+v.toLocaleString('zh-TW');}
+const CUR={TWD:['NT$','zh-TW'],VND:['₫','vi-VN'],USD:['US$','en-US']};
+function money(n,cur){if(n==null||n==='')return'—';const v=Number(n);if(isNaN(v))return n;const c=CUR[cur||'TWD']||CUR.TWD;return c[0]+v.toLocaleString(c[1]);}
 const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
 function avColor(s){let h=0;for(const c of (s||''))h=(h*31+c.charCodeAt(0))>>>0;return AV[h%AV.length];}
 function genCodeStr(){const c='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<4;i++)s+=c[Math.floor(Math.random()*c.length)];return s;}
@@ -92,7 +99,7 @@ function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
 function emptyHtml(i,t,d){return `<div class="empty"><div class="big">${i}</div><b>${t}</b><div style="margin-top:6px">${d}</div></div>`;}
 const TYPE_LABELS={choice:'單選',fill:'填空',order:'重組',match:'配對',write:'手寫'};
 
-const S={students:[],lessons:[],questions:[],results:[],tab:'students',q:''};
+const S={students:[],lessons:[],questions:[],results:[],tab:'dashboard',q:''};
 const sortLessons=(a)=>a.slice().sort((x,y)=>((x.order_index||0)-(y.order_index||0))||((x.created_at||'').localeCompare(y.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const resultOf=(lid,sid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===sid);
@@ -111,7 +118,40 @@ function render(){
   $('#c-lessons').textContent=S.lessons.length;
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
-  ({students:renderStudents,lessons:renderLessons,grades:renderGrades}[S.tab])();
+  ({dashboard:renderDashboard,students:renderStudents,lessons:renderLessons,grades:renderGrades}[S.tab])();
+}
+function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
+  if(diff<0)return{cls:'badge-overdue',label:'已逾期 '+(-diff)+' 天',sort:diff};
+  if(diff===0)return{cls:'badge-soon',label:'今天到期',sort:0};
+  if(diff<=7)return{cls:'badge-soon',label:diff+' 天後到期',sort:diff};
+  return null;}
+function studentProgress(s){const assigned=S.lessons.filter(l=>(l.assigned_ids||[]).includes(s.id)&&questionsOf(l.id).length);
+  let done=0,pct=0,scored=0,sumPct=0;
+  assigned.forEach(l=>{const r=resultOf(l.id,s.id);if(r){if(r.status==='done')done++;const tot=r.total||questionsOf(l.id).length;if(tot){sumPct+=Math.round(scoreOf(l,r)/tot*100);scored++;}}});
+  pct=assigned.length?Math.round(done/assigned.length*100):0;
+  return{total:assigned.length,done,pct,avg:scored?Math.round(sumPct/scored):null};}
+function renderDashboard(){
+  const body=$('#dashboard-body');
+  if(!S.students.length){body.innerHTML=emptyHtml('📊','還沒有資料','先到「學生名冊」新增學生。');return;}
+  // 付款提醒
+  const pays=S.students.map(s=>({s,info:payInfo(s.payment_date)})).filter(x=>x.info).sort((a,b)=>a.info.sort-b.info.sort);
+  const payHtml=pays.length?pays.map(({s,info})=>`<div class="dash-row">
+      <span class="avatar sm" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</span>
+      <b>${esc(s.name)}</b><span class="badge ${info.cls}">${info.label}</span>
+      <span class="grow"></span><span class="muted">${money(s.tuition,s.currency)} · ${fmtDate(s.payment_date)}</span>
+      ${s.email?`<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}" title="寄重設密碼信">✉️</button>`:''}
+    </div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有即將到期或逾期的付款 👍</div>`;
+  // 進度
+  const progHtml=S.students.map(s=>{const p=studentProgress(s);
+    return `<div class="dash-row">
+      <span class="avatar sm" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</span>
+      <b>${esc(s.name)}</b>
+      <span class="grow"></span>
+      <span class="muted">${p.total?`完成 ${p.done}/${p.total} 課${p.avg!=null?(' · 平均 '+p.avg+'%'):''}`:'尚未指派作業'}</span>
+      <span class="progbar"><span style="width:${p.pct}%"></span></span>
+    </div>`;}).join('');
+  body.innerHTML=`<div class="card"><div class="lesson-label">💳 付款提醒</div>${payHtml}</div>
+    <div class="card" style="margin-top:14px"><div class="lesson-label">📈 學生進度</div>${progHtml}</div>`;
 }
 
 /* ---------- 學生名冊 ---------- */
@@ -129,7 +169,7 @@ function renderStudents(){
       <div class="actions"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
         <button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button></div></div>
     <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(s.class_time||'—')}</b></span>
-      <span>💰 學費：<b>${money(s.tuition)}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span><span>✉️ Email：<b>${esc(s.email||'—')}</b></span></div>
+      <span>💰 學費：<b>${money(s.tuition,s.currency)}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span><span>✉️ Email：<b>${esc(s.email||'—')}</b></span></div>
     ${s.email?`<div class="meta" style="margin-top:8px;align-items:center">${s.reset_requested?'<span class="badge badge-soon">🔑 學生申請重設</span>':''}<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}">✉️ 寄重設密碼信</button></div>`:''}
     ${s.notes?`<div class="meta" style="margin-top:8px"><span>📝 ${esc(s.notes)}</span></div>`:''}</div>`).join('');
 }
@@ -142,7 +182,8 @@ function studentModal(st){const e=!!st;st=st||{};
      <div class="field"><label>班別</label><select id="f-type"><option ${st.class_type==='1對1'?'selected':''}>1對1</option><option ${st.class_type==='團班'?'selected':''}>團班</option></select></div>
      <div class="field"><label>上課時間</label><input id="f-time" type="text" value="${esc(st.class_time||'')}" placeholder="例：每週二 19:00"></div>
      <div class="field"><label>付款日期</label><input id="f-pay" type="date" value="${esc(st.payment_date||'')}"></div>
-     <div class="field"><label>學費 <span class="hint">NT$</span></label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：800"></div>
+     <div class="field"><label>學費</label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：800"></div>
+     <div class="field"><label>幣別</label><select id="f-cur"><option value="TWD"${(st.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${st.currency==='VND'?' selected':''}>越南盾 ₫</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
      ${e
        ? `<div class="field full"><label>Email（登入帳號）</label><input id="f-email" type="email" value="${esc(st.email||'')}" disabled style="opacity:.65"><span class="hint">建立後不可更改；要改密碼請按卡片上的「寄重設密碼信」</span></div>`
        : `<div class="field"><label>Email（登入帳號）*</label><input id="f-email" type="email" value="" placeholder="student@example.com" autocomplete="off"></div>
@@ -302,7 +343,7 @@ async function createStudentAuth(email,password){
   const cred=await sec.auth().createUserWithEmailAndPassword(email,password);const u=cred.user.uid;await sec.auth().signOut();return u;}
 H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return toast('請輸入名字');
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,class_time:$('#f-time').value.trim(),
-    payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),notes:$('#f-notes').value.trim()};
+    payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),currency:$('#f-cur').value,notes:$('#f-notes').value.trim()};
   if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){toast('儲存失敗：'+err.message);}return;}
   const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
   if(!email||!pw)return toast('請填 Email 與初始密碼');if(pw.length<6)return toast('初始密碼至少 6 碼');
