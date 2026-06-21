@@ -64,6 +64,9 @@ Object.assign(I18N.vi,{shadow:'🎤 Nhại',shadowMine:'▶ Của tôi',dictBtn:
 Object.assign(I18N.zh,{sentBtn:'✍️ 造句',sentTitle:'生詞造句',sentHint:'用每個生詞造一個句子，寫完送出給老師批改',sentPh:'用這個詞造一個句子…',sentSubmit:'送出給老師',sentResubmit:'重新送出',sentSubmitted:'已送出，等待老師批改',sentReviewed:'老師已批改 ✓',sentFb:'老師建議',sentOverall:'老師整體評語',sentWait:'尚未批改',sentPickLesson:'請先在上方選一課再造句',sentEmpty:'這一課沒有生詞',sentSaved:'✓ 已送出給老師',sentSaving:'送出中…'});
 Object.assign(I18N.en,{sentBtn:'✍️ Make sentences',sentTitle:'Vocabulary sentences',sentHint:'Write one sentence for each word, then submit to your teacher',sentPh:'Write a sentence with this word…',sentSubmit:'Submit to teacher',sentResubmit:'Resubmit',sentSubmitted:'Submitted, waiting for teacher',sentReviewed:'Teacher reviewed ✓',sentFb:'Teacher note',sentOverall:'Overall comment',sentWait:'Not reviewed yet',sentPickLesson:'Please pick a lesson above first',sentEmpty:'No vocabulary in this lesson',sentSaved:'✓ Submitted',sentSaving:'Submitting…'});
 Object.assign(I18N.vi,{sentBtn:'✍️ Đặt câu',sentTitle:'Đặt câu với từ vựng',sentHint:'Đặt một câu cho mỗi từ, rồi gửi cho giáo viên',sentPh:'Đặt một câu với từ này…',sentSubmit:'Gửi cho giáo viên',sentResubmit:'Gửi lại',sentSubmitted:'Đã gửi, chờ giáo viên',sentReviewed:'Giáo viên đã chấm ✓',sentFb:'Nhận xét',sentOverall:'Nhận xét chung',sentWait:'Chưa chấm',sentPickLesson:'Hãy chọn một bài ở trên trước',sentEmpty:'Bài này chưa có từ vựng',sentSaved:'✓ Đã gửi',sentSaving:'Đang gửi…'});
+Object.assign(I18N.zh,{quizSec:'📝 隨堂小考',quizDefTitle:'隨堂聽寫小考',quizNotTaken:'未考',quizDone:'已完成',quizSaved:'分數已記錄給老師 ✓',quizWordUnit:'字'});
+Object.assign(I18N.en,{quizSec:'📝 Pop quiz',quizDefTitle:'Pop dictation quiz',quizNotTaken:'Not taken',quizDone:'Done',quizSaved:'Score saved for your teacher ✓',quizWordUnit:'words'});
+Object.assign(I18N.vi,{quizSec:'📝 Kiểm tra nhanh',quizDefTitle:'Kiểm tra chính tả',quizNotTaken:'Chưa làm',quizDone:'Đã xong',quizSaved:'Đã lưu điểm cho giáo viên ✓',quizWordUnit:'từ'});
 Object.assign(I18N.zh,{grammar:'語法'});Object.assign(I18N.cn,{grammar:'语法'});Object.assign(I18N.en,{grammar:'Grammar'});Object.assign(I18N.vi,{grammar:'Ngữ pháp'});
 const GP_LBL={'功能':{en:'Function',vi:'Chức năng'},'結構':{en:'Structures',vi:'Cấu trúc'},'否定':{en:'Negative',vi:'Phủ định'},'疑問':{en:'Questions',vi:'Câu hỏi'},'用法':{en:'Usage',vi:'Cách dùng'},'重點':{en:'Notes',vi:'Trọng điểm'}};
 I18N.zh.resetHint='輸入你的 Email，我們會寄一封重設密碼的連結給你。';
@@ -353,7 +356,7 @@ function isCorrect(q,resp){
   return false;}
 
 /* ============ state ============ */
-const S={me:null,lessons:[],questions:[],results:[],sentences:[],section:'work',practiceSet:null,graded:false,
+const S={me:null,lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],section:'work',practiceSet:null,graded:false,
   lang:localStorage.getItem('hyc_lang')||'zh',theme:localStorage.getItem('hyc_theme')||'light',fs:localStorage.getItem('hyc_fs')||'std',
   ann:localStorage.getItem('hyc_ann')||'off',
   authTab:'login',flashIdx:0,flashFlip:false};
@@ -370,9 +373,10 @@ function myUid(){return (window.firebase&&firebase.auth&&firebase.auth().current
 async function loadMine(){const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);
   const u=myUid();
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
-  S.lessons=l;S.questions=q;
-  S.results=rAll.filter(x=>x.kind!=='sentence');
-  S.sentences=rAll.filter(x=>x.kind==='sentence');}
+  S.lessons=l.filter(x=>x.kind!=='quiz');S.quizzes=l.filter(x=>x.kind==='quiz');S.questions=q;
+  S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult');
+  S.sentences=rAll.filter(x=>x.kind==='sentence');
+  S.quizResults=rAll.filter(x=>x.kind==='quizresult');}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
 
 /* ============ theme / chrome ============ */
@@ -441,7 +445,9 @@ function renderSection(){
 function renderWork(){
   const _st=actStatus();const banner=`<div class="streak-banner">${t('streak')} ${_st.streak} ${t('day')}　·　${t('today')} ${_st.count} ${t('tiUnit')}${_st.count>=5?'　·　'+t('goalMet'):''}</div>`;
   const ls=myLessons().filter(l=>answerableOf(l.id).length);
-  if(!ls.length){$('#screen').innerHTML=banner+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
+  const myQuizzes=(S.quizzes||[]).filter(qz=>(qz.assigned_ids||[]).includes(S.me.id)).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+  const quizCard=myQuizzes.length?('<div class="lesson-label" style="margin-top:6px">'+t('quizSec')+'</div><div class="quiz-list">'+myQuizzes.map(qz=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;return `<div class="quiz-card${done?' done':''}"${done?'':' data-act="startQuiz" data-id="'+qz.id+'"'}><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>${esc(qz.title||t('quizDefTitle'))}</b></div>${done?`<span class="badge badge-ok">${r.score}/${r.total}</span>`:`<span class="badge badge-soon">${t('quizNotTaken')}</span>`}</div>`;}).join('')+'</div>'):'';
+  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML=banner+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
   let overdue=0,soon=0;ls.forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});
   const fbN=ls.filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
   const sentFbN=(S.sentences||[]).filter(s=>s.status==='reviewed'&&((s.overall&&s.overall.trim())||(s.feedback&&Object.keys(s.feedback).length))).length;
@@ -449,7 +455,7 @@ function renderWork(){
   if((overdue||soon)&&('Notification'in window)&&Notification.permission==='default')nbp.push('<button class="nb-item" data-act="enableNotify">🔔 開啟提醒</button>');
   const nb=nbp.length?`<div class="notify-bar">${nbp.join('')}</div>`:'';
   const left=myLeft();const sessCard=left!=null?`<div class="sess-line">🎟️ 本期還剩 <b>${left}</b> 堂${left<=0?' <span class="badge badge-overdue">已用完</span>':(left<=1?' <span class="badge badge-soon">快用完了</span>':'')}</div>`:'';
-  $('#screen').innerHTML=banner+sessCard+nb+'<div class="cards">'+ls.map((l,i)=>{
+  $('#screen').innerHTML=banner+sessCard+nb+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
@@ -457,7 +463,7 @@ function renderWork(){
       <div class="grow"><h3>${esc(l.title)}</h3>
         <div class="meta" style="margin-top:4px;align-items:center"><span>📝 ${qn} ${t('q')}</span>${dlgHasAudio(l)?'<span class="tag gold">🔊</span>':''}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}</div>
         ${done?`<div class="progress"><span style="width:${pct}%"></span></div>`:''}</div>
-      ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`:`<div class="tag accent">${(r&&r.status==='draft')?t('resume'):t('start')} →</div>`}</div>`;}).join('')+'</div>';
+      ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`:`<div class="tag accent">${(r&&r.status==='draft')?t('resume'):t('start')} →</div>`}</div>`;}).join('')+(ls.length?'</div>':'');
 }
 function renderContent(){
   const ls=myLessons().filter(lessonHasContent);
@@ -712,7 +718,24 @@ H.ssScore=(_,b)=>{if(!SS)return;const i=+b.dataset.i,target=SS.sents[i],old=b.in
 H.dictation=()=>{const list=vocabScoped().filter(v=>/[㐀-鿿]/.test(v.front));if(!list.length){toast(t('noCards'));return;}S.dict={list:shuffle(list,Math.random()+'').slice(0,12),idx:0,checked:false,val:'',right:0,ok:false};$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderDictation();};
 H.dictReplay=()=>{const dd=S.dict;if(!dd)return;const v=dd.list[dd.idx];vocabPlay(v.lessonId,v.di,v.vi,v.front);};
 H.dictCheck=()=>{const dd=S.dict;if(!dd||dd.checked)return;const inp=document.getElementById('dict-in');dd.val=inp?inp.value:'';const v=dd.list[dd.idx];const norm=s=>{try{return (CONV.cn?CONV.cn(s):s).replace(/\s/g,'');}catch(e){return (s||'').replace(/\s/g,'');}};dd.ok=norm(dd.val)!==''&&norm(dd.val)===norm(v.front);if(dd.ok)dd.right++;dd.checked=true;renderDictation();};
-H.dictNext=()=>{const dd=S.dict;if(!dd)return;if(dd.idx+1>=dd.list.length){bumpActivity(dd.list.length);S.dict=null;$('#screen').dataset.mode='';$('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">🎉</div><h3>${t('dictFinish')}</h3><div class="muted" style="margin-top:6px">${t('acc')} ${dd.right} / ${dd.list.length}</div><button class="btn btn-primary" style="margin-top:14px" data-act="section" data-id="cards">${t('finishBack')}</button></div>`;return;}dd.idx++;dd.checked=false;dd.val='';dd.ok=false;renderDictation();};
+H.dictNext=()=>{const dd=S.dict;if(!dd)return;if(dd.idx+1>=dd.list.length){bumpActivity(dd.list.length);
+    if(dd.quiz){const q=dd.quiz,right=dd.right,total=dd.list.length;S.dict=null;$('#screen').dataset.mode='';
+      $('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">📝</div><h3>${esc(q.title)}</h3><div class="muted" style="margin-top:6px">${t('acc')} ${right} / ${total}</div><div class="hint" style="margin-top:6px">${S.preview?'':t('quizSaved')}</div><button class="btn btn-primary" style="margin-top:14px" data-act="section" data-id="work">${t('finishBack')}</button></div>`;
+      H.saveQuizResult(q.id,right,total);return;}
+    S.dict=null;$('#screen').dataset.mode='';$('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">🎉</div><h3>${t('dictFinish')}</h3><div class="muted" style="margin-top:6px">${t('acc')} ${dd.right} / ${dd.list.length}</div><button class="btn btn-primary" style="margin-top:14px" data-act="section" data-id="cards">${t('finishBack')}</button></div>`;return;}dd.idx++;dd.checked=false;dd.val='';dd.ok=false;renderDictation();};
+H.startQuiz=(id)=>{const qz=(S.quizzes||[]).find(x=>x.id===id);if(!qz)return;
+  const src=S.lessons.find(x=>x.id===qz.source_lesson);
+  const seen=new Set(),words=[];(src?lessonVocab(src):[]).forEach(v=>{if(v.front&&/[㐀-鿿]/.test(v.front)&&!seen.has(v.front)){seen.add(v.front);words.push(v);}});
+  if(!words.length){toast(t('noCards'));return;}
+  S.dict={list:shuffle(words,Math.random()+''),idx:0,checked:false,val:'',right:0,ok:false,quiz:{id:qz.id,title:qz.title||t('quizDefTitle')}};
+  $('#screen').dataset.mode='practice';window.scrollTo(0,0);renderDictation();};
+H.saveQuizResult=async(quizId,right,total)=>{if(S.preview)return;try{const u=myUid();
+  const existing=(S.quizResults||[]).find(x=>x.quiz_id===quizId);
+  const payload={kind:'quizresult',lesson_id:'__quiz__',quiz_id:quizId,uid:u,student_id:S.me.id,student_name:S.me.name||'',score:right,total,completed_at:now()};
+  if(existing&&existing.id)await DB.update('results',existing.id,payload);else await DB.insert('results',payload);
+  const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
+  S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');
+}catch(e){toast(e.message);}};
 H.vocabLesson=(id)=>{S.vocabLesson=id||'';S.flashIdx=0;SHADOW=null;renderCards();};
 H.vocabSentence=()=>{const lid=sentLessonId();if(!lid){toast(t('sentPickLesson'));return;}
   const lesson=S.lessons.find(x=>x.id===lid);if(!lesson){toast(t('sentEmpty'));return;}
@@ -729,7 +752,7 @@ H.sentSubmit=async()=>{if(S.preview)return;const dd=S.sent;if(!dd)return;
     if(existing&&existing.id){await DB.update('results',existing.id,Object.assign({},payload,{feedback:existing.feedback||{},overall:existing.overall||''}));}
     else{await DB.insert('results',payload);}
     const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
-    S.results=rAll.filter(x=>x.kind!=='sentence');S.sentences=rAll.filter(x=>x.kind==='sentence');
+    S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');
     dd.doc=sentDocOf(dd.lessonId);dd.vals={};items.forEach(it=>{dd.vals[it.word]=it.sentence;});
     bumpActivity(1);toast(t('sentSaved'));renderSentence();
   }catch(e){toast(e.message);if(btn){btn.disabled=false;btn.textContent=t('sentSubmit');}}};
@@ -785,7 +808,7 @@ H.saveDraft=async(silent)=>{const set=S.practiceSet;if(!set||set.mode!=='lesson'
   const btn=silent?null:document.querySelector('[data-act="saveDraft"]');if(btn){btn.disabled=true;btn.textContent='…';}
   try{const merged=Object.assign({},(prev&&prev.answers)||{},answers);
     await DB.upsertResult(set.lessonId,S.me.id,{uid:myUid(),answers:merged,status:'draft',saved_at:now()});
-    {const u=myUid();const _r=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);S.results=_r.filter(x=>x.kind!=='sentence');S.sentences=_r.filter(x=>x.kind==='sentence');}
+    {const u=myUid();const _r=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);S.results=_r.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult');S.sentences=_r.filter(x=>x.kind==='sentence');S.quizResults=_r.filter(x=>x.kind==='quizresult');}
     if(btn){btn.disabled=false;btn.textContent='💾 '+t('saveDraft');}if(!silent)toast('✓ '+t('draftSaved'));
   }catch(e){if(btn){btn.disabled=false;btn.textContent='💾 '+t('saveDraft');}if(!silent)toast(e.message);}};
 H.submit=async()=>{const set=S.practiceSet,qs=set.questions;GRADE=gradeAll(qs);S.graded=true;
@@ -800,7 +823,7 @@ H.submit=async()=>{const set=S.practiceSet,qs=set.questions;GRADE=gradeAll(qs);S
         byL[lid].forEach(q=>{answers[q.id]=GRADE.answers[q.id];});
         const lq=S.questions.filter(x=>x.lesson_id===lid&&x.type!=='note');let autoSc=0,manualSc=0,pend=false;lq.forEach(q=>{if(isManualQ(q)){if(manual[q.id]==='done')manualSc++;if(!manual[q.id])pend=true;}else if((q.id in answers)&&isCorrect(q,answers[q.id]))autoSc++;});
         await DB.upsertResult(lid,S.me.id,{uid:myUid(),answers,score:autoSc+manualSc,auto:autoSc,total:lq.length,status:pend?'pending':'done',completed_at:now()});}}
-    {const u=myUid();const _r=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);S.results=_r.filter(x=>x.kind!=='sentence');S.sentences=_r.filter(x=>x.kind==='sentence');}
+    {const u=myUid();const _r=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);S.results=_r.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult');S.sentences=_r.filter(x=>x.kind==='sentence');S.quizResults=_r.filter(x=>x.kind==='quizresult');}
   }catch(e){toast(e.message);}
   window.scrollTo(0,0);renderPractice();
   toast(GRADE.score===GRADE.total?'🎉 '+t('great'):t('done'));};
@@ -823,7 +846,7 @@ function showGate(msg){S.me=null;$('#app').classList.add('hide');$('#gate').clas
 const PREVIEW_LID=new URLSearchParams(location.search).get('preview');
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
-  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l;S.questions=q;S.results=[];S.sentences=[];
+  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>x.kind!=='quiz');S.quizzes=[];S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];
   const lesson=l.find(x=>x.id===lid);if(!lesson){$('#screen').innerHTML=emptyHtml('⚠️','找不到這一課','請回教師頁重新開啟預覽。');return;}
   S.practiceSet={mode:'lesson',lessonId:lid,lesson:lesson,questions:questionsOf(lid),title:(lesson.order_index?('L'+lesson.order_index+' · '):'')+lesson.title};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';renderPractice();
