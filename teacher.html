@@ -309,7 +309,7 @@ function lessonCardHtml(l,i){try{
       ${open?`<div class="actions" style="margin-top:14px;flex-wrap:wrap">
         <button class="btn btn-sm ${built?'':'btn-accent'}" data-act="toggleBuild" data-id="${l.id}">${built?'↩ 改回進行中':'✅ 標記完成'}</button>
         <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button>
-        ${(l.grammar_points&&l.grammar_points.length)?`<button class="btn btn-sm" data-act="orderLayout" data-id="${l.id}">📐 課文順序</button>`:''}
+        ${((((l.dialogues&&l.dialogues.length)||0)+((l.grammar_points&&l.grammar_points.length)||0))>=2)?`<button class="btn btn-sm" data-act="orderLayout" data-id="${l.id}">📐 課文順序</button>`:''}
         <button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題（${qn}）</button>
         <button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button>
         <button class="btn btn-sm" data-act="printWorksheet" data-id="${l.id}">🖨 作業卷</button>
@@ -349,7 +349,7 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
      <div class="field full"><label>教材 <span class="hint">用來分類整理，例：當代中文課程一、時代華語一（可選既有或直接打新的）</span></label><input id="l-textbook" type="text" list="book-list" value="${esc(l.textbook||'')}" placeholder="當代中文課程一"><datalist id="book-list">${bookOpts.map(b=>'<option>'+esc(b)+'</option>').join('')}</datalist></div>
      <div class="hint" style="margin:-2px 0 10px">只想出補充作業？課名填一下即可，下面對話／生詞／語法全部留空，存好後在卡片點「練習題」出題。</div>
      <div class="field full"><label>對話／課文段落 <span class="hint">一課可有多個對話（對話一、對話二…），每段各有自己的課文、生詞、課文音檔、生詞真人發音；語法之後再合併講。</span></label><div id="dlg-editor" class="dlg-editor"></div></div>
-     <div class="field full"><label>語法點 <span class="hint">一課的語法合併放這裡（對話之後）。一個語法一張卡，挑要用的區塊；例句選填。</span></label><div id="gp-editor" class="gp-editor"></div></div>
+     <div class="field full"><label>語法點 <span class="hint">一個語法一張卡。時代華語：填「說明」一個區塊＋例句即可；當代：可分功能／結構／用法多個區塊。要把語法排到短文後面，存好後到課文卡按「📐 課文順序」。</span></label><div id="gp-editor" class="gp-editor"></div></div>
      <div class="field"><label>例句 <span class="hint">每行一句；學生可點來聽發音、看拼音／注音</span></label><textarea id="l-examples" placeholder="今天天氣很好。&#10;我喜歡喝茶。">${esc(l.examples||'')}</textarea></div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
@@ -748,7 +748,7 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
   try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}};
 
 /* ===== 語法點結構化編輯器 ===== */
-let GP=[];const GP_PRESETS=['功能','結構','否定','疑問','用法'];
+let GP=[];const GP_PRESETS=['說明','例句','功能','結構','否定','疑問','用法'];
 function gpInit(l){
   if(l&&Array.isArray(l.grammar_points)&&l.grammar_points.length){
     GP=l.grammar_points.map(g=>({title:g.title||'',blocks:(g.blocks||[]).map(b=>({label:b.label||'',text:b.text||'',ex:b.ex||'',exAudio:Array.isArray(b.exAudio)?b.exAudio.slice():[]}))}));
@@ -817,7 +817,7 @@ function gpRender(){const wrap=document.getElementById('gp-editor');if(!wrap)ret
           <button class="gp-bx" type="button" data-act="gpBlockDel" data-id="${gi}::${bi}" aria-label="刪除小節">✕</button></div>`;
       }
       return `<div class="gp-block">
-      <div class="gp-block-head"><input class="gp-lab" data-gi="${gi}" data-bi="${bi}" list="gp-labels" value="${esc(b.label||'')}" placeholder="標籤（功能／結構…）">
+      <div class="gp-block-head"><input class="gp-lab" data-gi="${gi}" data-bi="${bi}" list="gp-labels" value="${esc(b.label||'')}" placeholder="標籤（說明／例句／功能／結構…，可留空）">
       <button class="gp-bx" type="button" data-act="gpBlockDel" data-id="${gi}::${bi}" aria-label="刪除區塊">✕</button></div>
       <textarea class="gp-tx" data-gi="${gi}" data-bi="${bi}" placeholder="說明…">${esc(b.text||'')}</textarea>
       <textarea class="gp-ex" data-gi="${gi}" data-bi="${bi}" rows="1" placeholder="例句（選填，一行一句，學生可點來聽）">${esc(b.ex||'')}</textarea>
@@ -829,7 +829,7 @@ function gpRender(){const wrap=document.getElementById('gp-editor');if(!wrap)ret
       <div class="gp-addrow"><span class="gp-addlbl">加區塊：</span><button class="gp-chip gp-chip-sec" type="button" data-act="gpBlockAdd" data-id="${gi}::小節">＋小節 A／B</button>${GP_PRESETS.map(p=>`<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::${p}">${p}</button>`).join('')}<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::">＋自訂</button></div>
       <div class="gp-ex-hint">💡 這個語法的 <b>練習題（Exercise）</b>：先按下面「儲存」，再到課文卡上點「<b>練習題</b>」新增題目，把「<b>屬於哪個語法點</b>」選成「<b>語法 ${gi+1}</b>」——學生看完這個語法的解釋後，就會接著做這些練習。</div></div>`;
   }).join('')+addBtn+dl;}
-H.gpAdd=()=>{gpSync();GP.push({title:'',blocks:[{label:'功能',text:'',ex:''},{label:'結構',text:'',ex:''}]});gpRender();};
+H.gpAdd=()=>{gpSync();GP.push({title:'',blocks:[{label:'說明',text:'',ex:''}]});gpRender();};
 H.gpDel=(i)=>{gpSync();GP.splice(Number(i),1);gpRender();};
 H.gpBlockAdd=(key)=>{gpSync();const i=String(key).indexOf('::');const gi=Number(String(key).slice(0,i));const label=String(key).slice(i+2);if(GP[gi]){GP[gi].blocks.push({label:label||'',text:'',ex:''});gpRender();}};
 H.gpBlockDel=(key)=>{gpSync();const p=String(key).split('::');const gi=Number(p[0]),bi=Number(p[1]);if(GP[gi]){GP[gi].blocks.splice(bi,1);gpRender();}};
