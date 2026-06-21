@@ -222,7 +222,7 @@ function renderDashboard(){
   // 隨堂小考
   const quizScore=(qid,sid)=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qid&&x.student_id===sid);return r?(r.score+'/'+r.total):null;};
   const quizSrcName=qz=>{const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.textbook?('【'+l.textbook+'】'):'')+(l.order_index?('第'+l.order_index+'課'):'')+(l.title?(' '+l.title):'');};
-  const QM={dict:'聽寫',pinyin:'看拼音寫字',mean:'看意思寫字',choice:'看字選意思'};
+  const QM={dict:'聽寫',pinyin:'看拼音寫字',mean:'看意思寫字',choice:'看字選意思',cloze:'看例句填生詞'};
   const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return `<span class="badge ${sc?'badge-ok':'badge-pending'}">${esc(s.name)}：${sc||'未考'}</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未指派</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
   // 問題與討論批改
   const discPend=(S.discussions||[]).filter(x=>x.status==='submitted');
@@ -575,7 +575,7 @@ H.newQuiz=()=>{
   openModal(`<div class="modal"><div class="modal-head"><h3>📝 建立隨堂聽寫小考</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>名稱</label><input id="quiz-title" type="text" value="隨堂小考"></div>
-     <div class="field"><label>題型</label><select id="quiz-mode"><option value="dict">聽寫（聽真人發音／機器音寫字）</option><option value="pinyin">看拼音寫字</option><option value="mean">看意思寫字</option><option value="choice">看字選意思（選擇題）</option></select></div>
+     <div class="field"><label>題型</label><select id="quiz-mode"><option value="dict">聽寫（聽真人發音／機器音寫字）</option><option value="pinyin">看拼音寫字</option><option value="mean">看意思寫字</option><option value="choice">看字選意思（選擇題）</option><option value="cloze">看例句填生詞（克漏字，需生詞有例句）</option></select></div>
      <div class="field"><label>考哪一課的生詞</label><select id="quiz-lesson">${lessonOpts||'<option value="">（還沒有課文）</option>'}</select></div>
      <div class="field"><label>指派給</label><div style="margin-top:4px">${studentChecks||'<span class="muted">還沒有學生</span>'}</div></div>
      <div class="hint">學生會在「作業」頁看到這個小考，作答後系統自動計分、分數回傳給你。</div>
@@ -853,9 +853,9 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
     <input class="dlg-title-in" data-i="${i}" value="${esc(d.title||'')}" placeholder="標題，例：對話一／短文">
     ${DLG.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="dlgDel" data-id="${i}">刪除</button>`:''}</div>
     <label class="dlg-lbl">課文／對話</label><textarea class="dlg-content-in" data-i="${i}" style="min-height:100px" placeholder="貼上或輸入這段對話／課文…">${esc(d.content||'')}</textarea>
-    <label class="dlg-lbl">生詞 <span class="hint">每行一個。格式：<b>詞 (詞類)=英文翻譯</b>；要自訂拼音再加 <b>[拼音]</b>。例：喜歡 (Vst)=to like、的 (Ptc)=modification marker、媽媽 (N)=mom[māma]</span></label>
+    <label class="dlg-lbl">生詞 <span class="hint">每行一個。格式：<b>詞 (詞類)=英文翻譯</b>；自訂拼音加 <b>[拼音]</b>。<b>例句（時代華語）</b>：在那個詞的下一行用「<b>-</b>」開頭打，可打多句。</span></label>
     <div style="margin-bottom:6px"><button class="btn btn-sm" type="button" data-act="dlgAutoPinyin" data-id="${i}">✨ 自動加拼音</button> <span class="hint">幫沒有 [拼音] 的詞自動補上(可再改)</span></div>
-    <textarea class="dlg-vocab-in" data-i="${i}" placeholder="喜歡 (Vst)=to like&#10;的 (Ptc)=modification marker&#10;媽媽 (N)=mom">${esc(d.vocabulary||'')}</textarea>
+    <textarea class="dlg-vocab-in" data-i="${i}" placeholder="高興 (Vs)=happy[gāoxìng]&#10;- 我今天很高興。&#10;- 他高興得跳起來。&#10;香蕉 (N)=banana&#10;- 我買了三根香蕉。">${esc(d.vocabulary||'')}</textarea>
     <label class="dlg-lbl">這段的課文音檔（上傳整段朗讀，會自動切成逐句） <span class="hint">學生上面會有「課文朗讀」播放器；「逐句跟讀」也會改播這個真人朗讀（不用機器音）。切完可逐句微調秒數。</span></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="dlg-audio-in" id="dlg-audio-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.audio_url||'')}" placeholder="上傳整段朗讀，或貼 mp3／YouTube 連結">
       <button class="btn" type="button" data-act="pickDlgAudio" data-id="${i}">⬆ 上傳並切逐句</button></div>
@@ -1015,7 +1015,7 @@ H.pickAudio=(id)=>{const f=document.getElementById('file-'+id);if(f)f.click();};
 /* ===== 生字音檔自動切割 ===== */
 function vaReset(){}
 function vaWords(i){const t=document.querySelector('.dlg-vocab-in[data-i="'+i+'"]');const txt=t?t.value:((DLG[i]&&DLG[i].vocabulary)||'');
-  return txt.split('\n').map(s=>{s=s.replace(/[\[【][^\]】]*[\]】]/,'').replace(/[（(][^（）()]*[）)]/,'').trim();if(/[=＝]/.test(s))return s.split(/[=＝]/)[0].trim();const m=s.search(/[：:\s]/);return (m<0?s:s.slice(0,m)).trim();}).filter(Boolean);}
+  return txt.split('\n').map(s=>s.trim()).filter(s=>s&&!/^[-－・·→*]/.test(s)&&!/^例[:：]/.test(s)).map(s=>{s=s.replace(/[\[【][^\]】]*[\]】]/,'').replace(/[（(][^（）()]*[）)]/,'').trim();if(/[=＝]/.test(s))return s.split(/[=＝]/)[0].trim();const m=s.search(/[：:\s]/);return (m<0?s:s.slice(0,m)).trim();}).filter(Boolean);}
 function _loudness(buf){const d=buf.getChannelData(0),sr=buf.sampleRate,win=Math.max(1,Math.floor(sr*0.02)),loud=[];for(let i=0;i<d.length;i+=win){let s=0,n=0;for(let j=i;j<i+win&&j<d.length;j++){s+=d[j]*d[j];n++;}loud.push(Math.sqrt(s/(n||1)));}return {loud,winSec:win/sr,dur:buf.duration};}
 function _gate(L,thr,minSil,minDur,startSec){const loud=L.loud,w=L.winSec,segs=[];let start=-1,sil=0;const k0=Math.max(0,Math.floor((startSec||0)/w));for(let k=k0;k<loud.length;k++){if(loud[k]>thr){if(start<0)start=k*w;sil=0;}else{if(start>=0){sil+=w;if(sil>=minSil){const end=k*w-sil+w;if(end-start>=minDur)segs.push({s:+start.toFixed(2),e:+end.toFixed(2)});start=-1;sil=0;}}}}if(start>=0){const end=loud.length*w;if(end-start>=minDur)segs.push({s:+start.toFixed(2),e:+end.toFixed(2)});}return segs;}
 function _thr(L){const s=L.loud.slice().sort((a,b)=>a-b);const noise=s[Math.floor(s.length*0.15)]||0,peak=s[Math.floor(s.length*0.95)]||0.1;return Math.max(noise*3,(noise+peak)*0.18,0.006);}
