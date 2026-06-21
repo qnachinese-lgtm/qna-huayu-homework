@@ -222,13 +222,19 @@ function renderDashboard(){
   // 隨堂小考
   const quizScore=(qid,sid)=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qid&&x.student_id===sid);return r?(r.score+'/'+r.total):null;};
   const quizSrcName=qz=>{const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.textbook?('【'+l.textbook+'】'):'')+(l.order_index?('第'+l.order_index+'課'):'')+(l.title?(' '+l.title):'');};
-  const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return `<span class="badge ${sc?'badge-ok':'badge-pending'}">${esc(s.name)}：${sc||'未考'}</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂聽寫小考')}</b><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未指派</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
+  const QM={dict:'聽寫',pinyin:'看拼音寫字',mean:'看意思寫字',choice:'看字選意思'};
+  const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return `<span class="badge ${sc?'badge-ok':'badge-pending'}">${esc(s.name)}：${sc||'未考'}</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未指派</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
   // 問題與討論批改
   const discPend=(S.discussions||[]).filter(x=>x.status==='submitted');
   const discHtml=discPend.length?discPend.map(sd=>`<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc(sentName(sd))}</b><span class="muted">${esc((()=>{const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');})())}</span><span class="grow"></span><span class="muted">${Object.keys(sd.answers||{}).length} 題</span><button class="btn btn-sm btn-accent" data-act="reviewDisc" data-id="${sd.id}">批改</button></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的問題與討論 👍</div>`;
-  body.innerHTML=`<div class="card"><div class="lesson-label">📥 批改提醒${pendList.length?'（'+pendList.length+'）':''}</div>${gradeHtml}</div>
-    <div class="card" style="margin-top:14px"><div class="lesson-label">✍️ 造句批改${sentPend.length?'（'+sentPend.length+'）':''}</div>${sentHtml}</div>
-    <div class="card" style="margin-top:14px"><div class="lesson-label">💬 問題與討論批改${discPend.length?'（'+discPend.length+'）':''}</div>${discHtml}</div>
+  // 統一待批改收件匣（作業／造句／問題與討論）
+  const inbox=[];
+  pendList.forEach(r=>{const st=S.students.find(x=>x.id===r.student_id),l=S.lessons.find(x=>x.id===r.lesson_id);inbox.push({tag:'作業',name:(st&&st.name)||'學生',sub:l?((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'')):'（課文）',extra:'',btn:`<button class="btn btn-sm btn-accent" data-act="tab" data-id="grades">去批改</button>`,ts:r.completed_at||r.updated_at||''});});
+  sentPend.forEach(sd=>{inbox.push({tag:'造句',name:sentName(sd),sub:sentLessonName(sd),extra:(sd.items||[]).filter(it=>it.sentence).length+' 句',btn:`<button class="btn btn-sm btn-accent" data-act="reviewSent" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
+  discPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};inbox.push({tag:'問題與討論',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）'),extra:Object.keys(sd.answers||{}).length+' 題',btn:`<button class="btn btn-sm btn-accent" data-act="reviewDisc" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
+  inbox.sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
+  const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"><span class="badge badge-soon">${it.tag}</span><b>${esc(it.name)}</b><span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
+  body.innerHTML=`<div class="card"><div class="lesson-label">📥 待批改收件匣${inbox.length?'（'+inbox.length+'）':''}</div>${inboxHtml}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">📝 隨堂小考</div><div class="quiz-create-row"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button><span class="muted">選一課的生詞，指派學生做聽寫，自動計分</span></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):''}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">💳 付款提醒</div>${payHtml}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">🎟️ 堂數提醒</div>${sessHtml}</div>
@@ -248,6 +254,7 @@ function renderStudents(){
       <div style="flex:1;min-width:0"><div class="name">${esc(s.name)}</div>
         <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap"><span class="tag accent">${esc(s.class_type||'1對1')}</span>${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}</div></div></div>
     <div class="actions" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
+        <button class="btn btn-sm" data-act="report" data-id="${s.id}">📊 學習報表</button>
         <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">🗓 上課記錄</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
         <button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button></div>
@@ -567,8 +574,9 @@ H.newQuiz=()=>{
   const studentChecks=S.students.map(s=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 12px 8px 0"><input type="checkbox" class="quiz-stu" value="${s.id}"> ${esc(s.name)}</label>`).join('');
   openModal(`<div class="modal"><div class="modal-head"><h3>📝 建立隨堂聽寫小考</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-     <div class="field"><label>名稱</label><input id="quiz-title" type="text" value="隨堂聽寫小考"></div>
-     <div class="field"><label>聽寫哪一課的生詞</label><select id="quiz-lesson">${lessonOpts||'<option value="">（還沒有課文）</option>'}</select></div>
+     <div class="field"><label>名稱</label><input id="quiz-title" type="text" value="隨堂小考"></div>
+     <div class="field"><label>題型</label><select id="quiz-mode"><option value="dict">聽寫（聽真人發音／機器音寫字）</option><option value="pinyin">看拼音寫字</option><option value="mean">看意思寫字</option><option value="choice">看字選意思（選擇題）</option></select></div>
+     <div class="field"><label>考哪一課的生詞</label><select id="quiz-lesson">${lessonOpts||'<option value="">（還沒有課文）</option>'}</select></div>
      <div class="field"><label>指派給</label><div style="margin-top:4px">${studentChecks||'<span class="muted">還沒有學生</span>'}</div></div>
      <div class="hint">學生會在「作業」頁看到這個小考，作答後系統自動計分、分數回傳給你。</div>
    </div>
@@ -577,10 +585,11 @@ H.saveQuiz=async()=>{
   const title=(($('#quiz-title')&&$('#quiz-title').value)||'').trim()||'隨堂聽寫小考';
   const src=$('#quiz-lesson')?$('#quiz-lesson').value:'';
   const ids=[...document.querySelectorAll('.quiz-stu:checked')].map(c=>c.value);
+  const mode=$('#quiz-mode')?$('#quiz-mode').value:'dict';
   if(!src){toast('請選一課');return;}
   if(!ids.length){toast('請至少指派一位學生');return;}
   const btn=document.querySelector('[data-act="saveQuiz"]');if(btn){btn.disabled=true;btn.textContent='建立中…';}
-  try{await DB.insert('lessons',{kind:'quiz',title,source_lesson:src,assigned_ids:ids,created_at:new Date().toISOString()});
+  try{await DB.insert('lessons',{kind:'quiz',title,source_lesson:src,mode,assigned_ids:ids,created_at:new Date().toISOString()});
     const all=await DB.list('lessons');S.lessons=all.filter(x=>x.kind!=='quiz');S.quizzes=all.filter(x=>x.kind==='quiz');
     closeModal();render();toast('已建立隨堂小考');
   }catch(e){if(btn){btn.disabled=false;btn.textContent='建立';}toast(writeErr('建立失敗',e));}};
@@ -675,7 +684,33 @@ function reconcileLayoutT(l){const ds=Array.isArray(l.dialogues)?l.dialogues:[];
   for(let i=0;i<ng;i++)if(!sg.has(i))out.push({t:'g',i});
   return out;}
 function ordLabel(l,e){if(e.t==='d'){const d=(l.dialogues||[])[e.i]||{};return '📖 '+((d.title||'').trim()||('對話'+(e.i+1)));}const g=(l.grammar_points||[])[e.i]||{};return '🔤 語法 '+(e.i+1)+((g.title||'').trim()?('：'+g.title.trim()):'');}
-function ordListHtml(l){return LAYOUT.map((e,idx)=>`<div class="ord-row"><b style="flex:1;min-width:0">${esc(ordLabel(l,e))}</b><button class="btn btn-sm" type="button" data-act="ordUp" data-id="${idx}" ${idx===0?'disabled':''}>↑</button><button class="btn btn-sm" type="button" data-act="ordDown" data-id="${idx}" ${idx===LAYOUT.length-1?'disabled':''}>↓</button></div>`).join('');}
+function ordListHtml(l){return LAYOUT.map((e,idx)=>`<div class="ord-row" draggable="true" data-idx="${idx}"><span class="ord-grip" aria-hidden="true">⠿</span><b style="flex:1;min-width:0">${esc(ordLabel(l,e))}</b><button class="btn btn-sm" type="button" data-act="ordUp" data-id="${idx}" ${idx===0?'disabled':''}>↑</button><button class="btn btn-sm" type="button" data-act="ordDown" data-id="${idx}" ${idx===LAYOUT.length-1?'disabled':''}>↓</button></div>`).join('');}
+function ordRerender(){const l=S.lessons.find(x=>x.id===LAYOUT_LID),c=document.getElementById('ord-list');if(c&&l)c.innerHTML=ordListHtml(l);}
+let ORD_DRAG=null;
+document.addEventListener('dragstart',e=>{const r=e.target&&e.target.closest&&e.target.closest('.ord-row');if(r&&r.dataset.idx!=null){ORD_DRAG=Number(r.dataset.idx);r.classList.add('dragging');try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',ORD_DRAG+'');}catch(_){}}});
+document.addEventListener('dragend',()=>{document.querySelectorAll('.ord-row.dragging,.ord-row.dragover').forEach(x=>x.classList.remove('dragging','dragover'));ORD_DRAG=null;});
+document.addEventListener('dragover',e=>{const r=e.target&&e.target.closest&&e.target.closest('.ord-row');if(r&&ORD_DRAG!=null){e.preventDefault();try{e.dataTransfer.dropEffect='move';}catch(_){}document.querySelectorAll('.ord-row.dragover').forEach(x=>x.classList.remove('dragover'));r.classList.add('dragover');}});
+document.addEventListener('drop',e=>{const r=e.target&&e.target.closest&&e.target.closest('.ord-row');if(r&&ORD_DRAG!=null){e.preventDefault();const to=Number(r.dataset.idx),from=ORD_DRAG;if(to!==from){const item=LAYOUT.splice(from,1)[0];LAYOUT.splice(to>from?to-1:to,0,item);ordRerender();}}ORD_DRAG=null;});
+H.report=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
+  const assigned=S.lessons.filter(l=>(l.assigned_ids||[]).includes(sid)&&answerableOf(l.id).length).sort((a,b)=>((a.order_index||0)-(b.order_index||0)));
+  const pts=[];assigned.forEach(l=>{const r=resultOf(l.id,sid);if(r&&r.status==='done'&&r.total){pts.push({l,pct:Math.round(scoreOf(l,r)/r.total*100)});}});
+  const TN={choice:'單選',fill:'填空',order:'重組',match:'配對'};const agg={};
+  assigned.forEach(l=>{const r=resultOf(l.id,sid);if(!r||!r.answers)return;questionsOf(l.id).forEach(q=>{if(!TN[q.type])return;const c=qCorrect(q,r.answers[q.id]);if(c===null)return;agg[q.type]=agg[q.type]||{ok:0,n:0};agg[q.type].n++;if(c)agg[q.type].ok++;});});
+  const avg=pts.length?Math.round(pts.reduce((a,b)=>a+b.pct,0)/pts.length):null;
+  const W=Math.max(pts.length*46,60);
+  const bars=pts.map((p,i)=>{const bh=Math.round(p.pct/100*82);const x=i*46+12,y=98-bh;const col=p.pct>=80?'#2e9e6b':(p.pct>=60?'#d9a441':'#c0552f');return `<g><rect x="${x}" y="${y}" width="28" height="${bh}" rx="3" fill="${col}"></rect><text x="${x+14}" y="${y-3}" font-size="10" text-anchor="middle" fill="#777">${p.pct}</text><text x="${x+14}" y="113" font-size="10" text-anchor="middle" fill="#777">${p.l.order_index||(i+1)}</text></g>`;}).join('');
+  const chart=pts.length?`<svg viewBox="0 0 ${W} 120" style="height:120px;width:${W}px;max-width:none">${bars}</svg>`:'<div class="muted" style="padding:6px 0">還沒有已完成的作業分數。</div>';
+  const weak=pts.slice().sort((a,b)=>a.pct-b.pct).slice(0,3);
+  const weakHtml=weak.length?weak.map(p=>`<div class="dash-row"><span class="badge ${p.pct>=60?'badge-soon':'badge-overdue'}">${p.pct}%</span><b>${esc((p.l.order_index?('第'+p.l.order_index+'課 '):'')+(p.l.title||''))}</b></div>`).join(''):'<div class="muted" style="padding:6px 0">—</div>';
+  const typeHtml=Object.keys(agg).length?Object.keys(agg).map(ty=>{const a=agg[ty],pct=Math.round(a.ok/a.n*100);return `<div class="dash-row"><b style="min-width:42px">${TN[ty]}</b><span class="progbar" style="flex:1;max-width:200px"><span style="width:${pct}%"></span></span><span class="muted">${pct}%（${a.ok}/${a.n}）</span></div>`;}).join(''):'<div class="muted" style="padding:6px 0">還沒有可分析的自動批改題（單選／填空／重組／配對）。</div>';
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>📊 ${esc(s.name)} · 學習報表</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="meta" style="margin-bottom:12px"><span>已完成 <b>${pts.length}</b> 課${avg!=null?(' · 平均 <b>'+avg+'%</b>'):''} · 共指派 <b>${assigned.length}</b> 課</span></div>
+     <div class="lesson-label">📈 分數趨勢（每一條是一課的分數 %，底下數字是課號）</div><div style="overflow:auto;margin:6px 0 14px">${chart}</div>
+     <div class="lesson-label">⚠️ 較弱的課（分數最低）</div><div style="margin:6px 0 14px">${weakHtml}</div>
+     <div class="lesson-label">🎯 各題型正確率</div><div style="margin-top:6px">${typeHtml}</div>
+   </div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>`);};
 H.orderLayout=(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;LAYOUT_LID=id;LAYOUT=reconcileLayoutT(l);
   openModal(`<div class="modal"><div class="modal-head"><h3>📐 課文順序 · ${esc(l.title||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">用 ↑ ↓ 調整對話、短文、語法在課文中的先後順序；學生「課文」就照這個順序呈現（例如：對話→生詞→語法→短文→生詞→語法）。</div>
