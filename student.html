@@ -284,23 +284,25 @@ function vocabBlockHtml(l,di,vocab,chips){
     const tog=hasEx?`<button type="button" class="btn btn-sm vex-toggle" data-act="vocabEx" data-id="${di}_${k}">📝 ${t('exLabel')}（${v.ex.length}）</button>`:'';
     const list=hasEx?`<div class="vex-list hide" id="vex-${di}_${k}">${v.ex.map(s=>`<button type="button" class="ex-item" data-act="speak" data-text="${esc(s)}">${annotate(s)}<span class="spk">🔊</span></button>`).join('')}</div>`:'';
     return `<div class="vrow"><div class="vrow-top">${chip}${mean}${tog}</div>${list}</div>`;}).join('')+'</div>';}
-function dialogueBlockHtml(l,di,opts){opts=opts||{};const answerable=!!opts.answerable;const doc=opts.doc||null;const fb=(doc&&doc.feedback)||{};const ans=(doc&&doc.answers)||{};
+function dialogueBlockHtml(l,di,opts){opts=opts||{};
   const d=lessonDialogues(l)[di];if(!d)return '';const vocab=parseVocab(d.vocabulary);
   const chips=vocab.map((v,k)=>`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-di="${di}" data-vi="${k}" data-text="${esc(v.front)}">${vocabAnno(v)}<span class="spk">🔊</span></button>`).join('');
-  const discQs=(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  if(!(d.content||vocab.length||d.audio_url||discQs.length))return '';
-  const discHtml=discQs.length?`<div class="lesson-block"><div class="lesson-label">💬 ${t('discTitle')}</div><ol class="disc-qs">${discQs.map((q,qi)=>{const key=di+'_'+qi;const note=fb[key];const a=ans[key]!=null?ans[key]:'';return `<li><div class="disc-q lookup">${prose2(q)}</div>${answerable?`<textarea class="disc-ans" data-k="${key}" rows="2" placeholder="${esc(t('discPh'))}">${esc(a)}</textarea>`:(a?`<div class="disc-myans">${esc(a)}</div>`:'')}${note?`<div class="fb-note">💬 ${t('sentFb')}：${esc(note)}</div>`:''}</li>`;}).join('')}</ol></div>`:'';
+  if(!(d.content||vocab.length||d.audio_url))return '';
   return `<details class="disc dlg-fold" open><summary>${esc(d.title||('對話'+(di+1)))}</summary><div class="dlg-fold-body">
     ${d.audio_url?`<div class="lesson-block"><div class="lesson-label">${t('audio')}</div>${audioHtml(d.audio_url)}</div>`:''}
-    ${d.content?`<div class="lesson-block"><div class="lesson-label">${t('text')}</div><div class="prose lookup">${prose2(d.content)}</div><div style="margin-top:8px"><button class="btn btn-sm" data-act="shadowDlg" data-id="${l.id}::${di}">🗣 ${t('shadowDlg')}</button></div></div>`:''}
-    ${vocab.length?`<div class="lesson-block"><div class="lesson-label">${t('vocab')}</div>${vocabBlockHtml(l,di,vocab,chips)}</div>`:''}
-    ${discHtml}</div></details>`;}
+    ${d.content?`<details class="disc sub-fold" open><summary>${t('text')}</summary><div class="prose lookup">${prose2(d.content)}</div><div style="margin:8px 0 4px"><button class="btn btn-sm" data-act="shadowDlg" data-id="${l.id}::${di}">🗣 ${t('shadowDlg')}</button></div></details>`:''}
+    ${vocab.length?`<details class="disc sub-fold" open><summary>${t('vocab')}</summary>${vocabBlockHtml(l,di,vocab,chips)}</details>`:''}
+  </div></details>`;}
+function discSectionHtml(l,di,opts){opts=opts||{};const answerable=!!opts.answerable;const doc=opts.doc||null;const fb=(doc&&doc.feedback)||{};const ans=(doc&&doc.answers)||{};
+  const d=lessonDialogues(l)[di];if(!d)return '';const discQs=(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean);if(!discQs.length)return '';
+  return `<details class="disc sub-fold" open><summary>💬 ${t('discTitle')}${(d.title||'').trim()?('（'+esc(d.title.trim())+'）'):''}</summary><ol class="disc-qs">${discQs.map((q,qi)=>{const key=di+'_'+qi;const note=fb[key];const a=ans[key]!=null?ans[key]:'';return `<li><div class="disc-q lookup">${prose2(q)}</div>${answerable?`<textarea class="disc-ans" data-k="${key}" rows="2" placeholder="${esc(t('discPh'))}">${esc(a)}</textarea>`:(a?`<div class="disc-myans">${esc(a)}</div>`:'')}${note?`<div class="fb-note">💬 ${t('sentFb')}：${esc(note)}</div>`:''}</li>`;}).join('')}</ol></details>`;}
 function dialoguesHtml(l,opts){return lessonDialogues(l).map((d,di)=>dialogueBlockHtml(l,di,opts)).join('');}
-function reconcileLayout(l){const nd=lessonDialogues(l).length,ng=(l.grammar_points||[]).length;const saved=Array.isArray(l.layout)?l.layout:[];
-  const out=[],sd=new Set(),sg=new Set();
-  saved.forEach(e=>{if(!e)return;if(e.t==='d'&&e.i<nd&&!sd.has(e.i)){out.push({t:'d',i:e.i});sd.add(e.i);}else if(e.t==='g'&&e.i<ng&&!sg.has(e.i)){out.push({t:'g',i:e.i});sg.add(e.i);}});
+function reconcileLayout(l){const ds=lessonDialogues(l);const nd=ds.length,ng=(l.grammar_points||[]).length;const hasQ=i=>!!(ds[i]&&(ds[i].discussion||'').split('\n').some(s=>s.trim()));const saved=Array.isArray(l.layout)?l.layout:[];
+  const out=[],sd=new Set(),sg=new Set(),sq=new Set();
+  saved.forEach(e=>{if(!e)return;if(e.t==='d'&&e.i<nd&&!sd.has(e.i)){out.push({t:'d',i:e.i});sd.add(e.i);}else if(e.t==='g'&&e.i<ng&&!sg.has(e.i)){out.push({t:'g',i:e.i});sg.add(e.i);}else if(e.t==='q'&&e.i<nd&&hasQ(e.i)&&!sq.has(e.i)){out.push({t:'q',i:e.i});sq.add(e.i);}});
   for(let i=0;i<nd;i++)if(!sd.has(i))out.push({t:'d',i});
   for(let i=0;i<ng;i++)if(!sg.has(i))out.push({t:'g',i});
+  for(let i=0;i<nd;i++){if(hasQ(i)&&!sq.has(i)){const pos=out.findIndex(e=>e.t==='d'&&e.i===i);if(pos>=0)out.splice(pos+1,0,{t:'q',i});else out.push({t:'q',i});}}
   return out;}
 function grammarSectionHtml(l,gi,qsAll,opts){const g=(l.grammar_points||[])[gi];if(!g)return '';
   const numbered=arr=>{let n=0;return arr.map(q=>practiceItemHtml(q,q.type==='note'?-1:n++)).join('');};
@@ -311,7 +313,7 @@ function grammarSectionHtml(l,gi,qsAll,opts){const g=(l.grammar_points||[])[gi];
   return `<div class="lesson-block">${gpFold(g,gi,prac)}</div>`;}
 function lessonBodyHtml(l,opts){opts=opts||{};const seq=reconcileLayout(l);const qsAll=questionsOf(l.id);const gps=l.grammar_points||[];
   const numbered=arr=>{let n=0;return arr.map(q=>practiceItemHtml(q,q.type==='note'?-1:n++)).join('');};
-  let body=seq.map(e=>e.t==='d'?dialogueBlockHtml(l,e.i,opts):grammarSectionHtml(l,e.i,qsAll,opts)).join('');
+  let body=seq.map(e=>e.t==='d'?dialogueBlockHtml(l,e.i,opts):e.t==='q'?discSectionHtml(l,e.i,opts):grammarSectionHtml(l,e.i,qsAll,opts)).join('');
   let tail='';
   if(!gps.length){if(l.key_points)tail+=`<div class="lesson-block"><div class="lesson-label">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div></div>`;if(qsAll.length)tail+=`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${numbered(qsAll)}</div></div>`;}
   else{const untag=qsAll.filter(q=>q.gp_index==null);if(untag.length)tail+=`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${numbered(untag)}</div></div>`;}
