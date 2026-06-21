@@ -109,11 +109,12 @@ function audioHtml(url){if(!url)return'';
   const yt=url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]{11})/);
   if(yt)return `<div class="audio-wrap"><iframe src="https://www.youtube.com/embed/${yt[1]}" allowfullscreen></iframe></div>`;
   return `<div class="audio-wrap"><audio controls src="${esc(url)}"></audio></div>`;}
+function pluckPy(s){let py='';const out=(s||'').replace(/[\[【]([^\]】]*)[\]】]/g,(m,inner)=>{if(/[㐀-鿿]/.test(inner))return m;if(!py)py=inner.trim();return '';}).replace(/\s{2,}/g,' ').replace(/\s+([，,。、；;)）])/g,'$1').trim();return {text:out,py};}
 function parseVocab(text){const out=[];(text||'').split('\n').forEach(raw=>{const l0=raw.trim();if(!l0)return;
   const exm=l0.match(/^[-－・·→*]\s*(.+)$/)||l0.match(/^例[:：]\s*(.+)$/);
-  if(exm){if(out.length)out[out.length-1].ex.push(exm[1].trim());return;}
+  if(exm){if(out.length){const pk=pluckPy(exm[1].trim());if(pk.py&&!out[out.length-1].py)out[out.length-1].py=pk.py;if(pk.text)out[out.length-1].ex.push(pk.text);}return;}
   // 課本格式：詞｜詞類｜翻譯｜例句｜例句…（直接貼也能正確呈現）
-  if(/[｜|]/.test(l0)){const cols=l0.split(/\s*[｜|]\s*/);if(cols.length>=2){let f=(cols[0]||'').trim(),py='';const pm=f.match(/[\[【]([^\]】]*)[\]】]/);if(pm){py=pm[1].trim();f=f.replace(pm[0],'').trim();}const pos=(cols[1]||'').trim(),back=(cols[2]||'').trim(),ex=cols.slice(3).map(s=>s.trim()).filter(Boolean);if(f){out.push({front:f,py,pos,back,ex});return;}}}
+  if(/[｜|]/.test(l0)){const cols=l0.split(/\s*[｜|]\s*/);if(cols.length>=2){let f=(cols[0]||'').trim(),py='';const pm=f.match(/[\[【]([^\]】]*)[\]】]/);if(pm){py=pm[1].trim();f=f.replace(pm[0],'').trim();}const pos=(cols[1]||'').trim();const bk=pluckPy(cols[2]||'');if(bk.py&&!py)py=bk.py;const back=bk.text;const ex=cols.slice(3).map(s=>{const pk=pluckPy(s);if(pk.py&&!py)py=pk.py;return pk.text;}).filter(Boolean);if(f){out.push({front:f,py,pos,back,ex});return;}}}
   let l=l0,py='';const m=l.match(/[\[【]([^\]】]*)[\]】]/);if(m){py=m[1].trim();l=l.replace(m[0],'').trim();}
   let pos='';const pm=l.match(/[（(]\s*([^（）()]{1,10}?)\s*[）)]/);if(pm){pos=pm[1].trim();l=(l.slice(0,pm.index)+' '+l.slice(pm.index+pm[0].length)).trim();}
   let front,back;
@@ -277,13 +278,14 @@ function dlgHasAudio(l){return lessonDialogues(l).some(d=>d.audio_url);}
 function lessonHasContent(l){return lessonDialogues(l).some(d=>d.content||parseVocab(d.vocabulary).length||d.audio_url)||(l.grammar_points&&l.grammar_points.length)||questionsOf(l.id).length||l.key_points||l.examples;}
 function lessonHasDisc(l){return lessonDialogues(l).some(d=>(d.discussion||'').split('\n').some(s=>s.trim()));}
 function vocabBlockHtml(l,di,vocab,chips){
-  if(!vocab.some(v=>v.ex&&v.ex.length))return `<div class="vocab-list">${chips}</div>`;
   return '<div class="vocab-rows">'+vocab.map((v,k)=>{const hasEx=v.ex&&v.ex.length;
-    const chip=`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-di="${di}" data-vi="${k}" data-text="${esc(v.front)}">${vocabAnno(v)}<span class="spk">🔊</span></button>`;
-    const mean=v.back?`<span class="vrow-mean">${v.pos?'<span class="vpos">'+esc(v.pos)+'</span> ':''}<span data-trvi="${esc(v.back)}">${esc(viOf(v.back))}</span></span>`:'';
+    const chip=`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-di="${di}" data-vi="${k}" data-text="${esc(v.front)}">${esc(v.front)}<span class="spk">🔊</span></button>`;
+    const rd=v.py||wordReading(v.front);const py=rd?`<span class="vrow-py">${esc(rd)}</span>`:'';
+    const pos=v.pos?`<span class="vpos">${esc(v.pos)}</span>`:'';
+    const mean=v.back?`<span class="vrow-mean" data-trvi="${esc(v.back)}">${esc(viOf(v.back))}</span>`:'';
     const tog=hasEx?`<button type="button" class="btn btn-sm vex-toggle" data-act="vocabEx" data-id="${di}_${k}">📝 ${t('exLabel')}（${v.ex.length}）</button>`:'';
     const list=hasEx?`<div class="vex-list hide" id="vex-${di}_${k}">${v.ex.map(s=>`<button type="button" class="ex-item" data-act="speak" data-text="${esc(s)}">${annotate(s)}<span class="spk">🔊</span></button>`).join('')}</div>`:'';
-    return `<div class="vrow"><div class="vrow-top">${chip}${mean}${tog}</div>${list}</div>`;}).join('')+'</div>';}
+    return `<div class="vrow"><div class="vrow-top">${chip}${py}${pos}${mean}${tog}</div>${list}</div>`;}).join('')+'</div>';}
 function dialogueBlockHtml(l,di,opts){opts=opts||{};
   const d=lessonDialogues(l)[di];if(!d)return '';
   if(!(d.content||d.audio_url))return '';
