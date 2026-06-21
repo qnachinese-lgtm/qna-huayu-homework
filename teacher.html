@@ -140,7 +140,7 @@ function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
   if(diff<=3)return{cls:'badge-soon',label:diff+' 天後截止'};
   return{cls:'badge-pending',label:'截止 '+fmtDate(due)};}
 function emptyHtml(i,t,d){return `<div class="empty"><div class="big">${i}</div><b>${t}</b><div style="margin-top:6px">${d}</div></div>`;}
-const TYPE_LABELS={choice:'單選',fill:'填空',qa:'問答',order:'重組',match:'配對',write:'手寫',speak:'口說',note:'示範'};
+const TYPE_LABELS={choice:'單選',fill:'填空',opt:'選填',qa:'問答',order:'重組',match:'配對',write:'手寫',speak:'口說',note:'示範'};
 
 const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],tab:'dashboard',q:'',openCards:new Set()};
 const sortLessons=(a)=>a.slice().sort((x,y)=>((x.order_index||0)-(y.order_index||0))||((x.created_at||'').localeCompare(y.created_at||'')));
@@ -155,7 +155,7 @@ function sortQuestionsLogical(qs){return qs.slice().sort((a,b)=>{
   if(sa!==sb)return sa<sb?-1:1;
   return (a.order_index||0)-(b.order_index||0);});}
 const resultOf=(lid,sid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===sid);
-function manualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||(q.type==='fill'&&q.input_mode==='write');}
+function manualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||q.type==='opt'||(q.type==='fill'&&q.input_mode==='write');}
 function scoreOf(l,r){const qs=questionsOf(l.id);const manual=r.manual||{};let md=0;qs.forEach(q=>{if(manualQ(q)&&manual[q.id]==='done')md++;});return (r.auto!=null?r.auto:(r.score||0))+md;}
 
 async function loadAll(){
@@ -418,6 +418,10 @@ function qeFieldsHTML(type,q){q=q||{};const opt=q.options||[];
   if(type==='qa'){const ref=Array.isArray(q.answer)?q.answer.join('\n'):'';
     return `<div class="hint" style="margin-bottom:8px">問答題：學生看到上面的「題目」，用打字寫出完整回答（可多行）。送出後你在「成績總覽」批改。</div>
       <div class="field"><label>參考答案 <span class="hint">選填，批改時顯示給你對照、作答後也給學生對照</span></label><textarea id="qe-ref" placeholder="例：他是美國人。">${esc(ref)}</textarea></div>`;}
+  if(type==='opt'){const opts=Array.isArray(opt)?opt.join('\n'):'';const items=Array.isArray(q.items)?q.items.map(it=>(it.mode==='open'?'* ':'')+(it.text||'')).join('\n\n'):'';
+    return `<div class="hint" style="margin-bottom:8px">選填題（像課本「看 a–d 完成對話」）：學生會看到共用的 <b>a、b、c…</b> 選項框，每小題用<b>點選</b>作答（<b>可複選</b>）；要「<b>自己回答</b>」的小題，開頭加 <b>*</b>。<b>不自動算分</b>，由你在「成績總覽」批改。</div>
+      <div class="field"><label>選項（a、b、c…）<span class="hint">每行一個，順序就是 a、b、c…</span></label><textarea id="qe-opts" placeholder="他～學校的明星人物&#10;最讓人羨慕的一次，因為看的人最多&#10;天～藍、山～美、水～綠～！人這麼多一點都不奇怪&#10;這麼好的老師和同學～不容易～！">${esc(opts)}</textarea></div>
+      <div class="field"><label>小題 <span class="hint">一題一段，<b>段與段之間空一行</b>；A／B 對話直接換行。要「自己回答」的小題，開頭加 <b>*</b>。空格用 ＿＿。</span></label><textarea id="qe-items" style="min-height:140px" placeholder="A：我在華語中心學中文，很高興能遇到很好的老師和同學。&#10;B：是啊！我也覺得能遇到＿＿。&#10;&#10;A：沒想到來太魯閣的外國遊客這麼多！&#10;B：你看！這裡的＿＿。&#10;&#10;*A：那部電影拍得很好，不過聽說第一個星期票只賣了二十萬元。&#10;B：＿＿">${esc(items)}</textarea></div>`;}
   const pairs=Array.isArray(opt)?opt.map(p=>`${p.l}=${p.r}`).join('\n'):'';
   return `<div class="field"><label>配對 <span class="hint">每行「左=右」</span></label><textarea id="qe-pairs" placeholder="你好=Hello&#10;謝謝=Thank you&#10;再見=Goodbye">${esc(pairs)}</textarea></div>`;
 }
@@ -479,6 +483,7 @@ function ansHtml(q,resp){
   if(q.type==='speak')return `<audio class="rec-audio" controls src="${esc(resp)}"></audio>`;
   if(q.type==='write'||(q.type==='fill'&&q.input_mode==='write'))return `<img class="hw-img" src="${esc(resp)}" alt="">`;
   if(q.type==='qa')return `<div class="hw-textans">${esc(resp).replace(/\n/g,'<br>')}</div>`;
+  if(q.type==='opt'){const ans=Array.isArray(resp)?resp:[];return '<div class="gd-opt">'+(q.items||[]).map((it,i)=>{const r=ans[i]||{};const a=it.mode==='open'?(esc(r.t||'')||'<span class="hint">（未答）</span>'):((r.s||[]).map(oi=>String.fromCharCode(97+oi)+'. '+esc((q.options||[])[oi]||'')).join('；')||'<span class="hint">（未選）</span>');const qline=esc((it.text||'').split('\n').pop()||'');return `<div style="margin:3px 0"><b>${i+1}.</b> <span class="hint">${qline}</span><br>　${a}</div>`;}).join('')+'</div>';}
   if(q.type==='choice'){const o=(q.options||[])[Number(resp)];return `<div class="gd-text">${esc(o!=null?o:resp)}</div>`;}
   if(q.type==='fill'){const v=Array.isArray(resp)?reconFillT(q.prompt,resp):resp;return `<div class="gd-text">${esc(v)}</div>`;}
   if(q.type==='order')return `<div class="gd-text">${esc((resp||[]).join(' '))}</div>`;
@@ -678,6 +683,7 @@ H.printWorksheet=(lid)=>{const l=S.lessons.find(x=>x.id===lid);if(!l)return;cons
     else if(q.type==='fill')qb=`${instr}<div class="q">${num}${e2((q.prompt||'').replace(/[_＿]{2,}/g,'＿＿＿＿＿'))}</div>${pic}`;
     else if(q.type==='order')qb=`${instr}<div class="q">${num}重組：${e2((q.options||[]).join('／'))}</div><div class="bl"></div>`;
     else if(q.type==='match')qb=`${instr}<div class="q">${num}配對</div><div class="q">${(q.options||[]).map(p=>e2(p.l)).join('　　')}<br>${(q.options||[]).map(p=>e2(p.r)).join('　　')}</div><div class="bl"></div>`;
+    else if(q.type==='opt')qb=`${instr}<div class="q">${num}${e2(q.prompt||'')}</div>${(q.options||[]).length?'<ol class="opts" type="a">'+(q.options||[]).map(o=>`<li>${e2(o)}</li>`).join('')+'</ol>':''}${(q.items||[]).map((it,k)=>`<div class="q">（${k+1}）${e2((it.text||'').replace(/[_＿]{2,}/g,'＿＿＿＿').replace(/\n/g,'<br>'))}</div><div class="bl"></div>`).join('')}`;
     else qb=`${instr}<div class="q">${num}${e2(q.prompt)}</div>${pic}<div class="bl"></div>`;
     const ans=Array.isArray(q.answer)?q.answer.join('／'):'';
     body+=`<div class="item">${qb}${ans?`<div class="ans">答案：${e2(ans)}</div>`:''}</div>`;});
@@ -953,7 +959,7 @@ H.doBulkImport=async(lid)=>{const type=$('#bi-type').value;const gpv=$('#bi-gp')
   catch(e){if(st)st.textContent=writeErr('匯入失敗',e);}};
 H.delQuestion=async(key)=>{const[lid,qid]=key.split('::');if(!confirm('刪除這一題？'))return;try{await DB.remove('questions',qid);S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
 H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;const prompt=$('#qe-prompt').value.trim();
-  let options=[],answer=null;
+  let options=[],answer=null,items=null;
   if(type==='choice'){options=$('#qe-options').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個選項');
     const c=Number($('#qe-correct').value);if(!c||c<1||c>options.length)return toast('正確答案需在選項範圍內');answer=c-1;
     if(!prompt)return toast('請輸入題目');}
@@ -962,13 +968,17 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
   else if(type==='order'){options=$('#qe-segs').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個詞／字');}
   else if(type==='write'){if(!prompt)return toast('請輸入題目（例如：請寫出「謝謝」）');const ref=$('#qe-ref').value.trim();answer=ref?[ref]:null;options=[];}
   else if(type==='qa'){if(!prompt)return toast('請輸入題目（問題）');const ref=$('#qe-ref')?$('#qe-ref').value.trim():'';answer=ref?[ref]:null;options=[];}
+  else if(type==='opt'){options=$('#qe-opts').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個選項（a、b…）');
+    const blocks=$('#qe-items').value.split(/\n\s*\n/).map(s=>s.replace(/\s+$/,'')).filter(s=>s.trim());
+    items=blocks.map(b=>{const open=/^\s*\*/.test(b);return {text:b.replace(/^\s*\*\s?/,'').replace(/^\n+/,'').trim(),mode:open?'open':'select'};}).filter(it=>it.text);
+    if(!items.length)return toast('請至少輸入一個小題');answer=null;}
   else if(type==='note'){if(!prompt)return toast('請輸入要顯示的內容（例句／說明）');answer=null;options=[];}
   else if(type==='speak'){if(!prompt)return toast('請輸入題目（例如：請朗讀課文第一段）');answer=null;options=[];}
   else{options=$('#qe-pairs').value.split('\n').map(s=>s.trim()).filter(Boolean).map(line=>{const i=line.indexOf('=');return i<0?null:{l:line.slice(0,i).trim(),r:line.slice(i+1).trim()};}).filter(p=>p&&p.l&&p.r);if(options.length<2)return toast('請至少輸入兩組配對');}
   const gpv=$('#qe-gp')?$('#qe-gp').value:'';
   const gpsub=$('#qe-gpsub')?$('#qe-gpsub').value.trim():'';
   const obj={lesson_id:lid,type,prompt:prompt||(type==='order'?'請將下列詞語重組成正確的句子':type==='match'?'請將左右配對':''),
-    options,answer,gp_index:(gpv===''?null:Number(gpv)),gp_sub:gpsub||null,input_mode:(type==='fill'&&$('#qe-fillmode')?$('#qe-fillmode').value:null),audio_url:$('#qe-audio').value.trim()||null,image_url:($('#qe-image')?$('#qe-image').value.trim():'')||null,instruction:($('#qe-instruction')?$('#qe-instruction').value.trim():'')||null,explanation:$('#qe-explain').value.trim()||null};
+    options,answer,items,gp_index:(gpv===''?null:Number(gpv)),gp_sub:gpsub||null,input_mode:(type==='fill'&&$('#qe-fillmode')?$('#qe-fillmode').value:null),audio_url:$('#qe-audio').value.trim()||null,image_url:($('#qe-image')?$('#qe-image').value.trim():'')||null,instruction:($('#qe-instruction')?$('#qe-instruction').value.trim():'')||null,explanation:$('#qe-explain').value.trim()||null};
   try{if(qid){await DB.update('questions',qid,obj);}else{obj.order_index=questionsOf(lid).length;await DB.insert('questions',obj);}
     S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已儲存');}catch(err){toast(writeErr('儲存失敗',err));}};
 

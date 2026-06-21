@@ -348,7 +348,7 @@ function grammarHtml(gps){if(!Array.isArray(gps)||!gps.length)return '';
   return `<div class="lesson-block"><div class="lesson-label">${t('grammar')}</div>${gps.map((g,gi)=>gpFold(g,gi)).join('')}</div>`;}
 /* 上課內容：每個語法卡下面附上該語法的互動練習（不算分、即時對錯／自我對照） */
 function isCanvasQ(q){return q.type==='write'||(q.type==='fill'&&q.input_mode==='write');}
-function isManualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||(q.type==='fill'&&q.input_mode==='write');}
+function isManualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||q.type==='opt'||(q.type==='fill'&&q.input_mode==='write');}
 function practiceItemHtml(q,n){if(q.type==='note')return `<div class="pi-item">${qHtml(q,n)}</div>`;return `<div class="pi-item">${qHtml(q,n)}<div class="pi-actions"><button class="btn btn-sm btn-accent" type="button" data-act="pcheck" data-q="${q.id}">${isManualQ(q)?th('reveal'):th('check')}</button></div><div class="q-feedback hide" id="pfb-${q.id}"></div></div>`;}
 function grammarPracticeHtml(l){
   const gps=l.grammar_points||[];const qsAll=questionsOf(l.id);
@@ -387,6 +387,7 @@ function readResp(q){
   if(q.type==='match')return $$('select[data-q="'+q.id+'"]').map(s=>s.value);
   if(q.type==='write')return canvasDataURL(document.getElementById('hw-'+q.id));
   if(q.type==='qa'){const ta=document.getElementById('qa-'+q.id);return ta?ta.value:'';}
+  if(q.type==='opt'){return (q.items||[]).map((it,i)=>{if(it.mode==='open'){const ta=document.querySelector('textarea.optopen[data-q="'+q.id+'"][data-item="'+i+'"]');return {t:ta?ta.value:''};}const picks=[...document.querySelectorAll('input.optck[data-q="'+q.id+'"][data-item="'+i+'"]:checked')].map(c=>Number(c.value));return {s:picks};});}
   return null;}
 
 /* ---- 繁簡自動轉換（OpenCC）：簡中→簡體、繁中→繁體；其他語言不轉 ---- */
@@ -630,6 +631,13 @@ function qHtml(q,idx){
   else if(q.type==='write'){body=`<div class="hw-wrap"><canvas id="hw-${q.id}" class="hw-canvas" width="660" height="440"></canvas><div class="hw-tools"><button class="btn btn-sm" type="button" data-act="hwclear" data-q="${q.id}">${th('clear')}</button><span class="hint">${th('hint')}</span></div></div>`;}
   else if(q.type==='qa'){body=`<textarea class="qa-inp" id="qa-${q.id}" rows="3" placeholder="${t('inputAns')}"></textarea>`;}
   else if(q.type==='speak'){body=`<div class="rec-wrap"><div class="rec-tools"><button class="btn btn-sm rec-btn" type="button" data-act="recToggle" data-q="${q.id}">🎙️ ${th('recStart')}</button><span class="hint" id="rec-st-${q.id}">${th('recHint')}</span></div><audio id="rec-audio-${q.id}" class="rec-audio hide" controls></audio></div>`;}
+  else if(q.type==='opt'){showPrompt=!!(q.prompt&&q.prompt.trim());
+    const bank=(q.options||[]).length?`<div class="opt-bank">${(q.options||[]).map((o,i)=>`<div class="opt-bank-row"><b>${String.fromCharCode(97+i)}.</b> <span>${esc(o)}</span></div>`).join('')}</div>`:'';
+    const items=(q.items||[]).map((it,i)=>{const txt=`<div class="optitem-q">${esc(it.text||'').replace(/[_＿]{2,}/g,'＿＿＿').replace(/\n/g,'<br>')}</div>`;
+      if(it.mode==='open')return `<div class="optitem"><span class="optitem-n">${i+1}</span><div class="optitem-body">${txt}<textarea class="qa-inp optopen" data-q="${q.id}" data-item="${i}" rows="2" placeholder="${t('inputAns')}"></textarea></div></div>`;
+      const chips=(q.options||[]).map((o,oi)=>`<label class="optchip"><input type="checkbox" class="optck" data-q="${q.id}" data-item="${i}" value="${oi}"><span>${String.fromCharCode(97+oi)}</span></label>`).join('');
+      return `<div class="optitem"><span class="optitem-n">${i+1}</span><div class="optitem-body">${txt}<div class="optchips">${chips}</div></div></div>`;}).join('');
+    body=bank+items;}
   else{const rights=shuffle((q.options||[]).map(p=>p.r),q.id+'r');
     body=(q.options||[]).map((p,i)=>`<div class="match-row"><span class="l">${esc(p.l)}</span><select data-q="${q.id}" data-i="${i}"><option value="">${t('sel')}</option>${rights.map(r=>`<option value="${esc(r)}" data-trvi="${esc(r)}">${esc(viOf(r))}</option>`).join('')}</select></div>`).join('');}
   const instr=q.instruction?`<div class="q-instr">${esc(q.instruction)}</div>`:'';
@@ -649,6 +657,10 @@ function qHtmlGraded(q,idx){
   else if(q.type==='write'){body=resp?`<img class="hw-img" src="${resp}" alt="">`:`<div class="hint">${t('blank')}</div>`;ct=(q.answer&&q.answer.length)?(t('ans')+'：'+esc(q.answer.join('')))  :'';}
   else if(q.type==='qa'){body=resp?`<div class="qa-ans">${esc(resp).replace(/\n/g,'<br>')}</div>`:`<div class="hint">${t('blank')}</div>`;ct=(q.answer&&q.answer.length)?(t('ans')+'：'+esc(q.answer.join('\n'))):'';}
   else if(q.type==='speak'){body=resp?`<audio class="rec-audio" controls src="${esc(resp)}"></audio>`:`<div class="hint">${t('blank')}</div>`;ct='';}
+  else if(q.type==='opt'){const ans=Array.isArray(resp)?resp:[];
+    body=(q.items||[]).map((it,i)=>{const r=ans[i]||{};const txt=`<div class="optitem-q">${esc(it.text||'').replace(/\n/g,'<br>')}</div>`;
+      const a=it.mode==='open'?(esc(r.t||'')||('<span class="hint">'+t('blank')+'</span>')):((r.s||[]).map(oi=>String.fromCharCode(97+oi)+'. '+esc((q.options||[])[oi]||'')).join('；')||('<span class="hint">'+t('blank')+'</span>'));
+      return `<div class="optitem"><span class="optitem-n">${i+1}</span><div class="optitem-body">${txt}<div class="qa-ans">${a}</div></div></div>`;}).join('');ct='';}
   else{body=(q.options||[]).map((p,i)=>{const r=(resp||[])[i]||'';const good=r===p.r;return `<div class="match-row"><span class="l">${esc(p.l)}</span><span class="badge ${good?'badge-ok':'badge-overdue'}"><span data-trvi="${esc(r)}">${esc(viOf(r)||'—')}</span> ${good?'✓':'✗'}</span></div>`;}).join('');ct=t('ans')+'：'+(q.options||[]).map(p=>esc(p.l)+'→'+esc(viOf(p.r))).join('、');}
   const fb=isManualQ(q)
     ? `<div class="q-feedback hw-pending">⏳ ${th('pending')}${ct?` <span class="ans">｜${ct}</span>`:''}</div>`
