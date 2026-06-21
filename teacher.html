@@ -221,7 +221,7 @@ function renderDashboard(){
   const sentHtml=sentPend.length?sentPend.map(sd=>`<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc(sentName(sd))}</b><span class="muted">${esc(sentLessonName(sd))}</span><span class="grow"></span><span class="muted">${(sd.items||[]).filter(it=>it.sentence).length} 句</span><button class="btn btn-sm btn-accent" data-act="reviewSent" data-id="${sd.id}">批改</button></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的造句 👍</div>`;
   // 隨堂小考
   const quizScore=(qid,sid)=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qid&&x.student_id===sid);return r?(r.score+'/'+r.total):null;};
-  const quizSrcName=qz=>{const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.order_index?('第'+l.order_index+'課'):'')+(l.title?(' '+l.title):'');};
+  const quizSrcName=qz=>{const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.textbook?('【'+l.textbook+'】'):'')+(l.order_index?('第'+l.order_index+'課'):'')+(l.title?(' '+l.title):'');};
   const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return `<span class="badge ${sc?'badge-ok':'badge-pending'}">${esc(s.name)}：${sc||'未考'}</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂聽寫小考')}</b><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未指派</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
   // 問題與討論批改
   const discPend=(S.discussions||[]).filter(x=>x.status==='submitted');
@@ -561,7 +561,8 @@ H.saveDiscReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(
     closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
   }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
 H.newQuiz=()=>{
-  const lessonOpts=sortLessons(S.lessons).map(l=>`<option value="${l.id}">${esc((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（未命名）'))}</option>`).join('');
+  const grp={},gorder=[];sortLessons(S.lessons).forEach(l=>{const tb=(l.textbook||'').trim()||'（未分類教材）';if(!grp[tb]){grp[tb]=[];gorder.push(tb);}grp[tb].push(l);});
+  const lessonOpts=gorder.map(tb=>`<optgroup label="${esc(tb)}">${grp[tb].map(l=>`<option value="${l.id}">${esc((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（未命名）'))}</option>`).join('')}</optgroup>`).join('');
   const studentChecks=S.students.map(s=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 12px 8px 0"><input type="checkbox" class="quiz-stu" value="${s.id}"> ${esc(s.name)}</label>`).join('');
   openModal(`<div class="modal"><div class="modal-head"><h3>📝 建立隨堂聽寫小考</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
