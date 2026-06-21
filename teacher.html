@@ -142,7 +142,7 @@ function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
 function emptyHtml(i,t,d){return `<div class="empty"><div class="big">${i}</div><b>${t}</b><div style="margin-top:6px">${d}</div></div>`;}
 const TYPE_LABELS={choice:'單選',fill:'填空',qa:'問答',order:'重組',match:'配對',write:'手寫',speak:'口說',note:'示範'};
 
-const S={students:[],lessons:[],questions:[],results:[],tab:'dashboard',q:'',openCards:new Set()};
+const S={students:[],lessons:[],questions:[],results:[],sentences:[],tab:'dashboard',q:'',openCards:new Set()};
 const sortLessons=(a)=>a.slice().sort((x,y)=>((x.order_index||0)-(y.order_index||0))||((x.created_at||'').localeCompare(y.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const answerableOf=(lid)=>questionsOf(lid).filter(q=>q.type!=='note'); // 排除示範題（不計分）
@@ -159,8 +159,8 @@ function manualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||(q
 function scoreOf(l,r){const qs=questionsOf(l.id);const manual=r.manual||{};let md=0;qs.forEach(q=>{if(manualQ(q)&&manual[q.id]==='done')md++;});return (r.auto!=null?r.auto:(r.score||0))+md;}
 
 async function loadAll(){
-  const [a,b,c,d]=await Promise.all([DB.list('students'),DB.list('lessons'),DB.list('questions'),DB.list('results')]);
-  S.students=a;S.lessons=b;S.questions=c;S.results=d;
+  const [a,b,c,d,e]=await Promise.all([DB.list('students'),DB.list('lessons'),DB.list('questions'),DB.list('results'),DB.list('sentences').catch(()=>[])]);
+  S.students=a;S.lessons=b;S.questions=c;S.results=d;S.sentences=e||[];
 }
 function openModal(h){$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
 function closeModal(){$('#modal-root').innerHTML='';}
@@ -211,7 +211,13 @@ function renderDashboard(){
   const pendList=(S.results||[]).filter(r=>r.status==='pending');
   const pendByLesson={};pendList.forEach(r=>{pendByLesson[r.lesson_id]=(pendByLesson[r.lesson_id]||0)+1;});
   const gradeHtml=pendList.length?Object.keys(pendByLesson).map(lid=>{const l=S.lessons.find(x=>x.id===lid)||{};return `<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）'))}</b><span class="grow"></span><span class="muted">${pendByLesson[lid]} 份</span><button class="btn btn-sm btn-accent" data-act="tab" data-id="grades">去批改</button></div>`;}).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的作業 👍</div>`;
+  // 造句批改提醒
+  const sentName=sd=>{const st=S.students.find(x=>x.id===sd.student_id);return (st&&st.name)||sd.student_name||'學生';};
+  const sentLessonName=sd=>{const l=S.lessons.find(x=>x.id===sd.lesson_id)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');};
+  const sentPend=(S.sentences||[]).filter(x=>x.status==='submitted');
+  const sentHtml=sentPend.length?sentPend.map(sd=>`<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc(sentName(sd))}</b><span class="muted">${esc(sentLessonName(sd))}</span><span class="grow"></span><span class="muted">${(sd.items||[]).filter(it=>it.sentence).length} 句</span><button class="btn btn-sm btn-accent" data-act="reviewSent" data-id="${sd.id}">批改</button></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的造句 👍</div>`;
   body.innerHTML=`<div class="card"><div class="lesson-label">📥 批改提醒${pendList.length?'（'+pendList.length+'）':''}</div>${gradeHtml}</div>
+    <div class="card" style="margin-top:14px"><div class="lesson-label">✍️ 造句批改${sentPend.length?'（'+sentPend.length+'）':''}</div>${sentHtml}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">💳 付款提醒</div>${payHtml}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">🎟️ 堂數提醒</div>${sessHtml}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">📈 學生進度</div>${progHtml}</div>`;
@@ -507,6 +513,23 @@ const RELOGIN_MSG='登入已失效。請「開新分頁」打開教師頁並登�
 function writeErr(prefix,err){const m=((err&&(err.code||err.message))||'')+'';return prefix+'：'+(/permission|insufficient|unauth/i.test(m)?RELOGIN_MSG:(m||'發生錯誤'));}
 const H={};
 H.tab=(id)=>{S.tab=id;render();};
+H.reviewSent=(id)=>{const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
+  const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
+  const l=S.lessons.find(x=>x.id===sd.lesson_id)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
+  const fb=sd.feedback||{};
+  const rows=(sd.items||[]).map(it=>`<div class="srev-item"><div class="srev-word">${esc(it.word)}</div><div class="srev-sent">${it.sentence?esc(it.sentence):'<span class="muted">（未作答）</span>'}</div><textarea class="srev-fb" data-w="${esc(it.word)}" rows="2" placeholder="給這一句的建議（可留空）">${esc(fb[it.word]||'')}</textarea></div>`).join('');
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>✍️ 造句批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}</div>${rows}
+   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="srev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea></div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveSentReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveSentReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
+H.saveSentReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
+  const feedback={};document.querySelectorAll('.srev-fb').forEach(el=>{const v=(el.value||'').trim();if(v)feedback[el.dataset.w]=v;});
+  const ov=document.getElementById('srev-overall');const overall=ov?(ov.value||'').trim():'';
+  if(b){b.disabled=true;b.textContent='儲存中…';}
+  const ts=new Date().toISOString();const patch={feedback,overall,status:done?'reviewed':(sd.status||'submitted'),reviewed_at:ts};
+  try{await DB.update('sentences',id,patch);const i=S.sentences.findIndex(x=>x.id===id);if(i>=0)S.sentences[i]=Object.assign({},sd,patch);
+    closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
+  }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
 H.logout=()=>{try{if(window.firebase&&firebase.auth&&firebase.apps&&firebase.apps.length)firebase.auth().signOut();}catch(e){}sessionStorage.removeItem('teacher_ok');location.reload();};
 H.closeModal=closeModal;
 H.genCode=()=>{$('#f-code').value=genCodeStr();};
