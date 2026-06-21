@@ -418,10 +418,10 @@ function qeFieldsHTML(type,q){q=q||{};const opt=q.options||[];
   if(type==='qa'){const ref=Array.isArray(q.answer)?q.answer.join('\n'):'';
     return `<div class="hint" style="margin-bottom:8px">問答題：學生看到上面的「題目」，用打字寫出完整回答（可多行）。送出後你在「成績總覽」批改。</div>
       <div class="field"><label>參考答案 <span class="hint">選填，批改時顯示給你對照、作答後也給學生對照</span></label><textarea id="qe-ref" placeholder="例：他是美國人。">${esc(ref)}</textarea></div>`;}
-  if(type==='opt'){const opts=Array.isArray(opt)?opt.join('\n'):'';const items=Array.isArray(q.items)?q.items.map(it=>(it.mode==='open'?'* ':'')+(it.text||'')).join('\n\n'):'';
-    return `<div class="hint" style="margin-bottom:8px">選填題（像課本「看 a–d 完成對話」）：學生會看到共用的 <b>a、b、c…</b> 選項框，每小題用<b>點選</b>作答（<b>可複選</b>）；要「<b>自己回答</b>」的小題，開頭加 <b>*</b>。<b>不自動算分</b>，由你在「成績總覽」批改。</div>
+  if(type==='opt'){const opts=Array.isArray(opt)?opt.join('\n'):'';const items=Array.isArray(q.items)?q.items.map(it=>(it.mode==='open'?'* ':'')+(it.text||'')).join('\n'):'';
+    return `<div class="hint" style="margin-bottom:8px">選填題（像課本「看 a–d 完成對話」）：學生會看到共用的 <b>a、b、c…</b> 選項框，<b>每一小題下面</b>都有自己的 a／b／c／d 可<b>點選</b>（<b>可複選</b>）；要「<b>自己回答</b>」的小題，開頭加 <b>*</b>，學生會看到打字框。<b>不自動算分</b>，由你在「成績總覽」批改。</div>
       <div class="field"><label>選項（a、b、c…）<span class="hint">每行一個，順序就是 a、b、c…</span></label><textarea id="qe-opts" placeholder="他～學校的明星人物&#10;最讓人羨慕的一次，因為看的人最多&#10;天～藍、山～美、水～綠～！人這麼多一點都不奇怪&#10;這麼好的老師和同學～不容易～！">${esc(opts)}</textarea></div>
-      <div class="field"><label>小題 <span class="hint">一題一段，<b>段與段之間空一行</b>；A／B 對話直接換行。要「自己回答」的小題，開頭加 <b>*</b>。空格用 ＿＿。</span></label><textarea id="qe-items" style="min-height:140px" placeholder="A：我在華語中心學中文，很高興能遇到很好的老師和同學。&#10;B：是啊！我也覺得能遇到＿＿。&#10;&#10;A：沒想到來太魯閣的外國遊客這麼多！&#10;B：你看！這裡的＿＿。&#10;&#10;*A：那部電影拍得很好，不過聽說第一個星期票只賣了二十萬元。&#10;B：＿＿">${esc(items)}</textarea></div>`;}
+      <div class="field"><label>小題 <span class="hint"><b>一行一題</b>（A、B 寫在同一行就好）。題號可加可不加。要「自己回答」的小題，開頭加 <b>*</b>。空格用 ＿＿。</span></label><textarea id="qe-items" style="min-height:140px" placeholder="1 A：很高興遇到好老師。 B：是啊，我也覺得能遇到＿＿。&#10;2 A：外國遊客這麼多！ B：你看！這裡的＿＿。&#10;*3 A：他怎麼聊著就喝起酒來了？ B：＿＿">${esc(items)}</textarea></div>`;}
   const pairs=Array.isArray(opt)?opt.map(p=>`${p.l}=${p.r}`).join('\n'):'';
   return `<div class="field"><label>配對 <span class="hint">每行「左=右」</span></label><textarea id="qe-pairs" placeholder="你好=Hello&#10;謝謝=Thank you&#10;再見=Goodbye">${esc(pairs)}</textarea></div>`;
 }
@@ -975,9 +975,11 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
   else if(type==='write'){if(!prompt)return toast('請輸入題目（例如：請寫出「謝謝」）');const ref=$('#qe-ref').value.trim();answer=ref?[ref]:null;options=[];}
   else if(type==='qa'){if(!prompt)return toast('請輸入題目（問題）');const ref=$('#qe-ref')?$('#qe-ref').value.trim():'';answer=ref?[ref]:null;options=[];}
   else if(type==='opt'){options=$('#qe-opts').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個選項（a、b…）');
-    const blocks=$('#qe-items').value.split(/\n\s*\n/).map(s=>s.replace(/\s+$/,'')).filter(s=>s.trim());
-    items=blocks.map(b=>{const open=/^\s*\*/.test(b);return {text:b.replace(/^\s*\*\s?/,'').replace(/^\n+/,'').trim(),mode:open?'open':'select'};}).filter(it=>it.text);
-    if(!items.length)return toast('請至少輸入一個小題');answer=null;}
+    const its=[];$('#qe-items').value.split('\n').forEach(raw=>{const line=raw.replace(/\s+$/,'');if(!line.trim())return;
+      if(/^\s*[BＢ][：:]/.test(line)&&its.length){its[its.length-1].text+='\n'+line.trim();return;} // B：行併入上一題
+      const open=/^\s*\*/.test(line);const text=line.replace(/^\s*\*?\s*\d*\s*[\.、．。)）]?\s*/,'').trim(); // 去掉 * 與題號
+      if(text)its.push({text,mode:open?'open':'select'});});
+    items=its;if(!items.length)return toast('請至少輸入一個小題');answer=null;}
   else if(type==='note'){if(!prompt)return toast('請輸入要顯示的內容（例句／說明）');answer=null;options=[];}
   else if(type==='speak'){if(!prompt)return toast('請輸入題目（例如：請朗讀課文第一段）');answer=null;options=[];}
   else{options=$('#qe-pairs').value.split('\n').map(s=>s.trim()).filter(Boolean).map(line=>{const i=line.indexOf('=');return i<0?null:{l:line.slice(0,i).trim(),r:line.slice(i+1).trim()};}).filter(p=>p&&p.l&&p.r);if(options.length<2)return toast('請至少輸入兩組配對');}
