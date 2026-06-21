@@ -222,8 +222,8 @@ function renderDashboard(){
   // 隨堂小考
   const quizScore=(qid,sid)=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qid&&x.student_id===sid);return r?(r.score+'/'+r.total):null;};
   const quizSrcName=qz=>{if(qz.mode==='custom'){const n=(qz.quiz_items||'').split('\n').filter(s=>/[=＝]/.test(s)).length;return '自訂題目（'+n+' 題）';}const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.textbook?('【'+l.textbook+'】'):'')+(l.order_index?('第'+l.order_index+'課'):'')+(l.title?(' '+l.title):'');};
-  const QM={dict:'聽寫',pinyin:'看拼音寫字',mean:'看意思寫字',choice:'看字選意思',cloze:'看例句填生詞'};
-  const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return `<span class="badge ${sc?'badge-ok':'badge-pending'}">${esc(s.name)}：${sc||'未考'}</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未指派</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
+  const QM={dict:'聽寫',pinyin:'看拼音寫字',mean:'看意思寫字',choice:'看字選意思',cloze:'看例句填生詞',custom:'自訂題目'};
+  const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return sc?`<button class="badge badge-ok" data-act="viewQuizResult" data-id="${qz.id}::${s.id}" style="cursor:pointer;border:0">${esc(s.name)}：${sc} 👁</button>`:`<span class="badge badge-pending">${esc(s.name)}：未考</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未指派</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
   // 問題與討論批改
   const discPend=(S.discussions||[]).filter(x=>x.status==='submitted');
   const discHtml=discPend.length?discPend.map(sd=>`<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc(sentName(sd))}</b><span class="muted">${esc((()=>{const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');})())}</span><span class="grow"></span><span class="muted">${Object.keys(sd.answers||{}).length} 題</span><button class="btn btn-sm btn-accent" data-act="reviewDisc" data-id="${sd.id}">批改</button></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的問題與討論 👍</div>`;
@@ -575,7 +575,7 @@ H.newQuiz=()=>{
   openModal(`<div class="modal"><div class="modal-head"><h3>📝 建立隨堂聽寫小考</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>名稱</label><input id="quiz-title" type="text" value="隨堂小考"></div>
-     <div class="field"><label>題型</label><select id="quiz-mode"><option value="dict">聽寫（聽真人發音／機器音寫字）</option><option value="pinyin">看拼音寫字</option><option value="mean">看意思寫字</option><option value="choice">看字選意思（選擇題）</option><option value="cloze">看例句填生詞（克漏字，需生詞有例句）</option><option value="custom">✍️ 自訂題目（自己出題，跟生詞無關）</option></select></div>
+     <div class="field"><label>題型</label><span class="hint" style="display:block;margin:-2px 0 4px">「聽寫」會自動播<b>那一課生詞的真人發音</b>（要先到「編輯課文」→ 生詞下方上傳整段生詞錄音、自動切片）；沒上傳就用機器音。不需要在這裡另外上傳音檔。</span><select id="quiz-mode"><option value="dict">聽寫（聽真人發音／機器音寫字）</option><option value="pinyin">看拼音寫字</option><option value="mean">看意思寫字</option><option value="choice">看字選意思（選擇題）</option><option value="cloze">看例句填生詞（克漏字，需生詞有例句）</option><option value="custom">✍️ 自訂題目（自己出題，跟生詞無關）</option></select></div>
      <div class="field"><label>考哪一課的生詞 <span class="hint">（自訂題目可不選）</span></label><select id="quiz-lesson"><option value="">（自訂題目時不用選）</option>${lessonOpts}</select></div>
      <div class="field"><label>自訂題目 <span class="hint">選「✍️ 自訂題目」時用這裡。一行一題，格式 <b>題目＝答案</b>；可接受多個答案用 <b>/</b> 隔開。學生看題目、打答案、自動對。</span></label><textarea id="quiz-items" placeholder="「謝謝」要怎麼回應？＝不客氣&#10;banana 的中文＝香蕉&#10;我＿＿喜歡喝茶。＝很/真的"></textarea></div>
      <div class="field"><label>指派給</label><div style="margin-top:4px">${studentChecks||'<span class="muted">還沒有學生</span>'}</div></div>
@@ -599,6 +599,11 @@ H.saveQuiz=async()=>{
 H.delQuiz=async(id)=>{if(!confirm('確定刪除這個隨堂小考？（學生已考的分數記錄會保留）'))return;
   try{await DB.remove('lessons',id);const all=await DB.list('lessons');S.lessons=all.filter(x=>x.kind!=='quiz');S.quizzes=all.filter(x=>x.kind==='quiz');render();toast('已刪除隨堂小考');
   }catch(e){toast(writeErr('刪除失敗',e));}};
+H.viewQuizResult=(key)=>{const p=String(key).split('::'),quizId=p[0],sid=p[1];const r=(S.quizResults||[]).find(x=>x.quiz_id===quizId&&x.student_id===sid);if(!r)return;const s=S.students.find(x=>x.id===sid);
+  const rows=(r.answers||[]).map((it,i)=>`<div class="srev-item"><div class="srev-word">${i+1}.${it.q?('　'+esc(it.q)):''}</div><div class="srev-sent">學生作答：<b>${esc(it.a||'（空白）')}</b> ${it.ok?'<span class="badge badge-ok">✓ 對</span>':'<span class="badge badge-overdue">✗ 錯</span>'}　｜　正解：${esc(it.c||'')}</div></div>`).join('');
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>📝 ${esc((s&&s.name)||'學生')} · 小考作答</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="meta" style="margin-bottom:10px">分數 <b>${r.score}/${r.total}</b>${r.completed_at?('　·　'+esc(String(r.completed_at).replace('T',' ').slice(5,16))):''}</div>${rows||'<div class="muted" style="padding:8px 0">這次沒有逐題明細（可能是更新前考的，重考一次就會記錄）。</div>'}</div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>`);};
 H.logout=()=>{try{if(window.firebase&&firebase.auth&&firebase.apps&&firebase.apps.length)firebase.auth().signOut();}catch(e){}sessionStorage.removeItem('teacher_ok');location.reload();};
 H.closeModal=closeModal;
 H.genCode=()=>{$('#f-code').value=genCodeStr();};

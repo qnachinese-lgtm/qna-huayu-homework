@@ -779,13 +779,15 @@ H.ssScore=(_,b)=>{if(!SS)return;const i=+b.dataset.i,target=SS.sents[i],old=b.in
   (err)=>{b.disabled=false;b.innerHTML=old;toast(err==='nosupport'?'此瀏覽器不支援語音辨識，請改用電腦版 Chrome':((err==='not-allowed'||err==='service-not-allowed')?th('recDenied'):'辨識失敗，請再說一次')); });};
 H.dictation=()=>{const list=vocabScoped().filter(v=>/[㐀-鿿]/.test(v.front));if(!list.length){toast(t('noCards'));return;}S.dict={list:shuffle(list,Math.random()+'').slice(0,12),idx:0,checked:false,val:'',right:0,ok:false};$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderDictation();};
 H.dictReplay=()=>{const dd=S.dict;if(!dd)return;const v=dd.list[dd.idx];vocabPlay(v.lessonId,v.di,v.vi,v.front);};
-H.dictCheck=()=>{const dd=S.dict;if(!dd||dd.checked)return;const inp=document.getElementById('dict-in');dd.val=inp?inp.value:'';const v=dd.list[dd.idx];const norm=s=>{try{return (CONV.cn?CONV.cn(s):s).toLowerCase().replace(/\s/g,'');}catch(e){return (s||'').toLowerCase().replace(/\s/g,'');}};const accepts=(dd.mode==='custom'&&v.ans&&v.ans.length)?v.ans:[v.front];dd.ok=norm(dd.val)!==''&&accepts.some(a=>norm(a)===norm(dd.val));if(dd.ok)dd.right++;dd.checked=true;renderDictation();};
+H.dictCheck=()=>{const dd=S.dict;if(!dd||dd.checked)return;const inp=document.getElementById('dict-in');dd.val=inp?inp.value:'';const v=dd.list[dd.idx];const norm=s=>{try{return (CONV.cn?CONV.cn(s):s).toLowerCase().replace(/\s/g,'');}catch(e){return (s||'').toLowerCase().replace(/\s/g,'');}};const accepts=(dd.mode==='custom'&&v.ans&&v.ans.length)?v.ans:[v.front];dd.ok=norm(dd.val)!==''&&accepts.some(a=>norm(a)===norm(dd.val));if(dd.ok)dd.right++;dd.checked=true;
+  if(dd.quiz){const md=dd.mode||'dict';const c=(md==='custom')?accepts.join(' / '):v.front;const q=(md==='custom')?(v.qtext||''):(md==='cloze')?clozeSentence(v):(md==='pinyin')?(v.py||''):(md==='mean')?(v.back||''):'';(dd.log=dd.log||[]).push({q,a:dd.val,c,ok:dd.ok});}
+  renderDictation();};
 H.dictNext=()=>{const dd=S.dict;if(!dd)return;if(dd.idx+1>=dd.list.length){bumpActivity(dd.list.length);
-    if(dd.quiz){const q=dd.quiz,right=dd.right,total=dd.list.length;S.dict=null;$('#screen').dataset.mode='';
+    if(dd.quiz){const q=dd.quiz,right=dd.right,total=dd.list.length,log=dd.log||[];S.dict=null;$('#screen').dataset.mode='';
       $('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">📝</div><h3>${esc(q.title)}</h3><div class="muted" style="margin-top:6px">${t('acc')} ${right} / ${total}</div><div class="hint" style="margin-top:6px">${S.preview?'':t('quizSaved')}</div><button class="btn btn-primary" style="margin-top:14px" data-act="section" data-id="work">${t('finishBack')}</button></div>`;
-      H.saveQuizResult(q.id,right,total);return;}
+      H.saveQuizResult(q.id,right,total,log);return;}
     S.dict=null;$('#screen').dataset.mode='';$('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">🎉</div><h3>${t('dictFinish')}</h3><div class="muted" style="margin-top:6px">${t('acc')} ${dd.right} / ${dd.list.length}</div><button class="btn btn-primary" style="margin-top:14px" data-act="section" data-id="cards">${t('finishBack')}</button></div>`;return;}dd.idx++;dd.checked=false;dd.val='';dd.ok=false;if(dd.mode==='choice')renderQuizChoice();else renderDictation();};
-H.quizPick=(_,b)=>{const val=(b&&b.dataset&&b.dataset.v)||'';const dd=S.dict;if(!dd||dd.checked)return;dd.checked=true;dd.val=val;dd.ok=(val===dd.list[dd.idx].back);if(dd.ok)dd.right++;renderQuizChoice();};
+H.quizPick=(_,b)=>{const val=(b&&b.dataset&&b.dataset.v)||'';const dd=S.dict;if(!dd||dd.checked)return;dd.checked=true;dd.val=val;const v=dd.list[dd.idx];dd.ok=(val===v.back);if(dd.ok)dd.right++;(dd.log=dd.log||[]).push({q:v.front,a:val,c:v.back,ok:dd.ok});renderQuizChoice();};
 function clozeSentence(v){const f=(v&&v.front)||'';const ex=(v.ex||[]).find(s=>s.indexOf(f)>=0)||(v.ex||[])[0]||'';return f?ex.replace(f,'＿＿'):ex;}
 function parseQuizItems(text){return (text||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const i=l.search(/[=＝]/);if(i<0)return null;const q=l.slice(0,i).trim();const a=l.slice(i+1).split(/[\/／]/).map(s=>s.trim()).filter(Boolean);return (q&&a.length)?{q,a}:null;}).filter(Boolean);}
 H.vocabEx=(id)=>{const el=document.getElementById('vex-'+id);if(el)el.classList.toggle('hide');};
@@ -801,9 +803,9 @@ H.startQuiz=(id)=>{const qz=(S.quizzes||[]).find(x=>x.id===id);if(!qz)return;con
   if(words.length<(mode==='choice'?2:1)){toast(t('noCards'));return;}
   S.dict={list:shuffle(words,Math.random()+''),idx:0,checked:false,val:'',right:0,ok:false,quiz:{id:qz.id,title:qz.title||t('quizDefTitle')},mode};
   $('#screen').dataset.mode='practice';window.scrollTo(0,0);if(mode==='choice')renderQuizChoice();else renderDictation();};
-H.saveQuizResult=async(quizId,right,total)=>{if(S.preview)return;try{const u=myUid();
+H.saveQuizResult=async(quizId,right,total,log)=>{if(S.preview)return;try{const u=myUid();
   const existing=(S.quizResults||[]).find(x=>x.quiz_id===quizId);
-  const payload={kind:'quizresult',lesson_id:'__quiz__',quiz_id:quizId,uid:u,student_id:S.me.id,student_name:S.me.name||'',score:right,total,completed_at:now()};
+  const payload={kind:'quizresult',lesson_id:'__quiz__',quiz_id:quizId,uid:u,student_id:S.me.id,student_name:S.me.name||'',score:right,total,answers:(log||[]),completed_at:now()};
   if(existing&&existing.id)await DB.update('results',existing.id,payload);else await DB.insert('results',payload);
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
   splitResults(rAll);
