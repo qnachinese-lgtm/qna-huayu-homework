@@ -503,7 +503,8 @@ function renderGrades(){
 }
 
 /* ---------- 動作 ---------- */
-function writeErr(prefix,err){const m=((err&&(err.code||err.message))||'')+'';return prefix+'：'+(/permission|insufficient|unauth/i.test(m)?'登入可能過期了，請按右上角「登出」再重新登入後再試':(m||'發生錯誤'));}
+const RELOGIN_MSG='登入已失效。請「開新分頁」打開教師頁並登入，然後回到這個分頁再按一次儲存（不要重新整理，正在編輯的內容才不會不見）。';
+function writeErr(prefix,err){const m=((err&&(err.code||err.message))||'')+'';return prefix+'：'+(/permission|insufficient|unauth/i.test(m)?RELOGIN_MSG:(m||'發生錯誤'));}
 const H={};
 H.tab=(id)=>{S.tab=id;render();};
 H.logout=()=>{try{if(window.firebase&&firebase.auth&&firebase.apps&&firebase.apps.length)firebase.auth().signOut();}catch(e){}sessionStorage.removeItem('teacher_ok');location.reload();};
@@ -526,7 +527,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),currency:$('#f-cur').value,
     sessions_total:$('#f-sess').value===''?null:Number($('#f-sess').value),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,notes:$('#f-notes').value.trim()};
-  if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?'儲存失敗：登入已失效，請按右上角「登出」再重新登入後再試':('儲存失敗：'+m));}return;}
+  if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
   const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
   if(!email||!pw)return toast('請填 Email 與初始密碼');if(pw.length<6)return toast('初始密碼至少 6 碼');
   if(S.students.some(s=>(s.email||'').toLowerCase()===email))return toast('這個 Email 已被其他學生使用');
@@ -610,7 +611,7 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
       catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('課文音檔上傳失敗：'+(err.message||err));}}}
   const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.audio_url||d.vocab_audio_url);
   const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value};
-  try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?'儲存失敗：登入已失效，請按右上角「登出」再重新登入後再試':('儲存失敗：'+m));}};
+  try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}};
 
 /* ===== 語法點結構化編輯器 ===== */
 let GP=[];const GP_PRESETS=['功能','結構','否定','疑問','用法'];
@@ -897,7 +898,7 @@ function vaRenderPreview(i){const d=DLG[i];if(!d||!d._va)return;const words=vaWo
   const pv=document.getElementById('va-preview-'+i);if(pv)pv.innerHTML='<div class="va-list">'+words.map((w,k)=>{const sg=segs[k]||{s:0,e:0.6};return `<div class="va-row"><span class="va-w">${esc(w)}</span><input class="va-time" type="number" step="0.05" min="0" data-di="${i}" data-k="${k}" data-edge="s" value="${(+sg.s).toFixed(2)}"><span class="va-dash">–</span><input class="va-time" type="number" step="0.05" min="0" data-di="${i}" data-k="${k}" data-edge="e" value="${(+sg.e).toFixed(2)}"><span class="hint">秒</span><button class="btn btn-sm" type="button" data-act="vaPlay" data-id="${i}::${k}">▶ 試聽</button></div>`;}).join('')+'</div>';}
 H.vaRedetect=(i)=>{const d=DLG[i];if(!d||!d._va||!d._va.loud)return;const ms=Number((document.getElementById('va-sens-'+i)||{value:20}).value)/100;const start=Number((document.getElementById('va-trim-'+i)||{value:0}).value)||0;d._va.ms=ms;d._va.start=start;const tv=document.getElementById('va-trim-val-'+i);if(tv)tv.textContent=start.toFixed(1);d._va.segs=_gate(d._va.loud,_thr(d._va.loud),ms,0.12,start);vaRenderPreview(i);};
 H.vaPlay=(key)=>{const p=String(key).split('::');const i=+p[0],k=+p[1];const d=DLG[i];if(!d||!d._va)return;const seg=(d._va.segs||[])[k];if(!seg||!d._va.url)return;const a=window._vaAudio||(window._vaAudio=new Audio());a.ontimeupdate=null;a.src=d._va.url;const go=()=>{try{a.currentTime=seg.s;}catch(_){}a.ontimeupdate=()=>{if(a.currentTime>=seg.e){a.pause();a.ontimeupdate=null;}};a.play().catch(()=>{});};if(a.readyState>=1)go();else a.onloadedmetadata=go;};
-async function ensureAuthFresh(){const u=window.firebase&&firebase.auth&&firebase.auth().currentUser;if(!u)throw new Error('登入已失效，請重新整理頁面（Ctrl+Shift+R）並重新登入後再試');try{await u.getIdToken(true);}catch(e){throw new Error('登入已失效，請重新整理並重新登入後再試');}}
+async function ensureAuthFresh(){const u=window.firebase&&firebase.auth&&firebase.auth().currentUser;if(!u)throw new Error(RELOGIN_MSG);try{await u.getIdToken(true);}catch(e){throw new Error(RELOGIN_MSG);}}
 async function uploadVocabAudio(file){await ensureAuthFresh();const ext=((file.name.split('.').pop())||'mp3').replace(/[^a-z0-9]/gi,'')||'mp3';const ref=firebase.storage().ref('vocab_audio/'+Date.now()+'_'+Math.random().toString(16).slice(2)+'.'+ext);await ref.put(file);return await ref.getDownloadURL();}
 /* ===== 課文逐句切割（用對話朗讀檔，學生逐句跟讀播真人聲音） ===== */
 function dlgSentences(i){const t=document.querySelector('.dlg-content-in[data-i="'+i+'"]');const txt=t?t.value:((DLG[i]&&DLG[i].content)||'');return (txt||'').replace(/\r/g,'').split('\n').flatMap(line=>(line.match(/[^。！？!?；;]+[。！？!?；;]*/g)||[])).map(s=>s.trim()).filter(s=>s&&/[㐀-鿿]/.test(s));}
@@ -984,8 +985,14 @@ $('#gate-forgot').addEventListener('click',forgot);
 $('#gate-pw').addEventListener('keydown',e=>{if(e.key==='Enter')tryLogin();});
 $('#stu-search').addEventListener('input',e=>{S.q=e.target.value.trim();renderStudents();});
 boot();
-if(useAuth){firebase.auth().onAuthStateChanged(function(user){if(user&&(user.email||'').toLowerCase()===TEACHER_EMAIL){if($('#app').classList.contains('hide'))enter();}});}
+function authBanner(show){let b=document.getElementById('auth-warn');if(show){if(!b){b=document.createElement('div');b.id='auth-warn';b.className='auth-warn';b.innerHTML='⚠️ 登入已失效，目前無法儲存。請<b>開新分頁登入教師頁</b>，再回到這個分頁按一次儲存（<u>不要重新整理</u>，正在編輯的內容才不會不見）。 <button class="btn btn-sm" data-act="reloginTab">開新分頁登入</button>';document.body.insertBefore(b,document.body.firstChild);}}else if(b){b.remove();}}
+H.reloginTab=()=>{window.open('teacher.html','_blank');};
+if(useAuth){firebase.auth().onAuthStateChanged(function(user){const ok=user&&(user.email||'').toLowerCase()===TEACHER_EMAIL;
+  if(ok){authBanner(false);if($('#app').classList.contains('hide'))enter();}
+  else if(!$('#app').classList.contains('hide')){authBanner(true);}});}
 else{if(sessionStorage.getItem('teacher_ok')==='1')enter();}
+// 保持登入新鮮：每 18 分鐘刷新一次 token，避免長時間編輯後突然無法儲存
+setInterval(function(){try{const u=window.firebase&&firebase.auth&&firebase.auth().currentUser;if(u)u.getIdToken(true).catch(function(){});}catch(e){}},18*60*1000);
 if('serviceWorker'in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
 </script>
 </body>
