@@ -164,7 +164,7 @@ async function loadAll(){
   S.lessons=b.filter(x=>x.kind!=='quiz');S.quizzes=b.filter(x=>x.kind==='quiz');
   splitResults(d);
 }
-function splitResults(d){d=d||[];S.results=d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');}
+function splitResults(d){d=d||[];S.results=d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');}
 function openModal(h){$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
 function closeModal(){$('#modal-root').innerHTML='';}
 
@@ -232,6 +232,8 @@ function renderDashboard(){
   pendList.forEach(r=>{const st=S.students.find(x=>x.id===r.student_id),l=S.lessons.find(x=>x.id===r.lesson_id);inbox.push({tag:'作業',name:(st&&st.name)||'學生',sub:l?((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'')):'（課文）',extra:'',btn:`<button class="btn btn-sm btn-accent" data-act="tab" data-id="grades">去批改</button>`,ts:r.completed_at||r.updated_at||''});});
   sentPend.forEach(sd=>{inbox.push({tag:'造句',name:sentName(sd),sub:sentLessonName(sd),extra:(sd.items||[]).filter(it=>it.sentence).length+' 句',btn:`<button class="btn btn-sm btn-accent" data-act="reviewSent" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
   discPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};inbox.push({tag:'問題與討論',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）'),extra:Object.keys(sd.answers||{}).length+' 題',btn:`<button class="btn btn-sm btn-accent" data-act="reviewDisc" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
+  const shadowPend=(S.shadows||[]).filter(x=>x.status==='submitted');
+  shadowPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.shadow_lesson)||{};const cnt=(sd.sents||[]).filter(s=>s&&s.audio_url).length;inbox.push({tag:'逐句跟讀',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）')+(sd.dlg_title?(' · '+sd.dlg_title):''),extra:cnt+' 句錄音',btn:`<button class="btn btn-sm btn-accent" data-act="reviewShadow" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
   inbox.sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
   const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"><span class="badge badge-soon">${it.tag}</span><b>${esc(it.name)}</b><span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
   body.innerHTML=`<div class="card"><div class="lesson-label">📥 待批改收件匣${inbox.length?'（'+inbox.length+'）':''}</div>${inboxHtml}</div>
@@ -567,6 +569,30 @@ H.saveDiscReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(
   const ts=new Date().toISOString();const patch={feedback,overall,status:done?'reviewed':(sd.status||'submitted'),reviewed_at:ts};
   try{await DB.update('results',id,patch);const i=S.discussions.findIndex(x=>x.id===id);if(i>=0)S.discussions[i]=Object.assign({},sd,patch);
     closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
+  }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
+H.reviewShadow=(id)=>{const sd=(S.shadows||[]).find(x=>x.id===id);if(!sd)return;
+  const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
+  const l=S.lessons.find(x=>x.id===sd.shadow_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'')+(sd.dlg_title?(' · '+sd.dlg_title):'');
+  const fb=sd.feedback||{};const sents=Array.isArray(sd.sents)?sd.sents:[];
+  const scored=sents.filter(s=>typeof s.score==='number');const avg=scored.length?Math.round(scored.reduce((a,s)=>a+s.score,0)/scored.length):null;
+  let rows='';sents.forEach((s,i)=>{const sc=(typeof s.score==='number')?s.score:null;const scCls=sc==null?'':sc>=80?'gd-ok':sc>=50?'badge badge-soon':'gd-no';
+    const scTag=sc==null?'<span class="hint">無自動分數</span>':`<span class="${scCls}">🎯 ${sc}%</span>`;
+    rows+=`<div class="srev-item"><div class="srev-word">${esc(s.t||'')}</div>`+
+      (s.audio_url?`<audio controls preload="none" src="${esc(s.audio_url)}" style="width:100%;margin:6px 0"></audio>`:'<div class="muted">（未錄音）</div>')+
+      `<div class="hint" style="margin:2px 0 6px">${scTag}${s.tr?(' · 辨識：'+esc(s.tr)):''}</div>`+
+      `<textarea class="shrev-fb" data-k="${i}" rows="2" placeholder="給這一句的建議（可留空，學生會看到）">${esc(fb[i]||'')}</textarea></div>`;});
+  if(!rows)rows='<div class="muted">（沒有錄音內容）</div>';
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>🗣 逐句跟讀批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${avg!=null?(' ｜ 自動平均 '+avg+'%（僅供你參考，學生看不到）'):''}</div>${rows}
+   <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="shrev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea></div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveShadowReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveShadowReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
+H.saveShadowReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.shadows||[]).find(x=>x.id===id);if(!sd)return;
+  const feedback={};document.querySelectorAll('.shrev-fb').forEach(el=>{const v=(el.value||'').trim();if(v)feedback[el.dataset.k]=v;});
+  const ov=document.getElementById('shrev-overall');const overall=ov?(ov.value||'').trim():'';
+  if(b){b.disabled=true;b.textContent='儲存中…';}
+  const ts=new Date().toISOString();const patch={feedback,overall,status:done?'reviewed':(sd.status||'submitted'),reviewed_at:ts};
+  try{await DB.update('results',id,patch);const i=S.shadows.findIndex(x=>x.id===id);if(i>=0)S.shadows[i]=Object.assign({},sd,patch);
+    closeModal();render();toast(done?'已批改，學生可看到回饋':'已儲存建議');
   }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
 H.newQuiz=()=>{
   const grp={},gorder=[];sortLessons(S.lessons).forEach(l=>{const tb=(l.textbook||'').trim()||'（未分類教材）';if(!grp[tb]){grp[tb]=[];gorder.push(tb);}grp[tb].push(l);});
