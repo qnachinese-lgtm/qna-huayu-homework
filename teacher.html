@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1F6F78">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>教師管理 · 華語線上作業簿</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -123,7 +127,8 @@ function sessionsUsed(s){
       const end=new Date(cur);if(r.e){const p=r.e.split(':');end.setHours(+p[0]||23,+p[1]||59,0,0);}else end.setHours(23,59,0,0);if(end<=now)count++;});
     cur.setDate(cur.getDate()+1);}
   return count;}
-function sessionsLeft(s){if(!s||s.sessions_total==null||s.sessions_total==='')return null;const tot=Number(s.sessions_total);if(isNaN(tot))return null;return tot-sessionsUsed(s);}
+function classAttended(s){return Array.isArray(s&&s.class_log)?s.class_log.filter(e=>e&&e.status!=='leave').length:null;}
+function sessionsLeft(s){if(!s||s.sessions_total==null||s.sessions_total==='')return null;const tot=Number(s.sessions_total);if(isNaN(tot))return null;const att=classAttended(s);return tot-(att!=null?att:sessionsUsed(s));}
 function sessChip(s){const left=sessionsLeft(s);if(left==null)return '';const cls=left<=0?'sess-out':(left<=1?'sess-low':'');return `<span>🎟️ 堂數：<b class="${cls}">剩 ${left}／共 ${esc(String(s.sessions_total))}</b>${left<=0?' <span class="badge badge-overdue">需續費</span>':''}</span>`;}
 const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
 function avColor(s){let h=0;for(const c of (s||''))h=(h*31+c.charCodeAt(0))>>>0;return AV[h%AV.length];}
@@ -225,6 +230,7 @@ function renderStudents(){
       <div><div class="name">${esc(s.name)}</div>
         <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap"><span class="tag accent">${esc(s.class_type||'1對1')}</span>${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}</div></div></div>
       <div class="actions"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
+        <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">🗓 上課記錄</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
         <button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button></div></div>
     <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(fmtSchedule(s))}</b></span>
@@ -280,6 +286,7 @@ function lessonCardHtml(l,i){try{
         <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button>
         <button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題（${qn}）</button>
         <button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button>
+        <button class="btn btn-sm" data-act="printWorksheet" data-id="${l.id}">🖨 作業卷</button>
         <button class="btn btn-sm" data-act="assign" data-id="${l.id}">指派${an?`（${an}）`:''}</button>
         ${an?`<button class="btn btn-sm btn-warn" data-act="unassign" data-id="${l.id}">↩ 收回</button>`:''}
         <button class="btn btn-sm" data-act="dupLesson" data-id="${l.id}">📋 複製</button>
@@ -533,6 +540,37 @@ H.bookFilter=(id)=>{S.bookFilter=id;renderLessons();};
 H.toggleCard=(id)=>{if(S.openCards.has(id))S.openCards.delete(id);else S.openCards.add(id);renderLessons();};
 H.toggleBuild=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;const nv=l.build==='done'?'wip':'done';try{await DB.update('lessons',id,{build:nv});l.build=nv;renderLessons();toast(nv==='done'?'✅ 已標記「完成」':'🟡 已改回「進行中」');}catch(e){toast(writeErr('更新失敗',e));}};
 H.previewLesson=(id)=>{window.open('student.html?preview='+encodeURIComponent(id),'_blank');};
+H.printWorksheet=(lid)=>{const l=S.lessons.find(x=>x.id===lid);if(!l)return;const qs=sortQuestionsLogical(questionsOf(lid));
+  const e2=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let secKey=null,secN=0,body='';
+  qs.forEach(q=>{const k=qSecKey(q);
+    if(k!==secKey){secKey=k;secN=0;const gpTag=(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?('語法 '+(q.gp_index+1)+(q.gp_sub?(' · '+e2((q.gp_sub||'').trim())):'')):'';if(gpTag)body+=`<h3 class="sec">${gpTag}</h3>`;}
+    if(q.type==='note'){body+=`<div class="note">${e2(q.prompt).replace(/\n/g,'<br>')}</div>`;return;}
+    secN++;const num=`<span class="num">${secN}.</span>`;const instr=q.instruction?`<div class="instr">${e2(q.instruction)}</div>`:'';
+    const pic=q.image_url?`<div><img src="${e2(q.image_url)}" style="max-width:260px;max-height:200px;border:1px solid #ccc"></div>`:'';
+    let qb='';
+    if(q.type==='choice')qb=`${instr}<div class="q">${num}${e2(q.prompt)}</div>${pic}<ol class="opts">${(q.options||[]).map(o=>`<li>${e2(o)}</li>`).join('')}</ol>`;
+    else if(q.type==='fill')qb=`${instr}<div class="q">${num}${e2((q.prompt||'').replace(/[_＿]{2,}/g,'＿＿＿＿＿'))}</div>${pic}`;
+    else if(q.type==='order')qb=`${instr}<div class="q">${num}重組：${e2((q.options||[]).join('／'))}</div><div class="bl"></div>`;
+    else if(q.type==='match')qb=`${instr}<div class="q">${num}配對</div><div class="q">${(q.options||[]).map(p=>e2(p.l)).join('　　')}<br>${(q.options||[]).map(p=>e2(p.r)).join('　　')}</div><div class="bl"></div>`;
+    else qb=`${instr}<div class="q">${num}${e2(q.prompt)}</div>${pic}<div class="bl"></div>`;
+    const ans=Array.isArray(q.answer)?q.answer.join('／'):'';
+    body+=`<div class="item">${qb}${ans?`<div class="ans">答案：${e2(ans)}</div>`:''}</div>`;});
+  const title=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'作業卷');
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+e2(title)+' · 作業卷</title><style>'
+   +'body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;color:#1a1a1a;max-width:760px;margin:0 auto;padding:24px;line-height:1.9}'
+   +'.bar{position:sticky;top:0;background:#fff;border-bottom:1px solid #ccc;padding:10px 0;margin-bottom:16px;display:flex;gap:14px;align-items:center}'
+   +'h1{font-size:22px;margin:0 0 2px}.hm{color:#666;font-size:13px}.name-row{margin:12px 0 18px;font-size:15px}'
+   +'h3.sec{background:#eef3f3;color:#1F6F78;padding:4px 10px;border-radius:6px;font-size:15px;margin:22px 0 10px}'
+   +'.item{margin:0 0 16px;page-break-inside:avoid}.q{font-size:16px}.num{font-weight:700;margin-right:6px}'
+   +'.instr{color:#1F6F78;font-size:14px;margin-bottom:3px}.opts{margin:4px 0 0 20px}.opts li{margin:2px 0}'
+   +'.bl{height:50px;border-bottom:1px dashed #bbb;margin-top:8px}.note{background:#f5f1ea;border-left:3px solid #1F6F78;padding:8px 12px;border-radius:6px;margin:8px 0}'
+   +'.ans{color:#b00;font-size:14px;margin-top:3px;display:none}body.show-ans .ans{display:block}'
+   +'@media print{.bar{display:none}body{padding:0}}</style></head><body>'
+   +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><label><input type="checkbox" onchange="document.body.classList.toggle(\'show-ans\',this.checked)"> 顯示答案（老師版）</label></div>'
+   +'<h1>'+e2(title)+'</h1><div class="hm">'+e2(l.textbook||'')+'</div><div class="name-row">姓名：＿＿＿＿＿＿　日期：＿＿＿＿＿＿</div>'
+   +(body||'<div>這一課還沒有題目。</div>')+'</body></html>';
+  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
 H.dlgAutoPinyin=(i)=>{if(!window.pinyinPro){toast('拼音元件還在載入，請稍候再按一次');return;}
   const ta=document.querySelector('.dlg-vocab-in[data-i="'+i+'"]');if(!ta)return;let n=0;
   const out=ta.value.split('\n').map(line=>{const raw=line;if(!line.trim()||/[\[【]/.test(line))return raw;
@@ -809,6 +847,26 @@ H.payAdd=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const da
 H.payDel=async(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;if(!confirm('刪除這筆繳費紀錄？'))return;
   const payments=(s.payments||[]).slice();const removed=payments.splice(i,1)[0];const patch={payments};if(removed&&removed.sessions){patch.sessions_total=Math.max(0,(Number(s.sessions_total)||0)-removed.sessions);}
   try{await DB.update('students',id,patch);await loadAll();H.payments(id);render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
+H.classLog=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;
+  const log=(Array.isArray(s.class_log)?s.class_log:[]);const sorted=log.map((e,idx)=>({e,idx})).sort((a,b)=>(b.e.date||'').localeCompare(a.e.date||''));
+  const att=classAttended(s)||0;const left=sessionsLeft(s);
+  const rows=sorted.length?sorted.map(({e,idx})=>`<div class="dash-row"><span class="badge ${e.status==='leave'?'badge-overdue':'badge-ok'}">${e.status==='leave'?'請假':'出席'}</span><b>${esc(e.date||'')}</b><span class="grow">${esc(e.note||'')}</span><button class="btn btn-sm btn-danger" type="button" data-act="delClassLog" data-id="${id}::${idx}">✕</button></div>`).join(''):'<div class="hint" style="padding:8px 0">還沒有上課記錄。</div>';
+  openModal(`<div class="modal"><div class="modal-head"><h3>${esc(s.name)} · 上課記錄</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="meta" style="margin-bottom:10px"><span>本期：共 <b>${esc(String(s.sessions_total??'—'))}</b> 堂 · 已上 <b>${att}</b> 堂 · 還剩 <b class="${left!=null&&left<=1?'sess-low':''}">${left==null?'—':left}</b> 堂</span></div>
+     <div style="margin-bottom:6px">${rows}</div>
+     <div class="form-grid" style="margin-top:10px">
+       <div class="field"><label>日期</label><input id="cl-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+       <div class="field"><label>狀態</label><select id="cl-status"><option value="attended">出席（扣 1 堂）</option><option value="leave">請假（不扣堂）</option></select></div>
+       <div class="field full"><label>備註 <span class="hint">選填</span></label><input id="cl-note" type="text" placeholder="例：第一課對話、補課…"></div>
+     </div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><button class="btn btn-primary" data-act="addClassLog" data-id="${id}">＋ 記錄這一堂</button></div></div>`);};
+H.addClassLog=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const date=$('#cl-date').value;if(!date)return toast('請選日期');
+  const entry={date,status:$('#cl-status').value,note:$('#cl-note').value.trim()};const log=(Array.isArray(s.class_log)?s.class_log:[]).concat([entry]);
+  try{await DB.update('students',id,{class_log:log});await loadAll();H.classLog(id);render();toast('已記錄這一堂');}catch(e){toast(writeErr('記錄失敗',e));}};
+H.delClassLog=async(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s||!Array.isArray(s.class_log))return;if(!confirm('刪除這筆上課記錄？'))return;
+  const log=s.class_log.slice();log.splice(i,1);
+  try{await DB.update('students',id,{class_log:log});await loadAll();H.classLog(id);render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.pickAudio=(id)=>{const f=document.getElementById('file-'+id);if(f)f.click();};
 /* ===== 生字音檔自動切割 ===== */
 function vaReset(){}
@@ -928,6 +986,7 @@ $('#stu-search').addEventListener('input',e=>{S.q=e.target.value.trim();renderSt
 boot();
 if(useAuth){firebase.auth().onAuthStateChanged(function(user){if(user&&(user.email||'').toLowerCase()===TEACHER_EMAIL){if($('#app').classList.contains('hide'))enter();}});}
 else{if(sessionStorage.getItem('teacher_ok')==='1')enter();}
+if('serviceWorker'in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
 </script>
 </body>
 </html>

@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1F6F78">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>學習者平台 · 華語線上作業簿</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -314,6 +318,7 @@ let responses={},SHUF={},GRADE=null,AUTOSAVE=null;
 const myLessons=()=>S.lessons.filter(l=>(l.assigned_ids||[]).includes(S.me.id)).sort((a,b)=>((a.order_index||0)-(b.order_index||0))||((a.created_at||'').localeCompare(b.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const answerableOf=(lid)=>questionsOf(lid).filter(q=>q.type!=='note'); // 排除示範題（不用作答、不計分）
+function myLeft(){const s=S.me;if(!s||s.sessions_total==null||s.sessions_total==='')return null;const att=Array.isArray(s.class_log)?s.class_log.filter(e=>e&&e.status!=='leave').length:0;return Number(s.sessions_total)-att;}
 const resultOf=(lid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===S.me.id);
 function wrongQuestions(){const out=[],seen=new Set();
   S.results.forEach(r=>{if(r.status==='draft')return;const ans=r.answers||{};Object.keys(ans).forEach(qid=>{if(seen.has(qid))return;const q=S.questions.find(x=>x.id===qid);if(q&&!isManualQ(q)&&!isCorrect(q,ans[qid])){out.push(q);seen.add(qid);}});});
@@ -394,8 +399,10 @@ function renderWork(){
   let overdue=0,soon=0;ls.forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});
   const fbN=ls.filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
   const nbp=[];if(overdue)nbp.push(`<span class="nb-item over">⏰ ${overdue} 份逾期</span>`);if(soon)nbp.push(`<span class="nb-item soon">📅 ${soon} 份快到期</span>`);if(fbN)nbp.push(`<button class="nb-item fb" data-act="section" data-id="grades">💬 老師有 ${fbN} 則建議</button>`);
+  if((overdue||soon)&&('Notification'in window)&&Notification.permission==='default')nbp.push('<button class="nb-item" data-act="enableNotify">🔔 開啟提醒</button>');
   const nb=nbp.length?`<div class="notify-bar">${nbp.join('')}</div>`:'';
-  $('#screen').innerHTML=banner+nb+'<div class="cards">'+ls.map((l,i)=>{
+  const left=myLeft();const sessCard=left!=null?`<div class="sess-line">🎟️ 本期還剩 <b>${left}</b> 堂${left<=0?' <span class="badge badge-overdue">已用完</span>':(left<=1?' <span class="badge badge-soon">快用完了</span>':'')}</div>`:'';
+  $('#screen').innerHTML=banner+sessCard+nb+'<div class="cards">'+ls.map((l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
@@ -740,7 +747,7 @@ document.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&e.target&&e.target
 async function enter(me){S.me=me;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');
   applyChrome();
-  try{await loadMine();await loadProgress();S.section='work';renderSection();}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}}
+  try{await loadMine();await loadProgress();S.section='work';renderSection();setTimeout(notifyDue,1200);}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}}
 function showGate(msg){S.me=null;$('#app').classList.add('hide');$('#gate').classList.remove('hide');renderGate();if(msg){const e=$('#g-err');if(e)e.textContent=msg;}}
 const PREVIEW_LID=new URLSearchParams(location.search).get('preview');
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;
@@ -752,6 +759,11 @@ async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=t
   const sc=$('#screen');if(sc){const bn=document.createElement('div');bn.className='preview-bar';bn.textContent='👁 預覽模式：這是學生看到的畫面（作答不會儲存）';sc.insertBefore(bn,sc.firstChild);}
 }
 
+/* ---- PWA：到期本地通知 ---- */
+function dueCounts(){let overdue=0,soon=0;try{myLessons().filter(l=>answerableOf(l.id).length).forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});}catch(e){}return{overdue,soon};}
+function notifyDue(){try{if(!('Notification'in window)||Notification.permission!=='granted')return;const d=dueCounts();if(!d.overdue&&!d.soon)return;const body=(d.overdue?('有 '+d.overdue+' 份作業已逾期。'):'')+(d.soon?('有 '+d.soon+' 份作業快到期。'):'');new Notification('華語作業簿',{body,icon:'icon-192.png'});}catch(e){}}
+H.enableNotify=()=>{if(!('Notification'in window)){toast('此瀏覽器不支援通知');return;}Notification.requestPermission().then(p=>{if(p==='granted'){toast('已開啟提醒');notifyDue();}renderSection();});};
+if('serviceWorker'in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
 initConv();
 applyTheme();
 document.body.classList.toggle('lang-cn',S.lang==='cn');
