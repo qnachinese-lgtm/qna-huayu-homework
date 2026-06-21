@@ -221,7 +221,7 @@ function renderDashboard(){
   const sentHtml=sentPend.length?sentPend.map(sd=>`<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc(sentName(sd))}</b><span class="muted">${esc(sentLessonName(sd))}</span><span class="grow"></span><span class="muted">${(sd.items||[]).filter(it=>it.sentence).length} 句</span><button class="btn btn-sm btn-accent" data-act="reviewSent" data-id="${sd.id}">批改</button></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的造句 👍</div>`;
   // 隨堂小考
   const quizScore=(qid,sid)=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qid&&x.student_id===sid);return r?(r.score+'/'+r.total):null;};
-  const quizSrcName=qz=>{const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.textbook?('【'+l.textbook+'】'):'')+(l.order_index?('第'+l.order_index+'課'):'')+(l.title?(' '+l.title):'');};
+  const quizSrcName=qz=>{if(qz.mode==='custom'){const n=(qz.quiz_items||'').split('\n').filter(s=>/[=＝]/.test(s)).length;return '自訂題目（'+n+' 題）';}const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.textbook?('【'+l.textbook+'】'):'')+(l.order_index?('第'+l.order_index+'課'):'')+(l.title?(' '+l.title):'');};
   const QM={dict:'聽寫',pinyin:'看拼音寫字',mean:'看意思寫字',choice:'看字選意思',cloze:'看例句填生詞'};
   const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return `<span class="badge ${sc?'badge-ok':'badge-pending'}">${esc(s.name)}：${sc||'未考'}</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未指派</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
   // 問題與討論批改
@@ -575,8 +575,9 @@ H.newQuiz=()=>{
   openModal(`<div class="modal"><div class="modal-head"><h3>📝 建立隨堂聽寫小考</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>名稱</label><input id="quiz-title" type="text" value="隨堂小考"></div>
-     <div class="field"><label>題型</label><select id="quiz-mode"><option value="dict">聽寫（聽真人發音／機器音寫字）</option><option value="pinyin">看拼音寫字</option><option value="mean">看意思寫字</option><option value="choice">看字選意思（選擇題）</option><option value="cloze">看例句填生詞（克漏字，需生詞有例句）</option></select></div>
-     <div class="field"><label>考哪一課的生詞</label><select id="quiz-lesson">${lessonOpts||'<option value="">（還沒有課文）</option>'}</select></div>
+     <div class="field"><label>題型</label><select id="quiz-mode"><option value="dict">聽寫（聽真人發音／機器音寫字）</option><option value="pinyin">看拼音寫字</option><option value="mean">看意思寫字</option><option value="choice">看字選意思（選擇題）</option><option value="cloze">看例句填生詞（克漏字，需生詞有例句）</option><option value="custom">✍️ 自訂題目（自己出題，跟生詞無關）</option></select></div>
+     <div class="field"><label>考哪一課的生詞 <span class="hint">（自訂題目可不選）</span></label><select id="quiz-lesson"><option value="">（自訂題目時不用選）</option>${lessonOpts}</select></div>
+     <div class="field"><label>自訂題目 <span class="hint">選「✍️ 自訂題目」時用這裡。一行一題，格式 <b>題目＝答案</b>；可接受多個答案用 <b>/</b> 隔開。學生看題目、打答案、自動對。</span></label><textarea id="quiz-items" placeholder="「謝謝」要怎麼回應？＝不客氣&#10;banana 的中文＝香蕉&#10;我＿＿喜歡喝茶。＝很/真的"></textarea></div>
      <div class="field"><label>指派給</label><div style="margin-top:4px">${studentChecks||'<span class="muted">還沒有學生</span>'}</div></div>
      <div class="hint">學生會在「作業」頁看到這個小考，作答後系統自動計分、分數回傳給你。</div>
    </div>
@@ -586,10 +587,12 @@ H.saveQuiz=async()=>{
   const src=$('#quiz-lesson')?$('#quiz-lesson').value:'';
   const ids=[...document.querySelectorAll('.quiz-stu:checked')].map(c=>c.value);
   const mode=$('#quiz-mode')?$('#quiz-mode').value:'dict';
-  if(!src){toast('請選一課');return;}
+  const items=($('#quiz-items')&&$('#quiz-items').value)||'';
+  if(mode==='custom'){if(!items.split('\n').some(l=>/[=＝]/.test(l))){toast('請至少輸入一題，格式「題目＝答案」');return;}}
+  else if(!src){toast('請選一課');return;}
   if(!ids.length){toast('請至少指派一位學生');return;}
   const btn=document.querySelector('[data-act="saveQuiz"]');if(btn){btn.disabled=true;btn.textContent='建立中…';}
-  try{await DB.insert('lessons',{kind:'quiz',title,source_lesson:src,mode,assigned_ids:ids,created_at:new Date().toISOString()});
+  try{await DB.insert('lessons',{kind:'quiz',title,source_lesson:(mode==='custom'?'':src),mode,quiz_items:(mode==='custom'?items:''),assigned_ids:ids,created_at:new Date().toISOString()});
     const all=await DB.list('lessons');S.lessons=all.filter(x=>x.kind!=='quiz');S.quizzes=all.filter(x=>x.kind==='quiz');
     closeModal();render();toast('已建立隨堂小考');
   }catch(e){if(btn){btn.disabled=false;btn.textContent='建立';}toast(writeErr('建立失敗',e));}};
