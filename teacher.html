@@ -142,7 +142,7 @@ function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
 function emptyHtml(i,t,d){return `<div class="empty"><div class="big">${i}</div><b>${t}</b><div style="margin-top:6px">${d}</div></div>`;}
 const TYPE_LABELS={choice:'單選',fill:'填空',qa:'問答',order:'重組',match:'配對',write:'手寫',speak:'口說',note:'示範'};
 
-const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],tab:'dashboard',q:'',openCards:new Set()};
+const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],tab:'dashboard',q:'',openCards:new Set()};
 const sortLessons=(a)=>a.slice().sort((x,y)=>((x.order_index||0)-(y.order_index||0))||((x.created_at||'').localeCompare(y.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const answerableOf=(lid)=>questionsOf(lid).filter(q=>q.type!=='note'); // 排除示範題（不計分）
@@ -162,10 +162,9 @@ async function loadAll(){
   const [a,b,c,d]=await Promise.all([DB.list('students'),DB.list('lessons'),DB.list('questions'),DB.list('results')]);
   S.students=a;S.questions=c;
   S.lessons=b.filter(x=>x.kind!=='quiz');S.quizzes=b.filter(x=>x.kind==='quiz');
-  S.results=d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult');
-  S.sentences=d.filter(x=>x.kind==='sentence');
-  S.quizResults=d.filter(x=>x.kind==='quizresult');
+  splitResults(d);
 }
+function splitResults(d){d=d||[];S.results=d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');}
 function openModal(h){$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
 function closeModal(){$('#modal-root').innerHTML='';}
 
@@ -224,8 +223,12 @@ function renderDashboard(){
   const quizScore=(qid,sid)=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qid&&x.student_id===sid);return r?(r.score+'/'+r.total):null;};
   const quizSrcName=qz=>{const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.order_index?('第'+l.order_index+'課'):'')+(l.title?(' '+l.title):'');};
   const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return `<span class="badge ${sc?'badge-ok':'badge-pending'}">${esc(s.name)}：${sc||'未考'}</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂聽寫小考')}</b><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未指派</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
+  // 問題與討論批改
+  const discPend=(S.discussions||[]).filter(x=>x.status==='submitted');
+  const discHtml=discPend.length?discPend.map(sd=>`<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc(sentName(sd))}</b><span class="muted">${esc((()=>{const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');})())}</span><span class="grow"></span><span class="muted">${Object.keys(sd.answers||{}).length} 題</span><button class="btn btn-sm btn-accent" data-act="reviewDisc" data-id="${sd.id}">批改</button></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的問題與討論 👍</div>`;
   body.innerHTML=`<div class="card"><div class="lesson-label">📥 批改提醒${pendList.length?'（'+pendList.length+'）':''}</div>${gradeHtml}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">✍️ 造句批改${sentPend.length?'（'+sentPend.length+'）':''}</div>${sentHtml}</div>
+    <div class="card" style="margin-top:14px"><div class="lesson-label">💬 問題與討論批改${discPend.length?'（'+discPend.length+'）':''}</div>${discHtml}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">📝 隨堂小考</div><div class="quiz-create-row"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button><span class="muted">選一課的生詞，指派學生做聽寫，自動計分</span></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):''}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">💳 付款提醒</div>${payHtml}</div>
     <div class="card" style="margin-top:14px"><div class="lesson-label">🎟️ 堂數提醒</div>${sessHtml}</div>
@@ -539,6 +542,24 @@ H.saveSentReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(
   try{await DB.update('results',id,patch);const i=S.sentences.findIndex(x=>x.id===id);if(i>=0)S.sentences[i]=Object.assign({},sd,patch);
     closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
   }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
+H.reviewDisc=(id)=>{const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)return;
+  const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
+  const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
+  const fb=sd.feedback||{},ans=sd.answers||{};const blocks=Array.isArray(l.dialogues)?l.dialogues:[];
+  let rows='';blocks.forEach((d,di)=>{const qs=(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean);qs.forEach((q,qi)=>{const key=di+'_'+qi;const a=ans[key]||'';rows+=`<div class="srev-item"><div class="srev-word">${esc(q)}</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div><textarea class="drev-fb" data-k="${esc(key)}" rows="2" placeholder="給這一題的建議（可留空）">${esc(fb[key]||'')}</textarea></div>`;});});
+  if(!rows)rows='<div class="muted">（這一課目前沒有問題與討論，或題目已被修改）</div>';
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>💬 問題與討論批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}</div>${rows}
+   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="drev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea></div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveDiscReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveDiscReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
+H.saveDiscReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)return;
+  const feedback={};document.querySelectorAll('.drev-fb').forEach(el=>{const v=(el.value||'').trim();if(v)feedback[el.dataset.k]=v;});
+  const ov=document.getElementById('drev-overall');const overall=ov?(ov.value||'').trim():'';
+  if(b){b.disabled=true;b.textContent='儲存中…';}
+  const ts=new Date().toISOString();const patch={feedback,overall,status:done?'reviewed':(sd.status||'submitted'),reviewed_at:ts};
+  try{await DB.update('results',id,patch);const i=S.discussions.findIndex(x=>x.id===id);if(i>=0)S.discussions[i]=Object.assign({},sd,patch);
+    closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
+  }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
 H.newQuiz=()=>{
   const lessonOpts=sortLessons(S.lessons).map(l=>`<option value="${l.id}">${esc((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（未命名）'))}</option>`).join('');
   const studentChecks=S.students.map(s=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 12px 8px 0"><input type="checkbox" class="quiz-stu" value="${s.id}"> ${esc(s.name)}</label>`).join('');
@@ -666,7 +687,7 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
     if(d._la&&d._la.file){if(sbtn){sbtn.disabled=true;sbtn.textContent='上傳課文音檔…';}
       try{d.audio_url=await uploadVocabAudio(d._la.file);d.line_segments=d._la.segs||[];d._la=null;}
       catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('課文音檔上傳失敗：'+(err.message||err));}}}
-  const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.audio_url||d.vocab_audio_url);
+  const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',discussion:(d.discussion||'').trim(),audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.discussion||d.audio_url||d.vocab_audio_url);
   const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value};
   try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}};
 
@@ -760,7 +781,7 @@ H.gpBlockDel=(key)=>{gpSync();const p=String(key).split('::');const gi=Number(p[
 let DLG=[];const DLG_CN=['一','二','三','四','五','六','七','八'];
 function dlgInit(l){let arr;
   if(l&&Array.isArray(l.dialogues)&&l.dialogues.length){
-    arr=l.dialogues.map(d=>({title:d.title||'',content:d.content||'',vocabulary:d.vocabulary||'',audio_url:d.audio_url||'',vocab_audio_url:d.vocab_audio_url||'',vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]}));
+    arr=l.dialogues.map(d=>({title:d.title||'',content:d.content||'',vocabulary:d.vocabulary||'',discussion:d.discussion||'',audio_url:d.audio_url||'',vocab_audio_url:d.vocab_audio_url||'',vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]}));
     if(l.vocab_audio_url&&arr[0]&&!arr[0].vocab_audio_url){arr[0].vocab_audio_url=l.vocab_audio_url;arr[0].vocab_segments=l.vocab_segments||[];}}
   else if(l&&(l.content||l.vocabulary||l.audio_url)){arr=[{title:'對話一',content:l.content||'',vocabulary:l.vocabulary||'',audio_url:l.audio_url||'',vocab_audio_url:l.vocab_audio_url||'',vocab_segments:l.vocab_segments||[]}];}
   else{arr=[{title:'對話一',content:'',vocabulary:'',audio_url:'',vocab_audio_url:'',vocab_segments:[]}];}
@@ -769,7 +790,8 @@ function dlgSync(){DLG.forEach((d,i)=>{
   const t=document.querySelector('.dlg-title-in[data-i="'+i+'"]');if(t)d.title=t.value;
   const c=document.querySelector('.dlg-content-in[data-i="'+i+'"]');if(c)d.content=c.value;
   const v=document.querySelector('.dlg-vocab-in[data-i="'+i+'"]');if(v)d.vocabulary=v.value;
-  const a=document.querySelector('.dlg-audio-in[data-i="'+i+'"]');if(a)d.audio_url=a.value;});}
+  const a=document.querySelector('.dlg-audio-in[data-i="'+i+'"]');if(a)d.audio_url=a.value;
+  const q=document.querySelector('.dlg-disc-in[data-i="'+i+'"]');if(q)d.discussion=q.value;});}
 function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)return;
   wrap.innerHTML=DLG.map((d,i)=>`<div class="dlg-card"><div class="dlg-card-head"><span class="gp-no">段 ${i+1}</span>
     <input class="dlg-title-in" data-i="${i}" value="${esc(d.title||'')}" placeholder="標題，例：對話一／短文">
@@ -795,6 +817,8 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
       <label style="font-size:12px;color:var(--muted)">停頓靈敏度（切太多→往左；併在一起→往右）</label>
       <input id="va-sens-${i}" type="range" min="8" max="60" value="20" style="width:100%;display:block"></div>
     <div id="va-preview-${i}" style="margin-top:8px"></div>
+    <label class="dlg-lbl">問題與討論 <span class="hint">每行一題；學生在「課文」會看到這些問題，可選擇打字作答、送出給你批改。</span></label>
+    <textarea class="dlg-disc-in" data-i="${i}" placeholder="一行一題，例：&#10;你週末喜歡做什麼？&#10;請說說你的家人。">${esc(d.discussion||'')}</textarea>
     </div>`).join('')+'<div style="margin-top:8px"><button class="btn btn-sm" type="button" data-act="dlgAdd">＋ 新增對話／段落</button></div>';
   DLG.forEach((d,i)=>{if(d._va&&d._va.loud){const c=document.getElementById('va-controls-'+i);if(c)c.classList.remove('hide');const tr=document.getElementById('va-trim-'+i);if(tr){tr.max=Math.ceil(d._va.loud.dur);tr.value=d._va.start||0;}const tv=document.getElementById('va-trim-val-'+i);if(tv)tv.textContent=(d._va.start||0).toFixed(1);const sl=document.getElementById('va-sens-'+i);if(sl&&d._va.ms)sl.value=Math.round(d._va.ms*100);vaRenderPreview(i);}});}
 H.dlgAdd=()=>{dlgSync();DLG.push({title:'對話'+(DLG_CN[DLG.length]||(DLG.length+1)),content:'',vocabulary:'',audio_url:'',vocab_audio_url:'',vocab_segments:[]});dlgRender();};
@@ -870,10 +894,10 @@ H.saveReview=async(rid)=>{const r=S.results.find(x=>x.id===rid);if(!r)return;
   catch(e){if(btn){btn.disabled=false;btn.textContent='💾 儲存建議';}toast(writeErr('儲存失敗',e));}};
 H.delResult=async(rid)=>{const r=S.results.find(x=>x.id===rid);if(!r)return;const s=S.students.find(x=>x.id===r.student_id);
   if(!confirm('確定刪除「'+((s&&s.name)||'這位學生')+'」這一課的作答記錄？\n此動作無法復原（測試用）。'))return;
-  try{await DB.remove('results',rid);{const _d=await DB.list('results');S.results=_d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult');S.sentences=_d.filter(x=>x.kind==='sentence');S.quizResults=_d.filter(x=>x.kind==='quizresult');}render();toast('已刪除作答記錄');}catch(e){toast(writeErr('刪除失敗',e));}};
+  try{await DB.remove('results',rid);{splitResults(await DB.list('results'));}render();toast('已刪除作答記錄');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.clearLessonResults=async(lid)=>{const rs=S.results.filter(r=>r.lesson_id===lid);if(!rs.length)return toast('這一課還沒有作答記錄');
   if(!confirm('確定清空「本課」所有學生的作答記錄？共 '+rs.length+' 筆，無法復原（測試用）。'))return;
-  try{for(const r of rs)await DB.remove('results',r.id);{const _d=await DB.list('results');S.results=_d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult');S.sentences=_d.filter(x=>x.kind==='sentence');S.quizResults=_d.filter(x=>x.kind==='quizresult');}render();toast('已清空本課作答記錄');}catch(e){toast(writeErr('清空失敗',e));}};
+  try{for(const r of rs)await DB.remove('results',r.id);{splitResults(await DB.list('results'));}render();toast('已清空本課作答記錄');}catch(e){toast(writeErr('清空失敗',e));}};
 H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>(l.assigned_ids||[]).length);if(!ls.length)return toast('還沒有指派的課文');
   const rows=[['學生','Email','課文','狀態','分數','滿分','完成時間']];
   ls.forEach(l=>{const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const qn=answerableOf(l.id).length;
