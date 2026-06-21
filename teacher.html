@@ -302,6 +302,7 @@ function lessonCardHtml(l,i){try{
       ${open?`<div class="actions" style="margin-top:14px;flex-wrap:wrap">
         <button class="btn btn-sm ${built?'':'btn-accent'}" data-act="toggleBuild" data-id="${l.id}">${built?'↩ 改回進行中':'✅ 標記完成'}</button>
         <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button>
+        ${(l.grammar_points&&l.grammar_points.length)?`<button class="btn btn-sm" data-act="orderLayout" data-id="${l.id}">📐 課文順序</button>`:''}
         <button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題（${qn}）</button>
         <button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button>
         <button class="btn btn-sm" data-act="printWorksheet" data-id="${l.id}">🖨 作業卷</button>
@@ -666,12 +667,31 @@ H.autoOrderQuestions=async(lid)=>{const qs=sortQuestionsLogical(questionsOf(lid)
   catch(err){if(btn){btn.disabled=false;btn.textContent='↕ 自動排序並重編號';}toast(writeErr('排序失敗',err));}};
 H.addLesson=()=>lessonModal(null);
 H.editLesson=(id)=>lessonModal(S.lessons.find(l=>l.id===id));
+let LAYOUT=[],LAYOUT_LID=null;
+function reconcileLayoutT(l){const ds=Array.isArray(l.dialogues)?l.dialogues:[];const nd=ds.length||((l.content||l.vocabulary||l.audio_url)?1:0);const ng=(l.grammar_points||[]).length;const saved=Array.isArray(l.layout)?l.layout:[];
+  const out=[],sd=new Set(),sg=new Set();
+  saved.forEach(e=>{if(!e)return;if(e.t==='d'&&e.i<nd&&!sd.has(e.i)){out.push({t:'d',i:e.i});sd.add(e.i);}else if(e.t==='g'&&e.i<ng&&!sg.has(e.i)){out.push({t:'g',i:e.i});sg.add(e.i);}});
+  for(let i=0;i<nd;i++)if(!sd.has(i))out.push({t:'d',i});
+  for(let i=0;i<ng;i++)if(!sg.has(i))out.push({t:'g',i});
+  return out;}
+function ordLabel(l,e){if(e.t==='d'){const d=(l.dialogues||[])[e.i]||{};return '📖 '+((d.title||'').trim()||('對話'+(e.i+1)));}const g=(l.grammar_points||[])[e.i]||{};return '🔤 語法 '+(e.i+1)+((g.title||'').trim()?('：'+g.title.trim()):'');}
+function ordListHtml(l){return LAYOUT.map((e,idx)=>`<div class="ord-row"><b style="flex:1;min-width:0">${esc(ordLabel(l,e))}</b><button class="btn btn-sm" type="button" data-act="ordUp" data-id="${idx}" ${idx===0?'disabled':''}>↑</button><button class="btn btn-sm" type="button" data-act="ordDown" data-id="${idx}" ${idx===LAYOUT.length-1?'disabled':''}>↓</button></div>`).join('');}
+H.orderLayout=(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;LAYOUT_LID=id;LAYOUT=reconcileLayoutT(l);
+  openModal(`<div class="modal"><div class="modal-head"><h3>📐 課文順序 · ${esc(l.title||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">用 ↑ ↓ 調整對話、短文、語法在課文中的先後順序；學生「課文」就照這個順序呈現（例如：對話→生詞→語法→短文→生詞→語法）。</div>
+     <div id="ord-list">${ordListHtml(l)}</div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-accent" data-act="saveLayout">儲存順序</button></div></div>`);};
+H.ordUp=(idx)=>{idx=Number(idx);if(idx<=0)return;const tmp=LAYOUT[idx];LAYOUT[idx]=LAYOUT[idx-1];LAYOUT[idx-1]=tmp;const l=S.lessons.find(x=>x.id===LAYOUT_LID),c=document.getElementById('ord-list');if(c&&l)c.innerHTML=ordListHtml(l);};
+H.ordDown=(idx)=>{idx=Number(idx);if(idx>=LAYOUT.length-1)return;const tmp=LAYOUT[idx];LAYOUT[idx]=LAYOUT[idx+1];LAYOUT[idx+1]=tmp;const l=S.lessons.find(x=>x.id===LAYOUT_LID),c=document.getElementById('ord-list');if(c&&l)c.innerHTML=ordListHtml(l);};
+H.saveLayout=async()=>{const id=LAYOUT_LID;if(!id)return;const btn=document.querySelector('[data-act="saveLayout"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
+  try{await DB.update('lessons',id,{layout:LAYOUT.map(e=>({t:e.t,i:e.i}))});await loadAll();closeModal();render();toast('已儲存課文順序');}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='儲存順序';}toast(writeErr('儲存失敗',e));}};
 H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!confirm(`確定刪除「${l.title}」？課文題目與成績都會一併刪除。`))return;try{await DB.remove('lessons',id);await loadAll();render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
 H.dupLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!confirm('複製「'+(l.title||'')+'」成一份新課文？（內容、生詞音檔、語法、練習題都會複製；不含指派與學生作答）'))return;
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const btn=document.querySelector('[data-act="dupLesson"][data-id="'+id+'"]');if(btn){btn.disabled=true;btn.textContent='複製中…';}
   const maxOrder=Math.max(0,...S.lessons.map(x=>Number(x.order_index)||0));
-  const copy={order_index:maxOrder+1,title:(l.title||'')+'（複本）',textbook:l.textbook||null,dialogues:l.dialogues||null,content:l.content||null,vocabulary:l.vocabulary||null,audio_url:l.audio_url||null,vocab_audio_url:l.vocab_audio_url||null,vocab_segments:l.vocab_segments||null,grammar_points:l.grammar_points||[],key_points:l.key_points||'',examples:l.examples||'',assigned_ids:[],due_date:null};
+  const copy={order_index:maxOrder+1,title:(l.title||'')+'（複本）',textbook:l.textbook||null,dialogues:l.dialogues||null,content:l.content||null,vocabulary:l.vocabulary||null,audio_url:l.audio_url||null,vocab_audio_url:l.vocab_audio_url||null,vocab_segments:l.vocab_segments||null,grammar_points:l.grammar_points||[],key_points:l.key_points||'',examples:l.examples||'',layout:l.layout||[],assigned_ids:[],due_date:null};
   try{const nl=await DB.insert('lessons',copy);
     const qs=questionsOf(l.id);for(const q of qs){const r=Object.assign({},q);delete r.id;delete r.created_at;r.lesson_id=nl.id;await DB.insert('questions',r);}
     await loadAll();render();toast('已複製為「'+copy.title+'」，可直接編輯');}
@@ -689,7 +709,7 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
       try{d.audio_url=await uploadVocabAudio(d._la.file);d.line_segments=d._la.segs||[];d._la=null;}
       catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('課文音檔上傳失敗：'+(err.message||err));}}}
   const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',discussion:(d.discussion||'').trim(),audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.discussion||d.audio_url||d.vocab_audio_url);
-  const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value};
+  const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[])};
   try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}};
 
 /* ===== 語法點結構化編輯器 ===== */
