@@ -695,15 +695,26 @@ H.printWorksheet=(lid)=>{const l=S.lessons.find(x=>x.id===lid);if(!l)return;cons
    +'<h1>'+e2(title)+'</h1><div class="hm">'+e2(l.textbook||'')+'</div><div class="name-row">姓名：＿＿＿＿＿＿　日期：＿＿＿＿＿＿</div>'
    +(body||'<div>這一課還沒有題目。</div>')+'</body></html>';
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
+/* 臺灣常見讀音修正（與大陸不同者） */
+const TW_PY_T={'期':'qí','究':'jiù','質':'zhí','危':'wéi','企':'qì','暫':'zhàn','攜':'xī','液':'yì','垃':'lè','圾':'sè','蝸':'guā','跌':'dié'};
+function twPyT(han){try{const arr=pinyinPro.pinyin(han,{type:'all',toneType:'symbol'});return arr.map(o=>o.isZh?(TW_PY_T[o.origin]||o.pinyin):o.origin).join(' ');}catch(e){return '';}}
+function stripLatinBr(s){return (s||'').replace(/[\[【]([^\]】]*)[\]】]/g,(m,inner)=>/[㐀-鿿]/.test(inner)?m:'').replace(/\s{2,}/g,' ');}
 H.dlgAutoPinyin=(i)=>{if(!window.pinyinPro){toast('拼音元件還在載入，請稍候再按一次');return;}
   const ta=document.querySelector('.dlg-vocab-in[data-i="'+i+'"]');if(!ta)return;let n=0;
-  const out=ta.value.split('\n').map(line=>{const raw=line;if(!line.trim()||/[\[【]/.test(line))return raw;
+  const out=ta.value.split('\n').map(line=>{const raw=line;if(!line.trim())return raw;
     let front;
     if(/[｜|]/.test(raw)){front=raw.split(/[｜|]/)[0];}
     else{let s=raw.replace(/[（(][^（）()]*[）)]/,' ');if(/[=＝]/.test(s))front=s.split(/[=＝]/)[0];else{const m=s.search(/[：:\s]/);front=(m<0?s:s.slice(0,m));}}
-    const han=(front||'').replace(/[^㐀-鿿]/g,'');if(!han)return raw;let py='';try{py=pinyinPro.pinyin(han,{toneType:'symbol'});}catch(e){return raw;}if(!py)return raw;n++;
-    const idx=raw.indexOf(front);const cut=(idx>=0?idx:0)+front.length;return raw.slice(0,cut).replace(/\s*$/,'')+'['+py+']'+raw.slice(cut);});
-  ta.value=out.join('\n');toast(n?('已為 '+n+' 個詞加上拼音（可再修改）'):'每行都已經有拼音了');};
+    const han=(front||'').replace(/[^㐀-鿿]/g,'');if(!han)return raw;
+    const idx=raw.indexOf(front);const cut=(idx>=0?idx:0)+front.length;const head=raw.slice(0,cut),rest=raw.slice(cut);
+    // 漢字（首欄）裡已含拼音 → 保留，只清掉翻譯/例句裡誤植的拼音
+    if(/[\[【][^\]】]*[\]】]/.test(head)){return head+stripLatinBr(rest);}
+    // 漢字後面緊接著就有拼音 → 保留（老師的臺灣拼音優先），只清掉誤植的
+    if(/^\s*[\[【][^\]】]*[\]】]/.test(rest)){const m2=rest.match(/^(\s*[\[【][^\]】]*[\]】])([\s\S]*)$/);return head+(m2?m2[1]:'')+stripLatinBr(m2?m2[2]:'');}
+    // 否則：清掉整行誤植的拼音，只在漢字後補上拼音
+    let py='';try{py=twPyT(han);}catch(e){return raw;}if(!py)return raw;n++;
+    return head.replace(/\s*$/,'')+'['+py+']'+stripLatinBr(rest);});
+  ta.value=out.join('\n');toast(n?('已為 '+n+' 個詞加上拼音（只加漢字，可再修改）'):'已整理完成（只保留漢字拼音）');};
 H.toggleAllCards=()=>{const ls=sortLessons(S.lessons);if(ls.some(l=>S.openCards.has(l.id)))S.openCards.clear();else ls.forEach(l=>S.openCards.add(l.id));renderLessons();};
 H.qExpandAll=(_,b)=>{const ds=[...document.querySelectorAll('.qe-secfold')];if(!ds.length)return;const anyClosed=ds.some(d=>!d.open);ds.forEach(d=>{d.open=anyClosed;});if(b)b.textContent=anyClosed?'▴ 全部收起':'▾ 全部展開';};
 H.autoOrderQuestions=async(lid)=>{const qs=sortQuestionsLogical(questionsOf(lid));

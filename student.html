@@ -112,9 +112,9 @@ function audioHtml(url){if(!url)return'';
 function pluckPy(s){let py='';const out=(s||'').replace(/[\[【]([^\]】]*)[\]】]/g,(m,inner)=>{if(/[㐀-鿿]/.test(inner))return m;if(!py)py=inner.trim();return '';}).replace(/\s{2,}/g,' ').replace(/\s+([，,。、；;)）])/g,'$1').trim();return {text:out,py};}
 function parseVocab(text){const out=[];(text||'').split('\n').forEach(raw=>{const l0=raw.trim();if(!l0)return;
   const exm=l0.match(/^[-－・·→*]\s*(.+)$/)||l0.match(/^例[:：]\s*(.+)$/);
-  if(exm){if(out.length){const pk=pluckPy(exm[1].trim());if(pk.py&&!out[out.length-1].py)out[out.length-1].py=pk.py;if(pk.text)out[out.length-1].ex.push(pk.text);}return;}
+  if(exm){if(out.length){const pk=pluckPy(exm[1].trim());if(pk.text)out[out.length-1].ex.push(pk.text);}return;}
   // 課本格式：詞｜詞類｜翻譯｜例句｜例句…（直接貼也能正確呈現）
-  if(/[｜|]/.test(l0)){const cols=l0.split(/\s*[｜|]\s*/);if(cols.length>=2){let f=(cols[0]||'').trim(),py='';const pm=f.match(/[\[【]([^\]】]*)[\]】]/);if(pm){py=pm[1].trim();f=f.replace(pm[0],'').trim();}const pos=(cols[1]||'').trim();const bk=pluckPy(cols[2]||'');if(bk.py&&!py)py=bk.py;const back=bk.text;const ex=cols.slice(3).map(s=>{const pk=pluckPy(s);if(pk.py&&!py)py=pk.py;return pk.text;}).filter(Boolean);if(f){out.push({front:f,py,pos,back,ex});return;}}}
+  if(/[｜|]/.test(l0)){const cols=l0.split(/\s*[｜|]\s*/);if(cols.length>=2){let f=(cols[0]||'').trim(),py='';const pm=f.match(/[\[【]([^\]】]*)[\]】]/);if(pm){py=pm[1].trim();f=f.replace(pm[0],'').trim();}const pos=(cols[1]||'').trim();const bk=pluckPy(cols[2]||'');if(bk.py&&!py)py=bk.py;const back=bk.text;const ex=cols.slice(3).map(s=>pluckPy(s).text).filter(Boolean);if(f){out.push({front:f,py,pos,back,ex});return;}}}
   let l=l0,py='';const m=l.match(/[\[【]([^\]】]*)[\]】]/);if(m){py=m[1].trim();l=l.replace(m[0],'').trim();}
   let pos='';const pm=l.match(/[（(]\s*([^（）()]{1,10}?)\s*[）)]/);if(pm){pos=pm[1].trim();l=(l.slice(0,pm.index)+' '+l.slice(pm.index+pm[0].length)).trim();}
   let front,back;
@@ -123,6 +123,8 @@ function parseVocab(text){const out=[];(text||'').split('\n').forEach(raw=>{cons
   out.push({front:(front||'').trim(),py,pos,back,ex:[]});});
   return out;}
 function vocabAnno(v){if(v&&v.py&&S.ann==='pinyin')return `<ruby class="vcust">${esc(v.front)}<rt>${esc(v.py)}</rt></ruby>`;return annotate(v.front);}
+/* 生詞意思：預設只顯示老師匯入的英文，不自動翻譯成越南文（之後由教師後臺控制是否公開越南文） */
+function vocabMean(v){return (v&&v.back)||'';}
 /* ===== 拼音／注音 標音 ===== */
 const ZH_INIT=[['zh','ㄓ'],['ch','ㄔ'],['sh','ㄕ'],['b','ㄅ'],['p','ㄆ'],['m','ㄇ'],['f','ㄈ'],['d','ㄉ'],['t','ㄊ'],['n','ㄋ'],['l','ㄌ'],['g','ㄍ'],['k','ㄎ'],['h','ㄏ'],['j','ㄐ'],['q','ㄑ'],['x','ㄒ'],['r','ㄖ'],['z','ㄗ'],['c','ㄘ'],['s','ㄙ']];
 const ZH_FIN={'':'','a':'ㄚ','o':'ㄛ','e':'ㄜ','ai':'ㄞ','ei':'ㄟ','ao':'ㄠ','ou':'ㄡ','an':'ㄢ','en':'ㄣ','ang':'ㄤ','eng':'ㄥ','er':'ㄦ','ong':'ㄨㄥ','i':'ㄧ','ia':'ㄧㄚ','ie':'ㄧㄝ','iao':'ㄧㄠ','iu':'ㄧㄡ','iou':'ㄧㄡ','ian':'ㄧㄢ','in':'ㄧㄣ','iang':'ㄧㄤ','ing':'ㄧㄥ','iong':'ㄩㄥ','u':'ㄨ','ua':'ㄨㄚ','uo':'ㄨㄛ','uai':'ㄨㄞ','ui':'ㄨㄟ','uei':'ㄨㄟ','uan':'ㄨㄢ','un':'ㄨㄣ','uen':'ㄨㄣ','uang':'ㄨㄤ','ueng':'ㄨㄥ','v':'ㄩ','ve':'ㄩㄝ','van':'ㄩㄢ','vn':'ㄩㄣ'};
@@ -144,6 +146,9 @@ function annotate(text){
 /* ===== 發音(TTS)與生字互動 ===== */
 function speak(text){if(!window.speechSynthesis||!text)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=(S.lang==='cn'?'zh-CN':'zh-TW');u.rate=.8;speechSynthesis.speak(u);}catch(e){}}
 function wordReading(w){if(!window.pinyinPro)return '';try{if(S.ann==='zhuyin'){const arr=pinyinPro.pinyin(w,{type:'all',toneType:'num'});return arr.map(o=>o.isZh?syl2zh(o.pinyin):o.origin).join(' ');}return pinyinPro.pinyin(w,{toneType:'symbol'});}catch(e){return '';}}
+/* 臺灣常見讀音修正（與中國大陸不同者）；只在自動產生拼音時套用，老師匯入的拼音優先 */
+const TW_PY={'期':'qí','究':'jiù','質':'zhí','危':'wéi','企':'qì','暫':'zhàn','攜':'xī','液':'yì','垃':'lè','圾':'sè','蝸':'guā','跌':'dié'};
+function twReading(w){if(!window.pinyinPro)return '';if(S.ann==='zhuyin')return wordReading(w);try{const arr=pinyinPro.pinyin(w,{type:'all',toneType:'symbol'});return arr.map(o=>o.isZh?(TW_PY[o.origin]||o.pinyin):o.origin).join(' ');}catch(e){return wordReading(w);}}
 function flashFront(v){const word=(v&&v.front)||'';const n=[...word].length;const fsz=n<=1?54:n===2?46:n===3?36:n===4?29:n<=6?23:18;return `<span class="flash-word" style="font-size:${fsz}px">${vocabAnno(v)}</span>`;}
 function lessonDialogues(l){
   if(l&&Array.isArray(l.dialogues)&&l.dialogues.length){let ds=l.dialogues;
@@ -181,7 +186,7 @@ function renderReview(){const r=S.review,v=r.list[r.idx];
    <div class="section-head" style="margin-top:12px"><h2>📅 ${t('review')}</h2><span class="muted">${r.idx+1} / ${r.list.length}</span></div>
    <div class="flash-wrap"><div class="flash ${r.flip?'flip':''}" data-act="revFlip"><div class="flash-inner">
      <div class="flash-face flash-front">${flashFront(v)}<small>${t('flip')}</small></div>
-     <div class="flash-face flash-back">${v.pos?'<span class="vpos">'+esc(v.pos)+'</span> ':''}<span data-trvi="${esc(v.back||'')}">${esc(viOf(v.back)||'—')}</span></div></div></div>
+     <div class="flash-face flash-back">${v.pos?'<span class="vpos">'+esc(v.pos)+'</span> ':''}<span>${esc((v.back)||'—')}</span></div></div></div>
    ${r.flip?`<div class="flash-controls"><button class="btn btn-danger" data-act="revGrade" data-know="0">${t('dontKnow')}</button><button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}">🔊</button><button class="btn btn-primary" data-act="revGrade" data-know="1">${t('know')}</button></div>`:`<div class="flash-controls"><span class="hint">${t('tapFlip')}</span></div>`}</div>`;hydrateVi([v.back]);}
 let SHADOW=null,SHADOWMR=null;
 function vocabMeaning(w){for(const l of S.lessons){const vs=lessonVocab(l);for(const v of vs){if(v.front===w&&(v.back||v.pos))return (v.pos?'('+v.pos+') ':'')+(v.back||'');}}return null;}
@@ -209,7 +214,7 @@ function prose2(text){if(text==null)return '';const dict=vocabDict();let html=''
   return html;}
 function showZiPopup(ch,el){const py=window.pinyinPro?pinyinPro.pinyin(ch,{toneType:'symbol'}):'';let zh='';try{if(window.pinyinPro){const a=pinyinPro.pinyin(ch,{type:'all',toneType:'num'});zh=a.map(o=>o.isZh?syl2zh(o.pinyin):'').join('');}}catch(e){}
   const mr=vocabMeanRaw(ch);let pop=document.getElementById('zi-pop');if(!pop){pop=document.createElement('div');pop.id='zi-pop';pop.className='zi-pop';document.body.appendChild(pop);}
-  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div><div class="zi-py">${esc(py)}${zh?(' · '+esc(zh)):''}</div>${mr?`<div class="zi-mean">${mr.pos?'('+esc(mr.pos)+') ':''}<span data-trvi="${esc(mr.back||'')}">${esc(viOf(mr.back)||'')}</span></div>`:''}<button class="btn btn-sm" data-act="speak" data-text="${esc(ch)}">🔊</button>`;
+  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div><div class="zi-py">${esc(py)}${zh?(' · '+esc(zh)):''}</div>${mr?`<div class="zi-mean">${mr.pos?'('+esc(mr.pos)+') ':''}<span>${esc((mr.back)||'')}</span></div>`:''}<button class="btn btn-sm" data-act="speak" data-text="${esc(ch)}">🔊</button>`;
   hydrateVi(mr?[mr.back]:[]);
   pop.style.display='block';pop.style.visibility='hidden';const r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight;
   let left=r.left+r.width/2-pw/2;left=Math.max(8,Math.min(left,window.innerWidth-pw-8));let top=r.top-ph-10;if(top<6)top=r.bottom+10;
@@ -244,7 +249,7 @@ function renderSentence(){
   const submitted=doc&&doc.status==='submitted',reviewed=doc&&doc.status==='reviewed';
   const cards=dd.words.map(w=>{const val=dd.vals[w.front]!=null?dd.vals[w.front]:'';const note=fb[w.front];
     return `<div class="card sent-card">
-      <div class="sent-word">${vocabAnno({front:w.front,py:w.py})}${w.pos?' <span class="vpos">'+esc(w.pos)+'</span>':''} <span class="sent-mean" data-trvi="${esc(w.back||'')}">${esc(viOf(w.back)||'')}</span></div>
+      <div class="sent-word">${vocabAnno({front:w.front,py:w.py})}${w.pos?' <span class="vpos">'+esc(w.pos)+'</span>':''} <span class="sent-mean">${esc((w.back)||'')}</span></div>
       <textarea class="qa-inp sent-inp" data-w="${esc(w.front)}" rows="2" placeholder="${esc(t('sentPh'))}">${esc(val)}</textarea>
       ${note?`<div class="fb-note">💬 ${t('sentFb')}：${esc(note)}</div>`:''}
     </div>`;}).join('');
@@ -280,9 +285,9 @@ function lessonHasDisc(l){return lessonDialogues(l).some(d=>(d.discussion||'').s
 function vocabBlockHtml(l,di,vocab,chips){
   return '<div class="vocab-rows">'+vocab.map((v,k)=>{const hasEx=v.ex&&v.ex.length;
     const chip=`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-di="${di}" data-vi="${k}" data-text="${esc(v.front)}">${esc(v.front)}<span class="spk">🔊</span></button>`;
-    const rd=v.py||wordReading(v.front);const py=rd?`<span class="vrow-py">${esc(rd)}</span>`:'';
+    const rd=v.py||twReading(v.front);const py=rd?`<span class="vrow-py">${esc(rd)}</span>`:'';
     const pos=v.pos?`<span class="vpos">${esc(v.pos)}</span>`:'';
-    const mean=v.back?`<span class="vrow-mean" data-trvi="${esc(v.back)}">${esc(viOf(v.back))}</span>`:'';
+    const mean=v.back?`<span class="vrow-mean">${esc(vocabMean(v))}</span>`:'';
     const tog=hasEx?`<button type="button" class="btn btn-sm vex-toggle" data-act="vocabEx" data-id="${di}_${k}">📝 ${t('exLabel')}（${v.ex.length}）</button>`:'';
     const list=hasEx?`<div class="vex-list hide" id="vex-${di}_${k}">${v.ex.map(s=>`<button type="button" class="ex-item" data-act="speak" data-text="${esc(s)}">${annotate(s)}<span class="spk">🔊</span></button>`).join('')}</div>`:'';
     return `<div class="vrow"><div class="vrow-top">${chip}${py}${pos}${mean}${tog}</div>${list}</div>`;}).join('')+'</div>';}
@@ -562,7 +567,7 @@ function renderCards(){
     <div class="flash-wrap">
     <div class="flash ${S.flashFlip?'flip':''}" data-act="flip"><div class="flash-inner">
       <div class="flash-face flash-front">${flashFront(v)}<small>${t('flip')}</small></div>
-      <div class="flash-face flash-back">${v.pos?'<span class="vpos">'+esc(v.pos)+'</span> ':''}<span data-trvi="${esc(v.back||'')}">${esc(viOf(v.back)||'—')}</span></div>
+      <div class="flash-face flash-back">${v.pos?'<span class="vpos">'+esc(v.pos)+'</span> ':''}<span>${esc((v.back)||'—')}</span></div>
     </div></div>
     <div class="flash-controls"><button class="btn" data-act="flprev">${t('prev')}</button>
       <button class="btn btn-star ${isStarred(v.front)?'on':''}" data-act="star" data-text="${esc(v.front)}" aria-label="收藏">${isStarred(v.front)?'★':'☆'}</button>
