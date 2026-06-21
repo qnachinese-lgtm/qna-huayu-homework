@@ -172,12 +172,13 @@ let SHADOW=null,SHADOWMR=null;
 function vocabMeaning(w){for(const l of S.lessons){const vs=lessonVocab(l);for(const v of vs){if(v.front===w&&(v.back||v.pos))return (v.pos?'('+v.pos+') ':'')+(v.back||'');}}return null;}
 function vocabMeanRaw(w){for(const l of S.lessons){const vs=lessonVocab(l);for(const v of vs){if(v.front===w&&(v.back||v.pos))return {pos:v.pos||'',back:v.back||''};}}return null;}
 // --- 英文釋義自動翻譯成越南文（學生英文較弱時，切到 VI 自動把英文意思譯成越南文，譯完快取起來）---
-let TRVI={};try{TRVI=JSON.parse(localStorage.getItem('hyc_trvi')||'{}');}catch(e){TRVI={};}
+let TRVI={};try{TRVI=JSON.parse(localStorage.getItem('hyc_trvi2')||'{}');}catch(e){TRVI={};}
 function viOf(s){if(!s||S.lang!=='vi')return s;return TRVI[s]||s;}
 async function fetchVi(s){
   if(!s||TRVI[s]!=null)return TRVI[s];
-  try{const r=await fetch('https://api.mymemory.translated.net/get?langpair=en|vi&q='+encodeURIComponent(s));const j=await r.json();const tx=j&&j.responseData&&j.responseData.translatedText;
-    if(tx&&Number(j.responseStatus)===200&&!/MYMEMORY WARNING|QUERY LENGTH/i.test(tx)){TRVI[s]=tx;try{localStorage.setItem('hyc_trvi',JSON.stringify(TRVI));}catch(e){}return tx;}}catch(e){}
+  // 用 Google 翻譯（自然口語的越南文，不會翻成太漢南/文言的詞）；失敗就維持英文
+  try{const r=await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q='+encodeURIComponent(s));const j=await r.json();const tx=(j&&j[0]&&j[0].map(x=>x&&x[0]).join(''))||'';
+    if(tx&&tx.trim()){TRVI[s]=tx;try{localStorage.setItem('hyc_trvi2',JSON.stringify(TRVI));}catch(e){}return tx;}}catch(e){}
   return null;}
 async function ensureVi(arr){if(S.lang!=='vi')return;const need=[...new Set((arr||[]).filter(s=>s&&TRVI[s]==null))];for(const s of need){await fetchVi(s);}}
 function applyVi(){if(S.lang!=='vi')return;document.querySelectorAll('[data-trvi]').forEach(el=>{const s=el.getAttribute('data-trvi');if(s&&TRVI[s])el.textContent=TRVI[s];});}
