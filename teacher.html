@@ -859,6 +859,10 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
     <label class="dlg-lbl">生詞 <span class="hint">每行一個。格式：<b>詞 (詞類)=英文翻譯</b>；自訂拼音加 <b>[拼音]</b>。<b>例句（時代華語）</b>：在那個詞的下一行用「<b>-</b>」開頭打，可打多句。</span></label>
     <div style="margin-bottom:6px"><button class="btn btn-sm" type="button" data-act="dlgAutoPinyin" data-id="${i}">✨ 自動加拼音</button> <span class="hint">幫沒有 [拼音] 的詞自動補上(可再改)</span></div>
     <textarea class="dlg-vocab-in" data-i="${i}" placeholder="高興 (Vs)=happy[gāoxìng]&#10;- 我今天很高興。&#10;- 他高興得跳起來。&#10;香蕉 (N)=banana&#10;- 我買了三根香蕉。">${esc(d.vocabulary||'')}</textarea>
+    <details class="vocab-imp"><summary>📋 批次匯入生詞（從 Excel／表格貼上）</summary>
+      <div class="hint" style="margin:6px 0">一行一個詞，欄位用 <b>Tab</b>（從表格／Excel 貼上會自動是 Tab）或 <b>｜</b> 隔開，順序：<b>詞 ｜ 詞類 ｜ 翻譯 ｜ 例句1 ｜ 例句2…</b>。沒有詞類就留空（兩個分隔符之間空白）。按下面按鈕會自動排成正確格式、加到上面的生詞欄。</div>
+      <textarea class="dlg-imp-in" data-i="${i}" placeholder="高興｜Vs｜happy｜我今天很高興。｜他高興得跳起來。&#10;香蕉｜N｜banana｜我買了三根香蕉。&#10;謝謝｜｜thank you"></textarea>
+      <button class="btn btn-sm btn-accent" type="button" data-act="vocabImport" data-id="${i}" style="margin-top:6px">⬇ 轉換並加入生詞欄</button></details>
     <label class="dlg-lbl">這段的課文音檔（上傳整段朗讀，會自動切成逐句） <span class="hint">學生上面會有「課文朗讀」播放器；「逐句跟讀」也會改播這個真人朗讀（不用機器音）。切完可逐句微調秒數。</span></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="dlg-audio-in" id="dlg-audio-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.audio_url||'')}" placeholder="上傳整段朗讀，或貼 mp3／YouTube 連結">
       <button class="btn" type="button" data-act="pickDlgAudio" data-id="${i}">⬆ 上傳並切逐句</button></div>
@@ -1017,6 +1021,20 @@ H.delClassLog=async(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]
 H.pickAudio=(id)=>{const f=document.getElementById('file-'+id);if(f)f.click();};
 /* ===== 生字音檔自動切割 ===== */
 function vaReset(){}
+function convVocabImport(text){return (text||'').split('\n').map(line=>{
+  if(!line.trim())return '';
+  const cols=line.split(/\t|\s*[｜|]\s*/);
+  if(cols.length<2)return line.trim();
+  const word=(cols[0]||'').trim();if(!word)return '';
+  const pos=(cols[1]||'').trim(),trans=(cols[2]||'').trim();
+  const exs=cols.slice(3).map(s=>s.trim()).filter(Boolean);
+  let out=word+(pos?(' ('+pos+')'):'')+(trans?('='+trans):'');
+  exs.forEach(e=>{out+='\n- '+e;});
+  return out;
+}).filter(l=>l!=='').join('\n');}
+H.vocabImport=(i)=>{const imp=document.querySelector('.dlg-imp-in[data-i="'+i+'"]'),ta=document.querySelector('.dlg-vocab-in[data-i="'+i+'"]');if(!imp||!ta)return;
+  const conv=convVocabImport(imp.value);if(!conv.trim()){toast('請先貼上要匯入的內容');return;}
+  ta.value=(ta.value.replace(/\s+$/,'')?ta.value.replace(/\s+$/,'')+'\n':'')+conv;if(DLG[i])DLG[i].vocabulary=ta.value;imp.value='';toast('已加入上面的生詞欄，記得最後按「儲存」');};
 function vaWords(i){const t=document.querySelector('.dlg-vocab-in[data-i="'+i+'"]');const txt=t?t.value:((DLG[i]&&DLG[i].vocabulary)||'');
   return txt.split('\n').map(s=>s.trim()).filter(s=>s&&!/^[-－・·→*]/.test(s)&&!/^例[:：]/.test(s)).map(s=>{s=s.replace(/[\[【][^\]】]*[\]】]/,'').replace(/[（(][^（）()]*[）)]/,'').trim();if(/[=＝]/.test(s))return s.split(/[=＝]/)[0].trim();const m=s.search(/[：:\s]/);return (m<0?s:s.slice(0,m)).trim();}).filter(Boolean);}
 function _loudness(buf){const d=buf.getChannelData(0),sr=buf.sampleRate,win=Math.max(1,Math.floor(sr*0.02)),loud=[];for(let i=0;i<d.length;i+=win){let s=0,n=0;for(let j=i;j<i+win&&j<d.length;j++){s+=d[j]*d[j];n++;}loud.push(Math.sqrt(s/(n||1)));}return {loud,winSec:win/sr,dur:buf.duration};}
