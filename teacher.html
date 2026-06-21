@@ -159,8 +159,10 @@ function manualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||(q
 function scoreOf(l,r){const qs=questionsOf(l.id);const manual=r.manual||{};let md=0;qs.forEach(q=>{if(manualQ(q)&&manual[q.id]==='done')md++;});return (r.auto!=null?r.auto:(r.score||0))+md;}
 
 async function loadAll(){
-  const [a,b,c,d,e]=await Promise.all([DB.list('students'),DB.list('lessons'),DB.list('questions'),DB.list('results'),DB.list('sentences').catch(()=>[])]);
-  S.students=a;S.lessons=b;S.questions=c;S.results=d;S.sentences=e||[];
+  const [a,b,c,d]=await Promise.all([DB.list('students'),DB.list('lessons'),DB.list('questions'),DB.list('results')]);
+  S.students=a;S.lessons=b;S.questions=c;
+  S.results=d.filter(x=>x.kind!=='sentence');
+  S.sentences=d.filter(x=>x.kind==='sentence');
 }
 function openModal(h){$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
 function closeModal(){$('#modal-root').innerHTML='';}
@@ -213,7 +215,7 @@ function renderDashboard(){
   const gradeHtml=pendList.length?Object.keys(pendByLesson).map(lid=>{const l=S.lessons.find(x=>x.id===lid)||{};return `<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）'))}</b><span class="grow"></span><span class="muted">${pendByLesson[lid]} 份</span><button class="btn btn-sm btn-accent" data-act="tab" data-id="grades">去批改</button></div>`;}).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的作業 👍</div>`;
   // 造句批改提醒
   const sentName=sd=>{const st=S.students.find(x=>x.id===sd.student_id);return (st&&st.name)||sd.student_name||'學生';};
-  const sentLessonName=sd=>{const l=S.lessons.find(x=>x.id===sd.lesson_id)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');};
+  const sentLessonName=sd=>{const l=S.lessons.find(x=>x.id===sd.sent_lesson)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');};
   const sentPend=(S.sentences||[]).filter(x=>x.status==='submitted');
   const sentHtml=sentPend.length?sentPend.map(sd=>`<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc(sentName(sd))}</b><span class="muted">${esc(sentLessonName(sd))}</span><span class="grow"></span><span class="muted">${(sd.items||[]).filter(it=>it.sentence).length} 句</span><button class="btn btn-sm btn-accent" data-act="reviewSent" data-id="${sd.id}">批改</button></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的造句 👍</div>`;
   body.innerHTML=`<div class="card"><div class="lesson-label">📥 批改提醒${pendList.length?'（'+pendList.length+'）':''}</div>${gradeHtml}</div>
@@ -515,7 +517,7 @@ const H={};
 H.tab=(id)=>{S.tab=id;render();};
 H.reviewSent=(id)=>{const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
-  const l=S.lessons.find(x=>x.id===sd.lesson_id)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
+  const l=S.lessons.find(x=>x.id===sd.sent_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
   const fb=sd.feedback||{};
   const rows=(sd.items||[]).map(it=>`<div class="srev-item"><div class="srev-word">${esc(it.word)}</div><div class="srev-sent">${it.sentence?esc(it.sentence):'<span class="muted">（未作答）</span>'}</div><textarea class="srev-fb" data-w="${esc(it.word)}" rows="2" placeholder="給這一句的建議（可留空）">${esc(fb[it.word]||'')}</textarea></div>`).join('');
   openModal(`<div class="modal wide"><div class="modal-head"><h3>✍️ 造句批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
@@ -527,7 +529,7 @@ H.saveSentReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(
   const ov=document.getElementById('srev-overall');const overall=ov?(ov.value||'').trim():'';
   if(b){b.disabled=true;b.textContent='儲存中…';}
   const ts=new Date().toISOString();const patch={feedback,overall,status:done?'reviewed':(sd.status||'submitted'),reviewed_at:ts};
-  try{await DB.update('sentences',id,patch);const i=S.sentences.findIndex(x=>x.id===id);if(i>=0)S.sentences[i]=Object.assign({},sd,patch);
+  try{await DB.update('results',id,patch);const i=S.sentences.findIndex(x=>x.id===id);if(i>=0)S.sentences[i]=Object.assign({},sd,patch);
     closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
   }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
 H.logout=()=>{try{if(window.firebase&&firebase.auth&&firebase.apps&&firebase.apps.length)firebase.auth().signOut();}catch(e){}sessionStorage.removeItem('teacher_ok');location.reload();};
@@ -836,10 +838,10 @@ H.saveReview=async(rid)=>{const r=S.results.find(x=>x.id===rid);if(!r)return;
   catch(e){if(btn){btn.disabled=false;btn.textContent='💾 儲存建議';}toast(writeErr('儲存失敗',e));}};
 H.delResult=async(rid)=>{const r=S.results.find(x=>x.id===rid);if(!r)return;const s=S.students.find(x=>x.id===r.student_id);
   if(!confirm('確定刪除「'+((s&&s.name)||'這位學生')+'」這一課的作答記錄？\n此動作無法復原（測試用）。'))return;
-  try{await DB.remove('results',rid);S.results=await DB.list('results');render();toast('已刪除作答記錄');}catch(e){toast(writeErr('刪除失敗',e));}};
+  try{await DB.remove('results',rid);{const _d=await DB.list('results');S.results=_d.filter(x=>x.kind!=='sentence');S.sentences=_d.filter(x=>x.kind==='sentence');}render();toast('已刪除作答記錄');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.clearLessonResults=async(lid)=>{const rs=S.results.filter(r=>r.lesson_id===lid);if(!rs.length)return toast('這一課還沒有作答記錄');
   if(!confirm('確定清空「本課」所有學生的作答記錄？共 '+rs.length+' 筆，無法復原（測試用）。'))return;
-  try{for(const r of rs)await DB.remove('results',r.id);S.results=await DB.list('results');render();toast('已清空本課作答記錄');}catch(e){toast(writeErr('清空失敗',e));}};
+  try{for(const r of rs)await DB.remove('results',r.id);{const _d=await DB.list('results');S.results=_d.filter(x=>x.kind!=='sentence');S.sentences=_d.filter(x=>x.kind==='sentence');}render();toast('已清空本課作答記錄');}catch(e){toast(writeErr('清空失敗',e));}};
 H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>(l.assigned_ids||[]).length);if(!ls.length)return toast('還沒有指派的課文');
   const rows=[['學生','Email','課文','狀態','分數','滿分','完成時間']];
   ls.forEach(l=>{const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const qn=answerableOf(l.id).length;
