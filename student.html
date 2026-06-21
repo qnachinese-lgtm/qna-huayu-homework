@@ -149,7 +149,9 @@ function wordReading(w){if(!window.pinyinPro)return '';try{if(S.ann==='zhuyin'){
 /* 臺灣常見讀音修正（與中國大陸不同者）；只在自動產生拼音時套用，老師匯入的拼音優先 */
 const TW_PY={'期':'qí','究':'jiù','質':'zhí','危':'wéi','企':'qì','暫':'zhàn','攜':'xī','液':'yì','垃':'lè','圾':'sè','蝸':'guā','跌':'dié'};
 function twReading(w){if(!window.pinyinPro)return '';if(S.ann==='zhuyin')return wordReading(w);try{const arr=pinyinPro.pinyin(w,{type:'all',toneType:'symbol'});return arr.map(o=>o.isZh?(TW_PY[o.origin]||o.pinyin):o.origin).join(' ');}catch(e){return wordReading(w);}}
-function flashFront(v){const word=(v&&v.front)||'';const n=[...word].length;const fsz=n<=1?54:n===2?46:n===3?36:n===4?29:n<=6?23:18;return `<span class="flash-word" style="font-size:${fsz}px">${vocabAnno(v)}</span>`;}
+function flashFront(v){const word=(v&&v.front)||'';const n=[...word].length;const fsz=n<=1?54:n===2?46:n===3?36:n===4?29:n<=6?23:18;
+  const rd=(typeof S!=='undefined'&&S.ann==='off')?'':((v&&v.py)||wordReading(word));
+  return `<span class="flash-rd">${esc(rd||'')||'&nbsp;'}</span><span class="flash-word" style="font-size:${fsz}px">${esc(word)}</span>`;}
 function lessonDialogues(l){
   if(l&&Array.isArray(l.dialogues)&&l.dialogues.length){let ds=l.dialogues;
     if(l.vocab_audio_url&&ds[0]&&!ds[0].vocab_audio_url){ds=ds.slice();ds[0]=Object.assign({},ds[0],{vocab_audio_url:l.vocab_audio_url,vocab_segments:l.vocab_segments||[]});}
@@ -528,7 +530,7 @@ function renderWork(){
   const nbp=[];if(overdue)nbp.push(`<span class="nb-item over">⏰ ${overdue} 份逾期</span>`);if(soon)nbp.push(`<span class="nb-item soon">📅 ${soon} 份快到期</span>`);if(fbN)nbp.push(`<button class="nb-item fb" data-act="section" data-id="grades">💬 老師有 ${fbN} 則建議</button>`);if(sentFbN)nbp.push(`<button class="nb-item fb" data-act="section" data-id="cards">✍️ 造句有 ${sentFbN} 則批改</button>`);if(discFbN)nbp.push(`<button class="nb-item fb" data-act="section" data-id="content">💬 問題與討論有 ${discFbN} 則批改</button>`);if(shadowFbN)nbp.push(`<button class="nb-item fb" data-act="section" data-id="content">🗣 跟讀有 ${shadowFbN} 則回饋</button>`);
   if((overdue||soon)&&('Notification'in window)&&Notification.permission==='default')nbp.push('<button class="nb-item" data-act="enableNotify">🔔 開啟提醒</button>');
   const nb=nbp.length?`<div class="notify-bar">${nbp.join('')}</div>`:'';
-  const left=myLeft();const sessCard=left!=null?`<div class="sess-line">🎟️ 本期還剩 <b>${left}</b> 堂${left<=0?' <span class="badge badge-overdue">已用完</span>':(left<=1?' <span class="badge badge-soon">快用完了</span>':'')}</div>`:'';
+  const left=myLeft();const sessCard=left!=null?`<div class="sess-line${left<=2?' low':''}">🎟️ 本期還剩 <b>${left}</b> 堂${left<=0?' <span class="badge badge-overdue">已用完</span>':(left<=2?' <span class="badge badge-soon">快用完了</span>':'')}</div>`:'';
   $('#screen').innerHTML=banner+sessCard+nb+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
@@ -1006,8 +1008,10 @@ async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=t
 
 /* ---- PWA：到期本地通知 ---- */
 function dueCounts(){let overdue=0,soon=0;try{myLessons().filter(l=>answerableOf(l.id).length).forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});}catch(e){}return{overdue,soon};}
-function notifyDue(){try{if(!('Notification'in window)||Notification.permission!=='granted')return;const d=dueCounts();if(!d.overdue&&!d.soon)return;const body=(d.overdue?('有 '+d.overdue+' 份作業已逾期。'):'')+(d.soon?('有 '+d.soon+' 份作業快到期。'):'');new Notification('華語作業簿',{body,icon:'icon-192.png'});}catch(e){}}
-H.enableNotify=()=>{if(!('Notification'in window)){toast('此瀏覽器不支援通知');return;}Notification.requestPermission().then(p=>{if(p==='granted'){toast('已開啟提醒');notifyDue();}renderSection();});};
+function notifyDue(force){try{if(!('Notification'in window)||Notification.permission!=='granted')return;const d=dueCounts();if(!d.overdue&&!d.soon)return;
+  const key='hyc_notifd_'+((S.me&&S.me.id)||'');const today=new Date().toISOString().slice(0,10);if(!force&&localStorage.getItem(key)===today)return;localStorage.setItem(key,today);
+  const body=(d.overdue?('有 '+d.overdue+' 份作業已逾期。'):'')+(d.soon?('有 '+d.soon+' 份作業快到期。'):'');new Notification('華語作業簿',{body,icon:'icon-192.png'});}catch(e){}}
+H.enableNotify=()=>{if(!('Notification'in window)){toast('此瀏覽器不支援通知');return;}Notification.requestPermission().then(p=>{if(p==='granted'){toast('已開啟提醒');notifyDue(true);}renderSection();});};
 if('serviceWorker'in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
 initConv();
 applyTheme();

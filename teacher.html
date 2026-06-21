@@ -490,6 +490,10 @@ function ansHtml(q,resp){
   if(q.type==='match')return `<div class="gd-text">${esc((q.options||[]).map((p,i)=>p.l+'→'+((resp||[])[i]||'？')).join('、'))}</div>`;
   return `<div class="gd-text">${esc(String(resp))}</div>`;}
 function gdRefText(q){if(q.type==='match')return (q.options||[]).map(p=>p.l+'→'+p.r).join('、');if(q.type==='order')return (q.options||[]).join(' ');if(q.type==='choice')return (q.options||[])[Number(q.answer)]||'';return (q.answer||[]).join(' / ');}
+/* 批改罐頭評語：點一下插入到指定的評語框，省打字 */
+const FB_PRESETS=['很好，繼續保持！','有進步，加油！','大致正確，注意細節。','請再複習這課的語法。','發音很清楚！','記得多練習生詞。','句子很通順，很棒！','有錯字，請訂正。','理解正確，表達再完整一些。','很用心，讚！'];
+function cannedBar(tgt){return '<div class="canned-bar">'+FB_PRESETS.map(t=>`<button type="button" class="canned-chip" data-act="canned" data-id="${esc(tgt)}" data-t="${esc(t)}">${esc(t)}</button>`).join('')+'</div>';}
+H.canned=(tgt,b)=>{const ta=document.getElementById(tgt);if(!ta)return;const t=(b&&b.dataset.t)||'';ta.value=(ta.value.trim()?ta.value.replace(/\s*$/,'')+'　':'')+t;ta.focus();};
 function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length;
   const perQ=qs.map((q,qi)=>{const resp=(r.answers||{})[q.id];const fb=(r.feedback||{})[q.id]||'';const man=manualQ(q);const mk=(r.manual||{})[q.id];
     const corr=man?(mk==='done'?true:(mk==='wrong'?false:null)):qCorrect(q,resp);
@@ -503,7 +507,7 @@ function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length
       ${mark}
       <input class="gd-fb" type="text" data-fb="${r.id}::${q.id}" value="${esc(fb)}" placeholder="這題的修改建議（選填，學生看得到）"></div>`;}).join('');
   return `<div class="gd-stubody">${perQ}
-    <div class="gd-overall"><label>整體評語 / 修改建議 <span class="hint">學生會在「成績」看到</span></label><textarea class="gd-cmt" id="cmt-${r.id}" placeholder="給這位學生的整體建議…">${esc(r.comment||'')}</textarea></div>
+    <div class="gd-overall"><label>整體評語 / 修改建議 <span class="hint">學生會在「成績」看到</span></label><textarea class="gd-cmt" id="cmt-${r.id}" placeholder="給這位學生的整體建議…">${esc(r.comment||'')}</textarea>${cannedBar('cmt-'+r.id)}</div>
     <button class="btn btn-primary btn-sm" data-act="saveReview" data-id="${r.id}">💾 儲存建議</button>
     <button class="btn btn-sm btn-danger" data-act="delResult" data-id="${r.id}" style="margin-left:8px">🗑 刪除此作答</button></div>`;}
 /* ---------- 成績 ---------- */
@@ -548,7 +552,7 @@ H.reviewSent=(id)=>{const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
   const rows=(sd.items||[]).map(it=>`<div class="srev-item"><div class="srev-word">${esc(it.word)}</div><div class="srev-sent">${it.sentence?esc(it.sentence):'<span class="muted">（未作答）</span>'}</div><textarea class="srev-fb" data-w="${esc(it.word)}" rows="2" placeholder="給這一句的建議（可留空）">${esc(fb[it.word]||'')}</textarea></div>`).join('');
   openModal(`<div class="modal wide"><div class="modal-head"><h3>✍️ 造句批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}</div>${rows}
-   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="srev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea></div></div>
+   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="srev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('srev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveSentReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveSentReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveSentReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
   const feedback={};document.querySelectorAll('.srev-fb').forEach(el=>{const v=(el.value||'').trim();if(v)feedback[el.dataset.w]=v;});
@@ -566,7 +570,7 @@ H.reviewDisc=(id)=>{const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)retur
   if(!rows)rows='<div class="muted">（這一課目前沒有問題與討論，或題目已被修改）</div>';
   openModal(`<div class="modal wide"><div class="modal-head"><h3>💬 問題與討論批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}</div>${rows}
-   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="drev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea></div></div>
+   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="drev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('drev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveDiscReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveDiscReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveDiscReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)return;
   const feedback={};document.querySelectorAll('.drev-fb').forEach(el=>{const v=(el.value||'').trim();if(v)feedback[el.dataset.k]=v;});
@@ -590,7 +594,7 @@ H.reviewShadow=(id)=>{const sd=(S.shadows||[]).find(x=>x.id===id);if(!sd)return;
   if(!rows)rows='<div class="muted">（沒有錄音內容）</div>';
   openModal(`<div class="modal wide"><div class="modal-head"><h3>🗣 逐句跟讀批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${avg!=null?(' ｜ 自動平均 '+avg+'%（僅供你參考，學生看不到）'):''}</div>${rows}
-   <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="shrev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea></div></div>
+   <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="shrev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('shrev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveShadowReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveShadowReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveShadowReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.shadows||[]).find(x=>x.id===id);if(!sd)return;
   const feedback={};document.querySelectorAll('.shrev-fb').forEach(el=>{const v=(el.value||'').trim();if(v)feedback[el.dataset.k]=v;});
@@ -767,7 +771,36 @@ H.report=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
      <div class="lesson-label">⚠️ 較弱的課（分數最低）</div><div style="margin:6px 0 14px">${weakHtml}</div>
      <div class="lesson-label">🎯 各題型正確率</div><div style="margin-top:6px">${typeHtml}</div>
    </div>
-   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>`);};
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn btn-accent" data-act="printReport" data-id="${s.id}">🖨 列印／存 PDF（給學生/家長）</button></div></div>`);};
+H.printReport=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
+  const assigned=S.lessons.filter(l=>(l.assigned_ids||[]).includes(sid)&&answerableOf(l.id).length).sort((a,b)=>((a.order_index||0)-(b.order_index||0)));
+  const rows=[];assigned.forEach(l=>{const r=resultOf(l.id,sid);const name=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');const stt=!r?'未開始':(r.status==='draft'?'作答中':(r.status==='pending'?'待批改':'已完成'));const pct=(r&&r.status==='done'&&r.total)?Math.round(scoreOf(l,r)/r.total*100):null;rows.push({name,stt,pct});});
+  const done=rows.filter(r=>r.pct!=null);const avg=done.length?Math.round(done.reduce((a,b)=>a+b.pct,0)/done.length):null;
+  const TN={choice:'單選',fill:'填空',order:'重組',match:'配對'};const agg={};
+  assigned.forEach(l=>{const r=resultOf(l.id,sid);if(!r||!r.answers)return;questionsOf(l.id).forEach(q=>{if(!TN[q.type])return;const c=qCorrect(q,r.answers[q.id]);if(c===null)return;agg[q.type]=agg[q.type]||{ok:0,n:0};agg[q.type].n++;if(c)agg[q.type].ok++;});});
+  const weak=done.slice().sort((a,b)=>a.pct-b.pct).slice(0,3);
+  const left=(s.sessions_total!=null&&s.sessions_total!=='')?(Number(s.sessions_total)-(Array.isArray(s.class_log)?s.class_log.filter(e=>e&&e.status!=='leave').length:0)):null;
+  const today=new Date().toISOString().slice(0,10);
+  const rowsHtml=rows.map(r=>`<tr><td>${e2(r.name)}</td><td class="c">${r.stt}</td><td class="c">${r.pct!=null?r.pct+'%':'—'}</td></tr>`).join('')||'<tr><td colspan="3">尚未指派作業。</td></tr>';
+  const typeHtml=Object.keys(agg).map(ty=>{const a=agg[ty];return `<tr><td>${TN[ty]}</td><td class="c">${Math.round(a.ok/a.n*100)}%（${a.ok}/${a.n}）</td></tr>`;}).join('')||'<tr><td colspan="2">—</td></tr>';
+  const weakHtml=weak.length?('<ul>'+weak.map(w=>`<li>${e2(w.name)}（${w.pct}%）</li>`).join('')+'</ul>'):'<p class="hm">目前沒有偏低的科目 👍</p>';
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+e2(s.name)+' · 學習報告</title><style>'
+   +'body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;color:#1a1a1a;max-width:720px;margin:0 auto;padding:24px;line-height:1.8}'
+   +'.bar{position:sticky;top:0;background:#fff;border-bottom:1px solid #ccc;padding:10px 0;margin-bottom:16px}'
+   +'h1{font-size:22px;margin:0 0 2px}.hm{color:#666;font-size:13px}'
+   +'h2{background:#eef3f3;color:#1F6F78;padding:4px 10px;border-radius:6px;font-size:15px;margin:22px 0 10px}'
+   +'.sum{font-size:15px;margin:10px 0}.sum b{color:#1F6F78}'
+   +'table{width:100%;border-collapse:collapse;font-size:14px}td,th{border:1px solid #ddd;padding:6px 10px;text-align:left}th{background:#f5f5f5}.c{text-align:center}'
+   +'ul{margin:6px 0 0 18px}@media print{.bar{display:none}body{padding:0}}</style></head><body>'
+   +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button></div>'
+   +'<h1>學習報告</h1><div class="hm">'+e2(s.name)+(s.account?('（'+e2(s.account)+'）'):'')+' · '+today+'</div>'
+   +'<div class="sum">已完成 <b>'+done.length+'</b> 課'+(avg!=null?(' · 平均 <b>'+avg+'%</b>'):'')+' · 共指派 <b>'+assigned.length+'</b> 課'+(left!=null?(' · 剩餘 <b>'+left+'</b> 堂'):'')+'</div>'
+   +'<h2>各課成績</h2><table><tr><th>課程</th><th class="c">狀態</th><th class="c">分數</th></tr>'+rowsHtml+'</table>'
+   +'<h2>較需加強</h2>'+weakHtml
+   +'<h2>各題型正確率（自動批改題）</h2><table><tr><th>題型</th><th class="c">正確率</th></tr>'+typeHtml+'</table>'
+   +'<p class="hm" style="margin-top:24px">＊問答／作文／口說等需老師人工批改的題目不列入自動正確率。</p>'
+   +'</body></html>';
+  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
 H.orderLayout=(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;LAYOUT_LID=id;LAYOUT=reconcileLayoutT(l);
   openModal(`<div class="modal"><div class="modal-head"><h3>📐 課文順序 · ${esc(l.title||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">用 ↑ ↓ 調整對話、短文、語法在課文中的先後順序；學生「課文」就照這個順序呈現（例如：對話→生詞→語法→短文→生詞→語法）。</div>
