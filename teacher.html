@@ -349,6 +349,7 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
      <div class="field"><label>課序 <span class="hint">第幾課</span></label><input id="l-order" type="number" min="1" value="${l.order_index||nextNo}"></div>
      <div class="field"><label>課名 *</label><input id="l-title" type="text" value="${esc(l.title||'')}" placeholder="例：第一課 歡迎你來臺灣／補充作業 6-20"></div></div>
      <div class="field full"><label>教材 <span class="hint">用來分類整理，例：當代中文課程一、時代華語一（可選既有或直接打新的）</span></label><input id="l-textbook" type="text" list="book-list" value="${esc(l.textbook||'')}" placeholder="當代中文課程一"><datalist id="book-list">${bookOpts.map(b=>'<option>'+esc(b)+'</option>').join('')}</datalist></div>
+     <div class="field full"><label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer"><input type="checkbox" id="l-vi-release" ${l.vi_release?'checked':''} style="width:auto;margin-top:3px"><span>公開生詞越南文翻譯給學生 <span class="hint">勾選後，學生切到越南文才看得到你在各段「生詞越南文」貼的翻譯；不勾＝學生只看英文。</span></span></label></div>
      <div class="hint" style="margin:-2px 0 10px">只想出補充作業？課名填一下即可，下面對話／生詞／語法全部留空，存好後在卡片點「練習題」出題。</div>
      <div class="field full"><label>對話／課文段落 <span class="hint">一課可有多個對話（對話一、對話二…），每段各有自己的課文、生詞、課文音檔、生詞真人發音；語法之後再合併講。</span></label><div id="dlg-editor" class="dlg-editor"></div></div>
      <div class="field full"><label>語法點 <span class="hint">一個語法一張卡。時代華語：填「說明」一個區塊＋例句即可；當代：可分功能／結構／用法多個區塊。要把語法排到短文後面，存好後到課文卡按「📐 課文順序」。</span></label><div id="gp-editor" class="gp-editor"></div></div>
@@ -776,7 +777,7 @@ H.dupLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!co
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const btn=document.querySelector('[data-act="dupLesson"][data-id="'+id+'"]');if(btn){btn.disabled=true;btn.textContent='複製中…';}
   const maxOrder=Math.max(0,...S.lessons.map(x=>Number(x.order_index)||0));
-  const copy={order_index:maxOrder+1,title:(l.title||'')+'（複本）',textbook:l.textbook||null,dialogues:l.dialogues||null,content:l.content||null,vocabulary:l.vocabulary||null,audio_url:l.audio_url||null,vocab_audio_url:l.vocab_audio_url||null,vocab_segments:l.vocab_segments||null,grammar_points:l.grammar_points||[],key_points:l.key_points||'',examples:l.examples||'',layout:l.layout||[],assigned_ids:[],due_date:null};
+  const copy={order_index:maxOrder+1,title:(l.title||'')+'（複本）',textbook:l.textbook||null,vi_release:l.vi_release||false,dialogues:l.dialogues||null,content:l.content||null,vocabulary:l.vocabulary||null,audio_url:l.audio_url||null,vocab_audio_url:l.vocab_audio_url||null,vocab_segments:l.vocab_segments||null,grammar_points:l.grammar_points||[],key_points:l.key_points||'',examples:l.examples||'',layout:l.layout||[],assigned_ids:[],due_date:null};
   try{const nl=await DB.insert('lessons',copy);
     const qs=questionsOf(l.id);for(const q of qs){const r=Object.assign({},q);delete r.id;delete r.created_at;r.lesson_id=nl.id;await DB.insert('questions',r);}
     await loadAll();render();toast('已複製為「'+copy.title+'」，可直接編輯');}
@@ -793,8 +794,8 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
     if(d._la&&d._la.file){if(sbtn){sbtn.disabled=true;sbtn.textContent='上傳課文音檔…';}
       try{d.audio_url=await uploadVocabAudio(d._la.file);d.line_segments=d._la.segs||[];d._la=null;}
       catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('課文音檔上傳失敗：'+(err.message||err));}}}
-  const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',discussion:(d.discussion||'').trim(),audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.discussion||d.audio_url||d.vocab_audio_url);
-  const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[])};
+  const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',vocab_vi:(d.vocab_vi||'').trim(),discussion:(d.discussion||'').trim(),audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.discussion||d.audio_url||d.vocab_audio_url);
+  const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,vi_release:!!($('#l-vi-release')&&$('#l-vi-release').checked),dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[])};
   try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}};
 
 /* ===== 語法點結構化編輯器 ===== */
@@ -887,7 +888,7 @@ H.gpBlockDel=(key)=>{gpSync();const p=String(key).split('::');const gi=Number(p[
 let DLG=[];const DLG_CN=['一','二','三','四','五','六','七','八'];
 function dlgInit(l){let arr;
   if(l&&Array.isArray(l.dialogues)&&l.dialogues.length){
-    arr=l.dialogues.map(d=>({title:d.title||'',content:d.content||'',vocabulary:d.vocabulary||'',discussion:d.discussion||'',audio_url:d.audio_url||'',vocab_audio_url:d.vocab_audio_url||'',vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]}));
+    arr=l.dialogues.map(d=>({title:d.title||'',content:d.content||'',vocabulary:d.vocabulary||'',vocab_vi:d.vocab_vi||'',discussion:d.discussion||'',audio_url:d.audio_url||'',vocab_audio_url:d.vocab_audio_url||'',vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]}));
     if(l.vocab_audio_url&&arr[0]&&!arr[0].vocab_audio_url){arr[0].vocab_audio_url=l.vocab_audio_url;arr[0].vocab_segments=l.vocab_segments||[];}}
   else if(l&&(l.content||l.vocabulary||l.audio_url)){arr=[{title:'對話一',content:l.content||'',vocabulary:l.vocabulary||'',audio_url:l.audio_url||'',vocab_audio_url:l.vocab_audio_url||'',vocab_segments:l.vocab_segments||[]}];}
   else{arr=[{title:'對話一',content:'',vocabulary:'',audio_url:'',vocab_audio_url:'',vocab_segments:[]}];}
@@ -896,6 +897,7 @@ function dlgSync(){DLG.forEach((d,i)=>{
   const t=document.querySelector('.dlg-title-in[data-i="'+i+'"]');if(t)d.title=t.value;
   const c=document.querySelector('.dlg-content-in[data-i="'+i+'"]');if(c)d.content=c.value;
   const v=document.querySelector('.dlg-vocab-in[data-i="'+i+'"]');if(v)d.vocabulary=v.value;
+  const vv=document.querySelector('.dlg-vocabvi-in[data-i="'+i+'"]');if(vv)d.vocab_vi=vv.value;
   const a=document.querySelector('.dlg-audio-in[data-i="'+i+'"]');if(a)d.audio_url=a.value;
   const q=document.querySelector('.dlg-disc-in[data-i="'+i+'"]');if(q)d.discussion=q.value;});}
 function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)return;
@@ -910,6 +912,8 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
       <div class="hint" style="margin:6px 0">欄位用 <b>｜</b>（課本格式）或 <b>Tab</b>（Excel）隔開，順序：<b>詞 ｜ 詞類 ｜ 翻譯 ｜ 例句1 ｜ 例句2…</b>。沒有詞類就留空；一個詞多個例句就再加一個 ｜。<b>課本整段一次貼上也可以</b>（詞與詞之間用空白，系統會自動拆成一個一個）。按按鈕自動排好、加到上面生詞欄。</div>
       <textarea class="dlg-imp-in" data-i="${i}" placeholder="夢想｜N｜dream｜美美最大的夢想是有一棟大房子。 夢｜N｜dream｜晚安！希望你有個好夢。 明星｜N｜star"></textarea>
       <button class="btn btn-sm btn-accent" type="button" data-act="vocabImport" data-id="${i}" style="margin-top:6px">⬇ 轉換並加入生詞欄</button></details>
+    <label class="dlg-lbl">生詞越南文翻譯 <span class="hint">一行一個，<b>順序對齊上面的生詞</b>（第1行＝第1個生詞…，例句行不算）。要學生看得到，記得在最上面勾「公開生詞越南文」。</span></label>
+    <textarea class="dlg-vocabvi-in" data-i="${i}" placeholder="não bộ&#10;giấc mơ&#10;ngôi sao">${esc(d.vocab_vi||'')}</textarea>
     <label class="dlg-lbl">這段的課文音檔（上傳整段朗讀，會自動切成逐句） <span class="hint">學生上面會有「課文朗讀」播放器；「逐句跟讀」也會改播這個真人朗讀（不用機器音）。切完可逐句微調秒數。</span></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="dlg-audio-in" id="dlg-audio-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.audio_url||'')}" placeholder="上傳整段朗讀，或貼 mp3／YouTube 連結">
       <button class="btn" type="button" data-act="pickDlgAudio" data-id="${i}">⬆ 上傳並切逐句</button></div>
