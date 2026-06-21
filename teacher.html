@@ -812,6 +812,7 @@ function gpInit(l){
   }else if(l&&l.key_points&&l.key_points.trim()){
     GP=[{title:'',blocks:[{label:'重點',text:l.key_points,ex:''}]}];
   }else{GP=[];}
+  GP.forEach(g=>{g._open=false;});if(GP.length===1&&GP[0])GP[0]._open=true;
 }
 function gpSync(){GP.forEach((g,gi)=>{
   const t=document.querySelector('.gp-title[data-gi="'+gi+'"]');if(t)g.title=t.value;
@@ -863,7 +864,7 @@ document.addEventListener('input',(e)=>{const el=e.target;if(!el||!el.classList|
   clearTimeout(gpExTimer);gpExTimer=setTimeout(()=>{if(GP[gi]&&GP[gi].blocks[bi]){GP[gi].blocks[bi].ex=el.value;refreshGpExList(gi,bi);}},500);});
 function gpRender(){const wrap=document.getElementById('gp-editor');if(!wrap)return;
   const dl='<datalist id="gp-labels">'+GP_PRESETS.map(p=>'<option>'+p+'</option>').join('')+'</datalist>';
-  const addBtn='<div style="margin-top:8px"><button class="btn btn-sm" type="button" data-act="gpAdd">＋ 新增語法點</button></div>';
+  const addBtn='<div class="edit-fold-bar"><button class="btn btn-sm" type="button" data-act="gpAdd">＋ 新增語法點</button>'+(GP.length>1?' <button class="btn btn-sm btn-ghost" type="button" data-act="gpFoldAll">▾ 全部展開／收起</button>':'')+'</div>';
   if(!GP.length){wrap.innerHTML='<div class="gp-empty">還沒有語法點。點下面新增第一個。</div>'+addBtn+dl;return;}
   wrap.innerHTML=GP.map((g,gi)=>{
     const blocks=g.blocks.map((b,bi)=>{
@@ -879,14 +880,16 @@ function gpRender(){const wrap=document.getElementById('gp-editor');if(!wrap)ret
       <textarea class="gp-tx" data-gi="${gi}" data-bi="${bi}" placeholder="說明…">${esc(b.text||'')}</textarea>
       <textarea class="gp-ex" data-gi="${gi}" data-bi="${bi}" rows="1" placeholder="例句（選填，一行一句，學生可點來聽）">${esc(b.ex||'')}</textarea>
       <div class="gp-exaudio" id="gpexa-list-${gi}-${bi}">${gpExAudioHtml(gi,bi)}</div></div>`;}).join('');
-    return `<div class="gp-card"><div class="gp-card-head"><span class="gp-no">語法 ${gi+1}</span>
+    return `<details class="gp-card edit-fold"${g._open?' open':''}><summary class="edit-fold-sum"><span class="gp-no">語法 ${gi+1}</span><span class="edit-fold-title">${esc((g.title||'').trim()||'（未命名）')}</span><span class="edit-fold-caret">▾</span></summary><div class="edit-fold-body"><div class="gp-card-head">
       <input class="gp-title" data-gi="${gi}" value="${esc(g.title||'')}" placeholder="標題，例：「很」修飾狀態動詞">
       <button class="btn btn-sm btn-danger" type="button" data-act="gpDel" data-id="${gi}">刪除</button></div>
       ${blocks}
       <div class="gp-addrow"><span class="gp-addlbl">加區塊：</span><button class="gp-chip gp-chip-sec" type="button" data-act="gpBlockAdd" data-id="${gi}::小節">＋小節 A／B</button>${GP_PRESETS.map(p=>`<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::${p}">${p}</button>`).join('')}<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::">＋自訂</button></div>
-      <div class="gp-ex-hint">💡 這個語法的 <b>練習題（Exercise）</b>：先按下面「儲存」，再到課文卡上點「<b>練習題</b>」新增題目，把「<b>屬於哪個語法點</b>」選成「<b>語法 ${gi+1}</b>」——學生看完這個語法的解釋後，就會接著做這些練習。</div></div>`;
-  }).join('')+addBtn+dl;}
-H.gpAdd=()=>{gpSync();GP.push({title:'',blocks:[{label:'說明',text:'',ex:''}]});gpRender();};
+      <div class="gp-ex-hint">💡 這個語法的 <b>練習題（Exercise）</b>：先按下面「儲存」，再到課文卡上點「<b>練習題</b>」新增題目，把「<b>屬於哪個語法點</b>」選成「<b>語法 ${gi+1}</b>」——學生看完這個語法的解釋後，就會接著做這些練習。</div></div></details>`;
+  }).join('')+addBtn+dl;
+  wrap.querySelectorAll('details.gp-card').forEach((det,gi)=>det.addEventListener('toggle',()=>{if(GP[gi])GP[gi]._open=det.open;}));}
+H.gpAdd=()=>{gpSync();GP.push({title:'',blocks:[{label:'說明',text:'',ex:''}],_open:true});gpRender();};
+H.gpFoldAll=()=>{gpSync();const anyClosed=GP.some(g=>!g._open);GP.forEach(g=>g._open=anyClosed);gpRender();};
 H.gpDel=(i)=>{gpSync();GP.splice(Number(i),1);gpRender();};
 H.gpBlockAdd=(key)=>{gpSync();const i=String(key).indexOf('::');const gi=Number(String(key).slice(0,i));const label=String(key).slice(i+2);if(GP[gi]){GP[gi].blocks.push({label:label||'',text:'',ex:''});gpRender();}};
 H.gpBlockDel=(key)=>{gpSync();const p=String(key).split('::');const gi=Number(p[0]),bi=Number(p[1]);if(GP[gi]){GP[gi].blocks.splice(bi,1);gpRender();}};
@@ -898,6 +901,7 @@ function dlgInit(l){let arr;
     if(l.vocab_audio_url&&arr[0]&&!arr[0].vocab_audio_url){arr[0].vocab_audio_url=l.vocab_audio_url;arr[0].vocab_segments=l.vocab_segments||[];}}
   else if(l&&(l.content||l.vocabulary||l.audio_url)){arr=[{title:'對話一',content:l.content||'',vocabulary:l.vocabulary||'',audio_url:l.audio_url||'',vocab_audio_url:l.vocab_audio_url||'',vocab_segments:l.vocab_segments||[]}];}
   else{arr=[{title:'對話一',content:'',vocabulary:'',audio_url:'',vocab_audio_url:'',vocab_segments:[]}];}
+  arr.forEach(d=>{d._open=false;});if(arr.length===1&&arr[0])arr[0]._open=true;
   DLG=arr;}
 function dlgSync(){DLG.forEach((d,i)=>{
   const t=document.querySelector('.dlg-title-in[data-i="'+i+'"]');if(t)d.title=t.value;
@@ -907,7 +911,7 @@ function dlgSync(){DLG.forEach((d,i)=>{
   const a=document.querySelector('.dlg-audio-in[data-i="'+i+'"]');if(a)d.audio_url=a.value;
   const q=document.querySelector('.dlg-disc-in[data-i="'+i+'"]');if(q)d.discussion=q.value;});}
 function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)return;
-  wrap.innerHTML=DLG.map((d,i)=>`<div class="dlg-card"><div class="dlg-card-head"><span class="gp-no">段 ${i+1}</span>
+  wrap.innerHTML=DLG.map((d,i)=>`<details class="dlg-card edit-fold"${d._open?' open':''}><summary class="edit-fold-sum"><span class="gp-no">段 ${i+1}</span><span class="edit-fold-title">${esc((d.title||'').trim()||'（未命名）')}</span><span class="edit-fold-caret">▾</span></summary><div class="edit-fold-body"><div class="dlg-card-head">
     <input class="dlg-title-in" data-i="${i}" value="${esc(d.title||'')}" placeholder="標題，例：對話一／短文">
     ${DLG.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="dlgDel" data-id="${i}">刪除</button>`:''}</div>
     <label class="dlg-lbl">課文／對話</label><textarea class="dlg-content-in" data-i="${i}" style="min-height:100px" placeholder="貼上或輸入這段對話／課文…">${esc(d.content||'')}</textarea>
@@ -939,9 +943,11 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
     <div id="va-preview-${i}" style="margin-top:8px"></div>
     <label class="dlg-lbl">問題與討論 <span class="hint">每行一題；學生在「課文」會看到這些問題，可選擇打字作答、送出給你批改。</span></label>
     <textarea class="dlg-disc-in" data-i="${i}" placeholder="一行一題，例：&#10;你週末喜歡做什麼？&#10;請說說你的家人。">${esc(d.discussion||'')}</textarea>
-    </div>`).join('')+'<div style="margin-top:8px"><button class="btn btn-sm" type="button" data-act="dlgAdd">＋ 新增對話／段落</button></div>';
+    </div></details>`).join('')+'<div class="edit-fold-bar"><button class="btn btn-sm" type="button" data-act="dlgAdd">＋ 新增對話／段落</button> <button class="btn btn-sm btn-ghost" type="button" data-act="dlgFoldAll">▾ 全部展開／收起</button></div>';
+  wrap.querySelectorAll('details.dlg-card').forEach((det,i)=>det.addEventListener('toggle',()=>{if(DLG[i])DLG[i]._open=det.open;}));
   DLG.forEach((d,i)=>{if(d._va&&d._va.loud){const c=document.getElementById('va-controls-'+i);if(c)c.classList.remove('hide');const tr=document.getElementById('va-trim-'+i);if(tr){tr.max=Math.ceil(d._va.loud.dur);tr.value=d._va.start||0;}const tv=document.getElementById('va-trim-val-'+i);if(tv)tv.textContent=(d._va.start||0).toFixed(1);const sl=document.getElementById('va-sens-'+i);if(sl&&d._va.ms)sl.value=Math.round(d._va.ms*100);vaRenderPreview(i);}});}
-H.dlgAdd=()=>{dlgSync();DLG.push({title:'對話'+(DLG_CN[DLG.length]||(DLG.length+1)),content:'',vocabulary:'',audio_url:'',vocab_audio_url:'',vocab_segments:[]});dlgRender();};
+H.dlgAdd=()=>{dlgSync();DLG.push({title:'對話'+(DLG_CN[DLG.length]||(DLG.length+1)),content:'',vocabulary:'',audio_url:'',vocab_audio_url:'',vocab_segments:[],_open:true});dlgRender();};
+H.dlgFoldAll=()=>{dlgSync();const anyClosed=DLG.some(d=>!d._open);DLG.forEach(d=>d._open=anyClosed);dlgRender();};
 H.dlgDel=(i)=>{dlgSync();DLG.splice(Number(i),1);if(!DLG.length)DLG.push({title:'對話一',content:'',vocabulary:'',audio_url:'',vocab_audio_url:'',vocab_segments:[]});dlgRender();};
 H.questions=(id)=>openQuestionsModal(id);
 H.addQuestion=(id)=>questionEditModal(id,null);
