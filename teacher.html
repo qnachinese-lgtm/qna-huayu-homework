@@ -41,21 +41,21 @@
 
     <div class="container">
       <div class="tabs">
-        <button class="tab" data-act="tab" data-id="dashboard">📊 總覽</button>
+        <button class="tab" data-act="tab" data-id="dashboard">📋 待辦</button>
         <button class="tab" data-act="tab" data-id="students">學生名冊 <span class="count" id="c-students">0</span></button>
         <button class="tab" data-act="tab" data-id="lessons">課文練習 <span class="count" id="c-lessons">0</span></button>
         <button class="tab" data-act="tab" data-id="grades">成績總覽 <span class="count alert hide" id="c-pending">0</span></button>
       </div>
 
       <section id="panel-dashboard" class="panel">
-        <div class="section-head"><h2>📊 總覽</h2><span class="sub">付款提醒與學生進度</span></div>
+        <div class="section-head"><h2>📋 待辦</h2><span class="sub">需要你處理的事項</span></div>
         <div id="dashboard-body"></div>
       </section>
 
       <section id="panel-students" class="panel hide">
         <div class="section-head"><h2>學生名冊</h2><span class="sub">基本資料與學費</span><span class="grow"></span>
           <input id="stu-search" type="text" placeholder="搜尋名字 / 國籍…" style="max-width:190px">
-          <button class="btn btn-primary" data-act="addStudent">＋ 新增學生</button></div>
+          <button class="btn btn-primary owner-only" data-act="addStudent">＋ 新增學生</button></div>
         <div id="students-list" class="cards cols-2"></div>
       </section>
 
@@ -143,7 +143,9 @@ function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
 function emptyHtml(i,t,d){return `<div class="empty"><div class="big">${i}</div><b>${t}</b><div style="margin-top:6px">${d}</div></div>`;}
 const TYPE_LABELS={choice:'單選',fill:'填空',opt:'選填',qa:'問答',order:'重組',match:'配對',write:'手寫',speak:'口說',note:'示範'};
 
-const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],tab:'dashboard',q:'',openCards:new Set()};
+const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],admins:[],tab:'dashboard',q:'',openCards:new Set()};
+let IS_OWNER=false, MY_EMAIL='';
+function adminName(email){if(!email)return '主管理員';const a=(S.admins||[]).find(x=>(x.email||'').toLowerCase()===(email||'').toLowerCase());return (a&&(a.name||a.email))||email;}
 const sortLessons=(a)=>a.slice().sort((x,y)=>((x.order_index||0)-(y.order_index||0))||((x.created_at||'').localeCompare(y.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const answerableOf=(lid)=>questionsOf(lid).filter(q=>q.type!=='note'); // 排除示範題（不計分）
@@ -159,11 +161,24 @@ const resultOf=(lid,sid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===si
 function manualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||q.type==='opt'||(q.type==='fill'&&q.input_mode==='write');}
 function scoreOf(l,r){const qs=questionsOf(l.id);const manual=r.manual||{};let md=0;qs.forEach(q=>{if(manualQ(q)&&manual[q.id]==='done')md++;});return (r.auto!=null?r.auto:(r.score||0))+md;}
 
+function myEmailNow(){try{return (firebase.auth().currentUser.email||'').toLowerCase();}catch(e){return '';}}
 async function loadAll(){
-  const [a,b,c,d]=await Promise.all([DB.list('students'),DB.list('lessons'),DB.list('questions'),DB.list('results')]);
+  IS_OWNER=isOwner();MY_EMAIL=myEmailNow();const owner=IS_OWNER;
+  const [a,b,c,d]=await Promise.all([
+    owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
+    DB.list('lessons'),DB.list('questions'),DB.list('results')]);
   S.students=a;S.questions=c;
   S.lessons=b.filter(x=>x.kind!=='quiz');S.quizzes=b.filter(x=>x.kind==='quiz');
   splitResults(d);
+  if(!owner){
+    const ids=new Set(S.students.map(s=>s.id)),uids=new Set(S.students.map(s=>s.uid).filter(Boolean));
+    const mine=r=>ids.has(r.student_id)||(r.uid&&uids.has(r.uid));
+    S.results=S.results.filter(mine);S.sentences=S.sentences.filter(mine);S.quizResults=S.quizResults.filter(mine);S.discussions=S.discussions.filter(mine);S.shadows=(S.shadows||[]).filter(mine);
+    S.quizzes=S.quizzes.filter(qz=>(qz.assigned_ids||[]).some(id=>ids.has(id)));
+  }
+  S.admins=owner?await listAdmins():[];
+  document.body.classList.toggle('is-admin',!owner);
+  const bs=document.querySelector('.brand-sub');if(bs)bs.textContent=owner?'主管理員後台':('管理員 · '+(MY_EMAIL||''));
 }
 function splitResults(d){d=d||[];S.results=d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');}
 function openModal(h){$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
@@ -191,7 +206,7 @@ function studentProgress(s){const assigned=S.lessons.filter(l=>(l.assigned_ids||
   return{total:assigned.length,done,pct,avg:scored?Math.round(sumPct/scored):null};}
 function renderDashboard(){
   const body=$('#dashboard-body');
-  if(!S.students.length){body.innerHTML=emptyHtml('📊','還沒有資料','先到「學生名冊」新增學生。');return;}
+  if(!S.students.length){body.innerHTML=emptyHtml('📋','目前沒有待辦',IS_OWNER?'先到「學生名冊」新增學生。':'主管理員還沒有把學生分配給你。');return;}
   // 付款提醒
   const pays=S.students.map(s=>({s,info:payInfo(s.payment_date)})).filter(x=>x.info).sort((a,b)=>a.info.sort-b.info.sort);
   const payHtml=pays.length?pays.map(({s,info})=>`<div class="dash-row">
@@ -237,30 +252,36 @@ function renderDashboard(){
   shadowPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.shadow_lesson)||{};const cnt=(sd.sents||[]).filter(s=>s&&s.audio_url).length;inbox.push({tag:'逐句跟讀',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）')+(sd.dlg_title?(' · '+sd.dlg_title):''),extra:cnt+' 句錄音',btn:`<button class="btn btn-sm btn-accent" data-act="reviewShadow" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
   inbox.sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
   const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"><span class="badge badge-soon">${it.tag}</span><b>${esc(it.name)}</b><span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
-  body.innerHTML=`<div class="card"><div class="lesson-label">📥 待批改收件匣${inbox.length?'（'+inbox.length+'）':''}</div>${inboxHtml}</div>
-    <div class="card" style="margin-top:14px"><div class="lesson-label">📝 隨堂小考</div><div class="quiz-create-row"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button><span class="muted">選一課的生詞，指派學生做聽寫，自動計分</span></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):''}</div>
-    <div class="card" style="margin-top:14px"><div class="lesson-label">💳 付款提醒</div>${payHtml}</div>
-    <div class="card" style="margin-top:14px"><div class="lesson-label">🎟️ 堂數提醒</div>${sessHtml}</div>
-    <div class="card" style="margin-top:14px"><div class="lesson-label">📈 學生進度</div>${progHtml}</div>`;
+  // 提醒（付款到期／逾期 + 堂數快用完），合併成一條條待辦
+  const remRows=[];
+  pays.forEach(({s,info})=>remRows.push(`<div class="dash-row"><span class="badge ${info.cls}">${info.label}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">💳 ${money(s.tuition,s.currency)}</span>${s.email?`<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}" title="寄重設密碼信">✉️</button>`:''}</div>`));
+  lowSess.forEach(({s,left})=>remRows.push(`<div class="dash-row"><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'堂數用完':'剩 '+left+' 堂'}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">🎟️ 已上 ${sessionsUsed(s)}/${esc(String(s.sessions_total))} 堂</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">登記</button></div>`));
+  const remHtml=remRows.length?remRows.join(''):`<div class="muted" style="padding:8px 2px">目前沒有需要提醒的事項 👍</div>`;
+  const todoN=inbox.length+remRows.length;
+  body.innerHTML=`<div class="card todo-hero"><div class="lesson-label">📥 待批改${inbox.length?'（'+inbox.length+'）':''}</div>${inboxHtml}</div>
+    <div class="card" style="margin-top:14px"><div class="lesson-label">⏰ 提醒（付款／堂數）${remRows.length?'（'+remRows.length+'）':''}</div>${remHtml}</div>
+    <details class="dash-fold" style="margin-top:14px"><summary>📝 隨堂小考${(S.quizzes||[]).length?'（'+(S.quizzes||[]).length+'）':''}</summary>
+      <div class="quiz-create-row" style="margin-top:10px"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button><span class="muted">選一課的生詞，指派學生做聽寫，自動計分</span></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):''}</details>
+    <details class="dash-fold" style="margin-top:14px"><summary>📈 學生進度</summary><div style="margin-top:10px">${progHtml}</div></details>`;
 }
 
 /* ---------- 學生名冊 ---------- */
 function renderStudents(){
   const wrap=$('#students-list');let list=S.students;
   if(S.q){const q=S.q.toLowerCase();list=list.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.nationality||'').toLowerCase().includes(q));}
-  if(!S.students.length){wrap.className='';wrap.innerHTML=emptyHtml('👩‍🏫','還沒有學生','點「新增學生」建立第一位。');return;}
+  if(!S.students.length){wrap.className='';wrap.innerHTML=emptyHtml('👩‍🏫','還沒有學生',IS_OWNER?'點「新增學生」建立第一位。':'主管理員還沒有把學生分配給你。');return;}
   if(!list.length){wrap.className='';wrap.innerHTML=emptyHtml('🔍','找不到符合的學生','換個關鍵字。');return;}
   wrap.className='cards cols-2';
   wrap.innerHTML=list.map(s=>`<div class="card student-card">
     <div style="display:flex;gap:12px;align-items:center">
       <div class="avatar" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</div>
       <div style="flex:1;min-width:0"><div class="name">${esc(s.name)}</div>
-        <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap"><span class="tag accent">${esc(s.class_type||'1對1')}</span>${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}</div></div></div>
+        <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap"><span class="tag accent">${esc(s.class_type||'1對1')}</span>${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}${IS_OWNER&&s.admin?`<span class="tag" title="負責管理員">👤 ${esc(adminName(s.admin))}</span>`:''}</div></div></div>
     <div class="actions" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
         <button class="btn btn-sm" data-act="report" data-id="${s.id}">📊 學習報表</button>
         <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">🗓 上課記錄</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
-        <button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button></div>
+        ${IS_OWNER?`<button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button>`:''}</div>
     <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(fmtSchedule(s))}</b></span>
       <span>💰 學費：<b>${money(s.tuition,s.currency)}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span><span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}</div>
     ${s.email?`<div class="meta" style="margin-top:8px;align-items:center">${s.reset_requested?'<span class="badge badge-soon">🔑 學生申請重設</span>':''}<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}">✉️ 寄重設密碼信</button></div>`:''}
@@ -289,6 +310,8 @@ function studentModal(st){const e=!!st;st=st||{};
        : `<div class="field"><label>Email（登入帳號）*</label><input id="f-email" type="email" value="" placeholder="student@example.com" autocomplete="off"></div>
      <div class="field"><label>初始密碼 *</label><input id="f-pw" type="text" value="" placeholder="至少 6 碼，告訴學生"></div>
      <div class="field full"><span class="hint">系統會用這個 Email 與密碼為學生建立安全登入帳號；密碼不會存進資料庫。</span></div>`}
+     ${IS_OWNER?`<div class="field full"><label>負責管理員 <span class="hint">把這位學生指派給某位管理員;選「主管理員」表示只有你管理。一般管理員只看得到分配給他的學生</span></label>
+       <select id="f-admin"><option value=""${!st.admin?' selected':''}>主管理員（你）${TEACHER_EMAIL?'・'+esc(TEACHER_EMAIL):''}</option>${(S.admins||[]).map(a=>`<option value="${esc(a.email)}"${(st.admin||'').toLowerCase()===(a.email||'').toLowerCase()?' selected':''}>${esc(a.name||a.email)}・${esc(a.email)}</option>`).join('')}</select></div>`:''}
      <div class="field full"><label>備註</label><textarea id="f-notes" style="min-height:60px">${esc(st.notes||'')}</textarea></div>
    </div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
@@ -652,16 +675,17 @@ H.schedDel=(_,b)=>{const row=b.closest('.sched-row');if(!row)return;const c=row.
 H.delStudent=async(id)=>{const s=S.students.find(x=>x.id===id);if(!confirm(`確定刪除「${s.name}」？相關成績也會一併刪除。`))return;try{await DB.remove('students',id);await loadAll();render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
 H.admins=async()=>{if(!isOwner()){toast('只有主管理員可以管理管理員');return;}
   let list=[];try{list=await DB.list('admins');}catch(e){list=[];}
-  const rows=list.length?list.map(a=>`<div class="dash-row"><span class="badge badge-ok">管理員</span><b>${esc(a.name||a.email||'')}</b><span class="muted">${esc(a.email||'')}</span><span class="grow"></span><button class="btn btn-sm btn-danger" data-act="delAdmin" data-id="${a.id}">移除</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">目前沒有共用管理員。</div>';
+  const cnt=em=>S.students.filter(s=>(s.admin||'').toLowerCase()===(em||'').toLowerCase()).length;
+  const rows=list.length?list.map(a=>`<div class="dash-row"><span class="badge badge-ok">管理員</span><b>${esc(a.name||a.email||'')}</b><span class="muted">${esc(a.email||'')}</span><span class="grow"></span><span class="muted">負責 ${cnt(a.email)} 位學生</span><button class="btn btn-sm btn-danger" data-act="delAdmin" data-id="${a.id}">移除</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">目前沒有一般管理員。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>👤 管理員</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="dash-row"><span class="badge" style="background:var(--accent);color:#fff;border-color:var(--accent)">主管理員</span><b>你</b><span class="muted">${esc(TEACHER_EMAIL)}</span><span class="grow"></span><span class="hint">不可刪除</span></div>
-     <div class="lesson-label" style="margin-top:14px">共用管理員（權限跟你一樣，但看不到這個面板、不能刪除你）</div>${rows}
+     <div class="lesson-label" style="margin-top:14px">一般管理員（只看得到你分配給他的學生）</div>${rows}
      <div class="field full" style="margin-top:16px"><label>新增管理員</label>
        <input id="adm-name" type="text" placeholder="名稱（顯示用，可留空）" autocomplete="off" style="margin-bottom:8px">
        <input id="adm-email" type="email" placeholder="對方的 Email" autocomplete="off" style="margin-bottom:8px">
        <input id="adm-pw" type="text" placeholder="密碼（至少 6 碼，請給對方）" autocomplete="off">
-       <div class="hint" style="margin-top:6px">系統會用這組 Email＋密碼幫對方建立登入帳號（密碼不會存進資料庫）。對方到「教師頁」用這組登入就有完整權限。</div></div>
+       <div class="hint" style="margin-top:6px">系統會用這組 Email＋密碼幫對方建立登入帳號（密碼不會存進資料庫）。新增後，到「學生名冊」<b>編輯學生→負責管理員</b>，把學生分配給他。他登入後只看得到分配給他的學生（可批改、改進度、登記堂數），也能編輯共用課文／題庫；<b>看不到別的管理員的學生，也不能管理管理員。</b></div></div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn btn-accent" data-act="addAdmin">＋ 新增管理員</button></div></div>`);};
 H.addAdmin=async(_,b)=>{if(!isOwner())return;const name=$('#adm-name').value.trim(),email=$('#adm-email').value.trim().toLowerCase(),pw=$('#adm-pw').value;
@@ -686,6 +710,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),currency:$('#f-cur').value,
     sessions_total:$('#f-sess').value===''?null:Number($('#f-sess').value),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,notes:$('#f-notes').value.trim()};
+  if(IS_OWNER){const asel=$('#f-admin');common.admin=asel?asel.value:'';}
   if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
   const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
   if(!email||!pw)return toast('請填 Email 與初始密碼');if(pw.length<6)return toast('初始密碼至少 6 碼');
@@ -1085,10 +1110,10 @@ H.saveReview=async(rid)=>{const r=S.results.find(x=>x.id===rid);if(!r)return;
   catch(e){if(btn){btn.disabled=false;btn.textContent='💾 儲存建議';}toast(writeErr('儲存失敗',e));}};
 H.delResult=async(rid)=>{const r=S.results.find(x=>x.id===rid);if(!r)return;const s=S.students.find(x=>x.id===r.student_id);
   if(!confirm('確定刪除「'+((s&&s.name)||'這位學生')+'」這一課的作答記錄？\n此動作無法復原（測試用）。'))return;
-  try{await DB.remove('results',rid);{splitResults(await DB.list('results'));}render();toast('已刪除作答記錄');}catch(e){toast(writeErr('刪除失敗',e));}};
+  try{await DB.remove('results',rid);await loadAll();render();toast('已刪除作答記錄');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.clearLessonResults=async(lid)=>{const rs=S.results.filter(r=>r.lesson_id===lid);if(!rs.length)return toast('這一課還沒有作答記錄');
   if(!confirm('確定清空「本課」所有學生的作答記錄？共 '+rs.length+' 筆，無法復原（測試用）。'))return;
-  try{for(const r of rs)await DB.remove('results',r.id);{splitResults(await DB.list('results'));}render();toast('已清空本課作答記錄');}catch(e){toast(writeErr('清空失敗',e));}};
+  try{for(const r of rs)await DB.remove('results',r.id);await loadAll();render();toast('已清空本課作答記錄');}catch(e){toast(writeErr('清空失敗',e));}};
 H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>(l.assigned_ids||[]).length);if(!ls.length)return toast('還沒有指派的課文');
   const rows=[['學生','Email','課文','狀態','分數','滿分','完成時間']];
   ls.forEach(l=>{const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const qn=answerableOf(l.id).length;
