@@ -35,6 +35,7 @@
         <div><div class="brand-title" id="app-name">華語線上作業簿</div><div class="brand-sub">教師管理後台</div></div></div>
       <div class="topbar-spacer"></div>
       <span class="mode-tag" id="mode-tag"></span>
+      <button class="btn btn-sm btn-ghost" data-act="exportAll" title="把所有資料匯出成 Excel 備份">⬇ 備份</button>
       <button class="btn btn-sm btn-ghost hide" id="admin-btn" data-act="admins">👤 管理員</button>
       <button class="btn btn-sm btn-ghost" data-act="logout">登出</button>
     </div></div>
@@ -43,6 +44,7 @@
       <div class="tabs">
         <button class="tab" data-act="tab" data-id="dashboard">📋 待辦</button>
         <button class="tab" data-act="tab" data-id="students">學生名冊 <span class="count" id="c-students">0</span></button>
+        <button class="tab" data-act="tab" data-id="calendar">📅 課表</button>
         <button class="tab" data-act="tab" data-id="lessons">課文練習 <span class="count" id="c-lessons">0</span></button>
         <button class="tab" data-act="tab" data-id="grades">成績總覽 <span class="count alert hide" id="c-pending">0</span></button>
       </div>
@@ -50,6 +52,11 @@
       <section id="panel-dashboard" class="panel">
         <div class="section-head"><h2>📋 待辦</h2><span class="sub">需要你處理的事項</span></div>
         <div id="dashboard-body"></div>
+      </section>
+
+      <section id="panel-calendar" class="panel hide">
+        <div class="section-head"><h2>📅 本週課表</h2><span class="sub">每位學生的上課時段、Meet 教室與加入日曆</span></div>
+        <div id="calendar-body"></div>
       </section>
 
       <section id="panel-students" class="panel hide">
@@ -83,6 +90,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="config.js"></script>
 <script src="db.js"></script>
 <script>
@@ -191,7 +199,7 @@ function render(){
   {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
-  try{({dashboard:renderDashboard,students:renderStudents,lessons:renderLessons,grades:renderGrades}[S.tab])();}
+  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades}[S.tab])();}
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
@@ -264,6 +272,20 @@ function renderDashboard(){
       <div class="quiz-create-row" style="margin-top:10px"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button><span class="muted">選一課的生詞，指派學生做聽寫，自動計分</span></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):''}</details>
     <details class="dash-fold" style="margin-top:14px"><summary>📈 學生進度</summary><div style="margin-top:10px">${progHtml}</div></details>`;
 }
+
+/* ---------- 課表／行事曆 ---------- */
+function nextDateForDay(d,timeStr){const now=new Date();const jsDow=(d+1)%7;let diff=(jsDow-now.getDay()+7)%7;const tp=(timeStr||'00:00').split(':');const hh=Number(tp[0])||0,mm=Number(tp[1])||0;const c=new Date(now.getFullYear(),now.getMonth(),now.getDate()+diff,hh,mm,0);if(c<now)c.setDate(c.getDate()+7);return c;}
+function gcalLink(title,start,endTime){const pad=n=>String(n).padStart(2,'0');const fmt=dt=>''+dt.getFullYear()+pad(dt.getMonth()+1)+pad(dt.getDate())+'T'+pad(dt.getHours())+pad(dt.getMinutes())+'00';const e=new Date(start);const ep=(endTime||'').split(':');if(ep.length>=2&&ep[0]!==''){e.setHours(Number(ep[0])||0,Number(ep[1])||0,0);}else{e.setHours(start.getHours()+1);}const dates=fmt(start)+'/'+fmt(e);return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(title)+'&dates='+dates+'&recur='+encodeURIComponent('RRULE:FREQ=WEEKLY');}
+function renderCalendar(){const body=$('#calendar-body');const byDay={};
+  S.students.forEach(s=>{(Array.isArray(s.schedule)?s.schedule:[]).forEach(slot=>{if(slot&&(slot.s||slot.e)){const d=(slot.d!=null?slot.d:0);(byDay[d]=byDay[d]||[]).push({stu:s,slot});}});});
+  if(!Object.keys(byDay).length){body.innerHTML=emptyHtml('📅','還沒有課表','到「學生名冊」編輯學生、填上「上課時段」就會自動出現在這裡。');return;}
+  let html='';const todayIdx=(new Date().getDay()+6)%7;
+  for(let d=0;d<7;d++){const items=(byDay[d]||[]).slice().sort((a,b)=>(a.slot.s||'').localeCompare(b.slot.s||''));if(!items.length)continue;
+    html+=`<div class="card" style="margin-bottom:12px"><div class="lesson-label">${DAYS[d]}${d===todayIdx?' <span class="badge badge-soon">今天</span>':''}</div>`+
+      items.map(({stu,slot})=>{const time=(slot.s||'')+(slot.e?'–'+slot.e:'');const start=nextDateForDay(d,slot.s||'00:00');const gl=gcalLink((stu.name||'學生')+' 中文課',start,slot.e);
+        const meet=/^https?:\/\//i.test(stu.meet_url||'')?`<a class="btn btn-sm btn-accent" href="${esc(stu.meet_url)}" target="_blank" rel="noopener">🎥 教室</a>`:'';
+        return `<div class="dash-row"><span class="badge badge-pending">${esc(time||'—')}</span><b>${esc(stu.name)}</b><span class="muted">${esc(stu.class_type||'')}${stu.textbook?' · '+esc(stu.textbook):''}</span><span class="grow"></span>${meet}<a class="btn btn-sm" href="${esc(gl)}" target="_blank" rel="noopener">📅 加入日曆</a></div>`;}).join('')+`</div>`;}
+  body.innerHTML=html;}
 
 /* ---------- 學生名冊 ---------- */
 function renderStudents(){
@@ -1135,7 +1157,7 @@ H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>(l.assigned_ids||[
   a.href=url;a.download='成績_'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('已匯出 CSV');};
 H.payments=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const ps=(s.payments||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const total=ps.reduce((sum,p)=>sum+(Number(p.amount)||0),0);
-  const rows=ps.length?ps.map((p,i)=>`<div class="dash-row"><span class="grow"><b>${esc(p.date||'')}</b> · ${money(p.amount,p.currency||s.currency)}${p.sessions?(' · +'+p.sessions+' 堂'):''}${p.note?(' · '+esc(p.note)):''}</span><button class="btn btn-sm btn-danger" type="button" data-act="payDel" data-id="${id}::${i}">✕</button></div>`).join(''):'<div class="hint" style="padding:8px 0">還沒有繳費紀錄。</div>';
+  const rows=ps.length?ps.map((p,i)=>`<div class="dash-row"><span class="grow"><b>${esc(p.date||'')}</b> · ${money(p.amount,p.currency||s.currency)}${p.sessions?(' · +'+p.sessions+' 堂'):''}${p.note?(' · '+esc(p.note)):''}</span><button class="btn btn-sm" type="button" data-act="receipt" data-id="${id}::${i}">🧾 收據</button><button class="btn btn-sm btn-danger" type="button" data-act="payDel" data-id="${id}::${i}">✕</button></div>`).join(''):'<div class="hint" style="padding:8px 0">還沒有繳費紀錄。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>${esc(s.name)} · 繳費紀錄</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div style="margin-bottom:6px">${rows}</div>
@@ -1156,6 +1178,38 @@ H.payAdd=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const da
 H.payDel=async(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;if(!confirm('刪除這筆繳費紀錄？'))return;
   const payments=(s.payments||[]).slice();const removed=payments.splice(i,1)[0];const patch={payments};if(removed&&removed.sessions){patch.sessions_total=Math.max(0,(Number(s.sessions_total)||0)-removed.sessions);}
   try{await DB.update('students',id,patch);await loadAll();H.payments(id);render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
+H.receipt=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;const pay=(s.payments||[])[i];if(!pay)return;
+  const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const org=window.APP_NAME||'華語線上作業簿';const amt=money(pay.amount,pay.currency||s.currency);const no='R'+(pay.date||'').replace(/-/g,'')+'-'+(i+1);
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>收據 '+e2(no)+'</title><style>'
+    +'body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;color:#1a1a1a;max-width:540px;margin:0 auto;padding:34px}'
+    +'.bar{display:flex;gap:12px;border-bottom:1px solid #ccc;padding-bottom:10px;margin-bottom:22px}.bar button{font-size:14px;padding:8px 14px;border:1px solid #a12a40;background:#a12a40;color:#fff;border-radius:8px;cursor:pointer}'
+    +'h1{font-size:22px;margin:0;color:#a12a40}.sub{color:#777;font-size:13px;margin:2px 0 24px}'
+    +'.row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eee}.lbl{color:#666}.amt{font-size:28px;font-weight:800;color:#a12a40}'
+    +'.sign{margin-top:46px;color:#444}.foot{margin-top:26px;color:#aaa;font-size:12px}'
+    +'@media print{.bar{display:none}body{padding:6px}}</style></head><body>'
+    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button></div>'
+    +'<h1>'+e2(org)+'</h1><div class="sub">繳費收據 Receipt · '+e2(no)+'</div>'
+    +'<div class="row"><span class="lbl">學生 Student</span><span>'+e2(s.name)+'</span></div>'
+    +'<div class="row"><span class="lbl">日期 Date</span><span>'+e2(pay.date||'')+'</span></div>'
+    +(pay.sessions?'<div class="row"><span class="lbl">堂數 Sessions</span><span>+'+e2(pay.sessions)+' 堂</span></div>':'')
+    +(pay.note?'<div class="row"><span class="lbl">項目 Item</span><span>'+e2(pay.note)+'</span></div>':'')
+    +'<div class="row" style="border-bottom:0;align-items:center;margin-top:6px"><span class="lbl">金額 Amount</span><span class="amt">'+e2(amt)+'</span></div>'
+    +'<div class="sign">簽收 / 蓋章 Signature：＿＿＿＿＿＿＿＿＿＿＿＿</div>'
+    +'<div class="foot">開立時間 '+new Date().toLocaleString()+'</div></body></html>';
+  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
+H.exportAll=()=>{if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
+  try{const wb=XLSX.utils.book_new();
+    const stu=S.students.map(s=>({姓名:s.name||'',國籍:s.nationality||'',教材:s.textbook||'',班別:s.class_type||'',Email:s.email||'',上課時段:fmtSchedule(s),Meet連結:s.meet_url||'',學費:s.tuition==null?'':s.tuition,幣別:s.currency||'',付款日:s.payment_date||'',總堂數:s.sessions_total==null?'':s.sessions_total,負責管理員:s.admin||'(主管理員)',備註:s.notes||''}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(stu.length?stu:[{}]),'學生');
+    const les=sortLessons(S.lessons).map((l,i)=>({課號:l.order_index||i+1,教材:l.textbook||'',課名:l.title||'',題數:questionsOf(l.id).length,指派人數:(l.assigned_ids||[]).length,狀態:l.build==='done'?'完成':'進行中'}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(les.length?les:[{}]),'課程');
+    const gr=[];(S.results||[]).forEach(r=>{const st=S.students.find(x=>x.id===r.student_id),l=S.lessons.find(x=>x.id===r.lesson_id);gr.push({學生:(st&&st.name)||'',課:(l?((l.order_index?'第'+l.order_index+'課 ':'')+(l.title||'')):''),狀態:r.status||'',分數:(r.auto!=null?r.auto:(r.score==null?'':r.score)),總分:r.total==null?'':r.total,繳交時間:r.completed_at||r.updated_at||''});});
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(gr.length?gr:[{}]),'成績');
+    const pays=[];S.students.forEach(s=>{(s.payments||[]).forEach(p=>{pays.push({學生:s.name||'',日期:p.date||'',金額:p.amount==null?'':p.amount,幣別:p.currency||s.currency||'',加堂:p.sessions==null?'':p.sessions,備註:p.note||''});});});
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(pays.length?pays:[{}]),'繳費');
+    XLSX.writeFile(wb,'華語作業簿_備份_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('已匯出 Excel 備份');
+  }catch(err){toast('匯出失敗：'+((err&&err.message)||err));}};
 let CLOG_SCHED=null;
 function clSlotFor(dateStr){if(!CLOG_SCHED||!dateStr)return null;const jsDow=new Date(dateStr+'T00:00:00').getDay();const d=(jsDow+6)%7;const m=CLOG_SCHED.find(r=>r&&((r.d!=null?r.d:0)===d)&&(r.s||r.e));return m?{s:m.s||'',e:m.e||''}:null;}
 function clFillSlot(){const di=document.getElementById('cl-date');if(!di)return;const slot=clSlotFor(di.value);const si=document.getElementById('cl-start'),ei=document.getElementById('cl-end');if(slot){if(si)si.value=slot.s;if(ei)ei.value=slot.e;}}
