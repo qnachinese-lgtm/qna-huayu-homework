@@ -278,6 +278,7 @@ function renderStudents(){
       <div style="flex:1;min-width:0"><div class="name">${esc(s.name)}</div>
         <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap"><span class="tag accent">${esc(s.class_type||'1對1')}</span>${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}${IS_OWNER&&s.admin?`<span class="tag" title="負責管理員">👤 ${esc(adminName(s.admin))}</span>`:''}</div></div></div>
     <div class="actions" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
+        ${/^https?:\/\//i.test(s.meet_url||'')?`<a class="btn btn-sm btn-accent" href="${esc(s.meet_url)}" target="_blank" rel="noopener">🎥 上課教室</a>`:''}
         <button class="btn btn-sm" data-act="report" data-id="${s.id}">📊 學習報表</button>
         <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">🗓 上課記錄</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
@@ -289,31 +290,41 @@ function renderStudents(){
 }
 function studentModal(st){const e=!!st;st=st||{};
   openModal(`<div class="modal"><div class="modal-head"><h3>${e?'編輯學生':'新增學生'}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="form-grid">
+   <div class="modal-body">
+    <div class="form-sec"><div class="form-sec-h">📋 基本資料</div><div class="form-grid">
      <div class="field"><label>名字 *</label><input id="f-name" type="text" value="${esc(st.name||'')}"></div>
      <div class="field"><label>國籍</label><input id="f-nat" type="text" value="${esc(st.nationality||'')}" placeholder="例：美國"></div>
-     <div class="field full"><label>使用教材</label><input id="f-book" type="text" value="${esc(st.textbook||'')}" placeholder="例：當代中文課程 1"></div>
      <div class="field"><label>班別</label><select id="f-type"><option ${st.class_type==='1對1'?'selected':''}>1對1</option><option ${st.class_type==='團班'?'selected':''}>團班</option></select></div>
-     <div class="field full"><label>上課時段 <span class="hint">一週可多個，依學生實際安排（例：週三 20:00–22:00、週五 15:00–17:00）</span></label>
+     <div class="field"><label>使用教材</label><input id="f-book" type="text" value="${esc(st.textbook||'')}" placeholder="例：當代中文課程 1"></div>
+    </div></div>
+    <div class="form-sec"><div class="form-sec-h">🗓️ 上課安排</div><div class="form-grid">
+     <div class="field full"><label>上課時段 <span class="hint">一週可多個（例：週三 20:00–22:00、週五 15:00–17:00）</span></label>
        <div id="sched-rows">${(Array.isArray(st.schedule)&&st.schedule.length?st.schedule:[{}]).map(r=>schedRowHTML(r)).join('')}</div>
-       <button class="btn btn-sm" type="button" data-act="schedAdd" style="margin-top:6px">＋ 新增時段</button></div>
+       <button class="btn btn-sm" type="button" data-act="schedAdd" style="margin-top:8px">＋ 新增時段</button></div>
+     <div class="field full"><label>第一堂課 <span class="hint">先選第一次上課「日期」，右邊自動帶出時段；之後依每週時段往後扣堂</span></label>
+       <div class="dual-row">
+         <input id="f-first-date" type="date" value="${esc(st.first_class||st.sessions_start||'')}">
+         <select id="f-first-slot"><option value="">（請先選左邊的日期）</option></select></div></div>
+     <div class="field full"><label>🎥 上課連結（Google Meet） <span class="hint">貼上固定的 Meet 連結，老師和學生都能一鍵進教室</span></label>
+       <input id="f-meet" type="url" inputmode="url" value="${esc(st.meet_url||'')}" placeholder="https://meet.google.com/abc-defg-hij"></div>
+    </div></div>
+    <div class="form-sec"><div class="form-sec-h">💰 費用與堂數</div><div class="form-grid">
+     <div class="field"><label>堂數（總共） <span class="hint">本期購買</span></label><input id="f-sess" type="number" min="0" value="${st.sessions_total??''}" placeholder="例：10"></div>
      <div class="field"><label>付款日期</label><input id="f-pay" type="date" value="${esc(st.payment_date||'')}"></div>
-     <div class="field"><label>堂數（總共） <span class="hint">本期購買的堂數</span></label><input id="f-sess" type="number" min="0" value="${st.sessions_total??''}" placeholder="例：10"></div>
-     <div class="field"><label>第一堂課 <span class="hint">先選第一次上課的「日期」，右邊會自動帶出那天的時段；之後依每週時段往後扣堂</span></label>
-       <div style="display:flex;gap:8px;flex-wrap:wrap">
-         <input id="f-first-date" type="date" style="flex:1 1 140px;min-width:130px" value="${esc(st.first_class||st.sessions_start||'')}">
-         <select id="f-first-slot" style="flex:1 1 150px;min-width:140px"><option value="">（請先選左邊的日期）</option></select></div></div>
      <div class="field"><label>學費</label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：800"></div>
      <div class="field"><label>幣別</label><select id="f-cur"><option value="TWD"${(st.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${st.currency==='VND'?' selected':''}>越南盾 ₫</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
+    </div></div>
+    <div class="form-sec"><div class="form-sec-h">🔑 登入帳號</div><div class="form-grid">
      ${e
        ? `<div class="field full"><label>Email（登入帳號）</label><input id="f-email" type="email" value="${esc(st.email||'')}" disabled style="opacity:.65"><span class="hint">建立後不可更改；要改密碼請按卡片上的「寄重設密碼信」</span></div>`
        : `<div class="field"><label>Email（登入帳號）*</label><input id="f-email" type="email" value="" placeholder="student@example.com" autocomplete="off"></div>
      <div class="field"><label>初始密碼 *</label><input id="f-pw" type="text" value="" placeholder="至少 6 碼，告訴學生"></div>
      <div class="field full"><span class="hint">系統會用這個 Email 與密碼為學生建立安全登入帳號；密碼不會存進資料庫。</span></div>`}
-     ${IS_OWNER?`<div class="field full"><label>負責管理員 <span class="hint">把這位學生指派給某位管理員;選「主管理員」表示只有你管理。一般管理員只看得到分配給他的學生</span></label>
-       <select id="f-admin"><option value=""${!st.admin?' selected':''}>主管理員（你）${TEACHER_EMAIL?'・'+esc(TEACHER_EMAIL):''}</option>${(S.admins||[]).map(a=>`<option value="${esc(a.email)}"${(st.admin||'').toLowerCase()===(a.email||'').toLowerCase()?' selected':''}>${esc(a.name||a.email)}・${esc(a.email)}</option>`).join('')}</select></div>`:''}
-     <div class="field full"><label>備註</label><textarea id="f-notes" style="min-height:60px">${esc(st.notes||'')}</textarea></div>
-   </div></div>
+    </div></div>
+    ${IS_OWNER?`<div class="form-sec"><div class="form-sec-h">👤 指派</div><div class="form-grid"><div class="field full"><label>負責管理員 <span class="hint">指派給某位管理員;選「主管理員」表示只有你管理</span></label>
+       <select id="f-admin"><option value=""${!st.admin?' selected':''}>主管理員（你）${TEACHER_EMAIL?'・'+esc(TEACHER_EMAIL):''}</option>${(S.admins||[]).map(a=>`<option value="${esc(a.email)}"${(st.admin||'').toLowerCase()===(a.email||'').toLowerCase()?' selected':''}>${esc(a.name||a.email)}・${esc(a.email)}</option>`).join('')}</select></div></div></div>`:''}
+    <div class="form-sec"><div class="form-sec-h">📝 備註</div><div class="field full" style="margin-bottom:0"><textarea id="f-notes" placeholder="任何需要記住的事…">${esc(st.notes||'')}</textarea></div></div>
+   </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
      <button class="btn btn-primary" data-act="saveStudent" data-id="${st.id||''}">${e?'儲存':'新增'}</button></div></div>`);
   refreshFirstSlot(st.first_slot!=null?st.first_slot:undefined);
@@ -709,7 +720,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   const fslot=$('#f-first-slot');
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),currency:$('#f-cur').value,
-    sessions_total:$('#f-sess').value===''?null:Number($('#f-sess').value),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,notes:$('#f-notes').value.trim()};
+    sessions_total:$('#f-sess').value===''?null:Number($('#f-sess').value),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),notes:$('#f-notes').value.trim()};
   if(IS_OWNER){const asel=$('#f-admin');common.admin=asel?asel.value:'';}
   if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
   const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
