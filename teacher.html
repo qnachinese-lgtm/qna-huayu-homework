@@ -35,6 +35,7 @@
         <div><div class="brand-title" id="app-name">華語線上作業簿</div><div class="brand-sub">教師管理後台</div></div></div>
       <div class="topbar-spacer"></div>
       <span class="mode-tag" id="mode-tag"></span>
+      <button class="btn btn-sm btn-ghost hide" id="admin-btn" data-act="admins">👤 管理員</button>
       <button class="btn btn-sm btn-ghost" data-act="logout">登出</button>
     </div></div>
 
@@ -649,6 +650,31 @@ H.editStudent=(id)=>studentModal(S.students.find(s=>s.id===id));
 H.schedAdd=()=>{const c=$('#sched-rows');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));refreshFirstSlot();};
 H.schedDel=(_,b)=>{const row=b.closest('.sched-row');if(!row)return;const c=row.parentElement;row.remove();if(c&&!c.querySelector('.sched-row'))c.insertAdjacentHTML('beforeend',schedRowHTML({}));refreshFirstSlot();};
 H.delStudent=async(id)=>{const s=S.students.find(x=>x.id===id);if(!confirm(`確定刪除「${s.name}」？相關成績也會一併刪除。`))return;try{await DB.remove('students',id);await loadAll();render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
+H.admins=async()=>{if(!isOwner()){toast('只有主管理員可以管理管理員');return;}
+  let list=[];try{list=await DB.list('admins');}catch(e){list=[];}
+  const rows=list.length?list.map(a=>`<div class="dash-row"><span class="badge badge-ok">管理員</span><b>${esc(a.name||a.email||'')}</b><span class="muted">${esc(a.email||'')}</span><span class="grow"></span><button class="btn btn-sm btn-danger" data-act="delAdmin" data-id="${a.id}">移除</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">目前沒有共用管理員。</div>';
+  openModal(`<div class="modal"><div class="modal-head"><h3>👤 管理員</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="dash-row"><span class="badge" style="background:var(--accent);color:#fff;border-color:var(--accent)">主管理員</span><b>你</b><span class="muted">${esc(TEACHER_EMAIL)}</span><span class="grow"></span><span class="hint">不可刪除</span></div>
+     <div class="lesson-label" style="margin-top:14px">共用管理員（權限跟你一樣，但看不到這個面板、不能刪除你）</div>${rows}
+     <div class="field full" style="margin-top:16px"><label>新增管理員</label>
+       <input id="adm-name" type="text" placeholder="名稱（顯示用，可留空）" autocomplete="off" style="margin-bottom:8px">
+       <input id="adm-email" type="email" placeholder="對方的 Email" autocomplete="off" style="margin-bottom:8px">
+       <input id="adm-pw" type="text" placeholder="密碼（至少 6 碼，請給對方）" autocomplete="off">
+       <div class="hint" style="margin-top:6px">系統會用這組 Email＋密碼幫對方建立登入帳號（密碼不會存進資料庫）。對方到「教師頁」用這組登入就有完整權限。</div></div>
+   </div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn btn-accent" data-act="addAdmin">＋ 新增管理員</button></div></div>`);};
+H.addAdmin=async(_,b)=>{if(!isOwner())return;const name=$('#adm-name').value.trim(),email=$('#adm-email').value.trim().toLowerCase(),pw=$('#adm-pw').value;
+  if(!email||!pw)return toast('請輸入 Email 與密碼');if(pw.length<6)return toast('密碼至少 6 碼');if(email===TEACHER_EMAIL)return toast('這就是你的主管理員帳號');
+  if(b){b.disabled=true;b.textContent='建立中…';}
+  try{await ensureAuthFresh();
+    try{await createStudentAuth(email,pw);}catch(e){if(((e&&e.code)||'').indexOf('email-already-in-use')<0)throw e;}
+    await DB.insert('admins',{email,name:name||email});
+    toast('已新增管理員');H.admins();
+  }catch(err){if(b){b.disabled=false;b.textContent='＋ 新增管理員';}toast(adminWriteErr(err));}};
+H.delAdmin=async(id)=>{if(!isOwner())return;let list=[];try{list=await DB.list('admins');}catch(e){}const a=list.find(x=>x.id===id);
+  if(!confirm('確定移除管理員「'+((a&&(a.name||a.email))||'')+'」？移除後他就無法登入後台。'))return;
+  try{await DB.remove('admins',id);toast('已移除管理員');H.admins();}catch(err){toast(adminWriteErr(err));}};
 function authMsg(err){const c=((err&&err.code)||'')+'';if(c.indexOf('email-already-in-use')>=0)return '這個 Email 已經建立過帳號了';if(c.indexOf('invalid-email')>=0)return 'Email 格式不正確';if(c.indexOf('weak-password')>=0)return '密碼太弱，至少 6 碼';return (err&&err.message)||'發生錯誤';}
 async function createStudentAuth(email,password){
   const sec=firebase.apps.find(a=>a.name==='secondary')||firebase.initializeApp(window.FIREBASE_CONFIG,'secondary');
@@ -1228,6 +1254,12 @@ document.addEventListener('change',async(e)=>{
 
 const useAuth=!!(window.firebase&&firebase.auth&&window.FIREBASE_CONFIG&&window.FIREBASE_CONFIG.apiKey);
 const TEACHER_EMAIL=(window.TEACHER_EMAIL||'').toLowerCase();
+/* ===== 管理員（主管理員 + 共用管理員）===== */
+async function listAdmins(){try{return await DB.list('admins');}catch(e){return [];}}
+async function emailAllowed(email){email=(email||'').toLowerCase();if(!email)return false;if(email===TEACHER_EMAIL)return true;const list=await listAdmins();return list.some(a=>(a.email||'').toLowerCase()===email);}
+function isOwner(){try{const u=firebase.auth().currentUser;return !!(u&&(u.email||'').toLowerCase()===TEACHER_EMAIL);}catch(e){return false;}}
+function updateAdminBtn(){const b=document.getElementById('admin-btn');if(b)b.classList.toggle('hide',!isOwner());}
+function adminWriteErr(err){const m=(((err&&(err.code||err.message))||'')+'').toLowerCase();if(/permission|insufficient|unauth/.test(m))return '無法寫入：請先到 Firebase 後台加上「admins」集合的安全規則（見設定說明）。';return (err&&err.message)||'操作失敗';}
 function authErr(e){const c=(e&&e.code)||'';
   if(c.indexOf('wrong-password')>=0||c.indexOf('invalid-credential')>=0)return '密碼不正確';
   if(c.indexOf('user-not-found')>=0)return '查無此帳號';
@@ -1243,7 +1275,7 @@ async function tryLogin(){
     if(!email||!pw){$('#gate-err').textContent='請輸入 Email 與密碼';return;}
     $('#gate-err').textContent='登入中…';
     try{const cred=await firebase.auth().signInWithEmailAndPassword(email,pw);
-      if((cred.user.email||'').toLowerCase()!==TEACHER_EMAIL){await firebase.auth().signOut();$('#gate-err').textContent='此帳號沒有教師權限';return;}
+      if(!(await emailAllowed(cred.user.email))){await firebase.auth().signOut();$('#gate-err').textContent='此帳號沒有管理權限';return;}
       $('#gate-err').textContent='';
     }catch(e){$('#gate-err').textContent=authErr(e);}
   }else{const pw=$('#gate-pw').value;if(pw&&pw===(window.TEACHER_PASSWORD||'')){sessionStorage.setItem('teacher_ok','1');enter();}else{$('#gate-err').textContent='密碼不正確';}}
@@ -1259,8 +1291,8 @@ $('#stu-search').addEventListener('input',e=>{S.q=e.target.value.trim();renderSt
 boot();
 function authBanner(show){let b=document.getElementById('auth-warn');if(show){if(!b){b=document.createElement('div');b.id='auth-warn';b.className='auth-warn';b.innerHTML='⚠️ 登入已失效，目前無法儲存。請<b>開新分頁登入教師頁</b>，再回到這個分頁按一次儲存（<u>不要重新整理</u>，正在編輯的內容才不會不見）。 <button class="btn btn-sm" data-act="reloginTab">開新分頁登入</button>';document.body.insertBefore(b,document.body.firstChild);}}else if(b){b.remove();}}
 H.reloginTab=()=>{window.open('teacher.html','_blank');};
-if(useAuth){firebase.auth().onAuthStateChanged(function(user){const ok=user&&(user.email||'').toLowerCase()===TEACHER_EMAIL;
-  if(ok){authBanner(false);if($('#app').classList.contains('hide'))enter();}
+if(useAuth){firebase.auth().onAuthStateChanged(async function(user){const ok=user&&await emailAllowed(user.email);
+  if(ok){authBanner(false);updateAdminBtn();if($('#app').classList.contains('hide'))enter();}
   else if(!$('#app').classList.contains('hide')){authBanner(true);}});}
 else{if(sessionStorage.getItem('teacher_ok')==='1')enter();}
 // 保持登入新鮮：每 18 分鐘刷新一次 token，避免長時間編輯後突然無法儲存
