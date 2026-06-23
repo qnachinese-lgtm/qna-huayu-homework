@@ -47,6 +47,7 @@
         <button class="tab" data-act="tab" data-id="calendar">📅 課表</button>
         <button class="tab" data-act="tab" data-id="lessons">課文練習 <span class="count" id="c-lessons">0</span></button>
         <button class="tab" data-act="tab" data-id="grades">成績總覽 <span class="count alert hide" id="c-pending">0</span></button>
+        <button class="tab" data-act="tab" data-id="ops">📊 營運</button>
       </div>
 
       <section id="panel-dashboard" class="panel">
@@ -75,6 +76,11 @@
       <section id="panel-grades" class="panel hide">
         <div class="section-head"><h2>成績總覽</h2><span class="sub">每位學生每課的完成與分數</span></div>
         <div id="grades-list" class="cards"></div>
+      </section>
+
+      <section id="panel-ops" class="panel hide">
+        <div class="section-head"><h2>📊 營運</h2><span class="sub">收入、待收款、管理員、公告</span></div>
+        <div id="ops-body"></div>
       </section>
 
       <div class="foot-note">華語線上作業簿 · 教師後台</div>
@@ -151,7 +157,7 @@ function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
 function emptyHtml(i,t,d){return `<div class="empty"><div class="big">${i}</div><b>${t}</b><div style="margin-top:6px">${d}</div></div>`;}
 const TYPE_LABELS={choice:'單選',fill:'填空',opt:'選填',qa:'問答',order:'重組',match:'配對',write:'手寫',speak:'口說',note:'示範'};
 
-const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],admins:[],tab:'dashboard',q:'',openCards:new Set()};
+const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],admins:[],announcements:[],tab:'dashboard',q:'',openCards:new Set()};
 let IS_OWNER=false, MY_EMAIL='';
 function adminName(email){if(!email)return '主管理員';const a=(S.admins||[]).find(x=>(x.email||'').toLowerCase()===(email||'').toLowerCase());return (a&&(a.name||a.email))||email;}
 const sortLessons=(a)=>a.slice().sort((x,y)=>((x.order_index||0)-(y.order_index||0))||((x.created_at||'').localeCompare(y.created_at||'')));
@@ -176,7 +182,7 @@ async function loadAll(){
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
     DB.list('lessons'),DB.list('questions'),DB.list('results')]);
   S.students=a;S.questions=c;
-  S.lessons=b.filter(x=>x.kind!=='quiz');S.quizzes=b.filter(x=>x.kind==='quiz');
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement');S.quizzes=b.filter(x=>x.kind==='quiz');S.announcements=b.filter(x=>x.kind==='announcement');
   splitResults(d);
   if(!owner){
     const ids=new Set(S.students.map(s=>s.id)),uids=new Set(S.students.map(s=>s.uid).filter(Boolean));
@@ -199,7 +205,7 @@ function render(){
   {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
-  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades}[S.tab])();}
+  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,ops:renderOps}[S.tab])();}
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
@@ -287,6 +293,25 @@ function renderCalendar(){const body=$('#calendar-body');const byDay={};
         return `<div class="dash-row"><span class="badge badge-pending">${esc(time||'—')}</span><b>${esc(stu.name)}</b><span class="muted">${esc(stu.class_type||'')}${stu.textbook?' · '+esc(stu.textbook):''}</span><span class="grow"></span>${meet}<a class="btn btn-sm" href="${esc(gl)}" target="_blank" rel="noopener">📅 加入日曆</a></div>`;}).join('')+`</div>`;}
   body.innerHTML=html;}
 
+/* ---------- 營運（收入／待收款／管理員／公告） ---------- */
+function renderOps(){const body=$('#ops-body');
+  const byMonth={};S.students.forEach(s=>{(s.payments||[]).forEach(p=>{const amt=Number(p.amount)||0;if(!amt)return;const m=(p.date||'').slice(0,7)||'（無日期）';const cur=p.currency||s.currency||'TWD';byMonth[m]=byMonth[m]||{};byMonth[m][cur]=(byMonth[m][cur]||0)+amt;});});
+  const months=Object.keys(byMonth).sort((a,b)=>b.localeCompare(a));const thisM=new Date().toISOString().slice(0,7);
+  const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入紀錄（到學生的「繳費」新增即可）。</div>';
+  const due=S.students.map(s=>({s,info:payInfo(s.payment_date)})).filter(x=>x.info).sort((a,b)=>a.info.sort-b.info.sort);
+  const dueRows=due.length?due.map(({s,info})=>`<div class="dash-row"><span class="badge ${info.cls}">${info.label}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">${money(s.tuition,s.currency)}</span><button class="btn btn-sm" data-act="payments" data-id="${s.id}">繳費</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
+  let adminHtml='';
+  if(IS_OWNER){const cnt=em=>S.students.filter(s=>(s.admin||'').toLowerCase()===(em||'').toLowerCase()).length;const ownCnt=S.students.filter(s=>!s.admin).length;
+    adminHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">👥 管理員負責學生</div><div class="dash-row"><span class="badge" style="background:var(--accent);color:#fff;border-color:var(--accent)">主管理員</span><b>你</b><span class="grow"></span><span class="muted">${ownCnt} 位</span></div>${(S.admins||[]).map(a=>`<div class="dash-row"><span class="badge badge-ok">管理員</span><b>${esc(a.name||a.email)}</b><span class="grow"></span><span class="muted">${cnt(a.email)} 位</span></div>`).join('')}</div>`;}
+  let annHtml='';
+  if(IS_OWNER){const anns=(S.announcements||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+    const annRows=anns.length?anns.map(a=>`<div class="dash-row"><span class="grow"><b>${esc((a.created_at||'').slice(0,10))}</b> · ${esc(a.text||'')}</span><button class="btn btn-sm btn-danger" data-act="delAnnounce" data-id="${a.id}">✕</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">還沒有公告。</div>';
+    annHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">📢 站內公告 <span class="hint">所有學生登入首頁都會看到</span></div><div class="quiz-create-row" style="margin:6px 0 10px"><button class="btn btn-sm btn-accent" data-act="newAnnounce">＋ 發布公告</button></div>${annRows}</div>`;}
+  body.innerHTML=`<div class="card"><div class="lesson-label">💰 各月收入</div>${incRows}</div><div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>${adminHtml}${annHtml}`;}
+H.newAnnounce=()=>{if(!IS_OWNER)return;openModal(`<div class="modal"><div class="modal-head"><h3>📢 發布公告</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="field full"><label>公告內容 <span class="hint">所有學生登入首頁都會看到</span></label><textarea id="ann-text" placeholder="例：下週三停課一次，順延到週五上課。"></textarea></div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><button class="btn btn-primary" data-act="saveAnnounce">發布</button></div></div>`);};
+H.saveAnnounce=async()=>{const t=(($('#ann-text')&&$('#ann-text').value)||'').trim();if(!t)return toast('請輸入公告內容');try{await ensureAuthFresh();await DB.insert('lessons',{kind:'announcement',text:t});closeModal();await loadAll();render();toast('已發布公告');}catch(e){toast(writeErr('發布失敗',e));}};
+H.delAnnounce=async(id)=>{if(!confirm('刪除這則公告？'))return;try{await DB.remove('lessons',id);await loadAll();render();toast('已刪除公告');}catch(e){toast(writeErr('刪除失敗',e));}};
+
 /* ---------- 學生名冊 ---------- */
 function renderStudents(){
   const wrap=$('#students-list');let list=S.students;
@@ -302,6 +327,7 @@ function renderStudents(){
     <div class="actions" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
         ${/^https?:\/\//i.test(s.meet_url||'')?`<a class="btn btn-sm btn-accent" href="${esc(s.meet_url)}" target="_blank" rel="noopener">🎥 上課教室</a>`:''}
         <button class="btn btn-sm" data-act="report" data-id="${s.id}">📊 學習報表</button>
+        <button class="btn btn-sm" data-act="cert" data-id="${s.id}">🎓 證書</button>
         <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">🗓 上課記錄</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
         ${IS_OWNER?`<button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button>`:''}</div>
@@ -1210,6 +1236,32 @@ H.exportAll=()=>{if(typeof XLSX==='undefined'){toast('匯出元件還在載入�
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(pays.length?pays:[{}]),'繳費');
     XLSX.writeFile(wb,'華語作業簿_備份_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('已匯出 Excel 備份');
   }catch(err){toast('匯出失敗：'+((err&&err.message)||err));}};
+H.cert=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const today=new Date().toISOString().slice(0,10);
+  openModal(`<div class="modal"><div class="modal-head"><h3>🎓 結業證書</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
+    <div class="field full"><label>學生姓名</label><input id="cert-name" type="text" value="${esc(s.name||'')}"></div>
+    <div class="field full"><label>課程／級別</label><input id="cert-course" type="text" value="${esc(s.textbook||'')}" placeholder="例：當代中文課程 第一冊"></div>
+    <div class="field"><label>結業日期</label><input id="cert-date" type="date" value="${today}"></div>
+    <div class="field"><label>頒發單位</label><input id="cert-org" type="text" value="${esc(window.APP_NAME||'華語線上作業簿')}"></div>
+    <div class="field full"><label>評語（選填）</label><input id="cert-note" type="text" placeholder="例：學習認真，表現優異。"></div>
+  </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><button class="btn btn-primary" data-act="printCert">產生證書</button></div></div>`);};
+H.printCert=()=>{const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  const name=(g('cert-name')||'').trim()||'學生',course=(g('cert-course')||'').trim(),date=g('cert-date')||'',org=(g('cert-org')||'').trim()||'華語線上作業簿',note=(g('cert-note')||'').trim();
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>結業證書</title><style>'
+    +'body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",serif;color:#2a2118;margin:0;padding:0}'
+    +'.bar{padding:10px 16px;border-bottom:1px solid #ccc}.bar button{font-size:14px;padding:8px 14px;border:1px solid #a12a40;background:#a12a40;color:#fff;border-radius:8px;cursor:pointer}'
+    +'.cert{max-width:760px;margin:24px auto;padding:54px 56px;border:3px double #a12a40;border-radius:10px;text-align:center}'
+    +'.org{font-size:18px;color:#a12a40;letter-spacing:2px}.title{font-size:40px;font-weight:800;margin:22px 0 8px;letter-spacing:8px}.csub{color:#999;letter-spacing:6px;margin-bottom:34px;font-size:13px}'
+    +'.name{font-size:30px;font-weight:800;border-bottom:2px solid #2a2118;display:inline-block;padding:0 30px 6px;margin:6px 0 22px}'
+    +'.cbody{font-size:17px;line-height:2.2}.course{color:#a12a40;font-weight:700}.cnote{margin-top:18px;color:#555}'
+    +'.foot{display:flex;justify-content:space-between;margin-top:60px;font-size:15px}.foot .line{border-top:1px solid #999;padding-top:6px;min-width:200px}'
+    +'@media print{.bar{display:none}.cert{margin:0}}</style></head><body>'
+    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button></div>'
+    +'<div class="cert"><div class="org">'+e2(org)+'</div><div class="title">結業證書</div><div class="csub">CERTIFICATE OF COMPLETION</div>'
+    +'<div class="cbody">茲證明　<span class="name">'+e2(name)+'</span><br>已完成 <span class="course">'+e2(course||'本課程')+'</span> 之學習課程，特此頒發證書，以資鼓勵。'
+    +(note?'<div class="cnote">'+e2(note)+'</div>':'')+'</div>'
+    +'<div class="foot"><span class="line">頒發單位：'+e2(org)+'</span><span class="line">日期：'+e2(date)+'</span></div></div></body></html>';
+  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
 let CLOG_SCHED=null;
 function clSlotFor(dateStr){if(!CLOG_SCHED||!dateStr)return null;const jsDow=new Date(dateStr+'T00:00:00').getDay();const d=(jsDow+6)%7;const m=CLOG_SCHED.find(r=>r&&((r.d!=null?r.d:0)===d)&&(r.s||r.e));return m?{s:m.s||'',e:m.e||''}:null;}
 function clFillSlot(){const di=document.getElementById('cl-date');if(!di)return;const slot=clSlotFor(di.value);const si=document.getElementById('cl-start'),ei=document.getElementById('cl-end');if(slot){if(si)si.value=slot.s;if(ei)ei.value=slot.e;}}
@@ -1227,7 +1279,7 @@ H.classLog=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;
        <div class="field"><label>日期</label><input id="cl-date" type="date" value="${today}"></div>
        <div class="field"><label>狀態</label><select id="cl-status"><option value="attended">出席（扣 1 堂）</option><option value="leave">請假（不扣堂）</option></select></div>
        <div class="field full"><label>時段 <span class="hint">選填，依日期自動帶出，可手動修改</span></label><div style="display:flex;align-items:center;gap:8px"><input id="cl-start" type="time" value="${slot0?esc(slot0.s):''}" style="flex:1"><span>～</span><input id="cl-end" type="time" value="${slot0?esc(slot0.e):''}" style="flex:1"></div></div>
-       <div class="field full"><label>備註 <span class="hint">選填</span></label><input id="cl-note" type="text" placeholder="例：第一課對話、補課…"></div>
+       <div class="field full"><label>課後小結 <span class="hint">選填，學生在首頁看得到</span></label><input id="cl-note" type="text" placeholder="例：今天上第一課對話，回家完成練習 1～2"></div>
      </div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><button class="btn btn-primary" data-act="addClassLog" data-id="${id}">＋ 記錄這一堂</button></div></div>`);};
 H.addClassLog=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const date=$('#cl-date').value;if(!date)return toast('請選日期');

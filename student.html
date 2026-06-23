@@ -446,7 +446,7 @@ function myUid(){return (window.firebase&&firebase.auth&&firebase.auth().current
 async function loadMine(){const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);
   const u=myUid();
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
-  S.lessons=l.filter(x=>x.kind!=='quiz');S.quizzes=l.filter(x=>x.kind==='quiz');S.questions=q;
+  S.lessons=l.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement');S.quizzes=l.filter(x=>x.kind==='quiz');S.announcements=l.filter(x=>x.kind==='announcement');S.questions=q;
   splitResults(rAll);}
 function splitResults(rAll){rAll=rAll||[];S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
@@ -532,7 +532,19 @@ function renderWork(){
   const nb=nbp.length?`<div class="notify-bar">${nbp.join('')}</div>`:'';
   const left=myLeft();const sessCard=left!=null?`<div class="sess-line${left<=2?' low':''}">🎟️ 本期還剩 <b>${left}</b> 堂${left<=0?' <span class="badge badge-overdue">已用完</span>':(left<=2?' <span class="badge badge-soon">快用完了</span>':'')}</div>`:'';
   const meetCard=(S.me&&/^https?:\/\//i.test(S.me.meet_url||''))?`<a class="meet-card" href="${esc(S.me.meet_url)}" target="_blank" rel="noopener"><span class="meet-ic">🎥</span><span class="meet-tx"><b>進入教室</b><small>Google Meet · 點此上課 Join class</small></span><span class="meet-go">→</span></a>`:'';
-  $('#screen').innerHTML=banner+meetCard+sessCard+nb+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
+  // 成就徽章
+  const allLs=myLessons();const doneCnt=allLs.filter(l=>{const r=resultOf(l.id);return r&&r.status==='done';}).length;const _b=[];
+  if(_st.streak>=2)_b.push('<span class="achv">🔥 連續 '+_st.streak+' 天</span>');
+  if(doneCnt>0)_b.push('<span class="achv">✅ 完成 '+doneCnt+' 課</span>');
+  if(allLs.length>0&&doneCnt>=allLs.length)_b.push('<span class="achv gold">🏆 全部完成！</span>');
+  const badgeStrip=_b.length?'<div class="achv-row">'+_b.join('')+'</div>':'';
+  // 公告
+  const anns=(S.announcements||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).slice(0,3);
+  const annCard=anns.length?'<div class="ann-card"><div class="ann-h">📢 公告 Notice</div>'+anns.map(a=>'<div class="ann-item"><span class="ann-date">'+esc((a.created_at||'').slice(0,10))+'</span>'+esc(a.text||'')+'</div>').join('')+'</div>':'';
+  // 課後小結（老師寫的上課記錄備註）
+  const notes=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).filter(e=>e&&e.note&&e.note.trim()).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3);
+  const noteCard=notes.length?'<div class="note-card"><div class="ann-h">📝 課後小結 Class notes</div>'+notes.map(n=>'<div class="ann-item"><span class="ann-date">'+esc(n.date||'')+'</span>'+esc(n.note||'')+'</div>').join('')+'</div>':'';
+  $('#screen').innerHTML=banner+badgeStrip+annCard+meetCard+noteCard+sessCard+nb+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
@@ -1000,7 +1012,7 @@ function showGate(msg){S.me=null;$('#app').classList.add('hide');$('#gate').clas
 const PREVIEW_LID=new URLSearchParams(location.search).get('preview');
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
-  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>x.kind!=='quiz');S.quizzes=[];S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];
+  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement');S.quizzes=[];S.announcements=[];S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];
   const lesson=l.find(x=>x.id===lid);if(!lesson){$('#screen').innerHTML=emptyHtml('⚠️','找不到這一課','請回教師頁重新開啟預覽。');return;}
   S.practiceSet={mode:'lesson',lessonId:lid,lesson:lesson,questions:questionsOf(lid),title:(lesson.order_index?('L'+lesson.order_index+' · '):'')+lesson.title};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';renderPractice();
