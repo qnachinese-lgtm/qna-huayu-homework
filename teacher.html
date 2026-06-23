@@ -46,8 +46,7 @@
         <button class="tab" data-act="tab" data-id="dashboard">📋 待辦</button>
         <button class="tab" data-act="tab" data-id="students">學生名冊 <span class="count" id="c-students">0</span></button>
         <button class="tab" data-act="tab" data-id="calendar">📅 課表</button>
-        <button class="tab" data-act="tab" data-id="lessons">課文練習 <span class="count" id="c-lessons">0</span></button>
-        <button class="tab" data-act="tab" data-id="pron">🔤 發音</button>
+        <button class="tab" data-act="tab" data-id="lessons">📚 上課教材 <span class="count" id="c-lessons">0</span></button>
         <button class="tab" data-act="tab" data-id="grades">成績總覽 <span class="count alert hide" id="c-pending">0</span></button>
         <button class="tab" data-act="tab" data-id="ops">📊 營運</button>
       </div>
@@ -70,13 +69,10 @@
       </section>
 
       <section id="panel-lessons" class="panel hide">
-        <div class="section-head"><h2>課文與練習</h2><span class="sub">上傳課文、音檔、出練習題；也可只出作業（課文留空）</span><span class="grow"></span>
+        <div class="section-head"><h2>📚 上課教材</h2><span class="sub">課文、發音、PDF 講義、練習題都在這裡，用上方「教材」分類切換</span><span class="grow"></span>
+          <button class="btn" data-act="newPron">🔤 建立發音</button>
           <button class="btn btn-primary" data-act="addLesson">＋ 新增課文／作業</button></div>
         <div id="lessons-list" class="cards"></div>
-      </section>
-
-      <section id="panel-pron" class="panel hide">
-        <div id="pron-body"></div>
       </section>
 
       <section id="panel-grades" class="panel hide">
@@ -209,11 +205,11 @@ function closeModal(){$('#modal-root').innerHTML='';}
 function render(){
   $$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.id===S.tab));
   $('#c-students').textContent=S.students.length;
-  $('#c-lessons').textContent=S.lessons.length;
+  $('#c-lessons').textContent=S.lessons.length+((S.prons||[]).length);
   {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
-  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,pron:renderPron,grades:renderGrades,ops:renderOps}[S.tab])();}
+  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,ops:renderOps}[S.tab])();}
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
@@ -408,11 +404,16 @@ function lessonCardHtml(l,i){try{
         <button class="btn btn-sm" data-act="dupLesson" data-id="${l.id}">📋 複製</button>
         <button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div>`:''}</div>`;
   }catch(err){return `<div class="card"><h3>${esc((l&&l.title)||'（未命名課文）')}</h3><div class="hint" style="color:var(--danger);margin-top:6px">這一課顯示時出了點問題（資料沒有遺失，可照常編輯或刪除）。</div><div class="actions" style="margin-top:10px"><button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button><button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題</button><button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div></div>`;}}
+function pronTeacherCardHtml(p){const gs=p.pron_groups||[];const ni=gs.reduce((a,g)=>a+((g.items||[]).length),0);const na=(p.assigned_ids||[]).length;const nq=(p.pron_quiz||[]).length;
+  return `<div class="card"><div class="row-between"><h3>🔤 ${esc(p.title||'發音')}</h3><div style="display:flex;gap:6px"><button class="btn btn-sm btn-accent" data-act="editPron" data-id="${p.id}">編輯</button><button class="btn btn-sm btn-danger" data-act="delPron" data-id="${p.id}">刪除</button></div></div><div class="hint" style="margin-top:4px">${gs.length} 組 · ${ni} 個音${nq?(' · 聽辨 '+nq+' 題'):''}${p.handout_url?' · 📄 PDF':''} · 指派 ${na} 人</div></div>`;}
 function renderLessons(){
-  const wrap=$('#lessons-list');
-  if(!S.lessons.length){wrap.innerHTML=emptyHtml('📚','還沒有內容','點「新增課文／作業」：可放課文＋練習題，或只出補充作業（課文留空）。');return;}
+  const wrap=$('#lessons-list');if(!wrap)return;
+  if(S.pe){wrap.innerHTML=pronEditorHtml();return;}
+  const hasPron=(S.prons||[]).length>0;
+  if(!S.lessons.length&&!hasPron){wrap.innerHTML=emptyHtml('📚','還沒有內容','點「新增課文／作業」放課文＋練習題，或「建立發音」做發音教材。');return;}
   const ls=sortLessons(S.lessons);
   const books=[...new Set(ls.map(l=>(l.textbook||'').trim()).filter(Boolean))].sort();
+  if(hasPron&&!books.includes('發音'))books.push('發音');
   const hasUncat=ls.some(l=>!(l.textbook||'').trim());const filter=S.bookFilter||'';
   let html='';
   if(books.length){html+='<div class="book-bar"><span class="book-bar-lbl">📚 教材</span>'+
@@ -424,7 +425,11 @@ function renderLessons(){
   const groups={};ls.forEach(l=>{const b=(l.textbook||'').trim()||'__none';(groups[b]||(groups[b]=[])).push(l);});
   let show;if(filter==='__none')show=['__none'];else if(filter)show=[filter];else{show=books.slice();if(hasUncat)show.push('__none');}
   if(!books.length)show=['__none'];
-  html+=show.filter(b=>groups[b]&&groups[b].length).map(b=>{
+  html+=show.map(b=>{
+    if(b==='發音'){if(!hasPron)return '';
+      const cards=(S.prons||[]).slice().sort((a,c)=>((a.order_index||0)-(c.order_index||0))).map(p=>pronTeacherCardHtml(p)).join('');
+      return `<div class="book-group"><div class="book-head">🔤 發音 <span class="count">${S.prons.length}</span><button class="btn btn-sm btn-accent" data-act="newPron" style="margin-left:10px">＋ 建立發音課</button></div>${cards}</div>`;}
+    if(!groups[b]||!groups[b].length)return '';
     const cards=groups[b].map((l,i)=>lessonCardHtml(l,i)).join('');
     return books.length?`<div class="book-group"><div class="book-head">${esc(b==='__none'?'未分類':b)} <span class="count">${groups[b].length}</span></div>${cards}</div>`:cards;
   }).join('');
@@ -641,19 +646,7 @@ const H={};
 /* ===================== 發音課 (kind='pron') ===================== */
 function blankPI(){return {zh:'',py:'',tip:'',ex:'',audio:''};}
 function blankPG(){return {label:'',items:[blankPI()]};}
-function renderPron(){
-  const wrap=$('#pron-body');if(!wrap)return;
-  if(S.pe){ wrap.innerHTML=pronEditorHtml(); return; }
-  const list=(S.prons||[]).slice().sort((a,b)=>((a.order_index||0)-(b.order_index||0))||((a.created_at||'')<(b.created_at||'')?-1:1));
-  let h=`<div class="section-head"><h2>🔤 發音課</h2><span class="sub">沒有課文的發音教材：聲母／韻母／聲調，學生可點聽你的真人發音</span><span class="grow"></span><button class="btn btn-primary" data-act="newPron">＋ 建立發音課</button></div>`;
-  if(!list.length){ h+='<div class="card"><div class="hint">還沒有發音課。點右上角「＋ 建立發音課」，加入音組與每個音的真人發音音檔。</div></div>'; }
-  else { h+='<div class="cards">'+list.map(p=>{
-    const gs=p.pron_groups||[];const ni=gs.reduce((a,g)=>a+((g.items||[]).length),0);const na=(p.assigned_ids||[]).length;
-    return `<div class="card"><div class="row-between"><h3>${esc(p.title||'發音課')}</h3><div style="display:flex;gap:6px"><button class="btn btn-sm btn-accent" data-act="editPron" data-id="${p.id}">編輯</button><button class="btn btn-sm btn-danger" data-act="delPron" data-id="${p.id}">刪除</button></div></div>
-      <div class="hint" style="margin-top:4px">${gs.length} 組 · ${ni} 個音 · 指派 ${na} 人</div></div>`;
-  }).join('')+'</div>'; }
-  wrap.innerHTML=h;
-}
+function renderPron(){renderLessons();}
 function pronEditorHtml(){
   const pe=S.pe;
   const groups=pe.groups.map((g,gi)=>{
@@ -738,8 +731,8 @@ function pronPickTo(setter,stId){const inp=document.createElement('input');inp.t
   inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=stId?document.getElementById(stId):null;if(st)st.textContent='上傳中…';if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage';return;}
     try{syncPe();const url=await uploadExampleAudio(f);setter(url);renderPron();toast('已上傳發音');}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
   inp.click();}
-H.newPron=()=>{S.pe={id:null,title:'',groups:[blankPG()],assigned_ids:[],handout_url:'',handout_name:'',quiz:[]};renderPron();};
-H.editPron=(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;S.pe={id:p.id,title:p.title||'',groups:JSON.parse(JSON.stringify(p.pron_groups||[])),assigned_ids:(p.assigned_ids||[]).slice(),handout_url:p.handout_url||'',handout_name:p.handout_name||'',quiz:JSON.parse(JSON.stringify(p.pron_quiz||[]))};if(!S.pe.groups.length)S.pe.groups=[blankPG()];renderPron();};
+H.newPron=()=>{S.pe={id:null,title:'',groups:[blankPG()],assigned_ids:[],handout_url:'',handout_name:'',quiz:[]};S.tab='lessons';render();window.scrollTo(0,0);};
+H.editPron=(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;S.pe={id:p.id,title:p.title||'',groups:JSON.parse(JSON.stringify(p.pron_groups||[])),assigned_ids:(p.assigned_ids||[]).slice(),handout_url:p.handout_url||'',handout_name:p.handout_name||'',quiz:JSON.parse(JSON.stringify(p.pron_quiz||[]))};if(!S.pe.groups.length)S.pe.groups=[blankPG()];S.tab='lessons';render();window.scrollTo(0,0);};
 H.peHUp=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,application/pdf';
   inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=document.getElementById('pe-h-st');if(st)st.textContent='上傳中…';if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage';return;}
     try{syncPe();const url=await uploadHandout(f);S.pe.handout_url=url;S.pe.handout_name=f.name||'';renderPron();toast('已上傳講義');}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
@@ -766,10 +759,10 @@ H.savePron=async()=>{
   try{await ensureAuthFresh();
     if(pe.id){await DB.update('lessons',pe.id,{title,textbook:'發音',pron_groups:groups,pron_quiz:quiz,assigned_ids:pe.assigned_ids||[],handout_url:pe.handout_url||null,handout_name:pe.handout_name||null});}
     else{const maxO=(S.prons||[]).reduce((a,p)=>Math.max(a,p.order_index||0),0);await DB.insert('lessons',{kind:'pron',title,textbook:'發音',pron_groups:groups,pron_quiz:quiz,assigned_ids:pe.assigned_ids||[],handout_url:pe.handout_url||null,handout_name:pe.handout_name||null,order_index:maxO+1,created_at:new Date().toISOString()});}
-    S.pe=null;await loadAll();S.tab='pron';render();toast('✅ 已儲存發音課');
+    S.pe=null;await loadAll();S.tab='lessons';render();toast('✅ 已儲存發音課');
   }catch(e){if(btn){btn.disabled=false;btn.textContent='儲存發音課';}toast(writeErr('儲存失敗',e));}
 };
-H.delPron=async(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;if(!confirm('確定刪除這個發音課？'))return;try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();S.tab='pron';render();toast('已刪除發音課');}catch(e){toast(writeErr('刪除失敗',e));}};
+H.delPron=async(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;if(!confirm('確定刪除這個發音課？'))return;try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();S.tab='lessons';render();toast('已刪除發音課');}catch(e){toast(writeErr('刪除失敗',e));}};
 
 /* ---- 講義 PDF 上傳（課文編輯器共用） ---- */
 async function uploadHandout(file){await ensureAuthFresh();let safe=(file.name||'handout.pdf').replace(/[^\w.\-]+/g,'_');if(safe.length>60)safe=safe.slice(-60);const ref=firebase.storage().ref('handouts/'+Date.now()+'_'+safe);await ref.put(file);return await ref.getDownloadURL();}
