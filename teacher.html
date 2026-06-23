@@ -47,6 +47,7 @@
         <button class="tab" data-act="tab" data-id="students">學生名冊 <span class="count" id="c-students">0</span></button>
         <button class="tab" data-act="tab" data-id="calendar">📅 課表</button>
         <button class="tab" data-act="tab" data-id="lessons">課文練習 <span class="count" id="c-lessons">0</span></button>
+        <button class="tab" data-act="tab" data-id="pron">🔤 發音</button>
         <button class="tab" data-act="tab" data-id="grades">成績總覽 <span class="count alert hide" id="c-pending">0</span></button>
         <button class="tab" data-act="tab" data-id="ops">📊 營運</button>
       </div>
@@ -72,6 +73,10 @@
         <div class="section-head"><h2>課文與練習</h2><span class="sub">上傳課文、音檔、出練習題；也可只出作業（課文留空）</span><span class="grow"></span>
           <button class="btn btn-primary" data-act="addLesson">＋ 新增課文／作業</button></div>
         <div id="lessons-list" class="cards"></div>
+      </section>
+
+      <section id="panel-pron" class="panel hide">
+        <div id="pron-body"></div>
       </section>
 
       <section id="panel-grades" class="panel hide">
@@ -184,7 +189,7 @@ async function loadAll(){
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
     DB.list('lessons'),DB.list('questions'),DB.list('results')]);
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement');
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron');
   splitResults(d);
   {const cut=Date.now()-7*864e5;(S.trashStudents||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('students',x.id).catch(()=>{});});(S.trashLessons||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('lessons',x.id).catch(()=>{});});}
   if(!owner){
@@ -208,7 +213,7 @@ function render(){
   {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
-  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,ops:renderOps}[S.tab])();}
+  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,pron:renderPron,grades:renderGrades,ops:renderOps}[S.tab])();}
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
@@ -626,6 +631,117 @@ function renderGrades(){
 const RELOGIN_MSG='登入已失效。請「開新分頁」打開教師頁並登入，然後回到這個分頁再按一次儲存（不要重新整理，正在編輯的內容才不會不見）。';
 function writeErr(prefix,err){const m=((err&&(err.code||err.message))||'')+'';return prefix+'：'+(/permission|insufficient|unauth/i.test(m)?RELOGIN_MSG:(m||'發生錯誤'));}
 const H={};
+
+/* ===================== 發音課 (kind='pron') ===================== */
+function blankPI(){return {zh:'',py:'',tip:'',ex:'',audio:''};}
+function blankPG(){return {label:'',items:[blankPI()]};}
+function renderPron(){
+  const wrap=$('#pron-body');if(!wrap)return;
+  if(S.pe){ wrap.innerHTML=pronEditorHtml(); return; }
+  const list=(S.prons||[]).slice().sort((a,b)=>((a.order_index||0)-(b.order_index||0))||((a.created_at||'')<(b.created_at||'')?-1:1));
+  let h=`<div class="section-head"><h2>🔤 發音課</h2><span class="sub">沒有課文的發音教材：聲母／韻母／聲調，學生可點聽你的真人發音</span><span class="grow"></span><button class="btn btn-primary" data-act="newPron">＋ 建立發音課</button></div>`;
+  if(!list.length){ h+='<div class="card"><div class="hint">還沒有發音課。點右上角「＋ 建立發音課」，加入音組與每個音的真人發音音檔。</div></div>'; }
+  else { h+='<div class="cards">'+list.map(p=>{
+    const gs=p.pron_groups||[];const ni=gs.reduce((a,g)=>a+((g.items||[]).length),0);const na=(p.assigned_ids||[]).length;
+    return `<div class="card"><div class="row-between"><h3>${esc(p.title||'發音課')}</h3><div style="display:flex;gap:6px"><button class="btn btn-sm btn-accent" data-act="editPron" data-id="${p.id}">編輯</button><button class="btn btn-sm btn-danger" data-act="delPron" data-id="${p.id}">刪除</button></div></div>
+      <div class="hint" style="margin-top:4px">${gs.length} 組 · ${ni} 個音 · 指派 ${na} 人</div></div>`;
+  }).join('')+'</div>'; }
+  wrap.innerHTML=h;
+}
+function pronEditorHtml(){
+  const pe=S.pe;
+  const groups=pe.groups.map((g,gi)=>{
+    const items=g.items.map((it,ii)=>{
+      const key=gi+'-'+ii;
+      const aud=it.audio?`<button class="btn btn-sm btn-accent" type="button" data-act="pePlay" data-u="${esc(it.audio)}">▶ 試聽</button><button class="btn btn-sm" type="button" data-act="peClearAud" data-id="${key}">🗑</button>`:'<span class="hint">尚無音檔</span>';
+      return `<div class="pe-item">
+        <div class="pe-item-row">
+          <input class="pe-z" id="pe-z-${key}" placeholder="注音 ㄅ" value="${esc(it.zh||'')}">
+          <input class="pe-p" id="pe-p-${key}" placeholder="拼音 b" value="${esc(it.py||'')}">
+          <button class="btn btn-sm btn-danger" type="button" data-act="peDelItem" data-id="${key}" title="刪除這個音">✕</button>
+        </div>
+        <input class="pe-t" id="pe-t-${key}" placeholder="發音要訣／口型（例：雙唇緊閉後放開，不送氣）" value="${esc(it.tip||'')}">
+        <input class="pe-e" id="pe-e-${key}" placeholder="例字（用空白或、分隔，例：爸 包 比）" value="${esc(it.ex||'')}">
+        <div class="pe-aud"><button class="btn btn-sm" type="button" data-act="peRec" data-id="${key}">🎤 錄音</button><button class="btn btn-sm" type="button" data-act="peUp" data-id="${key}">⬆ 上傳</button> ${aud} <span class="hint" id="pe-ast-${key}"></span></div>
+      </div>`;
+    }).join('');
+    return `<div class="pe-group">
+      <div class="pe-ghead"><input class="pe-gl" id="pe-gl-${gi}" placeholder="音組名稱（例：雙唇音 b p m／第三聲變調）" value="${esc(g.label||'')}"><button class="btn btn-sm btn-danger" type="button" data-act="peDelGroup" data-id="${gi}">刪除整組</button></div>
+      ${items}
+      <button class="btn btn-sm btn-soft" type="button" data-act="peAddItem" data-id="${gi}">＋ 加一個音</button>
+    </div>`;
+  }).join('');
+  const studs=(S.students||[]).slice().sort((a,b)=>((a.name||'')<(b.name||'')?-1:1));
+  const checks=studs.length?studs.map(s=>`<label class="pe-as-lbl"><input type="checkbox" class="pe-as" value="${s.id}" ${((pe.assigned_ids||[]).includes(s.id))?'checked':''}> ${esc(s.name||'學生')}</label>`).join(''):'<span class="hint">還沒有學生</span>';
+  return `<div class="section-head"><h2>${pe.id?'編輯':'建立'}發音課</h2><span class="grow"></span><button class="btn btn-ghost" data-act="peCancel">取消</button><button class="btn btn-primary" data-act="savePron">儲存發音課</button></div>
+    <div class="card">
+      <label class="fld"><span class="fld-l">標題</span><input id="pe-title" placeholder="例：發音（一）聲母 b p m f" value="${esc(pe.title||'')}"></label>
+    </div>
+    <div class="pe-groups">${groups}</div>
+    <button class="btn btn-soft" type="button" data-act="peAddGroup" style="margin-top:6px">＋ 加一個音組</button>
+    <div class="card" style="margin-top:14px"><div class="fld-l" style="margin-bottom:6px">指派給學生</div><div class="pe-as-grid">${checks}</div></div>
+    <div style="margin-top:14px;display:flex;gap:8px"><button class="btn btn-ghost" data-act="peCancel">取消</button><button class="btn btn-primary" data-act="savePron">儲存發音課</button></div>`;
+}
+function syncPe(){
+  if(!S.pe)return;
+  const tt=document.getElementById('pe-title');if(tt)S.pe.title=tt.value;
+  S.pe.groups.forEach((g,gi)=>{
+    const gl=document.getElementById('pe-gl-'+gi);if(gl)g.label=gl.value;
+    g.items.forEach((it,ii)=>{const k=gi+'-'+ii;
+      const z=document.getElementById('pe-z-'+k);if(z)it.zh=z.value;
+      const p=document.getElementById('pe-p-'+k);if(p)it.py=p.value;
+      const t=document.getElementById('pe-t-'+k);if(t)it.tip=t.value;
+      const e=document.getElementById('pe-e-'+k);if(e)it.ex=e.value;});
+  });
+  const as=[...document.querySelectorAll('.pe-as:checked')].map(c=>c.value);
+  S.pe.assigned_ids=as;
+}
+let PEREC=null;
+function pronPick(gi,ii){
+  const inp=document.createElement('input');inp.type='file';inp.accept='audio/*';
+  inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;
+    const st=document.getElementById('pe-ast-'+gi+'-'+ii);if(st)st.textContent='上傳中…';
+    try{syncPe();const url=await uploadExampleAudio(f);S.pe.groups[gi].items[ii].audio=url;renderPron();toast('已上傳發音');}
+    catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
+  inp.click();
+}
+async function pronRecToggle(gi,ii,b){
+  if(PEREC){try{PEREC.mr.stop();}catch(_){}return;}
+  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)){toast('此瀏覽器不支援錄音，請改用上傳');return;}
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){toast('無法使用麥克風');return;}
+  const chunks=[];const mr=new MediaRecorder(stream);PEREC={mr,stream};
+  if(b){b.textContent='⏹ 停止錄音';b.classList.add('btn-danger');}
+  mr.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+  mr.onstop=async()=>{stream.getTracks().forEach(t=>t.stop());PEREC=null;
+    const blob=new Blob(chunks,{type:(chunks[0]&&chunks[0].type)||'audio/webm'});
+    const st=document.getElementById('pe-ast-'+gi+'-'+ii);if(st)st.textContent='上傳中…';
+    try{syncPe();const url=await uploadExampleAudio(blob);S.pe.groups[gi].items[ii].audio=url;renderPron();toast('已上傳發音');}
+    catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
+  mr.start();
+}
+H.newPron=()=>{S.pe={id:null,title:'',groups:[blankPG()],assigned_ids:[]};renderPron();};
+H.editPron=(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;S.pe={id:p.id,title:p.title||'',groups:JSON.parse(JSON.stringify(p.pron_groups||[])),assigned_ids:(p.assigned_ids||[]).slice()};if(!S.pe.groups.length)S.pe.groups=[blankPG()];renderPron();};
+H.peCancel=()=>{S.pe=null;renderPron();};
+H.peAddGroup=()=>{syncPe();S.pe.groups.push(blankPG());renderPron();};
+H.peDelGroup=(gi)=>{syncPe();S.pe.groups.splice(+gi,1);if(!S.pe.groups.length)S.pe.groups=[blankPG()];renderPron();};
+H.peAddItem=(gi)=>{syncPe();S.pe.groups[+gi].items.push(blankPI());renderPron();};
+H.peDelItem=(key)=>{const p=String(key).split('-');syncPe();S.pe.groups[+p[0]].items.splice(+p[1],1);if(!S.pe.groups[+p[0]].items.length)S.pe.groups[+p[0]].items=[blankPI()];renderPron();};
+H.peUp=(key)=>{const p=String(key).split('-');pronPick(+p[0],+p[1]);};
+H.peRec=(key,b)=>{const p=String(key).split('-');pronRecToggle(+p[0],+p[1],b);};
+H.peClearAud=(key)=>{const p=String(key).split('-');syncPe();S.pe.groups[+p[0]].items[+p[1]].audio='';renderPron();};
+H.pePlay=(_,b)=>{const u=b&&b.dataset.u;if(u){try{new Audio(u).play();}catch(e){}}};
+H.savePron=async()=>{
+  syncPe();const pe=S.pe;const title=(pe.title||'').trim()||'發音課';
+  const groups=pe.groups.map(g=>({label:(g.label||'').trim(),items:(g.items||[]).filter(it=>(it.zh||it.py||it.audio||it.ex||it.tip)).map(it=>({zh:(it.zh||'').trim(),py:(it.py||'').trim(),tip:(it.tip||'').trim(),ex:(it.ex||'').trim(),audio:it.audio||''}))})).filter(g=>g.items.length||g.label);
+  const btn=document.querySelector('[data-act="savePron"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
+  try{await ensureAuthFresh();
+    if(pe.id){await DB.update('lessons',pe.id,{title,pron_groups:groups,assigned_ids:pe.assigned_ids||[]});}
+    else{const maxO=(S.prons||[]).reduce((a,p)=>Math.max(a,p.order_index||0),0);await DB.insert('lessons',{kind:'pron',title,pron_groups:groups,assigned_ids:pe.assigned_ids||[],order_index:maxO+1,created_at:new Date().toISOString()});}
+    S.pe=null;await loadAll();S.tab='pron';render();toast('✅ 已儲存發音課');
+  }catch(e){if(btn){btn.disabled=false;btn.textContent='儲存發音課';}toast(writeErr('儲存失敗',e));}
+};
+H.delPron=async(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;if(!confirm('確定刪除這個發音課？'))return;try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();S.tab='pron';render();toast('已刪除發音課');}catch(e){toast(writeErr('刪除失敗',e));}};
+
 H.canned=(tgt,b)=>{const ta=document.getElementById(tgt);if(!ta)return;const t=(b&&b.dataset.t)||'';ta.value=(ta.value.trim()?ta.value.replace(/\s*$/,'')+'　':'')+t;ta.focus();};
 H.tab=(id)=>{S.tab=id;render();};
 H.reviewSent=(id)=>{const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;

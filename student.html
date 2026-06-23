@@ -446,7 +446,7 @@ function myUid(){return (window.firebase&&firebase.auth&&firebase.auth().current
 async function loadMine(){const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);
   const u=myUid();
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
-  S.lessons=l.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement');S.quizzes=l.filter(x=>x.kind==='quiz');S.announcements=l.filter(x=>x.kind==='announcement');S.questions=q;
+  S.lessons=l.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron');S.quizzes=l.filter(x=>x.kind==='quiz');S.announcements=l.filter(x=>x.kind==='announcement');S.prons=l.filter(x=>x.kind==='pron');S.questions=q;
   splitResults(rAll);}
 function splitResults(rAll){rAll=rAll||[];S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
@@ -506,14 +506,15 @@ function renderNav(){
   const wrong=wrongQuestions().length;
   const works=myLessons().filter(l=>answerableOf(l.id).length).length;
   const fbN=myLessons().filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
-  const items=[['work','✍️',t('navWork'),works],['content','📖',t('navContent'),''],['cards','🃏',t('navCards'),''],['grades','📈',t('navGrades'),fbN||''],['wrong','📒',t('navWrong'),wrong||'']];
+  const pronN=(S.prons||[]).filter(p=>(p.assigned_ids||[]).includes(S.me.id)).length;
+  const items=[['work','✍️',t('navWork'),works],['content','📖',t('navContent'),''],['pron','🔤',t('navPron'),pronN||''],['cards','🃏',t('navCards'),''],['grades','📈',t('navGrades'),fbN||''],['wrong','📒',t('navWrong'),wrong||'']];
   $('#snav').innerHTML=items.map(([id,ic,lb,n])=>`<button class="${S.section===id?'on':''}" data-act="section" data-id="${id}">${ic} ${lb}${n!==''?`<span class="n">${n}</span>`:''}</button>`).join('');
 }
 function renderSection(){
   clearInterval(AUTOSAVE);AUTOSAVE=null;
   document.body.classList.remove('notes-active');
   renderNav();
-  ({work:renderWork,content:renderContent,cards:renderCards,grades:renderGrades,wrong:renderWrong}[S.section])();
+  ({work:renderWork,content:renderContent,pron:renderPron,cards:renderCards,grades:renderGrades,wrong:renderWrong}[S.section])();
   convScreen();
 }
 
@@ -765,6 +766,34 @@ function fillSaved(qs,saved){if(!saved)return;qs.forEach(q=>{const v=saved[q.id]
 
 /* ============ handlers ============ */
 const H={};
+/* ----- 發音課 (student) ----- */
+function renderPron(){
+  const ps=(S.prons||[]).filter(p=>S.preview||(p.assigned_ids||[]).includes(S.me.id)).sort((a,b)=>((a.order_index||0)-(b.order_index||0)));
+  if(!ps.length){$('#screen').innerHTML=emptyHtml('🔤',t('pronEmpty'),t('pronEmptySub'));return;}
+  const sc=S.pronScript||(S.lang==='vi'?'py':'zh');
+  const toggle=`<div class="pron-toggle"><button class="pron-sw${sc==='zh'?' on':''}" data-act="pronScript" data-id="zh">${t('pronZhuyin')}</button><button class="pron-sw${sc==='py'?' on':''}" data-act="pronScript" data-id="py">${t('pronPinyin')}</button></div>`;
+  $('#screen').innerHTML=ps.map(p=>{
+    const groups=(p.pron_groups||[]).map(g=>{
+      const cards=(g.items||[]).map(it=>{
+        const prim=sc==='zh'?(it.zh||it.py||''):(it.py||it.zh||'');
+        const sec=sc==='zh'?(it.py||''):(it.zh||'');
+        const hasA=!!it.audio;
+        return `<div class="pron-card${hasA?' has-a':''}"${hasA?` data-act="pronPlay" data-u="${esc(it.audio)}"`:''}>
+          <div class="pron-sym">${esc(prim)}</div>
+          ${sec?`<div class="pron-sym2">${esc(sec)}</div>`:''}
+          ${hasA?'<div class="pron-play">🔊</div>':''}
+          ${it.tip?`<div class="pron-tip">${esc(it.tip)}</div>`:''}
+          ${it.ex?`<div class="pron-ex">${esc(it.ex)}</div>`:''}
+        </div>`;
+      }).join('');
+      return `<div class="pron-group">${g.label?`<div class="pron-glabel">${esc(g.label)}</div>`:''}<div class="pron-grid">${cards}</div></div>`;
+    }).join('');
+    return `<div class="card pron-lesson"><div class="row-between"><h3>🔤 ${esc(p.title||'發音')}</h3>${toggle}</div><div class="hint" style="margin:2px 0 10px">${t('pronPlayHint')}</div>${groups}</div>`;
+  }).join('');
+  if(typeof convScreen==='function')convScreen();
+}
+H.pronScript=(id)=>{S.pronScript=id;renderSection();};
+H.pronPlay=(_,b)=>{const u=b&&b.dataset.u;if(u){try{new Audio(u).play();}catch(e){}}};
 H.setLang=(id)=>{S.lang=id;localStorage.setItem('hyc_lang',id);document.documentElement.lang=(id==='cn'?'zh-Hans':id==='en'?'en':id==='vi'?'vi':'zh-Hant');document.body.classList.toggle('lang-cn',id==='cn');
   if(S.me){applyChrome();if($('#screen').dataset.mode==='practice')renderPractice();else renderSection();}else renderGate();};
 H.toggleMenu=()=>{$('#menu').classList.toggle('hide');};
@@ -788,6 +817,10 @@ H.shadowRec=async(_,b)=>{if(SHADOWMR&&SHADOWMR.state==='recording'){SHADOWMR.sto
 H.shadowPlay=()=>{if(SHADOW&&SHADOW.url){try{new Audio(SHADOW.url).play();}catch(e){}}};
 Object.assign(I18N.zh,{replay:'↻ 重播'});Object.assign(I18N.cn,{replay:'↻ 重播'});Object.assign(I18N.en,{replay:'↻ Replay'});Object.assign(I18N.vi,{replay:'↻ Phát lại'});
 Object.assign(I18N.zh,{listen:'聽',shadowDlg:'逐句跟讀',scoreBtn:'發音',youSaid:'你說'});Object.assign(I18N.cn,{listen:'听',shadowDlg:'逐句跟读',scoreBtn:'发音',youSaid:'你说'});Object.assign(I18N.en,{listen:'Listen',shadowDlg:'Read aloud',scoreBtn:'Score',youSaid:'You said'});Object.assign(I18N.vi,{listen:'Nghe',shadowDlg:'Đọc theo câu',scoreBtn:'Chấm',youSaid:'Bạn nói'});
+Object.assign(I18N.zh,{navPron:'發音',pronEmpty:'還沒有發音教材',pronEmptySub:'老師指派後會出現在這裡',pronZhuyin:'注音',pronPinyin:'拼音',pronPlayHint:'點卡片聽老師發音'});
+Object.assign(I18N.cn,{navPron:'发音',pronEmpty:'还没有发音教材',pronEmptySub:'老师指派后会出现在这里',pronZhuyin:'注音',pronPinyin:'拼音',pronPlayHint:'点卡片听老师发音'});
+Object.assign(I18N.en,{navPron:'Sounds',pronEmpty:'No pronunciation material yet',pronEmptySub:'It will appear here once assigned',pronZhuyin:'Zhuyin',pronPinyin:'Pinyin',pronPlayHint:'Tap a card to hear your teacher'});
+Object.assign(I18N.vi,{navPron:'Phát âm',pronEmpty:'Chưa có tài liệu phát âm',pronEmptySub:'Sẽ hiện ở đây khi được giao',pronZhuyin:'Chú âm',pronPinyin:'Pinyin',pronPlayHint:'Chạm thẻ để nghe giáo viên'});
 Object.assign(I18N.zh,{ssSubmit:'送出給老師',ssSubmitted:'已送出，等老師回饋',ssPending:'已送出，老師批改中',ssReviewed:'老師已批改',ssHint:'錄好每一句後按「送出給老師」，老師會聽你的錄音並給回饋',ssNoRec:'還沒有任何錄音，先按 🎤 錄一句'});
 Object.assign(I18N.cn,{ssSubmit:'送出给老师',ssSubmitted:'已送出，等老师反馈',ssPending:'已送出，老师批改中',ssReviewed:'老师已批改',ssHint:'录好每一句后按「送出给老师」，老师会听你的录音并给反馈',ssNoRec:'还没有任何录音，先按 🎤 录一句'});
 Object.assign(I18N.en,{ssSubmit:'Submit to teacher',ssSubmitted:'Submitted — waiting for feedback',ssPending:'Submitted — being reviewed',ssReviewed:'Reviewed by teacher',ssHint:'Record each line, then submit; your teacher will listen and give feedback',ssNoRec:'No recording yet — tap 🎤 first'});
@@ -1049,7 +1082,7 @@ function showGate(msg){S.me=null;$('#app').classList.add('hide');$('#gate').clas
 const PREVIEW_LID=new URLSearchParams(location.search).get('preview');
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
-  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement');S.quizzes=[];S.announcements=[];S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];
+  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron');S.quizzes=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron');S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];
   const lesson=l.find(x=>x.id===lid);if(!lesson){$('#screen').innerHTML=emptyHtml('⚠️','找不到這一課','請回教師頁重新開啟預覽。');return;}
   S.practiceSet={mode:'lesson',lessonId:lid,lesson:lesson,questions:questionsOf(lid),title:(lesson.order_index?('L'+lesson.order_index+' · '):'')+lesson.title};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';renderPractice();
