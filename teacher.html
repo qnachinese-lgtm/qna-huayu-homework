@@ -36,6 +36,7 @@
       <div class="topbar-spacer"></div>
       <span class="mode-tag" id="mode-tag"></span>
       <button class="btn btn-sm btn-ghost" data-act="exportAll" title="把所有資料匯出成 Excel 備份">⬇ 備份</button>
+      <button class="btn btn-sm btn-ghost" data-act="trash" title="垃圾桶（7 天內可復原）">🗑</button>
       <button class="btn btn-sm btn-ghost hide" id="admin-btn" data-act="admins">👤 管理員</button>
       <button class="btn btn-sm btn-ghost" data-act="logout">登出</button>
     </div></div>
@@ -157,7 +158,7 @@ function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
 function emptyHtml(i,t,d){return `<div class="empty"><div class="big">${i}</div><b>${t}</b><div style="margin-top:6px">${d}</div></div>`;}
 const TYPE_LABELS={choice:'單選',fill:'填空',opt:'選填',qa:'問答',order:'重組',match:'配對',write:'手寫',speak:'口說',note:'示範'};
 
-const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],admins:[],announcements:[],tab:'dashboard',q:'',openCards:new Set()};
+const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],admins:[],announcements:[],trashStudents:[],trashLessons:[],tab:'dashboard',q:'',openCards:new Set()};
 let IS_OWNER=false, MY_EMAIL='';
 function adminName(email){if(!email)return '主管理員';const a=(S.admins||[]).find(x=>(x.email||'').toLowerCase()===(email||'').toLowerCase());return (a&&(a.name||a.email))||email;}
 const sortLessons=(a)=>a.slice().sort((x,y)=>((x.order_index||0)-(y.order_index||0))||((x.created_at||'').localeCompare(y.created_at||'')));
@@ -181,9 +182,10 @@ async function loadAll(){
   const [a,b,c,d]=await Promise.all([
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
     DB.list('lessons'),DB.list('questions'),DB.list('results')]);
-  S.students=a;S.questions=c;
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement');S.quizzes=b.filter(x=>x.kind==='quiz');S.announcements=b.filter(x=>x.kind==='announcement');
+  S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement');
   splitResults(d);
+  {const cut=Date.now()-7*864e5;(S.trashStudents||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('students',x.id).catch(()=>{});});(S.trashLessons||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('lessons',x.id).catch(()=>{});});}
   if(!owner){
     const ids=new Set(S.students.map(s=>s.id)),uids=new Set(S.students.map(s=>s.uid).filter(Boolean));
     const mine=r=>ids.has(r.student_id)||(r.uid&&uids.has(r.uid));
@@ -728,7 +730,7 @@ H.addStudent=()=>studentModal(null);
 H.editStudent=(id)=>studentModal(S.students.find(s=>s.id===id));
 H.schedAdd=()=>{const c=$('#sched-rows');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));refreshFirstSlot();};
 H.schedDel=(_,b)=>{const row=b.closest('.sched-row');if(!row)return;const c=row.parentElement;row.remove();if(c&&!c.querySelector('.sched-row'))c.insertAdjacentHTML('beforeend',schedRowHTML({}));refreshFirstSlot();};
-H.delStudent=async(id)=>{const s=S.students.find(x=>x.id===id);if(!confirm(`確定刪除「${s.name}」？相關成績也會一併刪除。`))return;try{await DB.remove('students',id);await loadAll();render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
+H.delStudent=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;if(!confirm(`把「${s.name}」移到垃圾桶？\n7 天內可在右上🗑垃圾桶復原；逾期才會自動永久刪除（含相關成績）。`))return;try{await DB.update('students',id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已移到垃圾桶（可復原）');}catch(err){toast(writeErr('刪除失敗',err));}};
 H.admins=async()=>{if(!isOwner()){toast('只有主管理員可以管理管理員');return;}
   let list=[];try{list=await DB.list('admins');}catch(e){list=[];}
   const cnt=em=>S.students.filter(s=>(s.admin||'').toLowerCase()===(em||'').toLowerCase()).length;
@@ -918,7 +920,7 @@ H.ordDown=(idx)=>{idx=Number(idx);if(idx>=LAYOUT.length-1)return;const tmp=LAYOU
 H.saveLayout=async()=>{const id=LAYOUT_LID;if(!id)return;const btn=document.querySelector('[data-act="saveLayout"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
   try{await DB.update('lessons',id,{layout:LAYOUT.map(e=>({t:e.t,i:e.i}))});await loadAll();closeModal();render();toast('已儲存課文順序');}
   catch(e){if(btn){btn.disabled=false;btn.textContent='儲存順序';}toast(writeErr('儲存失敗',e));}};
-H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!confirm(`確定刪除「${l.title}」？課文題目與成績都會一併刪除。`))return;try{await DB.remove('lessons',id);await loadAll();render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
+H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!confirm(`把「${l.title}」移到垃圾桶？\n7 天內可在右上🗑垃圾桶復原；逾期才會連同題目與成績永久刪除。`))return;try{await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已移到垃圾桶（可復原）');}catch(err){toast(writeErr('刪除失敗',err));}};
 H.dupLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!confirm('複製「'+(l.title||'')+'」成一份新課文？（內容、生詞音檔、語法、練習題都會複製；不含指派與學生作答）'))return;
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const btn=document.querySelector('[data-act="dupLesson"][data-id="'+id+'"]');if(btn){btn.disabled=true;btn.textContent='複製中…';}
@@ -1262,6 +1264,13 @@ H.printCert=()=>{const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&a
 H.newAnnounce=()=>{if(!IS_OWNER)return;openModal(`<div class="modal"><div class="modal-head"><h3>📢 發布公告</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="field full"><label>公告內容 <span class="hint">所有學生登入首頁都會看到</span></label><textarea id="ann-text" placeholder="例：下週三停課一次，順延到週五上課。"></textarea></div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><button class="btn btn-primary" data-act="saveAnnounce">發布</button></div></div>`);};
 H.saveAnnounce=async()=>{const t=(($('#ann-text')&&$('#ann-text').value)||'').trim();if(!t)return toast('請輸入公告內容');try{await ensureAuthFresh();await DB.insert('lessons',{kind:'announcement',text:t});closeModal();await loadAll();render();toast('已發布公告');}catch(e){toast(writeErr('發布失敗',e));}};
 H.delAnnounce=async(id)=>{if(!confirm('刪除這則公告？'))return;try{await DB.remove('lessons',id);await loadAll();render();toast('已刪除公告');}catch(e){toast(writeErr('刪除失敗',e));}};
+H.trash=()=>{const dleft=d=>{const t=Date.parse(d||'');if(!t)return '';const left=Math.ceil((t+7*864e5-Date.now())/864e5);return left>0?('剩 '+left+' 天'):'即將清除';};
+  const stuRows=(S.trashStudents||[]).map(s=>`<div class="dash-row"><span class="badge badge-pending">學生</span><b>${esc(s.name||'')}</b><span class="muted" style="margin-left:6px">${dleft(s.deleted_at)}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="restoreItem" data-id="students::${s.id}">復原</button>${IS_OWNER?`<button class="btn btn-sm btn-danger" data-act="purgeItem" data-id="students::${s.id}">永久刪除</button>`:''}</div>`).join('');
+  const lesRows=(S.trashLessons||[]).map(l=>`<div class="dash-row"><span class="badge badge-pending">課程</span><b>${esc(l.title||'（未命名）')}</b><span class="muted" style="margin-left:6px">${dleft(l.deleted_at)}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="restoreItem" data-id="lessons::${l.id}">復原</button><button class="btn btn-sm btn-danger" data-act="purgeItem" data-id="lessons::${l.id}">永久刪除</button></div>`).join('');
+  const empty=!(S.trashStudents||[]).length&&!(S.trashLessons||[]).length;
+  openModal(`<div class="modal"><div class="modal-head"><h3>🗑 垃圾桶</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="hint" style="margin-bottom:10px">刪除的學生／課程會在這裡保留 7 天，期間可隨時「復原」；逾期才會自動永久刪除。</div>${empty?'<div class="muted" style="padding:8px 2px">垃圾桶是空的 🧹</div>':(stuRows+lesRows)}</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>`);};
+H.restoreItem=async(key)=>{const p=String(key).split('::'),table=p[0],id=p[1];try{await DB.update(table,id,{deleted_at:null});await loadAll();render();H.trash();toast('已復原');}catch(e){toast(writeErr('復原失敗',e));}};
+H.purgeItem=async(key)=>{const p=String(key).split('::'),table=p[0],id=p[1];if(!confirm('永久刪除？此動作無法復原（相關題目與成績也會一併刪除）。'))return;try{await DB.remove(table,id);await loadAll();render();H.trash();toast('已永久刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 let CLOG_SCHED=null;
 function clSlotFor(dateStr){if(!CLOG_SCHED||!dateStr)return null;const jsDow=new Date(dateStr+'T00:00:00').getDay();const d=(jsDow+6)%7;const m=CLOG_SCHED.find(r=>r&&((r.d!=null?r.d:0)===d)&&(r.s||r.e));return m?{s:m.s||'',e:m.e||''}:null;}
 function clFillSlot(){const di=document.getElementById('cl-date');if(!di)return;const slot=clSlotFor(di.value);const si=document.getElementById('cl-start'),ei=document.getElementById('cl-end');if(slot){if(si)si.value=slot.s;if(ei)ei.value=slot.e;}}
@@ -1411,7 +1420,8 @@ function authErr(e){const c=(e&&e.code)||'';
 function boot(){$('#app-name').textContent=window.APP_NAME||'華語線上作業簿';$('#gate-sub').textContent=window.APP_NAME||'華語線上作業簿';
   const tag=$('#mode-tag');if(DB.mode!=='local'){tag.textContent='● 雲端同步';tag.classList.remove('demo');}else{tag.textContent='● 示範模式（本機）';tag.classList.add('demo');}
   if(useAuth){$('#f-email-wrap').classList.remove('hide');$('#gate-forgot').classList.remove('hide');if(window.TEACHER_EMAIL)$('#gate-email').value=window.TEACHER_EMAIL;}}
-async function enter(){$('#gate').classList.add('hide');$('#app').classList.remove('hide');try{await loadAll();render();}catch(e){toast('讀取失敗：'+e.message);}}
+function showLoad(b,soft){let el=document.getElementById('app-loading');if(b){if(!el){el=document.createElement('div');el.id='app-loading';el.className='loading-overlay'+(soft?' soft':'');el.innerHTML='<div class="spinner"></div>';document.body.appendChild(el);}}else if(el){el.remove();}}
+async function enter(){$('#gate').classList.add('hide');$('#app').classList.remove('hide');showLoad(true);try{await loadAll();render();}catch(e){toast('讀取失敗：'+e.message);}finally{showLoad(false);}}
 async function tryLogin(){
   if(useAuth){const email=$('#gate-email').value.trim(),pw=$('#gate-pw').value;
     if(!email||!pw){$('#gate-err').textContent='請輸入 Email 與密碼';return;}
