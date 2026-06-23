@@ -466,14 +466,15 @@ function openQuestionsModal(lid){
   qs.forEach(q=>{const k=qSecKey(q);
     if(!cur||cur.key!==k){const gpTag=(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?('語法 '+(q.gp_index+1)+(q.gp_sub?(' · '+esc((q.gp_sub||'').trim())):'')):'未指定語法（綜合練習）';cur={key:k,label:gpTag,items:[]};secs.push(cur);}
     cur.items.push(q);});
-  const rowHtml=(q,i)=>`<div class="qe-row"><span class="q-num">${i+1}</span>
+  const rowHtml=(q,i,n)=>`<div class="qe-row"><span class="q-num">${i+1}</span>
+     <div class="qe-move"><button class="btn-move" data-act="qMove" data-id="${lid}::${q.id}::up" title="上移"${i===0?' disabled':''}>▲</button><button class="btn-move" data-act="qMove" data-id="${lid}::${q.id}::down" title="下移"${i===n-1?' disabled':''}>▼</button></div>
      <div class="grow"><div class="qe-t"><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${q.audio_url?'<span class="tag gold">🔊 聽力</span>':''}${q.image_url?'<span class="tag">🖼 照片</span>':''}${(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?`<span class="tag">📘 語法${q.gp_index+1}${q.gp_sub?(' '+esc(q.gp_sub)):''}</span>`:''}${(q.type==='fill'&&q.input_mode==='write')?'<span class="tag">✍️ 手寫</span>':''}</div>
      <div class="qe-p">${esc(q.prompt||'（無題目）')}</div></div>
      <button class="btn btn-sm" data-act="editQuestion" data-id="${lid}::${q.id}">編輯</button>
      <button class="btn btn-sm btn-danger" data-act="delQuestion" data-id="${lid}::${q.id}">刪除</button></div>`;
-  const body=secs.map(sec=>`<details class="qe-secfold"><summary class="qe-sechd">${sec.label}<span class="qe-sec-n">${sec.items.length} 題</span></summary><div class="qe-secbody">${sec.items.map(rowHtml).join('')}</div></details>`).join('');
+  const body=secs.map(sec=>`<details class="qe-secfold"><summary class="qe-sechd">${sec.label}<span class="qe-sec-n">${sec.items.length} 題</span></summary><div class="qe-secbody">${sec.items.map((q,i)=>rowHtml(q,i,sec.items.length)).join('')}</div></details>`).join('');
   const rowsHtml=qs.length?body:'<div class="empty" style="padding:26px"><b>還沒有題目</b><div style="margin-top:4px">點下方「新增題目」開始出題。</div></div>';
-  const tools=qs.length?`<div class="qe-tools"><span class="hint">點各節標題展開／收起；題號每節從 1 算。</span><span style="flex:1"></span><button class="btn btn-sm btn-ghost" data-act="qExpandAll">▾ 全部展開</button><button class="btn btn-sm btn-ghost" data-act="autoOrderQuestions" data-id="${lid}">↕ 自動排序</button></div>`:'';
+  const tools=qs.length?`<div class="qe-tools"><span class="hint">用 ▲▼ 在同一語法小節裡調整題目順序；題號每節從 1 算。</span><span style="flex:1"></span><button class="btn btn-sm btn-ghost" data-act="qExpandAll">▾ 全部展開</button><button class="btn btn-sm btn-ghost" data-act="autoOrderQuestions" data-id="${lid}">↕ 自動排序</button></div>`:'';
   openModal(`<div class="modal wide"><div class="modal-head"><h3>${esc(l.title)} · 練習題</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">${tools}${rowsHtml}</div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button>
@@ -991,6 +992,20 @@ H.autoOrderQuestions=async(lid)=>{const qs=sortQuestionsLogical(questionsOf(lid)
   try{for(let i=0;i<qs.length;i++){if((qs[i].order_index||0)!==i+1){await DB.update('questions',qs[i].id,{order_index:i+1});}}
     S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已自動排序並重新編號');}
   catch(err){if(btn){btn.disabled=false;btn.textContent='↕ 自動排序並重編號';}toast(writeErr('排序失敗',err));}};
+H.qMove=async(key,b)=>{const p=String(key).split('::');const lid=p[0],qid=p[1],dir=p[2];
+  const order=sortQuestionsLogical(questionsOf(lid));
+  const me=order.find(x=>x.id===qid);if(!me)return;const k=qSecKey(me);
+  const secPos=order.map((x,i)=>i).filter(i=>qSecKey(order[i])===k);
+  const at=secPos.findIndex(i=>order[i].id===qid);const to=dir==='up'?at-1:at+1;
+  if(to<0||to>=secPos.length)return;
+  const a=secPos[at],c=secPos[to];const tmp=order[a];order[a]=order[c];order[c]=tmp;
+  const openIdx=[...document.querySelectorAll('.qe-secfold')].map((d,i)=>d.open?i:-1).filter(i=>i>=0);
+  if(b)b.disabled=true;
+  try{await ensureAuthFresh();
+    for(let i=0;i<order.length;i++){if((order[i].order_index||0)!==i+1){await DB.update('questions',order[i].id,{order_index:i+1});order[i].order_index=i+1;}}
+    S.questions=await DB.list('questions');openQuestionsModal(lid);
+    document.querySelectorAll('.qe-secfold').forEach((d,i)=>{if(openIdx.includes(i))d.open=true;});
+  }catch(err){if(b)b.disabled=false;toast(writeErr('調整順序失敗',err));}};
 H.addLesson=()=>lessonModal(null);
 H.editLesson=(id)=>lessonModal(S.lessons.find(l=>l.id===id));
 let LAYOUT=[],LAYOUT_LID=null;
