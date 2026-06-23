@@ -491,6 +491,7 @@ function openQuestionsModal(lid){
      ${bankTitle('📒 作業簿','獨立一本，學生在「作業簿」分頁作答')}
      ${hwBody}</div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button>
+     <button class="btn btn-soft" data-act="lessonImport" data-id="${lid}">📥 一次匯入整課</button>
      <button class="btn" data-act="bulkImport" data-id="${lid}">⬆ 批次匯入</button>
      <button class="btn" data-act="addQuestion" data-id="${lid}::class">＋ 上課語法練習</button>
      <button class="btn btn-primary" data-act="addQuestion" data-id="${lid}::hw">＋ 作業簿題</button></div></div>`);
@@ -512,6 +513,59 @@ function bulkImportModal(lid){const l=S.lessons.find(x=>x.id===lid)||{};const gp
    <div class="modal-foot"><button class="btn btn-ghost" data-act="backToQuestions" data-id="${lid}">取消</button>
      <button class="btn btn-primary" data-act="doBulkImport" data-id="${lid}">匯入</button></div></div>`);
 }
+/* ===== 一次匯入整課練習：用 # 分段（語法N／作業簿／綜合），自動判斷題型 ===== */
+function parseLessonImport(text){
+  const lines=String(text||'').replace(/\r/g,'').split('\n');
+  const out=[];let bank='class',gp=null,optBuf=null;
+  const flush=()=>{if(optBuf&&optBuf.items.length){out.push({type:'opt',prompt:optBuf.prompt||'',options:optBuf.options.slice(),items:optBuf.items.slice(),bank:optBuf.bank,gp_index:optBuf.gp});}optBuf=null;};
+  const f2h=s=>String(s).replace(/[０-９]/g,d=>'０１２３４５６７８９'.indexOf(d));
+  for(const raw of lines){const line=raw.trim();if(!line)continue;
+    if(/^[#＃\[【]/.test(line)){flush();const inside=line.replace(/^[#＃\[【]\s*/,'').replace(/[\]】]\s*$/,'').trim();
+      if(/作業簿/.test(inside)){bank='hw';gp=null;}
+      else if(/綜合/.test(inside)){bank='class';gp=null;}
+      else{const m=inside.match(/語法\s*([0-9０-９]+)/);if(m){bank='class';gp=parseInt(f2h(m[1]),10)-1;}else{bank='class';gp=null;}}
+      continue;}
+    if(/^選項[：:]/.test(line)){if(!optBuf)optBuf={prompt:'',options:[],items:[],bank,gp};
+      optBuf.options=line.replace(/^選項[：:]/,'').split(/[\/、，,]|\s{2,}/).map(s=>s.replace(/^[a-dａ-ｄA-D]\s*[\.\．、)）:：]\s*/,'').trim()).filter(Boolean);continue;}
+    if(/^選填[：:]/.test(line)){flush();optBuf={prompt:line.replace(/^選填[：:]/,'').trim(),options:[],items:[],bank,gp};continue;}
+    if(optBuf&&/^[-•・*＊]/.test(line)){const open=/^[*＊]/.test(line);const txt=line.replace(/^[-•・*＊]\s*/,'').trim();if(txt)optBuf.items.push({text:txt,mode:open?'open':'select'});continue;}
+    flush();
+    let t='qa',prompt=line;
+    const pm=line.match(/^(完成對話|填空|問答|造句|寫出|示範)[：:]\s*(.*)$/);
+    if(pm){prompt=pm[2].trim();const tag=pm[1];t=(tag==='填空')?'fill':(tag==='造句'||tag==='寫出')?'write':(tag==='示範')?'note':'qa';}
+    else{t=/[_＿]{2,}/.test(line)?'fill':'qa';}
+    if(prompt)out.push({type:t,prompt,bank,gp});}
+  flush();
+  return out;}
+function importBuildObjs(parsed,lid,base){return parsed.map((q,i)=>({lesson_id:lid,type:q.type,prompt:q.prompt||'',options:q.options||[],items:q.items||null,answer:null,bank:(q.bank==='hw'?'hw':'class'),gp_index:(q.gp_index==null?null:q.gp_index),gp_sub:null,input_mode:(q.type==='fill'?'type':null),audio_url:null,image_url:null,instruction:null,explanation:null,order_index:base+i}));}
+function lessonImportModal(lid){const l=S.lessons.find(x=>x.id===lid)||{};const gps=l.grammar_points||[];
+  const gpHint=gps.length?('這課的語法：'+gps.map((g,i)=>'語法'+(i+1)+(g.title?('（'+esc(g.title)+'）'):'')).join('、')):'這課還沒有語法點，先去「編輯課文」加語法點，匯入才能對應。';
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>📥 一次匯入整課練習 · ${esc(l.title||'')}</h3><button class="x" data-act="backToQuestions" data-id="${lid}">×</button></div>
+   <div class="modal-body">
+     <div class="hint" style="margin-bottom:8px;line-height:1.8">用 <b>#</b> 開頭分段，段底下一行一題：<br>
+       <code># 語法1</code>／<code># 語法4</code>（歸到第 N 個語法）　<code># 作業簿</code>　<code># 綜合</code>（不綁語法）<br>
+       <code>完成對話：A：…？ B：＿＿。</code>　<code>填空：我＿＿學生。</code>　<code>問答：你叫什麼名字？</code><br>
+       選填多小題：<code>選填：</code> →下一行 <code>選項：a.因為 b.雖然 c.但是</code> →再 <code>- ＿＿天氣不好</code>（<code>*</code> 開頭＝自己回答）<br>
+       <span style="color:var(--primary)">${esc(gpHint)}</span></div>
+     <div class="field"><textarea id="imp-text" style="min-height:220px" placeholder="# 語法1&#10;完成對話：A：那部電影拍得很好。 B：＿＿＿。&#10;問答：你覺得呢？&#10;&#10;# 語法4&#10;填空：他＿＿喝起酒來了。&#10;&#10;# 作業簿&#10;問答：請用「就算…也…」造一個句子。"></textarea></div>
+     <div id="imp-preview"></div>
+   </div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="backToQuestions" data-id="${lid}">取消</button><span style="flex:1"></span>
+     <button class="btn" data-act="impPreview" data-id="${lid}">預覽</button>
+     <button class="btn btn-primary" data-act="impDo" data-id="${lid}">建立全部</button></div></div>`);}
+H.lessonImport=(id)=>lessonImportModal(id);
+H.impPreview=(lid)=>{const parsed=parseLessonImport(($('#imp-text')||{}).value||'');const box=$('#imp-preview');if(!box)return;
+  if(!parsed.length){box.innerHTML='<div class="hint" style="margin-top:8px">沒有解析到題目，請檢查格式（記得用 # 分段、一行一題）。</div>';return;}
+  const TN={fill:'填空',qa:'問答',opt:'選填',write:'手寫',note:'示範'};
+  const rows=parsed.map((q,i)=>{const sec=q.bank==='hw'?'作業簿':(q.gp_index==null?'綜合':('語法'+(q.gp_index+1)));const extra=q.type==='opt'?('（'+(q.items||[]).length+'小題）'):'';return `<div class="qe-row"><span class="q-num">${i+1}</span><div class="grow"><div class="qe-t"><span class="tag accent">${TN[q.type]||q.type}</span> <span class="tag">${sec}</span>${extra}</div><div class="qe-p">${esc((q.prompt||'').replace(/[_＿]{2,}/g,'____')||'（看選項作答）')}</div></div></div>`;}).join('');
+  box.innerHTML=`<div class="hint" style="margin:10px 0 4px"><b>預覽：共 ${parsed.length} 題</b>。沒問題就按「建立全部」。</div>${rows}`;};
+H.impDo=async(lid)=>{const parsed=parseLessonImport(($('#imp-text')||{}).value||'');
+  if(!parsed.length){toast('沒有解析到題目，請先「預覽」檢查格式');return;}
+  const btn=document.querySelector('[data-act="impDo"]');if(btn){btn.disabled=true;btn.textContent='建立中…';}
+  try{const base=questionsOf(lid).length;const objs=importBuildObjs(parsed,lid,base);
+    for(const o of objs)await DB.insert('questions',o);
+    S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已建立 '+objs.length+' 題 ✓');
+  }catch(e){if(btn){btn.disabled=false;btn.textContent='建立全部';}toast(writeErr('建立失敗',e));}};
 let QE_TYPE='choice';
 function qeFieldsHTML(type,q){q=q||{};const opt=q.options||[];
   if(type==='choice'){const lines=Array.isArray(opt)?opt.join('\n'):'';const correct=(typeof q.answer==='number')?(q.answer+1):'';
