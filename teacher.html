@@ -466,7 +466,7 @@ function openQuestionsModal(lid){
   qs.forEach(q=>{const k=qSecKey(q);
     if(!cur||cur.key!==k){const gpTag=(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?('語法 '+(q.gp_index+1)+(q.gp_sub?(' · '+esc((q.gp_sub||'').trim())):'')):'未指定語法（綜合練習）';cur={key:k,label:gpTag,items:[]};secs.push(cur);}
     cur.items.push(q);});
-  const rowHtml=(q,i,n,prev)=>{const canMerge=q.type==='opt'&&prev&&prev.type==='opt';const ni=(q.type==='opt'&&(q.items||[]).length>1)?`<span class="tag">${(q.items||[]).length} 小題</span>`:'';
+  const rowHtml=(q,i,n,prev)=>{const canMerge=prev&&prev.type==='opt'&&(q.type==='opt'||q.type==='qa');const ni=(q.type==='opt'&&(q.items||[]).length>1)?`<span class="tag">${(q.items||[]).length} 小題</span>`:'';
     return `<div class="qe-row"><span class="q-num">${i+1}</span>
      <div class="qe-move"><button class="btn-move" data-act="qMove" data-id="${lid}::${q.id}::up" title="上移"${i===0?' disabled':''}>▲</button><button class="btn-move" data-act="qMove" data-id="${lid}::${q.id}::down" title="下移"${i===n-1?' disabled':''}>▼</button></div>
      <div class="grow"><div class="qe-t"><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${ni}${q.audio_url?'<span class="tag gold">🔊 聽力</span>':''}${q.image_url?'<span class="tag">🖼 照片</span>':''}${(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?`<span class="tag">📘 語法${q.gp_index+1}${q.gp_sub?(' '+esc(q.gp_sub)):''}</span>`:''}${(q.type==='fill'&&q.input_mode==='write')?'<span class="tag">✍️ 手寫</span>':''}</div>
@@ -1010,10 +1010,11 @@ H.qMove=async(key,b)=>{const p=String(key).split('::');const lid=p[0],qid=p[1],d
   }catch(err){if(b)b.disabled=false;toast(writeErr('調整順序失敗',err));}};
 H.qMerge=async(key,b)=>{const p=String(key).split('::');const lid=p[0],qid=p[1];
   const order=sortQuestionsLogical(questionsOf(lid));const idx=order.findIndex(x=>x.id===qid);const me=order[idx];const prev=order[idx-1];
-  if(!me||me.type!=='opt'){return;}
+  if(!me||(me.type!=='opt'&&me.type!=='qa')){return;}
   if(!prev||prev.type!=='opt'||qSecKey(prev)!==qSecKey(me)){toast('上一題不是同一語法的選填題，無法併入');return;}
-  if(!confirm('把這一題的小題併入「上一題」的選填題？併入後選項只會留一份，這一題會消失（不會影響學生已作答的內容前請先確認）。'))return;
-  const mergedItems=[...(prev.items||[]),...(me.items||[])];
+  if(!confirm('把這一題併入「上一題」的選填題？併入後選項只會留一份，這一題會變成上一題的下一小題並消失。'))return;
+  const addItems=(me.type==='qa')?[{text:(me.prompt||'').trim(),mode:'open'}]:(me.items||[]);
+  const mergedItems=[...(prev.items||[]),...addItems];
   let options=(prev.options||[]).slice();if((me.options||[]).length>options.length)options=(me.options||[]).slice();
   if(b)b.disabled=true;
   try{await ensureAuthFresh();
