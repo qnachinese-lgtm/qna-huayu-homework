@@ -1135,7 +1135,7 @@ H.dupLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!co
   catch(err){if(btn){btn.disabled=false;btn.textContent='📋 複製';}toast(writeErr('複製失敗',err));}};
 H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return toast('請輸入課名');
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
-  gpSync();const gps=GP.map(g=>({title:(g.title||'').trim(),blocks:(g.blocks||[]).map(b=>{const ex=(b.ex||'').trim();const lines=ex.split('\n').map(s=>s.trim()).filter(Boolean);const ea=Array.isArray(b.exAudio)?lines.map((_,i)=>b.exAudio[i]||''):[];const hasA=ea.some(Boolean);return Object.assign({label:(b.label||'').trim(),text:(b.text||'').trim(),ex},hasA?{exAudio:ea}:{});}).filter(b=>b.label==='小節'?!!b.text:(b.label||b.text||b.ex))})).filter(g=>g.title||g.blocks.length);
+  gpSync();const gps=GP.map(g=>({title:(g.title||'').trim(),seg:(g.seg==='短文'?'短文':''),blocks:(g.blocks||[]).map(b=>{const ex=(b.ex||'').trim();const lines=ex.split('\n').map(s=>s.trim()).filter(Boolean);const ea=Array.isArray(b.exAudio)?lines.map((_,i)=>b.exAudio[i]||''):[];const hasA=ea.some(Boolean);return Object.assign({label:(b.label||'').trim(),text:(b.text||'').trim(),ex},hasA?{exAudio:ea}:{});}).filter(b=>b.label==='小節'?!!b.text:(b.label||b.text||b.ex))})).filter(g=>g.title||g.blocks.length);
   dlgSync();
   const sbtn=document.querySelector('[data-act="saveLesson"]');
   for(let i=0;i<DLG.length;i++){const d=DLG[i];
@@ -1153,7 +1153,7 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
 let GP=[];const GP_PRESETS=['說明','例句','功能','結構','否定','疑問','用法'];
 function gpInit(l){
   if(l&&Array.isArray(l.grammar_points)&&l.grammar_points.length){
-    GP=l.grammar_points.map(g=>({title:g.title||'',blocks:(g.blocks||[]).map(b=>({label:b.label||'',text:b.text||'',ex:b.ex||'',exAudio:Array.isArray(b.exAudio)?b.exAudio.slice():[]}))}));
+    GP=l.grammar_points.map(g=>({title:g.title||'',seg:g.seg||'',blocks:(g.blocks||[]).map(b=>({label:b.label||'',text:b.text||'',ex:b.ex||'',exAudio:Array.isArray(b.exAudio)?b.exAudio.slice():[]}))}));
   }else if(l&&l.key_points&&l.key_points.trim()){
     GP=[{title:'',blocks:[{label:'重點',text:l.key_points,ex:''}]}];
   }else{GP=[];}
@@ -1161,6 +1161,7 @@ function gpInit(l){
 }
 function gpSync(){GP.forEach((g,gi)=>{
   const t=document.querySelector('.gp-title[data-gi="'+gi+'"]');if(t)g.title=t.value;
+  const sg=document.querySelector('.gp-seg[data-gi="'+gi+'"]');if(sg)g.seg=sg.value;
   g.blocks.forEach((b,bi)=>{
     const lab=document.querySelector('.gp-lab[data-gi="'+gi+'"][data-bi="'+bi+'"]');if(lab)b.label=lab.value;
     const tx=document.querySelector('.gp-tx[data-gi="'+gi+'"][data-bi="'+bi+'"]');if(tx)b.text=tx.value;
@@ -1227,6 +1228,7 @@ function gpRender(){const wrap=document.getElementById('gp-editor');if(!wrap)ret
       <div class="gp-exaudio" id="gpexa-list-${gi}-${bi}">${gpExAudioHtml(gi,bi)}</div></div>`;}).join('');
     return `<details class="gp-card edit-fold"${g._open?' open':''}><summary class="edit-fold-sum"><span class="gp-no">語法 ${gi+1}</span><span class="edit-fold-title">${esc((g.title||'').trim()||'（未命名）')}</span><span class="edit-fold-caret">▾</span></summary><div class="edit-fold-body"><div class="gp-card-head">
       <input class="gp-title" data-gi="${gi}" value="${esc(g.title||'')}" placeholder="標題，例：「很」修飾狀態動詞">
+      <select class="gp-seg" data-gi="${gi}" title="這個語法屬於對話還是短文" style="flex:0 0 auto;width:auto"><option value=""${(g.seg||'')!=='短文'?' selected':''}>對話語法</option><option value="短文"${(g.seg||'')==='短文'?' selected':''}>短文語法</option></select>
       <button class="btn btn-sm btn-danger" type="button" data-act="gpDel" data-id="${gi}">刪除</button></div>
       ${blocks}
       <div class="gp-addrow"><span class="gp-addlbl">加區塊：</span><button class="gp-chip gp-chip-sec" type="button" data-act="gpBlockAdd" data-id="${gi}::小節">＋小節 A／B</button>${GP_PRESETS.map(p=>`<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::${p}">${p}</button>`).join('')}<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::">＋自訂</button></div>

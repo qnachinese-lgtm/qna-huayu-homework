@@ -370,18 +370,24 @@ async function openAnnotator(lid){const l=handoutLessonById(lid);if(!l||!l.hando
 function closeAnnotator(lid){const host=document.getElementById('annot-'+lid);if(host){host.innerHTML='';host.dataset.open='';}ANNOT=null;}
 function lessonBodyHtml(l,opts){opts=opts||{};const seq=reconcileLayout(l);const qsAll=questionsOf(l.id).filter(q=>q.bank!=='hw');const gps=l.grammar_points||[];
   const numbered=arr=>{let n=0;return arr.map(q=>{if(q.type==='note')return practiceItemHtml(q,-1);const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;return practiceItemHtml(q,st);}).join('');};
-  let gNum=0;const textParts=[],gramParts=[];
-  seq.forEach(e=>{if(e.t==='d'){gNum=0;textParts.push(dialogueBlockHtml(l,e.i,opts));}
-    else if(e.t==='v')textParts.push(vocabSectionHtml(l,e.i,opts));
-    else if(e.t==='q')textParts.push(discSectionHtml(l,e.i,opts));
-    else{gNum++;gramParts.push(grammarSectionHtml(l,e.i,qsAll,opts,gNum));}});
+  const dlgs=lessonDialogues(l);const isShort=i=>/短文/.test((dlgs[i]&&dlgs[i].title)||'');
+  let dgNum=0,sgNum=0;const dlgText=[],shortText=[],dlgGram=[],shortGram=[];
+  seq.forEach(e=>{if(e.t==='d'){(isShort(e.i)?shortText:dlgText).push(dialogueBlockHtml(l,e.i,opts));}
+    else if(e.t==='v'){(isShort(e.i)?shortText:dlgText).push(vocabSectionHtml(l,e.i,opts));}
+    else if(e.t==='q'){(isShort(e.i)?shortText:dlgText).push(discSectionHtml(l,e.i,opts));}
+    else{const g=gps[e.i]||{};if(g.seg==='短文'){sgNum++;shortGram.push(grammarSectionHtml(l,e.i,qsAll,opts,sgNum));}else{dgNum++;dlgGram.push(grammarSectionHtml(l,e.i,qsAll,opts,dgNum));}}});
   let tail='';
   if(!gps.length){if(l.key_points)tail+=`<div class="lesson-block"><div class="lesson-label">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div></div>`;if(qsAll.length)tail+=`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${numbered(qsAll)}</div></div>`;}
   else{const untag=qsAll.filter(q=>q.gp_index==null);if(untag.length)tail+=`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${numbered(untag)}</div></div>`;}
-  const TL=({cn:'课文',en:'Lesson text',vi:'Bài khoá'}[S.lang]||'課文');
-  const textSec=textParts.length?`<details class="ls-sec" open><summary class="ls-sec-h">📖 ${TL}</summary><div class="ls-sec-b">${textParts.join('')}</div></details>`:'';
-  const gramSec=gramParts.length?`<details class="ls-sec" open><summary class="ls-sec-h">📘 ${t('grammar')}</summary><div class="ls-sec-b">${gramParts.join('')}</div></details>`:'';
-  return handoutHtml(l)+textSec+gramSec+tail+examplesHtml(l.examples);}
+  const SLAB={dlg:{cn:'对话内容',en:'Dialogue',vi:'Hội thoại'},dlgG:{cn:'对话语法',en:'Dialogue grammar',vi:'Ngữ pháp hội thoại'},sh:{cn:'短文内容',en:'Reading text',vi:'Bài đọc'},shG:{cn:'短文语法',en:'Reading grammar',vi:'Ngữ pháp bài đọc'}};
+  const pk=(o,zh)=>o[S.lang]||zh;
+  const sec=(parts,icon,label)=>parts.length?`<details class="ls-sec" open><summary class="ls-sec-h">${icon} ${label}</summary><div class="ls-sec-b">${parts.join('')}</div></details>`:'';
+  return handoutHtml(l)
+    +sec(dlgText,'📖',pk(SLAB.dlg,'對話內容'))
+    +sec(dlgGram,'📘',pk(SLAB.dlgG,'對話語法'))
+    +sec(shortText,'📄',pk(SLAB.sh,'短文內容'))
+    +sec(shortGram,'📘',pk(SLAB.shG,'短文語法'))
+    +tail+examplesHtml(l.examples);}
 function gpLabel(lab){lab=(lab||'').trim();if(!lab)return '';const m=GP_LBL[lab];if(m&&(S.lang==='en'||S.lang==='vi'))return m[S.lang]||lab;return lab;}
 function gpBlocksHtml(g){return (g.blocks||[]).map(b=>{
     const lab=(b.label||'').trim(),txt=(b.text||'').trim(),exl=(b.ex||'').split('\n').map(s=>s.trim()).filter(Boolean);
