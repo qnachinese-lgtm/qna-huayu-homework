@@ -382,12 +382,13 @@ function lessonBodyHtml(l,opts){opts=opts||{};const seq=reconcileLayout(l);const
   const SLAB={dlg:{cn:'对话内容',en:'Dialogue',vi:'Hội thoại'},dlgG:{cn:'对话语法',en:'Dialogue grammar',vi:'Ngữ pháp hội thoại'},sh:{cn:'短文内容',en:'Reading text',vi:'Bài đọc'},shG:{cn:'短文语法',en:'Reading grammar',vi:'Ngữ pháp bài đọc'}};
   const pk=(o,zh)=>o[S.lang]||zh;
   const sec=(parts,icon,label)=>parts.length?`<details class="ls-sec" open><summary class="ls-sec-h">${icon} ${label}</summary><div class="ls-sec-b">${parts.join('')}</div></details>`:'';
+  const gpqs=qsAll.filter(q=>q.type!=='note');
   return handoutHtml(l)
     +sec(dlgText,'📖',pk(SLAB.dlg,'對話內容'))
     +sec(dlgGram,'📘',pk(SLAB.dlgG,'對話語法'))
     +sec(shortText,'📄',pk(SLAB.sh,'短文內容'))
     +sec(shortGram,'📘',pk(SLAB.shG,'短文語法'))
-    +tail+examplesHtml(l.examples);}
+    +tail+gpracBarHtml(l,gpqs)+examplesHtml(l.examples);}
 function gpLabel(lab){lab=(lab||'').trim();if(!lab)return '';const m=GP_LBL[lab];if(m&&(S.lang==='en'||S.lang==='vi'))return m[S.lang]||lab;return lab;}
 function gpBlocksHtml(g){return (g.blocks||[]).map(b=>{
     const lab=(b.label||'').trim(),txt=(b.text||'').trim(),exl=(b.ex||'').split('\n').map(s=>s.trim()).filter(Boolean);
@@ -505,9 +506,34 @@ async function loadMine(){const [l,q]=await Promise.all([DB.list('lessons'),DB.l
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
   S.lessons=l.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron');S.quizzes=l.filter(x=>x.kind==='quiz');S.announcements=l.filter(x=>x.kind==='announcement');S.prons=l.filter(x=>x.kind==='pron');S.questions=q;
   splitResults(rAll);}
-function splitResults(rAll){rAll=rAll||[];S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');}
+function splitResults(rAll){rAll=rAll||[];S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
 function discDocOf(lid){return (S.discussions||[]).find(x=>x.disc_lesson===lid)||null;}
+function gpracDocOf(lid){return (S.gpracs||[]).find(x=>x.gprac_lesson===lid)||null;}
+function gpLab(k){const M={submit:{zh:'✅ 送出語法練習給老師批改',cn:'✅ 送出语法练习给老师批改',en:'✅ Submit grammar practice to teacher',vi:'✅ Nộp bài luyện ngữ pháp cho giáo viên'},resend:{zh:'重新送出給老師',cn:'重新送出给老师',en:'Re-submit to teacher',vi:'Nộp lại cho giáo viên'},sent:{zh:'📨 已送出，等老師批改',cn:'📨 已送出，等老师批改',en:'📨 Submitted — waiting for teacher',vi:'📨 Đã nộp — chờ giáo viên'},graded:{zh:'💬 老師已批改',cn:'💬 老师已批改',en:'💬 Teacher has graded',vi:'💬 Giáo viên đã chấm'},myans:{zh:'你的答案',cn:'你的答案',en:'Your answer',vi:'Câu trả lời của bạn'},noans:{zh:'（未作答）',cn:'（未作答）',en:'(no answer)',vi:'(chưa trả lời)'},empty:{zh:'請先作答再送出',cn:'请先作答再送出',en:'Please answer first',vi:'Vui lòng trả lời trước'}};const o=M[k]||{};return o[S.lang]||o.zh||'';}
+function gpAnsText(q,resp){if(resp==null||resp==='')return '';
+  if(q.type==='choice'){const o=(q.options||[])[Number(resp)];return o?stripOptLabel(o):String(resp);}
+  if(q.type==='fill')return Array.isArray(resp)?resp.filter(x=>x!=null&&String(x).trim()!=='').join(' / '):String(resp);
+  if(q.type==='qa')return String(resp);
+  if(q.type==='opt')return (resp||[]).map(r=>{if(r&&r.t!=null)return String(r.t);if(r&&Array.isArray(r.s))return r.s.map(j=>{const o=(q.options||[])[j];return o?stripOptLabel(o):j;}).join('、');return '';}).filter(Boolean).join('｜');
+  if(q.type==='order')return Array.isArray(resp)?resp.join(''):String(resp);
+  if(q.type==='match')return Array.isArray(resp)?resp.join('、'):String(resp);
+  if(q.type==='write'||(q.type==='fill'&&q.input_mode==='write'))return '（手寫）';
+  return String(resp);}
+function gpracBarHtml(l,gpqs){if(!gpqs.length||S.preview)return '';
+  const doc=gpracDocOf(l.id),reviewed=doc&&doc.status==='reviewed',submitted=!!doc;
+  let status='';
+  if(reviewed)status=`<div class="notice">${gpLab('graded')}${doc.reviewed_at?(' · '+esc((doc.reviewed_at||'').slice(0,10))):''}</div>`;
+  else if(submitted)status=`<div class="notice">${gpLab('sent')}</div>`;
+  let panel='';
+  if(reviewed){const fb=doc.feedback||{},ans=doc.answers||{};
+    const items=gpqs.map((q,i)=>{const a=gpAnsText(q,ans[q.id]);const f=fb[q.id];if(!a&&!f)return '';
+      return `<div style="padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-top:8px">
+        <div style="font-weight:600">${i+1}. ${esc((q.prompt||'').replace(/[_＿]{2,}/g,'____'))}</div>
+        <div style="margin-top:3px;font-size:14px">${esc(gpLab('myans'))}：${a?esc(a):'<span class="muted">'+esc(gpLab('noans'))+'</span>'}</div>
+        ${f?`<div class="fb-note">💬 ${esc(f)}</div>`:''}</div>`;}).join('');
+    panel=`${doc.overall?`<div class="fb-note" style="margin-top:8px">💬 ${esc(doc.overall)}</div>`:''}${items}`;}
+  return `<div class="lesson-block">${status}${panel}<div style="margin-top:10px"><button class="btn btn-primary" data-act="submitGprac" data-id="${l.id}">${submitted?gpLab('resend'):gpLab('submit')}</button></div></div>`;}
 function shadowDocOf(lid,di){return (S.shadows||[]).find(x=>x.shadow_lesson===lid&&x.shadow_di===di)||null;}
 
 /* ============ theme / chrome ============ */
@@ -1052,6 +1078,21 @@ H.submitDisc=async(lid,b)=>{if(S.preview)return;const card=b&&b.closest('.card')
     const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);splitResults(rAll);
     bumpActivity(1);toast(t('discSaved'));renderContent();
   }catch(e){toast(e.message);if(b){b.disabled=false;b.textContent=t('discSubmit');}}};
+H.submitGprac=async(lid,b)=>{if(S.preview)return;
+  const gpqs=questionsOf(lid).filter(q=>q.bank!=='hw'&&q.type!=='note');if(!gpqs.length)return;
+  const answers={};gpqs.forEach(q=>{const r=readResp(q);if(r==null)return;
+    if(typeof r==='string'){if(r.trim()!=='')answers[q.id]=r;return;}
+    if(Array.isArray(r)){const has=r.some(x=>x&&((typeof x==='string'&&x.trim()!=='')||(x.t!=null&&String(x.t).trim()!=='')||(Array.isArray(x.s)&&x.s.length)));if(has)answers[q.id]=r;return;}
+    answers[q.id]=r;});
+  if(!Object.keys(answers).length){toast(gpLab('empty'));return;}
+  if(b){b.disabled=true;b.textContent=t('sentSaving');}
+  try{const u=myUid();const existing=gpracDocOf(lid);
+    const payload={kind:'gprac',lesson_id:'__gprac__',gprac_lesson:lid,uid:u,student_id:S.me.id,student_name:S.me.name||'',answers,status:'submitted',submitted_at:now()};
+    if(existing&&existing.id){await DB.update('results',existing.id,Object.assign({},payload,{feedback:existing.feedback||{},overall:existing.overall||''}));}
+    else{await DB.insert('results',payload);}
+    const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);splitResults(rAll);
+    bumpActivity(gpqs.length||1);toast(t('discSaved')||'已送出');renderContent();
+  }catch(e){toast(e.message);if(b){b.disabled=false;b.textContent=gpLab('submit');}}};
 H.vocabLesson=(id)=>{S.vocabLesson=id||'';S.flashIdx=0;SHADOW=null;renderCards();};
 H.vocabSentence=()=>{const lid=sentLessonId();if(!lid){toast(t('sentPickLesson'));return;}
   const lesson=S.lessons.find(x=>x.id===lid);if(!lesson){toast(t('sentEmpty'));return;}

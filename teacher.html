@@ -198,7 +198,7 @@ async function loadAll(){
   document.body.classList.toggle('is-admin',!owner);
   const bs=document.querySelector('.brand-sub');if(bs)bs.textContent=owner?'主管理員後台':('管理員 · '+(MY_EMAIL||''));
 }
-function splitResults(d){d=d||[];S.results=d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');}
+function splitResults(d){d=d||[];S.results=d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');}
 function openModal(h){$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
 function closeModal(){$('#modal-root').innerHTML='';}
 
@@ -268,6 +268,8 @@ function renderDashboard(){
   discPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};inbox.push({tag:'問題與討論',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）'),extra:Object.keys(sd.answers||{}).length+' 題',btn:`<button class="btn btn-sm btn-accent" data-act="reviewDisc" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
   const shadowPend=(S.shadows||[]).filter(x=>x.status==='submitted');
   shadowPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.shadow_lesson)||{};const cnt=(sd.sents||[]).filter(s=>s&&s.audio_url).length;inbox.push({tag:'逐句跟讀',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）')+(sd.dlg_title?(' · '+sd.dlg_title):''),extra:cnt+' 句錄音',btn:`<button class="btn btn-sm btn-accent" data-act="reviewShadow" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
+  const gpracPend=(S.gpracs||[]).filter(x=>x.status==='submitted');
+  gpracPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.gprac_lesson)||{};inbox.push({tag:'語法練習',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）'),extra:Object.keys(sd.answers||{}).length+' 題',btn:`<button class="btn btn-sm btn-accent" data-act="reviewGprac" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
   inbox.sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
   const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"><span class="badge badge-soon">${it.tag}</span><b>${esc(it.name)}</b><span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
   // 提醒（付款到期／逾期 + 堂數快用完），合併成一條條待辦
@@ -831,6 +833,38 @@ H.saveDiscReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(
   if(b){b.disabled=true;b.textContent='儲存中…';}
   const ts=new Date().toISOString();const patch={feedback,overall,status:done?'reviewed':(sd.status||'submitted'),reviewed_at:ts};
   try{await DB.update('results',id,patch);const i=S.discussions.findIndex(x=>x.id===id);if(i>=0)S.discussions[i]=Object.assign({},sd,patch);
+    closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
+  }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
+function gpAnsTextT(q,resp){if(resp==null||resp==='')return '';
+  if(q.type==='choice'){const o=(q.options||[])[Number(resp)];return o?String(o):String(resp);}
+  if(q.type==='fill')return Array.isArray(resp)?resp.filter(x=>x!=null&&String(x).trim()!=='').join(' / '):String(resp);
+  if(q.type==='qa')return String(resp);
+  if(q.type==='opt')return (resp||[]).map(r=>{if(r&&r.t!=null)return String(r.t);if(r&&Array.isArray(r.s))return r.s.map(j=>{const o=(q.options||[])[j];return o?String(o):j;}).join('、');return '';}).filter(Boolean).join('｜');
+  if(q.type==='order')return Array.isArray(resp)?resp.join(''):String(resp);
+  if(q.type==='match')return Array.isArray(resp)?resp.join('、'):String(resp);
+  if(q.type==='write'||(q.type==='fill'&&q.input_mode==='write'))return '（手寫）';
+  return String(resp);}
+function gpSolT(q){if(q.type==='choice'){const o=(q.options||[])[Number(q.answer)];return o?String(o):'';}
+  if(q.type==='fill'||q.type==='qa')return Array.isArray(q.answer)?q.answer.filter(Boolean).join(' / '):(q.answer||'');
+  return '';}
+H.reviewGprac=(id)=>{const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
+  const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
+  const l=S.lessons.find(x=>x.id===sd.gprac_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
+  const fb=sd.feedback||{},ans=sd.answers||{};
+  const qs=sortQuestionsLogical(questionsOf(sd.gprac_lesson)).filter(q=>q.bank!=='hw'&&q.type!=='note');
+  let rows='';qs.forEach((q,i)=>{const a=gpAnsTextT(q,ans[q.id]);const sol=gpSolT(q);
+    rows+=`<div class="srev-item"><div class="srev-word">${i+1}. ${esc((q.prompt||'').replace(/[_＿]{2,}/g,'____'))}</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>${sol?`<div class="hint" style="margin:2px 0 6px">正解：${esc(sol)}</div>`:''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="給這一題的建議（可留空，學生會看到）">${esc(fb[q.id]||'')}</textarea></div>`;});
+  if(!rows)rows='<div class="muted">（這一課目前沒有語法練習題）</div>';
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>📘 語法練習批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}</div>${rows}
+   <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="gprev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('gprev-overall')}</div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveGpracReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveGpracReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
+H.saveGpracReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
+  const feedback={};document.querySelectorAll('.gprev-fb').forEach(el=>{const v=(el.value||'').trim();if(v)feedback[el.dataset.k]=v;});
+  const ov=document.getElementById('gprev-overall');const overall=ov?(ov.value||'').trim():'';
+  if(b){b.disabled=true;b.textContent='儲存中…';}
+  const ts=new Date().toISOString();const patch={feedback,overall,status:done?'reviewed':(sd.status||'submitted'),reviewed_at:ts};
+  try{await DB.update('results',id,patch);const i=S.gpracs.findIndex(x=>x.id===id);if(i>=0)S.gpracs[i]=Object.assign({},sd,patch);
     closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
   }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
 H.reviewShadow=(id)=>{const sd=(S.shadows||[]).find(x=>x.id===id);if(!sd)return;
