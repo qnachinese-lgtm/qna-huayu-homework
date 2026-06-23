@@ -436,7 +436,13 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
    <div class="modal-body"><div class="form-grid">
      <div class="field"><label>課序 <span class="hint">第幾課</span></label><input id="l-order" type="number" min="1" value="${l.order_index||nextNo}"></div>
      <div class="field"><label>課名 *</label><input id="l-title" type="text" value="${esc(l.title||'')}" placeholder="例：第一課 歡迎你來臺灣／補充作業 6-20"></div></div>
-     <div class="field full"><label>教材 <span class="hint">用來分類整理，例：當代中文課程一、時代華語一（可選既有或直接打新的）</span></label><input id="l-textbook" type="text" list="book-list" value="${esc(l.textbook||'')}" placeholder="當代中文課程一"><datalist id="book-list">${bookOpts.map(b=>'<option>'+esc(b)+'</option>').join('')}</datalist></div>
+     <div class="field full"><label>教材 <span class="hint">用來分類整理，例：當代中文課程一、時代華語一、發音（可選既有或直接打新的）</span></label><input id="l-textbook" type="text" list="book-list" value="${esc(l.textbook||'')}" placeholder="當代中文課程一"><datalist id="book-list">${[...new Set([...bookOpts,'發音'])].map(b=>'<option>'+esc(b)+'</option>').join('')}</datalist></div>
+     <div class="field full"><label>📄 講義（PDF）<span class="hint">上傳 PDF（PPT 請先在 PowerPoint「另存為 PDF」）；學生可在「上課內容」線上翻頁看、下載。</span></label>
+       <div class="handout-edit"><input type="hidden" id="l-handout-url" value="${esc(l.handout_url||'')}"><input type="hidden" id="l-handout-name" value="${esc(l.handout_name||'')}">
+         <button class="btn btn-sm" type="button" data-act="lhUp">⬆ 上傳 PDF</button>
+         <button class="btn btn-sm btn-danger" type="button" data-act="lhClear" style="${l.handout_url?'':'display:none'}" id="l-handout-clr">移除</button>
+         <span id="l-handout-disp">${l.handout_url?('📄 '+esc(l.handout_name||'已上傳')):'<span class="hint">尚未上傳</span>'}</span>
+         <span class="hint" id="l-handout-st"></span></div></div>
      <div class="field full"><label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer"><input type="checkbox" id="l-vi-release" ${l.vi_release?'checked':''} style="width:auto;margin-top:3px"><span>公開生詞越南文翻譯給學生 <span class="hint">勾選後，學生切到越南文才看得到你在各段「生詞越南文」貼的翻譯；不勾＝學生只看英文。</span></span></label></div>
      <div class="hint" style="margin:-2px 0 10px">只想出補充作業？課名填一下即可，下面對話／生詞／語法全部留空，存好後在卡片點「練習題」出題。</div>
      <div class="field full"><label>對話／課文段落 <span class="hint">一課可有多個對話（對話一、對話二…），每段各有自己的課文、生詞、課文音檔、生詞真人發音；語法之後再合併講。</span></label><div id="dlg-editor" class="dlg-editor"></div></div>
@@ -677,6 +683,8 @@ function pronEditorHtml(){
     <div class="card">
       <label class="fld"><span class="fld-l">標題</span><input id="pe-title" placeholder="例：發音（一）聲母 b p m f" value="${esc(pe.title||'')}"></label>
     </div>
+    <div class="card"><div class="fld-l" style="margin-bottom:6px">📄 講義（PDF）<span class="hint" style="font-weight:400">　PPT 請先另存成 PDF；學生會在這個發音教材裡看到、可下載</span></div>
+      <div class="handout-edit"><button class="btn btn-sm" type="button" data-act="peHUp">⬆ 上傳 PDF</button>${pe.handout_url?`<button class="btn btn-sm btn-danger" type="button" data-act="peHClear">移除</button> <span>📄 ${esc(pe.handout_name||'已上傳')}</span>`:'<span class="hint">尚未上傳</span>'}<span class="hint" id="pe-h-st"></span></div></div>
     <div class="pe-groups">${groups}</div>
     <button class="btn btn-soft" type="button" data-act="peAddGroup" style="margin-top:6px">＋ 加一個音組</button>
     <div class="card" style="margin-top:14px"><div class="fld-l" style="margin-bottom:6px">指派給學生</div><div class="pe-as-grid">${checks}</div></div>
@@ -719,8 +727,13 @@ async function pronRecToggle(gi,ii,b){
     catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
   mr.start();
 }
-H.newPron=()=>{S.pe={id:null,title:'',groups:[blankPG()],assigned_ids:[]};renderPron();};
-H.editPron=(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;S.pe={id:p.id,title:p.title||'',groups:JSON.parse(JSON.stringify(p.pron_groups||[])),assigned_ids:(p.assigned_ids||[]).slice()};if(!S.pe.groups.length)S.pe.groups=[blankPG()];renderPron();};
+H.newPron=()=>{S.pe={id:null,title:'',groups:[blankPG()],assigned_ids:[],handout_url:'',handout_name:''};renderPron();};
+H.editPron=(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;S.pe={id:p.id,title:p.title||'',groups:JSON.parse(JSON.stringify(p.pron_groups||[])),assigned_ids:(p.assigned_ids||[]).slice(),handout_url:p.handout_url||'',handout_name:p.handout_name||''};if(!S.pe.groups.length)S.pe.groups=[blankPG()];renderPron();};
+H.peHUp=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,application/pdf';
+  inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=document.getElementById('pe-h-st');if(st)st.textContent='上傳中…';if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage';return;}
+    try{syncPe();const url=await uploadHandout(f);S.pe.handout_url=url;S.pe.handout_name=f.name||'';renderPron();toast('已上傳講義');}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
+  inp.click();};
+H.peHClear=()=>{syncPe();S.pe.handout_url='';S.pe.handout_name='';renderPron();};
 H.peCancel=()=>{S.pe=null;renderPron();};
 H.peAddGroup=()=>{syncPe();S.pe.groups.push(blankPG());renderPron();};
 H.peDelGroup=(gi)=>{syncPe();S.pe.groups.splice(+gi,1);if(!S.pe.groups.length)S.pe.groups=[blankPG()];renderPron();};
@@ -735,12 +748,22 @@ H.savePron=async()=>{
   const groups=pe.groups.map(g=>({label:(g.label||'').trim(),items:(g.items||[]).filter(it=>(it.zh||it.py||it.audio||it.ex||it.tip)).map(it=>({zh:(it.zh||'').trim(),py:(it.py||'').trim(),tip:(it.tip||'').trim(),ex:(it.ex||'').trim(),audio:it.audio||''}))})).filter(g=>g.items.length||g.label);
   const btn=document.querySelector('[data-act="savePron"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
   try{await ensureAuthFresh();
-    if(pe.id){await DB.update('lessons',pe.id,{title,pron_groups:groups,assigned_ids:pe.assigned_ids||[]});}
-    else{const maxO=(S.prons||[]).reduce((a,p)=>Math.max(a,p.order_index||0),0);await DB.insert('lessons',{kind:'pron',title,pron_groups:groups,assigned_ids:pe.assigned_ids||[],order_index:maxO+1,created_at:new Date().toISOString()});}
+    if(pe.id){await DB.update('lessons',pe.id,{title,textbook:'發音',pron_groups:groups,assigned_ids:pe.assigned_ids||[],handout_url:pe.handout_url||null,handout_name:pe.handout_name||null});}
+    else{const maxO=(S.prons||[]).reduce((a,p)=>Math.max(a,p.order_index||0),0);await DB.insert('lessons',{kind:'pron',title,textbook:'發音',pron_groups:groups,assigned_ids:pe.assigned_ids||[],handout_url:pe.handout_url||null,handout_name:pe.handout_name||null,order_index:maxO+1,created_at:new Date().toISOString()});}
     S.pe=null;await loadAll();S.tab='pron';render();toast('✅ 已儲存發音課');
   }catch(e){if(btn){btn.disabled=false;btn.textContent='儲存發音課';}toast(writeErr('儲存失敗',e));}
 };
 H.delPron=async(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;if(!confirm('確定刪除這個發音課？'))return;try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();S.tab='pron';render();toast('已刪除發音課');}catch(e){toast(writeErr('刪除失敗',e));}};
+
+/* ---- 講義 PDF 上傳（課文編輯器共用） ---- */
+async function uploadHandout(file){await ensureAuthFresh();let safe=(file.name||'handout.pdf').replace(/[^\w.\-]+/g,'_');if(safe.length>60)safe=safe.slice(-60);const ref=firebase.storage().ref('handouts/'+Date.now()+'_'+safe);await ref.put(file);return await ref.getDownloadURL();}
+H.lhUp=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,application/pdf';
+  inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=$('#l-handout-st');if(st)st.textContent='上傳中…（檔案大時請稍候）';
+    if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage';return;}
+    try{const url=await uploadHandout(f);const u=$('#l-handout-url'),n=$('#l-handout-name'),d=$('#l-handout-disp'),c=$('#l-handout-clr');if(u)u.value=url;if(n)n.value=f.name||'';if(d)d.innerHTML='📄 '+esc(f.name||'已上傳');if(c)c.style.display='';if(st)st.textContent='已上傳，記得按下方「儲存」';}
+    catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
+  inp.click();};
+H.lhClear=()=>{const u=$('#l-handout-url'),n=$('#l-handout-name'),d=$('#l-handout-disp'),c=$('#l-handout-clr'),st=$('#l-handout-st');if(u)u.value='';if(n)n.value='';if(d)d.innerHTML='<span class="hint">尚未上傳</span>';if(c)c.style.display='none';if(st)st.textContent='已移除，記得按「儲存」';};
 
 H.canned=(tgt,b)=>{const ta=document.getElementById(tgt);if(!ta)return;const t=(b&&b.dataset.t)||'';ta.value=(ta.value.trim()?ta.value.replace(/\s*$/,'')+'　':'')+t;ta.focus();};
 H.tab=(id)=>{S.tab=id;render();};
@@ -1042,7 +1065,7 @@ H.dupLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!co
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const btn=document.querySelector('[data-act="dupLesson"][data-id="'+id+'"]');if(btn){btn.disabled=true;btn.textContent='複製中…';}
   const maxOrder=Math.max(0,...S.lessons.map(x=>Number(x.order_index)||0));
-  const copy={order_index:maxOrder+1,title:(l.title||'')+'（複本）',textbook:l.textbook||null,vi_release:l.vi_release||false,dialogues:l.dialogues||null,content:l.content||null,vocabulary:l.vocabulary||null,audio_url:l.audio_url||null,vocab_audio_url:l.vocab_audio_url||null,vocab_segments:l.vocab_segments||null,grammar_points:l.grammar_points||[],key_points:l.key_points||'',examples:l.examples||'',layout:l.layout||[],assigned_ids:[],due_date:null};
+  const copy={order_index:maxOrder+1,title:(l.title||'')+'（複本）',textbook:l.textbook||null,vi_release:l.vi_release||false,dialogues:l.dialogues||null,content:l.content||null,vocabulary:l.vocabulary||null,audio_url:l.audio_url||null,vocab_audio_url:l.vocab_audio_url||null,vocab_segments:l.vocab_segments||null,grammar_points:l.grammar_points||[],key_points:l.key_points||'',examples:l.examples||'',handout_url:l.handout_url||null,handout_name:l.handout_name||null,layout:l.layout||[],assigned_ids:[],due_date:null};
   try{const nl=await DB.insert('lessons',copy);
     const qs=questionsOf(l.id);for(const q of qs){const r=Object.assign({},q);delete r.id;delete r.created_at;r.lesson_id=nl.id;await DB.insert('questions',r);}
     await loadAll();render();toast('已複製為「'+copy.title+'」，可直接編輯');}
@@ -1060,7 +1083,7 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
       try{d.audio_url=await uploadVocabAudio(d._la.file);d.line_segments=d._la.segs||[];d._la=null;}
       catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('課文音檔上傳失敗：'+(err.message||err));}}}
   const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',vocab_vi:(d.vocab_vi||'').trim(),discussion:(d.discussion||'').trim(),audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.discussion||d.audio_url||d.vocab_audio_url);
-  const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,vi_release:!!($('#l-vi-release')&&$('#l-vi-release').checked),dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[])};
+  const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,vi_release:!!($('#l-vi-release')&&$('#l-vi-release').checked),dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value,handout_url:(($('#l-handout-url')&&$('#l-handout-url').value)||'')||null,handout_name:(($('#l-handout-name')&&$('#l-handout-name').value)||'')||null,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[])};
   try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}};
 
 /* ===== 語法點結構化編輯器 ===== */

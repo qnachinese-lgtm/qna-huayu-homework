@@ -325,6 +325,14 @@ function grammarSectionHtml(l,gi,qsAll,opts,num){const g=(l.grammar_points||[])[
     if(subs.length){const noSub=qs.filter(q=>!(q.gp_sub||'').trim());const groups=subs.map(s=>{const sq=qs.filter(q=>(q.gp_sub||'').trim()===s);return `<div class="pi-sub"><div class="pi-sub-head">${esc(s)}</div><div class="pi-wrap">${numbered(sq)}</div></div>`;});if(noSub.length)groups.push(`<div class="pi-wrap">${numbered(noSub)}</div>`);prac=groups.join('');}
     else prac=`<div class="pi-wrap">${numbered(qs)}</div>`;}
   return `<div class="lesson-block">${gpFold(g,gi,prac,num)}</div>`;}
+function handoutHtml(l){
+  if(!l||!l.handout_url)return '';
+  const u=l.handout_url,nm=esc(l.handout_name||'PDF');
+  const isPdf=/\.pdf($|\?)/i.test(u)||/pdf/i.test(l.handout_name||'');
+  const viewer=isPdf?`<div class="handout-frame"><iframe src="${esc(u)}#toolbar=1&navpanes=0&view=FitH" loading="lazy" title="${nm}"></iframe></div>`:`<div class="handout-file">📎 ${nm}</div>`;
+  return `<div class="lesson-block handout-block"><div class="lesson-label">📄 ${t('handout')}${l.handout_name?'：'+nm:''}</div>${viewer}
+    <div class="handout-tools"><a class="btn btn-sm" href="${esc(u)}" target="_blank" rel="noopener">↗ ${t('handoutOpen')}</a><a class="btn btn-sm btn-accent" href="${esc(u)}" target="_blank" rel="noopener" download>⬇ ${t('handoutDl')}</a></div></div>`;
+}
 function lessonBodyHtml(l,opts){opts=opts||{};const seq=reconcileLayout(l);const qsAll=questionsOf(l.id);const gps=l.grammar_points||[];
   const numbered=arr=>{let n=0;return arr.map(q=>practiceItemHtml(q,q.type==='note'?-1:n++)).join('');};
   let gNum=0;
@@ -332,7 +340,7 @@ function lessonBodyHtml(l,opts){opts=opts||{};const seq=reconcileLayout(l);const
   let tail='';
   if(!gps.length){if(l.key_points)tail+=`<div class="lesson-block"><div class="lesson-label">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div></div>`;if(qsAll.length)tail+=`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${numbered(qsAll)}</div></div>`;}
   else{const untag=qsAll.filter(q=>q.gp_index==null);if(untag.length)tail+=`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${numbered(untag)}</div></div>`;}
-  return body+tail+examplesHtml(l.examples);}
+  return handoutHtml(l)+body+tail+examplesHtml(l.examples);}
 function gpLabel(lab){lab=(lab||'').trim();if(!lab)return '';const m=GP_LBL[lab];if(m&&(S.lang==='en'||S.lang==='vi'))return m[S.lang]||lab;return lab;}
 function gpBlocksHtml(g){return (g.blocks||[]).map(b=>{
     const lab=(b.label||'').trim(),txt=(b.text||'').trim(),exl=(b.ex||'').split('\n').map(s=>s.trim()).filter(Boolean);
@@ -506,8 +514,7 @@ function renderNav(){
   const wrong=wrongQuestions().length;
   const works=myLessons().filter(l=>answerableOf(l.id).length).length;
   const fbN=myLessons().filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
-  const pronN=(S.prons||[]).filter(p=>(p.assigned_ids||[]).includes(S.me.id)).length;
-  const items=[['work','✍️',t('navWork'),works],['content','📖',t('navContent'),''],['pron','🔤',t('navPron'),pronN||''],['cards','🃏',t('navCards'),''],['grades','📈',t('navGrades'),fbN||''],['wrong','📒',t('navWrong'),wrong||'']];
+  const items=[['work','✍️',t('navWork'),works],['content','📖',t('navContent'),''],['cards','🃏',t('navCards'),''],['grades','📈',t('navGrades'),fbN||''],['wrong','📒',t('navWrong'),wrong||'']];
   $('#snav').innerHTML=items.map(([id,ic,lb,n])=>`<button class="${S.section===id?'on':''}" data-act="section" data-id="${id}">${ic} ${lb}${n!==''?`<span class="n">${n}</span>`:''}</button>`).join('');
 }
 function renderSection(){
@@ -556,10 +563,7 @@ function renderWork(){
         ${done?`<div class="progress"><span style="width:${pct}%"></span></div>`:''}</div>
       ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`:`<div class="tag accent">${(r&&r.status==='draft')?t('resume'):t('start')} →</div>`}</div>`;}).join('')+(ls.length?'</div>':'');
 }
-function renderContent(){
-  const ls=myLessons().filter(lessonHasContent);
-  if(!ls.length){$('#screen').innerHTML=emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
-  $('#screen').innerHTML='<div class="cards">'+ls.map((l,i)=>{
+function lessonCardHtml(l,i){
     const hasDisc=lessonHasDisc(l),ddoc=hasDisc?discDocOf(l.id):null,canAns=hasDisc&&!S.preview;
     const discBar=canAns?`<div class="disc-submit">
         ${ddoc&&ddoc.status==='submitted'?`<div class="notice">📨 ${t('discSubmitted')}</div>`:''}
@@ -578,9 +582,37 @@ function renderContent(){
       <div class="lesson-split" id="ls-${lid}">
         <div class="ls-text"><details class="disc" open><summary>${t('text')}</summary>${lessonBodyHtml(l,{answerable:canAns,doc:ddoc})}${discBar}</details></div>
         ${notesCol}
-      </div></div>`;}).join('')+'</div>';
+      </div></div>`;
+}
+function pronBoardGroupsHtml(p,sc){
+  return (p.pron_groups||[]).map(g=>{
+    const cards=(g.items||[]).map(it=>{
+      const prim=sc==='zh'?(it.zh||it.py||''):(it.py||it.zh||'');
+      const sec=sc==='zh'?(it.py||''):(it.zh||'');
+      const hasA=!!it.audio;
+      return `<div class="pron-card${hasA?' has-a':''}"${hasA?` data-act="pronPlay" data-u="${esc(it.audio)}"`:''}><div class="pron-sym">${esc(prim)}</div>${sec?`<div class="pron-sym2">${esc(sec)}</div>`:''}${hasA?'<div class="pron-play">🔊</div>':''}${it.tip?`<div class="pron-tip">${esc(it.tip)}</div>`:''}${it.ex?`<div class="pron-ex">${esc(it.ex)}</div>`:''}</div>`;
+    }).join('');
+    return `<div class="pron-group">${g.label?`<div class="pron-glabel">${esc(g.label)}</div>`:''}<div class="pron-grid">${cards}</div></div>`;
+  }).join('');
+}
+function pronLessonCardHtml(p){
+  const sc=S.pronScript||(S.lang==='vi'?'py':'zh');
+  const toggle=`<div class="pron-toggle"><button class="pron-sw${sc==='zh'?' on':''}" data-act="pronScript" data-id="zh">${t('pronZhuyin')}</button><button class="pron-sw${sc==='py'?' on':''}" data-act="pronScript" data-id="py">${t('pronPinyin')}</button></div>`;
+  return `<div class="card pron-lesson"><div class="row-between"><h3>🔤 ${esc(p.title||'發音')}</h3>${toggle}</div>${handoutHtml(p)}<div class="hint" style="margin:2px 0 10px">${t('pronPlayHint')}</div>${pronBoardGroupsHtml(p,sc)}</div>`;
+}
+function renderContent(){
+  const normals=myLessons().filter(l=>lessonHasContent(l)||l.handout_url);
+  const prons=(S.prons||[]).filter(p=>S.preview||(p.assigned_ids||[]).includes(S.me.id));
+  if(!normals.length&&!prons.length){$('#screen').innerHTML=emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
+  const entries=[...normals.map(l=>({k:'l',l,b:(l.textbook||'').trim()||t('uncat')})),...prons.map(p=>({k:'p',l:p,b:(p.textbook||'').trim()||t('navPron')}))];
+  const books=[];entries.forEach(e=>{if(!books.includes(e.b))books.push(e.b);});
+  const cur=(S.contentBook&&books.includes(S.contentBook))?S.contentBook:books[0];
+  const tabBar=books.length>1?`<div class="book-bar2">${books.map(b=>`<button type="button" class="book-chip${b===cur?' on':''}" data-act="contentBook" data-id="${esc(b)}">${esc(b)}</button>`).join('')}</div>`:'';
+  const shown=entries.filter(e=>e.b===cur);
+  const cards=shown.map((e,i)=>e.k==='p'?pronLessonCardHtml(e.l):lessonCardHtml(e.l,i)).join('');
+  $('#screen').innerHTML=tabBar+'<div class="cards">'+cards+'</div>';
   convScreen();setupCanvases();
-  if(!S.preview)ls.forEach(l=>{const n=noteOf(l.id);if(n&&n.ink){const cv=document.getElementById('note-cv-'+l.id);if(cv)loadNoteInk(cv,n.ink);}});
+  if(!S.preview)shown.forEach(e=>{if(e.k!=='l')return;const n=noteOf(e.l.id);if(n&&n.ink){const cv=document.getElementById('note-cv-'+e.l.id);if(cv)loadNoteInk(cv,n.ink);}});
   if(S.lang==='vi'){const bs=[];myLessons().forEach(l=>lessonDialogues(l).forEach(d=>parseVocab(d.vocabulary).forEach(v=>{if(v.back)bs.push(v.back);})));hydrateVi(bs);}else applyVi();
 }
 function renderCards(){
@@ -794,6 +826,7 @@ function renderPron(){
 }
 H.pronScript=(id)=>{S.pronScript=id;renderSection();};
 H.pronPlay=(_,b)=>{const u=b&&b.dataset.u;if(u){try{new Audio(u).play();}catch(e){}}};
+H.contentBook=(id)=>{S.contentBook=id;renderSection();};
 H.setLang=(id)=>{S.lang=id;localStorage.setItem('hyc_lang',id);document.documentElement.lang=(id==='cn'?'zh-Hans':id==='en'?'en':id==='vi'?'vi':'zh-Hant');document.body.classList.toggle('lang-cn',id==='cn');
   if(S.me){applyChrome();if($('#screen').dataset.mode==='practice')renderPractice();else renderSection();}else renderGate();};
 H.toggleMenu=()=>{$('#menu').classList.toggle('hide');};
@@ -817,10 +850,10 @@ H.shadowRec=async(_,b)=>{if(SHADOWMR&&SHADOWMR.state==='recording'){SHADOWMR.sto
 H.shadowPlay=()=>{if(SHADOW&&SHADOW.url){try{new Audio(SHADOW.url).play();}catch(e){}}};
 Object.assign(I18N.zh,{replay:'↻ 重播'});Object.assign(I18N.cn,{replay:'↻ 重播'});Object.assign(I18N.en,{replay:'↻ Replay'});Object.assign(I18N.vi,{replay:'↻ Phát lại'});
 Object.assign(I18N.zh,{listen:'聽',shadowDlg:'逐句跟讀',scoreBtn:'發音',youSaid:'你說'});Object.assign(I18N.cn,{listen:'听',shadowDlg:'逐句跟读',scoreBtn:'发音',youSaid:'你说'});Object.assign(I18N.en,{listen:'Listen',shadowDlg:'Read aloud',scoreBtn:'Score',youSaid:'You said'});Object.assign(I18N.vi,{listen:'Nghe',shadowDlg:'Đọc theo câu',scoreBtn:'Chấm',youSaid:'Bạn nói'});
-Object.assign(I18N.zh,{navPron:'發音',pronEmpty:'還沒有發音教材',pronEmptySub:'老師指派後會出現在這裡',pronZhuyin:'注音',pronPinyin:'拼音',pronPlayHint:'點卡片聽老師發音'});
-Object.assign(I18N.cn,{navPron:'发音',pronEmpty:'还没有发音教材',pronEmptySub:'老师指派后会出现在这里',pronZhuyin:'注音',pronPinyin:'拼音',pronPlayHint:'点卡片听老师发音'});
-Object.assign(I18N.en,{navPron:'Sounds',pronEmpty:'No pronunciation material yet',pronEmptySub:'It will appear here once assigned',pronZhuyin:'Zhuyin',pronPinyin:'Pinyin',pronPlayHint:'Tap a card to hear your teacher'});
-Object.assign(I18N.vi,{navPron:'Phát âm',pronEmpty:'Chưa có tài liệu phát âm',pronEmptySub:'Sẽ hiện ở đây khi được giao',pronZhuyin:'Chú âm',pronPinyin:'Pinyin',pronPlayHint:'Chạm thẻ để nghe giáo viên'});
+Object.assign(I18N.zh,{navPron:'發音',pronEmpty:'還沒有發音教材',pronEmptySub:'老師指派後會出現在這裡',pronZhuyin:'注音',pronPinyin:'拼音',pronPlayHint:'點卡片聽老師發音',handout:'講義',handoutOpen:'開新分頁',handoutDl:'下載',uncat:'未分類'});
+Object.assign(I18N.cn,{navPron:'发音',pronEmpty:'还没有发音教材',pronEmptySub:'老师指派后会出现在这里',pronZhuyin:'注音',pronPinyin:'拼音',pronPlayHint:'点卡片听老师发音',handout:'讲义',handoutOpen:'开新分页',handoutDl:'下载',uncat:'未分类'});
+Object.assign(I18N.en,{navPron:'Sounds',pronEmpty:'No pronunciation material yet',pronEmptySub:'It will appear here once assigned',pronZhuyin:'Zhuyin',pronPinyin:'Pinyin',pronPlayHint:'Tap a card to hear your teacher',handout:'Handout',handoutOpen:'Open',handoutDl:'Download',uncat:'Uncategorized'});
+Object.assign(I18N.vi,{navPron:'Phát âm',pronEmpty:'Chưa có tài liệu phát âm',pronEmptySub:'Sẽ hiện ở đây khi được giao',pronZhuyin:'Chú âm',pronPinyin:'Pinyin',pronPlayHint:'Chạm thẻ để nghe giáo viên',handout:'Tài liệu',handoutOpen:'Mở',handoutDl:'Tải về',uncat:'Chưa phân loại'});
 Object.assign(I18N.zh,{ssSubmit:'送出給老師',ssSubmitted:'已送出，等老師回饋',ssPending:'已送出，老師批改中',ssReviewed:'老師已批改',ssHint:'錄好每一句後按「送出給老師」，老師會聽你的錄音並給回饋',ssNoRec:'還沒有任何錄音，先按 🎤 錄一句'});
 Object.assign(I18N.cn,{ssSubmit:'送出给老师',ssSubmitted:'已送出，等老师反馈',ssPending:'已送出，老师批改中',ssReviewed:'老师已批改',ssHint:'录好每一句后按「送出给老师」，老师会听你的录音并给反馈',ssNoRec:'还没有任何录音，先按 🎤 录一句'});
 Object.assign(I18N.en,{ssSubmit:'Submit to teacher',ssSubmitted:'Submitted — waiting for feedback',ssPending:'Submitted — being reviewed',ssReviewed:'Reviewed by teacher',ssHint:'Record each line, then submit; your teacher will listen and give feedback',ssNoRec:'No recording yet — tap 🎤 first'});
