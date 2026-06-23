@@ -406,10 +406,12 @@ function grammarHtml(gps){if(!Array.isArray(gps)||!gps.length)return '';
   return `<div class="lesson-block"><div class="lesson-label">${t('grammar')}</div>${gps.map((g,gi)=>gpFold(g,gi)).join('')}</div>`;}
 /* 上課內容：每個語法卡下面附上該語法的互動練習（不算分、即時對錯／自我對照） */
 function isCanvasQ(q){return q.type==='write'||(q.type==='fill'&&q.input_mode==='write');}
-function isManualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||q.type==='opt'||(q.type==='fill'&&q.input_mode==='write');}
+function isManualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||q.type==='opt'||q.type==='fill';} // 填空一律老師人工批改，不自動對答案
 function stripOptLabel(s){return String(s||'').replace(/^\s*[a-dA-DＡ-Ｄａ-ｄ]\s*[\.．、）)：:]\s*/,'').trim();}
 function optBlank(s){return esc(String(s||'')).replace(/[_＿]{2,}/g,'<span class="opt-blank"></span>').replace(/\n/g,'<br>');}
-function practiceItemHtml(q,n){if(q.type==='note')return `<div class="pi-item">${qHtml(q,n)}</div>`;return `<div class="pi-item">${qHtml(q,n)}<div class="pi-actions"><button class="btn btn-sm btn-accent" type="button" data-act="pcheck" data-q="${q.id}">${isManualQ(q)?th('reveal'):th('check')}</button></div><div class="q-feedback hide" id="pfb-${q.id}"></div></div>`;}
+function practiceItemHtml(q,n){if(q.type==='note')return `<div class="pi-item">${qHtml(q,n)}</div>`;
+  const acts=q.type==='fill'?'':`<div class="pi-actions"><button class="btn btn-sm btn-accent" type="button" data-act="pcheck" data-q="${q.id}">${isManualQ(q)?th('reveal'):th('check')}</button></div>`;
+  return `<div class="pi-item">${qHtml(q,n)}${acts}<div class="q-feedback hide" id="pfb-${q.id}"></div></div>`;}
 function grammarPracticeHtml(l){
   const gps=l.grammar_points||[];const qsAll=questionsOf(l.id);
   const numbered=arr=>{let n=0;return arr.map(q=>{if(q.type==='note')return practiceItemHtml(q,-1);const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;return practiceItemHtml(q,st);}).join('');};
@@ -787,7 +789,7 @@ function qHtmlGraded(q,idx){
   if(q.type==='choice'){body='<div class="opts">'+(q.options||[]).map((o,i)=>{let cls='';if(i===Number(q.answer))cls='is-correct';else if(resp!=null&&i===Number(resp))cls='is-wrong';
       return `<div class="opt ${cls}"><span>${esc(o)}</span><span style="margin-left:auto">${i===Number(q.answer)?'✓':(resp!=null&&i===Number(resp)?'✗':'')}</span></div>`;}).join('')+'</div>';
     ct=t('ans')+'：'+esc((q.options||[])[Number(q.answer)]||'');}
-  else if(q.type==='fill'){if(q.input_mode==='write'){body=resp?`<img class="hw-img" src="${resp}" alt="">`:`<div class="hint">${t('blank')}</div>`;}else{const shown=Array.isArray(resp)?reconFill(q.prompt,resp):resp;body=`<div class="q-prompt">${esc(shown||t('blank'))}</div>`;}ct=t('ans')+'：'+esc((q.answer||[]).join(' / '));}
+  else if(q.type==='fill'){if(q.input_mode==='write'){body=resp?`<img class="hw-img" src="${resp}" alt="">`:`<div class="hint">${t('blank')}</div>`;}else{const shown=Array.isArray(resp)?reconFill(q.prompt,resp):resp;body=`<div class="q-prompt">${esc(shown||t('blank'))}</div>`;}ct='';} // 參考答案不給學生看，由老師批改
   else if(q.type==='order'){body='<div class="order-tray">'+((resp||[]).map(s=>`<span class="seg">${esc(s)}</span>`).join('')||`<span class="hint">${t('blank')}</span>`)+'</div>';ct=t('ans')+'：'+esc((q.options||[]).join(' '));}
   else if(q.type==='write'){body=resp?`<img class="hw-img" src="${resp}" alt="">`:`<div class="hint">${t('blank')}</div>`;ct=(q.answer&&q.answer.length)?(t('ans')+'：'+esc(q.answer.join('')))  :'';}
   else if(q.type==='qa'){const rv=(typeof resp==='string')?resp:'';body=rv?`<div class="qa-ans">${esc(rv).replace(/\n/g,'<br>')}</div>`:`<div class="hint">${t('blank')}</div>`;ct=(q.answer&&q.answer.length)?(t('ans')+'：'+esc(q.answer.join('\n'))):'';}
@@ -1135,7 +1137,7 @@ H.oradd=(_,b)=>{const qid=b.dataset.q;(responses[qid]||(responses[qid]=[])).push
 H.ordel=(_,b)=>{const qid=b.dataset.q;responses[qid].splice(Number(b.dataset.pos),1);const el=document.getElementById('order-'+qid);el.innerHTML=orderInner(S.questions.find(q=>q.id===qid));convEl(el);};
 H.hwclear=(_,b)=>{const cv=document.getElementById('hw-'+b.dataset.q);if(cv){cv.getContext('2d').clearRect(0,0,cv.width,cv.height);cv.dataset.drawn='';}};
 H.pcheck=(_,b)=>{const qid=(b&&b.dataset&&b.dataset.q)||_;const q=S.questions.find(x=>x.id===qid);if(!q)return;const fb=document.getElementById('pfb-'+qid);if(!fb)return;
-  if(isManualQ(q)){const ans=(q.answer&&q.answer.length)?q.answer.join(' / '):'';
+  if(isManualQ(q)){const ans=(q.type!=='fill'&&q.answer&&q.answer.length)?q.answer.join(' / '):'';
     fb.className='q-feedback selfcheck';fb.innerHTML=`📝 ${th('selfcheckMsg')}${ans?` <span class="ans">｜${t('ans')}：${esc(ans)}</span>`:''}${q.explanation?`<div class="q-explain">💡 ${esc(q.explanation)}</div>`:''}`;fb.classList.remove('hide');bumpActivity(1);return;}
   const resp=readResp(q),ok=isCorrect(q,resp);let ct='';
   if(q.type==='choice')ct=t('ans')+'：'+esc((q.options||[])[Number(q.answer)]||'');

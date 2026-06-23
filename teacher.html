@@ -175,7 +175,7 @@ function sortQuestionsLogical(qs){return qs.slice().sort((a,b)=>{
   if(sa!==sb)return sa<sb?-1:1;
   return (a.order_index||0)-(b.order_index||0);});}
 const resultOf=(lid,sid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===sid);
-function manualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||q.type==='opt'||(q.type==='fill'&&q.input_mode==='write');}
+function manualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||q.type==='opt'||q.type==='fill';} // 填空一律老師批改
 function scoreOf(l,r){const qs=questionsOf(l.id);const manual=r.manual||{};let md=0;qs.forEach(q=>{if(manualQ(q)&&manual[q.id]==='done')md++;});return (r.auto!=null?r.auto:(r.score||0))+md;}
 
 function myEmailNow(){try{return (firebase.auth().currentUser.email||'').toLowerCase();}catch(e){return '';}}
@@ -519,10 +519,10 @@ function qeFieldsHTML(type,q){q=q||{};const opt=q.options||[];
       <div class="field"><label>正確答案 <span class="hint">填第幾個選項（1、2、3…）</span></label><input id="qe-correct" type="number" min="1" value="${correct}"></div>`;}
   if(type==='fill'){const acc=Array.isArray(q.answer)?q.answer.join('\n'):'';const md=q.input_mode||'type';
     return `<div class="field"><label>作答方式</label><select id="qe-fillmode">
-        <option value="type"${md==='type'?' selected':''}>打字輸入（自動批改）</option>
-        <option value="write"${md==='write'?' selected':''}>手寫漢字（畫布；上課內容可自我對照，作業由你批改）</option></select></div>
-      <div class="hint" style="margin-bottom:8px">打字模式：題目中用 <b>___</b>（三條底線）代表填空處。手寫模式：學生在格子裡寫漢字。</div>
-      <div class="field"><label>答案 <span class="hint">每行一個；打字模式＝相符即算對；手寫模式＝參考答案／學生自我對照</span></label><textarea id="qe-accept" placeholder="謝謝&#10;謝謝你">${esc(acc)}</textarea></div>`;}
+        <option value="type"${md==='type'?' selected':''}>打字輸入（學生自行填寫，老師批改）</option>
+        <option value="write"${md==='write'?' selected':''}>手寫漢字（畫布，老師批改）</option></select></div>
+      <div class="hint" style="margin-bottom:8px">題目中用 <b>___</b>（三條底線）代表填空處。學生自行作答後送出，<b>由你親自批改</b>（不自動對答案）。</div>
+      <div class="field"><label>參考答案 <span class="hint">選填，<b>只有你（老師）看得到</b>，批改時在後台協助你；<b>學生不會看到</b></span></label><textarea id="qe-accept" placeholder="（選填）謝謝&#10;謝謝你">${esc(acc)}</textarea></div>`;}
   if(type==='order'){const segs=Array.isArray(opt)?opt.join('\n'):'';
     return `<div class="field"><label>正確順序 <span class="hint">每行一個詞／字，依正確順序</span></label><textarea id="qe-segs" placeholder="我&#10;每天&#10;喝&#10;咖啡">${esc(segs)}</textarea>
       <div class="hint" style="margin-top:4px">學生會看到打散的詞，要排回正確順序。</div></div>`;}
@@ -853,7 +853,7 @@ H.reviewGprac=(id)=>{const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
   const fb=sd.feedback||{},ans=sd.answers||{};
   const qs=sortQuestionsLogical(questionsOf(sd.gprac_lesson)).filter(q=>q.bank!=='hw'&&q.type!=='note');
   let rows='';qs.forEach((q,i)=>{const a=gpAnsTextT(q,ans[q.id]);const sol=gpSolT(q);
-    rows+=`<div class="srev-item"><div class="srev-word">${i+1}. ${esc((q.prompt||'').replace(/[_＿]{2,}/g,'____'))}</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>${sol?`<div class="hint" style="margin:2px 0 6px">正解：${esc(sol)}</div>`:''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="給這一題的建議（可留空，學生會看到）">${esc(fb[q.id]||'')}</textarea></div>`;});
+    rows+=`<div class="srev-item"><div class="srev-word">${i+1}. ${esc((q.prompt||'').replace(/[_＿]{2,}/g,'____'))}</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>${sol?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(sol)}</div>`:''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="給這一題的建議（可留空，學生會看到）">${esc(fb[q.id]||'')}</textarea></div>`;});
   if(!rows)rows='<div class="muted">（這一課目前沒有語法練習題）</div>';
   openModal(`<div class="modal wide"><div class="modal-head"><h3>📘 語法練習批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}</div>${rows}
@@ -1350,8 +1350,8 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
   if(type==='choice'){options=$('#qe-options').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個選項');
     const c=Number($('#qe-correct').value);if(!c||c<1||c>options.length)return toast('正確答案需在選項範圍內');answer=c-1;
     if(!prompt)return toast('請輸入題目');}
-  else if(type==='fill'){const fm=($('#qe-fillmode')&&$('#qe-fillmode').value)||'type';answer=$('#qe-accept').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!answer.length)return toast(fm==='write'?'請輸入參考答案（至少一個）':'請輸入至少一個可接受答案');
-    if(!prompt)return toast(fm==='write'?'請輸入題目（例如：請寫出「謝謝」）':'請輸入題目（含 ___ 填空處）');}
+  else if(type==='fill'){answer=$('#qe-accept').value.split('\n').map(s=>s.trim()).filter(Boolean); // 參考答案選填（老師專用，學生看不到）
+    if(!prompt)return toast('請輸入題目（含 ___ 填空處）');}
   else if(type==='order'){options=$('#qe-segs').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個詞／字');}
   else if(type==='write'){if(!prompt)return toast('請輸入題目（例如：請寫出「謝謝」）');const ref=$('#qe-ref').value.trim();answer=ref?[ref]:null;options=[];}
   else if(type==='qa'){if(!prompt)return toast('請輸入題目（問題）');const ref=$('#qe-ref')?$('#qe-ref').value.trim():'';answer=ref?[ref]:null;options=[];}
