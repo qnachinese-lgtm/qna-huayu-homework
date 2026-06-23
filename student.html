@@ -319,7 +319,7 @@ function reconcileLayout(l){const ds=lessonDialogues(l);const nd=ds.length,ng=(l
   for(let i=0;i<nd;i++){if(hasQ(i)&&!sq.has(i)){const vp=out.findIndex(e=>e.t==='v'&&e.i===i);const dp=out.findIndex(e=>e.t==='d'&&e.i===i);const at=vp>=0?vp:dp;if(at>=0)out.splice(at+1,0,{t:'q',i});else out.push({t:'q',i});}}
   return out;}
 function grammarSectionHtml(l,gi,qsAll,opts,num){const g=(l.grammar_points||[])[gi];if(!g)return '';
-  const numbered=arr=>{let n=0;return arr.map(q=>practiceItemHtml(q,q.type==='note'?-1:n++)).join('');};
+  const numbered=arr=>{let n=0;return arr.map(q=>{if(q.type==='note')return practiceItemHtml(q,-1);const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;return practiceItemHtml(q,st);}).join('');};
   const qs=qsAll.filter(q=>q.gp_index===gi);let prac='';
   if(qs.length){const subs=[...new Set(qs.map(q=>(q.gp_sub||'').trim()).filter(Boolean))].sort();
     if(subs.length){const noSub=qs.filter(q=>!(q.gp_sub||'').trim());const groups=subs.map(s=>{const sq=qs.filter(q=>(q.gp_sub||'').trim()===s);return `<div class="pi-sub"><div class="pi-sub-head">${esc(s)}</div><div class="pi-wrap">${numbered(sq)}</div></div>`;});if(noSub.length)groups.push(`<div class="pi-wrap">${numbered(noSub)}</div>`);prac=groups.join('');}
@@ -369,7 +369,7 @@ async function openAnnotator(lid){const l=handoutLessonById(lid);if(!l||!l.hando
     const saved=annotDocOf(lid,i);if(saved&&saved.png){const im=new Image();im.onload=()=>{try{ink.getContext('2d').drawImage(im,0,0,ink.width,ink.height);}catch(_){}};im.src=saved.png;}}}
 function closeAnnotator(lid){const host=document.getElementById('annot-'+lid);if(host){host.innerHTML='';host.dataset.open='';}ANNOT=null;}
 function lessonBodyHtml(l,opts){opts=opts||{};const seq=reconcileLayout(l);const qsAll=questionsOf(l.id);const gps=l.grammar_points||[];
-  const numbered=arr=>{let n=0;return arr.map(q=>practiceItemHtml(q,q.type==='note'?-1:n++)).join('');};
+  const numbered=arr=>{let n=0;return arr.map(q=>{if(q.type==='note')return practiceItemHtml(q,-1);const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;return practiceItemHtml(q,st);}).join('');};
   let gNum=0;
   let body=seq.map(e=>{if(e.t==='d'){gNum=0;return dialogueBlockHtml(l,e.i,opts);}if(e.t==='v')return vocabSectionHtml(l,e.i,opts);if(e.t==='q')return discSectionHtml(l,e.i,opts);gNum++;return grammarSectionHtml(l,e.i,qsAll,opts,gNum);}).join('');
   let tail='';
@@ -399,7 +399,7 @@ function optBlank(s){return esc(String(s||'')).replace(/[_＿]{2,}/g,'<span clas
 function practiceItemHtml(q,n){if(q.type==='note')return `<div class="pi-item">${qHtml(q,n)}</div>`;return `<div class="pi-item">${qHtml(q,n)}<div class="pi-actions"><button class="btn btn-sm btn-accent" type="button" data-act="pcheck" data-q="${q.id}">${isManualQ(q)?th('reveal'):th('check')}</button></div><div class="q-feedback hide" id="pfb-${q.id}"></div></div>`;}
 function grammarPracticeHtml(l){
   const gps=l.grammar_points||[];const qsAll=questionsOf(l.id);
-  const numbered=arr=>{let n=0;return arr.map(q=>practiceItemHtml(q,q.type==='note'?-1:n++)).join('');};
+  const numbered=arr=>{let n=0;return arr.map(q=>{if(q.type==='note')return practiceItemHtml(q,-1);const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;return practiceItemHtml(q,st);}).join('');};
   if(!gps.length){
     const fb=l.key_points?`<div class="lesson-block"><div class="lesson-label">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div></div>`:'';
     return fb+(qsAll.length?`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${numbered(qsAll)}</div></div>`:'');
@@ -729,7 +729,7 @@ function qHtml(q,idx){
   else if(q.type==='opt'){showPrompt=!!(q.prompt&&q.prompt.trim());
     const single=(q.items||[]).length<=1;
     const bank=(q.options||[]).length?`<div class="opt-bank"><div class="opt-bank-hd">選項</div>${(q.options||[]).map((o,i)=>`<div class="opt-bank-row"><span class="opt-lab">${String.fromCharCode(97+i)}</span><span class="opt-bank-txt">${esc(stripOptLabel(o))}</span></div>`).join('')}</div>`:'';
-    const items=(q.items||[]).map((it,i)=>{const txt=`<div class="optitem-q">${optBlank(it.text)}</div>`;const num=single?'':`<span class="optitem-n">${i+1}</span>`;
+    const items=(q.items||[]).map((it,i)=>{const txt=`<div class="optitem-q">${optBlank(it.text)}</div>`;const num=single?'':`<span class="optitem-n">${idx+i+1}</span>`;
       if(it.mode==='open')return `<div class="optitem${single?' nonum':''}">${num}<div class="optitem-body">${txt}<textarea class="qa-inp optopen" data-q="${q.id}" data-item="${i}" rows="2" placeholder="${t('inputAns')}"></textarea></div></div>`;
       const chips=(q.options||[]).map((o,oi)=>`<label class="optchip"><input type="checkbox" class="optck" data-q="${q.id}" data-item="${i}" value="${oi}"><span>${String.fromCharCode(97+oi)}</span></label>`).join('');
       return `<div class="optitem${single?' nonum':''}">${num}<div class="optitem-body">${txt}<div class="optchips">${chips}</div></div></div>`;}).join('');
@@ -738,7 +738,8 @@ function qHtml(q,idx){
     body=(q.options||[]).map((p,i)=>`<div class="match-row"><span class="l">${esc(p.l)}</span><select data-q="${q.id}" data-i="${i}"><option value="">${t('sel')}</option>${rights.map(r=>`<option value="${esc(r)}" data-trvi="${esc(r)}">${esc(viOf(r))}</option>`).join('')}</select></div>`).join('');}
   const instr=q.instruction?`<div class="q-instr">${esc(q.instruction)}</div>`:'';
   const pic=q.image_url?`<div class="q-pic"><img src="${esc(q.image_url)}" alt="" loading="lazy"></div>`:'';
-  return `<div class="q-card">${instr}<div class="q-head"><span class="q-num">${idx+1}</span>
+  const multiOpt=q.type==='opt'&&(q.items||[]).length>1;
+  return `<div class="q-card">${instr}<div class="q-head">${multiOpt?'':`<span class="q-num">${idx+1}</span>`}
      <div style="flex:1"><span class="q-type-tag tag accent">${TYPE_LABELS[q.type]}</span> ${q.audio_url?'<span class="tag gold">🔊</span>':''}
      ${showPrompt?`<div class="q-prompt">${esc(q.prompt||'')}</div>`:''}</div></div>${audioHtml(q.audio_url)}${pic}${body}</div>`;
 }
@@ -754,7 +755,7 @@ function qHtmlGraded(q,idx){
   else if(q.type==='qa'){const rv=(typeof resp==='string')?resp:'';body=rv?`<div class="qa-ans">${esc(rv).replace(/\n/g,'<br>')}</div>`:`<div class="hint">${t('blank')}</div>`;ct=(q.answer&&q.answer.length)?(t('ans')+'：'+esc(q.answer.join('\n'))):'';}
   else if(q.type==='speak'){body=resp?`<audio class="rec-audio" controls src="${esc(resp)}"></audio>`:`<div class="hint">${t('blank')}</div>`;ct='';}
   else if(q.type==='opt'){const ans=Array.isArray(resp)?resp:[];const singleA=(q.items||[]).length<=1;
-    body=(q.items||[]).map((it,i)=>{const r=ans[i]||{};const txt=`<div class="optitem-q">${optBlank(it.text)}</div>`;const num=singleA?'':`<span class="optitem-n">${i+1}</span>`;
+    body=(q.items||[]).map((it,i)=>{const r=ans[i]||{};const txt=`<div class="optitem-q">${optBlank(it.text)}</div>`;const num=singleA?'':`<span class="optitem-n">${idx+i+1}</span>`;
       const a=it.mode==='open'?(esc(r.t||'')||('<span class="hint">'+t('blank')+'</span>')):((r.s||[]).map(oi=>String.fromCharCode(97+oi)+'. '+esc(stripOptLabel((q.options||[])[oi]||''))).join('；')||('<span class="hint">'+t('blank')+'</span>'));
       return `<div class="optitem${singleA?' nonum':''}">${num}<div class="optitem-body">${txt}<div class="qa-ans">${a}</div></div></div>`;}).join('');ct='';}
   else{body=(q.options||[]).map((p,i)=>{const r=(resp||[])[i]||'';const good=r===p.r;return `<div class="match-row"><span class="l">${esc(p.l)}</span><span class="badge ${good?'badge-ok':'badge-overdue'}"><span data-trvi="${esc(r)}">${esc(viOf(r)||'—')}</span> ${good?'✓':'✗'}</span></div>`;}).join('');ct=t('ans')+'：'+(q.options||[]).map(p=>esc(p.l)+'→'+esc(viOf(p.r))).join('、');}
@@ -763,7 +764,8 @@ function qHtmlGraded(q,idx){
     : `<div class="q-feedback ${ok?'ok':'no'}">${ok?'✓ '+t('correct'):'✗ '+t('wrong')} <span class="ans">｜${ct}</span></div>`;
   const instr=q.instruction?`<div class="q-instr">${esc(q.instruction)}</div>`:'';
   const pic=q.image_url?`<div class="q-pic"><img src="${esc(q.image_url)}" alt="" loading="lazy"></div>`:'';
-  return `<div class="q-card">${instr}<div class="q-head"><span class="q-num">${idx+1}</span>
+  const multiOptG=q.type==='opt'&&(q.items||[]).length>1;
+  return `<div class="q-card">${instr}<div class="q-head">${multiOptG?'':`<span class="q-num">${idx+1}</span>`}
     <div style="flex:1"><span class="q-type-tag tag accent">${TYPE_LABELS[q.type]}</span><div class="q-prompt">${esc(q.prompt||'')}</div></div></div>${audioHtml(q.audio_url)}${pic}${body}
     ${fb}
     ${q.explanation?`<div class="q-explain">💡 ${esc(q.explanation)}</div>`:''}</div>`;
@@ -810,7 +812,7 @@ function renderPractice(){
   else if(S.graded){const g=GRADE,pct=g.total?Math.round(g.score/g.total*100):0;
     practice=`<div class="score-banner ${pct>=80?'win':''}"><div class="big">${g.score}/${g.total}</div>
       <div><div style="font-weight:600;font-size:16px">${pct>=80?t('great'):t('done')}</div><div style="color:var(--muted);font-size:14px">${pct}% ${t('acc')}</div></div></div>${g.hasWrite?`<div class="notice" style="margin-bottom:14px">⏳ ${qs.filter(isManualQ).length} ${th('pendingNote')}</div>`:''}`+
-      (()=>{let n=0;return qs.map(q=>qHtmlGraded(q,q.type==='note'?-1:n++)).join('');})()+
+      (()=>{let n=0;return qs.map(q=>{if(q.type==='note')return qHtmlGraded(q,-1);const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;return qHtmlGraded(q,st);}).join('');})()+
       `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn" data-act="retry">${t('retry')}</button><button class="btn btn-primary" data-act="back">${t('finishBack')}</button></div>`;
   }else{practice=`<div class="section-head" style="margin-top:24px"><h2 style="font-size:19px">${t('practice')}</h2><span class="sub">${qs.filter(q=>q.type!=='note').length} ${t('q')}</span></div>`+
       quizBodyHtml(qs,l)+
