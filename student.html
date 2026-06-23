@@ -633,7 +633,8 @@ function pronBoardGroupsHtml(p,sc){
 function pronLessonCardHtml(p){
   const sc=S.pronScript||(S.lang==='vi'?'py':'zh');
   const toggle=`<div class="pron-toggle"><button class="pron-sw${sc==='zh'?' on':''}" data-act="pronScript" data-id="zh">${t('pronZhuyin')}</button><button class="pron-sw${sc==='py'?' on':''}" data-act="pronScript" data-id="py">${t('pronPinyin')}</button></div>`;
-  return `<div class="card pron-lesson"><div class="row-between"><h3>🔤 ${esc(p.title||'發音')}</h3>${toggle}</div>${handoutHtml(p)}<div class="hint" style="margin:2px 0 10px">${t('pronPlayHint')}</div>${pronBoardGroupsHtml(p,sc)}</div>`;
+  const quizCta=(p.pron_quiz&&p.pron_quiz.length)?`<div style="margin-top:14px"><button class="btn btn-accent" data-act="pronQuizStart" data-id="${p.id}">🎧 ${t('pronQuiz')}（${p.pron_quiz.length}）</button></div>`:'';
+  return `<div class="card pron-lesson"><div class="row-between"><h3>🔤 ${esc(p.title||'發音')}</h3>${toggle}</div>${handoutHtml(p)}<div class="hint" style="margin:2px 0 10px">${t('pronPlayHint')}</div>${pronBoardGroupsHtml(p,sc)}${quizCta}</div>`;
 }
 function renderContent(){
   const normals=myLessons().filter(l=>lessonHasContent(l)||l.handout_url);
@@ -866,6 +867,24 @@ H.annotOpen=(lid)=>openAnnotator(lid);
 H.annotClose=(lid)=>closeAnnotator(lid);
 H.annotTool=(id,b)=>{if(ANNOT)ANNOT.tool=id;document.querySelectorAll('.annot-tool').forEach(x=>x.classList.toggle('on',x===b));};
 H.annotColor=(id,b)=>{if(!ANNOT)return;ANNOT.color=id;if(ANNOT.tool==='erase'){ANNOT.tool='pen';document.querySelectorAll('.annot-tool').forEach(x=>x.classList.toggle('on',x.dataset.id==='pen'));}document.querySelectorAll('.annot-color').forEach(x=>x.classList.toggle('on',x===b));};
+/* ----- 聽辨小考 ----- */
+let PQUIZ=null;
+function renderPronQuiz(){const q=PQUIZ.items[PQUIZ.idx];if(!q._opts)q._opts=shuffle((q.opts||[]).slice(),Math.random()+'');
+  $('#screen').innerHTML=`<button class="btn btn-sm btn-ghost" data-act="pronQuizBack">← ${t('pqBack')}</button>
+   <div class="card" style="text-align:center;max-width:480px;margin:14px auto">
+     <div class="muted" style="margin-bottom:8px">🎧 ${t('pronQuiz')}　${PQUIZ.idx+1} / ${PQUIZ.items.length}</div>
+     <button class="btn btn-primary" data-act="pronQuizPlay" style="font-size:17px;padding:12px 26px">${t('pqPlay')}</button>
+     <div class="quiz-opts" style="margin-top:16px">${q._opts.map(o=>`<button class="btn quiz-opt${PQUIZ.picked!=null?(o===q.ans?' is-ok':(o===PQUIZ.picked?' is-no':'')):''}" data-act="pronQuizPick" data-id="${esc(o)}" ${PQUIZ.picked!=null?'disabled':''}>${esc(o)}</button>`).join('')}</div>
+     ${PQUIZ.picked!=null?`<div class="q-feedback ${PQUIZ.picked===q.ans?'ok':'no'}" style="margin-top:12px">${PQUIZ.picked===q.ans?'✓ '+t('pqRight'):'✗ '+t('pqWrong')+'：'+esc(q.ans)}</div><button class="btn btn-primary" style="margin-top:12px" data-act="pronQuizNext">${PQUIZ.idx+1>=PQUIZ.items.length?t('pqResult'):t('pqNext')}</button>`:''}
+   </div>`;
+  if(PQUIZ.picked==null&&q.audio){setTimeout(()=>{try{new Audio(q.audio).play();}catch(e){}},250);}}
+function renderPronQuizDone(){const s=PQUIZ.score,n=PQUIZ.items.length,lid=PQUIZ.lid;
+  $('#screen').innerHTML=`<div class="card" style="text-align:center;max-width:440px;margin:22px auto"><div style="font-size:42px">🎧</div><h3>${t('pqDone')}</h3><div class="muted" style="margin-top:6px">${t('pqScore')} ${s} / ${n}</div><div style="margin-top:16px;display:flex;gap:8px;justify-content:center"><button class="btn" data-act="pronQuizStart" data-id="${lid}">${t('pqAgain')}</button><button class="btn btn-primary" data-act="pronQuizBack">${t('pqBack')}</button></div></div>`;}
+H.pronQuizStart=(lid)=>{const p=(S.prons||[]).find(x=>x.id===lid);if(!p||!(p.pron_quiz||[]).length)return;PQUIZ={lid,items:JSON.parse(JSON.stringify(p.pron_quiz)),idx:0,score:0,picked:null};renderPronQuiz();};
+H.pronQuizPlay=()=>{const q=PQUIZ&&PQUIZ.items[PQUIZ.idx];if(q&&q.audio){try{new Audio(q.audio).play();}catch(e){}}};
+H.pronQuizPick=(id)=>{if(!PQUIZ||PQUIZ.picked!=null)return;PQUIZ.picked=id;if(id===PQUIZ.items[PQUIZ.idx].ans)PQUIZ.score++;renderPronQuiz();};
+H.pronQuizNext=()=>{if(!PQUIZ)return;if(PQUIZ.idx+1>=PQUIZ.items.length){renderPronQuizDone();return;}PQUIZ.idx++;PQUIZ.picked=null;renderPronQuiz();};
+H.pronQuizBack=()=>{PQUIZ=null;S.section='content';renderSection();};
 H.setLang=(id)=>{S.lang=id;localStorage.setItem('hyc_lang',id);document.documentElement.lang=(id==='cn'?'zh-Hans':id==='en'?'en':id==='vi'?'vi':'zh-Hant');document.body.classList.toggle('lang-cn',id==='cn');
   if(S.me){applyChrome();if($('#screen').dataset.mode==='practice')renderPractice();else renderSection();}else renderGate();};
 H.toggleMenu=()=>{$('#menu').classList.toggle('hide');};
@@ -889,10 +908,10 @@ H.shadowRec=async(_,b)=>{if(SHADOWMR&&SHADOWMR.state==='recording'){SHADOWMR.sto
 H.shadowPlay=()=>{if(SHADOW&&SHADOW.url){try{new Audio(SHADOW.url).play();}catch(e){}}};
 Object.assign(I18N.zh,{replay:'↻ 重播'});Object.assign(I18N.cn,{replay:'↻ 重播'});Object.assign(I18N.en,{replay:'↻ Replay'});Object.assign(I18N.vi,{replay:'↻ Phát lại'});
 Object.assign(I18N.zh,{listen:'聽',shadowDlg:'逐句跟讀',scoreBtn:'發音',youSaid:'你說'});Object.assign(I18N.cn,{listen:'听',shadowDlg:'逐句跟读',scoreBtn:'发音',youSaid:'你说'});Object.assign(I18N.en,{listen:'Listen',shadowDlg:'Read aloud',scoreBtn:'Score',youSaid:'You said'});Object.assign(I18N.vi,{listen:'Nghe',shadowDlg:'Đọc theo câu',scoreBtn:'Chấm',youSaid:'Bạn nói'});
-Object.assign(I18N.zh,{navPron:'發音',pronEmpty:'還沒有發音教材',pronEmptySub:'老師指派後會出現在這裡',pronZhuyin:'注音',pronPinyin:'拼音',pronPlayHint:'點卡片聽老師發音',handout:'講義',handoutOpen:'開新分頁',handoutDl:'下載',uncat:'未分類'});
-Object.assign(I18N.cn,{navPron:'发音',pronEmpty:'还没有发音教材',pronEmptySub:'老师指派后会出现在这里',pronZhuyin:'注音',pronPinyin:'拼音',pronPlayHint:'点卡片听老师发音',handout:'讲义',handoutOpen:'开新分页',handoutDl:'下载',uncat:'未分类'});
-Object.assign(I18N.en,{navPron:'Sounds',pronEmpty:'No pronunciation material yet',pronEmptySub:'It will appear here once assigned',pronZhuyin:'Zhuyin',pronPinyin:'Pinyin',pronPlayHint:'Tap a card to hear your teacher',handout:'Handout',handoutOpen:'Open',handoutDl:'Download',uncat:'Uncategorized'});
-Object.assign(I18N.vi,{navPron:'Phát âm',pronEmpty:'Chưa có tài liệu phát âm',pronEmptySub:'Sẽ hiện ở đây khi được giao',pronZhuyin:'Chú âm',pronPinyin:'Pinyin',pronPlayHint:'Chạm thẻ để nghe giáo viên',handout:'Tài liệu',handoutOpen:'Mở',handoutDl:'Tải về',uncat:'Chưa phân loại'});
+Object.assign(I18N.zh,{navPron:'發音',pronEmpty:'還沒有發音教材',pronEmptySub:'老師指派後會出現在這裡',pronZhuyin:'注音',pronPinyin:'拼音',pronPlayHint:'點卡片聽老師發音',handout:'講義',handoutOpen:'開新分頁',handoutDl:'下載',uncat:'未分類',pronQuiz:'聽辨小考',pqPlay:'🔊 播放',pqRight:'答對',pqWrong:'答錯，正解',pqNext:'下一題 →',pqResult:'看結果',pqDone:'聽辨小考完成',pqScore:'答對',pqAgain:'再做一次',pqBack:'返回'});
+Object.assign(I18N.cn,{navPron:'发音',pronEmpty:'还没有发音教材',pronEmptySub:'老师指派后会出现在这里',pronZhuyin:'注音',pronPinyin:'拼音',pronPlayHint:'点卡片听老师发音',handout:'讲义',handoutOpen:'开新分页',handoutDl:'下载',uncat:'未分类',pronQuiz:'听辨小考',pqPlay:'🔊 播放',pqRight:'答对',pqWrong:'答错，正解',pqNext:'下一题 →',pqResult:'看结果',pqDone:'听辨小考完成',pqScore:'答对',pqAgain:'再做一次',pqBack:'返回'});
+Object.assign(I18N.en,{navPron:'Sounds',pronEmpty:'No pronunciation material yet',pronEmptySub:'It will appear here once assigned',pronZhuyin:'Zhuyin',pronPinyin:'Pinyin',pronPlayHint:'Tap a card to hear your teacher',handout:'Handout',handoutOpen:'Open',handoutDl:'Download',uncat:'Uncategorized',pronQuiz:'Listening quiz',pqPlay:'🔊 Play',pqRight:'Correct',pqWrong:'Wrong, answer',pqNext:'Next →',pqResult:'See result',pqDone:'Listening quiz done',pqScore:'Correct',pqAgain:'Try again',pqBack:'Back'});
+Object.assign(I18N.vi,{navPron:'Phát âm',pronEmpty:'Chưa có tài liệu phát âm',pronEmptySub:'Sẽ hiện ở đây khi được giao',pronZhuyin:'Chú âm',pronPinyin:'Pinyin',pronPlayHint:'Chạm thẻ để nghe giáo viên',handout:'Tài liệu',handoutOpen:'Mở',handoutDl:'Tải về',uncat:'Chưa phân loại',pronQuiz:'Trắc nghiệm nghe',pqPlay:'🔊 Phát',pqRight:'Đúng',pqWrong:'Sai, đáp án',pqNext:'Tiếp →',pqResult:'Xem kết quả',pqDone:'Hoàn thành',pqScore:'Đúng',pqAgain:'Làm lại',pqBack:'Quay lại'});
 Object.assign(I18N.zh,{ssSubmit:'送出給老師',ssSubmitted:'已送出，等老師回饋',ssPending:'已送出，老師批改中',ssReviewed:'老師已批改',ssHint:'錄好每一句後按「送出給老師」，老師會聽你的錄音並給回饋',ssNoRec:'還沒有任何錄音，先按 🎤 錄一句'});
 Object.assign(I18N.cn,{ssSubmit:'送出给老师',ssSubmitted:'已送出，等老师反馈',ssPending:'已送出，老师批改中',ssReviewed:'老师已批改',ssHint:'录好每一句后按「送出给老师」，老师会听你的录音并给反馈',ssNoRec:'还没有任何录音，先按 🎤 录一句'});
 Object.assign(I18N.en,{ssSubmit:'Submit to teacher',ssSubmitted:'Submitted — waiting for feedback',ssPending:'Submitted — being reviewed',ssReviewed:'Reviewed by teacher',ssHint:'Record each line, then submit; your teacher will listen and give feedback',ssNoRec:'No recording yet — tap 🎤 first'});

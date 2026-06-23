@@ -687,6 +687,12 @@ function pronEditorHtml(){
       <div class="handout-edit"><button class="btn btn-sm" type="button" data-act="peHUp">⬆ 上傳 PDF</button>${pe.handout_url?`<button class="btn btn-sm btn-danger" type="button" data-act="peHClear">移除</button> <span>📄 ${esc(pe.handout_name||'已上傳')}</span>`:'<span class="hint">尚未上傳</span>'}<span class="hint" id="pe-h-st"></span></div></div>
     <div class="pe-groups">${groups}</div>
     <button class="btn btn-soft" type="button" data-act="peAddGroup" style="margin-top:6px">＋ 加一個音組</button>
+    <div class="card" style="margin-top:14px"><div class="fld-l" style="margin-bottom:6px">🎧 聽辨小考<span class="hint" style="font-weight:400">　播一個音、學生選聽到的是哪個（自動計分）</span></div>
+      <div class="pe-quiz">${(pe.quiz||[]).map((q,qi)=>`<div class="pe-qrow"><div class="pe-qaud"><button class="btn btn-sm" type="button" data-act="peQRec" data-id="${qi}">🎤 錄</button><button class="btn btn-sm" type="button" data-act="peQUp" data-id="${qi}">⬆ 上傳</button>${q.audio?`<button class="btn btn-sm btn-accent" type="button" data-act="pePlay" data-u="${esc(q.audio)}">▶ 試聽</button>`:'<span class="hint">尚無音檔</span>'}<span class="hint" id="pe-qst-${qi}"></span></div>
+        <input class="pe-qopts" id="pe-qo-${qi}" placeholder="選項（逗號分隔，例：b, p）" value="${esc((q.opts||[]).join(', '))}">
+        <input class="pe-qans" id="pe-qa-${qi}" placeholder="正解（例：b）" value="${esc(q.ans||'')}">
+        <button class="btn btn-sm btn-danger" type="button" data-act="peQDel" data-id="${qi}">✕</button></div>`).join('')}</div>
+      <button class="btn btn-sm btn-soft" type="button" data-act="peQAdd">＋ 加一題</button></div>
     <div class="card" style="margin-top:14px"><div class="fld-l" style="margin-bottom:6px">指派給學生</div><div class="pe-as-grid">${checks}</div></div>
     <div style="margin-top:14px;display:flex;gap:8px"><button class="btn btn-ghost" data-act="peCancel">取消</button><button class="btn btn-primary" data-act="savePron">儲存發音課</button></div>`;
 }
@@ -703,6 +709,7 @@ function syncPe(){
   });
   const as=[...document.querySelectorAll('.pe-as:checked')].map(c=>c.value);
   S.pe.assigned_ids=as;
+  if(S.pe.quiz)S.pe.quiz.forEach((q,qi)=>{const o=document.getElementById('pe-qo-'+qi);if(o)q.opts=o.value.split(/[,，、]/).map(s=>s.trim()).filter(Boolean);const a=document.getElementById('pe-qa-'+qi);if(a)q.ans=a.value.trim();});
 }
 let PEREC=null;
 function pronPick(gi,ii){
@@ -713,22 +720,26 @@ function pronPick(gi,ii){
     catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
   inp.click();
 }
-async function pronRecToggle(gi,ii,b){
+async function pronRecToggle(setter,b,stId){
   if(PEREC){try{PEREC.mr.stop();}catch(_){}return;}
   if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)){toast('此瀏覽器不支援錄音，請改用上傳');return;}
   let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){toast('無法使用麥克風');return;}
   const chunks=[];const mr=new MediaRecorder(stream);PEREC={mr,stream};
-  if(b){b.textContent='⏹ 停止錄音';b.classList.add('btn-danger');}
+  if(b){b.textContent='⏹ 停止';b.classList.add('btn-danger');}
   mr.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
   mr.onstop=async()=>{stream.getTracks().forEach(t=>t.stop());PEREC=null;
     const blob=new Blob(chunks,{type:(chunks[0]&&chunks[0].type)||'audio/webm'});
-    const st=document.getElementById('pe-ast-'+gi+'-'+ii);if(st)st.textContent='上傳中…';
-    try{syncPe();const url=await uploadExampleAudio(blob);S.pe.groups[gi].items[ii].audio=url;renderPron();toast('已上傳發音');}
+    const st=stId?document.getElementById(stId):null;if(st)st.textContent='上傳中…';
+    try{syncPe();const url=await uploadExampleAudio(blob);setter(url);renderPron();toast('已上傳發音');}
     catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
   mr.start();
 }
-H.newPron=()=>{S.pe={id:null,title:'',groups:[blankPG()],assigned_ids:[],handout_url:'',handout_name:''};renderPron();};
-H.editPron=(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;S.pe={id:p.id,title:p.title||'',groups:JSON.parse(JSON.stringify(p.pron_groups||[])),assigned_ids:(p.assigned_ids||[]).slice(),handout_url:p.handout_url||'',handout_name:p.handout_name||''};if(!S.pe.groups.length)S.pe.groups=[blankPG()];renderPron();};
+function pronPickTo(setter,stId){const inp=document.createElement('input');inp.type='file';inp.accept='audio/*';
+  inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=stId?document.getElementById(stId):null;if(st)st.textContent='上傳中…';if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage';return;}
+    try{syncPe();const url=await uploadExampleAudio(f);setter(url);renderPron();toast('已上傳發音');}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
+  inp.click();}
+H.newPron=()=>{S.pe={id:null,title:'',groups:[blankPG()],assigned_ids:[],handout_url:'',handout_name:'',quiz:[]};renderPron();};
+H.editPron=(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;S.pe={id:p.id,title:p.title||'',groups:JSON.parse(JSON.stringify(p.pron_groups||[])),assigned_ids:(p.assigned_ids||[]).slice(),handout_url:p.handout_url||'',handout_name:p.handout_name||'',quiz:JSON.parse(JSON.stringify(p.pron_quiz||[]))};if(!S.pe.groups.length)S.pe.groups=[blankPG()];renderPron();};
 H.peHUp=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,application/pdf';
   inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=document.getElementById('pe-h-st');if(st)st.textContent='上傳中…';if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage';return;}
     try{syncPe();const url=await uploadHandout(f);S.pe.handout_url=url;S.pe.handout_name=f.name||'';renderPron();toast('已上傳講義');}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
@@ -739,17 +750,22 @@ H.peAddGroup=()=>{syncPe();S.pe.groups.push(blankPG());renderPron();};
 H.peDelGroup=(gi)=>{syncPe();S.pe.groups.splice(+gi,1);if(!S.pe.groups.length)S.pe.groups=[blankPG()];renderPron();};
 H.peAddItem=(gi)=>{syncPe();S.pe.groups[+gi].items.push(blankPI());renderPron();};
 H.peDelItem=(key)=>{const p=String(key).split('-');syncPe();S.pe.groups[+p[0]].items.splice(+p[1],1);if(!S.pe.groups[+p[0]].items.length)S.pe.groups[+p[0]].items=[blankPI()];renderPron();};
-H.peUp=(key)=>{const p=String(key).split('-');pronPick(+p[0],+p[1]);};
-H.peRec=(key,b)=>{const p=String(key).split('-');pronRecToggle(+p[0],+p[1],b);};
+H.peUp=(key)=>{const p=String(key).split('-');pronPickTo(url=>{S.pe.groups[+p[0]].items[+p[1]].audio=url;},'pe-ast-'+key);};
+H.peRec=(key,b)=>{const p=String(key).split('-');pronRecToggle(url=>{S.pe.groups[+p[0]].items[+p[1]].audio=url;},b,'pe-ast-'+key);};
+H.peQAdd=()=>{syncPe();(S.pe.quiz=S.pe.quiz||[]).push({audio:'',opts:[],ans:''});renderPron();};
+H.peQDel=(qi)=>{syncPe();S.pe.quiz.splice(+qi,1);renderPron();};
+H.peQUp=(qi)=>{pronPickTo(url=>{S.pe.quiz[+qi].audio=url;},'pe-qst-'+qi);};
+H.peQRec=(qi,b)=>{pronRecToggle(url=>{S.pe.quiz[+qi].audio=url;},b,'pe-qst-'+qi);};
 H.peClearAud=(key)=>{const p=String(key).split('-');syncPe();S.pe.groups[+p[0]].items[+p[1]].audio='';renderPron();};
 H.pePlay=(_,b)=>{const u=b&&b.dataset.u;if(u){try{new Audio(u).play();}catch(e){}}};
 H.savePron=async()=>{
   syncPe();const pe=S.pe;const title=(pe.title||'').trim()||'發音課';
   const groups=pe.groups.map(g=>({label:(g.label||'').trim(),items:(g.items||[]).filter(it=>(it.zh||it.py||it.audio||it.ex||it.tip)).map(it=>({zh:(it.zh||'').trim(),py:(it.py||'').trim(),tip:(it.tip||'').trim(),ex:(it.ex||'').trim(),audio:it.audio||''}))})).filter(g=>g.items.length||g.label);
+  const quiz=(pe.quiz||[]).filter(q=>(q.audio&&(q.opts||[]).length>=2&&q.ans)).map(q=>({audio:q.audio,opts:q.opts,ans:q.ans}));
   const btn=document.querySelector('[data-act="savePron"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
   try{await ensureAuthFresh();
-    if(pe.id){await DB.update('lessons',pe.id,{title,textbook:'發音',pron_groups:groups,assigned_ids:pe.assigned_ids||[],handout_url:pe.handout_url||null,handout_name:pe.handout_name||null});}
-    else{const maxO=(S.prons||[]).reduce((a,p)=>Math.max(a,p.order_index||0),0);await DB.insert('lessons',{kind:'pron',title,textbook:'發音',pron_groups:groups,assigned_ids:pe.assigned_ids||[],handout_url:pe.handout_url||null,handout_name:pe.handout_name||null,order_index:maxO+1,created_at:new Date().toISOString()});}
+    if(pe.id){await DB.update('lessons',pe.id,{title,textbook:'發音',pron_groups:groups,pron_quiz:quiz,assigned_ids:pe.assigned_ids||[],handout_url:pe.handout_url||null,handout_name:pe.handout_name||null});}
+    else{const maxO=(S.prons||[]).reduce((a,p)=>Math.max(a,p.order_index||0),0);await DB.insert('lessons',{kind:'pron',title,textbook:'發音',pron_groups:groups,pron_quiz:quiz,assigned_ids:pe.assigned_ids||[],handout_url:pe.handout_url||null,handout_name:pe.handout_name||null,order_index:maxO+1,created_at:new Date().toISOString()});}
     S.pe=null;await loadAll();S.tab='pron';render();toast('✅ 已儲存發音課');
   }catch(e){if(btn){btn.disabled=false;btn.textContent='儲存發音課';}toast(writeErr('儲存失敗',e));}
 };
