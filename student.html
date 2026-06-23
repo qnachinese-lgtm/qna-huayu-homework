@@ -330,9 +330,44 @@ function handoutHtml(l){
   const u=l.handout_url,nm=esc(l.handout_name||'PDF');
   const isPdf=/\.pdf($|\?)/i.test(u)||/pdf/i.test(l.handout_name||'');
   const viewer=isPdf?`<div class="handout-frame"><iframe src="${esc(u)}#toolbar=1&navpanes=0&view=FitH" loading="lazy" title="${nm}"></iframe></div>`:`<div class="handout-file">📎 ${nm}</div>`;
+  const annot=(isPdf&&!S.preview)?`<div class="handout-annot"><button class="btn btn-sm" type="button" data-act="annotOpen" data-id="${l.id}">✍️ 在講義上標註</button> <span class="hint">用筆／螢光筆直接在講義上畫記、寫字，自動儲存（只有你看得到）</span></div><div class="annot-host" id="annot-${l.id}"></div>`:'';
   return `<div class="lesson-block handout-block"><div class="lesson-label">📄 ${t('handout')}${l.handout_name?'：'+nm:''}</div>${viewer}
-    <div class="handout-tools"><a class="btn btn-sm" href="${esc(u)}" target="_blank" rel="noopener">↗ ${t('handoutOpen')}</a><a class="btn btn-sm btn-accent" href="${esc(u)}" target="_blank" rel="noopener" download>⬇ ${t('handoutDl')}</a></div></div>`;
+    <div class="handout-tools"><a class="btn btn-sm" href="${esc(u)}" target="_blank" rel="noopener">↗ ${t('handoutOpen')}</a><a class="btn btn-sm btn-accent" href="${esc(u)}" target="_blank" rel="noopener" download>⬇ ${t('handoutDl')}</a></div>${annot}</div>`;
 }
+/* ===== PDF 講義標註（PDF.js） ===== */
+let PDFJS_LOADING=null,ANNOT=null,ANNOT_SAVE={};
+function loadPdfJs(){if(window.pdfjsLib)return Promise.resolve();if(PDFJS_LOADING)return PDFJS_LOADING;
+  PDFJS_LOADING=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=()=>{try{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}catch(_){}res();};s.onerror=()=>rej(new Error('pdfjs'));document.head.appendChild(s);});
+  return PDFJS_LOADING;}
+function hexA(h,a){h=(h||'#222').replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const n=parseInt(h,16)||0;return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')';}
+function handoutLessonById(lid){return (S.lessons||[]).find(x=>x.id===lid)||(S.prons||[]).find(x=>x.id===lid)||null;}
+function annotDocOf(lid,page){return (S.annots||[]).find(x=>x.annot_lesson===lid&&x.annot_page===page)||null;}
+function scheduleSave(lid,page,cv){const k=lid+'::'+page;clearTimeout(ANNOT_SAVE[k]);const st=document.getElementById('annot-st-'+lid);if(st)st.textContent='儲存中…';ANNOT_SAVE[k]=setTimeout(()=>saveAnnot(lid,page,cv),800);}
+async function saveAnnot(lid,page,cv){if(S.preview)return;const st=document.getElementById('annot-st-'+lid);try{const png=cv.toDataURL('image/png');const ex=annotDocOf(lid,page);if(ex&&ex.id){await DB.update('results',ex.id,{png:png,updated_at:new Date().toISOString()});ex.png=png;}else{const doc=await DB.insert('results',{kind:'annot',annot_lesson:lid,annot_page:page,png:png,uid:myUid(),student_id:S.me.id,updated_at:new Date().toISOString()});(S.annots=S.annots||[]).push(doc);}if(st)st.textContent='已儲存 ✓';}catch(e){if(st)st.textContent='儲存失敗（稍後再試）';}}
+function attachInk(cv,lid,page){const ctx=cv.getContext('2d');let drawing=false,last=null;cv.style.touchAction='none';
+  const pos=e=>{const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*(cv.width/r.width),y:(e.clientY-r.top)*(cv.height/r.height)};};
+  function line(a,b){const tool=(ANNOT&&ANNOT.tool)||'pen',col=(ANNOT&&ANNOT.color)||'#e0245e';ctx.globalCompositeOperation=tool==='erase'?'destination-out':'source-over';if(tool==='hl'){ctx.strokeStyle=hexA(col,0.32);ctx.lineWidth=16;}else if(tool==='erase'){ctx.strokeStyle='rgba(0,0,0,1)';ctx.lineWidth=24;}else{ctx.strokeStyle=col;ctx.lineWidth=2.6;}ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+  cv.addEventListener('pointerdown',e=>{e.preventDefault();drawing=true;last=pos(e);line(last,last);try{cv.setPointerCapture(e.pointerId);}catch(_){}});
+  cv.addEventListener('pointermove',e=>{if(!drawing)return;e.preventDefault();const p=pos(e);line(last,p);last=p;});
+  cv.addEventListener('pointerup',()=>{if(!drawing)return;drawing=false;scheduleSave(lid,page,cv);});
+  cv.addEventListener('pointercancel',()=>{if(drawing){drawing=false;scheduleSave(lid,page,cv);}});}
+async function openAnnotator(lid){const l=handoutLessonById(lid);if(!l||!l.handout_url)return;const host=document.getElementById('annot-'+lid);if(!host||host.dataset.open==='1')return;host.dataset.open='1';host.innerHTML='<div class="hint" style="padding:10px">載入講義中…</div>';
+  try{await loadPdfJs();}catch(e){host.innerHTML='<div class="hint" style="padding:10px">PDF 工具載入失敗，請檢查網路後再試。</div>';host.dataset.open='';return;}
+  ANNOT={lid,tool:'pen',color:'#e0245e'};const colors=['#e0245e','#1d6fb8','#1a7f37','#f5a623','#222'];
+  const tb=`<div class="annot-tb"><button type="button" class="annot-tool on" data-act="annotTool" data-id="pen">✏️ 筆</button><button type="button" class="annot-tool" data-act="annotTool" data-id="hl">🖍 螢光</button><button type="button" class="annot-tool" data-act="annotTool" data-id="erase">🧽 擦</button><span class="annot-colors">${colors.map((c,i)=>`<button type="button" class="annot-color${i===0?' on':''}" style="background:${c}" data-act="annotColor" data-id="${c}"></button>`).join('')}</span><span class="grow"></span><span class="hint" id="annot-st-${lid}">會自動儲存</span><button type="button" class="btn btn-sm" data-act="annotClose" data-id="${lid}">完成</button></div>`;
+  host.innerHTML=tb+`<div class="annot-pages" id="annot-pages-${lid}"></div>`;const cont=document.getElementById('annot-pages-'+lid);
+  let pdf;try{pdf=await pdfjsLib.getDocument(l.handout_url).promise;}catch(e){host.innerHTML=tb+'<div class="hint" style="padding:10px">無法讀取這個 PDF。</div>';return;}
+  const maxW=Math.min((cont.clientWidth||700),900);
+  for(let i=1;i<=pdf.numPages;i++){let page;try{page=await pdf.getPage(i);}catch(_){continue;}
+    const s=maxW/page.getViewport({scale:1}).width,vp=page.getViewport({scale:s});
+    const pg=document.createElement('div');pg.className='annot-page';pg.style.width=vp.width+'px';pg.style.height=vp.height+'px';
+    const base=document.createElement('canvas');base.width=vp.width;base.height=vp.height;base.className='annot-base';
+    const ink=document.createElement('canvas');ink.width=vp.width;ink.height=vp.height;ink.className='annot-ink';
+    pg.appendChild(base);pg.appendChild(ink);cont.appendChild(pg);
+    try{await page.render({canvasContext:base.getContext('2d'),viewport:vp}).promise;}catch(_){}
+    attachInk(ink,lid,i);
+    const saved=annotDocOf(lid,i);if(saved&&saved.png){const im=new Image();im.onload=()=>{try{ink.getContext('2d').drawImage(im,0,0,ink.width,ink.height);}catch(_){}};im.src=saved.png;}}}
+function closeAnnotator(lid){const host=document.getElementById('annot-'+lid);if(host){host.innerHTML='';host.dataset.open='';}ANNOT=null;}
 function lessonBodyHtml(l,opts){opts=opts||{};const seq=reconcileLayout(l);const qsAll=questionsOf(l.id);const gps=l.grammar_points||[];
   const numbered=arr=>{let n=0;return arr.map(q=>practiceItemHtml(q,q.type==='note'?-1:n++)).join('');};
   let gNum=0;
@@ -456,7 +491,7 @@ async function loadMine(){const [l,q]=await Promise.all([DB.list('lessons'),DB.l
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
   S.lessons=l.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron');S.quizzes=l.filter(x=>x.kind==='quiz');S.announcements=l.filter(x=>x.kind==='announcement');S.prons=l.filter(x=>x.kind==='pron');S.questions=q;
   splitResults(rAll);}
-function splitResults(rAll){rAll=rAll||[];S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');}
+function splitResults(rAll){rAll=rAll||[];S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
 function discDocOf(lid){return (S.discussions||[]).find(x=>x.disc_lesson===lid)||null;}
 function shadowDocOf(lid,di){return (S.shadows||[]).find(x=>x.shadow_lesson===lid&&x.shadow_di===di)||null;}
@@ -827,6 +862,10 @@ function renderPron(){
 H.pronScript=(id)=>{S.pronScript=id;renderSection();};
 H.pronPlay=(_,b)=>{const u=b&&b.dataset.u;if(u){try{new Audio(u).play();}catch(e){}}};
 H.contentBook=(id)=>{S.contentBook=id;renderSection();};
+H.annotOpen=(lid)=>openAnnotator(lid);
+H.annotClose=(lid)=>closeAnnotator(lid);
+H.annotTool=(id,b)=>{if(ANNOT)ANNOT.tool=id;document.querySelectorAll('.annot-tool').forEach(x=>x.classList.toggle('on',x===b));};
+H.annotColor=(id,b)=>{if(!ANNOT)return;ANNOT.color=id;if(ANNOT.tool==='erase'){ANNOT.tool='pen';document.querySelectorAll('.annot-tool').forEach(x=>x.classList.toggle('on',x.dataset.id==='pen'));}document.querySelectorAll('.annot-color').forEach(x=>x.classList.toggle('on',x===b));};
 H.setLang=(id)=>{S.lang=id;localStorage.setItem('hyc_lang',id);document.documentElement.lang=(id==='cn'?'zh-Hans':id==='en'?'en':id==='vi'?'vi':'zh-Hant');document.body.classList.toggle('lang-cn',id==='cn');
   if(S.me){applyChrome();if($('#screen').dataset.mode==='practice')renderPractice();else renderSection();}else renderGate();};
 H.toggleMenu=()=>{$('#menu').classList.toggle('hide');};
@@ -1115,7 +1154,7 @@ function showGate(msg){S.me=null;$('#app').classList.add('hide');$('#gate').clas
 const PREVIEW_LID=new URLSearchParams(location.search).get('preview');
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
-  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron');S.quizzes=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron');S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];
+  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron');S.quizzes=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron');S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];
   const lesson=l.find(x=>x.id===lid);if(!lesson){$('#screen').innerHTML=emptyHtml('⚠️','找不到這一課','請回教師頁重新開啟預覽。');return;}
   S.practiceSet={mode:'lesson',lessonId:lid,lesson:lesson,questions:questionsOf(lid),title:(lesson.order_index?('L'+lesson.order_index+' · '):'')+lesson.title};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';renderPractice();
