@@ -544,6 +544,8 @@ function bulkImportModal(lid){const l=S.lessons.find(x=>x.id===lid)||{};const gp
      <div class="field"><label>都歸到哪個語法點 <span class="hint">選填</span></label>
        <select id="bi-gp"><option value="">（不指定／綜合練習）</option>${gps.map((g,i)=>`<option value="${i}">${esc('語法 '+(i+1)+'：'+(g.title||''))}</option>`).join('')}</select>
        <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label style="margin:0;white-space:nowrap;font-weight:600">小節（選填）</label><input id="bi-sub" type="text" style="width:120px" placeholder="例：A、B"></div></div>
+     <div class="field"><label>說明（套用到整批，選填）<span class="hint">這批每一題上方都會顯示這句（例：請依照下面完成對話）</span></label>
+       <textarea id="bi-instr" style="min-height:38px" placeholder="例：請完成下面的對話，可複選"></textarea></div>
      <div class="field"><label>內容 <span class="hint">一行一題。填空／問答用「=」分開：左邊題目、右邊答案；多個可接受答案用「/」分隔。示範整行顯示。</span></label>
        <textarea id="bi-text" style="min-height:160px" placeholder="他＿＿不＿＿美國人？=是不是&#10;你叫什麼名字？=我叫…&#10;李明華是哪國人？=美國/美國人"></textarea></div>
      <div class="hint" id="bi-status"></div>
@@ -1447,13 +1449,13 @@ H.impDo=async(lid)=>{const parsed=parseLessonImport(($('#imp-text')||{}).value||
     for(const o of objs)await DB.insert('questions',o);
     S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已建立 '+objs.length+' 題 ✓');
   }catch(e){if(btn){btn.disabled=false;btn.textContent='建立全部';}toast(writeErr('建立失敗',e));}};
-H.doBulkImport=async(lid)=>{const type=$('#bi-type').value;const gpv=$('#bi-gp')?$('#bi-gp').value:'';const sub=$('#bi-sub')?$('#bi-sub').value.trim():'';
+H.doBulkImport=async(lid)=>{const type=$('#bi-type').value;const gpv=$('#bi-gp')?$('#bi-gp').value:'';const sub=$('#bi-sub')?$('#bi-sub').value.trim():'';const instr=$('#bi-instr')?$('#bi-instr').value.trim():'';
   const lines=$('#bi-text').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!lines.length)return toast('請貼上內容');
   const st=$('#bi-status');if(st)st.textContent='匯入中…';const base=questionsOf(lid).length;
   const objs=lines.map((ln,i)=>{let prompt=ln,answer=null,a='';
     if(type!=='note'&&/[=＝]/.test(ln)){const p=ln.split(/[=＝]/);prompt=p[0].trim();a=p.slice(1).join('=').trim();}
     if(type==='fill')answer=a?a.split(/[\/／]/).map(x=>x.trim()).filter(Boolean):null;else if(type==='qa')answer=a?[a]:null;
-    return {lesson_id:lid,type,prompt,options:[],answer,bank:(($('#bi-bank')&&$('#bi-bank').value==='hw')?'hw':'class'),gp_index:(gpv===''?null:Number(gpv)),gp_sub:sub||null,input_mode:(type==='fill'?'type':null),audio_url:null,image_url:null,instruction:null,explanation:null,order_index:base+i};});
+    return {lesson_id:lid,type,prompt,options:[],answer,bank:(($('#bi-bank')&&$('#bi-bank').value==='hw')?'hw':'class'),gp_index:(gpv===''?null:Number(gpv)),gp_sub:sub||null,input_mode:(type==='fill'?'type':null),audio_url:null,image_url:null,instruction:instr||null,explanation:null,order_index:base+i};});
   try{for(const o of objs)await DB.insert('questions',o);S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已匯入 '+objs.length+' 題');}
   catch(e){if(st)st.textContent=writeErr('匯入失敗',e);}};
 H.delQuestion=async(key)=>{const[lid,qid]=key.split('::');if(!confirm('刪除這一題？'))return;try{await DB.remove('questions',qid);S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
