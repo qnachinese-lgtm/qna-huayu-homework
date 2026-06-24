@@ -556,39 +556,58 @@ function bulkImportModal(lid){const l=S.lessons.find(x=>x.id===lid)||{};const gp
 /* ===== 一次匯入整課練習：用 # 分段（語法N／作業簿／綜合），自動判斷題型 ===== */
 function parseLessonImport(text){
   const lines=String(text||'').replace(/\r/g,'').split('\n');
-  const out=[];const gmap={};let bank='class',gp=null,optBuf=null;
+  const out=[];const gmap={};let bank='class',gp=null,optBuf=null,mode='q',pInstr='';
+  const ROM={i:1,ii:2,iii:3,iv:4,v:5,vi:6,vii:7,viii:8,ix:9,x:10};
   const G=()=>{if(gp==null)return null;if(!gmap[gp])gmap[gp]={title:'',shuo:'',liju:[]};return gmap[gp];};
-  const flush=()=>{if(optBuf&&optBuf.items.length){out.push({type:'opt',prompt:optBuf.prompt||'',options:optBuf.options.slice(),items:optBuf.items.slice(),bank:optBuf.bank,gp_index:optBuf.gp});}optBuf=null;};
+  const flush=()=>{if(optBuf&&optBuf.items.length){out.push({type:'opt',prompt:optBuf.prompt||'',options:optBuf.options.slice(),items:optBuf.items.slice(),bank:optBuf.bank,gp_index:optBuf.gp,instruction:optBuf.instr||''});}optBuf=null;};
   const f2h=s=>String(s).replace(/[０-９]/g,d=>'０１２３４５６７８９'.indexOf(d));
+  const setGp=(n,title)=>{flush();bank='class';gp=n-1;mode='q';pInstr='';if(title&&G())G().title=title;};
+  const stripNum=s=>String(s).replace(/^[*＊]?\s*\d+\s*[\.\．、)）]?\s*/,'').trim();
+  const isDir=l=>/^(說明|例句|選項|選填|完成對話|填空|問答|造句|寫出|示範)[：:]/.test(l);
   for(const raw of lines){const line=raw.trim();if(!line)continue;
-    if(/^[#＃\[【]/.test(line)){flush();const inside=line.replace(/^[#＃\[【]\s*/,'').replace(/[\]】]\s*$/,'').trim();
-      if(/作業簿/.test(inside)){bank='hw';gp=null;}
-      else if(/綜合/.test(inside)){bank='class';gp=null;}
-      else{const m=inside.match(/語法\s*([0-9０-９]+)\s*[\.\．、:：]?\s*(.*)$/);if(m){bank='class';gp=parseInt(f2h(m[1]),10)-1;const ti=(m[2]||'').trim();if(ti)G().title=ti;}else{bank='class';gp=null;}}
+    if(/^[#＃]/.test(line)){flush();const inside=line.replace(/^[#＃]\s*/,'').trim();
+      if(/作業簿/.test(inside)){bank='hw';gp=null;mode='q';pInstr='';}
+      else if(/綜合/.test(inside)){bank='class';gp=null;mode='q';pInstr='';}
+      else{const m=inside.match(/語法\s*([0-9０-９]+)\s*[\.\．、:：]?\s*(.*)$/);if(m){setGp(parseInt(f2h(m[1]),10),(m[2]||'').trim());}else{bank='class';gp=null;mode='q';pInstr='';}}
       continue;}
-    if(/^說明[：:]/.test(line)){const g=G();if(g){const v=line.replace(/^說明[：:]/,'').trim();g.shuo=g.shuo?(g.shuo+'\n'+v):v;}continue;}
-    if(/^例句[：:]/.test(line)){const g=G();if(g){const v=line.replace(/^例句[：:]/,'').trim();if(v)g.liju.push(v);}continue;}
-    if(/^選項[：:]/.test(line)){if(!optBuf)optBuf={prompt:'',options:[],items:[],bank,gp};
-      const raw=line.replace(/^選項[：:]/,'').trim();let opts;
-      if(/[a-dａ-ｄA-Ｄ][\.\．、)）:：]/.test(raw)){opts=raw.split(/\s*[a-dａ-ｄA-Ｄ][\.\．、)）:：]\s*/).map(s=>s.trim()).filter(Boolean);}
-      else{opts=raw.split(/[\/、，,]\s*|\s{2,}/).map(s=>s.trim()).filter(Boolean);}
-      optBuf.options=opts;continue;}
-    if(/^選填[：:]/.test(line)){flush();optBuf={prompt:line.replace(/^選填[：:]/,'').trim(),options:[],items:[],bank,gp};continue;}
-    if(optBuf&&/^[-•・*＊]/.test(line)){const open=/^[*＊]/.test(line);const txt=line.replace(/^[-•・*＊]\s*/,'').trim();if(txt)optBuf.items.push({text:txt,mode:open?'open':'select'});continue;}
+    const rm=line.match(/^([IVXivx]{1,5})\s*[\.\．、:：]\s*(.+)$/);
+    if(rm&&ROM[rm[1].toLowerCase()]!=null){setGp(ROM[rm[1].toLowerCase()],rm[2].trim());continue;}
+    const bm=line.match(/^[【\[]\s*(說明|例句|練習[^】\]]*)\s*[】\]]\s*(.*)$/);
+    if(bm){flush();const kind=bm[1],rest=(bm[2]||'').trim();
+      if(/^說明/.test(kind)){mode='shuo';const g=G();if(g&&rest)g.shuo=g.shuo?(g.shuo+'\n'+rest):rest;}
+      else if(/^例句/.test(kind)){mode='liju';const g=G();if(g&&rest)g.liju.push(stripNum(rest));}
+      else{mode='q';pInstr=rest;}
+      continue;}
+    if(/^說明[：:]/.test(line)){mode='shuo';const g=G();if(g){const v=line.replace(/^說明[：:]/,'').trim();g.shuo=g.shuo?(g.shuo+'\n'+v):v;}continue;}
+    if(/^例句[：:]/.test(line)){mode='liju';const g=G();if(g){const v=line.replace(/^例句[：:]/,'').trim();if(v)g.liju.push(v);}continue;}
+    if(mode==='shuo'&&!isDir(line)){const g=G();if(g)g.shuo=g.shuo?(g.shuo+'\n'+line):line;continue;}
+    if(mode==='liju'&&!isDir(line)){const g=G();if(g){const v=stripNum(line);if(v)g.liju.push(v);}continue;}
+    const isOpt=/^選項[：:]/.test(line)||(/[a-dａ-ｄＡ-Ｄ][\.\．、)）]/.test(line)&&(line.match(/[a-dａ-ｄＡ-Ｄ][\.\．、)）]/g)||[]).length>=2);
+    if(isOpt){if(!optBuf)optBuf={prompt:pInstr||'',options:[],items:[],bank,gp,instr:pInstr};
+      const r2=line.replace(/^選項[：:]/,'').trim();let opts;
+      if(/[a-dａ-ｄＡ-Ｄ][\.\．、)）:：]/.test(r2)){opts=r2.split(/\s*[a-dａ-ｄＡ-Ｄ][\.\．、)）:：]\s*/).map(s=>s.trim()).filter(Boolean);}
+      else{opts=r2.split(/[\/、，,]\s*|\s{2,}/).map(s=>s.trim()).filter(Boolean);}
+      optBuf.options=opts;mode='q';continue;}
+    if(/^選填[：:]/.test(line)){flush();optBuf={prompt:line.replace(/^選填[：:]/,'').trim()||pInstr,options:[],items:[],bank,gp,instr:pInstr};mode='q';continue;}
+    if(optBuf&&optBuf.options.length){const im=line.match(/^([-•・]|[*＊]?\s*\d+)\s*[\.\．、)）]?\s*(.+)$/);
+      if(im){const open=/[*＊]/.test(im[1]);const txt=im[2].trim();if(txt)optBuf.items.push({text:txt,mode:open?'open':'select'});continue;}}
     flush();
     let t='qa',prompt=line;
     const pm=line.match(/^(完成對話|填空|問答|造句|寫出|示範)[：:]\s*(.*)$/);
     if(pm){prompt=pm[2].trim();const tag=pm[1];t=(tag==='填空')?'fill':(tag==='造句'||tag==='寫出')?'write':(tag==='示範')?'note':'qa';}
-    else{t=/[_＿]{2,}/.test(line)?'fill':'qa';}
-    if(prompt)out.push({type:t,prompt,bank,gp_index:gp});}
+    else{const nm=line.match(/^[*＊]?\s*\d+\s*[\.\．、)）]?\s+(.+)$/);
+      if(nm){prompt=nm[1].trim();}
+      else if(/^(請|第|看|用|完成|回答|依照|根據)/.test(line)&&!/[_＿]{2,}/.test(line)&&!/[AＡ甲][：:]/.test(line)){pInstr=line;continue;}
+      t=/[_＿]{2,}/.test(prompt)?'fill':'qa';}
+    if(prompt)out.push({type:t,prompt,bank,gp_index:gp,instruction:pInstr||''});}
   flush();
   return {questions:out,grammar:gmap};}
-function importBuildObjs(parsed,lid,base){return parsed.map((q,i)=>({lesson_id:lid,type:q.type,prompt:q.prompt||'',options:q.options||[],items:q.items||null,answer:null,bank:(q.bank==='hw'?'hw':'class'),gp_index:(q.gp_index==null?null:q.gp_index),gp_sub:null,input_mode:(q.type==='fill'?'type':null),audio_url:null,image_url:null,instruction:null,explanation:null,order_index:base+i}));}
+function importBuildObjs(parsed,lid,base){return parsed.map((q,i)=>({lesson_id:lid,type:q.type,prompt:q.prompt||'',options:q.options||[],items:q.items||null,answer:null,bank:(q.bank==='hw'?'hw':'class'),gp_index:(q.gp_index==null?null:q.gp_index),gp_sub:null,input_mode:(q.type==='fill'?'type':null),audio_url:null,image_url:null,instruction:(q.instruction||'').trim()||null,explanation:null,order_index:base+i}));}
 function lessonImportModal(lid){const l=S.lessons.find(x=>x.id===lid)||{};const gps=l.grammar_points||[];
   const gpHint=gps.length?('這課的語法：'+gps.map((g,i)=>'語法'+(i+1)+(g.title?('（'+esc(g.title)+'）'):'')).join('、')):'這課還沒有語法點，先去「編輯課文」加語法點，匯入才能對應。';
   openModal(`<div class="modal wide"><div class="modal-head"><h3>📥 一次匯入整課練習 · ${esc(l.title||'')}</h3><button class="x" data-act="backToQuestions" data-id="${lid}">×</button></div>
    <div class="modal-body">
-     <div class="hint" style="margin-bottom:8px;line-height:1.8">用 <b>#</b> 開頭分段；可放語法的標題、說明、例句和練習題：<br>
+     <div class="hint" style="margin-bottom:8px;line-height:1.8">用 <b>#</b> 開頭分段；可放語法的標題、說明、例句和練習題。也能直接貼課本標號 <code>I. II.</code>、<code>【說明】</code>、<code>【例句】</code>、<code>【練習】</code>，會自動辨識（練習小題請一行一題）：<br>
        <code># 語法1 標題</code>（# 後面直接寫語法標題）　<code>說明：…</code>（寫進語法說明）　<code>例句：A：…／B：…</code>（一行一句、可多行）<br>
        <code># 語法1</code>／<code># 語法4</code>（歸到第 N 個語法）　<code># 作業簿</code>　<code># 綜合</code>（不綁語法）<br>
        <code>完成對話：A：…？ B：＿＿。</code>　<code>填空：我＿＿學生。</code>　<code>問答：你叫什麼名字？</code><br>
