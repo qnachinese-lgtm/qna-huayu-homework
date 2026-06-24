@@ -71,6 +71,7 @@
       <section id="panel-lessons" class="panel hide">
         <div class="section-head"><h2>📚 上課教材</h2><span class="sub">課文、發音、PDF 講義、練習題都在這裡，用上方「教材」分類切換</span><span class="grow"></span>
           <button class="btn" data-act="newPron">🔤 建立發音</button>
+          <button class="btn" data-act="tplLesson">📋 用範本新增</button>
           <button class="btn btn-primary" data-act="addLesson">＋ 新增課文／作業</button></div>
         <div id="lessons-list" class="cards"></div>
       </section>
@@ -448,6 +449,32 @@ function renderLessons(){
   }).join('');
   wrap.innerHTML=html;
 }
+/* ===== 課程範本庫：一鍵建好對話／短文／語法 slot 的空骨架 ===== */
+function tplDlg(title){return {title:title,content:'',vocabulary:'',vocab_vi:'',discussion:'',audio_url:null,vocab_audio_url:null,vocab_segments:[],line_segments:[]};}
+function tplGp(seg){return {title:'',seg:seg||'',blocks:[{label:'說明',text:'',ex:''}]};}
+function tplBuild(kind,gA,gB){const dlgs=kind==='dangdai'?['對話一','對話二']:(kind==='blank'?['對話']:['對話','短文：']);
+  const dialogues=dlgs.map(tplDlg);const grammar_points=[];
+  for(let i=0;i<(gA||0);i++)grammar_points.push(tplGp(''));
+  for(let i=0;i<(gB||0);i++)grammar_points.push(tplGp('短文'));
+  return {dialogues,grammar_points};}
+function tplModal(){const nextNo=S.lessons.length+1;const bookOpts=[...new Set(S.lessons.map(x=>(x.textbook||'').trim()).filter(Boolean))];
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>📋 用範本新增課</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="field"><label>課的骨架</label>
+       <label style="display:block;margin:4px 0"><input type="radio" name="t-kind" value="shidai" checked> 時代華語型（對話 ＋ 短文）</label>
+       <label style="display:block;margin:4px 0"><input type="radio" name="t-kind" value="dangdai"> 當代中文型（對話一 ＋ 對話二）</label>
+       <label style="display:block;margin:4px 0"><input type="radio" name="t-kind" value="blank"> 空白（單一對話）</label></div>
+     <div class="form-grid">
+       <div class="field"><label>課序</label><input id="t-order" type="number" min="1" value="${nextNo}"></div>
+       <div class="field"><label>課名 *</label><input id="t-title" type="text" placeholder="例：第一課 我的夢想"></div></div>
+     <div class="field full"><label>教材</label><input id="t-book" type="text" list="t-book-list" placeholder="時代華語三"><datalist id="t-book-list">${[...new Set(bookOpts)].map(b=>'<option>'+esc(b)+'</option>').join('')}</datalist></div>
+     <div class="form-grid">
+       <div class="field"><label>對話語法數</label><input id="t-ga" type="number" min="0" value="3"></div>
+       <div class="field"><label>短文語法數 <span class="hint">當代中文設 0</span></label><input id="t-gb" type="number" min="0" value="3"></div></div>
+     <div class="hint">建立後會直接打開編輯畫面，把課文、生詞、語法內容填進去即可；練習題可用「一次匯入整課」。</div>
+   </div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>
+     <button class="btn btn-primary" data-act="doTplLesson">建立並編輯</button></div></div>`);}
 function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaReset();gpInit(l);dlgInit(l);
   const bookOpts=[...new Set(S.lessons.map(x=>(x.textbook||'').trim()).filter(Boolean))];
   openModal(`<div class="modal wide"><div class="modal-head"><h3>${e?'編輯課文':'新增課文'}</h3><button class="x" data-act="closeModal">×</button></div>
@@ -1135,6 +1162,20 @@ H.qMerge=async(key,b)=>{const p=String(key).split('::');const lid=p[0],qid=p[1];
     toast('已併入上一題（選項只留一份）');
   }catch(err){if(b)b.disabled=false;toast(writeErr('併入失敗',err));}};
 H.addLesson=()=>lessonModal(null);
+H.tplLesson=()=>tplModal();
+H.doTplLesson=async()=>{const kind=(document.querySelector('input[name="t-kind"]:checked')||{}).value||'shidai';
+  const title=($('#t-title')&&$('#t-title').value.trim())||'';if(!title)return toast('請輸入課名');
+  const order=Number($('#t-order')&&$('#t-order').value)||(S.lessons.length+1);
+  const book=($('#t-book')&&$('#t-book').value.trim())||'';
+  const gA=Math.max(0,Number($('#t-ga')&&$('#t-ga').value)||0),gB=Math.max(0,Number($('#t-gb')&&$('#t-gb').value)||0);
+  try{await ensureAuthFresh();}catch(err){return toast(err.message);}
+  const built=tplBuild(kind,gA,gB);
+  const obj={order_index:order,title,textbook:book||null,vi_release:false,dialogues:built.dialogues,grammar_points:built.grammar_points,key_points:'',examples:'',handout_url:null,handout_name:null,layout:[],assigned_ids:[],due_date:null};
+  const btn=document.querySelector('[data-act="doTplLesson"]');if(btn){btn.disabled=true;btn.textContent='建立中…';}
+  try{const nl=await DB.insert('lessons',obj);await loadAll();closeModal();
+    const created=(S.lessons||[]).find(x=>x.id===nl.id);if(created){lessonModal(created);}else{render();}
+    toast('已用範本建立「'+title+'」，把課文／生詞／語法填進去即可');
+  }catch(err){if(btn){btn.disabled=false;btn.textContent='建立並編輯';}toast(writeErr('建立失敗',err));}};
 H.editLesson=(id)=>lessonModal(S.lessons.find(l=>l.id===id));
 let LAYOUT=[],LAYOUT_LID=null;
 function reconcileLayoutT(l){const ds=Array.isArray(l.dialogues)?l.dialogues:[];const nd=ds.length||((l.content||l.vocabulary||l.audio_url)?1:0);const ng=(l.grammar_points||[]).length;const hasQ=i=>!!(ds[i]&&(ds[i].discussion||'').split('\n').some(s=>s.trim()));const hasV=i=>!!(ds[i]&&(ds[i].vocabulary||'').trim());const saved=Array.isArray(l.layout)?l.layout:[];
