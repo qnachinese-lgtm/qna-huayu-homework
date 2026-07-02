@@ -42,6 +42,29 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .sw-q{font-weight:600;font-size:14px;display:flex;gap:7px;align-items:flex-start;line-height:1.5}
 .sw-qn{background:var(--primary);color:#fff;border-radius:50%;min-width:19px;height:19px;font-size:11px;display:inline-flex;align-items:center;justify-content:center;flex:none;margin-top:2px}
 .sw-a{margin:4px 0 0 26px;color:#555;font-size:14px;white-space:pre-wrap;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+
+/* ---- 課程卡片標籤 ---- */
+.ls-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.ls-tag{font-size:11.5px;color:#5b6b6c;background:rgba(31,111,120,.08);border-radius:999px;padding:2px 9px;white-space:nowrap}
+.ls-tag.done{color:#16a34a;background:rgba(22,163,74,.13);font-weight:700}
+
+/* ---- 學習進度卡 ---- */
+.prog-card{margin-bottom:12px}
+.prog-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.prog-bar{height:9px;background:rgba(31,111,120,.12);border-radius:999px;overflow:hidden}
+.prog-bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--primary),#2fa2ad);border-radius:999px;transition:width .45s ease}
+
+/* ---- 老師回饋橫幅 ---- */
+.fb-banner{cursor:pointer;background:linear-gradient(90deg,#fff4e0,#ffe9c7);border:1px solid #f0c877;color:#8a5a10;border-radius:14px;padding:12px 16px;margin-bottom:12px;font-weight:600;box-shadow:0 2px 8px rgba(200,140,20,.12)}
+.fb-banner:hover{filter:brightness(.98)}
+
+/* ---- 生詞卡控制列 ---- */
+.flash-controls{display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:14px}
+.flash-tools,.flash-nav{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center}
+.btn-know-no{background:#fff;border:1.5px solid #e2b1b1;color:#b45454;font-weight:600}
+.btn-know-yes{background:#e9f7ee;border:1.5px solid #7bc99a;color:#16a34a;font-weight:600}
+.btn-know-no:hover{background:#fbeaea}.btn-know-yes:hover{background:#d7f0e0}
+.flash-count{color:var(--muted);font-size:13px;min-width:52px;text-align:center}
 </style>
 </head>
 <body class="bg-pattern">
@@ -724,6 +747,29 @@ function renderWork(){
         ${done?`<div class="progress"><span style="width:${pct}%"></span></div>`:''}</div>
       ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`:`<div class="tag accent">${(r&&r.status==='draft')?t('resume'):t('start')} →</div>`}</div>`;}).join('')+(ls.length?'</div>':'');
 }
+function lessonTags(l){const tags=[];
+  try{
+    const nd=lessonDialogues(l).filter(d=>d&&(d.content||'').trim()).length;
+    const nv=lessonDialogues(l).reduce((s,d)=>s+parseVocab(d.vocabulary).length,0);
+    const ng=(l.grammar_points||[]).length;
+    const nq=answerableOf(l.id).length;
+    if(nd)tags.push('💬 對話');
+    if(nv)tags.push('📇 生詞 '+nv);
+    if(ng)tags.push('📐 語法 '+ng);
+    if(nq)tags.push('✍️ 作業 '+nq+' 題');
+    if(l.handout_url)tags.push('📄 講義');
+  }catch(e){}
+  const r=(!S.preview)?resultOf(l.id):null;const done=r&&r.status==='done';
+  if(!tags.length&&!done)return '';
+  return `<div class="ls-tags">${tags.map(x=>`<span class="ls-tag">${x}</span>`).join('')}${done?'<span class="ls-tag done">✓ 已完成</span>':''}</div>`;
+}
+function teacherFbCount(){let n=0;const hf=d=>!!((d.overall&&String(d.overall).trim())||(d.feedback&&Object.keys(d.feedback).length));
+  (S.results||[]).forEach(r=>{if(r&&r.status==='done'&&(r.comment||(r.feedback&&Object.keys(r.feedback).length)))n++;});
+  (S.discussions||[]).forEach(d=>{if(d&&d.status==='reviewed'&&hf(d))n++;});
+  (S.gpracs||[]).forEach(d=>{if(d&&d.status==='reviewed'&&hf(d))n++;});
+  (S.sentences||[]).forEach(d=>{if(d&&d.status==='reviewed'&&hf(d))n++;});
+  (S.shadows||[]).forEach(d=>{if(d&&d.status==='reviewed'&&hf(d))n++;});
+  return n;}
 function lessonCardHtml(l,i){
     const hasDisc=lessonHasDisc(l),ddoc=hasDisc?discDocOf(l.id):null,canAns=hasDisc&&!S.preview;
     const discBar=canAns?`<div class="disc-submit">
@@ -738,8 +784,8 @@ function lessonCardHtml(l,i){
         <div class="note-pane" id="note-type-${lid}"><div class="note-fmtbar"><button type="button" class="note-fmt" data-act="noteFmt" data-id="${lid}::bold" title="粗體"><b>B</b></button><button type="button" class="note-fmt" data-act="noteFmt" data-id="${lid}::italic" title="斜體"><i>I</i></button><button type="button" class="note-fmt" data-act="noteFmt" data-id="${lid}::underline" title="底線"><u>U</u></button><span class="note-hl-wrap"><button type="button" class="note-fmt" data-act="hlPop" data-id="${lid}" title="螢光筆">🖍</button><span class="hl-pop hide" id="hl-pop-${lid}"><button type="button" class="hl-sw" style="background:#ffe680" data-act="noteFmt" data-id="${lid}::hl:#ffe680" title="黃"></button><button type="button" class="hl-sw" style="background:#a8e6a3" data-act="noteFmt" data-id="${lid}::hl:#a8e6a3" title="綠"></button><button type="button" class="hl-sw" style="background:#ffc6dd" data-act="noteFmt" data-id="${lid}::hl:#ffc6dd" title="粉"></button><button type="button" class="hl-sw" style="background:#bcdcff" data-act="noteFmt" data-id="${lid}::hl:#bcdcff" title="藍"></button><button type="button" class="hl-sw" style="background:#ffd49a" data-act="noteFmt" data-id="${lid}::hl:#ffd49a" title="橘"></button><button type="button" class="hl-sw hl-none" data-act="noteFmt" data-id="${lid}::hl:none" title="移除螢光">✕</button></span></span><button type="button" class="note-fmt" data-act="noteFmt" data-id="${lid}::clear" title="清除格式">🧹</button><button type="button" class="btn btn-sm btn-accent note-save" data-act="noteSaveNow" data-id="${lid}">💾 儲存</button></div><div class="note-rich" contenteditable="true" id="note-rich-${lid}" data-lid="${lid}" data-ph="在這裡寫筆記，會自動儲存…">${nhtml}</div><div class="hint note-status" id="note-st-${lid}"></div></div>
         <div class="note-pane hide" id="note-draw-${lid}"><div class="hw-wrap"><canvas id="note-cv-${lid}" class="hw-canvas note-cv" width="660" height="440"></canvas></div><div class="hw-tools"><button class="btn btn-sm btn-accent" type="button" data-act="noteSaveInk" data-id="${lid}">💾 儲存手寫</button><button class="btn btn-sm" type="button" data-act="noteClearInk" data-id="${lid}">清除</button><span class="hint">用手指或觸控筆寫</span></div></div>
       </div>`;
-    return `<details class="card ls-card"><summary class="row-between" style="cursor:pointer;list-style:none" title="點一下展開／收起這一課"><div style="display:flex;gap:12px;align-items:center">
-      <div class="lesson-no">${(l.handout_url&&!lessonHasContent(l))?'📄':(l.order_index||i+1)}</div><h3 style="display:inline;margin:0">${esc(l.title)}</h3></div><div style="display:flex;gap:8px;align-items:center">${S.preview?'':`<button class="btn btn-sm note-toggle" type="button" data-act="toggleNotes" data-id="${lid}">📝 我的筆記</button>`}${dlgHasAudio(l)?'<span class="tag gold">🔊</span>':''}<span class="ls-chev" style="opacity:.45">▾</span></div></summary>
+    return `<details class="card ls-card"><summary class="row-between" style="cursor:pointer;list-style:none" title="點一下展開／收起這一課"><div style="display:flex;gap:12px;align-items:center;min-width:0">
+      <div class="lesson-no">${(l.handout_url&&!lessonHasContent(l))?'📄':(l.order_index||i+1)}</div><div style="min-width:0"><h3 style="margin:0">${esc(l.title)}</h3>${lessonTags(l)}</div></div><div style="display:flex;gap:8px;align-items:center;flex:none">${S.preview?'':`<button class="btn btn-sm note-toggle" type="button" data-act="toggleNotes" data-id="${lid}">📝 我的筆記</button>`}${dlgHasAudio(l)?'<span class="tag gold">🔊</span>':''}<span class="ls-chev" style="opacity:.45">▾</span></div></summary>
       <div class="lesson-split" id="ls-${lid}" style="margin-top:12px">
         <div class="ls-text">${lessonBodyHtml(l,{answerable:canAns,doc:ddoc})}</div>
         ${notesCol}
@@ -810,12 +856,18 @@ function renderContent(){
   const tabBar=books.length>1?`<div class="book-bar2">${books.map(b=>`<button type="button" class="book-chip${b===cur?' on':''}" data-act="contentBook" data-id="${esc(b)}">${esc(b)}</button>`).join('')}</div>`:'';
   const shown=entries.filter(e=>e.b===cur);
   const cards=shown.map((e,i)=>e.k==='p'?pronLessonCardHtml(e.l):lessonCardHtml(e.l,i)).join('');
-  $('#screen').innerHTML=clsBanner+classDaysHtml()+tabBar+'<div class="cards">'+cards+'</div>';
+  const _hw=shown.filter(e=>e.k==='l'&&answerableOf(e.l.id).length);
+  const _done=_hw.filter(e=>{const r=resultOf(e.l.id);return r&&r.status==='done';}).length;
+  const progCard=(!S.preview&&_hw.length)?`<div class="card prog-card"><div class="prog-top"><b>📊 學習進度</b><span class="hint">${_done}/${_hw.length} 課作業完成</span></div><div class="prog-bar"><span style="width:${Math.round(_done/_hw.length*100)}%"></span></div></div>`:'';
+  const _fbn=S.preview?0:teacherFbCount();
+  const fbBanner=_fbn?`<div class="fb-banner" data-act="section" data-id="work">💬 老師給了你 ${_fbn} 則回饋，點這裡看 →</div>`:'';
+  $('#screen').innerHTML=clsBanner+fbBanner+progCard+classDaysHtml()+tabBar+'<div class="cards">'+cards+'</div>';
   convScreen();setupCanvases();
   if(!S.preview)shown.forEach(e=>{if(e.k!=='l')return;const n=noteOf(e.l.id);if(n&&n.ink){const cv=document.getElementById('note-cv-'+e.l.id);if(cv)loadNoteInk(cv,n.ink);}});
   if(S.lang==='vi'){const bs=[];myLessons().forEach(l=>lessonDialogues(l).forEach(d=>parseVocab(d.vocabulary).forEach(v=>{if(v.back)bs.push(v.back);})));hydrateVi(bs);}else applyVi();
 }
 function renderCards(){
+  if(S.flashAuto===undefined)S.flashAuto=(localStorage.getItem('hyc_flashauto')==='1');
   const vls=vocabLessons().slice().sort((a,b)=>((a.textbook||'').localeCompare(b.textbook||''))||((a.order_index||0)-(b.order_index||0)));
   const vfLabel=l=>{const tb=(l.textbook||'').trim();const ti=(l.title||'').trim();let core=ti||(l.order_index?('第'+l.order_index+'課'):'課');if(core.length>20)core=core.slice(0,19)+'…';let tbs=tb.length>14?tb.slice(0,13)+'…':tb;return (tbs?tbs+' · ':'')+core;};
   const fbar=vls.length>1?`<div class="vocab-filter"><button class="vf-btn ${!S.vocabLesson?'on':''}" data-act="vocabLesson" data-id="">全部</button>${vls.map(l=>`<button class="vf-btn ${S.vocabLesson===l.id?'on':''}" data-act="vocabLesson" data-id="${l.id}">${esc(vfLabel(l))}</button>`).join('')}</div>`:'';
@@ -829,13 +881,22 @@ function renderCards(){
       <div class="flash-face flash-front">${flashFront(v)}<small>${t('flip')}</small></div>
       <div class="flash-face flash-back">${v.pos?'<span class="vpos">'+esc(v.pos)+'</span> ':''}<span>${esc((v.back)||'—')}</span></div>
     </div></div>
-    <div class="flash-controls"><button class="btn" data-act="flprev">${t('prev')}</button>
-      ${vocabHasAudio(S.lessons.find(x=>x.id===v.lessonId),v.di,v.vi)?`<button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}" aria-label="發音">🔊</button>`:''}
-      <button class="btn btn-spk" data-act="shadowRec" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}" aria-label="跟讀">🎤</button>
-      <button class="btn btn-spk" data-act="stroke" data-text="${esc(v.front)}" aria-label="筆順">✍️</button>
+    <div class="flash-controls">
+      <div class="flash-tools">
+      ${vocabHasAudio(S.lessons.find(x=>x.id===v.lessonId),v.di,v.vi)?`<button class="btn btn-sm" data-act="vocabPlay" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}">🔊 發音</button>`:''}
+      <button class="btn btn-sm" data-act="shadowRec" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}">🎤 跟讀</button>
+      <button class="btn btn-sm" data-act="stroke" data-text="${esc(v.front)}">✍️ 筆順</button>
+      ${vocabHasAudio(S.lessons.find(x=>x.id===v.lessonId),v.di,v.vi)?`<button class="btn btn-sm ${S.flashAuto?'btn-accent':''}" data-act="flashAuto">🔁 自動發音${S.flashAuto?'：開':'：關'}</button>`:''}
       ${(SHADOW&&SHADOW.idx===S.flashIdx)?`<button class="btn btn-sm" data-act="shadowPlay">${t('shadowMine')}</button>`:''}
+      </div>
+      <div class="flash-nav">
+      <button class="btn" data-act="flprev">← ${t('prev')}</button>
+      <button class="btn btn-know-no" data-act="flknow" data-id="0">還沒</button>
+      <button class="btn btn-know-yes" data-act="flknow" data-id="1">會了 👍</button>
       <span class="flash-count">${S.flashIdx+1} / ${all.length}</span>
-      <button class="btn" data-act="flnext">${t('next')}</button></div></div>`;
+      <button class="btn" data-act="flnext">${t('next')} →</button>
+      </div></div></div>`;
+  if(S.flashAuto){setTimeout(()=>{const b=document.querySelector('.flash-tools [data-act="vocabPlay"]');if(b)b.click();},180);}
   hydrateVi([v.back]);
 }
 function renderGrades(){
@@ -1338,6 +1399,8 @@ H.submit=async()=>{const set=S.practiceSet,qs=set.questions;GRADE=gradeAll(qs);S
 H.flip=()=>{S.flashFlip=!S.flashFlip;renderCards();};
 H.flprev=()=>{S.flashFlip=false;SHADOW=null;const n=vocabAll();if(!n.length)return;S.flashIdx=(S.flashIdx-1+n.length)%n.length;renderCards();};
 H.flnext=()=>{S.flashFlip=false;SHADOW=null;const n=vocabAll();if(!n.length)return;S.flashIdx=(S.flashIdx+1)%n.length;renderCards();};
+H.flashAuto=()=>{S.flashAuto=!S.flashAuto;try{localStorage.setItem('hyc_flashauto',S.flashAuto?'1':'0');}catch(e){}renderCards();};
+H.flknow=(v)=>{const n=vocabAll();if(!n.length)return;const cur=n[S.flashIdx];if(cur&&typeof srsGrade==='function'){try{srsGrade(cur.front,v==='1');}catch(e){}}try{bumpActivity(1);}catch(e){}toast(v==='1'?'👍 記起來了':'再多看幾次！');S.flashFlip=false;SHADOW=null;S.flashIdx=(S.flashIdx+1)%n.length;renderCards();};
 
 /* ====== 我的筆記（每課，打字＋手寫，自動同步） ====== */
 function noteOf(lid){return (S.notes||[]).find(n=>n.note_lesson===lid);}
