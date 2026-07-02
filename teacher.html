@@ -111,6 +111,7 @@ const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 function fmtDate(d){if(!d)return'—';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0');}
+function fmtDT(d){if(!d)return'';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0')+' '+String(x.getHours()).padStart(2,'0')+':'+String(x.getMinutes()).padStart(2,'0');}
 const CUR={TWD:['NT$','zh-TW'],VND:['₫','vi-VN'],USD:['US$','en-US']};
 function money(n,cur){if(n==null||n==='')return'—';const v=Number(n);if(isNaN(v))return n;const c=CUR[cur||'TWD']||CUR.TWD;if(cur==='VND')return (v*1000).toLocaleString(c[1])+' ₫';return c[0]+v.toLocaleString(c[1]);}
 const DAYS=['週一','週二','週三','週四','週五','週六','週日'];
@@ -277,7 +278,7 @@ function renderDashboard(){
   const gpracPend=(S.gpracs||[]).filter(x=>x.status==='submitted');
   gpracPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.gprac_lesson)||{};inbox.push({tag:'語法練習',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）'),extra:Object.keys(sd.answers||{}).length+' 題',btn:`<button class="btn btn-sm btn-accent" data-act="reviewGprac" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
   inbox.sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
-  const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"><span class="badge badge-soon">${it.tag}</span><b>${esc(it.name)}</b><span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
+  const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"><span class="badge badge-soon">${it.tag}</span><b>${esc(it.name)}</b><span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.ts?`<span class="muted">🕒 ${esc(fmtDT(it.ts))}</span>`:''}${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
   // 提醒（付款到期／逾期 + 堂數快用完），合併成一條條待辦
   const remRows=[];
   pays.forEach(({s,info})=>remRows.push(`<div class="dash-row"><span class="badge ${info.cls}">${info.label}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">💳 ${money(s.tuition,s.currency)}</span>${s.email?`<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}" title="寄重設密碼信">✉️</button>`:''}</div>`));
@@ -1039,7 +1040,7 @@ H.reviewSent=(id)=>{const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
   const fb=sd.feedback||{};
   const rows=(sd.items||[]).map(it=>`<div class="srev-item"><div class="srev-word">${esc(it.word)}</div><div class="srev-sent">${it.sentence?esc(it.sentence):'<span class="muted">（未作答）</span>'}</div><textarea class="srev-fb" data-w="${esc(it.word)}" rows="2" placeholder="給這一句的建議（可留空）">${esc(fb[it.word]||'')}</textarea></div>`).join('');
   openModal(`<div class="modal wide"><div class="modal-head"><h3>✍️ 造句批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}</div>${rows}
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${rows}
    <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="srev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('srev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveSentReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveSentReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveSentReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
@@ -1057,7 +1058,7 @@ H.reviewDisc=(id)=>{const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)retur
   let rows='';blocks.forEach((d,di)=>{const qs=(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean);qs.forEach((q,qi)=>{const key=di+'_'+qi;const a=ans[key]||'';rows+=`<div class="srev-item"><div class="srev-word">${esc(q)}</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div><textarea class="drev-fb" data-k="${esc(key)}" rows="2" placeholder="給這一題的建議（可留空）">${esc(fb[key]||'')}</textarea></div>`;});});
   if(!rows)rows='<div class="muted">（這一課目前沒有問題與討論，或題目已被修改）</div>';
   openModal(`<div class="modal wide"><div class="modal-head"><h3>💬 問題與討論批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}</div>${rows}
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${rows}
    <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="drev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('drev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveDiscReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveDiscReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveDiscReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)return;
@@ -1089,7 +1090,7 @@ H.reviewGprac=(id)=>{const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
     rows+=`<div class="srev-item"><div class="srev-word">${i+1}. ${esc((q.prompt||'').replace(/[_＿]{2,}/g,'____'))}</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>${sol?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(sol)}</div>`:''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="給這一題的建議（可留空，學生會看到）">${esc(fb[q.id]||'')}</textarea></div>`;});
   if(!rows)rows='<div class="muted">（這一課目前沒有語法練習題）</div>';
   openModal(`<div class="modal wide"><div class="modal-head"><h3>📘 語法練習批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}</div>${rows}
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${rows}
    <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="gprev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('gprev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveGpracReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveGpracReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveGpracReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
