@@ -340,6 +340,7 @@ function enrollOf(s){return (s&&s.enroll_status)||'active';}
 function enrollMeta(v){return ENROLL.find(x=>x[0]===v)||ENROLL[0];}
 function enrollBadge(s){const m=enrollMeta(enrollOf(s));return `<span class="tag" style="background:${m[2]}22;color:${m[2]};border-color:${m[2]}66">${m[1]==='預約'?'📌':(m[1]==='休學'?'⏸️':'✅')} ${m[1]}</span>`;}
 function progOf(sid){return (S.results||[]).find(r=>r&&r.lesson_id==='__progress'&&r.student_id===sid)||null;}
+function fillGroupSched(force){const el=document.getElementById('f-groups');const cont=document.getElementById('sched-rows');if(!el||!cont)return;const g=(el.value||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)[0];if(!g)return;const sch=classSchedOf(g);if(!sch||!sch.length)return;const cur=$$('#sched-rows .sched-row').map(row=>({s:((row.querySelector('.sched-s')||{}).value)||'',e:((row.querySelector('.sched-e')||{}).value)||''})).filter(r=>r.s||r.e);if(cur.length&&!force)return;cont.innerHTML=sch.map(r=>schedRowHTML(r)).join('');try{refreshFirstSlot();}catch(e){}try{toast('已帶入「'+g+'」的上課時段');}catch(e){}}
 function activityLine(s){const p=progOf(s.id);const li=p&&p.last_login?fmtDT(p.last_login):'—';const la=p&&p.last_active?fmtDT(p.last_active):'尚未使用';const streak=(p&&p.progress&&p.progress.act&&p.progress.act.streak)||0;return `<div class="meta" style="margin-top:8px"><span>🕒 最後登入：<b>${esc(li)}</b></span><span>⚡ 最後活動：<b>${esc(la)}</b></span>${streak>=2?`<span>🔥 連續 ${streak} 天</span>`:''}</div>`;}
 function renderStudents(){
   const wrap=$('#students-list');let list=S.students;
@@ -362,6 +363,7 @@ function renderStudents(){
         <button class="btn btn-sm" data-act="report" data-id="${s.id}">📊 學習報表</button>
         <button class="btn btn-sm" data-act="cert" data-id="${s.id}">🎓 證書</button>
         <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">🗓 上課記錄</button>
+        <button class="btn btn-sm" data-act="loginLog" data-id="${s.id}">🕒 登入紀錄</button>
         <button class="btn btn-sm" data-act="guideCard" data-id="${s.id}">🪪 使用說明卡</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
         ${IS_OWNER?`<button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button>`:''}</div>
@@ -423,6 +425,7 @@ function studentModal(st){const e=!!st;st=st||{};
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
      <button class="btn btn-primary" data-act="saveStudent" data-id="${st.id||''}">${e?'儲存':'新增'}</button></div></div>`);
   refreshFirstSlot(st.first_slot!=null?st.first_slot:undefined);
+  try{if(!(Array.isArray(st.schedule)&&st.schedule.length))fillGroupSched(true);}catch(e){}
 }
 
 /* ---------- 課文與練習 ---------- */
@@ -1218,6 +1221,11 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   const btn=document.querySelector('[data-act="saveStudent"]');if(btn){btn.disabled=true;btn.textContent='建立中…';}
   try{const u=await createStudentAuth(email,pw);await DB.insert('students',Object.assign({uid:u,email},common));closeModal();await loadAll();render();toast('已建立學生帳號');}
   catch(err){toast('建立失敗：'+authMsg(err));if(btn){btn.disabled=false;btn.textContent='新增';}}};
+H.loginLog=(id)=>{const s=S.students.find(x=>x.id===id);const p=progOf(id);const logs=(((p&&Array.isArray(p.logins))?p.logins:[]).slice()).sort().reverse();
+  const byDay={};logs.forEach(t=>{const d=fmtDate(t);(byDay[d]=byDay[d]||[]).push(fmtDT(t).slice(-5));});
+  const rows=logs.length?Object.keys(byDay).map(d=>`<div class="dash-row" style="align-items:flex-start"><b style="min-width:96px">${esc(d)}</b><span class="muted">${byDay[d].map(esc).join('、')}</span><span class="grow"></span><span class="tag">${byDay[d].length} 次</span></div>`).join(''):'<div class="hint" style="padding:10px 0">還沒有登入紀錄。學生用新版（今天之後）登入後就會開始記錄每一次的時間。</div>';
+  openModal(`<div class="modal"><div class="modal-head"><h3>🕒 ${esc((s&&s.name)||'學生')} · 登入紀錄</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="meta" style="margin-bottom:10px"><span>共 <b>${logs.length}</b> 次登入</span>${logs.length?`<span>最近：<b>${esc(fmtDT(logs[0]))}</b></span>`:''}</div>${rows}</div></div>`);};
 H.resetPw=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s.email)return toast('此學生沒有 Email，無法寄送');if(!confirm('寄送重設密碼信給 '+s.name+'（'+s.email+'）？'))return;
   try{await firebase.auth().sendPasswordResetEmail(s.email);if(s.reset_requested)await DB.update('students',id,{reset_requested:null});await loadAll();render();toast('已寄出重設密碼信給學生');}catch(err){toast('寄送失敗：'+authMsg(err));}};
 
@@ -1991,7 +1999,8 @@ document.addEventListener('input',(e)=>{const m=((e.target&&e.target.id)||'').ma
   const t=e.target;if(t&&t.classList){const v=parseFloat(t.value);
     if(t.classList.contains('va-time')){const d=DLG[+t.dataset.di];if(d&&d._va&&d._va.segs&&d._va.segs[+t.dataset.k]&&!isNaN(v))d._va.segs[+t.dataset.k][t.dataset.edge]=v;}
     else if(t.classList.contains('la-time')){const d=DLG[+t.dataset.di];if(d&&d._la&&d._la.segs&&d._la.segs[+t.dataset.k]&&!isNaN(v))d._la.segs[+t.dataset.k][t.dataset.edge]=v;}}});
-document.addEventListener('change',(e)=>{const t=e.target;if(!t)return;if((t.classList&&(t.classList.contains('sched-d')||t.classList.contains('sched-s')||t.classList.contains('sched-e')))||t.id==='f-first-date')refreshFirstSlot();if(t.id==='cl-date')clFillSlot();});
+document.addEventListener('change',(e)=>{const t=e.target;if(!t)return;if((t.classList&&(t.classList.contains('sched-d')||t.classList.contains('sched-s')||t.classList.contains('sched-e')))||t.id==='f-first-date')refreshFirstSlot();if(t.id==='cl-date')clFillSlot();if(t.id==='f-groups')fillGroupSched();});
+document.addEventListener('input',(e)=>{const t=e.target;if(t&&t.id==='f-groups')fillGroupSched();});
 
 document.addEventListener('click',(e)=>{
   if(e.target.matches('[data-overlay]')){closeModal();return;}
