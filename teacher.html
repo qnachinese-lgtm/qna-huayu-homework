@@ -756,7 +756,7 @@ function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==nul
    +'</body></html>';
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();}
 function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
-  const clsRows=classes.length?classes.map(c=>`<div class="dash-row" style="padding:8px 4px"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span><span class="grow"></span><button class="btn btn-sm btn-accent" type="button" data-act="classPage" data-id="${esc(c)}">🔎 開啟班級頁</button><button class="btn btn-sm ${c===sel?'btn-accent':''}" type="button" data-act="gmPick" data-id="${esc(c)}">✏️ 成員</button></div>`).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
+  const clsRows=classes.length?classes.map(c=>`<div class="dash-row" style="padding:8px 4px;flex-wrap:wrap"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span><span class="grow"></span><button class="btn btn-sm btn-accent" type="button" data-act="classPublish" data-id="${esc(c)}">📢 發佈內容</button><button class="btn btn-sm" type="button" data-act="classPage" data-id="${esc(c)}">🔎 班級頁</button><button class="btn btn-sm ${c===sel?'btn-accent':''}" type="button" data-act="gmPick" data-id="${esc(c)}">✏️ 成員</button></div>`).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
   const members=sel?(S.students.length?S.students.map(s=>`<label class="check-row"><input type="checkbox" class="gm-mem" value="${s.id}" ${stuGroups(s).includes(sel)?'checked':''}> ${esc(s.name)} <span class="tag">${esc(s.class_type||'')}</span></label>`).join(''):'<div class="hint">還沒有學生。</div>'):'';
   openModal(`<div class="modal"><div class="modal-head"><h3>👥 團班管理</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
@@ -1648,6 +1648,29 @@ H.assignAll=()=>{const b=$$('#as-targets input');const all=b.every(x=>x.checked)
 H.groupsMgr=()=>groupMgrModal('');
 H.gmPick=(id)=>groupMgrModal(id);
 H.classPage=(id)=>classWindow(id);
+function publishModal(cls){const lessons=sortLessons(S.lessons);
+  const rows=lessons.length?lessons.map(l=>{const on=(l.assigned_groups||[]).includes(cls);return `<label class="check-row"><input type="checkbox" class="pub-les" value="${l.id}" ${on?'checked':''}> ${esc((l.order_index?('L'+l.order_index+' · '):'')+(l.title||''))}${on?' <span class="tag gold">已發佈</span>':''}</label>`;}).join(''):'<div class="hint">還沒有做好的課文。可先到「上課教材」新增。</div>';
+  openModal(`<div class="modal"><div class="modal-head"><h3>📢 發佈給「${esc(cls)}」</h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>① 上傳 PDF／圖片，直接發佈</label>
+        <div><button class="btn btn-accent" type="button" data-act="pubPdf" data-id="${esc(cls)}">⬆ 上傳檔案給這個班</button> <span class="hint" id="pub-st"></span></div>
+        <div class="hint" style="margin-top:4px">上傳後會建立一份新教材、直接發佈給全班；學生在「上課內容」就看得到、可下載。</div></div>
+      <div class="field" style="border-top:1px solid var(--line);padding-top:12px"><label>② 選擇已做好的教材（勾選＝發佈給這個班）</label>
+        <div class="check-list" id="pub-lessons">${rows}</div>
+        <div style="margin-top:10px"><button class="btn btn-primary" data-act="pubSaveLessons" data-id="${esc(cls)}">儲存發佈</button></div></div>
+    </div></div>`);
+}
+H.classPublish=(cls)=>publishModal(cls);
+H.pubPdf=(cls)=>{const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,application/pdf,image/*';
+  inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=$('#pub-st');if(st)st.textContent='上傳中…（檔案大時請稍候）';
+    if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage';return;}
+    try{const url=await uploadHandout(f);const title=(f.name||'教材').replace(/\.[^.]+$/,'');const maxO=S.lessons.reduce((a,l)=>Math.max(a,l.order_index||0),0);
+      await DB.insert('lessons',{title,textbook:'',handout_url:url,handout_name:f.name||'',assigned_groups:[cls],assigned_ids:[],dialogues:[],grammar_points:[],layout:[],order_index:maxO+1,created_at:new Date().toISOString()});
+      if(st)st.textContent='已發佈 ✓';toast('已上傳並發佈給全班');await loadAll();publishModal(cls);}catch(e){if(st)st.textContent='失敗：'+((e&&e.message)||e);}};
+  inp.click();};
+H.pubSaveLessons=async(cls)=>{const checked=new Set($$('#pub-lessons .pub-les:checked').map(x=>x.value));const btn=document.querySelector('[data-act="pubSaveLessons"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
+  try{for(const l of S.lessons){const on=(l.assigned_groups||[]).includes(cls);const want=checked.has(l.id);if(on===want)continue;let ag=Array.isArray(l.assigned_groups)?l.assigned_groups.slice():[];if(want)ag.push(cls);else ag=ag.filter(x=>x!==cls);await DB.update('lessons',l.id,{assigned_groups:ag});l.assigned_groups=ag;}
+    toast('已更新發佈');closeModal();render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存發佈';}toast('失敗：'+((e&&e.message)||e));}};
 H.gmSchedAdd=()=>{const c=$('#gm-sched');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
 H.gmMetaSave=async(cls)=>{const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const st=$('#gm-meta-st');if(st)st.textContent='儲存中…';
   try{await saveClassMeta(cls,{schedule,textbook});if(st)st.textContent='已儲存 ✓';toast('已儲存團班資訊');}catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}};
