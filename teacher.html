@@ -187,7 +187,7 @@ async function loadAll(){
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
     DB.list('lessons'),DB.list('questions'),DB.list('results')]);
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron');
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
   splitResults(d);
   {const cut=Date.now()-7*864e5;(S.trashStudents||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('students',x.id).catch(()=>{});});(S.trashLessons||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('lessons',x.id).catch(()=>{});});}
   if(!owner){
@@ -716,13 +716,19 @@ function classBoardHtml(cls){
   const prows=prons.map(p=>`<div class="card" style="margin:8px 0;padding:12px"><div class="row-between"><b>🔤 ${esc(p.title||'發音')}</b><span class="tag">發音教材</span></div></div>`).join('');
   return `<div class="hint" style="margin-bottom:6px">整班發佈 ${pub.length} 課${prons.length?('＋'+prons.length+' 份發音'):''}　徽章：<span class="badge badge-ok">已完成</span> <span class="badge badge-soon">待批改／作答中</span> <span class="badge badge-pending">未開始</span></div>${lrows}${prows}`;
 }
+function classMetaAll(){const d=S.classMeta;return (d&&d.meta)||{};}
+function classMetaOf(cls){return classMetaAll()[cls]||{};}
+async function saveClassMeta(cls,patch){const all=Object.assign({},classMetaAll());all[cls]=Object.assign({},all[cls]||{},patch);
+  if(S.classMeta&&S.classMeta.id){await DB.update('lessons',S.classMeta.id,{meta:all});S.classMeta.meta=all;}
+  else{const doc=await DB.insert('lessons',{kind:'classmeta',meta:all,created_at:new Date().toISOString()});S.classMeta=doc||{kind:'classmeta',meta:all};}}
+function classSchedText(cls){const cm=classMetaOf(cls);return (cm.schedule&&cm.schedule.length)?fmtSchedule({schedule:cm.schedule}):'';}
 function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==null?'':x)));
   const members=S.students.filter(s=>stuGroups(s).includes(cls));
   const pub=sortLessons(S.lessons).filter(l=>(l.assigned_groups||[]).includes(cls));
   const prons=(S.prons||[]).filter(p=>(p.assigned_groups||[]).includes(cls));
   const STAT=r=>!r?['未開始','#9ca3af']:(r.status==='draft'?['作答中','#d97706']:(r.status==='pending'?['待批改','#d97706']:['已完成','#16a34a']));
   const roster=members.length?members.map(s=>{const asg=S.lessons.filter(l=>isAssignedTo(l,s)&&answerableOf(l.id).length);const done=asg.filter(l=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;
-    return `<tr><td><b>${e(s.name)}</b></td><td>${e(s.class_type||'')}</td><td>${e(s.email||'')}</td><td>${e(fmtSchedule(s)||'')}</td><td>${asg.length?(done+' / '+asg.length):'—'}</td></tr>`;}).join(''):'<tr><td colspan="5" style="color:#888">還沒有成員</td></tr>';
+    return `<tr><td><b>${e(s.name)}</b></td><td>${e(s.email||'')}</td><td>${asg.length?(done+' / '+asg.length):'—'}</td></tr>`;}).join(''):'<tr><td colspan="3" style="color:#888">還沒有成員</td></tr>';
   const lessonsHtml=(pub.length||prons.length)?pub.map(l=>{const hw=answerableOf(l.id).length;const submitted=members.filter(s=>{const r=resultOf(l.id,s.id);return r&&(r.status==='pending'||r.status==='done');}).length;
     const cells=members.map(s=>{const r=resultOf(l.id,s.id);const st=STAT(r);return `<span class="pill" style="background:${st[1]}1e;color:${st[1]};border:1px solid ${st[1]}55">${e(s.name)}：${st[0]}</span>`;}).join('');
     return `<div class="lcard"><div class="lhead"><b>${(l.order_index?('L'+l.order_index+' · '):'')+e(l.title)}</b><span class="cnt">已交 ${submitted}/${members.length}</span></div>${hw?`<div class="pills">${cells}</div>`:'<div class="muted">此課只有上課內容、沒有作業題</div>'}</div>`;}).join('')+prons.map(p=>`<div class="lcard"><div class="lhead"><b>🔤 ${e(p.title||'發音')}</b><span class="cnt">發音教材</span></div></div>`).join(''):'<div class="muted">還沒有整班發佈的內容。到任一課按「指派」→勾選這個團班即可。</div>';
@@ -737,8 +743,8 @@ function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==nul
    +'.pills{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px}.pill{font-size:12px;border-radius:14px;padding:3px 10px}.muted{color:#888;font-size:13px;margin-top:6px}'
    +'@media print{.bar{display:none}body{background:#fff}}</style></head><body>'
    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存 PDF</button><button onclick="location.reload()">↻ 重新整理</button></div>'
-   +'<h1>👥 '+e(cls)+'</h1><div class="info"><span>👤 '+members.length+' 位學生</span><span>📚 整班發佈 '+pub.length+' 課'+(prons.length?('＋'+prons.length+' 份發音'):'')+'</span></div>'
-   +'<h2>👥 學生名單</h2><table><thead><tr><th>姓名</th><th>班別</th><th>Email</th><th>上課時段</th><th>作業完成</th></tr></thead><tbody>'+roster+'</tbody></table>'
+   +'<h1>👥 '+e(cls)+'</h1><div class="info"><span>👤 '+members.length+' 位學生</span>'+(classSchedText(cls)?'<span>🕒 '+e(classSchedText(cls))+'</span>':'')+(classMetaOf(cls).textbook?'<span>📖 '+e(classMetaOf(cls).textbook)+'</span>':'')+'<span>📚 整班發佈 '+pub.length+' 課'+(prons.length?('＋'+prons.length+' 份發音'):'')+'</span></div>'
+   +'<h2>👥 學生名單</h2><table><thead><tr><th>姓名</th><th>Email</th><th>作業完成</th></tr></thead><tbody>'+roster+'</tbody></table>'
    +'<h2>📚 上課內容 ＆ 繳交狀況</h2>'+lessonsHtml
    +'</body></html>';
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();}
@@ -749,7 +755,12 @@ function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
    <div class="modal-body">
      <div class="field"><label>建立新團班</label><div class="dual-row"><input id="gm-new" type="text" placeholder="例：週二晚班"><button class="btn btn-accent" type="button" data-act="gmCreate">＋ 建立</button></div></div>
      <div class="field"><label>現有團班 <span class="hint">按「🔎 開啟班級頁」看名單、上課內容、繳交狀況</span></label>${clsRows}</div>
-     ${sel?`<div class="field" style="border-top:1px solid var(--line);padding-top:14px"><label>✏️ 編輯「${esc(sel)}」的成員 <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}" style="float:right">刪除此團班</button></label>
+     ${sel?`<div class="field" style="border-top:1px solid var(--line);padding-top:14px"><label>🕒 「${esc(sel)}」上課時段 <span class="hint">整班共用，設定一次；會顯示在班級頁</span></label>
+       <div id="gm-sched">${(classMetaOf(sel).schedule&&classMetaOf(sel).schedule.length?classMetaOf(sel).schedule:[{}]).map(r=>schedRowHTML(r)).join('')}</div>
+       <button class="btn btn-sm" type="button" data-act="gmSchedAdd" style="margin-top:6px">＋ 新增時段</button>
+       <div style="margin-top:10px"><input id="gm-book" type="text" value="${esc(classMetaOf(sel).textbook||'')}" placeholder="團班教材（選填），例：時代華語三"></div>
+       <div style="margin-top:8px"><button class="btn btn-primary" data-act="gmMetaSave" data-id="${esc(sel)}">儲存團班資訊</button> <span class="hint" id="gm-meta-st"></span></div></div>
+     <div class="field"><label>✏️ 「${esc(sel)}」成員 <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}" style="float:right">刪除此團班</button></label>
        <div class="check-list" id="gm-members">${members}</div>
        <div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-primary" data-act="gmSave" data-id="${esc(sel)}">儲存成員</button><button class="btn" type="button" data-act="classPage" data-id="${esc(sel)}">🔎 開啟班級頁</button></div></div>`:''}
    </div></div>`);
@@ -1630,6 +1641,9 @@ H.assignAll=()=>{const b=$$('#as-targets input');const all=b.every(x=>x.checked)
 H.groupsMgr=()=>groupMgrModal('');
 H.gmPick=(id)=>groupMgrModal(id);
 H.classPage=(id)=>classWindow(id);
+H.gmSchedAdd=()=>{const c=$('#gm-sched');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
+H.gmMetaSave=async(cls)=>{const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const st=$('#gm-meta-st');if(st)st.textContent='儲存中…';
+  try{await saveClassMeta(cls,{schedule,textbook});if(st)st.textContent='已儲存 ✓';toast('已儲存團班資訊');}catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}};
 H.gmCreate=()=>{const v=(($('#gm-new')&&$('#gm-new').value)||'').trim();if(!v)return toast('請輸入團班名稱');groupMgrModal(v);};
 H.gmDelClass=async(cls)=>{if(!confirm('刪除團班「'+cls+'」？（只是把學生移出這個班，不會刪除學生）'))return;const affected=S.students.filter(s=>stuGroups(s).includes(cls));try{for(const s of affected){const g=stuGroups(s).filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}groupMgrModal('');render();toast('已刪除團班');}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.gmSave=async(cls)=>{const checked=new Set($$('#gm-members .gm-mem:checked').map(x=>x.value));const btn=document.querySelector('[data-act="gmSave"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
