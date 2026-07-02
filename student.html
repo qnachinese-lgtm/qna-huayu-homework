@@ -309,14 +309,14 @@ function vocabSectionHtml(l,di,opts){opts=opts||{};
 function discSectionHtml(l,di,opts){opts=opts||{};const answerable=!!opts.answerable;const doc=opts.doc||null;const fb=(doc&&doc.feedback)||{};const ans=(doc&&doc.answers)||{};
   const d=lessonDialogues(l)[di];if(!d)return '';const discQs=(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean);if(!discQs.length)return '';
   return `<details class="disc sub-fold" open><summary>💬 ${t('discTitle')}${(d.title||'').trim()?('（'+esc(d.title.trim())+'）'):''}</summary><ol class="disc-qs">${discQs.map((q,qi)=>{const key=di+'_'+qi;const note=fb[key];const a=ans[key]!=null?ans[key]:'';return `<li><div class="disc-q lookup">${prose2(q)}</div>${answerable?`<textarea class="disc-ans" data-k="${key}" rows="2" placeholder="${esc(t('discPh'))}">${esc(a)}</textarea>`:(a?`<div class="disc-myans">${esc(a)}</div>`:'')}${note?`<div class="fb-note">💬 ${t('sentFb')}：${esc(note)}</div>`:''}</li>`;}).join('')}</ol></details>`;}
-function dialoguesHtml(l,opts){return lessonDialogues(l).map((d,di)=>dialogueBlockHtml(l,di,opts)+vocabSectionHtml(l,di,opts)).join('');}
+function dialoguesHtml(l,opts){return lessonDialogues(l).map((d,di)=>dialogueBlockHtml(l,di,opts)+discSectionHtml(l,di,opts)+vocabSectionHtml(l,di,opts)).join('');}
 function reconcileLayout(l){const ds=lessonDialogues(l);const nd=ds.length,ng=(l.grammar_points||[]).length;const hasQ=i=>!!(ds[i]&&(ds[i].discussion||'').split('\n').some(s=>s.trim()));const hasV=i=>!!(ds[i]&&parseVocab(ds[i].vocabulary).length);const saved=Array.isArray(l.layout)?l.layout:[];
   const out=[],sd=new Set(),sg=new Set(),sq=new Set(),sv=new Set();
   saved.forEach(e=>{if(!e)return;if(e.t==='d'&&e.i<nd&&!sd.has(e.i)){out.push({t:'d',i:e.i});sd.add(e.i);}else if(e.t==='v'&&e.i<nd&&hasV(e.i)&&!sv.has(e.i)){out.push({t:'v',i:e.i});sv.add(e.i);}else if(e.t==='g'&&e.i<ng&&!sg.has(e.i)){out.push({t:'g',i:e.i});sg.add(e.i);}else if(e.t==='q'&&e.i<nd&&hasQ(e.i)&&!sq.has(e.i)){out.push({t:'q',i:e.i});sq.add(e.i);}});
   for(let i=0;i<nd;i++)if(!sd.has(i))out.push({t:'d',i});
   for(let i=0;i<ng;i++)if(!sg.has(i))out.push({t:'g',i});
   for(let i=0;i<nd;i++){if(hasV(i)&&!sv.has(i)){const pos=out.findIndex(e=>e.t==='d'&&e.i===i);if(pos>=0)out.splice(pos+1,0,{t:'v',i});else out.push({t:'v',i});}}
-  for(let i=0;i<nd;i++){if(hasQ(i)&&!sq.has(i)){const vp=out.findIndex(e=>e.t==='v'&&e.i===i);const dp=out.findIndex(e=>e.t==='d'&&e.i===i);const at=vp>=0?vp:dp;if(at>=0)out.splice(at+1,0,{t:'q',i});else out.push({t:'q',i});}}
+  for(let i=0;i<nd;i++){if(hasQ(i)&&!sq.has(i)){const dp=out.findIndex(e=>e.t==='d'&&e.i===i);if(dp>=0)out.splice(dp+1,0,{t:'q',i});else out.push({t:'q',i});}}
   return out;}
 function grammarSectionHtml(l,gi,qsAll,opts,num){const g=(l.grammar_points||[])[gi];if(!g)return '';
   const numbered=arr=>{let n=0;return arr.map(q=>{if(q.type==='note')return practiceItemHtml(q,-1);const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;return practiceItemHtml(q,st);}).join('');};
@@ -325,7 +325,7 @@ function grammarSectionHtml(l,gi,qsAll,opts,num){const g=(l.grammar_points||[])[
     if(subs.length){const noSub=qs.filter(q=>!(q.gp_sub||'').trim());const groups=subs.map(s=>{const sq=qs.filter(q=>(q.gp_sub||'').trim()===s);return `<div class="pi-sub"><div class="pi-sub-head">${esc(s)}</div><div class="pi-wrap">${numbered(sq)}</div></div>`;});if(noSub.length)groups.push(`<div class="pi-wrap">${numbered(noSub)}</div>`);prac=groups.join('');}
     else prac=`<div class="pi-wrap">${numbered(qs)}</div>`;}
   const answerable=qs.filter(q=>q.type!=='note').length;
-  if(answerable&&!S.preview&&!opts.answerable){prac+=`<div class="gp-submit-row" style="margin-top:10px;border-top:1px dashed var(--line);padding-top:10px"><button class="btn btn-soft btn-sm" data-act="submitGprac" data-id="${l.id}::${gi}">${gpLab('psubmit')}</button></div>`;}
+  if(answerable){prac+=`<div class="gp-submit-row" style="margin-top:10px;border-top:1px dashed var(--line);padding-top:10px"><button class="btn btn-accent btn-sm" data-act="submitGprac" data-id="${l.id}::${gi}">${gpLab('psubmit')}</button> <span class="hint">${gpLab('psubmitHint')||'做完這個語法就可以先送出'}</span></div>`;}
   return `<div class="lesson-block">${gpFold(g,gi,prac,num)}</div>`;}
 function handoutHtml(l){
   if(!l||!l.handout_url)return '';
@@ -414,7 +414,7 @@ function isManualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||
 function stripOptLabel(s){return String(s||'').replace(/^\s*[a-dA-DＡ-Ｄａ-ｄ]\s*[\.．、）)：:]\s*/,'').trim();}
 function optBlank(s){return esc(String(s||'')).replace(/[_＿]{2,}/g,'<span class="opt-blank"></span>').replace(/\n/g,'<br>');}
 function practiceItemHtml(q,n){if(q.type==='note')return `<div class="pi-item">${qHtml(q,n)}</div>`;
-  const acts=q.type==='fill'?'':`<div class="pi-actions"><button class="btn btn-sm btn-accent" type="button" data-act="pcheck" data-q="${q.id}">${isManualQ(q)?th('reveal'):th('check')}</button></div>`;
+  const acts=(q.type==='fill'||isManualQ(q))?'':`<div class="pi-actions"><button class="btn btn-sm btn-accent" type="button" data-act="pcheck" data-q="${q.id}">${th('check')}</button></div>`;
   return `<div class="pi-item">${qHtml(q,n)}${acts}<div class="q-feedback hide" id="pfb-${q.id}"></div></div>`;}
 function grammarPracticeHtml(l){
   const gps=l.grammar_points||[];const qsAll=questionsOf(l.id);
@@ -526,7 +526,7 @@ function gpAnsText(q,resp){if(resp==null||resp==='')return '';
   if(q.type==='match')return Array.isArray(resp)?resp.join('、'):String(resp);
   if(q.type==='write'||(q.type==='fill'&&q.input_mode==='write'))return '（手寫）';
   return String(resp);}
-function gpracBarHtml(l,gpqs){if(!gpqs.length||S.preview)return '';
+function gpracBarHtml(l,gpqs){if(!gpqs.length)return '';
   const doc=gpracDocOf(l.id),reviewed=doc&&doc.status==='reviewed',submitted=!!doc;
   let status='';
   if(reviewed)status=`<div class="notice">${gpLab('graded')}${doc.reviewed_at?(' · '+esc((doc.reviewed_at||'').slice(0,10))):''}</div>`;
@@ -1265,9 +1265,11 @@ async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=t
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
   const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron');S.quizzes=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron');S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];
   const lesson=l.find(x=>x.id===lid);if(!lesson){$('#screen').innerHTML=emptyHtml('⚠️','找不到這一課','請回教師頁重新開啟預覽。');return;}
-  S.practiceSet={mode:'lesson',lessonId:lid,lesson:lesson,questions:questionsOf(lid),title:(lesson.order_index?('L'+lesson.order_index+' · '):'')+lesson.title};
-  S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';renderPractice();
-  const sc=$('#screen');if(sc){const bn=document.createElement('div');bn.className='preview-bar';bn.textContent='👁 預覽模式：這是學生看到的畫面（作答不會儲存）';sc.insertBefore(bn,sc.firstChild);}
+  S.section='content';$('#screen').dataset.mode='';
+  const ttl=(lesson.order_index?('L'+lesson.order_index+' · '):'')+lesson.title;
+  $('#screen').innerHTML=`<div class="section-head"><h2>${esc(ttl)}</h2></div><div class="cards">${lessonCardHtml(lesson,0)}</div>`;
+  try{convScreen();setupCanvases();}catch(e){}
+  const sc=$('#screen');if(sc){const bn=document.createElement('div');bn.className='preview-bar';bn.textContent='👁 預覽模式：這就是學生「上課內容」看到的畫面（作答不會儲存）';sc.insertBefore(bn,sc.firstChild);}
 }
 
 /* ---- PWA：到期本地通知 ---- */
