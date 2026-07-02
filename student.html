@@ -658,7 +658,7 @@ function renderWork(){
   const ls=myLessons().filter(l=>answerableOf(l.id).length);
   const myQuizzes=(S.quizzes||[]).filter(qz=>assignedToMe(qz)).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
   const quizCard=myQuizzes.length?('<div class="lesson-label" style="margin-top:6px">'+t('quizSec')+'</div><div class="quiz-list">'+myQuizzes.map(qz=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;const qm=t({dict:'qmDict',pinyin:'qmPinyin',mean:'qmMean',choice:'qmChoice',cloze:'qmCloze',custom:'qmCustom'}[qz.mode||'dict']||'qmDict');return `<div class="quiz-card${done?' done':''}"${done?'':' data-act="startQuiz" data-id="'+qz.id+'"'}><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>${esc(qz.title||t('quizDefTitle'))}</b><div class="muted" style="font-size:12px">${qm}</div></div>${done?`<span class="badge badge-ok">${r.score}/${r.total}</span>`:`<span class="badge badge-soon">${t('quizNotTaken')}</span>`}</div>`;}).join('')+'</div>'):'';
-  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML=banner+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
+  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML=banner+submittedWorkHtml()+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
   let overdue=0,soon=0;ls.forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});
   const fbN=ls.filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
   const sentFbN=(S.sentences||[]).filter(s=>s.status==='reviewed'&&((s.overall&&s.overall.trim())||(s.feedback&&Object.keys(s.feedback).length))).length;
@@ -683,7 +683,7 @@ function renderWork(){
   // 課後小結（老師寫的上課記錄備註）
   const notes=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).filter(e=>e&&e.note&&e.note.trim()).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3);
   const noteCard=notes.length?'<div class="note-card"><div class="ann-h">📝 課後小結 Class notes</div>'+notes.map(n=>'<div class="ann-item"><span class="ann-date">'+esc(n.date||'')+'</span>'+esc(n.note||'')+'</div>').join('')+'</div>':'';
-  $('#screen').innerHTML=banner+badgeStrip+annCard+meetCard+calCard+noteCard+sessCard+nb+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
+  $('#screen').innerHTML=banner+badgeStrip+annCard+meetCard+calCard+noteCard+sessCard+nb+submittedWorkHtml()+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
@@ -757,14 +757,14 @@ function renderContent(){
   const prons=(S.prons||[]).filter(p=>S.preview||assignedToMe(p));
   const _grp=myGroups();
   const clsBanner=(!S.preview&&_grp.length)?`<div class="card" style="margin-bottom:12px;border-left:4px solid var(--primary)"><div style="font-weight:600">👥 ${t('yourClass')}：${_grp.map(esc).join('、')}</div>${_grp.map(g=>{const cm=classMetaOf(g);const s=fmtSched(cm.schedule);return (s||cm.textbook)?`<div class="hint" style="margin-top:4px">${esc(g)}${s?' · 🕒 '+esc(s):''}${cm.textbook?' · 📖 '+esc(cm.textbook):''}</div>`:'';}).join('')}<div class="hint" style="margin-top:4px">${t('classNote')}</div></div>`:'';
-  if(!normals.length&&!prons.length){$('#screen').innerHTML=clsBanner+classDaysHtml()+submittedWorkHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
+  if(!normals.length&&!prons.length){$('#screen').innerHTML=clsBanner+classDaysHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
   const entries=[...normals.map(l=>({k:'l',l,b:(l.textbook||'').trim()||t('uncat')})),...prons.map(p=>({k:'p',l:p,b:(p.textbook||'').trim()||t('navPron')}))];
   const books=[];entries.forEach(e=>{if(!books.includes(e.b))books.push(e.b);});
   const cur=(S.contentBook&&books.includes(S.contentBook))?S.contentBook:books[0];
   const tabBar=books.length>1?`<div class="book-bar2">${books.map(b=>`<button type="button" class="book-chip${b===cur?' on':''}" data-act="contentBook" data-id="${esc(b)}">${esc(b)}</button>`).join('')}</div>`:'';
   const shown=entries.filter(e=>e.b===cur);
   const cards=shown.map((e,i)=>e.k==='p'?pronLessonCardHtml(e.l):lessonCardHtml(e.l,i)).join('');
-  $('#screen').innerHTML=clsBanner+classDaysHtml()+submittedWorkHtml()+tabBar+'<div class="cards">'+cards+'</div>';
+  $('#screen').innerHTML=clsBanner+classDaysHtml()+tabBar+'<div class="cards">'+cards+'</div>';
   convScreen();setupCanvases();
   if(!S.preview)shown.forEach(e=>{if(e.k!=='l')return;const n=noteOf(e.l.id);if(n&&n.ink){const cv=document.getElementById('note-cv-'+e.l.id);if(cv)loadNoteInk(cv,n.ink);}});
   if(S.lang==='vi'){const bs=[];myLessons().forEach(l=>lessonDialogues(l).forEach(d=>parseVocab(d.vocabulary).forEach(v=>{if(v.back)bs.push(v.back);})));hydrateVi(bs);}else applyVi();
