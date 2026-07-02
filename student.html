@@ -135,7 +135,7 @@ function parseVocab(text){const out=[];(text||'').split('\n').forEach(raw=>{cons
   else{const si=l.search(/[：:\t\s]/);if(si<0){front=l;back='';}else{front=l.slice(0,si).trim();back=l.slice(si+1).replace(/^[：:·\s]+/,'').trim();}}
   out.push({front:(front||'').trim(),py,pos,back,ex:[]});});
   return out;}
-function vocabAnno(v){if(v&&v.py&&S.ann==='pinyin')return `<ruby class="vcust">${esc(v.front)}<rt>${esc(v.py)}</rt></ruby>`;return annotate(v.front);}
+function vocabAnno(v){const p=(v&&[...String(v.front||'')].length===1&&PY_OVERRIDE[v.front])||(v&&v.py);if(p&&S.ann==='pinyin')return `<ruby class="vcust">${esc(v.front)}<rt>${esc(p)}</rt></ruby>`;return annotate(v.front);}
 /* 生詞意思：預設顯示老師匯入的英文；只有老師「公開越南文」後，才會帶入越南文（不使用機器翻譯） */
 function vocabMean(v){return (v&&v.vi)||(v&&v.back)||'';}
 /* ===== 拼音／注音 標音 ===== */
@@ -162,6 +162,9 @@ function wordReading(w){if(!window.pinyinPro)return '';try{if(S.ann==='zhuyin'){
 /* 臺灣常見讀音修正（與中國大陸不同者）；只在自動產生拼音時套用，老師匯入的拼音優先 */
 const TW_PY={'期':'qí','究':'jiù','質':'zhí','危':'wéi','企':'qì','暫':'zhàn','攜':'xī','液':'yì','垃':'lè','圾':'sè','蝸':'guā','跌':'dié'};
 function twReading(w){if(!window.pinyinPro)return '';if(S.ann==='zhuyin')return wordReading(w);try{const arr=pinyinPro.pinyin(w,{type:'all',toneType:'symbol'});return arr.map(o=>o.isZh?(TW_PY[o.origin]||o.pinyin):o.origin).join(' ');}catch(e){return wordReading(w);}}
+// 少數嘆詞/多音字，自動拼音會給不好懂的讀音（如「嗯」→ǹg），這裡強制修正
+const PY_OVERRIDE={'嗯':'ēn'};
+function vpy(v){const f=(v&&v.front)||'';if([...String(f)].length===1&&PY_OVERRIDE[f])return PY_OVERRIDE[f];return (v&&v.py)||twReading(f);}
 function flashFront(v){const word=(v&&v.front)||'';const n=[...word].length;const fsz=n<=1?54:n===2?46:n===3?36:n===4?29:n<=6?23:18;
   const rd=(typeof S!=='undefined'&&S.ann==='off')?'':((v&&v.py)||wordReading(word));
   return `<span class="flash-rd">${esc(rd||'')||'&nbsp;'}</span><span class="flash-word" style="font-size:${fsz}px">${esc(word)}</span>`;}
@@ -310,19 +313,21 @@ function genVocabMatch(){const list=shuffle(vocabScoped().slice(),Math.random()+
   for(let g=0;g<groups;g++){const chunk=list.slice(g*per,(g+1)*per);if(chunk.length<1)continue;
     out.push({id:'vm'+g,type:'match',options:chunk.map(v=>({l:v.front,r:v.back||wordReading(v.front)||v.front}))});}
   return out;}
+// 例句若是對話（A：… B：…），在換人說話處自動斷行成兩行以上
+function exDlg(s){return String(s||'').replace(/([。！？?!.]?)[\s／/]+(?=[^\s，,。！？?!.：:、；;／/]{1,4}[：:])/g,'$1\n').split('\n').map(x=>x.trim()).filter(Boolean).map(x=>annotate(x)).join('<br>');}
 function examplesHtml(text){const lines=(text||'').split('\n').map(s=>s.trim()).filter(Boolean);if(!lines.length)return '';
-  return `<details class="disc ex-fold"><summary>${t('examples')}</summary><div class="ex-list" style="margin-top:8px">${lines.map(s=>`<div class="ex-item">${annotate(s)}</div>`).join('')}</div></details>`;}
+  return `<details class="disc ex-fold"><summary>${t('examples')}</summary><div class="ex-list" style="margin-top:8px">${lines.map(s=>`<div class="ex-item">${exDlg(s)}</div>`).join('')}</div></details>`;}
 function dlgHasAudio(l){return lessonDialogues(l).some(d=>d.audio_url);}
 function lessonHasContent(l){return lessonDialogues(l).some(d=>d.content||parseVocab(d.vocabulary).length||d.audio_url)||(l.grammar_points&&l.grammar_points.length)||questionsOf(l.id).length||l.key_points||l.examples;}
 function lessonHasDisc(l){return lessonDialogues(l).some(d=>(d.discussion||'').split('\n').some(s=>s.trim()));}
 function vocabBlockHtml(l,di,vocab,chips){
   return '<div class="vocab-rows">'+vocab.map((v,k)=>{const hasEx=v.ex&&v.ex.length;
     const chip=vocabHasAudio(l,di,k)?`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-di="${di}" data-vi="${k}" data-text="${esc(v.front)}">${esc(v.front)}<span class="spk">🔊</span></button>`:`<span class="vocab-chip">${esc(v.front)}</span>`;
-    const rd=v.py||twReading(v.front);const py=rd?`<span class="vrow-py">${esc(rd)}</span>`:'';
+    const rd=vpy(v);const py=rd?`<span class="vrow-py">${esc(rd)}</span>`:'';
     const pos=v.pos?`<span class="vpos">${esc(v.pos)}</span>`:'';
     const mean=v.back?`<span class="vrow-mean">${esc(vocabMean(v))}</span>`:'';
     const tog=hasEx?`<button type="button" class="btn btn-sm vex-toggle" data-act="vocabEx" data-id="${di}_${k}">📝 ${t('exLabel')}（${v.ex.length}）</button>`:'';
-    const list=hasEx?`<div class="vex-list hide" id="vex-${di}_${k}">${v.ex.map(s=>`<div class="ex-item">${annotate(s)}</div>`).join('')}</div>`:'';
+    const list=hasEx?`<div class="vex-list hide" id="vex-${di}_${k}">${v.ex.map(s=>`<div class="ex-item">${exDlg(s)}</div>`).join('')}</div>`:'';
     return `<div class="vrow"><div class="vrow-top">${chip}${py}${pos}${mean}${tog}</div>${list}</div>`;}).join('')+'</div>';}
 function dialogueBlockHtml(l,di,opts){opts=opts||{};
   const d=lessonDialogues(l)[di];if(!d)return '';
