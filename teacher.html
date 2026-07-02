@@ -87,6 +87,8 @@
         <div id="ops-body"></div>
       </section>
 
+      <section id="panel-classview" class="panel hide"><div id="classview-body"></div></section>
+
       <div class="foot-note">華語線上作業簿 · 教師後台</div>
     </div>
   </div>
@@ -204,7 +206,9 @@ function splitResults(d){d=d||[];S.results=d.filter(x=>x.kind!=='sentence'&&x.ki
 function openModal(h){$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
 function closeModal(){$('#modal-root').innerHTML='';}
 
+const CLASS_VIEW=new URLSearchParams(location.search).get('class');
 function render(){
+  if(CLASS_VIEW){try{renderClassView(CLASS_VIEW);}catch(e){}return;}
   $$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.id===S.tab));
   $('#c-students').textContent=S.students.length;
   $('#c-lessons').textContent=S.lessons.length+((S.prons||[]).length);
@@ -749,11 +753,10 @@ function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==nul
    +'.lcard{border:1px solid #e3e3e3;border-radius:10px;padding:12px 14px;margin:10px 0;background:#fff}.lhead{display:flex;justify-content:space-between;align-items:center;gap:10px}.cnt{background:#eef3f3;color:#1F6F78;border-radius:20px;padding:2px 11px;font-size:13px;white-space:nowrap}'
    +'.pills{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px}.pill{font-size:12px;border-radius:14px;padding:3px 10px}.muted{color:#888;font-size:13px;margin-top:6px}'
    +'@media print{.bar{display:none}body{background:#fff}}</style></head><body>'
-   +'<div class="bar"><button onclick="doPub()">📢 發佈內容</button><button onclick="window.print()">🖨 列印 / 存 PDF</button><button onclick="reopen()">↻ 重新整理</button></div>'
+   +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存 PDF</button></div>'
    +'<h1>👥 '+e(cls)+'</h1><div class="info"><span>👤 '+members.length+' 位學生</span>'+(classSchedText(cls)?'<span>🕒 '+e(classSchedText(cls))+'</span>':'')+(classMetaOf(cls).textbook?'<span>📖 '+e(classMetaOf(cls).textbook)+'</span>':'')+'<span>📚 整班發佈 '+pub.length+' 課'+(prons.length?('＋'+prons.length+' 份發音'):'')+'</span></div>'
    +'<h2>👥 學生名單</h2><table><thead><tr><th>姓名</th><th>Email</th><th>作業完成</th></tr></thead><tbody>'+roster+'</tbody></table>'
    +'<h2>📚 上課內容 ＆ 繳交狀況</h2>'+lessonsHtml
-   +'<script>var _CLS='+JSON.stringify(cls)+';function doPub(){try{var o=window.opener;if(o&&o.H&&o.H.classPublish){o.H.classPublish(_CLS);o.focus();}else{alert("請回教師頁的『團班管理』按發佈");}}catch(e){alert("請回教師頁的『團班管理』按發佈");}}function reopen(){try{if(window.opener&&window.opener.H&&window.opener.H.classPage){window.opener.H.classPage(_CLS);window.close();}else{location.reload();}}catch(e){location.reload();}}<\/script>'
    +'</body></html>';
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();}
 function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
@@ -1648,7 +1651,27 @@ H.assign=(id)=>assignModal(S.lessons.find(l=>l.id===id));
 H.assignAll=()=>{const b=$$('#as-targets input');const all=b.every(x=>x.checked);b.forEach(x=>x.checked=!all);};
 H.groupsMgr=()=>groupMgrModal('');
 H.gmPick=(id)=>groupMgrModal(id);
-H.classPage=(id)=>classWindow(id);
+H.classPage=(id)=>window.open('teacher.html?class='+encodeURIComponent(id),'_blank');
+H.classPrint=(id)=>classWindow(id);
+H.classRefresh=async(id)=>{try{await loadAll();renderClassView(id);toast('已更新');}catch(e){toast('更新失敗');}};
+function renderClassView(cls){
+  const tabs=document.querySelector('.tabs');if(tabs)tabs.classList.add('hide');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.add('hide'));
+  const panel=document.getElementById('panel-classview');if(!panel)return;panel.classList.remove('hide');
+  const members=S.students.filter(s=>stuGroups(s).includes(cls));
+  const cm=classMetaOf(cls);const sched=classSchedText(cls);const TD='padding:7px 9px;border-top:1px solid var(--line)';
+  const roster=members.length?members.map(s=>{const asg=S.lessons.filter(l=>isAssignedTo(l,s)&&answerableOf(l.id).length);const done=asg.filter(l=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;return `<tr><td style="${TD}"><b>${esc(s.name)}</b></td><td style="${TD}">${esc(s.email||'')}</td><td style="${TD}">${asg.length?(done+' / '+asg.length):'—'}</td></tr>`;}).join(''):`<tr><td colspan="3" style="${TD};color:var(--muted)">還沒有成員，按「✏️ 成員／時段」勾選學生。</td></tr>`;
+  const pubN=sortLessons(S.lessons).filter(l=>(l.assigned_groups||[]).includes(cls)).length;
+  document.getElementById('classview-body').innerHTML=`
+    <div class="section-head" style="flex-wrap:wrap;gap:8px"><a class="btn btn-sm btn-ghost" href="teacher.html">← 返回後台</a><h2 style="margin:0">👥 ${esc(cls)}</h2><span class="grow"></span>
+      <button class="btn btn-accent" data-act="classPublish" data-id="${esc(cls)}">📢 發佈內容</button>
+      <button class="btn" data-act="gmPick" data-id="${esc(cls)}">✏️ 成員／時段</button>
+      <button class="btn" data-act="classPrint" data-id="${esc(cls)}">🖨 列印 / PDF</button>
+      <button class="btn" data-act="classRefresh" data-id="${esc(cls)}">↻ 重新整理</button></div>
+    <div class="meta" style="margin:2px 0 16px"><span>👤 ${members.length} 位學生</span>${sched?`<span>🕒 ${esc(sched)}</span>`:''}${cm.textbook?`<span>📖 ${esc(cm.textbook)}</span>`:''}<span>📚 整班發佈 ${pubN} 課</span></div>
+    <div class="card" style="margin-bottom:16px"><h3 style="margin:0 0 10px">👥 學生名單</h3><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:6px 9px;color:var(--primary)">姓名</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">Email</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">作業完成</th></tr></thead><tbody>${roster}</tbody></table></div>
+    <h3>📚 上課內容 ＆ 繳交狀況</h3>${classBoardHtml(cls)}`;
+}
 function publishModal(cls){const lessons=sortLessons(S.lessons);
   const rows=lessons.length?lessons.map(l=>{const on=(l.assigned_groups||[]).includes(cls);return `<label class="check-row"><input type="checkbox" class="pub-les" value="${l.id}" ${on?'checked':''}> ${esc((l.order_index?('L'+l.order_index+' · '):'')+(l.title||''))}${on?' <span class="tag gold">已發佈</span>':''}</label>`;}).join(''):'<div class="hint">還沒有做好的課文。可先到「上課教材」新增。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>📢 發佈給「${esc(cls)}」</h3><button class="x" data-act="closeModal">×</button></div>
