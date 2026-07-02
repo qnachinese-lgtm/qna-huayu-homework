@@ -1655,6 +1655,31 @@ H.gmPick=(id)=>groupMgrModal(id);
 H.classPage=(id)=>window.open('teacher.html?class='+encodeURIComponent(id),'_blank');
 H.classPrint=(id)=>classWindow(id);
 H.classRefresh=async(id)=>{try{await loadAll();renderClassView(id);toast('已更新');}catch(e){toast('更新失敗');}};
+function classRollModal(cls){const members=S.students.filter(s=>stuGroups(s).includes(cls));
+  CLOG_SCHED=(classMetaOf(cls).schedule)||[];const today=new Date().toISOString().slice(0,10);const slot=clSlotFor(today);
+  const dateMap={};members.forEach(s=>(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date)return;const c=(dateMap[e.date]=dateMap[e.date]||{att:0,leave:0,absent:0});if(e.status==='leave')c.leave++;else if(e.status==='absent')c.absent++;else c.att++;}));
+  const dates=Object.keys(dateMap).sort().reverse().slice(0,10);
+  const recent=dates.length?dates.map(d=>{const c=dateMap[d];return `<div class="dash-row"><b>${esc(d)}</b><span class="grow"></span><span class="badge badge-ok">出席 ${c.att}</span> <span class="badge badge-soon">請假 ${c.leave}</span> <span class="badge badge-overdue">缺席 ${c.absent}</span></div>`;}).join(''):'<div class="hint">還沒有上課記錄。</div>';
+  const seg=(sid,st,lb,def)=>`<button type="button" class="${def?'on':''}" data-act="rollPick" data-id="${sid}::${st}" data-st="${st}">${lb}</button>`;
+  const rows=members.length?members.map(s=>{const left=sessionsLeft(s);return `<div class="dash-row" style="align-items:center;gap:8px"><b style="min-width:84px">${esc(s.name)}</b>${left!=null?`<span class="muted" style="font-size:12px">剩 ${left} 堂</span>`:''}<span class="grow"></span><span class="seg-mini roll-seg" data-sid="${s.id}">${seg(s.id,'attended','出席',true)}${seg(s.id,'leave','請假',false)}${seg(s.id,'absent','缺席',false)}</span></div>`;}).join(''):'<div class="hint">這個團班還沒有成員。</div>';
+  openModal(`<div class="modal"><div class="modal-head"><h3>🗓 「${esc(cls)}」上課點名</h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body">
+      <div class="form-grid"><div class="field"><label>上課日期</label><input id="roll-date" type="date" value="${today}"></div>
+        <div class="field full"><label>時段 <span class="hint">依日期自動帶出，可改</span></label><div style="display:flex;align-items:center;gap:8px"><select id="roll-start" style="flex:1">${timeOpts(slot?slot.s:'')}</select><span>～</span><select id="roll-end" style="flex:1">${timeOpts(slot?slot.e:'')}</select></div></div>
+        <div class="field full"><label>課後小結 <span class="hint">選填，全班學生首頁看得到</span></label><input id="roll-note" type="text" placeholder="例：今天上第一課對話"></div></div>
+      <div class="field"><label>點名 <button class="btn btn-sm btn-ghost" type="button" data-act="rollAllAttend" style="float:right">全部出席</button></label><div id="roll-list">${rows}</div></div>
+      <div style="margin-top:6px"><button class="btn btn-primary" data-act="classRollSave" data-id="${esc(cls)}">✅ 記錄這一堂並點名</button> <span class="hint">出席／缺席扣 1 堂，請假不扣</span></div>
+      <details class="disc" style="margin-top:14px"><summary>📅 最近上課記錄</summary><div style="margin-top:8px">${recent}</div></details>
+    </div></div>`);
+}
+H.classRoll=(cls)=>classRollModal(cls);
+H.rollPick=(key)=>{const p=String(key).split('::'),sid=p[0],st=p[1];const seg=document.querySelector('#roll-list .roll-seg[data-sid="'+sid+'"]');if(seg)seg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.st===st));};
+H.rollAllAttend=()=>{document.querySelectorAll('#roll-list .roll-seg').forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.st==='attended')));};
+H.classRollSave=async(cls)=>{const date=$('#roll-date').value;if(!date)return toast('請選上課日期');const start=($('#roll-start')&&$('#roll-start').value)||'';const end=($('#roll-end')&&$('#roll-end').value)||'';const note=($('#roll-note')&&$('#roll-note').value||'').trim();
+  const members=S.students.filter(s=>stuGroups(s).includes(cls));if(!members.length)return toast('這個團班還沒有成員');
+  const btn=document.querySelector('[data-act="classRollSave"]');if(btn){btn.disabled=true;btn.textContent='記錄中…';}
+  try{for(const s of members){const sg=document.querySelector('#roll-list .roll-seg[data-sid="'+s.id+'"]');const onB=sg&&sg.querySelector('button.on');const st=(onB&&onB.dataset.st)||'attended';const entry={date,status:st,start,end,note};const log=(Array.isArray(s.class_log)?s.class_log.slice():[]).concat([entry]);await DB.update('students',s.id,{class_log:log});s.class_log=log;}
+    toast('已記錄這一堂並完成點名');classRollModal(cls);render();}catch(e){if(btn){btn.disabled=false;btn.textContent='✅ 記錄這一堂並點名';}toast('失敗：'+((e&&e.message)||e));}};
 function renderClassView(cls){
   const tabs=document.querySelector('.tabs');if(tabs)tabs.classList.add('hide');
   document.querySelectorAll('.panel').forEach(p=>p.classList.add('hide'));
@@ -1666,6 +1691,7 @@ function renderClassView(cls){
   document.getElementById('classview-body').innerHTML=`
     <div class="section-head" style="flex-wrap:wrap;gap:8px"><a class="btn btn-sm btn-ghost" href="teacher.html">← 返回後台</a><h2 style="margin:0">👥 ${esc(cls)}</h2><span class="grow"></span>
       <button class="btn btn-accent" data-act="classPublish" data-id="${esc(cls)}">📢 發佈內容</button>
+      <button class="btn btn-accent" data-act="classRoll" data-id="${esc(cls)}">🗓 上課點名</button>
       <button class="btn" data-act="gmPick" data-id="${esc(cls)}">✏️ 成員／時段</button>
       <button class="btn" data-act="classPrint" data-id="${esc(cls)}">🖨 列印 / PDF</button>
       <button class="btn" data-act="classRefresh" data-id="${esc(cls)}">↻ 重新整理</button></div>
