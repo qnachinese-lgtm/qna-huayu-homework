@@ -64,6 +64,7 @@
       <section id="panel-students" class="panel hide">
         <div class="section-head"><h2>學生名冊</h2><span class="sub">基本資料與學費</span><span class="grow"></span>
           <input id="stu-search" type="text" placeholder="搜尋名字 / 國籍…" style="max-width:190px">
+          <button class="btn owner-only" data-act="groupsMgr">👥 團班管理</button>
           <button class="btn btn-primary owner-only" data-act="addStudent">＋ 新增學生</button></div>
         <div id="students-list" class="cards cols-2"></div>
       </section>
@@ -218,7 +219,7 @@ function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
   if(diff===0)return{cls:'badge-soon',label:'今天到期',sort:0};
   if(diff<=7)return{cls:'badge-soon',label:diff+' 天後到期',sort:diff};
   return null;}
-function studentProgress(s){const assigned=S.lessons.filter(l=>(l.assigned_ids||[]).includes(s.id)&&answerableOf(l.id).length);
+function studentProgress(s){const assigned=S.lessons.filter(l=>isAssignedTo(l,s)&&answerableOf(l.id).length);
   let done=0,pct=0,scored=0,sumPct=0;
   assigned.forEach(l=>{const r=resultOf(l.id,s.id);if(r){if(r.status==='done')done++;const tot=r.total||answerableOf(l.id).length;if(tot){sumPct+=Math.round(scoreOf(l,r)/tot*100);scored++;}}});
   pct=assigned.length?Math.round(done/assigned.length*100):0;
@@ -361,6 +362,9 @@ function studentModal(st){const e=!!st;st=st||{};
      <div class="field"><label>國籍</label><input id="f-nat" type="text" value="${esc(st.nationality||'')}" placeholder="例：美國"></div>
      <div class="field"><label>班別</label><select id="f-type"><option ${st.class_type==='1對1'?'selected':''}>1對1</option><option ${st.class_type==='團班'?'selected':''}>團班</option></select></div>
      <div class="field"><label>使用教材</label><input id="f-book" type="text" value="${esc(st.textbook||'')}" placeholder="例：當代中文課程 1"></div>
+     <div class="field full"><label>團班 <span class="hint">可多個，用「、」或逗號分隔；或到「👥 團班管理」統一設定</span></label>
+       <input id="f-groups" type="text" list="grouplist" value="${esc((Array.isArray(st.groups)?st.groups:[]).join('、'))}" placeholder="例：週二晚班、週六班">
+       <datalist id="grouplist">${groupsList().map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div>
     </div></div>
     <div class="form-sec"><div class="form-sec-h">🗓️ 上課安排</div><div class="form-grid">
      <div class="field full"><label>上課時段 <span class="hint">一週可多個（例：週三 20:00–22:00、週五 15:00–17:00）</span></label>
@@ -399,7 +403,7 @@ function studentModal(st){const e=!!st;st=st||{};
 function lessonCardHtml(l,i){try{
     const ds=(Array.isArray(l.dialogues)&&l.dialogues.length)?l.dialogues:[{content:l.content,vocabulary:l.vocabulary,audio_url:l.audio_url}];
     const vocab=ds.map(d=>d.vocabulary||'').join('\n').split('\n').map(v=>v.trim()).filter(Boolean);const hasAudio=ds.some(d=>d.audio_url);
-    const qn=questionsOf(l.id).length, an=(l.assigned_ids||[]).length, di=dueInfo(l.due_date);
+    const qn=questionsOf(l.id).length, an=assignedCount(l), di=dueInfo(l.due_date);
     const open=S.openCards&&S.openCards.has(l.id);const built=l.build==='done';
     return `<div class="card lesson-card${open?' open':''}">
       <div class="row-between lesson-head" data-act="toggleCard" data-id="${l.id}"><div style="display:flex;gap:14px;align-items:center">
@@ -421,7 +425,7 @@ function lessonCardHtml(l,i){try{
         <button class="btn btn-sm" data-act="dupLesson" data-id="${l.id}">📋 複製</button>
         <button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div>`:''}</div>`;
   }catch(err){return `<div class="card"><h3>${esc((l&&l.title)||'（未命名課文）')}</h3><div class="hint" style="color:var(--danger);margin-top:6px">這一課顯示時出了點問題（資料沒有遺失，可照常編輯或刪除）。</div><div class="actions" style="margin-top:10px"><button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button><button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題</button><button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div></div>`;}}
-function pronTeacherCardHtml(p){const gs=p.pron_groups||[];const ni=gs.reduce((a,g)=>a+((g.items||[]).length),0);const na=(p.assigned_ids||[]).length;const nq=(p.pron_quiz||[]).length;
+function pronTeacherCardHtml(p){const gs=p.pron_groups||[];const ni=gs.reduce((a,g)=>a+((g.items||[]).length),0);const na=assignedCount(p);const nq=(p.pron_quiz||[]).length;
   return `<div class="card"><div class="row-between"><h3>🔤 ${esc(p.title||'發音')}</h3><div style="display:flex;gap:6px"><button class="btn btn-sm btn-accent" data-act="editPron" data-id="${p.id}">編輯</button><button class="btn btn-sm btn-danger" data-act="delPron" data-id="${p.id}">刪除</button></div></div><div class="hint" style="margin-top:4px">${gs.length} 組 · ${ni} 個音${nq?(' · 聽辨 '+nq+' 題'):''}${p.handout_url?' · 📄 PDF':''} · 指派 ${na} 人</div></div>`;}
 function renderLessons(){
   const wrap=$('#lessons-list');if(!wrap)return;
@@ -690,14 +694,35 @@ function questionEditModal(lid,q,defBank){const e=!!q;q=q||{};QE_TYPE=q.type||'c
 }
 
 /* ---------- 指派 ---------- */
-function assignModal(l){const ids=l.assigned_ids||[];
-  const list=S.students.length?S.students.map(s=>`<label class="check-row"><input type="checkbox" value="${s.id}" ${ids.includes(s.id)?'checked':''}> ${esc(s.name)} <span class="tag">${esc(s.class_type||'1對1')}</span></label>`).join(''):'<div class="hint">尚無學生，請先到「學生名冊」新增。</div>';
+/* ---- 團班（群組班級） ---- */
+function stuGroups(s){return Array.isArray(s&&s.groups)?s.groups.filter(Boolean):[];}
+function groupsList(){const set=new Set();S.students.forEach(s=>stuGroups(s).forEach(g=>set.add(g)));return [...set].sort();}
+function groupSize(c){return S.students.filter(s=>stuGroups(s).includes(c)).length;}
+function isAssignedTo(l,s){if(!l||!s)return false;if((l.assigned_ids||[]).includes(s.id))return true;const ag=l.assigned_groups||[];return ag.length>0&&stuGroups(s).some(g=>ag.includes(g));}
+function lessonTargets(l){return S.students.filter(s=>isAssignedTo(l,s));}
+function assignedCount(l){return lessonTargets(l).length;}
+function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
+  const clsChips=classes.length?classes.map(c=>`<button type="button" class="btn btn-sm ${c===sel?'btn-accent':''}" data-act="gmPick" data-id="${esc(c)}">${esc(c)}（${groupSize(c)}）</button>`).join(''):'<span class="hint">還沒有團班，先在上面建立一個。</span>';
+  const members=sel?(S.students.length?S.students.map(s=>`<label class="check-row"><input type="checkbox" class="gm-mem" value="${s.id}" ${stuGroups(s).includes(sel)?'checked':''}> ${esc(s.name)} <span class="tag">${esc(s.class_type||'')}</span></label>`).join(''):'<div class="hint">還沒有學生。</div>'):'';
+  openModal(`<div class="modal"><div class="modal-head"><h3>👥 團班管理</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="field"><label>建立新團班</label><div class="dual-row"><input id="gm-new" type="text" placeholder="例：週二晚班"><button class="btn btn-accent" type="button" data-act="gmCreate">＋ 建立</button></div></div>
+     <div class="field"><label>現有團班（點一下編輯成員）</label><div style="display:flex;gap:6px;flex-wrap:wrap">${clsChips}</div></div>
+     ${sel?`<div class="field"><label>「${esc(sel)}」的成員 <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}" style="float:right">刪除此團班</button></label>
+       <div class="check-list" id="gm-members">${members}</div>
+       <div style="margin-top:10px"><button class="btn btn-primary" data-act="gmSave" data-id="${esc(sel)}">儲存成員</button></div></div>`:''}
+   </div></div>`);
+}
+function assignModal(l){const ids=l.assigned_ids||[];const ag=l.assigned_groups||[];const classes=groupsList();
+  const grpList=classes.length?classes.map(c=>`<label class="check-row"><input type="checkbox" class="as-grp" value="${esc(c)}" ${ag.includes(c)?'checked':''}> 👥 <b>${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span></label>`).join(''):'<div class="hint">還沒有團班。可在「學生名冊 → 👥 團班管理」建立。</div>';
+  const list=S.students.length?S.students.map(s=>`<label class="check-row"><input type="checkbox" value="${s.id}" ${ids.includes(s.id)?'checked':''}> ${esc(s.name)} <span class="tag">${esc(s.class_type||'1對1')}</span>${stuGroups(s).length?(' <span class="tag">'+stuGroups(s).map(esc).join('、')+'</span>'):''}</label>`).join(''):'<div class="hint">尚無學生，請先到「學生名冊」新增。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>指派「${esc(l.title)}」</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>截止日期 <span class="hint">選填</span></label><input id="as-due" type="date" value="${esc(l.due_date||'')}"></div>
-     <div class="field"><label>指派給哪些學生 <button class="btn btn-sm btn-ghost" data-act="assignAll" type="button" style="float:right">全選 / 取消</button></label>
+     <div class="field"><label>發佈給整個團班 <span class="hint">之後加入這個班的學生會自動拿到</span></label><div class="check-list">${grpList}</div></div>
+     <div class="field"><label>再指派個別學生（選填） <button class="btn btn-sm btn-ghost" data-act="assignAll" type="button" style="float:right">全選 / 取消</button></label>
        <div class="check-list" id="as-targets">${list}</div></div></div>
-   <div class="modal-foot">${ids.length?`<button class="btn btn-warn" data-act="unassign" data-id="${l.id}">↩ 全部收回</button>`:''}<span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">取消</button>
+   <div class="modal-foot">${(ids.length||ag.length)?`<button class="btn btn-warn" data-act="unassign" data-id="${l.id}">↩ 全部收回</button>`:''}<span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">取消</button>
      <button class="btn btn-primary" data-act="saveAssign" data-id="${l.id}">儲存</button></div></div>`);
 }
 
@@ -744,10 +769,10 @@ function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length
     <button class="btn btn-sm btn-danger" data-act="delResult" data-id="${r.id}" style="margin-left:8px">🗑 刪除此作答</button></div>`;}
 /* ---------- 成績 ---------- */
 function renderGrades(){
-  const wrap=$('#grades-list');const ls=sortLessons(S.lessons).filter(l=>(l.assigned_ids||[]).length);
+  const wrap=$('#grades-list');const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0);
   if(!ls.length){wrap.innerHTML=emptyHtml('📊','還沒有成績','到「課文練習」指派課文給學生，學生作答後這裡會顯示分數。');return;}
   wrap.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-sm" data-act="exportGrades">⬇ 匯出成績 CSV</button></div>'+ls.map(l=>{
-    const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);
+    const targets=lessonTargets(l);
     const qn=answerableOf(l.id).length;
     const rows=targets.map(s=>{const r=resultOf(l.id,s.id);const draft=r&&r.status==='draft';const pend=r&&r.status==='pending';
       const stBadge=!r?'<span class="badge badge-pending">未開始</span>':draft?'<span class="badge badge-soon">✍️ 作答中（未送出）</span>':pend?'<span class="badge badge-soon">待批改</span>':'<span class="badge badge-ok">已完成</span>';
@@ -1099,7 +1124,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   const fslot=$('#f-first-slot');
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),currency:$('#f-cur').value,
-    sessions_total:$('#f-sess').value===''?null:Number($('#f-sess').value),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),notes:$('#f-notes').value.trim()};
+    sessions_total:$('#f-sess').value===''?null:Number($('#f-sess').value),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
   if(IS_OWNER){const asel=$('#f-admin');common.admin=asel?asel.value:'';}
   if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
   const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
@@ -1266,7 +1291,7 @@ document.addEventListener('dragend',()=>{document.querySelectorAll('.ord-row.dra
 document.addEventListener('dragover',e=>{const r=e.target&&e.target.closest&&e.target.closest('.ord-row');if(r&&ORD_DRAG!=null){e.preventDefault();try{e.dataTransfer.dropEffect='move';}catch(_){}document.querySelectorAll('.ord-row.dragover').forEach(x=>x.classList.remove('dragover'));r.classList.add('dragover');}});
 document.addEventListener('drop',e=>{const r=e.target&&e.target.closest&&e.target.closest('.ord-row');if(r&&ORD_DRAG!=null){e.preventDefault();const to=Number(r.dataset.idx),from=ORD_DRAG;if(to!==from){const item=LAYOUT.splice(from,1)[0];LAYOUT.splice(to>from?to-1:to,0,item);ordRerender();}}ORD_DRAG=null;});
 H.report=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
-  const assigned=S.lessons.filter(l=>(l.assigned_ids||[]).includes(sid)&&answerableOf(l.id).length).sort((a,b)=>((a.order_index||0)-(b.order_index||0)));
+  const assigned=S.lessons.filter(l=>isAssignedTo(l,S.students.find(x=>x.id===sid))&&answerableOf(l.id).length).sort((a,b)=>((a.order_index||0)-(b.order_index||0)));
   const pts=[];assigned.forEach(l=>{const r=resultOf(l.id,sid);if(r&&r.status==='done'&&r.total){pts.push({l,pct:Math.round(scoreOf(l,r)/r.total*100)});}});
   const TN={choice:'單選',fill:'填空',order:'重組',match:'配對'};const agg={};
   assigned.forEach(l=>{const r=resultOf(l.id,sid);if(!r||!r.answers)return;questionsOf(l.id).forEach(q=>{if(!TN[q.type])return;const c=qCorrect(q,r.answers[q.id]);if(c===null)return;agg[q.type]=agg[q.type]||{ok:0,n:0};agg[q.type].n++;if(c)agg[q.type].ok++;});});
@@ -1286,7 +1311,7 @@ H.report=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn btn-accent" data-act="printReport" data-id="${s.id}">🖨 列印／存 PDF（給學生/家長）</button></div></div>`);};
 H.printReport=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
-  const assigned=S.lessons.filter(l=>(l.assigned_ids||[]).includes(sid)&&answerableOf(l.id).length).sort((a,b)=>((a.order_index||0)-(b.order_index||0)));
+  const assigned=S.lessons.filter(l=>isAssignedTo(l,S.students.find(x=>x.id===sid))&&answerableOf(l.id).length).sort((a,b)=>((a.order_index||0)-(b.order_index||0)));
   const rows=[];assigned.forEach(l=>{const r=resultOf(l.id,sid);const name=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');const stt=!r?'未開始':(r.status==='draft'?'作答中':(r.status==='pending'?'待批改':'已完成'));const pct=(r&&r.status==='done'&&r.total)?Math.round(scoreOf(l,r)/r.total*100):null;rows.push({name,stt,pct});});
   const done=rows.filter(r=>r.pct!=null);const avg=done.length?Math.round(done.reduce((a,b)=>a+b.pct,0)/done.length):null;
   const TN={choice:'單選',fill:'填空',order:'重組',match:'配對'};const agg={};
@@ -1561,11 +1586,19 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
 
 H.assign=(id)=>assignModal(S.lessons.find(l=>l.id===id));
 H.assignAll=()=>{const b=$$('#as-targets input');const all=b.every(x=>x.checked);b.forEach(x=>x.checked=!all);};
+H.groupsMgr=()=>groupMgrModal('');
+H.gmPick=(id)=>groupMgrModal(id);
+H.gmCreate=()=>{const v=(($('#gm-new')&&$('#gm-new').value)||'').trim();if(!v)return toast('請輸入團班名稱');groupMgrModal(v);};
+H.gmDelClass=async(cls)=>{if(!confirm('刪除團班「'+cls+'」？（只是把學生移出這個班，不會刪除學生）'))return;const affected=S.students.filter(s=>stuGroups(s).includes(cls));try{for(const s of affected){const g=stuGroups(s).filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}groupMgrModal('');render();toast('已刪除團班');}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+H.gmSave=async(cls)=>{const checked=new Set($$('#gm-members .gm-mem:checked').map(x=>x.value));const btn=document.querySelector('[data-act="gmSave"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
+  try{for(const s of S.students){const has=stuGroups(s).includes(cls),want=checked.has(s.id);if(has===want)continue;let g=stuGroups(s).slice();if(want)g.push(cls);else g=g.filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}
+    toast('已儲存團班成員');groupMgrModal(cls);render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存成員';}toast('儲存失敗：'+((e&&e.message)||e));}};
 H.saveAssign=async(id)=>{
   if(!id){toast('找不到課文，請重新整理後再試');return;}
   const ids=$$('#as-targets input:checked').map(x=>x.value);
+  const grps=$$('.as-grp:checked').map(x=>x.value);
   const btn=document.querySelector('[data-act="saveAssign"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
-  try{await DB.update('lessons',id,{assigned_ids:ids,due_date:$('#as-due').value||null});}
+  try{await DB.update('lessons',id,{assigned_ids:ids,assigned_groups:grps,due_date:$('#as-due').value||null});}
   catch(e){if(btn){btn.disabled=false;btn.textContent='儲存';}toast('儲存失敗：'+(e.code||e.message||e));return;}
   closeModal();toast('已指派');
   try{await loadAll();render();}catch(e){}
@@ -1573,7 +1606,7 @@ H.saveAssign=async(id)=>{
 H.unassign=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;
   if(!confirm('確定收回「'+(l.title||'')+'」的指派嗎？\n學生會立刻看不到這份作業，你可以修改後再重新指派。（學生已作答的紀錄會保留）'))return;
   const btn=document.querySelector('[data-act="unassign"]');if(btn){btn.disabled=true;btn.textContent='收回中…';}
-  try{await DB.update('lessons',id,{assigned_ids:[]});}
+  try{await DB.update('lessons',id,{assigned_ids:[],assigned_groups:[]});}
   catch(e){if(btn){btn.disabled=false;btn.textContent='↩ 收回';}toast('收回失敗：'+(e.code||e.message||e));return;}
   closeModal();toast('已收回指派，學生已看不到');
   try{await loadAll();render();}catch(e){}
@@ -1599,9 +1632,9 @@ H.delResult=async(rid)=>{const r=S.results.find(x=>x.id===rid);if(!r)return;cons
 H.clearLessonResults=async(lid)=>{const rs=S.results.filter(r=>r.lesson_id===lid);if(!rs.length)return toast('這一課還沒有作答記錄');
   if(!confirm('確定清空「本課」所有學生的作答記錄？共 '+rs.length+' 筆，無法復原（測試用）。'))return;
   try{for(const r of rs)await DB.remove('results',r.id);await loadAll();render();toast('已清空本課作答記錄');}catch(e){toast(writeErr('清空失敗',e));}};
-H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>(l.assigned_ids||[]).length);if(!ls.length)return toast('還沒有指派的課文');
+H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0);if(!ls.length)return toast('還沒有指派的課文');
   const rows=[['學生','Email','課文','狀態','分數','滿分','完成時間']];
-  ls.forEach(l=>{const targets=(l.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const qn=answerableOf(l.id).length;
+  ls.forEach(l=>{const targets=lessonTargets(l);const qn=answerableOf(l.id).length;
     targets.forEach(s=>{const r=resultOf(l.id,s.id);const status=!r?'未開始':(r.status==='pending'?'待批改':'已完成');
       rows.push([s.name||'',s.email||'',(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||''),status,r?scoreOf(l,r):'',r?(r.total||qn):qn,(r&&r.completed_at)?String(r.completed_at).replace('T',' ').slice(0,16):'']);});});
   const csv='﻿'+rows.map(r=>r.map(c=>{c=(c==null?'':String(c));return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(',')).join('\r\n');
@@ -1654,7 +1687,7 @@ H.exportAll=()=>{if(typeof XLSX==='undefined'){toast('匯出元件還在載入�
   try{const wb=XLSX.utils.book_new();
     const stu=S.students.map(s=>({姓名:s.name||'',國籍:s.nationality||'',教材:s.textbook||'',班別:s.class_type||'',Email:s.email||'',上課時段:fmtSchedule(s),Meet連結:s.meet_url||'',學費:s.tuition==null?'':s.tuition,幣別:s.currency||'',付款日:s.payment_date||'',總堂數:s.sessions_total==null?'':s.sessions_total,負責管理員:s.admin||'(主管理員)',備註:s.notes||''}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(stu.length?stu:[{}]),'學生');
-    const les=sortLessons(S.lessons).map((l,i)=>({課號:l.order_index||i+1,教材:l.textbook||'',課名:l.title||'',題數:questionsOf(l.id).length,指派人數:(l.assigned_ids||[]).length,狀態:l.build==='done'?'完成':'進行中'}));
+    const les=sortLessons(S.lessons).map((l,i)=>({課號:l.order_index||i+1,教材:l.textbook||'',課名:l.title||'',題數:questionsOf(l.id).length,指派人數:assignedCount(l),狀態:l.build==='done'?'完成':'進行中'}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(les.length?les:[{}]),'課程');
     const gr=[];(S.results||[]).forEach(r=>{const st=S.students.find(x=>x.id===r.student_id),l=S.lessons.find(x=>x.id===r.lesson_id);gr.push({學生:(st&&st.name)||'',課:(l?((l.order_index?'第'+l.order_index+'課 ':'')+(l.title||'')):''),狀態:r.status||'',分數:(r.auto!=null?r.auto:(r.score==null?'':r.score)),總分:r.total==null?'':r.total,繳交時間:r.completed_at||r.updated_at||''});});
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(gr.length?gr:[{}]),'成績');

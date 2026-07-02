@@ -534,7 +534,9 @@ const S={me:null,lessons:[],questions:[],results:[],sentences:[],quizzes:[],quiz
   ann:localStorage.getItem('hyc_ann')||'off',
   authTab:'login',flashIdx:0,flashFlip:false};
 let responses={},SHUF={},GRADE=null,AUTOSAVE=null;
-const myLessons=()=>S.lessons.filter(l=>(l.assigned_ids||[]).includes(S.me.id)).sort((a,b)=>((a.order_index||0)-(b.order_index||0))||((a.created_at||'').localeCompare(b.created_at||'')));
+const myGroups=()=>Array.isArray(S.me&&S.me.groups)?S.me.groups:[];
+const assignedToMe=(x)=>{if(!x||!S.me)return false;if((x.assigned_ids||[]).includes(S.me.id))return true;const ag=x.assigned_groups||[];return ag.length>0&&myGroups().some(g=>ag.includes(g));};
+const myLessons=()=>S.lessons.filter(l=>assignedToMe(l)).sort((a,b)=>((a.order_index||0)-(b.order_index||0))||((a.created_at||'').localeCompare(b.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const answerableOf=(lid)=>questionsOf(lid).filter(q=>q.type!=='note'&&q.bank==='hw'); // 作業簿（hw）才在「作業」作答；上課語法練習留在上課內容
 function myLeft(){const s=S.me;if(!s||s.sessions_total==null||s.sessions_total==='')return null;const att=Array.isArray(s.class_log)?s.class_log.filter(e=>e&&e.status!=='leave').length:0;return Number(s.sessions_total)-att;}
@@ -645,7 +647,7 @@ function renderSection(){
 function renderWork(){
   const _st=actStatus();const banner=`<div class="streak-banner">${t('streak')} ${_st.streak} ${t('day')}　·　${t('today')} ${_st.count} ${t('tiUnit')}${_st.count>=5?'　·　'+t('goalMet'):''}</div>`;
   const ls=myLessons().filter(l=>answerableOf(l.id).length);
-  const myQuizzes=(S.quizzes||[]).filter(qz=>(qz.assigned_ids||[]).includes(S.me.id)).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+  const myQuizzes=(S.quizzes||[]).filter(qz=>assignedToMe(qz)).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
   const quizCard=myQuizzes.length?('<div class="lesson-label" style="margin-top:6px">'+t('quizSec')+'</div><div class="quiz-list">'+myQuizzes.map(qz=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;const qm=t({dict:'qmDict',pinyin:'qmPinyin',mean:'qmMean',choice:'qmChoice',cloze:'qmCloze',custom:'qmCustom'}[qz.mode||'dict']||'qmDict');return `<div class="quiz-card${done?' done':''}"${done?'':' data-act="startQuiz" data-id="'+qz.id+'"'}><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>${esc(qz.title||t('quizDefTitle'))}</b><div class="muted" style="font-size:12px">${qm}</div></div>${done?`<span class="badge badge-ok">${r.score}/${r.total}</span>`:`<span class="badge badge-soon">${t('quizNotTaken')}</span>`}</div>`;}).join('')+'</div>'):'';
   if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML=banner+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
   let overdue=0,soon=0;ls.forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});
@@ -722,7 +724,7 @@ function pronLessonCardHtml(p){
 }
 function renderContent(){
   const normals=myLessons().filter(l=>lessonHasContent(l)||l.handout_url);
-  const prons=(S.prons||[]).filter(p=>S.preview||(p.assigned_ids||[]).includes(S.me.id));
+  const prons=(S.prons||[]).filter(p=>S.preview||assignedToMe(p));
   if(!normals.length&&!prons.length){$('#screen').innerHTML=emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
   const entries=[...normals.map(l=>({k:'l',l,b:(l.textbook||'').trim()||t('uncat')})),...prons.map(p=>({k:'p',l:p,b:(p.textbook||'').trim()||t('navPron')}))];
   const books=[];entries.forEach(e=>{if(!books.includes(e.b))books.push(e.b);});
@@ -927,7 +929,7 @@ function fillSaved(qs,saved){if(!saved)return;qs.forEach(q=>{const v=saved[q.id]
 const H={};
 /* ----- 發音課 (student) ----- */
 function renderPron(){
-  const ps=(S.prons||[]).filter(p=>S.preview||(p.assigned_ids||[]).includes(S.me.id)).sort((a,b)=>((a.order_index||0)-(b.order_index||0)));
+  const ps=(S.prons||[]).filter(p=>S.preview||assignedToMe(p)).sort((a,b)=>((a.order_index||0)-(b.order_index||0)));
   if(!ps.length){$('#screen').innerHTML=emptyHtml('🔤',t('pronEmpty'),t('pronEmptySub'));return;}
   const sc=S.pronScript||(S.lang==='vi'?'py':'zh');
   const toggle=`<div class="pron-toggle"><button class="pron-sw${sc==='zh'?' on':''}" data-act="pronScript" data-id="zh">${t('pronZhuyin')}</button><button class="pron-sw${sc==='py'?' on':''}" data-act="pronScript" data-id="py">${t('pronPinyin')}</button></div>`;
