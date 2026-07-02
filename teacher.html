@@ -701,16 +701,32 @@ function groupSize(c){return S.students.filter(s=>stuGroups(s).includes(c)).leng
 function isAssignedTo(l,s){if(!l||!s)return false;if((l.assigned_ids||[]).includes(s.id))return true;const ag=l.assigned_groups||[];return ag.length>0&&stuGroups(s).some(g=>ag.includes(g));}
 function lessonTargets(l){return S.students.filter(s=>isAssignedTo(l,s));}
 function assignedCount(l){return lessonTargets(l).length;}
+function classBoardHtml(cls){
+  const members=S.students.filter(s=>stuGroups(s).includes(cls));
+  const pub=sortLessons(S.lessons).filter(l=>(l.assigned_groups||[]).includes(cls));
+  const prons=(S.prons||[]).filter(p=>(p.assigned_groups||[]).includes(cls));
+  if(!pub.length&&!prons.length)return '<div class="hint">這個團班還沒有「整班發佈」的內容。到任一課按「指派」→勾選這個團班即可。</div>';
+  if(!members.length)return '<div class="hint">這個團班還沒有成員，先在上面勾選學生並儲存。</div>';
+  const STAT=r=>!r?['未開始','pending']:(r.status==='draft'?['作答中','soon']:(r.status==='pending'?['待批改','soon']:['已完成','ok']));
+  const lrows=pub.map(l=>{const hw=answerableOf(l.id).length;
+    const cells=members.map(s=>{const r=resultOf(l.id,s.id);const st=STAT(r);return `<span class="badge badge-${st[1]}" style="margin:2px">${esc(s.name)}：${st[0]}</span>`;}).join('');
+    const submitted=members.filter(s=>{const r=resultOf(l.id,s.id);return r&&(r.status==='pending'||r.status==='done');}).length;
+    const di=dueInfo(l.due_date);
+    return `<div class="card" style="margin:8px 0;padding:12px"><div class="row-between"><b>${(l.order_index?('L'+l.order_index+' · '):'')+esc(l.title)}</b><span class="tag ${submitted===members.length?'gold':''}">已交 ${submitted}/${members.length}</span></div>${di?`<div style="margin-top:2px"><span class="badge ${di.cls}">${di.label}</span></div>`:''}${hw?`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:2px">${cells}</div>`:'<div class="hint" style="margin-top:6px">此課只有上課內容、沒有作業題</div>'}</div>`;}).join('');
+  const prows=prons.map(p=>`<div class="card" style="margin:8px 0;padding:12px"><div class="row-between"><b>🔤 ${esc(p.title||'發音')}</b><span class="tag">發音教材</span></div></div>`).join('');
+  return `<div class="hint" style="margin-bottom:6px">整班發佈 ${pub.length} 課${prons.length?('＋'+prons.length+' 份發音'):''}　徽章：<span class="badge badge-ok">已完成</span> <span class="badge badge-soon">待批改／作答中</span> <span class="badge badge-pending">未開始</span></div>${lrows}${prows}`;
+}
 function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
   const clsChips=classes.length?classes.map(c=>`<button type="button" class="btn btn-sm ${c===sel?'btn-accent':''}" data-act="gmPick" data-id="${esc(c)}">${esc(c)}（${groupSize(c)}）</button>`).join(''):'<span class="hint">還沒有團班，先在上面建立一個。</span>';
   const members=sel?(S.students.length?S.students.map(s=>`<label class="check-row"><input type="checkbox" class="gm-mem" value="${s.id}" ${stuGroups(s).includes(sel)?'checked':''}> ${esc(s.name)} <span class="tag">${esc(s.class_type||'')}</span></label>`).join(''):'<div class="hint">還沒有學生。</div>'):'';
-  openModal(`<div class="modal"><div class="modal-head"><h3>👥 團班管理</h3><button class="x" data-act="closeModal">×</button></div>
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>👥 團班管理</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>建立新團班</label><div class="dual-row"><input id="gm-new" type="text" placeholder="例：週二晚班"><button class="btn btn-accent" type="button" data-act="gmCreate">＋ 建立</button></div></div>
-     <div class="field"><label>現有團班（點一下編輯成員）</label><div style="display:flex;gap:6px;flex-wrap:wrap">${clsChips}</div></div>
-     ${sel?`<div class="field"><label>「${esc(sel)}」的成員 <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}" style="float:right">刪除此團班</button></label>
-       <div class="check-list" id="gm-members">${members}</div>
-       <div style="margin-top:10px"><button class="btn btn-primary" data-act="gmSave" data-id="${esc(sel)}">儲存成員</button></div></div>`:''}
+     <div class="field"><label>現有團班（點一下看發佈狀況／編輯成員）</label><div style="display:flex;gap:6px;flex-wrap:wrap">${clsChips}</div></div>
+     ${sel?`<div class="field" style="border-top:1px solid var(--line);padding-top:14px"><label style="font-weight:700;font-size:15px">📋 「${esc(sel)}」發佈了什麼、誰交了</label>${classBoardHtml(sel)}</div>
+       <details class="disc" style="margin-top:8px"><summary>✏️ 編輯這個團班的成員（${groupSize(sel)} 人）</summary>
+         <div style="margin:10px 0 0"><div class="check-list" id="gm-members">${members}</div>
+         <div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-primary" data-act="gmSave" data-id="${esc(sel)}">儲存成員</button><button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}">刪除此團班</button></div></div></details>`:''}
    </div></div>`);
 }
 function assignModal(l){const ids=l.assigned_ids||[];const ag=l.assigned_groups||[];const classes=groupsList();
