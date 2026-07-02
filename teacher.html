@@ -335,12 +335,12 @@ function renderStudents(){
   if(S.q){const q=S.q.toLowerCase();list=list.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.nationality||'').toLowerCase().includes(q));}
   if(!S.students.length){wrap.className='';wrap.innerHTML=emptyHtml('👩‍🏫','還沒有學生',IS_OWNER?'點「新增學生」建立第一位。':'主管理員還沒有把學生分配給你。');return;}
   if(!list.length){wrap.className='';wrap.innerHTML=emptyHtml('🔍','找不到符合的學生','換個關鍵字。');return;}
-  wrap.className='cards cols-2';
-  wrap.innerHTML=list.map(s=>`<div class="card student-card">
+  wrap.className='';
+  const card=s=>`<div class="card student-card">
     <div style="display:flex;gap:12px;align-items:center">
       <div class="avatar" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</div>
       <div style="flex:1;min-width:0"><div class="name">${esc(s.name)}</div>
-        <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap"><span class="tag accent">${esc(s.class_type||'1對1')}</span>${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}${IS_OWNER&&s.admin?`<span class="tag" title="負責管理員">👤 ${esc(adminName(s.admin))}</span>`:''}</div></div></div>
+        <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap"><span class="tag accent">${esc(s.class_type||'1對1')}</span>${stuGroups(s).map(g=>`<span class="tag">👥 ${esc(g)}</span>`).join('')}${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}${IS_OWNER&&s.admin?`<span class="tag" title="負責管理員">👤 ${esc(adminName(s.admin))}</span>`:''}</div></div></div>
     <div class="actions" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
         ${/^https?:\/\//i.test(s.meet_url||'')?`<a class="btn btn-sm btn-accent" href="${esc(s.meet_url)}" target="_blank" rel="noopener">🎥 上課教室</a>`:''}
         <button class="btn btn-sm" data-act="report" data-id="${s.id}">📊 學習報表</button>
@@ -352,7 +352,14 @@ function renderStudents(){
     <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(fmtSchedule(s))}</b></span>
       <span>💰 學費：<b>${money(s.tuition,s.currency)}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span><span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}</div>
     ${s.email?`<div class="meta" style="margin-top:8px;align-items:center">${s.reset_requested?'<span class="badge badge-soon">🔑 學生申請重設</span>':''}<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}">✉️ 寄重設密碼信</button></div>`:''}
-    ${s.notes?`<div class="meta" style="margin-top:8px"><span>📝 ${esc(s.notes)}</span></div>`:''}</div>`).join('');
+    ${s.notes?`<div class="meta" style="margin-top:8px"><span>📝 ${esc(s.notes)}</span></div>`:''}</div>`;
+  const sec=(label,students,cls)=>`<div style="margin-bottom:22px"><div style="display:flex;align-items:center;gap:10px;margin:4px 0 10px;flex-wrap:wrap"><h3 style="font-size:16px;color:var(--primary);margin:0">${label}</h3><span class="tag">${students.length} 人</span>${cls?`<button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 班級頁</button>`:''}</div><div class="cards cols-2">${students.map(card).join('')}</div></div>`;
+  const classNames=[...new Set(list.flatMap(s=>stuGroups(s)))].sort();
+  const ungrouped=list.filter(s=>!stuGroups(s).length);
+  let html='';
+  if(ungrouped.length)html+=sec('🧑‍🏫 1對1／個別',ungrouped,'');
+  classNames.forEach(c=>html+=sec('👥 '+esc(c),list.filter(s=>stuGroups(s).includes(c)),c));
+  wrap.innerHTML=html;
 }
 function studentModal(st){const e=!!st;st=st||{};
   openModal(`<div class="modal"><div class="modal-head"><h3>${e?'編輯學生':'新增學生'}</h3><button class="x" data-act="closeModal">×</button></div>
