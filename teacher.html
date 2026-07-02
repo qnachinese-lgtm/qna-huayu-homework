@@ -349,7 +349,7 @@ function renderStudents(){
   if(sf!=='all')list=list.filter(s=>enrollOf(s)===sf);
   if(!list.length){wrap.className='';wrap.innerHTML=filterBar+emptyHtml('🔍','找不到符合的學生',S.q?'換個關鍵字。':'這個狀態目前沒有學生。');return;}
   wrap.className='';
-  const card=s=>`<div class="card student-card">
+  const cardInner=s=>`
     <div style="display:flex;gap:12px;align-items:center">
       <div class="avatar" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</div>
       <div style="flex:1;min-width:0"><div class="name">${esc(s.name)}</div>
@@ -365,8 +365,11 @@ function renderStudents(){
     <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(fmtSchedule(s))}</b></span>
       <span>💰 學費：<b>${money(s.tuition,s.currency)}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span><span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}</div>
     ${s.email?`<div class="meta" style="margin-top:8px;align-items:center">${s.reset_requested?'<span class="badge badge-soon">🔑 學生申請重設</span>':''}<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}">✉️ 寄重設密碼信</button></div>`:''}
-    ${s.notes?`<div class="meta" style="margin-top:8px"><span>📝 ${esc(s.notes)}</span></div>`:''}</div>`;
-  const sec=(label,students,cls)=>`<details class="stu-sec" open style="margin-bottom:20px"><summary style="cursor:pointer;padding:6px 0;list-style-position:inside"><span style="font-size:16px;color:var(--primary);font-weight:600">${label}</span> <span class="tag">${students.length} 人</span></summary>${cls?`<div style="margin:8px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 班級頁</button></div>`:''}<div class="cards cols-2" style="margin-top:10px">${students.map(card).join('')}</div></details>`;
+    ${s.notes?`<div class="meta" style="margin-top:8px"><span>📝 ${esc(s.notes)}</span></div>`:''}`;
+  const card=s=>enrollOf(s)==='paused'
+    ? `<details class="card student-card" style="padding:12px 14px"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px"><div class="avatar" style="width:38px;height:38px;font-size:14px;background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</div><b style="font-size:16px">${esc(s.name)}</b>${enrollBadge(s)}<span style="flex:1"></span><span class="hint">點開看詳細 ▾</span></summary><div style="margin-top:14px">${cardInner(s)}</div></details>`
+    : `<div class="card student-card">${cardInner(s)}</div>`;
+  const sec=(label,students,cls)=>`<details class="stu-sec" open style="margin-bottom:20px"><summary style="cursor:pointer;padding:6px 0;list-style-position:inside"><span style="font-size:16px;color:var(--primary);font-weight:600">${label}</span> <span class="tag">${students.length} 人</span></summary>${cls?`<div style="margin:8px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 班級頁</button></div>`:''}<div class="cards cols-2" style="margin-top:10px">${students.slice().sort((a,b)=>(enrollOf(a)==='paused'?1:0)-(enrollOf(b)==='paused'?1:0)).map(card).join('')}</div></details>`;
   const classNames=[...new Set(list.flatMap(s=>stuGroups(s)))].sort();
   const ungrouped=list.filter(s=>!stuGroups(s).length);
   let html='';
@@ -1672,7 +1675,7 @@ function classRollModal(cls){const members=S.students.filter(s=>stuGroups(s).inc
   const dates=Object.keys(dateMap).sort().reverse().slice(0,10);
   const recent=dates.length?dates.map(d=>{const c=dateMap[d];return `<div class="dash-row"><b>${esc(d)}</b><span class="grow"></span><span class="badge badge-ok">出席 ${c.att}</span> <span class="badge badge-soon">請假 ${c.leave}</span> <span class="badge badge-overdue">缺席 ${c.absent}</span></div>`;}).join(''):'<div class="hint">還沒有上課記錄。</div>';
   const seg=(sid,st,lb,def)=>`<button type="button" class="${def?'on':''}" data-act="rollPick" data-id="${sid}::${st}" data-st="${st}">${lb}</button>`;
-  const rows=members.length?members.map(s=>{const left=sessionsLeft(s);return `<div class="dash-row" style="align-items:center;gap:8px"><b style="min-width:84px">${esc(s.name)}</b>${left!=null?`<span class="muted" style="font-size:12px">剩 ${left} 堂</span>`:''}<span class="grow"></span><span class="seg-mini roll-seg" data-sid="${s.id}">${seg(s.id,'attended','出席',true)}${seg(s.id,'leave','請假',false)}${seg(s.id,'absent','缺席',false)}</span></div>`;}).join(''):'<div class="hint">這個團班還沒有成員。</div>';
+  const rows=members.length?members.map(s=>{const left=sessionsLeft(s);return `<div class="dash-row" style="align-items:center;gap:8px"><div style="flex:1;min-width:0"><b>${esc(s.name)}</b>${left!=null?` <span class="muted" style="font-size:12px">剩 ${left} 堂</span>`:''}</div><span class="seg-mini roll-seg" data-sid="${s.id}" style="flex:none;white-space:nowrap">${seg(s.id,'attended','出席',true)}${seg(s.id,'leave','請假',false)}${seg(s.id,'absent','缺席',false)}</span></div>`;}).join(''):'<div class="hint">這個團班還沒有成員。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>🗓 「${esc(cls)}」上課點名</h3><button class="x" data-act="closeModal">×</button></div>
     <div class="modal-body">
       <div class="form-grid"><div class="field"><label>上課日期</label><input id="roll-date" type="date" value="${today}"></div>
@@ -1807,6 +1810,7 @@ H.payAdd=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const da
   const amt=$('#pay-amount').value,sess=$('#pay-sess').value;
   const entry={date,amount:amt===''?null:Number(amt),currency:$('#pay-cur').value,sessions:sess===''?null:Number(sess),note:$('#pay-note').value.trim()};
   const payments=(s.payments||[]).concat([entry]);const patch={payments};if(entry.sessions){patch.sessions_total=(Number(s.sessions_total)||0)+entry.sessions;}
+  patch.payment_date=payments.map(p=>p&&p.date).filter(Boolean).sort().pop()||s.payment_date||null;
   try{await DB.update('students',id,patch);await loadAll();H.payments(id);render();toast('已新增繳費');}catch(err){toast(writeErr('儲存失敗',err));}};
 H.payDel=async(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;if(!confirm('刪除這筆繳費紀錄？'))return;
   const payments=(s.payments||[]).slice();const removed=payments.splice(i,1)[0];const patch={payments};if(removed&&removed.sessions){patch.sessions_total=Math.max(0,(Number(s.sessions_total)||0)-removed.sessions);}
