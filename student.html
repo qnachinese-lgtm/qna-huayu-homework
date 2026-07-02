@@ -173,6 +173,8 @@ function vocabScoped(){if(!S.vocabLesson)return vocabAll();const l=S.lessons.fin
 let _segAudio;
 function playSegment(url,s,e){const a=_segAudio||(_segAudio=new Audio());a.ontimeupdate=null;const same=a.src===url;if(!same)a.src=url;const go=()=>{try{a.currentTime=s;}catch(_){}a.ontimeupdate=()=>{if(a.currentTime>=e){a.pause();a.ontimeupdate=null;}};a.play().catch(()=>{});};if(same&&a.readyState>=1)go();else a.onloadedmetadata=go;}
 function vocabHasAudio(l,di,vi){const d=(l&&lessonDialogues(l)[di])||{};return !!(d.vocab_audio_url&&Array.isArray(d.vocab_segments)&&d.vocab_segments[vi]);}
+/* 聽寫專用：有真人音檔就播真人，沒有才用 AI 發音（其他地方一律不用 AI） */
+function dictPlay(v){if(!v)return;const l=S.lessons.find(x=>x.id===v.lessonId);if(l&&vocabHasAudio(l,v.di,v.vi))vocabPlay(v.lessonId,v.di,v.vi,v.front);else speak(v.front);}
 function vocabPlay(lid,di,vi,fallbackText){const l=S.lessons.find(x=>x.id===lid);if(!l)return;const d=lessonDialogues(l)[di]||{};const seg=Array.isArray(d.vocab_segments)&&d.vocab_segments[vi];if(d.vocab_audio_url&&seg)playSegment(d.vocab_audio_url,seg.s,seg.e);/* 只播老師上傳的真人音檔，不使用 AI 語音 */}
 /* ===== 連續天數 / 收藏 / 複習(SRS) ===== */
 function _today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -248,7 +250,7 @@ function renderDictSetup(){const sel=S.dictSetup=S.dictSetup||{lesson:'all',seg:
      <button class="btn btn-primary" style="width:100%;padding:13px;font-size:15px" data-act="dictStart" ${n?'':'disabled'}>${n?('▶ '+t('dStart')):t('dNoneRange')}</button>
    </div>`;}
 function renderDictation(){const dd=S.dict,v=dd.list[dd.idx];const mode=dd.mode||'dict';
-  if(mode==='dict'&&!dd.checked)setTimeout(()=>vocabPlay(v.lessonId,v.di,v.vi,v.front),300);
+  if(mode==='dict'&&!dd.checked)setTimeout(()=>dictPlay(v),300);
   const head=dd.quiz?('📝 '+esc(dd.quiz.title)):('✏️ '+t('dictTitle'));
   const promptHtml=mode==='dict'?`<button class="btn" data-act="dictReplay">${t('dictReplay')}</button>`
     :mode==='pinyin'?`<div class="quiz-prompt">${esc(v.py||'')||annotate(v.front)}</div>`
@@ -1075,7 +1077,7 @@ H.dictation=()=>{S.dictSetup=S.dictSetup||{lesson:'all',seg:'all'};$('#screen').
 H.dictLesson=(id)=>{S.dictSetup=S.dictSetup||{lesson:'all',seg:'all'};S.dictSetup.lesson=id;renderDictSetup();};
 H.dictSeg=(id)=>{S.dictSetup=S.dictSetup||{lesson:'all',seg:'all'};S.dictSetup.seg=id;renderDictSetup();};
 H.dictStart=()=>{const list=dictWords();if(!list.length){toast(t('noCards'));return;}S.dict={list:shuffle(list,Math.random()+''),idx:0,checked:false,val:'',right:0,ok:false};$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderDictation();};
-H.dictReplay=()=>{const dd=S.dict;if(!dd)return;const v=dd.list[dd.idx];vocabPlay(v.lessonId,v.di,v.vi,v.front);};
+H.dictReplay=()=>{const dd=S.dict;if(!dd)return;const v=dd.list[dd.idx];dictPlay(v);};
 H.dictCheck=()=>{const dd=S.dict;if(!dd||dd.checked)return;const inp=document.getElementById('dict-in');dd.val=inp?inp.value:'';const v=dd.list[dd.idx];const norm=s=>{try{return (CONV.cn?CONV.cn(s):s).toLowerCase().replace(/\s/g,'');}catch(e){return (s||'').toLowerCase().replace(/\s/g,'');}};const accepts=(dd.mode==='custom'&&v.ans&&v.ans.length)?v.ans:[v.front];dd.ok=norm(dd.val)!==''&&accepts.some(a=>norm(a)===norm(dd.val));if(dd.ok)dd.right++;dd.checked=true;
   if(dd.quiz){const md=dd.mode||'dict';const c=(md==='custom')?accepts.join(' / '):v.front;const q=(md==='custom')?(v.qtext||''):(md==='cloze')?clozeSentence(v):(md==='pinyin')?(v.py||''):(md==='mean')?(v.back||''):'';(dd.log=dd.log||[]).push({q,a:dd.val,c,ok:dd.ok});}
   renderDictation();};
