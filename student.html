@@ -198,7 +198,7 @@ function srsDueList(){const m=srsGet(),t=_today(),out=[],seen=new Set();vocabSco
 function srsGrade(w,know){const m=srsGet(),e=m[w]||{ivl:0};let ivl=know?(e.ivl<1?2:Math.min(Math.round(e.ivl*2.2),60)):1;m[w]={ivl,due:_plus(ivl)};localStorage.setItem('hyc_srs',JSON.stringify(m));saveProgress();}
 /* 雲端同步：把連續天數/收藏/SRS 存成一筆特別的 results（lesson_id='__progress'，依 uid，沿用既有規則） */
 let _progT=null;
-function saveProgress(){if(!S.me)return;clearTimeout(_progT);_progT=setTimeout(async()=>{try{await DB.upsertResult('__progress',S.me.id,{uid:myUid(),progress:{act:actGet(),star:starGet(),srs:srsGet()}});}catch(e){}},900);}
+function saveProgress(){if(!S.me)return;clearTimeout(_progT);_progT=setTimeout(async()=>{try{await DB.upsertResult('__progress',S.me.id,{uid:myUid(),last_active:now(),progress:{act:actGet(),star:starGet(),srs:srsGet()}});}catch(e){}},900);}
 async function loadProgress(){if(!S.me)return;try{const r=(S.results||[]).find(x=>x.lesson_id==='__progress');
   if(r&&r.progress){const p=r.progress;if(p.act)localStorage.setItem('hyc_act',JSON.stringify(p.act));if(p.star)localStorage.setItem('hyc_star',JSON.stringify(p.star));if(p.srs)localStorage.setItem('hyc_srs',JSON.stringify(p.srs));}
   else if((actGet().day)||(starGet().length)||(Object.keys(srsGet()).length)){saveProgress();}}catch(e){}}
@@ -654,7 +654,7 @@ function renderSection(){
 }
 
 function renderWork(){
-  const _st=actStatus();const banner=`<div class="streak-banner">${t('streak')} ${_st.streak} ${t('day')}　·　${t('today')} ${_st.count} ${t('tiUnit')}${_st.count>=5?'　·　'+t('goalMet'):''}</div>`;
+  const _st=actStatus();const banner='';
   const ls=myLessons().filter(l=>answerableOf(l.id).length);
   const myQuizzes=(S.quizzes||[]).filter(qz=>assignedToMe(qz)).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
   const quizCard=myQuizzes.length?('<div class="lesson-label" style="margin-top:6px">'+t('quizSec')+'</div><div class="quiz-list">'+myQuizzes.map(qz=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;const qm=t({dict:'qmDict',pinyin:'qmPinyin',mean:'qmMean',choice:'qmChoice',cloze:'qmCloze',custom:'qmCustom'}[qz.mode||'dict']||'qmDict');return `<div class="quiz-card${done?' done':''}"${done?'':' data-act="startQuiz" data-id="'+qz.id+'"'}><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>${esc(qz.title||t('quizDefTitle'))}</b><div class="muted" style="font-size:12px">${qm}</div></div>${done?`<span class="badge badge-ok">${r.score}/${r.total}</span>`:`<span class="badge badge-soon">${t('quizNotTaken')}</span>`}</div>`;}).join('')+'</div>'):'';
@@ -1350,7 +1350,7 @@ function showLoad(b){let el=document.getElementById('app-loading');if(b){if(!el)
 async function enter(me){S.me=me;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');
   applyChrome();showLoad(true);
-  try{await loadMine();await loadProgress();S.section='content';renderSection();setTimeout(notifyDue,1200);setTimeout(maybeShowGuide,600);}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}finally{showLoad(false);}}
+  try{await loadMine();await loadProgress();try{DB.upsertResult('__progress',S.me.id,{uid:myUid(),last_login:now(),last_active:now()}).catch(()=>{});}catch(_){}S.section='content';renderSection();setTimeout(notifyDue,1200);setTimeout(maybeShowGuide,600);}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}finally{showLoad(false);}}
 function showGate(msg){S.me=null;$('#app').classList.add('hide');$('#gate').classList.remove('hide');renderGate();if(msg){const e=$('#g-err');if(e)e.textContent=msg;}}
 const PREVIEW_LID=new URLSearchParams(location.search).get('preview');
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;
