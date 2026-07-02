@@ -168,7 +168,8 @@ function vocabLessons(){return myLessons().filter(l=>lessonVocab(l).length);}
 function vocabScoped(){if(!S.vocabLesson)return vocabAll();const l=S.lessons.find(x=>x.id===S.vocabLesson);if(!l)return vocabAll();const seen=new Set(),out=[];lessonVocab(l).forEach(v=>{if(v.front&&!seen.has(v.front)){seen.add(v.front);out.push(v);}});return out;}
 let _segAudio;
 function playSegment(url,s,e){const a=_segAudio||(_segAudio=new Audio());a.ontimeupdate=null;const same=a.src===url;if(!same)a.src=url;const go=()=>{try{a.currentTime=s;}catch(_){}a.ontimeupdate=()=>{if(a.currentTime>=e){a.pause();a.ontimeupdate=null;}};a.play().catch(()=>{});};if(same&&a.readyState>=1)go();else a.onloadedmetadata=go;}
-function vocabPlay(lid,di,vi,fallbackText){const l=S.lessons.find(x=>x.id===lid);if(!l)return speak(fallbackText);const d=lessonDialogues(l)[di]||{};const seg=Array.isArray(d.vocab_segments)&&d.vocab_segments[vi];if(d.vocab_audio_url&&seg)playSegment(d.vocab_audio_url,seg.s,seg.e);else speak(fallbackText);}
+function vocabHasAudio(l,di,vi){const d=(l&&lessonDialogues(l)[di])||{};return !!(d.vocab_audio_url&&Array.isArray(d.vocab_segments)&&d.vocab_segments[vi]);}
+function vocabPlay(lid,di,vi,fallbackText){const l=S.lessons.find(x=>x.id===lid);if(!l)return;const d=lessonDialogues(l)[di]||{};const seg=Array.isArray(d.vocab_segments)&&d.vocab_segments[vi];if(d.vocab_audio_url&&seg)playSegment(d.vocab_audio_url,seg.s,seg.e);/* 只播老師上傳的真人音檔，不使用 AI 語音 */}
 /* ===== 連續天數 / 收藏 / 複習(SRS) ===== */
 function _today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function _yday(){const d=new Date();d.setDate(d.getDate()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -194,7 +195,7 @@ function renderReview(){const r=S.review,v=r.list[r.idx];
    <div class="flash-wrap"><div class="flash ${r.flip?'flip':''}" data-act="revFlip"><div class="flash-inner">
      <div class="flash-face flash-front">${flashFront(v)}<small>${t('flip')}</small></div>
      <div class="flash-face flash-back">${v.pos?'<span class="vpos">'+esc(v.pos)+'</span> ':''}<span>${esc((v.back)||'—')}</span></div></div></div>
-   ${r.flip?`<div class="flash-controls"><button class="btn btn-danger" data-act="revGrade" data-know="0">${t('dontKnow')}</button><button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}">🔊</button><button class="btn btn-primary" data-act="revGrade" data-know="1">${t('know')}</button></div>`:`<div class="flash-controls"><span class="hint">${t('tapFlip')}</span></div>`}</div>`;hydrateVi([v.back]);}
+   ${r.flip?`<div class="flash-controls"><button class="btn btn-danger" data-act="revGrade" data-know="0">${t('dontKnow')}</button>${vocabHasAudio(S.lessons.find(x=>x.id===v.lessonId),v.di,v.vi)?`<button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}">🔊</button>`:''}<button class="btn btn-primary" data-act="revGrade" data-know="1">${t('know')}</button></div>`:`<div class="flash-controls"><span class="hint">${t('tapFlip')}</span></div>`}</div>`;hydrateVi([v.back]);}
 let SHADOW=null,SHADOWMR=null;
 function vocabMeaning(w){for(const l of S.lessons){const vs=lessonVocab(l);for(const v of vs){if(v.front===w&&(v.back||v.pos))return (v.pos?'('+v.pos+') ':'')+(v.back||'');}}return null;}
 function vocabMeanRaw(w){for(const l of S.lessons){const vs=lessonVocab(l);for(const v of vs){if(v.front===w&&(v.back||v.pos))return {pos:v.pos||'',back:v.back||''};}}return null;}
@@ -291,12 +292,12 @@ function lessonHasContent(l){return lessonDialogues(l).some(d=>d.content||parseV
 function lessonHasDisc(l){return lessonDialogues(l).some(d=>(d.discussion||'').split('\n').some(s=>s.trim()));}
 function vocabBlockHtml(l,di,vocab,chips){
   return '<div class="vocab-rows">'+vocab.map((v,k)=>{const hasEx=v.ex&&v.ex.length;
-    const chip=`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-di="${di}" data-vi="${k}" data-text="${esc(v.front)}">${esc(v.front)}<span class="spk">🔊</span></button>`;
+    const chip=vocabHasAudio(l,di,k)?`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-di="${di}" data-vi="${k}" data-text="${esc(v.front)}">${esc(v.front)}<span class="spk">🔊</span></button>`:`<span class="vocab-chip">${esc(v.front)}</span>`;
     const rd=v.py||twReading(v.front);const py=rd?`<span class="vrow-py">${esc(rd)}</span>`:'';
     const pos=v.pos?`<span class="vpos">${esc(v.pos)}</span>`:'';
     const mean=v.back?`<span class="vrow-mean">${esc(vocabMean(v))}</span>`:'';
     const tog=hasEx?`<button type="button" class="btn btn-sm vex-toggle" data-act="vocabEx" data-id="${di}_${k}">📝 ${t('exLabel')}（${v.ex.length}）</button>`:'';
-    const list=hasEx?`<div class="vex-list hide" id="vex-${di}_${k}">${v.ex.map(s=>`<button type="button" class="ex-item" data-act="speak" data-text="${esc(s)}">${annotate(s)}<span class="spk">🔊</span></button>`).join('')}</div>`:'';
+    const list=hasEx?`<div class="vex-list hide" id="vex-${di}_${k}">${v.ex.map(s=>`<div class="ex-item">${annotate(s)}</div>`).join('')}</div>`:'';
     return `<div class="vrow"><div class="vrow-top">${chip}${py}${pos}${mean}${tog}</div>${list}</div>`;}).join('')+'</div>';}
 function dialogueBlockHtml(l,di,opts){opts=opts||{};
   const d=lessonDialogues(l)[di];if(!d)return '';
@@ -720,7 +721,7 @@ function renderCards(){
     </div></div>
     <div class="flash-controls"><button class="btn" data-act="flprev">${t('prev')}</button>
       <button class="btn btn-star ${isStarred(v.front)?'on':''}" data-act="star" data-text="${esc(v.front)}" aria-label="收藏">${isStarred(v.front)?'★':'☆'}</button>
-      <button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}" aria-label="發音">🔊</button>
+      ${vocabHasAudio(S.lessons.find(x=>x.id===v.lessonId),v.di,v.vi)?`<button class="btn btn-spk" data-act="vocabPlay" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}" aria-label="發音">🔊</button>`:''}
       <button class="btn btn-spk" data-act="shadowRec" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}" aria-label="跟讀">🎤</button>
       <button class="btn btn-spk" data-act="stroke" data-text="${esc(v.front)}" aria-label="筆順">✍️</button>
       ${(SHADOW&&SHADOW.idx===S.flashIdx)?`<button class="btn btn-sm" data-act="shadowPlay">${t('shadowMine')}</button>`:''}
