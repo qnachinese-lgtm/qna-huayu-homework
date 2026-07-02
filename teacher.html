@@ -413,6 +413,7 @@ function lessonCardHtml(l,i){try{
         <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button>
         ${((((l.dialogues&&l.dialogues.length)||0)+((l.grammar_points&&l.grammar_points.length)||0))>=2)?`<button class="btn btn-sm" data-act="orderLayout" data-id="${l.id}">📐 課文順序</button>`:''}
         <button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題（${qn}）</button>
+        <button class="btn btn-sm" data-act="resources" data-id="${l.id}">📎 補充資料${(l.resources&&l.resources.length)?('（'+l.resources.length+'）'):''}</button>
         <button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button>
         <button class="btn btn-sm" data-act="printWorksheet" data-id="${l.id}">🖨 作業卷</button>
         <button class="btn btn-sm" data-act="assign" data-id="${l.id}">指派${an?`（${an}）`:''}</button>
@@ -906,6 +907,23 @@ H.lhUp=()=>{const inp=document.createElement('input');inp.type='file';inp.accept
     catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
   inp.click();};
 H.lhClear=()=>{const u=$('#l-handout-url'),n=$('#l-handout-name'),d=$('#l-handout-disp'),c=$('#l-handout-clr'),st=$('#l-handout-st');if(u)u.value='';if(n)n.value='';if(d)d.innerHTML='<span class="hint">尚未上傳</span>';if(c)c.style.display='none';if(st)st.textContent='已移除，記得按「儲存」';};
+/* ---- 補充資料（多檔）：學生在「上課內容」看到並可下載 ---- */
+function resIcon(r){const s=((r.type||'')+' '+(r.name||'')).toLowerCase();if(/image|png|jpg|jpeg|gif|webp|heic/.test(s))return '🖼';if(/pdf/.test(s))return '📄';if(/audio|mp3|wav|m4a|ogg|aac/.test(s))return '🎵';if(/video|mp4|mov|webm|mkv/.test(s))return '🎬';if(/word|\.docx?|msword/.test(s))return '📝';if(/sheet|excel|\.xlsx?|\.csv/.test(s))return '📊';if(/powerpoint|\.pptx?/.test(s))return '📽';if(/zip|rar|7z/.test(s))return '🗜';return '📎';}
+function resModalHtml(l){const rs=Array.isArray(l.resources)?l.resources:[];
+  const rows=rs.length?rs.map((r,i)=>`<div class="dash-row"><span>${resIcon(r)}</span><a href="${esc(r.url)}" target="_blank" rel="noopener"><b>${esc(r.name||'檔案')}</b></a><span class="grow"></span><button class="btn btn-sm btn-danger" data-act="resDel" data-id="${l.id}::${i}">移除</button></div>`).join(''):'<div class="hint" style="padding:6px 2px">還沒有補充資料。上傳後學生會在這一課的「上課內容」看到。</div>';
+  return `<div class="modal"><div class="modal-head"><h3>📎 補充資料 · ${esc(l.title)}</h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:10px">可上傳任何檔案（PDF、圖片、Word、Excel、PPT、音檔、影片…），學生會在「上課內容」這一課看到並可開啟／下載。</div>
+      <div id="res-list">${rows}</div>
+      <div style="margin-top:14px"><button class="btn btn-accent" type="button" data-act="resUp" data-id="${l.id}">⬆ 上傳檔案</button> <span class="hint" id="res-st"></span></div>
+    </div></div>`;}
+H.resources=(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;openModal(resModalHtml(l));};
+H.resUp=(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;const inp=document.createElement('input');inp.type='file';
+  inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=$('#res-st');if(st)st.textContent='上傳中…（檔案大時請稍候）';
+    if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage';return;}
+    try{const url=await uploadHandout(f);const rs=Array.isArray(l.resources)?l.resources.slice():[];rs.push({url,name:f.name||'檔案',type:f.type||'',size:f.size||0});await DB.update('lessons',l.id,{resources:rs});l.resources=rs;openModal(resModalHtml(l));toast('已上傳');}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
+  inp.click();};
+H.resDel=async(key)=>{const [id,idx]=key.split('::');const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!confirm('移除這個檔案？學生就看不到了。'))return;const rs=Array.isArray(l.resources)?l.resources.slice():[];rs.splice(+idx,1);try{await DB.update('lessons',l.id,{resources:rs});l.resources=rs;openModal(resModalHtml(l));}catch(e){toast('移除失敗：'+((e&&e.message)||e));}};
 
 H.canned=(tgt,b)=>{const ta=document.getElementById(tgt);if(!ta)return;const t=(b&&b.dataset.t)||'';ta.value=(ta.value.trim()?ta.value.replace(/\s*$/,'')+'　':'')+t;ta.focus();};
 H.tab=(id)=>{S.tab=id;render();};

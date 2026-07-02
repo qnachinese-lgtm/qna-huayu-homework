@@ -1,5 +1,5 @@
 /* 簡單的 service worker：可安裝 (PWA) + 離線顯示應用外殼 */
-const CACHE = 'hyc-v80';
+const CACHE = 'hyc-v81';
 const ASSETS = ['student.html', 'teacher.html', 'styles.css', 'config.js', 'db.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' }))).catch(() => {})));
