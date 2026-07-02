@@ -334,17 +334,26 @@ function renderOps(){const body=$('#ops-body');
   body.innerHTML=`<div class="card"><div class="lesson-label">💰 各月收入</div>${incRows}</div><div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>${adminHtml}${annHtml}`;}
 
 /* ---------- 學生名冊 ---------- */
+const ENROLL=[['active','在學中','#16a34a'],['reserved','預約','#2563eb'],['paused','休學','#9ca3af']];
+function enrollOf(s){return (s&&s.enroll_status)||'active';}
+function enrollMeta(v){return ENROLL.find(x=>x[0]===v)||ENROLL[0];}
+function enrollBadge(s){const m=enrollMeta(enrollOf(s));return `<span class="tag" style="background:${m[2]}22;color:${m[2]};border-color:${m[2]}66">${m[1]==='預約'?'📌':(m[1]==='休學'?'⏸️':'✅')} ${m[1]}</span>`;}
 function renderStudents(){
   const wrap=$('#students-list');let list=S.students;
   if(S.q){const q=S.q.toLowerCase();list=list.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.nationality||'').toLowerCase().includes(q));}
   if(!S.students.length){wrap.className='';wrap.innerHTML=emptyHtml('👩‍🏫','還沒有學生',IS_OWNER?'點「新增學生」建立第一位。':'主管理員還沒有把學生分配給你。');return;}
-  if(!list.length){wrap.className='';wrap.innerHTML=emptyHtml('🔍','找不到符合的學生','換個關鍵字。');return;}
+  const sf=S.statusFilter||'all';
+  const cnt=v=>S.students.filter(s=>enrollOf(s)===v).length;
+  const chip=(v,lbl)=>`<button class="btn btn-sm${sf===v?' btn-accent':''}" data-act="stuFilter" data-id="${v}" style="margin-right:6px">${lbl}${v!=='all'?` <span class="tag">${cnt(v)}</span>`:''}</button>`;
+  const filterBar=`<div style="margin:0 0 14px;display:flex;flex-wrap:wrap;gap:4px 0">${chip('all','全部')}${chip('active','✅ 在學中')}${chip('reserved','📌 預約')}${chip('paused','⏸️ 休學')}</div>`;
+  if(sf!=='all')list=list.filter(s=>enrollOf(s)===sf);
+  if(!list.length){wrap.className='';wrap.innerHTML=filterBar+emptyHtml('🔍','找不到符合的學生',S.q?'換個關鍵字。':'這個狀態目前沒有學生。');return;}
   wrap.className='';
   const card=s=>`<div class="card student-card">
     <div style="display:flex;gap:12px;align-items:center">
       <div class="avatar" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</div>
       <div style="flex:1;min-width:0"><div class="name">${esc(s.name)}</div>
-        <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap"><span class="tag accent">${esc(s.class_type||'1對1')}</span>${stuGroups(s).map(g=>`<span class="tag">👥 ${esc(g)}</span>`).join('')}${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}${IS_OWNER&&s.admin?`<span class="tag" title="負責管理員">👤 ${esc(adminName(s.admin))}</span>`:''}</div></div></div>
+        <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${enrollBadge(s)}<span class="tag accent">${esc(s.class_type||'1對1')}</span>${stuGroups(s).map(g=>`<span class="tag">👥 ${esc(g)}</span>`).join('')}${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}${IS_OWNER&&s.admin?`<span class="tag" title="負責管理員">👤 ${esc(adminName(s.admin))}</span>`:''}</div></div></div>
     <div class="actions" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
         ${/^https?:\/\//i.test(s.meet_url||'')?`<a class="btn btn-sm btn-accent" href="${esc(s.meet_url)}" target="_blank" rel="noopener">🎥 上課教室</a>`:''}
         <button class="btn btn-sm" data-act="report" data-id="${s.id}">📊 學習報表</button>
@@ -363,8 +372,9 @@ function renderStudents(){
   let html='';
   if(ungrouped.length)html+=sec('🧑‍🏫 1對1／個別',ungrouped,'');
   classNames.forEach(c=>html+=sec('👥 '+esc(c),list.filter(s=>stuGroups(s).includes(c)),c));
-  wrap.innerHTML=html;
+  wrap.innerHTML=filterBar+html;
 }
+H.stuFilter=(v)=>{S.statusFilter=v;renderStudents();};
 function studentModal(st){const e=!!st;st=st||{};
   openModal(`<div class="modal"><div class="modal-head"><h3>${e?'編輯學生':'新增學生'}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
@@ -372,6 +382,7 @@ function studentModal(st){const e=!!st;st=st||{};
      <div class="field"><label>名字 *</label><input id="f-name" type="text" value="${esc(st.name||'')}"></div>
      <div class="field"><label>國籍</label><input id="f-nat" type="text" value="${esc(st.nationality||'')}" placeholder="例：美國"></div>
      <div class="field"><label>班別</label><select id="f-type"><option ${st.class_type==='1對1'?'selected':''}>1對1</option><option ${st.class_type==='團班'?'selected':''}>團班</option></select></div>
+     <div class="field"><label>狀態 <span class="hint">預約＝還沒開始；休學＝暫停上課</span></label><select id="f-status">${ENROLL.map(x=>`<option value="${x[0]}"${enrollOf(st)===x[0]?' selected':''}>${x[1]}</option>`).join('')}</select></div>
      <div class="field"><label>使用教材</label><input id="f-book" type="text" value="${esc(st.textbook||'')}" placeholder="例：當代中文課程 1"></div>
      <div class="field full"><label>團班 <span class="hint">可多個，用「、」或逗號分隔；或到「👥 團班管理」統一設定</span></label>
        <input id="f-groups" type="text" list="grouplist" value="${esc((Array.isArray(st.groups)?st.groups:[]).join('、'))}" placeholder="例：週二晚班、週六班">
@@ -1186,7 +1197,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const schedule=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);
   const fslot=$('#f-first-slot');
-  const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
+  const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),currency:$('#f-cur').value,
     sessions_total:$('#f-sess').value===''?null:Number($('#f-sess').value),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
   if(IS_OWNER){const asel=$('#f-admin');common.admin=asel?asel.value:'';}
@@ -1822,7 +1833,7 @@ H.receipt=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
 H.exportAll=()=>{if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
   try{const wb=XLSX.utils.book_new();
-    const stu=S.students.map(s=>({姓名:s.name||'',國籍:s.nationality||'',教材:s.textbook||'',班別:s.class_type||'',Email:s.email||'',上課時段:fmtSchedule(s),Meet連結:s.meet_url||'',學費:s.tuition==null?'':s.tuition,幣別:s.currency||'',付款日:s.payment_date||'',總堂數:s.sessions_total==null?'':s.sessions_total,負責管理員:s.admin||'(主管理員)',備註:s.notes||''}));
+    const stu=S.students.map(s=>({姓名:s.name||'',狀態:enrollMeta(enrollOf(s))[1],國籍:s.nationality||'',教材:s.textbook||'',班別:s.class_type||'',Email:s.email||'',上課時段:fmtSchedule(s),Meet連結:s.meet_url||'',學費:s.tuition==null?'':s.tuition,幣別:s.currency||'',付款日:s.payment_date||'',總堂數:s.sessions_total==null?'':s.sessions_total,負責管理員:s.admin||'(主管理員)',備註:s.notes||''}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(stu.length?stu:[{}]),'學生');
     const les=sortLessons(S.lessons).map((l,i)=>({課號:l.order_index||i+1,教材:l.textbook||'',課名:l.title||'',題數:questionsOf(l.id).length,指派人數:assignedCount(l),狀態:l.build==='done'?'完成':'進行中'}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(les.length?les:[{}]),'課程');
