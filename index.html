@@ -281,7 +281,8 @@ const DEF={
   su_h2:{zh:'報名 / 免費諮詢',vi:'Đăng ký / Tư vấn miễn phí',en:'Sign up / free consult'},
   su_p:{zh:'填寫下面表單，我會用你留的聯絡方式回覆你',vi:'Điền form bên dưới, mình sẽ liên hệ lại theo thông tin bạn để lại',en:'Fill in the form and I’ll reply via your contact'},
   contact_line:'',contact_email:(window.TEACHER_EMAIL||''),
-  contact_note:{zh:'有問題歡迎透過 LINE 或 Email 聯絡',vi:'Mọi thắc mắc liên hệ qua LINE hoặc Email',en:'Questions? Reach me via LINE or Email'}
+  contact_note:{zh:'有問題歡迎透過 LINE 或 Email 聯絡',vi:'Mọi thắc mắc liên hệ qua LINE hoặc Email',en:'Questions? Reach me via LINE or Email'},
+  emailjs_public:'',emailjs_service:'',emailjs_template:'',notify_email:(window.TEACHER_EMAIL||'')
 };
 const UI={
   login:{zh:'登入',vi:'Đăng nhập',en:'Login'},
@@ -353,15 +354,31 @@ document.getElementById('login-btn').addEventListener('click',e=>{e.stopPropagat
 document.addEventListener('click',()=>lm.classList.remove('open'));
 document.getElementById('yr').textContent=new Date().getFullYear();
 
+let EJS_LOADED=null;
+function loadEmailJS(){if(EJS_LOADED)return EJS_LOADED;EJS_LOADED=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});return EJS_LOADED;}
+async function notifyLead(lead){ // 報名成功後寄 Email 通知老師（未設定 EmailJS 就略過，不影響報名）
+  const pub=C.emailjs_public,svc=C.emailjs_service,tpl=C.emailjs_template;
+  if(!pub||!svc||!tpl||typeof window==='undefined')return;
+  try{await loadEmailJS();window.emailjs.init({publicKey:pub});
+    await window.emailjs.send(svc,tpl,{
+      to_email:C.notify_email||C.contact_email||'',
+      from_name:lead.name||'',email:lead.email||'',line:lead.line||'',phone:lead.phone||'',
+      level:lead.level||'',goal:lead.goal||'',message:lead.message||'',lang:lead.lang||'',
+      summary:`${lead.name||''}｜${[lead.email,lead.line,lead.phone].filter(Boolean).join(' / ')}｜${[lead.level,lead.goal].filter(Boolean).join(' · ')}`
+    });
+  }catch(e){/* 通知失敗不影響報名 */}
+}
 async function submitLead(data,btn,msgEl){
   if(data.company){return true;} // honeypot: pretend success, don't save
   if(!data.name||!(data.email||data.contact||data.line||data.phone)){msgEl.style.display='block';msgEl.style.color='var(--primary)';msgEl.textContent=val(UI.needName);return false;}
   const orig=btn.textContent;btn.disabled=true;btn.textContent=val(UI.sending);
+  const lead={kind:'lead',status:'new',lang:L,
+    name:data.name||'',email:data.email||'',line:data.line||data.contact||'',phone:data.phone||'',
+    level:data.level||'',goal:data.goal||'',message:data.message||'',
+    source:'website',ua:(navigator.userAgent||'').slice(0,180)};
   try{
-    await DB.insert('leads',{kind:'lead',status:'new',lang:L,
-      name:data.name||'',email:data.email||'',line:data.line||data.contact||'',phone:data.phone||'',
-      level:data.level||'',goal:data.goal||'',message:data.message||'',
-      source:'website',ua:(navigator.userAgent||'').slice(0,180)});
+    await DB.insert('leads',lead);
+    notifyLead(lead); // fire-and-forget
     return true;
   }catch(e){btn.disabled=false;btn.textContent=orig;msgEl.style.display='block';msgEl.style.color='var(--primary)';msgEl.textContent=val(UI.errMsg);return false;}
 }

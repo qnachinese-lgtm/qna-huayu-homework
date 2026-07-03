@@ -370,6 +370,8 @@ function siteCardHtml(){
     <div class="dash-row"><span class="grow"><b>官網介紹頁</b><div class="hint">課程介紹、師資、學費、評價、報名表單（中／越／英）</div></span>
       <a class="btn btn-sm" href="index.html" target="_blank">預覽</a>
       <button class="btn btn-sm btn-accent" data-act="editSite">編輯內容</button></div>
+    <div class="dash-row"><span class="grow"><b>📧 報名通知</b><div class="hint">${(S.site&&S.site.emailjs_public&&S.site.emailjs_service&&S.site.emailjs_template)?'已設定：有人報名就寄 Email 給你':'尚未設定。到「編輯內容 → 📧 報名通知」填 EmailJS 三組 ID，就能在有人報名時收到 Email。'}</div></span>
+      <button class="btn btn-sm" data-act="testNotify">寄測試通知</button></div>
     <div class="hint" style="margin-top:6px">把網址分享到社群、名片、IG／FB 個人簡介，訪客填表就會出現在上面的「報名名單」，並在「營運」分頁顯示紅點提醒。</div></div>`;
 }
 const SITE_SPEC=[
@@ -381,7 +383,8 @@ const SITE_SPEC=[
   {group:'🧑‍🏫 師資／關於',fields:[{k:'about_t',t:'標題',ml:1},{k:'about_d',t:'介紹（可多行）',ml:1,area:1}]},
   {group:'💰 學費／方案',fields:[{k:'price_title',t:'小標',ml:1},{k:'price_body',t:'方案內容（每行一項，可用「•」開頭）',ml:1,area:1}]},
   {group:'⭐ 學生評價',fields:[{k:'reviews_body',t:'一行一則，格式「評價內容 —— 姓名」',ml:1,area:1}]},
-  {group:'📨 聯絡方式',fields:[{k:'contact_line',t:'LINE ID / Zalo'},{k:'contact_email',t:'Email'},{k:'contact_note',t:'聯絡說明文字',ml:1}]}
+  {group:'📨 聯絡方式',fields:[{k:'contact_line',t:'LINE ID / Zalo'},{k:'contact_email',t:'Email'},{k:'contact_note',t:'聯絡說明文字',ml:1}]},
+  {group:'📧 報名通知（EmailJS）',fields:[{k:'notify_email',t:'收通知的 Email（有人報名就寄到這）'},{k:'emailjs_public',t:'EmailJS Public Key'},{k:'emailjs_service',t:'EmailJS Service ID'},{k:'emailjs_template',t:'EmailJS Template ID'}]}
 ];
 function siteFieldVal(k,lg){const d=S.site;if(!d)return '';const v=d[k];if(v==null)return '';if(lg)return (v&&typeof v==='object')?(v[lg]||''):'';return (typeof v==='object')?'':v;}
 
@@ -967,8 +970,21 @@ H.saveSite=async(_,b)=>{
     else{const el=document.getElementById('site-'+f.k);doc[f.k]=el?el.value.trim():'';}
   }));
   if(b){b.disabled=true;b.textContent='儲存中…';}
-  try{if(S.site&&S.site.id){await DB.update('site',S.site.id,doc);S.site=Object.assign({},S.site,doc);}else{const d=await DB.insert('site',doc);S.site=d;}toast('✅ 官網內容已儲存');closeModal();}
+  try{if(S.site&&S.site.id){await DB.update('site',S.site.id,doc);S.site=Object.assign({},S.site,doc);}else{const d=await DB.insert('site',doc);S.site=d;}toast('✅ 官網內容已儲存');closeModal();render();}
   catch(e){if(b){b.disabled=false;b.textContent='💾 儲存';}toast('儲存失敗：'+((e&&e.message)||e));}
+};
+let EJS_LOADED=null;
+function loadEmailJS(){if(EJS_LOADED)return EJS_LOADED;EJS_LOADED=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});return EJS_LOADED;}
+H.testNotify=async(_,b)=>{
+  const g=k=>(S.site&&S.site[k])||'';
+  const pub=g('emailjs_public'),svc=g('emailjs_service'),tpl=g('emailjs_template'),to=g('notify_email')||TEACHER_EMAIL;
+  if(!pub||!svc||!tpl){toast('請先在「編輯內容 → 📧 報名通知」填好 EmailJS 的三組 ID 並儲存');return;}
+  if(b){b.disabled=true;b.textContent='寄送中…';}
+  try{await loadEmailJS();window.emailjs.init({publicKey:pub});
+    await window.emailjs.send(svc,tpl,{to_email:to,from_name:'測試報名 Test',email:'test@example.com',line:'',phone:'',level:'（測試）',goal:'（測試）',message:'這是一封測試通知，收到代表 EmailJS 設定成功 ✅',lang:'zh',summary:'測試通知 — 設定成功'});
+    toast('✅ 已寄出測試通知，請到 '+to+' 收信（也看一下垃圾信匣）');
+  }catch(e){toast('寄送失敗：'+((e&&e.message)||e)+'　請再確認三組 ID 是否正確');}
+  finally{if(b){b.disabled=false;b.textContent='寄測試通知';}}
 };
 H.stuFilter=(v)=>{S.statusFilter=v;renderStudents();};
 
