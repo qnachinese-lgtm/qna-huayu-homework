@@ -48,7 +48,7 @@
         <button class="tab" data-act="tab" data-id="calendar">📅 課表</button>
         <button class="tab" data-act="tab" data-id="lessons">📚 上課教材 <span class="count" id="c-lessons">0</span></button>
         <button class="tab" data-act="tab" data-id="grades">成績總覽 <span class="count alert hide" id="c-pending">0</span></button>
-        <button class="tab" data-act="tab" data-id="ops">📊 營運</button>
+        <button class="tab" data-act="tab" data-id="ops">📊 營運 <span class="count alert hide" id="c-leads">0</span></button>
       </div>
 
       <section id="panel-dashboard" class="panel">
@@ -200,6 +200,9 @@ async function loadAll(){
     S.quizzes=S.quizzes.filter(qz=>(qz.assigned_ids||[]).some(id=>ids.has(id)));
   }
   S.admins=owner?await listAdmins():[];
+  if(owner){try{const st=await DB.list('site');S.site=(st&&st.length)?st[st.length-1]:null;}catch(e){S.site=null;}
+    try{S.leads=await DB.list('leads');}catch(e){S.leads=[];}}
+  else{S.site=null;S.leads=[];}
   document.body.classList.toggle('is-admin',!owner);
   const bs=document.querySelector('.brand-sub');if(bs)bs.textContent=owner?'主管理員後台':('管理員 · '+(MY_EMAIL||''));
 }
@@ -214,6 +217,7 @@ function render(){
   $('#c-students').textContent=S.students.length;
   $('#c-lessons').textContent=S.lessons.length+((S.prons||[]).length);
   {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
+  {const nl=(S.leads||[]).filter(x=>(x.status||'new')==='new').length;const el=$('#c-leads');if(el){el.textContent=nl;el.classList.toggle('hide',!nl||!IS_OWNER);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
   try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,ops:renderOps}[S.tab])();}
@@ -332,7 +336,54 @@ function renderOps(){const body=$('#ops-body');
   if(IS_OWNER){const anns=(S.announcements||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
     const annRows=anns.length?anns.map(a=>`<div class="dash-row"><span class="grow"><b>${esc((a.created_at||'').slice(0,10))}</b> · ${esc(a.text||'')}</span><button class="btn btn-sm btn-danger" data-act="delAnnounce" data-id="${a.id}">✕</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">還沒有公告。</div>';
     annHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">📢 站內公告 <span class="hint">所有學生登入首頁都會看到</span></div><div class="quiz-create-row" style="margin:6px 0 10px"><button class="btn btn-sm btn-accent" data-act="newAnnounce">＋ 發布公告</button></div>${annRows}</div>`;}
-  body.innerHTML=`<div class="card"><div class="lesson-label">💰 各月收入</div>${incRows}</div><div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>${adminHtml}${annHtml}`;}
+  const siteHtml=IS_OWNER?leadsCardHtml()+siteCardHtml():'';
+  body.innerHTML=`<div class="card"><div class="lesson-label">💰 各月收入</div>${incRows}</div><div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>${siteHtml}${adminHtml}${annHtml}`;}
+/* ---------- 對外官網：報名名單 + 內容編輯 ---------- */
+function leadsCardHtml(){
+  const leads=(S.leads||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+  const newN=leads.filter(l=>(l.status||'new')==='new').length;
+  const rows=leads.length?leads.map(l=>{
+    const isNew=(l.status||'new')==='new';
+    const contact=[l.email&&('✉ '+l.email),l.line&&('LINE/Zalo: '+l.line),l.phone&&('☎ '+l.phone)].filter(Boolean).join('　');
+    const meta=[l.level,l.goal].filter(Boolean).join(' · ');
+    const when=(l.created_at||'').replace('T',' ').slice(0,16);
+    const langTag={zh:'中文',vi:'越南文',en:'英文'}[l.lang]||'';
+    return `<div class="card" style="margin:8px 0;padding:12px 14px${isNew?';border-color:var(--accent)':''}">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${isNew?'<span class="badge badge-soon">新</span>':'<span class="badge badge-ok">已處理</span>'}
+        <b>${esc(l.name||'（未填名）')}</b>${langTag?`<span class="tag">${langTag}</span>`:''}
+        <span class="muted" style="font-size:12px">${esc(when)}</span>
+        <span class="grow"></span>
+        ${l.email?`<a class="btn btn-sm" href="mailto:${esc(l.email)}">回信</a>`:''}
+        ${isNew?`<button class="btn btn-sm btn-accent" data-act="leadDone" data-id="${l.id}">標記已處理</button>`:`<button class="btn btn-sm" data-act="leadReopen" data-id="${l.id}">改回未處理</button>`}
+        <button class="btn btn-sm btn-danger" data-act="leadDel" data-id="${l.id}">刪除</button>
+      </div>
+      <div style="margin-top:6px;font-size:14px">${esc(contact)||'<span class="muted">（沒留其他聯絡方式）</span>'}</div>
+      ${meta?`<div class="muted" style="font-size:13px;margin-top:3px">🎯 ${esc(meta)}</div>`:''}
+      ${l.message?`<div style="margin-top:6px;background:#faf6ef;border-radius:8px;padding:8px 10px;font-size:14px;white-space:pre-line">${esc(l.message)}</div>`:''}
+    </div>`;
+  }).join(''):'<div class="muted" style="padding:8px 2px">還沒有人報名。把官網網址分享出去吧！</div>';
+  return `<div class="card" style="margin-top:14px"><div class="lesson-label">📥 報名名單 ${newN?`<span class="badge badge-soon">${newN} 筆新</span>`:''} <span class="hint">從對外官網送來的諮詢／報名</span></div>${rows}</div>`;
+}
+function siteCardHtml(){
+  return `<div class="card" style="margin-top:14px"><div class="lesson-label">🌐 對外官網</div>
+    <div class="dash-row"><span class="grow"><b>官網介紹頁</b><div class="hint">課程介紹、師資、學費、評價、報名表單（中／越／英）</div></span>
+      <a class="btn btn-sm" href="index.html" target="_blank">預覽</a>
+      <button class="btn btn-sm btn-accent" data-act="editSite">編輯內容</button></div>
+    <div class="hint" style="margin-top:6px">把網址分享到社群、名片、IG／FB 個人簡介，訪客填表就會出現在上面的「報名名單」，並在「營運」分頁顯示紅點提醒。</div></div>`;
+}
+const SITE_SPEC=[
+  {group:'🏷️ 品牌',fields:[{k:'brand',t:'品牌名稱（顯示在頁首與頁尾）'}]},
+  {group:'🏠 首頁主視覺',fields:[{k:'hero_title',t:'主標題（想標紅的字用 <b>字</b> 包起來）',ml:1},{k:'hero_sub',t:'副標說明',ml:1,area:1},{k:'hero_cta',t:'主要按鈕文字',ml:1}]},
+  {group:'✨ 特色一',fields:[{k:'feat1_t',t:'標題',ml:1},{k:'feat1_d',t:'說明',ml:1,area:1}]},
+  {group:'✨ 特色二',fields:[{k:'feat2_t',t:'標題',ml:1},{k:'feat2_d',t:'說明',ml:1,area:1}]},
+  {group:'✨ 特色三',fields:[{k:'feat3_t',t:'標題',ml:1},{k:'feat3_d',t:'說明',ml:1,area:1}]},
+  {group:'🧑‍🏫 師資／關於',fields:[{k:'about_t',t:'標題',ml:1},{k:'about_d',t:'介紹（可多行）',ml:1,area:1}]},
+  {group:'💰 學費／方案',fields:[{k:'price_title',t:'小標',ml:1},{k:'price_body',t:'方案內容（每行一項，可用「•」開頭）',ml:1,area:1}]},
+  {group:'⭐ 學生評價',fields:[{k:'reviews_body',t:'一行一則，格式「評價內容 —— 姓名」',ml:1,area:1}]},
+  {group:'📨 聯絡方式',fields:[{k:'contact_line',t:'LINE ID / Zalo'},{k:'contact_email',t:'Email'},{k:'contact_note',t:'聯絡說明文字',ml:1}]}
+];
+function siteFieldVal(k,lg){const d=S.site;if(!d)return '';const v=d[k];if(v==null)return '';if(lg)return (v&&typeof v==='object')?(v[lg]||''):'';return (typeof v==='object')?'':v;}
 
 /* ---------- 學生名冊 ---------- */
 const ENROLL=[['active','在學中','#16a34a'],['reserved','預約','#2563eb'],['paused','休學','#9ca3af']];
@@ -888,6 +939,37 @@ function renderGrades(){
 const RELOGIN_MSG='登入已失效。請「開新分頁」打開教師頁並登入，然後回到這個分頁再按一次儲存（不要重新整理，正在編輯的內容才不會不見）。';
 function writeErr(prefix,err){const m=((err&&(err.code||err.message))||'')+'';return prefix+'：'+(/permission|insufficient|unauth/i.test(m)?RELOGIN_MSG:(m||'發生錯誤'));}
 const H={};
+/* ----- 對外官網：報名名單 + 內容編輯 ----- */
+H.leadDone=async(id)=>{try{await DB.update('leads',id,{status:'done',handled_at:new Date().toISOString()});const l=(S.leads||[]).find(x=>x.id===id);if(l)l.status='done';render();}catch(e){toast('更新失敗：'+((e&&e.message)||e));}};
+H.leadReopen=async(id)=>{try{await DB.update('leads',id,{status:'new'});const l=(S.leads||[]).find(x=>x.id===id);if(l)l.status='new';render();}catch(e){toast('更新失敗：'+((e&&e.message)||e));}};
+H.leadDel=async(id)=>{if(!confirm('刪除這筆報名資料？刪除後就找不回來了。'))return;try{await DB.remove('leads',id);S.leads=(S.leads||[]).filter(x=>x.id!==id);render();}catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
+H.editSite=()=>{
+  const langLbl={zh:'中文',vi:'Tiếng Việt',en:'English'};
+  const body=SITE_SPEC.map(g=>`<div class="form-sec"><div class="form-sec-h">${g.group}</div>`+
+    g.fields.map(f=>{
+      if(!f.ml)return `<div class="field full"><label>${f.t}</label><input id="site-${f.k}" value="${esc(siteFieldVal(f.k))}"></div>`;
+      return `<div class="field full"><label>${f.t}</label>`+['zh','vi','en'].map(lg=>{
+        const tag=`<span style="display:inline-block;min-width:74px;font-size:12px;color:var(--muted);padding-top:${f.area?'8px':'0'}">${langLbl[lg]}</span>`;
+        const el=f.area?`<textarea id="site-${f.k}-${lg}" rows="3" style="flex:1">${esc(siteFieldVal(f.k,lg))}</textarea>`:`<input id="site-${f.k}-${lg}" style="flex:1" value="${esc(siteFieldVal(f.k,lg))}">`;
+        return `<div style="display:flex;gap:8px;align-items:${f.area?'flex-start':'center'};margin-bottom:6px">${tag}${el}</div>`;
+      }).join('')+`</div>`;
+    }).join('')+`</div>`).join('');
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>🌐 官網內容設定</h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body"><div class="hint" style="margin-bottom:12px">每個欄位可分別填中文 / 越南文 / 英文。<b>留空的欄位，官網會自動顯示系統預設文字</b>，想改再填即可。存檔後到官網重新整理就會更新。</div>
+    ${body}
+    <div style="margin-top:6px"><a class="btn btn-sm" href="index.html" target="_blank">↗ 預覽官網</a></div></div>
+    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-accent" data-act="saveSite">💾 儲存</button></div></div>`);
+};
+H.saveSite=async(_,b)=>{
+  const doc={kind:'site'};
+  SITE_SPEC.forEach(g=>g.fields.forEach(f=>{
+    if(f.ml){const o={};['zh','vi','en'].forEach(lg=>{const el=document.getElementById('site-'+f.k+'-'+lg);o[lg]=el?el.value.trim():'';});doc[f.k]=o;}
+    else{const el=document.getElementById('site-'+f.k);doc[f.k]=el?el.value.trim():'';}
+  }));
+  if(b){b.disabled=true;b.textContent='儲存中…';}
+  try{if(S.site&&S.site.id){await DB.update('site',S.site.id,doc);S.site=Object.assign({},S.site,doc);}else{const d=await DB.insert('site',doc);S.site=d;}toast('✅ 官網內容已儲存');closeModal();}
+  catch(e){if(b){b.disabled=false;b.textContent='💾 儲存';}toast('儲存失敗：'+((e&&e.message)||e));}
+};
 H.stuFilter=(v)=>{S.statusFilter=v;renderStudents();};
 
 /* ===================== 發音課 (kind='pron') ===================== */
