@@ -22,6 +22,8 @@
 #screen{max-width:100%}
 #screen audio,#screen img,#screen video,#screen canvas,#screen table{max-width:100%}
 #screen audio{width:100%}
+/* 課文以「詞」為單位斷行：每個詞不從中間換行 */
+.prose .ci-wrap,.ci-wrap{white-space:nowrap}
 /* 關鍵修正：展開課程時，過寬的內容（生詞拼音列 .vrow-py、討論作答 textarea 等）
    一律不得撐大白色卡片；否則卡片會超出 760 欄寬、開筆記時就會被蓋住。 */
 #screen .card{max-width:100%!important;box-sizing:border-box}
@@ -111,7 +113,7 @@ details.sw-row>summary::-webkit-details-marker{display:none}
     <div class="container narrow">
       <div class="snav" id="snav"></div>
       <div id="screen"></div>
-      <div class="foot-note">QNA Chinese · 學習者平台 · <span id="build-ver">v148</span></div>
+      <div class="foot-note">QNA Chinese · 學習者平台 · <span id="build-ver">v149</span></div>
     </div>
   </div>
 
@@ -307,11 +309,16 @@ function annotateWord(w){if(S.ann==='off'||!window.pinyinPro)return esc(w);
   let arr;try{arr=pinyinPro.pinyin(w,{type:'all',toneType:S.ann==='zhuyin'?'num':'symbol'});}catch(e){return esc(w);}
   return arr.map(o=>{if(!o.isZh||!o.pinyin)return esc(o.origin);const rd=S.ann==='zhuyin'?syl2zh(o.pinyin):o.pinyin;return `<ruby>${esc(o.origin)}<rt>${esc(rd)}</rt></ruby>`;}).join('');}
 function vocabDict(){const dict=[],seen=new Set();S.lessons.forEach(l=>lessonVocab(l).forEach(v=>{const w=v.front;if(w&&w.length>1&&/[㐀-鿿]/.test(w)&&!seen.has(w)){seen.add(w);dict.push(w);}}));dict.sort((a,b)=>b.length-a.length);return dict;}
-function prose2(text){if(text==null)return '';const dict=vocabDict();let html='',i=0;
-  while(i<text.length){let m=null;for(const w of dict){if(text.substr(i,w.length)===w){m=w;break;}}
+function prose2(text){if(text==null)return '';const dict=vocabDict();
+  function renderRun(s){let html='',i=0;while(i<s.length){let m=null;for(const w of dict){if(s.substr(i,w.length)===w){m=w;break;}}
     if(m){html+=`<span class="zi" data-act="zi" data-z="${esc(m)}">${annotateWord(m)}</span>`;i+=m.length;}
-    else{const ch=text[i];if(/[㐀-鿿]/.test(ch))html+=`<span class="zi" data-act="zi" data-z="${esc(ch)}">${annotateWord(ch)}</span>`;else html+=esc(ch);i++;}}
-  return html;}
+    else{const ch=s[i];if(/[㐀-鿿]/.test(ch))html+=`<span class="zi" data-act="zi" data-z="${esc(ch)}">${annotateWord(ch)}</span>`;else html+=esc(ch);i++;}}
+    return html;}
+  // 以「詞」為單位斷行：用瀏覽器內建中文分詞把每個詞包成不換行，避免像「繼續」被拆到兩行
+  let segs=null;try{if(window.Intl&&Intl.Segmenter){segs=[...new Intl.Segmenter('zh',{granularity:'word'}).segment(text)];}}catch(e){}
+  if(!segs)return renderRun(text);
+  let out='';segs.forEach(o=>{const w=o.segment;if(w.length>1&&/[㐀-鿿]/.test(w)){out+='<span class="ci-wrap">'+renderRun(w)+'</span>';}else{out+=renderRun(w);}});
+  return out;}
 function showZiPopup(ch,el){const py=window.pinyinPro?pinyinPro.pinyin(ch,{toneType:'symbol'}):'';let zh='';try{if(window.pinyinPro){const a=pinyinPro.pinyin(ch,{type:'all',toneType:'num'});zh=a.map(o=>o.isZh?syl2zh(o.pinyin):'').join('');}}catch(e){}
   const mr=vocabMeanRaw(ch);let pop=document.getElementById('zi-pop');if(!pop){pop=document.createElement('div');pop.id='zi-pop';pop.className='zi-pop';document.body.appendChild(pop);}
   pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div><div class="zi-py">${esc(py)}${zh?(' · '+esc(zh)):''}</div>${mr?`<div class="zi-mean">${mr.pos?'('+esc(mr.pos)+') ':''}<span>${esc((mr.back)||'')}</span></div>`:''}<button class="btn btn-sm" data-act="speak" data-text="${esc(ch)}">🔊</button>`;
