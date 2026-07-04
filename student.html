@@ -1283,7 +1283,7 @@ let HWP=null;const HWP_MAX=12;
 function hwL(zh,vi,en){return S.lang==='vi'?vi:(S.lang==='en'?en:zh);}
 function openHwrite(word,lid){if(!word){toast(t('noCards'));return;}
   const ex=hwvDocOf(lid,word);
-  HWP={word,lid,images:(ex&&Array.isArray(ex.images))?ex.images.slice():[],status:(ex&&ex.status)||'draft',comment:(ex&&ex.comment)||''};
+  HWP={word,lid,images:(ex&&Array.isArray(ex.images))?ex.images.slice():[],status:(ex&&ex.status)||'draft',comment:(ex&&ex.comment)||''};HWP_STROKES=[];HWP_ERASE=false;
   let ov=document.getElementById('hw-ov');if(ov)ov.remove();
   ov=document.createElement('div');ov.id='hw-ov';ov.className='stroke-ov';ov.innerHTML=hwriteInner();
   document.body.appendChild(ov);const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);hwRenderDemo(true);}
@@ -1307,10 +1307,12 @@ function hwriteInner(){const n=HWP.images.length;const guide=esc(HWP.word);const
       <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${gsize}px;color:#efe6d8;pointer-events:none;user-select:none;font-family:'Kaiti TC','Kaiti','DFKai-SB','BiauKai',serif;line-height:1">${guide}</div>
       <canvas id="hw-cv" width="300" height="300" style="position:relative;touch-action:none;width:300px;height:300px;display:block"></canvas>
     </div>
-    <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap">
-      <button class="btn btn-sm" data-act="hwClearCv">🧹 ${hwL('清除這張','Xoá','Clear')}</button>
-      <button class="btn btn-sm btn-accent" data-act="hwAdd">➕ ${hwL('存起來，再寫一張','Lưu, viết tờ mới','Save & write again')}</button>
+    <div style="display:flex;gap:6px;justify-content:center;margin-top:10px;flex-wrap:wrap">
+      <button class="btn btn-sm" data-act="hwUndo">↩ ${hwL('刪除上一筆','Xoá nét cuối','Undo')}</button>
+      <button class="btn btn-sm ${HWP_ERASE?'btn-accent':''}" data-act="hwErase">🧽 ${hwL('橡皮擦','Tẩy','Eraser')}${HWP_ERASE?'：'+hwL('開','bật','on'):''}</button>
+      <button class="btn btn-sm" data-act="hwClearCv">🧹 ${hwL('清除全部','Xoá hết','Clear all')}</button>
     </div>
+    <div style="margin-top:8px;text-align:center"><button class="btn btn-accent" data-act="hwAdd">➕ ${hwL('存起來，再寫一張','Lưu, viết tờ mới','Save & write again')}</button></div>
     <div style="margin-top:10px;text-align:center"><div class="hint">${hwL('已寫','Đã viết','Written')} ${n} ${hwL('張','tờ','sheets')}${n>=HWP_MAX?'（'+hwL('已達上限','đã tối đa','max')+'）':''}</div><div style="margin-top:6px">${thumbs||'<span class="hint">'+hwL('還沒有寫好的字','Chưa có tờ nào','Nothing saved yet')+'</span>'}</div></div>
     <div style="margin-top:12px;text-align:center">
       <button class="btn btn-primary" data-act="hwSubmit" style="padding:10px 20px">📤 ${hwL('送出給老師','Gửi cho giáo viên','Submit to teacher')}（${n}）</button>
@@ -1319,19 +1321,24 @@ function hwriteInner(){const n=HWP.images.length;const guide=esc(HWP.word);const
     </div>
     <div class="hint" style="margin-top:8px;text-align:center">${hwL('用手指或滑鼠在框裡寫，寫好按「存起來」，可以寫很多張，最後一起送給老師','Viết bằng ngón tay/chuột, xong bấm Lưu, có thể viết nhiều tờ rồi gửi','Write with finger/mouse, tap Save, write many, then submit')}</div>
   </div>`;}
-function hwAttach(cv){const ctx=cv.getContext('2d');ctx.lineWidth=11;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#16110c';
-  let drawing=false,last=null;cv.dataset.blank='1';
+let HWP_STROKES=[],HWP_ERASE=false;
+function hwRedraw(cv){const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);ctx.lineCap='round';ctx.lineJoin='round';
+  HWP_STROKES.forEach(s=>{if(!s.pts||!s.pts.length)return;ctx.globalCompositeOperation=s.erase?'destination-out':'source-over';ctx.strokeStyle='#16110c';ctx.lineWidth=s.erase?30:11;ctx.beginPath();ctx.moveTo(s.pts[0].x,s.pts[0].y);for(let i=1;i<s.pts.length;i++)ctx.lineTo(s.pts[i].x,s.pts[i].y);if(s.pts.length===1)ctx.lineTo(s.pts[0].x+0.1,s.pts[0].y+0.1);ctx.stroke();});
+  ctx.globalCompositeOperation='source-over';}
+function hwAttach(cv){hwRedraw(cv);let cur=null;
   const pos=e=>{const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*(cv.width/r.width),y:(e.clientY-r.top)*(cv.height/r.height)};};
-  cv.addEventListener('pointerdown',e=>{drawing=true;last=pos(e);cv.dataset.blank='';try{cv.setPointerCapture(e.pointerId);}catch(_){}e.preventDefault();});
-  cv.addEventListener('pointermove',e=>{if(!drawing)return;const p=pos(e);ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();last=p;e.preventDefault();});
-  cv.addEventListener('pointerup',()=>{drawing=false;});cv.addEventListener('pointerleave',()=>{drawing=false;});}
-function hwBlank(cv){return !cv||(cv.dataset&&cv.dataset.blank==='1');}
+  cv.addEventListener('pointerdown',e=>{cur={erase:HWP_ERASE,pts:[pos(e)]};HWP_STROKES.push(cur);try{cv.setPointerCapture(e.pointerId);}catch(_){}hwRedraw(cv);e.preventDefault();});
+  cv.addEventListener('pointermove',e=>{if(!cur)return;cur.pts.push(pos(e));hwRedraw(cv);e.preventDefault();});
+  cv.addEventListener('pointerup',()=>{cur=null;});cv.addEventListener('pointerleave',()=>{cur=null;});}
+function hwBlank(cv){return !HWP_STROKES.some(s=>s.pts&&s.pts.length&&!s.erase);}
 function hwSnap(cv){const out=document.createElement('canvas');out.width=180;out.height=180;const o=out.getContext('2d');o.fillStyle='#fff';o.fillRect(0,0,180,180);o.drawImage(cv,0,0,180,180);return out.toDataURL('image/png');}
 function hwRefresh(){const ov=document.getElementById('hw-ov');if(!ov)return;ov.innerHTML=hwriteInner();const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);hwRenderDemo(false);}
 H.hwrite=(_,b)=>openHwrite(b.dataset.text,b.dataset.lesson);
 H.hwClose=()=>{const ov=document.getElementById('hw-ov');if(ov)ov.remove();HWP=null;};
-H.hwClearCv=()=>{const cv=document.getElementById('hw-cv');if(cv){cv.getContext('2d').clearRect(0,0,cv.width,cv.height);cv.dataset.blank='1';}};
-H.hwAdd=()=>{if(!HWP)return;if(HWP.images.length>=HWP_MAX){toast(hwL('最多寫 '+HWP_MAX+' 張','Tối đa '+HWP_MAX,'Max '+HWP_MAX));return;}const cv=document.getElementById('hw-cv');if(hwBlank(cv)){toast(hwL('先在框裡寫一個字','Hãy viết một chữ trước','Write a character first'));return;}HWP.images.push(hwSnap(cv));hwRefresh();};
+H.hwClearCv=()=>{HWP_STROKES=[];const cv=document.getElementById('hw-cv');if(cv)hwRedraw(cv);};
+H.hwUndo=()=>{if(HWP_STROKES.length){HWP_STROKES.pop();const cv=document.getElementById('hw-cv');if(cv)hwRedraw(cv);}};
+H.hwErase=()=>{HWP_ERASE=!HWP_ERASE;hwRefresh();};
+H.hwAdd=()=>{if(!HWP)return;if(HWP.images.length>=HWP_MAX){toast(hwL('最多寫 '+HWP_MAX+' 張','Tối đa '+HWP_MAX,'Max '+HWP_MAX));return;}const cv=document.getElementById('hw-cv');if(hwBlank(cv)){toast(hwL('先在框裡寫一個字','Hãy viết một chữ trước','Write a character first'));return;}HWP.images.push(hwSnap(cv));HWP_STROKES=[];HWP_ERASE=false;hwRefresh();};
 H.hwDelImg=(idx)=>{if(!HWP)return;HWP.images.splice(Number(idx),1);hwRefresh();};
 H.hwSubmit=async()=>{if(S.preview){toast('預覽模式無法送出');return;}if(!HWP)return;
   const cv=document.getElementById('hw-cv');if(cv&&!hwBlank(cv)&&HWP.images.length<HWP_MAX)HWP.images.push(hwSnap(cv));
