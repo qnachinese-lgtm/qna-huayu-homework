@@ -634,6 +634,9 @@ const S={me:null,lessons:[],questions:[],results:[],sentences:[],quizzes:[],quiz
 let responses={},SHUF={},GRADE=null,AUTOSAVE=null;
 const myGroups=()=>Array.isArray(S.me&&S.me.groups)?S.me.groups:[];
 const classMetaOf=(cls)=>{const m=(S.classMeta&&S.classMeta.meta)||{};return m[cls]||{};};
+/* 上課教室 Meet 連結：優先用學生自己的，其次用團班設定的 */
+function myMeetUrl(){if(/^https?:\/\//i.test((S.me&&S.me.meet_url)||''))return S.me.meet_url;for(const g of myGroups()){const m=classMetaOf(g).meet;if(/^https?:\/\//i.test(m||''))return m;}return '';}
+function meetCardHtml(){if(S.preview)return '';const u=myMeetUrl();if(!u)return '';const lab=S.lang==='en'?'Enter classroom':(S.lang==='vi'?'Vào lớp học':'進入上課教室');return `<a class="meet-card" href="${esc(u)}" target="_blank" rel="noopener"><span class="meet-ic">🎥</span><span class="meet-tx"><b>${lab}</b><small>Google Meet · 點此直接上課</small></span><span class="meet-go">→</span></a>`;}
 const _WD=['週一','週二','週三','週四','週五','週六','週日'];
 const fmtSched=(sch)=>(Array.isArray(sch)?sch:[]).filter(r=>r&&(r.s||r.e)).map(r=>(_WD[r.d!=null?r.d:0]||'')+' '+(r.s||'')+(r.e?'–'+r.e:'')).join('、');
 const assignedToMe=(x)=>{if(!x||!S.me)return false;if((x.assigned_ids||[]).includes(S.me.id))return true;const ag=x.assigned_groups||[];return ag.length>0&&myGroups().some(g=>ag.includes(g));};
@@ -766,7 +769,7 @@ function renderWork(){
   if((overdue||soon)&&('Notification'in window)&&Notification.permission==='default')nbp.push('<button class="nb-item" data-act="enableNotify">🔔 開啟提醒</button>');
   const nb=nbp.length?`<div class="notify-bar">${nbp.join('')}</div>`:'';
   const left=myLeft();const sessCard=left!=null?`<div class="sess-line${left<=2?' low':''}">🎟️ 本期還剩 <b>${left}</b> 堂${left<=0?' <span class="badge badge-overdue">已用完</span>':(left<=2?' <span class="badge badge-soon">快用完了</span>':'')}</div>`:'';
-  const meetCard=(S.me&&/^https?:\/\//i.test(S.me.meet_url||''))?`<a class="meet-card" href="${esc(S.me.meet_url)}" target="_blank" rel="noopener"><span class="meet-ic">🎥</span><span class="meet-tx"><b>進入教室</b><small>Google Meet · 點此上課 Join class</small></span><span class="meet-go">→</span></a>`:'';
+  const meetCard=meetCardHtml();
   const _hasSched=Array.isArray(S.me&&S.me.schedule)&&S.me.schedule.some(r=>r&&r.s);
   const calCard=_hasSched?`<div class="cal-card"><button class="btn btn-sm" data-act="addCal">📅 加入手機／Google 日曆</button><span class="hint">加一次，每週上課前 30 分鐘手機自動提醒</span></div>`:'';
   // 成就徽章
@@ -900,7 +903,8 @@ function renderContent(){
   const prons=(S.prons||[]).filter(p=>S.preview||assignedToMe(p));
   const _grp=myGroups();
   const clsBanner=(!S.preview&&_grp.length)?`<div class="class-banner"><div class="cb-head"><span class="cb-ic">👥</span><span class="cb-label">${t('yourClass')}</span></div>${_grp.map(g=>{const cm=classMetaOf(g);const s=fmtSched(cm.schedule);const chips=[`<span class="cb-chip cb-cls">${esc(g)}</span>`];if(s)chips.push(`<span class="cb-chip">🕒 ${esc(s)}</span>`);if(cm.textbook)chips.push(`<span class="cb-chip">📖 ${esc(cm.textbook)}</span>`);return `<div class="cb-row">${chips.join('')}</div>`;}).join('')}<div class="cb-note">💡 ${t('classNote')}</div></div>`:'';
-  if(!normals.length&&!prons.length){$('#screen').innerHTML=clsBanner+classDaysHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
+  const meetTop=meetCardHtml();
+  if(!normals.length&&!prons.length){$('#screen').innerHTML=meetTop+clsBanner+classDaysHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
   const entries=[...normals.map(l=>({k:'l',l,b:(l.textbook||'').trim()||t('uncat')})),...prons.map(p=>({k:'p',l:p,b:(p.textbook||'').trim()||t('navPron')}))];
   const books=[];entries.forEach(e=>{if(!books.includes(e.b))books.push(e.b);});
   const cur=(S.contentBook&&books.includes(S.contentBook))?S.contentBook:books[0];
@@ -912,7 +916,7 @@ function renderContent(){
   const progCard=(!S.preview&&_hw.length)?`<div class="card prog-card"><div class="prog-top"><b>${t('learnProg')}</b><span class="hint">${_done}/${_hw.length} ${t('lessonsDone')}</span></div><div class="prog-bar"><span style="width:${Math.round(_done/_hw.length*100)}%"></span></div></div>`:'';
   const _fbn=S.preview?0:teacherFbCount();
   const fbBanner=_fbn?`<div class="fb-banner" data-act="section" data-id="work">${t('fbGave1')} ${_fbn} ${t('fbGave2')}</div>`:'';
-  $('#screen').innerHTML=clsBanner+fbBanner+progCard+classDaysHtml()+tabBar+'<div class="cards">'+cards+'</div>';
+  $('#screen').innerHTML=meetTop+clsBanner+fbBanner+progCard+classDaysHtml()+tabBar+'<div class="cards">'+cards+'</div>';
   convScreen();setupCanvases();
   if(!S.preview)shown.forEach(e=>{if(e.k!=='l')return;const n=noteOf(e.l.id);if(n&&n.ink){const cv=document.getElementById('note-cv-'+e.l.id);if(cv)loadNoteInk(cv,n.ink);}
     // 還原「語法練習」已填寫但尚未送出的答案（含草稿），並掛上自動儲存
