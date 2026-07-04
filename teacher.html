@@ -332,8 +332,9 @@ function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'
   if(view==='month'){renderCalMonth(body,toggle);return;}
   const byDay={};
   S.students.forEach(s=>{if(s.is_test||enrollOf(s)==='trial'||enrollOf(s)==='paused')return;(Array.isArray(s.schedule)?s.schedule:[]).forEach(slot=>{if(slot&&(slot.s||slot.e)){const d=(slot.d!=null?slot.d:0);(byDay[d]=byDay[d]||[]).push({stu:s,slot});}});});
-  if(!Object.keys(byDay).length){body.innerHTML=toggle+emptyHtml('📅','本週沒有固定課表','時間固定的學生填「上課時段」會出現在這裡；時間不固定的學生請改用上方「🗓 月曆統計」看實際上課。');return;}
-  let html=toggle+'<div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-sm btn-accent" data-act="exportCal">📅 匯出全部上課日曆</button><span class="hint">匯入手機／Google 日曆一次，每堂課前 30 分鐘自動提醒（含 Meet 連結）</span></div>';const todayIdx=(new Date().getDay()+6)%7;
+  const wa=weekActualCard();
+  if(!Object.keys(byDay).length){body.innerHTML=toggle+wa+(wa?'':emptyHtml('📅','本週沒有課','時間固定的學生填「上課時段」會出現在這裡；時間不固定的學生，只要在「上課記錄」記一堂、或用「📌 預排課程」排課，就會出現在這裡（本週）以及「🗓 月曆統計」。'));return;}
+  let html=toggle+wa+'<div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-sm btn-accent" data-act="exportCal">📅 匯出全部上課日曆</button><span class="hint">匯入手機／Google 日曆一次，每堂課前 30 分鐘自動提醒（含 Meet 連結）</span></div>';const todayIdx=(new Date().getDay()+6)%7;
   for(let i=0;i<7;i++){const d=(todayIdx+i)%7;const raw=(byDay[d]||[]).slice().sort((a,b)=>(a.slot.s||'').localeCompare(b.slot.s||''));if(!raw.length)continue;
     // 團班同一時段＝一堂課：把同團班、同時段的學生合併成一筆
     const gmap={},order=[];
@@ -418,6 +419,22 @@ function renderCalLedger(body,toggle){
     </details>`;
   }).join('');
   body.innerHTML=toggle+nav+summary+rows;}
+/* 本週實際排的課（依日期）：把 class_log 已記錄 ＋ 團班預排，落在今天起 7 天內的列出來，讓不固定時間的課也出現在本週課表 */
+function weekActualCard(){
+  const t=new Date();t.setHours(0,0,0,0);const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const start=ymd(t);const eD=new Date(t);eD.setDate(eD.getDate()+6);const end=ymd(eD);
+  const items=[];
+  (S.students||[]).forEach(s=>{if(s.deleted||s.is_test)return;(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(e&&e.date&&e.date>=start&&e.date<=end)items.push({date:e.date,type:'log',s,e});});});
+  groupsList().forEach(cls=>classPlanned(cls).forEach(p=>{if(p&&p.date&&p.date>=start&&p.date<=end)items.push({date:p.date,type:'plan',cls,p});}));
+  if(!items.length)return '';
+  items.sort((a,b)=>String(a.date).localeCompare(b.date)||String((a.e&&a.e.start)||(a.p&&a.p.start)||'').localeCompare(String((b.e&&b.e.start)||(b.p&&b.p.start)||'')));
+  const rows=items.map(it=>{const wd=DAYS[(new Date(it.date+'T00:00:00').getDay()+6)%7];const isToday=it.date===start;
+    if(it.type==='log'){const e=it.e;const tm=(e.start||e.end)?(e.start||'')+(e.end?'–'+e.end:''):'';const badge=e.status==='leave'?'<span class="muted">請假</span>':(e.free?'<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':'<span style="color:#16a34a;font-weight:600">出席</span>');
+      return `<div class="dash-row"><span class="badge badge-ok" style="white-space:nowrap">${esc(it.date)}</span><span class="muted">${wd}</span>${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<b>${esc(it.s.name)}</b>${badge}${isToday?' <span class="badge badge-soon">今天</span>':''}</div>`;}
+    const p=it.p;const tm=(p.start||p.end)?(p.start||'')+(p.end?'–'+p.end:''):'';
+    return `<div class="dash-row" style="background:#fff8ec;border-radius:8px;flex-wrap:wrap"><span class="badge" style="background:#fde68a;color:#92400e;border-color:#f59e0b;white-space:nowrap">${esc(it.date)}</span><span class="muted">${wd}</span>${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#fde68a;color:#92400e">📌 預排</span><b>${esc(it.cls)} 團班</b>${isToday?' <span class="badge badge-soon">今天</span>':''}<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="${esc(it.cls)}::${esc(it.date)}">✍️ 去點名</button></div>`;
+  }).join('');
+  return `<div class="card" style="margin-bottom:12px"><div class="lesson-label">🗓 本週實際上課（依日期，含已記錄與預排）</div><div style="margin-top:6px">${rows}</div></div>`;}
 
 /* ---------- 營運（收入／待收款／管理員／公告） ---------- */
 function renderOps(){const body=$('#ops-body');
