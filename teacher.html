@@ -324,10 +324,13 @@ function buildAllClassICS(){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//
     if(/^https?:\/\//i.test(meet)){L.push('LOCATION:'+icsEscT(meet),'DESCRIPTION:'+icsEscT('線上教室：'+meet));}
     L.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEscT(title+'快開始了'),'TRIGGER:-PT30M','END:VALARM','END:VEVENT');});
   L.push('END:VCALENDAR');return {ics:L.join('\r\n'),count:order.length};}
-function renderCalendar(){const body=$('#calendar-body');const byDay={};
+function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'week';
+  const toggle=`<div class="card" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-sm ${view==='week'?'btn-accent':''}" data-act="calView" data-id="week">📆 本週課表</button><button class="btn btn-sm ${view==='month'?'btn-accent':''}" data-act="calView" data-id="month">🗓 月曆統計</button><span class="hint" style="align-self:center">月曆＝依每堂實際日期統計（適合時間不固定的學生）</span></div>`;
+  if(view==='month'){renderCalMonth(body,toggle);return;}
+  const byDay={};
   S.students.forEach(s=>{if(s.is_test||enrollOf(s)==='trial'||enrollOf(s)==='paused')return;(Array.isArray(s.schedule)?s.schedule:[]).forEach(slot=>{if(slot&&(slot.s||slot.e)){const d=(slot.d!=null?slot.d:0);(byDay[d]=byDay[d]||[]).push({stu:s,slot});}});});
-  if(!Object.keys(byDay).length){body.innerHTML=emptyHtml('📅','還沒有課表','到「學生名冊」編輯學生、填上「上課時段」就會自動出現在這裡。');return;}
-  let html='<div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-sm btn-accent" data-act="exportCal">📅 匯出全部上課日曆</button><span class="hint">匯入手機／Google 日曆一次，每堂課前 30 分鐘自動提醒（含 Meet 連結）</span></div>';const todayIdx=(new Date().getDay()+6)%7;
+  if(!Object.keys(byDay).length){body.innerHTML=toggle+emptyHtml('📅','本週沒有固定課表','時間固定的學生填「上課時段」會出現在這裡；時間不固定的學生請改用上方「🗓 月曆統計」看實際上課。');return;}
+  let html=toggle+'<div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-sm btn-accent" data-act="exportCal">📅 匯出全部上課日曆</button><span class="hint">匯入手機／Google 日曆一次，每堂課前 30 分鐘自動提醒（含 Meet 連結）</span></div>';const todayIdx=(new Date().getDay()+6)%7;
   for(let i=0;i<7;i++){const d=(todayIdx+i)%7;const raw=(byDay[d]||[]).slice().sort((a,b)=>(a.slot.s||'').localeCompare(b.slot.s||''));if(!raw.length)continue;
     // 團班同一時段＝一堂課：把同團班、同時段的學生合併成一筆
     const gmap={},order=[];
@@ -342,6 +345,27 @@ function renderCalendar(){const body=$('#calendar-body');const byDay={};
         const info=grp?`<b>👥 ${esc(grp)}</b><span class="muted">團班（${stus.length}人）${first.textbook?' · '+esc(first.textbook):''} · ${esc(stus.map(s=>s.name).join('、'))}</span>`:`<b>${esc(first.name)}</b><span class="muted">${esc(first.class_type||'')}${first.textbook?' · '+esc(first.textbook):''}</span>`;
         return `<div class="dash-row"><span class="badge badge-pending">${esc(time||'—')}</span>${info}<span class="grow"></span>${meet}<a class="btn btn-sm" href="${esc(gl)}" target="_blank" rel="noopener">📅 加入日曆</a></div>`;}).join('')+`</div>`;}
   body.innerHTML=html;}
+/* 月曆統計：依每堂實際日期（class_log）統計，不做週表推算 */
+function renderCalMonth(body,toggle){
+  const ym=S.calMonth||(new Date().toISOString().slice(0,7));const [Y,M]=ym.split('-').map(Number);const label=Y+' 年 '+M+' 月';
+  const days={};let totalCharged=0,totalFree=0,totalLeave=0;const perStu={};
+  (S.students||[]).forEach(s=>{if(s.is_test)return;(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date||String(e.date).slice(0,7)!==ym)return;
+    (days[e.date]=days[e.date]||[]).push({s,e});
+    if(e.status==='leave')totalLeave++;else if(e.free)totalFree++;else{totalCharged++;perStu[s.name]=(perStu[s.name]||0)+1;}
+  });});
+  const dates=Object.keys(days).sort();
+  const nav=`<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="calMonth" data-id="-1">‹ 上個月</button><b style="font-size:16px;color:var(--primary)">${label}</b><button class="btn btn-sm" data-act="calMonth" data-id="1">下個月 ›</button><span class="grow"></span><span class="muted">計費 <b>${totalCharged}</b> 堂${totalFree?('　🎁 免費 '+totalFree):''}${totalLeave?('　請假 '+totalLeave):''}</span></div>`;
+  if(!dates.length){body.innerHTML=toggle+nav+emptyHtml('🗓','這個月沒有上課記錄','到「學生名冊 → 某位學生 → 上課記錄」把每一堂的日期記下來，就會依月出現在這裡並自動統計。');return;}
+  const sumRows=Object.keys(perStu).sort((a,b)=>perStu[b]-perStu[a]).map(n=>`<div class="dash-row"><b>${esc(n)}</b><span class="grow"></span><span class="muted">${perStu[n]} 堂</span></div>`).join('');
+  const summary=`<div class="card" style="margin-bottom:12px"><div class="lesson-label">📊 ${label} 各學生計費堂數</div>${sumRows||'<div class="hint">本月沒有計費課</div>'}</div>`;
+  const dayCards=dates.map(d=>{const items=days[d].slice().sort((a,b)=>((a.e.start||'')).localeCompare(b.e.start||''));const wd=DAYS[(new Date(d+'T00:00:00').getDay()+6)%7];
+    return `<div class="card" style="margin-bottom:12px"><div class="lesson-label" style="display:flex;align-items:center;gap:8px">${esc(d)} <span class="muted">（${wd}）</span><span class="grow"></span><span class="muted" style="font-weight:400;font-size:13px">${items.length} 堂</span></div>`+
+      items.map(({s,e})=>{const tm=(e.start||'')+(e.end?'–'+e.end:'');const badge=e.status==='leave'?'<span class="badge badge-overdue">請假</span>':(e.free?'<span class="badge" style="background:#7c3aed22;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':'<span class="badge badge-ok">出席</span>');
+        return `<div class="dash-row">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<b>${esc(s.name)}</b>${badge}${e.note?`<span class="muted" style="margin-left:6px">${esc(e.note)}</span>`:''}</div>`;}).join('')+`</div>`;
+  }).join('');
+  body.innerHTML=toggle+nav+summary+dayCards;}
+H.calView=(v)=>{S.calView=v;if(v==='month'&&!S.calMonth)S.calMonth=new Date().toISOString().slice(0,7);renderCalendar();};
+H.calMonth=(delta)=>{const ym=S.calMonth||new Date().toISOString().slice(0,7);const p=ym.split('-').map(Number);const dt=new Date(p[0],p[1]-1+Number(delta),1);S.calMonth=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');renderCalendar();};
 
 /* ---------- 營運（收入／待收款／管理員／公告） ---------- */
 function renderOps(){const body=$('#ops-body');
