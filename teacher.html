@@ -320,12 +320,18 @@ function renderCalendar(){const body=$('#calendar-body');const byDay={};
   S.students.forEach(s=>{(Array.isArray(s.schedule)?s.schedule:[]).forEach(slot=>{if(slot&&(slot.s||slot.e)){const d=(slot.d!=null?slot.d:0);(byDay[d]=byDay[d]||[]).push({stu:s,slot});}});});
   if(!Object.keys(byDay).length){body.innerHTML=emptyHtml('📅','還沒有課表','到「學生名冊」編輯學生、填上「上課時段」就會自動出現在這裡。');return;}
   let html='<div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-sm btn-accent" data-act="exportCal">📅 匯出全部上課日曆</button><span class="hint">匯入手機／Google 日曆一次，每堂課前 30 分鐘自動提醒（含 Meet 連結）</span></div>';const todayIdx=(new Date().getDay()+6)%7;
-  for(let i=0;i<7;i++){const d=(todayIdx+i)%7;const items=(byDay[d]||[]).slice().sort((a,b)=>(a.slot.s||'').localeCompare(b.slot.s||''));if(!items.length)continue;
+  for(let i=0;i<7;i++){const d=(todayIdx+i)%7;const raw=(byDay[d]||[]).slice().sort((a,b)=>(a.slot.s||'').localeCompare(b.slot.s||''));if(!raw.length)continue;
+    // 團班同一時段＝一堂課：把同團班、同時段的學生合併成一筆
+    const gmap={},order=[];
+    raw.forEach(({stu,slot})=>{const grp=(stu.class_type==='團班'&&stuGroups(stu)[0])||'';const key=grp?('G|'+grp+'|'+(slot.s||'')+'|'+(slot.e||'')):('S|'+stu.id+'|'+(slot.s||'')+'|'+(slot.e||''));if(!gmap[key]){gmap[key]={grp,slot,stus:[]};order.push(key);}gmap[key].stus.push(stu);});
+    const entries=order.map(k=>gmap[k]);
     const dt=new Date();dt.setHours(0,0,0,0);dt.setDate(dt.getDate()+i);const md=dt.getFullYear()+'/'+(dt.getMonth()+1)+'/'+dt.getDate();
-    html+=`<div class="card" style="margin-bottom:12px"><div class="lesson-label" style="display:flex;align-items:center;gap:8px">${DAYS[d]} <span style="color:var(--primary)">${md}</span>${i===0?'<span class="badge badge-soon">今天</span>':''}<span class="grow"></span><span class="muted" style="font-weight:400;font-size:13px">${items.length} 堂課</span></div>`+
-      items.map(({stu,slot})=>{const time=(slot.s||'')+(slot.e?'–'+slot.e:'');const start=nextDateForDay(d,slot.s||'00:00');const gl=gcalLink((stu.name||'學生')+' 中文課',start,slot.e);
-        const meet=/^https?:\/\//i.test(stu.meet_url||'')?`<a class="btn btn-sm btn-accent" href="${esc(stu.meet_url)}" target="_blank" rel="noopener">🎥 教室</a>`:'';
-        return `<div class="dash-row"><span class="badge badge-pending">${esc(time||'—')}</span><b>${esc(stu.name)}</b><span class="muted">${esc(stu.class_type||'')}${stu.textbook?' · '+esc(stu.textbook):''}</span><span class="grow"></span>${meet}<a class="btn btn-sm" href="${esc(gl)}" target="_blank" rel="noopener">📅 加入日曆</a></div>`;}).join('')+`</div>`;}
+    html+=`<div class="card" style="margin-bottom:12px"><div class="lesson-label" style="display:flex;align-items:center;gap:8px">${DAYS[d]} <span style="color:var(--primary)">${md}</span>${i===0?'<span class="badge badge-soon">今天</span>':''}<span class="grow"></span><span class="muted" style="font-weight:400;font-size:13px">${entries.length} 堂課</span></div>`+
+      entries.map(({grp,slot,stus})=>{const time=(slot.s||'')+(slot.e?'–'+slot.e:'');const first=stus[0];
+        const title=grp?(grp+' 團班 中文課'):((first.name||'學生')+' 中文課');const start=nextDateForDay(d,slot.s||'00:00');const gl=gcalLink(title,start,slot.e);
+        const mstu=stus.find(s=>/^https?:\/\//i.test(s.meet_url||''));const meet=mstu?`<a class="btn btn-sm btn-accent" href="${esc(mstu.meet_url)}" target="_blank" rel="noopener">🎥 教室</a>`:'';
+        const info=grp?`<b>👥 ${esc(grp)}</b><span class="muted">團班（${stus.length}人）${first.textbook?' · '+esc(first.textbook):''} · ${esc(stus.map(s=>s.name).join('、'))}</span>`:`<b>${esc(first.name)}</b><span class="muted">${esc(first.class_type||'')}${first.textbook?' · '+esc(first.textbook):''}</span>`;
+        return `<div class="dash-row"><span class="badge badge-pending">${esc(time||'—')}</span>${info}<span class="grow"></span>${meet}<a class="btn btn-sm" href="${esc(gl)}" target="_blank" rel="noopener">📅 加入日曆</a></div>`;}).join('')+`</div>`;}
   body.innerHTML=html;}
 
 /* ---------- 營運（收入／待收款／管理員／公告） ---------- */
