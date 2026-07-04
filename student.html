@@ -314,10 +314,16 @@ function prose2(text){if(text==null)return '';const dict=vocabDict();
     if(m){html+=`<span class="zi" data-act="zi" data-z="${esc(m)}">${annotateWord(m)}</span>`;i+=m.length;}
     else{const ch=s[i];if(/[㐀-鿿]/.test(ch))html+=`<span class="zi" data-act="zi" data-z="${esc(ch)}">${annotateWord(ch)}</span>`;else html+=esc(ch);i++;}}
     return html;}
-  // 以「詞」為單位斷行：用瀏覽器內建中文分詞把每個詞包成不換行，避免像「繼續」被拆到兩行
+  // 以「詞」為單位閱讀：用瀏覽器內建中文分詞，每個「詞」是一個可點擊、不換行的單位（而不是一個字一個字）
+  const ziSpan=w=>`<span class="zi" data-act="zi" data-z="${esc(w)}">${annotateWord(w)}</span>`;
   let segs=null;try{if(window.Intl&&Intl.Segmenter){segs=[...new Intl.Segmenter('zh',{granularity:'word'}).segment(text)];}}catch(e){}
   if(!segs)return renderRun(text);
-  let out='';segs.forEach(o=>{const w=o.segment;if(w.length>1&&/[㐀-鿿]/.test(w)){out+='<span class="ci-wrap">'+renderRun(w)+'</span>';}else{out+=renderRun(w);}});
+  let out='';segs.forEach(o=>{const w=o.segment;
+    if(w.length>1&&/[㐀-鿿]/.test(w)){
+      // 若這個詞裡剛好含有老師定義的生詞，就用生詞優先切（讓生詞可查釋義）；否則整個詞當一個單位
+      const hasVocab=dict.some(d=>w.includes(d));
+      out+='<span class="ci-wrap">'+(hasVocab?renderRun(w):ziSpan(w))+'</span>';
+    }else{out+=renderRun(w);}});
   return out;}
 function showZiPopup(ch,el){const py=window.pinyinPro?pinyinPro.pinyin(ch,{toneType:'symbol'}):'';let zh='';try{if(window.pinyinPro){const a=pinyinPro.pinyin(ch,{type:'all',toneType:'num'});zh=a.map(o=>o.isZh?syl2zh(o.pinyin):'').join('');}}catch(e){}
   const mr=vocabMeanRaw(ch);let pop=document.getElementById('zi-pop');if(!pop){pop=document.createElement('div');pop.id='zi-pop';pop.className='zi-pop';document.body.appendChild(pop);}
