@@ -523,7 +523,7 @@ function lessonBodyHtml(l,opts){opts=opts||{};const seq=reconcileLayout(l);const
     +sec(dlgGram,'📘',pk(SLAB.dlgG,'對話語法'))
     +sec(shortText,'📄',pk(SLAB.sh,'短文內容'))
     +sec(shortGram,'📘',pk(SLAB.shG,'短文語法'))
-    +tail+gpracBarHtml(l,gpqs)+examplesHtml(l.examples);}
+    +tail+gpracBarHtml(l)+examplesHtml(l.examples);}
 function gpLabel(lab){lab=(lab||'').trim();if(!lab)return '';const m=GP_LBL[lab];if(m&&(S.lang==='en'||S.lang==='vi'))return m[S.lang]||lab;return lab;}
 // 例句若是對話（A：… B：… 或 人名：…），自動在換人說話時斷行，不再擠成一行
 function exTurns(s){const m=String(s||'').replace(/([。！？?!.])[ 　\t]+(?=[^\s，,。！？?!.：:、；;]{1,4}[：:])/g,'$1');return m.split('').map(p=>annotate(p)).join('<br>');}
@@ -665,27 +665,28 @@ function gpAnsText(q,resp){if(resp==null||resp==='')return '';
   if(q.type==='match')return Array.isArray(resp)?resp.join('、'):String(resp);
   if(q.type==='write'||(q.type==='fill'&&q.input_mode==='write'))return '（手寫）';
   return String(resp);}
-function gpracBarHtml(l,gpqs){if(!gpqs.length)return '';
-  const doc=gpracDocOf(l.id),reviewed=doc&&doc.status==='reviewed',submitted=!!doc;
-  let status='';
-  if(reviewed)status=`<div class="notice">${gpLab('graded')}${doc.reviewed_at?(' · '+esc((doc.reviewed_at||'').slice(0,10))):''}</div>`;
-  else if(submitted)status=`<div class="notice">${gpLab('sent')}</div>`;
-  let panel='';
-  if(reviewed){const fb=doc.feedback||{},ans=doc.answers||{};
-    const items=gpqs.map((q,i)=>{const a=gpAnsText(q,ans[q.id]);const f=fb[q.id];if(!a&&!f)return '';
-      return `<div style="padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-top:8px">
-        <div style="font-weight:600">${i+1}. ${esc((q.prompt||'').replace(/[_＿]{2,}/g,'____'))}</div>
-        <div style="margin-top:3px;font-size:14px">${esc(gpLab('myans'))}：${a?esc(a):'<span class="muted">'+esc(gpLab('noans'))+'</span>'}</div>
-        ${f?`<div class="fb-note">💬 ${esc(f)}</div>`:''}</div>`;}).join('');
-    panel=`${doc.overall?`<div class="fb-note" style="margin-top:8px">💬 ${esc(doc.overall)}</div>`:''}${items}`;}
-  let actions;
-  if(!submitted){
-    actions=`<button class="btn btn-primary" data-act="submitGprac" data-id="${l.id}">${gpLab('submitAll')}</button> <span class="hint">也可以在每個語法卡裡單獨送出</span>`;
-  }else{
-    // 已送出／已批改：只顯示狀態（與評語），不再提供任何送出按鈕。要改答案就打開各語法卡單獨重送。
-    actions=`<span class="hint">要修改答案，打開上面的語法卡再送出一次即可</span>`;
-  }
-  return `<div class="lesson-block">${status}${panel}${actions?`<div style="margin-top:10px">${actions}</div>`:''}</div>`;}
+/* 本課完成度：依「學生已作答的語法練習 ＋ 問題與討論」占全部可作答題目的比例 */
+function lessonAnsweredStats(l){
+  const gpqs=questionsOf(l.id).filter(q=>q.bank!=='hw'&&q.type!=='note');
+  const gdoc=gpracDocOf(l.id);const gans=(gdoc&&gdoc.answers)||{};
+  let gDone=0;gpqs.forEach(q=>{const a=gans[q.id];if(a!=null&&String(swAnsText(a)).trim()!=='')gDone++;});
+  const ddoc=discDocOf(l.id);const dans=(ddoc&&ddoc.answers)||{};
+  let dTotal=0,dDone=0;lessonDialogues(l).forEach((d,di)=>{(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean).forEach((q,qi)=>{dTotal++;const a=dans[di+'_'+qi];if(a!=null&&String(a).trim()!=='')dDone++;});});
+  const total=gpqs.length+dTotal,done=gDone+dDone;
+  return {total,done,pct:total?Math.round(done/total*100):0};
+}
+function gpracBarHtml(l){
+  const st=lessonAnsweredStats(l);
+  if(!st.total)return '';
+  const full=st.pct>=100;
+  const col=full?'#16a34a':(st.pct>=50?'#2563eb':'#d97706');
+  const ttl=S.lang==='en'?'Lesson progress':(S.lang==='vi'?'Tiến độ bài học':'本課完成度');
+  const unit=S.lang==='en'?'answered':(S.lang==='vi'?'câu đã làm':'題已完成');
+  const doneMsg=full?(S.lang==='en'?'🎉 All done!':(S.lang==='vi'?'🎉 Hoàn thành!':'🎉 這一課都做完了！')):'';
+  return `<div class="lesson-block"><div style="display:flex;justify-content:space-between;align-items:center;font-size:14px;margin-bottom:6px"><b>📊 ${ttl}</b><span style="color:${col};font-weight:800;font-size:17px">${st.pct}%</span></div>
+    <div style="height:12px;background:var(--line,#e5e5e5);border-radius:99px;overflow:hidden"><div style="height:100%;width:${st.pct}%;background:${col};border-radius:99px;transition:width .35s"></div></div>
+    <div class="hint" style="margin-top:5px">${st.done} / ${st.total} ${unit}${doneMsg?'　'+doneMsg:''}</div></div>`;
+}
 function shadowDocOf(lid,di){return (S.shadows||[]).find(x=>x.shadow_lesson===lid&&x.shadow_di===di)||null;}
 
 /* ============ theme / chrome ============ */
