@@ -331,9 +331,11 @@ function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'
   if(view==='ledger'){renderCalLedger(body,toggle);return;}
   if(view==='month'){renderCalMonth(body,toggle);return;}
   const byDay={};
-  S.students.forEach(s=>{if(s.is_test||enrollOf(s)==='trial'||enrollOf(s)==='paused')return;(Array.isArray(s.schedule)?s.schedule:[]).forEach(slot=>{if(slot&&(slot.s||slot.e)){const d=(slot.d!=null?slot.d:0);(byDay[d]=byDay[d]||[]).push({stu:s,slot});}});});
+  /* 不再用學生的固定週表自動排課：學生每週時間不固定，本週課表只顯示你「實際記錄的上課」與「預排課程」 */
   const wa=weekActualCard();
-  if(!Object.keys(byDay).length){body.innerHTML=toggle+wa+(wa?'':emptyHtml('📅','本週沒有課','時間固定的學生填「上課時段」會出現在這裡；時間不固定的學生，只要在「上課記錄」記一堂、或用「📌 預排課程」排課，就會出現在這裡（本週）以及「🗓 月曆統計」。'));return;}
+  body.innerHTML=toggle+(wa||emptyHtml('📅','本週還沒有排課','時間不固定沒關係！只要到「學生總表 → 點學生 → ✓ 記今天上課／上課記錄」記一堂，或用「📌 預排課程」，就會出現在這裡。不會再用固定週表自動排課。'))+'<div class="hint" style="text-align:center;margin-top:6px">💡 本週課表只顯示你實際記錄或預排的課，以你填的時間為準。</div>';
+  return;
+  {const wa=weekActualCard();
   let html=toggle+wa+'<div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-sm btn-accent" data-act="exportCal">📅 匯出全部上課日曆</button><span class="hint">匯入手機／Google 日曆一次，每堂課前 30 分鐘自動提醒（含 Meet 連結）</span></div>';const todayIdx=(new Date().getDay()+6)%7;
   for(let i=0;i<7;i++){const d=(todayIdx+i)%7;const raw=(byDay[d]||[]).slice().sort((a,b)=>(a.slot.s||'').localeCompare(b.slot.s||''));if(!raw.length)continue;
     // 團班同一時段＝一堂課：把同團班、同時段的學生合併成一筆
@@ -348,7 +350,7 @@ function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'
         const mstu=stus.find(s=>/^https?:\/\//i.test(s.meet_url||''));const meet=mstu?`<a class="btn btn-sm btn-accent" href="${esc(mstu.meet_url)}" target="_blank" rel="noopener">🎥 教室</a>`:'';
         const info=grp?`<b>👥 ${esc(grp)}</b><span class="muted">團班（${stus.length}人）${first.textbook?' · '+esc(first.textbook):''} · ${esc(stus.map(s=>s.name).join('、'))}</span>`:`<b>${esc(first.name)}</b><span class="muted">${esc(first.class_type||'')}${first.textbook?' · '+esc(first.textbook):''}</span>`;
         return `<div class="dash-row"><span class="badge badge-pending">${esc(time||'—')}</span>${info}<span class="grow"></span>${meet}<a class="btn btn-sm" href="${esc(gl)}" target="_blank" rel="noopener">📅 加入日曆</a></div>`;}).join('')+`</div>`;}
-  body.innerHTML=html;}
+  body.innerHTML=html;}}
 /* 月曆統計：依每堂實際日期（class_log）統計，不做週表推算 */
 function renderCalMonth(body,toggle){
   const ym=S.calMonth||(new Date().toISOString().slice(0,7));const [Y,M]=ym.split('-').map(Number);const label=Y+' 年 '+M+' 月';
