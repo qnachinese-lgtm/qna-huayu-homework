@@ -412,8 +412,8 @@ function renderCalLedger(body,toggle){
         ${r.due?`<span style="margin-left:auto"><span class="muted" style="font-size:12px">下次繳費：</span><span class="badge ${r.due.cls}">${r.due.label}</span></span>`:''}
       </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
-        <div style="flex:1;min-width:220px"><div class="lesson-label" style="font-size:13px">🗓 上課日期（共 ${r.all.length} 筆）</div><div style="max-height:260px;overflow:auto">${dateRows}</div></div>
-        <div style="flex:1;min-width:220px"><div class="lesson-label" style="font-size:13px">💰 繳費紀錄（共 ${r.pays.length} 筆）</div><div class="hint" style="margin:2px 0 6px">上次：${payCell}</div>${payRows}</div>
+        <details style="flex:1;min-width:220px"><summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--primary);list-style-position:inside">🗓 上課日期（共 ${r.all.length} 筆）</summary><div style="max-height:260px;overflow:auto;margin-top:6px">${dateRows}</div></details>
+        <details style="flex:1;min-width:220px"><summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--primary);list-style-position:inside">💰 繳費紀錄（共 ${r.pays.length} 筆）</summary><div class="hint" style="margin:6px 0 6px">上次：${payCell}</div>${payRows}</details>
       </div>
     </details>`;
   }).join('');
@@ -2088,12 +2088,13 @@ H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download='成績_'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('已匯出 CSV');};
 H.payments=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const ps=(s.payments||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const total=ps.reduce((sum,p)=>sum+(Number(p.amount)||0),0);
+  const byCur={};ps.forEach(p=>{const c=p.currency||s.currency||'TWD';byCur[c]=(byCur[c]||0)+(Number(p.amount)||0);});
+  const totalStr=Object.keys(byCur).map(c=>money(byCur[c],c)).join('、')||money(0,s.currency);
   const rows=ps.length?ps.map((p,i)=>`<div class="dash-row"><span class="grow"><b>${esc(p.date||'')}</b> · ${money(p.amount,p.currency||s.currency)}${p.sessions?(' · +'+p.sessions+' 堂'):''}${p.note?(' · '+esc(p.note)):''}</span><button class="btn btn-sm" type="button" data-act="receipt" data-id="${id}::${i}">🧾 收據</button><button class="btn btn-sm btn-danger" type="button" data-act="payDel" data-id="${id}::${i}">✕</button></div>`).join(''):'<div class="hint" style="padding:8px 0">還沒有繳費紀錄。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>${esc(s.name)} · 繳費紀錄</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div style="margin-bottom:6px">${rows}</div>
-     ${ps.length?`<div class="meta" style="margin:6px 0 14px"><span>累計：<b>${money(total,s.currency)}</b>（${ps.length} 筆）</span>${sessChip(s)}</div>`:''}
+     ${ps.length?`<div class="meta" style="margin:6px 0 14px"><span>累計：<b>${totalStr}</b>（${ps.length} 筆）</span>${sessChip(s)}</div>`:''}
      <div class="form-grid">
        <div class="field"><label>日期</label><input id="pay-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
        <div class="field"><label>金額 <span class="hint">越南盾打千位（350＝350,000 ₫）</span></label><input id="pay-amount" type="number" min="0" placeholder="例：800"></div>
