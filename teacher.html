@@ -309,13 +309,21 @@ function icsPadT(n){return String(n).padStart(2,'0');}
 function icsLocT(d){return d.getFullYear()+icsPadT(d.getMonth()+1)+icsPadT(d.getDate())+'T'+icsPadT(d.getHours())+icsPadT(d.getMinutes())+'00';}
 function icsUTCT(d){return d.getUTCFullYear()+icsPadT(d.getUTCMonth()+1)+icsPadT(d.getUTCDate())+'T'+icsPadT(d.getUTCHours())+icsPadT(d.getUTCMinutes())+icsPadT(d.getUTCSeconds())+'Z';}
 function icsEscT(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/[,;]/g,m=>'\\'+m).replace(/\r?\n/g,'\\n');}
-function buildAllClassICS(){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//QNA Huayu//Class//ZH','CALSCALE:GREGORIAN','METHOD:PUBLISH'];const stamp=icsUTCT(new Date());let u=0,n=0;
-  (S.students||[]).forEach(s=>{if(s.deleted)return;(Array.isArray(s.schedule)?s.schedule:[]).forEach(slot=>{if(!slot||!slot.s)return;n++;const start=nextDateForDay(slot.d!=null?slot.d:0,slot.s);let end=new Date(start);if(slot.e){const ep=String(slot.e).split(':');end.setHours(parseInt(ep[0],10)||0,parseInt(ep[1],10)||0,0,0);}if(end<=start)end=new Date(start.getTime()+3600000);
-    const title='中文課 · '+(s.name||'');
+function buildAllClassICS(){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//QNA Huayu//Class//ZH','CALSCALE:GREGORIAN','METHOD:PUBLISH'];const stamp=icsUTCT(new Date());let u=0;
+  // 團班同時段合併成一筆事件（不再每位學生一筆）
+  const map={},order=[];
+  (S.students||[]).forEach(s=>{if(s.deleted)return;(Array.isArray(s.schedule)?s.schedule:[]).forEach(slot=>{if(!slot||!slot.s)return;
+    const grp=(s.class_type==='團班'&&stuGroups(s)[0])||'';const d=(slot.d!=null?slot.d:0);
+    const key=grp?('G|'+grp+'|'+d+'|'+slot.s):('S|'+s.id+'|'+d+'|'+slot.s+'|'+(slot.e||''));
+    if(!map[key]){map[key]={grp,d,s:slot.s,e:slot.e||'',stus:[]};order.push(key);}
+    const g=map[key];g.stus.push(s);if((slot.e||'')>g.e)g.e=slot.e||'';});});
+  order.forEach(k=>{const ev=map[k];const start=nextDateForDay(ev.d,ev.s);let end=new Date(start);if(ev.e){const ep=String(ev.e).split(':');end.setHours(parseInt(ep[0],10)||0,parseInt(ep[1],10)||0,0,0);}if(end<=start)end=new Date(start.getTime()+3600000);
+    const first=ev.stus[0];const title=ev.grp?('中文課 · '+ev.grp+' 團班'):('中文課 · '+(first.name||''));
+    const meet=ev.grp?(ev.stus.map(s=>s.meet_url).find(x=>/^https?:\/\//i.test(x||''))||''):(first.meet_url||'');
     L.push('BEGIN:VEVENT','UID:qna-t-'+Date.now()+'-'+(u++)+'@huayu','DTSTAMP:'+stamp,'DTSTART:'+icsLocT(start),'DTEND:'+icsLocT(end),'RRULE:FREQ=WEEKLY','SUMMARY:'+icsEscT(title));
-    if(/^https?:\/\//i.test(s.meet_url||'')){L.push('LOCATION:'+icsEscT(s.meet_url),'DESCRIPTION:'+icsEscT('線上教室：'+s.meet_url));}
-    L.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEscT(title+'快開始了'),'TRIGGER:-PT30M','END:VALARM','END:VEVENT');});});
-  L.push('END:VCALENDAR');return {ics:L.join('\r\n'),count:n};}
+    if(/^https?:\/\//i.test(meet)){L.push('LOCATION:'+icsEscT(meet),'DESCRIPTION:'+icsEscT('線上教室：'+meet));}
+    L.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEscT(title+'快開始了'),'TRIGGER:-PT30M','END:VALARM','END:VEVENT');});
+  L.push('END:VCALENDAR');return {ics:L.join('\r\n'),count:order.length};}
 function renderCalendar(){const body=$('#calendar-body');const byDay={};
   S.students.forEach(s=>{(Array.isArray(s.schedule)?s.schedule:[]).forEach(slot=>{if(slot&&(slot.s||slot.e)){const d=(slot.d!=null?slot.d:0);(byDay[d]=byDay[d]||[]).push({stu:s,slot});}});});
   if(!Object.keys(byDay).length){body.innerHTML=emptyHtml('📅','還沒有課表','到「學生名冊」編輯學生、填上「上課時段」就會自動出現在這裡。');return;}
@@ -863,7 +871,8 @@ function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
        <button class="btn btn-sm" type="button" data-act="gmSchedAdd" style="margin-top:6px">＋ 新增時段</button>
        <div style="margin-top:10px"><input id="gm-book" type="text" value="${esc(classMetaOf(sel).textbook||'')}" placeholder="團班教材（選填），例：時代華語三"></div>
        <div style="margin-top:8px"><input id="gm-meet" type="url" inputmode="url" value="${esc(classMetaOf(sel).meet||'')}" placeholder="🎥 上課教室 Meet 連結（選填），例：https://meet.google.com/abc-defg-hij"></div>
-       <div style="margin-top:8px"><button class="btn btn-primary" data-act="gmMetaSave" data-id="${esc(sel)}">儲存團班資訊</button> <span class="hint" id="gm-meta-st"></span></div></div>
+       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-primary" data-act="gmMetaSave" data-id="${esc(sel)}">儲存團班資訊</button> <button class="btn btn-accent" data-act="gmApplyAll" data-id="${esc(sel)}">📌 套用到全班學生</button> <span class="hint" id="gm-meta-st"></span></div>
+       <div class="hint" style="margin-top:4px">「套用到全班」會把上面的時段／教材／Meet 一次寫到這個團班每位學生，時段就不會再對不齊。</div></div>
      <div class="field"><label>✏️ 「${esc(sel)}」成員 <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}" style="float:right">刪除此團班</button></label>
        <div class="check-list" id="gm-members">${members}</div>
        <div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-primary" data-act="gmSave" data-id="${esc(sel)}">儲存成員</button><button class="btn" type="button" data-act="classPage" data-id="${esc(sel)}">🔎 開啟班級頁</button></div></div>`:''}
@@ -1869,6 +1878,18 @@ H.pubSaveLessons=async(cls)=>{const checked=new Set($$('#pub-lessons .pub-les:ch
 H.gmSchedAdd=()=>{const c=$('#gm-sched');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
 H.gmMetaSave=async(cls)=>{const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();const st=$('#gm-meta-st');if(st)st.textContent='儲存中…';
   try{await saveClassMeta(cls,{schedule,textbook,meet});if(st)st.textContent='已儲存 ✓';toast('已儲存團班資訊');}catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}};
+H.gmApplyAll=async(cls)=>{
+  const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);
+  const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();
+  const members=S.students.filter(s=>stuGroups(s).includes(cls));
+  if(!members.length)return toast('這個團班還沒有成員');
+  if(!schedule.length)return toast('請先設定上課時段');
+  if(!confirm('把「'+cls+'」的時段'+(textbook?'、教材':'')+(/^https?:\/\//i.test(meet)?'、Meet 連結':'')+'套用到全班 '+members.length+' 位學生？\n（會覆蓋他們各自目前的設定）'))return;
+  const btn=document.querySelector('[data-act="gmApplyAll"]');if(btn){btn.disabled=true;btn.textContent='套用中…';}
+  try{await saveClassMeta(cls,{schedule,textbook,meet});
+    for(const s of members){const patch={schedule:schedule.slice()};if(textbook)patch.textbook=textbook;if(/^https?:\/\//i.test(meet))patch.meet_url=meet;await DB.update('students',s.id,patch);Object.assign(s,patch);}
+    toast('✅ 已套用到全班 '+members.length+' 位學生');groupMgrModal(cls);render();
+  }catch(e){if(btn){btn.disabled=false;btn.textContent='📌 套用到全班學生';}toast('套用失敗：'+((e&&e.message)||e));}};
 H.gmCreate=()=>{const v=(($('#gm-new')&&$('#gm-new').value)||'').trim();if(!v)return toast('請輸入團班名稱');groupMgrModal(v);};
 H.gmDelClass=async(cls)=>{if(!confirm('刪除團班「'+cls+'」？（只是把學生移出這個班，不會刪除學生）'))return;const affected=S.students.filter(s=>stuGroups(s).includes(cls));try{for(const s of affected){const g=stuGroups(s).filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}groupMgrModal('');render();toast('已刪除團班');}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.gmSave=async(cls)=>{const checked=new Set($$('#gm-members .gm-mem:checked').map(x=>x.value));const btn=document.querySelector('[data-act="gmSave"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
