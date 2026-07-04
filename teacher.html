@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=158">
 </head>
 <body class="bg-pattern">
 
@@ -155,6 +155,12 @@ function sessionsLeft(s){if(!s||s.sessions_total==null||s.sessions_total==='')re
 function sessChip(s){const left=sessionsLeft(s);if(left==null)return '';const cls=left<=0?'sess-out':(left<=1?'sess-low':'');return `<span>🎟️ 堂數：<b class="${cls}">剩 ${left}／共 ${esc(String(s.sessions_total))}</b>${left<=0?' <span class="badge badge-overdue">需續費</span>':''}</span>`;}
 const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
 function avColor(s){let h=0;for(const c of (s||''))h=(h*31+c.charCodeAt(0))>>>0;return AV[h%AV.length];}
+// 頭像縮寫：中文名取「姓＋名」(跳過中間名，如「潘氏蘭」→「潘蘭」)；拉丁名取首字母
+function avInitials(n){n=(n||'').trim();if(!n)return '?';
+  if(/[一-鿿]/.test(n)){const ch=[...n];return ch.length<=2?n:(ch[0]+ch[ch.length-1]);}
+  const p=n.split(/\s+/).filter(Boolean);
+  if(p.length>=2)return (p[0][0]+p[p.length-1][0]).toUpperCase();
+  return n.slice(0,2).toUpperCase();}
 function genCodeStr(){const c='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<4;i++)s+=c[Math.floor(Math.random()*c.length)];return s;}
 function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);d.setHours(0,0,0,0);
   const diff=Math.round((d-t)/86400000);
@@ -239,7 +245,7 @@ function renderDashboard(){
   // 付款提醒
   const pays=S.students.map(s=>({s,info:payInfo(s.payment_date)})).filter(x=>x.info&&enrollOf(x.s)!=='paused').sort((a,b)=>a.info.sort-b.info.sort);
   const payHtml=pays.length?pays.map(({s,info})=>`<div class="dash-row">
-      <span class="avatar sm" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</span>
+      <span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span>
       <b>${esc(s.name)}</b><span class="badge ${info.cls}">${info.label}</span>
       <span class="grow"></span><span class="muted">${money(s.tuition,s.currency)} · ${fmtDate(s.payment_date)}</span>
       ${s.email?`<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}" title="寄重設密碼信">✉️</button>`:''}
@@ -247,14 +253,14 @@ function renderDashboard(){
   // 進度
   const progHtml=S.students.map(s=>{const p=studentProgress(s);
     return `<div class="dash-row">
-      <span class="avatar sm" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</span>
+      <span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span>
       <b>${esc(s.name)}</b>
       <span class="grow"></span>
       <span class="muted">${p.total?`完成 ${p.done}/${p.total} 課${p.avg!=null?(' · 平均 '+p.avg+'%'):''}`:'尚未指派作業'}</span>
       <span class="progbar"><span style="width:${p.pct}%"></span></span>
     </div>`;}).join('');
   const lowSess=S.students.map(s=>({s,left:sessionsLeft(s)})).filter(x=>x.left!=null&&x.left<=1&&enrollOf(x.s)!=='paused').sort((a,b)=>a.left-b.left);
-  const sessHtml=lowSess.length?lowSess.map(({s,left})=>`<div class="dash-row"><span class="avatar sm" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</span><b>${esc(s.name)}</b><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'已用完':'剩 '+left+' 堂'}</span><span class="grow"></span><span class="muted">共 ${esc(String(s.sessions_total))} 堂 · 已上 ${sessionsUsed(s)} 堂</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有快用完堂數的學生 👍</div>`;
+  const sessHtml=lowSess.length?lowSess.map(({s,left})=>`<div class="dash-row"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span><b>${esc(s.name)}</b><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'已用完':'剩 '+left+' 堂'}</span><span class="grow"></span><span class="muted">共 ${esc(String(s.sessions_total))} 堂 · 已上 ${sessionsUsed(s)} 堂</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有快用完堂數的學生 👍</div>`;
   // 批改提醒（待批改的作答）
   const pendList=(S.results||[]).filter(r=>r.status==='pending');
   const pendByLesson={};pendList.forEach(r=>{pendByLesson[r.lesson_id]=(pendByLesson[r.lesson_id]||0)+1;});
@@ -411,7 +417,7 @@ function renderStudents(){
   wrap.className='';
   const cardInner=s=>`
     <div style="display:flex;gap:12px;align-items:center">
-      <div class="avatar" style="background:${avColor(s.name)}">${esc((s.name||'?').slice(0,2))}</div>
+      <div class="avatar" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</div>
       <div style="flex:1;min-width:0"><div class="name">${esc(s.name)}</div>
         <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${enrollBadge(s)}<span class="tag accent">${esc(s.class_type||'1對1')}</span>${stuGroups(s).map(g=>`<span class="tag">👥 ${esc(g)}</span>`).join('')}${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}${IS_OWNER&&s.admin?`<span class="tag" title="負責管理員">👤 ${esc(adminName(s.admin))}</span>`:''}</div></div></div>
     <div class="actions" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
