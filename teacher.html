@@ -325,7 +325,8 @@ function buildAllClassICS(){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//
     L.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEscT(title+'快開始了'),'TRIGGER:-PT30M','END:VALARM','END:VEVENT');});
   L.push('END:VCALENDAR');return {ics:L.join('\r\n'),count:order.length};}
 function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'week';
-  const toggle=`<div class="card" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-sm ${view==='week'?'btn-accent':''}" data-act="calView" data-id="week">📆 本週課表</button><button class="btn btn-sm ${view==='month'?'btn-accent':''}" data-act="calView" data-id="month">🗓 月曆統計</button><span class="hint" style="align-self:center">月曆＝依每堂實際日期統計（適合時間不固定的學生）</span></div>`;
+  const toggle=`<div class="card" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-sm ${view==='ledger'?'btn-accent':''}" data-act="calView" data-id="ledger">📋 學生總表</button><button class="btn btn-sm ${view==='week'?'btn-accent':''}" data-act="calView" data-id="week">📆 本週課表</button><button class="btn btn-sm ${view==='month'?'btn-accent':''}" data-act="calView" data-id="month">🗓 月曆統計</button><span class="hint" style="align-self:center">學生總表＝每位學生的上課次數／剩餘堂數／繳費一覽</span></div>`;
+  if(view==='ledger'){renderCalLedger(body,toggle);return;}
   if(view==='month'){renderCalMonth(body,toggle);return;}
   const byDay={};
   S.students.forEach(s=>{if(s.is_test||enrollOf(s)==='trial'||enrollOf(s)==='paused')return;(Array.isArray(s.schedule)?s.schedule:[]).forEach(slot=>{if(slot&&(slot.s||slot.e)){const d=(slot.d!=null?slot.d:0);(byDay[d]=byDay[d]||[]).push({stu:s,slot});}});});
@@ -370,6 +371,51 @@ function renderCalMonth(body,toggle){
     return `<div class="card" style="margin-bottom:12px${plans.length&&!items.length?';border-color:#f59e0b':''}"><div class="lesson-label" style="display:flex;align-items:center;gap:8px">${esc(d)} <span class="muted">（${wd}）</span>${d===today?'<span class="badge badge-soon">今天</span>':''}<span class="grow"></span><span class="muted" style="font-weight:400;font-size:13px">${note}</span></div>`+logHtml+planHtml+`</div>`;
   }).join('');
   body.innerHTML=toggle+nav+summary+dayCards;}
+/* 學生總表：每位學生的上課次數／剩餘堂數／繳費一覽，可展開看每堂日期與繳費清單 */
+function renderCalLedger(body,toggle){
+  const ym=S.calMonth||(new Date().toISOString().slice(0,7));const [Y,M]=ym.split('-').map(Number);const label=Y+' 年 '+M+' 月';
+  const nav=`<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="calMonth" data-id="-1">‹ 上個月</button><b style="font-size:16px;color:var(--primary)">${label}</b><button class="btn btn-sm" data-act="calMonth" data-id="1">下個月 ›</button><span class="hint">「本月」欄依這個月份計算；其它欄是累計</span></div>`;
+  let list=(S.students||[]).filter(s=>!s.deleted&&!s.is_test);
+  if(!list.length){body.innerHTML=toggle+nav+emptyHtml('📋','還沒有學生','到「學生名冊」新增學生後，這裡就會出現每位學生的上課與繳費總表。');return;}
+  const rowData=list.map(s=>{
+    const all=Array.isArray(s.class_log)?s.class_log:[];
+    const monthN=all.filter(e=>e&&e.date&&String(e.date).slice(0,7)===ym&&e.status!=='leave'&&!e.free).length;
+    const total=classAttended(s)||0;const left=sessionsLeft(s);
+    const dates=all.map(e=>e&&e.date).filter(Boolean).sort();const last=dates.length?dates[dates.length-1]:'';
+    const pays=(s.payments||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    const due=payInfo(s.payment_date);
+    return {s,all,monthN,total,left,last,pays,lastPay:pays[0],due};
+  });
+  rowData.sort((a,b)=>{const la=(a.left==null)?9999:a.left,lb=(b.left==null)?9999:b.left;if(la!==lb)return la-lb;return String(a.s.name||'').localeCompare(String(b.s.name||''));});
+  const monthTotal=rowData.reduce((n,r)=>n+r.monthN,0);
+  const lowN=rowData.filter(r=>r.left!=null&&r.left<=2).length;
+  const summary=`<div class="card" style="margin-bottom:12px;display:flex;gap:18px;flex-wrap:wrap;align-items:center"><span>👥 學生 <b>${list.length}</b> 位</span><span>📅 ${label} 共上 <b>${monthTotal}</b> 堂（計費）</span>${lowN?`<span style="color:#d97706">⚠️ <b>${lowN}</b> 位堂數快用完</span>`:''}</div>`;
+  const M={attended:['出席','#16a34a'],leave:['請假','#d97706'],absent:['缺席','#dc2626']};
+  const rows=rowData.map(r=>{const s=r.s;
+    const leftHtml=r.left==null?'<span class="muted">—</span>':`<b style="color:${r.left<=0?'#dc2626':(r.left<=2?'#d97706':'#16a34a')}">${r.left}</b>${r.left<=0?' <span class="badge badge-overdue">用完</span>':(r.left<=2?' <span class="badge badge-soon">快用完</span>':'')}`;
+    const stat=(lb,v)=>`<span style="font-size:13px;white-space:nowrap"><span class="muted">${lb}</span> ${v}</span>`;
+    const payCell=r.lastPay?`${esc((r.lastPay.date||'').slice(0,10))}　${money(r.lastPay.amount,r.lastPay.currency||s.currency)}`:'<span class="muted">還沒有繳費紀錄</span>';
+    const dateRows=r.all.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).map(e=>{const m=M[e.status]||M.attended;const tm=(e.start||e.end)?` <span class="muted" style="font-size:12px">${esc((e.start||'')+(e.end?'–'+e.end:''))}</span>`:'';return `<div class="dash-row" style="padding:4px 0"><b>${esc(e.date)}</b>${tm}<span class="grow"></span>${e.free?'<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span> ':''}<span style="color:${m[1]};font-weight:600">${m[0]}</span></div>`;}).join('')||'<div class="hint">還沒有上課記錄</div>';
+    const payRows=r.pays.map(p=>`<div class="dash-row" style="padding:4px 0"><b>${esc((p.date||'').slice(0,10))}</b>${p.note?`<span class="muted" style="margin-left:6px;font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span>${money(p.amount,p.currency||s.currency)}</div>`).join('')||'<div class="hint">還沒有繳費記錄</div>';
+    return `<details class="card" style="margin-bottom:8px;padding:12px 14px">
+      <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="ls-chev" style="opacity:.4;font-size:12px">▶</span><b style="min-width:84px">${esc(s.name)}</b>${enrollBadge(s)}
+        <span class="grow"></span>
+        ${stat('本月',`<b>${r.monthN}</b>`)}${stat('累計',`<b>${r.total}</b>`)}${stat('剩',leftHtml)}${stat('最近',r.last?esc(r.last):'—')}
+      </summary>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:10px">
+        <button class="btn btn-sm btn-accent" data-act="quickClassToday" data-id="${s.id}">✓ 記今天上課</button>
+        <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">📝 上課記錄（改日期）</button>
+        <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
+        ${r.due?`<span style="margin-left:auto"><span class="muted" style="font-size:12px">下次繳費：</span><span class="badge ${r.due.cls}">${r.due.label}</span></span>`:''}
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
+        <div style="flex:1;min-width:220px"><div class="lesson-label" style="font-size:13px">🗓 上課日期（共 ${r.all.length} 筆）</div><div style="max-height:260px;overflow:auto">${dateRows}</div></div>
+        <div style="flex:1;min-width:220px"><div class="lesson-label" style="font-size:13px">💰 繳費紀錄（共 ${r.pays.length} 筆）</div><div class="hint" style="margin:2px 0 6px">上次：${payCell}</div>${payRows}</div>
+      </div>
+    </details>`;
+  }).join('');
+  body.innerHTML=toggle+nav+summary+rows;}
 
 /* ---------- 營運（收入／待收款／管理員／公告） ---------- */
 function renderOps(){const body=$('#ops-body');
@@ -1886,7 +1932,12 @@ H.planSave=async()=>{const cls=$('#pl-cls').value;const date=$('#pl-date').value
   try{await addPlanned(cls,rows);toast('已預排 '+rows.length+' 堂課，已幫你切到月曆');closeModal();S.calView='month';S.calMonth=date.slice(0,7);S.tab='calendar';render();window.scrollTo(0,0);}catch(e){if(btn){btn.disabled=false;btn.textContent='✅ 加入預排';}toast('失敗：'+((e&&e.message)||e));}};
 H.planDel=async(key)=>{const p=String(key).split('::');try{await removePlanned(p[0],p[1]);toast('已移除預排');renderCalendar();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.rollPlanned=(key)=>{const p=String(key).split('::');const cls=p[0],date=p[1];classRollModal(cls);setTimeout(()=>{const pl=classPlanned(cls).find(x=>x.date===date);if($('#roll-date'))$('#roll-date').value=date;if(pl){if($('#roll-start'))$('#roll-start').value=pl.start||'';if($('#roll-end'))$('#roll-end').value=pl.end||'';if(pl.note&&$('#roll-note'))$('#roll-note').value=pl.note;}const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;toast('這是預排的「'+date+'」，點名完存檔即可');},130);};
-H.calView=(v)=>{S.calView=v;if(v==='month'&&!S.calMonth)S.calMonth=new Date().toISOString().slice(0,7);renderCalendar();};
+H.calView=(v)=>{S.calView=v;if((v==='month'||v==='ledger')&&!S.calMonth)S.calMonth=new Date().toISOString().slice(0,7);renderCalendar();};
+H.quickClassToday=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const d=new Date();const date=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const log=Array.isArray(s.class_log)?s.class_log.slice():[];
+  if(log.some(e=>e&&e.date===date)){toast(esc(s.name)+' 今天已經記過了');return;}
+  log.push({date,status:'attended',free:false,start:'',end:'',note:''});
+  try{await DB.update('students',s.id,{class_log:log});s.class_log=log;toast('✓ 已記錄：'+s.name+' '+date+'（出席）');renderCalendar();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.calMonth=(delta)=>{const ym=S.calMonth||new Date().toISOString().slice(0,7);const p=ym.split('-').map(Number);const dt=new Date(p[0],p[1]-1+Number(delta),1);S.calMonth=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');renderCalendar();};
 H.rollPick=(key)=>{const p=String(key).split('::'),sid=p[0],st=p[1];const seg=document.querySelector('#roll-list .roll-seg[data-sid="'+sid+'"]');if(seg)seg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.st===st));};
 H.rollAllAttend=()=>{document.querySelectorAll('#roll-list .roll-seg').forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.st==='attended')));};
