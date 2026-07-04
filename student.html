@@ -1286,13 +1286,23 @@ function openHwrite(word,lid){if(!word){toast(t('noCards'));return;}
   HWP={word,lid,images:(ex&&Array.isArray(ex.images))?ex.images.slice():[],status:(ex&&ex.status)||'draft',comment:(ex&&ex.comment)||''};
   let ov=document.getElementById('hw-ov');if(ov)ov.remove();
   ov=document.createElement('div');ov.id='hw-ov';ov.className='stroke-ov';ov.innerHTML=hwriteInner();
-  document.body.appendChild(ov);const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);}
+  document.body.appendChild(ov);const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);hwRenderDemo(true);}
+let HWP_WRITERS=[];
+function hwRenderDemo(autoplay){const wrap=document.getElementById('hw-demo');if(!wrap||!HWP)return;
+  if(!window.HanziWriter){wrap.innerHTML='<span class="hint">'+hwL('筆順元件載入中…','Đang tải…','Loading…')+'</span>';setTimeout(()=>hwRenderDemo(autoplay),700);return;}
+  wrap.innerHTML='';HWP_WRITERS=[];const chars=[...HWP.word].filter(c=>/[㐀-鿿]/.test(c));
+  chars.forEach(c=>{const d=document.createElement('div');d.style.cssText='background:#fff;border:1px solid var(--line,#e5e5e5);border-radius:8px';wrap.appendChild(d);
+    try{const w=HanziWriter.create(d,c,{width:64,height:64,padding:4,showOutline:true,strokeColor:'#1F6F78',outlineColor:'#d8ccba',strokeAnimationSpeed:1,delayBetweenStrokes:220});HWP_WRITERS.push(w);}catch(e){}});
+  if(autoplay)hwPlayDemo();}
+function hwPlayDemo(){let i=0;const next=()=>{if(i>=HWP_WRITERS.length)return;try{HWP_WRITERS[i].animateCharacter({onComplete:()=>{i++;setTimeout(next,300);}});}catch(e){i++;next();}};next();}
+H.hwDemoReplay=()=>hwPlayDemo();
 function hwriteInner(){const n=HWP.images.length;const guide=esc(HWP.word);const gsize=HWP.word.length===1?190:(HWP.word.length===2?110:70);
   const sent=HWP.status==='submitted'||HWP.status==='reviewed';
   const thumbs=HWP.images.map((im,i)=>`<div style="position:relative;display:inline-block;margin:3px"><img src="${im}" style="width:60px;height:60px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff"><button data-act="hwDelImg" data-id="${i}" style="position:absolute;top:-7px;right:-7px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:18px;cursor:pointer;padding:0">×</button></div>`).join('');
   return `<div class="stroke-box" style="max-width:360px">
     <button class="stroke-x" data-act="hwClose" aria-label="關閉">✕</button>
-    <div style="text-align:center;font-weight:700;font-size:18px;margin-bottom:8px">📝 ${hwL('手寫練習','Luyện viết tay','Handwriting')}：${guide}</div>
+    <div style="text-align:center;font-weight:700;font-size:18px;margin-bottom:6px">📝 ${hwL('手寫練習','Luyện viết tay','Handwriting')}：${guide}</div>
+    <div style="text-align:center;margin-bottom:8px"><div id="hw-demo" style="display:inline-flex;gap:6px;justify-content:center"></div><div style="margin-top:4px"><button class="btn btn-sm" data-act="hwDemoReplay">▶ ${hwL('看筆順示範','Xem thứ tự nét','Stroke order')}</button></div></div>
     <div style="position:relative;width:300px;height:300px;margin:0 auto;border:2px dashed #d8ccba;border-radius:12px;background:#fff;overflow:hidden">
       <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${gsize}px;color:#efe6d8;pointer-events:none;user-select:none;font-family:'Kaiti TC','Kaiti','DFKai-SB','BiauKai',serif;line-height:1">${guide}</div>
       <canvas id="hw-cv" width="300" height="300" style="position:relative;touch-action:none;width:300px;height:300px;display:block"></canvas>
@@ -1317,7 +1327,7 @@ function hwAttach(cv){const ctx=cv.getContext('2d');ctx.lineWidth=11;ctx.lineCap
   cv.addEventListener('pointerup',()=>{drawing=false;});cv.addEventListener('pointerleave',()=>{drawing=false;});}
 function hwBlank(cv){return !cv||(cv.dataset&&cv.dataset.blank==='1');}
 function hwSnap(cv){const out=document.createElement('canvas');out.width=180;out.height=180;const o=out.getContext('2d');o.fillStyle='#fff';o.fillRect(0,0,180,180);o.drawImage(cv,0,0,180,180);return out.toDataURL('image/png');}
-function hwRefresh(){const ov=document.getElementById('hw-ov');if(!ov)return;ov.innerHTML=hwriteInner();const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);}
+function hwRefresh(){const ov=document.getElementById('hw-ov');if(!ov)return;ov.innerHTML=hwriteInner();const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);hwRenderDemo(false);}
 H.hwrite=(_,b)=>openHwrite(b.dataset.text,b.dataset.lesson);
 H.hwClose=()=>{const ov=document.getElementById('hw-ov');if(ov)ov.remove();HWP=null;};
 H.hwClearCv=()=>{const cv=document.getElementById('hw-cv');if(cv){cv.getContext('2d').clearRect(0,0,cv.width,cv.height);cv.dataset.blank='1';}};
