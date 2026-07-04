@@ -202,7 +202,7 @@ async function loadAll(){
   if(!owner){
     const ids=new Set(S.students.map(s=>s.id)),uids=new Set(S.students.map(s=>s.uid).filter(Boolean));
     const mine=r=>ids.has(r.student_id)||(r.uid&&uids.has(r.uid));
-    S.results=S.results.filter(mine);S.sentences=S.sentences.filter(mine);S.quizResults=S.quizResults.filter(mine);S.discussions=S.discussions.filter(mine);S.shadows=(S.shadows||[]).filter(mine);
+    S.results=S.results.filter(mine);S.sentences=S.sentences.filter(mine);S.quizResults=S.quizResults.filter(mine);S.discussions=S.discussions.filter(mine);S.shadows=(S.shadows||[]).filter(mine);S.gpracs=(S.gpracs||[]).filter(mine);S.hwvs=(S.hwvs||[]).filter(mine);
     S.quizzes=S.quizzes.filter(qz=>(qz.assigned_ids||[]).some(id=>ids.has(id)));
   }
   S.admins=owner?await listAdmins():[];
@@ -212,7 +212,7 @@ async function loadAll(){
   document.body.classList.toggle('is-admin',!owner);
   const bs=document.querySelector('.brand-sub');if(bs)bs.textContent=owner?'主管理員後台':('管理員 · '+(MY_EMAIL||''));
 }
-function splitResults(d){d=d||[];S.results=d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');}
+function splitResults(d){d=d||[];S.results=d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');}
 function openModal(h){$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
 function closeModal(){$('#modal-root').innerHTML='';}
 
@@ -287,6 +287,8 @@ function renderDashboard(){
   shadowPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.shadow_lesson)||{};const cnt=(sd.sents||[]).filter(s=>s&&s.audio_url).length;inbox.push({tag:'逐句跟讀',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）')+(sd.dlg_title?(' · '+sd.dlg_title):''),extra:cnt+' 句錄音',btn:`<button class="btn btn-sm btn-accent" data-act="reviewShadow" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
   const gpracPend=(S.gpracs||[]).filter(x=>x.status==='submitted');
   gpracPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.gprac_lesson)||{};inbox.push({tag:'語法練習',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）'),extra:Object.keys(sd.answers||{}).length+' 題',btn:`<button class="btn btn-sm btn-accent" data-act="reviewGprac" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
+  const hwvPend=(S.hwvs||[]).filter(x=>x.status==='submitted');
+  hwvPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.hwv_lesson)||{};inbox.push({tag:'✍️ 手寫',name:sentName(sd),sub:'生詞「'+esc(sd.hwv_word||'')+'」'+(l.title?(' · '+l.title):''),extra:(sd.images||[]).length+' 張',btn:`<button class="btn btn-sm btn-accent" data-act="reviewHwv" data-id="${sd.id}">看手寫</button>`,ts:sd.submitted_at||''});});
   inbox.sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
   const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"><span class="badge badge-soon">${it.tag}</span><b>${esc(it.name)}</b><span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.ts?`<span class="muted">🕒 ${esc(fmtDT(it.ts))}</span>`:''}${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
   // 提醒（付款到期／逾期 + 堂數快用完），合併成一條條待辦
@@ -1313,6 +1315,22 @@ H.saveGpracReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=
   try{await DB.update('results',id,patch);const i=S.gpracs.findIndex(x=>x.id===id);if(i>=0)S.gpracs[i]=Object.assign({},sd,patch);
     closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
   }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
+H.reviewHwv=(id)=>{const sd=(S.hwvs||[]).find(x=>x.id===id);if(!sd)return;
+  const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
+  const l=S.lessons.find(x=>x.id===sd.hwv_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
+  const imgs=(sd.images||[]).map((im,i)=>`<div style="display:inline-block;text-align:center;margin:6px"><img src="${im}" style="width:130px;height:130px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#fff"><div class="hint">第 ${i+1} 張</div></div>`).join('')||'<div class="muted">（沒有圖片）</div>';
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>✍️ 手寫練習 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="hint" style="margin-bottom:8px">生詞「<b style="font-size:22px">${esc(sd.hwv_word||'')}</b>」　${esc(ltitle)}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>
+   <div style="text-align:center;background:#faf7f0;border-radius:12px;padding:10px">${imgs}</div>
+   <div class="field" style="margin-top:12px"><label>給學生的評語 <span class="hint">學生會看到</span></label><textarea id="hwv-cmt" rows="2" placeholder="例：寫得很工整！注意「夢」上面的草字頭…">${esc(sd.comment||'')}</textarea>${(typeof cannedBar==='function')?cannedBar('hwv-cmt'):''}</div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveHwvReview" data-id="${sd.id}" data-done="0">儲存評語</button><button class="btn btn-accent" data-act="saveHwvReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
+H.saveHwvReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.hwvs||[]).find(x=>x.id===id);if(!sd)return;
+  const el=document.getElementById('hwv-cmt');const comment=el?(el.value||'').trim():'';
+  if(b){b.disabled=true;b.textContent='儲存中…';}
+  const ts=new Date().toISOString();const patch={comment,status:done?'reviewed':(sd.status||'submitted'),reviewed_at:ts};
+  try{await DB.update('results',id,patch);const i=S.hwvs.findIndex(x=>x.id===id);if(i>=0)S.hwvs[i]=Object.assign({},sd,patch);
+    closeModal();render();toast(done?'已完成，學生看得到你的評語':'已儲存評語');
+  }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存評語';}toast((e&&e.message)||'儲存失敗，請重試');}};
 H.reviewShadow=(id)=>{const sd=(S.shadows||[]).find(x=>x.id===id);if(!sd)return;
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
   const l=S.lessons.find(x=>x.id===sd.shadow_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'')+(sd.dlg_title?(' · '+sd.dlg_title):'');

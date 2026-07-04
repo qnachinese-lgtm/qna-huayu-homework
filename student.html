@@ -654,7 +654,8 @@ async function loadMine(){const [l,q]=await Promise.all([DB.list('lessons'),DB.l
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
   S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;
   splitResults(rAll);}
-function splitResults(rAll){rAll=rAll||[];S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');}
+function splitResults(rAll){rAll=rAll||[];S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');}
+function hwvDocOf(lid,word){return (S.hwvs||[]).find(x=>x.hwv_lesson===lid&&x.hwv_word===word)||null;}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
 function discDocOf(lid){return (S.discussions||[]).find(x=>x.disc_lesson===lid)||null;}
 function gpracDocOf(lid){return (S.gpracs||[]).find(x=>x.gprac_lesson===lid)||null;}
@@ -945,6 +946,7 @@ function renderCards(){
       ${vocabHasAudio(S.lessons.find(x=>x.id===v.lessonId),v.di,v.vi)?`<button class="btn btn-sm" data-act="vocabPlay" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}">🔊 發音</button>`:''}
       <button class="btn btn-sm" data-act="shadowRec" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}">🎤 跟讀</button>
       <button class="btn btn-sm" data-act="stroke" data-text="${esc(v.front)}">✍️ 筆順</button>
+      <button class="btn btn-sm" data-act="hwrite" data-text="${esc(v.front)}" data-lesson="${v.lessonId}">📝 手寫練習${(function(){const d=hwvDocOf(v.lessonId,v.front);return d?(d.status==='reviewed'?' ✅':' 📤'):'';})()}</button>
       ${vocabHasAudio(S.lessons.find(x=>x.id===v.lessonId),v.di,v.vi)?`<button class="btn btn-sm ${S.flashAuto?'btn-accent':''}" data-act="flashAuto">🔁 自動發音${S.flashAuto?'：開':'：關'}</button>`:''}
       ${(SHADOW&&SHADOW.idx===S.flashIdx)?`<button class="btn btn-sm" data-act="shadowPlay">${t('shadowMine')}</button>`:''}
       </div>
@@ -1276,6 +1278,63 @@ function renderStroke(){const wrap=document.getElementById('stroke-chars');if(!w
 H.stroke=(_,b)=>showStroke(b.dataset.text);
 H.strokeClose=()=>{const ov=document.getElementById('stroke-ov');if(ov)ov.remove();};
 H.strokeReplay=()=>renderStroke();
+/* ---- 生詞手寫練習：寫多張 → 送給老師批改 ---- */
+let HW=null;const HW_MAX=12;
+function hwL(zh,vi,en){return S.lang==='vi'?vi:(S.lang==='en'?en:zh);}
+function openHwrite(word,lid){if(!word){toast(t('noCards'));return;}
+  const ex=hwvDocOf(lid,word);
+  HW={word,lid,images:(ex&&Array.isArray(ex.images))?ex.images.slice():[],status:(ex&&ex.status)||'draft',comment:(ex&&ex.comment)||''};
+  let ov=document.getElementById('hw-ov');if(ov)ov.remove();
+  ov=document.createElement('div');ov.id='hw-ov';ov.className='stroke-ov';ov.innerHTML=hwriteInner();
+  document.body.appendChild(ov);const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);}
+function hwriteInner(){const n=HW.images.length;const guide=esc(HW.word);const gsize=HW.word.length===1?190:(HW.word.length===2?110:70);
+  const sent=HW.status==='submitted'||HW.status==='reviewed';
+  const thumbs=HW.images.map((im,i)=>`<div style="position:relative;display:inline-block;margin:3px"><img src="${im}" style="width:60px;height:60px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff"><button data-act="hwDelImg" data-id="${i}" style="position:absolute;top:-7px;right:-7px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:18px;cursor:pointer;padding:0">×</button></div>`).join('');
+  return `<div class="stroke-box" style="max-width:360px">
+    <button class="stroke-x" data-act="hwClose" aria-label="關閉">✕</button>
+    <div style="text-align:center;font-weight:700;font-size:18px;margin-bottom:8px">📝 ${hwL('手寫練習','Luyện viết tay','Handwriting')}：${guide}</div>
+    <div style="position:relative;width:300px;height:300px;margin:0 auto;border:2px dashed #d8ccba;border-radius:12px;background:#fff;overflow:hidden">
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${gsize}px;color:#efe6d8;pointer-events:none;user-select:none;font-family:'Kaiti TC','Kaiti','DFKai-SB','BiauKai',serif;line-height:1">${guide}</div>
+      <canvas id="hw-cv" width="300" height="300" style="position:relative;touch-action:none;width:300px;height:300px;display:block"></canvas>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap">
+      <button class="btn btn-sm" data-act="hwClearCv">🧹 ${hwL('清除這張','Xoá','Clear')}</button>
+      <button class="btn btn-sm btn-accent" data-act="hwAdd">➕ ${hwL('存起來，再寫一張','Lưu, viết tờ mới','Save & write again')}</button>
+    </div>
+    <div style="margin-top:10px;text-align:center"><div class="hint">${hwL('已寫','Đã viết','Written')} ${n} ${hwL('張','tờ','sheets')}${n>=HW_MAX?'（'+hwL('已達上限','đã tối đa','max')+'）':''}</div><div style="margin-top:6px">${thumbs||'<span class="hint">'+hwL('還沒有寫好的字','Chưa có tờ nào','Nothing saved yet')+'</span>'}</div></div>
+    <div style="margin-top:12px;text-align:center">
+      <button class="btn btn-primary" data-act="hwSubmit" style="padding:10px 20px">📤 ${hwL('送出給老師','Gửi cho giáo viên','Submit to teacher')}（${n}）</button>
+      ${sent?`<div class="hint" style="margin-top:6px;color:#16a34a">✅ ${hwL('已送出，等老師看','Đã gửi','Submitted')}</div>`:''}
+      ${(HW.status==='reviewed'&&HW.comment)?`<div class="fb-note" style="margin-top:8px">💬 ${esc(HW.comment)}</div>`:''}
+    </div>
+    <div class="hint" style="margin-top:8px;text-align:center">${hwL('用手指或滑鼠在框裡寫，寫好按「存起來」，可以寫很多張，最後一起送給老師','Viết bằng ngón tay/chuột, xong bấm Lưu, có thể viết nhiều tờ rồi gửi','Write with finger/mouse, tap Save, write many, then submit')}</div>
+  </div>`;}
+function hwAttach(cv){const ctx=cv.getContext('2d');ctx.lineWidth=11;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#16110c';
+  let drawing=false,last=null;cv.dataset.blank='1';
+  const pos=e=>{const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*(cv.width/r.width),y:(e.clientY-r.top)*(cv.height/r.height)};};
+  cv.addEventListener('pointerdown',e=>{drawing=true;last=pos(e);cv.dataset.blank='';try{cv.setPointerCapture(e.pointerId);}catch(_){}e.preventDefault();});
+  cv.addEventListener('pointermove',e=>{if(!drawing)return;const p=pos(e);ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();last=p;e.preventDefault();});
+  cv.addEventListener('pointerup',()=>{drawing=false;});cv.addEventListener('pointerleave',()=>{drawing=false;});}
+function hwBlank(cv){return !cv||(cv.dataset&&cv.dataset.blank==='1');}
+function hwSnap(cv){const out=document.createElement('canvas');out.width=180;out.height=180;const o=out.getContext('2d');o.fillStyle='#fff';o.fillRect(0,0,180,180);o.drawImage(cv,0,0,180,180);return out.toDataURL('image/png');}
+function hwRefresh(){const ov=document.getElementById('hw-ov');if(!ov)return;ov.innerHTML=hwriteInner();const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);}
+H.hwrite=(_,b)=>openHwrite(b.dataset.text,b.dataset.lesson);
+H.hwClose=()=>{const ov=document.getElementById('hw-ov');if(ov)ov.remove();HW=null;};
+H.hwClearCv=()=>{const cv=document.getElementById('hw-cv');if(cv){cv.getContext('2d').clearRect(0,0,cv.width,cv.height);cv.dataset.blank='1';}};
+H.hwAdd=()=>{if(!HW)return;if(HW.images.length>=HW_MAX){toast(hwL('最多寫 '+HW_MAX+' 張','Tối đa '+HW_MAX,'Max '+HW_MAX));return;}const cv=document.getElementById('hw-cv');if(hwBlank(cv)){toast(hwL('先在框裡寫一個字','Hãy viết một chữ trước','Write a character first'));return;}HW.images.push(hwSnap(cv));hwRefresh();};
+H.hwDelImg=(idx)=>{if(!HW)return;HW.images.splice(Number(idx),1);hwRefresh();};
+H.hwSubmit=async()=>{if(S.preview){toast('預覽模式無法送出');return;}if(!HW)return;
+  const cv=document.getElementById('hw-cv');if(cv&&!hwBlank(cv)&&HW.images.length<HW_MAX)HW.images.push(hwSnap(cv));
+  if(!HW.images.length){toast(hwL('先寫一張再送出','Hãy viết trước khi gửi','Write at least one first'));return;}
+  const btn=document.querySelector('[data-act="hwSubmit"]');if(btn){btn.disabled=true;btn.textContent='…';}
+  try{const u=myUid();const ex=hwvDocOf(HW.lid,HW.word);
+    const payload={kind:'hwv',lesson_id:'__hwv__',hwv_lesson:HW.lid,hwv_word:HW.word,uid:u,student_id:S.me.id,student_name:S.me.name||'',images:HW.images,status:'submitted',submitted_at:now()};
+    if(ex&&ex.id){await DB.update('results',ex.id,Object.assign({},payload,{comment:ex.comment||'',reviewed_at:ex.reviewed_at||''}));}
+    else{await DB.insert('results',payload);}
+    const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);splitResults(rAll);
+    try{bumpActivity(HW.images.length);}catch(e){}
+    toast('✅ '+hwL('已送出手寫給老師','Đã gửi bài viết tay','Sent to teacher'));H.hwClose();renderCards();
+  }catch(e){toast((e&&e.message)||e);if(btn){btn.disabled=false;btn.textContent='📤';}}};
 /* ---- 課文逐句跟讀 ---- */
 let SS=null;
 function splitSentences(text){return (text||'').replace(/\r/g,'').split('\n').flatMap(line=>(line.match(/[^。！？!?；;]+[。！？!?；;]*/g)||[])).map(s=>s.trim()).filter(s=>s&&/[㐀-鿿]/.test(s));}
@@ -1618,7 +1677,7 @@ function showGate(msg){S.me=null;$('#app').classList.add('hide');$('#gate').clas
 const PREVIEW_LID=new URLSearchParams(location.search).get('preview');
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
-  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');S.quizzes=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];
+  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');S.quizzes=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];S.hwvs=[];
   const lesson=l.find(x=>x.id===lid);if(!lesson){$('#screen').innerHTML=emptyHtml('⚠️','找不到這一課','請回教師頁重新開啟預覽。');return;}
   S.section='content';$('#screen').dataset.mode='';
   const ttl=(lesson.order_index?('L'+lesson.order_index+' · '):'')+lesson.title;
