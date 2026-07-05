@@ -2106,10 +2106,10 @@ H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0
   const csv='﻿'+rows.map(r=>r.map(c=>{c=(c==null?'':String(c));return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(',')).join('\r\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download='成績_'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('已匯出 CSV');};
-H.payments=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const ps=(s.payments||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const byCur={};ps.forEach(p=>{const c=p.currency||s.currency||'TWD';byCur[c]=(byCur[c]||0)+(Number(p.amount)||0);});
+H.payments=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const ps=(s.payments||[]).map((p,origI)=>({p,origI})).sort((a,b)=>(b.p.date||'').localeCompare(a.p.date||''));
+  const byCur={};ps.forEach(({p})=>{const c=p.currency||s.currency||'TWD';byCur[c]=(byCur[c]||0)+(Number(p.amount)||0);});
   const totalStr=Object.keys(byCur).map(c=>money(byCur[c],c)).join('、')||money(0,s.currency);
-  const rows=ps.length?ps.map((p,i)=>`<div class="dash-row"><span class="grow"><b>${esc(p.date||'')}</b> · ${money(p.amount,p.currency||s.currency)}${p.sessions?(' · +'+p.sessions+' 堂'):''}${p.note?(' · '+esc(p.note)):''}</span><button class="btn btn-sm" type="button" data-act="receipt" data-id="${id}::${i}">🧾 收據</button><button class="btn btn-sm btn-danger" type="button" data-act="payDel" data-id="${id}::${i}">✕</button></div>`).join(''):'<div class="hint" style="padding:8px 0">還沒有繳費紀錄。</div>';
+  const rows=ps.length?ps.map(({p,origI})=>`<div class="dash-row" style="flex-wrap:wrap"><span class="grow"><b>${esc(p.date||'')}</b> · ${money(p.amount,p.currency||s.currency)}${p.sessions?(' · +'+p.sessions+' 堂'):''}${p.note?(' · '+esc(p.note)):''}</span><button class="btn btn-sm btn-accent" type="button" data-act="payEdit" data-id="${id}::${origI}">✏️ 編輯</button><button class="btn btn-sm" type="button" data-act="receipt" data-id="${id}::${origI}">🧾 收據</button><button class="btn btn-sm btn-danger" type="button" data-act="payDel" data-id="${id}::${origI}">✕</button></div>`).join(''):'<div class="hint" style="padding:8px 0">還沒有繳費紀錄。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>${esc(s.name)} · 繳費紀錄</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div style="margin-bottom:6px">${rows}</div>
@@ -2131,6 +2131,24 @@ H.payAdd=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const da
 H.payDel=async(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;if(!confirm('刪除這筆繳費紀錄？'))return;
   const payments=(s.payments||[]).slice();const removed=payments.splice(i,1)[0];const patch={payments};if(removed&&removed.sessions){patch.sessions_total=Math.max(0,(Number(s.sessions_total)||0)-removed.sessions);}
   try{await DB.update('students',id,patch);await loadAll();H.payments(id);render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
+H.payEdit=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;const pay=(s.payments||[])[i];if(!pay)return;const cur=pay.currency||s.currency||'TWD';
+  openModal(`<div class="modal"><div class="modal-head"><h3>✏️ 編輯繳費 · ${esc(s.name)}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="form-grid">
+     <div class="field"><label>日期</label><input id="pe-date" type="date" value="${esc(pay.date||'')}"></div>
+     <div class="field"><label>金額 <span class="hint">越南盾打千位（350＝350,000 ₫）</span></label><input id="pe-amount" type="number" min="0" value="${pay.amount==null?'':esc(pay.amount)}"></div>
+     <div class="field"><label>幣別</label><select id="pe-cur"><option value="TWD"${cur==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${cur==='VND'?' selected':''}>越南盾 ₫</option><option value="USD"${cur==='USD'?' selected':''}>美元 US$</option></select></div>
+     <div class="field"><label>加堂數 <span class="hint">選填</span></label><input id="pe-sess" type="number" min="0" value="${pay.sessions==null?'':esc(pay.sessions)}"></div>
+     <div class="field full"><label>備註</label><input id="pe-note" type="text" value="${esc(pay.note||'')}"></div>
+   </div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="payments" data-id="${esc(id)}">← 返回</button><span style="flex:1"></span><button class="btn btn-primary" data-act="paySaveEdit" data-id="${esc(id)}::${i}">💾 儲存修改</button></div></div>`);};
+H.paySaveEdit=async(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;const payments=(s.payments||[]).slice();const old=payments[i];if(!old)return;
+  const date=$('#pe-date').value;if(!date)return toast('請選日期');
+  const amt=$('#pe-amount').value,sess=$('#pe-sess').value;
+  const entry={date,amount:amt===''?null:Number(amt),currency:$('#pe-cur').value,sessions:sess===''?null:Number(sess),note:($('#pe-note').value||'').trim()};
+  payments[i]=entry;const patch={payments};
+  const delta=(Number(entry.sessions)||0)-(Number(old.sessions)||0);if(delta)patch.sessions_total=Math.max(0,(Number(s.sessions_total)||0)+delta);
+  patch.payment_date=payments.map(x=>x&&x.date).filter(Boolean).sort().pop()||null;
+  try{await DB.update('students',id,patch);await loadAll();H.payments(id);render();toast('✓ 已更新這筆繳費');}catch(err){toast(writeErr('儲存失敗',err));}};
 H.receipt=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;const pay=(s.payments||[])[i];if(!pay)return;
   const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const org=window.APP_NAME||'華語線上作業簿';const amt=money(pay.amount,pay.currency||s.currency);const no='R'+(pay.date||'').replace(/-/g,'')+'-'+(i+1);
