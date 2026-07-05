@@ -540,7 +540,7 @@ function renderStudents(){
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
         ${IS_OWNER?`<button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button>`:''}</div>
     <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(fmtSchedule(s))}</b></span>
-      ${isTrial(s)?'<span>💰 <b style="color:#7c3aed">🎁 免費試學（不計費）</b></span>':`<span>💰 學費：<b>${money(s.tuition,s.currency)}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span>`}<span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}</div>
+      ${isTrial(s)?'<span>💰 <b style="color:#7c3aed">🎁 免費試學（不計費）</b></span>':`<span>💰 學費：<b>${money(s.tuition,s.currency)}${s.tuition!=null?(s.fee_unit==='hour'?' / 小時':' / 堂'):''}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span>`}<span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}</div>
     ${activityLine(s)}
     ${s.email?`<div class="meta" style="margin-top:8px;align-items:center">${s.reset_requested?'<span class="badge badge-soon">🔑 學生申請重設</span>':''}<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}">✉️ 寄重設密碼信</button></div>`:''}
     ${s.notes?`<div class="meta" style="margin-top:8px"><span>📝 ${esc(s.notes)}</span></div>`:''}`;
@@ -583,9 +583,10 @@ function studentModal(st){const e=!!st;st=st||{};
        <input id="f-meet" type="url" inputmode="url" value="${esc(st.meet_url||'')}" placeholder="https://meet.google.com/abc-defg-hij"></div>
     </div></div>
     <div class="form-sec"><div class="form-sec-h">💰 費用與堂數</div><div class="form-grid">
-     <div class="field"><label>堂數（總共） <span class="hint">本期購買</span></label><input id="f-sess" type="number" min="0" value="${st.sessions_total??''}" placeholder="例：10"></div>
+     <div class="field"><label>堂數／時數（總共） <span class="hint">本期購買的堂數或小時數</span></label><input id="f-sess" type="number" min="0" value="${st.sessions_total??''}" placeholder="例：10"></div>
      <div class="field"><label>付款日期</label><input id="f-pay" type="date" value="${esc(st.payment_date||'')}"></div>
      <div class="field"><label>學費 <span class="hint">越南盾打千位（350＝350,000 ₫）</span></label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：臺幣 800／越南盾 350"></div>
+     <div class="field"><label>計費方式</label><select id="f-feeunit"><option value="session"${st.fee_unit!=='hour'?' selected':''}>每堂</option><option value="hour"${st.fee_unit==='hour'?' selected':''}>每小時</option></select></div>
      <div class="field"><label>幣別</label><select id="f-cur"><option value="TWD"${(st.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${st.currency==='VND'?' selected':''}>越南盾 ₫</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
     </div></div>
     <div class="form-sec"><div class="form-sec-h">🔑 登入帳號</div><div class="form-grid">
@@ -1455,7 +1456,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   const schedule=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);
   const fslot=$('#f-first-slot');
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
-    payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),currency:$('#f-cur').value,
+    payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),fee_unit:($('#f-feeunit')&&$('#f-feeunit').value)||'session',currency:$('#f-cur').value,
     sessions_total:$('#f-sess').value===''?null:Number($('#f-sess').value),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
   if(IS_OWNER){const asel=$('#f-admin');common.admin=asel?asel.value:'';}
   if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
@@ -2172,7 +2173,7 @@ H.receipt=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
 H.exportAll=()=>{if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
   try{const wb=XLSX.utils.book_new();
-    const stu=S.students.map(s=>({姓名:s.name||'',狀態:enrollMeta(enrollOf(s))[1],國籍:s.nationality||'',教材:s.textbook||'',班別:s.class_type||'',Email:s.email||'',上課時段:fmtSchedule(s),Meet連結:s.meet_url||'',學費:s.tuition==null?'':s.tuition,幣別:s.currency||'',付款日:s.payment_date||'',總堂數:s.sessions_total==null?'':s.sessions_total,負責管理員:s.admin||'(主管理員)',備註:s.notes||''}));
+    const stu=S.students.map(s=>({姓名:s.name||'',狀態:enrollMeta(enrollOf(s))[1],國籍:s.nationality||'',教材:s.textbook||'',班別:s.class_type||'',Email:s.email||'',上課時段:fmtSchedule(s),Meet連結:s.meet_url||'',學費:s.tuition==null?'':s.tuition,計費方式:s.fee_unit==='hour'?'每小時':'每堂',幣別:s.currency||'',付款日:s.payment_date||'',總堂數:s.sessions_total==null?'':s.sessions_total,負責管理員:s.admin||'(主管理員)',備註:s.notes||''}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(stu.length?stu:[{}]),'學生');
     const les=sortLessons(S.lessons).map((l,i)=>({課號:l.order_index||i+1,教材:l.textbook||'',課名:l.title||'',題數:questionsOf(l.id).length,指派人數:assignedCount(l),狀態:l.build==='done'?'完成':'進行中'}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(les.length?les:[{}]),'課程');
