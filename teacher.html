@@ -411,6 +411,7 @@ function renderCalLedger(body,toggle){
         <button class="btn btn-sm btn-accent" data-act="quickClassToday" data-id="${s.id}">✓ 記今天上課</button>
         <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">📝 上課記錄（改日期）</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
+        <button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒訊息</button>
         ${r.due?`<span style="margin-left:auto"><span class="muted" style="font-size:12px">下次繳費：</span><span class="badge ${r.due.cls}">${r.due.label}</span></span>`:''}
       </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
@@ -447,6 +448,12 @@ function weekActualCard(){
 function renderOps(){const body=$('#ops-body');
   const byMonth={};S.students.forEach(s=>{(s.payments||[]).forEach(p=>{const amt=Number(p.amount)||0;if(!amt)return;const m=(p.date||'').slice(0,7)||'（無日期）';const cur=p.currency||s.currency||'TWD';byMonth[m]=byMonth[m]||{};byMonth[m][cur]=(byMonth[m][cur]||0)+amt;});});
   const months=Object.keys(byMonth).sort((a,b)=>b.localeCompare(a));const thisM=new Date().toISOString().slice(0,7);
+  const allCur={};months.forEach(m=>Object.keys(byMonth[m]).forEach(cur=>{allCur[cur]=(allCur[cur]||0)+byMonth[m][cur];}));
+  const monCur=byMonth[thisM]||{};
+  const bigNum=(obj)=>{const ks=Object.keys(obj);return ks.length?ks.map(cur=>`<b style="font-size:19px">${money(obj[cur],cur)}</b>`).join('<span class="muted"> ＋ </span>'):'<b style="font-size:19px" class="muted">—</b>';};
+  const incSummary=`<div style="display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 12px">`+
+    `<div><div class="muted" style="font-size:12px">本月收入（${esc(thisM)}）</div>${bigNum(monCur)}</div>`+
+    `<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計收入（全部）</div>${bigNum(allCur)}</div></div>`;
   const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入紀錄（到學生的「繳費」新增即可）。</div>';
   const due=S.students.filter(s=>!s.is_test&&!isTrial(s)).map(s=>({s,info:payInfo(s.payment_date)})).filter(x=>x.info).sort((a,b)=>a.info.sort-b.info.sort);
   const dueRows=due.length?due.map(({s,info})=>`<div class="dash-row"><span class="badge ${info.cls}">${info.label}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">${money(s.tuition,s.currency)}</span><button class="btn btn-sm" data-act="payments" data-id="${s.id}">繳費</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
@@ -458,7 +465,7 @@ function renderOps(){const body=$('#ops-body');
     const annRows=anns.length?anns.map(a=>`<div class="dash-row"><span class="grow"><b>${esc((a.created_at||'').slice(0,10))}</b> · ${esc(a.text||'')}</span><button class="btn btn-sm btn-danger" data-act="delAnnounce" data-id="${a.id}">✕</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">還沒有公告。</div>';
     annHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">📢 站內公告 <span class="hint">所有學生登入首頁都會看到</span></div><div class="quiz-create-row" style="margin:6px 0 10px"><button class="btn btn-sm btn-accent" data-act="newAnnounce">＋ 發布公告</button></div>${annRows}</div>`;}
   const siteHtml=IS_OWNER?leadsCardHtml()+siteCardHtml():'';
-  body.innerHTML=`<div class="card"><div class="lesson-label">💰 各月收入</div>${incRows}</div><div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>${siteHtml}${adminHtml}${annHtml}`;}
+  body.innerHTML=`<div class="card"><div class="lesson-label">💰 收入總覽</div>${incSummary}${incRows}</div><div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>${siteHtml}${adminHtml}${annHtml}`;}
 /* ---------- 對外官網：報名名單 + 內容編輯 ---------- */
 function leadsCardHtml(){
   const leads=(S.leads||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
@@ -544,6 +551,7 @@ function renderStudents(){
         <button class="btn btn-sm" data-act="loginLog" data-id="${s.id}">🕒 登入紀錄</button>
         <button class="btn btn-sm" data-act="guideCard" data-id="${s.id}">🪪 使用說明卡</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
+        <button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒訊息</button>
         ${IS_OWNER?`<button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button>`:''}</div>
     <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(fmtSchedule(s))}</b></span>
       ${isTrial(s)?'<span>💰 <b style="color:#7c3aed">🎁 免費試學（不計費）</b></span>':`<span>💰 學費：<b>${money(s.tuition,s.currency)}${s.tuition!=null?(s.fee_unit==='hour'?' / 小時':' / 堂'):''}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span>`}<span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}</div>
@@ -2130,6 +2138,35 @@ H.payments=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const ps=(s
        <div class="field full"><label>備註</label><input id="pay-note" type="text" placeholder="選填，例：6月學費"></div>
      </div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><button class="btn btn-primary" data-act="payAdd" data-id="${id}">＋ 新增這筆</button></div></div>`);};
+function remindText(s,lang){const name=s.name||'';const left=sessionsLeft(s);
+  const unit=s.fee_unit==='hour'?'／小時':'／堂';
+  const fee=(s.tuition!=null&&s.tuition!=='')?money(s.tuition,s.currency)+unit:'';
+  if(lang==='vi'){
+    let t=`Chào ${name} 😊\n`;
+    if(left!=null)t+=`Nhắc bạn khóa học hiện còn ${left} buổi. Bạn sắp xếp đóng học phí giúp mình nhé ~`;
+    else t+=`Nhắc bạn nhớ vào lớp đúng giờ nhé ~`;
+    if(fee)t+=`\nHọc phí: ${fee}.`;
+    t+=`\nCó gì cứ nhắn mình. Cảm ơn bạn! — QNA Chinese`;
+    return t;
+  }
+  let t=`${name} 您好 😊\n`;
+  if(left!=null)t+=`提醒您本期課程還剩 ${left} 堂，方便的話再幫您安排續費喔～`;
+  else t+=`提醒您記得準時上課喔～`;
+  if(fee)t+=`\n學費：${fee}。`;
+  t+=`\n有任何問題隨時跟我說，謝謝您！— QNA Chinese`;
+  return t;}
+H.remindMsg=(arg)=>{const parts=String(arg).split('::');const id=parts[0];const lang=parts[1]||'zh';const s=S.students.find(x=>x.id===id);if(!s)return;
+  const txt=remindText(s,lang);const tab=(l,lb)=>`<button class="btn btn-sm ${l===lang?'btn-accent':''}" data-act="remindMsg" data-id="${esc(id)}::${l}">${lb}</button>`;
+  openModal(`<div class="modal"><div class="modal-head"><h3>📋 提醒訊息 · ${esc(s.name)}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div style="display:flex;gap:8px;margin-bottom:10px">${tab('zh','中文')}${tab('vi','Tiếng Việt')}</div>
+     <textarea id="rm-text" style="width:100%;min-height:150px;font-size:15px;line-height:1.6;padding:10px;border:1px solid var(--line);border-radius:8px;box-sizing:border-box">${esc(txt)}</textarea>
+     <div class="hint" style="margin-top:6px">可以直接改文字，再按「複製」貼到 Zalo／LINE 給學生。</div>
+   </div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><button class="btn btn-primary" data-act="remindCopy">📋 複製訊息</button></div></div>`);};
+H.remindCopy=()=>{const ta=$('#rm-text');if(!ta)return;const v=ta.value;const done=()=>toast('已複製，去貼給學生吧！');
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(v).then(done).catch(()=>{ta.select();document.execCommand('copy');done();});}
+  else{ta.select();document.execCommand('copy');done();}};
 H.payAdd=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const date=$('#pay-date').value;if(!date)return toast('請選日期');
   const amt=$('#pay-amount').value,sess=$('#pay-sess').value;
   const entry={date,amount:amt===''?null:Number(amt),currency:$('#pay-cur').value,sessions:sess===''?null:Number(sess),note:$('#pay-note').value.trim()};
