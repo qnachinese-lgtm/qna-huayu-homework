@@ -529,7 +529,7 @@ function renderStudents(){
     <div style="display:flex;gap:12px;align-items:center">
       <div class="avatar" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</div>
       <div style="flex:1;min-width:0"><div class="name">${esc(s.name)}</div>
-        <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${s.is_test?'<span class="tag" style="background:#e6e6e6;color:#666;border-color:#ccc">🧪 測試</span>':''}${enrollBadge(s)}<span class="tag accent">${esc(s.class_type||'1對1')}</span>${stuGroups(s).map(g=>`<span class="tag">👥 ${esc(g)}</span>`).join('')}${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}${IS_OWNER&&s.admin?`<span class="tag" title="負責管理員">👤 ${esc(adminName(s.admin))}</span>`:''}</div></div></div>
+        <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${s.is_test?'<span class="tag" style="background:#e6e6e6;color:#666;border-color:#ccc">🧪 測試</span>':''}${enrollBadge(s)}<span class="tag accent">${s.class_type==='團班'?'團班':'一對一'}</span>${stuGroups(s).map(g=>`<span class="tag">👥 ${esc(g)}</span>`).join('')}${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}${IS_OWNER&&s.admin?`<span class="tag" title="負責管理員">👤 ${esc(adminName(s.admin))}</span>`:''}</div></div></div>
     <div class="actions" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
         ${/^https?:\/\//i.test(s.meet_url||'')?`<a class="btn btn-sm btn-accent" href="${esc(s.meet_url)}" target="_blank" rel="noopener">🎥 上課教室</a>`:''}
         <button class="btn btn-sm" data-act="report" data-id="${s.id}">📊 學習報表</button>
@@ -547,11 +547,13 @@ function renderStudents(){
   const card=s=>`<div class="card student-card">${cardInner(s)}</div>`;
   const sec=(label,students,cls)=>`<details class="stu-sec" open style="margin-bottom:20px"><summary style="cursor:pointer;padding:6px 0;list-style-position:inside"><span style="font-size:16px;color:var(--primary);font-weight:600">${label}</span> <span class="tag">${students.length} 人</span></summary>${cls?`<div style="margin:8px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 班級頁</button></div>`:''}<div class="cards cols-2" style="margin-top:10px">${students.slice().sort((a,b)=>(enrollOf(a)==='paused'?1:0)-(enrollOf(b)==='paused'?1:0)).map(card).join('')}</div></details>`;
   const real=list.filter(s=>!s.is_test);const testers=list.filter(s=>s.is_test);
-  const classNames=[...new Set(real.flatMap(s=>stuGroups(s)))].sort();
-  const ungrouped=real.filter(s=>!stuGroups(s).length);
+  const pausedReal=real.filter(s=>enrollOf(s)==='paused');const activeReal=real.filter(s=>enrollOf(s)!=='paused');
+  const classNames=[...new Set(activeReal.flatMap(s=>stuGroups(s)))].sort();
+  const ungrouped=activeReal.filter(s=>!stuGroups(s).length);
   let html='';
-  if(ungrouped.length)html+=sec('🧑‍🏫 1對1／個別',ungrouped,'');
-  classNames.forEach(c=>html+=sec('👥 '+esc(c),real.filter(s=>stuGroups(s).includes(c)),c));
+  if(ungrouped.length)html+=sec('🧑‍🏫 一對一',ungrouped,'');
+  classNames.forEach(c=>html+=sec('👥 '+esc(c),activeReal.filter(s=>stuGroups(s).includes(c)),c));
+  if(pausedReal.length)html+=`<details class="stu-sec"${sf==='paused'?' open':''} style="margin-bottom:20px;opacity:.9"><summary style="cursor:pointer;padding:6px 0;list-style-position:inside"><span style="font-size:16px;color:var(--muted);font-weight:600">⏸️ 已休學</span> <span class="tag">${pausedReal.length} 人</span> <span class="hint">已停止上課，跟在學中分開放</span></summary><div class="cards cols-2" style="margin-top:10px">${pausedReal.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))).map(card).join('')}</div></details>`;
   if(testers.length)html+=`<details class="stu-sec" style="margin-bottom:20px;opacity:.85"><summary style="cursor:pointer;padding:6px 0;list-style-position:inside"><span style="font-size:16px;color:var(--muted);font-weight:600">🧪 測試帳號</span> <span class="tag">${testers.length} 人</span> <span class="hint">不列入真實學生統計</span></summary><div class="cards cols-2" style="margin-top:10px">${testers.map(card).join('')}</div></details>`;
   wrap.innerHTML=filterBar+html;
 }
@@ -561,7 +563,7 @@ function studentModal(st){const e=!!st;st=st||{};
     <div class="form-sec"><div class="form-sec-h">📋 基本資料</div><div class="form-grid">
      <div class="field"><label>名字 *</label><input id="f-name" type="text" value="${esc(st.name||'')}"></div>
      <div class="field"><label>國籍</label><input id="f-nat" type="text" value="${esc(st.nationality||'')}" placeholder="例：美國"></div>
-     <div class="field"><label>班別</label><select id="f-type"><option ${st.class_type==='1對1'?'selected':''}>1對1</option><option ${st.class_type==='團班'?'selected':''}>團班</option></select></div>
+     <div class="field"><label>班別</label><select id="f-type"><option value="1對1" ${st.class_type!=='團班'?'selected':''}>一對一</option><option value="團班" ${st.class_type==='團班'?'selected':''}>團班</option></select></div>
      <div class="field"><label>狀態 <span class="hint">預約＝還沒開始；休學＝暫停上課</span></label><select id="f-status">${ENROLL.map(x=>`<option value="${x[0]}"${enrollOf(st)===x[0]?' selected':''}>${x[1]}</option>`).join('')}</select></div>
      <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-test" ${st.is_test?'checked':''} style="width:auto;margin:0"> 🧪 這是測試帳號 <span class="hint">（不列入真實學生統計，會單獨歸到「🧪 測試帳號」區）</span></label></div>
      <div class="field"><label>使用教材</label><input id="f-book" type="text" value="${esc(st.textbook||'')}" placeholder="例：當代中文課程 1"></div>
