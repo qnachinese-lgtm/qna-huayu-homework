@@ -412,7 +412,7 @@ function renderCalLedger(body,toggle){
         <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">📝 上課記錄（改日期）</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
         <button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒訊息</button>
-        ${r.due?`<span style="margin-left:auto"><span class="muted" style="font-size:12px">下次繳費：</span><span class="badge ${r.due.cls}">${r.due.label}</span></span>`:''}
+        ${(r.due&&r.due.cls!=='badge-overdue')?`<span style="margin-left:auto"><span class="muted" style="font-size:12px">下次繳費：</span><span class="badge ${r.due.cls}">${r.due.label}</span></span>`:''}
       </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
         <details style="flex:1;min-width:220px"><summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--primary);list-style-position:inside">🗓 上課日期（共 ${r.all.length} 筆）</summary><div style="max-height:260px;overflow:auto;margin-top:6px">${dateRows}</div></details>
@@ -455,8 +455,8 @@ function renderOps(){const body=$('#ops-body');
     `<div><div class="muted" style="font-size:12px">本月收入（${esc(thisM)}）</div>${bigNum(monCur)}</div>`+
     `<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計收入（全部）</div>${bigNum(allCur)}</div></div>`;
   const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入紀錄（到學生的「繳費」新增即可）。</div>';
-  const due=S.students.filter(s=>!s.is_test&&!isTrial(s)).map(s=>({s,info:payInfo(s.payment_date)})).filter(x=>x.info).sort((a,b)=>a.info.sort-b.info.sort);
-  const dueRows=due.length?due.map(({s,info})=>`<div class="dash-row"><span class="badge ${info.cls}">${info.label}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">${money(s.tuition,s.currency)}</span><button class="btn btn-sm" data-act="payments" data-id="${s.id}">繳費</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
+  const due=S.students.filter(s=>!s.is_test&&!isTrial(s)&&enrollOf(s)!=='paused').map(s=>({s,left:sessionsLeft(s)})).filter(x=>x.left!=null&&x.left<=2).sort((a,b)=>a.left-b.left);
+  const dueRows=due.length?due.map(({s,left})=>{const bcls=left<=0?'badge-overdue':'badge-soon';const blab=left<=0?'需續費':'剩 '+left+' 堂';return `<div class="dash-row"><span class="badge ${bcls}">${blab}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">${money(s.tuition,s.currency)}</span><button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒</button><button class="btn btn-sm" data-act="payments" data-id="${s.id}">繳費</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
   let adminHtml='';
   if(IS_OWNER){const cnt=em=>S.students.filter(s=>(s.admin||'').toLowerCase()===(em||'').toLowerCase()).length;const ownCnt=S.students.filter(s=>!s.admin).length;
     adminHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">👥 管理員負責學生</div><div class="dash-row"><span class="badge" style="background:var(--accent);color:#fff;border-color:var(--accent)">主管理員</span><b>你</b><span class="grow"></span><span class="muted">${ownCnt} 位</span></div>${(S.admins||[]).map(a=>`<div class="dash-row"><span class="badge badge-ok">管理員</span><b>${esc(a.name||a.email)}</b><span class="grow"></span><span class="muted">${cnt(a.email)} 位</span></div>`).join('')}</div>`;}
