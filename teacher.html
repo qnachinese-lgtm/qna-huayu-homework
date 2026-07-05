@@ -424,16 +424,22 @@ function renderCalLedger(body,toggle){
 function weekActualCard(){
   const t=new Date();t.setHours(0,0,0,0);const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   const start=ymd(t);const eD=new Date(t);eD.setDate(eD.getDate()+6);const end=ymd(eD);
-  const items=[];
-  (S.students||[]).forEach(s=>{if(s.deleted||s.is_test)return;(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(e&&e.date&&e.date>=start&&e.date<=end)items.push({date:e.date,type:'log',s,e});});});
-  groupsList().forEach(cls=>classPlanned(cls).forEach(p=>{if(p&&p.date&&p.date>=start&&p.date<=end)items.push({date:p.date,type:'plan',cls,p});}));
+  const items=[];const grpMap={};const recordedGrp=new Set();
+  // 已記錄的上課：團班以「團班＋日期＋時段」合併成一筆（不用學生逐一列）
+  (S.students||[]).forEach(s=>{if(s.deleted||s.is_test)return;const grp=(s.class_type==='團班'&&stuGroups(s)[0])||'';(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date||e.date<start||e.date>end)return;
+    if(grp){const key='G|'+grp+'|'+e.date+'|'+(e.start||'')+'|'+(e.end||'');if(!grpMap[key]){grpMap[key]={type:'glog',date:e.date,start:e.start||'',end:e.end||'',grp,free:!!e.free,leave:e.status==='leave',members:[]};items.push(grpMap[key]);}grpMap[key].members.push(s.name);recordedGrp.add(grp+'|'+e.date);}
+    else{items.push({type:'log',date:e.date,start:e.start||'',end:e.end||'',s,e});}
+  });});
+  // 預排課程：若該團班該天已經點名記錄過，就不重複顯示
+  groupsList().forEach(cls=>classPlanned(cls).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;if(recordedGrp.has(cls+'|'+p.date))return;items.push({type:'plan',date:p.date,start:p.start||'',end:p.end||'',cls,p});}));
   if(!items.length)return '';
-  items.sort((a,b)=>String(a.date).localeCompare(b.date)||String((a.e&&a.e.start)||(a.p&&a.p.start)||'').localeCompare(String((b.e&&b.e.start)||(b.p&&b.p.start)||'')));
-  const rows=items.map(it=>{const wd=DAYS[(new Date(it.date+'T00:00:00').getDay()+6)%7];const isToday=it.date===start;
-    if(it.type==='log'){const e=it.e;const tm=(e.start||e.end)?(e.start||'')+(e.end?'–'+e.end:''):'';const badge=e.status==='leave'?'<span class="muted">請假</span>':(e.free?'<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':'<span style="color:#16a34a;font-weight:600">出席</span>');
+  items.sort((a,b)=>String(a.date).localeCompare(b.date)||String(a.start||'').localeCompare(String(b.start||'')));
+  const rows=items.map(it=>{const wd=DAYS[(new Date(it.date+'T00:00:00').getDay()+6)%7];const isToday=it.date===start;const tm=(it.start||it.end)?(it.start||'')+(it.end?'–'+it.end:''):'';
+    if(it.type==='glog'){const badge=it.free?'<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':(it.leave?'<span class="muted">請假</span>':'<span style="color:#16a34a;font-weight:600">已點名</span>');
+      return `<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-ok" style="white-space:nowrap">${esc(it.date)}</span><span class="muted">${wd}</span>${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<b>👥 ${esc(it.grp)} 團班</b><span class="muted">（${it.members.length}人）</span>${badge}${isToday?' <span class="badge badge-soon">今天</span>':''}<span class="grow"></span><button class="btn btn-sm" data-act="classRoll" data-id="${esc(it.grp)}">✍️ 點名／修改</button></div>`;}
+    if(it.type==='log'){const e=it.e;const badge=e.status==='leave'?'<span class="muted">請假</span>':(e.free?'<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':'<span style="color:#16a34a;font-weight:600">出席</span>');
       return `<div class="dash-row"><span class="badge badge-ok" style="white-space:nowrap">${esc(it.date)}</span><span class="muted">${wd}</span>${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<b>${esc(it.s.name)}</b>${badge}${isToday?' <span class="badge badge-soon">今天</span>':''}</div>`;}
-    const p=it.p;const tm=(p.start||p.end)?(p.start||'')+(p.end?'–'+p.end:''):'';
-    return `<div class="dash-row" style="background:#fff8ec;border-radius:8px;flex-wrap:wrap"><span class="badge" style="background:#fde68a;color:#92400e;border-color:#f59e0b;white-space:nowrap">${esc(it.date)}</span><span class="muted">${wd}</span>${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#fde68a;color:#92400e">📌 預排</span><b>${esc(it.cls)} 團班</b>${isToday?' <span class="badge badge-soon">今天</span>':''}<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="${esc(it.cls)}::${esc(it.date)}">✍️ 去點名</button></div>`;
+    return `<div class="dash-row" style="background:#fff8ec;border-radius:8px;flex-wrap:wrap"><span class="badge" style="background:#fde68a;color:#92400e;border-color:#f59e0b;white-space:nowrap">${esc(it.date)}</span><span class="muted">${wd}</span>${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#fde68a;color:#92400e">📌 預排</span><b>👥 ${esc(it.cls)} 團班</b>${isToday?' <span class="badge badge-soon">今天</span>':''}<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="${esc(it.cls)}::${esc(it.date)}">✍️ 去點名</button></div>`;
   }).join('');
   return `<div class="card" style="margin-bottom:12px"><div class="lesson-label">🗓 本週實際上課（依日期，含已記錄與預排）</div><div style="margin-top:6px">${rows}</div></div>`;}
 
