@@ -32,7 +32,7 @@ window.TEACHER_EMAIL = "qnachinese@gmail.com";
 window.TEACHER_PASSWORD = "teacher2026";
 
 /* 平台名稱（會顯示在每一頁的頁首） */
-window.APP_NAME = "華語線上作業簿";
+window.APP_NAME = "QNA CHINESE 學習平台";
 
 /* ============================================================
    小提醒：Firebase 的設定物件屬於前端公開金鑰，可放在網頁；
