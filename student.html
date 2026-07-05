@@ -638,6 +638,7 @@ const classMetaOf=(cls)=>{const m=(S.classMeta&&S.classMeta.meta)||{};return m[c
 function myMeetUrl(){if(/^https?:\/\//i.test((S.me&&S.me.meet_url)||''))return S.me.meet_url;for(const g of myGroups()){const m=classMetaOf(g).meet;if(/^https?:\/\//i.test(m||''))return m;}return '';}
 function meetCardHtml(){if(S.preview)return '';const u=myMeetUrl();if(!u)return '';const lab=S.lang==='en'?'Enter classroom':(S.lang==='vi'?'Vào lớp học':'進入上課教室');return `<a class="meet-card" href="${esc(u)}" target="_blank" rel="noopener"><span class="meet-ic">🎥</span><span class="meet-tx"><b>${lab}</b><small>Google Meet · 點此直接上課</small></span><span class="meet-go">→</span></a>`;}
 const _WD=['週一','週二','週三','週四','週五','週六','週日'];
+function wdLabel(dateStr){const L=S.lang||'zh';const A=({zh:['週日','週一','週二','週三','週四','週五','週六'],cn:['周日','周一','周二','周三','周四','周五','周六'],en:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],vi:['CN','T2','T3','T4','T5','T6','T7']})[L]||['週日','週一','週二','週三','週四','週五','週六'];const d=new Date(dateStr+'T00:00:00');return isNaN(d)?'':(A[d.getDay()]||'');}
 const fmtSched=(sch)=>(Array.isArray(sch)?sch:[]).filter(r=>r&&(r.s||r.e)).map(r=>(_WD[r.d!=null?r.d:0]||'')+' '+(r.s||'')+(r.e?'–'+r.e:'')).join('、');
 const assignedToMe=(x)=>{if(!x||!S.me)return false;if((x.assigned_ids||[]).includes(S.me.id))return true;const ag=x.assigned_groups||[];return ag.length>0&&myGroups().some(g=>ag.includes(g));};
 const myLessons=()=>S.lessons.filter(l=>assignedToMe(l)).sort((a,b)=>((a.order_index||0)-(b.order_index||0))||((a.created_at||'').localeCompare(b.created_at||'')));
@@ -785,7 +786,7 @@ function renderWork(){
   // 課後小結（老師寫的上課記錄備註）
   const notes=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).filter(e=>e&&e.note&&e.note.trim()).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3);
   const noteCard=notes.length?'<div class="note-card"><div class="ann-h">📝 課後小結 Class notes</div>'+notes.map(n=>'<div class="ann-item"><span class="ann-date">'+esc(n.date||'')+'</span>'+esc(n.note||'')+'</div>').join('')+'</div>':'';
-  $('#screen').innerHTML=banner+badgeStrip+annCard+meetCard+calCard+noteCard+sessCard+nb+submittedWorkHtml()+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
+  $('#screen').innerHTML=banner+badgeStrip+annCard+meetCard+classUpcomingHtml()+calCard+noteCard+sessCard+classDaysHtml()+nb+submittedWorkHtml()+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
@@ -862,8 +863,24 @@ function classDaysHtml(){
   const log=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).slice().filter(e=>e&&e.date).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   if(!log.length)return '';
   const M={attended:[t('stAtt'),'#16a34a','✅'],leave:[t('stLeave'),'#d97706','🟡'],absent:[t('stAbsent'),'#dc2626','🔴']};
-  const rows=log.slice(0,20).map(e=>{const m=M[e.status]||M.attended;const tm=(e.start||e.end)?` <span class="hint">${esc((e.start||'')+(e.end?'–'+e.end:''))}</span>`:'';return `<div class="dash-row" style="padding:6px 0;align-items:center"><b>${esc(e.date)}</b>${tm}<span class="grow"></span><span style="color:${m[1]};font-weight:600;white-space:nowrap">${m[2]} ${esc(m[0])}</span></div>`;}).join('');
+  const rows=log.slice(0,20).map(e=>{const m=M[e.status]||M.attended;const wd=wdLabel(e.date);const tm=(e.start||e.end)?` <span class="hint">${esc((e.start||'')+(e.end?'–'+e.end:''))}</span>`:'';return `<div class="dash-row" style="padding:6px 0;align-items:center"><b>${esc(e.date)}</b>${wd?`<span class="hint" style="margin-left:4px">（${wd}）</span>`:''}${tm}<span class="grow"></span><span style="color:${m[1]};font-weight:600;white-space:nowrap">${m[2]} ${esc(m[0])}</span></div>`;}).join('');
   return `<details class="card" style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;list-style-position:inside">🗓 ${t('myClassDays')} <span class="hint">（${log.length}）</span></summary><div style="margin-top:6px">${rows}</div></details>`;
+}
+function classUpcomingHtml(){
+  if(S.preview)return '';
+  const L=S.lang||'zh';
+  const T=({zh:{title:'接下來的課',next:'下一堂',today:'今天',tmr:'明天',din:d=>'還有 '+d+' 天',none:'目前沒有預排的課'},
+            cn:{title:'接下来的课',next:'下一堂',today:'今天',tmr:'明天',din:d=>'还有 '+d+' 天',none:'目前没有预排的课'},
+            en:{title:'Upcoming classes',next:'Next',today:'Today',tmr:'Tomorrow',din:d=>'in '+d+' days',none:'No upcoming classes yet'},
+            vi:{title:'Lịch học sắp tới',next:'Buổi tới',today:'Hôm nay',tmr:'Ngày mai',din:d=>'còn '+d+' ngày',none:'Chưa có lịch học sắp tới'}})[L]||null;
+  const TT=T||{title:'接下來的課',next:'下一堂',today:'今天',tmr:'明天',din:d=>'還有 '+d+' 天',none:'目前沒有預排的課'};
+  const t0=new Date();t0.setHours(0,0,0,0);const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');const today=ymd(t0);
+  const ups=[];const seen=new Set();
+  myGroups().forEach(g=>{const pl=classMetaOf(g).planned;if(Array.isArray(pl))pl.forEach(p=>{if(!p||!p.date||p.date<today)return;const k=g+'|'+p.date+'|'+(p.start||'');if(seen.has(k))return;seen.add(k);ups.push({date:p.date,start:p.start||'',end:p.end||'',note:p.note||''});});});
+  if(!ups.length)return '';
+  ups.sort((a,b)=>a.date.localeCompare(b.date)||String(a.start).localeCompare(String(b.start)));
+  const rows=ups.slice(0,8).map((u,i)=>{const wd=wdLabel(u.date);const tm=(u.start||u.end)?` <span class="hint">${esc((u.start||'')+(u.end?'–'+u.end:''))}</span>`:'';const dd=Math.round((new Date(u.date+'T00:00:00')-t0)/86400000);const rel=dd<=0?TT.today:(dd===1?TT.tmr:TT.din(dd));return `<div class="dash-row" style="padding:6px 0;align-items:center;flex-wrap:wrap;gap:4px">${i===0?`<span class="badge badge-soon">${TT.next}</span>`:''}<b>${esc(u.date)}</b>${wd?`<span class="hint">（${wd}）</span>`:''}${tm}${u.note?`<span class="hint">· ${esc(u.note)}</span>`:''}<span class="grow"></span><span style="color:#1F6F78;font-weight:600;white-space:nowrap">${esc(rel)}</span></div>`;}).join('');
+  return `<div class="card" style="margin-bottom:12px"><div class="ann-h">📅 ${TT.title}</div><div style="margin-top:2px">${rows}</div></div>`;
 }
 function lessonTitleOf(lid){const l=(S.lessons||[]).find(x=>x.id===lid);if(!l)return '';return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');}
 function swAnsText(a){if(a==null)return '';if(typeof a==='string')return a;if(Array.isArray(a))return a.map(x=>(x&&x.t!=null)?x.t:(typeof x==='string'?x:(x&&x.s?(Array.isArray(x.s)?x.s.join(''):x.s):''))).filter(v=>v!=null&&String(v).trim()).join('、');if(typeof a==='object'){if(a.t!=null)return String(a.t);try{return Object.values(a).filter(v=>v!=null&&String(v).trim()).join('、');}catch(e){return '';}}return String(a);}
@@ -905,7 +922,7 @@ function renderContent(){
   const _grp=myGroups();
   const clsBanner=(!S.preview&&_grp.length)?`<div class="class-banner"><div class="cb-head"><span class="cb-ic">👥</span><span class="cb-label">${t('yourClass')}</span></div>${_grp.map(g=>{const cm=classMetaOf(g);const s=fmtSched(cm.schedule);const chips=[`<span class="cb-chip cb-cls">${esc(g)}</span>`];if(s)chips.push(`<span class="cb-chip">🕒 ${esc(s)}</span>`);if(cm.textbook)chips.push(`<span class="cb-chip">📖 ${esc(cm.textbook)}</span>`);return `<div class="cb-row">${chips.join('')}</div>`;}).join('')}<div class="cb-note">💡 ${t('classNote')}</div></div>`:'';
   const meetTop=meetCardHtml();
-  if(!normals.length&&!prons.length){$('#screen').innerHTML=meetTop+clsBanner+classDaysHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
+  if(!normals.length&&!prons.length){$('#screen').innerHTML=meetTop+clsBanner+classUpcomingHtml()+classDaysHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
   const entries=[...normals.map(l=>({k:'l',l,b:(l.textbook||'').trim()||t('uncat')})),...prons.map(p=>({k:'p',l:p,b:(p.textbook||'').trim()||t('navPron')}))];
   const books=[];entries.forEach(e=>{if(!books.includes(e.b))books.push(e.b);});
   const cur=(S.contentBook&&books.includes(S.contentBook))?S.contentBook:books[0];
@@ -917,7 +934,7 @@ function renderContent(){
   const progCard=(!S.preview&&_hw.length)?`<div class="card prog-card"><div class="prog-top"><b>${t('learnProg')}</b><span class="hint">${_done}/${_hw.length} ${t('lessonsDone')}</span></div><div class="prog-bar"><span style="width:${Math.round(_done/_hw.length*100)}%"></span></div></div>`:'';
   const _fbn=S.preview?0:teacherFbCount();
   const fbBanner=_fbn?`<div class="fb-banner" data-act="section" data-id="work">${t('fbGave1')} ${_fbn} ${t('fbGave2')}</div>`:'';
-  $('#screen').innerHTML=meetTop+clsBanner+fbBanner+progCard+classDaysHtml()+tabBar+'<div class="cards">'+cards+'</div>';
+  $('#screen').innerHTML=meetTop+clsBanner+classUpcomingHtml()+fbBanner+progCard+classDaysHtml()+tabBar+'<div class="cards">'+cards+'</div>';
   convScreen();setupCanvases();
   if(!S.preview)shown.forEach(e=>{if(e.k!=='l')return;const n=noteOf(e.l.id);if(n&&n.ink){const cv=document.getElementById('note-cv-'+e.l.id);if(cv)loadNoteInk(cv,n.ink);}
     // 還原「語法練習」已填寫但尚未送出的答案（含草稿），並掛上自動儲存
