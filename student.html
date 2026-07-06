@@ -876,8 +876,12 @@ function classUpcomingHtml(){
             vi:{title:'Lịch học sắp tới',next:'Buổi tới',today:'Hôm nay',tmr:'Ngày mai',din:d=>'còn '+d+' ngày',none:'Chưa có lịch học sắp tới'}})[L]||null;
   const TT=T||{title:'接下來的課',next:'下一堂',today:'今天',tmr:'明天',din:d=>'還有 '+d+' 天',none:'目前沒有預排的課'};
   const t0=new Date();t0.setHours(0,0,0,0);const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');const today=ymd(t0);
-  const ups=[];const seen=new Set();
+  const recorded=new Set((Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).map(e=>e&&e.date).filter(Boolean));
+  let ups=[];const seen=new Set();
   myGroups().forEach(g=>{const pl=classMetaOf(g).planned;if(Array.isArray(pl))pl.forEach(p=>{if(!p||!p.date||p.date<today)return;const k=g+'|'+p.date+'|'+(p.start||'');if(seen.has(k))return;seen.add(k);ups.push({date:p.date,start:p.start||'',end:p.end||'',note:p.note||''});});});
+  const sp=(S.me&&Array.isArray(S.me.planned))?S.me.planned:[]; // 一對一：學生自己的預排
+  sp.forEach(p=>{if(!p||!p.date||p.date<today)return;const k='S|'+p.date+'|'+(p.start||'');if(seen.has(k))return;seen.add(k);ups.push({date:p.date,start:p.start||'',end:p.end||'',note:p.note||''});});
+  ups=ups.filter(u=>!recorded.has(u.date)); // 已上（已點名）的那天不再顯示
   if(!ups.length)return '';
   ups.sort((a,b)=>a.date.localeCompare(b.date)||String(a.start).localeCompare(String(b.start)));
   const rows=ups.slice(0,8).map((u,i)=>{const wd=wdLabel(u.date);const tm=(u.start||u.end)?` <span class="hint">${esc((u.start||'')+(u.end?'–'+u.end:''))}</span>`:'';const dd=Math.round((new Date(u.date+'T00:00:00')-t0)/86400000);const rel=dd<=0?TT.today:(dd===1?TT.tmr:TT.din(dd));return `<div class="dash-row" style="padding:6px 0;align-items:center;flex-wrap:wrap;gap:4px">${i===0?`<span class="badge badge-soon">${TT.next}</span>`:''}<b>${esc(u.date)}</b>${wd?`<span class="hint">（${wd}）</span>`:''}${tm}${u.note?`<span class="hint">· ${esc(u.note)}</span>`:''}<span class="grow"></span><span style="color:#1F6F78;font-weight:600;white-space:nowrap">${esc(rel)}</span></div>`;}).join('');
