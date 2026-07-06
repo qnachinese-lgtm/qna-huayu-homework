@@ -436,7 +436,8 @@ function vocabSectionHtml(l,di,opts){opts=opts||{};
   return `<details class="disc sub-fold" open><summary>${t('vocab')}${ttl?('（'+esc(ttl)+'）'):''}</summary>${vocabBlockHtml(l,di,vocab,chips)}</details>`;}
 function discSectionHtml(l,di,opts){opts=opts||{};const answerable=!!opts.answerable;const doc=opts.doc||null;const fb=(doc&&doc.feedback)||{};const ans=(doc&&doc.answers)||{};
   const d=lessonDialogues(l)[di];if(!d)return '';const discQs=(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean);if(!discQs.length)return '';
-  return `<details class="disc sub-fold" open><summary>💬 ${t('discTitle')}${(d.title||'').trim()?('（'+esc(d.title.trim())+'）'):''}</summary><ol class="disc-qs">${discQs.map((q,qi)=>{const key=di+'_'+qi;const note=fb[key];const a=ans[key]!=null?ans[key]:'';return `<li><div class="disc-q lookup">${prose2(q)}</div>${answerable?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(t('discPh'))}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`:(a?`<div class="disc-myans">${esc(a)}</div>`:'')}${note?`<div class="fb-note">💬 ${t('sentFb')}：${esc(note)}</div>`:''}</li>`;}).join('')}</ol>${answerable?`<div class="disc-submit" style="margin-top:10px">${doc&&doc.status==='submitted'?`<div class="notice">📨 ${t('discSubmitted')}</div>`:''}${doc&&doc.status==='reviewed'?`<div class="notice">✅ ${t('discReviewed')}</div>`:''}${doc&&doc.submitted_at?`<div class="hint" style="text-align:center;margin-top:4px">🕒 ${t('submittedAt')}：${fmtDT(doc.submitted_at)}</div>`:''}${(doc&&doc.status==='reviewed'&&doc.overall)?`<div class="card fb-overall" style="margin:6px 0"><b>${t('discOverall')}</b><div style="margin-top:4px">${esc(doc.overall)}</div></div>`:''}${(doc&&doc.status==='submitted')?`<button class="btn btn-sm" style="width:100%;margin-bottom:8px" data-act="recallDisc" data-id="${l.id}">${t('discRecall')}</button>`:''}<button class="btn btn-accent" style="width:100%;padding:11px" data-act="submitDisc" data-id="${l.id}">${(doc&&(doc.status==='submitted'||doc.status==='reviewed'))?t('discResubmit'):t('discSubmit')}</button><div class="hint" style="text-align:center;margin-top:6px">送出全部「問題與討論」的回答給老師</div><div class="hint disc-draft-hint" data-lid="${l.id}" style="text-align:center;margin-top:2px;color:var(--teal,#1F6F78)"></div></div>`:''}</details>`;}
+  const blockDone=!!(doc&&discQs.some((q,qi)=>{const a=ans[di+'_'+qi];return a!=null&&String(a).trim()!=='';}));const bt=(d.title||'').trim();
+  return `<details class="disc sub-fold" open data-disc-di="${di}" data-disc-lid="${l.id}"><summary>💬 ${t('discTitle')}${bt?('（'+esc(bt)+'）'):''}</summary><ol class="disc-qs">${discQs.map((q,qi)=>{const key=di+'_'+qi;const note=fb[key];const a=ans[key]!=null?ans[key]:'';return `<li><div class="disc-q lookup">${prose2(q)}</div>${answerable?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(t('discPh'))}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`:(a?`<div class="disc-myans">${esc(a)}</div>`:'')}${note?`<div class="fb-note">💬 ${t('sentFb')}：${esc(note)}</div>`:''}</li>`;}).join('')}</ol>${answerable?`<div class="disc-submit" style="margin-top:10px">${(blockDone&&doc.status==='submitted')?`<div class="notice">📨 ${t('discSubmitted')}</div>`:''}${(blockDone&&doc.status==='reviewed')?`<div class="notice">✅ ${t('discReviewed')}</div>`:''}${(blockDone&&doc.submitted_at)?`<div class="hint" style="text-align:center;margin-top:4px">🕒 ${t('submittedAt')}：${fmtDT(doc.submitted_at)}</div>`:''}${(blockDone&&doc.status==='reviewed'&&doc.overall)?`<div class="card fb-overall" style="margin:6px 0"><b>${t('discOverall')}</b><div style="margin-top:4px">${esc(doc.overall)}</div></div>`:''}${(blockDone&&doc.status==='submitted')?`<button class="btn btn-sm" style="width:100%;margin-bottom:8px" data-act="recallDisc" data-id="${l.id}">${t('discRecall')}</button>`:''}<button class="btn btn-accent" style="width:100%;padding:11px" data-act="submitDisc" data-id="${l.id}::${di}">${blockDone?t('discResubmit'):t('discSubmit')}</button><div class="hint" style="text-align:center;margin-top:6px">${bt?('只送出「'+esc(bt)+'」這一段的回答'):'只送出這一段的回答給老師'}</div><div class="hint disc-draft-hint" data-lid="${l.id}" style="text-align:center;margin-top:2px;color:var(--teal,#1F6F78)"></div></div>`:''}</details>`;}
 function dialoguesHtml(l,opts){return lessonDialogues(l).map((d,di)=>dialogueBlockHtml(l,di,opts)+discSectionHtml(l,di,opts)+vocabSectionHtml(l,di,opts)).join('');}
 function reconcileLayout(l){const ds=lessonDialogues(l);const nd=ds.length,ng=(l.grammar_points||[]).length;const hasQ=i=>!!(ds[i]&&(ds[i].discussion||'').split('\n').some(s=>s.trim()));const hasV=i=>!!(ds[i]&&parseVocab(ds[i].vocabulary).length);const saved=Array.isArray(l.layout)?l.layout:[];
   const out=[],sd=new Set(),sg=new Set(),sq=new Set(),sv=new Set();
@@ -1465,17 +1466,24 @@ H.saveQuizResult=async(quizId,right,total,log)=>{if(S.preview)return;try{const u
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
   splitResults(rAll);
 }catch(e){toast(e.message);}};
-H.submitDisc=async(lid,b)=>{if(S.preview)return;const scope=document.getElementById('ls-'+lid)||(b&&b.closest('.ls-card'))||(b&&b.closest('.card'));if(!scope)return;
+H.submitDisc=async(arg,b)=>{if(S.preview)return;const p=String(arg).split('::');const lid=p[0];const di=p.length>1?p[1]:null;
+  const lscope=document.getElementById('ls-'+lid)||(b&&b.closest('.ls-card'))||(b&&b.closest('.card'));if(!lscope)return;
+  let scope=lscope,pre=null; // di 指定時，只收集這一段（對話／短文）的作答，不送其他段
+  if(di!=null){const blk=(b&&b.closest('[data-disc-di]'))||lscope.querySelector('[data-disc-di="'+di+'"]');if(blk){scope=blk;pre=di+'_';}}
   const collected={};scope.querySelectorAll('.disc-ans').forEach(el=>{const v=(el.value||'').trim();if(v)collected[el.dataset.k]=v;});
   if(!Object.keys(collected).length){toast(t('discEmpty'));return;}
   if(b){b.disabled=true;b.textContent=t('sentSaving');}
   try{const u=myUid();const existing=discDocOf(lid);
-    const answers=Object.assign({},(existing&&existing.answers)||{},collected); // 合併：送出對話的問題與討論時，不會蓋掉短文已送出的答案
+    let answers=Object.assign({},(existing&&existing.answers)||{}); // 合併：只更新這一段，不蓋掉其他段已送出的答案
+    if(pre){Object.keys(answers).forEach(k=>{if(k.indexOf(pre)===0)delete answers[k];});}
+    answers=Object.assign(answers,collected);
     const payload={kind:'discussion',lesson_id:'__discussion__',disc_lesson:lid,uid:u,student_id:S.me.id,student_name:S.me.name||'',answers,status:'submitted',submitted_at:now()};
     if(existing&&existing.id){await DB.update('results',existing.id,Object.assign({},payload,{feedback:existing.feedback||{},overall:existing.overall||''}));}
     else{await DB.insert('results',payload);}
     const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);splitResults(rAll);
-    bumpActivity(1);toast(t('discSaved'));renderContent();
+    bumpActivity(1);toast(t('discSaved'));
+    if(di!=null){if(b){b.disabled=false;b.textContent=t('discResubmit');b.classList.add('btn-accent');}} // 單段送出：不整頁重繪，保留其他段作答中的內容
+    else renderContent();
   }catch(e){toast(e.message);if(b){b.disabled=false;b.textContent=t('discSubmit');}}};
 H.submitGprac=async(key,b)=>{if(S.preview)return;
   const p=String(key).split('::');const lid=p[0];const gp=p.length>1?Number(p[1]):null;

@@ -1304,8 +1304,14 @@ H.reviewDisc=(id)=>{const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)retur
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
   const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
   const fb=sd.feedback||{},ans=sd.answers||{};const blocks=Array.isArray(l.dialogues)?l.dialogues:[];
-  let rows='';blocks.forEach((d,di)=>{const qs=(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean);qs.forEach((q,qi)=>{const key=di+'_'+qi;const a=ans[key]||'';rows+=`<div class="srev-item"><div class="srev-word">${esc(q)}</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div><textarea class="drev-fb" data-k="${esc(key)}" rows="2" placeholder="給這一題的建議（可留空）">${esc(fb[key]||'')}</textarea></div>`;});});
-  if(!rows)rows='<div class="muted">（這一課目前沒有問題與討論，或題目已被修改）</div>';
+  // 只顯示學生「有作答」的題目，並依段落（對話／短文）分組；沒作答的那一段不會出現
+  let rows='';blocks.forEach((d,di)=>{const qs=(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean);
+    const answered=qs.map((q,qi)=>({q,key:di+'_'+qi,a:(ans[di+'_'+qi]==null?'':String(ans[di+'_'+qi]))})).filter(x=>x.a.trim());
+    if(!answered.length)return;
+    const bt=(d.title||'').trim()||('段落 '+(di+1));
+    rows+=`<div class="lesson-label" style="margin:12px 0 4px;padding-bottom:2px;border-bottom:1px solid var(--line)">💬 ${esc(bt)}</div>`;
+    answered.forEach(x=>{rows+=`<div class="srev-item"><div class="srev-word">${esc(x.q)}</div><div class="srev-sent">${esc(x.a)}</div><textarea class="drev-fb" data-k="${esc(x.key)}" rows="2" placeholder="給這一題的建議（可留空）">${esc(fb[x.key]||'')}</textarea></div>`;});});
+  if(!rows)rows='<div class="muted">（學生還沒有作答任何問題與討論）</div>';
   openModal(`<div class="modal wide"><div class="modal-head"><h3>💬 問題與討論批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${rows}
    <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="drev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('drev-overall')}</div></div>
