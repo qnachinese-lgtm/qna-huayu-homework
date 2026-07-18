@@ -150,8 +150,9 @@ function sessionsUsed(s){
       const end=new Date(cur);if(r.e){const p=r.e.split(':');end.setHours(+p[0]||23,+p[1]||59,0,0);}else end.setHours(23,59,0,0);if(end<=now)count++;});
     cur.setDate(cur.getDate()+1);}
   return count;}
-function classAttended(s){return Array.isArray(s&&s.class_log)?s.class_log.filter(e=>e&&e.status!=='leave'&&!e.free).length:null;}
-function sessionsLeft(s){if(!s||s.sessions_total==null||s.sessions_total==='')return null;const tot=Number(s.sessions_total);if(isNaN(tot))return null;const att=classAttended(s);return tot-(att!=null?att:sessionsUsed(s));}
+/* 已上堂數：只認你「實際記錄」的上課記錄，不再用固定週表自動推算（時間不固定，推算會算出離譜的數字） */
+function classAttended(s){return Array.isArray(s&&s.class_log)?s.class_log.filter(e=>e&&e.status!=='leave'&&!e.free).length:0;}
+function sessionsLeft(s){if(!s||s.sessions_total==null||s.sessions_total==='')return null;const tot=Number(s.sessions_total);if(isNaN(tot))return null;return tot-classAttended(s);}
 function sessChip(s){const left=sessionsLeft(s);if(left==null)return '';const cls=left<=0?'sess-out':(left<=1?'sess-low':'');return `<span>🎟️ 堂數：<b class="${cls}">剩 ${left}／共 ${esc(String(s.sessions_total))}</b>${left<=0?' <span class="badge badge-overdue">需續費</span>':''}</span>`;}
 const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
 function avColor(s){let h=0;for(const c of (s||''))h=(h*31+c.charCodeAt(0))>>>0;return AV[h%AV.length];}
@@ -260,7 +261,7 @@ function renderDashboard(){
       <span class="progbar"><span style="width:${p.pct}%"></span></span>
     </div>`;}).join('');
   const lowSess=S.students.map(s=>({s,left:sessionsLeft(s)})).filter(x=>x.left!=null&&x.left<=1&&enrollOf(x.s)!=='paused').sort((a,b)=>a.left-b.left);
-  const sessHtml=lowSess.length?lowSess.map(({s,left})=>`<div class="dash-row"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span><b>${esc(s.name)}</b><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'已用完':'剩 '+left+' 堂'}</span><span class="grow"></span><span class="muted">共 ${esc(String(s.sessions_total))} 堂 · 已上 ${sessionsUsed(s)} 堂</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有快用完堂數的學生 👍</div>`;
+  const sessHtml=lowSess.length?lowSess.map(({s,left})=>`<div class="dash-row"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span><b>${esc(s.name)}</b><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'已用完':'剩 '+left+' 堂'}</span><span class="grow"></span><span class="muted">共 ${esc(String(s.sessions_total))} 堂 · 已上 ${classAttended(s)} 堂</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有快用完堂數的學生 👍</div>`;
   // 批改提醒（待批改的作答）
   const pendList=(S.results||[]).filter(r=>r.status==='pending');
   const pendByLesson={};pendList.forEach(r=>{pendByLesson[r.lesson_id]=(pendByLesson[r.lesson_id]||0)+1;});
@@ -293,7 +294,7 @@ function renderDashboard(){
   const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"><span class="badge badge-soon">${it.tag}</span><b>${esc(it.name)}</b><span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.ts?`<span class="muted">🕒 ${esc(fmtDT(it.ts))}</span>`:''}${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
   // 提醒：只看「堂數快用完／用完」（不再用付款日期做逾期提醒，因為每週時間、繳費都不固定）
   const remRows=[];
-  lowSess.forEach(({s,left})=>remRows.push(`<div class="dash-row"><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'堂數用完':'剩 '+left+' 堂'}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">🎟️ 已上 ${sessionsUsed(s)}/${esc(String(s.sessions_total))} 堂</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">登記</button></div>`));
+  lowSess.forEach(({s,left})=>remRows.push(`<div class="dash-row"><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'堂數用完':'剩 '+left+' 堂'}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">🎟️ 已上 ${classAttended(s)}/${esc(String(s.sessions_total))} 堂</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">登記</button></div>`));
   const remHtml=remRows.length?remRows.join(''):`<div class="muted" style="padding:8px 2px">目前沒有需要提醒的事項 👍</div>`;
   const todoN=inbox.length+remRows.length;
   body.innerHTML=`<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
