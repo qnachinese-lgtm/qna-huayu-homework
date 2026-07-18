@@ -1022,6 +1022,7 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
          <button class="btn btn-sm btn-danger" type="button" data-act="lhClear" style="${l.handout_url?'':'display:none'}" id="l-handout-clr">移除</button>
          <span id="l-handout-disp">${l.handout_url?('📄 '+esc(l.handout_name||'已上傳')):'<span class="hint">尚未上傳</span>'}</span>
          <span class="hint" id="l-handout-st"></span></div></div>
+     <div class="field full"><label>🎬 課文影片連結 <span class="hint">選填。貼 YouTube 或 Google Drive 連結，學生在「上課內容」最上面可以直接看。</span></label><input id="l-video" type="url" value="${esc(l.video_url||'')}" placeholder="https://youtu.be/... 或 https://drive.google.com/..."></div>
      <div class="field full"><label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer"><input type="checkbox" id="l-vi-release" ${l.vi_release?'checked':''} style="width:auto;margin-top:3px"><span>公開生詞越南文翻譯給學生 <span class="hint">勾選後，學生切到越南文才看得到你在各段「生詞越南文」貼的翻譯；不勾＝學生只看英文。</span></span></label></div>
      <div class="hint" style="margin:-2px 0 10px">只想出補充作業？課名填一下即可，下面對話／生詞／語法全部留空，存好後在卡片點「練習題」出題。</div>
      <div class="field full"><label>對話／課文段落 <span class="hint">一課可有多個對話（對話一、對話二…），每段各有自己的課文、生詞、課文音檔、生詞真人發音；語法之後再合併講。</span></label><div id="dlg-editor" class="dlg-editor"></div></div>
@@ -1588,6 +1589,9 @@ H.savePron=async()=>{
 H.delPron=async(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;if(!confirm('確定刪除這個發音課？'))return;try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();S.tab='lessons';render();toast('已刪除發音課');}catch(e){toast(writeErr('刪除失敗',e));}};
 
 /* ---- 講義 PDF 上傳（課文編輯器共用） ---- */
+async function uploadImage(file){await ensureAuthFresh();const ext=(file.name||'img.jpg').split('.').pop().replace(/[^A-Za-z0-9]/g,'')||'jpg';const ref=firebase.storage().ref('lesson_imgs/'+Date.now()+'_'+Math.random().toString(16).slice(2)+'.'+ext);await ref.put(file);return await ref.getDownloadURL();}
+H.pickDlgImg=(i)=>{const f=document.getElementById('file-dlgimg-'+i);if(f)f.click();};
+H.dlgImgClear=(i)=>{if(DLG[i])DLG[i].image_url='';const inp=document.getElementById('dlg-img-'+i);if(inp)inp.value='';const pv=document.getElementById('dlgimg-prev-'+i);if(pv){pv.src='';pv.style.display='none';}};
 async function uploadHandout(file){await ensureAuthFresh();let safe=(file.name||'handout.pdf').replace(/[^\w.\-]+/g,'_');if(safe.length>60)safe=safe.slice(-60);const ref=firebase.storage().ref('handouts/'+Date.now()+'_'+safe);await ref.put(file);return await ref.getDownloadURL();}
 H.lhUp=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,application/pdf';
   inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=$('#l-handout-st');if(st)st.textContent='上傳中…（檔案大時請稍候）';
@@ -1959,7 +1963,7 @@ H.doTplLesson=async()=>{const kind=(document.querySelector('input[name="t-kind"]
   const gA=Math.max(0,Number($('#t-ga')&&$('#t-ga').value)||0),gB=Math.max(0,Number($('#t-gb')&&$('#t-gb').value)||0);
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const built=tplBuild(kind,gA,gB);
-  const obj={order_index:order,title,textbook:book||null,vi_release:false,dialogues:built.dialogues,grammar_points:built.grammar_points,key_points:'',examples:'',handout_url:null,handout_name:null,layout:[],assigned_ids:[],due_date:null};
+  const obj={order_index:order,title,textbook:book||null,video_url:null,vi_release:false,dialogues:built.dialogues,grammar_points:built.grammar_points,key_points:'',examples:'',handout_url:null,handout_name:null,layout:[],assigned_ids:[],due_date:null};
   const btn=document.querySelector('[data-act="doTplLesson"]');if(btn){btn.disabled=true;btn.textContent='建立中…';}
   try{const nl=await DB.insert('lessons',obj);await loadAll();closeModal();
     const created=(S.lessons||[]).find(x=>x.id===nl.id);if(created){lessonModal(created);}else{render();}
@@ -2047,7 +2051,7 @@ H.dupLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!co
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const btn=document.querySelector('[data-act="dupLesson"][data-id="'+id+'"]');if(btn){btn.disabled=true;btn.textContent='複製中…';}
   const maxOrder=Math.max(0,...S.lessons.map(x=>Number(x.order_index)||0));
-  const copy={order_index:maxOrder+1,title:(l.title||'')+'（複本）',textbook:l.textbook||null,vi_release:l.vi_release||false,dialogues:l.dialogues||null,content:l.content||null,vocabulary:l.vocabulary||null,audio_url:l.audio_url||null,vocab_audio_url:l.vocab_audio_url||null,vocab_segments:l.vocab_segments||null,grammar_points:l.grammar_points||[],key_points:l.key_points||'',examples:l.examples||'',handout_url:l.handout_url||null,handout_name:l.handout_name||null,layout:l.layout||[],assigned_ids:[],due_date:null};
+  const copy={order_index:maxOrder+1,title:(l.title||'')+'（複本）',textbook:l.textbook||null,video_url:l.video_url||null,vi_release:l.vi_release||false,dialogues:l.dialogues||null,content:l.content||null,vocabulary:l.vocabulary||null,audio_url:l.audio_url||null,vocab_audio_url:l.vocab_audio_url||null,vocab_segments:l.vocab_segments||null,grammar_points:l.grammar_points||[],key_points:l.key_points||'',examples:l.examples||'',handout_url:l.handout_url||null,handout_name:l.handout_name||null,layout:l.layout||[],assigned_ids:[],due_date:null};
   try{const nl=await DB.insert('lessons',copy);
     const qs=questionsOf(l.id);for(const q of qs){const r=Object.assign({},q);delete r.id;delete r.created_at;r.lesson_id=nl.id;await DB.insert('questions',r);}
     await loadAll();render();toast('已複製為「'+copy.title+'」，可直接編輯');}
@@ -2064,8 +2068,8 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
     if(d._la&&d._la.file){if(sbtn){sbtn.disabled=true;sbtn.textContent='上傳課文音檔…';}
       try{d.audio_url=await uploadVocabAudio(d._la.file);d.line_segments=d._la.segs||[];d._la=null;}
       catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('課文音檔上傳失敗：'+(err.message||err));}}}
-  const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',vocab_vi:(d.vocab_vi||'').trim(),discussion:(d.discussion||'').trim(),audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.discussion||d.audio_url||d.vocab_audio_url);
-  const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,vi_release:!!($('#l-vi-release')&&$('#l-vi-release').checked),dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value,handout_url:(($('#l-handout-url')&&$('#l-handout-url').value)||'')||null,handout_name:(($('#l-handout-name')&&$('#l-handout-name').value)||'')||null,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[])};
+  const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',vocab_vi:(d.vocab_vi||'').trim(),discussion:(d.discussion||'').trim(),image_url:(d.image_url||'').trim()||null,audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.discussion||d.image_url||d.audio_url||d.vocab_audio_url);
+  const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,video_url:(($('#l-video')&&$('#l-video').value)||'').trim()||null,vi_release:!!($('#l-vi-release')&&$('#l-vi-release').checked),dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value,handout_url:(($('#l-handout-url')&&$('#l-handout-url').value)||'')||null,handout_name:(($('#l-handout-name')&&$('#l-handout-name').value)||'')||null,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[])};
   try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}};
 
 /* ===== 語法點結構化編輯器 ===== */
@@ -2163,7 +2167,7 @@ H.gpBlockDel=(key)=>{gpSync();const p=String(key).split('::');const gi=Number(p[
 let DLG=[];const DLG_CN=['一','二','三','四','五','六','七','八'];
 function dlgInit(l){let arr;
   if(l&&Array.isArray(l.dialogues)&&l.dialogues.length){
-    arr=l.dialogues.map(d=>({title:d.title||'',content:d.content||'',vocabulary:d.vocabulary||'',vocab_vi:d.vocab_vi||'',discussion:d.discussion||'',audio_url:d.audio_url||'',vocab_audio_url:d.vocab_audio_url||'',vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]}));
+    arr=l.dialogues.map(d=>({title:d.title||'',content:d.content||'',vocabulary:d.vocabulary||'',vocab_vi:d.vocab_vi||'',discussion:d.discussion||'',image_url:d.image_url||'',audio_url:d.audio_url||'',vocab_audio_url:d.vocab_audio_url||'',vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]}));
     if(l.vocab_audio_url&&arr[0]&&!arr[0].vocab_audio_url){arr[0].vocab_audio_url=l.vocab_audio_url;arr[0].vocab_segments=l.vocab_segments||[];}}
   else if(l&&(l.content||l.vocabulary||l.audio_url)){arr=[{title:'對話一',content:l.content||'',vocabulary:l.vocabulary||'',audio_url:l.audio_url||'',vocab_audio_url:l.vocab_audio_url||'',vocab_segments:l.vocab_segments||[]}];}
   else{arr=[{title:'對話一',content:'',vocabulary:'',audio_url:'',vocab_audio_url:'',vocab_segments:[]}];}
@@ -2175,12 +2179,16 @@ function dlgSync(){DLG.forEach((d,i)=>{
   const v=document.querySelector('.dlg-vocab-in[data-i="'+i+'"]');if(v)d.vocabulary=v.value;
   const vv=document.querySelector('.dlg-vocabvi-in[data-i="'+i+'"]');if(vv)d.vocab_vi=vv.value;
   const a=document.querySelector('.dlg-audio-in[data-i="'+i+'"]');if(a)d.audio_url=a.value;
-  const q=document.querySelector('.dlg-disc-in[data-i="'+i+'"]');if(q)d.discussion=q.value;});}
+  const q=document.querySelector('.dlg-disc-in[data-i="'+i+'"]');if(q)d.discussion=q.value;
+  const im=document.querySelector('.dlg-img-in[data-i="'+i+'"]');if(im)d.image_url=im.value.trim();});}
 function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)return;
   wrap.innerHTML=DLG.map((d,i)=>`<details class="dlg-card edit-fold"${d._open?' open':''}><summary class="edit-fold-sum"><span class="gp-no">段 ${i+1}</span><span class="edit-fold-title">${esc((d.title||'').trim()||'（未命名）')}</span><span class="edit-fold-caret">▾</span></summary><div class="edit-fold-body"><div class="dlg-card-head">
     <input class="dlg-title-in" data-i="${i}" value="${esc(d.title||'')}" placeholder="標題，例：對話一／短文">
     ${DLG.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="dlgDel" data-id="${i}">刪除</button>`:''}</div>
     <label class="dlg-lbl">課文／對話</label><textarea class="dlg-content-in" data-i="${i}" style="min-height:100px" placeholder="貼上或輸入這段對話／課文…">${esc(d.content||'')}</textarea>
+    <label class="dlg-lbl">🖼 情境圖片 <span class="hint">選填。上傳一張圖，或貼圖片網址；學生在這段課文上方會看到。</span></label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input class="dlg-img-in" id="dlg-img-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.image_url||'')}" placeholder="上傳圖片，或貼圖片網址"><button class="btn btn-sm" type="button" data-act="pickDlgImg" data-id="${i}">⬆ 上傳圖片</button><button class="btn btn-sm btn-danger" type="button" data-act="dlgImgClear" data-id="${i}" style="${d.image_url?'':'display:none'}">移除</button><input type="file" id="file-dlgimg-${i}" class="hide" accept="image/*"><span class="hint" id="dlgimg-st-${i}"></span></div>
+    <img id="dlgimg-prev-${i}" src="${esc(d.image_url||'')}" style="${d.image_url?'':'display:none;'}max-width:200px;max-height:140px;border:1px solid #ddd;border-radius:6px;margin-top:6px">
     <label class="dlg-lbl">生詞 <span class="hint">每行一個。格式：<b>詞 (詞類)=英文翻譯</b>；自訂拼音加 <b>[拼音]</b>。<b>例句（時代華語）</b>：在那個詞的下一行用「<b>-</b>」開頭打，可打多句。</span></label>
     <div style="margin-bottom:6px"><button class="btn btn-sm" type="button" data-act="dlgAutoPinyin" data-id="${i}">✨ 自動加拼音</button> <span class="hint">幫沒有 [拼音] 的詞自動補上(可再改)</span></div>
     <textarea class="dlg-vocab-in" data-i="${i}" placeholder="高興 (Vs)=happy[gāoxìng]&#10;- 我今天很高興。&#10;- 他高興得跳起來。&#10;香蕉 (N)=banana&#10;- 我買了三根香蕉。">${esc(d.vocabulary||'')}</textarea>
@@ -2863,7 +2871,9 @@ function laRenderPreview(i){const d=DLG[i];if(!d||!d._la)return;const sents=dlgS
   const st=document.getElementById('dlgaud-status-'+i);if(st)st.textContent='共 '+sents.length+' 句。每句可直接改「開始～結束」秒數，▶ 試聽確認；存檔後學生逐句跟讀就會播這真人聲音。';
   const pv=document.getElementById('la-preview-'+i);if(pv)pv.innerHTML='<div class="va-list">'+sents.map((s,k)=>{const sg=segs[k]||{s:0,e:1};return `<div class="va-row"><span class="hint" style="min-width:18px">${k+1}</span><span class="la-sent">${esc(s.length>16?s.slice(0,16)+'…':s)}</span><input class="la-time" type="number" step="0.1" min="0" data-di="${i}" data-k="${k}" data-edge="s" value="${(+sg.s).toFixed(2)}"><span class="va-dash">–</span><input class="la-time" type="number" step="0.1" min="0" data-di="${i}" data-k="${k}" data-edge="e" value="${(+sg.e).toFixed(2)}"><button class="btn btn-sm" type="button" data-act="laPlay" data-id="${i}::${k}">▶ 試聽</button></div>`;}).join('')+'</div>';}
 H.laPlay=(key)=>{const p=String(key).split('::');const i=+p[0],k=+p[1];const d=DLG[i];if(!d||!d._la)return;const seg=(d._la.segs||[])[k];if(!seg||!d._la.url)return;const a=window._laAudio||(window._laAudio=new Audio());a.ontimeupdate=null;a.src=d._la.url;const go=()=>{try{a.currentTime=seg.s;}catch(_){}a.ontimeupdate=()=>{if(a.currentTime>=seg.e){a.pause();a.ontimeupdate=null;}};a.play().catch(()=>{});};if(a.readyState>=1)go();else a.onloadedmetadata=go;};
-document.addEventListener('change',(e)=>{const id=(e.target&&e.target.id)||'';let m=id.match(/^file-va-(\d+)$/);if(m){const f=e.target.files&&e.target.files[0];if(f)vaHandleFile(f,+m[1]);return;}m=id.match(/^file-dlgaud-(\d+)$/);if(m){const f=e.target.files&&e.target.files[0];if(f)dlgAudioHandle(f,+m[1]);}});
+document.addEventListener('change',(e)=>{const id=(e.target&&e.target.id)||'';let m=id.match(/^file-va-(\d+)$/);if(m){const f=e.target.files&&e.target.files[0];if(f)vaHandleFile(f,+m[1]);return;}m=id.match(/^file-dlgaud-(\d+)$/);if(m){const f=e.target.files&&e.target.files[0];if(f)dlgAudioHandle(f,+m[1]);return;}m=id.match(/^file-dlgimg-(\d+)$/);if(m){const f=e.target.files&&e.target.files[0];if(f)dlgImgHandle(f,+m[1]);}});
+async function dlgImgHandle(file,i){const d=DLG[i];if(!d)return;const st=document.getElementById('dlgimg-st-'+i);if(st)st.textContent='上傳中…';if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage，可改貼圖片網址';return;}
+  try{const url=await uploadImage(file);d.image_url=url;const inp=document.getElementById('dlg-img-'+i);if(inp)inp.value=url;const pv=document.getElementById('dlgimg-prev-'+i);if(pv){pv.src=url;pv.style.display='';}if(st)st.textContent='已上傳 ✓';}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}}
 document.addEventListener('input',(e)=>{const m=((e.target&&e.target.id)||'').match(/^va-(?:sens|trim)-(\d+)$/);if(m){H.vaRedetect(+m[1]);return;}
   const t=e.target;if(t&&t.classList){const v=parseFloat(t.value);
     if(t.classList.contains('va-time')){const d=DLG[+t.dataset.di];if(d&&d._va&&d._va.segs&&d._va.segs[+t.dataset.k]&&!isNaN(v))d._va.segs[+t.dataset.k][t.dataset.edge]=v;}
