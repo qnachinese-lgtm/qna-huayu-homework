@@ -49,6 +49,7 @@
         <button class="tab" data-act="tab" data-id="lessons">📚 上課教材 <span class="count" id="c-lessons">0</span></button>
         <button class="tab" data-act="tab" data-id="grades">成績總覽 <span class="count alert hide" id="c-pending">0</span></button>
         <button class="tab" data-act="tab" data-id="interview">🎤 面試練習 <span class="count" id="c-itv">0</span></button>
+        <button class="tab" data-act="tab" data-id="agency">🎓 代辦申請 <span class="count" id="c-ag">0</span></button>
         <button class="tab" data-act="tab" data-id="ops">📊 營運 <span class="count alert hide" id="c-leads">0</span></button>
       </div>
 
@@ -86,6 +87,11 @@
       <section id="panel-interview" class="panel hide">
         <div class="section-head"><h2>🎤 面試練習</h2><span class="sub">簽證面試練習的客戶、練習時間與收費（與華語學生分開管理）</span></div>
         <div id="interview-body"></div>
+      </section>
+
+      <section id="panel-agency" class="panel hide">
+        <div class="section-head"><h2>🎓 代辦申請</h2><span class="sub">代辦申請學校的客戶、每次做了什麼、上傳內容與收費（收入會併入營運總收入）</span></div>
+        <div id="agency-body"></div>
       </section>
 
       <section id="panel-ops" class="panel hide">
@@ -220,7 +226,7 @@ async function loadAll(){
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
     DB.list('lessons'),DB.list('questions'),DB.list('results')]);
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&!x.deleted_at);S.interviews=b.filter(x=>x.kind==='interview'&&!x.deleted_at);S.inquiries=b.filter(x=>x.kind==='inquiry'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&!x.deleted_at);S.interviews=b.filter(x=>x.kind==='interview'&&!x.deleted_at);S.inquiries=b.filter(x=>x.kind==='inquiry'&&!x.deleted_at);S.agencies=b.filter(x=>x.kind==='agency'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
   splitResults(d);
   {const cut=Date.now()-7*864e5;(S.trashStudents||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('students',x.id).catch(()=>{});});(S.trashLessons||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('lessons',x.id).catch(()=>{});});}
   if(!owner){
@@ -247,11 +253,12 @@ function render(){
   $('#c-students').textContent=S.students.filter(s=>!s.is_test).length;
   $('#c-lessons').textContent=S.lessons.length+((S.prons||[]).length);
   {const el=$('#c-itv');if(el)el.textContent=(S.interviews||[]).filter(x=>(x.status||'active')==='active').length;}
+  {const el=$('#c-ag');if(el)el.textContent=(S.agencies||[]).filter(x=>(x.status||'active')==='active').length;}
   {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
   {const nl=(S.leads||[]).filter(x=>(x.status||'new')==='new').length;const el=$('#c-leads');if(el){el.textContent=nl;el.classList.toggle('hide',!nl||!IS_OWNER);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
-  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,interview:renderInterview,ops:renderOps}[S.tab])();}
+  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,interview:renderInterview,agency:renderAgency,ops:renderOps}[S.tab])();}
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
@@ -486,6 +493,71 @@ function itvExamBadge(c){if(!c||!c.exam_date)return '';const m=itvResultMeta(c.r
   const col=(d!=null&&d<=3)?'#dc2626':'#3730a3';
   return `<span class="badge" style="background:${col}18;color:${col};border-color:${col}55">🎯 ${esc(c.exam_date)}${lab?('（'+lab+'）'):''}</span>`;}
 function itvIncome(ym){const paid={},due={};itvAll().forEach(c=>{itvAddCur(paid,itvPaidSum(c,ym));if(!ym)itvAddCur(due,itvDueSum(c));});return {paid,due};}
+/* ===================== 🎓 代辦申請學校：資料與畫面（純函式） ===================== */
+function agAll(){return (S.agencies||[]);}
+function agById(id){return agAll().find(x=>x.id===id);}
+function agLog(c){return (c&&Array.isArray(c.log))?c.log.filter(x=>x&&x.date):[];}
+function agSorted(c){return agLog(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));}
+function agPaidSum(c,ym){const by={};agLog(c).forEach(e=>{if(ym&&String(e.date).slice(0,7)!==ym)return;if(!e.paid)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+(Number(e.fee)||0);});return by;}
+function agDueSum(c){const by={};agLog(c).forEach(e=>{if(e.paid)return;const f=Number(e.fee)||0;if(!f)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});return by;}
+function agIncome(ym){const paid={},due={};agAll().forEach(c=>{itvAddCur(paid,agPaidSum(c,ym));if(!ym)itvAddCur(due,agDueSum(c));});return {paid,due};}
+function agResultMeta(r){return ({submitted:['📮 已送件','#2563eb'],admitted:['✅ 錄取','#16a34a'],rejected:['❌ 未錄取','#dc2626']})[r]||null;}
+function renderAgency(){
+  const body=$('#agency-body');if(!body)return;
+  const list=agAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;const la=agSorted(a)[0],lb=agSorted(b)[0];return String((lb&&lb.date)||'').localeCompare(String((la&&la.date)||''));});
+  const ym=localToday().slice(0,7);const inc=agIncome(ym);const incAll=agIncome(null);
+  const dueStr=itvMoneyStr(incAll.due);
+  const head=`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div><div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">累計收入</div><b style="font-size:19px">${itvMoneyStr(incAll.paid)||'—'}</b></div>${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${dueStr}</b></div>`:''}<span style="flex:1"></span><button class="btn btn-primary" data-act="agNew">＋ 新增代辦客戶</button></div><div class="hint" style="margin-top:8px">收入會併進「營運 → 🧮 總收入」。</div></div>`;
+  if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🎓</div><h3 style="margin:8px 0">還沒有代辦客戶</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">兩步就好：<br><b>第 1 步</b>　按「＋ 新增代辦客戶」建立一位客戶（姓名、申請學校）。<br><b>第 2 步</b>　卡片上會有「<b>＋ 新增一筆進度</b>」，記下哪天、做了什麼、上傳什麼、收多少錢。</div><button class="btn btn-primary" data-act="agNew">＋ 新增代辦客戶</button></div>`;return;}
+  const rows=list.map(c=>{
+    const lg=agSorted(c);const done=(c.status||'active')!=='active';
+    const paidAll=itvMoneyStr(agPaidSum(c,null));const due=itvMoneyStr(agDueSum(c));const rm=agResultMeta(c.result);
+    const rowHtml=(e)=>{const idx=agLog(c).indexOf(e);const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';const feeStr=(e.fee!=null&&e.fee!=='')?money(e.fee,e.currency||'VND'):'';
+      return `<div class="dash-row" style="padding:7px 0;flex-wrap:wrap;align-items:flex-start"><b>${esc(e.date)}</b>${wd?`<span class="muted" style="font-size:12px;margin-left:4px">（${wd}）</span>`:''}${feeStr?`<span class="muted" style="margin-left:6px">${feeStr}</span>`:''}${(e.fee!=null&&e.fee!=='')?(e.paid?'<span class="badge badge-ok">已收</span>':'<span class="badge badge-soon">未收</span>'):''}<span class="grow"></span><button class="btn btn-sm" data-act="agLogEdit" data-id="${esc(c.id)}::${idx}">✏️</button><button class="btn btn-sm btn-danger" data-act="agLogDel" data-id="${esc(c.id)}::${idx}">✕</button><div style="flex-basis:100%;margin-top:2px">${e.action?`<div>📋 <b>做了什麼：</b>${esc(e.action)}</div>`:''}${e.content?`<div style="margin-top:2px">📎 <b>上傳內容：</b>${esc(e.content)}</div>`:''}${e.note?`<div class="muted" style="margin-top:2px">${esc(e.note)}</div>`:''}</div></div>`;};
+    const logHtml=lg.length?lg.map(rowHtml).join(''):'<div class="hint" style="padding:6px 0">還沒有進度，按「＋ 新增一筆進度」開始。</div>';
+    return `<div class="card" style="margin-bottom:10px${done?';opacity:.72':''}">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <b style="font-size:16px">${esc(c.name||'（未命名）')}</b>
+        ${done?'<span class="badge">已結案</span>':'<span class="badge badge-ok">進行中</span>'}
+        ${c.school?`<span class="tag">🏫 ${esc(c.school)}</span>`:''}
+        ${c.phone?`<span class="muted" style="font-size:13px">📞 ${esc(c.phone)}</span>`:''}
+        ${rm?`<span class="badge" style="background:${rm[1]}18;color:${rm[1]};border-color:${rm[1]}55">${rm[0]}</span>`:''}
+        <span class="grow"></span>
+        <span class="muted" style="font-size:13px">進度 <b>${lg.length}</b> 筆${paidAll?(' · 已收 '+paidAll):''}${due?(' · 未收 '+due):''}</span>
+      </div>
+      ${c.note?`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+        <button class="btn btn-accent" data-act="agLogNew" data-id="${esc(c.id)}">＋ 新增一筆進度</button>
+        <button class="btn btn-sm" data-act="agEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
+        <button class="btn btn-sm" data-act="agToggle" data-id="${esc(c.id)}">${done?'↩ 改回進行中':'✓ 結案'}</button>
+        <span class="grow"></span>
+        <button class="btn btn-sm btn-danger" data-act="agDel" data-id="${esc(c.id)}">刪除</button>
+      </div>
+      <div style="margin-top:8px">${logHtml}</div>
+    </div>`;}).join('');
+  body.innerHTML=head+rows;
+}
+function agForm(c){c=c||{};
+  const rOpt=(v,l)=>`<option value="${v}"${(c.result||'')===v?' selected':''}>${l}</option>`;
+  openModal(`<div class="modal"><div class="modal-head"><h3>🎓 ${c.id?'編輯代辦客戶':'新增代辦客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
+    <div class="field"><label>姓名 *</label><input id="ag-name" type="text" value="${esc(c.name||'')}" placeholder="例：Trần Văn B"></div>
+    <div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="ag-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>
+    <div class="field full"><label>申請學校／目標 <span class="hint">選填</span></label><input id="ag-school" type="text" value="${esc(c.school||'')}" placeholder="例：台灣師大 語言中心、某某大學碩士"></div>
+    <div class="field"><label>申請結果</label><select id="ag-result"><option value=""${!c.result?' selected':''}>— 進行中 —</option>${rOpt('submitted','📮 已送件、等結果')}${rOpt('admitted','✅ 錄取')}${rOpt('rejected','❌ 未錄取')}</select></div>
+    <div class="field full"><label>備註 <span class="hint">選填</span></label><input id="ag-note" type="text" value="${esc(c.note||'')}" placeholder="例：總代辦費 800 美元、分兩期收"></div>
+  </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="agSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);}
+function agLogForm(key){const p=String(key).split('::');const c=agById(p[0]);if(!c)return;
+  const isNew=(p[1]==null||p[1]==='new');const idx=isNew?-1:Number(p[1]);const e=isNew?{}:(agLog(c)[idx]||{});const last=agSorted(c)[0]||{};
+  const cur=e.currency||last.currency||'VND';
+  openModal(`<div class="modal"><div class="modal-head"><h3>${isNew?'＋ 新增進度':'✏️ 修改進度'} · ${esc(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
+    <div class="field"><label>日期 *</label><input id="ag-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(e.date||localToday())}"></div>
+    <div class="field"><label>這次費用 <span class="hint">選填，越南盾打千位</span></label><input id="ag-fee" type="number" min="0" value="${esc(e.fee==null?'':String(e.fee))}" placeholder="例：300"></div>
+    <div class="field full"><label>做了什麼 <span class="hint">例：填申請表、寫讀書計畫、送件</span></label><input id="ag-action" type="text" value="${esc(e.action||'')}" placeholder="這次幫客戶做的事"></div>
+    <div class="field full"><label>上傳內容 <span class="hint">例：護照掃描、成績單、推薦信 PDF</span></label><input id="ag-content" type="text" value="${esc(e.content||'')}" placeholder="這次上傳／繳交的文件"></div>
+    <div class="field"><label>幣別</label><select id="ag-cur"><option value="VND"${cur==='VND'?' selected':''}>越南盾 ₫</option><option value="TWD"${cur==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${cur==='USD'?' selected':''}>美元 US$</option></select></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;margin-top:26px"><input type="checkbox" id="ag-paid" style="width:auto;margin:0"${(e.paid)?' checked':''}> 💰 這筆已收款</label></div>
+    <div class="field full"><label>備註 <span class="hint">選填</span></label><input id="ag-lnote" type="text" value="${esc(e.note||'')}"></div>
+  </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="agLogSave" data-id="${esc(c.id)}::${isNew?'new':idx}">💾 儲存</button></div></div>`);}
 function renderInterview(){
   const body=$('#interview-body');if(!body)return;
   const list=itvAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;const la=itvSorted(a)[0],lb=itvSorted(b)[0];return String((lb&&lb.date)||'').localeCompare(String((la&&la.date)||''));});
@@ -667,11 +739,13 @@ function renderOps(){const body=$('#ops-body');
     annHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">📢 站內公告 <span class="hint">所有學生登入首頁都會看到</span></div><div class="quiz-create-row" style="margin:6px 0 10px"><button class="btn btn-sm btn-accent" data-act="newAnnounce">＋ 發布公告</button></div>${annRows}</div>`;}
   const siteHtml=IS_OWNER?leadsCardHtml()+siteCardHtml():'';
   const itvNow=itvIncome(thisM),itvAllInc=itvIncome(null);
+  const agNow=agIncome(thisM),agAllInc=agIncome(null);
+  const agSummary=`<div class="card" style="margin-top:14px"><div class="lesson-label">🎓 代辦申請收入</div><div style="display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 4px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum(agNow.paid)}</div><div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計</div>${bigNum(agAllInc.paid)}</div>${Object.keys(agAllInc.due).length?`<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${itvMoneyStr(agAllInc.due)}</b></div>`:''}</div><div class="hint">只算已勾「已收款」的進度；到「🎓 代辦申請」分頁管理。</div></div>`;
   const itvSummary=`<div class="card" style="margin-top:14px"><div class="lesson-label">🎤 面試練習收入</div><div style="display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 4px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum(itvNow.paid)}</div><div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計</div>${bigNum(itvAllInc.paid)}</div>${Object.keys(itvAllInc.due).length?`<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${itvMoneyStr(itvAllInc.due)}</b></div>`:''}</div><div class="hint">只算已勾「已收款」的場次；到「🎤 面試練習」分頁管理。</div></div>`;
-  const totNow=itvAddCur(Object.assign({},monCur),itvNow.paid);const totAll=itvAddCur(Object.assign({},allCur),itvAllInc.paid);
+  const totNow=itvAddCur(itvAddCur(Object.assign({},monCur),itvNow.paid),agNow.paid);const totAll=itvAddCur(itvAddCur(Object.assign({},allCur),itvAllInc.paid),agAllInc.paid);
   const bigNum2=(obj)=>{const ks=Object.keys(obj);return ks.length?ks.map(cur=>`<b style="font-size:26px">${money(obj[cur],cur)}</b>`).join('<span class="muted" style="font-size:18px"> ＋ </span>'):'<b style="font-size:26px" class="muted">—</b>';};
-  const totalCard=`<div class="card" style="margin-bottom:14px;border:2px solid var(--primary);background:linear-gradient(180deg,#fffdf8,#fff)"><div class="lesson-label" style="font-size:15px">🧮 總收入（華語教學 ＋ 面試練習）</div><div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:6px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum2(totNow)}</div><div style="border-left:1px solid var(--line);padding-left:28px"><div class="muted" style="font-size:12px">累計（全部）</div>${bigNum2(totAll)}</div></div><div class="hint" style="margin-top:8px">下面是兩條業務線的明細。</div></div>`;
-  body.innerHTML=`${totalCard}<div class="card"><div class="lesson-label">💰 華語教學收入</div>${incSummary}${incRows}</div>${itvSummary}${billHtml}<div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>${siteHtml}${adminHtml}${annHtml}`;}
+  const totalCard=`<div class="card" style="margin-bottom:14px;border:2px solid var(--primary);background:linear-gradient(180deg,#fffdf8,#fff)"><div class="lesson-label" style="font-size:15px">🧮 總收入（華語教學 ＋ 面試練習 ＋ 代辦申請）</div><div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:6px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum2(totNow)}</div><div style="border-left:1px solid var(--line);padding-left:28px"><div class="muted" style="font-size:12px">累計（全部）</div>${bigNum2(totAll)}</div></div><div class="hint" style="margin-top:8px">下面是兩條業務線的明細。</div></div>`;
+  body.innerHTML=`${totalCard}<div class="card"><div class="lesson-label">💰 華語教學收入</div>${incSummary}${incRows}</div>${itvSummary}${agSummary}${billHtml}<div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>${siteHtml}${adminHtml}${annHtml}`;}
 /* ---------- 對外官網：報名名單 + 內容編輯 ---------- */
 function leadsCardHtml(){
   const leads=(S.leads||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
@@ -2312,6 +2386,28 @@ H.editStuDay=(key)=>{const p=String(key).split('::');const sid=p[0],date=p[1];co
   if(idx>=0)H.classLog(sid,{editIdx:idx});else H.classLog(sid,{date});};
 H.calIncPaused=()=>{const inc=(S.calIncPaused!==false);S.calIncPaused=!inc;renderCalendar();};
 /* 🎤 面試練習：操作（必須放在 const H={} 之後） */
+H.agNew=()=>agForm(null);
+H.agEdit=(id)=>agForm(agById(id));
+H.agSave=async(id)=>{const name=($('#ag-name').value||'').trim();if(!name)return toast('請填姓名');
+  const patch={kind:'agency',name,phone:($('#ag-phone').value||'').trim(),school:($('#ag-school').value||'').trim(),result:($('#ag-result')&&$('#ag-result').value)||'',note:($('#ag-note').value||'').trim()};
+  try{if(id){await DB.update('lessons',id,patch);}else{patch.status='active';patch.log=[];patch.created_at=new Date().toISOString();await DB.insert('lessons',patch);}
+    await loadAll();closeModal();S.tab='agency';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
+H.agToggle=async(id)=>{const c=agById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
+  try{await DB.update('lessons',id,{status:st});await loadAll();render();toast(st==='done'?'已結案':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
+H.agDel=async(id)=>{const c=agById(id);if(!c)return;if(!confirm('確定刪除「'+(c.name||'')+'」？所有進度與收費紀錄會一起刪除。'))return;
+  try{await DB.update('lessons',id,{deleted_at:new Date().toISOString()});S.agencies=(S.agencies||[]).filter(x=>x.id!==id);render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
+H.agLogNew=(id)=>agLogForm(id+'::new');
+H.agLogEdit=(key)=>agLogForm(key);
+H.agLogSave=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if(!c)return;
+  const date=$('#ag-date').value;if(!date)return toast('請選日期');const feeV=$('#ag-fee').value;
+  const row={date,action:($('#ag-action').value||'').trim(),content:($('#ag-content').value||'').trim(),fee:feeV===''?null:Number(feeV),currency:$('#ag-cur').value,paid:!!($('#ag-paid')&&$('#ag-paid').checked),note:($('#ag-lnote').value||'').trim()};
+  const arr=agLog(c).slice();
+  if(p[1]==='new')arr.push(row);else arr[Number(p[1])]=row;
+  arr.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  try{await DB.update('lessons',c.id,{log:arr});await loadAll();closeModal();render();toast('已儲存這筆進度 ✓');}catch(e){toast(writeErr('儲存失敗',e));}};
+H.agLogDel=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if(!c)return;if(!confirm('刪除這筆進度？'))return;
+  const arr=agLog(c).slice();arr.splice(Number(p[1]),1);
+  try{await DB.update('lessons',c.id,{log:arr});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.itvNew=()=>itvForm(null);
 H.itvEdit=(id)=>itvForm(itvById(id));
 H.itvSess=(key)=>itvSessForm(key);
