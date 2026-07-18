@@ -404,7 +404,10 @@ function renderCalMonth(body,toggle){
   Object.keys(days).forEach(d=>{mergeDayItems(days[d]).forEach(it=>{const e=it.e;if(e.status==='leave')cntLeave++;else if(e.free)cntFree++;else cntCharged++;});});
   // 預排課程（尚未點名）
   const planByDate={};let planCount=0;
-  groupsList().forEach(cls=>classPlanned(cls).forEach(p=>{if(!p||!p.date||String(p.date).slice(0,7)!==ym)return;(planByDate[p.date]=planByDate[p.date]||[]).push(Object.assign({cls},p));planCount++;}));
+  groupsList().forEach(cls=>{const mem=(S.students||[]).filter(s=>stuGroups(s).includes(cls));
+    classPlanned(cls).forEach(p=>{if(!p||!p.date||String(p.date).slice(0,7)!==ym)return;
+      if(mem.some(s=>(Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date)))return; // 已經點過名就不算預排
+      (planByDate[p.date]=planByDate[p.date]||[]).push(Object.assign({cls},p));planCount++;});});
   (S.students||[]).forEach(s=>{if(s.is_test||s.class_type==='團班')return;if(!incPaused&&enrollOf(s)==='paused')return;studentPlanned(s).forEach(p=>{if(!p||!p.date||String(p.date).slice(0,7)!==ym)return;if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date))return;(planByDate[p.date]=planByDate[p.date]||[]).push(Object.assign({sid:s.id,sname:s.name},p));planCount++;});});
   // 🎤 面試練習場次
   const itvByDate={};let itvCount=0;const itvPaidM={};
@@ -421,8 +424,9 @@ function renderCalMonth(body,toggle){
   const dayCards=allDates.map(d=>{const items=mergeDayItems((days[d]||[]).slice().sort((a,b)=>((a.e.start||'')).localeCompare(b.e.start||'')));const plans=(planByDate[d]||[]);const wd=DAYS[(new Date(d+'T00:00:00').getDay()+6)%7];
     const logHtml=items.map(it=>{const e=it.e;const tm=(e.start||'')+(e.end?'–'+e.end:'');const badge=e.status==='leave'?'<span class="badge badge-overdue">請假</span>':(e.free?'<span class="badge" style="background:#7c3aed22;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':'<span class="badge badge-ok">出席</span>');
         const who=it.members?`👥 ${esc(it.grp)} 團班<span class="muted" style="font-weight:400;margin-left:4px">（${it.members.length}人）</span>`:esc(it.s.name);
-        const eact=it.members?'editClassDay':'editStuDay';const ekey=it.members?(esc(it.grp)+'::'+esc(d)):(esc(it.s.id)+'::'+esc(d));
-        return `<div class="dash-row" style="flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<b>${who}</b>${badge}${e.note?`<span class="muted" style="margin-left:6px">${esc(e.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm" data-act="${eact}" data-id="${ekey}">✏️ 修改</button></div>`;}).join('');
+        const eact=it.members?'editClassDay':'editStuDay';const ekey=it.members?(esc(it.grp)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')):(esc(it.s.id)+'::'+esc(d));
+        const delBtn=it.members?`<button class="btn btn-sm btn-danger" data-act="rollDel" data-id="${ekey}" title="整個團班刪掉這一堂">🗑</button>`:`<button class="btn btn-sm btn-danger" data-act="stuDayDel" data-id="${esc(it.s.id)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')}" title="刪掉這一堂">🗑</button>`;
+        return `<div class="dash-row" style="flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<b>${who}</b>${badge}${e.note?`<span class="muted" style="margin-left:6px">${esc(e.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm" data-act="${eact}" data-id="${ekey}">✏️ 修改</button>${delBtn}</div>`;}).join('');
     const planHtml=plans.map(p=>{const tm=(p.start||'')+(p.end?'–'+p.end:'');const isSolo=!!p.sid;const key=isSolo?('S:'+p.sid+'::'+d):(esc(p.cls)+'::'+esc(d));const label=isSolo?('👤 '+esc(p.sname||'')):('👥 '+esc(p.cls)+' 團班');return `<div class="dash-row" style="background:#fff8ec;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#fde68a;color:#92400e;border-color:#f59e0b">📌 預排</span><b>${label}</b>${p.note?`<span class="muted" style="margin-left:4px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="${key}">✍️ 去點名</button><button class="btn btn-sm btn-danger" data-act="planDel" data-id="${key}">✕</button></div>`;}).join('');
     const itvs=(itvByDate[d]||[]);
     const itvHtml=itvs.map(({c,e})=>{const tm=(e.start||'')+(e.end?'–'+e.end:'');return `<div class="dash-row" style="background:#eef2ff;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#c7d2fe;color:#3730a3">🎤 面試練習</span><b>${esc(c.name||'')}</b>${(e.fee!=null&&e.fee!=='')?`<span class="muted">${money(e.fee,e.currency||'VND')}</span>`:''}${e.paid?'<span class="badge badge-ok">已收</span>':'<span class="badge badge-soon">未收</span>'}<span class="grow"></span><button class="btn btn-sm" data-act="itvSess" data-id="${esc(c.id)}::${itvSessions(c).indexOf(e)}">✏️ 修改</button></div>`;}).join('');
@@ -2107,13 +2111,13 @@ H.gmPick=(id)=>groupMgrModal(id);
 H.classPage=(id)=>window.open('teacher.html?class='+encodeURIComponent(id),'_blank');
 H.classPrint=(id)=>classWindow(id);
 H.classRefresh=async(id)=>{try{await loadAll();renderClassView(id);toast('已更新');}catch(e){toast('更新失敗');}};
-function classRollModal(cls,prefill){const members=S.students.filter(s=>stuGroups(s).includes(cls));S._rollCls=cls;
+function classRollModal(cls,prefill){const members=S.students.filter(s=>stuGroups(s).includes(cls));S._rollCls=cls;S._rollOrig=null;
   CLOG_SCHED=classSchedOf(cls)||[];const today=localToday();const pf=prefill||{};const useDate=pf.date||today;const dslot=clSlotFor(useDate);const slot={s:pf.start||(dslot&&dslot.s)||'',e:pf.end||(dslot&&dslot.e)||''};const useNote=pf.note||'';const useVideo=pf.video||'';
   const dateMap={};members.forEach(s=>(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date)return;const k=e.date+'|'+(e.start||'')+'|'+(e.end||'');const c=(dateMap[k]=dateMap[k]||{date:e.date,att:0,leave:0,absent:0,start:e.start||'',end:e.end||'',free:false,note:''});if(e.status==='leave')c.leave++;else if(e.status==='absent')c.absent++;else c.att++;if(e.free)c.free=true;if(e.note)c.note=e.note;if(e.video)c.video=e.video;}));
   const dates=Object.keys(dateMap).sort().reverse().slice(0,10);
-  const recent=dates.length?dates.map(d=>{const c=dateMap[d];const wd=c.date?DAYS[(new Date(c.date+'T00:00:00').getDay()+6)%7]:'';const tm=(c.start&&c.end)?`<span class="muted" style="font-size:12px">${esc(c.start)}–${esc(c.end)}</span>`:'';const fb=c.free?' <span class="badge" style="background:#f3e8ff;color:#7c3aed">🎁 免費</span>':'';const vb=c.video?' <a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;text-decoration:none" href="'+esc(c.video)+'" target="_blank" rel="noopener">🎬 影片</a>':'';return `<div class="dash-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(c.date)}</b>${wd?`<span class="muted" style="font-size:12px">（${wd}）</span>`:''}${tm}${fb}${vb}<span class="grow" style="flex:1"></span><span class="badge badge-ok">出席 ${c.att}</span> <span class="badge badge-soon">請假 ${c.leave}</span> <span class="badge badge-overdue">缺席 ${c.absent}</span> <button class="btn btn-sm btn-ghost" type="button" data-act="rollEdit" data-id="${esc(d)}">✏️ 修改</button></div>`;}).join(''):'<div class="hint">還沒有上課記錄。</div>';
+  const recent=dates.length?dates.map(d=>{const c=dateMap[d];const wd=c.date?DAYS[(new Date(c.date+'T00:00:00').getDay()+6)%7]:'';const tm=(c.start&&c.end)?`<span class="muted" style="font-size:12px">${esc(c.start)}–${esc(c.end)}</span>`:'';const fb=c.free?' <span class="badge" style="background:#f3e8ff;color:#7c3aed">🎁 免費</span>':'';const vb=c.video?' <a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;text-decoration:none" href="'+esc(c.video)+'" target="_blank" rel="noopener">🎬 影片</a>':'';return `<div class="dash-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(c.date)}</b>${wd?`<span class="muted" style="font-size:12px">（${wd}）</span>`:''}${tm}${fb}${vb}<span class="grow" style="flex:1"></span><span class="badge badge-ok">出席 ${c.att}</span> <span class="badge badge-soon">請假 ${c.leave}</span> <span class="badge badge-overdue">缺席 ${c.absent}</span> <button class="btn btn-sm btn-ghost" type="button" data-act="rollEdit" data-id="${esc(d)}">✏️ 修改</button><button class="btn btn-sm btn-danger" type="button" data-act="rollDel" data-id="${esc(cls)+'::'+esc(c.date)+'::'+esc(c.start||'')+'::'+esc(c.end||'')}" title="全班一起刪掉這一堂">🗑</button></div>`;}).join(''):'<div class="hint">還沒有上課記錄。</div>';
   const seg=(sid,st,lb,def)=>`<button type="button" class="${def?'on':''}" data-act="rollPick" data-id="${sid}::${st}" data-st="${st}">${lb}</button>`;
-  const rows=members.length?members.map(s=>{const left=sessionsLeft(s);return `<div class="dash-row" style="display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box"><div style="flex:1 1 auto;min-width:0"><b>${esc(s.name)}</b>${left!=null?` <span class="muted" style="font-size:12px">剩 ${left} 堂</span>`:''}</div><span class="seg-mini roll-seg" data-sid="${s.id}" style="flex:0 0 auto;white-space:nowrap">${seg(s.id,'attended','出席',true)}${seg(s.id,'leave','請假',false)}${seg(s.id,'absent','缺席',false)}</span></div>`;}).join(''):'<div class="hint">這個團班還沒有成員。</div>';
+  const rows=members.length?members.map(s=>{const left=sessionsLeft(s);return `<div class="dash-row" style="display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box"><div style="flex:1 1 auto;min-width:0"><b>${esc(s.name)}</b>${left!=null?` <span class="muted" style="font-size:12px">剩 ${fmtQty(left)} ${unitLabel(s)}</span>`:''}</div><span class="seg-mini roll-seg" data-sid="${s.id}" style="flex:0 0 auto;white-space:nowrap">${seg(s.id,'attended','出席',true)}${seg(s.id,'leave','請假',false)}${seg(s.id,'absent','缺席',false)}</span></div>`;}).join(''):'<div class="hint">這個團班還沒有成員。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>🗓 「${esc(cls)}」上課點名</h3><button class="x" data-act="closeModal">×</button></div>
     <div class="modal-body">
       <div class="form-grid"><div class="field"><label>上課日期${pf.date?' <span class="hint">已帶入預排日期</span>':''}</label><input id="roll-date" type="date" value="${useDate}"></div>
@@ -2183,7 +2187,27 @@ H.rollPlanned=(key)=>{const p=String(key).split('::');const tgt=p[0],date=p[1];
   if(tgt.indexOf('S:')===0){const s=studentById(tgt.slice(2));if(!s)return;const pl=studentPlanned(s).find(x=>x.date===date)||{};H.classLog(s.id,{date,start:pl.start||'',end:pl.end||'',note:pl.note||''});const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;toast('已帶入預排的「'+date+'」，直接記錄這一堂即可');return;}
   const cls=tgt.indexOf('G:')===0?tgt.slice(2):tgt;const pl=classPlanned(cls).find(x=>x.date===date)||{};classRollModal(cls,{date,start:pl.start||'',end:pl.end||'',note:pl.note||''});const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;toast('已帶入預排的「'+date+'」，直接點名存檔即可');};
 /* 從月曆直接修改已點名的那一堂 */
-H.editClassDay=(key)=>{const p=String(key).split('::');const cls=p[0],date=p[1];classRollModal(cls);if(H.rollEdit)H.rollEdit(date);};
+function parseDayKey(key){const p=String(key).split('::');
+  if(p.length>=4){return {head:p.slice(0,p.length-3).join('::'),date:p[p.length-3],start:p[p.length-2],end:p[p.length-1]};}
+  return {head:p[0],date:p[1],start:null,end:null};}
+H.editClassDay=(key)=>{const k=parseDayKey(key);classRollModal(k.head);if(H.rollEdit)H.rollEdit(k.start==null?k.date:(k.date+'|'+k.start+'|'+k.end));};
+/* 整個團班刪掉某一天的課（全部成員一起刪） */
+H.rollDel=async(key)=>{const k=parseDayKey(key);const cls=k.head,date=k.date;
+  const members=S.students.filter(s=>stuGroups(s).includes(cls));if(!members.length)return toast('找不到這個團班的成員');
+  const hit=(e)=>e&&e.date===date&&(k.start==null||((e.start||'')===k.start&&(e.end||'')===k.end));
+  const n=members.reduce((a,s)=>a+((Array.isArray(s.class_log)?s.class_log:[]).filter(hit).length),0);
+  if(!n)return toast('這一天沒有可刪的記錄');
+  if(!confirm('確定刪除「'+cls+'」'+date+(k.start?('　'+k.start+'–'+k.end):'')+' 這一堂？\n全班 '+n+' 筆上課記錄會一起刪掉，堂數會退回。'))return;
+  try{for(const s of members){const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>!hit(e));if(log.length!==(s.class_log||[]).length){await DB.update('students',s.id,{class_log:log});s.class_log=log;}}
+    toast('已刪除這一堂，堂數已退回');render();}catch(e){toast(writeErr('刪除失敗',e));}};
+/* 月曆上直接刪掉一對一某一天的課 */
+H.stuDayDel=async(key)=>{const k=parseDayKey(key);const s=studentById(k.head);if(!s)return;
+  const log=Array.isArray(s.class_log)?s.class_log:[];
+  const i=log.findIndex(e=>e&&e.date===k.date&&(k.start==null||((e.start||'')===k.start&&(e.end||'')===k.end)));
+  if(i<0)return toast('找不到這筆記錄');
+  if(!confirm('確定刪除 '+(s.name||'')+' '+k.date+' 這一堂？堂數會退回。'))return;
+  const nl=log.slice();nl.splice(i,1);
+  try{await DB.update('students',s.id,{class_log:nl});s.class_log=nl;toast('已刪除，堂數已退回');render();}catch(e){toast(writeErr('刪除失敗',e));}};
 H.editStuDay=(key)=>{const p=String(key).split('::');const sid=p[0],date=p[1];const s=studentById(sid);if(!s)return;
   const log=Array.isArray(s.class_log)?s.class_log:[];const idx=log.findIndex(x=>x&&x.date===date);
   if(idx>=0)H.classLog(sid,{editIdx:idx});else H.classLog(sid,{date});};
@@ -2221,6 +2245,7 @@ H.rollPick=(key)=>{const p=String(key).split('::'),sid=p[0],st=p[1];const seg=do
 H.rollAllAttend=()=>{document.querySelectorAll('#roll-list .roll-seg').forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.st==='attended')));};
 H.rollEdit=(key)=>{const cls=S._rollCls;const members=S.students.filter(s=>stuGroups(s).includes(cls));
   const kp=String(key).split('|');const date=kp[0];const kS=kp.length>1?kp[1]:null,kE=kp.length>2?kp[2]:null;
+  S._rollOrig={date,start:kS,end:kE};
   const hit=(x)=>x&&x.date===date&&(kS==null||((x.start||'')===kS&&(x.end||'')===kE));
   let start=kS||'',end=kE||'',note='',free=false,video='';
   members.forEach(s=>{const e=(Array.isArray(s.class_log)?s.class_log:[]).find(hit);if(e){if(e.start)start=e.start;if(e.end)end=e.end;if(e.note)note=e.note;if(e.video)video=e.video;if(e.free)free=true;}});
@@ -2232,10 +2257,13 @@ H.rollEdit=(key)=>{const cls=S._rollCls;const members=S.students.filter(s=>stuGr
   members.forEach(s=>{const e=(Array.isArray(s.class_log)?s.class_log:[]).find(hit);const st=(e&&e.status)||'attended';const sg=document.querySelector('#roll-list .roll-seg[data-sid="'+s.id+'"]');if(sg)sg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.st===st));});
   toast('已載入 '+date+(kS?(' '+kS):'')+' 這一堂，改好後按「記錄這一堂並點名」即可更新');
   const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;};
-H.classRollSave=async(cls)=>{const date=$('#roll-date').value;if(!date)return toast('請選上課日期');const start=($('#roll-start')&&$('#roll-start').value)||'';const end=($('#roll-end')&&$('#roll-end').value)||'';const note=($('#roll-note')&&$('#roll-note').value||'').trim();const video=($('#roll-video')&&$('#roll-video').value||'').trim();const free=!!($('#roll-free')&&$('#roll-free').checked);
+H.classRollSave=async(cls)=>{const orig=S._rollOrig;S._rollOrig=null;const date=$('#roll-date').value;if(!date)return toast('請選上課日期');const start=($('#roll-start')&&$('#roll-start').value)||'';const end=($('#roll-end')&&$('#roll-end').value)||'';const note=($('#roll-note')&&$('#roll-note').value||'').trim();const video=($('#roll-video')&&$('#roll-video').value||'').trim();const free=!!($('#roll-free')&&$('#roll-free').checked);
   const members=S.students.filter(s=>stuGroups(s).includes(cls));if(!members.length)return toast('這個團班還沒有成員');
   const btn=document.querySelector('[data-act="classRollSave"]');if(btn){btn.disabled=true;btn.textContent='記錄中…';}
-  try{for(const s of members){const sg=document.querySelector('#roll-list .roll-seg[data-sid="'+s.id+'"]');const onB=sg&&sg.querySelector('button.on');const st=(onB&&onB.dataset.st)||'attended';const entry={date,status:st,free,start,end,note,video};const log=(Array.isArray(s.class_log)?s.class_log.slice():[]).filter(e=>!(e&&e.date===date&&(e.start||'')===start&&(e.end||'')===end));log.push(entry);await DB.update('students',s.id,{class_log:log});s.class_log=log;}
+  try{for(const s of members){const sg=document.querySelector('#roll-list .roll-seg[data-sid="'+s.id+'"]');const onB=sg&&sg.querySelector('button.on');const st=(onB&&onB.dataset.st)||'attended';const entry={date,status:st,free,start,end,note,video};const log=(Array.isArray(s.class_log)?s.class_log.slice():[]).filter(e=>{if(!e)return false;
+      if(e.date===date&&(e.start||'')===start&&(e.end||'')===end)return false;
+      if(orig&&e.date===orig.date&&(orig.start==null||((e.start||'')===orig.start&&(e.end||'')===orig.end)))return false; // 原本那一筆（時段被改過）要一併移掉，避免變成兩筆
+      return true;});log.push(entry);await DB.update('students',s.id,{class_log:log});s.class_log=log;}
     if(classPlanned(cls).some(p=>p.date===date)){try{await removePlanned(cls,date);}catch(e){}}
     toast('已記錄這一堂並完成點名');classRollModal(cls);render();}catch(e){if(btn){btn.disabled=false;btn.textContent='✅ 記錄這一堂並點名';}toast('失敗：'+((e&&e.message)||e));}};
 function renderClassView(cls){
