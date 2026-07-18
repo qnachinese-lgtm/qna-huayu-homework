@@ -645,8 +645,15 @@ const assignedToMe=(x)=>{if(!x||!S.me)return false;if((x.assigned_ids||[]).inclu
 const myLessons=()=>S.lessons.filter(l=>assignedToMe(l)).sort((a,b)=>((a.order_index||0)-(b.order_index||0))||((a.created_at||'').localeCompare(b.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const answerableOf=(lid)=>questionsOf(lid).filter(q=>q.type!=='note'&&q.bank==='hw'); // 作業簿（hw）才在「作業」作答；上課語法練習留在上課內容
-/* 與教師端同一套算法：請假不扣、免費不扣（不然學生看到的剩餘堂數會比老師少） */
-function myLeft(){const s=S.me;if(!s||s.sessions_total==null||s.sessions_total==='')return null;const att=Array.isArray(s.class_log)?s.class_log.filter(e=>e&&e.status!=='leave'&&!e.free).length:0;return Number(s.sessions_total)-att;}
+/* 與教師端同一套算法：請假不扣、免費不扣；按小時計費就以「時數」計算 */
+function _logHours(e){if(!e||!e.start||!e.end)return null;const p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};const m=p(e.end)-p(e.start);return m>0?Math.round(m/60*100)/100:null;}
+function myHourly(){return !!(S.me&&S.me.fee_unit==='hour');}
+function myUnit(){const L={zh:['小時','堂'],cn:['小时','堂'],en:['hr','class'],vi:['giờ','buổi']}[S.lang||'zh']||['小時','堂'];return myHourly()?L[0]:L[1];}
+function myFmtQty(n){if(n==null)return '—';const r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}
+function myLeft(){const s=S.me;if(!s||s.sessions_total==null||s.sessions_total==='')return null;const log=Array.isArray(s.class_log)?s.class_log:[];
+  let used;if(myHourly()){used=0;log.forEach(e=>{if(!e||e.status==='leave'||e.free)return;const h=_logHours(e);used+=(h!=null?h:1);});}
+  else used=log.filter(e=>e&&e.status!=='leave'&&!e.free).length;
+  return Math.round((Number(s.sessions_total)-used)*100)/100;}
 const resultOf=(lid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===S.me.id);
 function wrongQuestions(){const out=[],seen=new Set();
   S.results.forEach(r=>{if(r.status==='draft')return;const ans=r.answers||{};Object.keys(ans).forEach(qid=>{if(seen.has(qid))return;const q=S.questions.find(x=>x.id===qid);if(q&&!isManualQ(q)&&!isCorrect(q,ans[qid])){out.push(q);seen.add(qid);}});});
@@ -772,7 +779,7 @@ function renderWork(){
   const nbp=[];if(overdue)nbp.push(`<span class="nb-item over">⏰ ${overdue} 份逾期</span>`);if(soon)nbp.push(`<span class="nb-item soon">📅 ${soon} 份快到期</span>`);if(fbN)nbp.push(`<button class="nb-item fb" data-act="section" data-id="grades">💬 老師有 ${fbN} 則建議</button>`);if(sentFbN)nbp.push(`<button class="nb-item fb" data-act="section" data-id="cards">✍️ 造句有 ${sentFbN} 則批改</button>`);if(discFbN)nbp.push(`<button class="nb-item fb" data-act="section" data-id="content">💬 問題與討論有 ${discFbN} 則批改</button>`);if(shadowFbN)nbp.push(`<button class="nb-item fb" data-act="section" data-id="content">🗣 跟讀有 ${shadowFbN} 則回饋</button>`);
   if((overdue||soon)&&('Notification'in window)&&Notification.permission==='default')nbp.push('<button class="nb-item" data-act="enableNotify">🔔 開啟提醒</button>');
   const nb=nbp.length?`<div class="notify-bar">${nbp.join('')}</div>`:'';
-  const left=myLeft();const sessCard=left!=null?`<div class="sess-line${left<=2?' low':''}">🎟️ 本期還剩 <b>${left}</b> 堂${left<=0?' <span class="badge badge-overdue">已用完</span>':(left<=2?' <span class="badge badge-soon">快用完了</span>':'')}</div>`:'';
+  const left=myLeft();const sessCard=left!=null?`<div class="sess-line${left<=2?' low':''}">🎟️ 本期還剩 <b>${myFmtQty(left)}</b> ${myUnit()}${left<=0?' <span class="badge badge-overdue">已用完</span>':(left<=2?' <span class="badge badge-soon">快用完了</span>':'')}</div>`:'';
   const meetCard=meetCardHtml();
   const _hasSched=Array.isArray(S.me&&S.me.schedule)&&S.me.schedule.some(r=>r&&r.s);
   const calCard=_hasSched?`<div class="cal-card"><button class="btn btn-sm" data-act="addCal">📅 加入手機／Google 日曆</button><span class="hint">加一次，每週上課前 30 分鐘手機自動提醒</span></div>`:'';
@@ -867,7 +874,7 @@ function classDaysHtml(){
   const M={attended:[t('stAtt'),'#16a34a','✅'],leave:[t('stLeave'),'#d97706','🟡'],absent:[t('stAbsent'),'#dc2626','🔴']};
   const freeLab=({zh:'免費',cn:'免费',en:'Free',vi:'Miễn phí'})[S.lang||'zh']||'免費';
   const vidLab=({zh:'上課影片',cn:'上课影片',en:'Class video',vi:'Video buổi học'})[S.lang||'zh']||'上課影片';
-  const rows=log.slice(0,20).map(e=>{const m=M[e.status]||M.attended;const wd=wdLabel(e.date);const tm=(e.start||e.end)?` <span class="hint">${esc((e.start||'')+(e.end?'–'+e.end:''))}</span>`:'';const fb=(e.free&&e.status!=='leave')?`<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66;margin-left:6px">🎁 ${freeLab}</span>`:'';const vb=e.video?`<a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;margin-left:6px;text-decoration:none" href="${esc(e.video)}" target="_blank" rel="noopener">🎬 ${vidLab}</a>`:'';return `<div class="dash-row" style="padding:6px 0;align-items:center;flex-wrap:wrap"><b>${esc(e.date)}</b>${wd?`<span class="hint" style="margin-left:4px">（${wd}）</span>`:''}${tm}${fb}${vb}<span class="grow"></span><span style="color:${m[1]};font-weight:600;white-space:nowrap">${m[2]} ${esc(m[0])}</span></div>`;}).join('');
+  const rows=log.slice(0,20).map(e=>{const m=M[e.status]||M.attended;const wd=wdLabel(e.date);const tm=(e.start||e.end)?` <span class="hint">${esc((e.start||'')+(e.end?'–'+e.end:''))}</span>`:'';const fb=(e.free&&e.status!=='leave')?`<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66;margin-left:6px">🎁 ${freeLab}</span>`:'';const hh=(myHourly()&&_logHours(e)!=null&&e.status!=='leave')?`<span class="hint" style="margin-left:6px">${myFmtQty(_logHours(e))} ${myUnit()}</span>`:'';const vb=e.video?`<a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;margin-left:6px;text-decoration:none" href="${esc(e.video)}" target="_blank" rel="noopener">🎬 ${vidLab}</a>`:'';return `<div class="dash-row" style="padding:6px 0;align-items:center;flex-wrap:wrap"><b>${esc(e.date)}</b>${wd?`<span class="hint" style="margin-left:4px">（${wd}）</span>`:''}${tm}${hh}${fb}${vb}<span class="grow"></span><span style="color:${m[1]};font-weight:600;white-space:nowrap">${m[2]} ${esc(m[0])}</span></div>`;}).join('');
   return `<details class="card" style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;list-style-position:inside">🗓 ${t('myClassDays')} <span class="hint">（${log.length}）</span></summary><div style="margin-top:6px">${rows}</div></details>`;
 }
 function classUpcomingHtml(){

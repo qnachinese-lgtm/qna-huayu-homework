@@ -158,13 +158,25 @@ function sessionsUsed(s){
       const end=new Date(cur);if(r.e){const p=r.e.split(':');end.setHours(+p[0]||23,+p[1]||59,0,0);}else end.setHours(23,59,0,0);if(end<=now)count++;});
     cur.setDate(cur.getDate()+1);}
   return count;}
+/* 按小時計費：從時段算出時數（1.5 小時＝1.5）；沒填時段就當 1 小時 */
+function logHours(e){if(!e||!e.start||!e.end)return null;const p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};const m=p(e.end)-p(e.start);return m>0?Math.round(m/60*100)/100:null;}
+function isHourly(s){return !!(s&&s.fee_unit==='hour');}
+function unitLabel(s){return isHourly(s)?'小時':'堂';}
+function fmtQty(n){if(n==null)return '—';const r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}
+/* 已使用量：按堂＝筆數；按小時＝時數總和（請假／免費都不算） */
+function usedUnits(s){const log=Array.isArray(s&&s.class_log)?s.class_log:[];
+  if(isHourly(s)){let h=0;log.forEach(e=>{if(!e||e.status==='leave'||e.free)return;const x=logHours(e);h+=(x!=null?x:1);});return Math.round(h*100)/100;}
+  return log.filter(e=>e&&e.status!=='leave'&&!e.free).length;}
+/* 這一堂的費用（按小時＝時數×時薪；按堂＝每堂學費） */
+function lessonFee(s,e){if(!s||s.tuition==null||s.tuition==='')return null;const t=Number(s.tuition);if(isNaN(t))return null;
+  if(!isHourly(s))return t;const h=logHours(e);return h==null?t:Math.round(t*h*100)/100;}
 /* 已上堂數：只認你「實際記錄」的上課記錄，不再用固定週表自動推算（時間不固定，推算會算出離譜的數字） */
 function leaveCount(s){return Array.isArray(s&&s.class_log)?s.class_log.filter(e=>e&&e.status==='leave').length:0;}
 function makeupCount(s){return Array.isArray(s&&s.class_log)?s.class_log.filter(e=>e&&e.makeup).length:0;}
 function makeupDue(s){if(!s||s.class_type==='團班')return 0;return Math.max(0,leaveCount(s)-makeupCount(s));}
 function classAttended(s){return Array.isArray(s&&s.class_log)?s.class_log.filter(e=>e&&e.status!=='leave'&&!e.free).length:0;}
-function sessionsLeft(s){if(!s||s.sessions_total==null||s.sessions_total==='')return null;const tot=Number(s.sessions_total);if(isNaN(tot))return null;return tot-classAttended(s);}
-function sessChip(s){const left=sessionsLeft(s);if(left==null)return '';const cls=left<=0?'sess-out':(left<=1?'sess-low':'');return `<span>🎟️ 堂數：<b class="${cls}">剩 ${left}／共 ${esc(String(s.sessions_total))}</b>${left<=0?' <span class="badge badge-overdue">需續費</span>':''}</span>`;}
+function sessionsLeft(s){if(!s||s.sessions_total==null||s.sessions_total==='')return null;const tot=Number(s.sessions_total);if(isNaN(tot))return null;return Math.round((tot-usedUnits(s))*100)/100;}
+function sessChip(s){const left=sessionsLeft(s);if(left==null)return '';const cls=left<=0?'sess-out':(left<=1?'sess-low':'');const u=unitLabel(s);return `<span>🎟️ ${isHourly(s)?'時數':'堂數'}：<b class="${cls}">剩 ${fmtQty(left)}／共 ${esc(String(s.sessions_total))} ${u}</b>${left<=0?' <span class="badge badge-overdue">需續費</span>':''}</span>`;}
 const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
 function avColor(s){let h=0;for(const c of (s||''))h=(h*31+c.charCodeAt(0))>>>0;return AV[h%AV.length];}
 // 頭像縮寫：中文名取「最後兩個字」(如「潘氏蘭」→「氏蘭」、「張國慶」→「國慶」)；拉丁名取首字母
@@ -307,7 +319,7 @@ function renderDashboard(){
   const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"${it.test?' style="opacity:.72"':''}><span class="badge badge-soon">${it.tag}</span><b>${esc(it.name)}</b>${it.test?'<span class="badge" style="background:#e0e7ff;color:#4338ca;border-color:#4338ca55">🧪 測試</span>':''}<span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.ts?`<span class="muted">🕒 ${esc(fmtDT(it.ts))}</span>`:''}${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
   // 提醒：只看「堂數快用完／用完」（不再用付款日期做逾期提醒，因為每週時間、繳費都不固定）
   const remRows=[];
-  lowSess.forEach(({s,left})=>remRows.push(`<div class="dash-row"><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'堂數用完':'剩 '+left+' 堂'}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">🎟️ 已上 ${classAttended(s)}/${esc(String(s.sessions_total))} 堂</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">登記</button><button class="btn btn-sm btn-accent" data-act="renewQuick" data-id="${s.id}">💰 續約</button></div>`));
+  lowSess.forEach(({s,left})=>remRows.push(`<div class="dash-row"><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?(isHourly(s)?'時數用完':'堂數用完'):('剩 '+fmtQty(left)+' '+unitLabel(s))}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">🎟️ 已上 ${fmtQty(usedUnits(s))}/${esc(String(s.sessions_total))} ${unitLabel(s)}</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">登記</button><button class="btn btn-sm btn-accent" data-act="renewQuick" data-id="${s.id}">💰 續約</button></div>`));
   const mkDue=S.students.filter(s=>!s.is_test&&enrollOf(s)!=='paused'&&makeupDue(s)>0).sort((a,b)=>makeupDue(b)-makeupDue(a));
   mkDue.forEach(s=>remRows.push(`<div class="dash-row"><span class="badge" style="background:#dbeafe;color:#1d4ed8;border-color:#1d4ed855">🔁 待補 ${makeupDue(s)} 堂</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">請假 ${leaveCount(s)} 次 · 已補 ${makeupCount(s)} 次</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">補登</button></div>`));
   itvAll().forEach(c=>{if(!c.exam_date)return;const d=itvDaysTo(c.exam_date);if(d==null)return;
@@ -496,8 +508,9 @@ function renderCalLedger(body,toggle){
   if(!list.length){body.innerHTML=toggle+nav+emptyHtml('📋','還沒有學生','到「學生名冊」新增學生後，這裡就會出現每位學生的上課與繳費總表。');return;}
   const rowData=list.map(s=>{
     const all=Array.isArray(s.class_log)?s.class_log:[];
-    const monthN=all.filter(e=>e&&e.date&&String(e.date).slice(0,7)===ym&&e.status!=='leave'&&!e.free).length;
-    const total=classAttended(s)||0;const left=sessionsLeft(s);
+    const monthRows=all.filter(e=>e&&e.date&&String(e.date).slice(0,7)===ym&&e.status!=='leave'&&!e.free);
+    const monthN=isHourly(s)?Math.round(monthRows.reduce((n,e)=>n+((logHours(e)!=null)?logHours(e):1),0)*100)/100:monthRows.length;
+    const total=usedUnits(s)||0;const left=sessionsLeft(s);
     const dates=all.map(e=>e&&e.date).filter(Boolean).sort();const last=dates.length?dates[dates.length-1]:'';
     const pays=(s.payments||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
     const due=payInfo(s.payment_date);
@@ -509,7 +522,7 @@ function renderCalLedger(body,toggle){
   const summary=`<div class="card" style="margin-bottom:12px;display:flex;gap:18px;flex-wrap:wrap;align-items:center"><span>👥 學生 <b>${list.length}</b> 位</span><span>📅 ${label} 共上 <b>${monthTotal}</b> 堂（計費）</span>${lowN?`<span style="color:#d97706">⚠️ <b>${lowN}</b> 位堂數快用完</span>`:''}</div>`;
   const STM={attended:['出席','#16a34a'],leave:['請假','#d97706'],absent:['缺席','#dc2626']};
   const rows=rowData.map(r=>{const s=r.s;
-    const leftHtml=r.left==null?'<span class="muted">—</span>':`<b style="color:${r.left<=0?'#dc2626':(r.left<=2?'#d97706':'#16a34a')}">${r.left}</b>${r.left<=0?' <span class="badge badge-overdue">用完</span>':(r.left<=2?' <span class="badge badge-soon">快用完</span>':'')}`;
+    const leftHtml=r.left==null?'<span class="muted">—</span>':`<b style="color:${r.left<=0?'#dc2626':(r.left<=2?'#d97706':'#16a34a')}">${fmtQty(r.left)}</b> ${unitLabel(s)}${r.left<=0?' <span class="badge badge-overdue">用完</span>':(r.left<=2?' <span class="badge badge-soon">快用完</span>':'')}`;
     const stat=(lb,v)=>`<span style="font-size:13px;white-space:nowrap"><span class="muted">${lb}</span> ${v}</span>`;
     const payCell=r.lastPay?`${esc((r.lastPay.date||'').slice(0,10))}　${money(r.lastPay.amount,r.lastPay.currency||s.currency)}`:'<span class="muted">還沒有繳費紀錄</span>';
     const dateRows=r.all.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).map(e=>{const m=STM[e.status]||STM.attended;const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';const tm=(e.start||e.end)?` <span class="muted" style="font-size:12px">${esc((e.start||'')+(e.end?'–'+e.end:''))}</span>`:'';return `<div class="dash-row" style="padding:4px 0"><b>${esc(e.date)}</b>${wd?`<span class="muted" style="font-size:12px;margin-left:4px">（${wd}）</span>`:''}${tm}<span class="grow"></span>${e.free?'<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span> ':''}<span style="color:${m[1]};font-weight:600">${m[0]}</span></div>`;}).join('')||'<div class="hint">還沒有上課記錄</div>';
@@ -518,7 +531,7 @@ function renderCalLedger(body,toggle){
       <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span class="ls-chev" style="opacity:.4;font-size:12px">▶</span><b style="min-width:84px">${esc(s.name)}</b>${enrollBadge(s)}
         <span class="grow"></span>
-        ${stat('本月',`<b>${r.monthN}</b>`)}${stat('累計',`<b>${r.total}</b>`)}${stat('剩',leftHtml)}${makeupDue(s)?stat('待補',`<b style="color:#d97706">${makeupDue(s)}</b>`):''}${stat('最近',r.last?esc(r.last):'—')}
+        ${stat('本月',`<b>${fmtQty(r.monthN)}</b> ${unitLabel(s)}`)}${stat('累計',`<b>${fmtQty(r.total)}</b> ${unitLabel(s)}`)}${stat('剩',leftHtml)}${makeupDue(s)?stat('待補',`<b style="color:#d97706">${makeupDue(s)}</b>`):''}${stat('最近',r.last?esc(r.last):'—')}
       </summary>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:10px">
         <button class="btn btn-sm btn-accent" data-act="quickClassToday" data-id="${s.id}">✓ 記今天上課</button>
@@ -723,7 +736,7 @@ function studentModal(st){const e=!!st;st=st||{};
        <input id="f-meet" type="url" inputmode="url" value="${esc(st.meet_url||'')}" placeholder="https://meet.google.com/abc-defg-hij"></div>
     </div></div>
     <div class="form-sec"><div class="form-sec-h">💰 費用與堂數</div><div class="form-grid">
-     <div class="field"><label>堂數／時數（總共） <span class="hint">本期購買的堂數或小時數</span></label><input id="f-sess" type="number" min="0" value="${st.sessions_total??''}" placeholder="例：10"></div>
+     <div class="field"><label>堂數／時數（總共） <span class="hint" id="f-sess-hint">${st.fee_unit==='hour'?'本期購買的「總時數」，可填小數（例：12.5）':'本期購買的堂數'}</span></label><input id="f-sess" type="number" min="0" step="0.5" value="${st.sessions_total??''}" placeholder="例：10"></div>
      <div class="field"><label>付款日期 <span class="hint">最近一次付款的日期</span></label><input id="f-pay" type="date" value="${esc(st.payment_date||'')}"></div>
      <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-mkpay" style="width:auto;margin:0"> 🧾 同時建成一筆繳費紀錄（用上面的付款日期＋學費）<span class="hint">匯入舊學生時勾這個，「帳單」和收入才算得到；同一天已有紀錄就不會重複建立</span></label></div>
      <div class="field"><label>學費 <span class="hint">越南盾打千位（350＝350,000 ₫）</span></label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：臺幣 800／越南盾 350"></div>
@@ -2494,10 +2507,10 @@ H.trash=()=>{const dleft=d=>{const t=Date.parse(d||'');if(!t)return '';const lef
   openModal(`<div class="modal"><div class="modal-head"><h3>🗑 垃圾桶</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="hint" style="margin-bottom:10px">刪除的學生／課程會在這裡保留 7 天，期間可隨時「復原」；逾期才會自動永久刪除。</div>${empty?'<div class="muted" style="padding:8px 2px">垃圾桶是空的 🧹</div>':(stuRows+lesRows)}</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>`);};
 H.restoreItem=async(key)=>{const p=String(key).split('::'),table=p[0],id=p[1];try{await DB.update(table,id,{deleted_at:null});await loadAll();render();H.trash();toast('已復原');}catch(e){toast(writeErr('復原失敗',e));}};
 H.purgeItem=async(key)=>{const p=String(key).split('::'),table=p[0],id=p[1];if(!confirm('永久刪除？此動作無法復原（相關題目與成績也會一併刪除）。'))return;try{await DB.remove(table,id);await loadAll();render();H.trash();toast('已永久刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
-let CLOG_SCHED=null;
+let CLOG_SCHED=null;let CLOG_STU=null;
 function clSlotFor(dateStr){if(!CLOG_SCHED||!dateStr)return null;const jsDow=new Date(dateStr+'T00:00:00').getDay();const d=(jsDow+6)%7;const m=CLOG_SCHED.find(r=>r&&((r.d!=null?r.d:0)===d)&&(r.s||r.e));return m?{s:m.s||'',e:m.e||''}:null;}
 function clFillSlot(){const di=document.getElementById('cl-date');if(!di)return;const slot=clSlotFor(di.value);const si=document.getElementById('cl-start'),ei=document.getElementById('cl-end');if(slot){if(si)si.value=slot.s;if(ei)ei.value=slot.e;}}
-H.classLog=(id,pf)=>{const s=S.students.find(x=>x.id===id);if(!s)return;pf=pf||{};
+H.classLog=(id,pf)=>{const s=S.students.find(x=>x.id===id);if(!s)return;pf=pf||{};CLOG_STU=s;
   CLOG_SCHED=Array.isArray(s.schedule)?s.schedule:[];
   const log=(Array.isArray(s.class_log)?s.class_log:[]);const sorted=log.map((e,idx)=>({e,idx})).sort((a,b)=>(b.e.date||'').localeCompare(a.e.date||''));
   const att=classAttended(s)||0;const left=sessionsLeft(s);
@@ -2507,18 +2520,18 @@ H.classLog=(id,pf)=>{const s=S.students.find(x=>x.id===id);if(!s)return;pf=pf||{
   const uStatus=(eRow&&eRow.status)||'attended';const uFree=!!(eRow&&eRow.free);const uMakeup=!!(eRow&&eRow.makeup);const uVideo=(eRow?eRow.video:null)||pf.video||'';
   openModal(`<div class="modal"><div class="modal-head"><h3>${esc(s.name)} · 上課記錄</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-     <div class="meta" style="margin-bottom:10px;flex-wrap:wrap"><span>本期：共 <b>${esc(String(s.sessions_total??'—'))}</b> 堂 · 已上 <b>${att}</b> 堂 · 還剩 <b class="${left!=null&&left<=1?'sess-low':''}">${left==null?'—':left}</b> 堂</span>${leaveCount(s)?`<span>🟡 請假 <b>${leaveCount(s)}</b> 次 · 已補 <b>${makeupCount(s)}</b> 次${makeupDue(s)?` · <b style="color:#d97706">待補 ${makeupDue(s)}</b> 堂`:'　<span style="color:#16a34a">已補完 ✓</span>'}</span>`:''}</div>
+     <div class="meta" style="margin-bottom:10px;flex-wrap:wrap"><span>本期：共 <b>${esc(String(s.sessions_total??'—'))}</b> ${unitLabel(s)} · 已上 <b>${fmtQty(usedUnits(s))}</b> · 還剩 <b class="${left!=null&&left<=1?'sess-low':''}">${left==null?'—':fmtQty(left)}</b> ${unitLabel(s)}${isHourly(s)?`　<span class="muted">（按小時計費 ${money(s.tuition,s.currency)}／小時）</span>`:''}</span>${leaveCount(s)?`<span>🟡 請假 <b>${leaveCount(s)}</b> 次 · 已補 <b>${makeupCount(s)}</b> 次${makeupDue(s)?` · <b style="color:#d97706">待補 ${makeupDue(s)}</b> 堂`:'　<span style="color:#16a34a">已補完 ✓</span>'}</span>`:''}</div>
      <div style="margin-bottom:6px">${rows}</div>
      <div class="form-grid" style="margin-top:10px">
        <div class="field"><label>日期${eIdx!=null?' <span class="hint" style="color:#92400e">修改這一堂</span>':(pf.date?' <span class="hint">已帶入預排日期</span>':'')}</label><input id="cl-date" type="date" value="${useDate}"></div>
        <div class="field"><label>狀態</label><select id="cl-status"><option value="attended"${uStatus==='attended'?' selected':''}>出席（扣 1 堂）</option><option value="leave"${uStatus==='leave'?' selected':''}>請假（不扣堂）</option><option value="absent"${uStatus==='absent'?' selected':''}>缺席（扣 1 堂）</option></select></div>
        <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="cl-free" style="width:auto;margin:0"${uFree?' checked':''}> 🎁 這堂免費（不扣堂、不計費）<span class="hint">例：試上、贈送的課</span></label></div>
        <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="cl-makeup" style="width:auto;margin:0"${uMakeup?' checked':''}> 🔁 這堂是補課<span class="hint">補之前請假的那一堂，用來追蹤還欠幾堂沒補</span></label></div>
-       <div class="field full"><label>時段 <span class="hint">選填，24 小時制，直接打數字，例：1600 → 16:00</span></label><div style="display:flex;align-items:center;gap:8px"><input id="cl-start" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="16:00" style="flex:1" value="${esc(slot0?slot0.s:'')}"><span>～</span><input id="cl-end" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="18:00" style="flex:1" value="${esc(slot0?slot0.e:'')}"></div></div>
+       <div class="field full"><label>時段 <span class="hint">選填，24 小時制，直接打數字，例：1600 → 16:00</span></label><div style="display:flex;align-items:center;gap:8px"><input id="cl-start" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="16:00" style="flex:1" value="${esc(slot0?slot0.s:'')}"><span>～</span><input id="cl-end" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="18:00" style="flex:1" value="${esc(slot0?slot0.e:'')}"></div><div id="cl-calc" class="hint" style="margin-top:6px"></div></div>
        <div class="field full"><label>課後小結 <span class="hint">選填，學生在首頁看得到</span></label><input id="cl-note" type="text" value="${esc(uN)}" placeholder="例：今天上第一課對話，回家完成練習 1～2"></div>
        <div class="field full"><label>🎬 上課影片連結 <span class="hint">選填，學生可以自己看回放</span></label><input id="cl-video" type="url" value="${esc(uVideo)}" placeholder="https://..."></div>
      </div></div>
-   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button>${eIdx!=null?`<button class="btn btn-ghost" data-act="classLog" data-id="${id}">取消修改</button><span style="flex:1"></span><button class="btn btn-primary" data-act="saveLogEdit" data-id="${id}::${eIdx}">💾 儲存修改</button>`:`<button class="btn btn-primary" data-act="addClassLog" data-id="${id}">＋ 記錄這一堂</button>`}</div></div>`);};
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button>${(setTimeout(clUpdateCalc,0),'')}${eIdx!=null?`<button class="btn btn-ghost" data-act="classLog" data-id="${id}">取消修改</button><span style="flex:1"></span><button class="btn btn-primary" data-act="saveLogEdit" data-id="${id}::${eIdx}">💾 儲存修改</button>`:`<button class="btn btn-primary" data-act="addClassLog" data-id="${id}">＋ 記錄這一堂</button>`}</div></div>`);};
 H.editLogRow=(key)=>{const p=String(key).split('::');H.classLog(p[0],{editIdx:p[1]});const md=document.querySelector('.modal-body');if(md)md.scrollTop=md.scrollHeight;};
 H.saveLogEdit=async(key)=>{const p=String(key).split('::');const id=p[0],idx=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;
   const log=(Array.isArray(s.class_log)?s.class_log.slice():[]);if(!log[idx])return toast('找不到這一堂');
@@ -2619,6 +2632,20 @@ function hhmmFmt(v){let d=String(v||'').replace(/\D/g,'');if(!d)return '';if(d.l
 function hhmmNorm(v){let s=String(v||'').trim();if(!s)return '';let h,m;if(s.indexOf(':')>=0){const p=s.split(':');h=parseInt(p[0]||'0',10)||0;m=parseInt(p[1]||'0',10)||0;}else{const d=s.replace(/\D/g,'');if(!d)return '';if(d.length<=2){h=parseInt(d,10)||0;m=0;}else{h=parseInt(d.slice(0,d.length-2),10)||0;m=parseInt(d.slice(-2),10)||0;}}h=Math.min(23,Math.max(0,h));m=Math.min(59,Math.max(0,m));return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
 document.addEventListener('input',(e)=>{const t=e.target;if(t&&t.classList&&t.classList.contains('hhmm'))t.value=hhmmFmt(t.value);});
 document.addEventListener('blur',(e)=>{const t=e.target;if(t&&t.classList&&t.classList.contains('hhmm')&&t.value.trim())t.value=hhmmNorm(t.value);},true);
+function clUpdateCalc(){const el=document.getElementById('cl-calc');if(!el)return;const s=CLOG_STU;if(!s){el.textContent='';return;}
+  const st=(document.getElementById('cl-start')||{}).value||'',en=(document.getElementById('cl-end')||{}).value||'';
+  const e={start:hhmmNorm(st),end:hhmmNorm(en)};const h=logHours(e);
+  if(isHourly(s)){
+    if(h==null){el.innerHTML='<span style="color:#d97706">填好起訖時間就會自動算時數與費用</span>';return;}
+    const fee=lessonFee(s,e);const left=sessionsLeft(s);
+    const after=(left==null)?null:Math.round((left-h)*100)/100;
+    el.innerHTML=`⏱ 這堂 <b>${fmtQty(h)}</b> 小時${fee!=null?` · 費用 <b>${money(fee,s.currency)}</b>`:''}${after!=null?` · 記錄後剩 <b style="color:${after<0?'#dc2626':(after<=1?'#d97706':'#16a34a')}">${fmtQty(after)}</b> 小時${after<0?'（會超過購買時數）':''}`:''}`;
+  }else{
+    el.innerHTML=h!=null?`⏱ 這堂 ${fmtQty(h)} 小時 · 以「每堂」計費，扣 1 堂`:'';
+  }}
+document.addEventListener('input',(e)=>{const t=e.target;if(t&&(t.id==='cl-start'||t.id==='cl-end'))setTimeout(clUpdateCalc,0);});
+document.addEventListener('change',(e)=>{const t=e.target;if(t&&t.id==='f-feeunit'){const h=document.getElementById('f-sess-hint');if(h)h.textContent=(t.value==='hour')?'本期購買的「總時數」，可填小數（例：12.5）':'本期購買的堂數';}});
+document.addEventListener('blur',(e)=>{const t=e.target;if(t&&(t.id==='cl-start'||t.id==='cl-end'))setTimeout(clUpdateCalc,0);},true);
 document.addEventListener('input',(e)=>{const t=e.target;if(t&&t.id==='f-groups')fillGroupSched();});
 
 document.addEventListener('click',(e)=>{
