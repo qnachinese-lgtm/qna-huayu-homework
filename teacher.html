@@ -387,10 +387,17 @@ function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'
 /* 團班同時段、同狀態＝一堂課（不用學生人次呈現，免費也只算一堂） */
 function mergeDayItems(list){const gmap={},out=[];
   (list||[]).forEach(({s,e})=>{const grp=(s.class_type==='團班'&&stuGroups(s)[0])||'';
-    if(grp){const k=grp+'|'+(e.start||'')+'|'+(e.end||'')+'|'+(e.status||'')+'|'+(e.free?1:0);
-      if(!gmap[k]){gmap[k]={grp,e,members:[]};out.push(gmap[k]);}gmap[k].members.push(s.name);}
+    if(grp){const k=grp+'|'+(e.start||'')+'|'+(e.end||'');
+      if(!gmap[k]){gmap[k]={grp,e,members:[],att:0,leave:0,absent:0,free:false};out.push(gmap[k]);}
+      const g=gmap[k];g.members.push(s.name);
+      if(e.status==='leave')g.leave++;else if(e.status==='absent')g.absent++;else g.att++;
+      if(e.free)g.free=true;}
     else out.push({s,e,members:null});});
   return out;}
+/* 一列課要算成「計費／免費／請假」哪一種 */
+function dayItemKind(it){
+  if(it.members){if(it.free)return 'free';if(it.att===0&&it.absent===0)return 'leave';return 'charged';}
+  const e=it.e;return e.status==='leave'?'leave':(e.free?'free':'charged');}
 function renderCalMonth(body,toggle){
   const ym=S.calMonth||(localToday().slice(0,7));const [Y,M]=ym.split('-').map(Number);const label=Y+' 年 '+M+' 月';
   const incPaused=(S.calIncPaused!==false);
@@ -401,7 +408,7 @@ function renderCalMonth(body,toggle){
   });});
   // 以「堂」為單位重新計數（團班合併，免費的團班只算一堂）
   let cntCharged=0,cntFree=0,cntLeave=0;
-  Object.keys(days).forEach(d=>{mergeDayItems(days[d]).forEach(it=>{const e=it.e;if(e.status==='leave')cntLeave++;else if(e.free)cntFree++;else cntCharged++;});});
+  Object.keys(days).forEach(d=>{mergeDayItems(days[d]).forEach(it=>{const k=dayItemKind(it);if(k==='leave')cntLeave++;else if(k==='free')cntFree++;else cntCharged++;});});
   // 預排課程（尚未點名）
   const planByDate={};let planCount=0;
   groupsList().forEach(cls=>{const mem=(S.students||[]).filter(s=>stuGroups(s).includes(cls));
@@ -422,7 +429,11 @@ function renderCalMonth(body,toggle){
   const sumRows=Object.keys(perStu).sort((a,b)=>perStu[b]-perStu[a]).map(sid=>{const st=studentById(sid)||{};const nm=(st.name||'（已刪除）').trim();const dup=nameDup[nm]>1;const hint=dup?`<span class="muted" style="font-size:12px;margin-left:6px">${esc(st.email||st.id||'')}</span>`:'';return `<div class="dash-row"><b>${esc(nm)}</b>${hint}<span class="grow"></span><span class="muted">${perStu[sid]} 堂</span></div>`;}).join('');
   const summary=`<div class="card" style="margin-bottom:12px"><div class="lesson-label">📊 ${label} 各學生計費堂數</div>${sumRows||'<div class="hint">本月還沒有已點名的計費課</div>'}</div>`;
   const dayCards=allDates.map(d=>{const items=mergeDayItems((days[d]||[]).slice().sort((a,b)=>((a.e.start||'')).localeCompare(b.e.start||'')));const plans=(planByDate[d]||[]);const wd=DAYS[(new Date(d+'T00:00:00').getDay()+6)%7];
-    const logHtml=items.map(it=>{const e=it.e;const tm=(e.start||'')+(e.end?'–'+e.end:'');const badge=e.status==='leave'?'<span class="badge badge-overdue">請假</span>':(e.free?'<span class="badge" style="background:#7c3aed22;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':'<span class="badge badge-ok">出席</span>');
+    const logHtml=items.map(it=>{const e=it.e;const tm=(e.start||'')+(e.end?'–'+e.end:'');const kind=dayItemKind(it);
+        const freeB='<span class="badge" style="background:#7c3aed22;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>';
+        const badge=it.members
+          ?`${it.free?freeB:''}${it.att?`<span class="badge badge-ok">出席 ${it.att}</span>`:''}${it.leave?`<span class="badge badge-soon">請假 ${it.leave}</span>`:''}${it.absent?`<span class="badge badge-overdue">缺席 ${it.absent}</span>`:''}`
+          :(kind==='leave'?'<span class="badge badge-overdue">請假</span>':(kind==='free'?freeB:'<span class="badge badge-ok">出席</span>'));
         const who=it.members?`👥 ${esc(it.grp)} 團班<span class="muted" style="font-weight:400;margin-left:4px">（${it.members.length}人）</span>`:esc(it.s.name);
         const eact=it.members?'editClassDay':'editStuDay';const ekey=it.members?(esc(it.grp)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')):(esc(it.s.id)+'::'+esc(d));
         const delBtn=it.members?`<button class="btn btn-sm btn-danger" data-act="rollDel" data-id="${ekey}" title="整個團班刪掉這一堂">🗑</button>`:`<button class="btn btn-sm btn-danger" data-act="stuDayDel" data-id="${esc(it.s.id)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')}" title="刪掉這一堂">🗑</button>`;
