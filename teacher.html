@@ -802,13 +802,11 @@ function studentModal(st){const e=!!st;st=st||{};
      <div class="field full"><label>🎥 上課連結（Google Meet） <span class="hint">貼上固定的 Meet 連結，老師和學生都能一鍵進教室</span></label>
        <input id="f-meet" type="url" inputmode="url" value="${esc(st.meet_url||'')}" placeholder="https://meet.google.com/abc-defg-hij"></div>
     </div></div>
-    <div class="form-sec"><div class="form-sec-h">💰 費用與堂數</div><div class="form-grid">
-     <div class="field"><label>堂數／時數（總共） <span class="hint" id="f-sess-hint">${st.fee_unit==='hour'?'本期購買的「總時數」，可填小數（例：12.5）':'本期購買的堂數'}</span></label><input id="f-sess" type="number" min="0" step="0.5" value="${st.sessions_total??''}" placeholder="例：10"></div>
-     <div class="field"><label>付款日期 <span class="hint">最近一次付款的日期</span></label><input id="f-pay" type="date" min="2000-01-01" max="2100-12-31" value="${esc(st.payment_date||'')}"></div>
-     <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-mkpay" style="width:auto;margin:0"> 🧾 同時建成一筆繳費紀錄（用上面的付款日期＋學費）<span class="hint">匯入舊學生時勾這個，「帳單」和收入才算得到；同一天已有紀錄就不會重複建立</span></label></div>
-     <div class="field"><label>學費 <span class="hint">越南盾打千位（350＝350,000 ₫）</span></label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：臺幣 800／越南盾 350"></div>
+    <div class="form-sec"><div class="form-sec-h">💰 收費設定 <span class="hint" style="font-weight:400">（只設「怎麼收費」；實際繳了多少、剩幾堂請按下面的「繳費」）</span></div><div class="form-grid">
+     <div class="field"><label>學費單價 <span class="hint">越南盾打千位（350＝350,000 ₫）</span></label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：臺幣 800／越南盾 350"></div>
      <div class="field"><label>計費方式</label><select id="f-feeunit"><option value="session"${st.fee_unit!=='hour'?' selected':''}>每堂</option><option value="hour"${st.fee_unit==='hour'?' selected':''}>每小時</option></select></div>
      <div class="field"><label>幣別</label><select id="f-cur"><option value="TWD"${(st.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${st.currency==='VND'?' selected':''}>越南盾 ₫</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
+     ${st.id?`<div class="field full" style="background:#f8fafc;border-radius:8px;padding:10px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>🎟️ 目前 ${sessChip(st)||'<span class="muted">還沒有堂數（去繳費新增）</span>'}</span><span class="grow"></span><button type="button" class="btn btn-sm btn-accent" data-act="payments" data-id="${st.id}">💰 繳費／堂數</button></div><div class="hint" style="margin-top:6px">總堂數＝每筆繳費「加堂數」的加總。匯入舊學生：到「繳費」補一筆舊資料（填日期＋金額＋堂數）即可。</div></div>`:'<div class="field full"><div class="hint">先按「新增學生」建好，再到列表按「💰 繳費」設定堂數與繳費。</div></div>'}
     </div></div>
     <div class="form-sec"><div class="form-sec-h">🔑 登入帳號</div><div class="form-grid">
      ${e
@@ -1688,31 +1686,16 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   const schedule=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);
   const fslot=$('#f-first-slot');
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
-    payment_date:$('#f-pay').value||null,tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),fee_unit:($('#f-feeunit')&&$('#f-feeunit').value)||'session',currency:$('#f-cur').value,
-    sessions_total:$('#f-sess').value===''?null:Number($('#f-sess').value),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
+    tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),fee_unit:($('#f-feeunit')&&$('#f-feeunit').value)||'session',currency:$('#f-cur').value,
+    first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
+  // 註：總堂數(sessions_total)、付款日(payment_date)、每筆繳費(payments) 一律在「💰 繳費」視窗管理，這裡不碰，避免兩邊打架
   if(IS_OWNER){const asel=$('#f-admin');common.admin=asel?asel.value:'';}
-  // 匯入舊資料：把「付款日期＋學費」補成一筆繳費紀錄（同日期已有就不重複；不動總堂數，避免重複加堂）
-  if((common.sessions_total==null||common.sessions_total==='')&&common.tuition!=null&&common.tuition!==''){
-    const u=(common.fee_unit==='hour')?'時數':'堂數';
-    if(!confirm('有填學費、但「'+u+'（總共）」是空的。\n這樣不會有剩餘'+u+'，也不會提醒你續費。\n\n確定先這樣存嗎？'))return;}
-  const mkPay=!!($('#f-mkpay')&&$('#f-mkpay').checked);
-  let payMsg='';
-  if(mkPay){
-    const pd=common.payment_date;
-    if(!pd)return toast('要建立繳費紀錄，請先填「付款日期」');
-    if(common.tuition==null)return toast('要建立繳費紀錄，請先填「學費」');
-    const cur=(id?(S.students.find(x=>x.id===id)||{}):{});
-    const olds=Array.isArray(cur.payments)?cur.payments.slice():[];
-    if(olds.some(p=>p&&p.date===pd)){payMsg='（同一天已有繳費紀錄，沒有重複建立）';}
-    else{olds.push({date:pd,amount:common.tuition,currency:common.currency,sessions:null,note:'匯入舊資料'});
-      olds.sort((a,b)=>String(a.date).localeCompare(String(b.date)));common.payments=olds;payMsg='，並建立了 1 筆繳費紀錄';}
-  }
-  if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存'+payMsg);}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
+  if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
   const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
   if(!email||!pw)return toast('請填 Email 與初始密碼');if(pw.length<6)return toast('初始密碼至少 6 碼');
   if(S.students.some(s=>(s.email||'').toLowerCase()===email))return toast('這個 Email 已被其他學生使用');
   const btn=document.querySelector('[data-act="saveStudent"]');if(btn){btn.disabled=true;btn.textContent='建立中…';}
-  try{const u=await createStudentAuth(email,pw);await DB.insert('students',Object.assign({uid:u,email},common));closeModal();await loadAll();render();toast('已建立學生帳號'+payMsg);}
+  try{const u=await createStudentAuth(email,pw);await DB.insert('students',Object.assign({uid:u,email},common));closeModal();await loadAll();render();toast('已建立學生帳號，接著到列表按「💰 繳費」設定堂數');}
   catch(err){toast('建立失敗：'+authMsg(err));if(btn){btn.disabled=false;btn.textContent='新增';}}};
 H.loginLog=(id)=>{const s=S.students.find(x=>x.id===id);const p=progOf(id);const logs=(((p&&Array.isArray(p.logins))?p.logins:[]).slice()).sort().reverse();
   const byDay={};logs.forEach(t=>{const d=fmtDate(t);(byDay[d]=byDay[d]||[]).push(fmtDT(t).slice(-5));});
@@ -2459,7 +2442,7 @@ H.payments=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;PAY_STU=s;c
        <div class="field"><label>加${isHourly(s)?'時數':'堂數'} <span class="hint">填金額會自動算，可改</span></label><input id="pay-sess" type="number" min="0" step="0.5" placeholder="例：10"></div>
        <div class="field full"><div id="pay-calc" class="hint"></div></div>
        <div class="field full"><label>備註</label><input id="pay-note" type="text" placeholder="選填，例：6月學費"></div>
-     </div></div>
+     </div><div class="hint" style="margin-top:8px">💡 匯入舊學生：金額填 0、只填「加堂數」也可以，就能設定目前的總堂數。</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><button class="btn btn-primary" data-act="payAdd" data-id="${id}">＋ 新增這筆</button></div></div>`);};
 function remindText(s,lang){const name=s.name||'';const left=sessionsLeft(s);
   const unit=lang==='vi'?(s.fee_unit==='hour'?'/giờ':'/buổi'):(s.fee_unit==='hour'?'／小時':'／堂');
@@ -2766,7 +2749,7 @@ document.addEventListener('input',(e)=>{const t=e.target;if(!t)return;
   if(t.id==='pay-amount')setTimeout(()=>payUpdateCalc(true),0);
   if(t.id==='pay-sess')setTimeout(()=>payUpdateCalc(false),0);});
 document.addEventListener('change',(e)=>{const t=e.target;if(t&&t.id==='pay-cur')setTimeout(()=>payUpdateCalc(false),0);
-  if(t&&t.id==='f-feeunit'){const h=document.getElementById('f-sess-hint');if(h)h.textContent=(t.value==='hour')?'本期購買的「總時數」，可填小數（例：12.5）':'本期購買的堂數';}});
+  });
 document.addEventListener('blur',(e)=>{const t=e.target;if(t&&(t.id==='cl-start'||t.id==='cl-end'))setTimeout(clUpdateCalc,0);},true);
 document.addEventListener('input',(e)=>{const t=e.target;if(t&&t.id==='f-groups')fillGroupSched();});
 
