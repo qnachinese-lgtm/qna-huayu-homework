@@ -264,6 +264,27 @@ function studentProgress(s){const assigned=S.lessons.filter(l=>isAssignedTo(l,s)
   assigned.forEach(l=>{const r=resultOf(l.id,s.id);if(r){if(r.status==='done')done++;const tot=r.total||answerableOf(l.id).length;if(tot){sumPct+=Math.round(scoreOf(l,r)/tot*100);scored++;}}});
   pct=assigned.length?Math.round(done/assigned.length*100):0;
   return{total:assigned.length,done,pct,avg:scored?Math.round(sumPct/scored):null};}
+/* 資料健檢：抓出老師常見的填寫缺漏，讓她自己找得到、修得掉 */
+function healthCheck(){const today=localToday();const out=[];
+  (S.students||[]).forEach(s=>{if(s.deleted||s.is_test)return;
+    const price=(s.tuition==null||s.tuition==='')?null:Number(s.tuition);
+    const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date);
+    const pays=(s.payments||[]);
+    const paid=pays.reduce((a,x)=>a+(Number(x.amount)||0),0);
+    const u=unitLabel(s);const problems=[];
+    const left=sessionsLeft(s);
+    if(left!=null&&left<0)problems.push('剩餘是負的（'+fmtQty(left)+' '+u+'）→ 總'+u+'可能少加了');
+    if((s.sessions_total==null||s.sessions_total==='')&&price!=null&&enrollOf(s)!=='paused')problems.push('有學費、但沒填「總'+u+'」→ 不會提醒續費');
+    if((price==null)&&log.length)problems.push('有上課記錄、但沒設學費');
+    if(price!=null&&paid>0){const bought=Math.round(paid/price*100)/100;if(s.sessions_total!=null&&Math.abs(bought-Number(s.sessions_total))>0.5)problems.push('繳費金額換算 '+fmtQty(bought)+' '+u+'，和總數 '+esc(String(s.sessions_total))+' 對不上');}
+    const fut=log.filter(e=>e.date>today).map(e=>e.date);
+    if(fut.length)problems.push('有未來日期的上課記錄（'+esc(fut.join('、'))+'）→ 可能日期打錯');
+    if(problems.length)out.push({s,problems});});
+  return out;}
+function healthCheckHtml(){const list=healthCheck();
+  if(!list.length)return '';
+  const rows=list.map(({s,problems})=>`<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start"><span class="badge badge-overdue">⚠️</span><b>${esc(s.name)}</b><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="editStudent" data-id="${s.id}">去修正</button><div style="flex-basis:100%;margin-top:4px"><ul style="margin:2px 0 0 18px;padding:0;color:#b45309;font-size:13px">${problems.map(p=>`<li>${p}</li>`).join('')}</ul></div></div>`).join('');
+  return `<details class="dash-fold" open style="margin-top:14px;border-color:#f59e0b"><summary>🩺 資料健檢（${list.length} 位學生要注意）</summary><div style="margin-top:10px"><div class="hint" style="margin-bottom:6px">這些不影響學生上課，但會讓你的堂數／收入統計不準，建議抽空修一修。</div>${rows}</div></details>`;}
 function renderDashboard(){
   const body=$('#dashboard-body');
   if(!S.students.length){body.innerHTML=emptyHtml('📋','目前沒有待辦',IS_OWNER?'先到「學生名冊」新增學生。':'主管理員還沒有把學生分配給你。');return;}
@@ -329,7 +350,7 @@ function renderDashboard(){
     if(IS_OWNER&&bym!==nowYm&&(S.students||[]).some(x=>!x.is_test))remRows.push(`<div class="dash-row"><span class="badge" style="background:#fef3c7;color:#92400e;border-color:#92400e55">📦 備份</span><b>這個月還沒備份</b><span class="grow"></span><span class="muted">${bym?('上次備份：'+esc(bym)):'還沒備份過'}</span><button class="btn btn-sm btn-accent" data-act="exportAll">匯出 Excel</button></div>`);}catch(e){}
   const remHtml=remRows.length?remRows.join(''):`<div class="muted" style="padding:8px 2px">目前沒有需要提醒的事項 👍</div>`;
   const todoN=inbox.length+remRows.length;
-  body.innerHTML=`<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
+  body.innerHTML=`${healthCheckHtml()}<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
     <details class="dash-fold" open style="margin-top:14px"><summary>⏰ 提醒（堂數／補課）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>
     <details class="dash-fold" style="margin-top:14px"><summary>📝 隨堂小考${(S.quizzes||[]).length?'（'+(S.quizzes||[]).length+'）':''}</summary>
       <div class="quiz-create-row" style="margin-top:10px"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button><span class="muted">選一課的生詞，指派學生做聽寫，自動計分</span></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):''}</details>
