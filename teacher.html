@@ -74,6 +74,7 @@
       <section id="panel-lessons" class="panel hide">
         <div class="section-head"><h2>📚 上課教材</h2><span class="sub">課文、發音、PDF 講義、練習題都在這裡，用上方「教材」分類切換</span><span class="grow"></span>
           <button class="btn" data-act="newPron">🔤 建立發音</button>
+          <button class="btn" data-act="newClassical">📜 文言文</button>
           <button class="btn btn-primary" data-act="addLesson">＋ 新增課文／作業</button>
           <button class="btn" data-act="tplLesson">📋 用範本開新課文</button></div>
         <div id="lessons-list" class="cards"></div>
@@ -226,7 +227,7 @@ async function loadAll(){
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
     DB.list('lessons'),DB.list('questions'),DB.list('results')]);
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&!x.deleted_at);S.interviews=b.filter(x=>x.kind==='interview'&&!x.deleted_at);S.inquiries=b.filter(x=>x.kind==='inquiry'&&!x.deleted_at);S.agencies=b.filter(x=>x.kind==='agency'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&!x.deleted_at);S.interviews=b.filter(x=>x.kind==='interview'&&!x.deleted_at);S.inquiries=b.filter(x=>x.kind==='inquiry'&&!x.deleted_at);S.agencies=b.filter(x=>x.kind==='agency'&&!x.deleted_at);S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
   splitResults(d);
   {const cut=Date.now()-7*864e5;(S.trashStudents||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('students',x.id).catch(()=>{});});(S.trashLessons||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('lessons',x.id).catch(()=>{});});}
   if(!owner){
@@ -954,15 +955,30 @@ function lessonCardHtml(l,i){try{
   }catch(err){return `<div class="card"><h3>${esc((l&&l.title)||'（未命名課文）')}</h3><div class="hint" style="color:var(--danger);margin-top:6px">這一課顯示時出了點問題（資料沒有遺失，可照常編輯或刪除）。</div><div class="actions" style="margin-top:10px"><button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">編輯課文</button><button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">練習題</button><button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">刪除</button></div></div>`;}}
 function pronTeacherCardHtml(p){const gs=p.pron_groups||[];const ni=gs.reduce((a,g)=>a+((g.items||[]).length),0);const na=assignedCount(p);const nq=(p.pron_quiz||[]).length;
   return `<div class="card"><div class="row-between"><h3>🔤 ${esc(p.title||'發音')}</h3><div style="display:flex;gap:6px"><button class="btn btn-sm btn-accent" data-act="editPron" data-id="${p.id}">編輯</button><button class="btn btn-sm btn-danger" data-act="delPron" data-id="${p.id}">刪除</button></div></div><div class="hint" style="margin-top:4px">${gs.length} 組 · ${ni} 個音${nq?(' · 聽辨 '+nq+' 題'):''}${p.handout_url?' · 📄 PDF':''} · 指派 ${na} 人</div></div>`;}
+let CL=null;
+function clLinesOf(l){if(l&&Array.isArray(l.cl_lines))return l.cl_lines;const d=(Array.isArray(l&&l.dialogues)?l.dialogues[0]:null)||{};const os=(d.discussion||'').split('\n');const ns=(d.cl_notes||'').split('\n');const n=Math.max(os.length,ns.length);const out=[];for(let i=0;i<n;i++){const orig=(os[i]||'').trim(),note=(ns[i]||'').trim();if(orig||note)out.push({orig,note});}return out;}
+function clCardHtml(l){const lines=clLinesOf(l);const na=(l.assigned_ids||[]).length;
+  return `<div class="card"><div class="row-between"><h3 style="margin:0">📜 ${esc(l.title||'文言文')}</h3><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button><button class="btn btn-sm btn-accent" data-act="editClassical" data-id="${l.id}">✏️ 編輯</button><button class="btn btn-sm" data-act="assign" data-id="${l.id}">指派${na?('（'+na+'）'):''}</button><button class="btn btn-sm btn-danger" data-act="delClassical" data-id="${l.id}">刪除</button></div></div><div class="hint" style="margin-top:4px">${lines.length} 句原文 · 指派 ${na} 人 · 學生逐句寫白話翻譯送出批改</div></div>`;}
+function clLineRowsHtml(){return (CL.lines||[]).map((r,i)=>`<div class="card" style="padding:10px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>第 ${i+1} 句</b><span class="grow"></span>${CL.lines.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="clDelLine" data-id="${i}">刪除這句</button>`:''}</div><label class="dlg-lbl">原文</label><textarea class="cl-orig" data-i="${i}" style="min-height:52px" placeholder="這一句的文言文原文…">${esc(r.orig||'')}</textarea><label class="dlg-lbl">解釋 <span class="hint">選填，字詞或句意說明，學生看得到</span></label><textarea class="cl-note" data-i="${i}" style="min-height:44px" placeholder="這一句的解釋…">${esc(r.note||'')}</textarea></div>`).join('');}
+function clSyncLines(){if(!CL)return;document.querySelectorAll('.cl-orig').forEach(t=>{const i=+t.dataset.i;if(CL.lines[i])CL.lines[i].orig=t.value;});document.querySelectorAll('.cl-note').forEach(t=>{const i=+t.dataset.i;if(CL.lines[i])CL.lines[i].note=t.value;});}
+function clForm(){const e=!!CL.id;
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>📜 ${e?'編輯文言文課':'新增文言文課'}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="form-grid"><div class="field"><label>課名 *</label><input id="cl-title" type="text" value="${esc(CL.title||'')}" placeholder="例：桃花源記（節錄）"></div>
+     <div class="field"><label>教材 <span class="hint">分類用</span></label><input id="cl-book" type="text" value="${esc(CL.textbook||'文言文')}" placeholder="文言文"></div></div>
+     <div class="hint" style="margin:6px 0 10px">一句一格：填「原文」和「解釋」。學生會逐句看到原文＋解釋，並在每句旁邊寫白話翻譯，送出給你批改。</div>
+     <div id="cl-lines">${clLineRowsHtml()}</div>
+     <button class="btn btn-sm" type="button" data-act="clAddLine" style="margin-top:4px">＋ 新增一句</button>
+   </div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="saveClassical">💾 儲存</button></div></div>`);}
 function renderLessons(){
   const wrap=$('#lessons-list');if(!wrap)return;
   if(S.pe){wrap.innerHTML=pronEditorHtml();return;}
   const hasPron=(S.prons||[]).length>0;
-  if(!S.lessons.length&&!hasPron){wrap.innerHTML=emptyHtml('📚','還沒有內容','點「新增課文／作業」放課文＋練習題，或「建立發音」做發音教材。');return;}
-  const ls=sortLessons(S.lessons);
+  if(!S.lessons.length&&!hasPron&&!(S.classicals||[]).length){wrap.innerHTML=emptyHtml('📚','還沒有內容','點「新增課文／作業」放課文＋練習題，或「建立發音」做發音教材。');return;}
+  const ls=sortLessons(S.lessons).filter(l=>l.kind!=='classical');const hasCl=(S.classicals||[]).length>0;
   const books=[...new Set(ls.map(l=>(l.textbook||'').trim()).filter(Boolean))].sort();
   if(hasPron&&!books.includes('發音'))books.push('發音');
-  const hasUncat=ls.some(l=>!(l.textbook||'').trim());const filter=S.bookFilter||'';
+  if(hasCl&&!books.includes('📜 文言文'))books.push('📜 文言文');const hasUncat=ls.some(l=>!(l.textbook||'').trim());const filter=S.bookFilter||'';
   let html='';
   if(books.length){html+='<div class="book-bar"><span class="book-bar-lbl">📚 教材</span>'+
     '<button class="book-tab '+(!filter?'on':'')+'" data-act="bookFilter" data-id="">全部</button>'+
@@ -974,6 +990,9 @@ function renderLessons(){
   let show;if(filter==='__none')show=['__none'];else if(filter)show=[filter];else{show=books.slice();if(hasUncat)show.push('__none');}
   if(!books.length)show=['__none'];
   html+=show.map(b=>{
+    if(b==='📜 文言文'){if(!hasCl)return '';
+      const cards=(S.classicals||[]).slice().sort((a,c)=>((a.order_index||0)-(c.order_index||0))).map(l=>clCardHtml(l)).join('');
+      return `<div class="book-group"><div class="book-head">📜 文言文 <span class="count">${S.classicals.length}</span><button class="btn btn-sm btn-accent" data-act="newClassical" style="margin-left:10px">＋ 新增文言文</button></div>${cards}</div>`;}
     if(b==='發音'){if(!hasPron)return '';
       const cards=(S.prons||[]).slice().sort((a,c)=>((a.order_index||0)-(c.order_index||0))).map(p=>pronTeacherCardHtml(p)).join('');
       return `<div class="book-group"><div class="book-head">🔤 發音 <span class="count">${S.prons.length}</span><button class="btn btn-sm btn-accent" data-act="newPron" style="margin-left:10px">＋ 建立發音課</button></div>${cards}</div>`;}
@@ -1555,6 +1574,20 @@ function pronPickTo(setter,stId){const inp=document.createElement('input');inp.t
   inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=stId?document.getElementById(stId):null;if(st)st.textContent='上傳中…';if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage';return;}
     try{syncPe();const url=await uploadExampleAudio(f);setter(url);renderPron();toast('已上傳發音');}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
   inp.click();}
+H.newClassical=()=>{CL={id:null,title:'',textbook:'文言文',assigned_ids:[],lines:[{orig:'',note:''}]};clForm();};
+H.editClassical=(id)=>{const l=(S.classicals||[]).find(x=>x.id===id);if(!l)return;CL={id:l.id,title:l.title||'',textbook:l.textbook||'文言文',assigned_ids:(l.assigned_ids||[]).slice(),lines:clLinesOf(l).map(r=>({orig:r.orig,note:r.note}))};if(!CL.lines.length)CL.lines=[{orig:'',note:''}];clForm();};
+H.clAddLine=()=>{if(!CL)return;clSyncLines();CL.lines.push({orig:'',note:''});const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
+H.clDelLine=(i)=>{if(!CL)return;clSyncLines();CL.lines.splice(+i,1);if(!CL.lines.length)CL.lines=[{orig:'',note:''}];const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
+H.saveClassical=async()=>{if(!CL)return;clSyncLines();const title=($('#cl-title').value||'').trim();if(!title)return toast('請填課名');
+  const book=($('#cl-book').value||'').trim()||'文言文';
+  const lines=CL.lines.map(r=>({orig:(r.orig||'').trim(),note:(r.note||'').trim()})).filter(r=>r.orig||r.note);
+  if(!lines.length)return toast('請至少填一句原文');
+  const dlg={title:'原文',cl:true,discussion:lines.map(r=>r.orig).join('\n'),cl_notes:lines.map(r=>r.note).join('\n'),content:'',vocabulary:'',vocab_vi:'',audio_url:null,vocab_audio_url:null,vocab_segments:[],line_segments:[]};
+  const patch={kind:'classical',title,textbook:book,cl_lines:lines,dialogues:[dlg],grammar_points:[],layout:[]};
+  try{if(CL.id){await DB.update('lessons',CL.id,patch);}else{const maxO=(S.classicals||[]).reduce((a,l)=>Math.max(a,l.order_index||0),0);patch.assigned_ids=[];patch.order_index=maxO+1;patch.created_at=new Date().toISOString();await DB.insert('lessons',patch);}
+    await loadAll();closeModal();CL=null;S.tab='lessons';render();toast('已儲存文言文課');}catch(e){toast(writeErr('儲存失敗',e));}};
+H.delClassical=async(id)=>{const l=(S.classicals||[]).find(x=>x.id===id);if(!l)return;if(!confirm('刪除「'+(l.title||'')+'」？'))return;
+  try{await DB.update('lessons',id,{deleted_at:new Date().toISOString()});S.classicals=(S.classicals||[]).filter(x=>x.id!==id);S.lessons=(S.lessons||[]).filter(x=>x.id!==id);render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.newPron=()=>{S.pe={id:null,title:'',groups:[blankPG()],assigned_ids:[],handout_url:'',handout_name:'',quiz:[]};S.tab='lessons';render();window.scrollTo(0,0);};
 H.editPron=(id)=>{const p=(S.prons||[]).find(x=>x.id===id);if(!p)return;S.pe={id:p.id,title:p.title||'',groups:JSON.parse(JSON.stringify(p.pron_groups||[])),assigned_ids:(p.assigned_ids||[]).slice(),handout_url:p.handout_url||'',handout_name:p.handout_name||'',quiz:JSON.parse(JSON.stringify(p.pron_quiz||[]))};if(!S.pe.groups.length)S.pe.groups=[blankPG()];S.tab='lessons';render();window.scrollTo(0,0);};
 H.peHUp=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,application/pdf';
