@@ -961,13 +961,16 @@ function clCardHtml(l){const lines=clLinesOf(l);const na=(l.assigned_ids||[]).le
   return `<div class="card"><div class="row-between"><h3 style="margin:0">📜 ${esc(l.title||'文言文')}</h3><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button><button class="btn btn-sm btn-accent" data-act="editClassical" data-id="${l.id}">✏️ 編輯</button><button class="btn btn-sm" data-act="assign" data-id="${l.id}">指派${na?('（'+na+'）'):''}</button><button class="btn btn-sm btn-danger" data-act="delClassical" data-id="${l.id}">刪除</button></div></div><div class="hint" style="margin-top:4px">${lines.length} 句原文 · 指派 ${na} 人 · 學生逐句寫白話翻譯送出批改</div></div>`;}
 function clLineRowsHtml(){return (CL.lines||[]).map((r,i)=>`<div class="card" style="padding:10px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>第 ${i+1} 句</b><span class="grow"></span>${CL.lines.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="clDelLine" data-id="${i}">刪除這句</button>`:''}</div><label class="dlg-lbl">原文</label><textarea class="cl-orig" data-i="${i}" style="min-height:52px" placeholder="這一句的文言文原文…">${esc(r.orig||'')}</textarea><label class="dlg-lbl">解釋 <span class="hint">選填，字詞或句意說明，學生看得到</span></label><textarea class="cl-note" data-i="${i}" style="min-height:44px" placeholder="這一句的解釋…">${esc(r.note||'')}</textarea></div>`).join('');}
 function clSyncLines(){if(!CL)return;document.querySelectorAll('.cl-orig').forEach(t=>{const i=+t.dataset.i;if(CL.lines[i])CL.lines[i].orig=t.value;});document.querySelectorAll('.cl-note').forEach(t=>{const i=+t.dataset.i;if(CL.lines[i])CL.lines[i].note=t.value;});}
-function clForm(){const e=!!CL.id;
+function clSplitSentences(text){return String(text||'').replace(/\r/g,'').replace(/([。！？；!?;])/g,'$1\n').split(/\n+/).map(x=>x.trim()).filter(Boolean);}
+function clForm(){const e=!!CL.id;const origText=CL.origText!=null?CL.origText:'';const intro=CL.intro!=null?CL.intro:'';
   openModal(`<div class="modal wide"><div class="modal-head"><h3>📜 ${e?'編輯文言文課':'新增文言文課'}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="form-grid"><div class="field"><label>課名 *</label><input id="cl-title" type="text" value="${esc(CL.title||'')}" placeholder="例：桃花源記（節錄）"></div>
      <div class="field"><label>教材 <span class="hint">分類用</span></label><input id="cl-book" type="text" value="${esc(CL.textbook||'文言文')}" placeholder="文言文"></div></div>
-     <div class="hint" style="margin:6px 0 10px">一句一格：填「原文」和「解釋」。學生會逐句看到原文＋解釋，並在每句旁邊寫白話翻譯，送出給你批改。</div>
-     <div id="cl-lines">${clLineRowsHtml()}</div>
-     <button class="btn btn-sm" type="button" data-act="clAddLine" style="margin-top:4px">＋ 新增一句</button>
+     <div class="field full"><label>原文（整篇）* <span class="hint">直接貼整篇。系統會自動依「。！？；」和換行分成一句一句，讓學生逐句翻譯。</span></label>
+       <textarea id="cl-orig" style="min-height:200px" placeholder="貼上整篇文言文原文…">${esc(origText)}</textarea></div>
+     <div class="field full"><label>解釋／注釋（整篇，選填） <span class="hint">字詞或全篇說明，學生會看到（放在原文上方）。</span></label>
+       <textarea id="cl-intro" style="min-height:100px" placeholder="選填：整篇的注釋或說明…">${esc(intro)}</textarea></div>
+     <div class="hint">存檔後可按卡片的「👁 預覽」看看分句對不對；分句不理想時，在原文裡自己用換行調整即可。</div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="saveClassical">💾 儲存</button></div></div>`);}
 function renderLessons(){
@@ -1574,16 +1577,17 @@ function pronPickTo(setter,stId){const inp=document.createElement('input');inp.t
   inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=stId?document.getElementById(stId):null;if(st)st.textContent='上傳中…';if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage';return;}
     try{syncPe();const url=await uploadExampleAudio(f);setter(url);renderPron();toast('已上傳發音');}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
   inp.click();}
-H.newClassical=()=>{CL={id:null,title:'',textbook:'文言文',assigned_ids:[],lines:[{orig:'',note:''}]};clForm();};
-H.editClassical=(id)=>{const l=(S.classicals||[]).find(x=>x.id===id);if(!l)return;CL={id:l.id,title:l.title||'',textbook:l.textbook||'文言文',assigned_ids:(l.assigned_ids||[]).slice(),lines:clLinesOf(l).map(r=>({orig:r.orig,note:r.note}))};if(!CL.lines.length)CL.lines=[{orig:'',note:''}];clForm();};
+H.newClassical=()=>{CL={id:null,title:'',textbook:'文言文',assigned_ids:[],origText:'',intro:''};clForm();};
+H.editClassical=(id)=>{const l=(S.classicals||[]).find(x=>x.id===id);if(!l)return;const d=(Array.isArray(l.dialogues)?l.dialogues[0]:null)||{};const origText=(l.cl_text!=null&&l.cl_text!=='')?l.cl_text:(d.discussion||'').split('\n').map(x=>x.trim()).filter(Boolean).join('\n');CL={id:l.id,title:l.title||'',textbook:l.textbook||'文言文',assigned_ids:(l.assigned_ids||[]).slice(),origText:origText,intro:l.cl_intro||''};clForm();};
 H.clAddLine=()=>{if(!CL)return;clSyncLines();CL.lines.push({orig:'',note:''});const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
 H.clDelLine=(i)=>{if(!CL)return;clSyncLines();CL.lines.splice(+i,1);if(!CL.lines.length)CL.lines=[{orig:'',note:''}];const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
-H.saveClassical=async()=>{if(!CL)return;clSyncLines();const title=($('#cl-title').value||'').trim();if(!title)return toast('請填課名');
+H.saveClassical=async()=>{if(!CL)return;const title=($('#cl-title').value||'').trim();if(!title)return toast('請填課名');
   const book=($('#cl-book').value||'').trim()||'文言文';
-  const lines=CL.lines.map(r=>({orig:(r.orig||'').trim(),note:(r.note||'').trim()})).filter(r=>r.orig||r.note);
-  if(!lines.length)return toast('請至少填一句原文');
-  const dlg={title:'原文',cl:true,discussion:lines.map(r=>r.orig).join('\n'),cl_notes:lines.map(r=>r.note).join('\n'),content:'',vocabulary:'',vocab_vi:'',audio_url:null,vocab_audio_url:null,vocab_segments:[],line_segments:[]};
-  const patch={kind:'classical',title,textbook:book,cl_lines:lines,dialogues:[dlg],grammar_points:[],layout:[]};
+  const origText=($('#cl-orig')&&$('#cl-orig').value)||'';const intro=(($('#cl-intro')&&$('#cl-intro').value)||'').trim();
+  const sents=clSplitSentences(origText);
+  if(!sents.length)return toast('請貼上原文');
+  const dlg={title:'原文',cl:true,discussion:sents.join('\n'),cl_notes:'',content:'',vocabulary:'',vocab_vi:'',audio_url:null,vocab_audio_url:null,vocab_segments:[],line_segments:[]};
+  const patch={kind:'classical',title,textbook:book,cl_text:origText,cl_intro:intro,dialogues:[dlg],grammar_points:[],layout:[]};
   try{if(CL.id){await DB.update('lessons',CL.id,patch);}else{const maxO=(S.classicals||[]).reduce((a,l)=>Math.max(a,l.order_index||0),0);patch.assigned_ids=[];patch.order_index=maxO+1;patch.created_at=new Date().toISOString();await DB.insert('lessons',patch);}
     await loadAll();closeModal();CL=null;S.tab='lessons';render();toast('已儲存文言文課');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.delClassical=async(id)=>{const l=(S.classicals||[]).find(x=>x.id===id);if(!l)return;if(!confirm('刪除「'+(l.title||'')+'」？'))return;
