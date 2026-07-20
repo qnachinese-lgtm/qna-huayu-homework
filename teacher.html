@@ -354,6 +354,7 @@ function renderDashboard(){
   itvAll().forEach(c=>{if(!c.exam_date)return;const d=itvDaysTo(c.exam_date);if(d==null)return;
     if(d>=0&&d<=14&&!itvResultMeta(c.result)){const col=d<=3?'#dc2626':'#3730a3';remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">🎯 ${d===0?'今天面試':(d===1?'明天面試':'還有 '+d+' 天')}</span><b>${esc(c.name||'')}</b>${c.target?`<span class="muted">${esc(c.target)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.exam_date)}${c.exam_time?(' '+esc(c.exam_time)):''}</span><button class="btn btn-sm" data-act="tab" data-id="interview">看客戶</button></div>`);}
     else if(d<0&&!itvResultMeta(c.result)){remRows.push(`<div class="dash-row"><span class="badge badge-soon">🎯 待填結果</span><b>${esc(c.name||'')}</b><span class="muted">面試日 ${esc(c.exam_date)}（${-d} 天前）</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="itvEdit" data-id="${esc(c.id)}">填面試結果</button></div>`);}});
+  (S.agencies||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;const d=itvDaysTo(c.deadline);if(d==null)return;if(d>21)return;const col=d<0?'#dc2626':(d<=3?'#dc2626':(d<=7?'#d97706':'#2563eb'));const lab=d<0?('繳件已過 '+(-d)+' 天'):(d===0?'今天要繳件！':(d===1?'明天要繳件':'還有 '+d+' 天繳件'));remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 ${lab}</span><b>${esc(c.name||'')}</b>${c.school?`<span class="muted">${esc(c.school)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="agency">看客戶</button></div>`);});
   try{const bym=localStorage.getItem('hyc_backup_ym')||'';const nowYm=localToday().slice(0,7);
     if(IS_OWNER&&bym!==nowYm&&(S.students||[]).some(x=>!x.is_test))remRows.push(`<div class="dash-row"><span class="badge" style="background:#fef3c7;color:#92400e;border-color:#92400e55">📦 備份</span><b>這個月還沒備份</b><span class="grow"></span><span class="muted">${bym?('上次備份：'+esc(bym)):'還沒備份過'}</span><button class="btn btn-sm btn-accent" data-act="exportAll">匯出 Excel</button></div>`);}catch(e){}
   const remHtml=remRows.length?remRows.join(''):`<div class="muted" style="padding:8px 2px">目前沒有需要提醒的事項 👍</div>`;
@@ -502,7 +503,8 @@ function agSorted(c){return agLog(c).slice().sort((a,b)=>String(b.date).localeCo
 function agPaidSum(c,ym){const by={};agLog(c).forEach(e=>{if(ym&&String(e.date).slice(0,7)!==ym)return;if(!e.paid)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+(Number(e.fee)||0);});return by;}
 function agDueSum(c){const by={};agLog(c).forEach(e=>{if(e.paid)return;const f=Number(e.fee)||0;if(!f)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});return by;}
 function agIncome(ym){const paid={},due={};agAll().forEach(c=>{itvAddCur(paid,agPaidSum(c,ym));if(!ym)itvAddCur(due,agDueSum(c));});return {paid,due};}
-function agResultMeta(r){return ({submitted:['📮 已送件','#2563eb'],admitted:['✅ 錄取','#16a34a'],rejected:['❌ 未錄取','#dc2626']})[r]||null;}
+function agResultMeta(r){return ({submitted:['📮 已送件','#2563eb'],admitted:['✅ 錄取','#16a34a'],admitted_s:['🎉 錄取・有獎學金','#16a34a'],admitted_n:['✅ 錄取・無獎學金','#0d9488'],rejected:['❌ 未錄取','#dc2626']})[r]||null;}
+function agDeadlineBadge(c){if(!c||!c.deadline)return '';const d=itvDaysTo(c.deadline);if(d==null)return '';const done=(c.status||'active')!=='active';const col=(d<0)?'#dc2626':(d<=7?'#d97706':'#2563eb');const lab=d<0?('已過 '+(-d)+' 天'):(d===0?'今天到期！':(d===1?'明天到期':'還有 '+d+' 天'));return `<span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 繳件期限 ${esc(c.deadline)}${done?'':('（'+lab+'）')}</span>`;}
 function renderAgency(){
   const body=$('#agency-body');if(!body)return;
   const list=agAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;const la=agSorted(a)[0],lb=agSorted(b)[0];return String((lb&&lb.date)||'').localeCompare(String((la&&la.date)||''));});
@@ -522,7 +524,7 @@ function renderAgency(){
         ${done?'<span class="badge">已結案</span>':'<span class="badge badge-ok">進行中</span>'}
         ${c.school?`<span class="tag">🏫 ${esc(c.school)}</span>`:''}
         ${c.phone?`<span class="muted" style="font-size:13px">📞 ${esc(c.phone)}</span>`:''}
-        ${rm?`<span class="badge" style="background:${rm[1]}18;color:${rm[1]};border-color:${rm[1]}55">${rm[0]}</span>`:''}
+        ${rm?`<span class="badge" style="background:${rm[1]}18;color:${rm[1]};border-color:${rm[1]}55">${rm[0]}</span>`:''}${agDeadlineBadge(c)}
         <span class="grow"></span>
         <span class="muted" style="font-size:13px">進度 <b>${lg.length}</b> 筆${paidAll?(' · 已收 '+paidAll):''}${due?(' · 未收 '+due):''}</span>
       </div>
@@ -544,7 +546,8 @@ function agForm(c){c=c||{};
     <div class="field"><label>姓名 *</label><input id="ag-name" type="text" value="${esc(c.name||'')}" placeholder="例：Trần Văn B"></div>
     <div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="ag-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>
     <div class="field full"><label>申請學校／目標 <span class="hint">選填</span></label><input id="ag-school" type="text" value="${esc(c.school||'')}" placeholder="例：台灣師大 語言中心、某某大學碩士"></div>
-    <div class="field"><label>申請結果</label><select id="ag-result"><option value=""${!c.result?' selected':''}>— 進行中 —</option>${rOpt('submitted','📮 已送件、等結果')}${rOpt('admitted','✅ 錄取')}${rOpt('rejected','❌ 未錄取')}</select></div>
+    <div class="field"><label>申請結果</label><select id="ag-result"><option value=""${!c.result?' selected':''}>— 進行中 —</option>${rOpt('submitted','📮 已送件、等結果')}${rOpt('admitted_s','🎉 錄取・有獎學金')}${rOpt('admitted_n','✅ 錄取・無獎學金')}${c.result==='admitted'?rOpt('admitted','✅ 錄取（舊）'):''}${rOpt('rejected','❌ 未錄取')}</select></div>
+    <div class="field"><label>📄 文件繳交期限日 <span class="hint">選填，會在「待辦」提醒</span></label><input id="ag-deadline" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.deadline||'')}"></div>
     <div class="field full"><label>備註 <span class="hint">選填</span></label><input id="ag-note" type="text" value="${esc(c.note||'')}" placeholder="例：總代辦費 800 美元、分兩期收"></div>
   </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="agSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);}
 function agLogForm(key){const p=String(key).split('::');const c=agById(p[0]);if(!c)return;
@@ -2434,7 +2437,7 @@ H.calIncPaused=()=>{const inc=(S.calIncPaused!==false);S.calIncPaused=!inc;rende
 H.agNew=()=>agForm(null);
 H.agEdit=(id)=>agForm(agById(id));
 H.agSave=async(id)=>{const name=($('#ag-name').value||'').trim();if(!name)return toast('請填姓名');
-  const patch={kind:'agency',name,phone:($('#ag-phone').value||'').trim(),school:($('#ag-school').value||'').trim(),result:($('#ag-result')&&$('#ag-result').value)||'',note:($('#ag-note').value||'').trim()};
+  const patch={kind:'agency',name,phone:($('#ag-phone').value||'').trim(),school:($('#ag-school').value||'').trim(),result:($('#ag-result')&&$('#ag-result').value)||'',deadline:(($('#ag-deadline')&&$('#ag-deadline').value)||'')||null,note:($('#ag-note').value||'').trim()};
   try{if(id){await DB.update('lessons',id,patch);}else{patch.status='active';patch.log=[];patch.created_at=new Date().toISOString();await DB.insert('lessons',patch);}
     await loadAll();closeModal();S.tab='agency';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.agToggle=async(id)=>{const c=agById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
