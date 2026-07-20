@@ -2507,6 +2507,19 @@ H.classRollSave=async(cls)=>{const orig=S._rollOrig;S._rollOrig=null;const date=
       return true;});log.push(entry);await DB.update('students',s.id,{class_log:log});s.class_log=log;}
     if(classPlanned(cls).some(p=>p.date===date)){try{await removePlanned(cls,date);}catch(e){}}
     toast('已記錄這一堂並完成點名');classRollModal(cls);render();}catch(e){if(btn){btn.disabled=false;btn.textContent='✅ 記錄這一堂並點名';}toast('失敗：'+((e&&e.message)||e));}};
+function classDatesHtml(cls){const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
+  const map={};
+  members.forEach(s=>(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date)return;const k=e.date+'|'+(e.start||'')+'|'+(e.end||'');const c=(map[k]=map[k]||{date:e.date,start:e.start||'',end:e.end||'',att:0,leave:0,absent:0,free:false,note:'',video:''});if(e.status==='leave')c.leave++;else if(e.status==='absent')c.absent++;else c.att++;if(e.free)c.free=true;if(e.note&&!c.note)c.note=e.note;if(e.video&&!c.video)c.video=e.video;}));
+  const days=Object.keys(map).map(k=>map[k]).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.start).localeCompare(String(a.start)));
+  if(!days.length)return `<div class="card" style="margin-bottom:16px"><h3 style="margin:0 0 6px">🗓 上課日期</h3><div class="hint">還沒有上課記錄。按上面「🗓 上課點名」記錄第一堂。</div></div>`;
+  // 依月份分組
+  const byM={},order=[];days.forEach(d=>{const mk=String(d.date).slice(0,7);if(!byM[mk]){byM[mk]=[];order.push(mk);}byM[mk].push(d);});
+  const rowHtml=(c)=>{const wd=c.date?DAYS[(new Date(c.date+'T00:00:00').getDay()+6)%7]:'';const tm=(c.start&&c.end)?(esc(c.start)+'–'+esc(c.end)):'';const fb=c.free?' <span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed55">🎁 免費</span>':'';const vb=c.video?` <a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;text-decoration:none" href="${esc(c.video)}" target="_blank" rel="noopener">🎬 影片</a>`:'';
+    return `<div class="dash-row" style="flex-wrap:wrap"><b>${esc(c.date)}</b>${wd?`<span class="muted" style="font-size:12px">（${wd}）</span>`:''}${tm?`<span class="badge badge-pending">${tm}</span>`:''}${fb}${vb}${c.att?`<span class="badge badge-ok">出席 ${c.att}</span>`:''}${c.leave?`<span class="badge badge-soon">請假 ${c.leave}</span>`:''}${c.absent?`<span class="badge badge-overdue">缺席 ${c.absent}</span>`:''}${c.note?`<span class="muted" style="margin-left:4px">${esc(c.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm" data-act="editClassDay" data-id="${esc(cls)+'::'+esc(c.date)+'::'+esc(c.start||'')+'::'+esc(c.end||'')}">✏️ 修改</button></div>`;};
+  const newest=order[0];
+  const groups=order.map(mk=>{const items=byM[mk];const label=mk.split('-')[0]+' 年 '+String(Number(mk.split('-')[1]))+' 月';const open=(mk===newest)?' open':'';
+    return `<details${open} style="margin-bottom:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px"><summary style="cursor:pointer;font-weight:600;color:var(--primary);list-style-position:inside">${label} <span class="tag">${items.length} 堂</span></summary><div style="margin-top:6px">${items.map(rowHtml).join('')}</div></details>`;}).join('');
+  return `<div class="card" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0">🗓 上課日期</h3><span class="tag">共 ${days.length} 堂</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="classRoll" data-id="${esc(cls)}">＋ 上課點名</button></div>${groups}</div>`;}
 function renderClassView(cls){
   const tabs=document.querySelector('.tabs');if(tabs)tabs.classList.add('hide');
   document.querySelectorAll('.panel').forEach(p=>p.classList.add('hide'));
@@ -2526,6 +2539,7 @@ function renderClassView(cls){
       <button class="btn" data-act="classRefresh" data-id="${esc(cls)}">↻ 重新整理</button></div>
     <div class="meta" style="margin:2px 0 16px"><span>👤 ${members.length} 位學生</span>${sched?`<span>🕒 ${esc(sched)}</span>`:''}${cm.textbook?`<span>📖 ${esc(cm.textbook)}</span>`:''}<span>📚 整班發佈 ${pubN} 課</span></div>
     <div class="card" style="margin-bottom:16px"><h3 style="margin:0 0 10px">👥 學生名單</h3><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:6px 9px;color:var(--primary)">姓名</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">Email</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">作業完成</th></tr></thead><tbody>${roster}</tbody></table></div>
+    ${classDatesHtml(cls)}
     <h3>📚 上課內容 ＆ 繳交狀況</h3>${classBoardHtml(cls)}`;
 }
 function publishModal(cls){const lessons=sortLessons(S.lessons);
