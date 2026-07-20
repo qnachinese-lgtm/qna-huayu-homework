@@ -166,7 +166,7 @@ function sessionsUsed(s){
     cur.setDate(cur.getDate()+1);}
   return count;}
 /* 按小時計費：從時段算出時數（1.5 小時＝1.5）；沒填時段就當 1 小時 */
-function logHours(e){if(!e||!e.start||!e.end)return null;const p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};const m=p(e.end)-p(e.start);return m>0?Math.round(m/60*100)/100:null;}
+function logHours(e){if(!e||!e.start||!e.end)return null;const p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};let m=p(e.end)-p(e.start);if(m<0)m+=1440;/* 跨午夜：如 22:00–00:00 */return m>0?Math.round(m/60*100)/100:null;}
 function isHourly(s){return !!(s&&s.fee_unit==='hour');}
 function unitLabel(s){return isHourly(s)?'小時':'堂';}
 function fmtQty(n){if(n==null)return '—';const r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}
@@ -2518,7 +2518,7 @@ H.rollEdit=(key)=>{const cls=S._rollCls;const members=S.students.filter(s=>stuGr
   toast('已載入 '+date+(kS?(' '+kS):'')+' 這一堂，改好後按「記錄這一堂並點名」即可更新');
   const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;};
 H.classRollSave=async(cls)=>{const orig=S._rollOrig;S._rollOrig=null;const date=$('#roll-date').value;if(!date)return toast('請選上課日期');
-  if(date>localToday()&&!confirm('你填的日期 '+date+' 還沒到（今天是 '+localToday()+'）。\n確定要記錄成已上課嗎？'))return;const start=($('#roll-start')&&$('#roll-start').value)||'';const end=($('#roll-end')&&$('#roll-end').value)||'';if(start&&end&&end<=start)return toast('結束時間要晚於開始時間，請重新確認時段');const note=($('#roll-note')&&$('#roll-note').value||'').trim();const video=($('#roll-video')&&$('#roll-video').value||'').trim();const free=!!($('#roll-free')&&$('#roll-free').checked);
+  if(date>localToday()&&!confirm('你填的日期 '+date+' 還沒到（今天是 '+localToday()+'）。\n確定要記錄成已上課嗎？'))return;const start=($('#roll-start')&&$('#roll-start').value)||'';const end=($('#roll-end')&&$('#roll-end').value)||'';if(start&&end){const _p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};let _mm=_p(end)-_p(start);if(_mm<0)_mm+=1440;/* 允許跨午夜 */if(_mm===0)return toast('結束時間不能和開始時間一樣，請重新確認時段');}const note=($('#roll-note')&&$('#roll-note').value||'').trim();const video=($('#roll-video')&&$('#roll-video').value||'').trim();const free=!!($('#roll-free')&&$('#roll-free').checked);
   const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);if(!members.length)return toast('這個團班還沒有成員');
   const btn=document.querySelector('[data-act="classRollSave"]');if(btn){btn.disabled=true;btn.textContent='記錄中…';}
   try{for(const s of members){const sg=document.querySelector('#roll-list .roll-seg[data-sid="'+s.id+'"]');const onB=sg&&sg.querySelector('button.on');const st=(onB&&onB.dataset.st)||'attended';const entry={date,status:st,free,start,end,note,video};const log=(Array.isArray(s.class_log)?s.class_log.slice():[]).filter(e=>{if(!e)return false;
