@@ -43,7 +43,7 @@
 
     <div class="container">
       <div class="tabs">
-        <button class="tab" data-act="tab" data-id="dashboard">📋 待辦</button>
+        <button class="tab" data-act="tab" data-id="dashboard">📋 總覽</button>
         <button class="tab" data-act="tab" data-id="students">學生名冊 <span class="count" id="c-students">0</span></button>
         <button class="tab" data-act="tab" data-id="calendar">📅 課表</button>
         <button class="tab" data-act="tab" data-id="lessons">📚 上課教材 <span class="count" id="c-lessons">0</span></button>
@@ -359,7 +359,24 @@ function renderDashboard(){
     if(IS_OWNER&&bym!==nowYm&&(S.students||[]).some(x=>!x.is_test))remRows.push(`<div class="dash-row"><span class="badge" style="background:#fef3c7;color:#92400e;border-color:#92400e55">📦 備份</span><b>這個月還沒備份</b><span class="grow"></span><span class="muted">${bym?('上次備份：'+esc(bym)):'還沒備份過'}</span><button class="btn btn-sm btn-accent" data-act="exportAll">匯出 Excel</button></div>`);}catch(e){}
   const remHtml=remRows.length?remRows.join(''):`<div class="muted" style="padding:8px 2px">目前沒有需要提醒的事項 👍</div>`;
   const todoN=inbox.length+remRows.length;
-  body.innerHTML=`${healthCheckHtml()}<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
+  // 總覽數字卡：本月收入／尚未收款／待批改／待辦／堂數快用完
+  const _thisM=localToday().slice(0,7);
+  const _monCur={};S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{const amt=Number(p.amount)||0;if(!amt)return;if(((p.date||'').slice(0,7))!==_thisM)return;const cur=p.currency||s.currency||'TWD';_monCur[cur]=(_monCur[cur]||0)+amt;});});
+  const _itvNow=itvIncome(_thisM),_agNow=agIncome(_thisM);
+  const _totNow=itvAddCur(itvAddCur(Object.assign({},_monCur),_itvNow.paid),_agNow.paid);
+  const _dueAll=itvAddCur(Object.assign({},itvIncome(null).due),agIncome(null).due);
+  const _moneyStr=(o)=>{const ks=Object.keys(o).filter(k=>o[k]);return ks.length?ks.map(c=>money(o[c],c)).join(' ＋ '):'—';};
+  const _hasDue=Object.keys(_dueAll).filter(k=>_dueAll[k]).length>0;
+  const _needRenew=lowSess.filter(x=>x.left!=null&&x.left<=0).length;
+  const _statCard=(icon,label,val,color,act)=>`<div class="card" style="flex:1 1 150px;min-width:140px;margin:0;padding:12px 14px${act?';cursor:pointer':''}"${act?` data-act="tab" data-id="${act}"`:''}><div class="muted" style="font-size:12px">${icon} ${label}</div><b style="font-size:21px;color:${color};display:block;margin-top:2px">${val}</b></div>`;
+  const statHtml=`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">`+
+    _statCard('💰','本月收入',_moneyStr(_totNow),'#16a34a','ops')+
+    _statCard('💳','尚未收款',_moneyStr(_dueAll),_hasDue?'#d97706':'#94a3b8','ops')+
+    _statCard('📥','待批改',inbox.length+' 份',inbox.length?'#2563eb':'#94a3b8','grades')+
+    _statCard('⏰','待辦提醒',remRows.length+' 件',remRows.length?'#7c3aed':'#94a3b8')+
+    _statCard('🎟️','堂數快用完',lowSess.length+' 位'+(_needRenew?('　'+_needRenew+' 需續費'):''),lowSess.length?'#dc2626':'#94a3b8')+
+    `</div>`;
+  body.innerHTML=`${statHtml}${healthCheckHtml()}<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
     <details class="dash-fold" open style="margin-top:14px"><summary>⏰ 提醒（堂數／補課）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>
     <details class="dash-fold" style="margin-top:14px"><summary>📝 隨堂小考${(S.quizzes||[]).length?'（'+(S.quizzes||[]).length+'）':''}</summary>
       <div class="quiz-create-row" style="margin-top:10px"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button><span class="muted">選一課的生詞，指派學生做聽寫，自動計分</span></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):''}</details>
