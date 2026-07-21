@@ -676,10 +676,58 @@ function wrongQuestions(){const out=[],seen=new Set();
   S.results.forEach(r=>{if(r.status==='draft')return;const ans=r.answers||{};Object.keys(ans).forEach(qid=>{if(seen.has(qid))return;const q=S.questions.find(x=>x.id===qid);if(q&&!isManualQ(q)&&!isCorrect(q,ans[qid])){out.push(q);seen.add(qid);}});});
   return out;}
 function myUid(){return (window.firebase&&firebase.auth&&firebase.auth().currentUser)?firebase.auth().currentUser.uid:((S.me&&S.me.uid)||null);}
+/* ===== 🎮 即時比賽 學生作答端 ===== */
+var SLQ={sess:null,id:null,unsub:null,code:null,answered:{},playId:null};
+function slqFS(){return firebase.firestore();}
+function slqBox(){var b=document.getElementById('slq');if(!b){b=document.createElement('div');b.id='slq';b.style.cssText='position:fixed;inset:0;z-index:99999;background:#1a1730;color:#fff;overflow:auto;display:none;font-family:inherit';document.body.appendChild(b);}return b;}
+SLQ.join=async function(){
+  if(S.preview){alert('預覽模式無法加入比賽。');return;}
+  var code=(prompt('輸入老師給的比賽代碼：')||'').trim();
+  if(!/^\d{4,8}$/.test(code)){if(code)alert('代碼格式不對（應為數字）。');return;}
+  try{
+    var snap=await slqFS().collection('lessons').where('code','==',code).where('kind','==','livesession').limit(1).get();
+    if(snap.empty){alert('找不到這個代碼的比賽，請確認老師已建立。');return;}
+    var doc=snap.docs[0];SLQ.id=doc.id;SLQ.code=code;SLQ.answered={};
+    var name=(S.me&&S.me.name)||'學生';var uid=myUid()||('g'+Math.random().toString(16).slice(2));
+    SLQ.playId=code+'_'+uid;
+    await slqFS().collection('results').doc(SLQ.playId).set({kind:'liveplay',code:code,uid:uid,name:name,joined_at:new Date().toISOString(),created_at:new Date().toISOString()},{merge:true});
+    slqBox().style.display='block';document.body.style.overflow='hidden';
+    SLQ.unsub=slqFS().collection('lessons').doc(SLQ.id).onSnapshot(function(d){SLQ.sess=d.exists?d.data():null;slqRender();});
+  }catch(e){alert('加入失敗：'+((e&&e.message)||e));}
+};
+SLQ.answer=async function(i){
+  var s=SLQ.sess;if(!s||s.status!=='q')return;var qi=s.qi;if(SLQ.answered[qi]!=null)return;
+  SLQ.answered[qi]=i;
+  var ms=Math.max(0,Date.now()-(s.q_start||Date.now()));
+  slqRender();
+  try{var am={};am[qi]={o:i,ms:ms};await slqFS().collection('results').doc(SLQ.playId).set({answers:am},{merge:true});}catch(e){}
+};
+SLQ.close=function(){try{if(SLQ.unsub)SLQ.unsub();}catch(e){}slqBox().style.display='none';document.body.style.overflow='';SLQ.sess=null;};
+function slqRender(){
+  var b=slqBox();var s=SLQ.sess;var C=['#e21b3c','#1368ce','#d89e00','#26890c'];var SH=['▲','◆','●','■'];
+  var close='<div style="text-align:right;padding:10px 16px"><button onclick="SLQ.close()" style="background:#ffffff22;color:#fff;border:0;border-radius:8px;padding:6px 12px;cursor:pointer">✕ 離開</button></div>';
+  if(!s){b.innerHTML=close+'<div style="text-align:center;padding:40px">比賽已結束或找不到。</div>';return;}
+  var body='';
+  if(s.status==='lobby'){body='<div style="text-align:center;padding:44px"><div style="font-size:48px;margin-bottom:10px">🎮</div><div style="font-size:22px;font-weight:700">已加入！</div><div style="opacity:.75;margin-top:8px">代碼 '+esc(s.code||'')+'　·　等老師開始…</div></div>';}
+  else if(s.status==='q'||s.status==='reveal'){
+    var q=s.q||{};var qi=s.qi;var my=SLQ.answered[qi];var rev=s.status==='reveal';var correct=s.reveal;
+    if(!rev){
+      if(my==null){body='<div style="padding:16px;max-width:700px;margin:0 auto"><div style="opacity:.7">第 '+(qi+1)+' 題</div><div style="font-size:22px;font-weight:700;margin:14px 0;white-space:pre-line;line-height:1.5">'+esc(q.t||'')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+(q.opts||[]).map(function(o,i){return '<button onclick="SLQ.answer('+i+')" style="background:'+C[i]+';color:#fff;border:0;padding:22px;border-radius:12px;font-size:20px;font-weight:700;cursor:pointer">'+SH[i]+' '+esc(o)+'</button>';}).join('')+'</div></div>';}
+      else{body='<div style="text-align:center;padding:50px"><div style="font-size:44px">'+SH[my]+'</div><div style="font-size:22px;font-weight:700;margin-top:10px">已作答！</div><div style="opacity:.7;margin-top:6px">等其他人和老師…</div></div>';}
+    } else {
+      var ok=(my!=null&&my===correct);
+      body='<div style="text-align:center;padding:40px"><div style="font-size:56px">'+(ok?'🎉':(my==null?'⏰':'😅'))+'</div><div style="font-size:24px;font-weight:800;margin-top:10px">'+(ok?'答對了！':(my==null?'沒作答':'答錯了'))+'</div><div style="margin-top:14px;opacity:.9">正確答案：'+SH[correct]+' '+esc((q.opts||[])[correct]||'')+'</div></div>';
+    }
+  } else if(s.status==='end'){
+    body='<div style="text-align:center;padding:50px"><div style="font-size:48px">🏆</div><div style="font-size:24px;font-weight:800;margin-top:10px">比賽結束！</div><div style="opacity:.75;margin-top:8px">看老師畫面的最終排名 😊</div><button onclick="SLQ.close()" style="background:#26890c;color:#fff;border:0;border-radius:12px;padding:12px 30px;margin-top:20px;cursor:pointer">完成</button></div>';
+  }
+  b.innerHTML=close+body;
+}
+
 async function loadMine(){const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);
   const u=myUid();
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
-  S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;
+  S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz');S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;
   splitResults(rAll);}
 function splitResults(rAll){rAll=rAll||[];S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');}
 function hwvDocOf(lid,word){return (S.hwvs||[]).find(x=>x.hwv_lesson===lid&&x.hwv_word===word)||null;}
@@ -809,10 +857,11 @@ function renderWork(){
   // 公告
   const anns=(S.announcements||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).slice(0,3);
   const annCard=anns.length?'<div class="ann-card"><div class="ann-h">📢 公告 Notice</div>'+anns.map(a=>'<div class="ann-item"><span class="ann-date">'+esc((a.created_at||'').slice(0,10))+'</span>'+esc(a.text||'')+'</div>').join('')+'</div>':'';
+  const liveJoinCard=S.preview?'':'<div class="ann-card" style="cursor:pointer;background:linear-gradient(135deg,#eef2ff,#fce7f3)" onclick="SLQ.join()"><div class="ann-h">🎮 加入即時比賽 Live Quiz</div><div class="ann-item">老師開始後，點這裡輸入代碼一起玩！</div></div>';
   // 課後小結（老師寫的上課記錄備註）
   const notes=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).filter(e=>e&&e.note&&e.note.trim()).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3);
   const noteCard=notes.length?'<div class="note-card"><div class="ann-h">📝 課後小結 Class notes</div>'+notes.map(n=>'<div class="ann-item"><span class="ann-date">'+esc(n.date||'')+'</span>'+esc(n.note||'')+'</div>').join('')+'</div>':'';
-  $('#screen').innerHTML=banner+badgeStrip+annCard+meetCard+classUpcomingHtml()+calCard+noteCard+sessCard+classDaysHtml()+nb+submittedWorkHtml()+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
+  $('#screen').innerHTML=banner+badgeStrip+liveJoinCard+annCard+meetCard+classUpcomingHtml()+calCard+noteCard+sessCard+classDaysHtml()+nb+submittedWorkHtml()+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
@@ -1764,7 +1813,7 @@ function showGate(msg){S.me=null;$('#app').classList.add('hide');$('#gate').clas
 const PREVIEW_LID=new URLSearchParams(location.search).get('preview');
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
-  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');S.quizzes=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];S.hwvs=[];
+  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz');S.quizzes=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];S.hwvs=[];
   const lesson=l.find(x=>x.id===lid);if(!lesson){$('#screen').innerHTML=emptyHtml('⚠️','找不到這一課','請回教師頁重新開啟預覽。');return;}
   S.section='content';$('#screen').dataset.mode='';
   const ttl=(lesson.order_index?('L'+lesson.order_index+' · '):'')+lesson.title;

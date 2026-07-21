@@ -234,7 +234,7 @@ async function loadAll(){
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
     DB.list('lessons'),DB.list('questions'),DB.list('results')]);
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&!x.deleted_at);S.interviews=b.filter(x=>x.kind==='interview'&&!x.deleted_at);S.inquiries=b.filter(x=>x.kind==='inquiry'&&!x.deleted_at);S.agencies=b.filter(x=>x.kind==='agency'&&!x.deleted_at);S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&!x.deleted_at);S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.interviews=b.filter(x=>x.kind==='interview'&&!x.deleted_at);S.inquiries=b.filter(x=>x.kind==='inquiry'&&!x.deleted_at);S.agencies=b.filter(x=>x.kind==='agency'&&!x.deleted_at);S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
   splitResults(d);
   {const cut=Date.now()-7*864e5;(S.trashStudents||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('students',x.id).catch(()=>{});});(S.trashLessons||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('lessons',x.id).catch(()=>{});});}
   if(!owner){
@@ -387,6 +387,7 @@ function renderDashboard(){
     <details class="dash-fold" open style="margin-top:14px"><summary>⏰ 提醒（堂數／補課）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>
     <details class="dash-fold" style="margin-top:14px"><summary>📝 隨堂小考${(S.quizzes||[]).length?'（'+(S.quizzes||[]).length+'）':''}</summary>
       <div class="quiz-create-row" style="margin-top:10px"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button><span class="muted">選一課的生詞，指派學生做聽寫，自動計分</span></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):''}</details>
+    <details class="dash-fold" style="margin-top:14px"><summary>🎮 即時比賽（Kahoot 式）${(S.livequizzes||[]).length?'（'+(S.livequizzes||[]).length+'）':''}</summary><div style="margin-top:10px"><div class="hint" style="margin-bottom:8px">學生登入後在首頁用代碼加入，你一題一題推、即時排行榜。</div>${(S.livequizzes||[]).map(l=>`<div class="dash-row"><b>${esc(l.title)}</b><span class="muted">${(l.questions||[]).length} 題</span>${l.answers_verified?'':'<span class="badge badge-soon">答案待確認</span>'}<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="liveHost" data-id="${l.id}">▶ 主持比賽</button></div>`).join('')||'<div class="hint">目前沒有即時比賽題庫。</div>'}</div></details>
     <details class="dash-fold" style="margin-top:14px"><summary>📈 學生進度</summary><div style="margin-top:10px">${progHtml}</div></details>`;
 }
 
@@ -1692,6 +1693,40 @@ H.resDel=async(key)=>{const [id,idx]=key.split('::');const l=S.lessons.find(x=>x
 
 H.canned=(tgt,b)=>{const ta=document.getElementById(tgt);if(!ta)return;const t=(b&&b.dataset.t)||'';ta.value=(ta.value.trim()?ta.value.replace(/\s*$/,'')+'　':'')+t;ta.focus();};
 H.tab=(id)=>{S.tab=id;render();};
+/* ===== 🎮 即時比賽 主持端 ===== */
+function lqFS(){return firebase.firestore();}
+var LQ=null;
+function lqBox(){var b=document.getElementById('lq-host');if(!b){b=document.createElement('div');b.id='lq-host';b.style.cssText='position:fixed;inset:0;z-index:99999;background:#1a1730;color:#fff;overflow:auto;font-family:inherit;display:none';document.body.appendChild(b);}return b;}
+H.liveHost=async(quizId)=>{
+  const quiz=(S.livequizzes||[]).find(x=>x.id===quizId);if(!quiz)return toast('找不到題庫');
+  const code=String(Math.floor(100000+Math.random()*900000));
+  let ins;try{ins=await DB.insert('lessons',{kind:'livesession',code,host_uid:((firebase.auth().currentUser||{}).uid)||'',title:quiz.title,status:'lobby',qi:-1,n:quiz.questions.length,q:null,reveal:null,q_start:0});}catch(e){return toast('建立比賽失敗：'+((e&&e.message)||e));}
+  LQ={id:ins.id,code,quiz,players:{},scores:[],status:'lobby',qi:-1};
+  lqBox().style.display='block';document.body.style.overflow='hidden';
+  LQ.unsub=lqFS().collection('results').where('code','==',code).onSnapshot(function(s){const ps={};s.forEach(function(d){const x=d.data();if(x.kind==='liveplay')ps[d.id]=x;});LQ.players=ps;lqScore();lqRender();});
+  lqRender();
+};
+async function lqSet(patch){if('status'in patch)LQ.status=patch.status;if('qi'in patch)LQ.qi=patch.qi;try{await DB.update('lessons',LQ.id,patch);}catch(e){toast('同步失敗：'+((e&&e.message)||e));}lqRender();}
+H.lqStart=function(){lqQ(0);};
+async function lqQ(i){const q=LQ.quiz.questions[i];await lqSet({status:'q',qi:i,q:{n:q.n,t:q.t,opts:q.opts},reveal:null,q_start:Date.now()});}
+H.lqReveal=function(){const q=LQ.quiz.questions[LQ.qi];lqSet({status:'reveal',reveal:q.correct});};
+H.lqNext=function(){if(LQ.qi+1>=LQ.quiz.questions.length)lqSet({status:'end'});else lqQ(LQ.qi+1);};
+H.lqClose=async function(){try{if(LQ&&LQ.unsub)LQ.unsub();if(LQ)await DB.remove('lessons',LQ.id);}catch(e){}lqBox().style.display='none';document.body.style.overflow='';LQ=null;};
+function lqScore(){if(!LQ)return;const qs=LQ.quiz.questions;const sc=[];Object.keys(LQ.players).forEach(function(k){const p=LQ.players[k];let s=0;qs.forEach(function(q,i){const a=(p.answers||{})[i];if(a&&a.o===q.correct){const bonus=Math.max(0,1-((a.ms||0)/20000));s+=Math.round(500+500*bonus);}});sc.push({name:p.name||'學生',score:s});});sc.sort(function(a,b){return b.score-a.score;});LQ.scores=sc;}
+function lqRender(){if(!LQ)return;const b=lqBox();const C=['#e21b3c','#1368ce','#d89e00','#26890c'];const SH=['▲','◆','●','■'];const players=Object.keys(LQ.players).map(function(k){return LQ.players[k];});
+  const head='<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px"><b style="font-size:18px">🎮 '+esc(LQ.quiz.title)+'</b><button onclick="H.lqClose()" style="background:#ffffff22;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer">✕ 結束</button></div>';
+  let body='';
+  if(LQ.status==='lobby'){
+    body='<div style="text-align:center;padding:20px"><div style="font-size:18px;opacity:.8">學生用這個代碼加入</div><div style="font-size:64px;font-weight:800;letter-spacing:8px;margin:14px 0">'+LQ.code+'</div><div style="opacity:.7;margin-bottom:18px">學生登入 → 首頁 →「🎮 加入即時比賽」→ 輸入代碼</div><div style="font-size:18px;margin-bottom:10px">已加入 <b>'+players.length+'</b> 人</div><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:700px;margin:0 auto 24px">'+(players.map(function(p){return '<span style="background:#ffffff1a;padding:8px 14px;border-radius:20px">'+esc(p.name||'學生')+'</span>';}).join('')||'<span style="opacity:.6">等待學生加入…</span>')+'</div><button onclick="H.lqStart()" '+(players.length?'':'disabled')+' style="background:#26890c;color:#fff;border:0;border-radius:12px;padding:16px 40px;font-size:20px;font-weight:700;cursor:pointer;'+(players.length?'':'opacity:.5')+'">▶ 開始比賽</button></div>';
+  } else if(LQ.status==='q'||LQ.status==='reveal'){
+    const q=LQ.quiz.questions[LQ.qi];const rev=LQ.status==='reveal';const answered=players.filter(function(p){return (p.answers||{})[LQ.qi]!=null;}).length;const dist=[0,0,0,0];players.forEach(function(p){const a=(p.answers||{})[LQ.qi];if(a&&a.o!=null)dist[a.o]++;});
+    body='<div style="padding:0 20px 24px;max-width:900px;margin:0 auto"><div style="opacity:.7">第 '+(LQ.qi+1)+' / '+LQ.quiz.questions.length+' 題　·　已作答 '+answered+'/'+players.length+' 人</div><div style="font-size:26px;font-weight:700;margin:16px 0;white-space:pre-line;line-height:1.5">'+esc(q.t)+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+q.opts.map(function(o,i){return '<div style="background:'+C[i]+';'+(rev&&i!==q.correct?'opacity:.35;':'')+'padding:18px;border-radius:12px;font-size:20px;font-weight:600;display:flex;align-items:center;gap:10px">'+SH[i]+' '+esc(o)+(rev?'<span style="margin-left:auto">'+(i===q.correct?'✅ ':'')+dist[i]+'人</span>':'')+'</div>';}).join('')+'</div><div style="text-align:center;margin-top:22px">'+(rev?'<button onclick="H.lqNext()" style="background:#1368ce;color:#fff;border:0;border-radius:12px;padding:14px 36px;font-size:18px;font-weight:700;cursor:pointer">'+(LQ.qi+1>=LQ.quiz.questions.length?'看最終排名 →':'下一題 →')+'</button>':'<button onclick="H.lqReveal()" style="background:#d89e00;color:#fff;border:0;border-radius:12px;padding:14px 36px;font-size:18px;font-weight:700;cursor:pointer">看答案 &amp; 排行 →</button>')+'</div>'+(rev?'<div style="margin-top:24px"><div style="opacity:.7;margin-bottom:8px">🏆 目前排行</div>'+(LQ.scores.slice(0,5).map(function(r,i){return '<div style="display:flex;justify-content:space-between;background:#ffffff12;padding:10px 16px;border-radius:8px;margin-bottom:6px"><span>'+(i+1)+'. '+esc(r.name)+'</span><b>'+r.score+'</b></div>';}).join('')||'<div style="opacity:.6">還沒有人作答</div>')+'</div>':'')+'</div>';
+  } else if(LQ.status==='end'){
+    body='<div style="text-align:center;padding:20px"><div style="font-size:30px;font-weight:800;margin-bottom:20px">🏆 最終排名</div><div style="max-width:600px;margin:0 auto">'+(LQ.scores.map(function(r,i){return '<div style="display:flex;justify-content:space-between;background:'+(i===0?'#d89e00':'#ffffff12')+';padding:14px 20px;border-radius:10px;margin-bottom:8px;font-size:'+(i===0?'22px':'18px')+'"><span>'+(['🥇','🥈','🥉'][i]||(i+1+'.'))+' '+esc(r.name)+'</span><b>'+r.score+'</b></div>';}).join('')||'<div style="opacity:.6">沒有作答資料</div>')+'</div><button onclick="H.lqClose()" style="background:#26890c;color:#fff;border:0;border-radius:12px;padding:14px 36px;font-size:18px;margin-top:24px;cursor:pointer">完成</button></div>';
+  }
+  b.innerHTML=head+body;
+}
+
 H.reviewSent=(id)=>{const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
   const l=S.lessons.find(x=>x.id===sd.sent_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
