@@ -678,6 +678,7 @@ function renderCalLedger(body,toggle){
         ${(function(){const sg=suggestNext(s);return sg?`<button class="btn btn-sm btn-accent" data-act="planClass" data-id="S:${esc(s.id)}::${esc(sg.date)}">📌 預排下次（建議 ${esc(sg.date.slice(5))} ${sg.wd}${sg.start?(' '+esc(sg.start)):''}）</button>`:`<button class="btn btn-sm" data-act="planClass" data-id="${s.class_type==='團班'?esc(stuGroups(s)[0]||''):('S:'+s.id)}">📌 預排上課</button>`;})()}
         <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">📝 上課記錄（改日期）</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
+        <button class="btn btn-sm" data-act="billStatement" data-id="${s.id}">🧾 對帳單</button>
         <button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒訊息</button>
         ${(r.due&&r.due.cls!=='badge-overdue')?`<span style="margin-left:auto"><span class="muted" style="font-size:12px">下次繳費：</span><span class="badge ${r.due.cls}">${r.due.label}</span></span>`:''}
       </div>
@@ -2005,6 +2006,46 @@ H.guideCard=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const e=(t
    +'<h3>Cách dùng（Tiếng Việt）</h3>'+blk(vi)
    +'</body></html>';
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
+H.billStatement=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;
+  const ym=S.calMonth||localToday().slice(0,7);const [Y,M]=ym.split('-');
+  const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const org=window.APP_NAME||'QNA CHINESE';const cur=s.currency||'TWD';const hourly=isHourly(s);
+  const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date&&String(e.date).slice(0,7)===ym).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  let should=0;
+  const rows=log.map(e=>{const wd=DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7];const tm=(e.start||e.end)?((e.start||'')+(e.end?'–'+e.end:'')):'';
+    const leave=e.status==='leave';const free=!!e.free;
+    let qty=0,amt=0;if(leave){qty=0;amt=0;}else if(free){qty=hourly?(logHours(e)||1):1;amt=0;}else{qty=hourly?(logHours(e)||1):1;const f=lessonFee(s,e);amt=(f==null?0:f);should+=amt;}
+    const stat=leave?'請假':(free?'🎁 免費':'出席');
+    return '<tr><td>'+e2(e.date)+'（'+wd+'）</td><td>'+e2(tm||'—')+'</td><td class="c">'+(leave?'—':fmtQty(qty)+' '+unitLabel(s))+'</td><td class="c">'+stat+'</td><td class="r">'+((leave||free)?'—':money(amt,cur))+'</td></tr>';}).join('')||'<tr><td colspan="5" class="c" style="color:#999">本月沒有上課記錄</td></tr>';
+  const monthPays=(s.payments||[]).filter(p=>p&&String(p.date).slice(0,7)===ym);
+  const paidThis=monthPays.reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const payRows=monthPays.map(p=>'<tr><td>'+e2(p.date)+'</td><td>'+e2(p.note||'繳費')+'</td><td class="r">'+money(p.amount,p.currency||cur)+'</td></tr>').join('')||'<tr><td colspan="3" class="c" style="color:#999">本月沒有繳費紀錄</td></tr>';
+  const gap=Math.round((should-paidThis)*100)/100;
+  const gapTxt=Math.abs(gap)<0.01?'<span style="color:#16a34a">✅ 本月結清</span>':(gap>0?'<span style="color:#dc2626">尚需補收 '+money(gap,cur)+'</span>':'<span style="color:#2563eb">本月預繳 '+money(-gap,cur)+'</span>');
+  const left=sessionsLeft(s);const price=(s.tuition==null||s.tuition==='')?'—':(money(s.tuition,cur)+(hourly?' / 小時':' / 堂'));
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>對帳單 '+e2(s.name)+' '+e2(ym)+'</title><style>'
+    +'body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;color:#1a1a1a;max-width:640px;margin:0 auto;padding:34px}'
+    +'.bar{border-bottom:1px solid #ccc;padding-bottom:10px;margin-bottom:20px}.bar button{font-size:14px;padding:8px 14px;border:0;background:#a12a40;color:#fff;border-radius:8px;cursor:pointer}'
+    +'h1{font-size:22px;margin:0;color:#a12a40}.sub{color:#777;font-size:13px;margin:2px 0 18px}'
+    +'.meta{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:14px;margin-bottom:18px}.meta b{color:#a12a40}'
+    +'table{width:100%;border-collapse:collapse;margin:8px 0 18px;font-size:14px}th,td{padding:8px 6px;border-bottom:1px solid #eee;text-align:left}th{color:#666;font-weight:600;border-bottom:2px solid #ddd}.c{text-align:center}.r{text-align:right}'
+    +'.tot{display:flex;justify-content:space-between;padding:8px 0;font-size:15px}.tot.big{font-size:18px;font-weight:800;border-top:2px solid #ddd;margin-top:6px;padding-top:12px}'
+    +'.sec{font-weight:700;margin:20px 0 4px;color:#333}.foot{margin-top:26px;color:#aaa;font-size:12px}'
+    +'@media print{.bar{display:none}body{padding:6px}}</style></head><body>'
+    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button></div>'
+    +'<h1>'+e2(org)+'</h1><div class="sub">繳費對帳單 Statement · '+e2(Y)+' 年 '+e2(Number(M))+' 月</div>'
+    +'<div class="meta"><span><b>學生</b> '+e2(s.name)+'</span><span><b>教材</b> '+e2(s.textbook||'—')+'</span><span><b>計費</b> '+price+'</span></div>'
+    +'<div class="sec">📅 本月上課</div>'
+    +'<table><thead><tr><th>日期</th><th>時段</th><th class="c">時數/堂</th><th class="c">狀態</th><th class="r">金額</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    +'<div class="sec">💰 本月繳費</div>'
+    +'<table><thead><tr><th>日期</th><th>項目</th><th class="r">金額</th></tr></thead><tbody>'+payRows+'</tbody></table>'
+    +'<div class="tot"><span>本月應收</span><span>'+money(should,cur)+'</span></div>'
+    +'<div class="tot"><span>本月實收</span><span>'+money(paidThis,cur)+'</span></div>'
+    +'<div class="tot big"><span>本月結餘</span><span>'+gapTxt+'</span></div>'
+    +(left!=null?'<div class="tot" style="color:#666;font-size:13px;margin-top:10px"><span>目前剩餘</span><span>'+fmtQty(left)+' '+unitLabel(s)+(left<=0?'（需續費）':'')+'</span></div>':'')
+    +'<div class="foot">開立時間 '+new Date().toLocaleString()+'　·　本對帳單依實際上課記錄與繳費紀錄產生</div></body></html>';
+  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
+
 H.printWorksheet=(lid)=>{const l=S.lessons.find(x=>x.id===lid);if(!l)return;const qs=sortQuestionsLogical(questionsOf(lid));
   const e2=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   let secKey=null,secN=0,body='';
