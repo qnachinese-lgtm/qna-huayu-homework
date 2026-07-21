@@ -941,12 +941,12 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
      <div class="field"><label>幣別</label><select id="f-cur"><option value="TWD"${(st.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${st.currency==='VND'?' selected':''}>越南盾 ₫</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
      ${st.id?`<div class="field full" style="background:#f8fafc;border-radius:8px;padding:10px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>🎟️ 目前 ${st.class_type==='團班'?'<span class="muted">團班：上一堂算一堂，不用預繳堂數</span>':(sessChip(st)||'<span class="muted">還沒有堂數（去繳費新增）</span>')}</span><span class="grow"></span><button type="button" class="btn btn-sm btn-accent" data-act="payments" data-id="${st.id}">💰 繳費紀錄</button></div><div class="hint" style="margin-top:6px">${st.class_type==='團班'?'團班收費看「營運 → 該收 vs 實收」，用實際上課堂數×單價自動算。':'總堂數＝每筆繳費「加堂數」的加總。匯入舊學生：到「繳費」補一筆（填日期＋金額＋堂數）即可。'}</div></div>`:'<div class="field full"><div class="hint">先按「新增學生」建好，再到列表按「💰 繳費」設定收費。</div></div>'}
     </div></div>
-    <div class="form-sec"><div class="form-sec-h">🔑 登入帳號</div><div class="form-grid">
+    <div class="form-sec" id="f-login-sec"${(!e&&enrollOf(st)==='reserved')?' style="display:none"':''}><div class="form-sec-h">🔑 登入帳號 <span class="hint" style="font-weight:400">預約／還沒開始可留空</span></div><div class="form-grid">
      ${e
        ? `<div class="field full"><label>Email（登入帳號）</label><input id="f-email" type="email" value="${esc(st.email||'')}" disabled style="opacity:.65"><span class="hint">建立後不可更改；要改密碼請按卡片上的「寄重設密碼信」</span></div>`
-       : `<div class="field"><label>Email（登入帳號）*</label><input id="f-email" type="email" value="" placeholder="student@example.com" autocomplete="off"></div>
-     <div class="field"><label>初始密碼 *</label><input id="f-pw" type="text" value="" placeholder="至少 6 碼，告訴學生"></div>
-     <div class="field full"><span class="hint">系統會用這個 Email 與密碼為學生建立安全登入帳號；密碼不會存進資料庫。</span></div>`}
+       : `<div class="field"><label>Email（登入帳號）</label><input id="f-email" type="email" value="" placeholder="選填，要登入才填" autocomplete="off"></div>
+     <div class="field"><label>初始密碼</label><input id="f-pw" type="text" value="" placeholder="選填，至少 6 碼"></div>
+     <div class="field full"><span class="hint">要讓學生「登入」才需要 Email＋密碼；預約或還沒開始的學生可整段留空，之後再開通。密碼不會存進資料庫。</span></div>`}
     </div></div>
     ${IS_OWNER?`<div class="form-sec"><div class="form-sec-h">👤 指派</div><div class="form-grid"><div class="field full"><label>負責管理員 <span class="hint">指派給某位管理員;選「主管理員」表示只有你管理</span></label>
        <select id="f-admin"><option value=""${!st.admin?' selected':''}>主管理員（你）${TEACHER_EMAIL?'・'+esc(TEACHER_EMAIL):''}</option>${(S.admins||[]).map(a=>`<option value="${esc(a.email)}"${(st.admin||'').toLowerCase()===(a.email||'').toLowerCase()?' selected':''}>${esc(a.name||a.email)}・${esc(a.email)}</option>`).join('')}</select></div></div></div>`:''}
@@ -1887,9 +1887,16 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   if(IS_OWNER){const asel=$('#f-admin');common.admin=asel?asel.value:'';}
   if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
   const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
-  if(!email||!pw)return toast('請填 Email 與初始密碼');if(pw.length<6)return toast('初始密碼至少 6 碼');
+  const btn=document.querySelector('[data-act="saveStudent"]');
+  if(!email&&!pw){
+    if(btn){btn.disabled=true;btn.textContent='新增中…';}
+    try{await DB.insert('students',common);closeModal();await loadAll();render();toast('已新增（純資料，尚未開通登入）');}
+    catch(err){toast('新增失敗：'+((err&&err.message)||err));if(btn){btn.disabled=false;btn.textContent='新增';}}
+    return;
+  }
+  if(!email||!pw)return toast('要開通登入請「Email 與密碼都填」，或兩者都留空當純資料');if(pw.length<6)return toast('初始密碼至少 6 碼');
   if(S.students.some(s=>(s.email||'').toLowerCase()===email))return toast('這個 Email 已被其他學生使用');
-  const btn=document.querySelector('[data-act="saveStudent"]');if(btn){btn.disabled=true;btn.textContent='建立中…';}
+  if(btn){btn.disabled=true;btn.textContent='建立中…';}
   try{const u=await createStudentAuth(email,pw);await DB.insert('students',Object.assign({uid:u,email},common));closeModal();await loadAll();render();toast('已建立學生帳號，接著到列表按「💰 繳費」設定堂數');}
   catch(err){toast('建立失敗：'+authMsg(err));if(btn){btn.disabled=false;btn.textContent='新增';}}};
 H.loginLog=(id)=>{const s=S.students.find(x=>x.id===id);const p=progOf(id);const logs=(((p&&Array.isArray(p.logins))?p.logins:[]).slice()).sort().reverse();
@@ -2960,7 +2967,7 @@ document.addEventListener('input',(e)=>{const m=((e.target&&e.target.id)||'').ma
   const t=e.target;if(t&&t.classList){const v=parseFloat(t.value);
     if(t.classList.contains('va-time')){const d=DLG[+t.dataset.di];if(d&&d._va&&d._va.segs&&d._va.segs[+t.dataset.k]&&!isNaN(v))d._va.segs[+t.dataset.k][t.dataset.edge]=v;}
     else if(t.classList.contains('la-time')){const d=DLG[+t.dataset.di];if(d&&d._la&&d._la.segs&&d._la.segs[+t.dataset.k]&&!isNaN(v))d._la.segs[+t.dataset.k][t.dataset.edge]=v;}}});
-document.addEventListener('change',(e)=>{const t=e.target;if(!t)return;if((t.classList&&(t.classList.contains('sched-d')||t.classList.contains('sched-s')||t.classList.contains('sched-e')))||t.id==='f-first-date')refreshFirstSlot();if(t.id==='cl-date')clFillSlot();if(t.id==='f-groups')fillGroupSched();if(t.id==='pl-cls'&&H.planCls)H.planCls();});
+document.addEventListener('change',(e)=>{const t=e.target;if(!t)return;if((t.classList&&(t.classList.contains('sched-d')||t.classList.contains('sched-s')||t.classList.contains('sched-e')))||t.id==='f-first-date')refreshFirstSlot();if(t.id==='cl-date')clFillSlot();if(t.id==='f-groups')fillGroupSched();if(t.id==='f-status'){const ls=document.getElementById('f-login-sec');if(ls)ls.style.display=(t.value==='reserved')?'none':'';}if(t.id==='pl-cls'&&H.planCls)H.planCls();});
 /* 時段輸入：24 小時制、自動補冒號（1600→16:00），失焦補零（9:30→09:30） */
 function hhmmFmt(v){let d=String(v||'').replace(/\D/g,'');if(!d)return '';if(d.length>4)d=d.slice(0,4);if(d.length<=2)return d;return d.slice(0,d.length-2)+':'+d.slice(-2);}
 function hhmmNorm(v){let s=String(v||'').trim();if(!s)return '';let h,m;if(s.indexOf(':')>=0){const p=s.split(':');h=parseInt(p[0]||'0',10)||0;m=parseInt(p[1]||'0',10)||0;}else{const d=s.replace(/\D/g,'');if(!d)return '';if(d.length<=2){h=parseInt(d,10)||0;m=0;}else{h=parseInt(d.slice(0,d.length-2),10)||0;m=parseInt(d.slice(-2),10)||0;}}h=Math.min(23,Math.max(0,h));m=Math.min(59,Math.max(0,m));return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
