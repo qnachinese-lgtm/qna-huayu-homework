@@ -715,33 +715,39 @@ function weekActualCard(){
 /* 本月應收：把每位學生本月上的課（不含免費／請假）× 單價 算出來，對照實收 */
 function billCheck(ym){const rows=[];
   (S.students||[]).forEach(s=>{if(s.deleted||s.is_test)return;
-    const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date&&String(e.date).slice(0,7)===ym);
-    if(!log.length)return;
+    const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date);
+    const pays=(s.payments||[]);
+    if(!log.length&&!pays.length)return;
     const billable=log.filter(e=>e.status!=='leave'&&!e.free);
-    if(!billable.length&&!log.length)return;
-    let qty;if(isHourly(s)){qty=0;billable.forEach(e=>{const h=logHours(e);qty+=(h!=null?h:1);});qty=Math.round(qty*100)/100;}
-    else qty=billable.length;
+    let qty;if(isHourly(s)){qty=0;billable.forEach(e=>{const h=logHours(e);qty+=(h!=null?h:1);});qty=Math.round(qty*100)/100;}else qty=billable.length;
+    const mb=billable.filter(e=>String(e.date).slice(0,7)===ym);
+    let mqty;if(isHourly(s)){mqty=0;mb.forEach(e=>{const h=logHours(e);mqty+=(h!=null?h:1);});mqty=Math.round(mqty*100)/100;}else mqty=mb.length;
     const price=(s.tuition==null||s.tuition==='')?null:Number(s.tuition);
     const should=(price==null)?null:Math.round(price*qty*100)/100;
-    const paid=(s.payments||[]).filter(x=>x&&String(x.date).slice(0,7)===ym).reduce((a,x)=>a+(Number(x.amount)||0),0);
-    rows.push({s,qty,unit:unitLabel(s),price,should,paid,cur:s.currency||'TWD',free:log.length-billable.length});});
+    const cur=s.currency||'TWD';
+    const paid=pays.filter(x=>x&&(x.currency||cur)===cur).reduce((a,x)=>a+(Number(x.amount)||0),0);
+    const mixed=pays.some(x=>x&&(x.currency||cur)!==cur);
+    rows.push({s,qty,mqty,unit:unitLabel(s),price,should,paid,cur,mixed,free:log.length-billable.length});});
   return rows.sort((a,b)=>{const da=(a.should==null?0:a.should-a.paid),db=(b.should==null?0:b.should-b.paid);return db-da;});}
 function billCheckHtml(ym){const rows=billCheck(ym);
-  if(!rows.length)return '<div class="muted" style="padding:8px 2px">這個月還沒有上課記錄。</div>';
-  const body=rows.map(r=>{
-    const gap=(r.should==null)?null:Math.round((r.should-r.paid)*100)/100;
-    const st=(r.should==null)?['#6b7280','沒設學費']
-      :(Math.abs(gap)<0.01?['#16a34a','✅ 相符']
-      :(gap>0?['#dc2626','⚠️ 可能漏收 '+money(gap,r.cur)]:['#2563eb','💳 預繳 '+money(-gap,r.cur)]));
+  if(!rows.length)return '<div class="muted" style="padding:8px 2px">還沒有上課或繳費記錄。</div>';
+  const okN=rows.filter(r=>r.should!=null&&!r.mixed&&Math.abs(r.should-r.paid)<0.01).length;
+  const flagged=rows.filter(r=>r.should!=null&&!r.mixed&&Math.abs(r.should-r.paid)>=0.01);
+  const mixedRows=rows.filter(r=>r.mixed);
+  const noPrice=rows.filter(r=>r.should==null&&!r.mixed).length;
+  const shortN=flagged.filter(r=>r.should-r.paid>0.01).length;
+  const rowHtml=(r)=>{const gap=(r.should==null)?0:Math.round((r.should-r.paid)*100)/100;
+    const st=r.mixed?['#6b7280','混合幣別·請人工核對']:(r.should==null?['#6b7280','沒設學費']:(gap>0?['#dc2626','⚠️ 可能少收 '+money(gap,r.cur)]:['#2563eb','💳 預繳 '+money(-gap,r.cur)]));
     return `<div class="dash-row" style="flex-wrap:wrap"><b>${esc(r.s.name)}</b>`+
-      `<span class="muted" style="font-size:12px">${fmtQty(r.qty)} ${r.unit}${r.free?`（另 ${r.free} 堂免費／請假）`:''}${r.price!=null?' × '+money(r.price,r.cur):''}</span>`+
+      `<span class="muted" style="font-size:12px">累計 ${fmtQty(r.qty)} ${r.unit}${r.price!=null?' × '+money(r.price,r.cur):''}${r.mqty?`　·　本月 ${fmtQty(r.mqty)} ${r.unit}`:''}</span>`+
       `<span class="grow"></span>`+
-      `<span class="muted" style="font-size:12px">應收 ${r.should==null?'—':money(r.should,r.cur)}　實收 ${money(r.paid,r.cur)}</span>`+
+      `<span class="muted" style="font-size:12px">累計應收 ${r.should==null?'—':money(r.should,r.cur)}　累計實收 ${money(r.paid,r.cur)}</span>`+
       `<span class="badge" style="background:${st[0]}18;color:${st[0]};border-color:${st[0]}55">${st[1]}</span>`+
-      `<button class="btn btn-sm" data-act="payments" data-id="${r.s.id}">繳費</button></div>`;}).join('');
-  const nGap=rows.filter(r=>r.should!=null&&r.should-r.paid>0.01).length;
-  const head=nGap?`<div class="hint" style="margin-bottom:6px;color:#dc2626">有 ${nGap} 位學生「本月上課金額」大於「本月實收」，可能是漏收，也可能是用之前預繳的堂數上課</div>`:'<div class="hint" style="margin-bottom:6px">本月都對得上 👍</div>';
-  return head+body;}
+      `<button class="btn btn-sm" data-act="payments" data-id="${r.s.id}">繳費</button></div>`;};
+  const list=flagged.map(rowHtml).join('')+mixedRows.map(rowHtml).join('');
+  const head=(shortN?`<div class="hint" style="margin-bottom:6px;color:#dc2626">有 ${shortN} 位「累計應收 ＞ 累計實收」，可能真的少收，建議點開確認</div>`:`<div class="hint" style="margin-bottom:6px;color:#16a34a">✅ 沒有累計少收的學生</div>`)
+    +`<div class="hint" style="margin-bottom:6px">帳目相符 ${okN} 位${mixedRows.length?`　·　混合幣別待核 ${mixedRows.length} 位`:''}${noPrice?`　·　未設學費 ${noPrice} 位`:''}</div>`;
+  return head+(list||'<div class="muted" style="padding:6px 2px">沒有需要注意的（少收／預繳／混合幣別）。</div>');}
 /* ---------- 營運（收入／待收款／管理員／公告） ---------- */
 function renderOps(){const body=$('#ops-body');
   const byMonth={};S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{const amt=Number(p.amount)||0;if(!amt)return;const m=(p.date||'').slice(0,7)||'（無日期）';const cur=p.currency||s.currency||'TWD';byMonth[m]=byMonth[m]||{};byMonth[m][cur]=(byMonth[m][cur]||0)+amt;});});
@@ -753,7 +759,7 @@ function renderOps(){const body=$('#ops-body');
     `<div><div class="muted" style="font-size:12px">本月收入（${esc(thisM)}）</div>${bigNum(monCur)}</div>`+
     `<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計收入（全部）</div>${bigNum(allCur)}</div></div>`;
   const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入紀錄（到學生的「繳費」新增即可）。</div>';
-  const billHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">🧮 ${esc(thisM)} 該收 vs 實收 <span class="hint">用本月實際上課堂數×單價算，抓漏收</span></div>${billCheckHtml(thisM)}</div>`;
+  const billHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">🧮 累計 該收 vs 實收 <span class="hint">用「累計上課×單價」對照「累計實收」，不受繳費時間影響，抓真正的漏收</span></div>${billCheckHtml(thisM)}</div>`;
   const due=S.students.filter(s=>!s.is_test&&!isTrial(s)&&enrollOf(s)!=='paused').map(s=>({s,left:sessionsLeft(s)})).filter(x=>x.left!=null&&x.left<=2).sort((a,b)=>a.left-b.left);
   const dueRows=due.length?due.map(({s,left})=>{const bcls=left<=0?'badge-overdue':'badge-soon';const blab=left<=0?'需續費':'剩 '+fmtQty(left)+' '+unitLabel(s);return `<div class="dash-row"><span class="badge ${bcls}">${blab}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">${money(s.tuition,s.currency)}</span><button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒</button><button class="btn btn-sm" data-act="payments" data-id="${s.id}">繳費</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
   let adminHtml='';
