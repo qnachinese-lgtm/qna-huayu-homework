@@ -1951,6 +1951,17 @@ function authMsg(err){const c=((err&&err.code)||'')+'';if(c.indexOf('email-alrea
 async function createStudentAuth(email,password){
   const sec=firebase.apps.find(a=>a.name==='secondary')||firebase.initializeApp(window.FIREBASE_CONFIG,'secondary');
   const cred=await sec.auth().createUserWithEmailAndPassword(email,password);const u=cred.user.uid;await sec.auth().signOut();return u;}
+function studentPortalUrl(){try{return location.origin+'/student.html';}catch(e){return 'student.html';}}
+function inviteModal(name,email,pw){
+  const url=studentPortalUrl();
+  const msg='你好 '+name+'！這是你的 QNA CHINESE 學習帳號 👇\n\n🔗 登入網址：'+url+'\n📧 帳號：'+email+'\n🔑 密碼：'+pw+'\n\n第一次登入後可以自己改密碼；有問題再跟老師說！\n\n— — —\nXin chào '+name+'! Đây là tài khoản học QNA CHINESE của bạn 👇\n🔗 Đăng nhập: '+url+'\n📧 Tài khoản: '+email+'\n🔑 Mật khẩu: '+pw+'\nSau khi đăng nhập lần đầu, bạn có thể tự đổi mật khẩu nhé!';
+  openModal('<div class="modal"><div class="modal-head"><h3>✅ 帳號已建立 · 邀請 '+esc(name)+'</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body"><div class="hint" style="margin-bottom:8px">把下面訊息<b>複製後用 Zalo／訊息傳給學生</b>，他就能登入了。⚠️ 密碼之後不會再顯示，請先傳出去（忘了可到列表按「重設密碼」補寄設定信）。</div>'
+   +'<textarea id="inv-msg" style="width:100%;min-height:230px;font-size:13px" readonly>'+esc(msg)+'</textarea>'
+   +'<div style="margin-top:8px"><a class="btn btn-sm" href="'+esc(url)+'" target="_blank">↗ 開學生登入頁</a></div></div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn btn-accent" data-act="copyInvite">📋 複製訊息</button></div></div>');
+}
+H.copyInvite=()=>{const t=document.getElementById('inv-msg');if(!t)return;t.select();try{document.execCommand('copy');}catch(e){}try{navigator.clipboard&&navigator.clipboard.writeText(t.value);}catch(e){}toast('已複製，貼到 Zalo／訊息傳給學生');};
 H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return toast('請輸入名字');
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const schedule=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);
@@ -1972,7 +1983,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   if(!email||!pw)return toast('要開通登入請「Email 與密碼都填」，或兩者都留空當純資料');if(pw.length<6)return toast('初始密碼至少 6 碼');
   if(S.students.some(s=>(s.email||'').toLowerCase()===email))return toast('這個 Email 已被其他學生使用');
   if(btn){btn.disabled=true;btn.textContent='建立中…';}
-  try{const u=await createStudentAuth(email,pw);await DB.insert('students',Object.assign({uid:u,email},common));closeModal();await loadAll();render();toast('已建立學生帳號，接著到列表按「💰 繳費」設定堂數');}
+  try{const u=await createStudentAuth(email,pw);await DB.insert('students',Object.assign({uid:u,email},common));closeModal();await loadAll();render();inviteModal(name,email,pw);}
   catch(err){toast('建立失敗：'+authMsg(err));if(btn){btn.disabled=false;btn.textContent='新增';}}};
 H.loginLog=(id)=>{const s=S.students.find(x=>x.id===id);const p=progOf(id);const logs=(((p&&Array.isArray(p.logins))?p.logins:[]).slice()).sort().reverse();
   const byDay={};logs.forEach(t=>{const d=fmtDate(t);(byDay[d]=byDay[d]||[]).push(fmtDT(t).slice(-5));});
