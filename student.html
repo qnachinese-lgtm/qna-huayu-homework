@@ -734,7 +734,7 @@ async function loadMine(){const [l,q,siteRows]=await Promise.all([DB.list('lesso
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
   S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz');S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;
   splitResults(rAll);}
-function splitResults(rAll){rAll=rAll||[];S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');}
+function splitResults(rAll){rAll=rAll||[];S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='review');S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');}
 function hwvDocOf(lid,word){return (S.hwvs||[]).find(x=>x.hwv_lesson===lid&&x.hwv_word===word)||null;}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
 function discDocOf(lid){return (S.discussions||[]).find(x=>x.disc_lesson===lid)||null;}
@@ -844,6 +844,24 @@ function payCardHtml(){
   var vnt=(s.pay_vn&&(''+s.pay_vn).trim())||'HUYNH MY QUYEN\n8801499293\nBIDV · PGD TP Sóc Trăng';
   function blk(flag,label,qr,txt){return '<div style="text-align:center;max-width:220px"><div style="font-weight:700;margin-bottom:6px">'+flag+' '+esc(label)+'</div><img src="'+esc(qr)+'" alt="QR" style="width:190px;max-width:100%;border-radius:12px;border:1px solid #eadfce"><div style="font-size:13px;color:#6b6357;margin-top:6px;line-height:1.6;white-space:pre-line">'+esc(txt)+'</div></div>';}
   return '<div class="ann-card"><div class="ann-h">💳 付款方式 / Thanh toán</div><div class="ann-item" style="margin-bottom:6px">開啟銀行 App 掃 QR 轉帳 · Mở app ngân hàng quét mã QR để chuyển khoản</div><div style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;padding:4px 0 2px">'+blk('🇹🇼','台灣 · CTBC',twq,twt)+blk('🇻🇳','Việt Nam · BIDV',vnq,vnt)+'</div></div>';
+}
+function reviewCardHtml(){
+  if(S.preview||!S.me)return '';
+  const r=(S.reviews||[])[0];const st=r?(r.status||''):'';
+  if(st==='approved')return '<div class="ann-card"><div class="ann-h">⭐ 你的評價 / Đánh giá</div><div class="ann-item">感謝你的評價，已顯示在官網 ✓</div><div class="ann-item muted" style="white-space:pre-line">'+esc(r.text||'')+'</div></div>';
+  const prev=r?esc(r.text||''):'';
+  const status=st==='pending'?'<div class="ann-item">已送出，老師確認後會顯示在官網 ⏳（可再修改）</div>':'<div class="ann-item">上了幾堂課，想推薦老師嗎？寫幾句吧 🙌 · Bạn muốn giới thiệu cô giáo không? Viết vài câu nhé!</div>';
+  return '<div class="ann-card"><div class="ann-h">⭐ 給老師評價 / Đánh giá</div>'+status+'<textarea id="rev-text" style="width:100%;min-height:70px;margin-top:4px" placeholder="例：老師很有耐心，三個月我就敢開口說中文了！">'+prev+'</textarea><button class="btn btn-sm btn-accent" onclick="submitReview()" style="margin-top:6px">'+(st==='pending'?'更新評價 / Cập nhật':'送出評價 / Gửi')+'</button></div>';
+}
+async function submitReview(){
+  const el=document.getElementById('rev-text');const txt=(el&&el.value||'').trim();
+  if(!txt){toast('請先寫幾句 / Vui lòng viết vài câu');return;}
+  try{
+    await DB.upsertResult('__review',S.me.id,{uid:myUid(),kind:'review',text:txt,name:(S.me.name||''),status:'pending',created_at:now()});
+    const ex=(S.reviews||[])[0];const doc={lesson_id:'__review',student_id:S.me.id,uid:myUid(),kind:'review',text:txt,name:(S.me.name||''),status:'pending'};
+    if(ex){Object.assign(ex,doc);}else{S.reviews=[doc];}
+    toast('已送出，謝謝你！老師確認後會顯示 🙌');renderSection();
+  }catch(e){toast('送出失敗：'+((e&&e.message)||e));}
 }
 function renderWork(){
   const _st=actStatus();const banner='';
@@ -1033,7 +1051,7 @@ function renderContent(){
   const progCard=(!S.preview&&_hw.length)?`<div class="card prog-card"><div class="prog-top"><b>${t('learnProg')}</b><span class="hint">${_done}/${_hw.length} ${t('lessonsDone')}</span></div><div class="prog-bar"><span style="width:${Math.round(_done/_hw.length*100)}%"></span></div></div>`:'';
   const _fbn=S.preview?0:teacherFbCount();
   const fbBanner=_fbn?`<div class="fb-banner" data-act="section" data-id="work">${t('fbGave1')} ${_fbn} ${t('fbGave2')}</div>`:'';
-  $('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+fbBanner+progCard+classDaysHtml()+tabBar+'<div class="cards">'+cards+'</div>';
+  $('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+fbBanner+progCard+classDaysHtml()+tabBar+'<div class="cards">'+cards+'</div>'+reviewCardHtml();
   convScreen();setupCanvases();
   if(!S.preview)shown.forEach(e=>{if(e.k!=='l')return;const n=noteOf(e.l.id);if(n&&n.ink){const cv=document.getElementById('note-cv-'+e.l.id);if(cv)loadNoteInk(cv,n.ink);}
     // 還原「語法練習」已填寫但尚未送出的答案（含草稿），並掛上自動儲存
