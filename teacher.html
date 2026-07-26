@@ -58,6 +58,7 @@
       <span class="mode-tag" id="mode-tag"></span>
       <button class="btn btn-sm btn-ghost" data-act="exportAll" title="把所有資料匯出成 Excel 備份">⬇ 備份</button>
       <button class="btn btn-sm btn-ghost" data-act="trash" title="垃圾桶（7 天內可復原）">🗑</button>
+      <button class="btn btn-sm btn-accent hide" id="feat-btn" data-act="featureSettings" title="開關給學生看的功能">⚙️ 功能設定</button>
       <button class="btn btn-sm btn-ghost hide" id="admin-btn" data-act="admins">👤 管理員</button>
       <button class="btn btn-sm btn-ghost" data-act="logout">登出</button>
     </div></div>
@@ -269,6 +270,13 @@ async function loadAll(){
 function splitResults(d){d=d||[];S.results=d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='review');S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');}
 function openModal(h){$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
 function closeModal(){$('#modal-root').innerHTML='';}
+async function featSet(k,checked){
+  const val=checked?'on':'';
+  const cb=document.querySelector('input[data-feat="'+k+'"]');
+  if(!S.site||!S.site.id){toast('資料還沒載入完，請稍候再試');if(cb)cb.checked=!checked;return;}
+  try{await ensureAuthFresh();await DB.update('site',S.site.id,{[k]:val});S.site[k]=val;toast(checked?'已開放給學生 ✅':'已對學生關閉');}
+  catch(e){if(cb)cb.checked=!checked;toast('儲存失敗：'+((e&&e.message)||e));}
+}
 
 const CLASS_VIEW=new URLSearchParams(location.search).get('class');
 function render(){
@@ -846,8 +854,8 @@ const SITE_SPEC=[
   {group:'🧑‍🏫 師資／關於',fields:[{k:'about_kicker',t:'區塊小標（例：教師陣容）',ml:1},{k:'about_t',t:'標題（老師名字）',ml:1},{k:'about_role',t:'頭銜（例：QNA CHINESE 創辦人）',ml:1},{k:'about_photo',t:'老師照片網址（留空顯示「師」字方塊；填圖片連結或檔名如 teacher.jpg）'},{k:'about_d',t:'介紹（可多行）',ml:1,area:1},{k:'about_cv',t:'教師資歷（每段用「# 標題」開頭，項目每行一個用「-」開頭）',ml:1,area:1}]},
   {group:'💰 學費／方案',fields:[{k:'price_title',t:'小標',ml:1},{k:'price_body',t:'方案內容（每行一項，可用「•」開頭）',ml:1,area:1}]},
   {group:'📣 招生中的班級（官網會顯示人數與開班進度）',fields:[{k:'classes_h2',t:'區塊標題',ml:1},{k:'classes_body',t:'一行一個班，格式「班名 ｜ 程度/目標 ｜ 時段 ｜ 目前/開班人數 ｜ 狀態(選填)」。例：初級會話班 ｜ 零基礎～初級 ｜ 週二、四 晚上 ｜ 3/6 ｜',ml:1,area:1}]},
-  {group:'💳 付款資訊（學生登入後，收合在「上課內容」裡，要點才展開）',fields:[{k:'pay_tw_on',t:'🇹🇼 顯示台灣帳號給學生（打勾才顯示；可只開一個）',toggle:1},{k:'pay_vn_on',t:'🇻🇳 顯示越南帳號給學生（打勾才顯示）',toggle:1},{k:'pay_tw',t:'🇹🇼 台灣帳戶文字（一行一項，例：中國信託 (822) / 521540350634 / 永和分行）留空用預設',ta:1},{k:'pay_tw_qr',t:'🇹🇼 台灣 QR 圖',img:1},{k:'pay_vn',t:'🇻🇳 越南帳戶文字（一行一項）留空用預設',ta:1},{k:'pay_vn_qr',t:'🇻🇳 越南 QR 圖',img:1}]},
-  {group:'⭐ 學生評價',fields:[{k:'review_open',t:'開放學生填寫評價（打勾＝學生才看得到評價欄能寫；取消＝學生看不到）',toggle:1},{k:'reviews_body',t:'一行一則，格式「評價內容 —— 姓名」（學生送出、你核准後會自動加到這裡）',ml:1,area:1}]},
+  {group:'💳 付款資訊（要不要顯示給學生，到頁首「⚙️ 功能設定」開關；這裡只填帳號內容）',fields:[{k:'pay_tw',t:'🇹🇼 台灣帳戶文字（一行一項，例：中國信託 (822) / 521540350634 / 永和分行）留空用預設',ta:1},{k:'pay_tw_qr',t:'🇹🇼 台灣 QR 圖',img:1},{k:'pay_vn',t:'🇻🇳 越南帳戶文字（一行一項）留空用預設',ta:1},{k:'pay_vn_qr',t:'🇻🇳 越南 QR 圖',img:1}]},
+  {group:'⭐ 學生評價（要不要開放學生填寫，到頁首「⚙️ 功能設定」開關）',fields:[{k:'reviews_body',t:'一行一則，格式「評價內容 —— 姓名」（學生送出、你核准後會自動加到這裡）',ml:1,area:1}]},
   {group:'❓ 常見問題 FAQ',fields:[{k:'faq_h2',t:'標題',ml:1},{k:'faq_body',t:'一行一題，格式「問題 ｜ 答案」',ml:1,area:1}]},
   {group:'🧩 服務項目（官網會顯示）',fields:[{k:'services_title',t:'區塊小標（例：我提供的服務）'},{k:'services_body',t:'一行一個服務，格式「emoji 標題 ｜ 說明」',ml:1,area:1}]},
   {group:'📨 聯絡方式',fields:[{k:'contact_line',t:'LINE ID / Zalo'},{k:'contact_email',t:'Email'},{k:'contact_note',t:'聯絡說明文字',ml:1}]},
@@ -1571,6 +1579,30 @@ H.saveSite=async(_,b)=>{
   if(b){b.disabled=true;b.textContent='儲存中…';}
   try{if(S.site&&S.site.id){await DB.update('site',S.site.id,doc);S.site=Object.assign({},S.site,doc);}else{const d=await DB.insert('site',doc);S.site=d;}toast('✅ 官網內容已儲存');closeModal();render();}
   catch(e){if(b){b.disabled=false;b.textContent='💾 儲存';}toast('儲存失敗：'+((e&&e.message)||e));}
+};
+const FEATURE_SPEC=[
+  {group:'🎓 上課中（即時互動）',hint:'學生上課時會用到',items:[
+    {k:'live_on',t:'🎮 即時比賽 Live Quiz',d:'學生首頁出現「加入即時比賽」；你開始遊戲時學生能輸入代碼一起玩'}
+  ]},
+  {group:'⭐ 課後 · 口碑',hint:'課後、平常在學習頁使用',items:[
+    {k:'review_open',t:'開放學生填寫評價',d:'打開後學生學習頁才會出現評價欄；送出後你到「審核評價」核准，才會顯示到官網'}
+  ]},
+  {group:'💳 付款資訊',hint:'收合在學生「上課內容」裡，要點才展開（低調、不會有被追債的感覺）。帳號文字與 QR 圖到「對外官網 → 編輯內容 → 💳 付款資訊」設定',items:[
+    {k:'pay_tw_on',t:'🇹🇼 顯示台灣帳號',d:'中國信託等台灣帳戶 ＋ QR'},
+    {k:'pay_vn_on',t:'🇻🇳 顯示越南帳號',d:'BIDV 等越南帳戶 ＋ QR'}
+  ]}
+];
+H.featureSettings=()=>{
+  const on=k=>!!(S.site&&S.site[k]==='on');
+  const groups=FEATURE_SPEC.map(g=>{
+    const rows=g.items.map(f=>`<label style="display:flex;align-items:flex-start;gap:12px;padding:13px 4px;cursor:pointer;border-top:1px solid var(--line,#eee)">
+      <input type="checkbox" data-feat="${f.k}" ${on(f.k)?'checked':''} onchange="featSet('${f.k}',this.checked)" style="width:22px;height:22px;flex:none;margin-top:1px;accent-color:var(--accent,#B23A48)">
+      <span style="flex:1"><b>${f.t}</b>${f.d?`<div class="hint" style="margin-top:2px">${f.d}</div>`:''}</span></label>`).join('');
+    return `<div style="margin-bottom:18px"><div style="font-weight:800;font-size:15px">${g.group}</div>${g.hint?`<div class="hint" style="margin:2px 0 2px">${g.hint}</div>`:''}${rows}</div>`;
+  }).join('');
+  openModal(`<div class="modal" style="max-width:580px"><div class="modal-head"><h3>⚙️ 功能設定</h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body"><div class="hint" style="margin-bottom:14px">打勾＝<b>開放給學生</b>看／使用；取消打勾＝學生完全看不到。改動<b>即時儲存</b>，學生重新整理就會生效。</div>${groups}</div>
+    <div class="modal-foot"><span style="flex:1"></span><button class="btn btn-accent" data-act="closeModal">完成</button></div></div>`);
 };
 let EJS_LOADED=null;
 function loadEmailJS(){if(EJS_LOADED)return EJS_LOADED;EJS_LOADED=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});return EJS_LOADED;}
@@ -3226,7 +3258,7 @@ const TEACHER_EMAIL=(window.TEACHER_EMAIL||'').toLowerCase();
 async function listAdmins(){try{return await DB.list('admins');}catch(e){return [];}}
 async function emailAllowed(email){email=(email||'').toLowerCase();if(!email)return false;if(email===TEACHER_EMAIL)return true;const list=await listAdmins();return list.some(a=>(a.email||'').toLowerCase()===email);}
 function isOwner(){try{const u=firebase.auth().currentUser;return !!(u&&(u.email||'').toLowerCase()===TEACHER_EMAIL);}catch(e){return false;}}
-function updateAdminBtn(){const b=document.getElementById('admin-btn');if(b)b.classList.toggle('hide',!isOwner());}
+function updateAdminBtn(){const b=document.getElementById('admin-btn');if(b)b.classList.toggle('hide',!isOwner());const f=document.getElementById('feat-btn');if(f)f.classList.toggle('hide',!isOwner());}
 function adminWriteErr(err){const m=(((err&&(err.code||err.message))||'')+'').toLowerCase();if(/permission|insufficient|unauth/.test(m))return '無法寫入：請先到 Firebase 後台加上「admins」集合的安全規則（見設定說明）。';return (err&&err.message)||'操作失敗';}
 function authErr(e){const c=(e&&e.code)||'';
   if(c.indexOf('wrong-password')>=0||c.indexOf('invalid-credential')>=0)return '密碼不正確';
