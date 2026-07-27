@@ -161,6 +161,7 @@ function money(n,cur){if(n==null||n==='')return'—';const v=Number(n);if(isNaN(
 const DAYS=['週一','週二','週三','週四','週五','週六','週日'];
 /* 今天（用當地時間）。不能用 toISOString()，那是 UTC：越南/台灣在半夜 0~8 點會變成「前一天」 */
 function localToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function weekStart(dstr){try{var dt=new Date((dstr||localToday())+'T00:00:00');var day=(dt.getDay()+6)%7;dt.setDate(dt.getDate()-day);return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}catch(e){return dstr||'';}}
 function fmtSchedule(s){if(s&&Array.isArray(s.schedule)&&s.schedule.length){return s.schedule.map(r=>(DAYS[(r.d!=null?r.d:0)]||'')+' '+(r.s||'')+(r.e?'–'+r.e:'')).join('、');}return (s&&s.class_time)||'—';}
 function _vnT(hhmm){const m=/(\d{1,2}):(\d{2})/.exec(hhmm||'');if(!m)return '';let h=(parseInt(m[1],10)+23)%24;return (h<10?'0':'')+h+':'+m[2];}
 function twVnStr(s,e){s=s||'';e=e||'';if(!s&&!e)return '';const tw=s+(e?'–'+e:'');const vs=_vnT(s),ve=_vnT(e);const vn=vs+(e&&ve?'–'+ve:'');return '🇹🇼'+tw+' · 🇻🇳'+vn;}
@@ -398,8 +399,8 @@ function renderDashboard(){
     if(d>=0&&d<=14&&!itvResultMeta(c.result)){const col=d<=3?'#dc2626':'#3730a3';remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">🎯 ${d===0?'今天面試':(d===1?'明天面試':'還有 '+d+' 天')}</span><b>${esc(c.name||'')}</b>${c.target?`<span class="muted">${esc(c.target)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.exam_date)}${c.exam_time?(' '+esc(c.exam_time)):''}</span><button class="btn btn-sm" data-act="tab" data-id="interview">看客戶</button></div>`);}
     else if(d<0&&!itvResultMeta(c.result)){remRows.push(`<div class="dash-row"><span class="badge badge-soon">🎯 待填結果</span><b>${esc(c.name||'')}</b><span class="muted">面試日 ${esc(c.exam_date)}（${-d} 天前）</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="itvEdit" data-id="${esc(c.id)}">填面試結果</button></div>`);}});
   (S.agencies||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;const d=itvDaysTo(c.deadline);if(d==null)return;if(d>21)return;const col=d<0?'#dc2626':(d<=3?'#dc2626':(d<=7?'#d97706':'#2563eb'));const lab=d<0?('繳件已過 '+(-d)+' 天'):(d===0?'今天要繳件！':(d===1?'明天要繳件':'還有 '+d+' 天繳件'));remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 ${lab}</span><b>${esc(c.name||'')}</b>${c.school?`<span class="muted">${esc(c.school)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="agency">看客戶</button></div>`);});
-  try{const bym=localStorage.getItem('hyc_backup_ym')||'';const nowYm=localToday().slice(0,7);
-    if(IS_OWNER&&bym!==nowYm&&(S.students||[]).some(x=>!x.is_test))remRows.push(`<div class="dash-row"><span class="badge" style="background:#fef3c7;color:#92400e;border-color:#92400e55">📦 備份</span><b>這個月還沒備份</b><span class="grow"></span><span class="muted">${bym?('上次備份：'+esc(bym)):'還沒備份過'}</span><button class="btn btn-sm btn-accent" data-act="exportAll">匯出 Excel</button></div>`);}catch(e){}
+  try{const bwk=localStorage.getItem('hyc_backup_wk')||'';const nowWk=weekStart(localToday());
+    if(IS_OWNER&&bwk!==nowWk&&(S.students||[]).some(x=>!x.is_test))remRows.push(`<div class="dash-row"><span class="badge" style="background:#fef3c7;color:#92400e;border-color:#92400e55">📦 備份</span><b>這週還沒備份</b><span class="grow"></span><span class="muted">${bwk?('上次備份：'+esc(bwk)+' 那週'):'還沒備份過'}</span><button class="btn btn-sm btn-accent" data-act="exportAll">匯出 Excel</button></div>`);}catch(e){}
   const remHtml=remRows.length?remRows.join(''):`<div class="muted" style="padding:8px 2px">目前沒有需要提醒的事項 👍</div>`;
   const todoN=inbox.length+remRows.length;
   // 總覽數字卡：本月收入／尚未收款／待批改／待辦／堂數快用完
@@ -840,6 +841,7 @@ function leadsCardHtml(){
       ${meta?`<div class="muted" style="font-size:13px;margin-top:3px">🎯 ${esc(meta)}</div>`:''}
       ${l.material?`<div class="muted" style="font-size:13px;margin-top:3px">📚 教材：${esc(l.material)}</div>`:''}
       ${(l.pref_date||l.pref_time)?`<div style="font-size:13px;margin-top:3px;color:var(--accent,#B23A48)">📅 想約：${esc([l.pref_date,l.pref_time].filter(Boolean).join(' '))}</div>`:''}
+      ${l.referrer?`<div style="font-size:13px;margin-top:3px;color:#7a5c00">🤝 介紹人：${esc(l.referrer)}</div>`:''}
       ${l.message?`<div style="margin-top:6px;background:#faf6ef;border-radius:8px;padding:8px 10px;font-size:14px;white-space:pre-line">${esc(l.message)}</div>`:''}
     </div>`;
   }).join(''):'<div class="muted" style="padding:8px 2px">還沒有人報名。把官網網址分享出去吧！</div>';
@@ -3052,7 +3054,7 @@ H.exportAll=()=>{if(typeof XLSX==='undefined'){toast('匯出元件還在載入�
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(gr.length?gr:[{}]),'成績');
     const pays=[];S.students.forEach(s=>{(s.payments||[]).forEach(p=>{pays.push({學生:s.name||'',日期:p.date||'',金額:p.amount==null?'':p.amount,幣別:p.currency||s.currency||'',加堂:p.sessions==null?'':p.sessions,備註:p.note||''});});});
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(pays.length?pays:[{}]),'繳費');
-    XLSX.writeFile(wb,'QNA_CHINESE_備份_'+localToday()+'.xlsx');try{localStorage.setItem('hyc_backup_ym',localToday().slice(0,7));}catch(e){}toast('已匯出 Excel 備份');render();
+    XLSX.writeFile(wb,'QNA_CHINESE_備份_'+localToday()+'.xlsx');try{localStorage.setItem('hyc_backup_wk',weekStart(localToday()));}catch(e){}toast('已匯出 Excel 備份');render();
   }catch(err){toast('匯出失敗：'+((err&&err.message)||err));}};
 H.cert=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const today=localToday();
   openModal(`<div class="modal"><div class="modal-head"><h3>🎓 結業證書</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
