@@ -854,6 +854,35 @@ function payCardHtml(){
   var blocks=(showTw?blk('🇹🇼','台灣 · CTBC',twq,twt):'')+(showVn?blk('🇻🇳','Việt Nam · BIDV',vnq,vnt):'');
   return remind+'<details class="ann-card"'+(remind?' open':'')+' style="padding:0"><summary style="cursor:pointer;padding:13px 15px;font-weight:700;list-style:none">💳 付款方式 / Thanh toán <span style="font-size:12px;color:#9a8f80;font-weight:400">（需要時點開）</span></summary><div style="padding:0 14px 14px"><div class="ann-item" style="margin-bottom:6px">開啟銀行 App 掃 QR 轉帳 · Mở app ngân hàng quét mã QR</div><div style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;padding:4px 0 2px">'+blocks+'</div></div></details>';
 }
+/* ===== 檔案上傳區（老師開放才會出現） ===== */
+function uploadCardHtml(){
+  if(S.preview||!S.me)return '';
+  const areas=(Array.isArray(S.me.upload_areas)?S.me.upload_areas:[]).filter(a=>a&&a.open);
+  if(!areas.length)return '';
+  const mine=S.myUp||null;
+  const list=(aid)=>{if(!mine)return '';const fs=mine.filter(f=>f.area_id===aid);return fs.length?('<div style="margin-top:4px">'+fs.map(f=>'<div class="ann-item" style="font-size:13px">✅ '+esc(f.filename||'')+' <span class="muted">'+esc(String(f.created_at||'').slice(0,10))+'</span></div>').join('')+'</div>'):'<div class="ann-item muted" style="font-size:13px">還沒交過 · Chưa nộp</div>';};
+  return '<div class="ann-card"><div class="ann-h">📤 檔案上傳 / Nộp tệp</div>'+areas.map(a=>'<div style="padding:8px 0;border-bottom:1px dashed #eadfce"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b>📁 '+esc(a.name||'')+'</b><span class="grow"></span><label class="btn btn-sm btn-accent" style="cursor:pointer">⬆ 上傳 / Nộp<input type="file" accept="image/*,.pdf,application/pdf" style="display:none" onchange="H.upPick(this,\''+esc(a.id)+'\',\''+esc(a.name||'')+'\')"></label></div>'+list(a.id)+'</div>').join('')+'<div class="ann-item muted" style="font-size:12px;margin-top:6px">照片會自動壓縮 · Ảnh tự nén · PDF ≤ 500KB</div>'+(mine?'':'<button class="btn btn-sm" style="margin-top:4px" data-act="upMine">查看我交過的檔案 / Xem tệp đã nộp</button>')+'</div>';
+}
+H.upMine=async()=>{try{const uid=(S.me&&S.me.uid)||(window.firebase&&firebase.auth&&firebase.auth().currentUser&&firebase.auth().currentUser.uid)||'';const fs=await DB.listWhere('uploads','uid',uid);fs.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));S.myUp=fs.map(f=>({id:f.id,area_id:f.area_id,filename:f.filename,created_at:f.created_at}));renderSection();}catch(e){toast('載入失敗 · Lỗi tải');}};
+function _upB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{res(String(r.result).split(',')[1]||'');};r.onerror=rej;r.readAsDataURL(file);});}
+async function _upShrink(file){
+  if(!/^image\//i.test(file.type||''))return {b64:await _upB64(file),mime:file.type||'application/octet-stream',name:file.name||'file',size:file.size||0};
+  const url=URL.createObjectURL(file);
+  const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url;});
+  let dim=1600,q=0.8,b64='';
+  for(let k=0;k<4;k++){const sc=Math.min(1,dim/Math.max(img.width||1,img.height||1));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*sc));c.height=Math.max(1,Math.round(img.height*sc));c.getContext('2d').drawImage(img,0,0,c.width,c.height);b64=c.toDataURL('image/jpeg',q).split(',')[1];if(b64.length<880000)break;dim=Math.round(dim*0.75);q=Math.max(0.5,q-0.1);}
+  URL.revokeObjectURL(url);
+  return {b64:b64,mime:'image/jpeg',name:String(file.name||'photo').replace(/\.[^.]+$/,'')+'.jpg',size:Math.round(b64.length*3/4)};
+}
+H.upPick=async(inp,areaId,areaName)=>{const file=inp&&inp.files&&inp.files[0];if(!file)return;inp.value='';
+  toast('上傳中… · Đang tải lên…');
+  try{const r=await _upShrink(file);
+    if(!r.b64||r.b64.length>930000){toast('檔案太大（約 700KB 內）· Tệp quá lớn');return;}
+    const uid=(S.me&&S.me.uid)||(window.firebase&&firebase.auth&&firebase.auth().currentUser&&firebase.auth().currentUser.uid)||'';
+    const row=await DB.insert('uploads',{uid:uid,student_id:(S.me&&S.me.id)||'',area_id:areaId,area_name:areaName,filename:r.name,mime:r.mime,size:r.size,data:r.b64});
+    if(!S.myUp)S.myUp=[];S.myUp.unshift({id:row.id,area_id:areaId,filename:r.name,created_at:row.created_at});
+    toast('✅ 已上傳 · Đã nộp：'+r.name);renderSection();
+  }catch(e){toast('上傳失敗 · Lỗi：'+((e&&e.message)||e));}};
 function reviewCardHtml(){
   if(S.preview||!S.me)return '';
   const open=!!(S.site&&S.site.review_open==='on');
@@ -880,7 +909,7 @@ function renderWork(){
   const ls=myLessons().filter(l=>answerableOf(l.id).length);
   const myQuizzes=(S.quizzes||[]).filter(qz=>assignedToMe(qz)).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
   const quizCard=myQuizzes.length?('<div class="lesson-label" style="margin-top:6px">'+t('quizSec')+'</div><div class="quiz-list">'+myQuizzes.map(qz=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;const qm=t({dict:'qmDict',pinyin:'qmPinyin',mean:'qmMean',choice:'qmChoice',cloze:'qmCloze',custom:'qmCustom'}[qz.mode||'dict']||'qmDict');return `<div class="quiz-card${done?' done':''}"${done?'':' data-act="startQuiz" data-id="'+qz.id+'"'}><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>${esc(qz.title||t('quizDefTitle'))}</b><div class="muted" style="font-size:12px">${qm}</div></div>${done?`<span class="badge badge-ok">${r.score}/${r.total}</span>`:`<span class="badge badge-soon">${t('quizNotTaken')}</span>`}</div>`;}).join('')+'</div>'):'';
-  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML=banner+payCardHtml()+submittedWorkHtml()+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
+  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML=banner+payCardHtml()+uploadCardHtml()+submittedWorkHtml()+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
   let overdue=0,soon=0;ls.forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});
   const fbN=ls.filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
   const sentFbN=(S.sentences||[]).filter(s=>s.status==='reviewed'&&((s.overall&&s.overall.trim())||(s.feedback&&Object.keys(s.feedback).length))).length;
@@ -906,7 +935,7 @@ function renderWork(){
   // 課後小結（老師寫的上課記錄備註）
   const notes=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).filter(e=>e&&e.note&&e.note.trim()).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3);
   const noteCard=notes.length?'<div class="note-card"><div class="ann-h">📝 課後小結 Class notes</div>'+notes.map(n=>'<div class="ann-item"><span class="ann-date">'+esc(n.date||'')+'</span>'+esc(n.note||'')+'</div>').join('')+'</div>':'';
-  const payCard=payCardHtml();
+  const payCard=payCardHtml()+uploadCardHtml();
   $('#screen').innerHTML=banner+badgeStrip+liveJoinCard+annCard+payCard+meetCard+classUpcomingHtml()+calCard+noteCard+sessCard+classDaysHtml()+nb+submittedWorkHtml()+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);

@@ -711,7 +711,7 @@ function renderCalLedger(body,toggle){
         <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">📝 上課記錄（改日期）</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
         <button class="btn btn-sm" data-act="billStatement" data-id="${s.id}">🧾 對帳單</button>
-        <button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒訊息</button>
+        <button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒訊息</button><button class="btn btn-sm" data-act="uploadAreas" data-id="${s.id}">📤 上傳區</button>
         ${(r.due&&r.due.cls!=='badge-overdue')?`<span style="margin-left:auto"><span class="muted" style="font-size:12px">下次繳費：</span><span class="badge ${r.due.cls}">${r.due.label}</span></span>`:''}
       </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
@@ -925,7 +925,7 @@ function stuCardInner(s){return `
         <button class="btn btn-sm" data-act="loginLog" data-id="${s.id}">🕒 登入紀錄</button>
         <button class="btn btn-sm" data-act="guideCard" data-id="${s.id}">🪪 使用說明卡</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
-        <button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒訊息</button>
+        <button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒訊息</button><button class="btn btn-sm" data-act="uploadAreas" data-id="${s.id}">📤 上傳區</button>
         ${IS_OWNER?`<button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button>`:''}</div>
     <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(fmtSchedule(s))}</b></span>
       ${isTrial(s)?'<span>💰 <b style="color:#7c3aed">🎁 免費試學（不計費）</b></span>':`<span>💰 學費：<b>${money(s.tuition,s.currency)}${s.tuition!=null?(s.fee_unit==='hour'?' / 小時':' / 堂'):''}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span>`}<span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}</div>
@@ -2721,6 +2721,32 @@ H.planEditSave=async(key)=>{const p=String(key).split('::');const tgt=p[0],oldDa
     toast('預排已更新：'+nd+(start?('　'+start):''));closeModal();renderCalendar();
   }catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.planEditDel=async(key)=>{closeModal();await H.planDel(key);};
+/* ===== 學生檔案上傳區（老師管理） ===== */
+function uaAreasOf(s){return Array.isArray(s.upload_areas)?s.upload_areas:[];}
+function uaModal(sid){const s=S.students.find(x=>x.id===sid);if(!s)return;const areas=uaAreasOf(s);
+  const rows=areas.map(a=>`<div class="dash-row" style="flex-wrap:wrap">📁 <b>${esc(a.name||'')}</b> ${a.open?'<span class="badge badge-ok">開放中</span>':'<span class="badge" style="background:#eee;color:#666">已關閉</span>'}<span class="grow"></span><button class="btn btn-sm ${a.open?'':'btn-accent'}" data-act="uaToggle" data-id="${esc(sid)}::${esc(a.id)}">${a.open?'關閉':'開放'}</button><button class="btn btn-sm" data-act="uaView" data-id="${esc(sid)}::${esc(a.id)}">📂 檔案</button><button class="btn btn-sm btn-danger" data-act="uaRemove" data-id="${esc(sid)}::${esc(a.id)}">✕</button></div>`).join('')||'<div class="hint">還沒有上傳區。在下面新增一個，例如「上傳作業簿」。</div>';
+  openModal(`<div class="modal"><div class="modal-head"><h3>📤 檔案上傳區 · ${esc(s.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="hint" style="margin-bottom:8px">「開放」的區域會出現在這位學生的「作業」頁，學生就能上傳照片或 PDF（照片自動壓縮，單檔約 700KB 內）。關閉後學生就看不到。</div>
+     ${rows}
+     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><input id="ua-name" type="text" placeholder="新區域名稱，例：上傳作業簿" style="flex:1;min-width:160px"><button class="btn btn-sm btn-primary" data-act="uaAdd" data-id="${esc(sid)}">＋ 新增</button></div>
+     <div style="margin-top:6px"><span class="hint">常用：</span><button class="btn btn-sm" data-act="uaQuick" data-id="${esc(sid)}::上傳作業簿">上傳作業簿</button> <button class="btn btn-sm" data-act="uaQuick" data-id="${esc(sid)}::小考練習">小考練習</button> <button class="btn btn-sm" data-act="uaQuick" data-id="${esc(sid)}::上傳練習">上傳練習</button></div>
+     <div style="margin-top:10px"><button class="btn btn-sm" data-act="uaView" data-id="${esc(sid)}::*">📂 看這位學生的全部檔案</button></div>
+     <div id="ua-files" style="margin-top:10px"></div>
+   </div></div>`);}
+H.uploadAreas=(id)=>uaModal(id);
+async function uaAddNamed(s,name){const areas=uaAreasOf(s).slice();if(areas.some(a=>a&&a.name===name))return toast('已經有同名的區域了');areas.push({id:'ua'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36),name:name,open:true});await DB.update('students',s.id,{upload_areas:areas});s.upload_areas=areas;toast('已新增並開放「'+name+'」');uaModal(s.id);}
+H.uaAdd=async(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;const name=(($('#ua-name')&&$('#ua-name').value)||'').trim();if(!name)return toast('請先輸入區域名稱');try{await uaAddNamed(s,name);}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+H.uaQuick=async(key)=>{const p=String(key).split('::');const s=S.students.find(x=>x.id===p[0]);if(!s)return;try{await uaAddNamed(s,p[1]);}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+H.uaToggle=async(key)=>{const p=String(key).split('::');const s=S.students.find(x=>x.id===p[0]);if(!s)return;const areas=uaAreasOf(s).slice();const a=areas.find(x=>x&&x.id===p[1]);if(!a)return;a.open=!a.open;try{await DB.update('students',s.id,{upload_areas:areas});s.upload_areas=areas;toast(a.open?'已開放「'+(a.name||'')+'」':'已關閉「'+(a.name||'')+'」');uaModal(s.id);}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+H.uaRemove=async(key)=>{const p=String(key).split('::');const s=S.students.find(x=>x.id===p[0]);if(!s)return;const a=uaAreasOf(s).find(x=>x&&x.id===p[1]);if(!a)return;if(!confirm('移除上傳區「'+(a.name||'')+'」？學生已上傳的檔案不會被刪，之後仍可用「看全部檔案」找到。'))return;const left=uaAreasOf(s).filter(x=>x.id!==p[1]);try{await DB.update('students',s.id,{upload_areas:left});s.upload_areas=left;uaModal(s.id);}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+let _uaFiles=[];
+H.uaView=async(key)=>{const p=String(key).split('::');const sid=p[0],aid=p[1];const box=$('#ua-files');if(box)box.innerHTML='<div class="hint">載入中…</div>';
+  try{let files=await DB.listWhere('uploads','student_id',sid);if(aid!=='*')files=files.filter(f=>f&&f.area_id===aid);files.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));_uaFiles=files;
+    if(box)box.innerHTML=files.length?('<div class="lesson-label">📂 檔案（'+files.length+'）</div>'+files.map((f,i)=>`<div class="dash-row" style="flex-wrap:wrap"><b>${esc(f.filename||'檔案')}</b><span class="muted" style="font-size:12px">${esc(f.area_name||'')}　${esc(String(f.created_at||'').slice(0,10))}　${f.size?(Math.round(f.size/1024)+' KB'):''}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="${i}">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="${i}">🗑</button></div>`).join('')):'<div class="hint">這裡還沒有檔案。</div>';
+  }catch(e){if(box)box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'。若是權限錯誤，代表 Firestore 規則還沒加 uploads 那段（我有給你要貼的文字）。</div>';}};
+H.uaDl=(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!f.data)return toast('找不到檔案內容');const a=document.createElement('a');a.href='data:'+(f.mime||'application/octet-stream')+';base64,'+f.data;a.download=f.filename||'file';document.body.appendChild(a);a.click();a.remove();};
+H.uaFileDel=async(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!confirm('刪除「'+(f.filename||'')+'」？刪掉就找不回來了。'))return;try{await DB.remove('uploads',f.id);_uaFiles=_uaFiles.filter(x=>x!==f);toast('已刪除');const box=$('#ua-files');if(box){const rows=box.querySelectorAll('.dash-row');}}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.rollPlanned=(key)=>{const p=String(key).split('::');const tgt=p[0],date=p[1];
   if(tgt.indexOf('S:')===0){const s=studentById(tgt.slice(2));if(!s)return;const pl=studentPlanned(s).find(x=>x.date===date)||{};H.classLog(s.id,{date,start:pl.start||'',end:pl.end||'',note:pl.note||''});const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;toast('已帶入預排的「'+date+'」，直接記錄這一堂即可');return;}
   const cls=tgt.indexOf('G:')===0?tgt.slice(2):tgt;const pl=classPlanned(cls).find(x=>x.date===date)||{};classRollModal(cls,{date,start:pl.start||'',end:pl.end||'',note:pl.note||''});const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;toast('已帶入預排的「'+date+'」，直接點名存檔即可');};
