@@ -623,7 +623,7 @@ function renderAgency(){
         <span class="grow"></span>
         <span class="muted" style="font-size:13px">進度 <b>${lg.length}</b> 筆${paidAll?(' · 已收 '+paidAll):''}${due?(' · 未收 '+due):''}</span>
       </div>
-      ${c.note?`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`:''}
+      ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#9a8f80">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#fdfaf4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
         <button class="btn btn-accent" data-act="agLogNew" data-id="${esc(c.id)}">＋ 新增一筆進度</button>
         <button class="btn btn-sm" data-act="agEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
@@ -685,10 +685,11 @@ function renderInterview(){
         <span class="grow"></span>
         <span class="muted" style="font-size:13px">練習 <b>${ss.length}</b> 次${nextOne?(' · 下次 '+esc(nextOne.date)):''}${paidAll?(' · 已收 '+paidAll):''}${due?(' · 未收 '+due):''}</span>
       </div>
-      ${(c.note||c.result_note)?`<div class="hint" style="margin-top:4px">${esc(c.note||'')}${c.result_note?((c.note?'　·　':'')+'結果：'+esc(c.result_note)):''}</div>`:''}
+      ${c.result_note?`<div class="hint" style="margin-top:4px">結果：${esc(c.result_note)}</div>`:''}${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#9a8f80">📄 備註／學生資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#fdfaf4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
         <button class="btn btn-accent" data-act="itvSess" data-id="${esc(c.id)}::new">＋ 新增練習時間</button>
         <button class="btn btn-sm" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
+        <button class="btn btn-sm" data-act="itvFiles" data-id="${esc(c.id)}">📎 資料／檔案</button>
         <button class="btn btn-sm" data-act="itvToggle" data-id="${esc(c.id)}">${done?'↩ 改回進行中':'✓ 標記完成'}</button>
         <span class="grow"></span>
         <button class="btn btn-sm btn-danger" data-act="itvDel" data-id="${esc(c.id)}">刪除</button>
@@ -2804,6 +2805,40 @@ async function _filesLoadLessons(){const box=document.getElementById('files-les'
     const stuName=(id)=>{const s=S.students.find(x=>x.id===id);return (s&&s.name)||'?';};
     box.innerHTML=order.map(k=>'<details open style="margin-bottom:10px"><summary style="font-weight:800;cursor:pointer;padding:6px 0">📚 '+esc(k)+'　<span class="hint">（'+groups[k].length+' 個檔案）</span></summary>'+groups[k].map(i=>{const f=_uaFiles[i];return '<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">'+esc(f.area_name||'')+'</span><b>'+esc(stuName(f.student_id))+'</b><span class="muted" style="font-size:12px">'+esc(f.filename||'')+'　'+esc(String(f.created_at||'').slice(0,10))+'　'+(f.size?(Math.round(f.size/1024)+' KB'):'')+'</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="'+i+'">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="'+i+'">🗑</button></div>';}).join('')+'</details>').join('');
   }catch(e){box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'</div>';}}
+function _tuB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{res(String(r.result).split(',')[1]||'');};r.onerror=rej;r.readAsDataURL(file);});}
+async function _tuShrink(file){
+  if(!/^image\//i.test(file.type||''))return {b64:await _tuB64(file),mime:file.type||'application/octet-stream',name:file.name||'file',size:file.size||0};
+  const url=URL.createObjectURL(file);
+  const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url;});
+  let dim=1600,q=0.8,b64='';
+  for(let k=0;k<4;k++){const sc=Math.min(1,dim/Math.max(img.width||1,img.height||1));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*sc));c.height=Math.max(1,Math.round(img.height*sc));c.getContext('2d').drawImage(img,0,0,c.width,c.height);b64=c.toDataURL('image/jpeg',q).split(',')[1];if(b64.length<880000)break;dim=Math.round(dim*0.75);q=Math.max(0.5,q-0.1);}
+  URL.revokeObjectURL(url);
+  return {b64:b64,mime:'image/jpeg',name:String(file.name||'photo').replace(/\.[^.]+$/,'')+'.jpg',size:Math.round(b64.length*3/4)};
+}
+H.itvFiles=(id)=>{const c=(S.interviews||[]).find(x=>x.id===id);if(!c)return;
+  openModal(`<div class="modal"><div class="modal-head"><h3>📎 資料／檔案 · ${esc(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="field full"><label>📄 文字備註 <span class="hint">學生貼來的學習計畫、自傳等，貼這裡；卡片上會收合顯示</span></label><textarea id="itvf-note" style="width:100%;min-height:150px;font-size:14px;line-height:1.7;padding:10px;border:1px solid var(--line);border-radius:10px;box-sizing:border-box">${esc(c.note||'')}</textarea></div>
+     <div style="margin:8px 0 14px"><button class="btn btn-sm btn-primary" data-act="itvNoteSave" data-id="${esc(id)}">💾 儲存備註</button></div>
+     <div class="lesson-label">📎 檔案（學生提供的 PDF、照片）</div>
+     <div style="margin:8px 0"><label class="btn btn-sm btn-accent" style="cursor:pointer">⬆ 上傳檔案<input type="file" accept="image/*,.pdf,application/pdf" style="display:none" onchange="H.itvFileUp(this,'${esc(id)}')"></label> <span class="hint">照片自動壓縮；PDF 約 500KB 內</span></div>
+     <div id="itvf-list"><div class="hint">載入中…</div></div>
+   </div></div>`);
+  H.itvFilesLoad(id);};
+H.itvNoteSave=async(id)=>{const c=(S.interviews||[]).find(x=>x.id===id);if(!c)return;const v=(($('#itvf-note')&&$('#itvf-note').value)||'').trim();
+  try{await DB.update('lessons',id,{note:v});c.note=v;toast('備註已儲存');renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+H.itvFilesLoad=async(id)=>{const box=$('#itvf-list');if(!box)return;
+  try{const files=await DB.listWhere('uploads','student_id','itv_'+id);files.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));_uaFiles=files;
+    box.innerHTML=files.length?files.map((f,i)=>`<div class="dash-row" style="flex-wrap:wrap"><b>${esc(f.filename||'檔案')}</b><span class="muted" style="font-size:12px">${esc(String(f.created_at||'').slice(0,10))}　${f.size?(Math.round(f.size/1024)+' KB'):''}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="${i}">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="${i}">🗑</button></div>`).join(''):'<div class="hint">還沒有檔案。</div>';
+  }catch(e){box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'</div>';}};
+H.itvFileUp=async(inp,id)=>{const file=inp&&inp.files&&inp.files[0];if(!file)return;inp.value='';
+  toast('上傳中…');
+  try{const r=await _tuShrink(file);
+    if(!r.b64||r.b64.length>930000){toast('檔案太大（約 700KB 內）');return;}
+    const uid=(window.firebase&&firebase.auth&&firebase.auth().currentUser&&firebase.auth().currentUser.uid)||'';
+    await DB.insert('uploads',{uid:uid,student_id:'itv_'+id,area_id:'itv',area_name:'面試資料',lesson_id:'',lesson_title:'',filename:r.name,mime:r.mime,size:r.size,data:r.b64});
+    toast('✅ 已上傳：'+r.name);H.itvFilesLoad(id);
+  }catch(e){toast('上傳失敗：'+((e&&e.message)||e));}};
 H.filesViewStu=()=>{S.filesView='stu';renderFiles();};
 H.opsMonth=(m)=>{const rows=[];
   S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||'TWD',note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null});});});
