@@ -1496,23 +1496,6 @@ function renderFiles(){
     return '<div class="dash-row" style="flex-wrap:wrap"><b>'+esc(s.name||'')+'</b>'+(enrollOf(s)==='active'?'':'<span class="muted" style="font-size:12px">（休）</span>')+' '+chips+'<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uploadAreas" data-id="'+esc(s.id)+'">📤 管理／看檔案</button></div>';}).join('');
   body.innerHTML='<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">📤 學生檔案上傳區</h3><div class="hint">在這裡幫學生開「上傳作業簿」「小考練習」等區域；開放後，學生的「作業」頁就會出現上傳卡片。點「管理／看檔案」可以新增／開關區域、下載學生交的檔案。</div><div style="margin-top:10px"><button class="btn btn-primary" data-act="uaBatch">🚀 一次幫多位學生開放同一個上傳區</button></div></div><div class="card">'+(rows||'<div class="hint">還沒有學生。</div>')+'</div>';
 }
-H.uaBatch=()=>{const studs=S.students.filter(s=>!s.is_test&&enrollOf(s)==='active');
-  openModal('<div class="modal"><div class="modal-head"><h3>🚀 批次開放上傳區</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-   +'<div class="field full"><label>區域名稱</label><input id="uab-name" type="text" placeholder="例：小考練習"></div>'
-   +'<div style="margin:6px 0"><span class="hint">常用：</span><button class="btn btn-sm" data-act="uabQuick" data-id="上傳作業簿">上傳作業簿</button> <button class="btn btn-sm" data-act="uabQuick" data-id="小考練習">小考練習</button> <button class="btn btn-sm" data-act="uabQuick" data-id="上傳練習">上傳練習</button></div>'
-   +'<div class="lesson-label" style="margin-top:8px">勾選學生 <button class="btn btn-sm" data-act="uabAll" style="margin-left:8px">全選在學中</button></div>'
-   +'<div style="margin-top:6px">'+studs.map(s=>'<label style="display:inline-flex;align-items:center;gap:5px;margin:4px 10px 4px 0;cursor:pointer"><input type="checkbox" class="uab-ck" value="'+esc(s.id)+'"> '+esc(s.name||'')+'</label>').join('')+'</div>'
-   +'<div style="margin-top:12px"><button class="btn btn-primary" data-act="uabGo">✅ 開放給勾選的學生</button></div>'
-   +'</div></div>');};
-H.uabQuick=(n)=>{const i=$('#uab-name');if(i)i.value=n;};
-H.uabAll=()=>{document.querySelectorAll('.uab-ck').forEach(c=>c.checked=true);};
-H.uabGo=async()=>{const name=(($('#uab-name')&&$('#uab-name').value)||'').trim();if(!name)return toast('請先輸入區域名稱');
-  const ids=[...document.querySelectorAll('.uab-ck:checked')].map(c=>c.value);if(!ids.length)return toast('請先勾選學生');
-  let n=0;try{for(const id of ids){const s=S.students.find(x=>x.id===id);if(!s)continue;const areas=uaAreasOf(s).slice();const ex=areas.find(a=>a&&a.name===name);
-    if(ex){if(ex.open){n++;continue;}ex.open=true;}else{areas.push({id:'ua'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36),name:name,open:true});}
-    await DB.update('students',id,{upload_areas:areas});s.upload_areas=areas;n++;}
-    toast('已幫 '+n+' 位學生開放「'+name+'」');closeModal();renderFiles();
-  }catch(e){toast('失敗：'+((e&&e.message)||e));}};
 function renderGrades(){
   const wrap=$('#grades-list');const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0);
   if(!ls.length){wrap.innerHTML=emptyHtml('📊','還沒有成績','到「課文練習」指派課文給學生，學生作答後這裡會顯示分數。');return;}
@@ -2774,6 +2757,24 @@ H.uaView=async(key)=>{const p=String(key).split('::');const sid=p[0],aid=p[1];co
   }catch(e){if(box)box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'。若是權限錯誤，代表 Firestore 規則還沒加 uploads 那段（我有給你要貼的文字）。</div>';}};
 H.uaDl=(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!f.data)return toast('找不到檔案內容');const a=document.createElement('a');a.href='data:'+(f.mime||'application/octet-stream')+';base64,'+f.data;a.download=f.filename||'file';document.body.appendChild(a);a.click();a.remove();};
 H.uaFileDel=async(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!confirm('刪除「'+(f.filename||'')+'」？刪掉就找不回來了。'))return;try{await DB.remove('uploads',f.id);_uaFiles=_uaFiles.filter(x=>x!==f);toast('已刪除');const box=$('#ua-files');if(box){const rows=box.querySelectorAll('.dash-row');}}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+H.uaBatch=()=>{const studs=S.students.filter(s=>!s.is_test&&enrollOf(s)==='active');
+  openModal('<div class="modal"><div class="modal-head"><h3>🚀 批次開放上傳區</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="field full"><label>區域名稱</label><input id="uab-name" type="text" placeholder="例：小考練習"></div>'
+   +'<div style="margin:6px 0"><span class="hint">常用：</span><button class="btn btn-sm" data-act="uabQuick" data-id="上傳作業簿">上傳作業簿</button> <button class="btn btn-sm" data-act="uabQuick" data-id="小考練習">小考練習</button> <button class="btn btn-sm" data-act="uabQuick" data-id="上傳練習">上傳練習</button></div>'
+   +'<div class="lesson-label" style="margin-top:8px">勾選學生 <button class="btn btn-sm" data-act="uabAll" style="margin-left:8px">全選在學中</button></div>'
+   +'<div style="margin-top:6px">'+studs.map(s=>'<label style="display:inline-flex;align-items:center;gap:5px;margin:4px 10px 4px 0;cursor:pointer"><input type="checkbox" class="uab-ck" value="'+esc(s.id)+'"> '+esc(s.name||'')+'</label>').join('')+'</div>'
+   +'<div style="margin-top:12px"><button class="btn btn-primary" data-act="uabGo">✅ 開放給勾選的學生</button></div>'
+   +'</div></div>');};
+H.uabQuick=(n)=>{const i=$('#uab-name');if(i)i.value=n;};
+H.uabAll=()=>{document.querySelectorAll('.uab-ck').forEach(c=>c.checked=true);};
+H.uabGo=async()=>{const name=(($('#uab-name')&&$('#uab-name').value)||'').trim();if(!name)return toast('請先輸入區域名稱');
+  const ids=[...document.querySelectorAll('.uab-ck:checked')].map(c=>c.value);if(!ids.length)return toast('請先勾選學生');
+  let n=0;try{for(const id of ids){const s=S.students.find(x=>x.id===id);if(!s)continue;const areas=uaAreasOf(s).slice();const ex=areas.find(a=>a&&a.name===name);
+    if(ex){if(ex.open){n++;continue;}ex.open=true;}else{areas.push({id:'ua'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36),name:name,open:true});}
+    await DB.update('students',id,{upload_areas:areas});s.upload_areas=areas;n++;}
+    toast('已幫 '+n+' 位學生開放「'+name+'」');closeModal();renderFiles();
+  }catch(e){toast('失敗：'+((e&&e.message)||e));}};
+
 H.rollPlanned=(key)=>{const p=String(key).split('::');const tgt=p[0],date=p[1];
   if(tgt.indexOf('S:')===0){const s=studentById(tgt.slice(2));if(!s)return;const pl=studentPlanned(s).find(x=>x.date===date)||{};H.classLog(s.id,{date,start:pl.start||'',end:pl.end||'',note:pl.note||''});const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;toast('已帶入預排的「'+date+'」，直接記錄這一堂即可');return;}
   const cls=tgt.indexOf('G:')===0?tgt.slice(2):tgt;const pl=classPlanned(cls).find(x=>x.date===date)||{};classRollModal(cls,{date,start:pl.start||'',end:pl.end||'',note:pl.note||''});const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;toast('已帶入預排的「'+date+'」，直接點名存檔即可');};
