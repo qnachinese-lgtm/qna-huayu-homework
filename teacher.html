@@ -440,7 +440,12 @@ function renderDashboard(){
     _statCard('⏰','待辦提醒',remRows.length+' 件',remRows.length?'#7c3aed':'#94a3b8')+
     _statCard('🎟️','需要繳費',lowSess.length+' 位',lowSess.length?'#dc2626':'#94a3b8')+
     `</div>`;
-  body.innerHTML=`${statHtml}${healthCheckHtml()}<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
+  const _hr=new Date().getHours();const _greet=_hr<11?'早安':(_hr<18?'午安':'晚安');
+  const _wd=['日','一','二','三','四','五','六'][new Date().getDay()];
+  const _pend=(S.results||[]).filter(r=>r.status==='pending').length;
+  const _today=localToday();let _cls=0;S.students.forEach(s=>{if(s.is_test)return;(s.class_log||[]).forEach(e=>{if(e&&e.date===_today)_cls++;});(Array.isArray(s.planned)?s.planned:[]).forEach(p=>{if(p&&p.date===_today)_cls++;});});
+  const _hero=`<div class="card" style="background:linear-gradient(120deg,#fff,#fdf6ec);display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px"><div><div style="font-size:19px;font-weight:800">${_greet}，老師 👋</div><div class="muted" style="font-size:13px;margin-top:3px">${esc(_today)}（週${_wd}）｜${_pend?('今天有 <b>'+_pend+'</b> 份作業待批改'):'目前沒有待批改的作業'}${_cls?('，<b>'+_cls+'</b> 筆今日課程'):''}。</div></div><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="tab" data-id="grades">📝 去批改</button><button class="btn btn-sm" data-act="planClass">📌 預排課程</button></div>`;
+  body.innerHTML=`${_hero}${statHtml}${healthCheckHtml()}<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
     <details class="dash-fold" open style="margin-top:14px"><summary>⏰ 提醒（堂數／補課）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>
     <details class="dash-fold" style="margin-top:14px"><summary>📝 隨堂小考${(S.quizzes||[]).length?'（'+(S.quizzes||[]).length+'）':''}</summary>
       <div class="quiz-create-row" style="margin-top:10px"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button><span class="muted">選一課的生詞，指派學生做聽寫，自動計分</span></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):''}</details>
@@ -836,7 +841,11 @@ function renderOps(){const body=$('#ops-body');
   const totNow=itvAddCur(itvAddCur(Object.assign({},monCur),itvNow.paid),agNow.paid);const totAll=itvAddCur(itvAddCur(Object.assign({},allCur),itvAllInc.paid),agAllInc.paid);
   const bigNum2=(obj)=>{const ks=Object.keys(obj);return ks.length?ks.map(cur=>`<b style="font-size:26px">${money(obj[cur],cur)}</b>`).join('<span class="muted" style="font-size:18px"> ＋ </span>'):'<b style="font-size:26px" class="muted">—</b>';};
   const totalCard=`<div class="card" style="margin-bottom:14px;border:2px solid var(--primary);background:linear-gradient(180deg,#fffdf8,#fff)"><div class="lesson-label" style="font-size:15px">🧮 總收入（華語教學 ＋ 面試練習 ＋ 代辦申請）</div><div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:6px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum2(totNow)}</div><div style="border-left:1px solid var(--line);padding-left:28px"><div class="muted" style="font-size:12px">累計（全部）</div>${bigNum2(totAll)}</div></div><div class="hint" style="margin-top:8px">下面是兩條業務線的明細。</div></div>`;
-  body.innerHTML=`${totalCard}<div class="card"><div class="lesson-label">💰 華語教學收入</div>${incSummary}${incRows}</div>${itvSummary}${agSummary}${billHtml}<div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>${siteHtml}${adminHtml}${annHtml}`;}
+  const _tm=[];{let d=new Date(localToday()+'T00:00:00');for(let k=5;k>=0;k--){const dd=new Date(d.getFullYear(),d.getMonth()-k,1);_tm.push(dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0'));}}
+  const _vnd=_tm.map(m=>((byMonth[m]||{})['VND']||0));const _twd=_tm.map(m=>((byMonth[m]||{})['TWD']||0));
+  const _mx=Math.max.apply(null,_vnd.concat([1]));
+  const _chart=`<div class="card"><div class="lesson-label">📈 近六個月收入趨勢（越南盾）</div><div style="display:flex;align-items:flex-end;gap:12px;height:130px;padding:8px 4px 0">${_tm.map((m,i)=>{const h=Math.round(_vnd[i]/_mx*100);const lab=(i===_tm.length-1&&_vnd[i])?`<span style=\"font-size:11.5px;font-weight:800;color:#6b6357\">${(_vnd[i]/1000).toFixed(2)}M</span>`:'';return `<div style=\"flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%\" title=\"${m}：${(_vnd[i]/1000).toFixed(2)}M ₫${_twd[i]?('＋NT$'+_twd[i].toLocaleString()):''}\">${lab}<div style=\"width:68%;max-width:36px;height:${Math.max(h,2)}%;background:var(--accent,#B23A48);opacity:${i===_tm.length-1?'1':'.45'};border-radius:4px 4px 0 0\"></div><span style=\"font-size:11px;color:#9a8f80\">${Number(m.slice(5))}月</span></div>`;}).join('')}</div>${_twd.some(x=>x)?`<div class="hint" style="margin-top:6px">台幣另計：${_tm.map((m,i)=>_twd[i]?(Number(m.slice(5))+'月 NT$'+_twd[i].toLocaleString()):null).filter(Boolean).join('　')}</div>`:''}<div class="hint" style="margin-top:4px">數字全部自動來自繳費紀錄——記一筆繳費，這裡就更新。</div></div>`;
+  body.innerHTML=`${totalCard}${_chart}<div class="card"><div class="lesson-label">💰 華語教學收入</div>${incSummary}${incRows}</div>${itvSummary}${agSummary}${billHtml}<div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>${siteHtml}${adminHtml}${annHtml}`;}
 /* ---------- 對外官網：報名名單 + 內容編輯 ---------- */
 function leadsCardHtml(){
   const leads=(S.leads||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
@@ -1511,7 +1520,11 @@ function renderFiles(){
   const studs=S.students.filter(s=>!s.is_test).slice().sort((a,b)=>{const ea=enrollOf(a)==='active'?0:1,eb=enrollOf(b)==='active'?0:1;return ea-eb||String(a.name||'').localeCompare(String(b.name||''));});
   const rows=studs.map(s=>{const areas=uaAreasOf(s);const chips=areas.length?areas.map(a=>'<span class="badge '+(a.open?'badge-ok':'')+'"'+(a.open?'':' style="background:#eee;color:#777;border-color:#ddd"')+'>📁 '+esc(a.name||'')+(a.open?'':'（已關）')+'</span>').join(' '):'<span class="hint">還沒有上傳區</span>';
     return '<div class="dash-row" style="flex-wrap:wrap"><b>'+esc(s.name||'')+'</b>'+(enrollOf(s)==='active'?'':'<span class="muted" style="font-size:12px">（休）</span>')+' '+chips+'<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uploadAreas" data-id="'+esc(s.id)+'">📤 管理／看檔案</button></div>';}).join('');
-  body.innerHTML='<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">📤 學生檔案上傳區</h3><div class="hint">在這裡幫學生開「上傳作業簿」「小考練習」等區域；開放後，學生的「作業」頁就會出現上傳卡片。點「管理／看檔案」可以新增／開關區域、下載學生交的檔案。</div><div style="margin-top:10px"><button class="btn btn-primary" data-act="uaBatch">🚀 一次幫多位學生開放同一個上傳區</button></div></div><div class="card">'+(rows||'<div class="hint">還沒有學生。</div>')+'</div>';
+  const _view=S.filesView||'stu';
+  const _tabs='<div style="display:flex;gap:8px;margin:10px 0 0"><button class="btn btn-sm '+(_view==='stu'?'btn-accent':'')+'" data-act="filesViewStu">👥 依學生</button><button class="btn btn-sm '+(_view==='les'?'btn-accent':'')+'" data-act="filesViewLes">📚 依課次</button><span class="grow"></span><button class="btn btn-sm btn-primary" data-act="uaBatch">🚀 一次幫多位學生開放上傳區</button></div>';
+  const _headCard='<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">📤 學生檔案上傳區</h3><div class="hint">幫學生開「上傳作業簿」「小考練習」等區域；開放後學生的「作業」頁會出現上傳卡片。學生上傳時可選課次，檔案就會歸到那一課。</div>'+_tabs+'</div>';
+  if(_view==='les'){body.innerHTML=_headCard+'<div class="card" id="files-les"><div class="hint">載入檔案中…</div></div>';_filesLoadLessons();return;}
+  body.innerHTML=_headCard+'<div class="card">'+(rows||'<div class="hint">還沒有學生。</div>')+'</div>';
 }
 function renderGrades(){
   const wrap=$('#grades-list');const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0);
@@ -2775,6 +2788,16 @@ H.uaView=async(key)=>{const p=String(key).split('::');const sid=p[0],aid=p[1];co
   }catch(e){if(box)box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'。若是權限錯誤，代表 Firestore 規則還沒加 uploads 那段（我有給你要貼的文字）。</div>';}};
 H.uaDl=(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!f.data)return toast('找不到檔案內容');const a=document.createElement('a');a.href='data:'+(f.mime||'application/octet-stream')+';base64,'+f.data;a.download=f.filename||'file';document.body.appendChild(a);a.click();a.remove();};
 H.uaFileDel=async(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!confirm('刪除「'+(f.filename||'')+'」？刪掉就找不回來了。'))return;try{await DB.remove('uploads',f.id);_uaFiles=_uaFiles.filter(x=>x!==f);toast('已刪除');const box=$('#ua-files');if(box){const rows=box.querySelectorAll('.dash-row');}}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+async function _filesLoadLessons(){const box=document.getElementById('files-les');if(!box)return;
+  try{const files=await DB.list('uploads');files.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));_uaFiles=files;
+    if(!files.length){box.innerHTML='<div class="hint">還沒有任何學生上傳檔案。</div>';return;}
+    const groups={};const order=[];files.forEach((f,i)=>{const k=f.lesson_title||'（未指定課次）';if(!groups[k]){groups[k]=[];order.push(k);}groups[k].push(i);});
+    order.sort((a,b)=>a==='（未指定課次）'?1:(b==='（未指定課次）'?-1:a.localeCompare(b)));
+    const stuName=(id)=>{const s=S.students.find(x=>x.id===id);return (s&&s.name)||'?';};
+    box.innerHTML=order.map(k=>'<details open style="margin-bottom:10px"><summary style="font-weight:800;cursor:pointer;padding:6px 0">📚 '+esc(k)+'　<span class="hint">（'+groups[k].length+' 個檔案）</span></summary>'+groups[k].map(i=>{const f=_uaFiles[i];return '<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">'+esc(f.area_name||'')+'</span><b>'+esc(stuName(f.student_id))+'</b><span class="muted" style="font-size:12px">'+esc(f.filename||'')+'　'+esc(String(f.created_at||'').slice(0,10))+'　'+(f.size?(Math.round(f.size/1024)+' KB'):'')+'</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="'+i+'">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="'+i+'">🗑</button></div>';}).join('')+'</details>').join('');
+  }catch(e){box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'</div>';}}
+H.filesViewStu=()=>{S.filesView='stu';renderFiles();};
+H.filesViewLes=()=>{S.filesView='les';renderFiles();};
 H.uaBatch=()=>{const studs=S.students.filter(s=>!s.is_test&&enrollOf(s)==='active');
   openModal('<div class="modal"><div class="modal-head"><h3>🚀 批次開放上傳區</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
    +'<div class="field full"><label>區域名稱</label><input id="uab-name" type="text" placeholder="例：小考練習"></div>'
