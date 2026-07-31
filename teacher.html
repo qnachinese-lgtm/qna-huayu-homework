@@ -52,6 +52,7 @@
 
   <div id="app" class="hide">
     <div class="topbar"><div class="topbar-inner">
+      <button id="nav-toggle" class="btn btn-sm btn-ghost" data-act="navToggle" title="收合／展開選單" style="font-size:17px;padding:4px 10px">⟨</button>
       <div class="brand"><div class="brand-badge">師</div>
         <div><div class="brand-title" id="app-name">QNA CHINESE 學習平台</div><div class="brand-sub">教師管理後台</div></div></div>
       <div class="topbar-spacer"></div>
@@ -95,6 +96,9 @@
         .sidenav .tab .count{margin-left:auto}
         body .topbar{margin-left:212px}
         #app .container{margin-left:212px;max-width:calc(100% - 212px)}
+        body.nav-off .sidenav{display:none}
+        body.nav-off .topbar{margin-left:0}
+        body.nav-off #app .container{margin-left:0;max-width:100%}
         @media(max-width:860px){
           .sidenav{position:static;width:auto;flex-direction:row;overflow-x:auto;padding:6px 8px;border-right:none;border-bottom:1px solid var(--line);gap:4px}
           .sidenav .sec{display:none}.sidenav .sbrand{display:none}
@@ -822,7 +826,7 @@ function renderOps(){const body=$('#ops-body');
   const incSummary=`<div style="display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 12px">`+
     `<div><div class="muted" style="font-size:12px">本月收入（${esc(thisM)}）</div>${bigNum(monCur)}</div>`+
     `<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計收入（全部）</div>${bigNum(allCur)}</div></div>`;
-  const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入紀錄（到學生的「繳費」新增即可）。</div>';
+  const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span><button class="btn btn-sm" data-act="opsMonth" data-id="${esc(m)}">🔎 明細</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入紀錄（到學生的「繳費」新增即可）。</div>';
   const billHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">🧮 累計 該收 vs 實收 <span class="hint">用「累計上課×單價」對照「累計實收」，不受繳費時間影響，抓真正的漏收</span></div>${billCheckHtml(thisM)}</div>`;
   const due=S.students.filter(s=>!s.is_test&&!isTrial(s)&&enrollOf(s)!=='paused').map(s=>({s,left:sessionsLeft(s)})).filter(x=>x.left!=null&&x.left<=2).sort((a,b)=>a.left-b.left);
   const dueRows=due.length?due.map(({s,left})=>{const bcls=left<=0?'badge-overdue':'badge-soon';const blab=left<=0?'需續費':'剩 '+fmtQty(left)+' '+unitLabel(s);return `<div class="dash-row"><span class="badge ${bcls}">${blab}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">${money(s.tuition,s.currency)}</span><button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒</button><button class="btn btn-sm" data-act="payments" data-id="${s.id}">繳費</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
@@ -844,7 +848,7 @@ function renderOps(){const body=$('#ops-body');
   const _tm=[];{let d=new Date(localToday()+'T00:00:00');for(let k=5;k>=0;k--){const dd=new Date(d.getFullYear(),d.getMonth()-k,1);_tm.push(dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0'));}}
   const _vnd=_tm.map(m=>((byMonth[m]||{})['VND']||0));const _twd=_tm.map(m=>((byMonth[m]||{})['TWD']||0));
   const _mx=Math.max.apply(null,_vnd.concat([1]));
-  const _chart=`<div class="card"><div class="lesson-label">📈 近六個月收入趨勢（越南盾）</div><div style="display:flex;align-items:flex-end;gap:12px;height:130px;padding:8px 4px 0">${_tm.map((m,i)=>{const h=Math.round(_vnd[i]/_mx*100);const lab=(i===_tm.length-1&&_vnd[i])?`<span style=\"font-size:11.5px;font-weight:800;color:#6b6357\">${(_vnd[i]/1000).toFixed(2)}M</span>`:'';return `<div style=\"flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%\" title=\"${m}：${(_vnd[i]/1000).toFixed(2)}M ₫${_twd[i]?('＋NT$'+_twd[i].toLocaleString()):''}\">${lab}<div style=\"width:68%;max-width:36px;height:${Math.max(h,2)}%;background:var(--accent,#B23A48);opacity:${i===_tm.length-1?'1':'.45'};border-radius:4px 4px 0 0\"></div><span style=\"font-size:11px;color:#9a8f80\">${Number(m.slice(5))}月</span></div>`;}).join('')}</div>${_twd.some(x=>x)?`<div class="hint" style="margin-top:6px">台幣另計：${_tm.map((m,i)=>_twd[i]?(Number(m.slice(5))+'月 NT$'+_twd[i].toLocaleString()):null).filter(Boolean).join('　')}</div>`:''}<div class="hint" style="margin-top:4px">數字全部自動來自繳費紀錄——記一筆繳費，這裡就更新。</div></div>`;
+  const _chart=`<div class="card"><div class="lesson-label">📈 近六個月收入趨勢（越南盾）</div><div style="display:flex;align-items:flex-end;gap:12px;height:130px;padding:8px 4px 0">${_tm.map((m,i)=>{const h=Math.round(_vnd[i]/_mx*100);const lab=(i===_tm.length-1&&_vnd[i])?`<span style=\"font-size:11.5px;font-weight:800;color:#6b6357\">${(_vnd[i]/1000).toFixed(2)}M</span>`:'';return `<div data-act=\"opsMonth\" data-id=\"${m}\" style=\"flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%;cursor:pointer\" title=\"${m}：${(_vnd[i]/1000).toFixed(2)}M ₫${_twd[i]?('＋NT$'+_twd[i].toLocaleString()):''}\">${lab}<div style=\"width:68%;max-width:36px;height:${Math.max(h,2)}%;background:var(--accent,#B23A48);opacity:${i===_tm.length-1?'1':'.45'};border-radius:4px 4px 0 0\"></div><span style=\"font-size:11px;color:#9a8f80\">${Number(m.slice(5))}月</span></div>`;}).join('')}</div>${_twd.some(x=>x)?`<div class="hint" style="margin-top:6px">台幣另計：${_tm.map((m,i)=>_twd[i]?(Number(m.slice(5))+'月 NT$'+_twd[i].toLocaleString()):null).filter(Boolean).join('　')}</div>`:''}<div class="hint" style="margin-top:4px">數字全部自動來自繳費紀錄——記一筆繳費，這裡就更新。</div></div>`;
   body.innerHTML=`${totalCard}${_chart}<div class="card"><div class="lesson-label">💰 華語教學收入</div>${incSummary}${incRows}</div>${itvSummary}${agSummary}${billHtml}<div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>${siteHtml}${adminHtml}${annHtml}`;}
 /* ---------- 對外官網：報名名單 + 內容編輯 ---------- */
 function leadsCardHtml(){
@@ -2797,6 +2801,21 @@ async function _filesLoadLessons(){const box=document.getElementById('files-les'
     box.innerHTML=order.map(k=>'<details open style="margin-bottom:10px"><summary style="font-weight:800;cursor:pointer;padding:6px 0">📚 '+esc(k)+'　<span class="hint">（'+groups[k].length+' 個檔案）</span></summary>'+groups[k].map(i=>{const f=_uaFiles[i];return '<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">'+esc(f.area_name||'')+'</span><b>'+esc(stuName(f.student_id))+'</b><span class="muted" style="font-size:12px">'+esc(f.filename||'')+'　'+esc(String(f.created_at||'').slice(0,10))+'　'+(f.size?(Math.round(f.size/1024)+' KB'):'')+'</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="'+i+'">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="'+i+'">🗑</button></div>';}).join('')+'</details>').join('');
   }catch(e){box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'</div>';}}
 H.filesViewStu=()=>{S.filesView='stu';renderFiles();};
+H.opsMonth=(m)=>{const rows=[];
+  S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||'TWD',note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null});});});
+  rows.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const tot={};rows.forEach(r=>{tot[r.cur]=(tot[r.cur]||0)+r.amt;});
+  const totStr=Object.keys(tot).map(c=>money(tot[c],c)).join('　+　')||'—';
+  const body=rows.length?rows.map(r=>`<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">${esc(String(r.date).slice(5))}</span><b>${esc(r.name)}</b>${r.sess!=null?`<span class="muted" style="font-size:12px">＋${esc(String(r.sess))} 堂</span>`:''}${r.note?`<span class="muted" style="font-size:12px">${esc(r.note)}</span>`:''}<span class="grow"></span><b style="color:var(--accent,#B23A48)">${money(r.amt,r.cur)}</b></div>`).join(''):'<div class="hint">這個月沒有學生繳費紀錄。</div>';
+  openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${esc(m)} 收入明細</h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body">
+      <div class="card" style="background:#fdf6ec;margin-bottom:10px"><div class="hint">本月合計（學生繳費）</div><div style="font-size:20px;font-weight:800">${totStr}</div></div>
+      ${body}
+      <div class="hint" style="margin-top:10px">列的是「學生繳費」明細（含堂數與備註）。面試練習、代辦申請的收款請看各自分頁。要修改某筆，到該學生的「💰 繳費」裡改。</div>
+    </div></div>`);};
+H.navToggle=()=>{const off=document.body.classList.toggle('nav-off');try{localStorage.setItem('qna_nav_off',off?'1':'0');}catch(e){}const b=document.getElementById('nav-toggle');if(b)b.textContent=off?'☰':'⟨';};
+try{if(localStorage.getItem('qna_nav_off')==='1'){document.body.classList.add('nav-off');}}catch(e){}
+setTimeout(()=>{const b=document.getElementById('nav-toggle');if(b)b.textContent=document.body.classList.contains('nav-off')?'☰':'⟨';},0);
 H.filesViewLes=()=>{S.filesView='les';renderFiles();};
 H.uaBatch=()=>{const studs=S.students.filter(s=>!s.is_test&&enrollOf(s)==='active');
   openModal('<div class="modal"><div class="modal-head"><h3>🚀 批次開放上傳區</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
