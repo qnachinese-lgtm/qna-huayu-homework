@@ -78,6 +78,7 @@
         <button class="tab" data-act="tab" data-id="students" data-group="students">學生名冊 <span class="count" id="c-students">0</span></button>
         <button class="tab" data-act="tab" data-id="calendar" data-group="students">📅 課表</button>
         <button class="tab" data-act="tab" data-id="grades" data-group="students">成績總覽 <span class="count alert hide" id="c-pending">0</span></button>
+        <button class="tab" data-act="tab" data-id="files" data-group="students">📤 學生檔案</button>
         <button class="tab" data-act="tab" data-id="lessons" data-group="materials">📚 上課教材 <span class="count" id="c-lessons">0</span></button>
         <button class="tab" data-act="tab" data-id="agency" data-group="abroad">🎓 代辦申請 <span class="count" id="c-ag">0</span></button>
         <button class="tab" data-act="tab" data-id="interview" data-group="abroad">🎤 面試練習 <span class="count" id="c-itv">0</span></button>
@@ -110,6 +111,8 @@
           <button class="btn" data-act="tplLesson">📋 用範本開新課文</button></div>
         <div id="lessons-list" class="cards"></div>
       </section>
+
+      <section id="panel-files" class="panel hide"></section>
 
       <section id="panel-grades" class="panel hide">
         <div class="section-head"><h2>成績總覽</h2><span class="sub">每位學生每課的完成與分數</span></div>
@@ -303,7 +306,7 @@ function render(){
   {const nl=(S.leads||[]).filter(x=>(x.status||'new')==='new').length;const el=$('#c-leads');if(el){el.textContent=nl;el.classList.toggle('hide',!nl||!IS_OWNER);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
-  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,interview:renderInterview,agency:renderAgency,ops:renderOps}[S.tab])();}
+  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,ops:renderOps}[S.tab])();}
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
@@ -1486,6 +1489,30 @@ function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length
     <button class="btn btn-primary btn-sm" data-act="saveReview" data-id="${r.id}">💾 儲存建議</button>
     <button class="btn btn-sm btn-danger" data-act="delResult" data-id="${r.id}" style="margin-left:8px">🗑 刪除此作答</button></div>`;}
 /* ---------- 成績 ---------- */
+function renderFiles(){
+  const body=$('#panel-files');if(!body)return;
+  const studs=S.students.filter(s=>!s.is_test).slice().sort((a,b)=>{const ea=enrollOf(a)==='active'?0:1,eb=enrollOf(b)==='active'?0:1;return ea-eb||String(a.name||'').localeCompare(String(b.name||''));});
+  const rows=studs.map(s=>{const areas=uaAreasOf(s);const chips=areas.length?areas.map(a=>'<span class="badge '+(a.open?'badge-ok':'')+'"'+(a.open?'':' style="background:#eee;color:#777;border-color:#ddd"')+'>📁 '+esc(a.name||'')+(a.open?'':'（已關）')+'</span>').join(' '):'<span class="hint">還沒有上傳區</span>';
+    return '<div class="dash-row" style="flex-wrap:wrap"><b>'+esc(s.name||'')+'</b>'+(enrollOf(s)==='active'?'':'<span class="muted" style="font-size:12px">（休）</span>')+' '+chips+'<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uploadAreas" data-id="'+esc(s.id)+'">📤 管理／看檔案</button></div>';}).join('');
+  body.innerHTML='<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">📤 學生檔案上傳區</h3><div class="hint">在這裡幫學生開「上傳作業簿」「小考練習」等區域；開放後，學生的「作業」頁就會出現上傳卡片。點「管理／看檔案」可以新增／開關區域、下載學生交的檔案。</div><div style="margin-top:10px"><button class="btn btn-primary" data-act="uaBatch">🚀 一次幫多位學生開放同一個上傳區</button></div></div><div class="card">'+(rows||'<div class="hint">還沒有學生。</div>')+'</div>';
+}
+H.uaBatch=()=>{const studs=S.students.filter(s=>!s.is_test&&enrollOf(s)==='active');
+  openModal('<div class="modal"><div class="modal-head"><h3>🚀 批次開放上傳區</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="field full"><label>區域名稱</label><input id="uab-name" type="text" placeholder="例：小考練習"></div>'
+   +'<div style="margin:6px 0"><span class="hint">常用：</span><button class="btn btn-sm" data-act="uabQuick" data-id="上傳作業簿">上傳作業簿</button> <button class="btn btn-sm" data-act="uabQuick" data-id="小考練習">小考練習</button> <button class="btn btn-sm" data-act="uabQuick" data-id="上傳練習">上傳練習</button></div>'
+   +'<div class="lesson-label" style="margin-top:8px">勾選學生 <button class="btn btn-sm" data-act="uabAll" style="margin-left:8px">全選在學中</button></div>'
+   +'<div style="margin-top:6px">'+studs.map(s=>'<label style="display:inline-flex;align-items:center;gap:5px;margin:4px 10px 4px 0;cursor:pointer"><input type="checkbox" class="uab-ck" value="'+esc(s.id)+'"> '+esc(s.name||'')+'</label>').join('')+'</div>'
+   +'<div style="margin-top:12px"><button class="btn btn-primary" data-act="uabGo">✅ 開放給勾選的學生</button></div>'
+   +'</div></div>');};
+H.uabQuick=(n)=>{const i=$('#uab-name');if(i)i.value=n;};
+H.uabAll=()=>{document.querySelectorAll('.uab-ck').forEach(c=>c.checked=true);};
+H.uabGo=async()=>{const name=(($('#uab-name')&&$('#uab-name').value)||'').trim();if(!name)return toast('請先輸入區域名稱');
+  const ids=[...document.querySelectorAll('.uab-ck:checked')].map(c=>c.value);if(!ids.length)return toast('請先勾選學生');
+  let n=0;try{for(const id of ids){const s=S.students.find(x=>x.id===id);if(!s)continue;const areas=uaAreasOf(s).slice();const ex=areas.find(a=>a&&a.name===name);
+    if(ex){if(ex.open){n++;continue;}ex.open=true;}else{areas.push({id:'ua'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36),name:name,open:true});}
+    await DB.update('students',id,{upload_areas:areas});s.upload_areas=areas;n++;}
+    toast('已幫 '+n+' 位學生開放「'+name+'」');closeModal();renderFiles();
+  }catch(e){toast('失敗：'+((e&&e.message)||e));}};
 function renderGrades(){
   const wrap=$('#grades-list');const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0);
   if(!ls.length){wrap.innerHTML=emptyHtml('📊','還沒有成績','到「課文練習」指派課文給學生，學生作答後這裡會顯示分數。');return;}
