@@ -655,6 +655,48 @@ const classMetaOf=(cls)=>{const m=(S.classMeta&&S.classMeta.meta)||{};return m[c
 /* 上課教室 Meet 連結：優先用學生自己的，其次用團班設定的 */
 function myMeetUrl(){if(/^https?:\/\//i.test((S.me&&S.me.meet_url)||''))return S.me.meet_url;for(const g of myGroups()){const m=classMetaOf(g).meet;if(/^https?:\/\//i.test(m||''))return m;}return '';}
 function meetCardHtml(){if(S.preview)return '';const u=myMeetUrl();if(!u)return '';const lab=S.lang==='en'?'Enter classroom':(S.lang==='vi'?'Vào lớp học':'進入上課教室');return `<a class="meet-card" href="${esc(u)}" target="_blank" rel="noopener"><span class="meet-ic">🎥</span><span class="meet-tx"><b>${lab}</b><small>Google Meet · 點此直接上課</small></span><span class="meet-go">→</span></a>`;}
+function classBannerHtml(){const _grp=myGroups();if(S.preview||!_grp.length)return '';return `<div class="class-banner"><div class="cb-head"><span class="cb-ic">👥</span><span class="cb-label">${t('yourClass')}</span></div>${_grp.map(g=>{const cm=classMetaOf(g);const s=fmtSched(cm.schedule);const chips=[`<span class="cb-chip cb-cls">${esc(g)}</span>`];if(s)chips.push(`<span class="cb-chip">🕒 ${esc(s)}</span>`);if(cm.textbook)chips.push(`<span class="cb-chip">📖 ${esc(cm.textbook)}</span>`);return `<div class="cb-row">${chips.join('')}</div>`;}).join('')}<div class="cb-note">💡 ${t('classNote')}</div></div>`;}
+function driveLinks(){const links=[],seen=new Set();
+  const mine=(S.me&&S.me.drive_url)||'';if(/^https?:\/\//i.test(mine)){seen.add(mine);links.push({u:mine,label:''});}
+  myGroups().forEach(g=>{const d=(classMetaOf(g).drive||'');if(/^https?:\/\//i.test(d)&&!seen.has(d)){seen.add(d);links.push({u:d,label:g});}});
+  return links;}
+function infoBarHtml(){
+  if(S.preview||!S.me)return '';
+  const L=S.lang||'zh';
+  const T={room:{zh:'上課教室',cn:'上课教室',en:'Classroom',vi:'Lớp học'},
+           drive:{zh:'Drive 資料',cn:'Drive 资料',en:'Drive files',vi:'Tài liệu Drive'},
+           cls:{zh:'我的班級',cn:'我的班级',en:'My class',vi:'Lớp của tôi'},
+           pay:{zh:'繳費記錄',cn:'缴费记录',en:'Payments',vi:'Học phí'},
+           days:{zh:'上課記錄',cn:'上课记录',en:'Attendance',vi:'Buổi đã học'}};
+  const lb=k=>(T[k]&&(T[k][L]||T[k].zh))||'';
+  const chips=[],panels=[];
+  const meet=myMeetUrl();
+  if(meet)chips.push('<a class="info-chip" href="'+esc(meet)+'" target="_blank" rel="noopener">🎥 '+esc(lb('room'))+'</a>');
+  const dl=driveLinks();
+  if(dl.length===1)chips.push('<a class="info-chip" href="'+esc(dl[0].u)+'" target="_blank" rel="noopener">📁 '+esc(lb('drive'))+'</a>');
+  else if(dl.length>1){chips.push('<button class="info-chip" data-act="infoTab" data-id="drive">📁 '+esc(lb('drive'))+' <span class="ic-n">'+dl.length+'</span></button>');
+    panels.push('<div class="info-panel card hide" data-id="drive">'+dl.map(l=>'<a class="btn btn-sm btn-accent" style="margin:2px 8px 2px 0;text-decoration:none" href="'+esc(l.u)+'" target="_blank" rel="noopener">📂 '+(l.label?esc(l.label)+' · ':'')+esc(lb('drive'))+'</a>').join('')+'</div>');}
+  const cb=classBannerHtml();
+  if(cb){chips.push('<button class="info-chip" data-act="infoTab" data-id="cls">👥 '+esc(lb('cls'))+'</button>');
+    panels.push('<div class="info-panel hide" data-id="cls">'+cb+'</div>');}
+  const pl=payLogHtml(true);
+  if(pl){const n=(Array.isArray(S.me.payments)?S.me.payments:[]).filter(p=>p&&(p.date||p.amount!=null)).length;
+    chips.push('<button class="info-chip" data-act="infoTab" data-id="pay">🧾 '+esc(lb('pay'))+' <span class="ic-n">'+n+'</span></button>');
+    panels.push('<div class="info-panel card hide" data-id="pay">'+pl+'</div>');}
+  const cd=classDaysHtml(true);
+  if(cd){const n=(Array.isArray(S.me.class_log)?S.me.class_log:[]).filter(e=>e&&e.date).length;
+    chips.push('<button class="info-chip" data-act="infoTab" data-id="days">🗓 '+esc(lb('days'))+' <span class="ic-n">'+n+'</span></button>');
+    panels.push('<div class="info-panel card hide" data-id="days">'+cd+'</div>');}
+  if(!chips.length)return '';
+  const css='<style>.info-bar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}'
+    +'.info-chip{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e6dcc8;border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;color:#5b5346;cursor:pointer;text-decoration:none;font-family:inherit;line-height:1.3}'
+    +'.info-chip:hover{border-color:#1F6F78;color:#1F6F78}'
+    +'.info-chip.on{background:#1F6F78;border-color:#1F6F78;color:#fff}'
+    +'.info-chip .ic-n{background:#f0ece2;color:#6b6357;border-radius:999px;padding:0 7px;font-size:12px}'
+    +'.info-chip.on .ic-n{background:rgba(255,255,255,.25);color:#fff}'
+    +'.info-panel{margin:0 0 12px}</style>';
+  return css+'<div class="info-bar">'+chips.join('')+'</div>'+panels.join('');
+}
 function driveCardHtml(){if(S.preview)return '';const links=[],seen=new Set();
   const mine=(S.me&&S.me.drive_url)||'';if(/^https?:\/\//i.test(mine)){seen.add(mine);links.push({u:mine,label:''});}
   myGroups().forEach(g=>{const d=(classMetaOf(g).drive||'');if(/^https?:\/\//i.test(d)&&!seen.has(d)){seen.add(d);links.push({u:d,label:g});}});
@@ -866,7 +908,7 @@ function payCardHtml(){
   return remind+'<details class="ann-card"'+(remind?' open':'')+' style="padding:0"><summary style="cursor:pointer;padding:13px 15px;font-weight:700;list-style:none">💳 付款方式 / Thanh toán <span style="font-size:12px;color:#9a8f80;font-weight:400">（需要時點開）</span></summary><div style="padding:0 14px 14px"><div class="ann-item" style="margin-bottom:6px">開啟銀行 App 掃 QR 轉帳 · Mở app ngân hàng quét mã QR</div><div style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;padding:4px 0 2px">'+blocks+'</div></div></details>';
 }
 /* ===== 我的繳費記錄（老師登錄的收款會出現在這裡） ===== */
-function payLogHtml(){
+function payLogHtml(bare){
   if(S.preview||!S.me)return '';
   const ps=(Array.isArray(S.me.payments)?S.me.payments:[]).filter(p=>p&&(p.date||p.amount!=null)).slice()
     .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
@@ -888,9 +930,11 @@ function payLogHtml(){
     return '<div class="dash-row" style="padding:6px 0;align-items:center;flex-wrap:wrap"><b>'+esc(p.date||'—')+'</b>'+sess
       +(p.note?'<span class="hint" style="margin-left:6px">'+esc(p.note)+'</span>':'')
       +'<span class="grow"></span><span style="color:#16a34a;font-weight:700;white-space:nowrap">\u2705 '+esc(fmtM(p.amount,cur))+'</span></div>';}).join('');
+  const inner='<div class="hint" style="margin:6px 0 2px">'+esc(T.hint)+'</div><div style="margin-top:2px">'+rows
+    +'<div class="dash-row" style="padding:8px 0 2px;border-top:1px solid #eadfce;margin-top:4px"><b>'+esc(T.total)+'</b><span class="grow"></span><b style="color:#1F6F78">'+esc(totalTxt)+'</b></div></div>';
+  if(bare)return inner;
   return '<details class="card" style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;list-style-position:inside">\ud83e\uddfe '+esc(T.t)
-    +' <span class="hint">（'+ps.length+' '+T.n+'）</span></summary><div class="hint" style="margin:6px 0 2px">'+esc(T.hint)+'</div><div style="margin-top:2px">'+rows
-    +'<div class="dash-row" style="padding:8px 0 2px;border-top:1px solid #eadfce;margin-top:4px"><b>'+esc(T.total)+'</b><span class="grow"></span><b style="color:#1F6F78">'+esc(totalTxt)+'</b></div></div></details>';
+    +' <span class="hint">（'+ps.length+' '+T.n+'）</span></summary>'+inner+'</details>';
 }
 /* ===== 檔案上傳區（老師開放才會出現） ===== */
 function uploadCardHtml(){
@@ -928,7 +972,7 @@ function renderWork(){
   const ls=myLessons().filter(l=>answerableOf(l.id).length);
   const myQuizzes=(S.quizzes||[]).filter(qz=>assignedToMe(qz)).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
   const quizCard=myQuizzes.length?('<div class="lesson-label" style="margin-top:6px">'+t('quizSec')+'</div><div class="quiz-list">'+myQuizzes.map(qz=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;const qm=t({dict:'qmDict',pinyin:'qmPinyin',mean:'qmMean',choice:'qmChoice',cloze:'qmCloze',custom:'qmCustom'}[qz.mode||'dict']||'qmDict');return `<div class="quiz-card${done?' done':''}"${done?'':' data-act="startQuiz" data-id="'+qz.id+'"'}><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>${esc(qz.title||t('quizDefTitle'))}</b><div class="muted" style="font-size:12px">${qm}</div></div>${done?`<span class="badge badge-ok">${r.score}/${r.total}</span>`:`<span class="badge badge-soon">${t('quizNotTaken')}</span>`}</div>`;}).join('')+'</div>'):'';
-  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML=banner+payCardHtml()+uploadCardHtml()+payLogHtml()+submittedWorkHtml()+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
+  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML=banner+infoBarHtml()+payCardHtml()+uploadCardHtml()+submittedWorkHtml()+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
   let overdue=0,soon=0;ls.forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});
   const fbN=ls.filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
   const sentFbN=(S.sentences||[]).filter(s=>s.status==='reviewed'&&((s.overall&&s.overall.trim())||(s.feedback&&Object.keys(s.feedback).length))).length;
@@ -938,7 +982,7 @@ function renderWork(){
   if((overdue||soon)&&('Notification'in window)&&Notification.permission==='default')nbp.push('<button class="nb-item" data-act="enableNotify">🔔 開啟提醒</button>');
   const nb=nbp.length?`<div class="notify-bar">${nbp.join('')}</div>`:'';
   const left=myLeft();const sessCard=left!=null?`<div class="sess-line${left<=2?' low':''}">🎟️ 本期還剩 <b>${myFmtQty(left)}</b> ${myUnit()}${left<=0?' <span class="badge badge-overdue">已用完</span>':(left<=2?' <span class="badge badge-soon">快用完了</span>':'')}</div>`:'';
-  const meetCard=meetCardHtml();
+  const meetCard=infoBarHtml();
   const _hasSched=Array.isArray(S.me&&S.me.schedule)&&S.me.schedule.some(r=>r&&r.s);
   const calCard=_hasSched?`<div class="cal-card"><button class="btn btn-sm" data-act="addCal">📅 加入手機／Google 日曆</button><span class="hint">加一次，每週上課前 30 分鐘手機自動提醒</span></div>`:'';
   // 成就徽章
@@ -955,7 +999,7 @@ function renderWork(){
   const notes=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).filter(e=>e&&e.note&&e.note.trim()).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3);
   const noteCard=notes.length?'<div class="note-card"><div class="ann-h">📝 課後小結 Class notes</div>'+notes.map(n=>'<div class="ann-item"><span class="ann-date">'+esc(n.date||'')+'</span>'+esc(n.note||'')+'</div>').join('')+'</div>':'';
   const payCard=payCardHtml()+uploadCardHtml();
-  $('#screen').innerHTML=banner+badgeStrip+liveJoinCard+annCard+payCard+meetCard+classUpcomingHtml()+calCard+noteCard+sessCard+payLogHtml()+classDaysHtml()+nb+submittedWorkHtml()+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
+  $('#screen').innerHTML=banner+badgeStrip+liveJoinCard+annCard+payCard+meetCard+classUpcomingHtml()+calCard+noteCard+sessCard+nb+submittedWorkHtml()+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
@@ -1029,7 +1073,7 @@ function pronLessonCardHtml(p){
   const quizCta=(p.pron_quiz&&p.pron_quiz.length)?`<div style="margin-top:14px"><button class="btn btn-accent" data-act="pronQuizStart" data-id="${p.id}">🎧 ${t('pronQuiz')}（${p.pron_quiz.length}）</button></div>`:'';
   return `<div class="card pron-lesson"><div class="row-between"><h3>🔤 ${esc(p.title||'發音')}</h3>${toggle}</div>${handoutHtml(p)}<div class="hint" style="margin:2px 0 10px">${t('pronPlayHint')}</div>${pronBoardGroupsHtml(p,sc)}${quizCta}</div>`;
 }
-function classDaysHtml(){
+function classDaysHtml(bare){
   if(S.preview)return '';
   const _gs=myGroups();
   if(_gs.length&&!_gs.some(g=>!!classMetaOf(g).show_dates))return '';
@@ -1039,6 +1083,7 @@ function classDaysHtml(){
   const freeLab=({zh:'免費',cn:'免费',en:'Free',vi:'Miễn phí'})[S.lang||'zh']||'免費';
   const vidLab=({zh:'上課影片',cn:'上课影片',en:'Class video',vi:'Video buổi học'})[S.lang||'zh']||'上課影片';
   const rows=log.slice(0,20).map(e=>{const m=M[e.status]||M.attended;const wd=wdLabel(e.date);const tm=(e.start||e.end)?` <span class="hint">${esc((e.start||'')+(e.end?'–'+e.end:''))}</span>`:'';const fb=(e.free&&e.status!=='leave')?`<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66;margin-left:6px">🎁 ${freeLab}</span>`:'';const hh=(myHourly()&&_logHours(e)!=null&&e.status!=='leave')?`<span class="hint" style="margin-left:6px">${myFmtQty(_logHours(e))} ${myUnit()}</span>`:'';const vb=e.video?`<a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;margin-left:6px;text-decoration:none" href="${esc(e.video)}" target="_blank" rel="noopener">🎬 ${vidLab}</a>`:'';return `<div class="dash-row" style="padding:6px 0;align-items:center;flex-wrap:wrap"><b>${esc(e.date)}</b>${wd?`<span class="hint" style="margin-left:4px">（${wd}）</span>`:''}${tm}${hh}${fb}${vb}<span class="grow"></span><span style="color:${m[1]};font-weight:600;white-space:nowrap">${m[2]} ${esc(m[0])}</span></div>`;}).join('');
+  if(bare)return `<div style="margin-top:6px">${rows}</div>`;
   return `<details class="card" style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;list-style-position:inside">🗓 ${t('myClassDays')} <span class="hint">（${log.length}）</span></summary><div style="margin-top:6px">${rows}</div></details>`;
 }
 function _vnT(hhmm){const m=/(\d{1,2}):(\d{2})/.exec(hhmm||'');if(!m)return '';let h=(parseInt(m[1],10)+23)%24;return (h<10?'0':'')+h+':'+m[2];}
@@ -1103,10 +1148,10 @@ function renderContent(){
   const normals=myLessons().filter(l=>lessonHasContent(l)||l.handout_url);
   const prons=(S.prons||[]).filter(p=>S.preview||assignedToMe(p));
   const _grp=myGroups();
-  const clsBanner=(!S.preview&&_grp.length)?`<div class="class-banner"><div class="cb-head"><span class="cb-ic">👥</span><span class="cb-label">${t('yourClass')}</span></div>${_grp.map(g=>{const cm=classMetaOf(g);const s=fmtSched(cm.schedule);const chips=[`<span class="cb-chip cb-cls">${esc(g)}</span>`];if(s)chips.push(`<span class="cb-chip">🕒 ${esc(s)}</span>`);if(cm.textbook)chips.push(`<span class="cb-chip">📖 ${esc(cm.textbook)}</span>`);return `<div class="cb-row">${chips.join('')}</div>`;}).join('')}<div class="cb-note">💡 ${t('classNote')}</div></div>`:'';
-  const meetTop=meetCardHtml()+driveCardHtml();
+  const clsBanner='';
+  const meetTop=infoBarHtml();
   const liveJoinCard=(S.preview||!(S.site&&S.site.live_on==='on'))?'':'<div class="ann-card" style="cursor:pointer;background:linear-gradient(135deg,#eef2ff,#fce7f3)" onclick="SLQ.join()"><div class="ann-h">🎮 加入即時比賽 Live Quiz</div><div class="ann-item">老師開始後，點這裡輸入代碼一起玩！</div></div>';
-  if(!normals.length&&!prons.length){$('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+payLogHtml()+classDaysHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
+  if(!normals.length&&!prons.length){$('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
   const entries=[...normals.map(l=>({k:'l',l,b:(l.textbook||'').trim()||t('uncat')})),...prons.map(p=>({k:'p',l:p,b:(p.textbook||'').trim()||t('navPron')}))];
   const books=[];entries.forEach(e=>{if(!books.includes(e.b))books.push(e.b);});
   const cur=(S.contentBook&&books.includes(S.contentBook))?S.contentBook:books[0];
@@ -1118,7 +1163,7 @@ function renderContent(){
   const progCard=(!S.preview&&_hw.length)?`<div class="card prog-card"><div class="prog-top"><b>${t('learnProg')}</b><span class="hint">${_done}/${_hw.length} ${t('lessonsDone')}</span></div><div class="prog-bar"><span style="width:${Math.round(_done/_hw.length*100)}%"></span></div></div>`:'';
   const _fbn=S.preview?0:teacherFbCount();
   const fbBanner=_fbn?`<div class="fb-banner" data-act="section" data-id="work">${t('fbGave1')} ${_fbn} ${t('fbGave2')}</div>`:'';
-  $('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+fbBanner+progCard+payLogHtml()+classDaysHtml()+tabBar+'<div class="cards">'+cards+'</div>'+reviewCardHtml();
+  $('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+fbBanner+progCard+tabBar+'<div class="cards">'+cards+'</div>'+reviewCardHtml();
   convScreen();setupCanvases();
   if(!S.preview)shown.forEach(e=>{if(e.k!=='l')return;const n=noteOf(e.l.id);if(n&&n.ink){const cv=document.getElementById('note-cv-'+e.l.id);if(cv)loadNoteInk(cv,n.ink);}
     // 還原「語法練習」已填寫但尚未送出的答案（含草稿），並掛上自動儲存
@@ -1823,6 +1868,9 @@ H.openLesson=(id)=>{const l=S.lessons.find(x=>x.id===id);S.practiceSet={mode:'le
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
 H.openWrong=()=>{S.practiceSet={mode:'wrong',lesson:null,questions:wrongQuestions(),title:'📒 '+t('wrongTitle')};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
+H.infoTab=(id)=>{const cur=(S.infoTab===id)?'':id;S.infoTab=cur;
+  document.querySelectorAll('.info-chip').forEach(b=>{if(b.dataset&&b.dataset.id)b.classList.toggle('on',b.dataset.id===cur);});
+  document.querySelectorAll('.info-panel').forEach(p=>p.classList.toggle('hide',p.dataset.id!==cur));};
 H.lessonCards=(id)=>{S.section='cards';S.vocabLesson=id||'';S.flashIdx=0;S.flashFlip=false;SHADOW=null;S.practiceSet=null;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
 H.lessonWrong=(id)=>{const l=S.lessons.find(x=>x.id===id);const qs=wrongQuestions().filter(q=>q.lesson_id===id);if(!qs.length)return;
   S.practiceSet={mode:'wrong',lesson:null,questions:qs,title:'📒 '+t('wrongTitle')+'｜'+((l&&(l.order_index?('L'+l.order_index+' '):'')+(l.title||''))||'')};
