@@ -578,7 +578,8 @@ function itvAll(){return (S.interviews||[]);}
 function itvById(id){return itvAll().find(x=>x.id===id);}
 function itvSessions(c){return (c&&Array.isArray(c.sessions))?c.sessions.filter(x=>x&&x.date):[];}
 function itvSorted(c){return itvSessions(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));}
-function itvPaidSum(c,ym){const by={};itvSessions(c).forEach(e=>{if(ym&&String(e.date).slice(0,7)!==ym)return;if(!e.paid)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+(Number(e.fee)||0);});return by;}
+function itvPays(c){return (c&&Array.isArray(c.payments))?c.payments.filter(p=>p&&p.date):[];}
+function itvPaidSum(c,ym){const by={};itvSessions(c).forEach(e=>{if(ym&&String(e.date).slice(0,7)!==ym)return;if(!e.paid)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+(Number(e.fee)||0);});itvPays(c).forEach(p=>{if(ym&&String(p.date).slice(0,7)!==ym)return;const cur=p.currency||'VND';by[cur]=(by[cur]||0)+(Number(p.amount)||0);});return by;}
 function itvDueSum(c){const by={};itvSessions(c).forEach(e=>{if(e.paid)return;const f=Number(e.fee)||0;if(!f)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});return by;}
 function itvMoneyStr(by){const k=Object.keys(by||{});return k.length?k.map(c=>money(by[c],c)).join('、'):'';}
 function itvAddCur(t,by){Object.keys(by||{}).forEach(c=>{t[c]=(t[c]||0)+by[c];});return t;}
@@ -663,7 +664,7 @@ function renderInterview(){
   const ym=localToday().slice(0,7);const inc=itvIncome(ym);const incAll=itvIncome(null);
   const mCount=itvAll().reduce((n,c)=>n+itvSessions(c).filter(e=>String(e.date).slice(0,7)===ym).length,0);
   const dueStr=itvMoneyStr(incAll.due);const today=localToday();
-  const head=`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div><div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">本月練習</div><b style="font-size:19px">${mCount}</b> 次</div>${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${dueStr}</b></div>`:''}${(function(){const done=itvAll().filter(x=>x.result==='pass'||x.result==='fail');const pass=done.filter(x=>x.result==='pass').length;return done.length?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">面試通過率</div><b style="font-size:19px;color:#16a34a">${Math.round(pass/done.length*100)}%</b> <span class="muted">（${pass}/${done.length}）</span></div>`:'';})()}<span style="flex:1"></span><button class="btn btn-primary" data-act="itvNew">＋ 新增面試客戶</button></div></div>`;
+  const head=`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div><div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">本月練習</div><b style="font-size:19px">${mCount}</b> 次</div>${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${dueStr}</b></div>`:''}${(function(){const done=itvAll().filter(x=>x.result==='pass'||x.result==='fail');const pass=done.filter(x=>x.result==='pass').length;return done.length?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">面試通過率</div><b style="font-size:19px;color:#16a34a">${Math.round(pass/done.length*100)}%</b> <span class="muted">（${pass}/${done.length}）</span></div>`:'';})()}<span style="flex:1"></span><button class="btn" data-act="itvPayNew">💰 記一筆付費</button> <button class="btn btn-primary" data-act="itvNew">＋ 新增面試客戶</button></div></div>`;
   if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🎤</div><h3 style="margin:8px 0">還沒有面試客戶</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">使用方式很簡單，兩步就好：<br><b>第 1 步</b>　按下面「＋ 新增面試客戶」建立一位客戶（姓名、面試目標）。<br><b>第 2 步</b>　客戶建立後，他的卡片上就會有「<b>＋ 新增練習時間</b>」，用它安排未來的練習或補記已經練過的。<br>日期可以填<b>未來</b>——排好的練習會自動出現在「📅 課表」裡。</div><button class="btn btn-primary" data-act="itvNew">＋ 新增面試客戶</button></div>`;return;}
   const rows=list.map(c=>{
     const ss=itvSorted(c);const done=(c.status||'active')!=='active';
@@ -690,6 +691,7 @@ function renderInterview(){
         <button class="btn btn-accent" data-act="itvSess" data-id="${esc(c.id)}::new">＋ 新增練習時間</button>
         <button class="btn btn-sm" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
         <button class="btn btn-sm" data-act="itvFiles" data-id="${esc(c.id)}">📎 資料／檔案</button>
+        <button class="btn btn-sm" data-act="itvPayList" data-id="${esc(c.id)}">💰 付費紀錄${(Array.isArray(c.payments)&&c.payments.length)?("（"+c.payments.length+"）"):""}</button>
         <button class="btn btn-sm" data-act="itvToggle" data-id="${esc(c.id)}">${done?'↩ 改回進行中':'✓ 標記完成'}</button>
         <span class="grow"></span>
         <button class="btn btn-sm btn-danger" data-act="itvDel" data-id="${esc(c.id)}">刪除</button>
@@ -2815,6 +2817,40 @@ async function _tuShrink(file){
   URL.revokeObjectURL(url);
   return {b64:b64,mime:'image/jpeg',name:String(file.name||'photo').replace(/\.[^.]+$/,'')+'.jpg',size:Math.round(b64.length*3/4)};
 }
+H.itvPayNew=(pre)=>{const list=itvAll().filter(c=>(c.status||'active')==='active').concat(itvAll().filter(c=>(c.status||'active')!=='active'));
+  if(!list.length)return toast('還沒有面試客戶，先「＋ 新增面試客戶」');
+  const opts=list.map(c=>`<option value="${esc(c.id)}" ${pre===c.id?'selected':''}>${esc(c.name||'')}${(c.status||'active')!=='active'?'（已完成）':''}</option>`).join('');
+  openModal(`<div class="modal"><div class="modal-head"><h3>💰 記一筆面試付費</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="form-grid">
+     <div class="field full"><label>客戶 <span class="hint">從已建檔的名單挑</span></label><select id="ipay-who">${opts}</select></div>
+     <div class="field"><label>付費日期</label><input id="ipay-date" type="date" min="2000-01-01" max="2100-12-31" value="${localToday()}"></div>
+     <div class="field"><label>金額</label><div style="display:flex;gap:6px"><input id="ipay-amt" type="number" inputmode="decimal" placeholder="500" style="flex:1"><select id="ipay-cur" style="width:90px"><option value="VND">千₫</option><option value="TWD">NT$</option></select></div></div>
+     <div class="field full"><label>備註 <span class="hint">選填，例：兩次練習、含模擬面試</span></label><input id="ipay-note" type="text"></div>
+   </div>
+   <div class="hint" style="margin:8px 0">💡 越南盾單位是「千」：填 500 = 500.000 ₫。付費不用綁練習日期，之後排練習照常用「＋ 新增練習時間」。</div>
+   <div><button class="btn btn-primary" data-act="itvPaySave">✅ 記錄付費</button></div>
+   </div></div>`);};
+H.itvPaySave=async()=>{const id=($('#ipay-who')&&$('#ipay-who').value)||'';const c=itvById(id);if(!c)return toast('請選客戶');
+  const date=($('#ipay-date')&&$('#ipay-date').value)||'';if(!date)return toast('請選日期');
+  const amt=Number(($('#ipay-amt')&&$('#ipay-amt').value)||0);if(!amt)return toast('請填金額');
+  const cur=($('#ipay-cur')&&$('#ipay-cur').value)||'VND';const note=(($('#ipay-note')&&$('#ipay-note').value)||'').trim();
+  const pays=itvPays(c).slice();pays.push({date:date,amount:amt,currency:cur,note:note});pays.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  try{await DB.update('lessons',c.id,{payments:pays});c.payments=pays;toast('已記錄：'+(c.name||'')+' '+date+' '+money(amt,cur));closeModal();renderInterview();}
+  catch(e){toast('失敗：'+((e&&e.message)||e));}};
+H.itvPayList=(id)=>{const c=itvById(id);if(!c)return;const pays=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const sessPaid=itvSessions(c).filter(e=>e.paid&&e.fee);
+  const rows=pays.length?pays.map((p,i)=>`<div class="dash-row"><span class="badge badge-pending">${esc(String(p.date))}</span><b>${money(p.amount,p.currency||'VND')}</b>${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-danger" data-act="itvPayDel" data-id="${esc(id)}::${i}">🗑</button></div>`).join(''):'<div class="hint">還沒有獨立的付費紀錄。</div>';
+  const sessRows=sessPaid.length?('<div class="lesson-label" style="margin-top:12px">綁在練習時間上的收款</div>'+sessPaid.map(e=>`<div class="dash-row"><span class="badge badge-pending">${esc(String(e.date))}</span>${money(e.fee,e.currency||'VND')}<span class="muted" style="font-size:12px">練習當天收</span></div>`).join('')):'';
+  openModal(`<div class="modal"><div class="modal-head"><h3>💰 付費紀錄 · ${esc(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="card" style="background:#fdf6ec;margin-bottom:10px"><div class="hint">累計已收（含練習收款）</div><div style="font-size:19px;font-weight:800">${itvMoneyStr(itvPaidSum(c,null))||'—'}</div></div>
+     ${rows}${sessRows}
+     <div style="margin-top:12px"><button class="btn btn-primary" data-act="itvPayNew" data-id="${esc(id)}">＋ 記一筆付費</button></div>
+   </div></div>`);};
+H.itvPayDel=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;const idx=Number(p[1]);const pays=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));const target=pays[idx];if(!target)return;
+  if(!confirm('刪除 '+target.date+' 的 '+money(target.amount,target.currency||'VND')+' 付費紀錄？'))return;
+  const left=itvPays(c).filter(x=>x!==target);
+  try{await DB.update('lessons',c.id,{payments:left});c.payments=left;toast('已刪除');closeModal();renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.itvFiles=(id)=>{const c=(S.interviews||[]).find(x=>x.id===id);if(!c)return;
   openModal(`<div class="modal"><div class="modal-head"><h3>📎 資料／檔案 · ${esc(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
@@ -2842,6 +2878,7 @@ H.itvFileUp=async(inp,id)=>{const file=inp&&inp.files&&inp.files[0];if(!file)ret
 H.filesViewStu=()=>{S.filesView='stu';renderFiles();};
 H.opsMonth=(m)=>{const rows=[];
   S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||'TWD',note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null});});});
+  (S.interviews||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:'🎤 '+(c.name||''),amt,cur:p.currency||'VND',note:(p.note||'面試')?((p.note||'')+'（面試）').trim():'',sess:null});});});
   rows.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const tot={};rows.forEach(r=>{tot[r.cur]=(tot[r.cur]||0)+r.amt;});
   const totStr=Object.keys(tot).map(c=>money(tot[c],c)).join('　+　')||'—';
