@@ -227,6 +227,27 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .pi-ex-ins{background:rgba(31,111,120,.07);border-left:3px solid #1F6F78;border-radius:0 8px 8px 0;
   padding:8px 12px;margin:0 0 10px;font-size:14.5px;line-height:1.7}
 .pi-ex .opt-bank{margin:0 0 12px}
+/* 例句：編號 1. 2. 3. 直式排列，不再擠成一排看不懂 */
+.gp-exwrap{margin:12px 0 2px}
+.gp-ex-ol{list-style:none;counter-reset:gpex;margin:7px 0 0;padding:0}
+.gp-ex-li{counter-increment:gpex;display:flex;gap:10px;align-items:flex-start;
+  padding:10px 12px;margin:0 0 8px;background:#FBF7F0;
+  border:1px solid rgba(31,111,120,.13);border-radius:10px}
+.gp-ex-li::before{content:counter(gpex) ".";flex:none;min-width:17px;font-weight:800;
+  color:#1F6F78;font-size:14px;line-height:1.95}
+.gp-ex-body{flex:1;min-width:0;line-height:1.95;font-size:15px}
+.gp-ex-play{flex:none;align-self:center;border:1.5px solid rgba(31,111,120,.35);background:#fff;
+  color:#1F6F78;border-radius:999px;width:30px;height:30px;cursor:pointer;font-size:12px;font-family:inherit}
+.gp-ex-play:hover{background:rgba(31,111,120,.10)}
+.ex-turn{display:flex;gap:8px;align-items:flex-start}
+.ex-turn+.ex-turn{margin-top:4px}
+.ex-sp{flex:none;font-weight:800;color:#B23A48;min-width:2.6em}
+.ex-sp::after{content:'：'}
+.ex-tx{flex:1;min-width:0}
+/* 練習區和上面的說明／例句拉開距離 */
+.gp-fold-body>.gp-sec+.pi-ex,.gp-fold-body>.gp-sec+.pi-wrap,
+.gp-card2>.gp-sec+.pi-ex,.gp-card2>.gp-sec+.pi-wrap{
+  margin-top:20px;padding-top:16px;border-top:1px dashed rgba(31,111,120,.25)}
 /* 課文本文保持好讀的行寬，其餘區塊（清單、表格、作答）才用滿版 */
 .dlg-text .prose,.ls-sec-b>.lesson-block>.prose{max-width:1040px}
 /* 目前在哪一頁：分頁標題 + 反白的分頁按鈕 */
@@ -711,6 +732,16 @@ function lessonBodyHtml(l,opts){opts=opts||{};if(l.kind==='classical')return cla
 function gpLabel(lab){lab=(lab||'').trim();if(!lab)return '';const m=GP_LBL[lab];if(m&&(S.lang==='en'||S.lang==='vi'))return m[S.lang]||lab;return lab;}
 // 例句若是對話（A：… B：… 或 人名：…），自動在換人說話時斷行，不再擠成一行
 function exTurns(s){const m=String(s||'').replace(/([。！？?!.])[ 　\t]+(?=[^\s，,。！？?!.：:、；;]{1,4}[：:])/g,'$1');return m.split('').map(p=>annotate(p)).join('<br>');}
+/* 例句：一句一列；若是 A：… B：… 的對話，說話人各自一行並對齊 */
+function exLinesHtml(str){
+  const raw=String(str||'').replace(/([。！？?!.]?)[\s／/]+(?=[^\s，,。！？?!.：:、；;／/]{1,4}[：:])/g,'$1\n');
+  const lines=raw.split('\n').map(x=>x.trim()).filter(Boolean);
+  const isDlg=lines.length>1&&lines.every(x=>/^[^\s，,。！？?!.：:、；;]{1,4}[：:]/.test(x));
+  if(!isDlg)return `<div class="ex-line">${lines.map(x=>annotate(x)).join('<br>')}</div>`;
+  return lines.map(x=>{const m=x.match(/^([^\s，,。！？?!.：:、；;]{1,4})[：:]\s*([\s\S]*)$/);
+    return m?`<div class="ex-turn"><span class="ex-sp">${esc(m[1])}</span><span class="ex-tx">${annotate(m[2])}</span></div>`
+            :`<div class="ex-turn"><span class="ex-tx">${annotate(x)}</span></div>`;}).join('');
+}
 function gpBlocksHtml(g){return (g.blocks||[]).map(b=>{
     const lab=(b.label||'').trim(),txt=(b.text||'').trim(),exl=(b.ex||'').split('\n').map(s=>s.trim()).filter(Boolean);
     if(lab==='小節')return txt?`<div class="gp-subsec">${esc(txt)}</div>`:'';
@@ -718,9 +749,11 @@ function gpBlocksHtml(g){return (g.blocks||[]).map(b=>{
     const mono=/[+＋]/.test(txt)&&txt.length<=60;
     const body=txt?(mono?`<div class="gp-struct">${esc(txt).replace(/\n/g,'<br>')}</div>`:`<div class="gp-text">${esc(txt).replace(/\n/g,'<br>')}</div>`):'';
     const aud=Array.isArray(b.exAudio)?b.exAudio:[];
-    const exBreak=s=>String(s).replace(/([。！？?!.]?)[\s／/]+(?=[^\s，,。！？?!.：:、；;／/]{1,4}[：:])/g,'$1\n').split('\n').map(x=>x.trim()).filter(Boolean).map(x=>annotate(x)).join('<br>');
-    const ex=exl.length?`<div class="gp-ex-list">${exl.map((s,i)=>{const au=aud[i];const inner=exBreak(s);return au?`<button type="button" class="ex-item has-rec" data-act="exAudio" data-url="${esc(au)}">${inner}<span class="spk">▶</span></button>`:`<div class="ex-item">${inner}</div>`;}).join('')}</div>`:'';
-    return `<div class="gp-sec">${lab?`<div class="gp-seclbl">${esc(gpLabel(lab))}</div>`:''}${body}${ex}</div>`;
+    const ex=exl.length?`<div class="gp-exwrap"><div class="gp-seclbl">${esc(LT({zh:'例句',cn:'例句',en:'Examples',vi:'Câu ví dụ'}))}</div><ol class="gp-ex-ol">${exl.map((s,i)=>{const au=aud[i];
+      return `<li class="gp-ex-li"><div class="gp-ex-body">${exLinesHtml(s)}</div>${au?`<button type="button" class="gp-ex-play" data-act="exAudio" data-url="${esc(au)}" title="${esc(LT({zh:'播放',cn:'播放',en:'Play',vi:'Phát'}))}">▶</button>`:''}</li>`;}).join('')}</ol></div>`:'';
+    const autoLab=(!lab&&txt&&!mono)?LT({zh:'說明',cn:'说明',en:'Explanation',vi:'Giải thích'}):'';
+    const labHtml=lab?`<div class="gp-seclbl">${esc(gpLabel(lab))}</div>`:(autoLab?`<div class="gp-seclbl">${esc(autoLab)}</div>`:'');
+    return `<div class="gp-sec">${labHtml}${body}${ex}</div>`;
   }).join('');}
 function gpFold(g,gi,extra,num){const dn=(num!=null?num:gi+1);return `<details class="disc gp-fold"><summary><span class="gp-tag">${t('grammar')} ${dn}</span>${g.title?'<span class="gp-fold-title">'+esc(g.title)+'</span>':''}</summary><div class="gp-fold-body">${gpBlocksHtml(g)}${extra||''}</div></details>`;}
 function gpCardHtml(g,gi){return `<div class="gp-card2"><div class="gp-card2-head"><span class="gp-tag">${t('grammar')} ${gi+1}</span>${g.title?`<span class="gp-card2-title">${esc(g.title)}</span>`:''}</div>${gpBlocksHtml(g)}</div>`;}
