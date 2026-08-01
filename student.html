@@ -227,6 +227,35 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .pi-ex-ins{background:rgba(31,111,120,.07);border-left:3px solid #1F6F78;border-radius:0 8px 8px 0;
   padding:8px 12px;margin:0 0 10px;font-size:14.5px;line-height:1.7}
 .pi-ex .opt-bank{margin:0 0 12px}
+/* 生詞表：欄位對齊的表格（生詞／拼音／詞類／翻譯） */
+.vtab{display:grid;gap:0!important;grid-template-columns:minmax(96px,168px) minmax(104px,184px) 62px minmax(0,1fr) auto;
+  background:#fff;border:1px solid rgba(31,111,120,.16);border-radius:12px;overflow:hidden;margin-top:8px}
+.vtab-h{background:rgba(31,111,120,.08);font-weight:800;font-size:12.5px;color:#1F6F78;
+  padding:9px 12px;letter-spacing:.04em;white-space:nowrap}
+.vtab-c{padding:9px 12px;border-top:1px solid rgba(31,111,120,.10);display:flex;align-items:center;
+  min-width:0;font-size:14.5px;line-height:1.6}
+.vtab-c.vt-py{font-weight:700;color:#1F6F78;font-size:14px}
+.vtab-c.vt-mean{color:#3A3531;overflow-wrap:anywhere}
+.vtab-c.vt-act{justify-content:flex-end;padding-left:6px}
+.vtab .vocab-chip{font-size:16px;font-weight:700}
+.vtab .vpos{font-size:11.5px}
+.vex-btn{border:1.5px solid rgba(31,111,120,.3);background:#fff;color:#1F6F78;font-weight:700;
+  font-size:12.5px;font-family:inherit;border-radius:999px;padding:4px 11px;cursor:pointer;white-space:nowrap}
+.vex-btn:hover,.vex-btn.on{background:rgba(31,111,120,.11)}
+.vtab-ex{grid-column:1/-1;padding:4px 12px 12px;background:#FBF7F0;
+  border-top:1px dashed rgba(31,111,120,.20)}
+.vtab-ex.hide{display:none}
+.vtab-ex .ex-item{margin-top:8px;line-height:1.9}
+@media(max-width:720px){
+  .vtab{grid-template-columns:1fr;border-radius:10px}
+  .vtab-h{display:none}
+  .vtab-c{border-top:0;padding:3px 12px}
+  .vtab-c.vt-w{border-top:1px solid rgba(31,111,120,.12);padding-top:10px;margin-top:2px}
+  .vtab-c.vt-act{justify-content:flex-start;padding:6px 12px 10px}
+  .vtab-c.vt-py::before,.vtab-c.vt-pos::before,.vtab-c.vt-mean::before{
+    content:attr(data-l)'　';color:#9a938c;font-size:11.5px;font-weight:700;flex:none;min-width:3.4em}
+  .vtab-c.vt-pos:empty,.vtab-c.vt-mean:empty,.vtab-c.vt-py:empty{display:none}
+}
 /* 例句：編號 1. 2. 3. 直式排列，不再擠成一排看不懂 */
 .gp-exwrap{margin:12px 0 2px}
 .gp-ex-ol{list-style:none;counter-reset:gpex;margin:7px 0 0;padding:0}
@@ -601,13 +630,28 @@ function dlgHasAudio(l){return lessonDialogues(l).some(d=>d.audio_url);}
 function lessonHasContent(l){return lessonDialogues(l).some(d=>d.content||parseVocab(d.vocabulary).length||d.audio_url||d.image_url||(d.discussion||'').trim())||(l.grammar_points&&l.grammar_points.length)||questionsOf(l.id).length||l.key_points||l.examples||l.video_url;}
 function lessonHasDisc(l){return lessonDialogues(l).some(d=>(d.discussion||'').split('\n').some(s=>s.trim()));}
 function vocabBlockHtml(l,di,vocab,chips){
-  return '<div class="vocab-rows">'+vocab.map((v,k)=>{const hasEx=v.ex&&v.ex.length;
-    const chip=vocabHasAudio(l,di,k)?`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-di="${di}" data-vi="${k}" data-text="${esc(v.front)}">${esc(v.front)}<span class="spk">🔊</span></button>`:`<span class="vocab-chip">${esc(v.front)}</span>`;
-    const rd=vpy(v);const py=rd?`<span class="vrow-py">${esc(rd)}</span>`:'';
-    const pos=v.pos?`<span class="vpos">${esc(v.pos)}</span>`:'';
-    const mean=v.back?`<span class="vrow-mean">${esc(vocabMean(v))}</span>`:'';
-    const exBlock=hasEx?`<details class="vex-fold"><summary class="btn btn-sm vex-toggle" style="cursor:pointer;list-style:none;white-space:nowrap;display:inline-block;position:absolute;top:6px;right:8px">📝 ${t('exLabel')}（${v.ex.length}）</summary><div class="vex-list" style="margin-top:8px">${v.ex.map(s=>`<div class="ex-item">${exDlg(s)}</div>`).join('')}</div></details>`:'';
-    return `<div class="vrow" style="position:relative">${hasEx?`<div class="vrow-top" style="padding-right:96px">${chip}${py}${pos}${mean}</div>`:`<div class="vrow-top">${chip}${py}${pos}${mean}</div>`}${exBlock}</div>`;}).join('')+'</div>';}
+  const L=(m)=>LT(m);
+  const H_W=L({zh:'生詞',cn:'生词',en:'Word',vi:'Từ vựng'});
+  const H_P=L({zh:'拼音',cn:'拼音',en:'Pinyin',vi:'Phiên âm'});
+  const H_C=L({zh:'詞類',cn:'词类',en:'Type',vi:'Từ loại'});
+  const H_M=L({zh:'翻譯',cn:'翻译',en:'Meaning',vi:'Nghĩa'});
+  let out='<div class="vocab-rows vtab">'
+    +`<div class="vtab-h">${esc(H_W)}</div><div class="vtab-h">${esc(H_P)}</div><div class="vtab-h">${esc(H_C)}</div><div class="vtab-h">${esc(H_M)}</div><div class="vtab-h"></div>`;
+  vocab.forEach((v,k)=>{
+    const hasEx=v.ex&&v.ex.length;
+    const exId='vex-'+l.id+'-'+di+'-'+k;
+    const chip=vocabHasAudio(l,di,k)
+      ? `<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-di="${di}" data-vi="${k}" data-text="${esc(v.front)}">${esc(v.front)}<span class="spk">🔊</span></button>`
+      : `<span class="vocab-chip">${esc(v.front)}</span>`;
+    const rd=vpy(v);
+    out+=`<div class="vtab-c vt-w" data-l="${esc(H_W)}">${chip}</div>`
+      +`<div class="vtab-c vt-py" data-l="${esc(H_P)}">${rd?esc(rd):''}</div>`
+      +`<div class="vtab-c vt-pos" data-l="${esc(H_C)}">${v.pos?`<span class="vpos">${esc(v.pos)}</span>`:''}</div>`
+      +`<div class="vtab-c vt-mean" data-l="${esc(H_M)}">${v.back?esc(vocabMean(v)):''}</div>`
+      +`<div class="vtab-c vt-act">${hasEx?`<button type="button" class="vex-btn" data-act="vexTog" data-id="${exId}">📝 ${t('exLabel')}（${v.ex.length}）</button>`:''}</div>`
+      +(hasEx?`<div class="vtab-ex hide" id="${exId}">${v.ex.map(x=>`<div class="ex-item">${exDlg(x)}</div>`).join('')}</div>`:'');
+  });
+  return out+'</div>';}
 function ytId(u){const m=String(u||'').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);return m?m[1]:'';}
 function videoHtml(url){url=(url||'').trim();if(!url)return '';const yid=ytId(url);
   const inner=yid?`<div class="video-frame" style="position:relative;padding-bottom:56.25%;height:0;border-radius:10px;overflow:hidden"><iframe src="https://www.youtube.com/embed/${yid}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" allowfullscreen loading="lazy"></iframe></div>`:`<a class="btn btn-accent" href="${esc(url)}" target="_blank" rel="noopener" style="text-decoration:none">🎬 ${t('watchVideo')}</a>`;
@@ -1910,6 +1954,7 @@ function syncStickTop(){try{const tb=document.querySelector('.topbar');const h=t
 window.addEventListener('resize',syncStickTop);
 try{const _tb=document.querySelector('.topbar');if(_tb&&window.ResizeObserver)new ResizeObserver(syncStickTop).observe(_tb);}catch(e){}
 setTimeout(syncStickTop,300);setTimeout(syncStickTop,1500);
+H.vexTog=function(id,b){const el=document.getElementById(id);if(!el)return;const on=el.classList.toggle('hide');if(b)b.classList.toggle('on',!on);};
 H.discRefTog=function(id){S.discRef=S.discRef||{};const cur=(S.discRef[id]===false)?false:true;S.discRef[id]=!cur;
   const aside=document.querySelector('.disc-ref[data-ref="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]');
   if(aside){const sp=aside.closest('.disc-split');aside.classList.toggle('off',!S.discRef[id]);if(sp)sp.classList.toggle('noref',!S.discRef[id]);
