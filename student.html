@@ -774,16 +774,38 @@ function practiceItemHtml(q,n,noInstr){if(q.type==='note')return `<div class="pi
 const EXNO=['①','②','③','④','⑤','⑥','⑦','⑧'];
 function numberedHtml(arr,noInstr){let n=0;return arr.map(q=>{if(isRefItem(q))return practiceItemHtml(q,-1,noInstr);const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;return practiceItemHtml(q,st,noInstr);}).join('');}
 function optBankHtml(opts){return (opts||[]).length?`<div class="opt-bank"><div class="opt-bank-hd">${LT({zh:'選項',cn:'选项',en:'Options',vi:'Lựa chọn'})}</div>${opts.map((o,i)=>`<div class="opt-bank-row"><span class="opt-lab">${String.fromCharCode(97+i)}</span><span class="opt-bank-txt">${esc(stripOptLabel(o))}</span></div>`).join('')}</div>`:'';}
-function exGroupsOf(qs){const gs=[];(qs||[]).forEach(q=>{const k=String(q.instruction||'').trim();const last=gs[gs.length-1];if(last&&last.k===k)last.qs.push(q);else gs.push({k,qs:[q]});});return gs;}
+/* 同一句說明只要文字一樣就是同一個練習：忽略空白與全半形波浪號的差異；
+   中間夾雜其他練習的題目也會歸回原本那一個練習，不會被切成兩塊。 */
+function insKey(s){return String(s||'').replace(/[\s\u3000]+/g,'').replace(/[~～〜]/g,'~').replace(/[，,]/g,'，').replace(/[；;]/g,'；').trim();}
+function exGroupsOf(qs){
+  const arr=(qs||[]).slice();
+  const orig=arr.map(q=>insKey(q.instruction));
+  const keys=orig.slice();
+  arr.forEach((q,i)=>{
+    if(keys[i])return;                       // 有寫說明就用自己的
+    const sub=String(q.gp_sub||'').trim();
+    let k='';
+    if(sub)for(let j=0;j<arr.length;j++){    // 沒寫說明 → 先找同一小題組、有說明的題目
+      if(j!==i&&orig[j]&&String(arr[j].gp_sub||'').trim()===sub){k=orig[j];break;}}
+    if(!k)for(let j=i-1;j>=0;j--){if(orig[j]){k=orig[j];break;}}  // 再退一步：接續上一題
+    keys[i]=k;
+  });
+  const gs=[],idx=Object.create(null);
+  arr.forEach((q,i)=>{const k=keys[i],raw=String(q.instruction||'').trim();
+    if(idx[k]===undefined){idx[k]=gs.length;gs.push({k:k,label:raw,qs:[]});}
+    else if(!gs[idx[k]].label&&raw)gs[idx[k]].label=raw;
+    gs[idx[k]].qs.push(q);});
+  return gs;
+}
 function exBlocksHtml(qs){
   const gs=exGroupsOf(qs);
-  if(gs.length<=1&&!(gs[0]&&gs[0].k))return `<div class="pi-wrap">${numberedHtml(qs)}</div>`;
+  if(gs.length<=1&&!(gs[0]&&gs[0].label))return `<div class="pi-wrap">${numberedHtml(qs)}</div>`;
   const exLab=LT({zh:'練習',cn:'练习',en:'Exercise',vi:'Bài tập'});
   return gs.map((g,i)=>{
     const banks=g.qs.filter(isOptBank);const rest=g.qs.filter(q=>!isOptBank(q));
     const merged=banks.reduce((a,b)=>a.concat(b.options||[]),[]);
     return `<div class="pi-ex"><div class="pi-ex-h">${esc(exLab)} ${EXNO[i]||(i+1)}</div>`
-      +(g.k?`<div class="pi-ex-ins">${esc(g.k)}</div>`:'')
+      +(g.label?`<div class="pi-ex-ins">${esc(g.label)}</div>`:'')
       +optBankHtml(merged)
       +`<div class="pi-wrap">${numberedHtml(rest,true)}</div></div>`;}).join('');
 }
