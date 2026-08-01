@@ -226,6 +226,17 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .pi-ex-ins{background:rgba(31,111,120,.07);border-left:3px solid #1F6F78;border-radius:0 8px 8px 0;
   padding:8px 12px;margin:0 0 10px;font-size:14.5px;line-height:1.7}
 .pi-ex .opt-bank{margin:0 0 12px}
+/* 課文頁：一直跟著畫面的返回列，捲到多下面都能一鍵回課程模組 */
+.lv-back{position:sticky;top:var(--tb-h,76px);z-index:8;display:flex;align-items:center;gap:12px;
+  margin:0 0 16px;padding:9px 14px;border-radius:0 0 12px 12px;background:#fff;
+  border:1px solid rgba(31,111,120,.16);box-shadow:0 3px 12px rgba(31,111,120,.10)}
+.lv-back-btn{border:1.5px solid rgba(31,111,120,.38);background:#fff;color:#1F6F78;font-weight:800;
+  font-size:14px;font-family:inherit;border-radius:999px;padding:7px 16px;cursor:pointer;white-space:nowrap}
+.lv-back-btn:hover{background:rgba(31,111,120,.10)}
+.lv-back-t{font-weight:800;color:#2E2A26;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crumb a{text-decoration:none;border-bottom:1px solid transparent}
+.crumb a:hover{border-bottom-color:currentColor}
+@media(max-width:640px){.lv-back-t{display:none}}
 .q-optbank{background:transparent;border-style:dashed}
 
 /* 窄螢幕：課文改成貼在最上面的小視窗，捲動時仍看得到 */
@@ -1461,14 +1472,20 @@ function renderLegacyContent(){
   document.body.classList.remove('notes-active');
   const _cr=document.getElementById('crumb');
   if(_cr){_cr.classList.remove('hide');
-    _cr.innerHTML='<a data-act="section" data-id="home">'+esc(LT({zh:'首頁',cn:'首页',en:'Home',vi:'Trang chủ'}))+'</a> › <a data-act="backCourse">'+esc(LT({zh:'課程模組',cn:'课程模组',en:'Modules',vi:'Mô-đun'}))+'</a> › <span>'+esc(LT({zh:'課文',cn:'课文',en:'Lesson',vi:'Bài học'}))+'</span>';}
+    const _bl0=S.openLesson?(myLessons().find(x=>x.id===S.openLesson)||null):null;
+    const _bt0=_bl0?((_bl0.order_index?('L'+_bl0.order_index+' · '):'')+(_bl0.title||'')):LT({zh:'課文',cn:'课文',en:'Lesson',vi:'Bài học'});
+    _cr.innerHTML='<a data-act="section" data-id="home">'+esc(LT({zh:'首頁',cn:'首页',en:'Home',vi:'Trang chủ'}))+'</a> › <a data-act="backCourse">'+esc(LT({zh:'課程模組',cn:'课程模组',en:'Modules',vi:'Mô-đun'}))+'</a> › <span>'+esc(_bt0)+'</span>';}
+  const _bl=S.openLesson?(myLessons().find(x=>x.id===S.openLesson)||null):null;
+  const backBar=S.openLesson?('<div class="lv-back"><button type="button" class="lv-back-btn" data-act="backCourse">← '
+    +esc(LT({zh:'課程模組',cn:'课程模组',en:'Modules',vi:'Mô-đun'}))+'</button><span class="lv-back-t">'
+    +esc(_bl?((_bl.order_index?('L'+_bl.order_index+' · '):'')+(_bl.title||'')):'')+'</span></div>'):'';
   const normals=myLessons().filter(l=>(lessonHasContent(l)||l.handout_url)&&(!S.openLesson||l.id===S.openLesson));
   const prons=(S.prons||[]).filter(p=>S.preview||assignedToMe(p));
   const _grp=myGroups();
   const clsBanner='';
   const meetTop=infoBarHtml('drive');
   const liveJoinCard=(S.preview||!(S.site&&S.site.live_on==='on'))?'':'<div class="ann-card" style="cursor:pointer;background:linear-gradient(135deg,#eef2ff,#fce7f3)" onclick="SLQ.join()"><div class="ann-h">🎮 '+esc(LT({zh:'加入即時比賽',cn:'加入即时比赛',en:'Join live quiz',vi:'Tham gia thi trực tiếp'}))+'</div><div class="ann-item">'+esc(LT({zh:'老師開始後，點這裡輸入代碼一起玩！',cn:'老师开始后，点这里输入代码一起玩！',en:'When your teacher starts, tap here and enter the code!',vi:'Khi cô bắt đầu, bấm vào đây và nhập mã!'}))+'</div></div>';
-  if(!normals.length&&!prons.length){$('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
+  if(!normals.length&&!prons.length){$('#screen').innerHTML=backBar+payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
   const entries=[...normals.map(l=>({k:'l',l,b:(l.textbook||'').trim()||t('uncat')})),...prons.map(p=>({k:'p',l:p,b:(p.textbook||'').trim()||t('navPron')}))];
   const books=[];entries.forEach(e=>{if(!books.includes(e.b))books.push(e.b);});
   const cur=(S.contentBook&&books.includes(S.contentBook))?S.contentBook:books[0];
@@ -1480,7 +1497,7 @@ function renderLegacyContent(){
   const progCard=(!S.preview&&_hw.length)?`<div class="card prog-card"><div class="prog-top"><b>${t('learnProg')}</b><span class="hint">${_done}/${_hw.length} ${t('lessonsDone')}</span></div><div class="prog-bar"><span style="width:${Math.round(_done/_hw.length*100)}%"></span></div></div>`:'';
   const _fbn=S.preview?0:teacherFbCount();
   const fbBanner=_fbn?`<div class="fb-banner" data-act="section" data-id="work">${t('fbGave1')} ${_fbn} ${t('fbGave2')}</div>`:'';
-  $('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+fbBanner+progCard+tabBar+'<div class="cards">'+cards+'</div>'+reviewCardHtml();
+  $('#screen').innerHTML=backBar+payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+fbBanner+progCard+tabBar+'<div class="cards">'+cards+'</div>'+reviewCardHtml();
   convScreen();setupCanvases();
   if(!S.preview)shown.forEach(e=>{if(e.k!=='l')return;const n=noteOf(e.l.id);if(n&&n.ink){const cv=document.getElementById('note-cv-'+e.l.id);if(cv)loadNoteInk(cv,n.ink);}
     // 還原「語法練習」已填寫但尚未送出的答案（含草稿），並掛上自動儲存
@@ -1821,7 +1838,7 @@ function fillSaved(qs,saved){if(!saved)return;qs.forEach(q=>{const v=saved[q.id]
 
 /* ============ handlers ============ */
 const H={};
-function syncStickTop(){try{const tb=document.querySelector('.topbar');const h=tb?Math.round(tb.getBoundingClientRect().height):0;document.documentElement.style.setProperty('--stick-top',((h||70)+8)+'px');}catch(e){}}
+function syncStickTop(){try{const tb=document.querySelector('.topbar');const h=tb?Math.round(tb.getBoundingClientRect().height):0;const hh=h||70;document.documentElement.style.setProperty('--tb-h',hh+'px');document.documentElement.style.setProperty('--stick-top',(hh+8)+'px');}catch(e){}}
 window.addEventListener('resize',syncStickTop);
 try{const _tb=document.querySelector('.topbar');if(_tb&&window.ResizeObserver)new ResizeObserver(syncStickTop).observe(_tb);}catch(e){}
 setTimeout(syncStickTop,300);setTimeout(syncStickTop,1500);
