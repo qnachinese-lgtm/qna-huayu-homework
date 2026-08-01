@@ -1212,14 +1212,71 @@ function renderCards(){
 function renderInfo(){
   document.body.classList.remove('notes-active');
   const L=S.lang||'zh';
-  const TT=({zh:{h:'我的資訊',s:'上課教室、教材連結、班級、繳費與上課記錄都在這裡。',none:'目前還沒有資訊，老師設定後會出現在這裡。'},
-             cn:{h:'我的资讯',s:'上课教室、教材链接、班级、缴费与上课记录都在这里。',none:'目前还没有资讯，老师设定后会出现在这里。'},
-             en:{h:'My info',s:'Classroom link, materials, class, payments and attendance are all here.',none:'Nothing here yet.'},
-             vi:{h:'Thông tin của tôi',s:'Link lớp học, tài liệu, lớp, học phí và buổi đã học đều ở đây.',none:'Chưa có thông tin.'}})[L]
-          ||{h:'我的資訊',s:'上課教室、教材連結、班級、繳費與上課記錄都在這裡。',none:'目前還沒有資訊。'};
-  const parts=[meetCardHtml(),driveCardHtml(),classBannerHtml(),payLogHtml(),classDaysHtml()].filter(Boolean);
-  const head='<div class="section-head" style="display:block;margin-bottom:10px"><h2 style="margin:0">ℹ️ '+esc(TT.h)+'</h2><div class="hint" style="margin-top:4px">'+esc(TT.s)+'</div></div>';
-  $('#screen').innerHTML=head+(parts.length?parts.join(''):emptyHtml('ℹ️',TT.h,TT.none));
+  const D={zh:{h:'我的資訊',links:'快速連結',room:'進入上課教室',roomS:'Google Meet · 點一下直接上課',
+              drive:'Drive 資料',driveS:'講義、音檔等補充教材',cls:'我的班級',clsName:'班級',clsTime:'上課時間',clsBook:'教材',
+              pay:'繳費記錄',days:'上課記錄',n:'筆',cnt:'堂',none:'目前還沒有資訊，老師設定後會出現在這裡。',open:'開啟'},
+         cn:{h:'我的资讯',links:'快速链接',room:'进入上课教室',roomS:'Google Meet · 点一下直接上课',
+              drive:'Drive 资料',driveS:'讲义、音档等补充教材',cls:'我的班级',clsName:'班级',clsTime:'上课时间',clsBook:'教材',
+              pay:'缴费记录',days:'上课记录',n:'笔',cnt:'堂',none:'目前还没有资讯。',open:'打开'},
+         en:{h:'My info',links:'Quick links',room:'Enter classroom',roomS:'Google Meet · one tap to join',
+              drive:'Drive files',driveS:'Handouts and audio',cls:'My class',clsName:'Class',clsTime:'Schedule',clsBook:'Textbook',
+              pay:'Payments',days:'Attendance',n:'',cnt:'',none:'Nothing here yet.',open:'Open'},
+         vi:{h:'Thông tin của tôi',links:'Liên kết nhanh',room:'Vào lớp học',roomS:'Google Meet · bấm để vào lớp',
+              drive:'Tài liệu Drive',driveS:'Tài liệu, file nghe bổ sung',cls:'Lớp của tôi',clsName:'Lớp',clsTime:'Lịch học',clsBook:'Giáo trình',
+              pay:'Học phí',days:'Buổi đã học',n:'',cnt:'',none:'Chưa có thông tin.',open:'Mở'}}[L]||null;
+  const T=D||{h:'我的資訊',links:'快速連結',room:'進入上課教室',roomS:'Google Meet',drive:'Drive 資料',driveS:'補充教材',
+              cls:'我的班級',clsName:'班級',clsTime:'上課時間',clsBook:'教材',pay:'繳費記錄',days:'上課記錄',n:'筆',cnt:'堂',none:'目前還沒有資訊。',open:'開啟'};
+  const css='<style>'
+    +'.ip-wrap{max-width:720px}'
+    +'.ip-card{background:var(--card,#fff);border:1px solid var(--line);border-radius:14px;padding:0;margin:0 0 12px;overflow:hidden}'
+    +'.ip-h{display:flex;align-items:center;gap:8px;padding:13px 16px;font-weight:700;font-size:15px;color:var(--ink);border-bottom:1px solid var(--line)}'
+    +'.ip-h .ip-n{margin-left:auto;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700}'
+    +'.ip-body{padding:6px 16px 12px}'
+    +'.ip-link{display:flex;align-items:center;gap:12px;padding:13px 16px;text-decoration:none;color:inherit;border-bottom:1px solid var(--line)}'
+    +'.ip-link:last-child{border-bottom:0}'
+    +'.ip-link:hover{background:var(--accent-soft)}'
+    +'.ip-ic{width:38px;height:38px;flex:none;border-radius:11px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:19px}'
+    +'.ip-tx{min-width:0;flex:1}.ip-tx b{display:block;font-size:15px}.ip-tx small{color:var(--muted);font-size:12.5px}'
+    +'.ip-go{color:var(--accent);font-weight:700;flex:none}'
+    +'.ip-row{display:flex;gap:12px;padding:9px 16px;border-bottom:1px dashed var(--line);align-items:flex-start}'
+    +'.ip-row:last-child{border-bottom:0}'
+    +'.ip-k{width:84px;flex:none;color:var(--muted);font-size:13.5px}'
+    +'.ip-v{flex:1;font-weight:600;font-size:14.5px;word-break:break-word}'
+    +'.ip-card>summary{display:flex;align-items:center;gap:8px;padding:13px 16px;font-weight:700;font-size:15px;cursor:pointer;list-style:none}'
+    +'.ip-card>summary::-webkit-details-marker{display:none}'
+    +'.ip-card>summary::after{content:"\u25be";margin-left:auto;color:var(--muted);transition:transform .15s}'
+    +'.ip-card[open]>summary::after{transform:rotate(180deg)}'
+    +'.ip-card[open]>summary{border-bottom:1px solid var(--line)}'
+    +'.ip-card>summary .ip-n{background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:1px 9px;font-size:12px}'
+    +'.ip-head{margin:0 0 14px}.ip-head h2{margin:0;font-size:21px}.ip-head .hint{margin-top:3px}'
+    +'</style>';
+  const blocks=[];
+  // 快速連結
+  const meet=myMeetUrl(),dl=driveLinks();
+  const links=[];
+  if(meet)links.push('<a class="ip-link" href="'+esc(meet)+'" target="_blank" rel="noopener"><span class="ip-ic">\ud83c\udfa5</span><span class="ip-tx"><b>'+esc(T.room)+'</b><small>'+esc(T.roomS)+'</small></span><span class="ip-go">\u2192</span></a>');
+  dl.forEach(l=>{links.push('<a class="ip-link" href="'+esc(l.u)+'" target="_blank" rel="noopener"><span class="ip-ic">\ud83d\udcc1</span><span class="ip-tx"><b>'+esc(T.drive)+(l.label?('\uff08'+esc(l.label)+'\uff09'):'')+'</b><small>'+esc(T.driveS)+'</small></span><span class="ip-go">\u2192</span></a>');});
+  if(links.length)blocks.push('<div class="ip-card"><div class="ip-h">\ud83d\udd17 '+esc(T.links)+'</div>'+links.join('')+'</div>');
+  // 我的班級
+  const grp=myGroups();
+  if(grp.length){
+    const rows=grp.map(g=>{const cm=classMetaOf(g);const s=fmtSched(cm.schedule);const r=[];
+      r.push('<div class="ip-row"><span class="ip-k">'+esc(T.clsName)+'</span><span class="ip-v">'+esc(g)+'</span></div>');
+      if(s)r.push('<div class="ip-row"><span class="ip-k">'+esc(T.clsTime)+'</span><span class="ip-v">'+esc(s)+'</span></div>');
+      if(cm.textbook)r.push('<div class="ip-row"><span class="ip-k">'+esc(T.clsBook)+'</span><span class="ip-v">'+esc(cm.textbook)+'</span></div>');
+      return r.join('');}).join('');
+    blocks.push('<div class="ip-card"><div class="ip-h">\ud83d\udc65 '+esc(T.cls)+'</div>'+rows+'</div>');
+  }
+  // 繳費記錄
+  const pl=payLogHtml(true);
+  if(pl){const n=(Array.isArray(S.me&&S.me.payments)?S.me.payments:[]).filter(p=>p&&(p.date||p.amount!=null)).length;
+    blocks.push('<details class="ip-card"><summary>\ud83e\uddfe '+esc(T.pay)+' <span class="ip-n">'+n+(T.n?(' '+T.n):'')+'</span></summary><div class="ip-body">'+pl+'</div></details>');}
+  // 上課記錄
+  const cd=classDaysHtml(true);
+  if(cd){const n=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).filter(e=>e&&e.date).length;
+    blocks.push('<details class="ip-card"><summary>\ud83d\uddd3 '+esc(T.days)+' <span class="ip-n">'+n+(T.cnt?(' '+T.cnt):'')+'</span></summary><div class="ip-body">'+cd+'</div></details>');}
+  const head='<div class="ip-head"><h2>\u2139\ufe0f '+esc(T.h)+'</h2></div>';
+  $('#screen').innerHTML='<div class="ip-wrap">'+css+head+(blocks.length?blocks.join(''):emptyHtml('\u2139\ufe0f',T.h,T.none))+'</div>';
   convScreen();
 }
 function renderGrades(){
