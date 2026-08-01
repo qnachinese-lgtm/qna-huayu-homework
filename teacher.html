@@ -32,6 +32,48 @@
 .lqt>span{font-size:13px;white-space:nowrap;min-width:0}
 @media(max-width:640px){.lqt{grid-template-columns:1fr auto;row-gap:2px}.lqt-head{display:none}.lqt>span:nth-child(4){display:none}}
 @media(max-width:720px){.led-sum{display:flex;flex-wrap:wrap;column-gap:10px}.led-sum>.led-name{min-width:0}.led-head{display:none}}
+
+/* ===== 批改台 ===== */
+.sg-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+.sg-filters .grow{flex:1}
+.sg-chip{border:1.5px solid rgba(31,111,120,.28);background:#fff;color:#1F6F78;font-weight:700;
+  font-size:13px;font-family:inherit;border-radius:999px;padding:6px 14px;cursor:pointer;white-space:nowrap}
+.sg-chip:hover{background:rgba(31,111,120,.09)}
+.sg-chip.on{background:#1F6F78;border-color:#1F6F78;color:#fff}
+.sg-wrap{display:flex;gap:16px;align-items:flex-start;min-height:520px}
+.sg-list{flex:0 0 306px;max-width:306px;max-height:calc(100vh - 210px);overflow:auto;
+  background:#fff;border:1px solid rgba(31,111,120,.16);border-radius:14px;padding:6px}
+.sg-item{display:block;width:100%;text-align:left;border:0;background:transparent;font-family:inherit;
+  cursor:pointer;padding:10px 12px;border-radius:10px;border-bottom:1px solid rgba(31,111,120,.09)}
+.sg-item:last-child{border-bottom:0}
+.sg-item:hover{background:rgba(31,111,120,.06)}
+.sg-item.on{background:#1F6F78}
+.sg-item.on *{color:#fff!important}
+.sg-item.test{opacity:.72}
+.sg-i1{display:flex;align-items:center;gap:7px;font-size:14.5px;color:#2E2A26}
+.sg-i2{display:block;font-size:12.5px;color:#7C7065;margin-top:3px}
+.sg-i3{display:block;font-size:11.5px;color:#9a938c;margin-top:2px}
+.sg-tt{background:#e0e7ff;color:#4338ca;border-radius:999px;padding:0 7px;font-size:11px;font-weight:700}
+.sg-st{margin-left:auto;border-radius:999px;padding:1px 9px;font-size:11.5px;font-weight:800}
+.sg-st.pend{background:#fef3c7;color:#92400e}
+.sg-st.done{background:#dcfce7;color:#166534}
+.sg-pane{flex:1;min-width:0;background:#fff;border:1px solid rgba(31,111,120,.16);border-radius:14px;
+  max-height:calc(100vh - 210px);overflow:auto}
+.sg-head{position:sticky;top:0;z-index:3;background:#fff;border-bottom:1px solid rgba(31,111,120,.14);
+  padding:13px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.sg-head h3{margin:0;font-size:17px;flex:1;min-width:0}
+.sg-navbar{display:flex;align-items:center;gap:9px}
+.sg-pos{font-weight:800;color:#7C7065;font-size:13px;white-space:nowrap}
+.sg-body{padding:16px 18px}
+.sg-foot{position:sticky;bottom:0;background:#fff;border-top:1px solid rgba(31,111,120,.14);
+  padding:11px 18px;display:flex;gap:10px;align-items:center;justify-content:flex-end}
+.sg-empty{padding:70px 20px;text-align:center;color:#9a938c;font-size:15px;line-height:2}
+.sg-empty span{font-size:13px}
+@media(max-width:1000px){
+  .sg-wrap{display:block}
+  .sg-list{max-width:none;flex:none;max-height:300px;margin-bottom:14px}
+  .sg-pane{max-height:none}
+}
 </style>
 </head>
 <body class="bg-pattern">
@@ -1656,39 +1698,120 @@ async function _filesLoadInbox(){const box=document.getElementById('files-inbox'
     box.innerHTML=html;
   }catch(e){box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'</div>';}
 }
+/* ===== 批改台：左邊一排待批改，右邊直接改，改完按「下一位」 ===== */
+const SGKIND={
+  hw:{lab:'作業',ic:'✍️'},gprac:{lab:'語法練習',ic:'📘'},disc:{lab:'問題與討論',ic:'💬'},
+  sent:{lab:'造句',ic:'📝'},shadow:{lab:'逐句跟讀',ic:'🗣'},hwv:{lab:'手寫',ic:'🖊'}};
+function sgName(sd){const st=S.students.find(x=>x.id===(sd&&sd.student_id));return (st&&st.name)||(sd&&sd.student_name)||'學生';}
+function sgTest(sd){const st=S.students.find(x=>x.id===(sd&&sd.student_id));return !!(st&&st.is_test);}
+function sgLes(lid){const l=S.lessons.find(x=>x.id===lid)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');}
+function gradeQueue(){
+  const out=[];
+  (S.results||[]).filter(r=>r.status==='pending'||r.status==='done').forEach(r=>{
+    if(r.kind)return; // 只取「作業」那種 result
+    out.push({kind:'hw',id:r.id,sd:r,name:sgName(r),test:sgTest(r),les:sgLes(r.lesson_id),
+      pend:r.status==='pending',ts:r.completed_at||r.updated_at||'',extra:''});});
+  const add=(arr,kind,lidKey,extraFn)=>{(arr||[]).forEach(sd=>{const done=sd.status==='reviewed';
+    if(sd.status!=='submitted'&&!done)return;
+    out.push({kind,id:sd.id,sd,name:sgName(sd),test:sgTest(sd),les:sgLes(sd[lidKey]),
+      pend:!done,ts:sd.submitted_at||'',extra:extraFn?extraFn(sd):''});});};
+  add(S.gpracs,'gprac','gprac_lesson',sd=>Object.keys(sd.answers||{}).length+' 題');
+  add(S.discussions,'disc','disc_lesson',sd=>Object.keys(sd.answers||{}).length+' 題');
+  add(S.sentences,'sent','sent_lesson',sd=>(sd.items||[]).filter(it=>it.sentence).length+' 句');
+  add(S.shadows,'shadow','shadow_lesson',sd=>(sd.sents||[]).filter(x=>x&&x.audio_url).length+' 句錄音');
+  add(S.hwvs,'hwv','hwv_lesson',sd=>(sd.images||[]).length+' 張');
+  out.sort((a,b)=>(a.pend===b.pend?0:(a.pend?-1:1))||String(b.ts||'').localeCompare(String(a.ts||'')));
+  return out;
+}
+function sgVisible(){const only=(S.sgOnly==='all')?'all':'pend';const k=S.sgKind||'';
+  return gradeQueue().filter(x=>(only==='all'||x.pend)&&(!k||x.kind===k));}
+function sgOpen(it){
+  if(!it)return;
+  S.sgSel=it.kind+'::'+it.id;S.sgSplit=true;
+  const H_=H;
+  if(it.kind==='hw'){const r=it.sd;const l=S.lessons.find(x=>x.id===r.lesson_id)||{};const st=S.students.find(x=>x.id===r.student_id)||{name:'學生'};
+    sgFill('✍️ 作業批改 · '+esc(st.name),'<div class="hint" style="margin-bottom:10px">'+esc(sgLes(r.lesson_id))+(r.completed_at?(' · 🕒 '+esc(fmtDT(r.completed_at))):'')+'</div>'+studentReviewHtml(l,st,r),'');
+    return;}
+  const fn={gprac:H_.reviewGprac,disc:H_.reviewDisc,sent:H_.reviewSent,shadow:H_.reviewShadow,hwv:H_.reviewHwv}[it.kind];
+  if(fn)fn(it.id);
+}
+function sgFill(title,body,foot){
+  const p=document.getElementById('sg-pane');if(!p)return;
+  const list=sgVisible();const idx=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);
+  const nav='<div class="sg-navbar"><button class="btn btn-sm" data-act="sgPrev"'+(idx<=0?' disabled':'')+'>← 上一位</button>'
+    +'<span class="sg-pos">'+(idx>=0?(idx+1):'-')+' / '+list.length+'</span>'
+    +'<button class="btn btn-sm btn-accent" data-act="sgNext"'+(idx<0||idx>=list.length-1?' disabled':'')+'>下一位 →</button></div>';
+  p.innerHTML='<div class="sg-head"><h3>'+title+'</h3>'+nav+'</div><div class="sg-body">'+body+'</div>'+(foot?('<div class="sg-foot">'+foot+'</div>'):'');
+  p.scrollTop=0;
+}
+/* 把原本要開視窗的批改畫面，改成填進右邊那一欄 */
+function sgWrap(html){if(sgInto(html))return;openModal(html);}
+function sgInto(html){
+  if(!S.sgSplit)return false;
+  const p=document.getElementById('sg-pane');if(!p)return false;
+  const d=document.createElement('div');d.innerHTML=html;
+  const h=d.querySelector('.modal-head h3'),b=d.querySelector('.modal-body'),f=d.querySelector('.modal-foot');
+  if(!b)return false;
+  if(f)f.querySelectorAll('[data-act="closeModal"]').forEach(x=>x.remove());
+  sgFill(h?h.innerHTML:'批改',b.innerHTML,f?f.innerHTML:'');
+  return true;
+}
+function sgAdvance(){const list=sgVisible();if(!list.length){S.sgSel=null;return;}
+  let idx=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);
+  if(idx<0)idx=0;else if(idx<list.length-1)idx=idx+1;
+  sgOpen(list[idx]);}
 function renderGrades(){
-  const wrap=$('#grades-list');const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0);
+  const wrap=$('#grades-list');
+  const list=sgVisible();const all=gradeQueue();
+  const pendN=all.filter(x=>x.pend).length;
+  const kinds=Object.keys(SGKIND).filter(k=>all.some(x=>x.kind===k));
+  const chip=(k,lab,on)=>'<button class="sg-chip'+(on?' on':'')+'" data-act="sgKind" data-id="'+k+'">'+lab+'</button>';
+  const bar='<div class="sg-filters">'+chip('','全部類型',!S.sgKind)
+    +kinds.map(k=>chip(k,SGKIND[k].ic+' '+SGKIND[k].lab,S.sgKind===k)).join('')
+    +'<span class="grow"></span>'
+    +'<button class="sg-chip'+(S.sgOnly==='all'?'':' on')+'" data-act="sgOnly" data-id="pend">只看待批改（'+pendN+'）</button>'
+    +'<button class="sg-chip'+(S.sgOnly==='all'?' on':'')+'" data-act="sgOnly" data-id="all">全部（'+all.length+'）</button>'
+    +'<button class="btn btn-sm" data-act="exportGrades">⬇ 匯出成績 CSV</button></div>';
+  const rows=list.length?list.map(x=>{const key=x.kind+'::'+x.id;const m=SGKIND[x.kind]||{ic:'',lab:''};
+    return '<button class="sg-item'+(S.sgSel===key?' on':'')+(x.test?' test':'')+'" data-act="sgPick" data-id="'+esc(key)+'">'
+      +'<span class="sg-i1"><b>'+esc(x.name)+'</b>'+(x.test?'<span class="sg-tt">測試</span>':'')
+      +'<span class="sg-st '+(x.pend?'pend':'done')+'">'+(x.pend?'待批改':'已完成')+'</span></span>'
+      +'<span class="sg-i2">'+m.ic+' '+esc(m.lab)+'　'+esc(x.les)+'</span>'
+      +'<span class="sg-i3">'+(x.extra?esc(x.extra)+'　':'')+(x.ts?('🕒 '+esc(fmtDT(x.ts))):'')+'</span></button>';}).join('')
+    :'<div class="muted" style="padding:16px 12px">'+(S.sgOnly==='all'?'還沒有任何作答':'目前沒有待批改的項目 🎉')+'</div>';
+  wrap.innerHTML=bar+'<div class="sg-wrap"><div class="sg-list">'+rows+'</div><div class="sg-pane" id="sg-pane"></div></div>'
+    +'<details class="disc" style="margin-top:18px"><summary>📊 各課成績總表</summary><div id="grades-matrix" style="margin-top:10px"></div></details>';
+  renderGradesMatrix();
+  if(S._sgAdvance){S._sgAdvance=false;sgAdvance();return;}
+  const cur=list.find(x=>(x.kind+'::'+x.id)===S.sgSel);
+  if(cur)sgOpen(cur);
+  else{const p=document.getElementById('sg-pane');if(p)p.innerHTML='<div class="sg-empty">👈 左邊點一位學生開始批改<br><span>改完按「下一位」就會自動跳到下一份</span></div>';}
+}
+function renderGradesMatrix(){
+  const wrap=document.getElementById('grades-matrix');if(!wrap)return;
+  const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0);
   if(!ls.length){wrap.innerHTML=emptyHtml('📊','還沒有成績','到「課文練習」指派課文給學生，學生作答後這裡會顯示分數。');return;}
-  wrap.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-sm" data-act="exportGrades">⬇ 匯出成績 CSV</button></div>'+ls.map(l=>{
-    const targets=lessonTargets(l);
-    const qn=answerableOf(l.id).length;
+  wrap.innerHTML=ls.map(l=>{
+    const targets=lessonTargets(l);const qn=answerableOf(l.id).length;
     const rows=targets.map(s=>{const r=resultOf(l.id,s.id);const draft=r&&r.status==='draft';const pend=r&&r.status==='pending';
       const stBadge=!r?'<span class="badge badge-pending">未開始</span>':draft?'<span class="badge badge-soon">✍️ 作答中（未送出）</span>':pend?'<span class="badge badge-soon">待批改</span>':'<span class="badge badge-ok">已完成</span>';
-      return `<tr><td><span class="dot ${r&&!draft&&!pend?'ok':'no'}"></span>${esc(s.name)}</td>
-        <td>${stBadge}</td>
-        <td><b>${(r&&!draft)?(scoreOf(l,r)+'/'+(r.total||qn)):'—'}</b></td></tr>`;}).join('');
+      return `<tr><td><span class="dot ${r&&!draft&&!pend?'ok':'no'}"></span>${esc(s.name)}</td><td>${stBadge}</td><td><b>${(r&&!draft)?(scoreOf(l,r)+'/'+(r.total||qn)):'—'}</b></td></tr>`;}).join('');
     const doneCount=targets.filter(s=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;
-    const withResult=targets.map(s=>({s,r:resultOf(l.id,s.id)})).filter(o=>o.r);
-    let reviewSection='';
-    if(withResult.length){
-      const stus=withResult.map(({s,r})=>{const draft=r.status==='draft';const pend=r.status==='pending';const fbCount=Object.keys(r.feedback||{}).length+(r.comment?1:0);
-        const sb=draft?'<span class="badge badge-soon">✍️ 作答中（未送出）</span>':`<span class="badge ${pend?'badge-soon':'badge-ok'}">${pend?'待批改':'已完成'}</span>`;
-        const tm=draft?r.saved_at:r.completed_at;const tmStr=tm?'<span class="gd-time">'+(draft?'存檔 ':'繳交 ')+esc(String(tm).replace('T',' ').slice(5,16))+'</span>':'';
-        return `<details class="disc gd-stu"><summary><b>${esc(s.name)}</b> ${sb} <span class="gd-score">${draft?'草稿':(scoreOf(l,r)+'/'+(r.total||qn))}</span>${tmStr}${fbCount?'<span class="tag gold">📝 已給建議</span>':''}</summary>${studentReviewHtml(l,s,r)}</details>`;}).join('');
-      reviewSection=`<details class="disc" style="margin-top:14px"><summary>📝 逐生作答 ＆ 修改建議（${withResult.length} 人）</summary><div style="margin-top:8px">${stus}</div></details>`;
-    }
-    return `<div class="card"><div class="row-between"><div>
-      <h3 style="font-size:17px">${l.order_index?('第'+l.order_index+'課 · '):''}${esc(l.title)}</h3>
+    return `<div class="card"><div class="row-between"><div><h3 style="font-size:17px">${l.order_index?('第'+l.order_index+'課 · '):''}${esc(l.title)}</h3>
       <div class="meta" style="margin-top:5px"><span>${qn} 題</span><span>完成 <b>${doneCount}/${targets.length}</b></span></div></div></div>
-      <div style="overflow:auto;margin-top:12px"><table class="matrix"><thead><tr><th>學生</th><th>狀態</th><th>分數</th></tr></thead><tbody>${rows}</tbody></table></div>
-      ${reviewSection}
-      ${withResult.length?`<div style="margin-top:10px;text-align:right"><button class="btn btn-sm btn-ghost" style="color:var(--danger)" data-act="clearLessonResults" data-id="${l.id}">🗑 清空本課全部作答（測試用）</button></div>`:''}</div>`;}).join('');
+      <div style="overflow:auto;margin-top:12px"><table class="matrix"><thead><tr><th>學生</th><th>狀態</th><th>分數</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;}).join('');
 }
 
 /* ---------- 動作 ---------- */
 const RELOGIN_MSG='登入已失效。請「開新分頁」打開教師頁並登入，然後回到這個分頁再按一次儲存（不要重新整理，正在編輯的內容才不會不見）。';
 function writeErr(prefix,err){const m=((err&&(err.code||err.message))||'')+'';return prefix+'：'+(/permission|insufficient|unauth/i.test(m)?RELOGIN_MSG:(m||'發生錯誤'));}
 const H={};
+H.sgPick=(key)=>{const list=sgVisible();const it=list.find(x=>(x.kind+'::'+x.id)===key);if(!it)return;
+  S.sgSel=key;renderGrades();};
+H.sgNext=()=>{const list=sgVisible();const i=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);if(i>=0&&i<list.length-1){S.sgSel=list[i+1].kind+'::'+list[i+1].id;renderGrades();}};
+H.sgPrev=()=>{const list=sgVisible();const i=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);if(i>0){S.sgSel=list[i-1].kind+'::'+list[i-1].id;renderGrades();}};
+H.sgKind=(k)=>{S.sgKind=k||'';renderGrades();};
+H.sgOnly=(v)=>{S.sgOnly=(v==='all')?'all':'pend';renderGrades();};
 H.stuDetail=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;openModal(`<div class="modal wide"><div class="modal-head"><h3>${esc(s.name)}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">${stuCardInner(s)}</div></div>`);};
 H.stuView=(id)=>{S.stuView=(id==='card')?'card':'table';renderStudents();};
 /* ----- 對外官網：報名名單 + 內容編輯 ----- */
@@ -2076,7 +2199,7 @@ H.reviewSent=(id)=>{const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
   const l=S.lessons.find(x=>x.id===sd.sent_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
   const fb=sd.feedback||{};
   const rows=(sd.items||[]).map(it=>`<div class="srev-item"><div class="srev-word">${esc(it.word)}</div><div class="srev-sent">${it.sentence?esc(it.sentence):'<span class="muted">（未作答）</span>'}</div><textarea class="srev-fb" data-w="${esc(it.word)}" rows="2" placeholder="給這一句的建議（可留空）">${esc(fb[it.word]||'')}</textarea></div>`).join('');
-  openModal(`<div class="modal wide"><div class="modal-head"><h3>✍️ 造句批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
+  sgWrap(`<div class="modal wide"><div class="modal-head"><h3>✍️ 造句批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${rows}
    <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="srev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('srev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveSentReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveSentReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
@@ -2100,7 +2223,7 @@ H.reviewDisc=(id)=>{const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)retur
     rows+=`<div class="lesson-label" style="margin:12px 0 4px;padding-bottom:2px;border-bottom:1px solid var(--line)">💬 ${esc(bt)}</div>`;
     answered.forEach(x=>{rows+=`<div class="srev-item"><div class="srev-word">${esc(x.q)}</div><div class="srev-sent">${esc(x.a)}</div><textarea class="drev-fb" data-k="${esc(x.key)}" rows="2" placeholder="給這一題的建議（可留空）">${esc(fb[x.key]||'')}</textarea></div>`;});});
   if(!rows)rows='<div class="muted">（學生還沒有作答任何問題與討論）</div>';
-  openModal(`<div class="modal wide"><div class="modal-head"><h3>💬 問題與討論批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
+  sgWrap(`<div class="modal wide"><div class="modal-head"><h3>💬 問題與討論批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${rows}
    <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="drev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('drev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveDiscReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveDiscReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
@@ -2132,7 +2255,7 @@ H.reviewGprac=(id)=>{const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
   let rows='';qs.forEach((q,i)=>{const a=gpAnsTextT(q,ans[q.id]);const sol=gpSolT(q);
     rows+=`<div class="srev-item"><div class="srev-word">${i+1}. ${esc((q.prompt||'').replace(/[_＿]{2,}/g,'____'))}</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>${sol?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(sol)}</div>`:''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="給這一題的建議（可留空，學生會看到）">${esc(fb[q.id]||'')}</textarea></div>`;});
   if(!rows)rows='<div class="muted">（這一課目前沒有語法練習題）</div>';
-  openModal(`<div class="modal wide"><div class="modal-head"><h3>📘 語法練習批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
+  sgWrap(`<div class="modal wide"><div class="modal-head"><h3>📘 語法練習批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${rows}
    <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="gprev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('gprev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveGpracReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveGpracReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
@@ -2148,7 +2271,7 @@ H.reviewHwv=(id)=>{const sd=(S.hwvs||[]).find(x=>x.id===id);if(!sd)return;
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
   const l=S.lessons.find(x=>x.id===sd.hwv_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
   const imgs=(sd.images||[]).map((im,i)=>`<div style="display:inline-block;text-align:center;margin:6px"><img src="${im}" style="width:130px;height:130px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#fff"><div class="hint">第 ${i+1} 張</div></div>`).join('')||'<div class="muted">（沒有圖片）</div>';
-  openModal(`<div class="modal wide"><div class="modal-head"><h3>✍️ 手寫練習 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
+  sgWrap(`<div class="modal wide"><div class="modal-head"><h3>✍️ 手寫練習 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:8px">生詞「<b style="font-size:22px">${esc(sd.hwv_word||'')}</b>」　${esc(ltitle)}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>
    <div style="text-align:center;background:#faf7f0;border-radius:12px;padding:10px">${imgs}</div>
    <div class="field" style="margin-top:12px"><label>給學生的評語 <span class="hint">學生會看到</span></label><textarea id="hwv-cmt" rows="2" placeholder="例：寫得很工整！注意「夢」上面的草字頭…">${esc(sd.comment||'')}</textarea>${(typeof cannedBar==='function')?cannedBar('hwv-cmt'):''}</div></div>
@@ -2172,7 +2295,7 @@ H.reviewShadow=(id)=>{const sd=(S.shadows||[]).find(x=>x.id===id);if(!sd)return;
       `<div class="hint" style="margin:2px 0 6px">${scTag}${s.tr?(' · 辨識：'+esc(s.tr)):''}</div>`+
       `<textarea class="shrev-fb" data-k="${i}" rows="2" placeholder="給這一句的建議（可留空，學生會看到）">${esc(fb[i]||'')}</textarea></div>`;});
   if(!rows)rows='<div class="muted">（沒有錄音內容）</div>';
-  openModal(`<div class="modal wide"><div class="modal-head"><h3>🗣 逐句跟讀批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
+  sgWrap(`<div class="modal wide"><div class="modal-head"><h3>🗣 逐句跟讀批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${avg!=null?(' ｜ 自動平均 '+avg+'%（僅供你參考，學生看不到）'):''}</div>${rows}
    <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="shrev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('shrev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveShadowReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveShadowReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
@@ -3720,6 +3843,7 @@ document.addEventListener('click',(e)=>{
   const qb=e.target.closest('[data-qebank]');
   if(qb){const v=qb.dataset.qebank;const h=$('#qe-bank');if(h)h.value=v;$$('#qe-bankseg button').forEach(b=>b.classList.toggle('on',b.dataset.qebank===v));return;}
   const b=e.target.closest('[data-act]');if(!b)return;
+  if(S.sgSplit&&b.closest('#sg-pane')&&/^save/.test(b.dataset.act||''))S._sgAdvance=true;
   const fn=H[b.dataset.act];if(fn){e.preventDefault();fn(b.dataset.id,b);}
 });
 document.addEventListener('change',async(e)=>{
