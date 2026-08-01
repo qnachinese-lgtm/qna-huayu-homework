@@ -2744,6 +2744,14 @@ H.gmPick=(id)=>groupMgrModal(id);
 H.classPage=(id)=>window.open('teacher.html?class='+encodeURIComponent(id),'_blank');
 H.classPrint=(id)=>classWindow(id);
 H.classRefresh=async(id)=>{try{await loadAll();renderClassView(id);toast('已更新');}catch(e){toast('更新失敗');}};
+H.classLinksSave=async(cls)=>{const drive=(($('#cv-drive')&&$('#cv-drive').value)||'').trim();const meet=(($('#cv-meet')&&$('#cv-meet').value)||'').trim();
+  const st=$('#cv-links-st');
+  const bad=(u)=>u&&!/^https?:\/\//i.test(u);
+  if(bad(drive)||bad(meet)){if(st)st.textContent='連結要以 http:// 或 https:// 開頭喔';return toast('連結格式不對，請貼完整網址');}
+  if(st)st.textContent='儲存中…';
+  try{await saveClassMeta(cls,{drive,meet});
+    toast(drive?('✅ 已儲存，「'+cls+'」的學生現在看得到教材資料夾了'):'已儲存');renderClassView(cls);}
+  catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}};
 H.classDatesPub=async(cls)=>{const on=!!classMetaOf(cls).show_dates;
   try{await saveClassMeta(cls,{show_dates:!on});toast(!on?'✅ 已公開！「'+cls+'」的學生現在看得到上課日期了':'已關閉，學生看不到上課日期');renderClassView(cls);}
   catch(e){toast('儲存失敗：'+((e&&e.message)||e));}};
@@ -3142,6 +3150,16 @@ function renderClassView(cls){
       <button class="btn" data-act="classPrint" data-id="${esc(cls)}">🖨 列印 / PDF</button>
       <button class="btn" data-act="classRefresh" data-id="${esc(cls)}">↻ 重新整理</button></div>
     <div class="meta" style="margin:2px 0 16px"><span>👤 ${members.length} 位學生</span>${sched?`<span>🕒 ${esc(sched)}</span>`:''}${cm.textbook?`<span>📖 ${esc(cm.textbook)}</span>`:''}${(Array.isArray(cm.fee_tiers)&&cm.fee_tiers.length)?`<span>💵 ${cm.fee_tiers.map(x=>(Math.round(Number(x.h)*100)/100)+'h '+money(Number(x.amt),(members[0]&&members[0].currency)||'TWD')).join('｜')}</span>`:''}<span>📚 整班發佈 ${pubN} 課</span></div>
+    <div class="card" style="margin-bottom:16px"><h3 style="margin:0 0 4px">🔗 班級資訊 · 分享給學生的連結</h3>
+      <div class="hint" style="margin-bottom:10px">貼上連結後按儲存，這個班的學生登入「上課內容」頁就會看到按鈕，可以直接點進去拿教材。</div>
+      <div class="field" style="margin:0 0 10px"><label>📁 教材資料夾（Google Drive 等）</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="cv-drive" type="url" inputmode="url" style="flex:1;min-width:220px" value="${esc(cm.drive||'')}" placeholder="https://drive.google.com/drive/folders/…">
+        <button class="btn btn-primary" data-act="classLinksSave" data-id="${esc(cls)}">💾 儲存</button>
+        ${/^https?:\/\//i.test(cm.drive||'')?`<a class="btn" href="${esc(cm.drive)}" target="_blank" rel="noopener">↗ 開啟</a>`:''}</div></div>
+      <div class="field" style="margin:0"><label>🎥 上課教室（Google Meet）</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="cv-meet" type="url" inputmode="url" style="flex:1;min-width:220px" value="${esc(cm.meet||'')}" placeholder="https://meet.google.com/abc-defg-hij">
+        ${meetUrl?`<a class="btn" href="${esc(meetUrl)}" target="_blank" rel="noopener">↗ 開啟</a>`:''}</div></div>
+      <div class="hint" id="cv-links-st" style="margin-top:8px"></div></div>
     <div class="card" style="margin-bottom:16px"><h3 style="margin:0 0 10px">👥 學生名單</h3><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:6px 9px;color:var(--primary)">姓名</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">Email</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">作業完成</th></tr></thead><tbody>${roster}</tbody></table></div>
     ${classDatesHtml(cls)}
     <h3>📚 上課內容 ＆ 繳交狀況</h3>${classBoardHtml(cls)}`;
