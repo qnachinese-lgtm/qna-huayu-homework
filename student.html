@@ -864,27 +864,6 @@ function uploadCardHtml(){
   const lesOpts=myLessons().map(l=>'<option value="'+esc(l.id)+'">'+esc(l.title||'')+'</option>').join('');
   return '<div class="ann-card"><div class="ann-h">📤 檔案上傳 / Nộp tệp</div>'+areas.map(a=>'<div style="padding:8px 0;border-bottom:1px dashed #eadfce"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b>📁 '+esc(a.name||'')+'</b><span class="grow"></span><select id="upl-les-'+esc(a.id)+'" style="max-width:150px;font-size:13px"><option value="">課次 / Bài (選填)</option>'+lesOpts+'</select><label class="btn btn-sm btn-accent" style="cursor:pointer">⬆ 上傳 / Nộp<input type="file" accept="image/*,.pdf,application/pdf" style="display:none" onchange="H.upPick(this,\''+esc(a.id)+'\',\''+esc(a.name||'')+'\')"></label></div>'+list(a.id)+'</div>').join('')+'<div class="ann-item muted" style="font-size:12px;margin-top:6px">照片會自動壓縮 · Ảnh tự nén · PDF ≤ 500KB</div>'+(mine?'':'<button class="btn btn-sm" style="margin-top:4px" data-act="upMine">查看我交過的檔案 / Xem tệp đã nộp</button>')+'</div>';
 }
-H.upMine=async()=>{try{const uid=(S.me&&S.me.uid)||(window.firebase&&firebase.auth&&firebase.auth().currentUser&&firebase.auth().currentUser.uid)||'';const fs=await DB.listWhere('uploads','uid',uid);fs.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));S.myUp=fs.map(f=>({id:f.id,area_id:f.area_id,filename:f.filename,lesson_title:f.lesson_title||'',created_at:f.created_at}));renderSection();}catch(e){toast('載入失敗 · Lỗi tải');}};
-function _upB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{res(String(r.result).split(',')[1]||'');};r.onerror=rej;r.readAsDataURL(file);});}
-async function _upShrink(file){
-  if(!/^image\//i.test(file.type||''))return {b64:await _upB64(file),mime:file.type||'application/octet-stream',name:file.name||'file',size:file.size||0};
-  const url=URL.createObjectURL(file);
-  const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url;});
-  let dim=1600,q=0.8,b64='';
-  for(let k=0;k<4;k++){const sc=Math.min(1,dim/Math.max(img.width||1,img.height||1));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*sc));c.height=Math.max(1,Math.round(img.height*sc));c.getContext('2d').drawImage(img,0,0,c.width,c.height);b64=c.toDataURL('image/jpeg',q).split(',')[1];if(b64.length<880000)break;dim=Math.round(dim*0.75);q=Math.max(0.5,q-0.1);}
-  URL.revokeObjectURL(url);
-  return {b64:b64,mime:'image/jpeg',name:String(file.name||'photo').replace(/\.[^.]+$/,'')+'.jpg',size:Math.round(b64.length*3/4)};
-}
-H.upPick=async(inp,areaId,areaName)=>{const file=inp&&inp.files&&inp.files[0];if(!file)return;inp.value='';
-  toast('上傳中… · Đang tải lên…');
-  try{const r=await _upShrink(file);
-    if(!r.b64||r.b64.length>930000){toast('檔案太大（約 700KB 內）· Tệp quá lớn');return;}
-    const uid=(S.me&&S.me.uid)||(window.firebase&&firebase.auth&&firebase.auth().currentUser&&firebase.auth().currentUser.uid)||'';
-    const _sel=document.getElementById('upl-les-'+areaId);const _lid=(_sel&&_sel.value)||'';const _l=_lid?S.lessons.find(x=>x.id===_lid):null;
-    const row=await DB.insert('uploads',{uid:uid,student_id:(S.me&&S.me.id)||'',area_id:areaId,area_name:areaName,lesson_id:_lid,lesson_title:(_l&&_l.title)||'',filename:r.name,mime:r.mime,size:r.size,data:r.b64});
-    if(!S.myUp)S.myUp=[];S.myUp.unshift({id:row.id,area_id:areaId,filename:r.name,lesson_title:(_l&&_l.title)||'',created_at:row.created_at});
-    toast('✅ 已上傳 · Đã nộp：'+r.name);renderSection();
-  }catch(e){toast('上傳失敗 · Lỗi：'+((e&&e.message)||e));}};
 function reviewCardHtml(){
   if(S.preview||!S.me)return '';
   const open=!!(S.site&&S.site.review_open==='on');
@@ -1727,6 +1706,27 @@ function buildClassICS(events){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:
   L.push('END:VCALENDAR');return L.join('\r\n');}
 function downloadICS(fn,text){try{const b=new Blob([text],{type:'text/calendar;charset=utf-8'});const url=URL.createObjectURL(b);const a=document.createElement('a');a.href=url;a.download=fn;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url);},800);}catch(e){toast('產生日曆檔失敗');}}
 H.addCal=()=>{const sch=Array.isArray(S.me&&S.me.schedule)?S.me.schedule.filter(r=>r&&r.s):[];if(!sch.length){toast('老師還沒設定你的上課時段');return;}downloadICS('中文課.ics',buildClassICS([{title:'中文課',schedule:sch,meet:(S.me&&S.me.meet_url)||''}]));toast('已下載日曆檔，打開它就能加入並開啟課前提醒');};
+H.upMine=async()=>{try{const uid=(S.me&&S.me.uid)||(window.firebase&&firebase.auth&&firebase.auth().currentUser&&firebase.auth().currentUser.uid)||'';const fs=await DB.listWhere('uploads','uid',uid);fs.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));S.myUp=fs.map(f=>({id:f.id,area_id:f.area_id,filename:f.filename,lesson_title:f.lesson_title||'',created_at:f.created_at}));renderSection();}catch(e){toast('載入失敗 · Lỗi tải');}};
+function _upB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{res(String(r.result).split(',')[1]||'');};r.onerror=rej;r.readAsDataURL(file);});}
+async function _upShrink(file){
+  if(!/^image\//i.test(file.type||''))return {b64:await _upB64(file),mime:file.type||'application/octet-stream',name:file.name||'file',size:file.size||0};
+  const url=URL.createObjectURL(file);
+  const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url;});
+  let dim=1600,q=0.8,b64='';
+  for(let k=0;k<4;k++){const sc=Math.min(1,dim/Math.max(img.width||1,img.height||1));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*sc));c.height=Math.max(1,Math.round(img.height*sc));c.getContext('2d').drawImage(img,0,0,c.width,c.height);b64=c.toDataURL('image/jpeg',q).split(',')[1];if(b64.length<880000)break;dim=Math.round(dim*0.75);q=Math.max(0.5,q-0.1);}
+  URL.revokeObjectURL(url);
+  return {b64:b64,mime:'image/jpeg',name:String(file.name||'photo').replace(/\.[^.]+$/,'')+'.jpg',size:Math.round(b64.length*3/4)};
+}
+H.upPick=async(inp,areaId,areaName)=>{const file=inp&&inp.files&&inp.files[0];if(!file)return;inp.value='';
+  toast('上傳中… · Đang tải lên…');
+  try{const r=await _upShrink(file);
+    if(!r.b64||r.b64.length>930000){toast('檔案太大（約 700KB 內）· Tệp quá lớn');return;}
+    const uid=(S.me&&S.me.uid)||(window.firebase&&firebase.auth&&firebase.auth().currentUser&&firebase.auth().currentUser.uid)||'';
+    const _sel=document.getElementById('upl-les-'+areaId);const _lid=(_sel&&_sel.value)||'';const _l=_lid?S.lessons.find(x=>x.id===_lid):null;
+    const row=await DB.insert('uploads',{uid:uid,student_id:(S.me&&S.me.id)||'',area_id:areaId,area_name:areaName,lesson_id:_lid,lesson_title:(_l&&_l.title)||'',filename:r.name,mime:r.mime,size:r.size,data:r.b64});
+    if(!S.myUp)S.myUp=[];S.myUp.unshift({id:row.id,area_id:areaId,filename:r.name,lesson_title:(_l&&_l.title)||'',created_at:row.created_at});
+    toast('✅ 已上傳 · Đã nộp：'+r.name);renderSection();
+  }catch(e){toast('上傳失敗 · Lỗi：'+((e&&e.message)||e));}};
 H.vocabLesson=(id)=>{S.vocabLesson=id||'';S.flashIdx=0;SHADOW=null;renderCards();};
 H.vocabSentence=()=>{const lid=sentLessonId();if(!lid){toast(t('sentPickLesson'));return;}
   const lesson=S.lessons.find(x=>x.id===lid);if(!lesson){toast(t('sentEmpty'));return;}
