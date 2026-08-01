@@ -2838,15 +2838,30 @@ H.itvPaySave=async()=>{const id=($('#ipay-who')&&$('#ipay-who').value)||'';const
   try{await DB.update('lessons',c.id,{payments:pays});c.payments=pays;toast('已記錄：'+(c.name||'')+' '+date+' '+money(amt,cur));closeModal();renderInterview();}
   catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.itvPayList=(id)=>{const c=itvById(id);if(!c)return;const pays=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  const sessPaid=itvSessions(c).filter(e=>e.paid&&e.fee);
+  const sessPaid=itvSessions(c).map((e,i)=>({e:e,i:i})).filter(x=>x.e.paid&&x.e.fee);
   const rows=pays.length?pays.map((p,i)=>`<div class="dash-row"><span class="badge badge-pending">${esc(String(p.date))}</span><b>${money(p.amount,p.currency||'VND')}</b>${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-danger" data-act="itvPayDel" data-id="${esc(id)}::${i}">🗑</button></div>`).join(''):'<div class="hint">還沒有獨立的付費紀錄。</div>';
-  const sessRows=sessPaid.length?('<div class="lesson-label" style="margin-top:12px">綁在練習時間上的收款</div>'+sessPaid.map(e=>`<div class="dash-row"><span class="badge badge-pending">${esc(String(e.date))}</span>${money(e.fee,e.currency||'VND')}<span class="muted" style="font-size:12px">練習當天收</span></div>`).join('')):'';
+  const sessRows=sessPaid.length?('<div class="lesson-label" style="margin-top:12px">綁在練習時間上的收款</div>'+sessPaid.map(x=>`<div class="dash-row"><span class="badge badge-pending">${esc(String(x.e.date))}</span><b>${money(x.e.fee,x.e.currency||'VND')}</b><span class="muted" style="font-size:12px">記在練習上</span><span class="grow"></span><button class="btn btn-sm" data-act="itvPayConv" data-id="${esc(id)}::${x.i}">⇄ 轉成獨立付費</button></div>`).join('')+'<div class="hint" style="margin-top:4px">「轉成獨立付費」＝把錢改記在實際付款日（可改日期），練習列上就不再顯示這筆錢。</div>'):'';
   openModal(`<div class="modal"><div class="modal-head"><h3>💰 付費紀錄 · ${esc(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="card" style="background:#fdf6ec;margin-bottom:10px"><div class="hint">累計已收（含練習收款）</div><div style="font-size:19px;font-weight:800">${itvMoneyStr(itvPaidSum(c,null))||'—'}</div></div>
      ${rows}${sessRows}
      <div style="margin-top:12px"><button class="btn btn-primary" data-act="itvPayNew" data-id="${esc(id)}">＋ 記一筆付費</button></div>
    </div></div>`);};
+H.itvPayConv=(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;const i=Number(p[1]);const e=itvSessions(c)[i];if(!e)return;
+  openModal(`<div class="modal"><div class="modal-head"><h3>⇄ 轉成獨立付費 · ${esc(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="hint" style="margin-bottom:10px">這筆 <b>${money(e.fee,e.currency||'VND')}</b> 目前記在 ${esc(String(e.date))} 的練習上。轉成獨立付費後，錢會改記在下面選的「實際付款日」，練習照常保留、只是不再掛這筆錢。</div>
+     <div class="field"><label>實際付款日</label><input id="ipc-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(String(e.date))}"></div>
+     <div class="field full" style="margin-top:8px"><label>備註 <span class="hint">選填</span></label><input id="ipc-note" type="text" placeholder="例：先付款、練習另約"></div>
+     <div style="margin-top:12px"><button class="btn btn-primary" data-act="itvPayConvDo" data-id="${esc(p[0])}::${i}">✅ 確定轉換</button></div>
+   </div></div>`);};
+H.itvPayConvDo=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;const i=Number(p[1]);
+  const sessions=itvSessions(c).slice();const e=sessions[i];if(!e||!e.fee)return;
+  const date=($('#ipc-date')&&$('#ipc-date').value)||String(e.date);const note=(($('#ipc-note')&&$('#ipc-note').value)||'').trim();
+  const pays=itvPays(c).slice();pays.push({date:date,amount:Number(e.fee)||0,currency:e.currency||'VND',note:note});pays.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const ns=Object.assign({},e);ns.fee='';ns.paid=false;sessions[i]=ns;
+  try{await DB.update('lessons',c.id,{payments:pays,sessions:sessions});c.payments=pays;c.sessions=sessions;toast('已轉成獨立付費（'+date+'）');renderInterview();H.itvPayList(c.id);}
+  catch(er){toast('失敗：'+((er&&er.message)||er));}};
 H.itvPayDel=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;const idx=Number(p[1]);const pays=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));const target=pays[idx];if(!target)return;
   if(!confirm('刪除 '+target.date+' 的 '+money(target.amount,target.currency||'VND')+' 付費紀錄？'))return;
   const left=itvPays(c).filter(x=>x!==target);
