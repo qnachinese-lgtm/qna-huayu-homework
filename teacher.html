@@ -2682,6 +2682,9 @@ H.gmPick=(id)=>groupMgrModal(id);
 H.classPage=(id)=>window.open('teacher.html?class='+encodeURIComponent(id),'_blank');
 H.classPrint=(id)=>classWindow(id);
 H.classRefresh=async(id)=>{try{await loadAll();renderClassView(id);toast('已更新');}catch(e){toast('更新失敗');}};
+H.classDatesPub=async(cls)=>{const on=!!classMetaOf(cls).show_dates;
+  try{await saveClassMeta(cls,{show_dates:!on});toast(!on?'✅ 已公開！「'+cls+'」的學生現在看得到上課日期了':'已關閉，學生看不到上課日期');renderClassView(cls);}
+  catch(e){toast('儲存失敗：'+((e&&e.message)||e));}};
 function classRollModal(cls,prefill){const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);S._rollCls=cls;S._rollOrig=null;
   CLOG_SCHED=classSchedOf(cls)||[];const today=localToday();const pf=prefill||{};const useDate=pf.date||today;const dslot=clSlotFor(useDate);const slot={s:pf.start||(dslot&&dslot.s)||'',e:pf.end||(dslot&&dslot.e)||''};const useNote=pf.note||'';const useVideo=pf.video||'';
   const dateMap={};members.forEach(s=>(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date)return;const k=e.date+'|'+(e.start||'')+'|'+(e.end||'');const c=(dateMap[k]=dateMap[k]||{date:e.date,att:0,leave:0,absent:0,start:e.start||'',end:e.end||'',free:false,note:''});if(e.status==='leave')c.leave++;else if(e.status==='absent')c.absent++;else c.att++;if(e.free)c.free=true;if(e.note)c.note=e.note;if(e.video)c.video=e.video;}));
@@ -3036,10 +3039,12 @@ H.classRollSave=async(cls)=>{const orig=S._rollOrig;S._rollOrig=null;const date=
     if(classPlanned(cls).some(p=>p.date===date)){try{await removePlanned(cls,date);}catch(e){}}
     toast('已記錄這一堂並完成點名');classRollModal(cls);render();}catch(e){if(btn){btn.disabled=false;btn.textContent='✅ 記錄這一堂並點名';}toast('失敗：'+((e&&e.message)||e));}};
 function classDatesHtml(cls){const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
+  const _sd=!!classMetaOf(cls).show_dates;
+  const _pubBtn=`<button class="btn btn-sm ${_sd?'btn-accent':''}" data-act="classDatesPub" data-id="${esc(cls)}" title="打開後，這個班的學生會在學生頁看到已上課的日期（含自己的出席／請假）">${_sd?'👁 已公開給學生':'🔒 未公開給學生'}</button>`;
   const map={};
   members.forEach(s=>(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date)return;const k=e.date+'|'+(e.start||'')+'|'+(e.end||'');const c=(map[k]=map[k]||{date:e.date,start:e.start||'',end:e.end||'',att:0,leave:0,absent:0,free:false,note:'',video:''});if(e.status==='leave')c.leave++;else if(e.status==='absent')c.absent++;else c.att++;if(e.free)c.free=true;if(e.note&&!c.note)c.note=e.note;if(e.video&&!c.video)c.video=e.video;}));
   const days=Object.keys(map).map(k=>map[k]).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.start).localeCompare(String(a.start)));
-  if(!days.length)return `<div class="card" style="margin-bottom:16px"><h3 style="margin:0 0 6px">🗓 上課日期</h3><div class="hint">還沒有上課記錄。按上面「🗓 上課點名」記錄第一堂。</div></div>`;
+  if(!days.length)return `<div class="card" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><h3 style="margin:0">🗓 上課日期</h3><span class="grow"></span>${_pubBtn}</div><div class="hint">還沒有上課記錄。按上面「🗓 上課點名」記錄第一堂。</div></div>`;
   // 依月份分組
   const byM={},order=[];days.forEach(d=>{const mk=String(d.date).slice(0,7);if(!byM[mk]){byM[mk]=[];order.push(mk);}byM[mk].push(d);});
   const rowHtml=(c)=>{const wd=c.date?DAYS[(new Date(c.date+'T00:00:00').getDay()+6)%7]:'';const tm=(c.start&&c.end)?(esc(c.start)+'–'+esc(c.end)):'';const fb=c.free?' <span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed55">🎁 免費</span>':'';const vb=c.video?` <a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;text-decoration:none" href="${esc(c.video)}" target="_blank" rel="noopener">🎬 影片</a>`:'';
@@ -3047,7 +3052,7 @@ function classDatesHtml(cls){const members=S.students.filter(s=>stuGroups(s).inc
   const newest=order[0];
   const groups=order.map(mk=>{const items=byM[mk];const label=mk.split('-')[0]+' 年 '+String(Number(mk.split('-')[1]))+' 月';const open=(mk===newest)?' open':'';
     return `<details${open} style="margin-bottom:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px"><summary style="cursor:pointer;font-weight:600;color:var(--primary);list-style-position:inside">${label} <span class="tag">${items.length} 堂</span></summary><div style="margin-top:6px">${items.map(rowHtml).join('')}</div></details>`;}).join('');
-  return `<div class="card" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0">🗓 上課日期</h3><span class="tag">共 ${days.length} 堂</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="classRoll" data-id="${esc(cls)}">＋ 上課點名</button></div>${groups}</div>`;}
+  return `<div class="card" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0">🗓 上課日期</h3><span class="tag">共 ${days.length} 堂</span><span class="grow"></span>${_pubBtn}<button class="btn btn-sm btn-accent" data-act="classRoll" data-id="${esc(cls)}">＋ 上課點名</button></div>${_sd?'':'<div class="hint" style="margin:0 0 8px">💡 目前只有你看得到。按「🔒 未公開給學生」可以打開，讓這個班的學生看到已上課的日期。</div>'}${groups}</div>`;}
 function renderClassView(cls){
   const tabs=document.querySelector('.tabs');if(tabs)tabs.classList.add('hide');
   document.querySelectorAll('.panel').forEach(p=>p.classList.add('hide'));

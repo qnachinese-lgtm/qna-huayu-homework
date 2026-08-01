@@ -824,7 +824,7 @@ function renderNav(){
   const wrong=wrongQuestions().length;
   const works=myLessons().filter(l=>answerableOf(l.id).length).length;
   const fbN=myLessons().filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
-  const items=[['content','📖',t('navContent'),''],['work','✍️',t('navWork'),works],['cards','🃏',t('navCards'),''],['grades','📈',t('navGrades'),fbN||''],['wrong','📒',t('navWrong'),wrong||'']];
+  const items=[['content','📖',t('navContent'),''],['work','✍️',t('navWork'),works],['grades','📈',t('navGrades'),fbN||'']];
   $('#snav').innerHTML=items.map(([id,ic,lb,n])=>`<button class="${S.section===id?'on':''}" data-act="section" data-id="${id}">${ic} ${lb}${n!==''?`<span class="n">${n}</span>`:''}</button>`).join('');
 }
 function renderSection(){
@@ -967,6 +967,8 @@ function lessonCardHtml(l,i){
       </div>`;
     return `<details class="card ls-card" data-lslid="${lid}"${(S.preview||S.openLesson===l.id)?' open':''}><summary class="row-between" style="cursor:pointer;list-style:none" title="點一下展開／收起這一課"><div style="display:flex;gap:12px;align-items:center;min-width:0">
       <div class="lesson-no">${(l.handout_url&&!lessonHasContent(l))?'📄':(l.order_index||i+1)}</div><div style="min-width:0"><h3 style="margin:0">${esc(l.title)}</h3>${lessonTags(l)}</div></div><div style="display:flex;gap:8px;align-items:center;flex:none">${S.preview?'':`<button class="btn btn-sm note-toggle" type="button" data-act="toggleNotes" data-id="${lid}">📝 ${t('myNotes')}</button>`}${dlgHasAudio(l)?'<span class="tag gold">🔊</span>':''}<span class="ls-chev" style="opacity:.45">▾</span></div></summary>
+      ${(function(){const vN=lessonVocab(l).length;const wN=S.preview?0:wrongQuestions().filter(q=>q.lesson_id===lid).length;if(!vN&&!wN)return '';
+        return `<div class="ls-lesson-tools" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0">${vN?`<button class="btn btn-sm" type="button" data-act="lessonCards" data-id="${lid}">🃏 ${t('navCards')}（${vN}）</button>`:''}${wN?`<button class="btn btn-sm" type="button" data-act="lessonWrong" data-id="${lid}" style="border-color:#f59e0b88">📒 ${t('navWrong')}（${wN}）</button>`:''}</div>`;})()}
       <div class="lesson-split" id="ls-${lid}" style="margin-top:12px">
         <div class="ls-text">${lessonBodyHtml(l,{answerable:canAns,doc:ddoc})}</div>
         ${notesCol}
@@ -991,6 +993,8 @@ function pronLessonCardHtml(p){
 }
 function classDaysHtml(){
   if(S.preview)return '';
+  const _gs=myGroups();
+  if(_gs.length&&!_gs.some(g=>!!classMetaOf(g).show_dates))return '';
   const log=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).slice().filter(e=>e&&e.date).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   if(!log.length)return '';
   const M={attended:[t('stAtt'),'#16a34a','✅'],leave:[t('stLeave'),'#d97706','🟡'],absent:[t('stAbsent'),'#dc2626','🔴']};
@@ -1090,11 +1094,12 @@ function renderCards(){
   const vls=vocabLessons().slice().sort((a,b)=>((a.textbook||'').localeCompare(b.textbook||''))||((a.order_index||0)-(b.order_index||0)));
   const vfLabel=l=>{const tb=(l.textbook||'').trim();const ti=(l.title||'').trim();let core=ti||(l.order_index?('第'+l.order_index+'課'):'課');if(core.length>20)core=core.slice(0,19)+'…';let tbs=tb.length>14?tb.slice(0,13)+'…':tb;return (tbs?tbs+' · ':'')+core;};
   const fbar=vls.length>1?`<div class="vocab-filter"><button class="vf-btn ${!S.vocabLesson?'on':''}" data-act="vocabLesson" data-id="">全部</button>${vls.map(l=>`<button class="vf-btn ${S.vocabLesson===l.id?'on':''}" data-act="vocabLesson" data-id="${l.id}">${esc(vfLabel(l))}</button>`).join('')}</div>`:'';
+  const backBtn=`<div style="margin:0 0 10px"><button class="btn btn-sm btn-ghost" type="button" data-act="section" data-id="content">${t('back')} ${t('navContent')}</button></div>`;
   const all=vocabScoped();
-  if(!all.length){$('#screen').innerHTML=fbar+emptyHtml('🃏',t('noCards'),t('noCardsSub'));return;}
+  if(!all.length){$('#screen').innerHTML=backBtn+fbar+emptyHtml('🃏',t('noCards'),t('noCardsSub'));return;}
   if(S.flashIdx>=all.length)S.flashIdx=0;
   const v=all[S.flashIdx];const dueN=srsDueList().length;
-  $('#screen').innerHTML=fbar+`<div class="vocab-actions"><button class="btn btn-sm" data-act="review">${t('revBtn')}${dueN?'（'+dueN+'）':''}</button><button class="btn btn-primary btn-sm" data-act="vocabQuiz">${t('vqBtn')}</button><button class="btn btn-sm" data-act="vocabMatch">${t('vmBtn')}</button><button class="btn btn-sm" data-act="dictation">${t('dictBtn')}</button><button class="btn btn-sm" data-act="vocabSentence">${t('sentBtn')}</button></div>
+  $('#screen').innerHTML=backBtn+fbar+`<div class="vocab-actions"><button class="btn btn-sm" data-act="review">${t('revBtn')}${dueN?'（'+dueN+'）':''}</button><button class="btn btn-primary btn-sm" data-act="vocabQuiz">${t('vqBtn')}</button><button class="btn btn-sm" data-act="vocabMatch">${t('vmBtn')}</button><button class="btn btn-sm" data-act="dictation">${t('dictBtn')}</button><button class="btn btn-sm" data-act="vocabSentence">${t('sentBtn')}</button></div>
     <div class="flash-wrap">
     <div class="flash ${S.flashFlip?'flip':''}" data-act="flip"><div class="flash-inner">
       <div class="flash-face flash-front">${flashFront(v)}<small>${t('flip')}</small></div>
@@ -1763,6 +1768,10 @@ H.doReset=async()=>{const email=$('#rs-email').value.trim();if(!email){$('#g-err
 H.openLesson=(id)=>{const l=S.lessons.find(x=>x.id===id);S.practiceSet={mode:'lesson',lessonId:id,lesson:l,questions:questionsOf(id),title:(l.order_index?('L'+l.order_index+' · '):'')+l.title};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
 H.openWrong=()=>{S.practiceSet={mode:'wrong',lesson:null,questions:wrongQuestions(),title:'📒 '+t('wrongTitle')};
+  S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
+H.lessonCards=(id)=>{S.section='cards';S.vocabLesson=id||'';S.flashIdx=0;S.flashFlip=false;SHADOW=null;S.practiceSet=null;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
+H.lessonWrong=(id)=>{const l=S.lessons.find(x=>x.id===id);const qs=wrongQuestions().filter(q=>q.lesson_id===id);if(!qs.length)return;
+  S.practiceSet={mode:'wrong',lesson:null,questions:qs,title:'📒 '+t('wrongTitle')+'｜'+((l&&(l.order_index?('L'+l.order_index+' '):'')+(l.title||''))||'')};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
 H.back=()=>{S.practiceSet=null;S.graded=false;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
 H.retry=()=>{S.graded=false;responses={};SHUF={};GRADE=null;window.scrollTo(0,0);renderPractice();};
