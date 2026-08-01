@@ -198,7 +198,7 @@ function twVnStr(s,e){s=s||'';e=e||'';if(!s&&!e)return '';const tw=s+(e?'–'+e:
 function timeOpts(sel){sel=sel||'';let html='<option value="">--:--</option>';let has=false;for(let h=0;h<24;h++){for(let m=0;m<60;m+=5){const v=(h<10?'0'+h:h)+':'+(m<10?'0'+m:m);if(v===sel)has=true;html+='<option value="'+v+'"'+(v===sel?' selected':'')+'>'+v+'</option>';}}if(sel&&!has)html='<option value="'+esc(sel)+'" selected>'+esc(sel)+'</option>'+html;return html;}
 function schedRowHTML(r){r=r||{};return `<div class="sched-row">
   <select class="sched-d">${DAYS.map((d,i)=>`<option value="${i}"${r.d===i?' selected':''}>${d}</option>`).join('')}</select>
-  <input type="time" class="sched-s" value="${esc(r.s||'')}"><span class="sched-dash">–</span><input type="time" class="sched-e" value="${esc(r.e||'')}">
+  <input type="text" class="sched-s hhmm" inputmode="numeric" maxlength="5" placeholder="20:00" value="${esc(r.s||'')}"><span class="sched-dash">–</span><input type="text" class="sched-e hhmm" inputmode="numeric" maxlength="5" placeholder="21:30" value="${esc(r.e||'')}">
   <button class="btn btn-sm btn-ghost sched-x" type="button" data-act="schedDel" aria-label="刪除時段">✕</button></div>`;}
 function firstSlotOptions(st){const sch=(Array.isArray(st&&st.schedule)?st.schedule:[]).filter(r=>r&&(r.s||r.e));const sel=st&&st.first_slot;
   return '<option value="">（第一個時段／自動）</option>'+sch.map((r,i)=>`<option value="${i}"${sel===i?' selected':''}>${esc((DAYS[(r.d!=null?r.d:0)]||'')+' '+(r.s||'')+(r.e?'–'+r.e:''))}</option>`).join('');}
@@ -2153,7 +2153,7 @@ function inviteModal(name,email,pw){
 H.copyInvite=()=>{const t=document.getElementById('inv-msg');if(!t)return;t.select();try{document.execCommand('copy');}catch(e){}try{navigator.clipboard&&navigator.clipboard.writeText(t.value);}catch(e){}toast('已複製，貼到 Zalo／訊息傳給學生');};
 H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return toast('請輸入名字');
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
-  const schedule=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);
+  const schedule=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);
   const fslot=$('#f-first-slot');
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),fee_unit:($('#f-feeunit')&&$('#f-feeunit').value)||'session',currency:$('#f-cur').value,
@@ -2695,7 +2695,7 @@ function classRollModal(cls,prefill){const members=S.students.filter(s=>stuGroup
   openModal(`<div class="modal"><div class="modal-head"><h3>🗓 「${esc(cls)}」上課點名</h3><button class="x" data-act="closeModal">×</button></div>
     <div class="modal-body">
       <div class="form-grid"><div class="field"><label>上課日期${pf.date?' <span class="hint">已帶入預排日期</span>':''}</label><input id="roll-date" type="date" min="2000-01-01" max="2100-12-31" value="${useDate}"></div>
-        <div class="field full"><label>時段 <span class="hint">依日期自動帶出，可改</span></label><div style="display:flex;align-items:center;gap:8px"><input type="time" id="roll-start" style="flex:1" value="${esc(slot?slot.s||'':'')}"><span>～</span><input type="time" id="roll-end" style="flex:1" value="${esc(slot?slot.e||'':'')}"></div></div>
+        <div class="field full"><label>時段 <span class="hint">依日期自動帶出，可改；24 小時制，打數字即可，例：2000 → 20:00</span></label><div style="display:flex;align-items:center;gap:8px"><input id="roll-start" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="20:00" style="flex:1" value="${esc(slot?slot.s||'':'')}"><span>～</span><input id="roll-end" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="21:30" style="flex:1" value="${esc(slot?slot.e||'':'')}"></div></div>
         <div class="field full"><label>課後小結 <span class="hint">選填，全班學生首頁看得到</span></label><input id="roll-note" type="text" value="${esc(useNote)}" placeholder="例：今天上第一課對話"></div>
         <div class="field full"><label>🎬 上課影片連結 <span class="hint">選填，請假／缺席的學生可以自己看回放（貼 YouTube／Google Drive 連結）</span></label><input id="roll-video" type="url" value="${esc(useVideo)}" placeholder="https://..."></div>
         <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="roll-free" style="width:auto;margin:0"> 🎁 這堂全班免費（不扣堂、不計費）</label></div></div>
@@ -3026,7 +3026,7 @@ H.rollEdit=(key)=>{const cls=S._rollCls;const members=S.students.filter(s=>stuGr
   toast('已載入 '+date+(kS?(' '+kS):'')+' 這一堂，改好後按「記錄這一堂並點名」即可更新');
   const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;};
 H.classRollSave=async(cls)=>{const orig=S._rollOrig;S._rollOrig=null;const date=$('#roll-date').value;if(!date)return toast('請選上課日期');
-  if(date>localToday()&&!confirm('你填的日期 '+date+' 還沒到（今天是 '+localToday()+'）。\n確定要記錄成已上課嗎？'))return;const start=($('#roll-start')&&$('#roll-start').value)||'';const end=($('#roll-end')&&$('#roll-end').value)||'';if(start&&end){const _p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};let _mm=_p(end)-_p(start);if(_mm<0)_mm+=1440;/* 允許跨午夜 */if(_mm===0)return toast('結束時間不能和開始時間一樣，請重新確認時段');}const note=($('#roll-note')&&$('#roll-note').value||'').trim();const video=($('#roll-video')&&$('#roll-video').value||'').trim();const free=!!($('#roll-free')&&$('#roll-free').checked);
+  if(date>localToday()&&!confirm('你填的日期 '+date+' 還沒到（今天是 '+localToday()+'）。\n確定要記錄成已上課嗎？'))return;const start=hhmmNorm(($('#roll-start')&&$('#roll-start').value)||'');const end=hhmmNorm(($('#roll-end')&&$('#roll-end').value)||'');if(start&&end){const _p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};let _mm=_p(end)-_p(start);if(_mm<0)_mm+=1440;/* 允許跨午夜 */if(_mm===0)return toast('結束時間不能和開始時間一樣，請重新確認時段');}const note=($('#roll-note')&&$('#roll-note').value||'').trim();const video=($('#roll-video')&&$('#roll-video').value||'').trim();const free=!!($('#roll-free')&&$('#roll-free').checked);
   const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);if(!members.length)return toast('這個團班還沒有成員');
   let _ow=false;
   if(!orig){const _has=members.some(s=>(Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===date&&!((e.start||'')===start&&(e.end||'')===end)));
@@ -3099,10 +3099,10 @@ H.pubSaveLessons=async(cls)=>{const checked=new Set($$('#pub-lessons .pub-les:ch
   try{for(const l of S.lessons){const on=(l.assigned_groups||[]).includes(cls);const want=checked.has(l.id);if(on===want)continue;let ag=Array.isArray(l.assigned_groups)?l.assigned_groups.slice():[];if(want)ag.push(cls);else ag=ag.filter(x=>x!==cls);await DB.update('lessons',l.id,{assigned_groups:ag});l.assigned_groups=ag;}
     toast('已更新發佈');closeModal();render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存發佈';}toast('失敗：'+((e&&e.message)||e));}};
 H.gmSchedAdd=()=>{const c=$('#gm-sched');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
-H.gmMetaSave=async(cls)=>{const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();const st=$('#gm-meta-st');if(st)st.textContent='儲存中…';
+H.gmMetaSave=async(cls)=>{const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();const st=$('#gm-meta-st');if(st)st.textContent='儲存中…';
   try{await saveClassMeta(cls,{schedule,textbook,meet});if(st)st.textContent='已儲存 ✓';toast('已儲存團班資訊');}catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}};
 H.gmApplyAll=async(cls)=>{
-  const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:row.querySelector('.sched-s').value,e:row.querySelector('.sched-e').value})).filter(r=>r.s||r.e);
+  const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);
   const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();
   const members=S.students.filter(s=>stuGroups(s).includes(cls));
   if(!members.length)return toast('這個團班還沒有成員');
