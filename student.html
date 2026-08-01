@@ -863,6 +863,33 @@ function payCardHtml(){
   var blocks=(showTw?blk('🇹🇼','台灣 · CTBC',twq,twt):'')+(showVn?blk('🇻🇳','Việt Nam · BIDV',vnq,vnt):'');
   return remind+'<details class="ann-card"'+(remind?' open':'')+' style="padding:0"><summary style="cursor:pointer;padding:13px 15px;font-weight:700;list-style:none">💳 付款方式 / Thanh toán <span style="font-size:12px;color:#9a8f80;font-weight:400">（需要時點開）</span></summary><div style="padding:0 14px 14px"><div class="ann-item" style="margin-bottom:6px">開啟銀行 App 掃 QR 轉帳 · Mở app ngân hàng quét mã QR</div><div style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;padding:4px 0 2px">'+blocks+'</div></div></details>';
 }
+/* ===== 我的繳費記錄（老師登錄的收款會出現在這裡） ===== */
+function payLogHtml(){
+  if(S.preview||!S.me)return '';
+  const ps=(Array.isArray(S.me.payments)?S.me.payments:[]).filter(p=>p&&(p.date||p.amount!=null)).slice()
+    .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  if(!ps.length)return '';
+  const L=S.lang||'zh';
+  const T=({zh:{t:'我的繳費記錄',hint:'老師收到款項後會登錄在這裡，可以對照確認。',n:'筆',sess:'堂',total:'累計'},
+            cn:{t:'我的缴费记录',hint:'老师收到款项后会登录在这里，可以对照确认。',n:'笔',sess:'堂',total:'累计'},
+            en:{t:'My payment records',hint:'Payments your teacher has received are listed here.',n:'',sess:'sessions',total:'Total'},
+            vi:{t:'Lịch sử đóng học phí',hint:'Các khoản cô đã nhận sẽ hiện ở đây để bạn đối chiếu.',n:'lần',sess:'buổi',total:'Tổng'}})[L]
+        ||{t:'我的繳費記錄',hint:'老師收到款項後會登錄在這裡，可以對照確認。',n:'筆',sess:'堂',total:'累計'};
+  const SYM={TWD:'NT$',VND:'\u20ab',USD:'US$'};
+  const fmtM=(amt,cur)=>{cur=cur||(S.me&&S.me.currency)||'TWD';const n=Number(amt)||0;
+    const v=(cur==='VND')?(n*1000).toLocaleString('en-US'):n.toLocaleString('en-US');
+    return (cur==='VND')?(v+' \u20ab'):((SYM[cur]||'')+v);};
+  const sums={};ps.forEach(p=>{const c=p.currency||(S.me&&S.me.currency)||'TWD';sums[c]=(sums[c]||0)+(Number(p.amount)||0);});
+  const totalTxt=Object.keys(sums).map(c=>fmtM(sums[c],c)).join(' ｜ ');
+  const rows=ps.map(p=>{const cur=p.currency||(S.me&&S.me.currency)||'TWD';
+    const sess=(p.sessions!=null&&p.sessions!=='')?(' <span class="badge badge-pending" style="font-size:11px">+'+esc(String(p.sessions))+' '+T.sess+'</span>'):'';
+    return '<div class="dash-row" style="padding:6px 0;align-items:center;flex-wrap:wrap"><b>'+esc(p.date||'—')+'</b>'+sess
+      +(p.note?'<span class="hint" style="margin-left:6px">'+esc(p.note)+'</span>':'')
+      +'<span class="grow"></span><span style="color:#16a34a;font-weight:700;white-space:nowrap">\u2705 '+esc(fmtM(p.amount,cur))+'</span></div>';}).join('');
+  return '<details class="card" style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;list-style-position:inside">\ud83e\uddfe '+esc(T.t)
+    +' <span class="hint">（'+ps.length+' '+T.n+'）</span></summary><div class="hint" style="margin:6px 0 2px">'+esc(T.hint)+'</div><div style="margin-top:2px">'+rows
+    +'<div class="dash-row" style="padding:8px 0 2px;border-top:1px solid #eadfce;margin-top:4px"><b>'+esc(T.total)+'</b><span class="grow"></span><b style="color:#1F6F78">'+esc(totalTxt)+'</b></div></div></details>';
+}
 /* ===== 檔案上傳區（老師開放才會出現） ===== */
 function uploadCardHtml(){
   if(S.preview||!S.me)return '';
@@ -899,7 +926,7 @@ function renderWork(){
   const ls=myLessons().filter(l=>answerableOf(l.id).length);
   const myQuizzes=(S.quizzes||[]).filter(qz=>assignedToMe(qz)).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
   const quizCard=myQuizzes.length?('<div class="lesson-label" style="margin-top:6px">'+t('quizSec')+'</div><div class="quiz-list">'+myQuizzes.map(qz=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;const qm=t({dict:'qmDict',pinyin:'qmPinyin',mean:'qmMean',choice:'qmChoice',cloze:'qmCloze',custom:'qmCustom'}[qz.mode||'dict']||'qmDict');return `<div class="quiz-card${done?' done':''}"${done?'':' data-act="startQuiz" data-id="'+qz.id+'"'}><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>${esc(qz.title||t('quizDefTitle'))}</b><div class="muted" style="font-size:12px">${qm}</div></div>${done?`<span class="badge badge-ok">${r.score}/${r.total}</span>`:`<span class="badge badge-soon">${t('quizNotTaken')}</span>`}</div>`;}).join('')+'</div>'):'';
-  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML=banner+payCardHtml()+uploadCardHtml()+submittedWorkHtml()+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
+  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML=banner+payCardHtml()+uploadCardHtml()+payLogHtml()+submittedWorkHtml()+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
   let overdue=0,soon=0;ls.forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});
   const fbN=ls.filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
   const sentFbN=(S.sentences||[]).filter(s=>s.status==='reviewed'&&((s.overall&&s.overall.trim())||(s.feedback&&Object.keys(s.feedback).length))).length;
@@ -926,7 +953,7 @@ function renderWork(){
   const notes=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).filter(e=>e&&e.note&&e.note.trim()).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3);
   const noteCard=notes.length?'<div class="note-card"><div class="ann-h">📝 課後小結 Class notes</div>'+notes.map(n=>'<div class="ann-item"><span class="ann-date">'+esc(n.date||'')+'</span>'+esc(n.note||'')+'</div>').join('')+'</div>':'';
   const payCard=payCardHtml()+uploadCardHtml();
-  $('#screen').innerHTML=banner+badgeStrip+liveJoinCard+annCard+payCard+meetCard+classUpcomingHtml()+calCard+noteCard+sessCard+classDaysHtml()+nb+submittedWorkHtml()+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
+  $('#screen').innerHTML=banner+badgeStrip+liveJoinCard+annCard+payCard+meetCard+classUpcomingHtml()+calCard+noteCard+sessCard+payLogHtml()+classDaysHtml()+nb+submittedWorkHtml()+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
@@ -1077,7 +1104,7 @@ function renderContent(){
   const clsBanner=(!S.preview&&_grp.length)?`<div class="class-banner"><div class="cb-head"><span class="cb-ic">👥</span><span class="cb-label">${t('yourClass')}</span></div>${_grp.map(g=>{const cm=classMetaOf(g);const s=fmtSched(cm.schedule);const chips=[`<span class="cb-chip cb-cls">${esc(g)}</span>`];if(s)chips.push(`<span class="cb-chip">🕒 ${esc(s)}</span>`);if(cm.textbook)chips.push(`<span class="cb-chip">📖 ${esc(cm.textbook)}</span>`);return `<div class="cb-row">${chips.join('')}</div>`;}).join('')}<div class="cb-note">💡 ${t('classNote')}</div></div>`:'';
   const meetTop=meetCardHtml()+driveCardHtml();
   const liveJoinCard=(S.preview||!(S.site&&S.site.live_on==='on'))?'':'<div class="ann-card" style="cursor:pointer;background:linear-gradient(135deg,#eef2ff,#fce7f3)" onclick="SLQ.join()"><div class="ann-h">🎮 加入即時比賽 Live Quiz</div><div class="ann-item">老師開始後，點這裡輸入代碼一起玩！</div></div>';
-  if(!normals.length&&!prons.length){$('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+classDaysHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
+  if(!normals.length&&!prons.length){$('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+payLogHtml()+classDaysHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
   const entries=[...normals.map(l=>({k:'l',l,b:(l.textbook||'').trim()||t('uncat')})),...prons.map(p=>({k:'p',l:p,b:(p.textbook||'').trim()||t('navPron')}))];
   const books=[];entries.forEach(e=>{if(!books.includes(e.b))books.push(e.b);});
   const cur=(S.contentBook&&books.includes(S.contentBook))?S.contentBook:books[0];
@@ -1089,7 +1116,7 @@ function renderContent(){
   const progCard=(!S.preview&&_hw.length)?`<div class="card prog-card"><div class="prog-top"><b>${t('learnProg')}</b><span class="hint">${_done}/${_hw.length} ${t('lessonsDone')}</span></div><div class="prog-bar"><span style="width:${Math.round(_done/_hw.length*100)}%"></span></div></div>`:'';
   const _fbn=S.preview?0:teacherFbCount();
   const fbBanner=_fbn?`<div class="fb-banner" data-act="section" data-id="work">${t('fbGave1')} ${_fbn} ${t('fbGave2')}</div>`:'';
-  $('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+fbBanner+progCard+classDaysHtml()+tabBar+'<div class="cards">'+cards+'</div>'+reviewCardHtml();
+  $('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+fbBanner+progCard+payLogHtml()+classDaysHtml()+tabBar+'<div class="cards">'+cards+'</div>'+reviewCardHtml();
   convScreen();setupCanvases();
   if(!S.preview)shown.forEach(e=>{if(e.k!=='l')return;const n=noteOf(e.l.id);if(n&&n.ink){const cv=document.getElementById('note-cv-'+e.l.id);if(cv)loadNoteInk(cv,n.ink);}
     // 還原「語法練習」已填寫但尚未送出的答案（含草稿），並掛上自動儲存
