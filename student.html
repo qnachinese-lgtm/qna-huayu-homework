@@ -655,6 +655,15 @@ const classMetaOf=(cls)=>{const m=(S.classMeta&&S.classMeta.meta)||{};return m[c
 /* 上課教室 Meet 連結：優先用學生自己的，其次用團班設定的 */
 function myMeetUrl(){if(/^https?:\/\//i.test((S.me&&S.me.meet_url)||''))return S.me.meet_url;for(const g of myGroups()){const m=classMetaOf(g).meet;if(/^https?:\/\//i.test(m||''))return m;}return '';}
 function meetCardHtml(){if(S.preview)return '';const u=myMeetUrl();if(!u)return '';const lab=S.lang==='en'?'Enter classroom':(S.lang==='vi'?'Vào lớp học':'進入上課教室');return `<a class="meet-card" href="${esc(u)}" target="_blank" rel="noopener"><span class="meet-ic">🎥</span><span class="meet-tx"><b>${lab}</b><small>Google Meet · 點此直接上課</small></span><span class="meet-go">→</span></a>`;}
+function driveCardHtml(){if(S.preview)return '';const links=[],seen=new Set();
+  const mine=(S.me&&S.me.drive_url)||'';if(/^https?:\/\//i.test(mine)){seen.add(mine);links.push({u:mine,label:''});}
+  myGroups().forEach(g=>{const d=(classMetaOf(g).drive||'');if(/^https?:\/\//i.test(d)&&!seen.has(d)){seen.add(d);links.push({u:d,label:g});}});
+  if(!links.length)return '';
+  const L=S.lang||'zh';
+  const T=({zh:'老師的教材資料夾',cn:'老师的教材资料夹',en:"Teacher's materials folder",vi:'Thư mục tài liệu của cô'})[L]||'老師的教材資料夾';
+  const hint=({zh:'講義、音檔等補充教材都放在這裡。',cn:'讲义、音档等补充教材都放在这里。',en:'Handouts and extra materials are here.',vi:'Tài liệu, file nghe bổ sung đều ở đây.'})[L]||'講義、音檔等補充教材都放在這裡。';
+  const openLab=({zh:'開啟資料夾',cn:'打开资料夹',en:'Open folder',vi:'Mở thư mục'})[L]||'開啟資料夾';
+  return '<div class="ann-card"><div class="ann-h">📁 '+T+'</div><div class="hint" style="margin:2px 0 8px">'+hint+'</div>'+links.map(l=>'<a class="btn btn-sm btn-accent" style="margin:2px 8px 2px 0;text-decoration:none" href="'+esc(l.u)+'" target="_blank" rel="noopener">📂 '+(l.label?esc(l.label)+' · ':'')+openLab+'</a>').join('')+'</div>';}
 const _WD=['週一','週二','週三','週四','週五','週六','週日'];
 function wdLabel(dateStr){const L=S.lang||'zh';const A=({zh:['週日','週一','週二','週三','週四','週五','週六'],cn:['周日','周一','周二','周三','周四','周五','周六'],en:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],vi:['CN','T2','T3','T4','T5','T6','T7']})[L]||['週日','週一','週二','週三','週四','週五','週六'];const d=new Date(dateStr+'T00:00:00');return isNaN(d)?'':(A[d.getDay()]||'');}
 const fmtSched=(sch)=>(Array.isArray(sch)?sch:[]).filter(r=>r&&(r.s||r.e)).map(r=>(_WD[r.d!=null?r.d:0]||'')+' '+(r.s||'')+(r.e?'–'+r.e:'')).join('、');
@@ -1066,7 +1075,7 @@ function renderContent(){
   const prons=(S.prons||[]).filter(p=>S.preview||assignedToMe(p));
   const _grp=myGroups();
   const clsBanner=(!S.preview&&_grp.length)?`<div class="class-banner"><div class="cb-head"><span class="cb-ic">👥</span><span class="cb-label">${t('yourClass')}</span></div>${_grp.map(g=>{const cm=classMetaOf(g);const s=fmtSched(cm.schedule);const chips=[`<span class="cb-chip cb-cls">${esc(g)}</span>`];if(s)chips.push(`<span class="cb-chip">🕒 ${esc(s)}</span>`);if(cm.textbook)chips.push(`<span class="cb-chip">📖 ${esc(cm.textbook)}</span>`);return `<div class="cb-row">${chips.join('')}</div>`;}).join('')}<div class="cb-note">💡 ${t('classNote')}</div></div>`:'';
-  const meetTop=meetCardHtml();
+  const meetTop=meetCardHtml()+driveCardHtml();
   const liveJoinCard=(S.preview||!(S.site&&S.site.live_on==='on'))?'':'<div class="ann-card" style="cursor:pointer;background:linear-gradient(135deg,#eef2ff,#fce7f3)" onclick="SLQ.join()"><div class="ann-h">🎮 加入即時比賽 Live Quiz</div><div class="ann-item">老師開始後，點這裡輸入代碼一起玩！</div></div>';
   if(!normals.length&&!prons.length){$('#screen').innerHTML=payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+classDaysHtml()+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
   const entries=[...normals.map(l=>({k:'l',l,b:(l.textbook||'').trim()||t('uncat')})),...prons.map(p=>({k:'p',l:p,b:(p.textbook||'').trim()||t('navPron')}))];

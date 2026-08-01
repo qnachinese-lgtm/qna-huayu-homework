@@ -196,6 +196,8 @@ function fmtSchedule(s){if(s&&Array.isArray(s.schedule)&&s.schedule.length){retu
 function _vnT(hhmm){const m=/(\d{1,2}):(\d{2})/.exec(hhmm||'');if(!m)return '';let h=(parseInt(m[1],10)+23)%24;return (h<10?'0':'')+h+':'+m[2];}
 function twVnStr(s,e){s=s||'';e=e||'';if(!s&&!e)return '';const tw=s+(e?'–'+e:'');const vs=_vnT(s),ve=_vnT(e);const vn=vs+(e&&ve?'–'+ve:'');return '🇹🇼'+tw+' · 🇻🇳'+vn;}
 function timeOpts(sel){sel=sel||'';let html='<option value="">--:--</option>';let has=false;for(let h=0;h<24;h++){for(let m=0;m<60;m+=5){const v=(h<10?'0'+h:h)+':'+(m<10?'0'+m:m);if(v===sel)has=true;html+='<option value="'+v+'"'+(v===sel?' selected':'')+'>'+v+'</option>';}}if(sel&&!has)html='<option value="'+esc(sel)+'" selected>'+esc(sel)+'</option>'+html;return html;}
+function gmTierRowHTML(r){r=r||{};return `<div class="gm-tier-row" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="number" step="0.25" min="0" class="gmt-h" value="${r.h!=null?esc(String(r.h)):''}" placeholder="1.5" style="width:100px"><span>小時 → 收</span><input type="number" min="0" class="gmt-amt" value="${r.amt!=null?esc(String(r.amt)):''}" placeholder="200" style="width:120px"><button class="btn btn-sm btn-ghost" type="button" data-act="gmTierDel">✕</button></div>`;}
+function gmTiersRead(){return $$('#gm-tiers .gm-tier-row').map(row=>({h:Number(row.querySelector('.gmt-h').value),amt:row.querySelector('.gmt-amt').value===''?null:Number(row.querySelector('.gmt-amt').value)})).filter(x=>x.h>0&&x.amt!=null&&!isNaN(x.amt));}
 function schedRowHTML(r){r=r||{};return `<div class="sched-row">
   <select class="sched-d">${DAYS.map((d,i)=>`<option value="${i}"${r.d===i?' selected':''}>${d}</option>`).join('')}</select>
   <input type="text" class="sched-s hhmm" inputmode="numeric" maxlength="5" placeholder="20:00" value="${esc(r.s||'')}"><span class="sched-dash">–</span><input type="text" class="sched-e hhmm" inputmode="numeric" maxlength="5" placeholder="21:30" value="${esc(r.e||'')}">
@@ -239,7 +241,12 @@ function usedUnits(s){const log=Array.isArray(s&&s.class_log)?s.class_log:[];
   if(isHourly(s)){let h=0;log.forEach(e=>{if(!e||e.status==='leave'||e.free)return;const x=logHours(e);h+=(x!=null?x:1);});return Math.round(h*100)/100;}
   return log.filter(e=>e&&e.status!=='leave'&&!e.free).length;}
 /* 這一堂的費用（按小時＝時數×時薪；按堂＝每堂學費） */
-function lessonFee(s,e){if(!s||s.tuition==null||s.tuition==='')return null;const t=Number(s.tuition);if(isNaN(t))return null;
+function tierInfoOf(s){if(!s)return null;for(const g of stuGroups(s)){const cm=classMetaOf(g);const ts=(cm&&Array.isArray(cm.fee_tiers))?cm.fee_tiers.filter(x=>x&&Number(x.h)>0&&x.amt!=null&&!isNaN(Number(x.amt))):[];if(ts.length)return {cls:g,tiers:ts};}return null;}
+function tierText(s){const ti=tierInfoOf(s);if(!ti)return '';return ti.tiers.map(x=>(Math.round(Number(x.h)*100)/100)+'小時 '+money(Number(x.amt),s.currency)).join('｜');}
+function lessonFee(s,e){
+  const ti=tierInfoOf(s);
+  if(ti){const h=logHours(e);if(h!=null){const m=ti.tiers.find(x=>Math.abs(Number(x.h)-h)<0.01);if(m)return Number(m.amt);}}
+  if(!s||s.tuition==null||s.tuition==='')return null;const t=Number(s.tuition);if(isNaN(t))return null;
   if(!isHourly(s))return t;const h=logHours(e);return h==null?t:Math.round(t*h*100)/100;}
 /* 已上堂數：只認你「實際記錄」的上課記錄，不再用固定週表自動推算（時間不固定，推算會算出離譜的數字） */
 function leaveCount(s){return Array.isArray(s&&s.class_log)?s.class_log.filter(e=>e&&e.status==='leave').length:0;}
@@ -319,7 +326,16 @@ async function featSet(k,checked){
 }
 
 const CLASS_VIEW=new URLSearchParams(location.search).get('class');
+{const _t0=new URLSearchParams(location.search).get('tab');if(_t0&&/^[a-z]+$/.test(_t0))S.tab=_t0;}
 function render(){
+  try{
+    $('#c-students').textContent=S.students.filter(s=>!s.is_test).length;
+    $('#c-lessons').textContent=S.lessons.length+((S.prons||[]).length);
+    {const el=$('#c-itv');if(el)el.textContent=(S.interviews||[]).filter(x=>(x.status||'active')==='active').length;}
+    {const el=$('#c-ag');if(el)el.textContent=(S.agencies||[]).filter(x=>(x.status||'active')==='active').length;}
+    {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
+    {const nl=(S.leads||[]).filter(x=>(x.status||'new')==='new').length;const el=$('#c-leads');if(el){el.textContent=nl;el.classList.toggle('hide',!nl||!IS_OWNER);}}
+  }catch(e){}
   if(CLASS_VIEW){try{renderClassView(CLASS_VIEW);}catch(e){}return;}
   $$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.id===S.tab));
   
@@ -959,6 +975,7 @@ function stuCardInner(s){return `
         <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${s.is_test?'<span class="tag" style="background:#e6e6e6;color:#666;border-color:#ccc">🧪 測試</span>':''}${enrollBadge(s)}<span class="tag accent">${s.class_type==='團班'?'團班':'一對一'}</span>${stuGroups(s).map(g=>`<span class="tag">👥 ${esc(g)}</span>`).join('')}${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}${IS_OWNER&&s.admin?`<span class="tag" title="負責管理員">👤 ${esc(adminName(s.admin))}</span>`:''}</div></div></div>
     <div class="actions" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">編輯</button>
         ${/^https?:\/\//i.test(s.meet_url||'')?`<a class="btn btn-sm btn-accent" href="${esc(s.meet_url)}" target="_blank" rel="noopener">🎥 上課教室</a>`:''}
+        ${/^https?:\/\//i.test(s.drive_url||'')?`<a class="btn btn-sm" href="${esc(s.drive_url)}" target="_blank" rel="noopener">📁 教材資料夾</a>`:''}
         <button class="btn btn-sm" data-act="report" data-id="${s.id}">📊 學習報表</button>
         <button class="btn btn-sm" data-act="cert" data-id="${s.id}">🎓 證書</button>
         <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">🗓 上課記錄</button>
@@ -968,14 +985,14 @@ function stuCardInner(s){return `
         <button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒訊息</button><button class="btn btn-sm" data-act="uploadAreas" data-id="${s.id}">📤 上傳區</button>
         ${IS_OWNER?`<button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">刪除</button>`:''}</div>
     <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(fmtSchedule(s))}</b></span>
-      ${isTrial(s)?'<span>💰 <b style="color:#7c3aed">🎁 免費試學（不計費）</b></span>':`<span>💰 學費：<b>${money(s.tuition,s.currency)}${s.tuition!=null?(s.fee_unit==='hour'?' / 小時':' / 堂'):''}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span>`}<span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}</div>
+      ${isTrial(s)?'<span>💰 <b style="color:#7c3aed">🎁 免費試學（不計費）</b></span>':`<span>💰 學費：<b>${tierText(s)?('👥 團班計費：'+tierText(s)):(money(s.tuition,s.currency)+(s.tuition!=null?(s.fee_unit==='hour'?' / 小時':' / 堂'):''))}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span>`}<span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}</div>
     ${activityLine(s)}
     ${s.email?`<div class="meta" style="margin-top:8px;align-items:center">${s.reset_requested?'<span class="badge badge-soon">🔑 學生申請重設</span>':''}<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}">✉️ 寄重設密碼信</button></div>`:''}
     ${s.notes?`<div class="meta" style="margin-top:8px"><span>📝 ${esc(s.notes)}</span></div>`:''}`;}
 function stuTableRows(students){
   const head='<div class="stu-tr stu-th"><span>姓名</span><span>狀態</span><span>教材</span><span>時數</span><span>學費 · 付款日</span></div>';
   const rows=students.map(s=>{
-    const fee=isTrial(s)?'🎁 免費試學':((s.tuition!=null?money(s.tuition,s.currency)+(s.fee_unit==='hour'?' /時':' /堂'):'—')+(s.payment_date?(' · '+fmtDate(s.payment_date)):''));
+    const _tt=tierText(s);const fee=isTrial(s)?'🎁 免費試學':((_tt?('👥 '+_tt):(s.tuition!=null?money(s.tuition,s.currency)+(s.fee_unit==='hour'?' /時':' /堂'):'—'))+(s.payment_date?(' · '+fmtDate(s.payment_date)):''));
     return `<div class="stu-tr" data-act="stuDetail" data-id="${s.id}" style="cursor:pointer"><span class="stu-nm"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span>${esc(s.name)}${s.is_test?' 🧪':''}</span><span>${enrollBadge(s)}</span><span>${esc(s.textbook||'—')}</span><span>${sessChip(s)||'<span class="muted">—</span>'}</span><span>${fee}</span></div>`;
   }).join('');
   return `<div class="stu-tb">${head}${rows}</div>`;
@@ -1036,6 +1053,8 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
          <select id="f-first-slot"><option value="">（請先選左邊的日期）</option></select></div></div>
      <div class="field full"><label>🎥 上課連結（Google Meet） <span class="hint">貼上固定的 Meet 連結，老師和學生都能一鍵進教室</span></label>
        <input id="f-meet" type="url" inputmode="url" value="${esc(st.meet_url||'')}" placeholder="https://meet.google.com/abc-defg-hij"></div>
+     <div class="field full"><label>📁 教材資料夾連結 <span class="hint">選填。貼 Google Drive 等分享連結，學生的「上課內容」頁會出現「教材資料夾」按鈕</span></label>
+       <input id="f-drive" type="url" inputmode="url" value="${esc(st.drive_url||'')}" placeholder="https://drive.google.com/drive/folders/…"></div>
     </div></div>
     <div class="form-sec"><div class="form-sec-h">💰 收費設定 <span class="hint" style="font-weight:400">（只設「怎麼收費」；實際繳了多少、剩幾堂請按下面的「繳費」）</span></div><div class="form-grid">
      <div class="field"><label>學費單價 <span class="hint">越南盾打千位（350＝350,000 ₫）</span></label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：臺幣 800／越南盾 350"></div>
@@ -1458,6 +1477,10 @@ function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
        <button class="btn btn-sm" type="button" data-act="gmSchedAdd" style="margin-top:6px">＋ 新增時段</button>
        <div style="margin-top:10px"><input id="gm-book" type="text" value="${esc(classMetaOf(sel).textbook||'')}" placeholder="團班教材（選填），例：時代華語三"></div>
        <div style="margin-top:8px"><input id="gm-meet" type="url" inputmode="url" value="${esc(classMetaOf(sel).meet||'')}" placeholder="🎥 上課教室 Meet 連結（選填），例：https://meet.google.com/abc-defg-hij"></div>
+       <div style="margin-top:8px"><input id="gm-drive" type="url" inputmode="url" value="${esc(classMetaOf(sel).drive||'')}" placeholder="📁 教材資料夾連結（選填），例：Google Drive 分享連結，學生頁會出現按鈕"></div>
+       <div class="field" style="margin:12px 0 0"><label>💵 特殊計費（照上課長度）<span class="hint">選填。例：1.5 小時收 200、2 小時收 250。設定後點名的每一堂會照長度對應收費，學生列表也會顯示這個，不再出現「/時」造成誤會。金額幣別＝學生檔案裡的幣別。</span></label>
+       <div id="gm-tiers">${((Array.isArray(classMetaOf(sel).fee_tiers)&&classMetaOf(sel).fee_tiers.length)?classMetaOf(sel).fee_tiers:[{}]).map(r=>gmTierRowHTML(r)).join('')}</div>
+       <button class="btn btn-sm" type="button" data-act="gmTierAdd" style="margin-top:6px">＋ 加一級</button></div>
        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-primary" data-act="gmMetaSave" data-id="${esc(sel)}">儲存團班資訊</button> <button class="btn btn-accent" data-act="gmApplyAll" data-id="${esc(sel)}">📌 套用到全班學生</button> <span class="hint" id="gm-meta-st"></span></div>
        <div class="hint" style="margin-top:4px">「套用到全班」會把上面的時段／教材／Meet 一次寫到這個團班每位學生，時段就不會再對不齊。</div></div>
        <div class="field" style="margin:12px 0 0"><label>✏️ 成員 <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}" style="float:right">刪除此團班</button></label>
@@ -1529,13 +1552,52 @@ function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length
 function renderFiles(){
   const body=$('#panel-files');if(!body)return;
   const studs=S.students.filter(s=>!s.is_test).slice().sort((a,b)=>{const ea=enrollOf(a)==='active'?0:1,eb=enrollOf(b)==='active'?0:1;return ea-eb||String(a.name||'').localeCompare(String(b.name||''));});
-  const rows=studs.map(s=>{const areas=uaAreasOf(s);const chips=areas.length?areas.map(a=>'<span class="badge '+(a.open?'badge-ok':'')+'"'+(a.open?'':' style="background:#eee;color:#777;border-color:#ddd"')+'>📁 '+esc(a.name||'')+(a.open?'':'（已關）')+'</span>').join(' '):'<span class="hint">還沒有上傳區</span>';
-    return '<div class="dash-row" style="flex-wrap:wrap"><b>'+esc(s.name||'')+'</b>'+(enrollOf(s)==='active'?'':'<span class="muted" style="font-size:12px">（休）</span>')+' '+chips+'<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uploadAreas" data-id="'+esc(s.id)+'">📤 管理／看檔案</button></div>';}).join('');
+  const head='<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 6px">📤 學生檔案</h3>'
+    +'<div class="hint" style="line-height:1.8">這一頁的邏輯只有兩步：<br>'
+    +'<b>① 開放上傳格子</b>：你先開一個「格子」給學生（取名，例如「上傳作業簿」）。開放後，學生的「✍️ 作業簿」頁就會出現這個格子。<br>'
+    +'<b>② 收檔案</b>：學生上傳時可以順便選「這是第幾課的」，檔案會自動掉進下面的收件匣，你直接預覽、下載或刪除。</div>'
+    +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn btn-primary" data-act="uaBatch">＋ 開放上傳格子</button><button class="btn btn-sm" data-act="filesReload">↻ 重新整理</button></div></div>';
+  const areaRows=studs.map(s=>{const areas=uaAreasOf(s);if(!areas.length)return '';
+    const chips=areas.map(a=>'<span style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:3px 5px 3px 12px;margin:2px 6px 2px 0;background:'+(a.open?'#ecfdf3':'#f2f2f2')+'">📁 '+esc(a.name||'')
+      +'<button class="btn btn-sm '+(a.open?'':'btn-accent')+'" style="padding:2px 9px" data-act="fiToggle" data-id="'+esc(s.id)+'::'+esc(a.id)+'">'+(a.open?'開放中 · 關閉':'已關 · 重新開放')+'</button>'
+      +'<button class="btn btn-sm btn-ghost" style="padding:2px 7px" title="移除這個格子（檔案不會刪）" data-act="fiRemove" data-id="'+esc(s.id)+'::'+esc(a.id)+'">✕</button></span>').join('');
+    return '<div class="dash-row" style="flex-wrap:wrap"><b>'+esc(s.name||'')+'</b>'+(enrollOf(s)==='active'?'':'<span class="muted" style="font-size:12px">（休）</span>')+chips+'</div>';
+  }).filter(Boolean).join('');
+  const areasCard='<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">① 目前的上傳格子</h3><div class="hint" style="margin-bottom:6px">「開放中」＝學生看得到、可以上傳；「已關」＝學生看不到（已傳的檔案都還在收件匣）。</div>'
+    +(areaRows||'<div class="hint">還沒有開放任何格子。按上面「＋ 開放上傳格子」，選學生、取個名字就好。</div>')+'</div>';
   const _view=S.filesView||'stu';
-  const _tabs='<div style="display:flex;gap:8px;margin:10px 0 0"><button class="btn btn-sm '+(_view==='stu'?'btn-accent':'')+'" data-act="filesViewStu">👥 依學生</button><button class="btn btn-sm '+(_view==='les'?'btn-accent':'')+'" data-act="filesViewLes">📚 依課次</button><span class="grow"></span><button class="btn btn-sm btn-primary" data-act="uaBatch">🚀 一次幫多位學生開放上傳區</button></div>';
-  const _headCard='<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">📤 學生檔案上傳區</h3><div class="hint">幫學生開「上傳作業簿」「小考練習」等區域；開放後學生的「作業」頁會出現上傳卡片。學生上傳時可選課次，檔案就會歸到那一課。</div>'+_tabs+'</div>';
-  if(_view==='les'){body.innerHTML=_headCard+'<div class="card" id="files-les"><div class="hint">載入檔案中…</div></div>';_filesLoadLessons();return;}
-  body.innerHTML=_headCard+'<div class="card">'+(rows||'<div class="hint">還沒有學生。</div>')+'</div>';
+  const inboxCard='<div class="card"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0">② 收件匣：學生傳來的檔案</h3><span class="grow"></span>'
+    +'<button class="btn btn-sm '+(_view==='stu'?'btn-accent':'')+'" data-act="filesViewStu">👥 依學生看</button><button class="btn btn-sm '+(_view==='les'?'btn-accent':'')+'" data-act="filesViewLes">📚 依課次看</button></div>'
+    +'<div id="files-inbox" style="margin-top:8px"><div class="hint">載入檔案中…</div></div></div>';
+  body.innerHTML=head+areasCard+inboxCard;
+  _filesLoadInbox();
+}
+async function _filesLoadInbox(){const box=document.getElementById('files-inbox');if(!box)return;
+  try{
+    let files=await DB.list('uploads');files=(files||[]).filter(Boolean);
+    files.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+    _uaFiles=files;
+    if(!files.length){box.innerHTML='<div class="hint">還沒有收到任何檔案。學生從他的「✍️ 作業簿」頁上傳後，會自動出現在這裡。</div>';return;}
+    const nameOf=(sid)=>{const s=S.students.find(x=>x.id===sid);return (s&&s.name)||'（未知學生）';};
+    const row=(f)=>{const i=_uaFiles.indexOf(f);
+      return '<div class="dash-row" style="flex-wrap:wrap">'
+        +(f.lesson_title?'<span class="badge badge-pending">'+esc(f.lesson_title)+'</span>':'<span class="badge" style="background:#eee;color:#888">未指定課次</span>')
+        +'<b>'+esc(f.filename||'檔案')+'</b>'
+        +'<span class="muted" style="font-size:12px">'+esc(f.area_name||'')+'　'+esc(String(f.created_at||'').replace('T',' ').slice(0,16))+'</span>'
+        +'<span class="grow"></span>'
+        +'<button class="btn btn-sm" data-act="uaDl" data-id="'+i+'">⬇ 下載</button>'
+        +'<button class="btn btn-sm btn-danger" data-act="fiDel" data-id="'+i+'">🗑</button></div>';};
+    const _view=S.filesView||'stu';
+    let html='';
+    if(_view==='les'){
+      const byL={},order=[];files.forEach(f=>{const k=f.lesson_title||'（未指定課次）';if(!byL[k]){byL[k]=[];order.push(k);}byL[k].push(f);});
+      html=order.map((k,ix)=>'<details'+(ix===0?' open':'')+' style="margin-bottom:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px"><summary style="cursor:pointer;font-weight:600;color:var(--primary);list-style-position:inside">📚 '+esc(k)+' <span class="tag">'+byL[k].length+' 個檔案</span></summary><div style="margin-top:6px">'+byL[k].map(f=>row(f).replace('<b>','<span class="tag">'+esc(nameOf(f.student_id))+'</span><b>')).join('')+'</div></details>').join('');
+    }else{
+      const byS={},order=[];files.forEach(f=>{const k=f.student_id||'?';if(!byS[k]){byS[k]=[];order.push(k);}byS[k].push(f);});
+      html=order.map((k,ix)=>'<details'+(ix===0?' open':'')+' style="margin-bottom:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px"><summary style="cursor:pointer;font-weight:600;color:var(--primary);list-style-position:inside">👤 '+esc(nameOf(k))+' <span class="tag">'+byS[k].length+' 個檔案</span></summary><div style="margin-top:6px">'+byS[k].map(row).join('')+'</div></details>').join('');
+    }
+    box.innerHTML=html;
+  }catch(e){box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'</div>';}
 }
 function renderGrades(){
   const wrap=$('#grades-list');const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0);
@@ -1892,8 +1954,8 @@ H.resUp=(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;const inp=docum
 H.resDel=async(key)=>{const [id,idx]=key.split('::');const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!confirm('移除這個檔案？學生就看不到了。'))return;const rs=Array.isArray(l.resources)?l.resources.slice():[];rs.splice(+idx,1);try{await DB.update('lessons',l.id,{resources:rs});l.resources=rs;openModal(resModalHtml(l));}catch(e){toast('移除失敗：'+((e&&e.message)||e));}};
 
 H.canned=(tgt,b)=>{const ta=document.getElementById(tgt);if(!ta)return;const t=(b&&b.dataset.t)||'';ta.value=(ta.value.trim()?ta.value.replace(/\s*$/,'')+'　':'')+t;ta.focus();};
-H.tab=(id)=>{S.tab=id;render();};
-H.tabGroup=(id)=>{const cur=document.querySelector('.tab[data-id="'+S.tab+'"]');if(cur&&cur.dataset.group===id){render();return;}const first=document.querySelector('.tab[data-group="'+id+'"]');if(first){S.tab=first.dataset.id;render();}};
+H.tab=(id)=>{if(CLASS_VIEW){location.href='teacher.html?tab='+encodeURIComponent(id);return;}S.tab=id;render();};
+H.tabGroup=(id)=>{const first=document.querySelector('.tab[data-group="'+id+'"]');if(CLASS_VIEW){location.href='teacher.html?tab='+encodeURIComponent(first?first.dataset.id:'dashboard');return;}const cur=document.querySelector('.tab[data-id="'+S.tab+'"]');if(cur&&cur.dataset.group===id){render();return;}if(first){S.tab=first.dataset.id;render();}};
 H.lessonMore=(id)=>{const el=document.getElementById('lmore-'+id);if(el)el.classList.toggle('hide');};
 /* ===== 🎮 即時比賽 主持端 ===== */
 function lqFS(){return firebase.firestore();}
@@ -2157,7 +2219,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   const fslot=$('#f-first-slot');
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),fee_unit:($('#f-feeunit')&&$('#f-feeunit').value)||'session',currency:$('#f-cur').value,
-    first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),pay_acct:(($('#f-pay-acct')&&$('#f-pay-acct').value)||''),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
+    first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),drive_url:(($('#f-drive')&&$('#f-drive').value)||'').trim(),pay_acct:(($('#f-pay-acct')&&$('#f-pay-acct').value)||''),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
   // 註：總堂數(sessions_total)、付款日(payment_date)、每筆繳費(payments) 一律在「💰 繳費」視窗管理，這裡不碰，避免兩邊打架
   if(IS_OWNER){const asel=$('#f-admin');common.admin=asel?asel.value:'';}
   if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
@@ -2229,7 +2291,7 @@ H.billStatement=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;
   const payRows=monthPays.map(p=>'<tr><td>'+e2(p.date)+'</td><td>'+e2(p.note||'繳費')+'</td><td class="r">'+money(p.amount,p.currency||cur)+'</td></tr>').join('')||'<tr><td colspan="3" class="c" style="color:#999">本月沒有繳費紀錄</td></tr>';
   const gap=Math.round((should-paidThis)*100)/100;
   const gapTxt=Math.abs(gap)<0.01?'<span style="color:#16a34a">✅ 本月結清</span>':(gap>0?'<span style="color:#dc2626">尚需補收 '+money(gap,cur)+'</span>':'<span style="color:#2563eb">本月預繳 '+money(-gap,cur)+'</span>');
-  const left=sessionsLeft(s);const price=(s.tuition==null||s.tuition==='')?'—':(money(s.tuition,cur)+(hourly?' / 小時':' / 堂'));
+  const left=sessionsLeft(s);const _ttl=tierText(s);const price=_ttl?('團班計費：'+_ttl):((s.tuition==null||s.tuition==='')?'—':(money(s.tuition,cur)+(hourly?' / 小時':' / 堂')));
   const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>對帳單 '+e2(s.name)+' '+e2(ym)+'</title><style>'
     +'body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;color:#1a1a1a;max-width:640px;margin:0 auto;padding:34px}'
     +'.bar{border-bottom:1px solid #ccc;padding-bottom:10px;margin-bottom:20px}.bar button{font-size:14px;padding:8px 14px;border:0;background:#a12a40;color:#fff;border-radius:8px;cursor:pointer}'
@@ -2894,6 +2956,10 @@ H.itvFileUp=async(inp,id)=>{const file=inp&&inp.files&&inp.files[0];if(!file)ret
     toast('✅ 已上傳：'+r.name);H.itvFilesLoad(id);
   }catch(e){toast('上傳失敗：'+((e&&e.message)||e));}};
 H.filesViewStu=()=>{S.filesView='stu';renderFiles();};
+H.filesReload=()=>renderFiles();
+H.fiToggle=async(key)=>{const p=String(key).split('::');const s=S.students.find(x=>x.id===p[0]);if(!s)return;const areas=uaAreasOf(s).slice();const a=areas.find(x=>x&&x.id===p[1]);if(!a)return;a.open=!a.open;try{await DB.update('students',s.id,{upload_areas:areas});s.upload_areas=areas;toast(a.open?'已開放「'+(a.name||'')+'」':'已關閉「'+(a.name||'')+'」');renderFiles();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+H.fiRemove=async(key)=>{const p=String(key).split('::');const s=S.students.find(x=>x.id===p[0]);if(!s)return;const a=uaAreasOf(s).find(x=>x&&x.id===p[1]);if(!a)return;if(!confirm('移除「'+(s.name||'')+'」的格子「'+(a.name||'')+'」？\n學生已上傳的檔案不會被刪，仍留在收件匣。'))return;const left=uaAreasOf(s).filter(x=>x.id!==p[1]);try{await DB.update('students',s.id,{upload_areas:left});s.upload_areas=left;toast('已移除');renderFiles();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+H.fiDel=async(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!confirm('刪除「'+(f.filename||'')+'」？刪掉就找不回來了。'))return;try{await DB.remove('uploads',f.id);toast('已刪除');_filesLoadInbox();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.opsMonth=(m)=>{const rows=[];
   S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||'TWD',note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null});});});
   (S.interviews||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:'🎤 '+(c.name||''),amt,cur:p.currency||'VND',note:(p.note||'面試')?((p.note||'')+'（面試）').trim():'',sess:null});});});
@@ -2911,14 +2977,16 @@ H.navToggle=()=>{const off=document.body.classList.toggle('nav-off');try{localSt
 try{if(localStorage.getItem('qna_nav_off')==='1'){document.body.classList.add('nav-off');}}catch(e){}
 setTimeout(()=>{const b=document.getElementById('nav-toggle');if(b)b.textContent=document.body.classList.contains('nav-off')?'☰':'⟨';},0);
 H.filesViewLes=()=>{S.filesView='les';renderFiles();};
-H.uaBatch=()=>{const studs=S.students.filter(s=>!s.is_test&&enrollOf(s)==='active');
-  openModal('<div class="modal"><div class="modal-head"><h3>🚀 批次開放上傳區</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-   +'<div class="field full"><label>區域名稱</label><input id="uab-name" type="text" placeholder="例：小考練習"></div>'
+H.uaBatch=()=>{const studs=S.students.filter(s=>!s.is_test&&enrollOf(s)==='active');const grps=groupsList();
+  openModal('<div class="modal"><div class="modal-head"><h3>＋ 開放上傳格子</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:8px">開放後，勾選的學生會在自己的「✍️ 作業簿」頁看到這個格子，就能上傳照片或 PDF。</div>'
+   +'<div class="field full"><label>第 1 步：幫格子取名</label><input id="uab-name" type="text" placeholder="例：上傳作業簿"></div>'
    +'<div style="margin:6px 0"><span class="hint">常用：</span><button class="btn btn-sm" data-act="uabQuick" data-id="上傳作業簿">上傳作業簿</button> <button class="btn btn-sm" data-act="uabQuick" data-id="小考練習">小考練習</button> <button class="btn btn-sm" data-act="uabQuick" data-id="上傳練習">上傳練習</button></div>'
-   +'<div class="lesson-label" style="margin-top:8px">勾選學生 <button class="btn btn-sm" data-act="uabAll" style="margin-left:8px">全選在學中</button></div>'
+   +'<div class="lesson-label" style="margin-top:10px">第 2 步：給誰？ <button class="btn btn-sm" data-act="uabAll" style="margin-left:8px">全選在學中</button>'+(grps.length?(' '+grps.map(g=>'<button class="btn btn-sm" data-act="uabGroup" data-id="'+esc(g)+'">👥 '+esc(g)+'</button>').join(' ')):'')+'</div>'
    +'<div style="margin-top:6px">'+studs.map(s=>'<label style="display:inline-flex;align-items:center;gap:5px;margin:4px 10px 4px 0;cursor:pointer"><input type="checkbox" class="uab-ck" value="'+esc(s.id)+'"> '+esc(s.name||'')+'</label>').join('')+'</div>'
-   +'<div style="margin-top:12px"><button class="btn btn-primary" data-act="uabGo">✅ 開放給勾選的學生</button></div>'
+   +'<div style="margin-top:12px"><button class="btn btn-primary" data-act="uabGo">✅ 開放</button></div>'
    +'</div></div>');};
+H.uabGroup=(g)=>{const ids=new Set(S.students.filter(s=>stuGroups(s).includes(g)).map(s=>s.id));document.querySelectorAll('.uab-ck').forEach(c=>{if(ids.has(c.value))c.checked=true;});};
 H.uabQuick=(n)=>{const i=$('#uab-name');if(i)i.value=n;};
 H.uabAll=()=>{document.querySelectorAll('.uab-ck').forEach(c=>c.checked=true);};
 H.uabGo=async()=>{const name=(($('#uab-name')&&$('#uab-name').value)||'').trim();if(!name)return toast('請先輸入區域名稱');
@@ -3065,12 +3133,13 @@ function renderClassView(cls){
   document.getElementById('classview-body').innerHTML=`
     <div class="section-head" style="flex-wrap:wrap;gap:8px"><a class="btn btn-sm btn-ghost" href="teacher.html">← 返回後台</a><h2 style="margin:0">👥 ${esc(cls)}</h2><span class="grow"></span>
       ${meetUrl?`<a class="btn btn-accent" href="${esc(meetUrl)}" target="_blank" rel="noopener">🎥 上課教室</a>`:''}
+      ${/^https?:\/\//i.test(cm.drive||'')?`<a class="btn" href="${esc(cm.drive)}" target="_blank" rel="noopener">📁 教材資料夾</a>`:''}
       <button class="btn btn-accent" data-act="classPublish" data-id="${esc(cls)}">📢 發佈內容</button>
       <button class="btn btn-accent" data-act="classRoll" data-id="${esc(cls)}">🗓 上課點名</button>
       <button class="btn" data-act="gmPick" data-id="${esc(cls)}">✏️ 成員／時段</button>
       <button class="btn" data-act="classPrint" data-id="${esc(cls)}">🖨 列印 / PDF</button>
       <button class="btn" data-act="classRefresh" data-id="${esc(cls)}">↻ 重新整理</button></div>
-    <div class="meta" style="margin:2px 0 16px"><span>👤 ${members.length} 位學生</span>${sched?`<span>🕒 ${esc(sched)}</span>`:''}${cm.textbook?`<span>📖 ${esc(cm.textbook)}</span>`:''}<span>📚 整班發佈 ${pubN} 課</span></div>
+    <div class="meta" style="margin:2px 0 16px"><span>👤 ${members.length} 位學生</span>${sched?`<span>🕒 ${esc(sched)}</span>`:''}${cm.textbook?`<span>📖 ${esc(cm.textbook)}</span>`:''}${(Array.isArray(cm.fee_tiers)&&cm.fee_tiers.length)?`<span>💵 ${cm.fee_tiers.map(x=>(Math.round(Number(x.h)*100)/100)+'h '+money(Number(x.amt),(members[0]&&members[0].currency)||'TWD')).join('｜')}</span>`:''}<span>📚 整班發佈 ${pubN} 課</span></div>
     <div class="card" style="margin-bottom:16px"><h3 style="margin:0 0 10px">👥 學生名單</h3><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:6px 9px;color:var(--primary)">姓名</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">Email</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">作業完成</th></tr></thead><tbody>${roster}</tbody></table></div>
     ${classDatesHtml(cls)}
     <h3>📚 上課內容 ＆ 繳交狀況</h3>${classBoardHtml(cls)}`;
@@ -3099,17 +3168,19 @@ H.pubSaveLessons=async(cls)=>{const checked=new Set($$('#pub-lessons .pub-les:ch
   try{for(const l of S.lessons){const on=(l.assigned_groups||[]).includes(cls);const want=checked.has(l.id);if(on===want)continue;let ag=Array.isArray(l.assigned_groups)?l.assigned_groups.slice():[];if(want)ag.push(cls);else ag=ag.filter(x=>x!==cls);await DB.update('lessons',l.id,{assigned_groups:ag});l.assigned_groups=ag;}
     toast('已更新發佈');closeModal();render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存發佈';}toast('失敗：'+((e&&e.message)||e));}};
 H.gmSchedAdd=()=>{const c=$('#gm-sched');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
-H.gmMetaSave=async(cls)=>{const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();const st=$('#gm-meta-st');if(st)st.textContent='儲存中…';
-  try{await saveClassMeta(cls,{schedule,textbook,meet});if(st)st.textContent='已儲存 ✓';toast('已儲存團班資訊');}catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}};
+H.gmTierAdd=()=>{const c=$('#gm-tiers');if(c)c.insertAdjacentHTML('beforeend',gmTierRowHTML({}));};
+H.gmTierDel=(_,b)=>{const row=b.closest('.gm-tier-row');if(!row)return;const c=row.parentElement;row.remove();if(c&&!c.querySelector('.gm-tier-row'))c.insertAdjacentHTML('beforeend',gmTierRowHTML({}));};
+H.gmMetaSave=async(cls)=>{const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();const drive=(($('#gm-drive')&&$('#gm-drive').value)||'').trim();const fee_tiers=gmTiersRead();const st=$('#gm-meta-st');if(st)st.textContent='儲存中…';
+  try{await saveClassMeta(cls,{schedule,textbook,meet,drive,fee_tiers});if(st)st.textContent='已儲存 ✓';toast('已儲存團班資訊');}catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}};
 H.gmApplyAll=async(cls)=>{
   const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);
-  const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();
+  const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();const drive=(($('#gm-drive')&&$('#gm-drive').value)||'').trim();const fee_tiers=gmTiersRead();
   const members=S.students.filter(s=>stuGroups(s).includes(cls));
   if(!members.length)return toast('這個團班還沒有成員');
   if(!schedule.length)return toast('請先設定上課時段');
   if(!confirm('把「'+cls+'」的時段'+(textbook?'、教材':'')+(/^https?:\/\//i.test(meet)?'、Meet 連結':'')+'套用到全班 '+members.length+' 位學生？\n（會覆蓋他們各自目前的設定）'))return;
   const btn=document.querySelector('[data-act="gmApplyAll"]');if(btn){btn.disabled=true;btn.textContent='套用中…';}
-  try{await saveClassMeta(cls,{schedule,textbook,meet});
+  try{await saveClassMeta(cls,{schedule,textbook,meet,drive,fee_tiers});
     for(const s of members){const patch={schedule:schedule.slice()};if(textbook)patch.textbook=textbook;if(/^https?:\/\//i.test(meet))patch.meet_url=meet;await DB.update('students',s.id,patch);Object.assign(s,patch);}
     toast('✅ 已套用到全班 '+members.length+' 位學生');groupMgrModal(cls);render();
   }catch(e){if(btn){btn.disabled=false;btn.textContent='📌 套用到全班學生';}toast('套用失敗：'+((e&&e.message)||e));}};
