@@ -1583,7 +1583,7 @@ async function _filesLoadInbox(){const box=document.getElementById('files-inbox'
       return '<div class="dash-row" style="flex-wrap:wrap">'
         +(f.lesson_title?'<span class="badge badge-pending">'+esc(f.lesson_title)+'</span>':'<span class="badge" style="background:#eee;color:#888">未指定課次</span>')
         +'<b>'+esc(f.filename||'檔案')+'</b>'
-        +'<span class="muted" style="font-size:12px">'+esc(f.area_name||'')+'　'+esc(String(f.created_at||'').replace('T',' ').slice(0,16))+'</span>'
+        +'<span class="muted" style="font-size:12px">'+esc(f.area_name||'')+'　'+esc(String(f.created_at||'').replace('T',' ').slice(0,16))+(f.size?('　'+(f.size>1048576?((f.size/1048576).toFixed(1)+' MB'):(Math.max(1,Math.round(f.size/1024))+' KB'))):'')+'</span>'
         +'<span class="grow"></span>'
         +'<button class="btn btn-sm" data-act="uaDl" data-id="'+i+'">⬇ 下載</button>'
         +'<button class="btn btn-sm btn-danger" data-act="fiDel" data-id="'+i+'">🗑</button></div>';};
@@ -2862,7 +2862,9 @@ H.uaView=async(key)=>{const p=String(key).split('::');const sid=p[0],aid=p[1];co
     files.sort((a,b)=>String(a.lesson_title||'').localeCompare(String(b.lesson_title||''))||String(b.created_at||'').localeCompare(String(a.created_at||'')));_uaFiles=files;
     if(box)box.innerHTML=files.length?('<div class="lesson-label">📂 檔案（'+files.length+'）</div>'+files.map((f,i)=>`<div class="dash-row" style="flex-wrap:wrap">${f.lesson_title?`<span class="badge badge-pending">${esc(f.lesson_title)}</span>`:'<span class="badge" style="background:#eee;color:#888">未指定課次</span>'}<b>${esc(f.filename||'檔案')}</b><span class="muted" style="font-size:12px">${esc(f.area_name||'')}　${esc(String(f.created_at||'').slice(0,10))}　${f.size?(Math.round(f.size/1024)+' KB'):''}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="${i}">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="${i}">🗑</button></div>`).join('')):'<div class="hint">這裡還沒有檔案。</div>';
   }catch(e){if(box)box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'。若是權限錯誤，代表 Firestore 規則還沒加 uploads 那段（我有給你要貼的文字）。</div>';}};
-H.uaDl=(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!f.data)return toast('找不到檔案內容');const a=document.createElement('a');a.href='data:'+(f.mime||'application/octet-stream')+';base64,'+f.data;a.download=f.filename||'file';document.body.appendChild(a);a.click();a.remove();};
+H.uaDl=(i)=>{const f=_uaFiles[Number(i)];if(!f)return;
+  if(f.url){window.open(f.url,'_blank');return;}
+  if(!f.data)return toast('找不到檔案內容');const a=document.createElement('a');a.href='data:'+(f.mime||'application/octet-stream')+';base64,'+f.data;a.download=f.filename||'file';document.body.appendChild(a);a.click();a.remove();};
 H.uaFileDel=async(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!confirm('刪除「'+(f.filename||'')+'」？刪掉就找不回來了。'))return;try{await DB.remove('uploads',f.id);_uaFiles=_uaFiles.filter(x=>x!==f);toast('已刪除');const box=$('#ua-files');if(box){const rows=box.querySelectorAll('.dash-row');}}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 async function _filesLoadLessons(){const box=document.getElementById('files-les');if(!box)return;
   try{const files=await DB.list('uploads');files.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));_uaFiles=files;
@@ -2959,7 +2961,7 @@ H.filesViewStu=()=>{S.filesView='stu';renderFiles();};
 H.filesReload=()=>renderFiles();
 H.fiToggle=async(key)=>{const p=String(key).split('::');const s=S.students.find(x=>x.id===p[0]);if(!s)return;const areas=uaAreasOf(s).slice();const a=areas.find(x=>x&&x.id===p[1]);if(!a)return;a.open=!a.open;try{await DB.update('students',s.id,{upload_areas:areas});s.upload_areas=areas;toast(a.open?'已開放「'+(a.name||'')+'」':'已關閉「'+(a.name||'')+'」');renderFiles();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.fiRemove=async(key)=>{const p=String(key).split('::');const s=S.students.find(x=>x.id===p[0]);if(!s)return;const a=uaAreasOf(s).find(x=>x&&x.id===p[1]);if(!a)return;if(!confirm('移除「'+(s.name||'')+'」的格子「'+(a.name||'')+'」？\n學生已上傳的檔案不會被刪，仍留在收件匣。'))return;const left=uaAreasOf(s).filter(x=>x.id!==p[1]);try{await DB.update('students',s.id,{upload_areas:left});s.upload_areas=left;toast('已移除');renderFiles();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
-H.fiDel=async(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!confirm('刪除「'+(f.filename||'')+'」？刪掉就找不回來了。'))return;try{await DB.remove('uploads',f.id);toast('已刪除');_filesLoadInbox();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+H.fiDel=async(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!confirm('刪除「'+(f.filename||'')+'」？刪掉就找不回來了。'))return;try{await DB.remove('uploads',f.id);if(f.path&&window.firebase&&firebase.storage){try{await firebase.storage().ref(f.path).delete();}catch(_){}}toast('已刪除');_filesLoadInbox();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.opsMonth=(m)=>{const rows=[];
   S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||'TWD',note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null});});});
   (S.interviews||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:'🎤 '+(c.name||''),amt,cur:p.currency||'VND',note:(p.note||'面試')?((p.note||'')+'（面試）').trim():'',sess:null});});});
