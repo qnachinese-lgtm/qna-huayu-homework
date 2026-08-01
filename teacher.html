@@ -100,7 +100,7 @@
         .sidenav .tab .count{margin-left:auto}
         body .topbar{margin-left:212px}
         #app .container{margin-left:212px;max-width:calc(100% - 212px)}
-        #app .container>.panel,#app .container>#classview-body{max-width:1060px}
+        #app .container .panel,#app .container #classview-body{max-width:1060px}
         .tpg-h{margin:2px 0 16px}
         .tpg-h h2{margin:0;font-size:22px;letter-spacing:-.01em}
         .tpg-h .sub{color:var(--muted);font-size:13.5px;margin-top:3px}
@@ -130,6 +130,21 @@
         .tmitem .ms{color:var(--muted);font-weight:400;font-size:12.5px;display:block}
         .tpub{width:19px;height:19px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
         .tpub-y{background:#16a34a;color:#fff}.tpub-n{background:#e6e0d6;color:#a49889}
+        /* 分組卡片（學生名冊等） */
+        .cool-sec{background:#fff;border:1px solid var(--line);border-radius:11px;margin-bottom:12px;overflow:hidden}
+        .cool-sec>summary{cursor:pointer;list-style:none;padding:12px 16px;background:#F3EFE7;font-weight:700;display:flex;align-items:center;gap:8px}
+        .cool-sec>summary::-webkit-details-marker{display:none}
+        .cool-sec>summary::after{content:'\25be';margin-left:auto;color:var(--muted);transition:transform .15s}
+        .cool-sec[open]>summary::after{transform:rotate(180deg)}
+        .cool-sec>summary>*{margin:0!important}
+        .cool-sec>*:not(summary){padding:0 14px 12px}
+        .cool-sec .stu-tb{margin-top:10px}
+        /* 篩選列與工具列 */
+        #app .container .section-head{margin-bottom:14px}
+        #app .container .section-head h2{font-size:22px;letter-spacing:-.01em}
+        #panel-dashboard>.section-head{display:none}
+        /* 數字磚統一成 COOL 卡片樣式 */
+        #panel-dashboard .stat-card{background:#fff;border:1px solid var(--line)!important;border-radius:12px!important;box-shadow:none!important}
         #nav-toggle{border:none !important;background:transparent !important;font-size:19px;line-height:1;padding:7px 11px !important;border-radius:10px;cursor:pointer;color:#6b6357;box-shadow:none !important;margin-right:2px}
         #nav-toggle:hover{background:#f2ead9 !important;color:var(--ink,#3d3630)}
         .topbar-inner{max-width:none !important;margin:0 !important;width:100%;padding-left:10px}
@@ -502,7 +517,10 @@ function renderDashboard(){
   const _wd=['日','一','二','三','四','五','六'][new Date().getDay()];
   const _pend=inbox.length;
   const _today=localToday();let _cls=0;S.students.forEach(s=>{if(s.is_test)return;(s.class_log||[]).forEach(e=>{if(e&&e.date===_today)_cls++;});(Array.isArray(s.planned)?s.planned:[]).forEach(p=>{if(p&&p.date===_today)_cls++;});});
-  const _hero=`<div class="card" style="background:linear-gradient(120deg,#fff,#fdf6ec);display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px"><div><div style="font-size:19px;font-weight:800">${_greet}，老師 👋</div><div class="muted" style="font-size:13px;margin-top:3px">${esc(_today)}（週${_wd}）｜${_pend?('今天有 <b>'+_pend+'</b> 份作業待批改'):'目前沒有待批改的作業'}${_cls?('，<b>'+_cls+'</b> 筆今日課程'):''}。</div></div><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="tab" data-id="grades">📝 去批改</button><button class="btn btn-sm" data-act="planClass">📌 預排課程</button></div>`;
+  const _act=S.students.filter(s=>!s.is_test&&enrollOf(s)==='active').length;
+  const _thisM2=_today.slice(0,7);const _inc={};S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{const a=Number(p.amount)||0;if(!a)return;if((p.date||'').slice(0,7)!==_thisM2)return;const c=p.currency||s.currency||'TWD';_inc[c]=(_inc[c]||0)+a;});});
+  const _incTxt=Object.keys(_inc).length?Object.keys(_inc).map(c=>money(_inc[c],c)).join('｜'):'—';
+  const _hero=`<div class="tpg-h"><h2>${_greet}，美娟老師 👋</h2><div class="sub">${esc(_today)}（週${_wd}）｜在學 <b>${_act}</b> 位${_pend?('　·　<b>'+_pend+'</b> 份待批改'):'　·　沒有待批改的作業'}${_cls?('　·　今天 <b>'+_cls+'</b> 堂課'):''}</div></div>`;
   body.innerHTML=`${_hero}${statHtml}${healthCheckHtml()}<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
     <details class="dash-fold" open style="margin-top:14px"><summary>⏰ 提醒（堂數／補課）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>
     <details class="dash-fold" style="margin-top:14px"><summary>📝 隨堂小考${(S.quizzes||[]).length?'（'+(S.quizzes||[]).length+'）':''}</summary>
@@ -1047,7 +1065,7 @@ function renderStudents(){
   const card=s=>`<div class="card student-card">${cardInner(s)}</div>`;
   const grpHtml=students=>(S.stuView==='card')?`<div class="cards cols-2" style="margin-top:10px">${students.map(card).join('')}</div>`:stuTableRows(students);
   const secOpen=(S.stuSecAllOpen===true)?' open':'';
-  const sec=(label,students,cls)=>`<details class="stu-sec"${secOpen} style="margin-bottom:20px"><summary style="cursor:pointer;padding:6px 0;list-style-position:inside"><span style="font-size:16px;color:var(--primary);font-weight:600">${label}</span> <span class="tag">${students.length} 人</span></summary>${cls?`<div style="margin:8px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 班級頁</button></div>`:''}${grpHtml(students.slice().sort((a,b)=>(enrollOf(a)==='paused'?1:0)-(enrollOf(b)==='paused'?1:0)))}</details>`;
+  const sec=(label,students,cls)=>`<details class="stu-sec cool-sec"${secOpen}><summary><span style="font-size:16px;color:var(--primary);font-weight:600">${label}</span> <span class="tag">${students.length} 人</span></summary>${cls?`<div style="margin:8px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 班級頁</button></div>`:''}${grpHtml(students.slice().sort((a,b)=>(enrollOf(a)==='paused'?1:0)-(enrollOf(b)==='paused'?1:0)))}</details>`;
   const real=list.filter(s=>!s.is_test);const testers=list.filter(s=>s.is_test);
   const reservedReal=real.filter(s=>enrollOf(s)==='reserved');
   const pausedReal=real.filter(s=>enrollOf(s)==='paused');const activeReal=real.filter(s=>enrollOf(s)!=='paused'&&enrollOf(s)!=='reserved');
