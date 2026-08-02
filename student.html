@@ -227,6 +227,25 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .pi-ex-ins{background:rgba(31,111,120,.07);border-left:3px solid #1F6F78;border-radius:0 8px 8px 0;
   padding:8px 12px;margin:0 0 10px;font-size:14.5px;line-height:1.7}
 .pi-ex .opt-bank{margin:0 0 12px}
+/* 待繳費用 */
+.due-card{border:1.5px solid rgba(194,65,12,.22)}
+.due-h1{font-weight:800;font-size:15.5px;color:#9a3412;margin-bottom:10px}
+.due-top{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;
+  border-radius:12px;padding:14px 16px}
+.due-top.owe{background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1px solid #fdba74}
+.due-top.clear{background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac}
+.due-lab{font-size:12.5px;color:#7c2d12;font-weight:700}
+.due-top.clear .due-lab{color:#166534}
+.due-amt{font-size:28px;font-weight:800;color:#c2410c;line-height:1.2;margin-top:2px}
+.due-amt.ok{font-size:18px;color:#166534}
+.due-sub{font-size:12.5px;color:#7c6f60}
+.due-tab{margin-top:8px;border:1px solid rgba(31,111,120,.14);border-radius:10px;overflow:hidden;background:#fff}
+.due-row{display:grid;grid-template-columns:minmax(88px,1fr) minmax(96px,1fr) minmax(64px,.7fr) minmax(84px,.9fr);
+  gap:8px;padding:8px 12px;border-top:1px solid rgba(31,111,120,.10);font-size:13.5px;align-items:center}
+.due-row:first-child{border-top:0}
+.due-head{background:rgba(31,111,120,.07);font-weight:800;font-size:12px;color:#1F6F78}
+.due-a{text-align:right;font-weight:700}
+@media(max-width:560px){.due-row{grid-template-columns:1fr auto;row-gap:2px}.due-t,.due-h{font-size:12px;color:#8a8078}}
 /* 自動更新 */
 #btn-sync.spin{animation:syncspin .8s linear infinite}
 @keyframes syncspin{to{transform:rotate(360deg)}}
@@ -1242,6 +1261,59 @@ function payCardHtml(){
   var blocks=(showTw?blk('🇹🇼','台灣 · CTBC',twq,twt):'')+(showVn?blk('🇻🇳','Việt Nam · BIDV',vnq,vnt):'');
   return remind+'<details class="ann-card"'+(remind?' open':'')+' style="padding:0"><summary style="cursor:pointer;padding:13px 15px;font-weight:700;list-style:none">💳 '+esc(LT({zh:'付款方式',cn:'付款方式',en:'Payment',vi:'Thanh toán'}))+' <span style="font-size:12px;color:#9a8f80;font-weight:400">'+esc(LT({zh:'（需要時點開）',cn:'（需要时点开）',en:'(tap to open)',vi:'(bấm để xem)'}))+'</span></summary><div style="padding:0 14px 14px"><div class="ann-item" style="margin-bottom:6px">'+esc(LT({zh:'開啟銀行 App 掃 QR 轉帳',cn:'打开银行 App 扫 QR 转帐',en:'Open your banking app and scan the QR code',vi:'Mở app ngân hàng quét mã QR'}))+'</div><div style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;padding:4px 0 2px">'+blocks+'</div></div></details>';
 }
+/* ===== 待繳費用：上課記錄 × 收費 − 已繳金額 ===== */
+function myTiers(){for(const g of myGroups()){const t=(classMetaOf(g)||{}).fee_tiers;
+  if(Array.isArray(t)){const ts=t.filter(x=>x&&Number(x.h)>0&&x.amt!=null&&!isNaN(Number(x.amt)));if(ts.length)return ts;}}return null;}
+function myFeeOf(e){
+  const ts=myTiers();
+  if(ts){const h=_logHours(e);if(h!=null){const m=ts.find(x=>Math.abs(Number(x.h)-h)<0.01);if(m)return Number(m.amt);}}
+  const s=S.me;if(!s||s.tuition==null||s.tuition==='')return null;
+  const t=Number(s.tuition);if(isNaN(t))return null;
+  if(!myHourly())return t;const h=_logHours(e);return h==null?t:Math.round(t*h*100)/100;}
+function myBill(){
+  const s=S.me;if(!s)return null;
+  const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date&&e.status!=='leave'&&!e.free);
+  const items=[];let charge=0,unknown=0;
+  log.slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).forEach(e=>{
+    const f=myFeeOf(e);if(f==null){unknown++;return;}
+    charge+=f;items.push({date:e.date,start:e.start||'',end:e.end||'',h:_logHours(e),fee:f});});
+  const paid=(Array.isArray(s.payments)?s.payments:[]).reduce((a,p)=>a+(Number(p&&p.amount)||0),0);
+  return {items,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,
+          due:Math.round((charge-paid)*100)/100,unknown};}
+function myCur(){const s=S.me;const ps=(Array.isArray(s&&s.payments)?s.payments:[]);
+  for(let i=ps.length-1;i>=0;i--){if(ps[i]&&ps[i].currency)return ps[i].currency;}
+  return (s&&s.currency)||'TWD';}
+function myMoney(n){const cur=myCur();const v=Number(n)||0;
+  return (cur==='VND')?((v*1000).toLocaleString('en-US')+' \u20ab')
+    :((({TWD:'NT$',USD:'US$'})[cur]||'')+v.toLocaleString('en-US'));}
+function dueCardHtml(){
+  if(S.preview||!S.me||!S.me.pay_remind_on)return '';
+  const b=myBill();if(!b||(!b.items.length&&b.paid<=0))return '';
+  const L=S.lang||'zh';
+  const T=({zh:{t:'待繳費用',due:'本期應繳',clear:'目前沒有待繳費用',credit:'預繳餘額',n:'堂',detail:'費用明細',hint:'依照你的上課記錄自動計算；老師登錄收款後會自動扣除。',
+                head:['日期','時間','時數','金額'],paid:'已繳',all:'累計上課費用',unk:'有 %n 堂還沒設定收費，沒有算進去'},
+            cn:{t:'待缴费用',due:'本期应缴',clear:'目前没有待缴费用',credit:'预缴余额',n:'堂',detail:'费用明细',hint:'依照你的上课记录自动计算；老师登录收款后会自动扣除。',
+                head:['日期','时间','时数','金额'],paid:'已缴',all:'累计上课费用',unk:'有 %n 堂还没设定收费，没有算进去'},
+            en:{t:'Amount due',due:'Due now',clear:'Nothing due right now',credit:'Credit balance',n:'sessions',detail:'Breakdown',hint:'Calculated from your attendance; payments your teacher records are deducted automatically.',
+                head:['Date','Time','Hours','Amount'],paid:'Paid',all:'Total charged',unk:'%n session(s) have no rate set and are excluded'},
+            vi:{t:'Học phí cần đóng',due:'Cần đóng',clear:'Hiện không có khoản nào cần đóng',credit:'Số dư đã đóng trước',n:'buổi',detail:'Chi tiết',hint:'Tính theo lịch sử buổi học của bạn; cô ghi nhận thanh toán là tự động trừ.',
+                head:['Ngày','Giờ','Số giờ','Số tiền'],paid:'Đã đóng',all:'Tổng học phí',unk:'%n buổi chưa đặt học phí nên chưa tính'}})[L]
+        ||{t:'待繳費用',due:'本期應繳',clear:'目前沒有待繳費用',credit:'預繳餘額',n:'堂',detail:'費用明細',hint:'',head:['日期','時間','時數','金額'],paid:'已繳',all:'累計上課費用',unk:''};
+  const rows=b.items.slice().reverse().map(it=>`<div class="due-row"><span class="due-d">${esc(it.date)}</span>`
+    +`<span class="due-t">${esc(it.start&&it.end?(it.start+'–'+it.end):'')}</span>`
+    +`<span class="due-h">${it.h!=null?esc(myFmtQty(it.h)+' '+myUnit()):''}</span>`
+    +`<span class="due-a">${esc(myMoney(it.fee))}</span></div>`).join('');
+  const head=`<div class="due-row due-head"><span class="due-d">${esc(T.head[0])}</span><span class="due-t">${esc(T.head[1])}</span><span class="due-h">${esc(T.head[2])}</span><span class="due-a">${esc(T.head[3])}</span></div>`;
+  const big=(b.due>0)
+    ? `<div class="due-top owe"><div><div class="due-lab">${esc(T.due)}</div><div class="due-amt">${esc(myMoney(b.due))}</div></div>
+        <div class="due-sub">${esc(T.all)} ${esc(myMoney(b.charge))}　·　${esc(T.paid)} ${esc(myMoney(b.paid))}</div></div>`
+    : `<div class="due-top clear"><div><div class="due-amt ok">✅ ${esc(T.clear)}</div>
+        ${b.due<0?`<div class="due-lab" style="margin-top:4px">${esc(T.credit)} <b>${esc(myMoney(-b.due))}</b></div>`:''}</div>
+        <div class="due-sub">${esc(T.all)} ${esc(myMoney(b.charge))}　·　${esc(T.paid)} ${esc(myMoney(b.paid))}</div></div>`;
+  const unk=b.unknown?`<div class="hint" style="margin-top:6px">⚠️ ${esc(String(T.unk).replace('%n',b.unknown))}</div>`:'';
+  return `<div class="card due-card"><div class="due-h1">🧾 ${esc(T.t)}</div>${big}
+    ${b.items.length?`<details class="disc" style="margin-top:10px"><summary>${esc(T.detail)}（${b.items.length} ${esc(T.n)}）</summary><div class="due-tab">${head}${rows}</div></details>`:''}
+    ${unk}<div class="hint" style="margin-top:8px">${esc(T.hint)}</div></div>`;}
 /* ===== 我的繳費記錄（老師登錄的收款會出現在這裡） ===== */
 function payLogHtml(bare){
   if(S.preview||!S.me)return '';
@@ -1384,7 +1456,7 @@ function renderWork(){
   const notes=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).filter(e=>e&&e.note&&e.note.trim()).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3);
   const noteCard=notes.length?'<div class="note-card"><div class="ann-h">📝 '+esc(LT({zh:'課後小結',cn:'课后小结',en:'Class notes',vi:'Ghi chú buổi học'}))+'</div>'+notes.map(n=>'<div class="ann-item"><span class="ann-date">'+esc(n.date||'')+'</span>'+esc(n.note||'')+'</div>').join('')+'</div>':'';
   const _wh='<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>';
-  const payCard=payCardHtml()+uploadCardHtml();
+  const payCard=dueCardHtml()+payCardHtml()+uploadCardHtml();
   $('#screen').innerHTML=_wh+banner+badgeStrip+liveJoinCard+annCard+payCard+meetCard+classUpcomingHtml()+calCard+noteCard+sessCard+nb+submittedWorkHtml()+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
@@ -1664,7 +1736,7 @@ function renderLegacyContent(){
   const progCard=(!S.preview&&_hw.length)?`<div class="card prog-card"><div class="prog-top"><b>${t('learnProg')}</b><span class="hint">${_done}/${_hw.length} ${t('lessonsDone')}</span></div><div class="prog-bar"><span style="width:${Math.round(_done/_hw.length*100)}%"></span></div></div>`:'';
   const _fbn=S.preview?0:teacherFbCount();
   const fbBanner=_fbn?`<div class="fb-banner" data-act="section" data-id="work">${t('fbGave1')} ${_fbn} ${t('fbGave2')}</div>`:'';
-  $('#screen').innerHTML=backBar+payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+fbBanner+progCard+tabBar+'<div class="cards">'+cards+'</div>'+reviewCardHtml();
+  $('#screen').innerHTML=backBar+dueCardHtml()+payCardHtml()+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()+fbBanner+progCard+tabBar+'<div class="cards">'+cards+'</div>'+reviewCardHtml();
   convScreen();setupCanvases();
   if(!S.preview)shown.forEach(e=>{if(e.k!=='l')return;const n=noteOf(e.l.id);if(n&&n.ink){const cv=document.getElementById('note-cv-'+e.l.id);if(cv)loadNoteInk(cv,n.ink);}
     // 還原「語法練習」已填寫但尚未送出的答案（含草稿），並掛上自動儲存
@@ -1825,6 +1897,8 @@ function renderInfo(){
       return r.join('');}).join('');
     blocks.push('<div class="ip-card"><div class="ip-h">\ud83d\udc65 '+esc(T.cls)+'</div>'+rows+'</div>');
   }
+  // 待繳費用（老師打開繳費提醒才會出現）
+  const due=dueCardHtml();if(due)blocks.push(due);
   // 繳費記錄
   const pl=payLogHtml(true);
   if(pl){const n=(Array.isArray(S.me&&S.me.payments)?S.me.payments:[]).filter(p=>p&&(p.date||p.amount!=null)).length;
