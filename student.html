@@ -245,6 +245,7 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .due-row:first-child{border-top:0}
 .due-head{background:rgba(31,111,120,.07);font-weight:800;font-size:12px;color:#1F6F78}
 .due-a{text-align:right;font-weight:700}
+.due-lv{margin-left:6px;background:#fef3c7;color:#92400e;border-radius:999px;padding:0 7px;font-size:11px;font-weight:700}
 @media(max-width:560px){.due-row{grid-template-columns:1fr auto;row-gap:2px}.due-t,.due-h{font-size:12px;color:#8a8078}}
 /* 自動更新 */
 #btn-sync.spin{animation:syncspin .8s linear infinite}
@@ -1270,13 +1271,16 @@ function myFeeOf(e){
   const s=S.me;if(!s||s.tuition==null||s.tuition==='')return null;
   const t=Number(s.tuition);if(isNaN(t))return null;
   if(!myHourly())return t;const h=_logHours(e);return h==null?t:Math.round(t*h*100)/100;}
+function myIsGroup(){return (S.me&&S.me.class_type)==='團班';}
+/* 團班請假照樣收費（課還是開了）；一對一請假不收 */
+function myChargeable(e){if(!e||!e.date||e.free)return false;return myIsGroup()?true:(e.status!=='leave');}
 function myBill(){
   const s=S.me;if(!s)return null;
-  const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date&&e.status!=='leave'&&!e.free);
+  const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(myChargeable);
   const items=[];let charge=0,unknown=0;
   log.slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).forEach(e=>{
     const f=myFeeOf(e);if(f==null){unknown++;return;}
-    charge+=f;items.push({date:e.date,start:e.start||'',end:e.end||'',h:_logHours(e),fee:f});});
+    charge+=f;items.push({date:e.date,start:e.start||'',end:e.end||'',h:_logHours(e),fee:f,leave:e.status==='leave'});});
   const paid=(Array.isArray(s.payments)?s.payments:[]).reduce((a,p)=>a+(Number(p&&p.amount)||0),0);
   return {items,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,
           due:Math.round((charge-paid)*100)/100,unknown};}
@@ -1299,7 +1303,8 @@ function dueCardHtml(){
             vi:{t:'Học phí cần đóng',due:'Cần đóng',clear:'Hiện không có khoản nào cần đóng',credit:'Số dư đã đóng trước',n:'buổi',detail:'Chi tiết',hint:'Tính theo lịch sử buổi học của bạn; cô ghi nhận thanh toán là tự động trừ.',
                 head:['Ngày','Giờ','Số giờ','Số tiền'],paid:'Đã đóng',all:'Tổng học phí',unk:'%n buổi chưa đặt học phí nên chưa tính'}})[L]
         ||{t:'待繳費用',due:'本期應繳',clear:'目前沒有待繳費用',credit:'預繳餘額',n:'堂',detail:'費用明細',hint:'',head:['日期','時間','時數','金額'],paid:'已繳',all:'累計上課費用',unk:''};
-  const rows=b.items.slice().reverse().map(it=>`<div class="due-row"><span class="due-d">${esc(it.date)}</span>`
+  const lvLab=LT({zh:'請假',cn:'请假',en:'Absent',vi:'Nghỉ'});
+  const rows=b.items.slice().reverse().map(it=>`<div class="due-row"><span class="due-d">${esc(it.date)}${it.leave?`<span class="due-lv">${esc(lvLab)}</span>`:''}</span>`
     +`<span class="due-t">${esc(it.start&&it.end?(it.start+'–'+it.end):'')}</span>`
     +`<span class="due-h">${it.h!=null?esc(myFmtQty(it.h)+' '+myUnit()):''}</span>`
     +`<span class="due-a">${esc(myMoney(it.fee))}</span></div>`).join('');
