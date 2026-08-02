@@ -128,7 +128,7 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .wb-opt.no{border-color:#d0453f;background:#fdf1f0}
 .wb-opt.no .lab{background:#d0453f;color:#fff}
 .wb-opt .mk{margin-left:auto;font-weight:900;flex:none}
-.wb-words{display:flex;flex-wrap:wrap;gap:8px;padding:11px 12px;background:#FAF6EE;border:1px dashed rgba(178,58,72,.25);border-radius:12px;margin-bottom:14px;position:sticky;top:calc(var(--stick-top,0px) + 54px);z-index:3;box-shadow:0 4px 12px rgba(0,0,0,.05)}
+.wb-words{display:flex;flex-wrap:wrap;gap:8px;padding:11px 12px;background:#FAF6EE;border:1px dashed rgba(178,58,72,.25);border-radius:12px;margin-bottom:14px}
 .wb-word{background:#fff;border:1.5px solid var(--line,#e7e0d4);border-radius:999px;padding:6px 14px;font:inherit;font-size:15px;cursor:pointer;color:inherit}
 .wb-word:hover{border-color:var(--primary)}
 .wb-word.sel{background:var(--primary);color:#fff;border-color:transparent;box-shadow:0 2px 7px rgba(178,58,72,.3)}
@@ -171,6 +171,14 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .wb-spill{background:rgba(255,255,255,.18);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700}
 .wb-fb{background:#FFF8E7;border-left:4px solid #E0A526;border-radius:0 10px 10px 0;padding:10px 13px;margin-top:9px;font-size:14.5px;line-height:1.8}
 .wb-audio{width:100%;margin-bottom:12px}
+
+.wb-sheet{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--card,#fff);border-top:2px solid var(--primary);box-shadow:0 -6px 24px rgba(0,0,0,.16);padding:11px 14px 14px;max-height:52vh;overflow:auto}
+.wb-sheet-h{display:flex;align-items:center;gap:9px;margin-bottom:9px;font-weight:800;font-size:14.5px}
+.wb-sheet-h .n{background:var(--primary);color:#fff;border-radius:8px;padding:2px 9px;font-size:13px}
+.wb-sheet-x{margin-left:auto;background:transparent;border:0;font-size:20px;line-height:1;cursor:pointer;color:var(--muted);padding:2px 8px}
+.wb-sheet-w{display:flex;flex-wrap:wrap;gap:8px}
+.wb-blank.pick{background:#fff4d6;border-bottom-color:#E0A526;box-shadow:0 0 0 3px rgba(224,165,38,.28)}
+@media(min-width:701px){.wb-sheet{left:auto;right:24px;bottom:24px;width:520px;border:2px solid var(--primary);border-radius:16px}}
 @media(max-width:700px){.wb-para{text-indent:0;line-height:2.6}.wb-words{position:static}}
 </style>
 <style>
@@ -2911,7 +2919,7 @@ async function enterWbPreview(id){S.me={id:'__preview',name:'預覽'};S.preview=
   S.lessons=[];S.questions=[];S.wbdocs=[];
   S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
   if(!S.workbooks.find(x=>x.id===id)){$('#screen').innerHTML=emptyHtml('⚠️','找不到這份作業簿','請回教師頁重新開啟預覽。');return;}
-  S.section='wb';WB.id=id;WB.ans=null;WB.sel=null;
+  S.section='wb';WB.id=id;WB.ans=null;WB.sel=null;WB.pick=null;
   renderSection();
   const sc=$('#screen');if(sc){const bn=document.createElement('div');bn.className='preview-bar';bn.textContent='👁 預覽模式：這就是學生看到的作業簿畫面（作答不會儲存）';sc.insertBefore(bn,sc.firstChild);}
 }
@@ -2941,7 +2949,7 @@ if(window.firebase&&firebase.auth){
 }
 
 /* ===================== 📒 作業簿 Workbook ===================== */
-var WB={id:null,sel:null,dirty:false,timer:null};
+var WB={id:null,sel:null,pick:null,dirty:false,timer:null};
 function myWorkbooks(){return (S.workbooks||[]).filter(w=>S.preview||assignedToMe(w)).sort((a,b)=>(a.order_index||0)-(b.order_index||0));}
 function wbDocOf(id){return (S.wbdocs||[]).find(x=>x.wb_lesson===id)||null;}
 function wbOf(id){return (S.workbooks||[]).find(x=>x.id===id)||null;}
@@ -3007,11 +3015,11 @@ function wbClozeHtml(w,graded){
       const v=ans[n]||'';
       if(graded){const k=keyOf[n]||'';const ok=k&&wbNorm(v)===wbNorm(k);
         return `<span class="wb-blank ${ok?'ok':(v?'no':'no')}"><span class="bn">${n}</span>${esc(v||'　　')}</span>${(!ok&&k)?`<span class="wb-fix">→${esc(k)}</span>`:''}`;}
-      return `<button class="wb-blank${v?' filled':''}" type="button" data-act="wbBlank" data-id="${n}"><span class="bn">${n}</span>${esc(v||'　　　')}</button>`;
+      return `<button class="wb-blank${v?' filled':''}${String(WB.pick)===String(n)?' pick':''}" type="button" data-act="wbBlank" data-id="${n}"><span class="bn">${n}</span>${esc(v||'　　　')}</button>`;
     });
     return `<p class="wb-para">${html}</p>`;
   }).join('');
-  const tip=graded?'':`<div class="wb-hint">${wbL({zh:'點上面的詞，再點文章裡的空格就填進去了；點已填好的空格可以清掉重選。',cn:'点上面的词，再点文章里的空格就填进去了；点已填好的空格可以清掉重选。',en:'Tap a word, then tap a blank. Tap a filled blank to clear it.',vi:'Chạm vào từ rồi chạm vào chỗ trống. Chạm lại để xoá.'})}</div>`;
+  const tip=graded?'':`<div class="wb-hint">${wbL({zh:'點文章裡的空格，下面就會跳出詞語讓你選；也可以先點上面的詞再點空格。點已填好的空格可以清掉重選。',cn:'点文章里的空格，下面就会跳出词语让你选；也可以先点上面的词再点空格。点已填好的空格可以清掉重选。',en:'Tap a blank and pick a word from the panel below. Tap a filled blank to clear it.',vi:'Chạm vào chỗ trống rồi chọn từ ở bảng bên dưới. Chạm lại để xoá.'})}</div>`;
   return tip+chips+paras;
 }
 function wbMatchHtml(w,graded){
@@ -3091,7 +3099,14 @@ function wbViewHtml(w){
   if(S.preview)bar=`<div class="wb-bar"><span class="hint">${wbL({zh:'預覽模式，不會存檔',cn:'预览模式，不会存档',en:'Preview only',vi:'Chế độ xem trước'})}</span></div>`;
   else if(graded)bar=`<div class="wb-bar"><button class="btn btn-ghost" data-act="wbRecall">↩ ${wbL({zh:'撤回，我要再改',cn:'撤回，我要再改',en:'Withdraw & edit',vi:'Thu hồi & sửa'})}</button><span class="grow"></span><span class="hint" id="wb-tip">${doc&&doc.submitted_at?(wbL({zh:'送出時間',cn:'送出时间',en:'Submitted',vi:'Đã nộp'})+'：'+esc(fmtDT(doc.submitted_at))):''}</span></div>`;
   else bar=`<div class="wb-bar"><span class="hint" id="wb-tip"></span><span class="grow"></span><button class="btn btn-primary" data-act="wbSubmit">✅ ${wbL({zh:'送出作業',cn:'送出作业',en:'Submit',vi:'Nộp bài'})}</button></div>`;
-  return back+`<div class="wb-wrap"><h2 style="margin:6px 0 4px">📒 ${esc(w.title||'作業簿')}</h2><div class="hint" style="margin-bottom:14px">${esc(w.wb_name||'')}${w.wb_en?(' · '+esc(w.wb_en)):''}</div>${score}${secs.join('')}${bar}</div>`;
+  let sheet='';
+  if(WB.pick&&!graded){
+    const cw=(d.cloze||{}).words||[];const cans=wbAns().cloze||{};
+    const usedw={};Object.keys(cans).forEach(k=>{if(cans[k]&&String(k)!==String(WB.pick))usedw[cans[k]]=true;});
+    sheet=`<div class="wb-sheet"><div class="wb-sheet-h"><span class="n">${wbL({zh:'第',cn:'第',en:'Blank',vi:'Chỗ'})} ${esc(WB.pick)} ${wbL({zh:'格',cn:'格',en:'',vi:''})}</span>${wbL({zh:'點一個詞填進去',cn:'点一个词填进去',en:'Pick a word',vi:'Chọn một từ'})}<button class="wb-sheet-x" type="button" data-act="wbPickClose">×</button></div>
+     <div class="wb-sheet-w">${cw.map(x=>`<button class="wb-word${usedw[x]?' used':''}" type="button" data-act="wbFill" data-id="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>`;
+  }
+  return back+`<div class="wb-wrap"><h2 style="margin:6px 0 4px">📒 ${esc(w.title||'作業簿')}</h2><div class="hint" style="margin-bottom:14px">${esc(w.wb_name||'')}${w.wb_en?(' · '+esc(w.wb_en)):''}</div>${score}${secs.join('')}${bar}</div>${sheet}`;
 }
 function wbAfterRender(){
   try{syncStickTop();}catch(e){}
@@ -3122,18 +3137,21 @@ async function wbSaveDraft(){
     WB.dirty=false;const tip=document.getElementById('wb-tip');if(tip)tip.textContent=wbL({zh:'✓ 已自動存檔',cn:'✓ 已自动存档',en:'✓ Saved',vi:'✓ Đã lưu'});
   }catch(e){const tip=document.getElementById('wb-tip');if(tip)tip.textContent='';}
 }
-H.wbOpen=(id)=>{WB.id=id;WB.ans=null;WB.sel=null;S.section='wb';renderSection();window.scrollTo(0,0);};
-H.wbBack=()=>{clearTimeout(WB.timer);if(WB.dirty)wbSaveDraft();WB.id=null;WB.ans=null;WB.sel=null;renderSection();window.scrollTo(0,0);};
+H.wbOpen=(id)=>{WB.id=id;WB.ans=null;WB.sel=null;WB.pick=null;S.section='wb';renderSection();window.scrollTo(0,0);};
+H.wbBack=()=>{clearTimeout(WB.timer);if(WB.dirty)wbSaveDraft();WB.id=null;WB.ans=null;WB.sel=null;WB.pick=null;renderSection();window.scrollTo(0,0);};
 H.wbPick=(id)=>{if(wbLocked())return;const p=String(id).split('|');const a=wbAns();
   if(!a[p[0]])a[p[0]]={};
   a[p[0]][p[1]]=(a[p[0]][p[1]]===p[2])?'':p[2];
   wbTouch();wbRepaint();};
-H.wbWord=(wd)=>{if(wbLocked())return;WB.sel=(WB.sel===wd)?null:wd;wbRepaint();};
+H.wbWord=(wd)=>{if(wbLocked())return;if(WB.pick){const a=wbAns();if(!a.cloze)a.cloze={};a.cloze[WB.pick]=wd;WB.pick=null;WB.sel=null;wbTouch();wbRepaint();return;}WB.sel=(WB.sel===wd)?null:wd;wbRepaint();};
 H.wbBlank=(n)=>{if(wbLocked())return;const a=wbAns();if(!a.cloze)a.cloze={};
-  if(a.cloze[n]){a.cloze[n]='';}
-  else if(WB.sel){a.cloze[n]=WB.sel;WB.sel=null;}
-  else{toast(wbL({zh:'請先點上面的詞',cn:'请先点上面的词',en:'Pick a word first',vi:'Chọn từ trước'}));return;}
+  if(a.cloze[n]){a.cloze[n]='';WB.pick=null;}
+  else if(WB.sel){a.cloze[n]=WB.sel;WB.sel=null;WB.pick=null;}
+  else{WB.pick=(String(WB.pick)===String(n))?null:String(n);wbRepaint();return;}
   wbTouch();wbRepaint();};
+H.wbFill=(word)=>{if(wbLocked()||!WB.pick)return;const a=wbAns();if(!a.cloze)a.cloze={};
+  a.cloze[WB.pick]=word;WB.pick=null;WB.sel=null;wbTouch();wbRepaint();};
+H.wbPickClose=()=>{WB.pick=null;wbRepaint();};
 H.wbIns=(txt)=>{const ta=document.getElementById('wb-write');if(!ta)return;
   const s=ta.selectionStart||ta.value.length,e=ta.selectionEnd||s;
   ta.value=ta.value.slice(0,s)+txt+ta.value.slice(e);ta.focus();ta.selectionStart=ta.selectionEnd=s+txt.length;
