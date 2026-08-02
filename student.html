@@ -227,6 +227,13 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .pi-ex-ins{background:rgba(31,111,120,.07);border-left:3px solid #1F6F78;border-radius:0 8px 8px 0;
   padding:8px 12px;margin:0 0 10px;font-size:14.5px;line-height:1.7}
 .pi-ex .opt-bank{margin:0 0 12px}
+/* 自動更新 */
+#btn-sync.spin{animation:syncspin .8s linear infinite}
+@keyframes syncspin{to{transform:rotate(360deg)}}
+#sync-pill{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;z-index:9999;
+  border:0;background:#1F6F78;color:#fff;font-family:inherit;font-weight:800;font-size:14px;
+  border-radius:999px;padding:11px 20px;cursor:pointer;box-shadow:0 8px 24px rgba(31,111,120,.34)}
+#sync-pill:hover{background:#185860}
 /* 課文／生詞／問題與討論分頁 */
 .lsec-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:0 0 10px;
   border-bottom:2px solid rgba(31,111,120,.14)}
@@ -327,6 +334,7 @@ details.sw-row>summary::-webkit-details-marker{display:none}
         <div><div class="brand-title" id="app-name">QNA CHINESE 學習平台</div><div class="brand-sub" id="app-sub"></div></div></div>
       <div class="topbar-spacer"></div>
       <span class="langs" id="langs"></span>
+      <button class="icon-btn" id="btn-sync" data-act="syncNow" aria-label="refresh" title="重新整理">🔄</button>
       <button class="icon-btn" data-act="showGuide" aria-label="help" title="?">❓</button>
       <span class="settings-wrap"><button class="icon-btn" data-act="toggleMenu" aria-label="settings">⚙️</button>
         <div id="menu" class="menu hide"></div></span>
@@ -2008,6 +2016,50 @@ H.secTab=function(id,b){const parts=String(id).split('::');const k=parts[parts.l
   S.secTab=S.secTab||{};S.secTab[key]=k;try{localStorage.setItem('hyc_sectab',JSON.stringify(S.secTab));}catch(e){}
   try{syncStickTop();}catch(e){}};
 try{const _st=JSON.parse(localStorage.getItem('hyc_sectab')||'{}');if(_st&&typeof _st==='object')S.secTab=_st;}catch(e){}
+/* ===== 自動抓新資料：不用一直按 F5 ===== */
+var SYNC={busy:false,last:0,typed:0,timer:null};
+function syncFp(){try{
+  const p=[];
+  (S.lessons||[]).forEach(l=>p.push(l.id,String(l.updated_at||l.created_at||''),String((l.dialogues||[]).length)));
+  (S.questions||[]).forEach(q=>p.push(q.id));
+  (S.announcements||[]).forEach(a=>p.push(a.id,String(a.created_at||'')));
+  ['results','discussions','gpracs','sentences','shadows','hwvs'].forEach(k=>(S[k]||[]).forEach(r=>
+    p.push(r.id,String(r.status||''),String(r.reviewed_at||''),String(r.updated_at||''),String(Object.keys(r.feedback||{}).length))));
+  return p.join('|');}catch(e){return '';}}
+function syncCanRender(){
+  const a=document.activeElement;
+  if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName||''))return false;   // 正在打字不動它
+  if(Date.now()-SYNC.typed<12000)return false;                          // 剛打完字先等一下
+  const slq=document.getElementById('slq');
+  if(slq&&slq.style.display!=='none')return false;                      // 正在比賽不動
+  if(S.practiceSet)return false;                                        // 正在做作業不動
+  return true;}
+function syncPill(on){let el=document.getElementById('sync-pill');
+  if(!on){if(el)el.remove();return;}
+  if(el)return;
+  el=document.createElement('button');el.id='sync-pill';el.type='button';
+  el.textContent='🔄 '+LT({zh:'有新內容，點這裡更新',cn:'有新内容，点这里更新',en:'New content — tap to refresh',vi:'Có nội dung mới — bấm để cập nhật'});
+  el.onclick=function(){syncPill(false);try{renderSection();}catch(e){location.reload();}};
+  document.body.appendChild(el);}
+async function syncNow(manual){
+  if(SYNC.busy||!S.me||S.preview)return;
+  SYNC.busy=true;const b=document.getElementById('btn-sync');if(b)b.classList.add('spin');
+  try{
+    const before=syncFp();
+    await loadMine();await loadProgress();
+    const changed=(syncFp()!==before);
+    SYNC.last=Date.now();
+    if(manual){syncPill(false);renderSection();toast(changed?LT({zh:'已更新',cn:'已更新',en:'Updated',vi:'Đã cập nhật'}):LT({zh:'已經是最新的',cn:'已经是最新的',en:'Already up to date',vi:'Đã là mới nhất'}));}
+    else if(changed){ if(syncCanRender()){renderSection();} else {syncPill(true);} }
+  }catch(e){if(manual)toast(LT({zh:'更新失敗，請檢查網路',cn:'更新失败，请检查网络',en:'Refresh failed',vi:'Cập nhật thất bại'}));}
+  finally{SYNC.busy=false;const b2=document.getElementById('btn-sync');if(b2)b2.classList.remove('spin');}}
+H.syncNow=()=>syncNow(true);
+document.addEventListener('input',()=>{SYNC.typed=Date.now();},true);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){
+  if(Date.now()-SYNC.last>15000)syncNow(false);
+  if(navigator.serviceWorker&&navigator.serviceWorker.getRegistration)navigator.serviceWorker.getRegistration().then(r=>{try{r&&r.update();}catch(e){}}).catch(()=>{});}});
+window.addEventListener('focus',()=>{if(Date.now()-SYNC.last>15000)syncNow(false);});
+function syncStart(){if(SYNC.timer)clearInterval(SYNC.timer);SYNC.timer=setInterval(()=>{if(!document.hidden)syncNow(false);},90000);}
 H.vexTog=function(id,b){const el=document.getElementById(id);if(!el)return;const on=el.classList.toggle('hide');if(b)b.classList.toggle('on',!on);};
 H.discRefTog=function(id){S.discRef=S.discRef||{};const cur=(S.discRef[id]===false)?false:true;S.discRef[id]=!cur;
   const aside=document.querySelector('.disc-ref[data-ref="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]');
@@ -2675,7 +2727,7 @@ function maybeShowGuide(){if(S.preview)return;try{if(localStorage.getItem('hyc_g
 
 /* ============ 啟動 ============ */
 function showLoad(b){let el=document.getElementById('app-loading');if(b){if(!el){el=document.createElement('div');el.id='app-loading';el.className='loading-overlay';el.innerHTML='<div class="spinner"></div>';document.body.appendChild(el);}}else if(el){el.remove();}}
-async function enter(me){S.me=me;
+async function enter(me){S.me=me;try{syncStart();}catch(e){}
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');
   applyChrome();showLoad(true);
   try{await loadMine();await loadProgress();try{const _pd=(S.results||[]).find(x=>x.lesson_id==='__progress');const _lg=((_pd&&Array.isArray(_pd.logins))?_pd.logins:[]).concat([now()]).slice(-100);DB.upsertResult('__progress',S.me.id,{uid:myUid(),last_login:now(),last_active:now(),logins:_lg}).catch(()=>{});}catch(_){}S.section='home';renderSection();setTimeout(notifyDue,1200);setTimeout(maybeShowGuide,600);}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}finally{showLoad(false);}}
