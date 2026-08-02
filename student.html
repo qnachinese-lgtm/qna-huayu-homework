@@ -1526,12 +1526,28 @@ async function submitReview(){
     toast('已送出，謝謝你！老師確認後會顯示 🙌');renderSection();
   }catch(e){toast('送出失敗：'+((e&&e.message)||e));}
 }
+function todoWbHtml(){
+  const items=myWorkbooks().map(w=>{const d=wbDocOf(w.id);
+    const st=d?d.status:'none';
+    const les=(S.lessons||[]).find(x=>(w.lesson_id===x.id)||(((w.textbook||'')===(x.textbook||''))&&Number(w.order_index)===Number(x.order_index)));
+    return {w,d,st,les};}).filter(x=>x.st!=='reviewed');
+  if(!items.length)return '';
+  const L=x=>{const d=x.d;
+    if(!d)return '<span class="badge badge-soon">'+esc(LT({zh:'還沒開始',cn:'还没开始',en:'Not started',vi:'Chưa làm'}))+'</span>';
+    if(d.status==='draft')return '<span class="badge badge-soon">'+esc(t('sDoing'))+'</span>';
+    return '<span class="badge badge-pending">'+esc(LT({zh:'已送出，等批改',cn:'已送出，等批改',en:'Submitted',vi:'Đã nộp'}))+((d.score&&d.score.total)?(' '+d.score.ok+'/'+d.score.total):'')+'</span>';};
+  return '<div class="lesson-label" style="margin-top:6px">📒 '+esc(LT({zh:'作業簿',cn:'作业簿',en:'Workbook',vi:'Sách bài tập'}))+'</div>'
+   +'<div class="cards">'+items.map(x=>`<div class="card" style="cursor:pointer" data-act="wbOpen" data-id="${esc(x.w.id)}">
+      <div class="row-between"><b>📒 ${esc(x.w.title||'')}</b>${L(x)}</div>
+      <div class="hint" style="margin-top:4px">${esc(x.w.wb_name||(x.les&&x.les.title)||'')}</div></div>`).join('')+'</div>';
+}
 function renderWork(){
   const _st=actStatus();const banner='';
   const ls=myLessons().filter(l=>answerableOf(l.id).length);
   const myQuizzes=(S.quizzes||[]).filter(qz=>assignedToMe(qz)).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
   const quizCard=myQuizzes.length?('<div class="lesson-label" style="margin-top:6px">'+t('quizSec')+'</div><div class="quiz-list">'+myQuizzes.map(qz=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;const qm=t({dict:'qmDict',pinyin:'qmPinyin',mean:'qmMean',choice:'qmChoice',cloze:'qmCloze',custom:'qmCustom'}[qz.mode||'dict']||'qmDict');return `<div class="quiz-card${done?' done':''}"${done?'':' data-act="startQuiz" data-id="'+qz.id+'"'}><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>${esc(qz.title||t('quizDefTitle'))}</b><div class="muted" style="font-size:12px">${qm}</div></div>${done?`<span class="badge badge-ok">${r.score}/${r.total}</span>`:`<span class="badge badge-soon">${t('quizNotTaken')}</span>`}</div>`;}).join('')+'</div>'):'';
-  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML='<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>'+banner+infoBarHtml('drive')+payCardHtml()+uploadCardHtml()+submittedWorkHtml()+emptyHtml('✍️',t('noWork'),t('noWorkSub'));return;}
+  const _wbTodo=todoWbHtml();
+  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML='<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>'+banner+_wbTodo+infoBarHtml('drive')+payCardHtml()+uploadCardHtml()+submittedWorkHtml()+(_wbTodo?'':emptyHtml('✍️',t('noWork'),t('noWorkSub')));return;}
   let overdue=0,soon=0;ls.forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});
   const fbN=ls.filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
   const sentFbN=(S.sentences||[]).filter(s=>s.status==='reviewed'&&((s.overall&&s.overall.trim())||(s.feedback&&Object.keys(s.feedback).length))).length;
@@ -1559,7 +1575,7 @@ function renderWork(){
   const noteCard=notes.length?'<div class="note-card"><div class="ann-h">📝 '+esc(LT({zh:'課後小結',cn:'课后小结',en:'Class notes',vi:'Ghi chú buổi học'}))+'</div>'+notes.map(n=>'<div class="ann-item"><span class="ann-date">'+esc(n.date||'')+'</span>'+esc(n.note||'')+'</div>').join('')+'</div>':'';
   const _wh='<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>';
   const payCard=dueCardHtml()+payCardHtml()+uploadCardHtml();
-  $('#screen').innerHTML=_wh+banner+badgeStrip+liveJoinCard+annCard+payCard+meetCard+classUpcomingHtml()+calCard+noteCard+sessCard+nb+submittedWorkHtml()+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
+  $('#screen').innerHTML=_wh+banner+badgeStrip+liveJoinCard+annCard+payCard+meetCard+classUpcomingHtml()+calCard+noteCard+sessCard+nb+submittedWorkHtml()+_wbTodo+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
