@@ -2091,7 +2091,10 @@ function wbBarHtml(l,more){const w=wbOfLesson(l);if(!w)return '';
   const pub=(ng||na)?('<span class="tag tpub-y">已發佈'+(ng?('：'+esc(ng)):'')+(na?('＋'+na+'人'):'')+'</span>'):'<span class="tag tpub-n">未發佈</span>';
   const sub=(S.wbdocs||[]).filter(x=>x.wb_lesson===w.id&&(x.status==='submitted'||x.status==='reviewed')).length;
   if(more)return `<button class="btn btn-sm btn-danger" data-act="delWb" data-id="${w.id}">🗑 刪除作業簿</button>`;
-  const warn=w.audio_url?'':'<span class="tag" style="background:#fdece9;color:#b8382f">⚠️ 缺聽力音檔</span>';
+  const auds=((w.wb||{}).audios||[]);
+  const needN=auds.length||((w.wb&&(w.wb.listen||[]).length)?1:0);
+  const haveN=auds.length?auds.filter(x=>x.url).length:(w.audio_url?1:0);
+  const warn=(needN&&haveN<needN)?('<span class="tag" style="background:#fdece9;color:#b8382f">⚠️ 缺聽力音檔 '+(needN-haveN)+'/'+needN+'</span>'):'';
   return `<div style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <b style="font-size:14px">📒 作業簿</b>${pub}${warn}${sub?('<span class="hint">已交 '+sub+' 份</span>'):''}
     <span class="grow"></span>
@@ -2140,22 +2143,23 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
   const a=sd.answers||{},fb=sd.feedback||{},sc=sd.score||{};
   const pill=(lab,o)=>o&&o.total?`<span class="tag">${lab} ${o.ok}/${o.total}</span>`:'';
   let head=`<div class="hint" style="margin-bottom:8px">${esc(w.title||'作業簿')}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>
-   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span class="tag tpub-y">自動批改 ${sc.ok||0}/${sc.total||0}</span>${pill('聽力',sc.listen)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀',sc.read)}</div>`;
+   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span class="tag tpub-y">自動批改 ${sc.ok||0}/${sc.total||0}</span>${pill('聽力',sc.listen)}${pill('詞彙選擇',sc.vocab)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀',sc.read)}</div>`;
   const bad=[];
   (d.listen||[]).forEach(q=>{const v=(a.listen||{})[q.n]||'';if(q.ans&&v!==q.ans)bad.push('一聽力 '+q.n+'：答 '+(v||'—')+'，正解 '+q.ans);});
+  (d.vocab||[]).forEach(q=>{const v=(a.vocab||{})[q.n]||'';if(q.ans&&v!==q.ans)bad.push('詞彙選擇 '+q.n+'：答 '+(v||'—')+'，正解 '+q.ans);});
   ((d.cloze||{}).keys||[]).forEach(k=>{const v=(a.cloze||{})[k.n]||'';if(k.ans&&String(v).trim()!==String(k.ans).trim())bad.push('二選詞填空 '+k.n+'：答「'+(v||'—')+'」，正解「'+k.ans+'」');});
   (((d.match||{}).rows)||[]).forEach(r=>{const v=(a.match||{})[r.n]||'';if(r.ans&&v!==r.ans)bad.push('三配合題 '+r.n+'：答 '+(v||'—')+'，正解 '+r.ans);});
   (((d.read||{}).qs)||[]).forEach(q=>{const v=(a.read||{})[q.n]||'';if(q.ans&&v!==q.ans)bad.push('五閱讀 '+q.n+'：答 '+(v||'—')+'，正解 '+q.ans);});
   head+=bad.length?`<div class="card" style="background:#fdf3f2;border-color:#f0c9c5"><b style="font-size:13px">錯的題目</b><ul style="margin:6px 0 0;padding-left:1.2em;font-size:13.5px;line-height:1.8">${bad.map(x=>'<li>'+esc(x)+'</li>').join('')}</ul></div>`
     :`<div class="card" style="background:#f0faf2;border-color:#bfe3c9"><b style="font-size:13px">客觀題全對 🎉</b></div>`;
-  let rows='<h4 style="margin:16px 0 6px">四、請用語法完成下面的對話</h4>';
+  let rows=(d.gram||[]).length?'<h4 style="margin:16px 0 6px">請用語法完成下面的對話</h4>':'';
   (d.gram||[]).forEach(g=>{const v=(a.gram||{})[g.n]||'';
     rows+=`<div class="srev-item"><div class="srev-word">${g.n}. A：${esc(g.a)}　<span class="tag">${esc(g.pattern||'')}</span></div>
       <div class="srev-sent">${v?esc(v):'<span class="muted">（未作答）</span>'}</div>
       ${g.ref?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(g.ref)}</div>`:''}
       <textarea class="wbrev-fb" data-k="g${g.n}" rows="2" placeholder="給這一題的建議（學生會看到）">${esc(fb['g'+g.n]||'')}</textarea></div>`;});
   const wv=a.write||'';
-  rows+='<h4 style="margin:16px 0 6px">六、寫作練習</h4>'
+  rows+='<h4 style="margin:16px 0 6px">寫作練習</h4>'
    +`<div class="srev-item"><div class="hint" style="margin-bottom:4px">字數：${String(wv).replace(/\s/g,'').length}</div>
       <div class="srev-sent" style="white-space:pre-wrap;line-height:1.9">${wv?esc(wv):'<span class="muted">（未作答）</span>'}</div>
       <textarea class="wbrev-fb" data-k="write" rows="3" placeholder="給這篇作文的建議（學生會看到）">${esc(fb.write||'')}</textarea></div>`;

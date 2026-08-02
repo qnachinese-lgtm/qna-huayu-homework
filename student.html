@@ -3003,7 +3003,7 @@ function wbDocOf(id){return (S.wbdocs||[]).find(x=>x.wb_lesson===id)||null;}
 function wbOf(id){return (S.workbooks||[]).find(x=>x.id===id)||null;}
 function wbData(w){return (w&&w.wb)||{};}
 function wbL(m){const L=S.lang||'zh';return (m&&(m[L]||m.zh))||'';}
-function wbEmptyAns(){return {listen:{},cloze:{},match:{},gram:{},read:{},write:''};}
+function wbEmptyAns(){return {listen:{},vocab:{},cloze:{},match:{},gram:{},read:{},write:''};}
 function wbAns(){if(!WB.ans)WB.ans=wbEmptyAns();return WB.ans;}
 function wbLocked(){const d=wbDocOf(WB.id);return !!(d&&(d.status==='submitted'||d.status==='reviewed'));}
 function wbGraded(){const d=wbDocOf(WB.id);return (d&&(d.status==='submitted'||d.status==='reviewed'))?d:null;}
@@ -3012,12 +3012,14 @@ function wbGraded(){const d=wbDocOf(WB.id);return (d&&(d.status==='submitted'||d
 function wbNorm(s){s=String(s==null?'':s).trim();try{if(CONV.cn)s=CONV.cn(s);}catch(e){}return s.replace(/\s+/g,'');}
 function wbGrade(w,ans){
   const d=wbData(w),out={listen:{ok:0,total:0},cloze:{ok:0,total:0},match:{ok:0,total:0},read:{ok:0,total:0}};
+  out.vocab={ok:0,total:0};
   (d.listen||[]).forEach(q=>{if(!q.ans)return;out.listen.total++;if((ans.listen||{})[q.n]===q.ans)out.listen.ok++;});
+  (d.vocab||[]).forEach(q=>{if(!q.ans)return;out.vocab.total++;if((ans.vocab||{})[q.n]===q.ans)out.vocab.ok++;});
   ((d.cloze||{}).keys||[]).forEach(k=>{if(!k.ans)return;out.cloze.total++;if(wbNorm((ans.cloze||{})[k.n])===wbNorm(k.ans))out.cloze.ok++;});
   (((d.match||{}).rows)||[]).forEach(r=>{if(!r.ans)return;out.match.total++;if((ans.match||{})[r.n]===r.ans)out.match.ok++;});
   (((d.read||{}).qs)||[]).forEach(q=>{if(!q.ans)return;out.read.total++;if((ans.read||{})[q.n]===q.ans)out.read.ok++;});
-  out.ok=out.listen.ok+out.cloze.ok+out.match.ok+out.read.ok;
-  out.total=out.listen.total+out.cloze.total+out.match.total+out.read.total;
+  out.ok=out.listen.ok+out.vocab.ok+out.cloze.ok+out.match.ok+out.read.ok;
+  out.total=out.listen.total+out.vocab.total+out.cloze.total+out.match.total+out.read.total;
   return out;
 }
 
@@ -3053,6 +3055,22 @@ function wbMcHtml(sec,q,label,graded){
     return `<button class="wb-opt${cls}" type="button"${graded?' disabled':''} data-act="wbPick" data-id="${sec}|${q.n}|${c}"><span class="lab">${c}</span><span>${esc(TX[i])}</span>${mk?`<span class="mk">${mk}</span>`:''}</button>`;
   }).join('');
   return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${q.n}</span>${label?esc(label):''}</div><div class="wb-opts">${opts}</div></div>`;
+}
+function wbListenHtml(w,graded){
+  const d=wbData(w);const items=d.listen||[];
+  let auds=(d.audios&&d.audios.length)?d.audios:[{i:1,label:'',url:w.audio_url||''}];
+  auds=auds.map(a=>Object.assign({},a,{url:a.url||((a.i===1&&w.audio_url)?w.audio_url:'')}));
+  const tip=`<div class="wb-hint">${wbL({zh:'聽音檔，選出正確的一個。',cn:'听音档，选出正确的一个。',en:'Listen and choose the correct one.',vi:'Nghe và chọn đáp án đúng.'})}</div>`;
+  let out=tip;
+  auds.forEach(a=>{
+    const its=items.filter(q=>Number(q.g||1)===Number(a.i));
+    if(!its.length&&auds.length>1)return;
+    if(a.label)out+=`<div class="wb-sub">🔊 ${esc(a.label)}</div>`;
+    out+=a.url?`<audio class="wb-audio" controls preload="metadata" src="${esc(a.url)}"></audio>`
+      :`<div class="wb-hint">（${wbL({zh:'音檔還沒上傳',cn:'音档还没上传',en:'Audio not uploaded yet',vi:'Chưa có audio'})}${a.file?' '+esc(a.file):''}）</div>`;
+    out+=(its.length?its:items).map(q=>wbMcHtml('listen',q,'',graded)).join('');
+  });
+  return out;
 }
 function wbClozeHtml(w,graded){
   const c=wbData(w).cloze||{},ans=wbAns().cloze||{};
@@ -3132,20 +3150,21 @@ function wbViewHtml(w){
   if(graded){const sc=doc.score||wbGrade(w,WB.ans);
     const pill=(lab,o)=>o&&o.total?`<span class="wb-spill">${lab} ${o.ok}/${o.total}</span>`:'';
     score=`<div class="wb-score"><div>${wbL({zh:'自動批改結果',cn:'自动批改结果',en:'Auto-graded',vi:'Chấm tự động'})}</div><b>${sc.ok||0} / ${sc.total||0}</b>
-      <div class="wb-sgrid">${pill('一 聽力',sc.listen)}${pill('二 選詞填空',sc.cloze)}${pill('三 配合題',sc.match)}${pill('五 閱讀理解',sc.read)}</div>
-      <div style="margin-top:9px;font-size:13px;opacity:.9">${doc.status==='reviewed'?wbL({zh:'第四、六大題老師已批改 ✓',cn:'第四、六大题老师已批改 ✓',en:'Sections 4 & 6 graded by teacher ✓',vi:'Phần 4 & 6 đã được chấm ✓'}):wbL({zh:'第四、六大題等老師批改中…',cn:'第四、六大题等老师批改中…',en:'Sections 4 & 6 awaiting teacher…',vi:'Phần 4 & 6 đang chờ giáo viên…'})}</div></div>`
+      <div class="wb-sgrid">${pill('聽力',sc.listen)}${pill('詞彙選擇',sc.vocab)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀理解',sc.read)}</div>
+      <div style="margin-top:9px;font-size:13px;opacity:.9">${doc.status==='reviewed'?wbL({zh:'需要老師批改的部分已批改 ✓',cn:'需要老师批改的部分已批改 ✓',en:'Teacher-graded parts done ✓',vi:'Phần giáo viên chấm đã xong ✓'}):wbL({zh:'語法對話和寫作等老師批改中…',cn:'语法对话和写作等老师批改中…',en:'Grammar & writing awaiting teacher…',vi:'Ngữ pháp & viết đang chờ giáo viên…'})}</div></div>`
       +((doc.overall&&String(doc.overall).trim())?`<div class="wb-fb">💬 ${esc(doc.overall)}</div>`:'');
   }
-  const secs=[];
-  if((d.listen||[]).length){
-    const au=w.audio_url?`<audio class="wb-audio" controls preload="metadata" src="${esc(w.audio_url)}"></audio>`:`<div class="wb-hint">（${wbL({zh:'音檔還沒上傳',cn:'音档还没上传',en:'Audio not uploaded yet',vi:'Chưa có audio'})}）</div>`;
-    secs.push(wbSec('一','聽力',au+`<div class="wb-hint">${wbL({zh:'聽音檔，選出正確的一個。',cn:'听音档，选出正确的一个。',en:'Listen and choose the correct one.',vi:'Nghe và chọn đáp án đúng.'})}</div>`+(d.listen||[]).map(q=>wbMcHtml('listen',q,'',graded)).join(''),true));
-  }
-  if(((d.cloze||{}).paras||[]).length)secs.push(wbSec('二','選詞填空',wbClozeHtml(w,graded),true));
-  if(((d.match||{}).rows||[]).length)secs.push(wbSec('三','配合題',wbMatchHtml(w,graded),true));
-  if((d.gram||[]).length)secs.push(wbSec('四','請用語法完成下面的對話',wbGramHtml(w,graded,doc),true));
-  if(((d.read||{}).paras||[]).length)secs.push(wbSec('五','閱讀理解',wbReadHtml(w,graded),true));
-  if((d.write||{}).intro)secs.push(wbSec('六','寫作練習',wbWriteHtml(w,graded,doc),true));
+  const CNN=['一','二','三','四','五','六','七','八'];let _sn=0;const secs=[];
+  const push=(title,body)=>{secs.push(wbSec(CNN[_sn++]||String(_sn),title,body,true));};
+  if((d.listen||[]).length)push('聽力',wbListenHtml(w,graded));
+  if((d.vocab||[]).length)push('詞彙選擇',
+    `<div class="wb-hint">${wbL({zh:'從四個選項中選出最合適的一個。',cn:'从四个选项中选出最合适的一个。',en:'Choose the best of the four options.',vi:'Chọn phương án phù hợp nhất.'})}</div>`
+    +(d.vocab||[]).map(q=>wbMcHtml('vocab',q,q.q,graded)).join(''));
+  if(((d.cloze||{}).paras||[]).length)push('選詞填空',wbClozeHtml(w,graded));
+  if(((d.match||{}).rows||[]).length)push('配合題',wbMatchHtml(w,graded));
+  if((d.gram||[]).length)push('請用語法完成下面的對話',wbGramHtml(w,graded,doc));
+  if(((d.read||{}).paras||[]).length)push('閱讀理解',wbReadHtml(w,graded));
+  if((d.write||{}).intro)push('寫作練習',wbWriteHtml(w,graded,doc));
   let bar='';
   if(S.preview)bar=`<div class="wb-bar"><span class="hint">${wbL({zh:'預覽模式，不會存檔',cn:'预览模式，不会存档',en:'Preview only',vi:'Chế độ xem trước'})}</span></div>`;
   else if(graded)bar=`<div class="wb-bar"><button class="btn btn-ghost" data-act="wbRecall">↩ ${wbL({zh:'撤回，我要再改',cn:'撤回，我要再改',en:'Withdraw & edit',vi:'Thu hồi & sửa'})}</button><span class="grow"></span><span class="hint" id="wb-tip">${doc&&doc.submitted_at?(wbL({zh:'送出時間',cn:'送出时间',en:'Submitted',vi:'Đã nộp'})+'：'+esc(fmtDT(doc.submitted_at))):''}</span></div>`;
