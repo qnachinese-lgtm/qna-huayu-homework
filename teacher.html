@@ -393,11 +393,14 @@ function famChip(s){const k=famKeyOf(s);if(!k)return '';const f=famBill(k);if(!f
   const tail=f.due>0.01?('<b style="color:#c2410c">'+money(f.due,f.cur)+'</b>')
     :(f.due<-0.01?('<b style="color:#16a34a">已結清</b>（預繳 '+money(-f.due,f.cur)+'）'):'<b style="color:#16a34a">已結清</b>');
   return '<span title="'+esc(k)+'">👨‍👩‍👦 合併帳戶 '+esc(k)+'：'+tail+(others?(' <span class="muted">· 與 '+esc(others)+' 共用</span>'):'')+'</span>';}
-function sessChip(s){const left=sessionsLeft(s);
-  if(left==null){/* 沒有預購時數／堂數：改顯示已上多少，不要留空白的「—」 */
-    const u2=usedUnits(s);if(!u2)return '';
-    return `<span>🎟️ 已上：<b>${fmtQty(u2)} ${unitLabel(s)}</b></span>`;}
-  const cls=left<=0?'sess-out':(left<=1?'sess-low':'');const u=unitLabel(s);return `<span>🎟️ ${isHourly(s)?'時數':'堂數'}：<b class="${cls}">剩 ${fmtQty(left)}／共 ${esc(String(s.sessions_total))} ${u}</b>${left<=0?' <span class="badge badge-overdue">需續費</span>':''}</span>`;}
+function sessChip(s){const u2=usedUnits(s);const left=sessionsLeft(s);const un=unitLabel(s);
+  if(left==null){/* 沒有預購時數／堂數：只寫已上多少 */
+    if(!u2)return '';
+    return `<span>🎟️ ${isHourly(s)?'時數':'堂數'}：<b>已上 ${fmtQty(u2)} ${un}</b></span>`;}
+  const cls=left<=0?'sess-out':(left<=1?'sess-low':'');
+  return `<span>🎟️ ${isHourly(s)?'時數':'堂數'}：<b>已上 ${fmtQty(u2)}／共 ${fmtQty(Number(s.sessions_total))} ${un}</b>`
+    +(left>0?` <span class="${cls}">· 剩 ${fmtQty(left)}</span>`:' <span class="badge badge-overdue">已用完·需續費</span>')
+    +`</span>`;}
 const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
 function avColor(s){let h=0;for(const c of (s||''))h=(h*31+c.charCodeAt(0))>>>0;return AV[h%AV.length];}
 // 頭像縮寫：中文名取「最後兩個字」(如「潘氏蘭」→「氏蘭」、「張國慶」→「國慶」)；拉丁名取首字母
@@ -514,7 +517,9 @@ function healthCheck(){const today=localToday();const out=[];
     const u=unitLabel(s);const problems=[];
     const left=sessionsLeft(s);
     if(left!=null&&left<0)problems.push('剩餘是負的（'+fmtQty(left)+' '+u+'）→ 總'+u+'可能少加了');
-    if(s.class_type!=='團班'&&(s.sessions_total==null||s.sessions_total==='')&&price!=null&&enrollOf(s)!=='paused')problems.push('有學費、但沒填「總'+u+'」→ 不會提醒續費');
+    /* 上完再收費（有上課記錄也有繳費記錄）＝正常做法，不算問題 */
+    const _payg=((s.class_log||[]).length>0&&(s.payments||[]).length>0);
+    if(s.class_type!=='團班'&&(s.sessions_total==null||s.sessions_total==='')&&price!=null&&enrollOf(s)!=='paused'&&!_payg)problems.push('有學費、但沒填「總'+u+'」→ 不會提醒續費');
     if((price==null)&&log.length)problems.push('有上課記錄、但沒設學費');
     if(price!=null&&paid>0){const bought=Math.round(paid/price*100)/100;if(s.sessions_total!=null&&Math.abs(bought-Number(s.sessions_total))>0.5)problems.push('繳費金額換算 '+fmtQty(bought)+' '+u+'，和總數 '+esc(String(s.sessions_total))+' 對不上');}
     const fut=log.filter(e=>e.date>today).map(e=>e.date);
