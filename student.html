@@ -1382,16 +1382,36 @@ function myFeeOf(e){
 function myIsGroup(){return (S.me&&S.me.class_type)==='團班';}
 /* 團班請假照樣收費（課還是開了）；一對一請假不收 */
 function myChargeable(e){if(!e||!e.date||e.free)return false;return myIsGroup()?true:(e.status!=='leave');}
-function myBill(){
-  const s=S.me;if(!s)return null;
-  const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(myChargeable);
+/* 給「合併帳戶」用：可以算別人的費用，不只算 S.me */
+function _tiersFor(s){const gs=Array.isArray(s&&s.groups)?s.groups:[];
+  for(const g of gs){const t=(classMetaOf(g)||{}).fee_tiers;
+    if(Array.isArray(t)){const ts=t.filter(x=>x&&Number(x.h)>0&&x.amt!=null&&!isNaN(Number(x.amt)));if(ts.length)return ts;}}
+  return null;}
+function _feeFor(s,e){const ts=_tiersFor(s);
+  if(ts){const h=_logHours(e);if(h!=null){const m=ts.find(x=>Math.abs(Number(x.h)-h)<0.01);if(m)return Number(m.amt);}}
+  if(!s||s.tuition==null||s.tuition==='')return null;const t=Number(s.tuition);if(isNaN(t))return null;
+  if(s.fee_unit!=='hour')return t;const h=_logHours(e);return h==null?t:Math.round(t*h*100)/100;}
+function _chargeableFor(s,e){if(!e||!e.date||e.free)return false;return (s&&s.class_type==='團班')?true:(e.status!=='leave');}
+function billFor(s){
+  if(!s)return null;
+  const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>_chargeableFor(s,e));
   const items=[];let charge=0,unknown=0;
   log.slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).forEach(e=>{
-    const f=myFeeOf(e);if(f==null){unknown++;return;}
-    charge+=f;items.push({date:e.date,start:e.start||'',end:e.end||'',h:_logHours(e),fee:f,leave:e.status==='leave'});});
+    const f=_feeFor(s,e);if(f==null){unknown++;return;}
+    charge+=f;items.push({who:s.name||'',date:e.date,start:e.start||'',end:e.end||'',h:_logHours(e),fee:f,leave:e.status==='leave'});});
   const paid=(Array.isArray(s.payments)?s.payments:[]).reduce((a,p)=>a+(Number(p&&p.amount)||0),0);
   return {items,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,
           due:Math.round((charge-paid)*100)/100,unknown};}
+/* 👨‍👩‍👦 合併帳戶：同一個 bill_group 的人（例如兄弟由同一位家長繳費）帳算在一起 */
+function famList(){const f=S.fam;return (f&&f.members&&f.members.length>1)?f.members:null;}
+function myBill(){
+  const ms=famList();
+  if(ms){const items=[];let charge=0,paid=0,unknown=0;
+    ms.forEach(m=>{const b=billFor(m);if(!b)return;items.push(...b.items);charge+=b.charge;paid+=b.paid;unknown+=b.unknown;});
+    items.sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+    return {items,fam:S.fam.key,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,
+            due:Math.round((charge-paid)*100)/100,unknown};}
+  return billFor(S.me);}
 function myCur(){const s=S.me;const ps=(Array.isArray(s&&s.payments)?s.payments:[]);
   for(let i=ps.length-1;i>=0;i--){if(ps[i]&&ps[i].currency)return ps[i].currency;}
   return (s&&s.currency)||'TWD';}
@@ -1412,7 +1432,7 @@ function dueCardHtml(){
                 head:['Ngày','Giờ','Số giờ','Số tiền'],paid:'Đã đóng',all:'Tổng học phí',unk:'%n buổi chưa đặt học phí nên chưa tính'}})[L]
         ||{t:'待繳費用',due:'本期應繳',clear:'目前沒有待繳費用',credit:'預繳餘額',n:'堂',detail:'費用明細',hint:'',head:['日期','時間','時數','金額'],paid:'已繳',all:'累計上課費用',unk:''};
   const lvLab=LT({zh:'請假',cn:'请假',en:'Absent',vi:'Nghỉ'});
-  const rows=b.items.slice().reverse().map(it=>`<div class="due-row"><span class="due-d">${esc(it.date)}${it.leave?`<span class="due-lv">${esc(lvLab)}</span>`:''}</span>`
+  const rows=b.items.slice().reverse().map(it=>`<div class="due-row"><span class="due-d">${esc(it.date)}${(b.fam&&it.who&&it.who!==(S.me&&S.me.name))?`<span class="due-lv">${esc(it.who)}</span>`:''}${it.leave?`<span class="due-lv">${esc(lvLab)}</span>`:''}</span>`
     +`<span class="due-t">${esc(it.start&&it.end?(it.start+'–'+it.end):'')}</span>`
     +`<span class="due-h">${it.h!=null?esc(myFmtQty(it.h)+' '+myUnit()):''}</span>`
     +`<span class="due-a">${esc(myMoney(it.fee))}</span></div>`).join('');
@@ -1424,7 +1444,8 @@ function dueCardHtml(){
         ${b.due<0?`<div class="due-lab" style="margin-top:4px">${esc(T.credit)} <b>${esc(myMoney(-b.due))}</b></div>`:''}</div>
         <div class="due-sub">${esc(T.all)} ${esc(myMoney(b.charge))}　·　${esc(T.paid)} ${esc(myMoney(b.paid))}</div></div>`;
   const unk=b.unknown?`<div class="hint" style="margin-top:6px">⚠️ ${esc(String(T.unk).replace('%n',b.unknown))}</div>`:'';
-  return `<div class="card due-card"><div class="due-h1">🧾 ${esc(T.t)}</div>${big}
+  const famNote=b.fam?`<div class="hint" style="margin-top:6px">👨‍👩‍👦 ${esc(LT({zh:'這是合併帳戶「'+b.fam+'」的合計金額（由同一位家長一起繳費）。',cn:'这是合并账户「'+b.fam+'」的合计金额（由同一位家长一起缴费）。',en:'Combined family account "'+b.fam+'" — paid together by the same payer.',vi:'Tài khoản gộp "'+b.fam+'" — do cùng một người đóng.'}))}</div>`:'';
+  return `<div class="card due-card"><div class="due-h1">🧾 ${esc(T.t)}</div>${big}${famNote}
     ${b.items.length?`<details class="disc" style="margin-top:10px"><summary>${esc(T.detail)}（${b.items.length} ${esc(T.n)}）</summary><div class="due-tab">${head}${rows}</div></details>`:''}
     ${unk}<div class="hint" style="margin-top:8px">${esc(T.hint)}</div></div>`;}
 /* ===== 我的繳費記錄（老師登錄的收款會出現在這裡） ===== */
@@ -2943,7 +2964,13 @@ function showLoad(b){let el=document.getElementById('app-loading');if(b){if(!el)
 async function enter(me){S.me=me;try{syncStart();}catch(e){}
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');
   applyChrome();showLoad(true);
-  try{await loadMine();await loadProgress();try{const _pd=(S.results||[]).find(x=>x.lesson_id==='__progress');const _lg=((_pd&&Array.isArray(_pd.logins))?_pd.logins:[]).concat([now()]).slice(-100);DB.upsertResult('__progress',S.me.id,{uid:myUid(),last_login:now(),last_active:now(),logins:_lg}).catch(()=>{});}catch(_){}S.section='home';renderSection();setTimeout(notifyDue,1200);setTimeout(maybeShowGuide,600);}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}finally{showLoad(false);}}
+  try{await loadMine();await loadFam();await loadProgress();try{const _pd=(S.results||[]).find(x=>x.lesson_id==='__progress');const _lg=((_pd&&Array.isArray(_pd.logins))?_pd.logins:[]).concat([now()]).slice(-100);DB.upsertResult('__progress',S.me.id,{uid:myUid(),last_login:now(),last_active:now(),logins:_lg}).catch(()=>{});}catch(_){}S.section='home';renderSection();setTimeout(notifyDue,1200);setTimeout(maybeShowGuide,600);}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}finally{showLoad(false);}}
+async function loadFam(){S.fam=null;
+  const k=String((S.me&&S.me.bill_group)||'').trim();if(!k)return;
+  try{const ms=await DB.listWhere('students','bill_group',k);
+    const list=(ms||[]).filter(x=>x&&!x.deleted);
+    if(list.length>1)S.fam={key:k,members:list};}
+  catch(e){S.fam=null;}}
 function showGate(msg){S.me=null;$('#app').classList.add('hide');$('#gate').classList.remove('hide');renderGate();if(msg){const e=$('#g-err');if(e)e.textContent=msg;}}
 const PREVIEW_LID=new URLSearchParams(location.search).get('preview');
 const PREVIEW_WB=new URLSearchParams(location.search).get('wbpreview');
