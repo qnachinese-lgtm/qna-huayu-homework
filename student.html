@@ -1119,10 +1119,17 @@ function gpAnsText(q,resp){if(resp==null||resp==='')return '';
 function lessonAnsweredStats(l){
   const gpqs=questionsOf(l.id).filter(q=>q.bank!=='hw'&&!isRefItem(q));
   const gdoc=gpracDocOf(l.id);const gans=(gdoc&&gdoc.answers)||{};
-  let gDone=0;gpqs.forEach(q=>{const a=gans[q.id];if(a!=null&&String(swAnsText(a)).trim()!=='')gDone++;});
+  /* 選項欄裡面有幾個小題就算幾題（一組 a~f 底下三小題 = 三題） */
+  let gTotal=0,gDone=0;
+  gpqs.forEach(q=>{const a=gans[q.id];
+    if(q.type==='opt'&&(q.items||[]).length){const arr=Array.isArray(a)?a:[];
+      (q.items||[]).forEach((it,i)=>{gTotal++;const v=arr[i];
+        if(v&&((Array.isArray(v.s)&&v.s.length)||(v.t!=null&&String(v.t).trim()!=='')))gDone++;});
+      return;}
+    gTotal++;if(a!=null&&String(swAnsText(a)).trim()!=='')gDone++;});
   const ddoc=discDocOf(l.id);const dans=(ddoc&&ddoc.answers)||{};
   let dTotal=0,dDone=0;lessonDialogues(l).forEach((d,di)=>{(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean).forEach((q,qi)=>{dTotal++;const a=dans[di+'_'+qi];if(a!=null&&String(a).trim()!=='')dDone++;});});
-  const total=gpqs.length+dTotal,done=gDone+dDone;
+  const total=gTotal+dTotal,done=gDone+dDone;
   return {total,done,pct:total?Math.round(done/total*100):0};
 }
 function gpracBarHtml(l){
