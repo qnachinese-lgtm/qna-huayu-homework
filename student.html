@@ -1453,6 +1453,7 @@ function renderNav(){
 }
 function renderSection(){try{syncStickTop();}catch(e){}
   clearInterval(AUTOSAVE);AUTOSAVE=null;
+  if(S.preview&&S.previewLid&&(S.section==='content'||S.section==='home')){renderPreviewLesson();return;}
   document.body.classList.remove('notes-active');
   renderNav();
   const _cr=document.getElementById('crumb');if(_cr){_cr.classList.add('hide');_cr.innerHTML='';}
@@ -3098,15 +3099,23 @@ async function loadFam(){S.fam=null;
 function showGate(msg){S.me=null;$('#app').classList.add('hide');$('#gate').classList.remove('hide');renderGate();if(msg){const e=$('#g-err');if(e)e.textContent=msg;}}
 const PREVIEW_LID=new URLSearchParams(location.search).get('preview');
 const PREVIEW_WB=new URLSearchParams(location.search).get('wbpreview');
+function renderPreviewLesson(){
+  const el=$('#screen');if(!el)return;
+  const lesson=(S.lessons||[]).find(x=>x.id===S.previewLid);
+  if(!lesson){el.innerHTML=emptyHtml('⚠️','找不到這一課','請回教師頁重新開啟預覽。');return;}
+  S.section='content';el.dataset.mode='';
+  const ttl=(lesson.order_index?('L'+lesson.order_index+' · '):'')+lesson.title;
+  el.innerHTML=`<div class="section-head"><h2>${esc(ttl)}</h2></div><div class="cards">${lessonCardHtml(lesson,0)}</div>`;
+  try{convScreen();setupCanvases();}catch(e){}
+  const bn=document.createElement('div');bn.className='preview-bar';
+  bn.textContent='👁 預覽模式：這就是學生「上課內容」看到的畫面（作答不會儲存）';
+  el.insertBefore(bn,el.firstChild);
+}
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
   const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='workbook');S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];S.hwvs=[];
-  const lesson=l.find(x=>x.id===lid);if(!lesson){$('#screen').innerHTML=emptyHtml('⚠️','找不到這一課','請回教師頁重新開啟預覽。');return;}
-  S.section='content';$('#screen').dataset.mode='';
-  const ttl=(lesson.order_index?('L'+lesson.order_index+' · '):'')+lesson.title;
-  $('#screen').innerHTML=`<div class="section-head"><h2>${esc(ttl)}</h2></div><div class="cards">${lessonCardHtml(lesson,0)}</div>`;
-  try{convScreen();setupCanvases();}catch(e){}
-  const sc=$('#screen');if(sc){const bn=document.createElement('div');bn.className='preview-bar';bn.textContent='👁 預覽模式：這就是學生「上課內容」看到的畫面（作答不會儲存）';sc.insertBefore(bn,sc.firstChild);}
+  S.previewLid=lid;
+  renderPreviewLesson();
 }
 
 async function enterWbPreview(id){S.me={id:'__preview',name:'預覽'};S.preview=true;
