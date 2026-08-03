@@ -25,6 +25,8 @@
   unicode-range:U+0020-024F,U+0300-036F,U+01CD-01DC,U+1E00-1EFF,U+2018-201F,U+2032-2033;}
 .ex-item,.gp-ex-body,.vtab-ex,.vtab-ex .ex-item{font-family:'PinyinRoman',var(--serif)}
 .vtab-c.vt-py,.vrow-py{font-family:'PinyinRoman',var(--font)}
+/* 學生姓名（含越南文聲調）一律用 Times New Roman，中文姓名不受影響 */
+.sname{font-family:'PinyinRoman',var(--font)}
 ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Arial,system-ui,sans-serif}
 
 /* ===== 漢語拼音聲調字母：只有帶聲調的拉丁字母改用襯線字，其他中英文維持原字體 ===== */
@@ -318,6 +320,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function snm(n){return '<span class="sname">'+esc(n)+'</span>';}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 function fmtDate(d){if(!d)return'—';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0');}
 function fmtDT(d){if(!d)return'';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0')+' '+String(x.getHours()).padStart(2,'0')+':'+String(x.getMinutes()).padStart(2,'0');}
@@ -554,7 +557,7 @@ function healthCheck(){const today=localToday();const out=[];
   return out;}
 function healthCheckHtml(){const list=healthCheck();
   if(!list.length)return '';
-  const rows=list.map(({s,problems})=>`<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start"><span class="badge badge-overdue">⚠️</span><b>${esc(s.name)}</b><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="editStudent" data-id="${s.id}">去修正</button><div style="flex-basis:100%;margin-top:4px"><ul style="margin:2px 0 0 18px;padding:0;color:#b45309;font-size:13px">${problems.map(p=>`<li>${p}</li>`).join('')}</ul></div></div>`).join('');
+  const rows=list.map(({s,problems})=>`<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start"><span class="badge badge-overdue">⚠️</span><b>${snm(s.name)}</b><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="editStudent" data-id="${s.id}">去修正</button><div style="flex-basis:100%;margin-top:4px"><ul style="margin:2px 0 0 18px;padding:0;color:#b45309;font-size:13px">${problems.map(p=>`<li>${p}</li>`).join('')}</ul></div></div>`).join('');
   return `<details class="dash-fold" open style="margin-top:14px;border-color:#f59e0b"><summary>🩺 資料健檢（${list.length} 位學生要注意）</summary><div style="margin-top:10px"><div class="hint" style="margin-bottom:6px">這些不影響學生上課，但會讓你的堂數／收入統計不準，建議抽空修一修。</div>${rows}</div></details>`;}
 function renderDashboard(){
   const body=$('#dashboard-body');
@@ -563,7 +566,7 @@ function renderDashboard(){
   const pays=S.students.map(s=>({s,info:payInfo(s.payment_date)})).filter(x=>x.info&&enrollOf(x.s)!=='paused').sort((a,b)=>a.info.sort-b.info.sort);
   const payHtml=pays.length?pays.map(({s,info})=>`<div class="dash-row">
       <span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span>
-      <b>${esc(s.name)}</b><span class="badge ${info.cls}">${info.label}</span>
+      <b>${snm(s.name)}</b><span class="badge ${info.cls}">${info.label}</span>
       <span class="grow"></span><span class="muted">${money(s.tuition,s.currency)} · ${fmtDate(s.payment_date)}</span>
       ${s.email?`<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}" title="寄重設密碼信">✉️</button>`:''}
     </div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有即將到期或逾期的付款 👍</div>`;
@@ -571,13 +574,13 @@ function renderDashboard(){
   const progHtml=S.students.filter(s=>!s.is_test).map(s=>{const p=studentProgress(s);
     return `<div class="dash-row">
       <span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span>
-      <b>${esc(s.name)}</b>
+      <b>${snm(s.name)}</b>
       <span class="grow"></span>
       <span class="muted">${p.total?`完成 ${p.done}/${p.total} 課${p.avg!=null?(' · 平均 '+p.avg+'%'):''}`:'尚未發佈作業'}</span>
       <span class="progbar"><span style="width:${p.pct}%"></span></span>
     </div>`;}).join('');
   const lowSess=S.students.filter(s=>!s.is_test).map(s=>({s,left:sessionsLeft(s)})).filter(x=>x.left!=null&&x.left<=1&&enrollOf(x.s)!=='paused').sort((a,b)=>a.left-b.left);
-  const sessHtml=lowSess.length?lowSess.map(({s,left})=>`<div class="dash-row"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span><b>${esc(s.name)}</b><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'已用完':'剩 '+left+' 堂'}</span><span class="grow"></span><span class="muted">共 ${esc(String(s.sessions_total))} 堂 · 已上 ${classAttended(s)} 堂</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有快用完堂數的學生 👍</div>`;
+  const sessHtml=lowSess.length?lowSess.map(({s,left})=>`<div class="dash-row"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span><b>${snm(s.name)}</b><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'已用完':'剩 '+left+' 堂'}</span><span class="grow"></span><span class="muted">共 ${esc(String(s.sessions_total))} 堂 · 已上 ${classAttended(s)} 堂</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有快用完堂數的學生 👍</div>`;
   // 批改提醒（待批改的作答）
   const pendList=(S.results||[]).filter(r=>r.status==='pending');
   const pendByLesson={};pendList.forEach(r=>{pendByLesson[r.lesson_id]=(pendByLesson[r.lesson_id]||0)+1;});
@@ -592,7 +595,7 @@ function renderDashboard(){
   const quizScore=(qid,sid)=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qid&&x.student_id===sid);return r?(r.score+'/'+r.total):null;};
   const quizSrcName=qz=>{if(qz.mode==='custom'){const n=(qz.quiz_items||'').split('\n').filter(s=>/[=＝]/.test(s)).length;return '自訂題目（'+n+' 題）';}const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.textbook?('【'+l.textbook+'】'):'')+(l.order_index?('第'+l.order_index+'課'):'')+(l.title?(' '+l.title):'');};
   const QM={dict:'聽寫',pinyin:'看拼音寫字',mean:'看意思寫字',choice:'看字選意思',cloze:'看例句填生詞',custom:'自訂題目'};
-  const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return sc?`<button class="badge badge-ok" data-act="viewQuizResult" data-id="${qz.id}::${s.id}" style="cursor:pointer;border:0">${esc(s.name)}：${sc} 👁</button>`:`<span class="badge badge-pending">${esc(s.name)}：未考</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未發佈</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
+  const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return sc?`<button class="badge badge-ok" data-act="viewQuizResult" data-id="${qz.id}::${s.id}" style="cursor:pointer;border:0">${snm(s.name)}：${sc} 👁</button>`:`<span class="badge badge-pending">${snm(s.name)}：未考</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未發佈</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
   // 問題與討論批改
   const discPend=(S.discussions||[]).filter(x=>x.status==='submitted');
   const discHtml=discPend.length?discPend.map(sd=>`<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc(sentName(sd))}</b><span class="muted">${esc((()=>{const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');})())}</span><span class="grow"></span><span class="muted">${Object.keys(sd.answers||{}).length} 題</span><button class="btn btn-sm btn-accent" data-act="reviewDisc" data-id="${sd.id}">批改</button></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的問題與討論 👍</div>`;
@@ -608,12 +611,12 @@ function renderDashboard(){
   const hwvPend=(S.hwvs||[]).filter(x=>x.status==='submitted');
   hwvPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.hwv_lesson)||{};inbox.push({test:isTestOf(sd),tag:'✍️ 手寫',name:sentName(sd),sub:'生詞「'+esc(sd.hwv_word||'')+'」'+(l.title?(' · '+l.title):''),extra:(sd.images||[]).length+' 張',btn:`<button class="btn btn-sm btn-accent" data-act="reviewHwv" data-id="${sd.id}">看手寫</button>`,ts:sd.submitted_at||''});});
   inbox.sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
-  const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"${it.test?' style="opacity:.72"':''}><span class="badge badge-soon">${it.tag}</span><b>${esc(it.name)}</b>${it.test?'<span class="badge" style="background:#e0e7ff;color:#4338ca;border-color:#4338ca55">🧪 測試</span>':''}<span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.ts?`<span class="muted">🕒 ${esc(fmtDT(it.ts))}</span>`:''}${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
+  const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"${it.test?' style="opacity:.72"':''}><span class="badge badge-soon">${it.tag}</span><b>${snm(it.name)}</b>${it.test?'<span class="badge" style="background:#e0e7ff;color:#4338ca;border-color:#4338ca55">🧪 測試</span>':''}<span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.ts?`<span class="muted">🕒 ${esc(fmtDT(it.ts))}</span>`:''}${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
   // 提醒：只看「堂數快用完／用完」（不再用付款日期做逾期提醒，因為每週時間、繳費都不固定）
   const remRows=[];
-  lowSess.forEach(({s,left})=>remRows.push(`<div class="dash-row"><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?(isHourly(s)?'時數用完':'堂數用完'):('剩 '+fmtQty(left)+' '+unitLabel(s))}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">🎟️ 已上 ${fmtQty(usedUnits(s))}/${esc(String(s.sessions_total))} ${unitLabel(s)}</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">登記</button><button class="btn btn-sm btn-accent" data-act="renewQuick" data-id="${s.id}">💰 續約</button></div>`));
+  lowSess.forEach(({s,left})=>remRows.push(`<div class="dash-row"><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?(isHourly(s)?'時數用完':'堂數用完'):('剩 '+fmtQty(left)+' '+unitLabel(s))}</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">🎟️ 已上 ${fmtQty(usedUnits(s))}/${esc(String(s.sessions_total))} ${unitLabel(s)}</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">登記</button><button class="btn btn-sm btn-accent" data-act="renewQuick" data-id="${s.id}">💰 續約</button></div>`));
   const mkDue=S.students.filter(s=>!s.is_test&&enrollOf(s)!=='paused'&&makeupDue(s)>0).sort((a,b)=>makeupDue(b)-makeupDue(a));
-  mkDue.forEach(s=>remRows.push(`<div class="dash-row"><span class="badge" style="background:#dbeafe;color:#1d4ed8;border-color:#1d4ed855">🔁 待補 ${makeupDue(s)} 堂</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">請假 ${leaveCount(s)} 次 · 已補 ${makeupCount(s)} 次</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">補登</button></div>`));
+  mkDue.forEach(s=>remRows.push(`<div class="dash-row"><span class="badge" style="background:#dbeafe;color:#1d4ed8;border-color:#1d4ed855">🔁 待補 ${makeupDue(s)} 堂</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">請假 ${leaveCount(s)} 次 · 已補 ${makeupCount(s)} 次</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">補登</button></div>`));
   itvAll().forEach(c=>{if(!c.exam_date)return;const d=itvDaysTo(c.exam_date);if(d==null)return;
     if(d>=0&&d<=14&&!itvResultMeta(c.result)){const col=d<=3?'#dc2626':'#3730a3';remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">🎯 ${d===0?'今天面試':(d===1?'明天面試':'還有 '+d+' 天')}</span><b>${esc(c.name||'')}</b>${c.target?`<span class="muted">${esc(c.target)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.exam_date)}${c.exam_time?(' '+esc(c.exam_time)):''}</span><button class="btn btn-sm" data-act="tab" data-id="interview">看客戶</button></div>`);}
     else if(d<0&&!itvResultMeta(c.result)){remRows.push(`<div class="dash-row"><span class="badge badge-soon">🎯 待填結果</span><b>${esc(c.name||'')}</b><span class="muted">面試日 ${esc(c.exam_date)}（${-d} 天前）</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="itvEdit" data-id="${esc(c.id)}">填面試結果</button></div>`);}});
@@ -699,7 +702,7 @@ function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'
       entries.map(({grp,s,e,stus})=>{const time=(s||'')+(e?'–'+e:'');const first=stus[0];
         const title=grp?(grp+' 團班 中文課'):((first.name||'學生')+' 中文課');const start=nextDateForDay(d,s||'00:00');const gl=gcalLink(title,start,e);
         const mstu=stus.find(s=>/^https?:\/\//i.test(s.meet_url||''));const meet=mstu?`<a class="btn btn-sm btn-accent" href="${esc(mstu.meet_url)}" target="_blank" rel="noopener">🎥 教室</a>`:'';
-        const info=grp?`<b>👥 ${esc(grp)}</b><span class="muted">團班（${stus.length}人）${first.textbook?' · '+esc(first.textbook):''} · ${esc(stus.map(s=>s.name).join('、'))}</span>`:`<b>${esc(first.name)}</b><span class="muted">${esc(first.class_type||'')}${first.textbook?' · '+esc(first.textbook):''}</span>`;
+        const info=grp?`<b>👥 ${esc(grp)}</b><span class="muted">團班（${stus.length}人）${first.textbook?' · '+esc(first.textbook):''} · ${esc(stus.map(s=>s.name).join('、'))}</span>`:`<b>${snm(first.name)}</b><span class="muted">${esc(first.class_type||'')}${first.textbook?' · '+esc(first.textbook):''}</span>`;
         return `<div class="dash-row"><span class="badge badge-pending">${esc(time||'—')}</span>${info}<span class="grow"></span>${meet}<a class="btn btn-sm" href="${esc(gl)}" target="_blank" rel="noopener">📅 加入日曆</a></div>`;}).join('')+`</div>`;}
   body.innerHTML=html;}}
 /* 月曆統計：依每堂實際日期（class_log）統計，不做週表推算 */
@@ -933,7 +936,7 @@ function renderCalLedger(body,toggle){
     const payRows=r.pays.map(p=>`<div class="dash-row" style="padding:4px 0"><b>${esc((p.date||'').slice(0,10))}</b>${p.note?`<span class="muted" style="margin-left:6px;font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span>${money(p.amount,p.currency||s.currency)}</div>`).join('')||'<div class="hint">還沒有繳費記錄</div>';
     return `<details class="card" style="margin-bottom:8px;padding:12px 14px">
       <summary class="led-sum" style="cursor:pointer;list-style:none">
-        <span class="ls-chev" style="opacity:.4;font-size:12px">▶</span><b class="led-name">${esc(s.name)}</b><span>${enrollBadge(s)}</span><span><b>${fmtQty(r.monthN)}</b> ${unitLabel(s)}</span><span><b>${fmtQty(r.total)}</b> ${unitLabel(s)}</span><span>${leftHtml}${makeupDue(s)?` <span class="muted">待補</span> <b style="color:#d97706">${makeupDue(s)}</b>`:''}</span><span>${r.last?esc(r.last):'—'}</span>
+        <span class="ls-chev" style="opacity:.4;font-size:12px">▶</span><b class="led-name">${snm(s.name)}</b><span>${enrollBadge(s)}</span><span><b>${fmtQty(r.monthN)}</b> ${unitLabel(s)}</span><span><b>${fmtQty(r.total)}</b> ${unitLabel(s)}</span><span>${leftHtml}${makeupDue(s)?` <span class="muted">待補</span> <b style="color:#d97706">${makeupDue(s)}</b>`:''}</span><span>${r.last?esc(r.last):'—'}</span>
       </summary>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:10px">
         <button class="btn btn-sm btn-accent" data-act="quickClassToday" data-id="${s.id}">✓ 記今天上課</button>
@@ -1088,7 +1091,7 @@ function renderOps(){const body=$('#ops-body');
   const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span><button class="btn btn-sm" data-act="opsMonth" data-id="${esc(m)}">🔎 明細</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入紀錄（到學生的「繳費」新增即可）。</div>';
   const billHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">🧮 累計 該收 vs 實收 <span class="hint">逐堂依時數收費（團班用該班的收費級距）對照「累計實收」，不受繳費時間影響，抓真正的漏收</span></div>${billCheckHtml(thisM)}</div>`;
   const due=S.students.filter(s=>!s.is_test&&!isTrial(s)&&enrollOf(s)!=='paused').map(s=>({s,left:sessionsLeft(s)})).filter(x=>x.left!=null&&x.left<=2).sort((a,b)=>a.left-b.left);
-  const dueRows=due.length?due.map(({s,left})=>{const bcls=left<=0?'badge-overdue':'badge-soon';const blab=left<=0?'需續費':'剩 '+fmtQty(left)+' '+unitLabel(s);return `<div class="dash-row"><span class="badge ${bcls}">${blab}</span><b>${esc(s.name)}</b><span class="grow"></span><span class="muted">${money(s.tuition,s.currency)}</span><button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒</button><button class="btn btn-sm" data-act="payments" data-id="${s.id}">繳費</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
+  const dueRows=due.length?due.map(({s,left})=>{const bcls=left<=0?'badge-overdue':'badge-soon';const blab=left<=0?'需續費':'剩 '+fmtQty(left)+' '+unitLabel(s);return `<div class="dash-row"><span class="badge ${bcls}">${blab}</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">${money(s.tuition,s.currency)}</span><button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒</button><button class="btn btn-sm" data-act="payments" data-id="${s.id}">繳費</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
   let adminHtml='';
   if(IS_OWNER){const cnt=em=>S.students.filter(s=>(s.admin||'').toLowerCase()===(em||'').toLowerCase()).length;const ownCnt=S.students.filter(s=>!s.admin).length;
     adminHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">👥 管理員負責學生</div><div class="dash-row"><span class="badge" style="background:var(--accent);color:#fff;border-color:var(--accent)">主管理員</span><b>你</b><span class="grow"></span><span class="muted">${ownCnt} 位</span></div>${(S.admins||[]).map(a=>`<div class="dash-row"><span class="badge badge-ok">管理員</span><b>${esc(a.name||a.email)}</b><span class="grow"></span><span class="muted">${cnt(a.email)} 位</span></div>`).join('')}</div>`;}
@@ -1207,7 +1210,7 @@ function inquiryHtml(){
 function stuCardInner(s){return `
     <div style="display:flex;gap:12px;align-items:center">
       <div class="avatar" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</div>
-      <div style="flex:1;min-width:0"><div class="name">${esc(s.name)}</div>
+      <div style="flex:1;min-width:0"><div class="name">${snm(s.name)}</div>
         <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${s.is_test?'<span class="tag" style="background:#e6e6e6;color:#666;border-color:#ccc">🧪 測試</span>':''}${enrollBadge(s)}<span class="tag accent">${s.class_type==='團班'?'團班':'一對一'}</span>${stuGroups(s).map(g=>`<span class="tag">👥 ${esc(g)}</span>`).join('')}${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}${IS_OWNER&&s.admin?`<span class="tag" title="負責管理員">👤 ${esc(adminName(s.admin))}</span>`:''}</div></div></div>
     <div class="actions" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">✏️ 編輯</button>
         ${/^https?:\/\//i.test(s.meet_url||'')?`<a class="btn btn-sm btn-accent" href="${esc(s.meet_url)}" target="_blank" rel="noopener">🎥 上課教室</a>`:''}
@@ -1234,7 +1237,7 @@ function stuTableRows(students){
   const head='<div class="stu-tr stu-th"><span>姓名</span><span>狀態</span><span>教材</span><span>時數</span><span>學費 · 付款日</span></div>';
   const rows=students.map(s=>{
     const _tt=tierText(s);const fee=isTrial(s)?'🎁 免費試學':((_tt?('👥 '+_tt):(s.tuition!=null?money(s.tuition,s.currency)+(s.fee_unit==='hour'?' /時':' /堂'):'—'))+(s.payment_date?(' · '+fmtDate(s.payment_date)):''));
-    return `<div class="stu-tr" data-act="stuDetail" data-id="${s.id}" style="cursor:pointer"><span class="stu-nm"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span>${esc(s.name)}${s.is_test?' 🧪':''}</span><span>${enrollBadge(s)}</span><span>${esc(s.textbook||'—')}</span><span>${sessChip(s)||'<span class="muted">—</span>'}</span><span>${fee}</span></div>`;
+    return `<div class="stu-tr" data-act="stuDetail" data-id="${s.id}" style="cursor:pointer"><span class="stu-nm"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span>${snm(s.name)}${s.is_test?' 🧪':''}</span><span>${enrollBadge(s)}</span><span>${esc(s.textbook||'—')}</span><span>${sessChip(s)||'<span class="muted">—</span>'}</span><span>${fee}</span></div>`;
   }).join('');
   return `<div class="stu-tb">${head}${rows}</div>`;
 }
@@ -1659,7 +1662,7 @@ function classBoardHtml(cls){
   if(!members.length)return '<div class="hint">這個團班還沒有成員，先在上面勾選學生並儲存。</div>';
   const STAT=r=>!r?['未開始','pending']:(r.status==='draft'?['作答中','soon']:(r.status==='pending'?['待批改','soon']:['已完成','ok']));
   const lrows=pub.map(l=>{const hw=answerableOf(l.id).length;
-    const cells=members.map(s=>{const r=resultOf(l.id,s.id);const st=STAT(r);return `<span class="badge badge-${st[1]}" style="margin:2px">${esc(s.name)}：${st[0]}</span>`;}).join('');
+    const cells=members.map(s=>{const r=resultOf(l.id,s.id);const st=STAT(r);return `<span class="badge badge-${st[1]}" style="margin:2px">${snm(s.name)}：${st[0]}</span>`;}).join('');
     const submitted=members.filter(s=>{const r=resultOf(l.id,s.id);return r&&(r.status==='pending'||r.status==='done');}).length;
     const di=dueInfo(l.due_date);
     const acts=`<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽（學生看到的樣子）</button>${l.handout_url?`<a class="btn btn-sm btn-accent" href="${esc(l.handout_url)}" target="_blank" rel="noopener">📄 開啟 PDF</a>`:''}<button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">✏️ 編輯</button></div>`;
@@ -1713,7 +1716,7 @@ function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==nul
    +'</body></html>';
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();}
 function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
-  const members=sel?(S.students.length?S.students.map(s=>`<label class="check-row"><input type="checkbox" class="gm-mem" value="${s.id}" ${stuGroups(s).includes(sel)?'checked':''}> ${esc(s.name)} <span class="tag">${esc(s.class_type||'')}</span></label>`).join(''):'<div class="hint">還沒有學生。</div>'):'';
+  const members=sel?(S.students.length?S.students.map(s=>`<label class="check-row"><input type="checkbox" class="gm-mem" value="${s.id}" ${stuGroups(s).includes(sel)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'')}</span></label>`).join(''):'<div class="hint">還沒有學生。</div>'):'';
   const editPanel=sel?`<div style="margin:2px 0 14px;padding:12px 14px;background:#faf7f0;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px">
        <div class="field" style="margin:0"><label>🕒 「${esc(sel)}」上課時段 <span class="hint">整班共用；已依學生時段自動帶入，可再修改</span></label>
        <div id="gm-sched">${(classSchedOf(sel).length?classSchedOf(sel):[{}]).map(r=>schedRowHTML(r)).join('')}</div>
@@ -1739,7 +1742,7 @@ function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
 }
 function assignModal(l){const ids=l.assigned_ids||[];const ag=l.assigned_groups||[];const classes=groupsList();
   const grpList=classes.length?classes.map(c=>`<label class="check-row"><input type="checkbox" class="as-grp" value="${esc(c)}" ${ag.includes(c)?'checked':''}> 👥 <b>${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span></label>`).join(''):'<div class="hint">還沒有團班。可在「學生名冊 → 👥 團班管理」建立。</div>';
-  const list=S.students.length?S.students.map(s=>`<label class="check-row"><input type="checkbox" value="${s.id}" ${ids.includes(s.id)?'checked':''}> ${esc(s.name)} <span class="tag">${esc(s.class_type||'1對1')}</span>${stuGroups(s).length?(' <span class="tag">'+stuGroups(s).map(esc).join('、')+'</span>'):''}</label>`).join(''):'<div class="hint">尚無學生，請先到「學生名冊」新增。</div>';
+  const list=S.students.length?S.students.map(s=>`<label class="check-row"><input type="checkbox" value="${s.id}" ${ids.includes(s.id)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'1對1')}</span>${stuGroups(s).length?(' <span class="tag">'+stuGroups(s).map(esc).join('、')+'</span>'):''}</label>`).join(''):'<div class="hint">尚無學生，請先到「學生名冊」新增。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>發佈「${esc(l.title)}」</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>截止日期 <span class="hint">選填</span></label><input id="as-due" type="date" min="2000-01-01" max="2100-12-31" value="${esc(l.due_date||'')}"></div>
@@ -1877,7 +1880,7 @@ function sgOpen(it){
   S.sgSel=it.kind+'::'+it.id;S.sgSplit=true;
   const H_=H;
   if(it.kind==='hw'){const r=it.sd;const l=S.lessons.find(x=>x.id===r.lesson_id)||{};const st=S.students.find(x=>x.id===r.student_id)||{name:'學生'};
-    sgFill('✍️ 作業批改 · '+esc(st.name),'<div class="hint" style="margin-bottom:10px">'+esc(sgLes(r.lesson_id))+(r.completed_at?(' · 🕒 '+esc(fmtDT(r.completed_at))):'')+'</div>'+studentReviewHtml(l,st,r),'');
+    sgFill('✍️ 作業批改 · '+snm(st.name),'<div class="hint" style="margin-bottom:10px">'+esc(sgLes(r.lesson_id))+(r.completed_at?(' · 🕒 '+esc(fmtDT(r.completed_at))):'')+'</div>'+studentReviewHtml(l,st,r),'');
     return;}
   const fn={gprac:H_.reviewGprac,disc:H_.reviewDisc,sent:H_.reviewSent,shadow:H_.reviewShadow,hwv:H_.reviewHwv,wb:H_.reviewWb}[it.kind];
   if(fn)fn(it.id);
@@ -1942,7 +1945,7 @@ function renderGradesMatrix(){
     const targets=lessonTargets(l);const qn=answerableOf(l.id).length;
     const rows=targets.map(s=>{const r=resultOf(l.id,s.id);const draft=r&&r.status==='draft';const pend=r&&r.status==='pending';
       const stBadge=!r?'<span class="badge badge-pending">未開始</span>':draft?'<span class="badge badge-soon">✍️ 作答中（未送出）</span>':pend?'<span class="badge badge-soon">待批改</span>':'<span class="badge badge-ok">已完成</span>';
-      return `<tr><td><span class="dot ${r&&!draft&&!pend?'ok':'no'}"></span>${esc(s.name)}</td><td>${stBadge}</td><td><b>${(r&&!draft)?(scoreOf(l,r)+'/'+(r.total||qn)):'—'}</b></td></tr>`;}).join('');
+      return `<tr><td><span class="dot ${r&&!draft&&!pend?'ok':'no'}"></span>${snm(s.name)}</td><td>${stBadge}</td><td><b>${(r&&!draft)?(scoreOf(l,r)+'/'+(r.total||qn)):'—'}</b></td></tr>`;}).join('');
     const doneCount=targets.filter(s=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;
     return `<div class="card"><div class="row-between"><div><h3 style="font-size:17px">${l.order_index?('第'+l.order_index+'課 · '):''}${esc(l.title)}</h3>
       <div class="meta" style="margin-top:5px"><span>${qn} 題</span><span>完成 <b>${doneCount}/${targets.length}</b></span></div></div></div>
@@ -1959,7 +1962,7 @@ H.sgNext=()=>{const list=sgVisible();const i=list.findIndex(x=>(x.kind+'::'+x.id
 H.sgPrev=()=>{const list=sgVisible();const i=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);if(i>0){S.sgSel=list[i-1].kind+'::'+list[i-1].id;renderGrades();}};
 H.sgKind=(k)=>{S.sgKind=k||'';renderGrades();};
 H.sgOnly=(v)=>{S.sgOnly=(v==='all')?'all':'pend';renderGrades();};
-H.stuDetail=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;openModal(`<div class="modal wide"><div class="modal-head"><h3>${esc(s.name)}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">${stuCardInner(s)}</div></div>`);};
+H.stuDetail=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;openModal(`<div class="modal wide"><div class="modal-head"><h3>${snm(s.name)}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">${stuCardInner(s)}</div></div>`);};
 H.stuView=(id)=>{S.stuView=(id==='card')?'card':'table';renderStudents();};
 /* ----- 對外官網：報名名單 + 內容編輯 ----- */
 function inqForm(x){x=x||{};const e=!!x.id;
@@ -2407,9 +2410,9 @@ function lqRender(){if(!LQ)return;const b=lqBox();const C=['#e21b3c','#1368ce','
     body='<div style="text-align:center;padding:20px"><div style="font-size:18px;opacity:.8">學生用這個代碼加入</div><div style="font-size:64px;font-weight:800;letter-spacing:8px;margin:14px 0">'+LQ.code+'</div><div style="opacity:.7;margin-bottom:18px">學生登入 → 首頁 →「🎮 加入即時比賽」→ 輸入代碼</div><div style="font-size:18px;margin-bottom:10px">已加入 <b>'+players.length+'</b> 人</div><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:700px;margin:0 auto 24px">'+(players.map(function(p){return '<span style="background:#ffffff1a;padding:8px 14px;border-radius:20px">'+esc(p.name||'學生')+'</span>';}).join('')||'<span style="opacity:.6">等待學生加入…</span>')+'</div><button onclick="H.lqStart()" '+(players.length?'':'disabled')+' style="background:#26890c;color:#fff;border:0;border-radius:12px;padding:16px 40px;font-size:20px;font-weight:700;cursor:pointer;'+(players.length?'':'opacity:.5')+'">▶ 開始比賽</button></div>';
   } else if(LQ.status==='q'||LQ.status==='reveal'){
     const q=LQ.quiz.questions[LQ.qi];const rev=LQ.status==='reveal';const answered=players.filter(function(p){return (p.answers||{})[LQ.qi]!=null;}).length;const dist=[0,0,0,0];players.forEach(function(p){const a=(p.answers||{})[LQ.qi];if(a&&a.o!=null)dist[a.o]++;});
-    body='<div style="padding:0 20px 24px;max-width:900px;margin:0 auto"><div style="opacity:.7">第 '+(LQ.qi+1)+' / '+LQ.quiz.questions.length+' 題　·　已作答 '+answered+'/'+players.length+' 人'+(rev?'':'　·　<span id="lq-timer" style="color:#ffd166;font-weight:800">⏱ '+(LQ.tl||20)+' 秒</span>')+'</div><div style="font-size:26px;font-weight:700;margin:16px 0;white-space:pre-line;line-height:1.5">'+esc(q.t)+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+q.opts.map(function(o,i){return '<div style="background:'+C[i]+';'+(rev&&i!==q.correct?'opacity:.35;':'')+'padding:18px;border-radius:12px;font-size:20px;font-weight:600;display:flex;align-items:center;gap:10px">'+SH[i]+' '+esc(o)+(rev?'<span style="margin-left:auto">'+(i===q.correct?'✅ ':'')+dist[i]+'人</span>':'')+'</div>';}).join('')+'</div><div style="text-align:center;margin-top:22px">'+(rev?'<button onclick="H.lqNext()" style="background:#1368ce;color:#fff;border:0;border-radius:12px;padding:14px 36px;font-size:18px;font-weight:700;cursor:pointer">'+(LQ.qi+1>=LQ.quiz.questions.length?'看最終排名 →':'下一題 →')+'</button>':'<button onclick="H.lqReveal()" style="background:#d89e00;color:#fff;border:0;border-radius:12px;padding:14px 36px;font-size:18px;font-weight:700;cursor:pointer">看答案 &amp; 排行 →</button>')+'</div>'+(rev?'<div style="margin-top:24px"><div style="opacity:.7;margin-bottom:8px">🏆 目前排行</div>'+(LQ.scores.slice(0,5).map(function(r,i){return '<div style="display:flex;justify-content:space-between;background:#ffffff12;padding:10px 16px;border-radius:8px;margin-bottom:6px"><span>'+(i+1)+'. '+esc(r.name)+'</span><b>'+r.score+'</b></div>';}).join('')||'<div style="opacity:.6">還沒有人作答</div>')+'</div>':'')+'</div>';
+    body='<div style="padding:0 20px 24px;max-width:900px;margin:0 auto"><div style="opacity:.7">第 '+(LQ.qi+1)+' / '+LQ.quiz.questions.length+' 題　·　已作答 '+answered+'/'+players.length+' 人'+(rev?'':'　·　<span id="lq-timer" style="color:#ffd166;font-weight:800">⏱ '+(LQ.tl||20)+' 秒</span>')+'</div><div style="font-size:26px;font-weight:700;margin:16px 0;white-space:pre-line;line-height:1.5">'+esc(q.t)+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+q.opts.map(function(o,i){return '<div style="background:'+C[i]+';'+(rev&&i!==q.correct?'opacity:.35;':'')+'padding:18px;border-radius:12px;font-size:20px;font-weight:600;display:flex;align-items:center;gap:10px">'+SH[i]+' '+esc(o)+(rev?'<span style="margin-left:auto">'+(i===q.correct?'✅ ':'')+dist[i]+'人</span>':'')+'</div>';}).join('')+'</div><div style="text-align:center;margin-top:22px">'+(rev?'<button onclick="H.lqNext()" style="background:#1368ce;color:#fff;border:0;border-radius:12px;padding:14px 36px;font-size:18px;font-weight:700;cursor:pointer">'+(LQ.qi+1>=LQ.quiz.questions.length?'看最終排名 →':'下一題 →')+'</button>':'<button onclick="H.lqReveal()" style="background:#d89e00;color:#fff;border:0;border-radius:12px;padding:14px 36px;font-size:18px;font-weight:700;cursor:pointer">看答案 &amp; 排行 →</button>')+'</div>'+(rev?'<div style="margin-top:24px"><div style="opacity:.7;margin-bottom:8px">🏆 目前排行</div>'+(LQ.scores.slice(0,5).map(function(r,i){return '<div style="display:flex;justify-content:space-between;background:#ffffff12;padding:10px 16px;border-radius:8px;margin-bottom:6px"><span>'+(i+1)+'. '+snm(r.name)+'</span><b>'+r.score+'</b></div>';}).join('')||'<div style="opacity:.6">還沒有人作答</div>')+'</div>':'')+'</div>';
   } else if(LQ.status==='end'){
-    body='<div style="text-align:center;padding:20px"><div style="font-size:30px;font-weight:800;margin-bottom:20px">🏆 最終排名</div><div style="max-width:600px;margin:0 auto">'+(LQ.scores.map(function(r,i){return '<div style="display:flex;justify-content:space-between;background:'+(i===0?'#d89e00':'#ffffff12')+';padding:14px 20px;border-radius:10px;margin-bottom:8px;font-size:'+(i===0?'22px':'18px')+'"><span>'+(['🥇','🥈','🥉'][i]||(i+1+'.'))+' '+esc(r.name)+'</span><b>'+r.score+'</b></div>';}).join('')||'<div style="opacity:.6">沒有作答資料</div>')+'</div><button onclick="H.lqClose()" style="background:#26890c;color:#fff;border:0;border-radius:12px;padding:14px 36px;font-size:18px;margin-top:24px;cursor:pointer">完成</button></div>';
+    body='<div style="text-align:center;padding:20px"><div style="font-size:30px;font-weight:800;margin-bottom:20px">🏆 最終排名</div><div style="max-width:600px;margin:0 auto">'+(LQ.scores.map(function(r,i){return '<div style="display:flex;justify-content:space-between;background:'+(i===0?'#d89e00':'#ffffff12')+';padding:14px 20px;border-radius:10px;margin-bottom:8px;font-size:'+(i===0?'22px':'18px')+'"><span>'+(['🥇','🥈','🥉'][i]||(i+1+'.'))+' '+snm(r.name)+'</span><b>'+r.score+'</b></div>';}).join('')||'<div style="opacity:.6">沒有作答資料</div>')+'</div><button onclick="H.lqClose()" style="background:#26890c;color:#fff;border:0;border-radius:12px;padding:14px 36px;font-size:18px;margin-top:24px;cursor:pointer">完成</button></div>';
   }
   b.innerHTML=head+body;
 }
@@ -2553,7 +2556,7 @@ H.saveShadowReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd
 H.newQuiz=()=>{
   const grp={},gorder=[];sortLessons(S.lessons).forEach(l=>{const tb=(l.textbook||'').trim()||'（未分類教材）';if(!grp[tb]){grp[tb]=[];gorder.push(tb);}grp[tb].push(l);});
   const lessonOpts=gorder.map(tb=>`<optgroup label="${esc(tb)}">${grp[tb].map(l=>`<option value="${l.id}">${esc((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（未命名）'))}</option>`).join('')}</optgroup>`).join('');
-  const studentChecks=S.students.map(s=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 12px 8px 0"><input type="checkbox" class="quiz-stu" value="${s.id}"> ${esc(s.name)}</label>`).join('');
+  const studentChecks=S.students.map(s=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 12px 8px 0"><input type="checkbox" class="quiz-stu" value="${s.id}"> ${snm(s.name)}</label>`).join('');
   openModal(`<div class="modal"><div class="modal-head"><h3>📝 建立隨堂聽寫小考</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>名稱</label><input id="quiz-title" type="text" value="隨堂小考"></div>
@@ -2874,7 +2877,7 @@ H.report=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
   const weak=pts.slice().sort((a,b)=>a.pct-b.pct).slice(0,3);
   const weakHtml=weak.length?weak.map(p=>`<div class="dash-row"><span class="badge ${p.pct>=60?'badge-soon':'badge-overdue'}">${p.pct}%</span><b>${esc((p.l.order_index?('第'+p.l.order_index+'課 '):'')+(p.l.title||''))}</b></div>`).join(''):'<div class="muted" style="padding:6px 0">—</div>';
   const typeHtml=Object.keys(agg).length?Object.keys(agg).map(ty=>{const a=agg[ty],pct=Math.round(a.ok/a.n*100);return `<div class="dash-row"><b style="min-width:42px">${TN[ty]}</b><span class="progbar" style="flex:1;max-width:200px"><span style="width:${pct}%"></span></span><span class="muted">${pct}%（${a.ok}/${a.n}）</span></div>`;}).join(''):'<div class="muted" style="padding:6px 0">還沒有可分析的自動批改題（單選／填空／重組／配對）。</div>';
-  openModal(`<div class="modal wide"><div class="modal-head"><h3>📊 ${esc(s.name)} · 學習報表</h3><button class="x" data-act="closeModal">×</button></div>
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>📊 ${snm(s.name)} · 學習報表</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="meta" style="margin-bottom:12px"><span>已完成 <b>${pts.length}</b> 課${avg!=null?(' · 平均 <b>'+avg+'%</b>'):''} · 共發佈 <b>${assigned.length}</b> 課</span></div>
      <div class="lesson-label">📈 分數趨勢（每一條是一課的分數 %，底下數字是課號）</div><div style="overflow:auto;margin:6px 0 14px">${chart}</div>
@@ -3216,7 +3219,7 @@ function classRollModal(cls,prefill){const members=S.students.filter(s=>stuGroup
   const dates=Object.keys(dateMap).sort().reverse().slice(0,10);
   const recent=dates.length?dates.map(d=>{const c=dateMap[d];const wd=c.date?DAYS[(new Date(c.date+'T00:00:00').getDay()+6)%7]:'';const tm=(c.start&&c.end)?`<span class="muted" style="font-size:12px">${esc(c.start)}–${esc(c.end)}</span>`:'';const fb=c.free?' <span class="badge" style="background:#f3e8ff;color:#7c3aed">🎁 免費</span>':'';const vb=c.video?' <a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;text-decoration:none" href="'+esc(c.video)+'" target="_blank" rel="noopener">🎬 影片</a>':'';return `<div class="dash-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(c.date)}</b>${wd?`<span class="muted" style="font-size:12px">（${wd}）</span>`:''}${tm}${fb}${vb}<span class="grow" style="flex:1"></span><span class="badge badge-ok">出席 ${c.att}</span> <span class="badge badge-soon">請假 ${c.leave}</span> <span class="badge badge-overdue">缺席 ${c.absent}</span> <button class="btn btn-sm btn-ghost" type="button" data-act="rollEdit" data-id="${esc(d)}">✏️ 修改</button><button class="btn btn-sm btn-danger" type="button" data-act="rollDel" data-id="${esc(cls)+'::'+esc(c.date)+'::'+esc(c.start||'')+'::'+esc(c.end||'')}" title="全班一起刪掉這一堂">🗑</button></div>`;}).join(''):'<div class="hint">還沒有上課記錄。</div>';
   const seg=(sid,st,lb,def)=>`<button type="button" class="${def?'on':''}" data-act="rollPick" data-id="${sid}::${st}" data-st="${st}">${lb}</button>`;
-  const rows=members.length?members.map(s=>{const left=sessionsLeft(s);return `<div class="dash-row" style="display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box"><div style="flex:1 1 auto;min-width:0"><b>${esc(s.name)}</b>${s.is_test?' <span class="tag" style="background:#eee;color:#666;border-color:#ccc">🧪 測試</span>':''}${left!=null?` <span class="muted" style="font-size:12px">剩 ${fmtQty(left)} ${unitLabel(s)}</span>`:''}</div><span class="seg-mini roll-seg" data-sid="${s.id}" style="flex:0 0 auto;white-space:nowrap">${seg(s.id,'attended','出席',true)}${seg(s.id,'leave','請假',false)}${seg(s.id,'absent','缺席',false)}</span></div>`;}).join(''):'<div class="hint">這個團班還沒有成員。</div>';
+  const rows=members.length?members.map(s=>{const left=sessionsLeft(s);return `<div class="dash-row" style="display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box"><div style="flex:1 1 auto;min-width:0"><b>${snm(s.name)}</b>${s.is_test?' <span class="tag" style="background:#eee;color:#666;border-color:#ccc">🧪 測試</span>':''}${left!=null?` <span class="muted" style="font-size:12px">剩 ${fmtQty(left)} ${unitLabel(s)}</span>`:''}</div><span class="seg-mini roll-seg" data-sid="${s.id}" style="flex:0 0 auto;white-space:nowrap">${seg(s.id,'attended','出席',true)}${seg(s.id,'leave','請假',false)}${seg(s.id,'absent','缺席',false)}</span></div>`;}).join(''):'<div class="hint">這個團班還沒有成員。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>🗓 「${esc(cls)}」上課點名</h3><button class="x" data-act="closeModal">×</button></div>
     <div class="modal-body">
       <div class="form-grid"><div class="field"><label>上課日期${pf.date?' <span class="hint">已帶入預排日期</span>':''}</label><input id="roll-date" type="date" min="2000-01-01" max="2100-12-31" value="${useDate}"></div>
@@ -3431,7 +3434,7 @@ H.opsMonth=(m)=>{const rows=[];
   rows.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const tot={};rows.forEach(r=>{tot[r.cur]=(tot[r.cur]||0)+r.amt;});
   const totStr=Object.keys(tot).map(c=>money(tot[c],c)).join('　+　')||'—';
-  const body=rows.length?rows.map(r=>`<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">${esc(String(r.date).slice(5))}</span><b>${esc(r.name)}</b>${r.sess!=null?`<span class="muted" style="font-size:12px">＋${esc(String(r.sess))} 堂</span>`:''}${r.note?`<span class="muted" style="font-size:12px">${esc(r.note)}</span>`:''}<span class="grow"></span><b style="color:var(--accent,#B23A48)">${money(r.amt,r.cur)}</b></div>`).join(''):'<div class="hint">這個月沒有學生繳費紀錄。</div>';
+  const body=rows.length?rows.map(r=>`<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">${esc(String(r.date).slice(5))}</span><b>${snm(r.name)}</b>${r.sess!=null?`<span class="muted" style="font-size:12px">＋${esc(String(r.sess))} 堂</span>`:''}${r.note?`<span class="muted" style="font-size:12px">${esc(r.note)}</span>`:''}<span class="grow"></span><b style="color:var(--accent,#B23A48)">${money(r.amt,r.cur)}</b></div>`).join(''):'<div class="hint">這個月沒有學生繳費紀錄。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${esc(m)} 收入明細</h3><button class="x" data-act="closeModal">×</button></div>
     <div class="modal-body">
       <div class="card" style="background:#fdf6ec;margin-bottom:10px"><div class="hint">本月合計（學生繳費）</div><div style="font-size:20px;font-weight:800">${totStr}</div></div>
@@ -3538,7 +3541,7 @@ H.itvSessDel=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);
 H.calView=(v)=>{S.calView=v;if((v==='month'||v==='ledger')&&!S.calMonth)S.calMonth=localToday().slice(0,7);renderCalendar();};
 H.quickClassToday=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const d=new Date();const date=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   const log=Array.isArray(s.class_log)?s.class_log.slice():[];
-  if(log.some(e=>e&&e.date===date)){toast(esc(s.name)+' 今天已經記過了');return;}
+  if(log.some(e=>e&&e.date===date)){toast(s.name+' 今天已經記過了');return;}
   log.push({date,status:'attended',free:false,start:'',end:'',note:''});
   try{await DB.update('students',s.id,{class_log:log});s.class_log=log;toast('✓ 已記錄：'+s.name+' '+date+'（出席）');renderCalendar();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.calMonth=(delta)=>{const ym=S.calMonth||localToday().slice(0,7);const p=ym.split('-').map(Number);const dt=new Date(p[0],p[1]-1+Number(delta),1);S.calMonth=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');renderCalendar();};
@@ -3594,7 +3597,7 @@ function renderClassView(cls){
   const members=S.students.filter(s=>stuGroups(s).includes(cls));
   ensureClassSched(cls);
   const cm=classMetaOf(cls);const sched=classSchedText(cls);const meetUrl=classMeetOf(cls);const TD='padding:7px 9px;border-top:1px solid var(--line)';
-  const roster=members.length?members.map(s=>{const asg=S.lessons.filter(l=>isAssignedTo(l,s)&&answerableOf(l.id).length);const done=asg.filter(l=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;return `<tr><td style="${TD}"><b>${esc(s.name)}</b></td><td style="${TD}">${esc(s.email||'')}</td><td style="${TD}">${asg.length?(done+' / '+asg.length):'—'}</td></tr>`;}).join(''):`<tr><td colspan="3" style="${TD};color:var(--muted)">還沒有成員，按「✏️ 成員／時段」勾選學生。</td></tr>`;
+  const roster=members.length?members.map(s=>{const asg=S.lessons.filter(l=>isAssignedTo(l,s)&&answerableOf(l.id).length);const done=asg.filter(l=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;return `<tr><td style="${TD}"><b>${snm(s.name)}</b></td><td style="${TD}">${esc(s.email||'')}</td><td style="${TD}">${asg.length?(done+' / '+asg.length):'—'}</td></tr>`;}).join(''):`<tr><td colspan="3" style="${TD};color:var(--muted)">還沒有成員，按「✏️ 成員／時段」勾選學生。</td></tr>`;
   const pubN=sortLessons(S.lessons).filter(l=>(l.assigned_groups||[]).includes(cls)).length;
   document.getElementById('classview-body').innerHTML=`
     <div class="section-head" style="flex-wrap:wrap;gap:8px"><a class="btn btn-sm btn-ghost" href="teacher.html">← 返回後台</a><h2 style="margin:0">👥 ${esc(cls)}</h2><span class="grow"></span>
@@ -3767,7 +3770,7 @@ H.payments=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;PAY_STU=s;c
   const byCur={};ps.forEach(({p})=>{const c=p.currency||s.currency||'TWD';byCur[c]=(byCur[c]||0)+(Number(p.amount)||0);});
   const totalStr=Object.keys(byCur).map(c=>money(byCur[c],c)).join('、')||money(0,s.currency);
   const rows=ps.length?ps.map(({p,origI})=>`<div class="dash-row" style="flex-wrap:wrap"><span class="grow"><b>${esc(p.date||'')}</b> · ${money(p.amount,p.currency||s.currency)}${p.sessions?(' · +'+p.sessions+' 堂'):''}${p.note?(' · '+esc(p.note)):''}</span><span style="display:flex;gap:6px;flex:none;margin-left:auto"><button class="btn btn-sm btn-accent" type="button" data-act="payEdit" data-id="${id}::${origI}">✏️ 編輯</button><button class="btn btn-sm" type="button" data-act="receipt" data-id="${id}::${origI}">🧾 收據</button><button class="btn btn-sm btn-danger" type="button" data-act="payDel" data-id="${id}::${origI}">✕</button></span></div>`).join(''):'<div class="hint" style="padding:8px 0">還沒有繳費紀錄。</div>';
-  openModal(`<div class="modal"><div class="modal-head"><h3>${esc(s.name)} · 繳費紀錄</h3><button class="x" data-act="closeModal">×</button></div>
+  openModal(`<div class="modal"><div class="modal-head"><h3>${snm(s.name)} · 繳費紀錄</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div style="margin-bottom:6px">${rows}</div>
      ${(function(){const b=stuBill(s);if(!b)return '';
@@ -3808,7 +3811,7 @@ function remindText(s,lang){const name=s.name||'';const left=sessionsLeft(s);
   return t;}
 H.remindMsg=(arg)=>{const parts=String(arg).split('::');const id=parts[0];const lang=parts[1]||'zh';const s=S.students.find(x=>x.id===id);if(!s)return;
   const txt=remindText(s,lang);const tab=(l,lb)=>`<button class="btn btn-sm ${l===lang?'btn-accent':''}" data-act="remindMsg" data-id="${esc(id)}::${l}">${lb}</button>`;
-  openModal(`<div class="modal"><div class="modal-head"><h3>📋 提醒訊息 · ${esc(s.name)}</h3><button class="x" data-act="closeModal">×</button></div>
+  openModal(`<div class="modal"><div class="modal-head"><h3>📋 提醒訊息 · ${snm(s.name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div style="display:flex;gap:8px;margin-bottom:10px">${tab('zh','中文')}${tab('vi','Tiếng Việt')}</div>
      <textarea id="rm-text" style="width:100%;min-height:150px;font-size:15px;line-height:1.6;padding:10px;border:1px solid var(--line);border-radius:8px;box-sizing:border-box">${esc(txt)}</textarea>
@@ -3844,7 +3847,7 @@ H.renewQuick=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;
   const cur=last.currency||s.currency||'TWD';
   const sess=(last.sessions!=null&&last.sessions!=='')?last.sessions:(s.sessions_total||'');
   const left=sessionsLeft(s);
-  openModal(`<div class="modal"><div class="modal-head"><h3>💰 續約 · ${esc(s.name)}</h3><button class="x" data-act="closeModal">×</button></div>
+  openModal(`<div class="modal"><div class="modal-head"><h3>💰 續約 · ${snm(s.name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="meta" style="margin-bottom:10px;flex-wrap:wrap"><span>目前還剩 <b class="${left!=null&&left<=1?'sess-low':''}">${left==null?'—':left}</b> 堂</span>${last.date?`<span class="muted">上次繳費：${esc(last.date)} · ${money(last.amount,last.currency||s.currency)}${last.sessions?(' · +'+last.sessions+' 堂'):''}</span>`:'<span class="muted">還沒有繳費紀錄，以下用學費預設值</span>'}</div>
      <div class="hint" style="margin-bottom:10px">已經幫你帶入上次的金額與堂數，確認一下就好。</div>
@@ -3869,7 +3872,7 @@ H.payDel=async(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);con
   const payments=(s.payments||[]).slice();const removed=payments.splice(i,1)[0];const patch={payments};if(removed&&removed.sessions){patch.sessions_total=Math.max(0,(Number(s.sessions_total)||0)-removed.sessions);}
   try{await DB.update('students',id,patch);await loadAll();H.payments(id);render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
 H.payEdit=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;const pay=(s.payments||[])[i];if(!pay)return;const cur=pay.currency||s.currency||'TWD';PAY_STU=s;
-  openModal(`<div class="modal"><div class="modal-head"><h3>✏️ 編輯繳費 · ${esc(s.name)}</h3><button class="x" data-act="closeModal">×</button></div>
+  openModal(`<div class="modal"><div class="modal-head"><h3>✏️ 編輯繳費 · ${snm(s.name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="form-grid">
      <div class="field"><label>日期</label><input id="pe-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(pay.date||'')}"></div>
      <div class="field"><label>金額 <span class="hint">越南盾打千位（350＝350,000 ₫）</span></label><input id="pe-amount" type="number" min="0" value="${pay.amount==null?'':esc(pay.amount)}"></div>
@@ -3976,7 +3979,7 @@ H.classLog=(id,pf)=>{const s=S.students.find(x=>x.id===id);if(!s)return;pf=pf||{
       return `<details${open} style="margin-bottom:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px"><summary style="cursor:pointer;font-weight:600;color:var(--primary);list-style-position:inside">${label} <span class="tag">${cnt} 堂${isHourly(s)&&hrs!=null?(' · '+fmtQty(hrs)+' 小時'):''}</span></summary><div style="margin-top:6px">${items.map(clRow).join('')}</div></details>`;}).join('');}
   const today=localToday();const useDate=(eRow&&eRow.date)||pf.date||today;const dslot=clSlotFor(useDate);const uS=(eRow?eRow.start:null)||pf.start||(dslot?dslot.s:'')||'';const uE=(eRow?eRow.end:null)||pf.end||(dslot?dslot.e:'')||'';const uN=(eRow?eRow.note:null)||pf.note||'';const slot0={s:uS,e:uE};
   const uStatus=(eRow&&eRow.status)||'attended';const uFree=!!(eRow&&eRow.free);const uMakeup=!!(eRow&&eRow.makeup);const uVideo=(eRow?eRow.video:null)||pf.video||'';
-  openModal(`<div class="modal"><div class="modal-head"><h3>${esc(s.name)} · 上課記錄</h3><button class="x" data-act="closeModal">×</button></div>
+  openModal(`<div class="modal"><div class="modal-head"><h3>${snm(s.name)} · 上課記錄</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="meta" style="margin-bottom:10px;flex-wrap:wrap"><span>本期：共 <b>${esc(String(s.sessions_total??'—'))}</b> ${unitLabel(s)} · 已上 <b>${fmtQty(usedUnits(s))}</b> · 還剩 <b class="${left!=null&&left<=1?'sess-low':''}">${left==null?'—':fmtQty(left)}</b> ${unitLabel(s)}${isHourly(s)?`　<span class="muted">（按小時計費 ${money(s.tuition,s.currency)}／小時）</span>`:''}</span>${leaveCount(s)?`<span>🟡 請假 <b>${leaveCount(s)}</b> 次 · 已補 <b>${makeupCount(s)}</b> 次${makeupDue(s)?` · <b style="color:#d97706">待補 ${makeupDue(s)}</b> 堂`:'　<span style="color:#16a34a">已補完 ✓</span>'}</span>`:''}</div>
      <div style="margin-bottom:6px">${rows}</div>
