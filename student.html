@@ -1122,7 +1122,10 @@ function readResp(q){
   if(q.type==='order'){const sh=SHUF[q.id]||[];return (responses[q.id]||[]).map(i=>sh[i]);}
   if(q.type==='match')return $$('select[data-q="'+q.id+'"]').map(s=>s.value);
   if(q.type==='write')return canvasDataURL(document.getElementById('hw-'+q.id));
-  if(q.type==='qa'){const ta=document.getElementById('qa-'+q.id);return ta?ta.value:'';}
+  if(q.type==='qa'){const vs=[];let k=0;
+    for(;;){const el=document.getElementById('qa-'+q.id+(k===0?'':'-'+k));if(!el)break;vs.push(el.value||'');k++;}
+    if(!vs.length)return '';
+    return vs.some(x=>String(x).trim())?vs.join('\n'):'';}
   if(q.type==='opt'){return (q.items||[]).map((it,i)=>{if(it.mode==='open'){const ta=document.querySelector('textarea.optopen[data-q="'+q.id+'"][data-item="'+i+'"]');return {t:ta?ta.value:''};}const picks=[...document.querySelectorAll('input.optck[data-q="'+q.id+'"][data-item="'+i+'"]:checked')].map(c=>Number(c.value));return {s:picks};});}
   return null;}
 
@@ -2190,7 +2193,10 @@ function qHtml(q,idx,noInstr){
   else if(q.type==='write'){body=`<div class="hw-wrap"><canvas id="hw-${q.id}" class="hw-canvas" width="660" height="440"></canvas><div class="hw-tools"><button class="btn btn-sm" type="button" data-act="hwclear" data-q="${q.id}">${th('clear')}</button><span class="hint">${th('hint')}</span></div></div>`;}
   else if(q.type==='qa'){const raw=qPromptBreak(q.prompt||'');
     if(/[_＿]{2,}/.test(raw)){showPrompt=false; // 對話填答型（A：… B：＿＿。）→ 答案框直接嵌在空格處
-      const filled=esc(raw).replace(/[_＿]{2,}/,`<input class="blank-inp qa-blank" style="display:inline-block;width:min(70%,32em);min-width:240px;max-width:100%;vertical-align:middle" id="qa-${q.id}" type="text" autocomplete="off" placeholder="${t('inputAns')}">`).replace(/\n/g,'<br>');
+      let _k=0;const _nb=(raw.match(/[_＿]{2,}/g)||[]).length;
+      const filled=esc(raw).replace(/[_＿]{2,}/g,()=>{const id='qa-'+q.id+(_k===0?'':'-'+_k);_k++;
+        const w=_nb>1?'width:min(46%,20em);min-width:150px':'width:min(70%,32em);min-width:240px';
+        return `<input class="blank-inp qa-blank" style="display:inline-block;${w};max-width:100%;vertical-align:middle" id="${id}" type="text" autocomplete="off" placeholder="${t('inputAns')}">`;}).replace(/\n/g,'<br>');
       body=`<div class="q-prompt fill-prompt qa-dlg">${filled}</div>`;}
     else body=`<textarea class="qa-inp" id="qa-${q.id}" rows="3" placeholder="${t('inputAns')}"></textarea>`;}
   else if(q.type==='speak'){body=`<div class="rec-wrap"><div class="rec-tools"><button class="btn btn-sm rec-btn" type="button" data-act="recToggle" data-q="${q.id}">🎙️ ${th('recStart')}</button><span class="hint" id="rec-st-${q.id}">${th('recHint')}</span></div><audio id="rec-audio-${q.id}" class="rec-audio hide" controls></audio></div>`;}
@@ -2299,7 +2305,11 @@ function gradeAll(qs){let score=0;const answers={};let hasWrite=false;
 function fillSaved(qs,saved){if(!saved)return;qs.forEach(q=>{const v=saved[q.id];if(v==null)return;
   if(q.type==='choice'){const r=document.querySelector('input[name="q-'+q.id+'"][value="'+v+'"]');if(r)r.checked=true;}
   else if(q.type==='fill'){if(q.input_mode==='write')return;if(Array.isArray(v)){v.forEach((val,k)=>{const el=document.getElementById('fill-'+q.id+(k===0?'':'-'+k));if(el&&typeof val!=='object')el.value=val;});}else if(typeof v!=='object'){const el=document.getElementById('fill-'+q.id);if(el)el.value=v;}}
-  else if(q.type==='qa'){const el=document.getElementById('qa-'+q.id);if(el&&typeof v==='string'&&v!=='[object Object]')el.value=v;}
+  else if(q.type==='qa'){if(typeof v!=='string'||v==='[object Object]')return;
+    const parts=v.split('\n');let k=0,any=false;
+    for(;;){const el=document.getElementById('qa-'+q.id+(k===0?'':'-'+k));if(!el)break;any=true;
+      el.value=(parts.length>1?(parts[k]||''):(k===0?v:''));k++;}
+    if(!any){const el=document.getElementById('qa-'+q.id);if(el)el.value=v;}}
   else if(q.type==='opt'){if(Array.isArray(v))v.forEach((a,i)=>{if(!a||typeof a!=='object')return;if(Array.isArray(a.s))a.s.forEach(oi=>{const ck=document.querySelector('input.optck[data-q="'+q.id+'"][data-item="'+i+'"][value="'+oi+'"]');if(ck)ck.checked=true;});if(a.t!=null){const ta=document.querySelector('textarea.optopen[data-q="'+q.id+'"][data-item="'+i+'"]');if(ta)ta.value=a.t;}});}
   else if(q.type==='match'){(v||[]).forEach((val,i)=>{const sel=document.querySelector('select[data-q="'+q.id+'"][data-i="'+i+'"]');if(sel)sel.value=val;});}
   else if(q.type==='order'){const sh=SHUF[q.id]||(SHUF[q.id]=shuffle((q.options||[]).slice(),q.id));const idxs=(v||[]).map(x=>sh.indexOf(x)).filter(i=>i>=0);responses[q.id]=idxs;const el=document.getElementById('order-'+q.id);if(el){el.innerHTML=orderInner(q);convEl(el);}}
