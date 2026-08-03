@@ -98,6 +98,21 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .cb-chip{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:#5a4a4c;background:#fff;border:1px solid rgba(178,58,72,.20);border-radius:999px;padding:6px 13px;box-shadow:0 1px 3px rgba(178,58,72,.07)}
 .cb-chip.cb-cls{background:var(--primary);color:#fff;border-color:transparent;box-shadow:0 2px 6px rgba(178,58,72,.3);font-weight:800;letter-spacing:.5px}
 .cb-note{margin-top:12px;font-size:12.5px;color:var(--muted);border-top:1px dashed rgba(178,58,72,.16);padding-top:9px}
+/* ===== 課文插圖：不要滿版，點一下才放大 ===== */
+.ls-pic{text-align:center}
+.ls-img{max-width:min(100%,460px);max-height:330px;width:auto;height:auto;object-fit:contain;
+  border-radius:12px;border:1px solid var(--line,#e7e0d4);background:#fff;display:inline-block;cursor:zoom-in;
+  box-shadow:0 2px 10px rgba(0,0,0,.06);transition:transform .15s,box-shadow .15s}
+.ls-img:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.12)}
+.ls-img-hint{font-size:12px;color:var(--muted,#8b8378);margin-top:5px}
+@media(max-width:640px){.ls-img{max-width:100%;max-height:none}.ls-img-hint{display:none}}
+#pic-big{position:fixed;inset:0;z-index:9999;background:rgba(20,16,12,.86);display:flex;
+  align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
+#pic-big img{max-width:96vw;max-height:92vh;border-radius:10px;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+#pic-big .pb-x{position:absolute;top:14px;right:18px;font-size:30px;line-height:1;color:#fff;background:none;border:0;cursor:pointer}
+/* 題目插圖也一起限制，避免小圖被拉大 */
+.q-pic img{max-width:min(100%,420px);height:auto;border-radius:10px}
+
 /* ===== 作業簿 Workbook ===== */
 /* 只有「帶聲調的拼音字母」改用襯線字，其他中英文維持原本字體 */
 @font-face{font-family:'PinyinTone';font-style:normal;font-weight:400;
@@ -844,7 +859,7 @@ function dialogueBlockHtml(l,di,opts){opts=opts||{};
   const d=lessonDialogues(l)[di];if(!d)return '';
   if(!(d.content||d.audio_url||d.image_url))return '';
   return `<div class="dlg-block"><div class="dlg-block-h">${esc(d.title||('對話'+(di+1)))}</div><div class="dlg-fold-body">
-    ${d.image_url?`<div class="lesson-block"><img src="${esc(d.image_url)}" alt="" style="max-width:100%;border-radius:10px;display:block"></div>`:''}
+    ${d.image_url?`<div class="lesson-block ls-pic"><img class="ls-img" src="${esc(d.image_url)}" alt="" data-act="picBig" data-src="${esc(d.image_url)}"><div class="ls-img-hint">🔍 點圖可放大</div></div>`:''}
     ${d.audio_url?`<div class="lesson-block"><div class="lesson-label">${t('audio')}</div>${audioHtml(d.audio_url)}</div>`:''}
     ${d.content?`<div class="dlg-text"><div class="prose lookup">${prose2(d.content)}</div><div style="margin:8px 0 4px"><button class="btn btn-sm" data-act="shadowDlg" data-id="${l.id}::${di}">🗣 ${t('shadowDlg')}</button></div></div>`:''}
   </div></div>`;}
@@ -2464,6 +2479,11 @@ H.star=(_,b)=>{const on=toggleStar(b.dataset.text);b.textContent=on?'★':'☆';
 H.review=()=>{const due=srsDueList();if(!due.length){toast(t('revDone'));return;}S.review={list:shuffle(due,Math.random()+''),idx:0,flip:false,know:0};$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderReview();};
 H.revFlip=()=>{if(S.review){S.review.flip=!S.review.flip;renderReview();}};
 H.revGrade=(_,b)=>{const r=S.review;if(!r)return;const v=r.list[r.idx];srsGrade(v.front,b.dataset.know==='1');if(b.dataset.know==='1')r.know++;r.idx++;r.flip=false;if(r.idx>=r.list.length){bumpActivity(r.list.length);renderReviewDone();}else renderReview();};
+H.picBig=(_,b)=>{const src=b.getAttribute('data-src')||b.src;if(!src)return;
+  let o=document.getElementById('pic-big');
+  if(!o){o=document.createElement('div');o.id='pic-big';o.innerHTML='<button class="pb-x" type="button">×</button><img alt="">';
+    document.body.appendChild(o);o.addEventListener('click',()=>{o.style.display='none';});}
+  o.querySelector('img').src=src;o.style.display='flex';};
 H.zi=(_,b)=>{showZiPopup(b.dataset.z,b);};
 H.ziClose=()=>hideZiPopup();
 H.shadowRec=async(_,b)=>{if(SHADOWMR&&SHADOWMR.state==='recording'){SHADOWMR.stop();return;}if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)){toast(th('recDenied'));return;}let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){toast(th('recDenied'));return;}const chunks=[],idx=S.flashIdx;SHADOWMR=new MediaRecorder(stream);SHADOWMR.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};SHADOWMR.onstop=()=>{const blob=new Blob(chunks,{type:(SHADOWMR&&SHADOWMR.mimeType)||'audio/webm'});stream.getTracks().forEach(tk=>tk.stop());if(SHADOW&&SHADOW.url)URL.revokeObjectURL(SHADOW.url);SHADOW={idx,url:URL.createObjectURL(blob)};SHADOWMR=null;renderCards();try{new Audio(SHADOW.url).play();}catch(e){}};SHADOWMR.start();b.classList.add('recording');b.textContent='⏹';};
