@@ -604,13 +604,35 @@ function annotate(text){
   if(text==null)return '';
   if(typeof S==='undefined'||S.ann==='off'||!window.pinyinPro)return esc(text);
   let arr;try{arr=pinyinPro.pinyin(text,{type:'all',toneType:S.ann==='zhuyin'?'num':'symbol'});}catch(e){return esc(text);}
-  return arr.map(o=>{if(!o.isZh||!o.pinyin)return esc(o.origin);const rd=S.ann==='zhuyin'?syl2zh(o.pinyin):o.pinyin;return `<ruby>${esc(o.origin)}<rt>${esc(rd)}</rt></ruby>`;}).join('');
+  return arr.map(o=>{if(!o.isZh||!o.pinyin)return esc(o.origin);
+    const fx=pyFixChar(o.origin);
+    const rd=S.ann==='zhuyin'?syl2zh(fx?pyToNum(fx):o.pinyin):(fx||o.pinyin);
+    return `<ruby>${esc(o.origin)}<rt>${esc(rd)}</rt></ruby>`;}).join('');
 }
 /* ===== 發音(TTS)與生字互動 ===== */
 function speak(text){if(!window.speechSynthesis||!text)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=(S.lang==='cn'?'zh-CN':'zh-TW');u.rate=.8;speechSynthesis.speak(u);}catch(e){}}
 function wordReading(w){if(!window.pinyinPro)return '';try{if(S.ann==='zhuyin'){const arr=pinyinPro.pinyin(w,{type:'all',toneType:'num'});return arr.map(o=>o.isZh?syl2zh(o.pinyin):o.origin).join(' ');}return pinyinPro.pinyin(w,{toneType:'symbol'});}catch(e){return '';}}
 /* 臺灣常見讀音修正（與中國大陸不同者）；只在自動產生拼音時套用，老師匯入的拼音優先 */
-const TW_PY={'期':'qí','究':'jiù','質':'zhí','危':'wéi','企':'qì','暫':'zhàn','攜':'xī','液':'yì','垃':'lè','圾':'sè','蝸':'guā','跌':'dié'};
+const TW_PY={'期':'qí','究':'jiù','質':'zhí','危':'wéi','企':'qì','暫':'zhàn','攜':'xī','液':'yì','垃':'lè','圾':'sè','蝸':'guā','跌':'dié','誰':'shéi','和':'hàn','企':'qì','聯':'lián','夾':'jiá','擁':'yǒng','癌':'ái','液':'yì','秘':'mì','熟':'shóu','角':'jiǎo','鑰':'yào','曝':'pù','symbol':''};
+delete TW_PY['symbol'];
+/* 老師在生詞表裡寫的拼音＝最高優先（課本怎麼標就怎麼念） */
+let _VPYC=null,_VPYN=-1;
+function vpyMaps(){const n=((typeof S!=='undefined'&&S.lessons)||[]).length;
+  if(_VPYC&&_VPYN===n)return _VPYC;
+  _VPYN=n;const ch={},wd={};
+  try{(S.lessons||[]).forEach(l=>{lessonVocab(l).forEach(v=>{
+    const w=String(v.front||'').trim(), py=String(v.py||'').trim();
+    if(!w||!py||/[／/]/.test(w)||/[／/]/.test(py))return;
+    if(!wd[w])wd[w]=py;
+    const cs=[...w].filter(c=>/[\u3400-\u9fff]/.test(c));
+    const sy=py.split(/[\s·]+/).filter(Boolean);
+    if(cs.length===1&&sy.length===1&&!ch[cs[0]])ch[cs[0]]=sy[0];});});}catch(e){}
+  _VPYC={ch,wd};return _VPYC;}
+function pyFixChar(c){const m=vpyMaps();return m.ch[c]||TW_PY[c]||null;}
+/* 帶調拼音 → 數字調（給注音轉換用） */
+const _TMARK={'ā':'a1','á':'a2','ǎ':'a3','à':'a4','ē':'e1','é':'e2','ě':'e3','è':'e4','ī':'i1','í':'i2','ǐ':'i3','ì':'i4','ō':'o1','ó':'o2','ǒ':'o3','ò':'o4','ū':'u1','ú':'u2','ǔ':'u3','ù':'u4','ǖ':'ü1','ǘ':'ü2','ǚ':'ü3','ǜ':'ü4'};
+function pyToNum(p){let t='5',out='';for(const c of String(p||'')){const m=_TMARK[c];if(m){out+=m[0];t=m[1];}else out+=c;}return out+t;}
+
 function twReading(w){if(!window.pinyinPro)return '';if(S.ann==='zhuyin')return wordReading(w);try{const arr=pinyinPro.pinyin(w,{type:'all',toneType:'symbol'});return arr.map(o=>o.isZh?(TW_PY[o.origin]||o.pinyin):o.origin).join(' ');}catch(e){return wordReading(w);}}
 // 少數嘆詞/多音字，自動拼音會給不好懂的讀音（如「嗯」→ǹg），這裡強制修正
 const PY_OVERRIDE={'嗯':'ēn'};
@@ -676,7 +698,10 @@ function applyVi(){if(S.lang!=='vi')return;document.querySelectorAll('[data-trvi
 function hydrateVi(arr){if(S.lang!=='vi')return;ensureVi(arr).then(()=>applyVi());}
 function annotateWord(w){if(S.ann==='off'||!window.pinyinPro)return esc(w);
   let arr;try{arr=pinyinPro.pinyin(w,{type:'all',toneType:S.ann==='zhuyin'?'num':'symbol'});}catch(e){return esc(w);}
-  return arr.map(o=>{if(!o.isZh||!o.pinyin)return esc(o.origin);const rd=S.ann==='zhuyin'?syl2zh(o.pinyin):o.pinyin;return `<ruby>${esc(o.origin)}<rt>${esc(rd)}</rt></ruby>`;}).join('');}
+  return arr.map(o=>{if(!o.isZh||!o.pinyin)return esc(o.origin);
+    const fx=pyFixChar(o.origin);
+    const rd=S.ann==='zhuyin'?syl2zh(fx?pyToNum(fx):o.pinyin):(fx||o.pinyin);
+    return `<ruby>${esc(o.origin)}<rt>${esc(rd)}</rt></ruby>`;}).join('');}
 function vocabDict(){const dict=[],seen=new Set();S.lessons.forEach(l=>lessonVocab(l).forEach(v=>{const w=v.front;if(w&&w.length>1&&/[㐀-鿿]/.test(w)&&!seen.has(w)){seen.add(w);dict.push(w);}}));dict.sort((a,b)=>b.length-a.length);return dict;}
 function prose2(text){if(text==null)return '';const dict=vocabDict();
   function renderRun(s){let html='',i=0;while(i<s.length){let m=null;for(const w of dict){if(s.substr(i,w.length)===w){m=w;break;}}
@@ -690,11 +715,18 @@ function prose2(text){if(text==null)return '';const dict=vocabDict();
   let out='';segs.forEach(o=>{const w=o.segment;
     if(w.length>1&&/[㐀-鿿]/.test(w)){
       // 若這個詞裡剛好含有老師定義的生詞，就用生詞優先切（讓生詞可查釋義）；否則整個詞當一個單位
-      const hasVocab=dict.some(d=>w.includes(d));
-      out+='<span class="ci-wrap">'+(hasVocab?renderRun(w):ziSpan(w))+'</span>';
+      /* 只有老師生詞表裡真的有這個詞，才整詞當一個單位；否則拆開（避免「她是」被當成一個詞） */
+      const isVocab=dict.indexOf(w)>=0;
+      out+='<span class="ci-wrap">'+(isVocab?ziSpan(w):renderRun(w))+'</span>';
     }else{out+=renderRun(w);}});
   return out;}
-function showZiPopup(ch,el){const py=window.pinyinPro?pinyinPro.pinyin(ch,{toneType:'symbol'}):'';let zh='';try{if(window.pinyinPro){const a=pinyinPro.pinyin(ch,{type:'all',toneType:'num'});zh=a.map(o=>o.isZh?syl2zh(o.pinyin):'').join('');}}catch(e){}
+function showZiPopup(ch,el){
+  const M=vpyMaps();
+  let py='';
+  if(M.wd[ch])py=M.wd[ch];
+  else if(window.pinyinPro){try{py=pinyinPro.pinyin(ch,{type:'all',toneType:'symbol'}).map(o=>o.isZh?(pyFixChar(o.origin)||o.pinyin):o.origin).join(' ');}catch(e){py='';}}
+  let zh='';try{if(window.pinyinPro){const a=pinyinPro.pinyin(ch,{type:'all',toneType:'num'});
+    zh=a.map(o=>{if(!o.isZh)return '';const fx=pyFixChar(o.origin);return syl2zh(fx?pyToNum(fx):o.pinyin);}).join('');}}catch(e){}
   const mr=vocabMeanRaw(ch);let pop=document.getElementById('zi-pop');if(!pop){pop=document.createElement('div');pop.id='zi-pop';pop.className='zi-pop';document.body.appendChild(pop);}
   pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div><div class="zi-py">${esc(py)}${zh?(' · '+esc(zh)):''}</div>${mr?`<div class="zi-mean">${mr.pos?'('+esc(mr.pos)+') ':''}<span>${esc((mr.back)||'')}</span></div>`:''}<button class="btn btn-sm" data-act="speak" data-text="${esc(ch)}">🔊</button>`;
   hydrateVi(mr?[mr.back]:[]);
