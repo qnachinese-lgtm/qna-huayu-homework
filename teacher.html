@@ -1429,7 +1429,7 @@ function tplModal(){const nextNo=S.lessons.length+1;const bookOpts=[...new Set(S
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>
      <button class="btn btn-primary" data-act="doTplLesson">建立並編輯</button></div></div>`);}
-function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaReset();gpInit(l);dlgInit(l);
+function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaReset();gpInit(l);ntInit(l);dlgInit(l);
   const bookOpts=[...new Set(S.lessons.map(x=>(x.textbook||'').trim()).filter(Boolean))];
   openModal(`<div class="modal wide"><div class="modal-head"><h3>${e?'編輯課文':'新增課文'}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="form-grid">
@@ -1447,11 +1447,12 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
      <div class="hint" style="margin:-2px 0 10px">只想出補充作業？課名填一下即可，下面對話／生詞／語法全部留空，存好後在卡片點「練習題」出題。</div>
      <div class="field full"><label>對話／課文段落 <span class="hint">一課可有多個對話（對話一、對話二…），每段各有自己的課文、生詞、課文音檔、生詞真人發音；語法之後再合併講。</span></label><div id="dlg-editor" class="dlg-editor"></div></div>
      <div class="field full"><label>語法點 <span class="hint">一個語法一張卡。時代華語：填「說明」一個區塊＋例句即可；當代：可分功能／結構／用法多個區塊。要把語法排到短文後面，存好後到課文卡按「📐 課文順序」。</span></label><div id="gp-editor" class="gp-editor"></div></div>
+     <div class="field full"><label>注釋 Notes <span class="hint">課本結尾「注釋 Notes」方框的內容。一則一格，標題＋說明；例句每行一句。學生端會在整課最後看到。</span></label><div id="nt-editor" class="gp-editor"></div></div>
      <div class="field"><label>例句 <span class="hint">每行一句；學生可點來聽發音、看拼音／注音</span></label><textarea id="l-examples" placeholder="今天天氣很好。&#10;我喜歡喝茶。">${esc(l.examples||'')}</textarea></div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
      <button class="btn btn-primary" data-act="saveLesson" data-id="${l.id||''}">${e?'儲存':'新增'}</button></div></div>`);
-  dlgRender();gpRender();
+  dlgRender();gpRender();ntRender();
 }
 
 /* ---------- 練習題管理 ---------- */
@@ -2942,9 +2943,28 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
       try{d.audio_url=await uploadVocabAudio(d._la.file);d.line_segments=d._la.segs||[];d._la=null;}
       catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('課文音檔上傳失敗：'+(err.message||err));}}}
   const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',vocab_vi:(d.vocab_vi||'').trim(),discussion:(d.discussion||'').trim(),image_url:(d.image_url||'').trim()||null,audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.discussion||d.image_url||d.audio_url||d.vocab_audio_url);
-  const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,video_url:(($('#l-video')&&$('#l-video').value)||'').trim()||null,vi_release:!!($('#l-vi-release')&&$('#l-vi-release').checked),dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,key_points:'',examples:$('#l-examples').value,handout_url:(($('#l-handout-url')&&$('#l-handout-url').value)||'')||null,handout_name:(($('#l-handout-name')&&$('#l-handout-name').value)||'')||null,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[])};
+  const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,video_url:(($('#l-video')&&$('#l-video').value)||'').trim()||null,vi_release:!!($('#l-vi-release')&&$('#l-vi-release').checked),dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,notes:ntCollect(),key_points:'',examples:$('#l-examples').value,handout_url:(($('#l-handout-url')&&$('#l-handout-url').value)||'')||null,handout_name:(($('#l-handout-name')&&$('#l-handout-name').value)||'')||null,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[])};
   try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}};
 
+/* ===== 注釋 Notes 編輯器 ===== */
+let NT=[];
+function ntInit(l){NT=(l&&Array.isArray(l.notes)?l.notes:[]).map(n=>({title:n.title||'',text:((n.blocks||[])[0]||{}).text||'',ex:((n.blocks||[])[0]||{}).ex||''}));}
+function ntSync(){NT.forEach((n,i)=>{
+  const t=document.querySelector('.nt-title[data-i="'+i+'"]');if(t)n.title=t.value;
+  const x=document.querySelector('.nt-text[data-i="'+i+'"]');if(x)n.text=x.value;
+  const e=document.querySelector('.nt-ex[data-i="'+i+'"]');if(e)n.ex=e.value;});}
+function ntRender(){const host=document.getElementById('nt-editor');if(!host)return;
+  host.innerHTML=NT.map((n,i)=>`<div class="gp-item" style="padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px">
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <span class="tag">注釋 ${i+1}</span>
+      <input class="nt-title" data-i="${i}" value="${esc(n.title||'')}" placeholder="標題，例如：喜歡 and 愛" style="flex:1">
+      <button class="btn btn-sm btn-danger" type="button" data-act="ntDel" data-id="${i}">刪除</button></div>
+    <textarea class="nt-text" data-i="${i}" rows="4" placeholder="說明（可用中文或英文）">${esc(n.text||'')}</textarea>
+    <textarea class="nt-ex" data-i="${i}" rows="3" placeholder="例句，每行一句（學生端會自動標拼音）" style="margin-top:6px">${esc(n.ex||'')}</textarea>
+  </div>`).join('')+`<button class="btn btn-sm" type="button" data-act="ntAdd">＋ 新增注釋</button>`;}
+H.ntAdd=()=>{ntSync();NT.push({title:'',text:'',ex:''});ntRender();};
+H.ntDel=(i)=>{ntSync();NT.splice(Number(i),1);ntRender();};
+function ntCollect(){ntSync();return NT.map(n=>({title:(n.title||'').trim(),blocks:[{label:'',text:(n.text||'').trim(),ex:(n.ex||'').trim()}]})).filter(n=>n.title||n.blocks[0].text||n.blocks[0].ex);}
 /* ===== 語法點結構化編輯器 ===== */
 let GP=[];const GP_PRESETS=['說明','例句','功能','結構','否定','疑問','用法'];
 function gpInit(l){
