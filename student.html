@@ -999,6 +999,36 @@ function lessonBodyHtml(l,opts){opts=opts||{};if(l.kind==='classical')return cla
     const body=groups.map(g=>`<div class="lsec-pane${g.k===cur?'':' hide'}" data-k="${g.k}">${g.h}</div>`).join('');
     return head+`<div class="ls-sec-b"><div class="lsec-tabs">${bar}</div>${body}</div></details>`;};
   const gpqs=qsAll.filter(q=>!isRefItem(q));
+  /* ===== 依課本編排：對話一→生詞一→語法一→對話二→生詞二→語法二→短文→生詞三→（短文語法） =====
+     只要有任何一個語法點的 seg 是數字（＝對應第幾段課文），就用這種分段方式；
+     沒有設定的教材（例如時代華語三）維持原本的「對話語法／短文語法」兩大區。 */
+  const splitMode=gps.some(g=>/^\d+$/.test(String((g&&g.seg)||'')));
+  if(splitMode){
+    const GNUM=['','一','二','三','四','五','六'];
+    const dOrder=[];seq.forEach(e=>{if(e.t==='d'&&dOrder.indexOf(e.i)<0)dOrder.push(e.i);});
+    for(let i=0;i<dlgs.length;i++)if(dOrder.indexOf(i)<0)dOrder.push(i);
+    const partsOf={},push=(i,o)=>{(partsOf[i]=partsOf[i]||[]).push(o);};
+    seq.forEach(e=>{if(e.t==='d')push(e.i,{k:'d',n:0,h:dialogueBlockHtml(l,e.i,opts)});
+      else if(e.t==='v')push(e.i,{k:'v',n:nV(e.i),h:vocabSectionHtml(l,e.i,opts)});
+      else if(e.t==='q')push(e.i,{k:'q',n:nQ(e.i),h:discSectionHtml(l,e.i,opts)});});
+    const shortIdx=dOrder.filter(isShort)[0];
+    const gramOf={};
+    gps.forEach((g,gi)=>{const sg=String((g&&g.seg)||'');
+      let di=/^\d+$/.test(sg)?Number(sg):(sg==='短文'&&shortIdx!=null?shortIdx:0);
+      if(!(di>=0&&di<dlgs.length))di=0;
+      (gramOf[di]=gramOf[di]||[]).push(gi);});
+    let html='',gn=0;
+    dOrder.forEach(i=>{
+      const ttl=((dlgs[i]||{}).title||'').trim()||(isShort(i)?'短文':'對話'+(i+1));
+      html+=sec(partsOf[i]||[],isShort(i)?'📄':'📖',ttl,l.id+'::d'+i);
+      const gl=gramOf[i]||[];
+      if(gl.length){gn++;
+        const gh=gl.map((gi,k)=>grammarSectionHtml(l,gi,qsAll,opts,k+1));
+        const glab=LT({zh:'語法'+(GNUM[gn]||gn),cn:'语法'+(GNUM[gn]||gn),en:'Grammar '+gn,vi:'Ngữ pháp '+gn});
+        html+=sec(gh.map(h=>({k:'g',n:0,h})),'📘',glab,l.id+'::g'+i);}
+    });
+    return videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)+html+tail+gpracBarHtml(l)+examplesHtml(l.examples);
+  }
   return videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)
     +sec(dlgText,'📖',pk(SLAB.dlg,'對話內容'),l.id+'::dlg')
     +sec(dlgGram.map(h=>({k:'g',n:0,h})),'📘',pk(SLAB.dlgG,'對話語法'),l.id+'::dlgG')
