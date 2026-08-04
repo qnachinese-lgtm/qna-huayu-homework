@@ -639,7 +639,8 @@ function annotate(text){
     return `<ruby>${esc(o.origin)}<rt>${esc(rd)}</rt></ruby>`;}).join('');
 }
 /* ===== 發音(TTS)與生字互動 ===== */
-function speak(text){if(!window.speechSynthesis||!text)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=(S.lang==='cn'?'zh-CN':'zh-TW');u.rate=.8;speechSynthesis.speak(u);}catch(e){}}
+/* 一律不使用機器合成語音：沒有真人錄音就不發聲 */
+function speak(){return;}
 function wordReading(w){if(!window.pinyinPro)return '';try{if(S.ann==='zhuyin'){const arr=pinyinPro.pinyin(w,{type:'all',toneType:'num'});return arr.map(o=>o.isZh?syl2zh(o.pinyin):o.origin).join(' ');}return pinyinPro.pinyin(w,{toneType:'symbol'});}catch(e){return '';}}
 /* 臺灣常見讀音修正（與中國大陸不同者）；只在自動產生拼音時套用，老師匯入的拼音優先 */
 const TW_PY={'期':'qí','究':'jiù','質':'zhí','危':'wéi','企':'qì','暫':'zhàn','攜':'xī','液':'yì','垃':'lè','圾':'sè','蝸':'guā','跌':'dié','誰':'shéi','和':'hàn','企':'qì','聯':'lián','夾':'jiá','擁':'yǒng','癌':'ái','液':'yì','秘':'mì','熟':'shóu','角':'jiǎo','鑰':'yào','曝':'pù','symbol':''};
@@ -682,7 +683,7 @@ let _segAudio;
 function playSegment(url,s,e){const a=_segAudio||(_segAudio=new Audio());a.ontimeupdate=null;const same=a.src===url;if(!same)a.src=url;const go=()=>{try{a.currentTime=s;}catch(_){}a.ontimeupdate=()=>{if(a.currentTime>=e){a.pause();a.ontimeupdate=null;}};a.play().catch(()=>{});};if(same&&a.readyState>=1)go();else a.onloadedmetadata=go;}
 function vocabHasAudio(l,di,vi){const d=(l&&lessonDialogues(l)[di])||{};return !!(d.vocab_audio_url&&Array.isArray(d.vocab_segments)&&d.vocab_segments[vi]);}
 /* 聽寫專用：有真人音檔就播真人，沒有才用 AI 發音（其他地方一律不用 AI） */
-function dictPlay(v){if(!v)return;const l=S.lessons.find(x=>x.id===v.lessonId);if(l&&vocabHasAudio(l,v.di,v.vi))vocabPlay(v.lessonId,v.di,v.vi,v.front);else speak(v.front);}
+function dictPlay(v){if(!v)return;const l=S.lessons.find(x=>x.id===v.lessonId);if(l&&vocabHasAudio(l,v.di,v.vi))vocabPlay(v.lessonId,v.di,v.vi,v.front);}
 function vocabPlay(lid,di,vi,fallbackText){const l=S.lessons.find(x=>x.id===lid);if(!l)return;const d=lessonDialogues(l)[di]||{};const seg=Array.isArray(d.vocab_segments)&&d.vocab_segments[vi];if(d.vocab_audio_url&&seg)playSegment(d.vocab_audio_url,seg.s,seg.e);/* 只播老師上傳的真人音檔，不使用 AI 語音 */}
 /* ===== 連續天數 / 收藏 / 複習(SRS) ===== */
 function _today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -757,7 +758,7 @@ function showZiPopup(ch,el){
   let zh='';try{if(window.pinyinPro){const a=pinyinPro.pinyin(ch,{type:'all',toneType:'num'});
     zh=a.map(o=>{if(!o.isZh)return '';const fx=pyFixChar(o.origin);return syl2zh(fx?pyToNum(fx):o.pinyin);}).join('');}}catch(e){}
   const mr=vocabMeanRaw(ch);let pop=document.getElementById('zi-pop');if(!pop){pop=document.createElement('div');pop.id='zi-pop';pop.className='zi-pop';document.body.appendChild(pop);}
-  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div><div class="zi-py">${esc(py)}${zh?(' · '+esc(zh)):''}</div>${mr?`<div class="zi-mean">${mr.pos?'('+esc(mr.pos)+') ':''}<span>${esc((mr.back)||'')}</span></div>`:''}<button class="btn btn-sm" data-act="speak" data-text="${esc(ch)}">🔊</button>`;
+  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div><div class="zi-py">${esc(py)}${zh?(' · '+esc(zh)):''}</div>${mr?`<div class="zi-mean">${mr.pos?'('+esc(mr.pos)+') ':''}<span>${esc((mr.back)||'')}</span></div>`:''}`;
   hydrateVi(mr?[mr.back]:[]);
   pop.style.display='block';pop.style.visibility='hidden';const r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight;
   let left=r.left+r.width/2-pw/2;left=Math.max(8,Math.min(left,window.innerWidth-pw-8));let top=r.top-ph-10;if(top<6)top=r.bottom+10;
@@ -2660,10 +2661,11 @@ H.hwSubmit=async()=>{if(S.preview){toast('預覽模式無法送出');return;}if(
 /* ---- 課文逐句跟讀 ---- */
 let SS=null;
 function splitSentences(text){return (text||'').replace(/\r/g,'').split('\n').flatMap(line=>(line.match(/[^。！？!?；;]+[。！？!?；;]*/g)||[])).map(s=>s.trim()).filter(s=>s&&/[㐀-鿿]/.test(s));}
+function ssHasAudio(i){const g=SS&&SS.lineSegs&&SS.lineSegs[i];return !!(SS&&SS.audioUrl&&g&&typeof g.s==='number');}
 function renderSS(){let ov=document.getElementById('ss-ov');if(ov)ov.remove();ov=document.createElement('div');ov.id='ss-ov';ov.className='stroke-ov';
   const doc=SS.doc,fbm=(doc&&doc.feedback)||{};
   const rows=SS.sents.map((s,i)=>{const rec=SS.recs[i];const note=fbm[i];
-    return `<div class="ss-row" id="ss-row-${i}"><div class="ss-sent">${annotate(s)}</div><div class="ss-tools"><button class="btn btn-sm" data-act="ssPlay" data-i="${i}">▶ ${t('listen')}</button><button class="btn btn-sm rec-btn" data-act="ssRec" data-i="${i}" aria-label="跟讀">🎤</button>${rec&&rec.url?`<button class="btn btn-sm" data-act="ssMine" data-i="${i}">▶ ${t('shadowMine')}</button><span class="ss-okmark">✓</span>`:''}</div>${note?`<div class="ss-fb ok" style="display:block">💬 ${t('sentFb')}：${esc(note)}</div>`:''}</div>`;}).join('');
+    return `<div class="ss-row" id="ss-row-${i}"><div class="ss-sent">${annotate(s)}</div><div class="ss-tools">${ssHasAudio(i)?`<button class="btn btn-sm" data-act="ssPlay" data-i="${i}">▶ ${t('listen')}</button>`:''}<button class="btn btn-sm rec-btn" data-act="ssRec" data-i="${i}" aria-label="跟讀">🎤</button>${rec&&rec.url?`<button class="btn btn-sm" data-act="ssMine" data-i="${i}">▶ ${t('shadowMine')}</button><span class="ss-okmark">✓</span>`:''}</div>${note?`<div class="ss-fb ok" style="display:block">💬 ${t('sentFb')}：${esc(note)}</div>`:''}</div>`;}).join('');
   const reviewed=doc&&doc.status==='reviewed';const submitted=doc&&doc.status==='submitted';
   const banner=reviewed?`<div class="ss-banner ok">✅ ${t('ssReviewed')}${doc.overall?'：'+esc(doc.overall):''}</div>`:submitted?`<div class="ss-banner mid">⏳ ${t('ssPending')}</div>`:`<div class="ss-banner hintbar">${t('ssHint')}</div>`;
   const recCount=Object.keys(SS.recs||{}).filter(i=>SS.recs[i]&&SS.recs[i].url).length;
@@ -2677,7 +2679,7 @@ H.ssClose=()=>{try{if(SS&&SS.mr&&SS.mr.state==='recording')SS.mr.stop();}catch(e
 H.ssPlay=(_,b)=>{if(!SS)return;const i=+b.dataset.i,row=document.getElementById('ss-row-'+i);try{speechSynthesis.cancel();}catch(e){}document.querySelectorAll('.ss-row.playing').forEach(r=>r.classList.remove('playing'));
   const seg=SS.lineSegs&&SS.lineSegs[i];
   if(SS.audioUrl&&seg&&typeof seg.s==='number'){if(row)row.classList.add('playing');playSegment(SS.audioUrl,seg.s,seg.e);setTimeout(()=>{if(row)row.classList.remove('playing');},Math.max(400,(seg.e-seg.s)*1000+250));return;}
-  try{const u=new SpeechSynthesisUtterance(SS.sents[i]);u.lang=(S.lang==='cn'?'zh-CN':'zh-TW');u.rate=.85;u.onstart=()=>{if(row)row.classList.add('playing');};u.onend=()=>{if(row)row.classList.remove('playing');};speechSynthesis.speak(u);}catch(e){}};
+};
 H.ssRec=async(_,b)=>{if(!SS)return;const i=+b.dataset.i;
   if(SS.mr&&SS.mr.state==='recording'){SS.mr.stop();return;}
   if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)){toast(th('recDenied'));return;}
