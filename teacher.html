@@ -2519,13 +2519,38 @@ function gpSolT(q){if(q.type==='choice'){const o=(q.options||[])[Number(q.answer
     const parts=its.map((it,i)=>{const v=(it&&it.ans)||a[i]||'';return v?('第'+(i+1)+'題 '+String(v).replace(/,/g,'、')):'';}).filter(Boolean);
     return parts.join('　');}
   return '';}
+/* ===== 批改畫面：完整顯示題目本身（說明、圖、選項、子題），老師才知道學生在答什麼 ===== */
+function tStripOptLab(x){return String(x||'').replace(/^\s*[a-hA-HＡ-Ｈａ-ｈ]\s*[\.．、）)：:]\s*/,'').trim();}
+function tOptBlank(x){return esc(String(x||'')).replace(/[_＿]{2,}/g,'<span class="opt-blank">＿＿＿</span>').replace(/\n/g,'<br>');}
+function tOptBank(opts){return (opts||[]).length?`<div class="opt-bank"><div class="opt-bank-hd">選項</div>${(opts||[]).map((o,i)=>`<div class="opt-bank-row"><span class="opt-lab">${String.fromCharCode(97+i)}</span><span class="opt-bank-txt">${esc(tStripOptLab(o))}</span></div>`).join('')}</div>`:'';}
+/* 回傳「題目本身」的內容（不含學生答案） */
+function gpQBodyT(q){
+  const ty=q.type||'';
+  if(ty==='choice'){const co=Number(q.answer);
+    return '<div class="opts">'+(q.options||[]).map((o,i)=>`<div class="opt${i===co?' is-correct':''}"><b style="margin-right:6px">${String.fromCharCode(97+i)}.</b><span>${esc(tStripOptLab(o))}</span>${i===co?'<span style="margin-left:auto;color:#16a34a">✓ 正解</span>':''}</div>`).join('')+'</div>';}
+  if(ty==='opt'){const items=(q.items||[]);
+    return tOptBank(q.options)+items.map((it,i)=>`<div class="optitem${items.length<=1?' nonum':''}">${items.length<=1?'':`<span class="optitem-n">${i+1}</span>`}<div class="optitem-body"><div class="optitem-q">${tOptBlank(it&&it.text)}</div>${(it&&it.ans)?`<div class="hint">參考答案：${esc(String(it.ans).replace(/,/g,'、'))}</div>`:''}</div></div>`).join('');}
+  if(ty==='order')return '<div class="hint" style="margin:4px 0">要重組的詞：'+((q.options||[]).map(x=>'<span class="tag" style="margin:0 4px 4px 0;display:inline-block">'+esc(x)+'</span>').join('')||'—')+'</div>';
+  if(ty==='match')return (q.options||[]).map(pr=>`<div class="match-row"><span class="l">${esc((pr&&pr.l)||'')}</span><span class="muted">→ ${esc((pr&&pr.r)||'')}</span></div>`).join('');
+  return '';
+}
+/* 一整題的題面：說明 ＋ 題號題幹 ＋ 圖 ＋ 題目內容 */
+function gpQHeadT(q,no){
+  const instr=q.instruction?`<div class="q-instr">${esc(q.instruction)}</div>`:'';
+  const pic=q.image_url?`<div class="q-pic"><img src="${esc(q.image_url)}" alt="" loading="lazy"></div>`:'';
+  const aud=q.audio_url?`<audio controls preload="none" src="${esc(q.audio_url)}" style="width:100%;margin:6px 0"></audio>`:'';
+  const pr=String(q.prompt||'').replace(/[_＿]{2,}/g,'＿＿＿＿').trim();
+  const body=gpQBodyT(q);
+  const head=`<div class="srev-word">${no}.${pr?(' '+esc(pr)):(body?'':' <span class="muted" style="font-weight:400;font-size:15px">（這一題沒有題幹文字）</span>')}</div>`;
+  return instr+head+pic+aud+(body?`<div style="margin:6px 0 8px">${body}</div>`:'');
+}
 H.reviewGprac=(id)=>{const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
   const l=S.lessons.find(x=>x.id===sd.gprac_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
   const fb=sd.feedback||{},ans=sd.answers||{};
   const qs=sortQuestionsLogical(questionsOf(sd.gprac_lesson)).filter(q=>q.bank!=='hw'&&q.type!=='note');
   let rows='';qs.forEach((q,i)=>{const a=gpAnsTextT(q,ans[q.id]);const sol=gpSolT(q);
-    rows+=`<div class="srev-item"><div class="srev-word">${i+1}. ${esc((q.prompt||'').replace(/[_＿]{2,}/g,'____'))}</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>${sol?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(sol)}</div>`:''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="給這一題的建議（可留空，學生會看到）">${esc(fb[q.id]||'')}</textarea></div>`;});
+    rows+=`<div class="srev-item">${gpQHeadT(q,i+1)}<div class="lesson-label" style="margin-top:8px">學生的答案</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>${sol?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(sol)}</div>`:''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="給這一題的建議（可留空，學生會看到）">${esc(fb[q.id]||'')}</textarea></div>`;});
   if(!rows)rows='<div class="muted">（這一課目前沒有語法練習題）</div>';
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>📘 語法練習批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${rows}
