@@ -651,6 +651,7 @@ function renderDashboard(){
   const _hero=`<div class="tpg-h"><h2>${_greet}，美娟老師 👋</h2><div class="sub">${esc(_today)}（週${_wd}）｜在學 <b>${_act}</b> 位${_pend?('　·　<b>'+_pend+'</b> 份待批改'):'　·　沒有待批改的作業'}${_cls?('　·　今天 <b>'+_cls+'</b> 堂課'):''}</div></div>`;
   body.innerHTML=`${_hero}${statHtml}${healthCheckHtml()}<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
     <details class="dash-fold" open style="margin-top:14px"><summary>⏰ 提醒（堂數／補課）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>
+    <details class="dash-fold" open style="margin-top:14px"><summary>📮 還沒交作業${(function(){const n=hwPending().filter(x=>x.days!=null&&x.days<0).length;return n?('（逾期 '+n+'）'):'';})()}</summary><div style="margin-top:10px">${hwDueHtml()}</div></details>
     <details class="dash-fold" style="margin-top:14px"><summary>📈 學生進度</summary><div style="margin-top:10px">${progHtml}</div></details>`;
 }
 
@@ -668,6 +669,70 @@ function quizFoldHtml(){
 function liveFoldHtml(){
   return `<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">🎮 即時比賽（Kahoot 式）${(S.livequizzes||[]).length?'（'+(S.livequizzes||[]).length+'）':''}</h3><div style="margin-top:10px"><div class="hint" style="margin-bottom:8px">學生登入後在首頁用代碼加入，你一題一題推、即時排行榜。</div>${(function(){const lqs=(S.livequizzes||[]).slice().sort((a,b)=>String(a.book||'').localeCompare(String(b.book||''))||((a.lesson_no||99)-(b.lesson_no||99))||String(a.quiz_type||'').localeCompare(String(b.quiz_type||'')));if(!lqs.length)return '<div class="hint">目前沒有即時比賽題庫。</div>';const TY={vocab:'詞語測驗',reading:'閱讀測驗'};const head='<div class="lqt lqt-head"><span>教材</span><span>課</span><span>類型</span><span>題數</span><span></span></div>';return head+lqs.map(l=>`<div class="lqt"><b>${esc(l.book||'—')}</b><span>${l.lesson_no?('第'+l.lesson_no+'課'):'—'}</span><span>${TY[l.quiz_type]||esc(l.title||'')}${l.answers_verified?'':' <span title="答案尚未確認" style="color:#d97706;cursor:help">⚠️</span>'}</span><span>${(l.questions||[]).length} 題</span><span style="justify-self:end;display:flex;gap:6px;white-space:nowrap"><button class="btn btn-sm" data-act="liveEdit" data-id="${l.id}" title="編輯題目/答案">✏️</button><button class="btn btn-sm btn-accent" data-act="liveHost" data-id="${l.id}">▶ 主持</button></span></div>`).join('');})()}<div style="margin-top:10px"><button class="btn btn-sm" data-act="lqeNew">＋ 新增即時比賽題庫（自己出題）</button></div></div></div>`;
 }
+
+/* ===================== 📮 作業催繳：誰還沒交 ===================== */
+function hwDaysTo(d){if(!d)return null;try{const a=new Date(localToday()+'T00:00:00'),b=new Date(d+'T00:00:00');return Math.round((b-a)/86400000);}catch(e){return null;}}
+function hwPending(){
+  const out=[];
+  const live=(s)=>s&&!s.deleted_at&&!s.is_test&&enrollOf(s)!=='paused';
+  (S.lessons||[]).forEach(l=>{
+    if(!l||l.kind)return;
+    const qn=(S.questions||[]).filter(q=>q&&q.lesson_id===l.id&&q.bank!=='hw'&&q.type!=='note').length;
+    if(!qn)return;
+    lessonTargets(l).filter(live).forEach(s=>{
+      const r=(S.results||[]).find(x=>x&&x.student_id===s.id&&x.lesson_id===l.id);
+      if(r&&r.status==='done')return;
+      out.push({sid:s.id,name:s.name||'',what:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||''),
+        kind:'課文練習',due:l.due_date||'',draft:!!(r&&r.status==='draft')});});});
+  (S.workbooks||[]).forEach(w=>{
+    if(!w||w.deleted_at)return;
+    lessonTargets(w).filter(live).forEach(s=>{
+      const d=(S.wbdocs||[]).find(x=>x&&x.student_id===s.id&&x.wb_lesson===w.id);
+      if(d&&(d.status==='submitted'||d.status==='reviewed'))return;
+      out.push({sid:s.id,name:s.name||'',what:w.title||'作業簿',kind:'作業簿',due:w.due_date||'',draft:!!(d&&d.status==='draft')});});});
+  (S.quizzes||[]).forEach(q=>{
+    if(!q||q.deleted_at)return;
+    (q.assigned_ids||[]).forEach(id=>{const s=S.students.find(x=>x.id===id);if(!live(s))return;
+      if((S.quizResults||[]).some(r=>r&&r.quiz_id===q.id&&r.student_id===id))return;
+      out.push({sid:id,name:s.name||'',what:q.title||'隨堂小考',kind:'隨堂小考',due:'',draft:false});});});
+  out.forEach(x=>{x.days=hwDaysTo(x.due);});
+  out.sort((a,b)=>{
+    const ra=(a.days==null)?2:(a.days<0?0:1), rb=(b.days==null)?2:(b.days<0?0:1);
+    if(ra!==rb)return ra-rb;
+    if(a.days!=null&&b.days!=null&&a.days!==b.days)return a.days-b.days;
+    return String(a.name).localeCompare(String(b.name));});
+  return out;}
+function hwDueHtml(){
+  const all=hwPending();
+  if(!all.length)return '<div class="muted" style="padding:8px 2px">目前每一位學生的作業都交齊了 👍</div>';
+  const over=all.filter(x=>x.days!=null&&x.days<0);
+  const soon=all.filter(x=>x.days!=null&&x.days>=0&&x.days<=7);
+  const showAll=!!S.hwAll;
+  const list=showAll?all:over.concat(soon);
+  const chip=(x)=>x.days==null?'<span class="badge">未設截止日</span>'
+    :(x.days<0?`<span class="badge badge-overdue">逾期 ${-x.days} 天</span>`
+    :(x.days===0?'<span class="badge badge-soon">今天到期</span>':`<span class="badge badge-soon">還有 ${x.days} 天</span>`));
+  const by={},order=[];
+  list.forEach(x=>{if(!by[x.sid]){by[x.sid]=[];order.push(x.sid);}by[x.sid].push(x);});
+  const rows=order.map(sid=>{const its=by[sid];const nm=its[0].name;
+    return `<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start">
+      <b>${snm(nm)}</b><span class="muted" style="font-size:12px">${its.length} 份未交</span>
+      <span class="grow"></span>
+      <button class="btn btn-sm" data-act="hwCopy" data-id="${esc(sid)}">📋 複製提醒訊息</button>
+      <div style="flex-basis:100%;margin-top:4px">${its.map(x=>`<div style="font-size:13px;margin:2px 0">${chip(x)} <span class="tag">${esc(x.kind)}</span>${esc(x.what)}${x.draft?' <span class="muted" style="font-size:12px">（寫到一半）</span>':''}${x.due?(' <span class="muted" style="font-size:12px">截止 '+esc(x.due)+'</span>'):''}</div>`).join('')}</div></div>`;}).join('');
+  const noDue=all.filter(x=>x.days==null).length;
+  const head=`<div class="hint" style="margin-bottom:8px">逾期 <b style="color:#dc2626">${over.length}</b> 份 · 七天內到期 <b style="color:#d97706">${soon.length}</b> 份${noDue?(' · 沒設截止日 '+noDue+' 份'):''}
+    <button class="btn btn-sm btn-ghost" data-act="hwToggleAll" style="margin-left:8px">${showAll?'只看急的':'看全部未交'}</button></div>`;
+  return head+(rows||'<div class="muted" style="padding:8px 2px">沒有逾期或快到期的作業 👍　（按「看全部未交」可以看其他的）</div>')
+    +(noDue&&!showAll?'<div class="hint" style="margin-top:6px">💡 在課文的「發佈」裡設「截止日期」，這裡才會自動排出誰快遲交。</div>':'');}
+H.hwToggleAll=()=>{S.hwAll=!S.hwAll;render();};
+H.hwCopy=(sid)=>{const its=hwPending().filter(x=>x.sid===sid);if(!its.length)return;
+  const s=S.students.find(x=>x.id===sid)||{};
+  const lines=its.map(x=>'・'+x.kind+'：'+x.what+(x.due?('（截止 '+x.due+(x.days!=null&&x.days<0?('，已逾期 '+(-x.days)+' 天'):'')+'）'):''));
+  const txt=(s.name||'')+'，你好 👋\n這幾份作業還沒交，找時間補一下喔：\n'+lines.join('\n')+'\n\n登入後在「我的作業」就看得到。有問題隨時問我。\n— 美娟老師';
+  try{navigator.clipboard.writeText(txt).then(()=>toast('提醒訊息已複製，貼到 Zalo／LINE 給他'),()=>{});}
+  catch(e){toast('複製失敗，請手動選取');}
+};
 
 /* ---------- 課表／行事曆 ---------- */
 function nextDateForDay(d,timeStr){const now=new Date();const jsDow=(d+1)%7;let diff=(jsDow-now.getDay()+7)%7;const tp=(timeStr||'00:00').split(':');const hh=Number(tp[0])||0,mm=Number(tp[1])||0;const c=new Date(now.getFullYear(),now.getMonth(),now.getDate()+diff,hh,mm,0);if(c<now)c.setDate(c.getDate()+7);return c;}
