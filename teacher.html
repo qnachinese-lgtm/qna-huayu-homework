@@ -2402,6 +2402,7 @@ function wbeSer(k,d){
   if(k==='ord')return (d.ord||[]).map(x=>J([x.n,(x.toks||[]).join('／'),x.ans||''])).join('\n');
   if(k==='dlg')return (d.dlg||[]).map(x=>J([x.i,x.sp||'',x.text||'',x.ans||''])).join('\n');
   if(k==='pic')return (d.pic||[]).map(x=>J([x.n,x.hint||'',x.ans||''])).join('\n');
+  if(k==='g7')return (((d.g7||{}).groups)||[]).map(g=>(g.items||[]).map(it=>J([g.k,it.n,it.pattern||'',it.q||'',it.ans||''])).join('\n')).join('\n');
   return '';}
 /* ---- 文字 → 資料 ---- */
 function wbeParse(k,txt,prev){
@@ -2419,6 +2420,15 @@ function wbeParse(k,txt,prev){
   if(k==='ord')return L.map((l,i)=>{const c=wbeSp(l);
     return {n:wbeNum(c[0],i),toks:String(c[1]||'').replace(/\//g,'／').split('／').map(t=>t.trim()).filter(Boolean),ans:c[2]||''};});
   if(k==='dlg')return L.map((l,i)=>{const c=wbeSp(l);return {i:wbeNum(c[0],i),sp:c[1]||'',text:c[2]||'',ans:c[3]||''};});
+  if(k==='g7'){const oldg=((prev||{}).groups)||[];
+    const map={},ord=[];
+    L.forEach((l,i)=>{const c=wbeSp(l);const gk=(c[0]||'A').toUpperCase();
+      if(!map[gk]){map[gk]=[];ord.push(gk);}
+      const n=wbeNum(c[1],map[gk].length);
+      const og=oldg.find(x=>x.k===gk)||{};const oi=((og.items)||[]).find(x=>Number(x.n)===n)||{};
+      map[gk].push({n,pattern:c[2]||'',q:c[3]||'',ans:c[4]||'',img:oi.img||''});});
+    return {groups:ord.map(gk=>{const og=oldg.find(x=>x.k===gk)||{};
+      return {k:gk,title:og.title||'',items:map[gk]};})};}
   if(k==='pic'){const old=(prev||[]);return L.map((l,i)=>{const c=wbeSp(l);const n=wbeNum(c[0],i);
     const o=old.find(x=>Number(x.n)===n)||{};
     return {n,hint:c[1]||'',ans:c[2]||'',img:o.img||''};});}
@@ -2431,7 +2441,8 @@ const WBE_SECS=[
  {k:'hz',t:'三 寫出中國字',cols:'題號　說話者（沒有就留空）　拼音　中文答案',ex:'1\t\tTā shì shéi?\t他是誰？'},
  {k:'ord',t:'四 句子重組',cols:'題號　要重組的詞（用 ／ 分隔）　正確句子',ex:'1\t日本人／是／他／嗎／？\t他是日本人嗎？'},
  {k:'dlg',t:'五 完成對話',cols:'行號　說話者（A／B）　句子（空格打 ＿＿＿＿）　參考答案（沒空格就留空）',ex:'1\tA\t新同學＿＿＿＿？\t新同學是哪國人？'},
- {k:'pic',t:'六 圖片描述',cols:'題號　文字提示（有圖就留空）　參考答案',ex:'1\t\t媽媽下午五點在廚房做飯。'}
+ {k:'pic',t:'六 圖片描述',cols:'題號　文字提示（有圖就留空）　參考答案',ex:'1\t\t媽媽下午五點在廚房做飯。'},
+ {k:'g7',t:'七 語法練習',cols:'題組（A／B）　題號　練習類型　題目／提示　參考答案',ex:'A\t1\t改寫成「都」字句\t我喜歡果汁，也喜歡咖啡。\t果汁和咖啡我都喜歡。'}
 ];
 function wbeAudRows(){
   const auds=(WBE.d.audios||[]);
@@ -2474,6 +2485,11 @@ function wbeRender(){
       <div class="hint" style="margin:2px 0 4px">欄位：${esc(sc.cols)}<br>範例：<code style="background:#f3ede2;padding:1px 5px;border-radius:4px">${esc(sc.ex.replace(/\t/g,' ⇥ '))}</code></div>
       <textarea id="wbe-${sc.k}" rows="${Math.min(14,Math.max(4,wbeSer(sc.k,d).split('\n').length+1))}" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;white-space:pre;overflow-x:auto">${esc(wbeSer(sc.k,d))}</textarea>
     </div>`).join('')}
+  <div class="field full" style="margin-bottom:14px"><label>七 語法練習：兩個題組的說明</label>
+    <div class="form-grid">
+      <div class="field"><label>A 組說明</label><input id="wbe-g7A" type="text" value="${esc((((d.g7||{}).groups)||[]).find(g=>g.k==='A')?.title||'')}" placeholder="例：Change the sentences into 都 pattern."></div>
+      <div class="field"><label>B 組說明</label><input id="wbe-g7B" type="text" value="${esc((((d.g7||{}).groups)||[]).find(g=>g.k==='B')?.title||'')}" placeholder="例：Write the number with 多."></div>
+    </div></div>
   <div class="lesson-label" style="margin-top:6px">④ 圖片描述的圖</div>
   <div class="hint" style="margin-bottom:4px">先按下面「↻ 重新整理圖片位子」把上面打的題號讀進來，再逐題上傳。</div>
   <div style="margin-bottom:6px"><button class="btn btn-sm" type="button" data-act="wbeSync">↻ 重新整理圖片位子</button></div>
@@ -2486,6 +2502,7 @@ function wbeCollect(){
   WBE.meta.wb_name=WBE.meta.title;
   WBE.meta.wb_en=(g('wbe-en')||'').trim();
   WBE_SECS.forEach(sc=>{WBE.d[sc.k]=wbeParse(sc.k,g('wbe-'+sc.k),WBE.d[sc.k]);});
+  (((WBE.d.g7||{}).groups)||[]).forEach(gr=>{const t=g('wbe-g7'+gr.k);if(t!=null&&t!=='')gr.title=t;});
   WBE.d.b1=true;
   if(!Array.isArray(WBE.d.audios)||!WBE.d.audios.length)
     WBE.d.audios=[{i:1,label:'A 聲調辨識',key:'A',url:''},{i:2,label:'B 選出發音',key:'B',url:''},{i:3,label:'C 聽短文',key:'C',url:''}];
@@ -2521,14 +2538,15 @@ H.editWb=(id)=>{const w=(S.workbooks||[]).find(x=>x.id===id);if(!w)return;
   wbeModal();};
 H.newWb=(lid)=>{const l=(S.lessons||[]).find(x=>x.id===lid);
   WBE={id:null,meta:{textbook:(l&&l.textbook)||'',order_index:(l&&l.order_index)||null,title:(l&&l.title)||'',wb_name:(l&&l.title)||'',wb_en:'',lesson_id:(l&&l.id)||null},
-       d:{b1:true,tone:[],pron:[],tf:[],tfIntro:'',py:[],hz:[],ord:[],dlg:[],pic:[],
+       d:{b1:true,tone:[],pron:[],tf:[],tfIntro:'',py:[],hz:[],ord:[],dlg:[],pic:[],g7:{groups:[]},
           audios:[{i:1,label:'A 聲調辨識',key:'A',url:''},{i:2,label:'B 選出發音',key:'B',url:''},{i:3,label:'C 聽短文',key:'C',url:''}]}};
   wbeModal();};
 H.wbeSave=async(_,b)=>{
   wbeCollect();
   if(!WBE.meta.title){toast('請填標題');return;}
   if(!WBE.meta.textbook){toast('請填教材');return;}
-  const n=WBE_SECS.reduce((a,sc)=>a+((WBE.d[sc.k]||[]).length),0);
+  const n=WBE_SECS.reduce((a,sc)=>{const v=WBE.d[sc.k];
+    return a+(Array.isArray(v)?v.length:(((v&&v.groups)||[]).reduce((b,g)=>b+((g.items||[]).length),0)));},0);
   if(!n&&!confirm('目前一題都沒有，確定要存嗎？'))return;
   if(b){b.disabled=true;b.textContent='儲存中…';}
   const patch={kind:'workbook',textbook:WBE.meta.textbook,order_index:WBE.meta.order_index,
