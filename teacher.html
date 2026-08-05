@@ -574,15 +574,6 @@ function renderDashboard(){
       <span class="grow"></span><span class="muted">${money(s.tuition,s.currency)} · ${fmtDate(s.payment_date)}</span>
       ${s.email?`<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}" title="寄重設密碼信">✉️</button>`:''}
     </div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有即將到期或逾期的付款 👍</div>`;
-  // 進度
-  const progHtml=S.students.filter(s=>!s.is_test).map(s=>{const p=studentProgress(s);
-    return `<div class="dash-row">
-      <span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span>
-      <b>${snm(s.name)}</b>
-      <span class="grow"></span>
-      <span class="muted">${p.total?`完成 ${p.done}/${p.total} 課${p.avg!=null?(' · 平均 '+p.avg+'%'):''}`:'尚未發佈作業'}</span>
-      <span class="progbar"><span style="width:${p.pct}%"></span></span>
-    </div>`;}).join('');
   const lowSess=S.students.filter(s=>!s.is_test).map(s=>({s,left:sessionsLeft(s)})).filter(x=>x.left!=null&&x.left<=1&&enrollOf(x.s)!=='paused').sort((a,b)=>a.left-b.left);
   const sessHtml=lowSess.length?lowSess.map(({s,left})=>`<div class="dash-row"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span><b>${snm(s.name)}</b><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'已用完':'剩 '+left+' 堂'}</span><span class="grow"></span><span class="muted">共 ${esc(String(s.sessions_total))} 堂 · 已上 ${classAttended(s)} 堂</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有快用完堂數的學生 👍</div>`;
   // 批改提醒（待批改的作答）
@@ -651,8 +642,7 @@ function renderDashboard(){
   const _hero=`<div class="tpg-h"><h2>${_greet}，美娟老師 👋</h2><div class="sub">${esc(_today)}（週${_wd}）｜在學 <b>${_act}</b> 位${_pend?('　·　<b>'+_pend+'</b> 份待批改'):'　·　沒有待批改的作業'}${_cls?('　·　今天 <b>'+_cls+'</b> 堂課'):''}</div></div>`;
   body.innerHTML=`${_hero}${statHtml}${healthCheckHtml()}<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
     <details class="dash-fold" open style="margin-top:14px"><summary>⏰ 提醒（堂數／補課）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>
-    <details class="dash-fold" open style="margin-top:14px"><summary>📮 還沒交作業${(function(){const n=hwPending().filter(x=>x.days!=null&&x.days<0).length;return n?('（逾期 '+n+'）'):'';})()}</summary><div style="margin-top:10px">${hwDueHtml()}</div></details>
-    <details class="dash-fold" style="margin-top:14px"><summary>📈 學生進度</summary><div style="margin-top:10px">${progHtml}</div></details>`;
+`;
 }
 
 /* ===== 🎯 課堂活動：隨堂小考 ＋ 即時比賽（原本放在今日總覽） ===== */
@@ -2015,6 +2005,18 @@ function sgAdvance(){const list=sgVisible();if(!list.length){S.sgSel=null;return
   let idx=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);
   if(idx<0)idx=0;else if(idx<list.length-1)idx=idx+1;
   sgOpen(list[idx]);}
+/* 學生進度（批改・成績頁用） */
+function gradeProgHtml(){
+  const rows=(S.students||[]).filter(s=>!s.is_test&&!s.deleted_at).map(s=>{const p=studentProgress(s);
+    return `<div class="dash-row">
+      <span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span>
+      <b>${snm(s.name)}</b>
+      <span class="grow"></span>
+      <span class="muted">${p.total?`完成 ${p.done}/${p.total} 課${p.avg!=null?(' · 平均 '+p.avg+'%'):''}`:'尚未發佈作業'}</span>
+      <span class="progbar"><span style="width:${p.pct}%"></span></span>
+    </div>`;}).join('');
+  return rows||'<div class="muted" style="padding:8px 2px">還沒有學生資料。</div>';
+}
 function renderGrades(){
   const wrap=$('#grades-list');
   const list=sgVisible();const all=gradeQueue();
@@ -2034,8 +2036,11 @@ function renderGrades(){
       +'<span class="sg-i2">'+m.ic+' '+esc(m.lab)+'　'+esc(x.les)+'</span>'
       +'<span class="sg-i3">'+(x.extra?esc(x.extra)+'　':'')+(x.ts?('🕒 '+esc(fmtDT(x.ts))):'')+'</span></button>';}).join('')
     :'<div class="muted" style="padding:16px 12px">'+(S.sgOnly==='all'?'還沒有任何作答':'目前沒有待批改的項目 🎉')+'</div>';
+  const _hwN=hwPending().filter(x=>x.days!=null&&x.days<0).length;
   wrap.innerHTML=bar+'<div class="sg-wrap"><div class="sg-list">'+rows+'</div><div class="sg-pane" id="sg-pane"></div></div>'
-    +'<details class="disc" style="margin-top:18px"><summary>📊 各課成績總表</summary><div id="grades-matrix" style="margin-top:10px"></div></details>';
+    +'<details class="disc" style="margin-top:18px"><summary>📊 各課成績總表</summary><div id="grades-matrix" style="margin-top:10px"></div></details>'
+    +'<details class="disc" style="margin-top:12px"><summary>📮 還沒交作業'+(_hwN?('（逾期 '+_hwN+'）'):'')+'</summary><div style="margin-top:10px">'+hwDueHtml()+'</div></details>'
+    +'<details class="disc" style="margin-top:12px"><summary>📈 學生進度</summary><div style="margin-top:10px">'+gradeProgHtml()+'</div></details>';
   renderGradesMatrix();
   if(S._sgAdvance){S._sgAdvance=false;sgAdvance();return;}
   const cur=list.find(x=>(x.kind+'::'+x.id)===S.sgSel);
