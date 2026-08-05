@@ -139,6 +139,15 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .wb-wrap .wb-ta,.wb-wrap .wb-opt,.wb-wrap .wb-word,.wb-wrap .wb-chip,.wb-wrap .wb-sel,.wb-wrap .wb-blank,.wb-wrap .wb-hint{
   font-family:'PinyinTone',var(--font)}
 .wb-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.due-banner{border:1px solid #f0d9a8;background:#fffaf0;border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.due-banner.over{border-color:#f2c1bb;background:#fff5f3}
+.due-banner .db-h{font-weight:700;margin-bottom:6px}
+.due-banner .db-l{margin:0;padding-left:18px}
+.due-banner .db-l li{margin:3px 0;font-size:14px}
+.due-banner .db-o{color:#dc2626;font-weight:700;margin-right:5px}
+.due-banner .db-s{color:#d97706;font-weight:700;margin-right:5px}
+.due-banner .db-d{color:var(--muted);font-size:12.5px;margin-left:4px}
+.due-banner .db-m{color:var(--muted);font-size:12.5px;margin-top:5px}
 .wb-book-hd{font-family:var(--serif,serif);font-size:16px;font-weight:700;color:var(--ink);margin:18px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--accent-soft);display:flex;align-items:center;gap:8px}
 .wb-book-n{font-size:12px;font-weight:400;color:var(--muted);background:var(--surface-2);border-radius:999px;padding:1px 9px}
 .wb-card{background:var(--card,#fff);border:1px solid var(--line,#e7e0d4);border-radius:14px;padding:14px 16px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;gap:7px}
@@ -1731,8 +1740,28 @@ function todoWbHtml(){
    +gorder.map(b=>'<div class="wb-book-hd">📚 '+esc(b)+' <span class="wb-book-n">'+gb[b].length+'</span></div><div class="cards">'+gb[b].map(card).join('')+'</div>').join('')
    +'<div style="height:14px"></div>';
 }
+/* 作業提醒：逾期／快到期的橫幅 */
+function dueBanner(){
+  const items=[];
+  try{
+    myLessons().filter(l=>answerableOf(l.id).length).forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;
+      const di=dueInfo(l.due_date);if(di&&(di.cls==='badge-overdue'||di.cls==='badge-soon'))
+        items.push({over:di.cls==='badge-overdue',t:(l.order_index?('L'+l.order_index+' · '):'')+(l.title||''),due:l.due_date});});
+    myWorkbooks().forEach(w=>{const d=wbDocOf(w.id);if(d&&(d.status==='submitted'||d.status==='reviewed'))return;
+      const di=dueInfo(w.due_date);if(di&&(di.cls==='badge-overdue'||di.cls==='badge-soon'))
+        items.push({over:di.cls==='badge-overdue',t:'📒 '+(w.title||''),due:w.due_date});});
+  }catch(e){}
+  if(!items.length)return '';
+  items.sort((a,b)=>(a.over===b.over?String(a.due).localeCompare(String(b.due)):(a.over?-1:1)));
+  const nOver=items.filter(x=>x.over).length;
+  const L=(z,c,e,v)=>LT({zh:z,cn:c,en:e,vi:v});
+  const head=nOver?L('有 '+nOver+' 份作業已經逾期了','有 '+nOver+' 份作业已经逾期了',nOver+' assignment(s) overdue','Có '+nOver+' bài đã quá hạn')
+                  :L('有作業快到期了','有作业快到期了','Assignments due soon','Sắp đến hạn nộp bài');
+  return `<div class="due-banner${nOver?' over':''}"><div class="db-h">${nOver?'⚠️':'⏰'} ${esc(head)}</div>
+    <ul class="db-l">${items.slice(0,6).map(x=>`<li>${x.over?'<span class="db-o">'+esc(L('逾期','逾期','Overdue','Quá hạn'))+'</span>':'<span class="db-s">'+esc(L('快到期','快到期','Due soon','Sắp hạn'))+'</span>'} ${esc(x.t)}${x.due?(' <span class="db-d">'+esc(x.due)+'</span>'):''}</li>`).join('')}</ul>
+    ${items.length>6?`<div class="db-m">${esc(L('還有 '+(items.length-6)+' 份…','还有 '+(items.length-6)+' 份…','+'+(items.length-6)+' more…','còn '+(items.length-6)+' bài…'))}</div>`:''}</div>`;}
 function renderWork(){
-  const _st=actStatus();const banner='';
+  const _st=actStatus();const banner=dueBanner();
   const ls=myLessons().filter(l=>answerableOf(l.id).length);
   const myQuizzes=(S.quizzes||[]).filter(qz=>assignedToMe(qz)).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
   const quizCard=myQuizzes.length?('<div class="lesson-label" style="margin-top:6px">'+t('quizSec')+'</div><div class="quiz-list">'+myQuizzes.map(qz=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;const qm=t({audio:'qmAudio',dict:'qmDict',pinyin:'qmPinyin',mean:'qmMean',choice:'qmChoice',cloze:'qmCloze',custom:'qmCustom'}[qz.mode||'dict']||'qmDict');return `<div class="quiz-card${done?' done':''}"${done?'':' data-act="startQuiz" data-id="'+qz.id+'"'}><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>${esc(qz.title||t('quizDefTitle'))}</b><div class="muted" style="font-size:12px">${qm}</div></div>${done?`<span class="badge badge-ok">${r.score}/${r.total}</span>`:`<span class="badge badge-soon">${t('quizNotTaken')}</span>`}</div>`;}).join('')+'</div>'):'';
