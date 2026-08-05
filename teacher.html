@@ -2123,9 +2123,43 @@ H.payView=()=>{
    <div class="modal-foot"><span style="flex:1"></span><button class="btn btn-accent" data-act="closeModal">好</button></div></div>`);
 };
 H.goStudents=()=>{closeModal();H.tab('students');};
+/* ===== 🛟 完整備份：把整個平台的資料存成一個 JSON 檔 ===== */
+H.exportJson=async(_,b)=>{
+  const st=document.getElementById('bk-st');
+  const withUp=!!(document.getElementById('bk-up')&&document.getElementById('bk-up').checked);
+  const say=(m)=>{if(st)st.textContent=m;};
+  if(b){b.disabled=true;b.textContent='備份中…';}
+  const COLS=['lessons','questions','students','results','admins','leads','site','uploads'];
+  const out={_meta:{app:'QNA CHINESE 學習平台',exported_at:new Date().toISOString(),format:1,include_upload_data:withUp,
+    note:'這是整個平台的資料備份。音檔與圖片存放在 Firebase Storage，此檔只記錄它們的網址。'}};
+  const counts={};
+  try{
+    for(const c of COLS){
+      say('正在讀取 '+c+' …');
+      try{
+        let rows=await DB.list(c);
+        if(c==='uploads'&&!withUp)rows=(rows||[]).map(r=>{const o=Object.assign({},r);if(o.data)o.data='(略過，未包含檔案內容)';return o;});
+        out[c]=rows||[];counts[c]=(rows||[]).length;
+      }catch(e){out[c]={__error:String((e&&e.message)||e)};counts[c]='讀取失敗';}
+    }
+    say('正在打包…');
+    const txt=JSON.stringify(out);
+    const mb=(txt.length/1048576);
+    const blob=new Blob([txt],{type:'application/json'});
+    const d=new Date();const pad=n=>String(n).padStart(2,'0');
+    const name='QNA備份_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'.json';
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);
+    say('✅ 已下載 '+name+'（約 '+mb.toFixed(1)+' MB）　'+Object.keys(counts).map(k=>k+' '+counts[k]).join('　·　'));
+    toast('備份已下載，請存到你自己的硬碟或雲端');
+  }catch(e){say('❌ 備份失敗：'+((e&&e.message)||e));toast('備份失敗，請重試');}
+  finally{if(b){b.disabled=false;b.textContent='⬇ 下載完整備份';}}};
 H.dataTools=()=>{openModal(`<div class="modal"><div class="modal-head"><h3>🗄️ 資料</h3><button class="x" data-act="closeModal">×</button></div>
   <div class="modal-body">
-    <div class="dash-row"><span class="grow"><b>Excel 備份</b><div class="hint">把所有學生、成績、繳費匯出成 Excel 存檔</div></span><button class="btn btn-sm btn-accent" data-act="exportAll">⬇ 匯出備份</button></div>
+    <div class="dash-row" style="align-items:flex-start"><span class="grow"><b>🛟 完整備份（整個平台）</b><div class="hint">把教材、課文、生詞、語法、題庫、作業簿、小考、學生、成績、繳費紀錄全部存成一個檔下載到你電腦。<b>建議每個月做一次。</b><br>音檔和圖片存在雲端，備份檔裡存的是它們的網址，不是檔案本身。</div>
+      <label style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="bk-up" style="width:auto"> 一併包含學生上傳的檔案內容（檔案會大很多）</label>
+      <div class="hint" id="bk-st" style="margin-top:6px"></div></span><button class="btn btn-sm btn-accent" data-act="exportJson">⬇ 下載完整備份</button></div>
+    <div class="dash-row" style="margin-top:8px"><span class="grow"><b>Excel 備份</b><div class="hint">只匯出學生、成績、繳費，方便用 Excel 看</div></span><button class="btn btn-sm" data-act="exportAll">⬇ 匯出 Excel</button></div>
     <div class="dash-row" style="margin-top:8px"><span class="grow"><b>垃圾桶</b><div class="hint">刪除的學生／課程 7 天內可復原</div></span><button class="btn btn-sm" data-act="trash">🗑 開啟垃圾桶</button></div>
   </div>
   <div class="modal-foot"><span style="flex:1"></span><button class="btn" data-act="closeModal">關閉</button></div></div>`);};
