@@ -2622,7 +2622,7 @@ function qzAudRender(){const box=document.getElementById('qz-aud-list');if(!box)
       <span style="flex:1"></span>
       <button class="btn btn-sm btn-ghost" type="button" data-act="qzAudDel" data-id="${i}" title="刪掉這一題">✕</button>
     </div>
-    <input type="text" class="qz-aud-ans" data-i="${i}" value="${esc(it.ans||'')}" placeholder="這一題的正確答案（可用 / 分隔多個接受的寫法）" style="width:100%;margin-top:8px">
+    <input type="text" class="qz-aud-ans" data-i="${i}" value="${esc(it.ans||'')}" placeholder="正確答案（選填。留空＝我自己批改；多個寫法用 / 分隔）" style="width:100%;margin-top:8px">
   </div>`).join('');
   box.querySelectorAll('.qz-aud-ans').forEach(el=>{el.addEventListener('input',()=>{QAUD[Number(el.dataset.i)].ans=el.value;});});}
 function qzAudSyncAns(){document.querySelectorAll('.qz-aud-ans').forEach(el=>{const i=Number(el.dataset.i);if(QAUD[i])QAUD[i].ans=el.value;});}
@@ -2661,7 +2661,7 @@ H.newQuiz=()=>{
      <div class="field"><label>題型</label><span class="hint" style="display:block;margin:-2px 0 4px">想自己念句子讓學生聽寫，就選<b>「🎙️ 我自己錄音／上傳音檔」</b>——一題錄一句，打上正確答案，學生聽完打字，系統自動對。<br>「聽寫（用課本生詞的真人錄音）」是播那一課生詞的錄音，要先到「編輯課文」→ 生詞下方上傳整段生詞錄音。<b>本平台不使用機器合成語音。</b></span><select id="quiz-mode" onchange="H.qzModeChg()"><option value="audio">🎙️ 我自己錄音／上傳音檔（我念，學生聽了寫下來）</option><option value="dict">聽寫（用課本生詞的真人錄音）</option><option value="pinyin">看拼音寫字</option><option value="mean">看意思寫字</option><option value="choice">看字選意思（選擇題）</option><option value="cloze">看例句填生詞（克漏字，需生詞有例句）</option><option value="custom">✍️ 自訂題目（自己出題，跟生詞無關）</option></select></div>
      <div class="field" id="qzf-lesson"><label>考哪一課的生詞 <span class="hint">（自訂題目／自己錄音可不選）</span></label><select id="quiz-lesson"><option value="">（自訂題目時不用選）</option>${lessonOpts}</select></div>
      <div class="field" id="qzf-items"><label>自訂題目 <span class="hint">選「✍️ 自訂題目」時用這裡。一行一題，格式 <b>題目＝答案</b>；可接受多個答案用 <b>/</b> 隔開。學生看題目、打答案、自動對。</span></label><textarea id="quiz-items" placeholder="「謝謝」要怎麼回應？＝不客氣&#10;banana 的中文＝香蕉&#10;我＿＿喜歡喝茶。＝很/真的"></textarea></div>
-     <div class="field" id="qzf-audio"><label>🎙️ 我的錄音題目 <span class="hint">一題一句：按「錄音」念一句（再按一次停止），或「上傳音檔」選 mp3；右邊打上正確答案。多個可接受的答案用 <b>/</b> 隔開。</span></label>
+     <div class="field" id="qzf-audio"><label>🎙️ 我的錄音題目 <span class="hint">一題一句：按「錄音」念一句（再按一次停止），或「上傳音檔」選 mp3。<b>正確答案可以不填</b>——沒填的題目系統不自動對，學生寫的內容會原封不動留給你，你有空再進去看、按 ⭕／❌ 打分。填了就會自動對答案。</span></label>
        <div id="qz-aud-list" style="margin-top:6px"></div>
        <div style="margin-top:8px"><button class="btn btn-sm" type="button" data-act="qzAudAdd">＋ 加一題</button></div></div>
      <div class="field"><label>發佈給</label><div style="margin-top:4px">${studentChecks||'<span class="muted">還沒有學生</span>'}</div></div>
@@ -2676,10 +2676,12 @@ H.saveQuiz=async()=>{
   const mode=$('#quiz-mode')?$('#quiz-mode').value:'dict';
   const items=($('#quiz-items')&&$('#quiz-items').value)||'';
   qzAudSyncAns();
-  const qaud=QAUD.filter(x=>x&&x.url&&String(x.ans||'').trim()).map(x=>({url:x.url,ans:String(x.ans).trim()}));
-  if(mode==='audio'){if(!qaud.length){toast('請至少錄（或上傳）一題，而且要打上正確答案');return;}
-    const bad=QAUD.filter(x=>x&&(x.url||String(x.ans||'').trim())).length-qaud.length;
-    if(bad>0&&!confirm('有 '+bad+' 題只有音檔或只有答案，會被略過。確定建立嗎？'))return;}
+  const qaud=QAUD.filter(x=>x&&x.url).map(x=>({url:x.url,ans:String(x.ans||'').trim()}));
+  if(mode==='audio'){if(!qaud.length){toast('請至少錄一題（或上傳一個音檔）');return;}
+    const noAns=qaud.filter(x=>!x.ans).length;
+    const lost=QAUD.filter(x=>x&&!x.url&&String(x.ans||'').trim()).length;
+    if(lost>0&&!confirm('有 '+lost+' 題只打了答案、沒有音檔，會被略過。確定建立嗎？'))return;
+    if(noAns>0&&!confirm('有 '+noAns+' 題沒有填正確答案，這幾題不會自動對答案，要等你自己批改。確定這樣建立嗎？'))return;}
   else if(mode==='custom'){if(!items.split('\n').some(l=>/[=＝]/.test(l))){toast('請至少輸入一題，格式「題目＝答案」');return;}}
   else if(!src){toast('請選一課');return;}
   if(mode==='dict'){const _l=(S.lessons||[]).find(x=>x.id===src);
@@ -2694,10 +2696,32 @@ H.saveQuiz=async()=>{
 H.delQuiz=async(id)=>{if(!confirm('確定刪除這個隨堂小考？（學生已考的分數記錄會保留）'))return;
   try{await DB.remove('lessons',id);const all=await DB.list('lessons');S.lessons=all.filter(x=>x.kind!=='quiz');S.quizzes=all.filter(x=>x.kind==='quiz');render();toast('已刪除隨堂小考');
   }catch(e){toast(writeErr('刪除失敗',e));}};
+let QRV=null;
+function qrvRows(){const r=QRV;if(!r)return '';
+  return (r.answers||[]).map((it,i)=>{
+    const pend=!!it.pend;
+    const mark=pend?`<span style="display:inline-flex;gap:6px;margin-left:8px"><button class="btn btn-sm ${it.ok?'btn-accent':''}" data-act="qrvMark" data-id="${i}::1">⭕ 對</button><button class="btn btn-sm ${(it.ok===false&&it.graded)?'btn-danger':''}" data-act="qrvMark" data-id="${i}::0">❌ 錯</button></span>`:'';
+    const st=pend?(it.graded?(it.ok?'<span class="badge badge-ok">✓ 你判定：對</span>':'<span class="badge badge-overdue">✗ 你判定：錯</span>'):'<span class="badge badge-pending">⏳ 等你批改</span>')
+      :(it.ok?'<span class="badge badge-ok">✓ 對</span>':'<span class="badge badge-overdue">✗ 錯</span>');
+    return `<div class="srev-item"><div class="srev-word">${i+1}.${it.q?('　'+esc(it.q)):''}</div>
+      <div class="srev-sent">學生作答：<b>${esc(it.a||'（空白）')}</b> ${st}${it.c?('　｜　正解：'+esc(it.c)):''}${mark}</div></div>`;}).join('');}
+function qrvPaint(){const box=document.getElementById('qrv-body');if(box)box.innerHTML=qrvRows()||'<div class="muted" style="padding:8px 0">這次沒有逐題明細（可能是更新前考的，重考一次就會記錄）。</div>';
+  const sc=document.getElementById('qrv-score');if(sc&&QRV)sc.innerHTML='分數 <b>'+(QRV.score||0)+'/'+(QRV.total||0)+'</b>';}
+H.qrvMark=async(key)=>{if(!QRV)return;const p=String(key).split('::');const i=Number(p[0]);const ok=p[1]==='1';
+  const it=(QRV.answers||[])[i];if(!it)return;
+  if(it.graded&&it.ok===ok){it.graded=false;it.ok=false;}else{it.graded=true;it.ok=ok;}
+  QRV.score=(QRV.answers||[]).filter(x=>x&&x.ok).length;
+  qrvPaint();
+  try{await DB.update('results',QRV.id,{answers:QRV.answers,score:QRV.score});
+    const k=(S.quizResults||[]).findIndex(x=>x.id===QRV.id);if(k>=0){S.quizResults[k].answers=QRV.answers;S.quizResults[k].score=QRV.score;}
+    renderFiles();
+  }catch(e){toast(writeErr('存檔失敗',e));}};
 H.viewQuizResult=(key)=>{const p=String(key).split('::'),quizId=p[0],sid=p[1];const r=(S.quizResults||[]).find(x=>x.quiz_id===quizId&&x.student_id===sid);if(!r)return;const s=S.students.find(x=>x.id===sid);
-  const rows=(r.answers||[]).map((it,i)=>`<div class="srev-item"><div class="srev-word">${i+1}.${it.q?('　'+esc(it.q)):''}</div><div class="srev-sent">學生作答：<b>${esc(it.a||'（空白）')}</b> ${it.ok?'<span class="badge badge-ok">✓ 對</span>':'<span class="badge badge-overdue">✗ 錯</span>'}　｜　正解：${esc(it.c||'')}</div></div>`).join('');
-  openModal(`<div class="modal wide"><div class="modal-head"><h3>📝 ${esc((s&&s.name)||'學生')} · 小考作答</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="meta" style="margin-bottom:10px">分數 <b>${r.score}/${r.total}</b>${r.completed_at?('　·　'+esc(String(r.completed_at).replace('T',' ').slice(5,16))):''}</div>${rows||'<div class="muted" style="padding:8px 0">這次沒有逐題明細（可能是更新前考的，重考一次就會記錄）。</div>'}</div>
+  QRV=r;const nPend=(r.answers||[]).filter(x=>x&&x.pend&&!x.graded).length;
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>\U0001f4dd ${esc((s&&s.name)||'學生')} · 小考作答</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="meta" style="margin-bottom:10px"><span id="qrv-score">分數 <b>${r.score}/${r.total}</b></span>${r.completed_at?('　·　'+esc(String(r.completed_at).replace('T',' ').slice(5,16))):''}</div>
+   ${nPend?`<div class="hint" style="margin-bottom:10px">⏳ 有 ${nPend} 題你沒填正確答案，系統沒有自動對。看完學生寫的內容後按 ⭕ 或 ❌，分數會自動更新（再按一次同一個可以取消）。</div>`:''}
+   <div id="qrv-body">${qrvRows()||'<div class="muted" style="padding:8px 0">這次沒有逐題明細（可能是更新前考的，重考一次就會記錄）。</div>'}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>`);};
 H.logout=()=>{try{if(window.firebase&&firebase.auth&&firebase.apps&&firebase.apps.length)firebase.auth().signOut();}catch(e){}sessionStorage.removeItem('teacher_ok');location.reload();};
 H.closeModal=closeModal;
