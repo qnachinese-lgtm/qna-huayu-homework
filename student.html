@@ -3267,7 +3267,7 @@ function wbDocOf(id){return (S.wbdocs||[]).find(x=>x.wb_lesson===id)||null;}
 function wbOf(id){return (S.workbooks||[]).find(x=>x.id===id)||null;}
 function wbData(w){return (w&&w.wb)||{};}
 function wbL(m){const L=S.lang||'zh';return (m&&(m[L]||m.zh))||'';}
-function wbEmptyAns(){return {listen:{},vocab:{},cloze:{},match:{},gram:{},read:{},write:'',tone:{},pron:{},tf:{},py:{},hz:{},ord:{},dlg:{},pic:{},g7:{}};}
+function wbEmptyAns(){return {listen:{},vocab:{},cloze:{},match:{},gram:{},read:{},write:'',tone:{},pron:{},tf:{},py:{},hz:{},ord:{},dlg:{},pic:{},g7:{},mcq:{}};}
 function wbAns(){if(!WB.ans)WB.ans=wbEmptyAns();return WB.ans;}
 function wbLocked(){const d=wbDocOf(WB.id);return !!(d&&(d.status==='submitted'||d.status==='reviewed'));}
 function wbGraded(){const d=wbDocOf(WB.id);return (d&&(d.status==='submitted'||d.status==='reviewed'))?d:null;}
@@ -3290,12 +3290,14 @@ function wbGrade(w,ans){
   (d.tf||[]).forEach(q=>{if(!q.ans)return;out.tf.total++;if(String((ans.tf||{})[q.n]||'').trim().toUpperCase()===String(q.ans).trim().toUpperCase())out.tf.ok++;});
   (d.hz||[]).forEach(q=>((q.lines)||[]).forEach((ln,i)=>{if(!ln.ans)return;out.hz.total++;if(_zh((ans.hz||{})[q.n+'-'+i])===_zh(ln.ans))out.hz.ok++;}));
   (d.ord||[]).forEach(q=>{if(!q.ans)return;out.ord.total++;if(_zh((ans.ord||{})[q.n])===_zh(q.ans))out.ord.ok++;});
+  out.mcq={ok:0,total:0};
+  (d.mcq||[]).forEach(q=>{if(!q.ans)return;out.mcq.total++;if(String((ans.mcq||{})[q.n]||'').toUpperCase()===String(q.ans).toUpperCase())out.mcq.ok++;});
   out.g7={ok:0,total:0};
   (((d.g7||{}).groups)||[]).forEach(g=>(g.items||[]).forEach(it=>{
     if(!it.ans||/^（參考）|^\(參考\)/.test(String(it.ans).trim()))return;
     out.g7.total++;if(_zh((ans.g7||{})[g.k+'-'+it.n])===_zh(it.ans))out.g7.ok++;}));
-  out.ok=out.listen.ok+out.vocab.ok+out.cloze.ok+out.match.ok+out.read.ok+out.tone.ok+out.pron.ok+out.tf.ok+out.hz.ok+out.ord.ok+out.g7.ok;
-  out.total=out.listen.total+out.vocab.total+out.cloze.total+out.match.total+out.read.total+out.tone.total+out.pron.total+out.tf.total+out.hz.total+out.ord.total+out.g7.total;
+  out.ok=out.listen.ok+out.vocab.ok+out.cloze.ok+out.match.ok+out.read.ok+out.tone.ok+out.pron.ok+out.tf.ok+out.hz.ok+out.ord.ok+out.g7.ok+out.mcq.ok;
+  out.total=out.listen.total+out.vocab.total+out.cloze.total+out.match.total+out.read.total+out.tone.total+out.pron.total+out.tf.total+out.hz.total+out.ord.total+out.g7.total+out.mcq.total;
   return out;
 }
 
@@ -3428,6 +3430,7 @@ function wbTxt(sec,key,val,graded,ref,okFlag){
   }
   return `<input class="wb-in" type="text" data-wbt="${sec}" data-n="${esc(key)}" value="${esc(val||'')}" autocomplete="off">`;
 }
+function wbAudKey(w,sec,dflt){const m=(wbData(w).audioKeys)||{};return m[sec]||dflt;}
 function wbAud(w,key){
   const as=(wbData(w).audios||[]).filter(a=>String(a.key||'').toUpperCase()===String(key).toUpperCase());
   const a=as[0]; if(!a)return '';
@@ -3436,14 +3439,14 @@ function wbAud(w,key){
 }
 function wbToneHtml(w,graded){
   const a=wbAns().tone||{};
-  return wbAud(w,'A')+`<div class="wb-hint">${wbL({zh:'聽音檔，把聲調標上去（例：zhidao → zhīdào）。',cn:'听音档，把声调标上去（例：zhidao → zhīdào）。',en:'Listen and write the pinyin with tone marks.',vi:'Nghe rồi viết pinyin có dấu thanh.'})}</div>`
+  return wbAud(w,wbAudKey(w,'tone','A'))+`<div class="wb-hint">${wbL({zh:'聽音檔，把聲調標上去（例：zhidao → zhīdào）。',cn:'听音档，把声调标上去（例：zhidao → zhīdào）。',en:'Listen and write the pinyin with tone marks.',vi:'Nghe rồi viết pinyin có dấu thanh.'})}</div>`
    +`<div class="wb-grid2">`+(wbData(w).tone||[]).map(q=>{
       const ok=q.ans?(wbNorm(a[q.n]||'').toLowerCase()===wbNorm(q.ans).toLowerCase()):null;
       return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${q.n}</span><b class="wb-py">${esc(q.py||'')}</b></div>${wbTxt('tone',q.n,a[q.n],graded,q.ans,ok)}</div>`;}).join('')+`</div>`;
 }
 function wbPronHtml(w,graded){
   const a=wbAns().pron||{};
-  return wbAud(w,'B')+`<div class="wb-hint">${wbL({zh:'聽音檔，選出符合該題漢字的發音。',cn:'听音档，选出符合该题汉字的发音。',en:'Listen and choose the pronunciation that matches.',vi:'Nghe và chọn cách phát âm đúng.'})}</div>`
+  return wbAud(w,wbAudKey(w,'pron','B'))+`<div class="wb-hint">${wbL({zh:'聽音檔，選出符合該題漢字的發音。',cn:'听音档，选出符合该题汉字的发音。',en:'Listen and choose the pronunciation that matches.',vi:'Nghe và chọn cách phát âm đúng.'})}</div>`
    +(wbData(w).pron||[]).map(q=>{
       const raw=[q.a,q.b,q.c];
       const opts=raw.filter(x=>x&&String(x).trim());
@@ -3459,10 +3462,14 @@ function wbPronHtml(w,graded){
       }
       return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${q.n}</span>${annotate(q.q||'')}</div><div class="wb-pickrow">${body}</div></div>`;}).join('');
 }
+function wbMcqHtml(w,graded){
+  return wbAud(w,wbAudKey(w,'mcq','C'))+`<div class="wb-hint">${wbL({zh:'聽對話，從 A、B、C 中選出正確的答案。',cn:'听对话，从 A、B、C 中选出正确的答案。',en:'Listen to the dialogue and choose A, B or C.',vi:'Nghe hội thoại rồi chọn A, B hoặc C.'})}</div>`
+   +(wbData(w).mcq||[]).map(q=>wbMcHtml('mcq',q,q.q||'',graded)).join('');
+}
 function wbTfHtml(w,graded){
   const d=wbData(w),a=wbAns().tf||{};
   const intro=d.tfIntro?`<div class="wb-note">${annotate(d.tfIntro)}</div>`:'';
-  return wbAud(w,'C')+`<div class="wb-hint">${wbL({zh:'聽短文，對的選 O、錯的選 X。',cn:'听短文，对的选 O、错的选 X。',en:'Listen, then mark O if correct and X if incorrect.',vi:'Nghe rồi chọn O nếu đúng, X nếu sai.'})}</div>`
+  return wbAud(w,wbAudKey(w,'tf','C'))+`<div class="wb-hint">${wbL({zh:'聽短文，對的選 O、錯的選 X。',cn:'听短文，对的选 O、错的选 X。',en:'Listen, then mark O if correct and X if incorrect.',vi:'Nghe rồi chọn O nếu đúng, X nếu sai.'})}</div>`
    +(graded?intro:'')
    +(d.tf||[]).map(q=>{
       const cur=String(a[q.n]||'');
@@ -3576,7 +3583,7 @@ function wbViewHtml(w){
   if(graded){const sc=doc.score||wbGrade(w,WB.ans);
     const pill=(lab,o)=>o&&o.total?`<span class="wb-spill">${lab} ${o.ok}/${o.total}</span>`:'';
     score=`<div class="wb-score"><div>${wbL({zh:'自動批改結果',cn:'自动批改结果',en:'Auto-graded',vi:'Chấm tự động'})}</div><b>${sc.ok||0} / ${sc.total||0}</b>
-      <div class="wb-sgrid">${pill('聽力',sc.listen)}${pill('詞彙選擇',sc.vocab)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀理解',sc.read)}${pill('聲調',sc.tone)}${pill('選發音',sc.pron)}${pill('短文O╱X',sc.tf)}${pill('寫漢字',sc.hz)}${pill('句子重組',sc.ord)}${pill('語法練習',sc.g7)}</div>
+      <div class="wb-sgrid">${pill('聽力',sc.listen)}${pill('詞彙選擇',sc.vocab)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀理解',sc.read)}${pill('聲調',sc.tone)}${pill('選發音',sc.pron)}${pill('聽對話選擇',sc.mcq)}${pill('短文O╱X',sc.tf)}${pill('寫漢字',sc.hz)}${pill('句子重組',sc.ord)}${pill('語法練習',sc.g7)}</div>
       <div style="margin-top:9px;font-size:13px;opacity:.9">${doc.status==='reviewed'?wbL({zh:'需要老師批改的部分已批改 ✓',cn:'需要老师批改的部分已批改 ✓',en:'Teacher-graded parts done ✓',vi:'Phần giáo viên chấm đã xong ✓'}):wbL({zh:'語法對話和寫作等老師批改中…',cn:'语法对话和写作等老师批改中…',en:'Grammar & writing awaiting teacher…',vi:'Ngữ pháp & viết đang chờ giáo viên…'})}</div></div>`
       +((doc.overall&&String(doc.overall).trim())?`<div class="wb-fb">💬 ${esc(doc.overall)}</div>`:'');
   }
@@ -3585,7 +3592,8 @@ function wbViewHtml(w){
   if((d.listen||[]).length)push('聽力',wbListenHtml(w,graded));
   if((d.tone||[]).length)push('聽力測驗　A. 聲調辨識',wbToneHtml(w,graded));
   if((d.pron||[]).length)push('聽力測驗　B. 選出正確的發音',wbPronHtml(w,graded));
-  if((d.tf||[]).length)push('聽力測驗　C. 聽短文回答問題',wbTfHtml(w,graded));
+  if((d.mcq||[]).length)push('聽力測驗　C. 聽對話回答問題',wbMcqHtml(w,graded));
+  if((d.tf||[]).length)push('聽力測驗　'+((d.mcq||[]).length?'D':'C')+'. 聽短文回答問題',wbTfHtml(w,graded));
   if((d.py||[]).length)push('寫出漢語拼音和聲調',wbPyHtml(w,graded));
   if((d.hz||[]).length)push('寫出中國字',wbHzHtml(w,graded));
   if((d.ord||[]).length)push('句子重組',wbOrdHtml(w,graded));
@@ -3649,7 +3657,7 @@ H.wbPick=(id,btn)=>{if(wbLocked())return;const p=String(id).split('|');const a=w
   a[p[0]][p[1]]=(a[p[0]][p[1]]===p[2])?'':p[2];
   wbTouch();
   /* 選出發音／O X：只改按鈕狀態，不重畫整頁，音檔才不會被打斷 */
-  if((p[0]==='pron'||p[0]==='tf')&&btn&&btn.parentElement){
+  if((p[0]==='pron'||p[0]==='tf'||p[0]==='mcq')&&btn&&btn.parentElement){
     const cur=a[p[0]][p[1]];
     btn.parentElement.querySelectorAll('[data-act="wbPick"]').forEach(b=>{
       const q=String(b.dataset.id||'').split('|');
