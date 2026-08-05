@@ -139,6 +139,8 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .wb-wrap .wb-ta,.wb-wrap .wb-opt,.wb-wrap .wb-word,.wb-wrap .wb-chip,.wb-wrap .wb-sel,.wb-wrap .wb-blank,.wb-wrap .wb-hint{
   font-family:'PinyinTone',var(--font)}
 .wb-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.wb-g7g{margin:14px 0 6px}
+.wb-g7h{font-weight:700;color:var(--accent);margin:0 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
 .due-banner{border:1px solid #f0d9a8;background:#fffaf0;border-radius:12px;padding:12px 14px;margin-bottom:14px}
 .due-banner.over{border-color:#f2c1bb;background:#fff5f3}
 .due-banner .db-h{font-weight:700;margin-bottom:6px}
@@ -3264,7 +3266,7 @@ function wbDocOf(id){return (S.wbdocs||[]).find(x=>x.wb_lesson===id)||null;}
 function wbOf(id){return (S.workbooks||[]).find(x=>x.id===id)||null;}
 function wbData(w){return (w&&w.wb)||{};}
 function wbL(m){const L=S.lang||'zh';return (m&&(m[L]||m.zh))||'';}
-function wbEmptyAns(){return {listen:{},vocab:{},cloze:{},match:{},gram:{},read:{},write:'',tone:{},pron:{},tf:{},py:{},hz:{},ord:{},dlg:{},pic:{}};}
+function wbEmptyAns(){return {listen:{},vocab:{},cloze:{},match:{},gram:{},read:{},write:'',tone:{},pron:{},tf:{},py:{},hz:{},ord:{},dlg:{},pic:{},g7:{}};}
 function wbAns(){if(!WB.ans)WB.ans=wbEmptyAns();return WB.ans;}
 function wbLocked(){const d=wbDocOf(WB.id);return !!(d&&(d.status==='submitted'||d.status==='reviewed'));}
 function wbGraded(){const d=wbDocOf(WB.id);return (d&&(d.status==='submitted'||d.status==='reviewed'))?d:null;}
@@ -3287,8 +3289,12 @@ function wbGrade(w,ans){
   (d.tf||[]).forEach(q=>{if(!q.ans)return;out.tf.total++;if(String((ans.tf||{})[q.n]||'').trim().toUpperCase()===String(q.ans).trim().toUpperCase())out.tf.ok++;});
   (d.hz||[]).forEach(q=>((q.lines)||[]).forEach((ln,i)=>{if(!ln.ans)return;out.hz.total++;if(_zh((ans.hz||{})[q.n+'-'+i])===_zh(ln.ans))out.hz.ok++;}));
   (d.ord||[]).forEach(q=>{if(!q.ans)return;out.ord.total++;if(_zh((ans.ord||{})[q.n])===_zh(q.ans))out.ord.ok++;});
-  out.ok=out.listen.ok+out.vocab.ok+out.cloze.ok+out.match.ok+out.read.ok+out.tone.ok+out.pron.ok+out.tf.ok+out.hz.ok+out.ord.ok;
-  out.total=out.listen.total+out.vocab.total+out.cloze.total+out.match.total+out.read.total+out.tone.total+out.pron.total+out.tf.total+out.hz.total+out.ord.total;
+  out.g7={ok:0,total:0};
+  (((d.g7||{}).groups)||[]).forEach(g=>(g.items||[]).forEach(it=>{
+    if(!it.ans||/^（參考）|^\(參考\)/.test(String(it.ans).trim()))return;
+    out.g7.total++;if(_zh((ans.g7||{})[g.k+'-'+it.n])===_zh(it.ans))out.g7.ok++;}));
+  out.ok=out.listen.ok+out.vocab.ok+out.cloze.ok+out.match.ok+out.read.ok+out.tone.ok+out.pron.ok+out.tf.ok+out.hz.ok+out.ord.ok+out.g7.ok;
+  out.total=out.listen.total+out.vocab.total+out.cloze.total+out.match.total+out.read.total+out.tone.total+out.pron.total+out.tf.total+out.hz.total+out.ord.total+out.g7.total;
   return out;
 }
 
@@ -3489,6 +3495,23 @@ function wbOrdHtml(w,graded){
       const toks=(q.toks||[]).map(t=>`<span class="wb-tok">${annotate(t)}</span>`).join('');
       return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${q.n}</span></div><div class="wb-toks">${toks}</div><div style="margin-top:8px">${wbTxt('ord',q.n,a[q.n],graded,q.ans,ok)}</div></div>`;}).join('');
 }
+/* 七 語法練習（A／B 題組） */
+function wbG7Html(w,graded){
+  const a=wbAns().g7||{};const gs=((wbData(w).g7||{}).groups)||[];
+  const _zh=x=>wbNorm(x).replace(/[，。？！；：、,.?!;:\s]/g,'');
+  const auto=(it)=>!!(it.ans&&!/^（參考）|^\(參考\)/.test(String(it.ans).trim()));
+  return `<div class="wb-hint">${wbL({zh:'照每一小題的要求改寫句子。','cn':'照每一小题的要求改写句子。',en:'Rewrite each sentence as instructed.',vi:'Viết lại câu theo yêu cầu.'})}</div>`
+   +gs.map(g=>{
+     const items=(g.items||[]).map(it=>{
+       const key=g.k+'-'+it.n;const v=a[key]||'';
+       const ok=auto(it)?(_zh(v)===_zh(it.ans)):null;
+       const pat=it.pattern?`<span class="wb-tag">${esc(it.pattern)}</span>`:'';
+       return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${esc(String(it.n))}</span><span style="flex:1">${tOptB(it.q)}</span>${pat}</div>
+         ${it.img?`<div class="wb-pic"><img src="${esc(it.img)}" alt="" loading="lazy"></div>`:''}
+         <div style="margin-top:8px">${wbTxt('g7',key,v,graded,it.ans,ok)}</div></div>`;}).join('');
+     return `<div class="wb-g7g"><div class="wb-g7h">${esc(g.k)}. ${esc(g.title||'')}</div>${items}</div>`;}).join('');
+}
+function tOptB(x){return esc(String(x||'')).replace(/[_＿]{2,}/g,'<span class="opt-blank">＿＿＿＿</span>').replace(/\n/g,'<br>');}
 function wbDlgHtml(w,graded,doc){
   const a=wbAns().dlg||{};const fb=(doc&&doc.feedback)||{};
   const lines=(wbData(w).dlg||[]);
@@ -3541,7 +3564,7 @@ function wbViewHtml(w){
   if(graded){const sc=doc.score||wbGrade(w,WB.ans);
     const pill=(lab,o)=>o&&o.total?`<span class="wb-spill">${lab} ${o.ok}/${o.total}</span>`:'';
     score=`<div class="wb-score"><div>${wbL({zh:'自動批改結果',cn:'自动批改结果',en:'Auto-graded',vi:'Chấm tự động'})}</div><b>${sc.ok||0} / ${sc.total||0}</b>
-      <div class="wb-sgrid">${pill('聽力',sc.listen)}${pill('詞彙選擇',sc.vocab)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀理解',sc.read)}${pill('聲調',sc.tone)}${pill('選發音',sc.pron)}${pill('短文O╱X',sc.tf)}${pill('寫漢字',sc.hz)}${pill('句子重組',sc.ord)}</div>
+      <div class="wb-sgrid">${pill('聽力',sc.listen)}${pill('詞彙選擇',sc.vocab)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀理解',sc.read)}${pill('聲調',sc.tone)}${pill('選發音',sc.pron)}${pill('短文O╱X',sc.tf)}${pill('寫漢字',sc.hz)}${pill('句子重組',sc.ord)}${pill('語法練習',sc.g7)}</div>
       <div style="margin-top:9px;font-size:13px;opacity:.9">${doc.status==='reviewed'?wbL({zh:'需要老師批改的部分已批改 ✓',cn:'需要老师批改的部分已批改 ✓',en:'Teacher-graded parts done ✓',vi:'Phần giáo viên chấm đã xong ✓'}):wbL({zh:'語法對話和寫作等老師批改中…',cn:'语法对话和写作等老师批改中…',en:'Grammar & writing awaiting teacher…',vi:'Ngữ pháp & viết đang chờ giáo viên…'})}</div></div>`
       +((doc.overall&&String(doc.overall).trim())?`<div class="wb-fb">💬 ${esc(doc.overall)}</div>`:'');
   }
@@ -3556,6 +3579,7 @@ function wbViewHtml(w){
   if((d.ord||[]).length)push('句子重組',wbOrdHtml(w,graded));
   if((d.dlg||[]).length)push('完成對話',wbDlgHtml(w,graded,doc));
   if((d.pic||[]).length)push('圖片描述',wbPicHtml(w,graded,doc));
+  if((((d.g7||{}).groups)||[]).length)push('語法練習',wbG7Html(w,graded));
   if((d.vocab||[]).length)push('詞彙選擇',
     `<div class="wb-hint">${wbL({zh:'從四個選項中選出最合適的一個。',cn:'从四个选项中选出最合适的一个。',en:'Choose the best of the four options.',vi:'Chọn phương án phù hợp nhất.'})}</div>`
     +(d.vocab||[]).map(q=>wbMcHtml('vocab',q,q.q,graded)).join(''));
