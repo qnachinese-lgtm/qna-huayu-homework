@@ -156,7 +156,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         <button class="tab" data-act="tab" data-id="calendar" data-group="students">📅 課表</button>
         <button class="tab" data-act="tab" data-id="lessons" data-group="materials">📚 教材與課程 <span class="count" id="c-lessons">0</span></button>
         <button class="tab" data-act="tab" data-id="grades" data-group="students">📝 批改・成績 <span class="count alert hide" id="c-pending">0</span></button>
-        <button class="tab" data-act="tab" data-id="files" data-group="students">📤 學生檔案</button>
+        <button class="tab" data-act="tab" data-id="files" data-group="students">🎯 課堂活動</button>
         <div class="sec">經　營</div>
         <button class="tab" data-act="tab" data-id="ops" data-group="ops">💰 財務・營運 <span class="count alert hide" id="c-leads">0</span></button>
         <button class="tab" data-act="tab" data-id="agency" data-group="abroad">🎓 代辦申請 <span class="count" id="c-ag">0</span></button>
@@ -595,11 +595,6 @@ function renderDashboard(){
   const sentLessonName=sd=>{const l=S.lessons.find(x=>x.id===sd.sent_lesson)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');};
   const sentPend=(S.sentences||[]).filter(x=>x.status==='submitted');
   const sentHtml=sentPend.length?sentPend.map(sd=>`<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc(sentName(sd))}</b><span class="muted">${esc(sentLessonName(sd))}</span><span class="grow"></span><span class="muted">${(sd.items||[]).filter(it=>it.sentence).length} 句</span><button class="btn btn-sm btn-accent" data-act="reviewSent" data-id="${sd.id}">批改</button></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的造句 👍</div>`;
-  // 隨堂小考
-  const quizScore=(qid,sid)=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qid&&x.student_id===sid);return r?(r.score+'/'+r.total):null;};
-  const quizSrcName=qz=>{if(qz.mode==='custom'){const n=(qz.quiz_items||'').split('\n').filter(s=>/[=＝]/.test(s)).length;return '自訂題目（'+n+' 題）';}const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.textbook?('【'+l.textbook+'】'):'')+(l.order_index?('第'+l.order_index+'課'):'')+(l.title?(' '+l.title):'');};
-  const QM={dict:'聽寫',pinyin:'看拼音寫字',mean:'看意思寫字',choice:'看字選意思',cloze:'看例句填生詞',custom:'自訂題目'};
-  const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return sc?`<button class="badge badge-ok" data-act="viewQuizResult" data-id="${qz.id}::${s.id}" style="cursor:pointer;border:0">${snm(s.name)}：${sc} 👁</button>`:`<span class="badge badge-pending">${snm(s.name)}：未考</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未發佈</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
   // 問題與討論批改
   const discPend=(S.discussions||[]).filter(x=>x.status==='submitted');
   const discHtml=discPend.length?discPend.map(sd=>`<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc(sentName(sd))}</b><span class="muted">${esc((()=>{const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');})())}</span><span class="grow"></span><span class="muted">${Object.keys(sd.answers||{}).length} 題</span><button class="btn btn-sm btn-accent" data-act="reviewDisc" data-id="${sd.id}">批改</button></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的問題與討論 👍</div>`;
@@ -656,10 +651,21 @@ function renderDashboard(){
   const _hero=`<div class="tpg-h"><h2>${_greet}，美娟老師 👋</h2><div class="sub">${esc(_today)}（週${_wd}）｜在學 <b>${_act}</b> 位${_pend?('　·　<b>'+_pend+'</b> 份待批改'):'　·　沒有待批改的作業'}${_cls?('　·　今天 <b>'+_cls+'</b> 堂課'):''}</div></div>`;
   body.innerHTML=`${_hero}${statHtml}${healthCheckHtml()}<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
     <details class="dash-fold" open style="margin-top:14px"><summary>⏰ 提醒（堂數／補課）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>
-    <details class="dash-fold" style="margin-top:14px"><summary>📝 隨堂小考${(S.quizzes||[]).length?'（'+(S.quizzes||[]).length+'）':''}</summary>
-      <div class="quiz-create-row" style="margin-top:10px"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button><span class="muted">選一課的生詞，發佈給學生做聽寫，自動計分</span></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):''}</details>
-    <details class="dash-fold" open style="margin-top:14px"><summary>🎮 即時比賽（Kahoot 式）${(S.livequizzes||[]).length?'（'+(S.livequizzes||[]).length+'）':''}</summary><div style="margin-top:10px"><div class="hint" style="margin-bottom:8px">學生登入後在首頁用代碼加入，你一題一題推、即時排行榜。</div>${(function(){const lqs=(S.livequizzes||[]).slice().sort((a,b)=>String(a.book||'').localeCompare(String(b.book||''))||((a.lesson_no||99)-(b.lesson_no||99))||String(a.quiz_type||'').localeCompare(String(b.quiz_type||'')));if(!lqs.length)return '<div class="hint">目前沒有即時比賽題庫。</div>';const TY={vocab:'詞語測驗',reading:'閱讀測驗'};const head='<div class="lqt lqt-head"><span>教材</span><span>課</span><span>類型</span><span>題數</span><span></span></div>';return head+lqs.map(l=>`<div class="lqt"><b>${esc(l.book||'—')}</b><span>${l.lesson_no?('第'+l.lesson_no+'課'):'—'}</span><span>${TY[l.quiz_type]||esc(l.title||'')}${l.answers_verified?'':' <span title="答案尚未確認" style="color:#d97706;cursor:help">⚠️</span>'}</span><span>${(l.questions||[]).length} 題</span><span style="justify-self:end;display:flex;gap:6px;white-space:nowrap"><button class="btn btn-sm" data-act="liveEdit" data-id="${l.id}" title="編輯題目/答案">✏️</button><button class="btn btn-sm btn-accent" data-act="liveHost" data-id="${l.id}">▶ 主持</button></span></div>`).join('');})()}<div style="margin-top:10px"><button class="btn btn-sm" data-act="lqeNew">＋ 新增即時比賽題庫（自己出題）</button></div></div></details>
     <details class="dash-fold" style="margin-top:14px"><summary>📈 學生進度</summary><div style="margin-top:10px">${progHtml}</div></details>`;
+}
+
+/* ===== 🎯 課堂活動：隨堂小考 ＋ 即時比賽（原本放在今日總覽） ===== */
+function quizFoldHtml(){
+  const quizScore=(qid,sid)=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qid&&x.student_id===sid);return r?(r.score+'/'+r.total):null;};
+  const quizSrcName=qz=>{if(qz.mode==='custom'){const n=(qz.quiz_items||'').split('\n').filter(s=>/[=＝]/.test(s)).length;return '自訂題目（'+n+' 題）';}const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.textbook?('【'+l.textbook+'】'):'')+(l.order_index?('第'+l.order_index+'課'):'')+(l.title?(' '+l.title):'');};
+  const QM={dict:'聽寫',pinyin:'看拼音寫字',mean:'看意思寫字',choice:'看字選意思',cloze:'看例句填生詞',custom:'自訂題目'};
+  const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return sc?`<button class="badge badge-ok" data-act="viewQuizResult" data-id="${qz.id}::${s.id}" style="cursor:pointer;border:0">${snm(s.name)}：${sc} 👁</button>`:`<span class="badge badge-pending">${snm(s.name)}：未考</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未發佈</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
+  return `<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">📝 隨堂小考${(S.quizzes||[]).length?'（'+(S.quizzes||[]).length+'）':''}</h3>
+    <div class="hint" style="margin-bottom:8px">選一課的生詞，發佈給指定的學生做聽寫或填空，系統自動計分。</div>
+    <div class="quiz-create-row"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):'<div class="hint" style="margin-top:10px">還沒有建立任何隨堂小考。</div>'}</div>`;
+}
+function liveFoldHtml(){
+  return `<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">🎮 即時比賽（Kahoot 式）${(S.livequizzes||[]).length?'（'+(S.livequizzes||[]).length+'）':''}</h3><div style="margin-top:10px"><div class="hint" style="margin-bottom:8px">學生登入後在首頁用代碼加入，你一題一題推、即時排行榜。</div>${(function(){const lqs=(S.livequizzes||[]).slice().sort((a,b)=>String(a.book||'').localeCompare(String(b.book||''))||((a.lesson_no||99)-(b.lesson_no||99))||String(a.quiz_type||'').localeCompare(String(b.quiz_type||'')));if(!lqs.length)return '<div class="hint">目前沒有即時比賽題庫。</div>';const TY={vocab:'詞語測驗',reading:'閱讀測驗'};const head='<div class="lqt lqt-head"><span>教材</span><span>課</span><span>類型</span><span>題數</span><span></span></div>';return head+lqs.map(l=>`<div class="lqt"><b>${esc(l.book||'—')}</b><span>${l.lesson_no?('第'+l.lesson_no+'課'):'—'}</span><span>${TY[l.quiz_type]||esc(l.title||'')}${l.answers_verified?'':' <span title="答案尚未確認" style="color:#d97706;cursor:help">⚠️</span>'}</span><span>${(l.questions||[]).length} 題</span><span style="justify-self:end;display:flex;gap:6px;white-space:nowrap"><button class="btn btn-sm" data-act="liveEdit" data-id="${l.id}" title="編輯題目/答案">✏️</button><button class="btn btn-sm btn-accent" data-act="liveHost" data-id="${l.id}">▶ 主持</button></span></div>`).join('');})()}<div style="margin-top:10px"><button class="btn btn-sm" data-act="lqeNew">＋ 新增即時比賽題庫（自己出題）</button></div></div></div>`;
 }
 
 /* ---------- 課表／行事曆 ---------- */
@@ -1811,7 +1817,7 @@ function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length
 function renderFiles(){
   const body=$('#panel-files');if(!body)return;
   const studs=S.students.slice().sort((a,b)=>{const ta=a.is_test?1:0,tb=b.is_test?1:0;const ea=enrollOf(a)==='active'?0:1,eb=enrollOf(b)==='active'?0:1;return ta-tb||ea-eb||String(a.name||'').localeCompare(String(b.name||''));});
-  const head='<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 6px">📤 學生檔案</h3>'
+  const head='<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 6px">📤 上傳檔案（學生檔案）</h3>'
     +'<div class="hint" style="line-height:1.8">這一頁的邏輯只有兩步：<br>'
     +'<b>① 開放上傳格子</b>：你先開一個「格子」給學生（取名，例如「上傳作業簿」）。開放後，學生的「✍️ 作業簿」頁就會出現這個格子。<br>'
     +'<b>② 收檔案</b>：學生上傳時可以順便選「這是第幾課的」，檔案會自動掉進下面的收件匣，你直接預覽、下載或刪除。</div>'
@@ -1828,7 +1834,14 @@ function renderFiles(){
   const inboxCard='<div class="card"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0">② 收件匣：學生傳來的檔案</h3><span class="grow"></span>'
     +'<button class="btn btn-sm '+(_view==='stu'?'btn-accent':'')+'" data-act="filesViewStu">👥 依學生看</button><button class="btn btn-sm '+(_view==='les'?'btn-accent':'')+'" data-act="filesViewLes">📚 依課次看</button></div>'
     +'<div id="files-inbox" style="margin-top:8px"><div class="hint">載入檔案中…</div></div></div>';
-  body.innerHTML=head+areasCard+inboxCard;
+  const _hero='<div class="tpg-h"><h2>🎯 課堂活動</h2><div class="sub">隨堂小考 · 即時比賽 · 上傳檔案，都在這一頁</div></div>';
+  const _sub=(S.filesSub||'quiz');
+  const _tabs='<div class="book-bar" style="margin-bottom:14px"><button class="book-tab '+(_sub==='quiz'?'on':'')+'" data-act="filesSub" data-id="quiz">📝 隨堂小考</button>'
+    +'<button class="book-tab '+(_sub==='live'?'on':'')+'" data-act="filesSub" data-id="live">🎮 即時比賽</button>'
+    +'<button class="book-tab '+(_sub==='up'?'on':'')+'" data-act="filesSub" data-id="up">📤 上傳檔案</button></div>';
+  if(_sub==='quiz'){body.innerHTML=_hero+_tabs+quizFoldHtml();return;}
+  if(_sub==='live'){body.innerHTML=_hero+_tabs+liveFoldHtml();return;}
+  body.innerHTML=_hero+_tabs+head+areasCard+inboxCard;
   _filesLoadInbox();
 }
 async function _filesLoadInbox(){const box=document.getElementById('files-inbox');if(!box)return;
@@ -2809,6 +2822,7 @@ H.dlgAutoPinyin=(i)=>{if(!window.pinyinPro){toast('拼音元件還在載入，�
     let py='';try{py=twPyT(han);}catch(e){return raw;}if(!py)return raw;n++;
     return head.replace(/\s*$/,'')+'['+py+']'+stripLatinBr(rest);});
   ta.value=out.join('\n');toast(n?('已為 '+n+' 個詞加上拼音（只加漢字，可再修改）'):'已整理完成（只保留漢字拼音）');};
+H.filesSub=(id)=>{S.filesSub=id;renderFiles();};
 H.toggleBook=(id)=>{if(!S.openBooks)S.openBooks=new Set();if(S.openBooks.has(id))S.openBooks.delete(id);else S.openBooks.add(id);renderLessons();};
 H.toggleAllBooks=()=>{if(!S.openBooks)S.openBooks=new Set();
   if(S.openBooks.size){S.openBooks.clear();}
