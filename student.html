@@ -178,7 +178,10 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .wb-toks{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
 .wb-tok{display:inline-block;padding:5px 11px;border:1px dashed var(--line);border-radius:8px;background:#fbfbfd}
 .wb-oxrow{display:flex;gap:9px;margin-top:7px}
-.wb-opt.ox{flex:0 0 auto;min-width:74px;justify-content:center}
+.wb-oxrow .wb-opt{width:auto;flex:0 0 auto;min-width:88px;justify-content:center;align-items:center;font-size:17px;font-weight:700}
+.wb-pickrow{display:flex;flex-wrap:wrap;gap:9px;margin-top:7px}
+.wb-pickrow .wb-opt{width:auto;flex:0 0 auto;min-width:64px;justify-content:center;align-items:center}
+.wb-pickrow .wb-opt .lab{margin:0}
 .wb-note{padding:9px 12px;background:#f3f7ff;border-radius:9px;margin-bottom:10px;line-height:2}
 .wb-pic{margin-top:8px}
 .wb-pic img{max-width:min(100%,300px);border:1px solid var(--line);border-radius:10px;background:#fff}
@@ -3354,20 +3357,19 @@ function wbPronHtml(w,graded){
   const a=wbAns().pron||{};
   return wbAud(w,'B')+`<div class="wb-hint">${wbL({zh:'聽音檔，選出符合該題漢字的發音。',cn:'听音档，选出符合该题汉字的发音。',en:'Listen and choose the pronunciation that matches.',vi:'Nghe và chọn cách phát âm đúng.'})}</div>`
    +(wbData(w).pron||[]).map(q=>{
-      const opts=[q.a,q.b,q.c].filter(x=>x&&String(x).trim());
+      const raw=[q.a,q.b,q.c];
+      const opts=raw.filter(x=>x&&String(x).trim());
       const cur=String(a[q.n]||'');
+      const letters=(q.letters&&String(q.letters).trim())?String(q.letters).split(/[,，\s／/]+/).filter(Boolean):(opts.length?['a','b','c'].slice(0,opts.length):['a','b','c']);
       let body;
-      if(opts.length){
-        body=['a','b','c'].map((c,i)=>{ if(!opts[i])return '';
+      {
+        body=letters.map((c,i)=>{
           let cls='',mk='';
           if(graded&&q.ans){if(c===String(q.ans).toLowerCase()){cls=' ok';mk='✓';}else if(cur.toLowerCase()===c){cls=' no';mk='✗';}}
           else if(cur.toLowerCase()===c)cls=' on';
-          return `<button class="wb-opt${cls}" type="button"${graded?' disabled':''} data-act="wbPick" data-id="pron|${q.n}|${c}"><span class="lab">${c}</span><span>${esc(opts[i])}</span>${mk?`<span class="mk">${mk}</span>`:''}</button>`;}).join('');
-      }else{
-        const ok=q.ans?(cur.trim().toLowerCase()===String(q.ans).trim().toLowerCase()):null;
-        body=wbTxt('pron',q.n,cur,graded,q.ans,ok);
+          return `<button class="wb-opt pick${cls}" type="button"${graded?' disabled':''} data-act="wbPick" data-id="pron|${q.n}|${c}"><span class="lab">${c}</span>${raw[i]&&String(raw[i]).trim()?`<span>${esc(raw[i])}</span>`:''}${mk?`<span class="mk">${mk}</span>`:''}</button>`;}).join('');
       }
-      return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${q.n}</span>${annotate(q.q||'')}</div><div style="margin-top:6px">${body}</div></div>`;}).join('');
+      return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${q.n}</span>${annotate(q.q||'')}</div><div class="wb-pickrow">${body}</div></div>`;}).join('');
 }
 function wbTfHtml(w,graded){
   const d=wbData(w),a=wbAns().tf||{};
@@ -3516,9 +3518,16 @@ function wbRepaint(){
   const w=wbOf(WB.id);if(!w)return;
   const open={};document.querySelectorAll('#screen .wb-sec').forEach((d,i)=>{open[i]=d.open;});
   const sc=window.scrollY;
+  /* 記住音檔的播放位置與狀態，重畫後接回去，學生點選項時聲音不會斷 */
+  const AU=[];document.querySelectorAll('#screen audio').forEach(a=>{AU.push({src:a.getAttribute('src')||'',t:a.currentTime||0,playing:!a.paused&&!a.ended,rate:a.playbackRate||1,vol:a.volume});});
   $('#screen').innerHTML=wbViewHtml(w);
   document.querySelectorAll('#screen .wb-sec').forEach((d,i)=>{if(open[i]!=null)d.open=open[i];});
   wbAfterRender();convScreen();window.scrollTo(0,sc);
+  document.querySelectorAll('#screen audio').forEach(a=>{
+    const st=AU.find(x=>x.src===(a.getAttribute('src')||''));if(!st)return;
+    const go=()=>{try{a.currentTime=st.t;a.playbackRate=st.rate;a.volume=st.vol;if(st.playing)a.play().catch(()=>{});}catch(e){}};
+    if(a.readyState>0)go();else a.addEventListener('loadedmetadata',go,{once:true});
+  });
 }
 H.wbSubmit=async()=>{
   if(S.preview)return;
