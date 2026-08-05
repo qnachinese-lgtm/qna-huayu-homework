@@ -2004,8 +2004,26 @@ function renderContent(){
         :(r&&r.status==='draft')?'<span class="badge badge-soon">'+esc(t('sDoing'))+'</span>'
         :(di?'<span class="badge '+di.cls+'">'+esc(di.label)+'</span>':'<span class="badge badge-pending">'+esc(t('sTodo'))+'</span>');
       return '<tr data-act="openLesson" data-id="'+esc(l.id)+'" style="cursor:pointer"><td><b>'+esc(l.title||'')+'</b></td><td>'+esc(l.due_date||'—')+'</td><td>'+stt+'</td><td>'+((r&&r.status==='done')?('<b>'+r.score+'</b> / '+(r.total||qn)):'—')+'</td></tr>';}).join('');
-    body=rows?('<div class="card" style="padding:0"><table class="ctab"><thead><tr><th>'+esc(T.work)+'</th><th>'+esc(t('due'))+'</th><th></th><th>'+esc(t('score'))+'</th></tr></thead><tbody>'+rows+'</tbody></table></div>')
-      :emptyHtml('✍️',t('noWork'),t('noWorkSub'));
+    const _lbl=(z,c,e,v)=>LT({zh:z,cn:c,en:e,vi:v});
+    const _sec=(ic,tx)=>'<div class="lesson-label" style="margin:18px 0 8px">'+ic+' '+esc(tx)+'</div>';
+    const exBlk=rows?('<div class="card" style="padding:0"><table class="ctab"><thead><tr><th>'+esc(_lbl('課文練習題','课文练习题','Lesson exercises','Bài luyện'))+'</th><th>'+esc(t('due'))+'</th><th></th><th>'+esc(t('score'))+'</th></tr></thead><tbody>'+rows+'</tbody></table></div>'):'';
+    /* 這一個課程用到的教材，用來挑出屬於它的小考與作業簿 */
+    const _bks=new Set(ls.map(l=>(l.textbook||'').trim()).filter(Boolean));
+    const _lids=new Set(ls.map(l=>l.id));
+    const _qs=(S.quizzes||[]).filter(qz=>assignedToMe(qz)).filter(qz=>{
+      const src=qz.source_lesson||'';
+      if(src)return _lids.has(src);
+      return true; /* 自訂題目／老師錄音不綁教材，各課程都看得到 */
+    }).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+    const qzBlk=_qs.length?(_sec('📝',t('quizSec').replace(/^\S*\s*/,'')||'隨堂小考')+'<div class="quiz-list">'+_qs.map(qz=>{
+      const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;
+      const qm=t({audio:'qmAudio',dict:'qmDict',pinyin:'qmPinyin',mean:'qmMean',choice:'qmChoice',cloze:'qmCloze',custom:'qmCustom'}[qz.mode||'dict']||'qmDict');
+      return '<div class="quiz-card'+(done?' done':'')+'"'+(done?'':' data-act="startQuiz" data-id="'+qz.id+'"')+'><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>'+esc(qz.title||t('quizDefTitle'))+'</b><div class="muted" style="font-size:12px">'+esc(qm)+'</div></div>'
+        +(done?'<span class="badge badge-ok">'+r.score+'/'+r.total+'</span>':'<span class="badge badge-soon">'+esc(t('quizNotTaken'))+'</span>')+'</div>';}).join('')+'</div>'):'';
+    const _wbs=myWorkbooks().filter(w=>!_bks.size||_bks.has((w.textbook||'').trim()));
+    const wbBlk=_wbs.length?(_sec('📒',_lbl('作業簿','作业簿','Workbook','Sách bài tập'))+'<div class="wb-list">'+_wbs.map(w=>
+      '<div class="wb-card" data-act="wbOpen" data-id="'+esc(w.id)+'"><h4>📒 '+esc(w.title||'')+'</h4><div class="sub">'+esc(w.wb_name||'')+(w.wb_en?(' · '+esc(w.wb_en)):'')+'</div>'+wbStatusChip(w)+'</div>').join('')+'</div>'):'';
+    body=(exBlk||qzBlk||wbBlk)?(exBlk+qzBlk+wbBlk):emptyHtml('✍️',t('noWork'),t('noWorkSub'));
   }else if(tab==='grade'){
     const rows=ls.filter(l=>answerableOf(l.id).length).map(l=>{const r=resultOf(l.id),qn=answerableOf(l.id).length;
       return '<tr><td>'+esc(l.title||'')+'</td><td>'+((r&&r.status==='done')?'<span class="badge badge-ok">'+esc(t('sDone'))+'</span>':'<span class="badge badge-pending">'+esc(t('sTodo'))+'</span>')+'</td><td>'+((r&&r.status==='done')?('<b>'+r.score+'</b> / '+(r.total||qn)):'—')+'</td></tr>';}).join('');
