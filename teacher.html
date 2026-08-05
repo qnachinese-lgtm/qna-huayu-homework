@@ -804,8 +804,21 @@ function agAll(){return (S.agencies||[]);}
 function agById(id){return agAll().find(x=>x.id===id);}
 function agLog(c){return (c&&Array.isArray(c.log))?c.log.filter(x=>x&&x.date):[];}
 function agSorted(c){return agLog(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));}
-function agPaidSum(c,ym){const by={};agLog(c).forEach(e=>{if(ym&&String(e.date).slice(0,7)!==ym)return;if(!e.paid)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+(Number(e.fee)||0);});return by;}
-function agDueSum(c){const by={};agLog(c).forEach(e=>{if(e.paid)return;const f=Number(e.fee)||0;if(!f)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});return by;}
+function agPays(c){return (c&&Array.isArray(c.payments))?c.payments.filter(x=>x&&x.date):[];}
+function agTotalCur(c){return (c&&c.fee_cur)||'VND';}
+function agTotal(c){const v=Number((c&&c.fee_total)||0);return v>0?v:0;}
+/* 已收＝分期收款 ＋ 進度裡標記「已收」的單筆費用 */
+function agPaidSum(c,ym){const by={};
+  agPays(c).forEach(p=>{if(ym&&String(p.date).slice(0,7)!==ym)return;const cur=p.currency||'VND';by[cur]=(by[cur]||0)+(Number(p.amount)||0);});
+  agLog(c).forEach(e=>{if(ym&&String(e.date).slice(0,7)!==ym)return;if(!e.paid)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+(Number(e.fee)||0);});
+  return by;}
+/* 尚欠＝（談定總費用 − 已收的分期）＋ 進度裡還沒收的單筆費用 */
+function agDueSum(c){const by={};
+  const tot=agTotal(c);
+  if(tot){const cur=agTotalCur(c);const got=agPays(c).reduce((a,p)=>a+(((p.currency||'VND')===cur)?(Number(p.amount)||0):0),0);
+    const left=tot-got;if(left>0)by[cur]=(by[cur]||0)+left;}
+  agLog(c).forEach(e=>{if(e.paid)return;const f=Number(e.fee)||0;if(!f)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});
+  return by;}
 function agIncome(ym){const paid={},due={};agAll().forEach(c=>{itvAddCur(paid,agPaidSum(c,ym));if(!ym)itvAddCur(due,agDueSum(c));});return {paid,due};}
 function agResultMeta(r){return ({submitted:['📮 已送件','#2563eb'],admitted:['✅ 錄取','#16a34a'],admitted_s:['🎉 錄取・有獎學金','#16a34a'],admitted_n:['✅ 錄取・無獎學金','#0d9488'],rejected:['❌ 未錄取','#dc2626']})[r]||null;}
 function agDeadlineBadge(c){if(!c||!c.deadline)return '';const d=itvDaysTo(c.deadline);if(d==null)return '';const done=(c.status||'active')!=='active';const col=(d<0)?'#dc2626':(d<=7?'#d97706':'#2563eb');const lab=d<0?('已過 '+(-d)+' 天'):(d===0?'今天到期！':(d===1?'明天到期':'還有 '+d+' 天'));return `<span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 繳件期限 ${esc(c.deadline)}${done?'':('（'+lab+'）')}</span>`;}
@@ -833,8 +846,10 @@ function renderAgency(){
         <span class="muted" style="font-size:13px">進度 <b>${lg.length}</b> 筆${paidAll?(' · 已收 '+paidAll):''}${due?(' · 未收 '+due):''}</span>
       </div>
       ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#9a8f80">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#fdfaf4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
+      ${agFeeBlock(c)}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
         <button class="btn btn-accent" data-act="agLogNew" data-id="${esc(c.id)}">＋ 新增一筆進度</button>
+        <button class="btn" data-act="agPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
         <button class="btn btn-sm" data-act="agEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
         <button class="btn btn-sm" data-act="agToggle" data-id="${esc(c.id)}">${done?'↩ 改回進行中':'✓ 結案'}</button>
         <span class="grow"></span>
@@ -852,7 +867,9 @@ function agForm(c){c=c||{};
     <div class="field full"><label>申請學校／目標 <span class="hint">選填</span></label><input id="ag-school" type="text" value="${esc(c.school||'')}" placeholder="例：台灣師大 語言中心、某某大學碩士"></div>
     <div class="field"><label>申請結果</label><select id="ag-result"><option value=""${!c.result?' selected':''}>— 進行中 —</option>${rOpt('submitted','📮 已送件、等結果')}${rOpt('admitted_s','🎉 錄取・有獎學金')}${rOpt('admitted_n','✅ 錄取・無獎學金')}${c.result==='admitted'?rOpt('admitted','✅ 錄取（舊）'):''}${rOpt('rejected','❌ 未錄取')}</select></div>
     <div class="field"><label>📄 文件繳交期限日 <span class="hint">選填，會在「待辦」提醒</span></label><input id="ag-deadline" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.deadline||'')}"></div>
-    <div class="field full"><label>備註 <span class="hint">選填</span></label><input id="ag-note" type="text" value="${esc(c.note||'')}" placeholder="例：總代辦費 800 美元、分兩期收"></div>
+    <div class="field"><label>💰 談定的總代辦費 <span class="hint">選填。填了才會算「還差多少」</span></label><input id="ag-total" type="number" min="0" value="${esc(c.fee_total==null?'':String(c.fee_total))}" placeholder="例：800"></div>
+    <div class="field"><label>總費用幣別</label><select id="ag-fcur"><option value="VND"${agTotalCur(c)==='VND'?' selected':''}>越南盾 ₫（打千位）</option><option value="TWD"${agTotalCur(c)==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${agTotalCur(c)==='USD'?' selected':''}>美元 US$</option></select></div>
+    <div class="field full"><label>備註 <span class="hint">選填</span></label><input id="ag-note" type="text" value="${esc(c.note||'')}" placeholder="例：分三期，簽約付一半"></div>
   </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="agSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);}
 function agLogForm(key){const p=String(key).split('::');const c=agById(p[0]);if(!c)return;
   const isNew=(p[1]==null||p[1]==='new');const idx=isNew?-1:Number(p[1]);const e=isNew?{}:(agLog(c)[idx]||{});const last=agSorted(c)[0]||{};
@@ -3673,10 +3690,73 @@ H.editStuDay=(key)=>{const p=String(key).split('::');const sid=p[0],date=p[1];co
   if(idx>=0)H.classLog(sid,{editIdx:idx});else H.classLog(sid,{date});};
 H.calIncPaused=()=>{const inc=(S.calIncPaused!==false);S.calIncPaused=!inc;renderCalendar();};
 /* 🎤 面試練習：操作（必須放在 const H={} 之後） */
+/* ===== 💰 代辦收費：談定總費用 ＋ 分期收款 ===== */
+function agFeeBlock(c){
+  const tot=agTotal(c),cur=agTotalCur(c);
+  const pays=agPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  if(!tot&&!pays.length)return '';
+  const got=pays.reduce((a,p)=>a+(((p.currency||'VND')===cur)?(Number(p.amount)||0):0),0);
+  const left=tot?Math.max(0,tot-got):0;
+  const pct=tot?Math.min(100,Math.round(got/tot*100)):0;
+  const rows=pays.map((p,i)=>`<div class="dash-row" style="padding:6px 0">
+      <span class="badge badge-pending">第 ${i+1} 期</span><b>${esc(String(p.date))}</b>
+      <b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>
+      ${p.method?`<span class="tag">${esc(p.method)}</span>`:''}
+      ${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}
+      <span class="grow"></span>
+      <button class="btn btn-sm" data-act="agPayEdit" data-id="${esc(c.id)}::${i}">✏️</button>
+      <button class="btn btn-sm btn-danger" data-act="agPayDel" data-id="${esc(c.id)}::${i}">✕</button></div>`).join('');
+  return `<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fdfaf4">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <b>💰 代辦費</b>
+      ${tot?`<span>總額 <b>${money(tot,cur)}</b></span>`:''}
+      <span style="color:#16a34a">已收 <b>${money(got,cur)}</b></span>
+      ${tot?(left>0?`<span style="color:#d97706">還差 <b>${money(left,cur)}</b></span>`:'<span class="badge badge-ok">✓ 已收齊</span>'):''}
+      <span class="muted" style="font-size:12px">共 ${pays.length} 期</span>
+    </div>
+    ${tot?`<div style="height:8px;background:#eee3d2;border-radius:99px;margin:9px 0 4px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:#16a34a"></i></div>`:''}
+    ${rows||'<div class="hint" style="margin-top:6px">還沒有收款紀錄，按下面「💰 記一筆收款」。</div>'}
+  </div>`;}
+function agPayForm(key){const p=String(key).split('::');const c=agById(p[0]);if(!c)return;
+  const isNew=(p[1]==null||p[1]==='new');const idx=isNew?-1:Number(p[1]);
+  const pays=agPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const e=isNew?{}:(pays[idx]||{});
+  const cur=e.currency||agTotalCur(c);
+  const tot=agTotal(c);const got=pays.reduce((a,x,i)=>a+((i!==idx&&(x.currency||'VND')===agTotalCur(c))?(Number(x.amount)||0):0),0);
+  const left=tot?Math.max(0,tot-got):0;
+  const mOpt=(v)=>`<option value="${esc(v)}"${(e.method||'')===v?' selected':''}>${esc(v)}</option>`;
+  openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${isNew?'記一筆收款':'修改收款'} · ${esc(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+   ${tot?`<div class="hint" style="margin-bottom:10px">談定總額 <b>${money(tot,agTotalCur(c))}</b>${left>0?`，這筆之前已收 <b>${money(got,agTotalCur(c))}</b>，還差 <b style="color:#d97706">${money(left,agTotalCur(c))}</b>`:'，已收齊'}</div>`:'<div class="hint" style="margin-bottom:10px">還沒填「談定的總代辦費」，可以到「✏️ 客戶資料」補上，這樣就會自動算還差多少。</div>'}
+   <div class="form-grid">
+    <div class="field"><label>收款日期 *</label><input id="agp-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(e.date||localToday())}"></div>
+    <div class="field"><label>金額 * <span class="hint">越南盾打千位</span></label><div style="display:flex;gap:6px"><input id="agp-amt" type="number" min="0" style="flex:1" value="${esc(e.amount==null?'':String(e.amount))}" placeholder="${left>0?String(left):'例：400'}">
+      <select id="agp-cur" style="width:120px"><option value="VND"${cur==='VND'?' selected':''}>₫ 千</option><option value="TWD"${cur==='TWD'?' selected':''}>NT$</option><option value="USD"${cur==='USD'?' selected':''}>US$</option></select></div>
+      ${left>0?`<div style="margin-top:6px"><button class="btn btn-sm" type="button" data-act="agPayFill" data-id="${left}">帶入剩下的 ${money(left,agTotalCur(c))}</button></div>`:''}</div>
+    <div class="field"><label>收款方式 <span class="hint">選填</span></label><select id="agp-method"><option value="">—</option>${mOpt('銀行轉帳')}${mOpt('現金')}${mOpt('Momo')}${mOpt('LINE Pay')}${mOpt('其他')}</select></div>
+    <div class="field"><label>備註 <span class="hint">選填，例：簽約訂金、第二期</span></label><input id="agp-note" type="text" value="${esc(e.note||'')}"></div>
+   </div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="agPaySave" data-id="${esc(c.id)}::${isNew?'new':idx}">💾 儲存</button></div></div>`);}
+H.agPayNew=(id)=>agPayForm(id+'::new');
+H.agPayEdit=(key)=>agPayForm(key);
+H.agPayFill=(v)=>{const i=$('#agp-amt');if(i)i.value=String(v);};
+H.agPaySave=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if(!c)return;
+  const date=($('#agp-date')&&$('#agp-date').value)||'';if(!date)return toast('請選收款日期');
+  const amt=Number(($('#agp-amt')&&$('#agp-amt').value)||0);if(!amt)return toast('請填金額');
+  const row={date,amount:amt,currency:($('#agp-cur')&&$('#agp-cur').value)||'VND',method:($('#agp-method')&&$('#agp-method').value)||'',note:(($('#agp-note')&&$('#agp-note').value)||'').trim()};
+  const arr=agPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  if(p[1]==='new')arr.push(row);else arr[Number(p[1])]=row;
+  arr.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  try{await DB.update('lessons',c.id,{payments:arr});c.payments=arr;await loadAll();closeModal();render();toast('已記錄收款 ✓');}catch(e){toast(writeErr('儲存失敗',e));}};
+H.agPayDel=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if(!c)return;if(!confirm('刪除這筆收款紀錄？'))return;
+  const arr=agPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));arr.splice(Number(p[1]),1);
+  try{await DB.update('lessons',c.id,{payments:arr});c.payments=arr;await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.agNew=()=>agForm(null);
 H.agEdit=(id)=>agForm(agById(id));
 H.agSave=async(id)=>{const name=($('#ag-name').value||'').trim();if(!name)return toast('請填姓名');
-  const patch={kind:'agency',name,phone:($('#ag-phone').value||'').trim(),school:($('#ag-school').value||'').trim(),result:($('#ag-result')&&$('#ag-result').value)||'',deadline:(($('#ag-deadline')&&$('#ag-deadline').value)||'')||null,note:($('#ag-note').value||'').trim()};
+  const _tv=(($('#ag-total')&&$('#ag-total').value)||'').trim();
+  const patch={kind:'agency',name,phone:($('#ag-phone').value||'').trim(),school:($('#ag-school').value||'').trim(),result:($('#ag-result')&&$('#ag-result').value)||'',deadline:(($('#ag-deadline')&&$('#ag-deadline').value)||'')||null,note:($('#ag-note').value||'').trim(),
+    fee_total:(_tv===''?null:Number(_tv)),fee_cur:(($('#ag-fcur')&&$('#ag-fcur').value)||'VND')};
   try{if(id){await DB.update('lessons',id,patch);}else{patch.status='active';patch.log=[];patch.created_at=new Date().toISOString();await DB.insert('lessons',patch);}
     await loadAll();closeModal();S.tab='agency';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.agToggle=async(id)=>{const c=agById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
