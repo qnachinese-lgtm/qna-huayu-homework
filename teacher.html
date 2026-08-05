@@ -2201,40 +2201,139 @@ H.payView=()=>{
    <div class="modal-foot"><span style="flex:1"></span><button class="btn btn-accent" data-act="closeModal">好</button></div></div>`);
 };
 H.goStudents=()=>{closeModal();H.tab('students');};
-/* ===== 🛟 完整備份：把整個平台的資料存成一個 JSON 檔 ===== */
+/* ===== 🛟 完整備份：整個平台 → 一個 Excel 檔（分頁看得懂，最後一頁保留原始資料可還原） ===== */
+function bkFlat(v){if(v==null)return '';if(typeof v==='object')return JSON.stringify(v);return String(v);}
+function bkVocabLines(d){return String((d&&d.vocabulary)||'').split('\n').map(x=>x.trim()).filter(Boolean);}
 H.exportJson=async(_,b)=>{
   const st=document.getElementById('bk-st');
   const withUp=!!(document.getElementById('bk-up')&&document.getElementById('bk-up').checked);
   const say=(m)=>{if(st)st.textContent=m;};
+  if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
   if(b){b.disabled=true;b.textContent='備份中…';}
   const COLS=['lessons','questions','students','results','admins','leads','site','uploads'];
-  const out={_meta:{app:'QNA CHINESE 學習平台',exported_at:new Date().toISOString(),format:1,include_upload_data:withUp,
-    note:'這是整個平台的資料備份。音檔與圖片存放在 Firebase Storage，此檔只記錄它們的網址。'}};
-  const counts={};
+  const raw={};const counts={};
   try{
-    for(const c of COLS){
-      say('正在讀取 '+c+' …');
-      try{
-        let rows=await DB.list(c);
+    for(const c of COLS){say('正在讀取 '+c+' …');
+      try{let rows=await DB.list(c);
         if(c==='uploads'&&!withUp)rows=(rows||[]).map(r=>{const o=Object.assign({},r);if(o.data)o.data='(略過，未包含檔案內容)';return o;});
-        out[c]=rows||[];counts[c]=(rows||[]).length;
-      }catch(e){out[c]={__error:String((e&&e.message)||e)};counts[c]='讀取失敗';}
-    }
-    say('正在打包…');
-    const txt=JSON.stringify(out);
-    const mb=(txt.length/1048576);
-    const blob=new Blob([txt],{type:'application/json'});
+        raw[c]=rows||[];counts[c]=(rows||[]).length;
+      }catch(e){raw[c]=[];counts[c]='讀取失敗';}}
+    say('正在整理成 Excel …');
+    const L=raw.lessons||[],Q=raw.questions||[],ST=raw.students||[],RS=raw.results||[];
+    const kind=(x)=>x&&x.kind;
+    const lessons=L.filter(x=>!kind(x)&&!x.deleted_at);
+    const wbs=L.filter(x=>kind(x)==='workbook'&&!x.deleted_at);
+    const quizzes=L.filter(x=>kind(x)==='quiz'&&!x.deleted_at);
+    const anns=L.filter(x=>kind(x)==='announcement'&&!x.deleted_at);
+    const ags=L.filter(x=>kind(x)==='agency'&&!x.deleted_at);
+    const itvs=L.filter(x=>kind(x)==='interview'&&!x.deleted_at);
+    const nameOf=(id)=>{const s=ST.find(x=>x.id===id);return (s&&s.name)||'';};
+    const lesName=(id)=>{const l=L.find(x=>x.id===id);return l?((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'')):'';};
+    const wb=XLSX.utils.book_new();
+    const add=(name,rows)=>{XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows.length?rows:[{'（沒有資料）':''}]),name);};
+
+    add('說明',[{項目:'檔案用途',內容:'QNA CHINESE 學習平台的完整備份'},
+      {項目:'備份時間',內容:new Date().toLocaleString('zh-TW')},
+      {項目:'注意事項',內容:'音檔與圖片存在雲端，這個檔只記錄它們的網址，不是檔案本身'},
+      {項目:'還原用',內容:'最後一頁「原始備份資料」請不要修改，要還原資料時需要它'},
+      {項目:'建議',內容:'每個月備份一次，存到自己的硬碟或 Google Drive'}]);
+
+    add('學生',ST.filter(s=>!s.deleted_at).map(s=>({姓名:s.name||'',狀態:(enrollMeta(enrollOf(s))||[])[1]||'',團班:(s.groups||[]).join('、'),
+      教材:s.textbook||'',班別:s.class_type||'',國籍:s.nationality||'',Email:s.email||'',帳號:s.account||'',
+      上課時段:fmtSchedule(s),Meet:s.meet_url||'',學費:s.tuition==null?'':s.tuition,幣別:s.currency||'',
+      計費:s.fee_unit==='hour'?'每小時':'每堂',總堂數:s.sessions_total==null?'':s.sessions_total,
+      已上:usedUnits(s),剩餘:(sessionsLeft(s)==null?'':sessionsLeft(s)),付款日:s.payment_date||'',備註:s.notes||''})));
+
+    const logs=[];ST.forEach(s=>{(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date)return;
+      logs.push({學生:s.name||'',日期:e.date,開始:e.start||'',結束:e.end||'',狀態:e.status==='leave'?'請假':'出席',補課:e.makeup?'是':'',免計:e.free?'是':'',備註:e.note||''});});});
+    logs.sort((a,c)=>String(c.日期).localeCompare(String(a.日期)));add('上課紀錄',logs);
+
+    const pays=[];ST.forEach(s=>{(Array.isArray(s.payments)?s.payments:[]).forEach(p=>{
+      pays.push({學生:s.name||'',日期:p.date||'',金額:p.amount==null?'':p.amount,幣別:p.currency||s.currency||'',加堂:p.sessions==null?'':p.sessions,備註:p.note||''});});});
+    pays.sort((a,c)=>String(c.日期).localeCompare(String(a.日期)));add('繳費',pays);
+
+    add('課程',lessons.map(l=>({教材:l.textbook||'',課號:l.order_index||'',課名:l.title||'',
+      題數:Q.filter(q=>q.lesson_id===l.id).length,段落數:(l.dialogues||[]).length,語法點:(l.grammar_points||[]).length,
+      注釋:(l.notes||[]).length,截止日:l.due_date||'',發佈給班:(l.assigned_groups||[]).join('、'),
+      發佈人數:(l.assigned_ids||[]).length,講義:l.handout_name||''})));
+
+    const cont=[];lessons.forEach(l=>{(l.dialogues||[]).forEach((d,di)=>{
+      cont.push({教材:l.textbook||'',課號:l.order_index||'',課名:l.title||'',段落:d.title||('段落'+(di+1)),
+        類型:'課文',內容:String(d.content||''),生詞數:bkVocabLines(d).length,
+        對話音檔:d.audio_url?'有':'',生詞音檔:d.vocab_audio_url?'有':''});
+      bkVocabLines(d).forEach(v=>cont.push({教材:l.textbook||'',課號:l.order_index||'',課名:l.title||'',
+        段落:d.title||('段落'+(di+1)),類型:'生詞',內容:v,生詞數:'',對話音檔:'',生詞音檔:''}));});
+      (l.grammar_points||[]).forEach(g=>{cont.push({教材:l.textbook||'',課號:l.order_index||'',課名:l.title||'',
+        段落:g.seg==='短文'?'短文':'對話',類型:'語法',內容:(g.title||'')+'｜'+(g.blocks||[]).map(x=>(x.label||'')+'：'+(x.text||'')+(x.ex?('　例：'+x.ex):'')).join('　/　'),生詞數:'',對話音檔:'',生詞音檔:''});});
+      (l.notes||[]).forEach(n=>{cont.push({教材:l.textbook||'',課號:l.order_index||'',課名:l.title||'',段落:'注釋',類型:'注釋',
+        內容:(n.title||'')+'｜'+(n.blocks||[]).map(x=>(x.label||'')+'：'+(x.text||'')).join('　/　'),生詞數:'',對話音檔:'',生詞音檔:''});});});
+    add('課文內容',cont);
+
+    add('練習題',Q.map(q=>({課:lesName(q.lesson_id),題型:q.type||'',說明:q.instruction||'',題目:q.prompt||'',
+      選項:(q.options||[]).map(o=>(o&&o.l!=null)?(o.l+'→'+o.r):o).join('｜'),答案:bkFlat(q.answer),解釋:q.explanation||'',題庫:q.bank||''})));
+
+    add('作業簿',wbs.map(w=>{const d=w.wb||{};const n=(k)=>((d[k]||[]).length);
+      return {教材:w.textbook||'',課號:w.order_index||'',標題:w.title||'',英文:w.wb_en||'',
+        聲調:n('tone'),選發音:n('pron'),短文判斷:n('tf'),寫拼音:n('py'),寫漢字:n('hz'),句子重組:n('ord'),
+        完成對話:n('dlg'),圖片描述:n('pic'),
+        語法練習:(((d.g7||{}).groups)||[]).reduce((a,g)=>a+((g.items||[]).length),0),
+        音檔:(d.audios||[]).filter(a=>a.url).length+' / '+((d.audios||[]).length),
+        發佈給班:(w.assigned_groups||[]).join('、'),發佈人數:(w.assigned_ids||[]).length};}));
+
+    const wbq=[];wbs.forEach(w=>{const d=w.wb||{};const H0=(t,n,q,a)=>wbq.push({教材:w.textbook||'',課號:w.order_index||'',大題:t,題號:n,題目:q,參考答案:a});
+      (d.tone||[]).forEach(x=>H0('聲調辨識',x.n,x.py||'',x.ans||''));
+      (d.pron||[]).forEach(x=>H0('選出發音',x.n,x.q||'',x.ans||''));
+      (d.tf||[]).forEach(x=>H0('短文判斷',x.n,x.q||'',x.ans||''));
+      (d.py||[]).forEach(x=>(x.lines||[]).forEach(ln=>H0('寫出拼音',x.n,(ln.sp?ln.sp+'：':'')+(ln.zh||''),ln.ans||'')));
+      (d.hz||[]).forEach(x=>(x.lines||[]).forEach(ln=>H0('寫出中國字',x.n,(ln.sp?ln.sp+'：':'')+(ln.py||''),ln.ans||'')));
+      (d.ord||[]).forEach(x=>H0('句子重組',x.n,(x.toks||[]).join('／'),x.ans||''));
+      (d.dlg||[]).forEach(x=>H0('完成對話',x.i,(x.sp?x.sp+'：':'')+(x.text||''),x.ans||''));
+      (d.pic||[]).forEach(x=>H0('圖片描述',x.n,x.hint||(x.img?'（圖片）':''),x.ans||''));
+      (((d.g7||{}).groups)||[]).forEach(g=>(g.items||[]).forEach(x=>H0('語法練習 '+g.k,x.n,(x.pattern?('['+x.pattern+'] '):'')+(x.q||''),x.ans||'')));});
+    add('作業簿題目',wbq);
+
+    const gr=[];RS.forEach(r=>{if(!r||r.kind==='progress')return;
+      const K={undefined:'課文練習',wb:'作業簿',quizresult:'隨堂小考',gprac:'語法練習',discussion:'問題與討論',sentence:'造句',shadow:'跟讀',hwv:'手寫'};
+      const sc=(r.score&&typeof r.score==='object')?(r.score.ok+' / '+r.score.total):(r.score==null?'':r.score+(r.total!=null?(' / '+r.total):''));
+      gr.push({學生:nameOf(r.student_id),類型:K[r.kind]||r.kind||'課文練習',
+        項目:lesName(r.lesson_id||r.wb_lesson||r.gprac_lesson||r.disc_lesson||r.sent_lesson)||(r.quiz_id?((quizzes.find(q=>q.id===r.quiz_id)||{}).title||'小考'):''),
+        狀態:r.status||'',分數:sc,時間:r.completed_at||r.submitted_at||r.updated_at||''});});
+    gr.sort((a,c)=>String(c.時間).localeCompare(String(a.時間)));add('成績',gr);
+
+    add('隨堂小考',quizzes.map(q=>({名稱:q.title||'',題型:q.mode||'',題數:(q.quiz_audio||[]).length||'',
+      發佈人數:(q.assigned_ids||[]).length,建立時間:q.created_at||''})));
+
+    add('代辦客戶',ags.map(c=>({姓名:c.name||'',聯絡:c.phone||'',學校:c.school||'',結果:c.result||'',期限:c.deadline||'',
+      總費用:c.fee_total==null?'':c.fee_total,幣別:c.fee_cur||'',已收期數:(c.payments||[]).length,狀態:c.status||'',備註:c.note||''})));
+    const agp=[];ags.forEach(c=>(c.payments||[]).forEach((p,i)=>agp.push({客戶:c.name||'',期數:i+1,日期:p.date||'',金額:p.amount==null?'':p.amount,幣別:p.currency||'',方式:p.method||'',備註:p.note||''})));
+    add('代辦收款',agp);
+
+    add('面試練習',itvs.map(c=>({姓名:c.name||'',目標:c.goal||c.school||'',狀態:c.status||'',
+      練習次數:(c.sessions||[]).length,收款筆數:(c.payments||[]).length,備註:c.note||''})));
+
+    add('報名',(raw.leads||[]).map(x=>({姓名:x.name||'',Email:x.email||'',聯絡:x.line||x.phone||'',程度:x.level||'',目標:x.goal||'',訊息:x.message||'',時間:x.created_at||''})));
+    add('公告',anns.map(a=>({標題:a.title||'',內容:a.body||a.content||'',發佈給班:(a.assigned_groups||[]).join('、'),時間:a.created_at||''})));
+    add('學生上傳檔案',(raw.uploads||[]).map(f=>({學生:nameOf(f.student_id),課次:f.lesson_title||'',區域:f.area_name||'',檔名:f.filename||'',大小KB:f.size?Math.round(f.size/1024):'',時間:f.created_at||''})));
+
+    /* 還原用：原始資料，每列一筆，長的自動切成多欄 */
+    const rawRows=[];
+    COLS.forEach(c=>{(raw[c]||[]).forEach(doc=>{
+      const txt=JSON.stringify(doc);const row={collection:c,id:doc.id||''};
+      for(let k=0;k*30000<txt.length;k++)row['json'+(k||'')]=txt.slice(k*30000,(k+1)*30000);
+      rawRows.push(row);});});
+    add('原始備份資料（請勿修改）',rawRows);
+
     const d=new Date();const pad=n=>String(n).padStart(2,'0');
-    const name='QNA備份_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'.json';
-    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();
-    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);
-    say('✅ 已下載 '+name+'（約 '+mb.toFixed(1)+' MB）　'+Object.keys(counts).map(k=>k+' '+counts[k]).join('　·　'));
+    const name='QNA備份_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'.xlsx';
+    XLSX.writeFile(wb,name);
+    try{localStorage.setItem('hyc_backup_wk',weekStart(localToday()));}catch(e){}
+    say('✅ 已下載 '+name+'　'+Object.keys(counts).map(k=>k+' '+counts[k]).join('　·　'));
     toast('備份已下載，請存到你自己的硬碟或雲端');
   }catch(e){say('❌ 備份失敗：'+((e&&e.message)||e));toast('備份失敗，請重試');}
   finally{if(b){b.disabled=false;b.textContent='⬇ 下載完整備份';}}};
 H.dataTools=()=>{openModal(`<div class="modal"><div class="modal-head"><h3>🗄️ 資料</h3><button class="x" data-act="closeModal">×</button></div>
   <div class="modal-body">
-    <div class="dash-row" style="align-items:flex-start"><span class="grow"><b>🛟 完整備份（整個平台）</b><div class="hint">把教材、課文、生詞、語法、題庫、作業簿、小考、學生、成績、繳費紀錄全部存成一個檔下載到你電腦。<b>建議每個月做一次。</b><br>音檔和圖片存在雲端，備份檔裡存的是它們的網址，不是檔案本身。</div>
+    <div class="dash-row" style="align-items:flex-start"><span class="grow"><b>🛟 完整備份（整個平台）</b><div class="hint">把教材、課文、生詞、語法、題庫、作業簿、小考、學生、成績、繳費紀錄全部存成<b>一個 Excel 檔</b>下載到你電腦，一個分頁一類資料，可以直接打開看。<b>建議每個月做一次。</b><br>音檔和圖片存在雲端，備份檔裡存的是它們的網址，不是檔案本身。</div>
       <label style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="bk-up" style="width:auto"> 一併包含學生上傳的檔案內容（檔案會大很多）</label>
       <div class="hint" id="bk-st" style="margin-top:6px"></div></span><button class="btn btn-sm btn-accent" data-act="exportJson">⬇ 下載完整備份</button></div>
     <div class="dash-row" style="margin-top:8px"><span class="grow"><b>Excel 備份</b><div class="hint">只匯出學生、成績、繳費，方便用 Excel 看</div></span><button class="btn btn-sm" data-act="exportAll">⬇ 匯出 Excel</button></div>
