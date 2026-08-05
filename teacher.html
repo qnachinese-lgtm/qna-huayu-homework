@@ -973,6 +973,7 @@ function renderCalLedger(body,toggle){
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
         <button class="btn btn-sm" data-act="billStatement" data-id="${s.id}">🧾 對帳單</button>
         <button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒訊息</button><button class="btn btn-sm" data-act="uploadAreas" data-id="${s.id}">📤 上傳區</button>
+        <button class="btn btn-sm" data-act="repOpen" data-id="${s.id}">📄 學習報告</button>
         ${(r.due&&r.due.cls!=='badge-overdue')?`<span style="margin-left:auto"><span class="muted" style="font-size:12px">下次繳費：</span><span class="badge ${r.due.cls}">${r.due.label}</span></span>`:''}
       </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
@@ -1244,6 +1245,7 @@ function stuCardInner(s){return `
         ${/^https?:\/\//i.test(s.meet_url||'')?`<a class="btn btn-sm btn-accent" href="${esc(s.meet_url)}" target="_blank" rel="noopener">🎥 上課教室</a>`:''}
         <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">🗓 上課記錄</button>
         <button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
+        <button class="btn btn-sm" data-act="repOpen" data-id="${s.id}">📄 學習報告</button>
         ${s.reset_requested?`<button class="btn btn-sm btn-accent" data-act="resetPw" data-id="${s.id}">🔑 學生申請重設 · 寄信</button>`:''}
         <button class="btn btn-sm btn-ghost" data-act="stuMore" data-id="${s.id}">⋯ 更多</button></div>
     <div class="hide" id="smore-${s.id}" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;padding-top:9px;border-top:1px dashed var(--line)">
@@ -2479,6 +2481,134 @@ H.wbeSave=async(_,b)=>{
       const r=await DB.insert('lessons',patch);WBE.id=(r&&r.id)?r.id:r;}
     await loadAll();closeModal();render();toast('作業簿已儲存（共 '+n+' 題）');
   }catch(e){if(b){b.disabled=false;b.textContent='💾 儲存';}toast(writeErr('儲存失敗',e));}};
+/* ===================== 📄 每月學習報告 ===================== */
+function repYM(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function repPrevYM(ym){const p=String(ym).split('-');let y=Number(p[0]),m=Number(p[1])-1;if(m<1){m=12;y--;}return y+'-'+String(m).padStart(2,'0');}
+function repInMonth(d,ym){return String(d||'').slice(0,7)===ym;}
+function repLessonName(id){const l=(S.lessons||[]).find(x=>x.id===id);if(!l)return '';return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');}
+function repPct(a,b){return b?Math.round(a/b*100):0;}
+/* 蒐集一位學生某個月的所有資料 */
+function repData(sid,ym){
+  const s=S.students.find(x=>x.id===sid)||{};
+  const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&repInMonth(e.date,ym))
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const attended=log.filter(e=>e.status!=='leave').length, leave=log.filter(e=>e.status==='leave').length;
+  const inM=(x)=>repInMonth(x&&(x.completed_at||x.submitted_at||x.reviewed_at||x.updated_at||x.created_at),ym);
+  const mine=(x)=>x&&x.student_id===sid;
+  const ex=(S.results||[]).filter(x=>mine(x)&&x.lesson_id&&x.lesson_id.indexOf('__')!==0&&inM(x));
+  const wb=(S.wbdocs||[]).filter(x=>mine(x)&&inM(x));
+  const qz=(S.quizResults||[]).filter(x=>mine(x)&&inM(x));
+  const gp=(S.gpracs||[]).filter(x=>mine(x)&&inM(x));
+  const dc=(S.discussions||[]).filter(x=>mine(x)&&inM(x));
+  const st=(S.sentences||[]).filter(x=>mine(x)&&inM(x));
+  const pays=(Array.isArray(s.payments)?s.payments:[]).filter(p=>repInMonth(p.date,ym));
+  /* 分數：課文練習 ＋ 作業簿 ＋ 小考 */
+  const scored=[];
+  ex.forEach(r=>{if(r.status==='done'&&r.total)scored.push({t:'課文練習',n:repLessonName(r.lesson_id),ok:r.score||0,tot:r.total,d:String(r.completed_at||'').slice(0,10)});});
+  wb.forEach(r=>{const sc=r.score||{};if(sc.total)scored.push({t:'作業簿',n:wbTitleOf(r.wb_lesson),ok:sc.ok||0,tot:sc.total,d:String(r.submitted_at||'').slice(0,10)});});
+  qz.forEach(r=>{if(r.total)scored.push({t:'隨堂小考',n:((S.quizzes||[]).find(q=>q.id===r.quiz_id)||{}).title||'小考',ok:r.score||0,tot:r.total,d:String(r.completed_at||'').slice(0,10)});});
+  scored.sort((a,b)=>String(a.d).localeCompare(String(b.d)));
+  const totOk=scored.reduce((a,x)=>a+x.ok,0),totQ=scored.reduce((a,x)=>a+x.tot,0);
+  /* 錯題：從課文練習的作答比對答案 */
+  const wrong=[];
+  ex.forEach(r=>{const qs=(S.questions||[]).filter(q=>q.lesson_id===r.lesson_id);const ans=r.answers||{};
+    qs.forEach(q=>{if(!q||q.type==='note')return;const a=ans[q.id];if(a==null||a==='')return;
+      let ok=null;
+      if(q.type==='choice')ok=(Number(a)===Number(q.answer));
+      else if(q.type==='order')ok=(Array.isArray(a)?a.join(''):String(a))===((q.options||[]).join(''));
+      if(ok===false)wrong.push({l:repLessonName(r.lesson_id),p:String(q.prompt||q.instruction||'').slice(0,60)});});});
+  return {s,ym,log,attended,leave,ex,wb,qz,gp,dc,st,pays,scored,totOk,totQ,wrong};
+}
+function repHtml(sid,ym,note){
+  const R=repData(sid,ym),s=R.s;
+  const E=(x)=>esc(String(x==null?'':x));
+  const grp=stuGroups(s).join('、');
+  const left=sessionsLeft(s);
+  const wdz=(d)=>{try{return DAYS[(new Date(d+'T00:00:00').getDay()+6)%7];}catch(e){return '';}};
+  const row=(a,b)=>`<tr><th>${a}</th><td>${b}</td></tr>`;
+  const scoreRows=R.scored.length?R.scored.map(x=>`<tr><td>${E(x.d)}</td><td><span class="tg">${E(x.t)}</span></td><td>${E(x.n)}</td>
+     <td class="num"><b>${x.ok}</b> / ${x.tot}</td><td class="num">${repPct(x.ok,x.tot)}%</td></tr>`).join('')
+    :'<tr><td colspan="5" class="mut">這個月沒有已完成的作業紀錄。</td></tr>';
+  const clsRows=R.log.length?R.log.map(e=>`<li>${E(e.date)}（${wdz(e.date)}）${e.start?('　'+E(e.start)+(e.end?('–'+E(e.end)):'')):''}
+     ${e.status==='leave'?'<span class="bad">請假</span>':'<span class="good">出席</span>'}${e.makeup?'<span class="tg">補課</span>':''}${e.note?('　<span class="mut">'+E(e.note)+'</span>'):''}</li>`).join('')
+    :'<li class="mut">這個月沒有上課紀錄。</li>';
+  const wmap={};R.wrong.forEach(w=>{const k=w.l+'｜'+w.p;wmap[k]=(wmap[k]||0)+1;});
+  const wrongRows=Object.keys(wmap).slice(0,12).map(k=>{const p=k.split('｜');return `<li><b>${E(p[0])}</b>　${E(p[1])}</li>`;}).join('');
+  const payRows=R.pays.map(p=>`<li>${E(p.date)}　<b>${money(p.amount,p.currency||s.currency||'TWD')}</b>${p.note?('　<span class="mut">'+E(p.note)+'</span>'):''}</li>`).join('');
+  const pend=[R.wb.filter(x=>x.status==='submitted').length,R.gp.filter(x=>x.status==='submitted').length,R.dc.filter(x=>x.status==='submitted').length].reduce((a,b)=>a+b,0);
+  return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${E(s.name||'')}　${E(ym)}　學習報告</title>
+<style>
+@page{size:A4;margin:14mm 13mm}
+*{box-sizing:border-box}
+body{font-family:"Noto Serif TC","Songti TC",Georgia,serif;color:#2E2A26;margin:0;padding:22px;background:#fff;line-height:1.7}
+h1{font-size:23px;margin:0 0 2px}h2{font-size:15px;margin:22px 0 8px;padding-bottom:5px;border-bottom:2px solid #B23A48;color:#B23A48}
+.sub{color:#8a8178;font-size:13px;margin-bottom:14px}
+.brand{display:flex;align-items:baseline;gap:10px;border-bottom:3px solid #2E2A26;padding-bottom:10px;margin-bottom:16px}
+.brand b{font-size:17px;letter-spacing:1px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{border:1px solid #e3dbcd;padding:6px 9px;text-align:left;vertical-align:top}
+th{background:#faf6ef;white-space:nowrap;width:1%}
+.num{text-align:right;white-space:nowrap}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 4px}
+.st{flex:1 1 120px;border:1px solid #e3dbcd;border-radius:9px;padding:9px 12px;background:#fdfbf7}
+.st .k{font-size:11.5px;color:#8a8178}.st .v{font-size:20px;font-weight:700}
+ul{margin:6px 0;padding-left:20px}li{margin:3px 0;font-size:13.5px}
+.mut{color:#8a8178}.good{color:#16a34a;margin-left:6px}.bad{color:#d97706;margin-left:6px}
+.tg{display:inline-block;background:#efe9df;border-radius:99px;padding:1px 8px;font-size:11.5px;margin-right:4px}
+.note{border:1px solid #e3dbcd;border-radius:9px;padding:10px 12px;background:#fdfbf7;white-space:pre-line;font-size:13.5px;min-height:52px}
+.foot{margin-top:26px;padding-top:9px;border-top:1px solid #e3dbcd;color:#8a8178;font-size:11.5px;display:flex}
+.bar{height:9px;background:#eee3d2;border-radius:99px;overflow:hidden;margin-top:5px}
+.bar i{display:block;height:100%;background:#B23A48}
+@media print{.noprint{display:none}body{padding:0}}
+</style></head><body>
+<div class="noprint" style="margin-bottom:14px"><button onclick="window.print()" style="background:#B23A48;color:#fff;border:0;border-radius:9px;padding:10px 20px;font-size:15px;cursor:pointer;font-family:inherit">🖨 列印／另存 PDF</button>
+ <span style="color:#8a8178;font-size:13px;margin-left:10px">列印視窗選「另存為 PDF」就能存檔傳給學生。</span></div>
+<div class="brand"><b>QNA CHINESE</b><span class="mut">華語學習月報</span><span style="flex:1"></span><span class="mut">${E(ym)}</span></div>
+<h1>${E(s.name||'')}</h1>
+<div class="sub">${grp?('團班：'+E(grp)+'　·　'):''}${s.textbook?('教材：'+E(s.textbook)+'　·　'):''}報告期間 ${E(ym)}</div>
+<div class="stats">
+  <div class="st"><div class="k">本月上課</div><div class="v">${R.attended} 堂</div></div>
+  <div class="st"><div class="k">請假</div><div class="v">${R.leave} 堂</div></div>
+  <div class="st"><div class="k">完成作業</div><div class="v">${R.scored.length} 份</div></div>
+  <div class="st"><div class="k">總答對率</div><div class="v">${R.totQ?repPct(R.totOk,R.totQ)+'%':'—'}</div>
+    ${R.totQ?`<div class="bar"><i style="width:${repPct(R.totOk,R.totQ)}%"></i></div>`:''}</div>
+  ${left!=null?`<div class="st"><div class="k">剩餘堂數</div><div class="v">${left}</div></div>`:''}
+</div>
+<h2>一、上課紀錄</h2><ul>${clsRows}</ul>
+<h2>二、作業與成績</h2>
+<table><thead><tr><th>日期</th><th>類型</th><th>項目</th><th class="num">得分</th><th class="num">答對率</th></tr></thead>
+<tbody>${scoreRows}</tbody></table>
+${R.totQ?`<div style="margin-top:8px;font-size:13.5px">本月合計答對 <b>${R.totOk}</b> / ${R.totQ} 題（${repPct(R.totOk,R.totQ)}%）。</div>`:''}
+${pend?`<div style="margin-top:4px;font-size:13.5px" class="mut">另有 ${pend} 份已送出、老師批改中。</div>`:''}
+${wrongRows?`<h2>三、需要再複習的地方</h2><ul>${wrongRows}</ul>`:''}
+${payRows?`<h2>${wrongRows?'四':'三'}、本月繳費</h2><ul>${payRows}</ul>`:''}
+<h2>${(wrongRows?1:0)+(payRows?1:0)===2?'五':((wrongRows?1:0)+(payRows?1:0)===1?'四':'三')}、老師評語</h2>
+<div class="note">${E(note||'')}</div>
+<div class="foot"><span>QNA CHINESE 華語教室　·　黃美娟老師</span><span style="flex:1"></span><span>製表日期 ${E(localToday())}</span></div>
+</body></html>`;}
+H.repOpen=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
+  const ym=repYM(),pv=repPrevYM(ym);
+  const opts=[ym,pv,repPrevYM(pv)].map(m=>`<option value="${m}">${m}</option>`).join('');
+  openModal(`<div class="modal"><div class="modal-head"><h3>\U0001f4c4 學習報告 · ${snm(s.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="field"><label>月份</label><select id="rep-ym">${opts}</select></div>
+     <div class="field full"><label>老師評語 <span class="hint">會印在報告最後，可留空</span></label><textarea id="rep-note" rows="4" placeholder="這個月的表現、進步的地方、下個月的建議…"></textarea>${cannedBar?cannedBar('rep-note'):''}</div>
+     <div class="hint" id="rep-sum">—</div>
+   </div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>
+     <button class="btn btn-primary" data-act="repGo" data-id="${esc(sid)}">\U0001f4c4 產生報告</button></div></div>`);
+  const upd=()=>{const m=($('#rep-ym')&&$('#rep-ym').value)||ym;const R=repData(sid,m);
+    const el=document.getElementById('rep-sum');
+    if(el)el.textContent=m+'：上課 '+R.attended+' 堂、請假 '+R.leave+' 堂、完成作業 '+R.scored.length+' 份'+(R.totQ?('、答對率 '+repPct(R.totOk,R.totQ)+'%'):'');};
+  const sel=document.getElementById('rep-ym');if(sel)sel.addEventListener('change',upd);
+  upd();};
+H.repGo=(sid)=>{const ym=($('#rep-ym')&&$('#rep-ym').value)||repYM();
+  const note=(($('#rep-note')&&$('#rep-note').value)||'').trim();
+  const html=repHtml(sid,ym,note);
+  const w=window.open('','_blank');
+  if(!w){toast('瀏覽器擋掉了新視窗，請允許彈出視窗再試');return;}
+  w.document.open();w.document.write(html);w.document.close();
+  closeModal();};
 H.previewWb=(id)=>{window.open('student.html?wbpreview='+encodeURIComponent(id),'_blank');};
 H.delWb=async(id)=>{if(!confirm('確定刪除這份作業簿？'))return;
   try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});S.workbooks=(S.workbooks||[]).filter(x=>x.id!==id);render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
