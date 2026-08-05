@@ -165,9 +165,13 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .wb-qt{font-size:15.5px;line-height:1.8}
 .wb-opts{display:grid;gap:8px;margin-top:9px}
 input.wb-bl{display:inline-block;width:12em;min-width:6em;max-width:100%;padding:2px 8px;margin:0 4px;border:0;border-bottom:2px solid #b9a98d;background:transparent;font:inherit;font-size:inherit;color:inherit;text-align:center;border-radius:0;vertical-align:baseline;box-shadow:none}
-input.wb-bl:focus{outline:0;border-bottom-color:#2563eb;background:#eff6ff;box-shadow:none}
-span.wb-bl{display:inline-block;min-width:7em;padding:0 8px;margin:0 4px;border-bottom:2px solid #b9a98d;color:#1d4ed8;font-weight:600;text-align:center}
-.wb-zh.dlgline{line-height:2.6}
+input.wb-bl:focus{outline:0;border-bottom-color:var(--accent);background:var(--accent-soft);box-shadow:none}
+span.wb-bl{display:inline-block;min-width:7em;padding:0 8px;margin:0 4px;border-bottom:2px solid #b9a98d;color:var(--accent);font-weight:600;text-align:center}
+.wb-zh.dlgline{line-height:2.2}
+.wb-dlg-main{flex:1;min-width:0}
+.wb-dlg-ctx{margin:8px 0 0 34px;color:var(--muted);line-height:2.1}
+.wb-dlg-ctx .wb-sp{color:var(--muted);font-weight:600;margin-right:4px}
+.wb-q .wb-qt{align-items:flex-start}
 .wb-grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
 .wb-py{font-family:'PinyinRoman',var(--serif);font-size:17px;letter-spacing:.5px}
 .wb-py2{font-family:'PinyinRoman',var(--serif);font-size:16px;color:#334;margin-bottom:4px}
@@ -3438,23 +3442,30 @@ function wbOrdHtml(w,graded){
 }
 function wbDlgHtml(w,graded,doc){
   const a=wbAns().dlg||{};const fb=(doc&&doc.feedback)||{};
+  const lines=(wbData(w).dlg||[]);
+  const hasBl=(x)=>/[_＿]{2,}/.test(String((x&&x.text)||''));
+  const lineHtml=(ln)=>{
+    const raw=String(ln.text||'');const parts=raw.split(/[_＿]{2,}/);let html='';
+    parts.forEach((seg,k)=>{html+=annotate(seg);
+      if(k<parts.length-1){const key=ln.i+'-'+k, v=a[key]||'';
+        html+=graded?`<span class="wb-bl filled">${v?esc(v):'&nbsp;'}</span>`
+          :`<input class="wb-bl" type="text" data-wbt="dlg" data-n="${esc(key)}" value="${esc(v)}" autocomplete="off" placeholder="${esc(wbL({zh:'填這裡',cn:'填这里',en:'type here',vi:'điền vào đây'}))}">`;}});
+    return `<span class="wb-sp">${esc(ln.sp||'')}：</span><span class="wb-zh dlgline">${html}</span>`;};
+  /* 依時代華語三的呈現：一題一個編號卡，題幹在上、其餘對話當上下文 */
+  const cards=[];let cur=null,n=0;
+  lines.forEach(ln=>{
+    if(hasBl(ln)){n++;cur={n,main:ln,ctx:[]};cards.push(cur);}
+    else if(cur)cur.ctx.push(ln);
+    else{n=n;cards.push({n:null,main:null,ctx:[ln]});}
+  });
   return `<div class="wb-hint">${wbL({zh:'把對話補完，直接填在橫線上。這一大題由老師批改。',cn:'把对话补完，直接填在横线上。这一大题由老师批改。',en:'Fill in the blanks to complete the dialogue. Graded by your teacher.',vi:'Điền vào chỗ trống để hoàn thành hội thoại. Giáo viên sẽ chấm.'})}</div>`
-   +`<div class="wb-dlg">`+(wbData(w).dlg||[]).map(ln=>{
-      const raw=String(ln.text||'');
-      const parts=raw.split(/[_＿]{2,}/);
-      let html='';
-      parts.forEach((seg,k)=>{
-        html+=annotate(seg);
-        if(k<parts.length-1){
-          const key=ln.i+'-'+k, v=a[key]||'';
-          html+=graded
-            ? `<span class="wb-bl filled">${v?esc(v):'&nbsp;'}</span>`
-            : `<input class="wb-bl" type="text" data-wbt="dlg" data-n="${esc(key)}" value="${esc(v)}" autocomplete="off" placeholder="${esc(wbL({zh:'填這裡',cn:'填这里',en:'type here',vi:'điền vào đây'}))}">`;
-        }
-      });
-      const ref=(graded&&ln.ans)?`<div class="wb-ref">${wbL({zh:'參考答案',cn:'参考答案',en:'Answer',vi:'Đáp án'})}：${esc(ln.ans)}</div>`:'';
-      const f=fb['d'+ln.i]?`<div class="wb-fb">💬 ${esc(fb['d'+ln.i])}</div>`:'';
-      return `<div class="wb-line"><span class="wb-sp">${esc(ln.sp||'')}：</span><div class="wb-lb"><div class="wb-zh dlgline">${html}</div>${ref}${f}</div></div>`;}).join('')+`</div>`;
+   +cards.map(c=>{
+     if(!c.main)return `<div class="wb-q"><div class="wb-dlg-ctx">${c.ctx.map(lineHtml).join('<br>')}</div></div>`;
+     const ln=c.main;
+     const ref=(graded&&ln.ans)?`<div class="wb-ref">${wbL({zh:'參考答案',cn:'参考答案',en:'Answer',vi:'Đáp án'})}：${esc(ln.ans)}</div>`:'';
+     const f=fb['d'+ln.i]?`<div class="wb-fb">💬 ${esc(fb['d'+ln.i])}</div>`:'';
+     const ctx=c.ctx.length?`<div class="wb-dlg-ctx">${c.ctx.map(lineHtml).join('<br>')}</div>`:'';
+     return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${c.n}</span><span class="wb-dlg-main">${lineHtml(ln)}</span></div>${ctx}${ref}${f}</div>`;}).join('');
 }
 function wbPicHtml(w,graded,doc){
   const a=wbAns().pic||{};const fb=(doc&&doc.feedback)||{};
