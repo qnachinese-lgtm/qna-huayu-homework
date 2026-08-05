@@ -2496,6 +2496,7 @@ function wbeSer(k,d){
   if(k==='tone')return (d.tone||[]).map(x=>J([x.n,x.py||'',x.ans||''])).join('\n');
   if(k==='pron')return (d.pron||[]).map(x=>J([x.n,x.q||'',x.a||'',x.b||'',x.c||'',x.ans||''])).join('\n');
   if(k==='tf')return (d.tf||[]).map(x=>J([x.n,x.q||'',x.ans||''])).join('\n');
+  if(k==='mcq')return (d.mcq||[]).map(x=>J([x.n,x.q||'',x.a||'',x.b||'',x.c||'',x.ans||''])).join('\n');
   if(k==='py')return (d.py||[]).map(g=>(g.lines||[]).map(l=>J([g.n,l.sp||'',l.zh||'',l.ans||''])).join('\n')).join('\n');
   if(k==='hz')return (d.hz||[]).map(g=>(g.lines||[]).map(l=>J([g.n,l.sp||'',l.py||'',l.ans||''])).join('\n')).join('\n');
   if(k==='ord')return (d.ord||[]).map(x=>J([x.n,(x.toks||[]).join('／'),x.ans||''])).join('\n');
@@ -2511,6 +2512,7 @@ function wbeParse(k,txt,prev){
     const letters=(opts[2].trim()?'a,b,c':'a,b');
     return {n:wbeNum(c[0],i),q:c[1]||'',a:opts[0],b:opts[1],c:opts[2],ans:c[5]||'',letters};});
   if(k==='tf')return L.map((l,i)=>{const c=wbeSp(l);return {n:wbeNum(c[0],i),q:c[1]||'',ans:(c[2]||'').toUpperCase().replace('○','O').replace('╳','X')};});
+  if(k==='mcq')return L.map((l,i)=>{const c=wbeSp(l);return {n:wbeNum(c[0],i),q:c[1]||'',a:c[2]||'',b:c[3]||'',c:c[4]||'',ans:(c[5]||'').toUpperCase()};});
   if(k==='py'||k==='hz'){const map={},ord=[];
     L.forEach((l,i)=>{const c=wbeSp(l);const n=wbeNum(c[0],i);
       if(!map[n]){map[n]=[];ord.push(n);}
@@ -2535,7 +2537,8 @@ function wbeParse(k,txt,prev){
 const WBE_SECS=[
  {k:'tone',t:'一-A 聲調辨識',aud:'A',cols:'題號　拼音（不標調）　正確答案（標調）',ex:'1\tzhidao\tzhīdào'},
  {k:'pron',t:'一-B 選出正確的發音',aud:'B',cols:'題號　題目　選項a　選項b　選項c（沒有就留空）　答案（a／b／c）',ex:'1\t喜歡\txǐhuān\txǐhuan\t\tb'},
- {k:'tf',t:'一-C 聽短文判斷 O／X',aud:'C',cols:'題號　句子　答案（O 或 X）',ex:'1\t李家朋是英國人。\tX'},
+ {k:'mcq',t:'一-C 聽對話回答問題（選 A／B／C）',aud:'C',cols:'題號　題目（可留空）　選項A　選項B　選項C　答案（A／B／C）',ex:'1\t\t太遠\t最快\t不難\tB'},
+ {k:'tf',t:'聽短文判斷 O／X（有上面那一題時是 D，否則是 C）',aud:'C／D',cols:'題號　句子　答案（O 或 X）',ex:'1\t李家朋是英國人。\tX'},
  {k:'py',t:'二 寫出拼音',cols:'題號　說話者（沒有就留空）　中文句子　拼音答案',ex:'1\t\t他是哪國人？\tTā shì nǎguó rén?'},
  {k:'hz',t:'三 寫出中國字',cols:'題號　說話者（沒有就留空）　拼音　中文答案',ex:'1\t\tTā shì shéi?\t他是誰？'},
  {k:'ord',t:'四 句子重組',cols:'題號　要重組的詞（用 ／ 分隔）　正確句子',ex:'1\t日本人／是／他／嗎／？\t他是日本人嗎？'},
@@ -2545,8 +2548,8 @@ const WBE_SECS=[
 ];
 function wbeAudRows(){
   const auds=(WBE.d.audios||[]);
-  return ['A','B','C'].map(key=>{const a=auds.find(x=>String(x.key||'').toUpperCase()===key)||{};
-    const lab={A:'A 聲調辨識',B:'B 選出發音',C:'C 聽短文'}[key];
+  return ['A','B','C','D'].map(key=>{const a=auds.find(x=>String(x.key||'').toUpperCase()===key)||{};
+    const lab={A:'A 聲調辨識',B:'B 選出發音',C:'C 聽對話／聽短文',D:'D 聽短文（有對話選擇時才用）'}[key];
     return `<div class="dash-row" style="padding:6px 0"><b style="width:120px">🔊 ${lab}</b>
       <button class="btn btn-sm" type="button" data-act="wbeAudPick" data-id="${key}">⬆ 上傳音檔</button>
       <span class="hint" id="wbe-au-${key}">${a.url?'✓ 已上傳':'（尚無音檔）'}</span>
@@ -2603,8 +2606,11 @@ function wbeCollect(){
   WBE_SECS.forEach(sc=>{WBE.d[sc.k]=wbeParse(sc.k,g('wbe-'+sc.k),WBE.d[sc.k]);});
   (((WBE.d.g7||{}).groups)||[]).forEach(gr=>{const t=g('wbe-g7'+gr.k);if(t!=null&&t!=='')gr.title=t;});
   WBE.d.b1=true;
-  if(!Array.isArray(WBE.d.audios)||!WBE.d.audios.length)
-    WBE.d.audios=[{i:1,label:'A 聲調辨識',key:'A',url:''},{i:2,label:'B 選出發音',key:'B',url:''},{i:3,label:'C 聽短文',key:'C',url:''}];
+  if(!Array.isArray(WBE.d.audios)||!WBE.d.audios.length)WBE.d.audios=[];
+  ['A','B','C','D'].forEach((k,i)=>{if(!WBE.d.audios.find(x=>String(x.key||'').toUpperCase()===k))
+    WBE.d.audios.push({i:i+1,label:k,key:k,url:''});});
+  /* 有「聽對話回答問題」時，短文判斷改用 D 音檔 */
+  WBE.d.audioKeys=Object.assign({},WBE.d.audioKeys||{},{tone:'A',pron:'B',mcq:'C',tf:((WBE.d.mcq||[]).length?'D':'C')});
 }
 H.wbeSync=()=>{wbeCollect();wbeRender();toast('圖片位子已更新');};
 H.wbeAudPick=(key)=>{const st=document.getElementById('wbe-au-'+key);
