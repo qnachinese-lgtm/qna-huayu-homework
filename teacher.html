@@ -2286,7 +2286,11 @@ function pronPickTo(setter,stId){const inp=document.createElement('input');inp.t
 /* ===================== 📒 作業簿（教師端） ===================== */
 function wbOfLesson(l){if(!l)return null;
   return (S.workbooks||[]).find(w=>!w.deleted_at&&(w.lesson_id===l.id||((w.textbook||'')===(l.textbook||'')&&Number(w.order_index)===Number(l.order_index))))||null;}
-function wbBarHtml(l,more){const w=wbOfLesson(l);if(!w)return '';
+function wbBarHtml(l,more){const w=wbOfLesson(l);
+  if(!w){if(more)return '';
+    return `<div style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <b style="font-size:14px">📒 作業簿</b><span class="hint">這一課還沒有作業簿</span><span class="grow"></span>
+      <button class="btn btn-sm btn-accent" data-act="newWb" data-id="${l.id}">＋ 建立作業簿</button></div>`;}
   const na=(w.assigned_ids||[]).length,ng=(w.assigned_groups||[]).join('、');
   const pub=(ng||na)?('<span class="tag tpub-y">已發佈'+(ng?('：'+esc(ng)):'')+(na?('＋'+na+'人'):'')+'</span>'):'<span class="tag tpub-n">未發佈</span>';
   const sub=(S.wbdocs||[]).filter(x=>x.wb_lesson===w.id&&(x.status==='submitted'||x.status==='reviewed')).length;
@@ -2298,6 +2302,7 @@ function wbBarHtml(l,more){const w=wbOfLesson(l);if(!w)return '';
   return `<div style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <b style="font-size:14px">📒 作業簿</b>${pub}${warn}${sub?('<span class="hint">已交 '+sub+' 份</span>'):''}
     <span class="grow"></span>
+    <button class="btn btn-sm" data-act="editWb" data-id="${w.id}">✏️ 編輯</button>
     <button class="btn btn-sm" data-act="previewWb" data-id="${w.id}">👁 預覽</button>
     <button class="btn btn-sm" data-act="assignWb" data-id="${w.id}">👥 發佈</button></div>`;}
 function wbTitleOf(id){const w=(S.workbooks||[]).find(x=>x.id===id);return (w&&w.title)||'作業簿';}
@@ -2314,11 +2319,166 @@ function wbCardHtml(w){
   const sub=(S.wbdocs||[]).filter(x=>x.wb_lesson===w.id&&(x.status==='submitted'||x.status==='reviewed')).length;
   return `<div class="card"><div class="row-between"><h3 style="margin:0">📒 ${esc(w.title||'作業簿')}</h3>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-sm" data-act="editWb" data-id="${w.id}">✏️ 編輯</button>
       <button class="btn btn-sm" data-act="previewWb" data-id="${w.id}">👁 預覽</button>
       <button class="btn btn-sm" data-act="assignWb" data-id="${w.id}">發佈</button>
       <button class="btn btn-sm btn-danger" data-act="delWb" data-id="${w.id}">刪除</button></div></div>
     <div class="hint" style="margin-top:4px">${esc(w.wb_name||'')}${w.audio_url?' · 🔊 有聽力音檔':' · ⚠️ 缺聽力音檔'} · ${esc(n)} · 已交 ${sub} 份　${pub}</div></div>`;
 }
+/* ===================== ✏️ 作業簿編輯器（時代華語一格式） ===================== */
+let WBE=null;/* {id,meta:{},d:{}} */
+function wbeSp(x){return String(x==null?'':x).split(/\t|｜/).map(v=>v.trim());}
+function wbeLn(t){return String(t||'').split('\n').map(x=>x.replace(/\s+$/,'')).filter(x=>x.trim());}
+function wbeNum(x,i){const n=parseInt(String(x).replace(/[^0-9]/g,''),10);return isNaN(n)?(i+1):n;}
+/* ---- 目前資料 → 文字（貼回 Excel 也行） ---- */
+function wbeSer(k,d){
+  const J=(a)=>a.join('\t');
+  if(k==='tone')return (d.tone||[]).map(x=>J([x.n,x.py||'',x.ans||''])).join('\n');
+  if(k==='pron')return (d.pron||[]).map(x=>J([x.n,x.q||'',x.a||'',x.b||'',x.c||'',x.ans||''])).join('\n');
+  if(k==='tf')return (d.tf||[]).map(x=>J([x.n,x.q||'',x.ans||''])).join('\n');
+  if(k==='py')return (d.py||[]).map(g=>(g.lines||[]).map(l=>J([g.n,l.sp||'',l.zh||'',l.ans||''])).join('\n')).join('\n');
+  if(k==='hz')return (d.hz||[]).map(g=>(g.lines||[]).map(l=>J([g.n,l.sp||'',l.py||'',l.ans||''])).join('\n')).join('\n');
+  if(k==='ord')return (d.ord||[]).map(x=>J([x.n,(x.toks||[]).join('／'),x.ans||''])).join('\n');
+  if(k==='dlg')return (d.dlg||[]).map(x=>J([x.i,x.sp||'',x.text||'',x.ans||''])).join('\n');
+  if(k==='pic')return (d.pic||[]).map(x=>J([x.n,x.hint||'',x.ans||''])).join('\n');
+  return '';}
+/* ---- 文字 → 資料 ---- */
+function wbeParse(k,txt,prev){
+  const L=wbeLn(txt);
+  if(k==='tone')return L.map((l,i)=>{const c=wbeSp(l);return {n:wbeNum(c[0],i),py:c[1]||'',ans:c[2]||''};});
+  if(k==='pron')return L.map((l,i)=>{const c=wbeSp(l);const opts=[c[2]||'',c[3]||'',c[4]||''];
+    const letters=(opts[2].trim()?'a,b,c':'a,b');
+    return {n:wbeNum(c[0],i),q:c[1]||'',a:opts[0],b:opts[1],c:opts[2],ans:c[5]||'',letters};});
+  if(k==='tf')return L.map((l,i)=>{const c=wbeSp(l);return {n:wbeNum(c[0],i),q:c[1]||'',ans:(c[2]||'').toUpperCase().replace('○','O').replace('╳','X')};});
+  if(k==='py'||k==='hz'){const map={},ord=[];
+    L.forEach((l,i)=>{const c=wbeSp(l);const n=wbeNum(c[0],i);
+      if(!map[n]){map[n]=[];ord.push(n);}
+      map[n].push(k==='py'?{sp:c[1]||'',zh:c[2]||'',ans:c[3]||''}:{sp:c[1]||'',py:c[2]||'',ans:c[3]||''});});
+    return ord.map(n=>({n,lines:map[n]}));}
+  if(k==='ord')return L.map((l,i)=>{const c=wbeSp(l);
+    return {n:wbeNum(c[0],i),toks:String(c[1]||'').replace(/\//g,'／').split('／').map(t=>t.trim()).filter(Boolean),ans:c[2]||''};});
+  if(k==='dlg')return L.map((l,i)=>{const c=wbeSp(l);return {i:wbeNum(c[0],i),sp:c[1]||'',text:c[2]||'',ans:c[3]||''};});
+  if(k==='pic'){const old=(prev||[]);return L.map((l,i)=>{const c=wbeSp(l);const n=wbeNum(c[0],i);
+    const o=old.find(x=>Number(x.n)===n)||{};
+    return {n,hint:c[1]||'',ans:c[2]||'',img:o.img||''};});}
+  return [];}
+const WBE_SECS=[
+ {k:'tone',t:'一-A 聲調辨識',aud:'A',cols:'題號　拼音（不標調）　正確答案（標調）',ex:'1\tzhidao\tzhīdào'},
+ {k:'pron',t:'一-B 選出正確的發音',aud:'B',cols:'題號　題目　選項a　選項b　選項c（沒有就留空）　答案（a／b／c）',ex:'1\t喜歡\txǐhuān\txǐhuan\t\tb'},
+ {k:'tf',t:'一-C 聽短文判斷 O／X',aud:'C',cols:'題號　句子　答案（O 或 X）',ex:'1\t李家朋是英國人。\tX'},
+ {k:'py',t:'二 寫出拼音',cols:'題號　說話者（沒有就留空）　中文句子　拼音答案',ex:'1\t\t他是哪國人？\tTā shì nǎguó rén?'},
+ {k:'hz',t:'三 寫出中國字',cols:'題號　說話者（沒有就留空）　拼音　中文答案',ex:'1\t\tTā shì shéi?\t他是誰？'},
+ {k:'ord',t:'四 句子重組',cols:'題號　要重組的詞（用 ／ 分隔）　正確句子',ex:'1\t日本人／是／他／嗎／？\t他是日本人嗎？'},
+ {k:'dlg',t:'五 完成對話',cols:'行號　說話者（A／B）　句子（空格打 ＿＿＿＿）　參考答案（沒空格就留空）',ex:'1\tA\t新同學＿＿＿＿？\t新同學是哪國人？'},
+ {k:'pic',t:'六 圖片描述',cols:'題號　文字提示（有圖就留空）　參考答案',ex:'1\t\t媽媽下午五點在廚房做飯。'}
+];
+function wbeAudRows(){
+  const auds=(WBE.d.audios||[]);
+  return ['A','B','C'].map(key=>{const a=auds.find(x=>String(x.key||'').toUpperCase()===key)||{};
+    const lab={A:'A 聲調辨識',B:'B 選出發音',C:'C 聽短文'}[key];
+    return `<div class="dash-row" style="padding:6px 0"><b style="width:120px">🔊 ${lab}</b>
+      <button class="btn btn-sm" type="button" data-act="wbeAudPick" data-id="${key}">⬆ 上傳音檔</button>
+      <span class="hint" id="wbe-au-${key}">${a.url?'✓ 已上傳':'（尚無音檔）'}</span>
+      ${a.url?`<audio controls preload="none" src="${esc(a.url)}" style="height:32px;max-width:240px"></audio>`:''}
+      <span class="grow"></span>
+      ${a.url?`<button class="btn btn-sm btn-danger" type="button" data-act="wbeAudDel" data-id="${key}">移除</button>`:''}</div>`;}).join('');}
+function wbePicRows(){
+  const pics=(WBE.d.pic||[]);
+  if(!pics.length)return '<div class="hint">先在上面「六 圖片描述」打好題號，這裡才會出現上傳圖片的位子。</div>';
+  return pics.map(q=>`<div class="dash-row" style="padding:6px 0"><b style="width:52px">第 ${q.n} 題</b>
+    <button class="btn btn-sm" type="button" data-act="wbePicPick" data-id="${q.n}">⬆ 上傳圖片</button>
+    <span class="hint" id="wbe-pic-${q.n}">${q.img?'✓ 已上傳':'（尚無圖片）'}</span>
+    ${q.img?`<img src="${esc(q.img)}" style="height:60px;border:1px solid var(--line);border-radius:8px">`:''}
+    <span class="grow"></span>
+    ${q.img?`<button class="btn btn-sm btn-danger" type="button" data-act="wbePicDel" data-id="${q.n}">移除</button>`:''}</div>`).join('');}
+function wbeRender(){
+  const box=document.getElementById('wbe-body');if(!box)return;
+  const m=WBE.meta,d=WBE.d;
+  const books=[...new Set((S.lessons||[]).map(x=>(x.textbook||'').trim()).filter(Boolean))];
+  box.innerHTML=`
+  <div class="lesson-label">① 基本資料</div>
+  <div class="form-grid">
+    <div class="field"><label>教材 *</label><input id="wbe-book" type="text" list="wbe-books" value="${esc(m.textbook||'')}" placeholder="時代華語一"><datalist id="wbe-books">${books.map(b=>'<option>'+esc(b)+'</option>').join('')}</datalist></div>
+    <div class="field"><label>第幾課 *</label><input id="wbe-order" type="number" min="1" value="${esc(m.order_index||'')}"></div>
+    <div class="field full"><label>標題 * <span class="hint">學生看到的名稱，例：第三課　買生日禮物</span></label><input id="wbe-title" type="text" value="${esc(m.title||'')}"></div>
+    <div class="field full"><label>英文標題 <span class="hint">選填</span></label><input id="wbe-en" type="text" value="${esc(m.wb_en||'')}"></div>
+  </div>
+  <div class="lesson-label" style="margin-top:16px">② 聽力音檔</div>
+  <div class="hint" style="margin-bottom:4px">三段聽力各上傳一個音檔。沒有音檔學生還是看得到題目，只是聽不到。</div>
+  <div id="wbe-auds">${wbeAudRows()}</div>
+  <div class="lesson-label" style="margin-top:18px">③ 題目內容</div>
+  <div class="hint" style="margin-bottom:8px">每一行一題，欄位之間用 <b>Tab</b> 分隔——<b>直接從 Excel 整塊複製貼上就可以</b>。也可以用全形直線 <b>｜</b> 分隔。空的欄位留著不填即可。</div>
+  ${WBE_SECS.map(sc=>`<div class="field full" style="margin-bottom:14px">
+      <label>${esc(sc.t)}${sc.aud?`　<span class="hint">用音檔 ${sc.aud}</span>`:''}</label>
+      <div class="hint" style="margin:2px 0 4px">欄位：${esc(sc.cols)}<br>範例：<code style="background:#f3ede2;padding:1px 5px;border-radius:4px">${esc(sc.ex.replace(/\t/g,' ⇥ '))}</code></div>
+      <textarea id="wbe-${sc.k}" rows="${Math.min(14,Math.max(4,wbeSer(sc.k,d).split('\n').length+1))}" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;white-space:pre;overflow-x:auto">${esc(wbeSer(sc.k,d))}</textarea>
+    </div>`).join('')}
+  <div class="lesson-label" style="margin-top:6px">④ 圖片描述的圖</div>
+  <div class="hint" style="margin-bottom:4px">先按下面「↻ 重新整理圖片位子」把上面打的題號讀進來，再逐題上傳。</div>
+  <div style="margin-bottom:6px"><button class="btn btn-sm" type="button" data-act="wbeSync">↻ 重新整理圖片位子</button></div>
+  <div id="wbe-pics">${wbePicRows()}</div>`;}
+function wbeCollect(){
+  const g=(id)=>{const el=document.getElementById(id);return el?el.value:'';};
+  WBE.meta.textbook=(g('wbe-book')||'').trim();
+  WBE.meta.order_index=Number(g('wbe-order')||0)||null;
+  WBE.meta.title=(g('wbe-title')||'').trim();
+  WBE.meta.wb_name=WBE.meta.title;
+  WBE.meta.wb_en=(g('wbe-en')||'').trim();
+  WBE_SECS.forEach(sc=>{WBE.d[sc.k]=wbeParse(sc.k,g('wbe-'+sc.k),WBE.d[sc.k]);});
+  WBE.d.b1=true;
+  if(!Array.isArray(WBE.d.audios)||!WBE.d.audios.length)
+    WBE.d.audios=[{i:1,label:'A 聲調辨識',key:'A',url:''},{i:2,label:'B 選出發音',key:'B',url:''},{i:3,label:'C 聽短文',key:'C',url:''}];
+}
+H.wbeSync=()=>{wbeCollect();wbeRender();toast('圖片位子已更新');};
+H.wbeAudPick=(key)=>{const st=document.getElementById('wbe-au-'+key);
+  const inp=document.createElement('input');inp.type='file';inp.accept='audio/*';inp.style.display='none';document.body.appendChild(inp);
+  inp.onchange=async()=>{const f=inp.files&&inp.files[0];inp.remove();if(!f)return;if(st)st.textContent='上傳中…';
+    try{const url=await uploadVocabAudio(f);wbeCollect();
+      const a=WBE.d.audios.find(x=>String(x.key||'').toUpperCase()===key);if(a)a.url=url;
+      wbeRender();toast('音檔已上傳');}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
+  inp.click();};
+H.wbeAudDel=(key)=>{wbeCollect();const a=WBE.d.audios.find(x=>String(x.key||'').toUpperCase()===key);if(a)a.url='';wbeRender();};
+H.wbePicPick=(n)=>{const st=document.getElementById('wbe-pic-'+n);
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.style.display='none';document.body.appendChild(inp);
+  inp.onchange=async()=>{const f=inp.files&&inp.files[0];inp.remove();if(!f)return;if(st)st.textContent='上傳中…';
+    try{const url=await uploadImage(f);wbeCollect();
+      const q=(WBE.d.pic||[]).find(x=>Number(x.n)===Number(n));if(q)q.img=url;
+      wbeRender();toast('圖片已上傳');}catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
+  inp.click();};
+H.wbePicDel=(n)=>{wbeCollect();const q=(WBE.d.pic||[]).find(x=>Number(x.n)===Number(n));if(q)q.img='';wbeRender();};
+function wbeModal(){
+  openModal(`<div class="modal wide"><div class="modal-head"><h3>✏️ ${WBE.id?'編輯作業簿':'新增作業簿'}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body" id="wbe-body"></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
+     <span style="flex:1"></span>
+     ${WBE.id?`<button class="btn btn-sm" data-act="previewWb" data-id="${esc(WBE.id)}">👁 預覽</button>`:''}
+     <button class="btn btn-primary" data-act="wbeSave">💾 儲存</button></div></div>`);
+  wbeRender();}
+H.editWb=(id)=>{const w=(S.workbooks||[]).find(x=>x.id===id);if(!w)return;
+  WBE={id:w.id,meta:{textbook:w.textbook||'',order_index:w.order_index||null,title:w.title||'',wb_name:w.wb_name||'',wb_en:w.wb_en||'',lesson_id:w.lesson_id||null},
+       d:JSON.parse(JSON.stringify(w.wb||{}))};
+  wbeModal();};
+H.newWb=(lid)=>{const l=(S.lessons||[]).find(x=>x.id===lid);
+  WBE={id:null,meta:{textbook:(l&&l.textbook)||'',order_index:(l&&l.order_index)||null,title:(l&&l.title)||'',wb_name:(l&&l.title)||'',wb_en:'',lesson_id:(l&&l.id)||null},
+       d:{b1:true,tone:[],pron:[],tf:[],tfIntro:'',py:[],hz:[],ord:[],dlg:[],pic:[],
+          audios:[{i:1,label:'A 聲調辨識',key:'A',url:''},{i:2,label:'B 選出發音',key:'B',url:''},{i:3,label:'C 聽短文',key:'C',url:''}]}};
+  wbeModal();};
+H.wbeSave=async(_,b)=>{
+  wbeCollect();
+  if(!WBE.meta.title){toast('請填標題');return;}
+  if(!WBE.meta.textbook){toast('請填教材');return;}
+  const n=WBE_SECS.reduce((a,sc)=>a+((WBE.d[sc.k]||[]).length),0);
+  if(!n&&!confirm('目前一題都沒有，確定要存嗎？'))return;
+  if(b){b.disabled=true;b.textContent='儲存中…';}
+  const patch={kind:'workbook',textbook:WBE.meta.textbook,order_index:WBE.meta.order_index,
+    title:WBE.meta.title,wb_name:WBE.meta.wb_name,wb_en:WBE.meta.wb_en,wb:WBE.d};
+  if(WBE.meta.lesson_id)patch.lesson_id=WBE.meta.lesson_id;
+  try{await ensureAuthFresh();
+    if(WBE.id){await DB.update('lessons',WBE.id,patch);}
+    else{patch.assigned_ids=[];patch.assigned_groups=[];patch.created_at=new Date().toISOString();
+      const r=await DB.insert('lessons',patch);WBE.id=(r&&r.id)?r.id:r;}
+    await loadAll();closeModal();render();toast('作業簿已儲存（共 '+n+' 題）');
+  }catch(e){if(b){b.disabled=false;b.textContent='💾 儲存';}toast(writeErr('儲存失敗',e));}};
 H.previewWb=(id)=>{window.open('student.html?wbpreview='+encodeURIComponent(id),'_blank');};
 H.delWb=async(id)=>{if(!confirm('確定刪除這份作業簿？'))return;
   try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});S.workbooks=(S.workbooks||[]).filter(x=>x.id!==id);render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
