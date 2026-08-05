@@ -660,7 +660,7 @@ function quizFoldHtml(){
   const quizSrcName=qz=>{if(qz.mode==='audio')return '🎙️ 老師錄音（'+((qz.quiz_audio||[]).length)+' 題）';
     if(qz.mode==='custom'){const n=(qz.quiz_items||'').split('\n').filter(s=>/[=＝]/.test(s)).length;return '自訂題目（'+n+' 題）';}const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.textbook?('【'+l.textbook+'】'):'')+(l.order_index?('第'+l.order_index+'課'):'')+(l.title?(' '+l.title):'');};
   const QM={audio:'🎙️ 老師錄音聽寫',dict:'聽寫',pinyin:'看拼音寫字',mean:'看意思寫字',choice:'看字選意思',cloze:'看例句填生詞',custom:'自訂題目'};
-  const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return sc?`<button class="badge badge-ok" data-act="viewQuizResult" data-id="${qz.id}::${s.id}" style="cursor:pointer;border:0">${snm(s.name)}：${sc} 👁</button>`:`<span class="badge badge-pending">${snm(s.name)}：未考</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span><span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未發佈</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
+  const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return sc?`<button class="badge badge-ok" data-act="viewQuizResult" data-id="${qz.id}::${s.id}" style="cursor:pointer;border:0">${snm(s.name)}：${sc} 👁</button>`:`<span class="badge badge-pending">${snm(s.name)}：未考</span>`;}).join(' ');return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span>${qz.handwrite?'<span class="tag" style="background:#eef2ff;color:#4338ca;border-color:#c7d2fe">✍️ 手寫</span>':''}<span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未發佈</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
   return `<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">📝 隨堂小考${(S.quizzes||[]).length?'（'+(S.quizzes||[]).length+'）':''}</h3>
     <div class="hint" style="margin-bottom:8px">選一課的生詞，發佈給指定的學生做聽寫或填空，系統自動計分。</div>
     <div class="quiz-create-row"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):'<div class="hint" style="margin-top:10px">還沒有建立任何隨堂小考。</div>'}</div>`;
@@ -3212,6 +3212,7 @@ H.newQuiz=()=>{
      <div class="field" id="qzf-audio"><label>🎙️ 我的錄音題目 <span class="hint">一題一句：按「錄音」念一句（再按一次停止），或「上傳音檔」選 mp3。<b>正確答案可以不填</b>——沒填的題目系統不自動對，學生寫的內容會原封不動留給你，你有空再進去看、按 ⭕／❌ 打分。填了就會自動對答案。</span></label>
        <div id="qz-aud-list" style="margin-top:6px"></div>
        <div style="margin-top:8px"><button class="btn btn-sm" type="button" data-act="qzAudAdd">＋ 加一題</button></div></div>
+     <div class="field full"><label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:600"><input type="checkbox" id="quiz-hand" style="width:auto;margin-top:3px"><span>✍️ 讓學生用手寫作答（不打字）<span class="hint" style="display:block;font-weight:400">學生會看到一個有格線的大寫字板，用手指或觸控筆寫，寫完送出。適合寫句子和生詞。手寫的題目系統不自動對答案，你在小考結果裡看他的字跡再按 ⭕／❌。</span></span></label></div>
      <div class="field"><label>發佈給</label><div style="margin-top:4px">${studentChecks||'<span class="muted">還沒有學生</span>'}</div></div>
      <div class="hint">學生會在「作業」頁看到這個小考，作答後系統自動計分、分數回傳給你。</div>
    </div>
@@ -3237,7 +3238,8 @@ H.saveQuiz=async()=>{
     if(!_n){toast('這一課還沒有生詞的真人錄音，不能出聽寫。請先到「編輯課文」→ 生詞下方上傳錄音，或改用「看拼音寫字」等題型。');return;}}
   if(!ids.length){toast('請至少選一位學生');return;}
   const btn=document.querySelector('[data-act="saveQuiz"]');if(btn){btn.disabled=true;btn.textContent='建立中…';}
-  try{await DB.insert('lessons',{kind:'quiz',title,source_lesson:((mode==='custom'||mode==='audio')?'':src),mode,quiz_items:(mode==='custom'?items:''),quiz_audio:(mode==='audio'?qaud:[]),assigned_ids:ids,created_at:new Date().toISOString()});
+  const hand=!!($('#quiz-hand')&&$('#quiz-hand').checked);
+  try{await DB.insert('lessons',{kind:'quiz',title,source_lesson:((mode==='custom'||mode==='audio')?'':src),mode,quiz_items:(mode==='custom'?items:''),quiz_audio:(mode==='audio'?qaud:[]),handwrite:hand,assigned_ids:ids,created_at:new Date().toISOString()});
     const all=await DB.list('lessons');S.lessons=all.filter(x=>x.kind!=='quiz');S.quizzes=all.filter(x=>x.kind==='quiz');
     closeModal();render();toast('已建立隨堂小考');
   }catch(e){if(btn){btn.disabled=false;btn.textContent='建立';}toast(writeErr('建立失敗',e));}};
@@ -3251,8 +3253,11 @@ function qrvRows(){const r=QRV;if(!r)return '';
     const mark=pend?`<span style="display:inline-flex;gap:6px;margin-left:8px"><button class="btn btn-sm ${it.ok?'btn-accent':''}" data-act="qrvMark" data-id="${i}::1">⭕ 對</button><button class="btn btn-sm ${(it.ok===false&&it.graded)?'btn-danger':''}" data-act="qrvMark" data-id="${i}::0">❌ 錯</button></span>`:'';
     const st=pend?(it.graded?(it.ok?'<span class="badge badge-ok">✓ 你判定：對</span>':'<span class="badge badge-overdue">✗ 你判定：錯</span>'):'<span class="badge badge-pending">⏳ 等你批改</span>')
       :(it.ok?'<span class="badge badge-ok">✓ 對</span>':'<span class="badge badge-overdue">✗ 錯</span>');
+    const isImg=/^https?:\/\/|^data:image/.test(String(it.a||''));
+    const ansHtml=isImg?`<div style="margin:6px 0"><img src="${esc(it.a)}" alt="" style="max-width:100%;border:1px solid var(--line);border-radius:10px;background:#fff"></div>`
+      :`<b>${esc(it.a||'（空白）')}</b>`;
     return `<div class="srev-item"><div class="srev-word">${i+1}.${it.q?('　'+esc(it.q)):''}</div>
-      <div class="srev-sent">學生作答：<b>${esc(it.a||'（空白）')}</b> ${st}${it.c?('　｜　正解：'+esc(it.c)):''}${mark}</div></div>`;}).join('');}
+      <div class="srev-sent">學生作答：${ansHtml} ${st}${it.c?('　｜　正解：'+esc(it.c)):''}${mark}</div></div>`;}).join('');}
 function qrvPaint(){const box=document.getElementById('qrv-body');if(box)box.innerHTML=qrvRows()||'<div class="muted" style="padding:8px 0">這次沒有逐題明細（可能是更新前考的，重考一次就會記錄）。</div>';
   const sc=document.getElementById('qrv-score');if(sc&&QRV)sc.innerHTML='分數 <b>'+(QRV.score||0)+'/'+(QRV.total||0)+'</b>';}
 H.qrvMark=async(key)=>{if(!QRV)return;const p=String(key).split('::');const i=Number(p[0]);const ok=p[1]==='1';
