@@ -398,10 +398,17 @@ function logHours(e){if(!e||!e.start||!e.end)return null;const p=x=>{const a=Str
 function isHourly(s){return !!(s&&s.fee_unit==='hour');}
 function unitLabel(s){return isHourly(s)?'小時':'堂';}
 function fmtQty(n){if(n==null)return '—';const r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}
-/* 已使用量：按堂＝筆數；按小時＝時數總和（請假／免費都不算） */
-function usedUnits(s){const log=Array.isArray(s&&s.class_log)?s.class_log:[];
-  if(isHourly(s)){let h=0;log.forEach(e=>{if(!e||e.status==='leave'||e.free)return;const x=logHours(e);h+=(x!=null?x:1);});return Math.round(h*100)/100;}
-  return log.filter(e=>e&&e.status!=='leave'&&!e.free).length;}
+/* 已使用量：按堂＝筆數；按小時＝時數總和。
+   免費一律不算；請假 —— 團班照算（課照上、錢照收），一對一不算（改成累積待補課）。 */
+function leaveCounts(s){return !!(s&&s.class_type==='團班');}
+function usedUnits(s){const log=Array.isArray(s&&s.class_log)?s.class_log:[];const lv=leaveCounts(s);
+  const skip=e=>!e||e.free||(!lv&&e.status==='leave');
+  if(isHourly(s)){let h=0;log.forEach(e=>{if(skip(e))return;const x=logHours(e);h+=(x!=null?x:1);});return Math.round(h*100)/100;}
+  return log.filter(e=>!skip(e)).length;}
+/* 其中屬於「請假」的量（只有團班才會有值，用來在畫面上註明） */
+function leaveUnits(s){if(!leaveCounts(s))return 0;const log=Array.isArray(s&&s.class_log)?s.class_log:[];
+  if(isHourly(s)){let h=0;log.forEach(e=>{if(!e||e.free||e.status!=='leave')return;const x=logHours(e);h+=(x!=null?x:1);});return Math.round(h*100)/100;}
+  return log.filter(e=>e&&!e.free&&e.status==='leave').length;}
 /* 這一堂的費用（按小時＝時數×時薪；按堂＝每堂學費） */
 function tierInfoOf(s){if(!s)return null;for(const g of stuGroups(s)){const cm=classMetaOf(g);const ts=(cm&&Array.isArray(cm.fee_tiers))?cm.fee_tiers.filter(x=>x&&Number(x.h)>0&&x.amt!=null&&!isNaN(Number(x.amt))):[];if(ts.length)return {cls:g,tiers:ts};}return null;}
 function tierText(s){const ti=tierInfoOf(s);if(!ti)return '';return ti.tiers.map(x=>(Math.round(Number(x.h)*100)/100)+'小時 '+money(Number(x.amt),s.currency)).join('｜');}
@@ -447,11 +454,12 @@ function famChip(s){const k=famKeyOf(s);if(!k)return '';const f=famBill(k);if(!f
     :(f.due<-0.01?('<b style="color:#16a34a">已結清</b>（預繳 '+money(-f.due,f.cur)+'）'):'<b style="color:#16a34a">已結清</b>');
   return '<span title="'+esc(k)+'">👨‍👩‍👦 合併帳戶 '+esc(k)+'：'+tail+(others?(' <span class="muted">· 與 '+esc(others)+' 共用</span>'):'')+'</span>';}
 function sessChip(s){const u2=usedUnits(s);const left=sessionsLeft(s);const un=unitLabel(s);
+  const lv=leaveUnits(s);const lvNote=lv?`<span class="muted" style="font-size:12px">（含請假 ${fmtQty(lv)} ${un}）</span>`:'';
   if(left==null){/* 沒有預購時數／堂數：只寫已上多少 */
     if(!u2)return '';
-    return `<span>🎟️ ${isHourly(s)?'時數':'堂數'}：<b>已上 ${fmtQty(u2)} ${un}</b></span>`;}
+    return `<span>🎟️ ${isHourly(s)?'時數':'堂數'}：<b>已上 ${fmtQty(u2)} ${un}</b>${lvNote}</span>`;}
   const cls=left<=0?'sess-out':(left<=1?'sess-low':'');
-  return `<span>🎟️ ${isHourly(s)?'時數':'堂數'}：<b>已上 ${fmtQty(u2)}／共 ${fmtQty(Number(s.sessions_total))} ${un}</b>`
+  return `<span>🎟️ ${isHourly(s)?'時數':'堂數'}：<b>已上 ${fmtQty(u2)}／共 ${fmtQty(Number(s.sessions_total))} ${un}</b>${lvNote}`
     +(left>0?` <span class="${cls}">· 剩 ${fmtQty(left)}</span>`:' <span class="badge badge-overdue">已用完·需續費</span>')
     +`</span>`;}
 const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
@@ -5291,7 +5299,7 @@ H.classLog=(id,pf)=>{const s=S.students.find(x=>x.id===id);if(!s)return;pf=pf||{
   const uStatus=(eRow&&eRow.status)||'attended';const uFree=!!(eRow&&eRow.free);const uMakeup=!!(eRow&&eRow.makeup);const uVideo=(eRow?eRow.video:null)||pf.video||'';
   openModal(`<div class="modal"><div class="modal-head"><h3>${snm(s.name)} · 上課記錄</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-     <div class="meta" style="margin-bottom:10px;flex-wrap:wrap"><span>本期：共 <b>${esc(String(s.sessions_total??'—'))}</b> ${unitLabel(s)} · 已上 <b>${fmtQty(usedUnits(s))}</b> · 還剩 <b class="${left!=null&&left<=1?'sess-low':''}">${left==null?'—':fmtQty(left)}</b> ${unitLabel(s)}${isHourly(s)?`　<span class="muted">（按小時計費 ${money(s.tuition,s.currency)}／小時）</span>`:''}</span>${leaveCount(s)?`<span>🟡 請假 <b>${leaveCount(s)}</b> 次 · 已補 <b>${makeupCount(s)}</b> 次${makeupDue(s)?` · <b style="color:#d97706">待補 ${makeupDue(s)}</b> 堂`:'　<span style="color:#16a34a">已補完 ✓</span>'}</span>`:''}</div>
+     <div class="meta" style="margin-bottom:10px;flex-wrap:wrap"><span>本期：共 <b>${esc(String(s.sessions_total??'—'))}</b> ${unitLabel(s)} · 已上 <b>${fmtQty(usedUnits(s))}</b>${leaveUnits(s)?`<span class="muted" style="font-size:12px">（含請假 ${fmtQty(leaveUnits(s))} ${unitLabel(s)}）</span>`:''} · 還剩 <b class="${left!=null&&left<=1?'sess-low':''}">${left==null?'—':fmtQty(left)}</b> ${unitLabel(s)}${isHourly(s)?`　<span class="muted">（按小時計費 ${money(s.tuition,s.currency)}／小時）</span>`:''}</span>${leaveCount(s)?`<span>🟡 請假 <b>${leaveCount(s)}</b> 次 · 已補 <b>${makeupCount(s)}</b> 次${makeupDue(s)?` · <b style="color:#d97706">待補 ${makeupDue(s)}</b> 堂`:'　<span style="color:#16a34a">已補完 ✓</span>'}</span>`:''}</div>
      <div style="margin-bottom:6px">${rows}</div>
      <div class="form-grid" style="margin-top:10px">
        <div class="field"><label>日期${eIdx!=null?' <span class="hint" style="color:#92400e">修改這一堂</span>':(pf.date?' <span class="hint">已帶入預排日期</span>':'')}</label><input id="cl-date" type="date" min="2000-01-01" max="2100-12-31" value="${useDate}"></div>
