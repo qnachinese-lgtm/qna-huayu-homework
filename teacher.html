@@ -4357,6 +4357,22 @@ H.classLinksSave=async(cls)=>{const drive=(($('#cv-drive')&&$('#cv-drive').value
   try{await saveClassMeta(cls,{drive,meet});
     toast(drive?('✅ 已儲存，「'+cls+'」的學生現在看得到教材資料夾了'):'已儲存');renderClassView(cls);}
   catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}};
+H.classFeePub=async(cls)=>{
+  const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
+  if(!members.length)return toast('這一班沒有學生');
+  const allOn=members.every(s=>!!s.pay_remind_on);
+  const to=!allOn;
+  if(!confirm(to
+    ? ('要把「'+cls+'」全班 '+members.length+' 位學生的費用公開給他們看嗎？\n\n學生會看到：目前應收多少、每一堂怎麼算的、已繳的紀錄，還有你設定的收款帳號。')
+    : ('要把「'+cls+'」全班 '+members.length+' 位學生的費用改回不公開嗎？')))return;
+  let ok=0,bad=0;
+  for(const s of members){
+    if(!!s.pay_remind_on===to){ok++;continue;}
+    try{await DB.update('students',s.id,{pay_remind_on:to});s.pay_remind_on=to;ok++;}catch(e){bad++;}
+  }
+  renderClassView(cls);render();
+  toast(bad?('已處理 '+ok+' 位，有 '+bad+' 位失敗'):(to?('✅ 全班 '+ok+' 位都看得到費用了'):('已關閉，'+ok+' 位學生看不到費用')));
+};
 H.classDatesPub=async(cls)=>{const on=!!classMetaOf(cls).show_dates;
   try{await saveClassMeta(cls,{show_dates:!on});toast(!on?'✅ 已公開！「'+cls+'」的學生現在看得到上課日期了':'已關閉，學生看不到上課日期');renderClassView(cls);}
   catch(e){toast('儲存失敗：'+((e&&e.message)||e));}};
@@ -4894,7 +4910,11 @@ H.classRollSave=async(cls)=>{const orig=S._rollOrig;S._rollOrig=null;const date=
     toast('已記錄這一堂並完成點名');classRollModal(cls);render();}catch(e){if(btn){btn.disabled=false;btn.textContent='✅ 記錄這一堂並點名';}toast('失敗：'+((e&&e.message)||e));}};
 function classDatesHtml(cls){const members=S.students.filter(s=>stuGroups(s).includes(cls));
   const _sd=!!classMetaOf(cls).show_dates;
-  const _pubBtn=`<button class="btn btn-sm ${_sd?'btn-accent':''}" data-act="classDatesPub" data-id="${esc(cls)}" title="打開後，這個班的學生會在學生頁看到已上課的日期（含自己的出席／請假）">${_sd?'👁 已公開給學生':'🔒 未公開給學生'}</button>`;
+  const _fee=members.filter(x=>!x.is_test);
+  const _feeOn=_fee.length&&_fee.every(x=>!!x.pay_remind_on);
+  const _feeSome=!_feeOn&&_fee.some(x=>!!x.pay_remind_on);
+  const _pubBtn=`<button class="btn btn-sm ${_sd?'btn-accent':''}" data-act="classDatesPub" data-id="${esc(cls)}" title="打開後，這個班的學生會在學生頁看到已上課的日期（含自己的出席／請假）">${_sd?'👁 已公開給學生':'🔒 未公開給學生'}</button>`
+    +(_fee.length?` <button class="btn btn-sm ${_feeOn?'btn-accent':''}" data-act="classFeePub" data-id="${esc(cls)}" title="一次把這一班所有學生的「繳費提醒」打開或關閉；打開後學生看得到目前應收多少、怎麼算的、繳費紀錄">${_feeOn?'💰 全班已公開費用':(_feeSome?('💰 部分公開（'+_fee.filter(x=>x.pay_remind_on).length+'/'+_fee.length+'）'):'💰 費用未公開')}</button>`:'');
   const map={};
   members.forEach(s=>(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date)return;const k=e.date+'|'+(e.start||'')+'|'+(e.end||'');const c=(map[k]=map[k]||{date:e.date,start:e.start||'',end:e.end||'',att:0,leave:0,absent:0,test:0,free:false,note:'',video:''});if(s.is_test)c.test++;else if(e.status==='leave')c.leave++;else if(e.status==='absent')c.absent++;else c.att++;if(e.free)c.free=true;if(e.note&&!c.note)c.note=e.note;if(e.video&&!c.video)c.video=e.video;}));
   const days=Object.keys(map).map(k=>map[k]).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.start).localeCompare(String(a.start)));
