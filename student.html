@@ -845,6 +845,7 @@ function renderDictation(){const dd=S.dict,v=dd.list[dd.idx];const mode=dd.mode|
     :mode==='audio'?`<audio id="qz-aud" preload="auto" src="${esc(v.audioUrl||'')}"></audio><button class="btn btn-primary" style="font-size:16px;padding:11px 22px" data-act="qzAudReplay">🔊 ${t('dictReplay')}</button>`
     :mode==='pinyin'?`<div class="quiz-prompt">${esc(v.py||'')||annotate(v.front)}</div>`
     :mode==='cloze'?`<div class="quiz-prompt cloze">${esc(clozeSentence(v))}</div>`
+    :mode==='live'?`<div class="quiz-prompt cloze" style="font-size:26px">${esc(v.qtext||'')}</div><div class="hint" style="margin-top:6px">${esc(wbL({zh:'聽老師唸，聽完把整句寫下來。',cn:'听老师念，听完把整句写下来。',en:'Listen to your teacher and type the whole sentence.',vi:'Nghe cô đọc rồi gõ lại cả câu.'}))}</div>`
     :mode==='custom'?`<div class="quiz-prompt cloze">${esc(v.qtext||'')}</div>`
     :`<div class="quiz-prompt">${esc(v.back||'')}</div>`;
   $('#screen').innerHTML=`<button class="btn btn-sm btn-ghost" data-act="back">${t('back')}</button>
@@ -3050,8 +3051,8 @@ H.dictCheck=async()=>{const dd=S.dict;if(!dd||dd.checked)return;
     (dd.log=dd.log||[]).push({q:qtxt,a:url,c:((vv.ans&&vv.ans.length)?vv.ans.join(' / '):(vv.front||'')),ok:false,pend:true,hand:true});
     renderDictation();return;}
   const inp=document.getElementById('dict-in');dd.val=inp?inp.value:'';const v=dd.list[dd.idx];
-  if(v&&v.manual){dd.ok=null;dd.checked=true;(dd.log=dd.log||[]).push({q:'🎙️ '+t('qzTeacherAudio'),a:dd.val,c:'',ok:false,pend:true});renderDictation();return;}const norm=s=>{try{return (CONV.cn?CONV.cn(s):s).toLowerCase().replace(/\s/g,'');}catch(e){return (s||'').toLowerCase().replace(/\s/g,'');}};const accepts=((dd.mode==='custom'||dd.mode==='audio')&&v.ans&&v.ans.length)?v.ans:[v.front];dd.ok=norm(dd.val)!==''&&accepts.some(a=>norm(a)===norm(dd.val));if(dd.ok)dd.right++;dd.checked=true;
-  if(dd.quiz){const md=dd.mode||'dict';const c=(md==='custom'||md==='audio')?accepts.join(' / '):v.front;const q=(md==='audio')?'🎙️ 老師的錄音':(md==='custom')?(v.qtext||''):(md==='cloze')?clozeSentence(v):(md==='pinyin')?(v.py||''):(md==='mean')?(v.back||''):'';(dd.log=dd.log||[]).push({q,a:dd.val,c,ok:dd.ok});}
+  if(v&&v.manual){dd.ok=null;dd.checked=true;(dd.log=dd.log||[]).push({q:(dd.mode==='live')?(v.qtext||''):('🎙️ '+t('qzTeacherAudio')),a:dd.val,c:'',ok:false,pend:true});renderDictation();return;}const norm=s=>{try{return (CONV.cn?CONV.cn(s):s).toLowerCase().replace(/\s/g,'');}catch(e){return (s||'').toLowerCase().replace(/\s/g,'');}};const accepts=((dd.mode==='custom'||dd.mode==='audio'||dd.mode==='live')&&v.ans&&v.ans.length)?v.ans:[v.front];dd.ok=norm(dd.val)!==''&&accepts.some(a=>norm(a)===norm(dd.val));if(dd.ok)dd.right++;dd.checked=true;
+  if(dd.quiz){const md=dd.mode||'dict';const c=(md==='custom'||md==='audio'||md==='live')?accepts.join(' / '):v.front;const q=(md==='audio')?'🎙️ 老師的錄音':(md==='live')?(v.qtext||''):(md==='custom')?(v.qtext||''):(md==='cloze')?clozeSentence(v):(md==='pinyin')?(v.py||''):(md==='mean')?(v.back||''):'';(dd.log=dd.log||[]).push({q,a:dd.val,c,ok:dd.ok});}
   renderDictation();};
 H.dictNext=()=>{const dd=S.dict;if(!dd)return;if(dd.idx+1>=dd.list.length){bumpActivity(dd.list.length);
     if(dd.quiz){const q=dd.quiz,right=dd.right,total=dd.list.length,log=dd.log||[];S.dict=null;$('#screen').dataset.mode='';
@@ -3071,6 +3072,16 @@ H.startQuiz=(id)=>{const qz=(S.quizzes||[]).find(x=>x.id===id);if(!qz)return;con
     if(!arr.length){toast(t('noCards'));return;}
     const list=shuffle(arr.map(it=>{const a=String(it.ans||'').split(/[\/／]/).map(x=>x.trim()).filter(Boolean);return {audioUrl:it.url,front:a[0]||'',ans:a,manual:!a.length};}),Math.random()+'');
     S.dict={list,idx:0,checked:false,val:'',right:0,ok:false,quiz:{id:qz.id,title:qz.title||t('quizDefTitle')},mode:'audio',hand:!!qz.handwrite};
+    $('#screen').dataset.mode='practice';window.scrollTo(0,0);renderDictation();return;}
+  if(mode==='live'){
+    const lines=String(qz.quiz_live||'').split('\n');
+    while(lines.length&&!String(lines[lines.length-1]).trim())lines.pop();
+    if(!lines.length){toast(t('noCards'));return;}
+    const list=lines.map((ln,i)=>{
+      const raw=String(ln||'').trim();
+      const a=(raw&&raw!=='-'&&raw!=='－'&&raw!=='—')?raw.split(/[\/／]/).map(x=>x.trim()).filter(Boolean):[];
+      return {qtext:wbL({zh:'第 '+(i+1)+' 句',cn:'第 '+(i+1)+' 句',en:'Sentence '+(i+1),vi:'Câu '+(i+1)}),front:a[0]||'',ans:a,manual:!a.length};});
+    S.dict={list,idx:0,checked:false,val:'',right:0,ok:false,quiz:{id:qz.id,title:qz.title||t('quizDefTitle')},mode:'live',hand:!!qz.handwrite};
     $('#screen').dataset.mode='practice';window.scrollTo(0,0);renderDictation();return;}
   if(mode==='custom'){const items=parseQuizItems(qz.quiz_items);if(!items.length){toast(t('noCards'));return;}
     const list=shuffle(items.map(it=>({qtext:it.q,front:it.a[0],ans:it.a})),Math.random()+'');
