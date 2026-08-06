@@ -3304,6 +3304,7 @@ function wbGraded(){const d=wbDocOf(WB.id);return (d&&(d.status==='submitted'||d
 function wbNorm(s){s=String(s==null?'':s).trim();try{if(CONV.cn)s=CONV.cn(s);}catch(e){}return s.replace(/\s+/g,'');}
 function wbGrade(w,ans){
   const d=wbData(w),out={listen:{ok:0,total:0},cloze:{ok:0,total:0},match:{ok:0,total:0},read:{ok:0,total:0}};
+  const HD=(d.hand)||{};
   out.vocab={ok:0,total:0};
   (d.listen||[]).forEach(q=>{if(!q.ans)return;out.listen.total++;if((ans.listen||{})[q.n]===q.ans)out.listen.ok++;});
   (d.vocab||[]).forEach(q=>{if(!q.ans)return;out.vocab.total++;if((ans.vocab||{})[q.n]===q.ans)out.vocab.ok++;});
@@ -3313,15 +3314,15 @@ function wbGrade(w,ans){
   out.tone={ok:0,total:0};out.pron={ok:0,total:0};out.tf={ok:0,total:0};out.hz={ok:0,total:0};out.ord={ok:0,total:0};
   const _pl=x=>wbNorm(x).toLowerCase().replace(/[’'\u2018\u2019]/g,"'").replace(/[.,?!;:，。？！；：、]/g,'');
   const _zh=x=>wbNorm(x).replace(/[，。？！；：、,.?!;:\s]/g,'');
-  (d.tone||[]).forEach(q=>{if(!q.ans)return;out.tone.total++;if(_pl((ans.tone||{})[q.n])===_pl(q.ans))out.tone.ok++;});
+  if(!HD.tone)(d.tone||[]).forEach(q=>{if(!q.ans)return;out.tone.total++;if(_pl((ans.tone||{})[q.n])===_pl(q.ans))out.tone.ok++;});
   (d.pron||[]).forEach(q=>{if(!q.ans)return;out.pron.total++;if(String((ans.pron||{})[q.n]||'').trim().toLowerCase()===String(q.ans).trim().toLowerCase())out.pron.ok++;});
   (d.tf||[]).forEach(q=>{if(!q.ans)return;out.tf.total++;if(String((ans.tf||{})[q.n]||'').trim().toUpperCase()===String(q.ans).trim().toUpperCase())out.tf.ok++;});
-  (d.hz||[]).forEach(q=>((q.lines)||[]).forEach((ln,i)=>{if(!ln.ans)return;out.hz.total++;if(_zh((ans.hz||{})[q.n+'-'+i])===_zh(ln.ans))out.hz.ok++;}));
-  (d.ord||[]).forEach(q=>{if(!q.ans)return;out.ord.total++;if(_zh((ans.ord||{})[q.n])===_zh(q.ans))out.ord.ok++;});
+  if(!HD.hz)(d.hz||[]).forEach(q=>((q.lines)||[]).forEach((ln,i)=>{if(!ln.ans)return;out.hz.total++;if(_zh((ans.hz||{})[q.n+'-'+i])===_zh(ln.ans))out.hz.ok++;}));
+  if(!HD.ord)(d.ord||[]).forEach(q=>{if(!q.ans)return;out.ord.total++;if(_zh((ans.ord||{})[q.n])===_zh(q.ans))out.ord.ok++;});
   out.mcq={ok:0,total:0};
   (d.mcq||[]).forEach(q=>{if(!q.ans)return;out.mcq.total++;if(String((ans.mcq||{})[q.n]||'').toUpperCase()===String(q.ans).toUpperCase())out.mcq.ok++;});
   out.g7={ok:0,total:0};
-  (((d.g7||{}).groups)||[]).forEach(g=>(g.items||[]).forEach(it=>{
+  if(!HD.g7)(((d.g7||{}).groups)||[]).forEach(g=>(g.items||[]).forEach(it=>{
     if(!it.ans||/^（參考）|^\(參考\)/.test(String(it.ans).trim()))return;
     out.g7.total++;if(_zh((ans.g7||{})[g.k+'-'+it.n])===_zh(it.ans))out.g7.ok++;}));
   out.ok=out.listen.ok+out.vocab.ok+out.cloze.ok+out.match.ok+out.read.ok+out.tone.ok+out.pron.ok+out.tf.ok+out.hz.ok+out.ord.ok+out.g7.ok+out.mcq.ok;
@@ -3449,7 +3450,16 @@ function wbWriteHtml(w,graded,doc){
     +`<div style="margin-top:10px">${body}</div>`+fb;
 }
 /* ===== 時代華語一 作業簿：六大題 ===== */
+function wbHandOn(sec){return !!((WB&&WB.hand)||{})[sec];}
+function wbHwBox(sec,key,val,graded,ref,h){
+  const rf=ref?`<div class="wb-ref">${wbL({zh:'參考答案',cn:'参考答案',en:'Answer',vi:'Đáp án'})}：${esc(ref)}</div>`:'';
+  if(graded)return (val?`<img class="hw-img" src="${esc(val)}" alt="">`:`<div class="wb-filled"><span class="hint">（未作答）</span></div>`)+rf;
+  return `<div class="qz-hwwrap"><canvas class="hw-canvas qz-hw wb-hw" data-sec="${esc(sec)}" data-key="${esc(String(key))}" width="1000" height="${h||170}"></canvas>
+    <div class="hw-tools"><button class="btn btn-sm" type="button" data-act="wbHwClear" data-id="${esc(sec)}|${esc(String(key))}">${wbL({zh:'清除重寫',cn:'清除重写',en:'Clear',vi:'Xoá viết lại'})}</button>
+    <span class="hint wb-hw-st" data-st="${esc(sec)}|${esc(String(key))}"></span></div></div>`;
+}
 function wbTxt(sec,key,val,graded,ref,okFlag){
+  if(wbHandOn(sec))return wbHwBox(sec,key,val,graded,ref);
   if(graded){
     const shown=val?esc(val):'<span class="hint">（未作答）</span>';
     const mk=(okFlag===true)?'<span class="wb-mk ok">✓</span>':((okFlag===false)?'<span class="wb-mk no">✗</span>':'');
@@ -3591,8 +3601,9 @@ function wbPicHtml(w,graded,doc){
   return `<div class="wb-hint">${wbL({zh:'看圖造句。',cn:'看图造句。',en:'Describe each picture in a sentence.',vi:'Nhìn tranh đặt câu.'})}</div>`
    +(wbData(w).pic||[]).map(q=>{
       const v=a[q.n]||'';
-      const body=graded?`<div class="wb-filled">${v?esc(v):'<span class="hint">（未作答）</span>'}</div>`+(q.ans?`<div class="wb-ref">${wbL({zh:'參考答案',cn:'参考答案',en:'Answer',vi:'Đáp án'})}：${esc(q.ans)}</div>`:'')
-        :`<textarea class="wb-ta" rows="2" data-wb="pic" data-n="${q.n}" placeholder="…">${esc(v)}</textarea>`;
+      const body=wbHandOn('pic')?wbHwBox('pic',q.n,v,graded,q.ans,240)
+        :(graded?`<div class="wb-filled">${v?esc(v):'<span class="hint">（未作答）</span>'}</div>`+(q.ans?`<div class="wb-ref">${wbL({zh:'參考答案',cn:'参考答案',en:'Answer',vi:'Đáp án'})}：${esc(q.ans)}</div>`:'')
+        :`<textarea class="wb-ta" rows="2" data-wb="pic" data-n="${q.n}" placeholder="…">${esc(v)}</textarea>`);
       const f=fb['p'+q.n]?`<div class="wb-fb">💬 ${esc(fb['p'+q.n])}</div>`:'';
       return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${q.n}</span>${(q.hint&&!q.img)?`<span class="wb-tag">${esc(q.hint)}</span>`:''}</div>`
         +(q.img?`<div class="wb-pic"><img src="${esc(q.img)}" alt="" loading="lazy"></div>`:'')
@@ -3605,6 +3616,7 @@ function wbViewHtml(w){
   const doc=wbDocOf(w.id);
   const graded=!!(doc&&(doc.status==='submitted'||doc.status==='reviewed'));
   if(!WB.ans)WB.ans=Object.assign(wbEmptyAns(),JSON.parse(JSON.stringify((doc&&doc.answers)||{})));
+  WB.hand=(wbData(w).hand)||{};
   const d=wbData(w);
   const back=`<div class="lv-back"><button class="btn btn-ghost" data-act="wbBack">← ${wbL({zh:'回課程',cn:'回课程',en:'Back to course',vi:'Về khoá học'})}</button><span class="grow"></span></div>`;
   let score='';
@@ -3645,6 +3657,29 @@ function wbViewHtml(w){
 function wbAfterRender(){
   try{syncStickTop();}catch(e){}
   const el=$('#screen');if(!el)return;
+  /* 手寫格：畫完 2.5 秒沒動作就自動存到雲端 */
+  el.querySelectorAll('canvas.wb-hw').forEach(cv=>{
+    if(cv.dataset.wired)return;cv.dataset.wired='1';
+    try{setupCanvas(cv);}catch(e){}
+    const sec=cv.dataset.sec,key=cv.dataset.key;
+    const st=el.querySelector('.wb-hw-st[data-st="'+sec+'|'+key+'"]');
+    const prev=((wbAns()[sec]||{})[key])||'';
+    if(prev&&/^https?:/.test(prev)){const im=new Image();im.crossOrigin='anonymous';
+      im.onload=()=>{try{cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);cv.dataset.drawn='1';}catch(e){}};im.src=prev;
+      if(st)st.textContent=wbL({zh:'✓ 已存',cn:'✓ 已存',en:'✓ Saved',vi:'✓ Đã lưu'});}
+    let t=null;
+    const save=async()=>{
+      const url0=canvasDataURL(cv,900);if(!url0)return;
+      if(st)st.textContent=wbL({zh:'儲存中…',cn:'保存中…',en:'Saving…',vi:'Đang lưu…'});
+      try{const url=await uploadHw(url0,'wb-'+WB.id+'-'+sec+'-'+key);
+        const a=wbAns();if(!a[sec])a[sec]={};a[sec][key]=url;wbTouch();
+        if(st)st.textContent=wbL({zh:'✓ 已存',cn:'✓ 已存',en:'✓ Saved',vi:'✓ Đã lưu'});
+      }catch(e){if(st)st.textContent=wbL({zh:'存檔失敗，請再寫一筆',cn:'保存失败，请再写一笔',en:'Save failed',vi:'Lưu thất bại'});}};
+    const bump=()=>{clearTimeout(t);if(st)st.textContent='…';t=setTimeout(save,2500);};
+    cv.addEventListener('pointerup',bump);
+    cv.addEventListener('pointerleave',()=>{if(cv.dataset.drawn==='1')bump();});
+    cv.__hwSave=save;
+  });
   el.querySelectorAll('select[data-wbn]').forEach(sel=>{
     sel.addEventListener('change',()=>{const a=wbAns();if(!a.cloze)a.cloze={};a.cloze[sel.dataset.wbn]=sel.value;wbTouch();wbRepaint();});
   });
@@ -3680,6 +3715,11 @@ async function wbSaveDraft(){
 }
 H.wbOpen=(id)=>{WB.id=id;WB.ans=null;WB.sel=null;WB.pick=null;S.section='wb';renderSection();window.scrollTo(0,0);};
 H.wbBack=()=>{clearTimeout(WB.timer);if(WB.dirty)wbSaveDraft();WB.id=null;WB.ans=null;WB.sel=null;WB.pick=null;S.section='content';renderSection();window.scrollTo(0,0);};
+H.wbHwClear=(id)=>{const p=String(id).split('|');
+  const cv=document.querySelector('canvas.wb-hw[data-sec="'+p[0]+'"][data-key="'+p[1]+'"]');
+  if(cv){const c=cv.getContext('2d');c.clearRect(0,0,cv.width,cv.height);cv.dataset.drawn='';}
+  const a=wbAns();if(a[p[0]])a[p[0]][p[1]]='';wbTouch();
+  const st=document.querySelector('.wb-hw-st[data-st="'+p[0]+'|'+p[1]+'"]');if(st)st.textContent='';};
 H.wbPick=(id,btn)=>{if(wbLocked())return;const p=String(id).split('|');const a=wbAns();
   if(!a[p[0]])a[p[0]]={};
   a[p[0]][p[1]]=(a[p[0]][p[1]]===p[2])?'':p[2];
@@ -3713,8 +3753,13 @@ H.wbSubmit=async()=>{
   if(S.preview)return;
   const w=wbOf(WB.id);if(!w)return;
   const a=wbAns();
-  const empty=!Object.keys(a.listen||{}).some(k=>a.listen[k])&&!Object.keys(a.cloze||{}).some(k=>a.cloze[k])&&!Object.keys(a.match||{}).some(k=>a.match[k])&&!Object.keys(a.read||{}).some(k=>a.read[k])&&!Object.keys(a.gram||{}).some(k=>a.gram[k])&&!String(a.write||'').trim();
+  const _any=(o)=>o&&Object.keys(o).some(k=>o[k]);
+  const empty=!['listen','cloze','match','read','gram','tone','pron','tf','mcq','py','hz','ord','dlg','pic','g7'].some(k=>_any(a[k]))&&!String(a.write||'').trim()
+    &&![...document.querySelectorAll('canvas.wb-hw')].some(c=>c.dataset.drawn==='1');
   if(empty){toast(wbL({zh:'請先作答再送出',cn:'请先作答再送出',en:'Please answer first',vi:'Hãy làm bài trước'}));return;}
+  const _cvs=[...document.querySelectorAll('canvas.wb-hw')].filter(c=>c.dataset.drawn==='1');
+  if(_cvs.length){toast(wbL({zh:'手寫存檔中…',cn:'手写保存中…',en:'Saving handwriting…',vi:'Đang lưu chữ viết…'}));
+    for(const c of _cvs){try{if(c.__hwSave)await c.__hwSave();}catch(e){}}}
   if(!confirm(wbL({zh:'確定送出？送出後客觀題會馬上對答案，第四、六大題交給老師批改。',cn:'确定送出？送出后客观题会马上对答案，第四、六大题交给老师批改。',en:'Submit now?',vi:'Nộp bài?'})))return;
   clearTimeout(WB.timer);
   try{
