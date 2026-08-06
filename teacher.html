@@ -463,6 +463,10 @@ const TYPE_LABELS={choice:'單選',fill:'填空',opt:'選填',qa:'問答',order:
 
 const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],admins:[],announcements:[],trashStudents:[],trashLessons:[],tab:'dashboard',q:'',openCards:new Set(),openBooks:new Set()};
 let IS_OWNER=false, MY_EMAIL='';
+const CRM_KINDS={agency:1,interview:1,inquiry:1};
+function crmAll(){return (S.agencies||[]).concat(S.interviews||[],S.inquiries||[]);}
+function crmCol(id){const d=crmAll().find(x=>x&&x.id===id);return (d&&d._col)||'crm';}
+function crmLegacy(){return crmAll().filter(x=>x&&x._col==='lessons');}
 function adminName(email){if(!email)return '主管理員';const a=(S.admins||[]).find(x=>(x.email||'').toLowerCase()===(email||'').toLowerCase());return (a&&(a.name||a.email))||email;}
 const sortLessons=(a)=>a.slice().sort((x,y)=>((x.order_index||0)-(y.order_index||0))||((x.created_at||'').localeCompare(y.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
@@ -485,8 +489,12 @@ async function loadAll(){
   const [a,b,c,d]=await Promise.all([
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
     DB.list('lessons'),DB.list('questions'),DB.list('results')]);
+  let _crm=[];if(owner){try{_crm=await DB.list('crm');}catch(e){_crm=[];}}
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&!x.deleted_at);S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.interviews=b.filter(x=>x.kind==='interview'&&!x.deleted_at);S.inquiries=b.filter(x=>x.kind==='inquiry'&&!x.deleted_at);S.agencies=b.filter(x=>x.kind==='agency'&&!x.deleted_at);S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&!x.deleted_at);S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);{const _lg=b.filter(x=>CRM_KINDS[x.kind]&&!x.deleted_at);_lg.forEach(x=>{x._col='lessons';});
+   const _cn=_crm.filter(x=>!x.deleted_at);_cn.forEach(x=>{x._col='crm';});
+   const _all=_cn.concat(_lg);
+   S.interviews=_all.filter(x=>x.kind==='interview');S.inquiries=_all.filter(x=>x.kind==='inquiry');S.agencies=_all.filter(x=>x.kind==='agency');}S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
   splitResults(d);
   {const cut=Date.now()-7*864e5;(S.trashStudents||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('students',x.id).catch(()=>{});});(S.trashLessons||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('lessons',x.id).catch(()=>{});});}
   if(!owner){
@@ -884,13 +892,21 @@ function agDueSum(c){const by={};
 function agIncome(ym){const paid={},due={};agAll().forEach(c=>{itvAddCur(paid,agPaidSum(c,ym));if(!ym)itvAddCur(due,agDueSum(c));});return {paid,due};}
 function agResultMeta(r){return ({submitted:['📮 已送件','#2563eb'],admitted:['✅ 錄取','#16a34a'],admitted_s:['🎉 錄取・有獎學金','#16a34a'],admitted_n:['✅ 錄取・無獎學金','#0d9488'],rejected:['❌ 未錄取','#dc2626']})[r]||null;}
 function agDeadlineBadge(c){if(!c||!c.deadline)return '';const d=itvDaysTo(c.deadline);if(d==null)return '';const done=(c.status||'active')!=='active';const col=(d<0)?'#dc2626':(d<=7?'#d97706':'#2563eb');const lab=d<0?('已過 '+(-d)+' 天'):(d===0?'今天到期！':(d===1?'明天到期':'還有 '+d+' 天'));return `<span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 繳件期限 ${esc(c.deadline)}${done?'':('（'+lab+'）')}</span>`;}
+function crmMoveBanner(){
+  if(!IS_OWNER)return '';
+  const n=crmLegacy().length;if(!n)return '';
+  return `<div style="margin-top:10px;padding:10px 12px;background:#fff7ed;border:1.5px solid #fdba74;border-radius:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <span style="font-size:20px">🔒</span>
+    <div style="flex:1;min-width:200px"><b style="color:#c2410c">有 ${n} 筆資料還放在學生看得到的地方</b>
+    <div class="hint" style="margin-top:2px">代辦申請和面試練習以前跟課程存在一起，登入的學生理論上讀得到裡面的姓名電話。按右邊的按鈕搬到只有你看得到的位置。</div></div>
+    <button class="btn btn-accent" data-act="crmMove">🔒 立刻搬移</button></div>`;}
 function renderAgency(){
   const body=$('#agency-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','代辦申請只有主管理員看得到。');return;}
   const list=agAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;const la=agSorted(a)[0],lb=agSorted(b)[0];return String((lb&&lb.date)||'').localeCompare(String((la&&la.date)||''));});
   const ym=localToday().slice(0,7);const inc=agIncome(ym);const incAll=agIncome(null);
   const dueStr=itvMoneyStr(incAll.due);
-  const head=`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div><div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">累計收入</div><b style="font-size:19px">${itvMoneyStr(incAll.paid)||'—'}</b></div>${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${dueStr}</b></div>`:''}<span style="flex:1"></span><button class="btn btn-primary" data-act="agNew">＋ 新增代辦客戶</button></div><div class="hint" style="margin-top:8px">收入會併進「營運 → 🧮 總收入」。</div></div>`;
+  const head=`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div><div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">累計收入</div><b style="font-size:19px">${itvMoneyStr(incAll.paid)||'—'}</b></div>${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${dueStr}</b></div>`:''}<span style="flex:1"></span><button class="btn btn-primary" data-act="agNew">＋ 新增代辦客戶</button></div><div class="hint" style="margin-top:8px">收入會併進「營運 → 🧮 總收入」。</div>${crmMoveBanner()}</div>`;
   if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🎓</div><h3 style="margin:8px 0">還沒有代辦客戶</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">兩步就好：<br><b>第 1 步</b>　按「＋ 新增代辦客戶」建立一位客戶（姓名、申請學校）。<br><b>第 2 步</b>　卡片上會有「<b>＋ 新增一筆進度</b>」，記下哪天、做了什麼、上傳什麼、收多少錢。</div><button class="btn btn-primary" data-act="agNew">＋ 新增代辦客戶</button></div>`;return;}
   const rows=list.map(c=>{
     const lg=agSorted(c);const done=(c.status||'active')!=='active';
@@ -4136,7 +4152,7 @@ H.itvPaySave=async()=>{const id=($('#ipay-who')&&$('#ipay-who').value)||'';const
   const amt=Number(($('#ipay-amt')&&$('#ipay-amt').value)||0);if(!amt)return toast('請填金額');
   const cur=($('#ipay-cur')&&$('#ipay-cur').value)||'VND';const note=(($('#ipay-note')&&$('#ipay-note').value)||'').trim();
   const pays=itvPays(c).slice();pays.push({date:date,amount:amt,currency:cur,note:note});pays.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-  try{await DB.update('lessons',c.id,{payments:pays});c.payments=pays;toast('已記錄：'+(c.name||'')+' '+date+' '+money(amt,cur));closeModal();renderInterview();}
+  try{await DB.update(crmCol(c.id),c.id,{payments:pays});c.payments=pays;toast('已記錄：'+(c.name||'')+' '+date+' '+money(amt,cur));closeModal();renderInterview();}
   catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.itvPayList=(id)=>{const c=itvById(id);if(!c)return;const pays=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const sessPaid=itvSessions(c).map((e,i)=>({e:e,i:i})).filter(x=>x.e.paid&&x.e.fee);
@@ -4161,12 +4177,12 @@ H.itvPayConvDo=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]
   const date=($('#ipc-date')&&$('#ipc-date').value)||String(e.date);const note=(($('#ipc-note')&&$('#ipc-note').value)||'').trim();
   const pays=itvPays(c).slice();pays.push({date:date,amount:Number(e.fee)||0,currency:e.currency||'VND',note:note});pays.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const ns=Object.assign({},e);ns.fee='';ns.paid=false;sessions[i]=ns;
-  try{await DB.update('lessons',c.id,{payments:pays,sessions:sessions});c.payments=pays;c.sessions=sessions;toast('已轉成獨立付費（'+date+'）');renderInterview();H.itvPayList(c.id);}
+  try{await DB.update(crmCol(c.id),c.id,{payments:pays,sessions:sessions});c.payments=pays;c.sessions=sessions;toast('已轉成獨立付費（'+date+'）');renderInterview();H.itvPayList(c.id);}
   catch(er){toast('失敗：'+((er&&er.message)||er));}};
 H.itvPayDel=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;const idx=Number(p[1]);const pays=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));const target=pays[idx];if(!target)return;
   if(!confirm('刪除 '+target.date+' 的 '+money(target.amount,target.currency||'VND')+' 付費紀錄？'))return;
   const left=itvPays(c).filter(x=>x!==target);
-  try{await DB.update('lessons',c.id,{payments:left});c.payments=left;toast('已刪除');closeModal();renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+  try{await DB.update(crmCol(c.id),c.id,{payments:left});c.payments=left;toast('已刪除');closeModal();renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.itvFiles=(id)=>{const c=(S.interviews||[]).find(x=>x.id===id);if(!c)return;
   openModal(`<div class="modal"><div class="modal-head"><h3>📎 資料／檔案 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
@@ -4178,7 +4194,7 @@ H.itvFiles=(id)=>{const c=(S.interviews||[]).find(x=>x.id===id);if(!c)return;
    </div></div>`);
   H.itvFilesLoad(id);};
 H.itvNoteSave=async(id)=>{const c=(S.interviews||[]).find(x=>x.id===id);if(!c)return;const v=(($('#itvf-note')&&$('#itvf-note').value)||'').trim();
-  try{await DB.update('lessons',id,{note:v});c.note=v;toast('備註已儲存');renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+  try{await DB.update(crmCol(id),id,{note:v});c.note=v;toast('備註已儲存');renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.itvFilesLoad=async(id)=>{const box=$('#itvf-list');if(!box)return;
   try{const files=await DB.listWhere('uploads','student_id','itv_'+id);files.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));_uaFiles=files;
     box.innerHTML=files.length?files.map((f,i)=>`<div class="dash-row" style="flex-wrap:wrap"><b>${esc(f.filename||'檔案')}</b><span class="muted" style="font-size:12px">${esc(String(f.created_at||'').slice(0,10))}　${f.size?(Math.round(f.size/1024)+' KB'):''}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="${i}">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="${i}">🗑</button></div>`).join(''):'<div class="hint">還沒有檔案。</div>';
@@ -4320,22 +4336,35 @@ H.agPaySave=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if
   const arr=agPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   if(p[1]==='new')arr.push(row);else arr[Number(p[1])]=row;
   arr.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-  try{await DB.update('lessons',c.id,{payments:arr});c.payments=arr;await loadAll();closeModal();render();toast('已記錄收款 ✓');}catch(e){toast(writeErr('儲存失敗',e));}};
+  try{await DB.update(crmCol(c.id),c.id,{payments:arr});c.payments=arr;await loadAll();closeModal();render();toast('已記錄收款 ✓');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.agPayDel=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if(!c)return;if(!confirm('刪除這筆收款紀錄？'))return;
   const arr=agPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));arr.splice(Number(p[1]),1);
-  try{await DB.update('lessons',c.id,{payments:arr});c.payments=arr;await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
+  try{await DB.update(crmCol(c.id),c.id,{payments:arr});c.payments=arr;await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
+H.crmMove=async()=>{
+  if(!IS_OWNER)return toast('只有主管理員可以做這個動作');
+  const list=crmLegacy();
+  if(!list.length)return toast('沒有需要搬移的資料');
+  if(!confirm('要把 '+list.length+' 筆代辦申請／面試練習搬到只有你看得到的位置嗎？\n\n搬完之後學生就完全讀不到這些資料了。'))return;
+  let ok=0,bad=0;
+  const WIPE={deleted_at:new Date().toISOString(),name:'',phone:'',school:'',target:'',note:'',result_note:'',log:[],sessions:[],payments:[]};
+  for(const d of list){
+    const c=Object.assign({},d);delete c.id;delete c._col;c.moved_from=d.id;
+    try{await DB.insert('crm',c);await DB.update('lessons',d.id,WIPE);ok++;}catch(e){bad++;}
+  }
+  await loadAll();render();
+  toast(bad?('搬好 '+ok+' 筆，有 '+bad+' 筆失敗'):('搬好了，'+ok+' 筆已經變成只有你看得到 ✓'));};
 H.agNew=()=>agForm(null);
 H.agEdit=(id)=>agForm(agById(id));
 H.agSave=async(id)=>{const name=($('#ag-name').value||'').trim();if(!name)return toast('請填姓名');
   const _tv=(($('#ag-total')&&$('#ag-total').value)||'').trim();
   const patch={kind:'agency',name,phone:($('#ag-phone').value||'').trim(),school:($('#ag-school').value||'').trim(),result:($('#ag-result')&&$('#ag-result').value)||'',deadline:(($('#ag-deadline')&&$('#ag-deadline').value)||'')||null,note:($('#ag-note').value||'').trim(),
     fee_total:(_tv===''?null:Number(_tv)),fee_cur:(($('#ag-fcur')&&$('#ag-fcur').value)||'VND')};
-  try{if(id){await DB.update('lessons',id,patch);}else{patch.status='active';patch.log=[];patch.created_at=new Date().toISOString();await DB.insert('lessons',patch);}
+  try{if(id){await DB.update(crmCol(id),id,patch);}else{patch.status='active';patch.log=[];patch.created_at=new Date().toISOString();await DB.insert('crm',patch);}
     await loadAll();closeModal();S.tab='agency';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.agToggle=async(id)=>{const c=agById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
-  try{await DB.update('lessons',id,{status:st});await loadAll();render();toast(st==='done'?'已結案':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
+  try{await DB.update(crmCol(id),id,{status:st});await loadAll();render();toast(st==='done'?'已結案':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
 H.agDel=async(id)=>{const c=agById(id);if(!c)return;if(!confirm('確定刪除「'+(c.name||'')+'」？所有進度與收費紀錄會一起刪除。'))return;
-  try{await DB.update('lessons',id,{deleted_at:new Date().toISOString()});S.agencies=(S.agencies||[]).filter(x=>x.id!==id);render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
+  try{await DB.update(crmCol(id),id,{deleted_at:new Date().toISOString()});S.agencies=(S.agencies||[]).filter(x=>x.id!==id);render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.agLogNew=(id)=>agLogForm(id+'::new');
 H.agLogEdit=(key)=>agLogForm(key);
 H.agLogSave=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if(!c)return;
@@ -4344,31 +4373,31 @@ H.agLogSave=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if
   const arr=agLog(c).slice();
   if(p[1]==='new')arr.push(row);else arr[Number(p[1])]=row;
   arr.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  try{await DB.update('lessons',c.id,{log:arr});await loadAll();closeModal();render();toast('已儲存這筆進度 ✓');}catch(e){toast(writeErr('儲存失敗',e));}};
+  try{await DB.update(crmCol(c.id),c.id,{log:arr});await loadAll();closeModal();render();toast('已儲存這筆進度 ✓');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.agLogDel=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if(!c)return;if(!confirm('刪除這筆進度？'))return;
   const arr=agLog(c).slice();arr.splice(Number(p[1]),1);
-  try{await DB.update('lessons',c.id,{log:arr});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
+  try{await DB.update(crmCol(c.id),c.id,{log:arr});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.itvNew=()=>itvForm(null);
 H.itvEdit=(id)=>itvForm(itvById(id));
 H.itvSess=(key)=>itvSessForm(key);
 H.itvSave=async(id)=>{const name=($('#itv-name').value||'').trim();if(!name)return toast('請填姓名');
   const patch={kind:'interview',name,phone:($('#itv-phone').value||'').trim(),target:($('#itv-target').value||'').trim(),note:($('#itv-note').value||'').trim(),exam_date:($('#itv-exam')&&$('#itv-exam').value)||'',exam_time:hhmmNorm(($('#itv-examt')&&$('#itv-examt').value)||''),result:($('#itv-result')&&$('#itv-result').value)||'',result_note:($('#itv-rnote')&&$('#itv-rnote').value||'').trim()};
-  try{if(id){await DB.update('lessons',id,patch);}else{patch.status='active';patch.sessions=[];patch.created_at=new Date().toISOString();await DB.insert('lessons',patch);}
+  try{if(id){await DB.update(crmCol(id),id,patch);}else{patch.status='active';patch.sessions=[];patch.created_at=new Date().toISOString();await DB.insert('crm',patch);}
     await loadAll();closeModal();S.tab='interview';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.itvToggle=async(id)=>{const c=itvById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
-  try{await DB.update('lessons',id,{status:st});await loadAll();render();toast(st==='done'?'已標記完成':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
+  try{await DB.update(crmCol(id),id,{status:st});await loadAll();render();toast(st==='done'?'已標記完成':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
 H.itvDel=async(id)=>{const c=itvById(id);if(!c)return;if(!confirm('確定刪除「'+(c.name||'')+'」？練習與收費紀錄會一起刪除。'))return;
-  try{await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
+  try{await DB.update(crmCol(id),id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.itvSessSave=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
   const date=$('#itv-date').value;if(!date)return toast('請選日期');const feeV=$('#itv-fee').value;
   const row={date,start:hhmmNorm(($('#itv-start')&&$('#itv-start').value)||''),end:hhmmNorm(($('#itv-end')&&$('#itv-end').value)||''),fee:feeV===''?null:Number(feeV),currency:$('#itv-cur').value,paid:!!($('#itv-paid')&&$('#itv-paid').checked),note:($('#itv-snote').value||'').trim()};
   const arr=itvSessions(c).slice();
   if(p[1]==='new')arr.push(row);else arr[Number(p[1])]=row;
   arr.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-  try{await DB.update('lessons',c.id,{sessions:arr});await loadAll();closeModal();render();toast('已儲存這一次 ✓');}catch(e){toast(writeErr('儲存失敗',e));}};
+  try{await DB.update(crmCol(c.id),c.id,{sessions:arr});await loadAll();closeModal();render();toast('已儲存這一次 ✓');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.itvSessDel=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;if(!confirm('刪除這一次練習紀錄？'))return;
   const arr=itvSessions(c).slice();arr.splice(Number(p[1]),1);
-  try{await DB.update('lessons',c.id,{sessions:arr});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
+  try{await DB.update(crmCol(c.id),c.id,{sessions:arr});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.calView=(v)=>{S.calView=v;if((v==='month'||v==='ledger')&&!S.calMonth)S.calMonth=localToday().slice(0,7);renderCalendar();};
 H.quickClassToday=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const d=new Date();const date=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   const log=Array.isArray(s.class_log)?s.class_log.slice():[];
