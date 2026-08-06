@@ -1410,7 +1410,111 @@ async function loadMine(){const [l,q,siteRows]=await Promise.all([DB.list('lesso
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
   S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='workbook');S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;
   splitResults(rAll);}
-function splitResults(rAll){rAll=rAll||[];S.results=rAll.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='review');S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');S.wbdocs=rAll.filter(x=>x.kind==='wb');}
+/* ===================== 📕 錯題本 Mistake notebook ===================== */
+const MIST_STEPS=[3,7,15];
+const MIST_TAGS=[
+  {k:'tone',zh:'聲調',vi:'Thanh điệu',en:'Tone'},
+  {k:'pinyin',zh:'拼音混淆',vi:'Nhầm phiên âm',en:'Pinyin mix-up'},
+  {k:'hanzi',zh:'漢字形近',vi:'Chữ Hán giống nhau',en:'Similar characters'},
+  {k:'measure',zh:'量詞',vi:'Lượng từ',en:'Measure word'},
+  {k:'order',zh:'語序',vi:'Trật tự từ',en:'Word order'},
+  {k:'word',zh:'用詞',vi:'Dùng từ',en:'Word choice'},
+  {k:'read',zh:'看錯題目',vi:'Đọc sai đề',en:'Misread question'},
+  {k:'other',zh:'其他',vi:'Khác',en:'Other'}];
+function mistTagLabel(k){const t=MIST_TAGS.find(x=>x.k===k);return t?wbL(t):'';}
+function _mday(n){const d=new Date();d.setDate(d.getDate()+(n||0));return d.toISOString().slice(0,10);}
+function mistItems(){const d=S.mistDoc;return (d&&Array.isArray(d.items))?d.items:[];}
+function mistDue(){const t=_today();return mistItems().filter(x=>x&&!x.mastered&&String(x.due||'')<=t);}
+function mistActive(){return mistItems().filter(x=>x&&!x.mastered);}
+let _mistT=null;
+async function mistSave(items){
+  if(S.preview||!S.me)return;
+  const payload={kind:'mistake',lesson_id:'__mistakes',uid:myUid(),student_id:S.me.id,student_name:S.me.name||'',items:items,updated_at:now()};
+  try{
+    const d=S.mistDoc;
+    if(d&&d.id){await DB.update('results',d.id,{items:items,updated_at:payload.updated_at});Object.assign(d,payload);}
+    else{const r=await DB.insert('results',payload);const id=(r&&r.id)?r.id:r;S.mistDoc=Object.assign({id},payload);}
+  }catch(e){}
+}
+/* items: [{k,src,title,q,a,c,lid}] —— k 必須是穩定的唯一鍵 */
+async function mistAdd(list){
+  if(S.preview||!S.me||!list||!list.length)return;
+  const cur=mistItems().slice();const byK={};cur.forEach((x,i)=>{byK[x.k]=i;});
+  let changed=false;
+  list.forEach(it=>{
+    if(!it||!it.k)return;
+    const i=byK[it.k];
+    if(i==null){
+      cur.push({k:it.k,src:it.src||'',title:it.title||'',q:it.q||'',a:it.a||'',c:it.c||'',lid:it.lid||'',
+        tag:'',stage:0,due:_mday(MIST_STEPS[0]),added:_today(),wrong:1,mastered:false});
+      changed=true;
+    }else{
+      const o=cur[i];o.a=it.a||o.a;o.c=it.c||o.c;o.q=it.q||o.q;o.title=it.title||o.title;
+      o.wrong=(o.wrong||0)+1;
+      if(o.mastered){o.mastered=false;o.stage=0;o.due=_mday(MIST_STEPS[0]);}
+      changed=true;
+    }
+  });
+  if(changed){cur.sort((a,b)=>String(a.due).localeCompare(String(b.due)));await mistSave(cur);}
+}
+async function mistGrade(k,ok){
+  const cur=mistItems().slice();const it=cur.find(x=>x.k===k);if(!it)return;
+  if(ok){
+    it.stage=(it.stage||0)+1;
+    if(it.stage>=MIST_STEPS.length){it.mastered=true;it.due='';it.mastered_at=_today();}
+    else it.due=_mday(MIST_STEPS[it.stage]);
+  }else{
+    it.stage=Math.max(0,(it.stage||0)-1);
+    it.due=_mday(1);it.wrong=(it.wrong||0)+1;
+  }
+  it.last=_today();
+  await mistSave(cur);
+}
+function mistAnsOf(q){
+  if(!q)return '';
+  if(q.type==='choice')return String((q.options||[])[Number(q.answer)]||'');
+  if(q.type==='order')return (q.options||[]).join('');
+  if(Array.isArray(q.answer))return q.answer.join(q.type==='qa'?'\n':' / ');
+  return String(q.answer==null?'':q.answer);
+}
+async function mistSyncPractice(){
+  try{
+    if(S.preview||!S.me)return;
+    const have={};mistItems().forEach(x=>{have[x.k]=1;});
+    const add=[];
+    (wrongQuestions()||[]).forEach(q=>{
+      const k='pr:'+q.id;if(have[k])return;
+      let a='';
+      for(const r of (S.results||[])){const v=(r.answers||{})[q.id];if(v!=null&&v!==''){a=swAnsText(v);break;}}
+      add.push({k,src:'prac',title:lessonTitleOf(q.lesson_id)||'課文練習',q:String(q.prompt||''),a:String(a||''),c:mistAnsOf(q),lid:q.lesson_id||''});
+    });
+    if(add.length)await mistAdd(add);
+  }catch(e){}
+}
+/* ---- 從作業簿抓出答錯的題 ---- */
+function wbWrongList(w,ans){
+  const d=wbData(w),HD=(d.hand)||{},out=[];
+  const _pl=x=>wbNorm(x).toLowerCase().replace(/[’'‘]/g,"'").replace(/[.,?!;:，。？！；：、]/g,'');
+  const _zh=x=>wbNorm(x).replace(/[，。？！；：、,.?!;:\s]/g,'');
+  const base='wb:'+w.id+':';
+  const T=(w.wb_name||w.title||'作業簿');
+  const push=(sec,n,q,a,c)=>{out.push({k:base+sec+':'+n,src:'wb',title:T,q:String(q||''),a:String(a||''),c:String(c||''),lid:w.id});};
+  (d.tone||[]).forEach(q=>{if(!q.ans||HD.tone)return;const v=(ans.tone||{})[q.n];if(_pl(v)!==_pl(q.ans))push('tone',q.n,'標聲調：'+(q.py||''),v,q.ans);});
+  (d.pron||[]).forEach(q=>{if(!q.ans)return;const v=(ans.pron||{})[q.n];if(String(v||'').trim().toLowerCase()!==String(q.ans).trim().toLowerCase())push('pron',q.n,'選出發音：'+(q.w||q.hz||q.n),v,q.ans);});
+  (d.mcq||[]).forEach(q=>{if(!q.ans)return;const v=(ans.mcq||{})[q.n];if(String(v||'').toUpperCase()!==String(q.ans).toUpperCase())push('mcq',q.n,q.q||('聽對話 '+q.n),v,q.ans);});
+  (d.tf||[]).forEach(q=>{if(!q.ans)return;const v=(ans.tf||{})[q.n];if(String(v||'').trim().toUpperCase()!==String(q.ans).trim().toUpperCase())push('tf',q.n,q.q||('判斷 '+q.n),v,q.ans);});
+  (d.hz||[]).forEach(q=>((q.lines)||[]).forEach((ln,i)=>{if(!ln.ans||HD.hz)return;const key=q.n+'-'+i;const v=(ans.hz||{})[key];if(_zh(v)!==_zh(ln.ans))push('hz',key,ln.py||ln.q||('寫漢字 '+key),v,ln.ans);}));
+  (d.ord||[]).forEach(q=>{if(!q.ans||HD.ord)return;const v=(ans.ord||{})[q.n];if(_zh(v)!==_zh(q.ans))push('ord',q.n,'重組：'+(q.q||q.words||''),v,q.ans);});
+  (((d.g7||{}).groups)||[]).forEach(g=>(g.items||[]).forEach(it=>{
+    if(!it.ans||HD.g7||/^（參考）|^\(參考\)/.test(String(it.ans).trim()))return;
+    const key=g.k+'-'+it.n;const v=(ans.g7||{})[key];
+    if(_zh(v)!==_zh(it.ans))push('g7',key,it.q||it.t||('語法 '+key),v,it.ans);}));
+  ((d.cloze||{}).keys||[]).forEach(k2=>{if(!k2.ans)return;const v=(ans.cloze||{})[k2.n];if(wbNorm(v)!==wbNorm(k2.ans))push('cloze',k2.n,'填空 '+k2.n,v,k2.ans);});
+  (((d.read||{}).qs)||[]).forEach(q=>{if(!q.ans)return;const v=(ans.read||{})[q.n];if(v!==q.ans)push('read',q.n,q.q||('閱讀 '+q.n),v,q.ans);});
+  (d.listen||[]).forEach(q=>{if(!q.ans)return;const v=(ans.listen||{})[q.n];if(v!==q.ans)push('listen',q.n,q.q||('聽力 '+q.n),v,q.ans);});
+  return out;
+}
+function splitResults(rAll){rAll=rAll||[];S.mistDoc=rAll.find(x=>x.kind==='mistake')||null;S.results=rAll.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='review');S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');S.wbdocs=rAll.filter(x=>x.kind==='wb');}
 function hwvDocOf(lid,word){return (S.hwvs||[]).find(x=>x.hwv_lesson===lid&&x.hwv_word===word)||null;}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
 function discDocOf(lid){return (S.discussions||[]).find(x=>x.disc_lesson===lid)||null;}
@@ -1510,7 +1614,9 @@ function renderNav(){
   const L=S.lang||'zh';
   const NL={home:{zh:'首頁',cn:'首页',en:'Home',vi:'Trang chủ'},course:{zh:'課程',cn:'课程',en:'Courses',vi:'Khoá học'}};
   const nl=k=>(NL[k][L]||NL[k].zh);
-  const items=[['home','🏠',nl('home'),''],['content','📚',nl('course'),''],['work','✍️',t('navWork'),works],['grades','📈',t('navGrades'),fbN||''],['info','ℹ️',t('navInfo'),'']];
+  const _md=(typeof mistDue==='function')?mistDue().length:0;
+  const _mn={zh:'錯題本',cn:'错题本',en:'Mistakes',vi:'Sổ lỗi'};
+  const items=[['home','🏠',nl('home'),''],['content','📚',nl('course'),''],['work','✍️',t('navWork'),works],['wrong','📕',(_mn[L]||_mn.zh),_md||''],['grades','📈',t('navGrades'),fbN||''],['info','ℹ️',t('navInfo'),'']];
   $('#snav').innerHTML=items.map(([id,ic,lb,n])=>`<button class="${S.section===id?'on':''}" data-act="section" data-id="${id}"><span class="ic">${ic}</span>${esc(lb)}${n!==''&&n?`<span class="n">${n}</span>`:''}</button>`).join('');
 }
 function renderSection(){try{syncStickTop();}catch(e){}
@@ -2310,13 +2416,85 @@ function renderGrades(){
   $('#screen').innerHTML=_gh+`<div class="card"><div style="overflow:auto"><table class="matrix">
     <thead><tr><th>${t('navContent')}</th><th></th><th>${t('score')}</th></tr></thead><tbody>${rows}</tbody></table></div></div>`+fbCards;
 }
+function mistSrcLabel(src){return ({wb:'📒 作業簿',quiz:'📝 小考',prac:'✍️ 課文練習',gprac:'📐 語法練習'}[src])||'📕';}
+function mistStageLabel(it){const n=(it.stage||0);const d=MIST_STEPS[n];return it.mastered?wbL({zh:'已熟練',cn:'已熟练',en:'Mastered',vi:'Đã thuộc'}):(wbL({zh:'第 '+(n+1)+' 輪',cn:'第 '+(n+1)+' 轮',en:'Round '+(n+1),vi:'Vòng '+(n+1)})+(d?('・'+d+wbL({zh:' 天後再考',cn:' 天后再考',en:'d gap',vi:' ngày'})):''));}
+function mistStatsHtml(){
+  const act=mistActive(),all=mistItems();
+  const by={};act.forEach(x=>{const k=x.tag||'untag';by[k]=(by[k]||0)+1;});
+  const rows=Object.keys(by).filter(k=>k!=='untag').sort((a,b)=>by[b]-by[a])
+    .map(k=>`<span class="wb-tag">${esc(mistTagLabel(k))} ${by[k]}</span>`).join('');
+  if(!rows)return '';
+  return `<div class="card" style="margin-bottom:12px"><b>${wbL({zh:'你最常錯的地方',cn:'你最常错的地方',en:'Where you slip most',vi:'Lỗi hay gặp nhất'})}</b>
+    <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${rows}</div></div>`;
+}
 function renderWrong(){
+  const due=mistDue(),act=mistActive(),all=mistItems();
+  const mastered=all.filter(x=>x.mastered).length;
   const wq=wrongQuestions();
-  if(!wq.length){$('#screen').innerHTML=emptyHtml('🎉',t('noWrong'),t('noWrongSub'));return;}
-  $('#screen').innerHTML=`<div class="card" style="text-align:center">
-    <div style="font-size:34px">📒</div><h3 style="margin:6px 0">${t('wrongTitle')}</h3>
-    <div class="meta" style="justify-content:center"><span>${wq.length} ${t('toReview')}</span></div>
-    <button class="btn btn-accent" style="margin-top:14px" data-act="openWrong">${t('wrongRetry')}</button></div>`;
+  if(!all.length&&!wq.length){$('#screen').innerHTML=emptyHtml('🎉',t('noWrong'),t('noWrongSub'));return;}
+  const L=x=>wbL(x);
+  let html='';
+  html+=`<div class="card" style="text-align:center;margin-bottom:12px">
+    <div style="font-size:34px">📕</div><h3 style="margin:6px 0">${L({zh:'錯題本',cn:'错题本',en:'Mistake notebook',vi:'Sổ lỗi sai'})}</h3>
+    <div class="meta" style="justify-content:center;flex-wrap:wrap">
+      <span><b style="color:${due.length?'#c2410c':'inherit'}">${due.length}</b> ${L({zh:'題今天要複習',cn:'题今天要复习',en:'due today',vi:'câu cần ôn hôm nay'})}</span>
+      <span>${act.length} ${L({zh:'題還在練',cn:'题还在练',en:'in progress',vi:'đang luyện'})}</span>
+      <span>${mastered} ${L({zh:'題已熟練',cn:'题已熟练',en:'mastered',vi:'đã thuộc'})}</span></div>
+    ${due.length?`<button class="btn btn-accent" style="margin-top:14px" data-act="mistStart">${L({zh:'開始複習',cn:'开始复习',en:'Start review',vi:'Bắt đầu ôn'})}</button>`
+      :`<div class="hint" style="margin-top:10px">${L({zh:'今天沒有到期的題，做得很好！',cn:'今天没有到期的题，做得很好！',en:'Nothing due today — nice work!',vi:'Hôm nay không có câu nào — giỏi lắm!'})}</div>`}
+    <div class="hint" style="margin-top:8px">${L({zh:'答錯的題會在 3 天、7 天、15 天後各回來一次，三次都答對才算熟練。',cn:'答错的题会在 3 天、7 天、15 天后各回来一次，三次都答对才算熟练。',en:'A missed item comes back after 3, 7 and 15 days.',vi:'Câu sai sẽ quay lại sau 3, 7 và 15 ngày.'})}</div></div>`;
+  html+=mistStatsHtml();
+  if(act.length){
+    const rows=act.slice().sort((a,b)=>String(a.due).localeCompare(String(b.due))).map(it=>{
+      const dueNow=String(it.due||'')<=_today();
+      return `<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start">
+        <span class="wb-tag">${esc(mistSrcLabel(it.src))}</span>
+        <b style="flex:1;min-width:160px">${esc(it.q||it.k)}</b>
+        ${it.tag?`<span class="wb-tag">${esc(mistTagLabel(it.tag))}</span>`:''}
+        <span class="badge ${dueNow?'badge-overdue':'badge-soon'}">${dueNow?L({zh:'今天',cn:'今天',en:'Today',vi:'Hôm nay'}):esc(it.due)}</span>
+        <div style="flex-basis:100%;margin-top:2px" class="hint">${esc(it.title||'')}　·　${esc(mistStageLabel(it))}</div></div>`;}).join('');
+    html+=`<details class="card"${due.length?'':' open'}><summary><b>${L({zh:'全部錯題',cn:'全部错题',en:'All items',vi:'Tất cả'})}</b> <span class="hint">（${act.length}）</span></summary><div style="margin-top:8px">${rows}</div></details>`;
+  }
+  if(wq.length)html+=`<div class="card" style="margin-top:12px;text-align:center"><b>${L({zh:'課文練習答錯的題',cn:'课文练习答错的题',en:'Missed practice questions',vi:'Câu sai trong bài luyện'})}</b>
+    <div class="hint" style="margin:6px 0">${wq.length} ${t('toReview')}</div>
+    <button class="btn" data-act="openWrong">${t('wrongRetry')}</button></div>`;
+  $('#screen').innerHTML=html;
+}
+/* ---- 錯題複習流程 ---- */
+let MREV=null;
+function mistNorm(x){return String(x==null?'':x).trim().toLowerCase().replace(/\s+/g,'').replace(/[，。？！；：、,.?!;:'’‘"]/g,'');}
+function renderMist(){
+  const m=MREV;if(!m){S.section='wrong';$('#screen').dataset.mode='';renderSection();return;}
+  const L=x=>wbL(x);
+  if(m.idx>=m.list.length){
+    $('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">🎉</div>
+      <h3 style="margin:8px 0">${L({zh:'今天的錯題複習完了',cn:'今天的错题复习完了',en:'All done for today',vi:'Xong rồi'})}</h3>
+      <div class="meta" style="justify-content:center"><span>${m.right} / ${m.list.length} ${L({zh:'答對',cn:'答对',en:'correct',vi:'đúng'})}</span></div>
+      <button class="btn btn-primary" style="margin-top:14px" data-act="mistExit">${L({zh:'回錯題本',cn:'回错题本',en:'Back',vi:'Quay lại'})}</button></div>`;
+    return;}
+  const it=m.list[m.idx];const selfMode=!String(it.c||'').trim();
+  const prog=`<div class="hint" style="text-align:center;margin-bottom:8px">${m.idx+1} / ${m.list.length}　·　${esc(mistSrcLabel(it.src))} ${esc(it.title||'')}</div>`;
+  let body;
+  if(selfMode){
+    body=`<div class="wb-q"><div class="wb-qt" style="font-size:18px">${annotate(String(it.q||''))}</div></div>
+      ${it.a?`<div class="hint" style="margin-top:8px">${L({zh:'你當時寫的',cn:'你当时写的',en:'What you wrote',vi:'Bạn đã viết'})}：</div><div class="sw-a">${esc(it.a)}</div>`:''}
+      ${m.checked?`<div class="q-feedback ok" style="margin-top:10px">${esc(it.fb||L({zh:'再看一次，確定自己會了。',cn:'再看一次，确定自己会了。',en:'Look again and make sure you have it.',vi:'Xem lại cho chắc.'}))}</div>
+        <div style="display:flex;gap:8px;margin-top:12px;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-primary" data-act="mistSelf" data-id="1">${L({zh:'我記住了',cn:'我记住了',en:'I got it',vi:'Tôi nhớ rồi'})}</button>
+          <button class="btn" data-act="mistSelf" data-id="0">${L({zh:'還不熟',cn:'还不熟',en:'Not yet',vi:'Chưa thuộc'})}</button></div>`
+        :`<button class="btn btn-primary" style="margin-top:12px" data-act="mistReveal">${L({zh:'看提示',cn:'看提示',en:'Show hint',vi:'Xem gợi ý'})}</button>`}`;
+  }else{
+    body=`<div class="wb-q"><div class="wb-qt" style="font-size:18px">${annotate(String(it.q||''))}</div></div>
+      ${m.checked?`<div class="wb-filled">${esc(m.val||'（未作答）')}${m.ok?'<span class="wb-mk ok">✓</span>':'<span class="wb-mk no">✗</span>'}</div>
+        <div class="q-feedback ${m.ok?'ok':'no'}" style="margin-top:8px">${m.ok?'✓ '+t('correct'):'✗ '+t('wrong')}　${L({zh:'正解',cn:'正解',en:'Answer',vi:'Đáp án'})}：${annotate(String(it.c||''))}</div>
+        ${(!m.ok&&it.a)?`<div class="hint" style="margin-top:6px">${L({zh:'你上次寫的是',cn:'你上次写的是',en:'Last time you wrote',vi:'Lần trước bạn viết'})}：${esc(it.a)}</div>`:''}
+        <button class="btn btn-primary" style="margin-top:12px" data-act="mistNext">${m.idx+1>=m.list.length?L({zh:'看結果',cn:'看结果',en:'Finish',vi:'Xem kết quả'}):L({zh:'下一題',cn:'下一题',en:'Next',vi:'Câu tiếp'})}</button>`
+      :`<input class="wb-in" id="mist-in" type="text" autocomplete="off" style="margin-top:10px" placeholder="${esc(L({zh:'寫出正確答案',cn:'写出正确答案',en:'Type the correct answer',vi:'Nhập đáp án đúng'}))}">
+        <button class="btn btn-primary" style="margin-top:12px" data-act="mistCheck">${L({zh:'對答案',cn:'对答案',en:'Check',vi:'Kiểm tra'})}</button>`}`;
+  }
+  $('#screen').innerHTML=`<button class="btn btn-sm btn-ghost" data-act="mistExit">${t('back')}</button>
+    <div class="card" style="margin-top:12px">${prog}${body}</div>`;
+  const inp=document.getElementById('mist-in');if(inp)setTimeout(()=>inp.focus(),50);
 }
 
 /* ============ 練習 ============ */
@@ -2881,6 +3059,9 @@ H.saveQuizResult=async(quizId,right,total,log)=>{if(S.preview)return;try{const u
   const existing=(S.quizResults||[]).find(x=>x.quiz_id===quizId);
   const payload={kind:'quizresult',lesson_id:'__quiz__',quiz_id:quizId,uid:u,student_id:S.me.id,student_name:S.me.name||'',score:right,total,answers:(log||[]),completed_at:now()};
   if(existing&&existing.id)await DB.update('results',existing.id,payload);else await DB.insert('results',payload);
+  try{const _qz=(S.quizzes||[]).find(x=>x.id===quizId);const T=(_qz&&_qz.title)||'隨堂小考';const wrong=(log||[]).map((x,i)=>({x,i})).filter(o=>o.x&&o.x.ok===false&&!o.x.pend)
+      .map(o=>({k:'qz:'+quizId+':'+(o.x.q||o.i),src:'quiz',title:T,q:String(o.x.q||''),a:String(o.x.a||''),c:String(o.x.c||''),lid:quizId}));
+    await mistAdd(wrong);}catch(e){}
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
   splitResults(rAll);
 }catch(e){toast(e.message);}};
@@ -3080,6 +3261,21 @@ H.doReset=async()=>{const email=$('#rs-email').value.trim();if(!email){$('#g-err
 
 H.openLesson=(id)=>{const l=S.lessons.find(x=>x.id===id);S.practiceSet={mode:'lesson',lessonId:id,lesson:l,questions:questionsOf(id),title:(l.order_index?('L'+l.order_index+' · '):'')+l.title};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
+H.mistStart=()=>{const due=mistDue();if(!due.length)return;
+  MREV={list:shuffle(due.slice(),Math.random()+''),idx:0,checked:false,val:'',ok:false,right:0};
+  $('#screen').dataset.mode='mist';window.scrollTo(0,0);renderMist();};
+H.mistExit=()=>{MREV=null;$('#screen').dataset.mode='';S.section='wrong';window.scrollTo(0,0);renderSection();};
+H.mistReveal=()=>{if(!MREV)return;MREV.checked=true;renderMist();};
+H.mistCheck=async()=>{const m=MREV;if(!m||m.checked)return;
+  const el=document.getElementById('mist-in');const v=el?el.value:'';
+  const it=m.list[m.idx];m.val=v;m.ok=(mistNorm(v)===mistNorm(it.c))&&!!String(v).trim();
+  if(m.ok)m.right++;m.checked=true;renderMist();
+  try{await mistGrade(it.k,m.ok);}catch(e){}};
+H.mistNext=()=>{const m=MREV;if(!m)return;m.idx++;m.checked=false;m.val='';m.ok=false;renderMist();};
+H.mistSelf=async(id)=>{const m=MREV;if(!m)return;const ok=String(id)==='1';const it=m.list[m.idx];
+  if(ok)m.right++;
+  try{await mistGrade(it.k,ok);}catch(e){}
+  m.idx++;m.checked=false;m.val='';m.ok=false;renderMist();};
 H.openWrong=()=>{S.practiceSet={mode:'wrong',lesson:null,questions:wrongQuestions(),title:'📒 '+t('wrongTitle')};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
 H.infoTab=(id)=>{const cur=(S.infoTab===id)?'':id;S.infoTab=cur;
@@ -3203,6 +3399,7 @@ document.addEventListener('click',(e)=>{
   if(!e.target.closest('#zi-pop')&&!e.target.closest('.zi'))hideZiPopup();
   const b=e.target.closest('[data-act]');if(!b)return;const fn=H[b.dataset.act];if(fn){e.preventDefault();fn(b.dataset.id,b);}});
 document.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&e.target&&e.target.id==='dict-in'){e.preventDefault();H.dictCheck();}});
+document.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&e.target&&e.target.id==='mist-in'){e.preventDefault();H.mistCheck();}});
 
 /* ============ 使用教學（第一次登入引導） ============ */
 function guideHtml(){
@@ -3227,7 +3424,7 @@ function showLoad(b){let el=document.getElementById('app-loading');if(b){if(!el)
 async function enter(me){S.me=me;try{syncStart();}catch(e){}
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');
   applyChrome();showLoad(true);
-  try{await loadMine();await loadFam();await loadProgress();try{const _pd=(S.results||[]).find(x=>x.lesson_id==='__progress');const _lg=((_pd&&Array.isArray(_pd.logins))?_pd.logins:[]).concat([now()]).slice(-100);DB.upsertResult('__progress',S.me.id,{uid:myUid(),last_login:now(),last_active:now(),logins:_lg}).catch(()=>{});}catch(_){}S.section='home';renderSection();setTimeout(notifyDue,1200);setTimeout(maybeShowGuide,600);}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}finally{showLoad(false);}}
+  try{await loadMine();await loadFam();await loadProgress();try{mistSyncPractice();}catch(e){}try{const _pd=(S.results||[]).find(x=>x.lesson_id==='__progress');const _lg=((_pd&&Array.isArray(_pd.logins))?_pd.logins:[]).concat([now()]).slice(-100);DB.upsertResult('__progress',S.me.id,{uid:myUid(),last_login:now(),last_active:now(),logins:_lg}).catch(()=>{});}catch(_){}S.section='home';renderSection();setTimeout(notifyDue,1200);setTimeout(maybeShowGuide,600);}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}finally{showLoad(false);}}
 async function loadFam(){S.fam=null;
   const k=String((S.me&&S.me.bill_group)||'').trim();if(!k)return;
   try{const ms=await DB.listWhere('students','bill_group',k);
@@ -3774,6 +3971,7 @@ H.wbSubmit=async()=>{
     const existing=wbDocOf(WB.id);
     if(existing){await DB.update('results',existing.id,payload);Object.assign(existing,payload);}
     else{const r=await DB.insert('results',payload);const id=(r&&r.id)?r.id:r;(S.wbdocs=S.wbdocs||[]).push(Object.assign({id},payload));}
+    try{await mistAdd(wbWrongList(w,a));}catch(e){}
     WB.dirty=false;toast(wbL({zh:'✅ 已送出',cn:'✅ 已送出',en:'✅ Submitted',vi:'✅ Đã nộp'}));wbRepaint();window.scrollTo(0,0);
   }catch(e){toast((e&&e.message)||'送出失敗，請重試');}
 };
