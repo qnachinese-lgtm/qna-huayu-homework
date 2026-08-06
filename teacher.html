@@ -518,7 +518,7 @@ async function loadAll(){
     const _cs=document.querySelector('#panel-calendar .section-head .sub');if(_cs&&!owner)_cs.textContent='每位學生的上課時段與 Meet 教室';}catch(e){}
   const bs=document.querySelector('.brand-sub');if(bs)bs.textContent=owner?'主管理員後台':('管理員 · '+(MY_EMAIL||''));
 }
-function splitResults(d){d=d||[];S.results=d.filter(x=>x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='review');S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');}
+function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='review');S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');}
 function openModal(h){$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
 function closeModal(){$('#modal-root').innerHTML='';}
 async function featSet(k,checked){
@@ -2045,6 +2045,50 @@ function sgAdvance(){const list=sgVisible();if(!list.length){S.sgSel=null;return
   if(idx<0)idx=0;else if(idx<list.length-1)idx=idx+1;
   sgOpen(list[idx]);}
 /* 學生進度（批改・成績頁用） */
+/* ===================== 📕 錯題本（老師端） ===================== */
+const MIST_TAGS=[
+  {k:'tone',zh:'聲調'},{k:'pinyin',zh:'拼音混淆'},{k:'hanzi',zh:'漢字形近'},{k:'measure',zh:'量詞'},
+  {k:'order',zh:'語序'},{k:'word',zh:'用詞'},{k:'read',zh:'看錯題目'},{k:'other',zh:'其他'}];
+function mistTagName(k){const t=MIST_TAGS.find(x=>x.k===k);return t?t.zh:'';}
+function mistSrcName(src){return ({wb:'📒 作業簿',quiz:'📝 小考',prac:'✍️ 課文練習',gprac:'📐 語法練習'}[src])||'📕';}
+function mistDocs(){return (S.mistakes||[]).filter(d=>d&&Array.isArray(d.items)&&d.items.length);}
+function mistStuName(d){const s=(S.students||[]).find(x=>x.id===d.student_id);return (s&&s.name)||d.student_name||'（未知學生）';}
+function mistUntagged(){let n=0;mistDocs().forEach(d=>d.items.forEach(it=>{if(!it.mastered&&!it.tag)n++;}));return n;}
+function mistTagSelect(docId,key,cur){
+  return `<select class="mist-tag" data-mk="${esc(docId)}::${esc(key)}" style="font-family:inherit;font-size:13px;padding:3px 6px;border-radius:8px;border:1px solid var(--line)">
+    <option value=""${cur?'':' selected'}>錯因…</option>
+    ${MIST_TAGS.map(t=>`<option value="${t.k}"${cur===t.k?' selected':''}>${t.zh}</option>`).join('')}</select>`;
+}
+function mistTagHtml(){
+  const docs=mistDocs();
+  if(!docs.length)return '<div class="hint">還沒有學生累積錯題。學生交作業簿或小考答錯時會自動收進來。</div>';
+  return docs.map(d=>{
+    const items=(d.items||[]).filter(it=>!it.mastered);
+    if(!items.length)return '';
+    const un=items.filter(it=>!it.tag).length;
+    const by={};items.forEach(it=>{if(it.tag)by[it.tag]=(by[it.tag]||0)+1;});
+    const chips=Object.keys(by).sort((a,b)=>by[b]-by[a]).map(k=>`<span class="tag">${esc(mistTagName(k))} ${by[k]}</span>`).join('');
+    const rows=items.slice().sort((a,b)=>(a.tag?1:0)-(b.tag?1:0)||String(a.due).localeCompare(String(b.due))).map(it=>
+      `<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start;padding:7px 0">
+        <span class="tag">${esc(mistSrcName(it.src))}</span>
+        <b style="flex:1;min-width:180px">${esc(String(it.q||it.k).slice(0,80))}</b>
+        ${mistTagSelect(d.id,it.k,it.tag||'')}
+        <div style="flex-basis:100%;margin-top:3px" class="hint">
+          ${it.a?('學生寫：'+esc(it.a)+'　'):''}${it.c?('正解：'+esc(it.c)+'　'):''}· ${esc(it.title||'')} · 第 ${(it.stage||0)+1} 輪，${esc(it.due||'')} 再考${it.wrong>1?('　· 錯過 '+it.wrong+' 次'):''}
+        </div></div>`).join('');
+    return `<details class="disc"${un?' open':''} style="margin-top:10px"><summary><b>${snm(mistStuName(d))}</b>　<span class="hint">${items.length} 題${un?('・'+un+' 題還沒標錯因'):'・都標好了 ✓'}</span></summary>
+      ${chips?`<div style="margin:8px 0;display:flex;gap:6px;flex-wrap:wrap">${chips}</div>`:''}
+      <div style="margin-top:6px">${rows}</div></details>`;
+  }).join('');
+}
+async function mistSetTag(docId,key,tag){
+  const d=(S.mistakes||[]).find(x=>x.id===docId);if(!d)return;
+  const items=(d.items||[]).slice();const it=items.find(x=>x.k===key);if(!it)return;
+  it.tag=tag||'';
+  try{await DB.update('results',docId,{items:items,updated_at:new Date().toISOString()});d.items=items;
+    toast(tag?('已標記：'+mistTagName(tag)):'已清掉錯因');}
+  catch(e){toast(writeErr('儲存失敗',e));}
+}
 function gradeProgHtml(){
   const rows=(S.students||[]).filter(s=>!s.is_test&&!s.deleted_at).map(s=>{const p=studentProgress(s);
     return `<div class="dash-row">
@@ -2080,7 +2124,8 @@ function renderGrades(){
   wrap.innerHTML=bar+'<div class="sg-wrap"><div class="sg-list">'+rows+'</div><div class="sg-pane" id="sg-pane"></div></div>'
     +'<details class="disc" style="margin-top:18px"><summary>📊 各課成績總表</summary><div id="grades-matrix" style="margin-top:10px"></div></details>'
     +'<details class="disc" style="margin-top:12px"><summary>📮 還沒交作業'+(_hwN?('（逾期 '+_hwN+'）'):'')+'</summary><div style="margin-top:10px">'+hwDueHtml()+'</div></details>'
-    +'<details class="disc" style="margin-top:12px"><summary>📈 學生進度</summary><div style="margin-top:10px">'+gradeProgHtml()+'</div></details>';
+    +'<details class="disc" style="margin-top:12px"><summary>📈 學生進度</summary><div style="margin-top:10px">'+gradeProgHtml()+'</div></details>'
+    +'<details class="disc" style="margin-top:12px"><summary>📕 錯題本・標錯因'+(mistUntagged()?('（'+mistUntagged()+' 題待標）'):'')+'</summary><div style="margin-top:10px"><div class="hint" style="margin-bottom:8px">學生答錯的題會自動收進來。幫每一題點一個錯因，學生就看得到自己最常錯在哪裡。</div>'+mistTagHtml()+'</div></details>';
   renderGradesMatrix();
   if(S._sgAdvance){S._sgAdvance=false;sgAdvance();return;}
   const cur=list.find(x=>(x.kind+'::'+x.id)===S.sgSel);
@@ -4966,6 +5011,7 @@ document.addEventListener('input',(e)=>{const m=((e.target&&e.target.id)||'').ma
   const t=e.target;if(t&&t.classList){const v=parseFloat(t.value);
     if(t.classList.contains('va-time')){const d=DLG[+t.dataset.di];if(d&&d._va&&d._va.segs&&d._va.segs[+t.dataset.k]&&!isNaN(v))d._va.segs[+t.dataset.k][t.dataset.edge]=v;}
     else if(t.classList.contains('la-time')){const d=DLG[+t.dataset.di];if(d&&d._la&&d._la.segs&&d._la.segs[+t.dataset.k]&&!isNaN(v))d._la.segs[+t.dataset.k][t.dataset.edge]=v;}}});
+document.addEventListener('change',(e)=>{const t=e.target;if(t&&t.classList&&t.classList.contains('mist-tag')){const p=String(t.dataset.mk||'').split('::');if(p.length>=2){mistSetTag(p[0],p.slice(1).join('::'),t.value);}return;}});
 document.addEventListener('change',(e)=>{const t=e.target;if(!t)return;if((t.classList&&(t.classList.contains('sched-d')||t.classList.contains('sched-s')||t.classList.contains('sched-e')))||t.id==='f-first-date')refreshFirstSlot();if(t.id==='cl-date')clFillSlot();if(t.id==='f-groups')fillGroupSched();if(t.id==='f-status'){const ls=document.getElementById('f-login-sec');if(ls)ls.style.display=(t.value==='reserved')?'none':'';}if(t.id==='pl-cls'&&H.planCls)H.planCls();});
 /* 時段輸入：24 小時制、自動補冒號（1600→16:00），失焦補零（9:30→09:30） */
 function hhmmFmt(v){let d=String(v||'').replace(/\D/g,'');if(!d)return '';if(d.length>4)d=d.slice(0,4);if(d.length<=2)return d;return d.slice(0,d.length-2)+':'+d.slice(-2);}
