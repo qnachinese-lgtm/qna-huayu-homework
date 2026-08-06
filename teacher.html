@@ -464,6 +464,12 @@ const TYPE_LABELS={choice:'單選',fill:'填空',opt:'選填',qa:'問答',order:
 const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],admins:[],announcements:[],trashStudents:[],trashLessons:[],tab:'dashboard',q:'',openCards:new Set(),openBooks:new Set()};
 let IS_OWNER=false, MY_EMAIL='';
 const CRM_KINDS={agency:1,interview:1,inquiry:1};
+function crmDedupe(list){
+  const arr=(list||[]).slice().sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id)));
+  const seen={},keep=[],dup=[];
+  arr.forEach(x=>{const k=x.moved_from||x.id;if(seen[k]){dup.push(x);}else{seen[k]=1;keep.push(x);}});
+  if(dup.length){setTimeout(()=>{dup.forEach(d=>{DB.update('crm',d.id,{deleted_at:new Date().toISOString(),dup_of:d.moved_from||''}).catch(()=>{});});},0);}
+  return keep;}
 function crmAll(){return (S.agencies||[]).concat(S.interviews||[],S.inquiries||[]);}
 function crmCol(id){const d=crmAll().find(x=>x&&x.id===id);return (d&&d._col)||'crm';}
 function crmLegacy(){return crmAll().filter(x=>x&&x._col==='lessons');}
@@ -492,7 +498,7 @@ async function loadAll(){
   let _crm=[];if(owner){try{_crm=await DB.list('crm');}catch(e){_crm=[];}}
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
   S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&!x.deleted_at);S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);{const _lg=b.filter(x=>CRM_KINDS[x.kind]&&!x.deleted_at);_lg.forEach(x=>{x._col='lessons';});
-   const _cn=_crm.filter(x=>!x.deleted_at);_cn.forEach(x=>{x._col='crm';});
+   const _cn=crmDedupe(_crm.filter(x=>!x.deleted_at));_cn.forEach(x=>{x._col='crm';});
    const _all=_cn.concat(_lg);
    S.interviews=_all.filter(x=>x.kind==='interview');S.inquiries=_all.filter(x=>x.kind==='inquiry');S.agencies=_all.filter(x=>x.kind==='agency');}S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
   splitResults(d);
@@ -4340,10 +4346,15 @@ H.agPaySave=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if
 H.agPayDel=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if(!c)return;if(!confirm('刪除這筆收款紀錄？'))return;
   const arr=agPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));arr.splice(Number(p[1]),1);
   try{await DB.update(crmCol(c.id),c.id,{payments:arr});c.payments=arr;await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
+let CRM_MOVING=false;
 H.crmMove=async()=>{
   if(!IS_OWNER)return toast('只有主管理員可以做這個動作');
-  const list=crmLegacy();
+  if(CRM_MOVING)return toast('正在搬移中，請稍等…');
+  const done={};crmAll().forEach(x=>{if(x&&x._col==='crm'&&x.moved_from)done[x.moved_from]=1;});
+  const list=crmLegacy().filter(x=>!done[x.id]);
   if(!list.length)return toast('沒有需要搬移的資料');
+  CRM_MOVING=true;
+  const _btn=document.querySelector('[data-act="crmMove"]');if(_btn){_btn.disabled=true;_btn.textContent='搬移中…';}
   if(!confirm('要把 '+list.length+' 筆代辦申請／面試練習搬到只有你看得到的位置嗎？\n\n搬完之後學生就完全讀不到這些資料了。'))return;
   let ok=0,bad=0;
   const WIPE={deleted_at:new Date().toISOString(),name:'',phone:'',school:'',target:'',note:'',result_note:'',log:[],sessions:[],payments:[]};
@@ -4351,6 +4362,7 @@ H.crmMove=async()=>{
     const c=Object.assign({},d);delete c.id;delete c._col;c.moved_from=d.id;
     try{await DB.insert('crm',c);await DB.update('lessons',d.id,WIPE);ok++;}catch(e){bad++;}
   }
+  CRM_MOVING=false;
   await loadAll();render();
   toast(bad?('搬好 '+ok+' 筆，有 '+bad+' 筆失敗'):('搬好了，'+ok+' 筆已經變成只有你看得到 ✓'));};
 H.agNew=()=>agForm(null);
