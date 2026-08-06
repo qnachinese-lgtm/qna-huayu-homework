@@ -1378,13 +1378,15 @@ const myLessons=()=>S.lessons.filter(l=>assignedToMe(l)).sort((a,b)=>((a.order_i
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const answerableOf=(lid)=>questionsOf(lid).filter(q=>!isRefItem(q)&&q.bank==='hw'); // 作業簿（hw）才在「作業」作答；上課語法練習留在上課內容
 /* 與教師端同一套算法：請假不扣、免費不扣；按小時計費就以「時數」計算 */
-function _logHours(e){if(!e||!e.start||!e.end)return null;const p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};const m=p(e.end)-p(e.start);return m>0?Math.round(m/60*100)/100:null;}
+function _logHours(e){if(!e||!e.start||!e.end)return null;const p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};let m=p(e.end)-p(e.start);if(m<0)m+=1440;/* 跨午夜：如 22:00–00:00 */return m>0?Math.round(m/60*100)/100:null;}
 function myHourly(){return !!(S.me&&S.me.fee_unit==='hour');}
 function myUnit(){const L={zh:['小時','堂'],cn:['小时','堂'],en:['hr','class'],vi:['giờ','buổi']}[S.lang||'zh']||['小時','堂'];return myHourly()?L[0]:L[1];}
 function myFmtQty(n){if(n==null)return '—';const r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}
 function myLeft(){const s=S.me;if(!s||s.sessions_total==null||s.sessions_total==='')return null;const log=Array.isArray(s.class_log)?s.class_log:[];
-  let used;if(myHourly()){used=0;log.forEach(e=>{if(!e||e.status==='leave'||e.free)return;const h=_logHours(e);used+=(h!=null?h:1);});}
-  else used=log.filter(e=>e&&e.status!=='leave'&&!e.free).length;
+  const lv=(s.class_type==='團班');/* 團班請假照算，一對一不算（要補課） */
+  const skip=e=>!e||e.free||(!lv&&e.status==='leave');
+  let used;if(myHourly()){used=0;log.forEach(e=>{if(skip(e))return;const h=_logHours(e);used+=(h!=null?h:1);});}
+  else used=log.filter(e=>!skip(e)).length;
   return Math.round((Number(s.sessions_total)-used)*100)/100;}
 const resultOf=(lid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===S.me.id);
 function wrongQuestions(){const out=[],seen=new Set();
