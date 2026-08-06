@@ -885,6 +885,16 @@ function itvPaidSum(c,ym){const by={};itvSessions(c).forEach(e=>{if(ym&&String(e
 function itvDueSum(c){const by={};itvSessions(c).forEach(e=>{if(e.paid)return;const f=Number(e.fee)||0;if(!f)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});return by;}
 function itvMoneyStr(by){const k=Object.keys(by||{});return k.length?k.map(c=>money(by[c],c)).join('、'):'';}
 function itvAddCur(t,by){Object.keys(by||{}).forEach(c=>{t[c]=(t[c]||0)+by[c];});return t;}
+function itvFeeBlock(c){
+  const pays=itvPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const sess=itvSessions(c).filter(e=>Number(e.fee)>0);
+  const rows=pays.map((p,i)=>`<div class="dash-row" style="padding:6px 0">
+      <span class="badge badge-pending">第 ${i+1} 期</span><b>${esc(String(p.date))}</b>
+      <b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>
+      ${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}</div>`).join('');
+  const note=[pays.length?('分期 '+pays.length+' 筆'):'',sess.length?('單次收費 '+sess.length+' 堂'):''].filter(Boolean).join('・');
+  return feeBarHtml('練習費',itvPaidSum(c,null),itvDueSum(c),0,'',rows,note);
+}
 function itvResultMeta(r){return ({pass:['✅ 通過','#16a34a'],fail:['❌ 沒通過','#dc2626'],waiting:['⏳ 等結果','#d97706']})[r]||null;}
 function itvDaysTo(d){if(!d)return null;const t=new Date();t.setHours(0,0,0,0);const x=new Date(d+'T00:00:00');if(isNaN(x))return null;return Math.round((x-t)/86400000);}
 function itvExamBadge(c){if(!c||!c.exam_date)return '';const m=itvResultMeta(c.result);
@@ -914,6 +924,30 @@ function agDueSum(c){const by={};
   agLog(c).forEach(e=>{if(e.paid)return;const f=Number(e.fee)||0;if(!f)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});
   return by;}
 function agIncome(ym){const paid={},due={};agAll().forEach(c=>{itvAddCur(paid,agPaidSum(c,ym));if(!ym)itvAddCur(due,agDueSum(c));});return {paid,due};}
+/* 共用：綠色收費進度條（代辦／面試／代書共用同一種外觀） */
+function feeBarHtml(label,paidBy,dueBy,totNum,totCur,rowsHtml,hint){
+  const paid=Object.assign({},paidBy||{}),due=Object.assign({},dueBy||{});
+  const keys=Object.keys(paid).concat(Object.keys(due)).filter((v,i,a)=>a.indexOf(v)===i);
+  if(!keys.length&&!totNum)return '';
+  const cur=totCur||keys.slice().sort((a,b)=>((paid[b]||0)+(due[b]||0))-((paid[a]||0)+(due[a]||0)))[0]||'VND';
+  const got=Number(paid[cur]||0);
+  const leftRaw=totNum?(Number(totNum)-got):Number(due[cur]||0);
+  const left=Math.max(0,leftRaw);
+  const tot=Number(totNum||(got+Number(due[cur]||0)));
+  const pct=tot>0?Math.min(100,Math.round(got/tot*100)):0;
+  const others=keys.filter(k=>k!==cur);
+  const otherStr=others.map(k=>money((paid[k]||0),k)+(due[k]?('／未收 '+money(due[k],k)):'')).join('、');
+  return `<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fdfaf4">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <b>💰 ${esc(label)}</b>
+      ${tot>0?`<span>總額 <b>${money(tot,cur)}</b></span>`:''}
+      <span style="color:#16a34a">已收 <b>${money(got,cur)}</b></span>
+      ${left>0?`<span style="color:#d97706">還差 <b>${money(left,cur)}</b></span>`:(tot>0?'<span class="badge badge-ok">✓ 已收齊</span>':'')}
+      ${otherStr?`<span class="muted" style="font-size:12px">其他幣別：${esc(otherStr)}</span>`:''}
+      ${hint?`<span class="muted" style="font-size:12px">${esc(hint)}</span>`:''}
+    </div>
+    ${tot>0?`<div style="height:8px;background:#eee3d2;border-radius:99px;margin:9px 0 4px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:${left>0?'#16a34a':'#16a34a'}"></i></div>`:''}
+    ${rowsHtml||''}</div>`;}
 function agResultMeta(r){return ({submitted:['📮 已送件','#2563eb'],admitted:['✅ 錄取','#16a34a'],admitted_s:['🎉 錄取・有獎學金','#16a34a'],admitted_n:['✅ 錄取・無獎學金','#0d9488'],rejected:['❌ 未錄取','#dc2626']})[r]||null;}
 function agDeadlineBadge(c){if(!c||!c.deadline)return '';const d=itvDaysTo(c.deadline);if(d==null)return '';const done=(c.status||'active')!=='active';const col=(d<0)?'#dc2626':(d<=7?'#d97706':'#2563eb');const lab=d<0?('已過 '+(-d)+' 天'):(d===0?'今天到期！':(d===1?'明天到期':'還有 '+d+' 天'));return `<span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 繳件期限 ${esc(c.deadline)}${done?'':('（'+lab+'）')}</span>`;}
 function crmMoveBanner(){
@@ -1161,6 +1195,7 @@ function renderInterview(){
         <span class="muted" style="font-size:13px">練習 <b>${ss.length}</b> 次${nextOne?(' · 下次 '+esc(nextOne.date)):''}${paidAll?(' · 已收 '+paidAll):''}${due?(' · 未收 '+due):''}</span>
       </div>
       ${c.result_note?`<div class="hint" style="margin-top:4px">結果：${esc(c.result_note)}</div>`:''}${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#9a8f80">📄 備註／學生資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#fdfaf4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
+      ${itvFeeBlock(c)}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
         <button class="btn btn-accent" data-act="itvSess" data-id="${esc(c.id)}::new">＋ 新增練習時間</button>
         <button class="btn btn-sm" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
@@ -4495,12 +4530,7 @@ H.calIncPaused=()=>{const inc=(S.calIncPaused!==false);S.calIncPaused=!inc;rende
 /* 🎤 面試練習：操作（必須放在 const H={} 之後） */
 /* ===== 💰 代辦收費：談定總費用 ＋ 分期收款 ===== */
 function agFeeBlock(c){
-  const tot=agTotal(c),cur=agTotalCur(c);
   const pays=agPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-  if(!tot&&!pays.length)return '';
-  const got=pays.reduce((a,p)=>a+(((p.currency||'VND')===cur)?(Number(p.amount)||0):0),0);
-  const left=tot?Math.max(0,tot-got):0;
-  const pct=tot?Math.min(100,Math.round(got/tot*100)):0;
   const rows=pays.map((p,i)=>`<div class="dash-row" style="padding:6px 0">
       <span class="badge badge-pending">第 ${i+1} 期</span><b>${esc(String(p.date))}</b>
       <b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>
@@ -4509,17 +4539,9 @@ function agFeeBlock(c){
       <span class="grow"></span>
       <button class="btn btn-sm" data-act="agPayEdit" data-id="${esc(c.id)}::${i}">✏️</button>
       <button class="btn btn-sm btn-danger" data-act="agPayDel" data-id="${esc(c.id)}::${i}">✕</button></div>`).join('');
-  return `<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fdfaf4">
-    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      <b>💰 代辦費</b>
-      ${tot?`<span>總額 <b>${money(tot,cur)}</b></span>`:''}
-      <span style="color:#16a34a">已收 <b>${money(got,cur)}</b></span>
-      ${tot?(left>0?`<span style="color:#d97706">還差 <b>${money(left,cur)}</b></span>`:'<span class="badge badge-ok">✓ 已收齊</span>'):''}
-      <span class="muted" style="font-size:12px">共 ${pays.length} 期</span>
-    </div>
-    ${tot?`<div style="height:8px;background:#eee3d2;border-radius:99px;margin:9px 0 4px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:#16a34a"></i></div>`:''}
-    ${rows||'<div class="hint" style="margin-top:6px">還沒有收款紀錄，按下面「💰 記一筆收款」。</div>'}
-  </div>`;}
+  const body=rows||'<div class="hint" style="margin-top:6px">還沒有分期收款紀錄，按下面「💰 記一筆收款」。</div>';
+  return feeBarHtml('代辦費',agPaidSum(c,null),agDueSum(c),agTotal(c),agTotal(c)?agTotalCur(c):'',body,pays.length?('共 '+pays.length+' 期'):'');
+}
 function agPayForm(key){const p=String(key).split('::');const c=agById(p[0]);if(!c)return;
   const isNew=(p[1]==null||p[1]==='new');const idx=isNew?-1:Number(p[1]);
   const pays=agPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
