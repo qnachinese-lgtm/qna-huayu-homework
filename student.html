@@ -1891,7 +1891,7 @@ function renderWork(){
   const myQuizzes=(S.quizzes||[]).filter(qz=>assignedToMe(qz)).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
   const quizCard=myQuizzes.length?('<div class="lesson-label" style="margin-top:6px">'+t('quizSec')+'</div><div class="quiz-list">'+myQuizzes.map(qz=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;const qm=t({audio:'qmAudio',dict:'qmDict',pinyin:'qmPinyin',mean:'qmMean',choice:'qmChoice',cloze:'qmCloze',custom:'qmCustom'}[qz.mode||'dict']||'qmDict');return `<div class="quiz-card${done?' done':''}"${done?'':' data-act="startQuiz" data-id="'+qz.id+'"'}><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>${esc(qz.title||t('quizDefTitle'))}</b><div class="muted" style="font-size:12px">${qm}</div></div>${done?`<span class="badge badge-ok">${r.score}/${r.total}</span>`:`<span class="badge badge-soon">${t('quizNotTaken')}</span>`}</div>`;}).join('')+'</div>'):'';
   const _wbTodo=todoWbHtml();
-  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML='<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>'+banner+_wbTodo+infoBarHtml('drive')+payCardHtml()+uploadCardHtml()+submittedWorkHtml()+(_wbTodo?'':emptyHtml('✍️',t('noWork'),t('noWorkSub')));return;}
+  if(!ls.length&&!myQuizzes.length){$('#screen').innerHTML=myFilesHtml()+'<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>'+banner+_wbTodo+infoBarHtml('drive')+payCardHtml()+uploadCardHtml()+submittedWorkHtml()+(_wbTodo?'':emptyHtml('✍️',t('noWork'),t('noWorkSub')));return;}
   let overdue=0,soon=0;ls.forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});
   const fbN=ls.filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
   const sentFbN=(S.sentences||[]).filter(s=>s.status==='reviewed'&&((s.overall&&s.overall.trim())||(s.feedback&&Object.keys(s.feedback).length))).length;
@@ -2037,6 +2037,30 @@ function swQA(kind,doc,lid){const out=[];const fbm=(doc&&doc.feedback)||{};try{
   else if(kind==='sent'){(doc.items||[]).forEach((it,i)=>{if(it&&it.sentence)out.push({q:it.word||'造句',a:String(it.sentence),fb:fbm[it.word]||fbm[i]||''});});}
   else if(kind==='result'){const ans=doc.answers||doc.responses||{};(answerableOf(lid)||[]).forEach(q=>{const a=ans[q.id];if(a!=null&&String(swAnsText(a)).trim())out.push({q:q.prompt||'題目',a:swAnsText(a),fb:fbm[q.id]||''});});}
 }catch(e){}return out;}
+/* ===================== 📁 老師給我的檔案 ===================== */
+let MYFILES=[];
+async function loadMyFiles(){
+  try{const u=myUid();if(!u){MYFILES=[];return;}
+    const snap=await firebase.firestore().collection('shares').where('uids','array-contains',u).get();
+    MYFILES=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
+  }catch(e){MYFILES=[];}
+}
+function myFileSize(n){n=Number(n)||0;return n>1048576?((n/1048576).toFixed(1)+' MB'):(Math.max(1,Math.round(n/1024))+' KB');}
+function myFilesHtml(){
+  const L=x=>wbL(x);
+  const fs=(MYFILES||[]).filter(f=>f&&f.url).slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  if(!fs.length)return '';
+  const rows=fs.map(f=>`<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start;padding:7px 0">
+    <b style="min-width:150px">📄 ${esc(f.filename||'')}</b>
+    ${f.cat?`<span class="ls-tag">${esc(f.cat)}</span>`:''}
+    ${f.lesson_title?`<span class="ls-tag">📚 ${esc(f.lesson_title)}</span>`:''}
+    <span class="hint">${myFileSize(f.size)}　${esc(String(f.given_at||f.created_at||'').replace('T',' ').slice(0,10))}</span>
+    <span class="grow"></span>
+    <a class="btn btn-sm btn-primary" href="${esc(f.url)}" target="_blank" rel="noopener">⬇ ${L({zh:'下載',cn:'下载',en:'Download',vi:'Tải về'})}</a>
+    ${f.desc?`<div style="flex-basis:100%;margin-top:2px" class="hint">${esc(f.desc)}</div>`:''}</div>`).join('');
+  return `<details class="card" style="margin-bottom:12px" open><summary class="sw-title">📁 ${L({zh:'老師給我的檔案',cn:'老师给我的档案',en:'Files from my teacher',vi:'Tài liệu giáo viên gửi'})} <span class="hint">（${fs.length}）</span></summary>
+    <div style="margin-top:8px">${rows}</div></details>`;
+}
 function fbLegendHtml(show){if(!show)return '';
   const m=[['✓',{zh:'沒問題',cn:'没问题',en:'All good',vi:'Đúng rồi'}],['✎',{zh:'建議修改',cn:'建议修改',en:'Suggested edit',vi:'Nên sửa'}],['✗',{zh:'答錯了',cn:'答错了',en:'Incorrect',vi:'Sai'}],['○',{zh:'還沒作答',cn:'还没作答',en:'Not answered',vi:'Chưa trả lời'}]];
   return `<div class="fb-legend">${m.map(x=>`<span><b>${x[0]}</b> ${esc(LT(x[1]))}</span>`).join('')}</div>`;}
@@ -3428,7 +3452,7 @@ function showLoad(b){let el=document.getElementById('app-loading');if(b){if(!el)
 async function enter(me){S.me=me;try{syncStart();}catch(e){}
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');
   applyChrome();showLoad(true);
-  try{await loadMine();await loadFam();await loadProgress();try{mistSyncPractice();}catch(e){}try{const _pd=(S.results||[]).find(x=>x.lesson_id==='__progress');const _lg=((_pd&&Array.isArray(_pd.logins))?_pd.logins:[]).concat([now()]).slice(-100);DB.upsertResult('__progress',S.me.id,{uid:myUid(),last_login:now(),last_active:now(),logins:_lg}).catch(()=>{});}catch(_){}S.section='home';renderSection();setTimeout(notifyDue,1200);setTimeout(maybeShowGuide,600);}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}finally{showLoad(false);}}
+  try{await loadMine();await loadFam();await loadProgress();try{loadMyFiles().then(()=>{try{if($('#screen')&&!$('#screen').dataset.mode)renderSection();}catch(e){}});}catch(e){}try{mistSyncPractice();}catch(e){}try{const _pd=(S.results||[]).find(x=>x.lesson_id==='__progress');const _lg=((_pd&&Array.isArray(_pd.logins))?_pd.logins:[]).concat([now()]).slice(-100);DB.upsertResult('__progress',S.me.id,{uid:myUid(),last_login:now(),last_active:now(),logins:_lg}).catch(()=>{});}catch(_){}S.section='home';renderSection();setTimeout(notifyDue,1200);setTimeout(maybeShowGuide,600);}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}finally{showLoad(false);}}
 async function loadFam(){S.fam=null;
   const k=String((S.me&&S.me.bill_group)||'').trim();if(!k)return;
   try{const ms=await DB.listWhere('students','bill_group',k);

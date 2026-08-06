@@ -507,6 +507,7 @@ async function loadAll(){
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
     DB.list('lessons'),DB.list('questions'),DB.list('results')]);
   let _crm=[];if(owner){try{_crm=await DB.list('crm');}catch(e){_crm=[];}}
+  try{await shareLoad();}catch(e){}
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
   S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&!x.deleted_at);S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);{const _lg=b.filter(x=>CRM_KINDS[x.kind]&&!x.deleted_at);_lg.forEach(x=>{x._col='lessons';});
    const _cn=crmDedupe(_crm.filter(x=>!x.deleted_at));_cn.forEach(x=>{x._col='crm';});
@@ -1052,6 +1053,7 @@ function renderWriting(){
       ${wrFeeBlock(c)}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
         <button class="btn" data-act="wrPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
+        <button class="btn btn-sm" data-act="crmFiles" data-id="writing::${esc(c.id)}">📎 檔案${shareForCrm(c.id).length?('（'+shareForCrm(c.id).length+'）'):''}</button>
         <button class="btn btn-sm" data-act="wrEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
         <button class="btn btn-sm" data-act="wrToggle" data-id="${esc(c.id)}">${done?'↩ 改回進行中':'✓ 結案'}</button>
         <span class="grow"></span>
@@ -1132,6 +1134,7 @@ function renderAgency(){
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
         <button class="btn btn-accent" data-act="agLogNew" data-id="${esc(c.id)}">＋ 新增一筆進度</button>
         <button class="btn" data-act="agPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
+        <button class="btn btn-sm" data-act="crmFiles" data-id="agency::${esc(c.id)}">📎 檔案${shareForCrm(c.id).length?('（'+shareForCrm(c.id).length+'）'):''}</button>
         <button class="btn btn-sm" data-act="agEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
         <button class="btn btn-sm" data-act="agToggle" data-id="${esc(c.id)}">${done?'↩ 改回進行中':'✓ 結案'}</button>
         <span class="grow"></span>
@@ -1200,6 +1203,7 @@ function renderInterview(){
         <button class="btn btn-accent" data-act="itvSess" data-id="${esc(c.id)}::new">＋ 新增練習時間</button>
         <button class="btn btn-sm" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
         <button class="btn btn-sm" data-act="itvFiles" data-id="${esc(c.id)}">📎 資料／檔案</button>
+        <button class="btn btn-sm" data-act="crmFiles" data-id="interview::${esc(c.id)}">📁 我給的檔案${shareForCrm(c.id).length?('（'+shareForCrm(c.id).length+'）'):''}</button>
         <button class="btn btn-sm" data-act="itvPayList" data-id="${esc(c.id)}">💰 付費紀錄${(Array.isArray(c.payments)&&c.payments.length)?("（"+c.payments.length+"）"):""}</button>
         <button class="btn btn-sm" data-act="itvToggle" data-id="${esc(c.id)}">${done?'↩ 改回進行中':'✓ 標記完成'}</button>
         <span class="grow"></span>
@@ -2119,6 +2123,88 @@ function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length
     <button class="btn btn-primary btn-sm" data-act="saveReview" data-id="${r.id}">💾 儲存建議</button>
     <button class="btn btn-sm btn-danger" data-act="delResult" data-id="${r.id}" style="margin-left:8px">🗑 刪除此作答</button></div>`;}
 /* ---------- 成績 ---------- */
+/* ===================== 📁 我發出去的檔案（shares） ===================== */
+const SHARE_CATS=['講義','作業','考卷','範文','完稿','證件','其他'];
+let SHARES=[];
+let SHARE_CTX=null;   /* 客戶檔案 modal 用 {kind,id,name} */
+function shareAll(){return (SHARES||[]).filter(x=>x&&!x.deleted_at);}
+function shareForStudent(sid){return shareAll().filter(f=>f.kind==='stu'&&(f.student_ids||[]).indexOf(sid)>=0);}
+function shareForCrm(id){return shareAll().filter(f=>f.kind==='crm'&&f.crm_id===id);}
+function shareSizeStr(n){n=Number(n)||0;return n>1048576?((n/1048576).toFixed(1)+' MB'):(Math.max(1,Math.round(n/1024))+' KB');}
+async function shareLoad(){try{SHARES=await DB.list('shares');}catch(e){SHARES=[];}}
+async function shareUpload(file,meta,onProg){
+  const stamp=String(Date.now())+Math.random().toString(36).slice(2,7);
+  const safe=String(file.name||'file').replace(/[^\w.\-一-鿿]/g,'_');
+  const path='shares/'+stamp+'_'+safe;
+  const ref=firebase.storage().ref(path);
+  const task=ref.put(file);
+  await new Promise((res,rej)=>{task.on('state_changed',sn=>{if(onProg)onProg(Math.round(sn.bytesTransferred/sn.totalBytes*100));},rej,res);});
+  const url=await ref.getDownloadURL();
+  const doc=Object.assign({filename:file.name,mime:file.type||'',size:file.size,url:url,path:path,
+    created_at:new Date().toISOString()},meta||{});
+  const r=await DB.insert('shares',doc);
+  const id=(r&&r.id)?r.id:r;
+  SHARES.push(Object.assign({id:id},doc));
+  return id;
+}
+function shareRowHtml(f,acts){
+  const cat=f.cat?`<span class="tag accent">${esc(f.cat)}</span>`:'';
+  const les=f.lesson_title?`<span class="tag">📚 ${esc(f.lesson_title)}</span>`:'';
+  const given=f.given_at?`<span class="muted" style="font-size:12px">交付 ${esc(f.given_at)}</span>`:'';
+  return `<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start;padding:7px 0">
+    <b style="min-width:150px">📄 ${esc(f.filename||'檔案')}</b>${cat}${les}
+    <span class="muted" style="font-size:12px">${shareSizeStr(f.size)}　${esc(String(f.created_at||'').replace('T',' ').slice(0,16))}</span>${given}
+    <span class="grow"></span>
+    <a class="btn btn-sm" href="${esc(f.url||'#')}" target="_blank" rel="noopener">⬇ 下載</a>
+    ${acts||''}
+    <button class="btn btn-sm" data-act="shareEdit" data-id="${esc(f.id)}">✏️</button>
+    <button class="btn btn-sm btn-danger" data-act="shareDel" data-id="${esc(f.id)}">🗑</button>
+    ${f.desc?`<div style="flex-basis:100%;margin-top:2px" class="hint">${esc(f.desc)}</div>`:''}</div>`;
+}
+/* ---- 教師端：發給學生的檔案 ---- */
+function shareStuHtml(){
+  const files=shareAll().filter(f=>f.kind==='stu');
+  const head=`<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 6px">📁 我發給學生的檔案</h3>
+    <div class="hint" style="line-height:1.8">上傳講義、範文、考卷給指定的學生 —— 學生在自己的頁面會看到「老師給我的檔案」，可以直接下載。<br>
+    每一份可以寫說明、標類別和課次、記交付日期，之後你自己也查得到「我到底給過這位學生什麼」。</div>
+    <div style="margin-top:10px"><button class="btn btn-primary" data-act="shareNew">⬆ 上傳新檔案</button>
+    <button class="btn btn-sm" data-act="shareReload">↻ 重新整理</button></div></div>`;
+  if(!files.length)return head+'<div class="card"><div class="hint">還沒有發過檔案。按「⬆ 上傳新檔案」開始。</div></div>';
+  const byS={},order=[];
+  files.forEach(f=>{(f.student_ids||['?']).forEach(sid=>{if(!byS[sid]){byS[sid]=[];order.push(sid);}byS[sid].push(f);});});
+  const nameOf=sid=>{const st=(S.students||[]).find(x=>x.id===sid);return (st&&st.name)||'（未知學生）';};
+  order.sort((a,b)=>String(nameOf(a)).localeCompare(String(nameOf(b))));
+  const rows=order.map((sid,i)=>{
+    const list=byS[sid].slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+    return `<details class="disc"${i===0?' open':''} style="margin-bottom:8px"><summary><b>${snm(nameOf(sid))}</b> <span class="hint">（${list.length} 份）</span></summary>
+      <div style="margin-top:6px">${list.map(f=>shareRowHtml(f,'')).join('')}</div></details>`;}).join('');
+  return head+'<div class="card">'+rows+'</div>';
+}
+function shareForm(f){
+  f=f||{};const isNew=!f.id;
+  const studs=(S.students||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  const sel=(f.student_ids||[]);
+  const isCrm=(f.kind==='crm')||(!!SHARE_CTX&&isNew);
+  const ctxName=SHARE_CTX?SHARE_CTX.name:(f.crm_name||'');
+  const lessons=(S.lessons||[]).slice().sort((a,b)=>String(a.textbook||'').localeCompare(String(b.textbook||''))||((a.order_index||0)-(b.order_index||0)));
+  openModal(`<div class="modal"><div class="modal-head"><h3>${isNew?'⬆ 上傳檔案':'✏️ 編輯檔案資料'}${isCrm&&ctxName?(' · '+snm(ctxName)):''}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="form-grid">
+    ${isNew?`<div class="field full"><label>選擇檔案 * <span class="hint">PDF、Word、圖片、音檔都可以</span></label>
+      <input id="sh-file" type="file" multiple>
+      <div id="sh-prog" class="hint" style="margin-top:6px"></div></div>`:`<div class="field full"><label>檔案</label><div class="wb-filled">📄 ${esc(f.filename||'')}　<span class="hint">${shareSizeStr(f.size)}</span></div></div>`}
+    ${isCrm?`<div class="field full"><label>對象</label><div class="wb-filled">${snm(ctxName||'')}</div></div>`
+      :`<div class="field full"><label>發給哪些學生 *</label>
+      <div style="max-height:170px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px">
+      ${studs.map(st=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 14px 6px 0;font-weight:400;cursor:pointer"><input type="checkbox" class="sh-stu" value="${esc(st.id)}" style="width:auto;margin:0"${sel.indexOf(st.id)>=0?' checked':''}> ${esc(st.name||'')}${st.is_test?' 🧪':''}</label>`).join('')}
+      </div><div class="hint" style="margin-top:4px">可以複選；同一份檔案發給幾位就勾幾位。</div></div>`}
+    <div class="field full"><label>說明文字 <span class="hint">例：第五課講義、第二版修改稿</span></label><input id="sh-desc" type="text" value="${esc(f.desc||'')}"></div>
+    <div class="field"><label>類別</label><select id="sh-cat"><option value="">—</option>${SHARE_CATS.map(c=>`<option value="${esc(c)}"${(f.cat||'')===c?' selected':''}>${esc(c)}</option>`).join('')}</select></div>
+    <div class="field"><label>交付日期</label><input id="sh-given" type="date" min="2000-01-01" max="2100-12-31" value="${esc(f.given_at||localToday())}"></div>
+    ${isCrm?'':`<div class="field full"><label>教材／課次 <span class="hint">選填</span></label><select id="sh-les"><option value="">—</option>
+      ${lessons.map(l=>{const t=((l.textbook||'')+' '+(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'')).trim();return `<option value="${esc(t)}"${(f.lesson_title||'')===t?' selected':''}>${esc(t)}</option>`;}).join('')}</select></div>`}
+   </div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>
+   <button class="btn btn-primary" data-act="shareSave" data-id="${esc(f.id||'')}">💾 ${isNew?'上傳':'儲存'}</button></div></div>`);}
 function renderFiles(){
   const body=$('#panel-files');if(!body)return;
   const studs=S.students.slice().sort((a,b)=>{const ta=a.is_test?1:0,tb=b.is_test?1:0;const ea=enrollOf(a)==='active'?0:1,eb=enrollOf(b)==='active'?0:1;return ta-tb||ea-eb||String(a.name||'').localeCompare(String(b.name||''));});
@@ -2143,7 +2229,9 @@ function renderFiles(){
   const _sub=(S.filesSub||'quiz');
   const _tabs='<div class="book-bar" style="margin-bottom:14px"><button class="book-tab '+(_sub==='quiz'?'on':'')+'" data-act="filesSub" data-id="quiz">📝 隨堂小考</button>'
     +'<button class="book-tab '+(_sub==='live'?'on':'')+'" data-act="filesSub" data-id="live">🎮 即時比賽</button>'
-    +'<button class="book-tab '+(_sub==='up'?'on':'')+'" data-act="filesSub" data-id="up">📤 上傳檔案</button></div>';
+    +'<button class="book-tab '+(_sub==='up'?'on':'')+'" data-act="filesSub" data-id="up">📤 學生傳來的</button>'
+    +'<button class="book-tab '+(_sub==='give'?'on':'')+'" data-act="filesSub" data-id="give">📁 我發出去的</button></div>';
+  if(_sub==='give'){body.innerHTML=_hero+_tabs+shareStuHtml();return;}
   if(_sub==='quiz'){body.innerHTML=_hero+_tabs+quizFoldHtml();return;}
   if(_sub==='live'){body.innerHTML=_hero+_tabs+liveFoldHtml();return;}
   body.innerHTML=_hero+_tabs+head+areasCard+inboxCard;
@@ -4595,6 +4683,63 @@ H.crmMove=async()=>{
   CRM_MOVING=false;
   await loadAll();render();
   toast(bad?('搬好 '+ok+' 筆，有 '+bad+' 筆失敗'):('搬好了，'+ok+' 筆已經變成只有你看得到 ✓'));};
+H.shareNew=()=>{SHARE_CTX=null;shareForm(null);};
+H.shareReload=async()=>{await shareLoad();render();toast('已更新');};
+H.shareEdit=(id)=>{const f=shareAll().find(x=>x.id===id);if(!f)return;
+  SHARE_CTX=(f.kind==='crm')?{kind:f.crm_kind,id:f.crm_id,name:f.crm_name||''}:null;shareForm(f);};
+H.shareSave=async(id)=>{
+  const desc=(($('#sh-desc')&&$('#sh-desc').value)||'').trim();
+  const cat=($('#sh-cat')&&$('#sh-cat').value)||'';
+  const given=($('#sh-given')&&$('#sh-given').value)||'';
+  const les=($('#sh-les')&&$('#sh-les').value)||'';
+  if(id){
+    const f=shareAll().find(x=>x.id===id);if(!f)return;
+    const patch={desc:desc,cat:cat,given_at:given};if($('#sh-les'))patch.lesson_title=les;
+    try{await DB.update('shares',id,patch);Object.assign(f,patch);closeModal();render();toast('已儲存');}
+    catch(e){toast(writeErr('儲存失敗',e));}
+    return;}
+  const inp=$('#sh-file');const files=(inp&&inp.files)?[...inp.files]:[];
+  if(!files.length)return toast('請先選檔案');
+  let meta;
+  if(SHARE_CTX){meta={kind:'crm',crm_kind:SHARE_CTX.kind,crm_id:SHARE_CTX.id,crm_name:SHARE_CTX.name||'',uids:[],student_ids:[]};}
+  else{
+    const sids=[...document.querySelectorAll('.sh-stu')].filter(x=>x.checked).map(x=>x.value);
+    if(!sids.length)return toast('請至少勾一位學生');
+    const uids=sids.map(id=>{const st=(S.students||[]).find(x=>x.id===id);return st&&st.uid;}).filter(Boolean);
+    meta={kind:'stu',student_ids:sids,uids:uids,lesson_title:les};
+  }
+  meta.desc=desc;meta.cat=cat;meta.given_at=given;meta.visible=true;
+  const box=$('#sh-prog');let done=0;
+  try{
+    for(const file of files){
+      if(box)box.textContent='上傳中… '+file.name+'（'+(done+1)+'/'+files.length+'）';
+      await shareUpload(file,meta,(pct)=>{if(box)box.textContent='上傳中… '+file.name+' '+pct+'%';});
+      done++;
+    }
+    closeModal();render();toast('✅ 已上傳 '+done+' 個檔案');
+  }catch(e){if(box)box.textContent='';toast('上傳失敗：'+((e&&e.message)||e));}
+};
+H.shareDel=async(id)=>{const f=shareAll().find(x=>x.id===id);if(!f)return;
+  if(!confirm('刪除「'+(f.filename||'')+'」？學生那邊也會看不到。'))return;
+  try{await DB.remove('shares',id);
+    if(f.path&&window.firebase&&firebase.storage){try{await firebase.storage().ref(f.path).delete();}catch(_){}}
+    SHARES=SHARES.filter(x=>x.id!==id);render();toast('已刪除');}
+  catch(e){toast(writeErr('刪除失敗',e));}};
+/* 客戶檔案（代書／代辦／面試共用） */
+H.crmFiles=(key)=>{const p=String(key).split('::');const kind=p[0],id=p[1];
+  const c=(kind==='writing')?wrById(id):((kind==='agency')?agById(id):itvById(id));
+  if(!c)return;
+  SHARE_CTX={kind:kind,id:id,name:c.name||''};
+  const files=shareForCrm(id).slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  openModal(`<div class="modal"><div class="modal-head"><h3>📎 檔案 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="hint" style="margin-bottom:10px">存你交給這位客戶的檔案（讀書計劃、自傳、申請文件…）。只有你看得到，客戶端不會出現。</div>
+     <div style="margin-bottom:10px"><button class="btn btn-primary" data-act="shareNew2" data-id="${esc(kind)}::${esc(id)}">⬆ 上傳檔案</button></div>
+     <div>${files.length?files.map(f=>shareRowHtml(f,'')).join(''):'<div class="hint">還沒有檔案。</div>'}</div>
+   </div></div>`);};
+H.shareNew2=(key)=>{const p=String(key).split('::');const kind=p[0],id=p[1];
+  const c=(kind==='writing')?wrById(id):((kind==='agency')?agById(id):itvById(id));
+  SHARE_CTX={kind:kind,id:id,name:(c&&c.name)||''};shareForm(null);};
 H.wrNew=()=>wrForm(null);
 H.wrEdit=(id)=>wrForm(wrById(id));
 H.wrSave=async(id)=>{const name=(($('#wr-name')&&$('#wr-name').value)||'').trim();if(!name)return toast('請填姓名');
