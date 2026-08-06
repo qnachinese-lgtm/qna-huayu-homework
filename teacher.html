@@ -27,6 +27,10 @@
 @font-face{font-family:'PinyinRoman';font-style:italic;font-weight:400;
   src:local('Times New Roman Italic'),local('Times New Roman'),local('Georgia Italic'),local('Georgia'),local('Noto Serif');
   unicode-range:U+0020-024F,U+0300-036F,U+01CD-01DC,U+1E00-1EFF,U+2018-201F,U+2032-2033;}
+/* 錯題本／作業簿：拉丁字母一律 Times New Roman */
+.wb-wrap,.wb-wrap *,.wb-sec,.wb-sec *,.wb-py,.wb-ref,.wb-filled,.wb-in,.wb-bl,.opt-blank,.wbrev,.wbrev *,.mist-tag,.hw-img+*{font-family:'PinyinRoman',var(--font)}
+.wb-wrap h2,.wb-wrap h3,.wb-sec>summary{font-family:'PinyinRoman',var(--serif)}
+
 .ex-item,.gp-ex-body,.vtab-ex,.vtab-ex .ex-item{font-family:'PinyinRoman',var(--serif)}
 .vtab-c.vt-py,.vrow-py{font-family:'PinyinRoman',var(--font)}
 /* 學生姓名（含越南文聲調）一律用 Times New Roman，中文姓名不受影響 */
@@ -165,6 +169,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         <button class="tab" data-act="tab" data-id="ops" data-group="ops">💰 財務・營運 <span class="count alert hide" id="c-leads">0</span></button>
         <button class="tab" data-act="tab" data-id="agency" data-group="abroad">🎓 代辦申請 <span class="count" id="c-ag">0</span></button>
         <button class="tab" data-act="tab" data-id="interview" data-group="abroad">🎤 面試練習 <span class="count" id="c-itv">0</span></button>
+        <button class="tab" data-act="tab" data-id="writing" data-group="abroad">✍️ 代書 <span class="count" id="c-wr">0</span></button>
         <div class="sec">系　統</div>
         <button class="tab" data-act="settingsCenter" data-id="__settings">⚙️ 設定</button>
         <button class="tab" data-act="trash" data-id="__trash">🗑 垃圾桶</button>
@@ -189,6 +194,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         body.is-admin .sidenav .tab[data-id="ops"],
         body.is-admin .sidenav .tab[data-id="agency"],
         body.is-admin .sidenav .tab[data-id="interview"],
+        body.is-admin .sidenav .tab[data-id="writing"],
         body.is-admin .sidenav .tab[data-id="__settings"],
         body.is-admin .sidenav .sec.biz{display:none}
         body .topbar{margin-left:212px}
@@ -304,6 +310,11 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
       <section id="panel-agency" class="panel hide">
         <div class="section-head"><h2>🎓 代辦申請</h2><span class="sub">代辦申請學校的客戶、每次做了什麼、上傳內容與收費（收入會併入營運總收入）</span></div>
         <div id="agency-body"></div>
+      </section>
+
+      <section id="panel-writing" class="panel hide">
+        <div class="section-head"><h2>✍️ 代書</h2><span class="sub">代寫讀書計劃、自傳等文件的客戶、進度與收費（收入會併入營運總收入）</span></div>
+        <div id="writing-body"></div>
       </section>
 
       <section id="panel-ops" class="panel hide">
@@ -463,14 +474,14 @@ const TYPE_LABELS={choice:'單選',fill:'填空',opt:'選填',qa:'問答',order:
 
 const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],admins:[],announcements:[],trashStudents:[],trashLessons:[],tab:'dashboard',q:'',openCards:new Set(),openBooks:new Set()};
 let IS_OWNER=false, MY_EMAIL='';
-const CRM_KINDS={agency:1,interview:1,inquiry:1};
+const CRM_KINDS={agency:1,interview:1,inquiry:1,writing:1};
 function crmDedupe(list){
   const arr=(list||[]).slice().sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id)));
   const seen={},keep=[],dup=[];
   arr.forEach(x=>{const k=x.moved_from||x.id;if(seen[k]){dup.push(x);}else{seen[k]=1;keep.push(x);}});
   if(dup.length){setTimeout(()=>{dup.forEach(d=>{DB.update('crm',d.id,{deleted_at:new Date().toISOString(),dup_of:d.moved_from||''}).catch(()=>{});});},0);}
   return keep;}
-function crmAll(){return (S.agencies||[]).concat(S.interviews||[],S.inquiries||[]);}
+function crmAll(){return (S.agencies||[]).concat(S.interviews||[],S.inquiries||[],S.writings||[]);}
 function crmCol(id){const d=crmAll().find(x=>x&&x.id===id);return (d&&d._col)||'crm';}
 function crmLegacy(){return crmAll().filter(x=>x&&x._col==='lessons');}
 function adminName(email){if(!email)return '主管理員';const a=(S.admins||[]).find(x=>(x.email||'').toLowerCase()===(email||'').toLowerCase());return (a&&(a.name||a.email))||email;}
@@ -497,10 +508,10 @@ async function loadAll(){
     DB.list('lessons'),DB.list('questions'),DB.list('results')]);
   let _crm=[];if(owner){try{_crm=await DB.list('crm');}catch(e){_crm=[];}}
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&!x.deleted_at);S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);{const _lg=b.filter(x=>CRM_KINDS[x.kind]&&!x.deleted_at);_lg.forEach(x=>{x._col='lessons';});
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&!x.deleted_at);S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);{const _lg=b.filter(x=>CRM_KINDS[x.kind]&&!x.deleted_at);_lg.forEach(x=>{x._col='lessons';});
    const _cn=crmDedupe(_crm.filter(x=>!x.deleted_at));_cn.forEach(x=>{x._col='crm';});
    const _all=_cn.concat(_lg);
-   S.interviews=_all.filter(x=>x.kind==='interview');S.inquiries=_all.filter(x=>x.kind==='inquiry');S.agencies=_all.filter(x=>x.kind==='agency');}S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
+   S.interviews=_all.filter(x=>x.kind==='interview');S.inquiries=_all.filter(x=>x.kind==='inquiry');S.agencies=_all.filter(x=>x.kind==='agency');S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
   splitResults(d);
   {const cut=Date.now()-7*864e5;(S.trashStudents||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('students',x.id).catch(()=>{});});(S.trashLessons||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('lessons',x.id).catch(()=>{});});}
   if(!owner){
@@ -538,6 +549,8 @@ function render(){
     $('#c-lessons').textContent=S.lessons.length+((S.prons||[]).length);
     {const el=$('#c-itv');if(el)el.textContent=(S.interviews||[]).filter(x=>(x.status||'active')==='active').length;}
     {const el=$('#c-ag');if(el)el.textContent=(S.agencies||[]).filter(x=>(x.status||'active')==='active').length;}
+  {const el=$('#c-wr');if(el)el.textContent=(S.writings||[]).filter(x=>(x.status||'active')==='active').length;}
+    {const el=$('#c-wr');if(el)el.textContent=(S.writings||[]).filter(x=>(x.status||'active')==='active').length;}
     {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
     {const nl=(S.leads||[]).filter(x=>(x.status||'new')==='new').length;const el=$('#c-leads');if(el){el.textContent=nl;el.classList.toggle('hide',!nl||!IS_OWNER);}}
   }catch(e){}
@@ -548,12 +561,13 @@ function render(){
   $('#c-lessons').textContent=S.lessons.length+((S.prons||[]).length);
   {const el=$('#c-itv');if(el)el.textContent=(S.interviews||[]).filter(x=>(x.status||'active')==='active').length;}
   {const el=$('#c-ag');if(el)el.textContent=(S.agencies||[]).filter(x=>(x.status||'active')==='active').length;}
+  {const el=$('#c-wr');if(el)el.textContent=(S.writings||[]).filter(x=>(x.status||'active')==='active').length;}
   {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
   {const nl=(S.leads||[]).filter(x=>(x.status||'new')==='new').length;const el=$('#c-leads');if(el){el.textContent=nl;el.classList.toggle('hide',!nl||!IS_OWNER);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
-  if(!IS_OWNER&&['ops','agency','interview'].indexOf(S.tab)>=0)S.tab='dashboard';
-  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,ops:renderOps}[S.tab])();}
+  if(!IS_OWNER&&['ops','agency','interview','writing'].indexOf(S.tab)>=0)S.tab='dashboard';
+  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,ops:renderOps}[S.tab])();}
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
@@ -636,6 +650,10 @@ function renderDashboard(){
   itvAll().forEach(c=>{if(!c.exam_date)return;const d=itvDaysTo(c.exam_date);if(d==null)return;
     if(d>=0&&d<=14&&!itvResultMeta(c.result)){const col=d<=3?'#dc2626':'#3730a3';remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">🎯 ${d===0?'今天面試':(d===1?'明天面試':'還有 '+d+' 天')}</span><b>${snm(c.name||'')}</b>${c.target?`<span class="muted">${esc(c.target)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.exam_date)}${c.exam_time?(' '+esc(c.exam_time)):''}</span><button class="btn btn-sm" data-act="tab" data-id="interview">看客戶</button></div>`);}
     else if(d<0&&!itvResultMeta(c.result)){remRows.push(`<div class="dash-row"><span class="badge badge-soon">🎯 待填結果</span><b>${snm(c.name||'')}</b><span class="muted">面試日 ${esc(c.exam_date)}（${-d} 天前）</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="itvEdit" data-id="${esc(c.id)}">填面試結果</button></div>`);}});
+  (S.writings||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;const d=itvDaysTo(c.deadline);if(d==null||d>21)return;
+    const col=d<0?'#dc2626':(d<=3?'#dc2626':(d<=7?'#d97706':'#2563eb'));
+    const lab=d<0?('交件已過 '+(-d)+' 天'):(d===0?'今天要交件！':(d===1?'明天要交件':'還有 '+d+' 天交件'));
+    remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">✍️ ${lab}</span><b>${snm(c.name||'')}</b>${c.docs?`<span class="muted">${esc(c.docs)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="writing">看客戶</button></div>`);});
   (S.agencies||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;const d=itvDaysTo(c.deadline);if(d==null)return;if(d>21)return;const col=d<0?'#dc2626':(d<=3?'#dc2626':(d<=7?'#d97706':'#2563eb'));const lab=d<0?('繳件已過 '+(-d)+' 天'):(d===0?'今天要繳件！':(d===1?'明天要繳件':'還有 '+d+' 天繳件'));remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 ${lab}</span><b>${snm(c.name||'')}</b>${c.school?`<span class="muted">${esc(c.school)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="agency">看客戶</button></div>`);});
   try{const bwk=localStorage.getItem('hyc_backup_wk')||'';const nowWk=weekStart(localToday());
     if(IS_OWNER&&bwk!==nowWk&&(S.students||[]).some(x=>!x.is_test))remRows.push(`<div class="dash-row"><span class="badge" style="background:#fef3c7;color:#92400e;border-color:#92400e55">📦 備份</span><b>這週還沒備份</b><span class="grow"></span><span class="muted">${bwk?('上次備份：'+esc(bwk)+' 那週'):'還沒備份過'}</span><button class="btn btn-sm btn-accent" data-act="exportAll">匯出 Excel</button></div>`);}catch(e){}
@@ -644,9 +662,9 @@ function renderDashboard(){
   // 總覽數字卡：本月收入／尚未收款／待批改／待辦／堂數快用完
   const _thisM=localToday().slice(0,7);
   const _monCur={};S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{const amt=Number(p.amount)||0;if(!amt)return;if(((p.date||'').slice(0,7))!==_thisM)return;const cur=p.currency||s.currency||'TWD';_monCur[cur]=(_monCur[cur]||0)+amt;});});
-  const _itvNow=itvIncome(_thisM),_agNow=agIncome(_thisM);
-  const _totNow=itvAddCur(itvAddCur(Object.assign({},_monCur),_itvNow.paid),_agNow.paid);
-  const _dueAll=itvAddCur(Object.assign({},itvIncome(null).due),agIncome(null).due);
+  const _itvNow=itvIncome(_thisM),_agNow=agIncome(_thisM),_wrNow=wrIncome(_thisM);
+  const _totNow=itvAddCur(itvAddCur(itvAddCur(Object.assign({},_monCur),_itvNow.paid),_agNow.paid),_wrNow.paid);
+  const _dueAll=itvAddCur(itvAddCur(Object.assign({},itvIncome(null).due),agIncome(null).due),wrIncome(null).due);
   const _moneyStr=(o)=>{const ks=Object.keys(o).filter(k=>o[k]);return ks.length?ks.map(c=>money(o[c],c)).join(' ＋ '):'—';};
   const _hasDue=Object.keys(_dueAll).filter(k=>_dueAll[k]).length>0;
   const _needRenew=lowSess.filter(x=>x.left!=null&&x.left<=0).length;
@@ -906,6 +924,151 @@ function crmMoveBanner(){
     <div style="flex:1;min-width:200px"><b style="color:#c2410c">有 ${n} 筆資料還放在學生看得到的地方</b>
     <div class="hint" style="margin-top:2px">代辦申請和面試練習以前跟課程存在一起，登入的學生理論上讀得到裡面的姓名電話。按右邊的按鈕搬到只有你看得到的位置。</div></div>
     <button class="btn btn-accent" data-act="crmMove">🔒 立刻搬移</button></div>`;}
+/* ===================== ✍️ 代書（讀書計劃／自傳） ===================== */
+const WR_STAGES=[{k:'gather',t:'收資料',ic:'📥'},{k:'draft',t:'初稿',ic:'✍️'},{k:'revise',t:'修改',ic:'🔁'},{k:'final',t:'定稿',ic:'✅'},{k:'deliver',t:'交件',ic:'📮'}];
+const WR_DOCS=['讀書計劃','自傳','推薦信','研究計劃','履歷','其他'];
+function wrAll(){return (S.writings||[]);}
+function wrById(id){return wrAll().find(x=>x.id===id);}
+function wrStages(c){return (c&&c.stages&&typeof c.stages==='object')?c.stages:{};}
+function wrDoneN(c){const st=wrStages(c);return WR_STAGES.filter(x=>st[x.k]&&st[x.k].date).length;}
+function wrCurStage(c){const st=wrStages(c);for(let i=WR_STAGES.length-1;i>=0;i--){if(st[WR_STAGES[i].k]&&st[WR_STAGES[i].k].date)return WR_STAGES[i];}return null;}
+function wrPays(c){return (c&&Array.isArray(c.payments))?c.payments.filter(x=>x&&x.date):[];}
+function wrTotalCur(c){return (c&&c.fee_cur)||'VND';}
+function wrTotal(c){const v=Number((c&&c.fee_total)||0);return v>0?v:0;}
+function wrPaidSum(c,ym){const by={};
+  wrPays(c).forEach(p=>{if(ym&&String(p.date).slice(0,7)!==ym)return;const cur=p.currency||'VND';by[cur]=(by[cur]||0)+(Number(p.amount)||0);});
+  return by;}
+function wrDueSum(c){const by={};const tot=wrTotal(c);
+  if(tot){const cur=wrTotalCur(c);const got=wrPays(c).reduce((a,p)=>a+(((p.currency||'VND')===cur)?(Number(p.amount)||0):0),0);
+    const left=tot-got;if(left>0)by[cur]=(by[cur]||0)+left;}
+  return by;}
+function wrIncome(ym){const paid={},due={};wrAll().forEach(c=>{itvAddCur(paid,wrPaidSum(c,ym));if(!ym)itvAddCur(due,wrDueSum(c));});return {paid,due};}
+function wrDeadlineBadge(c){if(!c||!c.deadline)return '';const d=itvDaysTo(c.deadline);if(d==null)return '';
+  const done=(c.status||'active')!=='active';const col=(d<0)?'#dc2626':(d<=7?'#d97706':'#2563eb');
+  const lab=d<0?('已過 '+(-d)+' 天'):(d===0?'今天要交！':(d===1?'明天要交':'還有 '+d+' 天'));
+  return `<span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 交件 ${esc(c.deadline)}${done?'':('（'+lab+'）')}</span>`;}
+function wrDocChips(c){const d=String((c&&c.docs)||'').split(/[,，、\s]+/).filter(Boolean);
+  return d.map(x=>`<span class="tag accent">📄 ${esc(x)}</span>`).join('');}
+function wrStepper(c){
+  const st=wrStages(c);
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">`+WR_STAGES.map((x,i)=>{
+    const e=st[x.k]||{};const on=!!e.date;
+    return `<button class="btn btn-sm" data-act="wrStage" data-id="${esc(c.id)}::${x.k}" title="${on?('完成於 '+esc(e.date)+(e.note?('　'+esc(e.note)):'')):'點一下標記完成'}"
+      style="border-radius:999px;${on?'background:#16a34a15;border-color:#16a34a80;color:#15803d;font-weight:700':'opacity:.75'}">
+      ${x.ic} ${x.t}${on?('　'+esc(String(e.date).slice(5))):''}</button>`;}).join('')+`</div>`;}
+function wrFeeBlock(c){
+  const tot=wrTotal(c),cur=wrTotalCur(c);
+  const pays=wrPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  if(!tot&&!pays.length)return '';
+  const got=pays.reduce((a,p)=>a+(((p.currency||'VND')===cur)?(Number(p.amount)||0):0),0);
+  const left=tot?Math.max(0,tot-got):0;const pct=tot?Math.min(100,Math.round(got/tot*100)):0;
+  const rows=pays.map((p,i)=>`<div class="dash-row" style="padding:6px 0">
+      <span class="badge badge-pending">第 ${i+1} 期</span><b>${esc(String(p.date))}</b>
+      <b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>
+      ${p.method?`<span class="tag">${esc(p.method)}</span>`:''}
+      ${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}
+      <span class="grow"></span>
+      <button class="btn btn-sm" data-act="wrPayEdit" data-id="${esc(c.id)}::${i}">✏️</button>
+      <button class="btn btn-sm btn-danger" data-act="wrPayDel" data-id="${esc(c.id)}::${i}">✕</button></div>`).join('');
+  return `<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fdfaf4">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <b>💰 代書費</b>
+      ${tot?`<span>總額 <b>${money(tot,cur)}</b></span>`:''}
+      <span style="color:#16a34a">已收 <b>${money(got,cur)}</b></span>
+      ${tot?(left>0?`<span style="color:#d97706">還差 <b>${money(left,cur)}</b></span>`:'<span class="badge badge-ok">✓ 已收齊</span>'):''}
+      <span class="muted" style="font-size:12px">共 ${pays.length} 期</span></div>
+    ${tot?`<div style="height:8px;background:#eee3d2;border-radius:99px;margin:9px 0 4px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:#16a34a"></i></div>`:''}
+    ${rows||'<div class="hint" style="margin-top:6px">還沒有收款紀錄，按下面「💰 記一筆收款」。</div>'}</div>`;}
+function renderWriting(){
+  const body=$('#writing-body');if(!body)return;
+  if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','代書只有主管理員看得到。');return;}
+  const list=wrAll().slice().sort((a,b)=>{
+    const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;
+    if(sa!==sb)return sa-sb;
+    return String(a.deadline||'9999').localeCompare(String(b.deadline||'9999'));});
+  const ym=localToday().slice(0,7);const inc=wrIncome(ym),incAll=wrIncome(null);
+  const dueStr=itvMoneyStr(incAll.due);
+  const head=`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start">
+    <div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div>
+    <div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">累計收入</div><b style="font-size:19px">${itvMoneyStr(incAll.paid)||'—'}</b></div>
+    ${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${dueStr}</b></div>`:''}
+    <span style="flex:1"></span><button class="btn btn-primary" data-act="wrNew">＋ 新增代書客戶</button></div>
+    <div class="hint" style="margin-top:8px">收入會併進「營運 → 🧮 總收入」。</div></div>`;
+  if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">✍️</div>
+    <h3 style="margin:8px 0">還沒有代書客戶</h3>
+    <div class="hint" style="max-width:560px;margin:0 auto 14px">按「＋ 新增代書客戶」建立一位客戶（姓名、要寫哪些文件、交件期限、談定總費用）。<br>
+    建好之後卡片上會有五個階段的按鈕：收資料 → 初稿 → 修改 → 定稿 → 交件，做完一個就點一下，會自動記今天的日期。</div>
+    <button class="btn btn-primary" data-act="wrNew">＋ 新增代書客戶</button></div>`;return;}
+  body.innerHTML=head+list.map(c=>{
+    const done=(c.status||'active')!=='active';
+    const n=wrDoneN(c),cur=wrCurStage(c);
+    const paidAll=itvMoneyStr(wrPaidSum(c,null));const due=itvMoneyStr(wrDueSum(c));
+    return `<div class="card" style="margin-bottom:10px${done?';opacity:.72':''}">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <b style="font-size:16px">${snm(c.name||'（未命名）')}</b>
+        ${done?'<span class="badge">已結案</span>':`<span class="badge badge-ok">${cur?esc(cur.ic+' '+cur.t):'尚未開始'}</span>`}
+        ${wrDocChips(c)}
+        ${c.school?`<span class="tag">🏫 ${esc(c.school)}</span>`:''}
+        ${c.phone?`<span class="muted" style="font-size:13px">📞 ${esc(c.phone)}</span>`:''}
+        ${wrDeadlineBadge(c)}
+        <span class="grow"></span>
+        <span class="muted" style="font-size:13px">進度 <b>${n}/${WR_STAGES.length}</b>${paidAll?(' · 已收 '+paidAll):''}${due?(' · 未收 '+due):''}</span></div>
+      ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#9a8f80">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#fdfaf4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
+      ${wrStepper(c)}
+      ${wrFeeBlock(c)}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+        <button class="btn" data-act="wrPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
+        <button class="btn btn-sm" data-act="wrEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
+        <button class="btn btn-sm" data-act="wrToggle" data-id="${esc(c.id)}">${done?'↩ 改回進行中':'✓ 結案'}</button>
+        <span class="grow"></span>
+        <button class="btn btn-sm btn-danger" data-act="wrDel" data-id="${esc(c.id)}">刪除</button></div>
+    </div>`;}).join('');
+}
+function wrForm(c){c=c||{};
+  const cur=wrTotalCur(c);
+  const have=String(c.docs||'').split(/[,，、\s]+/).filter(Boolean);
+  const chk=(v)=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 12px 6px 0;font-weight:400;cursor:pointer"><input type="checkbox" class="wr-doc" value="${esc(v)}" style="width:auto;margin:0"${have.indexOf(v)>=0?' checked':''}> ${esc(v)}</label>`;
+  openModal(`<div class="modal"><div class="modal-head"><h3>✍️ ${c.id?'編輯代書客戶':'新增代書客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
+    <div class="field"><label>姓名 *</label><input id="wr-name" type="text" value="${esc(c.name||'')}" placeholder="例：Nguyễn Thị C"></div>
+    <div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="wr-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>
+    <div class="field full"><label>要寫哪些文件 *</label><div style="margin-top:4px">${WR_DOCS.map(chk).join('')}</div>
+      <input id="wr-docs-other" type="text" value="${esc(have.filter(x=>WR_DOCS.indexOf(x)<0).join('、'))}" placeholder="其他文件名稱（用、隔開）" style="margin-top:6px"></div>
+    <div class="field full"><label>申請學校／單位 <span class="hint">選填</span></label><input id="wr-school" type="text" value="${esc(c.school||'')}" placeholder="例：台灣師大 華語文教學碩士"></div>
+    <div class="field"><label>📄 交件期限 <span class="hint">選填，會在「待辦」提醒</span></label><input id="wr-deadline" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.deadline||'')}"></div>
+    <div class="field"><label>💰 談定的總代書費 <span class="hint">選填。填了才會算「還差多少」</span></label><input id="wr-total" type="number" min="0" value="${esc(c.fee_total==null?'':String(c.fee_total))}" placeholder="例：3000"></div>
+    <div class="field"><label>總費用幣別</label><select id="wr-fcur"><option value="VND"${cur==='VND'?' selected':''}>越南盾 ₫（打千位）</option><option value="TWD"${cur==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${cur==='USD'?' selected':''}>美元 US$</option></select></div>
+    <div class="field full"><label>備註／客戶資料 <span class="hint">選填，可以貼客戶的背景、經歷</span></label><textarea id="wr-note" rows="4" placeholder="例：大學讀化工，想轉華語教學；打工經驗兩年…">${esc(c.note||'')}</textarea></div>
+  </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="wrSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);}
+function wrStageForm(key){const p=String(key).split('::');const c=wrById(p[0]);if(!c)return;
+  const sk=p[1];const meta=WR_STAGES.find(x=>x.k===sk);if(!meta)return;
+  const e=(wrStages(c)[sk])||{};
+  openModal(`<div class="modal"><div class="modal-head"><h3>${meta.ic} ${meta.t} · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body"><div class="form-grid">
+    <div class="field"><label>完成日期 *</label><input id="wrs-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(e.date||localToday())}"></div>
+    <div class="field full"><label>備註 <span class="hint">選填，例：客戶補了成績單／第二次修改</span></label><input id="wrs-note" type="text" value="${esc(e.note||'')}"></div>
+   </div></div>
+   <div class="modal-foot">${e.date?`<button class="btn btn-danger" data-act="wrStageClear" data-id="${esc(c.id)}::${sk}">取消這個階段</button>`:''}
+    <span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">取消</button>
+    <button class="btn btn-primary" data-act="wrStageSave" data-id="${esc(c.id)}::${sk}">💾 儲存</button></div></div>`);}
+function wrPayForm(key){const p=String(key).split('::');const c=wrById(p[0]);if(!c)return;
+  const isNew=(p[1]==null||p[1]==='new');const idx=isNew?-1:Number(p[1]);
+  const pays=wrPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const e=isNew?{}:(pays[idx]||{});const cur=e.currency||wrTotalCur(c);
+  const tot=wrTotal(c);const got=pays.reduce((a,x,i)=>a+((i!==idx&&(x.currency||'VND')===wrTotalCur(c))?(Number(x.amount)||0):0),0);
+  const left=tot?Math.max(0,tot-got):0;
+  const mOpt=(v)=>`<option value="${esc(v)}"${(e.method||'')===v?' selected':''}>${esc(v)}</option>`;
+  openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${isNew?'記一筆收款':'修改收款'} · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+   ${tot?`<div class="hint" style="margin-bottom:10px">談定總額 <b>${money(tot,wrTotalCur(c))}</b>${left>0?`，之前已收 <b>${money(got,wrTotalCur(c))}</b>，還差 <b style="color:#d97706">${money(left,wrTotalCur(c))}</b>`:'，已收齊'}</div>`:'<div class="hint" style="margin-bottom:10px">還沒填「談定的總代書費」，可以到「✏️ 客戶資料」補上。</div>'}
+   <div class="form-grid">
+    <div class="field"><label>收款日期 *</label><input id="wrp-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(e.date||localToday())}"></div>
+    <div class="field"><label>金額 * <span class="hint">越南盾打千位</span></label><div style="display:flex;gap:6px"><input id="wrp-amt" type="number" min="0" style="flex:1" value="${esc(e.amount==null?'':String(e.amount))}" placeholder="${left>0?String(left):'例：1500'}">
+      <select id="wrp-cur" style="width:120px"><option value="VND"${cur==='VND'?' selected':''}>₫ 千</option><option value="TWD"${cur==='TWD'?' selected':''}>NT$</option><option value="USD"${cur==='USD'?' selected':''}>US$</option></select></div>
+      ${left>0?`<div style="margin-top:6px"><button class="btn btn-sm" type="button" data-act="wrPayFill" data-id="${left}">帶入剩下的 ${money(left,wrTotalCur(c))}</button></div>`:''}</div>
+    <div class="field"><label>收款方式 <span class="hint">選填</span></label><select id="wrp-method"><option value="">—</option>${mOpt('銀行轉帳')}${mOpt('現金')}${mOpt('Momo')}${mOpt('LINE Pay')}${mOpt('其他')}</select></div>
+    <div class="field"><label>備註 <span class="hint">選填，例：訂金、定稿後尾款</span></label><input id="wrp-note" type="text" value="${esc(e.note||'')}"></div>
+   </div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="wrPaySave" data-id="${esc(c.id)}::${isNew?'new':idx}">💾 儲存</button></div></div>`);}
 function renderAgency(){
   const body=$('#agency-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','代辦申請只有主管理員看得到。');return;}
@@ -1217,12 +1380,12 @@ function renderOps(){const body=$('#ops-body');
     annHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">📢 站內公告 <span class="hint">所有學生登入首頁都會看到</span></div><div class="quiz-create-row" style="margin:6px 0 10px"><button class="btn btn-sm btn-accent" data-act="newAnnounce">＋ 發布公告</button></div>${annRows}</div>`;}
   const siteHtml=IS_OWNER?leadsCardHtml()+siteCardHtml():'';
   const itvNow=itvIncome(thisM),itvAllInc=itvIncome(null);
-  const agNow=agIncome(thisM),agAllInc=agIncome(null);
+  const agNow=agIncome(thisM),agAllInc=agIncome(null);const wrNow=wrIncome(thisM),wrAllInc=wrIncome(null);
   const agSummary=`<div class="card" style="margin-top:14px"><div class="lesson-label">🎓 代辦申請收入</div><div style="display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 4px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum(agNow.paid)}</div><div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計</div>${bigNum(agAllInc.paid)}</div>${Object.keys(agAllInc.due).length?`<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${itvMoneyStr(agAllInc.due)}</b></div>`:''}</div><div class="hint">只算已勾「已收款」的進度；到「🎓 代辦申請」分頁管理。</div></div>`;
   const itvSummary=`<div class="card" style="margin-top:14px"><div class="lesson-label">🎤 面試練習收入</div><div style="display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 4px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum(itvNow.paid)}</div><div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計</div>${bigNum(itvAllInc.paid)}</div>${Object.keys(itvAllInc.due).length?`<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${itvMoneyStr(itvAllInc.due)}</b></div>`:''}</div><div class="hint">只算已勾「已收款」的場次；到「🎤 面試練習」分頁管理。</div></div>`;
-  const totNow=itvAddCur(itvAddCur(Object.assign({},monCur),itvNow.paid),agNow.paid);const totAll=itvAddCur(itvAddCur(Object.assign({},allCur),itvAllInc.paid),agAllInc.paid);
+  const totNow=itvAddCur(itvAddCur(itvAddCur(Object.assign({},monCur),itvNow.paid),agNow.paid),wrNow.paid);const totAll=itvAddCur(itvAddCur(itvAddCur(Object.assign({},allCur),itvAllInc.paid),agAllInc.paid),wrAllInc.paid);
   const bigNum2=(obj)=>{const ks=Object.keys(obj);return ks.length?ks.map(cur=>`<b style="font-size:26px">${money(obj[cur],cur)}</b>`).join('<span class="muted" style="font-size:18px"> ＋ </span>'):'<b style="font-size:26px" class="muted">—</b>';};
-  const totalCard=`<div class="card" style="margin-bottom:14px;border:2px solid var(--primary);background:linear-gradient(180deg,#fffdf8,#fff)"><div class="lesson-label" style="font-size:15px">🧮 總收入（華語教學 ＋ 面試練習 ＋ 代辦申請）</div><div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:6px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum2(totNow)}</div><div style="border-left:1px solid var(--line);padding-left:28px"><div class="muted" style="font-size:12px">累計（全部）</div>${bigNum2(totAll)}</div></div><div class="hint" style="margin-top:8px">下面是兩條業務線的明細。</div></div>`;
+  const totalCard=`<div class="card" style="margin-bottom:14px;border:2px solid var(--primary);background:linear-gradient(180deg,#fffdf8,#fff)"><div class="lesson-label" style="font-size:15px">🧮 總收入（華語教學 ＋ 面試練習 ＋ 代辦申請 ＋ 代書）</div><div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:6px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum2(totNow)}</div><div style="border-left:1px solid var(--line);padding-left:28px"><div class="muted" style="font-size:12px">累計（全部）</div>${bigNum2(totAll)}</div></div><div class="hint" style="margin-top:8px">下面是兩條業務線的明細。</div></div>`;
   const _tm=[];{let d=new Date(localToday()+'T00:00:00');for(let k=5;k>=0;k--){const dd=new Date(d.getFullYear(),d.getMonth()-k,1);_tm.push(dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0'));}}
   const _vnd=_tm.map(m=>((byMonth[m]||{})['VND']||0));const _twd=_tm.map(m=>((byMonth[m]||{})['TWD']||0));
   const _mx=Math.max.apply(null,_vnd.concat([1]));
@@ -4410,6 +4573,51 @@ H.crmMove=async()=>{
   CRM_MOVING=false;
   await loadAll();render();
   toast(bad?('搬好 '+ok+' 筆，有 '+bad+' 筆失敗'):('搬好了，'+ok+' 筆已經變成只有你看得到 ✓'));};
+H.wrNew=()=>wrForm(null);
+H.wrEdit=(id)=>wrForm(wrById(id));
+H.wrSave=async(id)=>{const name=(($('#wr-name')&&$('#wr-name').value)||'').trim();if(!name)return toast('請填姓名');
+  const picked=[...document.querySelectorAll('.wr-doc')].filter(x=>x.checked).map(x=>x.value).filter(x=>x!=='其他');
+  const other=(($('#wr-docs-other')&&$('#wr-docs-other').value)||'').split(/[,，、\s]+/).filter(Boolean);
+  const docs=picked.concat(other).join('、');
+  if(!docs)return toast('請至少勾一種文件');
+  const _tv=(($('#wr-total')&&$('#wr-total').value)||'').trim();
+  const patch={kind:'writing',name,phone:(($('#wr-phone')&&$('#wr-phone').value)||'').trim(),
+    school:(($('#wr-school')&&$('#wr-school').value)||'').trim(),docs,
+    deadline:((($('#wr-deadline')&&$('#wr-deadline').value)||'')||null),
+    note:(($('#wr-note')&&$('#wr-note').value)||'').trim(),
+    fee_total:(_tv===''?null:Number(_tv)),fee_cur:(($('#wr-fcur')&&$('#wr-fcur').value)||'VND')};
+  try{
+    if(id){await DB.update(crmCol(id),id,patch);}
+    else{patch.status='active';patch.stages={};patch.payments=[];patch.created_at=new Date().toISOString();await DB.insert('crm',patch);}
+    await loadAll();closeModal();S.tab='writing';render();toast('已儲存');
+  }catch(e){toast(writeErr('儲存失敗',e));}};
+H.wrToggle=async(id)=>{const c=wrById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
+  try{await DB.update(crmCol(id),id,{status:st});await loadAll();render();toast(st==='done'?'已結案':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
+H.wrDel=async(id)=>{const c=wrById(id);if(!c)return;
+  if(!confirm('確定刪除「'+(c.name||'')+'」？進度與收費紀錄會一起刪除。'))return;
+  try{await DB.update(crmCol(id),id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
+H.wrStage=(key)=>wrStageForm(key);
+H.wrStageSave=async(key)=>{const p=String(key).split('::');const c=wrById(p[0]);if(!c)return;
+  const date=(($('#wrs-date')&&$('#wrs-date').value)||'');if(!date)return toast('請選完成日期');
+  const st=Object.assign({},wrStages(c));st[p[1]]={date,note:(($('#wrs-note')&&$('#wrs-note').value)||'').trim()};
+  try{await DB.update(crmCol(c.id),c.id,{stages:st});c.stages=st;await loadAll();closeModal();render();toast('進度已更新 ✓');}catch(e){toast(writeErr('儲存失敗',e));}};
+H.wrStageClear=async(key)=>{const p=String(key).split('::');const c=wrById(p[0]);if(!c)return;
+  const st=Object.assign({},wrStages(c));delete st[p[1]];
+  try{await DB.update(crmCol(c.id),c.id,{stages:st});c.stages=st;await loadAll();closeModal();render();toast('已取消這個階段');}catch(e){toast(writeErr('失敗',e));}};
+H.wrPayNew=(id)=>wrPayForm(id+'::new');
+H.wrPayEdit=(key)=>wrPayForm(key);
+H.wrPayFill=(v)=>{const i=$('#wrp-amt');if(i)i.value=String(v);};
+H.wrPaySave=async(key)=>{const p=String(key).split('::');const c=wrById(p[0]);if(!c)return;
+  const date=(($('#wrp-date')&&$('#wrp-date').value)||'');if(!date)return toast('請選收款日期');
+  const amt=Number(($('#wrp-amt')&&$('#wrp-amt').value)||0);if(!amt)return toast('請填金額');
+  const row={date,amount:amt,currency:($('#wrp-cur')&&$('#wrp-cur').value)||'VND',method:($('#wrp-method')&&$('#wrp-method').value)||'',note:(($('#wrp-note')&&$('#wrp-note').value)||'').trim()};
+  const arr=wrPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  if(p[1]==='new')arr.push(row);else arr[Number(p[1])]=row;
+  arr.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  try{await DB.update(crmCol(c.id),c.id,{payments:arr});c.payments=arr;await loadAll();closeModal();render();toast('已記錄收款 ✓');}catch(e){toast(writeErr('儲存失敗',e));}};
+H.wrPayDel=async(key)=>{const p=String(key).split('::');const c=wrById(p[0]);if(!c)return;if(!confirm('刪除這筆收款紀錄？'))return;
+  const arr=wrPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));arr.splice(Number(p[1]),1);
+  try{await DB.update(crmCol(c.id),c.id,{payments:arr});c.payments=arr;await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.agNew=()=>agForm(null);
 H.agEdit=(id)=>agForm(agById(id));
 H.agSave=async(id)=>{const name=($('#ag-name').value||'').trim();if(!name)return toast('請填姓名');
