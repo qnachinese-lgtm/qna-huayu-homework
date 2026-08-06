@@ -1968,7 +1968,8 @@ function gradeQueue(){
   const add=(arr,kind,lidKey,extraFn)=>{(arr||[]).forEach(sd=>{const done=sd.status==='reviewed';
     if(sd.status!=='submitted'&&!done)return;
     out.push({kind,id:sd.id,sd,name:sgName(sd),test:sgTest(sd),les:sgLes(sd[lidKey]),
-      pend:!done,ts:sd.submitted_at||'',extra:extraFn?extraFn(sd):''});});};
+      pend:!done,ts:sd.submitted_at||'',extra:extraFn?extraFn(sd):'',
+      hasDraft:!!((sd.draft_feedback&&Object.keys(sd.draft_feedback).length)||(sd.draft_overall&&String(sd.draft_overall).trim()))});});};
   add(S.gpracs,'gprac','gprac_lesson',sd=>Object.keys(sd.answers||{}).length+' 題');
   add(S.discussions,'disc','disc_lesson',sd=>Object.keys(sd.answers||{}).length+' 題');
   add(S.sentences,'sent','sent_lesson',sd=>(sd.items||[]).filter(it=>it.sentence).length+' 句');
@@ -2044,7 +2045,8 @@ function renderGrades(){
   const rows=list.length?list.map(x=>{const key=x.kind+'::'+x.id;const m=SGKIND[x.kind]||{ic:'',lab:''};
     return '<button class="sg-item'+(S.sgSel===key?' on':'')+(x.test?' test':'')+'" data-act="sgPick" data-id="'+esc(key)+'">'
       +'<span class="sg-i1"><b>'+esc(x.name)+'</b>'+(x.test?'<span class="sg-tt">測試</span>':'')
-      +'<span class="sg-st '+(x.pend?'pend':'done')+'">'+(x.pend?'待批改':'已完成')+'</span></span>'
+      +'<span class="sg-st '+(x.pend?'pend':'done')+'">'+(x.pend?'待批改':'已完成')+'</span>'
+      +(x.hasDraft?'<span class="sg-st" style="background:#e0ebff;color:#1d4ed8">💡 有草稿</span>':'')+'</span>'
       +'<span class="sg-i2">'+m.ic+' '+esc(m.lab)+'　'+esc(x.les)+'</span>'
       +'<span class="sg-i3">'+(x.extra?esc(x.extra)+'　':'')+(x.ts?('🕒 '+esc(fmtDT(x.ts))):'')+'</span></button>';}).join('')
     :'<div class="muted" style="padding:16px 12px">'+(S.sgOnly==='all'?'還沒有任何作答':'目前沒有待批改的項目 🎉')+'</div>';
@@ -2847,7 +2849,7 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
   const w=(S.workbooks||[]).find(x=>x.id===sd.wb_lesson)||{};const d=w.wb||{};
   const a=sd.answers||{},fb=sd.feedback||{},sc=sd.score||{};
   const pill=(lab,o)=>o&&o.total?`<span class="tag">${lab} ${o.ok}/${o.total}</span>`:'';
-  let head=`<div class="hint" style="margin-bottom:8px">${esc(w.title||'作業簿')}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>
+  let head=`<div class="hint" style="margin-bottom:8px">${esc(w.title||'作業簿')}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'wbrev-fb')}
    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span class="tag tpub-y">自動批改 ${sc.ok||0}/${sc.total||0}</span>${pill('聽力',sc.listen)}${pill('詞彙選擇',sc.vocab)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀',sc.read)}</div>`;
   const bad=[];
   (d.listen||[]).forEach(q=>{const v=(a.listen||{})[q.n]||'';if(q.ans&&v!==q.ans)bad.push('一聽力 '+q.n+'：答 '+(v||'—')+'，正解 '+q.ans);});
@@ -3043,7 +3045,7 @@ H.reviewSent=(id)=>{const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
   const fb=sd.feedback||{};
   const rows=(sd.items||[]).map(it=>`<div class="srev-item"><div class="srev-word">${esc(it.word)}</div><div class="srev-sent">${it.sentence?esc(it.sentence):'<span class="muted">（未作答）</span>'}</div><textarea class="srev-fb" data-w="${esc(it.word)}" rows="2" placeholder="給這一句的建議（可留空）">${esc(fb[it.word]||'')}</textarea></div>`).join('');
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>✍️ 造句批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${rows}
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'srev-fb')}${rows}
    <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="srev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('srev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveSentReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveSentReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveSentReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
@@ -3067,7 +3069,7 @@ H.reviewDisc=(id)=>{const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)retur
     answered.forEach(x=>{rows+=`<div class="srev-item"><div class="srev-word">${esc(x.q)}</div><div class="srev-sent">${esc(x.a)}</div><textarea class="drev-fb" data-k="${esc(x.key)}" rows="2" placeholder="給這一題的建議（可留空）">${esc(fb[x.key]||'')}</textarea></div>`;});});
   if(!rows)rows='<div class="muted">（學生還沒有作答任何問題與討論）</div>';
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>💬 問題與討論批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${rows}
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'drev-fb')}${rows}
    <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="drev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('drev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveDiscReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveDiscReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveDiscReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)return;
@@ -3120,6 +3122,32 @@ function gpQHeadT(q,no,resp){
   const head=`<div class="srev-word">${no}.${pr?(' '+esc(pr)):(body?'':' <span class="muted" style="font-weight:400;font-size:15px">（這一題沒有題幹文字）</span>')}</div>`;
   return instr+head+pic+aud+(body?`<div style="margin:6px 0 8px">${body}</div>`:'');
 }
+/* ===== 批改草稿：先擬好放著，老師確認後才會變成給學生看的評語 ===== */
+function draftBanner(sd,cls){
+  const df=sd&&sd.draft_feedback,doo=(sd&&sd.draft_overall)||'';
+  const n=df?Object.keys(df).length:0;
+  if(!n&&!doo)return '';
+  return `<div class="card" style="background:#f4f8ff;border-color:#c3d5f5;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <b style="font-size:14px">💡 已擬好批改草稿</b>
+      <span class="hint">${n} 題有建議${doo?'，另有整體評語':''}　·　<b>學生現在看不到</b></span>
+      <span class="grow"></span>
+      <button class="btn btn-sm btn-accent" data-act="draftApply" data-id="${esc(sd.id)}::${esc(cls)}">⬇ 帶入下面的欄位</button>
+      <button class="btn btn-sm btn-ghost" data-act="draftDrop" data-id="${esc(sd.id)}">✕ 不用草稿</button>
+    </div>
+    <div class="hint" style="margin-top:6px">帶入後你可以直接改字，確認沒問題再按「標記完成」，學生那時才看得到。</div></div>`;
+}
+H.draftApply=(key)=>{const p=String(key).split('::');const id=p[0],cls=p[1]||'gprev-fb';
+  const sd=[...(S.gpracs||[]),...(S.discussions||[]),...(S.sentences||[]),...(S.wbdocs||[])].find(x=>x&&x.id===id);
+  if(!sd)return;const df=sd.draft_feedback||{};
+  let n=0;document.querySelectorAll('.'+cls).forEach(el=>{const k=el.dataset.k;if(df[k]!=null&&df[k]!==''){el.value=df[k];n++;}});
+  const ovId={'gprev-fb':'gprev-overall','drev-fb':'drev-overall','wbrev-fb':'wbrev-overall','srev-fb':'srev-overall'}[cls];
+  const ov=ovId?document.getElementById(ovId):null;
+  if(ov&&sd.draft_overall)ov.value=sd.draft_overall;
+  toast('已帶入 '+n+' 則建議，請你看過再送出');};
+H.draftDrop=async(id)=>{const sd=[...(S.gpracs||[]),...(S.discussions||[]),...(S.sentences||[]),...(S.wbdocs||[])].find(x=>x&&x.id===id);
+  if(!sd)return;if(!confirm('清掉這份草稿？'))return;
+  try{await DB.update('results',id,{draft_feedback:{},draft_overall:''});sd.draft_feedback={};sd.draft_overall='';toast('已清掉草稿');closeModal();render();}catch(e){toast(writeErr('失敗',e));}};
 H.reviewGprac=(id)=>{const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
   const l=S.lessons.find(x=>x.id===sd.gprac_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
@@ -3130,7 +3158,7 @@ H.reviewGprac=(id)=>{const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
     rows+=`<div class="srev-item">${gpQHeadT(q,i+1,ans[q.id])}${_isOpt?'':`<div class="lesson-label" style="margin-top:8px">學生的答案</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>`}${(sol&&!_isOpt)?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(sol)}</div>`:''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="給這一題的建議（可留空，學生會看到）">${esc(fb[q.id]||'')}</textarea></div>`;});
   if(!rows)rows='<div class="muted">（這一課目前沒有語法練習題）</div>';
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>📘 語法練習批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${rows}
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'gprev-fb')}${rows}
    <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="gprev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('gprev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveGpracReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveGpracReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveGpracReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
