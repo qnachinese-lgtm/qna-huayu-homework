@@ -3621,8 +3621,14 @@ H.newQuiz=()=>{
      <div class="field"><label>題型</label><span class="hint" style="display:block;margin:-2px 0 4px">想自己念句子讓學生聽寫，就選<b>「🎙️ 我自己錄音／上傳音檔」</b>——一題錄一句，打上正確答案，學生聽完打字，系統自動對。<br>「聽寫（用課本生詞的真人錄音）」是播那一課生詞的錄音，要先到「編輯課文」→ 生詞下方上傳整段生詞錄音。<b>本平台不使用機器合成語音。</b></span><select id="quiz-mode" onchange="H.qzModeChg()"><option value="audio">🎙️ 我自己錄音／上傳音檔（我念，學生聽了寫下來）</option><option value="live">🗣️ 老師現場唸（我在課堂上唸，學生聽了打字，不用錄音）</option><option value="dict">聽寫（用課本生詞的真人錄音）</option><option value="pinyin">看拼音寫字</option><option value="mean">看意思寫字</option><option value="choice">看字選意思（選擇題）</option><option value="cloze">看例句填生詞（克漏字，需生詞有例句）</option><option value="custom">✍️ 自訂題目（自己出題，跟生詞無關）</option></select></div>
      <div class="field" id="qzf-lesson"><label>考哪一課的生詞 <span class="hint">（自訂題目／自己錄音可不選）</span></label><select id="quiz-lesson"><option value="">（自訂題目時不用選）</option>${lessonOpts}</select></div>
      <div class="field" id="qzf-items"><label>自訂題目 <span class="hint">選「✍️ 自訂題目」時用這裡。一行一題，格式 <b>題目＝答案</b>；可接受多個答案用 <b>/</b> 隔開。學生看題目、打答案、自動對。</span></label><textarea id="quiz-items" placeholder="「謝謝」要怎麼回應？＝不客氣&#10;banana 的中文＝香蕉&#10;我＿＿喜歡喝茶。＝很/真的"></textarea></div>
-     <div class="field" id="qzf-live"><label>🗣️ 這次要唸幾句 <span class="hint">一行一題，<b>順序固定</b>，不會被打亂 —— 你唸第一句，學生看到的就是「第 1 句」。<br>把句子打上去，系統就會自動對答案；那一行留空或打一個 <b>-</b>，那題就不自動對，學生寫的原樣留給你，你再進「小考結果」按 ⭕／❌。</span>
-       <textarea id="quiz-live" rows="6" placeholder="今天天氣很好。&#10;我昨天去圖書館看書。&#10;-&#10;請問洗手間在哪裡？&#10;他是我的好朋友。"></textarea></div>
+     <div class="field" id="qzf-live"><label>🗣️ 現場唸的設定</label>
+       <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+         <div><div class="hint" style="margin-bottom:3px">這次要唸幾句</div>
+           <input id="quiz-live-n" type="number" min="1" max="30" value="5" style="width:110px"></div>
+         <div class="hint" style="flex:1;min-width:220px;line-height:1.7">學生會看到「第 1 句」到「第 N 句」，<b>順序固定不會被打亂</b>。<br>五題寫在同一頁，全部寫完按一次「送出給老師」，中途不會看到答案。</div>
+       </div>
+       <div style="margin-top:10px"><div class="hint" style="margin-bottom:3px"><b>正確答案（可以完全不填）</b> —— 臨時想到的句子就別填，全部交給你手動批改；想讓系統自動對答案，才一行打一句。空白的那幾行一樣是你自己批。</div>
+         <textarea id="quiz-live" rows="5" placeholder="（可以留空）&#10;今天天氣很好。&#10;我昨天去圖書館看書。"></textarea></div></div>
      <div class="field" id="qzf-audio"><label>🎙️ 我的錄音題目 <span class="hint">一題一句：按「錄音」念一句（再按一次停止），或「上傳音檔」選 mp3。<b>正確答案可以不填</b>——沒填的題目系統不自動對，學生寫的內容會原封不動留給你，你有空再進去看、按 ⭕／❌ 打分。填了就會自動對答案。</span></label>
        <div id="qz-aud-list" style="margin-top:6px"></div>
        <div style="margin-top:8px"><button class="btn btn-sm" type="button" data-act="qzAudAdd">＋ 加一題</button></div></div>
@@ -3640,9 +3646,15 @@ H.saveQuiz=async()=>{
   const items=($('#quiz-items')&&$('#quiz-items').value)||'';
   qzAudSyncAns();
   const qaud=QAUD.filter(x=>x&&x.url).map(x=>({url:x.url,ans:String(x.ans||'').trim()}));
-  const liveTxt=($('#quiz-live')&&$('#quiz-live').value)||'';
-  if(mode==='live'){const _ls=String(liveTxt).split('\n');while(_ls.length&&!String(_ls[_ls.length-1]).trim())_ls.pop();
-    if(!_ls.length){toast('請至少寫一行（一行一題）');return;}}
+  let liveTxt=($('#quiz-live')&&$('#quiz-live').value)||'';
+  if(mode==='live'){
+    const _n=Math.max(0,Math.min(30,Number(($('#quiz-live-n')&&$('#quiz-live-n').value)||0)||0));
+    let _ls=String(liveTxt).split('\n');
+    while(_ls.length&&!String(_ls[_ls.length-1]).trim())_ls.pop();
+    if(!_ls.length&&!_n){toast('請填「這次要唸幾句」');return;}
+    if(_n>_ls.length){while(_ls.length<_n)_ls.push('');}
+    liveTxt=_ls.join('\n');
+  }
   if(mode==='audio'){if(!qaud.length){toast('請至少錄一題（或上傳一個音檔）');return;}
     const noAns=qaud.filter(x=>!x.ans).length;
     const lost=QAUD.filter(x=>x&&!x.url&&String(x.ans||'').trim()).length;

@@ -282,6 +282,13 @@ span.wb-bl{display:inline-block;min-width:7em;padding:0 8px;margin:0 4px;border-
 .wb-score b{font-size:28px}
 .wb-sgrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .wb-spill{background:rgba(255,255,255,.18);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700}
+.lq-item{padding:12px 0;border-bottom:1px dashed var(--line,#e7e0d4)}
+.lq-item:last-of-type{border-bottom:0}
+.lq-n{font-size:19px;font-weight:800;color:#2E2A26;margin-bottom:2px}
+textarea.lq-in{width:100%;max-width:100%;box-sizing:border-box;font-family:inherit;font-size:19px;line-height:1.8;
+  padding:11px 14px;border:1.5px solid var(--line,#e7e0d4);border-radius:12px;background:#fff;resize:vertical;min-height:64px}
+textarea.lq-in:focus{outline:none;border-color:var(--accent,#B23A48);box-shadow:0 0 0 3px rgba(178,58,72,.12)}
+@media(max-width:600px){textarea.lq-in{font-size:17px}.lq-n{font-size:17px}}
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 10px;padding:7px 11px;background:#FBF7EF;border:1px solid #EADFCE;border-radius:9px;font-size:12.5px;color:#6b6357}
 .fb-legend b{font-size:14px;color:#2E2A26}
 .wb-fb{background:#FFF8E7;border-left:4px solid #E0A526;border-radius:0 10px 10px 0;padding:10px 13px;margin-top:9px;font-size:14.5px;line-height:1.8}
@@ -837,6 +844,33 @@ function renderDictSetup(){const sel=S.dictSetup=S.dictSetup||{lesson:'all',seg:
      <div style="margin-bottom:12px;color:var(--muted)">📋 ${n} ${t('dCntUnit')}</div>
      <button class="btn btn-primary" style="width:100%;padding:13px;font-size:15px" data-act="dictStart" ${n?'':'disabled'}>${n?('▶ '+t('dStart')):t('dNoneRange')}</button>
    </div>`;}
+/* ===== 🗣️ 老師現場唸：一頁五題、寫完一次送出 ===== */
+let LQ=null;
+function renderLiveQuiz(){
+  const q=LQ;if(!q){$('#screen').dataset.mode='';renderSection();return;}
+  const L=x=>wbL(x);
+  if(q.done){
+    $('#screen').innerHTML=`<div class="card" style="text-align:center;padding:30px">
+      <div style="font-size:44px">✅</div>
+      <h3 style="margin:10px 0">${L({zh:'已經送出給老師了',cn:'已经送出给老师了',en:'Sent to your teacher',vi:'Đã nộp cho giáo viên'})}</h3>
+      <div class="hint">${L({zh:'老師看過之後會給你回饋，先休息一下。',cn:'老师看过之后会给你回馈，先休息一下。',en:'Your teacher will review it and give feedback.',vi:'Cô sẽ xem và nhận xét sau.'})}</div>
+      <button class="btn btn-primary" style="margin-top:16px" data-act="liveExit">${L({zh:'回作業頁',cn:'回作业页',en:'Back',vi:'Quay lại'})}</button></div>`;
+    return;}
+  const rows=q.list.map((it,i)=>{
+    const box=q.hand
+      ? `<div class="qz-hwwrap" style="margin-top:8px"><canvas id="lq-hw-${i}" class="hw-canvas qz-hw" width="1000" height="190"></canvas>
+         <div class="hw-tools"><button class="btn btn-sm" type="button" data-act="liveHwClear" data-id="${i}">${t('hwClear')}</button><span class="hint">${t('hwHint')}</span></div></div>`
+      : `<textarea class="lq-in" id="lq-in-${i}" rows="2" placeholder="${esc(L({zh:'把聽到的整句寫在這裡…',cn:'把听到的整句写在这里…',en:'Type the whole sentence here…',vi:'Gõ cả câu bạn nghe được…'}))}">${esc(q.vals[i]||'')}</textarea>`;
+    return `<div class="lq-item"><div class="lq-n">${esc(it.qtext)}</div>${box}</div>`;});
+  $('#screen').innerHTML=`<button class="btn btn-sm btn-ghost" data-act="liveExit">${t('back')}</button>
+    <div class="section-head" style="margin-top:12px"><h2>📝 ${esc(q.title)}</h2><span class="muted">${q.list.length} ${L({zh:'題',cn:'题',en:'items',vi:'câu'})}</span></div>
+    <div class="card"><div class="hint" style="margin-bottom:12px;font-size:14.5px">${L({zh:'聽老師唸，一句一句寫。五句都寫完再按最下面的「送出給老師」。中途可以回去改。',cn:'听老师念，一句一句写。五句都写完再按最下面的「送出给老师」。中途可以回去改。',en:'Listen and type each sentence. Submit once when all are done.',vi:'Nghe cô đọc và gõ từng câu. Viết xong hết rồi mới nộp.'})}</div>
+      ${rows.join('')}
+      <div style="margin-top:18px;text-align:right"><button class="btn btn-primary" style="padding:12px 26px;font-size:16px" data-act="liveSubmit">${L({zh:'送出給老師',cn:'送出给老师',en:'Submit to teacher',vi:'Nộp cho cô'})}</button></div>
+      <div id="lq-msg" class="hint" style="margin-top:8px;text-align:right"></div></div>`;
+  if(q.hand){try{setupCanvases();}catch(e){}}
+  else{const a=document.getElementById('lq-in-0');if(a)setTimeout(()=>a.focus(),80);}
+}
 function renderDictation(){const dd=S.dict,v=dd.list[dd.idx];const mode=dd.mode||'dict';
   if(mode==='dict'&&!dd.checked)setTimeout(()=>dictPlay(v),300);
   if(mode==='audio'&&!dd.checked)setTimeout(()=>{const a=document.getElementById('qz-aud');if(a){try{a.currentTime=0;a.play().catch(()=>{});}catch(e){}}},350);
@@ -3081,8 +3115,8 @@ H.startQuiz=(id)=>{const qz=(S.quizzes||[]).find(x=>x.id===id);if(!qz)return;con
       const raw=String(ln||'').trim();
       const a=(raw&&raw!=='-'&&raw!=='－'&&raw!=='—')?raw.split(/[\/／]/).map(x=>x.trim()).filter(Boolean):[];
       return {qtext:wbL({zh:'第 '+(i+1)+' 句',cn:'第 '+(i+1)+' 句',en:'Sentence '+(i+1),vi:'Câu '+(i+1)}),front:a[0]||'',ans:a,manual:!a.length};});
-    S.dict={list,idx:0,checked:false,val:'',right:0,ok:false,quiz:{id:qz.id,title:qz.title||t('quizDefTitle')},mode:'live',hand:!!qz.handwrite};
-    $('#screen').dataset.mode='practice';window.scrollTo(0,0);renderDictation();return;}
+    LQ={id:qz.id,title:qz.title||t('quizDefTitle'),list:list,vals:list.map(()=>''),hand:!!qz.handwrite,done:false};
+    $('#screen').dataset.mode='live';window.scrollTo(0,0);renderLiveQuiz();return;}
   if(mode==='custom'){const items=parseQuizItems(qz.quiz_items);if(!items.length){toast(t('noCards'));return;}
     const list=shuffle(items.map(it=>({qtext:it.q,front:it.a[0],ans:it.a})),Math.random()+'');
     S.dict={list,idx:0,checked:false,val:'',right:0,ok:false,quiz:{id:qz.id,title:qz.title||t('quizDefTitle')},mode:'custom',hand:!!qz.handwrite};
@@ -3300,6 +3334,44 @@ H.doReset=async()=>{const email=$('#rs-email').value.trim();if(!email){$('#g-err
 
 H.openLesson=(id)=>{const l=S.lessons.find(x=>x.id===id);S.practiceSet={mode:'lesson',lessonId:id,lesson:l,questions:questionsOf(id),title:(l.order_index?('L'+l.order_index+' · '):'')+l.title};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
+H.liveExit=()=>{LQ=null;$('#screen').dataset.mode='';S.section='work';window.scrollTo(0,0);renderSection();};
+H.liveHwClear=(i)=>{const cv=document.getElementById('lq-hw-'+i);if(!cv)return;
+  const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);cv.dataset.drawn='';};
+H.liveSubmit=async()=>{
+  const q=LQ;if(!q||q.busy)return;
+  const msg=document.getElementById('lq-msg');
+  const L=x=>wbL(x);
+  if(!q.hand){q.list.forEach((it,i)=>{const el=document.getElementById('lq-in-'+i);q.vals[i]=el?el.value:'';});}
+  const blank=q.hand
+    ? q.list.filter((it,i)=>{const cv=document.getElementById('lq-hw-'+i);return !(cv&&cv.dataset.drawn==='1');}).length
+    : q.vals.filter(v=>!String(v||'').trim()).length;
+  if(blank===q.list.length){toast(L({zh:'請先作答再送出',cn:'请先作答再送出',en:'Please answer first',vi:'Hãy làm bài trước'}));return;}
+  if(blank>0&&!confirm(L({zh:'還有 '+blank+' 題空白，確定要送出嗎？',cn:'还有 '+blank+' 题空白，确定要送出吗？',en:blank+' left blank — submit anyway?',vi:'Còn '+blank+' câu trống — vẫn nộp?'})))return;
+  q.busy=true;if(msg)msg.textContent=L({zh:'送出中…',cn:'送出中…',en:'Submitting…',vi:'Đang nộp…'});
+  try{
+    if(q.hand){
+      for(let i=0;i<q.list.length;i++){
+        const cv=document.getElementById('lq-hw-'+i);
+        if(!(cv&&cv.dataset.drawn==='1')){q.vals[i]='';continue;}
+        const d=canvasDataURL(cv,900);
+        q.vals[i]=d?await uploadHw(d,'live_'+q.id+'_'+i):'';
+      }
+    }
+    const _p=/[\s，。？！；：、「」『』（）〈〉《》【】,.?!;:'"()‘’“”]/g;
+    const nz=x=>{try{return (CONV.cn?CONV.cn(x):x).toLowerCase().replace(_p,'');}catch(e){return String(x||'').toLowerCase().replace(_p,'');}};
+    let right=0;const log=[];
+    q.list.forEach((it,i)=>{
+      const val=String(q.vals[i]||'');
+      if(it.manual||q.hand){log.push({q:it.qtext,a:val,c:(it.ans||[]).join(' / '),ok:false,pend:true,hand:!!q.hand});return;}
+      const ok=!!val.trim()&&(it.ans||[]).some(a=>nz(a)===nz(val));
+      if(ok)right++;
+      log.push({q:it.qtext,a:val,c:(it.ans||[]).join(' / '),ok:ok});
+    });
+    await H.saveQuizResult(q.id,right,q.list.length,log);
+    bumpActivity(q.list.length);
+    q.done=true;q.busy=false;renderLiveQuiz();
+  }catch(e){q.busy=false;if(msg)msg.textContent='';toast((e&&e.message)||'送出失敗，請再試一次');}
+};
 H.mistStart=()=>{const due=mistDue();if(!due.length)return;
   MREV={list:shuffle(due.slice(),Math.random()+''),idx:0,checked:false,val:'',ok:false,right:0};
   $('#screen').dataset.mode='mist';window.scrollTo(0,0);renderMist();};
