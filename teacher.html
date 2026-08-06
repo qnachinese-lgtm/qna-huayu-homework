@@ -2594,6 +2594,12 @@ function wbeRender(){
     <div class="field full"><label>標題 * <span class="hint">學生看到的名稱，例：第三課　買生日禮物</span></label><input id="wbe-title" type="text" value="${esc(m.title||'')}"></div>
     <div class="field full"><label>英文標題 <span class="hint">選填</span></label><input id="wbe-en" type="text" value="${esc(m.wb_en||'')}"></div>
   </div>
+  <div class="lesson-label" style="margin-top:16px">✍️ 哪些大題讓學生手寫</div>
+  <div class="hint" style="margin-bottom:6px">勾起來的大題，學生看到的不是打字框，而是有格線的寫字板（手指或觸控筆都可以寫）。手寫的大題系統不自動對答案，改由你在批改畫面看字跡打分。</div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px">
+    ${[['py','二 寫出拼音'],['hz','三 寫出中國字'],['ord','四 句子重組'],['pic','六 圖片描述'],['g7','七 語法練習']].map(([k,lb])=>
+      `<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" class="wbe-hand" data-k="${k}" style="width:auto" ${((d.hand||{})[k])?'checked':''}> ${esc(lb)}</label>`).join('')}
+  </div>
   <div class="lesson-label" style="margin-top:16px">② 聽力音檔</div>
   <div class="hint" style="margin-bottom:4px">三段聽力各上傳一個音檔。沒有音檔學生還是看得到題目，只是聽不到。</div>
   <div id="wbe-auds">${wbeAudRows()}</div>
@@ -2622,6 +2628,8 @@ function wbeCollect(){
   WBE.meta.wb_en=(g('wbe-en')||'').trim();
   WBE_SECS.forEach(sc=>{WBE.d[sc.k]=wbeParse(sc.k,g('wbe-'+sc.k),WBE.d[sc.k]);});
   (((WBE.d.g7||{}).groups)||[]).forEach(gr=>{const t=g('wbe-g7'+gr.k);if(t!=null&&t!=='')gr.title=t;});
+  const hd={};document.querySelectorAll('.wbe-hand').forEach(c=>{if(c.checked)hd[c.dataset.k]=true;});
+  WBE.d.hand=hd;
   WBE.d.b1=true;
   if(!Array.isArray(WBE.d.audios)||!WBE.d.audios.length)WBE.d.audios=[];
   ['A','B','C','D'].forEach((k,i)=>{if(!WBE.d.audios.find(x=>String(x.key||'').toUpperCase()===k))
@@ -2855,6 +2863,23 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
       <div class="srev-sent">${v?esc(v):'<span class="muted">（未作答）</span>'}</div>
       ${g.ref?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(g.ref)}</div>`:''}
       <textarea class="wbrev-fb" data-k="g${g.n}" rows="2" placeholder="給這一題的建議（學生會看到）">${esc(fb['g'+g.n]||'')}</textarea></div>`;});
+  /* 手寫作答（時代華語一） */
+  const HD=(d.hand)||{};
+  const HSEC=[['py','二 寫出拼音',(d.py||[]).flatMap(g=>(g.lines||[]).map((ln,i)=>({k:g.n+'-'+i,q:(ln.sp?ln.sp+'：':'')+(ln.zh||''),ref:ln.ans||''})))],
+              ['hz','三 寫出中國字',(d.hz||[]).flatMap(g=>(g.lines||[]).map((ln,i)=>({k:g.n+'-'+i,q:(ln.sp?ln.sp+'：':'')+(ln.py||''),ref:ln.ans||''})))],
+              ['ord','四 句子重組',(d.ord||[]).map(q=>({k:q.n,q:(q.toks||[]).join('／'),ref:q.ans||''}))],
+              ['pic','六 圖片描述',(d.pic||[]).map(q=>({k:q.n,q:q.hint||(q.img?'（看圖）':''),ref:q.ans||'',img:q.img||''}))],
+              ['g7','七 語法練習',(((d.g7||{}).groups)||[]).flatMap(g=>(g.items||[]).map(it=>({k:g.k+'-'+it.n,q:(it.pattern?('['+it.pattern+'] '):'')+(it.q||''),ref:it.ans||''})))]];
+  HSEC.forEach(([sec,lab,items])=>{
+    if(!HD[sec]||!items.length)return;
+    rows+='<h4 style="margin:16px 0 6px">✍️ '+esc(lab)+'（手寫）</h4>';
+    items.forEach(it=>{const v=((a[sec]||{})[it.k])||'';
+      rows+=`<div class="srev-item"><div class="srev-word">${esc(String(it.k))}.　${esc(it.q)}</div>
+        ${it.img?`<div style="margin:6px 0"><img src="${esc(it.img)}" alt="" style="max-height:150px;border:1px solid var(--line);border-radius:8px"></div>`:''}
+        ${v?`<div style="margin:6px 0"><img src="${esc(v)}" alt="" style="max-width:100%;border:1px solid var(--line);border-radius:10px;background:#fff"></div>`:'<div class="srev-sent"><span class="muted">（未作答）</span></div>'}
+        ${it.ref?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(it.ref)}</div>`:''}
+        <textarea class="wbrev-fb" data-k="${esc(sec+'-'+it.k)}" rows="2" placeholder="給這一題的建議（學生會看到）">${esc(fb[sec+'-'+it.k]||'')}</textarea></div>`;});
+  });
   const wv=a.write||'';
   rows+='<h4 style="margin:16px 0 6px">寫作練習</h4>'
    +`<div class="srev-item"><div class="hint" style="margin-bottom:4px">字數：${String(wv).replace(/\s/g,'').length}</div>
