@@ -2075,7 +2075,11 @@ function classUpcomingHtml(){
   const rows=ups.slice(0,8).map((u,i)=>{const wd=wdLabel(u.date);const _t=twVn(u.start,u.end);const tm=_t?` <span class="hint" style="white-space:nowrap">🇹🇼 ${esc(_t.tw)}</span> <span class="hint" style="white-space:nowrap;color:#1F6F78;font-weight:600">🇻🇳 ${esc(_t.vn)}</span>`:'';const dd=Math.round((new Date(u.date+'T00:00:00')-t0)/86400000);const rel=dd<=0?TT.today:(dd===1?TT.tmr:TT.din(dd));return `<div class="dash-row" style="padding:6px 0;align-items:center;flex-wrap:wrap;gap:4px">${i===0?`<span class="badge badge-soon">${TT.next}</span>`:''}<b>${esc(u.date)}</b>${wd?`<span class="hint">（${wd}）</span>`:''}${tm}${u.note?`<span class="hint">· ${esc(u.note)}</span>`:''}<span class="grow"></span><span style="color:#1F6F78;font-weight:600;white-space:nowrap">${esc(rel)}</span></div>`;}).join('');
   return `<div class="card" style="margin-bottom:12px"><div class="ann-h">📅 ${TT.title}</div>${tzLegendHtml()}<div style="margin-top:2px">${rows}</div></div>`;
 }
-function lessonTitleOf(lid){const l=(S.lessons||[]).find(x=>x.id===lid);if(!l)return '';return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');}
+function lesTitle(l){if(!l)return '';const t=String(l.title||'').trim();
+  /* 標題本身已經寫了「第三課…」就不要再加一次「第3課」 */
+  if(!l.order_index||/^第\s*[0-9０-９一二三四五六七八九十百廿卅]+\s*課/.test(t))return t;
+  return '第'+l.order_index+'課 '+t;}
+function lessonTitleOf(lid){const l=(S.lessons||[]).find(x=>x.id===lid);if(!l)return '';return lesTitle(l);}
 function swAnsText(a){if(a==null)return '';if(typeof a==='string')return a;if(Array.isArray(a))return a.map(x=>(x&&x.t!=null)?x.t:(typeof x==='string'?x:(x&&x.s?(Array.isArray(x.s)?x.s.join(''):x.s):''))).filter(v=>v!=null&&String(v).trim()).join('、');if(typeof a==='object'){if(a.t!=null)return String(a.t);try{return Object.values(a).filter(v=>v!=null&&String(v).trim()).join('、');}catch(e){return '';}}return String(a);}
 function swQA(kind,doc,lid){const out=[];const fbm=(doc&&doc.feedback)||{};try{
   if(kind==='disc'){const l=(S.lessons||[]).find(x=>x.id===lid);const ans=doc.answers||{};if(l)lessonDialogues(l).forEach((d,di)=>{(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean).forEach((q,qi)=>{const a=ans[di+'_'+qi];if(a!=null&&String(a).trim())out.push({q,a:String(a),fb:fbm[di+'_'+qi]||''});});});}
@@ -2402,7 +2406,7 @@ function renderHome(){
   if(!one){
     mainBlock='<div class="pg-h" style="margin:0 0 10px"><h2 style="font-size:16px">📚 '+esc(T.cs)+'</h2></div><div class="cgrid">'+cards+'</div>';
   }else{
-    const myLs=sortLes((cs[0]&&cs[0].lessons)||[]).slice().reverse();
+    const myLs=sortLes((cs[0]&&cs[0].lessons)||[]);
     const _mdue=(typeof mistDue==='function')?mistDue().length:0;
     const _fN=(MYFILES||[]).filter(f=>f&&f.url).length;
     const quick='<div class="hq">'
@@ -2414,7 +2418,7 @@ function renderHome(){
     const lesRows=myLs.slice(0,6).map(l=>{const r=resultOf(l.id);const done=!!(r&&r.status==='done');
       return '<div class="todo" data-act="openLesson" data-id="'+esc(l.id)+'">'
         +'<span class="badge '+(done?'badge-ok':'badge-pending')+'">'+(done?'✓':'▶')+'</span>'
-        +'<span class="tt"><b>'+esc((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||''))+'</b>'
+        +'<span class="tt"><b>'+esc(lesTitle(l))+'</b>'
         +(l.textbook?'<small>'+esc(l.textbook)+'</small>':'')+'</span></div>';}).join('');
     const lesBlock=lesRows
       ?('<div class="pg-h" style="margin:14px 0 10px"><h2 style="font-size:16px">📚 '+esc(QL.les)+'</h2></div>'
