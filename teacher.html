@@ -542,7 +542,9 @@ function leaveCount(s){return Array.isArray(s&&s.class_log)?s.class_log.filter(e
 function makeupCount(s){return Array.isArray(s&&s.class_log)?s.class_log.filter(e=>e&&e.makeup).length:0;}
 function makeupDue(s){if(!s||s.class_type==='團班')return 0;return Math.max(0,leaveCount(s)-makeupCount(s));}
 function classAttended(s){return Array.isArray(s&&s.class_log)?s.class_log.filter(e=>e&&e.status!=='leave'&&!e.free).length:0;}
-function sessionsLeft(s){if(!s||s.sessions_total==null||s.sessions_total==='')return null;const tot=Number(s.sessions_total);if(isNaN(tot))return null;return Math.round((tot-usedUnits(s))*100)/100;}
+/* 已改成「對帳制」：不再管預付堂數配額，一律回 null，所有『還剩幾堂』的顯示自動關閉。應收／已繳／餘額請看 stuBill()。 */
+function sessionsLeft(s){return null;}
+function sessionsLeftRaw(s){if(!s||s.sessions_total==null||s.sessions_total==='')return null;const tot=Number(s.sessions_total);if(isNaN(tot))return null;return Math.round((tot-usedUnits(s))*100)/100;}
 /* 目前應收＝上課記錄逐堂收費總和 − 已繳金額（請假、免費不算） */
 function stuBill(s){
   if(!s)return null;
@@ -573,15 +575,10 @@ function famChip(s){const k=famKeyOf(s);if(!k)return '';const f=famBill(k);if(!f
   const tail=f.due>0.01?('<b style="color:#c2410c">'+money(f.due,f.cur)+'</b>')
     :(f.due<-0.01?('<b style="color:#16a34a">已結清</b>（預繳 '+money(-f.due,f.cur)+'）'):'<b style="color:#16a34a">已結清</b>');
   return '<span title="'+esc(k)+'">👨‍👩‍👦 合併帳戶 '+esc(k)+'：'+tail+(others?(' <span class="muted">· 與 '+esc(others)+' 共用</span>'):'')+'</span>';}
-function sessChip(s){const u2=usedUnits(s);const left=sessionsLeft(s);const un=unitLabel(s);
+function sessChip(s){const u2=usedUnits(s);const un=unitLabel(s);
   const lv=leaveUnits(s);const lvNote=lv?`<span class="muted" style="font-size:12px">（含請假 ${fmtQty(lv)} ${un}）</span>`:'';
-  if(left==null){/* 沒有預購時數／堂數：只寫已上多少 */
-    if(!u2)return '';
-    return `<span>🎟️ ${isHourly(s)?'時數':'堂數'}：<b>已上 ${fmtQty(u2)} ${un}</b>${lvNote}</span>`;}
-  const cls=left<=0?'sess-out':(left<=1?'sess-low':'');
-  return `<span>🎟️ ${isHourly(s)?'時數':'堂數'}：<b>已上 ${fmtQty(u2)}／共 ${fmtQty(Number(s.sessions_total))} ${un}</b>${lvNote}`
-    +(left>0?` <span class="${cls}">· 剩 ${fmtQty(left)}</span>`:' <span class="badge badge-overdue">已用完·需續費</span>')
-    +`</span>`;}
+  if(!u2)return '';
+  return `<span>🎟️ 已上 <b>${fmtQty(u2)} ${un}</b>${lvNote}</span>`;}
 const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
 function avColor(s){let h=0;for(const c of (s||''))h=(h*31+c.charCodeAt(0))>>>0;return AV[h%AV.length];}
 // 頭像縮寫：中文名取「最後兩個字」(如「潘氏蘭」→「氏蘭」、「張國慶」→「國慶」)；拉丁名取首字母
@@ -720,10 +717,10 @@ function healthCheck(){const today=localToday();const out=[];
     const paid=pays.reduce((a,x)=>a+(Number(x.amount)||0),0);
     const u=unitLabel(s);const problems=[];
     const left=sessionsLeft(s);
-    if(left!=null&&left<0)problems.push('剩餘是負的（'+fmtQty(left)+' '+u+'）→ 總'+u+'可能少加了');
+
     /* 上完再收費（有上課記錄也有繳費記錄）＝正常做法，不算問題 */
     const _payg=((s.class_log||[]).length>0&&(s.payments||[]).length>0);
-    if(s.class_type!=='團班'&&(s.sessions_total==null||s.sessions_total==='')&&price!=null&&enrollOf(s)!=='paused'&&!_payg)problems.push('有學費、但沒填「總'+u+'」→ 不會提醒續費');
+
     if((price==null)&&log.length)problems.push('有上課記錄、但沒設學費');
     if(price!=null&&paid>0){const bought=Math.round(paid/price*100)/100;if(s.sessions_total!=null&&Math.abs(bought-Number(s.sessions_total))>0.5)problems.push('繳費金額換算 '+fmtQty(bought)+' '+u+'，和總數 '+esc(String(s.sessions_total))+' 對不上');}
     const fut=log.filter(e=>e.date>today).map(e=>e.date);
@@ -777,8 +774,9 @@ function renderDashboard(){
       <span class="grow"></span><span class="muted">${money(s.tuition,s.currency)} · ${fmtDate(s.payment_date)}</span>
       ${s.email?`<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}" title="寄重設密碼信">✉️</button>`:''}
     </div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有即將到期或逾期的付款 👍</div>`;
-  const lowSess=S.students.filter(s=>!s.is_test).map(s=>({s,left:sessionsLeft(s)})).filter(x=>x.left!=null&&x.left<=1&&enrollOf(x.s)!=='paused').sort((a,b)=>a.left-b.left);
-  const sessHtml=lowSess.length?lowSess.map(({s,left})=>`<div class="dash-row"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span><b>${snm(s.name)}</b><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?'已用完':'剩 '+left+' 堂'}</span><span class="grow"></span><span class="muted">共 ${esc(String(s.sessions_total))} 堂 · 已上 ${classAttended(s)} 堂</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有快用完堂數的學生 👍</div>`;
+  const oweList=S.students.filter(s=>!s.is_test&&enrollOf(s)!=='paused').map(s=>{const b=stuBill(s);return {s,b};}).filter(x=>x.b&&x.b.items.length&&x.b.due>0.0001).sort((a,b)=>b.b.due-a.b.due);
+  const lowSess=oweList.map(x=>({s:x.s,left:0}));
+  const sessHtml=oweList.length?oweList.map(({s,b})=>`<div class="dash-row"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span><b>${snm(s.name)}</b><span class="badge badge-overdue">欠 ${money(b.due,billCur(s))}</span><span class="grow"></span><span class="muted">上課 ${money(b.charge,billCur(s))} · 已繳 ${money(b.paid,billCur(s))}</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有欠款的學生 👍</div>`;
   // 批改提醒（待批改的作答）
   const pendList=(S.results||[]).filter(r=>r.status==='pending');
   const pendByLesson={};pendList.forEach(r=>{pendByLesson[r.lesson_id]=(pendByLesson[r.lesson_id]||0)+1;});
@@ -807,7 +805,7 @@ function renderDashboard(){
   const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"${it.test?' style="opacity:.72"':''}><span class="badge badge-soon">${it.tag}</span><b>${snm(it.name)}</b>${it.test?'<span class="badge" style="background:#e0e7ff;color:#4338ca;border-color:#4338ca55">🧪 測試</span>':''}<span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.ts?`<span class="muted">🕒 ${esc(fmtDT(it.ts))}</span>`:''}${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
   // 提醒：只看「堂數快用完／用完」（不再用付款日期做逾期提醒，因為每週時間、繳費都不固定）
   const remRows=[];
-  lowSess.forEach(({s,left})=>remRows.push(`<div class="dash-row"><span class="badge ${left<=0?'badge-overdue':'badge-soon'}">${left<=0?(isHourly(s)?'時數用完':'堂數用完'):('剩 '+fmtQty(left)+' '+unitLabel(s))}</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">🎟️ 已上 ${fmtQty(usedUnits(s))}/${esc(String(s.sessions_total))} ${unitLabel(s)}</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">登記</button>${IS_OWNER?`<button class="btn btn-sm btn-accent" data-act="renewQuick" data-id="${s.id}">💰 續約</button>`:''}</div>`));
+  if(IS_OWNER)oweList.forEach(({s,b})=>remRows.push(`<div class="dash-row"><span class="badge badge-overdue">💰 欠 ${money(b.due,billCur(s))}</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">上課 ${fmtQty((function(){let q=0;(b.items||[]).forEach(x=>{const h=logHours(x.e);q+=(isHourly(s)?((h!=null)?h:1):1);});return Math.round(q*100)/100;})())} ${unitLabel(s)} · 已繳 ${money(b.paid,billCur(s))}</span><button class="btn btn-sm btn-accent" data-act="payments" data-id="${s.id}">💰 記繳費</button></div>`));
   const mkDue=S.students.filter(s=>!s.is_test&&enrollOf(s)!=='paused'&&makeupDue(s)>0).sort((a,b)=>makeupDue(b)-makeupDue(a));
   mkDue.forEach(s=>remRows.push(`<div class="dash-row"><span class="badge" style="background:#dbeafe;color:#1d4ed8;border-color:#1d4ed855">🔁 待補 ${makeupDue(s)} 堂</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">請假 ${leaveCount(s)} 次 · 已補 ${makeupCount(s)} 次</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">補登</button></div>`));
   itvAll().forEach(c=>{if(!c.exam_date)return;const d=itvDaysTo(c.exam_date);if(d==null)return;
@@ -830,14 +828,14 @@ function renderDashboard(){
   const _dueAll=itvAddCur(itvAddCur(Object.assign({},itvIncome(null).due),agIncome(null).due),wrIncome(null).due);
   const _moneyStr=(o)=>{const ks=Object.keys(o).filter(k=>o[k]);return ks.length?ks.map(c=>money(o[c],c)).join(' ＋ '):'—';};
   const _hasDue=Object.keys(_dueAll).filter(k=>_dueAll[k]).length>0;
-  const _needRenew=lowSess.filter(x=>x.left!=null&&x.left<=0).length;
+  const _needRenew=oweList.length;
   const _statCard=(icon,label,val,color,act)=>`<div class="card" style="flex:1 1 150px;min-width:140px;margin:0;padding:12px 14px${act?';cursor:pointer':''}"${act?` data-act="tab" data-id="${act}"`:''}><div class="muted" style="font-size:12px">${icon} ${label}</div><b style="font-size:21px;color:${color};display:block;margin-top:2px">${val}</b></div>`;
   const statHtml=`<div style="display:flex;gap:10px;flex-wrap:wrap">`+
     (IS_OWNER?(_statCard('💰','本月收入',_moneyStr(_totNow),'#16a34a','ops')
       +_statCard('💳','尚未收款',_moneyStr(_dueAll),_hasDue?'#d97706':'#94a3b8','ops')):'')+
     _statCard('📥','待批改',inbox.length+' 份',inbox.length?'#2563eb':'#94a3b8','grades')+
     _statCard('⏰','待辦提醒',remRows.length+' 件',remRows.length?'#7c3aed':'#94a3b8')+
-    (IS_OWNER?_statCard('🎟️','需要繳費',lowSess.length+' 位',lowSess.length?'#dc2626':'#94a3b8'):
+    (IS_OWNER?_statCard('💳','還沒收到',oweList.length+' 位',oweList.length?'#dc2626':'#94a3b8','pay'):
       _statCard('👥','我負責的學生',(S.students||[]).filter(x=>!x.is_test).length+' 位','#0d9488','students'))+
     `</div>`;
   const _hr=new Date().getHours();const _greet=_hr<11?'早安':(_hr<18?'午安':'晚安');
@@ -1534,7 +1532,8 @@ function renderCalLedger(body,toggle){
   const summary=`<div class="card" style="margin-bottom:12px;display:flex;gap:18px;flex-wrap:wrap;align-items:center"><span>👥 學生 <b>${list.length}</b> 位</span><span>📅 ${label} 共上 <b>${monthTotal}</b> 堂（計費）</span>${lowN?`<span style="color:#d97706">⚠️ <b>${lowN}</b> 位堂數快用完</span>`:''}</div>`;
   const STM={attended:['出席','#16a34a'],leave:['請假','#d97706'],absent:['缺席','#dc2626']};
   const rows=rowData.map(r=>{const s=r.s;
-    const leftHtml=r.left==null?'<span class="muted">—</span>':`<b style="color:${r.left<=0?'#dc2626':(r.left<=2?'#d97706':'#16a34a')}">${fmtQty(r.left)}</b> ${unitLabel(s)}${r.left<=0?' <span class="badge badge-overdue">用完</span>':(r.left<=2?' <span class="badge badge-soon">快用完</span>':'')}`;
+    const _bb=stuBill(s);const _cc=billCur(s);
+    const leftHtml=(!_bb||!_bb.items.length)?'<span class="muted">—</span>':(_bb.due>0.0001?`<b style="color:#c2410c">欠 ${money(_bb.due,_cc)}</b>`:(_bb.due<-0.0001?`<span style="color:#7c3aed">預繳 ${money(-_bb.due,_cc)}</span>`:'<b style="color:#16a34a">✅ 已結清</b>'));
     const stat=(lb,v)=>`<span style="font-size:13px;white-space:nowrap"><span class="muted">${lb}</span> ${v}</span>`;
     const payCell=r.lastPay?`${esc((r.lastPay.date||'').slice(0,10))}　${money(r.lastPay.amount,r.lastPay.currency||s.currency)}`:'<span class="muted">還沒有繳費紀錄</span>';
     const dateRows=r.all.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).map(e=>{const m=STM[e.status]||STM.attended;const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';const tm=(e.start||e.end)?` <span class="muted" style="font-size:12px">${esc((e.start||'')+(e.end?'–'+e.end:''))}</span>`:'';return `<div class="dash-row" style="padding:4px 0"><b>${esc(e.date)}</b>${wd?`<span class="muted" style="font-size:12px;margin-left:4px">（${wd}）</span>`:''}${tm}<span class="grow"></span>${e.free?'<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span> ':''}<span style="color:${m[1]};font-weight:600">${m[0]}</span></div>`;}).join('')||'<div class="hint">還沒有上課記錄</div>';
@@ -1558,7 +1557,7 @@ function renderCalLedger(body,toggle){
       </div>
     </details>`;
   }).join('');
-  const ledHead=`<div class="led-sum led-head"><span></span><span>學生</span><span>狀態</span><span>本月</span><span>累計</span><span>剩餘</span><span>最近</span></div>`;body.innerHTML=toggle+nav+summary+ledHead+rows;}
+  const ledHead=`<div class="led-sum led-head"><span></span><span>學生</span><span>狀態</span><span>本月</span><span>累計</span><span>餘額</span><span>最近</span></div>`;body.innerHTML=toggle+nav+summary+ledHead+rows;}
 /* 本週實際排的課（依日期）：把 class_log 已記錄 ＋ 團班預排，落在今天起 7 天內的列出來，讓不固定時間的課也出現在本週課表 */
 function weekActualCard(){
   const t=new Date();t.setHours(0,0,0,0);const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -1720,8 +1719,8 @@ function renderOps(){const body=$('#ops-body');
     `<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計收入（全部）</div>${bigNum(allCur)}</div></div>`;
   const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span><button class="btn btn-sm" data-act="opsMonth" data-id="${esc(m)}">🔎 明細</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入紀錄（到學生的「繳費」新增即可）。</div>';
   const billHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">🧮 累計 該收 vs 實收 <span class="hint">逐堂依時數收費（團班用該班的收費級距）對照「累計實收」，不受繳費時間影響，抓真正的漏收</span></div>${billCheckHtml(thisM)}</div>`;
-  const due=S.students.filter(s=>!s.is_test&&!isTrial(s)&&enrollOf(s)!=='paused').map(s=>({s,left:sessionsLeft(s)})).filter(x=>x.left!=null&&x.left<=2).sort((a,b)=>a.left-b.left);
-  const dueRows=due.length?due.map(({s,left})=>{const bcls=left<=0?'badge-overdue':'badge-soon';const blab=left<=0?'需續費':'剩 '+fmtQty(left)+' '+unitLabel(s);return `<div class="dash-row"><span class="badge ${bcls}">${blab}</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">${money(s.tuition,s.currency)}</span><button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒</button><button class="btn btn-sm" data-act="payments" data-id="${s.id}">繳費</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
+  const due=S.students.filter(s=>!s.is_test&&!isTrial(s)&&enrollOf(s)!=='paused').map(s=>({s,b:stuBill(s)})).filter(x=>x.b&&x.b.items.length&&x.b.due>0.0001).sort((a,b)=>b.b.due-a.b.due);
+  const dueRows=due.length?due.map(({s,b})=>`<div class="dash-row"><span class="badge badge-overdue">欠 ${money(b.due,billCur(s))}</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">上課 ${money(b.charge,billCur(s))} · 已繳 ${money(b.paid,billCur(s))}</span><button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒</button><button class="btn btn-sm btn-primary" data-act="payments" data-id="${s.id}">💰 記繳費</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
   let adminHtml='';
   if(IS_OWNER){const cnt=em=>S.students.filter(s=>(s.admin||'').toLowerCase()===(em||'').toLowerCase()).length;const ownCnt=S.students.filter(s=>!s.admin).length;
     adminHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">👥 管理員負責學生</div><div class="dash-row"><span class="badge" style="background:var(--accent);color:#fff;border-color:var(--accent)">主管理員</span><b>你</b><span class="grow"></span><span class="muted">${ownCnt} 位</span></div>${(S.admins||[]).map(a=>`<div class="dash-row"><span class="badge badge-ok">管理員</span><b>${snm(a.name||a.email)}</b><span class="grow"></span><span class="muted">${cnt(a.email)} 位</span></div>`).join('')}</div>`;}
@@ -4714,7 +4713,7 @@ function classRollModal(cls,prefill){const members=S.students.filter(s=>stuGroup
   const dates=Object.keys(dateMap).sort().reverse().slice(0,10);
   const recent=dates.length?dates.map(d=>{const c=dateMap[d];const wd=c.date?DAYS[(new Date(c.date+'T00:00:00').getDay()+6)%7]:'';const tm=(c.start&&c.end)?`<span class="muted" style="font-size:12px">${esc(c.start)}–${esc(c.end)}</span>`:'';const fb=c.free?' <span class="badge" style="background:#f3e8ff;color:#7c3aed">🎁 免費</span>':'';const vb=c.video?' <a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;text-decoration:none" href="'+esc(c.video)+'" target="_blank" rel="noopener">🎬 影片</a>':'';return `<div class="dash-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(c.date)}</b>${wd?`<span class="muted" style="font-size:12px">（${wd}）</span>`:''}${tm}${fb}${vb}<span class="grow" style="flex:1"></span><span class="badge badge-ok">出席 ${c.att}</span> <span class="badge badge-soon">請假 ${c.leave}</span> <span class="badge badge-overdue">缺席 ${c.absent}</span> <button class="btn btn-sm btn-ghost" type="button" data-act="rollEdit" data-id="${esc(d)}">✏️ 修改</button><button class="btn btn-sm btn-danger" type="button" data-act="rollDel" data-id="${esc(cls)+'::'+esc(c.date)+'::'+esc(c.start||'')+'::'+esc(c.end||'')}" title="全班一起刪掉這一堂">🗑</button></div>`;}).join(''):'<div class="hint">還沒有上課記錄。</div>';
   const seg=(sid,st,lb,def)=>`<button type="button" class="${def?'on':''}" data-act="rollPick" data-id="${sid}::${st}" data-st="${st}">${lb}</button>`;
-  const rows=members.length?members.map(s=>{const left=sessionsLeft(s);return `<div class="dash-row" style="display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box"><div style="flex:1 1 auto;min-width:0"><b>${snm(s.name)}</b>${s.is_test?' <span class="tag" style="background:#eee;color:#666;border-color:#ccc">🧪 測試</span>':''}${left!=null?` <span class="muted" style="font-size:12px">剩 ${fmtQty(left)} ${unitLabel(s)}</span>`:''}</div><span class="seg-mini roll-seg" data-sid="${s.id}" style="flex:0 0 auto;white-space:nowrap">${seg(s.id,'attended','出席',true)}${seg(s.id,'leave','請假',false)}${seg(s.id,'absent','缺席',false)}</span></div>`;}).join(''):'<div class="hint">這個團班還沒有成員。</div>';
+  const rows=members.length?members.map(s=>{const _b=stuBill(s);const _owe=(_b&&_b.items.length&&_b.due>0.0001)?_b.due:0;return `<div class="dash-row" style="display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box"><div style="flex:1 1 auto;min-width:0"><b>${snm(s.name)}</b>${s.is_test?' <span class="tag" style="background:#eee;color:#666;border-color:#ccc">🧪 測試</span>':''}${_owe?` <span class="muted" style="font-size:12px;color:#c2410c">欠 ${money(_owe,billCur(s))}</span>`:''}</div><span class="seg-mini roll-seg" data-sid="${s.id}" style="flex:0 0 auto;white-space:nowrap">${seg(s.id,'attended','出席',true)}${seg(s.id,'leave','請假',false)}${seg(s.id,'absent','缺席',false)}</span></div>`;}).join(''):'<div class="hint">這個團班還沒有成員。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>🗓 「${esc(cls)}」上課點名</h3><button class="x" data-act="closeModal">×</button></div>
     <div class="modal-body">
       <div class="form-grid"><div class="field"><label>上課日期${pf.date?' <span class="hint">已帶入預排日期</span>':''}</label><input id="roll-date" type="date" min="2000-01-01" max="2100-12-31" value="${useDate}"></div>
@@ -5444,7 +5443,7 @@ H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0
 H.payments=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}const s=S.students.find(x=>x.id===id);if(!s)return;PAY_STU=s;const ps=(s.payments||[]).map((p,origI)=>({p,origI})).sort((a,b)=>(b.p.date||'').localeCompare(a.p.date||''));
   const byCur={};ps.forEach(({p})=>{const c=p.currency||s.currency||'TWD';byCur[c]=(byCur[c]||0)+(Number(p.amount)||0);});
   const totalStr=Object.keys(byCur).map(c=>money(byCur[c],c)).join('、')||money(0,s.currency);
-  const rows=ps.length?ps.map(({p,origI})=>`<div class="dash-row" style="flex-wrap:wrap"><span class="grow"><b>${esc(p.date||'')}</b> · ${money(p.amount,p.currency||s.currency)}${p.sessions?(' · +'+p.sessions+' 堂'):''}${p.note?(' · '+esc(p.note)):''}</span><span style="display:flex;gap:6px;flex:none;margin-left:auto"><button class="btn btn-sm btn-accent" type="button" data-act="payEdit" data-id="${id}::${origI}">✏️ 編輯</button><button class="btn btn-sm" type="button" data-act="receipt" data-id="${id}::${origI}">🧾 收據</button><button class="btn btn-sm btn-danger" type="button" data-act="payDel" data-id="${id}::${origI}">✕</button></span></div>`).join(''):'<div class="hint" style="padding:8px 0">還沒有繳費紀錄。</div>';
+  const rows=ps.length?ps.map(({p,origI})=>`<div class="dash-row" style="flex-wrap:wrap"><span class="grow"><b>${esc(p.date||'')}</b> · ${money(p.amount,p.currency||s.currency)}${p.note?(' · '+esc(p.note)):''}</span><span style="display:flex;gap:6px;flex:none;margin-left:auto"><button class="btn btn-sm btn-accent" type="button" data-act="payEdit" data-id="${id}::${origI}">✏️ 編輯</button><button class="btn btn-sm" type="button" data-act="receipt" data-id="${id}::${origI}">🧾 收據</button><button class="btn btn-sm btn-danger" type="button" data-act="payDel" data-id="${id}::${origI}">✕</button></span></div>`).join(''):'<div class="hint" style="padding:8px 0">還沒有繳費紀錄。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>${snm(s.name)} · 繳費紀錄</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div style="margin-bottom:6px">${rows}</div>
@@ -5462,28 +5461,27 @@ H.payments=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用')
        <div class="field"><label>日期</label><input id="pay-date" type="date" min="2000-01-01" max="2100-12-31" value="${localToday()}"></div>
        <div class="field"><label>金額 <span class="hint">越南盾打千位（350＝350,000 ₫）</span></label><input id="pay-amount" type="number" min="0" placeholder="例：800"></div>
        <div class="field"><label>幣別</label><select id="pay-cur"><option value="TWD"${(s.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${s.currency==='VND'?' selected':''}>越南盾 ₫</option><option value="USD"${s.currency==='USD'?' selected':''}>美元 US$</option></select></div>
-       <div class="field"><label>加${isHourly(s)?'時數':'堂數'} <span class="hint">填金額會自動算，可改</span></label><input id="pay-sess" type="number" min="0" step="0.5" placeholder="例：10"></div>
-       <div class="field full"><div id="pay-calc" class="hint"></div></div>
        <div class="field full"><label>備註</label><input id="pay-note" type="text" placeholder="選填，例：6月學費"></div>
-     </div><div class="hint" style="margin-top:8px">💡 匯入舊學生：金額填 0、只填「加堂數」也可以，就能設定目前的總堂數。</div></div>
+     </div><div class="hint" style="margin-top:8px">💡 登記完就會自動去抵上面的「應收」，不用管堂數。</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><button class="btn btn-primary" data-act="payAdd" data-id="${id}">＋ 新增這筆</button></div></div>`);};
-function remindText(s,lang){const name=s.name||'';const left=sessionsLeft(s);
-  const unit=lang==='vi'?(s.fee_unit==='hour'?'/giờ':'/buổi'):(s.fee_unit==='hour'?'／小時':'／堂');
-  const fee=(s.tuition!=null&&s.tuition!=='')?money(s.tuition,s.currency)+unit:'';
+function remindText(s,lang){const name=s.name||'';
+  const b=stuBill(s);const cur=billCur(s);
+  let qty=0;if(b)(b.items||[]).forEach(x=>{const h=logHours(x.e);qty+=(isHourly(s)?((h!=null)?h:1):1);});
+  qty=Math.round(qty*100)/100;
+  const owe=!!(b&&b.items.length&&b.due>0.0001);
   if(lang==='vi'){
     let t=`Chào ${name} 😊\n`;
-    if(left!=null)t+=`Nhắc bạn khóa học hiện còn ${left} buổi. Bạn sắp xếp đóng học phí giúp mình nhé ~`;
-    else t+=`Nhắc bạn nhớ vào lớp đúng giờ nhé ~`;
-    if(fee)t+=`\nHọc phí: ${fee}.`;
+    if(owe)t+=`Mình gửi bạn bảng học phí nhé: đã học ${myQ(qty)} ${isHourly(s)?'giờ':'buổi'}, tổng ${money(b.charge,cur)}, đã đóng ${money(b.paid,cur)}, còn lại ${money(b.due,cur)}.`;
+    else t+=`Học phí của bạn hiện đã thanh toán đủ rồi nhé ~`;
     t+=`\nCó gì cứ nhắn mình. Cảm ơn bạn! — QNA Chinese`;
     return t;
   }
   let t=`${name} 您好 😊\n`;
-  if(left!=null)t+=`提醒您本期課程還剩 ${left} 堂，方便的話再幫您安排續費喔～`;
-  else t+=`提醒您記得準時上課喔～`;
-  if(fee)t+=`\n學費：${fee}。`;
+  if(owe)t+=`跟您對一下學費：目前已上 ${myQ(qty)} ${unitLabel(s)}，共 ${money(b.charge,cur)}，已收 ${money(b.paid,cur)}，尚餘 ${money(b.due,cur)} 再麻煩您了～`;
+  else t+=`您的學費目前已經結清了，謝謝您 😊`;
   t+=`\n有任何問題隨時跟我說，謝謝您！— QNA Chinese`;
   return t;}
+function myQ(n){return fmtQty(n);}
 H.remindMsg=(arg)=>{const parts=String(arg).split('::');const id=parts[0];const lang=parts[1]||'zh';const s=S.students.find(x=>x.id===id);if(!s)return;
   const txt=remindText(s,lang);const tab=(l,lb)=>`<button class="btn btn-sm ${l===lang?'btn-accent':''}" data-act="remindMsg" data-id="${esc(id)}::${l}">${lb}</button>`;
   openModal(`<div class="modal"><div class="modal-head"><h3>📋 提醒訊息 · ${snm(s.name)}</h3><button class="x" data-act="closeModal">×</button></div>
@@ -5516,7 +5514,8 @@ H.remindShowSave=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;
     const _lab={tw:'🇹🇼 台灣帳號',vn:'🇻🇳 越南帳號',both:'兩個帳號'}[acct]||'';
     toast(on?('已開啟：'+(s.name||'')+' 登入會看到繳費提醒＋'+_lab):'已關閉，學生看不到提醒與帳號了');render();}
   catch(e){toast('儲存失敗，請再試一次');}};
-H.renewQuick=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}const s=S.students.find(x=>x.id===id);if(!s)return;
+H.renewQuick=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}return H.payments(id);};
+H.renewQuickOld=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;
   const ps=(s.payments||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));const last=ps[0]||{};
   const amt=(last.amount!=null&&last.amount!=='')?last.amount:(s.tuition!=null?s.tuition:'');
   const cur=last.currency||s.currency||'TWD';
@@ -5535,11 +5534,10 @@ H.renewQuick=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用
      </div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="payAdd" data-id="${esc(id)}">✅ 確認續約</button></div></div>`);};
 H.payAdd=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const date=$('#pay-date').value;if(!date)return toast('請選日期');
-  const amt=$('#pay-amount').value,sess=$('#pay-sess').value;
+  const amt=$('#pay-amount').value;
+  const _se=$('#pay-sess');const sess=_se?_se.value:'';
   const entry={date,amount:amt===''?null:Number(amt),currency:$('#pay-cur').value,sessions:sess===''?null:Number(sess),note:$('#pay-note').value.trim()};
-  if(entry.sessions==null||entry.sessions===0){
-    const u=isHourly(s)?'時數':'堂數';
-    if(!confirm('這筆繳費沒有填「加'+u+'」，總'+u+'不會增加，剩餘'+u+'會愈算愈少。\n\n確定要這樣存嗎？（建議先填）'))return;}
+  if(entry.amount==null||!(entry.amount>=0))return toast('請填金額');
   const payments=(s.payments||[]).concat([entry]);const patch={payments};if(entry.sessions){patch.sessions_total=Math.round(((Number(s.sessions_total)||0)+entry.sessions)*100)/100;}
   patch.payment_date=payments.map(p=>p&&p.date).filter(Boolean).sort().pop()||s.payment_date||null;
   try{await DB.update('students',id,patch);await loadAll();H.payments(id);render();toast('已新增繳費');}catch(err){toast(writeErr('儲存失敗',err));}};
@@ -5552,14 +5550,12 @@ H.payEdit=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s
      <div class="field"><label>日期</label><input id="pe-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(pay.date||'')}"></div>
      <div class="field"><label>金額 <span class="hint">越南盾打千位（350＝350,000 ₫）</span></label><input id="pe-amount" type="number" min="0" value="${pay.amount==null?'':esc(pay.amount)}"></div>
      <div class="field"><label>幣別</label><select id="pe-cur"><option value="TWD"${cur==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${cur==='VND'?' selected':''}>越南盾 ₫</option><option value="USD"${cur==='USD'?' selected':''}>美元 US$</option></select></div>
-     <div class="field"><label>加${isHourly(s)?'時數':'堂數'} <span class="hint">填金額會自動算，可改</span></label><input id="pe-sess" type="number" min="0" step="0.5" value="${pay.sessions==null?'':esc(pay.sessions)}"></div>
-     <div class="field full"><div id="pe-calc" class="hint"></div></div>
      <div class="field full"><label>備註</label><input id="pe-note" type="text" value="${esc(pay.note||'')}"></div>
-   </div>${(setTimeout(()=>payCalc('pe',false),0),'')}</div>
+   </div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="payments" data-id="${esc(id)}">← 返回</button><span style="flex:1"></span><button class="btn btn-primary" data-act="paySaveEdit" data-id="${esc(id)}::${i}">💾 儲存修改</button></div></div>`);};
 H.paySaveEdit=async(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;const payments=(s.payments||[]).slice();const old=payments[i];if(!old)return;
   const date=$('#pe-date').value;if(!date)return toast('請選日期');
-  const amt=$('#pe-amount').value,sess=$('#pe-sess').value;
+  const amt=$('#pe-amount').value;const _pe=$('#pe-sess');const sess=_pe?_pe.value:(old.sessions==null?'':String(old.sessions));
   const entry={date,amount:amt===''?null:Number(amt),currency:$('#pe-cur').value,sessions:sess===''?null:Number(sess),note:($('#pe-note').value||'').trim()};
   payments[i]=entry;const patch={payments};
   const delta=(Number(entry.sessions)||0)-(Number(old.sessions)||0);if(delta)patch.sessions_total=Math.max(0,(Number(s.sessions_total)||0)+delta);
