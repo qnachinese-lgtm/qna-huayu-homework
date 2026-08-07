@@ -181,14 +181,18 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .pay-gh{padding:10px 15px;background:#faf8f5;border-bottom:1px solid var(--line);font-weight:800;color:var(--primary);font-size:14.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         .pay-gs{margin-left:auto;font-size:12.5px;font-weight:600;color:#d97706}
         .pay-gs.ok{color:#16a34a}
-        .pay-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 15px;border-bottom:1px solid var(--line);font-size:13.5px}
+        .pay-row{display:grid;grid-template-columns:minmax(120px,1.5fr) 96px 104px 132px 168px 132px auto;align-items:center;gap:10px;padding:9px 15px;border-bottom:1px solid var(--line);font-size:13.5px}
         .pay-row:last-child{border-bottom:none}
         .pay-row.is-owe{background:#fffbf5}
-        .pay-row .grow{flex:1}
-        .pay-nm{font-weight:700;font-size:14.5px;min-width:110px}
-        .pay-c{color:var(--muted);white-space:nowrap}
+        .pay-hd{padding:7px 15px;font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.5px;background:#fcfbf9}
+        .pay-hd span{white-space:nowrap}
+        .pay-nm{font-weight:700;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .pay-c{color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .pay-c b{color:var(--ink)}
-        .pay-st{font-weight:700;white-space:nowrap;padding:2px 9px;border-radius:999px;font-size:12.5px}
+        .pay-dt{color:var(--muted);font-size:11.5px;margin-left:5px}
+        .pay-act{display:flex;gap:6px;justify-content:flex-end;white-space:nowrap}
+        .pay-st{font-weight:700;white-space:nowrap;padding:2px 9px;border-radius:999px;font-size:12.5px;text-align:center;justify-self:start}
+        .pay-st.blank{background:none}
         .pay-st.owe{background:#fee2e2;color:#b91c1c}
         .pay-st.ok{background:#dcfce7;color:#15803d}
         .pay-st.over{background:#f3e8ff;color:#7c3aed}
@@ -197,7 +201,13 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .pay-grp.fam .pay-gh{background:#f5f3ff;color:#5b21b6}
         .pay-fam-sum{font-size:12.5px;font-weight:600;color:var(--muted)}
         .pay-famnote{padding:8px 15px;font-size:12.5px;color:var(--muted);background:#fdfcff;border-bottom:1px solid var(--line)}
-        @media(max-width:700px){.pay-nm{min-width:0;width:100%}}
+        @media(max-width:980px){
+          .pay-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+          .pay-hd{display:none}
+          .pay-nm{width:100%}
+          .pay-c::before{content:attr(data-l) " ";color:var(--muted);font-size:12px}
+          .pay-act{margin-left:auto}
+        }
         /* 課表頁 */
         .cal-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
         .cal-top .grow{flex:1}
@@ -1113,28 +1123,32 @@ function payRowsOf(list){
     return {s,b,cur,qty:Math.round(qty*100)/100};
   });
 }
-function payRowHtml(r){
+const PAY_COLS=['學生','狀態','上課','應收','已繳','目前'];
+function payHeadHtml(){return '<div class="pay-row pay-hd">'
+  +PAY_COLS.map(c=>'<span>'+c+'</span>').join('')+'<span></span></div>';}
+function payRowHtml(r,noState){
   const s=r.s,b=r.b,cur=r.cur;
   const owe=b.due>0.0001, over=b.due<-0.0001;
-  const state=!b.items.length
-    ? '<span class="pay-st muted">還沒有上課記錄</span>'
-    : (owe ? '<span class="pay-st owe">欠 '+money(b.due,cur)+'</span>'
-           : (over ? '<span class="pay-st over">預繳 '+money(-b.due,cur)+'</span>'
-                   : '<span class="pay-st ok">✅ 已結清</span>'));
+  const state=noState?'<span class="pay-st blank"></span>'
+    :(!b.items.length
+      ? '<span class="pay-st muted">還沒上課</span>'
+      : (owe ? '<span class="pay-st owe">欠 '+money(b.due,cur)+'</span>'
+             : (over ? '<span class="pay-st over">預繳 '+money(-b.due,cur)+'</span>'
+                     : '<span class="pay-st ok">✅ 已結清</span>')));
   const last=(Array.isArray(s.payments)?s.payments:[]).slice().sort((a,c)=>String(c.date||'').localeCompare(String(a.date||'')))[0];
-  return '<div class="pay-row'+(owe?' is-owe':'')+'">'
+  return '<div class="pay-row'+((owe&&!noState)?' is-owe':'')+'">'
     +'<span class="pay-nm">'+snm(s.name)+'</span>'
     +'<span class="pay-tag">'+enrollBadge(s)+'</span>'
-    +'<span class="pay-c">'+(b.items.length?('上課 <b>'+fmtQty(r.qty)+'</b> '+unitLabel(s)):'—')
+    +'<span class="pay-c" data-l="上課">'+(b.items.length?('<b>'+fmtQty(r.qty)+'</b> '+unitLabel(s)):'—')
       +(b.unknown?(' <span class="badge badge-soon" title="有課沒設定收費">⚠️ '+b.unknown+'</span>'):'')+'</span>'
-    +'<span class="pay-c">應收 <b>'+(b.items.length?money(b.charge,cur):'—')+'</b></span>'
-    +'<span class="pay-c">已繳 <b>'+money(b.paid,cur)+'</b>'+(last?(' <span class="muted" style="font-size:11.5px">'+esc(String(last.date||'').slice(0,10))+'</span>'):'')+'</span>'
+    +'<span class="pay-c" data-l="應收"><b>'+(b.items.length?money(b.charge,cur):'—')+'</b></span>'
+    +'<span class="pay-c" data-l="已繳"><b>'+money(b.paid,cur)+'</b>'+(last?('<span class="pay-dt">'+esc(String(last.date||'').slice(0,10))+'</span>'):'')+'</span>'
     +state
-    +'<span class="grow"></span>'
+    +'<span class="pay-act">'
     +'<button class="btn btn-sm btn-primary" data-act="payments" data-id="'+esc(s.id)+'">＋ 記一筆</button>'
     +'<button class="btn btn-sm" data-act="billStatement" data-id="'+esc(s.id)+'">🧾 對帳單</button>'
     +'<button class="btn btn-sm" data-act="remindMsg" data-id="'+esc(s.id)+'">📋 提醒</button>'
-    +'</div>';
+    +'</span></div>';
 }
 function renderPay(){
   const body=$('#pay-body');if(!body)return;
@@ -1172,6 +1186,9 @@ function renderPay(){
   if(f==='owe')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due>0.0001);
   else if(f==='clear')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due<=0.0001);
   if(!rows.length){body.innerHTML=head+bar+emptyHtml(f==='owe'?'🎉':'🔍',f==='owe'?'太好了，沒有人欠款':'這個條件沒有學生','換上面的分類看看。');return;}
+  /* 休學排最後；其餘依欠款多寡、再依姓名 */
+  const _pz=r=>(enrollOf(r.s)==='paused'?1:0);
+  const sortR=a=>a.slice().sort((x,y)=>(_pz(x)-_pz(y))||(y.b.due-x.b.due)||String(x.s.name||'').localeCompare(String(y.s.name||'')));
   // 合併帳戶（例如兄弟由同一位家長繳費）：整戶算一筆，餘額不重複顯示
   const famKeys=[...new Set(rowsAll.map(r=>famKeyOf(r.s)).filter(k=>k&&famMembers(k).length>=2))].sort();
   const inFam=new Set();famKeys.forEach(k=>famMembers(k).forEach(m=>inFam.add(m.id)));
@@ -1182,19 +1199,7 @@ function renderPay(){
     const st=f.due>0.0001?('<span class="pay-st owe">欠 '+money(f.due,f.cur)+'</span>')
       :(f.due<-0.0001?('<span class="pay-st over">預繳 '+money(-f.due,f.cur)+'</span>')
                      :'<span class="pay-st ok">✅ 已結清</span>');
-    const rowsH=mem.map(r=>{const b=r.b;
-      const lastp=(Array.isArray(r.s.payments)?r.s.payments:[]).slice().sort((a,c)=>String(c.date||'').localeCompare(String(a.date||'')))[0];
-      return '<div class="pay-row">'
-        +'<span class="pay-nm">'+snm(r.s.name)+'</span>'
-        +'<span class="pay-tag">'+enrollBadge(r.s)+'</span>'
-        +'<span class="pay-c">'+(b.items.length?('上課 <b>'+fmtQty(r.qty)+'</b> '+unitLabel(r.s)):'—')+'</span>'
-        +'<span class="pay-c">應收 <b>'+(b.items.length?money(b.charge,r.cur):'—')+'</b></span>'
-        +'<span class="pay-c">已繳 <b>'+money(b.paid,r.cur)+'</b>'+(lastp?(' <span class="muted" style="font-size:11.5px">'+esc(String(lastp.date||'').slice(0,10))+'</span>'):'')+'</span>'
-        +'<span class="grow"></span>'
-        +'<button class="btn btn-sm btn-primary" data-act="payments" data-id="'+esc(r.s.id)+'">＋ 記一筆</button>'
-        +'<button class="btn btn-sm" data-act="billStatement" data-id="'+esc(r.s.id)+'">🧾 對帳單</button>'
-        +'<button class="btn btn-sm" data-act="remindMsg" data-id="'+esc(r.s.id)+'">📋 提醒</button>'
-        +'</div>';}).join('');
+    const rowsH=payHeadHtml()+sortR(mem).map(r=>payRowHtml(r,true)).join('');
     return '<div class="pay-grp fam"><div class="pay-gh">👨‍👩‍👦 '+esc(k)+' <span class="tag">合併帳戶 '+mem.length+' 人</span>'
       +'<span class="pay-fam-sum">應收 <b>'+money(f.charge,f.cur)+'</b>　已繳 <b>'+money(f.paid,f.cur)+'</b></span>'
       +'<span style="margin-left:auto">'+st+'</span></div>'
@@ -1205,14 +1210,11 @@ function renderPay(){
   const solo=rest.filter(r=>r.s.class_type!=='團班');
   const grpNames=[...new Set(rest.filter(r=>r.s.class_type==='團班').flatMap(r=>stuGroups(r.s)))].sort();
   const noGrp=rest.filter(r=>r.s.class_type==='團班'&&!stuGroups(r.s).length);
-  /* 休學排最後；其餘依欠款多寡、再依姓名 */
-  const _pz=r=>(enrollOf(r.s)==='paused'?1:0);
-  const sortR=a=>a.slice().sort((x,y)=>(_pz(x)-_pz(y))||(y.b.due-x.b.due)||String(x.s.name||'').localeCompare(String(y.s.name||'')));
   const sec=(label,arr)=>{if(!arr.length)return '';
     const d={};arr.forEach(r=>{if(r.b.items.length&&r.b.due>0)d[r.cur]=(d[r.cur]||0)+r.b.due;});
     const sub=Object.keys(d).length?('<span class="pay-gs">還沒收 '+mstr(d)+'</span>'):'<span class="pay-gs ok">✅ 都收齊了</span>';
     return '<div class="pay-grp"><div class="pay-gh">'+label+' <span class="tag">'+arr.length+' 位</span>'+sub+'</div>'
-      +sortR(arr).map(payRowHtml).join('')+'</div>';};
+      +payHeadHtml()+sortR(arr).map(r=>payRowHtml(r)).join('')+'</div>';};
   let html=famHtml;
   html+=sec('🧑‍🏫 一對一',solo);
   grpNames.forEach(g=>html+=sec('👥 '+esc(g)+' 團班',rest.filter(r=>r.s.class_type==='團班'&&stuGroups(r.s).includes(g))));
