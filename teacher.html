@@ -193,6 +193,10 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .pay-st.ok{background:#dcfce7;color:#15803d}
         .pay-st.over{background:#f3e8ff;color:#7c3aed}
         .pay-st.muted{background:#f1f0ee;color:var(--muted);font-weight:600}
+        .pay-grp.fam{border-color:#c4b5fd}
+        .pay-grp.fam .pay-gh{background:#f5f3ff;color:#5b21b6}
+        .pay-fam-sum{font-size:12.5px;font-weight:600;color:var(--muted)}
+        .pay-famnote{padding:8px 15px;font-size:12.5px;color:var(--muted);background:#fdfcff;border-bottom:1px solid var(--line)}
         @media(max-width:700px){.pay-nm{min-width:0;width:100%}}
         /* 課表頁 */
         .cal-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
@@ -691,7 +695,9 @@ function render(){
   {const el=$('#c-wr');if(el)el.textContent=(S.writings||[]).filter(x=>(x.status||'active')==='active').length;}
   {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
   {const nl=(S.leads||[]).filter(x=>(x.status||'new')==='new').length;const el=$('#c-leads');if(el){el.textContent=nl;el.classList.toggle('hide',!nl||!IS_OWNER);}}
-  {let _owe=0;try{(S.students||[]).forEach(x=>{if(!x||x.deleted||x.is_test)return;const b=stuBill(x);if(b&&b.items.length&&b.due>0)_owe++;});}catch(e){}const el=$('#c-owe');if(el){el.textContent=_owe;el.classList.toggle('hide',!_owe||!IS_OWNER);}}
+  {let _owe=0;try{const _sk=new Set();(S.students||[]).forEach(x=>{if(!x||x.deleted||x.is_test)return;
+    const k=famKeyOf(x);if(k&&famMembers(k).length>=2){if(_sk.has(k))return;_sk.add(k);const f=famBill(k);if(f&&f.due>0)_owe++;return;}
+    const b=stuBill(x);if(b&&b.items.length&&b.due>0)_owe++;});}catch(e){}const el=$('#c-owe');if(el){el.textContent=_owe;el.classList.toggle('hide',!_owe||!IS_OWNER);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
   if(!IS_OWNER&&['ops','pay','agency','interview','writing'].indexOf(S.tab)>=0)S.tab='dashboard';
@@ -1124,13 +1130,21 @@ function renderPay(){
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','繳費只有主管理員看得到。');return;}
   const all=(S.students||[]).filter(s=>s&&!s.deleted&&!s.is_test);
   if(!all.length){body.innerHTML=emptyHtml('💰','還沒有學生','先到「👥 學生」新增學生，這裡就會出現每個人的繳費狀況。');return;}
-  const f=S.payFilter||'owe';
+  const f=S.payFilter||'owe';const fl=f;
   const rowsAll=payRowsOf(all);
-  const oweN=rowsAll.filter(r=>r.b.items.length&&r.b.due>0.0001).length;
-  const clearN=rowsAll.filter(r=>r.b.items.length&&r.b.due<=0.0001).length;
+  const _fk=r=>{const k=famKeyOf(r.s);return (k&&famMembers(k).length>=2)?k:null;};
+  const _fdone=new Set();
+  let oweN=0,clearN=0;
+  rowsAll.forEach(r=>{const k=_fk(r);
+    if(k){if(_fdone.has(k))return;_fdone.add(k);const f2=famBill(k);if(!f2)return;
+      if(f2.charge>0||f2.paid>0){if(f2.due>0.0001)oweN++;else clearN++;}return;}
+    if(r.b.items.length){if(r.b.due>0.0001)oweN++;else clearN++;}});
   // 總計（分幣別）
   const dueCur={},paidM={};const thisM=localToday().slice(0,7);
-  rowsAll.forEach(r=>{if(r.b.items.length&&r.b.due>0)dueCur[r.cur]=(dueCur[r.cur]||0)+r.b.due;
+  const _fd2=new Set();
+  rowsAll.forEach(r=>{const k=famKeyOf(r.s);const isFam=!!(k&&famMembers(k).length>=2);
+    if(isFam){if(!_fd2.has(k)){_fd2.add(k);const f2=famBill(k);if(f2&&f2.due>0)dueCur[f2.cur]=(dueCur[f2.cur]||0)+f2.due;}}
+    else if(r.b.items.length&&r.b.due>0)dueCur[r.cur]=(dueCur[r.cur]||0)+r.b.due;
     (r.s.payments||[]).forEach(p=>{const a=Number(p.amount)||0;if(!a)return;if(String(p.date||'').slice(0,7)!==thisM)return;
       const c=p.currency||r.cur;paidM[c]=(paidM[c]||0)+a;});});
   const mstr=o=>{const ks=Object.keys(o).filter(k=>o[k]);return ks.length?ks.map(c=>money(o[c],c)).join(' ＋ '):'—';};
@@ -1147,21 +1161,50 @@ function renderPay(){
   if(f==='owe')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due>0.0001);
   else if(f==='clear')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due<=0.0001);
   if(!rows.length){body.innerHTML=head+bar+emptyHtml(f==='owe'?'🎉':'🔍',f==='owe'?'太好了，沒有人欠款':'這個條件沒有學生','換上面的分類看看。');return;}
-  // 分組：一對一 ／ 各團班
-  const solo=rows.filter(r=>r.s.class_type!=='團班');
-  const grpNames=[...new Set(rows.filter(r=>r.s.class_type==='團班').flatMap(r=>stuGroups(r.s)))].sort();
-  const noGrp=rows.filter(r=>r.s.class_type==='團班'&&!stuGroups(r.s).length);
+  // 合併帳戶（例如兄弟由同一位家長繳費）：整戶算一筆，餘額不重複顯示
+  const famKeys=[...new Set(rowsAll.map(r=>famKeyOf(r.s)).filter(k=>k&&famMembers(k).length>=2))].sort();
+  const inFam=new Set();famKeys.forEach(k=>famMembers(k).forEach(m=>inFam.add(m.id)));
+  const famHtml=famKeys.map(k=>{
+    const f=famBill(k);if(!f)return '';
+    const mem=rowsAll.filter(r=>famKeyOf(r.s)===k);
+    if(f.due>0.0001){if(fl==='clear')return '';}else{if(fl==='owe')return '';}
+    const st=f.due>0.0001?('<span class="pay-st owe">欠 '+money(f.due,f.cur)+'</span>')
+      :(f.due<-0.0001?('<span class="pay-st over">預繳 '+money(-f.due,f.cur)+'</span>')
+                     :'<span class="pay-st ok">✅ 已結清</span>');
+    const rowsH=mem.map(r=>{const b=r.b;
+      const lastp=(Array.isArray(r.s.payments)?r.s.payments:[]).slice().sort((a,c)=>String(c.date||'').localeCompare(String(a.date||'')))[0];
+      return '<div class="pay-row">'
+        +'<span class="pay-nm">'+snm(r.s.name)+'</span>'
+        +'<span class="pay-tag">'+enrollBadge(r.s)+'</span>'
+        +'<span class="pay-c">'+(b.items.length?('上課 <b>'+fmtQty(r.qty)+'</b> '+unitLabel(r.s)):'—')+'</span>'
+        +'<span class="pay-c">應收 <b>'+(b.items.length?money(b.charge,r.cur):'—')+'</b></span>'
+        +'<span class="pay-c">已繳 <b>'+money(b.paid,r.cur)+'</b>'+(lastp?(' <span class="muted" style="font-size:11.5px">'+esc(String(lastp.date||'').slice(0,10))+'</span>'):'')+'</span>'
+        +'<span class="grow"></span>'
+        +'<button class="btn btn-sm btn-primary" data-act="payments" data-id="'+esc(r.s.id)+'">＋ 記一筆</button>'
+        +'<button class="btn btn-sm" data-act="billStatement" data-id="'+esc(r.s.id)+'">🧾 對帳單</button>'
+        +'<button class="btn btn-sm" data-act="remindMsg" data-id="'+esc(r.s.id)+'">📋 提醒</button>'
+        +'</div>';}).join('');
+    return '<div class="pay-grp fam"><div class="pay-gh">👨‍👩‍👦 '+esc(k)+' <span class="tag">合併帳戶 '+mem.length+' 人</span>'
+      +'<span class="pay-fam-sum">應收 <b>'+money(f.charge,f.cur)+'</b>　已繳 <b>'+money(f.paid,f.cur)+'</b></span>'
+      +'<span style="margin-left:auto">'+st+'</span></div>'
+      +'<div class="pay-famnote">這一戶的錢算在一起：一個人多繳可以抵另一個人。上面的餘額是整戶的，下面每一列只列各自上了多少、算多少。</div>'
+      +rowsH+'</div>';}).join('');
+  // 分組：一對一 ／ 各團班（合併帳戶的人已經在上面列過）
+  const rest=rows.filter(r=>!inFam.has(r.s.id));
+  const solo=rest.filter(r=>r.s.class_type!=='團班');
+  const grpNames=[...new Set(rest.filter(r=>r.s.class_type==='團班').flatMap(r=>stuGroups(r.s)))].sort();
+  const noGrp=rest.filter(r=>r.s.class_type==='團班'&&!stuGroups(r.s).length);
   const sortR=a=>a.slice().sort((x,y)=>(y.b.due-x.b.due)||String(x.s.name||'').localeCompare(String(y.s.name||'')));
   const sec=(label,arr)=>{if(!arr.length)return '';
     const d={};arr.forEach(r=>{if(r.b.items.length&&r.b.due>0)d[r.cur]=(d[r.cur]||0)+r.b.due;});
     const sub=Object.keys(d).length?('<span class="pay-gs">還沒收 '+mstr(d)+'</span>'):'<span class="pay-gs ok">✅ 都收齊了</span>';
     return '<div class="pay-grp"><div class="pay-gh">'+label+' <span class="tag">'+arr.length+' 位</span>'+sub+'</div>'
       +sortR(arr).map(payRowHtml).join('')+'</div>';};
-  let html='';
+  let html=famHtml;
   html+=sec('🧑‍🏫 一對一',solo);
-  grpNames.forEach(g=>html+=sec('👥 '+esc(g)+' 團班',rows.filter(r=>r.s.class_type==='團班'&&stuGroups(r.s).includes(g))));
+  grpNames.forEach(g=>html+=sec('👥 '+esc(g)+' 團班',rest.filter(r=>r.s.class_type==='團班'&&stuGroups(r.s).includes(g))));
   html+=sec('👥 團班（尚未分班）',noGrp);
-  body.innerHTML=head+bar+html;
+  body.innerHTML=head+bar+(html||emptyHtml('🎉','沒有符合的學生','換上面的分類看看。'));
 }
 /* ===================== 🎤 面試練習：資料與畫面（純函式，可放前面） ===================== */
 function itvAll(){return (S.interviews||[]);}
