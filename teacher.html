@@ -173,6 +173,27 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .dash-sec-b{padding:0 14px 14px}
         .dash-sec .dash-n{display:inline-block;background:#dc2626;color:#fff;border-radius:999px;font-size:11px;padding:1px 8px;vertical-align:2px}
         .dash-sec .card{box-shadow:none}
+        /* 繳費頁 */
+        .pay-sum{display:flex;gap:26px;flex-wrap:wrap;padding:13px 16px;border:1px solid var(--line);border-radius:12px;background:#fff;margin-bottom:12px}
+        .pay-sum .muted{font-size:12px}
+        .pay-sum b{font-size:19px;display:block;margin-top:2px}
+        .pay-grp{margin-bottom:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+        .pay-gh{padding:10px 15px;background:#faf8f5;border-bottom:1px solid var(--line);font-weight:800;color:var(--primary);font-size:14.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        .pay-gs{margin-left:auto;font-size:12.5px;font-weight:600;color:#d97706}
+        .pay-gs.ok{color:#16a34a}
+        .pay-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 15px;border-bottom:1px solid var(--line);font-size:13.5px}
+        .pay-row:last-child{border-bottom:none}
+        .pay-row.is-owe{background:#fffbf5}
+        .pay-row .grow{flex:1}
+        .pay-nm{font-weight:700;font-size:14.5px;min-width:110px}
+        .pay-c{color:var(--muted);white-space:nowrap}
+        .pay-c b{color:var(--ink)}
+        .pay-st{font-weight:700;white-space:nowrap;padding:2px 9px;border-radius:999px;font-size:12.5px}
+        .pay-st.owe{background:#fee2e2;color:#b91c1c}
+        .pay-st.ok{background:#dcfce7;color:#15803d}
+        .pay-st.over{background:#f3e8ff;color:#7c3aed}
+        .pay-st.muted{background:#f1f0ee;color:var(--muted);font-weight:600}
+        @media(max-width:700px){.pay-nm{min-width:0;width:100%}}
         /* 課表頁 */
         .cal-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
         .cal-top .grow{flex:1}
@@ -251,7 +272,8 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         <button class="tab" data-act="tab" data-id="grades" data-group="students">📝 批改・成績 <span class="count alert hide" id="c-pending">0</span></button>
         <button class="tab" data-act="tab" data-id="files" data-group="students">🎯 課堂活動</button>
         <div class="sec biz">經　營</div>
-        <button class="tab" data-act="tab" data-id="ops" data-group="ops">💰 財務・營運 <span class="count alert hide" id="c-leads">0</span></button>
+        <button class="tab" data-act="tab" data-id="pay" data-group="ops">💰 繳費 <span class="count alert hide" id="c-owe">0</span></button>
+        <button class="tab" data-act="tab" data-id="ops" data-group="ops">📈 財務・營運 <span class="count alert hide" id="c-leads">0</span></button>
         <div class="sec">其　他</div>
         <button class="tab navmore-btn" id="nav-more-btn" data-act="navMore"><span id="nav-more-ar">▸</span> ⋯ 更多 <span class="count alert hide" id="c-more">0</span></button>
         <div id="nav-more" class="navmore hide">
@@ -380,6 +402,11 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
           <button class="btn owner-only" data-act="groupsMgr">👥 團班管理</button>
           <button class="btn btn-primary owner-only" data-act="addStudent">＋ 新增學生</button></div></div>
         <div id="students-list" class="cards cols-2"></div>
+      </section>
+
+      <section id="panel-pay" class="panel hide">
+        <div class="section-head"><h2>💰 繳費</h2><span class="sub">所有學生（含團班）的應收、已繳、剩餘，都在這裡記</span></div>
+        <div id="pay-body"></div>
       </section>
 
       <section id="panel-lessons" class="panel hide">
@@ -667,10 +694,11 @@ function render(){
   {const el=$('#c-wr');if(el)el.textContent=(S.writings||[]).filter(x=>(x.status||'active')==='active').length;}
   {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
   {const nl=(S.leads||[]).filter(x=>(x.status||'new')==='new').length;const el=$('#c-leads');if(el){el.textContent=nl;el.classList.toggle('hide',!nl||!IS_OWNER);}}
+  {let _owe=0;try{(S.students||[]).forEach(x=>{if(!x||x.deleted||x.is_test)return;const b=stuBill(x);if(b&&b.items.length&&b.due>0)_owe++;});}catch(e){}const el=$('#c-owe');if(el){el.textContent=_owe;el.classList.toggle('hide',!_owe||!IS_OWNER);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
-  if(!IS_OWNER&&['ops','agency','interview','writing'].indexOf(S.tab)>=0)S.tab='dashboard';
-  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,ops:renderOps}[S.tab])();}
+  if(!IS_OWNER&&['ops','pay','agency','interview','writing'].indexOf(S.tab)>=0)S.tab='dashboard';
+  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,ops:renderOps,pay:renderPay}[S.tab])();}
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
@@ -932,13 +960,14 @@ function buildAllClassICS(){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//
 function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'week';
   const _cvb=(v,lb)=>`<button class="segb${view===v?' on':''}" data-act="calView" data-id="${v}">${lb}</button>`;
   const toggle=`<div class="cal-top">
-    <div class="segbar">${_cvb('week','📆 這一週')}${_cvb('month','🗓 這個月')}${_cvb('ledger','👥 每個學生')}</div>
+    <div class="segbar">${_cvb('week','📆 這一週')}${_cvb('month','🗓 這個月')}${_cvb('ledger','👥 上課記錄')}</div>
     <span class="grow"></span>
     <button class="btn btn-primary" data-act="planClass">📌 排一堂課</button>
     <details class="cal-help"><summary>？ 這頁怎麼用</summary><div>
       <b>📆 這一週</b>：今天起七天，每天一列。沒課的那天會顯示「沒課」，按旁邊的「＋ 排課」就能排進去。<br>
       <b>🗓 這個月</b>：整月月曆。方格裡是那天的課，點方格看那天的細節。上面是這個月的堂數統計。<br>
-      <b>👥 每個學生</b>：每位學生的上課次數／剩餘堂數／繳費一覽。<br>
+      <b>👥 上課記錄</b>：每位學生上了幾堂、還剩幾堂、每一堂的日期。<br>
+      💰 收錢請到左邊選單的「💰 繳費」，所有學生（含團班）都在那一頁記。<br>
       🕒 時間都以<b>台灣時間（GMT+8）</b>為準；<b>越南時間 ＝ 台灣 − 1 小時</b>。
     </div></details>
   </div>`;
@@ -1059,6 +1088,83 @@ function renderCalMonth(body,toggle){
   const detail=sel?('<div class="cm-detail"><div class="cm-dt">'+esc(sel)+'（'+selWd+'）'+(sel===today?' <span class="badge badge-soon">今天</span>':'')+'</div>'+(dayCardMap[sel]||'<div class="hint" style="padding:6px 2px">這天沒有課。要排課按上面的「📌 排一堂課」。</div>')+'</div>'):'';
   body.innerHTML=toggle+nav+summary+grid+detail;}
 
+
+/* ===================== 💰 繳費：所有學生的應收／已繳／剩餘，集中在這裡記 ===================== */
+function payRowsOf(list){
+  return list.map(s=>{
+    const b=stuBill(s)||{items:[],charge:0,paid:0,due:0,unknown:0};
+    const cur=billCur(s);
+    let qty=0;(b.items||[]).forEach(x=>{const h=logHours(x.e);qty+=(isHourly(s)?((h!=null)?h:1):1);});
+    return {s,b,cur,qty:Math.round(qty*100)/100};
+  });
+}
+function payRowHtml(r){
+  const s=r.s,b=r.b,cur=r.cur;
+  const owe=b.due>0.0001, over=b.due<-0.0001;
+  const state=!b.items.length
+    ? '<span class="pay-st muted">還沒有上課記錄</span>'
+    : (owe ? '<span class="pay-st owe">欠 '+money(b.due,cur)+'</span>'
+           : (over ? '<span class="pay-st over">預繳 '+money(-b.due,cur)+'</span>'
+                   : '<span class="pay-st ok">✅ 已結清</span>'));
+  const last=(Array.isArray(s.payments)?s.payments:[]).slice().sort((a,c)=>String(c.date||'').localeCompare(String(a.date||'')))[0];
+  return '<div class="pay-row'+(owe?' is-owe':'')+'">'
+    +'<span class="pay-nm">'+snm(s.name)+'</span>'
+    +'<span class="pay-tag">'+enrollBadge(s)+'</span>'
+    +'<span class="pay-c">'+(b.items.length?('上課 <b>'+fmtQty(r.qty)+'</b> '+unitLabel(s)):'—')
+      +(b.unknown?(' <span class="badge badge-soon" title="有課沒設定收費">⚠️ '+b.unknown+'</span>'):'')+'</span>'
+    +'<span class="pay-c">應收 <b>'+(b.items.length?money(b.charge,cur):'—')+'</b></span>'
+    +'<span class="pay-c">已繳 <b>'+money(b.paid,cur)+'</b>'+(last?(' <span class="muted" style="font-size:11.5px">'+esc(String(last.date||'').slice(0,10))+'</span>'):'')+'</span>'
+    +state
+    +'<span class="grow"></span>'
+    +'<button class="btn btn-sm btn-primary" data-act="payments" data-id="'+esc(s.id)+'">＋ 記一筆</button>'
+    +'<button class="btn btn-sm" data-act="billStatement" data-id="'+esc(s.id)+'">🧾 對帳單</button>'
+    +'<button class="btn btn-sm" data-act="remindMsg" data-id="'+esc(s.id)+'">📋 提醒</button>'
+    +'</div>';
+}
+function renderPay(){
+  const body=$('#pay-body');if(!body)return;
+  if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','繳費只有主管理員看得到。');return;}
+  const all=(S.students||[]).filter(s=>s&&!s.deleted&&!s.is_test);
+  if(!all.length){body.innerHTML=emptyHtml('💰','還沒有學生','先到「👥 學生」新增學生，這裡就會出現每個人的繳費狀況。');return;}
+  const f=S.payFilter||'owe';
+  const rowsAll=payRowsOf(all);
+  const oweN=rowsAll.filter(r=>r.b.items.length&&r.b.due>0.0001).length;
+  const clearN=rowsAll.filter(r=>r.b.items.length&&r.b.due<=0.0001).length;
+  // 總計（分幣別）
+  const dueCur={},paidM={};const thisM=localToday().slice(0,7);
+  rowsAll.forEach(r=>{if(r.b.items.length&&r.b.due>0)dueCur[r.cur]=(dueCur[r.cur]||0)+r.b.due;
+    (r.s.payments||[]).forEach(p=>{const a=Number(p.amount)||0;if(!a)return;if(String(p.date||'').slice(0,7)!==thisM)return;
+      const c=p.currency||r.cur;paidM[c]=(paidM[c]||0)+a;});});
+  const mstr=o=>{const ks=Object.keys(o).filter(k=>o[k]);return ks.length?ks.map(c=>money(o[c],c)).join(' ＋ '):'—';};
+  const head='<div class="pay-sum">'
+    +'<div><div class="muted">本月已收（'+esc(thisM)+'）</div><b style="color:#16a34a">'+mstr(paidM)+'</b></div>'
+    +'<div><div class="muted">還沒收到</div><b style="color:'+(Object.keys(dueCur).length?'#d97706':'#94a3b8')+'">'+mstr(dueCur)+'</b></div>'
+    +'<div><div class="muted">有欠款的學生</div><b style="color:'+(oweN?'#dc2626':'#94a3b8')+'">'+oweN+' 位</b></div>'
+    +'</div>';
+  const seg=(v,lb,n)=>'<button class="segb'+(f===v?' on':'')+'" data-act="payFilter" data-id="'+v+'">'+lb+(n!=null?' <span class="segn">'+n+'</span>':'')+'</button>';
+  const bar='<div class="stu-bar"><div class="segbar">'
+    +seg('owe','🔴 還沒收',oweN)+seg('clear','✅ 已結清',clearN)+seg('all','全部',rowsAll.length)
+    +'</div><span class="grow"></span><span class="hint">按「＋ 記一筆」就能寫進這位學生的繳費，團班也一樣。</span></div>';
+  let rows=rowsAll;
+  if(f==='owe')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due>0.0001);
+  else if(f==='clear')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due<=0.0001);
+  if(!rows.length){body.innerHTML=head+bar+emptyHtml(f==='owe'?'🎉':'🔍',f==='owe'?'太好了，沒有人欠款':'這個條件沒有學生','換上面的分類看看。');return;}
+  // 分組：一對一 ／ 各團班
+  const solo=rows.filter(r=>r.s.class_type!=='團班');
+  const grpNames=[...new Set(rows.filter(r=>r.s.class_type==='團班').flatMap(r=>stuGroups(r.s)))].sort();
+  const noGrp=rows.filter(r=>r.s.class_type==='團班'&&!stuGroups(r.s).length);
+  const sortR=a=>a.slice().sort((x,y)=>(y.b.due-x.b.due)||String(x.s.name||'').localeCompare(String(y.s.name||'')));
+  const sec=(label,arr)=>{if(!arr.length)return '';
+    const d={};arr.forEach(r=>{if(r.b.items.length&&r.b.due>0)d[r.cur]=(d[r.cur]||0)+r.b.due;});
+    const sub=Object.keys(d).length?('<span class="pay-gs">還沒收 '+mstr(d)+'</span>'):'<span class="pay-gs ok">✅ 都收齊了</span>';
+    return '<div class="pay-grp"><div class="pay-gh">'+label+' <span class="tag">'+arr.length+' 位</span>'+sub+'</div>'
+      +sortR(arr).map(payRowHtml).join('')+'</div>';};
+  let html='';
+  html+=sec('🧑‍🏫 一對一',solo);
+  grpNames.forEach(g=>html+=sec('👥 '+esc(g)+' 團班',rows.filter(r=>r.s.class_type==='團班'&&stuGroups(r.s).includes(g))));
+  html+=sec('👥 團班（尚未分班）',noGrp);
+  body.innerHTML=head+bar+html;
+}
 /* ===================== 🎤 面試練習：資料與畫面（純函式，可放前面） ===================== */
 function itvAll(){return (S.interviews||[]);}
 function itvById(id){return itvAll().find(x=>x.id===id);}
@@ -1441,8 +1547,7 @@ function renderCalLedger(body,toggle){
         <button class="btn btn-sm btn-accent" data-act="quickClassToday" data-id="${s.id}">✓ 記今天上課</button>
         ${(function(){const sg=suggestNext(s);return sg?`<button class="btn btn-sm btn-accent" data-act="planClass" data-id="S:${esc(s.id)}::${esc(sg.date)}">📌 預排下次（建議 ${esc(sg.date.slice(5))} ${sg.wd}${sg.start?(' '+esc(sg.start)):''}）</button>`:`<button class="btn btn-sm" data-act="planClass" data-id="${s.class_type==='團班'?esc(stuGroups(s)[0]||''):('S:'+s.id)}">📌 預排上課</button>`;})()}
         <button class="btn btn-sm" data-act="classLog" data-id="${s.id}">📝 上課記錄（改日期）</button>
-        ${IS_OWNER?`<button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>
-        <button class="btn btn-sm" data-act="billStatement" data-id="${s.id}">🧾 對帳單</button>`:''}
+        ${IS_OWNER?`<button class="btn btn-sm" data-act="tab" data-id="pay" title="所有繳費都集中在「💰 繳費」分頁">💰 去繳費頁</button>`:''}
         <button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒訊息</button><button class="btn btn-sm" data-act="uploadAreas" data-id="${s.id}">📤 上傳區</button>
         <button class="btn btn-sm" data-act="repOpen" data-id="${s.id}">📄 學習報告</button>
         ${(IS_OWNER&&r.due&&r.due.cls!=='badge-overdue')?`<span style="margin-left:auto"><span class="muted" style="font-size:12px">下次繳費：</span><span class="badge ${r.due.cls}">${r.due.label}</span></span>`:''}
@@ -5100,6 +5205,7 @@ H.itvSessDel=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);
   const arr=itvSessions(c).slice();arr.splice(Number(p[1]),1);
   try{await DB.update(crmCol(c.id),c.id,{sessions:arr});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.calDay=(d)=>{S.calDay=d;renderCalendar();};
+H.payFilter=(v)=>{S.payFilter=v;renderPay();};
 H.calView=(v)=>{S.calDay='';S.calView=v;if((v==='month'||v==='ledger')&&!S.calMonth)S.calMonth=localToday().slice(0,7);renderCalendar();};
 H.quickClassToday=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const d=new Date();const date=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   const log=Array.isArray(s.class_log)?s.class_log.slice():[];
@@ -5163,7 +5269,10 @@ function renderClassView(cls){
   const members=S.students.filter(s=>stuGroups(s).includes(cls));
   ensureClassSched(cls);
   const cm=classMetaOf(cls);const sched=classSchedText(cls);const meetUrl=classMeetOf(cls);const TD='padding:7px 9px;border-top:1px solid var(--line)';
-  const roster=members.length?members.map(s=>{const asg=S.lessons.filter(l=>isAssignedTo(l,s)&&answerableOf(l.id).length);const done=asg.filter(l=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;return `<tr><td style="${TD}"><b>${snm(s.name)}</b></td><td style="${TD}">${esc(s.email||'')}</td><td style="${TD}">${asg.length?(done+' / '+asg.length):'—'}</td></tr>`;}).join(''):`<tr><td colspan="3" style="${TD};color:var(--muted)">還沒有成員，按「✏️ 成員／時段」勾選學生。</td></tr>`;
+  const roster=members.length?members.map(s=>{const asg=S.lessons.filter(l=>isAssignedTo(l,s)&&answerableOf(l.id).length);const done=asg.filter(l=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;
+    const _b=stuBill(s);const _c=billCur(s);
+    const _pay=!_b||!_b.items.length?'<span class="muted">—</span>':(_b.due>0.0001?('<b style="color:#c2410c">欠 '+money(_b.due,_c)+'</b>'):(_b.due<-0.0001?('<span style="color:#7c3aed">預繳 '+money(-_b.due,_c)+'</span>'):'<b style="color:#16a34a">✅ 已結清</b>'));
+    return `<tr><td style="${TD}"><b>${snm(s.name)}</b></td><td style="${TD}">${esc(s.email||'')}</td><td style="${TD}">${asg.length?(done+' / '+asg.length):'—'}</td><td style="${TD}">${_pay}</td><td style="${TD};white-space:nowrap"><button class="btn btn-sm btn-primary" data-act="payments" data-id="${esc(s.id)}">💰 記繳費</button> <button class="btn btn-sm" data-act="classLog" data-id="${esc(s.id)}">🗓 上課記錄</button></td></tr>`;}).join(''):`<tr><td colspan="5" style="${TD};color:var(--muted)">還沒有成員，按「✏️ 成員／時段」勾選學生。</td></tr>`;
   const pubN=sortLessons(S.lessons).filter(l=>(l.assigned_groups||[]).includes(cls)).length;
   document.getElementById('classview-body').innerHTML=`
     <div class="section-head" style="flex-wrap:wrap;gap:8px"><a class="btn btn-sm btn-ghost" href="teacher.html">← 返回後台</a><h2 style="margin:0">👥 ${esc(cls)}</h2><span class="grow"></span>
@@ -5195,7 +5304,7 @@ function tModItems(l,cls){
   return out;}
 function cvBodyHtml(cls,members,roster){
   const tab=S.cvTab||'mod';const TD='padding:7px 9px;border-top:1px solid var(--line)';
-  if(tab==='stu')return `<div class="card"><h3 style="margin:0 0 10px">👥 學生名單 <span class="tag">${members.length} 位</span></h3><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:6px 9px;color:var(--primary)">姓名</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">Email</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">作業完成</th></tr></thead><tbody>${roster}</tbody></table></div>`;
+  if(tab==='stu')return `<div class="card"><h3 style="margin:0 0 10px">👥 學生名單 <span class="tag">${members.length} 位</span></h3><div class="hint" style="margin-bottom:8px">團班每位學生各自繳自己的。按「💰 記繳費」就能寫進那位學生的繳費紀錄。</div><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:6px 9px;color:var(--primary)">姓名</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">Email</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">作業完成</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">繳費</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">操作</th></tr></thead><tbody>${roster}</tbody></table></div>`;
   if(tab==='days')return classDatesHtml(cls);
   if(tab==='board')return classBoardHtml(cls);
   if(tab==='links'){const cm=classMetaOf(cls);const meetUrl=classMeetOf(cls);
