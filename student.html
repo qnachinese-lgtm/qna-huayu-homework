@@ -282,6 +282,13 @@ span.wb-bl{display:inline-block;min-width:7em;padding:0 8px;margin:0 4px;border-
 .wb-score b{font-size:28px}
 .wb-sgrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .wb-spill{background:rgba(255,255,255,.18);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700}
+.hq{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.hq-b{display:flex;align-items:center;gap:10px;background:var(--card,#fff);border:1px solid var(--line,#e7e0d4);border-radius:13px;
+  padding:14px 15px;font-family:inherit;font-size:15px;font-weight:700;color:#2E2A26;cursor:pointer;text-align:left;transition:.15s}
+.hq-b:hover{border-color:var(--accent,#B23A48);color:var(--accent,#B23A48);transform:translateY(-1px);box-shadow:0 5px 16px rgba(0,0,0,.06)}
+.hq-b i{font-style:normal;font-size:21px}
+.hq-n{display:inline-block;margin-left:7px;background:var(--accent,#B23A48);color:#fff;border-radius:999px;padding:0 7px;font-size:12px}
+@media(max-width:600px){.hq{grid-template-columns:1fr 1fr}.hq-b{padding:12px;font-size:14px}}
 .due-wd{margin-left:6px;font-size:12.5px;color:#8a8178;font-weight:600}
 .lq-item{padding:12px 0;border-bottom:1px dashed var(--line,#e7e0d4)}
 .lq-item:last-of-type{border-bottom:0}
@@ -2365,8 +2372,8 @@ function renderHome(){
   const L=S.lang||'zh';
   const T=({zh:{hi:'你好',todo:'近期待辦',none:'目前沒有待辦，很棒！',go:'去作答',cs:'我的課程',grp:'團班',solo:'一對一'},
             cn:{hi:'你好',todo:'近期待办',none:'目前没有待办，很棒！',go:'去作答',cs:'我的课程',grp:'团班',solo:'一对一'},
-            en:{hi:'Hi',todo:'Upcoming',none:'Nothing due — nice!',go:'Start',cs:'My courses',grp:'Class',solo:'1-on-1'},
-            vi:{hi:'Xin chào',todo:'Sắp đến hạn',none:'Không có bài nào — tuyệt!',go:'Làm bài',cs:'Khoá học của tôi',grp:'Lớp',solo:'1 kèm 1'}})[L]
+            en:{hi:'Hi',todo:'Upcoming',none:'Nothing due. Nice work!',go:'Start',cs:'My courses',grp:'Class',solo:'1-on-1'},
+            vi:{hi:'Xin chào',todo:'Sắp đến hạn',none:'Không có bài nào. Tuyệt!',go:'Làm bài',cs:'Khoá học của tôi',grp:'Lớp',solo:'1 kèm 1'}})[L]
         ||{hi:'你好',todo:'近期待辦',none:'目前沒有待辦，很棒！',go:'去作答',cs:'我的課程',grp:'團班',solo:'一對一'};
   const cs=courseList();
   const G=['linear-gradient(135deg,#B23A48,#7d2733)','linear-gradient(135deg,#1F6F78,#164f56)','linear-gradient(135deg,#8E6B2F,#5e4620)','linear-gradient(135deg,#4B4A8F,#2f2e5e)'];
@@ -2384,13 +2391,41 @@ function renderHome(){
       +'<span class="btn btn-sm btn-accent">'+esc(T.go)+'</span></div>').join('')
     :'<div class="todo"><span class="tt"><b>🎉 '+esc(T.none)+'</b></span></div>';
   const nx=classUpcomingHtml()||'';
-  /* 只有一個課程時不必再讓學生「選課」，首頁直接省略課程卡 */
-  const csBlock=(cs.length>1)
-    ? ('<div class="pg-h" style="margin:0 0 10px"><h2 style="font-size:16px">📚 '+esc(T.cs)+'</h2></div><div class="cgrid">'+cards+'</div>')
-    : '';
+  /* 只有一個課程時不必再讓學生「選課」，改成直接把課次和快速入口放在主欄 */
+  const one=(cs.length<=1);
+  const QL=({zh:{go:'開始上課',les:'課次',w:'我的作業',m:'錯題本',g:'我的成績',f:'老師給我的檔案',more:'看全部課次'},
+             cn:{go:'开始上课',les:'课次',w:'我的作业',m:'错题本',g:'我的成绩',f:'老师给我的档案',more:'看全部课次'},
+             en:{go:'Start learning',les:'Lessons',w:'My homework',m:'Mistakes',g:'My grades',f:'Files from teacher',more:'See all lessons'},
+             vi:{go:'Vào học',les:'Bài học',w:'Bài của tôi',m:'Sổ lỗi',g:'Điểm của tôi',f:'Tài liệu cô gửi',more:'Xem tất cả bài'}})[L]
+        ||{go:'開始上課',les:'課次',w:'我的作業',m:'錯題本',g:'我的成績',f:'老師給我的檔案',more:'看全部課次'};
+  let mainBlock;
+  if(!one){
+    mainBlock='<div class="pg-h" style="margin:0 0 10px"><h2 style="font-size:16px">📚 '+esc(T.cs)+'</h2></div><div class="cgrid">'+cards+'</div>';
+  }else{
+    const myLs=sortLes((cs[0]&&cs[0].lessons)||[]).slice().reverse();
+    const _mdue=(typeof mistDue==='function')?mistDue().length:0;
+    const _fN=(MYFILES||[]).filter(f=>f&&f.url).length;
+    const quick='<div class="hq">'
+      +'<button class="hq-b" data-act="section" data-id="content"><i>📚</i><span>'+esc(QL.go)+'</span></button>'
+      +'<button class="hq-b" data-act="section" data-id="work"><i>✍️</i><span>'+esc(QL.w)+'</span></button>'
+      +'<button class="hq-b" data-act="section" data-id="wrong"><i>📕</i><span>'+esc(QL.m)+(_mdue?'<b class="hq-n">'+_mdue+'</b>':'')+'</span></button>'
+      +'<button class="hq-b" data-act="section" data-id="grades"><i>📈</i><span>'+esc(QL.g)+'</span></button>'
+      +'</div>';
+    const lesRows=myLs.slice(0,6).map(l=>{const r=resultOf(l.id);const done=!!(r&&r.status==='done');
+      return '<div class="todo" data-act="openLesson" data-id="'+esc(l.id)+'">'
+        +'<span class="badge '+(done?'badge-ok':'badge-pending')+'">'+(done?'✓':'▶')+'</span>'
+        +'<span class="tt"><b>'+esc((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||''))+'</b>'
+        +(l.textbook?'<small>'+esc(l.textbook)+'</small>':'')+'</span></div>';}).join('');
+    const lesBlock=lesRows
+      ?('<div class="pg-h" style="margin:14px 0 10px"><h2 style="font-size:16px">📚 '+esc(QL.les)+'</h2></div>'
+        +'<div class="card" style="padding:0">'+lesRows+'</div>'
+        +(myLs.length>6?'<div style="margin-top:8px;text-align:right"><button class="btn btn-sm" data-act="section" data-id="content">'+esc(QL.more)+' →</button></div>':''))
+      :'';
+    mainBlock=quick+lesBlock+(_fN?myFilesHtml():'');
+  }
   $('#screen').innerHTML='<div class="pg-h"><h2>'+esc(T.hi)+'，'+esc((S.me&&S.me.name)||'')+' 👋</h2></div>'
     +'<div class="home2"><div class="h-main">'
-      +csBlock
+      +mainBlock
     +'</div><aside class="h-side">'
       +'<div class="pg-h" style="margin:0 0 10px"><h2>⏰ '+esc(T.todo)+'</h2></div>'
       +'<div class="card" style="padding:0">'+todo+'</div>'
@@ -2511,7 +2546,7 @@ function renderWrong(){
       <span>${act.length} ${L({zh:'題還在練',cn:'题还在练',en:'in progress',vi:'đang luyện'})}</span>
       <span>${mastered} ${L({zh:'題已熟練',cn:'题已熟练',en:'mastered',vi:'đã thuộc'})}</span></div>
     ${due.length?`<button class="btn btn-accent" style="margin-top:14px" data-act="mistStart">${L({zh:'開始複習',cn:'开始复习',en:'Start review',vi:'Bắt đầu ôn'})}</button>`
-      :`<div class="hint" style="margin-top:10px">${L({zh:'今天沒有到期的題，做得很好！',cn:'今天没有到期的题，做得很好！',en:'Nothing due today — nice work!',vi:'Hôm nay không có câu nào — giỏi lắm!'})}</div>`}
+      :`<div class="hint" style="margin-top:10px">${L({zh:'今天沒有到期的題，做得很好！',cn:'今天没有到期的题，做得很好！',en:'Nothing due today. Nice work!',vi:'Hôm nay không có câu nào — giỏi lắm!'})}</div>`}
     <div class="hint" style="margin-top:8px">${L({zh:'答錯的題會在 3 天、7 天、15 天後各回來一次，三次都答對才算熟練。',cn:'答错的题会在 3 天、7 天、15 天后各回来一次，三次都答对才算熟练。',en:'A missed item comes back after 3, 7 and 15 days.',vi:'Câu sai sẽ quay lại sau 3, 7 và 15 ngày.'})}</div></div>`;
   html+=mistStatsHtml();
   if(act.length){
