@@ -282,7 +282,6 @@ span.wb-bl{display:inline-block;min-width:7em;padding:0 8px;margin:0 4px;border-
 .wb-score b{font-size:28px}
 .wb-sgrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .wb-spill{background:rgba(255,255,255,.18);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700}
-.due-wd{margin-left:6px;font-size:12.5px;color:#8a8178;font-weight:600}
 .lq-item{padding:12px 0;border-bottom:1px dashed var(--line,#e7e0d4)}
 .lq-item:last-of-type{border-bottom:0}
 .lq-n{font-size:19px;font-weight:800;color:#2E2A26;margin-bottom:2px}
@@ -1379,15 +1378,13 @@ const myLessons=()=>S.lessons.filter(l=>assignedToMe(l)).sort((a,b)=>((a.order_i
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const answerableOf=(lid)=>questionsOf(lid).filter(q=>!isRefItem(q)&&q.bank==='hw'); // 作業簿（hw）才在「作業」作答；上課語法練習留在上課內容
 /* 與教師端同一套算法：請假不扣、免費不扣；按小時計費就以「時數」計算 */
-function _logHours(e){if(!e||!e.start||!e.end)return null;const p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};let m=p(e.end)-p(e.start);if(m<0)m+=1440;/* 跨午夜：如 22:00–00:00 */return m>0?Math.round(m/60*100)/100:null;}
+function _logHours(e){if(!e||!e.start||!e.end)return null;const p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};const m=p(e.end)-p(e.start);return m>0?Math.round(m/60*100)/100:null;}
 function myHourly(){return !!(S.me&&S.me.fee_unit==='hour');}
 function myUnit(){const L={zh:['小時','堂'],cn:['小时','堂'],en:['hr','class'],vi:['giờ','buổi']}[S.lang||'zh']||['小時','堂'];return myHourly()?L[0]:L[1];}
 function myFmtQty(n){if(n==null)return '—';const r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}
 function myLeft(){const s=S.me;if(!s||s.sessions_total==null||s.sessions_total==='')return null;const log=Array.isArray(s.class_log)?s.class_log:[];
-  const lv=(s.class_type==='團班');/* 團班請假照算，一對一不算（要補課） */
-  const skip=e=>!e||e.free||(!lv&&e.status==='leave');
-  let used;if(myHourly()){used=0;log.forEach(e=>{if(skip(e))return;const h=_logHours(e);used+=(h!=null?h:1);});}
-  else used=log.filter(e=>!skip(e)).length;
+  let used;if(myHourly()){used=0;log.forEach(e=>{if(!e||e.status==='leave'||e.free)return;const h=_logHours(e);used+=(h!=null?h:1);});}
+  else used=log.filter(e=>e&&e.status!=='leave'&&!e.free).length;
   return Math.round((Number(s.sessions_total)-used)*100)/100;}
 const resultOf=(lid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===S.me.id);
 function wrongQuestions(){const out=[],seen=new Set();
@@ -1755,10 +1752,9 @@ function dueCardHtml(){
                 head:['Ngày','Giờ','Số giờ','Số tiền'],paid:'Đã đóng',all:'Tổng học phí',unk:'%n buổi chưa đặt học phí nên chưa tính'}})[L]
         ||{t:'待繳費用',due:'本期應繳',clear:'目前沒有待繳費用',credit:'預繳餘額',n:'堂',detail:'費用明細',hint:'',head:['日期','時間','時數','金額'],paid:'已繳',all:'累計上課費用',unk:''};
   const lvLab=LT({zh:'請假',cn:'请假',en:'Absent',vi:'Nghỉ'});
-  const hrLab=LT({zh:'小時',cn:'小时',en:'hr',vi:'giờ'});
-  const rows=b.items.slice().reverse().map(it=>`<div class="due-row"><span class="due-d">${esc(it.date)}<span class="due-wd">${esc(wdLabel(it.date))}</span>${(b.fam&&it.who&&it.who!==(S.me&&S.me.name))?`<span class="due-lv">${esc(it.who)}</span>`:''}${it.leave?`<span class="due-lv">${esc(lvLab)}</span>`:''}</span>`
+  const rows=b.items.slice().reverse().map(it=>`<div class="due-row"><span class="due-d">${esc(it.date)}${(b.fam&&it.who&&it.who!==(S.me&&S.me.name))?`<span class="due-lv">${esc(it.who)}</span>`:''}${it.leave?`<span class="due-lv">${esc(lvLab)}</span>`:''}</span>`
     +`<span class="due-t">${esc(it.start&&it.end?(it.start+'–'+it.end):'')}</span>`
-    +`<span class="due-h">${it.h!=null?esc(myFmtQty(it.h)+' '+hrLab):''}</span>`
+    +`<span class="due-h">${it.h!=null?esc(myFmtQty(it.h)+' '+myUnit()):''}</span>`
     +`<span class="due-a">${esc(myMoney(it.fee))}</span></div>`).join('');
   const head=`<div class="due-row due-head"><span class="due-d">${esc(T.head[0])}</span><span class="due-t">${esc(T.head[1])}</span><span class="due-h">${esc(T.head[2])}</span><span class="due-a">${esc(T.head[3])}</span></div>`;
   const big=(b.due>0)
@@ -2384,10 +2380,13 @@ function renderHome(){
       +'<span class="btn btn-sm btn-accent">'+esc(T.go)+'</span></div>').join('')
     :'<div class="todo"><span class="tt"><b>🎉 '+esc(T.none)+'</b></span></div>';
   const nx=classUpcomingHtml()||'';
+  /* 只有一個課程時不必再讓學生「選課」，首頁直接省略課程卡 */
+  const csBlock=(cs.length>1)
+    ? ('<div class="pg-h" style="margin:0 0 10px"><h2 style="font-size:16px">📚 '+esc(T.cs)+'</h2></div><div class="cgrid">'+cards+'</div>')
+    : '';
   $('#screen').innerHTML='<div class="pg-h"><h2>'+esc(T.hi)+'，'+esc((S.me&&S.me.name)||'')+' 👋</h2></div>'
     +'<div class="home2"><div class="h-main">'
-      +'<div class="pg-h" style="margin:0 0 10px"><h2 style="font-size:16px">📚 '+esc(T.cs)+'</h2></div>'
-      +'<div class="cgrid">'+cards+'</div>'
+      +csBlock
     +'</div><aside class="h-side">'
       +'<div class="pg-h" style="margin:0 0 10px"><h2>⏰ '+esc(T.todo)+'</h2></div>'
       +'<div class="card" style="padding:0">'+todo+'</div>'
