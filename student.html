@@ -2545,8 +2545,11 @@ function renderWrong(){
       <span><b style="color:${due.length?'#c2410c':'inherit'}">${due.length}</b> ${L({zh:'題今天要複習',cn:'题今天要复习',en:'due today',vi:'câu cần ôn hôm nay'})}</span>
       <span>${act.length} ${L({zh:'題還在練',cn:'题还在练',en:'in progress',vi:'đang luyện'})}</span>
       <span>${mastered} ${L({zh:'題已熟練',cn:'题已熟练',en:'mastered',vi:'đã thuộc'})}</span></div>
-    ${due.length?`<button class="btn btn-accent" style="margin-top:14px" data-act="mistStart">${L({zh:'開始複習',cn:'开始复习',en:'Start review',vi:'Bắt đầu ôn'})}</button>`
-      :`<div class="hint" style="margin-top:10px">${L({zh:'今天沒有到期的題，做得很好！',cn:'今天没有到期的题，做得很好！',en:'Nothing due today. Nice work!',vi:'Hôm nay không có câu nào — giỏi lắm!'})}</div>`}
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      ${due.length?`<button class="btn btn-accent" data-act="mistStart">${L({zh:'開始複習',cn:'开始复习',en:'Start review',vi:'Bắt đầu ôn'})}（${due.length}）</button>`:''}
+      ${act.length?`<button class="btn ${due.length?'':'btn-accent'}" data-act="mistPractice">${L({zh:'現在先練一次',cn:'现在先练一次',en:'Practice now',vi:'Luyện ngay'})}</button>`:''}
+    </div>
+    ${due.length?'':`<div class="hint" style="margin-top:8px">${L({zh:'今天沒有到期的題，做得很好！想先練也可以，按上面那顆，練習不會影響複習的時間。',cn:'今天没有到期的题，做得很好！想先练也可以，按上面那颗，练习不会影响复习的时间。',en:'Nothing due today. You can still practise early; it will not change the schedule.',vi:'Hôm nay không có câu nào. Bạn vẫn có thể luyện trước, lịch ôn không thay đổi.'})}</div>`}
     <div class="hint" style="margin-top:8px">${L({zh:'答錯的題會在 3 天、7 天、15 天後各回來一次，三次都答對才算熟練。',cn:'答错的题会在 3 天、7 天、15 天后各回来一次，三次都答对才算熟练。',en:'A missed item comes back after 3, 7 and 15 days.',vi:'Câu sai sẽ quay lại sau 3, 7 và 15 ngày.'})}</div></div>`;
   html+=mistStatsHtml();
   if(act.length){
@@ -2578,7 +2581,7 @@ function renderMist(){
       <button class="btn btn-primary" style="margin-top:14px" data-act="mistExit">${L({zh:'回錯題本',cn:'回错题本',en:'Back',vi:'Quay lại'})}</button></div>`;
     return;}
   const it=m.list[m.idx];const selfMode=!String(it.c||'').trim();
-  const prog=`<div class="hint" style="text-align:center;margin-bottom:8px">${m.idx+1} / ${m.list.length}　·　${esc(mistSrcLabel(it.src))} ${esc(it.title||'')}</div>`;
+  const prog=`<div class="hint" style="text-align:center;margin-bottom:8px">${m.idx+1} / ${m.list.length}　·　${esc(mistSrcLabel(it.src))} ${esc(it.title||'')}${m.practice?('　·　'+esc(L({zh:'練習模式・不計入排程',cn:'练习模式・不计入排程',en:'Practice only',vi:'Chỉ luyện tập'}))):''}</div>`;
   let body;
   if(selfMode){
     body=`<div class="wb-q"><div class="wb-qt" style="font-size:18px">${annotate(String(it.q||''))}</div></div>
@@ -3417,17 +3420,20 @@ H.liveSubmit=async()=>{
 H.mistStart=()=>{const due=mistDue();if(!due.length)return;
   MREV={list:shuffle(due.slice(),Math.random()+''),idx:0,checked:false,val:'',ok:false,right:0};
   $('#screen').dataset.mode='mist';window.scrollTo(0,0);renderMist();};
+H.mistPractice=()=>{const act=mistActive();if(!act.length)return;
+  MREV={list:shuffle(act.slice(),Math.random()+'').slice(0,15),idx:0,checked:false,val:'',ok:false,right:0,practice:true};
+  $('#screen').dataset.mode='mist';window.scrollTo(0,0);renderMist();};
 H.mistExit=()=>{MREV=null;$('#screen').dataset.mode='';S.section='wrong';window.scrollTo(0,0);renderSection();};
 H.mistReveal=()=>{if(!MREV)return;MREV.checked=true;renderMist();};
 H.mistCheck=async()=>{const m=MREV;if(!m||m.checked)return;
   const el=document.getElementById('mist-in');const v=el?el.value:'';
   const it=m.list[m.idx];m.val=v;m.ok=(mistNorm(v)===mistNorm(it.c))&&!!String(v).trim();
   if(m.ok)m.right++;m.checked=true;renderMist();
-  try{await mistGrade(it.k,m.ok);}catch(e){}};
+  if(!m.practice){try{await mistGrade(it.k,m.ok);}catch(e){}}};
 H.mistNext=()=>{const m=MREV;if(!m)return;m.idx++;m.checked=false;m.val='';m.ok=false;renderMist();};
 H.mistSelf=async(id)=>{const m=MREV;if(!m)return;const ok=String(id)==='1';const it=m.list[m.idx];
   if(ok)m.right++;
-  try{await mistGrade(it.k,ok);}catch(e){}
+  if(!m.practice){try{await mistGrade(it.k,ok);}catch(e){}}
   m.idx++;m.checked=false;m.val='';m.ok=false;renderMist();};
 H.openWrong=()=>{S.practiceSet={mode:'wrong',lesson:null,questions:wrongQuestions(),title:'📒 '+t('wrongTitle')};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
