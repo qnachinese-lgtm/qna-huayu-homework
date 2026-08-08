@@ -198,6 +198,36 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .pay-st.ok{background:#dcfce7;color:#15803d}
         .pay-st.over{background:#f3e8ff;color:#7c3aed}
         .pay-st.muted{background:#f1f0ee;color:var(--muted);font-weight:600}
+        /* 🧮 累計 該收 vs 實收：固定欄位對齊 */
+        .bc-wrap{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+        .bc-row{display:grid;grid-template-columns:minmax(0,1fr) 118px 118px 216px 200px;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13.5px}
+        .bc-row:last-child{border-bottom:none}
+        .bc-hd{padding:7px 14px;font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.5px;background:#fcfbf9}
+        .bc-hd span{white-space:nowrap;text-align:left}
+        .bc-nm{min-width:0}
+        .bc-nm b{font-size:14.5px}
+        .bc-sub{display:block;color:var(--muted);font-size:12px;margin-top:2px;line-height:1.5}
+        .bc-c{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .bc-c b{font-weight:700}
+        .bc-stw{min-width:0}
+        .bc-stw .badge{white-space:normal;line-height:1.45;display:inline-block}
+        .bc-act{display:flex;gap:6px;justify-content:flex-end;white-space:nowrap}
+        .bc-det{border-bottom:1px solid var(--line)}
+        .bc-det:last-child{border-bottom:none}
+        .bc-det>summary{list-style:none;cursor:pointer;border-bottom:none}
+        .bc-det>summary::-webkit-details-marker{display:none}
+        .bc-det[open]>summary{background:#fcfbf9}
+        .bc-kid{background:#faf9f7;padding-left:30px;border-top:1px dashed var(--line);border-bottom:none;font-size:13px}
+        .bc-kid .bc-nm b{font-size:13.5px;font-weight:600}
+        .bc-fold{color:var(--muted);font-size:11.5px;font-weight:600}
+        @media(max-width:900px){
+          .bc-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+          .bc-hd{display:none}
+          .bc-nm{width:100%}
+          .bc-c::before{content:attr(data-l) " ";color:var(--muted);font-size:12px}
+          .bc-kid{padding-left:16px}
+          .bc-act{margin-left:auto}
+        }
         .pay-grp.fam{border-color:#c4b5fd}
         .pay-grp.fam .pay-gh{background:#f5f3ff;color:#5b21b6}
         .pay-fam-sum{font-size:12.5px;font-weight:600;color:var(--muted)}
@@ -1740,31 +1770,38 @@ function billCheckHtml(ym){const raw=billCheck(ym);
       :(gap<-0.01?['#2563eb','💳 學生先繳了 '+money(-gap,r.cur)+'，之後上課扣']
                :['#16a34a','✅ 剛好結清']))));
     const ackBtn=(gap==null)?''
-      :(ack?`<button class="btn btn-sm btn-ghost" data-act="billUnack" data-id="${esc(key)}">↩︎ 取消已處理</button>`
-           :`<button class="btn btn-sm" data-act="billAck" data-id="${esc(key)}">✔ 標記已處理</button>`);
+      :(ack?`<button class="btn btn-sm btn-ghost" type="button" data-act="billUnack" data-id="${esc(key)}">↩︎ 取消已處理</button>`
+           :`<button class="btn btn-sm" type="button" data-act="billAck" data-id="${esc(key)}">✔ 標記已處理</button>`);
     const badge=`<span class="badge" style="background:${st[0]}18;color:${st[0]};border-color:${st[0]}55">${st[1]}</span>`;
-    const nums=`<span class="muted" style="font-size:12px">應收 ${r.should==null?'—':money(r.should,r.cur)}　實收 ${money(r.paid,r.cur)}</span>`;
+    const cells=(shouldV,paidV,cur)=>`<span class="bc-c" data-l="應收"><b>${shouldV==null?'—':money(shouldV,cur)}</b></span>`+
+      `<span class="bc-c" data-l="實收">${money(paidV,cur)}</span>`;
     if(!fam){
-      return `<div class="dash-row" style="flex-wrap:wrap${ack?';opacity:.72':''}"><b>${esc(r.s.name)}</b>`+
-        `<span class="muted" style="font-size:12px">累計 ${fmtQty(r.qty)} ${r.unit}${r.brk?'（'+r.brk+'）':(r.price!=null?' × '+money(r.price,r.cur):'')}${r.mqty?`　·　本月 ${fmtQty(r.mqty)} ${r.unit}`:''}${r.unknown?`　·　<b style="color:#d97706">${r.unknown} 堂沒對到收費</b>`:''}</span>`+
-        `<span class="grow"></span>${nums}${badge}${ackBtn}`+
-        `<button class="btn btn-sm" data-act="payments" data-id="${r.s.id}">繳費</button></div>`;}
+      const sub=`累計 ${fmtQty(r.qty)} ${r.unit}${r.brk?'（'+r.brk+'）':(r.price!=null?' × '+money(r.price,r.cur):'')}${r.mqty?`　·　本月 ${fmtQty(r.mqty)} ${r.unit}`:''}${r.unknown?`　·　<b style="color:#d97706">${r.unknown} 堂沒對到收費</b>`:''}`;
+      return `<div class="bc-row"${ack?' style="opacity:.72"':''}>`+
+        `<span class="bc-nm"><b>${esc(r.s.name)}</b><span class="bc-sub">${sub}</span></span>`+
+        cells(r.should,r.paid,r.cur)+
+        `<span class="bc-stw">${badge}</span>`+
+        `<span class="bc-act">${ackBtn}<button class="btn btn-sm btn-primary" type="button" data-act="payments" data-id="${r.s.id}">💰 繳費</button></span></div>`;}
     const kids=r.kids.map(k=>{const kg=(k.should==null)?0:Math.round((k.should-k.paid)*100)/100;
-      return `<div class="dash-row" style="padding:5px 0 5px 16px;border-top:1px dashed var(--line);flex-wrap:wrap">`+
-        `<span style="font-weight:600">${esc(k.s.name)}</span>`+
-        `<span class="muted" style="font-size:12px">${fmtQty(k.qty)} ${k.unit}${k.brk?'（'+k.brk+'）':(k.price!=null?' × '+money(k.price,k.cur):'')}</span>`+
-        `<span class="grow"></span>`+
-        `<span class="muted" style="font-size:12px">應收 ${k.should==null?'—':money(k.should,k.cur)}　實收 ${money(k.paid,k.cur)}　${kg>0.01?('差 '+money(kg,k.cur)):(kg<-0.01?('多 '+money(-kg,k.cur)):'剛好')}</span>`+
-        `<button class="btn btn-sm" data-act="payments" data-id="${k.s.id}">繳費</button></div>`;}).join('');
-    return `<details class="dash-row" style="display:block${ack?';opacity:.72':''}"><summary style="cursor:pointer;list-style:none;display:flex;flex-wrap:wrap;gap:8px;align-items:center">`+
-      `<b>👨‍👩‍👦 ${esc(r.fam)}</b><span class="muted" style="font-size:12px">${r.kids.length} 人合併 · 累計 ${fmtQty(r.qty)} ${r.unit}${r.mqty?`　·　本月 ${fmtQty(r.mqty)} ${r.unit}`:''}${r.unknown?`　·　<b style="color:#d97706">${r.unknown} 堂沒對到收費</b>`:''}</span>`+
-      `<span class="grow"></span>${nums}${badge}${ackBtn}</summary>${kids}</details>`;};
+      const tail=kg>0.01?('<span style="color:#c2410c">差 '+money(kg,k.cur)+'</span>'):(kg<-0.01?('<span style="color:#2563eb">多 '+money(-kg,k.cur)+'</span>'):'<span style="color:#16a34a">剛好</span>');
+      return `<div class="bc-row bc-kid">`+
+        `<span class="bc-nm"><b>${esc(k.s.name)}</b><span class="bc-sub">${fmtQty(k.qty)} ${k.unit}${k.brk?'（'+k.brk+'）':(k.price!=null?' × '+money(k.price,k.cur):'')}</span></span>`+
+        cells(k.should,k.paid,k.cur)+
+        `<span class="bc-stw"><span class="muted" style="font-size:12.5px">${tail}</span></span>`+
+        `<span class="bc-act"><button class="btn btn-sm btn-primary" type="button" data-act="payments" data-id="${k.s.id}">💰 繳費</button></span></div>`;}).join('');
+    const famPay=`<button class="btn btn-sm btn-primary" type="button" data-act="famPay" data-id="${esc(r.fam)}">💰 繳費</button>`;
+    return `<details class="bc-det"${ack?' style="opacity:.72"':''}><summary class="bc-row" onclick="if(event.target.closest('button'))event.preventDefault()">`+
+      `<span class="bc-nm"><b>👨‍👩‍👦 ${esc(r.fam)}</b> <span class="bc-fold">▾ 點開看各人</span><span class="bc-sub">${r.kids.length} 人合併 · 累計 ${fmtQty(r.qty)} ${r.unit}${r.mqty?`　·　本月 ${fmtQty(r.mqty)} ${r.unit}`:''}${r.unknown?`　·　<b style="color:#d97706">${r.unknown} 堂沒對到收費</b>`:''}</span></span>`+
+      cells(r.should,r.paid,r.cur)+
+      `<span class="bc-stw">${badge}</span>`+
+      `<span class="bc-act">${ackBtn}${famPay}</span></summary>${kids}</details>`;};
   const ordered=flagged.concat(mixedRows).sort((x,y)=>(ackOf(x)?1:0)-(ackOf(y)?1:0));
   const list=ordered.map(rowHtml).join('');
   const head=(shortN?`<div class="hint" style="margin-bottom:6px;color:#dc2626">有 ${shortN} 位「應收 ＞ 實收」還沒處理，建議點開確認</div>`:`<div class="hint" style="margin-bottom:6px;color:#16a34a">✅ 沒有還沒處理的少收</div>`)
     +`<div class="hint" style="margin-bottom:4px">帳目相符 ${okN} 位${ackN?`　·　已處理 ${ackN} 位`:''}${mixedRows.length?`　·　混合幣別待核 ${mixedRows.length} 位`:''}${noPrice?`　·　未設學費 ${noPrice} 位`:''}</div>`
     +`<div class="hint" style="margin-bottom:8px;line-height:1.7">🔴 <b>還沒收到</b>＝上過的課算起來比收到的錢多，可能學生還沒付、或忘了登錄收款。<br>🔵 <b>學生先繳了</b>＝收到的錢比已上的課多，是<b>預付</b>的部分，之後上課會慢慢扣掉，通常不用處理。<br>👨‍👩‍👦 <b>合併帳戶</b>（例如兄弟由同一位家長繳費）會合成一列一起算，點開可以看到每個人各自的數字。到「編輯學生 → 收費設定 → 合併帳戶」設定。<br>核對過、確認沒問題的，按「✔ 標記已處理」就會變綠色、不再算進上面的提醒（金額之後有變動會自動重新提醒）。</div>`;
-  return head+(list||'<div class="muted" style="padding:6px 2px">沒有需要注意的（少收／預繳／混合幣別）。</div>');}
+  const hd='<div class="bc-row bc-hd"><span>學生</span><span>應收</span><span>實收</span><span>狀態</span><span></span></div>';
+  return head+(list?('<div class="bc-wrap">'+hd+list+'</div>'):'<div class="muted" style="padding:6px 2px">沒有需要注意的（少收／預繳／混合幣別）。</div>');}
 /* ---------- 營運（收入／待收款／管理員／公告） ---------- */
 function renderOps(){const body=$('#ops-body');
   if(body&&!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','財務・營運只有主管理員看得到。');return;}
@@ -5499,6 +5536,20 @@ H.exportGrades=()=>{const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0
   const csv='﻿'+rows.map(r=>r.map(c=>{c=(c==null?'':String(c));return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(',')).join('\r\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download='成績_'+localToday()+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('已匯出 CSV');};
+H.famPay=(k)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
+  const f=famBill(String(k||''));if(!f){toast('找不到這個合併帳戶');return;}
+  const rows=f.members.map(m=>{const b=stuBill(m)||{charge:0,paid:0,due:0};const cur=billCur(m);
+    const tag=b.due>0.01?`<span class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#fca5a5">差 ${money(b.due,cur)}</span>`
+      :(b.due<-0.01?`<span class="badge" style="background:#dbeafe;color:#1d4ed8;border-color:#93c5fd">多 ${money(-b.due,cur)}</span>`
+      :'<span class="badge badge-ok">剛好</span>');
+    return `<div class="dash-row" style="flex-wrap:wrap"><b>${esc(m.name)}</b>${tag}<span class="grow"></span><span class="muted" style="font-size:12.5px">應收 ${money(b.charge,cur)}　實收 ${money(b.paid,cur)}</span><button class="btn btn-sm btn-primary" type="button" data-act="payments" data-id="${m.id}">💰 記在這位</button></div>`;}).join('');
+  const tail=f.due>0.01?`<b style="color:#c2410c">還差 ${money(f.due,f.cur)}</b>`:(f.due<-0.01?`<b style="color:#2563eb">已結清（預繳 ${money(-f.due,f.cur)}）</b>`:'<b style="color:#16a34a">已結清</b>');
+  openModal(`<div class="modal"><div class="modal-head"><h3>👨‍👩‍👦 ${esc(f.key)} · 記一筆繳費</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="hint" style="margin-bottom:10px;line-height:1.7">這一家合併算帳：<b>應收 ${money(f.charge,f.cur)}</b>　<b>實收 ${money(f.paid,f.cur)}</b>　${tail}<br>錢是一起算的，所以<b>記在哪一位名下都可以</b>，總帳一樣。習慣上記在這次實際繳費的那位就好。</div>
+     ${rows}
+   </div>
+   <div class="modal-foot"><button class="btn" type="button" data-act="closeModal">關閉</button></div></div>`);};
 H.payments=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}const s=S.students.find(x=>x.id===id);if(!s)return;PAY_STU=s;const ps=(s.payments||[]).map((p,origI)=>({p,origI})).sort((a,b)=>(b.p.date||'').localeCompare(a.p.date||''));
   const byCur={};ps.forEach(({p})=>{const c=p.currency||s.currency||'TWD';byCur[c]=(byCur[c]||0)+(Number(p.amount)||0);});
   const totalStr=Object.keys(byCur).map(c=>money(byCur[c],c)).join('、')||money(0,s.currency);
