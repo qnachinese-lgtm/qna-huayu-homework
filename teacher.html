@@ -199,6 +199,10 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .pay-st.ok{background:#dcfce7;color:#15803d}
         .pay-st.over{background:#f3e8ff;color:#7c3aed}
         .pay-st.muted{background:#f1f0ee;color:var(--muted);font-weight:600}
+        /* 頭像 emoji */
+        .avatar.emo{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif;line-height:1;font-size:20px;letter-spacing:0}
+        .avatar.sm.emo{font-size:15px}
+        #app .stu-nm .avatar.sm.emo{font-size:14px}
         /* 🔍 找功能 / ❓ 功能地圖 */
         .feat-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr) 18px;gap:12px;align-items:center;width:100%;text-align:left;background:#fff;border:none;border-bottom:1px solid var(--line);padding:11px 4px;cursor:pointer;font:inherit}
         .feat-row:last-child{border-bottom:none}
@@ -646,7 +650,29 @@ function sessChip(s){const u2=usedUnits(s);const un=unitLabel(s);
   return `<span>🎟️ 已上 <b>${fmtQty(u2)} ${un}</b>${lvNote}</span>`;}
 const AV=['#B23A48','#1F6F78','#C9A227','#5B6BB5','#2F855A','#C05621','#7B4DAA','#0E7C86'];
 function avColor(s){let h=0;for(const c of (s||''))h=(h*31+c.charCodeAt(0))>>>0;return AV[h%AV.length];}
-// 頭像縮寫：中文名取「最後兩個字」(如「潘氏蘭」→「氏蘭」、「張國慶」→「國慶」)；拉丁名取首字母
+/* 頭像 emoji：依名字自動配一個，每位不一樣；學生資料裡填了「頭像」就用她填的 */
+const AVE=['🐱','🐶','🦊','🐼','🐨','🦁','🐯','🐸','🐵','🦉','🐰','🐷','🐧','🦄','🐢','🐝','🦋','🌸','🌟','🍀','🍎','🍊','🐳','🐬','🦜','🐥','🌻','🍑','🐙','🦔','🐻','🐭','🍄','🌵','🪁','🎈','🦢','🐘','🦒','🦓','🐴','🐄','🐑','🦥','🦦','🐹','🐮','🍇','🍓','🍉','🍒','🥝','🌷','🌼','🌺','🍁','🌈','⭐','🔔','🎨','🎸','⚽','🚀','🎯','🧩','🪴','🍩','🐞'];
+function _avHash(n){let h=7;for(const c of String(n||''))h=(h*131+c.codePointAt(0))>>>0;return h;}
+let _AVMAP=null,_AVSIG='';
+/* 全班一起算，保證每個人的 emoji 不一樣（撞到就往後找下一個沒人用的） */
+function avMap(){
+  const list=(S.students||[]).filter(x=>x&&!x.deleted).slice().sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+  const sig=list.map(x=>String(x.id)+':'+String(x.avatar||'')).join(',');
+  if(_AVMAP&&_AVSIG===sig)return _AVMAP;
+  const used=new Set(),map={};
+  list.forEach(x=>{const cus=x.avatar?String(x.avatar).trim():'';if(cus){map[x.id]=cus;used.add(cus);}});
+  list.forEach(x=>{if(map[x.id])return;
+    const i=_avHash(x.name)%AVE.length;
+    for(let k=0;k<AVE.length;k++){const e=AVE[(i+k)%AVE.length];if(!used.has(e)){used.add(e);map[x.id]=e;return;}}
+    map[x.id]=AVE[i];});
+  _AVMAP=map;_AVSIG=sig;return map;}
+function avEmoji(x){
+  if(x&&typeof x==='object'){
+    const cus=x.avatar?String(x.avatar).trim():'';if(cus)return cus;
+    if(x.id){try{const m=avMap();if(m[x.id])return m[x.id];}catch(e){}}
+    return AVE[_avHash(x.name)%AVE.length];}
+  return AVE[_avHash(x)%AVE.length];}
+// 頭像縮寫（已停用，保留避免其他地方呼叫出錯）：中文名取「最後兩個字」；拉丁名取首字母
 function avInitials(n){n=(n||'').trim();if(!n)return '?';
   if(/[一-鿿]/.test(n)){const ch=[...n];return ch.length<=2?n:ch.slice(-2).join('');}
   const p=n.split(/\s+/).filter(Boolean);
@@ -836,14 +862,14 @@ function renderDashboard(){
   // 付款提醒
   const pays=S.students.map(s=>({s,info:payInfo(s.payment_date)})).filter(x=>x.info&&enrollOf(x.s)!=='paused').sort((a,b)=>a.info.sort-b.info.sort);
   const payHtml=pays.length?pays.map(({s,info})=>`<div class="dash-row">
-      <span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span>
+      <span class="avatar sm emo" style="background:${avColor(s.name)}">${avEmoji(s)}</span>
       <b>${snm(s.name)}</b><span class="badge ${info.cls}">${info.label}</span>
       <span class="grow"></span><span class="muted">${money(s.tuition,s.currency)} · ${fmtDate(s.payment_date)}</span>
       ${s.email?`<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}" title="寄重設密碼信">✉️</button>`:''}
     </div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有即將到期或逾期的付款 👍</div>`;
   const oweList=S.students.filter(s=>!s.is_test&&enrollOf(s)!=='paused').map(s=>{const b=stuBill(s);return {s,b};}).filter(x=>x.b&&x.b.items.length&&x.b.due>0.0001).sort((a,b)=>b.b.due-a.b.due);
   const lowSess=oweList.map(x=>({s:x.s,left:0}));
-  const sessHtml=oweList.length?oweList.map(({s,b})=>`<div class="dash-row"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span><b>${snm(s.name)}</b><span class="badge badge-overdue">欠 ${money(b.due,billCur(s))}</span><span class="grow"></span><span class="muted">上課 ${money(b.charge,billCur(s))} · 已繳 ${money(b.paid,billCur(s))}</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有欠款的學生 👍</div>`;
+  const sessHtml=oweList.length?oweList.map(({s,b})=>`<div class="dash-row"><span class="avatar sm emo" style="background:${avColor(s.name)}">${avEmoji(s)}</span><b>${snm(s.name)}</b><span class="badge badge-overdue">欠 ${money(b.due,billCur(s))}</span><span class="grow"></span><span class="muted">上課 ${money(b.charge,billCur(s))} · 已繳 ${money(b.paid,billCur(s))}</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有欠款的學生 👍</div>`;
   // 批改提醒（待批改的作答）
   const pendList=(S.results||[]).filter(r=>r.status==='pending');
   const pendByLesson={};pendList.forEach(r=>{pendByLesson[r.lesson_id]=(pendByLesson[r.lesson_id]||0)+1;});
@@ -2055,7 +2081,7 @@ function inquiryHtml(){
 }
 function stuCardInner(s){return `
     <div style="display:flex;gap:12px;align-items:center">
-      <div class="avatar" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</div>
+      <div class="avatar emo" style="background:${avColor(s.name)}">${avEmoji(s)}</div>
       <div style="flex:1;min-width:0"><div class="name">${snm(s.name)}</div>
         <div style="margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${s.is_test?'<span class="tag" style="background:#e6e6e6;color:#666;border-color:#ccc">🧪 測試</span>':''}${enrollBadge(s)}<span class="tag accent">${s.class_type==='團班'?'團班':'一對一'}</span>${stuGroups(s).map(g=>`<span class="tag">👥 ${esc(g)}</span>`).join('')}${s.nationality?`<span class="tag">${esc(s.nationality)}</span>`:''}${IS_OWNER&&s.admin?`<span class="tag" title="負責管理員">👤 ${esc(adminName(s.admin))}</span>`:''}</div></div></div>
     <div class="actions" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="editStudent" data-id="${s.id}">✏️ 編輯</button>
@@ -2090,7 +2116,7 @@ function stuTableRows(students){
   const head='<div class="stu-tr stu-th"><span>姓名</span><span>狀態</span><span>教材</span><span>時數</span><span>'+(IS_OWNER?'學費 · 付款日':'Email')+'</span></div>';
   const rows=students.map(s=>{
     const _tt=tierText(s);const fee=isTrial(s)?'🎁 免費試學':((_tt?('👥 '+_tt):(s.tuition!=null?money(s.tuition,s.currency)+(s.fee_unit==='hour'?' /時':' /堂'):'—'))+(s.payment_date?(' · '+fmtDate(s.payment_date)):''));
-    return `<div class="stu-tr" data-act="stuDetail" data-id="${s.id}" style="cursor:pointer"><span class="stu-nm"><span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span>${snm(s.name)}${s.is_test?' 🧪':''}</span><span>${enrollBadge(s)}</span><span>${esc(s.textbook||'—')}</span><span>${sessChip(s)||'<span class="muted">—</span>'}</span><span>${fee}</span></div>`;
+    return `<div class="stu-tr" data-act="stuDetail" data-id="${s.id}" style="cursor:pointer"><span class="stu-nm"><span class="avatar sm emo" style="background:${avColor(s.name)}">${avEmoji(s)}</span>${snm(s.name)}${s.is_test?' 🧪':''}</span><span>${enrollBadge(s)}</span><span>${esc(s.textbook||'—')}</span><span>${sessChip(s)||'<span class="muted">—</span>'}</span><span>${fee}</span></div>`;
   }).join('');
   return `<div class="stu-tb">${head}${rows}</div>`;
 }
@@ -2136,6 +2162,7 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
    <div class="modal-body">
     <div class="form-sec"><div class="form-sec-h">📋 基本資料</div><div class="form-grid">
      <div class="field"><label>名字 *</label><input id="f-name" type="text" value="${esc(st.name||'')}"></div>
+     <div class="field"><label>頭像 <span class="hint">留空＝系統自動配一個</span></label><div style="display:flex;align-items:center;gap:8px"><span id="f-av-prev" class="avatar sm emo" data-dft="${avEmoji({name:st.name||''})}" style="background:${avColor(st.name)};flex:none">${avEmoji(st)}</span><input id="f-avatar" type="text" maxlength="8" value="${esc(st.avatar||'')}" placeholder="想換的話貼一個 emoji" style="flex:1" oninput="(function(el){var p=document.getElementById('f-av-prev');if(p)p.textContent=el.value.trim()||p.dataset.dft;})(this)"></div></div>
      <div class="field"><label>國籍</label><input id="f-nat" type="text" value="${esc(st.nationality||'')}" placeholder="例：美國"></div>
      <div class="field"><label>班別</label><select id="f-type"><option value="1對1" ${st.class_type!=='團班'?'selected':''}>一對一</option><option value="團班" ${st.class_type==='團班'?'selected':''}>團班</option></select></div>
      <div class="field"><label>狀態 <span class="hint">預約＝還沒開始；休學＝暫停上課</span></label><select id="f-status">${ENROLL.map(x=>`<option value="${x[0]}"${enrollOf(st)===x[0]?' selected':''}>${x[1]}</option>`).join('')}</select></div>
@@ -2928,7 +2955,7 @@ async function mistSetTag(docId,key,tag){
 function gradeProgHtml(){
   const rows=(S.students||[]).filter(s=>!s.is_test&&!s.deleted_at).map(s=>{const p=studentProgress(s);
     return `<div class="dash-row">
-      <span class="avatar sm" style="background:${avColor(s.name)}">${esc(avInitials(s.name))}</span>
+      <span class="avatar sm emo" style="background:${avColor(s.name)}">${avEmoji(s)}</span>
       <b>${snm(s.name)}</b>
       <span class="grow"></span>
       <span class="muted">${p.total?`完成 ${p.done}/${p.total} 課${p.avg!=null?(' · 平均 '+p.avg+'%'):''}`:'尚未發佈作業'}</span>
@@ -4383,7 +4410,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   const fslot=$('#f-first-slot');
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     ...(IS_OWNER?{tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),fee_unit:($('#f-feeunit')&&$('#f-feeunit').value)||'session',currency:$('#f-cur').value}:{}),
-    first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),drive_url:(($('#f-drive')&&$('#f-drive').value)||'').trim(),...(IS_OWNER?{pay_acct:(($('#f-pay-acct')&&$('#f-pay-acct').value)||''),bill_group:(($('#f-billgrp')&&$('#f-billgrp').value)||'').trim()}:{}),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
+    avatar:(($('#f-avatar')&&$('#f-avatar').value)||'').trim(),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),drive_url:(($('#f-drive')&&$('#f-drive').value)||'').trim(),...(IS_OWNER?{pay_acct:(($('#f-pay-acct')&&$('#f-pay-acct').value)||''),bill_group:(($('#f-billgrp')&&$('#f-billgrp').value)||'').trim()}:{}),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
   // 註：總堂數(sessions_total)、付款日(payment_date)、每筆繳費(payments) 一律在「💰 繳費」視窗管理，這裡不碰，避免兩邊打架
   if(IS_OWNER){const asel=$('#f-admin');common.admin=asel?asel.value:'';}
   if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
