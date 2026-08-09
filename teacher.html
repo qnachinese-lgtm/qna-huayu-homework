@@ -3553,7 +3553,7 @@ function wbeSer(k,d){
   if(k==='py')return (d.py||[]).map(g=>(g.lines||[]).map(l=>J([g.n,l.sp||'',l.zh||'',l.ans||''])).join('\n')).join('\n');
   if(k==='hz')return (d.hz||[]).map(g=>(g.lines||[]).map(l=>J([g.n,l.sp||'',l.py||'',l.ans||''])).join('\n')).join('\n');
   if(k==='ord')return (d.ord||[]).map(x=>J([x.n,(x.toks||[]).join('／'),x.ans||''])).join('\n');
-  if(k==='dlg')return (d.dlg||[]).map(x=>J([x.i,x.sp||'',x.text||'',x.ans||''])).join('\n');
+  if(k==='dlg'||k==='dlg2')return (d[k]||[]).map(x=>J([x.i,x.sp||'',x.text||'',x.ans||''])).join('\n');
   if(k==='pic')return (d.pic||[]).map(x=>J([x.n,x.hint||'',x.ans||''])).join('\n');
   if(k==='g7')return (((d.g7||{}).groups)||[]).map(g=>(g.items||[]).map(it=>J([g.k,it.n,it.pattern||'',it.q||'',it.ans||''])).join('\n')).join('\n');
   return '';}
@@ -3573,7 +3573,7 @@ function wbeParse(k,txt,prev){
     return ord.map(n=>({n,lines:map[n]}));}
   if(k==='ord')return L.map((l,i)=>{const c=wbeSp(l);
     return {n:wbeNum(c[0],i),toks:String(c[1]||'').replace(/\//g,'／').split('／').map(t=>t.trim()).filter(Boolean),ans:c[2]||''};});
-  if(k==='dlg')return L.map((l,i)=>{const c=wbeSp(l);return {i:wbeNum(c[0],i),sp:c[1]||'',text:c[2]||'',ans:c[3]||''};});
+  if(k==='dlg'||k==='dlg2')return L.map((l,i)=>{const c=wbeSp(l);return {i:wbeNum(c[0],i),sp:c[1]||'',text:c[2]||'',ans:c[3]||''};});
   if(k==='g7'){const oldg=((prev||{}).groups)||[];
     const map={},ord=[];
     L.forEach((l,i)=>{const c=wbeSp(l);const gk=(c[0]||'A').toUpperCase();
@@ -3597,7 +3597,8 @@ const WBE_SECS=[
  {k:'ord',t:'四 句子重組',cols:'題號　要重組的詞（用 ／ 分隔）　正確句子',ex:'1\t日本人／是／他／嗎／？\t他是日本人嗎？'},
  {k:'dlg',t:'五 完成對話',cols:'行號　說話者（A／B）　句子（空格打 ＿＿＿＿）　參考答案（沒空格就留空）',ex:'1\tA\t新同學＿＿＿＿？\t新同學是哪國人？'},
  {k:'pic',t:'六 圖片描述',cols:'題號　文字提示（有圖就留空）　參考答案',ex:'1\t\t媽媽下午五點在廚房做飯。'},
- {k:'g7',t:'七 語法練習',cols:'題組（A／B）　題號　練習類型　題目／提示　參考答案',ex:'A\t1\t改寫成「都」字句\t我喜歡果汁，也喜歡咖啡。\t果汁和咖啡我都喜歡。'}
+ {k:'g7',t:'七 語法練習',cols:'題組（A／B）　題號　練習類型　題目／提示　參考答案',ex:'A\t1\t改寫成「都」字句\t我喜歡果汁，也喜歡咖啡。\t果汁和咖啡我都喜歡。'},
+ {k:'dlg2',t:'六 語法練習（用對話填空的那種）',cols:'行號　說話者（A／B）　句子（空格打 ＿＿＿＿）　參考答案（沒空格就留空）',ex:'1\tA\t你們是＿＿＿＿認識的？\t你們是怎麼認識的？'}
 ];
 function wbeAudRows(){
   const auds=(WBE.d.audios||[]);
@@ -3915,6 +3916,20 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
       <div class="srev-sent">${v?esc(v):'<span class="muted">（未作答）</span>'}</div>
       ${g.ref?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(g.ref)}</div>`:''}
       <textarea class="wbrev-fb" data-k="g${g.n}" rows="2" placeholder="給這一題的建議（學生會看到）">${esc(fb['g'+g.n]||'')}</textarea></div>`;});
+  /* 完成對話／語法練習（填空題，老師批改） */
+  [['dlg','四 完成對話','d'],['dlg2','六 語法練習','d2']].forEach(([sec,lab,pfx])=>{
+    const lines=(d[sec]||[]).filter(ln=>/[_＿]{2,}/.test(String(ln.text||'')));
+    if(!lines.length)return;
+    rows+='<h4 style="margin:16px 0 6px">'+esc(lab)+'</h4>';
+    lines.forEach(ln=>{
+      const parts=String(ln.text||'').split(/[_＿]{2,}/);
+      let filled='';parts.forEach((seg,k)=>{filled+=seg;
+        if(k<parts.length-1)filled+='【'+((((a[sec]||{})[ln.i+'-'+k])||'').trim()||'—')+'】';});
+      rows+=`<div class="srev-item"><div class="srev-word">${esc(ln.sp||'')}</div>
+        <div class="srev-sent">${esc(filled)}</div>
+        ${ln.ans?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(ln.ans)}</div>`:''}
+        <textarea class="wbrev-fb" data-k="${esc(pfx+ln.i)}" rows="2" placeholder="給這一題的建議（學生會看到）">${esc(fb[pfx+ln.i]||'')}</textarea></div>`;});
+  });
   /* 手寫作答（時代華語一） */
   const HD=(d.hand)||{};
   const HSEC=[['py','二 寫出拼音',(d.py||[]).flatMap(g=>(g.lines||[]).map((ln,i)=>({k:g.n+'-'+i,q:(ln.sp?ln.sp+'：':'')+(ln.zh||''),ref:ln.ans||''})))],

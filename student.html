@@ -3674,7 +3674,7 @@ function wbDocOf(id){return (S.wbdocs||[]).find(x=>x.wb_lesson===id)||null;}
 function wbOf(id){return (S.workbooks||[]).find(x=>x.id===id)||null;}
 function wbData(w){return (w&&w.wb)||{};}
 function wbL(m){const L=S.lang||'zh';return (m&&(m[L]||m.zh))||'';}
-function wbEmptyAns(){return {listen:{},vocab:{},cloze:{},match:{},gram:{},read:{},write:'',tone:{},pron:{},tf:{},py:{},hz:{},ord:{},dlg:{},pic:{},g7:{},mcq:{}};}
+function wbEmptyAns(){return {listen:{},vocab:{},cloze:{},match:{},gram:{},read:{},write:'',tone:{},pron:{},tf:{},py:{},hz:{},ord:{},dlg:{},dlg2:{},pic:{},g7:{},mcq:{}};}
 function wbAns(){if(!WB.ans)WB.ans=wbEmptyAns();return WB.ans;}
 function wbLocked(){const d=wbDocOf(WB.id);return !!(d&&(d.status==='submitted'||d.status==='reviewed'));}
 function wbGraded(){const d=wbDocOf(WB.id);return (d&&(d.status==='submitted'||d.status==='reviewed'))?d:null;}
@@ -3948,16 +3948,17 @@ function wbG7Html(w,graded){
      return `<div class="wb-g7g"><div class="wb-g7h">${esc(g.k)}. ${esc(g.title||'')}</div>${items}</div>`;}).join('');
 }
 function tOptB(x){return esc(String(x||'')).replace(/[_＿]{2,}/g,'<span class="opt-blank">＿＿＿＿</span>').replace(/\n/g,'<br>');}
-function wbDlgHtml(w,graded,doc){
-  const a=wbAns().dlg||{};const fb=(doc&&doc.feedback)||{};
-  const lines=(wbData(w).dlg||[]);
+function wbDlgHtml(w,graded,doc,sec){
+  sec=sec||'dlg';const pfx=(sec==='dlg2'?'d2':'d');
+  const a=wbAns()[sec]||{};const fb=(doc&&doc.feedback)||{};
+  const lines=(wbData(w)[sec]||[]);
   const hasBl=(x)=>/[_＿]{2,}/.test(String((x&&x.text)||''));
   const lineHtml=(ln)=>{
     const raw=String(ln.text||'');const parts=raw.split(/[_＿]{2,}/);let html='';
     parts.forEach((seg,k)=>{html+=annotate(seg);
       if(k<parts.length-1){const key=ln.i+'-'+k, v=a[key]||'';
         html+=graded?`<span class="wb-bl filled">${v?esc(v):'&nbsp;'}</span>`
-          :`<input class="wb-bl" type="text" data-wbt="dlg" data-n="${esc(key)}" value="${esc(v)}" autocomplete="off" placeholder="${esc(wbL({zh:'填這裡',cn:'填这里',en:'type here',vi:'điền vào đây'}))}">`;}});
+          :`<input class="wb-bl" type="text" data-wbt="${sec}" data-n="${esc(key)}" value="${esc(v)}" autocomplete="off" placeholder="${esc(wbL({zh:'填這裡',cn:'填这里',en:'type here',vi:'điền vào đây'}))}">`;}});
     return `<span class="wb-sp">${esc(ln.sp||'')}：</span><span class="wb-zh dlgline">${html}</span>`;};
   /* 依時代華語三的呈現：一題一個編號卡，題幹在上、其餘對話當上下文 */
   const cards=[];let cur=null,n=0;
@@ -3966,14 +3967,14 @@ function wbDlgHtml(w,graded,doc){
     else if(cur)cur.ctx.push(ln);
     else{n=n;cards.push({n:null,main:null,ctx:[ln]});}
   });
-  const dImg=wbData(w).dlgImg?`<div class="wb-pic"><img src="${esc(wbData(w).dlgImg)}" alt="" loading="lazy"></div>`:'';
+  const dImg=(sec==='dlg'&&wbData(w).dlgImg)?`<div class="wb-pic"><img src="${esc(wbData(w).dlgImg)}" alt="" loading="lazy"></div>`:'';
   return `<div class="wb-hint">${wbL({zh:'把對話補完，直接填在橫線上。',cn:'把对话补完，直接填在横线上。',en:'Fill in the blanks to complete the dialogue.',vi:'Điền vào chỗ trống để hoàn thành hội thoại.'})}</div>`
    +dImg
    +cards.map(c=>{
      if(!c.main)return `<div class="wb-q"><div class="wb-dlg-ctx">${c.ctx.map(lineHtml).join('<br>')}</div></div>`;
      const ln=c.main;
      const ref=(graded&&ln.ans)?`<div class="wb-ref">${wbL({zh:'參考答案',cn:'参考答案',en:'Answer',vi:'Đáp án'})}：${esc(ln.ans)}</div>`:'';
-     const f=fb['d'+ln.i]?`<div class="wb-fb">💬 ${esc(fb['d'+ln.i])}</div>`:'';
+     const f=fb[pfx+ln.i]?`<div class="wb-fb">💬 ${esc(fb[pfx+ln.i])}</div>`:'';
      const ctx=c.ctx.length?`<div class="wb-dlg-ctx">${c.ctx.map(lineHtml).join('<br>')}</div>`:'';
      return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${c.n}</span><span class="wb-dlg-main">${lineHtml(ln)}</span></div>${ctx}${ref}${f}</div>`;}).join('');
 }
@@ -4019,6 +4020,7 @@ function wbViewHtml(w){
   if((d.hz||[]).length)push('寫出中國字',wbHzHtml(w,graded));
   if((d.ord||[]).length)push('句子重組',wbOrdHtml(w,graded));
   if((d.dlg||[]).length)push('完成對話',wbDlgHtml(w,graded,doc));
+  if((d.dlg2||[]).length)push('語法練習',wbDlgHtml(w,graded,doc,'dlg2'));
   if((d.pic||[]).length)push('圖片描述',wbPicHtml(w,graded,doc));
   if((((d.g7||{}).groups)||[]).length)push('語法練習',wbG7Html(w,graded));
   if((d.vocab||[]).length)push('詞彙選擇',
