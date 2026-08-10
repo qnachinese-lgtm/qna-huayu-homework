@@ -528,17 +528,21 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
       </section>
 
       <section id="panel-interview" class="panel hide">
-        <div class="section-head"><h2>🎤 面試練習</h2><span class="sub">簽證面試練習的客戶、練習時間與收費（與華語學生分開管理）</span></div>
+        <div class="section-head"><h2>🎤 面試練習</h2><span class="sub">簽證面試練習的客戶、練習時間與收費（與華語學生分開管理）</span><div class="head-actions">
+          <button class="btn" data-act="itvPayNew">💰 記一筆付費</button>
+          <button class="btn btn-primary" data-act="itvNew">＋ 新增面試客戶</button></div></div>
         <div id="interview-body"></div>
       </section>
 
       <section id="panel-agency" class="panel hide">
-        <div class="section-head"><h2>🎓 代辦申請</h2><span class="sub">代辦申請學校的客戶、每次做了什麼、上傳內容與收費（收入會併入營運總收入）</span></div>
+        <div class="section-head"><h2>🎓 代辦申請</h2><span class="sub">代辦申請學校的客戶、每次做了什麼、上傳內容與收費（收入會併入營運總收入）</span><div class="head-actions">
+          <button class="btn btn-primary" data-act="agNew">＋ 新增代辦客戶</button></div></div>
         <div id="agency-body"></div>
       </section>
 
       <section id="panel-writing" class="panel hide">
-        <div class="section-head"><h2>✍️ 代書</h2><span class="sub">代寫讀書計劃、自傳等文件的客戶、進度與收費（收入會併入營運總收入）</span></div>
+        <div class="section-head"><h2>✍️ 代書</h2><span class="sub">代寫讀書計劃、自傳等文件的客戶、進度與收費（收入會併入營運總收入）</span><div class="head-actions">
+          <button class="btn btn-primary" data-act="wrNew">＋ 新增代書客戶</button></div></div>
         <div id="writing-body"></div>
       </section>
 
@@ -586,6 +590,13 @@ function localToday(){const d=new Date();return d.getFullYear()+'-'+String(d.get
 function weekStart(dstr){try{var dt=new Date((dstr||localToday())+'T00:00:00');var day=(dt.getDay()+6)%7;dt.setDate(dt.getDate()-day);return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}catch(e){return dstr||'';}}
 function fmtSchedule(s){if(s&&Array.isArray(s.schedule)&&s.schedule.length){return s.schedule.map(r=>(DAYS[(r.d!=null?r.d:0)]||'')+' '+(r.s||'')+(r.e?'–'+r.e:'')).join('、');}return (s&&s.class_time)||'—';}
 function _vnT(hhmm){const m=/(\d{1,2}):(\d{2})/.exec(hhmm||'');if(!m)return '';let h=(parseInt(m[1],10)+23)%24;return (h<10?'0':'')+h+':'+m[2];}
+/* 🎥 進入教室：團班看班級設定的 Meet，一對一看學生的 Meet，面試練習看客戶的 Meet */
+function meetBtn(url,small){url=String(url||'').trim();
+  if(!/^https?:\/\//i.test(url))return '';
+  return `<a class="btn ${small?'btn-sm ':''}btn-accent" href="${esc(url)}" target="_blank" rel="noopener" title="開新分頁進入 Google Meet">🎥 進入教室</a>`;}
+function meetOfGroup(cls){try{return classMeetOf(cls)||'';}catch(e){return '';}}
+function meetOfStudent(id){try{const s=studentById(id)||{};return s.meet_url||'';}catch(e){return '';}}
+function meetOfItv(c){return (c&&c.meet_url)||'';}
 function twVnStr(s,e){s=s||'';e=e||'';if(!s&&!e)return '';const tw=s+(e?'–'+e:'');const vs=_vnT(s),ve=_vnT(e);const vn=vs+(e&&ve?'–'+ve:'');return '🇹🇼'+tw+' · 🇻🇳'+vn;}
 function timeOpts(sel){sel=sel||'';let html='<option value="">--:--</option>';let has=false;for(let h=0;h<24;h++){for(let m=0;m<60;m+=5){const v=(h<10?'0'+h:h)+':'+(m<10?'0'+m:m);if(v===sel)has=true;html+='<option value="'+v+'"'+(v===sel?' selected':'')+'>'+v+'</option>';}}if(sel&&!has)html='<option value="'+esc(sel)+'" selected>'+esc(sel)+'</option>'+html;return html;}
 function gmTierRowHTML(r){r=r||{};return `<div class="gm-tier-row" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="number" step="0.25" min="0" class="gmt-h" value="${r.h!=null?esc(String(r.h)):''}" placeholder="1.5" style="width:100px"><span>小時 → 收</span><input type="number" min="0" class="gmt-amt" value="${r.amt!=null?esc(String(r.amt)):''}" placeholder="200" style="width:120px"><button class="btn btn-sm btn-ghost" type="button" data-act="gmTierDel">✕</button></div>`;}
@@ -878,7 +889,8 @@ function dashTodayHtml(){
     const who=it.members?('\u{1F465} '+esc(it.grp)+' 團班')+'<span class="muted" style="font-weight:400;margin-left:4px">（'+it.members.length+'人）</span>':esc((it.s&&it.s.name)||'');
     const key=it.members?(esc(it.grp)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')):(esc((it.s||{}).id||'')+'::'+esc(d));
     const act=it.members?'editClassDay':'editStuDay';
-    rows.push('<div class="dash-row" style="flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge badge-ok">\u5DF2\u9EDE\u540D</span><b>'+who+'</b>'+(e.note?'<span class="muted" style="margin-left:6px">'+esc(e.note)+'</span>':'')+'<span class="grow"></span><button class="btn btn-sm" data-act="'+act+'" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button></div>',e.start);});
+    const mb=meetBtn(it.members?meetOfGroup(it.grp):meetOfStudent((it.s||{}).id),true);
+    rows.push('<div class="dash-row" style="flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge badge-ok">\u5DF2\u9EDE\u540D</span><b>'+who+'</b>'+(e.note?'<span class="muted" style="margin-left:6px">'+esc(e.note)+'</span>':'')+'<span class="grow"></span>'+mb+'<button class="btn btn-sm" data-act="'+act+'" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button></div>',e.start);});
   // 預排（還沒點名）
   const plans=[];
   try{groupsList().forEach(cls=>{const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls));
@@ -892,10 +904,11 @@ function dashTodayHtml(){
   plans.forEach(o=>{const p=o.p;let tm='';try{tm=twVnStr(p.start,p.end);}catch(err){tm=(p.start||'')+(p.end?'\u2013'+p.end:'');}
     const solo=!!o.sid;const key=solo?('S:'+o.sid+'::'+d):(esc(o.cls)+'::'+esc(d));
     const lab=solo?('\u{1F464} '+esc(o.sname||'')):('\u{1F465} '+esc(o.cls)+' 團班');
-    rows.push('<div class="dash-row" style="background:#fff8ec;border-radius:8px;flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge" style="background:#fde68a;color:#92400e;border-color:#f59e0b">\u{1F4CC} \u5F85\u4E0A</span><b>'+lab+'</b>'+(p.note?'<span class="muted" style="margin-left:6px">'+esc(p.note)+'</span>':'')+'<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="'+key+'">\u270D\uFE0F \u53BB\u9EDE\u540D</button><button class="btn btn-sm" data-act="planEdit" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button></div>',p.start);});
+    const mb=meetBtn(solo?meetOfStudent(o.sid):meetOfGroup(o.cls),true);
+    rows.push('<div class="dash-row" style="background:#fff8ec;border-radius:8px;flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge" style="background:#fde68a;color:#92400e;border-color:#f59e0b">\u{1F4CC} \u5F85\u4E0A</span><b>'+lab+'</b>'+(p.note?'<span class="muted" style="margin-left:6px">'+esc(p.note)+'</span>':'')+'<span class="grow"></span>'+mb+'<button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="'+key+'">\u270D\uFE0F \u53BB\u9EDE\u540D</button><button class="btn btn-sm" data-act="planEdit" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button></div>',p.start);});
   // 面試練習
   try{itvAll().forEach(c=>itvSessions(c).forEach(e=>{if(e.date!==d)return;let tm='';try{tm=twVnStr(e.start,e.end);}catch(err){tm=(e.start||'')+(e.end?'\u2013'+e.end:'');}
-    rows.push('<div class="dash-row" style="background:#eef2ff;border-radius:8px;flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge" style="background:#c7d2fe;color:#3730a3">\u{1F3A4} \u9762\u8A66\u7DF4\u7FD2</span><b>'+snm(c.name||'')+'</b><span class="grow"></span><button class="btn btn-sm" data-act="itvSess" data-id="'+esc(c.id)+'::'+itvSessions(c).indexOf(e)+'">\u270F\uFE0F \u4FEE\u6539</button></div>',e.start);}));}catch(err){}
+    rows.push('<div class="dash-row" style="background:#eef2ff;border-radius:8px;flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge" style="background:#c7d2fe;color:#3730a3">\u{1F3A4} \u9762\u8A66\u7DF4\u7FD2</span><b>'+snm(c.name||'')+'</b><span class="grow"></span>'+meetBtn(meetOfItv(c),true)+'<button class="btn btn-sm" data-act="itvSess" data-id="'+esc(c.id)+'::'+itvSessions(c).indexOf(e)+'">\u270F\uFE0F \u4FEE\u6539</button></div>',e.start);}));}catch(err){}
   if(!_rows.length)return '<div class="muted" style="padding:8px 2px">今天沒有排課。要排課到「\u{1F4C5} 課表」按「\u{1F4CC} 預排課程」。</div>';
   _rows.sort((a,b)=>a.t.localeCompare(b.t));
   return _rows.map(x=>x.h).join('');
@@ -1206,10 +1219,10 @@ function renderCalMonth(body,toggle){
         const who=it.members?`👥 ${esc(it.grp)} 團班<span class="muted" style="font-weight:400;margin-left:4px">（${it.members.length}人）</span>`:esc(it.s.name);
         const eact=it.members?'editClassDay':'editStuDay';const ekey=it.members?(esc(it.grp)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')):(esc(it.s.id)+'::'+esc(d));
         const delBtn=it.members?`<button class="btn btn-sm btn-danger" data-act="rollDel" data-id="${ekey}" title="整個團班刪掉這一堂">🗑</button>`:`<button class="btn btn-sm btn-danger" data-act="stuDayDel" data-id="${esc(it.s.id)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')}" title="刪掉這一堂">🗑</button>`;
-        return `<div class="dash-row" style="flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<b>${who}</b>${badge}${e.note?`<span class="muted" style="margin-left:6px">${esc(e.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm" data-act="${eact}" data-id="${ekey}">✏️ 修改</button>${delBtn}</div>`;});
-    const planArr=plans.map(p=>{const tm=twVnStr(p.start,p.end);const isSolo=!!p.sid;const key=isSolo?('S:'+p.sid+'::'+d):(esc(p.cls)+'::'+esc(d));const label=isSolo?('👤 '+esc(p.sname||'')):('👥 '+esc(p.cls)+' 團班');return `<div class="dash-row" style="background:#fff8ec;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#fde68a;color:#92400e;border-color:#f59e0b">📌 預排</span><b>${label}</b>${p.note?`<span class="muted" style="margin-left:4px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="${key}">✍️ 去點名</button><button class="btn btn-sm" data-act="planEdit" data-id="${key}">✏️ 修改</button><button class="btn btn-sm btn-danger" data-act="planDel" data-id="${key}">✕</button></div>`;});
+        return `<div class="dash-row" style="flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<b>${who}</b>${badge}${e.note?`<span class="muted" style="margin-left:6px">${esc(e.note)}</span>`:''}<span class="grow"></span>${meetBtn(it.members?meetOfGroup(it.grp):meetOfStudent(it.s.id),true)}<button class="btn btn-sm" data-act="${eact}" data-id="${ekey}">✏️ 修改</button>${delBtn}</div>`;});
+    const planArr=plans.map(p=>{const tm=twVnStr(p.start,p.end);const isSolo=!!p.sid;const key=isSolo?('S:'+p.sid+'::'+d):(esc(p.cls)+'::'+esc(d));const label=isSolo?('👤 '+esc(p.sname||'')):('👥 '+esc(p.cls)+' 團班');return `<div class="dash-row" style="background:#fff8ec;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#fde68a;color:#92400e;border-color:#f59e0b">📌 預排</span><b>${label}</b>${p.note?`<span class="muted" style="margin-left:4px">${esc(p.note)}</span>`:''}<span class="grow"></span>${meetBtn(isSolo?meetOfStudent(p.sid):meetOfGroup(p.cls),true)}<button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="${key}">✍️ 去點名</button><button class="btn btn-sm" data-act="planEdit" data-id="${key}">✏️ 修改</button><button class="btn btn-sm btn-danger" data-act="planDel" data-id="${key}">✕</button></div>`;});
     const itvs=(itvByDate[d]||[]);
-    const itvArr=itvs.map(({c,e})=>{const tm=twVnStr(e.start,e.end);return `<div class="dash-row" style="background:#eef2ff;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#c7d2fe;color:#3730a3">🎤 面試練習</span><b>${snm(c.name||'')}</b>${(e.fee!=null&&e.fee!=='')?`<span class="muted">${money(e.fee,e.currency||'VND')}</span>`:''}${itvPayBadge(e)}<span class="grow"></span><button class="btn btn-sm" data-act="itvSess" data-id="${esc(c.id)}::${itvSessions(c).indexOf(e)}">✏️ 修改</button></div>`;});
+    const itvArr=itvs.map(({c,e})=>{const tm=twVnStr(e.start,e.end);return `<div class="dash-row" style="background:#eef2ff;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#c7d2fe;color:#3730a3">🎤 面試練習</span><b>${snm(c.name||'')}</b>${(e.fee!=null&&e.fee!=='')?`<span class="muted">${money(e.fee,e.currency||'VND')}</span>`:''}${itvPayBadge(e)}<span class="grow"></span>${meetBtn(meetOfItv(c),true)}<button class="btn btn-sm" data-act="itvSess" data-id="${esc(c.id)}::${itvSessions(c).indexOf(e)}">✏️ 修改</button></div>`;});
     const exams=(examByDate[d]||[]);
     const examArr=exams.map(c=>{const m=itvResultMeta(c.result);return `<div class="dash-row" style="background:#fee2e2;border-radius:8px;flex-wrap:wrap;border:1px solid #fca5a5">${c.exam_time?`<span class="badge badge-pending">${esc(c.exam_time)}</span>`:''}<span class="badge" style="background:#fecaca;color:#b91c1c">🎯 正式面試</span><b>${snm(c.name||'')}</b>${c.target?`<span class="muted">${esc(c.target)}</span>`:''}${m?`<span class="badge" style="background:${m[1]}18;color:${m[1]}">${m[0]}</span>`:''}<span class="grow"></span><button class="btn btn-sm" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 填結果</button></div>`;});
     const note=[items.length?items.length+' 堂已點名':'',plans.length?plans.length+' 堂待上':'',itvs.length?itvs.length+' 次面試':'',exams.length?'🎯 正式面試':''].filter(Boolean).join('　');
@@ -1517,7 +1530,7 @@ function renderWriting(){
     <div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div>
     <div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">累計收入</div><b style="font-size:19px">${itvMoneyStr(incAll.paid)||'—'}</b></div>
     ${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${dueStr}</b></div>`:''}
-    <span style="flex:1"></span><button class="btn btn-primary" data-act="wrNew">＋ 新增代書客戶</button></div>
+    </div>
     <div class="hint" style="margin-top:8px">收入會併進「營運 → 🧮 總收入」。</div></div>`;
   if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">✍️</div>
     <h3 style="margin:8px 0">還沒有代書客戶</h3>
@@ -1601,7 +1614,7 @@ function renderAgency(){
   const list=agAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;const la=agSorted(a)[0],lb=agSorted(b)[0];return String((lb&&lb.date)||'').localeCompare(String((la&&la.date)||''));});
   const ym=localToday().slice(0,7);const inc=agIncome(ym);const incAll=agIncome(null);
   const dueStr=itvMoneyStr(incAll.due);
-  const head=`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div><div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">累計收入</div><b style="font-size:19px">${itvMoneyStr(incAll.paid)||'—'}</b></div>${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${dueStr}</b></div>`:''}<span style="flex:1"></span><button class="btn btn-primary" data-act="agNew">＋ 新增代辦客戶</button></div><div class="hint" style="margin-top:8px">收入會併進「營運 → 🧮 總收入」。</div>${crmMoveBanner()}</div>`;
+  const head=`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div><div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">累計收入</div><b style="font-size:19px">${itvMoneyStr(incAll.paid)||'—'}</b></div>${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${dueStr}</b></div>`:''}</div><div class="hint" style="margin-top:8px">收入會併進「營運 → 🧮 總收入」。</div>${crmMoveBanner()}</div>`;
   if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🎓</div><h3 style="margin:8px 0">還沒有代辦客戶</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">兩步就好：<br><b>第 1 步</b>　按「＋ 新增代辦客戶」建立一位客戶（姓名、申請學校）。<br><b>第 2 步</b>　卡片上會有「<b>＋ 新增一筆進度</b>」，記下哪天、做了什麼、上傳什麼、收多少錢。</div><button class="btn btn-primary" data-act="agNew">＋ 新增代辦客戶</button></div>`;return;}
   const rows=list.map(c=>{
     const lg=agSorted(c);const done=(c.status||'active')!=='active';
@@ -1665,7 +1678,7 @@ function renderInterview(){
   const ym=localToday().slice(0,7);const inc=itvIncome(ym);const incAll=itvIncome(null);
   const mCount=itvAll().reduce((n,c)=>n+itvSessions(c).filter(e=>String(e.date).slice(0,7)===ym).length,0);
   const dueStr=itvMoneyStr(incAll.due);const today=localToday();
-  const head=`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div><div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">本月練習</div><b style="font-size:19px">${mCount}</b> 次</div>${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${dueStr}</b></div>`:''}${(function(){const done=itvAll().filter(x=>x.result==='pass'||x.result==='fail');const pass=done.filter(x=>x.result==='pass').length;return done.length?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">面試通過率</div><b style="font-size:19px;color:#16a34a">${Math.round(pass/done.length*100)}%</b> <span class="muted">（${pass}/${done.length}）</span></div>`:'';})()}<span style="flex:1"></span><button class="btn" data-act="itvPayNew">💰 記一筆付費</button> <button class="btn btn-primary" data-act="itvNew">＋ 新增面試客戶</button></div></div>`;
+  const head=`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div><div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">本月練習</div><b style="font-size:19px">${mCount}</b> 次</div>${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${dueStr}</b></div>`:''}${(function(){const done=itvAll().filter(x=>x.result==='pass'||x.result==='fail');const pass=done.filter(x=>x.result==='pass').length;return done.length?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">面試通過率</div><b style="font-size:19px;color:#16a34a">${Math.round(pass/done.length*100)}%</b> <span class="muted">（${pass}/${done.length}）</span></div>`:'';})()}</div></div>`;
   if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🎤</div><h3 style="margin:8px 0">還沒有面試客戶</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">使用方式很簡單，兩步就好：<br><b>第 1 步</b>　按下面「＋ 新增面試客戶」建立一位客戶（姓名、面試目標）。<br><b>第 2 步</b>　客戶建立後，他的卡片上就會有「<b>＋ 新增練習時間</b>」，用它安排未來的練習或補記已經練過的。<br>日期可以填<b>未來</b>——排好的練習會自動出現在「📅 課表」裡。</div><button class="btn btn-primary" data-act="itvNew">＋ 新增面試客戶</button></div>`;return;}
   const rows=list.map(c=>{
     const ss=itvSorted(c);const done=(c.status||'active')!=='active';
@@ -1673,7 +1686,7 @@ function renderInterview(){
     const upcoming=ss.filter(e=>e.date>=today).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
     const nextOne=upcoming[0];const past=ss.filter(e=>e.date<today);
     const rowHtml=(e)=>{const idx=itvSessions(c).indexOf(e);const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';const tm=twVnStr(e.start,e.end);const feeStr=(e.fee!=null&&e.fee!=='')?money(e.fee,e.currency||'VND'):'';const fut=e.date>=today;
-      return `<div class="dash-row" style="padding:6px 0;flex-wrap:wrap${fut?';background:#eef2ff;border-radius:8px':''}">${fut?'<span class="badge" style="background:#c7d2fe;color:#3730a3">📌 待練</span>':''}<b>${esc(e.date)}</b>${wd?`<span class="muted" style="font-size:12px;margin-left:4px">（${wd}）</span>`:''}${tm?`<span class="badge badge-pending" style="margin-left:6px">${esc(tm)}</span>`:''}${feeStr?`<span class="muted" style="margin-left:6px">${feeStr}</span>`:''}${itvPayBadge(e)}${e.note?`<span class="muted" style="margin-left:6px">${esc(e.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm" data-act="itvSess" data-id="${esc(c.id)}::${idx}">✏️ 修改</button><button class="btn btn-sm btn-danger" data-act="itvSessDel" data-id="${esc(c.id)}::${idx}">✕</button></div>`;};
+      return `<div class="dash-row" style="padding:6px 0;flex-wrap:wrap${fut?';background:#eef2ff;border-radius:8px':''}">${fut?'<span class="badge" style="background:#c7d2fe;color:#3730a3">📌 待練</span>':''}<b>${esc(e.date)}</b>${wd?`<span class="muted" style="font-size:12px;margin-left:4px">（${wd}）</span>`:''}${tm?`<span class="badge badge-pending" style="margin-left:6px">${esc(tm)}</span>`:''}${feeStr?`<span class="muted" style="margin-left:6px">${feeStr}</span>`:''}${itvPayBadge(e)}${e.note?`<span class="muted" style="margin-left:6px">${esc(e.note)}</span>`:''}<span class="grow"></span>${fut?meetBtn(meetOfItv(c),true):''}<button class="btn btn-sm" data-act="itvSess" data-id="${esc(c.id)}::${idx}">✏️ 修改</button><button class="btn btn-sm btn-danger" data-act="itvSessDel" data-id="${esc(c.id)}::${idx}">✕</button></div>`;};
     const upHtml=upcoming.length?`<div class="lesson-label" style="margin:8px 0 2px">📌 接下來的練習</div>`+upcoming.map(rowHtml).join(''):'';
     const pastShow=past.slice(0,5).map(rowHtml).join('');
     const pastMore=past.length>5?`<details style="margin-top:4px"><summary style="cursor:pointer;font-size:13px;color:var(--primary)">看更早的 ${past.length-5} 次</summary>${past.slice(5).map(rowHtml).join('')}</details>`:'';
@@ -1686,6 +1699,7 @@ function renderInterview(){
         ${c.phone?`<span class="muted" style="font-size:13px">📞 ${esc(c.phone)}</span>`:''}${itvExamBadge(c)}
         <span class="grow"></span>
         <span class="muted" style="font-size:13px">練習 <b>${ss.length}</b> 次${nextOne?(' · 下次 '+esc(nextOne.date)):''}${paidAll?(' · 已收 '+paidAll):''}${due?(' · 未收 '+due):''}</span>
+        ${meetBtn(meetOfItv(c),true)}
       </div>
       ${c.result_note?`<div class="hint" style="margin-top:4px">結果：${esc(c.result_note)}</div>`:''}${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#9a8f80">📄 備註／學生資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#fdfaf4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${itvFeeBlock(c)}
@@ -1708,6 +1722,8 @@ function itvForm(c){c=c||{};
      <div class="field"><label>面試時間 <span class="hint">選填</span></label><input id="itv-examt" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="09:00" value="${esc(c.exam_time||'')}"></div>
      <div class="field"><label>面試結果</label><select id="itv-result"><option value=""${!c.result?' selected':''}>— 還沒面試 —</option><option value="waiting"${c.result==='waiting'?' selected':''}>⏳ 已面試，等結果</option><option value="pass"${c.result==='pass'?' selected':''}>✅ 通過</option><option value="fail"${c.result==='fail'?' selected':''}>❌ 沒通過</option></select></div>
      <div class="field"><label>結果備註 <span class="hint">選填</span></label><input id="itv-rnote" type="text" value="${esc(c.result_note||'')}" placeholder="例：補件後再送、9 月重面"></div>
+     <div class="field full"><label>🎥 練習用的線上教室（Google Meet） <span class="hint">面試練習都是線上，貼固定的 Meet 連結，課表上就會出現「進入教室」</span></label>
+     <input id="itv-meet" type="url" inputmode="url" value="${esc(c.meet_url||'')}" placeholder="https://meet.google.com/abc-defg-hij"></div>
      <div class="field full"><label>備註 <span class="hint">選填</span></label><input id="itv-note" type="text" value="${esc(c.note||'')}" placeholder="例：預計 8 月面試、需加強自我介紹"></div></div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="itvSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);}
 function itvSessForm(key){const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
   const isNew=(p[1]==='new');const idx=isNew?-1:Number(p[1]);const e=isNew?{}:(itvSessions(c)[idx]||{});const last=itvSorted(c)[0]||{};
@@ -5633,7 +5649,7 @@ H.itvNew=()=>itvForm(null);
 H.itvEdit=(id)=>itvForm(itvById(id));
 H.itvSess=(key)=>itvSessForm(key);
 H.itvSave=async(id)=>{const name=($('#itv-name').value||'').trim();if(!name)return toast('請填姓名');
-  const patch={kind:'interview',name,phone:($('#itv-phone').value||'').trim(),target:($('#itv-target').value||'').trim(),note:($('#itv-note').value||'').trim(),exam_date:($('#itv-exam')&&$('#itv-exam').value)||'',exam_time:hhmmNorm(($('#itv-examt')&&$('#itv-examt').value)||''),result:($('#itv-result')&&$('#itv-result').value)||'',result_note:($('#itv-rnote')&&$('#itv-rnote').value||'').trim()};
+  const patch={kind:'interview',name,phone:($('#itv-phone').value||'').trim(),target:($('#itv-target').value||'').trim(),meet_url:(($('#itv-meet')&&$('#itv-meet').value)||'').trim(),note:($('#itv-note').value||'').trim(),exam_date:($('#itv-exam')&&$('#itv-exam').value)||'',exam_time:hhmmNorm(($('#itv-examt')&&$('#itv-examt').value)||''),result:($('#itv-result')&&$('#itv-result').value)||'',result_note:($('#itv-rnote')&&$('#itv-rnote').value||'').trim()};
   try{if(id){await DB.update(crmCol(id),id,patch);}else{patch.status='active';patch.sessions=[];patch.created_at=new Date().toISOString();await DB.insert('crm',patch);}
     await loadAll();closeModal();S.tab='interview';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.itvToggle=async(id)=>{const c=itvById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
