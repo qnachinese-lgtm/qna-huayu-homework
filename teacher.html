@@ -1967,7 +1967,7 @@ const FEAT=[
 {g:'💰 繳費',q:'合併帳戶（兄弟）要記一筆繳費',how:'財務・營運頁 → 那一家 →「💰 繳費」→ 選記在誰名下',tab:'ops',kw:'合併 兄弟 家庭 一起繳'},
 {g:'💰 繳費',q:'複製一段催繳／對帳訊息傳給學生',how:'繳費頁 或 財務頁 →「📋 提醒」',tab:'pay',kw:'提醒 催繳 訊息 通知 傳訊息'},
 {g:'💰 繳費',q:'開一張收據給學生',how:'繳費紀錄視窗 → 那一筆 →「🧾 收據」',tab:'pay',kw:'收據 發票 憑證'},
-{g:'💰 繳費',q:'讓學生自己在他的頁面看到欠多少',how:'學生頁 →「✏️ 編輯」→ 開啟「學生看得到費用」',tab:'students',kw:'公開 學生看 費用 應收 顯示'},
+{g:'💰 繳費',q:'讓學生自己在他的頁面看到欠多少（或關掉）',how:'學生頁 → 那位學生 →「✏️ 編輯」→ 收費設定 →「📢 讓這位學生在自己的頁面看到費用提醒」',tab:'students',kw:'公開 學生看 費用 應收 顯示 關掉 隱藏 提醒'},
 
 /* ── 教材 ── */
 {g:'📚 教材',q:'新增一課（課文＋生詞＋語法＋練習）',how:'教材頁 → 右上「＋ 新增課文」',act:'addLesson',kw:'新增 課文 一課 教材 課程 加課'},
@@ -2275,6 +2275,12 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
      <div class="field"><label>計費方式</label><select id="f-feeunit"><option value="session"${st.fee_unit!=='hour'?' selected':''}>每堂</option><option value="hour"${st.fee_unit==='hour'?' selected':''}>每小時</option></select></div>
      <div class="field"><label>幣別</label><select id="f-cur"><option value="TWD"${(st.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${st.currency==='VND'?' selected':''}>越南盾 VND</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
      <div class="field"><label>💳 付款帳號</label><select id="f-pay-acct"><option value=""${!st.pay_acct?' selected':''}>不顯示</option><option value="tw"${st.pay_acct==='tw'?' selected':''}>🇹🇼 台灣</option><option value="vn"${st.pay_acct==='vn'?' selected':''}>🇻🇳 越南</option><option value="both"${st.pay_acct==='both'?' selected':''}>兩者都顯示</option></select></div>
+     <div class="field full" style="background:#fffdf6;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+       <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-weight:700;margin:0">
+         <input type="checkbox" id="f-payremind" style="width:auto;margin:0"${st.pay_remind_on?' checked':''}> 📢 讓這位學生在自己的頁面看到費用提醒
+       </label>
+       <div class="hint" style="margin-top:5px">打開＝學生登入後看得到「目前應收多少、怎麼算的、收款帳號」。關掉＝完全看不到（預設是關的）。要改提醒的文字，用學生卡片上的「📋 提醒訊息」。</div>
+     </div>
      <div class="field full"><label>👨‍👩‍👦 合併帳戶（選填）</label><input id="f-billgrp" type="text" value="${esc(st.bill_group||'')}" placeholder="例：葛家（父親繳費）" list="billgrp-list"><datalist id="billgrp-list">${[...new Set((S.students||[]).map(x=>String(x.bill_group||'').trim()).filter(Boolean))].map(g=>`<option value="${esc(g)}">`).join('')}</datalist><div class="hint" style="margin-top:5px">填一樣名稱的學生，帳會合在一起算（例如兄弟由同一位家長繳費，一個人多繳可以抵另一個人少繳）。留空＝各算各的。</div></div>
      ${(IS_OWNER&&st.id)?`<div class="field full" style="background:#f8fafc;border-radius:8px;padding:10px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>🎟️ 目前 ${st.class_type==='團班'?'<span class="muted">團班：上一堂算一堂，不用預繳堂數</span>':(sessChip(st)||'<span class="muted">還沒有堂數（去繳費新增）</span>')}</span><span class="grow"></span><button type="button" class="btn btn-sm btn-accent" data-act="payments" data-id="${st.id}">💰 繳費紀錄</button></div><div class="hint" style="margin-top:6px">${st.class_type==='團班'?'團班收費看「營運 → 該收 vs 實收」，用實際上課堂數×單價自動算。':'總堂數＝每筆繳費「加堂數」的加總。匯入舊學生：到「繳費」補一筆（填日期＋金額＋堂數）即可。'}</div></div>`:(IS_OWNER?'<div class="field full"><div class="hint">先按「新增學生」建好，再到列表按「💰 繳費」設定收費。</div></div>':'')}
     </div></div>`:''}
@@ -4566,7 +4572,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   const fslot=$('#f-first-slot');
   const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     ...(IS_OWNER?{tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),fee_unit:($('#f-feeunit')&&$('#f-feeunit').value)||'session',currency:$('#f-cur').value}:{}),
-    avatar:(($('#f-avatar')&&$('#f-avatar').value)||'').trim(),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),drive_url:(($('#f-drive')&&$('#f-drive').value)||'').trim(),...(IS_OWNER?{pay_acct:(($('#f-pay-acct')&&$('#f-pay-acct').value)||''),bill_group:(($('#f-billgrp')&&$('#f-billgrp').value)||'').trim()}:{}),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
+    avatar:(($('#f-avatar')&&$('#f-avatar').value)||'').trim(),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),drive_url:(($('#f-drive')&&$('#f-drive').value)||'').trim(),...(IS_OWNER?{pay_acct:(($('#f-pay-acct')&&$('#f-pay-acct').value)||''),pay_remind_on:!!($('#f-payremind')&&$('#f-payremind').checked),bill_group:(($('#f-billgrp')&&$('#f-billgrp').value)||'').trim()}:{}),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
   // 註：總堂數(sessions_total)、付款日(payment_date)、每筆繳費(payments) 一律在「💰 繳費」視窗管理，這裡不碰，避免兩邊打架
   if(IS_OWNER){const asel=$('#f-admin');common.admin=asel?asel.value:'';}
   if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
