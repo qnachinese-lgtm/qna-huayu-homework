@@ -401,6 +401,14 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .book-head.bh-tog:hover{color:var(--accent,#B23A48)}
         .bh-ar{display:inline-block;width:1.1em;color:var(--muted,#8a8178);font-size:12px}
         .bh-hint{font-size:12px;font-weight:400;color:var(--muted,#8a8178)}
+        /* 📚 教材大類（例：時代華語 → 一／二／三） */
+        .series-group{margin-bottom:6px}
+        .series-head{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;
+          padding:11px 4px;font-weight:800;font-size:17px;border-bottom:2px solid var(--line);margin-bottom:2px}
+        .series-head:hover{color:var(--accent,#B23A48)}
+        .series-head .count{background:#efe9df;color:#6b6259;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700}
+        .series-body{padding-left:14px;border-left:2px solid var(--line);margin:2px 0 10px 6px}
+        .series-body .book-head{font-size:15px}
         body.is-admin .sidenav .tab[data-id="ops"],
         body.is-admin .sidenav .tab[data-id="agency"],
         body.is-admin .sidenav .tab[data-id="interview"],
@@ -719,7 +727,7 @@ function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
 function emptyHtml(i,t,d){return `<div class="empty"><div class="big">${i}</div><b>${t}</b><div style="margin-top:6px">${d}</div></div>`;}
 const TYPE_LABELS={choice:'單選',fill:'填空',opt:'選填',qa:'問答',order:'重組',match:'配對',write:'手寫',speak:'口說',note:'示範'};
 
-const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],admins:[],announcements:[],trashStudents:[],trashLessons:[],tab:'dashboard',q:'',openCards:new Set(),openBooks:new Set()};
+const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],admins:[],announcements:[],trashStudents:[],trashLessons:[],tab:'dashboard',q:'',openCards:new Set(),openBooks:new Set(),openSeries:new Set()};
 let IS_OWNER=false, MY_EMAIL='';
 const CRM_KINDS={agency:1,interview:1,inquiry:1,writing:1};
 function crmDedupe(list){
@@ -2319,13 +2327,28 @@ function clForm(){const e=!!CL.id;const origText=CL.origText!=null?CL.origText:'
      <div class="hint">存檔後可按卡片的「👁 預覽」看看分句對不對；分句不理想時，在原文裡自己用換行調整即可。</div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="saveClassical">💾 儲存</button></div></div>`);}
+/* 教材排序：先看大類名稱，再看「一二三四…」的冊次 */
+const _CNNUM={'零':0,'〇':0,'一':1,'二':2,'兩':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10};
+function bookVol(name){const m=/^(.*?)\s*([零〇一二三四五六七八九十]+)\s*$/.exec(String(name||'').trim());
+  if(!m||!m[1])return {base:String(name||'').trim(),vol:0};
+  const t=m[2];let n=0;
+  if(t.length===1)n=_CNNUM[t]||0;
+  else if(t[0]==='十')n=10+(_CNNUM[t[1]]||0);
+  else if(t[1]==='十')n=(_CNNUM[t[0]]||0)*10+(_CNNUM[t[2]]||0);
+  else n=_CNNUM[t]||0;
+  return {base:m[1].trim(),vol:n};}
+function bookRank(x){x=String(x||'');if(x==='__none')return 3;if(x==='📜 文言文')return 2;if(x==='發音')return 1;return 0;}
+function bookCmp(a,b){const ra=bookRank(a),rb=bookRank(b);if(ra!==rb)return ra-rb;
+  const A=bookVol(a),B=bookVol(b);
+  if(A.base!==B.base)return A.base.localeCompare(B.base,'zh-Hant');
+  return (A.vol||0)-(B.vol||0);}
 function renderLessons(){
   const wrap=$('#lessons-list');if(!wrap)return;
   if(S.pe){wrap.innerHTML=pronEditorHtml();return;}
   const hasPron=(S.prons||[]).length>0;
   if(!S.lessons.length&&!hasPron&&!(S.classicals||[]).length&&!(S.workbooks||[]).length){wrap.innerHTML=emptyHtml('📚','還沒有內容','點「新增課文／作業」放課文＋練習題，或「建立發音」做發音教材。');return;}
   const ls=sortLessons(S.lessons).filter(l=>l.kind!=='classical');const hasCl=(S.classicals||[]).length>0;
-  const books=[...new Set(ls.map(l=>(l.textbook||'').trim()).filter(Boolean))].sort();
+  const books=[...new Set(ls.map(l=>(l.textbook||'').trim()).filter(Boolean))].sort(bookCmp);
   if(hasPron&&!books.includes('發音'))books.push('發音');
   if(hasCl&&!books.includes('📜 文言文'))books.push('📜 文言文');const hasUncat=ls.some(l=>!(l.textbook||'').trim());const filter=S.bookFilter||'';
   let html='';
@@ -2344,7 +2367,7 @@ function renderLessons(){
   const _only=(show.length===1);
   const _isOpen=(k)=>_only||!!(S.openBooks&&S.openBooks.has(k));
   const _bh=(key,label,count,open,extra)=>'<div class="book-head bh-tog" data-act="toggleBook" data-id="'+esc(key)+'"><span class="bh-ar">'+(open?'▾':'▸')+'</span>'+label+' <span class="count">'+count+'</span>'+(extra||'')+'<span style="flex:1"></span><span class="bh-hint">'+(open?'收起':'展開')+'</span></div>';
-  html+=show.map(b=>{
+  const _bookHtml=(b)=>{
     if(b==='📜 文言文'){if(!hasCl)return '';
       const cards=(S.classicals||[]).slice().sort((a,c)=>((a.order_index||0)-(c.order_index||0))).map(l=>clCardHtml(l)).join('');
       const op=_isOpen(b);
@@ -2357,6 +2380,24 @@ function renderLessons(){
     const op=_isOpen(b);
     const cards=op?groups[b].map((l,i)=>lessonCardHtml(l,i)).join(''):'';
     return books.length?`<div class="book-group">${_bh(b,esc(b==='__none'?'未分類':b),groups[b].length,op,'')}${cards}</div>`:groups[b].map((l,i)=>lessonCardHtml(l,i)).join('');
+  };
+  /* 同一個大類（例：時代華語一／二／三）收在一起 */
+  const cntOf=(b)=>b==='📜 文言文'?(S.classicals||[]).length:(b==='發音'?(S.prons||[]).length:((groups[b]||[]).length));
+  const baseCnt={};show.forEach(b=>{if(b==='__none'||b==='發音'||b==='📜 文言文')return;const v=bookVol(b);if(v.vol)baseCnt[v.base]=(baseCnt[v.base]||0)+1;});
+  const _sOpen=(k)=>_only||!!(S.openSeries&&S.openSeries.has(k));
+  const done=new Set();
+  html+=show.map(b=>{
+    if(done.has(b))return '';
+    const v=bookVol(b);
+    if(b!=='__none'&&b!=='發音'&&b!=='📜 文言文'&&v.vol&&baseCnt[v.base]>1){
+      const vols=show.filter(x=>{const w=bookVol(x);return w.vol&&w.base===v.base;});
+      vols.forEach(x=>done.add(x));
+      const n=vols.reduce((a,x)=>a+cntOf(x),0);
+      const op=_sOpen(v.base);
+      return `<div class="series-group"><div class="series-head" data-act="toggleSeries" data-id="${esc(v.base)}"><span class="bh-ar">${op?'▾':'▸'}</span>📚 ${esc(v.base)} <span class="count">${vols.length} 冊 · ${n} 課</span><span style="flex:1"></span><span class="bh-hint">${op?'收起':'展開'}</span></div>${op?`<div class="series-body">${vols.map(_bookHtml).join('')}</div>`:''}</div>`;
+    }
+    done.add(b);
+    return _bookHtml(b);
   }).join('');
   wrap.innerHTML=html;
 }
@@ -4652,14 +4693,16 @@ H.dlgAutoPinyin=(i)=>{if(!window.pinyinPro){toast('拼音元件還在載入，�
     return head.replace(/\s*$/,'')+'['+py+']'+stripLatinBr(rest);});
   ta.value=out.join('\n');toast(n?('已為 '+n+' 個詞加上拼音（只加漢字，可再修改）'):'已整理完成（只保留漢字拼音）');};
 H.filesSub=(id)=>{S.filesSub=id;renderFiles();};
+H.toggleSeries=(id)=>{if(!S.openSeries)S.openSeries=new Set();if(S.openSeries.has(id))S.openSeries.delete(id);else S.openSeries.add(id);renderLessons();};
 H.toggleBook=(id)=>{if(!S.openBooks)S.openBooks=new Set();if(S.openBooks.has(id))S.openBooks.delete(id);else S.openBooks.add(id);renderLessons();};
-H.toggleAllBooks=()=>{if(!S.openBooks)S.openBooks=new Set();
-  if(S.openBooks.size){S.openBooks.clear();}
+H.toggleAllBooks=()=>{if(!S.openBooks)S.openBooks=new Set();if(!S.openSeries)S.openSeries=new Set();
+  if(S.openBooks.size){S.openBooks.clear();S.openSeries.clear();}
   else{const ls=sortLessons(S.lessons).filter(l=>l.kind!=='classical');
     [...new Set(ls.map(l=>(l.textbook||'').trim()).filter(Boolean))].forEach(b=>S.openBooks.add(b));
     if(ls.some(l=>!(l.textbook||'').trim()))S.openBooks.add('__none');
     if((S.prons||[]).length)S.openBooks.add('發音');
-    if((S.classicals||[]).length)S.openBooks.add('📜 文言文');}
+    if((S.classicals||[]).length)S.openBooks.add('📜 文言文');
+    [...S.openBooks].forEach(b=>{const v=bookVol(b);if(v.vol)S.openSeries.add(v.base);});}
   renderLessons();};
 H.toggleAllCards=()=>{const ls=sortLessons(S.lessons);if(ls.some(l=>S.openCards.has(l.id)))S.openCards.clear();else ls.forEach(l=>S.openCards.add(l.id));renderLessons();};
 H.qExpandAll=(_,b)=>{const ds=[...document.querySelectorAll('.qe-secfold')];if(!ds.length)return;const anyClosed=ds.some(d=>!d.open);ds.forEach(d=>{d.open=anyClosed;});if(b)b.textContent=anyClosed?'▴ 全部收起':'▾ 全部展開';};
