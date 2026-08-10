@@ -199,6 +199,8 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .pay-st.ok{background:#dcfce7;color:#15803d}
         .pay-st.over{background:#f3e8ff;color:#7c3aed}
         .pay-st.muted{background:#f1f0ee;color:var(--muted);font-weight:600}
+        .badge.feepub{cursor:pointer;font:inherit;font-size:12px;line-height:1.6;border-style:dashed}
+        .badge.feepub:hover{border-style:solid;box-shadow:0 0 0 2px #B23A4822}
         /* 🏠 今日總覽封面 */
         .hero{background:#fff;border:1px solid var(--line);border-radius:18px;padding:26px 28px;margin-bottom:14px;
           display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
@@ -689,7 +691,9 @@ function billCur(s){return (s&&s.currency)||(((s&&s.payments)||[]).slice(-1)[0]|
 function billChip(s){const b=stuBill(s);if(!b)return '';
   if(!b.items.length)return b.paid?'<span>🧾 目前應收：<b class="muted">還沒有上課記錄</b></span>':'';
   const cur=billCur(s);
-  if(b.due>0)return '<span>🧾 目前應收：<b style="color:#c2410c">'+money(b.due,cur)+'</b>'+(s.pay_remind_on?' <span class="badge badge-ok">學生看得到</span>':' <span class="badge">學生看不到</span>')+'</span>';
+  if(b.due>0)return '<span>🧾 目前應收：<b style="color:#c2410c">'+money(b.due,cur)+'</b>'
+    +' <button type="button" class="badge feepub'+(s.pay_remind_on?' badge-ok':'')+'" data-act="payPubTog" data-id="'+esc(s.id)+'" title="點一下切換：這位學生自己看不看得到費用">'
+    +(s.pay_remind_on?'👁 學生看得到':'🙈 學生看不到')+'</button></span>';
   return '<span>🧾 目前應收：<b style="color:#16a34a">已結清</b>'+(b.due<0?('（預繳 '+money(-b.due,cur)+'）'):'')+'</span>';}
 function famChip(s){const k=famKeyOf(s);if(!k)return '';const f=famBill(k);if(!f)return '';
   const others=f.members.filter(m=>m.id!==s.id).map(m=>m.name).join('、');
@@ -6045,6 +6049,12 @@ H.remindShowSave=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;
     const _lab={tw:'🇹🇼 台灣帳號',vn:'🇻🇳 越南帳號',both:'兩個帳號'}[acct]||'';
     toast(on?('已開啟：'+(s.name||'')+' 登入會看到繳費提醒＋'+_lab):'已關閉，學生看不到提醒與帳號了');render();}
   catch(e){toast('儲存失敗，請再試一次');}};
+H.payPubTog=async(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
+  const s=(S.students||[]).find(x=>x.id===id);if(!s)return;
+  const to=!s.pay_remind_on;
+  try{await DB.update('students',id,{pay_remind_on:to});s.pay_remind_on=to;render();
+    toast(to?((s.name||'')+'：學生登入看得到費用了'+(s.pay_acct?'':'（還沒選收款帳號，記得到「📋 提醒訊息」選一個）')):((s.name||'')+'：學生看不到費用了'));}
+  catch(e){toast(writeErr('改不了',e));}};
 H.renewQuick=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}return H.payments(id);};
 H.renewQuickOld=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;
   const ps=(s.payments||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));const last=ps[0]||{};
