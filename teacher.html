@@ -856,7 +856,9 @@ function healthCheckHtml(){const list=healthCheck();
   const rows=list.map(({s,problems})=>`<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start"><span class="badge badge-overdue">⚠️</span><b>${snm(s.name)}</b><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="editStudent" data-id="${s.id}">去修正</button><div style="flex-basis:100%;margin-top:4px"><ul style="margin:2px 0 0 18px;padding:0;color:#b45309;font-size:13px">${problems.map(p=>`<li>${p}</li>`).join('')}</ul></div></div>`).join('');
   return `<details class="dash-fold" open style="margin-top:14px;border-color:#f59e0b"><summary>🩺 資料健檢（${list.length} 位學生要注意）</summary><div style="margin-top:10px"><div class="hint" style="margin-bottom:6px">這些不影響學生上課，但會讓你的堂數／收入統計不準，建議抽空修一修。</div>${rows}</div></details>`;}
 function dashTodayHtml(){
-  const d=localToday();const rows=[];
+  const d=localToday();const _rows=[];
+  /* 依開始時間排序；沒填時間的排最後 */
+  const rows={push:(h,st)=>_rows.push({h:h,t:(st||'').trim()||'99:99'})};
   // 已點名（團班合併成一列）
   const logs=[];
   (S.students||[]).forEach(s=>{if(s.is_test)return;(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(e&&e.date===d)logs.push({s,e});});});
@@ -866,7 +868,7 @@ function dashTodayHtml(){
     const who=it.members?('\u{1F465} '+esc(it.grp)+' 團班')+'<span class="muted" style="font-weight:400;margin-left:4px">（'+it.members.length+'人）</span>':esc((it.s&&it.s.name)||'');
     const key=it.members?(esc(it.grp)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')):(esc((it.s||{}).id||'')+'::'+esc(d));
     const act=it.members?'editClassDay':'editStuDay';
-    rows.push('<div class="dash-row" style="flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge badge-ok">\u5DF2\u9EDE\u540D</span><b>'+who+'</b>'+(e.note?'<span class="muted" style="margin-left:6px">'+esc(e.note)+'</span>':'')+'<span class="grow"></span><button class="btn btn-sm" data-act="'+act+'" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button></div>');});
+    rows.push('<div class="dash-row" style="flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge badge-ok">\u5DF2\u9EDE\u540D</span><b>'+who+'</b>'+(e.note?'<span class="muted" style="margin-left:6px">'+esc(e.note)+'</span>':'')+'<span class="grow"></span><button class="btn btn-sm" data-act="'+act+'" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button></div>',e.start);});
   // 預排（還沒點名）
   const plans=[];
   try{groupsList().forEach(cls=>{const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls));
@@ -880,12 +882,13 @@ function dashTodayHtml(){
   plans.forEach(o=>{const p=o.p;let tm='';try{tm=twVnStr(p.start,p.end);}catch(err){tm=(p.start||'')+(p.end?'\u2013'+p.end:'');}
     const solo=!!o.sid;const key=solo?('S:'+o.sid+'::'+d):(esc(o.cls)+'::'+esc(d));
     const lab=solo?('\u{1F464} '+esc(o.sname||'')):('\u{1F465} '+esc(o.cls)+' 團班');
-    rows.push('<div class="dash-row" style="background:#fff8ec;border-radius:8px;flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge" style="background:#fde68a;color:#92400e;border-color:#f59e0b">\u{1F4CC} \u5F85\u4E0A</span><b>'+lab+'</b><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="'+key+'">\u270D\uFE0F \u53BB\u9EDE\u540D</button></div>');});
+    rows.push('<div class="dash-row" style="background:#fff8ec;border-radius:8px;flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge" style="background:#fde68a;color:#92400e;border-color:#f59e0b">\u{1F4CC} \u5F85\u4E0A</span><b>'+lab+'</b>'+(p.note?'<span class="muted" style="margin-left:6px">'+esc(p.note)+'</span>':'')+'<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="'+key+'">\u270D\uFE0F \u53BB\u9EDE\u540D</button><button class="btn btn-sm" data-act="planEdit" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button></div>',p.start);});
   // 面試練習
   try{itvAll().forEach(c=>itvSessions(c).forEach(e=>{if(e.date!==d)return;let tm='';try{tm=twVnStr(e.start,e.end);}catch(err){tm=(e.start||'')+(e.end?'\u2013'+e.end:'');}
-    rows.push('<div class="dash-row" style="background:#eef2ff;border-radius:8px;flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge" style="background:#c7d2fe;color:#3730a3">\u{1F3A4} \u9762\u8A66\u7DF4\u7FD2</span><b>'+snm(c.name||'')+'</b><span class="grow"></span><button class="btn btn-sm" data-act="itvSess" data-id="'+esc(c.id)+'::'+itvSessions(c).indexOf(e)+'">\u270F\uFE0F \u4FEE\u6539</button></div>');}));}catch(err){}
-  if(!rows.length)return '<div class="muted" style="padding:8px 2px">今天沒有排課。要排課到「\u{1F4C5} 課表」按「\u{1F4CC} 預排課程」。</div>';
-  return rows.join('');
+    rows.push('<div class="dash-row" style="background:#eef2ff;border-radius:8px;flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge" style="background:#c7d2fe;color:#3730a3">\u{1F3A4} \u9762\u8A66\u7DF4\u7FD2</span><b>'+snm(c.name||'')+'</b><span class="grow"></span><button class="btn btn-sm" data-act="itvSess" data-id="'+esc(c.id)+'::'+itvSessions(c).indexOf(e)+'">\u270F\uFE0F \u4FEE\u6539</button></div>',e.start);}));}catch(err){}
+  if(!_rows.length)return '<div class="muted" style="padding:8px 2px">今天沒有排課。要排課到「\u{1F4C5} 課表」按「\u{1F4CC} 預排課程」。</div>';
+  _rows.sort((a,b)=>a.t.localeCompare(b.t));
+  return _rows.map(x=>x.h).join('');
 }
 function renderDashboard(){
   const body=$('#dashboard-body');
