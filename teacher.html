@@ -921,6 +921,7 @@ function dashTodayHtml(){
   // 面試練習
   try{itvAll().forEach(c=>itvSessions(c).forEach(e=>{if(e.date!==d)return;let tm='';try{tm=twVnStr(e.start,e.end);}catch(err){tm=(e.start||'')+(e.end?'\u2013'+e.end:'');}
     rows.push('<div class="dash-row" style="background:#eef2ff;border-radius:8px;flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge" style="background:#c7d2fe;color:#3730a3">\u{1F3A4} \u9762\u8A66\u7DF4\u7FD2</span><b>'+snm(c.name||'')+'</b><span class="grow"></span>'+meetBtn(meetOfItv(c),true)+'<button class="btn btn-sm" data-act="itvSess" data-id="'+esc(c.id)+'::'+itvSessions(c).indexOf(e)+'">\u270F\uFE0F \u4FEE\u6539</button></div>',e.start);}));}catch(err){}
+  dashTodayHtml.n=_rows.length;
   if(!_rows.length)return '<div class="muted" style="padding:8px 2px">今天沒有排課。要排課到「\u{1F4C5} 課表」按「\u{1F4CC} 預排課程」。</div>';
   _rows.sort((a,b)=>a.t.localeCompare(b.t));
   return _rows.map(x=>x.h).join('');
@@ -952,17 +953,16 @@ function renderDashboard(){
   // 問題與討論批改
   const discPend=(S.discussions||[]).filter(x=>x.status==='submitted');
   const discHtml=discPend.length?discPend.map(sd=>`<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc(sentName(sd))}</b><span class="muted">${esc((()=>{const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');})())}</span><span class="grow"></span><span class="muted">${Object.keys(sd.answers||{}).length} 題</span><button class="btn btn-sm btn-accent" data-act="reviewDisc" data-id="${sd.id}">批改</button></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的問題與討論 👍</div>`;
-  // 統一待批改收件匣（作業／造句／問題與討論）
-  const inbox=[];
-  pendList.forEach(r=>{const st=S.students.find(x=>x.id===r.student_id),l=S.lessons.find(x=>x.id===r.lesson_id);inbox.push({test:!!(st&&st.is_test),tag:'作業',name:(st&&st.name)||'學生',sub:l?((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'')):'（課文）',extra:'',btn:`<button class="btn btn-sm btn-accent" data-act="tab" data-id="grades">去批改</button>`,ts:r.completed_at||r.updated_at||''});});
-  sentPend.forEach(sd=>{inbox.push({test:isTestOf(sd),tag:'造句',name:sentName(sd),sub:sentLessonName(sd),extra:(sd.items||[]).filter(it=>it.sentence).length+' 句',btn:`<button class="btn btn-sm btn-accent" data-act="reviewSent" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
-  discPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};inbox.push({test:isTestOf(sd),tag:'問題與討論',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）'),extra:Object.keys(sd.answers||{}).length+' 題',btn:`<button class="btn btn-sm btn-accent" data-act="reviewDisc" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
-  const shadowPend=(S.shadows||[]).filter(x=>x.status==='submitted');
-  shadowPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.shadow_lesson)||{};const cnt=(sd.sents||[]).filter(s=>s&&s.audio_url).length;inbox.push({test:isTestOf(sd),tag:'逐句跟讀',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）')+(sd.dlg_title?(' · '+sd.dlg_title):''),extra:cnt+' 句錄音',btn:`<button class="btn btn-sm btn-accent" data-act="reviewShadow" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
-  const gpracPend=(S.gpracs||[]).filter(x=>x.status==='submitted');
-  gpracPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.gprac_lesson)||{};inbox.push({test:isTestOf(sd),tag:'語法練習',name:sentName(sd),sub:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）'),extra:Object.keys(sd.answers||{}).length+' 題',btn:`<button class="btn btn-sm btn-accent" data-act="reviewGprac" data-id="${sd.id}">批改</button>`,ts:sd.submitted_at||''});});
-  const hwvPend=(S.hwvs||[]).filter(x=>x.status==='submitted');
-  hwvPend.forEach(sd=>{const l=S.lessons.find(x=>x.id===sd.hwv_lesson)||{};inbox.push({test:isTestOf(sd),tag:'✍️ 手寫',name:sentName(sd),sub:'生詞「'+esc(sd.hwv_word||'')+'」'+(l.title?(' · '+l.title):''),extra:(sd.images||[]).length+' 張',btn:`<button class="btn btn-sm btn-accent" data-act="reviewHwv" data-id="${sd.id}">看手寫</button>`,ts:sd.submitted_at||''});});
+  /* 統一待批改收件匣：直接用「批改・成績」那一頁的同一份佇列 gradeQueue()，
+     這樣首頁的數字跟批改台的「只看待批改」永遠一樣（含作業簿）。 */
+  const _sgAct={gprac:'reviewGprac',disc:'reviewDisc',sent:'reviewSent',shadow:'reviewShadow',hwv:'reviewHwv',wb:'reviewWb'};
+  const inbox=gradeQueue().filter(x=>x.pend).map(x=>{
+    const m=SGKIND[x.kind]||{lab:'',ic:''};
+    const btn=(x.kind==='hw')
+      ?`<button class="btn btn-sm btn-accent" data-act="tab" data-id="grades">去批改</button>`
+      :`<button class="btn btn-sm btn-accent" data-act="${_sgAct[x.kind]}" data-id="${esc(String(x.id))}">批改</button>`;
+    return {test:!!x.test,tag:(m.ic?m.ic+' ':'')+m.lab,name:x.name,sub:x.les,extra:x.extra||'',btn:btn,ts:x.ts||''};
+  });
   inbox.sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
   const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"${it.test?' style="opacity:.72"':''}><span class="badge badge-soon">${it.tag}</span><b>${snm(it.name)}</b>${it.test?'<span class="badge" style="background:#e0e7ff;color:#4338ca;border-color:#4338ca55">🧪 測試</span>':''}<span class="muted">${esc(it.sub)}</span><span class="grow"></span>${it.ts?`<span class="muted">🕒 ${esc(fmtDT(it.ts))}</span>`:''}${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
   // 提醒：只看「堂數快用完／用完」（不再用付款日期做逾期提醒，因為每週時間、繳費都不固定）
@@ -1004,7 +1004,10 @@ function renderDashboard(){
   const _hr=new Date().getHours();const _greet=_hr<11?'早安':(_hr<18?'午安':'晚安');
   const _wd=['日','一','二','三','四','五','六'][new Date().getDay()];
   const _pend=inbox.length;
-  const _today=localToday();let _cls=0;S.students.forEach(s=>{if(s.is_test)return;(s.class_log||[]).forEach(e=>{if(e&&e.date===_today)_cls++;});(Array.isArray(s.planned)?s.planned:[]).forEach(p=>{if(p&&p.date===_today)_cls++;});});
+  const _today=localToday();
+  /* 今天的課＝下面「③ 今天的課」實際列出來的堂數（已點名＋預排＋面試練習，團班算一堂），兩邊才會一樣 */
+  const todayHtml=dashTodayHtml();
+  const _cls=Number(dashTodayHtml.n)||0;
   const _act=S.students.filter(s=>!s.is_test&&enrollOf(s)==='active').length;
   const _thisM2=_today.slice(0,7);const _inc={};S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{const a=Number(p.amount)||0;if(!a)return;if((p.date||'').slice(0,7)!==_thisM2)return;const c=p.currency||s.currency||'TWD';_inc[c]=(_inc[c]||0)+a;});});
   const _incTxt=Object.keys(_inc).length?Object.keys(_inc).map(c=>money(_inc[c],c)).join('｜'):'—';
@@ -1032,7 +1035,6 @@ function renderDashboard(){
     ${_hstat('calendar','📅','今天的課',_cls,'堂',_cls?'#7c3aed':'')}
     ${IS_OWNER?_hstat('pay','💳','還沒收到',oweList.length,'位',oweList.length?'#dc2626':''):_hstat('lessons','📚','教材課數',(S.lessons||[]).length,'課','')}
   </div>`;
-  const todayHtml=dashTodayHtml();
   const _op=(k,dft)=>{try{const v=localStorage.getItem('hyc_ds_'+k);return v==null?dft:(v==='1');}catch(e){return dft;}};
   const _sec=(k,title,badge,inner,dft)=>`<details class="dash-sec" data-ds="${k}"${_op(k,dft)?' open':''}><summary class="dash-sec-t">${title}${badge?'　<span class="dash-n">'+badge+'</span>':''}</summary><div class="dash-sec-b">${inner}</div></details>`;
   body.innerHTML=`${_hero}
