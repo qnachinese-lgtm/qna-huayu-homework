@@ -6036,30 +6036,69 @@ H.avSet=async(key)=>{const p=String(key||'').split('::');const id=p[0];const e=d
   try{await DB.update('students',id,{avatar:e});st.avatar=e;_AVMAP=null;_AVSIG='';closeModal();render();toast(e?('已換成 '+e):'已改回自動配');}
   catch(err){toast('存不起來：'+((err&&err.message)||err));}};
 H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
-  const list=(S.students||[]).filter(x=>x&&!x.deleted&&!x.is_test);
-  if(!list.length){toast('還沒有學生');return;}
+  /* PKG_ALL：一個入口收四種錢——華語學生、面試練習、代辦申請、代書 */
+  const PK_META={stu:{ic:'\u{1F464}',lab:'華語學生',act:'payments'},
+    itv:{ic:'\u{1F3A4}',lab:'面試練習',act:'itvPayNew'},
+    ag:{ic:'\u{1F393}',lab:'代辦申請',act:'agPayNew'},
+    wr:{ic:'\u270D\uFE0F',lab:'代書',act:'wrPayNew'}};
+  const badge=(txt,bg,fg,bd)=>`<span class="badge" style="background:${bg};color:${fg};border-color:${bd}">${txt}</span>`;
+  const oweB=t=>badge(t,'#fee2e2','#b91c1c','#fca5a5');
+  const preB=t=>badge(t,'#dbeafe','#1d4ed8','#93c5fd');
+  const okB=()=>'<span class="badge badge-ok">已結清</span>';
   const rank=x=>{const e=enrollOf(x);return e==='active'?0:(e==='trial'?1:(e==='reserved'?2:3));};
-  const rowOf=(x)=>{const b=stuBill(x)||{charge:0,paid:0,due:0};const cur=billCur(x);
-    const tag=b.due>0.01?`<span class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#fca5a5">欠 ${money(b.due,cur)}</span>`
-      :(b.due<-0.01?`<span class="badge" style="background:#dbeafe;color:#1d4ed8;border-color:#93c5fd">預繳 ${money(-b.due,cur)}</span>`
-      :'<span class="badge badge-ok">已結清</span>');
-    const st=enrollOf(x);const stt=st==='active'?'':`<span class="muted" style="font-size:12px">（${st==='paused'?'休學':(st==='trial'?'試學':(st==='reserved'?'預約':st))}）</span>`;
-    const fam=famKeyOf(x)&&famMembers(famKeyOf(x)).length>=2?`<span class="muted" style="font-size:12px">👨‍👩‍👦 ${esc(famKeyOf(x))}</span>`:'';
-    return `<button class="pkrow" type="button" data-act="payments" data-id="${x.id}"><span class="avatar sm emo" style="background:${avColor(x.name)};flex:none">${avEmoji(x)}</span><b style="flex:1;min-width:0">${esc(x.name||'')}</b>${fam}${stt}${tag}<span style="color:#c3b8a8;font-size:18px">›</span></button>`;};
-  const draw=(q)=>{q=String(q||'').trim().toLowerCase();
-    let arr=list.slice().sort((a,b)=>(rank(a)-rank(b))||String(a.name||'').localeCompare(String(b.name||'')));
-    if(q)arr=arr.filter(x=>String(x.name||'').toLowerCase().indexOf(q)>=0);
-    const box=document.getElementById('pk-res');if(!box)return;
-    box.innerHTML=arr.length?arr.map(rowOf).join(''):'<div class="hint" style="padding:14px 2px">找不到這位學生。</div>';};
-  openModal(`<div class="modal" style="max-width:560px"><div class="modal-head"><h3>💰 記一筆繳費</h3><button class="x" data-act="closeModal">×</button></div>
+  const items=[];
+  (S.students||[]).filter(x=>x&&!x.deleted&&!x.deleted_at&&!x.is_test).forEach(x=>{
+    const b=stuBill(x)||{due:0};const cur=billCur(x);
+    const tag=b.due>0.01?oweB('欠 '+money(b.due,cur)):(b.due<-0.01?preB('預繳 '+money(-b.due,cur)):okB());
+    const st=enrollOf(x);
+    const extra=(st==='active'?'':`<span class="muted" style="font-size:12px">（${st==='paused'?'休學':(st==='trial'?'試學':(st==='reserved'?'預約':st))}）</span>`)
+      +((famKeyOf(x)&&famMembers(famKeyOf(x)).length>=2)?`<span class="muted" style="font-size:12px">\u{1F468}\u200D\u{1F469}\u200D\u{1F466} ${esc(famKeyOf(x))}</span>`:'');
+    items.push({k:'stu',id:x.id,name:x.name||'',sort:rank(x),owe:b.due>0.01,tag:tag,extra:extra,
+      av:`<span class="avatar sm emo" style="background:${avColor(x.name)};flex:none">${avEmoji(x)}</span>`});});
+  itvAll().filter(c=>!c.deleted_at).forEach(c=>{
+    const s2=itvMoneyStr(itvDueSum(c));
+    const done=(c.status||'active')!=='active';
+    items.push({k:'itv',id:c.id,name:c.name||'',sort:done?3:0,owe:!!s2,
+      tag:s2?oweB('欠 '+s2):(itvPays(c).length?okB():'<span class="badge">還沒收款</span>'),
+      extra:(c.target?`<span class="muted" style="font-size:12px">${esc(c.target)}</span>`:'')+(done?'<span class="muted" style="font-size:12px">（已完成）</span>':''),
+      av:'<span class="avatar sm emo" style="background:#c7d2fe;flex:none">\u{1F3A4}</span>'});});
+  const crmPush=(arr,k,totF,curF,payF)=>arr.filter(c=>!c.deleted_at).forEach(c=>{
+    const tot=totF(c),cur=curF(c);
+    const got=payF(c).reduce((a,x)=>a+(((x.currency||'VND')===cur)?(Number(x.amount)||0):0),0);
+    const due=tot?(tot-got):0;const done=(c.status||'active')!=='active';
+    const tag=!tot?'<span class="badge">還沒報價</span>':(due>0.01?oweB('欠 '+money(due,cur)):(due<-0.01?preB('預繳 '+money(-due,cur)):okB()));
+    items.push({k:k,id:c.id,name:c.name||'',sort:done?3:0,owe:!!tot&&due>0.01,tag:tag,
+      extra:((c.school||c.docs)?`<span class="muted" style="font-size:12px">${esc(c.school||c.docs)}</span>`:'')+(done?'<span class="muted" style="font-size:12px">（已完成）</span>':''),
+      av:`<span class="avatar sm emo" style="background:${k==='ag'?'#fde68a':'#bbf7d0'};flex:none">${k==='ag'?'\u{1F393}':'\u270D\uFE0F'}</span>`});});
+  crmPush(agAll(),'ag',agTotal,agTotalCur,agPays);
+  crmPush(wrAll(),'wr',wrTotal,wrTotalCur,wrPays);
+  if(!items.length){toast('還沒有任何學生或客戶');return;}
+  const rowOf=(x)=>{const m=PK_META[x.k];
+    return `<button class="pkrow" type="button" data-act="${m.act}" data-id="${esc(String(x.id))}">${x.av}`
+      +`<b style="flex:1;min-width:0">${esc(x.name)}</b>`
+      +`<span class="muted" style="font-size:11.5px;border:1px solid var(--line);border-radius:999px;padding:1px 8px">${m.ic} ${m.lab}</span>`
+      +`${x.extra}${x.tag}<span style="color:#c3b8a8;font-size:18px">\u203A</span></button>`;};
+  let kind='';
+  const draw=()=>{const box=document.getElementById('pk-res');if(!box)return;
+    const q=String((document.getElementById('pk-q')||{}).value||'').trim().toLowerCase();
+    let arr=items.filter(x=>(!kind||x.k===kind)&&(!q||String(x.name).toLowerCase().indexOf(q)>=0));
+    arr.sort((a,b)=>(b.owe?1:0)-(a.owe?1:0)||(a.sort-b.sort)||String(a.name).localeCompare(String(b.name)));
+    box.innerHTML=arr.length?arr.map(rowOf).join(''):'<div class="hint" style="padding:14px 2px">找不到這個名字。</div>';
+    document.querySelectorAll('#pk-kinds .segb').forEach(b=>b.classList.toggle('on',(b.dataset.k||'')===kind));};
+  const cnt=k=>items.filter(x=>!k||x.k===k).length;
+  const kbtn=(k,lab)=>`<button type="button" class="segb" data-k="${k}">${lab}<span class="segn">${cnt(k)}</span></button>`;
+  openModal(`<div class="modal" style="max-width:600px"><div class="modal-head"><h3>\u{1F4B0} 記一筆繳費</h3><button class="x" data-act="closeModal">\u00D7</button></div>
    <div class="modal-body">
-     <div class="hint" style="margin-bottom:9px">先選學生，再填金額和日期。欠款的排在前面。</div>
+     <div class="hint" style="margin-bottom:9px">華語學生、面試練習、代辦申請、代書都在這裡記。有欠款的排在最前面。</div>
+     <div class="segbar" id="pk-kinds" style="margin-bottom:9px;flex-wrap:wrap">${kbtn('','全部')}${kbtn('stu','\u{1F464} 華語')}${kbtn('itv','\u{1F3A4} 面試')}${kbtn('ag','\u{1F393} 代辦')}${kbtn('wr','\u270D\uFE0F 代書')}</div>
      <input id="pk-q" type="text" placeholder="打名字快速找…" autocomplete="off" style="width:100%;font-size:15px;padding:10px 13px;border:1.5px solid var(--line);border-radius:10px">
-     <div id="pk-res" style="margin-top:10px;max-height:56vh;overflow:auto"></div>
+     <div id="pk-res" style="margin-top:10px;max-height:52vh;overflow:auto"></div>
    </div></div>`);
   const inp=document.getElementById('pk-q');
-  if(inp){inp.addEventListener('input',()=>draw(inp.value));setTimeout(()=>inp.focus(),80);}
-  draw('');};
+  if(inp){inp.addEventListener('input',draw);setTimeout(()=>inp.focus(),80);}
+  const kb=document.getElementById('pk-kinds');
+  if(kb)kb.addEventListener('click',(ev)=>{const b=ev.target.closest('.segb');if(!b)return;kind=b.dataset.k||'';draw();});
+  draw();};
 H.payments=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}const s=S.students.find(x=>x.id===id);if(!s)return;PAY_STU=s;const ps=(s.payments||[]).map((p,origI)=>({p,origI})).sort((a,b)=>(b.p.date||'').localeCompare(a.p.date||''));
   const byCur={};ps.forEach(({p})=>{const c=p.currency||s.currency||'TWD';byCur[c]=(byCur[c]||0)+(Number(p.amount)||0);});
   const totalStr=Object.keys(byCur).map(c=>money(byCur[c],c)).join('、')||money(0,s.currency);
