@@ -569,6 +569,20 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         #app .panel .pay-gs,
         #app .panel .wk-n{font-size:12.5px}
 
+
+        /* ===== ITV_FILES_V2 上傳區與「⋯ 更多」選單 ===== */
+        .drop-zone{display:block;border:2px dashed #c9bda9;border-radius:14px;background:#FCFAF6;
+          padding:26px 18px;text-align:center;cursor:pointer;transition:.15s}
+        .drop-zone:hover,.drop-zone.on{border-color:var(--primary,#1F6F78);background:#F2F8F8}
+        .drop-zone .dz-ic{font-size:30px;line-height:1;margin-bottom:6px;color:var(--primary,#1F6F78)}
+        .drop-zone .dz-t{font-size:15px;font-weight:700;margin-bottom:4px}
+        .drop-zone .dz-s{font-size:12.5px;color:var(--muted,#7C7065);line-height:1.7}
+        .mini-menu{position:relative;display:inline-block}
+        .mini-menu>summary{list-style:none;cursor:pointer}
+        .mini-menu>summary::-webkit-details-marker{display:none}
+        .mini-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:60;background:#fff;
+          border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 28px #00000020;
+          padding:8px;display:flex;flex-direction:column;gap:6px;min-width:170px}
         /* ===== FONT_SET_V2 字體統一（跟學生端同一套）=====
            老師比較喜歡學生端那個樣子：大標題（頁面標題、課名、課號）用 Noto Serif TC 明體，
            其餘全部——區塊標題、清單、表格、按鈕、教材內容、數字——一律 Noto Sans TC 黑體。
@@ -1806,15 +1820,18 @@ function renderInterview(){
       </div>
       ${c.result_note?`<div class="hint" style="margin-top:4px">結果：${esc(c.result_note)}</div>`:''}${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#9a8f80">📄 備註／學生資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#fdfaf4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${itvFeeBlock(c)}
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
         <button class="btn btn-accent" data-act="itvSess" data-id="${esc(c.id)}::new">＋ 新增練習時間</button>
+        <button class="btn btn-sm" data-act="itvFiles" data-id="${esc(c.id)}">📎 檔案</button>
         <button class="btn btn-sm" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
-        <button class="btn btn-sm" data-act="itvFiles" data-id="${esc(c.id)}">📎 資料／檔案</button>
-        <button class="btn btn-sm" data-act="crmFiles" data-id="interview::${esc(c.id)}">📁 我給的檔案${shareForCrm(c.id).length?('（'+shareForCrm(c.id).length+'）'):''}</button>
         <button class="btn btn-sm" data-act="itvPayList" data-id="${esc(c.id)}">💰 付費紀錄${(Array.isArray(c.payments)&&c.payments.length)?("（"+c.payments.length+"）"):""}</button>
-        <button class="btn btn-sm" data-act="itvToggle" data-id="${esc(c.id)}">${done?'↩ 改回進行中':'✓ 標記完成'}</button>
         <span class="grow"></span>
-        <button class="btn btn-sm btn-danger" data-act="itvDel" data-id="${esc(c.id)}">刪除</button>
+        <details class="mini-menu"><summary class="btn btn-sm">⋯ 更多</summary>
+          <div class="mini-pop">
+            <button class="btn btn-sm" data-act="itvToggle" data-id="${esc(c.id)}">${done?'↩ 改回進行中':'✓ 標記完成'}</button>
+            <button class="btn btn-sm btn-danger" data-act="itvDel" data-id="${esc(c.id)}">🗑 刪除這位客戶</button>
+          </div>
+        </details>
       </div>
       ${upHtml}${pastHtml}
     </div>`;}).join('');
@@ -5478,30 +5495,76 @@ H.itvPayDel=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);i
   if(!confirm('刪除 '+target.date+' 的 '+money(target.amount,target.currency||'VND')+' 付費紀錄？'))return;
   const left=itvPays(c).filter(x=>x!==target);
   try{await DB.update(crmCol(c.id),c.id,{payments:left});c.payments=left;toast('已刪除');closeModal();renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+/* ITV_FILES_V2 檔案視窗：上傳區放大、可一次選多個檔、走 Firebase Storage
+   （以前是把檔案塞進資料庫欄位，所以只能傳 700KB；現在改存 Storage，單檔可到 50MB） */
 H.itvFiles=(id)=>{const c=(S.interviews||[]).find(x=>x.id===id);if(!c)return;
-  openModal(`<div class="modal"><div class="modal-head"><h3>📎 資料／檔案 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+  const mine=(typeof shareForCrm==='function')?shareForCrm(id).length:0;
+  openModal(`<div class="modal" style="max-width:720px"><div class="modal-head"><h3>📎 檔案 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-     <div class="field full"><label>📄 文字備註 <span class="hint">學生貼來的學習計畫、自傳等，貼這裡；卡片上會收合顯示</span></label><textarea id="itvf-note" style="width:100%;min-height:150px;font-size:14px;line-height:1.7;padding:10px;border:1px solid var(--line);border-radius:10px;box-sizing:border-box">${esc(c.note||'')}</textarea></div>
-     <div style="margin:8px 0 14px"><button class="btn btn-sm btn-primary" data-act="itvNoteSave" data-id="${esc(id)}">💾 儲存備註</button></div>
-     <div class="lesson-label">📎 檔案（學生提供的 PDF、照片）</div>
-     <div style="margin:8px 0"><label class="btn btn-sm btn-accent" style="cursor:pointer">⬆ 上傳檔案<input type="file" accept="image/*,.pdf,application/pdf" style="display:none" onchange="H.itvFileUp(this,'${esc(id)}')"></label> <span class="hint">照片自動壓縮；PDF 約 500KB 內</span></div>
+     <div class="lesson-label">📥 客戶給我的檔案</div>
+     <label class="drop-zone" id="itvf-drop">
+       <input type="file" multiple style="display:none" onchange="H.itvFileUp(this,'${esc(id)}')">
+       <div class="dz-ic">⬆</div>
+       <div class="dz-t">把檔案拖進來，或點這裡選檔</div>
+       <div class="dz-s">可以一次選很多個。PDF、Word、Excel、照片、壓縮檔都可以，單檔最大 50MB。</div>
+     </label>
+     <div id="itvf-prog" class="hint" style="margin:8px 0"></div>
      <div id="itvf-list"><div class="hint">載入中…</div></div>
+
+     <div class="lesson-label" style="margin-top:18px">📤 我給客戶的檔案${mine?('（'+mine+'）'):''}</div>
+     <div style="margin:6px 0 14px"><button class="btn btn-sm" data-act="crmFiles" data-id="interview::${esc(id)}">開啟「我給客戶的檔案」</button></div>
+
+     <div class="lesson-label" style="margin-top:6px">📄 備註／學生資料</div>
+     <textarea id="itvf-note" style="width:100%;min-height:130px;font-size:14px;line-height:1.8;padding:10px;border:1px solid var(--line);border-radius:10px;box-sizing:border-box">${esc(c.note||'')}</textarea>
+     <div style="margin:8px 0 4px"><button class="btn btn-sm btn-primary" data-act="itvNoteSave" data-id="${esc(id)}">💾 儲存備註</button></div>
    </div></div>`);
-  H.itvFilesLoad(id);};
+  H.itvFilesLoad(id);
+  const dz=document.getElementById('itvf-drop');
+  if(dz){['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();dz.classList.add('on');}));
+    ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();dz.classList.remove('on');}));
+    dz.addEventListener('drop',e=>{const fs=e.dataTransfer&&e.dataTransfer.files;if(fs&&fs.length)_itvUpload([...fs],id);});}
+};
 H.itvNoteSave=async(id)=>{const c=(S.interviews||[]).find(x=>x.id===id);if(!c)return;const v=(($('#itvf-note')&&$('#itvf-note').value)||'').trim();
   try{await DB.update(crmCol(id),id,{note:v});c.note=v;toast('備註已儲存');renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.itvFilesLoad=async(id)=>{const box=$('#itvf-list');if(!box)return;
   try{const files=await DB.listWhere('uploads','student_id','itv_'+id);files.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));_uaFiles=files;
-    box.innerHTML=files.length?files.map((f,i)=>`<div class="dash-row" style="flex-wrap:wrap"><b>${esc(f.filename||'檔案')}</b><span class="muted" style="font-size:12px">${esc(String(f.created_at||'').slice(0,10))}　${f.size?(Math.round(f.size/1024)+' KB'):''}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="${i}">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="${i}">🗑</button></div>`).join(''):'<div class="hint">還沒有檔案。</div>';
+    const kb=(n)=>!n?'':(n>1048576?((n/1048576).toFixed(1)+' MB'):(Math.round(n/1024)+' KB'));
+    box.innerHTML=files.length?('<div class="hint" style="margin:6px 0">共 '+files.length+' 個檔案</div>'+files.map((f,i)=>`<div class="dash-row" style="flex-wrap:wrap"><b style="min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(f.filename||'檔案')}</b><span class="muted" style="font-size:12px">${esc(String(f.created_at||'').slice(0,10))}　${kb(f.size)}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="${i}">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="itvFileDel" data-id="${esc(id)}::${i}">🗑</button></div>`).join('')):'<div class="hint">還沒有檔案。把檔案拖到上面那個框就可以了。</div>';
   }catch(e){box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'</div>';}};
-H.itvFileUp=async(inp,id)=>{const file=inp&&inp.files&&inp.files[0];if(!file)return;inp.value='';
-  toast('上傳中…');
-  try{const r=await _tuShrink(file);
-    if(!r.b64||r.b64.length>930000){toast('檔案太大（約 700KB 內）');return;}
-    const uid=(window.firebase&&firebase.auth&&firebase.auth().currentUser&&firebase.auth().currentUser.uid)||'';
-    await DB.insert('uploads',{uid:uid,student_id:'itv_'+id,area_id:'itv',area_name:'面試資料',lesson_id:'',lesson_title:'',filename:r.name,mime:r.mime,size:r.size,data:r.b64});
-    toast('✅ 已上傳：'+r.name);H.itvFilesLoad(id);
-  }catch(e){toast('上傳失敗：'+((e&&e.message)||e));}};
+H.itvFileUp=(inp,id)=>{const fs=[...((inp&&inp.files)||[])];if(!fs.length)return;inp.value='';_itvUpload(fs,id);};
+async function _itvUpload(files,id){
+  const MAX=50*1024*1024;const prog=()=>document.getElementById('itvf-prog');
+  let ok=0,fail=0,big=[];
+  for(let i=0;i<files.length;i++){
+    const f=files[i];const p=prog();
+    if(p)p.textContent='上傳中… '+(i+1)+' / '+files.length+'：'+(f.name||'');
+    if(f.size>MAX){big.push(f.name||'檔案');fail++;continue;}
+    try{
+      const uid=(window.firebase&&firebase.auth&&firebase.auth().currentUser&&firebase.auth().currentUser.uid)||'';
+      let rec=null;
+      if(window.firebase&&firebase.storage){
+        try{const safe=String(f.name||'file').replace(/[\\/:*?"<>|#%]+/g,'_').slice(-80)||'file';
+          const ref=firebase.storage().ref('crm_files/itv_'+id+'/'+Date.now()+'_'+i+'_'+safe);
+          await ref.put(f);const url=await ref.getDownloadURL();
+          rec={filename:f.name||safe,mime:f.type||'application/octet-stream',size:f.size||0,data:'',url:url,path:ref.fullPath};
+        }catch(err){rec=null;}
+      }
+      if(!rec){const r=await _tuShrink(f);
+        if(!r.b64||r.b64.length>930000){fail++;continue;}
+        rec={filename:r.name,mime:r.mime,size:r.size,data:r.b64};}
+      await DB.insert('uploads',Object.assign({uid:uid,student_id:'itv_'+id,area_id:'itv',area_name:'面試資料',lesson_id:'',lesson_title:''},rec));
+      ok++;
+    }catch(e){fail++;}
+  }
+  const p=prog();if(p)p.textContent='';
+  toast(ok?('✅ 已上傳 '+ok+' 個檔案'+(fail?('，'+fail+' 個失敗'):'')):('上傳失敗'+(big.length?('：'+big[0]+' 超過 50MB'):'')));
+  H.itvFilesLoad(id);
+}
+H.itvFileDel=async(key)=>{const p=String(key).split('::');const id=p[0];const f=_uaFiles[Number(p[1])];if(!f)return;
+  if(!confirm('刪除「'+(f.filename||'')+'」？刪掉就找不回來了。'))return;
+  try{await DB.remove('uploads',f.id);
+    if(f.path&&window.firebase&&firebase.storage){try{await firebase.storage().ref(f.path).delete();}catch(_){}}
+    toast('已刪除');H.itvFilesLoad(id);}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.filesViewStu=()=>{S.filesView='stu';renderFiles();};
 H.filesReload=()=>renderFiles();
 H.fiToggle=async(key)=>{const p=String(key).split('::');const s=S.students.find(x=>x.id===p[0]);if(!s)return;const areas=uaAreasOf(s).slice();const a=areas.find(x=>x&&x.id===p[1]);if(!a)return;a.open=!a.open;try{await DB.update('students',s.id,{upload_areas:areas});s.upload_areas=areas;toast(a.open?'已開放「'+(a.name||'')+'」':'已關閉「'+(a.name||'')+'」');renderFiles();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
