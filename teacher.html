@@ -581,6 +581,16 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .pay-sum{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:12px;font-size:14.5px}
         .pay-bar{height:8px;background:#eee3d2;border-radius:99px;margin:8px 0 2px;overflow:hidden}
         .pay-bar>i{display:block;height:100%;background:#16a34a}
+
+        /* ===== CARD_DONE_V10 已完成的客戶卡片 =====
+           以前用 opacity 變淡，但 opacity 會連「⋯ 更多」的選單一起變透明，
+           而且會產生新的堆疊環境，害選單被下一張卡片蓋住。改用顏色來表示「已完成」。 */
+        .card.card-done{background:#FBFAF7;border-color:#EDE7DD}
+        .card.card-done>div:first-child>b,
+        .card.card-done .led-name{color:#8B8177}
+        .card.card-done .badge,.card.card-done .tag{filter:saturate(.75)}
+        .card.card-done .mini-pop,.card.card-done .mini-pop *{filter:none}
+        .mini-menu[open]>summary.dots{background:#F1EBE1;color:#3D3630}
         /* ===== ITV_ROW_V4 面試卡片動作列：只留兩個常用按鈕，其他收進「⋯」 ===== */
         .itv-acts{display:flex;gap:10px;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
         .itv-acts .mini-menu{margin-left:auto}
@@ -725,6 +735,7 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');cl
 function fmtDate(d){if(!d)return'—';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0');}
 function fmtDT(d){if(!d)return'';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0')+' '+String(x.getHours()).padStart(2,'0')+':'+String(x.getMinutes()).padStart(2,'0');}
 /* FILE_TIME_V9 檔案清單顯示「幾點幾分」：用本地時區，不要直接切 ISO 字串（那是 UTC，會差好幾小時） */
+document.addEventListener('click',(e)=>{document.querySelectorAll('details.mini-menu[open]').forEach(d=>{if(!d.contains(e.target))d.removeAttribute('open');});},true);
 function fUpTime(v){const s=String(v||'');if(!s)return '';const x=new Date(s.indexOf('T')>0?s:s.replace(' ','T'));
   if(isNaN(x))return s.replace('T',' ').slice(0,16);
   const p=(n)=>String(n).padStart(2,'0');
@@ -1695,7 +1706,7 @@ function renderWriting(){
     const done=(c.status||'active')!=='active';
     const n=wrDoneN(c),cur=wrCurStage(c);
     const paidAll=itvMoneyStr(wrPaidSum(c,null));const due=itvMoneyStr(wrDueSum(c));
-    return `<div class="card" style="margin-bottom:10px${done?';opacity:.72':''}">
+    return `<div class="card${done?' card-done':''}" style="margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <b style="font-size:16px">${snm(c.name||'（未命名）')}</b>
         ${done?'<span class="badge">已結案</span>':`<span class="badge badge-ok">${cur?esc(cur.ic+' '+cur.t):'尚未開始'}</span>`}
@@ -1776,7 +1787,7 @@ function renderAgency(){
     const rowHtml=(e)=>{const idx=agLog(c).indexOf(e);const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';const feeStr=(e.fee!=null&&e.fee!=='')?money(e.fee,e.currency||'VND'):'';
       return `<div class="dash-row" style="padding:7px 0;flex-wrap:wrap;align-items:flex-start"><b>${esc(e.date)}</b>${wd?`<span class="muted" style="font-size:12px;margin-left:4px">（${wd}）</span>`:''}${feeStr?`<span class="muted" style="margin-left:6px">${feeStr}</span>`:''}${(e.fee!=null&&e.fee!=='')?(e.paid?'<span class="badge badge-ok">已收</span>':'<span class="badge badge-soon">未收</span>'):''}<span class="grow"></span><button class="btn btn-sm" data-act="agLogEdit" data-id="${esc(c.id)}::${idx}">✏️</button><button class="btn btn-sm btn-danger" data-act="agLogDel" data-id="${esc(c.id)}::${idx}">✕</button><div style="flex-basis:100%;margin-top:2px">${e.action?`<div>📋 <b>做了什麼：</b>${esc(e.action)}</div>`:''}${e.content?`<div style="margin-top:2px">📎 <b>上傳內容：</b>${esc(e.content)}</div>`:''}${e.note?`<div class="muted" style="margin-top:2px">${esc(e.note)}</div>`:''}</div></div>`;};
     const logHtml=lg.length?lg.map(rowHtml).join(''):'<div class="hint" style="padding:6px 0">還沒有進度，按「＋ 新增一筆進度」開始。</div>';
-    return `<div class="card" style="margin-bottom:10px${done?';opacity:.72':''}">
+    return `<div class="card${done?' card-done':''}" style="margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <b style="font-size:16px">${snm(c.name||'（未命名）')}</b>
         ${done?'<span class="badge">已結案</span>':'<span class="badge badge-ok">進行中</span>'}
@@ -1846,7 +1857,7 @@ function renderInterview(){
     const pastShow=past.slice(0,5).map(rowHtml).join('');
     const pastMore=past.length>5?`<details style="margin-top:4px"><summary style="cursor:pointer;font-size:13px;color:var(--primary)">看更早的 ${past.length-5} 次</summary>${past.slice(5).map(rowHtml).join('')}</details>`:'';
     const pastHtml=past.length?`<div class="lesson-label" style="margin:10px 0 2px">✅ 已完成的練習（${past.length}）</div>${pastShow}${pastMore}`:(upcoming.length?'':'<div class="hint" style="padding:6px 0">還沒有練習紀錄，按上面「＋ 新增練習時間」開始。</div>');
-    return `<div class="card" style="margin-bottom:10px${done?';opacity:.72':''}">
+    return `<div class="card${done?' card-done':''}" style="margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <b style="font-size:16px">${snm(c.name||'（未命名）')}</b>
         ${done?'<span class="badge">已完成</span>':'<span class="badge badge-ok">進行中</span>'}
