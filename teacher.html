@@ -571,6 +571,16 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
 
 
 
+
+        /* ===== ITV_PAYLIST_V5 付費視窗：總額在上，實收明細在下 ===== */
+        .pay-tot{border:1px solid var(--line);border-radius:12px;background:#fdfaf4;padding:12px 14px}
+        .pay-tot-in{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+        .pay-tot-in input{flex:1;min-width:120px;font-size:15px;font-weight:700;padding:8px 10px;
+          border:1px solid var(--line);border-radius:9px;box-sizing:border-box}
+        .pay-tot-in select{width:auto;min-width:150px;padding:8px 10px;border:1px solid var(--line);border-radius:9px}
+        .pay-sum{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:12px;font-size:14.5px}
+        .pay-bar{height:8px;background:#eee3d2;border-radius:99px;margin:8px 0 2px;overflow:hidden}
+        .pay-bar>i{display:block;height:100%;background:#16a34a}
         /* ===== ITV_ROW_V4 面試卡片動作列：只留兩個常用按鈕，其他收進「⋯」 ===== */
         .itv-acts{display:flex;gap:10px;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
         .itv-acts .mini-menu{margin-left:auto}
@@ -1519,6 +1529,9 @@ function itvPaidSum(c,ym){const by={};itvSessions(c).forEach(e=>{if(ym&&String(e
 function itvDueSum(c){const by={};itvSessions(c).forEach(e=>{if(e.paid)return;const f=Number(e.fee)||0;if(!f)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});return by;}
 function itvMoneyStr(by){const k=Object.keys(by||{});return k.length?k.map(c=>money(by[c],c)).join('、'):'';}
 function itvAddCur(t,by){Object.keys(by||{}).forEach(c=>{t[c]=(t[c]||0)+by[c];});return t;}
+/* ITV_TOTAL_V5 面試客戶：先設「總額」，再一筆一筆登記實收 */
+function itvTotalCur(c){return (c&&c.fee_cur)||'VND';}
+function itvTotal(c){const v=Number((c&&c.fee_total)||0);return v>0?v:0;}
 function itvFeeBlock(c){
   const pays=itvPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const sess=itvSessions(c).filter(e=>Number(e.fee)>0);
@@ -1527,7 +1540,8 @@ function itvFeeBlock(c){
       <b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>
       ${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}</div>`).join('');
   const note=[pays.length?('分期 '+pays.length+' 筆'):'',sess.length?('單次收費 '+sess.length+' 堂'):''].filter(Boolean).join('・');
-  return feeBarHtml('練習費',itvPaidSum(c,null),itvDueSum(c),0,'',rows,note);
+  const tot=itvTotal(c);
+  return feeBarHtml('練習費',itvPaidSum(c,null),itvDueSum(c),tot,tot?itvTotalCur(c):'',rows,note);
 }
 function itvResultMeta(r){return ({pass:['✅ 通過','#16a34a'],fail:['❌ 沒通過','#dc2626'],waiting:['⏳ 等結果','#d97706']})[r]||null;}
 function itvDaysTo(d){if(!d)return null;const t=new Date();t.setHours(0,0,0,0);const x=new Date(d+'T00:00:00');if(isNaN(x))return null;return Math.round((x-t)/86400000);}
@@ -1857,6 +1871,8 @@ function itvForm(c){c=c||{};
      <div class="field"><label>結果備註 <span class="hint">選填</span></label><input id="itv-rnote" type="text" value="${esc(c.result_note||'')}" placeholder="例：補件後再送、9 月重面"></div>
      <div class="field full"><label>🎥 練習用的線上教室（Google Meet） <span class="hint">面試練習都是線上，貼固定的 Meet 連結，課表上就會出現「進入教室」</span></label>
      <input id="itv-meet" type="url" inputmode="url" value="${esc(c.meet_url||'')}" placeholder="https://meet.google.com/abc-defg-hij"></div>
+     <div class="field"><label>💰 談定的練習費總額 <span class="hint">選填。填了才會算「還差多少」</span></label><input id="itv-total" type="number" min="0" value="${esc(c.fee_total==null?'':String(c.fee_total))}" placeholder="例：500"></div>
+     <div class="field"><label>總額幣別</label><select id="itv-fcur"><option value="VND"${itvTotalCur(c)==='VND'?' selected':''}>越南盾 VND（打千位）</option><option value="TWD"${itvTotalCur(c)==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${itvTotalCur(c)==='USD'?' selected':''}>美元 US$</option></select></div>
      <div class="field full"><label>備註 <span class="hint">選填</span></label><input id="itv-note" type="text" value="${esc(c.note||'')}" placeholder="例：預計 8 月面試、需加強自我介紹"></div></div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="itvSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);}
 function itvSessForm(key){const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
   const isNew=(p[1]==='new');const idx=isNew?-1:Number(p[1]);const e=isNew?{}:(itvSessions(c)[idx]||{});const last=itvSorted(c)[0]||{};
@@ -5462,11 +5478,12 @@ async function _tuShrink(file){
 H.itvPayNew=(pre)=>{const list=itvAll().filter(c=>(c.status||'active')==='active').concat(itvAll().filter(c=>(c.status||'active')!=='active'));
   if(!list.length)return toast('還沒有面試客戶，先「＋ 新增面試客戶」');
   const opts=list.map(c=>`<option value="${esc(c.id)}" ${pre===c.id?'selected':''}>${esc(c.name||'')}${(c.status||'active')!=='active'?'（已完成）':''}</option>`).join('');
+  const _pc=(pre&&itvById(pre))?itvTotalCur(itvById(pre)):'VND';
   openModal(`<div class="modal"><div class="modal-head"><h3>💰 記一筆面試付費</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="form-grid">
      <div class="field full"><label>客戶 <span class="hint">從已建檔的名單挑</span></label><select id="ipay-who">${opts}</select></div>
      <div class="field"><label>付費日期</label><input id="ipay-date" type="date" min="2000-01-01" max="2100-12-31" value="${localToday()}"></div>
-     <div class="field"><label>金額</label><div style="display:flex;gap:6px"><input id="ipay-amt" type="number" inputmode="decimal" placeholder="500" style="flex:1"><select id="ipay-cur" style="width:90px"><option value="VND">千 VND</option><option value="TWD">NT$</option></select></div></div>
+     <div class="field"><label>金額</label><div style="display:flex;gap:6px"><input id="ipay-amt" type="number" inputmode="decimal" placeholder="500" style="flex:1"><select id="ipay-cur" style="width:110px"><option value="VND"${_pc==='VND'?' selected':''}>千 VND</option><option value="TWD"${_pc==='TWD'?' selected':''}>NT$</option><option value="USD"${_pc==='USD'?' selected':''}>US$</option></select></div></div>
      <div class="field full"><label>備註 <span class="hint">選填，例：兩次練習、含模擬面試</span></label><input id="ipay-note" type="text"></div>
    </div>
    <div class="hint" style="margin:8px 0">💡 越南盾單位是「千」：填 500 = 500,000 VND。付費不用綁練習日期，之後排練習照常用「＋ 新增練習時間」。</div>
@@ -5479,16 +5496,46 @@ H.itvPaySave=async()=>{const id=($('#ipay-who')&&$('#ipay-who').value)||'';const
   const pays=itvPays(c).slice();pays.push({date:date,amount:amt,currency:cur,note:note});pays.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   try{await DB.update(crmCol(c.id),c.id,{payments:pays});c.payments=pays;toast('已記錄：'+(c.name||'')+' '+date+' '+money(amt,cur));closeModal();renderInterview();}
   catch(e){toast('失敗：'+((e&&e.message)||e));}};
-H.itvPayList=(id)=>{const c=itvById(id);if(!c)return;const pays=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+/* ITV_PAYLIST_V5 付費紀錄：先看／設「總額」，下面才是一筆一筆自己登記的實收 */
+H.itvPayList=(id)=>{const c=itvById(id);if(!c)return;
+  const pays=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const sessPaid=itvSessions(c).map((e,i)=>({e:e,i:i})).filter(x=>x.e.paid&&x.e.fee);
-  const rows=pays.length?pays.map((p,i)=>`<div class="dash-row"><span class="badge badge-pending">${esc(String(p.date))}</span><b>${money(p.amount,p.currency||'VND')}</b>${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-danger" data-act="itvPayDel" data-id="${esc(id)}::${i}">🗑</button></div>`).join(''):'<div class="hint">還沒有獨立的付費紀錄。</div>';
-  const sessRows=sessPaid.length?('<div class="lesson-label" style="margin-top:12px">綁在練習時間上的收款</div>'+sessPaid.map(x=>`<div class="dash-row"><span class="badge badge-pending">${esc(String(x.e.date))}</span><b>${money(x.e.fee,x.e.currency||'VND')}</b><span class="muted" style="font-size:12px">記在練習上</span><span class="grow"></span><button class="btn btn-sm" data-act="itvPayConv" data-id="${esc(id)}::${x.i}">⇄ 轉成獨立付費</button></div>`).join('')+'<div class="hint" style="margin-top:4px">「轉成獨立付費」＝把錢改記在實際付款日（可改日期），練習列上就不再顯示這筆錢。</div>'):'';
-  openModal(`<div class="modal"><div class="modal-head"><h3>💰 付費紀錄 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+  const tot=itvTotal(c),tcur=itvTotalCur(c);
+  const paidBy=itvPaidSum(c,null),got=Number(paidBy[tcur]||0);
+  const left=tot?Math.max(0,tot-got):0;
+  const pct=tot>0?Math.min(100,Math.round(got/tot*100)):0;
+  const cOpt=(v,t)=>`<option value="${v}"${tcur===v?' selected':''}>${t}</option>`;
+  const rows=pays.length?pays.map((p,i)=>`<div class="dash-row"><span class="badge badge-pending">第 ${pays.length-i} 筆</span><b>${esc(String(p.date))}</b><b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-danger" data-act="itvPayDel" data-id="${esc(id)}::${i}">🗑</button></div>`).join(''):'<div style="margin:12px 0;font-size:13px;color:var(--muted,#7C7065)">還沒有登記任何一筆。按下面「＋ 記一筆付費」，每收一次錢就記一筆。</div>';
+  const sessRows=sessPaid.length?('<div class="lesson-label" style="margin-top:14px">綁在練習時間上的收款</div>'+sessPaid.map(x=>`<div class="dash-row"><span class="badge badge-pending">${esc(String(x.e.date))}</span><b>${money(x.e.fee,x.e.currency||'VND')}</b><span class="muted" style="font-size:12px">記在練習上</span><span class="grow"></span><button class="btn btn-sm" data-act="itvPayConv" data-id="${esc(id)}::${x.i}">⇄ 轉成獨立付費</button></div>`).join('')+'<div style="margin-top:6px;font-size:12.5px;color:var(--muted,#7C7065)">「轉成獨立付費」＝把錢改記在實際付款日（可改日期），練習列上就不再顯示這筆錢。</div>'):'';
+  openModal(`<div class="modal" style="max-width:640px"><div class="modal-head"><h3>💰 付費 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-     <div class="card" style="background:#fdf6ec;margin-bottom:10px"><div class="hint">累計已收（含練習收款）</div><div style="font-size:19px;font-weight:800">${itvMoneyStr(itvPaidSum(c,null))||'—'}</div></div>
-     ${rows}${sessRows}
+     <div class="lesson-label">① 這位客戶談定的總額</div>
+     <div class="pay-tot">
+       <div class="pay-tot-in">
+         <input id="itot-amt" type="number" min="0" placeholder="例：500" value="${tot?esc(String(tot)):''}">
+         <select id="itot-cur">${cOpt('VND','越南盾 VND（打千位）')}${cOpt('TWD','臺幣 NT$')}${cOpt('USD','美元 US$')}</select>
+         <button class="btn btn-sm btn-primary" data-act="itvTotalSave" data-id="${esc(id)}">💾 儲存總額</button>
+       </div>
+       <div style="font-size:12.5px;color:var(--muted,#7C7065);margin-top:6px">越南盾打千位：填 <b>500</b> ＝ 500,000 VND。先設好總額，下面才算得出「還差多少」。</div>
+       ${tot?`<div class="pay-sum">
+         <span>總額 <b>${money(tot,tcur)}</b></span>
+         <span style="color:#16a34a">已收 <b>${money(got,tcur)}</b></span>
+         ${left>0?`<span style="color:#d97706">還差 <b>${money(left,tcur)}</b></span>`:'<span class="badge badge-ok">✓ 已收齊</span>'}
+       </div>
+       <div class="pay-bar"><i style="width:${pct}%"></i></div>`:''}
+     </div>
+
+     <div class="lesson-label" style="margin-top:18px">② 每一次實際收到多少（自己登記）</div>
+     ${rows}
      <div style="margin-top:12px"><button class="btn btn-primary" data-act="itvPayNew" data-id="${esc(id)}">＋ 記一筆付費</button></div>
+     ${sessRows}
    </div></div>`);};
+H.itvTotalSave=async(id)=>{const c=itvById(id);if(!c)return;
+  const v=($('#itot-amt')&&$('#itot-amt').value);const cur=($('#itot-cur')&&$('#itot-cur').value)||'VND';
+  const patch={fee_total:(v===''||v==null?null:Number(v)),fee_cur:cur};
+  try{await DB.update(crmCol(id),id,patch);c.fee_total=patch.fee_total;c.fee_cur=cur;
+    toast(patch.fee_total?('總額已設定：'+money(patch.fee_total,cur)):'已清除總額');
+    renderInterview();H.itvPayList(id);}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.itvPayConv=(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;const i=Number(p[1]);const e=itvSessions(c)[i];if(!e)return;
   openModal(`<div class="modal"><div class="modal-head"><h3>⇄ 轉成獨立付費 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
@@ -5848,6 +5895,7 @@ H.itvEdit=(id)=>itvForm(itvById(id));
 H.itvSess=(key)=>itvSessForm(key);
 H.itvSave=async(id)=>{const name=($('#itv-name').value||'').trim();if(!name)return toast('請填姓名');
   const patch={kind:'interview',name,phone:($('#itv-phone').value||'').trim(),target:($('#itv-target').value||'').trim(),meet_url:(($('#itv-meet')&&$('#itv-meet').value)||'').trim(),note:($('#itv-note').value||'').trim(),exam_date:($('#itv-exam')&&$('#itv-exam').value)||'',exam_time:hhmmNorm(($('#itv-examt')&&$('#itv-examt').value)||''),result:($('#itv-result')&&$('#itv-result').value)||'',result_note:($('#itv-rnote')&&$('#itv-rnote').value||'').trim()};
+  {const tv=($('#itv-total')&&$('#itv-total').value);if(tv!==undefined){patch.fee_total=(tv===''?null:Number(tv));patch.fee_cur=(($('#itv-fcur')&&$('#itv-fcur').value)||'VND');}}
   try{if(id){await DB.update(crmCol(id),id,patch);}else{patch.status='active';patch.sessions=[];patch.created_at=new Date().toISOString();await DB.insert('crm',patch);}
     await loadAll();closeModal();S.tab='interview';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.itvToggle=async(id)=>{const c=itvById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
