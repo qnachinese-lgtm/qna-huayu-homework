@@ -573,6 +573,19 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
 
 
 
+
+        /* ===== CRM_FOLD_V14 客戶卡片收合 ===== */
+        details.crm-card{padding:0;overflow:visible}
+        details.crm-card>summary.crm-sum{list-style:none;cursor:pointer;display:flex;align-items:center;
+          gap:8px;padding:12px 14px;border-radius:14px}
+        details.crm-card>summary.crm-sum::-webkit-details-marker{display:none}
+        details.crm-card>summary.crm-sum:hover{background:#FBF8F2}
+        details.crm-card[open]>summary.crm-sum{border-bottom:1px solid var(--line);border-radius:14px 14px 0 0}
+        .crm-chev{color:#B3A797;font-size:12px;flex:none;transition:transform .15s}
+        details.crm-card[open] .crm-chev{transform:rotate(90deg)}
+        .crm-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1;min-width:0}
+        .crm-body{padding:12px 14px 14px}
+        .crm-foldbar{display:flex;align-items:center;gap:10px;margin:0 2px 10px}
         /* ===== ITV_FORM_PAY_V12 客戶資料裡的付費列 ===== */
         .btn.btn-icon{padding:2px 7px;font-size:13px;line-height:1.5;border-radius:8px;min-height:0}
         .pay-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;
@@ -971,6 +984,11 @@ async function loadAll(){
 }
 function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='review');S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');}
 /* MENU_MODAL_V12 一開視窗就把還開著的「⋯」收起來，不然會浮在視窗旁邊 */
+document.addEventListener('toggle',(e)=>{const d=e.target;
+  if(d&&d.classList&&d.classList.contains('crm-card')){const id=d.getAttribute('data-cid');
+    if(id){S.crmOpen=S.crmOpen||{};if(d.open)S.crmOpen[id]=true;else delete S.crmOpen[id];}}},true);
+document.addEventListener('click',(e)=>{const t=e.target;if(!t||!t.closest)return;
+  const b=t.closest('[data-act]');if(b&&b.closest('summary.crm-sum'))e.preventDefault();},true);
 function closeMiniMenus(){document.querySelectorAll('details.mini-menu[open]').forEach(d=>d.removeAttribute('open'));}
 function openModal(h){closeMiniMenus();$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
 function closeModal(){$('#modal-root').innerHTML='';}
@@ -1715,12 +1733,12 @@ function renderWriting(){
     <div class="hint" style="max-width:560px;margin:0 auto 14px">按「＋ 新增代書客戶」建立一位客戶（姓名、要寫哪些文件、交件期限、談定總費用）。<br>
     建好之後卡片上會有五個階段的按鈕：收資料 → 初稿 → 修改 → 定稿 → 交件，做完一個就點一下，會自動記今天的日期。</div>
     <button class="btn btn-primary" data-act="wrNew">＋ 新增代書客戶</button></div>`;return;}
-  body.innerHTML=head+list.map(c=>{
+  body.innerHTML=head+crmFoldBar('writing',list)+list.map(c=>{
     const done=(c.status||'active')!=='active';
     const n=wrDoneN(c),cur=wrCurStage(c);
     const paidAll=itvMoneyStr(wrPaidSum(c,null));const due=itvMoneyStr(wrDueSum(c));
-    return `<div class="card${done?' card-done':''}" style="margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    return `<details class="card crm-card${done?' card-done':''}" data-cid="${esc(c.id)}" style="margin-bottom:10px"${crmIsOpen(c.id)?' open':''}><summary class="crm-sum">
+      <span class="crm-chev">▸</span><div class="crm-head">
         <b style="font-size:16px">${snm(c.name||'（未命名）')}</b>
         <button class="btn btn-icon" data-act="wrEdit" data-id="${esc(c.id)}" title="客戶資料">✏️</button>
         ${done?'<span class="badge">已結案</span>':`<span class="badge badge-ok">${cur?esc(cur.ic+' '+cur.t):'尚未開始'}</span>`}
@@ -1729,7 +1747,7 @@ function renderWriting(){
         ${c.phone?`<span class="muted" style="font-size:13px">📞 ${esc(c.phone)}</span>`:''}
         ${wrDeadlineBadge(c)}
         <span class="grow"></span>
-        <span class="muted" style="font-size:13px">進度 <b>${n}/${WR_STAGES.length}</b>${paidAll?(' · 已收 '+paidAll):''}${due?(' · 未收 '+due):''}</span></div>
+        <span class="muted" style="font-size:13px">進度 <b>${n}/${WR_STAGES.length}</b>${paidAll?(' · 已收 '+paidAll):''}${due?(' · 未收 '+due):''}</span></div></summary><div class="crm-body">
       ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#9a8f80">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#fdfaf4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${wrStepper(c)}
       ${wrFeeBlock(c)}
@@ -1744,7 +1762,7 @@ function renderWriting(){
             <button class="btn btn-sm btn-danger" data-act="wrDel" data-id="${esc(c.id)}">🗑 刪除這位客戶</button>
           </div>
         </details></div>
-    </div>`;}).join('');
+    </div></details>`;}).join('');
 }
 function wrForm(c){c=c||{};
   const cur=wrTotalCur(c);
@@ -1794,6 +1812,7 @@ function wrPayForm(key){const p=String(key).split('::');const c=wrById(p[0]);if(
 function renderAgency(){
   const body=$('#agency-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','代辦申請只有主管理員看得到。');return;}
+  const _fkind='agency';
   const list=agAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;return stuNameCmp(a,b);});
   const ym=localToday().slice(0,7);const inc=agIncome(ym);const incAll=agIncome(null);
   const dueStr=itvMoneyStr(incAll.due);
@@ -1805,8 +1824,8 @@ function renderAgency(){
     const rowHtml=(e)=>{const idx=agLog(c).indexOf(e);const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';const feeStr=(e.fee!=null&&e.fee!=='')?money(e.fee,e.currency||'VND'):'';
       return `<div class="dash-row" style="padding:7px 0;flex-wrap:wrap;align-items:flex-start"><b>${esc(e.date)}</b>${wd?`<span class="muted" style="font-size:12px;margin-left:4px">（${wd}）</span>`:''}${feeStr?`<span class="muted" style="margin-left:6px">${feeStr}</span>`:''}${(e.fee!=null&&e.fee!=='')?(e.paid?'<span class="badge badge-ok">已收</span>':'<span class="badge badge-soon">未收</span>'):''}<span class="grow"></span><button class="btn btn-sm" data-act="agLogEdit" data-id="${esc(c.id)}::${idx}">✏️</button><button class="btn btn-sm btn-danger" data-act="agLogDel" data-id="${esc(c.id)}::${idx}">✕</button><div style="flex-basis:100%;margin-top:2px">${e.action?`<div>📋 <b>做了什麼：</b>${esc(e.action)}</div>`:''}${e.content?`<div style="margin-top:2px">📎 <b>上傳內容：</b>${esc(e.content)}</div>`:''}${e.note?`<div class="muted" style="margin-top:2px">${esc(e.note)}</div>`:''}</div></div>`;};
     const logHtml=lg.length?lg.map(rowHtml).join(''):'<div class="hint" style="padding:6px 0">還沒有進度，按「＋ 新增一筆進度」開始。</div>';
-    return `<div class="card${done?' card-done':''}" style="margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    return `<details class="card crm-card${done?' card-done':''}" data-cid="${esc(c.id)}" style="margin-bottom:10px"${crmIsOpen(c.id)?' open':''}><summary class="crm-sum">
+      <span class="crm-chev">▸</span><div class="crm-head">
         <b style="font-size:16px">${snm(c.name||'（未命名）')}</b><!-- CRM_EDIT_V12 -->
         <button class="btn btn-icon" data-act="agEdit" data-id="${esc(c.id)}" title="客戶資料">✏️</button>
         ${done?'<span class="badge">已結案</span>':'<span class="badge badge-ok">進行中</span>'}
@@ -1815,7 +1834,7 @@ function renderAgency(){
         ${rm?`<span class="badge" style="background:${rm[1]}18;color:${rm[1]};border-color:${rm[1]}55">${rm[0]}</span>`:''}${agDeadlineBadge(c)}
         <span class="grow"></span>
         <span class="muted" style="font-size:13px">進度 <b>${lg.length}</b> 筆${paidAll?(' · 已收 '+paidAll):''}${due?(' · 未收 '+due):''}</span>
-      </div>
+      </div></summary><div class="crm-body">
       ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#9a8f80">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#fdfaf4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${agFeeBlock(c)}
       <div class="itv-acts">
@@ -1831,8 +1850,8 @@ function renderAgency(){
         </details>
       </div>
       <div style="margin-top:8px">${logHtml}</div>
-    </div>`;}).join('');
-  body.innerHTML=head+rows;
+    </div></details>`;}).join('');
+  body.innerHTML=head+crmFoldBar(_fkind,list)+rows;
 }
 function agForm(c){c=c||{};
   const rOpt=(v,l)=>`<option value="${v}"${(c.result||'')===v?' selected':''}>${l}</option>`;
@@ -1862,6 +1881,7 @@ function renderInterview(){
   const body=$('#interview-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','面試練習只有主管理員看得到。');return;}
   /* SORT_AZ_V8 全站名單一律名字 A→Z（越南文忽略聲調）。進行中的排前面，同一群裡一律名字 A→Z */
+  const _fkind='interview';
   const list=itvAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;return stuNameCmp(a,b);});
   const ym=localToday().slice(0,7);const inc=itvIncome(ym);const incAll=itvIncome(null);
   const mCount=itvAll().reduce((n,c)=>n+itvSessions(c).filter(e=>String(e.date).slice(0,7)===ym).length,0);
@@ -1879,8 +1899,8 @@ function renderInterview(){
     const pastShow=past.slice(0,5).map(rowHtml).join('');
     const pastMore=past.length>5?`<details style="margin-top:4px"><summary style="cursor:pointer;font-size:13px;color:var(--primary)">看更早的 ${past.length-5} 次</summary>${past.slice(5).map(rowHtml).join('')}</details>`:'';
     const pastHtml=past.length?`<div class="lesson-label" style="margin:10px 0 2px">✅ 已完成的練習（${past.length}）</div>${pastShow}${pastMore}`:(upcoming.length?'':'<div class="hint" style="padding:6px 0">還沒有練習紀錄，按上面「＋ 新增練習時間」開始。</div>');
-    return `<div class="card${done?' card-done':''}" style="margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    return `<details class="card crm-card${done?' card-done':''}" data-cid="${esc(c.id)}" style="margin-bottom:10px"${crmIsOpen(c.id)?' open':''}><summary class="crm-sum">
+      <span class="crm-chev">▸</span><div class="crm-head">
         <b style="font-size:16px">${snm(c.name||'（未命名）')}</b>
         <button class="btn btn-icon" data-act="itvEdit" data-id="${esc(c.id)}" title="客戶資料與付費">✏️</button>
         ${done?'<span class="badge">已完成</span>':'<span class="badge badge-ok">進行中</span>'}
@@ -1889,7 +1909,7 @@ function renderInterview(){
         <span class="grow"></span>
         <span class="muted" style="font-size:13px">練習 <b>${ss.length}</b> 次${nextOne?(' · 下次 '+esc(nextOne.date)):''}${paidAll?(' · 已收 '+paidAll):''}${due?(' · 未收 '+due):''}</span>
         ${meetBtn(meetOfItv(c),true)}
-      </div>
+      </div></summary><div class="crm-body">
       ${c.result_note?`<div class="hint" style="margin-top:4px">結果：${esc(c.result_note)}</div>`:''}${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#9a8f80">📄 備註／學生資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#fdfaf4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${itvFeeBlock(c)}
       <div class="itv-acts">
@@ -1904,10 +1924,18 @@ function renderInterview(){
         </details>
       </div>
       ${upHtml}${pastHtml}
-    </div>`;}).join('');
-  body.innerHTML=head+rows;
+    </div></details>`;}).join('');
+  body.innerHTML=head+crmFoldBar(_fkind,list)+rows;
 }
 /* ITV_FORM_PAY_V12 付費做進「客戶資料」視窗裡：上面設總額，下面一筆一筆自己登記 */
+/* CRM_FOLD_V14 面試／代辦／代書的客戶卡片預設收起來，點一下才展開 */
+function crmIsOpen(id){return !!(S.crmOpen&&S.crmOpen[id]);}
+function crmFoldBar(kind,list){
+  const n=list.filter(c=>crmIsOpen(c.id)).length;
+  const allOpen=list.length>0&&n===list.length;
+  return `<div class="crm-foldbar"><span class="hint">共 ${list.length} 位 · 點客戶那一列就會展開</span><span class="grow"></span>
+    <button class="btn btn-sm" data-act="crmFoldAll" data-id="${esc(kind)}::${allOpen?'close':'open'}">${allOpen?'▴ 全部收合':'▾ 全部展開'}</button></div>`;
+}
 function itvPayBoxHtml(c){
   const tot=itvTotal(c),tcur=itvTotalCur(c);
   const paidBy=itvPaidSum(c,null),got=Number(paidBy[tcur]||0);
@@ -5984,6 +6012,12 @@ H.itvNew=()=>itvForm(null);
 H.itvEdit=(id)=>itvForm(itvById(id));
 H.itvSess=(key)=>itvSessForm(key);
 /* TDZ_FIX_V13 這兩個 handler 一定要放在 const H={} 之後 */
+/* CRM_FOLD_V14 全部展開／收合 */
+H.crmFoldAll=(key)=>{const p=String(key).split('::');const kind=p[0],mode=p[1];
+  const list=(kind==='agency')?agAll():((kind==='writing')?wrAll():itvAll());
+  S.crmOpen=S.crmOpen||{};
+  list.forEach(c=>{if(mode==='open')S.crmOpen[c.id]=true;else delete S.crmOpen[c.id];});
+  if(kind==='agency')renderAgency();else if(kind==='writing')renderWriting();else renderInterview();};
 H.itvPayAdd=async(id)=>{const c=itvById(id);if(!c)return;
   const date=($('#ipx-date')&&$('#ipx-date').value)||'';if(!date)return toast('請選付費日期');
   const amt=Number(($('#ipx-amt')&&$('#ipx-amt').value)||0);if(!amt)return toast('請填金額');
