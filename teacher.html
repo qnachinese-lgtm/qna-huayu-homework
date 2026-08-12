@@ -724,6 +724,11 @@ function snm(n){return '<span class="sname">'+esc(n)+'</span>';}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 function fmtDate(d){if(!d)return'—';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0');}
 function fmtDT(d){if(!d)return'';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0')+' '+String(x.getHours()).padStart(2,'0')+':'+String(x.getMinutes()).padStart(2,'0');}
+/* FILE_TIME_V9 檔案清單顯示「幾點幾分」：用本地時區，不要直接切 ISO 字串（那是 UTC，會差好幾小時） */
+function fUpTime(v){const s=String(v||'');if(!s)return '';const x=new Date(s.indexOf('T')>0?s:s.replace(' ','T'));
+  if(isNaN(x))return s.replace('T',' ').slice(0,16);
+  const p=(n)=>String(n).padStart(2,'0');
+  return x.getFullYear()+'/'+p(x.getMonth()+1)+'/'+p(x.getDate())+' '+p(x.getHours())+':'+p(x.getMinutes());}
 const CUR={TWD:['NT$','zh-TW'],VND:['VND','vi-VN'],USD:['US$','en-US']};
 function money(n,cur){if(n==null||n==='')return'—';const v=Number(n);if(isNaN(v))return n;const c=CUR[cur||'TWD']||CUR.TWD;if(cur==='VND')return (v*1000).toLocaleString('en-US')+' VND';return c[0]+v.toLocaleString(c[1]);}
 const DAYS=['週一','週二','週三','週四','週五','週六','週日'];
@@ -3015,7 +3020,7 @@ function shareRowHtml(f,acts){
   const given=f.given_at?`<span class="muted" style="font-size:12px">交付 ${esc(f.given_at)}</span>`:'';
   return `<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start;padding:7px 0">
     <b style="min-width:150px">📄 ${esc(f.filename||'檔案')}</b>${cat}${les}
-    <span class="muted" style="font-size:12px">${shareSizeStr(f.size)}　${esc(String(f.created_at||'').replace('T',' ').slice(0,16))}</span>${given}
+    <span class="muted" style="font-size:12px">${shareSizeStr(f.size)}　${esc(fUpTime(f.created_at))}</span>${given}
     <span class="grow"></span>
     <a class="btn btn-sm" href="${esc(f.url||'#')}" target="_blank" rel="noopener">⬇ 下載</a>
     ${acts||''}
@@ -5461,7 +5466,7 @@ let _uaFiles=[];
 H.uaView=async(key)=>{const p=String(key).split('::');const sid=p[0],aid=p[1];const box=$('#ua-files');if(box)box.innerHTML='<div class="hint">載入中…</div>';
   try{let files=await DB.listWhere('uploads','student_id',sid);if(aid!=='*')files=files.filter(f=>f&&f.area_id===aid);files.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));_uaFiles=files;
     files.sort((a,b)=>String(a.lesson_title||'').localeCompare(String(b.lesson_title||''))||String(b.created_at||'').localeCompare(String(a.created_at||'')));_uaFiles=files;
-    if(box)box.innerHTML=files.length?('<div class="lesson-label">📂 檔案（'+files.length+'）</div>'+files.map((f,i)=>`<div class="dash-row" style="flex-wrap:wrap">${f.lesson_title?`<span class="badge badge-pending">${esc(f.lesson_title)}</span>`:'<span class="badge" style="background:#eee;color:#888">未指定課次</span>'}<b>${esc(f.filename||'檔案')}</b><span class="muted" style="font-size:12px">${esc(f.area_name||'')}　${esc(String(f.created_at||'').slice(0,10))}　${f.size?(Math.round(f.size/1024)+' KB'):''}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="${i}">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="${i}">🗑</button></div>`).join('')):'<div class="hint">這裡還沒有檔案。</div>';
+    if(box)box.innerHTML=files.length?('<div class="lesson-label">📂 檔案（'+files.length+'）</div>'+files.map((f,i)=>`<div class="dash-row" style="flex-wrap:wrap">${f.lesson_title?`<span class="badge badge-pending">${esc(f.lesson_title)}</span>`:'<span class="badge" style="background:#eee;color:#888">未指定課次</span>'}<b>${esc(f.filename||'檔案')}</b><span class="muted" style="font-size:12px">${esc(f.area_name||'')}　${esc(fUpTime(f.created_at))}　${f.size?(Math.round(f.size/1024)+' KB'):''}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="${i}">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="${i}">🗑</button></div>`).join('')):'<div class="hint">這裡還沒有檔案。</div>';
   }catch(e){if(box)box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'。若是權限錯誤，代表 Firestore 規則還沒加 uploads 那段（我有給你要貼的文字）。</div>';}};
 H.uaDl=(i)=>{const f=_uaFiles[Number(i)];if(!f)return;
   if(f.url){window.open(f.url,'_blank');return;}
@@ -5473,7 +5478,7 @@ async function _filesLoadLessons(){const box=document.getElementById('files-les'
     const groups={};const order=[];files.forEach((f,i)=>{const k=f.lesson_title||'（未指定課次）';if(!groups[k]){groups[k]=[];order.push(k);}groups[k].push(i);});
     order.sort((a,b)=>a==='（未指定課次）'?1:(b==='（未指定課次）'?-1:a.localeCompare(b)));
     const stuName=(id)=>{const s=S.students.find(x=>x.id===id);return (s&&s.name)||'?';};
-    box.innerHTML=order.map(k=>'<details open style="margin-bottom:10px"><summary style="font-weight:800;cursor:pointer;padding:6px 0">📚 '+esc(k)+'　<span class="hint">（'+groups[k].length+' 個檔案）</span></summary>'+groups[k].map(i=>{const f=_uaFiles[i];return '<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">'+esc(f.area_name||'')+'</span><b>'+snm(stuName(f.student_id))+'</b><span class="muted" style="font-size:12px">'+esc(f.filename||'')+'　'+esc(String(f.created_at||'').slice(0,10))+'　'+(f.size?(Math.round(f.size/1024)+' KB'):'')+'</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="'+i+'">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="'+i+'">🗑</button></div>';}).join('')+'</details>').join('');
+    box.innerHTML=order.map(k=>'<details open style="margin-bottom:10px"><summary style="font-weight:800;cursor:pointer;padding:6px 0">📚 '+esc(k)+'　<span class="hint">（'+groups[k].length+' 個檔案）</span></summary>'+groups[k].map(i=>{const f=_uaFiles[i];return '<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">'+esc(f.area_name||'')+'</span><b>'+snm(stuName(f.student_id))+'</b><span class="muted" style="font-size:12px">'+esc(f.filename||'')+'　'+esc(fUpTime(f.created_at))+'　'+(f.size?(Math.round(f.size/1024)+' KB'):'')+'</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="'+i+'">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="'+i+'">🗑</button></div>';}).join('')+'</details>').join('');
   }catch(e){box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'</div>';}}
 function _tuB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{res(String(r.result).split(',')[1]||'');};r.onerror=rej;r.readAsDataURL(file);});}
 async function _tuShrink(file){
@@ -5599,7 +5604,7 @@ H.itvNoteSave=async(id)=>{const c=(S.interviews||[]).find(x=>x.id===id);if(!c)re
 H.itvFilesLoad=async(id)=>{const box=$('#itvf-list');if(!box)return;
   try{const files=await DB.listWhere('uploads','student_id','itv_'+id);files.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));_uaFiles=files;
     const kb=(n)=>!n?'':(n>1048576?((n/1048576).toFixed(1)+' MB'):(Math.round(n/1024)+' KB'));
-    box.innerHTML=files.length?('<div style="margin:10px 0 6px;font-size:12.5px;color:var(--muted,#7C7065)">共 '+files.length+' 個檔案</div>'+files.map((f,i)=>`<div class="dash-row" style="flex-wrap:wrap"><b style="min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(f.filename||'檔案')}</b><span class="muted" style="font-size:12px">${esc(String(f.created_at||'').slice(0,10))}　${kb(f.size)}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="${i}">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="itvFileDel" data-id="${esc(id)}::${i}">🗑</button></div>`).join('')):'<div style="margin:14px 0 4px;font-size:13px;color:var(--muted,#7C7065);text-align:center">還沒有檔案。把檔案拖到上面那個框，或點一下選檔就可以了。</div>';
+    box.innerHTML=files.length?('<div style="margin:10px 0 6px;font-size:12.5px;color:var(--muted,#7C7065)">共 '+files.length+' 個檔案</div>'+files.map((f,i)=>`<div class="dash-row" style="flex-wrap:wrap"><b style="min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(f.filename||'檔案')}</b><span class="muted" style="font-size:12px">${esc(fUpTime(f.created_at))}　${kb(f.size)}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="${i}">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="itvFileDel" data-id="${esc(id)}::${i}">🗑</button></div>`).join('')):'<div style="margin:14px 0 4px;font-size:13px;color:var(--muted,#7C7065);text-align:center">還沒有檔案。把檔案拖到上面那個框，或點一下選檔就可以了。</div>';
   }catch(e){box.innerHTML='<div style="margin:12px 0;font-size:13px;color:#B4413C">載入失敗：'+esc((e&&e.message)||'')+'</div>';}};
 H.itvFileUp=(inp,id)=>{const fs=[...((inp&&inp.files)||[])];if(!fs.length)return;inp.value='';_itvUpload(fs,id);};
 async function _itvUpload(files,id){
