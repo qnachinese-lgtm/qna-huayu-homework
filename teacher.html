@@ -2294,6 +2294,8 @@ function progOf(sid){return (S.results||[]).find(r=>r&&r.lesson_id==='__progress
 function fillGroupSched(force){const el=document.getElementById('f-groups');const cont=document.getElementById('sched-rows');if(!el||!cont)return;const g=(el.value||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)[0];if(!g)return;const sch=classSchedOf(g);if(!sch||!sch.length)return;const cur=$$('#sched-rows .sched-row').map(row=>({s:((row.querySelector('.sched-s')||{}).value)||'',e:((row.querySelector('.sched-e')||{}).value)||''})).filter(r=>r.s||r.e);if(cur.length&&!force)return;cont.innerHTML=sch.map(r=>schedRowHTML(r)).join('');try{refreshFirstSlot();}catch(e){}try{toast('已帶入「'+g+'」的上課時段');}catch(e){}}
 function activityLine(s){const p=progOf(s.id);const li=p&&p.last_login?fmtDT(p.last_login):'—';const la=p&&p.last_active?fmtDT(p.last_active):'尚未使用';const streak=(p&&p.progress&&p.progress.act&&p.progress.act.streak)||0;return `<div class="meta" style="margin-top:8px"><span>🕒 最後登入：<b>${esc(li)}</b></span><span>⚡ 最後活動：<b>${esc(la)}</b></span>${streak>=2?`<span>🔥 連續 ${streak} 天</span>`:''}</div>`;}
 /* 📝 詢問／候補名單：想上課但還沒成為正式學生的人 */
+function stuNameCmp(a,b){const f=(x)=>String((x&&x.name)||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/g,'d').trim();
+  return f(a).localeCompare(f(b),['vi','zh-Hant'],{sensitivity:'base',numeric:true});}
 function inqAll(){return (S.inquiries||[]);}
 function inqTypeMeta(t){return ({'團班':['👥 想上團班','#1d4ed8'],'一對一':['🧑‍🏫 想一對一','#0d9488'],'都可以':['🤝 都可以','#7c3aed']})[t]||['—','#6b7280'];}
 function inquiryHtml(){
@@ -2380,7 +2382,9 @@ function renderStudents(){
   const card=s=>`<div class="card student-card">${cardInner(s)}</div>`;
   const grpHtml=students=>(S.stuView==='card')?`<div class="cards cols-2" style="margin-top:10px">${students.map(card).join('')}</div>`:stuTableRows(students);
   const secOpen=(S.stuSecAllOpen===true)?' open':'';
-  const sec=(label,students,cls)=>`<details class="stu-sec cool-sec"${secOpen}><summary><span style="font-size:16px;color:var(--primary);font-weight:600">${label}</span> <span class="tag">${students.length} 人</span></summary>${cls?`<div style="margin:8px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 班級頁</button></div>`:''}${grpHtml(students.slice().sort((a,b)=>(enrollOf(a)==='paused'?1:0)-(enrollOf(b)==='paused'?1:0)))}</details>`;
+  /* STU_SORT_V7 每一組學生一律照名字 A→Z 排（休學的仍然排最後），跟「預約」「已休學」那兩組一致 */
+  const stuSort=(arr)=>arr.slice().sort((a,b)=>((enrollOf(a)==='paused'?1:0)-(enrollOf(b)==='paused'?1:0))||stuNameCmp(a,b));
+  const sec=(label,students,cls)=>`<details class="stu-sec cool-sec"${secOpen}><summary><span style="font-size:16px;color:var(--primary);font-weight:600">${label}</span> <span class="tag">${students.length} 人</span></summary>${cls?`<div style="margin:8px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 班級頁</button></div>`:''}${grpHtml(stuSort(students))}</details>`;
   const real=list.filter(s=>!s.is_test);const testers=list.filter(s=>s.is_test);
   const reservedReal=real.filter(s=>enrollOf(s)==='reserved');
   const pausedReal=real.filter(s=>enrollOf(s)==='paused');const activeReal=real.filter(s=>enrollOf(s)!=='paused'&&enrollOf(s)!=='reserved');
@@ -2391,9 +2395,9 @@ function renderStudents(){
   if(solo.length)html+=sec('🧑‍🏫 一對一',solo,'');
   if(teamNoGrp.length)html+=sec('👥 團班（尚未分班）',teamNoGrp,'');
   classNames.forEach(c=>html+=sec('👥 '+esc(c),activeReal.filter(s=>stuGroups(s).includes(c)),c));
-  if(reservedReal.length)html+=`<details class="stu-sec cool-sec"${(S.stuSecAllOpen===true)?' open':''}><summary><span style="font-size:16px;color:#2563eb;font-weight:600">📌 預約（還沒開始）</span> <span class="tag">${reservedReal.length} 人</span></summary>${grpHtml(reservedReal.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))))}</details>`;
-  if(pausedReal.length)html+=`<details class="stu-sec cool-sec"${(S.stuSecAllOpen===true)?' open':''} style="opacity:.9"><summary><span style="font-size:16px;color:var(--muted);font-weight:600">⏸️ 已休學</span> <span class="tag">${pausedReal.length} 人</span></summary>${grpHtml(pausedReal.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))))}</details>`;
-  if(testers.length)html+=`<details class="stu-sec cool-sec"${S.stuSecAllOpen===true?' open':''} style="opacity:.85"><summary><span style="font-size:16px;color:var(--muted);font-weight:600">🧪 測試帳號</span> <span class="tag">${testers.length} 人</span></summary>${grpHtml(testers)}</details>`;
+  if(reservedReal.length)html+=`<details class="stu-sec cool-sec"${(S.stuSecAllOpen===true)?' open':''}><summary><span style="font-size:16px;color:#2563eb;font-weight:600">📌 預約（還沒開始）</span> <span class="tag">${reservedReal.length} 人</span></summary>${grpHtml(reservedReal.slice().sort(stuNameCmp))}</details>`;
+  if(pausedReal.length)html+=`<details class="stu-sec cool-sec"${(S.stuSecAllOpen===true)?' open':''} style="opacity:.9"><summary><span style="font-size:16px;color:var(--muted);font-weight:600">⏸️ 已休學</span> <span class="tag">${pausedReal.length} 人</span></summary>${grpHtml(pausedReal.slice().sort(stuNameCmp))}</details>`;
+  if(testers.length)html+=`<details class="stu-sec cool-sec"${S.stuSecAllOpen===true?' open':''} style="opacity:.85"><summary><span style="font-size:16px;color:var(--muted);font-weight:600">🧪 測試帳號</span> <span class="tag">${testers.length} 人</span></summary>${grpHtml(testers.slice().sort(stuNameCmp))}</details>`;
   wrap.innerHTML=filterBar+inquiryHtml()+html;
 }
 function studentModal(st){const e=!!(st&&st.id);st=st||{};
