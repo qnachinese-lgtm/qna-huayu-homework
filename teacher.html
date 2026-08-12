@@ -1489,9 +1489,9 @@ function renderPay(){
   if(f==='owe')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due>0.0001);
   else if(f==='clear')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due<=0.0001);
   if(!rows.length){body.innerHTML=head+bar+emptyHtml(f==='owe'?'🎉':'🔍',f==='owe'?'太好了，沒有人欠款':'這個條件沒有學生','換上面的分類看看。');return;}
-  /* 休學排最後；其餘依欠款多寡、再依姓名 */
+  /* 休學排最後；其餘一律名字 A→Z（要看誰欠最多，用上面的「🔴 還沒收」分類） */
   const _pz=r=>(enrollOf(r.s)==='paused'?1:0);
-  const sortR=a=>a.slice().sort((x,y)=>(_pz(x)-_pz(y))||(y.b.due-x.b.due)||String(x.s.name||'').localeCompare(String(y.s.name||'')));
+  const sortR=a=>a.slice().sort((x,y)=>(_pz(x)-_pz(y))||stuNameCmp(x.s,y.s));
   // 合併帳戶（例如兄弟由同一位家長繳費）：整戶算一筆，餘額不重複顯示
   const famKeys=[...new Set(rowsAll.map(r=>famKeyOf(r.s)).filter(k=>k&&famMembers(k).length>=2))].sort();
   const inFam=new Set();famKeys.forEach(k=>famMembers(k).forEach(m=>inFam.add(m.id)));
@@ -1672,7 +1672,7 @@ function renderWriting(){
   const list=wrAll().slice().sort((a,b)=>{
     const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;
     if(sa!==sb)return sa-sb;
-    return String(a.deadline||'9999').localeCompare(String(b.deadline||'9999'));});
+    return stuNameCmp(a,b);});
   const ym=localToday().slice(0,7);const inc=wrIncome(ym),incAll=wrIncome(null);
   const dueStr=itvMoneyStr(incAll.due);
   const head=`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start">
@@ -1760,7 +1760,7 @@ function wrPayForm(key){const p=String(key).split('::');const c=wrById(p[0]);if(
 function renderAgency(){
   const body=$('#agency-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','代辦申請只有主管理員看得到。');return;}
-  const list=agAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;const la=agSorted(a)[0],lb=agSorted(b)[0];return String((lb&&lb.date)||'').localeCompare(String((la&&la.date)||''));});
+  const list=agAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;return stuNameCmp(a,b);});
   const ym=localToday().slice(0,7);const inc=agIncome(ym);const incAll=agIncome(null);
   const dueStr=itvMoneyStr(incAll.due);
   const head=`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div><div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">累計收入</div><b style="font-size:19px">${itvMoneyStr(incAll.paid)||'—'}</b></div>${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${dueStr}</b></div>`:''}</div><div class="hint" style="margin-top:8px">收入會併進「營運 → 🧮 總收入」。</div>${crmMoveBanner()}</div>`;
@@ -1823,7 +1823,8 @@ function agLogForm(key){const p=String(key).split('::');const c=agById(p[0]);if(
 function renderInterview(){
   const body=$('#interview-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','面試練習只有主管理員看得到。');return;}
-  const list=itvAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;const la=itvSorted(a)[0],lb=itvSorted(b)[0];return String((lb&&lb.date)||'').localeCompare(String((la&&la.date)||''));});
+  /* SORT_AZ_V8 全站名單一律名字 A→Z（越南文忽略聲調）。進行中的排前面，同一群裡一律名字 A→Z */
+  const list=itvAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;return stuNameCmp(a,b);});
   const ym=localToday().slice(0,7);const inc=itvIncome(ym);const incAll=itvIncome(null);
   const mCount=itvAll().reduce((n,c)=>n+itvSessions(c).filter(e=>String(e.date).slice(0,7)===ym).length,0);
   const dueStr=itvMoneyStr(incAll.due);const today=localToday();
@@ -2299,7 +2300,7 @@ function stuNameCmp(a,b){const f=(x)=>String((x&&x.name)||'').normalize('NFD').r
 function inqAll(){return (S.inquiries||[]);}
 function inqTypeMeta(t){return ({'團班':['👥 想上團班','#1d4ed8'],'一對一':['🧑‍🏫 想一對一','#0d9488'],'都可以':['🤝 都可以','#7c3aed']})[t]||['—','#6b7280'];}
 function inquiryHtml(){
-  const list=inqAll().slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  const list=inqAll().slice().sort(stuNameCmp);
   const nGroup=list.filter(x=>x.want_type==='團班'||x.want_type==='都可以').length;
   const nSolo=list.filter(x=>x.want_type==='一對一'||x.want_type==='都可以').length;
   // 依學習目標歸類（湊班用）
@@ -2905,7 +2906,7 @@ function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==nul
    +'</body></html>';
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();}
 function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
-  const members=sel?(S.students.length?S.students.map(s=>`<label class="check-row"><input type="checkbox" class="gm-mem" value="${s.id}" ${stuGroups(s).includes(sel)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'')}</span></label>`).join(''):'<div class="hint">還沒有學生。</div>'):'';
+  const members=sel?(S.students.length?S.students.slice().sort(stuNameCmp).map(s=>`<label class="check-row"><input type="checkbox" class="gm-mem" value="${s.id}" ${stuGroups(s).includes(sel)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'')}</span></label>`).join(''):'<div class="hint">還沒有學生。</div>'):'';
   const editPanel=sel?`<div style="margin:2px 0 14px;padding:12px 14px;background:#faf7f0;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px">
        <div class="field" style="margin:0"><label>🕒 「${esc(sel)}」上課時段 <span class="hint">整班共用；已依學生時段自動帶入，可再修改</span></label>
        <div id="gm-sched">${(classSchedOf(sel).length?classSchedOf(sel):[{}]).map(r=>schedRowHTML(r)).join('')}</div>
@@ -2931,7 +2932,7 @@ function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
 }
 function assignModal(l){const ids=l.assigned_ids||[];const ag=l.assigned_groups||[];const classes=groupsList();
   const grpList=classes.length?classes.map(c=>`<label class="check-row"><input type="checkbox" class="as-grp" value="${esc(c)}" ${ag.includes(c)?'checked':''}> 👥 <b>${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span></label>`).join(''):'<div class="hint">還沒有團班。可在「學生名冊 → 👥 團班管理」建立。</div>';
-  const list=S.students.length?S.students.map(s=>`<label class="check-row"><input type="checkbox" value="${s.id}" ${ids.includes(s.id)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'1對1')}</span>${stuGroups(s).length?(' <span class="tag">'+stuGroups(s).map(esc).join('、')+'</span>'):''}</label>`).join(''):'<div class="hint">尚無學生，請先到「學生名冊」新增。</div>';
+  const list=S.students.length?S.students.slice().sort(stuNameCmp).map(s=>`<label class="check-row"><input type="checkbox" value="${s.id}" ${ids.includes(s.id)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'1對1')}</span>${stuGroups(s).length?(' <span class="tag">'+stuGroups(s).map(esc).join('、')+'</span>'):''}</label>`).join(''):'<div class="hint">尚無學生，請先到「學生名冊」新增。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>發佈「${esc(l.title)}」</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>截止日期 <span class="hint">選填</span></label><input id="as-due" type="date" min="2000-01-01" max="2100-12-31" value="${esc(l.due_date||'')}"></div>
@@ -4570,7 +4571,7 @@ H.qzModeChg=()=>{const m=($('#quiz-mode')&&$('#quiz-mode').value)||'dict';
 H.newQuiz=()=>{
   const grp={},gorder=[];sortLessons(S.lessons).forEach(l=>{const tb=(l.textbook||'').trim()||'（未分類教材）';if(!grp[tb]){grp[tb]=[];gorder.push(tb);}grp[tb].push(l);});
   const lessonOpts=gorder.map(tb=>`<optgroup label="${esc(tb)}">${grp[tb].map(l=>`<option value="${l.id}">${esc((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（未命名）'))}</option>`).join('')}</optgroup>`).join('');
-  const studentChecks=S.students.map(s=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 12px 8px 0"><input type="checkbox" class="quiz-stu" value="${s.id}"> ${snm(s.name)}</label>`).join('');
+  const studentChecks=S.students.slice().sort(stuNameCmp).map(s=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 12px 8px 0"><input type="checkbox" class="quiz-stu" value="${s.id}"> ${snm(s.name)}</label>`).join('');
   openModal(`<div class="modal"><div class="modal-head"><h3>📝 建立隨堂聽寫小考</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>名稱</label><input id="quiz-title" type="text" value="隨堂小考"></div>
@@ -5387,8 +5388,8 @@ function planSlotOf(v){
   return {};}
 function planClassModal(preTgt,preDate){
   const groups=groupsList();
-  const solos=(S.students||[]).filter(s=>!s.is_test&&s.class_type!=='團班'&&enrollOf(s)!=='paused').sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
-  const itvs=itvAll().filter(c=>c&&!c.deleted_at&&(c.status||'active')==='active').sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  const solos=(S.students||[]).filter(s=>!s.is_test&&s.class_type!=='團班'&&enrollOf(s)!=='paused').sort(stuNameCmp);
+  const itvs=itvAll().filter(c=>c&&!c.deleted_at&&(c.status||'active')==='active').sort(stuNameCmp);
   if(!groups.length&&!solos.length&&!itvs.length){toast('還沒有學生，先到「學生名冊」新增');return;}
   let sel='';if(preTgt){const p=String(preTgt);if(p.indexOf('S:')===0||p.indexOf('G:')===0||p.indexOf('I:')===0)sel=p;else if(groups.includes(p))sel='G:'+p;else if(studentById(p))sel='S:'+p;else if(itvById(p))sel='I:'+p;}
   if(!sel)sel=groups.length?('G:'+groups[0]):(solos.length?('S:'+solos[0].id):('I:'+itvs[0].id));
@@ -5484,7 +5485,7 @@ async function _tuShrink(file){
   URL.revokeObjectURL(url);
   return {b64:b64,mime:'image/jpeg',name:String(file.name||'photo').replace(/\.[^.]+$/,'')+'.jpg',size:Math.round(b64.length*3/4)};
 }
-H.itvPayNew=(pre)=>{const list=itvAll().filter(c=>(c.status||'active')==='active').concat(itvAll().filter(c=>(c.status||'active')!=='active'));
+H.itvPayNew=(pre)=>{const _az=a=>a.slice().sort(stuNameCmp);const list=_az(itvAll().filter(c=>(c.status||'active')==='active')).concat(_az(itvAll().filter(c=>(c.status||'active')!=='active')));
   if(!list.length)return toast('還沒有面試客戶，先「＋ 新增面試客戶」');
   const opts=list.map(c=>`<option value="${esc(c.id)}" ${pre===c.id?'selected':''}>${esc(c.name||'')}${(c.status||'active')!=='active'?'（已完成）':''}</option>`).join('');
   const _pc=(pre&&itvById(pre))?itvTotalCur(itvById(pre)):'VND';
@@ -6408,7 +6409,7 @@ H.receipt=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
 H.exportAll=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
   try{const wb=XLSX.utils.book_new();
-    const stu=S.students.map(s=>({姓名:s.name||'',狀態:enrollMeta(enrollOf(s))[1],國籍:s.nationality||'',教材:s.textbook||'',班別:s.class_type||'',Email:s.email||'',上課時段:fmtSchedule(s),Meet連結:s.meet_url||'',學費:s.tuition==null?'':s.tuition,計費方式:s.fee_unit==='hour'?'每小時':'每堂',幣別:s.currency||'',付款日:s.payment_date||'',總堂數:s.sessions_total==null?'':s.sessions_total,負責管理員:s.admin||'(主管理員)',備註:s.notes||''}));
+    const stu=S.students.slice().sort(stuNameCmp).map(s=>({姓名:s.name||'',狀態:enrollMeta(enrollOf(s))[1],國籍:s.nationality||'',教材:s.textbook||'',班別:s.class_type||'',Email:s.email||'',上課時段:fmtSchedule(s),Meet連結:s.meet_url||'',學費:s.tuition==null?'':s.tuition,計費方式:s.fee_unit==='hour'?'每小時':'每堂',幣別:s.currency||'',付款日:s.payment_date||'',總堂數:s.sessions_total==null?'':s.sessions_total,負責管理員:s.admin||'(主管理員)',備註:s.notes||''}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(stu.length?stu:[{}]),'學生');
     const les=sortLessons(S.lessons).map((l,i)=>({課號:l.order_index||i+1,教材:l.textbook||'',課名:l.title||'',題數:questionsOf(l.id).length,發佈人數:assignedCount(l),狀態:l.build==='done'?'完成':'進行中'}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(les.length?les:[{}]),'課程');
