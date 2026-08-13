@@ -590,6 +590,17 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
 
 
 
+
+        /* ===== WB_BAD_V29 作業簿「錯的題目」看得到題目內容 ===== */
+        .wb-bad{background:#FDF3F2;border-color:#F0C9C5}
+        .wb-bad .wb-bh{font-size:13px;display:block;margin-bottom:6px;color:#8A3A26}
+        .wb-b{padding:8px 0;border-top:1px solid #F3D9D5}
+        .wb-b:first-of-type{border-top:0}
+        .wb-bl{font-size:12.5px;font-weight:700;color:#8A3A26}
+        .wb-bq{font-size:13.5px;line-height:1.8;margin:2px 0 4px;color:#3D3630}
+        .wb-ba{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;line-height:1.8}
+        .wb-ba .no{color:#B4413C}
+        .wb-ba .yes{color:#16794C}
         /* ===== AI_BAR_V28 AI 小幫手橫幅（明顯一點，放在批改內容最上面） ===== */
         .ai-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 12px;
           padding:11px 14px;border-radius:12px;background:#F3EEFF;border:1px solid #C9B8F2}
@@ -4406,14 +4417,30 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
   const pill=(lab,o)=>o&&o.total?`<span class="tag">${lab} ${o.ok}/${o.total}</span>`:'';
   let head=`<div class="hint" style="margin-bottom:8px">${esc(w.title||'作業簿')}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'wbrev-fb')}
    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span class="tag tpub-y">自動批改 ${sc.ok||0}/${sc.total||0}</span>${pill('聽力',sc.listen)}${pill('詞彙選擇',sc.vocab)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀',sc.read)}</div>`;
+  /* WB_BAD_V29 錯的題目要看得到題目內容，不能只有「答 C，正解 D」 */
   const bad=[];
-  (d.listen||[]).forEach(q=>{const v=(a.listen||{})[q.n]||'';if(q.ans&&v!==q.ans)bad.push('一聽力 '+q.n+'：答 '+(v||'—')+'，正解 '+q.ans);});
-  (d.vocab||[]).forEach(q=>{const v=(a.vocab||{})[q.n]||'';if(q.ans&&v!==q.ans)bad.push('詞彙選擇 '+q.n+'：答 '+(v||'—')+'，正解 '+q.ans);});
-  ((d.cloze||{}).keys||[]).forEach(k=>{const v=(a.cloze||{})[k.n]||'';if(k.ans&&String(v).trim()!==String(k.ans).trim())bad.push('二選詞填空 '+k.n+'：答「'+(v||'—')+'」，正解「'+k.ans+'」');});
-  (((d.match||{}).rows)||[]).forEach(r=>{const v=(a.match||{})[r.n]||'';if(r.ans&&v!==r.ans)bad.push('三配合題 '+r.n+'：答 '+(v||'—')+'，正解 '+r.ans);});
-  (((d.read||{}).qs)||[]).forEach(q=>{const v=(a.read||{})[q.n]||'';if(q.ans&&v!==q.ans)bad.push('五閱讀 '+q.n+'：答 '+(v||'—')+'，正解 '+q.ans);});
-  head+=bad.length?`<div class="card" style="background:#fdf3f2;border-color:#f0c9c5"><b style="font-size:13px">錯的題目</b><ul style="margin:6px 0 0;padding-left:1.2em;font-size:13.5px;line-height:1.8">${bad.map(x=>'<li>'+esc(x)+'</li>').join('')}</ul></div>`
-    :`<div class="card" style="background:#f0faf2;border-color:#bfe3c9"><b style="font-size:13px">客觀題全對 🎉</b></div>`;
+  const _opt=(q,L)=>{const k=String(L||'').toLowerCase();return (q&&q[k])?String(q[k]):'';};
+  const _pick=(q,L)=>{const t=_opt(q,L);return L?(String(L)+(t?('　'+t):'')):'（未作答）';};
+  const _ctx=(paras,n)=>{const t=(paras||[]).join('　');const i=t.indexOf('('+n+')');
+    if(i<0)return '';return ((i>40?'…':'')+t.slice(Math.max(0,i-40),Math.min(t.length,i+40)).trim()+((i+40<t.length)?'…':''));};
+  const _mr=(rows,code)=>{const r=(rows||[]).find(x=>String(x.code)===String(code));return r?String(r.right||''):'';};
+  const _mp=(rows,L)=>{const t=_mr(rows,L);return L?(String(L)+(t?('　'+t):'')):'（未作答）';};
+  const _row=(lab,q,stu,ans)=>bad.push({lab:lab,q:q||'',stu:stu,ans:ans});
+  (d.listen||[]).forEach(q=>{const v=(a.listen||{})[q.n]||'';if(q.ans&&v!==q.ans)
+    _row('一、聽力 '+q.n,q.tx||'',_pick(q,v),_pick(q,q.ans));});
+  (d.vocab||[]).forEach(q=>{const v=(a.vocab||{})[q.n]||'';if(q.ans&&v!==q.ans)
+    _row('詞彙選擇 '+q.n,q.q||'',_pick(q,v),_pick(q,q.ans));});
+  ((d.cloze||{}).keys||[]).forEach(k=>{const v=(a.cloze||{})[k.n]||'';if(k.ans&&String(v).trim()!==String(k.ans).trim())
+    _row('二、選詞填空 ('+k.n+')',_ctx((d.cloze||{}).paras,k.n),(v?('「'+v+'」'):'（未作答）'),'「'+k.ans+'」');});
+  (((d.match||{}).rows)||[]).forEach(r=>{const v=(a.match||{})[r.n]||'';if(r.ans&&v!==r.ans)
+    _row('三、配合題 '+r.n,r.left||'',_mp((d.match||{}).rows,v),_mp((d.match||{}).rows,r.ans));});
+  (((d.read||{}).qs)||[]).forEach(q=>{const v=(a.read||{})[q.n]||'';if(q.ans&&v!==q.ans)
+    _row('五、閱讀 '+q.n,q.q||'',_pick(q,v),_pick(q,q.ans));});
+  head+=bad.length?('<div class="card wb-bad"><b class="wb-bh">錯的題目（'+bad.length+' 題）</b>'
+    +bad.map(x=>'<div class="wb-b"><div class="wb-bl">'+esc(x.lab)+'</div>'
+      +(x.q?('<div class="wb-bq">'+esc(x.q)+'</div>'):'')
+      +'<div class="wb-ba"><span class="no">學生：'+esc(x.stu)+'</span><span class="yes">正解：'+esc(x.ans)+'</span></div></div>').join('')+'</div>')
+    :'<div class="card" style="background:#f0faf2;border-color:#bfe3c9"><b style="font-size:13px">客觀題全對 🎉</b></div>';
   let rows=(d.gram||[]).length?'<h4 style="margin:16px 0 6px">請用語法完成下面的對話</h4>':'';
   (d.gram||[]).forEach(g=>{const v=(a.gram||{})[g.n]||'';
     rows+=`<div class="srev-item"><div class="srev-word">${g.n}. A：${esc(g.a)}　<span class="tag">${esc(g.pattern||'')}</span></div>
