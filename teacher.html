@@ -1950,7 +1950,17 @@ function renderInterview(){
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','面試練習只有主管理員看得到。');return;}
   /* SORT_AZ_V8 全站名單一律名字 A→Z（越南文忽略聲調）。進行中的排前面，同一群裡一律名字 A→Z */
   const _fkind='interview';
-  const list=itvAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;return stuNameCmp(a,b);});
+  /* ITV_SORT_DATE_V22 面試練習改依「正式面試日」排：
+     進行中＝快要面試的排前面（近→遠）；已完成＝最近面試過的排前面（新→舊）；
+     還沒填面試日的排在該群最後，彼此再照名字 A→Z。 */
+  const list=itvAll().slice().sort((a,b)=>{
+    const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;
+    if(sa!==sb)return sa-sb;
+    const da=String(a.exam_date||''),db=String(b.exam_date||'');
+    if(!da&&!db)return stuNameCmp(a,b);
+    if(!da)return 1; if(!db)return -1;
+    if(da===db)return stuNameCmp(a,b);
+    return sa===0?da.localeCompare(db):db.localeCompare(da);});
   const ym=localToday().slice(0,7);const inc=itvIncome(ym);const incAll=itvIncome(null);
   const mCount=itvAll().reduce((n,c)=>n+itvSessions(c).filter(e=>String(e.date).slice(0,7)===ym).length,0);
   const dueStr=itvMoneyStr(incAll.due);const today=localToday();
