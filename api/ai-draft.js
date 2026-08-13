@@ -64,6 +64,24 @@ function buildPrompt(b) {
   return lines.join('\n');
 }
 
+/* 問 Google 現在這把金鑰可以用哪些模型，名稱改版也不怕 */
+async function listModels(key) {
+  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=' + encodeURIComponent(key));
+  const j = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((j && j.error && j.error.message) || ('HTTP ' + r.status));
+  return ((j && j.models) || [])
+    .filter(m => (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0)
+    .map(m => String(m.name || '').replace(/^models\//, ''));
+}
+function pickModel(names) {
+  const bad = /embedding|aqa|vision|image|tts|audio|native-audio|live|thinking-exp/i;
+  const ok = names.filter(n => !bad.test(n));
+  const order = [/^gemini-flash-latest$/, /^gemini-2\.5-flash$/, /^gemini-2\.0-flash$/,
+                 /^gemini-2\.5-flash-lite$/, /flash-latest/, /2\.5-flash/, /2\.0-flash/, /flash/, /gemini/];
+  for (const re of order) { const hit = ok.find(n => re.test(n)); if (hit) return hit; }
+  return ok[0] || '';
+}
+
 async function callGemini(model, key, prompt) {
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
     encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key);
@@ -109,6 +127,13 @@ module.exports = async (req, res) => {
   if (body && body.ping) {
     return res.end(JSON.stringify({ ok: !!key, models: MODELS }));
   }
+  if (body && body.list) {
+    if (!key) return res.end(JSON.stringify({ error: 'NO_KEY' }));
+    try {
+      const names = await listModels(key);
+      return res.end(JSON.stringify({ ok: true, available: names }));
+    } catch (e) { return res.end(JSON.stringify({ error: String((e && e.message) || e) })); }
+  }
   if (!key) {
     return res.end(JSON.stringify({
       error: 'NO_KEY',
@@ -130,5 +155,14 @@ module.exports = async (req, res) => {
       if (e.status && e.status !== 404 && e.status !== 400) break;
     }
   }
+  /* 名單裡的都不能用（Google 常改名），就直接問它現在有哪些，挑一個 flash 再試一次 */
+  try {
+    const names = await listModels(key);
+    const pick = pickModel(names);
+    if (pick) {
+      const out = await callGemini(pick, key, prompt);
+      return res.end(JSON.stringify({ ok: true, model: pick, per: out.per || [], overall: out.overall || '' }));
+    }
+  } catch (e) { lastErr = e; }
   return res.end(JSON.stringify({ error: (lastErr && lastErr.message) || 'AI 服務沒有回應' }));
 };
