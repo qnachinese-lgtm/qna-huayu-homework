@@ -649,7 +649,8 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .crm-head .cc.nm .btn-icon{flex:none;margin-left:6px}
         /* CRM_DEL_V31 姓名欄右邊：修改 ✏️ 旁邊再放一個刪除 🗑 */
         .crm-head .cc.nm .btn-icon.crm-del{margin-left:2px;color:#b91c1c;border-color:#e7c9c9;background:#fff}
-        /* CRM_FOOT_V33 已完成／已結案：給一個藍色，跟「進行中」的綠色分開 */
+        /* CRM_FOOT_V33 已結案：給一個藍色，跟「進行中」的綠色分開 */
+        /* CRM_WORD_V34 面試／代辦／代書一律用「已結案」，不再出現「已完成」 */
         #app .badge.badge-fin{background:#e8eefb;color:#1d4ed8;border-color:#93b0ee}
         .crm-head .cc.nm .btn-icon.crm-del:hover{background:#fee2e2;border-color:#dc2626}
         @media (max-width:1180px){.crm-head .cc.nm{justify-content:flex-start}
@@ -2027,11 +2028,11 @@ function renderInterview(){
     const upHtml=upcoming.length?`<div class="lesson-label" style="margin:8px 0 2px">📌 接下來的練習</div>`+upcoming.map(rowHtml).join(''):'';
     const pastShow=past.slice(0,5).map(rowHtml).join('');
     const pastMore=past.length>5?`<details style="margin-top:4px"><summary style="cursor:pointer;font-size:13px;color:var(--primary)">看更早的 ${past.length-5} 次</summary>${past.slice(5).map(rowHtml).join('')}</details>`:'';
-    const pastHtml=past.length?`<div class="lesson-label" style="margin:10px 0 2px">✅ 已完成的練習（${past.length}）</div>${pastShow}${pastMore}`:(upcoming.length?'':'<div class="hint" style="padding:6px 0">還沒有練習紀錄，按上面「＋ 新增練習時間」開始。</div>');
+    const pastHtml=past.length?`<div class="lesson-label" style="margin:10px 0 2px">✅ 已上過的練習（${past.length}）</div>${pastShow}${pastMore}`:(upcoming.length?'':'<div class="hint" style="padding:6px 0">還沒有練習紀錄，按上面「＋ 新增練習時間」開始。</div>');
     return `<details class="card crm-card${done?' card-done':''}" data-cid="${esc(c.id)}" style="margin-bottom:10px"${crmIsOpen(c.id)?' open':''}><summary class="crm-sum">
       <span class="crm-chev">▸</span><div class="crm-head">
         <span class="cc nm"><b>${snm(c.name||'（未命名）')}</b><button class="btn btn-icon" data-act="itvEdit" data-id="${esc(c.id)}" title="客戶資料與付費">✏️</button><button class="btn btn-icon crm-del" data-act="itvDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
-        <span class="cc st">${done?'<span class="badge badge-fin">已完成</span>':'<span class="badge badge-ok">進行中</span>'}</span>
+        <span class="cc st">${done?'<span class="badge badge-fin">已結案</span>':'<span class="badge badge-ok">進行中</span>'}</span>
         <span class="cc sch">${c.target?`<span class="tag">${esc(c.target)}</span>`:''}</span>
         <span class="cc ct">${c.phone?`<span class="muted">${esc(c.phone)}</span>`:''}</span>
         <span class="cc dt">${itvExamBadge(c)}</span>
@@ -2046,7 +2047,7 @@ function renderInterview(){
         <button class="btn btn-file" data-act="itvFiles" data-id="${esc(c.id)}">📎 上傳／查看檔案</button>
         <details class="mini-menu"><summary class="dots" title="其他">⋯</summary>
           <div class="mini-pop">
-            <button class="btn btn-sm" data-act="itvToggle" data-id="${esc(c.id)}">${done?'↩ 改回進行中':'✓ 標記完成'}</button>
+            <button class="btn btn-sm" data-act="itvToggle" data-id="${esc(c.id)}">${done?'↩ 改回進行中':'✓ 結案'}</button>
             <div class="mini-sep"></div>
             <button class="btn btn-sm btn-danger" data-act="itvDel" data-id="${esc(c.id)}">🗑 刪除這位客戶</button>
           </div>
@@ -5800,7 +5801,7 @@ async function _tuShrink(file){
 }
 H.itvPayNew=(pre)=>{const _az=a=>a.slice().sort(stuNameCmp);const list=_az(itvAll().filter(c=>(c.status||'active')==='active')).concat(_az(itvAll().filter(c=>(c.status||'active')!=='active')));
   if(!list.length)return toast('還沒有面試客戶，先「＋ 新增面試客戶」');
-  const opts=list.map(c=>`<option value="${esc(c.id)}" ${pre===c.id?'selected':''}>${esc(c.name||'')}${(c.status||'active')!=='active'?'（已完成）':''}</option>`).join('');
+  const opts=list.map(c=>`<option value="${esc(c.id)}" ${pre===c.id?'selected':''}>${esc(c.name||'')}${(c.status||'active')!=='active'?'（已結案）':''}</option>`).join('');
   const _pc=(pre&&itvById(pre))?itvTotalCur(itvById(pre)):'VND';
   openModal(`<div class="modal"><div class="modal-head"><h3>💰 記一筆面試付費</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="form-grid">
@@ -6290,7 +6291,7 @@ H.itvSave=async(id)=>{const name=($('#itv-name').value||'').trim();if(!name)retu
   try{if(id){await DB.update(crmCol(id),id,patch);}else{patch.status='active';patch.sessions=[];patch.created_at=new Date().toISOString();await DB.insert('crm',patch);}
     await loadAll();closeModal();S.tab='interview';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.itvToggle=async(id)=>{const c=itvById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
-  try{await DB.update(crmCol(id),id,{status:st});await loadAll();render();toast(st==='done'?'已標記完成':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
+  try{await DB.update(crmCol(id),id,{status:st});await loadAll();render();toast(st==='done'?'已結案':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
 H.itvDel=async(id)=>{const c=itvById(id);if(!c)return;if(!confirm('確定刪除「'+(c.name||'')+'」？練習與收費紀錄會一起刪除。'))return;
   try{await DB.update(crmCol(id),id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.itvSessSave=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
@@ -6685,7 +6686,7 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
     const done=(c.status||'active')!=='active';
     items.push({k:'itv',id:c.id,name:c.name||'',sort:done?3:0,owe:!!s2,
       tag:s2?oweB('欠 '+s2):(itvPays(c).length?okB():'<span class="badge">還沒收款</span>'),
-      extra:(c.target?`<span class="muted" style="font-size:12px">${esc(c.target)}</span>`:'')+(done?'<span class="muted" style="font-size:12px">（已完成）</span>':''),
+      extra:(c.target?`<span class="muted" style="font-size:12px">${esc(c.target)}</span>`:'')+(done?'<span class="muted" style="font-size:12px">（已結案）</span>':''),
       av:'<span class="avatar sm emo" style="background:#c7d2fe;flex:none">\u{1F3A4}</span>'});});
   const crmPush=(arr,k,totF,curF,payF)=>arr.filter(c=>!c.deleted_at).forEach(c=>{
     const tot=totF(c),cur=curF(c);
@@ -6693,7 +6694,7 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
     const due=tot?(tot-got):0;const done=(c.status||'active')!=='active';
     const tag=!tot?'<span class="badge">還沒報價</span>':(due>0.01?oweB('欠 '+money(due,cur)):(due<-0.01?preB('預繳 '+money(-due,cur)):okB()));
     items.push({k:k,id:c.id,name:c.name||'',sort:done?3:0,owe:!!tot&&due>0.01,tag:tag,
-      extra:((c.school||c.docs)?`<span class="muted" style="font-size:12px">${esc(c.school||c.docs)}</span>`:'')+(done?'<span class="muted" style="font-size:12px">（已完成）</span>':''),
+      extra:((c.school||c.docs)?`<span class="muted" style="font-size:12px">${esc(c.school||c.docs)}</span>`:'')+(done?'<span class="muted" style="font-size:12px">（已結案）</span>':''),
       av:`<span class="avatar sm emo" style="background:${k==='ag'?'#fde68a':'#bbf7d0'};flex:none">${k==='ag'?'\u{1F393}':'\u270D\uFE0F'}</span>`});});
   crmPush(agAll(),'ag',agTotal,agTotalCur,agPays);
   crmPush(wrAll(),'wr',wrTotal,wrTotalCur,wrPays);
