@@ -2,7 +2,7 @@
    金鑰放在 Vercel 的環境變數 GEMINI_API_KEY，不會出現在網頁原始碼裡。
    這支只負責「產生草稿」，不會寫入任何資料，也不會送東西給學生。 */
 
-const MODELS = (process.env.GEMINI_MODEL || 'gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash')
+const MODELS = (process.env.GEMINI_MODEL || 'gemini-flash-latest,gemini-2.5-flash,gemini-2.0-flash')
   .split(',').map(s => s.trim()).filter(Boolean);
 
 const SYS = [
