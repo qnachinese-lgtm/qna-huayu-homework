@@ -588,6 +588,16 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .crm-body{padding:12px 14px 14px}
         .crm-foldbar{display:flex;align-items:center;gap:10px;margin:0 2px 10px}
 
+
+        /* ===== AI_DRAFT_V25 AI 批改小幫手 ===== */
+        .btn.btn-ai{background:#F3EEFF;border:1px solid #C9B8F2;color:#5B3FA8;font-weight:700}
+        .btn.btn-ai:hover{background:#EBE3FF}
+        .ai-wrap{margin:10px 0 8px}
+        .ai-note{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px;border-radius:11px;
+          background:#F6F2FF;border:1px solid #DCD1F5;color:#4A3A78;font-size:13px;line-height:1.7}
+        .ai-note.err{background:#FDF1EE;border-color:#F0C8BC;color:#8A3A26}
+        .ai-note b{color:#3B2E63}
+        .gd-fb.ai-fill,.gd-cmt.ai-fill{background:#FBF8FF;border-color:#C9B8F2}
         /* ===== HEAD_ALIGN_V21 每一頁的標題區高度一致 =====
            以前有按鈕的頁面（學生、批改、教材）標題列會比沒按鈕的（課堂活動、繳費）高 7~8px，
            所以下面那排工具列的位置每頁都差一點。改成固定高度，所有頁面就對齊了。 */
@@ -3209,6 +3219,10 @@ function gdRefText(q){if(q.type==='match')return (q.options||[]).map(p=>p.l+'→
 /* 批改罐頭評語：點一下插入到指定的評語框，省打字 */
 const FB_PRESETS=['很好，繼續保持！','有進步，加油！','大致正確，注意細節。','請再複習這課的語法。','發音很清楚！','記得多練習生詞。','句子很通順，很棒！','有錯字，請訂正。','理解正確，表達再完整一些。','很用心，讚！'];
 function cannedBar(tgt){return '<div class="canned-bar">'+FB_PRESETS.map(t=>`<button type="button" class="canned-chip" data-act="canned" data-id="${esc(tgt)}" data-t="${esc(t)}">${esc(t)}</button>`).join('')+'</div>';}
+/* AI_DRAFT_V25 AI 批改小幫手：只產生草稿，填進欄位讓老師改，老師按「儲存建議」才會存、才會給學生看到 */
+function aiAnsText(q,resp){try{const d=document.createElement('div');d.innerHTML=ansHtml(q,resp);
+  return (d.textContent||'').replace(/\s+/g,' ').trim();}catch(e){return '';}}
+function aiResultOf(rid){return (S.results||[]).find(x=>x&&x.id===rid);}
 function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length;
   const perQ=qs.map((q,qi)=>{const resp=(r.answers||{})[q.id];const fb=(r.feedback||{})[q.id]||'';const man=manualQ(q);const mk=(r.manual||{})[q.id];
     const corr=man?(mk==='done'?true:(mk==='wrong'?false:null)):qCorrect(q,resp);
@@ -3223,7 +3237,9 @@ function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length
       <input class="gd-fb" type="text" data-fb="${r.id}::${q.id}" value="${esc(fb)}" placeholder="這題的修改建議（選填，學生看得到）"></div>`;}).join('');
   return `<div class="gd-stubody">${perQ}
     <div class="gd-overall"><label>整體評語 / 修改建議 <span class="hint">學生會在「成績」看到</span></label><textarea class="gd-cmt" id="cmt-${r.id}" placeholder="給這位學生的整體建議…">${esc(r.comment||'')}</textarea>${cannedBar('cmt-'+r.id)}</div>
+    <div id="aiw-${r.id}" class="ai-wrap"></div>
     <button class="btn btn-primary btn-sm" data-act="saveReview" data-id="${r.id}">💾 儲存建議</button>
+    <button class="btn btn-sm btn-ai" data-act="aiDraft" data-id="${r.id}" style="margin-left:8px">✨ AI 擬草稿</button>
     <button class="btn btn-sm btn-danger" data-act="delResult" data-id="${r.id}" style="margin-left:8px">🗑 刪除此作答</button></div>`;}
 /* ---------- 成績 ---------- */
 /* ===================== 📁 我發出去的檔案（shares） ===================== */
@@ -6447,6 +6463,45 @@ H.markWrite=async(key,btn)=>{const[rid,qid,mark]=key.split('::');const r=S.resul
     r.manual=manual;r.score=sc;r.status=pend?'pending':'done';
     if(btn){const wrap=btn.closest('.gd-q');if(wrap)wrap.querySelectorAll('[data-act="markWrite"]').forEach(b=>{const m=b.dataset.id.split('::')[2];b.classList.toggle('btn-accent',m==='done'&&mark==='done');b.classList.toggle('btn-danger',m==='wrong'&&mark==='wrong');});}
     toast('已更新批改（分數已重算）');}catch(e){toast(writeErr('更新失敗',e));}};
+/* AI_DRAFT_V25 產生批改草稿：只填進欄位，不會存檔、也不會送給學生 */
+H.aiDraft=async(rid)=>{
+  const r=aiResultOf(rid);if(!r)return toast('找不到這份作答');
+  const l=(S.lessons||[]).find(x=>x&&x.id===r.lesson_id);
+  const stu=(S.students||[]).find(x=>x&&(x.id===r.student_id||x.uid===r.uid));
+  const qs=answerableOf(r.lesson_id||'');
+  if(!qs.length)return toast('這一課沒有題目');
+  const box=document.getElementById('aiw-'+rid);
+  const say=(html,cls)=>{if(box)box.innerHTML='<div class="ai-note'+(cls?' '+cls:'')+'">'+html+'</div>';};
+  const btn=document.querySelector('[data-act="aiDraft"][data-id="'+rid+'"]');
+  const items=qs.map(q=>{const resp=(r.answers||{})[q.id];const man=manualQ(q);const mk=(r.manual||{})[q.id];
+    const corr=man?(mk==='done'?true:(mk==='wrong'?false:null)):qCorrect(q,resp);
+    return {id:String(q.id),type:(TYPE_LABELS[q.type]||q.type||''),prompt:String(q.prompt||''),
+      ref:gdRefText(q)||'',ans:aiAnsText(q,resp),mark:corr};});
+  if(btn){btn.disabled=true;btn.textContent='AI 想一下…';}
+  say('✨ AI 正在讀這位學生的作答，寫草稿中…（大約 10 秒）');
+  try{
+    const res=await fetch('/api/ai-draft',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({student:(stu&&stu.name)||'',lesson:(l&&((l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'')))||'',items:items})});
+    const j=await res.json();
+    if(j.error){
+      if(j.error==='NO_KEY')say('⚠️ '+esc(j.hint||'還沒設定 AI 金鑰。'),'err');
+      else say('⚠️ AI 沒有回應：'+esc(String(j.error)),'err');
+      return;
+    }
+    let n=0,skip=0;
+    (j.per||[]).forEach(p=>{const el=document.querySelector('[data-fb="'+rid+'::'+p.id+'"]');
+      if(!el)return;const cur=(el.value||'').trim();const val=String(p.fb||'').trim();
+      if(!val)return;
+      if(cur){skip++;return;}
+      el.value=val;el.classList.add('ai-fill');n++;});
+    const cmt=document.getElementById('cmt-'+rid);let cn=0;
+    if(cmt&&j.overall&&!(cmt.value||'').trim()){cmt.value=String(j.overall).trim();cmt.classList.add('ai-fill');cn=1;}
+    say('✨ <b>這是 AI 草稿，還沒存檔、學生也還看不到。</b>請你看過、要改就直接改，確定了再按「💾 儲存建議」。'
+      +'<span class="grow"></span><span class="muted" style="font-size:12px">填了 '+n+' 題'+(cn?'＋整體評語':'')
+      +(skip?('，跳過你已經寫過的 '+skip+' 題'):'')+'</span>');
+  }catch(e){say('⚠️ 連不上 AI：'+esc((e&&e.message)||''),'err');}
+  finally{if(btn){btn.disabled=false;btn.textContent='✨ AI 擬草稿';}}
+};
 H.saveReview=async(rid)=>{const r=S.results.find(x=>x.id===rid);if(!r)return;
   const fb={};document.querySelectorAll('[data-fb^="'+rid+'::"]').forEach(el=>{const qid=el.getAttribute('data-fb').split('::')[1];const v=(el.value||'').trim();if(v)fb[qid]=v;});
   const cmtEl=document.getElementById('cmt-'+rid);const comment=cmtEl?(cmtEl.value||'').trim():'';
