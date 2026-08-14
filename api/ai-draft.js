@@ -64,9 +64,18 @@ function buildPrompt(b) {
   return lines.join('\n');
 }
 
+/* Gemini 偶爾會整個卡住不回應，加一個逾時，讓前端拿到錯誤而不是一直轉圈 */
+async function fetchT(url, opt, ms) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), ms || 55000);
+  try { return await fetch(url, Object.assign({}, opt || {}, { signal: ac.signal })); }
+  catch (e) { if (e && e.name === 'AbortError') { const x = new Error('AI 太久沒回應（已等 ' + Math.round((ms || 55000) / 1000) + ' 秒），請稍後再試一次'); x.status = 504; throw x; } throw e; }
+  finally { clearTimeout(t); }
+}
+
 /* 問 Google 現在這把金鑰可以用哪些模型，名稱改版也不怕 */
 async function listModels(key) {
-  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=' + encodeURIComponent(key));
+  const r = await fetchT('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=' + encodeURIComponent(key), {}, 15000);
   const j = await r.json().catch(() => null);
   if (!r.ok) throw new Error((j && j.error && j.error.message) || ('HTTP ' + r.status));
   return ((j && j.models) || [])
@@ -106,7 +115,7 @@ async function candidates(key) {
 async function callGemini(model, key, prompt) {
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
     encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key);
-  const r = await fetch(url, {
+  const r = await fetchT(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -119,7 +128,7 @@ async function callGemini(model, key, prompt) {
         responseSchema: SCHEMA
       }
     })
-  });
+  }, 55000);
   const j = await r.json().catch(() => null);
   if (!r.ok) {
     const msg = (j && j.error && j.error.message) || ('HTTP ' + r.status);
@@ -154,7 +163,7 @@ async function callVocab(model, key, words) {
     words.map(function (w, i) { return (i + 1) + '. ' + String(w).slice(0, 200); }).join('\n');
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
     encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key);
-  const r = await fetch(url, {
+  const r = await fetchT(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -165,7 +174,7 @@ async function callVocab(model, key, words) {
         responseMimeType: 'application/json', responseSchema: VI_SCHEMA
       }
     })
-  });
+  }, 55000);
   const j = await r.json().catch(function () { return null; });
   if (!r.ok) { const e = new Error((j && j.error && j.error.message) || ('HTTP ' + r.status)); e.status = r.status; throw e; }
   const c = j && j.candidates && j.candidates[0];
