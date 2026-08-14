@@ -91,6 +91,18 @@ function rankModels(names) {
 }
 function pickModel(names) { const r = rankModels(names); return r[0] || ''; }
 
+/* 同一個 serverless 實例裡把「現在能用的模型」記起來，不用每次都去問 Google（省一趟往返） */
+let MODEL_CACHE = { at: 0, list: [] };
+async function candidates(key) {
+  const now = Date.now();
+  if (MODEL_CACHE.list.length && (now - MODEL_CACHE.at) < 30 * 60 * 1000) return MODEL_CACHE.list.slice();
+  let list = [];
+  try { list = rankModels(await listModels(key)).slice(0, 5); } catch (e) {}
+  MODELS.forEach(m => { if (list.indexOf(m) < 0) list.push(m); });
+  if (list.length) MODEL_CACHE = { at: now, list: list.slice() };
+  return list;
+}
+
 async function callGemini(model, key, prompt) {
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
     encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key);
@@ -197,9 +209,7 @@ module.exports = async (req, res) => {
   if (body && Array.isArray(body.vocab) && body.vocab.length) {
     const words = body.vocab.slice(0, 200);
     let verr = null;
-    let tries = [];
-    try { tries = rankModels(await listModels(key)).slice(0, 5); } catch (e) {}
-    MODELS.forEach(m => { if (tries.indexOf(m) < 0) tries.push(m); });
+    const tries = await candidates(key);
     for (const m of tries) {
       try {
         const vi = await callVocab(m, key, words);
@@ -215,9 +225,7 @@ module.exports = async (req, res) => {
 
   const prompt = buildPrompt(body);
   let lastErr = null;
-  let order = [];
-  try { order = rankModels(await listModels(key)).slice(0, 5); } catch (e) {}
-  MODELS.forEach(m => { if (order.indexOf(m) < 0) order.push(m); });
+  const order = await candidates(key);
   for (const m of order) {
     try {
       const out = await callGemini(m, key, prompt);
