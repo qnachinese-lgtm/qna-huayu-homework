@@ -652,6 +652,16 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         /* CRM_FOOT_V33 已結案：給一個藍色，跟「進行中」的綠色分開 */
         /* CRM_WORD_V34 面試／代辦／代書一律用「已結案」，不再出現「已完成」 */
         #app .badge.badge-fin{background:#e8eefb;color:#1d4ed8;border-color:#93b0ee}
+        /* VI_CHECK_V39 越南文對照表 */
+        .modal.modal-wide{max-width:1060px;width:96vw}
+        .vic-sec{margin-bottom:16px}
+        .vic-h{font-family:var(--serif,inherit);font-size:15px;font-weight:700;margin:0 0 6px}
+        .vic-row{display:grid;grid-template-columns:120px 110px 74px minmax(150px,1.1fr) minmax(190px,1.3fr);
+          gap:8px;align-items:center;padding:4px 6px;border-bottom:1px solid var(--line,#eee)}
+        .vic-row.vic-head{font-size:12.5px;color:var(--muted,#7C7065);font-weight:600;background:#FAF7F1;border-radius:7px}
+        .vic-row .muted{font-size:12.5px}
+        .vic-in{width:100%;padding:5px 8px;font-size:14px}
+        @media (max-width:860px){.vic-row{grid-template-columns:1fr 1fr}.vic-row.vic-head{display:none}}
         .crm-head .cc.nm .btn-icon.crm-del:hover{background:#fee2e2;border-color:#dc2626}
         @media (max-width:1180px){.crm-head .cc.nm{justify-content:flex-start}
           .crm-head .cc.nm b{flex:0 1 auto}}
@@ -2102,6 +2112,47 @@ function viBarHtml(){
     ${on.length?`<button class="btn btn-sm btn-warn" data-act="viAllOff">↩ 全部收回（學生就看不到了）</button>`:'<span class="hint">學生現在全部看不到越南文，只看得到中文和英文釋義。</span>'}
   </div>`;
 }
+/* VI_CHECK_V39 越南文對照檢查：中文｜拼音｜詞性｜英文｜越南文 排成一張表，可以直接改、直接存。
+   跟學生端用同一套 parseVocab 規則，所以第 N 行越南文對到的就是學生會看到的第 N 個生詞。 */
+function tvPluckPy(s){let py='';const out=(s||'').replace(/[\[【]([^\]】]*)[\]】]/g,(m,inner)=>{if(/[㐀-鿿]/.test(inner))return m;if(!py)py=inner.trim();return '';}).replace(/\s{2,}/g,' ').replace(/\s+([，,。、；;)）])/g,'$1').trim();return {text:out,py};}
+function tvParseVocab(text){const out=[];(text||'').split('\n').forEach(raw=>{const l0=raw.trim();if(!l0)return;
+  const exm=l0.match(/^[-－・·→*]\s*(.+)$/)||l0.match(/^例[:：]\s*(.+)$/);
+  if(exm){if(out.length){const pk=tvPluckPy(exm[1].trim());if(pk.text)out[out.length-1].ex.push(pk.text);if(pk.py&&!out[out.length-1].py)out[out.length-1].py=pk.py;}return;}
+  if(/[｜|]/.test(l0)){const cols=l0.split(/\s*[｜|]\s*/);if(cols.length>=2){let f=(cols[0]||'').trim(),py='';const pm=f.match(/[\[【]([^\]】]*)[\]】]/);if(pm){py=pm[1].trim();f=f.replace(pm[0],'').trim();}const pos=(cols[1]||'').trim();const bk=tvPluckPy(cols[2]||'');if(bk.py&&!py)py=bk.py;const back=bk.text;const ex=[];cols.slice(3).forEach(s=>{const pk=tvPluckPy(s);if(pk.py&&!py)py=pk.py;if(pk.text)ex.push(pk.text);});if(f){out.push({front:f,py,pos,back,ex});return;}}}
+  let l=l0,py='';const m=l.match(/[\[【]([^\]】]*)[\]】]/);if(m){py=m[1].trim();l=l.replace(m[0],'').trim();}
+  let pos='';const pm=l.match(/[（(]\s*([^（）()]{1,10}?)\s*[）)]/);if(pm){pos=pm[1].trim();l=(l.slice(0,pm.index)+' '+l.slice(pm.index+pm[0].length)).trim();}
+  let front,back;
+  if(/[=＝]/.test(l)){const p=l.split(/[=＝]/).map(s=>s.trim());front=p[0];back=p.slice(1).filter(Boolean).join(' · ');}
+  else{const si=l.search(/[：:\t\s]/);if(si<0){front=l;back='';}else{front=l.slice(0,si).trim();back=l.slice(si+1).replace(/^[：:·\s]+/,'').trim();}}
+  out.push({front:(front||'').trim(),py,pos,back,ex:[]});});
+  return out;}
+function viCheckModal(l){
+  if(!l)return;
+  const secs=(l.dialogues||[]).map((d,i)=>({i,title:d.title||('第 '+(i+1)+' 段'),v:tvParseVocab(d.vocabulary),
+    vi:String(d.vocab_vi||'').split('\n').map(x=>x.trim())})).filter(x=>x.v.length);
+  if(!secs.length)return toast('這一課沒有生詞');
+  let n=0,blank=0;secs.forEach(sc=>sc.v.forEach((v,k)=>{n++;if(!sc.vi[k])blank++;}));
+  const body=secs.map(sc=>`<div class="vic-sec"><div class="vic-h">${esc(sc.title)}　<span class="hint">${sc.v.length} 個生詞</span></div>
+    <div class="vic-row vic-head"><span>生詞</span><span>拼音</span><span>詞性</span><span>英文（課本原本的）</span><span>越南文（可以直接改）</span></div>
+    ${sc.v.map((v,k)=>`<div class="vic-row">
+      <span><b>${esc(v.front)}</b></span>
+      <span class="muted">${esc(v.py||'')}</span>
+      <span class="muted">${esc(v.pos||'')}</span>
+      <span class="muted">${esc(v.back||'')}</span>
+      <span><input class="vic-in" data-sec="${sc.i}" data-k="${k}" type="text" value="${esc(sc.vi[k]||'')}" placeholder="（還沒有）"></span>
+    </div>`).join('')}</div>`).join('');
+  openModal(`<div class="modal modal-wide"><div class="modal-head"><h3>🇻🇳 越南文對照：${esc(l.title||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="hint" style="background:#f6fbf7;border:1px solid #cde8d5;border-radius:9px;padding:9px 11px;margin-bottom:10px">
+       共 <b>${n}</b> 個生詞${blank?('，其中 <b style="color:#b45309">'+blank+'</b> 個還沒有越南文'):'，全部都有越南文'}。<br>
+       這是 AI 翻的草稿，<b>學生現在看不到</b>。直接在右邊那一欄改，改完按下面「儲存」。<br>
+       想看學生實際會看到的樣子，用這一課的「👁 預覽」。
+     </div>
+     ${body}
+   </div>
+   <div class="modal-foot"><span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">取消</button>
+     <button class="btn btn-primary" data-act="viCheckSave" data-id="${esc(l.id)}">💾 儲存</button></div></div>`);
+}
 function crmTfoot(kind,list){const g=crmSumOf(kind,list);
   const totStr=itvMoneyStr(g.tot),paidStr=itvMoneyStr(g.paid),dueStr=itvMoneyStr(g.due);
   return `<div class="crm-tfoot"><span class="crm-chev" style="visibility:hidden">▸</span><div class="crm-head">
@@ -2791,7 +2842,8 @@ function lessonCardHtml(l,i){try{
         <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">✏️ 編輯課文</button>
         <button class="btn btn-sm" data-act="questions" data-id="${l.id}">📝 練習題（${qn}）</button>
         <button class="btn btn-sm ${built?'':'btn-accent'}" data-act="toggleBuild" data-id="${l.id}">${built?'↩ 改回進行中':'✅ 標記完成'}</button>
-        ${viHas(l)?`<button class="btn btn-sm" data-act="viRelease" data-id="${l.id}" title="控制學生切到越南文時看不看得到你貼的翻譯">${l.vi_release?'🇻🇳 越南文：學生看得到（點一下收回）':'🇻🇳 越南文：學生看不到（點一下公開）'}</button>`:''}
+        ${viHas(l)?`<button class="btn btn-sm btn-accent" data-act="viCheck" data-id="${l.id}">🇻🇳 越南文對照（檢查／修改）</button>
+        <button class="btn btn-sm" data-act="viRelease" data-id="${l.id}" title="控制學生切到越南文時看不看得到你貼的翻譯">${l.vi_release?'🇻🇳 越南文：學生看得到（點一下收回）':'🇻🇳 越南文：學生看不到（點一下公開）'}</button>`:''}
         ${((((l.dialogues&&l.dialogues.length)||0)+((l.grammar_points&&l.grammar_points.length)||0))>=2)?`<button class="btn btn-sm" data-act="orderLayout" data-id="${l.id}">📐 課文順序</button>`:''}
         <button class="btn btn-sm" data-act="resources" data-id="${l.id}">📎 補充資料${(l.resources&&l.resources.length)?('（'+l.resources.length+'）'):''}</button>
         <button class="btn btn-sm" data-act="printWorksheet" data-id="${l.id}">🖨 作業卷</button>
@@ -6257,6 +6309,17 @@ H.viAllOff=async()=>{
   try{for(const l of on){await DB.update('lessons',l.id,{vi_release:false});l.vi_release=false;}
     render();toast('已全部收回（'+on.length+' 課）');
   }catch(e){toast(writeErr('失敗',e));}};
+H.viCheck=(id)=>viCheckModal((S.lessons||[]).find(x=>x.id===id));
+H.viCheckSave=async(id,b)=>{
+  const l=(S.lessons||[]).find(x=>x.id===id);if(!l)return;
+  const dl=(l.dialogues||[]).map(d=>Object.assign({},d));
+  const by={};
+  $$('.vic-in').forEach(el=>{const si=Number(el.dataset.sec);(by[si]=by[si]||[])[Number(el.dataset.k)]=(el.value||'').trim();});
+  Object.keys(by).forEach(si=>{const arr=by[si];const out=[];for(let k=0;k<arr.length;k++)out.push(arr[k]||'');
+    if(dl[si])dl[si].vocab_vi=out.join('\n');});
+  if(b){b.disabled=true;b.textContent='儲存中…';}
+  try{await DB.update('lessons',id,{dialogues:dl});l.dialogues=dl;closeModal();render();toast('已儲存（學生還是看不到，要自己打開公開）');}
+  catch(e){if(b){b.disabled=false;b.textContent='💾 儲存';}toast(writeErr('儲存失敗',e));}};
 H.wrSave=async(id)=>{const name=(($('#wr-name')&&$('#wr-name').value)||'').trim();if(!name)return toast('請填姓名');
   const picked=[...document.querySelectorAll('.wr-doc')].filter(x=>x.checked).map(x=>x.value).filter(x=>x!=='其他');
   const other=(($('#wr-docs-other')&&$('#wr-docs-other').value)||'').split(/[,，、\s]+/).filter(Boolean);
