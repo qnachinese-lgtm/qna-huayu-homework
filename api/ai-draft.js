@@ -73,14 +73,23 @@ async function listModels(key) {
     .filter(m => (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0)
     .map(m => String(m.name || '').replace(/^models\//, ''));
 }
-function pickModel(names) {
-  const bad = /embedding|aqa|vision|image|tts|audio|native-audio|live|thinking-exp/i;
-  const ok = names.filter(n => !bad.test(n));
-  const order = [/^gemini-flash-latest$/, /^gemini-2\.5-flash$/, /^gemini-2\.0-flash$/,
-                 /^gemini-2\.5-flash-lite$/, /flash-latest/, /2\.5-flash/, /2\.0-flash/, /flash/, /gemini/];
-  for (const re of order) { const hit = ok.find(n => re.test(n)); if (hit) return hit; }
-  return ok[0] || '';
+/* Google 常常改名／下架模型，所以不寫死：問它現在有哪些，再照「新的 flash 優先」排出候選名單 */
+function rankModels(names) {
+  const bad = /embedding|aqa|vision|image|tts|audio|live|nano|customtools|thinking-exp|omni/i;
+  const ok = (names || []).filter(n => !bad.test(n));
+  const ver = (n) => { const m = String(n).match(/gemini-(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : 0; };
+  const score = (n) => {
+    let s = 0;
+    if (/flash/.test(n)) s += 100;
+    if (/pro/.test(n)) s += 40;
+    if (/lite/.test(n)) s -= 15;
+    if (/preview|exp/.test(n)) s -= 25;
+    if (/latest/.test(n)) s -= 5;           /* -latest 常常忙線，排後面一點 */
+    return s + ver(n) * 10;
+  };
+  return ok.slice().sort((a, b) => score(b) - score(a));
 }
+function pickModel(names) { const r = rankModels(names); return r[0] || ''; }
 
 async function callGemini(model, key, prompt) {
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
@@ -188,8 +197,9 @@ module.exports = async (req, res) => {
   if (body && Array.isArray(body.vocab) && body.vocab.length) {
     const words = body.vocab.slice(0, 200);
     let verr = null;
-    const tries = MODELS.slice();
-    try { const names = await listModels(key); const p = pickModel(names); if (p && tries.indexOf(p) < 0) tries.push(p); } catch (e) {}
+    let tries = [];
+    try { tries = rankModels(await listModels(key)).slice(0, 5); } catch (e) {}
+    MODELS.forEach(m => { if (tries.indexOf(m) < 0) tries.push(m); });
     for (const m of tries) {
       try {
         const vi = await callVocab(m, key, words);
@@ -205,7 +215,10 @@ module.exports = async (req, res) => {
 
   const prompt = buildPrompt(body);
   let lastErr = null;
-  for (const m of MODELS) {
+  let order = [];
+  try { order = rankModels(await listModels(key)).slice(0, 5); } catch (e) {}
+  MODELS.forEach(m => { if (order.indexOf(m) < 0) order.push(m); });
+  for (const m of order) {
     try {
       const out = await callGemini(m, key, prompt);
       return res.end(JSON.stringify({ ok: true, model: m, per: out.per || [], overall: out.overall || '' }));
