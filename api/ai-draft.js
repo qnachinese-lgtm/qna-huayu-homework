@@ -194,7 +194,7 @@ module.exports = async (req, res) => {
       try {
         const vi = await callVocab(m, key, words);
         return res.end(JSON.stringify({ ok: true, model: m, vi: vi, n: words.length }));
-      } catch (e) { verr = e; if (e.status && e.status !== 404 && e.status !== 400) break; }
+      } catch (e) { verr = e; if (e.status === 401 || e.status === 403) break; /* 只有金鑰壞掉才停，忙線/改名都換下一個模型再試 */ }
     }
     return res.end(JSON.stringify({ error: (verr && verr.message) || 'AI 服務沒有回應' }));
   }
@@ -211,7 +211,7 @@ module.exports = async (req, res) => {
       return res.end(JSON.stringify({ ok: true, model: m, per: out.per || [], overall: out.overall || '' }));
     } catch (e) {
       lastErr = e;
-      if (e.status && e.status !== 404 && e.status !== 400) break;
+      if (e.status === 401 || e.status === 403) break; /* 只有金鑰壞掉才停，忙線/改名都換下一個模型再試 */
     }
   }
   /* 名單裡的都不能用（Google 常改名），就直接問它現在有哪些，挑一個 flash 再試一次 */
