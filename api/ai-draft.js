@@ -83,7 +83,8 @@ async function listModels(key) {
     .map(m => String(m.name || '').replace(/^models\//, ''));
 }
 /* Google 常常改名／下架模型，所以不寫死：問它現在有哪些，再照「新的 flash 優先」排出候選名單 */
-function rankModels(names) {
+function rankModels(names, opt) {
+  const fast = !!(opt && opt.fast);   /* 翻生詞用：挑最快的 lite 模型，品質夠用又不會等到天荒地老 */
   const bad = /embedding|aqa|vision|image|tts|audio|live|nano|customtools|thinking-exp|omni/i;
   const ok = (names || []).filter(n => !bad.test(n));
   const ver = (n) => { const m = String(n).match(/gemini-(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : 0; };
@@ -91,7 +92,7 @@ function rankModels(names) {
     let s = 0;
     if (/flash/.test(n)) s += 100;
     if (/pro/.test(n)) s += 40;
-    if (/lite/.test(n)) s -= 15;
+    if (/lite/.test(n)) s += fast ? 60 : -15;
     if (/preview|exp/.test(n)) s -= 25;
     if (/latest/.test(n)) s -= 5;           /* -latest 常常忙線，排後面一點 */
     return s + ver(n) * 10;
@@ -101,14 +102,18 @@ function rankModels(names) {
 function pickModel(names) { const r = rankModels(names); return r[0] || ''; }
 
 /* 同一個 serverless 實例裡把「現在能用的模型」記起來，不用每次都去問 Google（省一趟往返） */
-let MODEL_CACHE = { at: 0, list: [] };
-async function candidates(key) {
+let NAME_CACHE = { at: 0, names: [] };
+async function allNames(key) {
   const now = Date.now();
-  if (MODEL_CACHE.list.length && (now - MODEL_CACHE.at) < 30 * 60 * 1000) return MODEL_CACHE.list.slice();
-  let list = [];
-  try { list = rankModels(await listModels(key)).slice(0, 5); } catch (e) {}
+  if (NAME_CACHE.names.length && (now - NAME_CACHE.at) < 30 * 60 * 1000) return NAME_CACHE.names.slice();
+  let names = [];
+  try { names = await listModels(key); } catch (e) {}
+  if (names.length) NAME_CACHE = { at: now, names: names.slice() };
+  return names;
+}
+async function candidates(key, opt) {
+  const list = rankModels(await allNames(key), opt).slice(0, 5);
   MODELS.forEach(m => { if (list.indexOf(m) < 0) list.push(m); });
-  if (list.length) MODEL_CACHE = { at: now, list: list.slice() };
   return list;
 }
 
@@ -218,7 +223,7 @@ module.exports = async (req, res) => {
   if (body && Array.isArray(body.vocab) && body.vocab.length) {
     const words = body.vocab.slice(0, 200);
     let verr = null;
-    const tries = await candidates(key);
+    const tries = body.model ? [String(body.model)] : await candidates(key, { fast: true });
     for (const m of tries) {
       try {
         const vi = await callVocab(m, key, words);
@@ -234,7 +239,7 @@ module.exports = async (req, res) => {
 
   const prompt = buildPrompt(body);
   let lastErr = null;
-  const order = await candidates(key);
+  const order = body.model ? [String(body.model)] : await candidates(key);
   for (const m of order) {
     try {
       const out = await callGemini(m, key, prompt);
