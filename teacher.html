@@ -5529,6 +5529,7 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
       <textarea class="dlg-imp-in" data-i="${i}" placeholder="夢想｜N｜dream｜美美最大的夢想是有一棟大房子。 夢｜N｜dream｜晚安！希望你有個好夢。 明星｜N｜star"></textarea>
       <button class="btn btn-sm btn-accent" type="button" data-act="vocabImport" data-id="${i}" style="margin-top:6px">⬇ 轉換並加入生詞欄</button></details>
     <label class="dlg-lbl">生詞越南文翻譯 <span class="hint">一行一個，<b>順序對齊上面的生詞</b>（第1行＝第1個生詞…，例句行不算）。要學生看得到，記得在最上面勾「公開生詞越南文」。</span></label>
+    <div style="margin:2px 0 6px"><button class="btn btn-sm" type="button" data-act="viGen" data-id="${i}">✨ AI 幫我翻越南文（草稿）</button><span class="hint" style="margin-left:8px">只幫你填進下面的格子，你看過、改完再按儲存。學生現在看不到。</span></div>
     <textarea class="dlg-vocabvi-in" data-i="${i}" placeholder="não bộ&#10;giấc mơ&#10;ngôi sao">${esc(d.vocab_vi||'')}</textarea>
     <label class="dlg-lbl">這段的課文音檔（上傳整段朗讀，會自動切成逐句） <span class="hint">學生上面會有「對話朗讀」播放器；「逐句跟讀」也會改播這個真人朗讀（不用機器音）。切完可逐句微調秒數。</span></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="dlg-audio-in" id="dlg-audio-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.audio_url||'')}" placeholder="上傳整段朗讀，或貼 mp3／YouTube 連結">
@@ -6163,6 +6164,41 @@ H.shareNew2=(key)=>{const p=String(key).split('::');const kind=p[0],id=p[1];
   SHARE_CTX={kind:kind,id:id,name:(c&&c.name)||''};shareForm(null);};
 H.wrNew=()=>wrForm(null);
 H.wrEdit=(id)=>wrForm(wrById(id));
+/* VI_GEN_V35 生詞越南文：呼叫 /api/ai-draft 產生草稿，只填進格子，不會存檔、學生看不到 */
+function viWordLines(txt){
+  return String(txt||'').split('\n').map(x=>x.trim()).filter(Boolean)
+    .filter(x=>!(/^[-–—－・·→*]\s*/.test(x)||/^例[:：]/.test(x)));
+}
+H.viGen=async(i)=>{
+  i=Number(i);
+  const src=document.querySelector('.dlg-vocab-in[data-i="'+i+'"]');
+  const dst=document.querySelector('.dlg-vocabvi-in[data-i="'+i+'"]');
+  if(!src||!dst)return toast('找不到生詞欄位');
+  const words=viWordLines(src.value);
+  if(!words.length)return toast('上面還沒有生詞');
+  if(String(dst.value||'').trim()&&!confirm('下面已經有越南文了，要整段换成 AI 的草稿嗎？'))return;
+  const btn=document.querySelector('[data-act="viGen"][data-id="'+i+'"]');
+  if(btn){btn.disabled=true;btn.textContent='翻譯中…（'+words.length+' 個）';}
+  try{
+    const out=[];
+    for(let k=0;k<words.length;k+=60){
+      const part=words.slice(k,k+60);
+      const r=await fetch('/api/ai-draft',{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({vocab:part})});
+      const j=await r.json();
+      if(j.error)throw new Error(j.error==='NO_KEY'?(j.hint||'還沒設定 AI 金鑰'):j.error);
+      const vi=Array.isArray(j.vi)?j.vi:[];
+      for(let z=0;z<part.length;z++)out.push(String(vi[z]||'').trim());
+      if(btn)btn.textContent='翻譯中… '+out.length+'/'+words.length;
+    }
+    dst.value=out.join('\n');
+    dst.dispatchEvent(new Event('input',{bubbles:true}));
+    if(typeof dlgSync==='function')dlgSync();
+    const blank=out.filter(x=>!x).length;
+    toast('已填入 '+out.length+' 行草稿'+(blank?('（有 '+blank+' 行 AI 沒翻出來，請自己補）'):'')+'。請看過再按儲存。');
+  }catch(e){toast('翻譯失敗：'+((e&&e.message)||e));}
+  finally{if(btn){btn.disabled=false;btn.textContent='✨ AI 幫我翻越南文（草稿）';}}
+};
 H.wrSave=async(id)=>{const name=(($('#wr-name')&&$('#wr-name').value)||'').trim();if(!name)return toast('請填姓名');
   const picked=[...document.querySelectorAll('.wr-doc')].filter(x=>x.checked).map(x=>x.value).filter(x=>x!=='其他');
   const other=(($('#wr-docs-other')&&$('#wr-docs-other').value)||'').split(/[,，、\s]+/).filter(Boolean);
