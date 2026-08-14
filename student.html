@@ -1749,7 +1749,13 @@ function billFor(s){
   log.slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).forEach(e=>{
     const f=_feeFor(s,e);if(f==null){unknown++;return;}
     charge+=f;items.push({who:s.name||'',date:e.date,start:e.start||'',end:e.end||'',h:_logHours(e),fee:f,leave:e.status==='leave'});});
-  const paid=(Array.isArray(s.payments)?s.payments:[]).reduce((a,p)=>a+(Number(p&&p.amount)||0),0);
+  /* CUR_MIX_V42 用兩種幣別繳費時不能直接相加：只有同幣別、或老師填了換算金額(conv)的才抵 */
+  const bcur=(s&&s.currency)||(((s&&s.payments)||[]).slice(-1)[0]||{}).currency||'TWD';
+  let paid=0;
+  (Array.isArray(s.payments)?s.payments:[]).forEach(p=>{
+    if(!p)return;const pc=p.currency||bcur,amt=Number(p.amount)||0;
+    if(pc===bcur){paid+=amt;return;}
+    const cv=Number(p.conv);if(cv>0)paid+=cv;});
   /* DUE_DONE_V41 老師標成「已處理」（優惠／不追了）的金額，學生這邊也不要再算成待繳 */
   const waived=Math.round((Number(s.fee_waived)||0)*100)/100;
   return {items,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,waived,
