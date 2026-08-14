@@ -2595,7 +2595,7 @@ function siteImgClear(k){const h=document.getElementById('site-'+k);if(h)h.value
 function siteImgPick(input,k){const f=input.files&&input.files[0];if(!f)return;const rd=new FileReader();rd.onload=function(){const img=new Image();img.onload=function(){const max=440;let w=img.width,h=img.height;const sc=Math.min(1,max/Math.max(w,h));const c=document.createElement('canvas');c.width=Math.round(w*sc);c.height=Math.round(h*sc);const cx=c.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,c.width,c.height);cx.drawImage(img,0,0,c.width,c.height);const data=c.toDataURL('image/jpeg',0.85);const hid=document.getElementById('site-'+k);if(hid)hid.value=data;const pv=document.getElementById('site-'+k+'-prev');if(pv){pv.src=data;pv.style.display='';}try{toast('已選圖，記得按下方「儲存」');}catch(e){}};img.src=rd.result;};rd.readAsDataURL(f);}
 
 /* ---------- 學生名冊 ---------- */
-const ENROLL=[['active','在學中','#16a34a'],['trial','試學（免費）','#7c3aed'],['reserved','預約','#2563eb'],['paused','休學','#9ca3af']];
+const ENROLL=[['active','在學中','#16a34a'],['trial','試學（免費）','#7c3aed'],['reserved','預約・詢問中','#2563eb'],['paused','休學','#9ca3af']];
 function isTrial(s){return enrollOf(s)==='trial';}
 function enrollOf(s){return (s&&s.enroll_status)||'active';}
 function enrollMeta(v){return ENROLL.find(x=>x[0]===v)||ENROLL[0];}
@@ -2680,7 +2680,7 @@ function renderStudents(){
   const chip=(v,lbl)=>`<button class="segb${sf===v?' on':''}" data-act="stuFilter" data-id="${v}">${lbl}${v!=='all'?` <span class="segn">${cnt(v)}</span>`:''}</button>`;
   const allOpen=S.stuSecAllOpen===true;
   const filterBar=`<div class="stu-bar">
-    <div class="segbar">${chip('all','全部')}${chip('active','✅ 在學中')}${chip('trial','🎁 試學')}${chip('reserved','📌 預約')}${chip('paused','⏸️ 休學')}</div>
+    <div class="segbar">${chip('all','全部')}${chip('active','✅ 在學中')}${chip('trial','🎁 試學')}${chip('reserved','📌 預約・詢問中')}${chip('paused','⏸️ 休學')}</div>
     <span class="grow"></span>
     <div class="segbar"><button class="segb${(S.stuView!=='card')?' on':''}" data-act="stuView" data-id="table">📋 表格</button><button class="segb${(S.stuView==='card')?' on':''}" data-act="stuView" data-id="card">📇 卡片</button></div>
     <div class="segbar"><button class="segb${allOpen?' on':''}" data-act="stuSecToggle">${allOpen?'▾ 全部收起':'▸ 全部展開'}</button></div>
@@ -2705,10 +2705,11 @@ function renderStudents(){
   if(solo.length)html+=sec('🧑‍🏫 一對一',solo,'');
   if(teamNoGrp.length)html+=sec('👥 團班（尚未分班）',teamNoGrp,'');
   classNames.forEach(c=>html+=sec('👥 '+esc(c),activeReal.filter(s=>stuGroups(s).includes(c)),c));
-  if(reservedReal.length)html+=`<details class="stu-sec cool-sec"${(S.stuSecAllOpen===true)?' open':''}><summary><span style="font-size:16px;color:#2563eb;font-weight:600">📌 預約（還沒開始）</span> <span class="tag">${reservedReal.length} 人</span></summary>${grpHtml(reservedReal.slice().sort(stuNameCmp))}</details>`;
+  if(reservedReal.length)html+=`<details class="stu-sec cool-sec"${(S.stuSecAllOpen===true)?' open':''}><summary><span style="font-size:16px;color:#2563eb;font-weight:600">📌 預約・詢問中（還沒開始上課）</span> <span class="tag">${reservedReal.length} 人</span></summary>${grpHtml(reservedReal.slice().sort(stuNameCmp))}</details>`;
   if(pausedReal.length)html+=`<details class="stu-sec cool-sec"${(S.stuSecAllOpen===true)?' open':''} style="opacity:.9"><summary><span style="font-size:16px;color:var(--muted);font-weight:600">⏸️ 已休學</span> <span class="tag">${pausedReal.length} 人</span></summary>${grpHtml(pausedReal.slice().sort(stuNameCmp))}</details>`;
   if(testers.length)html+=`<details class="stu-sec cool-sec"${S.stuSecAllOpen===true?' open':''} style="opacity:.85"><summary><span style="font-size:16px;color:var(--muted);font-weight:600">🧪 測試帳號</span> <span class="tag">${testers.length} 人</span></summary>${grpHtml(testers.slice().sort(stuNameCmp))}</details>`;
-  wrap.innerHTML=filterBar+inquiryHtml()+html;
+  /* INQ_MERGE_V37 「詢問／候補」跟「預約」意思重疊，已合併：來問的人一律直接建成學生、狀態設「預約」 */
+  wrap.innerHTML=filterBar+html;
 }
 function studentModal(st){const e=!!(st&&st.id);st=st||{};
   openModal(`<div class="modal"><div class="modal-head"><h3>${e?'編輯學生':'新增學生'}</h3><button class="x" data-act="closeModal">×</button></div>
@@ -2718,7 +2719,7 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
      <div class="field"><label>頭像 <span class="hint">留空＝系統自動配一個</span></label><div style="display:flex;align-items:center;gap:8px"><span id="f-av-prev" class="avatar sm emo" data-dft="${avEmoji({name:st.name||''})}" style="background:${avColor(st.name)};flex:none">${avEmoji(st)}</span><input id="f-avatar" type="text" maxlength="8" value="${esc(st.avatar||'')}" placeholder="貼一個 emoji，或按右邊挑" style="flex:1" oninput="(function(el){var p=document.getElementById('f-av-prev');if(p)p.textContent=el.value.trim()||p.dataset.dft;})(this)">${st.id?`<button type="button" class="btn btn-sm" data-act="avPick" data-id="${esc(st.id)}">挑一個</button>`:''}</div></div>
      <div class="field"><label>國籍</label><input id="f-nat" type="text" value="${esc(st.nationality||'')}" placeholder="例：美國"></div>
      <div class="field"><label>班別</label><select id="f-type"><option value="1對1" ${st.class_type!=='團班'?'selected':''}>一對一</option><option value="團班" ${st.class_type==='團班'?'selected':''}>團班</option></select></div>
-     <div class="field"><label>狀態 <span class="hint">預約＝還沒開始；休學＝暫停上課</span></label><select id="f-status">${ENROLL.map(x=>`<option value="${x[0]}"${enrollOf(st)===x[0]?' selected':''}>${x[1]}</option>`).join('')}</select></div>
+     <div class="field"><label>狀態 <span class="hint">預約・詢問中＝來問過或講好了、還沒上第一堂（Email、密碼、學費都可以先留空）；休學＝暫停上課</span></label><select id="f-status">${ENROLL.map(x=>`<option value="${x[0]}"${enrollOf(st)===x[0]?' selected':''}>${x[1]}</option>`).join('')}</select></div>
      <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-test" ${st.is_test?'checked':''} style="width:auto;margin:0"> 🧪 這是測試帳號 <span class="hint">（不列入真實學生統計，會單獨歸到「🧪 測試帳號」區）</span></label></div>
      <div class="field"><label>使用教材</label><input id="f-book" type="text" value="${esc(st.textbook||'')}" placeholder="例：當代中文課程 1"></div>
      <div class="field full"><label>團班 <span class="hint">可多個，用「、」或逗號分隔；或到「👥 團班管理」統一設定</span></label>
@@ -6754,7 +6755,7 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
     const b=stuBill(x)||{due:0};const cur=billCur(x);
     const tag=b.due>0.01?oweB('欠 '+money(b.due,cur)):(b.due<-0.01?preB('預繳 '+money(-b.due,cur)):okB());
     const st=enrollOf(x);
-    const extra=(st==='active'?'':`<span class="muted" style="font-size:12px">（${st==='paused'?'休學':(st==='trial'?'試學':(st==='reserved'?'預約':st))}）</span>`)
+    const extra=(st==='active'?'':`<span class="muted" style="font-size:12px">（${st==='paused'?'休學':(st==='trial'?'試學':(st==='reserved'?'預約・詢問中':st))}）</span>`)
       +((famKeyOf(x)&&famMembers(famKeyOf(x)).length>=2)?`<span class="muted" style="font-size:12px">\u{1F468}\u200D\u{1F469}\u200D\u{1F466} ${esc(famKeyOf(x))}</span>`:'');
     items.push({k:'stu',id:x.id,name:x.name||'',sort:rank(x),owe:b.due>0.01,tag:tag,extra:extra,
       av:`<span class="avatar sm emo" style="background:${avColor(x.name)};flex:none">${avEmoji(x)}</span>`});});
