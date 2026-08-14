@@ -3242,17 +3242,27 @@ function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
      <div class="field"><label>現有團班 <span class="hint">點右邊「✏️ 編輯」設定時段、教材、成員</span></label>${clsRows}</div>
    </div></div>`);
 }
-function assignModal(l){const ids=l.assigned_ids||[];const ag=l.assigned_groups||[];const classes=groupsList();
-  const grpList=classes.length?classes.map(c=>`<label class="check-row"><input type="checkbox" class="as-grp" value="${esc(c)}" ${ag.includes(c)?'checked':''}> 👥 <b>${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span></label>`).join(''):'<div class="hint">還沒有團班。可在「學生名冊 → 👥 團班管理」建立。</div>';
-  const list=S.students.length?S.students.slice().sort(stuNameCmp).map(s=>`<label class="check-row"><input type="checkbox" value="${s.id}" ${ids.includes(s.id)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'1對1')}</span>${stuGroups(s).length?(' <span class="tag">'+stuGroups(s).map(esc).join('、')+'</span>'):''}</label>`).join(''):'<div class="hint">尚無學生，請先到「學生名冊」新增。</div>';
-  openModal(`<div class="modal"><div class="modal-head"><h3>發佈「${esc(l.title)}」</h3><button class="x" data-act="closeModal">×</button></div>
+/* WB_ASSIGN_V38 課文與作業簿共用同一個發佈視窗，畫面、順序、按鈕全部一樣 */
+function assignModalCore(o){
+  const ids=o.ids||[],ag=o.groups||[],classes=groupsList();
+  const grpList=classes.length
+    ? classes.map(c=>`<label class="check-row"><input type="checkbox" class="as-grp" value="${esc(c)}" ${ag.includes(c)?'checked':''}> 👥 <b>${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span></label>`).join('')
+    : '<div class="hint">還沒有團班。可在「學生名冊 → 👥 團班管理」建立。</div>';
+  const list=S.students.length
+    ? S.students.slice().sort(stuNameCmp).map(s=>`<label class="check-row"><input type="checkbox" value="${s.id}" ${ids.includes(s.id)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'1對1')}</span>${stuGroups(s).length?(' <span class="tag">'+stuGroups(s).map(esc).join('、')+'</span>'):''}</label>`).join('')
+    : '<div class="hint">尚無學生，請先到「學生名冊」新增。</div>';
+  openModal(`<div class="modal"><div class="modal-head"><h3>發佈「${esc(o.title||'')}」</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-     <div class="field"><label>截止日期 <span class="hint">選填</span></label><input id="as-due" type="date" min="2000-01-01" max="2100-12-31" value="${esc(l.due_date||'')}"></div>
+     <div class="field"><label>截止日期 <span class="hint">選填</span></label><input id="as-due" type="date" min="2000-01-01" max="2100-12-31" value="${esc(o.due||'')}"></div>
      <div class="field"><label>發佈給整個團班 <span class="hint">之後加入這個班的學生會自動拿到</span></label><div class="check-list">${grpList}</div></div>
      <div class="field"><label>再發佈個別學生（選填） <button class="btn btn-sm btn-ghost" data-act="assignAll" type="button" style="float:right">全選 / 取消</button></label>
        <div class="check-list" id="as-targets">${list}</div></div></div>
-   <div class="modal-foot">${(ids.length||ag.length)?`<button class="btn btn-warn" data-act="unassign" data-id="${l.id}">↩ 全部收回</button>`:''}<span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">取消</button>
-     <button class="btn btn-primary" data-act="saveAssign" data-id="${l.id}">儲存</button></div></div>`);
+   <div class="modal-foot">${(ids.length||ag.length)?`<button class="btn btn-warn" data-act="${esc(o.unassignAct)}" data-id="${esc(o.id)}">↩ 全部收回</button>`:''}<span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">取消</button>
+     <button class="btn btn-primary" data-act="${esc(o.saveAct)}" data-id="${esc(o.id)}">儲存</button></div></div>`);
+}
+function assignModal(l){
+  assignModalCore({id:l.id,title:l.title,ids:l.assigned_ids||[],groups:l.assigned_groups||[],
+    due:l.due_date||'',saveAct:'saveAssign',unassignAct:'unassign'});
 }
 
 /* ---------- 成績：作答呈現與對錯判斷 ---------- */
@@ -4060,6 +4070,8 @@ function wbBarHtml(l,more){const w=wbOfLesson(l);
       <button class="btn btn-sm btn-accent" data-act="newWb" data-id="${l.id}">＋ 建立作業簿</button></div>`;}
   const na=(w.assigned_ids||[]).length,ng=(w.assigned_groups||[]).join('、');
   const pub=(ng||na)?('<span class="tag tpub-y">已發佈'+(ng?('：'+esc(ng)):'')+(na?('＋'+na+'人'):'')+'</span>'):'<span class="tag tpub-n">未發佈</span>';
+  /* WB_ASSIGN_V38 截止日也跟課文卡片一樣顯示 */
+  const wdi=dueInfo(w.due_date);const dueTag=wdi?('<span class="badge '+wdi.cls+'">'+wdi.label+'</span>'):'';
   const sub=(S.wbdocs||[]).filter(x=>x.wb_lesson===w.id&&(x.status==='submitted'||x.status==='reviewed')).length;
   if(more)return `<button class="btn btn-sm btn-danger" data-act="delWb" data-id="${w.id}">🗑 刪除作業簿</button>`;
   const auds=((w.wb||{}).audios||[]);
@@ -4067,7 +4079,7 @@ function wbBarHtml(l,more){const w=wbOfLesson(l);
   const haveN=auds.length?auds.filter(x=>x.url).length:(w.audio_url?1:0);
   const warn=(needN&&haveN<needN)?('<span class="tag" style="background:#fdece9;color:#b8382f">⚠️ 缺聽力音檔 '+(needN-haveN)+'/'+needN+'</span>'):'';
   return `<div style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-    <b style="font-size:14px">📒 作業簿</b>${pub}${warn}${sub?('<span class="hint">已交 '+sub+' 份</span>'):''}
+    <b style="font-size:14px">📒 作業簿</b>${pub}${dueTag}${warn}${sub?('<span class="hint">已交 '+sub+' 份</span>'):''}
     <span class="grow"></span>
     <button class="btn btn-sm" data-act="editWb" data-id="${w.id}">✏️ 編輯</button>
     <button class="btn btn-sm" data-act="previewWb" data-id="${w.id}">👁 預覽</button>
@@ -4435,19 +4447,23 @@ H.previewWb=(id)=>{window.open('student.html?wbpreview='+encodeURIComponent(id),
 H.delWb=async(id)=>{if(!confirm('確定刪除這份作業簿？'))return;
   try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});S.workbooks=(S.workbooks||[]).filter(x=>x.id!==id);render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.assignWb=(id)=>{const w=(S.workbooks||[]).find(x=>x.id===id);if(!w)return;
-  const groups=groupsList();const ag=w.assigned_groups||[],ai=w.assigned_ids||[];
-  const gs=groups.map(g=>`<label style="display:block;margin:4px 0"><input type="checkbox" class="wbag" value="${esc(g)}" ${ag.includes(g)?'checked':''}> ${esc(g)}</label>`).join('')||'<div class="hint">還沒有團班</div>';
-  const ss=(S.students||[]).filter(s=>!s.deleted_at).map(s=>`<label style="display:block;margin:3px 0"><input type="checkbox" class="wbai" value="${esc(s.id)}" ${ai.includes(s.id)?'checked':''}> ${esc(s.name||'')}</label>`).join('');
-  openModal(`<div class="modal"><div class="modal-head"><h3>發佈：${esc(w.title||'')}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="field"><label>團班</label>${gs}</div>
-   <div class="field"><label>個別學生</label><div style="max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:8px">${ss}</div></div></div>
-   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="saveWbAssign" data-id="${w.id}">儲存</button></div></div>`);};
+  assignModalCore({id:w.id,title:w.title||'作業簿',ids:w.assigned_ids||[],groups:w.assigned_groups||[],
+    due:w.due_date||'',saveAct:'saveWbAssign',unassignAct:'unassignWb'});};
 H.saveWbAssign=async(id,b)=>{const w=(S.workbooks||[]).find(x=>x.id===id);if(!w)return;
-  const g=[...document.querySelectorAll('.wbag:checked')].map(x=>x.value);
-  const i=[...document.querySelectorAll('.wbai:checked')].map(x=>x.value);
+  const i=$$('#as-targets input:checked').map(x=>x.value);
+  const g=$$('.as-grp:checked').map(x=>x.value);
+  const due=($('#as-due')&&$('#as-due').value)||null;
   if(b){b.disabled=true;b.textContent='儲存中…';}
-  try{await ensureAuthFresh();await DB.update('lessons',id,{assigned_groups:g,assigned_ids:i});w.assigned_groups=g;w.assigned_ids=i;closeModal();render();toast('已更新發佈');}
+  try{await ensureAuthFresh();await DB.update('lessons',id,{assigned_groups:g,assigned_ids:i,due_date:due});
+    w.assigned_groups=g;w.assigned_ids=i;w.due_date=due;closeModal();render();toast('已發佈');}
   catch(e){if(b){b.disabled=false;b.textContent='儲存';}toast(writeErr('儲存失敗',e));}};
+H.unassignWb=async(id)=>{const w=(S.workbooks||[]).find(x=>x.id===id);if(!w)return;
+  if(!confirm('確定收回「'+(w.title||'作業簿')+'」的發佈嗎？\n學生會立刻看不到這份作業簿，你可以修改後再重新發佈。（學生已作答的紀錄會保留）'))return;
+  const btn=document.querySelector('[data-act="unassignWb"]');if(btn){btn.disabled=true;btn.textContent='收回中…';}
+  try{await DB.update('lessons',id,{assigned_ids:[],assigned_groups:[]});w.assigned_ids=[];w.assigned_groups=[];}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='↩ 全部收回';}toast('收回失敗：'+(e.code||e.message||e));return;}
+  closeModal();toast('已收回發佈，學生已看不到');
+  try{await loadAll();render();}catch(e){}};
 
 H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
