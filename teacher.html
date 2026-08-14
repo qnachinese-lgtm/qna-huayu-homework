@@ -652,6 +652,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         /* CRM_FOOT_V33 已結案：給一個藍色，跟「進行中」的綠色分開 */
         /* CRM_WORD_V34 面試／代辦／代書一律用「已結案」，不再出現「已完成」 */
         #app .badge.badge-fin{background:#e8eefb;color:#1d4ed8;border-color:#93b0ee}
+        /* DUE_DONE_V41 已處理（優惠／不追了）的標籤 */
+        #app .pay-wv{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;
+          background:#eef7f0;color:#15803d;border:1px solid #a7d8b8;border-radius:999px;padding:2px 9px;white-space:nowrap}
         /* VI_CHECK_V39 越南文對照表 */
         .modal.modal-wide{max-width:1060px;width:96vw}
         .vic-sec{margin-bottom:16px}
@@ -976,8 +979,10 @@ function stuBill(s){
   log.slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).forEach(e=>{
     const f=lessonFee(s,e);if(f==null){unknown++;return;}charge+=f;items.push({e,f});});
   const paid=(Array.isArray(s.payments)?s.payments:[]).reduce((a,p)=>a+(Number(p&&p.amount)||0),0);
-  return {items,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,
-          due:Math.round((charge-paid)*100)/100,unknown};}
+  /* DUE_DONE_V41 「已處理」：優惠、少收、或決定不追了的金額，從應收裡扣掉，不再算成欠款 */
+  const waived=Math.round((Number(s.fee_waived)||0)*100)/100;
+  return {items,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,waived,
+          due:Math.round((charge-paid-waived)*100)/100,unknown};}
 /* ---- 👨‍👩‍👦 合併帳戶：同一個 bill_group 的學生，帳務合在一起算（一人多繳可抵另一人少繳） ---- */
 function famKeyOf(s){return String((s&&s.bill_group)||'').trim();}
 function famMembers(k){if(!k)return [];return (S.students||[]).filter(x=>x&&!x.deleted&&!x.is_test&&famKeyOf(x)===k);}
@@ -1605,6 +1610,9 @@ function payRowHtml(r,noState){
              : (over ? '<span class="pay-st over">預繳 '+money(-b.due,cur)+'</span>'
                      : '<span class="pay-st ok">✅ 已結清</span>')));
   const last=(Array.isArray(s.payments)?s.payments:[]).slice().sort((a,c)=>String(c.date||'').localeCompare(String(a.date||'')))[0];
+  /* DUE_DONE_V41 */
+  const wv=Number(b.waived)||0;
+  const wvTag=wv?('<span class="pay-wv" title="'+esc(s.fee_waived_note||'已處理')+'">已處理 '+money(wv,cur)+(s.fee_waived_note?('・'+esc(String(s.fee_waived_note).slice(0,12))):'')+'</span>'):'';
   return '<div class="pay-row'+((owe&&!noState)?' is-owe':'')+'">'
     +'<span class="pay-nm">'+snm(s.name)+'</span>'
     +'<span class="pay-tag">'+enrollBadge(s)+'</span>'
@@ -1612,9 +1620,11 @@ function payRowHtml(r,noState){
       +(b.unknown?(' <span class="badge badge-soon" title="有課沒設定收費">⚠️ '+b.unknown+'</span>'):'')+'</span>'
     +'<span class="pay-c" data-l="應收"><b>'+(b.items.length?money(b.charge,cur):'—')+'</b></span>'
     +'<span class="pay-c" data-l="已繳"><b>'+money(b.paid,cur)+'</b>'+(last?('<span class="pay-dt">'+esc(String(last.date||'').slice(0,10))+'</span>'):'')+'</span>'
-    +state
+    +state+wvTag
     +'<span class="pay-act">'
     +'<button class="btn btn-sm btn-primary" data-act="payments" data-id="'+esc(s.id)+'">＋ 記一筆</button>'
+    +(owe?('<button class="btn btn-sm btn-soft" data-act="dueDone" data-id="'+esc(s.id)+'" title="優惠、少收、或這筆不追了：從應收扣掉，之後不再顯示欠款">✅ 已處理</button>'):'')
+    +(wv?('<button class="btn btn-sm" data-act="dueUndo" data-id="'+esc(s.id)+'" title="取消已處理，欠款會再算回來">↩ 取消已處理</button>'):'')
     +'<button class="btn btn-sm" data-act="billStatement" data-id="'+esc(s.id)+'">🧾 對帳單</button>'
     +'<button class="btn btn-sm" data-act="remindMsg" data-id="'+esc(s.id)+'">📋 提醒</button>'
     +'</span></div>';
@@ -6320,6 +6330,31 @@ H.viCheckSave=async(id,b)=>{
   if(b){b.disabled=true;b.textContent='儲存中…';}
   try{await DB.update('lessons',id,{dialogues:dl});l.dialogues=dl;closeModal();render();toast('已儲存（學生還是看不到，要自己打開公開）');}
   catch(e){if(b){b.disabled=false;b.textContent='💾 儲存';}toast(writeErr('儲存失敗',e));}};
+/* DUE_DONE_V41 已處理：把目前的欠款記成「優惠／不追了」，不改上課記錄也不假造繳費 */
+H.dueDone=async(id)=>{
+  const s=(S.students||[]).find(x=>x.id===id);if(!s)return;
+  const b=stuBill(s);if(!b||b.due<=0.0001)return toast('這位學生目前沒有欠款');
+  const cur=billCur(s);
+  const why=prompt('要把「'+(s.name||'')+'」還沒收的 '+money(b.due,cur)+' 標成「已處理」嗎？\n\n'
+    +'這只是記帳上不再算他欠錢（例如你給了優惠、或這筆不打算追了），\n'
+    +'上課記錄和繳費紀錄都不會被改掉，隨時可以取消。\n\n'
+    +'寫個原因（選填），按確定就完成：','優惠');
+  if(why===null)return;
+  const add=Math.round(((Number(s.fee_waived)||0)+b.due)*100)/100;
+  try{await ensureAuthFresh();
+    await DB.update('students',id,{fee_waived:add,fee_waived_note:(why||'').trim(),fee_waived_at:new Date().toISOString()});
+    s.fee_waived=add;s.fee_waived_note=(why||'').trim();s.fee_waived_at=new Date().toISOString();
+    render();toast('已標成「已處理」，之後不會再顯示欠款');
+  }catch(e){toast(writeErr('失敗',e));}};
+H.dueUndo=async(id)=>{
+  const s=(S.students||[]).find(x=>x.id===id);if(!s)return;
+  const cur=billCur(s);
+  if(!confirm('要取消「'+(s.name||'')+'」的已處理嗎？\n'+money(Number(s.fee_waived)||0,cur)+' 會再算回欠款。'))return;
+  try{await ensureAuthFresh();
+    await DB.update('students',id,{fee_waived:0,fee_waived_note:'',fee_waived_at:null});
+    s.fee_waived=0;s.fee_waived_note='';s.fee_waived_at=null;
+    render();toast('已取消，欠款算回來了');
+  }catch(e){toast(writeErr('失敗',e));}};
 H.wrSave=async(id)=>{const name=(($('#wr-name')&&$('#wr-name').value)||'').trim();if(!name)return toast('請填姓名');
   const picked=[...document.querySelectorAll('.wr-doc')].filter(x=>x.checked).map(x=>x.value).filter(x=>x!=='其他');
   const other=(($('#wr-docs-other')&&$('#wr-docs-other').value)||'').split(/[,，、\s]+/).filter(Boolean);
@@ -7341,7 +7376,48 @@ if(useAuth){firebase.auth().onAuthStateChanged(async function(user){const ok=use
 else{if(sessionStorage.getItem('teacher_ok')==='1')enter();}
 // 保持登入新鮮：每 18 分鐘刷新一次 token，避免長時間編輯後突然無法儲存
 setInterval(function(){try{const u=window.firebase&&firebase.auth&&firebase.auth().currentUser;if(u)u.getIdToken(true).catch(function(){});}catch(e){}},18*60*1000);
-if('serviceWorker'in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(r){try{r.update();}catch(e){}}).catch(function(){});var hadCtrl=!!navigator.serviceWorker.controller,refreshing=false;navigator.serviceWorker.addEventListener('controllerchange',function(){if(refreshing)return;if(hadCtrl){refreshing=true;location.reload();}else{hadCtrl=true;}});});}
+/* SW_NOLOOP_V40 有新版本不再自己重新整理（以前會一直重跑、跑回登入畫面）。
+   改成畫面下面跳一條「有新版本，點一下更新」，你按了才更新。 */
+if('serviceWorker' in navigator){window.addEventListener('load',function(){
+  var reloading=false;
+  function showBar(reg){
+    if(document.getElementById('sw-upd'))return;
+    var b=document.createElement('div');b.id='sw-upd';
+    b.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:99999;'+
+      'background:#3B2E22;color:#fff;padding:10px 14px;border-radius:999px;box-shadow:0 6px 20px #0003;'+
+      'display:flex;gap:10px;align-items:center;font-size:14px;font-family:inherit';
+    b.innerHTML='<span>🔄 有新版本可以用了</span>'+
+      '<button id="sw-upd-go" style="border:0;border-radius:999px;padding:5px 12px;cursor:pointer;background:#fff;color:#3B2E22;font-weight:700;font-family:inherit">立刻更新</button>'+
+      '<button id="sw-upd-x" style="border:0;background:transparent;color:#fff9;cursor:pointer;font-size:17px;line-height:1;font-family:inherit">×</button>';
+    document.body.appendChild(b);
+    document.getElementById('sw-upd-x').onclick=function(){b.remove();};
+    document.getElementById('sw-upd-go').onclick=function(){
+      reloading=true;
+      try{sessionStorage.setItem('sw_upd','1');}catch(e){}
+      var w=reg&&reg.waiting;
+      if(w){w.postMessage({type:'SKIP_WAITING'});setTimeout(function(){location.reload();},1200);}
+      else location.reload();
+    };
+  }
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(reg){
+    if(reg.waiting&&navigator.serviceWorker.controller)showBar(reg);
+    reg.addEventListener('updatefound',function(){
+      var nw=reg.installing;if(!nw)return;
+      nw.addEventListener('statechange',function(){
+        if(nw.state==='installed'&&navigator.serviceWorker.controller)showBar(reg);
+      });
+    });
+    try{reg.update();}catch(e){}
+  }).catch(function(){});
+  /* 只有「你按了更新」才重新整理；而且一個分頁最多重新整理一次，不會變成無限迴圈 */
+  navigator.serviceWorker.addEventListener('controllerchange',function(){
+    if(reloading)return;
+    var once=false;try{once=sessionStorage.getItem('sw_upd')==='1';}catch(e){}
+    if(!once)return;
+    try{sessionStorage.removeItem('sw_upd');}catch(e){}
+    reloading=true;location.reload();
+  });
+});}
 </script>
 </body>
 </html>

@@ -1003,8 +1003,7 @@ function dialogueBlockHtml(l,di,opts){opts=opts||{};
   </div></div>`;}
 function vocabSectionHtml(l,di,opts){opts=opts||{};
   const d=lessonDialogues(l)[di];if(!d)return '';const vocab=parseVocab(d.vocabulary);if(!vocab.length)return '';
-  /* VI_PREVIEW_V39 老師預覽時一律看得到越南文（要檢查翻得對不對）；學生仍然只有 vi_release 打開才看得到 */
-  if(l&&(l.vi_release||S.preview)){const vis=(d.vocab_vi||'').split('\n').map(s=>s.trim());vocab.forEach((v,i)=>{if(vis[i])v.vi=vis[i];});}
+  if(l&&l.vi_release){const vis=(d.vocab_vi||'').split('\n').map(s=>s.trim());vocab.forEach((v,i)=>{if(vis[i])v.vi=vis[i];});}
   const chips=vocab.map((v,k)=>`<button type="button" class="vocab-chip" data-act="vocabPlay" data-lesson="${l.id}" data-di="${di}" data-vi="${k}" data-text="${esc(v.front)}">${vocabAnno(v)}<span class="spk">🔊</span></button>`).join('');
   const ttl=(d.title||'').trim();
   const vau=(d.vocab_audio_url||'').trim()
@@ -1303,14 +1302,7 @@ function readResp(q){
 /* ---- 繁簡自動轉換（OpenCC）：簡中→簡體、繁中→繁體；其他語言不轉 ---- */
 let CONV={cn:null,zh:null};
 function initConv(){if(window.OpenCC&&OpenCC.Converter){try{CONV.cn=OpenCC.Converter({from:'tw',to:'cn'});CONV.zh=OpenCC.Converter({from:'cn',to:'tw'});}catch(e){}}}
-/* 繁中顯示：不再用 OpenCC 掃已經是繁體的課文。
-   OpenCC 的「简→繁」會把課本的字改錯，例如：游泳→遊泳、看表演→看錶演、
-   問卷→問捲、系上→繫上、糊里糊塗→糊裡糊塗、只停幾站→隻停幾站、飛回→飛迴、
-   背包客→揹包客、念書→唸書、私人→俬人。
-   這裡只留老師要的正規化（台→臺、家具→傢俱）和幾個異體字修正。 */
-const TWFIX=[[/台/g,'臺'],[/家具/g,'傢俱'],[/爲/g,'為'],[/麽/g,'麼'],[/裏/g,'裡'],[/祕/g,'秘']];
-function twFix(s){let o=s;for(let i=0;i<TWFIX.length;i++)o=o.replace(TWFIX[i][0],TWFIX[i][1]);return o;}
-function convEl(root){const conv=(S.lang==='zh')?twFix:CONV[S.lang];if(!conv||!root)return;const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);const arr=[];let n;while(n=w.nextNode())arr.push(n);for(const node of arr){const v=node.nodeValue;if(v&&/[㐀-鿿]/.test(v)){const c=conv(v);if(c!==v)node.nodeValue=c;}}}
+function convEl(root){const conv=CONV[S.lang];if(!conv||!root)return;const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);const arr=[];let n;while(n=w.nextNode())arr.push(n);for(const node of arr){const v=node.nodeValue;if(v&&/[㐀-鿿]/.test(v)){const c=conv(v);if(c!==v)node.nodeValue=c;}}}
 function convScreen(){convEl(document.getElementById('screen'));}
 
 /* ---- 手寫題：畫布作答 ---- */
@@ -1758,17 +1750,20 @@ function billFor(s){
     const f=_feeFor(s,e);if(f==null){unknown++;return;}
     charge+=f;items.push({who:s.name||'',date:e.date,start:e.start||'',end:e.end||'',h:_logHours(e),fee:f,leave:e.status==='leave'});});
   const paid=(Array.isArray(s.payments)?s.payments:[]).reduce((a,p)=>a+(Number(p&&p.amount)||0),0);
-  return {items,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,
-          due:Math.round((charge-paid)*100)/100,unknown};}
+  /* DUE_DONE_V41 老師標成「已處理」（優惠／不追了）的金額，學生這邊也不要再算成待繳 */
+  const waived=Math.round((Number(s.fee_waived)||0)*100)/100;
+  return {items,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,waived,
+          due:Math.round((charge-paid-waived)*100)/100,unknown};}
 /* 👨‍👩‍👦 合併帳戶：同一個 bill_group 的人（例如兄弟由同一位家長繳費）帳算在一起 */
 function famList(){const f=S.fam;return (f&&f.members&&f.members.length>1)?f.members:null;}
 function myBill(){
   const ms=famList();
   if(ms){const items=[];let charge=0,paid=0,unknown=0;
-    ms.forEach(m=>{const b=billFor(m);if(!b)return;items.push(...b.items);charge+=b.charge;paid+=b.paid;unknown+=b.unknown;});
+    let waived=0;
+    ms.forEach(m=>{const b=billFor(m);if(!b)return;items.push(...b.items);charge+=b.charge;paid+=b.paid;unknown+=b.unknown;waived+=(b.waived||0);});
     items.sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
-    return {items,fam:S.fam.key,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,
-            due:Math.round((charge-paid)*100)/100,unknown};}
+    return {items,fam:S.fam.key,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,waived:Math.round(waived*100)/100,
+            due:Math.round((charge-paid-waived)*100)/100,unknown};}
   return billFor(S.me);}
 function myCur(){const s=S.me;const ps=(Array.isArray(s&&s.payments)?s.payments:[]);
   for(let i=ps.length-1;i>=0;i--){if(ps[i]&&ps[i].currency)return ps[i].currency;}
@@ -3634,8 +3629,7 @@ function renderPreviewLesson(){
   el.innerHTML=`<div class="section-head"><h2>${esc(ttl)}</h2></div><div class="cards">${lessonCardHtml(lesson,0)}</div>`;
   try{convScreen();setupCanvases();}catch(e){}
   const bn=document.createElement('div');bn.className='preview-bar';
-  bn.textContent='👁 預覽模式：這就是學生「上課內容」看到的畫面（作答不會儲存）'
-    +((lesson&&!lesson.vi_release)?'　·　生詞的越南文只有你（老師）在預覽時看得到，學生目前看不到':'');
+  bn.textContent='👁 預覽模式：這就是學生「上課內容」看到的畫面（作答不會儲存）';
   el.insertBefore(bn,el.firstChild);
 }
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;
@@ -3661,7 +3655,48 @@ function notifyDue(force){try{if(!('Notification'in window)||Notification.permis
   const key='hyc_notifd_'+((S.me&&S.me.id)||'');const today=new Date().toISOString().slice(0,10);if(!force&&localStorage.getItem(key)===today)return;localStorage.setItem(key,today);
   const body=(d.overdue?('有 '+d.overdue+' 份作業已逾期。'):'')+(d.soon?('有 '+d.soon+' 份作業快到期。'):'');new Notification('華語作業簿',{body,icon:'icon-192.png'});}catch(e){}}
 H.enableNotify=()=>{if(!('Notification'in window)){toast('此瀏覽器不支援通知');return;}Notification.requestPermission().then(p=>{if(p==='granted'){toast('已開啟提醒');notifyDue(true);}renderSection();});};
-if('serviceWorker'in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>{try{r.update();}catch(e){}}).catch(()=>{});let hadCtrl=!!navigator.serviceWorker.controller,refreshing=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(refreshing)return;if(hadCtrl){refreshing=true;location.reload();}else{hadCtrl=true;}});});}
+/* SW_NOLOOP_V40 有新版本不再自己重新整理（以前會一直重跑、跑回登入畫面）。
+   改成畫面下面跳一條「有新版本，點一下更新」，你按了才更新。 */
+if('serviceWorker' in navigator){window.addEventListener('load',function(){
+  var reloading=false;
+  function showBar(reg){
+    if(document.getElementById('sw-upd'))return;
+    var b=document.createElement('div');b.id='sw-upd';
+    b.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:99999;'+
+      'background:#3B2E22;color:#fff;padding:10px 14px;border-radius:999px;box-shadow:0 6px 20px #0003;'+
+      'display:flex;gap:10px;align-items:center;font-size:14px;font-family:inherit';
+    b.innerHTML='<span>🔄 有新版本可以用了</span>'+
+      '<button id="sw-upd-go" style="border:0;border-radius:999px;padding:5px 12px;cursor:pointer;background:#fff;color:#3B2E22;font-weight:700;font-family:inherit">立刻更新</button>'+
+      '<button id="sw-upd-x" style="border:0;background:transparent;color:#fff9;cursor:pointer;font-size:17px;line-height:1;font-family:inherit">×</button>';
+    document.body.appendChild(b);
+    document.getElementById('sw-upd-x').onclick=function(){b.remove();};
+    document.getElementById('sw-upd-go').onclick=function(){
+      reloading=true;
+      try{sessionStorage.setItem('sw_upd','1');}catch(e){}
+      var w=reg&&reg.waiting;
+      if(w){w.postMessage({type:'SKIP_WAITING'});setTimeout(function(){location.reload();},1200);}
+      else location.reload();
+    };
+  }
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(reg){
+    if(reg.waiting&&navigator.serviceWorker.controller)showBar(reg);
+    reg.addEventListener('updatefound',function(){
+      var nw=reg.installing;if(!nw)return;
+      nw.addEventListener('statechange',function(){
+        if(nw.state==='installed'&&navigator.serviceWorker.controller)showBar(reg);
+      });
+    });
+    try{reg.update();}catch(e){}
+  }).catch(function(){});
+  /* 只有「你按了更新」才重新整理；而且一個分頁最多重新整理一次，不會變成無限迴圈 */
+  navigator.serviceWorker.addEventListener('controllerchange',function(){
+    if(reloading)return;
+    var once=false;try{once=sessionStorage.getItem('sw_upd')==='1';}catch(e){}
+    if(!once)return;
+    try{sessionStorage.removeItem('sw_upd');}catch(e){}
+    reloading=true;location.reload();
+  });
+});}
 initConv();
 applyTheme();
 document.body.classList.toggle('lang-cn',S.lang==='cn');
