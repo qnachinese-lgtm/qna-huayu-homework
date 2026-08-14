@@ -796,6 +796,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
       <section id="panel-lessons" class="panel hide">
         <div class="section-head"><h2>📚 教材與課程</h2><span class="sub">放課文、生詞、語法和練習題。做好之後要「指派」給學生，他們才看得到</span><div class="head-actions">
           <button class="btn btn-primary" data-act="addLesson">＋ 新增課文</button></div></div>
+        <div id="vi-bar"></div>
         <div id="lessons-list" class="cards"></div>
       </section>
 
@@ -2078,6 +2079,29 @@ function crmSumOf(kind,list){
   return {paid:paid,due:due,tot:tot,n:n,nTot:nTot,unit:f.unit};
 }
 /* CRM_FOOT_V33 合計列不再顯示「談定總額」，只留「已收／未收」 */
+/* VI_GATE_V36 越南文翻譯的公開權在老師手上：
+   預設學生看不到，老師要一課一課自己開；隨時可以一鍵全部收回。
+   目的：學生平常用中文（和英文釋義）學中文，越南文只在老師願意的時候當輔助。 */
+function viHas(l){
+  return (l&&Array.isArray(l.dialogues)?l.dialogues:[]).some(d=>String((d&&d.vocab_vi)||'').trim());
+}
+function viChip(l){
+  if(!viHas(l))return '';
+  return l.vi_release
+    ? '<span class="tag" style="background:#e8f5ec;color:#15803d;border-color:#86c99b">🇻🇳 越南文已公開</span>'
+    : '<span class="tag" style="background:#f3f0ea;color:#7C7065;border-color:#ded5c6">🇻🇳 越南文未公開</span>';
+}
+function viBarHtml(){
+  const all=(S.lessons||[]).filter(l=>!l.deleted_at&&viHas(l));
+  if(!all.length)return '';
+  const on=all.filter(l=>l.vi_release);
+  return `<div class="card" style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <b>🇻🇳 生詞越南文</b>
+    <span class="muted" style="font-size:13px">有翻譯的課共 ${all.length} 課　·　目前公開給學生的：<b style="color:${on.length?'#15803d':'#7C7065'}">${on.length} 課</b></span>
+    <span class="grow"></span>
+    ${on.length?`<button class="btn btn-sm btn-warn" data-act="viAllOff">↩ 全部收回（學生就看不到了）</button>`:'<span class="hint">學生現在全部看不到越南文，只看得到中文和英文釋義。</span>'}
+  </div>`;
+}
 function crmTfoot(kind,list){const g=crmSumOf(kind,list);
   const totStr=itvMoneyStr(g.tot),paidStr=itvMoneyStr(g.paid),dueStr=itvMoneyStr(g.due);
   return `<div class="crm-tfoot"><span class="crm-chev" style="visibility:hidden">▸</span><div class="crm-head">
@@ -2753,7 +2777,7 @@ function lessonCardHtml(l,i){try{
       <div class="row-between lesson-head" data-act="toggleCard" data-id="${l.id}"><div style="display:flex;gap:14px;align-items:center;min-width:0;flex:1">
         <div class="lesson-no">${l.order_index||i+1}</div>
         <div style="min-width:0"><h3>${esc(l.title)}</h3><div class="meta" style="margin-top:5px;align-items:center">
-          ${an?'<span class="tag tpub-y">已發佈 '+an+' 人</span>':'<span class="tag tpub-n">未發佈</span>'}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}</div></div></div>
+          ${an?'<span class="tag tpub-y">已發佈 '+an+' 人</span>':'<span class="tag tpub-n">未發佈</span>'}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${viChip(l)}</div></div></div>
         <div style="display:flex;gap:10px;align-items:center;flex:none;margin-left:12px"><span class="badge ${built?'badge-ok':'badge-soon'}">${built?'✅ 完成':'🟡 進行中'}</span>
         <span class="card-chev" aria-hidden="true">${open?'▾':'▸'}</span></div></div>
       ${open?`<div class="actions" style="margin-top:14px;flex-wrap:wrap">
@@ -2766,6 +2790,7 @@ function lessonCardHtml(l,i){try{
         <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">✏️ 編輯課文</button>
         <button class="btn btn-sm" data-act="questions" data-id="${l.id}">📝 練習題（${qn}）</button>
         <button class="btn btn-sm ${built?'':'btn-accent'}" data-act="toggleBuild" data-id="${l.id}">${built?'↩ 改回進行中':'✅ 標記完成'}</button>
+        ${viHas(l)?`<button class="btn btn-sm" data-act="viRelease" data-id="${l.id}" title="控制學生切到越南文時看不看得到你貼的翻譯">${l.vi_release?'🇻🇳 越南文：學生看得到（點一下收回）':'🇻🇳 越南文：學生看不到（點一下公開）'}</button>`:''}
         ${((((l.dialogues&&l.dialogues.length)||0)+((l.grammar_points&&l.grammar_points.length)||0))>=2)?`<button class="btn btn-sm" data-act="orderLayout" data-id="${l.id}">📐 課文順序</button>`:''}
         <button class="btn btn-sm" data-act="resources" data-id="${l.id}">📎 補充資料${(l.resources&&l.resources.length)?('（'+l.resources.length+'）'):''}</button>
         <button class="btn btn-sm" data-act="printWorksheet" data-id="${l.id}">🖨 作業卷</button>
@@ -2816,6 +2841,7 @@ function bookCmp(a,b){const ra=bookRank(a),rb=bookRank(b);if(ra!==rb)return ra-r
   return (A.vol||0)-(B.vol||0);}
 function renderLessons(){
   const wrap=$('#lessons-list');if(!wrap)return;
+  {const vb=$('#vi-bar');if(vb)vb.innerHTML=(S.pe?'':viBarHtml());}
   if(S.pe){wrap.innerHTML=pronEditorHtml();return;}
   const hasPron=(S.prons||[]).length>0;
   if(!S.lessons.length&&!hasPron&&!(S.classicals||[]).length&&!(S.workbooks||[]).length){wrap.innerHTML=emptyHtml('📚','還沒有內容','點「新增課文／作業」放課文＋練習題，或「建立發音」做發音教材。');return;}
@@ -2913,7 +2939,7 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
          <span id="l-handout-disp">${l.handout_url?('📄 '+esc(l.handout_name||'已上傳')):'<span class="hint">尚未上傳</span>'}</span>
          <span class="hint" id="l-handout-st"></span></div></div>
      <div class="field full"><label>🎬 課文影片連結 <span class="hint">選填。貼 YouTube 或 Google Drive 連結，學生在「上課內容」最上面可以直接看。</span></label><input id="l-video" type="url" value="${esc(l.video_url||'')}" placeholder="https://youtu.be/... 或 https://drive.google.com/..."></div>
-     <div class="field full"><label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer"><input type="checkbox" id="l-vi-release" ${l.vi_release?'checked':''} style="width:auto;margin-top:3px"><span>公開生詞越南文翻譯給學生 <span class="hint">勾選後，學生切到越南文才看得到你在各段「生詞越南文」貼的翻譯；不勾＝學生只看英文。</span></span></label></div>
+     <div class="field full"><label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer"><input type="checkbox" id="l-vi-release" ${l.vi_release?'checked':''} style="width:auto;margin-top:3px"><span>公開生詞越南文翻譯給學生 <span class="hint">預設是<b>不公開</b>：學生只看得到中文和英文釋義，用中文學中文。你想讓他們看的時候再勾這裡（課程列表上也可以一鍵開關、一鍵全部收回）。</span></span></label></div>
      <div class="hint" style="margin:-2px 0 10px">只想出補充作業？課名填一下即可，下面對話／生詞／語法全部留空，存好後在卡片點「練習題」出題。</div>
      <div class="field full"><label>對話／課文段落 <span class="hint">一課可有多個對話（對話一、對話二…），每段各有自己的課文、生詞、課文音檔、生詞真人發音；語法之後再合併講。</span></label><div id="dlg-editor" class="dlg-editor"></div></div>
      <div class="field full"><label>語法點 <span class="hint">一個語法一張卡。時代華語：填「說明」一個區塊＋例句即可；當代：可分功能／結構／用法多個區塊。要把語法排到短文後面，存好後到課文卡按「📐 課文順序」。</span></label><div id="gp-editor" class="gp-editor"></div></div>
@@ -5529,7 +5555,7 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
       <textarea class="dlg-imp-in" data-i="${i}" placeholder="夢想｜N｜dream｜美美最大的夢想是有一棟大房子。 夢｜N｜dream｜晚安！希望你有個好夢。 明星｜N｜star"></textarea>
       <button class="btn btn-sm btn-accent" type="button" data-act="vocabImport" data-id="${i}" style="margin-top:6px">⬇ 轉換並加入生詞欄</button></details>
     <label class="dlg-lbl">生詞越南文翻譯 <span class="hint">一行一個，<b>順序對齊上面的生詞</b>（第1行＝第1個生詞…，例句行不算）。要學生看得到，記得在最上面勾「公開生詞越南文」。</span></label>
-    <div style="margin:2px 0 6px"><button class="btn btn-sm" type="button" data-act="viGen" data-id="${i}">✨ AI 幫我翻越南文（草稿）</button><span class="hint" style="margin-left:8px">只幫你填進下面的格子，你看過、改完再按儲存。學生現在看不到。</span></div>
+    <div style="margin:2px 0 6px"><button class="btn btn-sm" type="button" data-act="viGen" data-id="${i}">✨ AI 幫我翻越南文（草稿）</button><span class="hint" style="margin-left:8px">只幫你填進下面的格子，你看過、改完再按儲存。存了學生也還看不到——要等你自己把上面的「公開生詞越南文翻譯給學生」打開。</span></div>
     <textarea class="dlg-vocabvi-in" data-i="${i}" placeholder="não bộ&#10;giấc mơ&#10;ngôi sao">${esc(d.vocab_vi||'')}</textarea>
     <label class="dlg-lbl">這段的課文音檔（上傳整段朗讀，會自動切成逐句） <span class="hint">學生上面會有「對話朗讀」播放器；「逐句跟讀」也會改播這個真人朗讀（不用機器音）。切完可逐句微調秒數。</span></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="dlg-audio-in" id="dlg-audio-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.audio_url||'')}" placeholder="上傳整段朗讀，或貼 mp3／YouTube 連結">
@@ -6199,6 +6225,21 @@ H.viGen=async(i)=>{
   }catch(e){toast('翻譯失敗：'+((e&&e.message)||e));}
   finally{if(btn){btn.disabled=false;btn.textContent='✨ AI 幫我翻越南文（草稿）';}}
 };
+/* VI_GATE_V36 handlers */
+H.viRelease=async(id)=>{
+  const l=(S.lessons||[]).find(x=>x.id===id);if(!l)return;
+  const next=!l.vi_release;
+  if(next&&!confirm('要把「'+(l.title||'')+'」的生詞越南文公開給學生嗎？\n\n公開後，學生把介面切成越南文時就看得到你貼的翻譯。\n（隨時可以再點一下收回。）'))return;
+  try{await DB.update('lessons',id,{vi_release:next});l.vi_release=next;render();
+    toast(next?'已公開：學生現在看得到這一課的越南文':'已收回：學生看不到越南文了');
+  }catch(e){toast(writeErr('失敗',e));}};
+H.viAllOff=async()=>{
+  const on=(S.lessons||[]).filter(l=>!l.deleted_at&&l.vi_release);
+  if(!on.length)return toast('本來就沒有公開的課');
+  if(!confirm('要把全部 '+on.length+' 課的越南文都收回嗎？\n收回後學生只看得到中文和英文釋義。'))return;
+  try{for(const l of on){await DB.update('lessons',l.id,{vi_release:false});l.vi_release=false;}
+    render();toast('已全部收回（'+on.length+' 課）');
+  }catch(e){toast(writeErr('失敗',e));}};
 H.wrSave=async(id)=>{const name=(($('#wr-name')&&$('#wr-name').value)||'').trim();if(!name)return toast('請填姓名');
   const picked=[...document.querySelectorAll('.wr-doc')].filter(x=>x.checked).map(x=>x.value).filter(x=>x!=='其他');
   const other=(($('#wr-docs-other')&&$('#wr-docs-other').value)||'').split(/[,，、\s]+/).filter(Boolean);
