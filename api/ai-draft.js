@@ -110,6 +110,50 @@ async function callGemini(model, key, prompt) {
   return JSON.parse(txt);
 }
 
+/* ===== 生詞越南文：把一課的生詞一次翻成越南文（草稿，老師要自己看過再存） ===== */
+const VI_SYS = [
+  '你是中文→越南文的詞彙翻譯助理，服務對象是教越南學生的華語老師。',
+  '規則：',
+  '1. 只翻譯，不要解釋，不要加編號。',
+  '2. 每個詞給越南文對應詞；一個詞有多個常用意思時用「, 」分開，最多三個。',
+  '3. 題目若附英文釋義，以英文釋義為準，不要自己另外想別的意思。',
+  '4. 量詞、語氣詞、慣用語照實際用法翻，語氣詞可以寫成 "ừ (tiếng đồng ý)" 這種形式。',
+  '5. 回傳陣列長度必須跟生詞數量完全一樣，順序也要一樣。'
+].join('\n');
+
+const VI_SCHEMA = {
+  type: 'object',
+  properties: { vi: { type: 'array', items: { type: 'string' } } },
+  required: ['vi']
+};
+
+async function callVocab(model, key, words) {
+  const prompt = '請把下面 ' + words.length + ' 個生詞翻成越南文，回傳 vi 陣列，長度必須是 ' +
+    words.length + '，順序跟下面一樣：\n' +
+    words.map(function (w, i) { return (i + 1) + '. ' + String(w).slice(0, 200); }).join('\n');
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
+    encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key);
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: VI_SYS }] },
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.2, maxOutputTokens: 8192,
+        responseMimeType: 'application/json', responseSchema: VI_SCHEMA
+      }
+    })
+  });
+  const j = await r.json().catch(function () { return null; });
+  if (!r.ok) { const e = new Error((j && j.error && j.error.message) || ('HTTP ' + r.status)); e.status = r.status; throw e; }
+  const c = j && j.candidates && j.candidates[0];
+  const txt = c && c.content && c.content.parts && c.content.parts.map(function (p) { return p.text || ''; }).join('');
+  if (!txt) throw new Error('AI 沒有回傳內容');
+  const out = JSON.parse(txt);
+  return Array.isArray(out.vi) ? out.vi : [];
+}
+
 module.exports = async (req, res) => {
   res.setHeader('cache-control', 'no-store');
   if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
@@ -140,6 +184,21 @@ module.exports = async (req, res) => {
       hint: '還沒設定 AI 金鑰。到 Vercel → 專案 → Settings → Environment Variables 新增 GEMINI_API_KEY，存檔後重新部署一次就會生效。'
     }));
   }
+  /* 生詞越南文模式 */
+  if (body && Array.isArray(body.vocab) && body.vocab.length) {
+    const words = body.vocab.slice(0, 200);
+    let verr = null;
+    const tries = MODELS.slice();
+    try { const names = await listModels(key); const p = pickModel(names); if (p && tries.indexOf(p) < 0) tries.push(p); } catch (e) {}
+    for (const m of tries) {
+      try {
+        const vi = await callVocab(m, key, words);
+        return res.end(JSON.stringify({ ok: true, model: m, vi: vi, n: words.length }));
+      } catch (e) { verr = e; if (e.status && e.status !== 404 && e.status !== 400) break; }
+    }
+    return res.end(JSON.stringify({ error: (verr && verr.message) || 'AI 服務沒有回應' }));
+  }
+
   if (!body || !Array.isArray(body.items) || !body.items.length) {
     return res.end(JSON.stringify({ error: '沒有可以批改的題目' }));
   }
