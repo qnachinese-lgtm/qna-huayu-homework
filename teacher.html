@@ -5479,7 +5479,7 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
     if(d._la&&d._la.file){if(sbtn){sbtn.disabled=true;sbtn.textContent='上傳課文音檔…';}
       try{d.audio_url=await uploadVocabAudio(d._la.file);d.line_segments=d._la.segs||[];d._la=null;}
       catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}return toast('課文音檔上傳失敗：'+(err.message||err));}}}
-  const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',vocabulary:d.vocabulary||'',vocab_vi:(d.vocab_vi||'').trim(),discussion:(d.discussion||'').trim(),image_url:(d.image_url||'').trim()||null,audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.discussion||d.image_url||d.audio_url||d.vocab_audio_url);
+  const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',content_py:(d.content_py||'').trim(),content_en:(d.content_en||'').trim(),vocabulary:d.vocabulary||'',vocab_vi:(d.vocab_vi||'').trim(),discussion:(d.discussion||'').trim(),image_url:(d.image_url||'').trim()||null,audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.discussion||d.image_url||d.audio_url||d.vocab_audio_url);
   const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,video_url:(($('#l-video')&&$('#l-video').value)||'').trim()||null,vi_release:!!($('#l-vi-release')&&$('#l-vi-release').checked),dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,notes:ntCollect(),key_points:'',examples:$('#l-examples').value,handout_url:(($('#l-handout-url')&&$('#l-handout-url').value)||'')||null,handout_name:(($('#l-handout-name')&&$('#l-handout-name').value)||'')||null,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[])};
   try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}};
 
@@ -5621,7 +5621,7 @@ H.gpBlockDel=(key)=>{gpSync();const p=String(key).split('::');const gi=Number(p[
 let DLG=[];const DLG_CN=['一','二','三','四','五','六','七','八'];
 function dlgInit(l){let arr;
   if(l&&Array.isArray(l.dialogues)&&l.dialogues.length){
-    arr=l.dialogues.map(d=>({title:d.title||'',content:d.content||'',vocabulary:d.vocabulary||'',vocab_vi:d.vocab_vi||'',discussion:d.discussion||'',image_url:d.image_url||'',audio_url:d.audio_url||'',vocab_audio_url:d.vocab_audio_url||'',vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]}));
+    arr=l.dialogues.map(d=>({title:d.title||'',content:d.content||'',content_py:d.content_py||'',content_en:d.content_en||'',vocabulary:d.vocabulary||'',vocab_vi:d.vocab_vi||'',discussion:d.discussion||'',image_url:d.image_url||'',audio_url:d.audio_url||'',vocab_audio_url:d.vocab_audio_url||'',vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]}));
     if(l.vocab_audio_url&&arr[0]&&!arr[0].vocab_audio_url){arr[0].vocab_audio_url=l.vocab_audio_url;arr[0].vocab_segments=l.vocab_segments||[];}}
   else if(l&&(l.content||l.vocabulary||l.audio_url)){arr=[{title:'對話一',content:l.content||'',vocabulary:l.vocabulary||'',audio_url:l.audio_url||'',vocab_audio_url:l.vocab_audio_url||'',vocab_segments:l.vocab_segments||[]}];}
   else{arr=[{title:'對話一',content:'',vocabulary:'',audio_url:'',vocab_audio_url:'',vocab_segments:[]}];}
@@ -5630,6 +5630,9 @@ function dlgInit(l){let arr;
 function dlgSync(){DLG.forEach((d,i)=>{
   const t=document.querySelector('.dlg-title-in[data-i="'+i+'"]');if(t)d.title=t.value;
   const c=document.querySelector('.dlg-content-in[data-i="'+i+'"]');if(c)d.content=c.value;
+  /* TXT_PYEN_V43 課文拼音／英譯 */
+  const cp=document.querySelector('.dlg-py-in[data-i="'+i+'"]');if(cp)d.content_py=cp.value;
+  const ce=document.querySelector('.dlg-en-in[data-i="'+i+'"]');if(ce)d.content_en=ce.value;
   const v=document.querySelector('.dlg-vocab-in[data-i="'+i+'"]');if(v)d.vocabulary=v.value;
   const vv=document.querySelector('.dlg-vocabvi-in[data-i="'+i+'"]');if(vv)d.vocab_vi=vv.value;
   const a=document.querySelector('.dlg-audio-in[data-i="'+i+'"]');if(a)d.audio_url=a.value;
@@ -5643,6 +5646,10 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
     <label class="dlg-lbl">🖼 情境圖片 <span class="hint">選填。上傳一張圖，或貼圖片網址；學生在這段課文上方會看到。</span></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input class="dlg-img-in" id="dlg-img-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.image_url||'')}" placeholder="上傳圖片，或貼圖片網址"><button class="btn btn-sm" type="button" data-act="pickDlgImg" data-id="${i}">⬆ 上傳圖片</button><button class="btn btn-sm btn-danger" type="button" data-act="dlgImgClear" data-id="${i}" style="${d.image_url?'':'display:none'}">移除</button><input type="file" id="file-dlgimg-${i}" class="hide" accept="image/*"><span class="hint" id="dlgimg-st-${i}"></span></div>
     <img id="dlgimg-prev-${i}" src="${esc(d.image_url||'')}" style="${d.image_url?'':'display:none;'}max-width:200px;max-height:140px;border:1px solid #ddd;border-radius:6px;margin-top:6px">
+    <label class="dlg-lbl">課文拼音 Text in Pinyin <span class="hint">選填。第 1～5 課拼音在每句下面；第 6 課以後是獨立一塊「課文拼音」，兩種都直接貼進來。學生點開才看得到。</span></label>
+    <textarea class="dlg-py-in" data-i="${i}" placeholder="Mínghuá：Qǐngwèn nǐ shì...">${esc(d.content_py||'')}</textarea>
+    <label class="dlg-lbl">課文英譯 Text in English <span class="hint">選填。課本的英譯整段貼上，學生點開才看得到。</span></label>
+    <textarea class="dlg-en-in" data-i="${i}" placeholder="Minghua：Excuse me, ...">${esc(d.content_en||'')}</textarea>
     <label class="dlg-lbl">生詞 <span class="hint">每行一個。格式：<b>詞 (詞類)=英文翻譯</b>；自訂拼音加 <b>[拼音]</b>。<b>例句（時代華語）</b>：在那個詞的下一行用「<b>-</b>」開頭打，可打多句。</span></label>
     <div style="margin-bottom:6px"><button class="btn btn-sm" type="button" data-act="dlgAutoPinyin" data-id="${i}">✨ 自動加拼音</button> <span class="hint">幫沒有 [拼音] 的詞自動補上(可再改)</span></div>
     <textarea class="dlg-vocab-in" data-i="${i}" placeholder="高興 (Vs)=happy[gāoxìng]&#10;- 我今天很高興。&#10;- 他高興得跳起來。&#10;香蕉 (N)=banana&#10;- 我買了三根香蕉。">${esc(d.vocabulary||'')}</textarea>
