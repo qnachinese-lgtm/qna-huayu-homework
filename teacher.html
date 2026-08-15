@@ -1255,9 +1255,25 @@ function renderDashboard(){
       <span class="grow"></span><span class="muted">${money(s.tuition,s.currency)} · ${fmtDate(s.payment_date)}</span>
       ${s.email?`<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}" title="寄重設密碼信">✉️</button>`:''}
     </div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有即將到期或逾期的付款 👍</div>`;
-  const oweList=S.students.filter(s=>!s.is_test&&enrollOf(s)!=='paused').map(s=>{const b=stuBill(s);return {s,b};}).filter(x=>x.b&&x.b.items.length&&x.b.due>0.0001).sort((a,b)=>b.b.due-a.b.due);
+  /* FAM_DUE_V45 合併帳戶（例如兄弟一起上課、家長一起繳）要整家一起算，
+     不可以一個人一個人算欠款——哥哥少繳、弟弟多繳的話其實是沒有欠錢的。 */
+  const oweList=(function(){
+    const rows=[],famDone=new Set();
+    S.students.filter(s=>!s.is_test&&enrollOf(s)!=='paused').forEach(s=>{
+      const k=famKeyOf(s);
+      if(k&&famMembers(k).length>=2){
+        if(famDone.has(k))return; famDone.add(k);
+        const fb=famBill(k); if(!fb||!(fb.due>0.0001))return;
+        const names=fb.members.map(m=>snm(m.name)).join('、');
+        rows.push({s,b:{charge:fb.charge,paid:fb.paid,due:fb.due,items:[1]},cur:fb.cur,label:names,fam:true});
+        return;
+      }
+      const b=stuBill(s); if(!b||!b.items.length||!(b.due>0.0001))return;
+      rows.push({s,b,cur:billCur(s),label:snm(s.name),fam:false});
+    });
+    return rows.sort((a,b)=>b.b.due-a.b.due);})();
   const lowSess=oweList.map(x=>({s:x.s,left:0}));
-  const sessHtml=oweList.length?oweList.map(({s,b})=>`<div class="dash-row"><span class="avatar sm emo" style="background:${avColor(s.name)}">${avEmoji(s)}</span><b>${snm(s.name)}</b><span class="badge badge-overdue">欠 ${money(b.due,billCur(s))}</span><span class="grow"></span><span class="muted">上課 ${money(b.charge,billCur(s))} · 已繳 ${money(b.paid,billCur(s))}</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有欠款的學生 👍</div>`;
+  const sessHtml=oweList.length?oweList.map(({s,b,cur,label,fam})=>`<div class="dash-row"><span class="avatar sm emo" style="background:${avColor(s.name)}">${avEmoji(s)}</span><b>${label}</b>${fam?'<span class="tag">👨‍👩‍👦 合併帳戶</span>':''}<span class="badge badge-overdue">欠 ${money(b.due,cur)}</span><span class="grow"></span><span class="muted">上課 ${money(b.charge,cur)} · 已繳 ${money(b.paid,cur)}</span></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有欠款的學生 👍</div>`;
   // 批改提醒（待批改的作答）
   const pendList=(S.results||[]).filter(r=>r.status==='pending');
   const pendByLesson={};pendList.forEach(r=>{pendByLesson[r.lesson_id]=(pendByLesson[r.lesson_id]||0)+1;});
