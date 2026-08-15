@@ -969,7 +969,7 @@ function exDlg(s){return pyBreak(String(s||'')).replace(/([。！？?!.]?)[\s／
 function examplesHtml(text){const lines=(text||'').split('\n').map(s=>s.trim()).filter(Boolean);if(!lines.length)return '';
   return `<details class="disc ex-fold"><summary>${t('examples')}</summary><div class="ex-list" style="margin-top:8px">${lines.map(s=>`<div class="ex-item">${exDlg(s)}</div>`).join('')}</div></details>`;}
 function dlgHasAudio(l){return lessonDialogues(l).some(d=>d.audio_url);}
-function lessonHasContent(l){return lessonDialogues(l).some(d=>d.content||parseVocab(d.vocabulary).length||d.audio_url||d.image_url||(d.discussion||'').trim())||(l.grammar_points&&l.grammar_points.length)||questionsOf(l.id).length||l.key_points||l.examples||l.video_url;}
+function lessonHasContent(l){return lessonDialogues(l).some(d=>d.content||parseVocab(d.vocabulary).length||d.audio_url||d.image_url||(d.discussion||'').trim())||(l.grammar_points&&l.grammar_points.length)||questionsOf(l.id).length||l.key_points||l.examples||l.video_url||(l.activities||'').trim()||(l.culture||'').trim();}
 function lessonHasDisc(l){return lessonDialogues(l).some(d=>(d.discussion||'').split('\n').some(s=>s.trim()));}
 function vocabBlockHtml(l,di,vocab,chips){
   const L=(m)=>LT(m);
@@ -1045,6 +1045,17 @@ function reconcileLayout(l){const ds=lessonDialogues(l);const nd=ds.length,ng=(l
   for(let i=0;i<nd;i++){if(hasQ(i)&&!sq.has(i)){const dp=out.findIndex(e=>e.t==='d'&&e.i===i);if(dp>=0)out.splice(dp+1,0,{t:'q',i});else out.push({t:'q',i});}}
   for(let i=0;i<nd;i++){if(hasV(i)&&!sv.has(i)){const pos=out.findIndex(e=>e.t==='d'&&e.i===i);if(pos>=0)out.splice(pos+1,0,{t:'v',i});else out.push({t:'v',i});}}
   return out;}
+/* ACT_CULT_V44 課室活動與文化不再擠在課文裡，變成語法後面獨立的兩區 */
+function actCultParts(l){
+  const out=[];
+  const a=String((l&&l.activities)||'').trim();
+  const c=String((l&&l.culture)||'').trim();
+  if(a)out.push({key:'act',ic:'🗣',lab:LT({zh:'課室活動',cn:'课室活动',en:'Classroom Activities',vi:'Hoạt động trên lớp'}),h:
+    `<div class="lesson-block"><div class="prose">${esc(a).replace(/\n/g,'<br>')}</div></div>`});
+  if(c)out.push({key:'cult',ic:'🏮',lab:LT({zh:'文化',cn:'文化',en:'Bits of Chinese Culture',vi:'Văn hoá'}),h:
+    `<div class="lesson-block"><div class="prose">${esc(c).replace(/\n/g,'<br>')}</div></div>`});
+  return out;
+}
 function grammarSectionHtml(l,gi,qsAll,opts,num){const g=(l.grammar_points||[])[gi];if(!g)return '';
   const qs=qsAll.filter(q=>q.gp_index===gi);let prac='';
   if(qs.length)prac=exBlocksHtml(qs);
@@ -1176,6 +1187,7 @@ function lessonBodyHtml(l,opts){opts=opts||{};if(l.kind==='classical')return cla
         const glab=LT({zh:'語法'+_gn,cn:'语法'+_gn,en:'Grammar'+(_gTot<=1?'':' '+gn),vi:'Ngữ pháp'+(_gTot<=1?'':' '+gn)});
         html+=sec(gh.map(h=>({k:'g',n:0,h})),'📘',glab,l.id+'::g'+i);}
     });
+    actCultParts(l).forEach(x=>{html+=sec([{k:'x',n:0,h:x.h}],x.ic,x.lab,l.id+'::'+x.key);});
     const _nh=notesBlockHtml(l);
     if(_nh)html+=sec([{k:'n',n:0,h:_nh}],'📌',notesLabel(),l.id+'::notes');
     return videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)+html+tail+gpracBarHtml(l)+examplesHtml(l.examples);
@@ -1185,6 +1197,7 @@ function lessonBodyHtml(l,opts){opts=opts||{};if(l.kind==='classical')return cla
     +sec(dlgGram.map(h=>({k:'g',n:0,h})),'📘',pk(SLAB.dlgG,'對話語法'),l.id+'::dlgG')
     +sec(shortText,'📄',pk(SLAB.sh,'短文內容'),l.id+'::sh')
     +sec(shortGram.map(h=>({k:'g',n:0,h})),'📘',pk(SLAB.shG,'短文語法'),l.id+'::shG')
+    +actCultParts(l).map(x=>sec([{k:'x',n:0,h:x.h}],x.ic,x.lab,l.id+'::'+x.key)).join('')
     +(notesBlockHtml(l)?sec([{k:'n',n:0,h:notesBlockHtml(l)}],'📌',notesLabel(),l.id+'::notes'):'')
     +tail+gpracBarHtml(l)+examplesHtml(l.examples);}
 function gpLabel(lab){lab=(lab||'').trim();if(!lab)return '';const m=GP_LBL[lab];if(m&&(S.lang==='en'||S.lang==='vi'))return m[S.lang]||lab;return lab;}
