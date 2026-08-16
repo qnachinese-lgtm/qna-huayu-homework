@@ -7442,47 +7442,21 @@ if(useAuth){firebase.auth().onAuthStateChanged(async function(user){const ok=use
 else{if(sessionStorage.getItem('teacher_ok')==='1')enter();}
 // 保持登入新鮮：每 18 分鐘刷新一次 token，避免長時間編輯後突然無法儲存
 setInterval(function(){try{const u=window.firebase&&firebase.auth&&firebase.auth().currentUser;if(u)u.getIdToken(true).catch(function(){});}catch(e){}},18*60*1000);
-/* SW_NOLOOP_V40 有新版本不再自己重新整理（以前會一直重跑、跑回登入畫面）。
-   改成畫面下面跳一條「有新版本，點一下更新」，你按了才更新。 */
+/* SW_QUIET_V48 不再顯示「有新版本」提示條。新版本一裝好就默默接手，
+   但「絕對不重新整理正在用的分頁」——妳下次自己開這一頁的時候就是新版了。
+   （之前是跳一條提示條，妳沒按就每次開頁都再跳一次，很煩。） */
 if('serviceWorker' in navigator){window.addEventListener('load',function(){
-  var reloading=false;
-  function showBar(reg){
-    if(document.getElementById('sw-upd'))return;
-    var b=document.createElement('div');b.id='sw-upd';
-    b.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:99999;'+
-      'background:#3B2E22;color:#fff;padding:10px 14px;border-radius:999px;box-shadow:0 6px 20px #0003;'+
-      'display:flex;gap:10px;align-items:center;font-size:14px;font-family:inherit';
-    b.innerHTML='<span>🔄 有新版本可以用了</span>'+
-      '<button id="sw-upd-go" style="border:0;border-radius:999px;padding:5px 12px;cursor:pointer;background:#fff;color:#3B2E22;font-weight:700;font-family:inherit">立刻更新</button>'+
-      '<button id="sw-upd-x" style="border:0;background:transparent;color:#fff9;cursor:pointer;font-size:17px;line-height:1;font-family:inherit">×</button>';
-    document.body.appendChild(b);
-    document.getElementById('sw-upd-x').onclick=function(){b.remove();};
-    document.getElementById('sw-upd-go').onclick=function(){
-      reloading=true;
-      try{sessionStorage.setItem('sw_upd','1');}catch(e){}
-      var w=reg&&reg.waiting;
-      if(w){w.postMessage({type:'SKIP_WAITING'});setTimeout(function(){location.reload();},1200);}
-      else location.reload();
-    };
-  }
+  function apply(reg){var w=reg&&reg.waiting;if(w){try{w.postMessage({type:'SKIP_WAITING'});}catch(e){}}}
   navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(reg){
-    if(reg.waiting&&navigator.serviceWorker.controller)showBar(reg);
+    apply(reg);
     reg.addEventListener('updatefound',function(){
       var nw=reg.installing;if(!nw)return;
-      nw.addEventListener('statechange',function(){
-        if(nw.state==='installed'&&navigator.serviceWorker.controller)showBar(reg);
-      });
+      nw.addEventListener('statechange',function(){if(nw.state==='installed')apply(reg);});
     });
     try{reg.update();}catch(e){}
   }).catch(function(){});
-  /* 只有「你按了更新」才重新整理；而且一個分頁最多重新整理一次，不會變成無限迴圈 */
-  navigator.serviceWorker.addEventListener('controllerchange',function(){
-    if(reloading)return;
-    var once=false;try{once=sessionStorage.getItem('sw_upd')==='1';}catch(e){}
-    if(!once)return;
-    try{sessionStorage.removeItem('sw_upd');}catch(e){}
-    reloading=true;location.reload();
-  });
+  /* 舊版留下來的提示條，如果還在畫面上就順手清掉 */
+  var old=document.getElementById('sw-upd');if(old)old.remove();
 });}
 </script>
 </body>
