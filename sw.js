@@ -1,5 +1,5 @@
 /* 簡單的 service worker：可安裝 (PWA) + 離線顯示應用外殼 */
-const CACHE = 'hyc-v602';
+const CACHE = 'hyc-v603';
 const ASSETS = ['index.html', 'student.html', 'teacher.html', 'styles.css', 'config.js', 'db.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 /* SW_NOLOOP_V40 不再自動接管：新版本先等著，等網頁上的「更新」按鈕叫它才接手。
    以前 install 就 skipWaiting＋activate 就 claim，每次一發新版，開著的分頁就會自己重新整理，
