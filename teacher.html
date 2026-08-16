@@ -206,6 +206,25 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .pay-st.ok{background:#dcfce7;color:#15803d}
         .pay-st.over{background:#f3e8ff;color:#7c3aed}
         .pay-st.muted{background:#f1f0ee;color:var(--muted);font-weight:600}
+        /* PAY_GRID_V50 每一列的欄寬改成固定比例（原本用 auto，所以每一列會照自己的內容
+           算寬度，欄位就對不齊、看起來扭來扭去）。改成 fr 之後，同一群組裡每一列
+           算出來的欄寬完全一樣，「應收／已繳／目前」就會排成直的一條線。
+           另外「已處理」標籤原本自己佔一格，會把後面整排推掉，現在收進「目前」那一格裡。 */
+        .pay-row{grid-template-columns:minmax(150px,1.5fr) 78px 88px minmax(108px,1fr) minmax(152px,1.35fr) minmax(128px,1.05fr) 206px;
+          align-items:center;min-height:48px}
+        .pay-hd{min-height:0}
+        /* VI_EDIT_V51 越南文的開關和對照表搬到「編輯課文」裡面，課文卡的按鈕列就只剩常用的幾個。 */
+        .vi-box{border:1px solid var(--line);border-radius:12px;padding:11px 13px;background:#FCFBF8}
+        .vi-box-h{font-weight:700;margin-bottom:8px!important}
+        .vi-box-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+        .vi-sw.as-label{margin:0}
+        .vi-sw.as-label input{position:absolute;opacity:0;width:0;height:0;margin:0}
+        .vi-sw.as-label:has(input:checked){color:#166534;border-color:#8fcaa4;background:#F1F9F4}
+        .vi-sw.as-label:has(input:checked) .knob{background:#16a34a}
+        .vi-sw.as-label:has(input:checked) .knob::after{left:15px}
+        .pay-stw{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0;max-width:100%}
+        .pay-paid{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.4}
+        .pay-paid .pay-sub{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
         .badge.feepub{cursor:pointer;font:inherit;font-size:12px;line-height:1.6;border-style:dashed}
         .badge.feepub:hover{border-style:solid;box-shadow:0 0 0 2px #B23A4822}
         /* 🏠 今日總覽封面 */
@@ -1677,10 +1696,12 @@ function payRowHtml(r,noState){
     +'<span class="pay-c" data-l="上課">'+(b.items.length?('<b>'+fmtQty(r.qty)+'</b> '+unitLabel(s)):'—')
       +(b.unknown?(' <span class="badge badge-soon" title="有課沒設定收費">⚠️ '+b.unknown+'</span>'):'')+'</span>'
     +'<span class="pay-c" data-l="應收"><b>'+(b.items.length?money(b.charge,cur):'—')+'</b></span>'
-    +'<span class="pay-c" data-l="已繳"><b>'+money(b.paid,cur)+'</b>'
-      +(function(){const os=otherPayStr(b);return os?('<span class="pay-oth" title="幣別跟帳單不一樣，還沒換算，所以沒抵掉">＋'+os+' 未換算</span>'):'';})()
-      +(last?('<span class="pay-dt">'+esc(String(last.date||'').slice(0,10))+'</span>'):'')+'</span>'
-    +state+wvTag
+    +'<span class="pay-c pay-paid" data-l="已繳"><b>'+money(b.paid,cur)+'</b>'
+      +(function(){const os=otherPayStr(b);
+        const chip=os?('<span class="pay-oth" title="幣別跟帳單不一樣，還沒換算，所以沒抵掉">＋'+os+' 未換算</span>'):'';
+        const dt=last?('<span class="pay-dt">'+esc(String(last.date||'').slice(0,10))+'</span>'):'';
+        return (chip||dt)?('<span class="pay-sub">'+chip+dt+'</span>'):'';})()+'</span>'
+    +'<span class="pay-stw">'+state+wvTag+'</span>'
     /* PAY_FIT_V46 一列只留最常按的兩個，其他收進「⋯」，這樣每一列都是同一個高度、不會擠成兩行 */
     +'<span class="pay-act">'
     +'<button class="btn btn-sm btn-primary" data-act="payments" data-id="'+esc(s.id)+'">＋ 記一筆</button>'
@@ -2916,9 +2937,6 @@ function lessonCardHtml(l,i){try{
         <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">✏️ 編輯課文</button>
         <button class="btn btn-sm" data-act="questions" data-id="${l.id}">📝 練習題（${qn}）</button>
         <button class="btn btn-sm ${built?'':'btn-accent'}" data-act="toggleBuild" data-id="${l.id}">${built?'↩ 改回進行中':'✅ 標記完成'}</button>
-        ${viHas(l)?`<button class="vi-sw${l.vi_release?' on':''}" data-act="viRelease" data-id="${l.id}" title="開＝學生切到越南文就看得到你的翻譯；關＝學生看不到">
-          <span class="knob"></span><span>越南文${l.vi_release?'已公開':'未公開'}</span></button>
-        <button class="btn btn-sm" data-act="viCheck" data-id="${l.id}" title="中／越對照，可直接修改">🇻🇳 對照</button>`:''}
         <span class="grow"></span>
         <details class="mini-menu"><summary class="dots" title="其他">⋯</summary><div class="mini-pop">
           ${((((l.dialogues&&l.dialogues.length)||0)+((l.grammar_points&&l.grammar_points.length)||0))>=2)?`<button class="btn btn-sm" data-act="orderLayout" data-id="${l.id}">📐 課文順序</button>`:''}
@@ -3071,7 +3089,13 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
          <span id="l-handout-disp">${l.handout_url?('📄 '+esc(l.handout_name||'已上傳')):'<span class="hint">尚未上傳</span>'}</span>
          <span class="hint" id="l-handout-st"></span></div></div>
      <div class="field full"><label>🎬 課文影片連結 <span class="hint">選填。貼 YouTube 或 Google Drive 連結，學生在「上課內容」最上面可以直接看。</span></label><input id="l-video" type="url" value="${esc(l.video_url||'')}" placeholder="https://youtu.be/... 或 https://drive.google.com/..."></div>
-     <div class="field full"><label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer"><input type="checkbox" id="l-vi-release" ${l.vi_release?'checked':''} style="width:auto;margin-top:3px"><span>公開生詞越南文翻譯給學生 <span class="hint">預設是<b>不公開</b>：學生只看得到中文和英文釋義，用中文學中文。你想讓他們看的時候再勾這裡（課程列表上也可以一鍵開關、一鍵全部收回）。</span></span></label></div>
+     ${viHas(l)?`<div class="field full vi-box"><label class="vi-box-h">🇻🇳 生詞越南文</label>
+       <div class="vi-box-row">
+         <label class="vi-sw as-label"><input type="checkbox" id="l-vi-release" ${l.vi_release?'checked':''}><span class="knob"></span><span class="vi-sw-t">公開給學生</span></label>
+         <button class="btn btn-sm" type="button" data-act="viCheckFromEdit" data-id="${l.id||''}">📋 對照表（檢查／修改）</button>
+       </div>
+       <div class="hint" style="margin-top:6px">預設<b>不公開</b>：學生只看得到中文和英文釋義，用中文學中文。想讓他們看的時候再打開。改了這個開關要按下面的「儲存」才會生效。</div></div>`
+     :`<div class="field full"><label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer"><input type="checkbox" id="l-vi-release" ${l.vi_release?'checked':''} style="width:auto;margin-top:3px"><span>公開生詞越南文翻譯給學生 <span class="hint">這一課還沒有越南文翻譯，先在下面生詞欄貼上或用 AI 產生。</span></span></label></div>`}
      <div class="hint" style="margin:-2px 0 10px">只想出補充作業？課名填一下即可，下面對話／生詞／語法全部留空，存好後在卡片點「練習題」出題。</div>
      <div class="field full"><label>對話／課文段落 <span class="hint">一課可有多個對話（對話一、對話二…），每段各有自己的課文、生詞、課文音檔、生詞真人發音；語法之後再合併講。</span></label><div id="dlg-editor" class="dlg-editor"></div></div>
      <div class="field full"><label>語法點 <span class="hint">一個語法一張卡。時代華語：填「說明」一個區塊＋例句即可；當代：可分功能／結構／用法多個區塊。要把語法排到短文後面，存好後到課文卡按「📐 課文順序」。</span></label><div id="gp-editor" class="gp-editor"></div></div>
@@ -6400,6 +6424,14 @@ H.viAllOff=async()=>{
     render();toast('已全部收回（'+on.length+' 課）');
   }catch(e){toast(writeErr('失敗',e));}};
 H.viCheck=(id)=>viCheckModal((S.lessons||[]).find(x=>x.id===id));
+H.viCheckFromEdit=async(id)=>{
+  const l=(S.lessons||[]).find(x=>x.id===id);
+  if(!l)return toast('請先按「儲存」建立這一課，再開對照表');
+  if(!confirm('打開越南文對照表之前，會先把這一課存檔。\n（正在編輯的內容都會存起來，不會不見。）'))return;
+  await H.saveLesson(id);
+  const l2=(S.lessons||[]).find(x=>x.id===id);
+  if(l2)viCheckModal(l2);
+};
 H.viCheckSave=async(id,b)=>{
   const l=(S.lessons||[]).find(x=>x.id===id);if(!l)return;
   const dl=(l.dialogues||[]).map(d=>Object.assign({},d));
