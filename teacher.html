@@ -6632,7 +6632,16 @@ H.rollEdit=(key)=>{const cls=S._rollCls;const members=S.students.filter(s=>stuGr
   toast('已載入 '+date+(kS?(' '+kS):'')+' 這一堂，改好後按「記錄這一堂並點名」即可更新');
   const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;};
 H.classRollSave=async(cls)=>{const orig=S._rollOrig;S._rollOrig=null;const date=$('#roll-date').value;if(!date)return toast('請選上課日期');
-  if(date>localToday()&&!confirm('你填的日期 '+date+' 還沒到（今天是 '+localToday()+'）。\n確定要記錄成已上課嗎？'))return;const start=hhmmNorm(($('#roll-start')&&$('#roll-start').value)||'');const end=hhmmNorm(($('#roll-end')&&$('#roll-end').value)||'');if(start&&end){const _p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};let _mm=_p(end)-_p(start);if(_mm<0)_mm+=1440;/* 允許跨午夜 */if(_mm===0)return toast('結束時間不能和開始時間一樣，請重新確認時段');}const note=($('#roll-note')&&$('#roll-note').value||'').trim();const video=($('#roll-video')&&$('#roll-video').value||'').trim();const free=!!($('#roll-free')&&$('#roll-free').checked);
+  /* FUTURE_PLAN_V53 團班也一樣：還沒到的日期排進預排，不點名、不扣堂數 */
+  if(date>localToday()){
+    const _st=hhmmNorm(($('#roll-start')&&$('#roll-start').value)||''), _en=hhmmNorm(($('#roll-end')&&$('#roll-end').value)||'');
+    const _nt=(($('#roll-note')&&$('#roll-note').value)||'').trim();
+    if(!confirm(date+' 還沒到（今天是 '+localToday()+'）。\n\n這一堂會排進這個團班的「📌 預排課程」，不點名、不扣堂數。\n等上完課再回來點一次名就好。'))return;
+    try{await addPlanned(cls,[{date,start:_st,end:_en,note:_nt}]);
+      await loadAll();classRollModal(cls);render();toast('已排進預排課程：'+date+(_st?(' '+_st):''));}
+    catch(err){toast(writeErr('排課失敗',err));}
+    return;
+  }const start=hhmmNorm(($('#roll-start')&&$('#roll-start').value)||'');const end=hhmmNorm(($('#roll-end')&&$('#roll-end').value)||'');if(start&&end){const _p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};let _mm=_p(end)-_p(start);if(_mm<0)_mm+=1440;/* 允許跨午夜 */if(_mm===0)return toast('結束時間不能和開始時間一樣，請重新確認時段');}const note=($('#roll-note')&&$('#roll-note').value||'').trim();const video=($('#roll-video')&&$('#roll-video').value||'').trim();const free=!!($('#roll-free')&&$('#roll-free').checked);
   const members=S.students.filter(s=>stuGroups(s).includes(cls));if(!members.length)return toast('這個團班還沒有成員');
   let _ow=false;
   if(!orig){const _has=members.some(s=>(Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===date&&!((e.start||'')===start&&(e.end||'')===end)));
@@ -7270,12 +7279,32 @@ H.editLogRow=(key)=>{const p=String(key).split('::');H.classLog(p[0],{editIdx:p[
 H.saveLogEdit=async(key)=>{const p=String(key).split('::');const id=p[0],idx=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;
   const log=(Array.isArray(s.class_log)?s.class_log.slice():[]);if(!log[idx])return toast('找不到這一堂');
   const date=$('#cl-date').value;if(!date)return toast('請選日期');
-  /* WK_EDIT_V32 改成還沒到的日期時提醒一下：還沒上的課不該算堂數 */
-  if(date>localToday()&&!confirm('你改成的日期 '+date+' 還沒到（今天是 '+localToday()+'）。\n這一堂會被算成「已經上過」、也會扣堂數。\n\n如果這堂課還沒上，請按「取消」，改用「📌 排一堂課」預排。\n\n還是要記錄成已上課嗎？'))return;
+  /* FUTURE_PLAN_V53 改成還沒到的日期＝這堂還沒上：從上課記錄移走，改排進「預排課程」 */
+  if(date>localToday()){
+    if(!confirm('你改成的日期 '+date+' 還沒到（今天是 '+localToday()+'）。\n\n這一堂會從上課記錄移到「📌 預排課程」，堂數會還回來。\n等上完課再回來按一次「記錄這一堂」就好。'))return;
+    const _st=hhmmNorm(($('#cl-start')&&$('#cl-start').value)||''), _en=hhmmNorm(($('#cl-end')&&$('#cl-end').value)||'');
+    const _nt=(($('#cl-note')&&$('#cl-note').value)||'').trim();
+    const _rest=log.slice();_rest.splice(idx,1);
+    try{await DB.update('students',id,{class_log:_rest});s.class_log=_rest;
+      await addStudentPlanned(s,[{date,start:_st,end:_en,note:_nt}]);
+      await loadAll();H.classLog(id);render();toast('已移到預排課程：'+date+(_st?(' '+_st):''));}
+    catch(err){toast(writeErr('搬移失敗',err));}
+    return;
+  }
   log[idx]={date,status:$('#cl-status').value,free:!!($('#cl-free')&&$('#cl-free').checked),makeup:!!($('#cl-makeup')&&$('#cl-makeup').checked),video:($('#cl-video')&&$('#cl-video').value||'').trim(),start:hhmmNorm(($('#cl-start')&&$('#cl-start').value)||''),end:hhmmNorm(($('#cl-end')&&$('#cl-end').value)||''),note:($('#cl-note')&&$('#cl-note').value||'').trim()};
   try{await DB.update('students',id,{class_log:log});await loadAll();H.classLog(id);render();toast('已更新這一堂 ✓');}catch(e){toast(writeErr('更新失敗',e));}};
 H.addClassLog=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const date=$('#cl-date').value;if(!date)return toast('請選日期');
-  if(date>localToday()&&!confirm('你填的日期 '+date+' 還沒到（今天是 '+localToday()+'）。\n確定要記錄成已上課嗎？'))return;
+  /* FUTURE_PLAN_V53 還沒到的日期一律排進「預排課程」，不寫進上課記錄，也不扣堂數。
+     等課真的上完了，再回到這裡按一次「記錄這一堂」就會轉成正式記錄。 */
+  if(date>localToday()){
+    const _st=($('#cl-start')&&$('#cl-start').value)||'', _en=($('#cl-end')&&$('#cl-end').value)||'';
+    const _nt=(($('#cl-note')&&$('#cl-note').value)||'').trim();
+    if(!confirm(date+' 還沒到（今天是 '+localToday()+'）。\n\n這一堂會排進「📌 預排課程」，不算已上課、不扣堂數。\n等上完課再回來按一次「記錄這一堂」就好。'))return;
+    try{await addStudentPlanned(s,[{date,start:_st,end:_en,note:_nt}]);
+      await loadAll();H.classLog(id);render();toast('已排進預排課程：'+date+(_st?(' '+_st):''));}
+    catch(err){toast(writeErr('排課失敗',err));}
+    return;
+  }
   if(enrollOf(s)==='paused'&&!confirm((s.name||'這位學生')+' 目前是「休學中」。\n還是要幫他記錄這一堂嗎？'))return;
   const entry={date,status:$('#cl-status').value,free:!!($('#cl-free')&&$('#cl-free').checked),makeup:!!($('#cl-makeup')&&$('#cl-makeup').checked),video:($('#cl-video')&&$('#cl-video').value||'').trim(),start:($('#cl-start')&&$('#cl-start').value)||'',end:($('#cl-end')&&$('#cl-end').value)||'',note:$('#cl-note').value.trim()};
   // 同一天＋同時段只記一筆，並清掉現有重複
