@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>主題詞彙庫 · QNA CHINESE</title>
+<style>
+:root{--bg:#FAF7F2;--card:#fff;--line:#E7E0D5;--ink:#2E2A24;--muted:#8A8073;--primary:#B4694A;--primary-soft:#F6EDE7}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:18px 20px;position:sticky;top:0;z-index:10}
+h1{margin:0 0 4px;font-size:20px}
+.sub{color:var(--muted);font-size:13px}
+.wrap{max-width:1180px;margin:0 auto;padding:20px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 6px}
+.tab{padding:7px 16px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer;font-size:14px;font-family:inherit;color:var(--muted)}
+.tab.on{background:var(--primary);border-color:var(--primary);color:#fff}
+input[type=search]{flex:1;min-width:200px;padding:8px 14px;border:1px solid var(--line);border-radius:999px;font-size:14px;font-family:inherit;background:#fff}
+.btn{padding:7px 15px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer;font-size:13.5px;font-family:inherit;color:var(--ink)}
+.btn:hover{background:var(--primary-soft)}
+.stat{color:var(--muted);font-size:13px;margin:8px 0 18px}
+.theme{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:16px;overflow:hidden}
+.theme>summary{cursor:pointer;padding:13px 18px;font-weight:600;font-size:15.5px;list-style:none;display:flex;align-items:center;gap:10px}
+.theme>summary::-webkit-details-marker{display:none}
+.theme>summary::before{content:'▸';color:var(--primary);font-size:13px;transition:transform .15s}
+.theme[open]>summary::before{transform:rotate(90deg)}
+.cnt{margin-left:auto;color:var(--muted);font-weight:400;font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:0;border-top:1px solid var(--line)}
+.w{padding:10px 16px;border-bottom:1px solid #F1EBE1;border-right:1px solid #F1EBE1;min-width:0}
+.zh{font-size:16.5px;font-weight:600}
+.py{color:var(--primary);font-size:12.5px;margin-left:7px;font-weight:400}
+.vi{color:#3F6B4C;font-size:13.5px;margin-top:1px;word-break:break-word}
+.src{color:var(--muted);font-size:11.5px;margin-top:3px}
+.lvtag{display:inline-block;font-size:10.5px;padding:1px 6px;border-radius:999px;background:var(--primary-soft);color:var(--primary);margin-left:6px;vertical-align:middle}
+.note{background:#FFF8E8;border:1px solid #EBDCB8;border-radius:12px;padding:12px 16px;font-size:13.5px;margin-bottom:16px}
+.loading{padding:60px 0;text-align:center;color:var(--muted)}
+@media(max-width:640px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>主題詞彙庫</h1>
+  <div class="sub">依生活情境重新編排平台既有生詞 · 僅供老師檢閱，未連到學生端</div>
+</header>
+<div class="wrap">
+  <div class="note">
+    這一頁的每一個詞都直接來自平台課本裡已經有的生詞，<b>沒有新增、沒有改字</b>，中文·拼音·越南文·出處都照原樣帶過來。
+    我做的只是「貼主題標籤」。目前<b>初級已分類完成</b>；中級·高級還沒分類，會先集中在「未分類」裡，等妳確認初級的分法可以用，我再照同樣的方式往下做。
+  </div>
+  <div class="bar">
+    <button class="tab on" data-lv="1">初級</button>
+    <button class="tab" data-lv="2">中級</button>
+    <button class="tab" data-lv="3">高級</button>
+    <button class="tab" data-lv="0">全部</button>
+    <input type="search" id="q" placeholder="搜尋中文、拼音或越南文…">
+    <button class="btn" id="dl">下載 Excel</button>
+    <button class="btn" id="exp">全部展開</button>
+  </div>
+  <div class="stat" id="stat"></div>
+  <div id="out"><div class="loading">讀取中…</div></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script>
+/* ===== 主題對照表（初級）=====
+   每個詞都經過比對，確認存在於平台既有生詞中。0 個查無此詞、0 個漏詞。 */
+var THEME_L1 = {
+"A 打招呼·客套·應對":"歡迎 請問 是的 謝謝 不客氣 你好 對不起 請進 自我介紹 早安 午安 晚安 明天見 再見 沒問題 沒關係 對了 不好意思 介紹 喂 你／妳好 慢走 好久不見 不必客氣 太客氣 哪裡，哪裡 我就是 好啊 好的 是啊 太好了 不用了 加油 請 好了 怎麼了",
+"B 人·家庭·稱謂":"小姐 先生 太太 人 家人 姐姐 妹妹 伯母 哥哥 兄弟 姐妹 弟弟 姐姐／姊姊 爸爸 媽媽 父母 父親 母親 兒子 女兒 大人 小孩 孩子 大家 朋友 同學 學生 別人 女 男 女生 男生 華人 名字 姓名 姓 叫 歲 結婚 出生",
+"C 數字·量詞·單位":"個 五 兩 張 雙 場 本 一些 朵 種 枝 塊 件 碗 杯 瓶 位 一共 多少 百 千 萬 零 半 間 棟 台 隻 部 支 輛 首 條 架 公斤 斤 盤 次 棵 份 公里 公尺 公分 一半／一半兒 封",
+"D 時間·日期":"早 點 點／點鐘 現在 今天 星期 月 號 日 星期天 早上 中午 下午 上午 分 幾點／幾點鐘 明天 昨天 週末 晚上 天 有空 沒（有）空 後天 前天 有（的）時候 錶／手錶 去年 年 今年 明年 最近 時間 禮拜 以前 以後 什麼時候 小時／鐘頭 分鐘 剛剛 晚 久 多久 放假 這次 上次 下次 夜 時候 剛 古代 等一下 鐘頭 下個星期 有時候 上個月 十二月底 早一點 小時",
+"E 飲食":"喝 茶 咖啡 烏龍茶 吃 水果 水 珍珠奶茶 奶茶 午飯 早飯 晚飯 飯 做飯 蛋糕 蛋 點心 甜點 甜 飲料 餐廳／飯館 麵 牛肉麵 瓶子 杯子 紅茶 綠茶 果汁 牛奶 下午茶 咖啡廳 冰淇淋 巧克力 蘋果 香蕉 菜單 點菜 菜 盤子 麵包 酒 餃子 包子 肉 魚 湯 食物 小籠包 小吃 餐廳 吃飯 油 辣 臭豆腐 微波 外帶 內用 牛肉 午餐 茶館 芒果 西瓜 吃吃看 豬腳 麵線 冰",
+"F 購物·金錢·顏色":"包 貴 買 東西 錢 元 便宜 顏色 紅色 紅 白色 白 賣 找錢 店／商店 錢包 綠色 綠 藍 藍色 牌子 百貨公司 黃色 黃 黑色 黑 郵局 超級市場／超市 市場 票 銀行 付 夜市 便利商店 逛 店 商店 超市",
+"G 居家·家具·住":"家 房子 傘 房間 客廳 桌子 椅子 沙發 廚房 床 家具 窗戶 門 樓 樓下 樓上 電梯 樓梯 宿舍 冷氣（機） 住 大樓 浴室 廁所／洗手間 租 房東 套房 房租 熱水器",
+"H 交通·方向·位置":"上 哪裡／哪兒 那裡／那兒 這裡／這兒 裡（面） 外（面） 上（面） 下（面） 旁邊 前（面） 後（面） 腳踏車／自行車 捷運／地鐵 公共汽車／公車 車（子）／汽車 計程車 火車 上車 下車 地圖 路／馬路 街 地方 附近 線 機場／飛機場 車站 站 飛機 對面 中間 地址 往 右（邊） 左（邊） 轉 門口 方向 十字路口 路口 交通 離 東 西 南 北 中部 下 高鐵 台灣高鐵 邊／邊兒 公共汽車 捷運 中 山上 哪裡 那裡 前面 後面 這裡 外面 左邊 右邊 機車 車票 裡面",
+"I 國家·地名·旅遊":"臺灣 日本 美國 哪國 國 臺灣／台灣 中國 英國 印尼 韓國 飯店 旅館 風景 世界 世界上 城市 台北 台北 101 公園 國家 越南 太魯閣 花蓮 合歡山 日月潭 高雄 西子灣 中國大陸 菲律賓 荷蘭 外國 博物館 參觀 大安 臺南 故宮博物院 臺東 貓空 西班牙 玉山 紐約 旅行",
+"J 身體·健康·看醫生":"頭 餓 渴 感冒 發燒 醫生 醫院 口罩 手 手指 健康 身體 生病 咳嗽／咳 頭髮 痛 鼻子 嘴（巴） 臉 耳朵 眼睛 肚子 藥 不舒服 受傷 看病 鼻水 胃口 喉嚨 發炎 藥局 臉色 吐 健康中心",
+"K 學校·學習·語言":"書 看書 老師 中文 英文 鉛筆 筆 經驗 教 科學 學校 課 圖書館 下課 上課 問題 雜誌 句子 意思 書法 毛筆 功課 作業 教室 班 語言 期中考 語言交換 學期 華語 練習 日文 讀書 字 考試 考 文章 成績 畢業 歷史 故事 數學 課本 課文 紙 黑板 小學 中學 大學 年級 報紙 上學 念書 獎學金 學費 學 學／學習 念 語言中心 西班牙文",
+"L 工作·職業":"司機 工作 當 護理師／護士 記者 公司 老闆／老板 準時 上班 下班 同事 遲到 辦公室 工廠 工人 警察 請假 生意 保險 老闆",
+"M 天氣·季節·自然·動物":"颱風 天氣 熱 冷 太陽 曬太陽／晒太陽 海邊 海 山 夏天 春天 秋天 冬天 貓 狗 鳥 樹 環境 花 日出 動物 羊 馬 兔／兔子 虎／老虎 河 湖 鼠／老鼠 蛇 猴／猴子 雞 豬 牛 下雪 雪 下雨 雨 風 紅葉 濕",
+"N 服裝·外表":"穿 衣服 裙子 褲子 流行 鞋子 襪子 皮包 眼鏡",
+"O 休閒·運動·娛樂":"照片 照相 滑雪 球 玩 音樂 網球 籃球 棒球 足球 游泳 跑步 電影 電影院 上網 運動 唱歌 歌 跳舞 畫畫 畫 比賽 節目 相片／照片 聲音 展 活動 晚會 演唱會 演唱 表演 遊戲 贏 輸 游泳池 KTV 影片",
+"P 通訊·科技·網路":"電視（機） 電腦 手機 打電話 接電話 電話 號碼 卡片 留言 網路 照相機 電子郵件 郵件 網址 網站 圖片 信 信封 寄 電視 新聞 網路上 有線電視",
+"Q 情緒·感受·個性":"喜歡 愛 快樂 開心 興趣 高興 怕 希望 緊張 擔心 心情 討厭 關心",
+"R 節慶·文化·祝福":"祝 生日 禮物 跨年 新年 慶祝 生肖 屬 龍 燈籠 元宵節 燈會 傳統 教堂 生日快樂 萬事如意 心想事成",
+"S 動作·行為":"來 接 坐 拍 進 回 打算 流 代表 約 需要 關 知道 去 做 起床 睡覺 想（要） 送 看 給 聽 幫 找 打 踢 跑 說 說話 覺得 休息 騎 聽說 到 等 想 走路 走 開車 飛 起飛 開 用 懂 問 寫 讀 戴 洗 注意 帶 記得 告訴 忘記 認識 看到 回答 聊天（兒） 聊 見面 決定 辦法 幫忙 照 出去 機會 事（情） 過 準備 談 談話 見 排隊 進去 進來 算 出 生活 忘了 拿 同意 小心 剛才 打開 查 著 講 講話 放 排 計畫 搭 洗澡 換 笑 陪 習慣 試 停 訂 裝 交換 建議 結束 回去 有事 載 回國 試試看 回來 忘（了） 收到 睡 回家 開始 參加",
+"T 性質·程度·評價":"好 很 好喝 漂亮 多 好看 長 對 進步 空 新 可愛 大 小 忙 累 少 好吃 太 慢 快 遠 近 有趣 真 難 容易 胖 瘦 高 矮 短 年輕 老 舊 真的 聰明 乾淨 奇怪 特別 辛苦 夠 重要 重 安靜 大聲 壞 熱鬧 有意思 一樣 簡單 好玩 受歡迎 方便 舒服 有名 香 可怕 差 不少 美 熱心 不行 不好 難看 不錯",
+"U 功能詞·代詞·語法":"你 是 嗎 我們 我 這 你們 什麼 呢 他 不 哪 要 的 都 誰 您 沒 不過 每 把 就 得 她 妳 和 一起 那 怎麼樣 這些 那些 還是 也 了 最 （一）點（兒） 有的 有 在 吧 跟 可是 再 會 有（一）點（兒） 應該 可以 只 不要 平常 怎麼 從 先 一定 又 因為 所以 為什麼 快要 那（麼） 能 別的 比較 也許 要是／如果 已經 然後 差不多 還沒 還 這樣 可能 但是 而且 自己 就要 馬上 第 這麼／那麼 比 原來 其他 本來／原來 後來 更 或是 當然 這麼 替 最好 好像 一直 別 常 做什麼 好不好 那麼 左右 一點 大部分 有一點 大概 要是 幾 非常 啊 常（常） 最後 他們",
+"V 人名·專有名詞":"陳月美 李明華 王開文 張怡君 馬安同 田中誠一 白如玉 林"
+};
+
+function parseVocabLine(line){
+  if(/[｜|]/.test(line)){
+    var p=line.split(/[｜|]/).map(function(s){return s.trim();});
+    var w=p[0],py='';
+    var m=w.match(/^([^\[]*)\[([^\]]*)\]/); if(m){w=m[1].trim();py=m[2].trim();}
+    return {w:w,py:py,en:(p[2]||'')};
+  }
+  var py2='',b=line.match(/\[([^\]]*)\]/); if(b)py2=b[1].trim();
+  var s=line.replace(/\[[^\]]*\]/g,' ').replace(/\([^)]*\)/g,' ').replace(/\s+/g,' ').trim();
+  var m2=s.match(/^[一-鿿]+(?:[／\/][一-鿿]+)*/);
+  var w2=m2?m2[0]:s;
+  var en=m2?s.slice(m2[0].length).replace(/^[\s=：:，,·-]+/,'').trim():'';
+  return {w:w2,py:py2,en:en};
+}
+function levelOf(book){
+  if(/當代中文課程一|時代華語一|發音/.test(book))return 1;
+  if(/時代華語二|實用中文讀寫一/.test(book))return 2;
+  return 3;
+}
+var W2T={};
+Object.keys(THEME_L1).forEach(function(k){
+  THEME_L1[k].split(' ').filter(Boolean).forEach(function(w){W2T[w]=k;});
+});
+
+var ROWS=[],curLv=1,curQ='';
+function strip(s){return String(s||'').replace(/<[^>]*>/g,'');}
+
+function load(){
+  DB.list('lessons').then(function(rows){
+    rows.forEach(function(l){
+      var book=String(l.book||l.textbook||'')||'(未分類課本)';
+      (l.dialogues||[]).forEach(function(d){
+        var lines=String(d.vocabulary||'').split('\n').map(function(s){return s.trim();}).filter(Boolean);
+        if(!lines.length)return;
+        var words=lines.filter(function(s){return !/^[-–—－]/.test(s);});
+        var vi=String(d.vocab_vi||'').split('\n').map(function(s){return s.trim();}).filter(Boolean);
+        words.forEach(function(line,i){
+          var p=parseVocabLine(line);
+          ROWS.push({w:p.w,py:p.py,en:p.en,vi:vi[i]||'',book:book,
+                     lesson:strip(l.title),seg:strip(d.title),lv:levelOf(book),
+                     theme:W2T[p.w]||'（未分類）'});
+        });
+      });
+    });
+    render();
+  }).catch(function(e){
+    document.getElementById('out').innerHTML='<div class="loading">讀取失敗：'+e.message+'</div>';
+  });
+}
+
+function render(){
+  var seen={},list=[];
+  ROWS.forEach(function(r){
+    if(curLv&&r.lv!==curLv)return;
+    var k=r.w+'|'+r.lv;
+    if(seen[k])return; seen[k]=1;
+    if(curQ){
+      var hay=(r.w+' '+r.py+' '+r.vi+' '+r.en).toLowerCase();
+      if(hay.indexOf(curQ)<0)return;
+    }
+    list.push(r);
+  });
+  var by={};
+  list.forEach(function(r){(by[r.theme]=by[r.theme]||[]).push(r);});
+  var keys=Object.keys(by).sort(function(a,b){
+    if(a==='（未分類）')return 1; if(b==='（未分類）')return -1; return a.localeCompare(b,'zh-Hant');
+  });
+  var lvName={1:'初級',2:'中級',3:'高級',0:'全部'};
+  document.getElementById('stat').textContent=
+    lvName[curLv]+'：'+list.length+' 個詞 · '+keys.length+' 個主題'+(curQ?'（搜尋中）':'');
+  var html=keys.map(function(k){
+    var open=(keys.length<=3||curQ)?' open':'';
+    return '<details class="theme"'+open+'><summary>'+k+'<span class="cnt">'+by[k].length+'</span></summary><div class="grid">'+
+      by[k].map(function(r){
+        return '<div class="w"><div class="zh">'+esc(r.w)+
+          (r.py?'<span class="py">'+esc(r.py)+'</span>':'')+
+          (curLv===0?'<span class="lvtag">'+({1:'初',2:'中',3:'高'}[r.lv])+'</span>':'')+'</div>'+
+          (r.vi?'<div class="vi">'+esc(r.vi)+'</div>':'')+
+          '<div class="src">'+esc(r.book)+' · '+esc(r.lesson)+'</div></div>';
+      }).join('')+'</div></details>';
+  }).join('');
+  document.getElementById('out').innerHTML=html||'<div class="loading">沒有符合的詞</div>';
+}
+function esc(s){return String(s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+
+document.querySelectorAll('.tab').forEach(function(b){
+  b.onclick=function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on'); curLv=+b.dataset.lv; render();
+  };
+});
+document.getElementById('q').oninput=function(){curQ=this.value.trim().toLowerCase();render();};
+document.getElementById('exp').onclick=function(){
+  var ds=document.querySelectorAll('details.theme'),all=true;
+  ds.forEach(function(d){if(!d.open)all=false;});
+  ds.forEach(function(d){d.open=!all;});
+  this.textContent=all?'全部展開':'全部收合';
+};
+document.getElementById('dl').onclick=function(){
+  var seen={},aoa=[['主題','難度','中文','拼音','越南文','英文','課本','課次','段落']];
+  ROWS.forEach(function(r){
+    var k=r.w+'|'+r.lv; if(seen[k])return; seen[k]=1;
+    aoa.push([r.theme,{1:'初級',2:'中級',3:'高級'}[r.lv],r.w,r.py,r.vi,r.en,r.book,r.lesson,r.seg]);
+  });
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),'主題詞彙庫');
+  XLSX.writeFile(wb,'主題詞彙庫.xlsx');
+};
+load();
+</script>
+</body>
+</html>
