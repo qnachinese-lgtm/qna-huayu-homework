@@ -59,6 +59,19 @@ ol.ex li,ul.ex li{padding:4px 0;font-size:15px}
 .hint{background:var(--todobg);border:1px solid #EBD6AC;border-radius:11px;padding:10px 14px;font-size:13.5px;margin-top:11px}
 .mini{color:var(--muted);font-size:12.5px;margin-top:8px}
 .bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.back{color:#fff;opacity:.9;font-size:13px;text-decoration:none;display:inline-block;margin-bottom:6px}
+.lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+a.lcard{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;text-decoration:none;color:inherit;transition:.12s}
+a.lcard:hover{border-color:var(--primary);box-shadow:0 3px 14px #B4694A1A}
+a.lcard .no{font-size:11.5px;color:var(--muted);letter-spacing:.05em}
+a.lcard .tt{font-size:18px;font-weight:600;margin:3px 0 9px}
+.vrow{display:flex;gap:7px;align-items:baseline;font-size:12.5px;padding:3px 0;border-top:1px dashed #EFE8DC}
+.vrow b{color:var(--primary);min-width:52px;font-size:13px}
+.vrow span{color:var(--muted)}
+.stat{margin-top:10px;font-size:12px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap}
+.stat i{font-style:normal;background:var(--soft);color:var(--primary);border-radius:999px;padding:1px 9px}
+.unit h3{font-size:15px;margin:0 0 12px;color:var(--primary);display:flex;align-items:center;gap:8px}
+.unit h3::after{content:'';flex:1;height:1px;background:var(--line)}
 .btn{padding:7px 16px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer;font-size:13.5px;font-family:inherit;color:var(--ink);text-decoration:none}
 .btn.on{background:var(--primary);border-color:var(--primary);color:#fff}
 @media print{header,.bar,.vtabs,.note,.hint,.au{display:none!important}body{background:#fff}section{break-inside:avoid}}
@@ -107,9 +120,36 @@ function secHtml(s,i){
     '<span class="tag">'+(tagMap[s.kind]||'')+'</span></h2><div class="body">'+b+'</div></section>';
 }
 
+function P(k){var m=location.search.match(new RegExp('[?&]'+k+'=([^&]*)'));return m?decodeURIComponent(m[1]):'';}
+function count(V){
+  var w=0,s=0,d=0,t=0;
+  V.sections.forEach(function(x){
+    if(x.kind==='wordcard')w+=x.rows.length;
+    if(x.kind==='pattern'||x.kind==='listen'){s+=x.items.length;if(x.sub)s+=x.sub.items.length;}
+    if(x.kind==='dialog')d+=x.turns.length;
+    if(x.kind==='taskcard')t+=x.items.length;
+  });
+  return {w:w,s:s,d:d,t:t};
+}
+function renderIndex(){
+  var h='<header><div class="hw"><div class="kicker">QNA CHINESE</div><h1>'+esc(TC2[0].course)+'</h1>'+
+    '<div style="font-size:13.5px;opacity:.9;margin-top:3px">同一個主題，三個難度版本 · 點課名進入</div></div></header><div class="wrap">';
+  h+='<div class="note">每一課都分成<b>生存版／生活版／挑戰版</b>三個版本，各自是一堂完整的課，可以照學生程度分開上、分開指派作業。</div>';
+  h+='<div class="unit"><h3>課程列表</h3><div class="lgrid">'+TC2.map(function(x){
+      return '<a class="lcard" href="?l='+encodeURIComponent(x.id)+'"><div class="no">第 '+x.no+' 課</div>'+
+        '<div class="tt">'+esc(x.title)+'</div>'+
+        x.versions.map(function(v){var c=count(v);
+          return '<div class="vrow"><b>'+esc(v.name)+'</b><span>'+esc(v.lv)+'　'+esc(v.time)+'</span></div>';}).join('')+
+        (function(){var W=0,S=0,D=0,T=0;x.versions.forEach(function(v){var c=count(v);W+=c.w;S+=c.s;D+=c.d;T+=c.t;});
+          return '<div class="stat"><i>生詞 '+W+'</i><i>句型 '+S+'</i><i>對話 '+D+' 句</i><i>任務 '+T+'</i></div>';})()+
+        '</a>';}).join('')+'</div></div>';
+  document.getElementById('app').innerHTML=h+'</div>';
+  document.title=TC2[0].course;
+}
 function draw(){
   var V=L.versions[cur];
-  var h='<header><div class="hw"><div class="kicker">'+esc(L.course)+'　·　第 '+L.no+' 課</div>'+
+  var h='<header><div class="hw"><a class="back" href="./tc2.html">← 回課程列表</a>'+
+    '<div class="kicker">'+esc(L.course)+'　·　第 '+L.no+' 課</div>'+
     '<h1>'+esc(L.title)+'</h1></div></header><div class="wrap">';
   h+='<div class="note"><b>這一課的內容完全照您提供的 Word 稿建置，逐字未改。</b>'+
      '原稿沒有越南文的段落我留白，沒有自行補譯；圖片和音檔尚未有素材，先放佔位。</div>';
@@ -134,7 +174,11 @@ function draw(){
   document.querySelectorAll('.vtab').forEach(function(b){
     b.onclick=function(){cur=+b.dataset.i;draw();window.scrollTo(0,0);};});
 }
-draw();
+(function(){
+  var id=P('l');
+  var found=id?TC2.filter(function(x){return x.id===id;})[0]:null;
+  if(found){L=found;cur=0;draw();}else{renderIndex();}
+})();
 </script>
 </body>
 </html>
