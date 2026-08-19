@@ -138,6 +138,12 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 /*QSEL_V70 選詞填空用下拉，學生不用一直往下滑*/
 /*INLSEL_V72 選詞填空的下拉直接長在短文的空格上*/
 /*MATCARD_V73 閱讀材料卡片重新排版*/
+/*MATTAB_V74 文字／圖片切換*/
+.mat-tabs{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:2px 0 10px;background:var(--surface)}
+.mat-tabs .mtb{padding:5px 14px;border:0;border-right:1px solid var(--line);background:var(--surface);font-family:inherit;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer}
+.mat-tabs .mtb:last-child{border-right:0}
+.mat-tabs .mtb.on{background:var(--accent);color:#fff}
+.mat-body.hide{display:none}
 #screen .note-card{border-style:solid;border-left:4px solid var(--accent);background:var(--surface-2);padding:15px 18px}
 .mat-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px}
 .mat-kicker{font-size:13.5px;font-weight:800;color:var(--accent);letter-spacing:.01em}
@@ -1291,6 +1297,13 @@ function inlineSelHtml(q,n){
     '<option value="">'+esc(LT({zh:'— 選 —',cn:'— 选 —',en:'— pick —',vi:'— chọn —'}))+'</option>'+
     (q.options||[]).map((o,i)=>'<option value="'+i+'">'+esc(o)+'</option>').join('')+'</select></span>';
 }
+window.MATTAB=function(el,i){/*MATTAB_V74*/
+  var card=el.closest('.note-card');if(!card)return;
+  card.querySelectorAll('.mat-tabs .mtb').forEach(function(b,k){b.classList.toggle('on',k===i);});
+  var t=card.querySelector('.mat-txt'),g=card.querySelector('.mat-img');
+  if(t)t.classList.toggle('hide',i!==0);
+  if(g){g.classList.toggle('hide',i!==1);var im=g.querySelector('img');if(im)im.removeAttribute('loading');}
+};
 function numberedHtml(arr,noInstr){let n=0,li='';
   const ch=arr.filter(x=>x&&x.type==='choice');
   const bynum={};ch.forEach((q,i)=>{bynum[i+1]=q;});
@@ -2737,13 +2750,17 @@ function qHtml(q,idx,noInstr){
     const _hint=_inl?LT({zh:'請直接在短文的空格上選答案。',cn:'请直接在短文的空格上选答案。',en:'Choose your answer in each blank.',vi:'Chọn đáp án ngay tại mỗi chỗ trống.'})
       :(q.audio_url?LT({zh:'聽完再回答下面的題目。',cn:'听完再回答下面的题目。',en:'Listen, then answer below.',vi:'Nghe xong rồi trả lời bên dưới.'})
       :LT({zh:'看完再回答下面的題目。',cn:'看完再回答下面的题目。',en:'Read it, then answer below.',vi:'Đọc xong rồi trả lời bên dưới.'}));
-    return `<div class="q-card note-card">${_hd}${_title?`<div class="mat-title">${esc(_title)}</div>`:''}${_tx?`<div class="note-text">${_tx}</div>`:''}${audioHtml(q.audio_url)}${pc}<div class="mat-hint">${esc(_hint)}</div></div>`;}
+    const _both=!!(_tx&&pc);/*MATTAB_V74*/
+    const _tabs=_both?`<div class="mat-tabs"><button type="button" class="mtb on" onclick="MATTAB(this,0)">📄 ${esc(LT({zh:'文字',cn:'文字',en:'Text',vi:'Văn bản'}))}</button><button type="button" class="mtb" onclick="MATTAB(this,1)">🖼 ${esc(LT({zh:'圖片',cn:'图片',en:'Image',vi:'Hình'}))}</button></div>`:'';
+    const _b1=_tx?`<div class="mat-body mat-txt"><div class="note-text">${_tx}</div></div>`:'';
+    const _b2=pc?`<div class="mat-body mat-img${_both?' hide':''}">${pc}</div>`:'';
+    return `<div class="q-card note-card">${_hd}${_title?`<div class="mat-title">${esc(_title)}</div>`:''}${_tabs}${_b1}${audioHtml(q.audio_url)}${_b2}<div class="mat-hint">${esc(_hint)}</div></div>`;}
   let body='',showPrompt=true;
   if(q.type==='choice'&&q.layout==='select'){const _o=q.options||[];/*QSEL_V70*/
     body='<div class="qselwrap"><select class="qsel" id="qsel-'+q.id+'"><option value="">'+esc(LT({zh:'— 請選擇 —',cn:'— 请选择 —',en:'— Choose —',vi:'— Chọn —'}))+'</option>'+
       _o.map((o,i)=>`<option value="${i}">${esc(o)}</option>`).join('')+'</select></div>';}
   else if(q.type==='choice'){const _o=q.options||[];const _m=_o.reduce((a,x)=>Math.max(a,String(x||'').length),0);
-    const _c=(q.layout==='grid2')?' c2':((_o.length===4&&_m<=6)?' c4':((_o.length===4&&_m<=18)?' c2':''));/*EXAMVIEW_V67 GRID2_V71*/
+    const _c=(_o.length===4)?' c2':'';/*EXAMVIEW_V67 GRID2_V71 ALL2_V74 一律兩格兩格*/
     body='<div class="opts'+_c+'">'+_o.map((o,i)=>`<label class="opt"><input type="radio" name="q-${q.id}" value="${i}"><span>${esc(o)}</span></label>`).join('')+'</div>';}
   else if(q.type==='fill'){
     if(q.input_mode==='write'){body=`<div class="hw-wrap"><canvas id="hw-${q.id}" class="hw-canvas" width="660" height="440"></canvas><div class="hw-tools"><button class="btn btn-sm" type="button" data-act="hwclear" data-q="${q.id}">${th('clear')}</button><span class="hint">${th('hint')}</span></div></div>`;}
