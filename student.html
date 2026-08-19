@@ -135,6 +135,10 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .opts.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:700px){.opts.c4{grid-template-columns:repeat(2,minmax(0,1fr))}.opts.c2{grid-template-columns:1fr}}
 #screen .note-card .q-pic img{max-width:100%;width:100%;max-height:none;height:auto;cursor:zoom-in}
+/*QSEL_V70 選詞填空用下拉，學生不用一直往下滑*/
+.qselwrap{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#screen select.qsel{width:auto;min-width:190px;max-width:100%;padding:9px 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);font-size:16px;font-family:inherit;color:var(--ink)}
+#screen select.qsel:focus{border-color:var(--accent);outline:none}
 .note-card .q-pic{margin-top:8px}
 .note-zoom{display:inline-block;margin-top:4px;font-size:12.5px;color:var(--accent);text-decoration:none}
 /* 語法說明裡的課本圖表（例：趨向補語圖） */
@@ -1327,7 +1331,9 @@ function grammarPracticeHtml(l){
   const untagHtml=untag.length?`<div class="lesson-block"><div class="lesson-label">${t('practice')}</div><div class="pi-wrap">${numbered(untag)}</div></div>`:'';
   return `<div class="lesson-block"><div class="lesson-label">${t('grammar')}</div>${cards}</div>${untagHtml}`;}
 function readResp(q){
-  if(q.type==='choice'){const c=document.querySelector('input[name="q-'+q.id+'"]:checked');return c?Number(c.value):null;}
+  if(q.type==='choice'){const sel=document.getElementById('qsel-'+q.id);/*QSEL_V70*/
+    if(sel)return sel.value===''?null:Number(sel.value);
+    const c=document.querySelector('input[name="q-'+q.id+'"]:checked');return c?Number(c.value):null;}
   if(q.type==='fill'){if(q.input_mode==='write')return canvasDataURL(document.getElementById('hw-'+q.id));
     const n=fillBlankCount(q.prompt);
     if(n>1){const vals=[];for(let k=0;k<n;k++){const el=document.getElementById('fill-'+q.id+(k===0?'':'-'+k));vals.push(el?el.value:'');}return vals;}
@@ -2696,7 +2702,10 @@ function qHtml(q,idx,noInstr){
     const _hint=(q.explanation&&String(q.explanation).trim())?'請看完再回答下面的題目。':'參考即可，不用作答。';
     return `<div class="q-card note-card">${ins}<div class="note-badge">📖 ${esc(_lb)}</div>${q.prompt?`<div class="note-text">${esc(q.prompt).replace(/\n/g,'<br>')}</div>`:''}${audioHtml(q.audio_url)}${pc}<div class="hint" style="margin-top:6px">${_hint}</div></div>`;}
   let body='',showPrompt=true;
-  if(q.type==='choice'){const _o=q.options||[];const _m=_o.reduce((a,x)=>Math.max(a,String(x||'').length),0);
+  if(q.type==='choice'&&q.layout==='select'){const _o=q.options||[];/*QSEL_V70*/
+    body='<div class="qselwrap"><select class="qsel" id="qsel-'+q.id+'"><option value="">'+esc(LT({zh:'— 請選擇 —',cn:'— 请选择 —',en:'— Choose —',vi:'— Chọn —'}))+'</option>'+
+      _o.map((o,i)=>`<option value="${i}">${esc(o)}</option>`).join('')+'</select></div>';}
+  else if(q.type==='choice'){const _o=q.options||[];const _m=_o.reduce((a,x)=>Math.max(a,String(x||'').length),0);
     const _c=(_o.length===4&&_m<=6)?' c4':((_o.length===4&&_m<=18)?' c2':'');/*EXAMVIEW_V67*/
     body='<div class="opts'+_c+'">'+_o.map((o,i)=>`<label class="opt"><input type="radio" name="q-${q.id}" value="${i}"><span>${esc(o)}</span></label>`).join('')+'</div>';}
   else if(q.type==='fill'){
@@ -2821,7 +2830,8 @@ function gradeAll(qs){let score=0;const answers={};let hasWrite=false;
   return{score,total:qs.filter(q=>q.type!=='note').length,answers,hasWrite};}
 // 把之前儲存（草稿或已送出）的答案填回作答畫面，方便接著做
 function fillSaved(qs,saved){if(!saved)return;qs.forEach(q=>{const v=saved[q.id];if(v==null)return;
-  if(q.type==='choice'){const r=document.querySelector('input[name="q-'+q.id+'"][value="'+v+'"]');if(r)r.checked=true;}
+  if(q.type==='choice'){const sel=document.getElementById('qsel-'+q.id);/*QSEL_V70*/
+    if(sel){sel.value=String(v);}else{const r=document.querySelector('input[name="q-'+q.id+'"][value="'+v+'"]');if(r)r.checked=true;}}
   else if(q.type==='fill'){if(q.input_mode==='write')return;if(Array.isArray(v)){v.forEach((val,k)=>{const el=document.getElementById('fill-'+q.id+(k===0?'':'-'+k));if(el&&typeof val!=='object')el.value=val;});}else if(typeof v!=='object'){const el=document.getElementById('fill-'+q.id);if(el)el.value=v;}}
   else if(q.type==='qa'){if(typeof v!=='string'||v==='[object Object]')return;
     const parts=v.split('\n');let k=0,any=false;
