@@ -164,11 +164,16 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .segbar .segb.on{background:var(--accent,#B23A48);color:#fff}
         .segbar .segn{font-size:11px;background:#0000000f;border-radius:999px;padding:1px 6px;font-weight:700}
         .segbar .segb.on .segn{background:#ffffff33;color:#fff}
-        /* VERBAR_V60 同一課的三個版本收成一列，用按鈕切換 */
-        .ver-group{margin-bottom:10px}
-        .ver-bar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 7px 2px}
-        .ver-bar .ver-lb{font-size:12px;color:var(--muted);font-weight:700}
-        .ver-group .lesson-card{margin-bottom:0}
+        /* VERBAR_V61 同一課的三個版本收在同一張課卡裡，用膠囊鈕切換 */
+        .ver-row{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:11px;border-top:1px dashed var(--line)}
+        .ver-row .verb{display:inline-flex;align-items:center;gap:7px;padding:5px 15px;border:1px solid var(--line);border-radius:999px;
+          background:var(--surface,#fff);font-family:var(--font);font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:.13s;line-height:1.6}
+        .ver-row .verb:hover{border-color:var(--accent);color:var(--ink)}
+        .ver-row .verb.on{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 1px 5px rgba(31,111,120,.22)}
+        .ver-row .vdot{width:7px;height:7px;border-radius:50%;flex:none;border:1.5px solid var(--faint);background:transparent}
+        .ver-row .vdot.pub{background:var(--ok);border-color:var(--ok)}
+        .ver-row .verb.on .vdot{border-color:#ffffff8c}
+        .ver-row .verb.on .vdot.pub{background:#fff;border-color:#fff}
         .stu-bar{margin:0 0 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
         .stu-bar .grow{flex:1}
         .smore{margin-top:8px;padding-top:10px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:9px}
@@ -2943,6 +2948,7 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
           ${an?'<span class="tag tpub-y">已發佈 '+an+' 人</span>':'<span class="tag tpub-n">未發佈</span>'}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${viChip(l)}</div></div></div>
         <div style="display:flex;gap:10px;align-items:center;flex:none;margin-left:12px"><span class="badge ${built?'badge-ok':'badge-soon'}">${built?'✅ 完成':'🟡 進行中'}</span>
         <span class="card-chev" aria-hidden="true">${open?'▾':'▸'}</span></div></div>
+      ${ov.bar||''}
       ${open?`<div class="actions" style="margin-top:14px;flex-wrap:wrap">
         <button class="btn btn-sm btn-accent" data-act="assign" data-id="${l.id}">👥 發佈${an?`（${an}）`:''}</button>
         <button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button>
@@ -3010,23 +3016,25 @@ const VER_ORDER=['生存版','生活版','挑戰版'];
 function verSplit(t){const m=String(t||'').match(/[（(](生存版|生活版|挑戰版)[)）]\s*$/);
   return m?{base:String(t).replace(/[（(](生存版|生活版|挑戰版)[)）]\s*$/,'').trim(),ver:m[1]}:null;}
 function verGroupHtml(book,list){
-  const out=[];const seen={};let n=0;
+  const out=[];const seen={};
   list.forEach(l=>{const v=verSplit(l.title);
-    if(!v){out.push({one:l});n++;return;}
+    if(!v){out.push({one:l});return;}
     const k=book+'||'+v.base;
-    if(seen[k]==null){seen[k]=out.length;out.push({key:k,base:v.base,vs:[]});n++;}
+    if(seen[k]==null){seen[k]=out.length;out.push({key:k,base:v.base,vs:[]});}
     out[seen[k]].vs.push({ver:v.ver,l:l});});
+  if(!S.verPick)S.verPick={};S.verMap=S.verMap||{};
   return out.map((g,gi)=>{
     if(g.one)return lessonCardHtml(g.one,gi,{num:gi+1});
     g.vs.sort((a,b)=>VER_ORDER.indexOf(a.ver)-VER_ORDER.indexOf(b.ver));
     if(g.vs.length<2)return lessonCardHtml(g.vs[0].l,gi,{num:gi+1});
-    if(!S.verPick)S.verPick={};
+    S.verMap[g.key]=g.vs.map(x=>x.l.id);
     let cur=S.verPick[g.key];if(cur==null||cur>=g.vs.length)cur=0;
-    const bar='<div class="ver-bar"><span class="ver-lb">版本</span><div class="segbar">'+
-      g.vs.map((x,i)=>'<button class="segb'+(i===cur?' on':'')+'" data-act="pickVer" data-id="'+esc(g.key+'@@'+i)+'">'+esc(x.ver)+
-        '<span class="segn">'+((x.l.assigned_ids||[]).length?'已發佈':'未發佈')+'</span></button>').join('')+
-      '</div></div>';
-    return '<div class="ver-group">'+bar+lessonCardHtml(g.vs[cur].l,gi,{num:gi+1,title:g.base})+'</div>';
+    const bar='<div class="ver-row">'+g.vs.map((x,i)=>{
+      const pub=(x.l.assigned_ids||[]).length;
+      return '<button class="verb'+(i===cur?' on':'')+'" data-act="pickVer" data-id="'+esc(g.key+'@@'+i)+'"'+
+        ' title="'+esc(x.ver+(pub?('・已發佈 '+pub+' 人'):'・未發佈'))+'">'+
+        '<i class="vdot'+(pub?' pub':'')+'"></i>'+esc(x.ver)+'</button>';}).join('')+'</div>';
+    return lessonCardHtml(g.vs[cur].l,gi,{num:gi+1,title:g.base,bar:bar});
   }).join('');
 }
 function renderLessons(){
@@ -5434,8 +5442,12 @@ H.dlgAutoPinyin=(i)=>{if(!window.pinyinPro){toast('拼音元件還在載入，�
   ta.value=out.join('\n');toast(n?('已為 '+n+' 個詞加上拼音（只加漢字，可再修改）'):'已整理完成（只保留漢字拼音）');};
 H.filesSub=(id)=>{S.filesSub=id;renderFiles();};
 H.toggleSeries=(id)=>{if(!S.openSeries)S.openSeries=new Set();if(S.openSeries.has(id))S.openSeries.delete(id);else S.openSeries.add(id);renderLessons();};
-H.pickVer=(id)=>{const i=String(id||'').lastIndexOf('@@');if(i<0)return;
-  if(!S.verPick)S.verPick={};S.verPick[String(id).slice(0,i)]=+String(id).slice(i+2)||0;renderLessons();};/*VERBAR_V60*/
+H.pickVer=(id)=>{const i=String(id||'').lastIndexOf('@@');if(i<0)return;/*VERBAR_V61*/
+  const key=String(id).slice(0,i),n=+String(id).slice(i+2)||0;
+  if(!S.verPick)S.verPick={};S.verPick[key]=n;
+  const ids=(S.verMap||{})[key]||[];
+  if(ids.some(x=>S.openCards.has(x))){ids.forEach(x=>S.openCards.delete(x));if(ids[n])S.openCards.add(ids[n]);}
+  renderLessons();};
 H.toggleBook=(id)=>{if(!S.openBooks)S.openBooks=new Set();if(S.openBooks.has(id))S.openBooks.delete(id);else S.openBooks.add(id);renderLessons();};
 H.toggleAllBooks=()=>{if(!S.openBooks)S.openBooks=new Set();if(!S.openSeries)S.openSeries=new Set();
   if(S.openBooks.size){S.openBooks.clear();S.openSeries.clear();}
