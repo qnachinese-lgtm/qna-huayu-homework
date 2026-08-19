@@ -137,6 +137,13 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 #screen .note-card .q-pic img{max-width:100%;width:100%;max-height:none;height:auto;cursor:zoom-in}
 /*QSEL_V70 選詞填空用下拉，學生不用一直往下滑*/
 /*INLSEL_V72 選詞填空的下拉直接長在短文的空格上*/
+/*MATCARD_V73 閱讀材料卡片重新排版*/
+#screen .note-card{border-style:solid;border-left:4px solid var(--accent);background:var(--surface-2);padding:15px 18px}
+.mat-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px}
+.mat-kicker{font-size:13.5px;font-weight:800;color:var(--accent);letter-spacing:.01em}
+.mat-type{font-size:11.5px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:1px 10px}
+.mat-title{font-size:18px;font-weight:700;line-height:1.6;margin:4px 0 8px;color:var(--ink)}
+.mat-hint{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);font-size:12.5px;color:var(--muted)}
 .inl-sel{display:inline-flex;align-items:center;gap:5px;vertical-align:middle;margin:0 4px}
 .inl-no{font-size:12px;font-weight:800;color:var(--primary);background:var(--primary-soft);border-radius:6px;padding:1px 7px}
 #screen select.qsel.inl{min-width:118px;padding:4px 9px;font-size:15px;border-radius:8px}
@@ -2717,13 +2724,20 @@ function orderInner(q){
 }
 function qPromptBreak(s){return String(s||'').replace(/([。！？!?])\s*(?=[A-Za-z\uFF21-\uFF3A\u4e00-\u9fa5]{1,4}[：:])/g,'$1\n');}
 function qHtml(q,idx,noInstr){
-  if(q.type==='note'){const ins=q.instruction?`<div class="q-instr">${esc(q.instruction)}</div>`:'';const pc=q.image_url?`<div class="q-pic"><a href="${esc(q.image_url)}" target="_blank" rel="noopener"><img src="${esc(q.image_url)}" alt="" loading="lazy"></a><a class="note-zoom" href="${esc(q.image_url)}" target="_blank" rel="noopener">🔍 點圖可放大看原圖</a></div>`:'';
-    const _lb=(q.explanation&&String(q.explanation).trim())||TYPE_LABELS.note||'示範';/*NOTELBL_V65 閱讀材料用自己的標籤，不要一律叫「示範」*/
-    const _hint=(q.explanation&&String(q.explanation).trim())?'請看完再回答下面的題目。':'參考即可，不用作答。';
-    let _tx=q.prompt?esc(q.prompt).replace(/\n/g,'<br>'):'';let _inl=false;/*INLSEL_V72*/
+  if(q.type==='note'){/*MATCARD_V73*/
+    const _raw=String(q.instruction||'').trim();
+    const _p=_raw.split(/[\u3000]+/);const _k=_p[0]||'';const _ty=_p.slice(1).join(' ');
+    const _hd=_raw?`<div class="mat-h">${_k?`<span class="mat-kicker">${esc(_k)}</span>`:''}${_ty?`<span class="mat-type">${esc(_ty)}</span>`:''}</div>`:'';
+    const pc=q.image_url?`<div class="q-pic"><a href="${esc(q.image_url)}" target="_blank" rel="noopener"><img src="${esc(q.image_url)}" alt="" loading="lazy"></a><a class="note-zoom" href="${esc(q.image_url)}" target="_blank" rel="noopener">🔍 點圖可放大看原圖</a></div>`:'';
+    let _body=String(q.prompt||''),_title='';
+    const _cut=_body.indexOf('\n\n');
+    if(_cut>0&&_cut<=40&&_body.slice(0,_cut).indexOf('\n')<0){_title=_body.slice(0,_cut).trim();_body=_body.slice(_cut+2);}
+    let _tx=_body?esc(_body).replace(/\n/g,'<br>'):'';let _inl=false;
     if(_tx&&INLQ){const _m=INLQ;_tx=_tx.replace(BLANKRE,function(mm,d){const t=_m[Number(d)];if(!t)return mm;_inl=true;return inlineSelHtml(t,Number(d));});}
-    const _h2=_inl?LT({zh:'請直接在短文的空格上選答案。',cn:'请直接在短文的空格上选答案。',en:'Choose your answer in each blank below.',vi:'Chọn đáp án ngay tại mỗi chỗ trống.'}):_hint;
-    return `<div class="q-card note-card">${ins}<div class="note-badge">📖 ${esc(_lb)}</div>${_tx?`<div class="note-text">${_tx}</div>`:''}${audioHtml(q.audio_url)}${pc}<div class="hint" style="margin-top:6px">${esc(_h2)}</div></div>`;}
+    const _hint=_inl?LT({zh:'請直接在短文的空格上選答案。',cn:'请直接在短文的空格上选答案。',en:'Choose your answer in each blank.',vi:'Chọn đáp án ngay tại mỗi chỗ trống.'})
+      :(q.audio_url?LT({zh:'聽完再回答下面的題目。',cn:'听完再回答下面的题目。',en:'Listen, then answer below.',vi:'Nghe xong rồi trả lời bên dưới.'})
+      :LT({zh:'看完再回答下面的題目。',cn:'看完再回答下面的题目。',en:'Read it, then answer below.',vi:'Đọc xong rồi trả lời bên dưới.'}));
+    return `<div class="q-card note-card">${_hd}${_title?`<div class="mat-title">${esc(_title)}</div>`:''}${_tx?`<div class="note-text">${_tx}</div>`:''}${audioHtml(q.audio_url)}${pc}<div class="mat-hint">${esc(_hint)}</div></div>`;}
   let body='',showPrompt=true;
   if(q.type==='choice'&&q.layout==='select'){const _o=q.options||[];/*QSEL_V70*/
     body='<div class="qselwrap"><select class="qsel" id="qsel-'+q.id+'"><option value="">'+esc(LT({zh:'— 請選擇 —',cn:'— 请选择 —',en:'— Choose —',vi:'— Chọn —'}))+'</option>'+
