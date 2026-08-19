@@ -136,6 +136,10 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 @media(max-width:700px){.opts.c4{grid-template-columns:repeat(2,minmax(0,1fr))}.opts.c2{grid-template-columns:1fr}}
 #screen .note-card .q-pic img{max-width:100%;width:100%;max-height:none;height:auto;cursor:zoom-in}
 /*QSEL_V70 選詞填空用下拉，學生不用一直往下滑*/
+/*INLSEL_V72 選詞填空的下拉直接長在短文的空格上*/
+.inl-sel{display:inline-flex;align-items:center;gap:5px;vertical-align:middle;margin:0 4px}
+.inl-no{font-size:12px;font-weight:800;color:var(--primary);background:var(--primary-soft);border-radius:6px;padding:1px 7px}
+#screen select.qsel.inl{min-width:118px;padding:4px 9px;font-size:15px;border-radius:8px}
 .qselwrap{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 #screen select.qsel{width:auto;min-width:190px;max-width:100%;padding:9px 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);font-size:16px;font-family:inherit;color:var(--ink)}
 #screen select.qsel:focus{border-color:var(--accent);outline:none}
@@ -1273,11 +1277,27 @@ function practiceItemHtml(q,n,noInstr){if(q.type==='note')return `<div class="pi
   return `<div class="pi-item">${qHtml(q,n,noInstr)}${acts}<div class="q-feedback hide" id="pfb-${q.id}"></div></div>`;}
 /* 依「同一句說明」把題目分成課本上的 練習①／練習②，說明和選項欄各只出現一次 */
 const EXNO=['①','②','③','④','⑤','⑥','⑦','⑧'];
-function numberedHtml(arr,noInstr){let n=0,li='';return arr.map(q=>{/*SAMEINS_V68 說明一樣就不重複印*/
-  if(isRefItem(q))return practiceItemHtml(q,-1,noInstr);
-  const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;
-  const cur=String(q.instruction||'').trim();const same=!!cur&&cur===li;if(cur)li=cur;
-  return practiceItemHtml(q,st,noInstr||same);}).join('');}
+const BLANKRE=/[_＿]{1,3}\s*(\d{1,2})\s*[_＿]{1,3}/g;/*INLSEL_V72*/
+let INLQ=null;
+function inlineSelHtml(q,n){
+  return '<span class="inl-sel"><b class="inl-no">'+n+'</b><select class="qsel inl" id="qsel-'+q.id+'">'+
+    '<option value="">'+esc(LT({zh:'— 選 —',cn:'— 选 —',en:'— pick —',vi:'— chọn —'}))+'</option>'+
+    (q.options||[]).map((o,i)=>'<option value="'+i+'">'+esc(o)+'</option>').join('')+'</select></span>';
+}
+function numberedHtml(arr,noInstr){let n=0,li='';
+  const ch=arr.filter(x=>x&&x.type==='choice');
+  const bynum={};ch.forEach((q,i)=>{bynum[i+1]=q;});
+  const inl={};const skip={};
+  arr.forEach(q=>{if(!q||q.type!=='note')return;const p=String(q.prompt||'');let m;BLANKRE.lastIndex=0;
+    while((m=BLANKRE.exec(p))){const t=bynum[Number(m[1])];if(t&&t.layout==='select'){inl[Number(m[1])]=t;skip[t.id]=1;}}});
+  const hasInl=Object.keys(inl).length>0;
+  return arr.map(q=>{
+    if(isRefItem(q)){if(hasInl&&q.type==='note'){INLQ=inl;const h=practiceItemHtml(q,-1,noInstr);INLQ=null;return h;}
+      return practiceItemHtml(q,-1,noInstr);}
+    const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;
+    if(skip[q.id])return '';
+    const cur=String(q.instruction||'').trim();const same=!!cur&&cur===li;if(cur)li=cur;
+    return practiceItemHtml(q,st,noInstr||same);}).join('');}
 function optBankHtml(opts){return (opts||[]).length?`<div class="opt-bank"><div class="opt-bank-hd">${LT({zh:'選項',cn:'选项',en:'Options',vi:'Lựa chọn'})}</div>${opts.map((o,i)=>`<div class="opt-bank-row"><span class="opt-lab">${String.fromCharCode(97+i)}</span><span class="opt-bank-txt">${esc(stripOptLabel(o))}</span></div>`).join('')}</div>`:'';}
 /* 同一句說明只要文字一樣就是同一個練習：忽略空白與全半形波浪號的差異；
    中間夾雜其他練習的題目也會歸回原本那一個練習，不會被切成兩塊。 */
@@ -2700,7 +2720,10 @@ function qHtml(q,idx,noInstr){
   if(q.type==='note'){const ins=q.instruction?`<div class="q-instr">${esc(q.instruction)}</div>`:'';const pc=q.image_url?`<div class="q-pic"><a href="${esc(q.image_url)}" target="_blank" rel="noopener"><img src="${esc(q.image_url)}" alt="" loading="lazy"></a><a class="note-zoom" href="${esc(q.image_url)}" target="_blank" rel="noopener">🔍 點圖可放大看原圖</a></div>`:'';
     const _lb=(q.explanation&&String(q.explanation).trim())||TYPE_LABELS.note||'示範';/*NOTELBL_V65 閱讀材料用自己的標籤，不要一律叫「示範」*/
     const _hint=(q.explanation&&String(q.explanation).trim())?'請看完再回答下面的題目。':'參考即可，不用作答。';
-    return `<div class="q-card note-card">${ins}<div class="note-badge">📖 ${esc(_lb)}</div>${q.prompt?`<div class="note-text">${esc(q.prompt).replace(/\n/g,'<br>')}</div>`:''}${audioHtml(q.audio_url)}${pc}<div class="hint" style="margin-top:6px">${_hint}</div></div>`;}
+    let _tx=q.prompt?esc(q.prompt).replace(/\n/g,'<br>'):'';let _inl=false;/*INLSEL_V72*/
+    if(_tx&&INLQ){const _m=INLQ;_tx=_tx.replace(BLANKRE,function(mm,d){const t=_m[Number(d)];if(!t)return mm;_inl=true;return inlineSelHtml(t,Number(d));});}
+    const _h2=_inl?LT({zh:'請直接在短文的空格上選答案。',cn:'请直接在短文的空格上选答案。',en:'Choose your answer in each blank below.',vi:'Chọn đáp án ngay tại mỗi chỗ trống.'}):_hint;
+    return `<div class="q-card note-card">${ins}<div class="note-badge">📖 ${esc(_lb)}</div>${_tx?`<div class="note-text">${_tx}</div>`:''}${audioHtml(q.audio_url)}${pc}<div class="hint" style="margin-top:6px">${esc(_h2)}</div></div>`;}
   let body='',showPrompt=true;
   if(q.type==='choice'&&q.layout==='select'){const _o=q.options||[];/*QSEL_V70*/
     body='<div class="qselwrap"><select class="qsel" id="qsel-'+q.id+'"><option value="">'+esc(LT({zh:'— 請選擇 —',cn:'— 请选择 —',en:'— Choose —',vi:'— Chọn —'}))+'</option>'+
