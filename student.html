@@ -138,6 +138,18 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 /*QSEL_V70 選詞填空用下拉，學生不用一直往下滑*/
 /*INLSEL_V72 選詞填空的下拉直接長在短文的空格上*/
 /*MATCARD_V73 閱讀材料卡片重新排版*/
+/*TRANSCRIPT_V75 聽力文本（老師開放後才顯示）*/
+#screen .tsc{margin-top:18px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card)}
+#screen .tsc-h{display:flex;align-items:center;gap:8px;padding:12px 14px;font-weight:600;font-size:15px;background:var(--soft);cursor:pointer;user-select:none}
+#screen .tsc-h .grow{flex:1}
+#screen .tsc-b{padding:4px 14px 14px}
+#screen .tsc-item{padding:12px 0;border-top:1px dashed var(--line)}
+#screen .tsc-item:first-child{border-top:0}
+#screen .tsc-no{font-weight:700;color:var(--muted);font-size:13px;margin-bottom:6px}
+#screen .tsc-t{display:flex;gap:8px;margin:5px 0;line-height:1.75}
+#screen .tsc-w{flex:none;min-width:30px;height:22px;padding:0 6px;border-radius:6px;background:#e8595f;color:#fff;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-top:3px}
+#screen .tsc-w.f{background:#8a8f98}
+#screen .tsc-q{margin-top:8px;color:#c0392b;font-size:14px;line-height:1.7}
 /*MATTAB_V74 文字／圖片切換*/
 .mat-tabs{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:2px 0 10px;background:var(--surface)}
 .mat-tabs .mtb{padding:5px 14px;border:0;border-right:1px solid var(--line);background:var(--surface);font-family:inherit;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer}
@@ -1277,6 +1289,22 @@ function grammarHtml(gps){if(!Array.isArray(gps)||!gps.length)return '';
   return `<div class="lesson-block"><div class="lesson-label">${t('grammar')}</div>${gps.map((g,gi)=>gpFold(g,gi)).join('')}</div>`;}
 /* 上課內容：每個語法卡下面附上該語法的互動練習（不算分、即時對錯／自我對照） */
 function isCanvasQ(q){return q.type==='write'||(q.type==='fill'&&q.input_mode==='write');}
+function transcriptHtml(l){/*TRANSCRIPT_V75 老師沒開就完全不輸出*/
+  if(!l||!l.transcript_open)return '';
+  const tr=Array.isArray(l.transcript)?l.transcript:[];
+  if(!tr.length)return '';
+  const body=tr.map(it=>{
+    const turns=(Array.isArray(it.turns)?it.turns:[]).map(t=>{
+      const w=String(t&&t.who||'');
+      return '<div class="tsc-t"><span class="tsc-w'+(w.indexOf('\u5973')>=0?' f':'')+'">'+esc(w)+'</span><span>'+esc(String(t&&t.text||''))+'</span></div>';
+    }).join('');
+    const q=it&&it.question?'<div class="tsc-q">Question\uff1a'+esc(String(it.question))+'</div>':'';
+    return '<div class="tsc-item"><div class="tsc-no">'+esc(String(it&&it.no!=null?it.no:''))+'</div>'+turns+q+'</div>';
+  }).join('');
+  return '<div class="tsc"><div class="tsc-h" onclick="window.TSCTOG(this)"><span>\ud83c\udfa7 \u807d\u529b\u6587\u672c</span><span class="grow"></span><span class="chev">\u25b8</span></div><div class="tsc-b hide">'+body+'</div></div>';
+}
+window.TSCTOG=function(h){var b=h.nextElementSibling,c=h.querySelector('.chev');if(!b)return;
+  var open=b.classList.toggle('hide')===false;if(c)c.textContent=open?'\u25be':'\u25b8';};
 function isManualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||q.type==='opt'||q.type==='fill'||(q.type==='choice'&&(q.answer==null||q.answer===''));}/*NOKEY_V64 沒填標準答案的單選題一律老師人工批改，不會自動判對*/ // 填空一律老師人工批改，不自動對答案
 function stripOptLabel(s){return String(s||'').replace(/^\s*[a-hA-HＡ-Ｈａ-ｈ]\s*[\.．、）)：:]\s*/,'').trim();}
 function optBlank(s){return esc(String(s||'')).replace(/[_＿]{2,}/g,'<span class="opt-blank"></span>').replace(/\n/g,'<br>');}
@@ -2868,6 +2896,7 @@ function renderPractice(){
     practice=`<div class="score-banner ${pct>=80?'win':''}"><div class="big">${g.score}/${g.total}</div>
       <div><div style="font-weight:600;font-size:16px">${pct>=80?t('great'):t('done')}</div><div style="color:var(--muted);font-size:14px">${pct}% ${t('acc')}</div></div></div>${g.hasWrite?`<div class="notice" style="margin-bottom:14px">⏳ ${qs.filter(isManualQ).length} ${th('pendingNote')}</div>`:''}`+
       (()=>{let n=0;return qs.map(q=>{if(q.type==='note')return qHtmlGraded(q,-1);const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;return qHtmlGraded(q,st);}).join('');})()+
+      transcriptHtml(l)+/*TRANSCRIPT_V75*/
       `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn" data-act="retry">${t('retry')}</button><button class="btn btn-primary" data-act="back">${t('finishBack')}</button></div>`;
   }else{practice=`<div class="section-head" style="margin-top:24px"><h2 style="font-size:19px">${t('practice')}</h2><span class="sub">${qs.filter(q=>q.type!=='note').length} ${t('q')}</span></div>`+
       quizBodyHtml(qs,l)+
