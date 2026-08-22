@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=147">
+<link rel="stylesheet" href="styles.css?v=148">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -2830,7 +2830,8 @@ function qHtml(q,idx,noInstr){
 function qHtmlGraded(q,idx){
   if(q.type==='note')return qHtml(q,-1);
   const resp=GRADE.answers[q.id],ok=isCorrect(q,resp);let body='',ct='';
-  if(q.type==='choice'){body='<div class="opts">'+(q.options||[]).map((o,i)=>{let cls='';if(i===Number(q.answer))cls='is-correct';else if(resp!=null&&i===Number(resp))cls='is-wrong';
+  if(q.type==='choice'){const _gc=((q.options||[]).length===4)?' c2':'';/*EXAMFIX_V81 批改後也兩格兩格*/
+    body='<div class="opts'+_gc+'">'+(q.options||[]).map((o,i)=>{let cls='';if(i===Number(q.answer))cls='is-correct';else if(resp!=null&&i===Number(resp))cls='is-wrong';
       return `<div class="opt ${cls}"><span>${esc(o)}</span><span style="margin-left:auto">${i===Number(q.answer)?'✓':(resp!=null&&i===Number(resp)?'✗':'')}</span></div>`;}).join('')+'</div>';
     ct=t('ans')+'：'+esc((q.options||[])[Number(q.answer)]||'');}
   else if(q.type==='fill'){if(q.input_mode==='write'){body=resp?`<img class="hw-img" src="${resp}" alt="">`:`<div class="hint">${t('blank')}</div>`;}else{const shown=Array.isArray(resp)?reconFill(q.prompt,resp):resp;body=`<div class="q-prompt">${esc(shown||t('blank'))}</div>`;}ct='';} // 參考答案不給學生看，由老師批改
@@ -2857,7 +2858,22 @@ function qHtmlGraded(q,idx){
 // 作業：每個語法收成一個可摺疊的卡（語法說明＋該語法的練習），未指定語法的「綜合練習」放最後
 function quizBodyHtml(qs,l){
   const gps=(l&&l.grammar_points)||[];
-  const sec=arr=>{let i=0;return arr.map(q=>qHtml(q,q.type==='note'?-1:i++)).join('');};
+  const sec=arr=>{/*EXAMFIX_V81 考卷畫面也把下拉做在短文的空格上*/
+    const ch=arr.filter(x=>x&&x.type==='choice');
+    const bynum={};ch.forEach((q,k)=>{bynum[k+1]=q;});
+    const inl={},skip={};
+    arr.forEach(q=>{if(!q||q.type!=='note')return;const p=String(q.prompt||'');let m;BLANKRE.lastIndex=0;
+      while((m=BLANKRE.exec(p))){const tq=bynum[Number(m[1])];
+        if(tq&&tq.layout==='select'){inl[Number(m[1])]=tq;skip[tq.id]=1;}}});
+    const hasInl=Object.keys(inl).length>0;
+    let i=0;
+    return arr.map(q=>{
+      if(q.type==='note'){
+        if(hasInl){INLQ=inl;const h=qHtml(q,-1);INLQ=null;return h;}
+        return qHtml(q,-1);}
+      const stx=i++;
+      if(skip[q.id])return '';
+      return qHtml(q,stx);}).join('');};
   if(!gps.length)return sec(qs);
   let html='';
   gps.forEach((g,gi)=>{
