@@ -455,6 +455,19 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .series-head:hover{color:var(--accent,#B23A48)}
         .series-head .count{background:#efe9df;color:#6b6259;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700}
         .series-body{padding:14px 0 4px 14px;border-left:2px solid var(--line);margin:0 0 10px 6px}
+        /* UNITGRP_V77 單元分層（1-1／1-2／1-3 收成 Unit 1） */
+        .unit-group{margin:0 0 8px}
+        .unit-head{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:0 0 6px;
+          border:1px solid var(--line);border-radius:11px;background:var(--soft);
+          cursor:pointer;user-select:none;font-weight:700;font-size:15px}
+        .unit-head:hover{border-color:var(--accent)}
+        .unit-head .uh-ar{color:var(--muted);font-size:12px;width:12px;flex:none}
+        .unit-head .uh-no{flex:none;min-width:26px;height:26px;padding:0 7px;border-radius:8px;
+          background:var(--accent);color:#fff;font-size:13px;font-weight:800;
+          display:inline-flex;align-items:center;justify-content:center}
+        .unit-head .uh-nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .unit-head .uh-cnt{flex:none;font-size:12.5px;font-weight:600;color:var(--muted)}
+        .unit-body{padding-left:10px;border-left:2px solid var(--line);margin:0 0 12px 12px}
         .series-body .book-group{margin-bottom:14px}
         .series-body .book-group:last-child{margin-bottom:0}
         .series-body .book-head{font-size:15px}
@@ -3038,6 +3051,40 @@ function verGroupHtml(book,list){
     return lessonCardHtml(g.vs[cur].l,gi,{num:gi+1,title:g.base,bar:bar});
   }).join('');
 }
+function unitNoOf(l){/*UNITGRP_V77*/
+  if(l&&l.unit!=null&&l.unit!=='')return String(l.unit);
+  const m=/^\s*(\d{1,2})\s*[-\u2010-\u2015\uFF0D]\s*\d{1,2}(?![\d-])/.exec(String((l&&l.title)||''));
+  return m?m[1]:'';}
+function unitGroupHtml(book,list){/*UNITGRP_V77 先照單元收起來，展開才看到裡面的小節*/
+  const order=[],bucket={};
+  let tagged=0;
+  list.forEach(l=>{const u=unitNoOf(l);
+    if(!u)return;
+    tagged++;
+    if(!bucket[u]){bucket[u]=[];order.push(u);}
+    bucket[u].push(l);});
+  // 少於兩個單元、或大部分課名沒有編號，就照舊平鋪
+  if(order.length<2||tagged<list.length*0.6)return verGroupHtml(book,list);
+  const untagged=list.filter(l=>!unitNoOf(l));
+  order.sort((a,b)=>Number(a)-Number(b));
+  S.openUnits=S.openUnits||new Set();
+  let html=order.map(u=>{
+    const items=bucket[u];
+    const nm=(items.find(x=>x.unit_title)||{}).unit_title||'';
+    const key=book+'##'+u;
+    const op=S.openUnits.has(key);
+    const pub=items.filter(x=>(x.assigned_ids||[]).length).length;
+    return '<div class="unit-group"><div class="unit-head" data-act="toggleUnit" data-id="'+esc(key)+'">'
+      +'<span class="uh-ar">'+(op?'\u25be':'\u25b8')+'</span>'
+      +'<span class="uh-no">'+esc(u)+'</span>'
+      +'<span class="uh-nm">'+esc(nm||('\u7b2c '+u+' \u55ae\u5143'))+'</span>'
+      +'<span style="flex:1"></span>'
+      +'<span class="uh-cnt">'+items.length+' \u5c0f\u7bc0'+(pub?('\uff0f\u5df2\u767c\u4f48 '+pub):'')+'</span>'
+      +'</div>'
+      +(op?('<div class="unit-body">'+verGroupHtml(book,items)+'</div>'):'')
+      +'</div>';}).join('');
+  if(untagged.length)html+=verGroupHtml(book,untagged);
+  return html;}
 function renderLessons(){
   const wrap=$('#lessons-list');if(!wrap)return;
   {const vb=$('#vi-bar');if(vb)vb.innerHTML=(S.pe?'':viBarHtml());}
@@ -3075,8 +3122,8 @@ function renderLessons(){
       return `<div class="book-group">${_bh(b,'🔤 發音',S.prons.length,op,'<button class="btn btn-sm btn-accent" data-act="newPron" style="margin-left:10px">＋ 建立發音課</button>')}${op?cards:''}</div>`;}
     if(!groups[b]||!groups[b].length)return '';
     const op=_isOpen(b);
-    const cards=op?verGroupHtml(b,groups[b]):'';/*VERBAR_V60*/
-    return books.length?`<div class="book-group">${_bh(b,'📚 '+esc(b==='__none'?'未分類':b),groups[b].length+' 課',op,'')}${cards}</div>`:verGroupHtml(b,groups[b]);/*BOOKICON_V69*/
+    const cards=op?unitGroupHtml(b,groups[b]):'';/*UNITGRP_V77*/
+    return books.length?`<div class="book-group">${_bh(b,'📚 '+esc(b==='__none'?'未分類':b),groups[b].length+' 課',op,'')}${cards}</div>`:unitGroupHtml(b,groups[b]);/*BOOKICON_V69 UNITGRP_V77*/
   };
   /* 同一個大類（例：時代華語一／二／三）收在一起 */
   const cntOf=(b)=>b==='📜 文言文'?(S.classicals||[]).length:(b==='發音'?(S.prons||[]).length:((groups[b]||[]).length));
@@ -5453,6 +5500,10 @@ H.pickVer=(id)=>{const i=String(id||'').lastIndexOf('@@');if(i<0)return;/*VERBAR
   if(!S.verPick)S.verPick={};S.verPick[key]=n;
   const ids=(S.verMap||{})[key]||[];
   if(ids.some(x=>S.openCards.has(x))){ids.forEach(x=>S.openCards.delete(x));if(ids[n])S.openCards.add(ids[n]);}
+  renderLessons();};
+H.toggleUnit=(id)=>{/*UNITGRP_V77*/
+  S.openUnits=S.openUnits||new Set();
+  if(S.openUnits.has(id))S.openUnits.delete(id);else S.openUnits.add(id);
   renderLessons();};
 H.toggleBook=(id)=>{if(!S.openBooks)S.openBooks=new Set();if(S.openBooks.has(id))S.openBooks.delete(id);else S.openBooks.add(id);renderLessons();};
 H.toggleAllBooks=()=>{if(!S.openBooks)S.openBooks=new Set();if(!S.openSeries)S.openSeries=new Set();
