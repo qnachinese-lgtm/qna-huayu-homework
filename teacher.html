@@ -468,6 +468,20 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         .unit-head .uh-nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .unit-head .uh-cnt{flex:none;font-size:12.5px;font-weight:600;color:var(--muted)}
         .unit-body{padding-left:10px;border-left:2px solid var(--line);margin:0 0 12px 12px}
+        /* TODAYJOB_V78 今天要做的事 */
+        .tj-wrap{border:2px solid #f59e0b;border-radius:14px;background:#fffbeb;padding:14px 16px;margin:0 0 14px}
+        .tj-wrap.calm{border-color:var(--line);background:var(--soft)}
+        .tj-h{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:800;margin-bottom:10px;color:#92400e}
+        .tj-wrap.calm .tj-h{color:var(--muted)}
+        .tj-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:9px 0;border-top:1px dashed #f59e0b44}
+        .tj-row:first-of-type{border-top:0}
+        .tj-wrap.calm .tj-row{border-top-color:var(--line)}
+        .tj-row b{font-size:15px}
+        .tj-b{flex:none;padding:2px 9px;border-radius:8px;font-size:12.5px;font-weight:700;border:1px solid}
+        .tj-none{color:var(--muted);padding:6px 0}
+        .tj-qa{margin-top:12px;border-top:1px solid #f59e0b33;padding-top:10px}
+        .tj-qa textarea{width:100%;min-height:76px;font-size:14px;line-height:1.7;padding:9px 11px;
+          border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
         .series-body .book-group{margin-bottom:14px}
         .series-body .book-group:last-child{margin-bottom:0}
         .series-body .book-head{font-size:15px}
@@ -1454,6 +1468,7 @@ function renderDashboard(){
   const _op=(k,dft)=>{try{const v=localStorage.getItem('hyc_ds_'+k);return v==null?dft:(v==='1');}catch(e){return dft;}};
   const _sec=(k,title,badge,inner,dft)=>`<details class="dash-sec" data-ds="${k}"${_op(k,dft)?' open':''}><summary class="dash-sec-t">${title}${badge?'　<span class="dash-n">'+badge+'</span>':''}</summary><div class="dash-sec-b">${inner}</div></details>`;
   body.innerHTML=`${_hero}
+    ${todayJobsHtml(_pend)}
     ${_sec('stat2','① 這個月的數字','',statHtml,true)}
     ${_sec('todo','② 今天要處理',todoN||'',
       `<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
@@ -3051,6 +3066,68 @@ function verGroupHtml(book,list){
     return lessonCardHtml(g.vs[cur].l,gi,{num:gi+1,title:g.base,bar:bar});
   }).join('');
 }
+function tjAddDays(ymd,n){/*TODAYJOB_V78*/
+  const t=new Date(String(ymd)+'T00:00:00');t.setDate(t.getDate()+Number(n||0));
+  return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');}
+const TJ_KIND={writing:{ic:'✍️',lab:'代書',tab:'writing',dk:'deadline',act:'交件'},
+  interview:{ic:'🎤',lab:'面試',tab:'interview',dk:'exam_date',act:'面試'},
+  agency:{ic:'📄',lab:'代辦',tab:'agency',dk:'deadline',act:'繳件'}};
+function tjDateOf(c){const m=TJ_KIND[c&&c.kind];return m?String(c[m.dk]||''):'';}
+function todayJobsHtml(pend){/*TODAYJOB_V78 只看今天、過期、還沒排日期的*/
+  const T=localToday();
+  const all=(S.writings||[]).concat(S.interviews||[],S.agencies||[])
+    .filter(c=>TJ_KIND[c.kind]&&(c.status||'active')==='active');
+  const late=[],today=[],nodate=[];
+  all.forEach(c=>{const d=tjDateOf(c);
+    if(!d){nodate.push(c);return;}
+    if(d<T)late.push(c);else if(d===T)today.push(c);});
+  const sub=(c)=>esc(String(c.docs||c.target||c.school||c.note||'').slice(0,40));
+  const row=(c,lab,col)=>{const m=TJ_KIND[c.kind];const d=tjDateOf(c);
+    return '<div class="tj-row"><span class="tj-b" style="background:'+col+'18;color:'+col+';border-color:'+col+'55">'+m.ic+' '+lab+'</span>'
+      +'<b>'+esc(c.name||'')+'</b><span class="muted">'+m.lab+(sub(c)?('・'+sub(c)):'')+'</span>'
+      +'<span class="grow"></span>'+(d?'<span class="muted">'+esc(d)+'</span>':'')
+      +'<button class="btn btn-sm" data-act="tab" data-id="'+m.tab+'">去處理</button></div>';};
+  let inner='';
+  late.forEach(c=>{const n=Math.round((new Date(T)-new Date(tjDateOf(c)))/864e5);
+    inner+=row(c,TJ_KIND[c.kind].act+'已過 '+n+' 天','#dc2626');});
+  today.forEach(c=>{inner+=row(c,'今天'+TJ_KIND[c.kind].act,'#d97706');});
+  nodate.forEach(c=>{inner+=row(c,'還沒排日期','#6b7280');});
+  if(Number(pend)>0)inner='<div class="tj-row"><span class="tj-b" style="background:#2563eb18;color:#2563eb;border-color:#2563eb55">📥 待批改</span>'
+    +'<b>'+Number(pend)+' 份作業</b><span class="grow"></span>'
+    +'<button class="btn btn-sm" data-act="tab" data-id="grades">去批改</button></div>'+inner;
+  const n=late.length+today.length+nodate.length+(Number(pend)>0?1:0);
+  if(!inner)inner='<div class="tj-none">今天沒有非做不可的事，輕鬆一下 🌿</div>';
+  const qa='<details class="dash-fold tj-qa"><summary>➕ 快速新增（一行一筆）</summary>'
+    +'<div style="margin-top:8px">'
+    +'<textarea id="tj-qa-in" placeholder="8/25 代書 阮氏梅，履歷、自傳&#10;9/2 面試 Nguyen Van An，台科大&#10;今天 代辦 Ngo Thi Luong，補件"></textarea>'
+    +'<div class="hint" style="margin:6px 0 8px">格式：<b>日期 類型 姓名，備註</b>。類型打「代書」「面試」或「代辦」；日期可以打 8/25、2026-08-25、今天、明天、後天，不填也行（會列在「還沒排日期」）。姓名跟備註用逗號分開。</div>'
+    +'<button class="btn btn-accent" data-act="tjAdd">➕ 建立</button>'
+    +'</div></details>';
+  return '<div class="tj-wrap'+(n?'':' calm')+'"><div class="tj-h">🔥 今天要做的事'
+    +(n?('（'+n+'）'):'')+'</div>'+inner+qa+'</div>';}
+function tjParseLine(line,T){/*TODAYJOB_V78*/
+  const raw=String(line||'').trim();if(!raw)return null;
+  let s=' '+raw+' ',d='';
+  if(/今天|今日/.test(s)){d=T;s=s.replace(/今天|今日/,' ');}
+  else if(/明天|明日/.test(s)){d=tjAddDays(T,1);s=s.replace(/明天|明日/,' ');}
+  else if(/後天/.test(s)){d=tjAddDays(T,2);s=s.replace(/後天/,' ');}
+  else{let m=/(20\d{2})\s*[-\/.年]\s*(\d{1,2})\s*[-\/.月]\s*(\d{1,2})\s*日?/.exec(s);
+    if(m){d=m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');s=s.replace(m[0],' ');}
+    else{m=/(?:^|\s)(\d{1,2})\s*[-\/.月]\s*(\d{1,2})\s*日?(?=\s|$)/.exec(s);
+      if(m){const y=Number(T.slice(0,4));
+        d=y+'-'+String(m[1]).padStart(2,'0')+'-'+String(m[2]).padStart(2,'0');
+        if(d<tjAddDays(T,-180))d=(y+1)+'-'+String(m[1]).padStart(2,'0')+'-'+String(m[2]).padStart(2,'0');
+        s=s.replace(m[0],' ');}}}
+  let kind='';
+  const KW=[['代書','writing'],['面試','interview'],['口試','interview'],['代辦','agency'],['申請','agency']];
+  for(let i=0;i<KW.length;i++){if(s.indexOf(KW[i][0])>=0){kind=KW[i][1];s=s.replace(KW[i][0],' ');break;}}
+  s=s.replace(/\s+/g,' ').trim();
+  if(!kind)return {err:'看不出是代書、面試還是代辦',raw:raw};
+  let name=s,note='';
+  const sp=/[，,、]|\s{2,}/.exec(s);
+  if(sp){name=s.slice(0,sp.index).trim();note=s.slice(sp.index+sp[0].length).trim();}
+  if(!name)return {err:'看不出姓名',raw:raw};
+  return {kind:kind,name:name,note:note,date:d,raw:raw};}
 function unitNoOf(l){/*UNITGRP_V77*/
   if(l&&l.unit!=null&&l.unit!=='')return String(l.unit);
   const m=/^\s*(\d{1,2})\s*[-\u2010-\u2015\uFF0D]\s*\d{1,2}(?![\d-])/.exec(String((l&&l.title)||''));
@@ -5501,6 +5578,29 @@ H.pickVer=(id)=>{const i=String(id||'').lastIndexOf('@@');if(i<0)return;/*VERBAR
   const ids=(S.verMap||{})[key]||[];
   if(ids.some(x=>S.openCards.has(x))){ids.forEach(x=>S.openCards.delete(x));if(ids[n])S.openCards.add(ids[n]);}
   renderLessons();};
+H.tjAdd=async()=>{/*TODAYJOB_V78 一行一筆建立代書／面試／代辦*/
+  const ta=$('#tj-qa-in');if(!ta)return;
+  const lines=String(ta.value||'').split('\n').map(x=>x.trim()).filter(Boolean);
+  if(!lines.length)return toast('請先打入內容');
+  const T=localToday();const items=[],errs=[];
+  lines.forEach(L=>{const p=tjParseLine(L,T);if(!p)return;
+    if(p.err){errs.push('「'+p.raw+'」'+p.err);return;}items.push(p);});
+  if(!items.length)return toast(errs[0]||'沒有可以建立的內容');
+  if(errs.length&&!confirm('有 '+errs.length+' 行看不懂，會跳過：\n\n'+errs.join('\n')+'\n\n其他 '+items.length+' 筆照建嗎？'))return;
+  let n=0;
+  try{
+    for(const p of items){
+      const patch={kind:p.kind,name:p.name,status:'active',stages:{},payments:[],
+        created_at:new Date().toISOString()};
+      if(p.kind==='interview'){patch.exam_date=p.date||null;patch.target=p.note||'';}
+      else if(p.kind==='writing'){patch.deadline=p.date||null;patch.docs=p.note||'';}
+      else{patch.deadline=p.date||null;patch.school=p.note||'';}
+      await DB.insert('crm',patch);n++;
+    }
+    ta.value='';
+    await loadAll();render();
+    toast('已建立 '+n+' 筆'+(errs.length?('（跳過 '+errs.length+' 行）'):''));
+  }catch(e){toast(writeErr('建立失敗',e));}};
 H.toggleUnit=(id)=>{/*UNITGRP_V77*/
   S.openUnits=S.openUnits||new Set();
   if(S.openUnits.has(id))S.openUnits.delete(id);else S.openUnits.add(id);
