@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=642">
+<link rel="stylesheet" href="styles.css?v=643">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -2158,17 +2158,27 @@ function renderInterview(){
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','面試練習只有主管理員看得到。');return;}
   /* SORT_AZ_V8 全站名單一律名字 A→Z（越南文忽略聲調）。進行中的排前面，同一群裡一律名字 A→Z */
   const _fkind='interview';
-  /* ITV_SORT_DATE_V22 面試練習改依「正式面試日」排：
-     進行中＝快要面試的排前面（近→遠）；已完成＝最近面試過的排前面（新→舊）；
-     還沒填面試日的排在該群最後，彼此再照名字 A→Z。 */
+  /* ITV_SORT_UPCOMING_V643 面試練習依「正式面試日」排，進行中先看還沒到的：
+     進行中＝①還沒面試的，最快到的排最前面（近→遠）
+             ②已經面試過、還沒填結果的接在後面（新→舊，最近考完的先處理）
+             ③還沒填面試日的排最後
+     已結案＝最近面試過的排前面（新→舊），沒填日期的排最後
+     同一天的再照名字 A→Z。 */
+  const _itvT=localToday();
   const list=itvAll().slice().sort((a,b)=>{
     const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;
     if(sa!==sb)return sa-sb;
     const da=String(a.exam_date||''),db=String(b.exam_date||'');
     if(!da&&!db)return stuNameCmp(a,b);
     if(!da)return 1; if(!db)return -1;
+    if(sa===0){
+      const ua=da>=_itvT?0:1,ub=db>=_itvT?0:1;
+      if(ua!==ub)return ua-ub;
+      if(da===db)return stuNameCmp(a,b);
+      return ua===0?da.localeCompare(db):db.localeCompare(da);
+    }
     if(da===db)return stuNameCmp(a,b);
-    return sa===0?da.localeCompare(db):db.localeCompare(da);});
+    return db.localeCompare(da);});
   const ym=localToday().slice(0,7);const inc=itvIncome(ym);const incAll=itvIncome(null);
   const mCount=itvAll().reduce((n,c)=>n+itvSessions(c).filter(e=>String(e.date).slice(0,7)===ym).length,0);
   const dueStr=itvMoneyStr(incAll.due);const today=localToday();
