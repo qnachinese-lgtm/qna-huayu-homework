@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=644">
+<link rel="stylesheet" href="styles.css?v=645">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5564,43 +5564,113 @@ H.guideCard=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const e=(t
    +'</body></html>';
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
 H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}const s=S.students.find(x=>x.id===id);if(!s)return;
-  const ym=S.calMonth||localToday().slice(0,7);const [Y,M]=ym.split('-');
+  /* STMT_ALL_V645 對帳單改成「整段歷史都在裡面」，開啟後可以在上面切期間（全部／某個月）。
+     以前只出當月，遇到這個月沒排課就整張空白，也算不出總數。
+     計費規則改成跟「繳費」頁的 stuBill 一模一樣：免費不算；一對一請假不算，
+     團班請假照算（以前這裡一律當 0，團班學生的對帳單會比繳費頁少收）。 */
   const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const org=window.APP_NAME||'QNA CHINESE';const cur=s.currency||'TWD';const hourly=isHourly(s);
-  const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date&&String(e.date).slice(0,7)===ym).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-  let should=0;
-  const rows=log.map(e=>{const wd=DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7];const tm=(e.start||e.end)?((e.start||'')+(e.end?'–'+e.end:'')):'';
-    const leave=e.status==='leave';const free=!!e.free;
-    let qty=0,amt=0;if(leave){qty=0;amt=0;}else if(free){qty=hourly?(logHours(e)||1):1;amt=0;}else{qty=hourly?(logHours(e)||1):1;const f=lessonFee(s,e);amt=(f==null?0:f);should+=amt;}
-    const stat=leave?'請假':(free?'🎁 免費':'出席');
-    return '<tr><td>'+e2(e.date)+'（'+wd+'）</td><td>'+e2(tm||'—')+'</td><td class="c">'+(leave?'—':fmtQty(qty)+' '+unitLabel(s))+'</td><td class="c">'+stat+'</td><td class="r">'+((leave||free)?'—':money(amt,cur))+'</td></tr>';}).join('')||'<tr><td colspan="5" class="c" style="color:#999">本月沒有上課記錄</td></tr>';
-  const monthPays=(s.payments||[]).filter(p=>p&&String(p.date).slice(0,7)===ym);
-  const paidThis=monthPays.reduce((a,p)=>a+(Number(p.amount)||0),0);
-  const payRows=monthPays.map(p=>'<tr><td>'+e2(p.date)+'</td><td>'+e2(p.note||'繳費')+'</td><td class="r">'+money(p.amount,p.currency||cur)+'</td></tr>').join('')||'<tr><td colspan="3" class="c" style="color:#999">本月沒有繳費紀錄</td></tr>';
-  const gap=Math.round((should-paidThis)*100)/100;
-  const gapTxt=Math.abs(gap)<0.01?'<span style="color:#16a34a">✅ 本月結清</span>':(gap>0?'<span style="color:#dc2626">尚需補收 '+money(gap,cur)+'</span>':'<span style="color:#2563eb">本月預繳 '+money(-gap,cur)+'</span>');
-  const left=sessionsLeft(s);const _ttl=tierText(s);const price=_ttl?('團班計費：'+_ttl):((s.tuition==null||s.tuition==='')?'—':(money(s.tuition,cur)+(hourly?' / 小時':' / 堂')));
-  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>對帳單 '+e2(s.name)+' '+e2(ym)+'</title><style>'
-    +'body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;color:#1a1a1a;max-width:640px;margin:0 auto;padding:34px}'
-    +'.bar{border-bottom:1px solid #ccc;padding-bottom:10px;margin-bottom:20px}.bar button{font-size:14px;padding:8px 14px;border:0;background:#a12a40;color:#fff;border-radius:8px;cursor:pointer}'
+  const org=window.APP_NAME||'QNA CHINESE';const cur=billCur(s);const hourly=isHourly(s);
+  const grp=(s.class_type==='團班');const unit=unitLabel(s);
+  const logs=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(e=>{
+      const wd=DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]||'';
+      const tm=(e.start||e.end)?((e.start||'')+(e.end?'–'+e.end:'')):'';
+      const leave=e.status==='leave',free=!!e.free;
+      const bill=!free&&(grp||!leave);
+      const q=hourly?(logHours(e)||1):1;
+      const f=bill?lessonFee(s,e):null;
+      return {d:e.date,wd:wd,tm:tm,ym:String(e.date).slice(0,7),
+        qty:(leave&&!grp)?null:q,
+        stat:leave?(grp?'請假（照計）':'請假'):(free?'🎁 免費':(e.status==='absent'?'缺席':'出席')),
+        bill:bill,amt:(f==null?0:f),unset:(bill&&f==null)};});
+  const pays=(Array.isArray(s.payments)?s.payments:[]).filter(p=>p&&p.date)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(p=>{
+      const pc=p.currency||cur,amt=Number(p.amount)||0,cv=Number(p.conv);
+      return {d:p.date,ym:String(p.date).slice(0,7),note:p.note||'繳費',
+        amt:amt,cur:pc,cross:(pc!==cur),conv:(cv>0?cv:null),
+        eff:(pc===cur?amt:(cv>0?cv:0))};});
+  const b=stuBill(s)||{charge:0,paid:0,waived:0,due:0,unknown:0,other:{}};
+  const months=[...new Set(logs.map(x=>x.ym).concat(pays.map(x=>x.ym)))].sort();
+  const _ttl=tierText(s);
+  const price=_ttl?('團班計費：'+_ttl):((s.tuition==null||s.tuition==='')?'—':(money(s.tuition,cur)+(hourly?' / 小時':' / 堂')));
+  const D={name:s.name||'',textbook:s.textbook||'—',price:price,cur:cur,unit:unit,grp:grp,
+    logs:logs,pays:pays,months:months,
+    all:{charge:b.charge,paid:b.paid,waived:b.waived,due:b.due,unknown:b.unknown||0,other:otherPayStr(b)||''},
+    open:new Date().toLocaleString()};
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>對帳單 '+e2(s.name)+'</title><style>'
+    +'body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;padding:34px}'
+    +'.bar{border-bottom:1px solid #ccc;padding-bottom:10px;margin-bottom:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}'
+    +'.bar button{font-size:14px;padding:8px 14px;border:0;background:#a12a40;color:#fff;border-radius:8px;cursor:pointer}'
+    +'.bar select{font-size:14px;padding:7px 10px;border:1px solid #ccc;border-radius:8px;background:#fff}'
     +'h1{font-size:22px;margin:0;color:#a12a40}.sub{color:#777;font-size:13px;margin:2px 0 18px}'
     +'.meta{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:14px;margin-bottom:18px}.meta b{color:#a12a40}'
-    +'table{width:100%;border-collapse:collapse;margin:8px 0 18px;font-size:14px}th,td{padding:8px 6px;border-bottom:1px solid #eee;text-align:left}th{color:#666;font-weight:600;border-bottom:2px solid #ddd}.c{text-align:center}.r{text-align:right}'
-    +'.tot{display:flex;justify-content:space-between;padding:8px 0;font-size:15px}.tot.big{font-size:18px;font-weight:800;border-top:2px solid #ddd;margin-top:6px;padding-top:12px}'
+    +'table{width:100%;border-collapse:collapse;margin:8px 0 18px;font-size:14px}th,td{padding:8px 6px;border-bottom:1px solid #eee;text-align:left}'
+    +'th{color:#666;font-weight:600;border-bottom:2px solid #ddd}.c{text-align:center}.r{text-align:right}'
+    +'.mh{background:#faf7f4;font-weight:700;color:#a12a40}'
+    +'.tot{display:flex;justify-content:space-between;padding:8px 0;font-size:15px}'
+    +'.tot.big{font-size:18px;font-weight:800;border-top:2px solid #ddd;margin-top:6px;padding-top:12px}'
     +'.sec{font-weight:700;margin:20px 0 4px;color:#333}.foot{margin-top:26px;color:#aaa;font-size:12px}'
+    +'.box{border:1px solid #e6ddd6;background:#fdfbf9;border-radius:10px;padding:12px 14px;margin:18px 0}'
+    +'.warn{color:#c2410c;font-size:13px;margin-top:6px}'
     +'@media print{.bar{display:none}body{padding:6px}}</style></head><body>'
-    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button></div>'
-    +'<h1>'+e2(org)+'</h1><div class="sub">繳費對帳單 Statement · '+e2(Y)+' 年 '+e2(Number(M))+' 月</div>'
+    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
+    +'<span>期間</span><select id="pk"></select></div>'
+    +'<h1>'+e2(org)+'</h1><div class="sub" id="sub"></div>'
     +'<div class="meta"><span><b>學生</b> '+e2(s.name)+'</span><span><b>教材</b> '+e2(s.textbook||'—')+'</span><span><b>計費</b> '+price+'</span></div>'
-    +'<div class="sec">📅 本月上課</div>'
-    +'<table><thead><tr><th>日期</th><th>時段</th><th class="c">時數/堂</th><th class="c">狀態</th><th class="r">金額</th></tr></thead><tbody>'+rows+'</tbody></table>'
-    +'<div class="sec">💰 本月繳費</div>'
-    +'<table><thead><tr><th>日期</th><th>項目</th><th class="r">金額</th></tr></thead><tbody>'+payRows+'</tbody></table>'
-    +'<div class="tot"><span>本月應收</span><span>'+money(should,cur)+'</span></div>'
-    +'<div class="tot"><span>本月實收</span><span>'+money(paidThis,cur)+'</span></div>'
-    +'<div class="tot big"><span>本月結餘</span><span>'+gapTxt+'</span></div>'
-    +(left!=null?'<div class="tot" style="color:#666;font-size:13px;margin-top:10px"><span>目前剩餘</span><span>'+fmtQty(left)+' '+unitLabel(s)+(left<=0?'（需續費）':'')+'</span></div>':'')
-    +'<div class="foot">開立時間 '+new Date().toLocaleString()+'　·　本對帳單依實際上課記錄與繳費紀錄產生</div></body></html>';
+    +'<div id="body"></div>'
+    +'<div class="foot">開立時間 '+e2(D.open)+'　·　本對帳單依實際上課記錄與繳費紀錄產生</div>'
+    +'<script>var D='+JSON.stringify(D).replace(/</g,'\\u003c')+';'
+    +'var CUR={TWD:["NT$","zh-TW"],VND:["VND","vi-VN"],USD:["US$","en-US"]};'
+    +'function money(n,c){if(n==null||n==="")return"—";var v=Number(n);if(isNaN(v))return String(n);'
+    +'if(c==="VND")return (v*1000).toLocaleString("en-US")+" VND";var k=CUR[c]||CUR.TWD;return k[0]+v.toLocaleString(k[1]);}'
+    +'function q(n){if(n==null)return"—";var r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}'
+    +'function esc(x){return String(x==null?"":x).replace(/[&<>"]/g,function(c){return ({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"})[c];});}'
+    +'function draw(sel){'
+    +'var L=D.logs.filter(function(x){return sel==="all"||x.ym===sel;});'
+    +'var P=D.pays.filter(function(x){return sel==="all"||x.ym===sel;});'
+    +'var lab=(sel==="all")?"全部期間":(sel.split("-")[0]+" 年 "+Number(sel.split("-")[1])+" 月");'
+    +'document.getElementById("sub").textContent="繳費對帳單 Statement · "+lab;'
+    +'var cm=(sel==="all"&&D.months.length>1);var last="";var h="";'
+    +'h+=\'<div class="sec">\u{1F4C5} 上課記錄　<span style="color:#999;font-weight:400;font-size:13px">\'+L.length+\' 筆</span></div>\';'
+    +'h+=\'<table><thead><tr><th>日期</th><th>時段</th><th class="c">時數/堂</th><th class="c">狀態</th><th class="r">金額</th></tr></thead><tbody>\';'
+    +'var sc=0,un=0;'
+    +'if(!L.length){h+=\'<tr><td colspan="5" class="c" style="color:#999">這段期間沒有上課記錄</td></tr>\';}'
+    +'L.forEach(function(x){if(cm&&x.ym!==last){last=x.ym;h+=\'<tr class="mh"><td colspan="5">\'+esc(x.ym)+\'</td></tr>\';}'
+    +'if(x.bill){sc+=x.amt;if(x.unset)un++;}'
+    +'h+=\'<tr><td>\'+esc(x.d)+\'（\'+esc(x.wd)+\'）</td><td>\'+esc(x.tm||"—")+\'</td><td class="c">\'+(x.qty==null?"—":q(x.qty)+" "+esc(D.unit))+\'</td><td class="c">\'+esc(x.stat)+\'</td><td class="r">\'+(x.bill?(x.unset?"⚠ 學費未設定":money(x.amt,D.cur)):"—")+\'</td></tr>\';});'
+    +'h+="</tbody></table>";'
+    +'h+=\'<div class="sec">\u{1F4B0} 繳費記錄　<span style="color:#999;font-weight:400;font-size:13px">\'+P.length+\' 筆</span></div>\';'
+    +'h+=\'<table><thead><tr><th>日期</th><th>項目</th><th class="r">金額</th></tr></thead><tbody>\';'
+    +'var sp=0,cross=0;last="";'
+    +'if(!P.length){h+=\'<tr><td colspan="3" class="c" style="color:#999">這段期間沒有繳費紀錄</td></tr>\';}'
+    +'P.forEach(function(x){if(cm&&x.ym!==last){last=x.ym;h+=\'<tr class="mh"><td colspan="3">\'+esc(x.ym)+\'</td></tr>\';}'
+    +'sp+=x.eff;var note=esc(x.note);'
+    +'if(x.cross){cross++;note+=(x.conv?(\' <span style="color:#666;font-size:12px">換算 \'+money(x.conv,D.cur)+\'</span>\'):\' <span style="color:#c2410c;font-size:12px">⚠ 未換算，沒抵到帳</span>\');}'
+    +'h+=\'<tr><td>\'+esc(x.d)+\'</td><td>\'+note+\'</td><td class="r">\'+money(x.amt,x.cur)+\'</td></tr>\';});'
+    +'h+="</tbody></table>";'
+    +'var gap=Math.round((sc-sp)*100)/100;'
+    +'if(sel!=="all"){'
+    +'h+=\'<div class="tot"><span>\'+lab+\' 應收</span><span>\'+money(sc,D.cur)+\'</span></div>\';'
+    +'h+=\'<div class="tot"><span>\'+lab+\' 實收</span><span>\'+money(sp,D.cur)+\'</span></div>\';'
+    +'h+=\'<div class="tot big"><span>\'+lab+\' 結餘</span><span>\'+(Math.abs(gap)<0.01?\'<span style="color:#16a34a">✅ 結清</span>\':(gap>0?\'<span style="color:#dc2626">尚需補收 \'+money(gap,D.cur)+\'</span>\':\'<span style="color:#2563eb">預繳 \'+money(-gap,D.cur)+\'</span>\'))+\'</span></div>\';'
+    +'}'
+    +'if(un)h+=\'<div class="warn">⚠ 這段期間有 \'+un+\' 堂還沒設定學費，沒算進應收。</div>\';'
+    +'if(cross)h+=\'<div class="warn">⚠ 有 \'+cross+\' 筆繳費的幣別跟帳單不同，只有填了「換算金額」的才會抵到帳。</div>\';'
+    +'var A=D.all;'
+    +'h+=\'<div class="box"><div style="font-weight:700;margin-bottom:6px">\u{1F9FE} \'+(sel==="all"?"總計":"累計（全部期間）")+\'</div>\';'
+    +'h+=\'<div class="tot"><span>累計應收</span><span>\'+money(A.charge,D.cur)+\'</span></div>\';'
+    +'h+=\'<div class="tot"><span>累計實收</span><span>\'+money(A.paid,D.cur)+\'</span></div>\';'
+    +'if(A.waived)h+=\'<div class="tot"><span>已優惠或少收</span><span>\'+money(A.waived,D.cur)+\'</span></div>\';'
+    +'h+=\'<div class="tot big"><span>總結餘</span><span>\'+(Math.abs(A.due)<0.01?\'<span style="color:#16a34a">✅ 已結清</span>\':(A.due>0?\'<span style="color:#dc2626">尚欠 \'+money(A.due,D.cur)+\'</span>\':\'<span style="color:#2563eb">溢繳 \'+money(-A.due,D.cur)+\'</span>\'))+\'</span></div>\';'
+    +'if(A.other)h+=\'<div class="warn">⚠ 另有其他幣別未換算：\'+esc(A.other)+\'</div>\';'
+    +'if(A.unknown)h+=\'<div class="warn">⚠ 全部期間有 \'+A.unknown+\' 堂沒設定學費。</div>\';'
+    +'h+="</div>";'
+    +'document.getElementById("body").innerHTML=h;}'
+    +'var pk=document.getElementById("pk");'
+    +'var o=document.createElement("option");o.value="all";o.textContent="全部期間";pk.appendChild(o);'
+    +'D.months.slice().reverse().forEach(function(m){var x=document.createElement("option");x.value=m;x.textContent=m;pk.appendChild(x);});'
+    +'pk.value="all";pk.addEventListener("change",function(){draw(pk.value);});draw("all");'
+    +'<\/script></body></html>';
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
 
 H.printWorksheet=(lid)=>{const l=S.lessons.find(x=>x.id===lid);if(!l)return;const qs=sortQuestionsLogical(questionsOf(lid));
