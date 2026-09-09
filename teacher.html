@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=645">
+<link rel="stylesheet" href="styles.css?v=646">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5564,10 +5564,10 @@ H.guideCard=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const e=(t
    +'</body></html>';
   const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
 H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}const s=S.students.find(x=>x.id===id);if(!s)return;
-  /* STMT_ALL_V645 對帳單改成「整段歷史都在裡面」，開啟後可以在上面切期間（全部／某個月）。
-     以前只出當月，遇到這個月沒排課就整張空白，也算不出總數。
-     計費規則改成跟「繳費」頁的 stuBill 一模一樣：免費不算；一對一請假不算，
-     團班請假照算（以前這裡一律當 0，團班學生的對帳單會比繳費頁少收）。 */
+  /* STMT_PRO_V646 對帳單版面改成正式帳單的樣子：抬頭、單號、上面先給三個結論數字，明細放下面。
+     正常上課那格留白，不再每一行都印「出席」，只有請假／缺席／免費才標記，一對一的表看起來乾淨很多；
+     上課記錄裡填的備註也會一起帶出來。
+     計費規則跟「繳費」頁的 stuBill 一樣（免費不算；一對一請假不算，團班請假照算）。 */
   const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const org=window.APP_NAME||'QNA CHINESE';const cur=billCur(s);const hourly=isHourly(s);
   const grp=(s.class_type==='團班');const unit=unitLabel(s);
@@ -5575,13 +5575,15 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     .sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(e=>{
       const wd=DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]||'';
       const tm=(e.start||e.end)?((e.start||'')+(e.end?'–'+e.end:'')):'';
-      const leave=e.status==='leave',free=!!e.free;
+      const leave=e.status==='leave',free=!!e.free,ab=e.status==='absent';
       const bill=!free&&(grp||!leave);
       const q=hourly?(logHours(e)||1):1;
       const f=bill?lessonFee(s,e):null;
       return {d:e.date,wd:wd,tm:tm,ym:String(e.date).slice(0,7),
         qty:(leave&&!grp)?null:q,
-        stat:leave?(grp?'請假（照計）':'請假'):(free?'🎁 免費':(e.status==='absent'?'缺席':'出席')),
+        sk:leave?(grp?'leaveg':'leave'):(free?'free':(ab?'absent':'ok')),
+        st:leave?(grp?'請假（照計）':'請假'):(free?'免費':(ab?'缺席':'')),
+        note:String(e.note||'').trim(),
         bill:bill,amt:(f==null?0:f),unset:(bill&&f==null)};});
   const pays=(Array.isArray(s.payments)?s.payments:[]).filter(p=>p&&p.date)
     .sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(p=>{
@@ -5592,79 +5594,130 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
   const b=stuBill(s)||{charge:0,paid:0,waived:0,due:0,unknown:0,other:{}};
   const months=[...new Set(logs.map(x=>x.ym).concat(pays.map(x=>x.ym)))].sort();
   const _ttl=tierText(s);
-  const price=_ttl?('團班計費：'+_ttl):((s.tuition==null||s.tuition==='')?'—':(money(s.tuition,cur)+(hourly?' / 小時':' / 堂')));
+  const price=_ttl?('團班 '+_ttl):((s.tuition==null||s.tuition==='')?'—':(money(s.tuition,cur)+(hourly?' / 小時':' / 堂')));
+  const _now=new Date(),_p2=n=>String(n).padStart(2,'0');
+  const today=_now.getFullYear()+'-'+_p2(_now.getMonth()+1)+'-'+_p2(_now.getDate());
+  const sno='QNA-'+today.replace(/-/g,'')+'-'+(String(s.id||'').replace(/[^a-zA-Z0-9]/g,'').slice(-4).toUpperCase()||'0000');
   const D={name:s.name||'',textbook:s.textbook||'—',price:price,cur:cur,unit:unit,grp:grp,
+    kind:(grp?'團班':'一對一'),today:today,sno:sno,
     logs:logs,pays:pays,months:months,
     all:{charge:b.charge,paid:b.paid,waived:b.waived,due:b.due,unknown:b.unknown||0,other:otherPayStr(b)||''},
     open:new Date().toLocaleString()};
-  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>對帳單 '+e2(s.name)+'</title><style>'
-    +'body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;padding:34px}'
-    +'.bar{border-bottom:1px solid #ccc;padding-bottom:10px;margin-bottom:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}'
-    +'.bar button{font-size:14px;padding:8px 14px;border:0;background:#a12a40;color:#fff;border-radius:8px;cursor:pointer}'
-    +'.bar select{font-size:14px;padding:7px 10px;border:1px solid #ccc;border-radius:8px;background:#fff}'
-    +'h1{font-size:22px;margin:0;color:#a12a40}.sub{color:#777;font-size:13px;margin:2px 0 18px}'
-    +'.meta{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:14px;margin-bottom:18px}.meta b{color:#a12a40}'
-    +'table{width:100%;border-collapse:collapse;margin:8px 0 18px;font-size:14px}th,td{padding:8px 6px;border-bottom:1px solid #eee;text-align:left}'
-    +'th{color:#666;font-weight:600;border-bottom:2px solid #ddd}.c{text-align:center}.r{text-align:right}'
-    +'.mh{background:#faf7f4;font-weight:700;color:#a12a40}'
-    +'.tot{display:flex;justify-content:space-between;padding:8px 0;font-size:15px}'
-    +'.tot.big{font-size:18px;font-weight:800;border-top:2px solid #ddd;margin-top:6px;padding-top:12px}'
-    +'.sec{font-weight:700;margin:20px 0 4px;color:#333}.foot{margin-top:26px;color:#aaa;font-size:12px}'
-    +'.box{border:1px solid #e6ddd6;background:#fdfbf9;border-radius:10px;padding:12px 14px;margin:18px 0}'
-    +'.warn{color:#c2410c;font-size:13px;margin-top:6px}'
-    +'@media print{.bar{display:none}body{padding:6px}}</style></head><body>'
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+e2(org)+' 對帳單 '+e2(s.name)+'</title><style>'
+    +':root{--bd:#a12a40;--ink:#1f2328;--mut:#6b7280;--line:#e5e7eb}'
+    +'*{box-sizing:border-box}'
+    +'body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",-apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink);max-width:840px;margin:0 auto;padding:30px 34px 56px;font-size:14px;line-height:1.55;font-variant-numeric:tabular-nums}'
+    +'.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#f6f7f8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:26px}'
+    +'.bar button{font:inherit;font-weight:600;padding:8px 16px;border:0;background:var(--bd);color:#fff;border-radius:8px;cursor:pointer}'
+    +'.bar select{font:inherit;padding:7px 10px;border:1px solid #cfd4da;border-radius:8px;background:#fff}'
+    +'.bar .hint{color:var(--mut);font-size:12.5px;margin-left:auto}'
+    +'.hd{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:14px;border-bottom:2px solid var(--bd)}'
+    +'.brand{font-size:21px;font-weight:800;color:var(--bd);letter-spacing:.5px}'
+    +'.brand-s{color:var(--mut);font-size:12.5px;margin-top:2px}'
+    +'.hd-r{text-align:right;min-width:250px}'
+    +'.doc{font-size:23px;font-weight:800;letter-spacing:7px;margin:0;line-height:1.2}'
+    +'.doc-s{color:var(--mut);font-size:10.5px;letter-spacing:3px;margin:0 0 9px}'
+    +'.kv{font-size:12.5px;color:var(--mut);display:flex;justify-content:flex-end;gap:12px}'
+    +'.kv b{color:var(--ink);font-weight:600}'
+    +'.info{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:16px 0 20px;padding-bottom:18px;border-bottom:1px solid var(--line)}'
+    +'.lb{display:block;color:var(--mut);font-size:11px;letter-spacing:1.2px;margin-bottom:3px}'
+    +'.vl{font-weight:600;word-break:break-word}'
+    +'.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}'
+    +'.cards.n4{grid-template-columns:repeat(4,1fr)}'
+    +'.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fcfcfd}'
+    +'.card .cl{color:var(--mut);font-size:11px;letter-spacing:1.2px;margin-bottom:5px}'
+    +'.card .cv{font-size:19px;font-weight:800;line-height:1.25}'
+    +'.card.ok{background:#f0fdf4;border-color:#bbf7d0}.card.ok .cv{color:#15803d}'
+    +'.card.due{background:#fef2f2;border-color:#fecaca}.card.due .cv{color:#b91c1c}'
+    +'.card.over{background:#eff6ff;border-color:#bfdbfe}.card.over .cv{color:#1d4ed8}'
+    +'.card.mut{background:#fafafa}.card.mut .cv{font-size:15px;color:var(--mut);font-weight:700}'
+    +'.sec{display:flex;align-items:baseline;gap:9px;font-weight:700;margin:26px 0 8px;font-size:15px}'
+    +'.sec .n{color:var(--mut);font-weight:400;font-size:12.5px}'
+    +'table{width:100%;border-collapse:collapse;font-size:13.5px}'
+    +'th{color:var(--mut);font-weight:600;font-size:11px;letter-spacing:1px;text-align:left;padding:0 8px 7px;border-bottom:1.5px solid #d8dade}'
+    +'td{padding:8px;border-bottom:1px solid #f1f2f4;vertical-align:top}'
+    +'.c{text-align:center}.r{text-align:right;white-space:nowrap}'
+    +'.mh td{background:#faf6f7;color:var(--bd);font-weight:700;font-size:12px;letter-spacing:1.5px;padding:6px 8px;border-bottom:1px solid #f0e4e7}'
+    +'.emp{color:#9ca3af;text-align:center;padding:18px}'
+    +'.chip{display:inline-block;padding:1px 9px;border-radius:99px;font-size:11.5px;font-weight:600;border:1px solid;white-space:nowrap}'
+    +'.chip.leave,.chip.leaveg{color:#b45309;background:#fffbeb;border-color:#fde68a}'
+    +'.chip.absent{color:#b91c1c;background:#fef2f2;border-color:#fecaca}'
+    +'.chip.free{color:#15803d;background:#f0fdf4;border-color:#bbf7d0}'
+    +'.nt{color:var(--mut);font-size:12.5px}'
+    +'.warn{color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:9px 12px;font-size:12.5px;margin-top:9px}'
+    +'.foot{margin-top:32px;padding-top:12px;border-top:1px solid var(--line);color:#9ca3af;font-size:11.5px;line-height:1.75}'
+    +'@page{size:A4;margin:13mm 12mm}'
+    +'@media print{.bar{display:none!important}body{max-width:none;padding:0;font-size:12px}'
+    +'thead{display:table-header-group}tr,.card,.cards{break-inside:avoid}.sec{break-after:avoid}'
+    +'*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+    +'</style></head><body>'
     +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
-    +'<span>期間</span><select id="pk"></select></div>'
-    +'<h1>'+e2(org)+'</h1><div class="sub" id="sub"></div>'
-    +'<div class="meta"><span><b>學生</b> '+e2(s.name)+'</span><span><b>教材</b> '+e2(s.textbook||'—')+'</span><span><b>計費</b> '+price+'</span></div>'
-    +'<div id="body"></div>'
-    +'<div class="foot">開立時間 '+e2(D.open)+'　·　本對帳單依實際上課記錄與繳費紀錄產生</div>'
+    +'<span style="color:#6b7280;font-size:12.5px">期間</span><select id="pk"></select>'
+    +'<span class="hint">列印時這排按鈕不會印出來</span></div>'
+    +'<div class="hd"><div><div class="brand">'+e2(org)+'</div><div class="brand-s">華語教學 · 學費對帳單</div></div>'
+    +'<div class="hd-r"><div class="doc">對帳單</div><div class="doc-s">STATEMENT OF ACCOUNT</div>'
+    +'<div class="kv"><span>單號</span><b>'+e2(sno)+'</b></div>'
+    +'<div class="kv"><span>開立日期</span><b>'+e2(today)+'</b></div>'
+    +'<div class="kv"><span>結算期間</span><b id="per">—</b></div></div></div>'
+    +'<div class="info">'
+    +'<div><span class="lb">學生 STUDENT</span><div class="vl">'+e2(s.name)+'</div></div>'
+    +'<div><span class="lb">課程型態 TYPE</span><div class="vl">'+e2(D.kind)+'</div></div>'
+    +'<div><span class="lb">教材 MATERIAL</span><div class="vl">'+e2(s.textbook||'—')+'</div></div>'
+    +'<div><span class="lb">計費方式 RATE</span><div class="vl">'+e2(price)+'</div></div>'
+    +'</div>'
+    +'<div id="cards"></div><div id="body"></div>'
+    +'<div class="foot">本對帳單由 '+e2(org)+' 依實際上課記錄與繳費記錄自動產生，僅供對帳參考。<br>開立時間 '+e2(D.open)+'　·　如與實際情形不符，請與老師聯繫更正。</div>'
     +'<script>var D='+JSON.stringify(D).replace(/</g,'\\u003c')+';'
     +'var CUR={TWD:["NT$","zh-TW"],VND:["VND","vi-VN"],USD:["US$","en-US"]};'
     +'function money(n,c){if(n==null||n==="")return"—";var v=Number(n);if(isNaN(v))return String(n);'
     +'if(c==="VND")return (v*1000).toLocaleString("en-US")+" VND";var k=CUR[c]||CUR.TWD;return k[0]+v.toLocaleString(k[1]);}'
     +'function q(n){if(n==null)return"—";var r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}'
     +'function esc(x){return String(x==null?"":x).replace(/[&<>"]/g,function(c){return ({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"})[c];});}'
+    +'function balTxt(v){return Math.abs(v)<0.01?"已結清":(v>0?("尚欠 "+money(v,D.cur)):("溢繳 "+money(-v,D.cur)));}'
+    +'function balCls(v){return Math.abs(v)<0.01?"ok":(v>0?"due":"over");}'
+    +'function card(lbl,val,cls){return `<div class="card ${cls||""}"><div class="cl">${lbl}</div><div class="cv">${val}</div></div>`;}'
     +'function draw(sel){'
     +'var L=D.logs.filter(function(x){return sel==="all"||x.ym===sel;});'
     +'var P=D.pays.filter(function(x){return sel==="all"||x.ym===sel;});'
     +'var lab=(sel==="all")?"全部期間":(sel.split("-")[0]+" 年 "+Number(sel.split("-")[1])+" 月");'
-    +'document.getElementById("sub").textContent="繳費對帳單 Statement · "+lab;'
-    +'var cm=(sel==="all"&&D.months.length>1);var last="";var h="";'
-    +'h+=\'<div class="sec">\u{1F4C5} 上課記錄　<span style="color:#999;font-weight:400;font-size:13px">\'+L.length+\' 筆</span></div>\';'
-    +'h+=\'<table><thead><tr><th>日期</th><th>時段</th><th class="c">時數/堂</th><th class="c">狀態</th><th class="r">金額</th></tr></thead><tbody>\';'
-    +'var sc=0,un=0;'
-    +'if(!L.length){h+=\'<tr><td colspan="5" class="c" style="color:#999">這段期間沒有上課記錄</td></tr>\';}'
-    +'L.forEach(function(x){if(cm&&x.ym!==last){last=x.ym;h+=\'<tr class="mh"><td colspan="5">\'+esc(x.ym)+\'</td></tr>\';}'
-    +'if(x.bill){sc+=x.amt;if(x.unset)un++;}'
-    +'h+=\'<tr><td>\'+esc(x.d)+\'（\'+esc(x.wd)+\'）</td><td>\'+esc(x.tm||"—")+\'</td><td class="c">\'+(x.qty==null?"—":q(x.qty)+" "+esc(D.unit))+\'</td><td class="c">\'+esc(x.stat)+\'</td><td class="r">\'+(x.bill?(x.unset?"⚠ 學費未設定":money(x.amt,D.cur)):"—")+\'</td></tr>\';});'
-    +'h+="</tbody></table>";'
-    +'h+=\'<div class="sec">\u{1F4B0} 繳費記錄　<span style="color:#999;font-weight:400;font-size:13px">\'+P.length+\' 筆</span></div>\';'
-    +'h+=\'<table><thead><tr><th>日期</th><th>項目</th><th class="r">金額</th></tr></thead><tbody>\';'
-    +'var sp=0,cross=0;last="";'
-    +'if(!P.length){h+=\'<tr><td colspan="3" class="c" style="color:#999">這段期間沒有繳費紀錄</td></tr>\';}'
-    +'P.forEach(function(x){if(cm&&x.ym!==last){last=x.ym;h+=\'<tr class="mh"><td colspan="3">\'+esc(x.ym)+\'</td></tr>\';}'
-    +'sp+=x.eff;var note=esc(x.note);'
-    +'if(x.cross){cross++;note+=(x.conv?(\' <span style="color:#666;font-size:12px">換算 \'+money(x.conv,D.cur)+\'</span>\'):\' <span style="color:#c2410c;font-size:12px">⚠ 未換算，沒抵到帳</span>\');}'
-    +'h+=\'<tr><td>\'+esc(x.d)+\'</td><td>\'+note+\'</td><td class="r">\'+money(x.amt,x.cur)+\'</td></tr>\';});'
-    +'h+="</tbody></table>";'
+    +'document.getElementById("per").textContent=lab;'
+    +'document.title=D.name+" 對帳單 "+lab+" "+D.today;'
+    +'var A=D.all,sc=0,un=0,sp=0,cross=0;'
+    +'L.forEach(function(x){if(x.bill){sc+=x.amt;if(x.unset)un++;}});'
+    +'P.forEach(function(x){sp+=x.eff;if(x.cross)cross++;});'
     +'var gap=Math.round((sc-sp)*100)/100;'
-    +'if(sel!=="all"){'
-    +'h+=\'<div class="tot"><span>\'+lab+\' 應收</span><span>\'+money(sc,D.cur)+\'</span></div>\';'
-    +'h+=\'<div class="tot"><span>\'+lab+\' 實收</span><span>\'+money(sp,D.cur)+\'</span></div>\';'
-    +'h+=\'<div class="tot big"><span>\'+lab+\' 結餘</span><span>\'+(Math.abs(gap)<0.01?\'<span style="color:#16a34a">✅ 結清</span>\':(gap>0?\'<span style="color:#dc2626">尚需補收 \'+money(gap,D.cur)+\'</span>\':\'<span style="color:#2563eb">預繳 \'+money(-gap,D.cur)+\'</span>\'))+\'</span></div>\';'
-    +'}'
-    +'if(un)h+=\'<div class="warn">⚠ 這段期間有 \'+un+\' 堂還沒設定學費，沒算進應收。</div>\';'
-    +'if(cross)h+=\'<div class="warn">⚠ 有 \'+cross+\' 筆繳費的幣別跟帳單不同，只有填了「換算金額」的才會抵到帳。</div>\';'
-    +'var A=D.all;'
-    +'h+=\'<div class="box"><div style="font-weight:700;margin-bottom:6px">\u{1F9FE} \'+(sel==="all"?"總計":"累計（全部期間）")+\'</div>\';'
-    +'h+=\'<div class="tot"><span>累計應收</span><span>\'+money(A.charge,D.cur)+\'</span></div>\';'
-    +'h+=\'<div class="tot"><span>累計實收</span><span>\'+money(A.paid,D.cur)+\'</span></div>\';'
-    +'if(A.waived)h+=\'<div class="tot"><span>已優惠或少收</span><span>\'+money(A.waived,D.cur)+\'</span></div>\';'
-    +'h+=\'<div class="tot big"><span>總結餘</span><span>\'+(Math.abs(A.due)<0.01?\'<span style="color:#16a34a">✅ 已結清</span>\':(A.due>0?\'<span style="color:#dc2626">尚欠 \'+money(A.due,D.cur)+\'</span>\':\'<span style="color:#2563eb">溢繳 \'+money(-A.due,D.cur)+\'</span>\'))+\'</span></div>\';'
-    +'if(A.other)h+=\'<div class="warn">⚠ 另有其他幣別未換算：\'+esc(A.other)+\'</div>\';'
-    +'if(A.unknown)h+=\'<div class="warn">⚠ 全部期間有 \'+A.unknown+\' 堂沒設定學費。</div>\';'
-    +'h+="</div>";'
+    +'var ch="";'
+    +'if(sel==="all"){ch=`<div class="cards">${card("應收合計",money(A.charge,D.cur))}${card("已收合計",money(A.paid,D.cur))}${card("結餘 BALANCE",balTxt(A.due),balCls(A.due))}</div>`;}'
+    +'else{ch=`<div class="cards n4">${card("本期應收",money(sc,D.cur))}${card("本期已收",money(sp,D.cur))}${card("本期結餘",balTxt(gap),balCls(gap))}${card("累計結餘",balTxt(A.due),"mut")}</div>`;}'
+    +'document.getElementById("cards").innerHTML=ch;'
+    +'var cm=(sel==="all"&&D.months.length>1),last="",h="";'
+    +'h+=`<div class="sec">上課記錄<span class="n">${L.length} 筆</span></div>`;'
+    +'h+=`<table><thead><tr><th>日期</th><th>時段</th><th class="c">數量</th><th>備註</th><th class="r">金額</th></tr></thead><tbody>`;'
+    +'if(!L.length)h+=`<tr><td colspan="5" class="emp">這段期間沒有上課記錄</td></tr>`;'
+    +'L.forEach(function(x){'
+    +'if(cm&&x.ym!==last){last=x.ym;h+=`<tr class="mh"><td colspan="5">${esc(x.ym)}</td></tr>`;}'
+    +'var chip=(x.sk==="ok")?"":`<span class="chip ${x.sk}">${esc(x.st)}</span>`;'
+    +'var nt=x.note?`<span class="nt">${chip?" · ":""}${esc(x.note)}</span>`:"";'
+    +'var amt=x.bill?(x.unset?`<span style="color:#b45309">未設定學費</span>`:money(x.amt,D.cur)):`<span class="nt">—</span>`;'
+    +'h+=`<tr><td>${esc(x.d)} <span class="nt">${esc(x.wd)}</span></td><td>${esc(x.tm||"—")}</td>'
+    +'<td class="c">${x.qty==null?`<span class="nt">—</span>`:q(x.qty)+" "+esc(D.unit)}</td>'
+    +'<td>${chip}${nt}</td><td class="r">${amt}</td></tr>`;});'
+    +'h+=`</tbody></table>`;'
+    +'last="";'
+    +'h+=`<div class="sec">繳費記錄<span class="n">${P.length} 筆</span></div>`;'
+    +'h+=`<table><thead><tr><th>日期</th><th>說明</th><th class="r">金額</th></tr></thead><tbody>`;'
+    +'if(!P.length)h+=`<tr><td colspan="3" class="emp">這段期間沒有繳費記錄</td></tr>`;'
+    +'P.forEach(function(x){'
+    +'if(cm&&x.ym!==last){last=x.ym;h+=`<tr class="mh"><td colspan="3">${esc(x.ym)}</td></tr>`;}'
+    +'var note=esc(x.note);'
+    +'if(x.cross)note+=x.conv?`<span class="nt"> · 折合 ${money(x.conv,D.cur)}</span>`:`<span style="color:#b45309;font-size:12.5px"> · 未填換算金額，沒抵到帳</span>`;'
+    +'h+=`<tr><td>${esc(x.d)}</td><td>${note}</td><td class="r">${money(x.amt,x.cur)}</td></tr>`;});'
+    +'h+=`</tbody></table>`;'
+    +'if(un)h+=`<div class="warn">這段期間有 ${un} 堂還沒設定學費，沒有算進應收。</div>`;'
+    +'if(cross)h+=`<div class="warn">有 ${cross} 筆繳費的幣別跟帳單不同，只有填了「換算金額」的才會抵到帳。</div>`;'
+    +'if(A.waived)h+=`<div class="warn">累計已優惠或少收 ${money(A.waived,D.cur)}，已從應收扣除。</div>`;'
+    +'if(A.other)h+=`<div class="warn">另有其他幣別尚未換算：${esc(A.other)}</div>`;'
+    +'if(A.unknown&&sel==="all")h+=`<div class="warn">全部期間共有 ${A.unknown} 堂沒設定學費。</div>`;'
     +'document.getElementById("body").innerHTML=h;}'
     +'var pk=document.getElementById("pk");'
     +'var o=document.createElement("option");o.value="all";o.textContent="全部期間";pk.appendChild(o);'
