@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=643">
+<link rel="stylesheet" href="styles.css?v=644">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1087,6 +1087,76 @@ function stuBill(s){
   const waived=Math.round((Number(s.fee_waived)||0)*100)/100;
   return {items,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,waived,other,
           due:Math.round((charge-paid-waived)*100)/100,unknown};}
+/* LEDGER_V644 對帳匯出：上課記錄／繳費記錄／對帳總表，可自己挑要匯出哪幾張、哪一段期間。
+   費用一律沿用畫面上同一套算法（stuBill／lessonFee），所以匯出的數字跟「繳費」頁看到的一致。 */
+const LG_STAT={attended:'出席',leave:'請假',absent:'缺席'};
+function lgStudents(){return (S.students||[]).filter(s=>s&&!s.deleted&&!s.is_test);}
+function lgInRange(d,a,b){d=String(d||'');if(!d)return false;if(a&&d<a)return false;if(b&&d>b)return false;return true;}
+/* 這一堂算不算錢：跟 stuBill 同一個條件（免費不算；一對一請假不算，團班請假照算） */
+function lgBillable(s,e){
+  if(!e||!e.date||e.free)return false;
+  return (s&&s.class_type==='團班')||e.status!=='leave';}
+function lgWd(d){try{return DAYS[(new Date(d+'T00:00:00').getDay()+6)%7]||'';}catch(_){return '';}}
+function lgLogRows(list,a,b){
+  const out=[];
+  list.forEach(s=>{
+    const cur=billCur(s);
+    (Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{
+      if(!e||!lgInRange(e.date,a,b))return;
+      const bill=lgBillable(s,e);
+      const h=logHours(e);
+      const fee=bill?lessonFee(s,e):null;
+      out.push({姓名:s.name||'',日期:e.date||'',星期:lgWd(e.date),
+        狀態:LG_STAT[e.status]||'出席',
+        開始:e.start||'',結束:e.end||'',時數:(h==null?'':h),
+        計費:bill?'計費':(e.free?'免費':'不計費'),
+        這堂費用:bill?(fee==null?'⚠ 學費未設定':fee):0,
+        幣別:cur,備註:e.note||''});});});
+  return out.sort((x,y)=>String(x.日期).localeCompare(String(y.日期))||String(x.姓名).localeCompare(String(y.姓名)));}
+function lgPayRows(list,a,b){
+  const out=[];
+  list.forEach(s=>{
+    const cur=billCur(s);
+    (Array.isArray(s.payments)?s.payments:[]).forEach(p=>{
+      if(!p||!lgInRange(p.date,a,b))return;
+      const pc=p.currency||cur;
+      out.push({姓名:s.name||'',日期:p.date||'',金額:(p.amount==null||p.amount===''?'':Number(p.amount)),
+        幣別:pc,帳單幣別:cur,
+        換算金額:(pc===cur?'':(Number(p.conv)>0?Number(p.conv):'⚠ 未換算')),
+        加堂:(p.sessions==null||p.sessions===''?'':p.sessions),備註:p.note||''});});});
+  return out.sort((x,y)=>String(x.日期).localeCompare(String(y.日期))||String(x.姓名).localeCompare(String(y.姓名)));}
+/* 對帳總表：期間內的收支，加上「全部期間」的應收／已收／差額（差額只有看全部才有意義） */
+function lgSumRows(list,a,b){
+  return list.map(s=>{
+    const cur=billCur(s),bAll=stuBill(s)||{items:[],charge:0,paid:0,waived:0,due:0,unknown:0,other:{}};
+    let pn=0,pc=0;
+    (Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{
+      if(!e||!lgInRange(e.date,a,b)||!lgBillable(s,e))return;
+      const f=lessonFee(s,e);
+      if(f==null)return;
+      pn++;pc+=f;});
+    let pp=0;
+    (Array.isArray(s.payments)?s.payments:[]).forEach(p=>{
+      if(!p||!lgInRange(p.date,a,b))return;
+      const q=p.currency||cur,amt=Number(p.amount)||0;
+      if(q===cur){pp+=amt;return;}
+      const cv=Number(p.conv);if(cv>0)pp+=cv;});
+    const diff=Math.round(bAll.due*100)/100;
+    return {姓名:s.name||'',狀態:enrollMeta(enrollOf(s))[1],帳單幣別:cur,
+      期間計費堂數:pn,期間應收:Math.round(pc*100)/100,期間已收:Math.round(pp*100)/100,
+      全部應收:bAll.charge,全部已收:bAll.paid,已優惠或少收:bAll.waived,
+      差額:diff,
+      對帳結果:(Math.abs(diff)<=0.0001?'✅ 結清':(diff>0?'🔴 還沒收':'🟠 溢繳')),
+      其他幣別未換算:otherPayStr(bAll)||'',
+      學費未設定的堂數:(bAll.unknown||0)};});}
+function lgItvRows(a,b){
+  const out=[];
+  (S.interviews||[]).forEach(c=>{
+    (Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
+      if(!p||!lgInRange(p.date,a,b))return;
+      out.push({客戶:c.name||'',日期:p.date||'',金額:(p.amount==null||p.amount===''?'':Number(p.amount)),
+        幣別:p.currency||'VND',面試類別:c.target||'',備註:p.note||''});});});
+  return out.sort((x,y)=>String(x.日期).localeCompare(String(y.日期)));}
 /* CUR_MIX_V42 把「還沒換算的其他幣別」印成字串 */
 function otherPayStr(b){const o=(b&&b.other)||{};const ks=Object.keys(o).filter(k=>o[k]>0);
   return ks.length?ks.map(k=>money(o[k],k)).join('、'):'';}
@@ -1795,7 +1865,9 @@ function renderPay(){
   const seg=(v,lb,n)=>'<button class="segb'+(f===v?' on':'')+'" data-act="payFilter" data-id="'+v+'">'+lb+(n!=null?' <span class="segn">'+n+'</span>':'')+'</button>';
   const bar='<div class="stu-bar"><div class="segbar">'
     +seg('owe','🔴 還沒收',oweN)+seg('clear','✅ 已結清',clearN)+seg('all','全部',rowsAll.length)
-    +'</div><span class="grow"></span><span class="hint">按「＋ 記一筆」就能寫進這位學生的繳費，團班也一樣。</span></div>';
+    +'</div><span class="grow"></span>'
+    +'<button class="btn btn-sm" data-act="exportLedger" title="匯出上課記錄／繳費記錄／對帳總表">📊 匯出對帳資料</button>'
+    +'<span class="hint" style="margin-left:8px">按「＋ 記一筆」就能寫進這位學生的繳費，團班也一樣。</span></div>';
   let rows=rowsAll;
   if(f==='owe')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due>0.0001);
   else if(f==='clear')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due<=0.0001);
@@ -7429,6 +7501,73 @@ H.exportAll=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(pays.length?pays:[{}]),'繳費');
     XLSX.writeFile(wb,'QNA_CHINESE_備份_'+localToday()+'.xlsx');try{localStorage.setItem('hyc_backup_wk',weekStart(localToday()));}catch(e){}toast('已匯出 Excel 備份');render();
   }catch(err){toast('匯出失敗：'+((err&&err.message)||err));}};
+H.exportLedger=()=>{
+  if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
+  const T=localToday(),ym=T.slice(0,7);
+  const d=new Date(T+'T00:00:00');d.setDate(1);d.setMonth(d.getMonth()-1);
+  const lastYm=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  const opts=lgStudents().slice().sort(stuNameCmp)
+    .map(s=>'<option value="'+esc(s.id)+'">'+esc(s.name||'')+'</option>').join('');
+  openModal('<div class="modal"><div class="modal-head"><h3>📊 匯出對帳資料</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:12px">費用算法跟「💰 繳費」頁完全一樣，所以匯出的數字對得起來。</div>'
+   +'<div class="field full"><label>要匯出哪幾張表？</label>'
+   +'<label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin:4px 0"><input type="checkbox" id="lg-log" checked style="width:auto"> <span><b>上課記錄</b>　每一堂一列，含這堂算多少錢</span></label>'
+   +'<label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin:4px 0"><input type="checkbox" id="lg-pay" checked style="width:auto"> <span><b>繳費記錄</b>　每一筆收款一列</span></label>'
+   +'<label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin:4px 0"><input type="checkbox" id="lg-sum" checked style="width:auto"> <span><b>對帳總表</b>　每位學生一列：應收、已收、差額</span></label>'
+   +'<label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin:4px 0"><input type="checkbox" id="lg-itv" style="width:auto"> <span><b>面試練習繳費</b>　另一條業務線，預設不匯出</span></label>'
+   +'</div>'
+   +'<div class="field full" style="margin-top:10px"><label>期間</label>'
+   +'<select id="lg-range">'
+   +'<option value="all">全部（不限期間）</option>'
+   +'<option value="'+esc(ym)+'">這個月（'+esc(ym)+'）</option>'
+   +'<option value="'+esc(lastYm)+'">上個月（'+esc(lastYm)+'）</option>'
+   +'<option value="custom">自己指定起訖日</option>'
+   +'</select>'
+   +'<div id="lg-custom" class="hide" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'
+   +'<input type="date" id="lg-from" style="flex:1;min-width:140px"><input type="date" id="lg-to" style="flex:1;min-width:140px"></div>'
+   +'<div class="hint" style="margin-top:6px">期間只影響「上課記錄」和「繳費記錄」。對帳總表會同時給你<b>期間內</b>和<b>全部期間</b>兩組數字——差額一定要看全部期間才準。</div>'
+   +'</div>'
+   +'<div class="field full" style="margin-top:10px"><label>學生</label>'
+   +'<select id="lg-stu"><option value="">全部學生</option>'+opts+'</select></div>'
+   +'<div style="margin-top:16px;display:flex;gap:10px">'
+   +'<button class="btn" data-act="closeModal" style="flex:1">取消</button>'
+   +'<button class="btn btn-accent" data-act="ledgerGo" style="flex:2">⬇ 匯出 Excel</button></div>'
+   +'</div></div>');
+  const sel=document.getElementById('lg-range');
+  if(sel)sel.addEventListener('change',()=>{
+    const box=document.getElementById('lg-custom');
+    if(box)box.classList.toggle('hide',sel.value!=='custom');});};
+
+H.ledgerGo=()=>{
+  if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
+  if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
+  const V=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  const C=id=>{const el=document.getElementById(id);return !!(el&&el.checked);};
+  const wantLog=C('lg-log'),wantPay=C('lg-pay'),wantSum=C('lg-sum'),wantItv=C('lg-itv');
+  if(!wantLog&&!wantPay&&!wantSum&&!wantItv){toast('至少要勾一張表');return;}
+  const r=V('lg-range');let a='',b='',label='全部';
+  if(r==='custom'){a=V('lg-from');b=V('lg-to');
+    if(a&&b&&a>b){toast('起日不能晚於迄日');return;}
+    label=(a||'最早')+'~'+(b||'最新');}
+  else if(r&&r!=='all'){a=r+'-01';b=r+'-31';label=r;}
+  const sid=V('lg-stu');
+  let list=lgStudents();
+  if(sid){list=list.filter(s=>s.id===sid);if(!list.length){toast('找不到這位學生');return;}}
+  list=list.slice().sort(stuNameCmp);
+  try{
+    const wb=XLSX.utils.book_new();let n=0;
+    const add=(rows,name)=>{XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows.length?rows:[{}]),name);n+=rows.length;};
+    if(wantLog)add(lgLogRows(list,a,b),'上課記錄');
+    if(wantPay)add(lgPayRows(list,a,b),'繳費記錄');
+    if(wantSum)add(lgSumRows(list,a,b),'對帳總表');
+    if(wantItv)add(lgItvRows(a,b),'面試練習繳費');
+    const who=sid?((list[0].name||'').replace(/[\\/:*?"<>|]/g,'')):'全部學生';
+    XLSX.writeFile(wb,'QNA_對帳_'+who+'_'+label+'_'+localToday()+'.xlsx');
+    toast('已匯出 '+n+' 筆資料');
+    closeModal();
+  }catch(err){toast('匯出失敗：'+((err&&err.message)||err));}};
+
 H.cert=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const today=localToday();
   openModal(`<div class="modal"><div class="modal-head"><h3>🎓 結業證書</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
     <div class="field full"><label>學生姓名</label><input id="cert-name" type="text" value="${esc(s.name||'')}"></div>
