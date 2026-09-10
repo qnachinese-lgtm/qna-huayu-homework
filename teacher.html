@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=655">
+<link rel="stylesheet" href="styles.css?v=656">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -880,6 +880,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
       </section>
 
       <section id="panel-student" class="panel hide"></section>
+      <section id="panel-class" class="panel hide"></section>
       <section id="panel-students" class="panel hide">
         <div class="section-head"><h2>👥 學生</h2><span class="sub">每位學生的資料、學費、上課時段、登入方式。點學生的「✏️ 編輯」可以改所有設定</span><div class="head-actions">
           <input id="stu-search" type="text" placeholder="搜尋名字 / 國籍…" style="max-width:190px">
@@ -1339,7 +1340,7 @@ function render(){
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
   if(!IS_OWNER&&['ops','pay','agency','interview','writing'].indexOf(S.tab)>=0)S.tab='dashboard';
-  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,ops:renderOps,pay:renderPay,help:renderHelp,tcourse:renderTCourse}[S.tab])();}
+  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,ops:renderOps,pay:renderPay,help:renderHelp,tcourse:renderTCourse}[S.tab])();}
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
@@ -2978,7 +2979,7 @@ function renderStudents(){
   const secOpen=(S.stuSecAllOpen===true)?' open':'';
   /* STU_SORT_V7 每一組學生一律照名字 A→Z 排（休學的仍然排最後），跟「預約」「已休學」那兩組一致 */
   const stuSort=(arr)=>arr.slice().sort((a,b)=>((enrollOf(a)==='paused'?1:0)-(enrollOf(b)==='paused'?1:0))||stuNameCmp(a,b));
-  const sec=(label,students,cls)=>`<details class="stu-sec cool-sec"${secOpen}><summary><span style="font-size:16px;color:var(--primary);font-weight:600">${label}</span> <span class="tag">${students.length} 人</span></summary>${cls?`<div style="margin:8px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 班級頁</button></div>`:''}${grpHtml(stuSort(students))}</details>`;
+  const sec=(label,students,cls)=>`<details class="stu-sec cool-sec"${secOpen}><summary><span style="font-size:16px;color:var(--primary);font-weight:600">${label}</span> <span class="tag">${students.length} 人</span></summary>${cls?`<div style="margin:8px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">📂 開啟班級</button></div>`:''}${grpHtml(stuSort(students))}</details>`;
   const real=list.filter(s=>!s.is_test);const testers=list.filter(s=>s.is_test);
   const reservedReal=real.filter(s=>enrollOf(s)==='reserved');
   const pausedReal=real.filter(s=>enrollOf(s)==='paused');const activeReal=real.filter(s=>enrollOf(s)!=='paused'&&enrollOf(s)!=='reserved');
@@ -5500,6 +5501,98 @@ H.fbPack=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
     +'<span class="hint">共 '+pages.length+' 頁：月總結 '+sums.length+' 份、上課回饋 '+fbs.length+' 張</span></div>'
     +pages.join('')+'</body></html>';
   closeModal();fbWin(html);};
+/* CLSPROFILE_V656 團班改成跟一對一一樣：點班名就在 app 裡開一頁，不再另開一個網頁分頁。
+   版面照學生檔案：上面身分列＋數字卡，下面分頁（成員／上課日期／課程模組／繳交狀況／班級資訊）。
+   分頁內容沿用原本班級頁那幾個 builder，只是換一個外框，所以功能完全一樣。
+   舊的 teacher.html?class=… 網址還是能用，不會壞掉。 */
+function cpMembers(cls){return (S.students||[]).filter(s=>stuGroups(s).includes(cls)&&!s.is_test).sort(stuNameCmp);}
+function cpDates(cls,members){
+  const map={};
+  members.forEach(s=>(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{
+    if(!e||!e.date)return;map[e.date+'|'+(e.start||'')+'|'+(e.end||'')]=e.date;}));
+  return Object.keys(map).map(k=>map[k]).sort();}
+function cpRoster(cls,members){
+  const TD='padding:8px 10px;border-top:1px solid var(--line)';
+  if(!members.length)return `<tr><td colspan="5" style="${TD};color:var(--muted)">還沒有成員，按上面「✏️ 成員／時段」勾選學生。</td></tr>`;
+  return members.map(s=>{
+    const asg=S.lessons.filter(l=>isAssignedTo(l,s)&&answerableOf(l.id).length);
+    const done=asg.filter(l=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;
+    const _b=stuBill(s);const _c=billCur(s);
+    const _pay=(!_b||!_b.items.length)?'<span class="muted">—</span>'
+      :(_b.due>0.0001?('<b style="color:#c2410c">欠 '+money(_b.due,_c)+'</b>')
+      :(_b.due<-0.0001?('<span style="color:#8a5a1a">預繳 '+money(-_b.due,_c)+'</span>')
+      :'<b style="color:#16a34a">✅ 已結清</b>'));
+    return `<tr><td style="${TD}"><b><a href="javascript:void(0)" data-act="stuDetail" data-id="${esc(s.id)}" style="color:var(--primary)">${esc(s.name||'')}</a></b></td>`
+      +`<td style="${TD}">${esc(s.email||'')}</td>`
+      +`<td style="${TD}">${asg.length?(done+' / '+asg.length):'—'}</td>`
+      +`<td style="${TD}">${_pay}</td>`
+      +`<td style="${TD};white-space:nowrap"><button class="btn btn-sm btn-primary" data-act="payments" data-id="${esc(s.id)}">💰 記繳費</button> `
+      +`<button class="btn btn-sm" data-act="classLog" data-id="${esc(s.id)}">🗓 上課記錄</button></td></tr>`;}).join('');}
+
+function renderClassProfile(){
+  if(typeof spCss==='function')spCss();
+  const el=document.getElementById('panel-class');if(!el)return;
+  const cls=S.clsId;
+  try{document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.id==='students'));}catch(e){}
+  if(!cls||groupsList().indexOf(cls)<0){
+    el.innerHTML='<div class="card">找不到這個團班（可能已經沒有成員了）。<button class="btn btn-sm" data-act="clsBack" style="margin-left:10px">← 回學生列表</button></div>';return;}
+  try{ensureClassSched(cls);}catch(e){}
+  const members=cpMembers(cls);
+  const cm=(typeof classMetaOf==='function')?classMetaOf(cls):{};
+  const sched=(typeof classSchedText==='function')?classSchedText(cls):'';
+  const meetUrl=(typeof classMeetOf==='function')?classMeetOf(cls):'';
+  const dates=cpDates(cls,members);
+  const thisM=localToday().slice(0,7);
+  const monthN=dates.filter(d=>String(d).slice(0,7)===thisM).length;
+  let pend=0;members.forEach(s=>{try{pend+=spPending(s.id);}catch(e){}});
+  let oweN=0;members.forEach(s=>{const b=stuBill(s);if(b&&b.items.length&&b.due>0.0001)oweN++;});
+  const planned=(typeof classPlanned==='function')?classPlanned(cls).filter(p=>p&&p.date>=localToday()).map(p=>p.date).sort():[];
+  const nx=planned[0]||'';
+
+  const chips='<span class="tag accent">團班</span>'
+    +'<span class="tag">👤 '+members.length+' 位學生</span>'
+    +(cm.textbook?'<span class="tag">📖 '+esc(cm.textbook)+'</span>':'');
+  const facts=(sched?'<span>🕒 <b>'+esc(sched)+'</b></span>':'<span class="muted">還沒設定固定時段</span>')
+    +((Array.isArray(cm.fee_tiers)&&cm.fee_tiers.length)?'<span>💰 <b>團班計費</b></span>':'');
+
+  const acts='<button class="btn btn-sm btn-primary" data-act="classRoll" data-id="'+esc(cls)+'">🗓 上課點名</button>'
+    +'<button class="btn btn-sm" data-act="classPublish" data-id="'+esc(cls)+'">📢 發佈內容</button>'
+    +'<button class="btn btn-sm" data-act="gmPick" data-id="'+esc(cls)+'">✏️ 成員／時段</button>'
+    +(/^https?:\/\//i.test(meetUrl||'')?'<a class="btn btn-sm btn-accent" href="'+esc(meetUrl)+'" target="_blank" rel="noopener">🎥 教室</a>':'')
+    +(/^https?:\/\//i.test(cm.drive||'')?'<a class="btn btn-sm" href="'+esc(cm.drive)+'" target="_blank" rel="noopener">📁 資料夾</a>':'')
+    +'<button class="btn btn-sm" data-act="classPrint" data-id="'+esc(cls)+'">🖨 列印 / PDF</button>';
+
+  const tiles='<div class="sp-tiles">'
+    +'<div class="sp-tile"><div class="k">成員</div><div class="v">'+members.length+' 位</div></div>'
+    +'<div class="sp-tile"><div class="k">已上課</div><div class="v">'+dates.length+' 堂</div><div class="s">'+(dates.length?('最近 '+esc(dates[dates.length-1])):'還沒點過名')+'</div></div>'
+    +'<div class="sp-tile"><div class="k">本月</div><div class="v">'+monthN+' 堂</div><div class="s">'+esc(thisM)+'</div></div>'
+    +'<div class="sp-tile"><div class="k">下次上課</div><div class="v">'+(nx?esc(nx):'—')+'</div><div class="s">'+(nx?esc(spWd(nx)):'還沒預排')+'</div></div>'
+    +(pend?('<div class="sp-tile warn"><div class="k">待批改</div><div class="v">'+pend+' 份</div></div>'):'')
+    +(IS_OWNER&&oweN?('<div class="sp-tile warn"><div class="k">還沒收到</div><div class="v">'+oweN+' 位</div></div>'):'')
+    +'</div>';
+
+  const tab=S.cvTab||'stu';
+  const T=(k,label,n)=>'<button class="sp-tab'+(tab===k?' on':'')+'" type="button" data-act="cvTab" data-id="'+k+'">'+label+(n!=null?'<span class="n">'+n+'</span>':'')+'</button>';
+  const tabs='<div class="sp-tabs">'+T('stu','成員',members.length)+T('days','上課日期',dates.length)
+    +T('mod','課程模組',null)+T('board','繳交狀況',null)+T('links','班級資訊',null)+'</div>';
+
+  const roster=cpRoster(cls,members);
+  let body='';
+  try{body=cvBodyHtml(cls,members,roster);}
+  catch(err){body='<div class="card">這個分頁顯示時發生問題：'+esc((err&&err.message)||err)+'</div>';}
+
+  el.innerHTML='<div class="sp-wrap">'
+    +'<div class="sp-back"><button class="btn btn-sm btn-ghost" data-act="clsBack">← 回學生列表</button></div>'
+    +'<div class="sp-hd">'
+      +'<div class="sp-av" style="background:#f1e4d5;color:#7a5236;font-size:26px">👥</div>'
+      +'<div class="sp-id"><div class="sp-nm">'+esc(cls)+'</div>'
+        +'<div class="sp-chips">'+chips+'</div>'
+        +'<div class="sp-facts">'+facts+'</div></div>'
+      +'<div class="sp-acts">'+acts+'</div>'
+    +'</div>'
+    +tiles+tabs+'<div class="sp-body">'+body+'</div></div>';}
+
+H.clsBack=()=>{S.tab='students';render();try{window.scrollTo(0,0);}catch(e){}};
 H.repOpen=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
   const ym=repYM(),pv=repPrevYM(ym);
   const opts=[ym,pv,repPrevYM(pv)].map(m=>`<option value="${m}">${m}</option>`).join('');
@@ -6946,10 +7039,10 @@ H.assign=(id)=>assignModal(S.lessons.find(l=>l.id===id));
 H.assignAll=()=>{const b=$$('#as-targets input');const all=b.every(x=>x.checked);b.forEach(x=>x.checked=!all);};
 H.groupsMgr=()=>groupMgrModal('');
 H.gmPick=(id)=>groupMgrModal(id);
-H.classPage=(id)=>window.open('teacher.html?class='+encodeURIComponent(id),'_blank');
+H.classPage=(id)=>{S.clsId=id;if(!S.cvTab)S.cvTab='stu';S.tab='class';render();try{window.scrollTo(0,0);}catch(e){}};
 H.classPrint=(id)=>classWindow(id);
-H.classRefresh=async(id)=>{try{await loadAll();renderClassView(id);toast('已更新');}catch(e){toast('更新失敗');}};
-H.cvTab=(k)=>{S.cvTab=k;const c=CLASS_VIEW||S._cvCls;if(c)renderClassView(c);};
+H.classRefresh=async(id)=>{try{await loadAll();if(S.tab==='class'&&!CLASS_VIEW)render();else renderClassView(id);toast('已更新');}catch(e){toast('更新失敗');}};
+H.cvTab=(k)=>{S.cvTab=k;if(S.tab==='class'&&!CLASS_VIEW){render();return;}const c=CLASS_VIEW||S._cvCls;if(c)renderClassView(c);};
 H.tModTog=(id)=>{S.tModOpen=S.tModOpen||{};S.tModOpen[id]=(S.tModOpen[id]===false);
   const el=document.querySelector('.tmod[data-mid="'+id+'"]');if(el)el.classList.toggle('closed',S.tModOpen[id]===false);};
 H.classLinksSave=async(cls)=>{const drive=(($('#cv-drive')&&$('#cv-drive').value)||'').trim();const meet=(($('#cv-meet')&&$('#cv-meet').value)||'').trim();
