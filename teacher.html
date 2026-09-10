@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=677">
+<link rel="stylesheet" href="styles.css?v=678">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -293,6 +293,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .crm-head .cc.dt{gap:8px}
         .crm-head .cc.dt .rbadge{min-width:78px;justify-content:center;flex:none}
         .crm-head .cc.dt .dt-d{font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+        /* LINK_V678 課卡上的「已交 N／M・待批改 K」 */
+        .les-stat{margin-left:6px;padding:2px 10px;font-size:12px;font-weight:700;border-radius:999px}
+        .les-stat:hover{border-color:var(--primary);color:var(--primary-dark)}
         .crm-back{display:flex;align-items:center;gap:12px;margin-bottom:12px}
         .crm-back b{font-size:17px}
         #app .stu-more>summary{list-style:none;cursor:pointer}
@@ -3248,7 +3251,7 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
       <div class="row-between lesson-head" data-act="toggleCard" data-id="${l.id}"><div style="display:flex;gap:14px;align-items:center;min-width:0;flex:1">
         <div class="lesson-no">${ov.num!=null?ov.num:(l.order_index||i+1)}</div>
         <div style="min-width:0"><h3>${esc(ov.title!=null?ov.title:l.title)}</h3><div class="meta" style="margin-top:5px;align-items:center">
-          ${an?'<span class="tag tpub-y">已發佈 '+an+' 人</span>':'<span class="tag tpub-n">未發佈</span>'}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${viChip(l)}</div></div></div>
+          ${an?'<span class="tag tpub-y">已發佈 '+an+' 人</span>':'<span class="tag tpub-n">未發佈</span>'}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${viChip(l)}${lesStatHtml(l)}</div></div></div>
         <div style="display:flex;gap:10px;align-items:center;flex:none;margin-left:12px"><span class="badge ${built?'badge-ok':'badge-soon'}">${built?'✅ 完成':'🟡 進行中'}</span>
         <span class="card-chev" aria-hidden="true">${open?'▾':'▸'}</span></div></div>
       ${ov.bar||''}
@@ -4106,11 +4109,11 @@ function gradeQueue(){
   const out=[];
   (S.results||[]).filter(r=>r.status==='pending'||r.status==='done').forEach(r=>{
     if(r.kind)return; // 只取「作業」那種 result
-    out.push({kind:'hw',id:r.id,sd:r,name:sgName(r),test:sgTest(r),les:sgLes(r.lesson_id),
+    out.push({kind:'hw',id:r.id,sd:r,name:sgName(r),test:sgTest(r),les:sgLes(r.lesson_id),lid:r.lesson_id||'',
       pend:r.status==='pending',ts:r.completed_at||r.updated_at||'',extra:''});});
   const add=(arr,kind,lidKey,extraFn)=>{(arr||[]).forEach(sd=>{const done=sd.status==='reviewed';
     if(sd.status!=='submitted'&&!done)return;
-    out.push({kind,id:sd.id,sd,name:sgName(sd),test:sgTest(sd),les:sgLes(sd[lidKey]),
+    out.push({kind,id:sd.id,sd,name:sgName(sd),test:sgTest(sd),les:sgLes(sd[lidKey]),lid:sd[lidKey]||'',
       pend:!done,ts:sd.submitted_at||'',extra:extraFn?extraFn(sd):'',
       hasDraft:!!((sd.draft_feedback&&Object.keys(sd.draft_feedback).length)||(sd.draft_overall&&String(sd.draft_overall).trim()))});});};
   add(S.gpracs,'gprac','gprac_lesson',sd=>Object.keys(sd.answers||{}).length+' 題');
@@ -4120,16 +4123,35 @@ function gradeQueue(){
   add(S.hwvs,'hwv','hwv_lesson',sd=>(sd.images||[]).length+' 張');
   (S.wbdocs||[]).forEach(sd=>{const done=sd.status==='reviewed';if(sd.status!=='submitted'&&!done)return;
     const w=(S.workbooks||[]).find(x=>x.id===sd.wb_lesson)||{};const sc=sd.score||{};
-    out.push({kind:'wb',id:sd.id,sd,name:sgName(sd),test:sgTest(sd),les:(w.title||'作業簿'),pend:!done,ts:sd.submitted_at||'',extra:(sc.total?('自動 '+sc.ok+'/'+sc.total):'')});});
+    out.push({kind:'wb',id:sd.id,sd,name:sgName(sd),test:sgTest(sd),les:(w.title||'作業簿'),lid:sd.wb_lesson||'',pend:!done,ts:sd.submitted_at||'',extra:(sc.total?('自動 '+sc.ok+'/'+sc.total):'')});});
   out.sort((a,b)=>(a.pend===b.pend?0:(a.pend?-1:1))||String(b.ts||'').localeCompare(String(a.ts||'')));
   /* GRADE_NOTEST_V675 測試帳號交的東西不要排進批改台，也不要算進「待批改」的數字。
      那是自己測平台留下來的，不是學生真的交的作業。 */
   return out.filter(x=>!x.test);
 }
-function sgVisible(){const only=(S.sgOnly==='all')?'all':'pend';const k=S.sgKind||'';
-  return gradeQueue().filter(x=>(only==='all'||x.pend)&&(!k||x.kind===k));}
+/* LINK_V678 教材與批改本來是斷開的：教材頁看不到誰交了、批改台也跳不回那一課。
+   現在課卡上直接顯示「已交 N／M・待批改 K」，按下去就進批改台而且只留那一課；
+   批改台每一筆旁邊也可以直接預覽那一課。 */
+function sgVisible(){const only=(S.sgOnly==='all')?'all':'pend';const k=S.sgKind||'';const L=S.sgLesson||'';
+  return gradeQueue().filter(x=>(only==='all'||x.pend)&&(!k||x.kind===k)&&(!L||x.lid===L));}
+function lesLive(s){return s&&!s.deleted&&!s.deleted_at&&!s.is_test&&(typeof enrollOf!=='function'||enrollOf(s)!=='paused');}
+function lesStat(l){
+  if(!l||l.kind)return null;
+  let total=0;try{total=lessonTargets(l).filter(lesLive).length;}catch(e){total=0;}
+  const q=gradeQueue().filter(x=>x.lid===l.id&&!x.test);
+  const sub=q.length,pend=q.filter(x=>x.pend).length;
+  if(!total&&!sub)return null;
+  return {total,sub,pend};}
+function lesStatHtml(l){const st=lesStat(l);if(!st)return '';
+  const col=st.pend?'#2563eb':'#8B8079';
+  return '<button class="btn btn-sm les-stat" data-act="gradeLesson" data-id="'+esc(l.id)+'" title="只看這一課的作答">'
+    +'📥 已交 '+st.sub+(st.total?('／'+st.total):'')
+    +(st.pend?('<b style="color:'+col+';margin-left:6px">待批改 '+st.pend+'</b>'):'<span class="muted" style="margin-left:6px">都改完了</span>')
+    +'</button>';}
+
 function sgOpen(it){
   if(!it)return;
+  try{S._sgLid=it.lid||'';}catch(e){}
   S.sgSel=it.kind+'::'+it.id;S.sgSplit=true;
   const H_=H;
   if(it.kind==='hw'){const r=it.sd;const l=S.lessons.find(x=>x.id===r.lesson_id)||{};const st=S.students.find(x=>x.id===r.student_id)||{name:'學生'};
@@ -4226,7 +4248,12 @@ function renderGrades(){
   const kinds=Object.keys(SGKIND).filter(k=>all.some(x=>x.kind===k));
   const chip=(k,lab,on)=>'<button class="segb'+(on?' on':'')+'" data-act="sgKind" data-id="'+k+'">'+lab+'</button>';
   /* PAGEBAR_STD：左邊篩選、右邊切換，跟其他分頁同一種樣子 */
-  const bar='<div class="pagebar"><div class="segbar">'+chip('','全部類型',!S.sgKind)
+  const _lz=S.sgLesson?((S.lessons||[]).find(x=>x.id===S.sgLesson)||null):null;
+  const lessBar=S.sgLesson?('<div class="pagetip" style="display:flex;align-items:center;gap:10px;background:#FFF7EE;border:1px solid #ECDCC8">'
+    +'<b>只看這一課：'+esc(_lz?((_lz.order_index?('第'+_lz.order_index+'課 '):'')+(_lz.title||'')):'（已刪除的課）')+'</b>'
+    +'<span class="grow"></span>'+(_lz?'<button class="btn btn-sm" data-act="previewLesson" data-id="'+esc(_lz.id)+'">👁 看這一課</button>':'')
+    +'<button class="btn btn-sm btn-ghost" data-act="gradeAllLessons">✕ 看全部</button></div>'):'';
+  const bar=lessBar+'<div class="pagebar"><div class="segbar">'+chip('','全部類型',!S.sgKind)
     +kinds.map(k=>chip(k,SGKIND[k].ic+' '+SGKIND[k].lab,S.sgKind===k)).join('')
     +'</div><span class="grow"></span><div class="segbar">'
     +'<button class="segb'+(S.sgOnly==='all'?'':' on')+'" data-act="sgOnly" data-id="pend">只看待批改<span class="segn">'+pendN+'</span></button>'
@@ -4276,6 +4303,9 @@ H.sgPick=(key)=>{const list=sgVisible();const it=list.find(x=>(x.kind+'::'+x.id)
 H.sgNext=()=>{const list=sgVisible();const i=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);if(i>=0&&i<list.length-1){S.sgSel=list[i+1].kind+'::'+list[i+1].id;renderGrades();}};
 H.sgPrev=()=>{const list=sgVisible();const i=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);if(i>0){S.sgSel=list[i-1].kind+'::'+list[i-1].id;renderGrades();}};
 H.sgKind=(k)=>{S.sgKind=k||'';renderGrades();};
+H.gradeLesson=(id)=>{S.sgLesson=id;S.sgKind='';S.sgOnly='all';S.sgSel=null;S.tab='grades';render();
+  try{window.scrollTo(0,0);}catch(e){}};
+H.gradeAllLessons=()=>{S.sgLesson=null;S.sgSel=null;renderGrades();};
 H.sgOnly=(v)=>{S.sgOnly=(v==='all')?'all':'pend';renderGrades();};
 H.stuDetail=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;S.stuId=id;if(!S.stuTab)S.stuTab='ov';S.tab='student';render();try{window.scrollTo(0,0);}catch(e){}};
 H.stuView=(id)=>{S.stuView=(id==='card')?'card':'table';renderStudents();};
