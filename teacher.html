@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=650">
+<link rel="stylesheet" href="styles.css?v=651">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -879,6 +879,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         <div id="calendar-body"></div>
       </section>
 
+      <section id="panel-student" class="panel hide"></section>
       <section id="panel-students" class="panel hide">
         <div class="section-head"><h2>👥 學生</h2><span class="sub">每位學生的資料、學費、上課時段、登入方式。點學生的「✏️ 編輯」可以改所有設定</span><div class="head-actions">
           <input id="stu-search" type="text" placeholder="搜尋名字 / 國籍…" style="max-width:190px">
@@ -1336,7 +1337,7 @@ function render(){
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
   if(!IS_OWNER&&['ops','pay','agency','interview','writing'].indexOf(S.tab)>=0)S.tab='dashboard';
-  try{({dashboard:renderDashboard,students:renderStudents,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,ops:renderOps,pay:renderPay,help:renderHelp,tcourse:renderTCourse}[S.tab])();}
+  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,ops:renderOps,pay:renderPay,help:renderHelp,tcourse:renderTCourse}[S.tab])();}
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
@@ -2917,7 +2918,7 @@ function stuCardInner(s){return `
         ${IS_OWNER?`<button class="btn btn-sm" data-act="payments" data-id="${s.id}">💰 繳費</button>`:''}
         ${/^https?:\/\//i.test(s.meet_url||'')?`<a class="btn btn-sm btn-accent" href="${esc(s.meet_url)}" target="_blank" rel="noopener">🎥 上課教室</a>`:''}
         ${s.reset_requested?`<button class="btn btn-sm btn-accent" data-act="resetPw" data-id="${s.id}">🔑 學生申請重設 · 寄信</button>`:''}
-        <button class="btn btn-sm btn-ghost" data-act="stuMore" data-id="${s.id}">⋯ 更多</button></div>
+        <button class="btn btn-sm" data-act="stuDetail" data-id="${s.id}">📂 開啟檔案</button><button class="btn btn-sm btn-ghost" data-act="stuMore" data-id="${s.id}">⋯ 更多</button></div>
     <div class="hide smore" id="smore-${s.id}">
         <div class="smore-g"><div class="smore-t">📄 報告與證書</div><div class="smore-b">
           <button class="btn btn-sm" data-act="fbOpen" data-id="${s.id}">💬 上課回饋單</button>
@@ -4059,7 +4060,7 @@ H.sgNext=()=>{const list=sgVisible();const i=list.findIndex(x=>(x.kind+'::'+x.id
 H.sgPrev=()=>{const list=sgVisible();const i=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);if(i>0){S.sgSel=list[i-1].kind+'::'+list[i-1].id;renderGrades();}};
 H.sgKind=(k)=>{S.sgKind=k||'';renderGrades();};
 H.sgOnly=(v)=>{S.sgOnly=(v==='all')?'all':'pend';renderGrades();};
-H.stuDetail=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;openModal(`<div class="modal wide"><div class="modal-head"><h3>${snm(s.name)}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">${stuCardInner(s)}</div></div>`);};
+H.stuDetail=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;S.stuId=id;if(!S.stuTab)S.stuTab='ov';S.tab='student';render();try{window.scrollTo(0,0);}catch(e){}};
 H.stuView=(id)=>{S.stuView=(id==='card')?'card':'table';renderStudents();};
 /* ----- 對外官網：報名名單 + 內容編輯 ----- */
 function inqForm(x){x=x||{};const e=!!x.id;
@@ -5102,6 +5103,399 @@ H.fbSumSave=async(sid,b)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
     closeModal();render();toast('學習總結已儲存');
     if(wantPrint)fbWin(fbSumHtml(ns,rec));
   }catch(err){if(b){b.disabled=false;b.textContent=t0;}toast(writeErr('儲存失敗',err));}};
+/* STUPROFILE_V651 學生檔案改成整頁：上面身分列＋數字卡，下面四個分頁（總覽／上課記錄／作業成績／繳費與對帳）。
+   以前所有東西都塞在一個小彈窗裡，還要按「⋯ 更多」才找得到回饋單，很難用。
+   常用的四個動作（記一堂課、寫回饋單、收款、編輯）直接放在最上面，少用的收進「更多工具」。
+   匯出可以出三種：Excel 完整資料、PDF 學生檔案卡、回饋單打包。 */
+function spCss(){
+  if(document.getElementById('sp-css'))return;
+  const st=document.createElement('style');st.id='sp-css';
+  st.textContent='.sp-wrap{display:flex;flex-direction:column;gap:14px}'
+   +'.sp-back{align-self:flex-start}'
+   +'.sp-hd{display:flex;gap:16px;align-items:flex-start;background:#fff;border:1px solid #ece5e0;border-radius:16px;padding:16px 18px}'
+   +'.sp-av{width:62px;height:62px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:30px;flex:none;cursor:pointer}'
+   +'.sp-id{flex:1;min-width:0}'
+   +'.sp-nm{font-size:22px;font-weight:800;line-height:1.25}'
+   +'.sp-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}'
+   +'.sp-facts{display:flex;gap:6px 20px;flex-wrap:wrap;margin-top:9px;color:#6b6259;font-size:13px}'
+   +'.sp-facts b{color:#3b342e}'
+   +'.sp-acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:360px}'
+   +'.sp-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px}'
+   +'.sp-tile{background:#fff;border:1px solid #ece5e0;border-radius:14px;padding:11px 14px}'
+   +'.sp-tile .k{color:#9c9088;font-size:11.5px;letter-spacing:.6px}'
+   +'.sp-tile .v{font-size:19px;font-weight:800;margin-top:3px;line-height:1.3}'
+   +'.sp-tile .s{color:#a99e96;font-size:11.5px;margin-top:1px}'
+   +'.sp-tile.warn{background:#fff8ec;border-color:#f3ddb6}.sp-tile.warn .v{color:#b45309}'
+   +'.sp-tile.ok .v{color:#2f7a52}.sp-tile.due .v{color:#b91c1c}'
+   +'.sp-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid #ece5e0;margin-bottom:0}'
+   +'.sp-tab{padding:9px 16px;border:0;background:none;font:inherit;font-weight:700;color:#8b8079;cursor:pointer;border-radius:10px 10px 0 0;position:relative}'
+   +'.sp-tab:hover{background:#faf6f4}'
+   +'.sp-tab.on{color:#a12a40;background:#fff}'
+   +'.sp-tab.on:after{content:"";position:absolute;left:0;right:0;bottom:-2px;height:2px;background:#a12a40}'
+   +'.sp-tab .n{font-weight:600;color:#b3a9a1;font-size:12px;margin-left:5px}'
+   +'.sp-body{background:#fff;border:1px solid #ece5e0;border-top:0;border-radius:0 0 16px 16px;padding:16px 18px}'
+   +'.sp-2{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}'
+   +'.sp-sec{font-weight:800;color:#a12a40;font-size:13.5px;margin:0 0 9px;display:flex;align-items:center;gap:8px}'
+   +'.sp-sec .n{color:#b3a9a1;font-weight:600;font-size:12px}'
+   +'.sp-sec+.sp-sec{margin-top:18px}'
+   +'.sp-blk+.sp-blk{margin-top:20px}'
+   +'.sp-dl{display:grid;grid-template-columns:96px 1fr;gap:7px 12px;font-size:13.5px;margin:0}'
+   +'.sp-dl dt{color:#9c9088;font-size:12px}'
+   +'.sp-dl dd{margin:0;font-weight:600;word-break:break-word}'
+   +'.sp-scroll{border:1px solid #ece5e0;border-radius:12px;overflow:auto;max-height:560px}'
+   +'.sp-tb{width:100%;border-collapse:collapse;font-size:13.5px}'
+   +'.sp-tb th{text-align:left;color:#9c9088;font-size:11.5px;font-weight:700;letter-spacing:.4px;padding:9px 10px;background:#faf6f4;white-space:nowrap}'
+   +'.sp-tb td{padding:8px 10px;border-top:1px solid #f3ece8;vertical-align:top}'
+   +'.sp-tb tr:hover td{background:#fffdfb}'
+   +'.sp-tb .r{text-align:right;white-space:nowrap}.sp-tb .c{text-align:center;white-space:nowrap}'
+   +'.sp-empty{color:#a99e96;text-align:center;padding:26px}'
+   +'.sp-note{background:#faf6f4;border-radius:12px;padding:10px 13px;font-size:13.5px;white-space:pre-line}'
+   +'.sp-mini{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-top:1px solid #f3ece8;font-size:13px}'
+   +'.sp-mini:first-child{border-top:0}'
+   +'.sp-mini .d{color:#9c9088;font-size:12px;white-space:nowrap}'
+   +'.sp-mini .g{flex:1;min-width:0}'
+   +'.sp-pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}'
+   +'.sp-pill.lv{color:#96601a;background:#fbf0d8}.sp-pill.ab{color:#a3543a;background:#fbe9e2}'
+   +'.sp-pill.fr{color:#2f7a52;background:#e8f6ec}.sp-pill.mk{color:#1d4ed8;background:#dbeafe}'
+   +'.sp-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}'
+   +'.sp-bar .grow{flex:1}'
+   +'@media(max-width:980px){.sp-2{grid-template-columns:1fr}.sp-hd{flex-wrap:wrap}.sp-acts{max-width:none;justify-content:flex-start}}';
+  document.head.appendChild(st);}
+
+const spWd=(d)=>{try{return DAYS[(new Date(d+'T00:00:00').getDay()+6)%7]||'';}catch(e){return '';}};
+function spLogs(s){return (Array.isArray(s&&s.class_log)?s.class_log:[]).map((e,i)=>({e:e,i:i}))
+  .filter(x=>x.e&&x.e.date).sort((a,b)=>String(b.e.date).localeCompare(String(a.e.date)));}
+function spAttend(s){
+  const L=(Array.isArray(s&&s.class_log)?s.class_log:[]).filter(e=>e&&e.date);
+  const att=L.filter(e=>e.status!=='leave'&&e.status!=='absent').length;
+  const lv=L.filter(e=>e.status==='leave').length;
+  const ab=L.filter(e=>e.status==='absent').length;
+  const held=att+ab;
+  return {att:att,leave:lv,absent:ab,total:L.length,rate:held?Math.round(att/held*100):null};}
+function spNext(s){
+  const today=localToday();
+  const pl=(typeof studentPlanned==='function'?studentPlanned(s):[]).map(p=>p.date).filter(d=>d>=today).sort();
+  if(pl.length)return pl[0];
+  const sc=Array.isArray(s&&s.schedule)?s.schedule:[];
+  if(!sc.length)return '';
+  const now=new Date();const dow=(now.getDay()+6)%7;const mins=now.getHours()*60+now.getMinutes();
+  let best=null;
+  sc.forEach(r=>{if(!r)return;const rd=(r.d!=null?r.d:0);
+    let dd=(rd-dow+7)%7;
+    if(dd===0){const p=String(r.s||'').split(':');const m=(Number(p[0])||0)*60+(Number(p[1])||0);if(m<=mins)dd=7;}
+    if(best==null||dd<best)best=dd;});
+  if(best==null)return '';
+  const d=new Date();d.setDate(d.getDate()+best);
+  const z=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());}
+function spPending(sid){
+  let n=0;
+  try{n+=(S.results||[]).filter(r=>r&&r.student_id===sid&&r.status==='pending').length;}catch(e){}
+  ['wbdocs','gpracs','discussions','shadows','sentences','quizResults'].forEach(k=>{
+    try{n+=(S[k]||[]).filter(r=>r&&r.student_id===sid&&r.status==='submitted').length;}catch(e){}});
+  return n;}
+function spScores(sid){
+  const out=[];
+  const mine=(x)=>x&&x.student_id===sid;
+  try{(S.results||[]).filter(x=>mine(x)&&x.lesson_id&&String(x.lesson_id).indexOf('__')!==0)
+    .forEach(r=>{if(r.status==='done'&&r.total)out.push({t:'課文練習',n:repLessonName(r.lesson_id),ok:r.score||0,tot:r.total,d:String(r.completed_at||'').slice(0,10)});});}catch(e){}
+  try{(S.wbdocs||[]).filter(mine).forEach(r=>{const sc=r.score||{};if(sc.total)out.push({t:'作業簿',n:(typeof wbTitleOf==='function'?wbTitleOf(r.wb_lesson):'作業簿'),ok:sc.ok||0,tot:sc.total,d:String(r.submitted_at||'').slice(0,10)});});}catch(e){}
+  try{(S.quizResults||[]).filter(mine).forEach(r=>{if(r.total)out.push({t:'隨堂小考',n:((S.quizzes||[]).find(q=>q.id===r.quiz_id)||{}).title||'小考',ok:r.score||0,tot:r.total,d:String(r.completed_at||'').slice(0,10)});});}catch(e){}
+  out.sort((a,b)=>String(b.d).localeCompare(String(a.d)));
+  return out;}
+function spPct(a,b){return b?Math.round(a/b*100):0;}
+function spStatPill(e){
+  if(!e)return '';
+  if(e.status==='leave')return '<span class="sp-pill lv">請假</span>';
+  if(e.status==='absent')return '<span class="sp-pill ab">缺席</span>';
+  return '';}
+
+function renderStudentProfile(){
+  spCss();
+  const el=document.getElementById('panel-student');if(!el)return;
+  const s=(S.students||[]).find(x=>x.id===S.stuId);
+  if(!s){el.innerHTML='<div class="card">找不到這位學生。<button class="btn btn-sm" data-act="stuBack" style="margin-left:10px">← 回學生列表</button></div>';return;}
+  try{document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.id==='students'));}catch(e){}
+  const tab=S.stuTab||'ov';
+  const A=spAttend(s);const logs=spLogs(s);const bill=(typeof stuBill==='function')?stuBill(s):null;
+  const nx=spNext(s);const pend=spPending(s.id);const sc=spScores(s.id);
+  const scOk=sc.reduce((a,x)=>a+x.ok,0),scTot=sc.reduce((a,x)=>a+x.tot,0);
+  const prog=(typeof studentProgress==='function')?studentProgress(s):null;
+  const hourly=(typeof isHourly==='function')&&isHourly(s);
+  const used=(typeof usedUnits==='function')?usedUnits(s):null;
+  const fbs=(typeof fbList==='function')?fbList(s):[];
+  const fbSums=(typeof fbSumList==='function')?fbSumList(s):[];
+  const cur=(typeof billCur==='function')?billCur(s):(s.currency||'TWD');
+
+  const chips=(s.is_test?'<span class="tag" style="background:#e6e6e6;color:#666;border-color:#ccc">🧪 測試</span>':'')
+    +((typeof enrollBadge==='function')?enrollBadge(s):'')
+    +'<span class="tag accent">'+(s.class_type==='團班'?'團班':'一對一')+'</span>'
+    +((typeof stuGroups==='function')?stuGroups(s).map(g=>'<span class="tag">👥 '+esc(g)+'</span>').join(''):'')
+    +(s.nationality?'<span class="tag">'+esc(s.nationality)+'</span>':'')
+    +((IS_OWNER&&s.admin&&typeof adminName==='function')?'<span class="tag">👤 '+esc(adminName(s.admin))+'</span>':'');
+
+  const facts='<span>📖 <b>'+esc(s.textbook||'—')+'</b></span>'
+    +'<span>🕒 <b>'+esc((typeof fmtSchedule==='function')?fmtSchedule(s):'—')+'</b></span>'
+    +(s.email?'<span>✉️ <b>'+esc(s.email)+'</b></span>':'');
+
+  const acts='<button class="btn btn-sm btn-primary" data-act="classLog" data-id="'+s.id+'">📝 記一堂課</button>'
+    +'<button class="btn btn-sm" data-act="fbOpen" data-id="'+s.id+'">💬 寫回饋單</button>'
+    +(IS_OWNER?'<button class="btn btn-sm" data-act="payments" data-id="'+s.id+'">💰 收款</button>':'')
+    +'<button class="btn btn-sm" data-act="editStudent" data-id="'+s.id+'">✏️ 編輯</button>'
+    +'<button class="btn btn-sm" data-act="stuExport" data-id="'+s.id+'">📤 匯出</button>'
+    +(/^https?:\/\//i.test(s.meet_url||'')?'<a class="btn btn-sm btn-accent" href="'+esc(s.meet_url)+'" target="_blank" rel="noopener">🎥 教室</a>':'')
+    +'<button class="btn btn-sm btn-ghost" data-act="stuTools" data-id="'+s.id+'">⋯ 更多工具</button>';
+
+  const tiles='<div class="sp-tiles">'
+    +'<div class="sp-tile"><div class="k">已上</div><div class="v">'+((used==null)?'—':((typeof fmtQty==='function'?fmtQty(used):used)+' '+((typeof unitLabel==='function')?unitLabel(s):'堂')))+'</div><div class="s">共 '+A.total+' 筆記錄</div></div>'
+    +'<div class="sp-tile"><div class="k">出席率</div><div class="v">'+(A.rate==null?'—':(A.rate+' %'))+'</div><div class="s">請假 '+A.leave+' · 缺席 '+A.absent+'</div></div>'
+    +(IS_OWNER&&bill?('<div class="sp-tile '+(Math.abs(bill.due)<0.01?'ok':(bill.due>0?'due':''))+'"><div class="k">目前結餘</div><div class="v">'
+        +(Math.abs(bill.due)<0.01?'已結清':(bill.due>0?('尚欠 '+money(bill.due,cur)):('預繳 '+money(-bill.due,cur))))
+        +'</div><div class="s">應收 '+money(bill.charge,cur)+'</div></div>'):'')
+    +'<div class="sp-tile"><div class="k">下次上課</div><div class="v">'+(nx?esc(nx):'—')+'</div><div class="s">'+(nx?esc(spWd(nx)):'還沒排')+'</div></div>'
+    +(pend?('<div class="sp-tile warn"><div class="k">待批改</div><div class="v">'+pend+' 份</div><div class="s">學生已經交了</div></div>'):'')
+    +'</div>';
+
+  const T=(k,label,n)=>'<button class="sp-tab'+(tab===k?' on':'')+'" type="button" data-act="stuTab" data-id="'+k+'">'+label+(n!=null?'<span class="n">'+n+'</span>':'')+'</button>';
+  const tabs='<div class="sp-tabs">'+T('ov','總覽',null)+T('log','上課記錄',A.total)+T('hw','作業成績',sc.length)+(IS_OWNER?T('pay','繳費與對帳',(s.payments||[]).length):'')+'</div>';
+
+  let body='';
+  if(tab==='ov')body=spOverview(s,logs,fbs,fbSums,prog,sc,scOk,scTot);
+  else if(tab==='log')body=spLogTab(s,logs,fbs);
+  else if(tab==='hw')body=spHwTab(s,sc,scOk,scTot,prog,pend);
+  else body=spPayTab(s,bill,cur);
+
+  el.innerHTML='<div class="sp-wrap">'
+    +'<div class="sp-back"><button class="btn btn-sm btn-ghost" data-act="stuBack">← 回學生列表</button></div>'
+    +'<div class="sp-hd">'
+      +'<div class="sp-av emo" data-act="avPick" data-id="'+s.id+'" title="換頭像" style="background:'+((typeof avColor==='function')?avColor(s.name):'#eee')+'">'+((typeof avEmoji==='function')?avEmoji(s):'🙂')+'</div>'
+      +'<div class="sp-id"><div class="sp-nm">'+esc(s.name||'')+'</div>'
+        +'<div class="sp-chips">'+chips+'</div>'
+        +'<div class="sp-facts">'+facts+'</div></div>'
+      +'<div class="sp-acts">'+acts+'</div>'
+    +'</div>'
+    +tiles+tabs+'<div class="sp-body">'+body+'</div></div>';}
+
+function spOverview(s,logs,fbs,fbSums,prog,sc,scOk,scTot){
+  const row=(k,v)=>'<dt>'+k+'</dt><dd>'+v+'</dd>';
+  const tt=(typeof tierText==='function')?tierText(s):'';
+  const fee=(typeof isTrial==='function'&&isTrial(s))?'🎁 免費試學（不計費）'
+    :(tt?('👥 團班計費：'+esc(tt)):((s.tuition!=null&&s.tuition!=='')?(money(s.tuition,s.currency)+(s.fee_unit==='hour'?' / 小時':' / 堂')):'—'));
+  const left='<div class="sp-blk"><div class="sp-sec">📋 基本資料</div><dl class="sp-dl">'
+    +row('課程型態',(s.class_type==='團班'?'團班':'一對一'))
+    +row('教材',esc(s.textbook||'—'))
+    +row('上課時段',esc((typeof fmtSchedule==='function')?fmtSchedule(s):'—'))
+    +(IS_OWNER?row('學費',fee):'')
+    +(IS_OWNER&&s.payment_date?row('付款日',esc((typeof fmtDate==='function')?fmtDate(s.payment_date):s.payment_date)):'')
+    +row('國籍',esc(s.nationality||'—'))
+    +row('Email',esc(s.email||'—'))
+    +(s.phone?row('電話',esc(s.phone)):'')
+    +(s.line_id?row('LINE / Zalo',esc(s.line_id)):'')
+    +'</dl>'
+    +(s.notes?'<div class="sp-sec" style="margin-top:18px">📝 備註・學習目標</div><div class="sp-note">'+esc(s.notes)+'</div>':'')
+    +'</div>';
+
+  const recent=logs.slice(0,6).map(x=>{const e=x.e;
+    const tm=(e.start||e.end)?((e.start||'')+(e.end?'–'+e.end:'')):'';
+    return '<div class="sp-mini"><span class="d">'+esc(e.date)+' '+esc(spWd(e.date))+'</span>'
+      +'<span class="g">'+spStatPill(e)+(e.free?'<span class="sp-pill fr">免費</span> ':'')+(e.note?esc(e.note):'<span style="color:#b3a9a1">'+(tm||'—')+'</span>')+'</span></div>';}).join('')
+    ||'<div class="sp-empty">還沒有上課記錄</div>';
+
+  const fbRecent=fbs.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,4).map(f=>
+    '<div class="sp-mini"><span class="d">'+esc(f.date)+'</span><span class="g">'+esc(String(f.note||f.content||'').slice(0,46)||'（沒有評語）')+'</span></div>').join('')
+    ||'<div class="sp-empty">還沒有寫過回饋單</div>';
+
+  const right='<div class="sp-blk"><div class="sp-sec">🗓 最近上課 <span class="n">最新 6 筆</span></div>'+recent+'</div>'
+    +'<div class="sp-blk"><div class="sp-sec">💬 最近回饋單 <span class="n">'+fbs.length+' 張 · 月總結 '+fbSums.length+' 份</span></div>'+fbRecent+'</div>'
+    +(sc.length?('<div class="sp-blk"><div class="sp-sec">📊 作業表現</div><div class="sp-note">完成 <b>'+sc.length+'</b> 份'
+        +(scTot?('，答對率 <b>'+spPct(scOk,scTot)+'%</b>（'+scOk+' / '+scTot+' 題）'):'')
+        +(prog&&prog.total?('<br>指派 '+prog.total+' 課，完成 '+prog.done+' 課（'+prog.pct+'%）'):'')+'</div></div>'):'');
+
+  return '<div class="sp-2"><div>'+left+'</div><div>'+right+'</div></div>';}
+
+function spLogTab(s,logs,fbs){
+  const hourly=(typeof isHourly==='function')&&isHourly(s);
+  const cur=(typeof billCur==='function')?billCur(s):(s.currency||'TWD');
+  const fbKeys={};fbs.forEach(f=>{fbKeys[String(f.date||'')+'|'+String(f.start||'')+'|'+String(f.end||'')]=1;});
+  const rows=logs.map(x=>{const e=x.e,i=x.i;
+    const tm=(e.start||e.end)?(esc(e.start||'')+(e.end?'–'+esc(e.end):'')):'—';
+    const h=(typeof logHours==='function')?logHours(e):null;
+    const grp=(s.class_type==='團班');const leave=(e.status==='leave');
+    const held=!(leave&&!grp);
+    const qty=held?(hourly?(h!=null?((typeof fmtQty==='function')?fmtQty(h):h):'—'):'1'):'—';
+    let fee='—';
+    if(IS_OWNER){const billable=!e.free&&held;
+      if(billable){const f=(typeof lessonFee==='function')?lessonFee(s,e):null;fee=(f==null)?'<span style="color:#b45309">未設學費</span>':money(f,cur);}}
+    const has=fbKeys[String(e.date||'')+'|'+String(e.start||'')+'|'+String(e.end||'')];
+    return '<tr><td><b>'+esc(e.date)+'</b> <span style="color:#9c9088;font-size:12px">'+esc(spWd(e.date))+'</span></td>'
+      +'<td>'+tm+'</td><td class="c">'+qty+'</td>'
+      +'<td>'+spStatPill(e)+(e.free?'<span class="sp-pill fr">免費</span>':'')+(e.makeup?'<span class="sp-pill mk">補課</span>':'')+'</td>'
+      +(IS_OWNER?'<td class="r">'+fee+'</td>':'')
+      +'<td>'+esc(e.note||'')+(e.video?' <a href="'+esc(e.video)+'" target="_blank" rel="noopener" style="color:#b91c1c">🎬</a>':'')+'</td>'
+      +'<td class="c"><button class="btn btn-sm" type="button" data-act="fbRow" data-id="'+s.id+'::'+i+'" title="寫這一堂的回饋單">'+(has?'💬 ✓':'💬')+'</button> '
+      +'<button class="btn btn-sm" type="button" data-act="editLogRow" data-id="'+s.id+'::'+i+'">✏️</button></td></tr>';}).join('');
+  return '<div class="sp-bar"><button class="btn btn-sm btn-primary" data-act="classLog" data-id="'+s.id+'">＋ 記一堂課</button>'
+    +'<span class="grow"></span><span class="hint">💬 有打勾表示這堂已經寫過回饋單</span></div>'
+    +(logs.length?('<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>日期</th><th>時段</th><th class="c">'+(hourly?'時數':'堂')+'</th><th>狀態</th>'
+      +(IS_OWNER?'<th class="r">這堂費用</th>':'')+'<th>課後小結</th><th class="c">操作</th></tr></thead><tbody>'+rows+'</tbody></table></div>')
+      :'<div class="sp-empty">還沒有上課記錄，按上面「＋ 記一堂課」開始。</div>');}
+
+function spHwTab(s,sc,scOk,scTot,prog,pend){
+  const rows=sc.map(x=>'<tr><td>'+esc(x.d||'—')+'</td><td><span class="tag">'+esc(x.t)+'</span></td><td>'+esc(x.n||'')+'</td>'
+    +'<td class="r"><b>'+x.ok+'</b> / '+x.tot+'</td><td class="r">'+spPct(x.ok,x.tot)+'%</td></tr>').join('');
+  const head='<div class="sp-tiles" style="margin-bottom:14px">'
+    +'<div class="sp-tile"><div class="k">完成份數</div><div class="v">'+sc.length+'</div></div>'
+    +'<div class="sp-tile"><div class="k">答對率</div><div class="v">'+(scTot?(spPct(scOk,scTot)+' %'):'—')+'</div><div class="s">'+scOk+' / '+scTot+' 題</div></div>'
+    +((prog&&prog.total)?('<div class="sp-tile"><div class="k">指派課程</div><div class="v">'+prog.done+' / '+prog.total+'</div><div class="s">完成 '+prog.pct+'%</div></div>'):'')
+    +(pend?('<div class="sp-tile warn"><div class="k">待批改</div><div class="v">'+pend+' 份</div></div>'):'')
+    +'</div>';
+  return head+(sc.length?('<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>日期</th><th>類型</th><th>名稱</th><th class="r">得分</th><th class="r">百分比</th></tr></thead><tbody>'+rows+'</tbody></table></div>')
+    :'<div class="sp-empty">還沒有完成的作業紀錄。</div>');}
+
+function spPayTab(s,bill,cur){
+  if(!IS_OWNER)return '<div class="sp-empty">這個分頁只有主管理員看得到。</div>';
+  const pays=(Array.isArray(s.payments)?s.payments:[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const rows=pays.map(p=>{const pc=p.currency||cur;const cv=Number(p.conv);
+    return '<tr><td><b>'+esc(p.date||'')+'</b></td><td class="r">'+money(p.amount,pc)+'</td>'
+      +'<td class="r">'+((pc===cur)?'<span style="color:#b3a9a1">—</span>':(cv>0?money(cv,cur):'<span style="color:#b45309">未換算</span>'))+'</td>'
+      +'<td>'+esc(p.note||'')+'</td></tr>';}).join('');
+  const b=bill||{charge:0,paid:0,due:0,waived:0,unknown:0};
+  const tiles='<div class="sp-tiles" style="margin-bottom:14px">'
+    +'<div class="sp-tile"><div class="k">累計應收</div><div class="v">'+money(b.charge,cur)+'</div></div>'
+    +'<div class="sp-tile"><div class="k">累計實收</div><div class="v">'+money(b.paid,cur)+'</div></div>'
+    +'<div class="sp-tile '+(Math.abs(b.due)<0.01?'ok':(b.due>0?'due':''))+'"><div class="k">結餘</div><div class="v">'
+      +(Math.abs(b.due)<0.01?'已結清':(b.due>0?('尚欠 '+money(b.due,cur)):('預繳 '+money(-b.due,cur))))+'</div></div>'
+    +(b.unknown?('<div class="sp-tile warn"><div class="k">沒設學費</div><div class="v">'+b.unknown+' 堂</div></div>'):'')
+    +'</div>';
+  return tiles
+    +'<div class="sp-bar"><button class="btn btn-sm btn-primary" data-act="payments" data-id="'+s.id+'">＋ 記一筆繳費</button>'
+    +'<button class="btn btn-sm" data-act="billStatement" data-id="'+s.id+'">🧾 對帳單</button></div>'
+    +(pays.length?('<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>日期</th><th class="r">收款金額</th><th class="r">折合帳單幣別</th><th>備註</th></tr></thead><tbody>'+rows+'</tbody></table></div>')
+      :'<div class="sp-empty">還沒有繳費記錄。</div>');}
+
+H.stuTab=(k)=>{S.stuTab=k;render();};
+H.stuBack=()=>{S.tab='students';render();try{window.scrollTo(0,0);}catch(e){}};
+H.stuTools=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
+  const g=(t,b)=>'<div class="smore-g"><div class="smore-t">'+t+'</div><div class="smore-b">'+b+'</div></div>';
+  openModal('<div class="modal"><div class="modal-head"><h3>⋯ 更多工具 · '+snm(s.name||'')+'</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +g('📄 報告與證書','<button class="btn btn-sm" data-act="fbSumOpen" data-id="'+sid+'">📋 學習總結</button>'
+      +'<button class="btn btn-sm" data-act="repOpen" data-id="'+sid+'">📄 學習報告</button>'
+      +'<button class="btn btn-sm" data-act="report" data-id="'+sid+'">📊 學習報表</button>'
+      +'<button class="btn btn-sm" data-act="cert" data-id="'+sid+'">🎓 證書</button>')
+   +g('✉️ 聯絡與提醒','<button class="btn btn-sm" data-act="remindMsg" data-id="'+sid+'">📋 提醒訊息</button>'
+      +'<button class="btn btn-sm" data-act="guideCard" data-id="'+sid+'">🪪 使用說明卡</button>'
+      +((s.email)?'<button class="btn btn-sm" data-act="resetPw" data-id="'+sid+'">✉️ 寄重設密碼信</button>':''))
+   +g('📁 檔案與紀錄','<button class="btn btn-sm" data-act="uploadAreas" data-id="'+sid+'">📤 上傳區</button>'
+      +(/^https?:\/\//i.test(s.drive_url||'')?'<a class="btn btn-sm" href="'+esc(s.drive_url)+'" target="_blank" rel="noopener">📁 教材資料夾</a>':'')
+      +'<button class="btn btn-sm" data-act="loginLog" data-id="'+sid+'">🕒 登入紀錄</button>'
+      +(IS_OWNER?'<button class="btn btn-sm btn-danger" data-act="delStudent" data-id="'+sid+'">🗑 刪除學生</button>':''))
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');};
+
+H.stuExport=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
+  openModal('<div class="modal"><div class="modal-head"><h3>📤 匯出 · '+snm(s.name||'')+'</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body"><div class="hint" style="margin-bottom:12px">這位學生的資料，選一種帶走。</div>'
+   +'<div style="display:flex;flex-direction:column;gap:10px">'
+   +'<button class="btn" data-act="stuXlsx" data-id="'+sid+'" style="justify-content:flex-start">📊 Excel 完整資料<span class="hint" style="margin-left:8px">基本資料／上課記錄／繳費記錄／作業成績／回饋記錄，五張分頁</span></button>'
+   +'<button class="btn" data-act="stuCardPdf" data-id="'+sid+'" style="justify-content:flex-start">📄 PDF 學生檔案卡<span class="hint" style="margin-left:8px">一頁的檔案摘要，可以列印或存 PDF</span></button>'
+   +'<button class="btn" data-act="fbPack" data-id="'+sid+'" style="justify-content:flex-start">💬 回饋單打包<span class="hint" style="margin-left:8px">所有寫過的上課回饋單＋月總結，合成一份</span></button>'
+   +'</div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');};
+
+H.stuXlsx=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
+  if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
+  try{
+    const cur=(typeof billCur==='function')?billCur(s):(s.currency||'TWD');
+    const A=spAttend(s);const b=(typeof stuBill==='function')?stuBill(s):null;
+    const base=[{'姓名':s.name||'','課程型態':(s.class_type==='團班'?'團班':'一對一'),'狀態':((typeof enrollOf==='function')?enrollOf(s):''),
+      '國籍':s.nationality||'','Email':s.email||'','教材':s.textbook||'','上課時段':((typeof fmtSchedule==='function')?fmtSchedule(s):''),
+      '學費':(s.tuition!=null?s.tuition:''),'幣別':s.currency||'','計費單位':(s.fee_unit==='hour'?'小時':'堂'),
+      '付款日':s.payment_date||'','上課筆數':A.total,'出席':A.att,'請假':A.leave,'缺席':A.absent,
+      '累計應收':b?b.charge:'','累計實收':b?b.paid:'','結餘':b?b.due:'','備註':s.notes||''}];
+    const logs=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date)
+      .slice().sort((a,c)=>String(a.date).localeCompare(String(c.date))).map(e=>{
+        const h=(typeof logHours==='function')?logHours(e):null;
+        const grp=(s.class_type==='團班');const bl=!e.free&&(grp||e.status!=='leave');
+        const f=bl&&(typeof lessonFee==='function')?lessonFee(s,e):null;
+        return {'日期':e.date,'星期':spWd(e.date),'開始':e.start||'','結束':e.end||'','時數':(h==null?'':h),
+          '狀態':(e.status==='leave'?'請假':(e.status==='absent'?'缺席':'出席')),'免費':(e.free?'是':''),'補課':(e.makeup?'是':''),
+          '這堂費用':(bl?(f==null?'未設學費':f):0),'幣別':cur,'課後小結':e.note||''};});
+    const pays=(Array.isArray(s.payments)?s.payments:[]).filter(p=>p&&p.date)
+      .slice().sort((a,c)=>String(a.date).localeCompare(String(c.date))).map(p=>({
+        '日期':p.date,'金額':p.amount,'幣別':p.currency||cur,'折合帳單幣別':(p.conv||''),'加堂':(p.sessions||''),'備註':p.note||''}));
+    const sc=spScores(s.id).slice().reverse().map(x=>({'日期':x.d,'類型':x.t,'名稱':x.n,'答對':x.ok,'總題數':x.tot,'百分比':spPct(x.ok,x.tot)}));
+    const fbs=((typeof fbList==='function')?fbList(s):[]).map(f=>{const st=f.stars||{};
+      return {'日期':f.date,'教材':f.book||'','單元':f.unit||'','上課內容':f.content||'',
+        '發音':st.pron||'','聽力':st.listen||'','生詞語法':st.vocab||'','開口說':st.speak||'','專心度':st.focus||'','作業':st.hw||'',
+        '老師的話':f.note||'','回家作業':f.next||''};});
+    const sums=((typeof fbSumList==='function')?fbSumList(s):[]).map(f=>{const st=f.stars||{};
+      return {'月份':f.ym,'發音':st.pron||'','聽力':st.listen||'','生詞語法':st.vocab||'','開口說':st.speak||'','專心度':st.focus||'','作業':st.hw||'',
+        '這個月的進步':f.good||'','需要改進':f.work||'','下個月練習':f.goal||''};});
+    const wb=XLSX.utils.book_new();
+    const add=(n,rows)=>{XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows.length?rows:[{'（沒有資料）':''}]),n);};
+    add('基本資料',base);add('上課記錄',logs);
+    if(IS_OWNER)add('繳費記錄',pays);
+    add('作業成績',sc);add('上課回饋單',fbs);add('月總結',sums);
+    const safe=String(s.name||'學生').replace(/[\\\/:*?"<>|\[\]]/g,'').slice(0,24);
+    XLSX.writeFile(wb,'QNA_學生資料_'+safe+'_'+localToday()+'.xlsx');
+    closeModal();toast('已匯出 Excel');
+  }catch(e){toast('匯出失敗：'+((e&&e.message)||e));}};
+
+function spPageOf(html){const i=String(html).indexOf('<div class="page">');const j=String(html).lastIndexOf('</body>');
+  return (i>=0&&j>i)?String(html).slice(i,j):'';}
+
+H.stuCardPdf=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
+  const cur=(typeof billCur==='function')?billCur(s):(s.currency||'TWD');
+  const A=spAttend(s);const b=(typeof stuBill==='function')?stuBill(s):null;
+  const sc=spScores(s.id);const scOk=sc.reduce((a,x)=>a+x.ok,0),scTot=sc.reduce((a,x)=>a+x.tot,0);
+  const used=(typeof usedUnits==='function')?usedUnits(s):null;
+  const tt=(typeof tierText==='function')?tierText(s):'';
+  const fee=tt?('團班 '+tt):((s.tuition==null||s.tuition==='')?'—':(money(s.tuition,cur)+(s.fee_unit==='hour'?' / 小時':' / 堂')));
+  const f=(k,v)=>'<div class="f"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>';
+  const logs=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date)
+    .slice().sort((a,c)=>String(c.date).localeCompare(String(a.date))).slice(0,12);
+  const rows=logs.map(e=>{let tag='';
+    if(e.status==='leave')tag='<span class="cp lv">請假</span>';
+    else if(e.status==='absent')tag='<span class="cp ab">缺席</span>';
+    if(e.free)tag+='<span class="cp fr">免費</span>';
+    const txt=String(e.note||'').trim();
+    return '<tr><td style="width:30%">'+esc(e.date)+' <span style="color:#8b8079;font-size:12px">'+esc(spWd(e.date))+'</span></td><td>'+tag+(txt?esc(txt):(tag?'':'—'))+'</td></tr>';}).join('')
+    ||'<tr><td colspan="2" style="color:#bcae9e;text-align:center;padding:16px">還沒有上課記錄</td></tr>';
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+esc(s.name||'')+' 學生檔案</title><style>'+fbCss()+'</style></head><body>'
+    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><span class="hint">列印時這排按鈕不會印出來</span></div>'
+    +'<div class="page">'+fbHead('華語教學 · 學生檔案','學生檔案','STUDENT PROFILE')
+    +'<div class="top">'+f('學生',s.name||'')+f('課程型態',(s.class_type==='團班'?'團班':'一對一'))
+      +(s.nationality?f('國籍',s.nationality):'')+f('狀態',((typeof enrollOf==='function')?({active:'在學中',trial:'試學',paused:'休學',lead:'預約中'}[enrollOf(s)]||enrollOf(s)):'')||'—')+'</div>'
+    +'<div class="top">'+f('教材',s.textbook||'—')+f('上課時段',((typeof fmtSchedule==='function')?fmtSchedule(s):'—'))
+      +(s.email?f('Email',s.email):'')+'</div>'
+    +(IS_OWNER?('<div class="top">'+f('學費',fee)+(s.payment_date?f('付款日',((typeof fmtDate==='function')?fmtDate(s.payment_date):s.payment_date)):'')+'</div>'):'')
+    +'<div class="sec"><span class="st">📊 學習概況</span></div>'
+    +'<div class="top">'+f('已上',(used==null?'—':(((typeof fmtQty==='function')?fmtQty(used):used)+' '+((typeof unitLabel==='function')?unitLabel(s):'堂'))))
+      +f('出席率',(A.rate==null?'—':A.rate+' %'))+f('請假',A.leave+' 堂')+f('缺席',A.absent+' 堂')
+      +f('完成作業',sc.length+' 份')+(scTot?f('答對率',spPct(scOk,scTot)+' %'):'')+'</div>'
+    +(IS_OWNER&&b?('<div class="sec"><span class="st">💰 帳務</span></div><div class="top">'
+      +f('累計應收',money(b.charge,cur))+f('累計實收',money(b.paid,cur))
+      +f('結餘',(Math.abs(b.due)<0.01?'已結清':(b.due>0?('尚欠 '+money(b.due,cur)):('預繳 '+money(-b.due,cur)))))+'</div>'):'')
+    +'<div class="sec"><span class="st">🗓 最近上課</span><span class="n">最新 '+logs.length+' 筆</span></div>'
+    +'<div class="tw"><table><thead><tr><th>日期</th><th>上課內容</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +(s.notes?('<div class="sec"><span class="st">📝 備註・學習目標</span></div><div class="box">'+esc(s.notes)+'</div>'):'')
+    +'<div class="foot">開立時間 '+esc(new Date().toLocaleString())+'　·　本檔案卡由 '+esc(window.APP_NAME||'QNA CHINESE')+' 依平台資料自動產生</div>'
+    +'</div></body></html>';
+  closeModal();fbWin(html);};
+
+H.fbPack=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
+  const fbs=((typeof fbList==='function')?fbList(s):[]).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const sums=((typeof fbSumList==='function')?fbSumList(s):[]).slice().sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));
+  if(!fbs.length&&!sums.length){toast('這位學生還沒有任何回饋單');return;}
+  const pages=[];
+  sums.forEach(r=>{const p=spPageOf(fbSumHtml(s,r));if(p)pages.push(p);});
+  fbs.forEach(r=>{const p=spPageOf(fbSheetHtml(s,r));if(p)pages.push(p);});
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+esc(s.name||'')+' 回饋單合集</title><style>'+fbCss()
+    +'.page{margin-bottom:20px}@media print{.page{break-after:page;margin-bottom:0}.page:last-child{break-after:auto}}'
+    +'</style></head><body>'
+    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
+    +'<span class="hint">共 '+pages.length+' 頁：月總結 '+sums.length+' 份、上課回饋 '+fbs.length+' 張</span></div>'
+    +pages.join('')+'</body></html>';
+  closeModal();fbWin(html);};
 H.repOpen=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
   const ym=repYM(),pv=repPrevYM(ym);
   const opts=[ym,pv,repPrevYM(pv)].map(m=>`<option value="${m}">${m}</option>`).join('');
