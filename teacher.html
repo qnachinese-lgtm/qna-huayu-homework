@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=653">
+<link rel="stylesheet" href="styles.css?v=654">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1331,7 +1331,9 @@ function render(){
   {const el=$('#c-wr');if(el)el.textContent=(S.writings||[]).filter(x=>(x.status||'active')==='active').length;}
   {const pend=(S.results||[]).filter(r=>r.status==='pending').length;const el=$('#c-pending');if(el){el.textContent=pend;el.classList.toggle('hide',!pend);}}
   {const nl=(S.leads||[]).filter(x=>(x.status||'new')==='new').length;const el=$('#c-leads');if(el){el.textContent=nl;el.classList.toggle('hide',!nl||!IS_OWNER);}}
-  {let _owe=0;try{const _sk=new Set();(S.students||[]).forEach(x=>{if(!x||x.deleted||x.is_test)return;
+  /* PAUSED_OUT_V654 已休學的學生不再算進「要處理」：紅點、繳費頁預設清單都跳過他們，
+     舊帳追不回來，每天看到只是干擾。要查的時候在繳費頁按「顯示已休學」還是看得到。 */
+  {let _owe=0;try{const _sk=new Set();(S.students||[]).forEach(x=>{if(!x||x.deleted||x.is_test||enrollOf(x)==='paused')return;
     const k=famKeyOf(x);if(k&&famMembers(k).length>=2){if(_sk.has(k))return;_sk.add(k);const f=famBill(k);if(f&&f.due>0)_owe++;return;}
     const b=stuBill(x);if(b&&b.items.length&&b.due>0)_owe++;});}catch(e){}const el=$('#c-owe');if(el){el.textContent=_owe;el.classList.toggle('hide',!_owe||!IS_OWNER);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
@@ -1390,7 +1392,7 @@ function dashTodayHtml(){
     rows.push('<div class="dash-row" style="flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+esc(tm)+'</span>':'')+'<span class="badge badge-ok">\u5DF2\u9EDE\u540D</span><b>'+who+'</b>'+(e.note?'<span class="muted" style="margin-left:6px">'+esc(e.note)+'</span>':'')+'<span class="grow"></span>'+mb+'<button class="btn btn-sm" data-act="'+act+'" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button></div>',e.start);});
   // 預排（還沒點名）
   const plans=[];
-  try{groupsList().forEach(cls=>{const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls));
+  try{groupsList().forEach(cls=>{const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls)&&!x.is_test);
     classPlanned(cls).forEach(p=>{if(!p||p.date!==d)return;
       if(mem.some(x=>(Array.isArray(x.class_log)?x.class_log:[]).some(e=>e&&e.date===d)))return;
       plans.push({cls,p});});});}catch(err){}
@@ -1708,7 +1710,7 @@ function renderCalMonth(body,toggle){
   Object.keys(days).forEach(d=>{mergeDayItems(days[d]).forEach(it=>{const k=dayItemKind(it);if(k==='leave')cntLeave++;else if(k==='free')cntFree++;else cntCharged++;});});
   // 預排課程（尚未點名）
   const planByDate={};let planCount=0;
-  groupsList().forEach(cls=>{const mem=(S.students||[]).filter(s=>stuGroups(s).includes(cls));
+  groupsList().forEach(cls=>{const mem=(S.students||[]).filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
     classPlanned(cls).forEach(p=>{if(!p||!p.date||String(p.date).slice(0,7)!==ym)return;
       if(mem.some(s=>(Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date)))return; // 已經點過名就不算預排
       (planByDate[p.date]=planByDate[p.date]||[]).push(Object.assign({cls},p));planCount++;});});
@@ -1838,7 +1840,9 @@ function payRowHtml(r,noState){
 function renderPay(){
   const body=$('#pay-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','繳費只有主管理員看得到。');return;}
-  const all=(S.students||[]).filter(s=>s&&!s.deleted&&!s.is_test);
+  const _showP=!!S.payShowPaused;
+  const _pausedN=(S.students||[]).filter(s=>s&&!s.deleted&&!s.is_test&&enrollOf(s)==='paused').length;
+  const all=(S.students||[]).filter(s=>s&&!s.deleted&&!s.is_test&&(_showP||enrollOf(s)!=='paused'));
   if(!all.length){body.innerHTML=emptyHtml('💰','還沒有學生','先到「👥 學生」新增學生，這裡就會出現每個人的繳費狀況。');return;}
   const f=S.payFilter||'owe';const fl=f;
   const rowsAll=payRowsOf(all);
@@ -1867,7 +1871,7 @@ function renderPay(){
   const bar='<div class="stu-bar"><div class="segbar">'
     +seg('owe','🔴 還沒收',oweN)+seg('clear','✅ 已結清',clearN)+seg('all','全部',rowsAll.length)
     +'</div><span class="grow"></span>'
-    +'<button class="btn btn-sm" data-act="exportLedger" title="匯出上課記錄／繳費記錄／對帳總表">📊 匯出對帳資料</button>'
+    +(_pausedN?('<button class="btn btn-sm'+(_showP?' btn-accent':'')+'" data-act="payTogglePaused" title="已休學的學生預設不列出來">⏸ '+(_showP?'隱藏已休學':('顯示已休學（'+_pausedN+'）'))+'</button> '):'')+'<button class="btn btn-sm" data-act="exportLedger" title="匯出上課記錄／繳費記錄／對帳總表">📊 匯出對帳資料</button>'
     +'<span class="hint" style="margin-left:8px">按「＋ 記一筆」就能寫進這位學生的繳費，團班也一樣。</span></div>';
   let rows=rowsAll;
   if(f==='owe')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due>0.0001);
@@ -3566,7 +3570,7 @@ function isAssignedTo(l,s){if(!l||!s)return false;if((l.assigned_ids||[]).includ
 function lessonTargets(l){return S.students.filter(s=>isAssignedTo(l,s));}
 function assignedCount(l){return lessonTargets(l).length;}
 function classBoardHtml(cls){
-  const members=S.students.filter(s=>stuGroups(s).includes(cls));
+  const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
   const pub=sortLessons(S.lessons).filter(l=>(l.assigned_groups||[]).includes(cls));
   const prons=(S.prons||[]).filter(p=>(p.assigned_groups||[]).includes(cls));
   if(!pub.length&&!prons.length)return '<div class="hint">這個團班還沒有「整班發佈」的內容。到任一課按「發佈」→勾選這個團班即可。</div>';
@@ -3610,7 +3614,7 @@ async function addItvPlanned(c,rows){if(!c)return;
 function itvPayBadge(e){if(e&&(e.fee!=null&&e.fee!==''))return e.paid?'<span class="badge badge-ok">已收</span>':'<span class="badge badge-soon">未收</span>';return '';}
 async function removeStudentPlanned(s,date){if(!s)return;const cur=studentPlanned(s).filter(p=>p.date!==date);await DB.update('students',s.id,{planned:cur});s.planned=cur;}
 function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==null?'':x)));
-  const members=S.students.filter(s=>stuGroups(s).includes(cls));
+  const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
   const pub=sortLessons(S.lessons).filter(l=>(l.assigned_groups||[]).includes(cls));
   const prons=(S.prons||[]).filter(p=>(p.assigned_groups||[]).includes(cls));
   const STAT=r=>!r?['未開始','#9ca3af']:(r.status==='draft'?['作答中','#d97706']:(r.status==='pending'?['待批改','#d97706']:['已完成','#16a34a']));
@@ -7722,6 +7726,7 @@ H.itvSessDel=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);
   try{await DB.update(crmCol(c.id),c.id,{sessions:arr});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.calDay=(d)=>{S.calDay=d;renderCalendar();};
 H.payFilter=(v)=>{S.payFilter=v;renderPay();};
+H.payTogglePaused=()=>{S.payShowPaused=!S.payShowPaused;renderPay();};
 H.calView=(v)=>{S.calDay='';S.calView=v;if((v==='month'||v==='ledger')&&!S.calMonth)S.calMonth=localToday().slice(0,7);renderCalendar();};
 H.quickClassToday=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const d=new Date();const date=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   const log=Array.isArray(s.class_log)?s.class_log.slice():[];
@@ -7791,7 +7796,8 @@ function renderClassView(cls){
   const tabs=document.querySelector('.tabs');if(tabs)tabs.classList.add('hide');
   document.querySelectorAll('.panel').forEach(p=>p.classList.add('hide'));
   const panel=document.getElementById('panel-classview');if(!panel)return;panel.classList.remove('hide');
-  const members=S.students.filter(s=>stuGroups(s).includes(cls));
+  /* NOTEST_V654 班級頁只列真正的學生：測試帳號不進學生名單、人數、繳交狀況，帳號本身照樣能登入。 */
+  const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
   ensureClassSched(cls);
   const cm=classMetaOf(cls);const sched=classSchedText(cls);const meetUrl=classMeetOf(cls);const TD='padding:7px 9px;border-top:1px solid var(--line)';
   const roster=members.length?members.map(s=>{const asg=S.lessons.filter(l=>isAssignedTo(l,s)&&answerableOf(l.id).length);const done=asg.filter(l=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;
