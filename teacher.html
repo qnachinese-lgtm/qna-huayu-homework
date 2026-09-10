@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=671">
+<link rel="stylesheet" href="styles.css?v=672">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1437,7 +1437,9 @@ function healthCheck(){const today=localToday();const out=[];
     const _payg=((s.class_log||[]).length>0&&(s.payments||[]).length>0);
 
     if((price==null)&&log.length)problems.push('有上課記錄、但沒設學費');
-    if(price!=null&&paid>0){const bought=Math.round(paid/price*100)/100;if(s.sessions_total!=null&&Math.abs(bought-Number(s.sessions_total))>0.5)problems.push('繳費金額換算 '+fmtQty(bought)+' '+u+'，和總數 '+esc(String(s.sessions_total))+' 對不上');}
+    /* HEALTH_V672 拿掉「繳費金額換算 X 小時，和總數 Y 對不上」：
+       學生本來就是先預繳、上課再一堂一堂扣，兩個數字不一樣是正常的，
+       每天跳出來提醒反而變成假警報。真正的漏收看「收費・財務 → 該收 vs 實收」。 */
     const fut=log.filter(e=>e.date>today).map(e=>e.date);
     if(fut.length)problems.push('有未來日期的上課記錄（'+esc(fut.join('、'))+'）→ 可能日期打錯');
     if(problems.length)out.push({s,problems});});
@@ -1622,7 +1624,6 @@ function renderDashboard(){
       +`<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
        <details class="dash-fold" open style="margin-top:12px"><summary>⏰ 提醒（堂數／補課／交件）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>`,true)}
     ${_sec('today','📅 今天的課','',todayHtml,true)}
-    ${obHtml()}
     ${healthCheckHtml()}
 `;
   try{body.querySelectorAll('details.dash-sec').forEach(d=>{d.addEventListener('toggle',()=>{try{localStorage.setItem('hyc_ds_'+d.dataset.ds,d.open?'1':'0');}catch(e){}});});}catch(e){}
@@ -3342,9 +3343,11 @@ function todayJobsHtml(pend,bare){/*TODAYJOB_V78 只看今天、過期、還沒�
     +'<div class="hint" style="margin:6px 0 8px">格式：<b>日期 類型 姓名，備註</b>。類型打「代書」「面試」或「代辦」；日期可以打 8/25、2026-08-25、今天、明天、後天，不填也行（會列在「還沒排日期」）。姓名跟備註用逗號分開。</div>'
     +'<button class="btn btn-accent" data-act="tjAdd">➕ 建立</button>'
     +'</div></details>';
-  if(bare)return '<div class="tj-wrap'+(n?'':' calm')+'" style="margin:0 0 12px">'+(inner||'')+qa+'</div>';
+  /* QA_OUT_V672 「快速新增（一行一筆）」拿掉：實際上都是直接進代書／面試／代辦那邊建，
+     這一塊只是佔位置。qa 變數留著沒用到也沒關係，之後要恢復再接回來就好。 */
+  if(bare)return inner?('<div class="tj-wrap" style="margin:0 0 12px">'+inner+'</div>'):'';
   return '<div class="tj-wrap'+(n?'':' calm')+'"><div class="tj-h">🔥 今天要做的事'
-    +(n?('（'+n+'）'):'')+'</div>'+inner+qa+'</div>';}
+    +(n?('（'+n+'）'):'')+'</div>'+inner+'</div>';}
 function tjParseLine(line,T){/*TODAYJOB_V78*/
   const raw=String(line||'').trim();if(!raw)return null;
   let s=' '+raw+' ',d='';
@@ -4389,6 +4392,7 @@ H.settingsCenter=()=>{
           ${rare('editSite','notify','📧','有人報名時通知我','報名表填好後自動寄信到你的信箱')}
           ${rare('editSite','fab','📱','官網上的聯絡按鈕','官網右下角那排 LINE／Zalo／FB')}
           ${rare('admins','','👤','其他老師的帳號','新增管理員 · 決定誰帶哪些學生')}
+          ${rare('obShow','','🚀','新手引導','第一次用的老師：五個基本步驟走一遍')}
         </div>
       </details>
       <button data-act="findFeat" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:#fff8ee;border:1px solid #f0d9b5;border-radius:12px;padding:11px 13px;cursor:pointer;font:inherit;margin-top:16px"><span style="font-size:19px">🔍</span><span style="flex:1"><b>要找的東西不在這裡？</b><span class="hint" style="display:block">打關鍵字（備份／QR／密碼／兄弟…），直接帶你去</span></span><span style="color:#c3b8a8;font-size:19px">›</span></button>
@@ -5780,10 +5784,13 @@ function obSteps(){
     {ok:hasFb,   t:'寫一張回饋單',   d:'上完課給學生或家長看，兩分鐘就好。學生頁 →「💬 寫回饋單」。', act:'tab', id:'students', btn:'去學生頁'}
   ];}
 function obHidden(){try{return localStorage.getItem('hyc_ob_done')==='1';}catch(e){return false;}}
-function obHtml(){
+/* OB_MODAL_V672 新手引導本來釘在「今日總覽」上，可是已經在用的人每天看到只是佔位置。
+   現在從首頁拿掉，改成「設定 → 新手引導」或「找功能」裡按一下用視窗打開，
+   給第一次用的老師走一遍就好。 */
+function obHtml(force){
   const st=obSteps();const done=st.filter(x=>x.ok).length;
-  if(done>=st.length){try{localStorage.setItem('hyc_ob_done','1');}catch(e){}return '';}
-  if(obHidden())return '';
+  if(!force&&done>=st.length){try{localStorage.setItem('hyc_ob_done','1');}catch(e){}return '';}
+  if(!force&&obHidden())return '';
   const pct=Math.round(done/st.length*100);
   const rows=st.map((x,i)=>'<div style="display:flex;gap:11px;align-items:flex-start;padding:9px 0;border-top:1px solid #f3ece4">'
     +'<span style="width:23px;height:23px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;'
@@ -5803,7 +5810,11 @@ function obHtml(){
     +'<div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,#c39468,#a3714e)"></div></div>'
     +rows+'</div>';}
 H.obHide=()=>{try{localStorage.setItem('hyc_ob_done','1');}catch(e){}render();toast('已收起。想再看，到「❓ 功能地圖」按「重新顯示新手引導」');};
-H.obShow=()=>{try{localStorage.removeItem('hyc_ob_done');}catch(e){}S.tab='dashboard';render();try{window.scrollTo(0,0);}catch(e){}};
+H.obShow=()=>{const h=obHtml(true);
+  openModal('<div class="modal" style="max-width:620px"><div class="modal-head"><h3>🚀 新手引導</h3>'
+    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+    +(h||'<div class="hint">五個基本步驟都走過了 🎉</div>')+'</div>'
+    +'<div class="modal-foot"><span style="flex:1"></span><button class="btn" data-act="closeModal">關閉</button></div></div>');};
 H.quizNav=()=>{S.tab='quiz';render();try{window.scrollTo(0,0);}catch(e){}};
 /* QUICKPICK_V660 把每天最常做的兩件事變成「一鍵＋選人」：
    今日總覽上面直接有「📝 記一堂課」「💬 寫回饋單」，按下去跳出學生清單，打名字就能找，
