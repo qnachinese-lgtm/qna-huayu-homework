@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=651">
+<link rel="stylesheet" href="styles.css?v=652">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -6975,7 +6975,8 @@ H.classFeePub=async(cls)=>{
 H.classDatesPub=async(cls)=>{const on=!!classMetaOf(cls).show_dates;
   try{await saveClassMeta(cls,{show_dates:!on});toast(!on?'✅ 已公開！「'+cls+'」的學生現在看得到上課日期了':'已關閉，學生看不到上課日期');renderClassView(cls);}
   catch(e){toast('儲存失敗：'+((e&&e.message)||e));}};
-function classRollModal(cls,prefill){const members=S.students.filter(s=>stuGroups(s).includes(cls)).sort((a,b)=>((a.is_test?1:0)-(b.is_test?1:0)));S._rollCls=cls;S._rollOrig=null;
+/* ROLL_NOTEST_V652 點名只列真正的學生：測試帳號不進名單，也不會被寫入上課記錄。 */
+function classRollModal(cls,prefill){const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test).sort(stuNameCmp);S._rollCls=cls;S._rollOrig=null;
   CLOG_SCHED=classSchedOf(cls)||[];const today=localToday();const pf=prefill||{};const useDate=pf.date||today;const dslot=clSlotFor(useDate);const slot={s:pf.start||(dslot&&dslot.s)||'',e:pf.end||(dslot&&dslot.e)||''};const useNote=pf.note||'';const useVideo=pf.video||'';
   const dateMap={};members.forEach(s=>(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date)return;const k=e.date+'|'+(e.start||'')+'|'+(e.end||'');const c=(dateMap[k]=dateMap[k]||{date:e.date,att:0,leave:0,absent:0,start:e.start||'',end:e.end||'',free:false,note:''});if(e.status==='leave')c.leave++;else if(e.status==='absent')c.absent++;else c.att++;if(e.free)c.free=true;if(e.note)c.note=e.note;if(e.video)c.video=e.video;}));
   const dates=Object.keys(dateMap).sort().reverse().slice(0,10);
@@ -6987,7 +6988,7 @@ function classRollModal(cls,prefill){const members=S.students.filter(s=>stuGroup
       <div class="form-grid"><div class="field"><label>上課日期${pf.date?' <span class="hint">已帶入預排日期</span>':''}</label><input id="roll-date" type="date" min="2000-01-01" max="2100-12-31" value="${useDate}"></div>
         <div class="field full"><label>時段 <span class="hint">依日期自動帶出，可改；24 小時制，打數字即可，例：2000 → 20:00</span></label><div style="display:flex;align-items:center;gap:8px"><input id="roll-start" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="20:00" style="flex:1" value="${esc(slot?slot.s||'':'')}"><span>～</span><input id="roll-end" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="21:30" style="flex:1" value="${esc(slot?slot.e||'':'')}"></div></div>
         <div class="field full"><label>課後小結 <span class="hint">選填，全班學生首頁看得到</span></label><input id="roll-note" type="text" value="${esc(useNote)}" placeholder="例：今天上第一課對話"></div>
-        <div class="field full"><label>🎬 上課影片連結 <span class="hint">選填，請假／缺席的學生可以自己看回放（貼 YouTube／Google Drive 連結）</span></label><input id="roll-video" type="url" value="${esc(useVideo)}" placeholder="https://..."></div>
+        <input id="roll-video" type="hidden" value="${esc(useVideo)}">
         <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="roll-free" style="width:auto;margin:0"> 🎁 這堂全班免費（不扣堂、不計費）</label></div></div>
       <div class="field"><label>點名 <button class="btn btn-sm btn-ghost" type="button" data-act="rollAllAttend" style="float:right">全部出席</button></label><div id="roll-list">${rows}</div></div>
       <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-primary" data-act="classRollSave" data-id="${esc(cls)}">✅ 記錄這一堂並點名</button><button class="btn btn-sm" type="button" data-act="planClass" data-id="${esc(cls)}">📌 預排未來課程</button> <span class="hint">出席／缺席扣 1 堂，請假不扣</span></div>
@@ -7730,7 +7731,7 @@ H.quickClassToday=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return
 H.calMonth=(delta)=>{const ym=S.calMonth||localToday().slice(0,7);const p=ym.split('-').map(Number);const dt=new Date(p[0],p[1]-1+Number(delta),1);S.calMonth=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');S.calDay='';renderCalendar();};
 H.rollPick=(key)=>{const p=String(key).split('::'),sid=p[0],st=p[1];const seg=document.querySelector('#roll-list .roll-seg[data-sid="'+sid+'"]');if(seg)seg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.st===st));};
 H.rollAllAttend=()=>{document.querySelectorAll('#roll-list .roll-seg').forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.st==='attended')));};
-H.rollEdit=(key)=>{const cls=S._rollCls;const members=S.students.filter(s=>stuGroups(s).includes(cls));
+H.rollEdit=(key)=>{const cls=S._rollCls;const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
   const kp=String(key).split('|');const date=kp[0];const kS=kp.length>1?kp[1]:null,kE=kp.length>2?kp[2]:null;
   S._rollOrig={date,start:kS,end:kE};
   const hit=(x)=>x&&x.date===date&&(kS==null||((x.start||'')===kS&&(x.end||'')===kE));
@@ -7755,7 +7756,7 @@ H.classRollSave=async(cls)=>{const orig=S._rollOrig;S._rollOrig=null;const date=
     catch(err){toast(writeErr('排課失敗',err));}
     return;
   }const start=hhmmNorm(($('#roll-start')&&$('#roll-start').value)||'');const end=hhmmNorm(($('#roll-end')&&$('#roll-end').value)||'');if(start&&end){const _p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};let _mm=_p(end)-_p(start);if(_mm<0)_mm+=1440;/* 允許跨午夜 */if(_mm===0)return toast('結束時間不能和開始時間一樣，請重新確認時段');}const note=($('#roll-note')&&$('#roll-note').value||'').trim();const video=($('#roll-video')&&$('#roll-video').value||'').trim();const free=!!($('#roll-free')&&$('#roll-free').checked);
-  const members=S.students.filter(s=>stuGroups(s).includes(cls));if(!members.length)return toast('這個團班還沒有成員');
+  const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);if(!members.length)return toast('這個團班還沒有成員');
   let _ow=false;
   if(!orig){const _has=members.some(s=>(Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===date&&!((e.start||'')===start&&(e.end||'')===end)));
     if(_has){if(!confirm('⚠️ '+date+' 這一天已經有點名記錄了。\n\n確定 → 用這次的內容「覆蓋」那天原本的記錄（不會變成兩筆）\n取消 → 不儲存')){return;}_ow=true;}}
