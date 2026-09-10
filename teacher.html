@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=658">
+<link rel="stylesheet" href="styles.css?v=659">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -412,6 +412,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         <!-- TCOURSE_NAV_V54 主題課程入口（新的一區，跟課本教材分開） -->
         <button class="tab" data-act="tab" data-id="tcourse" data-group="materials">🌟 主題課程</button>
         <button class="tab" data-act="tab" data-id="grades" data-group="students">📝 批改・成績 <span class="count alert hide" id="c-pending">0</span></button>
+        <button class="tab" data-act="quizNav">📝 隨堂小考</button>
         <button class="tab" data-act="tab" data-id="files" data-group="students">🎯 課堂活動</button>
         <div class="sec biz">業　務</div>
         <button class="tab" data-act="tab" data-id="agency" data-group="abroad">🎓 代辦申請 <span class="count" id="c-ag">0</span></button>
@@ -489,6 +490,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinTone',"Helvetica Neue",Arial
         #lessons-list>.book-group>.book-head{font-size:17px;font-weight:800;padding:11px 4px;
           border-bottom:2px solid var(--line);margin-bottom:0}
         #lessons-list>.book-group{margin-bottom:10px}
+        body.is-admin .sidenav .tab[data-id="pay"],
         body.is-admin .sidenav .tab[data-id="ops"],
         body.is-admin .sidenav .tab[data-id="agency"],
         body.is-admin .sidenav .tab[data-id="interview"],
@@ -1548,6 +1550,7 @@ function renderDashboard(){
   const _op=(k,dft)=>{try{const v=localStorage.getItem('hyc_ds_'+k);return v==null?dft:(v==='1');}catch(e){return dft;}};
   const _sec=(k,title,badge,inner,dft)=>`<details class="dash-sec" data-ds="${k}"${_op(k,dft)?' open':''}><summary class="dash-sec-t">${title}${badge?'　<span class="dash-n">'+badge+'</span>':''}</summary><div class="dash-sec-b">${inner}</div></details>`;
   body.innerHTML=`${_hero}
+    ${obHtml()}
     ${todayJobsHtml(_pend)}
     ${_sec('stat2','① 這個月的數字','',statHtml,true)}
     ${_sec('todo','② 今天要處理',todoN||'',
@@ -2775,6 +2778,8 @@ function renderHelp(){const body=$('#help-body');if(!body)return;
   const gs=[];FEAT.forEach((f,i)=>{let g=gs.find(x=>x.g===f.g);if(!g){g={g:f.g,rows:[]};gs.push(g);}g.rows.push({f,i});});
   body.innerHTML=`<div class="card" style="margin-bottom:12px">
     <div class="hint" style="line-height:1.8">這一頁是<b>整個後台的目錄</b>。左邊寫「你想做什麼」，右邊寫「在哪裡按」，<b>點一下那一列就會帶你過去</b>。<br>右上角的「🔍 找功能」也是查這一份，打關鍵字更快。</div>
+    <div style="margin-top:10px"><button class="btn btn-sm" data-act="obShow">🚀 重新顯示新手引導</button>
+      <span class="hint" style="margin-left:8px">回到「今日總覽」最上面，帶你把五個基本步驟走一遍</span></div>
     <input id="help-q" type="text" placeholder="🔍 打關鍵字快速找…（備份／QR／密碼／點名…）" style="width:100%;font-size:15px;padding:10px 13px;border:1.5px solid var(--line);border-radius:10px;margin-top:10px" autocomplete="off">
   </div>
   <div id="help-list">${gs.map(g=>`<div class="card" style="margin-bottom:12px"><div class="lesson-label">${g.g}</div>${g.rows.map(x=>featRowHtml(x.f,x.i)).join('')}</div>`).join('')}</div>`;
@@ -5597,6 +5602,50 @@ function renderClassProfile(){
     +tiles+tabs+'<div class="sp-body">'+body+'</div></div>';}
 
 H.clsBack=()=>{S.tab='students';render();try{window.scrollTo(0,0);}catch(e){}};
+/* ONBOARD_V659 給第一次用的人一個起點：今日總覽最上面出現「先做這五件事」。
+   每一步都會自己去看資料判斷做完了沒（有沒有學生、有沒有排課、有沒有點過名、有沒有指派教材、有沒有寫過回饋單），
+   做完自動打勾；五步都完成就永久收起來，也可以自己按「收起來」。之後想再看，功能地圖那頁可以叫回來。
+   另外「隨堂小考」從「課堂活動」裡拉出來，側邊選單直接看得到——新手不會知道小考藏在課堂活動裡。 */
+function obSteps(){
+  const stus=(S.students||[]).filter(s=>s&&!s.deleted&&!s.is_test);
+  const hasStu=stus.length>0;
+  const hasSched=stus.some(s=>(Array.isArray(s.schedule)&&s.schedule.length)||(Array.isArray(s.planned)&&s.planned.length));
+  const hasLog=stus.some(s=>(Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date));
+  const hasAsg=(S.lessons||[]).some(l=>l&&(((l.assigned_ids||[]).length)||((l.assigned_groups||[]).length)));
+  const hasFb=stus.some(s=>(Array.isArray(s.feedback)&&s.feedback.length)||(Array.isArray(s.fb_sum)&&s.fb_sum.length));
+  return [
+    {ok:hasStu, t:'新增第一位學生', d:'名字、Email、學費先填，其他之後隨時能補。', act:'addStudent', id:'', btn:'＋ 新增學生'},
+    {ok:hasSched,t:'排一堂課',      d:'先排進課表，上完課再回來點名。',           act:'planClass',  id:'', btn:'📌 排一堂課'},
+    {ok:hasLog,  t:'記一堂上過的課', d:'記了才會算堂數、算學費。學生頁 →「📝 記一堂課」。', act:'tab', id:'students', btn:'去學生頁'},
+    {ok:hasAsg,  t:'指派一課教材給學生', d:'學生登入後才看得到作業。教材頁 → 那一課 →「指派」。', act:'tab', id:'lessons', btn:'去教材'},
+    {ok:hasFb,   t:'寫一張回饋單',   d:'上完課給學生或家長看，兩分鐘就好。學生頁 →「💬 寫回饋單」。', act:'tab', id:'students', btn:'去學生頁'}
+  ];}
+function obHidden(){try{return localStorage.getItem('hyc_ob_done')==='1';}catch(e){return false;}}
+function obHtml(){
+  const st=obSteps();const done=st.filter(x=>x.ok).length;
+  if(done>=st.length){try{localStorage.setItem('hyc_ob_done','1');}catch(e){}return '';}
+  if(obHidden())return '';
+  const pct=Math.round(done/st.length*100);
+  const rows=st.map((x,i)=>'<div style="display:flex;gap:11px;align-items:flex-start;padding:9px 0;border-top:1px solid #f3ece4">'
+    +'<span style="width:23px;height:23px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;'
+    +(x.ok?'background:#e8f6ec;color:#2f7a52">✓':'background:#f1e8dc;color:#a3927f">'+(i+1))+'</span>'
+    +'<div style="flex:1;min-width:0"><div style="font-weight:700'+(x.ok?';color:#a99e96;text-decoration:line-through':'')+'">'+esc(x.t)+'</div>'
+    +'<div class="hint" style="margin-top:1px">'+esc(x.d)+'</div></div>'
+    +(x.ok?'<span class="tag">完成</span>'
+        :'<button class="btn btn-sm btn-primary" data-act="'+x.act+'" data-id="'+esc(x.id)+'">'+esc(x.btn)+'</button>')
+    +'</div>').join('');
+  return '<div class="card" style="margin-bottom:14px;border:1.5px solid #e7d9c6;background:#fffdf9">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+    +'<b style="font-size:16px">🚀 第一次用？先做這五件事</b>'
+    +'<span class="tag">'+done+' / '+st.length+'</span><span class="grow"></span>'
+    +'<button class="btn btn-sm btn-ghost" data-act="obHide">知道了，收起來</button></div>'
+    +'<div class="hint" style="margin-top:4px">照順序做完，平台的主要流程就跑過一遍了。每一步做完會自己打勾。</div>'
+    +'<div style="height:7px;background:#f1e8dc;border-radius:99px;margin:11px 0 4px;overflow:hidden">'
+    +'<div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,#c39468,#a3714e)"></div></div>'
+    +rows+'</div>';}
+H.obHide=()=>{try{localStorage.setItem('hyc_ob_done','1');}catch(e){}render();toast('已收起。想再看，到「❓ 功能地圖」按「重新顯示新手引導」');};
+H.obShow=()=>{try{localStorage.removeItem('hyc_ob_done');}catch(e){}S.tab='dashboard';render();try{window.scrollTo(0,0);}catch(e){}};
+H.quizNav=()=>{S.filesSub='quiz';S.tab='files';render();try{window.scrollTo(0,0);}catch(e){}};
 H.repOpen=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
   const ym=repYM(),pv=repPrevYM(ym);
   const opts=[ym,pv,repPrevYM(pv)].map(m=>`<option value="${m}">${m}</option>`).join('');
