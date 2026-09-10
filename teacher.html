@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=680">
+<link rel="stylesheet" href="styles.css?v=681">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1645,7 +1645,7 @@ function renderDashboard(){
     <div class="acts">
       <button class="btn btn-primary" data-act="tab" data-id="grades">✍️ 去批改${_pend?('（'+_pend+'）'):''}</button>
       <button class="btn" data-act="stuPick" data-id="log">📝 記一堂課</button>
-      <button class="btn" data-act="stuPick" data-id="fb">💬 寫回饋單</button>
+      <button class="btn" data-act="fbWeek">💬 寫回饋單</button>
       <button class="btn" data-act="planClass" data-id="">📌 排一堂課</button>
       ${IS_OWNER?'<button class="btn" data-act="payPick">💰 記繳費</button>':''}
     </div>
@@ -1704,13 +1704,13 @@ function hwPending(){
       const r=(S.results||[]).find(x=>x&&x.student_id===s.id&&x.lesson_id===l.id);
       if(r&&r.status==='done')return;
       out.push({sid:s.id,name:s.name||'',what:(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||''),
-        kind:'課文練習',due:l.due_date||'',draft:!!(r&&r.status==='draft')});});});
+        lid:l.id,kind:'課文練習',due:l.due_date||'',draft:!!(r&&r.status==='draft')});});});
   (S.workbooks||[]).forEach(w=>{
     if(!w||w.deleted_at)return;
     lessonTargets(w).filter(live).forEach(s=>{
       const d=(S.wbdocs||[]).find(x=>x&&x.student_id===s.id&&x.wb_lesson===w.id);
       if(d&&(d.status==='submitted'||d.status==='reviewed'))return;
-      out.push({sid:s.id,name:s.name||'',what:w.title||'作業簿',kind:'作業簿',due:w.due_date||'',draft:!!(d&&d.status==='draft')});});});
+      out.push({sid:s.id,name:s.name||'',what:w.title||'作業簿',lid:w.id,kind:'作業簿',due:w.due_date||'',draft:!!(d&&d.status==='draft')});});});
   (S.quizzes||[]).forEach(q=>{
     if(!q||q.deleted_at)return;
     (q.assigned_ids||[]).forEach(id=>{const s=S.students.find(x=>x.id===id);if(!live(s))return;
@@ -3453,7 +3453,7 @@ function renderLessons(){
   if(S.pe){wrap.innerHTML=pronEditorHtml();return;}
   const hasPron=(S.prons||[]).length>0;
   if(!S.lessons.length&&!hasPron&&!(S.classicals||[]).length&&!(S.workbooks||[]).length){wrap.innerHTML=emptyHtml('📚','還沒有內容','點「新增課文／作業」放課文＋練習題，或「建立發音」做發音教材。');return;}
-  const ls=sortLessons(S.lessons).filter(l=>l.kind!=='classical');const hasCl=(S.classicals||[]).length>0;
+  let ls=sortLessons(S.lessons).filter(l=>l.kind!=='classical');const hasCl=(S.classicals||[]).length>0;
   const books=[...new Set(ls.map(l=>(l.textbook||'').trim()).filter(Boolean))].sort(bookCmp);
   if(hasPron&&!books.includes('發音'))books.push('發音');
   if(hasCl&&!books.includes('📜 文言文'))books.push('📜 文言文');const hasUncat=ls.some(l=>!(l.textbook||'').trim());const filter=S.bookFilter||'';
@@ -3462,11 +3462,29 @@ function renderLessons(){
   const anyOpen=ls.some(l=>S.openCards.has(l.id));
   const bkAnyOpen=(S.openBooks&&S.openBooks.size>0);
   /* SEGB_TOGGLE：工具列上的鈕一律用分段鈕，跟其他分頁同一種外觀 */
-  html+='<div class="pagebar"><span class="grow"></span><div class="segbar">'
+  /* LESFILTER_V681 185 課裡只有 5 課發佈、153 課還掛「進行中」。
+     多半是課其實做好了，只是沒人按過「完成」也沒按過「發佈」。
+     加兩個篩選一眼看到是哪些，並且可以整批標完成。 */
+  const _pub=(l)=>((l.assigned_ids||[]).length)||((l.assigned_groups||[]).length);
+  const _unpubN=ls.filter(l=>!_pub(l)).length, _wipN=ls.filter(l=>l.build!=='done').length;
+  const _lf=S.lesFilter||'';
+  if(_lf==='unpub')ls=ls.filter(l=>!_pub(l));
+  else if(_lf==='wip')ls=ls.filter(l=>l.build!=='done');
+  const _fchip=(v,lab,n)=>'<button class="segb'+(_lf===v?' on':'')+'" data-act="lesFilter" data-id="'+v+'">'+lab
+    +(n!=null?('<span class="segn">'+n+'</span>'):'')+'</button>';
+  html+='<div class="pagebar"><div class="segbar">'
+    +_fchip('','全部',null)
+    +_fchip('unpub','🚫 未發佈',_unpubN)
+    +_fchip('wip','🟡 進行中',_wipN)
+    +'</div>'
+    +(_lf==='wip'&&ls.length?('<button class="btn btn-sm btn-accent" style="margin-left:9px" data-act="lesDoneAll">✅ 把這 '+ls.length+' 課標成完成</button>'):'')
+    +'<span class="grow"></span><div class="segbar">'
     +'<button class="segb'+(bkAnyOpen?' on':'')+'" data-act="toggleAllBooks">'+(bkAnyOpen?'📚 全部收起':'📚 全部展開')+'</button>'
     +'<button class="segb'+(anyOpen?' on':'')+'" data-act="toggleAllCards">'+(anyOpen?'▴ 課卡收起':'▾ 課卡展開')+'</button>'
     +'</div></div>'
-    +'<div class="pagetip">點教材標題可展開／收起該本教材；點任一課可展開操作按鈕</div>';
+    +'<div class="pagetip">'+(_lf==='unpub'?'這些課還沒發佈給任何學生。點進去按「👥 發佈」就會出現在學生的作業頁。'
+      :(_lf==='wip'?'這些課的狀態還是「進行中」。如果其實已經做完了，按上面那顆一次全部標成完成。'
+      :'點教材標題可展開／收起該本教材；點任一課可展開操作按鈕'))+'</div>';
   const groups={};ls.forEach(l=>{const b=(l.textbook||'').trim()||'__none';(groups[b]||(groups[b]=[])).push(l);});
   let show;if(filter==='__none')show=['__none'];else if(filter)show=[filter];else{show=books.slice();if(hasUncat)show.push('__none');}
   if(!books.length)show=['__none'];
@@ -5290,6 +5308,44 @@ function fbForm(sid,key){
   const sel=document.getElementById('fb-date');
   if(sel)sel.addEventListener('change',()=>fbForm(sid,sel.value));}
 
+/* FBWEEK_V681 回饋單一直是 0 張，因為要一位一位學生開，很難養成習慣。
+   這裡把「最近 7 天上過課、但那一堂還沒寫回饋」的整理成一份清單，
+   從上往下寫，存完自動跳下一位，跟批改台同一個節奏。 */
+function fbWeekItems(days){
+  const N=Number(days)||7;const T=localToday();
+  const from=(function(){const d=new Date(T+'T00:00:00');d.setDate(d.getDate()-(N-1));
+    return d.toISOString().slice(0,10);})();
+  const out=[];
+  (S.students||[]).forEach(s=>{
+    if(!s||s.deleted||s.deleted_at||s.is_test)return;
+    (Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{
+      if(!e||!e.date||e.date<from||e.date>T)return;
+      if(e.status==='leave'||e.status==='absent')return;
+      const k=fbKeyOf(e);
+      const has=(Array.isArray(s.feedback)?s.feedback:[]).some(f=>f&&fbKeyOf(f)===k);
+      if(has)return;
+      out.push({sid:s.id,name:s.name||'',date:e.date,start:e.start||'',end:e.end||'',key:k,note:e.note||''});});});
+  out.sort((a,b)=>String(b.date).localeCompare(String(a.date))||stuNameCmp({name:a.name},{name:b.name}));
+  return out;}
+H.fbWeek=()=>{
+  const items=fbWeekItems(S.fbDays||7);
+  const N=S.fbDays||7;
+  const seg=(d)=>'<button class="segb'+(N===d?' on':'')+'" data-act="fbWeekDays" data-id="'+d+'">最近 '+d+' 天</button>';
+  const rows=items.length?items.map(x=>'<button class="pkrow" type="button" data-act="fbRowKey" data-id="'+esc(x.sid+'||'+x.key)+'">'
+      +'<span class="avatar sm emo" style="background:'+((typeof avColor==='function')?avColor(x.name):'#eee')+';flex:none">'
+      +((typeof avEmoji==='function')?avEmoji({name:x.name}):'🙂')+'</span>'
+      +'<b style="flex:1;min-width:0">'+snm(x.name)+'</b>'
+      +'<span class="muted" style="font-size:12.5px">'+esc(x.date)+(x.start?('　'+esc(x.start)):'')+'</span>'
+      +'<span style="color:#c3b8a8;font-size:18px">›</span></button>').join('')
+    :'<div class="hint" style="padding:16px 2px">最近 '+N+' 天上過的課都寫過回饋了 🎉</div>';
+  openModal('<div class="modal" style="max-width:560px"><div class="modal-head"><h3>💬 這陣子上過課、還沒寫回饋</h3>'
+    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+    +'<div class="hint" style="margin-bottom:9px">請假和缺席的堂不會列在這裡。寫完一位會自動回到這份清單，接著寫下一位。</div>'
+    +'<div class="segbar" style="margin-bottom:10px">'+seg(7)+seg(14)+seg(30)+'</div>'
+    +'<div style="max-height:56vh;overflow:auto">'+rows+'</div></div></div>');};
+H.fbWeekDays=(d)=>{S.fbDays=Number(d)||7;H.fbWeek();};
+H.fbRowKey=(key)=>{const p=String(key).split('||');const s=S.students.find(x=>x.id===p[0]);if(!s)return;
+  S._fbBack=true;fbForm(p[0],p[1]);};
 H.fbOpen=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
   const log=fbLogs(s);
   if(!log.length){toast('這位學生還沒有上課記錄，先去「上課記錄」記一堂');return;}
@@ -5298,6 +5354,7 @@ H.fbRow=(key)=>{const p=String(key).split('::');const s=S.students.find(x=>x.id=
   const e=(Array.isArray(s.class_log)?s.class_log:[])[Number(p[1])];if(!e){toast('找不到這一堂');return;}
   fbForm(p[0],fbKeyOf(e));};
 H.fbSave=async(sid,b)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
+  const _back=!!S._fbBack;S._fbBack=false;
   const key=($('#fb-date')&&$('#fb-date').value)||'';
   const e=(Array.isArray(s.class_log)?s.class_log:[]).find(x=>fbKeyOf(x)===key);
   if(!e){toast('找不到這一堂，請重新選日期');return;}
@@ -5312,6 +5369,7 @@ H.fbSave=async(sid,b)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
     const i=S.students.findIndex(x=>x.id===sid);const ns=Object.assign({},s,{feedback:list});if(i>=0)S.students[i]=ns;
     closeModal();render();toast('回饋單已儲存');
     if(wantPrint)fbWin(fbSheetHtml(ns,rec));
+    else if(_back)setTimeout(()=>{try{H.fbWeek();}catch(e){}},250);
   }catch(err){if(b){b.disabled=false;b.textContent=t0;}toast(writeErr('儲存失敗',err));}};
 
 function fbSumForm(sid,ym){
@@ -5396,6 +5454,7 @@ function spCss(){
    +'.sp-dl dt{color:#9c9088;font-size:12px}'
    +'.sp-dl dd{margin:0;font-weight:600;word-break:break-word}'
    +'.sp-scroll{border:1px solid #ece5e0;border-radius:12px;overflow:auto;max-height:560px}'
+   +'.sp-h2{font-weight:800;font-size:15px;margin:0 0 8px;color:#3B342E}'
    +'.sp-tb{width:100%;border-collapse:collapse;font-size:13.5px}'
    +'.sp-tb th{text-align:left;color:#9c9088;font-size:11.5px;font-weight:700;letter-spacing:.4px;padding:9px 10px;background:#faf6f4;white-space:nowrap}'
    +'.sp-tb td{padding:8px 10px;border-top:1px solid #f3ece8;vertical-align:top}'
@@ -5593,6 +5652,23 @@ function spLogTab(s,logs,fbs){
       +(IS_OWNER?'<th class="r">這堂費用</th>':'')+'<th>課後小結</th><th class="c">操作</th></tr></thead><tbody>'+rows+'</tbody></table></div>')
       :'<div class="sp-empty">還沒有上課記錄，按上面「＋ 記一堂課」開始。</div>');}
 
+/* SPDUE_V681 「還沒交的作業」本來只縮在「批改・成績」最下面一個摺疊區，
+   要催作業得先翻那份總清單再一個個對名字。現在每位學生的檔案頁直接列出他自己欠哪幾課。 */
+function spDueHtml(s){
+  let list=[];try{list=(hwPending()||[]).filter(x=>x&&x.sid===s.id);}catch(e){list=[];}
+  if(!list.length)return '<div class="sp-empty" style="padding:14px 12px">✅ 沒有還沒交的作業。</div>';
+  const rows=list.map(x=>{
+    const d=x.days;
+    const st=(d==null)?'<span class="muted">沒設期限</span>'
+      :(d<0?('<span class="badge badge-overdue">逾期 '+(-d)+' 天</span>')
+      :(d===0?'<span class="badge badge-soon">今天到期</span>'
+      :('<span class="muted">還有 '+d+' 天</span>')));
+    return '<tr><td><b>'+esc(x.what||'')+'</b>'+(x.draft?' <span class="badge badge-pending">有草稿</span>':'')+'</td>'
+      +'<td><span class="tag">'+esc(x.kind||'')+'</span></td>'
+      +'<td>'+(x.due?esc(x.due):'—')+'　'+st+'</td>'
+      +'<td class="r">'+(x.lid?('<button class="btn btn-sm" data-act="previewLesson" data-id="'+esc(x.lid)+'">👁 看這一課</button>'):'')+'</td></tr>';}).join('');
+  return '<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>還沒交的</th><th>類型</th><th>期限</th><th class="r"></th></tr></thead><tbody>'
+    +rows+'</tbody></table></div>';}
 function spHwTab(s,sc,scOk,scTot,prog,pend){
   const rows=sc.map(x=>'<tr><td>'+esc(x.d||'—')+'</td><td><span class="tag">'+esc(x.t)+'</span></td><td>'+esc(x.n||'')+'</td>'
     +'<td class="r"><b>'+x.ok+'</b> / '+x.tot+'</td><td class="r">'+spPct(x.ok,x.tot)+'%</td></tr>').join('');
@@ -5602,8 +5678,12 @@ function spHwTab(s,sc,scOk,scTot,prog,pend){
     +((prog&&prog.total)?('<div class="sp-tile"><div class="k">指派課程</div><div class="v">'+prog.done+' / '+prog.total+'</div><div class="s">完成 '+prog.pct+'%</div></div>'):'')
     +(pend?('<div class="sp-tile warn"><div class="k">待批改</div><div class="v">'+pend+' 份</div></div>'):'')
     +'</div>';
-  return head+(sc.length?('<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>日期</th><th>類型</th><th>名稱</th><th class="r">得分</th><th class="r">百分比</th></tr></thead><tbody>'+rows+'</tbody></table></div>')
-    :'<div class="sp-empty">還沒有完成的作業紀錄。</div>');}
+  let _dueN=0;try{_dueN=(hwPending()||[]).filter(x=>x&&x.sid===s.id).length;}catch(e){}
+  const dueSec='<div class="sp-h2">📮 還沒交的作業'+(_dueN?('（'+_dueN+'）'):'')+'</div>'+spDueHtml(s);
+  const doneSec='<div class="sp-h2" style="margin-top:20px">✅ 已完成・成績</div>'
+    +(sc.length?('<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>日期</th><th>類型</th><th>名稱</th><th class="r">得分</th><th class="r">百分比</th></tr></thead><tbody>'+rows+'</tbody></table></div>')
+      :'<div class="sp-empty">還沒有完成的作業紀錄。</div>');
+  return head+dueSec+doneSec;}
 
 function spPayTab(s,bill,cur){
   if(!IS_OWNER)return '<div class="sp-empty">這個分頁只有主管理員看得到。</div>';
@@ -7073,6 +7153,24 @@ H.toggleUnit=(id)=>{/*UNITGRP_V77*/
   if(S.openUnits.has(id))S.openUnits.delete(id);else S.openUnits.add(id);
   renderLessons();};
 H.toggleBook=(id)=>{if(!S.openBooks)S.openBooks=new Set();if(S.openBooks.has(id))S.openBooks.delete(id);else S.openBooks.add(id);renderLessons();};
+H.lesFilter=(v)=>{S.lesFilter=v||'';
+  if(S.lesFilter){S.openBooks=new Set();S.openSeries=new Set();
+    (S.lessons||[]).forEach(x=>{const b=(x.textbook||'').trim();if(b)S.openBooks.add(b);
+      try{const q=bookVol(b);if(q&&q.base)S.openSeries.add(q.base);}catch(e){}});}
+  renderLessons();};
+H.lesDoneAll=async()=>{
+  const _pub=(l)=>((l.assigned_ids||[]).length)||((l.assigned_groups||[]).length);
+  const list=sortLessons(S.lessons).filter(l=>l&&l.kind!=='classical'&&!l.kind&&l.build!=='done');
+  if(!list.length){toast('沒有「進行中」的課');return;}
+  if(!confirm('把這 '+list.length+' 課全部標成「完成」？\n\n這只是狀態標記，不會發佈給學生、也不會動到課文內容。之後單獨一課還是可以改回進行中。'))return;
+  const btn=document.querySelector('[data-act="lesDoneAll"]');
+  if(btn){btn.disabled=true;btn.textContent='處理中…';}
+  let ok=0,bad=0;
+  for(let i=0;i<list.length;i++){
+    try{await DB.update('lessons',list[i].id,{build:'done'});list[i].build='done';ok++;}catch(e){bad++;}
+    if(btn&&i%10===0)btn.textContent='處理中… '+(i+1)+'/'+list.length;}
+  S.lesFilter='';renderLessons();
+  toast(bad?('完成 '+ok+' 課，失敗 '+bad+' 課'):('已把 '+ok+' 課標成完成'));};
 H.toggleAllBooks=()=>{if(!S.openBooks)S.openBooks=new Set();if(!S.openSeries)S.openSeries=new Set();
   if(S.openBooks.size){S.openBooks.clear();S.openSeries.clear();}
   else{const ls=sortLessons(S.lessons).filter(l=>l.kind!=='classical');
