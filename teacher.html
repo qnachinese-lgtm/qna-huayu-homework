@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=659">
+<link rel="stylesheet" href="styles.css?v=660">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1537,6 +1537,8 @@ function renderDashboard(){
     </div>
     <div class="acts">
       <button class="btn btn-primary" data-act="tab" data-id="grades">✍️ 去批改${_pend?('（'+_pend+'）'):''}</button>
+      <button class="btn" data-act="stuPick" data-id="log">📝 記一堂課</button>
+      <button class="btn" data-act="stuPick" data-id="fb">💬 寫回饋單</button>
       <button class="btn" data-act="planClass" data-id="">📌 排一堂課</button>
       ${IS_OWNER?'<button class="btn" data-act="payPick">💰 記繳費</button>':''}
     </div>
@@ -2969,7 +2971,8 @@ function renderStudents(){
   const wrap=$('#students-list');let list=S.students;
   if(S.q){const q=S.q.toLowerCase();list=list.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.nationality||'').toLowerCase().includes(q));}
   if(!S.students.length){wrap.className='';wrap.innerHTML=emptyHtml('👩‍🏫','還沒有學生',IS_OWNER?'點「新增學生」建立第一位。':'主管理員還沒有把學生分配給你。');return;}
-  const sf=S.statusFilter||'all';
+  /* QUICKPICK_V660 學生頁預設只列在學中的；休學、試學按上面那排還是切得到 */
+  const sf=S.statusFilter||'active';
   const cnt=v=>S.students.filter(s=>!s.is_test&&enrollOf(s)===v).length;
   const chip=(v,lbl)=>`<button class="segb${sf===v?' on':''}" data-act="stuFilter" data-id="${v}">${lbl}${v!=='all'?` <span class="segn">${cnt(v)}</span>`:''}</button>`;
   const allOpen=S.stuSecAllOpen===true;
@@ -5646,6 +5649,61 @@ function obHtml(){
 H.obHide=()=>{try{localStorage.setItem('hyc_ob_done','1');}catch(e){}render();toast('已收起。想再看，到「❓ 功能地圖」按「重新顯示新手引導」');};
 H.obShow=()=>{try{localStorage.removeItem('hyc_ob_done');}catch(e){}S.tab='dashboard';render();try{window.scrollTo(0,0);}catch(e){}};
 H.quizNav=()=>{S.filesSub='quiz';S.tab='files';render();try{window.scrollTo(0,0);}catch(e){}};
+/* QUICKPICK_V660 把每天最常做的兩件事變成「一鍵＋選人」：
+   今日總覽上面直接有「📝 記一堂課」「💬 寫回饋單」，按下去跳出學生清單，打名字就能找，
+   今天有課的人自動排最前面並標記，今天已經記過的也會標「今天已記」避免重複記。
+   以前要先進學生頁 → 找到人 → 開檔案 → 才看得到按鈕，四步變成兩步。 */
+function spkItems(){
+  const today=localToday();
+  const dow=(new Date().getDay()+6)%7;
+  return (S.students||[]).filter(x=>x&&!x.deleted&&!x.deleted_at&&!x.is_test).map(x=>{
+    const planned=((typeof studentPlanned==='function')?studentPlanned(x):[]).some(p=>p&&p.date===today);
+    const sched=(Array.isArray(x.schedule)?x.schedule:[]).some(r=>r&&((r.d!=null?r.d:0)===dow));
+    const logged=(Array.isArray(x.class_log)?x.class_log:[]).some(e=>e&&e.date===today);
+    const fbd=(Array.isArray(x.feedback)?x.feedback:[]).some(f=>f&&f.date===today);
+    const st=(typeof enrollOf==='function')?enrollOf(x):'active';
+    return {id:x.id,name:x.name||'',st:st,today:(planned||sched),logged:logged,fbd:fbd,
+      grp:(x.class_type==='團班'),book:x.textbook||''};});}
+H.stuPick=(mode)=>{
+  const m=(mode==='fb')?'fb':'log';
+  const items=spkItems();
+  if(!items.length){toast('還沒有學生');return;}
+  const rank=x=>(x.st==='active'?0:(x.st==='trial'?1:(x.st==='reserved'?2:3)));
+  const stLab={active:'',trial:'試學',reserved:'預約中',paused:'休學'};
+  const row=(x)=>{
+    const mark=(m==='log')?(x.logged?'<span class="badge badge-ok">今天已記</span>':'')
+                          :(x.fbd?'<span class="badge badge-ok">今天已寫</span>':'');
+    return '<button class="pkrow" type="button" data-act="'+(m==='log'?'classLog':'fbOpen')+'" data-id="'+esc(x.id)+'">'
+      +'<span class="avatar sm emo" style="background:'+((typeof avColor==='function')?avColor(x.name):'#eee')+';flex:none">'
+      +(((typeof avEmoji==='function')?avEmoji({name:x.name}):'🙂'))+'</span>'
+      +'<b style="flex:1;min-width:0">'+esc(x.name)+'</b>'
+      +(x.today?'<span class="badge badge-soon">今天有課</span>':'')
+      +(x.grp?'<span class="muted" style="font-size:11.5px">團班</span>':'')
+      +(stLab[x.st]?'<span class="muted" style="font-size:11.5px">（'+stLab[x.st]+'）</span>':'')
+      +mark+'<span style="color:#c3b8a8;font-size:18px">›</span></button>';};
+  let onlyToday=false;
+  const draw=()=>{const box=document.getElementById('spk-res');if(!box)return;
+    const q=String((document.getElementById('spk-q')||{}).value||'').trim().toLowerCase();
+    let arr=items.filter(x=>(!onlyToday||x.today)&&(!q||String(x.name).toLowerCase().indexOf(q)>=0));
+    arr.sort((a,b)=>(b.today?1:0)-(a.today?1:0)||(rank(a)-rank(b))||((typeof stuNameCmp==='function')?stuNameCmp(a,b):String(a.name).localeCompare(String(b.name))));
+    box.innerHTML=arr.length?arr.map(row).join(''):'<div class="hint" style="padding:14px 2px">找不到這個名字。</div>';
+    const tb=document.getElementById('spk-today');if(tb)tb.classList.toggle('on',onlyToday);};
+  const todayN=items.filter(x=>x.today).length;
+  openModal('<div class="modal" style="max-width:560px"><div class="modal-head"><h3>'
+    +(m==='log'?'📝 記一堂課':'💬 寫回饋單')+' · 選學生</h3><button class="x" data-act="closeModal">×</button></div>'
+    +'<div class="modal-body">'
+    +'<div class="hint" style="margin-bottom:9px">'
+    +(m==='log'?'選一位學生就會打開他的上課記錄，日期跟時段會自動帶好。':'選一位學生就會打開他的上課回饋單，日期選好、內容會自動帶入課後小結。')
+    +'</div>'
+    +(todayN?'<div class="segbar" style="margin-bottom:9px"><button type="button" class="segb" id="spk-today">📅 只看今天有課<span class="segn">'+todayN+'</span></button></div>':'')
+    +'<input id="spk-q" type="text" placeholder="打名字快速找…" autocomplete="off" style="width:100%;font-size:15px;padding:10px 13px;border:1.5px solid var(--line);border-radius:10px">'
+    +'<div id="spk-res" style="margin-top:10px;max-height:52vh;overflow:auto"></div>'
+    +'</div></div>');
+  const inp=document.getElementById('spk-q');
+  if(inp){inp.addEventListener('input',draw);setTimeout(()=>{try{inp.focus();}catch(e){}},80);}
+  const tb=document.getElementById('spk-today');
+  if(tb)tb.addEventListener('click',()=>{onlyToday=!onlyToday;draw();});
+  draw();};
 H.repOpen=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
   const ym=repYM(),pv=repPrevYM(ym);
   const opts=[ym,pv,repPrevYM(pv)].map(m=>`<option value="${m}">${m}</option>`).join('');
