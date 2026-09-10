@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=648">
+<link rel="stylesheet" href="styles.css?v=649">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -2920,6 +2920,8 @@ function stuCardInner(s){return `
         <button class="btn btn-sm btn-ghost" data-act="stuMore" data-id="${s.id}">⋯ 更多</button></div>
     <div class="hide smore" id="smore-${s.id}">
         <div class="smore-g"><div class="smore-t">📄 報告與證書</div><div class="smore-b">
+          <button class="btn btn-sm" data-act="fbOpen" data-id="${s.id}">💬 上課回饋單</button>
+          <button class="btn btn-sm" data-act="fbSumOpen" data-id="${s.id}">📋 學習總結</button>
           <button class="btn btn-sm" data-act="repOpen" data-id="${s.id}">📄 學習報告</button>
           <button class="btn btn-sm" data-act="report" data-id="${s.id}">📊 學習報表</button>
           <button class="btn btn-sm" data-act="cert" data-id="${s.id}">🎓 證書</button>
@@ -4827,6 +4829,271 @@ ${payRows?`<h2>${wrongRows?'四':'三'}、本月繳費</h2><ul>${payRows}</ul>`:
 <div class="note">${E(note||'')}</div>
 <div class="foot"><span>QNA CHINESE 華語教室　·　黃美娟老師</span><span style="flex:1"></span><span>製表日期 ${E(localToday())}</span></div>
 </body></html>`;}
+/* FEEDBACK_V649 教師回饋單：單堂「上課回饋」＋期間「學習總結」。
+   單堂的存在 s.feedback[]（用 日期|開始|結束 當 key），總結的存在 s.fb_sum[]（用月份當 key），
+   兩種都可以直接列印或存 PDF，版面跟對帳單同一套米色奶茶配色。
+   星星是點選的，點同一顆會取消；沒點的項目印出來會留白，不會硬給分數。 */
+const FB_KEYS=[['pron','發音・聲調'],['listen','聽力理解'],['vocab','生詞・語法'],['speak','開口說・互動'],['focus','上課專心度'],['hw','作業完成']];
+let FB_ST={};
+const fbKeyOf=(e)=>String((e&&e.date)||'')+'|'+String((e&&e.start)||'')+'|'+String((e&&e.end)||'');
+const fbList=(s)=>Array.isArray(s&&s.feedback)?s.feedback:[];
+const fbSumList=(s)=>Array.isArray(s&&s.fb_sum)?s.fb_sum:[];
+const fbFind=(s,key)=>fbList(s).find(x=>fbKeyOf(x)===key)||null;
+const fbWd=(d)=>{try{return DAYS[(new Date(d+'T00:00:00').getDay()+6)%7]||'';}catch(e){return '';}};
+const fbLogs=(s)=>(Array.isArray(s&&s.class_log)?s.class_log:[]).filter(e=>e&&e.date).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+function fbStarRow(k,label,n){
+  let b='';
+  for(let i=1;i<=5;i++){b+='<span data-act="fbStar" data-id="'+k+'::'+i+'" data-i="'+i+'" style="cursor:pointer;font-size:22px;line-height:1;color:'+(i<=n?'#e0a94a':'#d9c7ae')+'">'+(i<=n?'★':'☆')+'</span>';}
+  return '<div data-fbk="'+k+'" style="display:flex;align-items:center;gap:10px;padding:4px 0">'
+    +'<span style="width:104px;font-weight:600;font-size:13px">'+label+'</span>'
+    +'<span style="display:flex;gap:5px">'+b+'</span>'
+    +'<span class="fb-lb hint" style="margin-left:4px">'+(n?(n+' 顆星'):'未評')+'</span></div>';
+}
+function fbPaint(k){const wrap=document.querySelector('[data-fbk="'+k+'"]');if(!wrap)return;const n=FB_ST[k]||0;
+  wrap.querySelectorAll('[data-i]').forEach(el=>{const i=Number(el.dataset.i);el.textContent=(i<=n?'★':'☆');el.style.color=(i<=n?'#e0a94a':'#d9c7ae');});
+  const lb=wrap.querySelector('.fb-lb');if(lb)lb.textContent=(n?(n+' 顆星'):'未評');}
+function fbStarsBlock(){return FB_KEYS.map(p=>fbStarRow(p[0],p[1],FB_ST[p[0]]||0)).join('');}
+function fbReadStars(){const o={};FB_KEYS.forEach(p=>{if(FB_ST[p[0]])o[p[0]]=FB_ST[p[0]];});return o;}
+H.fbStar=(key)=>{const p=String(key).split('::');const k=p[0],v=Number(p[1]);FB_ST[k]=(FB_ST[k]===v?0:v);fbPaint(k);};
+
+function fbCss(){return ':root{--bd:#a3714e;--deep:#7a5236;--ink:#3b342e;--mut:#8b8079;--soft:#f6eee4;--line:#ece1d4}'
+  +'*{box-sizing:border-box}'
+  +'body{font-family:"Avenir Next","Helvetica Neue","Segoe UI",Roboto,"Yuanti TC","Yuanti SC","PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;'
+  +'color:var(--ink);background:#fdfaf5;margin:0;padding:22px 18px 46px;font-size:14px;line-height:1.6}'
+  +'.page{width:190mm;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:22px;padding:18px 24px 20px;box-shadow:0 8px 30px rgba(163,113,78,.09)}'
+  +'.bar{width:190mm;margin:0 auto 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff;border:1.5px dashed #e6d3bd;border-radius:18px;padding:10px 14px}'
+  +'.bar button{font:inherit;font-weight:700;padding:9px 18px;border:0;background:linear-gradient(135deg,#c39468,#a3714e);color:#fff;border-radius:999px;cursor:pointer}'
+  +'.bar .hint{color:var(--mut);font-size:12.5px;margin-left:auto}'
+  +'.hd{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}'
+  +'.bx{display:flex;gap:12px;align-items:center}'
+  +'.mark{width:46px;height:46px;border-radius:15px;background:linear-gradient(135deg,#dcb68e,#a3714e);color:#fff;'
+  +'display:flex;align-items:center;justify-content:center;font-size:23px;font-weight:800;transform:rotate(-4deg);flex:none}'
+  +'.brand{font-size:19px;font-weight:800;color:var(--deep);letter-spacing:.5px;line-height:1.25}'
+  +'.brand-vi{font-size:13.5px;font-weight:700;color:var(--bd);line-height:1.35}'
+  +'.brand-s{color:var(--mut);font-size:11.5px;margin-top:2px}'
+  +'.doc{font-size:21px;font-weight:800;color:var(--deep);letter-spacing:4px;text-align:right;line-height:1.25}'
+  +'.doc-s{color:#c2ab93;font-size:9.5px;letter-spacing:2.5px;text-align:right}'
+  +'.wave{height:9px;margin:10px 0 12px;background:radial-gradient(circle at 5px 4.5px,#e8d3ba 2.4px,transparent 3px);background-size:16px 9px}'
+  +'.top{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}'
+  +'.f{background:var(--soft);border-radius:13px;padding:7px 14px;display:flex;align-items:baseline;gap:8px}'
+  +'.f .k{color:#a8998a;font-size:11px;letter-spacing:.8px;white-space:nowrap}'
+  +'.f .v{font-weight:700}'
+  +'.sec{display:flex;align-items:center;gap:9px;margin:11px 0 6px}'
+  +'.st{background:var(--soft);color:var(--deep);font-weight:800;font-size:14px;padding:4px 15px;border-radius:999px}'
+  +'.sec .n{color:var(--mut);font-size:11.5px}'
+  +'.box{border:1.5px solid var(--line);border-radius:16px;padding:9px 15px;white-space:pre-line;min-height:36px}'
+  +'.box.mut{color:#bcae9e}'
+  +'.rate{border:1.5px solid var(--line);border-radius:16px;overflow:hidden}'
+  +'.rr{display:flex;align-items:center;gap:14px;padding:5px 16px;border-top:1px solid #f0e5d6}'
+  +'.rr:first-child{border-top:0}'
+  +'.rr .k{width:106px;font-weight:700;color:#65594e;font-size:13px}'
+  +'.rr .s{font-size:19px;color:#e0a94a;letter-spacing:6px}'
+  +'.rr .s i{color:#e2d4c0;font-style:normal}'
+  +'.rr .h{margin-left:auto;color:#bcae9e;font-size:11.5px}'
+  +'.tw{border:1.5px solid var(--line);border-radius:16px;overflow:hidden}'
+  +'table{width:100%;border-collapse:collapse;font-size:13px}'
+  +'th{color:#a3927f;font-weight:700;font-size:11px;letter-spacing:.6px;text-align:left;padding:8px 12px;background:#faf5ee}'
+  +'td{padding:6px 12px;border-top:1px solid #f0e5d6;vertical-align:top}'
+  +'.cp{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:700;margin-right:7px}'+'.cp.lv{color:#96601a;background:#fbf0d8}.cp.ab{color:#a3543a;background:#fbe9e2}.cp.fr{color:#2f7a52;background:#e8f6ec}'
+  +'.two{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:11px}.two>div>.sec{margin-top:0}'
+  +'.sign{display:flex;gap:12px;margin-top:12px}'
+  +'.sign .f{flex:1}.sign .b{border-bottom:1.5px dotted #cbb69c;flex:1;height:16px}'
+  +'.foot{margin-top:10px;text-align:center;color:#b6a795;font-size:11px}'
+  +'.ty{display:inline-block;background:var(--soft);color:var(--deep);font-weight:700;font-size:12px;padding:4px 16px;border-radius:999px}'
+  +'@page{size:A4;margin:10mm 9mm}'
+  +'@media print{.bar{display:none!important}body{background:#fff;padding:0}'
+  +'.page{width:auto;border:0;box-shadow:none;border-radius:0;padding:0}'
+  +'tr,.rate,.tw,.box{break-inside:avoid}.sec{break-after:avoid}'
+  +'*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}';}
+function fbHead(sub,title,en){
+  return '<div class="hd"><div class="bx"><div class="mark">華</div>'
+    +'<div><div class="brand">'+esc(window.APP_NAME||'QNA CHINESE')+'</div>'
+    +'<div class="brand-vi">Tiếng Trung Quyên Huỳnh</div>'
+    +'<div class="brand-s">'+esc(sub)+'</div></div></div>'
+    +'<div><div class="doc">'+esc(title)+'</div><div class="doc-s">'+esc(en)+'</div></div></div><div class="wave"></div>';}
+function fbStarsPrint(stars){
+  const any=FB_KEYS.some(p=>Number((stars||{})[p[0]])>0);
+  if(!any)return '';
+  const rows=FB_KEYS.map(p=>{const n=Number((stars||{})[p[0]])||0;if(!n)return '';
+    let t='';for(let i=1;i<=5;i++){t+=(i<=n?'★':'<i>☆</i>');}
+    return '<div class="rr"><span class="k">'+p[1]+'</span><span class="s">'+t+'</span><span class="h">'+n+' / 5</span></div>';}).join('');
+  return '<div class="sec"><span class="st">⭐ 表現</span><span class="n">5 顆星最好</span></div><div class="rate">'+rows+'</div>';}
+function fbBlock(title,text,hint){
+  if(!String(text||'').trim())return '';
+  return '<div class="sec"><span class="st">'+title+'</span>'+(hint?'<span class="n">'+esc(hint)+'</span>':'')+'</div><div class="box">'+esc(text)+'</div>';}
+function fbTwoBlocks(t1,x1,t2,x2){
+  const a=String(x1||'').trim(),b=String(x2||'').trim();
+  if(a&&b)return '<div class="two"><div>'+fbBlock(t1,a,'')+'</div><div>'+fbBlock(t2,b,'')+'</div></div>';
+  return fbBlock(t1,a,'')+fbBlock(t2,b,'');}
+function fbSignFoot(msg){
+  return '<div class="sign"><div class="f"><span class="k">老師簽名</span><span class="b"></span></div>'
+    +'<div class="f"><span class="k">家長簽名</span><span class="b"></span></div>'
+    +'<div class="f"><span class="k">簽名日期</span><span class="b"></span></div></div>'
+    +'<div class="foot"><div class="ty">'+esc(msg)+'</div></div>';}
+function fbWin(html){const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.open();w.document.write(html);w.document.close();}
+
+function fbSheetHtml(s,rec){
+  const tm=(rec.start||rec.end)?((rec.start||'')+(rec.end?'～'+rec.end:'')):'';
+  const bu=[rec.book,rec.unit].filter(x=>String(x||'').trim()).join('　·　');
+  return '<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+esc(s.name||'')+' 上課回饋 '+esc(rec.date||'')+'</title><style>'+fbCss()+'</style></head><body>'
+    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><span class="hint">列印時這排按鈕不會印出來</span></div>'
+    +'<div class="page">'+fbHead('華語教學 · 教師回饋單','上課回饋','CLASS FEEDBACK')
+    +'<div class="top">'
+    +'<div class="f"><span class="k">學生</span><span class="v">'+esc(s.name||'')+'</span></div>'
+    +'<div class="f"><span class="k">日期</span><span class="v">'+esc(rec.date||'')+'（'+esc(fbWd(rec.date))+'）</span></div>'
+    +(tm?'<div class="f"><span class="k">時段</span><span class="v">'+esc(tm)+'</span></div>':'')
+    +'<div class="f"><span class="k">課程</span><span class="v">'+esc(s.class_type==='團班'?'團班':'一對一')+'</span></div>'
+    +'</div>'
+    +(bu?'<div class="top"><div class="f"><span class="k">教材</span><span class="v">'+esc(bu)+'</span></div></div>':'')
+    +fbBlock('📖 今天上了什麼',rec.content,'')
+    +fbStarsPrint(rec.stars)
+    +fbBlock('💬 老師的話',rec.note,'')
+    +fbBlock('📝 回家作業・下次上課',rec.next,'')
+    +fbSignFoot('謝謝你今天的努力 ♡')
+    +'</div></body></html>';}
+
+function fbSumStats(sid,ym){
+  const s=S.students.find(x=>x.id===sid)||{};
+  const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&String(e.date||'').slice(0,7)===ym)
+    .slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const attended=log.filter(e=>e.status!=='leave'&&e.status!=='absent').length;
+  const leave=log.filter(e=>e.status==='leave').length;
+  const absent=log.filter(e=>e.status==='absent').length;
+  let hw=0,pct=null;
+  try{const R=repData(sid,ym);hw=(R.scored||[]).length;pct=R.totQ?repPct(R.totOk,R.totQ):null;}catch(e){}
+  return {s:s,log:log,attended:attended,leave:leave,absent:absent,hw:hw,pct:pct};}
+
+function fbSumHtml(s,rec){
+  const R=fbSumStats(s.id,rec.ym);
+  const lab=String(rec.ym||'').split('-')[0]+' 年 '+Number(String(rec.ym||'').split('-')[1])+' 月';
+  const lines=R.log.map(e=>({d:e.date,t:e.note||'',k:e.status,fr:!!e.free}));
+  const rows=lines.filter(x=>x&&x.d).map(x=>{
+    let tag='';
+    if(x.k==='leave')tag='<span class="cp lv">請假</span>';
+    else if(x.k==='absent')tag='<span class="cp ab">缺席</span>';
+    if(x.fr)tag+='<span class="cp fr">免費</span>';
+    const txt=String(x.t||'').trim();
+    return '<tr><td style="width:30%">'+esc(x.d)+' <span style="color:#8b8079;font-size:12px">'+esc(fbWd(x.d))+'</span></td><td>'+tag+(txt?esc(txt):(tag?'':'—'))+'</td></tr>';}).join('')
+    ||'<tr><td colspan="2" style="color:#bcae9e;text-align:center;padding:16px">這個月沒有上課記錄</td></tr>';
+  return '<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+esc(s.name||'')+' 學習總結 '+esc(rec.ym||'')+'</title><style>'+fbCss()+'</style></head><body>'
+    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><span class="hint">列印時這排按鈕不會印出來</span></div>'
+    +'<div class="page">'+fbHead('華語教學 · 教師回饋單','學習總結','PROGRESS SUMMARY')
+    +'<div class="top">'
+    +'<div class="f"><span class="k">學生</span><span class="v">'+esc(s.name||'')+'</span></div>'
+    +'<div class="f"><span class="k">期間</span><span class="v">'+esc(lab)+'</span></div>'
+    +(s.textbook?'<div class="f"><span class="k">教材</span><span class="v">'+esc(s.textbook)+'</span></div>':'')
+    +'</div>'
+    +'<div class="sec"><span class="st">📅 出席狀況</span></div>'
+    +'<div class="top">'
+    +'<div class="f"><span class="k">上課</span><span class="v">'+R.attended+' 堂</span></div>'
+    +'<div class="f"><span class="k">請假</span><span class="v">'+R.leave+' 堂</span></div>'
+    +'<div class="f"><span class="k">缺席</span><span class="v">'+R.absent+' 堂</span></div>'
+    +'<div class="f"><span class="k">完成作業</span><span class="v">'+R.hw+' 份</span></div>'
+    +(R.pct!=null?'<div class="f"><span class="k">答對率</span><span class="v">'+R.pct+' %</span></div>':'')
+    +'</div>'
+    +'<div class="sec"><span class="st">📖 這段期間上了哪些內容</span></div>'
+    +'<div class="tw"><table><thead><tr><th>日期</th><th>上課內容</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +fbStarsPrint(rec.stars)
+    +fbTwoBlocks('🌱 進步的地方',rec.good,'💪 要加強的地方',rec.work)
+    +fbBlock('🎯 下個階段的目標・給家長的建議',rec.goal,'')
+    +fbSignFoot('謝謝你這段時間的努力 ♡')
+    +'</div></body></html>';}
+
+function fbForm(sid,key){
+  const s=S.students.find(x=>x.id===sid);if(!s)return;
+  const log=fbLogs(s);if(!log.length){toast('這位學生還沒有上課記錄');return;}
+  const cur=log.find(e=>fbKeyOf(e)===key)||log[0];const ck=fbKeyOf(cur);
+  const rec=fbFind(s,ck)||{};
+  FB_ST={};FB_KEYS.forEach(p=>{FB_ST[p[0]]=Number((rec.stars||{})[p[0]]||0);});
+  const opts=log.map(e=>{const k=fbKeyOf(e);const tm=(e.start||e.end)?('　'+(e.start||'')+(e.end?'–'+e.end:'')):'';
+    const done=fbFind(s,k)?'　✓ 已寫':'';
+    const stt=e.status==='leave'?'　請假':(e.status==='absent'?'　缺席':'');
+    return '<option value="'+esc(k)+'"'+(k===ck?' selected':'')+'>'+esc(e.date)+'（'+fbWd(e.date)+'）'+esc(tm)+esc(stt)+esc(done)+'</option>';}).join('');
+  const content=(rec.content!=null&&rec.content!=='')?rec.content:(cur.note||'');
+  const book=(rec.book!=null&&rec.book!=='')?rec.book:(s.textbook||'');
+  openModal('<div class="modal"><div class="modal-head"><h3>💬 上課回饋單 · '+snm(s.name||'')+'</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="form-grid">'
+   +'<div class="field full"><label>哪一堂課 <span class="hint">換日期會重新載入，記得先儲存</span></label><select id="fb-date">'+opts+'</select></div>'
+   +'<div class="field"><label>教材</label><input id="fb-book" type="text" value="'+esc(book)+'" placeholder="例：進階級"></div>'
+   +'<div class="field"><label>單元／課</label><input id="fb-unit" type="text" value="'+esc(rec.unit||'')+'" placeholder="例：第 3 課"></div>'
+   +'<div class="field full"><label>📖 今天上了什麼 <span class="hint">預設帶入課後小結，可以再改</span></label><textarea id="fb-content" rows="3" placeholder="今天上的內容、重點語法或生詞…">'+esc(content)+'</textarea></div>'
+   +'<div class="field full"><label>⭐ 今天的表現 <span class="hint">點星星，點同一顆可以取消；沒點的項目不會印出來</span></label><div style="padding:2px 0">'+fbStarsBlock()+'</div></div>'
+   +'<div class="field full"><label>💬 老師的話</label><textarea id="fb-note" rows="4" placeholder="今天做得好的地方、要注意的地方…">'+esc(rec.note||'')+'</textarea>'+((typeof cannedBar==='function')?cannedBar('fb-note'):'')+'</div>'
+   +'<div class="field full"><label>📝 回家作業・下次上課</label><textarea id="fb-next" rows="2" placeholder="回家要做什麼、下次上什麼…">'+esc(rec.next||'')+'</textarea></div>'
+   +'</div></div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>'
+   +'<button class="btn" data-act="fbSave" data-id="'+esc(sid)+'">💾 儲存</button>'
+   +'<button class="btn btn-primary" data-act="fbSave" data-print="1" data-id="'+esc(sid)+'">🖨 儲存並列印</button></div></div>');
+  const sel=document.getElementById('fb-date');
+  if(sel)sel.addEventListener('change',()=>fbForm(sid,sel.value));}
+
+H.fbOpen=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
+  const log=fbLogs(s);
+  if(!log.length){toast('這位學生還沒有上課記錄，先去「上課記錄」記一堂');return;}
+  fbForm(sid,fbKeyOf(log[0]));};
+H.fbRow=(key)=>{const p=String(key).split('::');const s=S.students.find(x=>x.id===p[0]);if(!s)return;
+  const e=(Array.isArray(s.class_log)?s.class_log:[])[Number(p[1])];if(!e){toast('找不到這一堂');return;}
+  fbForm(p[0],fbKeyOf(e));};
+H.fbSave=async(sid,b)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
+  const key=($('#fb-date')&&$('#fb-date').value)||'';
+  const e=(Array.isArray(s.class_log)?s.class_log:[]).find(x=>fbKeyOf(x)===key);
+  if(!e){toast('找不到這一堂，請重新選日期');return;}
+  const V=(id)=>{const el=document.getElementById(id);return el?String(el.value||'').trim():'';};
+  const rec={date:e.date,start:e.start||'',end:e.end||'',book:V('fb-book'),unit:V('fb-unit'),
+    content:V('fb-content'),stars:fbReadStars(),note:V('fb-note'),next:V('fb-next'),at:new Date().toISOString()};
+  const list=fbList(s).filter(x=>fbKeyOf(x)!==key).concat([rec]).sort((a,c)=>String(a.date).localeCompare(String(c.date)));
+  const wantPrint=!!(b&&b.dataset&&b.dataset.print==='1');
+  const t0=b?b.textContent:'';if(b){b.disabled=true;b.textContent='儲存中…';}
+  try{if(typeof ensureAuthFresh==='function')await ensureAuthFresh();
+    await DB.update('students',sid,{feedback:list});
+    const i=S.students.findIndex(x=>x.id===sid);const ns=Object.assign({},s,{feedback:list});if(i>=0)S.students[i]=ns;
+    closeModal();render();toast('回饋單已儲存');
+    if(wantPrint)fbWin(fbSheetHtml(ns,rec));
+  }catch(err){if(b){b.disabled=false;b.textContent=t0;}toast(writeErr('儲存失敗',err));}};
+
+function fbSumForm(sid,ym){
+  const s=S.students.find(x=>x.id===sid);if(!s)return;
+  const months=[...new Set((Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date).map(e=>String(e.date).slice(0,7)))].sort().reverse();
+  if(!months.length){toast('這位學生還沒有上課記錄');return;}
+  const cm=months.indexOf(ym)>=0?ym:months[0];
+  const rec=fbSumList(s).find(x=>x.ym===cm)||{};
+  FB_ST={};FB_KEYS.forEach(p=>{FB_ST[p[0]]=Number((rec.stars||{})[p[0]]||0);});
+  const R=fbSumStats(sid,cm);
+  const opts=months.map(m=>{const done=fbSumList(s).some(x=>x.ym===m)?'　✓ 已寫':'';
+    return '<option value="'+esc(m)+'"'+(m===cm?' selected':'')+'>'+esc(m)+esc(done)+'</option>';}).join('');
+  const sum='上課 '+R.attended+' 堂 · 請假 '+R.leave+' 堂 · 缺席 '+R.absent+' 堂 · 完成作業 '+R.hw+' 份'+(R.pct!=null?(' · 答對率 '+R.pct+'%'):'');
+  openModal('<div class="modal"><div class="modal-head"><h3>📋 學習總結 · '+snm(s.name||'')+'</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="form-grid">'
+   +'<div class="field full"><label>月份 <span class="hint">換月份會重新載入，記得先儲存</span></label><select id="fbs-ym">'+opts+'</select></div>'
+   +'<div class="field full"><div class="hint">'+esc(sum)+'</div><div class="hint" style="margin-top:4px">上課日期與內容會自動從上課記錄帶進去，不用自己打。</div></div>'
+   +'<div class="field full"><label>⭐ 整體表現 <span class="hint">點星星，點同一顆可以取消</span></label><div style="padding:2px 0">'+fbStarsBlock()+'</div></div>'
+   +'<div class="field full"><label>🌱 進步的地方</label><textarea id="fbs-good" rows="3" placeholder="這段時間進步最多的地方…">'+esc(rec.good||'')+'</textarea></div>'
+   +'<div class="field full"><label>💪 要加強的地方</label><textarea id="fbs-work" rows="3" placeholder="還需要多練習的地方…">'+esc(rec.work||'')+'</textarea></div>'
+   +'<div class="field full"><label>🎯 下個階段的目標・給家長的建議</label><textarea id="fbs-goal" rows="3" placeholder="下個月的目標、在家可以怎麼幫忙…">'+esc(rec.goal||'')+'</textarea></div>'
+   +'</div></div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>'
+   +'<button class="btn" data-act="fbSumSave" data-id="'+esc(sid)+'">💾 儲存</button>'
+   +'<button class="btn btn-primary" data-act="fbSumSave" data-print="1" data-id="'+esc(sid)+'">🖨 儲存並列印</button></div></div>');
+  const sel=document.getElementById('fbs-ym');
+  if(sel)sel.addEventListener('change',()=>fbSumForm(sid,sel.value));}
+
+H.fbSumOpen=(sid)=>{fbSumForm(sid,null);};
+H.fbSumSave=async(sid,b)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
+  const ym=($('#fbs-ym')&&$('#fbs-ym').value)||'';
+  if(!ym){toast('請先選月份');return;}
+  const V=(id)=>{const el=document.getElementById(id);return el?String(el.value||'').trim():'';};
+  const rec={ym:ym,stars:fbReadStars(),good:V('fbs-good'),work:V('fbs-work'),goal:V('fbs-goal'),at:new Date().toISOString()};
+  const list=fbSumList(s).filter(x=>x.ym!==ym).concat([rec]).sort((a,c)=>String(a.ym).localeCompare(String(c.ym)));
+  const wantPrint=!!(b&&b.dataset&&b.dataset.print==='1');
+  const t0=b?b.textContent:'';if(b){b.disabled=true;b.textContent='儲存中…';}
+  try{if(typeof ensureAuthFresh==='function')await ensureAuthFresh();
+    await DB.update('students',sid,{fb_sum:list});
+    const i=S.students.findIndex(x=>x.id===sid);const ns=Object.assign({},s,{fb_sum:list});if(i>=0)S.students[i]=ns;
+    closeModal();render();toast('學習總結已儲存');
+    if(wantPrint)fbWin(fbSumHtml(ns,rec));
+  }catch(err){if(b){b.disabled=false;b.textContent=t0;}toast(writeErr('儲存失敗',err));}};
 H.repOpen=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
   const ym=repYM(),pv=repPrevYM(ym);
   const opts=[ym,pv,repPrevYM(pv)].map(m=>`<option value="${m}">${m}</option>`).join('');
@@ -7758,7 +8025,7 @@ H.classLog=(id,pf)=>{const s=S.students.find(x=>x.id===id);if(!s)return;pf=pf||{
   const log=(Array.isArray(s.class_log)?s.class_log:[]);const sorted=log.map((e,idx)=>({e,idx})).sort((a,b)=>(b.e.date||'').localeCompare(a.e.date||''));
   const att=classAttended(s)||0;const left=sessionsLeft(s);
   const eIdx=(pf.editIdx!=null&&log[Number(pf.editIdx)])?Number(pf.editIdx):null;const eRow=eIdx!=null?log[eIdx]:null;
-  const clRow=({e,idx})=>{const tm=(e.start||e.end)?(esc(e.start||'')+((e.start&&e.end)?'–':'')+esc(e.end||'')):'';const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';const on=(idx===eIdx);return `<div class="dash-row"${on?' style="background:#fff8ec;border-radius:8px"':''}><span class="badge ${e.status==='leave'?'badge-overdue':'badge-ok'}">${e.status==='leave'?'請假':(e.status==='absent'?'缺席':'出席')}</span>${e.free?'<span class="badge" style="background:#7c3aed22;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':''}${e.makeup?'<span class="badge" style="background:#dbeafe;color:#1d4ed8;border-color:#1d4ed855">🔁 補課</span>':''}${e.video?`<a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;text-decoration:none" href="${esc(e.video)}" target="_blank" rel="noopener">🎬 影片</a>`:''}<b>${esc(e.date||'')}</b>${wd?`<span class="muted" style="margin-left:4px">（${wd}）</span>`:''}${tm?`<span class="muted" style="margin-left:6px">${tm}</span>`:''}<span class="grow" style="margin-left:6px">${esc(e.note||'')}</span>${on?'<span class="badge badge-soon">修改中</span>':`<button class="btn btn-sm" type="button" data-act="editLogRow" data-id="${id}::${idx}">✏️ 修改</button>`}<button class="btn btn-sm btn-danger" type="button" data-act="delClassLog" data-id="${id}::${idx}">✕</button></div>`;};
+  const clRow=({e,idx})=>{const tm=(e.start||e.end)?(esc(e.start||'')+((e.start&&e.end)?'–':'')+esc(e.end||'')):'';const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';const on=(idx===eIdx);return `<div class="dash-row"${on?' style="background:#fff8ec;border-radius:8px"':''}><span class="badge ${e.status==='leave'?'badge-overdue':'badge-ok'}">${e.status==='leave'?'請假':(e.status==='absent'?'缺席':'出席')}</span>${e.free?'<span class="badge" style="background:#7c3aed22;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':''}${e.makeup?'<span class="badge" style="background:#dbeafe;color:#1d4ed8;border-color:#1d4ed855">🔁 補課</span>':''}${e.video?`<a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;text-decoration:none" href="${esc(e.video)}" target="_blank" rel="noopener">🎬 影片</a>`:''}<b>${esc(e.date||'')}</b>${wd?`<span class="muted" style="margin-left:4px">（${wd}）</span>`:''}${tm?`<span class="muted" style="margin-left:6px">${tm}</span>`:''}<span class="grow" style="margin-left:6px">${esc(e.note||'')}</span><button class="btn btn-sm" type="button" data-act="fbRow" data-id="${id}::${idx}" title="寫這一堂的回饋單">💬</button>${on?'<span class="badge badge-soon">修改中</span>':`<button class="btn btn-sm" type="button" data-act="editLogRow" data-id="${id}::${idx}">✏️ 修改</button>`}<button class="btn btn-sm btn-danger" type="button" data-act="delClassLog" data-id="${id}::${idx}">✕</button></div>`;};
   let rows;
   if(!sorted.length){rows='<div class="hint" style="padding:8px 0">還沒有上課記錄。</div>';}
   else{const byM={},order=[];sorted.forEach(o=>{const mk=(o.e.date||'').slice(0,7)||'（無日期）';if(!byM[mk]){byM[mk]=[];order.push(mk);}byM[mk].push(o);});
