@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=714">
+<link rel="stylesheet" href="styles.css?v=715">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -303,6 +303,13 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         /* REPLY_V712 回覆範本：排成兩欄卡片，每張一樣高，標題、關鍵字、預覽、按鈕各自對齊。
            上一版是一排裸的摺疊列，關鍵字長短不一就整排歪掉，很醜。 */
         .rp-grid{margin-top:4px}
+        /* RPGRP_V715 分類標題 */
+        .rp-sec{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px;
+          color:var(--primary-dark,#7A5236);margin:18px 0 8px;padding-bottom:6px;
+          border-bottom:1.5px solid var(--line)}
+        .rp-sec:first-child{margin-top:6px}
+        .rp-sn{font-size:11.5px;font-weight:700;color:var(--muted);background:var(--surface-2);
+          border-radius:999px;padding:1px 8px}
         .rp-c{display:flex;flex-direction:column;gap:9px;padding:16px 18px}
         .rp-h{display:flex;align-items:center;gap:8px;min-width:0}
         .rp-h>b{font-size:15.5px;line-height:1.4;min-width:0;overflow:hidden;
@@ -310,11 +317,13 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .rp-g{display:flex;gap:5px;flex-wrap:wrap;min-height:22px;align-items:center}
         .rp-g .tag{font-size:11.5px;padding:1px 9px}
         .rp-g .hint{font-size:11.5px}
-        .rp-p{font-size:13.5px;line-height:1.75;color:var(--ink);white-space:pre-line;
+        /* RPPV_V715 預覽方塊本來只給 min-height，第四行會露出半截被切掉，很難看。
+           改成固定高度 ＝ 上下內距 ＋ 剛好三行，切在行與行之間。 */
+        .rp-p{font-size:13.5px;line-height:24px;color:var(--ink);white-space:pre-line;
           display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
-          min-height:70px;background:var(--surface-2);border-radius:10px;padding:9px 12px}
+          height:90px;box-sizing:border-box;background:var(--surface-2);border-radius:10px;padding:9px 12px}
         .rp-p.rp-empty{color:var(--muted);font-style:normal;background:transparent;
-          border:1px dashed var(--line);display:flex;align-items:center}
+          border:1px dashed var(--line);display:flex;align-items:center;height:90px}
         .rp-f{display:flex;align-items:center;gap:7px;margin-top:auto;padding-top:10px;
           border-top:1px solid var(--line)}
         .rp-f .btn.is-off{opacity:.45}
@@ -1999,6 +2008,12 @@ function lqpFoldHtml(){
    一對一多少錢、團班多少錢。每次都重打一遍很花時間，打久了說法還會不一樣。
    這一頁把說法存下來，中文和越南文各存一份，用的時候搜尋、按複製、貼過去就好。
    內容一律是老師自己寫的，系統不會自己生任何一個字、也不會自己幫你發出去。 */
+/* RPGRP_V715 範本分成兩塊：留學業務（語言學校、大學碩士、面試練習）和教學（一對一、團班）。
+   兩種客人問的東西不一樣，混在一起找很慢。 */
+const RP_GRP=[['abroad','🎓 留學業務'],['teach','🧑‍🏫 教學'],['other','📌 其他']];
+function rpGrpOf(r){const g=String((r&&r.grp)||'').trim();
+  return RP_GRP.some(x=>x[0]===g)?g:'other';}
+function rpGrpLab(g){const f=RP_GRP.find(x=>x[0]===g);return f?f[1]:'📌 其他';}
 function rpSorted(){
   return (S.replies||[]).slice().sort((a,b)=>
     ((Number(a.order_index)||0)-(Number(b.order_index)||0))
@@ -2119,7 +2134,13 @@ function renderReply(){
     }else if(!list.length){
       grid='<div class="card" style="padding:26px;text-align:center"><div class="muted">找不到符合「'+esc(q)+'」的範本</div></div>';
     }else{
-      grid='<div class="cards cols-2 rp-grid">'+list.map(rpCardHtml).join('')+'</div>';
+      /* RPGRP_V715 照分類分段落畫；只有一個分類的時候不畫標題，免得多一層沒必要的框 */
+      const used=RP_GRP.filter(g=>list.some(r=>rpGrpOf(r)===g[0]));
+      grid=used.map(g=>{
+        const rows=list.filter(r=>rpGrpOf(r)===g[0]);
+        const h=(used.length>1)?('<div class="rp-sec">'+esc(g[1])+'<span class="rp-sn">'+rows.length+'</span></div>'):'';
+        return h+'<div class="cards cols-2 rp-grid">'+rows.map(rpCardHtml).join('')+'</div>';
+      }).join('');
     }
     inner=tools+grid;
   }
@@ -7190,6 +7211,8 @@ H.rpNew=()=>{
   openModal('<div class="modal" style="max-width:520px"><div class="modal-head"><h3>📮 新增回覆範本</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
    +'<div class="field"><label>標題 *</label><input id="rp-nt" type="text" placeholder="例：申請語言學校費用"></div>'
+   +'<div class="field"><label>分類</label><select id="rp-nc">'
+   +RP_GRP.map(g=>'<option value="'+g[0]+'">'+g[1]+'</option>').join('')+'</select></div>'
    +'<div class="field"><label>關鍵字 <span class="hint">選填，用頓號隔開，之後搜尋用得到</span></label>'
    +'<input id="rp-ng" type="text" placeholder="例：語言學校、學費、報名"></div>'
    +'<div class="hint">建立之後就可以打中文和越南文的內容。</div></div>'
@@ -7200,7 +7223,8 @@ H.rpNewSave=async()=>{
   const t=(($('#rp-nt')&&$('#rp-nt').value)||'').trim();
   if(!t)return toast('請填標題');
   const g=(($('#rp-ng')&&$('#rp-ng').value)||'').trim();
-  try{await DB.insert('lessons',{kind:'reply',title:t,tags:g,body_zh:'',body_vi:'',
+  const gp=(($('#rp-nc')&&$('#rp-nc').value)||'other');
+  try{await DB.insert('lessons',{kind:'reply',title:t,tags:g,grp:gp,body_zh:'',body_vi:'',
     order_index:(S.replies||[]).length+1,created_at:new Date().toISOString()});
     await loadAll();closeModal();S.tab='reply';render();toast('已建立，接下來把內容打進去');}
   catch(e){toast(writeErr('建立失敗',e));}
@@ -7210,6 +7234,9 @@ H.rpEdit=(id)=>{const r=(S.replies||[]).find(x=>x.id===id);if(!r)return;
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
    +'<div class="form-grid">'
    +'<div class="field"><label>標題 *</label><input id="rp-et" type="text" value="'+esc(r.title||'')+'"></div>'
+   +'<div class="field"><label>分類</label><select id="rp-ec">'
+   +RP_GRP.map(g=>'<option value="'+g[0]+'"'+((rpGrpOf(r)===g[0])?' selected':'')+'>'+g[1]+'</option>').join('')
+   +'</select></div>'
    +'<div class="field"><label>關鍵字 <span class="hint">用頓號隔開</span></label>'
    +'<input id="rp-eg" type="text" value="'+esc(r.tags||'')+'"></div></div>'
    +'<div class="rp-edit">'
@@ -7226,6 +7253,7 @@ H.rpEditSave=async(id)=>{
   const t=(($('#rp-et')&&$('#rp-et').value)||'').trim();
   if(!t)return toast('請填標題');
   try{await DB.update('lessons',id,{title:t,tags:(($('#rp-eg')&&$('#rp-eg').value)||'').trim(),
+    grp:(($('#rp-ec')&&$('#rp-ec').value)||'other'),
     body_zh:(($('#rp-ez')&&$('#rp-ez').value)||''),body_vi:(($('#rp-ev')&&$('#rp-ev').value)||'')});
     await loadAll();closeModal();render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}
 };
