@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=719">
+<link rel="stylesheet" href="styles.css?v=720">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -7170,16 +7170,37 @@ function docRedraw(rows){
   const box=document.getElementById('doc-rows');if(!box)return;
   box.innerHTML=rows.map(docEditRow).join('');
 }
-H.docAdd=()=>{const rows=docReadRows();rows.push({d:'in',n:'',date:'',note:''});
-  docRedraw(rows);
+/* DOC_V720 這三顆按鈕本來都是「把畫面上的列讀回來、整個重畫」，
+   但讀的時候會自動略過還沒打名字的空白列，於是編號就跟畫面對不上——
+   剛按「＋ 新增一列」的那一列刪不掉、「今天」也可能填到別列去。
+   改成直接對畫面上的列動手（新增就接上去、刪除就移掉那一個），再重新編號，
+   打到一半還沒存的字也不會被洗掉。 */
+function docReindex(){
+  document.querySelectorAll('#doc-rows .doc-row').forEach((r,k)=>{
+    r.setAttribute('data-i',k);
+    const t=r.querySelector('.doc-today');if(t)t.setAttribute('data-id',k);
+    const d=r.querySelector('.rp-del');if(d)d.setAttribute('data-id',k);
+  });
+}
+function docAppend(list){
+  const box=document.getElementById('doc-rows');if(!box)return;
+  const base=box.querySelectorAll('.doc-row').length;
+  const html=list.map((r,k)=>docEditRow(r,base+k)).join('');
+  box.insertAdjacentHTML('beforeend',html);
+  docReindex();
+}
+H.docAdd=()=>{
+  docAppend([{d:'in',n:'',date:'',note:''}]);
   try{const box=document.getElementById('doc-rows');
     const last=box&&box.lastElementChild;if(last){const inp=last.querySelector('.doc-n');if(inp)inp.focus();}}catch(e){}};
 H.docTpl=()=>{
-  const cur=docReadRows();
-  const have={};cur.forEach(r=>{have[r.d+'|'+r.n]=1;});
+  const have={};
+  document.querySelectorAll('#doc-rows .doc-row').forEach(el=>{
+    const g=(sel)=>{const e=el.querySelector(sel);return e?String(e.value||'').trim():'';};
+    const n=g('.doc-n');if(n)have[(g('.doc-d')==='out'?'out':'in')+'|'+n]=1;});
   const add=DOC_TPL.filter(t=>!have[t.d+'|'+t.n]).map(t=>({d:t.d,n:t.n,date:'',note:''}));
   if(!add.length)return toast('範本裡的項目都已經在清單上了');
-  docRedraw(cur.concat(add));
+  docAppend(add);
   toast('帶入 '+add.length+' 列，記得按儲存');
 };
 H.docToday=(i)=>{
@@ -7187,10 +7208,9 @@ H.docToday=(i)=>{
   if(el)el.value=localToday();
 };
 H.docDel=(i)=>{
-  const rows=docReadRows();
-  const n=Number(i);
-  if(!(n>=0&&n<rows.length))return;
-  rows.splice(n,1);docRedraw(rows);
+  const el=document.querySelector('#doc-rows .doc-row[data-i="'+i+'"]');
+  if(!el)return;
+  el.remove();docReindex();
 };
 H.docSave=async(id)=>{
   const rows=docReadRows();
