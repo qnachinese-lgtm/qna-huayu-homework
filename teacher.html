@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=713">
+<link rel="stylesheet" href="styles.css?v=714">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -324,7 +324,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .rp-ta{width:100%;box-sizing:border-box;font-size:14px;line-height:1.8;resize:vertical}
         @media(max-width:900px){.rp-edit{grid-template-columns:1fr}}
         /* QUOTE_V713 價目表 */
-        .pr-row{display:grid;grid-template-columns:minmax(180px,1fr) 190px 132px;gap:12px;
+        .pr-row{display:grid;grid-template-columns:minmax(180px,1fr) 260px 132px;gap:12px;
           align-items:center;padding:11px 2px;border-bottom:1px solid var(--line)}
         .pr-row:last-child{border-bottom:0}
         .pr-head{font-size:11.5px;letter-spacing:.06em;color:var(--muted);
@@ -341,6 +341,8 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           align-items:center;padding:9px 12px;border-bottom:1px solid var(--line);cursor:pointer}
         .qt-pick:last-child{border-bottom:0}
         .qt-pick:hover{background:var(--surface-2)}
+        .qt-pick.qt-off{opacity:.5;cursor:default}
+        .qt-pick.qt-off:hover{background:transparent}
         .qt-pick input[type="checkbox"]{width:auto;margin:0}
         .qt-nm{min-width:0}.qt-nm>b{display:block;font-size:14px;line-height:1.4}
         .qt-nm>i{display:block;font-style:normal;font-size:12px;color:var(--primary)}
@@ -2018,12 +2020,33 @@ function prSorted(){
     ||String(a.name||'').localeCompare(String(b.name||''),'zh-Hant'));
 }
 function prUnitStr(p){const u=String(p.unit||'').trim();return u?('／'+u):'';}
+/* TWOCUR_V714 同一個項目常常有兩種定價：在台灣收臺幣、在越南收越南盾，
+   而且不是換算出來的，是兩個各自談好的數字。所以一個項目可以填兩個價格，
+   開報價單的時候先選這張單用哪一種幣別，整張單就只會出現那一種，合計才不會變成兩行。 */
+function prAmt(p,cur){
+  if(!p||!cur)return null;
+  const a1=(p.amount==null||p.amount==='')?null:Number(p.amount);
+  const a2=(p.amount2==null||p.amount2==='')?null:Number(p.amount2);
+  if((p.currency||'VND')===cur)return a1;
+  if((p.currency2||'')===cur)return a2;
+  return null;
+}
+function prCurs(p){const o=[];
+  if(p&&p.amount!=null&&p.amount!=='')o.push(p.currency||'VND');
+  if(p&&p.amount2!=null&&p.amount2!==''&&p.currency2&&p.currency2!==(p.currency||'VND'))o.push(p.currency2);
+  return o;}
+function prAllCurs(){const n={};prSorted().forEach(p=>prCurs(p).forEach(c=>{n[c]=(n[c]||0)+1;}));
+  return Object.keys(n).sort((a,b)=>n[b]-n[a]);}
+function prPriceStr(p){
+  const parts=prCurs(p).map(c=>money(prAmt(p,c),c)+prUnitStr(p));
+  return parts.length?parts.join('　/　'):'';
+}
 function prRowHtml(p){
-  const amt=(p.amount==null||p.amount==='')?null:Number(p.amount);
+  const pstr=prPriceStr(p);
   return '<div class="pr-row">'
     +'<span class="pr-n"><b>'+esc(p.name||'（未命名）')+'</b>'
       +(p.name_vi?'<i class="pr-vi">'+esc(p.name_vi)+'</i>':'')+'</span>'
-    +'<span class="pr-a">'+(amt==null?'<span class="muted">沒填單價</span>':esc(money(amt,p.currency||'VND')+prUnitStr(p)))+'</span>'
+    +'<span class="pr-a">'+(pstr?esc(pstr):'<span class="muted">沒填單價</span>')+'</span>'
     +'<span class="pr-o"><button class="btn btn-sm" data-act="prEdit" data-id="'+esc(p.id)+'">✏️ 編輯</button>'
       +'<button class="btn btn-sm btn-icon rp-del" data-act="prDel" data-id="'+esc(p.id)+'" title="刪除">🗑</button></span>'
     +'</div>';
@@ -4827,8 +4850,9 @@ const GUIDE=[
  {ic:'💰',t:'開一張報價單給客人',go:'reply',goLab:'去開報價單',
   lead:'客人問完費用，常常還想要一份正式一點、可以轉給家裡人看的東西。報價單就是幹這個用的：挑幾個項目、填客人的名字，印成一頁 A4 或存成 PDF 傳過去。',
   steps:['先到「📮 回覆客人」上面的「🧾 價目表」，把項目和單價設好（中文和越南文各填一次，之後報價單會兩種語言一起印）',
+         '同一個項目如果有臺幣和越南盾兩種定價，就在「另一種幣別的價格」那一格把第二個數字也填進去',
          '回到上面按「💰 開一張報價單」',
-         '填客人姓名、日期、有效天數，勾要報的項目，需要的話改數量',
+         '填客人姓名、先選這張單要用哪一種幣別，再勾要報的項目，需要的話改數量',
          '按「🖨 產生報價單」，會另開一頁；按上面的列印就可以存成 PDF'],
   note:'單價一律是你自己在價目表填的，系統不會替你算或猜任何價錢。報價單不會自動寄給任何人，要傳給誰、傳不傳，都是你決定。'},
 
@@ -6987,6 +7011,8 @@ H.prForm=(id)=>{
   const p=(S.prices||[]).find(x=>x.id===id)||{};
   const cur=p.currency||'VND';
   const co=(v,l)=>'<option value="'+v+'"'+(cur===v?' selected':'')+'>'+l+'</option>';
+  const cur2=p.currency2||'';
+  const co2=(v,l)=>'<option value="'+v+'"'+(cur2===v?' selected':'')+'>'+(l||'— 沒有第二種 —')+'</option>';
   openModal('<div class="modal" style="max-width:620px"><div class="modal-head"><h3>🧾 '+(id?'編輯項目':'新增項目')+'</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">'
    +'<div class="field full"><label>項目名稱（中文）*</label><input id="pr-n" type="text" value="'+esc(p.name||'')+'" placeholder="例：一對一中文課"></div>'
@@ -6994,6 +7020,9 @@ H.prForm=(id)=>{
    +'<input id="pr-nv" type="text" value="'+esc(p.name_vi||'')+'" placeholder="Lớp tiếng Trung 1 kèm 1"></div>'
    +'<div class="field"><label>單價 *</label><input id="pr-a" type="number" min="0" value="'+esc(p.amount==null?'':String(p.amount))+'" placeholder="例：250"></div>'
    +'<div class="field"><label>幣別</label><select id="pr-c">'+co('VND','越南盾 VND（打千位）')+co('TWD','臺幣 NT$')+co('USD','美元 US$')+'</select></div>'
+   +'<div class="field"><label>另一種幣別的價格 <span class="hint">選填。例如同一個服務，在台灣收臺幣</span></label>'
+   +'<input id="pr-a2" type="number" min="0" value="'+esc(p.amount2==null?'':String(p.amount2))+'" placeholder="留空就是沒有第二種"></div>'
+   +'<div class="field"><label>另一種幣別</label><select id="pr-c2">'+co2('')+co2('TWD','臺幣 NT$')+co2('VND','越南盾 VND（打千位）')+co2('USD','美元 US$')+'</select></div>'
    +'<div class="field"><label>單位（中文）<span class="hint">選填</span></label><input id="pr-u" type="text" value="'+esc(p.unit||'')+'" placeholder="例：小時、堂、件"></div>'
    +'<div class="field"><label>Đơn vị <span class="hint">選填</span></label><input id="pr-uv" type="text" value="'+esc(p.unit_vi||'')+'" placeholder="giờ / buổi / hồ sơ"></div>'
    +'<div class="field full"><label>說明（中文）<span class="hint">選填，報價單上會印成小字</span></label>'
@@ -7008,8 +7037,10 @@ H.prSave=async(id)=>{
   const v=(x)=>{const e=document.getElementById(x);return e?String(e.value||'').trim():'';};
   const name=v('pr-n');if(!name)return toast('請填項目名稱');
   const a=v('pr-a');
+  const a2=v('pr-a2'),c2=v('pr-c2');
   const patch={kind:'price',name:name,name_vi:v('pr-nv'),
     amount:(a===''?null:Number(a)),currency:v('pr-c')||'VND',
+    amount2:((a2===''||!c2)?null:Number(a2)),currency2:(a2===''?'':c2),
     unit:v('pr-u'),unit_vi:v('pr-uv'),note:v('pr-d'),note_vi:v('pr-dv')};
   try{
     if(id){await DB.update('lessons',id,patch);}
@@ -7030,27 +7061,41 @@ H.qtNew=()=>{
   if(!list.length)return (S.rpSub='price',render(),toast('先把價目表設好，才開得了報價單'));
   let memo='',contact='';
   try{memo=localStorage.getItem('qna_qt_note')||'';contact=localStorage.getItem('qna_qt_contact')||'';}catch(e){}
-  const rows=list.map(p=>'<label class="qt-pick"><input type="checkbox" class="qt-ck" data-id="'+esc(p.id)+'">'
-    +'<span class="qt-nm"><b>'+esc(p.name||'')+'</b>'+(p.name_vi?'<i>'+esc(p.name_vi)+'</i>':'')+'</span>'
-    +'<span class="qt-pz">'+(p.amount==null?'<span class="muted">沒填單價</span>':esc(money(p.amount,p.currency||'VND')+prUnitStr(p)))+'</span>'
-    +'<input type="number" class="qt-qn" data-id="'+esc(p.id)+'" min="1" value="1" title="數量"></label>').join('');
+  const curs=prAllCurs();const cur0=curs[0]||'VND';
+  const CURN={VND:'越南盾 VND',TWD:'臺幣 NT$',USD:'美元 US$'};
+  const curSel='<select id="qt-cur">'+curs.map(c=>'<option value="'+c+'">'+(CURN[c]||c)+'</option>').join('')+'</select>';
   openModal('<div class="modal modal-wide"><div class="modal-head"><h3>💰 開一張報價單</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">'
    +'<div class="field"><label>客人姓名 *</label><input id="qt-who" type="text" placeholder="例：Nguyễn Văn A"></div>'
+   +'<div class="field"><label>這張單用哪一種幣別 *</label>'+curSel+'</div>'
    +'<div class="field"><label>日期</label><input id="qt-date" type="date" min="2000-01-01" max="2100-12-31" value="'+localToday()+'"></div>'
    +'<div class="field"><label>報價有效天數 <span class="hint">選填</span></label><input id="qt-valid" type="number" min="1" max="365" value="30"></div>'
-   +'<div class="field"><label>聯絡方式 <span class="hint">會印在最下面</span></label><input id="qt-contact" type="text" value="'+esc(contact)+'" placeholder="Zalo／Facebook／Email"></div>'
+   +'<div class="field full"><label>聯絡方式 <span class="hint">會印在最下面</span></label><input id="qt-contact" type="text" value="'+esc(contact)+'" placeholder="Zalo／Facebook／Email"></div>'
    +'</div>'
    +'<div class="lesson-label" style="margin-top:14px">勾選要報的項目</div>'
-   +'<div class="qt-list">'+rows+'</div>'
+   +'<div class="qt-list" id="qt-list">'+qtRowsHtml(cur0)+'</div>'
    +'<div class="field" style="margin-top:12px"><label>備註 <span class="hint">選填，會印在報價單下方</span></label>'
    +'<textarea id="qt-note" rows="3" style="width:100%;box-sizing:border-box" placeholder="例：學費請於開課前三天匯款；報名後恕不退費">'+esc(memo)+'</textarea></div>'
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
    +'<button class="btn btn-primary" data-act="qtGo">🖨 產生報價單</button></div></div>');
+  try{const cs=document.getElementById('qt-cur');
+    if(cs)cs.onchange=()=>{const box=document.getElementById('qt-list');
+      if(box)box.innerHTML=qtRowsHtml(cs.value);};}catch(e){}
 };
+function qtRowsHtml(cur){
+  return prSorted().map(p=>{
+    const amt=prAmt(p,cur);const off=(amt==null);
+    return '<label class="qt-pick'+(off?' qt-off':'')+'">'
+      +'<input type="checkbox" class="qt-ck" data-id="'+esc(p.id)+'"'+(off?' disabled':'')+'>'
+      +'<span class="qt-nm"><b>'+esc(p.name||'')+'</b>'+(p.name_vi?'<i>'+esc(p.name_vi)+'</i>':'')+'</span>'
+      +'<span class="qt-pz">'+(off?'<span class="muted">這個幣別沒設價</span>':esc(money(amt,cur)+prUnitStr(p)))+'</span>'
+      +'<input type="number" class="qt-qn" data-id="'+esc(p.id)+'" min="1" value="1" title="數量"'+(off?' disabled':'')+'>'
+      +'</label>';}).join('');
+}
 H.qtGo=()=>{
   const v=(x)=>{const e=document.getElementById(x);return e?String(e.value||'').trim():'';};
   const who=v('qt-who');if(!who)return toast('請填客人姓名');
+  const cur=v('qt-cur')||'VND';
   const date=v('qt-date')||localToday();
   const valid=v('qt-valid');const contact=v('qt-contact');const memo=v('qt-note');
   try{localStorage.setItem('qna_qt_note',memo);localStorage.setItem('qna_qt_contact',contact);}catch(e){}
@@ -7066,12 +7111,11 @@ H.qtGo=()=>{
   if(!picked.length)return toast('至少勾一個項目');
   const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const org=window.APP_NAME||'QNA CHINESE';
-  const tot={};
+  let tot=0,anyAmt=false;
   const trs=picked.map(it=>{
-    const p=it.p,amt=(p.amount==null||p.amount==='')?null:Number(p.amount);
-    const cur=p.currency||'VND';
+    const p=it.p,amt=prAmt(p,cur);
     let sub=null;
-    if(amt!=null){sub=amt*it.n;tot[cur]=(tot[cur]||0)+sub;}
+    if(amt!=null){sub=amt*it.n;tot+=sub;anyAmt=true;}
     return '<tr><td><div class="nm">'+e2(p.name||'')+'</div>'
       +(p.name_vi?'<div class="vi">'+e2(p.name_vi)+'</div>':'')
       +((p.note||p.note_vi)?('<div class="nt">'+e2(p.note||'')+(p.note&&p.note_vi?' · ':'')+e2(p.note_vi||'')+'</div>'):'')
@@ -7079,8 +7123,7 @@ H.qtGo=()=>{
       +'<td class="c">'+it.n+(p.unit?(' '+e2(p.unit)):'')+'</td>'
       +'<td class="r">'+(sub==null?'—':e2(money(sub,cur)))+'</td></tr>';
   }).join('');
-  const totRows=Object.keys(tot).map(c=>'<div class="tt"><span>合計 / Tổng cộng</span><b>'+e2(money(tot[c],c))+'</b></div>').join('')
-    ||'<div class="tt"><span>合計 / Tổng cộng</span><b>—</b></div>';
+  const totRows='<div class="tt"><span>合計 / Tổng cộng</span><b>'+(anyAmt?e2(money(tot,cur)):'—')+'</b></div>';
   let until='';
   if(valid){try{const d=new Date(date+'T00:00:00');d.setDate(d.getDate()+Number(valid));
     until=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}catch(e){}}
