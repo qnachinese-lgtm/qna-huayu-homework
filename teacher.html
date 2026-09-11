@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=703">
+<link rel="stylesheet" href="styles.css?v=704">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -958,6 +958,18 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .crm-head .cc .sub2.warn{color:#d97706}
         .crm-head .cc .dash{color:#CFC0AB}
         .crm-head .cc .tag,.crm-head .cc .badge{max-width:100%}
+        /* ITVCOL_V704 學校科系、面試日那兩格的文字被硬生生切斷（「（申請簽」就沒了），
+           因為 .tag／.badge 是 inline-flex，inline-flex 不吃 text-overflow，
+           所以只會被容器切掉、連刪節號都沒有。改成 inline-block 就會正常收成「…」，
+           滑鼠移上去還看得到完整內容。 */
+        .crm-head .cc.sch .tag,.crm-head .cc.kd .tag,.crm-head .cc.dt .badge{
+          display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+          white-space:nowrap;vertical-align:middle}
+        /* 面試多一欄「類別」的格線 */
+        .crm-head.itv8{grid-template-columns:minmax(210px,1.5fr) 78px 96px minmax(150px,1.25fr) 158px 84px 130px 96px}
+        .crm-head .cc.kd{justify-content:flex-start}
+        .crm-head .cc.kd .tag{font-size:12px;padding:2px 8px}
+        @media (max-width:1180px){.crm-head.itv8{display:flex;flex-wrap:wrap}}
         @media (max-width:1180px){
           .crm-thead{display:none}
           .crm-head{display:flex;flex-wrap:wrap}
@@ -2420,7 +2432,10 @@ function itvTimeKey(v){const t=String(v||'').trim();if(!t)return '99:99';const M
   if(/^\d{1,2}:\d{2}$/.test(t))return (t.length===4?('0'+t):t);
   for(const k in M){if(t.indexOf(k)>=0)return M[k];}
   return '99:99';}
-function itvExamBadge(c){if(!c)return '';const m=itvResultMeta(c.result);
+function itvExamBadge(c,done){if(!c)return '';const m=itvResultMeta(c.result);
+  /* ITVDATE_V704 已結案、中途放棄的客戶不該再看到「面試已過 N 天」的紅色催促，
+     那件事已經不用處理了；跟已填結果的那幾列一樣，只留日期就好。 */
+  if(done&&!m)return c.exam_date?`<span class="muted dt-d">${esc(c.exam_date)}</span>`:'';
   /* DTALIGN_V676 「通過」和「沒通過」寬度不一樣，後面的日期就會一列一個位置。
      給結果標籤一個固定寬度，日期就會排在同一條直線上。 */
   if(m)return `<span class="badge rbadge" style="background:${m[1]}18;color:${m[1]};border-color:${m[1]}55">${m[0]}</span>`+(c.exam_date?`<span class="muted dt-d">${esc(c.exam_date)}</span>`:'');
@@ -2747,11 +2762,12 @@ function renderInterview(){
     const pastMore=past.length>5?`<details style="margin-top:4px"><summary style="cursor:pointer;font-size:13px;color:var(--primary)">看更早的 ${past.length-5} 次</summary>${past.slice(5).map(rowHtml).join('')}</details>`:'';
     const pastHtml=past.length?`<div class="lesson-label" style="margin:10px 0 2px">✅ 已上過的練習（${past.length}）</div>${pastShow}${pastMore}`:(upcoming.length?'':'<div class="hint" style="padding:6px 0">還沒有練習紀錄，按上面「＋ 新增練習時間」開始。</div>');
     return `<details class="card crm-card${done?' card-done':''}" data-cid="${esc(c.id)}" style="margin-bottom:10px"${(S.crmFocus===c.id)?' open':''}><summary class="crm-sum" data-act="crmFocus" data-id="${esc(c.id)}">
-      <span class="crm-chev">▸</span><div class="crm-head">
+      <span class="crm-chev">▸</span><div class="crm-head itv8">
         <span class="cc nm"><b>${snm(c.name||'（未命名）')}</b><button class="btn btn-icon" data-act="itvEdit" data-id="${esc(c.id)}" title="客戶資料與付費">✏️</button><button class="btn btn-icon crm-del" data-act="itvDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
         <span class="cc st">${done?crmDoneBadge(c):'<span class="badge badge-ok">進行中</span>'}</span>
-        <span class="cc sch">${c.target?`<span class="tag">${esc(c.target)}</span>`:''}</span>
-        <span class="cc dt">${itvExamBadge(c)}</span>
+        <span class="cc kd">${c.itv_kind?`<span class="tag accent" title="${esc(c.itv_kind)}">${esc(c.itv_kind)}</span>`:''}</span>
+        <span class="cc sch">${c.target?`<span class="tag" title="${esc(c.target)}">${esc(c.target)}</span>`:''}</span>
+        <span class="cc dt">${itvExamBadge(c,done)}</span>
         <span class="cc num">${ss.length}${(c.plan_n>0)?('/'+c.plan_n):''} 次${nextOne?`<span class="sub2">下次 ${esc(String(nextOne.date).slice(5))}</span>`:''}</span>
         <span class="cc money">${paidAll?esc(paidAll):'<span class="dash">—</span>'}${due?`<span class="sub2 warn">未收 ${esc(due)}</span>`:''}</span>
         <span class="cc act">${meetBtn(meetOfItv(c),true)}</span>
@@ -2774,7 +2790,9 @@ const CRM_COLS={
   /* ITV_CAT_V23 面試那一欄不一定是學校，可能是簽證、工作面試，所以叫「面試類別」 */
   /* ONELINE_V676 「聯絡」（Facebook／Zalo）從外面那一列拿掉，點進客戶頁還是看得到，
      省下來的寬度全部給姓名，越南長名字才能一行排得完。 */
-  interview:['姓名','狀態','面試類別','面試日','練習','已收',''],
+  /* ITVKIND_V704 「面試類別」本來跟學校科系擠在同一格（都寫成「淡江大學 華語中心（申請簽證）」），
+     現在類別自己一欄，學校科系自己一欄，以後類別不是「申請簽證」也不用改字。 */
+  interview:['姓名','狀態','類別','面試目標','面試日','練習','已收',''],
   agency:['姓名','狀態','申請學校','期限・結果','進度','已收',''],
   writing:['姓名','階段','文件・學校','期限','進度','已收','']};
 /* CRM_TOTAL_V17 清單最下面加一列合計：談定總額、已收、還沒收 */
@@ -2855,9 +2873,10 @@ function viCheckModal(l){
 }
 function crmTfoot(kind,list){const g=crmSumOf(kind,list);
   const totStr=itvMoneyStr(g.tot),paidStr=itvMoneyStr(g.paid),dueStr=itvMoneyStr(g.due);
-  return `<div class="crm-tfoot"><span class="crm-chev" style="visibility:hidden">▸</span><div class="crm-head">
+  return `<div class="crm-tfoot"><span class="crm-chev" style="visibility:hidden">▸</span><div class="crm-head${kind==='interview'?' itv8':''}">
     <span class="cc nm"><b>合計 ${(list||[]).length} 位</b></span>
     <span class="cc st"></span>
+    ${kind==='interview'?'<span class="cc kd"></span>':''}
     <span class="cc sch"></span>
     <span class="cc dt"></span>
     <span class="cc num">${g.unit?(g.n+' '+g.unit):''}</span>
@@ -2865,7 +2884,11 @@ function crmTfoot(kind,list){const g=crmSumOf(kind,list);
     <span class="cc act"></span>
   </div></div>`;}
 function crmThead(kind){const cs=CRM_COLS[kind]||CRM_COLS.interview;
-  return `<div class="crm-thead"><span class="crm-chev" style="visibility:hidden">▸</span><div class="crm-head">${cs.map((t,i)=>`<span class="cc ${['nm','st','sch','dt','num','money','act'][i]||''}">${esc(t)}</span>`).join('')}</div></div>`;}
+  /* ITVKIND_V704 面試比別人多一欄「類別」，所以欄位名單和格線都要分開算 */
+  const cls=(kind==='interview')?['nm','st','kd','sch','dt','num','money','act']
+                                :['nm','st','sch','dt','num','money','act'];
+  const gx=(kind==='interview')?' itv8':'';
+  return `<div class="crm-thead"><span class="crm-chev" style="visibility:hidden">▸</span><div class="crm-head${gx}">${cs.map((t,i)=>`<span class="cc ${cls[i]||''}">${esc(t)}</span>`).join('')}</div></div>`;}
 /* NAV_SLIM_V670 合併後的分頁列：留學業務三個、收費財務兩個 */
 const BIZ_TABS=[['agency','🎓 代辦申請'],['interview','🎤 面試練習'],['writing','✍️ 代書']];
 const MONEY_TABS=[['pay','💰 繳費'],['ops','📈 財務・營運']];
@@ -2910,7 +2933,10 @@ function itvFormTotalPatch(){const tv=($('#itv-total')&&$('#itv-total').value);
   if(tv===undefined||tv===null)return {};
   return {fee_total:(tv===''?null:Number(tv)),fee_cur:(($('#itv-fcur')&&$('#itv-fcur').value)||'VND')};}
 function itvForm(c){c=c||{};
-  openModal(`<div class="modal"><div class="modal-head"><h3>🎤 ${c.id?'編輯面試客戶':'新增面試客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>姓名</label><input id="itv-name" type="text" value="${esc(c.name||'')}" placeholder="例：Nguyễn Văn A"></div><div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="itv-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div><div class="field full"><label>面試類別 <span class="hint">選填。學校、簽證、工作面試都可以</span></label><input id="itv-target" type="text" value="${esc(c.target||'')}" placeholder="例：臺灣留學簽證、中原大學 華語中心、工作面試"></div><div class="field"><label>🎯 正式面試日 <span class="hint">選填</span></label><input id="itv-exam" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.exam_date||'')}"></div>
+  openModal(`<div class="modal"><div class="modal-head"><h3>🎤 ${c.id?'編輯面試客戶':'新增面試客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>姓名</label><input id="itv-name" type="text" value="${esc(c.name||'')}" placeholder="例：Nguyễn Văn A"></div><div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="itv-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div><div class="field"><label>面試類別 <span class="hint">這位客戶是在準備哪一種面試</span></label>
+     <input id="itv-kind" type="text" list="itv-kindlist" value="${esc(c.itv_kind||(c.id?'':'申請簽證'))}" placeholder="例：申請簽證">
+     <datalist id="itv-kindlist"><option value="申請簽證"><option value="入學面試"><option value="獎學金面試"><option value="工作面試"><option value="其他"></datalist></div>
+     <div class="field"><label>面試目標 <span class="hint">選填。學校、科系或單位</span></label><input id="itv-target" type="text" value="${esc(c.target||'')}" placeholder="例：中原大學 華語中心、淡江大學 企業管理系"></div><div class="field"><label>🎯 正式面試日 <span class="hint">選填</span></label><input id="itv-exam" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.exam_date||'')}"></div>
      <div class="field"><label>面試時間 <span class="hint">選填。不確定就填早上／中午／下午／晚上</span></label>
      <input id="itv-examt" type="text" maxlength="12" list="itv-timelist" placeholder="例：早上、09:00" value="${esc(c.exam_time||'')}">
      <datalist id="itv-timelist"><option value="早上"><option value="中午"><option value="下午"><option value="傍晚"><option value="晚上"><option value="全天"></datalist></div>
@@ -9241,7 +9267,7 @@ H.itvPayDrop=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);
     const box=$('#itv-paybox');if(box)box.innerHTML=itvPayBoxHtml(c);
     toast('已刪除');renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.itvSave=async(id)=>{const name=($('#itv-name').value||'').trim();if(!name)return toast('請填姓名');
-  const patch={kind:'interview',name,phone:($('#itv-phone').value||'').trim(),target:($('#itv-target').value||'').trim(),meet_url:(($('#itv-meet')&&$('#itv-meet').value)||'').trim(),note:($('#itv-note').value||'').trim(),exam_date:($('#itv-exam')&&$('#itv-exam').value)||'',exam_time:itvTimeNorm(($('#itv-examt')&&$('#itv-examt').value)||''),result:($('#itv-result')&&$('#itv-result').value)||'',result_note:($('#itv-rnote')&&$('#itv-rnote').value||'').trim()};
+  const patch={kind:'interview',name,phone:($('#itv-phone').value||'').trim(),itv_kind:(($('#itv-kind')&&$('#itv-kind').value)||'').trim(),target:($('#itv-target').value||'').trim(),meet_url:(($('#itv-meet')&&$('#itv-meet').value)||'').trim(),note:($('#itv-note').value||'').trim(),exam_date:($('#itv-exam')&&$('#itv-exam').value)||'',exam_time:itvTimeNorm(($('#itv-examt')&&$('#itv-examt').value)||''),result:($('#itv-result')&&$('#itv-result').value)||'',result_note:($('#itv-rnote')&&$('#itv-rnote').value||'').trim()};
   {const tv=($('#itv-total')&&$('#itv-total').value);if(tv!==undefined){patch.fee_total=(tv===''?null:Number(tv));patch.fee_cur=(($('#itv-fcur')&&$('#itv-fcur').value)||'VND');}}
   {const pv=($('#itv-plann')&&$('#itv-plann').value);if(pv!==undefined)patch.plan_n=(pv===''?null:Number(pv));}
   try{if(id){await DB.update(crmCol(id),id,patch);}else{patch.status='active';patch.sessions=[];patch.created_at=new Date().toISOString();await DB.insert('crm',patch);}
