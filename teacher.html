@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=683">
+<link rel="stylesheet" href="styles.css?v=684">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -4137,7 +4137,7 @@ const SGKIND={
 function sgName(sd){const st=S.students.find(x=>x.id===(sd&&sd.student_id));return (st&&st.name)||(sd&&sd.student_name)||'學生';}
 function sgTest(sd){const st=S.students.find(x=>x.id===(sd&&sd.student_id));return !!(st&&st.is_test);}
 function sgLes(lid){const l=S.lessons.find(x=>x.id===lid)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');}
-function gradeQueue(){
+function gradeQueue(withTest){
   const out=[];
   (S.results||[]).filter(r=>r.status==='pending'||r.status==='done').forEach(r=>{
     if(r.kind)return; // 只取「作業」那種 result
@@ -4158,14 +4158,15 @@ function gradeQueue(){
     out.push({kind:'wb',id:sd.id,sd,name:sgName(sd),test:sgTest(sd),les:(w.title||'作業簿'),lid:sd.wb_lesson||'',pend:!done,ts:sd.submitted_at||'',extra:(sc.total?('自動 '+sc.ok+'/'+sc.total):'')});});
   out.sort((a,b)=>(a.pend===b.pend?0:(a.pend?-1:1))||String(b.ts||'').localeCompare(String(a.ts||'')));
   /* GRADE_NOTEST_V675 測試帳號交的東西不要排進批改台，也不要算進「待批改」的數字。
-     那是自己測平台留下來的，不是學生真的交的作業。 */
-  return out.filter(x=>!x.test);
+     TESTRUN_V684 但這樣妳就沒辦法拿測試帳號自己試跑一輪。批改台上多一顆「🧪 含測試帳號」，
+     按了才會把測試帳號的作答一起列出來（預設關著，首頁的待批改數字永遠不含測試）。 */
+  return withTest?out:out.filter(x=>!x.test);
 }
 /* LINK_V678 教材與批改本來是斷開的：教材頁看不到誰交了、批改台也跳不回那一課。
    現在課卡上直接顯示「已交 N／M・待批改 K」，按下去就進批改台而且只留那一課；
    批改台每一筆旁邊也可以直接預覽那一課。 */
 function sgVisible(){const only=(S.sgOnly==='all')?'all':'pend';const k=S.sgKind||'';const L=S.sgLesson||'';
-  return gradeQueue().filter(x=>(only==='all'||x.pend)&&(!k||x.kind===k)&&(!L||x.lid===L));}
+  return gradeQueue(!!S.sgTest).filter(x=>(only==='all'||x.pend)&&(!k||x.kind===k)&&(!L||x.lid===L));}
 function lesLive(s){return s&&!s.deleted&&!s.deleted_at&&!s.is_test&&(typeof enrollOf!=='function'||enrollOf(s)!=='paused');}
 function lesStat(l){
   if(!l||l.kind)return null;
@@ -4279,7 +4280,8 @@ function gradeProgHtml(){
 }
 function renderGrades(){
   const wrap=$('#grades-list');
-  const list=sgVisible();const all=gradeQueue();
+  const list=sgVisible();const all=gradeQueue(!!S.sgTest);
+  const _testN=gradeQueue(true).filter(x=>x.test).length;
   const pendN=all.filter(x=>x.pend).length;
   const kinds=Object.keys(SGKIND).filter(k=>all.some(x=>x.kind===k));
   const chip=(k,lab,on)=>'<button class="segb'+(on?' on':'')+'" data-act="sgKind" data-id="'+k+'">'+lab+'</button>';
@@ -4294,7 +4296,9 @@ function renderGrades(){
     +'</div><span class="grow"></span><div class="segbar">'
     +'<button class="segb'+(S.sgOnly==='all'?'':' on')+'" data-act="sgOnly" data-id="pend">只看待批改<span class="segn">'+pendN+'</span></button>'
     +'<button class="segb'+(S.sgOnly==='all'?' on':'')+'" data-act="sgOnly" data-id="all">全部<span class="segn">'+all.length+'</span></button>'
-    +'</div></div>';
+    +'</div>'
+    +(_testN?('<div class="segbar" style="margin-left:8px"><button class="segb'+(S.sgTest?' on':'')+'" data-act="sgTest" title="自己試跑平台時用">🧪 含測試帳號<span class="segn">'+_testN+'</span></button></div>'):'')
+    +'</div>';
   const rows=list.length?list.map(x=>{const key=x.kind+'::'+x.id;const m=SGKIND[x.kind]||{ic:'',lab:''};
     return '<button class="sg-item'+(S.sgSel===key?' on':'')+(x.test?' test':'')+'" data-act="sgPick" data-id="'+esc(key)+'">'
       +'<span class="sg-i1"><b>'+esc(x.name)+'</b>'+(x.test?'<span class="sg-tt">測試</span>':'')
@@ -4342,6 +4346,7 @@ H.sgKind=(k)=>{S.sgKind=k||'';renderGrades();};
 H.gradeLesson=(id)=>{S.sgLesson=id;S.sgKind='';S.sgOnly='all';S.sgSel=null;S.tab='grades';render();
   try{window.scrollTo(0,0);}catch(e){}};
 H.gradeAllLessons=()=>{S.sgLesson=null;S.sgSel=null;renderGrades();};
+H.sgTest=()=>{S.sgTest=!S.sgTest;S.sgSel=null;renderGrades();};
 H.sgOnly=(v)=>{S.sgOnly=(v==='all')?'all':'pend';renderGrades();};
 H.stuDetail=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;S.stuId=id;if(!S.stuTab)S.stuTab='ov';S.tab='student';render();try{window.scrollTo(0,0);}catch(e){}};
 H.stuView=(id)=>{S.stuView=(id==='card')?'card':'table';renderStudents();};
