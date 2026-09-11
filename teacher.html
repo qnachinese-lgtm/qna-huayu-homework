@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=697">
+<link rel="stylesheet" href="styles.css?v=698">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1473,16 +1473,65 @@ async function featSet(k,checked){
    改成直接進 app 內的班級頁（跟一對一學生一樣，留在同一個畫面裡）。
    網址列上的 ?class= 也會清掉，重新整理不會又跳回舊版。 */
 const CLASS_VIEW=null;
-{const _c0=new URLSearchParams(location.search).get('class');
- if(_c0){S.clsId=_c0;if(!S.cvTab)S.cvTab='stu';S.tab='class';
-  try{const u=new URL(location.href);u.searchParams.delete('class');history.replaceState(null,'',u.pathname+(u.search||'')+u.hash);}catch(e){}}}
-{const _t0=new URLSearchParams(location.search).get('tab');if(_t0&&/^[a-z]+$/.test(_t0)&&S.tab!=='class'){S.tab=_t0;
-  try{const u=new URL(location.href);u.searchParams.delete('tab');history.replaceState(null,'',u.pathname+(u.search||'')+u.hash);}catch(e){}}}
+/* TABURL_V698 開啟時照著網址決定要停在哪一頁（?tab=… ，學生／班級再加 &id=…）。
+   舊的 ?class=xxx 連結還是能用，會自動換成新寫法。 */
+{const _q=new URLSearchParams(location.search);
+ const _c0=_q.get('class');
+ if(_c0){S.clsId=_c0;if(!S.cvTab)S.cvTab='stu';S.tab='class';}
+ const _t0=_q.get('tab');const _i0=_q.get('id')||'';
+ if(!_c0&&_t0&&/^[a-z]+$/.test(_t0)){
+   S.tab=_t0;
+   if(_t0==='student'&&_i0){S.stuId=_i0;if(!S.stuTab)S.stuTab='ov';}
+   if(_t0==='class'&&_i0){S.clsId=_i0;if(!S.cvTab)S.cvTab='stu';}
+   if(['agency','interview','writing'].indexOf(_t0)>=0)S.bizSub=_t0;
+   if(_t0==='pay'||_t0==='ops')S.moneySub=_t0;
+ }
+ /* 學生／班級頁沒帶 id 的話會是一片空白，退回總覽比較不會嚇到人 */
+ if((S.tab==='student'&&!S.stuId)||(S.tab==='class'&&!S.clsId))S.tab='dashboard';
+}
+var TABURL_LOCK=false,TABURL_FIRST=true;
+function tabUrlSync(){
+  if(TABURL_LOCK)return;
+  try{
+    const t=S.tab||'dashboard';
+    const id=(t==='student')?(S.stuId||''):((t==='class')?(S.clsId||''):'');
+    const u=new URL(location.href);
+    const sameTab=(u.searchParams.get('tab')||'')===t;
+    const sameId=(u.searchParams.get('id')||'')===id;
+    u.searchParams.delete('class');
+    u.searchParams.set('tab',t);
+    if(id)u.searchParams.set('id',id);else u.searchParams.delete('id');
+    const nu=u.pathname+(u.searchParams.toString()?('?'+u.searchParams.toString()):'')+u.hash;
+    const st={t:t,i:id};
+    if(TABURL_FIRST||(sameTab&&sameId))history.replaceState(st,'',nu);
+    else history.pushState(st,'',nu);
+    TABURL_FIRST=false;
+  }catch(e){}
+}
+window.addEventListener('popstate',function(){
+  try{
+    const u=new URL(location.href);
+    let t=u.searchParams.get('tab')||'dashboard';
+    const id=u.searchParams.get('id')||'';
+    if(!/^[a-z]+$/.test(t))t='dashboard';
+    if((t==='student'||t==='class')&&!id)t='dashboard';
+    TABURL_LOCK=true;
+    S.tab=t;
+    if(t==='student'&&id){S.stuId=id;if(!S.stuTab)S.stuTab='ov';}
+    if(t==='class'&&id){S.clsId=id;if(!S.cvTab)S.cvTab='stu';}
+    if(['agency','interview','writing'].indexOf(t)>=0){S.bizSub=t;S.crmFocus=null;}
+    if(t==='pay'||t==='ops')S.moneySub=t;
+    render();
+    try{window.scrollTo(0,0);}catch(e){}
+  }catch(e){}
+  finally{TABURL_LOCK=false;}
+});
 function renderTCourse(){
   const f=document.getElementById("tcourse-frame");
   if(f&&!f.getAttribute("src"))f.setAttribute("src","tc2.html");
 }
 function render(){
+  try{tabUrlSync();}catch(e){}
   try{
     $('#c-students').textContent=S.students.filter(s=>!s.is_test).length;
     $('#c-lessons').textContent=S.lessons.length+((S.prons||[]).length);
