@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=686">
+<link rel="stylesheet" href="styles.css?v=687">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -6463,23 +6463,43 @@ H.draftDrop=async(id)=>{const sd=[...(S.gpracs||[]),...(S.discussions||[]),...(S
 H.reviewGprac=(id)=>{const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
   const l=S.lessons.find(x=>x.id===sd.gprac_lesson)||{};const ltitle=(l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'');
-  const fb=sd.feedback||{},ans=sd.answers||{};
-  const qs=sortQuestionsLogical(questionsOf(sd.gprac_lesson)).filter(q=>q.bank!=='hw'&&q.type!=='note');
+  /* GPONLY_V687 語法練習本來把整課的題目全部列出來，學生只答 5 題、卻要捲過 28 題，
+     其中 23 題寫著「（未作答）」。（問題與討論本來就只列有作答的，這裡補齊。）
+     預設只看有作答的，右上角可以切回全部。切換時已經打好的建議會留著。 */
+  const fb=Object.assign({},sd.feedback||{},(S._gpTmp&&S._gpTmp.id===sd.id)?(S._gpTmp.fb||{}):{});
+  const ans=sd.answers||{};
+  const qsAll=sortQuestionsLogical(questionsOf(sd.gprac_lesson)).filter(q=>q.bank!=='hw'&&q.type!=='note');
+  const _has=(q)=>{const v=ans[q.id];if(v==null)return false;
+    if(typeof v==='string')return v.trim()!=='';
+    if(Array.isArray(v))return v.some(x=>x&&((typeof x==='string'&&x.trim()!=='')||(x&&x.t!=null&&String(x.t).trim()!=='')||(x&&Array.isArray(x.s)&&x.s.length)));
+    return true;};
+  const _ansQ=qsAll.filter(_has);
+  const _showAll=(!!S.gpAll)||!_ansQ.length;
+  const qs=_showAll?qsAll:_ansQ;
+  S._gpId=sd.id;
+  const gpBar=(qsAll.length>_ansQ.length)?('<div class="pagebar" style="margin-bottom:8px"><span class="hint">學生作答 <b>'+_ansQ.length+'</b>／'+qsAll.length+' 題</span><span class="grow"></span><div class="segbar"><button class="segb'+(_showAll?'':' on')+'" data-act="gpAll" data-id="0">只看有作答的</button><button class="segb'+(_showAll?' on':'')+'" data-act="gpAll" data-id="1">全部 '+qsAll.length+' 題</button></div></div>'):'';
   let rows='';qs.forEach((q,i)=>{const a=gpAnsTextT(q,ans[q.id]);const sol=gpSolT(q);
     const _isOpt=(q.type==='opt'&&(q.items||[]).length);
     rows+=`<div class="srev-item">${gpQHeadT(q,i+1,ans[q.id])}${_isOpt?'':`<div class="lesson-label" style="margin-top:8px">學生的答案</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>`}${(sol&&!_isOpt)?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(sol)}</div>`:''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="給這一題的建議（可留空，學生會看到）">${esc(fb[q.id]||'')}</textarea></div>`;});
   if(!rows)rows='<div class="muted">（這一課目前沒有語法練習題）</div>';
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>📘 語法練習批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'gprev-fb')}${rows}
-   <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="gprev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('gprev-overall')}</div></div>
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${gpBar}${draftBanner(sd,'gprev-fb')}${rows}
+   <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="gprev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(((S._gpTmp&&S._gpTmp.id===sd.id&&S._gpTmp.ov!=null)?S._gpTmp.ov:(sd.overall||'')))}</textarea>${cannedBar('gprev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn" data-act="saveGpracReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveGpracReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
+H.gpAll=(v)=>{
+  /* 切換前先把已經打好的建議記下來，切完再填回去，不然會白打 */
+  try{const fbm={};document.querySelectorAll('.gprev-fb').forEach(el=>{const t=(el.value||'').trim();if(t)fbm[el.dataset.k]=t;});
+    const ov=document.getElementById('gprev-overall');
+    S._gpTmp={id:S._gpId,fb:fbm,ov:ov?ov.value:null};}catch(e){}
+  S.gpAll=(String(v)==='1');
+  const id=S._gpId;if(id)H.reviewGprac(id);};
 H.saveGpracReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
   const feedback={};document.querySelectorAll('.gprev-fb').forEach(el=>{const v=(el.value||'').trim();if(v)feedback[el.dataset.k]=v;});
   const ov=document.getElementById('gprev-overall');const overall=ov?(ov.value||'').trim():'';
   if(b){b.disabled=true;b.textContent='儲存中…';}
   const ts=new Date().toISOString();const patch={feedback,overall,status:done?'reviewed':(sd.status||'submitted'),reviewed_at:ts};
   try{await DB.update('results',id,patch);const i=S.gpracs.findIndex(x=>x.id===id);if(i>=0)S.gpracs[i]=Object.assign({},sd,patch);
-    closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
+    S._gpTmp=null;closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
   }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
 H.reviewHwv=(id)=>{const sd=(S.hwvs||[]).find(x=>x.id===id);if(!sd)return;
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
