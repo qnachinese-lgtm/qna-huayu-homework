@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=718">
+<link rel="stylesheet" href="styles.css?v=719">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -332,6 +332,29 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .rp-edit{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
         .rp-ta{width:100%;box-sizing:border-box;font-size:14px;line-height:1.8;resize:vertical}
         @media(max-width:900px){.rp-edit{grid-template-columns:1fr}}
+        /* DOC_V719 申請文件清單 */
+        .doc-sum{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 2px;
+          padding:9px 12px;background:var(--surface-2);border-radius:12px}
+        .doc-b{font-size:12.5px;font-weight:700;background:#fff;border:1px solid var(--line);
+          border-radius:999px;padding:2px 11px;white-space:nowrap}
+        .doc-b.ok{background:#ecfdf5;border-color:#a7d8b8;color:#15803d}
+        .doc-b.warn{background:#fff7ed;border-color:#fed7aa;color:#b45309}
+        .doc-head,.doc-row{display:grid;grid-template-columns:126px minmax(160px,1.4fr) 150px 62px minmax(120px,1fr) 42px;
+          gap:8px;align-items:center}
+        .doc-head{font-size:11.5px;letter-spacing:.05em;color:var(--muted);
+          padding:0 2px 6px;border-bottom:1.5px solid var(--line);margin-bottom:6px}
+        .doc-row{padding:5px 2px;border-bottom:1px solid var(--line)}
+        .doc-row:last-child{border-bottom:0}
+        .doc-row select,.doc-row input{width:100%;box-sizing:border-box;font-size:13.5px;padding:6px 9px}
+        .doc-row .doc-today{padding:0 8px;height:32px;min-height:0;font-size:12px}
+        .doc-row .rp-del{padding:0 8px;height:32px;min-height:0}
+        .doc-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;
+          padding-top:10px;border-top:1px solid var(--line)}
+        @media(max-width:820px){
+          .doc-head{display:none}
+          .doc-row{grid-template-columns:1fr 1fr;gap:6px;padding:10px 2px}
+          .doc-row .doc-n{grid-column:1/-1}
+          .doc-row .doc-nt{grid-column:1/-1}}
         /* QUOTE_V713 價目表 */
         .pr-row{display:grid;grid-template-columns:minmax(180px,1fr) 260px 132px;gap:12px;
           align-items:center;padding:11px 2px;border-bottom:1px solid var(--line)}
@@ -2028,6 +2051,72 @@ function rpMatch(r,q){
   const hay=[r.title,r.tags,r.body_zh,r.body_vi].map(x=>String(x||'').toLowerCase()).join(' ');
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(w=>hay.indexOf(w)>=0);
 }
+
+/* ===================== 📄 申請文件清單 =====================
+   起因：代辦一個學生要來回收好幾份文件，哪一天收到誰的什麼、哪一天又寄了什麼給他，
+   全靠記憶和翻對話紀錄，東西一多就會漏、會弄丟。
+   這裡每位代辦客戶有一張清單：一列一份文件，分「學生給我」和「我給學生」兩個方向，
+   收到（或寄出）那天把日期點一下就好，沒填日期就是還沒。
+   下面的範本只是起手式，內容請自己增刪——每間學校要的東西不一樣，我不會替你決定。 */
+const DOC_TPL=[
+  {d:'in', n:'護照影本'},
+  {d:'in', n:'身分證影本'},
+  {d:'in', n:'最高學歷畢業證書（經驗證）'},
+  {d:'in', n:'歷年成績單（經驗證）'},
+  {d:'in', n:'中文或英文能力證明'},
+  {d:'in', n:'財力證明／存款證明'},
+  {d:'in', n:'證件照（白底）'},
+  {d:'in', n:'讀書計畫'},
+  {d:'in', n:'自傳'},
+  {d:'in', n:'推薦信'},
+  {d:'in', n:'健康檢查表'},
+  {d:'in', n:'申請表（本人簽名）'},
+  {d:'out',n:'填好的入學申請表'},
+  {d:'out',n:'學校錄取通知書'},
+  {d:'out',n:'學校繳費單／收據'},
+  {d:'out',n:'簽證面試需要的文件'}
+];
+function docRows(c){return Array.isArray(c&&c.doc_list)?c.doc_list:[];}
+function docStat(c){
+  const rows=docRows(c);
+  const inR=rows.filter(r=>r&&r.d!=='out'),outR=rows.filter(r=>r&&r.d==='out');
+  const got=(a)=>a.filter(r=>String(r.date||'').trim()).length;
+  return {inN:inR.length,inGot:got(inR),outN:outR.length,outGot:got(outR),n:rows.length};
+}
+function docSummaryHtml(c){
+  const st=docStat(c);
+  if(!st.n)return '<div class="doc-sum"><span class="muted">還沒有文件清單</span>'
+    +'<span style="flex:1"></span>'
+    +'<button class="btn btn-sm btn-accent" data-act="docOpen" data-id="'+esc(c.id)+'">📄 建立文件清單</button></div>';
+  const miss=(st.inN-st.inGot);
+  return '<div class="doc-sum">'
+    +'<span class="doc-b'+((st.inGot===st.inN&&st.inN)?' ok':'')+'">📥 收到學生 '+st.inGot+'／'+st.inN+'</span>'
+    +'<span class="doc-b'+((st.outGot===st.outN&&st.outN)?' ok':'')+'">📤 給學生 '+st.outGot+'／'+st.outN+'</span>'
+    +(miss>0?('<span class="doc-b warn">還缺 '+miss+' 份</span>'):'')
+    +'<span style="flex:1"></span>'
+    +'<button class="btn btn-sm" data-act="docOpen" data-id="'+esc(c.id)+'">📄 看文件清單</button></div>';
+}
+function docEditRow(r,i){
+  r=r||{};
+  const out=(r.d==='out');
+  return '<div class="doc-row" data-i="'+i+'">'
+    +'<select class="doc-d">'
+      +'<option value="in"'+(out?'':' selected')+'>📥 學生給我</option>'
+      +'<option value="out"'+(out?' selected':'')+'>📤 我給學生</option></select>'
+    +'<input class="doc-n" type="text" value="'+esc(r.n||'')+'" placeholder="文件名稱">'
+    +'<input class="doc-dt" type="date" min="2000-01-01" max="2100-12-31" value="'+esc(r.date||'')+'" title="收到／寄出的日期">'
+    +'<button class="btn btn-sm doc-today" data-act="docToday" data-id="'+i+'" title="填今天">今天</button>'
+    +'<input class="doc-nt" type="text" value="'+esc(r.note||'')+'" placeholder="備註（選填）">'
+    +'<button class="btn btn-sm btn-icon rp-del" data-act="docDel" data-id="'+i+'" title="刪掉這一列">🗑</button>'
+    +'</div>';
+}
+function docEditorHtml(c){
+  const rows=docRows(c);
+  return '<div class="doc-head"><span>方向</span><span>文件名稱</span><span>日期</span><span></span><span>備註</span><span></span></div>'
+    +'<div id="doc-rows">'+(rows.length?rows.map(docEditRow).join(''):'')+'</div>'
+    +(rows.length?'':'<div class="hint" style="padding:10px 2px">清單是空的。按下面「📋 帶入範本」會放進一份常見的文件清單，再自己增刪就好。</div>');
+}
+
 /* ===================== 🧾 價目表 ＋ 💰 報價單 =====================
    起因：客人問完費用，常常還要一份正式一點的東西可以看、可以轉給家裡的人。
    價目表是一次設定好的（項目、單價、幣別、單位，中文和越南文各一份），
@@ -2905,6 +2994,7 @@ function renderAgency(){
       </div></summary><div class="crm-body">
       ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#9a8f80">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#fdfaf4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${agFeeBlock(c)}
+      ${docSummaryHtml(c)}
       <div class="itv-acts">
         <button class="btn btn-accent" data-act="agLogNew" data-id="${esc(c.id)}">＋ 新增一筆進度</button>
         <button class="btn" data-act="agPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
@@ -4874,6 +4964,15 @@ const GUIDE=[
          '點開那一份，中文和越南文各打一份內容，按「💾 儲存這一份」',
          '之後客人一問，上面的搜尋框打關鍵字（例如「碩士」），找到就按「📋 複製」，貼到 Zalo 或 Facebook'],
   note:'內容完全是你自己寫的，系統不會自己生任何一個字，也不會自動發給任何人——複製之後要不要改、要不要送出，都還是你決定。'},
+
+ {ic:'📄',t:'收學生的申請文件不要弄丟',go:'agency',goLab:'去代辦申請',
+  lead:'代辦一個學生要來回收好幾份文件，哪天收到誰的什麼、哪天又寄了什麼給他，光靠記憶和翻對話紀錄一定會漏。每位代辦客戶現在有一張文件清單，收到那天把日期點一下就好。',
+  steps:['到「🎓 代辦申請」點開那位客戶的卡片',
+         '卡片裡有一條「📄 文件清單」，第一次按「建立文件清單」',
+         '按「📋 帶入範本」會放進一份常見的文件清單，再照那間學校的要求自己增刪',
+         '每一列可以選方向（📥 學生給我／📤 我給學生）、填文件名稱、填日期；收到的當天按「今天」就會自動帶入日期',
+         '按「💾 儲存」。之後卡片上會直接顯示「收到學生 5／12」「還缺 7 份」'],
+  note:'範本只是起手式，每間學校要的文件不一樣，內容請自己增刪——我不會替你決定要收哪些文件。沒填日期就代表還沒收到／還沒寄出。'},
 
  {ic:'💰',t:'開一張報價單給客人',go:'reply',goLab:'去開報價單',
   lead:'客人問完費用，常常還想要一份正式一點、可以轉給家裡人看的東西。報價單就是幹這個用的：挑幾個項目、填客人的名字，印成一頁 A4 或存成 PDF 傳過去。',
@@ -7044,6 +7143,61 @@ H.lqeSave=async()=>{lqeSync();const q=LQE.q;if(!(q.title||'').trim())return toas
 
 
 
+/* DOC_V719 申請文件清單的操作 */
+H.docOpen=(id)=>{const c=(S.agencies||[]).find(x=>x.id===id);if(!c)return;
+  openModal('<div class="modal modal-wide"><div class="modal-head"><h3>📄 '+esc(c.name||'')+' · 申請文件清單</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:10px">一列一份文件。收到（或寄出）那天把日期填上去，沒填就是還沒。'
+   +'按「今天」可以直接帶入今天的日期。</div>'
+   +'<div id="doc-box">'+docEditorHtml(c)+'</div>'
+   +'<div class="doc-tools"><button class="btn btn-sm" data-act="docAdd">＋ 新增一列</button>'
+   +'<button class="btn btn-sm" data-act="docTpl">📋 帶入範本</button>'
+   +'<span class="hint" style="margin-left:auto">範本只是起手式，每間學校要的東西不一樣，自己增刪</span></div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="docSave" data-id="'+esc(id)+'">💾 儲存</button></div></div>');
+};
+function docReadRows(){
+  const out=[];
+  document.querySelectorAll('#doc-rows .doc-row').forEach(el=>{
+    const g=(sel)=>{const e=el.querySelector(sel);return e?String(e.value||'').trim():'';};
+    const n=g('.doc-n');
+    if(!n)return;
+    out.push({d:(g('.doc-d')==='out'?'out':'in'),n:n,date:g('.doc-dt'),note:g('.doc-nt')});
+  });
+  return out;
+}
+function docRedraw(rows){
+  const box=document.getElementById('doc-rows');if(!box)return;
+  box.innerHTML=rows.map(docEditRow).join('');
+}
+H.docAdd=()=>{const rows=docReadRows();rows.push({d:'in',n:'',date:'',note:''});
+  docRedraw(rows);
+  try{const box=document.getElementById('doc-rows');
+    const last=box&&box.lastElementChild;if(last){const inp=last.querySelector('.doc-n');if(inp)inp.focus();}}catch(e){}};
+H.docTpl=()=>{
+  const cur=docReadRows();
+  const have={};cur.forEach(r=>{have[r.d+'|'+r.n]=1;});
+  const add=DOC_TPL.filter(t=>!have[t.d+'|'+t.n]).map(t=>({d:t.d,n:t.n,date:'',note:''}));
+  if(!add.length)return toast('範本裡的項目都已經在清單上了');
+  docRedraw(cur.concat(add));
+  toast('帶入 '+add.length+' 列，記得按儲存');
+};
+H.docToday=(i)=>{
+  const el=document.querySelector('#doc-rows .doc-row[data-i="'+i+'"] .doc-dt');
+  if(el)el.value=localToday();
+};
+H.docDel=(i)=>{
+  const rows=docReadRows();
+  const n=Number(i);
+  if(!(n>=0&&n<rows.length))return;
+  rows.splice(n,1);docRedraw(rows);
+};
+H.docSave=async(id)=>{
+  const rows=docReadRows();
+  try{await DB.update(crmCol(id),id,{doc_list:rows});
+    await loadAll();closeModal();render();toast('已儲存（共 '+rows.length+' 份文件）');}
+  catch(e){toast(writeErr('儲存失敗',e));}
+};
 /* QUOTE_V713 價目表的操作 */
 H.rpSub=(k)=>{S.rpSub=(k==='price')?'price':'tpl';render();};
 H.prNew=()=>H.prForm('');
