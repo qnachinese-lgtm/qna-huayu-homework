@@ -660,5 +660,60 @@ if(location.hash&&location.hash.length>1){
 <!-- Vercel Web Analytics：隱私友善的造訪統計（不用 Cookie）。需到 Vercel 後台 Analytics 開啟才會開始統計 -->
 <script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments);};</script>
 <script defer src="/_vercel/insights/script.js"></script>
+
+<!-- LANGURL_V698 讓網址帶語言：/zh-TW、/vi、/en。
+     這樣三件事才成立：①可以直接把越南文版的連結傳給人 ②按瀏覽器「上一頁」會回到剛才那個語言
+     ③Google 會分別收錄三種語言的頁面。
+     做法刻意不去動原本的切換程式：只在外面包一層——進站看網址決定按哪一顆語言鈕，
+     按了語言鈕就把網址換掉。原本記住上次選的語言的功能照舊。 -->
+<script>
+(function(){
+  var MAP={zh:"/zh-TW",vi:"/vi",en:"/en"};
+  var HL={zh:"zh-Hant",vi:"vi",en:"en"};
+  var PATH={"/zh-tw":"zh","/zh":"zh","/vi":"vi","/vn":"vi","/en":"en"};
+  var busy=false;
+  function cur(){var b=document.querySelector("#lang button[data-l].on");return b?b.getAttribute("data-l"):"";}
+  function want(){
+    var p=String(location.pathname||"/").replace(/\/+$/,"").toLowerCase();
+    if(PATH[p])return PATH[p];
+    try{var q=new URLSearchParams(location.search).get("lang");if(q&&MAP[q])return q;}catch(e){}
+    return "";
+  }
+  function setUrl(l,push){
+    if(!MAP[l])return;
+    var u=MAP[l]+(location.search||"")+(location.hash||"");
+    try{if(push)history.pushState({l:l},"",u);else history.replaceState({l:l},"",u);}catch(e){}
+    try{document.documentElement.lang=HL[l]||l;}catch(e){}
+  }
+  function apply(l,push){
+    if(!l)return;
+    if(l===cur()){setUrl(l,false);return;}
+    var b=document.querySelector("#lang button[data-l=\""+l+"\"]");
+    if(!b)return;
+    busy=true;try{b.click();}finally{setTimeout(function(){busy=false;},0);}
+    setUrl(l,!!push);
+  }
+  function sync(){var w=want();if(w)apply(w,false);else{var c=cur();if(c)setUrl(c,false);}}
+  function boot(){sync();setTimeout(sync,400);setTimeout(sync,1500);setTimeout(sync,3200);}
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
+  document.addEventListener("click",function(e){
+    if(busy)return;
+    var t=e.target;if(!t||!t.closest)return;
+    var b=t.closest("#lang button[data-l]");if(!b)return;
+    var l=b.getAttribute("data-l");
+    setTimeout(function(){setUrl(l,true);},0);
+  },true);
+  window.addEventListener("popstate",function(){var w=want();if(w)apply(w,false);});
+  try{
+    var head=document.head;
+    ["zh","vi","en"].forEach(function(l){
+      var a=document.createElement("link");a.rel="alternate";a.hreflang=HL[l];
+      a.href=location.origin+MAP[l];head.appendChild(a);
+    });
+    var d=document.createElement("link");d.rel="alternate";d.hreflang="x-default";
+    d.href=location.origin+"/zh-TW";head.appendChild(d);
+  }catch(e){}
+})();
+</script>
 </body>
 </html>
