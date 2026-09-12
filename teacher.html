@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=747">
+<link rel="stylesheet" href="styles.css?v=748">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5600,24 +5600,30 @@ const LATFONTS=[
   '"Noto Sans"',
   'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap']
 ];
+/* NUMFONT_V748 第 6 欄是「數字用哪一套」。
+   數字跟著中文字體走（Quinn 要求統一），拉丁字體只管英文和越南文。
+   這幾個字體名字定義在 styles.css 最上面，只收 0～9 十個字。 */
 const CJKFONTS=[
  ['sys','系統預設','微軟正黑體／蘋方 · 不用下載，開最快',
-  '"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif',''],
+  '"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif','','QNANum-Sans'],
  ['noto','思源黑體','Noto Sans TC · 筆畫均勻的現代黑體，看久不累',
   '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif',
-  'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap'],
+  'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap','QNANum-Sans'],
  ['serif','思源宋體','Noto Serif TC · 宋體，像課本和公文，正式一點',
   '"Noto Serif TC","Songti TC","PMingLiU",serif',
-  'https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&display=swap'],
+  'https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&display=swap','QNANum-Serif'],
  ['kai','霞鶩文楷','LXGW WenKai TC · 楷體，筆畫走向清楚，教中文很合適',
   '"LXGW WenKai TC","DFKai-SB","Kaiti TC",serif',
   'https://cdn.jsdelivr.net/npm/lxgw-wenkai-tc-webfont@1.2.0/lxgwwenkaitc-regular.css '
-  +'https://cdn.jsdelivr.net/npm/lxgw-wenkai-tc-webfont@1.2.0/lxgwwenkaitc-bold.css']
+  +'https://cdn.jsdelivr.net/npm/lxgw-wenkai-tc-webfont@1.2.0/lxgwwenkaitc-bold.css','QNANum-Kai']
 ];
+/* 數字字體要排在整串的最前面才會生效——瀏覽器是一個字一個字往後找的，
+   排在前面的那一個只認得 0～9，其他字自然就往後掉到拉丁字體和中文字體。 */
+function fontNumPrefix(cjk){return cjk&&cjk[5]?("'"+cjk[5]+"',"):'';}
 function fontList(kind){return kind==='lat'?LATFONTS:CJKFONTS;}
 function fontKeyOf(kind){return kind==='lat'?'hyc_latfont':'hyc_uifont';}
 /* FONTDEF_V736 Quinn 自己挑完之後選定的組合：
-   越南文／英文／數字 = Be Vietnam Pro，中文 = 霞鶩文楷。
+   越南文／英文 = Be Vietnam Pro，中文和數字 = 霞鶩文楷（數字是 V748 才跟過來的）。
    這裡把它寫成程式的預設值，不是只存在她那台電腦的 localStorage 裡——
    所以換手機、換電腦、以後開新的老師帳號，一進來就是這個樣子，不用再挑一次。
    她如果哪天在某台機器上改成別的，那台就以她改的為準（localStorage 優先）。 */
@@ -5639,7 +5645,7 @@ function uiFontLoad(urls){
 function fontApplyAll(){
   const lat=fontDef('lat',fontGet('lat')),cjk=fontDef('cjk',fontGet('cjk'));
   uiFontLoad(lat[4]);uiFontLoad(cjk[4]);
-  const stack=(lat[3]?(lat[3]+','):'')+cjk[3];
+  const stack=fontNumPrefix(cjk)+(lat[3]?(lat[3]+','):'')+cjk[3];
   try{const r=document.documentElement;
     r.style.setProperty('--font',stack);
     r.style.setProperty('--serif',stack);}catch(e){}
@@ -5652,9 +5658,13 @@ try{fontApplyAll();}catch(e){}
 function fontRowHtml(kind,f,cur){
   const lat=(kind==='lat');
   const sample=lat?'Nguyễn Thị Mai · Học tiếng Trung · NT$1,500'
-                  :'學習中文 · 第一課 · 生詞與語法';
-  const stack=lat?(f[3]+',sans-serif')
-                 :((fontDef('lat',fontGet('lat'))[3])+','+f[3]);
+                  :'學習中文 · 第 1 課 · 32 個生詞';
+  /* NUMFONT_V748 預覽要跟按下去以後真正的樣子一致，所以數字字體也要放進來。
+     左邊挑拉丁字體時，數字用的是目前選的中文字體；
+     右邊挑中文字體時，數字就跟著那一列自己的中文字體變。 */
+  const stack=lat
+    ?(fontNumPrefix(fontDef('cjk',fontGet('cjk')))+f[3]+',sans-serif')
+    :(fontNumPrefix(f)+(fontDef('lat',fontGet('lat'))[3])+','+f[3]);
   return '<button class="btn uf-op'+(f[0]===cur?' on':'')+'" data-act="fontSet" '
     +'data-id="'+kind+'::'+f[0]+'">'
     +'<span class="uf-t"><b>'+esc(f[1])+'</b><i>'+esc(f[2])+'</i></span>'
@@ -5667,10 +5677,11 @@ H.fontPick=()=>{
    +'<h3>🅰 字體</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
    +'<div class="hint" style="margin-bottom:12px">中文和越南文／英文分開選。'
    +'排在前面的拉丁字體沒有中文字，所以中文一定會用下面那一組，兩邊不會打架。'
-   +'按下去就直接套用，不滿意再換回來。</div>'
-   +'<div class="lesson-label" style="margin-top:2px">🇻🇳 越南文・英文・數字</div>'
+   +'<b>數字跟著中文字體走</b>，中文夾數字的時候（例如「第 3 課・27 個生詞」）'
+   +'高度和粗細才會一致。按下去就直接套用，不滿意再換回來。</div>'
+   +'<div class="lesson-label" style="margin-top:2px">🇻🇳 越南文・英文</div>'
    +LATFONTS.map(f=>fontRowHtml('lat',f,cl)).join('')
-   +'<div class="lesson-label" style="margin-top:16px">🇹🇼 中文</div>'
+   +'<div class="lesson-label" style="margin-top:16px">🇹🇼 中文・數字</div>'
    +CJKFONTS.map(f=>fontRowHtml('cjk',f,cc)).join('')
    +'<div class="hint" style="margin-top:12px">🏠 <b>系統預設是 Be Vietnam Pro ＋ 霞鶩文楷</b>'
    +'（你選定的那一組），任何裝置、任何帳號第一次打開就是這個樣子。'
