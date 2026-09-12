@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=746">
+<link rel="stylesheet" href="styles.css?v=747">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5069,6 +5069,13 @@ function sgOpen(it){
 function sgFill(title,body,foot){
   const p=document.getElementById('sg-pane');if(!p)return;
   const list=sgVisible();const idx=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);
+  /* DELTEST_V747 自己用測試帳號試交的東西，改完也沒意義，留著只會讓數字看起來怪。
+     這顆鍵只有在「這一筆是測試帳號交的」才出現——刪資料是不可逆的，
+     所以我不會替你按，鍵放在這裡由你自己決定。 */
+  const _cur=(function(){try{return gradeQueue(true).find(x=>(x.kind+'::'+x.id)===S.sgSel);}catch(e){return null;}})();
+  if(_cur&&_cur.test){foot=(foot||'')
+    +'<span style="flex:1"></span>'
+    +'<button class="btn btn-sm btn-danger" data-act="sgDelTest" data-id="'+esc(S.sgSel)+'">🗑 刪掉這一筆測試作答</button>';}
   const nav='<div class="sg-navbar"><button class="btn btn-sm" data-act="sgPrev"'+(idx<=0?' disabled':'')+'>← 上一位</button>'
     +'<span class="sg-pos">'+(idx>=0?(idx+1):'-')+' / '+list.length+'</span>'
     +'<button class="btn btn-sm btn-accent" data-act="sgNext"'+(idx<0||idx>=list.length-1?' disabled':'')+'>下一位 →</button></div>';
@@ -5432,6 +5439,20 @@ H.sgPick=(key)=>{const list=sgVisible();const it=list.find(x=>(x.kind+'::'+x.id)
   S.sgSel=key;renderGrades();};
 H.sgNext=()=>{const list=sgVisible();const i=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);if(i>=0&&i<list.length-1){S.sgSel=list[i+1].kind+'::'+list[i+1].id;renderGrades();}};
 H.sgPrev=()=>{const list=sgVisible();const i=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);if(i>0){S.sgSel=list[i-1].kind+'::'+list[i-1].id;renderGrades();}};
+/* DELTEST_V747 刪掉測試帳號的一筆作答。只處理測試帳號的資料，
+   正式學生的作答這顆鍵不會出現，也擋在函式裡再確認一次。 */
+H.sgDelTest=async(key)=>{
+  let it=null;try{it=gradeQueue(true).find(x=>(x.kind+'::'+x.id)===String(key));}catch(e){}
+  if(!it)return toast('找不到這一筆，重新整理看看');
+  if(!it.test)return toast('這不是測試帳號的作答，這顆鍵只處理測試資料');
+  if(!confirm('確定刪掉「'+(it.name||'')+'」在「'+(it.les||'')+'」的這一筆測試作答？\n'
+    +'刪掉之後救不回來（測試資料沒有垃圾桶）。'))return;
+  try{
+    await DB.remove('results',it.id);
+    await loadAll();S.sgSel='';render();
+    toast('已刪掉這一筆測試作答');
+  }catch(e){toast(writeErr('刪除失敗',e));}
+};
 H.sgKind=(k)=>{S.sgKind=k||'';renderGrades();};
 H.gradeLesson=(id)=>{S.sgLesson=id;S.sgKind='';S.sgOnly='all';S.sgSel=null;S.tab='grades';render();
   try{window.scrollTo(0,0);}catch(e){}};
@@ -6013,14 +6034,21 @@ function wbBarHtml(l,more){const w=wbOfLesson(l);
   const pub=(ng||na)?('<span class="tag tpub-y">已發佈'+(ng?('：'+esc(ng)):'')+(na?('＋'+na+'人'):'')+'</span>'):'<span class="tag tpub-n">未發佈</span>';
   /* WB_ASSIGN_V38 截止日也跟課文卡片一樣顯示 */
   const wdi=dueInfo(w.due_date);const dueTag=wdi?('<span class="badge '+wdi.cls+'">'+wdi.label+'</span>'):'';
-  const sub=(S.wbdocs||[]).filter(x=>x.wb_lesson===w.id&&(x.status==='submitted'||x.status==='reviewed')).length;
+  /* WBTEST_V747 「已交 N 份」本來是不分帳號在數的，
+     所以自己用測試帳號試交的那一份也被算進去——卡片上寫「已交 1 份」，
+     可是待批改清單裡找不到（那裡預設就藏測試帳號），看起來像出錯。
+     這裡跟批改台一致：正式學生和測試帳號分開數。 */
+  const _wbAll=(S.wbdocs||[]).filter(x=>x.wb_lesson===w.id&&(x.status==='submitted'||x.status==='reviewed'));
+  const _isTestStu=(sd)=>{const st=(S.students||[]).find(y=>y.id===(sd&&sd.student_id));return !!(st&&st.is_test);};
+  const sub=_wbAll.filter(x=>!_isTestStu(x)).length;
+  const subT=_wbAll.length-sub;
   if(more)return `<button class="btn btn-sm btn-danger" data-act="delWb" data-id="${w.id}">🗑 刪除作業簿</button>`;
   const auds=((w.wb||{}).audios||[]);
   const needN=auds.length||((w.wb&&(w.wb.listen||[]).length)?1:0);
   const haveN=auds.length?auds.filter(x=>x.url).length:(w.audio_url?1:0);
   const warn=(needN&&haveN<needN)?('<span class="tag" style="background:#fdece9;color:#b8382f">⚠️ 缺聽力音檔 '+(needN-haveN)+'/'+needN+'</span>'):'';
   return `<div style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-    <b style="font-size:14px">📒 作業簿</b>${pub}${dueTag}${warn}${sub?('<span class="hint">已交 '+sub+' 份</span>'):''}
+    <b style="font-size:14px">📒 作業簿</b>${pub}${dueTag}${warn}${sub?('<span class="hint">已交 '+sub+' 份</span>'):''}${subT?('<span class="hint">🧪 測試 '+subT+' 份</span>'):''}
     <span class="grow"></span>
     <button class="btn btn-sm" data-act="editWb" data-id="${w.id}">✏️ 編輯</button>
     <button class="btn btn-sm" data-act="previewWb" data-id="${w.id}">👁 預覽</button>
@@ -6036,14 +6064,21 @@ function wbCardHtml(w){
            ((d.write||{}).intro?'寫作 1':'')].filter(Boolean).join(' · ');
   const na=(w.assigned_ids||[]).length,ng=(w.assigned_groups||[]).join('、');
   const pub=(ng||na)?('<span class="tag tpub-y">已發佈'+(ng?('：'+esc(ng)):'')+(na?('＋'+na+'人'):'')+'</span>'):'<span class="tag tpub-n">未發佈</span>';
-  const sub=(S.wbdocs||[]).filter(x=>x.wb_lesson===w.id&&(x.status==='submitted'||x.status==='reviewed')).length;
+  /* WBTEST_V747 「已交 N 份」本來是不分帳號在數的，
+     所以自己用測試帳號試交的那一份也被算進去——卡片上寫「已交 1 份」，
+     可是待批改清單裡找不到（那裡預設就藏測試帳號），看起來像出錯。
+     這裡跟批改台一致：正式學生和測試帳號分開數。 */
+  const _wbAll=(S.wbdocs||[]).filter(x=>x.wb_lesson===w.id&&(x.status==='submitted'||x.status==='reviewed'));
+  const _isTestStu=(sd)=>{const st=(S.students||[]).find(y=>y.id===(sd&&sd.student_id));return !!(st&&st.is_test);};
+  const sub=_wbAll.filter(x=>!_isTestStu(x)).length;
+  const subT=_wbAll.length-sub;
   return `<div class="card"><div class="row-between"><h3 style="margin:0">📒 ${esc(w.title||'作業簿')}</h3>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-sm" data-act="editWb" data-id="${w.id}">✏️ 編輯</button>
       <button class="btn btn-sm" data-act="previewWb" data-id="${w.id}">👁 預覽</button>
       <button class="btn btn-sm" data-act="assignWb" data-id="${w.id}">發佈</button>
       <button class="btn btn-sm btn-danger" data-act="delWb" data-id="${w.id}">刪除</button></div></div>
-    <div class="hint" style="margin-top:4px">${esc(w.wb_name||'')}${w.audio_url?' · 🔊 有聽力音檔':' · ⚠️ 缺聽力音檔'} · ${esc(n)} · 已交 ${sub} 份　${pub}</div></div>`;
+    <div class="hint" style="margin-top:4px">${esc(w.wb_name||'')}${w.audio_url?' · 🔊 有聽力音檔':' · ⚠️ 缺聽力音檔'} · ${esc(n)} · 已交 ${sub} 份${subT?('（另有 '+subT+' 份測試）'):''}　${pub}</div></div>`;
 }
 /* ===================== ✏️ 作業簿編輯器（時代華語一格式） ===================== */
 let WBE=null;/* {id,meta:{},d:{}} */
