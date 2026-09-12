@@ -161,6 +161,23 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .mat-kicker{font-size:13.5px;font-weight:800;color:var(--accent);letter-spacing:.01em}
 .mat-type{font-size:11.5px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:1px 10px}
 .mat-title{font-size:18px;font-weight:700;line-height:1.6;margin:0 0 8px;color:var(--ink)}/*MATORD_V76*/
+/*ACTDO_V746 課室活動：一個活動一張卡，下面是選填的作答框*/
+.act-tip{font-size:12.5px;color:var(--muted);background:var(--surface-2);border:1px dashed var(--line);
+  border-radius:10px;padding:8px 12px;margin-bottom:10px;line-height:1.7}
+.act-card{border:1px solid var(--line);border-radius:14px;padding:13px 15px;margin-bottom:10px;background:var(--surface)}
+.act-h{display:flex;align-items:baseline;gap:9px;margin-bottom:7px}
+.act-h b{font-size:15.5px;line-height:1.6}
+.act-no{flex:none;min-width:26px;height:26px;padding:0 7px;border-radius:8px;background:var(--accent);color:#fff;
+  font-size:12.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+.act-b .al{margin:0 0 5px;line-height:1.85;font-size:14.5px}
+.act-b .al b{color:var(--accent)}
+.act-b .al-p{padding-left:1.1em}
+.act-do{margin-top:10px;border-top:1px dashed var(--line);padding-top:9px}
+.act-do>summary{cursor:pointer;font-size:13.5px;font-weight:700;color:var(--primary);list-style-position:inside}
+.act-ta{width:100%;box-sizing:border-box;margin-top:8px;font-family:inherit;font-size:15px;line-height:1.8;
+  padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.act-f{display:flex;align-items:center;gap:10px;margin-top:8px}
+.act-st{font-size:12.5px;color:var(--muted);flex:1}
 /*MATFMT_V744 長文分段：段落之間留白，編號那幾段縮排、開頭粗體，看起來跟紙本一樣*/
 .note-text .mp{margin:0 0 11px;line-height:1.95}
 .note-text .mp:last-child{margin-bottom:0}
@@ -1129,13 +1146,71 @@ function reconcileLayout(l){const ds=lessonDialogues(l);const nd=ds.length,ng=(l
   for(let i=0;i<nd;i++){if(hasQ(i)&&!sq.has(i)){const dp=out.findIndex(e=>e.t==='d'&&e.i===i);if(dp>=0)out.splice(dp+1,0,{t:'q',i});else out.push({t:'q',i});}}
   for(let i=0;i<nd;i++){if(hasV(i)&&!sv.has(i)){const pos=out.findIndex(e=>e.t==='d'&&e.i===i);if(pos>=0)out.splice(pos+1,0,{t:'v',i});else out.push({t:'v',i});}}
   return out;}
+/* ACTDO_V746 課室活動本來只是一整塊唯讀的字。老師想讓它變成「可作可無」的小作業：
+   學生想練就在下面打字，不想寫也完全沒關係——沒有期限、不算成績、不會催、
+   不會出現在「還沒交作業」裡。寫了才送，老師那邊會另外收在「選作」的清單。
+   內容一樣是顯示的時候才排版，資料庫裡的原文沒有動。 */
+function actParse(txt){
+  const raw=String(txt||'').replace(/\r/g,'').split('\n');
+  const items=[];let cur=null;
+  const HEAD=/^\s*((?:[IVXivx]{1,5}|[0-9０-９]{1,2})[.、,]|[（(][一二三四五六七八九十0-9]+[）)])\s*(.*)$/;
+  raw.forEach(ln=>{
+    const t=ln.replace(/\s+$/,'');
+    if(!t.trim()){if(cur)cur.lines.push('');return;}
+    const m=t.match(HEAD);
+    if(m&&(m[2]||'').trim()){items.push(cur={no:m[1].replace(/[.、,（()）]/g,''),title:m[2].trim(),lines:[]});return;}
+    if(!cur)items.push(cur={no:'',title:'',lines:[]});
+    cur.lines.push(t.trim());
+  });
+  return items.filter(x=>x.title||x.lines.some(l=>l));
+}
+function actLineHtml(ln){
+  const t=String(ln||'').trim();
+  if(!t)return '';
+  const m=t.match(/^([【\[][^】\]]{1,18}[】\]])\s*(.*)$/);
+  if(m)return '<div class="al"><b>'+esc(m[1])+'</b> '+esc(m[2])+'</div>';
+  return '<div class="al al-p">'+esc(t)+'</div>';
+}
+function actDocOf(lid,i){return (S.acts||[]).find(x=>x&&x.act_lesson===lid&&Number(x.act_index)===Number(i))||null;}
+function actCardHtml(l,a,i){
+  const lid=l.id;const doc=actDocOf(lid,i);
+  const sent=!!(doc&&doc.status==='submitted');
+  const val=String((doc&&doc.text)||'');
+  const canDo=(!S.preview||S.tryMode);
+  const box=canDo?(
+     '<details class="act-do"'+(val?' open':'')+'><summary>✍️ '
+     +esc(LT({zh:'想練習的話可以寫在這裡（選填）',cn:'想练习的话可以写在这里（选填）',
+              en:'Want to try? Write here (optional)',vi:'Muốn luyện thì viết ở đây (không bắt buộc)'}))+'</summary>'
+     +'<textarea class="act-ta" id="act-ta-'+esc(lid)+'-'+i+'" rows="4" placeholder="'
+     +esc(LT({zh:'不寫也沒關係，這一區不算成績。',cn:'不写也没关系，这一区不算成绩。',
+              en:'Skipping is fine — this is not graded.',vi:'Không viết cũng không sao — phần này không tính điểm.'}))
+     +'" oninput="H.actDraft(\''+esc(lid)+'\','+i+')">'+esc(val)+'</textarea>'
+     +'<div class="act-f"><span class="act-st" id="act-st-'+esc(lid)+'-'+i+'">'
+     +(sent?('✓ '+esc(LT({zh:'已送給老師看',cn:'已送给老师看',en:'Sent to teacher',vi:'Đã gửi cho cô'}))):'')+'</span>'
+     +'<button class="btn btn-sm btn-accent" data-act="actSubmit" data-id="'+esc(lid)+'::'+i+'">📤 '
+     +esc(LT({zh:'送給老師看',cn:'送给老师看',en:'Send to teacher',vi:'Gửi cho cô'}))+'</button></div></details>'):'';
+  return '<div class="act-card">'
+    +'<div class="act-h">'+(a.no?('<span class="act-no">'+esc(a.no)+'</span>'):'')
+    +'<b>'+esc(a.title||LT({zh:'活動',cn:'活动',en:'Activity',vi:'Hoạt động'}))+'</b></div>'
+    +'<div class="act-b">'+a.lines.map(actLineHtml).join('')+'</div>'+box+'</div>';
+}
+function actBlockHtml(l){
+  const items=actParse(l&&l.activities);
+  if(!items.length)return '';
+  return '<div class="lesson-block">'
+    +'<div class="act-tip">'+esc(LT({zh:'這一區是課本最後的課室活動。想練就寫，不想寫也沒關係——不算成績、沒有期限。',
+        cn:'这一区是课本最后的课室活动。想练就写，不想写也没关系——不算成绩、没有期限。',
+        en:'Classroom activities from the book. Try them if you like — not graded, no deadline.',
+        vi:'Hoạt động trên lớp trong sách. Muốn thử thì làm — không tính điểm, không hạn nộp.'}))+'</div>'
+    +items.map((a,i)=>actCardHtml(l,a,i)).join('')+'</div>';
+}
 /* ACT_CULT_V44 課室活動與文化不再擠在課文裡，變成語法後面獨立的兩區 */
 function actCultParts(l){
   const out=[];
   const a=String((l&&l.activities)||'').trim();
   const c=String((l&&l.culture)||'').trim();
   if(a)out.push({key:'act',ic:'🗣',lab:LT({zh:'課室活動',cn:'课室活动',en:'Classroom Activities',vi:'Hoạt động trên lớp'}),h:
-    `<div class="lesson-block"><div class="prose">${esc(a).replace(/\n/g,'<br>')}</div></div>`});
+    (actBlockHtml(l)||`<div class="lesson-block"><div class="prose">${esc(a).replace(/\n/g,'<br>')}</div></div>`)});
   if(c)out.push({key:'cult',ic:'🏮',lab:LT({zh:'文化',cn:'文化',en:'Bits of Chinese Culture',vi:'Văn hoá'}),h:
     `<div class="lesson-block"><div class="prose">${esc(c).replace(/\n/g,'<br>')}</div></div>`});
   return out;
@@ -1744,7 +1819,7 @@ function wbWrongList(w,ans){
   (d.listen||[]).forEach(q=>{if(!q.ans)return;const v=(ans.listen||{})[q.n];if(v!==q.ans)push('listen',q.n,q.q||('聽力 '+q.n),v,q.ans);});
   return out;
 }
-function splitResults(rAll){rAll=rAll||[];S.mistDoc=rAll.find(x=>x.kind==='mistake')||null;S.results=rAll.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review');S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');S.wbdocs=rAll.filter(x=>x.kind==='wb');S.lqps=rAll.filter(x=>x.kind==='lqp');}
+function splitResults(rAll){rAll=rAll||[];S.mistDoc=rAll.find(x=>x.kind==='mistake')||null;S.acts=rAll.filter(x=>x.kind==='act');S.results=rAll.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act');S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');S.wbdocs=rAll.filter(x=>x.kind==='wb');S.lqps=rAll.filter(x=>x.kind==='lqp');}
 function hwvDocOf(lid,word){return (S.hwvs||[]).find(x=>x.hwv_lesson===lid&&x.hwv_word===word)||null;}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
 function discDocOf(lid){return (S.discussions||[]).find(x=>x.disc_lesson===lid)||null;}
@@ -3884,6 +3959,37 @@ H.openWrong=()=>{S.practiceSet={mode:'wrong',lesson:null,questions:wrongQuestion
 H.infoTab=(id)=>{const cur=(S.infoTab===id)?'':id;S.infoTab=cur;
   document.querySelectorAll('.info-chip').forEach(b=>{if(b.dataset&&b.dataset.id)b.classList.toggle('on',b.dataset.id===cur);});
   document.querySelectorAll('.info-panel').forEach(p=>p.classList.toggle('hide',p.dataset.id!==cur));};
+/* ACTDO_V746 課室活動的作答：跟其他作業分開存（kind:'act'），
+   所以永遠不會混進成績、也不會出現在「待批改」的數字裡。 */
+H.actDraft=(lid,i)=>{if(S.preview||!S.me)return;
+  clearTimeout(H._actT);H._actT=setTimeout(()=>{actSave(lid,i,'draft');},1200);};
+async function actSave(lid,i,status){
+  if(S.preview||!S.me)return null;
+  const ta=document.getElementById('act-ta-'+lid+'-'+i);
+  const text=ta?String(ta.value||''):'';
+  const ex=actDocOf(lid,i);
+  const st=document.getElementById('act-st-'+lid+'-'+i);
+  try{
+    if(ex){const patch={text:text,updated_at:now()};
+      if(status==='submitted'){patch.status='submitted';patch.submitted_at=now();}
+      await DB.update('results',ex.id,patch);Object.assign(ex,patch);}
+    else{const doc=await DB.insert('results',{kind:'act',act_lesson:lid,act_index:Number(i),
+        text:text,status:status||'draft',uid:myUid(),student_id:S.me.id,
+        submitted_at:(status==='submitted'?now():''),updated_at:now()});
+      (S.acts=S.acts||[]).push(doc);}
+    if(st)st.textContent=(status==='submitted')?('✓ '+LT({zh:'已送給老師看',cn:'已送给老师看',en:'Sent to teacher',vi:'Đã gửi cho cô'}))
+      :('✓ '+LT({zh:'已自動存好',cn:'已自动存好',en:'Saved',vi:'Đã lưu'}));
+    return true;
+  }catch(e){if(st)st.textContent='⚠ '+LT({zh:'存不起來，等一下再試',cn:'存不起来，等一下再试',en:'Save failed',vi:'Lưu không được'});return null;}
+}
+H.actSubmit=async(key)=>{
+  const p=String(key).split('::');
+  if(S.preview){if(S.tryMode)toast('試做：正式使用時會送給老師看（現在不會存）');return;}
+  const ta=document.getElementById('act-ta-'+p[0]+'-'+p[1]);
+  if(!ta||!String(ta.value||'').trim())return toast(LT({zh:'先寫點東西再送 🙂',cn:'先写点东西再送 🙂',en:'Write something first 🙂',vi:'Viết gì đó trước nhé 🙂'}));
+  const ok=await actSave(p[0],p[1],'submitted');
+  if(ok)toast(LT({zh:'已送給老師看，謝謝你 ♡',cn:'已送给老师看，谢谢你 ♡',en:'Sent to your teacher ♡',vi:'Đã gửi cho cô ♡'}));
+};
 H.pvNoop=()=>{};
 H.backCourse=()=>{S.openLesson=null;window.scrollTo(0,0);renderSection();};
 H.openCourse=(cid)=>{S.courseId=cid;S.cTab='mod';S.openLesson=null;S.section='content';S.practiceSet=null;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};

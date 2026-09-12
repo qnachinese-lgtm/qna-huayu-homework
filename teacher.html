@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=745">
+<link rel="stylesheet" href="styles.css?v=746">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1750,7 +1750,7 @@ async function loadAll(){
     const _cs=document.querySelector('#panel-calendar .section-head .sub');if(_cs&&!owner)_cs.textContent='每位學生的上課時段與 Meet 教室';}catch(e){}
   const bs=document.querySelector('.brand-sub');if(bs)bs.textContent=owner?'主管理員後台':('管理員 · '+(MY_EMAIL||''));
 }
-function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review');S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');S.lqps=d.filter(x=>x.kind==='lqp');}
+function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.acts=d.filter(x=>x.kind==='act');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act');S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');S.lqps=d.filter(x=>x.kind==='lqp');}
 /* MENU_MODAL_V12 一開視窗就把還開著的「⋯」收起來，不然會浮在視窗旁邊 */
 document.addEventListener('toggle',(e)=>{const d=e.target;
   if(d&&d.classList&&d.classList.contains('crm-card')){const id=d.getAttribute('data-cid');
@@ -4961,7 +4961,10 @@ async function _filesLoadInbox(){const box=document.getElementById('files-inbox'
 /* ===== 批改台：左邊一排待批改，右邊直接改，改完按「下一位」 ===== */
 const SGKIND={
   hw:{lab:'作業',ic:'✍️'},gprac:{lab:'語法練習',ic:'📘'},disc:{lab:'問題與討論',ic:'💬'},
-  sent:{lab:'造句',ic:'📝'},shadow:{lab:'逐句跟讀',ic:'🗣'},hwv:{lab:'手寫',ic:'🖊'},wb:{lab:'作業簿',ic:'📒'}};
+  sent:{lab:'造句',ic:'📝'},shadow:{lab:'逐句跟讀',ic:'🗣'},hwv:{lab:'手寫',ic:'🖊'},wb:{lab:'作業簿',ic:'📒'},
+  /* ACTDO_V746 課室活動是「可作可無」的，學生寫了才會出現在這裡。
+     它永遠不算待批改：不會加進上面那個數字，也不會有人催你改。 */
+  act:{lab:'課室活動（選作）',ic:'🗣'}};
 function sgName(sd){const st=S.students.find(x=>x.id===(sd&&sd.student_id));return (st&&st.name)||(sd&&sd.student_name)||'學生';}
 function sgTest(sd){const st=S.students.find(x=>x.id===(sd&&sd.student_id));return !!(st&&st.is_test);}
 function sgLes(lid){const l=S.lessons.find(x=>x.id===lid)||{};return (l.order_index?('第'+l.order_index+'課 '):'')+(l.title||'（課文）');}
@@ -4984,6 +4987,10 @@ function gradeQueue(withTest){
   add(S.sentences,'sent','sent_lesson',null);
   add(S.shadows,'shadow','shadow_lesson',null);
   add(S.hwvs,'hwv','hwv_lesson',null);
+  /* ACTDO_V746 選作的課室活動：一律 pend=false，所以不會進「待批改」的計數 */
+  (S.acts||[]).filter(sd=>sd&&sd.status==='submitted'&&String(sd.text||'').trim()).forEach(sd=>{
+    out.push({kind:'act',id:sd.id,sd,name:sgName(sd),test:sgTest(sd),les:sgLes(sd.act_lesson),
+      lid:sd.act_lesson||'',pend:false,stLab:'選作',ts:sd.submitted_at||sd.updated_at||'',extra:''});});
   (S.wbdocs||[]).forEach(sd=>{const done=sd.status==='reviewed';if(sd.status!=='submitted'&&!done)return;
     const w=(S.workbooks||[]).find(x=>x.id===sd.wb_lesson)||{};const sc=sd.score||{};
     out.push({kind:'wb',id:sd.id,sd,name:sgName(sd),test:sgTest(sd),les:(w.title||'作業簿'),lid:sd.wb_lesson||'',pend:!done,ts:sd.submitted_at||'',extra:(sc.total?('自動 '+sc.ok+'/'+sc.total):'')});});
@@ -5042,6 +5049,19 @@ function sgOpen(it){
   const H_=H;
   if(it.kind==='hw'){const r=it.sd;const l=S.lessons.find(x=>x.id===r.lesson_id)||{};const st=S.students.find(x=>x.id===r.student_id)||{name:'學生'};
     sgFill('✍️ 作業批改 · '+snm(st.name),'<div class="hint" style="margin-bottom:10px">'+esc(sgLes(r.lesson_id))+(r.completed_at?(' · 🕒 '+esc(fmtDT(r.completed_at))):'')+'</div>'+studentReviewHtml(l,st,r),'');
+    return;}
+  if(it.kind==='act'){const sd=it.sd;const st=S.students.find(x=>x.id===sd.student_id)||{name:'學生'};
+    const l=(S.lessons||[]).find(x=>x.id===sd.act_lesson)||{};
+    const acts=String(l.activities||'').split('\n').filter(x=>x.trim());
+    const head=acts.length?acts[0].trim():'';
+    sgFill('🗣 課室活動（選作）· '+snm(st.name),
+      '<div class="hint" style="margin-bottom:10px">'+esc(sgLes(sd.act_lesson))
+      +(sd.submitted_at?(' · 🕒 '+esc(fmtDT(sd.submitted_at))):'')
+      +'　<b>第 '+((Number(sd.act_index)||0)+1)+' 個活動</b></div>'
+      +'<div class="hint" style="margin-bottom:10px">這是學生自己想練才寫的，不用批改也沒關係——'
+      +'要回他的話，用平常的「💬 寫回饋單」或直接跟他說就好。</div>'
+      +'<div class="card" style="white-space:pre-wrap;line-height:1.9;font-size:15px">'
+      +esc(String(sd.text||''))+'</div>','');
     return;}
   const fn={gprac:H_.reviewGprac,disc:H_.reviewDisc,sent:H_.reviewSent,shadow:H_.reviewShadow,hwv:H_.reviewHwv,wb:H_.reviewWb}[it.kind];
   if(fn)fn(it.id);
@@ -5151,7 +5171,7 @@ function renderGrades(){
   const rows=list.length?list.map(x=>{const key=x.kind+'::'+x.id;const m=SGKIND[x.kind]||{ic:'',lab:''};
     return '<button class="sg-item'+(S.sgSel===key?' on':'')+(x.test?' test':'')+'" data-act="sgPick" data-id="'+esc(key)+'">'
       +'<span class="sg-i1"><b>'+esc(x.name)+'</b>'+(x.test?'<span class="sg-tt">測試</span>':'')
-      +'<span class="sg-st '+(x.pend?'pend':'done')+'">'+(x.pend?'待批改':'已完成')+'</span>'+sgWaitHtml(x.ts,x.pend)
+      +'<span class="sg-st '+(x.pend?'pend':'done')+'">'+(x.stLab||(x.pend?'待批改':'已完成'))+'</span>'+sgWaitHtml(x.ts,x.pend)
       +(x.hasDraft?'<span class="sg-st" style="background:#e0ebff;color:#1d4ed8">💡 有草稿</span>':'')+'</span>'
       +'<span class="sg-i2">'+m.ic+' '+esc(m.lab)+'　'+esc(x.les)+'</span>'
       +'<span class="sg-i3">'+(x.extra?esc(x.extra)+'　':'')+(x.ts?('🕒 '+esc(fmtDT(x.ts))):'')+'</span></button>';}).join('')
