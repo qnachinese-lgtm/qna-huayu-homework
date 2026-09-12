@@ -161,6 +161,12 @@ details.sw-row>summary::-webkit-details-marker{display:none}
 .mat-kicker{font-size:13.5px;font-weight:800;color:var(--accent);letter-spacing:.01em}
 .mat-type{font-size:11.5px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:1px 10px}
 .mat-title{font-size:18px;font-weight:700;line-height:1.6;margin:0 0 8px;color:var(--ink)}/*MATORD_V76*/
+/*MATFMT_V744 長文分段：段落之間留白，編號那幾段縮排、開頭粗體，看起來跟紙本一樣*/
+.note-text .mp{margin:0 0 11px;line-height:1.95}
+.note-text .mp:last-child{margin-bottom:0}
+.note-text .mp-n{padding-left:.9em;border-left:2px solid var(--line);margin-top:14px}
+.note-text .mp-s{padding-left:1.9em;margin-top:-4px}
+.note-text .mp-n b,.note-text .mp-s b{color:var(--accent)}
 .mat-hint{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);font-size:12.5px;color:var(--muted)}
 .inl-sel{display:inline-flex;align-items:center;gap:5px;vertical-align:middle;margin:0 4px}
 .inl-no{font-size:12px;font-weight:800;color:var(--primary);background:var(--primary-soft);border-radius:6px;padding:1px 7px}
@@ -2168,6 +2174,16 @@ function renderWork(){
         ${done?`<div class="progress"><span style="width:${pct}%"></span></div>`:''}</div>
       ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`:`<div class="tag accent">${(r&&r.status==='draft')?t('resume'):t('start')} →</div>`}</div>`;}).join('')+(ls.length?'</div>':'');
 }
+/* LESNO_V744 課名前面本來一律加「L＋課序」，可是像 TOCFL 那種課本，
+   課名本身就已經是「6-1」了，前面再掛一個 L16 只會讓人以為有兩套編號。
+   課名開頭已經有自己的編號時就不再加。 */
+function lesTitle(l){
+  const ti=String((l&&l.title)||'').trim();
+  const no=l&&l.order_index;
+  if(!no)return ti;
+  if(/^\s*(第\s*[0-9０-９一二三四五六七八九十百]+\s*課|[Ll]\s*\d+|\d+\s*[-–—.、·]|\d+\s)/.test(ti))return ti;
+  return 'L'+no+' · '+ti;
+}
 function lessonTags(l){const tags=[];
   try{
     const nd=lessonDialogues(l).filter(d=>d&&(d.content||'').trim()).length;
@@ -2181,7 +2197,9 @@ function lessonTags(l){const tags=[];
       tags.push((_t0&&[..._t0].length<=6)?(_ic+' '+_t0):t('tgDlg'));}
     if(nv)tags.push(t('tgVocab')+' '+nv);
     if(ng)tags.push(t('tgGram')+' '+ng);
-    if(nq)tags.push(t('tgWork')+' '+nq+' '+t('tgQ'));
+    /* WORDQ_V744 沒有課文、只有題目的課（例如 TOCFL 的考題），叫「作業」很怪，
+       那不是老師出的作業，是這一課本身的練習題。 */
+    if(nq)tags.push((nd?t('tgWork'):LT({zh:'✍️ 練習題',cn:'✍️ 练习题',en:'✍️ Practice',vi:'✍️ Bài luyện'}))+' '+nq+' '+t('tgQ'));
     if(l.handout_url)tags.push(t('tgHandout'));
   }catch(e){}
   const r=(!S.preview)?resultOf(l.id):null;const done=r&&r.status==='done';
@@ -2833,6 +2851,38 @@ function orderInner(q){
   const bank=sh.map((seg,idx)=>chosen.includes(idx)?`<span class="seg used">${esc(seg)}</span>`:`<span class="seg" data-act="oradd" data-q="${q.id}" data-idx="${idx}">${esc(seg)}</span>`).join('');
   return `<div class="order-tray">${tray}</div><div class="order-bank">${bank}</div>`;
 }
+/* MATFMT_V744 材料閱讀、短文那些題目的內文，在資料裡是一整塊沒有換行的字，
+   印在紙上的原版是分段的（前言、一、…、二、…、三、…，每個下面還有「解決方案：」），
+   可是搬到平台上就變成一大坨，很難讀。
+   這裡在「顯示的時候」自動分段——原始資料一個字都沒有改，
+   老師自己有打換行的內容也不會被動到（有換行就直接照他的）。
+   規則只認結構標記：句號後面接「一、二、三…」就換段，「解決方案：」自己一行。 */
+const MAT_NUM='一二三四五六七八九十';
+function matFmt(txt){
+  let s=String(txt||'').replace(/\r/g,'');
+  if(/\n/.test(s.trim()))return s;            /* 已經分過段就不要多事 */
+  if(s.length<100)return s;
+  s=s.replace(new RegExp('([。！？；])\\s*(?=['+MAT_NUM+']+、)','g'),'$1\n\n');
+  s=s.replace(new RegExp('^\\s*(?=['+MAT_NUM+']+、)'),'');
+  s=s.replace(/([。！？」])\s*(?=(解決方案|解決辦法|建議|做法|答案)[：:])/g,'$1\n');
+  return s;
+}
+function matLineHtml(line){
+  const t=String(line||'').trim();
+  if(!t)return '';
+  const numRe=new RegExp('^(['+MAT_NUM+']+、[^：:]{0,18}[：:])');
+  let cls='mp',html=esc(t);
+  if(numRe.test(t)){cls='mp mp-n';
+    html=esc(t).replace(numRe,function(m){return '<b>'+m+'</b>';});}
+  else if(/^(解決方案|解決辦法|建議|做法|答案)[：:]/.test(t)){cls='mp mp-s';
+    html=esc(t).replace(/^((解決方案|解決辦法|建議|做法|答案)[：:])/,'<b>$1</b>');}
+  return '<div class="'+cls+'">'+html+'</div>';
+}
+function matHtml(txt){
+  const src=matFmt(txt);
+  const out=src.split(/\n/).map(matLineHtml).filter(Boolean).join('');
+  return out||esc(String(txt||''));
+}
 function qPromptBreak(s){return String(s||'').replace(/([。！？!?])\s*(?=[A-Za-z\uFF21-\uFF3A\u4e00-\u9fa5]{1,4}[：:])/g,'$1\n');}
 function qHtml(q,idx,noInstr){
   if(q.type==='note'){/*MATCARD_V73*/
@@ -2843,7 +2893,8 @@ function qHtml(q,idx,noInstr){
     let _body=String(q.prompt||''),_title='';
     const _cut=_body.indexOf('\n\n');
     if(_cut>0&&_cut<=40&&_body.slice(0,_cut).indexOf('\n')<0){_title=_body.slice(0,_cut).trim();_body=_body.slice(_cut+2);}
-    let _tx=_body?esc(_body).replace(/\n/g,'<br>'):'';let _inl=false;
+    /* MATFMT_V744 分段之後再把空格題的下拉塞回去，順序不能顛倒 */
+    let _tx=_body?matHtml(_body):'';let _inl=false;
     if(_tx&&INLQ){const _m=INLQ;_tx=_tx.replace(BLANKRE,function(mm,d){const t=_m[Number(d)];if(!t)return mm;_inl=true;return inlineSelHtml(t,Number(d));});}
     const _hint=_inl?LT({zh:'請直接在短文的空格上選答案。',cn:'请直接在短文的空格上选答案。',en:'Choose your answer in each blank.',vi:'Chọn đáp án ngay tại mỗi chỗ trống.'})
       :(q.audio_url?LT({zh:'聽完再回答下面的題目。',cn:'听完再回答下面的题目。',en:'Listen, then answer below.',vi:'Nghe xong rồi trả lời bên dưới.'})
@@ -3643,7 +3694,7 @@ H.doReset=async()=>{const email=$('#rs-email').value.trim();if(!email){$('#g-err
   try{await firebase.auth().sendPasswordResetEmail(email);toast(t('resetSent'));S.authTab='login';renderGate();}
   catch(e){$('#g-err').textContent=t('errNoUser');}};
 
-H.openLesson=(id)=>{const l=S.lessons.find(x=>x.id===id);S.practiceSet={mode:'lesson',lessonId:id,lesson:l,questions:questionsOf(id),title:(l.order_index?('L'+l.order_index+' · '):'')+l.title};
+H.openLesson=(id)=>{const l=S.lessons.find(x=>x.id===id);S.practiceSet={mode:'lesson',lessonId:id,lesson:l,questions:questionsOf(id),title:lesTitle(l)};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
 
 /* LQP_V688 題庫練習（老師從「即時比賽」的題庫指派出來的）。
@@ -4011,11 +4062,18 @@ function renderPreviewLesson(){
   const lesson=(S.lessons||[]).find(x=>x.id===S.previewLid);
   if(!lesson){el.innerHTML=emptyHtml('⚠️','找不到這一課','請回教師頁重新開啟預覽。');return;}
   S.section='content';el.dataset.mode='';
-  const ttl=(lesson.order_index?('L'+lesson.order_index+' · '):'')+lesson.title;
+  const ttl=lesTitle(lesson);
   const _pvN=answerableOf(lesson.id).length;
-  const _pvSw=`<div class="pv-switch"><button class="btn btn-sm btn-accent" type="button" data-act="pvNoop">📖 上課內容</button>${_pvN?`<button class="btn btn-sm" type="button" data-act="openLesson" data-id="${lesson.id}">✍️ 作業（${_pvN} 題）</button>`:''}</div>`;
+  /* WORDQ_V744 只有題目的課，按鈕就寫「練習題」；而且直接跳進去，
+     不用先看一頁空的「上課內容」再按一次。 */
+  const _hasTxt=lessonDialogues(lesson).some(d=>d&&((d.content||'').trim()||parseVocab(d.vocabulary).length))
+    ||!!(lesson.grammar_points&&lesson.grammar_points.length);
+  const _qLab=_hasTxt?'✍️ 作業':'✍️ 練習題';
+  const _pvSw=`<div class="pv-switch"><button class="btn btn-sm${_hasTxt?' btn-accent':''}" type="button" data-act="pvNoop">📖 上課內容</button>${_pvN?`<button class="btn btn-sm${_hasTxt?'':' btn-accent'}" type="button" data-act="openLesson" data-id="${lesson.id}">${_qLab}（${_pvN} 題）</button>`:''}</div>`;
   el.innerHTML=`<div class="section-head"><h2>${esc(ttl)}</h2></div>${_pvSw}<div class="cards">${lessonCardHtml(lesson,0)}</div>`;
   try{convScreen();setupCanvases();}catch(e){}
+  if(!_hasTxt&&_pvN&&!S._pvJumped){S._pvJumped=true;
+    setTimeout(()=>{try{H.openLesson(lesson.id);}catch(e){}},60);}
   const bn=document.createElement('div');bn.className='preview-bar'+(S.tryMode?' try-bar':'');
   bn.textContent=S.tryMode
     ?'🎒 試做模式：可以像學生一樣真的作答、看到對錯。做的一切都不會存檔，也不會進批改台。'
