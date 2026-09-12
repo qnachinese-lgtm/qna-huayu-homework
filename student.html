@@ -1023,7 +1023,7 @@ function renderSentence(){
     ${reviewed?`<div class="notice" style="margin-bottom:12px">✅ ${t('sentReviewed')}</div>`:''}
     <div class="cards">${cards}</div>
     ${(reviewed&&doc.overall)?`<div class="card fb-overall" style="margin-top:6px"><b>${t('sentOverall')}</b><div style="margin-top:4px">${esc(doc.overall)}</div></div>`:''}
-    ${S.preview?'':`<button class="btn btn-accent" style="width:100%;padding:13px;margin-top:8px" data-act="sentSubmit">${(submitted||reviewed)?t('sentResubmit'):t('sentSubmit')}</button>`}`;
+    ${(!S.preview||S.tryMode)?`<button class="btn btn-accent" style="width:100%;padding:13px;margin-top:8px" data-act="sentSubmit">${S.tryMode?'📤 送出（試做，不會存）':((submitted||reviewed)?t('sentResubmit'):t('sentSubmit'))}</button>`:''}`;
   hydrateVi(dd.words.map(w=>w.back));
 }
 function genVocabQuiz(){const list=vocabScoped().filter(v=>/[㐀-鿿]/.test(v.front));if(list.length<2)return [];
@@ -2196,7 +2196,8 @@ function teacherFbCount(){let n=0;const hf=d=>!!((d.overall&&String(d.overall).t
   (S.shadows||[]).forEach(d=>{if(d&&d.status==='reviewed'&&hf(d))n++;});
   return n;}
 function lessonCardHtml(l,i){
-    const hasDisc=lessonHasDisc(l),ddoc=hasDisc?discDocOf(l.id):null,canAns=hasDisc&&!S.preview;
+    /* TRYMODE_V743 討論與語法練習的輸入框，試做模式一併打開 */
+    const hasDisc=lessonHasDisc(l),ddoc=hasDisc?discDocOf(l.id):null,canAns=hasDisc&&(!S.preview||S.tryMode);
     const discBar=canAns?`<div class="disc-submit">
         ${ddoc&&ddoc.status==='submitted'?`<div class="notice">📨 ${t('discSubmitted')}</div>`:''}
         ${ddoc&&ddoc.status==='reviewed'?`<div class="notice">✅ ${t('discReviewed')}</div>`:''}
@@ -2965,7 +2966,9 @@ function renderPractice(){
   clearInterval(AUTOSAVE);AUTOSAVE=null;
   const set=S.practiceSet,qs=set.questions,l=set.lesson;
   let head=`<button class="btn btn-sm btn-ghost" data-act="back">${t('back')}</button>
-    ${S.preview?'<div class="preview-bar" style="margin-top:10px">👁 預覽模式：這就是學生「作業」看到的畫面（作答不會儲存）</div>':''}
+    ${S.preview?('<div class="preview-bar'+(S.tryMode?' try-bar':'')+'" style="margin-top:10px">'
+      +(S.tryMode?'🎒 試做模式：真的做做看，按「對答案」會當場算分並顯示正解。什麼都不會存檔。'
+                 :'👁 預覽模式：這就是學生「作業」看到的畫面（作答不會儲存）')+'</div>'):''}
     <div class="section-head" style="margin-top:12px"><h2>${set.title}</h2></div>`;
   let textCard='';
   if(l&&lessonHasContent(l)){
@@ -2987,7 +2990,10 @@ function renderPractice(){
       `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn" data-act="retry">${t('retry')}</button><button class="btn btn-primary" data-act="back">${t('finishBack')}</button></div>`;
   }else{practice=`<div class="section-head" style="margin-top:24px"><h2 style="font-size:19px">${t('practice')}</h2><span class="sub">${qs.filter(q=>q.type!=='note').length} ${t('q')}</span></div>`+
       quizBodyHtml(qs,l)+
-      (S.preview?'':`<div style="display:flex;gap:10px;margin-top:6px">${set.mode==='lesson'?`<button class="btn" style="flex:1 1 0;padding:13px" data-act="saveDraft">💾 ${t('saveDraft')}</button>`:''}<button class="btn btn-accent" style="flex:2 1 0;padding:13px;font-size:15px" data-act="submit">${t('submit')}</button></div>${set.mode==='lesson'?`<div class="hint" style="text-align:center;margin-top:8px">${t('draftHint')}</div>`:''}`);}
+      (S.tryMode
+        ? `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn btn-accent" style="flex:1 1 0;padding:13px;font-size:15px" data-act="submit">✅ 對答案（不會存檔）</button></div>`
+          +`<div class="hint" style="text-align:center;margin-top:8px">學生看到的是「${esc(t('submit'))}」，按下去會送給你批改；試做模式只會當場算分。</div>`
+        : (S.preview?'':`<div style="display:flex;gap:10px;margin-top:6px">${set.mode==='lesson'?`<button class="btn" style="flex:1 1 0;padding:13px" data-act="saveDraft">💾 ${t('saveDraft')}</button>`:''}<button class="btn btn-accent" style="flex:2 1 0;padding:13px;font-size:15px" data-act="submit">${t('submit')}</button></div>${set.mode==='lesson'?`<div class="hint" style="text-align:center;margin-top:8px">${t('draftHint')}</div>`:''}`));}
   $('#screen').innerHTML=head+textCard+practice;
   convScreen();
   if(S.lang==='vi'){const _vm=[];qs.forEach(q=>{if(q.type==='match')(q.options||[]).forEach(p=>_vm.push(p.r));});hydrateVi(_vm);}
@@ -3301,7 +3307,7 @@ H.hwUndo=()=>{if(HWP_STROKES.length){HWP_STROKES.pop();const cv=document.getElem
 H.hwErase=()=>{HWP_ERASE=!HWP_ERASE;hwRefresh();};
 H.hwAdd=()=>{if(!HWP)return;if(HWP.images.length>=HWP_MAX){toast(hwL('最多寫 '+HWP_MAX+' 張','Tối đa '+HWP_MAX,'Max '+HWP_MAX));return;}const cv=document.getElementById('hw-cv');if(hwBlank(cv)){toast(hwL('先在框裡寫一個字','Hãy viết một chữ trước','Write a character first'));return;}HWP.images.push(hwSnap(cv));HWP_STROKES=[];HWP_ERASE=false;hwRefresh();};
 H.hwDelImg=(idx)=>{if(!HWP)return;HWP.images.splice(Number(idx),1);hwRefresh();};
-H.hwSubmit=async()=>{if(S.preview){toast('預覽模式無法送出');return;}if(!HWP)return;
+H.hwSubmit=async()=>{if(S.preview){toast(S.tryMode?'試做：正式使用時，手寫會送去給老師批改（現在不會存）':'預覽模式無法送出');return;}if(!HWP)return;
   const cv=document.getElementById('hw-cv');if(cv&&!hwBlank(cv)&&HWP.images.length<HWP_MAX)HWP.images.push(hwSnap(cv));
   if(!HWP.images.length){toast(hwL('先寫一張再送出','Hãy viết trước khi gửi','Write at least one first'));return;}
   const btn=document.querySelector('[data-act="hwSubmit"]');if(btn){btn.disabled=true;btn.textContent='…';}
@@ -3324,7 +3330,7 @@ function renderSS(){let ov=document.getElementById('ss-ov');if(ov)ov.remove();ov
   const reviewed=doc&&doc.status==='reviewed';const submitted=doc&&doc.status==='submitted';
   const banner=reviewed?`<div class="ss-banner ok">✅ ${t('ssReviewed')}${doc.overall?'：'+esc(doc.overall):''}</div>`:submitted?`<div class="ss-banner mid">⏳ ${t('ssPending')}</div>`:`<div class="ss-banner hintbar">${t('ssHint')}</div>`;
   const recCount=Object.keys(SS.recs||{}).filter(i=>SS.recs[i]&&SS.recs[i].url).length;
-  const foot=S.preview?'':`<div class="ss-foot"><button class="btn btn-accent" id="ss-submit" data-act="ssSubmit" ${recCount?'':'disabled'}>📤 ${t('ssSubmit')}（${recCount}/${SS.sents.length}）</button></div>`;
+  const foot=(S.preview&&!S.tryMode)?'':`<div class="ss-foot"><button class="btn btn-accent" id="ss-submit" data-act="ssSubmit" ${recCount?'':'disabled'}>📤 ${S.tryMode?'送出（試做，不會存）':t('ssSubmit')}（${recCount}/${SS.sents.length}）</button></div>`;
   ov.innerHTML=`<div class="stroke-box ss-box"><button class="stroke-x" data-act="ssClose" aria-label="關閉">✕</button><h3 style="margin:0 0 12px;font-size:17px">🗣 ${t('shadowDlg')}</h3>${banner}<div class="ss-list">${rows}</div>${foot}</div>`;
   document.body.appendChild(ov);try{convEl(ov);}catch(e){}}
 H.shadowDlg=(key)=>{const p=String(key).split('::');const l=S.lessons.find(x=>x.id===p[0]);if(!l)return;const di=+p[1];const d=lessonDialogues(l)[di];const sents=splitSentences(d&&d.content);if(!sents.length){toast(t('noContent'));return;}
@@ -3357,7 +3363,7 @@ function startShadowRec(i,target){const SR=window.SpeechRecognition||window.webk
   r.onresult=e=>{let tr='';try{tr=e.results[0][0].transcript||'';}catch(x){}const a=normHan(target),c=normHan(tr);const sc=a.length?Math.round(lcsLen(a,c)/a.length*100):0;const rec=(SS&&SS.recs)?(SS.recs[i]||(SS.recs[i]={})):null;if(rec){rec.tr=tr;rec.score=sc;}};
   r.onerror=()=>{};SHADOWREC=r;try{r.start();}catch(e){}}
 function stopShadowRec(){if(SHADOWREC){try{SHADOWREC.stop();}catch(e){}SHADOWREC=null;}}
-H.ssSubmit=async()=>{if(!SS||S.preview)return;
+H.ssSubmit=async()=>{if(!SS)return;if(S.preview){if(S.tryMode)toast('試做：正式使用時，錄音會送去給老師聽（現在不會存）');return;}
   const recd=Object.keys(SS.recs||{}).filter(i=>SS.recs[i]&&SS.recs[i].url);
   if(!recd.length){toast(t('ssNoRec'));return;}
   const btn=document.getElementById('ss-submit');if(btn){btn.disabled=true;btn.textContent=t('sentSaving');}
@@ -3396,7 +3402,7 @@ H.dictCheck=async()=>{const dd=S.dict;if(!dd||dd.checked)return;
 H.dictNext=()=>{const dd=S.dict;if(!dd)return;if(dd.idx+1>=dd.list.length){bumpActivity(dd.list.length);
     if(dd.quiz){const q=dd.quiz,right=dd.right,total=dd.list.length,log=dd.log||[];S.dict=null;$('#screen').dataset.mode='';
       const _pend=(log||[]).filter(x=>x&&x.pend).length;
-      $('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">📝</div><h3>${esc(q.title)}</h3><div class="muted" style="margin-top:6px">${t('acc')} ${right} / ${total}</div>${_pend?`<div class="hint" style="margin-top:6px">⏳ ${_pend} ${t('qzPendN')}</div>`:''}<div class="hint" style="margin-top:6px">${S.preview?'':t('quizSaved')}</div><button class="btn btn-primary" style="margin-top:14px" data-act="section" data-id="work">${t('finishBack')}</button></div>`;
+      $('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">📝</div><h3>${esc(q.title)}</h3><div class="muted" style="margin-top:6px">${t('acc')} ${right} / ${total}</div>${_pend?`<div class="hint" style="margin-top:6px">⏳ ${_pend} ${t('qzPendN')}</div>`:''}<div class="hint" style="margin-top:6px">${S.preview?(S.tryMode?'🎒 試做：成績沒有存檔':''):t('quizSaved')}</div><button class="btn btn-primary" style="margin-top:14px" data-act="section" data-id="work">${t('finishBack')}</button></div>`;
       H.saveQuizResult(q.id,right,total,log);return;}
     S.dict=null;$('#screen').dataset.mode='';$('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">🎉</div><h3>${t('dictFinish')}</h3><div class="muted" style="margin-top:6px">${t('acc')} ${dd.right} / ${dd.list.length}</div><button class="btn btn-primary" style="margin-top:14px" data-act="section" data-id="cards">${t('finishBack')}</button></div>`;return;}dd.idx++;dd.checked=false;dd.val='';dd.ok=false;if(dd.mode==='choice')renderQuizChoice();else renderDictation();};
 H.qzHwClear=()=>{const dd=S.dict;if(!dd)return;const cv=document.getElementById('qz-hw-'+dd.idx);
@@ -3443,7 +3449,7 @@ H.saveQuizResult=async(quizId,right,total,log)=>{if(S.preview)return;try{const u
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
   splitResults(rAll);
 }catch(e){toast(e.message);}};
-H.submitDisc=async(arg,b)=>{if(S.preview)return;const p=String(arg).split('::');const lid=p[0];const di=p.length>1?p[1]:null;
+H.submitDisc=async(arg,b)=>{if(S.preview){if(S.tryMode)toast('試做：正式使用時，這裡會送去給老師批改（現在不會存）');return;}const p=String(arg).split('::');const lid=p[0];const di=p.length>1?p[1]:null;
   const lscope=document.getElementById('ls-'+lid)||(b&&b.closest('.ls-card'))||(b&&b.closest('.card'));if(!lscope)return;
   let scope=lscope,pre=null; // di 指定時，只收集這一段（對話／短文）的作答，不送其他段
   if(di!=null){const blk=(b&&b.closest('[data-disc-di]'))||lscope.querySelector('[data-disc-di="'+di+'"]');if(blk){scope=blk;pre=di+'_';}}
@@ -3462,7 +3468,7 @@ H.submitDisc=async(arg,b)=>{if(S.preview)return;const p=String(arg).split('::');
     if(di!=null){if(b){b.disabled=false;b.textContent=t('discResubmit');b.classList.add('btn-accent');}} // 單段送出：不整頁重繪，保留其他段作答中的內容
     else renderContent();
   }catch(e){toast(e.message);if(b){b.disabled=false;b.textContent=t('discSubmit');}}};
-H.submitGprac=async(key,b)=>{if(S.preview)return;
+H.submitGprac=async(key,b)=>{if(S.preview){if(S.tryMode)toast('試做：正式使用時，這個語法的練習會送去給老師批改（現在不會存）');return;}
   const p=String(key).split('::');const lid=p[0];const gp=p.length>1?Number(p[1]):null;
   let pool=questionsOf(lid).filter(q=>q.bank!=='hw'&&q.type!=='note');
   if(gp!=null)pool=pool.filter(q=>q.gp_index===gp);
@@ -3611,7 +3617,7 @@ H.vocabSentence=()=>{const lid=sentLessonId();if(!lid){toast(t('sentPickLesson')
   if(!words.length){toast(t('sentEmpty'));return;}
   const doc=sentDocOf(lid),vals={};if(doc&&doc.items)doc.items.forEach(it=>{vals[it.word]=it.sentence;});
   S.sent={lessonId:lid,words,vals,doc};$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderSentence();};
-H.sentSubmit=async()=>{if(S.preview)return;const dd=S.sent;if(!dd)return;
+H.sentSubmit=async()=>{if(S.preview){if(S.tryMode)toast('試做：正式使用時，造句會送去給老師批改（現在不會存）');return;}const dd=S.sent;if(!dd)return;
   const items=[...document.querySelectorAll('.sent-inp')].map(el=>({word:el.dataset.w,sentence:(el.value||'').trim()}));
   if(!items.some(it=>it.sentence)){toast(t('sentEmpty'));return;}
   const btn=document.querySelector('[data-act="sentSubmit"]');if(btn){btn.disabled=true;btn.textContent=t('sentSaving');}
@@ -3888,6 +3894,10 @@ H.saveDraft=async(silent)=>{const set=S.practiceSet;if(!set||set.mode!=='lesson'
     if(btn){btn.disabled=false;btn.textContent='💾 '+t('saveDraft');}if(!silent)toast('✓ '+t('draftSaved'));
   }catch(e){if(btn){btn.disabled=false;btn.textContent='💾 '+t('saveDraft');}if(!silent)toast(e.message);}};
 H.submit=async()=>{const set=S.practiceSet,qs=set.questions;GRADE=gradeAll(qs);S.graded=true;
+  /* TRYMODE_V743 試做：當場算分、顯示正解就停在這裡，
+     後面所有的上傳、寫入成績、更新進度全部跳過。 */
+  if(S.tryMode){window.scrollTo(0,0);renderPractice();
+    toast('試做：'+GRADE.score+' / '+GRADE.total+'　（沒有存檔）');return;}
   bumpActivity(qs.length||1);
   const speaks=qs.filter(q=>q.type==='speak'&&RECORD[q.id]);
   if(speaks.length){toast(th('recUploading'));for(const q of speaks){try{GRADE.answers[q.id]=await uploadSpeak(RECORD[q.id],q.id);}catch(e){toast('上傳錄音失敗：'+(e.message||e));}}}
@@ -3982,7 +3992,18 @@ async function loadFam(){S.fam=null;
     const list=(ms||[]).filter(x=>x&&!x.deleted);
     if(list.length>1)S.fam={key:k,members:list};}
   catch(e){S.fam=null;}}
+/* TRYMODE_V743 試做的橫幅用不一樣的顏色，免得跟唯讀的預覽搞混 */
+try{const _st=document.createElement('style');
+_st.textContent='.preview-bar.try-bar{background:#EAF6EE;border-color:#9ccdb0;color:#2f7a52}';
+document.head.appendChild(_st);}catch(e){}
 function showGate(msg){S.me=null;$('#app').classList.add('hide');$('#gate').classList.remove('hide');renderGate();if(msg){const e=$('#g-err');if(e)e.textContent=msg;}}
+/* TRYMODE_V743 老師的「👁 預覽」只能看，不能做——凡是會寫進資料庫的動作
+   （送出、對答案、錄音、討論作答）在預覽模式一律被擋掉，所以看得到題目長怎樣，
+   卻走不完學生「讀題→作答→送出→看到對錯」的流程，考題類的教材等於什麼都沒看到。
+   試做模式：把「作答」那一層打開，「儲存」那一層繼續關著。
+   所有題目都能真的做、當場看到對錯，但不寫進資料庫——
+   不會產生成績、不會出現在批改台、不會影響任何學生的紀錄。 */
+const PREVIEW_TRY=(new URLSearchParams(location.search).get('try')==='1');
 const PREVIEW_LID=new URLSearchParams(location.search).get('preview');
 const PREVIEW_WB=new URLSearchParams(location.search).get('wbpreview');
 function renderPreviewLesson(){
@@ -3995,18 +4016,20 @@ function renderPreviewLesson(){
   const _pvSw=`<div class="pv-switch"><button class="btn btn-sm btn-accent" type="button" data-act="pvNoop">📖 上課內容</button>${_pvN?`<button class="btn btn-sm" type="button" data-act="openLesson" data-id="${lesson.id}">✍️ 作業（${_pvN} 題）</button>`:''}</div>`;
   el.innerHTML=`<div class="section-head"><h2>${esc(ttl)}</h2></div>${_pvSw}<div class="cards">${lessonCardHtml(lesson,0)}</div>`;
   try{convScreen();setupCanvases();}catch(e){}
-  const bn=document.createElement('div');bn.className='preview-bar';
-  bn.textContent='👁 預覽模式：跟學生看到的完全一樣（作答不會儲存）';
+  const bn=document.createElement('div');bn.className='preview-bar'+(S.tryMode?' try-bar':'');
+  bn.textContent=S.tryMode
+    ?'🎒 試做模式：可以像學生一樣真的作答、看到對錯。做的一切都不會存檔，也不會進批改台。'
+    :'👁 預覽模式：跟學生看到的完全一樣（作答不會儲存）';
   el.insertBefore(bn,el.firstChild);
 }
-async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;
+async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;S.tryMode=PREVIEW_TRY;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
   const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook');S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=[];S.lqassigns=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];S.hwvs=[];
   S.previewLid=lid;
   renderPreviewLesson();
 }
 
-async function enterWbPreview(id){S.me={id:'__preview',name:'預覽'};S.preview=true;
+async function enterWbPreview(id){S.me={id:'__preview',name:'預覽'};S.preview=true;S.tryMode=PREVIEW_TRY;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
   const l=await DB.list('lessons');
   S.lessons=[];S.questions=[];S.wbdocs=[];
@@ -4014,7 +4037,7 @@ async function enterWbPreview(id){S.me={id:'__preview',name:'預覽'};S.preview=
   if(!S.workbooks.find(x=>x.id===id)){$('#screen').innerHTML=emptyHtml('⚠️','找不到這份作業簿','請回教師頁重新開啟預覽。');return;}
   S.section='wb';WB.id=id;WB.ans=null;WB.sel=null;WB.pick=null;
   renderSection();
-  const sc=$('#screen');if(sc){const bn=document.createElement('div');bn.className='preview-bar';bn.textContent='👁 預覽模式：這就是學生看到的作業簿畫面（作答不會儲存）';sc.insertBefore(bn,sc.firstChild);}
+  const sc=$('#screen');if(sc){const bn=document.createElement('div');bn.className='preview-bar';bn.textContent=S.tryMode?'🎒 試做模式：可以像學生一樣真的作答。做的一切都不會存檔。':'👁 預覽模式：這就是學生看到的作業簿畫面（作答不會儲存）';sc.insertBefore(bn,sc.firstChild);}
 }
 /* ---- PWA：到期本地通知 ---- */
 /* DUE_V688 提醒的數量要跟畫面上那條一致：課、作業簿、小考、題庫練習都算 */
