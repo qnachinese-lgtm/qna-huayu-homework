@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=738">
+<link rel="stylesheet" href="styles.css?v=739">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -625,6 +625,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .cm-d{font-size:12.5px;font-weight:700;color:var(--muted);line-height:21px;height:21px}
         .cm-list{display:flex;flex-direction:column;gap:2px;overflow:hidden}
         .cm-chip{font-size:10.5px;line-height:1.5;padding:1px 5px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;display:block}
+        /* CALGO_V739 可以點的那幾片：滑過去有手指、顏色深一點，看得出來能按 */
+        .cm-chip.hit{cursor:pointer}
+        .cm-chip.hit:hover{filter:brightness(.94);box-shadow:0 0 0 1.5px rgba(163,113,78,.35) inset}
         .cm-chip.ok{background:#dcfce7;color:#15803d}
         .cm-chip.pl{background:#fef3c7;color:#92400e}
         .cm-chip.lv{background:#fee2e2;color:#b91c1c}
@@ -1030,6 +1033,30 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           background:#eef7f0;color:#15803d;border:1px solid #a7d8b8;border-radius:999px;padding:2px 9px;white-space:nowrap}
         /* VI_CHECK_V39 越南文對照表 */
         .modal.modal-wide{max-width:1060px;width:96vw}
+        /* ITVROW_V739 練習清單／進度紀錄的固定格線。
+           日期欄給死寬度，所以「待練」那幾列跟沒有標籤的列一定對得起來。 */
+        #app .itv-row{display:grid;grid-template-columns:74px 168px minmax(0,1fr) auto auto;
+          gap:8px;align-items:center;padding:5px 8px;border-radius:9px;min-height:38px}
+        #app .itv-row.is-fut{background:#eef2ff}
+        #app .itv-row+.itv-row{margin-top:3px}
+        #app .itv-row .ir-st{display:flex;justify-content:flex-start}
+        #app .itv-row .ir-st .badge{margin:0}
+        #app .itv-row .ir-dt{white-space:nowrap;font-variant-numeric:tabular-nums}
+        #app .itv-row .ir-dt i{font-style:normal;color:var(--muted);font-size:12px;margin-left:3px}
+        #app .itv-row .ir-tm{min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        #app .itv-row .ir-ex{display:flex;align-items:center;gap:8px;white-space:nowrap}
+        #app .itv-row .ir-op{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+        #app .itv-row .ir-log{font-size:13px;line-height:1.5}
+        #app .itv-row .il-d,#app .itv-row .il-n{color:var(--muted);font-size:12.5px}
+        @media(max-width:720px){
+          #app .itv-row{grid-template-columns:1fr auto;grid-auto-rows:min-content;row-gap:4px}
+          #app .itv-row .ir-st{grid-column:1;order:1}
+          #app .itv-row .ir-dt{grid-column:1;order:2}
+          #app .itv-row .ir-tm{grid-column:1/-1;order:4}
+          #app .itv-row .ir-ex{grid-column:1/-1;order:5;flex-wrap:wrap;white-space:normal}
+          #app .itv-row .ir-op{grid-column:2;grid-row:1/3;order:3}
+          #app .itv-row .ir-st:empty{display:none}
+        }
         /* UIFONT_V734 字體選單 */
         .uf-op{display:flex;align-items:center;gap:14px;width:100%;text-align:left;
           padding:12px 15px;margin-bottom:9px;border-radius:14px;height:auto;min-height:0;
@@ -2628,11 +2655,19 @@ function renderCalMonth(body,toggle){
     const exams=(examByDate[key]||[]);
     const _ck=v=>{const t=String(v||'').trim();return /^\d{1,2}:\d{2}$/.test(t)?(t.length===4?('0'+t):t):'99:99';};
     const _cl=[];
+    /* CALGO_V739 月曆格子裡的名字本來只是一段文字，要看那個人的資料還得自己切到名冊去找。
+       現在每一片都掛上自己的 data-act，點名字＝直接跳到那個人（或那個班）的頁面；
+       點名字以外的空白處還是照舊選這一天。 */
+    const _chip=(cls,txt,key)=>'<span class="cm-chip '+cls+(key?' hit':'')+'"'
+      +(key?(' data-act="calGo" data-id="'+esc(key)+'" title="看 '+esc(String(txt).replace(/^[^ ]+ /,''))+' 的資料"'):'')
+      +'>'+esc(txt)+'</span>';
     logs.forEach(it=>{const k=dayItemKind(it);const nm=it.members?('👥 '+it.grp):((it.s&&it.s.name)||'');
-      _cl.push({t:_ck(it.e&&it.e.start),h:'<span class="cm-chip '+(k==='leave'?'lv':(k==='free'?'fr':'ok'))+'">'+esc(nm)+'</span>'});});
-    plans.forEach(p=>{_cl.push({t:_ck(p.start),h:'<span class="cm-chip pl">📌 '+esc(p.sid?(p.sname||''):(p.cls||''))+'</span>'});});
-    itvs.forEach(o=>{_cl.push({t:_ck(o.e&&o.e.start),h:'<span class="cm-chip iv">🎤 '+esc(o.c.name||'')+'</span>'});});
-    exams.forEach(c=>{_cl.push({t:_ck(itvTimeKey(c.exam_time)),h:'<span class="cm-chip ex">🎯 '+esc(c.name||'')+'</span>'});});
+      const key=it.members?('G::'+it.grp):((it.s&&it.s.id)?('S::'+it.s.id):'');
+      _cl.push({t:_ck(it.e&&it.e.start),h:_chip((k==='leave'?'lv':(k==='free'?'fr':'ok')),nm,key)});});
+    plans.forEach(p=>{_cl.push({t:_ck(p.start),
+      h:_chip('pl','📌 '+(p.sid?(p.sname||''):(p.cls||'')),p.sid?('S::'+p.sid):(p.cls?('G::'+p.cls):''))});});
+    itvs.forEach(o=>{_cl.push({t:_ck(o.e&&o.e.start),h:_chip('iv','🎤 '+(o.c.name||''),'I::'+o.c.id)});});
+    exams.forEach(c=>{_cl.push({t:_ck(itvTimeKey(c.exam_time)),h:_chip('ex','🎯 '+(c.name||''),'I::'+c.id)});});
     _cl.sort((a,b)=>a.t.localeCompare(b.t));
     const chips=_cl.map(x=>x.h);
     const shown=chips.slice(0,3).join('')+(chips.length>3?('<span class="cm-more">＋'+(chips.length-3)+'</span>'):'');
@@ -3139,11 +3174,25 @@ function renderInterview(){
     const upcoming=ss.filter(e=>e.date>=today).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
     const nextOne=upcoming[0];const past=ss.filter(e=>e.date<today);
     const rowHtml=(e)=>{const idx=itvSessions(c).indexOf(e);const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';const tm=twVnStr(e.start,e.end);const feeStr=(e.fee!=null&&e.fee!=='')?money(e.fee,e.currency||'VND'):'';const fut=e.date>=today;
-      return `<div class="dash-row" style="padding:6px 0;flex-wrap:wrap${fut?';background:#eef2ff;border-radius:8px':''}">${fut?'<span class="badge" style="background:#c7d2fe;color:#3730a3">📌 待練</span>':''}<b>${esc(e.date)}</b>${wd?`<span class="muted" style="font-size:12px;margin-left:4px">（${wd}）</span>`:''}${tm?`<span class="badge badge-pending" style="margin-left:6px">${esc(tm)}</span>`:''}${feeStr?`<span class="muted" style="margin-left:6px">${feeStr}</span>`:''}${itvPayBadge(e)}${e.note?`<span class="muted" style="margin-left:6px">${esc(e.note)}</span>`:''}<span class="grow"></span>${fut?meetBtn(meetOfItv(c),true):''}<button class="btn btn-sm" data-act="itvSess" data-id="${esc(c.id)}::${idx}" title="修改這一次練習">✏️</button><button class="btn btn-sm btn-danger" data-act="itvSessDel" data-id="${esc(c.id)}::${idx}" title="刪掉這一次練習">🗑</button></div>`;};
+      /* ITVROW_V739 本來是一列文字自己排隊，有「待練」標籤的那幾列會被推右邊，
+         跟下面「已上過的練習」對不齊，看起來歪歪的。
+         改成固定欄位的格線：狀態、日期、時間、其他、按鈕各佔各的位置，
+         沒有狀態的那一列就留白，兩份清單的日期一定切齊。 */
+      const extra=[feeStr?`<span class="muted">${feeStr}</span>`:'',itvPayBadge(e)||'',
+        e.note?`<span class="muted">${esc(e.note)}</span>`:''].filter(Boolean).join('');
+      return `<div class="itv-row${fut?' is-fut':''}">`
+        +`<span class="ir-st">${fut?'<span class="badge" style="background:#c7d2fe;color:#3730a3">📌 待練</span>':''}</span>`
+        +`<span class="ir-dt"><b>${esc(e.date)}</b>${wd?`<i>（${wd}）</i>`:''}</span>`
+        +`<span class="ir-tm">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}</span>`
+        +`<span class="ir-ex">${extra}</span>`
+        +`<span class="ir-op">${fut?meetBtn(meetOfItv(c),true):''}`
+        +`<button class="btn btn-sm" data-act="itvSess" data-id="${esc(c.id)}::${idx}" title="修改這一次練習">✏️</button>`
+        +`<button class="btn btn-sm btn-danger" data-act="itvSessDel" data-id="${esc(c.id)}::${idx}" title="刪掉這一次練習">🗑</button>`
+        +`</span></div>`;};
     const upHtml=upcoming.length?`<div class="lesson-label" style="margin:8px 0 2px">📌 接下來的練習</div>`+upcoming.map(rowHtml).join(''):'';
     const pastShow=past.slice(0,5).map(rowHtml).join('');
     const pastMore=past.length>5?`<details style="margin-top:4px"><summary style="cursor:pointer;font-size:13px;color:var(--primary)">看更早的 ${past.length-5} 次</summary>${past.slice(5).map(rowHtml).join('')}</details>`:'';
-    const pastHtml=past.length?`<div class="lesson-label" style="margin:10px 0 2px">✅ 已上過的練習（${past.length}）</div>${pastShow}${pastMore}`:(upcoming.length?'':'<div class="hint" style="padding:6px 0">還沒有練習紀錄，按上面「＋ 新增練習時間」開始。</div>');
+    const pastHtml=past.length?`<div class="lesson-label" style="margin:10px 0 2px">✅ 已上過的練習（${past.length}）</div>${pastShow}${pastMore}`:(upcoming.length?'':'<div class="hint" style="padding:4px 0">還沒有練習紀錄</div>');
     return `<details class="card crm-card${done?' card-done':''}" data-cid="${esc(c.id)}" style="margin-bottom:10px"${(S.crmFocus===c.id)?' open':''}><summary class="crm-sum" data-act="crmFocus" data-id="${esc(c.id)}">
       <span class="crm-chev">▸</span><div class="crm-head itv8">
         <span class="cc nm"><b>${snm(c.name||'（未命名）')}</b><button class="btn btn-icon" data-act="itvEdit" data-id="${esc(c.id)}" title="客戶資料與付費">✏️</button><button class="btn btn-icon crm-del" data-act="itvDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
@@ -3166,7 +3215,7 @@ function renderInterview(){
         return '<div class="lesson-label" style="margin:12px 0 2px">🗂 進度紀錄'
           +(lg.length?('（'+lg.length+' 筆）'):'')+'</div>'
           +(lg.length?lg.map(e=>itvLogRowHtml(c,e)).join('')
-            :'<div class="hint" style="padding:6px 0">還沒有進度，按上面「＋ 新增一筆進度」記下哪天做了什麼、給了什麼文件。</div>');})()}
+            :'<div class="hint" style="padding:4px 0">還沒有紀錄</div>');})()}
       ${upHtml}${pastHtml}
     </div></details>`;}).join('');
   body.innerHTML=(_foc?crmBackBar(_fkind,_foc):(head+crmFoldBar(_fkind,list)+crmThead(_fkind)))+'<div class="crm-list">'+rows+(_foc?'':crmTfoot(_fkind,list))+'</div>';
@@ -3182,16 +3231,20 @@ const ITV_ACTS=['提供面試問題清單','寄學生資料表','收到學生資
 function itvLogRowHtml(c,e){
   const idx=itvLog(c).indexOf(e);
   const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';
-  return '<div class="dash-row" style="padding:7px 0;flex-wrap:wrap;align-items:flex-start">'
-    +'<b>'+esc(e.date)+'</b>'+(wd?('<span class="muted" style="font-size:12px;margin-left:4px">（'+wd+'）</span>'):'')
-    +'<span class="grow"></span>'
+  /* ITVROW_V739 跟練習清單用同一套格線，日期切齊，右邊按鈕也對齊 */
+  return '<div class="itv-row is-log">'
+    +'<span class="ir-st"></span>'
+    +'<span class="ir-dt"><b>'+esc(e.date)+'</b>'+(wd?('<i>（'+wd+'）</i>'):'')+'</span>'
+    +'<span class="ir-tm ir-log">'
+      +(e.action?('<span class="il-a">'+esc(e.action)+'</span>'):'')
+      +(e.docs?('<span class="il-d">📎 '+esc(e.docs)+'</span>'):'')
+      +(e.note?('<span class="il-n">'+esc(e.note)+'</span>'):'')
+    +'</span>'
+    +'<span class="ir-ex"></span>'
+    +'<span class="ir-op">'
     +'<button class="btn btn-sm" data-act="itvLogEdit" data-id="'+esc(c.id)+'::'+idx+'">✏️</button>'
-    +'<button class="btn btn-sm btn-danger" data-act="itvLogDel" data-id="'+esc(c.id)+'::'+idx+'">✕</button>'
-    +'<div style="flex-basis:100%;margin-top:2px">'
-    +(e.action?('<div>📋 <b>做了什麼：</b>'+esc(e.action)+'</div>'):'')
-    +(e.docs?('<div style="margin-top:2px">📎 <b>文件：</b>'+esc(e.docs)+'</div>'):'')
-    +(e.note?('<div class="muted" style="margin-top:2px">'+esc(e.note)+'</div>'):'')
-    +'</div></div>';
+    +'<button class="btn btn-sm btn-danger" data-act="itvLogDel" data-id="'+esc(c.id)+'::'+idx+'">🗑</button>'
+    +'</span></div>';
 }
 function itvLogForm(key){
   const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
@@ -10807,6 +10860,16 @@ H.bizNav=()=>{const ok=['agency','interview','writing'];const t=(ok.indexOf(S.bi
   S.tab=t;S.crmFocus=null;render();try{window.scrollTo(0,0);}catch(e){}};
 H.moneyNav=()=>{const t=(S.moneySub==='ops')?'ops':'pay';S.tab=t;render();try{window.scrollTo(0,0);}catch(e){}};
 /* CRMFIX_V688 再點一次同一位客戶＝收起來回列表（本來只會一直重新打開，收不掉） */
+/* CALGO_V739 月曆上點名字之後要去哪裡：
+   學生→他的個人頁、團班→班級頁、面試客戶→面試那一頁並且把他的卡片打開。 */
+H.calGo=(key)=>{
+  const p=String(key||'').split('::');const kind=p[0],id=p.slice(1).join('::');
+  if(kind==='S'){const s=studentById(id);if(!s)return toast('找不到這位學生');return H.stuDetail(id);}
+  if(kind==='G'){return H.classPage(id);}
+  if(kind==='I'){const c=itvById(id);if(!c)return toast('找不到這位客戶');
+    S.tab='interview';S.bizSub='interview';S.crmFocus=id;S.crmOpen={};render();
+    try{window.scrollTo(0,0);}catch(e){}return;}
+};
 H.crmFocus=(id)=>{if(S.crmFocus===id)return H.crmUnfocus();
   S.crmFocus=id;S.crmOpen={};render();try{window.scrollTo(0,0);}catch(e){}};
 H.crmUnfocus=()=>{const id=S.crmFocus;S.crmFocus=null;S.crmOpen={};render();
