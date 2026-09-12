@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=751">
+<link rel="stylesheet" href="styles.css?v=753">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -260,6 +260,22 @@ span.wb-bl{display:inline-block;min-width:7em;padding:0 8px;margin:0 4px;border-
 .wb-dlg-ctx .wb-sp{color:var(--muted);font-weight:600;margin-right:4px}
 .wb-q .wb-qt{align-items:flex-start}
 .wb-grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+/* WBGRID_V752 聲調那一區是格子排的，可是 .wb-q:first-child 那條規則
+   （本來是給上下排列的題目用的：第一題上面不要畫虛線）在格子裡只會套到左上角那一格，
+   所以第一格沒有虛線、又比別格高 10px，整排看起來歪一邊。格子裡每一格都一樣才對齊。 */
+.wb-grid2 .wb-q{border-top:1px dashed var(--line,#e7e0d4);padding-top:12px}
+/* 拼音長短不一樣，標題那一行給固定高度，下面的框才會排在同一條線上 */
+.wb-grid2 .wb-q .wb-qt{min-height:2em;display:flex;align-items:center}
+/* WBIMG_V752 題目圖／大題圖 */
+.wb-qimg{margin:8px 0 4px}
+.wb-qimg img{max-width:100%;max-height:230px;border:1px solid var(--line,#e7e0d4);border-radius:10px;background:#fff;display:block}
+.wb-secimg{margin:0 0 12px}
+.wb-secimg img{max-width:100%;max-height:340px;border:1px solid var(--line,#e7e0d4);border-radius:10px;background:#fff;display:block}
+/* WBORD_V752 重組：點詞排順序 */
+.wb-tok.pick{cursor:pointer;background:#fff;border-style:solid;border-color:var(--line-strong,#d9cdb8);font:inherit;transition:opacity .12s}
+.wb-tok.pick:hover{border-color:var(--accent,#a3714e)}
+.wb-tok.pick.used{opacity:.32;text-decoration:line-through;cursor:default}
+.wb-ordbar{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 .wb-py{font-family:'PinyinRoman',var(--serif);font-size:17px;letter-spacing:.5px}
 .wb-py2{font-family:'PinyinRoman',var(--serif);font-size:16px;color:#334;margin-bottom:4px}
 .wb-in{width:100%;max-width:34em;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-size:16px;font-family:'PinyinRoman',var(--font);background:#fff}
@@ -4195,7 +4211,7 @@ async function enterWbPreview(id){S.me={id:'__preview',name:'預覽'};S.preview=
   S.lessons=[];S.questions=[];S.wbdocs=[];
   S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
   if(!S.workbooks.find(x=>x.id===id)){$('#screen').innerHTML=emptyHtml('⚠️','找不到這份作業簿','請回教師頁重新開啟預覽。');return;}
-  S.section='wb';WB.id=id;WB.ans=null;WB.sel=null;WB.pick=null;
+  S.section='wb';WB.id=id;WB.ans=null;WB.sel=null;WB.pick=null;WB.ordUsed={};
   renderSection();
   const sc=$('#screen');if(sc){const bn=document.createElement('div');bn.className='preview-bar';bn.textContent=S.tryMode?'🎒 試做模式：可以像學生一樣真的作答。做的一切都不會存檔。':'👁 預覽模式：這就是學生看到的作業簿畫面（作答不會儲存）';sc.insertBefore(bn,sc.firstChild);}
 }
@@ -4330,7 +4346,10 @@ function wbMcHtml(sec,q,label,graded){
     else if(a===c)cls=' on';
     return `<button class="wb-opt${cls}" type="button"${graded?' disabled':''} data-act="wbPick" data-id="${sec}|${q.n}|${c}"><span class="lab">${c}</span><span>${esc(TX[i])}</span>${mk?`<span class="mk">${mk}</span>`:''}</button>`;
   }).join('');
-  return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${q.n}</span>${label?esc(label):''}</div><div class="wb-opts">${opts}</div></div>`;
+  /* WBQIMG_V752 課本上很多選擇題是「看圖選答案」，圖就在題目上面。
+     這裡本來完全沒有圖的位子，匯進來只剩文字，學生看不到圖等於做不了。 */
+  const pic=q.img?`<div class="wb-qimg"><img src="${esc(q.img)}" alt="" loading="lazy"></div>`:'';
+  return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${q.n}</span>${label?esc(label):''}</div>${pic}<div class="wb-opts">${opts}</div></div>`;
 }
 function wbListenHtml(w,graded){
   const d=wbData(w);const items=d.listen||[];
@@ -4502,14 +4521,47 @@ function wbHzHtml(w,graded){
         return `<div class="wb-line">${ln.sp?`<span class="wb-sp">${esc(ln.sp)}：</span>`:''}<div class="wb-lb"><div class="wb-py2">${esc(ln.py||'')}</div>${wbTxt('hz',k,a[k],graded,ln.ans,ok)}</div></div>`;}).join('')
       +`</div>`).join('');
 }
+/* WBORD_V752 重組本來只是把詞印出來，學生得自己一個字一個字打進下面的框，
+   在手機上尤其花時間。改成點一下就照順序排進去，點錯再點一次拿掉，
+   下面的框還是留著（可以自己補句號、問號，或整句自己打）。 */
 function wbOrdHtml(w,graded){
   const a=wbAns().ord||{};
   const _zh=x=>wbNorm(x).replace(/[，。？！；：、,.?!;:\s]/g,'');
-  return `<div class="wb-hint">${wbL({zh:'把詞語排成一個句子，寫在下面。',cn:'把词语排成一个句子，写在下面。',en:'Rearrange the words into a sentence.',vi:'Sắp xếp các từ thành câu.'})}</div>`
+  const tip=graded?'':`<div class="wb-hint">${wbL({zh:'點詞就會照順序排到下面的框裡；點錯再點一次可以拿掉。標點符號自己補。',cn:'点词就会照顺序排到下面的框里；点错再点一次可以拿掉。标点符号自己补。',en:'Tap the words in order; tap again to remove. Add punctuation yourself.',vi:'Chạm vào từ theo thứ tự; chạm lại để bỏ. Tự thêm dấu câu.'})}</div>`;
+  return `<div class="wb-hint">${wbL({zh:'把詞語排成一個句子。',cn:'把词语排成一个句子。',en:'Rearrange the words into a sentence.',vi:'Sắp xếp các từ thành câu.'})}</div>`+tip
    +(wbData(w).ord||[]).map(q=>{const ok=q.ans?(_zh(a[q.n])===_zh(q.ans)):null;
-      const toks=(q.toks||[]).map(t=>`<span class="wb-tok">${annotate(t)}</span>`).join('');
-      return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${q.n}</span></div><div class="wb-toks">${toks}</div><div style="margin-top:8px">${wbTxt('ord',q.n,a[q.n],graded,q.ans,ok)}</div></div>`;}).join('');
+      const used=((WB.ordUsed||{})[q.n])||[];
+      const toks=(q.toks||[]).map((t,i)=>graded
+        ?`<span class="wb-tok">${annotate(t)}</span>`
+        :`<button type="button" class="wb-tok pick${used.indexOf(i)>=0?' used':''}" data-act="wbOrdTok" data-id="${esc(q.n+'|'+i)}">${annotate(t)}</button>`).join('');
+      const bar=graded?'':`<div class="wb-ordbar"><button type="button" class="btn btn-sm" data-act="wbOrdUndo" data-id="${esc(String(q.n))}">⌫ ${wbL({zh:'退一個',cn:'退一个',en:'Undo',vi:'Lùi'})}</button><button type="button" class="btn btn-sm" data-act="wbOrdClr" data-id="${esc(String(q.n))}">↺ ${wbL({zh:'清空',cn:'清空',en:'Clear',vi:'Xoá'})}</button></div>`;
+      return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${q.n}</span></div><div class="wb-toks" data-ordtk="${esc(String(q.n))}">${toks}</div>${bar}<div style="margin-top:8px">${wbTxt('ord',q.n,a[q.n],graded,q.ans,ok)}</div></div>`;}).join('');
 }
+/* 把目前點過的詞照順序組成句子，同時更新下面的框和上面的詞（變灰） */
+function wbOrdSync(n){
+  const w=wbOf(WB.id);if(!w)return;
+  const q=((wbData(w).ord)||[]).find(x=>String(x.n)===String(n));if(!q)return;
+  const used=((WB.ordUsed||{})[n])||[];
+  const str=used.map(i=>(q.toks||[])[i]).filter(x=>x!=null).join('');
+  const a=wbAns();if(!a.ord)a.ord={};a.ord[n]=str;
+  document.querySelectorAll('input[data-wbt="ord"]').forEach(inp=>{
+    if(String(inp.dataset.n)===String(n))inp.value=str;});
+  document.querySelectorAll('[data-ordtk]').forEach(row=>{
+    if(String(row.dataset.ordtk)!==String(n))return;
+    [].slice.call(row.children).forEach((b,i)=>{
+      if(b.classList)b.classList.toggle('used',used.indexOf(i)>=0);});});
+  wbTouch();
+}
+H.wbOrdTok=(id)=>{if(wbLocked())return;
+  const p=String(id).split('|');const n=p[0],i=Number(p[1]);
+  WB.ordUsed=WB.ordUsed||{};const u=(WB.ordUsed[n]=WB.ordUsed[n]||[]);
+  const at=u.indexOf(i);
+  if(at>=0)u.splice(at,1);else u.push(i);
+  wbOrdSync(n);};
+H.wbOrdUndo=(n)=>{if(wbLocked())return;
+  WB.ordUsed=WB.ordUsed||{};(WB.ordUsed[n]=WB.ordUsed[n]||[]).pop();wbOrdSync(n);};
+H.wbOrdClr=(n)=>{if(wbLocked())return;
+  WB.ordUsed=WB.ordUsed||{};WB.ordUsed[n]=[];wbOrdSync(n);};
 /* 七 語法練習（A／B 題組） */
 function wbG7Html(w,graded){
   const a=wbAns().g7||{};const gs=((wbData(w).g7||{}).groups)||[];
@@ -4517,6 +4569,8 @@ function wbG7Html(w,graded){
   const auto=(it)=>!!(it.ans&&!/^（參考）|^\(參考\)/.test(String(it.ans).trim()));
   return `<div class="wb-hint">${wbL({zh:'照每一小題的要求改寫句子。','cn':'照每一小题的要求改写句子。',en:'Rewrite each sentence as instructed.',vi:'Viết lại câu theo yêu cầu.'})}</div>`
    +gs.map(g=>{
+     const _ar=(g.arrow==null)?wbL({zh:'改寫成一句',cn:'改写成一句',en:'Rewrite as one sentence',vi:'Viết lại thành một câu'}):String(g.arrow);
+     const arrow=_ar?`<div class="wb-g7ar">→ ${esc(_ar)}</div>`:'';
      const items=(g.items||[]).map(it=>{
        const key=g.k+'-'+it.n;const v=a[key]||'';
        const ok=auto(it)?(_zh(v)===_zh(it.ans)):null;
@@ -4533,9 +4587,13 @@ function wbG7Html(w,graded){
        } else qh=(it.img?'':tOptB(raw));
        return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${esc(String(it.n))}</span><span style="flex:1">${qh}</span>${pat}</div>
          ${it.img?`<div class="wb-pic"><img src="${esc(it.img)}" alt="" loading="lazy"></div>`:''}
-         <div class="wb-g7ar">→ ${esc(wbL({zh:'改寫成一句',cn:'改写成一句',en:'Rewrite as one sentence',vi:'Viết lại thành một câu'}))}</div>
+         ${arrow}
          <div>${wbTxt('g7',key,v,graded,it.ans,ok)}</div></div>`;}).join('');
-     return `<div class="wb-g7g"><div class="wb-g7h">${esc(g.k)}. ${esc(g.title||'')}</div>${items}</div>`;}).join('');
+     /* WBG7IMG_V753 名片、價目表那種圖是整個小題組共用的，放在小標題底下。
+        「→ 改寫成一句」也不是每一種都對——填表格的不是改寫，
+        所以每一組可以自己寫那一行要顯示什麼，寫空字串就整行不出現。 */
+     const gimg=g.img?`<div class="wb-secimg"><img src="${esc(g.img)}" alt="" loading="lazy"></div>`:'';
+     return `<div class="wb-g7g"><div class="wb-g7h">${esc(g.k)}. ${esc(g.title||'')}</div>${gimg}${items}</div>`;}).join('');
 }
 function tOptB(x){return esc(String(x||'')).replace(/[_＿]{2,}/g,'<span class="opt-blank">＿＿＿＿</span>').replace(/\n/g,'<br>');}
 function wbDlgHtml(w,graded,doc,sec){
@@ -4609,9 +4667,13 @@ function wbViewHtml(w){
        hints   每一區開頭要多說的一句話（例如課本的英文指示）
        order   這些區塊要照什麼順序排（照課本的 I、II、III）
      三個都沒填就跟以前一模一樣，舊的作業簿不受影響。 */
-  const _raw=[];const TT=(d.titles||{}),HH=(d.hints||{});
+  const _raw=[];const TT=(d.titles||{}),HH=(d.hints||{}),II=(d.imgs||{});
+  /* WBSECIMG_V752 有些大題整段共用一張圖（名片、價目表、全家福），
+     圖不屬於某一小題，而是整個大題的前提，所以放在標題底下、題目上面。 */
   const push=(k,title,body)=>{_raw.push({k:k,t:TT[k]||title,
-    b:(HH[k]?('<div class="wb-hint">'+esc(HH[k])+'</div>'):'')+body});};
+    b:(HH[k]?('<div class="wb-hint">'+esc(HH[k])+'</div>'):'')
+      +(II[k]?('<div class="wb-secimg"><img src="'+esc(II[k])+'" alt="" loading="lazy"></div>'):'')
+      +body});};
   if((d.listen||[]).length)push('listen','聽力',wbListenHtml(w,graded));
   if((d.tone||[]).length)push('tone','聽力測驗　A. 聲調辨識',wbToneHtml(w,graded));
   if((d.pron||[]).length)push('pron','聽力測驗　B. 選出正確的發音',wbPronHtml(w,graded));
@@ -4702,7 +4764,7 @@ async function wbSaveDraft(){
     WB.dirty=false;const tip=document.getElementById('wb-tip');if(tip)tip.textContent=wbL({zh:'✓ 已自動存檔',cn:'✓ 已自动存档',en:'✓ Saved',vi:'✓ Đã lưu'});
   }catch(e){const tip=document.getElementById('wb-tip');if(tip)tip.textContent='';}
 }
-H.wbOpen=(id)=>{WB.id=id;WB.ans=null;WB.sel=null;WB.pick=null;S.section='wb';renderSection();window.scrollTo(0,0);};
+H.wbOpen=(id)=>{WB.id=id;WB.ans=null;WB.sel=null;WB.pick=null;WB.ordUsed={};S.section='wb';renderSection();window.scrollTo(0,0);};
 H.wbBack=()=>{clearTimeout(WB.timer);if(WB.dirty)wbSaveDraft();WB.id=null;WB.ans=null;WB.sel=null;WB.pick=null;S.section='content';renderSection();window.scrollTo(0,0);};
 H.wbHwClear=(id)=>{const p=String(id).split('|');
   const cv=document.querySelector('canvas.wb-hw[data-sec="'+p[0]+'"][data-key="'+p[1]+'"]');
