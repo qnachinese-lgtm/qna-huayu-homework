@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=708">
+<link rel="stylesheet" href="styles.css?v=751">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -4320,7 +4320,9 @@ function renderWb(){
 /* ---- 六大題 ---- */
 function wbMcHtml(sec,q,label,graded){
   const a=(wbAns()[sec]||{})[q.n];
-  const L=['A','B','C','D'],TX=[q.a,q.b,q.c,q.d];
+  /* WBMC5_V751 本來最多四個選項，當代作業簿的聽力題有到 e（五個人選一個），
+     第五個會整個不見。沒有第五個選項的題目行為完全不變。 */
+  const L=['A','B','C','D','E'],TX=[q.a,q.b,q.c,q.d,q.e];
   const opts=L.map((c,i)=>{
     if(!TX[i])return '';
     let cls='',mk='';
@@ -4342,7 +4344,9 @@ function wbListenHtml(w,graded){
     if(a.label)out+=`<div class="wb-sub">🔊 ${esc(a.label)}</div>`;
     out+=a.url?`<audio class="wb-audio" controls preload="metadata" src="${esc(a.url)}"></audio>`
       :`<div class="wb-hint">（${wbL({zh:'音檔還沒上傳',cn:'音档还没上传',en:'Audio not uploaded yet',vi:'Chưa có audio'})}${a.file?' '+esc(a.file):''}）</div>`;
-    out+=(its.length?its:items).map(q=>wbMcHtml('listen',q,'',graded)).join('');
+    /* WBLQ_V751 這裡本來固定傳空字串，所以題目文字（「陳小姐喜歡喝什麼？」）
+       整句不會顯示，學生只看得到選項。有寫題目的就顯示出來。 */
+    out+=(its.length?its:items).map(q=>wbMcHtml('listen',q,q.q||'',graded)).join('');
   });
   return out;
 }
@@ -4489,7 +4493,10 @@ function wbPyHtml(w,graded){
 function wbHzHtml(w,graded){
   const a=wbAns().hz||{};
   const _zh=x=>wbNorm(x).replace(/[，。？！；：、,.?!;:\s]/g,'');
-  return `<div class="wb-hint">${wbL({zh:'看拼音，寫出中國字。',cn:'看拼音，写出中国字。',en:'Write the sentences in Chinese characters.',vi:'Viết câu bằng chữ Hán.'})}</div>`
+  /* WBHZAUD_V751 「寫出中國字」在當代的作業簿是聽寫題（聽錄音寫字），
+     可是這一區本來沒有音檔位子，學生看不到播放鍵。
+     沒有掛 hz 音檔的作業簿，wbAud 會回傳空字串，畫面跟以前一樣。 */
+  return wbAud(w,wbAudKey(w,'hz','E'))+`<div class="wb-hint">${wbL({zh:'看拼音，寫出中國字。',cn:'看拼音，写出中国字。',en:'Write the sentences in Chinese characters.',vi:'Viết câu bằng chữ Hán.'})}</div>`
    +(wbData(w).hz||[]).map(q=>`<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${q.n}</span></div>`
       +(q.lines||[]).map((ln,i)=>{const k=q.n+'-'+i;const ok=ln.ans?(_zh(a[k])===_zh(ln.ans)):null;
         return `<div class="wb-line">${ln.sp?`<span class="wb-sp">${esc(ln.sp)}：</span>`:''}<div class="wb-lb"><div class="wb-py2">${esc(ln.py||'')}</div>${wbTxt('hz',k,a[k],graded,ln.ans,ok)}</div></div>`;}).join('')
@@ -4592,28 +4599,44 @@ function wbViewHtml(w){
       <div style="margin-top:9px;font-size:13px;opacity:.9">${doc.status==='reviewed'?wbL({zh:'需要老師批改的部分已批改 ✓',cn:'需要老师批改的部分已批改 ✓',en:'Teacher-graded parts done ✓',vi:'Phần giáo viên chấm đã xong ✓'}):wbL({zh:'語法對話和寫作等老師批改中…',cn:'语法对话和写作等老师批改中…',en:'Grammar & writing awaiting teacher…',vi:'Ngữ pháp & viết đang chờ giáo viên…'})}</div></div>`
       +((doc.overall&&String(doc.overall).trim())?`<div class="wb-fb">💬 ${esc(doc.overall)}</div>`:'');
   }
-  const CNN=['一','二','三','四','五','六','七','八','九','十','十一','十二','十三','十四','十五'];let _sn=0;const secs=[];
-  const push=(title,body)=>{secs.push(wbSec(CNN[_sn++]||String(_sn),title,body,true));};
-  if((d.listen||[]).length)push('聽力',wbListenHtml(w,graded));
-  if((d.tone||[]).length)push('聽力測驗　A. 聲調辨識',wbToneHtml(w,graded));
-  if((d.pron||[]).length)push('聽力測驗　B. 選出正確的發音',wbPronHtml(w,graded));
-  if((d.mcq||[]).length)push('聽力測驗　C. 聽對話回答問題',wbMcqHtml(w,graded));
-  if((d.tf||[]).length)push('聽力測驗　'+((d.mcq||[]).length?'D':'C')+'. 聽短文回答問題',wbTfHtml(w,graded));
-  if((d.py||[]).length)push('寫出漢語拼音和聲調',wbPyHtml(w,graded));
-  if((d.hz||[]).length)push('寫出中國字',wbHzHtml(w,graded));
-  if((d.ord||[]).length)push('句子重組',wbOrdHtml(w,graded));
-  if((d.dlg||[]).length)push('完成對話',wbDlgHtml(w,graded,doc));
-  if((d.dlg2||[]).length)push('語法練習',wbDlgHtml(w,graded,doc,'dlg2'));
-  if((d.pic||[]).length)push('圖片描述',wbPicHtml(w,graded,doc));
-  if((((d.g7||{}).groups)||[]).length)push('語法練習',wbG7Html(w,graded));
-  if((d.vocab||[]).length)push('詞彙選擇',
+  const CNN=['一','二','三','四','五','六','七','八','九','十','十一','十二','十三','十四','十五'];
+  /* WBSEC_V751 作業簿的每一區本來標題是寫死的（「聽力測驗　A. 聲調辨識」那種），
+     順序也是寫死的。那是照時代華語的作業簿長相定的，
+     可是當代中文課程的作業簿大題名稱和順序完全不一樣，
+     學生看到的就會跟手上那本書對不起來——第七大題跑到第六大題前面之類的。
+     這裡讓每一本作業簿可以自己帶三樣東西：
+       titles  每一區要顯示的標題（照課本上印的抄）
+       hints   每一區開頭要多說的一句話（例如課本的英文指示）
+       order   這些區塊要照什麼順序排（照課本的 I、II、III）
+     三個都沒填就跟以前一模一樣，舊的作業簿不受影響。 */
+  const _raw=[];const TT=(d.titles||{}),HH=(d.hints||{});
+  const push=(k,title,body)=>{_raw.push({k:k,t:TT[k]||title,
+    b:(HH[k]?('<div class="wb-hint">'+esc(HH[k])+'</div>'):'')+body});};
+  if((d.listen||[]).length)push('listen','聽力',wbListenHtml(w,graded));
+  if((d.tone||[]).length)push('tone','聽力測驗　A. 聲調辨識',wbToneHtml(w,graded));
+  if((d.pron||[]).length)push('pron','聽力測驗　B. 選出正確的發音',wbPronHtml(w,graded));
+  if((d.mcq||[]).length)push('mcq','聽力測驗　C. 聽對話回答問題',wbMcqHtml(w,graded));
+  if((d.tf||[]).length)push('tf','聽力測驗　'+((d.mcq||[]).length?'D':'C')+'. 聽短文回答問題',wbTfHtml(w,graded));
+  if((d.py||[]).length)push('py','寫出漢語拼音和聲調',wbPyHtml(w,graded));
+  if((d.hz||[]).length)push('hz','寫出中國字',wbHzHtml(w,graded));
+  if((d.ord||[]).length)push('ord','句子重組',wbOrdHtml(w,graded));
+  if((d.dlg||[]).length)push('dlg','完成對話',wbDlgHtml(w,graded,doc));
+  if((d.dlg2||[]).length)push('dlg2','語法練習',wbDlgHtml(w,graded,doc,'dlg2'));
+  if((d.pic||[]).length)push('pic','圖片描述',wbPicHtml(w,graded,doc));
+  if((((d.g7||{}).groups)||[]).length)push('g7','語法練習',wbG7Html(w,graded));
+  if((d.vocab||[]).length)push('vocab','詞彙選擇',
     `<div class="wb-hint">${wbL({zh:'從四個選項中選出最合適的一個。',cn:'从四个选项中选出最合适的一个。',en:'Choose the best of the four options.',vi:'Chọn phương án phù hợp nhất.'})}</div>`
     +(d.vocab||[]).map(q=>wbMcHtml('vocab',q,q.q,graded)).join(''));
-  if(((d.cloze||{}).paras||[]).length)push('選詞填空',wbClozeHtml(w,graded));
-  if(((d.match||{}).rows||[]).length)push('配合題',wbMatchHtml(w,graded));
-  if((d.gram||[]).length)push('請用語法完成下面的對話',wbGramHtml(w,graded,doc));
-  if(((d.read||{}).paras||[]).length)push('閱讀理解',wbReadHtml(w,graded));
-  if((d.write||{}).intro)push((d.write||{}).title||'寫作練習',wbWriteHtml(w,graded,doc));
+  if(((d.cloze||{}).paras||[]).length)push('cloze','選詞填空',wbClozeHtml(w,graded));
+  if(((d.match||{}).rows||[]).length)push('match','配合題',wbMatchHtml(w,graded));
+  if((d.gram||[]).length)push('gram','請用語法完成下面的對話',wbGramHtml(w,graded,doc));
+  if(((d.read||{}).paras||[]).length)push('read','閱讀理解',wbReadHtml(w,graded));
+  if((d.write||{}).intro)push('write',(d.write||{}).title||'寫作練習',wbWriteHtml(w,graded,doc));
+  if(Array.isArray(d.order)&&d.order.length){
+    const ix=(x)=>{const i=d.order.indexOf(x.k);return i<0?999:i;};
+    _raw.sort((a,b)=>ix(a)-ix(b));   /* 排序是穩定的，沒指定的維持原本順序排在後面 */
+  }
+  const secs=_raw.map((x,i)=>wbSec(CNN[i]||String(i+1),x.t,x.b,true));
   let bar='';
   if(S.preview)bar=`<div class="wb-bar"><span class="hint">${wbL({zh:'預覽模式，不會存檔',cn:'预览模式，不会存档',en:'Preview only',vi:'Chế độ xem trước'})}</span></div>`;
   else if(graded)bar=`<div class="wb-bar"><button class="btn btn-ghost" data-act="wbRecall">↩ ${wbL({zh:'撤回，我要再改',cn:'撤回，我要再改',en:'Withdraw & edit',vi:'Thu hồi & sửa'})}</button><span class="grow"></span><span class="hint" id="wb-tip">${doc&&doc.submitted_at?(wbL({zh:'送出時間',cn:'送出时间',en:'Submitted',vi:'Đã nộp'})+'：'+esc(fmtDT(doc.submitted_at))):''}</span></div>`;
