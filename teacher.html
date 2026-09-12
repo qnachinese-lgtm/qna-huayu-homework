@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=741">
+<link rel="stylesheet" href="styles.css?v=742">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -286,7 +286,15 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .qzw-s{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
           border-radius:999px;padding:6px 13px;cursor:pointer;font-size:14px;background:#fff}
         .qzw-s:has(input:checked){border-color:var(--primary);background:#FFF7EE;font-weight:700}
-        .qzw-s input{width:auto;margin:0}
+        /* CHIPGAP_V742 這些標籤本來設了 display:inline-flex ＋ gap:7px，
+           但它們放在 .field 裡面，而 .field label{display:block} 的權重比較高，
+           inline-flex 根本沒生效——沒有 flex 就沒有 gap，打勾框於是緊貼著名字。
+           這裡把權重補上去。 */
+        .field label.qzw-s{display:inline-flex}
+        .field label.qzw-hand{display:flex}
+        .qzw-s input{width:auto;margin:0;flex:none}
+        /* 只看在學中的：休學、預約、試學的先收起來，需要時再按開 */
+        .qzw-stus.off-hide label[data-off="1"]{display:none}
         .qzw-s i{font-style:normal;font-size:11.5px;color:var(--muted)}
         .qzw-hand{display:flex;align-items:flex-start;gap:9px;cursor:pointer;font-weight:400;
           border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fff}
@@ -1130,7 +1138,13 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .modal.rp-em .rp-em-lab{flex:0 0 auto;margin:0}
         .modal.rp-em .rp-em-tip{flex:0 0 auto;margin:0}
         .modal.rp-em #rp-ev{flex:1 1 auto;min-height:160px;resize:none}
-        .overlay{align-items:center}
+        /* MODALTOP_V742 上一版為了把視窗擺在畫面中間用了 align-items:center，
+           可是 flex 置中有一個老問題：內容比畫面高的時候，超出去的那一半是往「上」溢出的，
+           而且捲不回去——「新增課文」這種很長的視窗，最上面的課序、課名就再也看不到了。
+           改回 flex-start，用 margin:auto 來置中：有空間時一樣在正中央，
+           內容太長時會從最上面開始，整個灰底可以往下捲，不會再有看不到的部分。 */
+        .overlay{align-items:flex-start}
+        #modal-root .modal{margin:auto}
         @media(max-height:620px){.modal.modal-tall{max-height:calc(100vh - 24px)}}
         .vic-sec{margin-bottom:16px}
         .vic-h{font-family:var(--serif,inherit);font-size:15px;font-weight:700;margin:0 0 6px}
@@ -8522,6 +8536,20 @@ H.wkCopy=()=>{const t=document.getElementById('wk-txt');if(!t)return;
   try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(v).then(done).catch(()=>{t.select();try{document.execCommand('copy');done();}catch(e){toast('複製失敗，請手動選取');}});return;}}catch(e){}
   t.select();try{document.execCommand('copy');done();}catch(e){toast('複製失敗，請手動選取');}};
 
+/* STUOFF_V742 這幾個「發給誰」的清單本來把 36 位學生全部列出來，
+   可是真正在學的只有 11 位，其他都是休學、預約、試學——找人要在一片灰名字裡面撈，
+   而且很容易手滑勾到已經不上課的人。預設只列在學中的，其他收起來，需要時按一下就展開。 */
+function stuOffCount(list){try{return (list||[]).filter(s=>enrollOf(s)!=='active').length;}catch(e){return 0;}}
+function stuOffBtn(list){const n=stuOffCount(list);
+  return n?('<button class="btn btn-sm" type="button" data-act="stuOffToggle">👀 也顯示休學／預約（'+n+'）</button>'):'';}
+H.stuOffToggle=(_,btn)=>{
+  const wrap=btn&&btn.closest('.field');const box=wrap&&wrap.querySelector('.qzw-stus');
+  if(!box)return;
+  const hid=box.classList.toggle('off-hide');
+  const n=box.querySelectorAll('label[data-off="1"]').length;
+  btn.textContent=hid?('👀 也顯示休學／預約（'+n+'）'):'🙈 只看在學中';
+};
+
 /* PLAN_V700 一鍵排課程表：操作 */
 H.planNew=()=>{
   const books=planBooks();
@@ -8530,7 +8558,7 @@ H.planNew=()=>{
   const rank=(x)=>{const e=enrollOf(x);return e==='active'?0:(e==='trial'?1:(e==='reserved'?2:3));};
   const checks=live.slice().sort((a,b)=>rank(a)-rank(b)||stuNameCmp(a,b)).map(s=>{
     const on=enrollOf(s)==='active';
-    return '<label class="qzw-s"><input type="checkbox" class="plan-stu" value="'+esc(s.id)+'" data-live="'+(on?'1':'0')+'"><span>'+snm(s.name)+'</span>'
+    return '<label class="qzw-s"'+(on?'':' data-off="1"')+'><input type="checkbox" class="plan-stu" value="'+esc(s.id)+'" data-live="'+(on?'1':'0')+'"><span>'+snm(s.name)+'</span>'
       +(on?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[enrollOf(s)]||'')+'）</i>')+'</label>';}).join('');
   const d=new Date();d.setDate(d.getDate()+7);
   const def=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -8546,9 +8574,10 @@ H.planNew=()=>{
    +'<div class="field full"><label>第一課的期限</label><input id="plan-due" type="date" value="'+def+'"></div>'
    +'</div>'
    +'<div class="field full"><label>發給誰 <span class="hint" id="plan-stun"></span></label>'
-   +'<div style="display:flex;gap:6px;margin-bottom:6px"><button class="btn btn-sm" type="button" data-act="planStuAll">✔ 全選在學中</button>'
-   +'<button class="btn btn-sm" type="button" data-act="planStuNone">✕ 全部取消</button></div>'
-   +'<div class="qzw-stus">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div>'
+   +'<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap"><button class="btn btn-sm" type="button" data-act="planStuAll">✔ 全選在學中</button>'
+   +'<button class="btn btn-sm" type="button" data-act="planStuNone">✕ 全部取消</button>'
+   +stuOffBtn(live)+'</div>'
+   +'<div class="qzw-stus off-hide">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div>'
    +'<div style="margin-top:12px"><button class="btn btn-accent" data-act="planPreview">👁 看清單</button></div>'
    +'<div id="plan-prev" style="margin-top:12px"></div>'
    +'</div>'
@@ -8617,7 +8646,7 @@ H.lqpNew=(lqId)=>{
   const rank=(x)=>{const e=enrollOf(x);return e==='active'?0:(e==='trial'?1:(e==='reserved'?2:3));};
   const checks=live.slice().sort((a,b)=>rank(a)-rank(b)||stuNameCmp(a,b)).map(s=>{
     const on=enrollOf(s)==='active';
-    return '<label class="qzw-s"><input type="checkbox" class="lqp-stu" value="'+esc(s.id)+'" data-live="'+(on?'1':'0')+'"'+(on?' checked':'')+'><span>'+snm(s.name)+'</span>'
+    return '<label class="qzw-s"'+(on?'':' data-off="1"')+'><input type="checkbox" class="lqp-stu" value="'+esc(s.id)+'" data-live="'+(on?'1':'0')+'"'+(on?' checked':'')+'><span>'+snm(s.name)+'</span>'
       +(on?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[enrollOf(s)]||'')+'）</i>')+'</label>';}).join('');
   const d=new Date();d.setDate(d.getDate()+7);
   const def=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -8628,9 +8657,10 @@ H.lqpNew=(lqId)=>{
    +'<div class="field"><label>期限</label><input id="lqp-due" type="date" value="'+def+'"></div>'
    +'<div class="field"><label>可以重做嗎</label><select id="lqp-retry"><option value="1">可以重做（成績算最後一次）</option><option value="0">只能做一次</option></select></div></div>'
    +'<div class="field full"><label>指派給誰 <span class="hint" id="lqp-stun"></span></label>'
-   +'<div style="display:flex;gap:6px;margin-bottom:6px"><button class="btn btn-sm" type="button" data-act="lqpStuAll">✔ 全選在學中</button>'
-   +'<button class="btn btn-sm" type="button" data-act="lqpStuNone">✕ 全部取消</button></div>'
-   +'<div class="qzw-stus">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div></div>'
+   +'<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap"><button class="btn btn-sm" type="button" data-act="lqpStuAll">✔ 全選在學中</button>'
+   +'<button class="btn btn-sm" type="button" data-act="lqpStuNone">✕ 全部取消</button>'
+   +stuOffBtn(live)+'</div>'
+   +'<div class="qzw-stus off-hide">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div></div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
    +'<button class="btn btn-primary" data-act="lqpSave">📤 指派出去</button></div></div>');
   lqpStuCount();};
@@ -9163,7 +9193,7 @@ H.newQuiz=()=>{
   const rank=(x)=>{const e=enrollOf(x);return e==='active'?0:(e==='trial'?1:(e==='reserved'?2:3));};
   const studentChecks=live.slice().sort((a,b)=>rank(a)-rank(b)||stuNameCmp(a,b)).map(s=>{
     const on=enrollOf(s)==='active';
-    return `<label class="qzw-s"><input type="checkbox" class="quiz-stu" value="${s.id}" data-live="${on?'1':'0'}"><span>${snm(s.name)}</span>${on?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[enrollOf(s)]||'')+'）</i>'}</label>`;}).join('');
+    return `<label class="qzw-s"${on?'':' data-off="1"'}><input type="checkbox" class="quiz-stu" value="${s.id}" data-live="${on?'1':'0'}"><span>${snm(s.name)}</span>${on?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[enrollOf(s)]||'')+'）</i>'}</label>`;}).join('');
   openModal(`<div class="modal" style="max-width:660px"><div class="modal-head"><h3>📝 建立隨堂小考</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="qzw-nav" id="qzw-nav">${qzNavHtml()}</div>
@@ -9201,8 +9231,9 @@ H.newQuiz=()=>{
        <div class="field"><label>發佈給誰 <span class="hint" id="qzw-stun">還沒選人</span></label>
          <div style="display:flex;gap:7px;margin:2px 0 9px;flex-wrap:wrap">
            <button class="btn btn-sm" type="button" data-act="qzStuAll">✔ 全選在學中</button>
-           <button class="btn btn-sm btn-ghost" type="button" data-act="qzStuNone">✕ 清除</button></div>
-         <div class="qzw-stus">${studentChecks||'<span class="muted">還沒有學生</span>'}</div></div>
+           <button class="btn btn-sm btn-ghost" type="button" data-act="qzStuNone">✕ 清除</button>
+           ${stuOffBtn(live)}</div>
+         <div class="qzw-stus off-hide">${studentChecks||'<span class="muted">還沒有學生</span>'}</div></div>
        <div class="field" id="qzf-hand" style="margin-bottom:0">
          <label class="qzw-hand"><input type="checkbox" id="quiz-hand"><span><b>✍️ 讓學生用手寫作答</b><i>會出現一個有格線的寫字板，用手指或觸控筆寫。手寫的題目不自動對答案，你在結果頁看字跡按 ⭕／❌。</i></span></label></div>
        <div class="hint" style="margin-top:10px">建立後，學生在自己的「作業」頁就會看到這個小考。</div>
