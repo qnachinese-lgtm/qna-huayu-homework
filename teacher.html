@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=734">
+<link rel="stylesheet" href="styles.css?v=735">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1723,7 +1723,7 @@ const CLASS_VIEW=null;
 }
 var TABURL_LOCK=false,TABURL_FIRST=true;
 /* UIFONT_V734 一進來就把上次選的字體套上，免得先閃一下預設字體 */
-try{uiFontApply(uiFontGet());}catch(e){}
+try{fontApplyAll();}catch(e){}
 function tabUrlSync(){
   if(TABURL_LOCK)return;
   try{
@@ -5407,13 +5407,27 @@ H.featureSettings=()=>{
     <div class="modal-body"><div class="hint" style="margin-bottom:14px">打勾＝<b>開放給學生</b>看／使用；取消打勾＝學生完全看不到。改動<b>即時儲存</b>，學生重新整理就會生效。</div>${groups}</div>
     <div class="modal-foot"><span style="flex:1"></span><button class="btn btn-accent" data-act="closeModal">完成</button></div></div>`);
 };
-/* UIFONT_V734 Quinn 說 Calibri 好看的是拉丁字母，中文的部分不是。
-   確實——Calibri 根本沒有中文字，中文一直是掉到系統的微軟正黑，等於從來沒選過。
-   這裡把中文字體獨立出來讓她自己挑；拉丁字母固定用 Calibri（Carlito 當後備），
-   所以數字和越南文的樣子不會變，變的只有中文。
-   思源黑體、思源宋體、霞鶩文楷都是切片載入的（只下載真的用到的字），不會拖慢開啟。 */
-const LATIN='Calibri,Carlito,';
-const UIFONTS=[
+/* UIFONT_V735 字體拆成兩組各自選。
+   原理：字體堆疊是一個字一個字往下找的——排在前面的拉丁字體沒有中文字，
+   中文就自動落到後面那個中文字體。所以「越南文／英文用哪一種」和「中文用哪一種」
+   可以完全分開挑，互不干擾。
+   越南文那幾個選項都是有完整越南文附加符號的字體，聲調符號不會歪掉或被裁到。 */
+const LATFONTS=[
+ ['sys','系統預設','Segoe UI／蘋方系統字 · 不用下載',
+  '"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial',''],
+ ['calibri','Calibri','圓潤、偏窄，Office 的招牌字體',
+  'Calibri,Carlito',''],
+ ['bvp','Be Vietnam Pro','專為越南文設計，聲調符號最好看',
+  '"Be Vietnam Pro"',
+  'https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&display=swap'],
+ ['inter','Inter','乾淨俐落的現代字體，數字很好認',
+  'Inter',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap'],
+ ['noto','Noto Sans','中性、好讀，跟思源黑體是同一家',
+  '"Noto Sans"',
+  'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap']
+];
+const CJKFONTS=[
  ['sys','系統預設','微軟正黑體／蘋方 · 不用下載，開最快',
   '"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif',''],
  ['noto','思源黑體','Noto Sans TC · 筆畫均勻的現代黑體，看久不累',
@@ -5427,8 +5441,14 @@ const UIFONTS=[
   'https://cdn.jsdelivr.net/npm/lxgw-wenkai-tc-webfont@1.2.0/lxgwwenkaitc-regular.css '
   +'https://cdn.jsdelivr.net/npm/lxgw-wenkai-tc-webfont@1.2.0/lxgwwenkaitc-bold.css']
 ];
-function uiFontGet(){try{const v=localStorage.getItem('hyc_uifont');
-  return UIFONTS.some(x=>x[0]===v)?v:'sys';}catch(e){return 'sys';}}
+function fontList(kind){return kind==='lat'?LATFONTS:CJKFONTS;}
+function fontKeyOf(kind){return kind==='lat'?'hyc_latfont':'hyc_uifont';}
+function fontGet(kind){
+  try{const v=localStorage.getItem(fontKeyOf(kind));
+    return fontList(kind).some(x=>x[0]===v)?v:(kind==='lat'?'calibri':'sys');}
+  catch(e){return kind==='lat'?'calibri':'sys';}
+}
+function fontDef(kind,k){const L=fontList(kind);return L.find(x=>x[0]===k)||L[0];}
 function uiFontLoad(urls){
   String(urls||'').split(/\s+/).filter(Boolean).forEach(u=>{
     if(document.querySelector('link[data-uifont="'+u+'"]'))return;
@@ -5436,38 +5456,52 @@ function uiFontLoad(urls){
     l.rel='stylesheet';l.href=u;l.setAttribute('data-uifont',u);
     document.head.appendChild(l);});
 }
-function uiFontApply(k){
-  const f=UIFONTS.find(x=>x[0]===k)||UIFONTS[0];
-  uiFontLoad(f[4]);
-  try{
-    const r=document.documentElement;
-    r.style.setProperty('--font',LATIN+f[3]);
-    r.style.setProperty('--serif',LATIN+f[3]);
-  }catch(e){}
+function fontApplyAll(){
+  const lat=fontDef('lat',fontGet('lat')),cjk=fontDef('cjk',fontGet('cjk'));
+  uiFontLoad(lat[4]);uiFontLoad(cjk[4]);
+  const stack=(lat[3]?(lat[3]+','):'')+cjk[3];
+  try{const r=document.documentElement;
+    r.style.setProperty('--font',stack);
+    r.style.setProperty('--serif',stack);}catch(e){}
+}
+function fontRowHtml(kind,f,cur){
+  const lat=(kind==='lat');
+  const sample=lat?'Nguyễn Thị Mai · Học tiếng Trung · NT$1,500'
+                  :'學習中文 · 第一課 · 生詞與語法';
+  const stack=lat?(f[3]+',sans-serif')
+                 :((fontDef('lat',fontGet('lat'))[3])+','+f[3]);
+  return '<button class="btn uf-op'+(f[0]===cur?' on':'')+'" data-act="fontSet" '
+    +'data-id="'+kind+'::'+f[0]+'">'
+    +'<span class="uf-t"><b>'+esc(f[1])+'</b><i>'+esc(f[2])+'</i></span>'
+    +'<span class="uf-p" style="font-family:'+stack.replace(/"/g,"'")+'">'+esc(sample)+'</span>'
+    +(f[0]===cur?'<span class="uf-on">使用中</span>':'')+'</button>';
 }
 H.fontPick=()=>{
-  const cur=uiFontGet();
-  const row=(f)=>'<button class="btn uf-op'+(f[0]===cur?' on':'')+'" data-act="fontSet" data-id="'+f[0]+'">'
-    +'<span class="uf-t"><b>'+esc(f[1])+'</b><i>'+esc(f[2])+'</i></span>'
-    +'<span class="uf-p" style="font-family:'+LATIN+f[3].replace(/"/g,"'")+'">'
-    +'學習中文 · Học tiếng Trung · 2026</span>'
-    +(f[0]===cur?'<span class="uf-on">使用中</span>':'')+'</button>';
-  openModal('<div class="modal modal-tall" style="max-width:600px"><div class="modal-head">'
-   +'<h3>🅰 中文字體</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-   +'<div class="hint" style="margin-bottom:12px">選一個中文字體。數字、英文、越南文固定用 Calibri，不會變——'
-   +'這裡換的只有中文那部分。按下去就直接套用，不滿意再換回來。</div>'
-   +UIFONTS.map(row).join('')
-   +'<div class="hint" style="margin-top:12px">下面三種是網路字體，只會下載頁面真的用到的字，'
+  const cl=fontGet('lat'),cc=fontGet('cjk');
+  openModal('<div class="modal modal-tall" style="max-width:640px"><div class="modal-head">'
+   +'<h3>🅰 字體</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:12px">中文和越南文／英文分開選。'
+   +'排在前面的拉丁字體沒有中文字，所以中文一定會用下面那一組，兩邊不會打架。'
+   +'按下去就直接套用，不滿意再換回來。</div>'
+   +'<div class="lesson-label" style="margin-top:2px">🇻🇳 越南文・英文・數字</div>'
+   +LATFONTS.map(f=>fontRowHtml('lat',f,cl)).join('')
+   +'<div class="lesson-label" style="margin-top:16px">🇹🇼 中文</div>'
+   +CJKFONTS.map(f=>fontRowHtml('cjk',f,cc)).join('')
+   +'<div class="hint" style="margin-top:12px">標了字體名字的是網路字體，只會下載頁面真的用到的字，'
    +'第一次切換可能要等一兩秒。設定記在這台電腦上，換別台要再選一次。</div>'
    +'</div></div>');
-  /* 先把每一種都載進來，預覽才看得到真正的樣子 */
-  UIFONTS.forEach(f=>uiFontLoad(f[4]));
+  /* 全部先載進來，預覽才是真的樣子 */
+  LATFONTS.concat(CJKFONTS).forEach(f=>uiFontLoad(f[4]));
 };
-H.fontSet=(k)=>{
-  try{localStorage.setItem('hyc_uifont',k);}catch(e){}
-  uiFontApply(k);
-  const f=UIFONTS.find(x=>x[0]===k)||UIFONTS[0];
-  closeModal();toast('字體已換成「'+f[1]+'」');
+H.fontSet=(key)=>{
+  const p=String(key).split('::');
+  const kind=(p[0]==='lat')?'lat':'cjk';
+  const k=p[1];
+  try{localStorage.setItem(fontKeyOf(kind),k);}catch(e){}
+  fontApplyAll();
+  const f=fontDef(kind,k);
+  toast((kind==='lat'?'越南文／英文':'中文')+'字體換成「'+f[1]+'」');
+  H.fontPick();
 };
 H.settingsCenter=()=>{
   if(!isOwner()){toast('只有主管理員可以進入設定');return;}
@@ -5481,7 +5515,7 @@ H.settingsCenter=()=>{
         ${card('payView','','💳','收款帳號','台灣／越南的 QR 和帳號')}
         ${card('dataTools','','🗄️','備份與垃圾桶','存成 Excel · 誤刪的 7 天內可救回')}
         ${card('layoutPick','','🖼','版面','選單放左邊還是放上面')}
-        ${card('fontPick','','🅰','中文字體','黑體、宋體還是楷體，選一個順眼的')}
+        ${card('fontPick','','🅰','字體','中文和越南文分開選，各挑一個順眼的')}
       </div>
       <details style="margin-top:16px">
         <summary style="cursor:pointer;font-weight:700;color:var(--muted);font-size:13.5px;padding:6px 0">⋯ 很少用到的（設定好一次就不用再動）</summary>
