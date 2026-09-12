@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=720">
+<link rel="stylesheet" href="styles.css?v=721">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1262,6 +1262,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
 
       <section id="panel-agency" class="panel hide">
         <div class="section-head"><h2>🎓 代辦申請</h2><span class="sub">代辦申請學校的客戶、每次做了什麼、上傳內容與收費（收入會併入營運總收入）</span><div class="head-actions">
+          <button class="btn" data-act="docForm" data-id="">🖨 學生資料表</button>
           <button class="btn btn-primary" data-act="agNew">＋ 新增代辦客戶</button></div></div>
         <div id="agency-body"></div>
       </section>
@@ -2094,6 +2095,7 @@ function docSummaryHtml(c){
     +'<span class="doc-b'+((st.outGot===st.outN&&st.outN)?' ok':'')+'">📤 給學生 '+st.outGot+'／'+st.outN+'</span>'
     +(miss>0?('<span class="doc-b warn">還缺 '+miss+' 份</span>'):'')
     +'<span style="flex:1"></span>'
+    +'<button class="btn btn-sm" data-act="docForm" data-id="'+esc(c.id)+'">🖨 學生資料表</button>'
     +'<button class="btn btn-sm" data-act="docOpen" data-id="'+esc(c.id)+'">📄 看文件清單</button></div>';
 }
 function docEditRow(r,i){
@@ -2999,6 +3001,7 @@ function renderAgency(){
         <button class="btn btn-accent" data-act="agLogNew" data-id="${esc(c.id)}">＋ 新增一筆進度</button>
         <button class="btn" data-act="agPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
         <button class="btn btn-file" data-act="crmBox" data-id="agency::${esc(c.id)}">📎 上傳／查看檔案</button>
+        <button class="btn" data-act="docForm" data-id="${esc(c.id)}">🖨 學生資料表</button>
         <i class="itv-sep"></i>${crmCloseBtns(c,'agToggle')}
       </div>
       <div style="margin-top:8px">${logHtml}</div>
@@ -4973,6 +4976,14 @@ const GUIDE=[
          '每一列可以選方向（📥 學生給我／📤 我給學生）、填文件名稱、填日期；收到的當天按「今天」就會自動帶入日期',
          '按「💾 儲存」。之後卡片上會直接顯示「收到學生 5／12」「還缺 7 份」'],
   note:'範本只是起手式，每間學校要的文件不一樣，內容請自己增刪——我不會替你決定要收哪些文件。沒填日期就代表還沒收到／還沒寄出。'},
+
+ {ic:'🖨',t:'印一張學生資料表給學生填',go:'agency',goLab:'去代辦申請',
+  lead:'每間學校的申請表都不一樣，但要問的東西八成是重疊的——姓名、生日、護照、父母、越南地址那些。先用這張通用的表把資料一次收齊，之後拿到學校的表再照抄過去，就不用每次都重問一輪。',
+  steps:['到「🎓 代辦申請」，右上角有「🖨 學生資料表」，按下去是一張空白的',
+         '想要印某位客戶專用的，就點開他的卡片，在文件清單那一條按「🖨 學生資料表」——表頭會自動帶上他的名字和申請學校',
+         '另開的那一頁按「🖨 列印 / 存成 PDF」，就可以印出來或存成 PDF 傳給學生',
+         '學生填好回傳之後，到「📄 文件清單」把收到的日期記上去'],
+  note:'這張是通用版，不是照哪一間學校做的。學校另外要的欄位，填完之後自己在「其他」那一欄補上就好。下面的文件勾選表，如果這位客戶已經有自己的文件清單，會照他的清單印；還沒建的話就印通用範本。'},
 
  {ic:'💰',t:'開一張報價單給客人',go:'reply',goLab:'去開報價單',
   lead:'客人問完費用，常常還想要一份正式一點、可以轉給家裡人看的東西。報價單就是幹這個用的：挑幾個項目、填客人的名字，印成一頁 A4 或存成 PDF 傳過去。',
@@ -7143,6 +7154,164 @@ H.lqeSave=async()=>{lqeSync();const q=LQE.q;if(!(q.title||'').trim())return toas
 
 
 
+/* DOCFORM_V721 學生入學申請資料表：按一下另開一頁 A4，可以列印或存成 PDF 傳給學生填。
+   每間學校的表格都不一樣，但要問的東西八成重疊——姓名、生日、護照、父母、越南地址那些。
+   先用這張通用的收齊，之後拿到學校的表再照抄過去，就不用每次都重問一輪。
+   內容是通用版，不是照哪一間學校做的；缺什麼自己在下面「其他」那一欄補。 */
+function docFormRows(){
+  return [
+   ['sec','一、學生基本資料','Thông tin cá nhân'],
+   ['r','英文姓名（同護照）','Họ và tên (theo hộ chiếu)','例 / VD：NGUYEN THI MAI'],
+   ['r','越南文姓名','Họ và tên tiếng Việt','例 / VD：Nguyễn Thị Mai'],
+   ['r','中文姓名','Tên tiếng Trung','沒有可留空 / Không có thì để trống'],
+   ['r','性別','Giới tính','男 Nam ／ 女 Nữ'],
+   ['r','出生日期','Ngày sinh','年/月/日'],
+   ['r','出生地（省／市）','Nơi sinh (Tỉnh/Thành phố)',''],
+   ['r','國籍','Quốc tịch',''],
+   ['r','婚姻狀況','Tình trạng hôn nhân','未婚 Độc thân ／ 已婚 Đã kết hôn'],
+   ['r','宗教信仰','Tôn giáo','沒有可寫「無」/ Không có thì ghi “Không”'],
+   ['r','護照號碼','Số hộ chiếu',''],
+   ['r','護照效期至','Hộ chiếu có hiệu lực đến','年/月/日'],
+   ['r','越南身分證號','Số CCCD/CMND',''],
+   ['sec','二、聯絡方式','Thông tin liên hệ'],
+   ['r','越南地址（英文）','Địa chỉ tại Việt Nam (tiếng Anh)','門牌、街、坊、郡、省市'],
+   ['r','越南地址（越南文）','Địa chỉ tại Việt Nam (tiếng Việt)',''],
+   ['r','郵遞區號','Mã bưu điện',''],
+   ['r','手機號碼','Số điện thoại','含國碼 / Kèm mã vùng：+84…'],
+   ['r','Zalo','Zalo',''],
+   ['r','Email','Email','請用常看的信箱 / Email thường dùng'],
+   ['sec','三、緊急聯絡人','Người liên hệ khẩn cấp'],
+   ['r','姓名','Họ và tên',''],
+   ['r','與本人關係','Quan hệ với học viên','父 Bố ／ 母 Mẹ ／ 兄姊 Anh chị…'],
+   ['r','電話','Số điện thoại',''],
+   ['r','地址','Địa chỉ',''],
+   ['sec','四、家庭資料','Thông tin gia đình'],
+   ['r','父親姓名','Họ tên bố',''],
+   ['r','父親出生年','Năm sinh của bố',''],
+   ['r','父親職業','Nghề nghiệp của bố',''],
+   ['r','父親電話','Điện thoại của bố',''],
+   ['r','母親姓名','Họ tên mẹ',''],
+   ['r','母親出生年','Năm sinh của mẹ',''],
+   ['r','母親職業','Nghề nghiệp của mẹ',''],
+   ['r','母親電話','Điện thoại của mẹ',''],
+   ['r','兄弟姊妹人數','Số anh chị em',''],
+   ['r','在臺親友','Người thân tại Đài Loan','姓名、關係、電話；沒有可留空'],
+   ['sec','五、最高學歷','Trình độ học vấn cao nhất'],
+   ['r','學校名稱（英文）','Tên trường (tiếng Anh)',''],
+   ['r','學校名稱（越南文）','Tên trường (tiếng Việt)',''],
+   ['r','科系','Ngành học',''],
+   ['r','就讀期間','Thời gian học','年/月 – 年/月'],
+   ['r','畢業年月','Năm tốt nghiệp',''],
+   ['r','取得學位','Bằng cấp','高中 THPT ／ 大學 Đại học ／ 碩士 Thạc sĩ'],
+   ['r','在校成績','Điểm trung bình','GPA 或百分制'],
+   ['sec','六、語言能力','Năng lực ngôn ngữ'],
+   ['r','學中文多久','Đã học tiếng Trung bao lâu',''],
+   ['r','華語檢定','Chứng chỉ tiếng Trung','TOCFL／HSK 等級與取得日期'],
+   ['r','英文檢定','Chứng chỉ tiếng Anh','沒有可留空 / Không có thì để trống'],
+   ['sec','七、申請資料','Thông tin đăng ký'],
+   ['r','第一志願學校','Trường nguyện vọng 1',''],
+   ['r','第一志願科系','Ngành nguyện vọng 1',''],
+   ['r','第二志願學校','Trường nguyện vọng 2',''],
+   ['r','第二志願科系','Ngành nguyện vọng 2',''],
+   ['r','預計入學學期','Kỳ nhập học dự kiến','例 / VD：2027 年 2 月（春季班）'],
+   ['r','是否申請獎學金','Có xin học bổng không','是 Có ／ 否 Không'],
+   ['r','是否需要宿舍','Có cần ký túc xá không','是 Có ／ 否 Không'],
+   ['sec','八、其他','Thông tin khác'],
+   ['r','是否曾到過臺灣','Đã từng đến Đài Loan chưa','若有，請寫時間與簽證種類'],
+   ['r','是否曾被拒簽','Đã từng bị từ chối visa chưa','若有，請寫原因與時間'],
+   ['r','健康狀況／特殊需求','Tình trạng sức khỏe / nhu cầu đặc biệt',''],
+   ['r','備註','Ghi chú','']
+  ];
+}
+H.docForm=(id)=>{
+  const c=id?((S.agencies||[]).find(x=>x.id===id)||null):null;
+  const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const org=window.APP_NAME||'QNA CHINESE';
+  /* 清單優先用這位客戶自己的文件清單；還沒建就用通用範本，免得印出一張空的 */
+  const dl=(c&&docRows(c).length)?docRows(c).filter(r=>r&&r.d!=='out'):DOC_TPL.filter(r=>r.d!=='out');
+  const body=docFormRows().map(r=>{
+    if(r[0]==='sec')return '<tr class="sec"><td colspan="2"><b>'+e2(r[1])+'</b><i>'+e2(r[2])+'</i></td></tr>';
+    return '<tr><th><b>'+e2(r[1])+'</b><i>'+e2(r[2])+'</i></th>'
+      +'<td>'+(r[3]?'<span class="hint">'+e2(r[3])+'</span>':'')+'</td></tr>';
+  }).join('');
+  const checks=dl.map(x=>'<div class="ck">☐ <b>'+e2(x.n||'')+'</b></div>').join('');
+  const css=':root{--bd:#a3714e;--deep:#7a5236;--ink:#3b342e;--mut:#8b8079;--soft:#f6eee4;--line:#ece1d4}'
+   +'*{box-sizing:border-box}'
+   +'body{font-family:Calibri,Carlito,"Helvetica Neue","Segoe UI","PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;'
+   +'color:var(--ink);background:#fdfaf5;max-width:860px;margin:0 auto;padding:20px 18px 50px;font-size:13.5px;line-height:1.6}'
+   +'.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff;border:1.5px dashed #e6d3bd;'
+   +'border-radius:18px;padding:10px 14px;margin-bottom:16px}'
+   +'.bar button{font:inherit;font-weight:700;padding:9px 18px;border:0;'
+   +'background:linear-gradient(135deg,#c39468,#a3714e);color:#fff;border-radius:999px;cursor:pointer}'
+   +'.bar .hint{color:var(--mut);font-size:12.5px;margin-left:auto}'
+   +'.pg{background:#fff;border:1px solid var(--line);border-radius:20px;padding:26px 30px 30px}'
+   +'.hd{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;'
+   +'padding-bottom:12px;border-bottom:2px solid var(--soft)}'
+   +'.brand{font-size:15px;font-weight:800;color:var(--bd)}'
+   +'.brand-s{font-size:11px;color:var(--mut)}'
+   +'.doc{font-size:21px;font-weight:800;color:var(--deep);text-align:right}'
+   +'.doc-s{font-size:12px;color:var(--bd);text-align:right;font-weight:700}'
+   +'.who{margin:12px 0 0;background:var(--soft);border-radius:12px;padding:9px 14px;font-size:13px}'
+   +'.tip{margin:12px 0 6px;background:#fffdfa;border:1.5px dashed #e0cdb6;border-radius:14px;padding:11px 15px}'
+   +'.tip b{color:var(--deep)}.tip p{margin:5px 0 0;font-size:12.5px}'
+   +'.tip p i{display:block;font-style:normal;color:var(--mut);font-size:11.5px}'
+   +'table{width:100%;border-collapse:collapse;margin-top:10px}'
+   +'th,td{border:1px solid var(--line);padding:7px 10px;vertical-align:top;text-align:left}'
+   +'th{background:var(--soft);width:36%;font-weight:400}'
+   +'th b{display:block;font-size:13px;color:var(--deep)}'
+   +'th i{display:block;font-style:normal;font-size:11px;color:var(--mut);margin-top:1px}'
+   +'td{height:34px}'
+   +'td .hint{font-size:11px;color:#bcae9d;font-style:italic}'
+   +'tr.sec td{background:#fff;border-left:0;border-right:0;padding:14px 0 6px}'
+   +'tr.sec b{font-size:15px;color:var(--deep)}'
+   +'tr.sec i{font-style:normal;font-size:12px;color:var(--mut);margin-left:8px}'
+   +'.ckwrap{margin-top:8px;column-count:2;column-gap:26px}'
+   +'.ck{font-size:13px;padding:3px 0;break-inside:avoid}'
+   +'.sign{display:flex;gap:30px;margin-top:26px}'
+   +'.sign div{flex:1}.sign .lb{font-size:12px;color:var(--mut);margin-bottom:26px}'
+   +'.sign .ln{border-top:1px solid #cbbca8}'
+   +'.foot{margin-top:18px;padding-top:10px;border-top:1px solid var(--line);color:var(--mut);font-size:11px}'
+   +'@page{size:A4;margin:11mm 10mm}'
+   +'@media print{.bar{display:none!important}body{max-width:none;padding:0;background:#fff;font-size:11.5px}'
+   +'.pg{border:0;border-radius:0;padding:0}'
+   +'thead{display:table-header-group}tr{break-inside:avoid}'
+   +'*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}';
+  const page='<section class="pg">'
+   +'<div class="hd"><div><div class="brand">'+e2(org)+'</div>'
+   +'<div class="brand-s">華語教學・留學代辦　|　Dạy tiếng Trung · Tư vấn du học</div></div>'
+   +'<div><div class="doc">學生入學申請資料表</div>'
+   +'<div class="doc-s">PHIẾU THÔNG TIN ĐĂNG KÝ NHẬP HỌC</div></div></div>'
+   +(c?('<div class="who"><b>學生 / Học viên：</b>'+e2(c.name||'')
+       +(c.school?('　　<b>申請學校 / Trường：</b>'+e2(c.school)):'')+'</div>'):'')
+   +'<div class="tip"><b>填寫說明　</b><span style="color:#8b8079;font-size:12px">Hướng dẫn điền</span>'
+   +'<p>・姓名、地址請用英文拼音填寫，與護照上完全一致。'
+   +'<i>Họ tên và địa chỉ vui lòng điền bằng tiếng Anh, giống hệt trên hộ chiếu.</i></p>'
+   +'<p>・日期一律寫成「年／月／日」，例如 2004/08/25。'
+   +'<i>Ngày tháng viết theo dạng Năm/Tháng/Ngày, ví dụ 2004/08/25.</i></p>'
+   +'<p>・不確定或沒有的欄位可以留空，不要自己猜。'
+   +'<i>Mục nào chưa rõ hoặc không có thì để trống, đừng tự đoán.</i></p></div>'
+   +'<table>'+body+'</table>'
+   +'<div style="margin-top:18px"><b style="font-size:15px;color:#7a5236">九、需要繳交的文件</b>'
+   +'<i style="font-style:normal;font-size:12px;color:#8b8079;margin-left:8px">Hồ sơ cần nộp</i></div>'
+   +'<div style="font-size:11.5px;color:#8b8079;margin-top:3px">'
+   +(c&&docRows(c).length?'這一份是依這位客戶的文件清單印的。':'實際要交哪些以老師通知為準。')
+   +'　Danh sách giấy tờ cụ thể sẽ do cô thông báo.</div>'
+   +'<div class="ckwrap">'+checks+'</div>'
+   +'<div style="margin-top:22px;font-size:12.5px">以上資料均為本人親自填寫，內容屬實。'
+   +'<span style="color:#8b8079"><br>Tôi xin cam đoan những thông tin trên là do chính tôi điền và hoàn toàn đúng sự thật.</span></div>'
+   +'<div class="sign"><div><div class="lb">學生簽名 / Chữ ký</div><div class="ln"></div></div>'
+   +'<div><div class="lb">填表日期 / Ngày</div><div class="ln"></div></div></div>'
+   +'<div class="foot">'+e2(org)+'　填好之後請把這份表格回傳給老師。'
+   +'Sau khi điền xong, vui lòng gửi lại phiếu này cho cô.</div></section>';
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
+   +'<title>'+e2(org)+' 學生入學申請資料表'+(c?(' · '+e2(c.name||'')):'')+'</title>'
+   +'<style>'+css+'</style></head><body>'
+   +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
+   +'<span style="color:#8b8079;font-size:13px">'+(c?e2(c.name||''):'空白表格')+'</span>'
+   +'<span class="hint">列印時這排按鈕不會印出來</span></div>'+page+'</body></html>';
+  const w=window.open('','_blank');if(!w)return toast('請允許彈出視窗後再按一次');
+  w.document.write(html);w.document.close();
+};
 /* DOC_V719 申請文件清單的操作 */
 H.docOpen=(id)=>{const c=(S.agencies||[]).find(x=>x.id===id);if(!c)return;
   openModal('<div class="modal modal-wide"><div class="modal-head"><h3>📄 '+esc(c.name||'')+' · 申請文件清單</h3>'
