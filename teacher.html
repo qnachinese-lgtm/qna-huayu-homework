@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=730">
+<link rel="stylesheet" href="styles.css?v=731">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -3136,13 +3136,68 @@ function renderInterview(){
       ${c.result_note?`<div class="hint" style="margin-top:4px">結果：${esc(c.result_note)}</div>`:''}${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#9a8f80">📄 備註／學生資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#fdfaf4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${itvFeeBlock(c)}
       <div class="itv-acts">
-        <button class="btn btn-accent" data-act="itvSess" data-id="${esc(c.id)}::new">＋ 新增練習時間</button>
+        <button class="btn btn-accent" data-act="itvLogNew" data-id="${esc(c.id)}">＋ 新增一筆進度</button>
+        <button class="btn" data-act="itvSess" data-id="${esc(c.id)}::new">＋ 新增練習時間</button>
         <button class="btn btn-file" data-act="itvFiles" data-id="${esc(c.id)}">📎 上傳／查看檔案</button>
         <i class="itv-sep"></i>${crmCloseBtns(c,'itvToggle')}
       </div>
+      ${(function(){const lg=itvLogSorted(c);
+        return '<div class="lesson-label" style="margin:12px 0 2px">🗂 進度紀錄'
+          +(lg.length?('（'+lg.length+' 筆）'):'')+'</div>'
+          +(lg.length?lg.map(e=>itvLogRowHtml(c,e)).join('')
+            :'<div class="hint" style="padding:6px 0">還沒有進度，按上面「＋ 新增一筆進度」記下哪天做了什麼、給了什麼文件。</div>');})()}
       ${upHtml}${pastHtml}
     </div></details>`;}).join('');
   body.innerHTML=(_foc?crmBackBar(_fkind,_foc):(head+crmFoldBar(_fkind,list)+crmThead(_fkind)))+'<div class="crm-list">'+rows+(_foc?'':crmTfoot(_fkind,list))+'</div>';
+}
+/* ITVLOG_V731 面試客戶本來只有一個「備註」欄，老師只能把「9/12 提供了面試簽證問題清單」
+   這種事全部擠在同一格裡，久了誰在哪一天做了什麼、給了什麼文件就查不出來。
+   代辦客戶早就有一筆一筆的進度紀錄，面試這邊漏了，這裡補上同一套：
+   一天一筆，記做了什麼、給了或收了什麼文件、備註。 */
+function itvLog(c){return (c&&Array.isArray(c.log))?c.log.filter(x=>x&&x.date):[];}
+function itvLogSorted(c){return itvLog(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));}
+const ITV_ACTS=['提供面試問題清單','寄學生資料表','收到學生資料','修改自我介紹','修改讀書計畫',
+  '安排練習時間','完成一次練習','提醒面試時間','面試當天','回報面試結果','其他'];
+function itvLogRowHtml(c,e){
+  const idx=itvLog(c).indexOf(e);
+  const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';
+  return '<div class="dash-row" style="padding:7px 0;flex-wrap:wrap;align-items:flex-start">'
+    +'<b>'+esc(e.date)+'</b>'+(wd?('<span class="muted" style="font-size:12px;margin-left:4px">（'+wd+'）</span>'):'')
+    +'<span class="grow"></span>'
+    +'<button class="btn btn-sm" data-act="itvLogEdit" data-id="'+esc(c.id)+'::'+idx+'">✏️</button>'
+    +'<button class="btn btn-sm btn-danger" data-act="itvLogDel" data-id="'+esc(c.id)+'::'+idx+'">✕</button>'
+    +'<div style="flex-basis:100%;margin-top:2px">'
+    +(e.action?('<div>📋 <b>做了什麼：</b>'+esc(e.action)+'</div>'):'')
+    +(e.docs?('<div style="margin-top:2px">📎 <b>文件：</b>'+esc(e.docs)+'</div>'):'')
+    +(e.note?('<div class="muted" style="margin-top:2px">'+esc(e.note)+'</div>'):'')
+    +'</div></div>';
+}
+function itvLogForm(key){
+  const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
+  const isNew=(p[1]==null||p[1]==='new');
+  const e=isNew?{}:(itvLog(c)[Number(p[1])]||{});
+  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>'
+   +(isNew?'＋ 新增一筆進度':'✏️ 修改進度')+' · '+snm(c.name||'')+'</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:10px">記「哪一天、幫這位客戶做了什麼、給了或收了什麼文件」，'
+   +'以後要查就不用翻對話紀錄。</div><div class="form-grid">'
+   +'<div class="field full"><label>日期 *</label>'
+   +'<input id="il-date" type="date" min="2000-01-01" max="2100-12-31" value="'
+   +esc(e.date||localToday())+'" style="max-width:230px"></div>'
+   +'<div class="field full"><label>做了什麼 *</label>'
+   +'<input id="il-action" type="text" list="il-acts" value="'+esc(e.action||'')+'" '
+   +'placeholder="例：提供面試簽證問題清單">'
+   +'<datalist id="il-acts">'+ITV_ACTS.map(a=>'<option value="'+esc(a)+'">').join('')+'</datalist></div>'
+   +'<div class="field full"><label>給了／收到什麼文件 <span class="hint">選填</span></label>'
+   +'<input id="il-docs" type="text" value="'+esc(e.docs||'')+'" '
+   +'placeholder="例：面試問題清單 PDF、學生的自我介紹草稿"></div>'
+   +'<div class="field full"><label>備註 <span class="hint">選填</span></label>'
+   +'<textarea id="il-note" rows="3" style="width:100%;box-sizing:border-box" '
+   +'placeholder="例：學生說 9/20 之後才有空">'+esc(e.note||'')+'</textarea></div>'
+   +'</div></div><div class="modal-foot">'
+   +'<button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="itvLogSave" data-id="'+esc(c.id)+'::'
+   +(isNew?'new':p[1])+'">💾 儲存</button></div></div>');
 }
 /* ITV_FORM_PAY_V12 付費做進「客戶資料」視窗裡：上面設總額，下面一筆一筆自己登記 */
 /* CRM_FOLD_V14 面試／代辦／代書的客戶卡片預設收起來，點一下才展開 */
@@ -5005,6 +5060,14 @@ const GUIDE=[
          '點開那一份，中文和越南文各打一份內容，按「💾 儲存這一份」',
          '之後客人一問，上面的搜尋框打關鍵字（例如「碩士」），找到就按「📋 複製」，貼到 Zalo 或 Facebook'],
   note:'內容完全是你自己寫的，系統不會自己生任何一個字，也不會自動發給任何人——複製之後要不要改、要不要送出，都還是你決定。'},
+
+ {ic:'🗂',t:'記下哪天做了什麼、給了什麼文件',go:'interview',goLab:'去面試練習',
+  lead:'代辦和面試都是來回好幾個月的事，哪天寄了什麼、哪天收到什麼，全部擠在一個備註欄裡，過幾個月就查不出來了。現在兩邊都可以一天記一筆。',
+  steps:['點開客戶的卡片，按「＋ 新增一筆進度」',
+         '填日期、那天做了什麼（有常用選項可以直接挑，也可以自己打）',
+         '「給了／收到什麼文件」那一欄寫清楚，例如「面試問題清單 PDF」「學生的自我介紹草稿」',
+         '存好之後，卡片裡的「🗂 進度紀錄」會由新到舊排好，隨時查得到'],
+  note:'這是給你自己查的紀錄，不會發給任何人。代辦客戶那邊的「＋ 新增一筆進度」是同一個東西，只是多了費用欄。'},
 
  {ic:'📄',t:'收學生的申請文件不要弄丟',go:'agency',goLab:'去代辦申請',
   lead:'代辦一個學生要來回收好幾份文件，哪天收到誰的什麼、哪天又寄了什麼給他，光靠記憶和翻對話紀錄一定會漏。每位代辦客戶現在有一張文件清單，收到那天把日期點一下就好。',
@@ -10308,6 +10371,28 @@ H.agLogSave=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if
 H.agLogDel=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if(!c)return;if(!confirm('刪除這筆進度？'))return;
   const arr=agLog(c).slice();arr.splice(Number(p[1]),1);
   try{await DB.update(crmCol(c.id),c.id,{log:arr});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
+/* ITVLOG_V731 面試進度紀錄的操作 */
+H.itvLogNew=(id)=>itvLogForm(id+'::new');
+H.itvLogEdit=(key)=>itvLogForm(key);
+H.itvLogSave=async(key)=>{
+  const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
+  const v=(x)=>{const el=document.getElementById(x);return el?String(el.value||'').trim():'';};
+  const date=v('il-date');if(!date)return toast('請選日期');
+  const action=v('il-action');if(!action)return toast('請寫一下那天做了什麼');
+  const row={date:date,action:action,docs:v('il-docs'),note:v('il-note')};
+  const arr=itvLog(c).slice();
+  if(p[1]==='new')arr.push(row);else arr[Number(p[1])]=row;
+  arr.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  try{await DB.update(crmCol(c.id),c.id,{log:arr});await loadAll();closeModal();render();
+    toast('已儲存這筆進度 ✓');}catch(e){toast(writeErr('儲存失敗',e));}
+};
+H.itvLogDel=async(key)=>{
+  const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
+  if(!confirm('刪除這筆進度？'))return;
+  const arr=itvLog(c).slice();arr.splice(Number(p[1]),1);
+  try{await DB.update(crmCol(c.id),c.id,{log:arr});await loadAll();render();toast('已刪除');}
+  catch(e){toast(writeErr('刪除失敗',e));}
+};
 H.itvNew=()=>itvForm(null);
 H.itvEdit=(id)=>itvForm(itvById(id));
 H.itvSess=(key)=>itvSessForm(key);
