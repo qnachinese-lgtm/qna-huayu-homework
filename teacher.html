@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=773">
+<link rel="stylesheet" href="styles.css?v=775">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1042,6 +1042,17 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           .dash-btns>.btn,.dash-btns>a.btn{width:auto;padding-left:12px;padding-right:12px}
           .dash-slot{display:none}
         }
+        /* QINLINE_V774 練習題清單上直接打字 */
+        .qi-wrap{display:flex;gap:8px;align-items:flex-start;margin-top:5px;flex-wrap:wrap}
+        .qi-p{flex:1 1 320px;min-width:200px;min-height:38px;resize:vertical;font-size:14.5px;line-height:1.6}
+        .qi-a{flex:0 1 240px;min-width:150px;font-size:14.5px}
+        .qi-ok{flex:none;width:16px;color:#16a34a;font-weight:700;line-height:34px}
+        .qi-instr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 10px;
+          padding:8px 10px;background:#faf7f2;border:1px dashed var(--line);border-radius:9px}
+        .qi-instr-l{font-size:12.5px;font-weight:700;color:#8a6a4a;flex:none}
+        .qi-instr-in{flex:1 1 320px;min-width:200px;font-size:13.5px}
+        .qi-add{margin-top:4px}
+        @media (max-width:700px){.qi-a{flex-basis:100%}}
         .lc-btns{display:grid;grid-template-columns:repeat(5,88px);gap:6px;flex:none}
         .lc-btns>.btn{width:100%;justify-content:center;padding-left:4px;padding-right:4px;white-space:nowrap}
         @media (max-width:820px){
@@ -1729,6 +1740,10 @@ function dueInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0)
   return{cls:'badge-pending',label:'截止 '+fmtDate(due)};}
 function emptyHtml(i,t,d){return `<div class="empty"><div class="big">${i}</div><b>${t}</b><div style="margin-top:6px">${d}</div></div>`;}
 const TYPE_LABELS={choice:'單選',fill:'填空',opt:'選填',qa:'問答',order:'重組',match:'配對',write:'手寫',speak:'口說',note:'示範'};
+/* QINLINE_V774 這幾種只有「題目＋答案」，可以直接在清單上打；
+   其餘（單選、選填、重組、配對）有選項要排，還是走 ⚙️ 那個視窗。 */
+const QI_TYPES={fill:1,qa:1,note:1,write:1,speak:1};
+let QSEC=[];
 
 const S={students:[],lessons:[],questions:[],results:[],sentences:[],quizzes:[],quizResults:[],discussions:[],admins:[],announcements:[],trashStudents:[],trashLessons:[],tab:'dashboard',q:'',openCards:new Set(),openBooks:new Set(),openSeries:new Set()};
 let IS_OWNER=false, MY_EMAIL='';
@@ -4580,20 +4595,44 @@ function openQuestionsModal(lid){
       if(!cur||cur.key!==k){const gpTag=(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?('語法 '+(q.gp_index+1)+(q.gp_sub?(' · '+esc((q.gp_sub||'').trim())):'')):'未指定語法（綜合練習）';cur={key:k,label:gpTag,items:[]};secs.push(cur);}
       cur.items.push(q);});
     return secs;};
+  const ansOf=(q)=>{const a=q.answer;if(a==null)return '';
+    if(Array.isArray(a))return a.join(' / ');
+    if(typeof a==='number')return '';return String(a);};
   const rowHtml=(q,i,n,prev)=>{const canMerge=prev&&prev.type==='opt'&&(q.type==='opt'||q.type==='qa');const ni=(q.type==='opt'&&(q.items||[]).length>1)?`<span class="tag">${(q.items||[]).length} 小題</span>`:'';
+    const tags=`<div class="qe-t"><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${ni}${q.audio_url?'<span class="tag gold">🔊 聽力</span>':''}${q.image_url?'<span class="tag">🖼 照片</span>':''}${(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?`<span class="tag">📘 語法${q.gp_index+1}${q.gp_sub?(' '+esc(q.gp_sub)):''}</span>`:''}${(q.type==='fill'&&q.input_mode==='write')?'<span class="tag">✍️ 手寫</span>':''}</div>`;
+    const inline=QI_TYPES[q.type];
+    const body=inline
+      ? `<div class="qi-wrap">
+          <textarea class="qi-p" data-q="${q.id}" data-lid="${lid}" rows="1" placeholder="題目（填空處打 ＿＿＿）">${esc(q.prompt||'')}</textarea>
+          ${q.type==='note'?'':`<input class="qi-a" type="text" data-q="${q.id}" data-lid="${lid}" value="${esc(ansOf(q))}" placeholder="答案（可留空，多個用 / 隔開）">`}
+          <span class="qi-ok" data-ok="${q.id}"></span></div>`
+      : `<div class="qe-p">${esc(q.prompt||'（無題目）')}</div>`;
     return `<div class="qe-row"><span class="q-num">${i+1}</span>
      <div class="qe-move"><button class="btn-move" data-act="qMove" data-id="${lid}::${q.id}::up" title="上移"${i===0?' disabled':''}>▲</button><button class="btn-move" data-act="qMove" data-id="${lid}::${q.id}::down" title="下移"${i===n-1?' disabled':''}>▼</button></div>
-     <div class="grow"><div class="qe-t"><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${ni}${q.audio_url?'<span class="tag gold">🔊 聽力</span>':''}${q.image_url?'<span class="tag">🖼 照片</span>':''}${(q.gp_index!=null&&(l.grammar_points||[])[q.gp_index])?`<span class="tag">📘 語法${q.gp_index+1}${q.gp_sub?(' '+esc(q.gp_sub)):''}</span>`:''}${(q.type==='fill'&&q.input_mode==='write')?'<span class="tag">✍️ 手寫</span>':''}</div>
-     <div class="qe-p">${esc(q.prompt||'（無題目）')}</div></div>
+     <div class="grow">${tags}${body}</div>
      ${canMerge?`<button class="btn btn-sm btn-soft" data-act="qMerge" data-id="${lid}::${q.id}" title="把這題的小題併入上一題的選填，選項只留一份">⤴ 併入上一題</button>`:''}
-     <button class="btn btn-sm" data-act="editQuestion" data-id="${lid}::${q.id}">編輯</button>
+     <button class="btn btn-sm" data-act="editQuestion" data-id="${lid}::${q.id}" title="改題型、選項、聽力、照片">⚙️</button>
      <button class="btn btn-sm btn-danger" data-act="delQuestion" data-id="${lid}::${q.id}">刪除</button></div>`;};
-  const secsHtml=(secs)=>secs.map(sec=>`<details class="qe-secfold" open><summary class="qe-sechd">${sec.label}<span class="qe-sec-n">${sec.items.length} 題</span></summary><div class="qe-secbody">${sec.items.map((q,i)=>rowHtml(q,i,sec.items.length,i>0?sec.items[i-1]:null)).join('')}</div></details>`).join('');
+  QSEC=[];
+  const secsHtml=(secs)=>secs.map(sec=>{
+    const si=QSEC.length;const f=sec.items[0]||{};
+    QSEC.push({lid,bank:f.bank==='hw'?'hw':'class',gp_index:(f.gp_index==null?null:f.gp_index),
+      gp_sub:f.gp_sub||null,type:(QI_TYPES[f.type]?f.type:'fill'),instruction:f.instruction||''});
+    const instr=(sec.items.find(x=>x.instruction)||{}).instruction||'';
+    const same=sec.items.every(x=>(x.instruction||'')===instr);
+    return `<details class="qe-secfold" open><summary class="qe-sechd">${sec.label}<span class="qe-sec-n">${sec.items.length} 題</span></summary>
+     <div class="qe-secbody">
+      <div class="qi-instr"><span class="qi-instr-l">說明</span>
+        <input type="text" class="qi-instr-in" data-sec="${si}" value="${esc(instr)}" placeholder="這一節的說明，例：用 A 不 A 完成問句（只會印一次）">
+        <span class="hint">${same?'整節共用':'⚠️ 這一節目前每題不一樣，改這裡會全部統一'}</span></div>
+      ${sec.items.map((q,i)=>rowHtml(q,i,sec.items.length,i>0?sec.items[i-1]:null)).join('')}
+      <button class="btn btn-sm btn-soft qi-add" data-act="qiAdd" data-id="${si}">＋ 在這一節加一題</button>
+     </div></details>`;}).join('');
   const classQs=all.filter(q=>!isHw(q)),hwQs=all.filter(isHw);
   const bankTitle=(t,h)=>`<div style="font-weight:800;font-size:15px;margin:4px 0 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${t}<span class="hint" style="font-weight:400">${h}</span></div>`;
   const classBody=classQs.length?secsHtml(groupSecs(classQs)):'<div class="empty" style="padding:18px"><b>還沒有上課語法練習</b><div style="margin-top:4px">點下方「＋ 上課語法練習」新增。</div></div>';
   const hwBody=hwQs.length?secsHtml(groupSecs(hwQs)):'<div class="empty" style="padding:18px"><b>作業簿還沒有內容</b><div style="margin-top:4px">這是課本另一本獨立的作業。用下方「＋ 作業簿題」或「批次匯入」（選作業簿）加入。</div></div>';
-  const tools=all.length?`<div class="qe-tools"><span class="hint">用 ▲▼ 在同一小節裡調整順序；題號每節從 1 算。</span><span style="flex:1"></span><button class="btn btn-sm btn-ghost" data-act="qExpandAll">▾ 全部展開</button><button class="btn btn-sm btn-ghost" data-act="autoOrderQuestions" data-id="${lid}">↕ 自動排序</button></div>`:'';
+  const tools=all.length?`<div class="qe-tools"><span class="hint">題目和答案可以直接在下面打字，游標離開就存；在答案欄按 Enter 會直接開下一題。⚙️ 是改題型、選項、聽力、照片。</span><span style="flex:1"></span><button class="btn btn-sm btn-ghost" data-act="qExpandAll">▾ 全部展開</button><button class="btn btn-sm btn-ghost" data-act="autoOrderQuestions" data-id="${lid}">↕ 自動排序</button></div>`:'';
   openModal(`<div class="modal wide"><div class="modal-head"><h3>${esc(l.title)} · 練習題</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">${tools}
      ${bankTitle('📘 上課語法練習','放在學生「上課內容 → 語法」')}
@@ -4605,6 +4644,7 @@ function openQuestionsModal(lid){
      <button class="btn" data-act="bulkImport" data-id="${lid}">⬆ 批次匯入</button>
      <button class="btn" data-act="addQuestion" data-id="${lid}::class">＋ 上課語法練習</button>
      <button class="btn btn-primary" data-act="addQuestion" data-id="${lid}::hw">＋ 作業簿題</button></div></div>`);
+  setTimeout(()=>{document.querySelectorAll('.qi-p').forEach(qiGrow);},0);
 }
 function bulkImportModal(lid){const l=S.lessons.find(x=>x.id===lid)||{};const gps=l.grammar_points||[];
   openModal(`<div class="modal wide"><div class="modal-head"><h3>批次匯入題目</h3><button class="x" data-act="backToQuestions" data-id="${lid}">×</button></div>
@@ -10406,6 +10446,53 @@ H.dlgDel=(i)=>{dlgSync();DLG.splice(Number(i),1);if(!DLG.length)DLG.push({title:
 H.questions=(id)=>openQuestionsModal(id);
 H.addQuestion=(id)=>{const[lid,bank]=String(id).split('::');questionEditModal(lid,null,bank||'class');};
 H.editQuestion=(key)=>{const[lid,qid]=key.split('::');questionEditModal(lid,S.questions.find(q=>q.id===qid));};
+/* 直接在清單上改：只送有變的欄位，改完在旁邊點一個 ✓，不重畫整個視窗（重畫游標會跑掉） */
+function qiParseAns(v,type){const t=String(v||'').trim();
+  if(type==='note')return null;
+  if(!t)return null;
+  return t.split('/').map(x=>x.trim()).filter(Boolean);}
+H.qiSave=async(qid)=>{
+  const q=(S.questions||[]).find(x=>x.id===qid);if(!q)return;
+  const pe=document.querySelector('.qi-p[data-q="'+qid+'"]');
+  const ae=document.querySelector('.qi-a[data-q="'+qid+'"]');
+  const ok=document.querySelector('.qi-ok[data-ok="'+qid+'"]');
+  const patch={};
+  if(pe){const v=pe.value.trim();if(v!==String(q.prompt||''))patch.prompt=v;}
+  if(ae){const nv=qiParseAns(ae.value,q.type);const old=Array.isArray(q.answer)?q.answer:(q.answer==null?null:[String(q.answer)]);
+    if(JSON.stringify(nv)!==JSON.stringify(old))patch.answer=nv;}
+  if(!Object.keys(patch).length)return;
+  try{await DB.update('questions',qid,patch);Object.assign(q,patch);
+    if(ok){ok.textContent='✓';setTimeout(()=>{if(ok)ok.textContent='';},1400);}}
+  catch(e){if(ok)ok.textContent='✗';toast(writeErr('存不進去',e));}};
+H.qiAdd=async(si)=>{
+  const sec=QSEC[+si];if(!sec)return;
+  try{
+    const obj={lesson_id:sec.lid,type:sec.type,prompt:'',options:[],answer:null,items:null,
+      bank:sec.bank,gp_index:sec.gp_index,gp_sub:sec.gp_sub,input_mode:null,
+      audio_url:null,image_url:null,instruction:sec.instruction||null,explanation:null,
+      order_index:questionsOf(sec.lid).length};
+    const d=await DB.insert('questions',obj);
+    const nid=(d&&d.id)||null;
+    S.questions=await DB.list('questions');
+    openQuestionsModal(sec.lid);
+    setTimeout(()=>{const el=nid?document.querySelector('.qi-p[data-q="'+nid+'"]'):null;
+      if(el){el.scrollIntoView({block:'center'});el.focus();}},60);
+  }catch(e){toast(writeErr('加不進去',e));}};
+/* 一節的說明只要一句就好——存到這一節每一題上，列印的時候只會印一次 */
+H.qiInstr=async(si)=>{
+  const sec=QSEC[+si];if(!sec)return;
+  const inp=document.querySelector('.qi-instr-in[data-sec="'+si+'"]');if(!inp)return;
+  const v=inp.value.trim()||null;
+  const list=sortQuestionsLogical(questionsOf(sec.lid)).filter(q=>
+    (q.bank==='hw'?'hw':'class')===sec.bank &&
+    ((q.gp_index==null?null:q.gp_index)===sec.gp_index) &&
+    ((q.gp_sub||null)===sec.gp_sub));
+  const todo=list.filter(q=>(q.instruction||null)!==v);
+  if(!todo.length)return;
+  try{for(const q of todo){await DB.update('questions',q.id,{instruction:v});q.instruction=v;}
+    sec.instruction=v||'';toast('這一節 '+todo.length+' 題的說明都改好了');
+    const h=inp.parentElement&&inp.parentElement.querySelector('.hint');if(h)h.textContent='整節共用';}
+  catch(e){toast(writeErr('存不進去',e));}};
 H.backToQuestions=(id)=>openQuestionsModal(id);
 H.bulkImport=(id)=>bulkImportModal(id);
 H.exportCal=()=>{const r=buildAllClassICS();if(!r.count){toast('沒有設定上課時段的學生');return;}
@@ -12284,6 +12371,21 @@ function payUpdateCalc(fromAmount){payCalc('pay',fromAmount);}
 /* 只在離開欄位後把「太大」的年份（>2100 或超過 4 位）夾回來；小年份不動，才不會擋到你邊打字 */
 function clampDateInput(t){if(!t||t.type!=='date'||!t.value)return;const m=String(t.value).match(/^(\d+)-(\d{2})-(\d{2})$/);if(!m)return;if(m[1].length<=4&&parseInt(m[1],10)<=2100)return;t.value='2100-'+m[2]+'-'+m[3];}
 document.addEventListener('blur',(e)=>{clampDateInput(e.target);},true);
+document.addEventListener('blur',(e)=>{const t=e.target;if(!t||!t.classList)return;
+  if(t.classList.contains('qi-p')||t.classList.contains('qi-a')){H.qiSave(t.dataset.q);return;}
+  if(t.classList.contains('qi-instr-in')){H.qiInstr(t.dataset.sec);return;}},true);
+document.addEventListener('keydown',(e)=>{const t=e.target;if(!t||!t.classList)return;
+  if(t.classList.contains('qi-a')&&e.key==='Enter'){e.preventDefault();
+    const row=t.closest('.qe-secbody');const add=row&&row.querySelector('.qi-add');
+    H.qiSave(t.dataset.q);
+    setTimeout(()=>{if(add)add.click();},260);return;}
+  if(t.classList.contains('qi-p')&&e.key==='Enter'&&!e.shiftKey){e.preventDefault();
+    const a=document.querySelector('.qi-a[data-q="'+t.dataset.q+'"]');
+    H.qiSave(t.dataset.q);if(a)a.focus();return;}
+  if(t.classList.contains('qi-instr-in')&&e.key==='Enter'){e.preventDefault();t.blur();return;}});
+function qiGrow(el){if(!el)return;el.style.height='auto';el.style.height=Math.min(220,Math.max(38,el.scrollHeight))+'px';}
+document.addEventListener('input',(e)=>{const t=e.target;
+  if(t&&t.classList&&t.classList.contains('qi-p'))qiGrow(t);});
 document.addEventListener('input',(e)=>{const t=e.target;if(!t)return;
   if(t.id==='pay-amount')setTimeout(()=>payCalc('pay',true),0);
   if(t.id==='pay-sess')setTimeout(()=>payCalc('pay',false),0);
