@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=785">
+<link rel="stylesheet" href="styles.css?v=786">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -2824,7 +2824,7 @@ function renderCalMonth(body,toggle){
     const fixArr=fixes.map(p=>{const tm=twVnStr(p.start,p.end);const isSolo=!!p.sid;
       const key=(isSolo?('S:'+esc(p.sid)):('G:'+esc(p.cls)))+'::'+esc(d)+'::'+esc(p.start||'')+'::'+esc(p.end||'');
       const label=isSolo?('👤 '+esc(p.sname||'')):('👥 '+esc(p.cls)+' 團班');
-      return `<div class="dash-row" style="background:#f6f8fb;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#dbe4f0;color:#3b5b80;border-color:#3b5b8055">🔁 固定時段</span><b>${label}</b><span class="grow"></span>${dashBtns(meetBtn(isSolo?meetOfStudent(p.sid):meetOfGroup(p.cls),true),`<button class="btn btn-sm btn-accent" data-act="rollFixed" data-id="${key}">✍️ 去點名</button>`,'','')}</div>`;});
+      return `<div class="dash-row" style="background:#f6f8fb;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#dbe4f0;color:#3b5b80;border-color:#3b5b8055">🔁 固定時段</span><b>${label}</b><span class="grow"></span>${dashBtns(meetBtn(isSolo?meetOfStudent(p.sid):meetOfGroup(p.cls),true),`<button class="btn btn-sm btn-accent" data-act="rollFixed" data-id="${key}">✍️ 去點名</button>`,`<button class="btn btn-sm" data-act="fixOne" data-id="${key}" title="把這一堂變成正式的預排，之後可以改時間、加備註">📌 排預排</button>`,'')}</div>`;});
     const itvs=(itvByDate[d]||[]);
     const itvArr=itvs.map(({c,e})=>{const tm=twVnStr(e.start,e.end);return `<div class="dash-row" style="background:#eef2ff;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#c7d2fe;color:#3730a3">🎤 面試練習</span><b>${snm(c.name||'')}</b>${(e.fee!=null&&e.fee!=='')?`<span class="muted">${money(e.fee,e.currency||'VND')}</span>`:''}${itvPayBadge(e)}<span class="grow"></span>${dashBtns(meetBtn(meetOfItv(c),true),'',`<button class="btn btn-sm" data-act="itvSess" data-id="${esc(c.id)}::${itvSessions(c).indexOf(e)}">✏️ 修改</button>`,'')}</div>`;});
     const exams=(examByDate[d]||[]);
@@ -3815,7 +3815,8 @@ function weekActualCard(){
         solo?`<b>👤 ${esc(it.s.name)}</b>`:`<b>👥 ${esc(it.cls)} 團班</b>`,
         [meetBtn(solo?meetOfStudent(it.s.id):meetOfGroup(it.cls),true),
          `<button class="btn btn-sm btn-accent" data-act="rollFixed" data-id="${key}">✍️ 去點名</button>`,
-         '','']);}
+         `<button class="btn btn-sm" data-act="fixOne" data-id="${key}" title="把這一堂變成正式的預排，之後可以改時間、加備註">📌 排預排</button>`,
+         '']);}
     if(it.type==='splan'){
       return wrow('background:#fff8ec',
         dchip('badge','background:#fde68a;color:#92400e;border-color:#f59e0b;white-space:nowrap'),
@@ -10976,6 +10977,17 @@ H.fixToPlan=()=>{
    +'<button class="btn" data-act="closeModal">取消</button>'
    +(r.total?'<button class="btn btn-accent" data-act="fixToPlanGo" data-id="'+N+'">✅ 建立這 '+r.total+' 堂預排</button>':'')
    +'</div></div>');
+};
+/* 單獨把一堂固定時段變成預排：key＝S:id::日期::開始::結束 或 G:班名::… */
+H.fixOne=async(key)=>{
+  const p=String(key).split('::');const tgt=p[0],date=p[1],st=p[2]||'',en=p[3]||'';
+  try{
+    if(tgt.indexOf('S:')===0){const s=studentById(tgt.slice(2));if(!s)return;
+      await addStudentPlanned(s,[{date,start:st,end:en,note:''}]);}
+    else{await addPlanned(tgt.indexOf('G:')===0?tgt.slice(2):tgt,[{date,start:st,end:en,note:''}]);}
+    toast('已排進預排（'+date+'）');
+    try{renderCalendar();}catch(e){}
+  }catch(e){toast('失敗：'+((e&&e.message)||e));}
 };
 H.fixToPlanGo=async(days)=>{
   const btn=document.querySelector('[data-act="fixToPlanGo"]');
