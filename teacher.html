@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=778">
+<link rel="stylesheet" href="styles.css?v=779">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -3703,6 +3703,29 @@ function weekActualCard(){
   // 預排課程：若該團班該天已經點名記錄過，就不重複顯示
   groupsList().forEach(cls=>classPlanned(cls).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;if(recordedGrp.has(cls+'|'+p.date))return;items.push({type:'plan',date:p.date,start:p.start||'',end:p.end||'',cls,p});}));
   (S.students||[]).forEach(s=>{if(s.deleted||s.is_test||s.class_type==='團班')return;studentPlanned(s).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date))return;items.push({type:'splan',date:p.date,start:p.start||'',end:p.end||'',s,p});});});
+  // 🔁 固定時段：照學生／團班設定的每週時段推出來（那天已點名或已排預排就不重複）
+  {
+    const has=(key)=>items.some(x=>x.date===key.date&&(
+      (key.sid&&((x.type==='log'&&x.s&&x.s.id===key.sid)||(x.type==='splan'&&x.s&&x.s.id===key.sid)))||
+      (key.cls&&((x.type==='glog'&&x.grp===key.cls)||(x.type==='plan'&&x.cls===key.cls)))));
+    const days7=[];for(let i=0;i<7;i++){const dd=new Date(t);dd.setDate(dd.getDate()+i);days7.push({ymd:ymd(dd),wd:(dd.getDay()+6)%7});}
+    (S.students||[]).forEach(s=>{
+      if(s.deleted||s.is_test||s.class_type==='團班')return;
+      if(enrollOf&&enrollOf(s)==='paused')return;
+      const sch=Array.isArray(s.schedule)?s.schedule:[];
+      if(!sch.length)return;
+      days7.forEach(dy=>sch.forEach(r=>{
+        if(!r||Number(r.d)!==dy.wd)return;
+        if(has({date:dy.ymd,sid:s.id}))return;
+        items.push({type:'fix',date:dy.ymd,start:r.s||'',end:r.e||'',s});}));});
+    groupsList().forEach(cls=>{
+      const sch=classSchedOf(cls)||[];
+      if(!sch.length)return;
+      days7.forEach(dy=>sch.forEach(r=>{
+        if(!r||Number(r.d)!==dy.wd)return;
+        if(has({date:dy.ymd,cls}))return;
+        items.push({type:'fix',date:dy.ymd,start:r.s||'',end:r.e||'',cls});}));});
+  }
   // 🎤 面試練習：本週的場次也一起列出
   itvAll().forEach(c=>itvSessions(c).forEach(e=>{if(e.date<start||e.date>end)return;items.push({type:'itv',date:e.date,start:e.start||'',end:e.end||'',c,e});}));
   itvAll().forEach(c=>{if(!c.exam_date||c.exam_date<start||c.exam_date>end)return;items.push({type:'exam',date:c.exam_date,start:c.exam_time||'',end:'',c});});
@@ -3744,6 +3767,15 @@ function weekActualCard(){
         '<span class="badge" style="background:#c7d2fe;color:#3730a3">🎤 面試練習</span>',
         `<b>${esc(it.c.name||'')}</b>${(e.fee!=null&&e.fee!=='')?`<span class="muted">${money(e.fee,e.currency||'VND')}</span>`:''}${itvPayBadge(e)}`,
         [meetBtn(meetOfItv(it.c),true),'',`<button class="btn btn-sm" data-act="itvSess" data-id="${esc(it.c.id)}::${itvSessions(it.c).indexOf(e)}">✏️ 修改</button>`,'']);}
+    if(it.type==='fix'){const solo=!!it.s;
+      const key=(solo?('S:'+esc(it.s.id)):('G:'+esc(it.cls)))+'::'+esc(it.date)+'::'+esc(it.start||'')+'::'+esc(it.end||'');
+      return wrow('background:#f6f8fb',
+        dchip('badge','background:#dbe4f0;color:#3b5b80;border-color:#3b5b8055;white-space:nowrap'),
+        '<span class="badge" style="background:#dbe4f0;color:#3b5b80">🔁 固定時段</span>',
+        solo?`<b>👤 ${esc(it.s.name)}</b>`:`<b>👥 ${esc(it.cls)} 團班</b>`,
+        [meetBtn(solo?meetOfStudent(it.s.id):meetOfGroup(it.cls),true),
+         `<button class="btn btn-sm btn-accent" data-act="rollFixed" data-id="${key}">✍️ 去點名</button>`,
+         '','']);}
     if(it.type==='splan'){
       return wrow('background:#fff8ec',
         dchip('badge','background:#fde68a;color:#92400e;border-color:#f59e0b;white-space:nowrap'),
@@ -11138,6 +11170,16 @@ H.uabGo=async()=>{const name=(($('#uab-name')&&$('#uab-name').value)||'').trim()
     toast('已幫 '+n+' 位學生開放「'+name+'」');closeModal();renderFiles();
   }catch(e){toast('失敗：'+((e&&e.message)||e));}};
 
+/* 固定時段那一列的「去點名」：把那一天的時段帶進點名視窗，記完就成為正式紀錄 */
+H.rollFixed=(key)=>{const p=String(key).split('::');const tgt=p[0],date=p[1],st=p[2]||'',en=p[3]||'';
+  if(tgt.indexOf('S:')===0){const s=studentById(tgt.slice(2));if(!s)return;
+    H.classLog(s.id,{date,start:st,end:en,note:''});
+    const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;
+    toast('這是「'+date+'」的固定時段，記完就會變成正式紀錄');return;}
+  const cls=tgt.indexOf('G:')===0?tgt.slice(2):tgt;
+  classRollModal(cls,{date,start:st,end:en,note:''});
+  const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;
+  toast('這是「'+date+'」的固定時段，點完名就會變成正式紀錄');};
 H.rollPlanned=(key)=>{const p=String(key).split('::');const tgt=p[0],date=p[1];
   if(tgt.indexOf('S:')===0){const s=studentById(tgt.slice(2));if(!s)return;const pl=studentPlanned(s).find(x=>x.date===date)||{};H.classLog(s.id,{date,start:pl.start||'',end:pl.end||'',note:pl.note||''});const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;toast('已帶入預排的「'+date+'」，直接記錄這一堂即可');return;}
   const cls=tgt.indexOf('G:')===0?tgt.slice(2):tgt;const pl=classPlanned(cls).find(x=>x.date===date)||{};classRollModal(cls,{date,start:pl.start||'',end:pl.end||'',note:pl.note||''});const md=document.querySelector('.modal-body');if(md)md.scrollTop=0;toast('已帶入預排的「'+date+'」，直接點名存檔即可');};
