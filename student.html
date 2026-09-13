@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=797">
+<link rel="stylesheet" href="styles.css?v=798">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -456,6 +456,11 @@ textarea.lq-in:focus{outline:none;border-color:var(--accent,#A3714E);box-shadow:
 .zi-pop .zi-alt{font-size:12.5px;color:var(--muted,#8b8079);font-weight:500;margin-top:-2px}
 .zi-pop .zi-note{font-size:12px;color:var(--muted,#8b8079);line-height:1.55;margin-top:6px;
   border-top:1px dashed var(--line,#eee);padding-top:6px;text-align:left}
+.zi-pop .zi-mine{font-size:14px;line-height:1.6;margin-top:8px;text-align:left;
+  background:#0f766e0d;border-radius:10px;padding:8px 10px}
+.zi-pop .zi-mine b{margin-right:5px}
+.zi-pop .zi-mean.zi-dim{opacity:.65;font-size:12.5px;margin-top:6px}
+.zi-pop .zi-lb{font-size:11px;color:var(--muted,#8b8079);margin-right:5px}
 .cl-q{font-size:16px;line-height:1.8;font-weight:600}
 .cl-pic{margin:9px 0 2px}
 .cl-pic img{max-width:100%;max-height:300px;display:block;margin:0 auto;border-radius:10px;
@@ -1057,17 +1062,26 @@ function showZiPopup(ch,el){
   const mr=vocabMeanRaw(ch);let pop=document.getElementById('zi-pop');if(!pop){pop=document.createElement('div');pop.id='zi-pop';pop.className='zi-pop';document.body.appendChild(pop);}
   /* CLRD_V792 文言文：這一句老師標過讀音的話，以老師的為準。
      字典只認現代最常用的音，文言文常常不一樣（年少的「少」讀 shào 不是 shǎo）。 */
-  let teach='',inCl=false;
+  let teach='',inCl=false,tgloss='',tword='';
   try{
     const host=el&&el.closest?el.closest('[data-clrd]'):null;
     if(host){const m=JSON.parse(host.dataset.clrd||'{}');if(m&&m[ch])teach=m[ch];}
     inCl=!!(el&&el.closest&&el.closest('.cl-orig'));
+    /* CLGL_V798 老師這一句注釋有講到這個字，就用老師的意思。
+       先找一模一樣的單字，找不到就用「包含這個字、最長的那個詞」。 */
+    const gh=el&&el.closest?el.closest('[data-clgl]'):null;
+    if(gh){const g=JSON.parse(gh.dataset.clgl||'{}');
+      if(g[ch]){tgloss=g[ch];tword=ch;}
+      else{let best='';Object.keys(g).forEach(k=>{if(k.indexOf(ch)>=0&&k.length>best.length)best=k;});
+        if(best){tgloss=g[best];tword=best;}}}
   }catch(e){}
   const pyLine=teach
     ?('<div class="zi-py zi-teach">'+esc(teach)+'　<span class="zi-tag">這一課</span></div>'
       +((py&&py!==teach)?('<div class="zi-py zi-alt">一般讀音 '+esc(py)+(zh?(' · '+esc(zh)):'')+'</div>'):''))
     :('<div class="zi-py">'+esc(py)+(zh?(' · '+esc(zh)):'')+'</div>');
-  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div>${pyLine}${mr?`<div class="zi-mean">${mr.pos?'('+esc(mr.pos)+') ':''}<span>${esc((mr.back)||'')}</span></div>`:''}${(inCl&&!teach)?'<div class="zi-note">文言文的讀音和意思常常跟現代不一樣，以老師的注釋為準。</div>':''}`;
+  const modern=mr?`<div class="zi-mean${tgloss?' zi-dim':''}">${tgloss?'<span class="zi-lb">現代</span>':''}${mr.pos?'('+esc(mr.pos)+') ':''}<span>${esc((mr.back)||'')}</span></div>`:'';
+  const mine=tgloss?`<div class="zi-mine"><span class="zi-tag">這一課</span>${(tword&&tword!==ch)?`<b>${esc(tword)}</b>`:''}<span>${esc(tgloss)}</span></div>`:'';
+  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div>${pyLine}${mine}${modern}${(inCl&&!teach&&!tgloss)?'<div class="zi-note">文言文的讀音和意思常常跟現代不一樣，以老師的注釋為準。</div>':''}`;
   hydrateVi(mr?[mr.back]:[]);
   pop.style.display='block';pop.style.visibility='hidden';const r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight;
   let left=r.left+r.width/2-pw/2;left=Math.max(8,Math.min(left,window.innerWidth-pw-8));let top=r.top-ph-10;if(top<6)top=r.bottom+10;
@@ -1555,6 +1569,20 @@ function clReadings(t){
   });
   return map;
 }
+/* CLGL_V798 注釋裡的「詞：解釋」抽成對照表，點字的時候優先用它 */
+function clGlossMap(t){
+  const map={};
+  clGlossParts(t).forEach(it=>{
+    const m=it.match(/^([^：]{1,24})：([\s\S]*)$/);if(!m)return;
+    const head=String(m[1]).replace(/（[^）]*）/g,'').replace(/[「」『』]/g,'').trim();
+    const body=String(m[2]).trim();
+    if(!head||!body)return;
+    if(/^讀音$/.test(head))return;
+    if(!/[\u3400-\u9fff]/.test(head))return;
+    if(!map[head])map[head]=body;
+  });
+  return map;
+}
 function clGlossHtml(t){
   const parts=clGlossParts(t);
   if(!parts.length)return '';
@@ -1591,8 +1619,9 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
       :(a?`<div class="disc-myans">${esc(a)}</div>`:`<div class="cl-ro"><span class="hint">—</span></div>`);
     return `<div class="cl-line">
       <div class="cl-no">${qi+1}</div>
-      <div class="cl-orig lookup"${(function(){const rd=clReadings(ln.note||'');
-        return Object.keys(rd).length?(' data-clrd="'+esc(JSON.stringify(rd))+'"'):'';})()}>${prose2(ln.orig||'')}</div>
+      <div class="cl-orig lookup"${(function(){const rd=clReadings(ln.note||'');const gl=clGlossMap(ln.note||'');
+        return (Object.keys(rd).length?(' data-clrd="'+esc(JSON.stringify(rd))+'"'):'')
+             +(Object.keys(gl).length?(' data-clgl="'+esc(JSON.stringify(gl))+'"'):'');})()}>${prose2(ln.orig||'')}</div>
       ${clGlossHtml(ln.note)}
       ${ln.img?`<div class="cl-pic"><img src="${esc(ln.img)}" alt="" loading="lazy"></div>`:''}
       <div class="cl-cols">
