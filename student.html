@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=765">
+<link rel="stylesheet" href="styles.css?v=766">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -394,6 +394,26 @@ textarea.lq-in:focus{outline:none;border-color:var(--accent,#A3714E);box-shadow:
  .wb-mobref{display:block;background:#FAF6EE;border:1px solid var(--line,#e7e0d4);border-radius:12px;padding:12px 14px;margin-bottom:14px}
 }
 @media(max-width:700px){.wb-para{text-indent:0;line-height:2.6}
+/* 文言文：一句一塊，原文大、注釋小，底下筆記和翻譯並排 */
+.cl-intro{background:#faf7ef;border-radius:10px;padding:12px;margin-bottom:14px}
+.cl-line{position:relative;padding:14px 0 12px 30px;border-bottom:1px solid var(--line,#eee)}
+.cl-line:last-child{border-bottom:0}
+.cl-no{position:absolute;left:0;top:15px;width:22px;height:22px;border-radius:7px;background:#f2ece1;
+  color:#8a6a4a;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.cl-orig{font-size:19px;line-height:1.95;font-weight:600}
+.cl-gloss{color:var(--muted,#888);font-size:14px;line-height:1.8;margin-top:4px}
+.cl-q{font-size:16px;line-height:1.8;font-weight:600}
+.cl-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:9px}
+@media (max-width:640px){.cl-cols{grid-template-columns:1fr}}
+.cl-col-t{font-size:12.5px;font-weight:700;color:#8a6a4a;margin-bottom:4px;display:flex;
+  align-items:baseline;gap:6px;flex-wrap:wrap}
+.cl-col-s{font-weight:400;font-size:11.5px;color:var(--muted,#9a8f80)}
+.cl-col textarea{width:100%}
+.cl-ro{min-height:38px;padding:8px 10px;border:1px solid var(--line,#e7e0d4);border-radius:9px;background:#faf8f4}
+.cl-ref-box{margin-top:8px;padding:9px 12px;background:#f3f8f4;border:1px solid #cde8d5;border-radius:9px;
+  font-size:14.5px;line-height:1.8}
+.cl-ref-box b{display:block;font-size:12px;color:#3f7d52;margin-bottom:2px}
+.cl-qs{margin-top:18px;padding-top:14px;border-top:2px solid var(--line,#e7e0d4)}
 .wb-read{background:#fff;border:1px solid var(--line,#e7e0d4);border-left:4px solid #c39468;
   border-radius:12px;padding:14px 16px 4px;margin:0 0 16px}
 .wb-read-t{font-size:12.5px;font-weight:700;color:#a3714e;letter-spacing:.04em;margin-bottom:6px}
@@ -1295,16 +1315,57 @@ function resourcesHtml(l){const rs=Array.isArray(l.resources)?l.resources:[];if(
   return `<details class="disc" open style="margin-bottom:12px"><summary>📎 ${t('resTitle')}（${rs.length}）</summary><div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">${rs.map(item).join('')}</div></details>`;}
 function clPh(){return {zh:'在這裡寫白話翻譯…',cn:'在这里写白话翻译…',en:'Write your translation here…',vi:'Viết bản dịch của bạn…'}[S.lang]||'在這裡寫白話翻譯…';}
 function clSecLabel(){return {zh:'📜 文言文（逐句寫白話翻譯）',cn:'📜 文言文（逐句写白话翻译）',en:'📜 Classical Chinese — translate each line',vi:'📜 Văn ngôn — dịch từng câu'}[S.lang]||'📜 文言文';}
-function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answerable;const doc=opts.doc||null;const fb=(doc&&doc.feedback)||{};const ans=(doc&&doc.answers)||{};
-  const d=lessonDialogues(l)[0]||{};const origs=(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean);const notes=(d.cl_notes||'').split('\n');
-  if(!origs.length)return '<div class="lesson-block"><div class="hint">（這一課還沒有原文）</div></div>';
+function clLinesOfS(l){
+  if(l&&Array.isArray(l.cl_lines)&&l.cl_lines.length)return l.cl_lines;
+  const d=lessonDialogues(l)[0]||{};
+  const os=(d.discussion||'').split('\n');const ns=(d.cl_notes||'').split('\n');
+  const out=[];for(let i=0;i<os.length;i++){const o=(os[i]||'').trim();if(!o)continue;out.push({orig:o,note:(ns[i]||'').trim(),ref:''});}
+  return out;}
+/* CLASSIC_V766 文言文一句一塊：原文 → 老師的注釋 → 兩個欄位。
+   ✍️ 我的筆記＝上課隨手寫的，隨時自動存，交了作業也還能改（筆記不是作業）。
+   翻譯＝作業，要按送出，送出以後就鎖住等老師改。
+   參考翻譯照老師設定的時機才出現（預設交出來以後）。 */
+function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answerable;const doc=opts.doc||null;
+  const fb=(doc&&doc.feedback)||{};const ans=(doc&&doc.answers)||{};const nts=(doc&&doc.notes)||{};
+  const lines=clLinesOfS(l);
+  if(!lines.length)return '<div class="lesson-block"><div class="hint">（這一課還沒有原文）</div></div>';
+  const qs=(Array.isArray(l.cl_qs)?l.cl_qs:[]).filter(x=>x&&x.q);
   const intro=(l.cl_intro||'').trim();
-  const introHtml=intro?`<div class="lesson-block" style="background:#faf7ef;border-radius:10px;padding:12px;margin-bottom:12px"><div class="lesson-label">📖 注釋</div><div class="prose lookup" style="white-space:pre-wrap">${prose2(intro)}</div></div>`:'';
-  const di=0;const blockDone=!!(doc&&origs.some((q,qi)=>{const a=ans[di+'_'+qi];return a!=null&&String(a).trim()!=='';}));
-  const items=origs.map((orig,qi)=>{const key=di+'_'+qi;const note=(notes[qi]||'').trim();const a=ans[key]!=null?ans[key]:'';const tfb=fb[key];
-    return `<div class="cl-line" style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line,#eee)"><div class="cl-orig lookup" style="font-size:19px;line-height:1.85;font-weight:600">${prose2(orig)}</div>${note?`<div class="cl-note lookup" style="color:var(--muted,#888);font-size:14px;margin-top:4px">📖 ${prose2(note)}</div>`:''}${answerable?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(clPh())}" style="margin-top:8px" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`:(a?`<div class="disc-myans" style="margin-top:6px">${esc(a)}</div>`:'')}${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}</div>`;}).join('');
+  const introHtml=intro?`<div class="lesson-block cl-intro"><div class="lesson-label">📖 ${wbL({zh:'作者・背景',cn:'作者・背景',en:'Background',vi:'Bối cảnh'})}</div><div class="prose lookup" style="white-space:pre-wrap">${prose2(intro)}</div></div>`:'';
+  const di=0;
+  const done=(doc&&(doc.status==='submitted'||doc.status==='reviewed'));
+  const blockDone=!!(doc&&Object.keys(ans).some(k=>String(ans[k]||'').trim()!==''));
+  const when=l.cl_ref_when||'after';
+  const showRef=(when==='always')||(when==='after'&&done);
+  const L=(o)=>wbL(o);
+  const noteBox=(key)=>{const v=nts[key]!=null?nts[key]:'';
+    return `<div class="cl-col"><div class="cl-col-t">✍️ ${L({zh:'我的筆記',cn:'我的笔记',en:'My notes',vi:'Ghi chú của tôi'})}<span class="cl-col-s">${L({zh:'上課寫，隨時存，不用交',cn:'上课写，随时存，不用交',en:'saved as you type',vi:'tự lưu'})}</span></div>`
+      +(opts.readonly?`<div class="cl-ro">${v?esc(v):'<span class="hint">—</span>'}</div>`
+        :`<textarea class="cl-note-in" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(L({zh:'上課記下來的…',cn:'上课记下来的…',en:'notes from class…',vi:'ghi chú…'}))}" oninput="H.clNote&&H.clNote('${l.id}')">${esc(v)}</textarea>`)+`</div>`;};
+  const items=lines.map((ln,qi)=>{const key=di+'_'+qi;const a=ans[key]!=null?ans[key]:'';const tfb=fb[key];
+    const ansBox=answerable
+      ?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(clPh())}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`
+      :(a?`<div class="disc-myans">${esc(a)}</div>`:`<div class="cl-ro"><span class="hint">—</span></div>`);
+    return `<div class="cl-line">
+      <div class="cl-no">${qi+1}</div>
+      <div class="cl-orig lookup">${prose2(ln.orig||'')}</div>
+      ${ln.note?`<div class="cl-gloss lookup">📖 ${prose2(ln.note)}</div>`:''}
+      <div class="cl-cols">
+        ${noteBox(key)}
+        <div class="cl-col"><div class="cl-col-t">📝 ${L({zh:'翻譯',cn:'翻译',en:'Translation',vi:'Dịch'})}<span class="cl-col-s">${L({zh:'作業，寫完按下面送出',cn:'作业，写完按下面送出',en:'homework',vi:'bài tập'})}</span></div>${ansBox}</div>
+      </div>
+      ${(showRef&&ln.ref)?`<div class="cl-ref-box"><b>${L({zh:'參考翻譯',cn:'参考翻译',en:'Reference',vi:'Bản dịch tham khảo'})}</b>${esc(ln.ref)}</div>`:''}
+      ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}
+    </div>`;}).join('');
+  const qHtml=qs.length?`<div class="cl-qs"><div class="lesson-label">❓ ${L({zh:'課後問答',cn:'课后问答',en:'Questions',vi:'Câu hỏi'})}</div>`
+    +qs.map((q,qi)=>{const key='q_'+qi;const a=ans[key]!=null?ans[key]:'';const tfb=fb[key];
+      return `<div class="cl-line"><div class="cl-no">${qi+1}</div><div class="cl-q lookup">${prose2(q.q||'')}</div>
+      ${answerable?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(clPh())}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`
+        :(a?`<div class="disc-myans">${esc(a)}</div>`:`<div class="cl-ro"><span class="hint">—</span></div>`)}
+      ${(showRef&&q.ans)?`<div class="cl-ref-box"><b>${L({zh:'參考答案',cn:'参考答案',en:'Reference',vi:'Đáp án'})}</b>${esc(q.ans)}</div>`:''}
+      ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}</div>`;}).join('')+`</div>`:'';
   const footer=answerable?`<div class="disc-submit" style="margin-top:10px">${(blockDone&&doc.status==='submitted')?`<div class="notice">📨 ${t('discSubmitted')}</div>`:''}${(blockDone&&doc.status==='reviewed')?`<div class="notice">✅ ${t('discReviewed')}</div>`:''}${(blockDone&&doc.submitted_at)?`<div class="hint" style="text-align:center;margin-top:4px">🕒 ${t('submittedAt')}：${fmtDT(doc.submitted_at)}</div>`:''}${(blockDone&&doc.status==='reviewed'&&doc.overall)?`<div class="card fb-overall" style="margin:6px 0"><b>${t('discOverall')}</b><div style="margin-top:4px">${esc(doc.overall)}</div></div>`:''}${(blockDone&&doc.status==='submitted')?`<button class="btn btn-sm" style="width:100%;margin-bottom:8px" data-act="recallDisc" data-id="${l.id}">${t('discRecall')}</button>`:''}<button class="btn btn-accent" style="width:100%;padding:11px" data-act="submitDisc" data-id="${l.id}::${di}">${blockDone?t('discResubmit'):t('discSubmit')}</button><div class="hint disc-draft-hint" data-lid="${l.id}" style="text-align:center;margin-top:2px;color:var(--teal,#6B4A33)"></div></div>`:'';
-  return `<details class="ls-sec" open><summary class="ls-sec-h">${clSecLabel()}</summary><div class="ls-sec-b">${introHtml}<div data-disc-di="${di}" data-disc-lid="${l.id}">${items}${footer}</div></div></details>`;}
+  return `<details class="ls-sec" open><summary class="ls-sec-h">${clSecLabel()}</summary><div class="ls-sec-b">${introHtml}<div data-disc-di="${di}" data-disc-lid="${l.id}">${items}${qHtml}${footer}</div></div></details>`;}
 function lessonBodyHtml(l,opts){opts=opts||{};if(l.kind==='classical')return classicalBodyHtml(l,opts);const seq=reconcileLayout(l);const qsAll=questionsOf(l.id).filter(q=>q.bank!=='hw');const gps=l.grammar_points||[];
   const numbered=numberedHtml;
   const dlgs=lessonDialogues(l);const isShort=i=>/短文/.test((dlgs[i]&&dlgs[i].title)||'');
@@ -3607,7 +3668,7 @@ H.submitDisc=async(arg,b)=>{if(S.preview){if(S.tryMode)toast('試做：正式使
     if(pre){Object.keys(answers).forEach(k=>{if(k.indexOf(pre)===0)delete answers[k];});}
     answers=Object.assign(answers,collected);
     const payload={kind:'discussion',lesson_id:'__discussion__',disc_lesson:lid,uid:u,student_id:S.me.id,student_name:S.me.name||'',answers,status:'submitted',submitted_at:now()};
-    if(existing&&existing.id){await DB.update('results',existing.id,Object.assign({},payload,{feedback:existing.feedback||{},overall:existing.overall||''}));}
+    if(existing&&existing.id){await DB.update('results',existing.id,Object.assign({},payload,{feedback:existing.feedback||{},overall:existing.overall||'',notes:existing.notes||{}}));}
     else{await DB.insert('results',payload);}
     const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);splitResults(rAll);
     bumpActivity(1);toast(t('discSaved'));
@@ -3663,6 +3724,20 @@ H.discDraft=(lid)=>{if(S.preview)return;clearTimeout(H._discT);H._discT=setTimeo
     if(existing&&existing.id){await DB.update('results',existing.id,payload);Object.assign(existing,payload);}
     else{const d=await DB.insert('results',payload);(S.discussions=S.discussions||[]).push(d);}
     const h=scope.querySelector('.disc-draft-hint');if(h){h.textContent=t('draftSaved');clearTimeout(H._discHT);H._discHT=setTimeout(()=>{if(h)h.textContent='';},2500);}
+  }catch(e){}
+},1200);};
+H.clNote=(lid)=>{if(S.preview)return;clearTimeout(H._clT);H._clT=setTimeout(async()=>{
+  const scope=document.getElementById('ls-'+lid);if(!scope)return;
+  const collected={};scope.querySelectorAll('.cl-note-in').forEach(el=>{const v=(el.value||'').trim();if(v)collected[el.dataset.k]=v;});
+  const existing=discDocOf(lid);
+  try{const u=myUid();
+    const notes=Object.assign({},(existing&&existing.notes)||{},collected);
+    if(existing&&existing.id){await DB.update('results',existing.id,{notes});existing.notes=notes;}
+    else{const d=await DB.insert('results',{kind:'discussion',lesson_id:'__discussion__',disc_lesson:lid,uid:u,
+      student_id:S.me.id,student_name:S.me.name||'',answers:{},notes,status:'draft',saved_at:now()});
+      (S.discussions=S.discussions||[]).push(d);}
+    const h=scope.querySelector('.disc-draft-hint');
+    if(h){h.textContent=t('draftSaved');clearTimeout(H._clHT);H._clHT=setTimeout(()=>{if(h)h.textContent='';},2500);}
   }catch(e){}
 },1200);};
 H.gpracDraft=(lid)=>{if(S.preview)return;clearTimeout(H._gpT);H._gpT=setTimeout(async()=>{
