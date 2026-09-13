@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=802">
+<link rel="stylesheet" href="styles.css?v=803">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -3200,9 +3200,31 @@ function homeTouchMap(){
   }catch(e){}
   return m;
 }
+/* TAUGHT_V803 老師點名的時候有選「這堂上了哪一課」，就以那個為準。
+   回傳最後一堂有記課次、而且那一課學生看得到的紀錄。 */
+function lastTaught(ls){
+  const log=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).slice()
+    .filter(e=>e&&e.date&&e.lesson)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.start||'').localeCompare(String(b.start||'')));
+  for(let i=log.length-1;i>=0;i--){
+    const hit=ls.filter(l=>l.id===log[i].lesson)[0];
+    if(hit)return {l:hit,at:log[i].date};
+  }
+  return null;
+}
 function homeResume(ls){
   if(!ls||!ls.length)return null;
   const tm=homeTouchMap();const any=Object.keys(tm).length>0;
+  /* 0. 老師上一堂點名記的那一課 —— 最準，優先 */
+  const tg=lastTaught(ls);
+  if(tg){
+    if(!lessonDone(tg.l))return {l:tg.l,why:'taught',at:tg.at};
+    /* 那一課的作業都做完了，就往「後面」還沒做完的那一課走（不會倒退回第一課） */
+    const nx=ls.filter(l=>(l.order_index||0)>(tg.l.order_index||0)&&!lessonDone(l))[0];
+    if(nx)return {l:nx,why:'next'};
+    if(ls.every(l=>lessonDone(l)))return {l:tg.l,why:'all'};
+    return {l:tg.l,why:'taught',at:tg.at};
+  }
   /* 1. 最近碰過、可是還沒做完的那一課 */
   let best=null,bt='';
   ls.forEach(l=>{const at=tm[l.id];if(at&&!lessonDone(l)&&at>bt){bt=at;best=l;}});
@@ -3221,7 +3243,8 @@ function homeProg(ls){
 }
 function homeHeroHtml(ls,QL){
   const r=homeResume(ls);if(!r)return '';
-  const lab={resume:{zh:'繼續上次的課',cn:'继续上次的课',en:'Pick up where you left off',vi:'Học tiếp bài đang dở'},
+  const lab={taught:{zh:'上次上到這一課',cn:'上次上到这一课',en:'Last lesson in class',vi:'Buổi trước học bài này'},
+             resume:{zh:'繼續上次的課',cn:'继续上次的课',en:'Pick up where you left off',vi:'Học tiếp bài đang dở'},
              next:{zh:'接著上這一課',cn:'接着上这一课',en:'Next up',vi:'Bài tiếp theo'},
              start:{zh:'從這一課開始',cn:'从这一课开始',en:'Start here',vi:'Bắt đầu từ đây'},
              all:{zh:'都上完了 🎉 複習一下',cn:'都上完了 🎉 复习一下',en:'All done 🎉 Time to review',vi:'Xong hết 🎉 Ôn lại nào'}}[r.why];
@@ -3231,7 +3254,7 @@ function homeHeroHtml(ls,QL){
   const card='<div class="card hero-go" data-act="openLessonView" data-id="'+esc(r.l.id)+'">'
     +'<div class="hg-lb">'+esc(LT(lab))+'</div>'
     +'<div class="hg-t">'+esc(lesTitle(r.l))+'</div>'
-    +(r.l.textbook?'<div class="hg-s">'+esc(r.l.textbook)+'</div>':'')
+    +'<div class="hg-s">'+esc([r.l.textbook||'',(r.why==='taught'&&r.at)?(LT({zh:'老師 ',cn:'老师 ',en:'Taught ',vi:'Cô dạy '})+r.at):''].filter(Boolean).join(' · '))+'</div>'
     +(chips?'<div class="hg-chips">'+chips+'</div>':'')
     +'<div class="hg-go"><span class="btn btn-accent">'+esc(QL.go)+' →</span></div>'
     +'</div>';
