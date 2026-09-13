@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=787">
+<link rel="stylesheet" href="styles.css?v=789">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -406,6 +406,22 @@ textarea.lq-in:focus{outline:none;border-color:var(--accent,#A3714E);box-shadow:
 .cl-gi{padding:1px 0}
 .cl-gi+.cl-gi{border-top:1px dotted var(--line,#eee)}
 .cl-gh{color:var(--ink,#4a3728);font-weight:700}
+/* SLIDES_V789 上課投影片 */
+.sld-box{margin:0 0 14px;border:1px solid var(--line,#eee);border-radius:14px;overflow:hidden;background:#14110e}
+.sld-bar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#241d17;color:#f6efe6;font-size:13px;flex-wrap:wrap}
+.sld-bar b{font-size:13.5px}
+.sld-live{background:#16a34a;color:#fff;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700}
+.sld-grow{flex:1 1 auto}
+.sld-btn{font:inherit;font-size:13px;font-weight:700;border:0;border-radius:999px;padding:6px 13px;cursor:pointer;
+  background:#f6efe6;color:#241d17}
+.sld-btn:disabled{opacity:.38;cursor:default}
+.sld-pg{font-variant-numeric:tabular-nums;min-width:62px;text-align:center}
+.sld-stage{position:relative;display:flex;align-items:center;justify-content:center;background:#14110e;padding:10px;
+  min-height:180px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.sld-stage canvas{max-width:100%;height:auto;display:block;border-radius:6px;background:#fff;
+  -webkit-user-drag:none;user-select:none;pointer-events:none}
+.sld-note{padding:7px 10px;background:#1d1712;color:#b9a892;font-size:12px;line-height:1.6}
+.sld-load{color:#b9a892;font-size:13px;padding:34px 10px}
 .cl-gh .cl-gp{font-weight:500;color:var(--muted,#8b8079);font-size:.94em;letter-spacing:.2px}
 .cl-q{font-size:16px;line-height:1.8;font-weight:600}
 .cl-pic{margin:9px 0 2px}
@@ -1337,6 +1353,111 @@ function clLinesOfS(l){
    ✍️ 我的筆記＝上課隨手寫的，隨時自動存，交了作業也還能改（筆記不是作業）。
    翻譯＝作業，要按送出，送出以後就鎖住等老師改。
    參考翻譯照老師設定的時機才出現（預設交出來以後）。 */
+/* SLIDES_V789 上課投影片：老師開著才出現 */
+function slidesHtml(l){
+  if(!(l&&l.slides&&l.slides.url&&l.slides_open))return '';
+  const L=(o)=>(typeof wbL==='function'?wbL(o):o.zh);
+  return '<div class="sld-box" id="sld-'+esc(l.id)+'" data-sld="'+esc(l.id)+'" data-url="'+esc(l.slides.url)+'"'
+    +' oncontextmenu="return false">'
+    +'<div class="sld-bar"><b>🖥 '+esc(L({zh:'上課投影片',cn:'上课投影片',en:'Class slides',vi:'Slide bài giảng'}))+'</b>'
+    +'<span class="sld-live">'+esc(L({zh:'放送中',cn:'放送中',en:'LIVE',vi:'ĐANG CHIẾU'}))+'</span>'
+    +'<span class="sld-grow"></span>'
+    +'<button class="sld-btn" data-sldact="prev" disabled>‹</button>'
+    +'<span class="sld-pg">–</span>'
+    +'<button class="sld-btn" data-sldact="next" disabled>›</button></div>'
+    +'<div class="sld-stage"><div class="sld-load">'+esc(L({zh:'投影片載入中…',cn:'投影片加载中…',en:'Loading slides…',vi:'Đang tải slide…'}))+'</div></div>'
+    +'<div class="sld-note">'+esc(L({
+        zh:'這是上課用的畫面，下課老師關掉就看不到了，沒辦法下載或保存。',
+        cn:'这是上课用的画面，下课老师关掉就看不到了，没办法下载或保存。',
+        en:'For class only — it disappears when your teacher ends the session. No download.',
+        vi:'Chỉ dùng trong giờ học — sẽ biến mất khi giáo viên kết thúc. Không tải về được.'}))+'</div></div>';
+}
+let SLD_JS=null;
+function slidesLib(){
+  if(SLD_JS)return SLD_JS;
+  SLD_JS=new Promise((res,rej)=>{
+    if(window.pdfjsLib){res(window.pdfjsLib);return;}
+    const sc=document.createElement('script');
+    sc.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    sc.onload=()=>{try{window.pdfjsLib.GlobalWorkerOptions.workerSrc=
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}catch(e){}
+      res(window.pdfjsLib);};
+    sc.onerror=()=>rej(new Error('pdfjs'));
+    document.head.appendChild(sc);
+  });
+  return SLD_JS;
+}
+function slidesMark(cv){
+  /* 斜著蓋上學生的名字和日期，截圖也帶得走 */
+  try{
+    const nm=((S.me&&S.me.name)||'')+'　'+new Date().toLocaleDateString('zh-TW');
+    const c=cv.getContext('2d');const w=cv.width,h=cv.height;
+    c.save();c.globalAlpha=.13;c.fillStyle='#7a5236';
+    const fs=Math.max(15,Math.round(w/34));c.font='700 '+fs+'px system-ui,sans-serif';
+    c.translate(w/2,h/2);c.rotate(-Math.PI/7);c.textAlign='center';
+    const stepY=fs*6,stepX=c.measureText(nm).width+fs*4;
+    for(let y=-h;y<h;y+=stepY)for(let x=-w;x<w;x+=stepX)c.fillText(nm,x,y);
+    c.restore();
+  }catch(e){}
+}
+async function slidesMount(box){
+  if(box.dataset.slReady==='1')return;box.dataset.slReady='1';
+  const stage=box.querySelector('.sld-stage');
+  const pg=box.querySelector('.sld-pg');
+  const bp=box.querySelector('[data-sldact="prev"]');
+  const bn=box.querySelector('[data-sldact="next"]');
+  let doc=null,cur=1,busy=false;
+  const draw=async()=>{
+    if(!doc||busy)return;busy=true;
+    try{
+      const page=await doc.getPage(cur);
+      const wrap=stage.clientWidth-20||640;
+      const v0=page.getViewport({scale:1});
+      const sc=Math.min(2,Math.max(.6,wrap/v0.width))*(window.devicePixelRatio>1?1.4:1);
+      const vp=page.getViewport({scale:sc});
+      const cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;
+      cv.style.width='100%';
+      await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+      slidesMark(cv);
+      stage.innerHTML='';stage.appendChild(cv);
+      pg.textContent=cur+' / '+doc.numPages;
+      bp.disabled=(cur<=1);bn.disabled=(cur>=doc.numPages);
+    }catch(e){stage.innerHTML='<div class="sld-load">這一頁畫不出來，換一頁看看</div>';}
+    busy=false;
+  };
+  bp.onclick=()=>{if(cur>1){cur--;draw();}};
+  bn.onclick=()=>{if(doc&&cur<doc.numPages){cur++;draw();}};
+  try{
+    const lib=await slidesLib();
+    doc=await lib.getDocument({url:box.dataset.url,disableAutoFetch:false}).promise;
+    await draw();
+  }catch(e){
+    stage.innerHTML='<div class="sld-load">投影片載入失敗，請跟老師說一聲</div>';
+  }
+}
+let SLD_SUB={};
+function initSlides(){
+  document.querySelectorAll('.sld-box').forEach(box=>{
+    slidesMount(box);
+    const lid=box.dataset.sld;
+    if(SLD_SUB[lid]||!(window.firebase&&firebase.firestore))return;
+    /* 老師一關，這邊馬上收掉，不用重新整理 */
+    try{
+      SLD_SUB[lid]=firebase.firestore().collection('lessons').doc(lid)
+        .onSnapshot(sn=>{
+          const d=sn.data()||{};
+          if(!d.slides_open||!(d.slides&&d.slides.url)){
+            const el=document.getElementById('sld-'+lid);
+            if(el)el.remove();
+            const l=(S.lessons||[]).find(x=>x.id===lid);
+            if(l){l.slides_open=false;}
+            try{SLD_SUB[lid]();}catch(_){ }
+            delete SLD_SUB[lid];
+          }
+        },()=>{});
+    }catch(e){}
+  });
+}
 /* 注釋斷行：一條一行，詞頭粗體。只動排版，不動字。 */
 function clGlossParts(t){
   const src=String(t||'').replace(/\r/g,'');
@@ -1414,8 +1535,10 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
   const saveBtn=`<button class="btn cl-save-btn" style="width:100%;padding:11px" data-act="clSave" data-id="${l.id}">💾 ${L({zh:'儲存進度',cn:'保存进度',en:'Save progress',vi:'Lưu tiến độ'})}</button>`
     +`<div class="hint cl-saved-at" data-lid="${l.id}" style="text-align:center;margin:4px 0 10px">${(doc&&doc.saved_at)?('🕒 '+savedLab+'：'+fmtDT(doc.saved_at)):L({zh:'寫到一半可以先存起來，下次打開就在。',cn:'写到一半可以先存起来，下次打开就在。',en:'Save halfway — it will be here next time.',vi:'Lưu giữa chừng — lần sau vẫn còn.'})}</div>`;
   const footer=answerable?`<div class="disc-submit" style="margin-top:10px">${saveBtn}${(blockDone&&doc.status==='submitted')?`<div class="notice">📨 ${t('discSubmitted')}</div>`:''}${(blockDone&&doc.status==='reviewed')?`<div class="notice">✅ ${t('discReviewed')}</div>`:''}${(blockDone&&doc.submitted_at)?`<div class="hint" style="text-align:center;margin-top:4px">🕒 ${t('submittedAt')}：${fmtDT(doc.submitted_at)}</div>`:''}${(blockDone&&doc.status==='reviewed'&&doc.overall)?`<div class="card fb-overall" style="margin:6px 0"><b>${t('discOverall')}</b><div style="margin-top:4px">${esc(doc.overall)}</div></div>`:''}${(blockDone&&doc.status==='submitted')?`<button class="btn btn-sm" style="width:100%;margin-bottom:8px" data-act="recallDisc" data-id="${l.id}">${t('discRecall')}</button>`:''}<button class="btn btn-accent" style="width:100%;padding:11px" data-act="submitDisc" data-id="${l.id}::${di}">${blockDone?t('discResubmit'):t('discSubmit')}</button><div class="hint disc-draft-hint" data-lid="${l.id}" style="text-align:center;margin-top:2px;color:var(--teal,#6B4A33)"></div></div>`:'';
-  return `<details class="ls-sec noconv" open><summary class="ls-sec-h">${clSecLabel()}</summary><div class="ls-sec-b">${introHtml}<div data-disc-di="${di}" data-disc-lid="${l.id}">${items}${qHtml}${footer}</div></div></details>`;}
-function lessonBodyHtml(l,opts){opts=opts||{};if(l.kind==='classical')return classicalBodyHtml(l,opts);const seq=reconcileLayout(l);const qsAll=questionsOf(l.id).filter(q=>q.bank!=='hw');const gps=l.grammar_points||[];
+  return slidesHtml(l)+`<details class="ls-sec noconv" open><summary class="ls-sec-h">${clSecLabel()}</summary><div class="ls-sec-b">${introHtml}<div data-disc-di="${di}" data-disc-lid="${l.id}">${items}${qHtml}${footer}</div></div></details>`;}
+function lessonBodyHtml(l,opts){opts=opts||{};if(l.kind==='classical')return classicalBodyHtml(l,opts);
+  const _sld=slidesHtml(l);if(_sld)return _sld+lessonBodyHtml2(l,opts);return lessonBodyHtml2(l,opts);}
+function lessonBodyHtml2(l,opts){opts=opts||{};const seq=reconcileLayout(l);const qsAll=questionsOf(l.id).filter(q=>q.bank!=='hw');const gps=l.grammar_points||[];
   const numbered=numberedHtml;
   const dlgs=lessonDialogues(l);const isShort=i=>/短文/.test((dlgs[i]&&dlgs[i].title)||'');
   let dgNum=0,sgNum=0;const dlgText=[],shortText=[],dlgGram=[],shortGram=[];
@@ -1678,7 +1801,7 @@ function convEl(root){const conv=CONV[S.lang];if(!conv||!root)return;
     const p=n.parentElement;
     return (p&&p.closest&&p.closest('.noconv'))?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}});
   const arr=[];let n;while(n=w.nextNode())arr.push(n);for(const node of arr){const v=node.nodeValue;if(v&&/[㐀-鿿]/.test(v)){const c=conv(v);if(c!==v)node.nodeValue=c;}}}
-function convScreen(){convEl(document.getElementById('screen'));}
+function convScreen(){convEl(document.getElementById('screen'));try{initSlides();}catch(e){}}
 
 /* ---- 手寫題：畫布作答 ---- */
 const HW={zh:{clear:'清除',hint:'用滑鼠／手指／觸控筆書寫',pending:'已送出，等老師批改',pendingNote:'題手寫／口說待老師批改',recStart:'開始錄音',recStop:'⏹ 停止錄音',recRedo:'🎙️ 重新錄音',recHint:'按下開始，唸出題目內容',recing:'錄音中…',recDone:'✓ 已錄好，可試聽',recDenied:'無法使用麥克風，請允許權限',recUploading:'上傳錄音中…'},en:{clear:'Clear',hint:'Write with mouse / finger / stylus',pending:'Submitted — waiting for teacher',pendingNote:'question(s) pending review',recStart:'Start recording',recStop:'⏹ Stop',recRedo:'🎙️ Re-record',recHint:'Tap start, then say the prompt aloud',recing:'Recording…',recDone:'✓ Recorded — you can play it back',recDenied:'Cannot access microphone — please allow it',recUploading:'Uploading recording…'},vi:{clear:'Xoá',hint:'Viết bằng chuột / ngón tay / bút',pending:'Đã nộp — chờ giáo viên chấm',pendingNote:'câu chờ chấm',recStart:'Bắt đầu ghi âm',recStop:'⏹ Dừng',recRedo:'🎙️ Ghi lại',recHint:'Nhấn bắt đầu rồi đọc to đề bài',recing:'Đang ghi âm…',recDone:'✓ Đã ghi — có thể nghe lại',recDenied:'Không dùng được micro — vui lòng cho phép',recUploading:'Đang tải lên…'}};
