@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=790">
+<link rel="stylesheet" href="styles.css?v=791">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -1404,25 +1404,41 @@ function slidesMount(box){
   draw();
 }
 let SLD_SUB={};
+function slidesBoxFor(lid,pages){
+  /* 老師上課中途才開投影片：直接把框補進這一課的最上面 */
+  const host=document.querySelector('#ls-'+CSS.escape(lid)+' .ls-text')||document.getElementById('ls-'+lid);
+  if(!host||document.getElementById('sld-'+lid))return;
+  const l=(S.lessons||[]).find(x=>x.id===lid);
+  if(l){l.slides=Object.assign({},l.slides||{},{pages});l.slides_open=true;}
+  const tmp=document.createElement('div');
+  tmp.innerHTML=slidesHtml(l||{id:lid,slides:{pages},slides_open:true});
+  const box=tmp.firstElementChild;if(!box)return;
+  host.insertBefore(box,host.firstChild);
+  slidesMount(box);
+  try{box.scrollIntoView({behavior:'smooth',block:'nearest'});}catch(e){}
+}
 function initSlides(){
-  document.querySelectorAll('.sld-box').forEach(box=>{
-    slidesMount(box);
-    const lid=box.dataset.sld;
-    if(SLD_SUB[lid]||!(window.firebase&&firebase.firestore))return;
-    /* 老師一關，這邊馬上收掉，不用重新整理 */
+  document.querySelectorAll('.sld-box').forEach(slidesMount);
+  if(!(window.firebase&&firebase.firestore))return;
+  document.querySelectorAll('[id^="ls-"]').forEach(host=>{
+    const lid=host.id.slice(3);if(!lid||SLD_SUB[lid])return;
     try{
-      SLD_SUB[lid]=firebase.firestore().collection('lessons').doc(lid)
-        .onSnapshot(sn=>{
-          const d=sn.data()||{};
-          if(!d.slides_open||!(Array.isArray(d.slides&&d.slides.pages)&&d.slides.pages.length)){
-            const el=document.getElementById('sld-'+lid);
-            if(el)el.remove();
-            const l=(S.lessons||[]).find(x=>x.id===lid);
-            if(l){l.slides_open=false;}
-            try{SLD_SUB[lid]();}catch(_){ }
-            delete SLD_SUB[lid];
-          }
-        },()=>{});
+      SLD_SUB[lid]=firebase.firestore().collection('lessons').doc(lid).onSnapshot(sn=>{
+        /* 這一課已經不在畫面上了就收掉監聽 */
+        if(!document.getElementById('ls-'+lid)){
+          try{SLD_SUB[lid]();}catch(_){}
+          delete SLD_SUB[lid];return;
+        }
+        const d=sn.data()||{};
+        const pages=(d.slides&&Array.isArray(d.slides.pages))?d.slides.pages:[];
+        const on=!!d.slides_open&&pages.length>0;
+        const el=document.getElementById('sld-'+lid);
+        if(on&&!el)slidesBoxFor(lid,pages);
+        if(!on&&el){
+          el.remove();
+          const l=(S.lessons||[]).find(x=>x.id===lid);if(l)l.slides_open=false;
+        }
+      },()=>{});
     }catch(e){}
   });
 }
