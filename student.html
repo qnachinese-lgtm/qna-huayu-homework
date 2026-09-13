@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=780">
+<link rel="stylesheet" href="styles.css?v=783">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -400,7 +400,12 @@ textarea.lq-in:focus{outline:none;border-color:var(--accent,#A3714E);box-shadow:
 .cl-no{position:absolute;left:0;top:15px;width:22px;height:22px;border-radius:7px;background:#f2ece1;
   color:#8a6a4a;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
 .cl-orig{font-size:19px;line-height:1.95;font-weight:600}
-.cl-gloss{color:var(--muted,#888);font-size:14px;line-height:1.8;margin-top:4px}
+.cl-gloss{color:var(--muted,#888);font-size:14px;line-height:1.8;margin-top:4px;display:flex;gap:6px;align-items:flex-start}
+.cl-gloss .cl-gl-ic{flex:none;line-height:1.8}
+.cl-gloss .cl-gl-list{flex:1 1 auto;min-width:0}
+.cl-gi{padding:1px 0}
+.cl-gi+.cl-gi{border-top:1px dotted var(--line,#eee)}
+.cl-gh{color:var(--ink,#4a3728);font-weight:700}
 .cl-q{font-size:16px;line-height:1.8;font-weight:600}
 .cl-pic{margin:9px 0 2px}
 .cl-pic img{max-width:100%;max-height:300px;display:block;margin:0 auto;border-radius:10px;
@@ -1331,6 +1336,34 @@ function clLinesOfS(l){
    ✍️ 我的筆記＝上課隨手寫的，隨時自動存，交了作業也還能改（筆記不是作業）。
    翻譯＝作業，要按送出，送出以後就鎖住等老師改。
    參考翻譯照老師設定的時機才出現（預設交出來以後）。 */
+/* 注釋斷行：一條一行，詞頭粗體。只動排版，不動字。 */
+function clGlossParts(t){
+  const src=String(t||'').replace(/\r/g,'');
+  const out=[];
+  for(const line of src.split('\n')){
+    const ln=line.trim();if(!ln)continue;
+    const ch=[...ln];let buf='';
+    for(let i=0;i<ch.length;i++){
+      buf+=ch[i];
+      if(ch[i]==='。'||ch[i]==='；'){
+        const rest=ch.slice(i+1).join('').trim();
+        if(!rest)break;
+        if(rest.slice(0,10).indexOf('：')>=0){out.push(buf.trim());buf='';}
+      }
+    }
+    if(buf.trim())out.push(buf.trim());
+  }
+  return out;
+}
+function clGlossHtml(t){
+  const parts=clGlossParts(t);
+  if(!parts.length)return '';
+  const rows=parts.map(it=>{
+    const m=it.match(/^([^：]{1,12})：([\s\S]*)$/);
+    return '<div class="cl-gi">'+(m?('<b class="cl-gh">'+prose2(m[1])+'</b>：'+prose2(m[2])):prose2(it))+'</div>';
+  }).join('');
+  return '<div class="cl-gloss lookup"><span class="cl-gl-ic">📖</span><div class="cl-gl-list">'+rows+'</div></div>';
+}
 function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answerable;const doc=opts.doc||null;
   const fb=(doc&&doc.feedback)||{};const ans=(doc&&doc.answers)||{};const nts=(doc&&doc.notes)||{};
   const lines=clLinesOfS(l);
@@ -1357,7 +1390,7 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
     return `<div class="cl-line">
       <div class="cl-no">${qi+1}</div>
       <div class="cl-orig lookup">${prose2(ln.orig||'')}</div>
-      ${ln.note?`<div class="cl-gloss lookup">📖 ${prose2(ln.note)}</div>`:''}
+      ${clGlossHtml(ln.note)}
       ${ln.img?`<div class="cl-pic"><img src="${esc(ln.img)}" alt="" loading="lazy"></div>`:''}
       <div class="cl-cols">
         ${noteBox(key)}
@@ -1374,7 +1407,10 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
         :(a?`<div class="disc-myans">${esc(a)}</div>`:`<div class="cl-ro"><span class="hint">—</span></div>`)}
       ${(showRef&&q.ans)?`<div class="cl-ref-box"><b>${L({zh:'參考答案',cn:'参考答案',en:'Reference',vi:'Đáp án'})}</b>${esc(q.ans)}</div>`:''}
       ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}</div>`;}).join('')+`</div>`:'';
-  const footer=answerable?`<div class="disc-submit" style="margin-top:10px">${(blockDone&&doc.status==='submitted')?`<div class="notice">📨 ${t('discSubmitted')}</div>`:''}${(blockDone&&doc.status==='reviewed')?`<div class="notice">✅ ${t('discReviewed')}</div>`:''}${(blockDone&&doc.submitted_at)?`<div class="hint" style="text-align:center;margin-top:4px">🕒 ${t('submittedAt')}：${fmtDT(doc.submitted_at)}</div>`:''}${(blockDone&&doc.status==='reviewed'&&doc.overall)?`<div class="card fb-overall" style="margin:6px 0"><b>${t('discOverall')}</b><div style="margin-top:4px">${esc(doc.overall)}</div></div>`:''}${(blockDone&&doc.status==='submitted')?`<button class="btn btn-sm" style="width:100%;margin-bottom:8px" data-act="recallDisc" data-id="${l.id}">${t('discRecall')}</button>`:''}<button class="btn btn-accent" style="width:100%;padding:11px" data-act="submitDisc" data-id="${l.id}::${di}">${blockDone?t('discResubmit'):t('discSubmit')}</button><div class="hint disc-draft-hint" data-lid="${l.id}" style="text-align:center;margin-top:2px;color:var(--teal,#6B4A33)"></div></div>`:'';
+  const savedLab=L({zh:'上次儲存',cn:'上次保存',en:'Last saved',vi:'Lưu lần cuối'});
+  const saveBtn=`<button class="btn cl-save-btn" style="width:100%;padding:11px" data-act="clSave" data-id="${l.id}">💾 ${L({zh:'儲存進度',cn:'保存进度',en:'Save progress',vi:'Lưu tiến độ'})}</button>`
+    +`<div class="hint cl-saved-at" data-lid="${l.id}" style="text-align:center;margin:4px 0 10px">${(doc&&doc.saved_at)?('🕒 '+savedLab+'：'+fmtDT(doc.saved_at)):L({zh:'寫到一半可以先存起來，下次打開就在。',cn:'写到一半可以先存起来，下次打开就在。',en:'Save halfway — it will be here next time.',vi:'Lưu giữa chừng — lần sau vẫn còn.'})}</div>`;
+  const footer=answerable?`<div class="disc-submit" style="margin-top:10px">${saveBtn}${(blockDone&&doc.status==='submitted')?`<div class="notice">📨 ${t('discSubmitted')}</div>`:''}${(blockDone&&doc.status==='reviewed')?`<div class="notice">✅ ${t('discReviewed')}</div>`:''}${(blockDone&&doc.submitted_at)?`<div class="hint" style="text-align:center;margin-top:4px">🕒 ${t('submittedAt')}：${fmtDT(doc.submitted_at)}</div>`:''}${(blockDone&&doc.status==='reviewed'&&doc.overall)?`<div class="card fb-overall" style="margin:6px 0"><b>${t('discOverall')}</b><div style="margin-top:4px">${esc(doc.overall)}</div></div>`:''}${(blockDone&&doc.status==='submitted')?`<button class="btn btn-sm" style="width:100%;margin-bottom:8px" data-act="recallDisc" data-id="${l.id}">${t('discRecall')}</button>`:''}<button class="btn btn-accent" style="width:100%;padding:11px" data-act="submitDisc" data-id="${l.id}::${di}">${blockDone?t('discResubmit'):t('discSubmit')}</button><div class="hint disc-draft-hint" data-lid="${l.id}" style="text-align:center;margin-top:2px;color:var(--teal,#6B4A33)"></div></div>`:'';
   return `<details class="ls-sec noconv" open><summary class="ls-sec-h">${clSecLabel()}</summary><div class="ls-sec-b">${introHtml}<div data-disc-di="${di}" data-disc-lid="${l.id}">${items}${qHtml}${footer}</div></div></details>`;}
 function lessonBodyHtml(l,opts){opts=opts||{};if(l.kind==='classical')return classicalBodyHtml(l,opts);const seq=reconcileLayout(l);const qsAll=questionsOf(l.id).filter(q=>q.bank!=='hw');const gps=l.grammar_points||[];
   const numbered=numberedHtml;
@@ -3755,6 +3791,36 @@ H.clNote=(lid)=>{if(S.preview)return;clearTimeout(H._clT);H._clT=setTimeout(asyn
     if(h){h.textContent=t('draftSaved');clearTimeout(H._clHT);H._clHT=setTimeout(()=>{if(h)h.textContent='';},2500);}
   }catch(e){}
 },1200);};
+H.clSave=async(lid)=>{
+  const scope=document.getElementById('ls-'+lid);if(!scope)return;
+  const btn=scope.querySelector('.cl-save-btn');const lab=scope.querySelector('.cl-saved-at');
+  const LB=(o)=>(typeof wbL==='function'?wbL(o):o.zh);
+  const savedLab=LB({zh:'上次儲存',cn:'上次保存',en:'Last saved',vi:'Lưu lần cuối'});
+  const face=btn?btn.innerHTML:'';
+  if(S.preview){toast(LB({zh:'試做模式不會存檔',cn:'试做模式不会存档',en:'Try mode does not save',vi:'Chế độ thử không lưu'}));return;}
+  clearTimeout(H._clT);clearTimeout(H._discT);
+  if(btn){btn.disabled=true;btn.innerHTML='💾 '+LB({zh:'儲存中…',cn:'保存中…',en:'Saving…',vi:'Đang lưu…'});}
+  try{
+    const notesC={};scope.querySelectorAll('.cl-note-in').forEach(el=>{const v=(el.value||'').trim();if(v)notesC[el.dataset.k]=v;});
+    const ansC={};scope.querySelectorAll('.disc-ans').forEach(el=>{const v=(el.value||'').trim();if(v)ansC[el.dataset.k]=v;});
+    let existing=discDocOf(lid);
+    const locked=!!(existing&&(existing.status==='submitted'||existing.status==='reviewed'));
+    const ts=now();
+    const notes=Object.assign({},(existing&&existing.notes)||{},notesC);
+    const answers=locked?((existing&&existing.answers)||{}):Object.assign({},(existing&&existing.answers)||{},ansC);
+    if(existing&&existing.id){const p={notes,saved_at:ts};if(!locked)p.answers=answers;
+      await DB.update('results',existing.id,p);Object.assign(existing,p);}
+    else{const d=await DB.insert('results',{kind:'discussion',lesson_id:'__discussion__',disc_lesson:lid,uid:myUid(),
+      student_id:S.me.id,student_name:S.me.name||'',answers,notes,status:'draft',saved_at:ts});
+      (S.discussions=S.discussions||[]).push(d);}
+    if(lab)lab.textContent='🕒 '+savedLab+'：'+fmtDT(ts);
+    if(btn){btn.innerHTML='✅ '+LB({zh:'已儲存',cn:'已保存',en:'Saved',vi:'Đã lưu'});
+      setTimeout(()=>{if(btn){btn.innerHTML=face;btn.disabled=false;}},1800);}
+    toast(LB({zh:'✓ 進度已存起來了',cn:'✓ 进度已保存',en:'✓ Progress saved',vi:'✓ Đã lưu tiến độ'}));
+  }catch(e){
+    if(btn){btn.innerHTML='⚠️ '+LB({zh:'沒存成功，再按一次',cn:'没保存成功，再按一次',en:'Not saved — tap again',vi:'Chưa lưu — bấm lại'});btn.disabled=false;}
+  }
+};
 H.gpracDraft=(lid)=>{if(S.preview)return;clearTimeout(H._gpT);H._gpT=setTimeout(async()=>{
   const existing=gpracDocOf(lid);if(existing&&(existing.status==='submitted'||existing.status==='reviewed'))return;
   const pool=questionsOf(lid).filter(q=>q.bank!=='hw'&&q.type!=='note');if(!pool.length)return;
