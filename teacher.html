@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=783">
+<link rel="stylesheet" href="styles.css?v=784">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -649,6 +649,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .cm-chip.pl{background:#fef3c7;color:#92400e}
         .cm-chip.lv{background:#fee2e2;color:#b91c1c}
         .cm-chip.fr{background:#f3e8ff;color:#7c3aed}
+        .cm-chip.fx{background:#dbe4f0;color:#3b5b80}
         .cm-chip.iv{background:#e0e7ff;color:#3730a3}
         .cm-chip.ex{background:#fecaca;color:#b91c1c}
         .cm-more{font-size:10px;color:var(--muted);font-weight:600;padding-left:3px}
@@ -2766,14 +2767,44 @@ function renderCalMonth(body,toggle){
       if(mem.some(s=>(Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date)))return; // 已經點過名就不算預排
       (planByDate[p.date]=planByDate[p.date]||[]).push(Object.assign({cls},p));planCount++;});});
   (S.students||[]).forEach(s=>{if(s.is_test||s.class_type==='團班')return;if(!incPaused&&enrollOf(s)==='paused')return;studentPlanned(s).forEach(p=>{if(!p||!p.date||String(p.date).slice(0,7)!==ym)return;if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date))return;(planByDate[p.date]=planByDate[p.date]||[]).push(Object.assign({sid:s.id,sname:s.name},p));planCount++;});});
+  /* CALFIX_V784 🔁 固定時段：照學生／團班設定的每週時段，把今天以後、這個月內
+     還沒點名也還沒預排的那幾天推出來。過去的日期不推。 */
+  const fixByDate={};let fixCount=0;
+  {
+    const tdy=localToday();
+    const dim=new Date(Y,M,0).getDate();
+    const ds7=[];
+    for(let i=1;i<=dim;i++){const ds=ym+'-'+String(i).padStart(2,'0');if(ds<tdy)continue;
+      ds7.push({ymd:ds,wd:(new Date(ds+'T00:00:00').getDay()+6)%7});}
+    const push=(ds,o)=>{(fixByDate[ds]=fixByDate[ds]||[]).push(o);fixCount++;};
+    (S.students||[]).forEach(s=>{
+      if(s.is_test||s.deleted||s.class_type==='團班')return;
+      if(!incPaused&&enrollOf(s)==='paused')return;
+      const sch=Array.isArray(s.schedule)?s.schedule:[];if(!sch.length)return;
+      ds7.forEach(dy=>sch.forEach(r=>{
+        if(!r||Number(r.d)!==dy.wd)return;
+        if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===dy.ymd))return;
+        if((planByDate[dy.ymd]||[]).some(p=>p.sid===s.id))return;
+        if((fixByDate[dy.ymd]||[]).some(p=>p.sid===s.id&&p.start===(r.s||'')))return;
+        push(dy.ymd,{sid:s.id,sname:s.name,start:r.s||'',end:r.e||''});}));});
+    groupsList().forEach(cls=>{
+      const sch=classSchedOf(cls)||[];if(!sch.length)return;
+      const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls)&&!x.is_test);
+      ds7.forEach(dy=>sch.forEach(r=>{
+        if(!r||Number(r.d)!==dy.wd)return;
+        if(mem.some(x=>(Array.isArray(x.class_log)?x.class_log:[]).some(e=>e&&e.date===dy.ymd)))return;
+        if((planByDate[dy.ymd]||[]).some(p=>p.cls===cls))return;
+        if((fixByDate[dy.ymd]||[]).some(p=>p.cls===cls&&p.start===(r.s||'')))return;
+        push(dy.ymd,{cls,start:r.s||'',end:r.e||''});}));});
+  }
   // 🎤 面試練習場次
   const itvByDate={};let itvCount=0;const itvPaidM={};
   itvAll().forEach(c=>itvSessions(c).forEach(e=>{if(String(e.date).slice(0,7)!==ym)return;(itvByDate[e.date]=itvByDate[e.date]||[]).push({c,e});itvCount++;if(e.paid){const cu=e.currency||'VND';itvPaidM[cu]=(itvPaidM[cu]||0)+(Number(e.fee)||0);}}));
   const examByDate={};let examCount=0;
   itvAll().forEach(c=>{if(!c.exam_date||String(c.exam_date).slice(0,7)!==ym)return;(examByDate[c.exam_date]=examByDate[c.exam_date]||[]).push(c);examCount++;});
   const today=localToday();
-  const allDates=[...new Set([...Object.keys(days),...Object.keys(planByDate),...Object.keys(itvByDate),...Object.keys(examByDate)])].sort();
-  const nav=`<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="calMonth" data-id="-1">‹ 上個月</button><b style="font-size:16px;color:var(--primary)">${label}</b><button class="btn btn-sm" data-act="calMonth" data-id="1">下個月 ›</button><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:400"><input type="checkbox" data-act="calIncPaused" style="width:auto;margin:0"${incPaused?' checked':''}> 含已休學</label><span class="grow"></span><span class="muted">計費 <b>${cntCharged}</b> 堂${totalCharged!==cntCharged?`<span style="font-size:12px">（扣 ${totalCharged} 人次堂數）</span>`:''}${cntFree?('　🎁 免費 '+cntFree+' 堂'):''}${cntLeave?('　請假 '+cntLeave+' 堂'):''}${planCount?('　📌 預排 '+planCount+' 堂'):''}${itvCount?('　🎤 面試 '+itvCount+' 次'):''}${examCount?('　🎯 正式面試 '+examCount):''}</span></div>`;
+  const allDates=[...new Set([...Object.keys(days),...Object.keys(planByDate),...Object.keys(fixByDate),...Object.keys(itvByDate),...Object.keys(examByDate)])].sort();
+  const nav=`<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="calMonth" data-id="-1">‹ 上個月</button><b style="font-size:16px;color:var(--primary)">${label}</b><button class="btn btn-sm" data-act="calMonth" data-id="1">下個月 ›</button><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:400"><input type="checkbox" data-act="calIncPaused" style="width:auto;margin:0"${incPaused?' checked':''}> 含已休學</label><span class="grow"></span><span class="muted">計費 <b>${cntCharged}</b> 堂${totalCharged!==cntCharged?`<span style="font-size:12px">（扣 ${totalCharged} 人次堂數）</span>`:''}${cntFree?('　🎁 免費 '+cntFree+' 堂'):''}${cntLeave?('　請假 '+cntLeave+' 堂'):''}${planCount?('　📌 預排 '+planCount+' 堂'):''}${fixCount?('　🔁 固定 '+fixCount+' 堂'):''}${itvCount?('　🎤 面試 '+itvCount+' 次'):''}${examCount?('　🎯 正式面試 '+examCount):''}</span></div>`;
   if(false){body.innerHTML=toggle+nav+emptyHtml('🗓','這個月還沒有課','按上面「📌 預排課程」先把要上的團班課排進月曆；上完課再按「✍️ 去點名」，就會自動統計計費堂數。也可以到「學生名冊 → 學生 → 上課記錄」補登。');return;}
   const nameDup={};(S.students||[]).forEach(x=>{const n=(x.name||'').trim();if(n)nameDup[n]=(nameDup[n]||0)+1;});
   const sumRows=Object.keys(perStu).sort((a,b)=>perStu[b]-perStu[a]).map(sid=>{const st=studentById(sid)||{};const nm=(st.name||'（已刪除）').trim();const dup=nameDup[nm]>1;const hint=dup?`<span class="muted" style="font-size:12px;margin-left:6px">${esc(st.email||st.id||'')}</span>`:'';return `<div class="dash-row"><b>${esc(nm)}</b>${hint}<span class="grow"></span><span class="muted">${perStu[sid]} 堂</span></div>`;}).join('');
@@ -2789,16 +2820,22 @@ function renderCalMonth(body,toggle){
         const delBtn=it.members?`<button class="btn btn-sm btn-danger" data-act="rollDel" data-id="${ekey}" title="整個團班刪掉這一堂">🗑</button>`:`<button class="btn btn-sm btn-danger" data-act="stuDayDel" data-id="${esc(it.s.id)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')}" title="刪掉這一堂">🗑</button>`;
         return `<div class="dash-row" style="flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<b>${who}</b>${badge}${e.note?`<span class="muted" style="margin-left:6px">${esc(e.note)}</span>`:''}<span class="grow"></span>${dashBtns(meetBtn(it.members?meetOfGroup(it.grp):meetOfStudent(it.s.id),true),'',`<button class="btn btn-sm" data-act="${eact}" data-id="${ekey}">✏️ 修改</button>`,delBtn)}</div>`;});
     const planArr=plans.map(p=>{const tm=twVnStr(p.start,p.end);const isSolo=!!p.sid;const key=isSolo?('S:'+p.sid+'::'+d):(esc(p.cls)+'::'+esc(d));const label=isSolo?('👤 '+esc(p.sname||'')):('👥 '+esc(p.cls)+' 團班');return `<div class="dash-row" style="background:#fff8ec;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#fde68a;color:#92400e;border-color:#f59e0b">📌 預排</span><b>${label}</b>${p.note?`<span class="muted" style="margin-left:4px">${esc(p.note)}</span>`:''}<span class="grow"></span>${dashBtns(meetBtn(isSolo?meetOfStudent(p.sid):meetOfGroup(p.cls),true),`<button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="${key}">✍️ 去點名</button>`,`<button class="btn btn-sm" data-act="planEdit" data-id="${key}">✏️ 修改</button>`,`<button class="btn btn-sm btn-danger" data-act="planDel" data-id="${key}" title="刪掉這一堂">✕</button>`)}</div>`;});
+    const fixes=(fixByDate[d]||[]);
+    const fixArr=fixes.map(p=>{const tm=twVnStr(p.start,p.end);const isSolo=!!p.sid;
+      const key=(isSolo?('S:'+esc(p.sid)):('G:'+esc(p.cls)))+'::'+esc(d)+'::'+esc(p.start||'')+'::'+esc(p.end||'');
+      const label=isSolo?('👤 '+esc(p.sname||'')):('👥 '+esc(p.cls)+' 團班');
+      return `<div class="dash-row" style="background:#f6f8fb;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#dbe4f0;color:#3b5b80;border-color:#3b5b8055">🔁 固定時段</span><b>${label}</b><span class="grow"></span>${dashBtns(meetBtn(isSolo?meetOfStudent(p.sid):meetOfGroup(p.cls),true),`<button class="btn btn-sm btn-accent" data-act="rollFixed" data-id="${key}">✍️ 去點名</button>`,'','')}</div>`;});
     const itvs=(itvByDate[d]||[]);
     const itvArr=itvs.map(({c,e})=>{const tm=twVnStr(e.start,e.end);return `<div class="dash-row" style="background:#eef2ff;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${esc(tm)}</span>`:''}<span class="badge" style="background:#c7d2fe;color:#3730a3">🎤 面試練習</span><b>${snm(c.name||'')}</b>${(e.fee!=null&&e.fee!=='')?`<span class="muted">${money(e.fee,e.currency||'VND')}</span>`:''}${itvPayBadge(e)}<span class="grow"></span>${dashBtns(meetBtn(meetOfItv(c),true),'',`<button class="btn btn-sm" data-act="itvSess" data-id="${esc(c.id)}::${itvSessions(c).indexOf(e)}">✏️ 修改</button>`,'')}</div>`;});
     const exams=(examByDate[d]||[]);
     const examArr=exams.map(c=>{const m=itvResultMeta(c.result);return `<div class="dash-row" style="background:#fee2e2;border-radius:8px;flex-wrap:wrap;border:1px solid #fca5a5">${c.exam_time?`<span class="badge badge-pending">${esc(c.exam_time)}</span>`:''}<span class="badge" style="background:#fecaca;color:#b91c1c">🎯 正式面試</span><b>${snm(c.name||'')}</b>${c.target?`<span class="muted">${esc(c.target)}</span>`:''}${m?`<span class="badge" style="background:${m[1]}18;color:${m[1]}">${m[0]}</span>`:''}<span class="grow"></span>${dashBtns('','',`<button class="btn btn-sm" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 填結果</button>`,'')}</div>`;});
-    const note=[items.length?items.length+' 堂已點名':'',plans.length?plans.length+' 堂待上':'',itvs.length?itvs.length+' 次面試':'',exams.length?'🎯 正式面試':''].filter(Boolean).join('　');
+    const note=[items.length?items.length+' 堂已點名':'',plans.length?plans.length+' 堂待上':'',fixes.length?fixes.length+' 堂固定時段':'',itvs.length?itvs.length+' 次面試':'',exams.length?'🎯 正式面試':''].filter(Boolean).join('　');
     /* 依「上課時間」排序，四種項目一起排 */
     const _tk=v=>{const t=String(v||'').trim();return /^\d{1,2}:\d{2}$/.test(t)?(t.length===4?('0'+t):t):'99:99';};
     const _all=[];
     items.forEach((it,i)=>_all.push({t:_tk(it.e&&it.e.start),h:logArr[i]}));
     plans.forEach((p,i)=>_all.push({t:_tk(p.start),h:planArr[i]}));
+    fixes.forEach((p,i)=>_all.push({t:_tk(p.start),h:fixArr[i]}));
     itvs.forEach((o,i)=>_all.push({t:_tk(o.e&&o.e.start),h:itvArr[i]}));
     exams.forEach((c,i)=>_all.push({t:_tk(itvTimeKey(c.exam_time)),h:examArr[i]}));
     _all.sort((a,b)=>a.t.localeCompare(b.t));
@@ -2816,6 +2853,7 @@ function renderCalMonth(body,toggle){
     const key=ym+'-'+String(dd).padStart(2,'0');
     const logs=mergeDayItems((days[key]||[]).slice());
     const plans=(planByDate[key]||[]);
+    const fixes=(fixByDate[key]||[]);
     const itvs=(itvByDate[key]||[]);
     const exams=(examByDate[key]||[]);
     const _ck=v=>{const t=String(v||'').trim();return /^\d{1,2}:\d{2}$/.test(t)?(t.length===4?('0'+t):t):'99:99';};
@@ -2831,6 +2869,8 @@ function renderCalMonth(body,toggle){
       _cl.push({t:_ck(it.e&&it.e.start),h:_chip((k==='leave'?'lv':(k==='free'?'fr':'ok')),nm,key)});});
     plans.forEach(p=>{_cl.push({t:_ck(p.start),
       h:_chip('pl','📌 '+(p.sid?(p.sname||''):(p.cls||'')),p.sid?('S::'+p.sid):(p.cls?('G::'+p.cls):''))});});
+    fixes.forEach(p=>{_cl.push({t:_ck(p.start),
+      h:_chip('fx','🔁 '+(p.sid?(p.sname||''):(p.cls||'')),p.sid?('S::'+p.sid):(p.cls?('G::'+p.cls):''))});});
     itvs.forEach(o=>{_cl.push({t:_ck(o.e&&o.e.start),h:_chip('iv','🎤 '+(o.c.name||''),'I::'+o.c.id)});});
     exams.forEach(c=>{_cl.push({t:_ck(itvTimeKey(c.exam_time)),h:_chip('ex','🎯 '+(c.name||''),'I::'+c.id)});});
     _cl.sort((a,b)=>a.t.localeCompare(b.t));
@@ -4939,7 +4979,7 @@ function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==nul
    +'<h2>👥 學生名單</h2><table><thead><tr><th>姓名</th><th>Email</th><th>作業完成</th></tr></thead><tbody>'+roster+'</tbody></table>'
    +'<h2>📚 上課內容 ＆ 繳交狀況</h2>'+lessonsHtml
    +'</body></html>';
-  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();}
+  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(printFontInject(html));w.document.close();}
 function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
   const members=sel?(S.students.length?S.students.slice().sort(stuNameCmp).map(s=>`<label class="check-row"><input type="checkbox" class="gm-mem" value="${s.id}" ${stuGroups(s).includes(sel)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'')}</span></label>`).join(''):'<div class="hint">還沒有學生。</div>'):'';
   const editPanel=sel?`<div style="margin:2px 0 14px;padding:12px 14px;background:#faf7f0;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px">
@@ -5676,7 +5716,7 @@ H.guidePrint=()=>{
     +'<div class="foot">有任何看不懂的地方，或找不到某個功能，先回頭看這一份說明；真的找不到，就問主管理員。</div>'
     +'</div></body></html>';
   const w=window.open('','_blank');if(!w)return toast('請允許彈出視窗後再按一次');
-  w.document.write(html);w.document.close();};
+  w.document.write(printFontInject(html));w.document.close();};
 
 H.sgPick=(key)=>{const list=sgVisible();const it=list.find(x=>(x.kind+'::'+x.id)===key);if(!it)return;
   S.sgSel=key;renderGrades();};
@@ -5878,6 +5918,35 @@ function fontGet(kind){
   catch(e){return fontFallback(kind);}
 }
 function fontDef(kind,k){const L=fontList(kind);return L.find(x=>x[0]===k)||L[0];}
+/* PRINTFONT_V784 列印／存 PDF 的文件，字體跟平台走。
+   本來每一份文件各自寫死字體（Avenir Next、蘋方…），所以印出來的越南文聲調
+   和中文跟畫面上看到的不一樣。現在開視窗之前統一補上字體連結，body 直接用
+   目前設定的那一組。Word 匯出的那幾份跳過——Word 抓不到網路字體。 */
+function printFontHead(){
+  try{
+    const lat=fontDef('lat',fontGet('lat')),cjk=fontDef('cjk',fontGet('cjk'));
+    let h='<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
+    (String(lat[4]||'')+' '+String(cjk[4]||'')).split(/\s+/).filter(Boolean)
+      .forEach(u=>{h+='<link rel="stylesheet" href="'+u+'">';});
+    if(cjk[5]==='QNANum-Kai')h+='<style>@font-face{font-family:"QNANum-Kai";font-display:swap;src:url(https://cdn.jsdelivr.net/npm/lxgw-wenkai-tc-webfont@1.2.0/files/lxgwwenkaitc-regular-subset-119.woff2) format("woff2");unicode-range:U+0030-0039;}@font-face{font-family:"QNANum-Kai";font-weight:700;font-display:swap;src:url(https://cdn.jsdelivr.net/npm/lxgw-wenkai-tc-webfont@1.2.0/files/lxgwwenkaitc-bold-subset-119.woff2) format("woff2");unicode-range:U+0030-0039;}</style>';
+    return h;
+  }catch(e){return '';}
+}
+function printFontStack(){
+  try{
+    const lat=fontDef('lat',fontGet('lat')),cjk=fontDef('cjk',fontGet('cjk'));
+    return fontNumPrefix(cjk).replace(/'/g,'"')+(lat[3]?(lat[3]+','):'')+cjk[3]+',sans-serif';
+  }catch(e){return '"PingFang TC","Microsoft JhengHei",sans-serif';}
+}
+function printFontInject(h){
+  try{
+    h=String(h||'');
+    if(h.indexOf('urn:schemas-microsoft-com')>=0)return h;  /* Word 匯出不動 */
+    if(h.indexOf('</head>')<0)return h;
+    const add=printFontHead()+'<style>body{font-family:'+printFontStack()+' !important}</style>';
+    return h.replace('</head>',add+'</head>');
+  }catch(e){return h;}
+}
 function uiFontLoad(urls){
   String(urls||'').split(/\s+/).filter(Boolean).forEach(u=>{
     if(document.querySelector('link[data-uifont="'+u+'"]'))return;
@@ -6754,7 +6823,7 @@ function fbTwoBlocks(t1,x1,t2,x2){
   return fbBlock(t1,a,'')+fbBlock(t2,b,'');}
 function fbFoot(msg){
   return '<div class="foot"><div class="ty">'+esc(msg)+'</div></div>';}
-function fbWin(html){const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.open();w.document.write(html);w.document.close();}
+function fbWin(html){const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.open();w.document.write(printFontInject(html));w.document.close();}
 
 function fbSheetHtml(s,rec){
   const tm=(rec.start||rec.end)?((rec.start||'')+(rec.end?'～'+rec.end:'')):'';
@@ -7595,7 +7664,7 @@ H.repGo=(sid)=>{const ym=($('#rep-ym')&&$('#rep-ym').value)||repYM();
   const html=repHtml(sid,ym,note);
   const w=window.open('','_blank');
   if(!w){toast('瀏覽器擋掉了新視窗，請允許彈出視窗再試');return;}
-  w.document.open();w.document.write(html);w.document.close();
+  w.document.open();w.document.write(printFontInject(html));w.document.close();
   closeModal();};
 H.hwToggleAll=()=>{S.hwAll=!S.hwAll;render();};
 H.hwCopy=(sid)=>{const its=hwPending().filter(x=>x.sid===sid);if(!its.length)return;
@@ -8266,7 +8335,7 @@ H.docForm=(id)=>{
    +'<span class="hint">列印視窗記得把「頁首及頁尾」取消勾選</span></div>'
    +page+'</body></html>';
   const w=window.open('','_blank');if(!w)return toast('請允許彈出視窗後再按一次');
-  w.document.write(doc);w.document.close();
+  w.document.write(printFontInject(doc));w.document.close();
 };
 /* DOCOUT_V737 文件清單本來只看得到，沒辦法帶出去。
    可是要追進度的時候，常常是要印一張出來擺在桌上打勾，或是傳一份給學生看「你還缺這幾樣」。
@@ -8372,7 +8441,7 @@ H.docPrint=(id)=>{
    +'<span class="hint">列印視窗記得把「頁首及頁尾」取消勾選</span></div>'
    +page+'</body></html>';
   const w=window.open('','_blank');if(!w)return toast('請允許彈出視窗後再按一次');
-  w.document.write(doc);w.document.close();
+  w.document.write(printFontInject(doc));w.document.close();
 };
 H.docListWord=(id)=>{
   const c=(S.agencies||[]).find(x=>x.id===id);if(!c)return;
@@ -8571,7 +8640,7 @@ H.prPrint=()=>{
    +'<span class="hint">列印視窗記得把「頁首及頁尾」取消勾選</span></div>'
    +page+'</body></html>';
   const w=window.open('','_blank');if(!w)return toast('請允許彈出視窗後再按一次');
-  w.document.write(doc);w.document.close();
+  w.document.write(printFontInject(doc));w.document.close();
 };
 H.prWord=()=>{
   const list=prOutRows();
@@ -8794,7 +8863,7 @@ H.qtGo=()=>{
     +'<span style="color:#8b8079;font-size:13px">'+e2(who)+' · '+e2(date)+'</span>'
     +'<span class="hint">列印時這排按鈕不會印出來</span></div>'+page+'</body></html>';
   const w=window.open('','_blank');if(!w)return toast('請允許彈出視窗後再按一次');
-  w.document.write(html);w.document.close();closeModal();
+  w.document.write(printFontInject(html));w.document.close();closeModal();
 };
 /* REPLY_V712 回覆範本的操作。內容改在視窗裡編輯——清單只留標題、關鍵字和前幾行預覽，
    每張卡片一樣高、排成兩欄，看起來才整齊。 */
@@ -9244,7 +9313,7 @@ H.monthBillsGo=()=>{
     +'<span class="hint">列印時這排按鈕不會印出來；一位學生一頁</span></div>'
     +pages.join('')+'</body></html>';
   const w=window.open('','_blank');if(!w)return toast('請允許彈出視窗後再按一次');
-  w.document.write(html);w.document.close();closeModal();};
+  w.document.write(printFontInject(html));w.document.close();closeModal();};
 
 function openLqeEditor(scrollBottom){const q=LQE.q;const TY=[['vocab','詞語測驗'],['reading','閱讀測驗']];const AB=['A','B','C','D'];
  const qrows=(q.questions||[]).map(function(qq,i){return '<div class="card" style="margin-bottom:10px;padding:12px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>第 '+(i+1)+' 題</b><span class="grow"></span><button class="btn btn-sm btn-danger" data-act="lqeDelQ" data-id="'+i+'">刪除此題</button></div><textarea class="lqe-t" data-i="'+i+'" rows="2" style="width:100%;box-sizing:border-box" placeholder="題目（空格用 ____ 表示）">'+esc(qq.t||'')+'</textarea>'+[0,1,2,3].map(function(j){return '<label style="display:flex;align-items:center;gap:8px;margin-top:5px"><input type="radio" name="lqe-c-'+i+'" value="'+j+'"'+((qq.correct===j)?' checked':'')+' style="width:auto;margin:0" title="設為正確答案"><span style="color:var(--muted);font-size:13px;width:16px;text-align:center">'+AB[j]+'</span><input class="lqe-o" data-i="'+i+'" data-j="'+j+'" value="'+esc((qq.opts||[])[j]||'')+'" style="flex:1" placeholder="選項 '+AB[j]+'"></label>';}).join('')+'<div class="hint" style="margin-top:5px">點左邊圓圈把該選項設成正解 ✅</div></div>';}).join('');
@@ -9836,7 +9905,7 @@ H.guideCard=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const e=(t
    +'<h3>怎麼用 · Cách dùng（中文）</h3>'+blk(zh)
    +'<h3>Cách dùng（Tiếng Việt）</h3>'+blk(vi)
    +'</body></html>';
-  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
+  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(printFontInject(html));w.document.close();};
 H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}const s=S.students.find(x=>x.id===id);if(!s)return;
   /* STMT_MILKTEA_V648 對帳單版面：米色奶茶配色的柔和帳單，抬頭加上越南文 Tiếng Trung Quyên Huỳnh。
      字體：拉丁字母／越南文用 Avenir Next 系列（越南文聲調符號才不會缺字），中文優先用圓體。
@@ -10026,7 +10095,7 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'D.months.slice().reverse().forEach(function(m){var x=document.createElement("option");x.value=m;x.textContent=m;pk.appendChild(x);});'
     +'pk.value="all";pk.addEventListener("change",function(){draw(pk.value);});draw("all");'
     +'<\/script></body></html>';
-  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
+  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(printFontInject(html));w.document.close();};
 
 H.printWorksheet=(lid)=>{const l=S.lessons.find(x=>x.id===lid);if(!l)return;
   const qs=sortQuestionsLogical(questionsOf(lid));
@@ -10179,7 +10248,7 @@ H.printWorksheet=(lid)=>{const l=S.lessons.find(x=>x.id===lid);if(!l)return;
    +'<div class="hm">'+e2(l.textbook||'')+'　·　練習題卷</div></div>'
    +'<div class="name-row"><span>姓名：<b>＿＿＿＿＿＿＿</b></span><span>日期：<b>＿＿＿＿＿＿＿</b></span><span>分數：<b>＿＿＿＿</b></span></div>'
    +(body||'<div class="hm">這一課還沒有題目。</div>')+'</body></html>';
-  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
+  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(printFontInject(html));w.document.close();};
 /* 臺灣常見讀音修正（與大陸不同者） */
 const TW_PY_T={'期':'qí','究':'jiù','質':'zhí','危':'wéi','企':'qì','暫':'zhàn','攜':'xī','液':'yì','垃':'lè','圾':'sè','蝸':'guā','跌':'dié','嗯':'ēn'};
 function twPyT(han){try{const arr=pinyinPro.pinyin(han,{type:'all',toneType:'symbol'});return arr.map(o=>o.isZh?(TW_PY_T[o.origin]||o.pinyin):o.origin).join(' ');}catch(e){return '';}}
@@ -10383,7 +10452,7 @@ H.printReport=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
    +'<h2>各題型正確率（自動批改題）</h2><table><tr><th>題型</th><th class="c">正確率</th></tr>'+typeHtml+'</table>'
    +'<p class="hm" style="margin-top:24px">＊問答／作文／口說等需老師人工批改的題目不列入自動正確率。</p>'
    +'</body></html>';
-  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
+  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(printFontInject(html));w.document.close();};
 H.orderLayout=(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;LAYOUT_LID=id;LAYOUT=reconcileLayoutT(l);
   openModal(`<div class="modal"><div class="modal-head"><h3>📐 課文順序 · ${esc(l.title||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">用 ↑ ↓ 調整對話、短文、語法在課文中的先後順序；學生「課文」就照這個順序呈現（例如：對話→生詞→語法→短文→生詞→語法）。</div>
@@ -12252,7 +12321,7 @@ H.receipt=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s
     +'<div class="row" style="border-bottom:0;align-items:center;margin-top:6px"><span class="lbl">金額 Amount</span><span class="amt">'+e2(amt)+'</span></div>'
     +'<div class="sign">簽收 / 蓋章 Signature：＿＿＿＿＿＿＿＿＿＿＿＿</div>'
     +'<div class="foot">開立時間 '+new Date().toLocaleString()+'</div></body></html>';
-  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
+  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(printFontInject(html));w.document.close();};
 H.exportAll=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
   try{const wb=XLSX.utils.book_new();
     const stu=S.students.slice().sort(stuNameCmp).map(s=>({姓名:s.name||'',狀態:enrollMeta(enrollOf(s))[1],國籍:s.nationality||'',教材:s.textbook||'',班別:s.class_type||'',Email:s.email||'',上課時段:fmtSchedule(s),Meet連結:s.meet_url||'',學費:s.tuition==null?'':s.tuition,計費方式:s.fee_unit==='hour'?'每小時':'每堂',幣別:s.currency||'',付款日:s.payment_date||'',總堂數:s.sessions_total==null?'':s.sessions_total,負責管理員:s.admin||'(主管理員)',備註:s.notes||''}));
@@ -12357,7 +12426,7 @@ H.printCert=()=>{const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&a
     +'<div class="cbody">茲證明　<span class="name">'+e2(name)+'</span><br>已完成 <span class="course">'+e2(course||'本課程')+'</span> 之學習課程，特此頒發證書，以資鼓勵。'
     +(note?'<div class="cnote">'+e2(note)+'</div>':'')+'</div>'
     +'<div class="foot"><span class="line">頒發單位：'+e2(org)+'</span><span class="line">日期：'+e2(date)+'</span></div></div></body></html>';
-  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(html);w.document.close();};
+  const w=window.open('','_blank');if(!w){toast('請允許彈出視窗後再按一次');return;}w.document.write(printFontInject(html));w.document.close();};
 H.newAnnounce=()=>{if(!IS_OWNER)return;openModal(`<div class="modal"><div class="modal-head"><h3>📢 發布公告</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="field full"><label>公告內容 <span class="hint">所有學生登入首頁都會看到</span></label><textarea id="ann-text" placeholder="例：下週三停課一次，順延到週五上課。"></textarea></div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><button class="btn btn-primary" data-act="saveAnnounce">發布</button></div></div>`);};
 H.saveAnnounce=async()=>{const t=(($('#ann-text')&&$('#ann-text').value)||'').trim();if(!t)return toast('請輸入公告內容');try{await ensureAuthFresh();await DB.insert('lessons',{kind:'announcement',text:t});closeModal();await loadAll();render();toast('已發布公告');}catch(e){toast(writeErr('發布失敗',e));}};
 H.delAnnounce=async(id)=>{if(!confirm('刪除這則公告？'))return;try{await DB.remove('lessons',id);await loadAll();render();toast('已刪除公告');}catch(e){toast(writeErr('刪除失敗',e));}};
