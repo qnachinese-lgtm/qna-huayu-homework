@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=784">
+<link rel="stylesheet" href="styles.css?v=785">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1401,7 +1401,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
       </section>
 
       <section id="panel-calendar" class="panel hide">
-        <div class="section-head"><h2>📅 課表</h2><span class="sub">這一週的課、整月月曆、每位學生的堂數與繳費</span><div class="head-actions"><button class="btn btn-primary" data-act="planClass">📌 排一堂課</button></div></div>
+        <div class="section-head"><h2>📅 課表</h2><span class="sub">這一週的課、整月月曆、每位學生的堂數與繳費</span><div class="head-actions"><button class="btn" data-act="fixToPlan" title="把每週固定時段還沒上的那幾堂，實際排進課表">🔁 固定時段轉預排</button><button class="btn btn-primary" data-act="planClass">📌 排一堂課</button></div></div>
         <div id="calendar-body"></div>
       </section>
 
@@ -10923,6 +10923,75 @@ H.planSave=async()=>{const v=$('#pl-cls').value;const date=$('#pl-date').value;i
       else if(v.indexOf('S:')===0){await addStudentPlanned(studentById(v.slice(2)),rows);}
       else{await addPlanned(v.slice(2),rows);}
     toast('已預排 '+rows.length+(v.indexOf('I:')===0?' 次練習':' 堂課')+'，已幫你切到月曆');closeModal();S.calView='month';S.calMonth=date.slice(0,7);S.tab='calendar';render();window.scrollTo(0,0);}catch(e){if(btn){btn.disabled=false;btn.textContent='✅ 加入預排';}toast('失敗：'+((e&&e.message)||e));}};
+/* FIX2PLAN_V785 固定時段轉預排。
+   推算範圍：今天起 28 天。那天已經點名、或已經有預排，就跳過。
+   一天一位學生（或一個團班）只會有一堂，跟 addPlanned 的規則一致。 */
+function fixSlotsAhead(days){
+  const N=Math.max(1,Number(days)||28);
+  const t=new Date();t.setHours(0,0,0,0);
+  const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const ds=[];for(let i=0;i<N;i++){const dd=new Date(t);dd.setDate(dd.getDate()+i);ds.push({ymd:ymd(dd),wd:(dd.getDay()+6)%7});}
+  const stu=[],grp=[];
+  (S.students||[]).forEach(x=>{
+    if(x.deleted||x.is_test||x.class_type==='團班')return;
+    if(enrollOf(x)==='paused')return;
+    const sch=Array.isArray(x.schedule)?x.schedule:[];if(!sch.length)return;
+    const logged=new Set((Array.isArray(x.class_log)?x.class_log:[]).map(e=>e&&e.date).filter(Boolean));
+    const planned=new Set(studentPlanned(x).map(p=>p.date));
+    const rows=[];const used=new Set();
+    ds.forEach(dy=>sch.forEach(r=>{
+      if(!r||Number(r.d)!==dy.wd)return;
+      if(logged.has(dy.ymd)||planned.has(dy.ymd)||used.has(dy.ymd))return;
+      used.add(dy.ymd);rows.push({date:dy.ymd,start:r.s||'',end:r.e||'',note:''});}));
+    if(rows.length)stu.push({s:x,rows});});
+  groupsList().forEach(cls=>{
+    const sch=classSchedOf(cls)||[];if(!sch.length)return;
+    const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls)&&!x.is_test);
+    const logged=new Set();mem.forEach(x=>(Array.isArray(x.class_log)?x.class_log:[]).forEach(e=>{if(e&&e.date)logged.add(e.date);}));
+    const planned=new Set(classPlanned(cls).map(p=>p.date));
+    const rows=[];const used=new Set();
+    ds.forEach(dy=>sch.forEach(r=>{
+      if(!r||Number(r.d)!==dy.wd)return;
+      if(logged.has(dy.ymd)||planned.has(dy.ymd)||used.has(dy.ymd))return;
+      used.add(dy.ymd);rows.push({date:dy.ymd,start:r.s||'',end:r.e||'',note:''});}));
+    if(rows.length)grp.push({cls,rows});});
+  return {stu,grp,total:stu.reduce((a,x)=>a+x.rows.length,0)+grp.reduce((a,x)=>a+x.rows.length,0)};
+}
+H.fixToPlan=()=>{
+  const N=Number(S.f2pDays||28);
+  const r=fixSlotsAhead(N);
+  const li=(nm,rows)=>'<div class="dash-row"><b>'+esc(nm)+'</b><span class="grow"></span>'
+    +'<span class="muted">'+rows.length+' 堂　'+esc(rows[0].date)+(rows.length>1?(' 起'):'')+'</span></div>';
+  const body=r.total
+    ?(r.stu.map(x=>li('👤 '+(x.s.name||''),x.rows)).join('')+r.grp.map(x=>li('👥 '+x.cls+' 團班',x.rows)).join(''))
+    :'<div class="hint">未來 '+N+' 天內沒有還沒排的固定時段——都已經排好或點過名了。</div>';
+  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>🔁 固定時段轉預排</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:10px">把每位學生／團班設定的<b>每週固定時段</b>，在未來 '+N+' 天裡'
+   +'還沒點名、也還沒排過的那幾堂，實際建成<b>預排</b>。'
+   +'建好以後就跟你自己排的一樣：可以改時間、加備註、單獨刪掉，堂數統計也會算進去。'
+   +'已經上過的那幾天不會動。</div>'
+   +'<div class="lesson-label">要建立 '+r.total+' 堂</div>'+body
+   +'</div><div class="modal-foot">'
+   +'<button class="btn" data-act="closeModal">取消</button>'
+   +(r.total?'<button class="btn btn-accent" data-act="fixToPlanGo" data-id="'+N+'">✅ 建立這 '+r.total+' 堂預排</button>':'')
+   +'</div></div>');
+};
+H.fixToPlanGo=async(days)=>{
+  const btn=document.querySelector('[data-act="fixToPlanGo"]');
+  if(btn){btn.disabled=true;btn.textContent='建立中…';}
+  try{
+    const r=fixSlotsAhead(days);
+    for(const x of r.stu)await addStudentPlanned(x.s,x.rows);
+    for(const x of r.grp)await addPlanned(x.cls,x.rows);
+    closeModal();toast('已建立 '+r.total+' 堂預排');
+    try{renderCalendar();}catch(e){}
+    try{render();}catch(e){}
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='✅ 再試一次';}
+    toast('失敗：'+((e&&e.message)||e));
+  }
+};
 H.planDel=async(key)=>{const p=String(key).split('::');const tgt=p[0],date=p[1];try{if(tgt.indexOf('S:')===0){await removeStudentPlanned(studentById(tgt.slice(2)),date);}else{await removePlanned(tgt.indexOf('G:')===0?tgt.slice(2):tgt,date);}toast('已移除預排');renderCalendar();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 function plannedEntryOf(tgt,date){if(tgt.indexOf('S:')===0){const s=studentById(tgt.slice(2));return {kind:'S',s,entry:studentPlanned(s).find(x=>x.date===date)};}const cls=tgt.indexOf('G:')===0?tgt.slice(2):tgt;return {kind:'G',cls,entry:classPlanned(cls).find(x=>x.date===date)};}
 H.planEdit=(key)=>{const p=String(key).split('::');const tgt=p[0],date=p[1];const info=plannedEntryOf(tgt,date);const e=info.entry||{};const label=info.kind==='S'?('👤 '+esc((info.s&&info.s.name)||'')):('👥 '+esc(info.cls)+' 團班');
