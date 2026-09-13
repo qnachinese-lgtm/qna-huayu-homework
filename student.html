@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=789">
+<link rel="stylesheet" href="styles.css?v=790">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -418,8 +418,12 @@ textarea.lq-in:focus{outline:none;border-color:var(--accent,#A3714E);box-shadow:
 .sld-pg{font-variant-numeric:tabular-nums;min-width:62px;text-align:center}
 .sld-stage{position:relative;display:flex;align-items:center;justify-content:center;background:#14110e;padding:10px;
   min-height:180px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-.sld-stage canvas{max-width:100%;height:auto;display:block;border-radius:6px;background:#fff;
+.sld-stage img.sld-img{max-width:100%;height:auto;display:block;border-radius:6px;background:#fff;
   -webkit-user-drag:none;user-select:none;pointer-events:none}
+.sld-wm{position:absolute;inset:0;overflow:hidden;pointer-events:none;
+  display:flex;flex-direction:column;justify-content:space-around;align-items:center;
+  transform:rotate(-16deg);opacity:.16}
+.sld-wm span{white-space:nowrap;font-size:15px;font-weight:800;color:#7a5236;letter-spacing:1px}
 .sld-note{padding:7px 10px;background:#1d1712;color:#b9a892;font-size:12px;line-height:1.6}
 .sld-load{color:#b9a892;font-size:13px;padding:34px 10px}
 .cl-gh .cl-gp{font-weight:500;color:var(--muted,#8b8079);font-size:.94em;letter-spacing:.2px}
@@ -1354,10 +1358,12 @@ function clLinesOfS(l){
    翻譯＝作業，要按送出，送出以後就鎖住等老師改。
    參考翻譯照老師設定的時機才出現（預設交出來以後）。 */
 /* SLIDES_V789 上課投影片：老師開著才出現 */
+function slidePages(l){const p=l&&l.slides&&l.slides.pages;return Array.isArray(p)?p:[];}
 function slidesHtml(l){
-  if(!(l&&l.slides&&l.slides.url&&l.slides_open))return '';
+  if(!(l&&l.slides_open&&slidePages(l).length))return '';
   const L=(o)=>(typeof wbL==='function'?wbL(o):o.zh);
-  return '<div class="sld-box" id="sld-'+esc(l.id)+'" data-sld="'+esc(l.id)+'" data-url="'+esc(l.slides.url)+'"'
+  return '<div class="sld-box" id="sld-'+esc(l.id)+'" data-sld="'+esc(l.id)+'"'
+    +' data-pages="'+esc(JSON.stringify(slidePages(l)))+'"'
     +' oncontextmenu="return false">'
     +'<div class="sld-bar"><b>🖥 '+esc(L({zh:'上課投影片',cn:'上课投影片',en:'Class slides',vi:'Slide bài giảng'}))+'</b>'
     +'<span class="sld-live">'+esc(L({zh:'放送中',cn:'放送中',en:'LIVE',vi:'ĐANG CHIẾU'}))+'</span>'
@@ -1372,68 +1378,30 @@ function slidesHtml(l){
         en:'For class only — it disappears when your teacher ends the session. No download.',
         vi:'Chỉ dùng trong giờ học — sẽ biến mất khi giáo viên kết thúc. Không tải về được.'}))+'</div></div>';
 }
-let SLD_JS=null;
-function slidesLib(){
-  if(SLD_JS)return SLD_JS;
-  SLD_JS=new Promise((res,rej)=>{
-    if(window.pdfjsLib){res(window.pdfjsLib);return;}
-    const sc=document.createElement('script');
-    sc.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    sc.onload=()=>{try{window.pdfjsLib.GlobalWorkerOptions.workerSrc=
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}catch(e){}
-      res(window.pdfjsLib);};
-    sc.onerror=()=>rej(new Error('pdfjs'));
-    document.head.appendChild(sc);
-  });
-  return SLD_JS;
+function slidesWm(){
+  const nm=((S.me&&S.me.name)||'')+'　'+new Date().toLocaleDateString('zh-TW');
+  let rows='';for(let i=0;i<7;i++)rows+='<span>'+esc(nm)+'</span>';
+  return '<div class="sld-wm" aria-hidden="true">'+rows+'</div>';
 }
-function slidesMark(cv){
-  /* 斜著蓋上學生的名字和日期，截圖也帶得走 */
-  try{
-    const nm=((S.me&&S.me.name)||'')+'　'+new Date().toLocaleDateString('zh-TW');
-    const c=cv.getContext('2d');const w=cv.width,h=cv.height;
-    c.save();c.globalAlpha=.13;c.fillStyle='#7a5236';
-    const fs=Math.max(15,Math.round(w/34));c.font='700 '+fs+'px system-ui,sans-serif';
-    c.translate(w/2,h/2);c.rotate(-Math.PI/7);c.textAlign='center';
-    const stepY=fs*6,stepX=c.measureText(nm).width+fs*4;
-    for(let y=-h;y<h;y+=stepY)for(let x=-w;x<w;x+=stepX)c.fillText(nm,x,y);
-    c.restore();
-  }catch(e){}
-}
-async function slidesMount(box){
+function slidesMount(box){
   if(box.dataset.slReady==='1')return;box.dataset.slReady='1';
+  let pages=[];try{pages=JSON.parse(box.dataset.pages||'[]');}catch(e){pages=[];}
   const stage=box.querySelector('.sld-stage');
   const pg=box.querySelector('.sld-pg');
   const bp=box.querySelector('[data-sldact="prev"]');
   const bn=box.querySelector('[data-sldact="next"]');
-  let doc=null,cur=1,busy=false;
-  const draw=async()=>{
-    if(!doc||busy)return;busy=true;
-    try{
-      const page=await doc.getPage(cur);
-      const wrap=stage.clientWidth-20||640;
-      const v0=page.getViewport({scale:1});
-      const sc=Math.min(2,Math.max(.6,wrap/v0.width))*(window.devicePixelRatio>1?1.4:1);
-      const vp=page.getViewport({scale:sc});
-      const cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;
-      cv.style.width='100%';
-      await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
-      slidesMark(cv);
-      stage.innerHTML='';stage.appendChild(cv);
-      pg.textContent=cur+' / '+doc.numPages;
-      bp.disabled=(cur<=1);bn.disabled=(cur>=doc.numPages);
-    }catch(e){stage.innerHTML='<div class="sld-load">這一頁畫不出來，換一頁看看</div>';}
-    busy=false;
+  if(!pages.length){stage.innerHTML='<div class="sld-load">這一課還沒有投影片</div>';return;}
+  let cur=0;
+  const pre=(i)=>{if(i<0||i>=pages.length)return;const im=new Image();im.src=pages[i];};
+  const draw=()=>{
+    stage.innerHTML='<img class="sld-img" alt="" draggable="false" src="'+esc(pages[cur])+'">'+slidesWm();
+    pg.textContent=(cur+1)+' / '+pages.length;
+    bp.disabled=(cur<=0);bn.disabled=(cur>=pages.length-1);
+    pre(cur+1);pre(cur-1);
   };
-  bp.onclick=()=>{if(cur>1){cur--;draw();}};
-  bn.onclick=()=>{if(doc&&cur<doc.numPages){cur++;draw();}};
-  try{
-    const lib=await slidesLib();
-    doc=await lib.getDocument({url:box.dataset.url,disableAutoFetch:false}).promise;
-    await draw();
-  }catch(e){
-    stage.innerHTML='<div class="sld-load">投影片載入失敗，請跟老師說一聲</div>';
-  }
+  bp.onclick=()=>{if(cur>0){cur--;draw();}};
+  bn.onclick=()=>{if(cur<pages.length-1){cur++;draw();}};
+  draw();
 }
 let SLD_SUB={};
 function initSlides(){
@@ -1446,7 +1414,7 @@ function initSlides(){
       SLD_SUB[lid]=firebase.firestore().collection('lessons').doc(lid)
         .onSnapshot(sn=>{
           const d=sn.data()||{};
-          if(!d.slides_open||!(d.slides&&d.slides.url)){
+          if(!d.slides_open||!(Array.isArray(d.slides&&d.slides.pages)&&d.slides.pages.length)){
             const el=document.getElementById('sld-'+lid);
             if(el)el.remove();
             const l=(S.lessons||[]).find(x=>x.id===lid);

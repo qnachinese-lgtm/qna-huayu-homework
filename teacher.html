@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=789">
+<link rel="stylesheet" href="styles.css?v=790">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -4328,7 +4328,7 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
           ${((((l.dialogues&&l.dialogues.length)||0)+((l.grammar_points&&l.grammar_points.length)||0))>=2)?`<button class="btn btn-sm" data-act="orderLayout" data-id="${l.id}">📐 課文順序</button>`:''}
           <button class="btn btn-sm" data-act="resources" data-id="${l.id}">📎 補充資料${(l.resources&&l.resources.length)?('（'+l.resources.length+'）'):''}</button>
           <button class="btn btn-sm" data-act="printWorksheet" data-id="${l.id}">🖨 練習題卷</button>
-          <button class="btn btn-sm" data-act="slides" data-id="${l.id}">🖥 上課投影片${(l.slides&&l.slides.url)?'（已上傳）':''}</button>
+          <button class="btn btn-sm" data-act="slides" data-id="${l.id}">🖥 上課投影片${slidePages(l).length?('（'+slidePages(l).length+' 頁）'):''}</button>
           <button class="btn btn-sm" data-act="dupLesson" data-id="${l.id}">📋 複製</button>
           ${an?`<div class="mini-sep"></div><button class="btn btn-sm btn-warn" data-act="unassign" data-id="${l.id}">↩ 收回發佈</button>`:''}
           <div class="mini-sep"></div>
@@ -4358,7 +4358,7 @@ function clCardHtml(l){const lines=clLinesOf(l);const na=(l.assigned_ids||[]).le
       </span></div>
     <div class="hide lc-acts" id="clmore-${l.id}">
       <span class="hint">這一課的其他操作</span>
-      <button class="btn btn-sm" data-act="slides" data-id="${l.id}">🖥 上課投影片${(l.slides&&l.slides.url)?'（已上傳）':''}</button>
+      <button class="btn btn-sm" data-act="slides" data-id="${l.id}">🖥 上課投影片${slidePages(l).length?('（'+slidePages(l).length+' 頁）'):''}</button>
       <span class="grow"></span>
       <button class="btn btn-sm btn-danger" data-act="delClassical" data-id="${l.id}">🗑 刪除這一課</button>
     </div></div>`;}
@@ -7896,10 +7896,46 @@ async function uploadImage(file){await ensureAuthFresh();const ext=(file.name||'
 H.pickDlgImg=(i)=>{const f=document.getElementById('file-dlgimg-'+i);if(f)f.click();};
 H.dlgImgClear=(i)=>{if(DLG[i])DLG[i].image_url='';const inp=document.getElementById('dlg-img-'+i);if(inp)inp.value='';const pv=document.getElementById('dlgimg-prev-'+i);if(pv){pv.src='';pv.style.display='none';}};
 /* SLIDES_V788 上課投影片：PPT 匯出成 PDF 上傳 */
-async function uploadSlides(file){await ensureAuthFresh();
-  let safe=(file.name||'slides.pdf').replace(/[^\w.\-]+/g,'_');if(safe.length>60)safe=safe.slice(-60);
-  const ref=firebase.storage().ref('slides/'+Date.now()+'_'+safe);await ref.put(file);
-  return await ref.getDownloadURL();}
+let SLD_LIB=null;
+function slidesLibT(){
+  if(SLD_LIB)return SLD_LIB;
+  SLD_LIB=new Promise((res,rej)=>{
+    if(window.pdfjsLib){res(window.pdfjsLib);return;}
+    const sc=document.createElement('script');
+    sc.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    sc.onload=()=>{try{window.pdfjsLib.GlobalWorkerOptions.workerSrc=
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}catch(e){}
+      res(window.pdfjsLib);};
+    sc.onerror=()=>rej(new Error('pdfjs 載入失敗，檢查一下網路'));
+    document.head.appendChild(sc);});
+  return SLD_LIB;
+}
+/* PDF 在這台電腦上就切成一張一張圖再上傳。
+   學生那邊只拿得到圖，原始 PDF 不會出去；圖片也不會被 CORS 擋住。 */
+async function uploadSlides(file,onStep){
+  await ensureAuthFresh();
+  const lib=await slidesLibT();
+  const buf=await file.arrayBuffer();
+  const doc=await lib.getDocument({data:new Uint8Array(buf)}).promise;
+  const n=doc.numPages;
+  const folder='slides/'+Date.now()+'_'+Math.random().toString(16).slice(2);
+  const pages=[];
+  for(let i=1;i<=n;i++){
+    if(onStep)onStep(i,n);
+    const page=await doc.getPage(i);
+    const v0=page.getViewport({scale:1});
+    const sc=Math.min(2.4,Math.max(1,1500/v0.width));
+    const vp=page.getViewport({scale:sc});
+    const cv=document.createElement('canvas');cv.width=Math.round(vp.width);cv.height=Math.round(vp.height);
+    const cx=cv.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,cv.width,cv.height);
+    await page.render({canvasContext:cx,viewport:vp}).promise;
+    const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.9));
+    const ref=firebase.storage().ref(folder+'/p'+String(i).padStart(3,'0')+'.jpg');
+    await ref.put(blob);
+    pages.push(await ref.getDownloadURL());
+  }
+  return {pages,folder};
+}
 async function uploadHandout(file){await ensureAuthFresh();let safe=(file.name||'handout.pdf').replace(/[^\w.\-]+/g,'_');if(safe.length>60)safe=safe.slice(-60);const ref=firebase.storage().ref('handouts/'+Date.now()+'_'+safe);await ref.put(file);return await ref.getDownloadURL();}
 H.lhUp=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,application/pdf';
   inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=$('#l-handout-st');if(st)st.textContent='上傳中…（檔案大時請稍候）';
@@ -7952,8 +7988,9 @@ if(CLASS_VIEW){location.href='teacher.html?tab='+encodeURIComponent(id);return;}
 H.tabGroup=(id)=>{const first=document.querySelector('.tab[data-group="'+id+'"]');if(CLASS_VIEW){location.href='teacher.html?tab='+encodeURIComponent(first?first.dataset.id:'dashboard');return;}const cur=document.querySelector('.tab[data-id="'+S.tab+'"]');if(cur&&cur.dataset.group===id){render();return;}if(first){S.tab=first.dataset.id;render();}};
 H.stuMore=(id)=>{const el=document.getElementById('smore-'+id);if(el)el.classList.toggle('hide');};
 /* SLIDES_V788 */
+function slidePages(l){const p=l&&l.slides&&l.slides.pages;return Array.isArray(p)?p:[];}
 function slideTag(l){
-  if(!(l&&l.slides&&l.slides.url))return '';
+  if(!(l&&slidePages(l).length))return '';
   return l.slides_open
     ?'<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#15803d55">🖥 投影片放送中</span>'
     :'<span class="tag" style="background:#eef2ff;color:#3730a3;border-color:#3730a355">🖥 有投影片</span>';
@@ -7966,15 +8003,18 @@ function lessonAnyById(id){
 H.slides=(id)=>{
   const l=lessonAnyById(id);if(!l)return;
   const sl=l.slides||null;const on=!!l.slides_open;
-  const has=!!(sl&&sl.url);
+  const np=slidePages(l).length;const has=np>0;
   openModal('<div class="modal"><div class="modal-head"><h3>🖥 上課投影片</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
    +'<div class="hint" style="margin-bottom:12px">把 PowerPoint 用【檔案 → 另存新檔 → PDF】匯出，上傳到這裡。'
-   +'上課時按「開始放投影片」，學生打開這一課就看得到；下課按「結束」，他們那邊會馬上消失。'
-   +'學生看到的是畫出來的畫面，沒有下載鍵，右鍵和拖曳也擋掉了，而且會斜著印上他自己的名字和日期。</div>'
+   +'上傳的時候，投影片會在你這台電腦上先一頁一頁轉成圖片，只有圖片會上傳——'
+   +'<b>原始的 PDF 不會送到學生那邊</b>。'
+   +'上課按「開始放投影片」，學生打開這一課就看得到；下課按「結束」，他們那邊會馬上消失。'
+   +'學生只能一頁一頁翻，沒有下載鍵，右鍵和拖曳都擋掉了，畫面上還會斜著印他自己的名字和日期。</div>'
    +'<div class="lesson-label">目前的檔案</div>'
    +'<div class="dash-row" id="sl-cur">'+(has
-      ?('<span>📄</span><b>'+esc(sl.name||'投影片.pdf')+'</b>'
+      ?('<span>🖥</span><b>'+esc(sl.name||'投影片.pdf')+'</b>'
+        +'<span class="muted" style="margin-left:6px">共 '+np+' 頁</span>'
         +'<span class="grow"></span><span class="muted">'+esc(String(sl.at||'').slice(0,10))+'</span>')
       :'<span class="hint">還沒有上傳投影片</span>')+'</div>'
    +'<div class="actions" style="margin-top:10px">'
@@ -7989,8 +8029,9 @@ H.slides=(id)=>{
      +'data-act="slToggle" data-id="'+esc(id)+'">'+(on?'⏹ 結束放投影片':'▶️ 開始放投影片')+'</button>'
      +'<div class="hint" style="margin-top:6px">下課記得按結束。忘了按也沒關係，隨時回來這裡關掉就好。</div>'):'')
    +'<div class="hint" style="margin-top:14px;border-top:1px dashed var(--line);padding-top:10px">'
-   +'⚠️ 老實說一句：畫面要顯示，檔案就一定送到學生的瀏覽器。'
-   +'會用開發者工具的人還是撈得到原檔。這一套擋的是隨手右鍵存檔和課後再打開來看，不是防駭。</div>'
+   +'⚠️ 老實說一句：畫面要顯示，圖片就一定送到學生的瀏覽器。'
+   +'會用開發者工具的人還是撈得到那幾張圖（但拿不到你的 PDF，更拿不到 PPT 原檔）。'
+   +'這一套擋的是隨手右鍵存檔和課後再打開來看，不是防駭。</div>'
    +'</div><div class="modal-foot"><button class="btn" data-act="closeModal">關閉</button></div></div>');
 };
 H.slUp=(id)=>{
@@ -8000,12 +8041,12 @@ H.slUp=(id)=>{
     const f=inp.files&&inp.files[0];if(!f)return;
     const st=document.getElementById('sl-st');
     if(!/\.pdf$/i.test(f.name||'')){if(st)st.textContent='請先在 PowerPoint 匯出成 PDF 再上傳。';return;}
-    if(st)st.textContent='上傳中…檔案大的話要等一下。';
+    if(st)st.textContent='處理中…正在把投影片一頁一頁轉成圖片。';
     try{
-      const url=await uploadSlides(f);
-      const slides={url,name:f.name||'投影片.pdf',at:new Date().toISOString()};
+      const r=await uploadSlides(f,(i,n)=>{if(st)st.textContent='處理中… 第 '+i+' / '+n+' 頁';});
+      const slides={pages:r.pages,folder:r.folder,name:f.name||'投影片.pdf',at:new Date().toISOString()};
       await DB.update('lessons',id,{slides});l.slides=slides;
-      toast('投影片已上傳');H.slides(id);
+      toast('投影片已上傳，共 '+r.pages.length+' 頁');H.slides(id);
     }catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}
   };
   inp.click();
@@ -8013,7 +8054,12 @@ H.slUp=(id)=>{
 H.slDel=async(id)=>{
   const l=lessonAnyById(id);if(!l)return;
   if(!confirm('移除這一課的投影片？學生馬上就看不到了。'))return;
-  try{await DB.update('lessons',id,{slides:null,slides_open:false});
+  try{
+    const fd=l.slides&&l.slides.folder;
+    if(fd&&window.firebase&&firebase.storage){
+      for(const u of slidePages(l)){try{await firebase.storage().refFromURL(u).delete();}catch(_){}}
+    }
+    await DB.update('lessons',id,{slides:null,slides_open:false});
     l.slides=null;l.slides_open=false;toast('已移除');H.slides(id);render();}
   catch(e){toast('失敗：'+((e&&e.message)||e));}
 };
