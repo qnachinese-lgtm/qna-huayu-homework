@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=769">
+<link rel="stylesheet" href="styles.css?v=773">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -4306,7 +4306,7 @@ async function enterWbPreview(id){S.me={id:'__preview',name:'預覽'};S.preview=
   if(!S.workbooks.find(x=>x.id===id)){$('#screen').innerHTML=emptyHtml('⚠️','找不到這份作業簿','請回教師頁重新開啟預覽。');return;}
   S.section='wb';WB.id=id;WB.ans=null;WB.sel=null;WB.pick=null;WB.ordUsed={};
   renderSection();
-  const sc=$('#screen');if(sc){const bn=document.createElement('div');bn.className='preview-bar';bn.textContent=S.tryMode?'🎒 試做模式：可以像學生一樣真的作答。做的一切都不會存檔。':'👁 預覽模式：這就是學生看到的作業簿畫面（作答不會儲存）';sc.insertBefore(bn,sc.firstChild);}
+  wbPreviewBar();
 }
 /* ---- PWA：到期本地通知 ---- */
 /* DUE_V688 提醒的數量要跟畫面上那條一致：課、作業簿、小考、題庫練習都算 */
@@ -4372,8 +4372,23 @@ function wbL(m){const L=S.lang||'zh';return (m&&(m[L]||m.zh))||'';}
    音檔和圖，放在 order 裡就會排到課本該在的位置。 */
 function wbEmptyAns(){return {listen:{},vocab:{},cloze:{},match:{},gram:{},read:{},write:'',tone:{},pron:{},tf:{},py:{},hz:{},ord:{},dlg:{},dlg2:{},pic:{},g7:{},mcq:{},free:{},free2:{},free3:{}};}
 function wbAns(){if(!WB.ans)WB.ans=wbEmptyAns();return WB.ans;}
-function wbLocked(){const d=wbDocOf(WB.id);return !!(d&&(d.status==='submitted'||d.status==='reviewed'));}
-function wbGraded(){const d=wbDocOf(WB.id);return (d&&(d.status==='submitted'||d.status==='reviewed'))?d:null;}
+H.wbTryAgain=()=>{WB.tryDoc=null;WB.ans=null;WB.ordUsed={};renderSection();wbPreviewBar();window.scrollTo(0,0);};
+function wbPreviewBar(){
+  if(!S.preview)return;
+  const sc=document.getElementById('screen');if(!sc)return;
+  const old=sc.querySelector('.preview-bar');if(old)old.remove();
+  const bn=document.createElement('div');bn.className='preview-bar';
+  if(!S.tryMode){bn.textContent='👁 預覽模式：這就是學生看到的作業簿畫面（作答不會儲存）';}
+  else if(WB.tryDoc){bn.innerHTML='🎒 試做：已經對完答案了，分數和對錯都跟正式的一樣算，但沒有存檔。'
+    +' <button class="btn btn-sm" data-act="wbTryAgain" style="margin-left:8px">↻ 再做一次</button>';}
+  else{bn.textContent='🎒 試做模式：可以像學生一樣真的作答、真的送出。做的一切都不會存檔。';}
+  sc.insertBefore(bn,sc.firstChild);}
+/* WBTRY_V771 試做模式送出以後，用一份只存在記憶體裡的假紀錄讓畫面切到「已批改」，
+   對錯和分數都跟正式的一樣算，但不寫資料庫。重新整理就沒了。 */
+function wbLocked(){if(S.preview)return !!(S.tryMode&&WB.tryDoc);
+  const d=wbDocOf(WB.id);return !!(d&&(d.status==='submitted'||d.status==='reviewed'));}
+function wbGraded(){if(S.preview)return (S.tryMode&&WB.tryDoc)?WB.tryDoc:null;
+  const d=wbDocOf(WB.id);return (d&&(d.status==='submitted'||d.status==='reviewed'))?d:null;}
 
 /* ---- 自動批改 ---- */
 function wbNorm(s){s=String(s==null?'':s).trim();try{if(CONV.cn)s=CONV.cn(s);}catch(e){}return s.replace(/\s+/g,'');}
@@ -4937,7 +4952,7 @@ function wbRepaint(){
   });
 }
 H.wbSubmit=async()=>{
-  if(S.preview)return;
+  if(S.preview&&!S.tryMode)return;
   const w=wbOf(WB.id);if(!w)return;
   const a=wbAns();
   const _any=(o)=>o&&Object.keys(o).some(k=>o[k]);
@@ -4949,6 +4964,13 @@ H.wbSubmit=async()=>{
     for(const c of _cvs){try{if(c.__hwSave)await c.__hwSave();}catch(e){}}}
   if(!confirm(wbL({zh:'確定送出？送出後客觀題會馬上對答案，第四、六大題交給老師批改。',cn:'确定送出？送出后客观题会马上对答案，第四、六大题交给老师批改。',en:'Submit now?',vi:'Nộp bài?'})))return;
   clearTimeout(WB.timer);
+  if(S.preview&&S.tryMode){
+    const sc=wbGrade(w,a);
+    WB.tryDoc={id:'__try',status:'submitted',answers:JSON.parse(JSON.stringify(a)),score:sc,
+      submitted_at:new Date().toISOString(),feedback:{}};
+    renderSection();wbPreviewBar();window.scrollTo(0,0);
+    toast('試做：'+((sc&&sc.ok)||0)+' / '+((sc&&sc.total)||0)+'　（不會存檔）');
+    return;}
   try{
     const u=myUid();const score=wbGrade(w,a);
     const payload={kind:'wb',lesson_id:'__wb__',wb_lesson:WB.id,uid:u,student_id:S.me.id,student_name:S.me.name||'',answers:JSON.parse(JSON.stringify(a)),score,status:'submitted',submitted_at:new Date().toISOString()};
