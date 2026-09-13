@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=791">
+<link rel="stylesheet" href="styles.css?v=792">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -427,6 +427,11 @@ textarea.lq-in:focus{outline:none;border-color:var(--accent,#A3714E);box-shadow:
 .sld-note{padding:7px 10px;background:#1d1712;color:#b9a892;font-size:12px;line-height:1.6}
 .sld-load{color:#b9a892;font-size:13px;padding:34px 10px}
 .cl-gh .cl-gp{font-weight:500;color:var(--muted,#8b8079);font-size:.94em;letter-spacing:.2px}
+.zi-pop .zi-teach{font-weight:800;color:#0f766e}
+.zi-pop .zi-tag{font-size:11px;font-weight:700;background:#0f766e18;color:#0f766e;border-radius:999px;padding:1px 8px;vertical-align:2px}
+.zi-pop .zi-alt{font-size:12.5px;color:var(--muted,#8b8079);font-weight:500;margin-top:-2px}
+.zi-pop .zi-note{font-size:12px;color:var(--muted,#8b8079);line-height:1.55;margin-top:6px;
+  border-top:1px dashed var(--line,#eee);padding-top:6px;text-align:left}
 .cl-q{font-size:16px;line-height:1.8;font-weight:600}
 .cl-pic{margin:9px 0 2px}
 .cl-pic img{max-width:100%;max-height:300px;display:block;margin:0 auto;border-radius:10px;
@@ -1026,7 +1031,19 @@ function showZiPopup(ch,el){
   let zh='';try{if(window.pinyinPro){const a=pinyinPro.pinyin(ch,{type:'all',toneType:'num'});
     zh=a.map(o=>{if(!o.isZh)return '';const fx=pyFixChar(o.origin);return syl2zh(fx?pyToNum(fx):o.pinyin);}).join('');}}catch(e){}
   const mr=vocabMeanRaw(ch);let pop=document.getElementById('zi-pop');if(!pop){pop=document.createElement('div');pop.id='zi-pop';pop.className='zi-pop';document.body.appendChild(pop);}
-  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div><div class="zi-py">${esc(py)}${zh?(' · '+esc(zh)):''}</div>${mr?`<div class="zi-mean">${mr.pos?'('+esc(mr.pos)+') ':''}<span>${esc((mr.back)||'')}</span></div>`:''}`;
+  /* CLRD_V792 文言文：這一句老師標過讀音的話，以老師的為準。
+     字典只認現代最常用的音，文言文常常不一樣（年少的「少」讀 shào 不是 shǎo）。 */
+  let teach='',inCl=false;
+  try{
+    const host=el&&el.closest?el.closest('[data-clrd]'):null;
+    if(host){const m=JSON.parse(host.dataset.clrd||'{}');if(m&&m[ch])teach=m[ch];}
+    inCl=!!(el&&el.closest&&el.closest('.cl-orig'));
+  }catch(e){}
+  const pyLine=teach
+    ?('<div class="zi-py zi-teach">'+esc(teach)+'　<span class="zi-tag">這一課</span></div>'
+      +((py&&py!==teach)?('<div class="zi-py zi-alt">一般讀音 '+esc(py)+(zh?(' · '+esc(zh)):'')+'</div>'):''))
+    :('<div class="zi-py">'+esc(py)+(zh?(' · '+esc(zh)):'')+'</div>');
+  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div>${pyLine}${mr?`<div class="zi-mean">${mr.pos?'('+esc(mr.pos)+') ':''}<span>${esc((mr.back)||'')}</span></div>`:''}${(inCl&&!teach)?'<div class="zi-note">文言文的讀音和意思常常跟現代不一樣，以老師的注釋為準。</div>':''}`;
   hydrateVi(mr?[mr.back]:[]);
   pop.style.display='block';pop.style.visibility='hidden';const r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight;
   let left=r.left+r.width/2-pw/2;left=Math.max(8,Math.min(left,window.innerWidth-pw-8));let top=r.top-ph-10;if(top<6)top=r.bottom+10;
@@ -1461,6 +1478,33 @@ function clGlossParts(t){
   }
   return out;
 }
+/* CLRD_V792 從注釋裡抽出「這一課怎麼讀」。
+   認得三種寫法：亟（jí）／年少時（少 shào）／讀音：行 xíng・便 biàn。
+   字數跟音節數對得上才收，對不上就不猜。 */
+function clReadings(t){
+  const map={};
+  const put=(chars,syls)=>{
+    const cs=[...String(chars||'')].filter(c=>/[\u3400-\u9fff]/.test(c));
+    const ss=String(syls||'').trim().split(/\s+/).filter(Boolean);
+    if(!cs.length||cs.length!==ss.length)return;
+    cs.forEach((c,i)=>{map[c]=ss[i];});
+  };
+  clGlossParts(t).forEach(it=>{
+    const m=it.match(/^([^：]{1,24})：([\s\S]*)$/);if(!m)return;
+    const head=m[1],body=m[2];
+    if(/^讀音$/.test(head)){
+      body.split(/[・、；;,，]/).forEach(seg=>{
+        const g=seg.trim().match(/^([\u3400-\u9fff]+)\s+([A-Za-zÀ-ÿǖǘǚǜāáǎàēéěèīíǐìōóǒòūúǔùńňǹ\s]+?)(?:（[^）]*）)?[。\s]*$/);
+        if(g)put(g[1],g[2]);});
+      return;
+    }
+    const p=head.match(/^([\u3400-\u9fff]+)（([^）]+)）$/);if(!p)return;
+    const word=p[1],inner=p[2].trim();
+    const q=inner.match(/^([\u3400-\u9fff]+)\s+(.+)$/);
+    if(q)put(q[1],q[2]); else put(word,inner);
+  });
+  return map;
+}
 function clGlossHtml(t){
   const parts=clGlossParts(t);
   if(!parts.length)return '';
@@ -1497,7 +1541,8 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
       :(a?`<div class="disc-myans">${esc(a)}</div>`:`<div class="cl-ro"><span class="hint">—</span></div>`);
     return `<div class="cl-line">
       <div class="cl-no">${qi+1}</div>
-      <div class="cl-orig lookup">${prose2(ln.orig||'')}</div>
+      <div class="cl-orig lookup"${(function(){const rd=clReadings(ln.note||'');
+        return Object.keys(rd).length?(' data-clrd="'+esc(JSON.stringify(rd))+'"'):'';})()}>${prose2(ln.orig||'')}</div>
       ${clGlossHtml(ln.note)}
       ${ln.img?`<div class="cl-pic"><img src="${esc(ln.img)}" alt="" loading="lazy"></div>`:''}
       <div class="cl-cols">
@@ -1507,12 +1552,14 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
       ${(showRef&&ln.ref)?`<div class="cl-ref-box"><b>${L({zh:'參考翻譯',cn:'参考翻译',en:'Reference',vi:'Bản dịch tham khảo'})}</b>${esc(ln.ref)}</div>`:''}
       ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}
     </div>`;}).join('');
-  const qHtml=qs.length?`<div class="cl-qs"><div class="lesson-label">❓ ${L({zh:'課後問答',cn:'课后问答',en:'Questions',vi:'Câu hỏi'})}</div>`
+  const qMode=l.cl_qs_mode||'hw';
+  const qAns=answerable&&qMode==='hw';
+  const qHtml=(qs.length&&qMode!=='off')?`<div class="cl-qs"><div class="lesson-label">❓ ${L({zh:'課後問答',cn:'课后问答',en:'Questions',vi:'Câu hỏi'})}${qMode==='view'?`<span class="hint" style="font-weight:400;margin-left:8px">${L({zh:'上課一起討論，不用寫',cn:'上课一起讨论，不用写',en:'for class discussion',vi:'thảo luận trên lớp'})}</span>`:''}</div>`
     +qs.map((q,qi)=>{const key='q_'+qi;const a=ans[key]!=null?ans[key]:'';const tfb=fb[key];
       return `<div class="cl-line"><div class="cl-no">${qi+1}</div><div class="cl-q lookup">${prose2(q.q||'')}</div>
       ${q.img?`<div class="cl-pic"><img src="${esc(q.img)}" alt="" loading="lazy"></div>`:''}
-      ${answerable?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(clPh())}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`
-        :(a?`<div class="disc-myans">${esc(a)}</div>`:`<div class="cl-ro"><span class="hint">—</span></div>`)}
+      ${qAns?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(clPh())}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`
+        :(qMode==='view'?'':(a?`<div class="disc-myans">${esc(a)}</div>`:`<div class="cl-ro"><span class="hint">—</span></div>`))}
       ${(showRef&&q.ans)?`<div class="cl-ref-box"><b>${L({zh:'參考答案',cn:'参考答案',en:'Reference',vi:'Đáp án'})}</b>${esc(q.ans)}</div>`:''}
       ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}</div>`;}).join('')+`</div>`:'';
   const savedLab=L({zh:'上次儲存',cn:'上次保存',en:'Last saved',vi:'Lưu lần cuối'});

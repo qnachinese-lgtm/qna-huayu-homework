@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=791">
+<link rel="stylesheet" href="styles.css?v=792">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -4386,6 +4386,13 @@ function clForm(){const e=!!CL.id;const origText=CL.origText!=null?CL.origText:'
          <option value="always"${CL.refWhen==='always'?' selected':''}>一開始就看得到</option>
          <option value="never"${CL.refWhen==='never'?' selected':''}>不給學生看</option>
        </select></div>
+     <div class="field full"><label>課後問答怎麼用</label>
+       <select id="cl-qsmode">
+         <option value="hw"${(CL.qsMode||'hw')==='hw'?' selected':''}>當作業，學生要作答送出（預設）</option>
+         <option value="view"${CL.qsMode==='view'?' selected':''}>只顯示題目，不用作答（上課一起討論）</option>
+         <option value="off"${CL.qsMode==='off'?' selected':''}>不給學生看（我上課口頭問）</option>
+       </select>
+       <div class="hint" style="margin-top:4px">逐句的「翻譯」不受這個影響，那個一直都是作業。</div></div>
      <div class="field full"><label>貼整篇原文 <span class="hint">貼進來按下面那顆，會照「。！？；」和換行拆成一句一列</span></label>
        <textarea id="cl-paste" style="min-height:110px" placeholder="貼上整篇文言文原文…">${esc(origText)}</textarea>
        <div style="margin-top:6px"><button class="btn btn-sm btn-accent" type="button" data-act="clSplitFill">✂️ 拆成一句一列</button></div></div>
@@ -7836,7 +7843,7 @@ H.editClassical=(id)=>{const l=(S.classicals||[]).find(x=>x.id===id);if(!l)retur
   CL={id:l.id,title:l.title||'',textbook:l.textbook||'文言文',assigned_ids:(l.assigned_ids||[]).slice(),origText:origText,intro:l.cl_intro||'',
     lines:_ls.length?_ls:[{orig:'',note:'',ref:'',img:''}],
     qs:(Array.isArray(l.cl_qs)?l.cl_qs:[]).map(x=>({q:x.q||'',ans:x.ans||'',img:x.img||''})),
-    img:l.cl_img||'',refWhen:l.cl_ref_when||'after'};clForm();};
+    img:l.cl_img||'',refWhen:l.cl_ref_when||'after',qsMode:l.cl_qs_mode||'hw'};clForm();};
 H.clAddLine=()=>{if(!CL)return;clSyncLines();CL.lines.push({orig:'',note:'',ref:'',img:''});const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
 H.clDelLine=(i)=>{if(!CL)return;clSyncLines();CL.lines.splice(+i,1);if(!CL.lines.length)CL.lines=[{orig:'',note:'',ref:'',img:''}];const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
 H.saveClassical=async()=>{if(!CL)return;const title=($('#cl-title').value||'').trim();if(!title)return toast('請填課名');
@@ -7844,6 +7851,7 @@ H.saveClassical=async()=>{if(!CL)return;const title=($('#cl-title').value||'').t
   clSyncLines();
   const intro=(($('#cl-intro')&&$('#cl-intro').value)||'').trim();
   const refWhen=(($('#cl-refwhen')&&$('#cl-refwhen').value)||'after');
+  const qsMode=(($('#cl-qsmode')&&$('#cl-qsmode').value)||'hw');
   const lines=(CL.lines||[]).map(x=>({orig:String(x.orig||'').trim(),note:String(x.note||'').trim(),ref:String(x.ref||'').trim(),img:String(x.img||'')}))
     .filter(x=>x.orig||x.note||x.ref||x.img);
   if(!lines.length)return toast('至少要有一句原文');
@@ -7853,7 +7861,7 @@ H.saveClassical=async()=>{if(!CL)return;const title=($('#cl-title').value||'').t
   const origText=lines.map(x=>x.orig).join('\n');
   /* 舊版的畫面是讀 dialogues[0] 的，一起寫進去，舊資料和新資料都能顯示 */
   const dlg={title:'原文',cl:true,discussion:origText,cl_notes:lines.map(x=>x.note).join('\n'),content:'',vocabulary:'',vocab_vi:'',audio_url:null,vocab_audio_url:null,vocab_segments:[],line_segments:[]};
-  const patch={kind:'classical',title,textbook:book,cl_text:origText,cl_intro:intro,cl_lines:lines,cl_qs:qs,cl_ref_when:refWhen,cl_img:String(CL.img||''),dialogues:[dlg],grammar_points:[],layout:[]};
+  const patch={kind:'classical',title,textbook:book,cl_text:origText,cl_intro:intro,cl_lines:lines,cl_qs:qs,cl_ref_when:refWhen,cl_qs_mode:qsMode,cl_img:String(CL.img||''),dialogues:[dlg],grammar_points:[],layout:[]};
   try{if(CL.id){await DB.update('lessons',CL.id,patch);}else{const maxO=(S.classicals||[]).reduce((a,l)=>Math.max(a,l.order_index||0),0);patch.assigned_ids=[];patch.order_index=maxO+1;patch.created_at=new Date().toISOString();await DB.insert('lessons',patch);}
     await loadAll();closeModal();CL=null;S.tab='lessons';render();toast('已儲存文言文課');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.delClassical=async(id)=>{const l=(S.classicals||[]).find(x=>x.id===id);if(!l)return;if(!confirm('刪除「'+(l.title||'')+'」？'))return;
