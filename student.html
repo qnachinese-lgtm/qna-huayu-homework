@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=800">
+<link rel="stylesheet" href="styles.css?v=802">
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -881,6 +881,25 @@ body.bg-pattern{background:var(--s-bg)!important;background-image:none!important
   .cool-main{padding:16px 14px 34px!important}
   .topbar-inner{padding-left:14px!important;padding-right:14px!important}
 }
+/* ══════════════ HOME_V802 首頁「接著上這一課」 ══════════════ */
+#app .card.hero-go{padding:18px 20px 16px;cursor:pointer;
+  background:linear-gradient(135deg,#fffdf9 0%,#f6eee4 100%);border-color:var(--s-line)!important}
+#app .card.hero-go:hover{border-color:var(--s-bd)!important}
+.hg-lb{font-size:11.5px;letter-spacing:.13em;font-weight:700;color:var(--s-bd)}
+.hg-t{font-family:var(--serif);font-size:22px;line-height:1.35;margin:6px 0 0;color:var(--s-ink);font-weight:600}
+.hg-s{font-size:13px;color:var(--s-mut);margin-top:3px}
+.hg-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+.hg-chip{font-size:12px;background:#fff;border:1px solid var(--s-line);border-radius:999px;
+  padding:3px 10px;color:var(--s-ink);white-space:nowrap}
+.hg-go{margin-top:15px}
+#app .card.hg-prog{display:flex;align-items:center;gap:13px;padding:12px 16px;margin-top:12px}
+.hg-pl{display:flex;flex-direction:column;gap:1px;white-space:nowrap}
+.hg-pl b{font-size:14px;color:var(--s-ink)}
+.hg-bar{flex:1;height:8px;border-radius:99px;background:var(--s-soft);overflow:hidden;min-width:60px}
+.hg-bar i{display:block;height:100%;border-radius:99px;background:var(--s-bd)}
+.hg-pct{color:var(--s-bd);font-size:14px}
+@media(max-width:560px){.hg-t{font-size:19px}#app .card.hg-prog{flex-wrap:wrap;gap:8px}}
+/* ════════════ /HOME_V802 ════════════ */
 /* ════════════ /SHELL_V800 ════════════ */
 </style>
 </head>
@@ -3167,6 +3186,80 @@ function dueRows(){
   rows.sort((a,b)=>a.sort-b.sort);
   return rows;
 }
+/* ===== HOME_V802 首頁「接著上這一課」 =====
+   首頁本來把課次整份列一次，跟「課程」頁重複。改成只告訴學生「現在該上哪一課」。 */
+function homeTouchMap(){
+  const m={};const put=(id,at)=>{if(!id||!at)return;const v=String(at);if(!m[id]||v>m[id])m[id]=v;};
+  try{
+    (S.results||[]).forEach(d=>put(d.lesson_id,d.updated_at||d.completed_at||d.saved_at||d.created_at));
+    (S.discussions||[]).forEach(d=>put(d.disc_lesson,d.saved_at||d.updated_at||d.submitted_at||d.created_at));
+    (S.gpracs||[]).forEach(d=>put(d.gprac_lesson,d.saved_at||d.updated_at||d.submitted_at||d.created_at));
+    (S.sentences||[]).forEach(d=>put(d.sent_lesson,d.updated_at||d.submitted_at||d.created_at));
+    (S.shadows||[]).forEach(d=>put(d.shadow_lesson,d.updated_at||d.submitted_at||d.created_at));
+    (S.notes||[]).forEach(d=>put(d.note_lesson,d.updated_at||d.created_at));
+  }catch(e){}
+  return m;
+}
+function homeResume(ls){
+  if(!ls||!ls.length)return null;
+  const tm=homeTouchMap();const any=Object.keys(tm).length>0;
+  /* 1. 最近碰過、可是還沒做完的那一課 */
+  let best=null,bt='';
+  ls.forEach(l=>{const at=tm[l.id];if(at&&!lessonDone(l)&&at>bt){bt=at;best=l;}});
+  if(best)return {l:best,why:'resume'};
+  /* 2. 第一課還沒完成的 */
+  const nd=ls.filter(l=>!lessonDone(l))[0];
+  if(nd)return {l:nd,why:any?'next':'start'};
+  /* 3. 全部完成了，把最後一課拿出來複習 */
+  return {l:ls[ls.length-1],why:'all'};
+}
+function homeProg(ls){
+  let tot=0,fin=0;
+  (ls||[]).forEach(l=>{let n=0;try{n=modItems(l).length;}catch(e){n=0;}
+    tot+=n;if(lessonDone(l))fin+=n;});
+  return {tot:tot,fin:fin,pct:tot?Math.round(fin/tot*100):0};
+}
+function homeHeroHtml(ls,QL){
+  const r=homeResume(ls);if(!r)return '';
+  const lab={resume:{zh:'繼續上次的課',cn:'继续上次的课',en:'Pick up where you left off',vi:'Học tiếp bài đang dở'},
+             next:{zh:'接著上這一課',cn:'接着上这一课',en:'Next up',vi:'Bài tiếp theo'},
+             start:{zh:'從這一課開始',cn:'从这一课开始',en:'Start here',vi:'Bắt đầu từ đây'},
+             all:{zh:'都上完了 🎉 複習一下',cn:'都上完了 🎉 复习一下',en:'All done 🎉 Time to review',vi:'Xong hết 🎉 Ôn lại nào'}}[r.why];
+  let its=[];try{its=modItems(r.l);}catch(e){its=[];}
+  const chips=its.slice(0,4).map(it=>'<span class="hg-chip">'+it.ic+' '+esc(it.t)+'</span>').join('');
+  const p=homeProg(ls);
+  const card='<div class="card hero-go" data-act="openLessonView" data-id="'+esc(r.l.id)+'">'
+    +'<div class="hg-lb">'+esc(LT(lab))+'</div>'
+    +'<div class="hg-t">'+esc(lesTitle(r.l))+'</div>'
+    +(r.l.textbook?'<div class="hg-s">'+esc(r.l.textbook)+'</div>':'')
+    +(chips?'<div class="hg-chips">'+chips+'</div>':'')
+    +'<div class="hg-go"><span class="btn btn-accent">'+esc(QL.go)+' →</span></div>'
+    +'</div>';
+  const prog=p.tot?('<div class="card hg-prog">'
+    +'<div class="hg-pl"><b>'+esc(LT({zh:'學習進度',cn:'学习进度',en:'My progress',vi:'Tiến độ của tôi'}))+'</b>'
+    +'<span class="hint">'+esc(LT({zh:'已完成',cn:'已完成',en:'Done',vi:'Đã xong'}))+' '+p.fin+' / '+p.tot+'</span></div>'
+    +'<div class="hg-bar"><i style="width:'+p.pct+'%"></i></div>'
+    +'<b class="hg-pct">'+p.pct+'%</b></div>'):'';
+  return card+prog;
+}
+function homeAnnHtml(course){
+  let anns=[];
+  try{anns=(S.announcements||[]).filter(a=>assignedToMe(a))
+    .sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));}catch(e){anns=[];}
+  if(!anns.length)return '';
+  const cid=esc((course&&course.id)||'');
+  const rows=anns.slice(0,3).map(a=>{
+    const body=String(a.body||a.content||'').replace(/\s+/g,' ').trim();
+    return '<div class="todo" data-act="goAnn" data-id="'+cid+'">'
+      +'<span class="badge badge-pending">📣</span>'
+      +'<span class="tt"><b>'+esc(a.title||'')+'</b>'
+      +(body?'<small>'+esc(body.length>58?(body.slice(0,58)+'…'):body)+'</small>':'')+'</span></div>';}).join('');
+  return '<div class="pg-h" style="margin:18px 0 10px"><h2 style="font-size:16px">📣 '
+      +esc(LT({zh:'老師公告',cn:'老师公告',en:'Announcements',vi:'Thông báo của cô'}))+'</h2></div>'
+    +'<div class="card" style="padding:0">'+rows+'</div>'
+    +(anns.length>3?('<div style="margin-top:8px;text-align:right"><button class="btn btn-sm" data-act="goAnn" data-id="'+cid+'">'
+      +esc(LT({zh:'看全部公告',cn:'看全部公告',en:'All announcements',vi:'Xem tất cả'}))+' →</button></div>'):'');
+}
 function renderHome(){
   document.body.classList.remove('notes-active');
   const L=S.lang||'zh';
@@ -3204,17 +3297,8 @@ function renderHome(){
   }else{
     const myLs=sortLes((cs[0]&&cs[0].lessons)||[]);
     const _fN=(MYFILES||[]).filter(f=>f&&f.url).length;
-    const lesRows=myLs.slice(0,6).map(l=>{const r=resultOf(l.id);const done=!!(r&&r.status==='done');
-      return '<div class="todo" data-act="openLessonView" data-id="'+esc(l.id)+'">'
-        +'<span class="badge '+(done?'badge-ok':'badge-pending')+'">'+(done?'✓':'▶')+'</span>'
-        +'<span class="tt"><b>'+esc(lesTitle(l))+'</b>'
-        +(l.textbook?'<small>'+esc(l.textbook)+'</small>':'')+'</span></div>';}).join('');
-    const lesBlock=lesRows
-      ?('<div class="pg-h" style="margin:0 0 10px"><h2 style="font-size:16px">📚 '+esc(QL.les)+'</h2></div>'
-        +'<div class="card" style="padding:0">'+lesRows+'</div>'
-        +(myLs.length>6?'<div style="margin-top:8px;text-align:right"><button class="btn btn-sm" data-act="section" data-id="content">'+esc(QL.more)+' →</button></div>':''))
-      :'';
-    mainBlock=lesBlock+(_fN?myFilesHtml():'');
+    /* HOME_V802 課次清單搬回「課程」頁，首頁只放「接著上這一課」＋進度＋公告＋檔案 */
+    mainBlock=homeHeroHtml(myLs,QL)+homeAnnHtml(cs[0])+(_fN?myFilesHtml():'');
   }
   /* DUE_V688 到期提醒本來只出現在「作業」頁，但學生一登入是停在首頁，
      常常整條沒看到。首頁也放一條，而且放在最上面。 */
@@ -4532,6 +4616,9 @@ H.actSubmit=async(key)=>{
 H.pvNoop=()=>{};
 H.backCourse=()=>{S.openLesson=null;window.scrollTo(0,0);renderSection();};
 H.openCourse=(cid)=>{S.courseId=cid;S.cTab='mod';S.openLesson=null;S.section='content';S.practiceSet=null;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
+/* HOME_V802 首頁的公告點下去，直接跳到課程頁的「公告」分頁 */
+H.goAnn=(cid)=>{if(cid)S.courseId=cid;S.cTab='ann';S.openLesson=null;S.section='content';
+  S.practiceSet=null;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
 H.cTab=(k)=>{S.cTab=k;S.openLesson=null;window.scrollTo(0,0);renderSection();};
 H.modTog=(id)=>{S.modOpen=S.modOpen||{};S.modOpen[id]=(S.modOpen[id]===false);
   const el=document.querySelector('.mod[data-mid="'+id+'"]');if(el)el.classList.toggle('closed',S.modOpen[id]===false);};
