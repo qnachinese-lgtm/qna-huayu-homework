@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=829">
+<link rel="stylesheet" href="styles.css?v=830">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5334,15 +5334,27 @@ function ghQHtml(q,n,withAns,noSpace){/* CLPRINT_V827 noSpace：只印題目，�
     +((isNote||noSpace)?'':ghAnsSpace(q))
     +((withAns&&!isNote&&ans.length)?('<div class="gh-a">參考答案：'+esc(ans.join('／'))+'</div>'):'')
     +'</div></div>';}
+/* GHZONE_V830 例句本來是一整塊文字直接印出來，沒有編號，上課要指「第二句」沒得指。
+   改成一句一個號碼；「A：… B：…」擠在同一行的，照練習題的樣子把 B 換到下一行。 */
+function ghExOne(t){
+  return esc(String(t||'')).replace(/\s+(?=[A-Za-z甲乙丙][：:])/g,'<br>');}
+function ghExHtml(t){
+  const rows=String(t==null?'':t).split('\n').map(x=>x.trim()).filter(Boolean);
+  if(!rows.length)return '';
+  return '<div class="gh-lab b2">例句</div><div class="gh-ex">'+rows.map((x,i)=>
+    '<div class="gh-exi"><span class="gh-n gh-ne">'+(i+1)+'</span>'
+    +'<div class="gh-exb">'+ghExOne(x)+'</div></div>').join('')+'</div>';}
 function ghGpHtml(g,gi,qs,withAns,tagLab){
   const blocks=(g.blocks||[]).map(b=>{
     const t=String((b&&b.text)||'').trim(),ex=String((b&&b.ex)||'').trim(),im=String((b&&b.img)||'').trim();
     if(!t&&!ex&&!im)return '';
+    /* GHZONE_V830 本來標題是「說明」就不印，結果那一塊沒有名字，看起來跟練習一樣。 */
+    const lab=String((b&&b.label)||'').trim()||'說明';
     return '<div class="gh-blk">'
-      +((b.label&&b.label!=='說明')?('<div class="gh-lab">'+esc(b.label)+'</div>'):'')
+      +(t?('<div class="gh-lab b1">'+esc(lab==='說明'?'語法說明':lab)+'</div>'):'')
       +(t?('<div class="gh-txt">'+ghLines(t)+'</div>'):'')
       +(im?('<div class="gh-img"><img src="'+esc(im)+'" alt=""></div>'):'')
-      +(ex?('<div class="gh-ex">'+ghLines(ex)+'</div>'):'')
+      +(ex?ghExHtml(ex):'')
       +'</div>';}).join('');
   let n=0,lastIns='';
   const body=(qs||[]).map(q=>{
@@ -5356,7 +5368,9 @@ function ghGpHtml(g,gi,qs,withAns,tagLab){
      那種情況就不要硬掛「語法 N」的標籤，也不要叫「其他練習」。 */
   const _tag=(tagLab===null)?'':('<span class="gh-tag">'+esc(tagLab||('語法 '+(gi+1)))+'</span>');
   return '<div class="gh-gp"><div class="gh-gt">'+_tag
-    +esc(g.title||'')+'</div>'+blocks+(body?('<div class="gh-qs">'+body+'</div>'):'')+'</div>';}
+    +esc(g.title||'')+'</div>'+blocks
+    /* GHZONE_V830 練習區標出「練習」，而且是綠的，跟上面看的部分分開 */
+    +(body?('<div class="gh-lab b3">練習</div><div class="gh-qs">'+body+'</div>'):'')+'</div>';}
 /* GHOTHER_V826 文言文：題解 → 原文（逐句附白話、註釋）→ 問答。
    參考答案本來就存在 cl_qs[].ans，所以老師版印得出來。 */
 function ghClHtml(l,withAns){
@@ -5420,16 +5434,26 @@ function ghCss(){return ''
   +'.gh-gt{display:flex;align-items:baseline;gap:8px;font-weight:800;font-size:14.5px;color:var(--deep);margin:0 0 6px}'
   +'.gh-tag{background:var(--soft);color:var(--deep);font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;flex:none}'
   +'.gh-blk{margin:0 0 8px}'
-  +'.gh-lab{font-size:10.5px;letter-spacing:1px;color:#a8998a;margin-bottom:2px}'
-  +'.gh-txt{font-size:13px;color:#5a5048;line-height:1.7}'
-  +'.gh-ex{margin-top:5px;padding:7px 13px;background:#faf5ee;border-left:3px solid #e3cdb2;border-radius:0 8px 8px 0;font-size:13px;line-height:1.8}'
+  /* GHZONE_V830 說明／例句／練習三塊各自一個顏色，學生一眼分得出哪塊要寫 */
+  +'.gh-lab{font-size:10.5px;font-weight:700;letter-spacing:.8px;color:#a8998a;margin:0 0 3px}'
+  +'.gh-lab.b1{color:#7b8d9a}.gh-lab.b2{color:#a3714e}.gh-lab.b3{color:#3f7a55}'
+  +'.gh-lab.b3{margin-top:11px}'
+  +'.gh-txt{padding:7px 13px;background:#f3f6f9;border-left:3px solid #c4d2dc;border-radius:0 8px 8px 0;'
+  +'font-size:13px;color:#4f5a63;line-height:1.75}'
+  +'.gh-ex{margin-top:0;padding:8px 13px;background:#fdf6ea;border-left:3px solid #e0b571;border-radius:0 8px 8px 0;font-size:13px;line-height:1.8}'
+  /* 例句一句一列，左邊掛號碼 */
+  +'.gh-exi{display:flex;gap:9px;margin:0 0 6px;break-inside:avoid}'
+  +'.gh-exi:last-child{margin-bottom:0}'
+  +'.gh-exb{flex:1;min-width:0}'
   +'.gh-img{margin:6px 0}'
   +'.gh-img img{max-width:100%;max-height:72mm;border:1px solid var(--line);border-radius:8px}'
-  +'.gh-ins{margin:11px 0 7px;font-weight:700;font-size:12.5px;color:#7a6a58;background:#faf5ee;padding:5px 11px;border-radius:8px;line-height:1.65}'
+  +'.gh-ins{margin:0 0 7px;font-weight:700;font-size:12.5px;color:#3f6b50;background:#eef6f0;'
+  +'border-left:3px solid #9ec8ac;padding:6px 12px;border-radius:0 8px 8px 0;line-height:1.65}'
   +'.gh-qs{margin-top:4px}'
   +'.gh-q{display:flex;gap:9px;margin:0 0 8px;break-inside:avoid}'
-  +'.gh-n{flex:none;width:20px;height:20px;border-radius:50%;background:var(--soft);color:var(--deep);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}'
-  +'.gh-ne{background:#efe2d2}'
+  /* GHZONE_V830 練習題的號碼是綠的（要寫），例句的號碼是米色的（給他看） */
+  +'.gh-n{flex:none;width:20px;height:20px;border-radius:50%;background:#e6f0ea;color:#3f7a55;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}'
+  +'.gh-ne{background:#f2e5d2;color:#a3714e}'
   +'.gh-qb{flex:1;min-width:0;font-size:13.5px;line-height:1.75}'
   +'.gh-eg .gh-qb{color:#8b8079;font-size:12.5px;background:#faf7f2;padding:6px 11px;border-radius:8px}'
   +'.gh-line{border-bottom:1px solid #ddd0bd;height:17px;margin-top:3px}'
