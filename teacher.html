@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=825">
+<link rel="stylesheet" href="styles.css?v=827">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5304,17 +5304,32 @@ function ghQsOf(lid){
   return (S.questions||[]).filter(q=>q&&q.lesson_id===lid&&q.bank!=='hw')
     .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0));}
 function ghLines(t){return esc(String(t==null?'':t)).replace(/\n/g,'<br>');}
+/* GHWIDE_V826 本來每一題只給一條細線，要寫整句不夠。手寫版依題型加大作答空間。 */
+let GHWIDE=0;
+function ghAnsSpace(q){
+  if(!GHWIDE)return '<div class="gh-line"></div>';
+  const t=String((q&&q.type)||'');
+  const n=(t==='qa'||t==='write'||t==='opt')?3:((t==='choice'||t==='match'||t==='order')?1:2);
+  let h='';for(let i=0;i<n;i++)h+='<div class="gh-line gh-w"></div>';
+  return h;}
+/* GHOTHER_V826 文言文／關鍵詞彙的內容不在 questions 集合，各自從課本身讀 */
+function ghClLines(l){return (l&&l.kind==='classical')?(clLinesOf(l)||[]):[];}
+function ghClQs(l){return (l&&l.kind==='classical'&&Array.isArray(l.cl_qs))?l.cl_qs:[];}
+function ghTr(l){return Array.isArray(l&&l.transcript)?l.transcript:[];}
 function ghCount(l){
   const qs=ghQsOf(l.id);
-  return {gp:(l.grammar_points||[]).length,q:qs.filter(q=>q.type!=='note').length};}
-function ghQHtml(q,n,withAns){
+  /* GHOTHER_V826 文言文的問答、關鍵詞彙的聽力題也要算進去，不然清單會把整本濾掉 */
+  const cl=ghClLines(l).length,clq=ghClQs(l).length,tr=ghTr(l).length;
+  return {gp:(l.grammar_points||[]).length,cl:cl,tr:tr,
+    q:qs.filter(q=>q.type!=='note').length+clq+tr};}
+function ghQHtml(q,n,withAns,noSpace){/* CLPRINT_V827 noSpace：只印題目，不留作答空間 */
   const isNote=(q.type==='note');
   const img=q.image_url?('<div class="gh-img"><img src="'+esc(q.image_url)+'" alt=""></div>'):'';
   const ans=(q.answer||[]).filter(x=>String(x||'').trim());
   return '<div class="gh-q'+(isNote?' gh-eg':'')+'">'
     +(isNote?'<span class="gh-n gh-ne">例</span>':'<span class="gh-n">'+n+'</span>')
     +'<div class="gh-qb">'+ghLines(q.prompt)+img
-    +(isNote?'':'<div class="gh-line"></div>')
+    +((isNote||noSpace)?'':ghAnsSpace(q))
     +((withAns&&!isNote&&ans.length)?('<div class="gh-a">參考答案：'+esc(ans.join('／'))+'</div>'):'')
     +'</div></div>';}
 function ghGpHtml(g,gi,qs,withAns,tagLab){
@@ -5340,9 +5355,58 @@ function ghGpHtml(g,gi,qs,withAns,tagLab){
   const _tag=(tagLab===null)?'':('<span class="gh-tag">'+esc(tagLab||('語法 '+(gi+1)))+'</span>');
   return '<div class="gh-gp"><div class="gh-gt">'+_tag
     +esc(g.title||'')+'</div>'+blocks+(body?('<div class="gh-qs">'+body+'</div>'):'')+'</div>';}
+/* GHOTHER_V826 文言文：題解 → 原文（逐句附白話、註釋）→ 問答。
+   參考答案本來就存在 cl_qs[].ans，所以老師版印得出來。 */
+function ghClHtml(l,withAns){
+  const lines=ghClLines(l),qs=ghClQs(l);
+  if(!lines.length&&!qs.length)return '';
+  /* CLPRINT_V827 平台上白話翻譯是學生自己要寫的作業，預設「交出來以後才看得到」。
+     講義照這個設定走：學生版不印白話，留空格給他寫；老師版才印參考翻譯。 */
+  const showRef=!!withAns||((l.cl_ref_when||'after')==='always');
+  const intro=String(l.cl_intro||'').trim();
+  let h='';
+  if(intro)h+='<div class="gh-blk"><div class="gh-lab">作者・背景</div><div class="gh-txt">'+ghLines(intro)+'</div></div>';
+  if(l.cl_img)h+='<div class="gh-img"><img src="'+esc(l.cl_img)+'" alt=""></div>';
+  if(lines.length){
+    h+='<div class="gh-gt"><span class="gh-tag">原文</span>'
+      +(withAns?'逐句附參考翻譯與註釋':'請逐句寫出白話翻譯')+'</div><div class="gh-cl">'
+      +lines.map((x,i)=>{
+        const o=String(x.orig||'').trim(),r=String(x.ref||'').trim(),n=String(x.note||'').trim();
+        if(!o&&!r&&!n&&!x.img)return '';
+        return '<div class="gh-cli"><div class="gh-clo"><span class="gh-cn">'+(i+1)+'</span>'+ghLines(o)+'</div>'
+          +(x.img?('<div class="gh-img"><img src="'+esc(x.img)+'" alt=""></div>'):'')
+          +((showRef&&r)?('<div class="gh-clr">'+ghLines(r)+'</div>'):'')
+          +(n?('<div class="gh-cln">'+ghLines(n)+'</div>'):'')
+          +(withAns?'':ghAnsSpace({type:'qa'}))
+          +'</div>';}).join('')
+      +'</div>';}
+  const qmode=l.cl_qs_mode||'hw';
+  if(qs.length&&qmode!=='off'){
+    h+='<div class="gh-ins">'+(qmode==='view'?'讀完上面的文章，上課一起討論下面的問題。':'讀完上面的文章，回答下面的問題。')+'</div><div class="gh-qs">'
+      +qs.map((q,i)=>ghQHtml({prompt:(q&&q.q)||'',image_url:(q&&q.img)||'',type:'qa',
+          answer:[(q&&q.ans)||'']},i+1,withAns,!!withAns||qmode==='view')).join('')
+      +'</div>';}
+  return '<div class="gh-gp">'+h+'</div>';}
+/* GHOTHER_V826 關鍵詞彙：資料裡只有對話和題目，沒有標準答案，
+   所以老師版和學生版的內容一樣（差在抬頭）。印出來是「讀對話回答問題」。 */
+function ghTrHtml(l){
+  const tr=ghTr(l);if(!tr.length)return '';
+  const body=tr.map((it,i)=>{
+    const turns=(Array.isArray(it&&it.turns)?it.turns:[]).map(t=>
+      '<div class="gh-tt"><span class="gh-tw">'+esc(String((t&&t.who)||''))+'</span>'
+      +'<span>'+ghLines(String((t&&t.text)||''))+'</span></div>').join('');
+    const q=String((it&&it.question)||'').trim();
+    if(!turns&&!q)return '';
+    return '<div class="gh-tr"><div class="gh-trn">'+esc(String((it&&it.no!=null)?it.no:(i+1)))+'</div>'
+      +'<div class="gh-trb">'+turns
+      +(q?('<div class="gh-trq">'+ghLines(q)+'</div>'+ghAnsSpace({type:'qa'})):'')
+      +'</div></div>';}).join('');
+  if(!body)return '';
+  return '<div class="gh-gp"><div class="gh-gt"><span class="gh-tag">聽力對話</span>看對話，回答底下的問題</div>'+body+'</div>';}
 function ghLessonHtml(l,withAns){
   const gps=l.grammar_points||[];const all=ghQsOf(l.id);
-  let inner=gps.map((g,gi)=>ghGpHtml(g,gi,all.filter(q=>q.gp_index===gi),withAns)).join('');
+  let inner=ghClHtml(l,withAns)+ghTrHtml(l);
+  inner+=gps.map((g,gi)=>ghGpHtml(g,gi,all.filter(q=>q.gp_index===gi),withAns)).join('');
   const untag=all.filter(q=>q.gp_index==null);
   if(untag.length)inner+=ghGpHtml({title:gps.length?'其他練習':'練習',blocks:[]},gps.length,untag,withAns,null);
   if(!String(inner).trim())return '';
@@ -5367,22 +5431,46 @@ function ghCss(){return ''
   +'.gh-qb{flex:1;min-width:0;font-size:13.5px;line-height:1.75}'
   +'.gh-eg .gh-qb{color:#8b8079;font-size:12.5px;background:#faf7f2;padding:6px 11px;border-radius:8px}'
   +'.gh-line{border-bottom:1px solid #ddd0bd;height:17px;margin-top:3px}'
+  /* GHWIDE_V826 手寫版：行距拉開，線也拉高，才寫得下一整句 */
+  +'.gh-line.gh-w{height:29px;margin-top:7px;border-bottom:1px solid #d8c9b4}'
+  +'.gh-hand .gh-q{margin-bottom:14px}'
+  +'.gh-hand .gh-qs{margin-top:8px}'
+  /* GHOTHER_V826 文言文 */
+  +'.gh-cl{margin:2px 0 4px}'
+  +'.gh-cli{margin:0 0 9px;padding-left:11px;border-left:3px solid #eee0cd;break-inside:avoid}'
+  +'.gh-clo{font-size:15px;line-height:1.85;color:#3f3830;letter-spacing:.5px}'
+  +'.gh-cn{display:inline-block;min-width:15px;color:#c0ad95;font-size:11px;font-weight:700;margin-right:7px;vertical-align:2px}'
+  +'.gh-clr{font-size:12.5px;line-height:1.7;color:#6f6459;margin-top:3px}'
+  +'.gh-cln{font-size:11.5px;line-height:1.7;color:#9c8d7e;margin-top:3px}'
+  /* GHOTHER_V826 關鍵詞彙的聽力對話 */
+  +'.gh-tr{display:flex;gap:9px;margin:0 0 11px;break-inside:avoid}'
+  +'.gh-trn{flex:none;width:20px;height:20px;border-radius:50%;background:var(--soft);color:var(--deep);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}'
+  +'.gh-trb{flex:1;min-width:0}'
+  +'.gh-tt{display:flex;gap:7px;font-size:13.5px;line-height:1.75}'
+  +'.gh-tw{flex:none;color:#a3714e;font-weight:700}'
+  +'.gh-trq{margin-top:5px;font-weight:700;font-size:13px;color:#5a5048}'
   +'.gh-a{margin-top:4px;font-size:12px;color:#a3714e;font-weight:700}'
   +'@media print{.gh-les{break-before:page}.gh-les:first-of-type{break-before:auto}'
   +'.gh-gt,.gh-lt,.gh-ins{break-after:avoid}.gh-blk{break-inside:avoid}}';}
-function ghBuild(book,lids,withAns){
+function ghBuild(book,lids,withAns,wide){
+  GHWIDE=wide?1:0;/* GHWIDE_V826 */
   const ls=baLessonsOf(book).filter(l=>lids.indexOf(l.id)>=0);
   const body=ls.map(l=>ghLessonHtml(l,withAns)).filter(Boolean).join('');
-  if(!body)return toast('勾起來的課裡面沒有語法內容');
+  if(!body)return toast('勾起來的課裡面沒有可以印的內容');
   const nq=ls.reduce((a,l)=>a+ghCount(l).q,0);
   /* GHNOGP_V825 勾的課完全沒有語法點就別叫「語法練習」，叫「練習題」才對 */
   const ngp=ls.reduce((a,l)=>a+ghCount(l).gp,0);
-  const base=ngp?'語法練習':'練習題';
+  /* GHOTHER_V826 文言文、聽力對話各自有自己的名字 */
+  const ncl=ls.reduce((a,l)=>a+ghClLines(l).length,0);
+  const ntr=ls.reduce((a,l)=>a+ghTr(l).length,0);
+  const base=ngp?'語法練習':(ncl?'文言文閱讀':(ntr?'聽力文本練習':'練習題'));
+  const en=ngp?'GRAMMAR PRACTICE':(ncl?'CLASSICAL CHINESE':(ntr?'LISTENING SCRIPT':'PRACTICE'));
   const ttl=withAns?(base+'（老師版）'):base;
   const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'
-    +esc(book)+' '+esc(ttl)+'</title><style>'+fbCss()+ghCss()+'</style></head><body>'
+    +esc(book)+' '+esc(ttl)+'</title><style>'+fbCss()+ghCss()+'</style></head><body'
+    +(GHWIDE?' class="gh-hand"':'')+'>'
     +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><span class="hint">列印時這排按鈕不會印出來</span></div>'
-    +'<div class="page">'+fbHead('華語教學 · '+base,ttl,ngp?'GRAMMAR PRACTICE':'PRACTICE')
+    +'<div class="page">'+fbHead('華語教學 · '+base,ttl,en)
     +'<div class="top">'
     +'<div class="f"><span class="k">教材</span><span class="v">'+esc(book)+'</span></div>'
     +'<div class="f"><span class="k">範圍</span><span class="v">'+ls.length+' 課 · '+nq+' 題</span></div>'
@@ -5396,11 +5484,15 @@ function ghListHtml(book){
   const ls=baLessonsOf(book);
   if(!ls.length)return '<div class="hint">這本還沒有課。</div>';
   const rows=ls.map(l=>{const c=ghCount(l);
-    if(!c.gp&&!c.q)return '';
+    if(!c.gp&&!c.q&&!c.cl&&!c.tr)return '';
+    /* GHOTHER_V826 不是每一本都有語法點，標籤照那一課實際有的東西標 */
+    const tags=(c.gp?('<span class="tag">語法 '+c.gp+'</span>'):'')
+      +(c.cl?('<span class="tag">原文 '+c.cl+' 句</span>'):'')
+      +(c.tr?('<span class="tag">對話 '+c.tr+' 段</span>'):'')
+      +(c.q?('<span class="tag">'+c.q+' 題</span>'):'');
     return '<label class="check-row"><input type="checkbox" class="gh-l" value="'+esc(l.id)+'">'
-      +'<span style="flex:1">'+esc(l.title||'（未命名）')+'</span>'
-      +'<span class="tag">語法 '+c.gp+'</span><span class="tag">'+c.q+' 題</span></label>';}).join('');
-  return rows||'<div class="hint">這本裡面沒有語法練習。</div>';}
+      +'<span style="flex:1">'+esc(l.title||'（未命名）')+'</span>'+tags+'</label>';}).join('');
+  return rows||'<div class="hint">這本裡面沒有可以印的練習。</div>';}
 function GHFILL(){const sel=document.getElementById('gh-book'),box=document.getElementById('gh-lessons');
   if(sel&&box)box.innerHTML=ghListHtml(sel.value);}
 function GHALL(){const b=[...document.querySelectorAll('.gh-l')];if(!b.length)return;
@@ -5408,14 +5500,19 @@ function GHALL(){const b=[...document.querySelectorAll('.gh-l')];if(!b.length)re
 function ghModal(){
   const books=baBooks();if(!books.length)return toast('還沒有課文');
   const cur=(S.bookFilter&&books.some(b=>b.k===S.bookFilter))?S.bookFilter:books[0].k;
-  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📄 匯出語法講義</h3><button class="x" data-act="closeModal">×</button></div>'
+  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📄 匯出講義</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body">'
-   +'<div class="hint" style="margin-bottom:10px">把語法說明、例句和底下的練習題整理成一份講義，可以列印或存成 PDF 給學生帶回家，不用登入平台。</div>'
+   +'<div class="hint" style="margin-bottom:10px">把課文內容和底下的練習題整理成一份講義，可以列印或存成 PDF 給學生帶回家，不用登入平台。<br>語法課出語法說明＋例句＋練習；文言文出原文、白話和註釋；關鍵詞彙出聽力對話和題目。</div>'
    +'<div class="field"><label>教材</label><select id="gh-book" onchange="GHFILL()">'
    +books.map(b=>'<option value="'+esc(b.k)+'"'+(b.k===cur?' selected':'')+'>'+esc(b.k)+'（'+b.n+' 課）</option>').join('')
    +'</select></div>'
    +'<div class="field"><label>要出哪幾課 <button class="btn btn-sm btn-ghost" type="button" onclick="GHALL()" style="float:right">全選 / 取消</button></label>'
    +'<div class="check-list" id="gh-lessons">'+ghListHtml(cur)+'</div></div>'
+   /* GHWIDE_V826 學生要寫整句的話，一條細線根本不夠寫 */
+   +'<div class="field"><label>作答空間</label><select id="gh-lay">'
+   +'<option value="0">緊湊 —— 一題一條線，比較省紙</option>'
+   +'<option value="1">手寫 —— 作答空間加大，問答給三行</option>'
+   +'</select></div>'
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
    +'<button class="btn" data-act="ghGo" data-id="tea">👩‍🏫 老師版（含答案）</button>'
    +'<button class="btn btn-primary" data-act="ghGo" data-id="stu">👩‍🎓 學生版</button></div></div>');}
@@ -12696,7 +12793,8 @@ H.ghGo=(mode)=>{
   const book=((document.getElementById('gh-book')||{}).value)||'';
   const lids=[...document.querySelectorAll('.gh-l:checked')].map(x=>x.value);
   if(!lids.length)return toast('請先勾要出哪幾課');
-  ghBuild(book,lids,mode==='tea');};
+  const wide=(((document.getElementById('gh-lay')||{}).value)==='1');/* GHWIDE_V826 */
+  ghBuild(book,lids,mode==='tea',wide);};
 H.bulkAssignSave=async(_x,btn)=>{
   const lids=[...document.querySelectorAll('.ba-l:checked')].map(x=>x.value);
   const grps=[...document.querySelectorAll('.ba-grp:checked')].map(x=>x.value);
