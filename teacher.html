@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=835">
+<link rel="stylesheet" href="styles.css?v=838">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -205,6 +205,13 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .pay-sum{display:flex;gap:26px;flex-wrap:wrap;padding:13px 16px;border:1px solid var(--line);border-radius:12px;background:#fff;margin-bottom:12px}
         .pay-sum .muted{font-size:12px}
         .pay-sum b{font-size:19px;display:block;margin-top:2px}
+        /* ITVSUM_V838 面試客戶視窗裡的總額摘要：一列講完，跟上面的練習清單同一個調 */
+        .pay-sum.itv-sum{align-items:center;gap:6px 14px;padding:10px 14px;margin-bottom:10px}
+        .pay-sum.itv-sum .k{font-size:12px;color:var(--muted,#8B8079)}
+        .pay-sum.itv-sum b{font-size:15px;display:inline;margin:0}
+        .pay-sum.itv-sum b.ok{color:#16a34a}
+        .pay-sum.itv-sum b.due{color:#d97706}
+        .pay-bar.sm{display:inline-block;width:110px;height:6px;margin:0;flex:none}
         .pay-grp{margin-bottom:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
         .pay-gh{padding:10px 15px;background:#fdfaf5;border-bottom:1px solid var(--line);font-weight:800;color:var(--primary);font-size:14.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         .pay-gs{margin-left:auto;font-size:12.5px;font-weight:600;color:#d97706}
@@ -1175,12 +1182,13 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         #app .itv-row .ir-op>a.btn.btn-accent:hover{background:#F6E7D5;border-color:#C79E74}
         /* ITVROW_V739 練習清單／進度紀錄的固定格線。
            日期欄給死寬度，所以「待練」那幾列跟沒有標籤的列一定對得起來。 */
-        #app .itv-row{display:grid;grid-template-columns:74px 168px minmax(0,1fr) auto auto;
+        #app .itv-row{display:grid;grid-template-columns:90px 168px minmax(0,1fr) auto auto;
           gap:8px;align-items:center;padding:5px 8px;border-radius:9px;min-height:38px}
         #app .itv-row.is-fut{background:#eef2ff}
         #app .itv-row+.itv-row{margin-top:3px}
         #app .itv-row .ir-st{display:flex;justify-content:flex-start}
-        #app .itv-row .ir-st .badge{margin:0}
+        /* ITVBADGE_V836 狀態標籤不要斷成兩行，整列才會是一行 */
+        #app .itv-row .ir-st .badge{margin:0;white-space:nowrap;padding:3px 8px}
         #app .itv-row .ir-dt{white-space:nowrap;font-variant-numeric:tabular-nums}
         #app .itv-row .ir-dt i{font-style:normal;color:var(--muted);font-size:12px;margin-left:3px}
         #app .itv-row .ir-tm{min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -3180,11 +3188,30 @@ function renderPay(){
 /* ===================== 🎤 面試練習：資料與畫面（純函式，可放前面） ===================== */
 function itvAll(){return (S.interviews||[]);}
 function itvById(id){return itvAll().find(x=>x.id===id);}
+/* ITVNEW_V836 新增客戶的時候還沒有 id，本來練習日期和付費都得先存檔才能記。
+   現在先收在這個草稿裡，按「儲存」時跟客戶一起寫進資料庫。 */
+let ITVDRAFT=null;
+function itvCtx(id){return id?itvById(id):ITVDRAFT;}
 function itvSessions(c){return (c&&Array.isArray(c.sessions))?c.sessions.filter(x=>x&&x.date):[];}
 function itvSorted(c){return itvSessions(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));}
 function itvPays(c){return (c&&Array.isArray(c.payments))?c.payments.filter(p=>p&&p.date):[];}
 function itvPaidSum(c,ym){const by={};itvSessions(c).forEach(e=>{if(ym&&String(e.date).slice(0,7)!==ym)return;if(!e.paid)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+(Number(e.fee)||0);});itvPays(c).forEach(p=>{if(ym&&String(p.date).slice(0,7)!==ym)return;const cur=p.currency||'VND';by[cur]=(by[cur]||0)+(Number(p.amount)||0);});return by;}
-function itvDueSum(c){const by={};itvSessions(c).forEach(e=>{if(e.paid)return;const f=Number(e.fee)||0;if(!f)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});return by;}
+/* ITVDUE_V837 本來只看每一次練習有沒有勾「已經收款」，沒把「付費紀錄」收到的錢算進來，
+   所以錢明明收齊了還是顯示未收。改成：未收＝應收－已收。
+   應收：有填「談定的練習費總額」就用它；沒填就用各次練習費用加總。
+   已收：付費紀錄＋有勾已收款的練習（itvPaidSum，跟原本一樣）。 */
+function itvChargeSum(c){
+  const by={},tot=itvTotal(c);
+  if(tot>0){by[itvTotalCur(c)]=tot;return by;}
+  itvSessions(c).forEach(e=>{const f=Number(e.fee)||0;if(!f)return;
+    const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});
+  return by;}
+function itvDueSum(c){
+  const charge=itvChargeSum(c),paid=itvPaidSum(c,null),by={};
+  Object.keys(charge).forEach(cur=>{
+    const d=Math.round((charge[cur]-(Number(paid[cur])||0))*100)/100;
+    if(d>0.009)by[cur]=d;});
+  return by;}
 function itvMoneyStr(by){const k=Object.keys(by||{});return k.length?k.map(c=>money(by[c],c)).join('、'):'';}
 /* CRMFOOT_V804 合計列用：一種幣別一行，不要擠成一行被切掉 */
 function itvMoneyLines(by){const k=Object.keys(by||{});
@@ -3842,7 +3869,12 @@ function itvPayBoxHtml(c){
   const paidBy=itvPaidSum(c,null),got=Number(paidBy[tcur]||0);
   const left=tot?Math.max(0,tot-got):0;const pct=tot>0?Math.min(100,Math.round(got/tot*100)):0;
   const pays=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  const sum=tot?`<div class="pay-sum"><span>總額 <b>${money(tot,tcur)}</b></span><span style="color:#16a34a">已收 <b>${money(got,tcur)}</b></span>${left>0?`<span style="color:#d97706">還差 <b>${money(left,tcur)}</b></span>`:'<span class="badge badge-ok">✓ 已收齊</span>'}</div><div class="pay-bar"><i style="width:${pct}%"></i></div>`
+  /* ITVSUM_V838 本來是一個大方框＋三個 19px 大字＋一條粗綠條，跟同一個視窗裡的其他區塊
+     長得完全不一樣。改成一列講完，進度條縮成靠右的一小條。 */
+  const sum=tot?`<div class="pay-sum itv-sum"><span class="k">總額</span><b>${money(tot,tcur)}</b>`
+    +`<span class="k">已收</span><b class="ok">${money(got,tcur)}</b>`
+    +`${left>0?`<span class="k">還差</span><b class="due">${money(left,tcur)}</b>`:'<span class="badge badge-ok">✓ 已收齊</span>'}`
+    +`<span class="grow"></span><span class="pay-bar sm"><i style="width:${pct}%"></i></span></div>`
     :'<div style="margin:4px 0 2px;font-size:12.5px;color:var(--muted,#8B8079)">上面填了「談定的練習費總額」，這裡才會算「還差多少」。</div>';
   const rows=pays.length?pays.map((p,i)=>`<div class="dash-row"><span class="badge badge-pending">第 ${pays.length-i} 筆</span><b>${esc(String(p.date))}</b><b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-danger" type="button" data-act="itvPayDrop" data-id="${esc(c.id)}::${i}">🗑</button></div>`).join('')
     :'<div style="margin:10px 0 2px;font-size:13px;color:var(--muted,#8B8079)">還沒有登記任何一筆。用下面那一列記第一筆。</div>';
@@ -3852,6 +3884,8 @@ function itvFormTotalPatch(){const tv=($('#itv-total')&&$('#itv-total').value);
   if(tv===undefined||tv===null)return {};
   return {fee_total:(tv===''?null:Number(tv)),fee_cur:(($('#itv-fcur')&&$('#itv-fcur').value)||'VND')};}
 function itvForm(c){c=c||{};
+  /* ITVNEW_V836 新增才開草稿；編輯既有客戶不用 */
+  ITVDRAFT=c.id?null:{sessions:[],payments:[],fee_total:null,fee_cur:'VND'};
   openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🎤 ${c.id?'編輯面試客戶':'新增面試客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>姓名</label><input id="itv-name" type="text" value="${esc(c.name||'')}" placeholder="例：Nguyễn Văn A"></div><div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="itv-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div><div class="field"><label>面試類別 <span class="hint">這位客戶是在準備哪一種面試</span></label>
      <input id="itv-kind" type="text" list="itv-kindlist" value="${esc(c.itv_kind||(c.id?'':'申請簽證'))}" placeholder="例：申請簽證">
      <datalist id="itv-kindlist"><option value="申請簽證"><option value="入學面試"><option value="獎學金面試"><option value="工作面試"><option value="其他"></datalist></div>
@@ -3872,31 +3906,29 @@ function itvForm(c){c=c||{};
        <div class="field"><label>談定練習次數 <span class="hint">簽證面試通常練 2 次</span></label>
          <input id="itv-plann" type="number" min="0" value="${c.plan_n==null?'':String(c.plan_n)}" placeholder="例：2"></div>
        <div class="field"><label>目前已排 <span class="hint">下面加日期就會累加</span></label>
-         <div class="ro-box">${itvSessions(c).length} 次</div></div>
+         <div class="ro-box" id="itv-sessn">${itvSessions(c.id?c:ITVDRAFT).length} 次</div></div>
      </div>
-     <div id="itv-sessbox">${c.id?itvSessBoxHtml(c):''}</div>
-     ${c.id?`<div class="pay-add">
+     <div id="itv-sessbox">${c.id?itvSessBoxHtml(c):itvSessBoxHtml(ITVDRAFT)}</div>
+     ${`<div class="pay-add">
        <input id="isx-date" type="date" min="2000-01-01" max="2100-12-31" value="${localToday()}" title="練習日期">
        <input id="isx-s" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="19:00">
        <span class="tilde">～</span>
        <input id="isx-e" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="21:00">
        <input id="isx-note" type="text" placeholder="備註（選填）">
-       <button class="btn btn-sm btn-primary" type="button" data-act="itvSessAdd" data-id="${esc(c.id)}">＋ 加一次練習</button>
+       <button class="btn btn-sm btn-primary" type="button" data-act="itvSessAdd" data-id="${esc(c.id||'')}">＋ 加一次練習</button>
      </div>
-     <div style="margin-top:6px;font-size:12.5px;color:var(--muted,#8B8079)">日期可以填未來，排好的練習會自動出現在「📅 課表」。費用要另外記的話，用卡片上的「＋ 新增練習時間」。</div>`
-     :'<div style="margin:10px 0;font-size:13px;color:var(--muted,#8B8079)">先按下面的「💾 儲存」建立這位客戶，之後回來這裡就能排練習日期。</div>'}
+     <div style="margin-top:6px;font-size:12.5px;color:var(--muted,#8B8079)">日期可以填未來，排好的練習會自動出現在「📅 課表」。${c.id?'費用要另外記的話，用卡片上的「＋ 新增練習時間」。':'還沒存檔，先加在這裡，按下面的「💾 儲存」才會一起建立。'}</div>`}
 
      <div class="lesson-label" style="margin-top:18px">💰 付費紀錄</div>
-     <div id="itv-paybox">${c.id?itvPayBoxHtml(c):''}</div>
-     ${c.id?`<div class="pay-add">
+     <div id="itv-paybox">${c.id?itvPayBoxHtml(c):itvPayBoxHtml(ITVDRAFT)}</div>
+     ${`<div class="pay-add">
        <input id="ipx-date" type="date" min="2000-01-01" max="2100-12-31" value="${localToday()}" title="付費日期">
        <input id="ipx-amt" type="number" inputmode="decimal" placeholder="金額，例：500">
        <select id="ipx-cur"><option value="VND"${itvTotalCur(c)==='VND'?' selected':''}>千 VND</option><option value="TWD"${itvTotalCur(c)==='TWD'?' selected':''}>NT$</option><option value="USD"${itvTotalCur(c)==='USD'?' selected':''}>US$</option></select>
        <input id="ipx-note" type="text" placeholder="備註（選填），例：兩次練習">
-       <button class="btn btn-sm btn-primary" type="button" data-act="itvPayAdd" data-id="${esc(c.id)}">＋ 加一筆</button>
+       <button class="btn btn-sm btn-primary" type="button" data-act="itvPayAdd" data-id="${esc(c.id||'')}">＋ 加一筆</button>
      </div>
-     <div style="margin-top:6px;font-size:12.5px;color:var(--muted,#8B8079)">越南盾打千位：填 <b>500</b> ＝ 500,000 VND。加一筆會立刻存檔，上面的總額也會一起存。</div>`
-     :'<div style="margin:10px 0;font-size:13px;color:var(--muted,#8B8079)">先按下面的「💾 儲存」建立這位客戶，之後回來這裡就能記付費。</div>'}
+     <div style="margin-top:6px;font-size:12.5px;color:var(--muted,#8B8079)">越南盾打千位：填 <b>500</b> ＝ 500,000 VND。${c.id?'加一筆會立刻存檔，上面的總額也會一起存。':'還沒存檔，先加在這裡，按下面的「💾 儲存」才會一起建立。'}</div>`}
      </div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="itvSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);
   if(c.id)crmFilesWire('interview',c.id);}
 function itvSessForm(key){const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
@@ -12540,7 +12572,7 @@ H.crmFoldAll=(key)=>{const p=String(key).split('::');const kind=p[0],mode=p[1];
   list.forEach(c=>{if(mode==='open')S.crmOpen[c.id]=true;else delete S.crmOpen[c.id];});
   if(kind==='agency')renderAgency();else if(kind==='writing')renderWriting();else renderInterview();};
 /* ITV_PLAN_V19 在客戶資料視窗裡加／刪練習日期 */
-H.itvSessAdd=async(id)=>{const c=itvById(id);if(!c)return;
+H.itvSessAdd=async(id)=>{const c=itvCtx(id);if(!c)return;/* ITVNEW_V836 */
   const date=($('#isx-date')&&$('#isx-date').value)||'';if(!date)return toast('請選練習日期');
   const st=hhmmNorm(($('#isx-s')&&$('#isx-s').value)||'');const en=hhmmNorm(($('#isx-e')&&$('#isx-e').value)||'');
   const note=(($('#isx-note')&&$('#isx-note').value)||'').trim();
@@ -12550,44 +12582,58 @@ H.itvSessAdd=async(id)=>{const c=itvById(id);if(!c)return;
   arr.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const patch={sessions:arr};
   {const pv=($('#itv-plann')&&$('#itv-plann').value);if(pv!==undefined)patch.plan_n=(pv===''?null:Number(pv));}
-  try{await DB.update(crmCol(id),id,patch);Object.assign(c,patch);
+  try{if(id)await DB.update(crmCol(id),id,patch);/* ITVNEW_V836 還沒存檔就只記在草稿 */
+    Object.assign(c,patch);
     const box=$('#itv-sessbox');if(box)box.innerHTML=itvSessBoxHtml(c);
+    const cnt=$('#itv-sessn');if(cnt)cnt.textContent=itvSessions(c).length+' 次';
     if($('#isx-note'))$('#isx-note').value='';
-    toast('已排 '+date);renderInterview();
+    toast(id?('已排 '+date):('已排 '+date+'，按「儲存」才會建立'));
+    if(id)renderInterview();
   }catch(e){toast('失敗：'+((e&&e.message)||e));}};
-H.itvSessDrop=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
+H.itvSessDrop=async(key)=>{const p=String(key).split('::');const c=itvCtx(p[0]);if(!c)return;/* ITVNEW_V836 */
   const sorted=itvSessions(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const target=sorted[Number(p[1])];if(!target)return;
   if(!confirm('刪除 '+target.date+' 這一次練習？'))return;
   const left=itvSessions(c).filter(x=>x!==target);
-  try{await DB.update(crmCol(c.id),c.id,{sessions:left});c.sessions=left;
+  try{if(c.id)await DB.update(crmCol(c.id),c.id,{sessions:left});
+    c.sessions=left;
     const box=$('#itv-sessbox');if(box)box.innerHTML=itvSessBoxHtml(c);
-    toast('已刪除');renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
-H.itvPayAdd=async(id)=>{const c=itvById(id);if(!c)return;
+    const cnt=$('#itv-sessn');if(cnt)cnt.textContent=itvSessions(c).length+' 次';
+    toast('已刪除');if(c.id)renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+H.itvPayAdd=async(id)=>{const c=itvCtx(id);if(!c)return;/* ITVNEW_V836 */
   const date=($('#ipx-date')&&$('#ipx-date').value)||'';if(!date)return toast('請選付費日期');
   const amt=Number(($('#ipx-amt')&&$('#ipx-amt').value)||0);if(!amt)return toast('請填金額');
   const cur=($('#ipx-cur')&&$('#ipx-cur').value)||'VND';const note=(($('#ipx-note')&&$('#ipx-note').value)||'').trim();
   const pays=itvPays(c).slice();pays.push({date:date,amount:amt,currency:cur,note:note});
   pays.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const patch=Object.assign({payments:pays},itvFormTotalPatch());
-  try{await DB.update(crmCol(id),id,patch);Object.assign(c,patch);
+  try{if(id)await DB.update(crmCol(id),id,patch);/* ITVNEW_V836 還沒存檔就只記在草稿 */
+    Object.assign(c,patch);
     const box=$('#itv-paybox');if(box)box.innerHTML=itvPayBoxHtml(c);
     if($('#ipx-amt'))$('#ipx-amt').value='';if($('#ipx-note'))$('#ipx-note').value='';
-    toast('已記錄 '+money(amt,cur));renderInterview();
+    toast(id?('已記錄 '+money(amt,cur)):('已記錄 '+money(amt,cur)+'，按「儲存」才會建立'));
+    if(id)renderInterview();
   }catch(e){toast('失敗：'+((e&&e.message)||e));}};
-H.itvPayDrop=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
+H.itvPayDrop=async(key)=>{const p=String(key).split('::');const c=itvCtx(p[0]);if(!c)return;/* ITVNEW_V836 */
   const sorted=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const target=sorted[Number(p[1])];if(!target)return;
   if(!confirm('刪除 '+target.date+' 的 '+money(target.amount,target.currency||'VND')+' ？'))return;
   const left=itvPays(c).filter(x=>x!==target);
-  try{await DB.update(crmCol(c.id),c.id,{payments:left});c.payments=left;
+  try{if(c.id)await DB.update(crmCol(c.id),c.id,{payments:left});
+    c.payments=left;
     const box=$('#itv-paybox');if(box)box.innerHTML=itvPayBoxHtml(c);
-    toast('已刪除');renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+    toast('已刪除');if(c.id)renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.itvSave=async(id)=>{const name=($('#itv-name').value||'').trim();if(!name)return toast('請填姓名');
   const patch={kind:'interview',name,phone:($('#itv-phone').value||'').trim(),itv_kind:(($('#itv-kind')&&$('#itv-kind').value)||'').trim(),target:($('#itv-target').value||'').trim(),meet_url:(($('#itv-meet')&&$('#itv-meet').value)||'').trim(),note:($('#itv-note').value||'').trim(),exam_date:($('#itv-exam')&&$('#itv-exam').value)||'',exam_time:itvTimeNorm(($('#itv-examt')&&$('#itv-examt').value)||''),result:($('#itv-result')&&$('#itv-result').value)||'',result_note:($('#itv-rnote')&&$('#itv-rnote').value||'').trim()};
   {const tv=($('#itv-total')&&$('#itv-total').value);if(tv!==undefined){patch.fee_total=(tv===''?null:Number(tv));patch.fee_cur=(($('#itv-fcur')&&$('#itv-fcur').value)||'VND');}}
   {const pv=($('#itv-plann')&&$('#itv-plann').value);if(pv!==undefined)patch.plan_n=(pv===''?null:Number(pv));}
-  try{if(id){await DB.update(crmCol(id),id,patch);}else{patch.status='active';patch.sessions=[];patch.created_at=new Date().toISOString();await DB.insert('crm',patch);}
+  try{if(id){await DB.update(crmCol(id),id,patch);}
+    else{patch.status='active';patch.created_at=new Date().toISOString();
+      /* ITVNEW_V836 新增的時候先記在草稿裡的練習和付費，這裡一起寫進去 */
+      patch.sessions=(ITVDRAFT&&Array.isArray(ITVDRAFT.sessions))?ITVDRAFT.sessions:[];
+      patch.payments=(ITVDRAFT&&Array.isArray(ITVDRAFT.payments))?ITVDRAFT.payments:[];
+      await DB.insert('crm',patch);}
+    ITVDRAFT=null;
     await loadAll();closeModal();S.tab='interview';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.itvToggle=async(id)=>{const c=itvById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
   try{await DB.update(crmCol(id),id,{status:st,closed_as:(st==='done'?'done':null)});await loadAll();render();toast(st==='done'?'已結案':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
