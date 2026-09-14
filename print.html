@@ -6,22 +6,32 @@
 <style>body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;color:#7a5236;background:#fdfaf5;margin:0;padding:40px;font-size:15px;line-height:1.8}</style>
 </head>
 <body>
-<!-- PRINTURL_V834
+<!-- PRINTURL_V848
      列印文件本來是開一個空白視窗再把內容寫進去，那種視窗沒有網址，
-     所以 Chrome 在頁尾印出來的是「about:blank」。
-     改成開這一頁（有正式網址），內容從 localStorage 拿，拿完就刪掉。 -->
-<div id="m">正在準備列印內容…</div>
+     Chrome 在頁尾就印出「about:blank」。改成開這一頁（有正式網址），
+     內容從 localStorage 拿。
+     V848 修兩件事：
+       1. 本來一開始就寫「正在準備列印內容…」，內容寫進來之前會閃一下，
+          Quinn 看到會以為卡住了。改成一開始不顯示任何字。
+       2. 本來拿到內容就馬上把暫存刪掉，而且網址上的代號也拿掉了，
+          所以在這一頁按重新整理就再也救不回來，只會看到「已經過期」。
+          現在代號另外記在這個分頁自己的 sessionStorage，重新整理還讀得到；
+          暫存五分鐘後才真的刪掉。 -->
+<div id="m"></div>
 <script>
 (function(){
   var m=document.getElementById('m');
   try{
     var k=(location.hash||'').slice(1);
+    if(k){try{sessionStorage.setItem('__qnaprint_key',k);}catch(e){}}
+    else{try{k=sessionStorage.getItem('__qnaprint_key')||'';}catch(e){}}
     var h=k?localStorage.getItem(k):null;
-    if(k){try{localStorage.removeItem(k);}catch(e){}
-          /* PRINTURL_V847 把後面那一長串暫存代號從網址拿掉，
-             Chrome 頁尾印出來的網址才乾淨 */
-          try{history.replaceState(null,'',location.pathname);}catch(e){}}
-    if(h){document.open();document.write(h);document.close();return;}
+    if(h){
+      try{history.replaceState(null,'',location.pathname);}catch(e){}
+      document.open();document.write(h);document.close();
+      try{setTimeout(function(){try{localStorage.removeItem(k);}catch(e){}},300000);}catch(e){}
+      return;
+    }
     m.textContent='這個列印視窗已經過期了，請回到平台再按一次列印。';
   }catch(e){
     m.textContent='打不開列印內容，請回到平台再按一次列印。';
