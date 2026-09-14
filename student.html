@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=813">
+<link rel="stylesheet" href="styles.css?v=814">
 <style>
 /* V813 */
 #app .gp-qn{margin-left:auto;flex:none;font-size:12.5px;font-weight:700;color:#8A5A36;
@@ -2226,11 +2226,31 @@ function slqRender(){
   b.innerHTML=close+body;
 }
 
-async function loadMine(){const [l,q,siteRows]=await Promise.all([DB.list('lessons'),DB.list('questions'),DB.list('site').catch(()=>[])]);
+/* READCUT_V814 以前這裡是 DB.list('questions')＝整個資料庫的題目全抓（幾千筆），
+   現在只抓這個學生真正打得開的課。lesson_id in (...) 一次最多 10 個，所以分批。 */
+async function loadMyQuestions(all,results){
+  const ids=new Set();
+  (all||[]).forEach(x=>{try{if(x&&!x.deleted_at&&assignedToMe(x))ids.add(x.id);}catch(_){}});
+  (results||[]).forEach(r=>{if(!r)return;
+    ['lesson_id','gprac_lesson','shadow_lesson','annot_lesson','wb_lesson','hwv_lesson']
+      .forEach(k=>{const v=r[k];if(v&&typeof v==='string'&&v!=='__progress')ids.add(v);});});
+  try{mistItems().forEach(m=>{if(m&&m.lid)ids.add(m.lid);});}catch(_){}
+  const list=[...ids].filter(Boolean);
+  if(!list.length)return [];
+  const db=firebase.firestore();const out=[];
+  for(let i=0;i<list.length;i+=10){
+    const chunk=list.slice(i,i+10);
+    try{const sn=await db.collection('questions').where('lesson_id','in',chunk).get();
+      sn.forEach(d=>out.push(Object.assign({id:d.id},d.data())));}
+    catch(e){/* 單一批失敗就跳過，不要整個同步掛掉 */}
+  }
+  return out;}
+async function loadMine(){const [l,siteRows]=await Promise.all([DB.list('lessons'),DB.list('site').catch(()=>[])]);
   S.site=(siteRows&&siteRows.length)?siteRows[siteRows.length-1]:{};
   const u=myUid();
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
-  S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook');S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.lqassigns=l.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;
+  S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook');S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.lqassigns=l.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;
+  S.questions=await loadMyQuestions(l,rAll);
   splitResults(rAll);}
 /* ===================== 📕 錯題本 Mistake notebook ===================== */
 const MIST_STEPS=[3,7,15];
@@ -3834,10 +3854,14 @@ async function syncNow(manual){
 H.syncNow=()=>syncNow(true);
 document.addEventListener('input',()=>{SYNC.typed=Date.now();},true);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){
-  if(Date.now()-SYNC.last>15000)syncNow(false);
+  if(Date.now()-SYNC.last>SYNC_GAP)syncNow(false);
   if(navigator.serviceWorker&&navigator.serviceWorker.getRegistration)navigator.serviceWorker.getRegistration().then(r=>{try{r&&r.update();}catch(e){}}).catch(()=>{});}});
-window.addEventListener('focus',()=>{if(Date.now()-SYNC.last>15000)syncNow(false);});
-function syncStart(){if(SYNC.timer)clearInterval(SYNC.timer);SYNC.timer=setInterval(()=>{if(!document.hidden)syncNow(false);},90000);}
+window.addEventListener('focus',()=>{if(Date.now()-SYNC.last>SYNC_GAP)syncNow(false);});
+/* READCUT_V814 本來每 90 秒自動同步一次，分頁開著就一直重讀整個資料庫，
+   帳單幾乎都是這樣來的。改成不定時輪詢——切回這個分頁的時候才同步，
+   而且至少要隔 SYNC_GAP。學生想立刻更新，右上角還有手動的 🔄。 */
+const SYNC_GAP=180000;
+function syncStart(){if(SYNC.timer){clearInterval(SYNC.timer);SYNC.timer=null;}}
 H.vexTog=function(id,b){const el=document.getElementById(id);if(!el)return;const on=el.classList.toggle('hide');if(b)b.classList.toggle('on',!on);};
 H.discRefTog=function(id){S.discRef=S.discRef||{};const cur=(S.discRef[id]===false)?false:true;S.discRef[id]=!cur;
   const aside=document.querySelector('.disc-ref[data-ref="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]');
