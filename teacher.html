@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=855">
+<link rel="stylesheet" href="styles.css?v=856">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1536,6 +1536,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         <div class="section-head"><h2>📚 教材與課程</h2><span class="sub">放課文、生詞、語法和練習題。做好之後要「指派」給學生，他們才看得到</span><div class="head-actions">
           <button class="btn" data-act="planNew">🗓 一鍵排課程表</button>
           <button class="btn" data-act="bulkAssign">📤 批次指派</button>
+          <button class="btn" data-act="qReload" title="題目存在瀏覽器裡，重整不用重讀。在別台電腦改過題目的話，按這個重新讀一次">🔄 重讀題目</button>
           <button class="btn" data-act="ghOpen">📄 匯出講義 PDF</button>
           <button class="btn btn-primary" data-act="addLesson">＋ 新增課文</button></div></div>
         <div id="vi-bar"></div>
@@ -1924,11 +1925,29 @@ function myEmailNow(){try{return (firebase.auth().currentUser.email||'').toLower
 /* READCUT_V815 題目的快取。loadAll() 有 77 個呼叫點，每一次都整庫重讀幾千筆題目，
    那是九月帳單的主因之一。題目很少變，放 5 分鐘快取；真的改到題目就強制重讀。 */
 let QCACHE={at:0,rows:null};
-function qcacheBust(){QCACHE={at:0,rows:null};}
+/* QCACHE_V856 題目改存到瀏覽器，重整就不用再跟資料庫要 5,272 筆。
+   六小時內有效；自己改題目會立刻失效；存不進去就當作沒快取，照舊直接讀。 */
+const QLS='hyc_qcache1',QTTL=6*3600*1000;
+function qcacheRead(){
+  try{const raw=localStorage.getItem(QLS);if(!raw)return null;
+    const o=JSON.parse(raw);
+    if(!o||!Array.isArray(o.rows)||!o.at)return null;
+    if(Date.now()-o.at>QTTL)return null;
+    return o;}catch(e){return null;}}
+function qcacheWrite(rows){
+  try{localStorage.setItem(QLS,JSON.stringify({at:Date.now(),rows:rows}));}catch(e){}}
+function qcacheAge(){const o=QCACHE.at?QCACHE:qcacheRead();
+  if(!o||!o.at)return '';
+  const m=Math.round((Date.now()-o.at)/60000);
+  return m<1?'剛剛讀的':(m<60?(m+' 分鐘前讀的'):(Math.round(m/60)+' 小時前讀的'));}
+function qcacheBust(){QCACHE={at:0,rows:null};try{localStorage.removeItem(QLS);}catch(e){}}
 async function listQuestions(force){
   if(!force&&QCACHE.rows&&(Date.now()-QCACHE.at)<300000)return QCACHE.rows;
+  if(!force){const o=qcacheRead();
+    if(o){QCACHE={at:o.at,rows:o.rows};return o.rows;}}
   const rows=await DB.list('questions');
   QCACHE={at:Date.now(),rows:rows};
+  qcacheWrite(rows);
   return rows;}
 async function loadAll(){
   IS_OWNER=isOwner();MY_EMAIL=myEmailNow();const owner=IS_OWNER;
@@ -13067,6 +13086,13 @@ H.gmSave=async(cls)=>{const checked=new Set($$('#gm-members .gm-mem:checked').ma
   try{for(const s of S.students){const has=stuGroups(s).includes(cls),want=checked.has(s.id);if(has===want)continue;let g=stuGroups(s).slice();if(want)g.push(cls);else g=g.filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}
     toast('已儲存團班成員');groupMgrModal(cls);render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存成員';}toast('儲存失敗：'+((e&&e.message)||e));}};
 H.bulkAssign=()=>bulkAssignModal();
+/* QCACHE_V856 在別台改過題目的時候，用這個強制重讀一次 */
+H.qReload=async(_x,btn)=>{
+  if(btn){btn.disabled=true;btn.textContent='讀取中…';}
+  try{qcacheBust();S.questions=await listQuestions(true);render();
+    toast('已重新讀取題目（'+((S.questions||[]).length)+' 題）');}
+  catch(e){toast('讀不到：'+((e&&e.message)||e));}
+  finally{if(btn){btn.disabled=false;btn.textContent='🔄 重讀題目';}}};
 H.ghOpen=()=>ghModal();
 H.ghGo=(mode)=>{
   const book=((document.getElementById('gh-book')||{}).value)||'';
