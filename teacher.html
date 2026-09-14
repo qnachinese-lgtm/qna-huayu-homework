@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=823">
+<link rel="stylesheet" href="styles.css?v=824">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1499,6 +1499,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         <div class="section-head"><h2>📚 教材與課程</h2><span class="sub">放課文、生詞、語法和練習題。做好之後要「指派」給學生，他們才看得到</span><div class="head-actions">
           <button class="btn" data-act="planNew">🗓 一鍵排課程表</button>
           <button class="btn" data-act="bulkAssign">📤 批次指派</button>
+          <button class="btn" data-act="ghOpen">📄 匯出語法講義</button>
           <button class="btn btn-primary" data-act="addLesson">＋ 新增課文</button></div></div>
         <div id="vi-bar"></div>
         <div id="lessons-list" class="cards"></div>
@@ -5298,6 +5299,120 @@ function BAFILL(){const sel=document.getElementById('ba-book'),box=document.getE
   if(sel&&box)box.innerHTML=baListHtml(sel.value);}
 function BAALL(){const b=[...document.querySelectorAll('.ba-l')];if(!b.length)return;
   const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
+/* ===================== 📄 語法講義 GHANDOUT_V824 ===================== */
+function ghQsOf(lid){
+  return (S.questions||[]).filter(q=>q&&q.lesson_id===lid&&q.bank!=='hw')
+    .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0));}
+function ghLines(t){return esc(String(t==null?'':t)).replace(/\n/g,'<br>');}
+function ghCount(l){
+  const qs=ghQsOf(l.id);
+  return {gp:(l.grammar_points||[]).length,q:qs.filter(q=>q.type!=='note').length};}
+function ghQHtml(q,n,withAns){
+  const isNote=(q.type==='note');
+  const img=q.image_url?('<div class="gh-img"><img src="'+esc(q.image_url)+'" alt=""></div>'):'';
+  const ans=(q.answer||[]).filter(x=>String(x||'').trim());
+  return '<div class="gh-q'+(isNote?' gh-eg':'')+'">'
+    +(isNote?'<span class="gh-n gh-ne">例</span>':'<span class="gh-n">'+n+'</span>')
+    +'<div class="gh-qb">'+ghLines(q.prompt)+img
+    +(isNote?'':'<div class="gh-line"></div>')
+    +((withAns&&!isNote&&ans.length)?('<div class="gh-a">參考答案：'+esc(ans.join('／'))+'</div>'):'')
+    +'</div></div>';}
+function ghGpHtml(g,gi,qs,withAns){
+  const blocks=(g.blocks||[]).map(b=>{
+    const t=String((b&&b.text)||'').trim(),ex=String((b&&b.ex)||'').trim(),im=String((b&&b.img)||'').trim();
+    if(!t&&!ex&&!im)return '';
+    return '<div class="gh-blk">'
+      +((b.label&&b.label!=='說明')?('<div class="gh-lab">'+esc(b.label)+'</div>'):'')
+      +(t?('<div class="gh-txt">'+ghLines(t)+'</div>'):'')
+      +(im?('<div class="gh-img"><img src="'+esc(im)+'" alt=""></div>'):'')
+      +(ex?('<div class="gh-ex">'+ghLines(ex)+'</div>'):'')
+      +'</div>';}).join('');
+  let n=0,lastIns='';
+  const body=(qs||[]).map(q=>{
+    const ins=String(q.instruction||'').trim();
+    let head='';
+    if(ins&&ins!==lastIns){lastIns=ins;head='<div class="gh-ins">'+ghLines(ins)+'</div>';}
+    if(q.type!=='note')n++;
+    return head+ghQHtml(q,n,withAns);}).join('');
+  if(!blocks&&!body)return '';
+  return '<div class="gh-gp"><div class="gh-gt"><span class="gh-tag">語法 '+(gi+1)+'</span>'
+    +esc(g.title||'')+'</div>'+blocks+(body?('<div class="gh-qs">'+body+'</div>'):'')+'</div>';}
+function ghLessonHtml(l,withAns){
+  const gps=l.grammar_points||[];const all=ghQsOf(l.id);
+  let inner=gps.map((g,gi)=>ghGpHtml(g,gi,all.filter(q=>q.gp_index===gi),withAns)).join('');
+  const untag=all.filter(q=>q.gp_index==null);
+  if(untag.length)inner+=ghGpHtml({title:'其他練習',blocks:[]},gps.length,untag,withAns);
+  if(!String(inner).trim())return '';
+  return '<div class="gh-les"><h2 class="gh-lt">'+esc(l.title||'（未命名）')+'</h2>'+inner+'</div>';}
+function ghCss(){return ''
+  +'.gh-les{margin-top:18px}'
+  +'.gh-lt{font-size:17px;color:var(--deep);margin:0 0 10px;padding-bottom:6px;border-bottom:2px solid #e3cdb2}'
+  +'.gh-gp{margin:15px 0 0}'
+  +'.gh-gt{display:flex;align-items:baseline;gap:8px;font-weight:800;font-size:14.5px;color:var(--deep);margin:0 0 6px}'
+  +'.gh-tag{background:var(--soft);color:var(--deep);font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;flex:none}'
+  +'.gh-blk{margin:0 0 8px}'
+  +'.gh-lab{font-size:10.5px;letter-spacing:1px;color:#a8998a;margin-bottom:2px}'
+  +'.gh-txt{font-size:13px;color:#5a5048;line-height:1.7}'
+  +'.gh-ex{margin-top:5px;padding:7px 13px;background:#faf5ee;border-left:3px solid #e3cdb2;border-radius:0 8px 8px 0;font-size:13px;line-height:1.8}'
+  +'.gh-img{margin:6px 0}'
+  +'.gh-img img{max-width:100%;max-height:72mm;border:1px solid var(--line);border-radius:8px}'
+  +'.gh-ins{margin:11px 0 7px;font-weight:700;font-size:12.5px;color:#7a6a58;background:#faf5ee;padding:5px 11px;border-radius:8px;line-height:1.65}'
+  +'.gh-qs{margin-top:4px}'
+  +'.gh-q{display:flex;gap:9px;margin:0 0 8px;break-inside:avoid}'
+  +'.gh-n{flex:none;width:20px;height:20px;border-radius:50%;background:var(--soft);color:var(--deep);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}'
+  +'.gh-ne{background:#efe2d2}'
+  +'.gh-qb{flex:1;min-width:0;font-size:13.5px;line-height:1.75}'
+  +'.gh-eg .gh-qb{color:#8b8079;font-size:12.5px;background:#faf7f2;padding:6px 11px;border-radius:8px}'
+  +'.gh-line{border-bottom:1px solid #ddd0bd;height:17px;margin-top:3px}'
+  +'.gh-a{margin-top:4px;font-size:12px;color:#a3714e;font-weight:700}'
+  +'@media print{.gh-les{break-before:page}.gh-les:first-of-type{break-before:auto}'
+  +'.gh-gt,.gh-lt,.gh-ins{break-after:avoid}.gh-blk{break-inside:avoid}}';}
+function ghBuild(book,lids,withAns){
+  const ls=baLessonsOf(book).filter(l=>lids.indexOf(l.id)>=0);
+  const body=ls.map(l=>ghLessonHtml(l,withAns)).filter(Boolean).join('');
+  if(!body)return toast('勾起來的課裡面沒有語法內容');
+  const nq=ls.reduce((a,l)=>a+ghCount(l).q,0);
+  const ttl=withAns?'語法練習（老師版）':'語法練習';
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'
+    +esc(book)+' '+esc(ttl)+'</title><style>'+fbCss()+ghCss()+'</style></head><body>'
+    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><span class="hint">列印時這排按鈕不會印出來</span></div>'
+    +'<div class="page">'+fbHead('華語教學 · 語法練習',ttl,'GRAMMAR PRACTICE')
+    +'<div class="top">'
+    +'<div class="f"><span class="k">教材</span><span class="v">'+esc(book)+'</span></div>'
+    +'<div class="f"><span class="k">範圍</span><span class="v">'+ls.length+' 課 · '+nq+' 題</span></div>'
+    +(withAns?'<div class="f"><span class="k">版本</span><span class="v">老師版（含參考答案）</span></div>':'')
+    +'</div>'+body
+    +'<div class="foot">開立時間 '+esc(new Date().toLocaleString())+'　·　'+esc(window.APP_NAME||'QNA CHINESE')
+    +(withAns?'　·　這一份含參考答案，請不要直接給學生':'')+'</div>'
+    +'</div></body></html>';
+  closeModal();fbWin(html);}
+function ghListHtml(book){
+  const ls=baLessonsOf(book);
+  if(!ls.length)return '<div class="hint">這本還沒有課。</div>';
+  const rows=ls.map(l=>{const c=ghCount(l);
+    if(!c.gp&&!c.q)return '';
+    return '<label class="check-row"><input type="checkbox" class="gh-l" value="'+esc(l.id)+'">'
+      +'<span style="flex:1">'+esc(l.title||'（未命名）')+'</span>'
+      +'<span class="tag">語法 '+c.gp+'</span><span class="tag">'+c.q+' 題</span></label>';}).join('');
+  return rows||'<div class="hint">這本裡面沒有語法練習。</div>';}
+function GHFILL(){const sel=document.getElementById('gh-book'),box=document.getElementById('gh-lessons');
+  if(sel&&box)box.innerHTML=ghListHtml(sel.value);}
+function GHALL(){const b=[...document.querySelectorAll('.gh-l')];if(!b.length)return;
+  const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
+function ghModal(){
+  const books=baBooks();if(!books.length)return toast('還沒有課文');
+  const cur=(S.bookFilter&&books.some(b=>b.k===S.bookFilter))?S.bookFilter:books[0].k;
+  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📄 匯出語法講義</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:10px">把語法說明、例句和底下的練習題整理成一份講義，可以列印或存成 PDF 給學生帶回家，不用登入平台。</div>'
+   +'<div class="field"><label>教材</label><select id="gh-book" onchange="GHFILL()">'
+   +books.map(b=>'<option value="'+esc(b.k)+'"'+(b.k===cur?' selected':'')+'>'+esc(b.k)+'（'+b.n+' 課）</option>').join('')
+   +'</select></div>'
+   +'<div class="field"><label>要出哪幾課 <button class="btn btn-sm btn-ghost" type="button" onclick="GHALL()" style="float:right">全選 / 取消</button></label>'
+   +'<div class="check-list" id="gh-lessons">'+ghListHtml(cur)+'</div></div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+   +'<button class="btn" data-act="ghGo" data-id="tea">👩‍🏫 老師版（含答案）</button>'
+   +'<button class="btn btn-primary" data-act="ghGo" data-id="stu">👩‍🎓 學生版</button></div></div>');}
 function assignModal(l){
   assignModalCore({id:l.id,title:l.title,ids:l.assigned_ids||[],groups:l.assigned_groups||[],
     due:l.due_date||'',saveAct:'saveAssign',unassignAct:'unassign'});
@@ -12570,6 +12685,12 @@ H.gmSave=async(cls)=>{const checked=new Set($$('#gm-members .gm-mem:checked').ma
   try{for(const s of S.students){const has=stuGroups(s).includes(cls),want=checked.has(s.id);if(has===want)continue;let g=stuGroups(s).slice();if(want)g.push(cls);else g=g.filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}
     toast('已儲存團班成員');groupMgrModal(cls);render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存成員';}toast('儲存失敗：'+((e&&e.message)||e));}};
 H.bulkAssign=()=>bulkAssignModal();
+H.ghOpen=()=>ghModal();
+H.ghGo=(mode)=>{
+  const book=((document.getElementById('gh-book')||{}).value)||'';
+  const lids=[...document.querySelectorAll('.gh-l:checked')].map(x=>x.value);
+  if(!lids.length)return toast('請先勾要出哪幾課');
+  ghBuild(book,lids,mode==='tea');};
 H.bulkAssignSave=async(_x,btn)=>{
   const lids=[...document.querySelectorAll('.ba-l:checked')].map(x=>x.value);
   const grps=[...document.querySelectorAll('.ba-grp:checked')].map(x=>x.value);
