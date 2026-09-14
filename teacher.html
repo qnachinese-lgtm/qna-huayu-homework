@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=822">
+<link rel="stylesheet" href="styles.css?v=823">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1330,6 +1330,8 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           font-size:14px;font-weight:700;color:#5C544B}
         .pay-add .tilde{color:#9A8F80}
         .pay-add input.hhmm{width:84px;text-align:center}
+        /* HHMMBAD_V823 不合法的時間標紅，一眼看得到 */
+        input.hhmm.bad{border-color:#dc2626!important;background:#fff6f6;color:#b91c1c}
         /* ===== TOTAL_RIGHT_V18 累計收入獨立放在最右邊 ===== */
         .stat-cum{margin-left:auto;text-align:right;padding:8px 14px;border-radius:11px;
           background:#F5F1E8;border:1px solid #EDE7DD;min-width:150px}
@@ -13292,8 +13294,29 @@ document.addEventListener('change',(e)=>{const t=e.target;if(!t)return;if((t.cla
 /* 時段輸入：24 小時制、自動補冒號（1600→16:00），失焦補零（9:30→09:30） */
 function hhmmFmt(v){let d=String(v||'').replace(/\D/g,'');if(!d)return '';if(d.length>4)d=d.slice(0,4);if(d.length<=2)return d;return d.slice(0,d.length-2)+':'+d.slice(-2);}
 function hhmmNorm(v){let s=String(v||'').trim();if(!s)return '';let h,m;if(s.indexOf(':')>=0){const p=s.split(':');h=parseInt(p[0]||'0',10)||0;m=parseInt(p[1]||'0',10)||0;}else{const d=s.replace(/\D/g,'');if(!d)return '';if(d.length<=2){h=parseInt(d,10)||0;m=0;}else{h=parseInt(d.slice(0,d.length-2),10)||0;m=parseInt(d.slice(-2),10)||0;}}h=Math.min(23,Math.max(0,h));m=Math.min(59,Math.max(0,m));return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
-document.addEventListener('input',(e)=>{const t=e.target;if(t&&t.classList&&t.classList.contains('hhmm'))t.value=hhmmFmt(t.value);});
-document.addEventListener('blur',(e)=>{const t=e.target;if(t&&t.classList&&t.classList.contains('hhmm')&&t.value.trim())t.value=hhmmNorm(t.value);},true);
+/* HHMMBAD_V823 時間欄位的把關。回傳 '' 代表沒問題，否則回傳看得懂的錯誤說明。 */
+function hhmmBad(v){
+  const s=String(v||'').trim();
+  if(!s)return '';
+  const m=/^(\d{1,2}):(\d{1,2})$/.exec(s);
+  if(!m)return (s.indexOf(':')>=0)?'':'';   /* 還在打字（例如只打了「11」）先不挑剔 */
+  const h=parseInt(m[1],10),mi=parseInt(m[2],10);
+  if(h>23)return '「'+s+'」的小時是 '+h+'，24 小時制只到 23';
+  if(mi>59)return '「'+s+'」的分鐘是 '+mi+'，分鐘只到 59';
+  return '';}
+function hhmmMark(t){
+  if(!t||!t.classList)return;
+  const msg=hhmmBad(t.value);
+  t.classList.toggle('bad',!!msg);
+  try{t.title=msg||'';}catch(_){}}
+document.addEventListener('input',(e)=>{const t=e.target;
+  if(t&&t.classList&&t.classList.contains('hhmm')){t.value=hhmmFmt(t.value);hhmmMark(t);}});
+/* HHMMBAD_V823 本來離開欄位就把 11:90 偷偷夾成 11:59，數字合法但不是老師填的。
+   現在不夾了，維持原樣並標紅，讓她自己看到、自己改。 */
+document.addEventListener('blur',(e)=>{const t=e.target;
+  if(t&&t.classList&&t.classList.contains('hhmm')&&t.value.trim()){
+    if(!hhmmBad(t.value))t.value=hhmmNorm(t.value);
+    hhmmMark(t);}},true);
 function clUpdateCalc(){const el=document.getElementById('cl-calc');if(!el)return;const s=CLOG_STU;if(!s){el.textContent='';return;}
   const st=(document.getElementById('cl-start')||{}).value||'',en=(document.getElementById('cl-end')||{}).value||'';
   const e={start:hhmmNorm(st),end:hhmmNorm(en)};const h=logHours(e);
@@ -13379,6 +13402,10 @@ document.addEventListener('click',(e)=>{
     /* NODUP_V808 會寫資料的按鈕防連按：前一次還沒跑完就不理第二次。
        不擋的話點兩下會存成兩筆（客戶清單就出現過三筆一樣的）。 */
     if(NODUP_ACTS.test(_act)){
+      /* HHMMBAD_V823 同一個視窗裡還有不合法的時間就不要存，並且講清楚哪裡不對 */
+      try{const _box=b.closest('.modal')||document;
+        const _bad=[..._box.querySelectorAll('input.hhmm')].map(x=>hhmmBad(x.value)).filter(Boolean)[0];
+        if(_bad){toast('時間不對：'+_bad);return;}}catch(_){}
       if(NODUP_BUSY)return;
       NODUP_BUSY=_act;
       try{b.disabled=true;b.setAttribute('aria-busy','true');b.style.opacity='.55';b.style.pointerEvents='none';}catch(_){}
