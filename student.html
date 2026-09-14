@@ -11,7 +11,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=812">
+<link rel="stylesheet" href="styles.css?v=813">
+<style>
+/* V813 */
+#app .gp-qn{margin-left:auto;flex:none;font-size:12.5px;font-weight:700;color:#8A5A36;
+  background:#FDF6EE;border:1px solid #DEBE9A;border-radius:99px;padding:2px 9px;white-space:nowrap}
+#app .gp-fold>summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#app .startprac-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#app .startprac-sub{margin:0}
+@media(max-width:480px){#app .gp-qn{font-size:11.5px;padding:2px 7px}}
+</style>
 <style>
 /* ===== 漢語拼音一律用 Times New Roman（只影響拉丁字母，中文維持原字體） ===== */
 @font-face{font-family:'PinyinRoman';font-style:normal;font-weight:400;
@@ -1475,7 +1484,7 @@ function grammarSectionHtml(l,gi,qsAll,opts,num){const g=(l.grammar_points||[])[
   if(qs.length)prac=exBlocksHtml(qs);
   const answerable=qs.filter(q=>!isRefItem(q)).length;
   if(answerable){const sendLab=gpLab('psubmit');prac+=`<div class="gp-submit-row" style="margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;text-align:right"><button class="btn btn-accent btn-sm" data-act="submitGprac" data-id="${l.id}::${gi}">${sendLab}</button></div>`;}
-  return `<div class="lesson-block">${gpFold(g,gi,prac,num)}</div>`;}
+  return `<div class="lesson-block">${gpFold(g,gi,prac,num,answerable)}</div>`;}
 function handoutHtml(l){
   if(!l||!l.handout_url)return '';
   const u=l.handout_url,nm=esc(l.handout_name||'PDF');
@@ -1791,11 +1800,14 @@ function lessonBodyHtml2(l,opts){opts=opts||{};const seq=reconcileLayout(l);cons
   const TABMETA={d:{ic:'📖',t:LT({zh:'課文',cn:'课文',en:'Text',vi:'Bài khoá'})},
                  v:{ic:'📇',t:LT({zh:'生詞',cn:'生词',en:'Vocabulary',vi:'Từ vựng'})},
                  q:{ic:'💬',t:LT({zh:'問題與討論',cn:'问题与讨论',en:'Questions',vi:'Câu hỏi'})}};
-  const sec=(parts,icon,label,key)=>{
+  const sec=(parts,icon,label,key,defOpen)=>{
     const b=(parts||[]).filter(x=>x&&String(x.h||'').trim());
     if(!b.length)return '';
     const groups=[];b.forEach(x=>{const g=groups.find(y=>y.k===x.k);if(g){g.h+=x.h;g.n+=(x.n||0);}else groups.push({k:x.k,n:x.n||0,h:x.h});});
-    const head=`<details class="ls-sec"${(S.secOpen&&S.secOpen[key])?' open':''} data-sec="${esc(key)}"><summary class="ls-sec-h">${icon} ${label}</summary>`;
+    /* SECOPEN_V813 學生自己開關過就聽他的；沒開關過才看 defOpen（純語法的課預設打開） */
+    const _hasPref=!!(S.secOpen&&Object.prototype.hasOwnProperty.call(S.secOpen,key));
+    const _open=(_hasPref?!!S.secOpen[key]:!!defOpen)?' open':'';
+    const head=`<details class="ls-sec"${_open} data-sec="${esc(key)}"><summary class="ls-sec-h">${icon} ${label}</summary>`;
     if(groups.length<=1)return head+`<div class="ls-sec-b">${groups.map(g=>g.h).join('')}</div></details>`;
     const saved=(S.secTab&&S.secTab[key]);
     const cur=groups.some(g=>g.k===saved)?saved:groups[0].k;
@@ -1840,9 +1852,9 @@ function lessonBodyHtml2(l,opts){opts=opts||{};const seq=reconcileLayout(l);cons
     actCultParts(l).forEach(x=>{html+=sec([{k:'x',n:0,h:x.h}],x.ic,x.lab,l.id+'::'+x.key);});
     const _nh=notesBlockHtml(l);
     if(_nh)html+=sec([{k:'n',n:0,h:_nh}],'📌',notesLabel(),l.id+'::notes');
-    return videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)+html+tail+gpracBarHtml(l)+examplesHtml(l.examples);
+    return startPracBar(l)+videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)+html+tail+gpracBarHtml(l)+examplesHtml(l.examples);
   }
-  return videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)
+  return startPracBar(l)+videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)
     +(function(){const hd=dlgText.some(x=>x&&x.k==='d'&&String(x.h||'').trim());/*VOCONLY_V66 只有生詞就不要叫「對話內容」*/
       return sec(dlgText,hd?'📖':'📇',hd?pk(SLAB.dlg,'對話內容'):LT({zh:'生詞',cn:'生词',en:'Vocabulary',vi:'Từ vựng'}),l.id+'::dlg');})()
     +(function(){/* GRAMONLY_V812 整課只有語法（例如「看圖學中文語法」這種語法書），
@@ -1850,7 +1862,8 @@ function lessonBodyHtml2(l,opts){opts=opts||{};const seq=reconcileLayout(l);cons
       const hasText=(dlgText||[]).some(x=>x&&String(x.h||'').trim())
                   ||(shortText||[]).some(x=>x&&String(x.h||'').trim());
       const lab=hasText?pk(SLAB.dlgG,'對話語法'):LT({zh:'語法',cn:'语法',en:'Grammar',vi:'Ngữ pháp'});
-      return sec(dlgGram.map(h=>({k:'g',n:0,h})),'📘',lab,l.id+'::dlgG');})()
+      /* 整課只有語法的書，這一區就是全部內容，預設打開，學生才找得到題目 */
+      return sec(dlgGram.map(h=>({k:'g',n:0,h})),'📘',lab,l.id+'::dlgG',!hasText);})()
     +sec(shortText,'📄',pk(SLAB.sh,'短文內容'),l.id+'::sh')
     +sec(shortGram.map(h=>({k:'g',n:0,h})),'📘',pk(SLAB.shG,'短文語法'),l.id+'::shG')
     +actCultParts(l).map(x=>sec([{k:'x',n:0,h:x.h}],x.ic,x.lab,l.id+'::'+x.key)).join('')
@@ -1894,7 +1907,10 @@ function gpBlocksHtml(g){return (g.blocks||[]).map(b=>{
     const labHtml=lab?`<div class="gp-seclbl">${esc(gpLabel(lab))}</div>`:(autoLab?`<div class="gp-seclbl">${esc(autoLab)}</div>`:'');
     return `<div class="gp-sec">${labHtml}${body}${imh}${ex}</div>`;
   }).join('');}
-function gpFold(g,gi,extra,num){const dn=(num!=null?num:gi+1);return `<details class="disc gp-fold"><summary><span class="gp-tag">${t('grammar')} ${dn}</span>${g.title?'<span class="gp-fold-title">'+esc(g.title)+'</span>':''}</summary><div class="gp-fold-body">${gpBlocksHtml(g)}${extra||''}</div></details>`;}
+function gpFold(g,gi,extra,num,nq){const dn=(num!=null?num:gi+1);
+  /* GPQN_V813 標題右邊標「✏️ N 題」，學生一眼就知道這個框裡面有練習 */
+  const qn=(nq>0)?`<span class="gp-qn">✏️ ${nq}${LT({zh:' 題',cn:' 题',en:'',vi:''})}</span>`:'';
+  return `<details class="disc gp-fold"><summary><span class="gp-tag">${t('grammar')} ${dn}</span>${g.title?'<span class="gp-fold-title">'+esc(g.title)+'</span>':''}${qn}</summary><div class="gp-fold-body">${gpBlocksHtml(g)}${extra||''}</div></details>`;}
 function noteFold(n,i){return `<details class="disc gp-fold"><summary><span class="gp-tag">${LT({zh:'注釋',cn:'注释',en:'Note',vi:'Chú thích'})} ${i+1}</span>${n.title?'<span class="gp-fold-title">'+esc(n.title)+'</span>':''}</summary><div class="gp-fold-body">${gpBlocksHtml(n)}</div></details>`;}
 function notesBlockHtml(l){const _r=(l&&l.notes);const ns=(Array.isArray(_r)?_r:[]).filter(n=>n&&(n.title||(n.blocks||[]).length));if(!ns.length)return '';/*NOTES_GUARD_V62*/
   return `<div class="lesson-block">${ns.map((n,i)=>noteFold(n,i)).join('')}</div>`;}
@@ -2351,6 +2367,23 @@ function lessonAnsweredStats(l){
   let dTotal=0,dDone=0;lessonDialogues(l).forEach((d,di)=>{(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean).forEach((q,qi)=>{dTotal++;const a=dans[di+'_'+qi];if(a!=null&&String(a).trim()!=='')dDone++;});});
   const total=gTotal+dTotal,done=gDone+dDone;
   return {total,done,pct:total?Math.round(done/total*100):0};
+}
+/* STARTPRAC_V813 課的最上面給一個入口，按了直接跳到第一個還沒寫完的語法練習 */
+function startPracBar(l){
+  try{
+    const st=lessonAnsweredStats(l);
+    if(!st||!st.total)return '';
+    const full=st.done>=st.total;
+    if(full)return '';
+    const lab=st.done>0
+      ? LT({zh:'繼續作答',cn:'继续作答',en:'Continue',vi:'Làm tiếp'})
+      : LT({zh:'開始作答',cn:'开始作答',en:'Start practice',vi:'Bắt đầu làm bài'});
+    const left=st.total-st.done;
+    const sub=LT({zh:'還有 '+left+' 題',cn:'还有 '+left+' 题',en:left+' left',vi:'còn '+left+' câu'});
+    return `<div class="lesson-block startprac-row">
+      <button class="btn btn-accent" data-act="goPrac" data-id="${esc(l.id)}">✏️ ${lab}</button>
+      <span class="hint startprac-sub">${sub}</span></div>`;
+  }catch(_){return '';}
 }
 function gpracBarHtml(l){
   const st=lessonAnsweredStats(l);
@@ -4747,6 +4780,17 @@ H.noteSaveNow=(id)=>{const ed=document.getElementById('note-rich-'+id);if(!ed)re
 document.addEventListener('mousedown',(e)=>{if(e.target&&e.target.closest&&(e.target.closest('.note-fmt')||e.target.closest('.hl-sw')))e.preventDefault();});
 document.addEventListener('click',(e)=>{if(!(e.target.closest&&e.target.closest('.note-hl-wrap')))document.querySelectorAll('.hl-pop').forEach(p=>p.classList.add('hide'));});
 /* 記住學生展開的是哪一課，讓送出／撤回等重繪後仍保持展開 */
+H.goPrac=(lid)=>{
+  const root=document.getElementById('app')||document;
+  const folds=[...root.querySelectorAll('details.gp-fold')].filter(f=>f.querySelector('.gp-submit-row'));
+  if(!folds.length)return;
+  const isEmpty=f=>{const ins=[...f.querySelectorAll('textarea,input[type=text]')];
+    return ins.length&&ins.some(i=>!String(i.value||'').trim());};
+  const tgt=folds.filter(isEmpty)[0]||folds[0];
+  let n=tgt;
+  while(n){if(n.tagName==='DETAILS'&&!n.open)n.open=true;n=n.parentElement;}
+  setTimeout(()=>{try{tgt.scrollIntoView({behavior:'smooth',block:'start'});}catch(_){tgt.scrollIntoView();}},140);
+};
 document.addEventListener('toggle',(e)=>{const d=e.target;if(d&&d.classList&&d.classList.contains('ls-sec')&&d.dataset&&d.dataset.sec){S.secOpen=S.secOpen||{};S.secOpen[d.dataset.sec]=d.open;}
   if(d&&d.classList&&d.classList.contains('ls-card')&&d.dataset&&d.dataset.lslid){if(d.open)S.openLesson=d.dataset.lslid;else if(S.openLesson===d.dataset.lslid)S.openLesson='';}},true);
 document.addEventListener('focusout',(e)=>{const ed=e.target&&e.target.closest&&e.target.closest('.note-rich');if(ed){clearTimeout(_noteSaveT);saveNoteHtml(ed.dataset.lid,ed.innerHTML);}});
