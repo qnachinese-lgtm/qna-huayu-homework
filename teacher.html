@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=814">
+<link rel="stylesheet" href="styles.css?v=815">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1873,11 +1873,20 @@ function manualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||q.
 function scoreOf(l,r){const qs=questionsOf(l.id);const manual=r.manual||{};let md=0;qs.forEach(q=>{if(manualQ(q)&&manual[q.id]==='done')md++;});return (r.auto!=null?r.auto:(r.score||0))+md;}
 
 function myEmailNow(){try{return (firebase.auth().currentUser.email||'').toLowerCase();}catch(e){return '';}}
+/* READCUT_V815 題目的快取。loadAll() 有 77 個呼叫點，每一次都整庫重讀幾千筆題目，
+   那是九月帳單的主因之一。題目很少變，放 5 分鐘快取；真的改到題目就強制重讀。 */
+let QCACHE={at:0,rows:null};
+function qcacheBust(){QCACHE={at:0,rows:null};}
+async function listQuestions(force){
+  if(!force&&QCACHE.rows&&(Date.now()-QCACHE.at)<300000)return QCACHE.rows;
+  const rows=await DB.list('questions');
+  QCACHE={at:Date.now(),rows:rows};
+  return rows;}
 async function loadAll(){
   IS_OWNER=isOwner();MY_EMAIL=myEmailNow();const owner=IS_OWNER;
   const [a,b,c,d]=await Promise.all([
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
-    DB.list('lessons'),DB.list('questions'),DB.list('results')]);
+    DB.list('lessons'),listQuestions(),DB.list('results')]);
   let _crm=[];if(owner){try{_crm=await DB.list('crm');}catch(e){_crm=[];}}
   try{await shareLoad();}catch(e){}
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
@@ -10736,7 +10745,7 @@ H.qExpandAll=(_,b)=>{const ds=[...document.querySelectorAll('.qe-secfold')];if(!
 H.autoOrderQuestions=async(lid)=>{const qs=sortQuestionsLogical(questionsOf(lid));
   const btn=document.querySelector('[data-act="autoOrderQuestions"]');if(btn){btn.disabled=true;btn.textContent='排序中…';}
   try{for(let i=0;i<qs.length;i++){if((qs[i].order_index||0)!==i+1){await DB.update('questions',qs[i].id,{order_index:i+1});}}
-    S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已自動排序並重新編號');}
+    S.questions=await listQuestions(true);openQuestionsModal(lid);toast('已自動排序並重新編號');}
   catch(err){if(btn){btn.disabled=false;btn.textContent='↕ 自動排序並重編號';}toast(writeErr('排序失敗',err));}};
 H.qMove=async(key,b)=>{const p=String(key).split('::');const lid=p[0],qid=p[1],dir=p[2];
   const order=sortQuestionsLogical(questionsOf(lid));
@@ -10749,7 +10758,7 @@ H.qMove=async(key,b)=>{const p=String(key).split('::');const lid=p[0],qid=p[1],d
   if(b)b.disabled=true;
   try{await ensureAuthFresh();
     for(let i=0;i<order.length;i++){if((order[i].order_index||0)!==i+1){await DB.update('questions',order[i].id,{order_index:i+1});order[i].order_index=i+1;}}
-    S.questions=await DB.list('questions');openQuestionsModal(lid);
+    S.questions=await listQuestions(true);openQuestionsModal(lid);
     document.querySelectorAll('.qe-secfold').forEach((d,i)=>{if(openIdx.includes(i))d.open=true;});
   }catch(err){if(b)b.disabled=false;toast(writeErr('調整順序失敗',err));}};
 H.qMerge=async(key,b)=>{const p=String(key).split('::');const lid=p[0],qid=p[1];
@@ -10766,7 +10775,7 @@ H.qMerge=async(key,b)=>{const p=String(key).split('::');const lid=p[0],qid=p[1];
   try{await ensureAuthFresh();
     await DB.update('questions',prev.id,{items:mergedItems,options});
     await DB.remove('questions',me.id);
-    S.questions=await DB.list('questions');openQuestionsModal(lid);
+    S.questions=await listQuestions(true);openQuestionsModal(lid);
     document.querySelectorAll('.qe-secfold').forEach(d=>{d.open=true;});
     toast('已併入上一題（選項只留一份）');
   }catch(err){if(b)b.disabled=false;toast(writeErr('併入失敗',err));}};
@@ -11122,7 +11131,7 @@ H.qiAdd=async(si)=>{
       order_index:questionsOf(sec.lid).length};
     const d=await DB.insert('questions',obj);
     const nid=(d&&d.id)||null;
-    S.questions=await DB.list('questions');
+    S.questions=await listQuestions(true);
     openQuestionsModal(sec.lid);
     setTimeout(()=>{const el=nid?document.querySelector('.qi-p[data-q="'+nid+'"]'):null;
       if(el){el.scrollIntoView({block:'center'});el.focus();}},60);
@@ -11172,9 +11181,9 @@ H.doBulkImport=async(lid)=>{const type=$('#bi-type').value;const gpv=$('#bi-gp')
     if(type!=='note'&&/[=＝]/.test(ln)){const p=ln.split(/[=＝]/);prompt=p[0].trim();a=p.slice(1).join('=').trim();}
     if(type==='fill')answer=a?a.split(/[\/／]/).map(x=>x.trim()).filter(Boolean):null;else if(type==='qa')answer=a?[a]:null;
     return {lesson_id:lid,type,prompt,options:[],answer,bank:(($('#bi-bank')&&$('#bi-bank').value==='hw')?'hw':'class'),gp_index:(gpv===''?null:Number(gpv)),gp_sub:sub||null,input_mode:(type==='fill'?'type':null),audio_url:null,image_url:null,instruction:instr||null,explanation:null,order_index:base+i};});
-  try{for(const o of objs)await DB.insert('questions',o);S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已匯入 '+objs.length+' 題');}
+  try{for(const o of objs)await DB.insert('questions',o);S.questions=await listQuestions(true);openQuestionsModal(lid);toast('已匯入 '+objs.length+' 題');}
   catch(e){if(st)st.textContent=writeErr('匯入失敗',e);}};
-H.delQuestion=async(key)=>{const[lid,qid]=key.split('::');if(!confirm('刪除這一題？'))return;try{await DB.remove('questions',qid);S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
+H.delQuestion=async(key)=>{const[lid,qid]=key.split('::');if(!confirm('刪除這一題？'))return;try{await DB.remove('questions',qid);S.questions=await listQuestions(true);openQuestionsModal(lid);toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
 H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;const prompt=$('#qe-prompt').value.trim();
   let options=[],answer=null,items=null;
   if(type==='choice'){options=$('#qe-options').value.split('\n').map(s=>s.trim()).filter(Boolean);if(options.length<2)return toast('請至少輸入兩個選項');
@@ -11199,7 +11208,7 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
   const obj={lesson_id:lid,type,prompt:prompt||(type==='order'?'請將下列詞語重組成正確的句子':type==='match'?'請將左右配對':''),
     options,answer,items,bank:(($('#qe-bank')&&$('#qe-bank').value==='hw')?'hw':'class'),gp_index:(gpv===''?null:Number(gpv)),gp_sub:gpsub||null,input_mode:(type==='fill'&&$('#qe-fillmode')?$('#qe-fillmode').value:null),audio_url:$('#qe-audio').value.trim()||null,image_url:($('#qe-image')?$('#qe-image').value.trim():'')||null,instruction:($('#qe-instruction')?$('#qe-instruction').value.trim():'')||null,explanation:$('#qe-explain').value.trim()||null};
   try{if(qid){await DB.update('questions',qid,obj);}else{obj.order_index=questionsOf(lid).length;await DB.insert('questions',obj);}
-    S.questions=await DB.list('questions');openQuestionsModal(lid);toast('已儲存');}catch(err){toast(writeErr('儲存失敗',err));}};
+    S.questions=await listQuestions(true);openQuestionsModal(lid);toast('已儲存');}catch(err){toast(writeErr('儲存失敗',err));}};
 
 H.assign=(id)=>assignModal(S.lessons.find(l=>l.id===id));
 H.assignAll=()=>{const b=$$('#as-targets input');const all=b.every(x=>x.checked);b.forEach(x=>x.checked=!all);};
@@ -12113,6 +12122,7 @@ H.hwPickSave=async(lid,btn)=>{
   try{if(btn){btn.disabled=true;btn.textContent='儲存中…';}
     for(const j of jobs){await DB.update('questions',j.id,{bank:j.bank});
       const q=(S.questions||[]).find(x=>x.id===j.id);if(q)q.bank=j.bank;}
+    qcacheBust();
     closeModal();render();toast('已更新 '+jobs.length+' 題');}
   catch(e){toast(writeErr('儲存失敗',e));if(btn){btn.disabled=false;btn.textContent='💾 儲存';}}};
 H.agToggle=async(id)=>{const c=agById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
