@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=844">
+<link rel="stylesheet" href="styles.css?v=846">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5358,6 +5358,23 @@ function ghLines(t){return esc(String(t==null?'':t)).replace(/\n/g,'<br>');}
 let GHWIDE=0;
 /* GHOPT_V844 不印圖片（省紙）／只印答案 */
 let GHNOIMG=0;
+/* GHFONT_V846 這一份講義單獨指定中文字體（空字串＝跟平台設定一樣）。
+   平台的字體設定是全站的，這裡只改印出來的這一份，不會動到設定。 */
+let GHFONT='';
+function ghFontHead(k){
+  if(!k)return '';
+  try{const c=fontDef('cjk',k);let h='';
+    String(c[4]||'').split(/\s+/).filter(Boolean).forEach(u=>{h+='<link rel="stylesheet" href="'+esc(u)+'">';});
+    if(c[5]==='QNANum-Kai')h+='<style>@font-face{font-family:"QNANum-Kai";font-display:swap;src:url(https://cdn.jsdelivr.net/npm/lxgw-wenkai-tc-webfont@1.2.0/files/lxgwwenkaitc-regular-subset-119.woff2) format("woff2");unicode-range:U+0030-0039;}@font-face{font-family:"QNANum-Kai";font-weight:700;font-display:swap;src:url(https://cdn.jsdelivr.net/npm/lxgw-wenkai-tc-webfont@1.2.0/files/lxgwwenkaitc-bold-subset-119.woff2) format("woff2");unicode-range:U+0030-0039;}</style>';
+    return h;}catch(e){return '';}}
+function ghFontCss(k){
+  if(!k)return '';
+  try{const c=fontDef('cjk',k),lat=fontDef('lat',fontGet('lat'));
+    /* printFontInject 會在 </head> 前補一條 body{...!important}，
+       所以這裡要用 html body 才壓得過它（同樣 important，比它精確）。 */
+    return 'html body{font-family:'+fontNumPrefix(c).replace(/'/g,'"')
+      +(lat[3]?(lat[3]+','):'')+c[3]+',sans-serif!important}';}
+  catch(e){return '';}}
 function ghImg(u){const v=String(u||'').trim();
   if(!v||GHNOIMG)return '';
   return '<div class="gh-img"><img src="'+esc(v)+'" alt=""></div>';}
@@ -5377,11 +5394,17 @@ function ghHasBlank(q){return /[_＿]{2,}/.test(String((q&&q.prompt)||''));}
 function ghClLines(l){return (l&&l.kind==='classical')?(clLinesOf(l)||[]):[];}
 function ghClQs(l){return (l&&l.kind==='classical'&&Array.isArray(l.cl_qs))?l.cl_qs:[];}
 function ghTr(l){return Array.isArray(l&&l.transcript)?l.transcript:[];}
+/* GHVOC_V845 關鍵詞彙（高階級）存的是主題詞彙和關鍵詞語，不是逐字稿 */
+function ghTw(l){return Array.isArray(l&&l.topic_words)?l.topic_words:[];}
+function ghKp(l){return Array.isArray(l&&l.key_phrases)?l.key_phrases:[];}
+function ghTwN(l){return ghTw(l).reduce((a,x)=>a+((x&&Array.isArray(x.words))?x.words.filter(w=>String(w||'').trim()).length:0),0);}
 function ghCount(l){
   const qs=ghQsOf(l.id);
   /* GHOTHER_V826 文言文的問答、關鍵詞彙的聽力題也要算進去，不然清單會把整本濾掉 */
   const cl=ghClLines(l).length,clq=ghClQs(l).length,tr=ghTr(l).length;
-  return {gp:(l.grammar_points||[]).length,cl:cl,tr:tr,
+  /* GHVOC_V845 詞彙表那本沒有題目也沒有語法點，要另外算，不然整本會被濾掉 */
+  const tw=ghTwN(l),kp=ghKp(l).length;
+  return {gp:(l.grammar_points||[]).length,cl:cl,tr:tr,tw:tw,kp:kp,
     q:qs.filter(q=>q.type!=='note').length+clq+tr};}
 function ghQHtml(q,n,withAns,noSpace){/* CLPRINT_V827 noSpace：只印題目，不留作答空間 */
   const isNote=(q.type==='note');
@@ -5500,9 +5523,36 @@ function ghKeyHtml(l){
     +cq.map((q,i)=>ghKeyItem(i+1,(q&&q.ans)||'')).join('')+'</div>';
   if(!String(out).trim())return '';
   return '<div class="gh-les gk-les"><h2 class="gh-lt">'+esc(l.title||'（未命名）')+'</h2>'+out+'</div>';}
+/* GHVOC_V845 詞彙表：主題詞彙依來源分組、一詞一格留線；關鍵詞語附書上例句。
+   學生版留空間（寫意思／自己造句），老師版不留，當對照表用。 */
+function ghVocHtml(l,withAns){
+  const tw=ghTw(l),kp=ghKp(l);
+  if(!tw.length&&!kp.length)return '';
+  let h='';
+  if(tw.length){
+    h+='<div class="gh-gt"><span class="gh-tag">主題詞彙</span>'
+      +esc(withAns?'依課本各大題分組':'後面的線寫這個詞的意思')+'</div>';
+    tw.forEach(g=>{
+      const ws=((g&&Array.isArray(g.words))?g.words:[]).filter(w=>String(w||'').trim());
+      if(!ws.length)return;
+      h+='<div class="gw-g"><div class="gw-s">'+esc((g&&g.src)||'')+'</div><div class="gw-l">'
+        +ws.map(w=>'<div class="gw-w"><b>'+esc(w)+'</b>'+(withAns?'':'<span class="gw-b"></span>')+'</div>').join('')
+        +'</div></div>';});}
+  if(kp.length){
+    h+='<div class="gh-lab b3">關鍵詞語</div><div class="gh-qs">'
+      +kp.map((p,i)=>{
+        const ex=String((p&&p.example)||'').trim();
+        return '<div class="gh-q"><span class="gh-n">'+(i+1)+'</span><div class="gh-qb">'
+          +'<b>'+esc((p&&p.phrase)||'')+'</b>'
+          +((p&&p.src)?('<span class="gw-src">'+esc(p.src)+'</span>'):'')
+          +(ex?('<div class="gh-ex" style="margin-top:5px">'+ghLines(ex)+'</div>'):'')
+          +(withAns?'':ghAnsSpace({type:'qa'}))
+          +'</div></div>';}).join('')
+      +'</div>';}
+  return '<div class="gh-gp">'+h+'</div>';}
 function ghLessonHtml(l,withAns){
   const gps=l.grammar_points||[];const all=ghQsOf(l.id);
-  let inner=ghClHtml(l,withAns)+ghTrHtml(l);
+  let inner=ghClHtml(l,withAns)+ghTrHtml(l)+ghVocHtml(l,withAns);
   inner+=gps.map((g,gi)=>ghGpHtml(g,gi,all.filter(q=>q.gp_index===gi),withAns)).join('');
   const untag=all.filter(q=>q.gp_index==null);
   if(untag.length)inner+=ghGpHtml({title:gps.length?'其他練習':'練習',blocks:[]},gps.length,untag,withAns,null);
@@ -5570,6 +5620,15 @@ function ghCss(){return ''
   +'.gh-clr{font-size:12.5px;line-height:1.7;color:#6f6459;margin-top:3px}'
   +'.gh-cln{font-size:11.5px;line-height:1.7;color:#9c8d7e;margin-top:3px}'
   /* GHOTHER_V826 關鍵詞彙的聽力對話 */
+  /* GHVOC_V845 詞彙表 */
+  +'.gw-g{margin:0 0 10px;break-inside:avoid}'
+  +'.gw-s{font-size:11px;color:#a8998a;letter-spacing:.8px;margin:0 0 4px}'
+  +'.gw-l{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px 16px}'
+  +'.gw-w{display:flex;align-items:baseline;gap:7px;font-size:13px;break-inside:avoid}'
+  +'.gw-w b{flex:none;font-weight:700;color:#3f3830}'
+  +'.gw-b{flex:1;min-width:40px;border-bottom:1px solid #ddd0bd;height:16px}'
+  +'.gh-hand .gw-b{height:22px}'
+  +'.gw-src{margin-left:9px;font-size:11px;color:#a8998a;font-weight:400}'
   +'.gh-tr{display:flex;gap:9px;margin:0 0 11px;break-inside:avoid}'
   +'.gh-trn{flex:none;width:20px;height:20px;border-radius:50%;background:var(--soft);color:var(--deep);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}'
   +'.gh-trb{flex:1;min-width:0}'
@@ -5604,12 +5663,14 @@ function ghBuild(book,lids,mode,wide,noimg){
   /* GHOTHER_V826 文言文、聽力對話各自有自己的名字 */
   const ncl=ls.reduce((a,l)=>a+ghClLines(l).length,0);
   const ntr=ls.reduce((a,l)=>a+ghTr(l).length,0);
-  const base=ngp?'語法練習':(ncl?'文言文閱讀':(ntr?'聽力文本練習':'練習題'));
-  const en=keyOnly?'ANSWER KEY':(ngp?'GRAMMAR PRACTICE':(ncl?'CLASSICAL CHINESE':(ntr?'LISTENING SCRIPT':'PRACTICE')));
+  const nvoc=ls.reduce((a,l)=>a+ghTwN(l)+ghKp(l).length,0);/* GHVOC_V845 */
+  const base=ngp?'語法練習':(ncl?'文言文閱讀':(ntr?'聽力文本練習':(nvoc?'詞彙表':'練習題')));
+  const en=keyOnly?'ANSWER KEY':(ngp?'GRAMMAR PRACTICE':(ncl?'CLASSICAL CHINESE':(ntr?'LISTENING SCRIPT':(nvoc?'VOCABULARY':'PRACTICE'))));
   /* GHKEY_V844 */
   const ttl=keyOnly?(base+'　解答'):(withAns?(base+'（老師版）'):base);
   const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'
-    +esc(book)+' '+esc(ttl)+'</title><style>'+fbCss()+ghCss()+'</style></head><body'
+    +esc(book)+' '+esc(ttl)+'</title>'+ghFontHead(GHFONT)/* GHFONT_V846 */
+    +'<style>'+fbCss()+ghCss()+ghFontCss(GHFONT)+'</style></head><body'
     +(GHWIDE?' class="gh-hand"':'')+'>'
     /* GHFOOT_V829 每一頁的頁尾（只有列印時看得到） */
     +'<div class="gh-run"><b>'+esc(window.APP_NAME||'QNA CHINESE')+'</b>'
@@ -5619,7 +5680,9 @@ function ghBuild(book,lids,mode,wide,noimg){
     +'<div class="page">'+fbHead('華語教學 · '+base,ttl,en)
     +'<div class="top">'
     +'<div class="f"><span class="k">教材</span><span class="v">'+esc(book)+'</span></div>'
-    +'<div class="f"><span class="k">範圍</span><span class="v">'+ls.length+' 課 · '+nq+' 題</span></div>'
+    /* GHVOC_V845 詞彙表沒有「題」，範圍要寫詞彙數，不要寫「0 題」 */
+    +'<div class="f"><span class="k">範圍</span><span class="v">'+ls.length+' 課 · '
+      +((nq||!nvoc)?(nq+' 題'):(nvoc+' 個詞語'))+'</span></div>'
     +(withAns?('<div class="f"><span class="k">版本</span><span class="v">'
       +(keyOnly?'解答頁（只有參考答案）':'老師版（含參考答案）')+'</span></div>'):'')
     +'</div>'
@@ -5635,10 +5698,11 @@ function ghListHtml(book){
   const ls=baLessonsOf(book);
   if(!ls.length)return '<div class="hint">這本還沒有課。</div>';
   const rows=ls.map(l=>{const c=ghCount(l);
-    if(!c.gp&&!c.q&&!c.cl&&!c.tr)return '';
+    if(!c.gp&&!c.q&&!c.cl&&!c.tr&&!c.tw&&!c.kp)return '';/* GHVOC_V845 */
     /* GHOTHER_V826 不是每一本都有語法點，標籤照那一課實際有的東西標 */
     /* GHPICK_V833 本來是兩顆米色藥丸黏在課名旁邊，很擠。改成靠右的淡字。 */
     const meta=[c.gp?('語法 '+c.gp):'',c.cl?('原文 '+c.cl+' 句'):'',c.tr?('對話 '+c.tr+' 段'):'',
+      c.tw?('詞彙 '+c.tw):'',c.kp?('詞語 '+c.kp):'',/* GHVOC_V845 */
       c.q?(c.q+' 題'):''].filter(Boolean).join('　·　');
     return '<label class="check-row"><input type="checkbox" class="gh-l" value="'+esc(l.id)+'">'
       +'<span class="gh-ln">'+esc(l.title||'（未命名）')+'</span>'
@@ -5665,6 +5729,11 @@ function ghModal(){
    +'<div class="field"><label>作答空間</label><select id="gh-lay">'
    +'<option value="1" selected>手寫 —— 作答空間大，問答給四行</option>'
    +'<option value="0">緊湊 —— 一題一條線，比較省紙</option>'
+   +'</select></div>'
+   /* GHFONT_V846 讓學生練習不同字體：只影響這一份，不動平台設定 */
+   +'<div class="field"><label>中文字體 <span class="hint">只影響這一份印出來的講義</span></label>'
+   +'<select id="gh-font"><option value="">跟平台一樣（'+esc(fontDef('cjk',fontGet('cjk'))[1])+'）</option>'
+   +CJKFONTS.map(f=>'<option value="'+esc(f[0])+'">'+esc(f[1])+' —— '+esc(f[2])+'</option>').join('')
    +'</select></div>'
    /* GHOPT_V844 圖多的書（時代華語一 128 張、看圖學中文語法 195 張）印起來很厚 */
    +'<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
@@ -12962,6 +13031,7 @@ H.ghGo=(mode)=>{
   if(!lids.length)return toast('請先勾要出哪幾課');
   const wide=(((document.getElementById('gh-lay')||{}).value)==='1');/* GHWIDE_V826 */
   const noimg=!!(document.getElementById('gh-noimg')||{}).checked;/* GHOPT_V844 */
+  GHFONT=((document.getElementById('gh-font')||{}).value)||'';/* GHFONT_V846 */
   ghBuild(book,lids,mode,wide,noimg);};
 H.bulkAssignSave=async(_x,btn)=>{
   const lids=[...document.querySelectorAll('.ba-l:checked')].map(x=>x.value);
