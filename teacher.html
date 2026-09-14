@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=819">
+<link rel="stylesheet" href="styles.css?v=820">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1291,6 +1291,14 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           white-space:normal;overflow:visible;text-overflow:clip;
           line-height:1.4;padding-top:3px;padding-bottom:3px;text-align:left}
         .crm-thead .crm-head .cc.dt{white-space:nowrap}
+        /* MEMO_V820 我的備忘 */
+        .memo-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+        .memo-add #memo-text{flex:1;min-width:200px}
+        .memo-add #memo-due{flex:none;width:150px}
+        .memo-row{gap:8px;align-items:center}
+        .memo-row .memo-t{word-break:break-word}
+        .memo-row.memo-done .memo-t{text-decoration:line-through;opacity:.55}
+        @media(max-width:520px){.memo-add #memo-due{width:100%}}
         /* DLBADGE_V809 「（還有 N 天）」自己一行，日期那一行才不會拉得又長又擠 */
         .crm-head .cc.dt .badge.dl-badge{display:inline-block;text-align:center;line-height:1.45}
         .crm-head .cc.dt .badge.dl-badge .dl-left{display:block;font-style:normal;font-size:11.5px;opacity:.85}
@@ -1897,7 +1905,9 @@ async function loadAll(){
    S.prices=b.filter(x=>x.kind==='price'&&!x.deleted_at);{const _lg=b.filter(x=>CRM_KINDS[x.kind]&&!x.deleted_at);_lg.forEach(x=>{x._col='lessons';});
    const _cn=crmDedupe(_crm.filter(x=>!x.deleted_at));_cn.forEach(x=>{x._col='crm';});
    const _all=_cn.concat(_lg);
-   S.interviews=_all.filter(x=>x.kind==='interview');S.inquiries=_all.filter(x=>x.kind==='inquiry');S.agencies=_all.filter(x=>x.kind==='agency');S.schools=_all.filter(x=>x.kind==='school');S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
+   S.interviews=_all.filter(x=>x.kind==='interview');S.inquiries=_all.filter(x=>x.kind==='inquiry');S.agencies=_all.filter(x=>x.kind==='agency');S.schools=_all.filter(x=>x.kind==='school');
+   /* MEMO_V820 自己的備忘：只放在 crm 集合，規則上 crm 是 isOwner() 才讀得到 */
+   S.memos=_crm.filter(x=>x&&x.kind==='memo'&&!x.deleted_at);S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
   splitResults(d);
   {const cut=Date.now()-7*864e5;(S.trashStudents||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('students',x.id).catch(()=>{});});(S.trashLessons||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('lessons',x.id).catch(()=>{});});}
   if(!owner){
@@ -2118,6 +2128,43 @@ function dashTodayHtml(){
   _rows.sort((a,b)=>a.t.localeCompare(b.t));
   return _rows.map(x=>x.h).join('');
 }
+/* ===================== 📝 我的備忘 MEMO_V820 ===================== */
+function memoAll(){return (S.memos||[]).filter(x=>!x.deleted_at);}
+function memoOpen(){return memoAll().filter(x=>!x.done);}
+function memoSort(a,b){
+  const ad=String(a.due||''),bd=String(b.due||'');
+  if(ad&&bd&&ad!==bd)return ad.localeCompare(bd);
+  if(ad&&!bd)return -1;
+  if(!ad&&bd)return 1;
+  return String(b.created_at||'').localeCompare(String(a.created_at||''));}
+function memoDueTag(m){
+  const d=String(m.due||'').trim();if(!d)return '';
+  const t=localToday();
+  let col='#2563eb',lab=d;
+  if(d<t){col='#dc2626';lab=d+'（過期）';}
+  else if(d===t){col='#d97706';lab='今天';}
+  else{const n=Math.round((Date.parse(d+'T00:00:00')-Date.parse(t+'T00:00:00'))/864e5);
+       if(n===1)lab='明天';else if(n<=7)lab=d+'（還有 '+n+' 天）';}
+  return `<span class="badge" style="background:${col}18;color:${col};border-color:${col}55">${esc(lab)}</span>`;}
+function memoRowHtml(m){
+  return `<div class="dash-row memo-row${m.done?' memo-done':''}">
+    <button class="btn btn-sm btn-icon" data-act="${m.done?'memoUndo':'memoDone'}" data-id="${esc(m.id)}" title="${m.done?'改回還沒做':'標成做完了'}">${m.done?'↩':'✅'}</button>
+    <span class="memo-t" style="flex:1">${esc(m.text||'')}</span>
+    ${m.done?'':memoDueTag(m)}
+    <button class="btn btn-sm btn-danger btn-icon" data-act="memoDel" data-id="${esc(m.id)}" title="刪掉這一件">✕</button></div>`;}
+function memoHtml(){
+  const open=memoOpen().slice().sort(memoSort);
+  const done=memoAll().filter(x=>x.done)
+    .sort((a,b)=>String(b.done_at||'').localeCompare(String(a.done_at||''))).slice(0,12);
+  const add=`<div class="memo-add">
+    <input id="memo-text" type="text" placeholder="例：給 Huyền 做留學諮詢／寄成績單給心美" maxlength="200">
+    <input id="memo-due" type="date" min="2000-01-01" max="2100-12-31" title="要哪天做完（可不填）">
+    <button class="btn btn-primary btn-sm" data-act="memoAdd">＋ 記下來</button></div>`;
+  const list=open.length?open.map(memoRowHtml).join('')
+    :'<div class="hint" style="padding:8px 0">目前沒有記著的事。想到什麼就打在上面，做完打勾。</div>';
+  const doneFold=done.length
+    ?`<details class="dash-fold" style="margin-top:10px"><summary>✅ 做完的（${done.length}）</summary><div style="margin-top:8px">${done.map(memoRowHtml).join('')}</div></details>`:'';
+  return add+list+doneFold;}
 function renderDashboard(){
   const body=$('#dashboard-body');
   if(!S.students.length){body.innerHTML=emptyHtml('📋','目前沒有待辦',IS_OWNER?'先到「學生名冊」新增學生。':'主管理員還沒有把學生分配給你。');return;}
@@ -2260,6 +2307,7 @@ function renderDashboard(){
       todayJobsHtml(_pend,true)
       +`<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
        <details class="dash-fold" open style="margin-top:12px"><summary>⏰ 提醒（堂數／補課／交件）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>`,true)}
+    ${_sec('memo','📝 我的備忘',memoOpen().length||'',memoHtml(),true)}
     ${_sec('today','📅 今天的課','',todayHtml,true)}
     ${healthCheckHtml()}
 `;
@@ -12134,6 +12182,25 @@ H.hwPickSave=async(lid,btn)=>{
     qcacheBust();
     closeModal();render();toast('已更新 '+jobs.length+' 題');}
   catch(e){toast(writeErr('儲存失敗',e));if(btn){btn.disabled=false;btn.textContent='💾 儲存';}}};
+H.memoAdd=async(_x,btn)=>{
+  const el=document.getElementById('memo-text');
+  const text=((el&&el.value)||'').trim();
+  if(!text){if(el)el.focus();return toast('先打一句要記的事');}
+  const due=((document.getElementById('memo-due')||{}).value)||'';
+  if(btn){btn.disabled=true;btn.textContent='存…';}
+  try{await DB.insert('crm',{kind:'memo',text:text,due:due||null,done:false,created_at:new Date().toISOString()});
+    await loadAll();render();toast('記下來了 ✓');}
+  catch(e){toast(writeErr('存不起來',e));if(btn){btn.disabled=false;btn.textContent='＋ 記下來';}}};
+H.memoDone=async(id)=>{try{await DB.update(crmCol(id),id,{done:true,done_at:new Date().toISOString()});
+  const m=(S.memos||[]).find(x=>x.id===id);if(m){m.done=true;m.done_at=new Date().toISOString();}
+  render();}catch(e){toast(writeErr('失敗',e));}};
+H.memoUndo=async(id)=>{try{await DB.update(crmCol(id),id,{done:false,done_at:null});
+  const m=(S.memos||[]).find(x=>x.id===id);if(m){m.done=false;m.done_at=null;}
+  render();}catch(e){toast(writeErr('失敗',e));}};
+H.memoDel=async(id)=>{const m=(S.memos||[]).find(x=>x.id===id);
+  if(!confirm('刪掉「'+((m&&m.text)||'')+'」？'))return;
+  try{await DB.update(crmCol(id),id,{deleted_at:new Date().toISOString()});
+    S.memos=(S.memos||[]).filter(x=>x.id!==id);render();}catch(e){toast(writeErr('刪不掉',e));}};
 H.agToggle=async(id)=>{const c=agById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
   try{await DB.update(crmCol(id),id,{status:st,closed_as:(st==='done'?'done':null)});await loadAll();render();toast(st==='done'?'已結案':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
 H.agDel=async(id)=>{const c=agById(id);if(!c)return;if(!confirm('確定刪除「'+(c.name||'')+'」？所有進度與收費紀錄會一起刪除。'))return;
@@ -13259,6 +13326,11 @@ document.addEventListener('input',(e)=>{const t=e.target;if(!t)return;
   if(t.id==='pay-sess')setTimeout(()=>payCalc('pay',false),0);
   if(t.id==='pe-amount')setTimeout(()=>payCalc('pe',true),0);
   if(t.id==='pe-sess')setTimeout(()=>payCalc('pe',false),0);});
+document.addEventListener('keydown',(e)=>{
+  /* MEMO_V820 在備忘欄按 Enter 就直接記下來，不用再去點按鈕 */
+  if(e.key!=='Enter')return;const t=e.target;
+  if(t&&(t.id==='memo-text'||t.id==='memo-due')){e.preventDefault();
+    const b=document.querySelector('[data-act="memoAdd"]');if(b)b.click();}});
 document.addEventListener('change',(e)=>{const t=e.target;if(t&&t.id==='pay-cur')setTimeout(()=>payCalc('pay',false),0);
   if(t&&t.id==='pe-cur')setTimeout(()=>payCalc('pe',false),0);});
 document.addEventListener('blur',(e)=>{const t=e.target;if(t&&(t.id==='cl-start'||t.id==='cl-end'))setTimeout(clUpdateCalc,0);},true);
