@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=824">
+<link rel="stylesheet" href="styles.css?v=825">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5317,7 +5317,7 @@ function ghQHtml(q,n,withAns){
     +(isNote?'':'<div class="gh-line"></div>')
     +((withAns&&!isNote&&ans.length)?('<div class="gh-a">參考答案：'+esc(ans.join('／'))+'</div>'):'')
     +'</div></div>';}
-function ghGpHtml(g,gi,qs,withAns){
+function ghGpHtml(g,gi,qs,withAns,tagLab){
   const blocks=(g.blocks||[]).map(b=>{
     const t=String((b&&b.text)||'').trim(),ex=String((b&&b.ex)||'').trim(),im=String((b&&b.img)||'').trim();
     if(!t&&!ex&&!im)return '';
@@ -5335,13 +5335,16 @@ function ghGpHtml(g,gi,qs,withAns){
     if(q.type!=='note')n++;
     return head+ghQHtml(q,n,withAns);}).join('');
   if(!blocks&&!body)return '';
-  return '<div class="gh-gp"><div class="gh-gt"><span class="gh-tag">語法 '+(gi+1)+'</span>'
+  /* GHNOGP_V825 有些教材（例如臺灣生活溝通華語）沒有建語法點，題目直接掛在課底下。
+     那種情況就不要硬掛「語法 N」的標籤，也不要叫「其他練習」。 */
+  const _tag=(tagLab===null)?'':('<span class="gh-tag">'+esc(tagLab||('語法 '+(gi+1)))+'</span>');
+  return '<div class="gh-gp"><div class="gh-gt">'+_tag
     +esc(g.title||'')+'</div>'+blocks+(body?('<div class="gh-qs">'+body+'</div>'):'')+'</div>';}
 function ghLessonHtml(l,withAns){
   const gps=l.grammar_points||[];const all=ghQsOf(l.id);
   let inner=gps.map((g,gi)=>ghGpHtml(g,gi,all.filter(q=>q.gp_index===gi),withAns)).join('');
   const untag=all.filter(q=>q.gp_index==null);
-  if(untag.length)inner+=ghGpHtml({title:'其他練習',blocks:[]},gps.length,untag,withAns);
+  if(untag.length)inner+=ghGpHtml({title:gps.length?'其他練習':'練習',blocks:[]},gps.length,untag,withAns,null);
   if(!String(inner).trim())return '';
   return '<div class="gh-les"><h2 class="gh-lt">'+esc(l.title||'（未命名）')+'</h2>'+inner+'</div>';}
 function ghCss(){return ''
@@ -5372,11 +5375,14 @@ function ghBuild(book,lids,withAns){
   const body=ls.map(l=>ghLessonHtml(l,withAns)).filter(Boolean).join('');
   if(!body)return toast('勾起來的課裡面沒有語法內容');
   const nq=ls.reduce((a,l)=>a+ghCount(l).q,0);
-  const ttl=withAns?'語法練習（老師版）':'語法練習';
+  /* GHNOGP_V825 勾的課完全沒有語法點就別叫「語法練習」，叫「練習題」才對 */
+  const ngp=ls.reduce((a,l)=>a+ghCount(l).gp,0);
+  const base=ngp?'語法練習':'練習題';
+  const ttl=withAns?(base+'（老師版）'):base;
   const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'
     +esc(book)+' '+esc(ttl)+'</title><style>'+fbCss()+ghCss()+'</style></head><body>'
     +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><span class="hint">列印時這排按鈕不會印出來</span></div>'
-    +'<div class="page">'+fbHead('華語教學 · 語法練習',ttl,'GRAMMAR PRACTICE')
+    +'<div class="page">'+fbHead('華語教學 · '+base,ttl,ngp?'GRAMMAR PRACTICE':'PRACTICE')
     +'<div class="top">'
     +'<div class="f"><span class="k">教材</span><span class="v">'+esc(book)+'</span></div>'
     +'<div class="f"><span class="k">範圍</span><span class="v">'+ls.length+' 課 · '+nq+' 題</span></div>'
