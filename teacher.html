@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=813">
+<link rel="stylesheet" href="styles.css?v=814">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1488,6 +1488,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
       <section id="panel-lessons" class="panel hide">
         <div class="section-head"><h2>📚 教材與課程</h2><span class="sub">放課文、生詞、語法和練習題。做好之後要「指派」給學生，他們才看得到</span><div class="head-actions">
           <button class="btn" data-act="planNew">🗓 一鍵排課程表</button>
+          <button class="btn" data-act="bulkAssign">📤 批次指派</button>
           <button class="btn btn-primary" data-act="addLesson">＋ 新增課文</button></div></div>
         <div id="vi-bar"></div>
         <div id="lessons-list" class="cards"></div>
@@ -5188,6 +5189,56 @@ function assignModalCore(o){
    <div class="modal-foot">${(ids.length||ag.length)?`<button class="btn btn-warn" data-act="${esc(o.unassignAct)}" data-id="${esc(o.id)}">↩ 全部收回</button>`:''}<span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">取消</button>
      <button class="btn btn-primary" data-act="${esc(o.saveAct)}" data-id="${esc(o.id)}">儲存</button></div></div>`);
 }
+/* BULKASSIGN_V814 一次把一整本（或挑幾課）發給一個班／一群學生 */
+function baBooks(){
+  const m={};(S.lessons||[]).forEach(l=>{if(!l||l.deleted_at)return;
+    const k=(l.textbook||'').trim()||'（沒有歸到教材）';m[k]=(m[k]||0)+1;});
+  return Object.keys(m).sort((a,b)=>a.localeCompare(b,'zh-Hant')).map(k=>({k,n:m[k]}));}
+function baLessonsOf(book){
+  return (S.lessons||[]).filter(l=>l&&!l.deleted_at&&(((l.textbook||'').trim()||'（沒有歸到教材）')===book))
+    .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0));}
+function baListHtml(book){
+  const ls=baLessonsOf(book);
+  if(!ls.length)return '<div class="hint">這本還沒有課。</div>';
+  return ls.map(l=>{const n=(l.assigned_ids||[]).length+(l.assigned_groups||[]).length;
+    return `<label class="check-row"><input type="checkbox" class="ba-l" value="${esc(l.id)}">
+      <span style="flex:1">${esc(l.title||'（未命名）')}</span>
+      ${n?`<span class="tag">已指派 ${n}</span>`:'<span class="tag" style="opacity:.5">未指派</span>'}</label>`;}).join('');}
+function bulkAssignModal(){
+  const books=baBooks();
+  if(!books.length)return toast('還沒有課文');
+  const cur=(S.bookFilter&&books.some(b=>b.k===S.bookFilter))?S.bookFilter:books[0].k;
+  const classes=groupsList();
+  const grpList=classes.length
+    ? classes.map(c=>`<label class="check-row"><input type="checkbox" class="ba-grp" value="${esc(c)}"> 👥 <b>${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span></label>`).join('')
+    : '<div class="hint">還沒有團班。</div>';
+  const stuList=(S.students||[]).length
+    ? S.students.slice().sort(stuNameCmp).map(st=>`<label class="check-row"><input type="checkbox" class="ba-stu" value="${esc(st.id)}"> ${snm(st.name)} <span class="tag">${esc(st.class_type||'1對1')}</span></label>`).join('')
+    : '<div class="hint">尚無學生。</div>';
+  openModal(`<div class="modal modal-tall"><div class="modal-head"><h3>📤 批次指派</h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:8px">選一本教材、勾要發的課、勾要發給誰，一次送出。預設是<b>加入</b>：本來已經指派到的人不會被拿掉。</div>
+      <div class="field"><label>教材</label><select id="ba-book" onchange="BAFILL()">${books.map(b=>`<option value="${esc(b.k)}"${b.k===cur?' selected':''}>${esc(b.k)}（${b.n} 課）</option>`).join('')}</select></div>
+      <div class="field"><label>要做什麼</label>
+        <div class="type-seg" id="ba-mode">
+          <button type="button" data-bamode="add" class="on">➕ 加入這些對象</button>
+          <button type="button" data-bamode="del">➖ 從這些課移除</button></div></div>
+      <div class="field"><label>截止日期 <span class="hint">選填，只在「加入」時會寫入</span></label><input id="ba-due" type="date" min="2000-01-01" max="2100-12-31"></div>
+      <div class="field"><label>發給整個團班</label><div class="check-list">${grpList}</div></div>
+      <div class="field"><label>再加個別學生（選填）</label><div class="check-list">${stuList}</div></div>
+      <div class="field"><label>要發哪幾課
+        <button class="btn btn-sm btn-ghost" type="button" onclick="BAALL()" style="float:right">全選 / 取消</button></label>
+        <div class="check-list" id="ba-lessons">${baListHtml(cur)}</div></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>
+      <button class="btn btn-primary" data-act="bulkAssignSave">📤 送出</button></div></div>`);
+  const seg=document.getElementById('ba-mode');
+  if(seg)seg.addEventListener('click',e=>{const b=e.target.closest('[data-bamode]');if(!b)return;
+    seg.querySelectorAll('[data-bamode]').forEach(x=>x.classList.toggle('on',x===b));});}
+function BAFILL(){const sel=document.getElementById('ba-book'),box=document.getElementById('ba-lessons');
+  if(sel&&box)box.innerHTML=baListHtml(sel.value);}
+function BAALL(){const b=[...document.querySelectorAll('.ba-l')];if(!b.length)return;
+  const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
 function assignModal(l){
   assignModalCore({id:l.id,title:l.title,ids:l.assigned_ids||[],groups:l.assigned_groups||[],
     due:l.due_date||'',saveAct:'saveAssign',unassignAct:'unassign'});
@@ -12413,6 +12464,36 @@ H.gmDelClass=async(cls)=>{if(!confirm('刪除團班「'+cls+'」？（只是把�
 H.gmSave=async(cls)=>{const checked=new Set($$('#gm-members .gm-mem:checked').map(x=>x.value));const btn=document.querySelector('[data-act="gmSave"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
   try{for(const s of S.students){const has=stuGroups(s).includes(cls),want=checked.has(s.id);if(has===want)continue;let g=stuGroups(s).slice();if(want)g.push(cls);else g=g.filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}
     toast('已儲存團班成員');groupMgrModal(cls);render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存成員';}toast('儲存失敗：'+((e&&e.message)||e));}};
+H.bulkAssign=()=>bulkAssignModal();
+H.bulkAssignSave=async(_x,btn)=>{
+  const lids=[...document.querySelectorAll('.ba-l:checked')].map(x=>x.value);
+  const grps=[...document.querySelectorAll('.ba-grp:checked')].map(x=>x.value);
+  const stus=[...document.querySelectorAll('.ba-stu:checked')].map(x=>x.value);
+  if(!lids.length)return toast('請先勾要發哪幾課');
+  if(!grps.length&&!stus.length)return toast('請先勾要發給誰');
+  const segOn=document.querySelector('#ba-mode [data-bamode].on');
+  const mode=(segOn&&segOn.dataset.bamode)||'add';
+  const due=((document.getElementById('ba-due')||{}).value)||'';
+  if(mode==='del'&&!confirm('要把勾起來的對象，從這 '+lids.length+' 課裡移除嗎？（學生寫過的答案不會刪掉）'))return;
+  if(btn){btn.disabled=true;btn.textContent='處理中…';}
+  let done=0,fail=0;
+  try{
+    for(const lid of lids){
+      const l=(S.lessons||[]).find(x=>x.id===lid);if(!l)continue;
+      const oldI=(l.assigned_ids||[]).slice(),oldG=(l.assigned_groups||[]).slice();
+      let ni,ng;
+      if(mode==='add'){ni=[...new Set(oldI.concat(stus))];ng=[...new Set(oldG.concat(grps))];}
+      else{ni=oldI.filter(x=>stus.indexOf(x)<0);ng=oldG.filter(x=>grps.indexOf(x)<0);}
+      const patch={assigned_ids:ni,assigned_groups:ng};
+      if(mode==='add'&&due)patch.due_date=due;
+      try{await DB.update('lessons',lid,patch);Object.assign(l,patch);done++;}
+      catch(e){fail++;}
+      if(btn)btn.textContent='處理中… '+done+'/'+lids.length;
+    }
+    closeModal();
+    try{await loadAll();render();}catch(e){}
+    toast(fail?('完成 '+done+' 課，'+fail+' 課失敗'):((mode==='add'?'已指派 ':'已移除 ')+done+' 課'));
+  }catch(e){if(btn){btn.disabled=false;btn.textContent='📤 送出';}toast(writeErr('失敗',e));}};
 H.saveAssign=async(id)=>{
   if(!id){toast('找不到課文，請重新整理後再試');return;}
   const ids=$$('#as-targets input:checked').map(x=>x.value);
