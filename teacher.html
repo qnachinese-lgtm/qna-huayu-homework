@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=811">
+<link rel="stylesheet" href="styles.css?v=813">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1514,6 +1514,12 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         <div id="agency-body"></div>
       </section>
 
+      <section id="panel-school" class="panel hide">
+        <div class="section-head"><h2>🏫 學校名冊</h2><span class="sub">一間學校一張卡：官網、申請系統登入窗口、帳號、承辦人。以後要進哪一間，從這裡一鍵打開</span><div class="head-actions">
+          <button class="btn btn-primary" data-act="schNew">＋ 新增學校</button></div></div>
+        <div id="school-body"></div>
+      </section>
+
       <section id="panel-writing" class="panel hide">
         <div class="section-head"><h2>✍️ 代書</h2><span class="sub">代寫讀書計劃、自傳等文件的客戶、進度與收費（收入會併入營運總收入）</span><div class="head-actions">
           <button class="btn btn-primary" data-act="wrNew">＋ 新增代書客戶</button></div></div>
@@ -1841,6 +1847,20 @@ const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a
 const answerableOf=(lid)=>questionsOf(lid).filter(q=>q.type!=='note'); // 排除示範題（不計分）
 // 邏輯排序：先依語法點，再依小節(A→B→…，無小節排最後)，最後依原順序
 function qSecKey(q){return ((q.gp_index==null)?'none':q.gp_index)+'|'+((q.gp_sub||'').trim());}
+/* HWPICK_V813 把一課的題目照「練習」分組（只有每一組的第一題帶 instruction） */
+function hwGroups(lid){
+  const qs=(S.questions||[]).filter(q=>q&&q.lesson_id===lid)
+    .slice().sort((a,b)=>(a.order_index||0)-(b.order_index||0));
+  const gs=[];let cur=null;
+  qs.forEach(q=>{const ins=String(q.instruction||'').trim();
+    if(ins||!cur){cur={lab:(ins||'（沒有標題的練習）').split('\n')[0],ids:[],n:0,hw:0,first:q};gs.push(cur);}
+    cur.ids.push(q.id);
+    if(q.type!=='note'){cur.n++;if(q.bank==='hw')cur.hw++;}});
+  return gs.filter(g=>g.n>0);}
+function hwPickCount(lid){
+  const gs=hwGroups(lid);if(!gs.length)return '';
+  const on=gs.filter(g=>g.hw>0).length;
+  return `<button class="btn btn-sm${on?' btn-accent':''}" data-act="hwPick" data-id="${lid}" title="挑幾組練習當回家作業">📒 挑作業${on?('（'+on+'）'):''}</button>`;}
 function sortQuestionsLogical(qs){return qs.slice().sort((a,b)=>{
   const ga=(a.gp_index==null)?999:a.gp_index, gb=(b.gp_index==null)?999:b.gp_index;
   if(ga!==gb)return ga-gb;
@@ -1867,7 +1887,7 @@ async function loadAll(){
    S.prices=b.filter(x=>x.kind==='price'&&!x.deleted_at);{const _lg=b.filter(x=>CRM_KINDS[x.kind]&&!x.deleted_at);_lg.forEach(x=>{x._col='lessons';});
    const _cn=crmDedupe(_crm.filter(x=>!x.deleted_at));_cn.forEach(x=>{x._col='crm';});
    const _all=_cn.concat(_lg);
-   S.interviews=_all.filter(x=>x.kind==='interview');S.inquiries=_all.filter(x=>x.kind==='inquiry');S.agencies=_all.filter(x=>x.kind==='agency');S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
+   S.interviews=_all.filter(x=>x.kind==='interview');S.inquiries=_all.filter(x=>x.kind==='inquiry');S.agencies=_all.filter(x=>x.kind==='agency');S.schools=_all.filter(x=>x.kind==='school');S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta');
   splitResults(d);
   {const cut=Date.now()-7*864e5;(S.trashStudents||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('students',x.id).catch(()=>{});});(S.trashLessons||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('lessons',x.id).catch(()=>{});});}
   if(!owner){
@@ -1917,7 +1937,7 @@ const CLASS_VIEW=null;
    S.tab=_t0;
    if(_t0==='student'&&_i0){S.stuId=_i0;if(!S.stuTab)S.stuTab='ov';}
    if(_t0==='class'&&_i0){S.clsId=_i0;if(!S.cvTab)S.cvTab='stu';}
-   if(['agency','interview','writing'].indexOf(_t0)>=0)S.bizSub=_t0;
+   if(['agency','interview','writing','school'].indexOf(_t0)>=0)S.bizSub=_t0;
    if(_t0==='pay'||_t0==='ops')S.moneySub=_t0;
  }
  /* 學生／班級頁沒帶 id 的話會是一片空白，退回總覽比較不會嚇到人 */
@@ -1953,7 +1973,7 @@ window.addEventListener('popstate',function(){
     S.tab=t;
     if(t==='student'&&id){S.stuId=id;if(!S.stuTab)S.stuTab='ov';}
     if(t==='class'&&id){S.clsId=id;if(!S.cvTab)S.cvTab='stu';}
-    if(['agency','interview','writing'].indexOf(t)>=0){S.bizSub=t;S.crmFocus=null;}
+    if(['agency','interview','writing','school'].indexOf(t)>=0){S.bizSub=t;S.crmFocus=null;}
     if(t==='pay'||t==='ops')S.moneySub=t;
     render();
     try{window.scrollTo(0,0);}catch(e){}
@@ -1979,7 +1999,7 @@ function render(){
   if(CLASS_VIEW){try{renderClassView(CLASS_VIEW);}catch(e){}return;}
   $$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.id===S.tab));
   /* NAV_SLIM_V670 合併起來的兩顆，進去任何一個子分頁都要亮著 */
-  try{const BIZ=['agency','interview','writing'],MON=['pay','ops'];
+  try{const BIZ=['agency','interview','writing','school'],MON=['pay','ops'];
     $$('.tab[data-act="bizNav"]').forEach(t=>t.classList.toggle('active',BIZ.indexOf(S.tab)>=0));
     $$('.tab[data-act="moneyNav"]').forEach(t=>t.classList.toggle('active',MON.indexOf(S.tab)>=0));
     const el=$('#c-biz');if(el){const n=['agencies','interviews','writings'].reduce((a,k)=>a+((S[k]||[]).filter(x=>(x.status||'active')==='active').length),0);el.textContent=n;}
@@ -2000,8 +2020,8 @@ function render(){
     const b=stuBill(x);if(b&&b.items.length&&b.due>0)_owe++;});}catch(e){}const el=$('#c-owe');if(el){el.textContent=_owe;el.classList.toggle('hide',!_owe||!IS_OWNER);}}
   $$('.panel').forEach(p=>p.classList.add('hide'));
   $('#panel-'+S.tab).classList.remove('hide');
-  if(!IS_OWNER&&['ops','pay','agency','interview','writing'].indexOf(S.tab)>=0)S.tab='dashboard';
-  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,guide:renderGuide}[S.tab])();}
+  if(!IS_OWNER&&['ops','pay','agency','interview','writing','school'].indexOf(S.tab)>=0)S.tab='dashboard';
+  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,guide:renderGuide}[S.tab])();}
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
@@ -3381,12 +3401,60 @@ function renderAgency(){
     </div></details>`;}).join('');
   body.innerHTML=(_foc?crmBackBar(_fkind,_foc):(head+crmFoldBar(_fkind,list)+crmThead(_fkind)))+'<div class="crm-list">'+rows+(_foc?'':crmTfoot(_fkind,list))+'</div>';
 }
+/* ===================== 🏫 學校名冊 SCHOOL_V812 ===================== */
+function schAll(){return (S.schools||[]).filter(x=>!x.deleted_at);}
+function schById(id){return schAll().find(x=>x.id===id)||null;}
+function schByName(nm){const k=String(nm||'').trim().toLowerCase();if(!k)return null;
+  return schAll().find(x=>{const a=String(x.name||'').trim().toLowerCase(),b=String(x.name_en||'').trim().toLowerCase();
+    return (a&&a===k)||(b&&b===k)||(a&&k.indexOf(a)>=0)||(b&&k.indexOf(b)>=0);})||null;}
+function schUrl(u){u=String(u||'').trim();if(!u)return '';return /^https?:\/\//i.test(u)?u:('https://'+u);}
+function schLinkBtn(u,ic,lab,strong){const h=schUrl(u);if(!h)return '';
+  return `<a class="btn btn-sm${strong?' btn-accent':''}" href="${esc(h)}" target="_blank" rel="noopener">${ic} ${lab}</a>`;}
+function renderSchools(){
+  const body=$('#school-body');if(!body)return;
+  if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','學校名冊只有主管理員看得到。');return;}
+  const head=navSubBar(BIZ_TABS,'school');
+  const list=schAll().slice().sort((a,b)=>String(a.country||'').localeCompare(String(b.country||''))||String(a.name||'').localeCompare(String(b.name||''),'zh-Hant'));
+  if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🏫</div><h3 style="margin:8px 0">還沒有學校</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">把常進的學校建在這裡：官網、申請系統的登入網址、登入帳號、承辦人信箱。<br>以後要進去，從這一頁按一下就開，不用再翻信箱找連結。<br><b>密碼不要填在這裡</b>，留在妳自己的密碼管理工具比較安全。</div><button class="btn btn-primary" data-act="schNew">＋ 新增學校</button></div>`;return;}
+  const cards=list.map(c=>{
+    const n=(S.agencies||[]).filter(a=>!a.deleted_at&&schByName(a.school)&&schByName(a.school).id===c.id).length;
+    const rows=[];
+    if(c.account)rows.push(`<div class="dash-row"><span class="muted" style="min-width:64px">帳號</span><b>${esc(c.account)}</b><button class="btn btn-sm" data-act="schCopy" data-id="${esc(c.id)}" title="複製帳號">📋</button></div>`);
+    if(c.contact||c.email||c.phone){
+      const bits=[c.contact?esc(c.contact):'',c.email?`<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>`:'',c.phone?esc(c.phone):''].filter(Boolean).join('　');
+      rows.push(`<div class="dash-row"><span class="muted" style="min-width:64px">承辦人</span><span>${bits}</span></div>`);}
+    if(c.note)rows.push(`<div class="dash-row" style="align-items:flex-start"><span class="muted" style="min-width:64px">備註</span><span style="flex:1;white-space:pre-wrap">${esc(c.note)}</span></div>`);
+    return `<div class="card" style="margin-bottom:10px"><div class="dash-row" style="align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px"><b style="font-size:16px">${esc(c.name||'（未命名）')}</b>
+        ${c.country?`<span class="badge" style="margin-left:6px">${esc(c.country)}</span>`:''}
+        ${n?`<span class="badge badge-ok" style="margin-left:4px">${n} 位客戶</span>`:''}
+        ${c.name_en?`<div class="muted" style="font-size:12.5px;margin-top:2px">${esc(c.name_en)}</div>`:''}</div>
+      <div class="dash-btns">${schLinkBtn(c.portal,'🔑','登入窗口',true)}${schLinkBtn(c.site,'🌐','官網')}
+        <button class="btn btn-sm" data-act="schEdit" data-id="${esc(c.id)}">✏️ 編輯</button>
+        <button class="btn btn-sm btn-danger btn-icon" data-act="schDel" data-id="${esc(c.id)}" title="刪掉這間學校">✕</button></div></div>
+      ${rows.length?`<div style="margin-top:6px">${rows.join('')}</div>`:''}</div>`;}).join('');
+  body.innerHTML=head+`<div class="hint" style="margin-bottom:8px">共 ${list.length} 間。密碼請不要存在這裡。</div>`+cards;
+}
+function schForm(c){c=c||{};
+  openModal(`<div class="modal modal-tall"><div class="modal-head"><h3>🏫 ${c.id?'編輯學校':'新增學校'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
+    <div class="field"><label>學校名稱 *</label><input id="sch-name" type="text" value="${esc(c.name||'')}" placeholder="例：國立臺灣師範大學"></div>
+    <div class="field"><label>英文／原文名 <span class="hint">選填</span></label><input id="sch-en" type="text" value="${esc(c.name_en||'')}" placeholder="National Taiwan Normal University"></div>
+    <div class="field"><label>國家／地區 <span class="hint">選填</span></label><input id="sch-country" type="text" value="${esc(c.country||'')}" placeholder="例：台灣"></div>
+    <div class="field"><label>學校官網 <span class="hint">選填</span></label><input id="sch-site" type="text" value="${esc(c.site||'')}" placeholder="www.ntnu.edu.tw"></div>
+    <div class="field full"><label>🔑 申請系統／登入網址 <span class="hint">以後就從名冊按這個進去</span></label><input id="sch-portal" type="text" value="${esc(c.portal||'')}" placeholder="https://…"></div>
+    <div class="field"><label>登入帳號 <span class="hint">只存帳號</span></label><input id="sch-account" type="text" value="${esc(c.account||'')}" placeholder="例：qnachinese"></div>
+    <div class="field"><label>承辦人 <span class="hint">選填</span></label><input id="sch-contact" type="text" value="${esc(c.contact||'')}" placeholder="姓名／處室"></div>
+    <div class="field"><label>承辦人信箱 <span class="hint">選填</span></label><input id="sch-email" type="text" value="${esc(c.email||'')}" placeholder="oia@…"></div>
+    <div class="field"><label>電話 <span class="hint">選填</span></label><input id="sch-phone" type="text" value="${esc(c.phone||'')}"></div>
+    <div class="field full"><label>備註 <span class="hint">選填。申請期限、學費、要交什麼文件…</span></label><textarea id="sch-note" rows="4" placeholder="例：每年 3 月 1 日截止，要成績單＋財力證明＋TOCFL A2">${esc(c.note||'')}</textarea></div>
+    <div class="field full"><div class="hint">🔒 密碼不要填在這裡。這個名冊只放帳號跟網址，密碼請留在妳自己的密碼管理工具。</div></div>
+  </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="schSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);}
 function agForm(c){c=c||{};
   const rOpt=(v,l)=>`<option value="${v}"${(c.result||'')===v?' selected':''}>${l}</option>`;
   openModal(`<div class="modal modal-tall"><div class="modal-head"><h3>🎓 ${c.id?'編輯代辦客戶':'新增代辦客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
     <div class="field"><label>姓名 *</label><input id="ag-name" type="text" value="${esc(c.name||'')}" placeholder="例：Trần Văn B"></div>
     <div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="ag-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>
-    <div class="field full"><label>申請學校／目標 <span class="hint">選填</span></label><input id="ag-school" type="text" value="${esc(c.school||'')}" placeholder="例：台灣師大 語言中心、某某大學碩士"></div>
+    <div class="field full"><label>申請學校／目標 <span class="hint">選填。打字會從「🏫 學校名冊」跳建議</span></label><input id="ag-school" type="text" list="sch-dl" value="${esc(c.school||'')}" placeholder="例：台灣師大 語言中心、某某大學碩士"><datalist id="sch-dl">${schAll().map(x=>`<option value="${esc(x.name||'')}"></option>`).join('')}</datalist></div>
     <div class="field"><label>申請結果</label><select id="ag-result"><option value=""${!c.result?' selected':''}>— 進行中 —</option>${rOpt('submitted','📮 已送件、等結果')}${rOpt('admitted_s','🎉 錄取・有獎學金')}${rOpt('admitted_n','✅ 錄取・無獎學金')}${c.result==='admitted'?rOpt('admitted','✅ 錄取（舊）'):''}${rOpt('rejected','❌ 未錄取')}</select></div>
     <div class="field"><label>📄 文件繳交期限日 <span class="hint">選填，會在「待辦」提醒</span></label><input id="ag-deadline" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.deadline||'')}"></div>
     <div class="field"><label>💰 談定的總代辦費 <span class="hint">選填。填了才會算「還差多少」</span></label><input id="ag-total" type="number" min="0" value="${esc(c.fee_total==null?'':String(c.fee_total))}" placeholder="例：800"></div>
@@ -3667,7 +3735,7 @@ function crmThead(kind){const cs=CRM_COLS[kind]||CRM_COLS.interview;
   const gx=(kind==='interview')?' itv8':'';
   return `<div class="crm-thead"><span class="crm-chev" style="visibility:hidden">▸</span><div class="crm-head${gx}">${cs.map((t,i)=>`<span class="cc ${cls[i]||''}">${esc(t)}</span>`).join('')}</div></div>`;}
 /* NAV_SLIM_V670 合併後的分頁列：留學業務三個、收費財務兩個 */
-const BIZ_TABS=[['agency','🎓 代辦申請'],['interview','🎤 面試練習'],['writing','✍️ 代書']];
+const BIZ_TABS=[['agency','🎓 代辦申請'],['interview','🎤 面試練習'],['writing','✍️ 代書'],['school','🏫 學校名冊']];
 const MONEY_TABS=[['pay','💰 繳費'],['ops','📈 財務・營運']];
 function navSubBar(tabs,cur){
   return '<div class="pagebar" style="margin-bottom:10px"><div class="segbar">'
@@ -5014,7 +5082,7 @@ function classBoardHtml(cls){
     const cells=members.map(s=>{const r=resultOf(l.id,s.id);const st=STAT(r);return `<span class="badge badge-${st[1]}" style="margin:2px">${snm(s.name)}：${st[0]}</span>`;}).join('');
     const submitted=members.filter(s=>{const r=resultOf(l.id,s.id);return r&&(r.status==='pending'||r.status==='done');}).length;
     const di=dueInfo(l.due_date);
-    const acts=`<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽（學生看到的樣子）</button><button class="btn btn-sm" data-act="tryLesson" data-id="${l.id}" title="像學生一樣真的做做看，不會存檔">🎒 試做</button>${l.handout_url?`<a class="btn btn-sm btn-accent" href="${esc(l.handout_url)}" target="_blank" rel="noopener">📄 開啟 PDF</a>`:''}<button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">✏️ 編輯</button></div>`;
+    const acts=`<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽（學生看到的樣子）</button><button class="btn btn-sm" data-act="tryLesson" data-id="${l.id}" title="像學生一樣真的做做看，不會存檔">🎒 試做</button>${hwPickCount(l.id)}${l.handout_url?`<a class="btn btn-sm btn-accent" href="${esc(l.handout_url)}" target="_blank" rel="noopener">📄 開啟 PDF</a>`:''}<button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">✏️ 編輯</button></div>`;
     return `<div class="card" style="margin:8px 0;padding:12px"><div class="row-between"><b>${(l.order_index?('L'+l.order_index+' · '):'')+esc(l.title)}</b><span class="tag ${submitted===members.length?'gold':''}">已交 ${submitted}/${members.length}</span></div>${di?`<div style="margin-top:2px"><span class="badge ${di.cls}">${di.label}</span></div>`:''}${acts}${hw?`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:2px">${cells}</div>`:'<div class="hint" style="margin-top:6px">此課只有上課內容、沒有作業題</div>'}</div>`;}).join('');
   const prows=prons.map(p=>`<div class="card" style="margin:8px 0;padding:12px"><div class="row-between"><b>🔤 ${esc(p.title||'發音')}</b><span class="tag">發音教材</span></div></div>`).join('');
   return `<div class="hint" style="margin-bottom:6px">整班發佈 ${pub.length} 課${prons.length?('＋'+prons.length+' 份發音'):''}　徽章：<span class="badge badge-ok">已完成</span> <span class="badge badge-soon">待批改／作答中</span> <span class="badge badge-pending">未開始</span></div>${lrows}${prows}`;
@@ -8065,7 +8133,7 @@ function navMoreSync(){
   const box=document.getElementById('nav-more'),btn=document.getElementById('nav-more-btn');
   if(!box||!btn)return;
   // 目前的分頁在「更多」裡面 → 自動展開
-  const inside=['agency','interview','writing'].indexOf(S.tab)>=0;
+  const inside=['agency','interview','writing','school'].indexOf(S.tab)>=0;
   if(inside)S.navMore=true;
   const open=!!S.navMore;
   box.classList.toggle('hide',!open);
@@ -8079,7 +8147,7 @@ function navMoreSync(){
 }
 H.navMore=()=>{S.navMore=!S.navMore;try{navMoreSync();}catch(e){}};
 H.tab=(id)=>{
-  if(['agency','interview','writing'].indexOf(id)>=0){S.bizSub=id;S.crmFocus=null;}
+  if(['agency','interview','writing','school'].indexOf(id)>=0){S.bizSub=id;S.crmFocus=null;}
   if(id==='pay'||id==='ops')S.moneySub=id;
 if(CLASS_VIEW){location.href='teacher.html?tab='+encodeURIComponent(id);return;}S.tab=id;render();};
 H.tabGroup=(id)=>{const first=document.querySelector('.tab[data-group="'+id+'"]');if(CLASS_VIEW){location.href='teacher.html?tab='+encodeURIComponent(first?first.dataset.id:'dashboard');return;}const cur=document.querySelector('.tab[data-id="'+S.tab+'"]');if(cur&&cur.dataset.group===id){render();return;}if(first){S.tab=first.dataset.id;render();}};
@@ -11950,6 +12018,52 @@ H.agSave=async(id)=>{const name=($('#ag-name').value||'').trim();if(!name)return
     fee_total:(_tv===''?null:Number(_tv)),fee_cur:(($('#ag-fcur')&&$('#ag-fcur').value)||'VND')};
   try{if(id){await DB.update(crmCol(id),id,patch);}else{patch.status='active';patch.log=[];patch.created_at=new Date().toISOString();await DB.insert('crm',patch);}
     await loadAll();closeModal();S.tab='agency';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
+H.schNew=()=>schForm(null);
+H.schEdit=(id)=>schForm(schById(id));
+H.schSave=async(id)=>{const name=($('#sch-name').value||'').trim();if(!name)return toast('請填學校名稱');
+  const g=k=>(($('#sch-'+k)&&$('#sch-'+k).value)||'').trim();
+  const patch={kind:'school',name,name_en:g('en'),country:g('country'),site:g('site'),portal:g('portal'),
+    account:g('account'),contact:g('contact'),email:g('email'),phone:g('phone'),note:g('note')};
+  try{if(id){await DB.update(crmCol(id),id,patch);}
+    else{patch.status='active';patch.created_at=new Date().toISOString();await DB.insert('crm',patch);}
+    await loadAll();closeModal();S.tab='school';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
+H.schDel=async(id)=>{const c=schById(id);if(!c)return;
+  if(!confirm('把「'+(c.name||'')+'」從學校名冊拿掉？（代辦客戶的資料不會被動到）'))return;
+  try{await DB.update(crmCol(id),id,{deleted_at:new Date().toISOString()});
+    S.schools=(S.schools||[]).filter(x=>x.id!==id);render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
+H.schCopy=async(id)=>{const c=schById(id);if(!c||!c.account)return;
+  try{await navigator.clipboard.writeText(c.account);toast('帳號已複製');}catch(e){toast('複製失敗，請手動選取');}};
+H.hwPick=(lid)=>{
+  const l=S.lessons.find(x=>x.id===lid);if(!l)return;
+  const gs=hwGroups(lid);
+  if(!gs.length)return toast('這一課還沒有題目');
+  const rows=gs.map((g,i)=>{const on=g.hw>0&&g.hw>=g.n;const half=g.hw>0&&g.hw<g.n;
+    return `<label class="dash-row" style="cursor:pointer;align-items:flex-start;padding:7px 0">
+      <input type="checkbox" class="hwpk" data-i="${i}"${on||half?' checked':''} style="margin-top:3px">
+      <span style="flex:1"><b>${esc(g.lab)}</b>
+        <span class="muted" style="margin-left:6px">${g.n} 題</span>
+        ${half?'<span class="badge badge-soon" style="margin-left:4px">目前只有部分在作業</span>':''}</span></label>`;}).join('');
+  window.__HWG=gs;
+  openModal(`<div class="modal modal-tall"><div class="modal-head"><h3>📒 挑作業　<span class="muted" style="font-weight:400;font-size:13px">${esc(l.title||'')}</span></h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body"><div class="hint" style="margin-bottom:8px">勾起來的練習會搬到學生的「📒 作業」分頁；沒勾的留在「上課內容 → 語法」。隨時可以再改回來，學生已經寫過的答案不會不見。</div>
+    ${rows}</div>
+    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="hwPickSave" data-id="${esc(lid)}">💾 儲存</button></div></div>`);};
+H.hwPickSave=async(lid,btn)=>{
+  const gs=window.__HWG||[];if(!gs.length)return closeModal();
+  const want={};
+  document.querySelectorAll('.hwpk').forEach(cb=>{const g=gs[+cb.dataset.i];if(!g)return;
+    g.ids.forEach(qid=>{want[qid]=cb.checked?'hw':'class';});});
+  const jobs=[];
+  (S.questions||[]).forEach(q=>{if(!q||q.lesson_id!==lid)return;
+    const w=want[q.id];if(!w)return;
+    const cur=(q.bank==='hw')?'hw':'class';
+    if(cur!==w)jobs.push({id:q.id,bank:w});});
+  if(!jobs.length){closeModal();return toast('沒有變動');}
+  try{if(btn){btn.disabled=true;btn.textContent='儲存中…';}
+    for(const j of jobs){await DB.update('questions',j.id,{bank:j.bank});
+      const q=(S.questions||[]).find(x=>x.id===j.id);if(q)q.bank=j.bank;}
+    closeModal();render();toast('已更新 '+jobs.length+' 題');}
+  catch(e){toast(writeErr('儲存失敗',e));if(btn){btn.disabled=false;btn.textContent='💾 儲存';}}};
 H.agToggle=async(id)=>{const c=agById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
   try{await DB.update(crmCol(id),id,{status:st,closed_as:(st==='done'?'done':null)});await loadAll();render();toast(st==='done'?'已結案':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
 H.agDel=async(id)=>{const c=agById(id);if(!c)return;if(!confirm('確定刪除「'+(c.name||'')+'」？所有進度與收費紀錄會一起刪除。'))return;
@@ -11998,7 +12112,7 @@ H.itvEdit=(id)=>itvForm(itvById(id));
 H.itvSess=(key)=>itvSessForm(key);
 /* TDZ_FIX_V13 這兩個 handler 一定要放在 const H={} 之後 */
 /* CRM_FOLD_V14 全部展開／收合 */
-H.bizNav=()=>{const ok=['agency','interview','writing'];const t=(ok.indexOf(S.bizSub)>=0)?S.bizSub:'agency';
+H.bizNav=()=>{const ok=['agency','interview','writing','school'];const t=(ok.indexOf(S.bizSub)>=0)?S.bizSub:'agency';
   S.tab=t;S.crmFocus=null;render();try{window.scrollTo(0,0);}catch(e){}};
 H.moneyNav=()=>{const t=(S.moneySub==='ops')?'ops':'pay';S.tab=t;render();try{window.scrollTo(0,0);}catch(e){}};
 /* CRMFIX_V688 再點一次同一位客戶＝收起來回列表（本來只會一直重新打開，收不掉） */
