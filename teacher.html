@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=878">
+<link rel="stylesheet" href="styles.css?v=879">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1326,6 +1326,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .memo-row .memo-n{margin-top:2px;font-size:12.5px;line-height:1.6;color:var(--mut,#8b8079);white-space:pre-wrap;word-break:break-word}
         .memo-row.memo-done .memo-t{text-decoration:line-through;opacity:.55}
         .memo-row.memo-done .memo-n{opacity:.5}
+        /* MEMODONE_V879 做完之後寫的結果，不要被畫掉，那才是要留的東西 */
+        .memo-row .memo-r{margin-top:3px;font-size:12.5px;line-height:1.6;color:#6b7f5c;
+          white-space:pre-wrap;word-break:break-word;text-decoration:none;opacity:1}
         @media(max-width:520px){.memo-add #memo-due{width:100%}}
         /* DLBADGE_V809 「（還有 N 天）」自己一行，日期那一行才不會拉得又長又擠 */
         .crm-head .cc.dt .badge.dl-badge{display:inline-block;text-align:center;line-height:1.45}
@@ -2240,6 +2243,8 @@ function memoRowHtml(m){
     <button class="btn btn-sm btn-icon" data-act="${m.done?'memoUndo':'memoDone'}" data-id="${esc(m.id)}" title="${m.done?'改回還沒做':'標成做完了'}">${m.done?'↩':'✅'}</button>
     <div class="memo-b"><div class="memo-t">${esc(m.text||'')}</div>${
       String(m.note||'').trim()?`<div class="memo-n">${esc(String(m.note).trim())}</div>`:''
+    }${/* MEMODONE_V879 做完之後寫的結果，單獨一行 */
+      String(m.done_note||'').trim()?`<div class="memo-r">結果：${esc(String(m.done_note).trim())}</div>`:''
     }</div>
     ${m.done?'':memoDueTag(m)}
     <button class="btn btn-sm btn-icon" data-act="memoEdit" data-id="${esc(m.id)}" title="改標題、內容或日期">✏️</button>
@@ -12957,9 +12962,35 @@ H.memoAdd=async(_x,btn)=>{
   try{await DB.insert('crm',{kind:'memo',text:text,note:note||null,due:due||null,done:false,created_at:new Date().toISOString()});
     await loadAll();render();toast('記下來了 ✓');}
   catch(e){toast(writeErr('存不起來',e));if(btn){btn.disabled=false;btn.textContent='＋ 記下來';}}};
-H.memoDone=async(id)=>{try{await DB.update(crmCol(id),id,{done:true,done_at:new Date().toISOString()});
-  const m=(S.memos||[]).find(x=>x.id===id);if(m){m.done=true;m.done_at=new Date().toISOString();}
-  render();}catch(e){toast(writeErr('失敗',e));}};
+/* MEMODONE_V879 按✅先問一句：結果怎麼樣？要不要再追一件？
+   兩格都空著直接按完成，就跟以前一樣只是畫掉。 */
+H.memoDone=(id)=>{const m=(S.memos||[]).find(x=>x.id===id);if(!m)return;
+  const t=localToday();
+  openModal('<div class="modal" style="max-width:500px"><div class="modal-head"><h3>✅ 做完了</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="box" style="margin-bottom:12px"><b>'+esc(m.text||'')+'</b>'
+   +(String(m.note||'').trim()?('<div class="hint" style="margin-top:3px;white-space:pre-wrap">'+esc(String(m.note).trim())+'</div>'):'')
+   +'</div>'
+   +'<div class="field"><label>結果／備註 <span class="hint">可以不填</span></label>'
+   +'<textarea id="memo-dn" rows="3" maxlength="800" placeholder="例：電話打通了，對方說資料要補居留證影本，下週一之前寄過去"></textarea></div>'
+   +'<div class="field"><label>還要再追一件？ <span class="hint">填了就會再開一件新的備忘</span></label>'
+   +'<input id="memo-nx" type="text" maxlength="200" placeholder="例：寄居留證影本給海基會"></div>'
+   +'<div class="field"><label>那一件要哪天做完 <span class="hint">可以不填</span></label>'
+   +'<input id="memo-nxd" type="date" min="2000-01-01" max="2100-12-31" value="'+esc(t)+'"></div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">先不要</button>'
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="memoDoneSave" data-id="'+esc(m.id)+'">✅ 完成</button></div></div>');};
+H.memoDoneSave=async(id,btn)=>{const m=(S.memos||[]).find(x=>x.id===id);if(!m)return;
+  const dn=(((document.getElementById('memo-dn')||{}).value)||'').trim();
+  const nx=(((document.getElementById('memo-nx')||{}).value)||'').trim();
+  const nxd=((document.getElementById('memo-nxd')||{}).value)||'';
+  if(btn){btn.disabled=true;btn.textContent='存…';}
+  const at=new Date().toISOString();
+  try{await DB.update(crmCol(id),id,{done:true,done_at:at,done_note:dn||null});
+    /* 有填下一步就順手再開一件，這樣不用再回去打一次 */
+    if(nx)await DB.insert('crm',{kind:'memo',text:nx,note:null,due:nxd||null,done:false,created_at:at});
+    await loadAll();closeModal();render();toast(nx?'做完了，下一件也記下來了 ✓':'做完了 ✓');}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='✅ 完成';}toast(writeErr('失敗',e));}};
 H.memoUndo=async(id)=>{try{await DB.update(crmCol(id),id,{done:false,done_at:null});
   const m=(S.memos||[]).find(x=>x.id===id);if(m){m.done=false;m.done_at=null;}
   render();}catch(e){toast(writeErr('失敗',e));}};
