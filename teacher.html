@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=881">
+<link rel="stylesheet" href="styles.css?v=884">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1319,6 +1319,39 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           line-height:1.4;padding-top:3px;padding-bottom:3px;text-align:left}
         .crm-thead .crm-head .cc.dt{white-space:nowrap}
         /* MEMO_V820 我的備忘 */
+        /* ══════ WKCOPY_V884 照上一週排下一週 ══════ */
+        .wkc-top{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+        .wkc-top .field{flex:1;min-width:170px;margin:0}
+        .wkc-body{max-height:50vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:6px}
+        .wkc-d{font-size:12px;font-weight:700;color:#a3714e;padding:9px 4px 3px}
+        .wkc-r{display:flex;align-items:center;gap:9px;padding:6px 6px;border-radius:8px;cursor:pointer}
+        .wkc-r:hover{background:#faf4ec}
+        .wkc-r input{width:auto;margin:0;flex:none}
+        .wkc-t{flex:none;font-size:12px;color:#8b8079;font-variant-numeric:tabular-nums;min-width:96px}
+        .wkc-n{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        /* 已經排過或已經點名過的，標出來而且不給勾，免得蓋掉原本的紀錄 */
+        .wkc-r.skip{opacity:.55}
+        .wkc-w{flex:none;font-size:11.5px;color:#b45309}
+        /* ══════ AF_V882 補參考答案 ══════ */
+        .af-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+        .af-bar select{flex:1;min-width:180px}
+        .af-body{max-height:64vh;overflow:auto;padding-right:4px}
+        .af-les{font-size:12px;font-weight:700;color:#a3714e;letter-spacing:.4px;
+          padding:12px 2px 5px;position:sticky;top:0;background:#fff;z-index:1}
+        .af-q{border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:8px}
+        .af-h{display:flex;gap:8px;align-items:baseline}
+        .af-n{flex:none;font-size:11.5px;font-weight:700;color:#b9a68f;min-width:26px}
+        .af-p{flex:1;min-width:0;font-size:13.5px;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+        .af-ok{flex:none;font-size:12px;color:#5b8a4a;font-weight:700}
+        .af-ops{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:7px}
+        .af-o{text-align:left;border:1px solid var(--line);background:#fff;border-radius:8px;
+          padding:6px 9px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--ink)}
+        .af-o:hover{background:#faf4ec}
+        /* 選到的那一個要很明顯，不然一整頁看不出哪些補好了 */
+        .af-o.on{background:#efe0cc;border-color:#c79e74;font-weight:700}
+        .af-o b{color:#a3714e;margin-right:5px}
+        .af-t{width:100%;margin-top:7px;font-family:inherit;font-size:13px;resize:vertical}
+        @media(max-width:560px){.af-ops{grid-template-columns:1fr}}
         /* ══════ QS_V881 全站搜尋 ══════ */
         .qs-box{max-width:620px;width:100%}
         #qs-q{width:100%;font-size:16px;padding:11px 13px;border:1px solid var(--line);
@@ -2241,6 +2274,135 @@ function dashTodayHtml(){
   _rows.sort((a,b)=>a.t.localeCompare(b.t));
   return _rows.map(x=>x.h).join('');
 }
+/* ===================== 🔁 照上一週排下一週 WKCOPY_V884 ===================== */
+function wkShift(d,n){try{const x=new Date(String(d)+'T00:00:00');x.setDate(x.getDate()+n);
+  return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');}
+  catch(e){return d;}}
+function wkDayN(d){try{return (new Date(String(d)+'T00:00:00').getDay()+6)%7;}catch(e){return 0;}}
+/* 那一週每個人上了什麼課。
+   「上一週」通常已經上完了，資料是在上課記錄裡（class_log），不是預排，所以兩邊都要看。
+   同一天同一個人只取一筆——預排優先。 */
+function wkSrcRows(mon){
+  const end=wkShift(mon,6),out=[];
+  (S.students||[]).forEach(s=>{if(!s||s.is_test||s.deleted_at)return;
+    if((s.class_type||'')==='團班')return;/* 團班走下面那一段，不然一個班會冒出好幾筆 */
+    const seen={};
+    studentPlanned(s).forEach(p=>{if(p&&p.date>=mon&&p.date<=end&&!seen[p.date]){seen[p.date]=1;
+      out.push({kind:'S',id:s.id,name:s.name||'',date:p.date,start:p.start||'',end:p.end||'',note:p.note||''});}});
+    (Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{
+      if(e&&e.date>=mon&&e.date<=end&&!seen[e.date]){seen[e.date]=1;
+        out.push({kind:'S',id:s.id,name:s.name||'',date:e.date,start:e.start||'',end:e.end||'',note:''});}});});
+  try{groupsList().forEach(cls=>{const seen={};
+    classPlanned(cls).forEach(p=>{if(p&&p.date>=mon&&p.date<=end&&!seen[p.date]){seen[p.date]=1;
+      out.push({kind:'C',id:cls,name:cls+' 團班',date:p.date,start:p.start||'',end:p.end||'',note:p.note||''});}});
+    (S.students||[]).forEach(s=>{if(!s||s.is_test)return;if(stuGroups(s).indexOf(cls)<0)return;
+      (Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{
+        if(e&&e.date>=mon&&e.date<=end&&!seen[e.date]){seen[e.date]=1;
+          out.push({kind:'C',id:cls,name:cls+' 團班',date:e.date,start:e.start||'',end:e.end||'',note:''});}});});});}
+  catch(e){}
+  out.sort((a,b)=>(a.date+' '+(a.start||'')+a.name).localeCompare(b.date+' '+(b.start||'')+b.name));
+  return out;}
+function wkHasLog(kind,id,date){
+  if(kind==='S'){const s=studentById(id);
+    return !!(s&&(Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===date));}
+  return (S.students||[]).some(s=>s&&!s.is_test&&stuGroups(s).indexOf(id)>=0
+    &&(Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===date));}
+function wkHasPlan(kind,id,date){
+  if(kind==='S')return studentPlanned(studentById(id)).some(p=>p&&p.date===date);
+  return classPlanned(id).some(p=>p&&p.date===date);}
+let WKC_ROWS=[];
+function wkcBodyHtml(){
+  const f=document.getElementById('wkc-from'),t=document.getElementById('wkc-to');
+  const from=weekStart((f&&f.value)||localToday()),to=weekStart((t&&t.value)||localToday());
+  const shift=Math.round((Date.parse(to+'T00:00:00')-Date.parse(from+'T00:00:00'))/864e5);
+  WKC_ROWS=wkSrcRows(from).map(r=>{
+    const nd=wkShift(r.date,shift);
+    const logged=wkHasLog(r.kind,r.id,nd),planned=wkHasPlan(r.kind,r.id,nd);
+    return Object.assign({},r,{to:nd,skip:(logged||planned),
+      why:logged?'那天已經點名過':(planned?'那天已經排過':'')});});
+  if(!shift)return '<div class="hint" style="padding:16px 6px">上下選到同一週了，請把「排到哪一週」往後挑一週。</div>';
+  if(!WKC_ROWS.length)return '<div class="hint" style="padding:16px 6px">'
+    +from+' 那一週沒有課可以照著排。</div>';
+  const parts=[];let last='';
+  WKC_ROWS.forEach((r,i)=>{
+    if(r.date!==last){last=r.date;
+      parts.push('<div class="wkc-d">'+r.date+'（'+DAYS[wkDayN(r.date)]+'）→ '
+        +r.to+'（'+DAYS[wkDayN(r.to)]+'）</div>');}
+    const tm=(r.start||'')+(r.end?('–'+r.end):'')||'（沒填時間）';
+    parts.push('<label class="wkc-r'+(r.skip?' skip':'')+'">'
+      +'<input type="checkbox" class="wkc-c" value="'+i+'"'+(r.skip?'':' checked')+'>'
+      +'<span class="wkc-t">'+esc(tm)+'</span>'
+      +'<span class="wkc-n">'+esc(r.name)+'</span>'
+      +(r.why?('<span class="wkc-w">'+esc(r.why)+'</span>'):'')+'</label>');});
+  return parts.join('');}
+function wkcPaint(){const b=document.getElementById('wkc-body');if(b)b.innerHTML=wkcBodyHtml();
+  const n=document.getElementById('wkc-n');
+  if(n)n.textContent=WKC_ROWS.filter(r=>!r.skip).length+' 堂可以排';}
+/* ===================== ✅ 補參考答案 AF_V882 ===================== */
+/* 只有這四種題型有「參考答案」可以補。
+   重組（order）的答案就是選項本身、選填（opt）和示範題（note）本來就不對答案，都不列。 */
+const AF_TYPES=['choice','fill','qa','write'];
+let AF_BOOK='',AF_ONLY=1;
+function afEmpty(q){const a=q&&q.answer;
+  if(a==null)return true;
+  if(typeof a==='number')return false;/* 選擇題答案是 0 也算有填 */
+  if(Array.isArray(a))return a.filter(x=>String(x==null?'':x).trim()!=='').length===0;
+  return String(a).trim()==='';}
+function afUse(q){return !!q&&AF_TYPES.indexOf(q.type||'choice')>=0;}
+function afMissing(book){/* 這一本還缺幾題 */
+  try{const ids={};(baLessonsOf(book)||[]).forEach(l=>{ids[l.id]=1;});
+    return (S.questions||[]).filter(q=>q&&ids[q.lesson_id]&&afUse(q)&&afEmpty(q)).length;}
+  catch(e){return 0;}}
+function afMissingAll(){
+  return (S.questions||[]).filter(q=>afUse(q)&&afEmpty(q)).length;}
+function afBooks(){/* 只列還缺答案的書，並且把缺的題數標出來 */
+  const out=[];
+  /* baBooks() 回的是 {k:書名, n:課數}，不是字串 */
+  try{(baBooks()||[]).forEach(x=>{const b=(x&&x.k)||x;const n=afMissing(b);if(n)out.push({book:b,n:n});});}catch(e){}
+  return out;}
+function afBodyHtml(){
+  const book=AF_BOOK;
+  if(!book)return '<div class="hint" style="padding:16px 4px">上面選一本教材。</div>';
+  let ls=[];try{ls=(baLessonsOf(book)||[]).slice()
+    .sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0));}catch(e){}
+  const parts=[];let total=0;
+  ls.forEach(l=>{
+    const qs=(S.questions||[]).filter(q=>q&&q.lesson_id===l.id&&afUse(q)&&(!AF_ONLY||afEmpty(q)))
+      .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0));
+    if(!qs.length)return;
+    parts.push('<div class="af-les">'+esc(l.title||'（沒有課名）')+'　·　'+qs.length+' 題</div>');
+    qs.forEach((q,i)=>{total++;parts.push(afQHtml(q,i+1));});});
+  if(!total)return '<div class="hint" style="padding:16px 4px">'
+    +(AF_ONLY?'這一本的參考答案都補齊了 🎉':'這一本沒有可以補答案的題目。')+'</div>';
+  return parts.join('');}
+const AF_AB='ABCDEFGH';
+function afQHtml(q,n){
+  const t=q.type||'choice';
+  const done=!afEmpty(q);
+  let body='';
+  if(t==='choice'){
+    const opts=Array.isArray(q.options)?q.options:[];
+    /* 答案可能存成數字，也可能是字串的數字，兩種都要認得出來 */
+    let cur=-1;const raw=Array.isArray(q.answer)?q.answer[0]:q.answer;
+    if(raw===0)cur=0;else if(raw!=null&&String(raw).trim()!==''&&!isNaN(Number(raw)))cur=Number(raw);
+    body=opts.length
+      ?('<div class="af-ops">'+opts.map((o,i)=>'<button type="button" class="af-o'+(i===cur?' on':'')
+         +'" data-act="afPick" data-id="'+esc(q.id+'::'+i)+'"><b>'+AF_AB.charAt(i)+'</b>'
+         +esc(o)+'</button>').join('')+'</div>')
+      :'<div class="hint" style="margin-top:6px">這題還沒有選項，要先用 ⚙️ 把選項補上。</div>';}
+  else{
+    const v=Array.isArray(q.answer)?q.answer.join('\n'):String(q.answer==null?'':q.answer);
+    body='<textarea class="af-t" rows="2" data-afq="'+esc(q.id)+'" '
+      +'placeholder="參考答案（多個答案就一行一個）">'+esc(v)+'</textarea>';}
+  return '<div class="af-q" data-afrow="'+esc(q.id)+'">'
+    +'<div class="af-h"><span class="af-n">'+n+'.</span>'
+    +'<span class="af-p">'+esc(q.prompt||q.instruction||'（沒有題目文字）')+'</span>'
+    +'<span class="af-ok" data-afok="'+esc(q.id)+'">'+(done?'✓':'')+'</span></div>'
+    +body+'</div>';}
+function afPaint(){
+  const b=document.getElementById('af-body');if(b)b.innerHTML=afBodyHtml();
+  const c=document.getElementById('af-cnt');
+  if(c)c.textContent=AF_BOOK?('這一本還缺 '+afMissing(AF_BOOK)+' 題'):'';}
 /* ===================== 🔍 全站搜尋 QS_V881 ===================== */
 /* 越南名字打不出聲調也要找得到：Luong→Lương、Thuy→Thúy。
    做法是把字拆成「基本字母＋聲調記號」再把記號丟掉；đ 不在那個規則裡，另外換。 */
@@ -3053,6 +3215,7 @@ function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'
   const _cvb=(v,lb)=>`<button class="segb${view===v?' on':''}" data-act="calView" data-id="${v}">${lb}</button>`;
   const toggle=`<div class="cal-top">
     <div class="segbar">${_cvb('week','📆 這一週')}${_cvb('month','🗓 這個月')}${_cvb('ledger','👥 上課記錄')}</div>
+    <button class="btn btn-sm" data-act="wkcOpen" style="margin-left:9px" title="把某一週的課整組往後排">🔁 照上一週排下一週</button>
     <span class="grow"></span>
     <details class="cal-help"><summary>？ 這頁怎麼用</summary><div>
       <b>📆 這一週</b>：今天起七天，每天一列。沒課的那天會顯示「沒課」，按旁邊的「＋ 排課」就能排進去。<br>
@@ -5018,6 +5181,8 @@ function renderLessons(){
     +_fchip('wip','🟡 進行中',_wipN)
     +'</div>'
     +(_lf==='wip'&&ls.length?('<button class="btn btn-sm btn-accent" style="margin-left:9px" data-act="lesDoneAll">✅ 把這 '+ls.length+' 課標成完成</button>'):'')
+    /* AF_V882 補參考答案的入口；全部補齊了就不用出現 */
+    +(function(){try{const n=afMissingAll();return n?('<button class="btn btn-sm" style="margin-left:9px" data-act="afOpen" title="一次補整本的參考答案">✅ 補參考答案<span class="segn">'+n+'</span></button>'):'';}catch(e){return '';}})()
     +'<span class="grow"></span><div class="segbar">'
     +'<button class="segb'+(bkAnyOpen?' on':'')+'" data-act="toggleAllBooks">'+(bkAnyOpen?'📚 全部收起':'📚 全部展開')+'</button>'
     +'<button class="segb'+(anyOpen?' on':'')+'" data-act="toggleAllCards">'+(anyOpen?'▴ 課卡收起':'▾ 課卡展開')+'</button>'
@@ -6087,6 +6252,32 @@ function ghListHtml(book){
       +'<span class="gh-ln">'+esc(l.title||'（未命名）')+'</span>'
       +'<span class="gh-meta">'+esc(meta)+'</span></label>';}).join('');
   return rows||'<div class="hint">這本裡面沒有可以印的練習。</div>';}
+/* ══════ GHPREF_V883 記住上次的匯出設定 ══════
+   存在這台電腦的 localStorage，不寫進資料庫——這是「我習慣怎麼印」，不是教材資料。
+   結構：{ '書名': {lay,font,lang,bank,noimg,clq,who,when}, __last:'上次用的書名' } */
+const GHPREF_LS='qna_gh_pref';
+function ghPrefAll(){try{const o=JSON.parse(localStorage.getItem(GHPREF_LS)||'{}');
+  return (o&&typeof o==='object')?o:{};}catch(e){return {};}}
+function ghPrefLast(){const a=ghPrefAll();return (a&&typeof a.__last==='string')?a.__last:'';}
+function ghPrefSave(book,o){if(!book)return;
+  try{const a=ghPrefAll();a[book]=o;a.__last=book;
+    localStorage.setItem(GHPREF_LS,JSON.stringify(a));}catch(e){}}
+/* 選單裡真的有這個值才填，不然會變成空白的一格 */
+function ghSetSel(id,v){const el=document.getElementById(id);
+  if(!el||v==null)return;
+  if(el.tagName==='SELECT'&&![].slice.call(el.options).some(o=>o.value===String(v)))return;
+  el.value=String(v);}
+function ghPrefApply(){
+  const sel=document.getElementById('gh-book');const book=sel?sel.value:'';
+  const p=ghPrefAll()[book];
+  /* 日期一律預設今天。記住上次的日期很危險——印出來會是舊的上課日 */
+  const w=document.getElementById('gh-when');if(w)w.value=localToday();
+  if(!p)return;
+  ghSetSel('gh-lay',p.lay);ghSetSel('gh-font',p.font);ghSetSel('gh-lang',p.lang);
+  ghSetSel('gh-bank',p.bank);ghSetSel('gh-clq',p.clq);
+  const ni=document.getElementById('gh-noimg');if(ni)ni.checked=!!p.noimg;
+  /* 學生可能已經停課或改名，選單裡找不到就留空白 */
+  ghSetSel('gh-who',p.who);}
 function GHFILL(){const sel=document.getElementById('gh-book'),box=document.getElementById('gh-lessons');
   if(sel&&box)box.innerHTML=ghListHtml(sel.value);
   /* GHCL_V860 「只出幾句」只有文言文用得到，別本就不要出現這一區 */
@@ -6103,6 +6294,7 @@ function GHFILL(){const sel=document.getElementById('gh-book'),box=document.getE
   /* GHBANK_V872 沒有作業簿的書就不要出現那個選單 */
   try{const bb=document.getElementById('gh-bankbox');
     if(bb&&sel)bb.style.display=ghHasHw(sel.value)?'':'none';}catch(e){}
+  try{ghPrefApply();}catch(e){}/* GHPREF_V883 換一本就換那一本的設定 */
   try{GHSENT();}catch(e){}}
 function GHALL(){const b=[...document.querySelectorAll('.gh-l')].filter(x=>x.type==='checkbox');
   if(!b.length)return;
@@ -6136,7 +6328,10 @@ function GHSALL(){const b=[...document.querySelectorAll('.gh-s')];if(!b.length)r
   const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
 function ghModal(){
   const books=baBooks();if(!books.length)return toast('還沒有課文');
-  const cur=(S.bookFilter&&books.some(b=>b.k===S.bookFilter))?S.bookFilter:books[0].k;
+  /* GHPREF_V883 沒有特別篩教材的話，就停在上次匯出的那一本 */
+  const _last=ghPrefLast();
+  const cur=(S.bookFilter&&books.some(b=>b.k===S.bookFilter))?S.bookFilter
+    :((_last&&books.some(b=>b.k===_last))?_last:books[0].k);
   openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📄 匯出講義</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body">'
    +'<div class="hint" style="margin-bottom:10px">把課文內容和底下的練習題整理成一份講義，可以列印或存成 PDF 給學生帶回家，不用登入平台。<br>語法課出語法說明＋例句＋練習；文言文出原文、白話和註釋；關鍵詞彙出聽力對話和題目。</div>'
@@ -6199,12 +6394,15 @@ function ghModal(){
    +(S.students||[]).filter(x=>x&&!x.deleted&&!x.deleted_at&&!x.is_test).slice().sort(stuNameCmp)
      .map(x=>'<option value="'+esc(x.name||'')+'">'+esc(x.name||'')+'</option>').join('')
    +'</select></div>'
-   +'<div class="field"><label>上課日期 <span class="hint">選填</span></label>'
+   +'<div class="field"><label>上課日期 <span class="hint">選填，預設今天</span></label>'
    +'<input id="gh-when" type="date" min="2000-01-01" max="2100-12-31"></div>'
+   /* GHPREF_V883 */
+   +'<div class="hint" style="margin-top:2px">上面的選項會照每一本教材記住你上次按匯出時的設定（日期除外，一律預設今天）。</div>'
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
    +'<button class="btn" data-act="ghGo" data-id="key">📋 只印答案</button>'
    +'<button class="btn" data-act="ghGo" data-id="tea">👩‍🏫 老師版（含答案）</button>'
    +'<button class="btn btn-primary" data-act="ghGo" data-id="stu">👩‍🎓 學生版</button></div></div>');
+  try{ghPrefApply();}catch(e){}/* GHPREF_V883 */
   try{GHSENT();}catch(e){}/* GHCL_V861 */}
 function assignModal(l){
   assignModalCore({id:l.id,title:l.title,ids:l.assigned_ids||[],groups:l.assigned_groups||[],
@@ -13117,6 +13315,93 @@ H.memoEditSave=async(id,btn)=>{const m=(S.memos||[]).find(x=>x.id===id);if(!m)re
   try{await DB.update(crmCol(id),id,{text:text,note:note||null,due:due||null});
     m.text=text;m.note=note||null;m.due=due||null;closeModal();render();toast('改好了');}
   catch(e){if(btn){btn.disabled=false;btn.textContent='💾 儲存';}toast(writeErr('改不了',e));}};
+/* WKCOPY_V884 */
+H.wkcOpen=()=>{
+  const thisMon=weekStart(localToday());
+  openModal('<div class="modal wide"><div class="modal-head"><h3>🔁 照上一週排下一週</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:10px">把某一週每個人上的課（預排的和已經點名的都算）'
+   +'整組往後搬到另一週，星期幾和時間都照舊。排出來的是「預排」，'
+   +'不會點名、不會扣堂數，之後上完課再去點名。</div>'
+   +'<div class="wkc-top">'
+   +'<div class="field"><label>照哪一週排</label>'
+   +'<input id="wkc-from" type="date" min="2000-01-01" max="2100-12-31" value="'+esc(thisMon)+'"></div>'
+   +'<div class="field"><label>排到哪一週</label>'
+   +'<input id="wkc-to" type="date" min="2000-01-01" max="2100-12-31" value="'+esc(wkShift(thisMon,7))+'"></div>'
+   +'</div>'
+   +'<div class="hint" style="margin:-4px 0 8px">選那一週裡的任何一天都可以，系統會自動抓整週（一～日）。</div>'
+   +'<div class="wkc-body" id="wkc-body"></div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
+   +'<span class="hint" id="wkc-n" style="margin-left:10px"></span><span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="wkcGo">🔁 排下去</button></div></div>');
+  wkcPaint();};
+H.wkcGo=async(_x,btn)=>{
+  const picks=[].slice.call(document.querySelectorAll('.wkc-c:checked'))
+    .map(x=>WKC_ROWS[Number(x.value)]).filter(r=>r&&!r.skip);
+  if(!picks.length)return toast('沒有勾到可以排的課');
+  if(btn){btn.disabled=true;btn.textContent='排課中…';}
+  /* 同一個人／同一班的多堂課合成一次寫入，不然一週十幾堂就是十幾次連線 */
+  const bag={};
+  picks.forEach(r=>{const k=r.kind+'|'+r.id;(bag[k]=bag[k]||[]).push(
+    {date:r.to,start:r.start||'',end:r.end||'',note:r.note||''});});
+  let ok=0,bad=0;
+  for(const k of Object.keys(bag)){
+    const i=k.indexOf('|'),kind=k.slice(0,i),id=k.slice(i+1);
+    try{
+      if(kind==='S'){await addStudentPlanned(studentById(id),bag[k]);}
+      else{await addPlanned(id,bag[k]);}
+      ok+=bag[k].length;}
+    catch(e){bad+=bag[k].length;}}
+  try{await loadAll();}catch(e){}
+  closeModal();render();
+  toast(bad?('排好 '+ok+' 堂，失敗 '+bad+' 堂'):('已經排好 '+ok+' 堂 ✓'));};
+/* AF_V882 */
+H.afOpen=()=>{
+  const bs=afBooks();
+  if(!bs.length)return toast('參考答案都補齊了 🎉');
+  if(!AF_BOOK||!bs.some(x=>x.book===AF_BOOK))AF_BOOK=bs[0].book;
+  openModal('<div class="modal wide"><div class="modal-head"><h3>✅ 補參考答案</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="af-bar"><select id="af-book">'
+   +bs.map(x=>'<option value="'+esc(x.book)+'"'+(x.book===AF_BOOK?' selected':'')+'>'
+       +esc(x.book)+'（缺 '+x.n+' 題）</option>').join('')
+   +'</select>'
+   +'<label style="display:flex;align-items:center;gap:6px;margin:0;white-space:nowrap;font-weight:600">'
+   +'<input type="checkbox" id="af-only"'+(AF_ONLY?' checked':'')+'>只看沒答案的</label>'
+   +'<span class="hint" id="af-cnt"></span></div>'
+   +'<div class="af-body" id="af-body"></div>'
+   +'<div class="hint" style="margin-top:8px">改了就自動存——選擇題按下去就存，打字的移開游標就存。'
+   +'參考答案只有你看得到，不會因為補答案就發佈給學生。</div>'
+   +'</div></div>');
+  afPaint();};
+H.afPick=async(key)=>{
+  const i=String(key||'').lastIndexOf('::');if(i<0)return;
+  const qid=key.slice(0,i),idx=Number(key.slice(i+2));
+  const q=(S.questions||[]).find(x=>x.id===qid);if(!q||isNaN(idx))return;
+  const was=q.answer;
+  q.answer=idx;/* 先畫出來，存不起來再退回去 */
+  try{const row=document.querySelector('[data-afrow="'+CSS.escape(qid)+'"]');
+    if(row){[].slice.call(row.querySelectorAll('.af-o')).forEach((b,k)=>b.classList.toggle('on',k===idx));
+      const ok=row.querySelector('[data-afok]');if(ok)ok.textContent='✓';}}catch(e){}
+  try{await DB.update('questions',qid,{answer:idx});
+    try{qcacheBust();}catch(e){}
+    const c=document.getElementById('af-cnt');
+    if(c&&AF_BOOK)c.textContent='這一本還缺 '+afMissing(AF_BOOK)+' 題';}
+  catch(e){q.answer=was;afPaint();toast(writeErr('存不起來',e));}};
+H.afSaveText=async(qid,val)=>{
+  const q=(S.questions||[]).find(x=>x.id===qid);if(!q)return;
+  /* 問答／填空／手寫的答案都是存成一行一個的陣列，跟編輯視窗存的格式一樣 */
+  const arr=String(val==null?'':val).split('\n').map(x=>x.trim()).filter(Boolean);
+  const nv=arr.length?arr:null;
+  if(JSON.stringify(q.answer||null)===JSON.stringify(nv))return;
+  const was=q.answer;q.answer=nv;
+  try{await DB.update('questions',qid,{answer:nv});
+    try{qcacheBust();}catch(e){}
+    const ok=document.querySelector('[data-afok="'+CSS.escape(qid)+'"]');
+    if(ok)ok.textContent=nv?'✓':'';
+    const c=document.getElementById('af-cnt');
+    if(c&&AF_BOOK)c.textContent='這一本還缺 '+afMissing(AF_BOOK)+' 題';}
+  catch(e){q.answer=was;toast(writeErr('存不起來',e));}};
 /* QS_V881 */
 H.qsOpen=()=>{QS_SEL=0;QS_ROWS=[];
   openModal('<div class="modal qs-box"><div class="modal-body" style="padding:14px">'
@@ -13539,6 +13824,9 @@ H.ghGo=(mode)=>{
   GHLANG=((document.getElementById('gh-lang')||{}).value)||'tw';/* GHZHS_V875 */
   GHWHO=((document.getElementById('gh-who')||{}).value)||'';
   GHWHEN=((document.getElementById('gh-when')||{}).value)||'';
+  /* GHPREF_V883 真的按了匯出才記起來——那才是她確定要用的組合 */
+  try{ghPrefSave(book,{lay:(wide?'1':'0'),font:GHFONT,lang:GHLANG,bank:GHBANK,
+    noimg:noimg?1:0,clq:GHCLQ,who:GHWHO});}catch(e){}
   ghBuild(book,lids,mode,wide,noimg);};
 H.bulkAssignSave=async(_x,btn)=>{
   const lids=[...document.querySelectorAll('.ba-l:checked')].map(x=>x.value);
@@ -14380,6 +14668,15 @@ document.addEventListener('keydown',(e)=>{
 });
 document.addEventListener('input',(e)=>{/* QS_V881 打一個字就重找，選到第一筆 */
   if(e.target&&e.target.id==='qs-q'){QS_SEL=0;qsPaint();}});
+document.addEventListener('change',(e)=>{/* AF_V882 ／ WKCOPY_V884 */
+  const t=e.target;if(!t)return;
+  if(t.id==='wkc-from'||t.id==='wkc-to'){wkcPaint();return;}
+  if(t.classList&&t.classList.contains('wkc-c')){
+    const n=document.getElementById('wkc-n');
+    if(n)n.textContent=document.querySelectorAll('.wkc-c:checked').length+' 堂要排';return;}
+  if(t.id==='af-book'){AF_BOOK=t.value;afPaint();return;}
+  if(t.id==='af-only'){AF_ONLY=t.checked?1:0;afPaint();return;}
+  if(t.classList&&t.classList.contains('af-t')){H.afSaveText(t.getAttribute('data-afq'),t.value);}});
 document.addEventListener('keydown',(e)=>{
   /* MEMO_V820 在備忘欄按 Enter 就直接記下來，不用再去點按鈕 */
   if(e.key!=='Enter')return;const t=e.target;
