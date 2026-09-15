@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=867">
+<link rel="stylesheet" href="styles.css?v=869">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -37,8 +37,10 @@
 .gp-imgbox{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .gp-imgbox img{width:76px;height:76px;object-fit:contain;border:1px solid var(--line,#e6e0d6);border-radius:8px;background:#fff}
 .vtab-c.vt-py,.vrow-py{font-family:'PinyinRoman',var(--font)}
-/* 學生姓名（含越南文聲調）一律用 Times New Roman，中文姓名不受影響 */
-.sname{font-family:'PinyinRoman',var(--font)}
+/* SNAME_V868 本來姓名鎖成 Times New Roman，怕越南文聲調缺字。
+   現在拉丁字母走 Be Vietnam Pro（本來就是為越南文做的），聲調沒問題，
+   鎖著反而只有名字是襯線體，跟整個介面對不起來。跟著介面走就好。 */
+.sname{font-family:inherit}
 ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Arial,system-ui,sans-serif}
 
 /* ===== 漢語拼音聲調字母：只有帶聲調的拉丁字母改用襯線字，其他中英文維持原字體 ===== */
@@ -1369,6 +1371,11 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .gh-list .check-row{width:100%;min-width:0;box-sizing:border-box}
         .gh-list .check-row{padding:7px 11px;border-radius:10px;gap:8px}
         .gh-list .gh-ln{flex:1 1 auto;min-width:0;margin-right:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        /* GHSEG_V869 段落清單：一列可以排兩行，才看得出來是一整段 */
+        .gh-list.gh-seglist .check-row{align-items:flex-start}
+        .gh-list.gh-seglist .gh-ln{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;
+          -webkit-box-orient:vertical;overflow:hidden;line-height:1.6}
+        .gh-list.gh-seglist .gh-sn,.gh-list.gh-seglist .gh-meta{margin-top:2px}
         /* GHCL_V861 句號 */
         .gh-list .gh-sn{flex:0 0 auto;min-width:22px;text-align:center;font-size:11.5px;font-weight:700;
           color:#a3714e;background:#f6eee4;border-radius:999px;padding:1px 6px}
@@ -5845,8 +5852,15 @@ function ghBuild(book,lids,mode,wide,noimg){
   const en=keyOnly?'ANSWER KEY':(ngp?'GRAMMAR PRACTICE':(ncl?'CLASSICAL CHINESE':(ntr?'LISTENING SCRIPT':(nvoc?'VOCABULARY':'PRACTICE'))));
   /* GHKEY_V844 */
   const ttl=keyOnly?(base+'　解答'):(withAns?(base+'（老師版）'):base);
+  /* GHNAME_V869 存成 PDF 的檔名＝這一頁的 title。
+     格式：QNA CHINESE_課本_課名_學生_上課日；沒填的就跳過。
+     老師版和解答頁後面多一個字，才不會跟學生版同名互相蓋掉。 */
+  const _lt=(ls.length===1)?String(ls[0].title||'').trim():((ls.length>1)?(ls.length+'課'):'');
+  const _fn=['QNA CHINESE',String(book||'').trim(),_lt,GHWHO,GHWHEN,
+      (keyOnly?'解答':(withAns?'老師版':''))]
+    .filter(x=>String(x||'').trim()).join('_').replace(/[\/:*?"<>|]/g,'-');
   const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'
-    +esc(book)+' '+esc(ttl)+'</title>'
+    +esc(_fn)+'</title>'
     +(GHFONT?'<meta name="qna-font" content="QNAFONT_FIXED">':'')/* GHFONT_V854 */
     +ghFontHead(GHFONT)
     +'<style>'+fbCss()+ghCss()+ghFontCss(GHFONT)+'</style></head><body'
@@ -5925,13 +5939,17 @@ function GHSENT(){
   const l=baLessonsOf(book).find(x=>x.id===ids[0]);
   const lines=ghClLines(l);
   if(!lines.length)return say('這一課沒有文言文原文。');
+  /* GHSEG_V869 一列＝一段。本來只露 40 個字又切成一行，看起來像一句話。
+     改成最多兩行，後面標這一段有幾句。 */
   box.innerHTML=lines.map((x,i)=>{
     const t=String(x.orig||'').replace(/\s+/g,'');
+    const ns=ghClSents(t).length;
     return '<label class="check-row"><input type="checkbox" class="gh-s" value="'+(i+1)+'">'
       +'<span class="gh-sn">'+(i+1)+'</span>'
-      +'<span class="gh-ln">'+esc(t.slice(0,40)+(t.length>40?'…':''))+'</span></label>';}).join('');
-  if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 段。一段都不勾就是整課都出。'
-    +'（印出來會先整段原文，底下再一句一句附註解）';}
+      +'<span class="gh-ln">'+esc(t.slice(0,110)+(t.length>110?'…':''))+'</span>'
+      +'<span class="gh-meta">'+ns+' 句</span></label>';}).join('');
+  if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 段（就是妳課文檔案裡的每一列）。'
+    +'一段都不勾就是整課都出。印出來會先印整段原文，底下再把那一段拆成一句一句附註解。';}
 function GHSALL(){const b=[...document.querySelectorAll('.gh-s')];if(!b.length)return;
   const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
 function ghModal(){
@@ -5972,7 +5990,7 @@ function ghModal(){
    +'<div class="field"><label class="gh-lbl">文言文：要出哪幾段 <span class="hint">不勾＝整課都出</span>'
    +'<span style="flex:1"></span>'
    +'<button class="btn btn-sm btn-ghost" type="button" onclick="GHSALL()">全選 / 取消</button></label>'
-   +'<div class="check-list gh-list" id="gh-clpick"></div>'
+   +'<div class="check-list gh-list gh-seglist" id="gh-clpick"></div>'
    +'<div class="hint" id="gh-clmsg" style="margin-top:6px"></div></div>'
    /* GHCL_V861 有時候只要翻譯，不要問答（Quinn：「請給我選擇權」） */
    +'<div class="field"><label>這一份要出什麼</label><select id="gh-clq">'
