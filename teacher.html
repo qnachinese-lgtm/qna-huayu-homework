@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=914">
+<link rel="stylesheet" href="styles.css?v=915">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5786,7 +5786,10 @@ function itvPayBadge(e,c,onlyDue){
      收好的不用再標一次（錢收了是常態，標了只是噪音）。 */
   const ok=onlyDue?'':'<span class="badge badge-ok">已收</span>';
   if(e.paid)return ok;
-  try{if(c&&!Object.keys(itvDueSum(c)).length)return ok;}catch(_){}
+  /* ITVPAID_V915 本來這裡是「這個客戶整體沒欠款 → 也標已收」，
+     可是這一次根本沒勾已收，標成已收等於騙自己。
+     整體沒欠款就什麼都不標（不用再提醒），但絕不寫已收。 */
+  try{if(c&&!Object.keys(itvDueSum(c)).length)return '';}catch(_){}
   return '<span class="badge badge-soon">未收</span>';}
 async function removeStudentPlanned(s,date){if(!s)return;const cur=studentPlanned(s).filter(p=>p.date!==date);await DB.update('students',s.id,{planned:cur});s.planned=cur;}
 function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==null?'':x)));
@@ -6057,8 +6060,15 @@ function ghQHtml(q,n,withAns,noSpace){/* CLPRINT_V827 noSpace：只印題目，�
   const ops=(!isNote&&q.type==='choice')?ghOptsHtml(q,withAns):'';
   const marked=!!ops&&!!withAns&&ghAnsIdx(q)!=null;
   const pr=String(q.prompt==null?'':q.prompt).trim();
+  /* GHNOTE_V915 這種 note 不是示範題，是音檔說明、短文、公告、名片。
+     標題尾巴（「一、對話聽力　音檔」的「音檔」）就是它是什麼，拿來當標籤；
+     沒有的話才退回「例」。 */
+  const _nl=(()=>{if(!isNote)return '';
+    const ins=String(q.instruction||'');const i=ins.lastIndexOf('\u3000');
+    const t=(i>=0?ins.slice(i+1):'').trim();
+    return (t&&t.length<=4)?t:'例';})();
   return '<div class="gh-q'+(isNote?' gh-eg':'')+'">'
-    +(isNote?'<span class="gh-n gh-ne">例</span>':'<span class="gh-n">'+n+'</span>')
+    +(isNote?('<span class="gh-n gh-ne'+(_nl.length>1?' gh-nw':'')+'">'+esc(_nl)+'</span>'):'<span class="gh-n">'+n+'</span>')
     +'<div class="gh-qb">'+(pr?ghBlank(q.prompt):'')+img+ops
     +((isNote||noSpace||ops||ghHasBlank(q))?'':ghAnsSpace(q))/* GHBLANK_V841 */
     /* 正解已經圈在選項上了就不用再寫一次 */
@@ -6115,7 +6125,10 @@ function ghGpHtml(g,gi,qs,withAns,tagLab){
     if(ins&&ins!==lastIns){lastIns=ins;head='<div class="gh-ins">'+ghLines(ins)+'</div>';}
     if(q.type!=='note')n++;
     return head+ghQHtml(q,n,withAns);}).join('');
-  const prac=(h)=>h?('<div class="gh-lab b3">練習</div><div class="gh-qs">'+h+'</div>'):'';
+  /* GHDUP_V915 沒有語法點的書（關鍵詞彙就是），整份會被裝進一個叫「練習」的區塊，
+     區塊標題印一次「練習」，裡面又再印一次。標題本來就叫練習就不要再印第二次。 */
+  const _dupLab=/^(練習|其他練習)$/.test(String(g.title||'').trim());
+  const prac=(h)=>h?((_dupLab?'':'<div class="gh-lab b3">練習</div>')+'<div class="gh-qs">'+h+'</div>'):'';
   /* 有小節、而且真的有題目標到小節，才按小節穿插；否則完全照舊。 */
   const hasSub=segs.length>1&&(qs||[]).some(q=>{const i=ghSubIdx(q);return i>0&&i<segs.length;});
   let mid='',body='';
@@ -6361,6 +6374,11 @@ function ghCss(){return ''
   /* GHZONE_V830 練習題的號碼是綠的（要寫），例句的號碼是米色的（給他看） */
   +'.gh-n{flex:none;width:20px;height:20px;border-radius:50%;background:#e6f0ea;color:#3f7a55;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}'
   +'.gh-ne{background:#f2e5d2;color:#a3714e}'
+  /* GHNOTE_V915 標籤變成「短文」「音檔」「公告」兩個字，圓圈塞不下，改成圓角長條 */
+  +'.gh-nw{width:auto;min-width:20px;padding:0 7px;border-radius:9px;font-size:10.5px;letter-spacing:.5px}'
+  /* GHIMG_V915 名片、個人資料表那種材料圖被當成一般配圖，只有 66mm 寬，看不清楚。
+     note 裡的材料圖放大到整欄寬。 */
+  +'.gh-q.gh-eg .gh-img img{max-width:100%;max-height:96mm}'
   +'.gh-qb{flex:1;min-width:0;font-size:13.5px;line-height:1.75}'
   +'.gh-eg .gh-qb{color:#8b8079;font-size:12.5px;background:#faf7f2;padding:6px 11px;border-radius:8px}'
   /* GHOPT_V865 選項 */
