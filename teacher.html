@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=885">
+<link rel="stylesheet" href="styles.css?v=886">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5876,17 +5876,23 @@ function ghExHtml(t){
     '<div class="gh-exi"><span class="gh-n gh-ne">'+(i+1)+'</span>'
     +'<div class="gh-exb">'+ghExOne(x)+'</div></div>').join('')+'</div>';}
 function ghGpHtml(g,gi,qs,withAns,tagLab){
-  const blocks=(g.blocks||[]).map(b=>{
+  const blist=(g.blocks||[]).map(b=>{
     const t=String((b&&b.text)||'').trim(),ex=String((b&&b.ex)||'').trim(),im=String((b&&b.img)||'').trim();
     if(!t&&!ex&&!im)return '';
     /* GHZONE_V830 本來標題是「說明」就不印，結果那一塊沒有名字，看起來跟練習一樣。 */
     const lab=String((b&&b.label)||'').trim()||'說明';
+    /* GHSUB_V886 「小節」裡面放的是（四）這種段落編號，不是說明。
+       不要印「小節」兩個字，也不要套淺色方框，直接一行小標就好。 */
+    if(lab==='小節')return (t||ex||im)?('<div class="gh-blk gh-subb">'
+      +(t?('<div class="gh-sub">'+ghLines(t)+'</div>'):'')
+      +ghImg(im)+(ex?ghExHtml(ex):'')+'</div>'):'';
     return '<div class="gh-blk">'
       +(t?('<div class="gh-lab b1">'+esc(lab==='說明'?'語法說明':lab)+'</div>'):'')
       +(t?('<div class="gh-txt">'+ghLines(t)+'</div>'):'')
       +ghImg(im)/* GHOPT_V844 */
       +(ex?ghExHtml(ex):'')
-      +'</div>';}).join('');
+      +'</div>';}).filter(Boolean);
+  const blocks=blist.join('');
   let n=0,lastIns='';
   const body=(qs||[]).map(q=>{
     const ins=String(q.instruction||'').trim();
@@ -5898,10 +5904,14 @@ function ghGpHtml(g,gi,qs,withAns,tagLab){
   /* GHNOGP_V825 有些教材（例如臺灣生活溝通華語）沒有建語法點，題目直接掛在課底下。
      那種情況就不要硬掛「語法 N」的標籤，也不要叫「其他練習」。 */
   const _tag=(tagLab===null)?'':('<span class="gh-tag">'+esc(tagLab||('語法 '+(gi+1)))+'</span>');
-  /* GHKEEP_V847 標題＋結構＋說明＋例句綁成一塊，位子不夠就整塊移到下一頁，
-     不會變成「標題留在上一頁、內容跑到下一頁」。練習題照常可以換頁。 */
+  /* GHKEEP_V847 標題不可以落單在頁尾。
+     GHKEEP_V886 本來是把「標題＋底下全部的說明」整個綁成不准切的一塊，
+     結果說明一長（時代華語二第一課就是），整塊放不進當頁剩下的空間，
+     就整塊跳到下一頁，前一頁整頁空白。
+     改成只綁「標題＋第一塊」——標題一定有東西跟著，後面的說明照常換頁；
+     每一塊自己本來就有 break-inside:avoid，不會從中間被切斷。 */
   return '<div class="gh-gp"><div class="gh-keep"><div class="gh-gt">'+_tag
-    +esc(g.title||'')+'</div>'+blocks+'</div>'
+    +esc(g.title||'')+'</div>'+(blist[0]||'')+'</div>'+blist.slice(1).join('')
     /* GHZONE_V830 練習區標出「練習」，而且是綠的，跟上面看的部分分開 */
     +(body?('<div class="gh-lab b3">練習</div><div class="gh-qs">'+body+'</div>'):'')+'</div>';}
 /* GHCL_V863 把一段原文照「。！？」切成一句一句。不用 lookbehind，舊瀏覽器也吃得下。 */
@@ -6095,6 +6105,9 @@ function ghCss(){return ''
   +'.gh-tag{background:var(--soft);color:var(--deep);font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;flex:none}'
   +'.gh-blk{margin:0 0 8px}'
   /* GHZONE_V830 說明／例句／練習三塊各自一個顏色，學生一眼分得出哪塊要寫 */
+  /* GHSUB_V886 小節只是段落編號，印成一行小標就好 */
+  +'.gh-sub{font-size:13.5px;font-weight:700;color:#7a5236;margin:0}'
+  +'.gh-subb{margin:9px 0 5px}'
   +'.gh-lab{font-size:10.5px;font-weight:700;letter-spacing:.8px;color:#a8998a;margin:0 0 3px}'
   +'.gh-lab.b1{color:#7b8d9a}.gh-lab.b2{color:#a3714e}.gh-lab.b3{color:#3f7a55}'
   +'.gh-lab.b3{margin-top:11px}'
@@ -6191,7 +6204,8 @@ function ghCss(){return ''
   +'.gh-run .r{margin-left:auto;white-space:nowrap}'
   /* GHKEEP_V847 語法點的開頭整塊不切；標籤也要跟著它下面的內容 */
   +'.gh-keep{break-inside:avoid}'
-  +'.gh-gt,.gh-lt,.gh-ins,.gh-lab{break-after:avoid}.gh-blk{break-inside:avoid}}';}
+  /* GHSUB_V886 小節小標後面一定要跟著內容，不能自己留在頁尾 */
+  +'.gh-gt,.gh-lt,.gh-ins,.gh-lab,.gh-sub{break-after:avoid}.gh-blk{break-inside:avoid}}';}
 function ghBuild(book,lids,mode,wide,noimg){
   /* GHOPT_V844 mode：'stu' 學生版／'tea' 老師版（含答案）／'key' 只印答案 */
   const withAns=(mode!=='stu'),keyOnly=(mode==='key');
