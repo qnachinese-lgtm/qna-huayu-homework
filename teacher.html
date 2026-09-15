@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=875">
+<link rel="stylesheet" href="styles.css?v=878">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1313,12 +1313,19 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           line-height:1.4;padding-top:3px;padding-bottom:3px;text-align:left}
         .crm-thead .crm-head .cc.dt{white-space:nowrap}
         /* MEMO_V820 我的備忘 */
-        .memo-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
-        .memo-add #memo-text{flex:1;min-width:200px}
+        /* MEMO2_V878 標題一行、內容另外一塊 */
+        .memo-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+        .memo-add #memo-text{flex:1;min-width:200px;font-weight:600}
         .memo-add #memo-due{flex:none;width:150px}
+        .memo-add2{margin-bottom:10px}
+        .memo-add2 textarea{width:100%;min-height:34px;resize:vertical;font-family:inherit;font-size:13px}
         .memo-row{gap:8px;align-items:center}
-        .memo-row .memo-t{word-break:break-word}
+        .memo-row .memo-b{flex:1;min-width:0}
+        .memo-row .memo-t{word-break:break-word;font-weight:600}
+        /* white-space:pre-wrap 才留得住她自己打的換行 */
+        .memo-row .memo-n{margin-top:2px;font-size:12.5px;line-height:1.6;color:var(--mut,#8b8079);white-space:pre-wrap;word-break:break-word}
         .memo-row.memo-done .memo-t{text-decoration:line-through;opacity:.55}
+        .memo-row.memo-done .memo-n{opacity:.5}
         @media(max-width:520px){.memo-add #memo-due{width:100%}}
         /* DLBADGE_V809 「（還有 N 天）」自己一行，日期那一行才不會拉得又長又擠 */
         .crm-head .cc.dt .badge.dl-badge{display:inline-block;text-align:center;line-height:1.45}
@@ -1629,6 +1636,10 @@ const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function snm(n){return '<span class="sname">'+esc(n)+'</span>';}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
+/* NOW24_V877 開立時間用 24 小時制。toLocaleString() 會印「下午4:19:47」，Quinn 不要那個。 */
+function nowStr(){const d=new Date(),p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'/'+p(d.getMonth()+1)+'/'+p(d.getDate())
+    +' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());}
 function fmtDate(d){if(!d)return'—';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0');}
 function fmtDT(d){if(!d)return'';const x=new Date(d);if(isNaN(x))return d;return x.getFullYear()+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+String(x.getDate()).padStart(2,'0')+' '+String(x.getHours()).padStart(2,'0')+':'+String(x.getMinutes()).padStart(2,'0');}
 /* FILE_TIME_V9 檔案清單顯示「幾點幾分」：用本地時區，不要直接切 ISO 字串（那是 UTC，會差好幾小時） */
@@ -2227,18 +2238,23 @@ function memoRowHtml(m){
      三顆一起改回只有圖示，滑過去還是看得到說明。 */
   return `<div class="dash-row memo-row${m.done?' memo-done':''}">
     <button class="btn btn-sm btn-icon" data-act="${m.done?'memoUndo':'memoDone'}" data-id="${esc(m.id)}" title="${m.done?'改回還沒做':'標成做完了'}">${m.done?'↩':'✅'}</button>
-    <span class="memo-t" style="flex:1">${esc(m.text||'')}</span>
+    <div class="memo-b"><div class="memo-t">${esc(m.text||'')}</div>${
+      String(m.note||'').trim()?`<div class="memo-n">${esc(String(m.note).trim())}</div>`:''
+    }</div>
     ${m.done?'':memoDueTag(m)}
-    <button class="btn btn-sm btn-icon" data-act="memoEdit" data-id="${esc(m.id)}" title="改內容或日期">✏️</button>
+    <button class="btn btn-sm btn-icon" data-act="memoEdit" data-id="${esc(m.id)}" title="改標題、內容或日期">✏️</button>
     <button class="btn btn-sm btn-danger btn-icon" data-act="memoDel" data-id="${esc(m.id)}" title="刪掉這一件">✕</button></div>`;}
 function memoHtml(){
   const open=memoOpen().slice().sort(memoSort);
   const done=memoAll().filter(x=>x.done)
     .sort((a,b)=>String(b.done_at||'').localeCompare(String(a.done_at||''))).slice(0,12);
+  /* MEMO2_V878 上面打標題，底下那格補細節（可不填） */
   const add=`<div class="memo-add">
-    <input id="memo-text" type="text" placeholder="例：給 Huyền 做留學諮詢／寄成績單給心美" maxlength="200">
+    <input id="memo-text" type="text" placeholder="標題：給 Huyền 做留學諮詢" maxlength="200">
     <input id="memo-due" type="date" min="2000-01-01" max="2100-12-31" title="要哪天做完（可不填）">
-    <button class="btn btn-primary btn-sm" data-act="memoAdd">＋ 記下來</button></div>`;
+    <button class="btn btn-primary btn-sm" data-act="memoAdd">＋ 記下來</button></div>
+    <div class="memo-add2"><textarea id="memo-note" rows="1" maxlength="800"
+      placeholder="內容、細節（可不填）：申請碩士、目前在淡江語言中心學華語"></textarea></div>`;
   const list=open.length?open.map(memoRowHtml).join('')
     :'<div class="hint" style="padding:8px 0">目前沒有記著的事。想到什麼就打在上面，做完打勾。</div>';
   const doneFold=done.length
@@ -5772,7 +5788,7 @@ function ghCss(){return ''
   /* GHKEY_V844 解答頁：一課接一課不換頁，排密一點 */
   +'.gk-les{margin-top:14px}'
   +'.gh-les.gk-les+.gh-les.gk-les{break-before:auto}'
-  +'.gk-les .gh-lt{font-size:15px;margin:0 0 7px;padding-bottom:4px}'
+  +'.gk-les .gh-lt{font-size:15px;margin:0 0 7px;padding-bottom:4px;text-align:left;letter-spacing:0}'
   +'.gk-gp{margin:9px 0 0;break-inside:avoid}'
   +'.gk-t{font-weight:800;font-size:12.5px;color:var(--deep);margin:0 0 3px}'
   +'.gk-i{display:flex;gap:9px;font-size:12.5px;line-height:1.65;margin-bottom:2px;break-inside:avoid}'
@@ -5780,7 +5796,10 @@ function ghCss(){return ''
   +'.gk-a{flex:1;min-width:0}'
   +'.gk-i i{color:#bcae9e;font-style:normal}'
   +'.gh-les{margin-top:18px}'
-  +'.gh-lt{font-size:17px;color:var(--deep);margin:0 0 10px;padding-bottom:6px;border-bottom:2px solid #e3cdb2}'
+  /* GHTITLE_V876 課名本來靠左、17px，跟段落標題差不多大，看不出是整份的標題。
+     改成置中、放大；解答頁那種一課接一課的還是維持小的靠左（下面 .gk-les 會蓋掉）。 */
+  +'.gh-lt{font-size:22px;color:var(--deep);margin:0 0 12px;padding-bottom:8px;'
+  +'text-align:center;letter-spacing:1px;border-bottom:2px solid #e3cdb2}'
   +'.gh-gp{margin:15px 0 0}'
   +'.gh-gt{display:flex;align-items:baseline;gap:8px;font-weight:800;font-size:14.5px;color:var(--deep);margin:0 0 6px}'
   +'.gh-tag{background:var(--soft);color:var(--deep);font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;flex:none}'
@@ -5855,6 +5874,9 @@ function ghCss(){return ''
   +'.gw-b{flex:1;min-width:40px;border-bottom:1px solid #ddd0bd;height:16px}'
   +'.gh-hand .gw-b{height:22px}'
   +'.gw-src{margin-left:9px;font-size:11px;color:#a8998a;font-weight:400}'
+  /* GHPGT_V877 包住整頁內容的那個表格，本身不能有任何樣式 */
+  +'.gh-pgt{width:100%;border-collapse:collapse}'
+  +'.gh-pgt>tbody>tr>td,.gh-pgt>tfoot>tr>td{padding:0;border:0;vertical-align:top}'
   +'.gh-tr{display:flex;gap:9px;margin:0 0 11px;break-inside:avoid}'
   +'.gh-trn{flex:none;width:20px;height:20px;border-radius:50%;background:var(--soft);color:var(--deep);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}'
   +'.gh-trb{flex:1;min-width:0}'
@@ -5871,6 +5893,9 @@ function ghCss(){return ''
   +'@page{size:A4;margin:14mm 9mm 15mm}'/* GHSPACE_V833 上緣多留一點，內容才不會貼著瀏覽器自己印的頁首 */
   +'.gh-run{display:flex;position:fixed;left:0;right:0;bottom:0;align-items:baseline;gap:9px;'
   +'font-size:9px;color:#bcae9e;border-top:1px solid #f0e5d6;padding-top:3px}'
+  /* GHPGT_V877 每一頁底部幫頁尾留一列空的，內容才不會流到頁尾底下去。
+     Chrome 列印時 <tfoot> 每一頁都會重畫，所以每一頁都留得到。 */
+  +'.gh-pgt>tfoot>tr>td{height:17px}'
   +'.gh-run b{color:#a3714e;font-weight:800;font-size:9.5px;letter-spacing:.6px}'
   +'.gh-run .vi{color:#c0ad95;font-weight:700}'
   +'.gh-run .r{margin-left:auto;white-space:nowrap}'
@@ -5918,7 +5943,9 @@ function ghBuild(book,lids,mode,wide,noimg){
     +'<span class="r">'+esc(book)+'　·　'+esc(ttl)+'</span></div>'
     +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><span class="hint">列印時這排按鈕不會印出來</span></div>'
     /* GHEN_V873 文件名底下那行英文是裝飾，講義用不到，拿掉 */
-    +'<div class="page">'+fbHead('華語教學 · '+base,ttl,'')
+    /* GHPGT_V877 整頁內容包進表格，tfoot 那列空的負責在每頁底部把頁尾的位置讓出來 */
+    +'<div class="page"><table class="gh-pgt"><tfoot><tr><td></td></tr></tfoot><tbody><tr><td>'
+    +fbHead('華語教學 · '+base,ttl,'')
     +'<div class="top">'
     +'<div class="f"><span class="k">教材</span><span class="v">'+esc(book)+'</span></div>'
     /* GHHEAD_V854 抬頭本來寫「範圍 1 課 · 27 題」，Quinn 說不需要，拿掉。 */
@@ -5934,9 +5961,9 @@ function ghBuild(book,lids,mode,wide,noimg){
       +'<div class="f"><span class="k">分數</span><span class="v"></span></div>')
     +'</div>'
     +body
-    +'<div class="foot">開立時間 '+esc(new Date().toLocaleString())+'　·　'+esc(window.APP_NAME||'QNA CHINESE')
+    +'<div class="foot">開立時間 '+esc(nowStr())+'　·　'+esc(window.APP_NAME||'QNA CHINESE')
     +(withAns?'　·　這一份含參考答案，請不要直接給學生':'')+'</div>'
-    +'</div></body></html>';
+    +'</td></tr></tbody></table></div></body></html>';/* GHPGT_V877 */
   closeModal();fbWin(ghZh(html));/* GHZHS_V875 */}
 function ghListHtml(book){
   const ls=baLessonsOf(book);
@@ -8555,7 +8582,7 @@ H.stuCardPdf=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
     +'<div class="sec"><span class="st">🗓 最近上課</span><span class="n">最新 '+logs.length+' 筆</span></div>'
     +'<div class="tw"><table><thead><tr><th>日期</th><th>上課內容</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
     +(s.notes?('<div class="sec"><span class="st">📝 備註・學習目標</span></div><div class="box">'+esc(s.notes)+'</div>'):'')
-    +'<div class="foot">開立時間 '+esc(new Date().toLocaleString())+'　·　本檔案卡由 '+esc(window.APP_NAME||'QNA CHINESE')+' 依平台資料自動產生</div>'
+    +'<div class="foot">開立時間 '+esc(nowStr())+'　·　本檔案卡由 '+esc(window.APP_NAME||'QNA CHINESE')+' 依平台資料自動產生</div>'
     +'</div></body></html>';
   closeModal();fbWin(html);};
 
@@ -11192,7 +11219,7 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     kind:(grp?'團班':'一對一'),today:today,sno:sno,
     logs:logs,pays:pays,months:months,
     all:{charge:b.charge,paid:b.paid,waived:b.waived,due:b.due,unknown:b.unknown||0,other:otherPayStr(b)||''},
-    open:new Date().toLocaleString()};
+    open:nowStr()};/* NOW24_V877 */
   const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+e2(org)+' 對帳單 '+e2(s.name)+'</title>'
     /* ONEDOC_V832 本來自己一整套 CSS，改用跟其他列印文件同一套的底 */
     +'<style>'+fbCss()+docCss2()+'</style></head><body>'
@@ -12925,8 +12952,9 @@ H.memoAdd=async(_x,btn)=>{
   const text=((el&&el.value)||'').trim();
   if(!text){if(el)el.focus();return toast('先打一句要記的事');}
   const due=((document.getElementById('memo-due')||{}).value)||'';
+  const note=(((document.getElementById('memo-note')||{}).value)||'').trim();/* MEMO2_V878 */
   if(btn){btn.disabled=true;btn.textContent='存…';}
-  try{await DB.insert('crm',{kind:'memo',text:text,due:due||null,done:false,created_at:new Date().toISOString()});
+  try{await DB.insert('crm',{kind:'memo',text:text,note:note||null,due:due||null,done:false,created_at:new Date().toISOString()});
     await loadAll();render();toast('記下來了 ✓');}
   catch(e){toast(writeErr('存不起來',e));if(btn){btn.disabled=false;btn.textContent='＋ 記下來';}}};
 H.memoDone=async(id)=>{try{await DB.update(crmCol(id),id,{done:true,done_at:new Date().toISOString()});
@@ -12939,8 +12967,11 @@ H.memoUndo=async(id)=>{try{await DB.update(crmCol(id),id,{done:false,done_at:nul
 H.memoEdit=(id)=>{const m=(S.memos||[]).find(x=>x.id===id);if(!m)return;
   openModal('<div class="modal" style="max-width:480px"><div class="modal-head"><h3>✏️ 改這一件</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-   +'<div class="field"><label>要記的事</label>'
+   +'<div class="field"><label>標題</label>'
    +'<input id="memo-et" type="text" maxlength="200" value="'+esc(m.text||'')+'"></div>'
+   /* MEMO2_V878 細節寫在這裡，可以換行 */
+   +'<div class="field"><label>內容 <span class="hint">可以不填、可以換行</span></label>'
+   +'<textarea id="memo-en" rows="4" maxlength="800">'+esc(m.note||'')+'</textarea></div>'
    +'<div class="field"><label>要哪天做完 <span class="hint">可以不填</span></label>'
    +'<input id="memo-ed" type="date" min="2000-01-01" max="2100-12-31" value="'+esc(m.due||'')+'"></div>'
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
@@ -12951,9 +12982,10 @@ H.memoEditSave=async(id,btn)=>{const m=(S.memos||[]).find(x=>x.id===id);if(!m)re
   const text=((el&&el.value)||'').trim();
   if(!text){if(el)el.focus();return toast('內容不能空著');}
   const due=((document.getElementById('memo-ed')||{}).value)||'';
+  const note=(((document.getElementById('memo-en')||{}).value)||'').trim();/* MEMO2_V878 */
   if(btn){btn.disabled=true;btn.textContent='儲存中…';}
-  try{await DB.update(crmCol(id),id,{text:text,due:due||null});
-    m.text=text;m.due=due||null;closeModal();render();toast('改好了');}
+  try{await DB.update(crmCol(id),id,{text:text,note:note||null,due:due||null});
+    m.text=text;m.note=note||null;m.due=due||null;closeModal();render();toast('改好了');}
   catch(e){if(btn){btn.disabled=false;btn.textContent='💾 儲存';}toast(writeErr('改不了',e));}};
 H.memoDel=async(id)=>{const m=(S.memos||[]).find(x=>x.id===id);
   if(!confirm('刪掉「'+((m&&m.text)||'')+'」？'))return;
@@ -13813,7 +13845,7 @@ H.receipt=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s
     +'<div class="rc-amt">'+e2(amt)+'</div>'
     +'<div class="sec"><span class="st">簽收 / 蓋章</span><span class="n">Signature</span></div>'
     +'<div class="rc-sign"><span class="k">簽名</span><span class="ln"></span></div>'
-    +'<div class="foot">開立時間 '+e2(new Date().toLocaleString())+'　·　'+e2(org)+'</div>'
+    +'<div class="foot">開立時間 '+e2(nowStr())+'　·　'+e2(org)+'</div>'
     +'</div></body></html>';
   fbWin(html);};
 H.exportAll=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
@@ -14174,6 +14206,9 @@ document.addEventListener('keydown',(e)=>{
   /* MEMO_V820 在備忘欄按 Enter 就直接記下來，不用再去點按鈕 */
   if(e.key!=='Enter')return;const t=e.target;
   if(t&&(t.id==='memo-text'||t.id==='memo-due')){e.preventDefault();
+    const b=document.querySelector('[data-act="memoAdd"]');if(b)b.click();}
+  /* MEMO2_V878 內容那格的 Enter 要留給換行，要存就按 Ctrl（Mac 是 ⌘）＋Enter */
+  if(t&&t.id==='memo-note'&&(e.ctrlKey||e.metaKey)){e.preventDefault();
     const b=document.querySelector('[data-act="memoAdd"]');if(b)b.click();}});
 document.addEventListener('change',(e)=>{const t=e.target;if(t&&t.id==='pay-cur')setTimeout(()=>payCalc('pay',false),0);
   if(t&&t.id==='pe-cur')setTimeout(()=>payCalc('pe',false),0);});
