@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=860">
+<link rel="stylesheet" href="styles.css?v=861">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1366,6 +1366,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .gh-list{gap:6px;max-height:300px}
         .gh-list .check-row{padding:7px 11px;border-radius:10px;gap:8px}
         .gh-list .gh-ln{flex:1 1 auto;min-width:0;margin-right:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        /* GHCL_V861 句號 */
+        .gh-list .gh-sn{flex:0 0 auto;min-width:22px;text-align:center;font-size:11.5px;font-weight:700;
+          color:#a3714e;background:#f6eee4;border-radius:999px;padding:1px 6px}
         .gh-list .gh-meta{flex:0 0 auto;color:var(--muted);font-size:12px;white-space:nowrap}
         /* HHMMBAD_V823 不合法的時間標紅，一眼看得到 */
         input.hhmm.bad{border-color:#dc2626!important;background:#fff6f6;color:#b91c1c}
@@ -5407,9 +5410,11 @@ let GHNOIMG=0;
 /* GHFONT_V846 這一份講義單獨指定中文字體（空字串＝跟平台設定一樣）。
    平台的字體設定是全站的，這裡只改印出來的這一份，不會動到設定。 */
 let GHFONT='kaitimes';
-/* GHCL_V860 文言文：只出第 GHCLA～GHCLB 句（0 = 不限）；GHCLQ = 課後問答要不要一起印。
+/* GHCL_V861 文言文：GHCLSET = 勾起來的句號（空的＝整課都出）。
+   本來是叫人填「第幾句到第幾句」，可是要填之前得先去數，所以改成直接勾句子。
+   GHCLQ = 這一份要出什麼：'1' 都出／'0' 只出原文和翻譯／'only' 只出課後問答。
    GHWHO／GHWHEN = 這一份是給誰、哪一天上課，填了就印在抬頭。 */
-let GHCLA=0,GHCLB=0,GHCLQ=1,GHWHO='',GHWHEN='';
+let GHCLSET=[],GHCLQ='1',GHWHO='',GHWHEN='';
 /* GHKT_V855 給學生的標準組合：中文標楷體、英數字 Times New Roman。
    Times New Roman 排在最前面，所以英文和數字先吃它，中文再往後掉到楷體。
    電腦沒裝標楷體的話退到霞鶩文楷（網路字體），至少還是楷書。 */
@@ -5526,15 +5531,21 @@ function ghClHtml(l,withAns){
   let h='';
   if(intro)h+='<div class="gh-blk"><div class="gh-lab">作者・背景</div><div class="gh-txt">'+ghLines(intro)+'</div></div>';
   h+=ghImg(l.cl_img);/* GHOPT_V844 */
-  if(lines.length){
-    /* GHCL_V860 只出其中幾句的時候，句號還是照整篇算，
+  /* GHCL_V861 「只出課後問答」的時候就不印原文那一大段 */
+  if(lines.length&&GHCLQ!=='only'){
+    /* 只出其中幾句的時候，句號還是照整篇算，
        第 5 句印出來就是「5」，學生跟課本才對得起來。 */
     let _arr=lines.map((x,i)=>({x:x,n:i+1}));
     let _rng='';
-    if(GHCLA||GHCLB){
-      const _a=GHCLA||1,_b=GHCLB||_arr.length;
-      _arr=_arr.filter(o=>o.n>=_a&&o.n<=_b);
-      if(_arr.length)_rng='（第 '+_arr[0].n+'～'+_arr[_arr.length-1].n+' 句）';}
+    if(GHCLSET&&GHCLSET.length){
+      const _set={};GHCLSET.forEach(n=>{_set[n]=1;});
+      _arr=_arr.filter(o=>_set[o.n]);
+      if(_arr.length){
+        const _ns=_arr.map(o=>o.n);
+        /* 連號就寫「第 1～5 句」，跳著挑就一個一個列出來 */
+        const _cont=(_ns[_ns.length-1]-_ns[0]+1)===_ns.length;
+        _rng=_cont?('（第 '+_ns[0]+'～'+_ns[_ns.length-1]+' 句）')
+                  :('（第 '+_ns.join('、')+' 句）');}}
     h+='<div class="gh-gt"><span class="gh-tag">原文'+esc(_rng)+'</span>'
       +(withAns?'逐句附參考翻譯與註釋':'請逐句寫出白話翻譯')+'</div><div class="gh-cl">'
       +_arr.map((_o)=>{
@@ -5549,8 +5560,8 @@ function ghClHtml(l,withAns){
           +'</div>';}).join('')
       +'</div>';}
   const qmode=l.cl_qs_mode||'hw';
-  /* GHCL_V860 只出幾句的時候，整篇的課後問答通常不該跟著印 */
-  if(qs.length&&qmode!=='off'&&GHCLQ){
+  /* GHCL_V861 有時候只要翻譯，不要問答——這裡照她在視窗上選的走 */
+  if(qs.length&&qmode!=='off'&&GHCLQ!=='0'){
     h+='<div class="gh-ins">'+(qmode==='view'?'讀完上面的文章，上課一起討論下面的問題。':'讀完上面的文章，回答下面的問題。')+'</div><div class="gh-qs">'
       +qs.map((q,i)=>ghQHtml({prompt:(q&&q.q)||'',image_url:(q&&q.img)||'',type:'qa',
           answer:[(q&&q.ans)||'']},i+1,withAns,!!withAns||qmode==='view')).join('')
@@ -5772,6 +5783,7 @@ function ghBuild(book,lids,mode,wide,noimg){
 function ghListHtml(book){
   const ls=baLessonsOf(book);
   if(!ls.length)return '<div class="hint">這本還沒有課。</div>';
+  const _one=ghHasCl(book);/* GHCL_V861 文言文一次一課 */
   const rows=ls.map(l=>{const c=ghCount(l);
     if(!c.gp&&!c.q&&!c.cl&&!c.tr&&!c.tw&&!c.kp)return '';/* GHVOC_V845 */
     /* GHOTHER_V826 不是每一本都有語法點，標籤照那一課實際有的東西標 */
@@ -5779,19 +5791,52 @@ function ghListHtml(book){
     const meta=[c.gp?('語法 '+c.gp):'',c.cl?('原文 '+c.cl+' 句'):'',c.tr?('對話 '+c.tr+' 段'):'',
       c.tw?('詞彙 '+c.tw):'',c.kp?('詞語 '+c.kp):'',/* GHVOC_V845 */
       c.q?(c.q+' 題'):''].filter(Boolean).join('　·　');
-    return '<label class="check-row"><input type="checkbox" class="gh-l" value="'+esc(l.id)+'">'
+    /* GHCL_V861 文言文一份只出一課（Quinn：「一份檔案只能匯出一課」），
+       不然底下的句子清單不知道是哪一課的。別本照舊可以一次勾很多課。 */
+    return '<label class="check-row"><input type="'+(_one?'radio':'checkbox')+'" class="gh-l"'
+      +(_one?' name="gh-one"':'')+' value="'+esc(l.id)+'">'
       +'<span class="gh-ln">'+esc(l.title||'（未命名）')+'</span>'
       +'<span class="gh-meta">'+esc(meta)+'</span></label>';}).join('');
   return rows||'<div class="hint">這本裡面沒有可以印的練習。</div>';}
 function GHFILL(){const sel=document.getElementById('gh-book'),box=document.getElementById('gh-lessons');
   if(sel&&box)box.innerHTML=ghListHtml(sel.value);
   /* GHCL_V860 「只出幾句」只有文言文用得到，別本就不要出現這一區 */
-  try{const w=document.getElementById('gh-clbox');
-    if(w&&sel)w.style.display=(baLessonsOf(sel.value)||[]).some(l=>ghClLines(l).length)?'':'none';}catch(e){}}
-function GHALL(){const b=[...document.querySelectorAll('.gh-l')];if(!b.length)return;
-  const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
+  try{const w=document.getElementById('gh-clbox'),one=sel?ghHasCl(sel.value):false;
+    if(w)w.style.display=one?'':'none';
+    /* GHCL_V861 文言文一次一課，「全選」就沒有意義了 */
+    const ab=document.getElementById('gh-allbtn');if(ab)ab.style.display=one?'none':'';
+    const lb=document.getElementById('gh-lbl-les');
+    if(lb){const f=lb.firstChild;if(f&&f.nodeType===3)f.nodeValue=one?'要出哪一課 ':'要出哪幾課';
+      let hn=lb.querySelector('.hint');
+      if(one&&!hn){hn=document.createElement('span');hn.className='hint';lb.insertBefore(hn,lb.children[0]||null);}
+      if(hn)hn.textContent=one?'文言文一份出一課':'';}
+  }catch(e){}
+  try{GHSENT();}catch(e){}}
+function GHALL(){const b=[...document.querySelectorAll('.gh-l')].filter(x=>x.type==='checkbox');
+  if(!b.length)return;
+  const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});
+  try{GHSENT();}catch(e){}}
 /* GHCL_V860 這本裡面有沒有文言文（有的話才要出現「只出幾句」那一區） */
 function ghHasCl(book){try{return (baLessonsOf(book)||[]).some(l=>ghClLines(l).length>0);}catch(e){return false;}}
+/* GHCL_V861 把選到那一課的句子列出來讓她勾，不用自己去數第幾句。 */
+function GHSENT(){
+  const box=document.getElementById('gh-clpick'),msg=document.getElementById('gh-clmsg');
+  if(!box)return;
+  const ids=[...document.querySelectorAll('.gh-l:checked')].map(x=>x.value);
+  const book=((document.getElementById('gh-book')||{}).value)||'';
+  const say=(t)=>{box.innerHTML='';if(msg)msg.textContent=t;};
+  if(ids.length!==1)return say('先在上面選一課，這裡就會把那一課的句子列出來。');
+  const l=baLessonsOf(book).find(x=>x.id===ids[0]);
+  const lines=ghClLines(l);
+  if(!lines.length)return say('這一課沒有文言文原文。');
+  box.innerHTML=lines.map((x,i)=>{
+    const t=String(x.orig||'').replace(/\s+/g,'');
+    return '<label class="check-row"><input type="checkbox" class="gh-s" value="'+(i+1)+'">'
+      +'<span class="gh-sn">'+(i+1)+'</span>'
+      +'<span class="gh-ln">'+esc(t.slice(0,40)+(t.length>40?'…':''))+'</span></label>';}).join('');
+  if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 句。一句都不勾就是整課都出。';}
+function GHSALL(){const b=[...document.querySelectorAll('.gh-s')];if(!b.length)return;
+  const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
 function ghModal(){
   const books=baBooks();if(!books.length)return toast('還沒有課文');
   const cur=(S.bookFilter&&books.some(b=>b.k===S.bookFilter))?S.bookFilter:books[0].k;
@@ -5802,9 +5847,11 @@ function ghModal(){
    +books.map(b=>'<option value="'+esc(b.k)+'"'+(b.k===cur?' selected':'')+'>'+esc(b.k)+'（'+b.n+' 課）</option>').join('')
    +'</select></div>'
    /* GHPICK_V833 本來按鈕用 float:right，會被擠出框線外面切掉；改成同一列靠右 */
-   +'<div class="field"><label class="gh-lbl">要出哪幾課<span style="flex:1"></span>'
-   +'<button class="btn btn-sm btn-ghost" type="button" onclick="GHALL()">全選 / 取消</button></label>'
-   +'<div class="check-list gh-list" id="gh-lessons">'+ghListHtml(cur)+'</div></div>'
+   +'<div class="field"><label class="gh-lbl" id="gh-lbl-les">'+(ghHasCl(cur)?'要出哪一課 <span class="hint">文言文一份出一課</span>':'要出哪幾課')
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-sm btn-ghost" type="button" id="gh-allbtn" onclick="GHALL()"'
+   +(ghHasCl(cur)?' style="display:none"':'')+'>全選 / 取消</button></label>'
+   +'<div class="check-list gh-list" id="gh-lessons" onchange="GHSENT()">'+ghListHtml(cur)+'</div></div>'
    /* GHWIDE_V826 學生要寫整句的話，一條細線根本不夠寫 */
    +'<div class="field"><label>作答空間</label><select id="gh-lay">'
    /* GHLAY_V853 預設改回緊湊：比較像課本原來的樣子 */
@@ -5824,13 +5871,18 @@ function ghModal(){
    +'<input type="checkbox" id="gh-noimg" style="width:auto;margin:0"> 不印圖片（省紙，純文字練習用）</label></div>'
    /* GHCL_V860 文言文一課動輒二三十句，一次全給太多，可以只出其中幾句 */
    +'<div id="gh-clbox"'+(ghHasCl(cur)?'':' style="display:none"')+'>'
-   +'<div class="field"><label>文言文：原文只出其中幾句 <span class="hint">留空＝整課都出；句號照課本算</span></label>'
-   +'<div style="display:flex;align-items:center;gap:8px">第'
-   +'<input id="gh-cla" type="number" min="1" max="999" placeholder="1" style="flex:1;min-width:0">句　到　第'
-   +'<input id="gh-clb" type="number" min="1" max="999" placeholder="最後一句" style="flex:1;min-width:0">句</div></div>'
-   +'<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
-   +'<input type="checkbox" id="gh-clq" style="width:auto;margin:0" checked> 課後問答也一起印'
-   +'<span class="hint">只出幾句的時候通常不用，問答是整篇的</span></label></div></div>'
+   /* GHCL_V861 本來是兩格數字，可是要填之前得先去數第幾句。改成直接把句子列出來勾。 */
+   +'<div class="field"><label class="gh-lbl">文言文：要出哪幾句 <span class="hint">不勾＝整課都出</span>'
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-sm btn-ghost" type="button" onclick="GHSALL()">全選 / 取消</button></label>'
+   +'<div class="check-list gh-list" id="gh-clpick"></div>'
+   +'<div class="hint" id="gh-clmsg" style="margin-top:6px"></div></div>'
+   /* GHCL_V861 有時候只要翻譯，不要問答（Quinn：「請給我選擇權」） */
+   +'<div class="field"><label>這一份要出什麼</label><select id="gh-clq">'
+   +'<option value="1" selected>原文、翻譯、課後問答都出</option>'
+   +'<option value="0">只出原文和翻譯 —— 不出課後問答</option>'
+   +'<option value="only">只出課後問答 —— 不出原文</option>'
+   +'</select></div></div>'
    /* GHWHO_V860 這一份是給誰、哪一天上的，填了就印在抬頭 */
    +'<div class="field"><label>這一份給誰 <span class="hint">選填，選了就印在抬頭，不用學生自己寫</span></label>'
    +'<select id="gh-who"><option value="">— 不指定（留空白讓學生自己寫）—</option>'
@@ -5842,7 +5894,8 @@ function ghModal(){
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
    +'<button class="btn" data-act="ghGo" data-id="key">📋 只印答案</button>'
    +'<button class="btn" data-act="ghGo" data-id="tea">👩‍🏫 老師版（含答案）</button>'
-   +'<button class="btn btn-primary" data-act="ghGo" data-id="stu">👩‍🎓 學生版</button></div></div>');}
+   +'<button class="btn btn-primary" data-act="ghGo" data-id="stu">👩‍🎓 學生版</button></div></div>');
+  try{GHSENT();}catch(e){}/* GHCL_V861 */}
 function assignModal(l){
   assignModalCore({id:l.id,title:l.title,ids:l.assigned_ids||[],groups:l.assigned_groups||[],
     due:l.due_date||'',saveAct:'saveAssign',unassignAct:'unassign'});
@@ -13107,10 +13160,10 @@ H.ghGo=(mode)=>{
   const noimg=!!(document.getElementById('gh-noimg')||{}).checked;/* GHOPT_V844 */
   GHFONT=((document.getElementById('gh-font')||{}).value)||'';/* GHFONT_V846 */
   /* GHCL_V860 ／ GHWHO_V860 */
-  const _n=(id)=>{const v=Number((document.getElementById(id)||{}).value);return (v>0)?Math.floor(v):0;};
-  GHCLA=_n('gh-cla');GHCLB=_n('gh-clb');
-  if(GHCLA&&GHCLB&&GHCLB<GHCLA){const t=GHCLA;GHCLA=GHCLB;GHCLB=t;}
-  const _q=document.getElementById('gh-clq');GHCLQ=_q?(_q.checked?1:0):1;
+  /* GHCL_V861 勾起來的句號；一句都沒勾＝整課都出 */
+  GHCLSET=[...document.querySelectorAll('.gh-s:checked')].map(x=>Number(x.value)).filter(n=>n>0)
+    .sort((a,b)=>a-b);
+  GHCLQ=((document.getElementById('gh-clq')||{}).value)||'1';
   GHWHO=((document.getElementById('gh-who')||{}).value)||'';
   GHWHEN=((document.getElementById('gh-when')||{}).value)||'';
   ghBuild(book,lids,mode,wide,noimg);};
