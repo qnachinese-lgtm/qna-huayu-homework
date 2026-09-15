@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=886">
+<link rel="stylesheet" href="styles.css?v=887">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -2618,7 +2618,7 @@ function renderDashboard(){
     remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">✍️ ${lab}</span><b>${snm(c.name||'')}</b>${c.docs?`<span class="muted">${esc(c.docs)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="writing">看客戶</button></div>`);});
   (S.agencies||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;const d=itvDaysTo(c.deadline);if(d==null)return;if(d>21)return;const col=d<0?'#dc2626':(d<=3?'#dc2626':(d<=7?'#d97706':'#2563eb'));const lab=d<0?('繳件已過 '+(-d)+' 天'):(d===0?'今天要繳件！':(d===1?'明天要繳件':'還有 '+d+' 天繳件'));remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 ${lab}</span><b>${snm(c.name||'')}</b>${c.school?`<span class="muted">${esc(c.school)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="agency">看客戶</button></div>`);});
   try{const bwk=localStorage.getItem('hyc_backup_wk')||'';const nowWk=weekStart(localToday());
-    if(IS_OWNER&&bwk!==nowWk&&(S.students||[]).some(x=>!x.is_test))remRows.push(`<div class="dash-row"><span class="badge" style="background:#fef3c7;color:#92400e;border-color:#92400e55">📦 備份</span><b>這週還沒備份</b><span class="grow"></span><span class="muted">${bwk?('上次備份：'+esc(bwk)+' 那週'):'還沒備份過'}</span><button class="btn btn-sm btn-accent" data-act="exportAll">匯出 Excel</button></div>`);}catch(e){}
+    if(IS_OWNER&&bwk!==nowWk&&(S.students||[]).some(x=>!x.is_test))remRows.push(`<div class="dash-row"><span class="badge" style="background:#fef3c7;color:#92400e;border-color:#92400e55">📦 備份</span><b>這週還沒備份</b><span class="grow"></span><span class="muted">${bwk?('上次備份：'+esc(bwk)+' 那週'):'還沒備份過'}</span><button class="btn btn-sm btn-accent" data-act="exportJson">⬇ 下載完整備份</button></div>`);}catch(e){}
   const remHtml=remRows.length?remRows.join(''):`<div class="muted" style="padding:8px 2px">目前沒有需要提醒的事項 👍</div>`;
   const todoN=inbox.length+remRows.length;
   // 總覽數字卡：本月收入／尚未收款／待批改／待辦／堂數快用完
@@ -3231,7 +3231,37 @@ function buildAllClassICS(){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//
     L.push('BEGIN:VEVENT','UID:qna-t-'+Date.now()+'-'+(u++)+'@huayu','DTSTAMP:'+stamp,'DTSTART:'+icsLocT(start),'DTEND:'+icsLocT(end),'RRULE:FREQ=WEEKLY','SUMMARY:'+icsEscT(title));
     if(/^https?:\/\//i.test(meet)){L.push('LOCATION:'+icsEscT(meet),'DESCRIPTION:'+icsEscT('線上教室：'+meet));}
     L.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEscT(title+'快開始了'),'TRIGGER:-PT30M','END:VALARM','END:VEVENT');});
-  L.push('END:VCALENDAR');return {ics:L.join('\r\n'),count:order.length};}
+  /* ICSPLAN_V887 上面只看「固定週表」，可是 15 位在學學生裡只有 5 位有填，
+     匯出來才 3 筆。真正在用的是「預排課程」，那邊一堂就是一堂，
+     這裡一起匯出成單次行程（不重複），今天以後的才出。 */
+  let plan=0;
+  try{
+    const today=localToday();
+    const mk=(title,date,st,en,meet)=>{
+      if(!date||date<today||!st)return;
+      const start=new Date(date+'T'+(/^\d{2}:\d{2}$/.test(st)?st:'00:00')+':00');
+      if(isNaN(start))return;
+      let end=new Date(start);
+      if(/^\d{2}:\d{2}$/.test(en||'')){const ep=String(en).split(':');
+        end.setHours(parseInt(ep[0],10)||0,parseInt(ep[1],10)||0,0,0);}
+      if(end<=start)end=new Date(start.getTime()+3600000);
+      L.push('BEGIN:VEVENT','UID:qna-p-'+Date.now()+'-'+(u++)+'@huayu','DTSTAMP:'+stamp,
+        'DTSTART:'+icsLocT(start),'DTEND:'+icsLocT(end),'SUMMARY:'+icsEscT(title));
+      if(/^https?:\/\//i.test(meet||'')){L.push('LOCATION:'+icsEscT(meet),
+        'DESCRIPTION:'+icsEscT('線上教室：'+meet));}
+      L.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEscT(title+'快開始了'),
+        'TRIGGER:-PT30M','END:VALARM','END:VEVENT');
+      plan++;};
+    (S.students||[]).forEach(s=>{if(!s||s.deleted||s.is_test||enrollOf(s)==='paused')return;
+      if((s.class_type||'')==='團班')return;
+      studentPlanned(s).forEach(p=>mk('中文課 · '+(s.name||''),p.date,p.start,p.end,
+        (typeof meetOfStudent==='function')?meetOfStudent(s.id):(s.meet_url||'')));});
+    groupsList().forEach(cls=>{classPlanned(cls).forEach(p=>
+      mk('中文課 · '+cls+' 團班',p.date,p.start,p.end,
+        (typeof meetOfGroup==='function')?meetOfGroup(cls):''));});
+  }catch(e){}
+  /* 兩份都沒有東西的時候，count 為 0，外面才會提示「沒有可以匯出的課」 */
+  L.push('END:VCALENDAR');return {ics:L.join('\r\n'),count:order.length+plan};}
 function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'week';
   const _cvb=(v,lb)=>`<button class="segb${view===v?' on':''}" data-act="calView" data-id="${v}">${lb}</button>`;
   const toggle=`<div class="cal-top">
@@ -3253,7 +3283,7 @@ function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'
   body.innerHTML=toggle+weekBoardHtml();
   return;
   {const wa=weekActualCard();
-  let html=toggle+wa+'<div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-sm btn-accent" data-act="exportCal">📅 匯出全部上課日曆</button><span class="hint">匯入手機／Google 日曆一次，每堂課前 30 分鐘自動提醒（含 Meet 連結）</span></div>';const todayIdx=(new Date().getDay()+6)%7;
+  let html=toggle+wa+'<div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-sm btn-accent" data-act="exportCal">📅 匯出全部上課日曆</button><span class="hint">匯入手機／Google 日曆一次，每堂課前 30 分鐘自動提醒（含 Meet 連結）。<b>固定週表</b>會排成每週重複，<b>預排的課</b>各自一次。</span></div>';const todayIdx=(new Date().getDay()+6)%7;
   for(let i=0;i<7;i++){const d=(todayIdx+i)%7;const raw=(byDay[d]||[]).slice().sort((a,b)=>(a.slot.s||'').localeCompare(b.slot.s||''));if(!raw.length)continue;
     // 團班同一時段＝一堂課：把同團班、同時段的學生合併成一筆
     const gmap={},order=[];
@@ -7514,10 +7544,10 @@ H.exportJson=async(_,b)=>{if(!IS_OWNER){toast('這個功能只有主管理員可
     const add=(name,rows)=>{XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows.length?rows:[{'（沒有資料）':''}]),name);};
 
     add('說明',[{項目:'檔案用途',內容:'QNA CHINESE 學習平台的完整備份'},
-      {項目:'備份時間',內容:new Date().toLocaleString('zh-TW')},
+      {項目:'備份時間',內容:nowStr()},/* NOW24_V887 */
       {項目:'注意事項',內容:'音檔與圖片存在雲端，這個檔只記錄它們的網址，不是檔案本身'},
       {項目:'還原用',內容:'最後一頁「原始備份資料」請不要修改，要還原資料時需要它'},
-      {項目:'包含範圍',內容:'教材、題庫、作業簿、學生、上課紀錄、繳費、成績、面試客戶、代辦客戶、文件清單、進度紀錄、回覆範本、價目表'},
+      {項目:'包含範圍',內容:'教材、課文、題庫、作業簿、文言文、學生、上課紀錄、繳費、成績、面試客戶、代辦客戶、文件代寫、學校、我的備忘、文件清單、進度紀錄、回覆範本、價目表'},
       {項目:'建議',內容:'每個月備份一次，存到自己的硬碟或 Google Drive'}]);
 
     add('學生',ST.filter(s=>!s.deleted_at).map(s=>({姓名:s.name||'',狀態:(enrollMeta(enrollOf(s))||[])[1]||'',團班:(s.groups||[]).join('、'),
@@ -7625,6 +7655,28 @@ H.exportJson=async(_,b)=>{if(!IS_OWNER){toast('這個功能只有主管理員可
     add('詢問候補',inqs.map(c=>({姓名:c.name||'',聯絡:c.phone||'',想上:c.want||c.target||'',
       狀態:c.status||'',備註:c.note||''})));
 
+    /* BKMORE_V887 這四類本來只躺在最後那張原始資料裡，打開備份檔看不到。
+       文言文尤其重要——那幾課的原文和註解是一段一段手工打的。 */
+    const _cls=L.filter(x=>kind(x)==='classical'&&!x.deleted_at);
+    const _clRows=[];
+    _cls.forEach(c=>{const lines=(Array.isArray(c.cl_lines)?c.cl_lines:[]);
+      if(!lines.length){_clRows.push({課名:c.title||'',段:'',原文:c.cl_text||'',註解:''});return;}
+      lines.forEach((x,i)=>_clRows.push({課名:c.title||'',段:i+1,
+        原文:(x&&x.orig)||'',註解:(x&&x.note)||'',出處:(x&&x.ref)||''}));});
+    add('文言文',_clRows);
+    add('文言文討論題',(function(){const out=[];
+      _cls.forEach(c=>{(Array.isArray(c.cl_qs)?c.cl_qs:[]).forEach((q,i)=>
+        out.push({課名:c.title||'',題號:i+1,題目:(q&&(q.q||q.prompt))||String(q||''),
+          參考答案:(q&&(q.a||q.answer))||''}));});return out;})());
+    add('文件代寫',bizOf('writing').map(c=>({姓名:c.name||'',學校:c.school||'',狀態:c.status||'',
+      期限:c.deadline||'',費用:c.fee_total==null?'':c.fee_total,幣別:c.fee_cur||'',
+      聯絡:c.phone||'',備註:c.note||'',建立時間:c.created_at||''})));
+    add('學校',bizOf('school').map(c=>({名稱:c.name||'',英文名:c.name_en||'',國家:c.country||'',
+      聯絡人:c.contact||'',電話:c.phone||'',Email:c.email||'',官網:c.site||'',
+      申請窗口:c.portal||'',帳號:c.account||'',狀態:c.status||'',備註:c.note||''})));
+    add('我的備忘',bizOf('memo').map(m=>({事項:m.text||'',內容:m.note||'',
+      期限:m.due||'',狀態:m.done?'做完了':'還沒做',結果:m.done_note||'',
+      建立時間:m.created_at||'',完成時間:m.done_at||''})));
     add('回覆範本',(L.filter(x=>kind(x)==='reply'&&!x.deleted_at)).map(r=>({
       標題:r.title||'',分類:r.grp||'',關鍵字:r.tags||'',內容:r.body_vi||r.body_zh||''})));
 
@@ -7658,7 +7710,7 @@ H.dataTools=()=>{openModal(`<div class="modal"><div class="modal-head"><h3>🗄�
     <div class="dash-row" style="align-items:flex-start"><span class="grow"><b>🛟 完整備份（整個平台）</b><div class="hint">把教材、課文、生詞、語法、題庫、作業簿、小考、學生、成績、繳費紀錄，以及<b>面試客戶、代辦客戶、文件清單、進度紀錄、回覆範本、價目表</b>全部存成<b>一個 Excel 檔</b>下載到你電腦，一個分頁一類資料，可以直接打開看。<b>建議每個月做一次。</b><br>音檔和圖片存在雲端，備份檔裡存的是它們的網址，不是檔案本身。</div>
       <label style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="bk-up" style="width:auto"> 一併包含學生上傳的檔案內容（檔案會大很多）</label>
       <div class="hint" id="bk-st" style="margin-top:6px"></div></span><button class="btn btn-sm btn-accent" data-act="exportJson">⬇ 下載完整備份</button></div>
-    <div class="dash-row" style="margin-top:8px"><span class="grow"><b>Excel 備份</b><div class="hint">只匯出學生、成績、繳費，方便用 Excel 看</div></span><button class="btn btn-sm" data-act="exportAll">⬇ 匯出 Excel</button></div>
+    <div class="dash-row" style="margin-top:8px"><span class="grow"><b>Excel 備份（簡易）</b><div class="hint">只有學生、課程清單、上課記錄、成績、繳費，方便用 Excel 看。<b>不含課文和題庫，不能拿來還原</b>——要還原請用上面那個。</div></span><button class="btn btn-sm" data-act="exportAll">⬇ 匯出 Excel</button></div>
     <div class="dash-row" style="margin-top:8px"><span class="grow"><b>垃圾桶</b><div class="hint">刪除的學生／課程 7 天內可復原</div></span><button class="btn btn-sm" data-act="trash">🗑 開啟垃圾桶</button></div>
   </div>
   <div class="modal-foot"><span style="flex:1"></span><button class="btn" data-act="closeModal">關閉</button></div></div>`);};
@@ -12309,7 +12361,7 @@ H.qiInstr=async(si)=>{
   catch(e){toast(writeErr('存不進去',e));}};
 H.backToQuestions=(id)=>openQuestionsModal(id);
 H.bulkImport=(id)=>bulkImportModal(id);
-H.exportCal=()=>{const r=buildAllClassICS();if(!r.count){toast('沒有設定上課時段的學生');return;}
+H.exportCal=()=>{const r=buildAllClassICS();if(!r.count){toast('沒有固定時段、也沒有預排的課可以匯出');return;}
   try{const b=new Blob([r.ics],{type:'text/calendar;charset=utf-8'});const url=URL.createObjectURL(b);const a=document.createElement('a');a.href=url;a.download='上課日曆.ics';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url);},800);}catch(e){toast('產生失敗');return;}
   toast('已下載 '+r.count+' 堂課的日曆，打開它就能加入並開啟課前提醒');};
 H.lessonImport=(id)=>lessonImportModal(id);
@@ -14341,6 +14393,13 @@ H.exportAll=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(gr.length?gr:[{}]),'成績');
     const pays=[];S.students.forEach(s=>{(s.payments||[]).forEach(p=>{pays.push({學生:s.name||'',日期:p.date||'',金額:p.amount==null?'':p.amount,幣別:p.currency||s.currency||'',加堂:p.sessions==null?'':p.sessions,備註:p.note||''});});});
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(pays.length?pays:[{}]),'繳費');
+    /* BKLOG_V887 這張本來沒有。上課記錄是算錢的依據（425 筆），
+       「備份」裡缺了它，打開來根本對不出帳。 */
+    const logs=[];S.students.forEach(s=>{(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{
+      if(!e)return;logs.push({學生:s.name||'',日期:e.date||'',開始:e.start||'',結束:e.end||'',
+        上課內容:e.note||'',團班:(s.groups||[]).join('、')});});});
+    logs.sort((a,b)=>String(b.日期).localeCompare(String(a.日期)));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(logs.length?logs:[{}]),'上課記錄');
     XLSX.writeFile(wb,'QNA_CHINESE_備份_'+localToday()+'.xlsx');try{localStorage.setItem('hyc_backup_wk',weekStart(localToday()));}catch(e){}toast('已匯出 Excel 備份');render();
   }catch(err){toast('匯出失敗：'+((err&&err.message)||err));}};
 H.exportLedger=()=>{
