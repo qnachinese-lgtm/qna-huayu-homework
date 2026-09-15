@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=863">
+<link rel="stylesheet" href="styles.css?v=866">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5454,7 +5454,11 @@ function ghAnsSpace(q){
   return h;}
 /* GHSPACE_V833 題目裡的「＿＿＿＿」照字數印出來很短，寫不下。改成一段有長度的底線。 */
 function ghBlank(t){
-  return ghLines(t).replace(/[_＿]{2,}/g,'<span class="gh-bl"></span>');}
+  /* GHBLNUM_V866 「__14__」這種夾著題號的寫法，整組算一個空格，題號印在空格上面，
+     不然會被當成前後兩條長空格，一句話撐成兩行。 */
+  return ghLines(t)
+    .replace(/[_＿]{2,}\s*(\d{1,3})\s*[_＿]{2,}/g,'<span class="gh-bln">$1</span>')
+    .replace(/[_＿]{2,}/g,'<span class="gh-bl"></span>');}
 /* GHBLANK_V841 題目裡本來就有空格的，底下不用再多一條作答線——重複又占位子 */
 function ghHasBlank(q){return /[_＿]{2,}/.test(String((q&&q.prompt)||''));}
 /* GHOTHER_V826 文言文／關鍵詞彙的內容不在 questions 集合，各自從課本身讀 */
@@ -5473,15 +5477,41 @@ function ghCount(l){
   const tw=ghTwN(l),kp=ghKp(l).length;
   return {gp:(l.grammar_points||[]).length,cl:cl,tr:tr,tw:tw,kp:kp,
     q:qs.filter(q=>q.type!=='note').length+clq+tr};}
+/* GHOPT_V865 選擇題的正解存的是第幾個（0 開始）。空字串＝還沒填答案，不要當成 A。 */
+function ghAnsIdx(q){
+  let raw=q&&q.answer;if(Array.isArray(raw))raw=raw[0];
+  if(raw===0)return 0;
+  if(raw==null||String(raw).trim()==='')return null;
+  const n=Number(raw);return isNaN(n)?null:n;}
+const GHAB='ABCDEFGH';
+/* GHOPT_V865 本來選項一個都沒印，學生根本沒得選。短的排兩欄，長的一欄一個。 */
+function ghOptsHtml(q,withAns){
+  const o=(q.options||[]).map(x=>String(x==null?'':x)).filter(x=>x.trim()!=='');
+  if(!o.length)return '';
+  const ai=ghAnsIdx(q);
+  const one=o.length>4||o.some(x=>x.length>14);
+  return '<div class="gh-ops'+(one?' one':'')+'">'
+    +o.map((x,i)=>{const ok=!!withAns&&ai===i;
+      return '<div class="gh-op'+(ok?' ok':'')+'"><span class="gh-oi">'+GHAB.charAt(i)+'</span>'
+        +'<span>'+ghBlank(x)+'</span>'+(ok?'<span class="gh-ok">✓</span>':'')+'</div>';}).join('')
+    +'</div>';}
 function ghQHtml(q,n,withAns,noSpace){/* CLPRINT_V827 noSpace：只印題目，不留作答空間 */
   const isNote=(q.type==='note');
   const img=ghImg(q.image_url);/* GHOPT_V844 */
-  const ans=(q.answer||[]).filter(x=>String(x||'').trim());
+  /* GHOPT_V865 選擇題的答案是數字，(1||[]).filter 會丟錯、整份講義變空白。
+     先包成陣列再過濾，數字、字串、陣列都吃得下。 */
+  const _raw=(q.answer==null||q.answer==='')?[]:(Array.isArray(q.answer)?q.answer:[q.answer]);
+  const ans=_raw.filter(x=>String(x==null?'':x).trim()!=='');
+  /* GHOPT_V865 選擇題把 A／B／C／D 印出來；有選項就不用再留作答線（學生是圈選） */
+  const ops=(!isNote&&q.type==='choice')?ghOptsHtml(q,withAns):'';
+  const marked=!!ops&&!!withAns&&ghAnsIdx(q)!=null;
+  const pr=String(q.prompt==null?'':q.prompt).trim();
   return '<div class="gh-q'+(isNote?' gh-eg':'')+'">'
     +(isNote?'<span class="gh-n gh-ne">例</span>':'<span class="gh-n">'+n+'</span>')
-    +'<div class="gh-qb">'+ghBlank(q.prompt)+img
-    +((isNote||noSpace||ghHasBlank(q))?'':ghAnsSpace(q))/* GHBLANK_V841 */
-    +((withAns&&!isNote&&ans.length)?('<div class="gh-a">參考答案：'+esc(ans.join('／'))+'</div>'):'')
+    +'<div class="gh-qb">'+(pr?ghBlank(q.prompt):'')+img+ops
+    +((isNote||noSpace||ops||ghHasBlank(q))?'':ghAnsSpace(q))/* GHBLANK_V841 */
+    /* 正解已經圈在選項上了就不用再寫一次 */
+    +((withAns&&!isNote&&!marked&&ans.length)?('<div class="gh-a">參考答案：'+esc(ans.join('／'))+'</div>'):'')
     +'</div></div>';}
 /* GHZONE_V830 例句本來是一整塊文字直接印出來，沒有編號，上課要指「第二句」沒得指。
    改成一句一個號碼；「A：… B：…」擠在同一行的，照練習題的樣子把 B 換到下一行。 */
@@ -5549,6 +5579,12 @@ function ghClMap(sents,notes){
     bk[idx].push(e);});
   return bk;}
 function ghCnNum(n){return '一二三四五六七八九十'.charAt(n-1)||String(n);}
+/* GHCL_V864 文言文每一句底下要寫整句白話還要抄筆記，一條線不夠。
+   緊湊三行、手寫五行，而且線距放寬一點才寫得下字。 */
+function ghClSpace(){
+  const n=GHWIDE?5:3,cls=GHWIDE?'gh-line gh-w':'gh-line gh-cw';
+  let h='';for(let i=0;i<n;i++)h+='<div class="'+cls+'"></div>';
+  return h;}
 /* GHOTHER_V826 文言文：題解 → 原文（逐句附白話、註釋）→ 問答。
    參考答案本來就存在 cl_qs[].ans，所以老師版印得出來。 */
 function ghClHtml(l,withAns){
@@ -5589,7 +5625,7 @@ function ghClHtml(l,withAns){
         h+='<div class="gh-cli"><div class="gh-clo"><span class="gh-cn">'+o.n+'-'+(j+1)+'</span>'
           +ghLines(sv)+'</div>'
           +(bk[j].length?('<div class="gh-cln">'+bk[j].map(e=>ghLines(e)+'。').join('<br>')+'</div>'):'')
-          +(withAns?'':ghAnsSpace({type:'qa'}))
+          +(withAns?'':ghClSpace())/* GHCL_V864 */
           +'</div>';});});
     h+='</div>';}
   const qmode=l.cl_qs_mode||'hw';
@@ -5623,9 +5659,15 @@ function ghKeyItem(n,ans){
   const a=(Array.isArray(ans)?ans:[ans]).filter(x=>String(x||'').trim());
   return '<div class="gk-i"><span class="gk-n">'+n+'</span><span class="gk-a">'
     +(a.length?esc(a.join('／')):'<i>（沒有參考答案）</i>')+'</span></div>';}
+/* GHOPT_V865 選擇題的答案存的是第幾個，直接印會變成「1」，改成印「B　選」 */
+function ghKeyAns(q){
+  if(q&&q.type==='choice'){const ai=ghAnsIdx(q);if(ai==null)return '';
+    const o=(q.options||[])[ai];
+    return o?(GHAB.charAt(ai)+'　'+String(o)):GHAB.charAt(ai);}
+  return q&&q.answer;}
 function ghKeyGp(title,qs){
   let n=0;const items=[];
-  (qs||[]).forEach(q=>{if(q.type==='note')return;n++;items.push(ghKeyItem(n,q.answer));});
+  (qs||[]).forEach(q=>{if(q.type==='note')return;n++;items.push(ghKeyItem(n,ghKeyAns(q)));});
   if(!items.length)return '';
   return '<div class="gk-gp"><div class="gk-t">'+esc(title||'')+'</div>'+items.join('')+'</div>';}
 function ghKeyHtml(l){
@@ -5716,15 +5758,30 @@ function ghCss(){return ''
   +'.gh-ne{background:#f2e5d2;color:#a3714e}'
   +'.gh-qb{flex:1;min-width:0;font-size:13.5px;line-height:1.75}'
   +'.gh-eg .gh-qb{color:#8b8079;font-size:12.5px;background:#faf7f2;padding:6px 11px;border-radius:8px}'
+  /* GHOPT_V865 選項 */
+  +'.gh-ops{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px 16px;margin-top:5px}'
+  +'.gh-ops.one{grid-template-columns:minmax(0,1fr)}'
+  +'.gh-op{font-size:13px;line-height:1.8;color:#4a4238;display:flex;gap:7px;align-items:baseline}'
+  +'.gh-oi{flex:none;width:16px;height:16px;border:1px solid #d8c9b4;border-radius:50%;'
+  +'display:inline-flex;align-items:center;justify-content:center;font-size:10px;'
+  +'color:#a3714e;font-weight:700;transform:translateY(2px)}'
+  +'.gh-op.ok{color:#2f7a52;font-weight:700}'
+  +'.gh-op.ok .gh-oi{border-color:#2f7a52;color:#2f7a52;background:#eaf6ee}'
+  +'.gh-ok{color:#2f7a52;font-weight:700;margin-left:3px}'
   +'.gh-line{border-bottom:1px solid #ddd0bd;height:17px;margin-top:3px}'
   /* GHWIDE_V826 手寫版：行距拉開，線也拉高，才寫得下一整句 */
   +'.gh-line.gh-w{height:31px;margin-top:8px;border-bottom:1px solid #d8c9b4}'
+  /* GHCL_V864 文言文寫白話用的線，比一般題目的寬一點 */
+  +'.gh-line.gh-cw{height:24px;margin-top:6px;border-bottom:1px solid #ded1bd}'
   +'.gh-hand .gh-q{margin-bottom:18px}'
   +'.gh-hand .gh-qs{margin-top:8px}'
   /* GHSPACE_V833 題目裡的空格 */
   /* GHBLANK_V841 學生是用平板匯入手寫，空格要又寬又高才寫得下 */
   +'.gh-bl{display:inline-block;min-width:170px;height:24px;border-bottom:1px solid #c9bba6;margin:0 5px;vertical-align:-6px}'
   +'.gh-hand .gh-bl{min-width:250px;height:32px;vertical-align:-9px}'
+  /* GHBLNUM_V866 夾著題號的空格：短短一格，題號在上面 */
+  +'.gh-bln{display:inline-block;min-width:52px;border-bottom:1px solid #c9bba6;margin:0 4px;'
+  +'text-align:center;color:#a3714e;font-weight:700;font-size:11px;line-height:1.9;vertical-align:-2px}'
   +'.gh-hand .gh-qb{line-height:2.5}'
   /* GHOTHER_V826 文言文 */
   +'.gh-cl{margin:2px 0 4px}'
