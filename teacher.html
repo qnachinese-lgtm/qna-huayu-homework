@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=884">
+<link rel="stylesheet" href="styles.css?v=885">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1343,6 +1343,10 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .af-n{flex:none;font-size:11.5px;font-weight:700;color:#b9a68f;min-width:26px}
         .af-p{flex:1;min-width:0;font-size:13.5px;line-height:1.7;white-space:pre-wrap;word-break:break-word}
         .af-ok{flex:none;font-size:12px;color:#5b8a4a;font-weight:700}
+        /* AFNUM_V885 大題標題／沒有題目文字的題 */
+        .af-ins{font-size:12.5px;font-weight:700;color:#7a5236;background:#faf4ec;
+          border-radius:8px;padding:6px 10px;margin:10px 0 7px}
+        .af-p.af-noq{color:#a8998a;font-style:italic}
         .af-ops{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:7px}
         .af-o{text-align:left;border:1px solid var(--line);background:#fff;border-radius:8px;
           padding:6px 9px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--ink)}
@@ -2367,11 +2371,26 @@ function afBodyHtml(){
     .sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0));}catch(e){}
   const parts=[];let total=0;
   ls.forEach(l=>{
-    const qs=(S.questions||[]).filter(q=>q&&q.lesson_id===l.id&&afUse(q)&&(!AF_ONLY||afEmpty(q)))
+    /* AFNUM_V885 先照課本原來的順序把整課跑一遍，算出每一題的題號、
+       以及它屬於哪一個大題——大題標題只寫在第一題上，後面的要自己沿用（跟講義同一個規則）。
+       這樣「只看沒答案的」也不會把題號變成 1、2、3。 */
+    const all=(S.questions||[]).filter(q=>q&&q.lesson_id===l.id)
       .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0));
+    let n=0,lastIns='';const info={};
+    all.forEach(q=>{const ins=String(q.instruction||'').trim();
+      if(ins)lastIns=ins;
+      if(q.type!=='note')n++;
+      info[q.id]={n:n,ins:lastIns};});
+    const qs=all.filter(q=>afUse(q)&&(!AF_ONLY||afEmpty(q)));
     if(!qs.length)return;
     parts.push('<div class="af-les">'+esc(l.title||'（沒有課名）')+'　·　'+qs.length+' 題</div>');
-    qs.forEach((q,i)=>{total++;parts.push(afQHtml(q,i+1));});});
+    let shownIns='';
+    qs.forEach(q=>{total++;
+      const nf=info[q.id]||{n:0,ins:''};
+      /* 同一個大題只寫一次標題，跳到別的大題才再寫 */
+      if(nf.ins&&nf.ins!==shownIns){shownIns=nf.ins;
+        parts.push('<div class="af-ins">'+esc(nf.ins)+'</div>');}
+      parts.push(afQHtml(q,nf.n));});});
   if(!total)return '<div class="hint" style="padding:16px 4px">'
     +(AF_ONLY?'這一本的參考答案都補齊了 🎉':'這一本沒有可以補答案的題目。')+'</div>';
   return parts.join('');}
@@ -2396,7 +2415,9 @@ function afQHtml(q,n){
       +'placeholder="參考答案（多個答案就一行一個）">'+esc(v)+'</textarea>';}
   return '<div class="af-q" data-afrow="'+esc(q.id)+'">'
     +'<div class="af-h"><span class="af-n">'+n+'.</span>'
-    +'<span class="af-p">'+esc(q.prompt||q.instruction||'（沒有題目文字）')+'</span>'
+    /* AFNUM_V885 聽力題本來就沒有題目文字（題目在音檔裡），寫清楚免得以為是資料掉了 */
+    +'<span class="af-p'+(String(q.prompt||'').trim()?'':' af-noq')+'">'
+    +esc(String(q.prompt||'').trim()||'（聽力題，題目在音檔裡）')+'</span>'
     +'<span class="af-ok" data-afok="'+esc(q.id)+'">'+(done?'✓':'')+'</span></div>'
     +body+'</div>';}
 function afPaint(){
