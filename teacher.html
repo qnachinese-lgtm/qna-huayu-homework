@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=862">
+<link rel="stylesheet" href="styles.css?v=863">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5522,6 +5522,33 @@ function ghGpHtml(g,gi,qs,withAns,tagLab){
     +esc(g.title||'')+'</div>'+blocks+'</div>'
     /* GHZONE_V830 練習區標出「練習」，而且是綠的，跟上面看的部分分開 */
     +(body?('<div class="gh-lab b3">練習</div><div class="gh-qs">'+body+'</div>'):'')+'</div>';}
+/* GHCL_V863 把一段原文照「。！？」切成一句一句。不用 lookbehind，舊瀏覽器也吃得下。 */
+function ghClSents(t){
+  const str=String(t==null?'':t),out=[];let buf='';
+  for(let i=0;i<str.length;i++){buf+=str.charAt(i);
+    if('。！？'.indexOf(str.charAt(i))>=0){const v=buf.trim();if(v)out.push(v);buf='';}}
+  const v=buf.trim();if(v)out.push(v);
+  return out;}
+/* GHCL_V863 「質（zhì）：做人質。亡歸：逃回。」→ 一條一條 */
+function ghClNotes(n){
+  return String(n==null?'':n).split('。').map(x=>x.trim()).filter(Boolean);}
+/* 一條註解解釋的是哪個詞：冒號前面那一段，括號裡的拼音不算 */
+function ghClHead(e){
+  return String(e).split('：')[0].replace(/（[^）]*）/g,'').replace(/\([^)]*\)/g,'').trim();}
+/* 詞被句子拆開的時候（例如「批逆鱗」課文寫成「欲批其逆鱗哉」）用逐字比對 */
+function ghClSub(w,sv){let i=0;
+  for(let k=0;k<w.length;k++){const j=sv.indexOf(w.charAt(k),i);if(j<0)return false;i=j+1;}
+  return true;}
+/* 每一條註解掛到它解釋的那一句底下；真的配不到就放在第一句，不會弄丟 */
+function ghClMap(sents,notes){
+  const bk=sents.map(()=>[]);
+  notes.forEach(e=>{const w=ghClHead(e);let idx=-1;
+    if(w)for(let i=0;i<sents.length;i++){if(sents[i].indexOf(w)>=0){idx=i;break;}}
+    if(idx<0&&w)for(let i=0;i<sents.length;i++){if(ghClSub(w,sents[i])){idx=i;break;}}
+    if(idx<0)idx=0;
+    bk[idx].push(e);});
+  return bk;}
+function ghCnNum(n){return '一二三四五六七八九十'.charAt(n-1)||String(n);}
 /* GHOTHER_V826 文言文：題解 → 原文（逐句附白話、註釋）→ 問答。
    參考答案本來就存在 cl_qs[].ans，所以老師版印得出來。 */
 function ghClHtml(l,withAns){
@@ -5534,38 +5561,43 @@ function ghClHtml(l,withAns){
   let h='';
   if(intro)h+='<div class="gh-blk"><div class="gh-lab">作者・背景</div><div class="gh-txt">'+ghLines(intro)+'</div></div>';
   h+=ghImg(l.cl_img);/* GHOPT_V844 */
-  /* GHCL_V861 「只出課後問答」的時候就不印原文那一大段 */
-  if(lines.length&&GHCLQ!=='only'){
-    /* 只出其中幾句的時候，句號還是照整篇算，
-       第 5 句印出來就是「5」，學生跟課本才對得起來。 */
-    let _arr=lines.map((x,i)=>({x:x,n:i+1}));
-    let _rng='';
-    if(GHCLSET&&GHCLSET.length){
-      const _set={};GHCLSET.forEach(n=>{_set[n]=1;});
-      _arr=_arr.filter(o=>_set[o.n]);
-      if(_arr.length){
-        const _ns=_arr.map(o=>o.n);
-        /* 連號就寫「第 1～5 句」，跳著挑就一個一個列出來 */
-        const _cont=(_ns[_ns.length-1]-_ns[0]+1)===_ns.length;
-        _rng=_cont?('（第 '+_ns[0]+'～'+_ns[_ns.length-1]+' 句）')
-                  :('（第 '+_ns.join('、')+' 句）');}}
-    h+='<div class="gh-gt"><span class="gh-tag">原文'+esc(_rng)+'</span>'
-      +(withAns?'逐句附參考翻譯與註釋':'請逐句寫出白話翻譯')+'</div><div class="gh-cl">'
-      +_arr.map((_o)=>{
-        const x=_o.x,i=_o.n-1;
-        const o=String(x.orig||'').trim(),r=String(x.ref||'').trim(),n=String(x.note||'').trim();
-        if(!o&&!r&&!n&&!x.img)return '';
-        return '<div class="gh-cli"><div class="gh-clo"><span class="gh-cn">'+(i+1)+'</span>'+ghLines(o)+'</div>'
+  /* GHCL_V863 照 Quinn 給的範本改成三段式：一、原文　二、註解　三、討論 */
+  let segs=lines.map((x,i)=>({x:x,n:i+1}))
+    .filter(o=>String(o.x.orig||'').trim()||String(o.x.note||'').trim()||String(o.x.ref||'').trim()||o.x.img);
+  if(GHCLSET&&GHCLSET.length){const _set={};GHCLSET.forEach(n=>{_set[n]=1;});
+    segs=segs.filter(o=>_set[o.n]);}
+  let sec=0;
+  if(segs.length&&GHCLQ!=='only'){
+    /* 一、原文：整段連著印，讓學生先完整讀一次 */
+    sec++;
+    h+='<div class="gh-gt"><span class="gh-tag">'+ghCnNum(sec)+'</span>原文</div><div class="gh-cl">'
+      +segs.map(o=>{const x=o.x,r=String(x.ref||'').trim();
+        return '<div class="gh-seg"><div class="gh-so"><span class="gh-cn">'+o.n+'</span>'
+          +ghLines(String(x.orig||'').trim())+'</div>'
           +ghImg(x.img)/* GHOPT_V844 */
-          +((showRef&&r)?('<div class="gh-clr">'+ghLines(r)+'</div>'):'')
-          +(n?('<div class="gh-cln">'+ghLines(n)+'</div>'):'')
-          +(withAns?'':ghAnsSpace({type:'qa'}))
+          +((showRef&&r)?('<div class="gh-clr"><b>白話</b>'+ghLines(r)+'</div>'):'')
           +'</div>';}).join('')
-      +'</div>';}
+      +'</div>';
+    /* 二、註解：一句一條，句子在上、那一句的詞語解釋條列在下 */
+    sec++;
+    h+='<div class="gh-gt"><span class="gh-tag">'+ghCnNum(sec)+'</span>註解'
+      +(withAns?'':'　·　請逐句寫出白話')+'</div><div class="gh-cl">';
+    segs.forEach(o=>{
+      const sents=ghClSents(o.x.orig);
+      const bk=ghClMap(sents,ghClNotes(o.x.note));
+      sents.forEach((sv,j)=>{
+        h+='<div class="gh-cli"><div class="gh-clo"><span class="gh-cn">'+o.n+'-'+(j+1)+'</span>'
+          +ghLines(sv)+'</div>'
+          +(bk[j].length?('<div class="gh-cln">'+bk[j].map(e=>ghLines(e)+'。').join('<br>')+'</div>'):'')
+          +(withAns?'':ghAnsSpace({type:'qa'}))
+          +'</div>';});});
+    h+='</div>';}
   const qmode=l.cl_qs_mode||'hw';
-  /* GHCL_V861 有時候只要翻譯，不要問答——這裡照她在視窗上選的走 */
+  /* 三、討論 */
   if(qs.length&&qmode!=='off'&&GHCLQ!=='0'){
-    h+='<div class="gh-ins">'+(qmode==='view'?'讀完上面的文章，上課一起討論下面的問題。':'讀完上面的文章，回答下面的問題。')+'</div><div class="gh-qs">'
+    sec++;
+    h+='<div class="gh-gt"><span class="gh-tag">'+ghCnNum(sec)+'</span>討論</div>'
+      +'<div class="gh-ins">'+(qmode==='view'?'讀完上面的文章，上課一起討論下面的問題。':'讀完上面的文章，回答下面的問題。')+'</div><div class="gh-qs">'
       +qs.map((q,i)=>ghQHtml({prompt:(q&&q.q)||'',image_url:(q&&q.img)||'',type:'qa',
           answer:[(q&&q.ans)||'']},i+1,withAns,!!withAns||qmode==='view')).join('')
       +'</div>';}
@@ -5696,6 +5728,10 @@ function ghCss(){return ''
   +'.gh-hand .gh-qb{line-height:2.5}'
   /* GHOTHER_V826 文言文 */
   +'.gh-cl{margin:2px 0 4px}'
+  /* GHCL_V863 原文那一段連著排，行距放寬一點比較好讀 */
+  +'.gh-seg{margin:0 0 11px;break-inside:avoid}'
+  +'.gh-so{font-size:15px;line-height:2;color:#3f3830;letter-spacing:.5px;text-align:justify}'
+  +'.gh-clr b{color:#a3714e;font-weight:800;font-size:10.5px;letter-spacing:1px;margin-right:7px}'
   +'.gh-cli{margin:0 0 9px;padding-left:11px;border-left:3px solid #eee0cd;break-inside:avoid}'
   +'.gh-clo{font-size:15px;line-height:1.85;color:#3f3830;letter-spacing:.5px}'
   +'.gh-cn{display:inline-block;min-width:15px;color:#c0ad95;font-size:11px;font-weight:700;margin-right:7px;vertical-align:2px}'
@@ -5828,7 +5864,7 @@ function GHSENT(){
   const ids=[...document.querySelectorAll('.gh-l:checked')].map(x=>x.value);
   const book=((document.getElementById('gh-book')||{}).value)||'';
   const say=(t)=>{box.innerHTML='';if(msg)msg.textContent=t;};
-  if(ids.length!==1)return say('先在上面選一課，這裡就會把那一課的句子列出來。');
+  if(ids.length!==1)return say('先在上面選一課，這裡就會把那一課的段落列出來。');
   const l=baLessonsOf(book).find(x=>x.id===ids[0]);
   const lines=ghClLines(l);
   if(!lines.length)return say('這一課沒有文言文原文。');
@@ -5837,7 +5873,8 @@ function GHSENT(){
     return '<label class="check-row"><input type="checkbox" class="gh-s" value="'+(i+1)+'">'
       +'<span class="gh-sn">'+(i+1)+'</span>'
       +'<span class="gh-ln">'+esc(t.slice(0,40)+(t.length>40?'…':''))+'</span></label>';}).join('');
-  if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 句。一句都不勾就是整課都出。';}
+  if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 段。一段都不勾就是整課都出。'
+    +'（印出來會先整段原文，底下再一句一句附註解）';}
 function GHSALL(){const b=[...document.querySelectorAll('.gh-s')];if(!b.length)return;
   const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
 function ghModal(){
@@ -5875,16 +5912,16 @@ function ghModal(){
    /* GHCL_V860 文言文一課動輒二三十句，一次全給太多，可以只出其中幾句 */
    +'<div id="gh-clbox"'+(ghHasCl(cur)?'':' style="display:none"')+'>'
    /* GHCL_V861 本來是兩格數字，可是要填之前得先去數第幾句。改成直接把句子列出來勾。 */
-   +'<div class="field"><label class="gh-lbl">文言文：要出哪幾句 <span class="hint">不勾＝整課都出</span>'
+   +'<div class="field"><label class="gh-lbl">文言文：要出哪幾段 <span class="hint">不勾＝整課都出</span>'
    +'<span style="flex:1"></span>'
    +'<button class="btn btn-sm btn-ghost" type="button" onclick="GHSALL()">全選 / 取消</button></label>'
    +'<div class="check-list gh-list" id="gh-clpick"></div>'
    +'<div class="hint" id="gh-clmsg" style="margin-top:6px"></div></div>'
    /* GHCL_V861 有時候只要翻譯，不要問答（Quinn：「請給我選擇權」） */
    +'<div class="field"><label>這一份要出什麼</label><select id="gh-clq">'
-   +'<option value="1" selected>原文、翻譯、課後問答都出</option>'
-   +'<option value="0">只出原文和翻譯 —— 不出課後問答</option>'
-   +'<option value="only">只出課後問答 —— 不出原文</option>'
+   +'<option value="1" selected>一、原文　二、註解　三、討論（全部）</option>'
+   +'<option value="0">只出原文和註解 —— 不出討論題</option>'
+   +'<option value="only">只出討論題 —— 不出原文</option>'
    +'</select></div></div>'
    /* GHWHO_V860 這一份是給誰、哪一天上的，填了就印在抬頭 */
    +'<div class="field"><label>這一份給誰 <span class="hint">選填，選了就印在抬頭，不用學生自己寫</span></label>'
