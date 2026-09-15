@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=901">
+<link rel="stylesheet" href="styles.css?v=903">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -12852,7 +12852,7 @@ H.itvPayList=(id)=>{const c=itvById(id);if(!c)return;
   const left=tot?Math.max(0,tot-got):0;
   const pct=tot>0?Math.min(100,Math.round(got/tot*100)):0;
   const cOpt=(v,t)=>`<option value="${v}"${tcur===v?' selected':''}>${t}</option>`;
-  const rows=pays.length?pays.map((p,i)=>`<div class="dash-row"><span class="badge badge-pending">第 ${pays.length-i} 筆</span><b>${esc(String(p.date))}</b><b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-danger" data-act="itvPayDel" data-id="${esc(id)}::${i}">🗑</button></div>`).join(''):'<div style="margin:12px 0;font-size:13px;color:var(--muted,#8B8079)">還沒有登記任何一筆。按下面「＋ 記一筆付費」，每收一次錢就記一筆。</div>';
+  const rows=pays.length?pays.map((p,i)=>`<div class="dash-row"><span class="badge badge-pending">第 ${pays.length-i} 筆</span><b>${esc(String(p.date))}</b><b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm" data-act="itvPayEdit" data-id="${esc(id)}::${i}" title="改這一筆">✏️</button><button class="btn btn-sm btn-danger" data-act="itvPayDel" data-id="${esc(id)}::${i}">🗑</button></div>`).join(''):'<div style="margin:12px 0;font-size:13px;color:var(--muted,#8B8079)">還沒有登記任何一筆。按下面「＋ 記一筆付費」，每收一次錢就記一筆。</div>';
   const sessRows=sessPaid.length?('<div class="lesson-label" style="margin-top:14px">綁在練習時間上的收款</div>'+sessPaid.map(x=>`<div class="dash-row"><span class="badge badge-pending">${esc(String(x.e.date))}</span><b>${money(x.e.fee,x.e.currency||'VND')}</b><span class="muted" style="font-size:12px">記在練習上</span><span class="grow"></span><button class="btn btn-sm" data-act="itvPayConv" data-id="${esc(id)}::${x.i}">⇄ 轉成獨立付費</button></div>`).join('')+'<div style="margin-top:6px;font-size:12.5px;color:var(--muted,#8B8079)">「轉成獨立付費」＝把錢改記在實際付款日（可改日期），練習列上就不再顯示這筆錢。</div>'):'';
   openModal(`<div class="modal" style="max-width:640px"><div class="modal-head"><h3>💰 付費 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
@@ -12898,6 +12898,46 @@ H.itvPayConvDo=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]
   const ns=Object.assign({},e);ns.fee='';ns.paid=false;sessions[i]=ns;
   try{await DB.update(crmCol(c.id),c.id,{payments:pays,sessions:sessions});c.payments=pays;c.sessions=sessions;toast('已轉成獨立付費（'+date+'）');renderInterview();H.itvPayList(c.id);}
   catch(er){toast('失敗：'+((er&&er.message)||er));}};
+/* ITVPAYEDIT_V903 本來只能刪掉重記，打錯一個數字很麻煩 */
+H.itvPayEdit=(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
+  const idx=Number(p[1]);
+  const pays=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const t=pays[idx];if(!t)return;
+  const cur=t.currency||'VND';
+  openModal('<div class="modal"><div class="modal-head"><h3>✏️ 改這一筆付費 · '+esc(c.name||'')+'</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body"><div class="form-grid">'
+   +'<div class="field"><label>付費日期</label>'
+   +'<input id="ipe-date" type="date" min="2000-01-01" max="2100-12-31" value="'+esc(t.date||'')+'"></div>'
+   +'<div class="field"><label>金額</label><div style="display:flex;gap:6px">'
+   +'<input id="ipe-amt" type="number" inputmode="decimal" style="flex:1" value="'+esc(t.amount==null?'':t.amount)+'">'
+   +'<select id="ipe-cur" style="width:110px">'
+   +'<option value="VND"'+(cur==='VND'?' selected':'')+'>千 VND</option>'
+   +'<option value="TWD"'+(cur==='TWD'?' selected':'')+'>NT$</option>'
+   +'<option value="USD"'+(cur==='USD'?' selected':'')+'>US$</option></select></div></div>'
+   +'<div class="field full"><label>備註 <span class="hint">選填</span></label>'
+   +'<input id="ipe-note" type="text" value="'+esc(t.note||'')+'"></div>'
+   +'</div><div class="hint" style="margin:8px 0">💡 越南盾單位是「千」：填 500 ＝ 500,000 VND。</div>'
+   +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+   +'<button class="btn btn-primary" data-act="itvPayEditSave" data-id="'+esc(key)+'">💾 儲存</button>'
+   +'<button class="btn btn-ghost" data-act="itvPayList" data-id="'+esc(c.id)+'">取消</button></div>'
+   +'</div></div>');};
+H.itvPayEditSave=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;
+  const idx=Number(p[1]);
+  const pays=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const t=pays[idx];if(!t)return;
+  const date=((document.getElementById('ipe-date')||{}).value)||'';
+  if(!date)return toast('請選日期');
+  const amt=Number(((document.getElementById('ipe-amt')||{}).value)||0);
+  if(!amt)return toast('請填金額');
+  const cur=((document.getElementById('ipe-cur')||{}).value)||'VND';
+  const note=(((document.getElementById('ipe-note')||{}).value)||'').trim();
+  /* 照原本那一筆改，不是新增一筆 */
+  const all=itvPays(c).map(x=>(x===t)?{date:date,amount:amt,currency:cur,note:note}:x)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  try{await DB.update(crmCol(c.id),c.id,{payments:all});c.payments=all;
+    toast('已改成 '+date+' '+money(amt,cur));H.itvPayList(c.id);renderInterview();}
+  catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.itvPayDel=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);if(!c)return;const idx=Number(p[1]);const pays=itvPays(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));const target=pays[idx];if(!target)return;
   if(!confirm('刪除 '+target.date+' 的 '+money(target.amount,target.currency||'VND')+' 付費紀錄？'))return;
   const left=itvPays(c).filter(x=>x!==target);
@@ -13025,17 +13065,19 @@ H.fiToggle=async(key)=>{const p=String(key).split('::');const s=S.students.find(
 H.fiRemove=async(key)=>{const p=String(key).split('::');const s=S.students.find(x=>x.id===p[0]);if(!s)return;const a=uaAreasOf(s).find(x=>x&&x.id===p[1]);if(!a)return;if(!confirm('移除「'+(s.name||'')+'」的格子「'+(a.name||'')+'」？\n學生已上傳的檔案不會被刪，仍留在收件匣。'))return;const left=uaAreasOf(s).filter(x=>x.id!==p[1]);try{await DB.update('students',s.id,{upload_areas:left});s.upload_areas=left;toast('已移除');renderFiles();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.fiDel=async(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!confirm('刪除「'+(f.filename||'')+'」？刪掉就找不回來了。'))return;try{await DB.remove('uploads',f.id);if(f.path&&window.firebase&&firebase.storage){try{await firebase.storage().ref(f.path).delete();}catch(_){}}toast('已刪除');_filesLoadInbox();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.opsMonth=(m)=>{const rows=[];
-  S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||'TWD',note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null});});});
-  (S.interviews||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:'🎤 '+(c.name||''),amt,cur:p.currency||'VND',note:(p.note||'面試')?((p.note||'')+'（面試）').trim():'',sess:null});});});
+  /* OPSEDIT_V902 記下每一筆是誰的第幾筆，明細上才改得動 */
+  S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach((p,pi)=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||'TWD',note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null,act:'payEdit',key:s.id+'::'+pi});});});
+  (S.interviews||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:'🎤 '+(c.name||''),amt,cur:p.currency||'VND',note:(p.note||'面試')?((p.note||'')+'（面試）').trim():'',sess:null,act:'itvPayList',key:c.id});});});
   rows.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const tot={};rows.forEach(r=>{tot[r.cur]=(tot[r.cur]||0)+r.amt;});
   const totStr=Object.keys(tot).map(c=>money(tot[c],c)).join('　+　')||'—';
-  const body=rows.length?rows.map(r=>`<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">${esc(String(r.date).slice(5))}</span><b>${snm(r.name)}</b>${r.sess!=null?`<span class="muted" style="font-size:12px">＋${esc(String(r.sess))} 堂</span>`:''}${r.note?`<span class="muted" style="font-size:12px">${esc(r.note)}</span>`:''}<span class="grow"></span><b style="color:var(--accent,#A3714E)">${money(r.amt,r.cur)}</b></div>`).join(''):'<div class="hint">這個月沒有學生繳費紀錄。</div>';
+  /* OPSEDIT_V902 金額後面加一顆 ✏️，直接改這一筆 */
+  const body=rows.length?rows.map(r=>`<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">${esc(String(r.date).slice(5))}</span><b>${snm(r.name)}</b>${r.sess!=null?`<span class="muted" style="font-size:12px">＋${esc(String(r.sess))} 堂</span>`:''}${r.note?`<span class="muted" style="font-size:12px">${esc(r.note)}</span>`:''}<span class="grow"></span><b style="color:var(--accent,#A3714E)">${money(r.amt,r.cur)}</b><button class="btn btn-sm" type="button" data-act="${r.act}" data-id="${esc(r.key)}" title="${r.act==='payEdit'?'改這一筆繳費':'打開這位客戶的收款清單'}" style="margin-left:8px">✏️</button></div>`).join(''):'<div class="hint">這個月沒有學生繳費紀錄。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${esc(m)} 收入明細</h3><button class="x" data-act="closeModal">×</button></div>
     <div class="modal-body">
       <div class="card" style="background:#fdf6ec;margin-bottom:10px"><div class="hint">本月合計（學生繳費）</div><div style="font-size:20px;font-weight:800">${totStr}</div></div>
       ${body}
-      <div class="hint" style="margin-top:10px">列的是「學生繳費」明細（含堂數與備註）。面試練習、代辦申請的收款請看各自分頁。要修改某筆，到該學生的「💰 繳費」裡改。</div>
+      <div class="hint" style="margin-top:10px">學生繳費和面試練習的收款都列在這裡（代辦申請的收款請看代辦那一頁）。哪一筆打錯就按那一列的 ✏️ 直接改。</div>
     </div></div>`);};
 H.layoutSet=(v)=>{const top=(v==='top');
   document.body.classList.toggle('layout-top',top);
