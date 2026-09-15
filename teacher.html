@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=915">
+<link rel="stylesheet" href="styles.css?v=916">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -6049,6 +6049,14 @@ function ghOptsHtml(q,withAns){
       return '<div class="gh-op'+(ok?' ok':'')+'"><span class="gh-oi">'+GHAB.charAt(i)+'</span>'
         +'<span>'+ghBlank(x)+'</span>'+(ok?'<span class="gh-ok">✓</span>':'')+'</div>';}).join('')
     +'</div>';}
+/* GHINS_V916 大題標題：全形空白前後拆成兩行（「三、選詞填空（一）」／「短文」） */
+function ghInsHtml(ins){
+  const t=String(ins==null?'':ins);
+  const i=t.indexOf('\u3000');
+  if(i<0)return ghLines(t);
+  const a=t.slice(0,i).trim(),b=t.slice(i+1).trim();
+  if(!b)return ghLines(a);
+  return ghLines(a)+'<div class="gh-in2">'+ghLines(b)+'</div>';}
 function ghQHtml(q,n,withAns,noSpace){/* CLPRINT_V827 noSpace：只印題目，不留作答空間 */
   const isNote=(q.type==='note');
   const img=ghImg(q.image_url);/* GHOPT_V844 */
@@ -6060,15 +6068,10 @@ function ghQHtml(q,n,withAns,noSpace){/* CLPRINT_V827 noSpace：只印題目，�
   const ops=(!isNote&&q.type==='choice')?ghOptsHtml(q,withAns):'';
   const marked=!!ops&&!!withAns&&ghAnsIdx(q)!=null;
   const pr=String(q.prompt==null?'':q.prompt).trim();
-  /* GHNOTE_V915 這種 note 不是示範題，是音檔說明、短文、公告、名片。
-     標題尾巴（「一、對話聽力　音檔」的「音檔」）就是它是什麼，拿來當標籤；
-     沒有的話才退回「例」。 */
-  const _nl=(()=>{if(!isNote)return '';
-    const ins=String(q.instruction||'');const i=ins.lastIndexOf('\u3000');
-    const t=(i>=0?ins.slice(i+1):'').trim();
-    return (t&&t.length<=4)?t:'例';})();
+  /* GHNOTE_V916 note 旁邊本來掛一個圓標（先是「例」，V915 改成「短文」）。
+     上面的大題標題已經寫了是短文、是音檔了，旁邊再標一次是重複的。整個拿掉。 */
   return '<div class="gh-q'+(isNote?' gh-eg':'')+'">'
-    +(isNote?('<span class="gh-n gh-ne'+(_nl.length>1?' gh-nw':'')+'">'+esc(_nl)+'</span>'):'<span class="gh-n">'+n+'</span>')
+    +(isNote?'':'<span class="gh-n">'+n+'</span>')
     +'<div class="gh-qb">'+(pr?ghBlank(q.prompt):'')+img+ops
     +((isNote||noSpace||ops||ghHasBlank(q))?'':ghAnsSpace(q))/* GHBLANK_V841 */
     /* 正解已經圈在選項上了就不用再寫一次 */
@@ -6122,7 +6125,10 @@ function ghGpHtml(g,gi,qs,withAns,tagLab){
   const qhtml=(list)=>(list||[]).map(q=>{
     const ins=String(q.instruction||'').trim();
     let head='';
-    if(ins&&ins!==lastIns){lastIns=ins;head='<div class="gh-ins">'+ghLines(ins)+'</div>';}
+    if(ins&&ins!==lastIns){lastIns=ins;
+      /* GHINS_V916 「三、選詞填空（一）　短文」本來擠成一行，
+         中間那個全形空白就是分界，改成換行，第二行縮小一點。 */
+      head='<div class="gh-ins">'+ghInsHtml(ins)+'</div>';}
     if(q.type!=='note')n++;
     return head+ghQHtml(q,n,withAns);}).join('');
   /* GHDUP_V915 沒有語法點的書（關鍵詞彙就是），整份會被裝進一個叫「練習」的區塊，
@@ -6367,6 +6373,7 @@ function ghCss(){return ''
   /* GHIMG_V841 圖照原尺寸印太大，一張就吃掉大半頁 */
   +'.gh-img img{max-width:100%;max-height:56mm;border:1px solid var(--line);border-radius:8px}'
   +'.gh-q .gh-img img{max-width:66mm;max-height:46mm}'
+  +'.gh-in2{font-weight:600;font-size:12px;opacity:.9;margin-top:1px}'
   +'.gh-ins{margin:0 0 7px;font-weight:700;font-size:12.5px;color:#3f6b50;background:#eef6f0;'
   +'border-left:3px solid #9ec8ac;padding:6px 12px;border-radius:0 8px 8px 0;line-height:1.65}'
   +'.gh-qs{margin-top:4px}'
@@ -6374,7 +6381,7 @@ function ghCss(){return ''
   /* GHZONE_V830 練習題的號碼是綠的（要寫），例句的號碼是米色的（給他看） */
   +'.gh-n{flex:none;width:20px;height:20px;border-radius:50%;background:#e6f0ea;color:#3f7a55;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}'
   +'.gh-ne{background:#f2e5d2;color:#a3714e}'
-  /* GHNOTE_V915 標籤變成「短文」「音檔」「公告」兩個字，圓圈塞不下，改成圓角長條 */
+  /* GHNOTE_V916 note 的圓標已經拿掉，這條留著不影響（其他地方沒有用到 .gh-nw） */
   +'.gh-nw{width:auto;min-width:20px;padding:0 7px;border-radius:9px;font-size:10.5px;letter-spacing:.5px}'
   /* GHIMG_V915 名片、個人資料表那種材料圖被當成一般配圖，只有 66mm 寬，看不清楚。
      note 裡的材料圖放大到整欄寬。 */
