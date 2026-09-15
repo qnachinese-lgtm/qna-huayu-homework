@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=905">
+<link rel="stylesheet" href="styles.css?v=906">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1442,8 +1442,11 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           white-space:pre-wrap;word-break:break-word;text-decoration:none;opacity:1}
         @media(max-width:520px){.memo-add #memo-due{width:100%}}
         /* DLBADGE_V809 「（還有 N 天）」自己一行，日期那一行才不會拉得又長又擠 */
-        .crm-head .cc.dt .badge.dl-badge{display:inline-block;text-align:center;line-height:1.45}
-        .crm-head .cc.dt .badge.dl-badge .dl-left{display:block;font-style:normal;font-size:11.5px;opacity:.85}
+        /* DLONE_V906 本來是上下兩行，有日期的那幾列就比別人高 12px。改成單行。 */
+        #app .crm-head .cc.dt .badge.dl-badge{display:inline-flex!important;align-items:center;gap:4px;
+          text-align:center;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+        #app .crm-head .cc.dt .badge.dl-badge .dl-left{display:inline!important;font-style:normal;
+          font-size:11.5px;opacity:.85;white-space:nowrap}
         /* ITVACT_V809 面試清單最後一欄本來只有 112px，「🎥 進入教室」塞不下會被切掉、
            還壓到旁邊的 🗑。放寬到裝得下，並且按鈕不許被壓縮。 */
         .crm-head.itv8{grid-template-columns:minmax(170px,1.25fr) 74px 88px minmax(150px,1.3fr) 150px 118px 152px!important}
@@ -3708,7 +3711,15 @@ function itvExamBadge(c,done){if(!c)return '';const m=itvResultMeta(c.result);
   const d=itvDaysTo(c.exam_date);const lab=d==null?'':(d<0?('面試已過 '+(-d)+' 天'):(d===0?'今天面試！':(d===1?'明天面試':'還有 '+d+' 天')));
   const col=(d!=null&&d<=3)?'#dc2626':'#3730a3';
   const full=c.exam_date+(lab?('（'+lab+'）'):'');
-  return `<span class="badge dl-badge" title="${esc(full)}" style="background:${col}18;color:${col};border-color:${col}55">🎯 ${esc(c.exam_date)}${lab?`<i class="dl-left">（${esc(lab)}）</i>`:''}</span>`;}
+  /* DLONE_V906 單行放不下就會被切字，所以縮短：今年只印月日，倒數只留關鍵字。
+     完整的日期和說明放在 title，滑過去看得到。 */
+  const shortD=dlShortDate(c.exam_date);
+  const shortL=d==null?'':(d<0?('過 '+(-d)+' 天'):(d===0?'今天':(d===1?'明天':(d+' 天'))));
+  return `<span class="badge dl-badge" title="${esc(full)}" style="background:${col}18;color:${col};border-color:${col}55">🎯 ${esc(shortD)}${shortL?`<i class="dl-left">${esc(shortL)}</i>`:''}</span>`;}
+/* DLONE_V906 今年的日期只印月日，跨年才印完整的，單行才塞得下 */
+function dlShortDate(ds){const x=String(ds||'');
+  const y=String(new Date().getFullYear());
+  return (x.slice(0,4)===y)?x.slice(5):x;}
 function itvIncome(ym){const paid={},due={};itvAll().forEach(c=>{itvAddCur(paid,itvPaidSum(c,ym));if(!ym)itvAddCur(due,itvDueSum(c));});return {paid,due};}
 /* ===================== 🎓 代辦申請學校：資料與畫面（純函式） ===================== */
 function agAll(){return (S.agencies||[]);}
@@ -3756,7 +3767,10 @@ function feeBarHtml(label,paidBy,dueBy,totNum,totCur,rowsHtml,hint){
     ${tot>0?`<div style="height:8px;background:#eee3d2;border-radius:99px;margin:9px 0 4px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:${left>0?'#16a34a':'#16a34a'}"></i></div>`:''}
     ${rowsHtml||''}</div>`;}
 function agResultMeta(r){return ({submitted:['📮 已送件','#2563eb'],admitted:['✅ 錄取','#16a34a'],admitted_s:['🎉 錄取・有獎學金','#16a34a'],admitted_n:['✅ 錄取・無獎學金','#0d9488'],rejected:['❌ 未錄取','#dc2626']})[r]||null;}
-function agDeadlineBadge(c){if(!c||!c.deadline)return '';const d=itvDaysTo(c.deadline);if(d==null)return '';const done=(c.status||'active')!=='active';const col=(d<0)?'#dc2626':(d<=7?'#d97706':'#2563eb');const lab=d<0?('已過 '+(-d)+' 天'):(d===0?'今天到期！':(d===1?'明天到期':'還有 '+d+' 天'));return `<span class="badge dl-badge" style="background:${col}18;color:${col};border-color:${col}55">📄 繳件期限 ${esc(c.deadline)}${done?'':(`<i class="dl-left">（${esc(lab)}）</i>`)}</span>`;}
+function agDeadlineBadge(c){if(!c||!c.deadline)return '';const d=itvDaysTo(c.deadline);if(d==null)return '';const done=(c.status||'active')!=='active';const col=(d<0)?'#dc2626':(d<=7?'#d97706':'#2563eb');const lab=d<0?('已過 '+(-d)+' 天'):(d===0?'今天到期！':(d===1?'明天到期':'還有 '+d+' 天'));
+  /* DLONE_V906 同上，改單行並縮短 */
+  const sl=d<0?('過 '+(-d)+' 天'):(d===0?'今天':(d===1?'明天':(d+' 天')));
+  return `<span class="badge dl-badge" title="${esc('繳件期限 '+c.deadline+'（'+lab+'）')}" style="background:${col}18;color:${col};border-color:${col}55">📄 ${esc(dlShortDate(c.deadline))}${done?'':(`<i class="dl-left">${esc(sl)}</i>`)}</span>`;}
 function crmMoveBanner(){
   if(!IS_OWNER)return '';
   const n=crmLegacy().length;if(!n)return '';
@@ -3787,7 +3801,9 @@ function wrIncome(ym){const paid={},due={};wrAll().forEach(c=>{itvAddCur(paid,wr
 function wrDeadlineBadge(c){if(!c||!c.deadline)return '';const d=itvDaysTo(c.deadline);if(d==null)return '';
   const done=(c.status||'active')!=='active';const col=(d<0)?'#dc2626':(d<=7?'#d97706':'#2563eb');
   const lab=d<0?('已過 '+(-d)+' 天'):(d===0?'今天要交！':(d===1?'明天要交':'還有 '+d+' 天'));
-  return `<span class="badge dl-badge" style="background:${col}18;color:${col};border-color:${col}55">📄 交件 ${esc(c.deadline)}${done?'':(`<i class="dl-left">（${esc(lab)}）</i>`)}</span>`;}
+  /* DLONE_V906 同上 */
+  const sl2=(d<0)?('過 '+(-d)+' 天'):(d===0?'今天':(d===1?'明天':(d+' 天')));
+  return `<span class="badge dl-badge" title="${esc('交件 '+c.deadline+'（'+lab+'）')}" style="background:${col}18;color:${col};border-color:${col}55">📄 ${esc(dlShortDate(c.deadline))}${done?'':(`<i class="dl-left">${esc(sl2)}</i>`)}</span>`;}
 function wrDocChips(c){const d=String((c&&c.docs)||'').split(/[,，、\s]+/).filter(Boolean);
   return d.map(x=>`<span class="tag accent">📄 ${esc(x)}</span>`).join('');}
 function wrStepper(c){
