@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=890">
+<link rel="stylesheet" href="styles.css?v=891">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5770,6 +5770,9 @@ function ghQsOf(lid){
   if(main.some(q=>q.type!=='note'))return main;
   if(hw.length)return all;
   return main;}
+/* GHTR_V891 這一本有沒有聽力原文（有才要出現那個勾選） */
+function ghHasTr(book){try{
+  return (baLessonsOf(book)||[]).some(l=>ghTr(l).length>0);}catch(e){return false;}}
 /* GHBANK_V872 這一本有沒有作業簿題目（有才要出現那個選單） */
 function ghHasHw(book){try{
   const ids={};(baLessonsOf(book)||[]).forEach(l=>{ids[l.id]=1;});
@@ -5790,6 +5793,8 @@ let GHCLSET=[],GHCLQ='1',GHWHO='',GHWHEN='';
 /* GHBANK_V872 這一份要出哪一邊的題目：
    'auto' 哪邊有就出哪邊／'main' 只出課本練習題／'hw' 只出作業簿／'both' 兩邊都出 */
 let GHBANK='auto';
+/* GHTR_V891 學生版要不要印聽力原文。預設 0＝不印。 */
+let GHTR=0;
 /* GHZHS_V875 列印文字：'tw' 繁體（原樣）／'cn' 簡體 */
 let GHLANG='tw';
 /* GHZHS_V875 繁簡對照表（2,963 組）。只轉字不轉用詞：
@@ -6143,10 +6148,17 @@ function ghVocHtml(l,withAns){
   return '<div class="gh-gp">'+h+'</div>';}
 function ghLessonHtml(l,withAns){
   const gps=l.grammar_points||[];const all=ghQsOf(l.id);
-  let inner=ghClHtml(l,withAns)+ghTrHtml(l)+ghVocHtml(l,withAns);
-  inner+=gps.map((g,gi)=>ghGpHtml(g,gi,all.filter(q=>q.gp_index===gi),withAns)).join('');
+  const cl=ghClHtml(l,withAns);
+  let rest=ghVocHtml(l,withAns);
+  rest+=gps.map((g,gi)=>ghGpHtml(g,gi,all.filter(q=>q.gp_index===gi),withAns)).join('');
   const untag=all.filter(q=>q.gp_index==null);
-  if(untag.length)inner+=ghGpHtml({title:gps.length?'其他練習':'練習',blocks:[]},gps.length,untag,withAns,null);
+  if(untag.length)rest+=ghGpHtml({title:gps.length?'其他練習':'練習',blocks:[]},gps.length,untag,withAns,null);
+  /* GHTR_V891 聽力原文印在學生版上，學生用看的就答完了，那就不是聽力練習。
+     只有老師版／解答頁印；學生版要印的話自己去勾。
+     但如果這一課除了原文沒有別的東西，還是要印，不然整份是空白的。 */
+  const tr=ghTrHtml(l);
+  const showTr=withAns||GHTR||!String(cl+rest).trim();
+  const inner=cl+(showTr?tr:'')+rest;
   if(!String(inner).trim())return '';
   return '<div class="gh-les"><h2 class="gh-lt">'+esc(l.title||'（未命名）')+'</h2>'+inner+'</div>';}
 function ghCss(){return ''
@@ -6378,6 +6390,7 @@ function ghPrefApply(){
   ghSetSel('gh-lay',p.lay);ghSetSel('gh-font',p.font);ghSetSel('gh-lang',p.lang);
   ghSetSel('gh-bank',p.bank);ghSetSel('gh-clq',p.clq);
   const ni=document.getElementById('gh-noimg');if(ni)ni.checked=!!p.noimg;
+  const tb=document.getElementById('gh-tr');if(tb)tb.checked=!!p.tr;/* GHTR_V891 */
   /* 學生可能已經停課或改名，選單裡找不到就留空白 */
   ghSetSel('gh-who',p.who);}
 function GHFILL(){const sel=document.getElementById('gh-book'),box=document.getElementById('gh-lessons');
@@ -6396,6 +6409,9 @@ function GHFILL(){const sel=document.getElementById('gh-book'),box=document.getE
   /* GHBANK_V872 沒有作業簿的書就不要出現那個選單 */
   try{const bb=document.getElementById('gh-bankbox');
     if(bb&&sel)bb.style.display=ghHasHw(sel.value)?'':'none';}catch(e){}
+  /* GHTR_V891 沒有聽力原文的書就不要出現那個勾選 */
+  try{const tb=document.getElementById('gh-trbox');
+    if(tb&&sel)tb.style.display=ghHasTr(sel.value)?'':'none';}catch(e){}
   try{ghPrefApply();}catch(e){}/* GHPREF_V883 換一本就換那一本的設定 */
   try{GHSENT();}catch(e){}}
 function GHALL(){const b=[...document.querySelectorAll('.gh-l')].filter(x=>x.type==='checkbox');
@@ -6476,6 +6492,11 @@ function ghModal(){
    /* GHOPT_V844 圖多的書（時代華語一 128 張、看圖學中文語法 195 張）印起來很厚 */
    +'<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
    +'<input type="checkbox" id="gh-noimg" style="width:auto;margin:0"> 不印圖片（省紙，純文字練習用）</label></div>'
+   /* GHTR_V891 有聽力原文的書才問這一題 */
+   +'<div class="field" id="gh-trbox"'+(ghHasTr(cur)?'':' style="display:none"')+'>'
+   +'<label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
+   +'<input type="checkbox" id="gh-tr" style="width:auto;margin:0"> 學生版也印聽力原文'
+   +'<span class="hint">預設不印——印了學生用看的就答完了。老師版一定會印。</span></label></div>'
    /* GHCL_V860 文言文一課動輒二三十句，一次全給太多，可以只出其中幾句 */
    +'<div id="gh-clbox"'+(ghHasCl(cur)?'':' style="display:none"')+'>'
    /* GHCL_V861 本來是兩格數字，可是要填之前得先去數第幾句。改成直接把句子列出來勾。 */
@@ -13949,12 +13970,13 @@ H.ghGo=(mode)=>{
     .sort((a,b)=>a-b);
   GHCLQ=((document.getElementById('gh-clq')||{}).value)||'1';
   GHBANK=((document.getElementById('gh-bank')||{}).value)||'auto';/* GHBANK_V872 */
+  GHTR=!!((document.getElementById('gh-tr')||{}).checked);/* GHTR_V891 */
   GHLANG=((document.getElementById('gh-lang')||{}).value)||'tw';/* GHZHS_V875 */
   GHWHO=((document.getElementById('gh-who')||{}).value)||'';
   GHWHEN=((document.getElementById('gh-when')||{}).value)||'';
   /* GHPREF_V883 真的按了匯出才記起來——那才是她確定要用的組合 */
   try{ghPrefSave(book,{lay:(wide?'1':'0'),font:GHFONT,lang:GHLANG,bank:GHBANK,
-    noimg:noimg?1:0,clq:GHCLQ,who:GHWHO});}catch(e){}
+    noimg:noimg?1:0,tr:GHTR?1:0,clq:GHCLQ,who:GHWHO});}catch(e){}
   ghBuild(book,lids,mode,wide,noimg);};
 H.bulkAssignSave=async(_x,btn)=>{
   const lids=[...document.querySelectorAll('.ba-l:checked')].map(x=>x.value);
