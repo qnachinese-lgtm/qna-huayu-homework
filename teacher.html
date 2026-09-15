@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=907">
+<link rel="stylesheet" href="styles.css?v=908">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -4734,8 +4734,30 @@ function renderOps(){const body=$('#ops-body');
   const _sum=_tm.map(m=>itvAddCur(itvAddCur(itvAddCur(Object.assign({},byMonth[m]||{}),
     itvIncome(m).paid),agIncome(m).paid),wrIncome(m).paid));
   const _vnd=_sum.map(o=>o['VND']||0);const _twd=_sum.map(o=>o['TWD']||0);
+  /* OPSCHART2_V908 本來只有越南盾畫成長條，台幣被擠到下面一行小字，看不出趨勢。
+     一個月改成兩根：左越南盾、右台幣。
+     兩種幣別不能放在同一個刻度上（匯率差太多，台幣會變成一條看不見的線），
+     所以各自比各自的最高點——這句話一定要寫在圖上，不然會看錯。 */
   const _mx=Math.max.apply(null,_vnd.concat([1]));
-  const _chart=`<div class="card"><div class="lesson-label">📈 近六個月收入趨勢（越南盾）<span class="hint" style="font-weight:400">四條業務線合計</span></div><div style="display:flex;align-items:flex-end;gap:12px;height:130px;padding:8px 4px 0">${_tm.map((m,i)=>{const h=Math.round(_vnd[i]/_mx*100);const lab=(i===_tm.length-1&&_vnd[i])?`<span style=\"font-size:11.5px;font-weight:800;color:#6b6357\">${(_vnd[i]/1000).toFixed(2)}M</span>`:'';return `<div data-act=\"opsMonth\" data-id=\"${m}\" style=\"flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%;cursor:pointer\" title=\"${m}：${(_vnd[i]/1000).toFixed(2)}M VND${_twd[i]?('＋NT$'+_twd[i].toLocaleString()):''}\">${lab}<div style=\"width:68%;max-width:36px;height:${Math.max(h,2)}%;background:var(--accent,#A3714E);opacity:${i===_tm.length-1?'1':'.45'};border-radius:4px 4px 0 0\"></div><span style=\"font-size:11px;color:#9a8f80\">${Number(m.slice(5))}月</span></div>`;}).join('')}</div>${_twd.some(x=>x)?`<div class="hint" style="margin-top:6px">台幣另計：${_tm.map((m,i)=>_twd[i]?(Number(m.slice(5))+'月 NT$'+_twd[i].toLocaleString()):null).filter(Boolean).join('　')}</div>`:''}<div class="hint" style="margin-top:4px">華語教學 ＋ 面試練習 ＋ 代辦申請 ＋ 代書，跟上面「總收入」同一個算法。點一根長條可以看那個月的明細。</div></div>`;
+  const _mxT=Math.max.apply(null,_twd.concat([1]));
+  const _hasT=_twd.some(x=>x);
+  const _CV='var(--accent,#A3714E)',_CT='#7b8ba3';
+  /* v 是原始金額：那個月沒有就整根不畫（只留位子），不然會看到一條 2% 的小短線，
+     看起來像「有收一點點」。 */
+  const _bar=(v,h,c,op)=>`<div style=\"width:${_hasT?'42%':'68%'};max-width:${_hasT?'22px':'36px'};height:${v>0?Math.max(h,2):0}%;background:${c};opacity:${op};border-radius:4px 4px 0 0\"></div>`;
+  const _chart=`<div class="card"><div class="lesson-label">📈 近六個月收入趨勢<span class="hint" style="font-weight:400;margin-left:8px">四條業務線合計</span>`
+   +(_hasT?`<span class="hint" style="font-weight:400;margin-left:10px"><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_CV};vertical-align:-1px"></i> 越南盾　<i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_CT};vertical-align:-1px"></i> 台幣</span>`:'')
+   +`</div><div style="display:flex;align-items:flex-end;gap:12px;height:130px;padding:8px 4px 0">${_tm.map((m,i)=>{
+      const last=(i===_tm.length-1),op=last?'1':'.45';
+      const vs=(_vnd[i]/1000).toFixed(2)+'M',ts='NT$'+_twd[i].toLocaleString();
+      const lab=last?`<span style=\"font-size:11px;font-weight:800;color:#6b6357;white-space:nowrap\">${_vnd[i]?vs:''}${(_vnd[i]&&_twd[i])?' ＋ ':''}${_twd[i]?ts:''}</span>`:'';
+      return `<div data-act=\"opsMonth\" data-id=\"${m}\" style=\"flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%;cursor:pointer\" title=\"${m}：${vs} VND${_twd[i]?('＋'+ts):''}\">${lab}`
+       +`<div style=\"flex:1;min-height:0;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:4px\">`
+       +_bar(_vnd[i],Math.round(_vnd[i]/_mx*100),_CV,op)
+       +(_hasT?_bar(_twd[i],Math.round(_twd[i]/_mxT*100),_CT,op):'')
+       +`</div><span style=\"font-size:11px;color:#9a8f80\">${Number(m.slice(5))}月</span></div>`;}).join('')}</div>`
+   +(_hasT?`<div class="hint" style="margin-top:6px">兩種幣別各自比自己的高低，兩根不能互相比大小。台幣：${_tm.map((m,i)=>_twd[i]?(Number(m.slice(5))+'月 NT$'+_twd[i].toLocaleString()):null).filter(Boolean).join('　')}</div>`:'')
+   +`<div class="hint" style="margin-top:4px">華語教學 ＋ 面試練習 ＋ 代辦申請 ＋ 代書，跟上面「總收入」同一個算法。點一根長條可以看那個月的明細。</div></div>`;
   /* OPSSUB_V683 這一頁本來是 12 個區塊疊在一起、整頁 4000 多像素、58 顆按鈕：
      收入報表、帳務核對、招生名單、官網、管理員、公告全部混在一起，要找什麼都得一直捲。
      現在分成三個分頁：💰 收入／🧮 該收 vs 實收／📥 招生・官網。
