@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=880">
+<link rel="stylesheet" href="styles.css?v=881">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -165,6 +165,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         <div><div class="brand-title" id="app-name">QNA CHINESE 學習平台</div><div class="brand-sub">教師管理後台</div></div></div>
       <div class="topbar-spacer"></div>
       <span class="mode-tag" id="mode-tag"></span>
+      <button class="btn btn-sm btn-ghost" data-act="qsOpen" title="全站搜尋（按 / 也可以叫出來）">🔍</button>
       <button class="btn btn-sm btn-ghost" data-act="trash" title="垃圾桶（7 天內可復原）">🗑</button>
       <button class="btn btn-sm btn-accent hide" id="settings-btn" data-act="settingsCenter" title="所有後台設定都在這">⚙️ 設定</button>
       <button class="btn btn-sm btn-ghost" data-act="logout">登出</button>
@@ -1318,6 +1319,23 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           line-height:1.4;padding-top:3px;padding-bottom:3px;text-align:left}
         .crm-thead .crm-head .cc.dt{white-space:nowrap}
         /* MEMO_V820 我的備忘 */
+        /* ══════ QS_V881 全站搜尋 ══════ */
+        .qs-box{max-width:620px;width:100%}
+        #qs-q{width:100%;font-size:16px;padding:11px 13px;border:1px solid var(--line);
+          border-radius:10px;outline:none}
+        #qs-q:focus{border-color:var(--bd,#a3714e)}
+        .qs-list{margin-top:10px;max-height:56vh;overflow:auto}
+        .qs-h{font-size:11.5px;font-weight:700;color:#a3714e;letter-spacing:.5px;
+          padding:9px 4px 4px;position:sticky;top:0;background:#fff}
+        .qs-r{display:flex;align-items:baseline;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer}
+        .qs-r:hover{background:#faf4ec}
+        /* 鍵盤選到的那一列要一眼看得出來，不然 ↑↓ 按了不知道選到哪 */
+        .qs-r.on{background:#f3e7d6;box-shadow:inset 0 0 0 1px #e0c9ab}
+        .qs-i{flex:none}
+        .qs-t{flex:1;min-width:0;font-weight:600;word-break:break-word}
+        .qs-s{flex:none;max-width:44%;font-size:12px;color:#9a8f80;white-space:nowrap;
+          overflow:hidden;text-overflow:ellipsis}
+        @media(max-width:520px){.qs-s{display:none}}
         /* MEMO2_V878 標題一行、內容另外一塊 */
         .memo-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
         .memo-add #memo-text{flex:1;min-width:200px;font-weight:600}
@@ -2223,6 +2241,82 @@ function dashTodayHtml(){
   _rows.sort((a,b)=>a.t.localeCompare(b.t));
   return _rows.map(x=>x.h).join('');
 }
+/* ===================== 🔍 全站搜尋 QS_V881 ===================== */
+/* 越南名字打不出聲調也要找得到：Luong→Lương、Thuy→Thúy。
+   做法是把字拆成「基本字母＋聲調記號」再把記號丟掉；đ 不在那個規則裡，另外換。 */
+function qsNorm(t){
+  let x=String(t==null?'':t).toLowerCase();
+  try{x=x.normalize('NFD').replace(/[\u0300-\u036f]/g,'');}catch(e){}
+  return x.replace(/đ/g,'d').replace(/\s+/g,' ').trim();}
+function qsCut(t,n){const x=String(t==null?'':t).replace(/\s+/g,' ').trim();
+  return x.length>n?(x.slice(0,n)+'…'):x;}
+let QS_SEL=0,QS_ROWS=[];
+function qsFind(term){
+  const q=qsNorm(term),out=[];
+  if(!q)return out;
+  const hit=(t)=>qsNorm(t).indexOf(q)>=0;
+  const add=(type,icon,id,title,sub)=>out.push({type:type,icon:icon,id:id,title:title,sub:sub});
+  const own=(typeof IS_OWNER!=='undefined')&&IS_OWNER;
+  (S.students||[]).forEach(x=>{if(!x||x.is_test)return;
+    if(hit([x.name,x.name_zh,x.nationality,x.email,x.textbook,x.notes].join(' ')))
+      add('stu','👤',x.id,x.name||'',[x.textbook,x.nationality].filter(Boolean).join(' · '));});
+  (S.lessons||[]).forEach(x=>{if(!x)return;
+    if(hit([x.title,x.textbook].join(' ')))add('les','📘',x.id,x.title||'',x.textbook||'');});
+  (S.classicals||[]).forEach(x=>{if(!x)return;
+    if(hit([x.title,x.cl_text].join(' ')))add('cl','📜',x.id,x.title||'','文言文');});
+  /* 題目最多，放後面；標題用課名才知道是哪一課的題目 */
+  const _lt={};(S.lessons||[]).forEach(x=>{if(x)_lt[x.id]=x.title||'';});
+  (S.questions||[]).forEach(x=>{if(!x)return;
+    if(hit([x.prompt,(Array.isArray(x.options)?x.options.join(' '):''),x.instruction].join(' ')))
+      add('q','❓',String(x.lesson_id||'')+'::'+String(x.id||''),
+        qsCut(x.prompt||x.instruction||'',46),_lt[x.lesson_id]||'');});
+  (S.memos||[]).forEach(x=>{if(!x||x.deleted_at)return;
+    if(hit([x.text,x.note,x.done_note].join(' ')))
+      add('memo','📝',x.id,x.text||'',x.done?'做完的':'還沒做');});
+  /* 這幾類只有主管理員看得到，助教搜尋時就不要出現 */
+  if(own){
+    (S.agencies||[]).forEach(x=>{if(!x||x.deleted_at)return;
+      if(hit([x.name,x.school,x.note,x.phone].join(' ')))
+        add('ag','🎓',x.id,x.name||'',x.school||'');});
+    (S.interviews||[]).forEach(x=>{if(!x||x.deleted_at)return;
+      if(hit([x.name,x.target,x.result_note].join(' ')))
+        add('itv','🎤',x.id,x.name||'',x.target||'');});
+    (S.writings||[]).forEach(x=>{if(!x||x.deleted_at)return;
+      if(hit([x.name,x.school,x.note].join(' ')))
+        add('wr','✍️',x.id,x.name||'',x.school||'');});
+    (S.schools||[]).forEach(x=>{if(!x||x.deleted_at)return;
+      if(hit([x.name,x.name_en,x.country,x.contact].join(' ')))
+        add('sch','🏫',x.id,x.name||'',[x.country,x.contact].filter(Boolean).join(' · '));});}
+  return out;}
+const QS_LAB={stu:'學生',les:'課',cl:'文言文',q:'題目',memo:'備忘',
+  ag:'留學代辦',itv:'面試練習',wr:'文件代寫',sch:'學校'};
+const QS_ORDER=['stu','les','cl','q','memo','ag','itv','wr','sch'];
+function qsListHtml(term){
+  if(!String(term||'').trim()){QS_ROWS=[];
+    return '<div class="hint" style="padding:16px 4px;line-height:1.9">'
+      +'打字就開始找：學生、課、題目、備忘、留學代辦、面試練習、文件代寫、學校。<br>'
+      +'越南名字不用打聲調——打 Luong 就找得到 Lương。</div>';}
+  const all=qsFind(term);
+  if(!all.length){QS_ROWS=[];
+    return '<div class="hint" style="padding:16px 4px">找不到「'+esc(term)+'」。</div>';}
+  QS_ROWS=[];const parts=[];
+  /* 一類最多列 6 筆，不然題目那一類會把別的整個洗掉 */
+  QS_ORDER.forEach(t=>{const g=all.filter(x=>x.type===t);if(!g.length)return;
+    const show=g.slice(0,6);
+    parts.push('<div class="qs-h">'+QS_LAB[t]+'（'+g.length+'）'
+      +(g.length>show.length?'　只列前 6 筆':'')+'</div>');
+    show.forEach(r=>{const i=QS_ROWS.length;QS_ROWS.push(r);
+      parts.push('<div class="qs-r'+(i===QS_SEL?' on':'')+'" data-act="qsGo" data-id="'
+        +esc(r.type+'|'+r.id)+'"><span class="qs-i">'+r.icon+'</span>'
+        +'<span class="qs-t">'+esc(r.title||'（沒有標題）')+'</span>'
+        +(r.sub?('<span class="qs-s">'+esc(r.sub)+'</span>'):'')+'</div>');});});
+  return parts.join('');}
+function qsPaint(){const box=document.getElementById('qs-list');if(!box)return;
+  const el=document.getElementById('qs-q');
+  if(QS_SEL<0)QS_SEL=0;
+  box.innerHTML=qsListHtml((el&&el.value)||'');
+  const on=box.querySelector('.qs-r.on');
+  try{if(on&&on.scrollIntoView)on.scrollIntoView({block:'nearest'});}catch(e){}}
 /* ===================== 📝 我的備忘 MEMO_V820 ===================== */
 function memoAll(){return (S.memos||[]).filter(x=>!x.deleted_at);}
 function memoOpen(){return memoAll().filter(x=>!x.done);}
@@ -13023,6 +13117,36 @@ H.memoEditSave=async(id,btn)=>{const m=(S.memos||[]).find(x=>x.id===id);if(!m)re
   try{await DB.update(crmCol(id),id,{text:text,note:note||null,due:due||null});
     m.text=text;m.note=note||null;m.due=due||null;closeModal();render();toast('改好了');}
   catch(e){if(btn){btn.disabled=false;btn.textContent='💾 儲存';}toast(writeErr('改不了',e));}};
+/* QS_V881 */
+H.qsOpen=()=>{QS_SEL=0;QS_ROWS=[];
+  openModal('<div class="modal qs-box"><div class="modal-body" style="padding:14px">'
+   +'<input id="qs-q" type="text" autocomplete="off" spellcheck="false" '
+   +'placeholder="找學生、課、題目、備忘…（越南名字不用打聲調）">'
+   +'<div id="qs-list" class="qs-list"></div>'
+   +'<div class="hint" style="margin-top:8px">↑↓ 選　Enter 開　Esc 關</div>'
+   +'</div></div>');
+  qsPaint();
+  setTimeout(function(){const el=document.getElementById('qs-q');if(el)el.focus();},20);};
+H.qsGo=(key)=>{
+  const i=String(key||'').indexOf('|');if(i<0)return;
+  const t=key.slice(0,i),id=key.slice(i+1);
+  closeModal();
+  const later=(fn)=>setTimeout(fn,30);/* 先讓畫面換好，再開那一層視窗 */
+  try{
+    if(t==='stu'){H.stuDetail(id);return;}
+    if(t==='les'){const l=(S.lessons||[]).find(x=>x.id===id);
+      S.tab='lessons';S.lesFilter=(l&&l.title)||'';render();later(()=>H.editLesson(id));return;}
+    if(t==='cl'){S.tab='lessons';S.lesFilter='';render();later(()=>H.editClassical(id));return;}
+    if(t==='q'){const lid=id.split('::')[0];
+      const l=(S.lessons||[]).find(x=>x.id===lid);
+      S.tab='lessons';S.lesFilter=(l&&l.title)||'';render();later(()=>H.editQuestion(id));return;}
+    if(t==='memo'){S.tab='dashboard';render();later(()=>H.memoEdit(id));return;}
+    if(t==='ag'){S.tab='agency';S.bizSub='agency';S.crmFocus=id;render();return;}
+    if(t==='itv'){S.tab='interview';S.bizSub='interview';S.crmFocus=id;render();return;}
+    if(t==='wr'){S.tab='writing';S.bizSub='writing';S.crmFocus=id;render();return;}
+    if(t==='sch'){S.tab='school';S.bizSub='school';render();return;}
+  }catch(e){toast('打不開這一筆');}
+  try{window.scrollTo(0,0);}catch(e){}};
 H.memoDel=async(id)=>{const m=(S.memos||[]).find(x=>x.id===id);
   if(!confirm('刪掉「'+((m&&m.text)||'')+'」？'))return;
   try{await DB.update(crmCol(id),id,{deleted_at:new Date().toISOString()});
@@ -14238,6 +14362,24 @@ document.addEventListener('input',(e)=>{const t=e.target;if(!t)return;
   if(t.id==='pay-sess')setTimeout(()=>payCalc('pay',false),0);
   if(t.id==='pe-amount')setTimeout(()=>payCalc('pe',true),0);
   if(t.id==='pe-sess')setTimeout(()=>payCalc('pe',false),0);});
+/* QS_V881 搜尋的鍵盤：在別的地方按「/」叫出來；在搜尋框裡 ↑↓ 選、Enter 開 */
+document.addEventListener('keydown',(e)=>{
+  const t=e.target,tag=((t&&t.tagName)||'').toLowerCase();
+  const typing=(tag==='input'||tag==='textarea'||tag==='select'||(t&&t.isContentEditable));
+  if(t&&t.id==='qs-q'){
+    if(e.key==='ArrowDown'){e.preventDefault();if(QS_ROWS.length){QS_SEL=(QS_SEL+1)%QS_ROWS.length;qsPaint();}return;}
+    if(e.key==='ArrowUp'){e.preventDefault();if(QS_ROWS.length){QS_SEL=(QS_SEL-1+QS_ROWS.length)%QS_ROWS.length;qsPaint();}return;}
+    if(e.key==='Enter'){e.preventDefault();const r=QS_ROWS[QS_SEL];if(r)H.qsGo(r.type+'|'+r.id);return;}
+    if(e.key==='Escape'){e.preventDefault();closeModal();return;}
+    return;}
+  if(e.key==='Escape'&&document.getElementById('qs-q')){closeModal();return;}
+  /* 打字的時候不要攔，不然備忘裡打「/」就會跳視窗 */
+  if(e.key==='/'&&!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    if(document.getElementById('app')&&!document.getElementById('app').classList.contains('hide')){
+      e.preventDefault();H.qsOpen();}}
+});
+document.addEventListener('input',(e)=>{/* QS_V881 打一個字就重找，選到第一筆 */
+  if(e.target&&e.target.id==='qs-q'){QS_SEL=0;qsPaint();}});
 document.addEventListener('keydown',(e)=>{
   /* MEMO_V820 在備忘欄按 Enter 就直接記下來，不用再去點按鈕 */
   if(e.key!=='Enter')return;const t=e.target;
