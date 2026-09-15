@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=909">
+<link rel="stylesheet" href="styles.css?v=910">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -2680,7 +2680,13 @@ function renderDashboard(){
     remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">✍️ ${lab}</span><b>${snm(c.name||'')}</b>${c.docs?`<span class="muted">${esc(c.docs)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="writing">看客戶</button></div>`);});
   (S.agencies||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;const d=itvDaysTo(c.deadline);if(d==null)return;if(d>21)return;const col=d<0?'#dc2626':(d<=3?'#dc2626':(d<=7?'#d97706':'#2563eb'));const lab=d<0?('繳件已過 '+(-d)+' 天'):(d===0?'今天要繳件！':(d===1?'明天要繳件':'還有 '+d+' 天繳件'));remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 ${lab}</span><b>${snm(c.name||'')}</b>${c.school?`<span class="muted">${esc(c.school)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="agency">看客戶</button></div>`);});
   try{const bwk=localStorage.getItem('hyc_backup_wk')||'';const nowWk=weekStart(localToday());
-    if(IS_OWNER&&bwk!==nowWk&&(S.students||[]).some(x=>!x.is_test))remRows.push(`<div class="dash-row"><span class="badge" style="background:#fef3c7;color:#92400e;border-color:#92400e55">📦 備份</span><b>這週還沒備份</b><span class="grow"></span><span class="muted">${bwk?('上次備份：'+esc(bwk)+' 那週'):'還沒備份過'}</span><button class="btn btn-sm btn-accent" data-act="exportJson">⬇ 下載完整備份</button></div>`);}catch(e){}
+    /* BKLATE_V910 本來不管幾週沒備份都只寫「這週還沒備份」，看起來像每週的例行話，
+       結果一拖就是六週。改成把拖了幾週寫出來，兩週以上轉紅色。 */
+    const _bwn=bwk?Math.round((new Date(nowWk+'T00:00:00')-new Date(bwk+'T00:00:00'))/604800000):null;
+    const _bLate=(_bwn==null||_bwn>=2);
+    const _bCol=_bLate?'#dc2626':'#92400e';
+    const _bLab=(_bwn==null)?'還沒備份過':(_bwn<=1?'這週還沒備份':('已經 '+_bwn+' 週沒備份了'));
+    if(IS_OWNER&&bwk!==nowWk&&(S.students||[]).some(x=>!x.is_test))remRows.push(`<div class="dash-row"><span class="badge" style="background:${_bLate?'#fee2e2':'#fef3c7'};color:${_bCol};border-color:${_bCol}55">📦 備份</span><b style="color:${_bCol}">${_bLab}</b><span class="grow"></span><span class="muted">${bwk?('上次備份：'+esc(bwk)+' 那週'):''}</span><button class="btn btn-sm btn-accent" data-act="exportJson">⬇ 下載完整備份</button></div>`);}catch(e){}
   const remHtml=remRows.length?remRows.join(''):`<div class="muted" style="padding:8px 2px">目前沒有需要提醒的事項 👍</div>`;
   const todoN=inbox.length+remRows.length;
   // 總覽數字卡：本月收入／尚未收款／待批改／待辦／堂數快用完
@@ -3594,11 +3600,15 @@ function renderPay(){
     +'<div><div class="muted">還沒收到</div><b style="color:'+(Object.keys(dueCur).length?'#d97706':'#94a3b8')+'">'+mstr(dueCur)+'</b></div>'
     +'<div><div class="muted">有欠款的學生</div><b style="color:'+(oweN?'#dc2626':'#94a3b8')+'">'+oweN+' 位</b></div>'
     +'</div>';
+  /* FEEPUB_V910 「費用公開」的對象：非測試帳號、而且沒有休學的學生 */
+  const fpAll=feePubList();const fpOn=fpAll.filter(x=>x.pay_remind_on).length;
   const seg=(v,lb,n)=>'<button class="segb'+(f===v?' on':'')+'" data-act="payFilter" data-id="'+v+'">'+lb+(n!=null?' <span class="segn">'+n+'</span>':'')+'</button>';
   const bar='<div class="stu-bar"><div class="segbar">'
     +seg('owe','🔴 還沒收',oweN)+seg('clear','✅ 已結清',clearN)+seg('all','全部',rowsAll.length)
     +'</div><span class="grow"></span>'
-    +(_pausedN?('<button class="btn btn-sm'+(_showP?' btn-accent':'')+'" data-act="payTogglePaused" title="已休學的學生預設不列出來">⏸ '+(_showP?'隱藏已休學':('顯示已休學（'+_pausedN+'）'))+'</button> '):'')+'<button class="btn btn-sm btn-accent" data-act="monthBills" title="一次產生一整個月的月結單，每位學生一頁">🧾 月結單</button> <button class="btn btn-sm" data-act="exportLedger" title="匯出上課記錄／繳費記錄／對帳總表">📊 匯出對帳資料</button>'
+    +(_pausedN?('<button class="btn btn-sm'+(_showP?' btn-accent':'')+'" data-act="payTogglePaused" title="已休學的學生預設不列出來">⏸ '+(_showP?'隱藏已休學':('顯示已休學（'+_pausedN+'）'))+'</button> '):'')/* FEEPUB_V910 費用公開本來只能一位一位開，或整班一起開；這裡可以一次看完、一次改完 */
+    +'<button class="btn btn-sm'+(fpOn?' btn-accent':'')+'" data-act="feePubAll" title="一次設定哪些學生在自己的頁面看得到費用">📢 費用公開 '+fpOn+'/'+fpAll.length+'</button> '
+    +'<button class="btn btn-sm btn-accent" data-act="monthBills" title="一次產生一整個月的月結單，每位學生一頁">🧾 月結單</button> <button class="btn btn-sm" data-act="exportLedger" title="匯出上課記錄／繳費記錄／對帳總表">📊 匯出對帳資料</button>'
     +'<span class="hint" style="margin-left:8px">按「＋ 記一筆」就能寫進這位學生的繳費，團班也一樣。</span></div>';
   let rows=rowsAll;
   if(f==='owe')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due>0.0001);
@@ -13896,6 +13906,45 @@ H.itvSessDel=async(key)=>{const p=String(key).split('::');const c=itvById(p[0]);
   const arr=itvSessions(c).slice();arr.splice(Number(p[1]),1);
   try{await DB.update(crmCol(c.id),c.id,{sessions:arr});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.calDay=(d)=>{S.calDay=d;renderCalendar();};
+/* ══════ FEEPUB_V910 費用公開一次設定 ══════
+   打開的意思是：學生登入自己的頁面會看到目前應收多少、怎麼算的、繳過哪幾筆。
+   休學的、測試帳號不列入。 */
+function feePubList(){
+  return (S.students||[]).filter(x=>x&&!x.is_test&&enrollOf(x)!=='paused')
+    .slice().sort((a,b)=>stuNameCmp(a,b));}
+function feePubRowsHtml(){
+  const list=feePubList();
+  if(!list.length)return '<div class="muted" style="padding:10px 2px">目前沒有在籍學生。</div>';
+  return list.map(x=>'<label class="dash-row" style="cursor:pointer;gap:10px">'
+    +'<input type="checkbox" class="fp-ck" data-sid="'+esc(x.id)+'" style="width:auto;margin:0"'+(x.pay_remind_on?' checked':'')+'>'
+    +'<b>'+esc(x.name||'')+'</b>'
+    +(enrollOf(x)==='reserved'?'<span class="badge" style="background:#e0e7ff;color:#3730a3">預約</span>':'')
+    +'<span class="grow"></span>'
+    +'<span class="muted" style="font-size:12px">'+(x.pay_remind_on?'目前：看得到':'目前：看不到')+'</span></label>').join('');}
+H.feePubAll=()=>{const n=feePubList().length;
+  openModal('<div class="modal"><div class="modal-head"><h3>📢 費用公開</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:8px">勾起來的學生，登入自己的頁面會看到：目前應收多少、每一堂怎麼算的、繳過哪幾筆，以及你設的收款帳號。休學的不列在這裡。</div>'
+   +'<div class="quiz-create-row" style="margin-bottom:6px"><button class="btn btn-sm" data-act="feePubTick" data-id="1">全選</button>'
+   +'<button class="btn btn-sm" data-act="feePubTick" data-id="0">全不選</button>'
+   +'<span class="hint" style="margin-left:6px">共 '+n+' 位在籍學生</span></div>'
+   +'<div id="fp-rows">'+feePubRowsHtml()+'</div></div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="feePubSave">💾 儲存</button></div></div>');};
+H.feePubTick=(v)=>{const on=String(v)==='1';
+  document.querySelectorAll('#fp-rows .fp-ck').forEach(c=>{c.checked=on;});};
+H.feePubSave=async()=>{
+  const want={};document.querySelectorAll('#fp-rows .fp-ck').forEach(c=>{want[c.getAttribute('data-sid')]=!!c.checked;});
+  /* 只寫有改到的那幾位，沒動到的不去碰資料庫 */
+  const chg=feePubList().filter(x=>want[x.id]!==undefined&&(!!x.pay_remind_on)!==want[x.id]);
+  if(!chg.length){closeModal();return toast('沒有改動');}
+  const onN=chg.filter(x=>want[x.id]).length,offN=chg.length-onN;
+  if(!confirm('要儲存嗎？\n\n打開 '+onN+' 位、關閉 '+offN+' 位。\n打開之後這些學生自己就看得到費用了。'))return;
+  let ok=0,bad=0;
+  for(const x of chg){
+    try{await DB.update('students',x.id,{pay_remind_on:want[x.id]});x.pay_remind_on=want[x.id];ok++;}catch(e){bad++;}}
+  closeModal();render();
+  toast(bad?('已儲存 '+ok+' 位，有 '+bad+' 位失敗'):('✅ 已儲存 '+ok+' 位'));};
 H.payFilter=(v)=>{S.payFilter=v;renderPay();};
 H.payTogglePaused=()=>{S.payShowPaused=!S.payShowPaused;renderPay();};
 H.calView=(v)=>{S.calDay='';S.calView=v;if((v==='month'||v==='ledger')&&!S.calMonth)S.calMonth=localToday().slice(0,7);renderCalendar();};
