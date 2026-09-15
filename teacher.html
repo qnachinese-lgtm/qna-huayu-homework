@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=913">
+<link rel="stylesheet" href="styles.css?v=914">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -347,6 +347,18 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .rp-sec:first-child{margin-top:6px}
         .rp-sn{font-size:11.5px;font-weight:700;color:var(--muted);background:var(--surface-2);
           border-radius:999px;padding:1px 8px}
+        /* RPPICK_V914 列印視窗裡那一份一份的清單 */
+        .rpp-box{border:1px solid var(--line);border-radius:10px;background:#fff;
+          max-height:280px;overflow-y:auto;padding:4px 6px}
+        .rpp-g+.rpp-g{margin-top:6px}
+        .rpp-gh{display:flex;align-items:center;gap:8px;font-weight:800;font-size:12.5px;
+          color:var(--primary-dark,#7A5236);padding:6px 4px 4px;position:sticky;top:0;background:#fff}
+        .rpp-gh .hint{font-weight:400}
+        .rpp-r{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:8px;
+          cursor:pointer;font-size:13.5px}
+        .rpp-r:hover{background:var(--surface-2)}
+        .rpp-r input{width:auto;margin:0;flex:none}
+        .rpp-r b{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         /* RPCARD_V912 左邊一條分類色帶，一眼就知道是哪一類 */
         .rp-c{display:flex;flex-direction:column;gap:9px;padding:16px 18px 14px;
           border-left:4px solid var(--line);transition:box-shadow .15s,border-color .15s}
@@ -6665,9 +6677,11 @@ function ghModal(){
    /* GHPREF_V883 */
    +'<div class="hint" style="margin-top:2px">上面的選項會照每一本教材記住你上次按匯出時的設定（日期除外，一律預設今天）。</div>'
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
-   +'<button class="btn" data-act="ghGo" data-id="key">📋 只印答案</button>'
-   +'<button class="btn" data-act="ghGo" data-id="tea">👩‍🏫 老師版（含答案）</button>'
-   +'<button class="btn btn-primary" data-act="ghGo" data-id="stu">👩‍🎓 學生版</button></div></div>');
+   /* UNIFY_V914 跟其他列印視窗一樣，都是列印這件事；
+      講義有三種版本，所以保留三顆，但写法改成同一套。 */
+   +'<button class="btn" data-act="ghGo" data-id="key">🖨 只印答案</button>'
+   +'<button class="btn" data-act="ghGo" data-id="tea">🖨 老師版（含答案）</button>'
+   +'<button class="btn btn-primary" data-act="ghGo" data-id="stu">🖨 學生版</button></div></div>');
   try{ghPrefApply();}catch(e){}/* GHPREF_V883 */
   try{GHSENT();}catch(e){}/* GHCL_V861 */}
 function assignModal(l){
@@ -10511,13 +10525,25 @@ function rpFontOptsHtml(){
 H.rpPrintOpen=()=>{
   const all=rpSorted();
   const used=RP_GRP.filter(g=>all.some(r=>rpGrpOf(r)===g[0]));
+  /* RPPICK_V914 本來只能挑整個分類，挑不到單獨一份。改成一份一份打勾。 */
+  const picks=used.map(g=>{
+    const rows=all.filter(r=>rpGrpOf(r)===g[0]);
+    return '<div class="rpp-g"><div class="rpp-gh">'+esc(g[1])
+      +'<span class="hint">'+rows.length+' 份</span><span style="flex:1"></span>'
+      +'<button class="btn btn-sm" type="button" data-act="rpPickAll" data-id="'+esc(g[0])+'::1">全選</button>'
+      +'<button class="btn btn-sm" type="button" data-act="rpPickAll" data-id="'+esc(g[0])+'::0">全不選</button></div>'
+      +rows.map(r=>{const t=rpText(r);
+        return '<label class="rpp-r"><input type="checkbox" class="rp-ck2" data-g="'+esc(g[0])+'" value="'+esc(r.id)+'" checked>'
+        +'<b>'+esc(r.title||'（沒有標題）')+'</b>'
+        +'<span style="flex:1"></span>'
+        +(t?('<span class="muted" style="font-size:11.5px">'+(String(r.body_vi||'').trim()?'VI':'中')+'</span>')
+           :'<span class="muted" style="font-size:11.5px;color:#c3b7a7">沒內容</span>')
+        +'</label>';}).join('')+'</div>';}).join('');
   openModal('<div class="modal"><div class="modal-head"><h3>🖨 列印回覆範本</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
    +'<div class="hint" style="margin-bottom:10px">印出來可以放在手邊照念，或存成 PDF 傳給別人。一份範本一塊，不會切到一半換頁。</div>'
-   +'<div class="field"><label>要印哪一類</label><select id="rp-pg">'
-   +'<option value="">全部（'+all.length+' 份）</option>'
-   +used.map(g=>'<option value="'+esc(g[0])+'">'+esc(g[1])+'（'+all.filter(r=>rpGrpOf(r)===g[0]).length+' 份）</option>').join('')
-   +'</select></div>'
+   +'<div class="field"><label>要印哪幾份 <span class="hint">默認全選，不要的取消打勾就好</span></label>'
+   +'<div class="rpp-box">'+picks+'</div></div>'
    +'<div class="field"><label>要印哪一種語言</label><select id="rp-pl2">'
    +'<option value="both" selected>中文和越南文都印</option>'
    +'<option value="zh">只印中文</option>'
@@ -10528,20 +10554,24 @@ H.rpPrintOpen=()=>{
    +'<input type="checkbox" id="rp-pe" checked style="width:auto;margin:0"> 跳過還沒填內容的</label></div>'
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
    +'<span style="flex:1"></span>'
-   +'<button class="btn btn-primary" data-act="rpPrintGo">🖨 產生</button></div></div>');};
+   +'<button class="btn btn-primary" data-act="rpPrintGo">🖨 列印／PDF</button></div></div>');};
+/* RPPICK_V914 某一個分類整組打勾／整組取消 */
+H.rpPickAll=(key)=>{const p=String(key).split('::');const g=p[0],on=(p[1]==='1');
+  document.querySelectorAll('.rp-ck2[data-g="'+g+'"]').forEach(c=>{c.checked=on;});};
 H.rpPrintGo=()=>{
   const v=(id)=>{const e=document.getElementById(id);return e?String(e.value||''):'';};
-  const grp=v('rp-pg'),lang=v('rp-pl2')||'both',font=v('rp-pf');
+  const lang=v('rp-pl2')||'both',font=v('rp-pf');
   const onlyFull=!!((document.getElementById('rp-pe')||{}).checked);
-  let list=rpSorted();
-  if(grp)list=list.filter(r=>rpGrpOf(r)===grp);
+  /* RPPICK_V914 改成看打勾的那幾份 */
+  const pick={};document.querySelectorAll('.rp-ck2').forEach(c=>{if(c.checked)pick[c.value]=1;});
+  let list=rpSorted().filter(r=>pick[r.id]);
   if(onlyFull)list=list.filter(r=>rpText(r));
   /* RPSORT_V913 畫面上的順序是照 order_index 排的，分類是交錯的；
      直接照這個順序印，同一個分類的標題會在文件裡重複出現好幾次。
      先照分類分堆，堆裡面維持原本的先後。 */
   {const gi=(r)=>{const k=rpGrpOf(r);const i=RP_GRP.findIndex(x=>x[0]===k);return i<0?99:i;};
    list=list.map((r,i)=>[r,i]).sort((a,b)=>(gi(a[0])-gi(b[0]))||(a[1]-b[1])).map(x=>x[0]);}
-  if(!list.length)return toast('這個條件沒有範本可以印');
+  if(!list.length)return toast('還沒有勾任何一份，或是勾的那幾份都還沒填內容');
   const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const blk=(lab,txt)=>txt?('<div class="rb"><div class="rl">'+lab+'</div><div class="rt">'+e2(txt)+'</div></div>'):'';
   let body='',lastG='';
@@ -10758,7 +10788,7 @@ H.qtNew=()=>{
    +'<div class="field" style="margin-top:12px"><label>備註 <span class="hint">選填，會印在報價單下方</span></label>'
    +'<textarea id="qt-note" rows="3" style="width:100%;box-sizing:border-box" placeholder="例：學費請於開課前三天匯款；報名後恕不退費">'+esc(memo)+'</textarea></div>'
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
-   +'<button class="btn btn-primary" data-act="qtGo">🖨 產生報價單</button></div></div>');
+   +'<button class="btn btn-primary" data-act="qtGo">🖨 列印／PDF</button></div></div>');
   try{const cs=document.getElementById('qt-cur');
     if(cs)cs.onchange=()=>{const box=document.getElementById('qt-list');
       if(box)box.innerHTML=qtRowsHtml(cs.value);};}catch(e){}
@@ -11164,7 +11194,7 @@ H.monthBills=()=>{
    +'<div class="field full"><label>每一頁最下面要寫的付款方式／叮嚀 <span class="hint">選填，會記住下次不用再打</span></label>'
    +'<textarea id="mb-note" rows="3" placeholder="例：匯款 國泰 013-xxx-xxxxxx 黃美娟／或 Momo · 收到後請跟老師說一聲，謝謝！">'+esc(note)+'</textarea></div></div></div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
-   +'<button class="btn btn-primary" data-act="monthBillsGo">🧾 產生</button></div></div>');};
+   +'<button class="btn btn-primary" data-act="monthBillsGo">🖨 列印／PDF</button></div></div>');};
 H.monthBillsGo=()=>{
   const _v=(id)=>{const e=document.getElementById(id);return e?String(e.value||''):'';};
   const ym=_v('mb-ym');if(!/^\d{4}-\d{2}$/.test(ym))return toast('請選月份');
