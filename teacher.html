@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=911">
+<link rel="stylesheet" href="styles.css?v=912">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -347,7 +347,21 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .rp-sec:first-child{margin-top:6px}
         .rp-sn{font-size:11.5px;font-weight:700;color:var(--muted);background:var(--surface-2);
           border-radius:999px;padding:1px 8px}
-        .rp-c{display:flex;flex-direction:column;gap:9px;padding:16px 18px}
+        /* RPCARD_V912 左邊一條分類色帶，一眼就知道是哪一類 */
+        .rp-c{display:flex;flex-direction:column;gap:9px;padding:16px 18px 14px;
+          border-left:4px solid var(--line);transition:box-shadow .15s,border-color .15s}
+        .rp-c:hover{box-shadow:0 4px 16px rgba(66,60,54,.10)}
+        .rp-c.rp-abroad{border-left-color:#a3714e}
+        .rp-c.rp-teach{border-left-color:#6f8f7a}
+        .rp-c.rp-other{border-left-color:#c3b7a7}
+        /* 有中文／有越南文：亮的就是有 */
+        .rp-lg{display:flex;gap:4px;margin-left:auto;flex:none}
+        .rp-lg i{font-style:normal;font-size:10.5px;font-weight:800;letter-spacing:.3px;
+          padding:1px 6px;border-radius:6px;background:var(--surface-2);color:#c3b7a7;
+          border:1px solid var(--line)}
+        .rp-lg i.on{background:#efe5d8;color:#7A5236;border-color:#dcc9ae}
+        /* 預覽框上面標現在看到的是哪一種語言 */
+        .rp-pl{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.4px;margin-bottom:-4px}
         .rp-h{display:flex;align-items:center;gap:8px;min-width:0}
         .rp-h>b{font-size:15.5px;line-height:1.4;min-width:0;overflow:hidden;
           text-overflow:ellipsis;white-space:nowrap}
@@ -361,8 +375,10 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           height:90px;box-sizing:border-box;background:var(--surface-2);border-radius:10px;padding:9px 12px}
         .rp-p.rp-empty{color:var(--muted);font-style:normal;background:transparent;
           border:1px dashed var(--line);display:flex;align-items:center;height:90px}
+        /* RPCARD_V912 本來「複製」在最左、其他兩顆在最右，一列被分成兩半。全部靠右排一組。 */
         .rp-f{display:flex;align-items:center;gap:7px;margin-top:auto;padding-top:10px;
           border-top:1px solid var(--line)}
+        .rp-f>.btn{flex:none}
         .rp-f .btn.is-off{opacity:.45}
         .rp-f .rp-del{color:#b91c1c;border-color:#e7c9c9;background:#fff;padding:0 9px}
         .rp-f .rp-del:hover{background:#fee2e2;border-color:#dc2626}
@@ -2980,18 +2996,25 @@ function rpText(r){
   return String((r&&r.body_zh)||'').trim();
 }
 function rpPreview(r){return rpText(r);}
+/* RPCARD_V912 本來一張卡只看得到一段預覽，看不出這一份有沒有中文、有沒有越南文；
+   按鈕又被拆成左右兩半。改成：左邊一條分類色帶、右上角標有哪幾種語言、
+   預覽框上面寫現在看到的是哪一種、按鈕全部靠右排成一組。 */
 function rpCardHtml(r){
   const tags=String(r.tags||'').split(/[，,、\s]+/).filter(Boolean).slice(0,3);
-  const pv=rpText(r);
-  return '<div class="card rp-c">'
-    +'<div class="rp-h"><b>'+esc(r.title||'（沒有標題）')+'</b></div>'
+  const zh=String((r&&r.body_zh)||'').trim(),vi=String((r&&r.body_vi)||'').trim();
+  const pv=rpText(r);const which=vi?'VI':(zh?'中':'');
+  const lang='<span class="rp-lg">'
+    +'<i class="'+(zh?'on':'')+'" title="'+(zh?'有中文':'沒有中文')+'">中</i>'
+    +'<i class="'+(vi?'on':'')+'" title="'+(vi?'有越南文':'沒有越南文')+'">VI</i></span>';
+  return '<div class="card rp-c rp-'+esc(rpGrpOf(r))+'">'
+    +'<div class="rp-h"><b>'+esc(r.title||'（沒有標題）')+'</b>'+lang+'</div>'
     +'<div class="rp-g">'+(tags.length?tags.map(t=>'<span class="tag">'+esc(t)+'</span>').join('')
         :'<span class="hint">沒有關鍵字</span>')+'</div>'
+    +(pv?('<div class="rp-pl">'+(which==='VI'?'Tiếng Việt':'中文')+'</div>'):'')
     +'<div class="rp-p'+(pv?'':' rp-empty')+'">'+(pv?esc(pv):'還沒有內容——按「✏️ 編輯」把說法打進去')+'</div>'
-    +'<div class="rp-f">'
-      +'<button class="btn btn-sm btn-primary'+(pv?'':' is-off')+'" data-act="rpCopy" data-id="'+esc(r.id)+'">📋 複製</button>'
-      +'<span style="flex:1"></span>'
+    +'<div class="rp-f"><span style="flex:1"></span>'
       +'<button class="btn btn-sm" data-act="rpEdit" data-id="'+esc(r.id)+'">✏️ 編輯</button>'
+      +'<button class="btn btn-sm btn-primary'+(pv?'':' is-off')+'" data-act="rpCopy" data-id="'+esc(r.id)+'">📋 複製</button>'
       +'<button class="btn btn-sm btn-icon rp-del" data-act="rpDel" data-id="'+esc(r.id)+'" title="刪除這一份">🗑</button>'
     +'</div></div>';
 }
@@ -3025,7 +3048,10 @@ function renderReply(){
       +'<input id="rp-q" type="text" placeholder="搜尋：語言學校、碩士、團班…" value="'+esc(q)+'" style="max-width:300px">'
       +(q?'<button class="btn btn-sm" data-act="rpClearQ">✕ 清除</button>':'')
       +'<span class="hint" style="margin-left:auto">'+(q?('符合 '+list.length+' ／ 共 '+all.length+' 份'):('共 '+all.length+' 份'))
-      +(nEmpty?('　·　'+nEmpty+' 份還沒填內容'):'')+'</span></div>';
+      +(nEmpty?('　·　'+nEmpty+' 份還沒填內容'):'')+'</span>'
+      /* RPPRINT_V912 價目表那一頁早就有列印，這一頁沒有。補上。 */
+      +(all.length?'<button class="btn btn-sm" data-act="rpPrintOpen" title="把範本列印或存成 PDF，可以挑分類、語言和字體">🖨 列印／PDF</button>':'')
+      +'</div>';
     let grid;
     if(!all.length){
       grid='<div class="card" style="text-align:center;padding:30px"><div style="font-size:36px">📮</div>'
@@ -10475,6 +10501,86 @@ H.docSave=async(id)=>{
 };
 /* QUOTE_V713 價目表的操作 */
 H.rpSub=(k)=>{S.rpSub=(k==='price')?'price':'tpl';render();};
+/* ══════ RPPRINT_V912 把回覆範本列印出來 ══════
+   做法跟匯出講義同一套：先問要印哪一類、哪一種語言、什麼字體，再產生文件。
+   字體選單就是講義那一套（ghFontHead / ghFontCss），不另外再寫一份。 */
+function rpFontOptsHtml(){
+  return '<option value="kaitimes" selected>標楷體 ＋ Times New Roman —— 給學生的標準組合</option>'
+   +'<option value="">跟平台一樣（'+esc(fontDef('cjk',fontGet('cjk'))[1])+'）</option>'
+   +CJKFONTS.map(f=>'<option value="'+esc(f[0])+'">'+esc(f[1])+' —— '+esc(f[2])+'</option>').join('');}
+H.rpPrintOpen=()=>{
+  const all=rpSorted();
+  const used=RP_GRP.filter(g=>all.some(r=>rpGrpOf(r)===g[0]));
+  openModal('<div class="modal"><div class="modal-head"><h3>🖨 列印回覆範本</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:10px">印出來可以放在手邊照念，或存成 PDF 傳給別人。一份範本一塊，不會切到一半換頁。</div>'
+   +'<div class="field"><label>要印哪一類</label><select id="rp-pg">'
+   +'<option value="">全部（'+all.length+' 份）</option>'
+   +used.map(g=>'<option value="'+esc(g[0])+'">'+esc(g[1])+'（'+all.filter(r=>rpGrpOf(r)===g[0]).length+' 份）</option>').join('')
+   +'</select></div>'
+   +'<div class="field"><label>要印哪一種語言</label><select id="rp-pl2">'
+   +'<option value="both" selected>中文和越南文都印</option>'
+   +'<option value="zh">只印中文</option>'
+   +'<option value="vi">只印越南文</option></select></div>'
+   +'<div class="field"><label>中文字體 <span class="hint">只影響這一份印出來的，不動平台設定</span></label>'
+   +'<select id="rp-pf">'+rpFontOptsHtml()+'</select></div>'
+   +'<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
+   +'<input type="checkbox" id="rp-pe" checked style="width:auto;margin:0"> 跳過還沒填內容的</label></div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="rpPrintGo">🖨 產生</button></div></div>');};
+H.rpPrintGo=()=>{
+  const v=(id)=>{const e=document.getElementById(id);return e?String(e.value||''):'';};
+  const grp=v('rp-pg'),lang=v('rp-pl2')||'both',font=v('rp-pf');
+  const onlyFull=!!((document.getElementById('rp-pe')||{}).checked);
+  let list=rpSorted();
+  if(grp)list=list.filter(r=>rpGrpOf(r)===grp);
+  if(onlyFull)list=list.filter(r=>rpText(r));
+  if(!list.length)return toast('這個條件沒有範本可以印');
+  const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const blk=(lab,txt)=>txt?('<div class="rb"><div class="rl">'+lab+'</div><div class="rt">'+e2(txt)+'</div></div>'):'';
+  let body='',lastG='';
+  list.forEach(r=>{
+    const g=rpGrpOf(r);
+    if(g!==lastG){lastG=g;body+='<div class="gsec">'+e2(rpGrpLab(g))+'</div>';}
+    const tags=String(r.tags||'').split(/[，,、\s]+/).filter(Boolean);
+    const zh=String(r.body_zh||'').trim(),vi=String(r.body_vi||'').trim();
+    body+='<div class="rcard"><div class="rh"><b>'+e2(r.title||'（沒有標題）')+'</b>'
+      +(tags.length?('<span class="rtg">'+tags.map(t=>'<i>'+e2(t)+'</i>').join('')+'</span>'):'')+'</div>'
+      +((lang!=='vi')?blk('中文',zh):'')
+      +((lang!=='zh')?blk('Tiếng Việt',vi):'')
+      +((!zh&&!vi)?'<div class="rb"><div class="rt non">（還沒有內容）</div></div>':'')
+      +'</div>';});
+  const css=fbCss()+docCss2()
+   +'.gsec{margin:16px 0 8px;font-size:13px;font-weight:800;color:var(--deep);'
+   +'border-bottom:1.5px solid var(--line);padding-bottom:5px;break-after:avoid}'
+   +'.rcard{border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:10px;'
+   +'break-inside:avoid}'
+   +'.rh{display:flex;align-items:baseline;gap:9px;margin-bottom:6px}'
+   +'.rh b{font-size:14px;color:var(--deep)}'
+   +'.rtg i{font-style:normal;font-size:10.5px;color:var(--mut);background:var(--soft);'
+   +'border-radius:999px;padding:1px 7px;margin-left:4px}'
+   +'.rb{margin-top:6px}'
+   +'.rl{font-size:10px;font-weight:700;color:var(--mut);letter-spacing:.4px;margin-bottom:2px}'
+   +'.rt{font-size:12px;line-height:1.85;white-space:pre-wrap;color:var(--ink)}'
+   +'.rt.non{color:#bcae9e}'
+   +'@media print{.rcard{break-inside:avoid}}';
+  const page='<div class="page">'
+   +'<div class="hd"><div class="bx"><div class="mark">華</div>'
+   +'<div><div class="brand">'+e2(window.APP_NAME||'QNA CHINESE')+'</div>'
+   +'<div class="brand-vi">Tiếng Trung Quyên Huỳnh</div>'
+   +'<div class="brand-s">華語教學 · 留學代辦</div></div></div>'
+   +'<div class="hd-r"><div class="doc">回覆範本</div><div class="doc-s">REPLY TEMPLATES</div>'
+   +'<div class="kv"><span>列印日期</span><b>'+e2(localToday())+'</b></div>'
+   +'<div class="kv"><span>份數</span><b>'+list.length+' 份</b></div></div></div>'
+   +'<div class="wave"></div>'+body
+   +'<div class="foot"><div class="ty">這是內部參考用的說法，傳給客人前請再看一次 ♡</div></div></div>';
+  closeModal();
+  fbWin('<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
+   +'<title>回覆範本 '+e2(localToday())+'</title>'
+   +(font?'<meta name="qna-font" content="QNAFONT_FIXED">':'')
+   +ghFontHead(font)
+   +'<style>'+css+ghFontCss(font)+'</style></head><body>'+page+'</body></html>');};
 /* PROUT_V737 價目表本來只能在平台上看。可是客人問「你們所有項目多少錢」的時候，
    一項一項貼很慢，傳一份完整的價目表過去最快；自己要對帳、要印一張貼在桌邊也一樣。
    這裡是整份價目表的輸出（不是報價單——報價單是挑幾項、算合計給某一位客人的）。
