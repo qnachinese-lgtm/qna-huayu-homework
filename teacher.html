@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=871">
+<link rel="stylesheet" href="styles.css?v=874">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5413,13 +5413,22 @@ function ghQsOf(lid){
   const all=(S.questions||[]).filter(q=>q&&q.lesson_id===lid)
     .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0));
   const main=all.filter(q=>q.bank!=='hw');
-  /* GHHW_V871 關鍵詞彙那兩本的題目全部存在「作業簿」題庫裡，
-     「練習題」只剩大題標題和短文（示範題）。照舊把作業簿濾掉的話，
-     印出來就是有標題沒題目。所以：練習題裡沒有半題真的要作答的，
+  const hw=all.filter(q=>q.bank==='hw');
+  /* GHBANK_V872 照她在視窗上選的出。
+     「只出作業簿」還是會帶上示範題（大題標題和短文），不然只剩題目看不懂。 */
+  if(GHBANK==='main')return main;
+  if(GHBANK==='hw')return hw.length?all.filter(q=>q.bank==='hw'||q.type==='note'):main;
+  if(GHBANK==='both')return all;
+  /* GHHW_V871 自動：關鍵詞彙那兩本的題目全部存在作業簿題庫裡，
+     「練習題」只剩大題標題和短文。練習題裡沒有半題真的要作答的，
      就改用全部的題目——標題和題目本來就是同一串順序，接得起來。 */
   if(main.some(q=>q.type!=='note'))return main;
-  if(all.some(q=>q.bank==='hw'))return all;
+  if(hw.length)return all;
   return main;}
+/* GHBANK_V872 這一本有沒有作業簿題目（有才要出現那個選單） */
+function ghHasHw(book){try{
+  const ids={};(baLessonsOf(book)||[]).forEach(l=>{ids[l.id]=1;});
+  return (S.questions||[]).some(q=>q&&q.bank==='hw'&&ids[q.lesson_id]);}catch(e){return false;}}
 function ghLines(t){return esc(String(t==null?'':t)).replace(/\n/g,'<br>');}
 /* GHWIDE_V826 本來每一題只給一條細線，要寫整句不夠。手寫版依題型加大作答空間。 */
 let GHWIDE=0;
@@ -5433,6 +5442,9 @@ let GHFONT='kaitimes';
    GHCLQ = 這一份要出什麼：'1' 都出／'0' 只出原文和翻譯／'only' 只出課後問答。
    GHWHO／GHWHEN = 這一份是給誰、哪一天上課，填了就印在抬頭。 */
 let GHCLSET=[],GHCLQ='1',GHWHO='',GHWHEN='';
+/* GHBANK_V872 這一份要出哪一邊的題目：
+   'auto' 哪邊有就出哪邊／'main' 只出課本練習題／'hw' 只出作業簿／'both' 兩邊都出 */
+let GHBANK='auto';
 /* GHKT_V855 給學生的標準組合：中文標楷體、英數字 Times New Roman。
    Times New Roman 排在最前面，所以英文和數字先吃它，中文再往後掉到楷體。
    電腦沒裝標楷體的話退到霞鶩文楷（網路字體），至少還是楷書。 */
@@ -5570,8 +5582,13 @@ function ghGpHtml(g,gi,qs,withAns,tagLab){
 /* GHCL_V863 把一段原文照「。！？」切成一句一句。不用 lookbehind，舊瀏覽器也吃得下。 */
 function ghClSents(t){
   const str=String(t==null?'':t),out=[];let buf='';
+  /* GHSENT_V874 句號後面如果還有收尾的引號或括號，要跟著這一句走，
+     不然「…目攝之！」的那個「」」會被丟到下一句去。 */
+  const CLOSE='」』）】》〉〕｝〞’';
   for(let i=0;i<str.length;i++){buf+=str.charAt(i);
-    if('。！？'.indexOf(str.charAt(i))>=0){const v=buf.trim();if(v)out.push(v);buf='';}}
+    if('。！？'.indexOf(str.charAt(i))>=0){
+      while(i+1<str.length&&CLOSE.indexOf(str.charAt(i+1))>=0){i++;buf+=str.charAt(i);}
+      const v=buf.trim();if(v)out.push(v);buf='';}}
   const v=buf.trim();if(v)out.push(v);
   return out;}
 /* GHCL_V863 「質（zhì）：做人質。亡歸：逃回。」→ 一條一條 */
@@ -5864,7 +5881,9 @@ function ghBuild(book,lids,mode,wide,noimg){
      格式：QNA CHINESE_課本_課名_學生_上課日；沒填的就跳過。
      老師版和解答頁後面多一個字，才不會跟學生版同名互相蓋掉。 */
   const _lt=(ls.length===1)?String(ls[0].title||'').trim():((ls.length>1)?(ls.length+'課'):'');
-  const _fn=['QNA CHINESE',String(book||'').trim(),_lt,GHWHO,GHWHEN,
+  /* GHBANK_V872 明確選了哪一邊就標在檔名上，兩份才不會同名蓋掉 */
+  const _bk=(GHBANK==='hw')?'作業簿':((GHBANK==='main')?'課本練習題':((GHBANK==='both')?'課本＋作業簿':''));
+  const _fn=['QNA CHINESE',String(book||'').trim(),_lt,_bk,GHWHO,GHWHEN,
       /* GHNAME_V870 三種版本都要標出來，檔案放在一起才分得出哪份是哪份 */
       (keyOnly?'解答':(withAns?'老師版':'學生版'))]
     .filter(x=>String(x||'').trim()).join('_').replace(/[\/:*?"<>|]/g,'-');
@@ -5879,7 +5898,8 @@ function ghBuild(book,lids,mode,wide,noimg){
     +'<span class="vi">Tiếng Trung Quyên Huỳnh</span>'
     +'<span class="r">'+esc(book)+'　·　'+esc(ttl)+'</span></div>'
     +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><span class="hint">列印時這排按鈕不會印出來</span></div>'
-    +'<div class="page">'+fbHead('華語教學 · '+base,ttl,en)
+    /* GHEN_V873 文件名底下那行英文是裝飾，講義用不到，拿掉 */
+    +'<div class="page">'+fbHead('華語教學 · '+base,ttl,'')
     +'<div class="top">'
     +'<div class="f"><span class="k">教材</span><span class="v">'+esc(book)+'</span></div>'
     /* GHHEAD_V854 抬頭本來寫「範圍 1 課 · 27 題」，Quinn 說不需要，拿掉。 */
@@ -5930,6 +5950,9 @@ function GHFILL(){const sel=document.getElementById('gh-book'),box=document.getE
       if(one&&!hn){hn=document.createElement('span');hn.className='hint';lb.insertBefore(hn,lb.children[0]||null);}
       if(hn)hn.textContent=one?'文言文一份出一課':'';}
   }catch(e){}
+  /* GHBANK_V872 沒有作業簿的書就不要出現那個選單 */
+  try{const bb=document.getElementById('gh-bankbox');
+    if(bb&&sel)bb.style.display=ghHasHw(sel.value)?'':'none';}catch(e){}
   try{GHSENT();}catch(e){}}
 function GHALL(){const b=[...document.querySelectorAll('.gh-l')].filter(x=>x.type==='checkbox');
   if(!b.length)return;
@@ -5989,6 +6012,14 @@ function ghModal(){
    +'<option value="kaitimes" selected>標楷體 ＋ Times New Roman —— 給學生的標準組合</option>'
    +'<option value="">跟平台一樣（'+esc(fontDef('cjk',fontGet('cjk'))[1])+'）</option>'
    +CJKFONTS.map(f=>'<option value="'+esc(f[0])+'">'+esc(f[1])+' —— '+esc(f[2])+'</option>').join('')
+   +'</select></div>'
+   /* GHBANK_V872 有作業簿的書才問這一題 */
+   +'<div class="field" id="gh-bankbox"'+(ghHasHw(cur)?'':' style="display:none"')+'>'
+   +'<label>要出哪一邊的題目</label><select id="gh-bank">'
+   +'<option value="auto" selected>自動 —— 哪邊有題目就出哪邊</option>'
+   +'<option value="main">只出課本練習題</option>'
+   +'<option value="hw">只出作業簿</option>'
+   +'<option value="both">課本練習題＋作業簿都出</option>'
    +'</select></div>'
    /* GHOPT_V844 圖多的書（時代華語一 128 張、看圖學中文語法 195 張）印起來很厚 */
    +'<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
@@ -13288,6 +13319,7 @@ H.ghGo=(mode)=>{
   GHCLSET=[...document.querySelectorAll('.gh-s:checked')].map(x=>Number(x.value)).filter(n=>n>0)
     .sort((a,b)=>a-b);
   GHCLQ=((document.getElementById('gh-clq')||{}).value)||'1';
+  GHBANK=((document.getElementById('gh-bank')||{}).value)||'auto';/* GHBANK_V872 */
   GHWHO=((document.getElementById('gh-who')||{}).value)||'';
   GHWHEN=((document.getElementById('gh-when')||{}).value)||'';
   ghBuild(book,lids,mode,wide,noimg);};
