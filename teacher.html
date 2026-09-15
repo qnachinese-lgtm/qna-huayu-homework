@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=891">
+<link rel="stylesheet" href="styles.css?v=892">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1319,6 +1319,17 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           line-height:1.4;padding-top:3px;padding-bottom:3px;text-align:left}
         .crm-thead .crm-head .cc.dt{white-space:nowrap}
         /* MEMO_V820 我的備忘 */
+        /* CLROW_V892 上課記錄：標籤數量不固定（出席／免費／補課／影片），
+           一擠整列就換行，按鈕掉到第二行。收成三段：標籤一格、備註可壓縮、按鈕不換行。 */
+        .cl-row{flex-wrap:nowrap;gap:8px}
+        .cl-row .cl-st{flex:0 0 152px;display:flex;gap:5px;align-items:center;min-width:0}
+        .cl-row .cl-st>.badge{margin:0;white-space:nowrap}
+        .cl-row .cl-dt{flex:0 0 auto;white-space:nowrap}
+        .cl-row .cl-note{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .cl-row .cl-op{flex:none;display:flex;gap:6px;align-items:center;white-space:nowrap}
+        .cl-row .cl-op>.btn{flex:none}
+        @media(max-width:720px){.cl-row{flex-wrap:wrap}
+          .cl-row .cl-st{flex:0 0 auto}.cl-row .cl-note{flex:1 1 100%}}
         /* TDST_V889 今天的課：狀態標籤固定寬度，後面的姓名才會上下對齊。
            窄螢幕就放掉，讓它照內容排，不然名字會被擠沒。 */
         .dash-sec[data-ds="today"] .td-st{flex:0 0 104px;display:flex;gap:5px;
@@ -14576,7 +14587,23 @@ H.classLog=(id,pf)=>{const s=S.students.find(x=>x.id===id);if(!s)return;pf=pf||{
   const log=(Array.isArray(s.class_log)?s.class_log:[]);const sorted=log.map((e,idx)=>({e,idx})).sort((a,b)=>(b.e.date||'').localeCompare(a.e.date||''));
   const att=classAttended(s)||0;const left=sessionsLeft(s);
   const eIdx=(pf.editIdx!=null&&log[Number(pf.editIdx)])?Number(pf.editIdx):null;const eRow=eIdx!=null?log[eIdx]:null;
-  const clRow=({e,idx})=>{const tm=(e.start||e.end)?(esc(e.start||'')+((e.start&&e.end)?'–':'')+esc(e.end||'')):'';const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';const on=(idx===eIdx);return `<div class="dash-row"${on?' style="background:#fff8ec;border-radius:8px"':''}><span class="badge ${e.status==='leave'?'badge-overdue':'badge-ok'}">${e.status==='leave'?'請假':(e.status==='absent'?'缺席':'出席')}</span>${e.free?'<span class="badge" style="background:#7c3aed22;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':''}${e.makeup?'<span class="badge" style="background:#dbeafe;color:#1d4ed8;border-color:#1d4ed855">🔁 補課</span>':''}${e.video?`<a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;text-decoration:none" href="${esc(e.video)}" target="_blank" rel="noopener">🎬 影片</a>`:''}<b>${esc(e.date||'')}</b>${wd?`<span class="muted" style="margin-left:4px">（${wd}）</span>`:''}${tm?`<span class="muted" style="margin-left:6px">${tm}</span>`:''}${rollLesTag(e)}<span class="grow" style="margin-left:6px">${esc(e.note||'')}</span><button class="btn btn-sm" type="button" data-act="fbRow" data-id="${id}::${idx}" title="寫這一堂的回饋單">💬</button>${on?'<span class="badge badge-soon">修改中</span>':`<button class="btn btn-sm" type="button" data-act="editLogRow" data-id="${id}::${idx}">✏️ 修改</button>`}<button class="btn btn-sm btn-danger" type="button" data-act="delClassLog" data-id="${id}::${idx}">✕</button></div>`;};
+  /* CLROW_V892 三段式：左邊標籤固定一格、中間備註可壓縮、右邊按鈕不換行 */
+  const clRow=({e,idx})=>{
+    const tm=(e.start||e.end)?(esc(e.start||'')+((e.start&&e.end)?'–':'')+esc(e.end||'')):'';
+    const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';
+    const on=(idx===eIdx);
+    const st='<span class="badge '+(e.status==='leave'?'badge-overdue':'badge-ok')+'">'
+      +(e.status==='leave'?'請假':(e.status==='absent'?'缺席':'出席'))+'</span>'
+      +(e.free?'<span class="badge" style="background:#7c3aed22;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':'')
+      +(e.makeup?'<span class="badge" style="background:#dbeafe;color:#1d4ed8;border-color:#1d4ed855">🔁 補課</span>':'');
+    const vb=e.video?`<a class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#b91c1c55;text-decoration:none" href="${esc(e.video)}" target="_blank" rel="noopener">🎬 影片</a>`:'';
+    return `<div class="dash-row cl-row"${on?' style="background:#fff8ec;border-radius:8px"':''}>`
+      +`<span class="cl-st">${st}</span>`
+      +`<span class="cl-dt"><b>${esc(e.date||'')}</b>${wd?`<span class="muted" style="margin-left:4px">（${wd}）</span>`:''}${tm?`<span class="muted" style="margin-left:6px">${tm}</span>`:''}</span>`
+      +`<span class="cl-note">${vb}${rollLesTag(e)}${esc(e.note||'')}</span>`
+      +`<span class="cl-op"><button class="btn btn-sm" type="button" data-act="fbRow" data-id="${id}::${idx}" title="寫這一堂的回饋單">💬</button>`
+      +(on?'<span class="badge badge-soon">修改中</span>':`<button class="btn btn-sm" type="button" data-act="editLogRow" data-id="${id}::${idx}">✏️ 修改</button>`)
+      +`<button class="btn btn-sm btn-danger btn-icon" type="button" data-act="delClassLog" data-id="${id}::${idx}" title="刪掉這一堂記錄">✕</button></span></div>`;};
   let rows;
   if(!sorted.length){rows='<div class="hint" style="padding:8px 0">還沒有上課記錄。</div>';}
   else{const byM={},order=[];sorted.forEach(o=>{const mk=(o.e.date||'').slice(0,7)||'（無日期）';if(!byM[mk]){byM[mk]=[];order.push(mk);}byM[mk].push(o);});
