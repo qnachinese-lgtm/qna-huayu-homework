@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=934">
+<link rel="stylesheet" href="styles.css?v=935">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -8645,7 +8645,10 @@ ${payRows?`<h2>${wrongRows?'四':'三'}、本月繳費</h2><ul>${payRows}</ul>`:
    單堂的存在 s.feedback[]（用 日期|開始|結束 當 key），總結的存在 s.fb_sum[]（用月份當 key），
    兩種都可以直接列印或存 PDF，版面跟對帳單同一套米色奶茶配色。
    星星是點選的，點同一顆會取消；沒點的項目印出來會留白，不會硬給分數。 */
-const FB_KEYS=[['pron','發音・聲調'],['listen','聽力理解'],['vocab','生詞・語法'],['speak','開口說・互動'],['focus','上課專心度'],['hw','作業完成']];
+/* FBVI_V935 第三欄是越南文——回饋單和月總結是直接給學生家長看的 */
+const FB_KEYS=[['pron','發音・聲調','Phát âm・Thanh điệu'],['listen','聽力理解','Nghe hiểu'],
+  ['vocab','生詞・語法','Từ vựng・Ngữ pháp'],['speak','開口說・互動','Nói・Tương tác'],
+  ['focus','上課專心度','Tập trung trong lớp'],['hw','作業完成','Hoàn thành bài tập']];
 let FB_ST={};
 const fbKeyOf=(e)=>String((e&&e.date)||'')+'|'+String((e&&e.start)||'')+'|'+String((e&&e.end)||'');
 const fbList=(s)=>Array.isArray(s&&s.feedback)?s.feedback:[];
@@ -8821,11 +8824,13 @@ function fbStarsPrint(stars,prev,title){
     let t='';for(let i=1;i<=5;i++){t+=(i<=n?'★':'<i>☆</i>');}
     const o=Number((prev||{})[p[0]])||0;let d='';
     if(o){cmp=true;const g=n-o;
-      d=(g>0)?'<span class="dl up">↑ '+g+'</span>':((g<0)?'<span class="dl dn">↓ '+(-g)+'</span>':'<span class="dl eq">持平</span>');}
-    return '<div class="rr"><span class="k">'+p[1]+'</span><span class="s">'+t+'</span>'
+      d=(g>0)?'<span class="dl up">↑ '+g+'</span>':((g<0)?'<span class="dl dn">↓ '+(-g)+'</span>'
+        :('<span class="dl eq">'+L2('持平','Giữ nguyên')+'</span>'));}/* FBVI_V935 */
+    return '<div class="rr"><span class="k">'+L2(p[1],p[2]||p[1])+'</span><span class="s">'+t+'</span>'
       +'<span class="rt">'+d+'<span class="h">'+n+' / 5</span></span></div>';}).join('');
-  return '<div class="sec"><span class="st">'+(title||'⭐ 表現')+'</span><span class="n">'
-    +(cmp?'5 顆星最好，箭頭是跟上個月比':'5 顆星最好')+'</span></div><div class="rate">'+rows+'</div>';}
+  return '<div class="sec"><span class="st">'+(title||('⭐ '+L2('表現','Biểu hiện')))+'</span><span class="n">'
+    +(cmp?L2('5 顆星最好，箭頭是跟上個月比','Tối đa 5 sao, mũi tên là so với tháng trước')
+         :L2('5 顆星最好','Tối đa 5 sao'))+'</span></div><div class="rate">'+rows+'</div>';}
 function fbBlock(title,text,hint){
   if(!String(text||'').trim())return '';
   return '<div class="sec"><span class="st">'+title+'</span>'+(hint?'<span class="n">'+esc(hint)+'</span>':'')+'</div><div class="box">'+esc(text)+'</div>';}
@@ -8833,8 +8838,9 @@ function fbTwoBlocks(t1,x1,t2,x2){
   const a=String(x1||'').trim(),b=String(x2||'').trim();
   if(a&&b)return '<div class="two"><div>'+fbBlock(t1,a,'')+'</div><div>'+fbBlock(t2,b,'')+'</div></div>';
   return fbBlock(t1,a,'')+fbBlock(t2,b,'');}
+/* FBVI_V935 結語現在是排好的中越兩份 HTML，不再 esc */
 function fbFoot(msg){
-  return '<div class="foot"><div class="ty">'+esc(msg)+'</div></div>';}
+  return '<div class="foot"><div class="ty">'+msg+'</div></div>';}
 /* PRINTURL_V834 本來開的是空白視窗（沒有網址），Chrome 頁尾就印 about:blank。
    改成開站上真的一頁 /print.html，內容放 localStorage 讓它讀走再刪掉。
    萬一存不進去（例如瀏覽器不給用），還是退回原本的空白視窗做法。 */
@@ -8855,22 +8861,25 @@ function fbWin(html){
 function fbSheetHtml(s,rec){
   const tm=(rec.start||rec.end)?((rec.start||'')+(rec.end?'～'+rec.end:'')):'';
   const bu=[rec.book,rec.unit].filter(x=>String(x||'').trim()).join('　·　');
-  return '<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+esc(s.name||'')+' 上課回饋 '+esc(rec.date||'')+'</title><style>'+fbCss()+'</style></head><body>'
-    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><span class="hint">列印時這排按鈕不會印出來</span></div>'
-    +'<div class="page">'+fbHead('華語教學 · 教師回饋單','上課回饋','CLASS FEEDBACK')
+  /* FBVI_V935 */
+  return '<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>QNA CHINESE_上課回饋_'+esc(s.name||'')+'_'+esc(rec.date||'')+'</title>'
+    +expHead()+'<style>'+fbCss()+expCss()+'</style></head><body class="lang-zh">'
+    +expBar(1)
+    +'<div class="page">'+fbHead(L2('華語教學 · 教師回饋單','Phiếu nhận xét buổi học'),L2('上課回饋','Nhận xét buổi học'),'CLASS FEEDBACK')
     +'<div class="top">'
-    +'<div class="f"><span class="k">學生</span><span class="v">'+esc(s.name||'')+'</span></div>'
-    +'<div class="f"><span class="k">日期</span><span class="v">'+esc(rec.date||'')+'（'+esc(fbWd(rec.date))+'）</span></div>'
-    +(tm?'<div class="f"><span class="k">時段</span><span class="v">'+esc(tm)+'</span></div>':'')
-    +'<div class="f"><span class="k">課程</span><span class="v">'+esc(s.class_type==='團班'?'團班':'一對一')+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+esc(s.name||'')+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('日期','Ngày')+'</span><span class="v">'+esc(rec.date||'')+'（'+esc(fbWd(rec.date))+'）</span></div>'
+    +(tm?'<div class="f"><span class="k">'+L2('時段','Giờ học')+'</span><span class="v">'+esc(tm)+'</span></div>':'')
+    +'<div class="f"><span class="k">'+L2('課程','Hình thức lớp')+'</span><span class="v">'
+      +L2(esc(s.class_type==='團班'?'團班':'一對一'),esc(s.class_type==='團班'?'Lớp nhóm':'Học 1 kèm 1'))+'</span></div>'
     +'</div>'
-    +(bu?'<div class="top"><div class="f"><span class="k">教材</span><span class="v">'+esc(bu)+'</span></div></div>':'')
-    +fbBlock('📖 今天上了什麼',rec.content,'')
+    +(bu?'<div class="top"><div class="f"><span class="k">'+L2('教材','Giáo trình')+'</span><span class="v">'+esc(bu)+'</span></div></div>':'')
+    +fbBlock('📖 '+L2('今天上了什麼','Hôm nay đã học gì'),rec.content,'')
     +fbStarsPrint(rec.stars)
-    +fbBlock('💬 老師的話',rec.note,'')
-    +fbBlock('📝 回家作業・下次上課',rec.next,'')
-    +fbFoot('謝謝你今天的努力 ♡')
-    +'</div></body></html>';}
+    +fbBlock('💬 '+L2('老師的話','Lời nhắn của giáo viên'),rec.note,'')
+    +fbBlock('📝 '+L2('回家作業・下次上課','Bài tập về nhà・Buổi học tới'),rec.next,'')
+    +fbFoot(L2('謝謝你今天的努力 ♡','Cảm ơn em đã cố gắng hôm nay ♡',1))
+    +'</div>'+expJs()+'</body></html>';}
 
 function fbSumStats(sid,ym){
   const s=S.students.find(x=>x.id===sid)||{};
@@ -8890,36 +8899,41 @@ function fbSumHtml(s,rec){
   const lines=R.log.map(e=>({d:e.date,t:e.note||'',k:e.status,fr:!!e.free}));
   const rows=lines.filter(x=>x&&x.d).map(x=>{
     let tag='';
-    if(x.k==='leave')tag='<span class="cp lv">請假</span>';
-    else if(x.k==='absent')tag='<span class="cp ab">缺席</span>';
-    if(x.fr)tag+='<span class="cp fr">免費</span>';
+    /* FBVI_V935 */
+    if(x.k==='leave')tag='<span class="cp lv">'+L2('請假','Nghỉ phép')+'</span>';
+    else if(x.k==='absent')tag='<span class="cp ab">'+L2('缺席','Vắng mặt')+'</span>';
+    if(x.fr)tag+='<span class="cp fr">'+L2('免費','Miễn phí')+'</span>';
     const txt=String(x.t||'').trim();
     return '<tr><td style="width:30%">'+esc(x.d)+' <span style="color:#8b8079;font-size:12px">'+esc(fbWd(x.d))+'</span></td><td>'+tag+(txt?esc(txt):(tag?'':'—'))+'</td></tr>';}).join('')
-    ||'<tr><td colspan="2" style="color:#bcae9e;text-align:center;padding:16px">這個月沒有上課記錄</td></tr>';
-  return '<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+esc(s.name||'')+' 學習總結 '+esc(rec.ym||'')+'</title><style>'+fbCss()+'</style></head><body>'
-    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><span class="hint">列印時這排按鈕不會印出來</span></div>'
-    +'<div class="page">'+fbHead('華語教學 · 教師回饋單','學習總結','PROGRESS SUMMARY')
+    ||'<tr><td colspan="2" style="color:#bcae9e;text-align:center;padding:16px">'+L2('這個月沒有上課記錄','Tháng này chưa có buổi học nào')+'</td></tr>';
+  /* FBVI_V935 */
+  const _lv=String(rec.ym||'').split('-');
+  return '<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>QNA CHINESE_學習總結_'+esc(s.name||'')+'_'+esc(rec.ym||'')+'</title>'
+    +expHead()+'<style>'+fbCss()+expCss()+'</style></head><body class="lang-zh">'
+    +expBar(1)
+    +'<div class="page">'+fbHead(L2('華語教學 · 教師回饋單','Phiếu tổng kết học tập'),L2('學習總結','Tổng kết học tập'),'PROGRESS SUMMARY')
     +'<div class="top">'
-    +'<div class="f"><span class="k">學生</span><span class="v">'+esc(s.name||'')+'</span></div>'
-    +'<div class="f"><span class="k">期間</span><span class="v">'+esc(lab)+'</span></div>'
-    +(s.textbook?'<div class="f"><span class="k">教材</span><span class="v">'+esc(s.textbook)+'</span></div>':'')
+    +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+esc(s.name||'')+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('期間','Kỳ')+'</span><span class="v">'
+      +L2(esc(lab),'Tháng '+esc(Number(_lv[1])||'')+'/'+esc(_lv[0]||''))+'</span></div>'
+    +(s.textbook?'<div class="f"><span class="k">'+L2('教材','Giáo trình')+'</span><span class="v">'+esc(s.textbook)+'</span></div>':'')
     +'</div>'
-    +'<div class="sec"><span class="st">📅 出席狀況</span></div>'
+    +'<div class="sec"><span class="st">📅 '+L2('出席狀況','Tình hình đi học')+'</span></div>'
     +'<div class="top">'
-    +'<div class="f"><span class="k">上課</span><span class="v">'+R.attended+' 堂</span></div>'
-    +'<div class="f"><span class="k">請假</span><span class="v">'+R.leave+' 堂</span></div>'
-    +'<div class="f"><span class="k">缺席</span><span class="v">'+R.absent+' 堂</span></div>'
-    +'<div class="f"><span class="k">完成作業</span><span class="v">'+R.hw+' 份</span></div>'
-    +(R.pct!=null?'<div class="f"><span class="k">答對率</span><span class="v">'+R.pct+' %</span></div>':'')
+    +'<div class="f"><span class="k">'+L2('上課','Đã học')+'</span><span class="v">'+R.attended+' '+L2('堂','buổi')+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('請假','Nghỉ phép')+'</span><span class="v">'+R.leave+' '+L2('堂','buổi')+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('缺席','Vắng mặt')+'</span><span class="v">'+R.absent+' '+L2('堂','buổi')+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('完成作業','Bài tập đã làm')+'</span><span class="v">'+R.hw+' '+L2('份','bài')+'</span></div>'
+    +(R.pct!=null?'<div class="f"><span class="k">'+L2('答對率','Tỷ lệ đúng')+'</span><span class="v">'+R.pct+' %</span></div>':'')
     +'</div>'
-    +'<div class="sec"><span class="st">📖 這段期間上了哪些內容</span></div>'
-    +'<div class="tw"><table><thead><tr><th>日期</th><th>上課內容</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
-    +fbStarsPrint(rec.stars,pv&&pv.stars,'📈 學習進度')
-    +fbBlock('📈 這個月的進步',rec.good,'')
-    +fbBlock('💪 需要改進的地方',rec.work,'')
-    +fbBlock('🎯 下個月可以這樣練',rec.goal,'')
-    +fbFoot('謝謝你這段時間的努力 ♡')
-    +'</div></body></html>';}
+    +'<div class="sec"><span class="st">📖 '+L2('這段期間上了哪些內容','Nội dung đã học trong kỳ')+'</span></div>'
+    +'<div class="tw"><table><thead><tr><th>'+L2('日期','Ngày')+'</th><th>'+L2('上課內容','Nội dung buổi học')+'</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +fbStarsPrint(rec.stars,pv&&pv.stars,'📈 '+L2('學習進度','Tiến độ học tập'))
+    +fbBlock('📈 '+L2('這個月的進步','Tiến bộ trong tháng'),rec.good,'')
+    +fbBlock('💪 '+L2('需要改進的地方','Cần cải thiện'),rec.work,'')
+    +fbBlock('🎯 '+L2('下個月可以這樣練','Tháng tới luyện thế này'),rec.goal,'')
+    +fbFoot(L2('謝謝你這段時間的努力 ♡','Cảm ơn em đã cố gắng trong thời gian qua ♡',1))
+    +'</div>'+expJs()+'</body></html>';}
 
 function fbForm(sid,key){
   const s=S.students.find(x=>x.id===sid);if(!s)return;
@@ -9431,8 +9445,11 @@ H.stuXlsx=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
     closeModal();toast('已匯出 Excel');
   }catch(e){toast('匯出失敗：'+((e&&e.message)||e));}};
 
-function spPageOf(html){const i=String(html).indexOf('<div class="page">');const j=String(html).lastIndexOf('</body>');
-  return (i>=0&&j>i)?String(html).slice(i,j):'';}
+/* EXPUI_V935 文件尾巴多了一小段換字體／換語言的 script，
+   打包的時候不能把它一頁切一份進去，所以切到 script 之前。 */
+function spPageOf(html){const h=String(html);const i=h.indexOf('<div class="page">');
+  let j=h.indexOf('<'+'script',i);if(j<0)j=h.lastIndexOf('</body>');
+  return (i>=0&&j>i)?h.slice(i,j):'';}
 
 /* STUEXPALL_V931 本來整份文件是在 H.stuCardPdf 裡面直接組出來的，
    要一次印全部人就沒得用。拆成 stuCardHtml(s)，按鈕和打包都叫它。 */
@@ -9447,32 +9464,49 @@ function stuCardHtml(s){
   const logs=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date)
     .slice().sort((a,c)=>String(c.date).localeCompare(String(a.date))).slice(0,12);
   const rows=logs.map(e=>{let tag='';
-    if(e.status==='leave')tag='<span class="cp lv">請假</span>';
-    else if(e.status==='absent')tag='<span class="cp ab">缺席</span>';
-    if(e.free)tag+='<span class="cp fr">免費</span>';
+    /* SPVI_V935 */
+    if(e.status==='leave')tag='<span class="cp lv">'+L2('請假','Nghỉ phép')+'</span>';
+    else if(e.status==='absent')tag='<span class="cp ab">'+L2('缺席','Vắng mặt')+'</span>';
+    if(e.free)tag+='<span class="cp fr">'+L2('免費','Miễn phí')+'</span>';
     const txt=String(e.note||'').trim();
     return '<tr><td style="width:30%">'+esc(e.date)+' <span style="color:#8b8079;font-size:12px">'+esc(spWd(e.date))+'</span></td><td>'+tag+(txt?esc(txt):(tag?'':'—'))+'</td></tr>';}).join('')
-    ||'<tr><td colspan="2" style="color:#bcae9e;text-align:center;padding:16px">還沒有上課記錄</td></tr>';
-  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+esc(s.name||'')+' 學生檔案</title><style>'+fbCss()+'</style></head><body>'
-    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><span class="hint">列印時這排按鈕不會印出來</span></div>'
-    +'<div class="page">'+fbHead('華語教學 · 學生檔案','學生檔案','STUDENT PROFILE')
-    +'<div class="top">'+f('學生',s.name||'')+f('課程型態',(s.class_type==='團班'?'團班':'一對一'))
-      +(s.nationality?f('國籍',s.nationality):'')+f('狀態',((typeof enrollOf==='function')?({active:'在學中',trial:'試學',paused:'休學',lead:'預約中'}[enrollOf(s)]||enrollOf(s)):'')||'—')+'</div>'
-    +'<div class="top">'+f('教材',s.textbook||'—')+f('上課時段',((typeof fmtSchedule==='function')?fmtSchedule(s):'—'))
-      +(s.email?f('Email',s.email):'')+'</div>'
-    +(IS_OWNER?('<div class="top">'+f('學費',fee)+(s.payment_date?f('付款日',((typeof fmtDate==='function')?fmtDate(s.payment_date):s.payment_date)):'')+'</div>'):'')
-    +'<div class="sec"><span class="st">📊 學習概況</span></div>'
-    +'<div class="top">'+f('已上',(used==null?'—':(((typeof fmtQty==='function')?fmtQty(used):used)+' '+((typeof unitLabel==='function')?unitLabel(s):'堂'))))
-      +f('出席率',(A.rate==null?'—':A.rate+' %'))+f('請假',A.leave+' 堂')+f('缺席',A.absent+' 堂')
-      +f('完成作業',sc.length+' 份')+(scTot?f('答對率',spPct(scOk,scTot)+' %'):'')+'</div>'
-    +(IS_OWNER&&b?('<div class="sec"><span class="st">💰 帳務</span></div><div class="top">'
-      +f('累計應收',money(b.charge,cur))+f('累計實收',money(b.paid,cur))
-      +f('結餘',(Math.abs(b.due)<0.01?'已結清':(b.due>0?('尚欠 '+money(b.due,cur)):('預繳 '+money(-b.due,cur)))))+'</div>'):'')
-    +'<div class="sec"><span class="st">🗓 最近上課</span><span class="n">最新 '+logs.length+' 筆</span></div>'
-    +'<div class="tw"><table><thead><tr><th>日期</th><th>上課內容</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
-    +(s.notes?('<div class="sec"><span class="st">📝 備註・學習目標</span></div><div class="box">'+esc(s.notes)+'</div>'):'')
-    +'<div class="foot">開立時間 '+esc(nowStr())+'　·　本檔案卡由 '+esc(window.APP_NAME||'QNA CHINESE')+' 依平台資料自動產生</div>'
-    +'</div></body></html>';
+    ||'<tr><td colspan="2" style="color:#bcae9e;text-align:center;padding:16px">'+L2('還沒有上課記錄','Chưa có buổi học nào')+'</td></tr>';
+  /* SPVI_V935 欄位名稱、標題、頁尾都補上越南文；f2 是中越兩份的欄位 */
+  const f2=(z,v,val)=>'<div class="f"><span class="k">'+L2(z,v)+'</span><span class="v">'+val+'</span></div>';
+  const _st={active:['在學中','Đang học'],trial:['試學','Học thử'],paused:['休學','Tạm nghỉ'],
+    reserved:['預約・詢問中','Đang hỏi'],lead:['預約中','Đang hẹn']}[(typeof enrollOf==='function')?enrollOf(s):'']||null;
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>QNA CHINESE_學生檔案_'+esc(s.name||'')+'</title>'
+    +expHead()+'<style>'+fbCss()+expCss()+'</style></head><body class="lang-zh">'
+    +expBar(1)
+    +'<div class="page">'+fbHead(L2('華語教學 · 學生檔案','Hồ sơ học viên'),L2('學生檔案','Hồ sơ học viên'),'STUDENT PROFILE')
+    +'<div class="top">'+f2('學生','Học viên',esc(s.name||''))
+      +f2('課程型態','Hình thức lớp',L2(esc(s.class_type==='團班'?'團班':'一對一'),esc(s.class_type==='團班'?'Lớp nhóm':'Học 1 kèm 1')))
+      +(s.nationality?f2('國籍','Quốc tịch',esc(s.nationality)):'')
+      +f2('狀態','Trạng thái',_st?L2(esc(_st[0]),esc(_st[1])):'—')+'</div>'
+    +'<div class="top">'+f2('教材','Giáo trình',esc(s.textbook||'—'))
+      +f2('上課時段','Lịch học',esc((typeof fmtSchedule==='function')?fmtSchedule(s):'—'))
+      +(s.email?f2('Email','Email',esc(s.email)):'')+'</div>'
+    +(IS_OWNER?('<div class="top">'+f2('學費','Học phí',esc(fee))
+      +(s.payment_date?f2('付款日','Ngày thanh toán',esc((typeof fmtDate==='function')?fmtDate(s.payment_date):s.payment_date)):'')+'</div>'):'')
+    +'<div class="sec"><span class="st">📊 '+L2('學習概況','Tổng quan học tập')+'</span></div>'
+    +'<div class="top">'+f2('已上','Đã học',(used==null?'—':(esc(((typeof fmtQty==='function')?fmtQty(used):used))+' '
+        +L2(esc((typeof unitLabel==='function')?unitLabel(s):'堂'),((s.fee_unit==='hour')?'giờ':'buổi')))))
+      +f2('出席率','Tỷ lệ đi học',(A.rate==null?'—':A.rate+' %'))
+      +f2('請假','Nghỉ phép',A.leave+' '+L2('堂','buổi'))
+      +f2('缺席','Vắng mặt',A.absent+' '+L2('堂','buổi'))
+      +f2('完成作業','Bài tập đã làm',sc.length+' '+L2('份','bài'))
+      +(scTot?f2('答對率','Tỷ lệ đúng',spPct(scOk,scTot)+' %'):'')+'</div>'
+    +(IS_OWNER&&b?('<div class="sec"><span class="st">💰 '+L2('帳務','Tài chính')+'</span></div><div class="top">'
+      +f2('累計應收','Tổng phải thu',esc(money(b.charge,cur)))+f2('累計實收','Tổng đã thu',esc(money(b.paid,cur)))
+      +f2('結餘','Số dư',(Math.abs(b.due)<0.01?L2('已結清','Đã thanh toán xong')
+        :(b.due>0?(L2('尚欠','Còn nợ')+' '+esc(money(b.due,cur))):(L2('預繳','Trả trước')+' '+esc(money(-b.due,cur))))))+'</div>'):'')
+    +'<div class="sec"><span class="st">🗓 '+L2('最近上課','Các buổi học gần đây')+'</span><span class="n">'
+      +L2('最新 '+logs.length+' 筆',logs.length+' mục gần nhất')+'</span></div>'
+    +'<div class="tw"><table><thead><tr><th>'+L2('日期','Ngày')+'</th><th>'+L2('上課內容','Nội dung buổi học')+'</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +(s.notes?('<div class="sec"><span class="st">📝 '+L2('備註・學習目標','Ghi chú・Mục tiêu')+'</span></div><div class="box">'+esc(s.notes)+'</div>'):'')
+    +'<div class="foot">'+L2('開立時間 '+esc(nowStr())+'　·　本檔案卡由 '+esc(window.APP_NAME||'QNA CHINESE')+' 依平台資料自動產生',
+        'Thời gian lập '+esc(nowStr())+'　·　Hồ sơ này do '+esc(window.APP_NAME||'QNA CHINESE')+' tạo tự động từ dữ liệu trên nền tảng.',1)+'</div>'
+    +'</div>'+expJs()+'</body></html>';
   return html;}/* STUEXPALL_V931 */
 H.stuCardPdf=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
   closeModal();fbWin(stuCardHtml(s));};
@@ -9484,12 +9518,13 @@ H.fbPack=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
   const pages=[];
   sums.forEach(r=>{const p=spPageOf(fbSumHtml(s,r));if(p)pages.push(p);});
   fbs.forEach(r=>{const p=spPageOf(fbSheetHtml(s,r));if(p)pages.push(p);});
-  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+esc(s.name||'')+' 回饋單合集</title><style>'+fbCss()
+  /* EXPUI_V935 */
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>QNA CHINESE_回饋單合集_'+esc(s.name||'')+'</title>'
+    +expHead()+'<style>'+fbCss()+expCss()
     +'.page{margin-bottom:20px}@media print{.page{break-after:page;margin-bottom:0}.page:last-child{break-after:auto}}'
-    +'</style></head><body>'
-    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
-    +'<span class="hint">共 '+pages.length+' 頁：月總結 '+sums.length+' 份、上課回饋 '+fbs.length+' 張</span></div>'
-    +pages.join('')+'</body></html>';
+    +'</style></head><body class="lang-zh">'
+    +expBar(1,'<span class="exp-l">共 '+pages.length+' 頁：月總結 '+sums.length+' 份、上課回饋 '+fbs.length+' 張</span>')
+    +pages.join('')+expJs()+'</body></html>';
   closeModal();fbWin(html);};
 /* CLSPROFILE_V656 團班改成跟一對一一樣：點班名就在 app 裡開一頁，不再另開一個網頁分頁。
    版面照學生檔案：上面身分列＋數字卡，下面分頁（成員／上課日期／課程模組／繳交狀況／班級資訊）。
@@ -15441,12 +15476,13 @@ H.stuExpCards=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用'
   if(!L.length){toast('這個條件下沒有學生');return;}
   const pages=L.map(x=>spPageOf(stuCardHtml(x))).filter(Boolean);
   if(!pages.length){toast('沒有可以印的檔案卡');return;}
-  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>QNA CHINESE 學生檔案卡</title><style>'+fbCss()
+  /* EXPUI_V935 */
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>QNA CHINESE_學生檔案卡</title>'
+    +expHead()+'<style>'+fbCss()+expCss()
     +'.page{margin-bottom:20px}@media print{.page{break-after:page;margin-bottom:0}.page:last-child{break-after:auto}}'
-    +'</style></head><body>'
-    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
-    +'<span class="hint">共 '+pages.length+' 位學生，每位一頁</span></div>'
-    +pages.join('')+'</body></html>';
+    +'</style></head><body class="lang-zh">'
+    +expBar(1,'<span class="exp-l">共 '+pages.length+' 位學生，每位一頁</span>')
+    +pages.join('')+expJs()+'</body></html>';
   closeModal();fbWin(html);};
 H.cert=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const today=localToday();
   openModal(`<div class="modal"><div class="modal-head"><h3>🎓 結業證書</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
