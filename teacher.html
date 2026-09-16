@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=928">
+<link rel="stylesheet" href="styles.css?v=930">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -7795,7 +7795,10 @@ function printFontInject(h){
     if(h.indexOf('</head>')<0)return h;
     /* GHFONT_V854 這一份文件自己指定了字體，就不要再補平台字體上去 */
     if(h.indexOf('QNAFONT_FIXED')>=0)return h;
-    const add=printFontHead()+'<style>body{font-family:'+printFontStack()+' !important}</style>';
+    /* EXPKT_V930 本來補的是平台設定的字體。Quinn：「基本上匯出的資料，希望都是楷體字跟
+       times new roman 爲標準，且設定爲預設」——改成補 GHKT（標楷體＋Times New Roman）。
+       文件自己指定過字體的，上面那行 QNAFONT_FIXED 已經先擋掉了。 */
+    const add=ghFontHead('kaitimes')+'<style>html body{font-family:'+GHKT[0]+' !important}</style>';
     return h.replace('</head>',add+'</head>');
   }catch(e){return h;}
 }
@@ -12123,6 +12126,13 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
   /* STMTVI_V928 同一件事的越南文說法 */
   const pricev=_ttl?('Lớp nhóm '+_ttl.replace(/小時/g,' giờ')):((s.tuition==null||s.tuition==='')?'—':(money(s.tuition,cur)+(hourly?' / giờ':' / buổi')));
   const L2=(z,v,blk)=>'<span class="l-zh">'+z+'</span><span class="l-vi'+(blk?' nl':'')+'">'+v+'</span>';
+  /* STMTFONT_V930 跟講義同一組選項，預設標楷體＋Times New Roman。
+     每一種的 <link> 和 font-family 都先算好塞進文件裡，換的時候當場套。 */
+  const _FKEYS=[['kaitimes','標楷體 ＋ Times New Roman —— 標準'],['','跟平台一樣']]
+    .concat(CJKFONTS.map(f=>[f[0],f[1]+' —— '+f[2]]));
+  const FSTY={};_FKEYS.forEach(p=>{const k=p[0];
+    FSTY[k]={c:(k===''?('html body{font-family:'+printFontStack()+'!important}'):(ghFontCss(k)||'')),
+             h:(ghFontHead(k)||'')};});
   const _now=new Date(),_p2=n=>String(n).padStart(2,'0');
   const today=_now.getFullYear()+'-'+_p2(_now.getMonth()+1)+'-'+_p2(_now.getDate());
   const sno='QNA-'+today.replace(/-/g,'')+'-'+(String(s.id||'').replace(/[^a-zA-Z0-9]/g,'').slice(-4).toUpperCase()||'0000');
@@ -12136,24 +12146,37 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
   const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+e2(org)+' 對帳單 '+e2(s.name)+'</title>'
     /* ONEDOC_V832 本來自己一整套 CSS，改用跟其他列印文件同一套的底 */
     /* STMTVI_V928 固定的字兩種語言都印進去，用 body 的 class 決定顯示哪一個 */
+    /* STMTFONT_V930 QNAFONT_FIXED＝這份自己管字體，printFontInject 不要再補 */
+    +'<meta name="qna-font" content="QNAFONT_FIXED">'
+    +ghFontHead('kaitimes')
+    +'<style id="fsx">'+ghFontCss('kaitimes')+'</style>'
     +'<style>'+fbCss()+docCss2()
     +'body.lang-zh .l-vi{display:none}'
     +'body.lang-vi .l-zh{display:none}'
     +'body.lang-both .l-vi:not(.nl):before{content:"　·　"}'
     +'body.lang-both .l-vi.nl{display:block}'
     +'.card .cl .t2{display:block;font-weight:700;opacity:.85;font-size:10px;letter-spacing:.2px;margin-top:1px}'
+    /* DQTODAY_V929 */
+    +'.dq{font:inherit;font-size:11.5px;padding:3px 9px;border:1px solid #e3d9cb;border-radius:999px;background:#fff;color:#8b8079;cursor:pointer;margin-left:-3px}'
+    +'.dq:hover{background:#faf5ee;color:#a3714e}'
     +'</style></head><body class="lang-zh">'
     +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
     +'<span style="color:#8b8079;font-size:12.5px">期間</span><select id="pk"></select>'
     /* STMTRANGE_V920 本來只能挑整個月。填了日期就照日期範圍算，兩格都可以只填一邊。 */
     +'<span style="color:#8b8079;font-size:12.5px">或自訂</span>'
     +'<input type="date" id="pf" style="font:inherit;font-size:13px;padding:4px 7px;border:1px solid #e3d9cb;border-radius:8px">'
+    /* DQTODAY_V929 Quinn：「選到日子能不能有一個今日的選項？」 */
+    +'<button id="pfn" class="dq" title="填今天">今天</button>'
     +'<span style="color:#b6a692">～</span>'
     +'<input type="date" id="pt" style="font:inherit;font-size:13px;padding:4px 7px;border:1px solid #e3d9cb;border-radius:8px">'
+    +'<button id="ptn" class="dq" title="填今天">今天</button>'
     +'<button id="pc" style="font:inherit;font-size:12.5px;padding:4px 10px;border:1px solid #e3d9cb;border-radius:999px;background:#fff;color:#8b8079;cursor:pointer">清除</button>'
     /* STMTVI_V928 Quinn：「有時候提供給學生，如果初級的話，怕他們看不懂」 */
     +'<span style="color:#8b8079;font-size:12.5px">語言</span>'
     +'<select id="lg"><option value="zh">中文</option><option value="vi">Tiếng Việt</option><option value="both">中文 ＋ Tiếng Việt</option></select>'
+    /* STMTFONT_V930 */
+    +'<span style="color:#8b8079;font-size:12.5px">字體</span>'
+    +'<select id="fs">'+_FKEYS.map(p=>'<option value="'+e2(p[0])+'"'+(p[0]==='kaitimes'?' selected':'')+'>'+e2(p[1])+'</option>').join('')+'</select>'
     +'<span class="hint">列印時這排按鈕不會印出來</span></div>'
     +'<div class="page">'
     +'<div class="hd"><div class="bx"><div class="mark">華</div>'
@@ -12181,6 +12204,12 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'</div>'
     +'<script>var D='+JSON.stringify(D).replace(/</g,'\\u003c')+';'
     +'var CUR={TWD:["NT$","zh-TW"],VND:["VND","vi-VN"],USD:["US$","en-US"]};'
+    /* STMTFONT_V930 換字體：換掉 #fsx 那條 font-family，需要的網路字體再補進 head。 */
+    +'var FSTY='+JSON.stringify(FSTY).replace(/</g,'\\u003c')+',_FL={kaitimes:1};'
+    +'function setFont(k){var f=FSTY[k]||{};'
+    +'var st=document.getElementById("fsx");if(st)st.textContent=f.c||"";'
+    +'if(f.h&&!_FL[k]){_FL[k]=1;var d=document.createElement("div");d.innerHTML=f.h;'
+    +'while(d.firstChild)document.head.appendChild(d.firstChild);}}'
     +'function money(n,c){if(n==null||n==="")return"—";var v=Number(n);if(isNaN(v))return String(n);'
     +'if(c==="VND")return (v*1000).toLocaleString("en-US")+" VND";var k=CUR[c]||CUR.TWD;return k[0]+v.toLocaleString(k[1]);}'
     +'function q(n){if(n==null)return"—";var r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}'
@@ -12236,16 +12265,20 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'document.getElementById("cards").innerHTML=ch;'
     +'var cm=(sel==="all"&&D.months.length>1),last="",h="";'
     +'h+=`<div class="sec"><span class="st">📖 ${_t("上課記錄","Lịch sử buổi học")}</span><span class="n">${_t(L.length+" 筆",L.length+" mục")}</span></div><div class="tw">`;'
-    +'h+=`<table><thead><tr><th>${_t("日期","Ngày")}</th><th>${_t("時段","Giờ học")}</th><th class="c">${_t("數量","Số lượng")}</th><th>${_t("備註","Ghi chú")}</th><th class="r">${_t("金額","Số tiền")}</th></tr></thead><tbody>`;'
-    +'if(!L.length)h+=`<tr><td colspan="5" class="emp">${_t("這段期間沒有上課記錄","Kỳ này chưa có buổi học nào")}</td></tr>`;'
+    /* NOTECOL_V930 Quinn：「如果備註那邊是空的，請不要出現」
+       整段期間都沒有請假／缺席／免費，也沒有人寫備註，就整欄收掉。 */
+    +'var hasN=L.some(function(x){return (x.sk&&x.sk!=="ok")||String(x.note||"").trim();});'
+    +'var NC=hasN?5:4;'
+    +'h+=`<table><thead><tr><th>${_t("日期","Ngày")}</th><th>${_t("時段","Giờ học")}</th><th class="c">${_t("數量","Số lượng")}</th>${hasN?`<th>${_t("備註","Ghi chú")}</th>`:""}<th class="r">${_t("金額","Số tiền")}</th></tr></thead><tbody>`;'
+    +'if(!L.length)h+=`<tr><td colspan="${NC}" class="emp">${_t("這段期間沒有上課記錄","Kỳ này chưa có buổi học nào")}</td></tr>`;'
     +'L.forEach(function(x){'
-    +'if(cm&&x.ym!==last){last=x.ym;h+=`<tr class="mh"><td colspan="5"><span class="mp">${esc(x.ym)}</span></td></tr>`;}'
+    +'if(cm&&x.ym!==last){last=x.ym;h+=`<tr class="mh"><td colspan="${NC}"><span class="mp">${esc(x.ym)}</span></td></tr>`;}'/* NOTECOL_V930 */
     +'var chip=(x.sk==="ok")?"":`<span class="chip ${x.sk}">${esc(LANG==="zh"?x.st:x.stv)}</span>`;'
     +'var nt=x.note?`<span class="nt">${chip?" ":""}${esc(x.note)}</span>`:"";'
     +'var amt=x.bill?(x.unset?`<span style="color:#8a5a1a">${_t("未設定學費","Chưa đặt học phí")}</span>`:money(x.amt,D.cur)):`<span class="nt">—</span>`;'
     +'h+=`<tr><td>${esc(x.d)} <span class="nt">${esc(LANG==="zh"?x.wd:x.wdv)}</span></td><td>${esc(x.tm||"—")}</td>'
     +'<td class="c">${x.qty==null?`<span class="nt">—</span>`:q(x.qty)+" "+esc(_u())}</td>'
-    +'<td>${chip}${nt}</td><td class="r">${amt}</td></tr>`;});'
+    +'${hasN?`<td>${chip}${nt}</td>`:""}<td class="r">${amt}</td></tr>`;});'/* NOTECOL_V930 */
     +'h+=`</tbody></table></div>`;'
     +'last="";'
     +'h+=`<div class="sec"><span class="st">💰 ${_t("繳費記錄","Lịch sử thanh toán")}</span><span class="n">${_t(P.length+" 筆",P.length+" mục")}</span></div><div class="tw">`;'
@@ -12266,6 +12299,9 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'var pk=document.getElementById("pk");'
     +'var o=document.createElement("option");o.value="all";o.textContent="全部期間";pk.appendChild(o);'
     /* STMTVI_V928 換語言就整份重畫；固定的字靠 body 的 class 換。 */
+    /* STMTFONT_V930 */
+    +'var fs=document.getElementById("fs");'
+    +'if(fs)fs.addEventListener("change",function(){setFont(fs.value);});'
     +'var lg=document.getElementById("lg");'
     +'if(lg)lg.addEventListener("change",function(){LANG=lg.value;document.body.className="lang-"+LANG;draw(pk.value);});'
     +'D.months.slice().reverse().forEach(function(m){var x=document.createElement("option");x.value=m;x.textContent=m;pk.appendChild(x);});'
@@ -12276,6 +12312,10 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'function onRange(){if(pk.value!=="all")pk.value="all";draw("all");}'
     +'if(pf)pf.addEventListener("change",onRange);'
     +'if(pt)pt.addEventListener("change",onRange);'
+    /* DQTODAY_V929 按一下就把今天的日期填進那一格 */
+    +'var pfn=document.getElementById("pfn"),ptn=document.getElementById("ptn");'
+    +'if(pfn)pfn.addEventListener("click",function(){pf.value=D.today;onRange();});'
+    +'if(ptn)ptn.addEventListener("click",function(){pt.value=D.today;onRange();});'
     +'if(pc)pc.addEventListener("click",function(){if(pf)pf.value="";if(pt)pt.value="";pk.value="all";draw("all");});'
     +'draw("all");'
     +'<\/script></body></html>';
