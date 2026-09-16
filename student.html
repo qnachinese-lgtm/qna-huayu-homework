@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=814">
+<link rel="stylesheet" href="styles.css?v=919">
 <style>
 /* V813 */
 #app .gp-qn{margin-left:auto;flex:none;font-size:12.5px;font-weight:700;color:#8A5A36;
@@ -430,10 +430,20 @@ textarea.lq-in:focus{outline:none;border-color:var(--accent,#A3714E);box-shadow:
   min-height:180px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .sld-stage img.sld-img{max-width:100%;height:auto;display:block;border-radius:6px;background:#fff;
   -webkit-user-drag:none;user-select:none;pointer-events:none}
+/* SLDWM_V919 本來只有 7 個小點，截圖裁掉邊緣就乾淨了。改成蓋滿整張的網格。
+   放大 1.4 倍是因為整層有旋轉，不放大的話四個角會露出白的。 */
 .sld-wm{position:absolute;inset:0;overflow:hidden;pointer-events:none;
-  display:flex;flex-direction:column;justify-content:space-around;align-items:center;
-  transform:rotate(-16deg);opacity:.16}
-.sld-wm span{white-space:nowrap;font-size:15px;font-weight:800;color:#7a5236;letter-spacing:1px}
+  display:flex;flex-direction:column;justify-content:space-around;align-items:stretch;
+  transform:rotate(-18deg) scale(1.4);opacity:.17}
+.sld-wm .sld-wr{display:flex;justify-content:space-around;width:100%}
+.sld-wm .sld-wr.odd{transform:translateX(8%)}
+.sld-wm span{white-space:nowrap;font-size:13px;font-weight:800;color:#7a5236;letter-spacing:1px}
+/* SLDWM_V919 再壓一個很大的名字在中間，很淡，裁不掉也蓋不掉 */
+.sld-wm-big{position:absolute;inset:0;overflow:hidden;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;
+  transform:rotate(-18deg);white-space:nowrap;
+  font-size:clamp(34px,11vw,120px);font-weight:900;color:#7a5236;
+  letter-spacing:.14em;opacity:.085;line-height:1}
 .sld-note{padding:7px 10px;background:#1d1712;color:#b9a892;font-size:12px;line-height:1.6}
 .sld-load{color:#b9a892;font-size:13px;padding:34px 10px}
 .cl-gh .cl-gp{font-weight:500;color:var(--muted,#8b8079);font-size:.94em;letter-spacing:.2px}
@@ -1569,9 +1579,18 @@ function slidesHtml(l){
         vi:'Chỉ dùng trong giờ học — sẽ biến mất khi giáo viên kết thúc. Không tải về được.'}))+'</div></div>';
 }
 function slidesWm(){
-  const nm=((S.me&&S.me.name)||'')+'　'+new Date().toLocaleDateString('zh-TW');
-  let rows='';for(let i=0;i<7;i++)rows+='<span>'+esc(nm)+'</span>';
-  return '<div class="sld-wm" aria-hidden="true">'+rows+'</div>';
+  /* SLDWM_V919 名字＋日期蓋滿整張，另外再壓一個超大的名字。 */
+  const who=String((S.me&&S.me.name)||'').trim();
+  const day=new Date().toLocaleDateString('zh-TW');
+  const t=(who?who+'\u3000':'')+day;
+  let rows='';
+  for(let i=0;i<11;i++){
+    let cells='';
+    for(let j=0;j<4;j++)cells+='<span>'+esc(t)+'</span>';
+    rows+='<div class="sld-wr'+(i%2?' odd':'')+'">'+cells+'</div>';
+  }
+  return '<div class="sld-wm" aria-hidden="true">'+rows+'</div>'
+    +'<div class="sld-wm-big" aria-hidden="true">'+esc(who||day)+'</div>';
 }
 function slidesMount(box){
   if(box.dataset.slReady==='1')return;box.dataset.slReady='1';
@@ -4035,7 +4054,8 @@ let HWP=null;const HWP_MAX=12;
 function hwL(zh,vi,en){return S.lang==='vi'?vi:(S.lang==='en'?en:zh);}
 function openHwrite(word,lid){if(!word){toast(t('noCards'));return;}
   const ex=hwvDocOf(lid,word);
-  HWP={word,lid,images:(ex&&Array.isArray(ex.images))?ex.images.slice():[],status:(ex&&ex.status)||'draft',comment:(ex&&ex.comment)||''};HWP_STROKES=[];HWP_ERASE=false;HWP_DEMO_OPEN=false;
+  /* HWONE_V919 ci＝現在在描第幾個字 */
+  HWP={word,lid,ci:0,images:(ex&&Array.isArray(ex.images))?ex.images.slice():[],status:(ex&&ex.status)||'draft',comment:(ex&&ex.comment)||''};HWP_STROKES=[];HWP_ERASE=false;HWP_DEMO_OPEN=false;
   let ov=document.getElementById('hw-ov');if(ov)ov.remove();
   ov=document.createElement('div');ov.id='hw-ov';ov.className='stroke-ov';ov.innerHTML=hwriteInner();
   document.body.appendChild(ov);const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);}
@@ -4048,13 +4068,23 @@ function hwRenderDemo(autoplay){const wrap=document.getElementById('hw-demo');if
   if(autoplay)hwPlayDemo();}
 function hwPlayDemo(){let i=0;const next=()=>{if(i>=HWP_WRITERS.length)return;try{HWP_WRITERS[i].animateCharacter({onComplete:()=>{i++;setTimeout(next,300);}});}catch(e){i++;next();}};next();}
 H.hwDemoReplay=()=>hwPlayDemo();
-function hwriteInner(){const n=HWP.images.length;const guide=esc(HWP.word);const gsize=HWP.word.length===1?150:(HWP.word.length===2?90:58);
+function hwriteInner(){const n=HWP.images.length;
+  /* HWONE_V919 底字本來印整個詞，「火腿蛋吐司」五個字擠在 260px 的格子裡會繞行、疊在一起。
+     改成一次只描一個字，底字放回 150px。 */
+  const _cs=[...String(HWP.word||'')];
+  if(!(HWP.ci>=0&&HWP.ci<_cs.length))HWP.ci=0;
+  const _gc=_cs[HWP.ci]||HWP.word;
+  const guide=esc(_gc);const gsize=150;
+  const _pick=(_cs.length>1)?('<div style="display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin-bottom:6px">'
+    +_cs.map((c,i)=>'<button class="btn btn-sm'+(i===HWP.ci?' btn-accent':'')+'" data-act="hwPick" data-id="'+i+'" style="min-width:34px;padding:4px 9px;font-size:17px">'+esc(c)+'</button>').join('')
+    +'</div>'):'';
   const sent=HWP.status==='submitted'||HWP.status==='reviewed';
   const thumbs=HWP.images.map((im,i)=>`<div style="position:relative;display:inline-block;margin:2px"><img src="${im}" style="width:48px;height:48px;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff"><button data-act="hwDelImg" data-id="${i}" style="position:absolute;top:-6px;right:-6px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:18px;height:18px;line-height:16px;cursor:pointer;padding:0">×</button></div>`).join('');
   const demo=HWP_DEMO_OPEN?`<div style="margin-top:6px"><div id="hw-demo" style="display:inline-flex;gap:6px;justify-content:center"></div> <button class="btn btn-sm" data-act="hwDemoReplay">🔁 ${hwL('重播','Phát lại','Replay')}</button></div>`:'';
   return `<div class="stroke-box" style="max-width:320px">
     <button class="stroke-x" data-act="hwClose" aria-label="關閉">✕</button>
-    <div style="text-align:center;font-weight:700;font-size:17px;margin-bottom:4px">📝 ${hwL('手寫練習','Luyện viết tay','Handwriting')}：${guide}</div>
+    <div style="text-align:center;font-weight:700;font-size:17px;margin-bottom:4px">📝 ${hwL('手寫練習','Luyện viết tay','Handwriting')}：${esc(HWP.word)}</div>
+    ${_pick}
     <div style="text-align:center;margin-bottom:6px"><button class="btn btn-sm" data-act="hwDemoToggle">${HWP_DEMO_OPEN?'▲ '+hwL('收起筆順','Ẩn thứ tự nét','Hide strokes'):'▶ '+hwL('看筆順示範','Xem thứ tự nét','Stroke order')}</button>${demo}</div>
     <div style="position:relative;width:260px;height:260px;margin:0 auto;border:2px dashed #d8ccba;border-radius:12px;background:#fff;overflow:hidden">
       <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${gsize}px;color:#efe6d8;pointer-events:none;user-select:none;font-family:'Kaiti TC','Kaiti','DFKai-SB','BiauKai',serif;line-height:1">${guide}</div>
@@ -4093,6 +4123,8 @@ H.hwUndo=()=>{if(HWP_STROKES.length){HWP_STROKES.pop();const cv=document.getElem
 H.hwErase=()=>{HWP_ERASE=!HWP_ERASE;hwRefresh();};
 H.hwAdd=()=>{if(!HWP)return;if(HWP.images.length>=HWP_MAX){toast(hwL('最多寫 '+HWP_MAX+' 張','Tối đa '+HWP_MAX,'Max '+HWP_MAX));return;}const cv=document.getElementById('hw-cv');if(hwBlank(cv)){toast(hwL('先在框裡寫一個字','Hãy viết một chữ trước','Write a character first'));return;}HWP.images.push(hwSnap(cv));HWP_STROKES=[];HWP_ERASE=false;hwRefresh();};
 H.hwDelImg=(idx)=>{if(!HWP)return;HWP.images.splice(Number(idx),1);hwRefresh();};
+/* HWONE_V919 換一個字來描。畫布上那個是上一個字，直接清掉；已經存起來的張數不受影響。 */
+H.hwPick=(i)=>{if(!HWP)return;HWP.ci=Number(i)||0;HWP_STROKES=[];HWP_ERASE=false;hwRefresh();};
 H.hwSubmit=async()=>{if(S.preview){toast(S.tryMode?'試做：正式使用時，手寫會送去給老師批改（現在不會存）':'預覽模式無法送出');return;}if(!HWP)return;
   const cv=document.getElementById('hw-cv');if(cv&&!hwBlank(cv)&&HWP.images.length<HWP_MAX)HWP.images.push(hwSnap(cv));
   if(!HWP.images.length){toast(hwL('先寫一張再送出','Hãy viết trước khi gửi','Write at least one first'));return;}
