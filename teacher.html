@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=933">
+<link rel="stylesheet" href="styles.css?v=934">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -8760,6 +8760,53 @@ function docCss2(){return ''
   +'.warn{color:#8a5a1a;background:#fdf7ea;border:1px solid #f0dfba;border-radius:12px;padding:9px 13px;font-size:12px;margin-top:10px}'
   +'.bar select{font:inherit;padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink)}'
   +'@media print{thead{display:table-header-group}.card,.cards,.warn{break-inside:avoid}}';}
+/* ══════ EXPUI_V934 匯出文件的共同外殼 ══════
+   字體一律預設標楷體＋Times New Roman，可以當場換（選項跟講義同一組）；
+   有越南文的那幾份多一個語言選單：中文／Tiếng Việt／中文＋Tiếng Việt。
+   固定的字兩種語言都印進去，靠 <body class="lang-…"> 決定顯示哪一個，
+   所以換語言不用重新產生文件。 */
+function expFonts(){
+  const keys=[['kaitimes','標楷體 ＋ Times New Roman —— 標準'],['','跟平台一樣']]
+    .concat(CJKFONTS.map(f=>[f[0],f[1]+' —— '+f[2]]));
+  const map={};keys.forEach(p=>{const k=p[0];
+    map[k]={c:(k===''?('html body{font-family:'+printFontStack()+'!important}'):(ghFontCss(k)||'')),
+            h:(ghFontHead(k)||'')};});
+  return {keys:keys,map:map};}
+function expHead(){
+  /* QNAFONT_FIXED＝這一份自己管字體，printFontInject 就不會再補一組上去 */
+  return '<meta name="qna-font" content="QNAFONT_FIXED">'+ghFontHead('kaitimes')
+    +'<style id="fsx">'+ghFontCss('kaitimes')+'</style>';}
+function expCss(){
+  return 'body.lang-zh .l-vi{display:none}'
+    +'body.lang-vi .l-zh{display:none}'
+    +'body.lang-both .l-vi:not(.nl):before{content:"　·　"}'
+    +'body.lang-both .l-vi.nl{display:block}'
+    +'.exp-l{color:#8b8079;font-size:12.5px}'
+    +'.exp-s{font:inherit;font-size:12.5px;padding:5px 10px;border:1px solid #e3d9cb;border-radius:999px;background:#fff;color:#3b342e}';}
+function L2(z,v,blk){return '<span class="l-zh">'+z+'</span><span class="l-vi'+(blk?' nl':'')+'">'+v+'</span>';}
+function expBar(vi,extra){
+  const F=expFonts();
+  return '<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
+    +(vi?('<span class="exp-l">語言</span><select id="lg" class="exp-s">'
+      +'<option value="zh">中文</option><option value="vi">Tiếng Việt</option>'
+      +'<option value="both">中文 ＋ Tiếng Việt</option></select>'):'')
+    +'<span class="exp-l">字體</span><select id="fs" class="exp-s">'
+    +F.keys.map(p=>'<option value="'+esc(p[0])+'"'+(p[0]==='kaitimes'?' selected':'')+'>'+esc(p[1])+'</option>').join('')
+    +'</select>'+(extra||'')
+    +'<span class="hint">列印時這排按鈕不會印出來</span></div>';}
+function expJs(){
+  const F=expFonts();
+  return '<'+'script>(function(){'
+    +'var FSTY='+JSON.stringify(F.map).replace(/</g,'\\u003c')+',FL={kaitimes:1};'
+    +'var fs=document.getElementById("fs");'
+    +'if(fs)fs.addEventListener("change",function(){var f=FSTY[fs.value]||{};'
+    +'var st=document.getElementById("fsx");if(st)st.textContent=f.c||"";'
+    +'if(f.h&&!FL[fs.value]){FL[fs.value]=1;var d=document.createElement("div");d.innerHTML=f.h;'
+    +'while(d.firstChild)document.head.appendChild(d.firstChild);}});'
+    +'var lg=document.getElementById("lg");'
+    +'if(lg)lg.addEventListener("change",function(){'
+    +'document.body.className=String(document.body.className||"").replace(/\\blang-[a-z]+/g,"").trim()+" lang-"+lg.value;});'
+    +'})();<'+'/script>';}
 function fbHead(sub,title,en){
   return '<div class="hd"><div class="bx"><div class="mark">華</div>'
     +'<div><div class="brand">'+esc(window.APP_NAME||'QNA CHINESE')+'</div>'
@@ -11495,42 +11542,49 @@ H.monthBillsGo=()=>{
       return '<tr><td>'+e2(p.date)+'</td><td>'+nt+'</td><td class="r">'+money(amt,pc)+'</td></tr>';}).join('');
     const b=stuBill(s)||{due:0};
     const gap=Math.round((charge-paid)*100)/100;
-    const bal=(v)=>Math.abs(v)<0.01?'<b class="ok">已結清 ✿</b>':(v>0?('<b class="due">尚欠 '+money(v,cur)+'</b>'):('<b class="over">溢繳 '+money(-v,cur)+'</b>'));
+    /* MBVI_V934 「溢繳」改成「預繳」，跟對帳單一致——預繳是正常做法，不是繳錯了 */
+    const bal=(v)=>Math.abs(v)<0.01?('<b class="ok">'+L2('已結清','Đã thanh toán xong')+' ✿</b>')
+      :(v>0?('<b class="due">'+L2('尚欠','Còn nợ')+' '+money(v,cur)+'</b>')
+           :('<b class="over">'+L2('預繳','Trả trước')+' '+money(-v,cur)+'</b>'));
     sumCharge+=charge;sumPaid+=paid;
     const ttl=tierText(s);
     const price=ttl?('團班 '+ttl):((s.tuition==null||s.tuition==='')?'—':(money(s.tuition,cur)+(hourly?' / 小時':' / 堂')));
     const warn=[];
-    if(unset)warn.push('這個月有 '+unset+' 堂還沒設定學費，沒有算進應收。');
-    if(crossN)warn.push('有 '+crossN+' 筆繳費的幣別跟帳單不同又沒填實收金額，沒有抵到帳。');
+    if(unset)warn.push(L2('這個月有 '+unset+' 堂還沒設定學費，沒有算進應收。',
+      'Tháng này có '+unset+' buổi chưa đặt học phí, chưa tính vào khoản phải thu.',1));
+    if(crossN)warn.push(L2('有 '+crossN+' 筆繳費的幣別跟帳單不同又沒填實收金額，沒有抵到帳。',
+      'Có '+crossN+' khoản thanh toán khác loại tiền tệ và chưa điền số tiền quy đổi, chưa trừ vào công nợ.',1));
     /* ONEDOC_V858 抬頭、欄位、表格改成跟對帳單、報價單同一個樣子 */
     pages.push('<section class="page"><div class="hd"><div class="bx"><div class="mark">華</div><div>'
       +'<div class="brand">'+e2(org)+'</div><div class="brand-vi">Tiếng Trung Quyên Huỳnh</div>'
-      +'<div class="brand-s">華語教學 · 學費月結單</div></div></div>'
-      +'<div class="hd-r"><div class="doc">月結單</div><div class="doc-s">MONTHLY BILL</div>'
-      +'<div class="kv"><span>結算月份</span><b>'+e2(ym)+'</b></div></div></div>'
+      +'<div class="brand-s">'+L2('華語教學 · 學費月結單','Bảng kê học phí hàng tháng')+'</div></div></div>'
+      +'<div class="hd-r"><div class="doc">'+L2('月結單','Bảng kê tháng')+'</div><div class="doc-s">MONTHLY BILL</div>'
+      +'<div class="kv"><span>'+L2('結算月份','Tháng kê')+'</span><b>'+e2(ym)+'</b></div></div></div>'
       +'<div class="wave"></div>'
-      +'<div class="top"><div class="f"><span class="k">學生</span><span class="v">'+e2(s.name||'')+'</span></div>'
-      +'<div class="f"><span class="k">課程型態</span><span class="v">'+e2(grp?'團班':'一對一')+'</span></div>'
-      +'<div class="f"><span class="k">教材</span><span class="v">'+e2(s.textbook||'—')+'</span></div>'
-      +'<div class="f"><span class="k">計費方式</span><span class="v">'+price+'</span></div></div>'
-      +'<div class="cards n4"><div class="card"><div class="cl">本月應收</div><div class="cv">'+money(charge,cur)+'</div></div>'
-      +'<div class="card ok"><div class="cl">本月已收</div><div class="cv">'+money(paid,cur)+'</div></div>'
-      +'<div class="card due"><div class="cl">本月結餘</div><div class="cv">'+bal(gap)+'</div></div>'
-      +'<div class="card mut"><div class="cl">累計結餘</div><div class="cv">'+bal(Number(b.due)||0)+'</div></div></div>'
-      +'<div class="sec"><span class="st">這個月上了幾堂</span><span class="n">'+logs.length+' 筆</span></div>'
-      +'<div class="tw"><table><thead><tr><th>日期</th><th>時段</th><th class="c">數量</th><th>備註</th><th class="r">金額</th></tr></thead><tbody>'
-      +(lrows||'<tr><td colspan="5" class="emp">這個月沒有上課記錄</td></tr>')+'</tbody></table></div>'
-      +'<div class="sec"><span class="st">這個月收到的款</span><span class="n">'+pays.length+' 筆</span></div>'
-      +'<div class="tw"><table><thead><tr><th>日期</th><th>說明</th><th class="r">金額</th></tr></thead><tbody>'
-      +(prows||'<tr><td colspan="3" class="emp">這個月沒有繳費記錄</td></tr>')+'</tbody></table></div>'
-      +warn.map(w=>'<div class="warn">'+e2(w)+'</div>').join('')
+      +'<div class="top"><div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+e2(s.name||'')+'</span></div>'
+      +'<div class="f"><span class="k">'+L2('課程型態','Hình thức lớp')+'</span><span class="v">'
+        +L2(e2(grp?'團班':'一對一'),e2(grp?'Lớp nhóm':'Học 1 kèm 1'))+'</span></div>'
+      +'<div class="f"><span class="k">'+L2('教材','Giáo trình')+'</span><span class="v">'+e2(s.textbook||'—')+'</span></div>'
+      +'<div class="f"><span class="k">'+L2('計費方式','Cách tính phí')+'</span><span class="v">'+price+'</span></div></div>'
+      +'<div class="cards n4"><div class="card"><div class="cl">'+L2('本月應收','Phải thu tháng này')+'</div><div class="cv">'+money(charge,cur)+'</div></div>'
+      +'<div class="card ok"><div class="cl">'+L2('本月已收','Đã thu tháng này')+'</div><div class="cv">'+money(paid,cur)+'</div></div>'
+      +'<div class="card due"><div class="cl">'+L2('本月結餘','Số dư tháng này')+'</div><div class="cv">'+bal(gap)+'</div></div>'
+      +'<div class="card mut"><div class="cl">'+L2('累計結餘','Số dư lũy kế')+'</div><div class="cv">'+bal(Number(b.due)||0)+'</div></div></div>'
+      +'<div class="sec"><span class="st">'+L2('這個月上了幾堂','Các buổi học trong tháng')+'</span><span class="n">'+logs.length+' '+L2('筆','mục')+'</span></div>'
+      +'<div class="tw"><table><thead><tr><th>'+L2('日期','Ngày')+'</th><th>'+L2('時段','Giờ học')+'</th><th class="c">'+L2('數量','Số lượng')+'</th><th>'+L2('備註','Ghi chú')+'</th><th class="r">'+L2('金額','Số tiền')+'</th></tr></thead><tbody>'
+      +(lrows||'<tr><td colspan="5" class="emp">'+L2('這個月沒有上課記錄','Tháng này chưa có buổi học nào')+'</td></tr>')+'</tbody></table></div>'
+      +'<div class="sec"><span class="st">'+L2('這個月收到的款','Các khoản đã thu trong tháng')+'</span><span class="n">'+pays.length+' '+L2('筆','mục')+'</span></div>'
+      +'<div class="tw"><table><thead><tr><th>'+L2('日期','Ngày')+'</th><th>'+L2('說明','Nội dung')+'</th><th class="r">'+L2('金額','Số tiền')+'</th></tr></thead><tbody>'
+      +(prows||'<tr><td colspan="3" class="emp">'+L2('這個月沒有繳費記錄','Tháng này chưa có khoản thanh toán nào')+'</td></tr>')+'</tbody></table></div>'
+      +warn.map(w=>'<div class="warn">'+w+'</div>').join('')/* MBVI_V934 warn 本身已經是排好的 HTML，不要再 e2 一次 */
       +(note?('<div class="paybox">'+e2(note).replace(/\n/g,'<br>')+'</div>'):'')
-      +'<div class="foot"><div class="ty">謝謝你這段時間的努力 ♡</div><br>'
-      +'本月結單由 '+e2(org)+' 依實際上課記錄與繳費記錄自動產生。'
-      +'如與實際情形不符，請與老師聯繫更正。</div></section>');});
+      +'<div class="foot"><div class="ty">'+L2('謝謝你這段時間的努力 ♡','Cảm ơn em đã cố gắng trong thời gian qua ♡',1)+'</div><br>'
+      +L2('本月結單由 '+e2(org)+' 依實際上課記錄與繳費記錄自動產生。如與實際情形不符，請與老師聯繫更正。',
+          'Bảng kê này do '+e2(org)+' tạo tự động từ lịch sử buổi học và lịch sử thanh toán. Nếu có sai sót, vui lòng liên hệ giáo viên để chỉnh sửa.',1)
+      +'</div></section>');});
   if(!pages.length)return toast(ym+' 這個月沒有任何上課或繳費記錄');
   /* ONEDOC_V858 本來自己一整套，改用跟對帳單、報價單同一套的底 */
-  const css=fbCss()+docCss2()
+  const css=fbCss()+docCss2()+expCss()/* EXPUI_V934 */
     +'.page+.page{margin-top:18px}'
     /* 四張小卡並排，字太大「尚欠 550,000 VND」會折成三行，卡片高度就不齊 */
     +'.cards.n4 .card .cv{font-size:14.5px;line-height:1.35}'
@@ -11545,13 +11599,11 @@ H.monthBillsGo=()=>{
     +'@media print{.page{break-after:page;page-break-after:always}'
     +'.page+.page{margin-top:0}'
     +'.page:last-of-type{break-after:auto;page-break-after:auto}}';
-  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+e2(org)+' 月結單 '+e2(ym)+'</title>'
-    /* ONEDOC_V858 字體統一由列印字體設定決定，這裡不再自己載一組 */
-    +'<style>'+css+'</style></head><body>'
-    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
-    +'<span style="color:#8b8079;font-size:13px">'+e2(ym.replace('-',' 年 '))+' 月 · 共 '+nStu+' 位學生</span>'
-    +'<span class="hint">列印時這排按鈕不會印出來；一位學生一頁</span></div>'
-    +pages.join('')+'</body></html>';
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>QNA CHINESE_月結單_'+e2(ym)+'</title>'
+    +expHead()/* EXPUI_V934 */
+    +'<style>'+css+'</style></head><body class="lang-zh">'
+    +expBar(1,'<span class="exp-l">'+e2(ym.replace('-',' 年 '))+' 月 · 共 '+nStu+' 位學生，一位一頁</span>')
+    +pages.join('')+expJs()+'</body></html>';
   fbWin(html);closeModal();};
 
 function openLqeEditor(scrollBottom){const q=LQE.q;const TY=[['vocab','詞語測驗'],['reading','閱讀測驗']];const AB=['A','B','C','D'];
@@ -15145,28 +15197,31 @@ H.receipt=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s
   const org=window.APP_NAME||'華語線上作業簿';const amt=money(pay.amount,pay.currency||s.currency);const no='R'+(pay.date||'').replace(/-/g,'')+'-'+(i+1);
   /* ONEDOC_V831 收據本來自己一套 CSS，跟別的列印文件長得不一樣。
      改用跟學生檔案卡、回饋單、語法講義同一套版型（fbCss）和同一個抬頭（fbHead）。 */
-  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>收據 '+e2(no)+'</title><style>'+fbCss()
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>QNA CHINESE_收據_'+e2(s.name||'')+'_'+e2(no)+'</title>'
+    +expHead()/* EXPUI_V934 */
+    +'<style>'+fbCss()+expCss()
     +'.rc-amt{display:flex;align-items:baseline;justify-content:flex-end;gap:8px;'
     +'font-size:30px;font-weight:800;color:var(--bd);letter-spacing:.5px;padding:6px 2px 4px}'
     +'.rc-sign{display:flex;align-items:flex-end;gap:14px;border:1.5px solid var(--line);border-radius:16px;padding:14px 16px;min-height:62px}'
     +'.rc-sign .k{color:#9c8d7e;font-size:10.5px;letter-spacing:1px;white-space:nowrap}'
     +'.rc-sign .ln{flex:1;border-bottom:1px solid #ddd0bd;height:20px}'
-    +'</style></head><body>'
-    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button><span class="hint">列印時這排按鈕不會印出來</span></div>'
-    +'<div class="page">'+fbHead('繳費收據 · '+no,'繳費收據','RECEIPT')
+    +'</style></head><body class="lang-zh">'
+    +expBar(1)/* EXPUI_V934 */
+    +'<div class="page">'+fbHead(L2('繳費收據','Biên lai thu học phí')+' · '+e2(no),L2('繳費收據','Biên lai'),'RECEIPT')
     +'<div class="top">'
-    +'<div class="f"><span class="k">學生 Student</span><span class="v">'+e2(s.name)+'</span></div>'
-    +'<div class="f"><span class="k">日期 Date</span><span class="v">'+e2(pay.date||'')+'</span></div>'
-    +'<div class="f"><span class="k">收據編號 No.</span><span class="v">'+e2(no)+'</span></div>'
-    +(pay.sessions?'<div class="f"><span class="k">堂數 Sessions</span><span class="v">+'+e2(pay.sessions)+' 堂</span></div>':'')
-    +(pay.note?'<div class="f"><span class="k">項目 Item</span><span class="v">'+e2(pay.note)+'</span></div>':'')
+    +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+e2(s.name)+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('日期','Ngày')+'</span><span class="v">'+e2(pay.date||'')+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('收據編號','Số biên lai')+'</span><span class="v">'+e2(no)+'</span></div>'
+    +(pay.sessions?'<div class="f"><span class="k">'+L2('堂數','Số buổi')+'</span><span class="v">+'+e2(pay.sessions)+' '+L2('堂','buổi')+'</span></div>':'')
+    +(pay.note?'<div class="f"><span class="k">'+L2('項目','Nội dung')+'</span><span class="v">'+e2(pay.note)+'</span></div>':'')
     +'</div>'
-    +'<div class="sec"><span class="st">金額</span><span class="n">Amount</span></div>'
+    +'<div class="sec"><span class="st">'+L2('金額','Số tiền')+'</span><span class="n">Amount</span></div>'
     +'<div class="rc-amt">'+e2(amt)+'</div>'
-    +'<div class="sec"><span class="st">簽收 / 蓋章</span><span class="n">Signature</span></div>'
-    +'<div class="rc-sign"><span class="k">簽名</span><span class="ln"></span></div>'
-    +'<div class="foot">開立時間 '+e2(nowStr())+'　·　'+e2(org)+'</div>'
-    +'</div></body></html>';
+    +'<div class="sec"><span class="st">'+L2('簽收 / 蓋章','Ký nhận')+'</span><span class="n">Signature</span></div>'
+    +'<div class="rc-sign"><span class="k">'+L2('簽名','Ký tên')+'</span><span class="ln"></span></div>'
+    +'<div class="foot">'+L2('開立時間 '+e2(nowStr())+'　·　'+e2(org),
+        'Thời gian lập '+e2(nowStr())+'　·　'+e2(org),1)+'</div>'
+    +'</div>'+expJs()+'</body></html>';
   fbWin(html);};
 H.exportAll=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
   try{const wb=XLSX.utils.book_new();
