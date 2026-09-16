@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=938">
+<link rel="stylesheet" href="styles.css?v=939">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -440,6 +440,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .pr-n{min-width:0}.pr-n>b{display:block;font-size:14.5px;line-height:1.4}
         .pr-vi{display:block;font-style:normal;font-size:12.5px;color:var(--primary)}
         .pr-a{text-align:right;font-weight:700;font-size:14px}
+        /* PRWRAP_V939 一個價格不斷行；要斷就斷在兩個幣別中間 */
+        .pr-a .pr-p{white-space:nowrap;display:inline-block}
+        .pr-a .pr-sl{color:#d8c6b0;font-weight:400;margin:0 8px}
         .pr-o{display:flex;gap:6px;justify-content:flex-end}
         @media(max-width:720px){.pr-row{grid-template-columns:1fr 1fr}.pr-head{display:none}
           .pr-n{grid-column:1/-1}.pr-a{text-align:left}}
@@ -3155,12 +3158,19 @@ function prPriceStr(p){
   const parts=prCurs(p).map(c=>money(prAmt(p,c),c)+prUnitStr(p));
   return parts.length?parts.join('　/　'):'';
 }
+/* PRWRAP_V939 一個價格包成一個不換行的小塊，中間的斜線才是換行點。
+   本來整串是純文字，換行點落在全形「／」上，「／所」就被擠到下一行
+   （Quinn：「掉下來很醜」）。 */
+function prPriceHtml(p){
+  const parts=prCurs(p).map(c=>'<span class="pr-p">'+esc(money(prAmt(p,c),c)+prUnitStr(p))+'</span>');
+  return parts.join('<span class="pr-sl">/</span>');
+}
 function prRowHtml(p){
-  const pstr=prPriceStr(p);
+  const pstr=prPriceHtml(p);/* PRWRAP_V939 */
   return '<div class="pr-row">'
     +'<span class="pr-n"><b>'+esc(p.name||'（未命名）')+'</b>'
       +(p.name_vi?'<i class="pr-vi">'+esc(p.name_vi)+'</i>':'')+'</span>'
-    +'<span class="pr-a">'+(pstr?esc(pstr):'<span class="muted">沒填單價</span>')+'</span>'
+    +'<span class="pr-a">'+(pstr||'<span class="muted">沒填單價</span>')+'</span>'/* PRWRAP_V939 */
     +'<span class="pr-o"><button class="btn btn-sm" data-act="prEdit" data-id="'+esc(p.id)+'">✏️ 編輯</button>'
       +'<button class="btn btn-sm btn-icon rp-del" data-act="prDel" data-id="'+esc(p.id)+'" title="刪除">🗑</button></span>'
     +'</div>';
@@ -3236,7 +3246,9 @@ function renderReply(){
     const tools='<div class="list-tools">'
       +'<input id="rp-q" type="text" placeholder="搜尋：語言學校、碩士、團班…" value="'+esc(q)+'" style="max-width:300px">'
       +(q?'<button class="btn btn-sm" data-act="rpClearQ">✕ 清除</button>':'')
-      +'<span class="hint" style="margin-left:auto">'+(q?('符合 '+list.length+' ／ 共 '+all.length+' 份'):('共 '+all.length+' 份'))
+      /* RPTOOL_V939 本來這裡還寫了 margin-left:auto，跟共用樣式的 margin-right:auto
+         左右夾在一起就變成置中（Quinn：「這個爲什麼會在中間」）。 */
+      +'<span class="hint">'+(q?('符合 '+list.length+' ／ 共 '+all.length+' 份'):('共 '+all.length+' 份'))
       +(nEmpty?('　·　'+nEmpty+' 份還沒填內容'):'')+'</span>'
       /* RPPRINT_V912 價目表那一頁早就有列印，這一頁沒有。補上。 */
       +(all.length?'<button class="btn btn-sm" data-act="rpPrintOpen" title="把範本列印或存成 PDF，可以挑分類、語言和字體">🖨 列印／PDF</button>':'')
@@ -15397,6 +15409,11 @@ H.ledgerGo=()=>{
    期間只影響上課記錄和繳費記錄——基本資料、成績、回饋單本來就不是照期間切的。 */
 function sxPick(who){
   let L=(S.students||[]).filter(x=>x&&!x.deleted&&!x.is_test);
+  /* SXPICK_V939 自己挑：名單上打勾的那些 */
+  if(who==='pick'){
+    const on={};document.querySelectorAll('.sx-ck').forEach(c=>{if(c.checked)on[c.value]=1;});
+    L=L.filter(x=>on[x.id]);
+    return L.slice().sort(stuNameCmp);}
   if(who==='active')L=L.filter(x=>enrollOf(x)==='active');
   else if(who==='shown'){
     const sf=S.statusFilter||'active';
@@ -15449,6 +15466,7 @@ function sxSums(L){const out=[];L.forEach(x=>{((typeof fbSumList==='function')?f
       '這個月的進步':f.good||'','需要改進':f.work||'','下個月練習':f.goal||''});});});
   return out;}
 H.stuExpAll=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
+  const _all=(S.students||[]).filter(x=>x&&!x.deleted&&!x.is_test).slice().sort(stuNameCmp);/* SXPICK_V939 */
   const T=localToday(),ym=T.slice(0,7);
   const d=new Date(T+'T00:00:00');d.setDate(1);d.setMonth(d.getMonth()-1);
   const lastYm=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
@@ -15461,7 +15479,23 @@ H.stuExpAll=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');
    +'<option value="active">在學中的學生</option>'
    +'<option value="all">全部學生（含試學、休學）</option>'
    +'<option value="shown">現在畫面上列出來的那些</option>'
+   +'<option value="pick">自己挑 —— 下面勾要匯出的人</option>'/* SXPICK_V939 */
    +'</select></div>'
+   /* SXPICK_V939 Quinn：「要可以選學生啊」 */
+   +'<div class="field full hide" id="sx-picks" style="margin-top:8px">'
+   +'<label>挑學生 <span class="hint">勾起來的才會匯出</span></label>'
+   +'<div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
+   +'<input type="text" id="sx-q" placeholder="打名字篩選…" style="flex:1;min-width:140px">'
+   +'<button class="btn btn-sm" data-act="sxAll" data-id="1">全選</button>'
+   +'<button class="btn btn-sm" data-act="sxAll" data-id="0">全不選</button></div>'
+   +'<div id="sx-list" style="max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:6px 10px">'
+   +_all.map(x=>'<label class="sx-r" data-n="'+esc(String((x.name||'')+' '+(x.nationality||'')).toLowerCase())+'"'
+     +' style="display:flex;gap:8px;align-items:center;padding:3px 2px;cursor:pointer">'
+     +'<input type="checkbox" class="sx-ck" value="'+esc(x.id)+'" style="width:auto;margin:0">'
+     +'<b style="font-weight:600">'+esc(x.name||'（未命名）')+'</b>'
+     +'<span class="hint" style="margin-left:auto">'+esc(sxEnroll(x))+'</span></label>').join('')
+   +(_all.length?'':'<div class="hint">還沒有學生</div>')
+   +'</div><div class="hint" id="sx-n" style="margin-top:5px">已選 0 位</div></div>'
    +'<div class="field full" style="margin-top:10px"><label>要匯出哪幾張表？</label>'
    +ck('sx-base','基本資料','每位學生一列：時段、學費、出席、累計應收已收',1)
    +ck('sx-log','上課記錄','每一堂一列，含這堂算多少錢',1)
@@ -15488,7 +15522,25 @@ H.stuExpAll=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');
    +'</div></div>');
   const sel=document.getElementById('sx-range');
   if(sel)sel.addEventListener('change',()=>{const box=document.getElementById('sx-custom');
-    if(box)box.classList.toggle('hide',sel.value!=='custom');});};
+    if(box)box.classList.toggle('hide',sel.value!=='custom');});
+  /* SXPICK_V939 選「自己挑」才把名單放出來；搜尋只是把不符的那幾列藏起來，勾選不會被清掉 */
+  const who=document.getElementById('sx-who');
+  if(who)who.addEventListener('change',()=>{const box=document.getElementById('sx-picks');
+    if(box)box.classList.toggle('hide',who.value!=='pick');});
+  const q=document.getElementById('sx-q');
+  if(q)q.addEventListener('input',()=>{const t=String(q.value||'').trim().toLowerCase();
+    document.querySelectorAll('#sx-list .sx-r').forEach(r=>{
+      r.style.display=(!t||String(r.getAttribute('data-n')||'').indexOf(t)>=0)?'flex':'none';});});
+  const lst=document.getElementById('sx-list');
+  if(lst)lst.addEventListener('change',sxCount);
+  sxCount();};
+function sxCount(){const n=document.querySelectorAll('.sx-ck:checked').length;
+  const el=document.getElementById('sx-n');if(el)el.textContent='已選 '+n+' 位';}
+H.sxAll=(v)=>{const on=String(v)==='1';
+  document.querySelectorAll('#sx-list .sx-r').forEach(r=>{
+    if(r.style.display==='none')return;/* 搜尋篩掉的那幾列不動 */
+    const c=r.querySelector('.sx-ck');if(c)c.checked=on;});
+  sxCount();};
 H.stuExpGo=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
   if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
   const V=id=>{const el=document.getElementById(id);return el?el.value:'';};
@@ -15502,7 +15554,7 @@ H.stuExpGo=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');r
   else if(r&&r!=='all'){a=r+'-01';b=r+'-31';label=r;}
   const who=V('sx-who')||'active';
   const L=sxPick(who);
-  if(!L.length){toast('這個條件下沒有學生');return;}
+  if(!L.length){toast(who==='pick'?'還沒勾任何學生':'這個條件下沒有學生');return;}/* SXPICK_V939 */
   try{
     const wb=XLSX.utils.book_new();let n=0;
     const add=(rows,name)=>{XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows.length?rows:[{'（沒有資料）':''}]),name);n+=rows.length;};
@@ -15512,15 +15564,16 @@ H.stuExpGo=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');r
     if(want.sc)add(sxScores(L),'作業成績');
     if(want.fb)add(sxFbs(L),'上課回饋單');
     if(want.sum)add(sxSums(L),'月總結');
-    const wn={active:'在學中',all:'全部學生',shown:'篩選結果'}[who]||'學生';
+    const wn={active:'在學中',all:'全部學生',shown:'篩選結果',pick:(L.length===1?String(L[0].name||'').replace(/[\\/:*?"<>|]/g,''):('指定 '+L.length+' 位'))}[who]||'學生';/* SXPICK_V939 */
     XLSX.writeFile(wb,'QNA CHINESE_學生資料_'+wn+'_'+label+'_'+localToday()+'.xlsx');
     toast('已匯出 '+L.length+' 位學生、'+n+' 筆資料');
     closeModal();
   }catch(err){toast('匯出失敗：'+((err&&err.message)||err));}};
 H.stuExpCards=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
   const V=id=>{const el=document.getElementById(id);return el?el.value:'';};
-  const L=sxPick(V('sx-who')||'active');
-  if(!L.length){toast('這個條件下沒有學生');return;}
+  const _w=V('sx-who')||'active';
+  const L=sxPick(_w);
+  if(!L.length){toast(_w==='pick'?'還沒勾任何學生':'這個條件下沒有學生');return;}/* SXPICK_V939 */
   const pages=L.map(x=>spPageOf(stuCardHtml(x))).filter(Boolean);
   if(!pages.length){toast('沒有可以印的檔案卡');return;}
   /* EXPUI_V935 */
