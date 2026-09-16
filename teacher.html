@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=918">
+<link rel="stylesheet" href="styles.css?v=920">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -5668,7 +5668,7 @@ function bulkImportModal(lid){const l=S.lessons.find(x=>x.id===lid)||{};const gp
      <div class="field"><label>題型</label><select id="bi-type">
        <option value="fill">填空（題幹=答案）</option><option value="qa">問答（題目=參考答案）</option><option value="note">示範（只顯示，不作答）</option></select></div>
      <div class="field"><label>都歸到哪個語法點 <span class="hint">選填</span></label>
-       <select id="bi-gp"><option value="">（不指定／綜合練習）</option>${gps.map((g,i)=>`<option value="${i}">${esc('語法 '+(i+1)+'：'+(g.title||''))}</option>`).join('')}</select>
+       <select id="bi-gp"><option value="">（不指定／綜合練習）</option>${gps.map((g,i)=>`<option value="${i}">${esc('語法 '+(i+1)+'：'+gpT(g.title))}</option>`).join('')}</select>
        <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label style="margin:0;white-space:nowrap;font-weight:600">小節（選填）</label><input id="bi-sub" type="text" style="width:120px" placeholder="例：A、B"></div></div>
      <div class="field"><label>說明（套用到整批，選填）<span class="hint">這批每一題上方都會顯示這句（例：請依照下面完成對話）</span></label>
        <textarea id="bi-instr" style="min-height:38px" placeholder="例：請完成下面的對話，可複選"></textarea></div>
@@ -5783,7 +5783,7 @@ function questionEditModal(lid,q,defBank){const e=!!q;q=q||{};QE_TYPE=q.type||'c
        <button type="button" data-qebank="hw" class="${QBANK==='hw'?'on':''}">📒 作業簿</button></div>
      <input type="hidden" id="qe-bank" value="${QBANK}"></div>`;
   const gpField=`<div class="field"><label>屬於哪個語法點 <span class="hint">選了之後，這題會出現在「上課內容」該語法卡下面，學生看完解釋就能練</span></label>
-     <select id="qe-gp"><option value="">（不指定／放在綜合練習）</option>${gps.map((g,i)=>`<option value="${i}"${q.gp_index===i?' selected':''}>${esc('語法 '+(i+1)+'：'+(g.title||'（未命名）'))}</option>`).join('')}</select>
+     <select id="qe-gp"><option value="">（不指定／放在綜合練習）</option>${gps.map((g,i)=>`<option value="${i}"${q.gp_index===i?' selected':''}>${esc('語法 '+(i+1)+'：'+(gpT(g.title)||'（未命名）'))}</option>`).join('')}</select>
      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><label style="margin:0;white-space:nowrap;font-weight:600">小節（選填）</label><input id="qe-gpsub" type="text" style="flex:0 0 auto;width:120px" value="${esc(q.gp_sub||'')}" placeholder="例：A、B"><span class="hint">同一個語法點裡，標 A／B 就會把練習分成「A」「B」兩組顯示。</span></div>
      ${gps.length?'':'<div class="hint" style="margin-top:4px">這課還沒有語法點，先到「編輯課文」加語法點，題目才能對應。</div>'}</div>`;
   openModal(`<div class="modal wide"><div class="modal-head"><h3>${e?'編輯題目':'新增題目'}</h3><button class="x" data-act="backToQuestions" data-id="${lid}">×</button></div>
@@ -6026,6 +6026,13 @@ function ghHasHw(book){try{
   const ids={};(baLessonsOf(book)||[]).forEach(l=>{ids[l.id]=1;});
   return (S.questions||[]).some(q=>q&&q.bank==='hw'&&ids[q.lesson_id]);}catch(e){return false;}}
 function ghLines(t){return esc(String(t==null?'':t)).replace(/\n/g,'<br>');}
+/* GPNUM_V919 語法標題開頭的「I.」「II.」「一、」是課本自己的編號。
+   畫面上旁邊已經有「語法 1」的標籤了，再印一次是重複的（Quinn：「太累贅了」）。
+   只有顯示的時候拿掉，資料本身不動——編輯框裡還是完整的標題。
+   只認「羅馬數字／阿拉伯數字／中文數字 ＋ 標點」這種開頭，
+   「Verb Phrases」這種以 V 開頭的字不會被誤砍（V 後面沒有標點）。 */
+function gpT(t){return String(t==null?'':t)
+  .replace(/^\s*(?:[IVXLivxl]{1,6}|\d{1,2}|[一二三四五六七八九十]{1,3})\s*[.．、,，:：)）]\s*/,'').trim();}
 /* GHWIDE_V826 本來每一題只給一條細線，要寫整句不夠。手寫版依題型加大作答空間。 */
 let GHWIDE=0;
 /* GHOPT_V844 不印圖片（省紙）／只印答案 */
@@ -6043,6 +6050,9 @@ let GHCLSET=[],GHCLQ='1',GHWHO='',GHWHEN='';
 let GHBANK='auto';
 /* GHTR_V891 學生版要不要印聽力原文。預設 0＝不印。 */
 let GHTR=0;
+/* GHDLG_V919 要不要把課文（對話／課文段落）一起印出來。預設 0＝只印語法練習，
+   跟以前的行為一樣。 */
+let GHDLG=0;
 /* GHZHS_V875 列印文字：'tw' 繁體（原樣）／'cn' 簡體 */
 let GHLANG='tw';
 /* GHZHS_V875 繁簡對照表（2,963 組）。只轉字不轉用詞：
@@ -6374,7 +6384,7 @@ function ghKeyGp(title,qs){
 function ghKeyHtml(l){
   const gps=l.grammar_points||[],all=ghQsOf(l.id);
   let out='';
-  gps.forEach((g,gi)=>{out+=ghKeyGp((gps.length?('語法 '+(gi+1)+'　'):'')+(g.title||''),
+  gps.forEach((g,gi)=>{out+=ghKeyGp((gps.length?('語法 '+(gi+1)+'　'):'')+gpT(g.title),
     all.filter(q=>q.gp_index===gi));});
   const untag=all.filter(q=>q.gp_index==null);
   if(untag.length)out+=ghKeyGp(gps.length?'其他練習':'練習',untag);
@@ -6410,9 +6420,20 @@ function ghVocHtml(l,withAns){
           +'</div></div>';}).join('')
       +'</div>';}
   return '<div class="gh-gp">'+h+'</div>';}
+/* GHDLG_V919 課文（對話／課文段落）。以前講義從來沒印過這一段——
+   一打開就直接跳到「語法 1」。Quinn 要一個開關，所以這裡只在勾了的時候才出。 */
+function ghDlgHtml(l){
+  const ds=Array.isArray(l&&l.dialogues)?l.dialogues:[];
+  const h=ds.map((d,i)=>{
+    const t=String((d&&d.content)||'').trim();
+    if(!t)return '';
+    const nm=String((d&&d.title)||'').trim()||('課文'+(ds.length>1?(' '+(i+1)):''));
+    return '<div class="gh-blk"><div class="gh-lab b1">'+esc(nm)+'</div>'
+      +'<div class="gh-txt">'+ghLines(t)+'</div></div>';}).join('');
+  return h?('<div class="gh-gp">'+h+'</div>'):'';}
 function ghLessonHtml(l,withAns){
   const gps=l.grammar_points||[];const all=ghQsOf(l.id);
-  const cl=ghClHtml(l,withAns);
+  const cl=(GHDLG?ghDlgHtml(l):'')+ghClHtml(l,withAns);
   let rest=ghVocHtml(l,withAns);
   rest+=gps.map((g,gi)=>ghGpHtml(g,gi,all.filter(q=>q.gp_index===gi),withAns)).join('');
   const untag=all.filter(q=>q.gp_index==null);
@@ -6661,6 +6682,7 @@ function ghPrefApply(){
   ghSetSel('gh-bank',p.bank);ghSetSel('gh-clq',p.clq);
   const ni=document.getElementById('gh-noimg');if(ni)ni.checked=!!p.noimg;
   const tb=document.getElementById('gh-tr');if(tb)tb.checked=!!p.tr;/* GHTR_V891 */
+  const db=document.getElementById('gh-dlg');if(db)db.checked=!!p.dlg;/* GHDLG_V919 */
   /* 學生可能已經停課或改名，選單裡找不到就留空白 */
   ghSetSel('gh-who',p.who);}
 function GHFILL(){const sel=document.getElementById('gh-book'),box=document.getElementById('gh-lessons');
@@ -6722,7 +6744,7 @@ function ghModal(){
     :((_last&&books.some(b=>b.k===_last))?_last:books[0].k);
   openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📄 匯出講義</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body">'
-   +'<div class="hint" style="margin-bottom:10px">把課文內容和底下的練習題整理成一份講義，可以列印或存成 PDF 給學生帶回家，不用登入平台。<br>語法課出語法說明＋例句＋練習；文言文出原文、白話和註釋；關鍵詞彙出聽力對話和題目。</div>'
+   +'<div class="hint" style="margin-bottom:10px">把課文內容和底下的練習題整理成一份講義，可以列印或存成 PDF 給學生帶回家，不用登入平台。<br>語法課出語法說明＋例句＋練習（課文要不要一起印，下面可以勾）；文言文出原文、白話和註釋；關鍵詞彙出聽力對話和題目。</div>'
    +'<div class="field"><label>教材</label><select id="gh-book" onchange="GHFILL()">'
    +books.map(b=>'<option value="'+esc(b.k)+'"'+(b.k===cur?' selected':'')+'>'+esc(b.k)+'（'+b.n+' 課）</option>').join('')
    +'</select></div>'
@@ -6762,6 +6784,10 @@ function ghModal(){
    /* GHOPT_V844 圖多的書（時代華語一 128 張、看圖學中文語法 195 張）印起來很厚 */
    +'<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
    +'<input type="checkbox" id="gh-noimg" style="width:auto;margin:0"> 不印圖片（省紙，純文字練習用）</label></div>'
+   /* GHDLG_V919 以前講義只出語法說明＋例句＋練習，課文從來不印。給一個開關。 */
+   +'<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
+   +'<input type="checkbox" id="gh-dlg" style="width:auto;margin:0"> 課文也印出來'
+   +'<span class="hint">不勾＝只印語法說明、例句和練習題（原本的樣子）</span></label></div>'
    /* GHTR_V891 有聽力原文的書才問這一題 */
    +'<div class="field" id="gh-trbox"'+(ghHasTr(cur)?'':' style="display:none"')+'>'
    +'<label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
@@ -12051,6 +12077,12 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'<style>'+fbCss()+docCss2()+'</style></head><body>'
     +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
     +'<span style="color:#8b8079;font-size:12.5px">期間</span><select id="pk"></select>'
+    /* STMTRANGE_V920 本來只能挑整個月。填了日期就照日期範圍算，兩格都可以只填一邊。 */
+    +'<span style="color:#8b8079;font-size:12.5px">或自訂</span>'
+    +'<input type="date" id="pf" style="font:inherit;font-size:13px;padding:4px 7px;border:1px solid #e3d9cb;border-radius:8px">'
+    +'<span style="color:#b6a692">～</span>'
+    +'<input type="date" id="pt" style="font:inherit;font-size:13px;padding:4px 7px;border:1px solid #e3d9cb;border-radius:8px">'
+    +'<button id="pc" style="font:inherit;font-size:12.5px;padding:4px 10px;border:1px solid #e3d9cb;border-radius:999px;background:#fff;color:#8b8079;cursor:pointer">清除</button>'
     +'<span class="hint">列印時這排按鈕不會印出來</span></div>'
     +'<div class="page">'
     +'<div class="hd"><div class="bx"><div class="mark">華</div>'
@@ -12080,13 +12112,30 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'if(c==="VND")return (v*1000).toLocaleString("en-US")+" VND";var k=CUR[c]||CUR.TWD;return k[0]+v.toLocaleString(k[1]);}'
     +'function q(n){if(n==null)return"—";var r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}'
     +'function esc(x){return String(x==null?"":x).replace(/[&<>"]/g,function(c){return ({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"})[c];});}'
-    +'function balTxt(v){return Math.abs(v)<0.01?"已結清 ✿":(v>0?("尚欠 "+money(v,D.cur)):("溢繳 "+money(-v,D.cur)));}'
+    +'function balTxt(v){return Math.abs(v)<0.01?"已結清 ✿":(v>0?("尚欠 "+money(v,D.cur)):("預繳 "+money(-v,D.cur)));}'
     +'function balCls(v){return Math.abs(v)<0.01?"ok":(v>0?"due":"over");}'
+    /* STMTPRE_V920 這一組是「預繳為正」：對帳單上的期初／期末結餘用這個。
+       學生預繳是常態，正數要寫「預繳」，不是「溢繳」。 */
+    +'function balTxt2(v){return Math.abs(v)<0.01?"已結清 ✿":(v>0?("預繳 "+money(v,D.cur)):("尚欠 "+money(-v,D.cur)));}'
+    +'function balCls2(v){return Math.abs(v)<0.01?"ok":(v>0?"over":"due");}'
+    +'function sumChg(a){var t=0;a.forEach(function(x){if(x.bill)t+=x.amt;});return t;}'
+    +'function sumPay(a){var t=0;a.forEach(function(x){t+=x.eff;});return t;}'
     +'function card(lbl,val,cls){return `<div class="card ${cls||""}"><div class="cl">${lbl}</div><div class="cv">${val}</div></div>`;}'
     +'function draw(sel){'
-    +'var L=D.logs.filter(function(x){return sel==="all"||x.ym===sel;});'
-    +'var P=D.pays.filter(function(x){return sel==="all"||x.ym===sel;});'
-    +'var lab=(sel==="all")?"全部期間":(sel.split("-")[0]+" 年 "+Number(sel.split("-")[1])+" 月");'
+    /* STMTRANGE_V920 有填日期就以日期為準，月份選單先放一邊 */
+    +'var F=(document.getElementById("pf")||{}).value||"",T=(document.getElementById("pt")||{}).value||"";'
+    +'var useR=!!(F||T),f=F||"0000-01-01",t=T||"9999-12-31";'
+    +'var L=useR?D.logs.filter(function(x){return x.d>=f&&x.d<=t;})'
+    +':D.logs.filter(function(x){return sel==="all"||x.ym===sel;});'
+    +'var P=useR?D.pays.filter(function(x){return x.d>=f&&x.d<=t;})'
+    +':D.pays.filter(function(x){return sel==="all"||x.ym===sel;});'
+    +'var lab=useR?((F||"最早")+" ～ "+(T||"今天"))'
+    +':((sel==="all")?"全部期間":(sel.split("-")[0]+" 年 "+Number(sel.split("-")[1])+" 月"));'
+    /* STMTPRE_V920 這段期間「開始以前」已經預繳了多少（或欠多少）。
+       全部期間就沒有期初可言。 */
+    +'var start=useR?F:((sel==="all")?"":(sel+"-01"));'
+    +'var openBal=start?Math.round((sumPay(D.pays.filter(function(x){return x.d<start;}))'
+    +'-sumChg(D.logs.filter(function(x){return x.d<start;})))*100)/100:null;'
     +'document.getElementById("per").textContent=lab;'
     +'document.title=D.name+" 對帳單 "+lab+" "+D.today;'
     +'var A=D.all,sc=0,un=0,sp=0,cross=0;'
@@ -12095,7 +12144,15 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'var gap=Math.round((sc-sp)*100)/100;'
     +'var ch="";'
     +'if(sel==="all"){ch=`<div class="cards">${card("🧮 應收合計",money(A.charge,D.cur))}${card("💰 已收合計",money(A.paid,D.cur),"blue")}${card("🎀 結餘",balTxt(A.due),balCls(A.due))}</div>`;}'
-    +'else{ch=`<div class="cards n4">${card("🧮 本期應收",money(sc,D.cur))}${card("💰 本期已收",money(sp,D.cur),"blue")}${card("🎀 本期結餘",balTxt(gap),balCls(gap))}${card("累計結餘",balTxt(A.due),"mut")}</div>`;}'
+    /* STMTPRE_V920 期末結餘＝期初結餘＋本期已收−本期應收。正數是還有預繳額度。 */
+    +'else{var closeBal=Math.round(((openBal||0)+sp-sc)*100)/100;'
+    +'ch=`<div class="cards n4">${card("📥 期初結餘",openBal==null?"—":balTxt2(openBal),openBal==null?"mut":balCls2(openBal))}'
+    +'${card("🧮 本期應收",money(sc,D.cur))}'
+    +'${card("💰 本期已收",money(sp,D.cur),"blue")}'
+    +'${card("🎀 期末結餘",balTxt2(closeBal),balCls2(closeBal))}</div>`'
+    +'+`<div class="hint" style="margin:-4px 0 10px">期末結餘 ＝ 期初結餘 ＋ 本期已收 − 本期應收。'
+    +'學生預繳的話，這段期間的課就是從預繳額度裡扣，不是欠款。'
+    +'　·　目前累計結餘：<b>${balTxt(A.due)}</b></div>`;}'
     +'document.getElementById("cards").innerHTML=ch;'
     +'var cm=(sel==="all"&&D.months.length>1),last="",h="";'
     +'h+=`<div class="sec"><span class="st">📖 上課記錄</span><span class="n">${L.length} 筆</span></div><div class="tw">`;'
@@ -12129,7 +12186,15 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'var pk=document.getElementById("pk");'
     +'var o=document.createElement("option");o.value="all";o.textContent="全部期間";pk.appendChild(o);'
     +'D.months.slice().reverse().forEach(function(m){var x=document.createElement("option");x.value=m;x.textContent=m;pk.appendChild(x);});'
-    +'pk.value="all";pk.addEventListener("change",function(){draw(pk.value);});draw("all");'
+    +'pk.value="all";'
+    /* STMTRANGE_V920 選月份就把自訂日期清掉；反過來填日期就把月份放回「全部期間」 */
+    +'var pf=document.getElementById("pf"),pt=document.getElementById("pt"),pc=document.getElementById("pc");'
+    +'pk.addEventListener("change",function(){if(pf)pf.value="";if(pt)pt.value="";draw(pk.value);});'
+    +'function onRange(){if(pk.value!=="all")pk.value="all";draw("all");}'
+    +'if(pf)pf.addEventListener("change",onRange);'
+    +'if(pt)pt.addEventListener("change",onRange);'
+    +'if(pc)pc.addEventListener("click",function(){if(pf)pf.value="";if(pt)pt.value="";pk.value="all";draw("all");});'
+    +'draw("all");'
     +'<\/script></body></html>';
   fbWin(html);};
 
@@ -12199,8 +12264,9 @@ H.printWorksheet=(lid)=>{const l=S.lessons.find(x=>x.id===lid);if(!l)return;
     let out='<section class="bank"><h2 class="bh">'+e2(bankLabel)+'</h2>';
     gps.forEach((g,gi)=>{
       const gp=(g.gi!=null&&(l.grammar_points||[])[g.gi]);
-      const t=gp?('語法 '+(g.gi+1)+(gp.title?('　'+e2(gp.title)):'')):'綜合練習';
-      out+='<h3 class="sec"><span class="sn">'+cn(gi+1)+'</span>'+t+'</h3>';
+      const t=gp?('語法 '+(g.gi+1)+(gpT(gp.title)?('　'+e2(gpT(gp.title))):'')):'綜合練習';
+      /* WSUNI_V919 改用講義的段落標題（深色粗體＋一條往右延伸的細線） */
+      out+='<div class="sec"><span class="st">'+cn(gi+1)+'、'+t+'</span></div>';
       const many=g.subs.length>1||(g.subs[0]&&g.subs[0].sk);
       g.subs.forEach(sub=>{
         if(many&&sub.sk)out+='<h4 class="subh">'+e2(sub.sk)+'</h4>';
@@ -12210,43 +12276,26 @@ H.printWorksheet=(lid)=>{const l=S.lessons.find(x=>x.id===lid);if(!l)return;
   const body=bankHtml(cls,'上課語法練習')+bankHtml(hw,'作業簿題');
   const title=lesNo(l,'練習題');
   const org=(S.site&&S.site.org_name)||'QNA CHINESE';
+  /* WSUNI_V919 字體沿用「匯出講義」最後選的那一種；沒選過就跟講義的預設一樣。 */
+  const _wsf=(typeof GHFONT==='string'&&GHFONT)?GHFONT:'kaitimes';
+  /* WSUNI_V919 存成 PDF 的檔名格式跟講義一致 */
+  const _fn=['QNA CHINESE',String(l.textbook||'').trim(),String(l.title||'').trim(),'練習題卷','學生版']
+    .filter(x=>String(x||'').trim()).join('_').replace(/[\/:*?"<>|]/g,'-');
   const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
-   +'<title>'+e2(org)+'｜'+e2(title)+' 練習題卷</title>'
-   +'<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-   +'<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&display=swap">'
-   +'<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-tc-webfont@1.2.0/lxgwwenkaitc-regular.css">'
-   +'<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-tc-webfont@1.2.0/lxgwwenkaitc-bold.css">'
-   +'<style>'
-   +':root{--ink:#2f2a24;--mut:#8b8079;--line:#e3d9cb;--bd:#a3714e;--soft:#faf7f2}'
-   +'*{box-sizing:border-box}'
-   +'body{font-family:"Be Vietnam Pro","LXGW WenKai TC","PingFang TC","Microsoft JhengHei",sans-serif;'
-   +'color:var(--ink);max-width:760px;margin:0 auto;padding:26px 22px 60px;line-height:1.95;font-size:15.5px;'
-   +'font-variant-numeric:tabular-nums;background:#fff}'
-   +'.bar{position:sticky;top:0;z-index:9;background:#fff;border-bottom:1px solid var(--line);'
-   +'padding:10px 0 12px;margin-bottom:20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}'
-   +'.bar button{font:inherit;font-weight:700;padding:9px 18px;border:0;border-radius:999px;cursor:pointer;'
-   +'background:linear-gradient(135deg,#c39468,#a3714e);color:#fff}'
-   +'.bar label{font-size:14px;color:var(--mut);display:flex;align-items:center;gap:6px;cursor:pointer}'
-   +'.head{border-bottom:2.5px solid var(--bd);padding-bottom:12px;margin-bottom:6px}'
-   +'.hd{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px}'
-   +'.mark{flex:none;width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#c39468,#a3714e);'
-   +'color:#fff;font-size:19px;font-weight:700;display:flex;align-items:center;justify-content:center}'
-   +'.brand{font-size:14.5px;font-weight:700;letter-spacing:.1em;color:var(--bd);line-height:1.35}'
-   +'.brand-vi{font-size:12.5px;letter-spacing:.06em;color:#b08050;font-weight:500;line-height:1.35}'
-   +'h1{font-size:23px;margin:8px 0 4px;font-weight:700;line-height:1.4}'
-   +'.hm{color:var(--mut);font-size:13px}'
-   +'.name-row{display:flex;gap:26px;flex-wrap:wrap;margin:14px 0 22px;font-size:14.5px;color:var(--mut)}'
-   +'.name-row b{font-weight:500;color:var(--ink)}'
-   +'.bank{margin-top:26px}'
+   /* WSUNI_V919 檔名格式跟講義一致：QNA CHINESE_教材_課名_練習題卷_學生版 */
+   +'<title>'+e2(_fn)+'</title>'
+   +(_wsf?'<meta name="qna-font" content="QNAFONT_FIXED">':'')
+   +ghFontHead(_wsf)
+   /* WSUNI_V919 顏色、抬頭、頁面邊界、每頁頁尾全部改用講義那一套（fbCss＋ghCss） */
+   +'<style>'+fbCss()+ghCss()+ghFontCss(_wsf)
+   +'.bank{margin-top:22px}'
    +'h2.bh{font-size:15px;font-weight:700;color:var(--bd);letter-spacing:.05em;margin:0 0 14px;'
    +'padding-bottom:5px;border-bottom:1px dashed var(--line)}'
-   +'h3.sec{display:flex;align-items:center;gap:9px;font-size:15.5px;font-weight:700;margin:24px 0 10px;color:var(--ink)}'
-   +'h3.sec .sn{flex:none;width:24px;height:24px;border-radius:8px;background:var(--bd);color:#fff;'
-   +'font-size:13px;display:flex;align-items:center;justify-content:center}'
    +'.instr{color:var(--bd);font-size:14px;background:var(--soft);border-radius:8px;padding:6px 11px;margin:0 0 10px}'
    +'.item{margin:0 0 15px;page-break-inside:avoid;break-inside:avoid}'
    +'.num{font-weight:700;margin-right:7px;color:var(--bd)}'
-   +'.qt{font-size:15.5px}.qt.tok{letter-spacing:.06em}'
+   /* WSUNI_V919 講義的題目是跟著內文 14px，這邊本來 15.5px，兩份放在一起大小不一樣 */
+   +'.qt{font-size:14.5px}.qt.tok{letter-spacing:.06em}'
    +'.sub-q{margin:7px 0 0 20px}'
    +'h4.subh{font-size:14.5px;font-weight:700;color:var(--bd);margin:16px 0 8px 2px;'
    +'display:flex;align-items:center;gap:7px}'
@@ -12258,7 +12307,7 @@ H.printWorksheet=(lid)=>{const l=S.lessons.find(x=>x.id===lid);if(!l)return;
    +'.egs{display:flex;gap:9px;align-items:flex-start;background:var(--soft);border-radius:8px;padding:8px 12px;margin:0 0 12px}'
    +'.eg-l{flex:none;font-size:12px;font-weight:700;color:var(--bd);border:1px solid var(--bd);'
    +'border-radius:6px;padding:0 7px;line-height:1.7;margin-top:3px}'
-   +'.eg-b{flex:1;min-width:0;font-size:15px}'
+   +'.eg-b{flex:1;min-width:0;font-size:14px}'
    +'.opts{margin:5px 0 0 24px;padding:0}.opts li{margin:2px 0}'
    +'.bank-words{margin:6px 0;display:flex;gap:8px;flex-wrap:wrap}'
    +'.bank-words span{border:1px solid var(--line);border-radius:999px;padding:1px 12px;font-size:14px;background:var(--soft)}'
@@ -12275,24 +12324,31 @@ H.printWorksheet=(lid)=>{const l=S.lessons.find(x=>x.id===lid);if(!l)return;
    +'.seg button.on{background:#a3714e;color:#fff}'
    +'.verbadge{margin-top:6px;display:inline-block;background:#fbe9e2;color:#a3543a;font-weight:700;'
    +'font-size:12px;padding:3px 12px;border-radius:999px}'
-   +'@page{size:A4;margin:16mm 14mm 18mm}'
-   +'@media print{.bar{display:none}body{padding:0;max-width:none;font-size:14px}'
-   +'h3.sec{page-break-after:avoid;break-after:avoid}h2.bh{page-break-after:avoid}'
-   +'.bank{page-break-before:auto}}'
+   /* WSUNI_V919 @page 和 .bar 的隱藏交給 fbCss／ghCss，這裡只留自己的防斷行 */
+   +'@media print{.sec{page-break-after:avoid;break-after:avoid}h2.bh{page-break-after:avoid}'
+   +'.bank{page-break-before:auto}.item{break-inside:avoid}}'
    +'</style></head><body>'
+   /* WSUNI_V919 每一頁的頁尾（只有列印時看得到），跟講義一樣 */
+   +'<div class="gh-run"><b>'+e2(window.APP_NAME||'QNA CHINESE')+'</b>'
+   +'<span class="vi">Tiếng Trung Quyên Huỳnh</span>'
+   +'<span class="r">'+e2(l.textbook||'')+'　·　練習題卷</span></div>'
    /* WSVER_V840 本來是一顆核取方塊「顯示答案」，改成跟講義一樣的兩顆切換鈕 */
    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
    +'<span class="seg"><button id="v-stu" class="on" onclick="VER(0)">👩‍🎓 學生版</button>'
-   +'<button id="v-tea" onclick="VER(1)">👩‍🏫 老師版（含答案）</button></span></div>'
-   +'<div class="head">'
-   +'<div class="hd"><div class="mark">華</div><div>'
-   +'<div class="brand">'+e2(org)+'</div>'
-   +'<div class="brand-vi">TIẾNG TRUNG QUYÊN HUỲNH</div></div></div>'
-   +'<h1>'+e2(title)+'</h1>'
-   +'<div class="hm">'+e2(l.textbook||'')+'　·　練習題卷</div>'
-   +'<div class="verbadge" id="verbadge" style="display:none">老師版（含參考答案）·　請不要直接給學生</div></div>'
-   +'<div class="name-row"><span>姓名：<b>＿＿＿＿＿＿＿</b></span><span>日期：<b>＿＿＿＿＿＿＿</b></span><span>分數：<b>＿＿＿＿</b></span></div>'
-   +(body||'<div class="hm">這一課還沒有題目。</div>')
+   +'<button id="v-tea" onclick="VER(1)">👩‍🏫 老師版（含答案）</button></span>'
+   +'<span class="hint">列印時這排按鈕不會印出來</span></div>'
+   /* WSUNI_V919 整頁包進表格，tfoot 那列空的負責在每頁底部把頁尾的位置讓出來 */
+   +'<div class="page"><table class="gh-pgt"><tfoot><tr><td></td></tr></tfoot><tbody><tr><td>'
+   +fbHead('華語教學 · 練習題卷',title,'')
+   +'<div class="top">'
+   +'<div class="f"><span class="k">教材</span><span class="v">'+e2(l.textbook||'')+'</span></div>'
+   +'<div class="f"><span class="k">姓名</span><span class="v"></span></div>'
+   +'<div class="f"><span class="k">日期</span><span class="v"></span></div>'
+   +'<div class="f"><span class="k">分數</span><span class="v"></span></div>'
+   +'</div>'
+   +'<div class="verbadge" id="verbadge" style="display:none">老師版（含參考答案）·　請不要直接給學生</div>'
+   +(body||'<div class="hint">這一課還沒有題目。</div>')
+   +'<div class="foot">開立時間 '+e2(nowStr())+'　·　'+e2(window.APP_NAME||'QNA CHINESE')+'</div>'
    /* WSVER_V840 切換學生版／老師版：答案、抬頭標示、分頁標題一起換 */
    +'<script>var BASE=document.title;function VER(t){'
    +'document.body.classList.toggle("show-ans",!!t);'
@@ -12300,7 +12356,7 @@ H.printWorksheet=(lid)=>{const l=S.lessons.find(x=>x.id===lid);if(!l)return;
    +'document.getElementById("v-tea").className=t?"on":"";'
    +'var b=document.getElementById("verbadge");if(b)b.style.display=t?"inline-block":"none";'
    +'document.title=BASE+(t?"（老師版）":"");}<\/script>'
-   +'</body></html>';
+   +'</td></tr></tbody></table></div></body></html>';/* WSUNI_V919 */
   fbWin(html);};
 /* 臺灣常見讀音修正（與大陸不同者） */
 const TW_PY_T={'期':'qí','究':'jiù','質':'zhí','危':'wéi','企':'qì','暫':'zhàn','攜':'xī','液':'yì','垃':'lè','圾':'sè','蝸':'guā','跌':'dié','嗯':'ēn'};
@@ -12449,7 +12505,7 @@ function reconcileLayoutT(l){const ds=Array.isArray(l.dialogues)?l.dialogues:[];
   for(let i=0;i<nd;i++){if(hasV(i)&&!sv.has(i)){const pos=out.findIndex(e=>e.t==='d'&&e.i===i);if(pos>=0)out.splice(pos+1,0,{t:'v',i});else out.push({t:'v',i});}}
   for(let i=0;i<nd;i++){if(hasQ(i)&&!sq.has(i)){const vp=out.findIndex(e=>e.t==='v'&&e.i===i);const dp=out.findIndex(e=>e.t==='d'&&e.i===i);const at=vp>=0?vp:dp;if(at>=0)out.splice(at+1,0,{t:'q',i});else out.push({t:'q',i});}}
   return out;}
-function ordLabel(l,e){if(e.t==='d'){const d=(l.dialogues||[])[e.i]||{};return '📖 '+((d.title||'').trim()||('對話'+(e.i+1)));}if(e.t==='v'){const d=(l.dialogues||[])[e.i]||{};return '📒 生詞'+((d.title||'').trim()?('（'+d.title.trim()+'）'):'');}if(e.t==='q'){const d=(l.dialogues||[])[e.i]||{};return '💬 問題與討論'+((d.title||'').trim()?('（'+d.title.trim()+'）'):'');}const g=(l.grammar_points||[])[e.i]||{};return '🔤 語法 '+(e.i+1)+((g.title||'').trim()?('：'+g.title.trim()):'');}
+function ordLabel(l,e){if(e.t==='d'){const d=(l.dialogues||[])[e.i]||{};return '📖 '+((d.title||'').trim()||('對話'+(e.i+1)));}if(e.t==='v'){const d=(l.dialogues||[])[e.i]||{};return '📒 生詞'+((d.title||'').trim()?('（'+d.title.trim()+'）'):'');}if(e.t==='q'){const d=(l.dialogues||[])[e.i]||{};return '💬 問題與討論'+((d.title||'').trim()?('（'+d.title.trim()+'）'):'');}const g=(l.grammar_points||[])[e.i]||{};return '🔤 語法 '+(e.i+1)+(gpT(g.title)?('：'+gpT(g.title)):'');}
 function ordListHtml(l){return LAYOUT.map((e,idx)=>`<div class="ord-row" draggable="true" data-idx="${idx}"><span class="ord-grip" aria-hidden="true">⠿</span><b style="flex:1;min-width:0">${esc(ordLabel(l,e))}</b><button class="btn btn-sm" type="button" data-act="ordUp" data-id="${idx}" ${idx===0?'disabled':''}>↑</button><button class="btn btn-sm" type="button" data-act="ordDown" data-id="${idx}" ${idx===LAYOUT.length-1?'disabled':''}>↓</button></div>`).join('');}
 function ordRerender(){const l=S.lessons.find(x=>x.id===LAYOUT_LID),c=document.getElementById('ord-list');if(c&&l)c.innerHTML=ordListHtml(l);}
 let ORD_DRAG=null;
@@ -12667,7 +12723,7 @@ function gpRender(){const wrap=document.getElementById('gp-editor');if(!wrap)ret
       <textarea class="gp-ex" data-gi="${gi}" data-bi="${bi}" rows="1" placeholder="例句（選填，一行一句，學生可點來聽）">${esc(b.ex||'')}</textarea>
       <div class="gp-exaudio" id="gpexa-list-${gi}-${bi}">${gpExAudioHtml(gi,bi)}</div>
       <div class="gp-imgrow" id="gpimg-${gi}-${bi}">${gpImgHtml(gi,bi)}</div></div>`;}).join('');
-    return `<details class="gp-card edit-fold"${g._open?' open':''}><summary class="edit-fold-sum"><span class="gp-no">語法 ${gi+1}</span><span class="edit-fold-title">${esc((g.title||'').trim()||'（未命名）')}</span><span class="edit-fold-caret">▾</span></summary><div class="edit-fold-body"><div class="gp-card-head">
+    return `<details class="gp-card edit-fold"${g._open?' open':''}><summary class="edit-fold-sum"><span class="gp-no">語法 ${gi+1}</span><span class="edit-fold-title">${esc(gpT(g.title)||'（未命名）')}</span><span class="edit-fold-caret">▾</span></summary><div class="edit-fold-body"><div class="gp-card-head">
       <input class="gp-title" data-gi="${gi}" value="${esc(g.title||'')}" placeholder="標題，例：「很」修飾狀態動詞">
       <select class="gp-seg" data-gi="${gi}" title="這個語法點放在哪一段課文後面" style="flex:0 0 auto;width:auto">${gpSegOpts(g.seg)}</select>
       <button class="btn btn-sm btn-danger" type="button" data-act="gpDel" data-id="${gi}">刪除</button></div>
@@ -14439,12 +14495,13 @@ H.ghGo=(mode)=>{
   GHCLQ=((document.getElementById('gh-clq')||{}).value)||'1';
   GHBANK=((document.getElementById('gh-bank')||{}).value)||'auto';/* GHBANK_V872 */
   GHTR=!!((document.getElementById('gh-tr')||{}).checked);/* GHTR_V891 */
+  GHDLG=!!((document.getElementById('gh-dlg')||{}).checked);/* GHDLG_V919 */
   GHLANG=((document.getElementById('gh-lang')||{}).value)||'tw';/* GHZHS_V875 */
   GHWHO=((document.getElementById('gh-who')||{}).value)||'';
   GHWHEN=((document.getElementById('gh-when')||{}).value)||'';
   /* GHPREF_V883 真的按了匯出才記起來——那才是她確定要用的組合 */
   try{ghPrefSave(book,{lay:(wide?'1':'0'),font:GHFONT,lang:GHLANG,bank:GHBANK,
-    noimg:noimg?1:0,tr:GHTR?1:0,clq:GHCLQ,who:GHWHO});}catch(e){}
+    noimg:noimg?1:0,tr:GHTR?1:0,dlg:GHDLG?1:0,clq:GHCLQ,who:GHWHO});}catch(e){}
   ghBuild(book,lids,mode,wide,noimg);};
 H.bulkAssignSave=async(_x,btn)=>{
   const lids=[...document.querySelectorAll('.ba-l:checked')].map(x=>x.value);
