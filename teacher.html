@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=926">
+<link rel="stylesheet" href="styles.css?v=928">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -1936,6 +1936,8 @@ function fUpTime(v){const s=String(v||'');if(!s)return '';const x=new Date(s.ind
 const CUR={TWD:['NT$','zh-TW'],VND:['VND','vi-VN'],USD:['US$','en-US']};
 function money(n,cur){if(n==null||n==='')return'—';const v=Number(n);if(isNaN(v))return n;const c=CUR[cur||'TWD']||CUR.TWD;if(cur==='VND')return (v*1000).toLocaleString('en-US')+' VND';return c[0]+v.toLocaleString(c[1]);}
 const DAYS=['週一','週二','週三','週四','週五','週六','週日'];
+/* STMTVI_V928 對帳單切成越南文的時候用 */
+const VDAYS=['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7','Chủ nhật'];
 /* 今天（用當地時間）。不能用 toISOString()，那是 UTC：越南/台灣在半夜 0~8 點會變成「前一天」 */
 function localToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function weekStart(dstr){try{var dt=new Date((dstr||localToday())+'T00:00:00');var day=(dt.getDay()+6)%7;dt.setDate(dt.getDate()-day);return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}catch(e){return dstr||'';}}
@@ -9876,7 +9878,17 @@ async function uploadSlides(file,onStep){
   }
   return {pages,folder};
 }
-async function uploadHandout(file){await ensureAuthFresh();let safe=(file.name||'handout.pdf').replace(/[^\w.\-]+/g,'_');if(safe.length>60)safe=safe.slice(-60);const ref=firebase.storage().ref('handouts/'+Date.now()+'_'+safe);await ref.put(file);return await ref.getDownloadURL();}
+/* DLNAME_V927 上傳時就把「下載要用的檔名」寫進 Storage，
+   不然瀏覽器會拿 Storage 上那一長串路徑當檔名（1789178792402_0_阮氏玉珠_…）。
+   只用在「會被下載的檔案」；課文圖片、生詞音檔那種要直接播／直接顯示的不能加，
+   加了會變成一點就下載。 */
+function dlMeta(file,prefix){
+  const raw=String((file&&file.name)||'file').replace(/[\\/:*?"<>|]+/g,'_');
+  const nice=(prefix?prefix+'_':'')+raw;
+  const ascii=nice.replace(/[^\x20-\x7E]/g,'_').replace(/["\\]/g,'_');
+  return {contentType:(file&&file.type)||'application/octet-stream',
+    contentDisposition:'attachment; filename="'+ascii+'"; filename*=UTF-8\'\''+encodeURIComponent(nice)};}
+async function uploadHandout(file){await ensureAuthFresh();let safe=(file.name||'handout.pdf').replace(/[^\w.\-]+/g,'_');if(safe.length>60)safe=safe.slice(-60);const ref=firebase.storage().ref('handouts/'+Date.now()+'_'+safe);await ref.put(file,dlMeta(file,'QNA CHINESE'));return await ref.getDownloadURL();}
 H.lhUp=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,application/pdf';
   inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;const st=$('#l-handout-st');if(st)st.textContent='上傳中…（檔案大時請稍候）';
     if(!(window.firebase&&firebase.storage)){if(st)st.textContent='未連 Storage';return;}
@@ -12082,39 +12094,55 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
   const grp=(s.class_type==='團班');const unit=unitLabel(s);
   const logs=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&e.date)
     .sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(e=>{
-      const wd=DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]||'';
+      const _wi=(new Date(e.date+'T00:00:00').getDay()+6)%7;
+      const wd=DAYS[_wi]||'';const wdv=VDAYS[_wi]||'';/* STMTVI_V928 */
       const tm=(e.start||e.end)?((e.start||'')+(e.end?'–'+e.end:'')):'';
       const leave=e.status==='leave',free=!!e.free,ab=e.status==='absent';
       const bill=!free&&(grp||!leave);
       const q=hourly?(logHours(e)||1):1;
       const f=bill?lessonFee(s,e):null;
-      return {d:e.date,wd:wd,tm:tm,ym:String(e.date).slice(0,7),
+      return {d:e.date,wd:wd,wdv:wdv,tm:tm,ym:String(e.date).slice(0,7),
         qty:(leave&&!grp)?null:q,
         sk:leave?(grp?'leaveg':'leave'):(free?'free':(ab?'absent':'ok')),
         st:leave?(grp?'🌙 請假（照計）':'🌙 請假'):(free?'🎁 免費':(ab?'🙈 缺席':'')),
+        /* STMTVI_V928 */
+        stv:leave?(grp?'🌙 Nghỉ phép (vẫn tính)':'🌙 Nghỉ phép'):(free?'🎁 Miễn phí':(ab?'🙈 Vắng mặt':'')),
         note:String(e.note||'').trim(),
         bill:bill,amt:(f==null?0:f),unset:(bill&&f==null)};});
   const pays=(Array.isArray(s.payments)?s.payments:[]).filter(p=>p&&p.date)
     .sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(p=>{
       const pc=p.currency||cur,amt=Number(p.amount)||0,cv=Number(p.conv);
       return {d:p.date,ym:String(p.date).slice(0,7),note:p.note||'繳費',
+        notev:p.note||'Thanh toán',/* STMTVI_V928 */
         amt:amt,cur:pc,cross:(pc!==cur),conv:(cv>0?cv:null),
         eff:(pc===cur?amt:(cv>0?cv:0))};});
   const b=stuBill(s)||{charge:0,paid:0,waived:0,due:0,unknown:0,other:{}};
   const months=[...new Set(logs.map(x=>x.ym).concat(pays.map(x=>x.ym)))].sort();
   const _ttl=tierText(s);
   const price=_ttl?('團班 '+_ttl):((s.tuition==null||s.tuition==='')?'—':(money(s.tuition,cur)+(hourly?' / 小時':' / 堂')));
+  /* STMTVI_V928 同一件事的越南文說法 */
+  const pricev=_ttl?('Lớp nhóm '+_ttl.replace(/小時/g,' giờ')):((s.tuition==null||s.tuition==='')?'—':(money(s.tuition,cur)+(hourly?' / giờ':' / buổi')));
+  const L2=(z,v,blk)=>'<span class="l-zh">'+z+'</span><span class="l-vi'+(blk?' nl':'')+'">'+v+'</span>';
   const _now=new Date(),_p2=n=>String(n).padStart(2,'0');
   const today=_now.getFullYear()+'-'+_p2(_now.getMonth()+1)+'-'+_p2(_now.getDate());
   const sno='QNA-'+today.replace(/-/g,'')+'-'+(String(s.id||'').replace(/[^a-zA-Z0-9]/g,'').slice(-4).toUpperCase()||'0000');
   const D={name:s.name||'',textbook:s.textbook||'—',price:price,cur:cur,unit:unit,grp:grp,
+    /* STMTVI_V928 */
+    unitv:(hourly?'giờ':'buổi'),kindv:(grp?'Lớp nhóm':'Học 1 kèm 1'),
     kind:(grp?'團班':'一對一'),today:today,sno:sno,
     logs:logs,pays:pays,months:months,
     all:{charge:b.charge,paid:b.paid,waived:b.waived,due:b.due,unknown:b.unknown||0,other:otherPayStr(b)||''},
     open:nowStr()};/* NOW24_V877 */
   const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+e2(org)+' 對帳單 '+e2(s.name)+'</title>'
     /* ONEDOC_V832 本來自己一整套 CSS，改用跟其他列印文件同一套的底 */
-    +'<style>'+fbCss()+docCss2()+'</style></head><body>'
+    /* STMTVI_V928 固定的字兩種語言都印進去，用 body 的 class 決定顯示哪一個 */
+    +'<style>'+fbCss()+docCss2()
+    +'body.lang-zh .l-vi{display:none}'
+    +'body.lang-vi .l-zh{display:none}'
+    +'body.lang-both .l-vi:not(.nl):before{content:"　·　"}'
+    +'body.lang-both .l-vi.nl{display:block}'
+    +'.card .cl .t2{display:block;font-weight:700;opacity:.85;font-size:10px;letter-spacing:.2px;margin-top:1px}'
+    +'</style></head><body class="lang-zh">'
     +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
     +'<span style="color:#8b8079;font-size:12.5px">期間</span><select id="pk"></select>'
     /* STMTRANGE_V920 本來只能挑整個月。填了日期就照日期範圍算，兩格都可以只填一邊。 */
@@ -12123,28 +12151,33 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'<span style="color:#b6a692">～</span>'
     +'<input type="date" id="pt" style="font:inherit;font-size:13px;padding:4px 7px;border:1px solid #e3d9cb;border-radius:8px">'
     +'<button id="pc" style="font:inherit;font-size:12.5px;padding:4px 10px;border:1px solid #e3d9cb;border-radius:999px;background:#fff;color:#8b8079;cursor:pointer">清除</button>'
+    /* STMTVI_V928 Quinn：「有時候提供給學生，如果初級的話，怕他們看不懂」 */
+    +'<span style="color:#8b8079;font-size:12.5px">語言</span>'
+    +'<select id="lg"><option value="zh">中文</option><option value="vi">Tiếng Việt</option><option value="both">中文 ＋ Tiếng Việt</option></select>'
     +'<span class="hint">列印時這排按鈕不會印出來</span></div>'
     +'<div class="page">'
     +'<div class="hd"><div class="bx"><div class="mark">華</div>'
     +'<div><div class="brand">'+e2(org)+'</div>'
     +'<div class="brand-vi">Tiếng Trung Quyên Huỳnh</div>'
-    +'<div class="brand-s">華語教學 · 學費對帳單</div></div></div>'
-    +'<div class="hd-r"><div class="doc">對帳單</div><div class="doc-s">STATEMENT</div>'
-    +'<div class="kv"><span>單號</span><b>'+e2(sno)+'</b></div>'
-    +'<div class="kv"><span>開立日期</span><b>'+e2(today)+'</b></div>'
-    +'<div class="kv"><span>結算期間</span><b id="per">—</b></div></div></div>'
+    +'<div class="brand-s">'+L2('華語教學 · 學費對帳單','Bảng đối chiếu học phí')+'</div></div></div>'
+    +'<div class="hd-r"><div class="doc">'+L2('對帳單','Bảng đối chiếu')+'</div><div class="doc-s">STATEMENT</div>'
+    +'<div class="kv"><span>'+L2('單號','Số phiếu')+'</span><b>'+e2(sno)+'</b></div>'
+    +'<div class="kv"><span>'+L2('開立日期','Ngày lập')+'</span><b>'+e2(today)+'</b></div>'
+    +'<div class="kv"><span>'+L2('結算期間','Kỳ đối chiếu')+'</span><b id="per">—</b></div></div></div>'
     +'<div class="wave"></div>'
     /* ONEDOC_V832 欄位改成跟其他文件一樣的「標籤｜內容」兩欄式 */
     +'<div class="top">'
-    +'<div class="f"><span class="k">學生</span><span class="v">'+e2(s.name)+'</span></div>'
-    +'<div class="f"><span class="k">課程型態</span><span class="v">'+e2(D.kind)+'</span></div>'
-    +'<div class="f"><span class="k">教材</span><span class="v">'+e2(s.textbook||'—')+'</span></div>'
-    +'<div class="f"><span class="k">計費方式</span><span class="v">'+e2(price)+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+e2(s.name)+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('課程型態','Hình thức lớp')+'</span><span class="v">'+L2(e2(D.kind),e2(D.kindv))+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('教材','Giáo trình')+'</span><span class="v">'+e2(s.textbook||'—')+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('計費方式','Cách tính phí')+'</span><span class="v">'+L2(e2(price),e2(pricev))+'</span></div>'
     +'</div>'
     +'<div id="cards"></div><div id="body"></div>'
-    +'<div class="foot"><div class="ty">謝謝你這段時間的努力 ♡</div><br>'
-    +'本對帳單由 '+e2(org)+' 依實際上課記錄與繳費記錄自動產生，僅供對帳參考。<br>'
-    +'開立時間 '+e2(D.open)+'　·　如與實際情形不符，請與老師聯繫更正。</div>'
+    +'<div class="foot"><div class="ty">'+L2('謝謝你這段時間的努力 ♡','Cảm ơn em đã cố gắng trong thời gian qua ♡',1)+'</div><br>'
+    +L2('本對帳單由 '+e2(org)+' 依實際上課記錄與繳費記錄自動產生，僅供對帳參考。',
+        'Bảng đối chiếu này do '+e2(org)+' tạo tự động từ lịch sử buổi học và lịch sử thanh toán, chỉ dùng để đối chiếu.',1)+'<br>'
+    +L2('開立時間 '+e2(D.open)+'　·　如與實際情形不符，請與老師聯繫更正。',
+        'Thời gian lập '+e2(D.open)+'　·　Nếu có sai sót, vui lòng liên hệ giáo viên để chỉnh sửa.',1)+'</div>'
     +'</div>'
     +'<script>var D='+JSON.stringify(D).replace(/</g,'\\u003c')+';'
     +'var CUR={TWD:["NT$","zh-TW"],VND:["VND","vi-VN"],USD:["US$","en-US"]};'
@@ -12152,11 +12185,17 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'if(c==="VND")return (v*1000).toLocaleString("en-US")+" VND";var k=CUR[c]||CUR.TWD;return k[0]+v.toLocaleString(k[1]);}'
     +'function q(n){if(n==null)return"—";var r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}'
     +'function esc(x){return String(x==null?"":x).replace(/[&<>"]/g,function(c){return ({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"})[c];});}'
-    +'function balTxt(v){return Math.abs(v)<0.01?"已結清 ✿":(v>0?("尚欠 "+money(v,D.cur)):("預繳 "+money(-v,D.cur)));}'
+    /* STMTVI_V928 會重畫的字走這兩支。_tb 是卡片標題（中越並排的時候越南文換到第二行）。
+       注意不能叫 T——draw() 裡面已經有一個 var T 是「迄日」。 */
+    +'var LANG="zh";'
+    +'function _t(z,v){return LANG==="vi"?v:(LANG==="both"?(z+" / "+v):z);}'
+    +'function _tb(z,v){return LANG==="vi"?v:(LANG==="both"?(z+`<span class="t2">`+v+`</span>`):z);}'
+    +'function _u(){return LANG==="zh"?D.unit:D.unitv;}'
+    +'function balTxt(v){return Math.abs(v)<0.01?(_t("已結清","Đã thanh toán xong")+" ✿"):(v>0?(_t("尚欠","Còn nợ")+" "+money(v,D.cur)):(_t("預繳","Trả trước")+" "+money(-v,D.cur)));}'
     +'function balCls(v){return Math.abs(v)<0.01?"ok":(v>0?"due":"over");}'
     /* STMTPRE_V920 這一組是「預繳為正」：對帳單上的期初／期末結餘用這個。
        學生預繳是常態，正數要寫「預繳」，不是「溢繳」。 */
-    +'function balTxt2(v){return Math.abs(v)<0.01?"已結清 ✿":(v>0?("預繳 "+money(v,D.cur)):("尚欠 "+money(-v,D.cur)));}'
+    +'function balTxt2(v){return Math.abs(v)<0.01?(_t("已結清","Đã thanh toán xong")+" ✿"):(v>0?(_t("預繳","Trả trước")+" "+money(v,D.cur)):(_t("尚欠","Còn nợ")+" "+money(-v,D.cur)));}'
     +'function balCls2(v){return Math.abs(v)<0.01?"ok":(v>0?"over":"due");}'
     +'function sumChg(a){var t=0;a.forEach(function(x){if(x.bill)t+=x.amt;});return t;}'
     +'function sumPay(a){var t=0;a.forEach(function(x){t+=x.eff;});return t;}'
@@ -12169,66 +12208,66 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +':D.logs.filter(function(x){return sel==="all"||x.ym===sel;});'
     +'var P=useR?D.pays.filter(function(x){return x.d>=f&&x.d<=t;})'
     +':D.pays.filter(function(x){return sel==="all"||x.ym===sel;});'
-    +'var lab=useR?((F||"最早")+" ～ "+(T||"今天"))'
-    +':((sel==="all")?"全部期間":(sel.split("-")[0]+" 年 "+Number(sel.split("-")[1])+" 月"));'
+    +'var lab=useR?((F||_t("最早","Sớm nhất"))+" ～ "+(T||_t("今天","Hôm nay")))'
+    +':((sel==="all")?_t("全部期間","Toàn bộ")'
+    +':_t(sel.split("-")[0]+" 年 "+Number(sel.split("-")[1])+" 月","Tháng "+Number(sel.split("-")[1])+"/"+sel.split("-")[0]));'
     /* STMTPRE_V920 這段期間「開始以前」已經預繳了多少（或欠多少）。
        全部期間就沒有期初可言。 */
     +'var start=useR?F:((sel==="all")?"":(sel+"-01"));'
     +'var openBal=start?Math.round((sumPay(D.pays.filter(function(x){return x.d<start;}))'
     +'-sumChg(D.logs.filter(function(x){return x.d<start;})))*100)/100:null;'
     +'document.getElementById("per").textContent=lab;'
-    +'document.title=D.name+" 對帳單 "+lab+" "+D.today;'
+    +'document.title=D.name+" "+(LANG==="vi"?"Bảng đối chiếu":"對帳單")+" "+lab+" "+D.today;'
     +'var A=D.all,sc=0,un=0,sp=0,cross=0;'
     +'L.forEach(function(x){if(x.bill){sc+=x.amt;if(x.unset)un++;}});'
     +'P.forEach(function(x){sp+=x.eff;if(x.cross)cross++;});'
     +'var gap=Math.round((sc-sp)*100)/100;'
     +'var ch="";'
     /* STMTRANGE_V921 填了自訂日期的時候 sel 是 "all"，不能只看 sel。 */
-    +'if(sel==="all"&&!useR){ch=`<div class="cards">${card("🧮 應收合計",money(A.charge,D.cur))}${card("💰 已收合計",money(A.paid,D.cur),"blue")}${card("🎀 結餘",balTxt(A.due),balCls(A.due))}</div>`;}'
+    +'if(sel==="all"&&!useR){ch=`<div class="cards">${card("🧮 "+_tb("應收合計","Tổng phải thu"),money(A.charge,D.cur))}${card("💰 "+_tb("已收合計","Tổng đã thu"),money(A.paid,D.cur),"blue")}${card("🎀 "+_tb("結餘","Số dư"),balTxt(A.due),balCls(A.due))}</div>`;}'
     /* STMTPRE_V920 期末結餘＝期初結餘＋本期已收−本期應收。正數是還有預繳額度。 */
     +'else{var closeBal=Math.round(((openBal||0)+sp-sc)*100)/100;'
-    +'ch=`<div class="cards n4">${card("📥 期初結餘",openBal==null?"—":balTxt2(openBal),openBal==null?"mut":balCls2(openBal))}'
-    +'${card("🧮 本期應收",money(sc,D.cur))}'
-    +'${card("💰 本期已收",money(sp,D.cur),"blue")}'
-    +'${card("🎀 期末結餘",balTxt2(closeBal),balCls2(closeBal))}</div>`'
-    /* STMTHINT_V925 本來 margin:-4px 把這行往上拉，貼著卡片底下擠成一團（Quinn：「靠太近了」）。
-       上面留 14px、行距放寬，累計結餘另起一行。 */
-    +'+`<div class="hint" style="margin:14px 2px 16px;line-height:1.8">'
-    +'期末結餘 ＝ 期初結餘 ＋ 本期已收 − 本期應收。'
-    +'學生預繳的話，這段期間的課就是從預繳額度裡扣，不是欠款。'
-    +'<br>目前累計結餘：<b>${balTxt(A.due)}</b></div>`;}'
+    +'ch=`<div class="cards n4">${card("📥 "+_tb("期初結餘","Số dư đầu kỳ"),openBal==null?"—":balTxt2(openBal),openBal==null?"mut":balCls2(openBal))}'
+    +'${card("🧮 "+_tb("本期應收","Phải thu kỳ này"),money(sc,D.cur))}'
+    +'${card("💰 "+_tb("本期已收","Đã thu kỳ này"),money(sp,D.cur),"blue")}'
+    +'${card("🎀 "+_tb("期末結餘","Số dư cuối kỳ"),balTxt2(closeBal),balCls2(closeBal))}</div>`;}'
+    /* STMTHINT_V928 這裡本來有一段「期末結餘 ＝ 期初結餘 ＋ …」的說明。
+       Quinn：「這句話不需要。然後因爲提供給學生，請你幫我刪除這段」——整段拿掉。 */
     +'document.getElementById("cards").innerHTML=ch;'
     +'var cm=(sel==="all"&&D.months.length>1),last="",h="";'
-    +'h+=`<div class="sec"><span class="st">📖 上課記錄</span><span class="n">${L.length} 筆</span></div><div class="tw">`;'
-    +'h+=`<table><thead><tr><th>日期</th><th>時段</th><th class="c">數量</th><th>備註</th><th class="r">金額</th></tr></thead><tbody>`;'
-    +'if(!L.length)h+=`<tr><td colspan="5" class="emp">這段期間沒有上課記錄</td></tr>`;'
+    +'h+=`<div class="sec"><span class="st">📖 ${_t("上課記錄","Lịch sử buổi học")}</span><span class="n">${_t(L.length+" 筆",L.length+" mục")}</span></div><div class="tw">`;'
+    +'h+=`<table><thead><tr><th>${_t("日期","Ngày")}</th><th>${_t("時段","Giờ học")}</th><th class="c">${_t("數量","Số lượng")}</th><th>${_t("備註","Ghi chú")}</th><th class="r">${_t("金額","Số tiền")}</th></tr></thead><tbody>`;'
+    +'if(!L.length)h+=`<tr><td colspan="5" class="emp">${_t("這段期間沒有上課記錄","Kỳ này chưa có buổi học nào")}</td></tr>`;'
     +'L.forEach(function(x){'
     +'if(cm&&x.ym!==last){last=x.ym;h+=`<tr class="mh"><td colspan="5"><span class="mp">${esc(x.ym)}</span></td></tr>`;}'
-    +'var chip=(x.sk==="ok")?"":`<span class="chip ${x.sk}">${esc(x.st)}</span>`;'
+    +'var chip=(x.sk==="ok")?"":`<span class="chip ${x.sk}">${esc(LANG==="zh"?x.st:x.stv)}</span>`;'
     +'var nt=x.note?`<span class="nt">${chip?" ":""}${esc(x.note)}</span>`:"";'
-    +'var amt=x.bill?(x.unset?`<span style="color:#8a5a1a">未設定學費</span>`:money(x.amt,D.cur)):`<span class="nt">—</span>`;'
-    +'h+=`<tr><td>${esc(x.d)} <span class="nt">${esc(x.wd)}</span></td><td>${esc(x.tm||"—")}</td>'
-    +'<td class="c">${x.qty==null?`<span class="nt">—</span>`:q(x.qty)+" "+esc(D.unit)}</td>'
+    +'var amt=x.bill?(x.unset?`<span style="color:#8a5a1a">${_t("未設定學費","Chưa đặt học phí")}</span>`:money(x.amt,D.cur)):`<span class="nt">—</span>`;'
+    +'h+=`<tr><td>${esc(x.d)} <span class="nt">${esc(LANG==="zh"?x.wd:x.wdv)}</span></td><td>${esc(x.tm||"—")}</td>'
+    +'<td class="c">${x.qty==null?`<span class="nt">—</span>`:q(x.qty)+" "+esc(_u())}</td>'
     +'<td>${chip}${nt}</td><td class="r">${amt}</td></tr>`;});'
     +'h+=`</tbody></table></div>`;'
     +'last="";'
-    +'h+=`<div class="sec"><span class="st">💰 繳費記錄</span><span class="n">${P.length} 筆</span></div><div class="tw">`;'
-    +'h+=`<table><thead><tr><th>日期</th><th>說明</th><th class="r">金額</th></tr></thead><tbody>`;'
-    +'if(!P.length)h+=`<tr><td colspan="3" class="emp">這段期間沒有繳費記錄</td></tr>`;'
+    +'h+=`<div class="sec"><span class="st">💰 ${_t("繳費記錄","Lịch sử thanh toán")}</span><span class="n">${_t(P.length+" 筆",P.length+" mục")}</span></div><div class="tw">`;'
+    +'h+=`<table><thead><tr><th>${_t("日期","Ngày")}</th><th>${_t("說明","Nội dung")}</th><th class="r">${_t("金額","Số tiền")}</th></tr></thead><tbody>`;'
+    +'if(!P.length)h+=`<tr><td colspan="3" class="emp">${_t("這段期間沒有繳費記錄","Kỳ này chưa có khoản thanh toán nào")}</td></tr>`;'
     +'P.forEach(function(x){'
     +'if(cm&&x.ym!==last){last=x.ym;h+=`<tr class="mh"><td colspan="3"><span class="mp">${esc(x.ym)}</span></td></tr>`;}'
-    +'var note=esc(x.note);'
-    +'if(x.cross)note+=x.conv?`<span class="nt"> · 折合 ${money(x.conv,D.cur)}</span>`:`<span style="color:#8a5a1a;font-size:12.5px"> · 未填換算金額，沒抵到帳</span>`;'
+    +'var note=esc(LANG==="zh"?x.note:x.notev);'
+    +'if(x.cross)note+=x.conv?`<span class="nt"> · ${_t("折合","quy đổi")} ${money(x.conv,D.cur)}</span>`:`<span style="color:#8a5a1a;font-size:12.5px"> · ${_t("未填換算金額，沒抵到帳","Chưa điền số tiền quy đổi, chưa trừ vào công nợ")}</span>`;'
     +'h+=`<tr><td>${esc(x.d)}</td><td>${note}</td><td class="r">${money(x.amt,x.cur)}</td></tr>`;});'
     +'h+=`</tbody></table></div>`;'
-    +'if(un)h+=`<div class="warn">這段期間有 ${un} 堂還沒設定學費，沒有算進應收。</div>`;'
-    +'if(cross)h+=`<div class="warn">有 ${cross} 筆繳費的幣別跟帳單不同，只有填了「換算金額」的才會抵到帳。</div>`;'
-    +'if(A.waived)h+=`<div class="warn">累計已優惠或少收 ${money(A.waived,D.cur)}，已從應收扣除。</div>`;'
-    +'if(A.other)h+=`<div class="warn">另有其他幣別尚未換算：${esc(A.other)}</div>`;'
-    +'if(A.unknown&&sel==="all")h+=`<div class="warn">全部期間共有 ${A.unknown} 堂沒設定學費。</div>`;'
+    +'if(un)h+=`<div class="warn">${_t("這段期間有 "+un+" 堂還沒設定學費，沒有算進應收。","Kỳ này có "+un+" buổi chưa đặt học phí, chưa tính vào khoản phải thu.")}</div>`;'
+    +'if(cross)h+=`<div class="warn">${_t("有 "+cross+" 筆繳費的幣別跟帳單不同，只有填了「換算金額」的才會抵到帳。","Có "+cross+" khoản thanh toán khác loại tiền tệ với bảng kê; chỉ khoản có điền số tiền quy đổi mới được trừ.")}</div>`;'
+    +'if(A.waived)h+=`<div class="warn">${_t("累計已優惠或少收 "+money(A.waived,D.cur)+"，已從應收扣除。","Đã giảm hoặc miễn tổng cộng "+money(A.waived,D.cur)+", đã trừ khỏi khoản phải thu.")}</div>`;'
+    +'if(A.other)h+=`<div class="warn">${_t("另有其他幣別尚未換算：","Còn loại tiền tệ khác chưa quy đổi: ")+esc(A.other)}</div>`;'
+    +'if(A.unknown&&sel==="all")h+=`<div class="warn">${_t("全部期間共有 "+A.unknown+" 堂沒設定學費。","Toàn bộ kỳ có "+A.unknown+" buổi chưa đặt học phí.")}</div>`;'
     +'document.getElementById("body").innerHTML=h;}'
     +'var pk=document.getElementById("pk");'
     +'var o=document.createElement("option");o.value="all";o.textContent="全部期間";pk.appendChild(o);'
+    /* STMTVI_V928 換語言就整份重畫；固定的字靠 body 的 class 換。 */
+    +'var lg=document.getElementById("lg");'
+    +'if(lg)lg.addEventListener("change",function(){LANG=lg.value;document.body.className="lang-"+LANG;draw(pk.value);});'
     +'D.months.slice().reverse().forEach(function(m){var x=document.createElement("option");x.value=m;x.textContent=m;pk.appendChild(x);});'
     +'pk.value="all";'
     /* STMTRANGE_V920 選月份就把自訂日期清掉；反過來填日期就把月份放回「全部期間」 */
@@ -13464,7 +13503,8 @@ async function _crmUpload(files,key){
       if(window.firebase&&firebase.storage){
         try{const safe=String(f.name||'file').replace(/[\\/:*?"<>|#%]+/g,'_').slice(-80)||'file';
           const ref=firebase.storage().ref('crm_files/'+sid+'/'+Date.now()+'_'+i+'_'+safe);
-          await ref.put(f);const url=await ref.getDownloadURL();
+          /* DLNAME_V927 下載時要用的檔名 */
+          await ref.put(f,dlMeta(f,'QNA CHINESE'));const url=await ref.getDownloadURL();
           rec={filename:f.name||safe,mime:f.type||'application/octet-stream',size:f.size||0,data:'',url:url,path:ref.fullPath};
         }catch(err){rec=null;}
       }
