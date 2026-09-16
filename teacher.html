@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=930">
+<link rel="stylesheet" href="styles.css?v=932">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -372,6 +372,13 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           padding:1px 6px;border-radius:6px;background:var(--surface-2);color:#c3b7a7;
           border:1px solid var(--line)}
         .rp-lg i.on{background:#efe5d8;color:#7A5236;border-color:#dcc9ae}
+        /* RPADDR_V932 稱謂：對方比我大還是比我小，一眼看得出來 */
+        .rp-ad{font-size:11px;font-weight:800;letter-spacing:.2px;white-space:nowrap;flex:none;
+          padding:2px 9px;border-radius:999px;border:1px solid transparent}
+        .rp-ad.a-em{background:#fdf1e3;color:#a3543a;border-color:#f0dcc2}
+        .rp-ad.a-anhchi{background:#eaf2fb;color:#3f6893;border-color:#d7e5f3}
+        .rp-ad.a-ban{background:#eef6f0;color:#2f7a52;border-color:#d8ecdf}
+        .rp-ad.a-gs{opacity:.6;font-weight:700}
         /* 預覽框上面標現在看到的是哪一種語言 */
         .rp-pl{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.4px;margin-bottom:-4px}
         .rp-h{display:flex;align-items:center;gap:8px;min-width:0}
@@ -1826,6 +1833,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
       <section id="panel-students" class="panel hide">
         <div class="section-head"><h2>👥 學生</h2><span class="sub">每位學生的資料、學費、上課時段、登入方式。點學生的「✏️ 編輯」可以改所有設定</span><div class="head-actions">
           <input id="stu-search" type="text" placeholder="搜尋名字 / 國籍…" style="max-width:190px">
+          <button class="btn owner-only" data-act="stuExpAll">📤 總匯出</button>
           <button class="btn owner-only" data-act="groupsMgr">👥 團班管理</button>
           <button class="btn btn-primary owner-only" data-act="addStudent">＋ 新增學生</button></div></div>
         <div id="students-list" class="cards cols-2"></div>
@@ -2999,14 +3007,44 @@ const RP_GRP=[['abroad','🎓 留學業務'],['teach','🧑‍🏫 教學'],['ot
 function rpGrpOf(r){const g=String((r&&r.grp)||'').trim();
   return RP_GRP.some(x=>x[0]===g)?g:'other';}
 function rpGrpLab(g){const f=RP_GRP.find(x=>x[0]===g);return f?f[1]:'📌 其他';}
+/* RPSORT_V932 本來照建立先後排，所以同一件事的兩個稱謂版本會被別的卡隔開
+   （Quinn：「申請語言學校一個上一個下，這樣很亂」）。
+   改成先照標題排，同名的幾份一定連在一起；標題一樣再照稱謂排，順序固定。 */
+const RP_AORD={anhchi:1,em:2,ban:3,'':4};
 function rpSorted(){
   return (S.replies||[]).slice().sort((a,b)=>
-    ((Number(a.order_index)||0)-(Number(b.order_index)||0))
-    ||String(a.title||'').localeCompare(String(b.title||''),'zh-Hant'));
+    String(a.title||'').localeCompare(String(b.title||''),'zh-Hant')
+    ||((RP_AORD[rpAddrOf(a)||rpAddrGuess(a)]||4)-(RP_AORD[rpAddrOf(b)||rpAddrGuess(b)]||4))
+    ||((Number(a.order_index)||0)-(Number(b.order_index)||0)));
 }
+/* RPADDR_V932 稱謂。越南文寫給誰，用字完全不一樣，所以同一件事她會存好幾份。
+   標題旁邊標清楚是哪一種，要複製的時候不用一份一份點開看。 */
+const RP_ADDR={
+  em:['👧 對方比我小','叫對方 em，自己是 chị'],
+  anhchi:['🧑 對方比我大','叫對方 anh／chị，自己是 em'],
+  ban:['🤝 平輩・不確定','用 bạn／mình']};
+function rpAddrOf(r){const a=String((r&&r.addr)||'').trim();
+  return RP_ADDR[a]?a:'';}
+/* 舊資料沒有這個欄位，從越南文內容猜一個。只是標籤，不會動到內容。
+   「anh/chị …」是在叫對方，所以是對方比我大；沒有的話看有沒有把對方叫成 em。 */
+function rpAddrGuess(r){
+  const t=String(rpText(r)||'').toLowerCase();
+  if(!t)return '';
+  if(/anh\s*\/\s*ch[iị]|anh ch[iị]/.test(t))return 'anhchi';
+  if(/\bb[aạ]n\b|\bm[iì]nh\b/.test(t))return 'ban';
+  if(/\bem\b/.test(t))return 'em';
+  return '';}
+function rpAddrHtml(r){
+  const a=rpAddrOf(r);const g=a||rpAddrGuess(r);
+  if(!g)return '';
+  const d=RP_ADDR[g];
+  return '<span class="rp-ad a-'+g+(a?'':' a-gs')+'" title="'+esc(d[1]+(a?'':'　（自動判斷的，進去編輯存一次就確定）'))+'">'
+    +esc(d[0])+(a?'':' ?')+'</span>';}
 function rpMatch(r,q){
   if(!q)return true;
-  const hay=[r.title,r.tags,r.body_zh,r.body_vi].map(x=>String(x||'').toLowerCase()).join(' ');
+  const a=rpAddrOf(r)||rpAddrGuess(r);/* RPADDR_V932 搜尋也吃「對方比我大」這種詞 */
+  const hay=[r.title,r.tags,r.body_zh,r.body_vi,(a?RP_ADDR[a][0]+' '+RP_ADDR[a][1]:'')]
+    .map(x=>String(x||'').toLowerCase()).join(' ');
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(w=>hay.indexOf(w)>=0);
 }
 
@@ -3150,7 +3188,7 @@ function rpCardHtml(r){
     +'<i class="'+(zh?'on':'')+'" title="'+(zh?'有中文':'沒有中文')+'">中</i>'
     +'<i class="'+(vi?'on':'')+'" title="'+(vi?'有越南文':'沒有越南文')+'">VI</i></span>';
   return '<div class="card rp-c rp-'+esc(rpGrpOf(r))+'">'
-    +'<div class="rp-h"><b>'+esc(r.title||'（沒有標題）')+'</b>'+lang+'</div>'
+    +'<div class="rp-h"><b>'+esc(r.title||'（沒有標題）')+'</b>'+rpAddrHtml(r)+lang+'</div>'/* RPADDR_V932 */
     +'<div class="rp-g">'+(tags.length?tags.map(t=>'<span class="tag">'+esc(t)+'</span>').join('')
         :'<span class="hint">沒有關鍵字</span>')+'</div>'
     +(pv?('<div class="rp-pl">'+(which==='VI'?'Tiếng Việt':'中文')+'</div>'):'')
@@ -9341,7 +9379,9 @@ H.stuXlsx=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
 function spPageOf(html){const i=String(html).indexOf('<div class="page">');const j=String(html).lastIndexOf('</body>');
   return (i>=0&&j>i)?String(html).slice(i,j):'';}
 
-H.stuCardPdf=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
+/* STUEXPALL_V931 本來整份文件是在 H.stuCardPdf 裡面直接組出來的，
+   要一次印全部人就沒得用。拆成 stuCardHtml(s)，按鈕和打包都叫它。 */
+function stuCardHtml(s){
   const cur=(typeof billCur==='function')?billCur(s):(s.currency||'TWD');
   const A=spAttend(s);const b=(typeof stuBill==='function')?stuBill(s):null;
   const sc=spScores(s.id);const scOk=sc.reduce((a,x)=>a+x.ok,0),scTot=sc.reduce((a,x)=>a+x.tot,0);
@@ -9378,7 +9418,9 @@ H.stuCardPdf=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
     +(s.notes?('<div class="sec"><span class="st">📝 備註・學習目標</span></div><div class="box">'+esc(s.notes)+'</div>'):'')
     +'<div class="foot">開立時間 '+esc(nowStr())+'　·　本檔案卡由 '+esc(window.APP_NAME||'QNA CHINESE')+' 依平台資料自動產生</div>'
     +'</div></body></html>';
-  closeModal();fbWin(html);};
+  return html;}/* STUEXPALL_V931 */
+H.stuCardPdf=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
+  closeModal();fbWin(stuCardHtml(s));};
 
 H.fbPack=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
   const fbs=((typeof fbList==='function')?fbList(s):[]).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
@@ -11073,49 +11115,58 @@ H.qtGo=()=>{
 };
 /* REPLY_V712 回覆範本的操作。內容改在視窗裡編輯——清單只留標題、關鍵字和前幾行預覽，
    每張卡片一樣高、排成兩欄，看起來才整齊。 */
-H.rpNew=()=>{
-  openModal('<div class="modal" style="max-width:520px"><div class="modal-head"><h3>📮 新增回覆範本</h3>'
+/* RPFORM_V932 Quinn：「建立時，最好出現這種，要不然建立完以後才可以進去新增內容。這很爛欸」
+   本來新增只能填標題／分類／關鍵字，存完還要再點「✏️ 編輯」才能打內容。
+   現在新增和編輯是同一張表，差別只有存去哪裡。 */
+function rpFormHtml(r,isNew){
+  const a=rpAddrOf(r)||(isNew?'':rpAddrGuess(r));
+  const p=isNew?'n':'e';
+  return '<div class="modal modal-wide modal-tall rp-em"><div class="modal-head"><h3>'
+   +(isNew?'📮 新增回覆範本':'✏️ '+esc(r.title||''))+'</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-   +'<div class="field"><label>標題 *</label><input id="rp-nt" type="text" placeholder="例：申請語言學校費用"></div>'
-   +'<div class="field"><label>分類</label><select id="rp-nc">'
-   +RP_GRP.map(g=>'<option value="'+g[0]+'">'+g[1]+'</option>').join('')+'</select></div>'
-   +'<div class="field"><label>關鍵字 <span class="hint">選填，用頓號隔開，之後搜尋用得到</span></label>'
-   +'<input id="rp-ng" type="text" placeholder="例：語言學校、學費、報名"></div>'
-   +'<div class="hint">建立之後就可以打中文和越南文的內容。</div></div>'
-   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
-   +'<button class="btn btn-primary" data-act="rpNewSave">建立</button></div></div>');
-};
+   +'<div class="form-grid">'
+   +'<div class="field"><label>標題 *</label><input id="rp-'+p+'t" type="text" value="'+esc(r.title||'')+'"'
+     +(isNew?' placeholder="例：申請語言學校費用"':'')+'></div>'
+   +'<div class="field"><label>分類</label><select id="rp-'+p+'c">'
+   +RP_GRP.map(g=>'<option value="'+g[0]+'"'+((rpGrpOf(r)===g[0])?' selected':'')+'>'+g[1]+'</option>').join('')
+   +'</select></div>'
+   /* RPADDR_V932 */
+   +'<div class="field"><label>稱謂 <span class="hint">這一份是寫給誰的</span></label><select id="rp-'+p+'a">'
+   +'<option value=""'+(a?'':' selected')+'>（不指定）</option>'
+   +Object.keys(RP_ADDR).map(k=>'<option value="'+k+'"'+((a===k)?' selected':'')+'>'
+       +esc(RP_ADDR[k][0]+' —— '+RP_ADDR[k][1])+'</option>').join('')
+   +'</select></div>'
+   +'<div class="field"><label>關鍵字 <span class="hint">用頓號隔開</span></label>'
+   +'<input id="rp-'+p+'g" type="text" value="'+esc(r.tags||'')+'"'
+     +(isNew?' placeholder="例：語言學校、學費、報名"':'')+'></div></div>'
+   +'<div class="lesson-label rp-em-lab">內容</div>'
+   +'<textarea id="rp-'+p+'v" rows="10" class="rp-ta" placeholder="把要貼給客人的內容打在這裡">'+esc(rpText(r))+'</textarea>'
+   +'<div class="hint rp-em-tip">內容都是你自己寫的，系統不會自己生任何一個字，也不會自動發給任何人。</div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="'+(isNew?'rpNewSave':'rpEditSave')+'"'
+     +(isNew?'':' data-id="'+esc(r.id)+'"')+'>💾 儲存</button></div></div>';}
+H.rpNew=()=>{openModal(rpFormHtml({},1));};
 H.rpNewSave=async()=>{
   const t=(($('#rp-nt')&&$('#rp-nt').value)||'').trim();
   if(!t)return toast('請填標題');
-  const g=(($('#rp-ng')&&$('#rp-ng').value)||'').trim();
-  const gp=(($('#rp-nc')&&$('#rp-nc').value)||'other');
-  try{await DB.insert('lessons',{kind:'reply',title:t,tags:g,grp:gp,body_zh:'',body_vi:'',
+  try{await DB.insert('lessons',{kind:'reply',title:t,
+    tags:(($('#rp-ng')&&$('#rp-ng').value)||'').trim(),
+    grp:(($('#rp-nc')&&$('#rp-nc').value)||'other'),
+    addr:(($('#rp-na')&&$('#rp-na').value)||''),/* RPADDR_V932 */
+    body_zh:'',body_vi:(($('#rp-nv')&&$('#rp-nv').value)||''),
     order_index:(S.replies||[]).length+1,created_at:new Date().toISOString()});
-    await loadAll();closeModal();S.tab='reply';render();toast('已建立，接下來把內容打進去');}
+    await loadAll();closeModal();S.tab='reply';render();toast('已建立');}
   catch(e){toast(writeErr('建立失敗',e));}
 };
 H.rpEdit=(id)=>{const r=(S.replies||[]).find(x=>x.id===id);if(!r)return;
-  openModal('<div class="modal modal-wide modal-tall rp-em"><div class="modal-head"><h3>✏️ '+esc(r.title||'')+'</h3>'
-   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-   +'<div class="form-grid">'
-   +'<div class="field"><label>標題 *</label><input id="rp-et" type="text" value="'+esc(r.title||'')+'"></div>'
-   +'<div class="field"><label>分類</label><select id="rp-ec">'
-   +RP_GRP.map(g=>'<option value="'+g[0]+'"'+((rpGrpOf(r)===g[0])?' selected':'')+'>'+g[1]+'</option>').join('')
-   +'</select></div>'
-   +'<div class="field"><label>關鍵字 <span class="hint">用頓號隔開</span></label>'
-   +'<input id="rp-eg" type="text" value="'+esc(r.tags||'')+'"></div></div>'
-   +'<div class="lesson-label rp-em-lab">內容</div>'
-   +'<textarea id="rp-ev" rows="10" class="rp-ta" placeholder="把要貼給客人的內容打在這裡">'+esc(rpText(r))+'</textarea>'
-   +'<div class="hint rp-em-tip">內容都是你自己寫的，系統不會自己生任何一個字，也不會自動發給任何人。</div>'
-   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
-   +'<button class="btn btn-primary" data-act="rpEditSave" data-id="'+esc(id)+'">💾 儲存</button></div></div>');
+  openModal(rpFormHtml(r,0));/* RPFORM_V932 跟新增同一張表 */
 };
 H.rpEditSave=async(id)=>{
   const t=(($('#rp-et')&&$('#rp-et').value)||'').trim();
   if(!t)return toast('請填標題');
   try{await DB.update('lessons',id,{title:t,tags:(($('#rp-eg')&&$('#rp-eg').value)||'').trim(),
     grp:(($('#rp-ec')&&$('#rp-ec').value)||'other'),
+    addr:(($('#rp-ea')&&$('#rp-ea').value)||''),/* RPADDR_V932 */
     body_zh:'',body_vi:(($('#rp-ev')&&$('#rp-ev').value)||'')});
     await loadAll();closeModal();render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}
 };
@@ -12087,6 +12138,20 @@ H.guideCard=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const e=(t
    +'<h3>Cách dùng（Tiếng Việt）</h3>'+blk(vi)
    +'</body></html>';
   fbWin(html);};
+/* STMTNO_V931 單號：QNA-年月-當月流水（QNA-202609-007）。
+   Quinn 選的：一個月一段，每個月從 001 開始；同一位學生同一個月再開一次用原來那一號。
+   她說「有時候我是測試匯出」——所以重開不跳號，測試不會把號碼吃掉。
+   號碼記在 site.stmt_no：{ym:'202609', n:最後一號, map:{學生id:號}}，換月自動重來。 */
+function stmtNo(sid){
+  const ym=localToday().slice(0,7).replace('-','');
+  let box=(S.site&&S.site.stmt_no&&typeof S.site.stmt_no==='object')?S.site.stmt_no:null;
+  box=(box&&box.ym===ym)?{ym:ym,n:Number(box.n)||0,map:Object.assign({},box.map||{})}:{ym:ym,n:0,map:{}};
+  let n=Number(box.map[sid])||0;
+  if(!n){n=box.n+1;box.n=n;box.map[sid]=n;
+    if(S.site&&S.site.id){S.site.stmt_no=box;
+      /* 存不進去也不擋畫面——下次開還是同一號，最多就是沒往前推 */
+      (async()=>{try{await ensureAuthFresh();await DB.update('site',S.site.id,{stmt_no:box});}catch(e){}})();}}
+  return 'QNA-'+ym+'-'+String(n).padStart(3,'0');}
 H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}const s=S.students.find(x=>x.id===id);if(!s)return;
   /* STMT_MILKTEA_V648 對帳單版面：米色奶茶配色的柔和帳單，抬頭加上越南文 Tiếng Trung Quyên Huỳnh。
      字體：拉丁字母／越南文用 Avenir Next 系列（越南文聲調符號才不會缺字），中文優先用圓體。
@@ -12135,7 +12200,7 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
              h:(ghFontHead(k)||'')};});
   const _now=new Date(),_p2=n=>String(n).padStart(2,'0');
   const today=_now.getFullYear()+'-'+_p2(_now.getMonth()+1)+'-'+_p2(_now.getDate());
-  const sno='QNA-'+today.replace(/-/g,'')+'-'+(String(s.id||'').replace(/[^a-zA-Z0-9]/g,'').slice(-4).toUpperCase()||'0000');
+  const sno=stmtNo(s.id);/* STMTNO_V931 */
   const D={name:s.name||'',textbook:s.textbook||'—',price:price,cur:cur,unit:unit,grp:grp,
     /* STMTVI_V928 */
     unitv:(hourly?'giờ':'buổi'),kindv:(grp?'Lớp nhóm':'Học 1 kèm 1'),
@@ -15181,6 +15246,145 @@ H.ledgerGo=()=>{
     closeModal();
   }catch(err){toast('匯出失敗：'+((err&&err.message)||err));}};
 
+/* ══════ STUEXPALL_V931 學生頁的總匯出 ══════
+   Quinn：「這邊我覺得跟教材一樣，可以有一個總的匯出，然後可以選擇我要匯出什麼內容之類的」
+   每一張分頁第一欄都是學生名字，所以一個檔就看得到所有人。
+   期間只影響上課記錄和繳費記錄——基本資料、成績、回饋單本來就不是照期間切的。 */
+function sxPick(who){
+  let L=(S.students||[]).filter(x=>x&&!x.deleted&&!x.is_test);
+  if(who==='active')L=L.filter(x=>enrollOf(x)==='active');
+  else if(who==='shown'){
+    const sf=S.statusFilter||'active';
+    if(sf!=='all')L=L.filter(x=>enrollOf(x)===sf);
+    if(S.q){const q=String(S.q).toLowerCase();
+      L=L.filter(x=>String(x.name||'').toLowerCase().includes(q)||String(x.nationality||'').toLowerCase().includes(q));}}
+  return L.slice().sort(stuNameCmp);}
+function sxIn(d,a,b){const x=String(d||'');return (!a||x>=a)&&(!b||x<=b);}
+function sxEnroll(x){return ({active:'在學中',trial:'試學',paused:'休學',reserved:'預約・詢問中',lead:'預約中'}[enrollOf(x)]||enrollOf(x));}
+function sxBase(L){return L.map(x=>{
+  const cur=(typeof billCur==='function')?billCur(x):(x.currency||'TWD');
+  const A=spAttend(x),b=((typeof stuBill==='function')?stuBill(x):null)||{};
+  return {'姓名':x.name||'','狀態':sxEnroll(x),'課程型態':(x.class_type==='團班'?'團班':'一對一'),
+    '國籍':x.nationality||'','Email':x.email||'','教材':x.textbook||'',
+    '上課時段':((typeof fmtSchedule==='function')?fmtSchedule(x):''),
+    '學費':(x.tuition!=null?x.tuition:''),'幣別':cur,
+    '計費單位':((typeof unitLabel==='function')?unitLabel(x):'堂'),'付款日':x.payment_date||'',
+    '上課筆數':A.total,'出席':A.att,'請假':A.leave,'缺席':A.absent,
+    '累計應收':(b.charge!=null?b.charge:''),'累計實收':(b.paid!=null?b.paid:''),'結餘':(b.due!=null?b.due:''),
+    '備註':x.notes||''};});}
+function sxLogs(L,a,b){const out=[];L.forEach(x=>{
+  const cur=(typeof billCur==='function')?billCur(x):(x.currency||'TWD');const grp=(x.class_type==='團班');
+  (Array.isArray(x.class_log)?x.class_log:[]).filter(e=>e&&e.date&&sxIn(e.date,a,b))
+   .slice().sort((p,q)=>String(p.date).localeCompare(String(q.date))).forEach(e=>{
+    const h=(typeof logHours==='function')?logHours(e):null;
+    const bl=!e.free&&(grp||e.status!=='leave');
+    const f=(bl&&typeof lessonFee==='function')?lessonFee(x,e):null;
+    out.push({'學生':x.name||'','日期':e.date,'星期':spWd(e.date),'開始':e.start||'','結束':e.end||'',
+      '時數':(h==null?'':h),'狀態':(e.status==='leave'?'請假':(e.status==='absent'?'缺席':'出席')),
+      '免費':(e.free?'是':''),'補課':(e.makeup?'是':''),
+      '這堂費用':(bl?(f==null?'未設學費':f):0),'幣別':cur,'課後小結':e.note||''});});});
+  return out;}
+function sxPays(L,a,b){const out=[];L.forEach(x=>{
+  const cur=(typeof billCur==='function')?billCur(x):(x.currency||'TWD');
+  (Array.isArray(x.payments)?x.payments:[]).filter(p=>p&&p.date&&sxIn(p.date,a,b))
+   .slice().sort((p,q)=>String(p.date).localeCompare(String(q.date))).forEach(p=>{
+    out.push({'學生':x.name||'','日期':p.date,'金額':p.amount,'幣別':p.currency||cur,
+      '折合帳單幣別':(p.conv||''),'加堂':(p.sessions||''),'備註':p.note||''});});});
+  return out;}
+function sxScores(L){const out=[];L.forEach(x=>{spScores(x.id).slice().reverse().forEach(r=>{
+    out.push({'學生':x.name||'','日期':r.d,'類型':r.t,'名稱':r.n,'答對':r.ok,'總題數':r.tot,'百分比':spPct(r.ok,r.tot)});});});
+  return out;}
+function sxFbs(L){const out=[];L.forEach(x=>{((typeof fbList==='function')?fbList(x):[]).forEach(f=>{const st=f.stars||{};
+    out.push({'學生':x.name||'','日期':f.date,'教材':f.book||'','單元':f.unit||'','上課內容':f.content||'',
+      '發音':st.pron||'','聽力':st.listen||'','生詞語法':st.vocab||'','開口說':st.speak||'','專心度':st.focus||'','作業':st.hw||'',
+      '老師的話':f.note||'','回家作業':f.next||''});});});
+  return out;}
+function sxSums(L){const out=[];L.forEach(x=>{((typeof fbSumList==='function')?fbSumList(x):[]).forEach(f=>{const st=f.stars||{};
+    out.push({'學生':x.name||'','月份':f.ym,'發音':st.pron||'','聽力':st.listen||'','生詞語法':st.vocab||'','開口說':st.speak||'','專心度':st.focus||'','作業':st.hw||'',
+      '這個月的進步':f.good||'','需要改進':f.work||'','下個月練習':f.goal||''});});});
+  return out;}
+H.stuExpAll=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
+  const T=localToday(),ym=T.slice(0,7);
+  const d=new Date(T+'T00:00:00');d.setDate(1);d.setMonth(d.getMonth()-1);
+  const lastYm=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  const ck=(id,lbl,sub,on)=>'<label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin:4px 0">'
+    +'<input type="checkbox" id="'+id+'"'+(on?' checked':'')+' style="width:auto"> <span><b>'+lbl+'</b>　'+sub+'</span></label>';
+  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📤 總匯出 · 學生資料</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:12px">一個 Excel 檔，每一種內容各一張分頁，第一欄都是學生名字。數字跟平台上看到的同一套算法。</div>'
+   +'<div class="field full"><label>要匯出誰</label><select id="sx-who">'
+   +'<option value="active">在學中的學生</option>'
+   +'<option value="all">全部學生（含試學、休學）</option>'
+   +'<option value="shown">現在畫面上列出來的那些</option>'
+   +'</select></div>'
+   +'<div class="field full" style="margin-top:10px"><label>要匯出哪幾張表？</label>'
+   +ck('sx-base','基本資料','每位學生一列：時段、學費、出席、累計應收已收',1)
+   +ck('sx-log','上課記錄','每一堂一列，含這堂算多少錢',1)
+   +ck('sx-pay','繳費記錄','每一筆收款一列',1)
+   +ck('sx-sc','作業成績','每一份作業一列：答對／總題數／百分比',0)
+   +ck('sx-fb','上課回饋單','寫過的每一張回饋單',0)
+   +ck('sx-sum','月總結','每個月的總結與星等',0)
+   +'</div>'
+   +'<div class="field full" style="margin-top:10px"><label>期間</label>'
+   +'<select id="sx-range">'
+   +'<option value="all">全部（不限期間）</option>'
+   +'<option value="'+esc(ym)+'">這個月（'+esc(ym)+'）</option>'
+   +'<option value="'+esc(lastYm)+'">上個月（'+esc(lastYm)+'）</option>'
+   +'<option value="custom">自己指定起訖日</option>'
+   +'</select>'
+   +'<div id="sx-custom" class="hide" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'
+   +'<input type="date" id="sx-from" style="flex:1;min-width:140px"><input type="date" id="sx-to" style="flex:1;min-width:140px"></div>'
+   +'<div class="hint" style="margin-top:6px">期間只影響「上課記錄」和「繳費記錄」。基本資料、成績、回饋單一律給全部。</div>'
+   +'</div>'
+   +'<div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">'
+   +'<button class="btn" data-act="closeModal" style="flex:1;min-width:90px">取消</button>'
+   +'<button class="btn" data-act="stuExpCards" style="flex:1;min-width:150px" title="不看上面的勾選，每位學生一頁">📄 學生檔案卡</button>'
+   +'<button class="btn btn-accent" data-act="stuExpGo" style="flex:2;min-width:150px">⬇ 匯出 Excel</button></div>'
+   +'</div></div>');
+  const sel=document.getElementById('sx-range');
+  if(sel)sel.addEventListener('change',()=>{const box=document.getElementById('sx-custom');
+    if(box)box.classList.toggle('hide',sel.value!=='custom');});};
+H.stuExpGo=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
+  if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
+  const V=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  const C=id=>{const el=document.getElementById(id);return !!(el&&el.checked);};
+  const want={base:C('sx-base'),log:C('sx-log'),pay:C('sx-pay'),sc:C('sx-sc'),fb:C('sx-fb'),sum:C('sx-sum')};
+  if(!Object.keys(want).some(k=>want[k])){toast('至少要勾一張表');return;}
+  const r=V('sx-range');let a='',b='',label='全部';
+  if(r==='custom'){a=V('sx-from');b=V('sx-to');
+    if(a&&b&&a>b){toast('起日不能晚於迄日');return;}
+    label=(a||'最早')+'~'+(b||'最新');}
+  else if(r&&r!=='all'){a=r+'-01';b=r+'-31';label=r;}
+  const who=V('sx-who')||'active';
+  const L=sxPick(who);
+  if(!L.length){toast('這個條件下沒有學生');return;}
+  try{
+    const wb=XLSX.utils.book_new();let n=0;
+    const add=(rows,name)=>{XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows.length?rows:[{'（沒有資料）':''}]),name);n+=rows.length;};
+    if(want.base)add(sxBase(L),'基本資料');
+    if(want.log)add(sxLogs(L,a,b),'上課記錄');
+    if(want.pay)add(sxPays(L,a,b),'繳費記錄');
+    if(want.sc)add(sxScores(L),'作業成績');
+    if(want.fb)add(sxFbs(L),'上課回饋單');
+    if(want.sum)add(sxSums(L),'月總結');
+    const wn={active:'在學中',all:'全部學生',shown:'篩選結果'}[who]||'學生';
+    XLSX.writeFile(wb,'QNA CHINESE_學生資料_'+wn+'_'+label+'_'+localToday()+'.xlsx');
+    toast('已匯出 '+L.length+' 位學生、'+n+' 筆資料');
+    closeModal();
+  }catch(err){toast('匯出失敗：'+((err&&err.message)||err));}};
+H.stuExpCards=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
+  const V=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  const L=sxPick(V('sx-who')||'active');
+  if(!L.length){toast('這個條件下沒有學生');return;}
+  const pages=L.map(x=>spPageOf(stuCardHtml(x))).filter(Boolean);
+  if(!pages.length){toast('沒有可以印的檔案卡');return;}
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>QNA CHINESE 學生檔案卡</title><style>'+fbCss()
+    +'.page{margin-bottom:20px}@media print{.page{break-after:page;margin-bottom:0}.page:last-child{break-after:auto}}'
+    +'</style></head><body>'
+    +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
+    +'<span class="hint">共 '+pages.length+' 位學生，每位一頁</span></div>'
+    +pages.join('')+'</body></html>';
+  closeModal();fbWin(html);};
 H.cert=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const today=localToday();
   openModal(`<div class="modal"><div class="modal-head"><h3>🎓 結業證書</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
     <div class="field full"><label>學生姓名</label><input id="cert-name" type="text" value="${esc(s.name||'')}"></div>
