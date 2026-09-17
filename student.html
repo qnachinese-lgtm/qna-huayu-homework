@@ -2857,8 +2857,8 @@ function renderWork(){
   const nb=nbp.length?`<div class="notify-bar">${nbp.join('')}</div>`:'';
   const sessCard='';
   const meetCard=infoBarHtml('drive');
-  const _hasSched=Array.isArray(S.me&&S.me.schedule)&&S.me.schedule.some(r=>r&&r.s);
-  const calCard=_hasSched?`<div class="cal-card"><button class="btn btn-sm" data-act="addCal">📅 加入手機／Google 日曆</button><span class="hint">加一次，每週上課前 30 分鐘手機自動提醒</span></div>`:'';
+  /* CLEANWORK_V976 「加入手機／Google 日曆」從作業頁拿掉——這一頁是給學生做作業的，
+     不是看行事曆的地方。（H.addCal 留著，之後要放回別頁隨時可以叫。） */
   // 成就徽章
   const allLs=myLessons();const doneCnt=allLs.filter(l=>{const r=resultOf(l.id);return r&&r.status==='done';}).length;const _b=[];
   if(_st.streak>=2)_b.push('<span class="achv">🔥 連續 '+_st.streak+' 天</span>');
@@ -2869,12 +2869,14 @@ function renderWork(){
   const anns=(S.announcements||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).slice(0,3);
   const annCard=anns.length?'<div class="ann-card"><div class="ann-h">📢 公告 Notice</div>'+anns.map(a=>'<div class="ann-item"><span class="ann-date">'+esc((a.created_at||'').slice(0,10))+'</span>'+esc(a.text||'')+'</div>').join('')+'</div>':'';
   const liveJoinCard=(S.preview||!(S.site&&S.site.live_on==='on'))?'':'<div class="ann-card" style="cursor:pointer;background:linear-gradient(135deg,#fff5e6,#fbe6d2)" onclick="SLQ.join()"><div class="ann-h">🎮 '+esc(LT({zh:'加入即時比賽',cn:'加入即时比赛',en:'Join live quiz',vi:'Tham gia thi trực tiếp'}))+'</div><div class="ann-item">'+esc(LT({zh:'老師開始後，點這裡輸入代碼一起玩！',cn:'老师开始后，点这里输入代码一起玩！',en:'When your teacher starts, tap here and enter the code!',vi:'Khi cô bắt đầu, bấm vào đây và nhập mã!'}))+'</div></div>';
-  // 課後小結（老師寫的上課記錄備註）
-  const notes=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).filter(e=>e&&e.note&&e.note.trim()).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3);
-  const noteCard=notes.length?'<div class="note-card"><div class="ann-h">📝 '+esc(LT({zh:'課後小結',cn:'课后小结',en:'Class notes',vi:'Ghi chú buổi học'}))+'</div>'+notes.map(n=>'<div class="ann-item"><span class="ann-date">'+esc(n.date||'')+'</span>'+esc(n.note||'')+'</div>').join('')+'</div>':'';
+  /* CLEANWORK_V976 「課後小結」拿掉。那一欄是老師點名時寫給自己的備註
+     （例如「提早10分鐘下課，下次補回來」），不是寫給學生看的。 */
   const _wh='<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>';
   const payCard=uploadCardHtml();   /* 費用只放在「資訊」頁，不出現在課程／作業 */
-  $('#screen').innerHTML=_wh+banner+badgeStrip+liveJoinCard+annCard+payCard+meetCard+classUpcomingHtml()+calCard+noteCard+sessCard+nb+submittedWorkHtml()+_wbTodo+lqpCard+quizCard+(ls.length?'<div class="cards">':'')+ls.map((l,i)=>{
+  /* LESBOOK_V976 這一排課本來直接接在作業簿那一段的「📚 時代華語三」標題底下，
+     看起來就變成時代華語三的東西。改成跟作業簿一樣照「教材」分組，
+     每一本自己一個標題，屬於別本的課就不會被算在別人頭上。 */
+  const _lesRow=(l,i)=>{
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
@@ -2882,7 +2884,24 @@ function renderWork(){
       <div class="grow"><h3>${esc(l.title)}</h3>
         <div class="meta" style="margin-top:4px;align-items:center"><span>📝 ${qn} ${t('q')}</span>${dlgHasAudio(l)?'<span class="tag gold">🔊</span>':''}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}</div>
         ${done?`<div class="progress"><span style="width:${pct}%"></span></div>`:''}</div>
-      ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`:`<div class="tag accent">${(r&&r.status==='draft')?t('resume'):t('start')} →</div>`}</div>`;}).join('')+(ls.length?'</div>':'');
+      ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`:`<div class="tag accent">${(r&&r.status==='draft')?t('resume'):t('start')} →</div>`}</div>`;};
+  const lesBlk=(function(){
+    if(!ls.length)return '';
+    const OTHER=LT({zh:'其他教材',cn:'其他教材',en:'Other materials',vi:'Giáo trình khác'});
+    const g={},order=[];
+    ls.forEach(l=>{const b=((l.textbook||'').trim())||OTHER;
+      if(!g[b]){g[b]=[];order.push(b);}g[b].push(l);});
+    /* 「其他教材」排最後，不要擋在正式教材前面 */
+    order.sort((x,y)=>(x===OTHER?1:0)-(y===OTHER?1:0)||String(x).localeCompare(String(y),'zh-Hant'));
+    order.forEach(b=>g[b].sort((x,y)=>(Number(x.order_index)||0)-(Number(y.order_index)||0)));
+    const head='<div class="lesson-label" style="margin-top:6px">📖 '
+      +esc(LT({zh:'課文練習題',cn:'课文练习题',en:'Lesson exercises',vi:'Bài luyện của bài học'}))+'</div>';
+    /* 只有一本的話不用再標書名，標題已經夠清楚了 */
+    if(order.length<=1)return head+'<div class="cards">'+g[order[0]].map(_lesRow).join('')+'</div>';
+    return head+order.map(b=>'<div class="wb-book-hd">📚 '+esc(b)+' <span class="wb-book-n">'+g[b].length+'</span></div>'
+      +'<div class="cards">'+g[b].map(_lesRow).join('')+'</div>').join('');
+  })();
+  $('#screen').innerHTML=_wh+banner+badgeStrip+liveJoinCard+annCard+payCard+meetCard+classUpcomingHtml()+sessCard+nb+submittedWorkHtml()+_wbTodo+lqpCard+quizCard+lesBlk;
 }
 function lessonTags(l){const tags=[];
   try{
