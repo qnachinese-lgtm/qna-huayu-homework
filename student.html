@@ -3260,15 +3260,36 @@ function renderCards(){
   hydrateVi([v.back]);
 }
 /* ===== 首頁：課程卡片 + 近期待辦（NTU COOL 風格） ===== */
+/* BOOKGRP_V972 照「教材」分組，不照團班。
+   同一個團班可能同時在上兩套書（時代華語三＋當代中文課程一），
+   照團班分就會混在同一個清單裡，學生會以為是同一本。
+   時段還是照那本書實際在哪一個團班上的去拿；都不是團班就用學生自己的時段。 */
 function courseList(){
-  const out=[];
-  myGroups().forEach(g=>{const cm=classMetaOf(g);
-    out.push({id:'G:'+g,kind:'grp',name:(cm.textbook?(cm.textbook+' · '):'')+g,sub:fmtSched(cm.schedule)||'',
-      lessons:myLessons().filter(l=>((l.assigned_groups||[]).includes(g)))});});
-  const solo=myLessons().filter(l=>!(l.assigned_groups||[]).some(g=>myGroups().includes(g)));
-  if(solo.length||!out.length){const tb=(solo[0]&&solo[0].textbook)||(S.me&&S.me.textbook)||'';
-    out.push({id:'S',kind:'solo',name:tb||LT({zh:'我的課程',cn:'我的课程',en:'My course',vi:'Khoá học của tôi'}),
-      sub:fmtSched(S.me&&S.me.schedule)||'',lessons:solo});}
+  const OTHER=LT({zh:'其他教材',cn:'其他教材',en:'Other materials',vi:'Giáo trình khác'});
+  const ls=myLessons();
+  const by={},order=[];
+  ls.forEach(l=>{
+    const b=String((l&&l.textbook)||'').trim()||OTHER;
+    if(!by[b]){by[b]=[];order.push(b);}
+    by[b].push(l);});
+  const grp=myGroups();
+  const schedOf=(arr)=>{
+    for(let i=0;i<grp.length;i++){
+      const g=grp[i];
+      if(arr.some(l=>((l.assigned_groups||[]).includes(g)))){
+        const cm=classMetaOf(g);const s=fmtSched(cm.schedule);
+        if(s)return {sub:s,cls:g};
+        return {sub:'',cls:g};
+      }
+    }
+    return {sub:fmtSched(S.me&&S.me.schedule)||'',cls:''};};
+  const out=order.map(b=>{const arr=by[b];const sc=schedOf(arr);
+    return {id:'B:'+b,kind:sc.cls?'grp':'solo',name:b,sub:sc.sub,cls:sc.cls,lessons:arr};});
+  if(!out.length){
+    const tb=(S.me&&S.me.textbook)||'';
+    out.push({id:'S',kind:'solo',
+      name:tb||LT({zh:'我的教材',cn:'我的教材',en:'My materials',vi:'Giáo trình của tôi'}),
+      sub:fmtSched(S.me&&S.me.schedule)||'',lessons:[]});}
   return out;
 }
 function dueRows(){
@@ -3397,11 +3418,11 @@ function renderHome(){
   document.body.classList.remove('notes-active');
   const L=S.lang||'zh';
   /* DUE2_V964 多兩個字：沒有截止日的練習放到「還沒做完」，不要跟「快到期」混在一起 */
-  const T=({zh:{hi:'你好',todo:'近期待辦',none:'目前沒有待辦，很棒！',go:'去作答',cs:'我的課程',grp:'團班',solo:'一對一',todo2:'還沒做完',none2:'都做完了'},
-            cn:{hi:'你好',todo:'近期待办',none:'目前没有待办，很棒！',go:'去作答',cs:'我的课程',grp:'团班',solo:'一对一',todo2:'还没做完',none2:'都做完了'},
-            en:{hi:'Hi',todo:'Due soon',none:'Nothing due. Nice work!',go:'Start',cs:'My courses',grp:'Class',solo:'1-on-1',todo2:'Not finished',none2:'All done'},
-            vi:{hi:'Xin chào',todo:'Sắp đến hạn',none:'Không có bài nào đến hạn. Tuyệt!',go:'Làm bài',cs:'Khoá học của tôi',grp:'Lớp',solo:'1 kèm 1',todo2:'Chưa làm xong',none2:'Đã làm xong hết'}})[L]
-        ||{hi:'你好',todo:'近期待辦',none:'目前沒有待辦，很棒！',go:'去作答',cs:'我的課程',grp:'團班',solo:'一對一',todo2:'還沒做完',none2:'都做完了'};
+  const T=({zh:{hi:'你好',todo:'近期待辦',none:'目前沒有待辦，很棒！',go:'去作答',cs:'我的教材',grp:'團班',solo:'一對一',todo2:'還沒做完',none2:'都做完了'},
+            cn:{hi:'你好',todo:'近期待办',none:'目前没有待办，很棒！',go:'去作答',cs:'我的教材',grp:'团班',solo:'一对一',todo2:'还没做完',none2:'都做完了'},
+            en:{hi:'Hi',todo:'Due soon',none:'Nothing due. Nice work!',go:'Start',cs:'My materials',grp:'Class',solo:'1-on-1',todo2:'Not finished',none2:'All done'},
+            vi:{hi:'Xin chào',todo:'Sắp đến hạn',none:'Không có bài nào đến hạn. Tuyệt!',go:'Làm bài',cs:'Giáo trình của tôi',grp:'Lớp',solo:'1 kèm 1',todo2:'Chưa làm xong',none2:'Đã làm xong hết'}})[L]
+        ||{hi:'你好',todo:'近期待辦',none:'目前沒有待辦，很棒！',go:'去作答',cs:'我的教材',grp:'團班',solo:'一對一',todo2:'還沒做完',none2:'都做完了'};
   const cs=courseList();
   const G=['linear-gradient(135deg,#A3714E,#7d2733)','linear-gradient(135deg,#6B4A33,#164f56)','linear-gradient(135deg,#8E6B2F,#5e4620)','linear-gradient(135deg,#4B4A8F,#2f2e5e)'];
   const annN=(S.announcements||[]).filter(a=>assignedToMe(a)).length;
