@@ -807,7 +807,7 @@ window.QNA_VI = {
     "共用": "dùng chung",
     "🎟️ 已上": "🎟️ Đã học",
     "沒設「每堂多少錢」，所以算不出應收": "Chưa đặt “mỗi buổi bao nhiêu tiền” nên không tính được khoản phải thu",
-    "這些不影響學生上課，但會讓你的堂數／收入統計不準，建議抽空修一修。": "Những mục này không ảnh hưởng việc học, nhưng làm thống kê số buổi / thu nhập sai lệch, nên tranh thủ sửa lại.",
+    "不影響學生上課，但會讓堂數／收入統計不準，有空修一修。": "Những mục này không ảnh hưởng việc học, nhưng làm thống kê số buổi / thu nhập sai lệch, nên tranh thủ sửa lại.",
     "去修正": "Đi sửa",
     "💰 收錢請到左邊選單的「💰 繳費」，所有學生（含團班）都在那一頁記。": "💰 Thu tiền vui lòng vào “💰 Nộp phí” ở menu bên trái, mọi học viên (kể cả lớp nhóm) đều ghi ở trang đó.",
 
