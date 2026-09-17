@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=943">
+<link rel="stylesheet" href="styles.css?v=944">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -379,6 +379,17 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .rp-ad.a-anhchi{background:#eaf2fb;color:#3f6893;border-color:#d7e5f3}
         .rp-ad.a-ban{background:#eef6f0;color:#2f7a52;border-color:#d8ecdf}
         .rp-ad.a-gs{opacity:.6;font-weight:700}
+        /* PROP_V944 待審修改的差異 */
+        .prop-d{border-top:1px solid var(--line);padding:8px 0}
+        .prop-d:first-of-type{border-top:0;padding-top:0}
+        .prop-k{font-size:11.5px;font-weight:800;color:var(--primary-dark,#7A5236);margin-bottom:4px}
+        .prop-c{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        @media(max-width:600px){.prop-c{grid-template-columns:1fr}}
+        .prop-o,.prop-n{font-size:12.5px;line-height:1.7;border-radius:10px;padding:7px 10px;
+          white-space:pre-wrap;word-break:break-word;max-height:170px;overflow:auto}
+        .prop-o{background:#fbf1ee;border:1px solid #f0dcd5;color:#7a4a3a}
+        .prop-n{background:#eef7f0;border:1px solid #d8ecdf;color:#2f5a42}
+        .prop-t{display:block;font-size:10px;font-weight:800;letter-spacing:1px;opacity:.7;margin-bottom:2px}
         /* RPFIT_V933 稱謂標籤不換行，會把 grid 的欄寬撐大（量到 3 欄 1383px 塞進 1180px 的容器，
            整頁多一條橫向捲軸）。卡片 min-width:0 讓格子縮得回去，標題列窄的時候用切的。 */
         .rp-c{min-width:0}
@@ -1859,6 +1870,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           <button class="btn" data-act="bulkAssign">📤 批次指派</button>
           <button class="btn" data-act="qReload" title="題目存在瀏覽器裡，重整不用重讀。在別台電腦改過題目的話，按這個重新讀一次">🔄 重讀題目</button>
           <button class="btn" data-act="ghOpen">📄 匯出講義 PDF</button>
+          <button class="btn hide" data-act="propList" id="prop-btn">📥 待審修改</button>
           <button class="btn btn-primary" data-act="addLesson">＋ 新增課文</button></div></div>
         <div id="vi-bar"></div>
         <div id="lessons-list" class="cards"></div>
@@ -2215,6 +2227,54 @@ let IS_OWNER=false, MY_EMAIL='';
 function lessonMine(l){const a=String((l&&l.created_by)||'').toLowerCase();
   return !!(a&&a===String(MY_EMAIL||'').toLowerCase());}
 function canDelLesson(l){return IS_OWNER||lessonMine(l);}
+/* PROP_V944 這一課（或這一題所屬的課）是不是主管理員建的——是的話老師要走送審 */
+function needsReview(l){return !IS_OWNER&&!lessonMine(l);}
+function propPending(){return (S.props||[]).filter(p=>(p.status||'pending')==='pending'
+  &&(IS_OWNER||String(p.by||'').toLowerCase()===String(MY_EMAIL||'').toLowerCase()));}
+/* undefined 存不進 Firestore，而且提案要存的是「純資料」，走一次 JSON 最乾淨 */
+function propClean(o){try{return JSON.parse(JSON.stringify(o||{}));}catch(e){return {};}}
+async function propSave(target,targetId,obj,label){
+  const patch=propClean(obj);
+  const cur=(target==='questions')
+    ?((S.questions||[]).find(x=>x.id===targetId)||{})
+    :((S.lessons||[]).find(x=>x.id===targetId)||{});
+  const before={};Object.keys(patch).forEach(k=>{before[k]=(cur[k]===undefined?null:cur[k]);});
+  await ensureAuthFresh();
+  await DB.insert('lessons',{kind:'edit_proposal',target:target,target_id:targetId||'',
+    label:String(label||''),patch:patch,before:propClean(before),
+    by:MY_EMAIL||'',at:new Date().toISOString(),status:'pending'});}
+/* 欄位的中文名字，清單上才看得懂 */
+const PROPK={title:'課名',textbook:'教材',order_index:'課號',dialogues:'課文段落',
+  grammar_points:'語法',notes:'注釋',vocab:'生詞',content:'內文',video_url:'影片',
+  activities:'課室活動',culture:'文化',transcript:'聽力文本',cl_qs:'課後問答',
+  prompt:'題目',options:'選項',answer:'答案',items:'小題',instruction:'說明',
+  type:'題型',bank:'放哪一邊',gp_index:'屬於哪個語法',audio_url:'音檔',image_url:'圖片'};
+function propVal(v){
+  if(v==null||v==='')return '（空）';
+  if(typeof v==='string')return v;
+  if(typeof v==='number'||typeof v==='boolean')return String(v);
+  /* PROP_V944 課文段落、語法這些是物件陣列，直接印 JSON 根本看不懂。
+     挑得出標題和內容的就排成人看得懂的行。 */
+  if(Array.isArray(v)){
+    const lines=v.map((x,i)=>{
+      if(x==null)return '';
+      if(typeof x!=='object')return String(x);
+      const t=String(x.title||x.name||x.l||'').trim();
+      const c=String(x.content||x.text||x.prompt||x.ex||x.r||'').trim();
+      const body=(c.length>220?(c.slice(0,220)+'…'):c);
+      return (i+1)+'. '+(t?('【'+t+'】'):'')+(body||(t?'':JSON.stringify(x).slice(0,220)));
+    }).filter(Boolean);
+    return lines.length?lines.join('\n'):'（空）';}
+  try{const t=JSON.stringify(v);return t.length>500?(t.slice(0,500)+'…'):t;}
+  catch(e){return String(v);}}
+function propDiffHtml(p){
+  const a=p.before||{},b=p.patch||{};
+  const keys=Object.keys(b).filter(k=>JSON.stringify(a[k])!==JSON.stringify(b[k]));
+  if(!keys.length)return '<div class="hint">跟原本一樣，沒有實際變動。</div>';
+  return keys.map(k=>'<div class="prop-d"><div class="prop-k">'+esc(PROPK[k]||k)+'</div>'
+    +'<div class="prop-c"><div class="prop-o"><span class="prop-t">改前</span>'+esc(propVal(a[k]))+'</div>'
+    +'<div class="prop-n"><span class="prop-t">改後</span>'+esc(propVal(b[k]))+'</div></div></div>').join('');}
+
 /* 新增東西的時候蓋一個章，主管理員建的不蓋（維持跟舊資料一樣） */
 function stampBy(o){if(!IS_OWNER&&MY_EMAIL)o.created_by=MY_EMAIL;return o;}
 const CRM_KINDS={agency:1,interview:1,inquiry:1,writing:1};
@@ -2293,7 +2353,11 @@ async function loadAll(){
   let _crm=[];if(owner){try{_crm=await DB.list('crm');}catch(e){_crm=[];}}
   try{await shareLoad();}catch(e){}
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&x.kind!=='lqassign'&&x.kind!=='reply'&&x.kind!=='price'&&!x.deleted_at);S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.lqassigns=b.filter(x=>x.kind==='lqassign'&&!x.deleted_at);
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&x.kind!=='lqassign'&&x.kind!=='reply'&&x.kind!=='price'&&x.kind!=='edit_proposal'&&!x.deleted_at);
+   /* PROP_V944 老師送來的修改提案 */
+   S.props=b.filter(x=>x.kind==='edit_proposal'&&!x.deleted_at)
+     .sort((p,q)=>String(q.at||'').localeCompare(String(p.at||'')));
+   S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.lqassigns=b.filter(x=>x.kind==='lqassign'&&!x.deleted_at);
    /* REPLY_V711 回覆範本：跟教材一樣放在 lessons，用 kind:'reply' 分開 */
    S.replies=b.filter(x=>x.kind==='reply'&&!x.deleted_at);
    /* QUOTE_V713 價目表：報價單的項目就是從這裡挑 */
@@ -5565,6 +5629,12 @@ function unitGroupHtml(book,list){/*UNITGRP_V77 先照單元收起來，展開�
   return html;}
 function renderLessons(){
   const wrap=$('#lessons-list');if(!wrap)return;
+  /* PROP_V944 有待審的才出現，順便把筆數寫在鈕上 */
+  try{const _pb=document.getElementById('prop-btn');
+    if(_pb){const _n=propPending().length;
+      _pb.classList.toggle('hide',!_n);
+      _pb.textContent=(IS_OWNER?'📥 待審修改（':'📥 我送出的修改（')+_n+'）';
+      _pb.classList.toggle('btn-accent',IS_OWNER&&_n>0);}}catch(e){}
   {const vb=$('#vi-bar');if(vb)vb.innerHTML=(S.pe?'':viBarHtml());}
   if(S.pe){wrap.innerHTML=pronEditorHtml();return;}
   const hasPron=(S.prons||[]).length>0;
@@ -12959,6 +13029,56 @@ H.ordDown=(idx)=>{idx=Number(idx);if(idx>=LAYOUT.length-1)return;const tmp=LAYOU
 H.saveLayout=async()=>{const id=LAYOUT_LID;if(!id)return;const btn=document.querySelector('[data-act="saveLayout"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
   try{await DB.update('lessons',id,{layout:LAYOUT.map(e=>({t:e.t,i:e.i}))});await loadAll();closeModal();render();toast('已儲存課文順序');}
   catch(e){if(btn){btn.disabled=false;btn.textContent='儲存順序';}toast(writeErr('儲存失敗',e));}};
+/* PROP_V944 待審修改的清單與處理。放在這裡是因為 H 要先存在。 */
+H.propList=()=>{
+  const list=propPending();
+  const done=(S.props||[]).filter(p=>(p.status||'pending')!=='pending').slice(0,10);
+  const card=(p)=>'<div class="card" style="margin-bottom:12px;padding:14px 16px">'
+    +'<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
+    +'<b>'+esc(p.label||'（沒有標題）')+'</b>'
+    +'<span class="tag">'+(p.target==='questions'?'題目':'課文')+(p.target_id?'':'・新增')+'</span>'
+    +'<span class="grow"></span>'
+    +'<span class="hint">'+esc(adminName(p.by))+'　'+esc(String(p.at||'').slice(0,16).replace('T',' '))+'</span></div>'
+    +propDiffHtml(p)
+    +(IS_OWNER?('<div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">'
+      +'<button class="btn btn-sm" data-act="propReject" data-id="'+esc(p.id)+'">退回</button>'
+      +'<button class="btn btn-sm btn-accent" data-act="propApply" data-id="'+esc(p.id)+'">✅ 套用</button></div>')
+      :'<div class="hint" style="margin-top:8px">等主管理員確認</div>')
+    +'</div>';
+  openModal('<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>📥 '
+   +(IS_OWNER?'待審修改':'我送出的修改')+'</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +(IS_OWNER?'<div class="hint" style="margin-bottom:12px">老師改到你建的課文或題目，會先停在這裡。按「套用」才會真的寫進教材。</div>'
+             :'<div class="hint" style="margin-bottom:12px">你改的是主管理員建的教材，所以先送出等確認。你自己建的課文不用經過這裡。</div>')
+   +(list.length?list.map(card).join(''):'<div class="muted" style="padding:14px 2px">目前沒有待處理的修改 👍</div>')
+   +(done.length?('<div class="lesson-label" style="margin-top:16px">最近處理過的</div>'
+      +done.map(p=>'<div class="dash-row"><span class="badge '+(p.status==='applied'?'badge-ok':'badge-pending')+'">'
+        +(p.status==='applied'?'已套用':'已退回')+'</span><b>'+esc(p.label||'')+'</b><span class="grow"></span>'
+        +'<span class="muted">'+esc(adminName(p.by))+'</span></div>').join('')):'')
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');};
+H.propApply=async(id)=>{if(!IS_OWNER)return toast('只有主管理員可以用');
+  const p=(S.props||[]).find(x=>x.id===id);if(!p)return;
+  if(!confirm('把這一筆修改套用到「'+(p.label||'')+'」？\n套用之後就直接改進教材了。'))return;
+  try{await ensureAuthFresh();
+    const patch=propClean(p.patch);
+    if(p.target==='questions'){
+      if(p.target_id)await DB.update('questions',p.target_id,patch);
+      else await DB.insert('questions',patch);
+      S.questions=await listQuestions(true);
+    }else{
+      if(p.target_id)await DB.update('lessons',p.target_id,patch);
+      else await DB.insert('lessons',patch);}
+    await DB.update('lessons',id,{status:'applied',decided_at:new Date().toISOString()});
+    await loadAll();render();H.propList();toast('已套用');
+  }catch(e){toast(writeErr('套用失敗',e));}};
+H.propReject=async(id)=>{if(!IS_OWNER)return toast('只有主管理員可以用');
+  const p=(S.props||[]).find(x=>x.id===id);if(!p)return;
+  const why=prompt('退回「'+(p.label||'')+'」。要跟老師說什麼嗎？（可以留空）','');
+  if(why===null)return;
+  try{await ensureAuthFresh();
+    await DB.update('lessons',id,{status:'rejected',decided_at:new Date().toISOString(),decided_note:String(why||'')});
+    await loadAll();render();H.propList();toast('已退回');
+  }catch(e){toast(writeErr('退回失敗',e));}};
 H.delLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;
   /* ROLE_V943 畫面上藏起來還不夠，這裡也要擋——按鈕可能是從別的地方叫進來的 */
   if(!canDelLesson(l)){toast('這一課不是你建的，只有主管理員可以刪');return;}if(!confirm(`把「${l.title}」移到垃圾桶？\n7 天內可在右上🗑垃圾桶復原；逾期才會連同題目與成績永久刪除。`))return;try{await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已移到垃圾桶（可復原）');}catch(err){toast(writeErr('刪除失敗',err));}};
@@ -12988,6 +13108,14 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
     /* ACT_CULT_V44 課室活動／文化是獨立的兩區，不再塞進對話段落 */
     activities:(($('#l-act')&&$('#l-act').value)||'').trim(),culture:(($('#l-cult')&&$('#l-cult').value)||'').trim(),vi_release:!!($('#l-vi-release')&&$('#l-vi-release').checked),dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,notes:ntCollect(),key_points:'',examples:$('#l-examples').value,handout_url:(($('#l-handout-url')&&$('#l-handout-url').value)||'')||null,handout_name:(($('#l-handout-name')&&$('#l-handout-name').value)||'')||null,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[])};
   if(!id)stampBy(obj);/* ROLE_V943 */
+  /* PROP_V944 老師改主管理員建的課，不直接寫回去，存成提案 */
+  {const _cur=id?(S.lessons.find(x=>x.id===id)||null):null;
+   if(id&&_cur&&needsReview(_cur)){
+     try{await propSave('lessons',id,obj,_cur.title||'（未命名）');
+       vaReset();closeModal();await loadAll();render();
+       toast('已送出，等主管理員確認');}
+     catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent='儲存';}toast(writeErr('送出失敗',err));}
+     return;}}
   try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}};
 
 /* ===== 注釋 Notes 編輯器 ===== */
@@ -13298,6 +13426,15 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
   const gpsub=$('#qe-gpsub')?$('#qe-gpsub').value.trim():'';
   const obj={lesson_id:lid,type,prompt:prompt||(type==='order'?'請將下列詞語重組成正確的句子':type==='match'?'請將左右配對':''),
     options,answer,items,bank:(($('#qe-bank')&&$('#qe-bank').value==='hw')?'hw':'class'),gp_index:(gpv===''?null:Number(gpv)),gp_sub:gpsub||null,input_mode:(type==='fill'&&$('#qe-fillmode')?$('#qe-fillmode').value:null),audio_url:$('#qe-audio').value.trim()||null,image_url:($('#qe-image')?$('#qe-image').value.trim():'')||null,instruction:($('#qe-instruction')?$('#qe-instruction').value.trim():'')||null,explanation:$('#qe-explain').value.trim()||null};
+  /* PROP_V944 題目歸屬跟著課文走：課文是主管理員建的，題目也要送審 */
+  {const _l=S.lessons.find(x=>x.id===lid)||null;
+   if(_l&&needsReview(_l)){
+     if(!qid)obj.order_index=questionsOf(lid).length;
+     const _lab=(_l.title||'')+'　第 '+((questionsOf(lid).findIndex(x=>x.id===qid)+1)||(questionsOf(lid).length+1))+' 題';
+     try{await propSave('questions',qid||'',obj,_lab);
+       openQuestionsModal(lid);toast('已送出，等主管理員確認');}
+     catch(err){toast(writeErr('送出失敗',err));}
+     return;}}
   try{if(qid){await DB.update('questions',qid,obj);}else{obj.order_index=questionsOf(lid).length;await DB.insert('questions',obj);}
     S.questions=await listQuestions(true);openQuestionsModal(lid);toast('已儲存');}catch(err){toast(writeErr('儲存失敗',err));}};
 
