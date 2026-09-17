@@ -3223,6 +3223,16 @@ const RP_GRP=[['abroad','🎓 留學業務'],['teach','🧑‍🏫 教學'],['ot
 function rpGrpOf(r){const g=String((r&&r.grp)||'').trim();
   return RP_GRP.some(x=>x[0]===g)?g:'other';}
 function rpGrpLab(g){const f=RP_GRP.find(x=>x[0]===g);return f?f[1]:'📌 其他';}
+/* RPICON_V967 清單裡有的範本前面有圖示、有的沒有——因為那個圖示是打在標題裡的字。
+   標題自己就有圖示的照舊；沒有的補上所屬分類的圖示，整排看起來才整齊。
+   只影響顯示，資料庫裡的標題一個字都不會動。 */
+const RP_EMO=/^[\u{1F000}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{00A9}\u{00AE}]/u;
+function rpTitleIc(r){
+  const t=String((r&&r.title)||'').trim()||'（沒有標題）';
+  try{if(RP_EMO.test(t))return t;}catch(e){return t;}
+  const lab=rpGrpLab(rpGrpOf(r));
+  const ic=(String(lab).match(/^\S+/)||['📌'])[0];
+  return ic+' '+t;}
 /* RPSORT_V932 本來照建立先後排，所以同一件事的兩個稱謂版本會被別的卡隔開
    （Quinn：「申請語言學校一個上一個下，這樣很亂」）。
    改成先照標題排，同名的幾份一定連在一起；標題一樣再照稱謂排，順序固定。 */
@@ -3415,7 +3425,7 @@ function rpCardHtml(r){
     +'<i class="'+(zh?'on':'')+'" title="'+(zh?'有中文':'沒有中文')+'">中</i>'
     +'<i class="'+(vi?'on':'')+'" title="'+(vi?'有越南文':'沒有越南文')+'">VI</i></span>';
   return '<div class="card rp-c rp-'+esc(rpGrpOf(r))+'">'
-    +'<div class="rp-h"><b>'+esc(r.title||'（沒有標題）')+'</b>'+rpAddrHtml(r)+lang+'</div>'/* RPADDR_V932 */
+    +'<div class="rp-h"><b>'+esc(rpTitleIc(r))+'</b>'+rpAddrHtml(r)+lang+'</div>'/* RPADDR_V932 ／ RPICON_V967 */
     +'<div class="rp-g">'+(tags.length?tags.map(t=>'<span class="tag">'+esc(t)+'</span>').join('')
         :'<span class="hint">沒有關鍵字</span>')+'</div>'
     +(pv?('<div class="rp-pl">'+(which==='VI'?'Tiếng Việt':'中文')+'</div>'):'')
@@ -11248,7 +11258,7 @@ H.rpPrintOpen=()=>{
       +'<button class="btn btn-sm" type="button" data-act="rpPickAll" data-id="'+esc(g[0])+'::0">全不選</button></div>'
       +rows.map(r=>{const t=rpText(r);
         return '<label class="rpp-r"><input type="checkbox" class="rp-ck2" data-g="'+esc(g[0])+'" value="'+esc(r.id)+'" checked>'
-        +'<b>'+esc(r.title||'（沒有標題）')+'</b>'
+        +'<b>'+esc(rpTitleIc(r))+'</b>'/* RPICON_V967 */
         +'<span style="flex:1"></span>'
         +(t?('<span class="muted" style="font-size:11.5px">'+(String(r.body_vi||'').trim()?'VI':'中')+'</span>')
            :'<span class="muted" style="font-size:11.5px;color:#AEB4BC">沒內容</span>')
@@ -11289,7 +11299,7 @@ H.rpPrintGo=()=>{
     if(g!==lastG){lastG=g;body+='<div class="gsec">'+e2(rpGrpLab(g))+'</div>';}
     const tags=String(r.tags||'').split(/[，,、\s]+/).filter(Boolean);
     const zh=String(r.body_zh||'').trim(),vi=String(r.body_vi||'').trim();
-    body+='<div class="rcard"><div class="rh"><b>'+e2(r.title||'（沒有標題）')+'</b>'
+    body+='<div class="rcard"><div class="rh"><b>'+e2(rpTitleIc(r))+'</b>'/* RPICON_V967 */
       +(tags.length?('<span class="rtg">'+tags.map(t=>'<i>'+e2(t)+'</i>').join('')+'</span>'):'')+'</div>'
       +'<div class="x-zh">'+blk('中文',zh)+'</div>'
       +'<div class="x-vi">'+blk('Tiếng Việt',vi)+'</div>'
@@ -11316,7 +11326,8 @@ H.rpPrintGo=()=>{
        '<div class="kv">列印日期 <b>'+e2(localToday())+'</b></div>'
       +'<div class="kv">份數 <b>'+list.length+'</b></div>')
    +body
-   +'<div class="foot"><span class="ty">這是內部參考用的說法，傳給客人前請再看一次 ♡</span></div></div>';
+   +'<div class="foot"><span class="ty">'+L2('這是內部參考用的說法，傳給客人前請再看一次 ♡',
+       'Đây là cách nói để tham khảo nội bộ, xem lại một lần trước khi gửi cho khách nhé ♡')+'</span></div></div>';
   closeModal();
   fbWin('<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
