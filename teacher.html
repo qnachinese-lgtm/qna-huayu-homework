@@ -6470,6 +6470,18 @@ function zhs(t){const m=zhsMap();const str=String(t==null?'':t);let o='';
   return o;}
 /* PRINTBAR_V959 把繁簡對照表和切換的程式一起塞進印出來的那一份，
    讓她在那一頁上直接按，不用回來重出一次。只轉字不轉用詞，跟 zhs() 一樣。 */
+/* PRINTBAR_V960 那一頁上的「作答空間」和「印圖片」 */
+function ghBarJs(){
+  return '<'+'script>(function(){var b=document.body;'
+    +'var ly=document.getElementById("lay");'
+    +'if(ly){ly.value=b.classList.contains("gh-hand")?"1":"0";'
+    +'ly.addEventListener("change",function(){'
+    +'if(ly.value==="1")b.classList.add("gh-hand");else b.classList.remove("gh-hand");});}'
+    +'var im=document.getElementById("pimg");'
+    +'if(im){im.checked=!b.classList.contains("gh-noimg");'
+    +'im.addEventListener("change",function(){'
+    +'if(im.checked)b.classList.remove("gh-noimg");else b.classList.add("gh-noimg");});}'
+    +'})();<'+'/script>';}
 function zhsJs(){
   return '<'+'script>(function(){'
     +'var T='+JSON.stringify(ZHS_T)+',S='+JSON.stringify(ZHS_S)+',M=null,ON=0;'
@@ -6517,15 +6529,18 @@ function ghFontCss(k){
     return 'html body{font-family:'+fontNumPrefix(c).replace(/'/g,'"')
       +(lat[3]?(lat[3]+','):'')+c[3]+',sans-serif!important}';}
   catch(e){return '';}}
+/* PRINTBAR_V960 圖片一律放進去，不印的時候用 CSS 藏起來（藏起來就不會印出來），
+   這樣「要不要印圖」在印出來的那一頁上按一下就好，不用回去重出一份。 */
 function ghImg(u){const v=String(u||'').trim();
-  if(!v||GHNOIMG)return '';
+  if(!v)return '';
   return '<div class="gh-img"><img src="'+esc(v)+'" alt=""></div>';}
+/* PRINTBAR_V960 一律排到手寫版的行數，第一行照常顯示，第二行以後標 .x；
+   緊湊版用 CSS 把 .x 收起來、把線改回細的，結果跟以前一模一樣。 */
 function ghAnsSpace(q){
-  if(!GHWIDE)return '<div class="gh-line"></div>';
   const t=String((q&&q.type)||'');
   /* GHSPACE_V833 本來問答三行、填空兩行還是不夠寫，各加一行 */
   const n=(t==='qa'||t==='write'||t==='opt')?4:((t==='choice'||t==='match'||t==='order')?2:3);
-  let h='';for(let i=0;i<n;i++)h+='<div class="gh-line gh-w"></div>';
+  let h='';for(let i=0;i<n;i++)h+='<div class="gh-line gh-ans'+(i?' x':'')+'"></div>';
   return h;}
 /* GHSPACE_V833 題目裡的「＿＿＿＿」照字數印出來很短，寫不下。改成一段有長度的底線。 */
 function ghBlank(t){
@@ -6713,9 +6728,9 @@ function ghClMap(sents,notes){
 function ghCnNum(n){return '一二三四五六七八九十'.charAt(n-1)||String(n);}
 /* GHCL_V864 文言文每一句底下要寫整句白話還要抄筆記，一條線不夠。
    緊湊三行、手寫五行，而且線距放寬一點才寫得下字。 */
+/* PRINTBAR_V960 同上：一律排五行，第四行起標 .x，緊湊版收起來剩三行 */
 function ghClSpace(){
-  const n=GHWIDE?5:3,cls=GHWIDE?'gh-line gh-w':'gh-line gh-cw';
-  let h='';for(let i=0;i<n;i++)h+='<div class="'+cls+'"></div>';
+  let h='';for(let i=0;i<5;i++)h+='<div class="gh-line gh-cls'+(i>2?' x':'')+'"></div>';
   return h;}
 /* GHOTHER_V826 文言文：題解 → 原文（逐句附白話、註釋）→ 問答。
    參考答案本來就存在 cl_qs[].ans，所以老師版印得出來。 */
@@ -6931,6 +6946,17 @@ function ghCss(){return ''
   +'.gh-op.ok .gh-oi{border-color:#2f7a52;color:#2f7a52;background:#eaf6ee}'
   +'.gh-ok{color:#2f7a52;font-weight:700;margin-left:3px}'
   +'.gh-line{border-bottom:1px solid #C7CCD3;height:17px;margin-top:3px}'
+  /* PRINTBAR_V960 題目的作答線：緊湊版只留第一行，手寫版全部放出來、線也拉高 */
+  +'.gh-line.gh-ans.x{display:none}'
+  +'.gh-hand .gh-line.gh-ans{height:31px;margin-top:8px;border-bottom:1px solid #BFC5CD}'
+  +'.gh-hand .gh-line.gh-ans.x{display:block}'
+  /* PRINTBAR_V960 文言文寫白話的線：緊湊三行、手寫五行 */
+  +'.gh-line.gh-cls{height:24px;margin-top:6px;border-bottom:1px solid #C8CDD3}'
+  +'.gh-line.gh-cls.x{display:none}'
+  +'.gh-hand .gh-line.gh-cls{height:31px;margin-top:8px;border-bottom:1px solid #BFC5CD}'
+  +'.gh-hand .gh-line.gh-cls.x{display:block}'
+  /* PRINTBAR_V960 不印圖片：藏起來，列印時也就不會出現 */
+  +'.gh-noimg .gh-img{display:none!important}'
   /* GHWIDE_V826 手寫版：行距拉開，線也拉高，才寫得下一整句 */
   +'.gh-line.gh-w{height:31px;margin-top:8px;border-bottom:1px solid #BFC5CD}'
   /* GHCL_V864 文言文寫白話用的線，比一般題目的寬一點 */
@@ -7031,14 +7057,19 @@ function ghBuild(book,lids,mode,wide,noimg){
     +esc(_fn)+'</title>'
     +expHead(GHFONT)/* EXPUI_V938 字體改成可以產生之後再換 */
     +'<style>'+fbCss()+ghCss()+expCss()+'</style></head><body class="lang-zh'
-    +(GHWIDE?' gh-hand':'')+'">'
+    +(GHWIDE?' gh-hand':'')+(GHNOIMG?' gh-noimg':'')+'">'/* PRINTBAR_V960 */
     /* GHFOOT_V829 每一頁的頁尾（只有列印時看得到） */
     +'<div class="gh-run"><b>'+esc(window.APP_NAME||'QNA CHINESE')+'</b>'
     +'<span class="vi">Tiếng Trung Quyên Huỳnh</span>'
     +'<span class="r">'+esc(book)+'　·　'+esc(ttl)+'</span></div>'
     /* PRINTBAR_V959 繁／簡移到這裡，按了立刻換，不用重出一份 */
     +expBar(1,'<span class="exp-l">字</span><select id="zhs" class="exp-s">'
-      +'<option value="tw">繁體</option><option value="cn">簡體</option></select>',GHFONT)
+      +'<option value="tw">繁體</option><option value="cn">簡體</option></select>'
+      /* PRINTBAR_V960 作答空間和圖片也搬到這裡 */
+      +'<span class="exp-l">作答空間</span><select id="lay" class="exp-s">'
+      +'<option value="0">緊湊</option><option value="1">手寫（大）</option></select>'
+      +'<label class="exp-l" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer">'
+      +'<input type="checkbox" id="pimg" style="width:auto;margin:0"> 印圖片</label>',GHFONT)
     /* GHEN_V873 文件名底下那行英文是裝飾，講義用不到，拿掉 */
     /* GHPGT_V877 整頁內容包進表格，tfoot 那列空的負責在每頁底部把頁尾的位置讓出來 */
     +'<div class="page"><table class="gh-pgt"><tfoot><tr><td></td></tr></tfoot><tbody><tr><td>'
@@ -7065,7 +7096,7 @@ function ghBuild(book,lids,mode,wide,noimg){
         +(withAns?'　·　這一份含參考答案，請不要直接給學生':''),
       'Thời gian lập '+esc(nowStr())+'　·　'+esc(window.APP_NAME||'QNA CHINESE')
         +(withAns?'　·　Bản này có đáp án, không đưa thẳng cho học viên.':''),1)+'</div>'
-    +'</td></tr></tbody></table></div>'+expJs()+zhsJs()+'</body></html>';/* GHPGT_V877 */
+    +'</td></tr></tbody></table></div>'+expJs()+zhsJs()+ghBarJs()+'</body></html>';/* GHPGT_V877 */
   closeModal();fbWin(ghZh(html));/* GHZHS_V875 */}
 function ghListHtml(book){
   const ls=baLessonsOf(book);
@@ -7106,9 +7137,7 @@ function ghPrefApply(){
   /* 日期一律預設今天。記住上次的日期很危險——印出來會是舊的上課日 */
   const w=document.getElementById('gh-when');if(w)w.value=localToday();
   if(!p)return;
-  ghSetSel('gh-lay',p.lay);
   ghSetSel('gh-bank',p.bank);ghSetSel('gh-clq',p.clq);
-  const ni=document.getElementById('gh-noimg');if(ni)ni.checked=!!p.noimg;
   const tb=document.getElementById('gh-tr');if(tb)tb.checked=!!p.tr;/* GHTR_V891 */
   const db=document.getElementById('gh-dlg');if(db)db.checked=!!p.dlg;/* GHDLG_V919 */
   /* 學生可能已經停課或改名，選單裡找不到就留空白 */
@@ -7182,13 +7211,8 @@ function ghModal(){
    +'<button class="btn btn-sm btn-ghost" type="button" id="gh-allbtn" onclick="GHALL()"'
    +(ghHasCl(cur)?' style="display:none"':'')+'>全選 / 取消</button></label>'
    +'<div class="check-list gh-list" id="gh-lessons" onchange="GHSENT()">'+ghListHtml(cur)+'</div></div>'
-   /* GHWIDE_V826 學生要寫整句的話，一條細線根本不夠寫 */
-   +'<div class="field"><label>作答空間</label><select id="gh-lay">'
-   /* GHLAY_V853 預設改回緊湊：比較像課本原來的樣子 */
-   +'<option value="0" selected>緊湊 —— 一題一條線，像課本的排法</option>'
-   +'<option value="1">手寫 —— 作答空間大，問答給四行</option>'
-   +'</select></div>'
-   /* PRINTBAR_V959 字體和繁／簡不在這裡先選了——印出來的那一頁上面就可以換 */
+   /* PRINTBAR_V960 作答空間、圖片、字體、繁／簡都不在這裡先選了——
+      印出來的那一頁上面按一下就換，不用回來重出一份 */
    /* GHBANK_V872 有作業簿的書才問這一題 */
    +'<div class="field" id="gh-bankbox"'+(ghHasHw(cur)?'':' style="display:none"')+'>'
    +'<label>要出哪一邊的題目</label><select id="gh-bank">'
@@ -7197,9 +7221,6 @@ function ghModal(){
    +'<option value="hw">只出作業簿</option>'
    +'<option value="both">課本練習題＋作業簿都出</option>'
    +'</select></div>'
-   /* GHOPT_V844 圖多的書（時代華語一 128 張、看圖學中文語法 195 張）印起來很厚 */
-   +'<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
-   +'<input type="checkbox" id="gh-noimg" style="width:auto;margin:0"> 不印圖片（省紙，純文字練習用）</label></div>'
    /* GHDLG_V919 以前講義只出語法說明＋例句＋練習，課文從來不印。給一個開關。 */
    +'<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
    +'<input type="checkbox" id="gh-dlg" style="width:auto;margin:0"> 課文也印出來'
@@ -15264,8 +15285,7 @@ H.ghGo=(mode)=>{
   const book=((document.getElementById('gh-book')||{}).value)||'';
   const lids=[...document.querySelectorAll('.gh-l:checked')].map(x=>x.value);
   if(!lids.length)return toast('請先勾要出哪幾課');
-  const wide=(((document.getElementById('gh-lay')||{}).value)==='1');/* GHWIDE_V826 */
-  const noimg=!!(document.getElementById('gh-noimg')||{}).checked;/* GHOPT_V844 */
+  const wide=false,noimg=false;/* PRINTBAR_V960 改成在印出來的那一頁上切 */
   GHFONT='kaitimes';/* PRINTBAR_V959 固定用標準組合出，要換到印出來那一頁上換 */
   /* GHCL_V860 ／ GHWHO_V860 */
   /* GHCL_V861 勾起來的句號；一句都沒勾＝整課都出 */
@@ -15279,8 +15299,7 @@ H.ghGo=(mode)=>{
   GHWHO=((document.getElementById('gh-who')||{}).value)||'';
   GHWHEN=((document.getElementById('gh-when')||{}).value)||'';
   /* GHPREF_V883 真的按了匯出才記起來——那才是她確定要用的組合 */
-  try{ghPrefSave(book,{lay:(wide?'1':'0'),bank:GHBANK,
-    noimg:noimg?1:0,tr:GHTR?1:0,dlg:GHDLG?1:0,clq:GHCLQ,who:GHWHO});}catch(e){}
+  try{ghPrefSave(book,{bank:GHBANK,tr:GHTR?1:0,dlg:GHDLG?1:0,clq:GHCLQ,who:GHWHO});}catch(e){}
   ghBuild(book,lids,mode,wide,noimg);};
 H.bulkAssignSave=async(_x,btn)=>{
   const lids=[...document.querySelectorAll('.ba-l:checked')].map(x=>x.value);
