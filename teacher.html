@@ -16510,9 +16510,11 @@ const useAuth=!!(window.firebase&&firebase.auth&&window.FIREBASE_CONFIG&&window.
 /* LOGIN_TIGHT_V676 本來登入的通行證是長期存在瀏覽器裡的，關掉 Chrome 再開也還在，
    等於任何能打開這台電腦瀏覽器的人都進得了後台。現在收緊成兩條：
    ① 整個瀏覽器關掉再開 → 要重新登入。做法是只要還有分頁開著，每 10 秒蓋一次時間戳；
-      開新分頁、重新整理時時間戳都是新的，所以不受影響；全部關掉超過 5 分鐘才算「瀏覽器關了」。
+      開新分頁、重新整理時時間戳都是新的，所以不受影響。
       （不用 Firebase 的 SESSION 模式，那個連「另開一個分頁」都要重登，太嚴。）
-   ② 閒置超過 8 小時自動登出，有動作就重新計時。
+      AUTHCOLD_V961 寬限期 5 分鐘 → 60 秒，而且判斷改到註冊登入監聽之前，
+      不然 Firebase 還原的登入會搶先把人放進後台。
+   ② 閒置超過 30 分鐘自動登出，有動作就重新計時（V953）。
    學生端完全沒有改，學生照樣保持登入。 */
 const TEACHER_EMAIL=(window.TEACHER_EMAIL||'').toLowerCase();
 /* ===== 管理員（主管理員 + 共用管理員）===== */
@@ -16553,9 +16555,23 @@ $('#stu-search').addEventListener('input',e=>{S.q=e.target.value.trim();renderSt
 boot();
 function authBanner(show){let b=document.getElementById('auth-warn');if(show){if(!b){b=document.createElement('div');b.id='auth-warn';b.className='auth-warn';b.innerHTML='⚠️ 登入已失效，目前無法儲存。請<b>開新分頁登入教師頁</b>，再回到這個分頁按一次儲存（<u>不要重新整理</u>，正在編輯的內容才不會不見）。 <button class="btn btn-sm" data-act="reloginTab">開新分頁登入</button>';document.body.insertBefore(b,document.body.firstChild);}}else if(b){b.remove();}}
 H.reloginTab=()=>{window.open('teacher.html','_blank');};
-if(useAuth){firebase.auth().onAuthStateChanged(async function(user){const ok=user&&await emailAllowed(user.email);
-  if(ok){authBanner(false);updateAdminBtn();if($('#app').classList.contains('hide'))enter();}
-  else if(!$('#app').classList.contains('hide')){authBanner(true);}});}
+/* AUTHCOLD_V961 瀏覽器整個關過再打開 → 不要自動進來，停在登入畫面。
+   判斷一定要在註冊 onAuthStateChanged 之前做完，而且要等 signOut() 真的完成
+   才註冊監聽，否則 Firebase 還原的登入會搶先觸發 enter()，人就已經在後台了。
+   還有分頁開著的時候每 10 秒蓋一次 qna_alive，所以重新整理、開新分頁都不受影響。 */
+const COLD_GRACE=60*1000;
+let WAS_COLD=false;
+try{const _al=Number(localStorage.getItem('qna_alive')||0);
+  if(!_al||(Date.now()-_al)>COLD_GRACE)WAS_COLD=true;}catch(e){}
+try{localStorage.setItem('qna_alive',String(Date.now()));}catch(e){}
+if(useAuth){
+  const _ready=WAS_COLD?firebase.auth().signOut().catch(function(){}):Promise.resolve();
+  _ready.then(function(){
+    firebase.auth().onAuthStateChanged(async function(user){const ok=user&&await emailAllowed(user.email);
+      if(ok){authBanner(false);updateAdminBtn();if($('#app').classList.contains('hide'))enter();}
+      else if(!$('#app').classList.contains('hide')){authBanner(true);}});
+  });
+}
 else{if(sessionStorage.getItem('teacher_ok')==='1')enter();}
 // 保持登入新鮮：每 18 分鐘刷新一次 token，避免長時間編輯後突然無法儲存
 setInterval(function(){try{const u=window.firebase&&firebase.auth&&firebase.auth().currentUser;if(u)u.getIdToken(true).catch(function(){});}catch(e){}},18*60*1000);
@@ -16603,9 +16619,8 @@ setInterval(function(){try{const u=window.firebase&&firebase.auth&&firebase.auth
     if(t)clearTimeout(t);if(wt)clearTimeout(wt);
     wt=setTimeout(showWarn,Math.max(1000,IDLE-WARN));
     t=setTimeout(bye,IDLE);}
-  /* ① 瀏覽器是不是整個關過？看還有沒有分頁在蓋時間戳 */
-  try{var alive=Number(localStorage.getItem('qna_alive')||0);
-    if(alive&&(Date.now()-alive)>GRACE){bye();return;}}catch(e){}
+  /* AUTHCOLD_V961 「瀏覽器關過沒有」改到上面、註冊登入監聽之前判斷了，
+     這裡只要繼續蓋心跳就好。 */
   setInterval(function(){try{localStorage.setItem('qna_alive',String(Date.now()));}catch(e){}},10000);
   try{localStorage.setItem('qna_alive',String(Date.now()));}catch(e){}
   /* ② 這個分頁閒置太久？ */
