@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=919">
+<link rel="stylesheet" href="styles.css?v=947">
 <style>
 /* V813 */
 #app .gp-qn{margin-left:auto;flex:none;font-size:12.5px;font-weight:700;color:#8A5A36;
@@ -4893,10 +4893,19 @@ async function enter(me){S.me=me;try{syncStart();}catch(e){}
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');
   applyChrome();showLoad(true);
   try{await loadMine();await loadFam();await loadProgress();try{loadMyFiles().then(()=>{try{if($('#screen')&&!$('#screen').dataset.mode)renderSection();}catch(e){}});}catch(e){}try{mistSyncPractice();}catch(e){}try{const _pd=(S.results||[]).find(x=>x.lesson_id==='__progress');const _lg=((_pd&&Array.isArray(_pd.logins))?_pd.logins:[]).concat([now()]).slice(-100);DB.upsertResult('__progress',S.me.id,{uid:myUid(),last_login:now(),last_active:now(),logins:_lg}).catch(()=>{});}catch(_){}S.section='home';renderSection();setTimeout(notifyDue,1200);setTimeout(maybeShowGuide,600);}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}finally{showLoad(false);}}
+/* FAMUID_V947 本來這裡是用 bill_group 查同帳戶的人，但那個查詢會把別人整份
+   學生資料（含學費）撈回來，安全規則擋掉了，所以家庭帳單一直是空的。
+   改成查老師那邊自動維護的 fam_uids：裡面是同帳戶每個人的 uid，
+   用 array-contains 查，規則就能一筆一筆比對「我有沒有在這份名單裡」。 */
 async function loadFam(){S.fam=null;
   const k=String((S.me&&S.me.bill_group)||'').trim();if(!k)return;
-  try{const ms=await DB.listWhere('students','bill_group',k);
-    const list=(ms||[]).filter(x=>x&&!x.deleted);
+  const u=myUid();if(!u)return;
+  try{
+    const sn=await firebase.firestore().collection('students')
+      .where('fam_uids','array-contains',u).get();
+    const ms=[];sn.forEach(d=>ms.push(Object.assign({id:d.id},d.data())));
+    const list=ms.filter(x=>x&&!x.deleted&&!x.deleted_at
+      &&String(x.bill_group||'').trim()===k);
     if(list.length>1)S.fam={key:k,members:list};}
   catch(e){S.fam=null;}}
 /* TRYMODE_V743 試做的橫幅用不一樣的顏色，免得跟唯讀的預覽搞混 */
