@@ -1167,6 +1167,20 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         /* ===== AI_DRAFT_V25 AI 批改小幫手 ===== */
         .btn.btn-ai{background:#F3EEFF;border:1px solid #C9B8F2;color:#5B3FA8;font-weight:700}
         .btn.btn-ai:hover{background:#EBE3FF}
+        .ai-auto{display:inline-flex;align-items:center;gap:6px;flex:none;cursor:pointer;
+          font-size:12.5px;color:#5B4E80;white-space:nowrap;user-select:none}
+        .ai-auto input{width:auto;margin:0;cursor:pointer}/* AIAUTO_V973 */
+        /* ===== TGUIDE_V973 教師手冊 ===== */
+        .tg-warn{background:#F8E7E4;border:1px solid #E3B7B0;color:#7A2A20;border-radius:10px;
+          padding:10px 13px;font-size:13px;line-height:1.7;margin-bottom:14px}
+        .tg-sec{border:1px solid var(--line);border-radius:10px;margin-bottom:9px;background:var(--surface)}
+        .tg-sec>summary{cursor:pointer;padding:9px 13px;font-weight:700;font-size:14px;color:var(--primary)}
+        .tg-body{padding:2px 13px 11px}
+        .tg-row{display:flex;gap:10px;padding:6px 0;border-top:1px dashed var(--line)}
+        .tg-row:first-child{border-top:0}
+        .tg-lab{flex:0 0 auto;min-width:52px;color:var(--muted);font-size:12.5px;padding-top:2px}
+        .tg-tx{flex:1;min-width:0;font-size:14px;line-height:1.8;word-break:break-word}
+        .tg-ex{color:var(--ok);font-size:13.5px;margin-top:2px}
         .ai-wrap{margin:10px 0 8px}
         /* TIDY_V954 批改台右邊每個區塊各自帶不同的 margin，上下就一格寬一格窄。
            統一成 12px，卡片內部最後一個元素不再多留一段空白。 */
@@ -2490,7 +2504,9 @@ async function loadAll(){
     DB.list('lessons'),listQuestions(),DB.list('results')]);
   let _crm=[];if(owner){try{_crm=await DB.list('crm');}catch(e){_crm=[];}}
   try{await shareLoad();}catch(e){}
+  try{await tgLoad();}catch(e){}/* TGUIDE_V973 */
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
+  S.rawLessons=b.filter(x=>x&&!x.deleted_at);/* READUID_V973 算讀取名單要看整包，不能只看 S.lessons */
   S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&x.kind!=='lqassign'&&x.kind!=='reply'&&x.kind!=='price'&&x.kind!=='edit_proposal'&&!x.deleted_at);
    /* PROP_V944 老師送來的修改提案 */
    S.props=b.filter(x=>x.kind==='edit_proposal'&&!x.deleted_at)
@@ -2688,7 +2704,7 @@ function healthCheck(){const today=localToday();const out=[];
 function healthCheckHtml(){const list=healthCheck();
   if(!list.length)return '';
   const rows=list.map(({s,problems})=>`<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start"><span class="badge badge-overdue">⚠️</span><b>${snm(s.name)}</b><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="editStudent" data-id="${s.id}">去修正</button><div style="flex-basis:100%;margin-top:4px"><ul style="margin:2px 0 0 18px;padding:0;color:#b45309;font-size:13px">${problems.map(p=>`<li>${p}</li>`).join('')}</ul></div></div>`).join('');
-  return `<details class="dash-fold" open style="margin-top:14px;border-color:#f59e0b"><summary>🩺 資料健檢（${list.length} 位學生要注意）</summary><div style="margin-top:10px"><div class="hint" style="margin-bottom:6px">這些不影響學生上課，但會讓你的堂數／收入統計不準，建議抽空修一修。</div>${rows}</div></details>`;}
+  return `<details class="dash-fold" open style="margin-top:14px;border-color:#f59e0b"><summary>🩺 資料健檢（${list.length} 位學生要注意）</summary><div style="margin-top:10px"><div class="hint" style="margin-bottom:6px">不影響學生上課，但會讓堂數／收入統計不準，有空修一修。</div>${rows}</div></details>`;}
 function dashTodayHtml(){
   const d=localToday();const _rows=[];
   /* 依開始時間排序；沒填時間的排最後 */
@@ -3351,7 +3367,7 @@ function docEditorHtml(c){
   const rows=docRows(c);
   return '<div class="doc-head"><span>方向</span><span>文件名稱</span><span>日期</span><span></span><span>備註</span><span></span></div>'
     +'<div id="doc-rows">'+(rows.length?rows.map(docEditRow).join(''):'')+'</div>'
-    +(rows.length?'':'<div class="hint" style="padding:10px 2px">清單是空的。按下面「📋 帶入範本」會放進一份常見的文件清單，再自己增刪就好。</div>');
+    +(rows.length?'':'<div class="hint" style="padding:10px 2px">清單是空的。按「📋 帶入範本」帶一份常見清單進來，再自己增刪。</div>');
 }
 
 /* ===================== 🧾 價目表 ＋ 💰 報價單 =====================
@@ -3644,7 +3660,7 @@ function planPreviewHtml(){
     +'要發給：<b>'+esc(names.join('、'))+'</b>（'+names.length+' 位）　·　共 <b>'+p.rows.length+'</b> 課　·　一週 '+p.per+' 課</div>'
     +'<div class="plan-head plan-row"><b>課</b><span>期限</span><span>題數</span><span>目前</span></div>'+rows
     +warn.map(w=>'<div class="hint" style="margin-top:8px;color:#b45309">⚠️ '+esc(w)+'</div>').join('')
-    +'<div class="hint" style="margin-top:8px">按下面的「排下去」才會真的送出；這些學生原本就被指派的其他課不會被動到。</div>';
+    +'<div class="hint" style="margin-top:8px">按「排下去」才會送出。學生原本被指派的其他課不會被動到。</div>';
 }
 
 
@@ -3683,7 +3699,7 @@ function booksDashHtml(){
       +'<span style="justify-self:end"><button class="btn btn-sm" data-act="planNew">🗓 排課</button></span></div>';}).join('');
   return '<details class="disc" style="margin-bottom:14px"><summary>📊 教材進度（'+bs.length+' 本）</summary>'
     +'<div style="margin-top:10px">'
-    +'<div class="hint" style="margin-bottom:8px">「已發佈」＝這一課至少指派給一位學生。沒題目的課學生打開會是空的，發出去之前先補。</div>'
+    +'<div class="hint" style="margin-bottom:8px">「已發佈」＝至少指派給一位學生。沒題目的課學生打開是空的，發之前先補。</div>'
     +'<div class="bk-row bk-head"><b>教材</b><span>課數</span><span>發佈進度</span><span>題目</span><span>學生進度</span><span></span></div>'
     +rows+'</div></details>';
 }
@@ -3819,7 +3835,7 @@ function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'
   body.innerHTML=toggle+weekBoardHtml();
   return;
   {const wa=weekActualCard();
-  let html=toggle+wa+'<div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-sm btn-accent" data-act="exportCal">📅 匯出全部上課日曆</button><span class="hint">匯入手機／Google 日曆一次，每堂課前 30 分鐘自動提醒（含 Meet 連結）。<b>固定週表</b>會排成每週重複，<b>預排的課</b>各自一次。</span></div>';const todayIdx=(new Date().getDay()+6)%7;
+  let html=toggle+wa+'<div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn btn-sm btn-accent" data-act="exportCal">📅 匯出全部上課日曆</button><span class="hint">匯入手機／Google 日曆，課前 30 分鐘自動提醒，含 Meet 連結。<b>固定週表</b>會排成每週重複，<b>預排的課</b>各自一次。</span></div>';const todayIdx=(new Date().getDay()+6)%7;
   for(let i=0;i<7;i++){const d=(todayIdx+i)%7;const raw=(byDay[d]||[]).slice().sort((a,b)=>(a.slot.s||'').localeCompare(b.slot.s||''));if(!raw.length)continue;
     // 團班同一時段＝一堂課：把同團班、同時段的學生合併成一筆
     const gmap={},order=[];
@@ -4341,7 +4357,7 @@ function renderWriting(){
     <div class="hint" style="margin-top:8px">收入會併進「營運 → 🧮 總收入」。</div></div>`;
   if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">✍️</div>
     <h3 style="margin:8px 0">還沒有代書客戶</h3>
-    <div class="hint" style="max-width:560px;margin:0 auto 14px">按「＋ 新增代書客戶」建立一位客戶（姓名、要寫哪些文件、交件期限、談定總費用）。<br>
+    <div class="hint" style="max-width:560px;margin:0 auto 14px">按「＋ 新增代書客戶」填姓名、要寫哪些文件、交件期限、談定總費用。<br>
     建好之後卡片上會有五個階段的按鈕：收資料 → 初稿 → 修改 → 定稿 → 交件，做完一個就點一下，會自動記今天的日期。</div>
     <button class="btn btn-primary" data-act="wrNew">＋ 新增代書客戶</button></div>`;return;}
   const _foc=crmFocusOf(list);
@@ -4493,7 +4509,7 @@ function renderSchools(){
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','學校名冊只有主管理員看得到。');return;}
   const head=navSubBar(BIZ_TABS,'school');
   const list=schAll().slice().sort((a,b)=>String(a.country||'').localeCompare(String(b.country||''))||String(a.name||'').localeCompare(String(b.name||''),'zh-Hant'));
-  if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🏫</div><h3 style="margin:8px 0">還沒有學校</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">把常進的學校建在這裡：官網、申請系統的登入網址、登入帳號、承辦人信箱。<br>以後要進去，從這一頁按一下就開，不用再翻信箱找連結。<br><b>密碼不要填在這裡</b>，留在妳自己的密碼管理工具比較安全。</div><button class="btn btn-primary" data-act="schNew">＋ 新增學校</button></div>`;return;}
+  if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🏫</div><h3 style="margin:8px 0">還沒有學校</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">常用的學校建在這裡：官網、申請系統網址、登入帳號、承辦人信箱。<br>以後要進去，從這一頁按一下就開，不用再翻信箱找連結。<br><b>密碼不要填在這裡</b>，留在妳自己的密碼管理工具比較安全。</div><button class="btn btn-primary" data-act="schNew">＋ 新增學校</button></div>`;return;}
   const cards=list.map(c=>{
     const n=(S.agencies||[]).filter(a=>!a.deleted_at&&schByName(a.school)&&schByName(a.school).id===c.id).length;
     const rows=[];
@@ -4525,7 +4541,7 @@ function schForm(c){c=c||{};
     <div class="field"><label>承辦人信箱 <span class="hint">選填</span></label><input id="sch-email" type="text" value="${esc(c.email||'')}" placeholder="oia@…"></div>
     <div class="field"><label>電話 <span class="hint">選填</span></label><input id="sch-phone" type="text" value="${esc(c.phone||'')}"></div>
     <div class="field full"><label>備註 <span class="hint">選填。申請期限、學費、要交什麼文件…</span></label><textarea id="sch-note" rows="4" placeholder="例：每年 3 月 1 日截止，要成績單＋財力證明＋TOCFL A2">${esc(c.note||'')}</textarea></div>
-    <div class="field full"><div class="hint">🔒 密碼不要填在這裡。這個名冊只放帳號跟網址，密碼請留在妳自己的密碼管理工具。</div></div>
+    <div class="field full"><div class="hint">🔒 密碼不要填在這裡，這裡只放帳號跟網址。</div></div>
   </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="schSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);}
 function agForm(c){c=c||{};
   const rOpt=(v,l)=>`<option value="${v}"${(c.result||'')===v?' selected':''}>${l}</option>`;
@@ -4559,7 +4575,7 @@ function agLogForm(key){const p=String(key).split('::');const c=agById(p[0]);if(
      錢收進下面的摺疊區（大部分進度根本沒有收錢）。 */
   const ACTS=['填申請表','寫讀書計畫','修改讀書計畫','翻譯文件','公證／驗證','送件','補件','繳報名費','學校回覆','面試安排','收到錄取通知','辦簽證'];
   openModal(`<div class="modal"><div class="modal-head"><h3>${isNew?'＋ 新增一筆進度':'✏️ 修改進度'} · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">
-   <div class="hint" style="margin-bottom:10px">記「哪一天、幫這位客戶做了什麼」。費用不是必填，沒收錢就不用管下面那一區。</div>
+   <div class="hint" style="margin-bottom:10px">記哪一天幫這位客戶做了什麼。沒收錢的話，下面費用那區不用管。</div>
    <div class="form-grid">
     <div class="field full"><label>日期 *</label><input id="ag-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(e.date||localToday())}" style="max-width:230px"></div>
     <div class="field full"><label>那天做了什麼 * <span class="hint">點下面的常用字也可以</span></label>
@@ -4885,7 +4901,7 @@ function itvForm(c){c=c||{};
      <datalist id="itv-timelist"><option value="早上"><option value="中午"><option value="下午"><option value="傍晚"><option value="晚上"><option value="全天"></datalist></div>
      <div class="field"><label>面試結果</label><select id="itv-result"><option value=""${!c.result?' selected':''}>— 還沒面試 —</option><option value="waiting"${c.result==='waiting'?' selected':''}>⏳ 已面試，等結果</option><option value="pass"${c.result==='pass'?' selected':''}>✅ 通過</option><option value="fail"${c.result==='fail'?' selected':''}>❌ 沒通過</option><option value="none"${c.result==='none'?' selected':''}>➖ 沒有結果（中途放棄／沒去面試）</option></select></div>
      <div class="field"><label>結果備註 <span class="hint">選填</span></label><input id="itv-rnote" type="text" value="${esc(c.result_note||'')}" placeholder="例：補件後再送、9 月重面"></div>
-     <div class="field full"><label>🎥 練習用的線上教室（Google Meet） <span class="hint">面試練習都是線上，貼固定的 Meet 連結，課表上就會出現「進入教室」</span></label>
+     <div class="field full"><label>🎥 練習用的線上教室（Google Meet） <span class="hint">貼固定的 Meet 連結，課表上就會出現「進入教室」</span></label>
      <input id="itv-meet" type="url" inputmode="url" value="${esc(c.meet_url||'')}" placeholder="https://meet.google.com/abc-defg-hij"></div>
      <div class="field"><label>💰 談定的練習費總額 <span class="hint">選填。填了才會算「還差多少」</span></label><input id="itv-total" type="number" min="0" value="${esc(c.fee_total==null?'':String(c.fee_total))}" placeholder="例：500"></div>
      <div class="field"><label>總額幣別</label><select id="itv-fcur"><option value="VND"${itvTotalCur(c)==='VND'?' selected':''}>越南盾 VND（打千位）</option><option value="TWD"${itvTotalCur(c)==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${itvTotalCur(c)==='USD'?' selected':''}>美元 US$</option></select></div>
@@ -5236,7 +5252,7 @@ function renderOps(){const body=$('#ops-body');
     `<div><div class="muted" style="font-size:12px">本月收入（${esc(thisM)}）</div>${bigNum(monCur)}</div>`+
     `<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計收入（全部）</div>${hidNum(bigNum,allCur)}</div></div>`;
   const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span><button class="btn btn-sm" data-act="opsMonth" data-id="${esc(m)}">🔎 明細</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入紀錄（到學生的「繳費」新增即可）。</div>';
-  const billHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">🧮 累計 該收 vs 實收 <span class="hint">逐堂依時數收費（團班用該班的收費級距）對照「累計實收」，不受繳費時間影響，抓真正的漏收</span></div>${billCheckHtml(thisM)}</div>`;
+  const billHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">🧮 累計 該收 vs 實收 <span class="hint">逐堂依時數算應收，對照累計實收，抓真正的漏收。團班用該班的收費級距。</span></div>${billCheckHtml(thisM)}</div>`;
   const due=S.students.filter(s=>!s.is_test&&!isTrial(s)&&enrollOf(s)!=='paused').map(s=>({s,b:stuBill(s)})).filter(x=>x.b&&x.b.items.length&&x.b.due>0.0001).sort((a,b)=>b.b.due-a.b.due);
   const dueRows=due.length?due.map(({s,b})=>`<div class="dash-row"><span class="badge badge-overdue">欠 ${money(b.due,billCur(s))}</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">上課 ${money(b.charge,billCur(s))} · 已繳 ${money(b.paid,billCur(s))}</span><button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒</button><button class="btn btn-sm btn-primary" data-act="payments" data-id="${s.id}">💰 記繳費</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
   let adminHtml='';
@@ -5622,6 +5638,7 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
           <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">✏️ 編輯</button>
           <button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button>
           <button class="btn btn-sm" data-act="tryLesson" data-id="${l.id}" title="像學生一樣真的做做看，不會存檔">🎒 試做</button>
+          <button class="btn btn-sm${tgTxt(l.id)?' btn-soft':''}" data-act="tguide" data-id="${l.id}" title="只有老師看得到的參考答案和教學筆記">👩‍🏫 教師手冊${tgTxt(l.id)?' ●':''}</button>
           <button class="btn btn-sm" data-act="lessonMore" data-id="${l.id}">⋯ 更多</button>
           <button class="btn btn-sm btn-accent" data-act="assign" data-id="${l.id}">👥 發佈${an?`（${an}）`:''}</button>
         </span>
@@ -5704,7 +5721,7 @@ function clForm(){const e=!!CL.id;const origText=CL.origText!=null?CL.origText:'
      <div class="field full"><label>貼整篇原文 <span class="hint">貼進來按下面那顆，會照「。！？；」和換行拆成一句一列</span></label>
        <textarea id="cl-paste" style="min-height:110px" placeholder="貼上整篇文言文原文…">${esc(origText)}</textarea>
        <div style="margin-top:6px"><button class="btn btn-sm btn-accent" type="button" data-act="clSplitFill">✂️ 拆成一句一列</button></div></div>
-     <div class="field full"><label>逐句內容 <span class="hint">原文／注釋／參考翻譯。學生每一句底下會有「我的筆記」和「翻譯」兩欄</span></label>
+     <div class="field full"><label>逐句內容 <span class="hint">原文／注釋／參考翻譯。學生每句底下有「我的筆記」和「翻譯」。</span></label>
        <div id="cl-lines">${clLineRowsHtml()}</div>
        <button class="btn btn-sm" type="button" data-act="clAddLine">＋ 新增一句</button></div>
      <div class="field full"><label>課後問答題（選填） <span class="hint">翻譯以外再問幾題理解問題，跟翻譯一起送出來給你改</span></label>
@@ -5978,7 +5995,7 @@ function tplModal(){const nextNo=S.lessons.length+1;const bookOpts=[...new Set(S
      <div class="form-grid">
        <div class="field"><label>對話語法數</label><input id="t-ga" type="number" min="0" value="3"></div>
        <div class="field"><label>短文語法數 <span class="hint">當代中文設 0</span></label><input id="t-gb" type="number" min="0" value="3"></div></div>
-     <div class="hint">建立後會直接打開編輯畫面，把課文、生詞、語法內容填進去即可；練習題可用「一次匯入整課」。</div>
+     <div class="hint">建立後直接打開編輯畫面填課文、生詞、語法；練習題可用「一次匯入整課」。</div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>
      <button class="btn btn-primary" data-act="doTplLesson">建立並編輯</button></div></div>`);}
@@ -5988,7 +6005,7 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
    <div class="modal-body"><div class="form-grid">
      <div class="field"><label>課序 <span class="hint">第幾課</span></label><input id="l-order" type="number" min="1" value="${l.order_index||nextNo}"></div>
      <div class="field"><label>課名 *</label><input id="l-title" type="text" value="${esc(l.title||'')}" placeholder="例：第一課 歡迎你來臺灣／補充作業 6-20"></div></div>
-     <div class="field full"><label>教材 <span class="hint">用來分類整理，例：當代中文課程一、時代華語一、發音（可選既有或直接打新的）</span></label><input id="l-textbook" type="text" list="book-list" value="${esc(l.textbook||'')}" placeholder="當代中文課程一"><datalist id="book-list">${[...new Set([...bookOpts,'發音'])].map(b=>'<option>'+esc(b)+'</option>').join('')}</datalist></div>
+     <div class="field full"><label>教材 <span class="hint">分類用，例：當代中文課程一、時代華語一、發音。可打新的。</span></label><input id="l-textbook" type="text" list="book-list" value="${esc(l.textbook||'')}" placeholder="當代中文課程一"><datalist id="book-list">${[...new Set([...bookOpts,'發音'])].map(b=>'<option>'+esc(b)+'</option>').join('')}</datalist></div>
      <div class="field full"><label>📄 講義（PDF）</label>
        <div class="handout-edit"><input type="hidden" id="l-handout-url" value="${esc(l.handout_url||'')}"><input type="hidden" id="l-handout-name" value="${esc(l.handout_name||'')}">
          <button class="btn btn-sm" type="button" data-act="lhUp">⬆ 上傳 PDF</button>
@@ -6015,6 +6032,126 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
      <button class="btn btn-primary" data-act="saveLesson" data-id="${l.id||''}">${e?'儲存':'新增'}</button></div></div>`);
   dlgRender();gpRender();ntRender();
 }
+
+
+
+/* ══════ READUID_V973 每一課記一份「誰讀得到」 ══════
+   Firestore 的規則沒辦法自己去算「這個學生在哪幾個班」，
+   只能看文件上有沒有他的 uid，所以名單要先算好存進去。
+   算法跟畫面上「發佈給誰」完全一樣：個別指派的學生 ＋ 指派的團班裡的人。
+   沒有 uid 的學生（還沒建帳號）算不進去——那是本來就登不進來的人。 */
+function ruCalc(l){
+  const ids=(l&&l.assigned_ids)||[],ag=(l&&l.assigned_groups)||[];
+  const seen={};
+  (S.students||[]).forEach(s=>{
+    if(!s||s.deleted_at)return;
+    const u=String(s.uid||'').trim();if(!u)return;
+    if(ids.indexOf(s.id)>=0){seen[u]=1;return;}
+    if(ag.length&&stuGroups(s).some(g=>ag.indexOf(g)>=0))seen[u]=1;});
+  return Object.keys(seen).sort();}
+function ruSame(a,b){
+  a=a||[];b=b||[];
+  if(a.length!==b.length)return false;
+  for(let i=0;i<a.length;i++)if(a[i]!==b[i])return false;
+  return true;}
+function ruTargets(){
+  return (S.rawLessons||[]).filter(x=>x&&!x.deleted_at
+    &&(((x.assigned_ids||[]).length)||((x.assigned_groups||[]).length)));}
+/* quiet=true 是平常存檔後順手補，不出訊息、失敗也不打斷妳正在做的事 */
+async function ruSync(quiet){
+  const rows=ruTargets();let n=0,bad=0;
+  for(let i=0;i<rows.length;i++){
+    const l=rows[i];const want=ruCalc(l);
+    if(ruSame(want,l.read_uids))continue;
+    try{await DB.update('lessons',l.id,{read_uids:want});l.read_uids=want;n++;}
+    catch(e){bad++;}
+  }
+  if(!quiet){
+    if(bad)toast('更新了 '+n+' 課，有 '+bad+' 課寫不進去');
+    else toast(n?('已更新 '+n+' 課的讀取名單'):'名單本來就是對的，沒有要改的');
+  }
+  return {n:n,bad:bad,total:rows.length};}
+function ruLater(){setTimeout(function(){ruSync(true);},400);}
+
+/* ══════ TGUIDE_V973 教師手冊（只有老師看得到） ══════
+   放在另一個資料表 tguides：學生端的程式從來沒有讀過這個表，
+   所以就算學生打開開發者工具，也抓不到這裡的東西。
+   講義列印不含這一份，要印請按手冊裡的「🖨 列印教師手冊」。 */
+let TG=[];
+async function tgLoad(){try{TG=await DB.list('tguides');}catch(e){TG=[];}}
+function tgOf(lid){return (TG||[]).find(x=>x&&x.lesson_id===lid&&!x.deleted_at)||null;}
+function tgTxt(lid){const t=tgOf(lid);return (t&&t.body)||'';}
+
+/* 把這一課能當「參考答案」的東西整理出來（唯讀，資料還是在課本那邊） */
+function tgRefBlocks(l){
+  const out=[];
+  const T=(s)=>String(s==null?'':s).trim();
+  /* 語法點：說明＋例句 */
+  (l.grammar_points||[]).forEach((g,gi)=>{
+    const rows=[];
+    (g.blocks||[]).forEach(b=>{
+      const lab=T(b.label),tx=T(b.text),ex=T(b.ex);
+      if(!tx&&!ex)return;
+      rows.push({lab:lab||'說明',tx:tx,ex:ex});});
+    if(rows.length)out.push({h:'📘 語法 '+(gi+1)+'　'+(T(g.title)||'（未命名）'),rows:rows});});
+  /* 注釋 */
+  const nts=[];
+  (l.notes||[]).forEach(n=>{const tx=T(((n.blocks||[])[0]||{}).text),ex=T(((n.blocks||[])[0]||{}).ex);
+    if(T(n.title)||tx||ex)nts.push({lab:T(n.title)||'注釋',tx:tx,ex:ex});});
+  if(nts.length)out.push({h:'📝 注釋 Notes',rows:nts});
+  /* 課文的參考翻譯（學生那邊要妳打開才看得到，這裡一律看得到） */
+  const trs=[];
+  (l.dialogues||[]).forEach((d,di)=>{const en=T(d.content_en);
+    if(en)trs.push({lab:T(d.title)||('課文'+(di+1)),tx:en,ex:''});});
+  if(trs.length)out.push({h:'🌏 課文參考翻譯',rows:trs});
+  /* 練習題的參考答案 */
+  try{
+    const qs=sortQuestionsLogical(questionsOf(l.id));
+    const mk=(arr,title)=>{
+      if(!arr.length)return;
+      const rows=arr.map((q,i)=>{
+        const ref=gdRefText(q)||'';
+        return {lab:String(i+1),tx:T(q.prompt)||'（無題目）',ex:ref?('參考答案：'+ref):'（這題沒有設參考答案）'};});
+      out.push({h:title+'（'+arr.length+' 題）',rows:rows});};
+    mk(qs.filter(q=>q.bank!=='hw'),'✍️ 上課語法練習');
+    mk(qs.filter(q=>q.bank==='hw'),'📗 作業簿');
+  }catch(e){}
+  /* 聽力文本 */
+  try{const tr=Array.isArray(l.transcript)?l.transcript:[];
+    if(tr.length){
+      const rows=tr.map((x,i)=>({lab:String(i+1),tx:T(typeof x==='string'?x:(x&&(x.text||x.line||''))),ex:''}))
+        .filter(r=>r.tx);
+      if(rows.length)out.push({h:'🎧 聽力文本'+(l.transcript_open?'（已對學生開放）':'（未對學生開放）'),rows:rows});}}
+  catch(e){}
+  return out;}
+
+function tgRefHtml(l){
+  const bs=tgRefBlocks(l);
+  if(!bs.length)return '<div class="hint" style="padding:10px 2px">這一課還沒有可以整理的參考答案——'
+    +'語法說明、注釋、練習題答案填好之後會自動出現在這裡。</div>';
+  return bs.map(b=>'<details class="tg-sec" open><summary>'+esc(b.h)+'</summary><div class="tg-body">'
+    +b.rows.map(r=>'<div class="tg-row"><span class="tg-lab">'+esc(r.lab)+'</span>'
+      +'<div class="tg-tx">'+esc(r.tx).replace(/\n/g,'<br>')
+      +(r.ex?('<div class="tg-ex">'+esc(r.ex).replace(/\n/g,'<br>')+'</div>'):'')
+      +'</div></div>').join('')
+    +'</div></details>').join('');}
+
+function tgModal(lid){
+  const l=(S.lessons||[]).find(x=>x&&x.id===lid);
+  if(!l)return toast('找不到這一課');
+  openModal('<div class="modal wide"><div class="modal-head"><h3>👩‍🏫 教師手冊 · '+esc(l.title||'')+'</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="tg-warn">🔒 這一頁只有老師看得到。學生端不會讀到這裡的任何東西，'
+   +'講義也不會把它印出去——要印請按下面的「🖨 列印教師手冊」。</div>'
+   +'<div class="field full"><label>📝 我的教學筆記 <span class="hint">怎麼教、學生哪裡常錯、要補充什麼。只有你看得到。</span></label>'
+   +'<textarea id="tg-body" rows="9" placeholder="例：&#10;・「了」這裡先不要講完成貌，只講「變化」。&#10;・越南學生容易把「不」和「沒」搞混，第 3 題要停下來講。&#10;・課本第 12 頁的圖沒上傳，記得自己帶。">'+esc(tgTxt(lid))+'</textarea></div>'
+   +'<div style="font-weight:800;font-size:15px;margin:16px 0 6px">📋 這一課的參考答案 <span class="hint" style="font-weight:400">自動整理，改要回「✏️ 編輯」那邊改</span></div>'
+   +tgRefHtml(l)
+   +'</div>'
+   +'<div class="modal-foot"><button class="btn btn-sm" data-act="tgPrint" data-id="'+esc(lid)+'">🖨 列印教師手冊</button>'
+   +'<span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">關閉</button>'
+   +'<button class="btn btn-primary" data-act="tgSave" data-id="'+esc(lid)+'">儲存筆記</button></div></div>');}
 
 /* ---------- 練習題管理 ---------- */
 function openQuestionsModal(lid){
@@ -6200,7 +6337,7 @@ function questionEditModal(lid,q,defBank){const e=!!q;q=q||{};QE_TYPE=q.type||'c
        <button type="button" data-qebank="class" class="${QBANK!=='hw'?'on':''}">📘 上課語法練習</button>
        <button type="button" data-qebank="hw" class="${QBANK==='hw'?'on':''}">📒 作業簿</button></div>
      <input type="hidden" id="qe-bank" value="${QBANK}"></div>`;
-  const gpField=`<div class="field"><label>屬於哪個語法點 <span class="hint">選了之後，這題會出現在「上課內容」該語法卡下面，學生看完解釋就能練</span></label>
+  const gpField=`<div class="field"><label>屬於哪個語法點 <span class="hint">選了之後這題會出現在該語法卡下面，學生看完解釋就能練。</span></label>
      <select id="qe-gp"><option value="">（不指定／放在綜合練習）</option>${gps.map((g,i)=>`<option value="${i}"${q.gp_index===i?' selected':''}>${esc('語法 '+(i+1)+'：'+(gpT(g.title)||'（未命名）'))}</option>`).join('')}</select>
      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><label style="margin:0;white-space:nowrap;font-weight:600">小節（選填）</label><input id="qe-gpsub" type="text" style="flex:0 0 auto;width:120px" value="${esc(q.gp_sub||'')}" placeholder="例：A、B"><span class="hint">同一個語法點裡，標 A／B 就會把練習分成「A」「B」兩組顯示。</span></div>
      ${gps.length?'':'<div class="hint" style="margin-top:4px">這課還沒有語法點，先到「編輯課文」加語法點，題目才能對應。</div>'}</div>`;
@@ -6242,7 +6379,7 @@ function classBoardHtml(cls){
   const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
   const pub=sortLessons(S.lessons).filter(l=>(l.assigned_groups||[]).includes(cls));
   const prons=(S.prons||[]).filter(p=>(p.assigned_groups||[]).includes(cls));
-  if(!pub.length&&!prons.length)return '<div class="hint">這個團班還沒有「整班發佈」的內容。到任一課按「發佈」→勾選這個團班即可。</div>';
+  if(!pub.length&&!prons.length)return '<div class="hint">這班還沒有整班發佈的內容。到任一課按「發佈」勾這個班就好。</div>';
   if(!members.length)return '<div class="hint">這個團班還沒有成員，先在上面勾選學生並儲存。</div>';
   const STAT=r=>!r?['未開始','pending']:(r.status==='draft'?['作答中','soon']:(r.status==='pending'?['待批改','soon']:['已完成','ok']));
   const lrows=pub.map(l=>{const hw=answerableOf(l.id).length;
@@ -7284,7 +7421,7 @@ function ghModal(){
    +'<div class="field"><label>上課日期 <span class="hint">選填，預設今天</span></label>'
    +'<input id="gh-when" type="date" min="2000-01-01" max="2100-12-31"></div>'
    /* GHPREF_V883 */
-   +'<div class="hint" style="margin-top:2px">上面的選項會照每一本教材記住你上次按匯出時的設定（日期除外，一律預設今天）。</div>'
+   +'<div class="hint" style="margin-top:2px">每一本教材會記住你上次的匯出設定，日期除外（一律預設今天）。</div>'
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
    /* UNIFY_V914 跟其他列印視窗一樣，都是列印這件事；
       講義有三種版本，所以保留三顆，但写法改成同一套。 */
@@ -7327,13 +7464,39 @@ function cannedBar(tgt){return '<div class="canned-bar">'+FB_PRESETS.map(t=>`<bu
 function aiAnsText(q,resp){try{const d=document.createElement('div');d.innerHTML=ansHtml(q,resp);
   return (d.textContent||'').replace(/\s+/g,' ').trim();}catch(e){return '';}}
 function aiResultOf(rid){return (S.results||[]).find(x=>x&&x.id===rid);}
+/* AIAUTO_V973 「打開批改就自動擬草稿」的開關。預設開；關了就回到要自己按的樣子。
+   草稿一樣只是填進欄位，沒有存檔、學生也還看不到——要按「儲存建議」才算數。 */
+function aiAutoOn(){try{return localStorage.getItem('qna_ai_auto')!=='0';}catch(e){return true;}}
+window.qnaAiAuto=function(cb){
+  const on=!!(cb&&cb.checked);
+  try{localStorage.setItem('qna_ai_auto',on?'1':'0');}catch(e){}
+  try{document.querySelectorAll('.ai-auto input').forEach(function(x){x.checked=on;});}catch(e){}
+  try{toast(on?'之後打開批改就會自動擬草稿':'已關掉，要用再按「✨ 幫我擬草稿」');}catch(e){}};
+const AI_DONE=Object.create(null);   /* 這一次開著的期間，哪幾份已經自動擬過了 */
+function aiBlank(r){
+  if(!r)return false;
+  if(String(r.comment||'').trim())return false;
+  const fb=r.feedback||{};
+  for(const k in fb){if(String(fb[k]||'').trim())return false;}
+  return true;}
+function aiAutoRun(rid){
+  if(!aiAutoOn())return;
+  if(AI_DONE[rid])return;
+  const r=aiResultOf(rid);
+  if(!aiBlank(r))return;          /* 已經寫過建議的不要去動 */
+  AI_DONE[rid]=1;
+  try{H.aiDraft(rid);}catch(e){}}
 /* AI_BAR_V28 AI 小幫手改成明顯的橫幅，放在批改內容最上面 */
 function aiBar(kind,rid){
   const act=rid?('data-act="aiDraft" data-id="'+esc(rid)+'"'):('data-act="aiDraftBox" data-id="'+esc(kind)+'"');
   const boxId=rid?('aiw-'+esc(rid)):'aiw-box';
   return '<div class="ai-bar"><span class="ai-ic">✨</span><b>AI 小幫手</b>'
     +'<span class="ai-sub">擬一份修改建議草稿，你改過、按「儲存建議」學生才看得到。</span>'/* TIDY_V954 */
-    +'<span class="grow"></span><button class="btn btn-ai" type="button" '+act+'>✨ 幫我擬草稿</button></div>'
+    +'<span class="grow"></span>'
+    +'<label class="ai-auto" title="打開這份批改就先幫你擬好，不用再按一次">'
+      +'<input type="checkbox" onchange="qnaAiAuto(this)"'+(aiAutoOn()?' checked':'')+'>'
+      +'<span>打開就自動擬</span></label>'/* AIAUTO_V973 */
+    +'<button class="btn btn-ai" type="button" '+act+'>✨ 幫我擬草稿</button></div>'
     +'<div id="'+boxId+'" class="ai-wrap"></div>';
 }
 function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length;
@@ -7465,8 +7628,8 @@ function renderFiles(){
       +'<button class="btn btn-sm btn-ghost" style="padding:2px 7px" title="移除這個格子（檔案不會刪）" data-act="fiRemove" data-id="'+esc(s.id)+'::'+esc(a.id)+'">✕</button></span>').join('');
     return '<div class="dash-row" style="flex-wrap:wrap"><b>'+snm(s.name||'')+'</b>'+(s.is_test?'<span class="tag" style="background:#eee;color:#666;border-color:#ccc">🧪 測試</span>':'')+(enrollOf(s)==='active'?'':'<span class="muted" style="font-size:12px">（休）</span>')+chips+'</div>';
   }).filter(Boolean).join('');
-  const areasCard='<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">① 目前的上傳格子</h3><div class="hint" style="margin-bottom:6px">「開放中」＝學生看得到、可以上傳；「已關」＝學生看不到（已傳的檔案都還在收件匣）。</div>'
-    +(areaRows||'<div class="hint">還沒有開放任何格子。按上面「＋ 開放上傳格子」，選學生、取個名字就好。</div>')+'</div>';
+  const areasCard='<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">① 目前的上傳格子</h3><div class="hint" style="margin-bottom:6px">「開放中」＝學生可上傳；「已關」＝學生看不到，已傳的檔案還在收件匣。</div>'
+    +(areaRows||'<div class="hint">還沒開放格子。按「＋ 開放上傳格子」，選學生、取個名字就好。</div>')+'</div>';
   const _view=S.filesView||'stu';
   const inboxCard='<div class="card"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0">② 收件匣：學生傳來的檔案</h3><span class="grow"></span>'
     +'<button class="btn btn-sm '+(_view==='stu'?'btn-accent':'')+'" data-act="filesViewStu">👥 依學生看</button><button class="btn btn-sm '+(_view==='les'?'btn-accent':'')+'" data-act="filesViewLes">📚 依課次看</button></div>'
@@ -7492,7 +7655,7 @@ async function _filesLoadInbox(){const box=document.getElementById('files-inbox'
     let files=await DB.list('uploads');files=(files||[]).filter(Boolean);
     files.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
     _uaFiles=files;
-    if(!files.length){box.innerHTML='<div class="hint">還沒有收到任何檔案。學生從他的「✍️ 作業簿」頁上傳後，會自動出現在這裡。</div>';return;}
+    if(!files.length){box.innerHTML='<div class="hint">還沒收到檔案。學生從「✍️ 作業簿」上傳後會自動出現在這裡。</div>';return;}
     const nameOf=(sid)=>upOwnerName(sid);
     const row=(f)=>{const i=_uaFiles.indexOf(f);
       return '<div class="dash-row" style="flex-wrap:wrap">'
@@ -7605,6 +7768,7 @@ function sgOpen(it){
   const H_=H;
   if(it.kind==='hw'){const r=it.sd;const l=S.lessons.find(x=>x.id===r.lesson_id)||{};const st=S.students.find(x=>x.id===r.student_id)||{name:'學生'};
     sgFill('✍️ 作業批改 · '+snm(st.name),'<div class="hint" style="margin-bottom:10px">'+esc(sgLes(r.lesson_id))+(r.completed_at?(' · 🕒 '+esc(fmtDT(r.completed_at))):'')+'</div>'+studentReviewHtml(l,st,r),'');
+    setTimeout(function(){aiAutoRun(r.id);},60);/* AIAUTO_V973 */
     return;}
   if(it.kind==='act'){const sd=it.sd;const st=S.students.find(x=>x.id===sd.student_id)||{name:'學生'};
     const l=(S.lessons||[]).find(x=>x.id===sd.act_lesson)||{};
@@ -8043,7 +8207,7 @@ H.reviews=()=>{
     const act=st==='approved'?'<button class="btn btn-sm" data-act="revUnapprove" data-id="'+r.id+'">取消公開</button>':'<button class="btn btn-sm btn-accent" data-act="revApprove" data-id="'+r.id+'">✓ 核准公開</button>';
     return '<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start"><b>'+esc(revNameOf(r))+'</b>'+badge+'<span class="grow"></span>'+act+'<button class="btn btn-sm" style="color:var(--danger)" data-act="revDel" data-id="'+r.id+'">🗑</button><div style="flex-basis:100%;margin-top:4px;white-space:pre-line;color:var(--ink)">'+esc(r.text||'')+'</div></div>';
   }).join(''):'<div class="muted" style="padding:10px 0">還沒有學生評價。學生在學習頁「⭐ 給老師評價」送出後會出現在這裡，你核准後才會顯示在官網。</div>';
-  openModal('<div class="modal wide"><div class="modal-head"><h3>⭐ 學生評價審核</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="hint" style="margin-bottom:10px">核准的評價會自動加到官網「學生評價」區；也可到「編輯內容 → ⭐ 學生評價」再微調文字。</div>'+rows+'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');
+  openModal('<div class="modal wide"><div class="modal-head"><h3>⭐ 學生評價審核</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="hint" style="margin-bottom:10px">核准後自動上官網，文字可到「編輯內容 → ⭐ 學生評價」再改。</div>'+rows+'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');
 };
 H.revApprove=async(id)=>{const r=(S.reviews||[]).find(x=>x.id===id);if(!r||!S.site)return toast('資料未就緒，請重新整理');
   try{await ensureAuthFresh();const rb=(S.site.reviews_body&&typeof S.site.reviews_body==='object')?Object.assign({},S.site.reviews_body):{zh:'',vi:'',en:''};const line=revLine(r);const cur=(rb.zh||'');if(('\n'+cur+'\n').indexOf('\n'+line+'\n')<0)rb.zh=(cur.trim()?cur.trim()+'\n':'')+line;await DB.update('site',S.site.id,{reviews_body:rb});S.site.reviews_body=rb;await DB.update('results',id,{status:'approved'});r.status='approved';toast('已核准，已加到官網評價區');H.reviews();}
@@ -8301,6 +8465,7 @@ H.settingsCenter=()=>{
           ${rare('editSite','notify','📧','有人報名時通知我','報名表填好後自動寄信到你的信箱')}
           ${rare('editSite','fab','📱','官網上的聯絡按鈕','官網右下角那排 LINE／Zalo／FB')}
           ${rare('admins','','👤','其他老師的帳號','新增管理員 · 決定誰帶哪些學生')}
+          ${rare('ruRebuild','','🔐','重建學生讀取名單','把每一課「誰讀得到」重算一次。平常會自己維護，不用按')}
           ${rare('obShow','','🚀','新手引導','第一次用的老師：五個基本步驟走一遍')}
         </div>
       </details>
@@ -8772,7 +8937,7 @@ function wbeAudRows(){
       ${a.url?`<button class="btn btn-sm btn-danger" type="button" data-act="wbeAudDel" data-id="${key}">移除</button>`:''}</div>`;}).join('');}
 function wbePicRows(){
   const pics=(WBE.d.pic||[]);
-  if(!pics.length)return '<div class="hint">先在上面「六 圖片描述」打好題號，這裡才會出現上傳圖片的位子。</div>';
+  if(!pics.length)return '<div class="hint">先在「六 圖片描述」打好題號，這裡才會出現上傳位子。</div>';
   return pics.map(q=>`<div class="dash-row" style="padding:6px 0"><b style="width:52px">第 ${q.n} 題</b>
     <button class="btn btn-sm" type="button" data-act="wbePicPick" data-id="${q.n}">⬆ 上傳圖片</button>
     <span class="hint" id="wbe-pic-${q.n}">${q.img?'✓ 已上傳':'（尚無圖片）'}</span>
@@ -8798,7 +8963,7 @@ function wbeRender(){
       `<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" class="wbe-hand" data-k="${k}" style="width:auto" ${((d.hand||{})[k])?'checked':''}> ${esc(lb)}</label>`).join('')}
   </div>
   <div class="lesson-label" style="margin-top:16px">② 聽力音檔</div>
-  <div class="hint" style="margin-bottom:4px">三段聽力各上傳一個音檔。沒有音檔學生還是看得到題目，只是聽不到。</div>
+  <div class="hint" style="margin-bottom:4px">三段聽力各上傳一個音檔。沒音檔題目還在，只是聽不到。</div>
   <div id="wbe-auds">${wbeAudRows()}</div>
   <div class="lesson-label" style="margin-top:18px">③ 題目內容</div>
   <div class="hint" style="margin-bottom:8px">每一行一題，欄位之間用 <b>Tab</b> 分隔——<b>直接從 Excel 整塊複製貼上就可以</b>。也可以用全形直線 <b>｜</b> 分隔。空的欄位留著不填即可。</div>
@@ -8813,7 +8978,7 @@ function wbeRender(){
       <div class="field"><label>B 組說明</label><input id="wbe-g7B" type="text" value="${esc((((d.g7||{}).groups)||[]).find(g=>g.k==='B')?.title||'')}" placeholder="例：Write the number with 多."></div>
     </div></div>
   <div class="lesson-label" style="margin-top:6px">④ 完成對話上面的圖</div>
-  <div class="hint" style="margin-bottom:4px">課本「完成對話」上面如果有課表、圖片，可以放這裡，學生寫的時候看得到。</div>
+  <div class="hint" style="margin-bottom:4px">課本「完成對話」上面的課表、圖片可以放這裡，學生寫的時候看得到。</div>
   <div class="dash-row" style="padding:6px 0;margin-bottom:10px">
     <button class="btn btn-sm" type="button" data-act="wbeDlgPick">⬆ 上傳圖片</button>
     <span class="hint" id="wbe-dlgimg">${d.dlgImg?'✓ 已上傳':'（尚無圖片）'}</span>
@@ -8822,7 +8987,7 @@ function wbeRender(){
     ${d.dlgImg?`<button class="btn btn-sm btn-danger" type="button" data-act="wbeDlgDel">移除</button>`:''}
   </div>
   <div class="lesson-label" style="margin-top:6px">⑤ 圖片描述的圖</div>
-  <div class="hint" style="margin-bottom:4px">先按下面「↻ 重新整理圖片位子」把上面打的題號讀進來，再逐題上傳。</div>
+  <div class="hint" style="margin-bottom:4px">先按「↻ 重新整理圖片位子」讀進題號，再逐題上傳。</div>
   <div style="margin-bottom:6px"><button class="btn btn-sm" type="button" data-act="wbeSync">↻ 重新整理圖片位子</button></div>
   <div id="wbe-pics">${wbePicRows()}</div>`;}
 function wbeCollect(){
@@ -9408,7 +9573,7 @@ H.fbWeek=()=>{
     :'<div class="hint" style="padding:16px 2px">最近 '+N+' 天上過的課都寫過回饋了 🎉</div>';
   openModal('<div class="modal" style="max-width:560px"><div class="modal-head"><h3>💬 這陣子上過課、還沒寫回饋</h3>'
     +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-    +'<div class="hint" style="margin-bottom:9px">請假和缺席的堂不會列在這裡。寫完一位會自動回到這份清單，接著寫下一位。</div>'
+    +'<div class="hint" style="margin-bottom:9px">請假、缺席不列在這裡。寫完一位會自動回到清單，接著寫下一位。</div>'
     +'<div class="segbar" style="margin-bottom:10px">'+seg(7)+seg(14)+seg(30)+'</div>'
     +'<div style="max-height:56vh;overflow:auto">'+rows+'</div></div></div>');};
 H.fbWeekDays=(d)=>{S.fbDays=Number(d)||7;H.fbWeek();};
@@ -10144,7 +10309,7 @@ function obHtml(force){
     +'<b style="font-size:16px">🚀 第一次用？先做這五件事</b>'
     +'<span class="tag">'+done+' / '+st.length+'</span><span class="grow"></span>'
     +'<button class="btn btn-sm btn-ghost" data-act="obHide">知道了，收起來</button></div>'
-    +'<div class="hint" style="margin-top:4px">照順序做完，平台的主要流程就跑過一遍了。每一步做完會自己打勾。</div>'
+    +'<div class="hint" style="margin-top:4px">照順序做完就把主要流程跑過一遍了，每一步會自己打勾。</div>'
     +'<div style="height:7px;background:#E5E6E8;border-radius:99px;margin:11px 0 4px;overflow:hidden">'
     +'<div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,#3D6EA6,#1E4C86)"></div></div>'
     +rows+'</div>';}
@@ -11172,7 +11337,7 @@ H.docListWord=(id)=>{
 H.docOpen=(id)=>{const c=(S.agencies||[]).find(x=>x.id===id);if(!c)return;
   openModal('<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>📄 '+esc(c.name||'')+' · 申請文件清單</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-   +'<div class="hint" style="margin-bottom:10px">一列一份文件。收到（或寄出）那天把日期填上去，沒填就是還沒。'
+   +'<div class="hint" style="margin-bottom:10px">一列一份文件。收到或寄出那天填日期，沒填就是還沒。'
    +'按「今天」可以直接帶入今天的日期。</div>'
    +'<div id="doc-box">'+docEditorHtml(c)+'</div>'
    +'<div class="doc-tools"><button class="btn btn-sm" data-act="docAdd">＋ 新增一列</button>'
@@ -11274,7 +11439,7 @@ H.rpPrintOpen=()=>{
         +'</label>';}).join('')+'</div>';}).join('');
   openModal('<div class="modal"><div class="modal-head"><h3>🖨 列印回覆範本</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-   +'<div class="hint" style="margin-bottom:10px">印出來可以放在手邊照念，或存成 PDF 傳給別人。一份範本一塊，不會切到一半換頁。</div>'
+   +'<div class="hint" style="margin-bottom:10px">印出來放手邊照念，或存成 PDF 傳給別人。一份一塊，不會切到一半換頁。</div>'
    +'<div class="field"><label>要印哪幾份 <span class="hint">默認全選，不要的取消打勾就好</span></label>'
    +'<div class="rpp-box">'+picks+'</div></div>'
    /* PRINTBAR_V959 語言和字體不在這裡先選了——印出來的那一頁上面就可以換 */
@@ -12151,7 +12316,7 @@ function draftBanner(sd,cls){
       <button class="btn btn-sm btn-accent" data-act="draftApply" data-id="${esc(sd.id)}::${esc(cls)}">⬇ 帶入下面的欄位</button>
       <button class="btn btn-sm btn-ghost" data-act="draftDrop" data-id="${esc(sd.id)}">✕ 不用草稿</button>
     </div>
-    <div class="hint" style="margin-top:6px">帶入後你可以直接改字，確認沒問題再按「標記完成」，學生那時才看得到。</div>
+    <div class="hint" style="margin-top:6px">帶入後可直接改字，按「標記完成」學生才看得到。</div>
     <div class="fb-legend"><span><b>✓</b> 沒問題</span><span><b>✎</b> 建議修改</span><span><b>✗</b> 答錯了（有固定答案的題目才用）</span><span><b>○</b> 還沒作答</span><span class="grow"></span><span>寫法：符號＋一句評語。修改：「舊」→「新」。／建議：整句改寫。</span></div></div>`;
 }
 H.draftApply=(key)=>{const p=String(key).split('::');const id=p[0],cls=p[1]||'gprev-fb';
@@ -12579,7 +12744,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
       if(_en.sessions)common.sessions_total=_en.sessions;
     }}catch(_e){}}
   if(IS_OWNER){const asel=$('#f-admin');common.admin=asel?asel.value:'';}
-  if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
+  if(id){try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');ruLater();/* READUID_V973 */}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
   const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
   const btn=document.querySelector('[data-act="saveStudent"]');
   if(!email&&!pw){
@@ -12591,11 +12756,11 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   if(!email||!pw)return toast('要開通登入請「Email 與密碼都填」，或兩者都留空當純資料');if(pw.length<6)return toast('初始密碼至少 6 碼');
   if(S.students.some(s=>(s.email||'').toLowerCase()===email))return toast('這個 Email 已被其他學生使用');
   if(btn){btn.disabled=true;btn.textContent='建立中…';}
-  try{const u=await createStudentAuth(email,pw);await DB.insert('students',Object.assign({uid:u,email},common));closeModal();await loadAll();render();inviteModal(name,email,pw);}
+  try{const u=await createStudentAuth(email,pw);await DB.insert('students',Object.assign({uid:u,email},common));closeModal();await loadAll();render();ruLater();/* READUID_V973 */ inviteModal(name,email,pw);}
   catch(err){toast('建立失敗：'+authMsg(err));if(btn){btn.disabled=false;btn.textContent='新增';}}};
 H.loginLog=(id)=>{const s=S.students.find(x=>x.id===id);const p=progOf(id);const logs=(((p&&Array.isArray(p.logins))?p.logins:[]).slice()).sort().reverse();
   const byDay={};logs.forEach(t=>{const d=fmtDate(t);(byDay[d]=byDay[d]||[]).push(fmtDT(t).slice(-5));});
-  const rows=logs.length?Object.keys(byDay).map(d=>`<div class="dash-row" style="align-items:flex-start"><b style="min-width:96px">${esc(d)}</b><span class="muted">${byDay[d].map(esc).join('、')}</span><span class="grow"></span><span class="tag">${byDay[d].length} 次</span></div>`).join(''):'<div class="hint" style="padding:10px 0">還沒有登入紀錄。學生用新版（今天之後）登入後就會開始記錄每一次的時間。</div>';
+  const rows=logs.length?Object.keys(byDay).map(d=>`<div class="dash-row" style="align-items:flex-start"><b style="min-width:96px">${esc(d)}</b><span class="muted">${byDay[d].map(esc).join('、')}</span><span class="grow"></span><span class="tag">${byDay[d].length} 次</span></div>`).join(''):'<div class="hint" style="padding:10px 0">還沒有登入紀錄。學生下次登入後就會開始記錄。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>🕒 ${snm((s&&s.name)||'學生')} · 登入紀錄</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="meta" style="margin-bottom:10px"><span>共 <b>${logs.length}</b> 次登入</span>${logs.length?`<span>最近：<b>${esc(fmtDT(logs[0]))}</b></span>`:''}</div>${rows}</div></div>`);};
 H.resetPw=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s.email)return toast('此學生沒有 Email，無法寄送');if(!confirm('寄送重設密碼信給 '+s.name+'（'+s.email+'）？'))return;
@@ -13179,7 +13344,7 @@ H.qMerge=async(key,b)=>{const p=String(key).split('::');const lid=p[0],qid=p[1];
   let prev=null;for(let j=idx-1;j>=0;j--){if(bk(order[j])===bk(me)){prev=order[j];break;}}
   if(!me||(me.type!=='opt'&&me.type!=='qa')){return;}
   if(!prev||prev.type!=='opt'||qSecKey(prev)!==qSecKey(me)){toast('上一題不是同一語法的選填題，無法併入');return;}
-  if(!confirm('把這一題併入「上一題」的選填題？併入後選項只會留一份，這一題會變成上一題的下一小題並消失。'))return;
+  if(!confirm('併入上一題？選項只留一份，這一題會變成上一題的小題。'))return;
   const addItems=(me.type==='qa')?[{text:(me.prompt||'').trim(),mode:'open'}]:(me.items||[]);
   const mergedItems=[...(prev.items||[]),...addItems];
   let options=(prev.options||[]).slice();if((me.options||[]).length>options.length)options=(me.options||[]).slice();
@@ -13305,8 +13470,8 @@ H.propList=()=>{
   openModal('<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>📥 '
    +(IS_OWNER?'待審修改':'我送出的修改')+'</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body">'
-   +(IS_OWNER?'<div class="hint" style="margin-bottom:12px">老師改到你建的課文或題目，會先停在這裡。按「套用」才會真的寫進教材。</div>'
-             :'<div class="hint" style="margin-bottom:12px">你改的是主管理員建的教材，所以先送出等確認。你自己建的課文不用經過這裡。</div>')
+   +(IS_OWNER?'<div class="hint" style="margin-bottom:12px">別的老師改到你建的內容會先停在這裡，按「套用」才會寫進教材。</div>'
+             :'<div class="hint" style="margin-bottom:12px">這是主管理員建的教材，改了要先送出等確認。你自己建的不用。</div>')
    +(list.length?list.map(card).join(''):'<div class="muted" style="padding:14px 2px">目前沒有待處理的修改 👍</div>')
    +(done.length?('<div class="lesson-label" style="margin-top:16px">最近處理過的</div>'
       +done.map(p=>'<div class="dash-row"><span class="badge '+(p.status==='applied'?'badge-ok':'badge-pending')+'">'
@@ -13558,7 +13723,7 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
     <input type="file" id="file-dlgaud-${i}" class="hide" accept="audio/*">
     <div class="hint" id="dlgaud-status-${i}" style="margin-top:4px">${(d.line_segments&&d.line_segments.length)?('逐句已切：'+d.line_segments.length+' 句（學生逐句跟讀會用真人朗讀）'):''}</div>
     <div id="la-preview-${i}" style="margin-top:8px"></div>
-    <label class="dlg-lbl">這段生詞的真人發音（自動切割） <span class="hint">上傳「依序唸這段生詞、字間有停頓」的錄音；系統自動切片。學生生詞卡會播這個真人發音。</span></label>
+    <label class="dlg-lbl">這段生詞的真人發音（自動切割） <span class="hint">上傳依序唸生詞的錄音（字間要停頓），系統自動切片給生詞卡用。</span></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-sm" type="button" data-act="pickVocabAudio" data-id="${i}">⬆ 上傳並自動切割</button>
       <input type="file" id="file-va-${i}" class="hide" accept="audio/*">
@@ -13569,7 +13734,7 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
       <label style="font-size:12px;color:var(--muted)">停頓靈敏度（切太多→往左；併在一起→往右）</label>
       <input id="va-sens-${i}" type="range" min="8" max="60" value="20" style="width:100%;display:block"></div>
     <div id="va-preview-${i}" style="margin-top:8px"></div>
-    <label class="dlg-lbl">問題與討論 <span class="hint">每行一題；學生在「課文」會看到這些問題，可選擇打字作答、送出給你批改。</span></label>
+    <label class="dlg-lbl">問題與討論 <span class="hint">每行一題。學生在「課文」看得到，可打字作答送給你批改。</span></label>
     <textarea class="dlg-disc-in" data-i="${i}" placeholder="一行一題，例：&#10;你週末喜歡做什麼？&#10;請說說你的家人。">${esc(d.discussion||'')}</textarea>
     </div></details>`).join('')+'<div class="edit-fold-bar"><button class="btn btn-sm" type="button" data-act="dlgAdd">＋ 新增對話／段落</button> <button class="btn btn-sm btn-ghost" type="button" data-act="dlgFoldAll">▾ 全部展開／收起</button></div>';
   wrap.querySelectorAll('details.dlg-card').forEach((det,i)=>det.addEventListener('toggle',()=>{if(DLG[i])DLG[i]._open=det.open;}));
@@ -14276,7 +14441,7 @@ setTimeout(()=>{const b=document.getElementById('nav-toggle');if(b)b.textContent
 H.filesViewLes=()=>{S.filesView='les';renderFiles();};
 H.uaBatch=()=>{const studs=S.students.filter(s=>enrollOf(s)==='active'||s.is_test).sort((a,b)=>((a.is_test?1:0)-(b.is_test?1:0)));const grps=groupsList();
   openModal('<div class="modal"><div class="modal-head"><h3>＋ 開放上傳格子</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-   +'<div class="hint" style="margin-bottom:8px">開放後，勾選的學生會在自己的「✍️ 作業簿」頁看到這個格子，就能上傳照片或 PDF。</div>'
+   +'<div class="hint" style="margin-bottom:8px">開放後，勾選的學生會在「✍️ 作業簿」看到這格，可上傳照片或 PDF。</div>'
    +'<div class="field full"><label>第 1 步：幫格子取名</label><input id="uab-name" type="text" placeholder="例：上傳作業簿"></div>'
    +'<div style="margin:6px 0"><span class="hint">常用：</span><button class="btn btn-sm" data-act="uabQuick" data-id="上傳作業簿">上傳作業簿</button> <button class="btn btn-sm" data-act="uabQuick" data-id="小考練習">小考練習</button> <button class="btn btn-sm" data-act="uabQuick" data-id="上傳練習">上傳練習</button></div>'
    +'<div class="lesson-label" style="margin-top:10px">第 2 步：給誰？ <button class="btn btn-sm" data-act="uabAll" style="margin-left:8px">全選在學中</button>'+(grps.length?(' '+grps.map(g=>'<button class="btn btn-sm" data-act="uabGroup" data-id="'+esc(g)+'">👥 '+esc(g)+'</button>').join(' ')):'')+'</div>'
@@ -14358,7 +14523,7 @@ function agPayForm(key){const p=String(key).split('::');const c=agById(p[0]);if(
   const mOpt=(v)=>`<option value="${esc(v)}"${(e.method||'')===v?' selected':''}>${esc(v)}</option>`;
   openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${isNew?'記一筆收款':'修改收款'} · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-   ${tot?`<div class="hint" style="margin-bottom:10px">談定總額 <b>${money(tot,agTotalCur(c))}</b>${left>0?`，這筆之前已收 <b>${money(got,agTotalCur(c))}</b>，還差 <b style="color:#d97706">${money(left,agTotalCur(c))}</b>`:'，已收齊'}</div>`:'<div class="hint" style="margin-bottom:10px">還沒填「談定的總代辦費」，可以到「✏️ 客戶資料」補上，這樣就會自動算還差多少。</div>'}
+   ${tot?`<div class="hint" style="margin-bottom:10px">談定總額 <b>${money(tot,agTotalCur(c))}</b>${left>0?`，這筆之前已收 <b>${money(got,agTotalCur(c))}</b>，還差 <b style="color:#d97706">${money(left,agTotalCur(c))}</b>`:'，已收齊'}</div>`:'<div class="hint" style="margin-bottom:10px">還沒填「談定的總代辦費」，到「✏️ 客戶資料」補上就會自動算還差多少。</div>'}
    <div class="form-grid">
     <div class="field"><label>收款日期 *</label><input id="agp-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(e.date||localToday())}"></div>
     <div class="field"><label>金額 * <span class="hint">越南盾打千位</span></label><div style="display:flex;gap:6px"><input id="agp-amt" type="number" min="0" style="flex:1" value="${esc(e.amount==null?'':String(e.amount))}" placeholder="${left>0?String(left):'例：400'}">
@@ -14478,7 +14643,7 @@ H.crmFiles=(key)=>{const p=String(key).split('::');const kind=p[0],id=p[1];
   const files=shareForCrm(id).slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
   openModal(`<div class="modal"><div class="modal-head"><h3>📎 檔案 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-     <div class="hint" style="margin-bottom:10px">存你交給這位客戶的檔案（讀書計劃、自傳、申請文件…）。只有你看得到，客戶端不會出現。</div>
+     <div class="hint" style="margin-bottom:10px">存你交給這位客戶的檔案（讀書計劃、自傳…）。只有你看得到。</div>
      <div style="margin-bottom:10px"><button class="btn btn-primary" data-act="shareNew2" data-id="${esc(kind)}::${esc(id)}">⬆ 上傳檔案</button></div>
      <div>${files.length?files.map(f=>shareRowHtml(f,'')).join(''):'<div class="hint">還沒有檔案。</div>'}</div>
    </div></div>`);};
@@ -14541,7 +14706,7 @@ H.viCheck=(id)=>viCheckModal((S.lessons||[]).find(x=>x.id===id));
 H.viCheckFromEdit=async(id)=>{
   const l=(S.lessons||[]).find(x=>x.id===id);
   if(!l)return toast('請先按「儲存」建立這一課，再開對照表');
-  if(!confirm('打開越南文對照表之前，會先把這一課存檔。\n（正在編輯的內容都會存起來，不會不見。）'))return;
+  if(!confirm('打開對照表前會先存檔，正在編輯的內容不會不見。'))return;
   await H.saveLesson(id);
   const l2=(S.lessons||[]).find(x=>x.id===id);
   if(l2)viCheckModal(l2);
@@ -14610,7 +14775,7 @@ function crmCloseBtns(c,act){
   return '<button class="btn" data-act="'+act+'" data-id="'+esc(c.id)+'">✓ 結案</button>'
     +'<button class="btn btn-ghost" data-act="crmDrop" data-id="'+esc(c.id)+'" title="客戶中途不做了">✕ 中途放棄</button>';}
 H.crmDrop=async(id)=>{
-  if(!confirm('把這一筆標記成「中途放棄」？\n\n它會從進行中移走，之後還是查得到，也可以再改回進行中。'))return;
+  if(!confirm('標記成「中途放棄」？\n\n會從進行中移走，之後還查得到，也可以改回來。'))return;
   try{await DB.update(crmCol(id),id,{status:'done',closed_as:'dropped'});await loadAll();render();toast('已標記為中途放棄');}
   catch(e){toast(writeErr('失敗',e));}};
 H.wrToggle=async(id)=>{const c=wrById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
@@ -15164,7 +15329,7 @@ function classDatesHtml(cls){const members=S.students.filter(s=>stuGroups(s).inc
   const newest=order[0];
   const groups=order.map(mk=>{const items=byM[mk];const label=mk.split('-')[0]+' 年 '+String(Number(mk.split('-')[1]))+' 月';const open=(mk===newest)?' open':'';
     return `<details${open} style="margin-bottom:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px"><summary style="cursor:pointer;font-weight:600;color:var(--primary);list-style-position:inside">${label} <span class="tag">${items.length} 堂</span></summary><div style="margin-top:6px">${items.map(rowHtml).join('')}</div></details>`;}).join('');
-  return `<div class="card" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0">🗓 上課記錄</h3><span class="tag">共 ${days.length} 堂</span><span class="grow"></span>${_pubBtn}<button class="btn btn-sm btn-accent" data-act="classRoll" data-id="${esc(cls)}">＋ 上課點名</button></div>${_sd?'':'<div class="hint" style="margin:0 0 8px">💡 目前只有你看得到。按「🔒 未公開給學生」可以打開，讓這個班的學生看到已上課的日期。</div>'}${groups}</div>`;}
+  return `<div class="card" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0">🗓 上課記錄</h3><span class="tag">共 ${days.length} 堂</span><span class="grow"></span>${_pubBtn}<button class="btn btn-sm btn-accent" data-act="classRoll" data-id="${esc(cls)}">＋ 上課點名</button></div>${_sd?'':'<div class="hint" style="margin:0 0 8px">💡 目前只有你看得到。按「🔒 未公開給學生」就能讓這班看到已上課的日期。</div>'}${groups}</div>`;}
 function renderClassView(cls){
   S._cvCls=cls;
   const tabs=document.querySelector('.tabs');if(tabs)tabs.classList.add('hide');
@@ -15210,7 +15375,7 @@ function tModItems(l,cls){
   return out;}
 function cvBodyHtml(cls,members,roster){
   const tab=S.cvTab||'mod';const TD='padding:7px 9px;border-top:1px solid var(--line)';
-  if(tab==='stu')return `<div class="card"><h3 style="margin:0 0 10px">👥 學生名單 <span class="tag">${members.length} 位</span></h3><div class="hint" style="margin-bottom:8px">團班每位學生各自繳自己的。按「💰 記繳費」就能寫進那位學生的繳費紀錄。</div><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:6px 9px;color:var(--primary)">姓名</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">Email</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">作業完成</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">繳費</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">操作</th></tr></thead><tbody>${roster}</tbody></table></div>`;
+  if(tab==='stu')return `<div class="card"><h3 style="margin:0 0 10px">👥 學生名單 <span class="tag">${members.length} 位</span></h3><div class="hint" style="margin-bottom:8px">團班每位學生各繳各的。按「💰 記繳費」寫進那位學生的紀錄。</div><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:6px 9px;color:var(--primary)">姓名</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">Email</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">作業完成</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">繳費</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">操作</th></tr></thead><tbody>${roster}</tbody></table></div>`;
   if(tab==='days')return classDatesHtml(cls);
   if(tab==='board')return classBoardHtml(cls);
   if(tab==='links'){const cm=classMetaOf(cls);const meetUrl=classMeetOf(cls);
@@ -15242,7 +15407,7 @@ function publishModal(cls){const lessons=sortLessons(S.lessons);
     <div class="modal-body">
       <div class="field"><label>① 上傳 PDF／圖片，直接發佈</label>
         <div><button class="btn btn-accent" type="button" data-act="pubPdf" data-id="${esc(cls)}">⬆ 上傳檔案給這個班</button> <span class="hint" id="pub-st"></span></div>
-        <div class="hint" style="margin-top:4px">上傳後會建立一份新教材、直接發佈給全班；學生在「上課內容」就看得到、可下載。</div></div>
+        <div class="hint" style="margin-top:4px">上傳後建立一份新教材並發佈給全班，學生在「上課內容」看得到、可下載。</div></div>
       <div class="field" style="border-top:1px solid var(--line);padding-top:12px"><label>② 選擇已做好的教材（勾選＝發佈給這個班）</label>
         <div class="check-list" id="pub-lessons">${rows}</div>
         <div style="margin-top:10px"><button class="btn btn-primary" data-act="pubSaveLessons" data-id="${esc(cls)}">儲存發佈</button></div></div>
@@ -15371,6 +15536,7 @@ H.saveAssign=async(id)=>{
   catch(e){if(btn){btn.disabled=false;btn.textContent='儲存';}toast('儲存失敗：'+(e.code||e.message||e));return;}
   closeModal();toast('已發佈');
   try{await loadAll();render();}catch(e){}
+  ruLater();/* READUID_V973 */
 };
 H.unassign=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;
   if(!confirm('確定收回「'+(l.title||'')+'」的發佈嗎？\n學生會立刻看不到這份作業，你可以修改後再重新發佈。（學生已作答的紀錄會保留）'))return;
@@ -15379,6 +15545,7 @@ H.unassign=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;
   catch(e){if(btn){btn.disabled=false;btn.textContent='↩ 收回';}toast('收回失敗：'+(e.code||e.message||e));return;}
   closeModal();toast('已收回發佈，學生已看不到');
   try{await loadAll();render();}catch(e){}
+  ruLater();/* READUID_V973 */
 };
 H.markWrite=async(key,btn)=>{const[rid,qid,mark]=key.split('::');const r=S.results.find(x=>x.id===rid);if(!r)return;
   const l=S.lessons.find(x=>x.id===r.lesson_id);const manual=Object.assign({},r.manual||{});manual[qid]=mark;
@@ -15389,6 +15556,50 @@ H.markWrite=async(key,btn)=>{const[rid,qid,mark]=key.split('::');const r=S.resul
     if(btn){const wrap=btn.closest('.gd-q');if(wrap)wrap.querySelectorAll('[data-act="markWrite"]').forEach(b=>{const m=b.dataset.id.split('::')[2];b.classList.toggle('btn-accent',m==='done'&&mark==='done');b.classList.toggle('btn-danger',m==='wrong'&&mark==='wrong');});}
     toast('已更新批改（分數已重算）');}catch(e){toast(writeErr('更新失敗',e));}};
 /* AI_DRAFT_V25 產生批改草稿：只填進欄位，不會存檔、也不會送給學生 */
+/* TGUIDE_V973 這三個要放在 const H={} 之後，不然檔案一載入就 ReferenceError */
+H.ruRebuild=async()=>{/* READUID_V973 */
+  if(!isOwner())return toast('只有主管理員可以用');
+  const n=ruTargets().length;
+  if(!confirm('要把 '+n+' 課的「誰讀得到」重算一次嗎？\n\n這只是在每一課記下已經指派給誰，'
+    +'學生看到的東西完全不會變，也不會動到任何課文內容。'))return;
+  toast('重算中…');
+  const r=await ruSync(false);
+  try{await loadAll();render();}catch(e){}};
+H.tguide=(lid)=>tgModal(lid);
+H.tgSave=async(lid)=>{
+  const el=document.getElementById('tg-body');if(!el)return;
+  const body=String(el.value||'');
+  const cur=tgOf(lid);
+  try{
+    await ensureAuthFresh();
+    if(cur){await DB.update('tguides',cur.id,{body:body,updated_at:new Date().toISOString()});cur.body=body;}
+    else{const row=await DB.insert('tguides',{lesson_id:lid,body:body,updated_at:new Date().toISOString()});TG.push(row);}
+    closeModal();toast('教師手冊已存（學生看不到）');render();
+  }catch(e){toast(writeErr('儲存失敗',e));}};
+H.tgPrint=(lid)=>{
+  const l=(S.lessons||[]).find(x=>x&&x.id===lid);if(!l)return;
+  const note=(document.getElementById('tg-body')||{}).value||tgTxt(lid);
+  const bs=tgRefBlocks(l);
+  const body='<div class="wm">教師手冊　請勿交給學生</div>'
+   +'<h1>'+esc(l.title||'')+'　教師手冊</h1>'
+   +(String(note).trim()?('<h2>📝 教學筆記</h2><div class="np">'+esc(note).replace(/\n/g,'<br>')+'</div>'):'')
+   +bs.map(b=>'<h2>'+esc(b.h)+'</h2>'
+      +b.rows.map(r=>'<div class="r"><b>'+esc(r.lab)+'</b><div>'+esc(r.tx).replace(/\n/g,'<br>')
+        +(r.ex?('<div class="ex">'+esc(r.ex).replace(/\n/g,'<br>')+'</div>'):'')+'</div></div>').join('')).join('');
+  fbWin('<!doctype html><html lang="zh-Hant" translate="no" class="notranslate"><head><meta charset="utf-8">'
+   +'<title>'+esc(l.title||'')+'　教師手冊</title><style>'
+   +'body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;color:#16202E;margin:26px;line-height:1.85}'
+   +'.wm{border:2px solid #A33227;color:#A33227;font-weight:800;padding:7px 12px;border-radius:8px;'
+   +'display:inline-block;margin-bottom:14px;letter-spacing:.06em}'
+   +'h1{font-size:21px;margin:0 0 14px}h2{font-size:16px;margin:22px 0 8px;padding-bottom:5px;'
+   +'border-bottom:2px solid #1E4C86;color:#1E4C86}'
+   +'.r{display:flex;gap:10px;margin:0 0 9px;break-inside:avoid}'
+   +'.r>b{flex:0 0 auto;min-width:56px;color:#5B6B80;font-size:13px}'
+   +'.ex{color:#1F6A54;font-size:14px;margin-top:3px}'
+   +'.np{white-space:normal;background:#EDF3FA;border:1px solid #C0CEE0;border-radius:10px;padding:12px 14px}'
+   +'@media print{.wm{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+   +'</style></head><body>'+body+'</body></html>');};
+
 H.aiDraft=async(rid)=>{
   const r=aiResultOf(rid);if(!r)return toast('找不到這份作答');
   const l=(S.lessons||[]).find(x=>x&&x.id===r.lesson_id);
@@ -15585,7 +15796,7 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
   const kbtn=(k,lab)=>`<button type="button" class="segb" data-k="${k}">${lab}<span class="segn">${cnt(k)}</span></button>`;
   openModal(`<div class="modal" style="max-width:600px"><div class="modal-head"><h3>\u{1F4B0} 記一筆繳費</h3><button class="x" data-act="closeModal">\u00D7</button></div>
    <div class="modal-body">
-     <div class="hint" style="margin-bottom:9px">華語學生、面試練習、代辦申請、代書都在這裡記。有欠款的排在最前面。</div>
+     <div class="hint" style="margin-bottom:9px">華語、面試、代辦、代書都在這裡記，有欠款的排最前面。</div>
      <div class="segbar" id="pk-kinds" style="margin-bottom:9px;flex-wrap:wrap">${kbtn('','全部')}${kbtn('stu','\u{1F464} 華語')}${kbtn('itv','\u{1F3A4} 面試')}${kbtn('ag','\u{1F393} 代辦')}${kbtn('wr','\u270D\uFE0F 代書')}</div>
      <input id="pk-q" type="text" placeholder="打名字快速找…" autocomplete="off" style="width:100%;font-size:15px;padding:10px 13px;border:1.5px solid var(--line);border-radius:10px">
      <div id="pk-res" style="margin-top:10px;max-height:52vh;overflow:auto"></div>
