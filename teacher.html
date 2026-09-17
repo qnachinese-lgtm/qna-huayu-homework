@@ -6468,6 +6468,26 @@ function zhsMap(){if(ZHSMAP)return ZHSMAP;
 function zhs(t){const m=zhsMap();const str=String(t==null?'':t);let o='';
   for(let i=0;i<str.length;i++){const c=str.charAt(i);o+=(m[c]||c);}
   return o;}
+/* PRINTBAR_V959 把繁簡對照表和切換的程式一起塞進印出來的那一份，
+   讓她在那一頁上直接按，不用回來重出一次。只轉字不轉用詞，跟 zhs() 一樣。 */
+function zhsJs(){
+  return '<'+'script>(function(){'
+    +'var T='+JSON.stringify(ZHS_T)+',S='+JSON.stringify(ZHS_S)+',M=null,ON=0;'
+    +'function mp(){if(!M){M={};for(var i=0;i<T.length;i++)M[T.charAt(i)]=S.charAt(i);}return M;}'
+    +'function conv(on){var m=mp();'
+    +'var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false),n,a=[];'
+    +'while(n=w.nextNode())a.push(n);'
+    +'a.forEach(function(n){'
+    +'var p=n.parentNode;if(!p)return;'
+    +'if(p.nodeName==="SCRIPT"||p.nodeName==="STYLE"||p.nodeName==="TITLE")return;'
+    +'if(p.closest&&p.closest(".bar"))return;'
+    +'if(n.__o===undefined)n.__o=n.nodeValue;'
+    +'if(!on){n.nodeValue=n.__o;return;}'
+    +'var s=n.__o,o="";for(var i=0;i<s.length;i++){var c=s.charAt(i);o+=(m[c]||c);}'
+    +'n.nodeValue=o;});}'
+    +'var z=document.getElementById("zhs");'
+    +'if(z)z.addEventListener("change",function(){ON=(z.value==="cn");conv(ON);});'
+    +'})();<'+'/script>';}
 /* <head> 裡面有字體名稱（「標楷體」之類），轉成簡體就找不到那個字體了，所以只轉內文 */
 function ghZh(doc){
   if(GHLANG!=='cn')return doc;
@@ -7003,7 +7023,7 @@ function ghBuild(book,lids,mode,wide,noimg){
   /* GHBANK_V872 明確選了哪一邊就標在檔名上，兩份才不會同名蓋掉 */
   const _bk=(GHBANK==='hw')?'作業簿':((GHBANK==='main')?'課本練習題':((GHBANK==='both')?'課本＋作業簿':''));
   /* FNAME_V942 文件種類排到第二段，跟其他文件一致；沒填上課日就補今天 */
-  const _fn=fnm('講義',String(book||'').trim(),_lt,_bk,(GHLANG==='cn'?'簡體':''),GHWHO,
+  const _fn=fnm('講義',String(book||'').trim(),_lt,_bk,GHWHO,
       /* GHNAME_V870 三種版本都要標出來，檔案放在一起才分得出哪份是哪份 */
       (keyOnly?'解答':(withAns?'老師版':'學生版')),
       (GHWHEN||localToday()));
@@ -7016,7 +7036,9 @@ function ghBuild(book,lids,mode,wide,noimg){
     +'<div class="gh-run"><b>'+esc(window.APP_NAME||'QNA CHINESE')+'</b>'
     +'<span class="vi">Tiếng Trung Quyên Huỳnh</span>'
     +'<span class="r">'+esc(book)+'　·　'+esc(ttl)+'</span></div>'
-    +expBar(1,'',GHFONT)/* EXPUI_V938 */
+    /* PRINTBAR_V959 繁／簡移到這裡，按了立刻換，不用重出一份 */
+    +expBar(1,'<span class="exp-l">字</span><select id="zhs" class="exp-s">'
+      +'<option value="tw">繁體</option><option value="cn">簡體</option></select>',GHFONT)
     /* GHEN_V873 文件名底下那行英文是裝飾，講義用不到，拿掉 */
     /* GHPGT_V877 整頁內容包進表格，tfoot 那列空的負責在每頁底部把頁尾的位置讓出來 */
     +'<div class="page"><table class="gh-pgt"><tfoot><tr><td></td></tr></tfoot><tbody><tr><td>'
@@ -7043,7 +7065,7 @@ function ghBuild(book,lids,mode,wide,noimg){
         +(withAns?'　·　這一份含參考答案，請不要直接給學生':''),
       'Thời gian lập '+esc(nowStr())+'　·　'+esc(window.APP_NAME||'QNA CHINESE')
         +(withAns?'　·　Bản này có đáp án, không đưa thẳng cho học viên.':''),1)+'</div>'
-    +'</td></tr></tbody></table></div>'+expJs()+'</body></html>';/* GHPGT_V877 */
+    +'</td></tr></tbody></table></div>'+expJs()+zhsJs()+'</body></html>';/* GHPGT_V877 */
   closeModal();fbWin(ghZh(html));/* GHZHS_V875 */}
 function ghListHtml(book){
   const ls=baLessonsOf(book);
@@ -7084,7 +7106,7 @@ function ghPrefApply(){
   /* 日期一律預設今天。記住上次的日期很危險——印出來會是舊的上課日 */
   const w=document.getElementById('gh-when');if(w)w.value=localToday();
   if(!p)return;
-  ghSetSel('gh-lay',p.lay);ghSetSel('gh-font',p.font);ghSetSel('gh-lang',p.lang);
+  ghSetSel('gh-lay',p.lay);
   ghSetSel('gh-bank',p.bank);ghSetSel('gh-clq',p.clq);
   const ni=document.getElementById('gh-noimg');if(ni)ni.checked=!!p.noimg;
   const tb=document.getElementById('gh-tr');if(tb)tb.checked=!!p.tr;/* GHTR_V891 */
@@ -7166,20 +7188,8 @@ function ghModal(){
    +'<option value="0" selected>緊湊 —— 一題一條線，像課本的排法</option>'
    +'<option value="1">手寫 —— 作答空間大，問答給四行</option>'
    +'</select></div>'
-   /* GHFONT_V846 讓學生練習不同字體：只影響這一份，不動平台設定 */
-   +'<div class="field"><label>中文字體 <span class="hint">只影響這一份印出來的講義</span></label>'
-   +'<select id="gh-font">'
-   /* GHKT_V855 給學生的標準組合擺第一個，而且預設就選它 */
-   +'<option value="kaitimes" selected>標楷體 ＋ Times New Roman —— 給學生的標準組合</option>'
-   +'<option value="">跟平台一樣（'+esc(fontDef('cjk',fontGet('cjk'))[1])+'）</option>'
-   +CJKFONTS.map(f=>'<option value="'+esc(f[0])+'">'+esc(f[1])+' —— '+esc(f[2])+'</option>').join('')
-   +'</select></div>'
+   /* PRINTBAR_V959 字體和繁／簡不在這裡先選了——印出來的那一頁上面就可以換 */
    /* GHBANK_V872 有作業簿的書才問這一題 */
-   /* GHZHS_V875 有些學生只看得懂簡體字 */
-   +'<div class="field"><label>列印文字</label><select id="gh-lang">'
-   +'<option value="tw" selected>繁體中文（原樣）</option>'
-   +'<option value="cn">簡體中文 —— 只轉字，用詞維持臺灣說法</option>'
-   +'</select></div>'
    +'<div class="field" id="gh-bankbox"'+(ghHasHw(cur)?'':' style="display:none"')+'>'
    +'<label>要出哪一邊的題目</label><select id="gh-bank">'
    +'<option value="auto" selected>自動 —— 哪邊有題目就出哪邊</option>'
@@ -11215,12 +11225,7 @@ H.rpPrintOpen=()=>{
    +'<div class="hint" style="margin-bottom:10px">印出來可以放在手邊照念，或存成 PDF 傳給別人。一份範本一塊，不會切到一半換頁。</div>'
    +'<div class="field"><label>要印哪幾份 <span class="hint">默認全選，不要的取消打勾就好</span></label>'
    +'<div class="rpp-box">'+picks+'</div></div>'
-   +'<div class="field"><label>要印哪一種語言</label><select id="rp-pl2">'
-   +'<option value="both" selected>中文和越南文都印</option>'
-   +'<option value="zh">只印中文</option>'
-   +'<option value="vi">只印越南文</option></select></div>'
-   +'<div class="field"><label>中文字體 <span class="hint">只影響這一份印出來的，不動平台設定</span></label>'
-   +'<select id="rp-pf">'+rpFontOptsHtml()+'</select></div>'
+   /* PRINTBAR_V959 語言和字體不在這裡先選了——印出來的那一頁上面就可以換 */
    +'<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
    +'<input type="checkbox" id="rp-pe" checked style="width:auto;margin:0"> 跳過還沒填內容的</label></div>'
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
@@ -11231,7 +11236,7 @@ H.rpPickAll=(key)=>{const p=String(key).split('::');const g=p[0],on=(p[1]==='1')
   document.querySelectorAll('.rp-ck2[data-g="'+g+'"]').forEach(c=>{c.checked=on;});};
 H.rpPrintGo=()=>{
   const v=(id)=>{const e=document.getElementById(id);return e?String(e.value||''):'';};
-  const lang=v('rp-pl2')||'both',font=v('rp-pf');
+  const font='';/* PRINTBAR_V959 字體到印出來那一頁上換 */
   const onlyFull=!!((document.getElementById('rp-pe')||{}).checked);
   /* RPPICK_V914 改成看打勾的那幾份 */
   const pick={};document.querySelectorAll('.rp-ck2').forEach(c=>{if(c.checked)pick[c.value]=1;});
@@ -11253,8 +11258,8 @@ H.rpPrintGo=()=>{
     const zh=String(r.body_zh||'').trim(),vi=String(r.body_vi||'').trim();
     body+='<div class="rcard"><div class="rh"><b>'+e2(r.title||'（沒有標題）')+'</b>'
       +(tags.length?('<span class="rtg">'+tags.map(t=>'<i>'+e2(t)+'</i>').join('')+'</span>'):'')+'</div>'
-      +((lang!=='vi')?blk('中文',zh):'')
-      +((lang!=='zh')?blk('Tiếng Việt',vi):'')
+      +'<div class="x-zh">'+blk('中文',zh)+'</div>'
+      +'<div class="x-vi">'+blk('Tiếng Việt',vi)+'</div>'
       +((!zh&&!vi)?'<div class="rb"><div class="rt non">（還沒有內容）</div></div>':'')
       +'</div>';});
   const css=fbCss()+docCss2()
@@ -11271,22 +11276,23 @@ H.rpPrintGo=()=>{
    +'.rt{font-size:12px;line-height:1.85;white-space:pre-wrap;color:var(--ink)}'
    +'.rt.non{color:#8E9CAF}'
    +'@media print{.rcard{break-inside:avoid}}';
+  /* EXPSHELL_V959 接上共同外殼：一樣的抬頭、字體選單、中文／Tiếng Việt 切換 */
   const page='<div class="page">'
-   +'<div class="hd"><div class="bx"><div class="mark">華</div>'
-   +'<div><div class="brand">'+e2(window.APP_NAME||'QNA CHINESE')+'</div>'
-   +'<div class="brand-vi">Tiếng Trung Quyên Huỳnh</div>'
-   +'<div class="brand-s">華語教學 · 留學代辦</div></div></div>'
-   +'<div class="hd-r"><div class="doc">回覆範本</div><div class="doc-s">REPLY TEMPLATES</div>'
-   +'<div class="kv"><span>列印日期</span><b>'+e2(localToday())+'</b></div>'
-   +'<div class="kv"><span>份數</span><b>'+list.length+' 份</b></div></div></div>'
-   +'<div class="wave"></div>'+body
-   +'<div class="foot"><div class="ty">這是內部參考用的說法，傳給客人前請再看一次 ♡</div></div></div>';
+   /* 這一份是她自己看的內部文件，抬頭就不做中越兩份了，留一行才不會擠成兩行 */
+   +fbHead(e2('華語教學 · 留學代辦'),e2('回覆範本'),'REPLY TEMPLATES',
+       '<div class="kv">列印日期 <b>'+e2(localToday())+'</b></div>'
+      +'<div class="kv">份數 <b>'+list.length+'</b></div>')
+   +body
+   +'<div class="foot"><span class="ty">這是內部參考用的說法，傳給客人前請再看一次 ♡</span></div></div>';
   closeModal();
   fbWin('<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
-   +'<title>'+e2(fnm('回覆範本',localToday()))+'</title>'
-   +(font?'<meta name="qna-font" content="QNAFONT_FIXED">':'')
-   +ghFontHead(font)
-   +'<style>'+css+ghFontCss(font)+'</style></head><body>'+page+'</body></html>');};
+   +'<meta name="viewport" content="width=device-width,initial-scale=1">'
+   +'<title>'+e2(fnm('回覆範本',localToday()))+'</title>'+expHead()
+   +'<style>'+css+expCss()+'</style></head><body class="lang-both">'
+   +expBar(1,'<span class="exp-l">'+e2(localToday())+'</span>')
+   +page+expJs()
+   +'<'+'script>var _lg=document.getElementById("lg");if(_lg)_lg.value="both";<'+'/script>'
+   +'</body></html>');};
 /* PROUT_V737 價目表本來只能在平台上看。可是客人問「你們所有項目多少錢」的時候，
    一項一項貼很慢，傳一份完整的價目表過去最快；自己要對帳、要印一張貼在桌邊也一樣。
    這裡是整份價目表的輸出（不是報價單——報價單是挑幾項、算合計給某一位客人的）。
@@ -15260,7 +15266,7 @@ H.ghGo=(mode)=>{
   if(!lids.length)return toast('請先勾要出哪幾課');
   const wide=(((document.getElementById('gh-lay')||{}).value)==='1');/* GHWIDE_V826 */
   const noimg=!!(document.getElementById('gh-noimg')||{}).checked;/* GHOPT_V844 */
-  GHFONT=((document.getElementById('gh-font')||{}).value)||'';/* GHFONT_V846 */
+  GHFONT='kaitimes';/* PRINTBAR_V959 固定用標準組合出，要換到印出來那一頁上換 */
   /* GHCL_V860 ／ GHWHO_V860 */
   /* GHCL_V861 勾起來的句號；一句都沒勾＝整課都出 */
   GHCLSET=[...document.querySelectorAll('.gh-s:checked')].map(x=>Number(x.value)).filter(n=>n>0)
@@ -15269,11 +15275,11 @@ H.ghGo=(mode)=>{
   GHBANK=((document.getElementById('gh-bank')||{}).value)||'auto';/* GHBANK_V872 */
   GHTR=!!((document.getElementById('gh-tr')||{}).checked);/* GHTR_V891 */
   GHDLG=!!((document.getElementById('gh-dlg')||{}).checked);/* GHDLG_V919 */
-  GHLANG=((document.getElementById('gh-lang')||{}).value)||'tw';/* GHZHS_V875 */
+  GHLANG='tw';/* PRINTBAR_V959 繁／簡改成印出來那一頁上即時切 */
   GHWHO=((document.getElementById('gh-who')||{}).value)||'';
   GHWHEN=((document.getElementById('gh-when')||{}).value)||'';
   /* GHPREF_V883 真的按了匯出才記起來——那才是她確定要用的組合 */
-  try{ghPrefSave(book,{lay:(wide?'1':'0'),font:GHFONT,lang:GHLANG,bank:GHBANK,
+  try{ghPrefSave(book,{lay:(wide?'1':'0'),bank:GHBANK,
     noimg:noimg?1:0,tr:GHTR?1:0,dlg:GHDLG?1:0,clq:GHCLQ,who:GHWHO});}catch(e){}
   ghBuild(book,lids,mode,wide,noimg);};
 H.bulkAssignSave=async(_x,btn)=>{
