@@ -2268,7 +2268,37 @@ async function loadMyQuestions(all,results){
     catch(e){/* 單一批失敗就跳過，不要整個同步掛掉 */}
   }
   return out;}
-async function loadMine(){const [l,siteRows]=await Promise.all([DB.list('lessons'),DB.list('site').catch(()=>[])]);
+/* ══════ READCUT2_V975 只抓自己的課 ══════
+   以前是 DB.list('lessons')＝整個資料庫的課全抓。老師有 238 課，
+   學生就算只上其中 12 課，另外 226 課的課文、生詞、語法、參考答案
+   還是整包下載到他的瀏覽器裡。現在改成只抓兩種：
+     ① 這一課的 read_uids 裡有我（老師指派給我的）
+     ② kind 是公用的那幾種（公告、班級資料、即時比賽…本來就是全班共用）
+   ★ 過渡期的退路：老師還沒在後台按過「🔐 重建學生讀取名單」時，①會查到空的，
+     這時候退回舊做法整包抓，學生不會突然什麼都看不到。
+     等 Firestore 規則收緊以後，那條退路會被擋下來、自動失效，
+     到時候這一段 if 就可以刪掉了。 */
+const PUBKINDS=['announcement','classmeta','livesession','livequiz','lqassign','quiz','pron','workbook'];
+async function loadLessonsForMe(){
+  const u=myUid();
+  const db=(window.firebase&&firebase.firestore)?firebase.firestore():null;
+  if(!u||!db)return await DB.list('lessons');
+  const map=Object.create(null);
+  const add=(sn)=>{sn.forEach(d=>{map[d.id]=Object.assign({id:d.id},d.data());});};
+  let mineOk=false;
+  try{add(await db.collection('lessons').where('read_uids','array-contains',u).get());mineOk=true;}
+  catch(e){}
+  try{add(await db.collection('lessons').where('kind','in',PUBKINDS).get());}
+  catch(e){}
+  let out=Object.keys(map).map(k=>map[k]);
+  const anyLesson=out.some(x=>x&&!x.kind&&!x.deleted_at);
+  if(!mineOk||!anyLesson){
+    try{const all=await DB.list('lessons');
+      if(all.length>out.length)return all;}catch(e){}
+  }
+  out.sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')));
+  return out;}
+async function loadMine(){const [l,siteRows]=await Promise.all([loadLessonsForMe(),DB.list('site').catch(()=>[])]);/* READCUT2_V975 */
   S.site=(siteRows&&siteRows.length)?siteRows[siteRows.length-1]:{};
   const u=myUid();
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
