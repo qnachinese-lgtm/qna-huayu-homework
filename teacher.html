@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=947">
+<link rel="stylesheet" href="styles.css?v=948">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -2054,6 +2054,15 @@ function classAttended(s){return Array.isArray(s&&s.class_log)?s.class_log.filte
 function sessionsLeft(s){return null;}
 function sessionsLeftRaw(s){if(!s||s.sessions_total==null||s.sessions_total==='')return null;const tot=Number(s.sessions_total);if(isNaN(tot))return null;return Math.round((tot-usedUnits(s))*100)/100;}
 /* 目前應收＝上課記錄逐堂收費總和 − 已繳金額（請假、免費不算） */
+/* REFUND_V948 退費就是 payments 裡一筆負的金額，加上 kind:'refund' 做記號。
+   不另外開欄位，是因為 stuBill 這裡本來就是把 payments 全部加起來，
+   負數自然會把「已繳」減回去，所有報表和對帳單不用改就一致。 */
+function isRefund(p){return !!(p&&(p.kind==='refund'||Number(p.amount)<0));}
+function money2(n,c){const v=Number(n)||0;
+  return (v<0?'－':'')+money(Math.abs(v),c);}
+/* 可以退多少：已繳 減 已上課費用（也就是預繳餘額）。沒有預繳就回 0。 */
+function refundable(s){const b=stuBill(s);if(!b)return 0;
+  return (b.due<0)?Math.round(-b.due*100)/100:0;}
 function stuBill(s){
   if(!s)return null;
   const grp=(s.class_type==='團班');   /* 團班請假照樣收費 */
@@ -5216,11 +5225,12 @@ function siteImgClear(k){const h=document.getElementById('site-'+k);if(h)h.value
 function siteImgPick(input,k){const f=input.files&&input.files[0];if(!f)return;const rd=new FileReader();rd.onload=function(){const img=new Image();img.onload=function(){const max=440;let w=img.width,h=img.height;const sc=Math.min(1,max/Math.max(w,h));const c=document.createElement('canvas');c.width=Math.round(w*sc);c.height=Math.round(h*sc);const cx=c.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,c.width,c.height);cx.drawImage(img,0,0,c.width,c.height);const data=c.toDataURL('image/jpeg',0.85);const hid=document.getElementById('site-'+k);if(hid)hid.value=data;const pv=document.getElementById('site-'+k+'-prev');if(pv){pv.src=data;pv.style.display='';}try{toast('已選圖，記得按下方「儲存」');}catch(e){}};img.src=rd.result;};rd.readAsDataURL(f);}
 
 /* ---------- 學生名冊 ---------- */
-const ENROLL=[['active','在學中','#16a34a'],['trial','試學（免費）','#7c3aed'],['reserved','預約・詢問中','#2563eb'],['paused','休學','#9ca3af']];
+/* REFUND_V948 多一個「已結束」，跟「休學」分開——休學是還會回來，已結束是退費走人了 */
+const ENROLL=[['active','在學中','#16a34a'],['trial','試學（免費）','#7c3aed'],['reserved','預約・詢問中','#2563eb'],['paused','休學','#9ca3af'],['ended','已結束','#6b7280']];
 function isTrial(s){return enrollOf(s)==='trial';}
 function enrollOf(s){return (s&&s.enroll_status)||'active';}
 function enrollMeta(v){return ENROLL.find(x=>x[0]===v)||ENROLL[0];}
-function enrollBadge(s){const m=enrollMeta(enrollOf(s));const ic=({active:'✅',trial:'🎁',reserved:'📌',paused:'⏸️'})[enrollOf(s)]||'✅';return `<span class="tag" style="background:${m[2]}22;color:${m[2]};border-color:${m[2]}66">${ic} ${m[1]}</span>`;}
+function enrollBadge(s){const m=enrollMeta(enrollOf(s));const ic=({active:'✅',trial:'🎁',reserved:'📌',paused:'⏸️',ended:'🏁'})[enrollOf(s)]||'✅';return `<span class="tag" style="background:${m[2]}22;color:${m[2]};border-color:${m[2]}66">${ic} ${m[1]}</span>`;}
 function progOf(sid){return (S.results||[]).find(r=>r&&r.lesson_id==='__progress'&&r.student_id===sid)||null;}
 function fillGroupSched(force){const el=document.getElementById('f-groups');const cont=document.getElementById('sched-rows');if(!el||!cont)return;const g=(el.value||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)[0];if(!g)return;const sch=classSchedOf(g);if(!sch||!sch.length)return;const cur=$$('#sched-rows .sched-row').map(row=>({s:((row.querySelector('.sched-s')||{}).value)||'',e:((row.querySelector('.sched-e')||{}).value)||''})).filter(r=>r.s||r.e);if(cur.length&&!force)return;cont.innerHTML=sch.map(r=>schedRowHTML(r)).join('');try{refreshFirstSlot();}catch(e){}try{toast('已帶入「'+g+'」的上課時段');}catch(e){}}
 function activityLine(s){const p=progOf(s.id);const li=p&&p.last_login?fmtDT(p.last_login):'—';const la=p&&p.last_active?fmtDT(p.last_active):'尚未使用';const streak=(p&&p.progress&&p.progress.act&&p.progress.act.streak)||0;return `<div class="meta" style="margin-top:8px"><span>🕒 最後登入：<b>${esc(li)}</b></span><span>⚡ 最後活動：<b>${esc(la)}</b></span>${streak>=2?`<span>🔥 連續 ${streak} 天</span>`:''}</div>`;}
@@ -12486,7 +12496,7 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
   const pays=(Array.isArray(s.payments)?s.payments:[]).filter(p=>p&&p.date)
     .sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(p=>{
       const pc=p.currency||cur,amt=Number(p.amount)||0,cv=Number(p.conv);
-      return {d:p.date,ym:String(p.date).slice(0,7),note:p.note||'繳費',
+      return {d:p.date,ym:String(p.date).slice(0,7),note:p.note||((Number(p.amount)<0||p.kind==='refund')?'退費':'繳費'),/* REFUND_V948 */
         notev:p.note||'Thanh toán',/* STMTVI_V928 */
         amt:amt,cur:pc,cross:(pc!==cur),conv:(cv>0?cv:null),
         eff:(pc===cur?amt:(cv>0?cv:0))};});
@@ -15372,7 +15382,7 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
 H.payments=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}const s=S.students.find(x=>x.id===id);if(!s)return;PAY_STU=s;const ps=(s.payments||[]).map((p,origI)=>({p,origI})).sort((a,b)=>(b.p.date||'').localeCompare(a.p.date||''));
   const byCur={};ps.forEach(({p})=>{const c=p.currency||s.currency||'TWD';byCur[c]=(byCur[c]||0)+(Number(p.amount)||0);});
   const totalStr=Object.keys(byCur).map(c=>money(byCur[c],c)).join('、')||money(0,s.currency);
-  const rows=ps.length?ps.map(({p,origI})=>`<div class="dash-row" style="flex-wrap:wrap"><span class="grow"><b>${esc(p.date||'')}</b> · ${money(p.amount,p.currency||s.currency)}${(function(){const bc=billCur(s);const pc=p.currency||bc;if(pc===bc)return '';
+  const rows=ps.length?ps.map(({p,origI})=>`<div class="dash-row" style="flex-wrap:wrap"><span class="grow">${isRefund(p)?'<span class="tag" style="background:#fdece9;color:#b8382f;border-color:#f0b8b0">↩︎ 退費</span> ':''}<b>${esc(p.date||'')}</b> · ${money2(p.amount,p.currency||s.currency)}${(function(){const bc=billCur(s);const pc=p.currency||bc;if(pc===bc)return '';
        return (Number(p.conv)>0)?(' <span class="tag">＝ '+money(p.conv,bc)+'</span>')
          :(' <span class="tag" style="background:#fdece9;color:#b8382f;border-color:#f0b8b0">未換算成 '+bc+'</span>');})()}${p.note?(' · '+esc(p.note)):''}</span><span style="display:flex;gap:6px;flex:none;margin-left:auto"><button class="btn btn-sm btn-accent" type="button" data-act="payEdit" data-id="${id}::${origI}">✏️ 編輯</button><button class="btn btn-sm" type="button" data-act="receipt" data-id="${id}::${origI}">🧾 收據</button><button class="btn btn-sm btn-danger" type="button" data-act="payDel" data-id="${id}::${origI}">✕</button></span></div>`).join(''):'<div class="hint" style="padding:8px 0">還沒有繳費紀錄。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>${snm(s.name)} · 繳費紀錄</h3><button class="x" data-act="closeModal">×</button></div>
@@ -15402,7 +15412,10 @@ H.payments=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用')
          <div style="margin-top:9px"><button class="btn btn-sm" type="button" id="pay-curfix" data-act="payCurFix" data-id="">改幣別</button></div>
        </div>
      </div><div class="hint" style="margin-top:8px">💡 登記完就會自動去抵上面的「應收」，不用管堂數。</div></div>
-   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><button class="btn btn-primary" data-act="payAdd" data-id="${id}">＋ 新增這筆</button></div></div>`);
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button>
+     <button class="btn btn-ghost" data-act="refundOpen" data-id="${id}" title="學生不繼續讀了，把預繳的錢退回去">↩︎ 退費</button>
+     <span class="grow" style="flex:1"></span>
+     <button class="btn btn-primary" data-act="payAdd" data-id="${id}">＋ 新增這筆</button></div></div>`);
   try{payConvSync();const c=document.getElementById('pay-cur');if(c)c.addEventListener('change',payConvSync);}catch(e){}};
 /* CONVREQ_V682 幣別跟帳單不一樣時，「換算成…」以前是選填又排在下面，很容易跳過，
    跳過的那幾筆等於沒收到錢（收入少算、差額只好當成優惠沖掉）。
@@ -15511,6 +15524,51 @@ H.payAdd=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const da
   patch.payment_date=payments.map(p=>p&&p.date).filter(Boolean).sort().pop()||s.payment_date||null;
   try{await DB.update('students',id,patch);await loadAll();H.payments(id);render();toast('已新增繳費');}catch(err){toast(writeErr('儲存失敗',err));}};
 /* PAYCUR_V850 一鍵把學生的帳單幣別改成這次收款的幣別 */
+/* REFUND_V948 退費視窗。金額預設帶「預繳餘額」，可以改；
+   超過預繳餘額會問一次（有時候真的要多退，但通常是打錯）。 */
+H.refundOpen=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
+  const s=S.students.find(x=>x.id===id);if(!s)return;PAY_STU=s;
+  const cur=billCur(s), can=refundable(s), b=stuBill(s)||{charge:0,paid:0,due:0};
+  openModal(`<div class="modal"><div class="modal-head"><h3>${snm(s.name)} · 退費</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div style="margin:2px 0 14px;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;background:#f9fafb">
+       <div style="font-weight:800;font-size:15px">可退 ${money(can,cur)}</div>
+       <div class="hint" style="margin-top:2px">已繳 ${money(b.paid,cur)} － 已上課 ${money(b.charge,cur)}${b.waived?('　－ 免收 '+money(b.waived,cur)):''}</div>
+       ${can<=0?'<div class="hint" style="margin-top:6px;color:#b45309">這位學生沒有預繳餘額。還是可以退，但金額要自己填。</div>':''}
+     </div>
+     <div class="form-grid">
+       <div class="field"><label>退費日期</label><input id="rf-date" type="date" min="2000-01-01" max="2100-12-31" value="${localToday()}"></div>
+       <div class="field"><label>退費金額 <span class="hint">越南盾打千位</span></label><input id="rf-amt" type="number" min="0" value="${can>0?can:''}" placeholder="例：3500"></div>
+       <div class="field"><label>幣別</label><select id="rf-cur"><option value="TWD"${cur==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${cur==='VND'?' selected':''}>越南盾 VND</option><option value="USD"${cur==='USD'?' selected':''}>美元 US$</option></select></div>
+       <div class="field full"><label>原因 <span class="hint">會印在退費單上</span></label><input id="rf-note" type="text" placeholder="例：搬家不繼續上課"></div>
+       <div class="field full"><label style="display:flex;gap:8px;align-items:center;font-weight:400">
+         <input id="rf-end" type="checkbox" checked style="width:auto"> 同時把這位學生改成「🏁 已結束」</label></div>
+     </div>
+     <div class="hint" style="margin-top:8px">退費會記成一筆負的款項，對帳單和應收金額會自動跟著變。</div></div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span class="grow" style="flex:1"></span>
+     <button class="btn btn-danger" data-act="refundSave" data-id="${id}">確定退費</button></div></div>`);};
+H.refundSave=async(id)=>{if(!IS_OWNER)return;
+  const s=S.students.find(x=>x.id===id);if(!s)return;
+  const date=($('#rf-date')&&$('#rf-date').value)||'';if(!date)return toast('請選日期');
+  const raw=($('#rf-amt')&&$('#rf-amt').value)||'';
+  const amt=Math.abs(Number(raw));
+  if(!raw||!(amt>0))return toast('請填退費金額');
+  const cur=($('#rf-cur')&&$('#rf-cur').value)||billCur(s);
+  const note=(($('#rf-note')&&$('#rf-note').value)||'').trim();
+  const can=refundable(s);
+  if(cur===billCur(s)&&amt>can+0.001){
+    if(!confirm('這位學生的預繳餘額只有 '+money(can,billCur(s))+'，你要退 '+money(amt,cur)+'。\n\n退比較多是可以的（例如另外談好的補償），但要確認不是打錯。\n\n確定要這樣退嗎？'))return;}
+  const entry={date:date,amount:-amt,currency:cur,sessions:null,
+    note:note||'退費',conv:null,kind:'refund',at:new Date().toISOString()};
+  const payments=(s.payments||[]).concat([entry]);
+  const patch={payments:payments};
+  const end=!!($('#rf-end')&&$('#rf-end').checked);
+  if(end)patch.enroll_status='ended';
+  try{await ensureAuthFresh();await DB.update('students',id,patch);await loadAll();
+    closeModal();render();
+    toast('已登記退費 '+money2(-amt,cur)+(end?'，學生改成已結束':''));
+    H.payments(id);
+  }catch(err){toast(writeErr('退費登記失敗',err));}};
 H.payCurFix=async(key)=>{const p=String(key||'').split('::'),id=p[0],cur=p[1];
   if(!id||!cur)return;const s=S.students.find(x=>x.id===id);if(!s)return;
   const old=billCur(s);
@@ -15549,10 +15607,14 @@ H.paySaveEdit=async(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]
   try{await DB.update('students',id,patch);await loadAll();H.payments(id);render();toast('✓ 已更新這筆繳費');}catch(err){toast(writeErr('儲存失敗',err));}};
 H.receipt=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;const pay=(s.payments||[])[i];if(!pay)return;
   const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const org=window.APP_NAME||'華語線上作業簿';const amt=money(pay.amount,pay.currency||s.currency);const no='R'+(pay.date||'').replace(/-/g,'')+'-'+(i+1);
+  const org=window.APP_NAME||'華語線上作業簿';
+  /* REFUND_V948 同一張版型，退費的那一筆換成退費單的說法，金額印正數（單子上寫「退還」就夠清楚） */
+  const _rf=isRefund(pay);
+  const amt=money(Math.abs(Number(pay.amount)||0),pay.currency||s.currency);
+  const no=(_rf?'RF':'R')+(pay.date||'').replace(/-/g,'')+'-'+(i+1);
   /* ONEDOC_V831 收據本來自己一套 CSS，跟別的列印文件長得不一樣。
      改用跟學生檔案卡、回饋單、語法講義同一套版型（fbCss）和同一個抬頭（fbHead）。 */
-  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+e2(fnm('收據',s.name||'',pay.date||'',no))+'</title>'
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+e2(fnm((_rf?'退費單':'收據'),s.name||'',pay.date||'',no))+'</title>'
     +expHead()/* EXPUI_V934 */
     +'<style>'+fbCss()+expCss()
     +'.rc-amt{display:flex;align-items:baseline;justify-content:flex-end;gap:8px;'
@@ -15562,7 +15624,8 @@ H.receipt=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s
     +'.rc-sign .ln{flex:1;border-bottom:1px solid #ddd0bd;height:20px}'
     +'</style></head><body class="lang-zh">'
     +expBar(1)/* EXPUI_V934 */
-    +'<div class="page">'+fbHead(L2('繳費收據','Biên lai thu học phí')+' · '+e2(no),L2('繳費收據','Biên lai'),'RECEIPT')
+    +'<div class="page">'+fbHead((_rf?L2('退費單','Phiếu hoàn phí'):L2('繳費收據','Biên lai thu học phí'))+' · '+e2(no),
+        (_rf?L2('退費單','Hoàn phí'):L2('繳費收據','Biên lai')),(_rf?'REFUND':'RECEIPT'))
     +'<div class="top">'
     +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+e2(s.name)+'</span></div>'
     +'<div class="f"><span class="k">'+L2('日期','Ngày')+'</span><span class="v">'+e2(pay.date||'')+'</span></div>'
@@ -15570,9 +15633,9 @@ H.receipt=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s
     +(pay.sessions?'<div class="f"><span class="k">'+L2('堂數','Số buổi')+'</span><span class="v">+'+e2(pay.sessions)+' '+L2('堂','buổi')+'</span></div>':'')
     +(pay.note?'<div class="f"><span class="k">'+L2('項目','Nội dung')+'</span><span class="v">'+e2(pay.note)+'</span></div>':'')
     +'</div>'
-    +'<div class="sec"><span class="st">'+L2('金額','Số tiền')+'</span><span class="n">Amount</span></div>'
+    +'<div class="sec"><span class="st">'+(_rf?L2('退還金額','Số tiền hoàn'):L2('金額','Số tiền'))+'</span><span class="n">'+(_rf?'Refund':'Amount')+'</span></div>'
     +'<div class="rc-amt">'+e2(amt)+'</div>'
-    +'<div class="sec"><span class="st">'+L2('簽收 / 蓋章','Ký nhận')+'</span><span class="n">Signature</span></div>'
+    +'<div class="sec"><span class="st">'+(_rf?L2('領款簽收','Ký nhận tiền hoàn'):L2('簽收 / 蓋章','Ký nhận'))+'</span><span class="n">Signature</span></div>'
     +'<div class="rc-sign"><span class="k">'+L2('簽名','Ký tên')+'</span><span class="ln"></span></div>'
     +'<div class="foot">'+L2('開立時間 '+e2(nowStr())+'　·　'+e2(org),
         'Thời gian lập '+e2(nowStr())+'　·　'+e2(org),1)+'</div>'
