@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=955">
+<link rel="stylesheet" href="styles.css?v=956">
 <style>
 /* BLUE_V950 中性專業配色：同一個藍色家族由淺到深，靠深淺做出層次。
    底色是很淡的藍，卡片維持白色浮在上面，所以看得出前後關係，不再是平的一片。
@@ -3135,11 +3135,11 @@ function renderDashboard(){
   const _op=(k,dft)=>{try{const v=localStorage.getItem('hyc_ds_'+k);return v==null?dft:(v==='1');}catch(e){return dft;}};
   const _sec=(k,title,badge,inner,dft)=>`<details class="dash-sec" data-ds="${k}"${_op(k,dft)?' open':''}><summary class="dash-sec-t">${title}${badge?'　<span class="dash-n">'+badge+'</span>':''}</summary><div class="dash-sec-b">${inner}</div></details>`;
   body.innerHTML=`${_hero}
+    ${_sec('today','📅 今天的課','',todayHtml,true)}
     ${_sec('todo','🔥 今天要處理',todoN||'',
       todayJobsHtml(_pend,true)
       +`<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
        <details class="dash-fold" open style="margin-top:12px"><summary>⏰ 提醒（堂數／補課／交件）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>`,true)}
-    ${_sec('today','📅 今天的課','',todayHtml,true)}
     ${_sec('memo','📝 我的備忘',memoOpen().length||'',memoHtml(),true)}
     ${healthCheckHtml()}
 `;
@@ -5197,9 +5197,13 @@ function renderOps(){const body=$('#ops-body');
   const allCur={};months.forEach(m=>Object.keys(byMonth[m]).forEach(cur=>{allCur[cur]=(allCur[cur]||0)+byMonth[m][cur];}));
   const monCur=byMonth[thisM]||{};
   const bigNum=(obj)=>{const ks=Object.keys(obj);return ks.length?ks.map(cur=>`<b style="font-size:19px">${money(obj[cur],cur)}</b>`).join('<span class="muted"> ＋ </span>'):'<b style="font-size:19px" class="muted">—</b>';};
+  /* OPSALL_V956 這個開關本來只有最上面的總收入卡片在用，底下三張卡照樣把累計印出來，
+     等於開關沒有用。改成同一個開關管全部的「累計」。 */
+  const opsAllOn=()=>{try{return localStorage.getItem('qna_ops_all')==='1';}catch(e){return false;}};
+  const hidNum=(fn,obj)=>opsAllOn()?fn(obj):'<span style="font-size:19px;font-weight:800;color:#B9BEC4;letter-spacing:2px">••••••</span>';
   const incSummary=`<div style="display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 12px">`+
     `<div><div class="muted" style="font-size:12px">本月收入（${esc(thisM)}）</div>${bigNum(monCur)}</div>`+
-    `<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計收入（全部）</div>${bigNum(allCur)}</div></div>`;
+    `<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計收入（全部）</div>${hidNum(bigNum,allCur)}</div></div>`;
   const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span><button class="btn btn-sm" data-act="opsMonth" data-id="${esc(m)}">🔎 明細</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入紀錄（到學生的「繳費」新增即可）。</div>';
   const billHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">🧮 累計 該收 vs 實收 <span class="hint">逐堂依時數收費（團班用該班的收費級距）對照「累計實收」，不受繳費時間影響，抓真正的漏收</span></div>${billCheckHtml(thisM)}</div>`;
   const due=S.students.filter(s=>!s.is_test&&!isTrial(s)&&enrollOf(s)!=='paused').map(s=>({s,b:stuBill(s)})).filter(x=>x.b&&x.b.items.length&&x.b.due>0.0001).sort((a,b)=>b.b.due-a.b.due);
@@ -5218,7 +5222,6 @@ function renderOps(){const body=$('#ops-body');
   const itvSummary=`<div class="card" style="margin-top:14px"><div class="lesson-label">🎤 面試練習收入</div><div style="display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 4px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum(itvNow.paid)}</div><div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計</div>${bigNum(itvAllInc.paid)}</div>${Object.keys(itvAllInc.due).length?`<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#d97706">${itvMoneyStr(itvAllInc.due)}</b></div>`:''}</div><div class="hint">只算已勾「已收款」的場次；到「🎤 面試練習」分頁管理。</div></div>`;
   const totNow=itvAddCur(itvAddCur(itvAddCur(Object.assign({},monCur),itvNow.paid),agNow.paid),wrNow.paid);const totAll=itvAddCur(itvAddCur(itvAddCur(Object.assign({},allCur),itvAllInc.paid),agAllInc.paid),wrAllInc.paid);
   /* OPSALL_V904 累計金額預設藏起來（畫面可能被學生看到）。記在這台電腦，不寫進資料庫。 */
-  const opsAllOn=()=>{try{return localStorage.getItem('qna_ops_all')==='1';}catch(e){return false;}};
   const bigNum2=(obj)=>{const ks=Object.keys(obj);return ks.length?ks.map(cur=>`<b style="font-size:26px">${money(obj[cur],cur)}</b>`).join('<span class="muted" style="font-size:18px"> ＋ </span>'):'<b style="font-size:26px" class="muted">—</b>';};
   const totalCard=`<div class="card" style="margin-bottom:14px;border:2px solid var(--primary);background:linear-gradient(180deg,#FBFBFB,#fff)"><div class="lesson-label" style="font-size:15px">🧮 總收入（華語教學 ＋ 面試練習 ＋ 代辦申請 ＋ 代書）</div><div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:6px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum2(totNow)}</div><div style="border-left:1px solid var(--line);padding-left:28px"><div class="muted" style="font-size:12px;display:flex;align-items:center;gap:8px">累計（全部）<button class="btn btn-sm btn-ghost" type="button" data-act="opsAllToggle" style="padding:1px 8px;font-size:11.5px">${opsAllOn()?'隱藏':'顯示'}</button></div>${opsAllOn()?bigNum2(totAll):'<div style="font-size:20px;font-weight:800;color:#B9BEC4;letter-spacing:2px">••••••</div>'}</div></div><div class="hint" style="margin-top:8px">下面是兩條業務線的明細。</div></div>`;
   const _tm=[];{let d=new Date(localToday()+'T00:00:00');for(let k=5;k>=0;k--){const dd=new Date(d.getFullYear(),d.getMonth()-k,1);_tm.push(dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0'));}}
@@ -5255,12 +5258,40 @@ function renderOps(){const body=$('#ops-body');
      收入報表、帳務核對、招生名單、官網、管理員、公告全部混在一起，要找什麼都得一直捲。
      現在分成三個分頁：💰 收入／🧮 該收 vs 實收／📥 招生・官網。
      「管理員」那一塊拿掉了——設定裡的「其他老師的帳號」本來就是同一個東西。 */
+  /* OPSSRC_V956 費用明細可以分業務線看。每一條線的月收入都用各自本來就在用的算法，
+     所以這裡的數字跟各自那一頁看到的一致，不是另外算一套。 */
+  const SRC=[['all','全部'],['tw','華語教學'],['itv','面試練習'],['ag','代辦申請'],['wr','代書']];
+  const _src=(SRC.some(x=>x[0]===S.opsSrc))?S.opsSrc:'all';
+  const srcOf=(k,m)=>{
+    if(k==='tw')return Object.assign({},byMonth[m]||{});
+    if(k==='itv')return Object.assign({},itvIncome(m).paid||{});
+    if(k==='ag')return Object.assign({},agIncome(m).paid||{});
+    if(k==='wr')return Object.assign({},wrIncome(m).paid||{});
+    return itvAddCur(itvAddCur(itvAddCur(Object.assign({},byMonth[m]||{}),
+      itvIncome(m).paid),agIncome(m).paid),wrIncome(m).paid);};
+  /* 月份清單：四條線全部湊起來，不只學費那一條 */
+  const _allM=(function(){const set={};Object.keys(byMonth).forEach(m=>set[m]=1);
+    const add=(arr,fn)=>(arr||[]).forEach(c=>fn(c).forEach(p=>{if(p&&p.date)set[String(p.date).slice(0,7)]=1;}));
+    add(S.interviews,itvPays);add(S.agencies,agPays);add(S.writings,wrPays);
+    return Object.keys(set).filter(Boolean).sort((a,b)=>b.localeCompare(a));})();
+  const _srcBar='<div class="segbar" style="margin:2px 0 10px">'
+    +SRC.map(x=>'<button class="segb'+(_src===x[0]?' on':'')+'" data-act="opsSrc" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';
+  const _srcRows=(function(){
+    const rows=_allM.map(m=>{const o=srcOf(_src,m);
+      const ks=Object.keys(o).filter(c=>Math.abs(o[c])>0.0001);
+      if(!ks.length)return '';
+      return '<div class="dash-row"><b>'+esc(m)+'</b>'+(m===thisM?' <span class="badge badge-soon">本月</span>':'')
+        +'<span class="grow"></span><b>'+ks.map(c=>money(o[c],c)).join('　＋　')+'</b></div>';}).filter(Boolean);
+    return rows.length?rows.join(''):'<div class="hint" style="padding:8px 0">這一條業務線還沒有收款紀錄。</div>';})();
+  const srcCard='<div class="card" style="margin-top:14px"><div class="lesson-label">📋 費用明細 '
+    +'<span class="hint" style="font-weight:400">分業務線看每個月收到多少</span></div>'
+    +_srcBar+_srcRows+'</div>';
   const _os=(['inc','check','site'].indexOf(S.opsSub)>=0)?S.opsSub:'inc';
   const _ob=(k,lab)=>'<button class="segb'+(_os===k?' on':'')+'" data-act="opsSub" data-id="'+k+'">'+lab+'</button>';
   const _obar='<div class="pagebar" style="margin-bottom:12px"><div class="segbar">'
     +_ob('inc','💰 收入')+_ob('check','🧮 該收 vs 實收')+_ob('site','📥 招生・官網')+'</div></div>';
   let _body='';
-  if(_os==='inc')_body=`${totalCard}${_chart}<div class="card"><div class="lesson-label">💰 華語教學收入</div>${incSummary}${incRows}</div>${itvSummary}${agSummary}<div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>`;
+  if(_os==='inc')_body=`${totalCard}${_chart}${srcCard}<div class="card" style="margin-top:14px"><div class="lesson-label">💰 華語教學收入</div>${incSummary}${incRows}</div>${itvSummary}${agSummary}<div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>`;
   else if(_os==='check')_body=`${billHtml}`;
   else _body=`${siteHtml}${annHtml}`;
   body.innerHTML=navSubBar(MONEY_TABS,'ops')+_obar+_body;}
@@ -15177,6 +15208,8 @@ H.pubSaveLessons=async(cls)=>{const checked=new Set($$('#pub-lessons .pub-les:ch
     toast('已更新發佈');closeModal();render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存發佈';}toast('失敗：'+((e&&e.message)||e));}};
 H.gmSchedAdd=()=>{const c=$('#gm-sched');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
 H.opsSub=(k)=>{S.opsSub=k||'inc';renderOps();try{window.scrollTo(0,0);}catch(e){}};
+/* OPSSRC_V956 費用明細切換業務線 */
+H.opsSrc=(k)=>{S.opsSrc=k||'all';renderOps();};
 H.billPaused=()=>{S.billPaused=!S.billPaused;renderOps();};
 H.billAck=async(id)=>{
   const ym=localToday().slice(0,7);
