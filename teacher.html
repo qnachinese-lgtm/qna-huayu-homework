@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=945">
+<link rel="stylesheet" href="styles.css?v=946">
 <style>
 .fb-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px 11px;background:#fff;border:1px solid #d7e2f3;border-radius:9px;font-size:12.5px;color:#5a6472}
 .fb-legend b{font-size:14px;color:#1f2937}
@@ -2277,6 +2277,21 @@ function propDiffHtml(p){
 
 /* 新增東西的時候蓋一個章，主管理員建的不蓋（維持跟舊資料一樣） */
 function stampBy(o){if(!IS_OWNER&&MY_EMAIL)o.created_by=MY_EMAIL;return o;}
+/* STAMP_V946 上面那個章本來只有「教材儲存」那一個地方會蓋，
+   其他十幾個新增的地方（測驗、作業簿、公告、發音、文言文、題目匯入、
+   複製課、送審提案…）都沒蓋，安全規則就分不出哪一筆是誰建的。
+   改成在資料層攔一次：老師新增 lessons 或 questions，一律蓋上他的 Email。
+   主管理員建的照舊不蓋，舊資料也完全不動。 */
+(function(){try{
+  if(!window.DB||DB.__stampV946)return;
+  DB.__stampV946=1;
+  const _ins=DB.insert.bind(DB);
+  DB.insert=function(table,obj){
+    if((table==='lessons'||table==='questions')&&!IS_OWNER&&MY_EMAIL
+       &&obj&&typeof obj==='object'&&!Array.isArray(obj)){
+      obj=Object.assign({},obj,{created_by:MY_EMAIL});}
+    return _ins(table,obj);};
+}catch(e){}})();
 const CRM_KINDS={agency:1,interview:1,inquiry:1,writing:1};
 function crmDedupe(list){
   const arr=(list||[]).slice().sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id)));
