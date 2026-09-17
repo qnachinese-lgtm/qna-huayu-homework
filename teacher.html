@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=952">
+<link rel="stylesheet" href="styles.css?v=953">
 <style>
 /* BLUE_V950 中性專業配色：同一個藍色家族由淺到深，靠深淺做出層次。
    底色是很淡的藍，卡片維持白色浮在上面，所以看得出前後關係，不再是平的一片。
@@ -16409,17 +16409,50 @@ if(useAuth){firebase.auth().onAuthStateChanged(async function(user){const ok=use
 else{if(sessionStorage.getItem('teacher_ok')==='1')enter();}
 // 保持登入新鮮：每 18 分鐘刷新一次 token，避免長時間編輯後突然無法儲存
 setInterval(function(){try{const u=window.firebase&&firebase.auth&&firebase.auth().currentUser;if(u)u.getIdToken(true).catch(function(){});}catch(e){}},18*60*1000);
-/* LOGIN_TIGHT_V676 閒置 8 小時自動登出。任何點擊、打字、捲動都算「有動作」，
-   最多每分鐘記一次，不會拖慢畫面。 */
+/* LOGIN_TIGHT_V676 閒置自動登出。任何點擊、打字、捲動都算「有動作」，
+   最多每分鐘記一次，不會拖慢畫面。
+   IDLE_V953 本來是 8 小時，等於形同虛設——人走開去上課、去吃飯，後台就一直開著。
+   改成 30 分鐘，而且登出前 2 分鐘會先跳一條提示讓妳按「我還在」，
+   不會在妳正在打字或看學生作文看到一半的時候直接把妳踢出去。
+   要改分鐘數：把下面 IDLE_MIN 改掉就好；臨時想調也可以在網址列打
+   localStorage.setItem('qna_idle_min','60') 再重新整理。 */
 (function(){
-  var IDLE=8*60*60*1000,t=null,last=0,GRACE=5*60*1000;
+  var IDLE_MIN=30;
+  try{var _m=Number(localStorage.getItem('qna_idle_min'));if(_m>=5&&_m<=720)IDLE_MIN=_m;}catch(e){}
+  var IDLE=IDLE_MIN*60*1000,WARN=Math.min(2*60*1000,Math.round(IDLE*0.3)),t=null,wt=null,last=0,GRACE=5*60*1000;
   function bye(){try{if(!(window.firebase&&firebase.auth&&firebase.auth().currentUser))return;}catch(e){return;}
     try{sessionStorage.setItem('qna_idle_out','1');}catch(e){}
     try{firebase.auth().signOut();}catch(e){}
     try{sessionStorage.removeItem('teacher_ok');}catch(e){}
     setTimeout(function(){location.reload();},300);}
+  /* IDLE_V953 登出前先問一聲，免得正在打的東西不見 */
+  function hideWarn(){var el=document.getElementById('idle-warn');if(el)el.remove();}
+  function showWarn(){
+    if(document.getElementById('idle-warn'))return;
+    /* 還沒登入就不用提醒（登入畫面跳倒數很奇怪） */
+    try{if(!(window.firebase&&firebase.auth&&firebase.auth().currentUser))return;}catch(e){return;}
+    try{if(document.getElementById('app')&&document.getElementById('app').classList.contains('hide'))return;}catch(e){}
+    var left=Math.round(WARN/1000);
+    var el=document.createElement('div');el.id='idle-warn';
+    el.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:99999;'
+      +'display:flex;align-items:center;gap:14px;background:#0F2740;color:#fff;'
+      +'padding:12px 18px;border-radius:12px;font-size:14px;line-height:1.5;'
+      +'box-shadow:0 8px 28px rgba(15,39,64,.35);max-width:92vw';
+    el.innerHTML='<span>太久沒有動作，<b id="idle-n">'+left+'</b> 秒後會自動登出。</span>'
+      +'<button type="button" id="idle-stay" style="font:inherit;font-weight:700;padding:7px 16px;'
+      +'border:0;border-radius:999px;background:#fff;color:#0F2740;cursor:pointer">我還在</button>';
+    document.body.appendChild(el);
+    el.querySelector('#idle-stay').addEventListener('click',function(){hideWarn();reset();});
+    var iv=setInterval(function(){
+      var n=document.getElementById('idle-n');
+      if(!n){clearInterval(iv);return;}
+      left--;if(left<0)left=0;n.textContent=String(left);
+      if(left<=0)clearInterval(iv);},1000);}
   function reset(){try{sessionStorage.setItem('qna_act',String(Date.now()));}catch(e){}
-    if(t)clearTimeout(t);t=setTimeout(bye,IDLE);}
+    hideWarn();
+    if(t)clearTimeout(t);if(wt)clearTimeout(wt);
+    wt=setTimeout(showWarn,Math.max(1000,IDLE-WARN));
+    t=setTimeout(bye,IDLE);}
   /* ① 瀏覽器是不是整個關過？看還有沒有分頁在蓋時間戳 */
   try{var alive=Number(localStorage.getItem('qna_alive')||0);
     if(alive&&(Date.now()-alive)>GRACE){bye();return;}}catch(e){}
@@ -16432,7 +16465,7 @@ setInterval(function(){try{const u=window.firebase&&firebase.auth&&firebase.auth
     document.addEventListener(ev,function(){var now=Date.now();if(now-last<60000)return;last=now;reset();},{passive:true,capture:true});});
   reset();
   try{if(sessionStorage.getItem('qna_idle_out')==='1'){sessionStorage.removeItem('qna_idle_out');
-    setTimeout(function(){var e=document.getElementById('gate-err');if(e)e.textContent='為了安全已自動登出（瀏覽器關過，或太久沒有動作），請重新登入。';},600);}}catch(e){}
+    setTimeout(function(){var e=document.getElementById('gate-err');if(e)e.textContent='為了安全已自動登出（瀏覽器關過，或超過 '+IDLE_MIN+' 分鐘沒有動作），請重新登入。';},600);}}catch(e){}
 })();
 /* SW_QUIET_V48 不再顯示「有新版本」提示條。新版本一裝好就默默接手，
    但「絕對不重新整理正在用的分頁」——妳下次自己開這一頁的時候就是新版了。
