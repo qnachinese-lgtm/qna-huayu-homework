@@ -1648,6 +1648,16 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
            內容太長時會從最上面開始，整個灰底可以往下捲，不會再有看不到的部分。 */
         .overlay{align-items:flex-start}
         #modal-root .modal{margin:auto}
+        /* MODALMID_V992 視窗蓋的是「整個畫面」，所以它是以整個畫面置中；
+           可是左邊有 212px 的選單，看起來就一直偏左（Quinn：「好像不置中」）。
+           把選單的寬度補進 overlay 的左內距，視窗才會落在內容區的正中間。
+           選單收起來是 64px，頂部選單版和手機版沒有左側選單，就不用補。 */
+        .overlay{padding-left:calc(16px + 212px)}
+        body.nav-off .overlay{padding-left:calc(16px + 64px)}
+        body.layout-top .overlay{padding-left:16px}
+        @media(max-width:860px){
+          .overlay,body.nav-off .overlay,body.layout-top .overlay{padding-left:16px}
+        }
         @media(max-height:620px){.modal.modal-tall{max-height:calc(100vh - 24px)}}
         .vic-sec{margin-bottom:16px}
         .vic-h{font-family:var(--serif,inherit);font-size:15px;font-weight:700;margin:0 0 6px}
@@ -10177,7 +10187,7 @@ function stuCardHtml(s){
     +(IS_OWNER&&b?('<div class="sec"><span class="st">💰 '+L2('帳務','Tài chính')+'</span></div><div class="top">'
       +f2('累計應收','Tổng phải thu',esc(money(b.charge,cur)))+f2('累計實收','Tổng đã thu',esc(money(b.paid,cur)))
       +f2('結餘','Số dư',(Math.abs(b.due)<0.01?L2('已結清','Đã thanh toán')
-        :(b.due>0?(L2('尚欠','Còn nợ')+' '+esc(money(b.due,cur))):(L2('預繳','Trả trước')+' '+esc(money(-b.due,cur))))))+'</div>'):'')
+        :(b.due>0?(L2('尚欠','Còn thiếu')+' '+esc(money(b.due,cur))):(L2('預繳','Trả trước')+' '+esc(money(-b.due,cur))))))+'</div>'):'')
     +'<div class="sec"><span class="st">🗓 '+L2('最近上課','Các buổi học gần đây')+'</span><span class="n">'
       +L2('最新 '+logs.length+' 筆',logs.length+' mục gần nhất')+'</span></div>'
     +'<div class="tw"><table><thead><tr><th>'+L2('日期','Ngày')+'</th><th>'+L2('上課內容','Nội dung buổi học')+'</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
@@ -10479,14 +10489,14 @@ H.stuPick=(mode)=>{
 H.repOpen=(sid)=>{const s=S.students.find(x=>x.id===sid);if(!s)return;
   const ym=repYM(),pv=repPrevYM(ym);
   const opts=[ym,pv,repPrevYM(pv)].map(m=>`<option value="${m}">${m}</option>`).join('');
-  openModal(`<div class="modal"><div class="modal-head"><h3>\U0001f4c4 學習報告 · ${snm(s.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+  openModal(`<div class="modal"><div class="modal-head"><h3>📄 學習報告 · ${snm(s.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>月份</label><select id="rep-ym">${opts}</select></div>
      <div class="field full"><label>老師評語 <span class="hint">會印在報告最後，可留空</span></label><textarea id="rep-note" rows="4" placeholder="這個月的表現、進步的地方、下個月的建議…"></textarea>${cannedBar?cannedBar('rep-note'):''}</div>
      <div class="hint" id="rep-sum">—</div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>
-     <button class="btn btn-primary" data-act="repGo" data-id="${esc(sid)}">\U0001f4c4 產生報告</button></div></div>`);
+     <button class="btn btn-primary" data-act="repGo" data-id="${esc(sid)}">📄 產生報告</button></div></div>`);
   const upd=()=>{const m=($('#rep-ym')&&$('#rep-ym').value)||ym;const R=repData(sid,m);
     const el=document.getElementById('rep-sum');
     if(el)el.textContent=m+'：上課 '+R.attended+' 堂、請假 '+R.leave+' 堂、完成作業 '+R.scored.length+' 份'+(R.totQ?('、答對率 '+repPct(R.totOk,R.totQ)+'%'):'');};
@@ -12251,7 +12261,7 @@ H.monthBillsGo=()=>{
     const gap=Math.round((charge-paid)*100)/100;
     /* MBVI_V934 「溢繳」改成「預繳」，跟對帳單一致——預繳是正常做法，不是繳錯了 */
     const bal=(v)=>Math.abs(v)<0.01?('<b class="ok">'+L2('已結清','Đã thanh toán')+' ✿</b>')
-      :(v>0?('<b class="due">'+L2('尚欠','Còn nợ')+' '+money(v,cur)+'</b>')
+      :(v>0?('<b class="due">'+L2('尚欠','Còn thiếu')+' '+money(v,cur)+'</b>')
            :('<b class="over">'+L2('預繳','Trả trước')+' '+money(-v,cur)+'</b>'));
     sumCharge+=charge;sumPaid+=paid;
     const ttl=tierText(s);
@@ -13000,17 +13010,22 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     /* DQTODAY_V929 */
     +'.dq{font:inherit;font-size:11.5px;padding:3px 9px;border:1px solid #D3D7DB;border-radius:999px;background:#fff;color:#5B6B80;cursor:pointer;margin-left:-3px}'
     +'.dq:hover{background:#F3F4F5;color:#1E4C86}'
+    /* DQPAIR_V992 日期欄和它的「今天」永遠在同一行 */
+    +'.dpair{display:inline-flex;align-items:center;gap:0;white-space:nowrap}'
     +'</style></head><body class="lang-zh">'
     +'<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>'
     +'<span style="color:#5B6B80;font-size:12.5px">期間</span><select id="pk"></select>'
     /* STMTRANGE_V920 本來只能挑整個月。填了日期就照日期範圍算，兩格都可以只填一邊。 */
     +'<span style="color:#5B6B80;font-size:12.5px">或自訂</span>'
-    +'<input type="date" id="pf" style="font:inherit;font-size:13px;padding:4px 7px;border:1px solid #D3D7DB;border-radius:8px">'
+    /* DATEMIN_V992 本來這兩格沒有 min／max，年份那一欄就可以打到六位數
+       （Quinn 打成 202605）。全站其他日期欄都有，這裡補上，年份就只收四位。 */
+    /* DQPAIR_V992 「今天」跟它前面的日期欄本來會被拆到兩行（Quinn 的截圖）。綁成一組，不許拆。 */
+    +'<span class="dpair"><input type="date" id="pf" min="2000-01-01" max="2100-12-31" style="font:inherit;font-size:13px;padding:4px 7px;border:1px solid #D3D7DB;border-radius:8px">'
     /* DQTODAY_V929 Quinn：「選到日子能不能有一個今日的選項？」 */
-    +'<button id="pfn" class="dq" title="填今天">今天</button>'
+    +'<button id="pfn" class="dq" title="填今天">今天</button></span>'
     +'<span style="color:#99A3AF">～</span>'
-    +'<input type="date" id="pt" style="font:inherit;font-size:13px;padding:4px 7px;border:1px solid #D3D7DB;border-radius:8px">'
-    +'<button id="ptn" class="dq" title="填今天">今天</button>'
+    +'<span class="dpair"><input type="date" id="pt" min="2000-01-01" max="2100-12-31" style="font:inherit;font-size:13px;padding:4px 7px;border:1px solid #D3D7DB;border-radius:8px">'
+    +'<button id="ptn" class="dq" title="填今天">今天</button></span>'
     +'<button id="pc" style="font:inherit;font-size:12.5px;padding:4px 10px;border:1px solid #D3D7DB;border-radius:999px;background:#fff;color:#5B6B80;cursor:pointer">清除</button>'
     /* STMTVI_V928 Quinn：「有時候提供給學生，如果初級的話，怕他們看不懂」 */
     +'<span style="color:#5B6B80;font-size:12.5px">語言</span>'
@@ -13070,11 +13085,11 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
        字級改小還是不夠——「尚欠／預繳」這幾個字改成自己一行，金額自己一行，
        這樣卡片再窄金額都不會被拆開。 */
     +'function _bp(t){return `<span class="bpx">`+t+`</span>`;}'
-    +'function balTxt(v){return Math.abs(v)<0.01?(_t("已結清","Đã thanh toán")+" ✿"):(v>0?(_bp(_t("尚欠","Còn nợ"))+money(v,D.cur)):(_bp(_t("預繳","Trả trước"))+money(-v,D.cur)));}'
+    +'function balTxt(v){return Math.abs(v)<0.01?(_t("已結清","Đã thanh toán")+" ✿"):(v>0?(_bp(_t("尚欠","Còn thiếu"))+money(v,D.cur)):(_bp(_t("預繳","Trả trước"))+money(-v,D.cur)));}'
     +'function balCls(v){return Math.abs(v)<0.01?"ok":(v>0?"due":"over");}'
     /* STMTPRE_V920 這一組是「預繳為正」：對帳單上的期初／期末結餘用這個。
        學生預繳是常態，正數要寫「預繳」，不是「溢繳」。 */
-    +'function balTxt2(v){return Math.abs(v)<0.01?(_t("已結清","Đã thanh toán")+" ✿"):(v>0?(_bp(_t("預繳","Trả trước"))+money(v,D.cur)):(_bp(_t("尚欠","Còn nợ"))+money(-v,D.cur)));}'
+    +'function balTxt2(v){return Math.abs(v)<0.01?(_t("已結清","Đã thanh toán")+" ✿"):(v>0?(_bp(_t("預繳","Trả trước"))+money(v,D.cur)):(_bp(_t("尚欠","Còn thiếu"))+money(-v,D.cur)));}'
     +'function balCls2(v){return Math.abs(v)<0.01?"ok":(v>0?"over":"due");}'
     +'function sumChg(a){var t=0;a.forEach(function(x){if(x.bill)t+=x.amt;});return t;}'
     +'function sumPay(a){var t=0;a.forEach(function(x){t+=x.eff;});return t;}'
