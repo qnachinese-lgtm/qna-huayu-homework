@@ -134,7 +134,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
   font-size:13px;font-family:inherit;border-radius:999px;padding:6px 14px;cursor:pointer;white-space:nowrap}
 .sg-chip:hover{background:rgba(31,111,120,.09)}
 .sg-chip.on{background:#0F2740;border-color:#0F2740;color:#fff}
-.sg-wrap{display:flex;gap:16px;align-items:flex-start;min-height:520px}
+.sg-wrap{display:flex;gap:16px;align-items:flex-start;min-height:0}
 .sg-list{flex:0 0 306px;max-width:306px;max-height:calc(100vh - 210px);overflow:auto;
   background:#fff;border:1px solid rgba(31,111,120,.16);border-radius:14px;padding:6px}
 .sg-item{display:block;width:100%;text-align:left;border:0;background:transparent;font-family:inherit;
@@ -151,7 +151,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
 .sg-st{margin-left:auto;border-radius:999px;padding:1px 9px;font-size:11.5px;font-weight:800}
 .sg-st.pend{background:#fef3c7;color:#92400e}
 .sg-st.done{background:#dcfce7;color:#166534}
-.sg-pane{flex:1;min-width:0;background:#fff;border:1px solid rgba(31,111,120,.16);border-radius:14px;
+.sg-pane{flex:1;min-width:0;min-height:210px;background:#fff;border:1px solid rgba(31,111,120,.16);border-radius:14px;
   max-height:calc(100vh - 210px);overflow:auto}
 .sg-head{position:sticky;top:0;z-index:3;background:#fff;border-bottom:1px solid rgba(31,111,120,.14);
   padding:13px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
@@ -274,7 +274,12 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .pay-dt{color:var(--muted);font-size:11.5px;margin-left:5px}
         .pay-act{display:flex;gap:6px;justify-content:flex-end;align-items:center;white-space:nowrap}
         .pay-act .btn{white-space:nowrap}
-        .pay-st{font-weight:700;white-space:nowrap;padding:2px 9px;border-radius:999px;font-size:12.5px;text-align:center;justify-self:start;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+        /* PAYCOL_V994 本來沒有 min-width:0，格線元素的預設是 min-width:auto，
+           所以標籤比欄位寬的時候不會截斷、會直接壓到隔壁欄（Quinn 的截圖：
+           「✅ Đang học」貼著「65.75 giờ」）。 */
+        .pay-st{font-weight:700;white-space:nowrap;padding:2px 9px;border-radius:999px;font-size:12.5px;text-align:center;justify-self:start;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+        /* 越南文的「Đang học」比「在學中」寬，欄位一起放寬，才不用截斷 */
+        body.ui-vi .pay-row{grid-template-columns:minmax(120px,1.2fr) 104px 92px minmax(120px,auto) minmax(150px,auto) minmax(140px,auto) minmax(190px,auto)}
         .pay-st.blank{background:none}
         .pay-st.owe{background:#fee2e2;color:#b91c1c}
         .pay-st.ok{background:#dcfce7;color:#15803d}
@@ -16934,13 +16939,33 @@ boot();
   function setCur(v){try{localStorage.setItem(LS,v);}catch(e){}}
   /* 空白全部壓成一個，前後去掉，才對得上字典 */
   function key(s){return String(s).replace(/[\s　]+/g,' ').trim();}
-  function look(s){
-    if(!DICT)return null;
-    var k=key(s); if(!k)return null;
+  function look1(k){
     if(Object.prototype.hasOwnProperty.call(DICT.M,k))return DICT.M[k];
     for(var i=0;i<DICT.R.length;i++){
       var r=DICT.R[i];
       if(r[0].test(k))return k.replace(r[0],r[1]);
+    }
+    return null;
+  }
+  /* LOOKFIX_V994 開頭的符號：📘 ＋ ▸ ✅ 🗣 … 拆掉查，再裝回去。
+     條件放得很緊——最多四個「不是中文、不是英數」的字，而且後面一定要有空白，
+     免得把正常句子的頭幾個字切掉。 */
+  var PRE=/^([^\u4e00-\u9fffA-Za-z0-9]{1,4})[ \u3000]([\s\S]+)$/;
+  /* 結尾的「（…）」：「📕 錯題本・標錯因（11 題待標）」這種 */
+  var PAR=/^([\s\S]+)（([^（）]{1,40})）$/;
+  function look(s){
+    if(!DICT)return null;
+    var k=key(s); if(!k)return null;
+    var v=look1(k); if(v!=null)return v;
+    var m=PRE.exec(k);
+    if(m){var t=look1(m[2]); if(t!=null)return m[1]+' '+t;}
+    var p=PAR.exec(k);
+    if(p){
+      var head=look(p[1]);
+      if(head!=null){
+        var tail=look(p[2]);
+        return head+' ('+(tail!=null?tail:p[2])+')';
+      }
     }
     return null;
   }
