@@ -2015,6 +2015,15 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         /* FONT_ONE_V661 全站只用一種字體：舊的 --serif 在沒裝 Noto Serif TC 的電腦上會掉到新細明體，
    同一列裡標題明體、旁邊的標籤黑體，看起來很亂。現在標題與內文同一套黑體，只用粗細分層。 */
         :root{--serif:Calibri,Carlito,"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
+        /* CLPREV_V1008 註解落點預覽 */
+        .cl-prev{margin:6px 0 2px;padding:8px 10px;background:#F6F8FA;border:1px solid var(--line);border-radius:9px}
+        .cl-prev .clp-h{font-size:11.5px;font-weight:700;color:#828C98;letter-spacing:.4px;margin-bottom:4px}
+        .cl-prev .clp-r{display:flex;gap:7px;align-items:baseline;font-size:12.5px;line-height:1.7;padding:1px 0}
+        .cl-prev .clp-n{flex:0 0 auto;min-width:15px;color:#828C98;font-weight:700}
+        .cl-prev .clp-s{flex:1 1 auto;min-width:0;color:#3A4048}
+        .cl-prev .clp-t{flex:0 1 auto;color:#1E4C86;font-weight:600}
+        .cl-prev .clp-e{flex:0 0 auto;color:#C3C9D1}
+        @media(max-width:620px){.cl-prev .clp-r{flex-wrap:wrap}.cl-prev .clp-t{flex-basis:100%;margin-left:22px}}
         /* GATEFONT_V998 登入頁的標題本來跟著「字體」設定跑（妳選的 QNANum-Kai），
            學生端用的是它自己的一套，兩邊看起來不一樣。Quinn 要求固定成跟學生端一樣。
            下面這一串就是學生端實際解析出來的結果：拉丁字先用襯線體，
@@ -5815,8 +5824,26 @@ function clCardHtml(l){const lines=clLinesOf(l);const na=(l.assigned_ids||[]).le
       <span class="grow"></span>
       <button class="btn btn-sm btn-danger" data-act="delClassical" data-id="${l.id}">🗑 刪除這一課</button>
     </div></div>`;}
-function clLineRowsHtml(){return (CL.lines||[]).map((r,i)=>`<div class="card" style="padding:10px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>第 ${i+1} 句</b><span class="grow"></span>${CL.lines.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="clDelLine" data-id="${i}">刪除這句</button>`:''}</div><label class="dlg-lbl">原文</label><textarea class="cl-orig" data-i="${i}" style="min-height:52px" placeholder="這一句的文言文原文…">${esc(r.orig||'')}</textarea><label class="dlg-lbl">注釋 <span class="hint">這一格就是妳自己加註解的地方。一條一個「。」，印出來自動一行一條，排在這一句底下。</span></label><textarea class="cl-note" data-i="${i}" style="min-height:44px" placeholder="例：之：前往。卿：敬稱。">${esc(r.note||'')}</textarea>
+/* CLPREV_V1008 用列印那一套函式算出「這一條註解會掛到哪一句」。
+   故意不另外寫一套近似的邏輯——不然預覽對了、印出來錯了，更難查。 */
+function clNotePrev(r){
+  const orig=String((r&&r.orig)||'').trim();
+  const note=String((r&&r.note)||'').trim();
+  if(!orig)return '';
+  const sents=ghClSents(orig);
+  if(sents.length<2&&!note)return '';
+  const bk=ghClMap(sents,ghClNotes(note));
+  const rows=sents.map((s,j)=>{
+    const ns=bk[j]||[];
+    return '<div class="clp-r"><span class="clp-n">'+(j+1)+'</span>'
+      +'<span class="clp-s">'+esc(s.length>30?s.slice(0,30)+'…':s)+'</span>'
+      +(ns.length?('<span class="clp-t">'+ns.map(x=>esc(x)+'。').join('　')+'</span>')
+                 :'<span class="clp-e">—</span>')+'</div>';}).join('');
+  return '<div class="cl-prev" data-i="'+(r._i==null?'':r._i)+'">'
+    +'<div class="clp-h">印出來會長這樣</div>'+rows+'</div>';}
+function clLineRowsHtml(){return (CL.lines||[]).map((r,i)=>`<div class="card" style="padding:10px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>第 ${i+1} 句</b><span class="grow"></span>${CL.lines.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="clDelLine" data-id="${i}">刪除這句</button>`:''}</div><label class="dlg-lbl">原文</label><textarea class="cl-orig" data-i="${i}" style="min-height:52px" placeholder="這一句的文言文原文…">${esc(r.orig||'')}</textarea><label class="dlg-lbl">注釋 <span class="hint">這一格就是妳自己加註解的地方。一條一個「。」，例如「之：前往。卿：敬稱。」。落在哪一句看下面的預覽；要指定就寫「3｜之：前往。」＝掛在第 3 句。</span></label><textarea class="cl-note" data-i="${i}" style="min-height:44px" placeholder="例：之：前往。卿：敬稱。">${esc(r.note||'')}</textarea>
   <label class="dlg-lbl">參考翻譯 <span class="hint">選填，你寫的白話翻譯。什麼時候給學生看，在上面設定</span></label><textarea class="cl-ref" data-i="${i}" style="min-height:44px" placeholder="這一句的白話翻譯…">${esc(r.ref||'')}</textarea>
+  ${clNotePrev(Object.assign({_i:i},r))}
   ${clPicBox(r.img||'','clPicUp','clPicDel',i,'這一句的插圖，學生看得到')}</div>`).join('');}
 function clQRowsHtml(){return (CL.qs||[]).map((r,i)=>`<div class="card" style="padding:10px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>問題 ${i+1}</b><span class="grow"></span><button class="btn btn-sm btn-danger" type="button" data-act="clDelQ" data-id="${i}">刪掉</button></div><label class="dlg-lbl">題目</label><textarea class="cl-q" data-i="${i}" style="min-height:44px" placeholder="例：作者為什麼說「不足為外人道也」？">${esc(r.q||'')}</textarea><label class="dlg-lbl">參考答案 <span class="hint">選填，跟參考翻譯一樣的時機才給學生看</span></label><textarea class="cl-qa" data-i="${i}" style="min-height:44px" placeholder="選填…">${esc(r.ans||'')}</textarea>
   ${clPicBox(r.img||'','clQPicUp','clQPicDel',i,'這一題的圖')}</div>`).join('');}
@@ -7023,6 +7050,12 @@ function ghClSents(t){
 /* GHCL_V863 「質（zhì）：做人質。亡歸：逃回。」→ 一條一條 */
 function ghClNotes(n){
   return String(n==null?'':n).split('。').map(x=>x.trim()).filter(Boolean);}
+/* CLPIN_V1009 「3｜之：前往」＝ 指定掛在第 3 句。
+   同一個字在一段裡出現兩次的時候，自動比對一定會猜錯其中一次，
+   所以留一個講得明白的寫法給她。回傳 [第幾句(0 起算，沒指定是 -1), 剩下的文字]。 */
+function ghClPin(e){
+  const m=/^\s*(\d{1,2})\s*[|｜]\s*([\s\S]+)$/.exec(String(e));
+  return m?[parseInt(m[1],10)-1,m[2].trim()]:[-1,String(e)];}
 /* 一條註解解釋的是哪個詞：冒號前面那一段，括號裡的拼音不算 */
 function ghClHead(e){
   return String(e).split('：')[0].replace(/（[^）]*）/g,'').replace(/\([^)]*\)/g,'').trim();}
@@ -7033,7 +7066,13 @@ function ghClSub(w,sv){let i=0;
 /* 每一條註解掛到它解釋的那一句底下；真的配不到就放在第一句，不會弄丟 */
 function ghClMap(sents,notes){
   const bk=sents.map(()=>[]);
-  notes.forEach(e=>{const w=ghClHead(e);let idx=-1;
+  notes.forEach(e0=>{
+    /* CLPIN_V1009 有指定就照指定的，超出範圍當作沒指定 */
+    const pin=ghClPin(e0);
+    let e=e0;
+    if(pin[0]>=0){e=pin[1];
+      if(pin[0]<sents.length){bk[pin[0]].push(e);return;}}
+    const w=ghClHead(e);let idx=-1;
     if(w)for(let i=0;i<sents.length;i++){if(sents[i].indexOf(w)>=0){idx=i;break;}}
     if(idx<0&&w)for(let i=0;i<sents.length;i++){if(ghClSub(w,sents[i])){idx=i;break;}}
     if(idx<0)idx=0;
@@ -10787,6 +10826,19 @@ H.clClearAllNotes=async()=>{
       l.cl_lines=cleared;l.dialogues=d;l.cl_notes_bak=bak;done++;}
     render();toast('清好了：'+done+' 課、'+nN+' 條');
   }catch(e){toast(writeErr('清不掉',e));}};
+/* CLPREV_V1008 一邊打一邊更新，落錯句子當場看得到 */
+document.addEventListener('input',(e)=>{
+  const t=e.target;
+  if(!t||!t.classList||!t.classList.contains('cl-note'))return;
+  if(typeof CL==='undefined'||!CL)return;
+  const i=+t.dataset.i; if(!CL.lines||!CL.lines[i])return;
+  CL.lines[i].note=t.value;
+  const box=document.querySelector('.cl-prev[data-i="'+i+'"]');
+  if(!box)return;
+  const tmp=document.createElement('div');
+  tmp.innerHTML=clNotePrev(Object.assign({_i:i},CL.lines[i]));
+  if(tmp.firstElementChild)box.replaceWith(tmp.firstElementChild);
+  else box.innerHTML='';});
 H.clAddLine=()=>{if(!CL)return;clSyncLines();CL.lines.push({orig:'',note:'',ref:'',img:''});const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
 H.clDelLine=(i)=>{if(!CL)return;clSyncLines();CL.lines.splice(+i,1);if(!CL.lines.length)CL.lines=[{orig:'',note:'',ref:'',img:''}];const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
 H.saveClassical=async()=>{if(!CL)return;const title=($('#cl-title').value||'').trim();if(!title)return toast('請填課名');
