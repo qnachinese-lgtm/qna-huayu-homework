@@ -503,6 +503,9 @@ textarea.lq-in:focus{outline:none;border-color:var(--accent,#A3714E);box-shadow:
 .cl-col-s{font-weight:400;font-size:11.5px;color:var(--muted,#9a8f80)}
 .cl-col textarea{width:100%}
 .cl-ro{min-height:38px;padding:8px 10px;border:1px solid var(--line,#e7e0d4);border-radius:9px;background:#faf8f4}
+/* CLNAME_V1011 人名＝深藍粗體，地名＝棕色點線底線，跟講義印出來一樣 */
+.cl-pn{font-weight:700;color:#1E4C86}
+.cl-ln{color:#8A5A2B;border-bottom:1px dotted currentColor;padding-bottom:1px}
 .cl-ref-box{margin-top:8px;padding:9px 12px;background:#f3f8f4;border:1px solid #cde8d5;border-radius:9px;
   font-size:14.5px;line-height:1.8}
 .cl-ref-box b{display:block;font-size:12px;color:#3f7d52;margin-bottom:2px}
@@ -1192,6 +1195,24 @@ function annotateWord(w){if(S.ann==='off'||!window.pinyinPro)return esc(w);
     const rd=S.ann==='zhuyin'?syl2zh(fx?pyToNum(fx):o.pinyin):(fx||o.pinyin);
     return `<ruby>${esc(o.origin)}<rt>${esc(rd)}</rt></ruby>`;}).join('');}
 function vocabDict(){const dict=[],seen=new Set();S.lessons.forEach(l=>lessonVocab(l).forEach(v=>{const w=v.front;if(w&&w.length>1&&/[㐀-鿿]/.test(w)&&!seen.has(w)){seen.add(w);dict.push(w);}}));dict.sort((a,b)=>b.length-a.length);return dict;}
+/* CLNAME_V1011 老師在原文裡標的 {人名} [地名]。
+   括號只是記號，學生看到的是顏色和粗體，不是括號。 */
+var CLN_RE=/[{｛]([^{}｛｝\n]{1,16})[}｝]|[\[［]([^\[\]［］\n]{1,16})[\]］]/g;
+function clNameStrip(t){return String(t==null?'':t).replace(CLN_RE,function(m,a,b){return a!=null?a:b;});}
+/* 一個字一個字的點字功能要留著，所以照括號切段，每段各自丟進 prose2 */
+function clNameProse(text){
+  const s=String(text==null?'':text);
+  let out='',i=0,m;CLN_RE.lastIndex=0;
+  while((m=CLN_RE.exec(s))!==null){
+    if(m.index>i)out+=prose2(s.slice(i,m.index));
+    const isPn=m[1]!=null,w=isPn?m[1]:m[2];
+    out+='<span class="'+(isPn?'cl-pn':'cl-ln')+'">'+prose2(w)+'</span>';
+    i=m.index+m[0].length;}
+  if(i<s.length)out+=prose2(s.slice(i));
+  return out;}
+function clNameEsc(t){
+  return esc(String(t==null?'':t)).replace(CLN_RE,function(m,a,b){
+    return a!=null?('<span class="cl-pn">'+a+'</span>'):('<span class="cl-ln">'+b+'</span>');});}
 function prose2(text){if(text==null)return '';const dict=vocabDict();
   function renderRun(s){let html='',i=0;while(i<s.length){let m=null;for(const w of dict){if(s.substr(i,w.length)===w){m=w;break;}}
     if(m){html+=`<span class="zi" data-act="zi" data-z="${esc(m)}">${annotateWord(m)}</span>`;i+=m.length;}
@@ -1789,14 +1810,14 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
       <div class="cl-no">${qi+1}</div>
       <div class="cl-orig lookup"${(function(){const rd=clReadings(ln.note||'');const gl=clGlossMap(ln.note||'');
         return (Object.keys(rd).length?(' data-clrd="'+esc(JSON.stringify(rd))+'"'):'')
-             +(Object.keys(gl).length?(' data-clgl="'+esc(JSON.stringify(gl))+'"'):'');})()}>${prose2(ln.orig||'')}</div>
+             +(Object.keys(gl).length?(' data-clgl="'+esc(JSON.stringify(gl))+'"'):'');})()}>${clNameProse(ln.orig||'')}</div>
       ${clGlossHtml(ln.note)}
       ${ln.img?`<div class="cl-pic"><img src="${esc(ln.img)}" alt="" loading="lazy"></div>`:''}
       <div class="cl-cols">
         ${noteBox(key)}
         <div class="cl-col"><div class="cl-col-t">📝 ${L({zh:'翻譯',cn:'翻译',en:'Translation',vi:'Dịch'})}<span class="cl-col-s">${L({zh:'作業，寫完按下面送出',cn:'作业，写完按下面送出',en:'homework',vi:'bài tập'})}</span></div>${ansBox}</div>
       </div>
-      ${(showRef&&ln.ref)?`<div class="cl-ref-box"><b>${L({zh:'參考翻譯',cn:'参考翻译',en:'Reference',vi:'Bản dịch tham khảo'})}</b>${esc(ln.ref)}</div>`:''}
+      ${(showRef&&ln.ref)?`<div class="cl-ref-box"><b>${L({zh:'參考翻譯',cn:'参考翻译',en:'Reference',vi:'Bản dịch tham khảo'})}</b>${clNameEsc(ln.ref)}</div>`:''}
       ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}
     </div>`;}).join('');
   const qMode=l.cl_qs_mode||'hw';
@@ -2547,7 +2568,21 @@ function renderGate(){
 /* ============ 區塊導覽 ============ */
 function renderNav(){
   const wrong=wrongQuestions().length;
-  const works=myLessons().filter(l=>answerableOf(l.id).length).length;
+  /* WORKN_V1014 本來只算「有題目的課」，畫面上卻還有作業簿、小考、題庫，
+     數字跟看到的東西對不起來。改成算「還沒做完的全部」。 */
+  const works=(function(){
+    let n=0;
+    try{
+      myLessons().forEach(l=>{if(!answerableOf(l.id).length)return;
+        const r=resultOf(l.id); if(!(r&&r.status==='done'))n++;});
+      /* 作業簿：還沒開始、或還在寫的才算；送出去等批改的，學生那一頭已經做完了 */
+      myWorkbooks().forEach(w=>{const d=wbDocOf(w.id);
+        if(!d||d.status==='draft')n++;});
+      (S.quizzes||[]).forEach(qz=>{if(!assignedToMe(qz))return;
+        if(!(S.quizResults||[]).some(x=>x&&x.quiz_id===qz.id))n++;});
+      lqpMine().forEach(a=>{if(!lqpDoc(a.id))n++;});
+    }catch(e){}
+    return n;})();
   const fbN=myLessons().filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
   const L=S.lang||'zh';
   const NL={home:{zh:'首頁',cn:'首页',en:'Home',vi:'Trang chủ'},course:{zh:'課程',cn:'课程',en:'Courses',vi:'Khoá học'}};
@@ -2926,7 +2961,10 @@ function renderWork(){
     return order.map(b=>'<div class="wb-book-hd">📚 '+esc(b)+' <span class="wb-book-n">'+g[b].length+'</span></div>'
       +'<div class="cards">'+g[b].map(_lesRow).join('')+'</div>').join('');
   })();
-  $('#screen').innerHTML=_wh+banner+badgeStrip+liveJoinCard+annCard+payCard+meetCard+classUpcomingHtml()+sessCard+nb+submittedWorkHtml()+_wbTodo+lqpCard+quizCard+lesBlk;
+  /* WORKTOP_V1013 本來作業排在最後面，手機上第一張卡在 563px，滑不到。
+     這一頁就叫「我的作業」，作業要在最上面。其餘的東西一個都沒拿掉，往下移而已。 */
+  $('#screen').innerHTML=_wh+banner+nb+lesBlk+quizCard+lqpCard+_wbTodo
+    +badgeStrip+liveJoinCard+annCard+submittedWorkHtml()+classUpcomingHtml()+sessCard+meetCard+payCard;
 }
 function lessonTags(l){const tags=[];
   try{
