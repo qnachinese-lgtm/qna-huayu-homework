@@ -1385,7 +1385,8 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
            🎯 正式面試 → 🎯 Phỏng vấn chính thức 要 150px，今天 → Hôm nay 要 67px。
            只有越南文介面才放寬，中文維持原樣。 */
         body.ui-vi #app .dash-row.wkr{grid-template-columns:auto 188px 152px minmax(0,1fr) 70px 386px}
-        #app .wkr .wr-nm{flex-wrap:wrap;row-gap:2px}
+        #app .wkr .wr-nm{flex-wrap:nowrap;row-gap:2px}
+        #app .wkr .wr-nm b{white-space:nowrap}
         #app .wkr .wr-nm b{font-weight:700}
         #app .wkr .wr-op{display:grid;grid-template-columns:112px 100px 108px 46px;gap:6px 8px;
           justify-content:end;align-items:center}
@@ -1403,6 +1404,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
            改成填滿整格：同一欄的按鈕左右緣都一樣，這才是原本「四格對齊」要的效果。 */
         #app .wkr .wr-op>.btn,#app .wkr .wr-op>a.btn{width:auto;justify-self:stretch;justify-content:center;
           padding-left:4px;padding-right:4px;white-space:nowrap}
+
         #app .wkr .wr-op .btn.btn-icon{min-width:0;justify-content:center}
         @media(max-width:1180px){
           #app .dash-row.wkr{display:flex;flex-wrap:wrap;gap:6px 8px}
@@ -1587,6 +1589,23 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           #app .wkr .wr-op:has(>.wr-slot:nth-child(2))>.wr-slot:nth-child(2),
           #app .dash-row .dash-btns:has(>.dash-slot:nth-child(2))>.dash-slot:nth-child(2){
             display:none!important}
+        }
+        /* WKNAME_V1018 名字欄是剩下來的 1fr，視窗不夠寬就被擠到剩幾十 px，
+           名字只好折成兩行。切掉字更糟，所以改成把按鈕整排放到第二行，
+           名字就拿得到整列的寬度。1500 這個界線是量出來的：
+           最長的名字要 234px，加上固定欄位和間距，剛好要到這個寬度才排得下。 */
+        @media(max-width:1500px){
+          #app .dash-row.wkr,
+          body.ui-vi #app .dash-row.wkr{grid-template-columns:auto 188px 116px minmax(0,1fr) 52px;row-gap:6px}
+          body.ui-vi #app .dash-row.wkr{grid-template-columns:auto 188px 152px minmax(0,1fr) 70px}
+          /* 按鈕排到第二行之後，本來那個「四個固定欄寬」的格子會把按鈕拉得很長，
+             所以這一段改成照按鈕自己的寬度排，靠右對齊，跟上面一排的位置一致。 */
+          #app .wkr .wr-op{grid-column:1/-1;display:flex!important;flex-wrap:wrap;
+            grid-template-columns:none!important;gap:6px 8px;justify-content:flex-end;align-items:center}
+          /* 901px 以上那一段有 width:100%!important，不用 !important 蓋不掉，
+             按鈕會被拉成整列那麼寬。 */
+          #app .wkr .wr-op>.btn,#app .wkr .wr-op>a.btn{
+            width:auto!important;flex:0 0 auto;justify-self:auto;padding-left:14px;padding-right:14px}
         }
         /* 「進入教室」是連結（<a>），「去點名」是按鈕（<button>），用這個分開上色 */
         #app .dash-btns>a.btn.btn-accent,
@@ -7103,7 +7122,11 @@ function ghClHtml(l,withAns){
   if(segs.length&&GHCLQ!=='only'){
     /* 一、原文：整段連著印，讓學生先完整讀一次 */
     sec++;
-    h+='<div class="gh-gt"><span class="gh-tag">'+ghCnNum(sec)+'</span>原文</div><div class="gh-cl">'
+    /* CLNAME_V1019 這一課真的有標人名地名才印圖例，沒標就不要多一行 */
+    const _hasNm=segs.some(o=>clNameHas(o.x.orig)||clNameHas(o.x.ref));
+    h+='<div class="gh-gt"><span class="gh-tag">'+ghCnNum(sec)+'</span>原文</div>'
+      +(_hasNm?'<div class="cl-lg"><span class="cl-pn">人名</span>　<span class="cl-ln">地名</span></div>':'')
+      +'<div class="gh-cl">'
       +segs.map(o=>{const x=o.x,r=String(x.ref||'').trim();
         return '<div class="gh-seg"><div class="gh-so"><span class="gh-cn">'+o.n+'</span>'
           +clNameLines(String(x.orig||'').trim())+'</div>'/* CLNAME_V1011 */
@@ -7234,6 +7257,13 @@ function ghLessonHtml(l,withAns){
   if(!String(inner).trim())return '';
   return '<div class="gh-les"><h2 class="gh-lt">'+esc(l.title||'（未命名）')+'</h2>'+inner+'</div>';}
 function ghCss(){return ''
+  /* CLNAME_V1019 人名／地名。這一份是講義視窗用的樣式表，
+     跟後台那一份 <style> 是兩套——V1011 只加了後台那邊，所以印出來沒有顏色。
+     列印一定要加 print-color-adjust，不然瀏覽器會把背景和顏色洗掉。 */
+  +'.cl-pn{font-weight:700;color:#1E4C86;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+  +'.cl-ln{color:#8A5A2B;border-bottom:1px dotted #8A5A2B;padding-bottom:1px;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+  +'.cl-lg{font-size:11.5px;color:#6b7480;margin:2px 0 8px}'
+  +'.cl-lg .cl-pn,.cl-lg .cl-ln{font-size:11.5px}'
   /* GHKEY_V844 解答頁：一課接一課不換頁，排密一點 */
   +'.gk-les{margin-top:14px}'
   +'.gh-les.gk-les+.gh-les.gk-les{break-before:auto}'
