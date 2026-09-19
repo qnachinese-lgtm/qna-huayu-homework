@@ -11135,14 +11135,39 @@ H.clImport=()=>{
 var CLX=null;
 H.clImpPick=(i)=>{const x=(CLX||[])[+i];if(!x)return;closeModal();clxOpen(x);};
 /* 讀進來之後：對得上課名就開那一課（等於覆蓋），對不上就當新課 */
+/* CLXPICK_V1041 檔案裡的課名不一定跟平台上的一模一樣
+   （她的檔寫「刺客列傳」，平台上那一課叫「刺客列傳——荊軻」）。
+   名字對不上就直接當新課，會變成兩課。改成問她要蓋哪一課。 */
+var CLXONE=null;
 function clxOpen(x){
-  const old=(S.classicals||[]).find(l=>!l.deleted_at&&String(l.title||'').trim()===String(x.name||'').trim());
+  const exact=(S.classicals||[]).find(l=>!l.deleted_at&&String(l.title||'').trim()===String(x.name||'').trim());
+  const others=(S.classicals||[]).filter(l=>!l.deleted_at&&l!==exact);
+  if(!exact&&others.length){
+    CLXONE=x;
+    openModal('<div class="modal"><div class="modal-head"><h3>📥 要蓋掉哪一課？</h3>'
+      +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+      +'<div class="hint" style="margin-bottom:10px">檔案裡的課名是「<b>'+esc(x.name)+'</b>」（'+x.lines.length+' 段 · '+x.qs.length+' 題），'
+      +'平台上沒有一模一樣的課名。要蓋掉下面哪一課，還是當成新的一課？<br>'
+      +'不管選哪一個，都會先開在編輯視窗給妳看，按「💾 儲存」才算數。</div>'
+      +others.map((l,i)=>'<div class="dash-row"><span class="badge badge-pending">📜</span><b>'+esc(l.title||'（未命名）')+'</b>'
+        +'<span class="muted" style="margin-left:6px">'+((l.cl_lines||[]).length)+' 段 · '+((l.cl_qs||[]).length)+' 題</span>'
+        +'<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="clxPick" data-id="'+esc(l.id)+'">蓋掉這一課</button></div>').join('')
+      +'<div class="dash-row" style="margin-top:8px;border-top:1px solid var(--line);padding-top:10px">'
+      +'<span class="muted">都不是？</span><span class="grow"></span>'
+      +'<button class="btn btn-sm" data-act="clxPick" data-id="__new">當成新的一課</button></div>'
+      +'</div></div>');
+    return;}
+  clxGo(x,exact||null);}
+H.clxPick=(id)=>{const x=CLXONE;if(!x)return;CLXONE=null;closeModal();
+  clxGo(x,(id==='__new')?null:((S.classicals||[]).find(l=>l.id===id)||null));};
+function clxGo(x,old){
   if(old&&!confirm('要用這個檔覆蓋「'+(old.title||'')+'」嗎？\n\n'
     +'檔案裡有 '+x.lines.length+' 句、'+x.qs.length+' 題；\n'
     +'現在平台上這一課有 '+((old.cl_lines||[]).length)+' 句、'+((old.cl_qs||[]).length)+' 題。\n\n'
     +'⚠️ 按「確定」只是先開在編輯視窗裡，還沒有存。\n'
     +'妳看過覺得沒問題，再按視窗右下角的「💾 儲存」才會真的蓋過去。'))return;
-  CL={id:old?old.id:null,title:x.name,textbook:x.book,intro:x.intro,
+  /* 蓋掉舊課的時候沿用舊課名，免得同一課突然換了名字 */
+  CL={id:old?old.id:null,title:(old&&old.title)||x.name,textbook:x.book,intro:x.intro,
       refWhen:x.refWhen,qsMode:(old&&old.cl_qs_mode)||'hw',
       img:(old&&old.cl_img)||'',
       origText:x.lines.map(l=>l.orig).join('\n'),
