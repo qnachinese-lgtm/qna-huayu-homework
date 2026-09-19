@@ -3192,9 +3192,37 @@ function submittedWorkHtml(){
 }
 /* ===== 課程頁（NTU COOL 模組式） ===== */
 function courseById(cid){const cs=courseList();return cs.find(c=>c.id===cid)||cs[0]||null;}
-function lessonDone(l){const r=resultOf(l.id);return !!(r&&r.status==='done');}
+/* ══════ CLMOD_V1033 文言文在「課程模組」裡是空的 ══════
+   Quinn：「學生看不到課欸」「點下去展開之後裡面空」。
+   原因：modItems 是照「dialogues.content ／ 生詞 ／ 語法 ／ 題庫」去長項目的，
+   可是文言文的內容放在 cl_lines、問題放在 cl_qs，四項都是 0，
+   所以一個項目也長不出來，進度也就變成「已完成 0 / 0 個項目」。
+   學生端本來就畫得出文言文（classicalBodyHtml），只是模組頁沒有入口。 */
+function clLinesN(l){return (Array.isArray(l&&l.cl_lines)?l.cl_lines:[]).filter(x=>x&&String(x.orig||'').trim()).length;}
+function clQsN(l){return (Array.isArray(l&&l.cl_qs)?l.cl_qs:[]).filter(x=>x&&x.q).length;}
+function clDoneS(l){const d=discDocOf(l.id);return !!(d&&(d.status==='submitted'||d.status==='reviewed'));}
+function lessonDone(l){
+  if(l&&l.kind==='classical')return clDoneS(l);
+  const r=resultOf(l.id);return !!(r&&r.status==='done');}
 function modItems(l){
   const out=[];
+  if(l&&l.kind==='classical'){
+    const n=clLinesN(l);
+    if(!n)return out;
+    const qN=clQsN(l),qMode=l.cl_qs_mode||'hw';
+    const parts=[n+' '+LT({zh:'句',cn:'句',en:'lines',vi:'câu'})];
+    if(qN&&qMode!=='off')parts.push(qN+' '+LT({zh:'題',cn:'题',en:'questions',vi:'câu hỏi'}));
+    const d=discDocOf(l.id);
+    const b=(d&&(d.status==='submitted'||d.status==='reviewed'))
+      ?'<span class="badge badge-ok">'+esc(t('sDone'))+'</span>'
+      :((d&&d.status==='draft')?'<span class="badge badge-soon">'+esc(t('sDoing'))+'</span>':'');
+    out.push({ic:'📜',
+      t:LT({zh:'文言文（逐句寫白話翻譯）',cn:'文言文（逐句写白话翻译）',
+            en:'Classical Chinese — translate each line',vi:'Văn ngôn — dịch từng câu'}),
+      s:parts.join('　·　'),badge:b,act:'openLessonView',id:l.id});
+    if(l.handout_url)out.push({ic:'📎',t:LT({zh:'講義',cn:'讲义',en:'Handout',vi:'Tài liệu'}),s:'',badge:'',act:'openLessonView',id:l.id});
+    return out;
+  }
   const dl=lessonDialogues(l).filter(d=>d&&(d.content||'').trim());
   const hasAudio=lessonDialogues(l).some(d=>d&&d.audio_url);
   const vN=lessonVocab(l).length;
