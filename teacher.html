@@ -6033,6 +6033,8 @@ function clCardHtml(l){const lines=clLinesOf(l);const na=(l.assigned_ids||[]).le
     <div class="hide lc-acts" id="clmore-${l.id}">
       <span class="hint">這一課的其他操作</span>
       <button class="btn btn-sm" data-act="slides" data-id="${l.id}">🖥 上課投影片${slidePages(l).length?('（'+slidePages(l).length+' 頁）'):''}</button>
+      <!-- CLXOUT_V1044 抓成 Excel，改完注釋再用「📥 從 Excel 匯入」讀回來 -->
+      <button class="btn btn-sm" data-act="clXlsxOut" data-id="${l.id}">📤 匯出成 Excel（改完可以再匯回來）</button>
       <span class="grow"></span>
       <button class="btn btn-sm btn-danger" data-act="delClassical" data-id="${l.id}">🗑 刪除這一課</button>
     </div></div>`;}
@@ -11186,6 +11188,31 @@ function clxParse(buf){
           metaOf[nm]={book:r[mB],intro:r[mI],refWhen:r[mR]};});}
       if(!order.length)return {err:'「逐句」那一張表裡沒有讀到任何一句原文'};
       return {list:order.map(nm=>clxBuild(nm,metaOf[nm]||{},byName[nm].lines,byName[nm].qs))};}
+/* CLXOUT_V1044 把一課原樣寫成匯入用的格式，欄位跟 clxParse 讀的一模一樣。
+   注意：圖片沒辦法寫進 Excel，所以匯出的檔裡沒有圖；匯回來的時候那一段的圖也會不見。 */
+H.clXlsxOut=(id)=>{
+  if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
+  const l=(S.classicals||[]).find(x=>x.id===id);
+  if(!l){toast('找不到這一課');return;}
+  const nm=String(l.title||'文言文課').trim()||'文言文課';
+  const lines=Array.isArray(l.cl_lines)?l.cl_lines:[];
+  const qs=Array.isArray(l.cl_qs)?l.cl_qs:[];
+  const S_=(v)=>String(v==null?'':v);
+  const A=[['課名','序號','原文','注釋','參考翻譯']].concat(
+    lines.map((r,i)=>[nm,i+1,S_(r&&r.orig),S_(r&&r.note),S_(r&&r.ref)]));
+  const B=[['課名','序號','題目','參考答案']].concat(
+    qs.map((r,i)=>[nm,i+1,S_(r&&r.q),S_(r&&r.ans)]));
+  const WH={after:'交出來以後才看得到',always:'一開始就看得到',never:'不給學生看'};
+  const C=[['課名','教材','作者・背景介紹','參考翻譯什麼時候給學生看'],
+           [nm,S_(l.textbook)||'文言文',S_(l.cl_intro),WH[l.cl_ref_when||'after']||'交出來以後才看得到']];
+  const mk=(rows,ws)=>{const s=XLSX.utils.aoa_to_sheet(rows);s['!cols']=ws.map(w=>({wch:w}));return s;};
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,mk(A,[18,6,44,56,44]),'逐句');
+  XLSX.utils.book_append_sheet(wb,mk(B,[18,6,56,56]),'問答');
+  XLSX.utils.book_append_sheet(wb,mk(C,[18,14,56,28]),'課程');
+  const safe=nm.replace(/[\\/:*?"<>|]/g,'').slice(0,40);
+  XLSX.writeFile(wb,'QNA_文言文_'+safe+'_'+localToday()+'.xlsx');
+  toast('匯出好了：'+lines.length+' 段、'+qs.length+' 題。改完注釋再按「📥 從 Excel 匯入」讀回來');};
 H.clImport=()=>{
   if(typeof XLSX==='undefined'){toast('匯入元件還在載入，請過幾秒再按一次');return;}
   const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls';
