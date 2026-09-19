@@ -2112,6 +2112,29 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .cl-ln{color:#1F7A8C;border-bottom:1px dotted currentColor;padding-bottom:1px}
         .cl-mk{display:flex;gap:6px;flex-wrap:wrap;margin:5px 0 2px}
         .cl-mk .btn{padding:3px 10px;font-size:12px}
+        /* CLFOLD_V1042 一段一列，點開才看得到裡面 */
+        .cl-segbar{display:flex;align-items:center;gap:8px;margin:2px 0 7px}
+        .cl-segbar .btn{padding:3px 10px;font-size:12px}
+        .cl-seg{border:1px solid var(--line);border-radius:10px;margin-bottom:6px;
+          background:var(--surface);overflow:hidden}
+        .cl-seg>summary{list-style:none;cursor:pointer;display:flex;align-items:center;
+          gap:9px;padding:8px 11px;font-size:14px;line-height:1.5}
+        .cl-seg>summary::-webkit-details-marker{display:none}
+        .cl-seg>summary::before{content:'▸';flex:0 0 auto;color:var(--faint);font-size:11px}
+        .cl-seg[open]>summary::before{content:'▾'}
+        .cl-seg>summary:hover{background:var(--surface-2)}
+        .cl-seg[open]>summary{background:var(--surface-2);border-bottom:1px solid var(--line)}
+        .cl-seg-n{flex:0 0 auto;color:var(--muted);font-size:12.5px;font-weight:700;
+          white-space:nowrap}
+        .cl-seg-t{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+          white-space:nowrap;color:var(--ink)}
+        .cl-seg-m{flex:0 0 auto;display:flex;gap:4px}
+        .cl-seg-m i{font-style:normal;font-size:11px;line-height:1;padding:3px 5px;
+          border-radius:5px;border:1px solid var(--line);background:var(--surface);
+          color:var(--muted)}
+        .cl-seg-b{padding:9px 11px 11px}
+        .cl-seg-b>.dlg-lbl:first-child{margin-top:0}
+        .cl-seg-foot{display:flex;justify-content:flex-end;margin-top:8px}
         @media print{
           .cl-pn{font-weight:700;color:#1E4C86}
           .cl-ln{color:#1F7A8C;border-bottom:1px dotted #1F7A8C}
@@ -6013,13 +6036,54 @@ function clCardHtml(l){const lines=clLinesOf(l);const na=(l.assigned_ids||[]).le
       <span class="grow"></span>
       <button class="btn btn-sm btn-danger" data-act="delClassical" data-id="${l.id}">🗑 刪除這一課</button>
     </div></div>`;}
-function clLineRowsHtml(){return (CL.lines||[]).map((r,i)=>`<div class="card" style="padding:10px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>第 ${i+1} 句</b><span class="grow"></span>${CL.lines.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="clDelLine" data-id="${i}">刪除這句</button>`:''}</div><label class="dlg-lbl">原文 <span class="hint">人名、地名可以標起來：選起來按下面的鈕。{ } 是人名、[ ] 是地名</span></label><textarea class="cl-orig" data-i="${i}" style="min-height:52px" placeholder="這一句的文言文原文…">${esc(r.orig||'')}</textarea>
+/* CLFOLD_V1042 一課二三十段，每一段都攤開來的話，只是想在第 1 段加一條注釋，
+   也得從頭拉到尾（Quinn：「在編輯文言文這邊你如果讓我看到每一個句子出現，
+   就會太長，讓我往下拉很久」）。改成一段一列：平常只看得到段號、開頭那幾個字，
+   還有這一段有沒有注釋／參考翻譯／圖；點一下才打開那一段。
+   收起來的 textarea 還在 DOM 上，clSyncLines() 照舊抓得到，儲存不受影響。 */
+function clSegPrev(r){const t=String((r&&r.orig)||'').replace(/[{}［］\[\]｛｝]/g,'').replace(/\s+/g,' ').trim();
+  return t?(t.length>36?t.slice(0,36)+'…':t):'（還沒有內容）';}
+function clSegMarks(r){const a=[];
+  if(String((r&&r.note)||'').trim())a.push('注');
+  if(String((r&&r.ref)||'').trim())a.push('譯');
+  if(r&&r.img)a.push('圖');
+  return a.map(x=>'<i>'+x+'</i>').join('');}
+function clQPrev(r){const t=String((r&&r.q)||'').replace(/\s+/g,' ').trim();
+  return t?(t.length>36?t.slice(0,36)+'…':t):'（還沒有題目）';}
+function clQMarks(r){const a=[];
+  if(String((r&&r.ans)||'').trim())a.push('答');
+  if(r&&r.img)a.push('圖');
+  return a.map(x=>'<i>'+x+'</i>').join('');}
+function clSegTouch(t){
+  const d=t.closest('.cl-seg');if(!d||typeof CL==='undefined'||!CL)return;
+  const i=+t.dataset.i;
+  const isQ=t.classList.contains('cl-q')||t.classList.contains('cl-qa');
+  const r=isQ?((CL.qs||[])[i]):((CL.lines||[])[i]);if(!r)return;
+  if(t.classList.contains('cl-orig'))r.orig=t.value;
+  else if(t.classList.contains('cl-note'))r.note=t.value;
+  else if(t.classList.contains('cl-ref'))r.ref=t.value;
+  else if(t.classList.contains('cl-q'))r.q=t.value;
+  else if(t.classList.contains('cl-qa'))r.ans=t.value;
+  const s=d.querySelector('.cl-seg-t');if(s)s.textContent=isQ?clQPrev(r):clSegPrev(r);
+  const m=d.querySelector('.cl-seg-m');if(m)m.innerHTML=isQ?clQMarks(r):clSegMarks(r);}
+function clQSegPaint(open){const w=document.getElementById('cl-qs');if(w)w.innerHTML=clQRowsHtml();
+  const c=document.getElementById('cl-qcount');if(c)c.textContent=String(((CL&&CL.qs)||[]).length);
+  if(open!=null){const d=document.querySelector('#cl-qs .cl-seg[data-i="'+open+'"]');
+    if(d){d.open=true;try{d.scrollIntoView({block:'nearest'});}catch(e){}}}}
+function clSegPaint(open){const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();
+  const c=document.getElementById('cl-lncount');if(c)c.textContent=String(((CL&&CL.lines)||[]).length);
+  if(open!=null){const d=document.querySelector('#cl-lines .cl-seg[data-i="'+open+'"]');
+    if(d){d.open=true;try{d.scrollIntoView({block:'nearest'});}catch(e){}}}}
+function clLineRowsHtml(){return (CL.lines||[]).map((r,i)=>`<details class="cl-seg" data-i="${i}"><summary class="cl-seg-s"><b class="cl-seg-n">第 ${i+1} 段</b><span class="cl-seg-t">${esc(clSegPrev(r))}</span><span class="cl-seg-m">${clSegMarks(r)}</span></summary><div class="cl-seg-b"><label class="dlg-lbl">原文 <span class="hint">人名、地名可以標起來：選起來按下面的鈕。{ } 是人名、[ ] 是地名</span></label><textarea class="cl-orig" data-i="${i}" oninput="clSegTouch(this)" style="min-height:52px" placeholder="這一段的文言文原文…">${esc(r.orig||'')}</textarea>
   <!-- CLNAME_V1011 不要逼她自己打括號：把名字選起來按一下就包好 -->
-  <div class="cl-mk"><button class="btn btn-sm" type="button" data-act="clMarkPn" data-id="${i}">標人名</button><button class="btn btn-sm" type="button" data-act="clMarkLn" data-id="${i}">標地名</button><button class="btn btn-sm btn-ghost" type="button" data-act="clMarkNo" data-id="${i}">取消標記</button></div><label class="dlg-lbl">注釋 <span class="hint">這一格就是妳自己加註解的地方。一條一個「。」，例如「之：前往。卿：敬稱。」。印出來會掛到有那個字的句子底下；同一個字出現兩次的時候，寫「3｜之：前往。」＝指定掛在第 3 句。</span></label><textarea class="cl-note" data-i="${i}" style="min-height:44px" placeholder="例：之：前往。卿：敬稱。">${esc(r.note||'')}</textarea>
-  <label class="dlg-lbl">參考翻譯 <span class="hint">選填，你寫的白話翻譯。什麼時候給學生看，在上面設定</span></label><textarea class="cl-ref" data-i="${i}" style="min-height:44px" placeholder="這一句的白話翻譯…">${esc(r.ref||'')}</textarea>
-  ${clPicBox(r.img||'','clPicUp','clPicDel',i,'這一句的插圖，學生看得到')}</div>`).join('');}
-function clQRowsHtml(){return (CL.qs||[]).map((r,i)=>`<div class="card" style="padding:10px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>問題 ${i+1}</b><span class="grow"></span><button class="btn btn-sm btn-danger" type="button" data-act="clDelQ" data-id="${i}">刪掉</button></div><label class="dlg-lbl">題目</label><textarea class="cl-q" data-i="${i}" style="min-height:44px" placeholder="例：作者為什麼說「不足為外人道也」？">${esc(r.q||'')}</textarea><label class="dlg-lbl">參考答案 <span class="hint">選填，跟參考翻譯一樣的時機才給學生看</span></label><textarea class="cl-qa" data-i="${i}" style="min-height:44px" placeholder="選填…">${esc(r.ans||'')}</textarea>
-  ${clPicBox(r.img||'','clQPicUp','clQPicDel',i,'這一題的圖')}</div>`).join('');}
+  <div class="cl-mk"><button class="btn btn-sm" type="button" data-act="clMarkPn" data-id="${i}">標人名</button><button class="btn btn-sm" type="button" data-act="clMarkLn" data-id="${i}">標地名</button><button class="btn btn-sm btn-ghost" type="button" data-act="clMarkNo" data-id="${i}">取消標記</button></div><label class="dlg-lbl">注釋 <span class="hint">這一格就是妳自己加註解的地方。一條一個「。」，例如「之：前往。卿：敬稱。」。印出來會掛到有那個字的句子底下；同一個字出現兩次的時候，寫「3｜之：前往。」＝指定掛在第 3 句。</span></label><textarea class="cl-note" data-i="${i}" oninput="clSegTouch(this)" style="min-height:44px" placeholder="例：之：前往。卿：敬稱。">${esc(r.note||'')}</textarea>
+  <label class="dlg-lbl">參考翻譯 <span class="hint">選填，你寫的白話翻譯。什麼時候給學生看，在上面設定</span></label><textarea class="cl-ref" data-i="${i}" oninput="clSegTouch(this)" style="min-height:44px" placeholder="這一段的白話翻譯…">${esc(r.ref||'')}</textarea>
+  ${clPicBox(r.img||'','clPicUp','clPicDel',i,'這一段的插圖，學生看得到')}
+  ${CL.lines.length>1?`<div class="cl-seg-foot"><button class="btn btn-sm btn-danger" type="button" data-act="clDelLine" data-id="${i}">🗑 刪除這一段</button></div>`:''}</div></details>`).join('');}
+/* CLFOLD_V1043 問答題也是一題一列，點開才看得到裡面 */
+function clQRowsHtml(){return (CL.qs||[]).map((r,i)=>`<details class="cl-seg" data-i="${i}"><summary class="cl-seg-s"><b class="cl-seg-n">問題 ${i+1}</b><span class="cl-seg-t">${esc(clQPrev(r))}</span><span class="cl-seg-m">${clQMarks(r)}</span></summary><div class="cl-seg-b"><label class="dlg-lbl">題目</label><textarea class="cl-q" data-i="${i}" oninput="clSegTouch(this)" style="min-height:44px" placeholder="例：作者為什麼說「不足為外人道也」？">${esc(r.q||'')}</textarea><label class="dlg-lbl">參考答案 <span class="hint">選填，跟參考翻譯一樣的時機才給學生看</span></label><textarea class="cl-qa" data-i="${i}" oninput="clSegTouch(this)" style="min-height:44px" placeholder="選填…">${esc(r.ans||'')}</textarea>
+  ${clPicBox(r.img||'','clQPicUp','clQPicDel',i,'這一題的圖')}
+  <div class="cl-seg-foot"><button class="btn btn-sm btn-danger" type="button" data-act="clDelQ" data-id="${i}">🗑 刪掉這一題</button></div></div></details>`).join('');}
 function clSyncLines(){if(!CL)return;document.querySelectorAll('.cl-orig').forEach(t=>{const i=+t.dataset.i;if(CL.lines[i])CL.lines[i].orig=t.value;});document.querySelectorAll('.cl-note').forEach(t=>{const i=+t.dataset.i;if(CL.lines[i])CL.lines[i].note=t.value;});
   document.querySelectorAll('.cl-ref').forEach(t=>{const i=+t.dataset.i;if(CL.lines[i])CL.lines[i].ref=t.value;});
   document.querySelectorAll('.cl-q').forEach(t=>{const i=+t.dataset.i;if(CL.qs[i])CL.qs[i].q=t.value;});
@@ -6058,13 +6122,19 @@ function clForm(){const e=!!CL.id;const origText=CL.origText!=null?CL.origText:'
      <div class="field full"><label>貼整篇原文 <span class="hint">貼進來按下面那顆，會照「。！？；」和換行拆成一句一列。</span></label>
        <textarea id="cl-paste" style="min-height:110px" placeholder="貼上整篇文言文原文…">${esc(origText)}</textarea>
        <div style="margin-top:6px"><button class="btn btn-sm btn-accent" type="button" data-act="clSplitFill">✂️ 拆成一句一列</button></div></div>
-     <div class="field full"><label>逐句內容 <span class="hint">原文／注釋／參考翻譯。學生每句底下有「我的筆記」和「翻譯」。</span></label>
+     <div class="field full"><label>逐段內容 <span class="hint">原文／注釋／參考翻譯。平常收著，點哪一段才打開那一段。</span></label>
+       <div class="cl-segbar"><span class="hint">共 <b id="cl-lncount">${(CL.lines||[]).length}</b> 段</span><span class="grow"></span>
+         <button class="btn btn-sm btn-ghost" type="button" data-act="clSegOpenAll">全部展開</button>
+         <button class="btn btn-sm btn-ghost" type="button" data-act="clSegCloseAll">全部收合</button></div>
        <div id="cl-lines">${clLineRowsHtml()}</div>
-       <button class="btn btn-sm" type="button" data-act="clAddLine">＋ 新增一句</button>
+       <button class="btn btn-sm" type="button" data-act="clAddLine">＋ 新增一段</button>
        <!-- CLNOTE_V1006 匯進來的字詞註解一句一句刪太慢，給一顆一次清完的。
             只改畫面，沒按儲存就不算數。 -->
        <button class="btn btn-sm btn-ghost" type="button" data-act="clClearNotes" style="margin-left:8px">🧹 清空這一課的注釋</button></div>
      <div class="field full"><label>課後問答題（選填） <span class="hint">翻譯之外再問幾題理解，跟翻譯一起送來給你改</span></label>
+       <div class="cl-segbar"><span class="hint">共 <b id="cl-qcount">${(CL.qs||[]).length}</b> 題</span><span class="grow"></span>
+         <button class="btn btn-sm btn-ghost" type="button" data-act="clQSegOpenAll">全部展開</button>
+         <button class="btn btn-sm btn-ghost" type="button" data-act="clQSegCloseAll">全部收合</button></div>
        <div id="cl-qs">${clQRowsHtml()}</div>
        <button class="btn btn-sm" type="button" data-act="clAddQ">＋ 新增問題</button></div>
    </div>
@@ -10972,16 +11042,16 @@ async function clPickUpload(){
       try{const u=await uploadImage(f);res(u);}catch(e){toast(writeErr('圖片上傳失敗',e));res(null);}};
     inp.click();});}
 H.clPicUp=async(i)=>{if(!CL)return;clSyncLines();const u=await clPickUpload();if(!u)return;
-  CL.lines[+i].img=u;const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();toast('圖片好了');};
-H.clPicDel=(i)=>{if(!CL)return;clSyncLines();CL.lines[+i].img='';const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
+  CL.lines[+i].img=u;clSegPaint(+i);toast('圖片好了');};
+H.clPicDel=(i)=>{if(!CL)return;clSyncLines();CL.lines[+i].img='';clSegPaint(+i);};
 H.clQPicUp=async(i)=>{if(!CL)return;clSyncLines();const u=await clPickUpload();if(!u)return;
-  CL.qs[+i].img=u;const w=document.getElementById('cl-qs');if(w)w.innerHTML=clQRowsHtml();toast('圖片好了');};
-H.clQPicDel=(i)=>{if(!CL)return;clSyncLines();CL.qs[+i].img='';const w=document.getElementById('cl-qs');if(w)w.innerHTML=clQRowsHtml();};
+  CL.qs[+i].img=u;clQSegPaint(+i);toast('圖片好了');};
+H.clQPicDel=(i)=>{if(!CL)return;clSyncLines();CL.qs[+i].img='';clQSegPaint(+i);};
 H.clTopPicUp=async()=>{if(!CL)return;clSyncLines();const u=await clPickUpload();if(!u)return;
   CL.img=u;const w=document.getElementById('cl-toppic');if(w)w.innerHTML=clPicBox(CL.img,'clTopPicUp','clTopPicDel',0,'放在整課最上面，例如作者畫像或情境圖');toast('圖片好了');};
 H.clTopPicDel=()=>{if(!CL)return;clSyncLines();CL.img='';const w=document.getElementById('cl-toppic');if(w)w.innerHTML=clPicBox('','clTopPicUp','clTopPicDel',0,'放在整課最上面，例如作者畫像或情境圖');};
-H.clAddQ=()=>{if(!CL)return;clSyncLines();CL.qs=CL.qs||[];CL.qs.push({q:'',ans:'',img:''});const w=document.getElementById('cl-qs');if(w)w.innerHTML=clQRowsHtml();};
-H.clDelQ=(i)=>{if(!CL)return;clSyncLines();CL.qs.splice(+i,1);const w=document.getElementById('cl-qs');if(w)w.innerHTML=clQRowsHtml();};
+H.clAddQ=()=>{if(!CL)return;clSyncLines();CL.qs=CL.qs||[];CL.qs.push({q:'',ans:'',img:''});clQSegPaint(CL.qs.length-1);};
+H.clDelQ=(i)=>{if(!CL)return;clSyncLines();CL.qs.splice(+i,1);clQSegPaint();};
 /* 貼一整篇進來，按這顆就照「。！？；」和換行拆成一句一列，原本填好的注釋不會被蓋掉 */
 H.clSplitFill=()=>{if(!CL)return;clSyncLines();
   const txt=(document.getElementById('cl-paste')||{}).value||'';
@@ -10990,7 +11060,7 @@ H.clSplitFill=()=>{if(!CL)return;clSyncLines();
   const old=CL.lines||[];
   const keep=(i)=>old[i]||{};
   CL.lines=sents.map((x,i)=>({orig:x,note:(keep(i).orig===x?keep(i).note:'')||'',ref:(keep(i).orig===x?keep(i).ref:'')||'',img:(keep(i).orig===x?keep(i).img:'')||''}));
-  const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();
+  clSegPaint();
   toast('分成 '+sents.length+' 句了，可以逐句補注釋');};
 H.editClassical=(id)=>{const l=(S.classicals||[]).find(x=>x.id===id);if(!l)return;const d=(Array.isArray(l.dialogues)?l.dialogues[0]:null)||{};const origText=(l.cl_text!=null&&l.cl_text!=='')?l.cl_text:(d.discussion||'').split('\n').map(x=>x.trim()).filter(Boolean).join('\n');const _ls=clLinesOf(l).map(x=>({orig:x.orig||'',note:x.note||'',ref:x.ref||'',img:x.img||''}));
   CL={id:l.id,title:l.title||'',textbook:l.textbook||'文言文',assigned_ids:(l.assigned_ids||[]).slice(),origText:origText,intro:l.cl_intro||'',
@@ -11003,7 +11073,7 @@ H.clClearNotes=()=>{if(!CL)return;clSyncLines();
   if(!n)return toast('這一課本來就沒有注釋');
   if(!confirm('清掉這一課的 '+n+' 條注釋？\n\n還沒存檔——按「取消」離開這個視窗就當作沒發生過。'))return;
   CL.lines=(CL.lines||[]).map(x=>Object.assign({},x,{note:''}));
-  const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();
+  clSegPaint();
   toast('清好了，記得按「儲存」');};
 /* CLNOTE_V1006 所有文言文課一次清。這顆會真的寫進資料庫，
    所以先把原本的註解留一份在 cl_notes_bak，想要回來還找得到。 */
@@ -11053,8 +11123,13 @@ H.clMarkNo=(i)=>{
   t.value=t.value.slice(0,a)+sel+t.value.slice(b);
   if(typeof CL!=='undefined'&&CL&&CL.lines&&CL.lines[i])CL.lines[i].orig=t.value;
   t.focus();t.setSelectionRange(a,a+sel.length);};
-H.clAddLine=()=>{if(!CL)return;clSyncLines();CL.lines.push({orig:'',note:'',ref:'',img:''});const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
-H.clDelLine=(i)=>{if(!CL)return;clSyncLines();CL.lines.splice(+i,1);if(!CL.lines.length)CL.lines=[{orig:'',note:'',ref:'',img:''}];const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
+/* CLFOLD_V1042 這兩顆放這裡，不能跟 clLineRowsHtml 放一起——H 是後面才宣告的 */
+H.clSegOpenAll=()=>{document.querySelectorAll('#cl-lines .cl-seg').forEach(d=>{d.open=true;});};
+H.clQSegOpenAll=()=>{document.querySelectorAll('#cl-qs .cl-seg').forEach(d=>{d.open=true;});};
+H.clQSegCloseAll=()=>{document.querySelectorAll('#cl-qs .cl-seg').forEach(d=>{d.open=false;});};
+H.clSegCloseAll=()=>{document.querySelectorAll('#cl-lines .cl-seg').forEach(d=>{d.open=false;});};
+H.clAddLine=()=>{if(!CL)return;clSyncLines();CL.lines.push({orig:'',note:'',ref:'',img:''});clSegPaint(CL.lines.length-1);};
+H.clDelLine=(i)=>{if(!CL)return;clSyncLines();CL.lines.splice(+i,1);if(!CL.lines.length)CL.lines=[{orig:'',note:'',ref:'',img:''}];clSegPaint();};
 /* ══════ CLXLSX_V1029 從 Excel 匯入文言文 ══════ */
 function clxSheet(wb,keys){
   const n=(wb.SheetNames||[]).find(x=>keys.some(k=>String(x).indexOf(k)>=0));
