@@ -1384,7 +1384,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         #app .wkr .wr-tm,#app .wkr .wr-kd,#app .wkr .wr-nm,#app .wkr .wr-op,#app .wkr .wr-dt{
           display:flex;align-items:center;gap:6px}
         #app .wkr .wr-tm .badge{white-space:nowrap}
-        #app .wkr .wr-kd{white-space:nowrap;font-size:12.5px}
+        /* WKKD_V1030 這一欄的寬度是固定的，標籤卻靠左貼著，看起來偏一邊
+           （Quinn：「我是要面試練習以及預排放在那邊的中間」）。 */
+        #app .wkr .wr-kd{white-space:nowrap;font-size:12.5px;justify-content:center}
         /* VIWKR_V989 「類別」116px、「今天」52px 是照中文量的：
            🎯 正式面試 → 🎯 Phỏng vấn chính thức 要 150px，今天 → Hôm nay 要 67px。
            只有越南文介面才放寬，中文維持原樣。 */
@@ -1784,6 +1786,21 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .cl-row .cl-note{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .cl-row .cl-op{flex:none;display:flex;gap:6px;align-items:center;white-space:nowrap}
         .cl-row .cl-op>.btn{flex:none}
+        /* LATEROLL_V1031 「還沒點名」那一塊：跟下面七天的卡片同一種外觀，
+           只是用淡橘色的框提醒，不用紅色（那是錯誤，這只是提醒）。 */
+        #app .wk-late{border:1.5px solid #fdba74;background:#FFFBF5;border-radius:12px;
+          padding:10px 12px 8px;margin-bottom:12px}
+        #app .wk-late-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+          font-weight:700;color:#c2410c;margin-bottom:6px}
+        #app .wk-late-n{background:#fed7aa;color:#9a3412;border-radius:999px;
+          padding:1px 9px;font-size:12.5px;font-weight:700}
+        #app .wk-late-b .dash-row{background:#fff;border-radius:8px;margin-bottom:6px}
+        /* CLOPW_V1030 正在改的那一列，「✏️ 修改」會換成「修改中」的小標籤，
+           兩個寬度不一樣，後面的 ✕ 就跟著左右跳（Quinn：「按鈕跑版了」）。
+           這兩格各自釘死寬度，不管顯示哪一種都落在同一條線上。 */
+        #app .cl-row .cl-op>*:nth-child(1){min-width:42px;justify-content:center}
+        #app .cl-row .cl-op>*:nth-child(2){min-width:82px;display:inline-flex;
+          align-items:center;justify-content:center}
         @media(max-width:720px){.cl-row{flex-wrap:wrap}
           .cl-row .cl-st{flex:0 0 auto}.cl-row .cl-note{flex:1 1 100%}}
         /* TDST_V889 今天的課：狀態標籤固定寬度，後面的姓名才會上下對齊。
@@ -4278,7 +4295,7 @@ function renderPay(){
     +(_pausedN?('<button class="btn btn-sm'+(_showP?' btn-accent':'')+'" data-act="payTogglePaused" title="已休學的學生預設不列出來">⏸ '+(_showP?'隱藏已休學':('顯示已休學（'+_pausedN+'）'))+'</button> '):'')/* FEEPUB_V910 費用公開本來只能一位一位開，或整班一起開；這裡可以一次看完、一次改完 */
     +'<button class="btn btn-sm'+(fpOn?' btn-accent':'')+'" data-act="feePubAll" title="一次設定哪些學生在自己的頁面看得到費用">📢 費用公開 '+fpOn+'/'+fpAll.length+'</button> '
     +'<button class="btn btn-sm btn-accent" data-act="monthBills" title="一次產生一整個月的月結單，每位學生一頁">🧾 月結單</button> <button class="btn btn-sm" data-act="exportLedger" title="匯出上課記錄／繳費記錄／對帳總表">📤 匯出對帳資料</button>'
-    +'<span class="hint" style="margin-left:8px">按「＋ 記一筆」就能寫進這位學生的繳費，團班也一樣。</span></div>';
+    +'</div>';
   let rows=rowsAll;
   if(f==='owe')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due>0.0001);
   else if(f==='clear')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due<=0.0001);
@@ -5180,9 +5197,13 @@ function renderCalLedger(body,toggle){
   }).join('');
   const ledHead=`<div class="led-sum led-head"><span></span><span>學生</span><span>狀態</span><span>本月</span><span>累計</span><span>餘額</span><span>最近</span></div>`;body.innerHTML=toggle+nav+summary+ledHead+rows;}
 /* 本週實際排的課（依日期）：把 class_log 已記錄 ＋ 團班預排，落在今天起 7 天內的列出來，讓不固定時間的課也出現在本週課表 */
-function weekActualCard(){
+/* LATEROLL_V1031 back＝往回看幾天。預設 0，等於原本的「今天起七天」，
+   所以既有畫面一個像素都沒變；只有「還沒點名」那一塊會傳 7 進來。 */
+function weekActualCard(back){
+  back=Math.max(0,Number(back)||0);
   const t=new Date();t.setHours(0,0,0,0);const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  const start=ymd(t);const eD=new Date(t);eD.setDate(eD.getDate()+6);const end=ymd(eD);
+  const sD=new Date(t);sD.setDate(sD.getDate()-back);
+  const start=ymd(sD);const eD=new Date(t);eD.setDate(eD.getDate()+6);const end=ymd(eD);
   const items=[];const grpMap={};const recordedGrp=new Set();
   // 已記錄的上課：團班以「團班＋日期＋時段」合併成一筆（不用學生逐一列）
   (S.students||[]).forEach(s=>{if(s.deleted||s.is_test)return;const grp=(s.class_type==='團班'&&stuGroups(s)[0])||'';(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date||e.date<start||e.date>end)return;
@@ -5197,7 +5218,7 @@ function weekActualCard(){
     const has=(key)=>items.some(x=>x.date===key.date&&(
       (key.sid&&((x.type==='log'&&x.s&&x.s.id===key.sid)||(x.type==='splan'&&x.s&&x.s.id===key.sid)))||
       (key.cls&&((x.type==='glog'&&x.grp===key.cls)||(x.type==='plan'&&x.cls===key.cls)))));
-    const days7=[];for(let i=0;i<7;i++){const dd=new Date(t);dd.setDate(dd.getDate()+i);days7.push({ymd:ymd(dd),wd:(dd.getDay()+6)%7});}
+    const days7=[];for(let i=-back;i<7;i++){const dd=new Date(t);dd.setDate(dd.getDate()+i);days7.push({ymd:ymd(dd),wd:(dd.getDay()+6)%7});}
     (S.students||[]).forEach(s=>{
       if(s.deleted||s.is_test||s.class_type==='團班')return;
       /* TRIAL_V807 試學還沒定下固定時間，別自動推進課表 */
@@ -5321,7 +5342,27 @@ function weekBoardHtml(){
       <div class="wk-b">${inner2}</div></div>`;
   }
   const head=`<div class="wk-sum">📆 今天起七天，共 <b>${nClass}</b> 堂（含已點名與預排）</div>`;
-  return head+`<div class="wk-wrap">${cards}</div>`;}
+  return weekLateHtml()+head+`<div class="wk-wrap">${cards}</div>`;}
+/* LATEROLL_V1031 過去七天裡「應該上、但沒有點名記錄」的那幾堂。
+   已經點過名的不會出現（點完就從這一塊消失）；
+   按過「這一天不要再推」的固定時段也不會出現。 */
+function weekLateHtml(){
+  let W;try{W=weekActualCard(7);}catch(e){return '';}
+  const t=new Date();t.setHours(0,0,0,0);
+  const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const today=ymd(t);
+  const late=(W.items||[]).filter(it=>it&&it.date&&it.date<today&&
+    (it.type==='plan'||it.type==='splan'||it.type==='fix'||(it.type==='itv'&&!(it.e&&it.e.done))));
+  if(!late.length)return '';
+  late.sort((a,b)=>String(a.date).localeCompare(String(b.date))
+    ||String(a.start||'').localeCompare(String(b.start||'')));
+  const keep=WKDATE;WKDATE=true;
+  const rows=late.map(it=>{try{return W.rowOf(it);}catch(e){return '';}}).join('');
+  WKDATE=keep;
+  return `<div class="wk-late"><div class="wk-late-h">⚠️ 還沒點名`
+    +`<span class="wk-late-n">${late.length} 堂</span>`
+    +`<span class="hint" style="margin-left:8px">過去七天裡沒有上課記錄的。點完名就會從這裡消失。</span></div>`
+    +`<div class="wk-late-b">${rows}</div></div>`;}
 
 /* 本月應收：把每位學生本月上的課（不含免費／請假）× 單價 算出來，對照實收 */
 function feeBreak(items,cur){const g={};items.forEach(x=>{const h=logHours(x.e);const k=(h==null?'?':(Math.round(h*100)/100))+'|'+x.f;g[k]=(g[k]||0)+1;});
@@ -6160,7 +6201,7 @@ function renderLessons(){
     if(b==='📜 文言文'){if(!hasCl)return '';
       const cards=(S.classicals||[]).slice().sort((a,c)=>((a.order_index||0)-(c.order_index||0))).map(l=>clCardHtml(l)).join('');
       const op=_isOpen(b);
-      return `<div class="book-group">${_bh(b,'📜 文言文',S.classicals.length+' 課',op,'<button class="btn btn-sm btn-ghost" data-act="clClearAllNotes" style="margin-right:8px" title="把所有文言文課的字詞註解一次清空（原本的會另外留一份）">🧹 清空全部註解</button><button class="btn btn-sm" data-act="newClassical" style="margin-right:10px">＋ 新增文言文</button>')}${op?cards:''}</div>`;}
+      return `<div class="book-group">${_bh(b,'📜 文言文',S.classicals.length+' 課',op,'<button class="btn btn-sm btn-ghost" data-act="clImport" style="margin-right:8px" title="用 Excel 範本匯入或覆蓋一整課（讀進來會先開在編輯視窗，按儲存才算數）">📥 從 Excel 匯入</button><button class="btn btn-sm btn-ghost" data-act="clClearAllNotes" style="margin-right:8px" title="把所有文言文課的字詞註解一次清空（原本的會另外留一份）">🧹 清空全部註解</button><button class="btn btn-sm" data-act="newClassical" style="margin-right:10px">＋ 新增文言文</button>')}${op?cards:''}</div>`;}
     if(b==='發音'){if(!hasPron)return '';
       const cards=(S.prons||[]).slice().sort((a,c)=>((a.order_index||0)-(c.order_index||0))).map(p=>pronTeacherCardHtml(p)).join('');
       const op=_isOpen(b);
@@ -10922,6 +10963,101 @@ H.clMarkNo=(i)=>{
   t.focus();t.setSelectionRange(a,a+sel.length);};
 H.clAddLine=()=>{if(!CL)return;clSyncLines();CL.lines.push({orig:'',note:'',ref:'',img:''});const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
 H.clDelLine=(i)=>{if(!CL)return;clSyncLines();CL.lines.splice(+i,1);if(!CL.lines.length)CL.lines=[{orig:'',note:'',ref:'',img:''}];const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();};
+/* ══════ CLXLSX_V1029 從 Excel 匯入文言文 ══════ */
+function clxSheet(wb,keys){
+  const n=(wb.SheetNames||[]).find(x=>keys.some(k=>String(x).indexOf(k)>=0));
+  if(!n)return null;
+  return XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:''});}
+function clxCol(head,keys,fallback){
+  /* 照關鍵字找欄，找不到才退回指定的欄號 */
+  for(let i=0;i<(head||[]).length;i++){
+    const t=String(head[i]==null?'':head[i]);
+    if(keys.some(k=>t.indexOf(k)>=0))return i;}
+  return (fallback==null?-1:fallback);}
+function clxStr(v){return String(v==null?'':v).replace(/\r/g,'').trim();}
+function clxRefWhen(t){
+  const s=clxStr(t);
+  if(/不給|never|不顯示/.test(s))return 'never';
+  if(/一開始|always|馬上|直接/.test(s))return 'always';
+  return 'after';}
+/* 把一個課名的資料整理成編輯視窗用的 CL */
+function clxBuild(name,meta,lineRows,qRows){
+  const lines=lineRows.map(r=>({orig:clxStr(r.orig),note:clxStr(r.note),ref:clxStr(r.ref),img:''}))
+    .filter(x=>x.orig||x.note||x.ref);
+  const qs=qRows.map(r=>({q:clxStr(r.q),ans:clxStr(r.ans),img:''})).filter(x=>x.q);
+  return {name:name,lines:lines,qs:qs,
+    book:clxStr(meta.book)||'文言文',intro:clxStr(meta.intro),refWhen:clxRefWhen(meta.refWhen)};}
+/* 解析獨立成一個函式：測試叫得動，也不用把讀檔和解析綁在一起 */
+function clxParse(buf){
+      const wb=XLSX.read(new Uint8Array(buf),{type:'array'});
+      const sL=clxSheet(wb,['逐句']),sQ=clxSheet(wb,['問答']),sC=clxSheet(wb,['課程']);
+      if(!sL||sL.length<2)return {err:'這個檔裡找不到「逐句」那一張表'};
+      const hL=sL[0];
+      const cLn=clxCol(hL,['課名'],0),cOr=clxCol(hL,['原文'],2),
+            cNo=clxCol(hL,['注釋','註解'],3),cRf=clxCol(hL,['參考翻譯','翻譯'],4);
+      const byName={},order=[];
+      sL.slice(1).forEach(r=>{
+        const nm=clxStr(r[cLn]);const orig=clxStr(r[cOr]);
+        if(!nm&&!orig)return;
+        const key=nm||'（沒有課名）';
+        if(!byName[key]){byName[key]={lines:[],qs:[]};order.push(key);}
+        byName[key].lines.push({orig:orig,note:clxStr(r[cNo]),ref:clxStr(r[cRf])});});
+      if(sQ&&sQ.length>1){
+        const hQ=sQ[0];
+        const qLn=clxCol(hQ,['課名'],0),qQ=clxCol(hQ,['題目'],2),qA=clxCol(hQ,['參考答案','答案'],3);
+        sQ.slice(1).forEach(r=>{
+          const nm=clxStr(r[qLn])||order[0];const q=clxStr(r[qQ]);
+          if(!q)return;
+          if(!byName[nm])return;/* 問答的課名對不上逐句就跳過，不要憑空生一課 */
+          byName[nm].qs.push({q:q,ans:clxStr(r[qA])});});}
+      const metaOf={};
+      if(sC&&sC.length>1){
+        const hC=sC[0];
+        const mN=clxCol(hC,['課名'],0),mB=clxCol(hC,['教材'],1),
+              mI=clxCol(hC,['介紹','背景','作者'],2),mR=clxCol(hC,['參考翻譯','什麼時候'],3);
+        sC.slice(1).forEach(r=>{const nm=clxStr(r[mN]);if(!nm)return;
+          metaOf[nm]={book:r[mB],intro:r[mI],refWhen:r[mR]};});}
+      if(!order.length)return {err:'「逐句」那一張表裡沒有讀到任何一句原文'};
+      return {list:order.map(nm=>clxBuild(nm,metaOf[nm]||{},byName[nm].lines,byName[nm].qs))};}
+H.clImport=()=>{
+  if(typeof XLSX==='undefined'){toast('匯入元件還在載入，請過幾秒再按一次');return;}
+  const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls';
+  inp.onchange=async()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    try{
+      const got=clxParse(await f.arrayBuffer());
+      if(got.err){toast(got.err);return;}
+      const picked=got.list;
+      if(picked.length===1){clxOpen(picked[0]);return;}
+      /* 一個檔有好幾課：讓她自己挑要匯哪一課 */
+      CLX=picked;
+      openModal('<div class="modal"><div class="modal-head"><h3>📥 這個檔裡有 '+picked.length+' 課</h3>'
+        +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+        +'<div class="hint" style="margin-bottom:10px">一次匯一課。選一課，會先開在編輯視窗裡給妳看，確認沒問題再按儲存。</div>'
+        +picked.map((x,i)=>'<div class="dash-row"><b>'+esc(x.name)+'</b>'
+          +'<span class="muted" style="margin-left:6px">'+x.lines.length+' 句 · '+x.qs.length+' 題</span>'
+          +'<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="clImpPick" data-id="'+i+'">匯入這一課</button></div>').join('')
+        +'</div></div>');
+    }catch(e){toast('讀不到這個檔：'+((e&&e.message)||e));}};
+  inp.click();};
+var CLX=null;
+H.clImpPick=(i)=>{const x=(CLX||[])[+i];if(!x)return;closeModal();clxOpen(x);};
+/* 讀進來之後：對得上課名就開那一課（等於覆蓋），對不上就當新課 */
+function clxOpen(x){
+  const old=(S.classicals||[]).find(l=>!l.deleted_at&&String(l.title||'').trim()===String(x.name||'').trim());
+  if(old&&!confirm('要用這個檔覆蓋「'+(old.title||'')+'」嗎？\n\n'
+    +'檔案裡有 '+x.lines.length+' 句、'+x.qs.length+' 題；\n'
+    +'現在平台上這一課有 '+((old.cl_lines||[]).length)+' 句、'+((old.cl_qs||[]).length)+' 題。\n\n'
+    +'⚠️ 按「確定」只是先開在編輯視窗裡，還沒有存。\n'
+    +'妳看過覺得沒問題，再按視窗右下角的「💾 儲存」才會真的蓋過去。'))return;
+  CL={id:old?old.id:null,title:x.name,textbook:x.book,intro:x.intro,
+      refWhen:x.refWhen,qsMode:(old&&old.cl_qs_mode)||'hw',
+      img:(old&&old.cl_img)||'',
+      origText:x.lines.map(l=>l.orig).join('\n'),
+      lines:x.lines.slice(),qs:x.qs.slice()};
+  clForm();
+  toast(old?('讀好了：'+x.lines.length+' 句、'+x.qs.length+' 題。確認後按「💾 儲存」才會蓋過去')
+           :('讀好了：'+x.lines.length+' 句、'+x.qs.length+' 題。這是新的一課，按「💾 儲存」才會建立'));}
 H.saveClassical=async()=>{if(!CL)return;const title=($('#cl-title').value||'').trim();if(!title)return toast('請填課名');
   const book=($('#cl-book').value||'').trim()||'文言文';
   clSyncLines();
@@ -16919,10 +17055,52 @@ H.newAnnounce=()=>{if(!IS_OWNER)return;openModal(`<div class="modal"><div class=
 H.saveAnnounce=async()=>{const t=(($('#ann-text')&&$('#ann-text').value)||'').trim();if(!t)return toast('請輸入公告內容');try{await ensureAuthFresh();await DB.insert('lessons',{kind:'announcement',text:t});closeModal();await loadAll();render();toast('已發布公告');}catch(e){toast(writeErr('發布失敗',e));}};
 H.delAnnounce=async(id)=>{if(!confirm('刪除這則公告？'))return;try{await DB.remove('lessons',id);await loadAll();render();toast('已刪除公告');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.trash=()=>{const dleft=d=>{const t=Date.parse(d||'');if(!t)return '';const left=Math.ceil((t+7*864e5-Date.now())/864e5);return left>0?('剩 '+left+' 天'):'即將清除';};
-  const stuRows=(S.trashStudents||[]).map(s=>`<div class="dash-row"><span class="badge badge-pending">學生</span><b>${snm(s.name||'')}</b><span class="muted" style="margin-left:6px">${dleft(s.deleted_at)}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="restoreItem" data-id="students::${s.id}">復原</button>${IS_OWNER?`<button class="btn btn-sm btn-danger" data-act="purgeItem" data-id="students::${s.id}">永久刪除</button>`:''}</div>`).join('');
-  const lesRows=(S.trashLessons||[]).map(l=>`<div class="dash-row"><span class="badge badge-pending">課程</span><b>${esc(l.title||'（未命名）')}</b><span class="muted" style="margin-left:6px">${dleft(l.deleted_at)}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="restoreItem" data-id="lessons::${l.id}">復原</button><button class="btn btn-sm btn-danger" data-act="purgeItem" data-id="lessons::${l.id}">永久刪除</button></div>`).join('');
+  /* TRASHSEL_V1030 一筆一筆按太慢。加上勾選＋全選，一次復原或一次刪完。
+     永久刪除還是要她自己勾、自己按、自己確認——我不替她刪。 */
+  const _row=(kind,lab,id,nm,when,canPurge)=>`<div class="dash-row">`
+    +`<label style="display:flex;align-items:center;gap:8px;margin:0;cursor:pointer">`
+    +`<input type="checkbox" class="trash-ck" data-k="${kind}::${id}" style="width:auto;margin:0">`
+    +`<span class="badge badge-pending">${lab}</span></label>`
+    +`<b style="margin-left:2px">${nm}</b>`
+    +`<span class="muted" style="margin-left:6px">${when}</span><span class="grow"></span>`
+    +`<button class="btn btn-sm btn-accent" data-act="restoreItem" data-id="${kind}::${id}">復原</button>`
+    +(canPurge?`<button class="btn btn-sm btn-danger" data-act="purgeItem" data-id="${kind}::${id}">永久刪除</button>`:'')
+    +`</div>`;
+  const stuRows=(S.trashStudents||[]).map(s=>_row('students','學生',s.id,snm(s.name||''),dleft(s.deleted_at),IS_OWNER)).join('');
+  const lesRows=(S.trashLessons||[]).map(l=>_row('lessons','課程',l.id,esc(l.title||'（未命名）'),dleft(l.deleted_at),true)).join('');
   const empty=!(S.trashStudents||[]).length&&!(S.trashLessons||[]).length;
-  openModal(`<div class="modal"><div class="modal-head"><h3>🗑 垃圾桶</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="hint" style="margin-bottom:10px">刪除的學生／課程會在這裡保留 7 天，期間可隨時「復原」；逾期才會自動永久刪除。</div>${empty?'<div class="muted" style="padding:8px 2px">垃圾桶是空的 🧹</div>':(stuRows+lesRows)}</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>`);};
+  const bar=empty?'':`<div class="dash-row" style="background:#F5F5F6;border-radius:8px;margin-bottom:8px">`
+    +`<label style="display:flex;align-items:center;gap:8px;margin:0;cursor:pointer">`
+    +`<input type="checkbox" id="trash-all" style="width:auto;margin:0"><b>全選</b></label>`
+    +`<span class="muted" id="trash-n" style="margin-left:8px">還沒勾選</span><span class="grow"></span>`
+    +`<button class="btn btn-sm btn-accent" data-act="trashRestoreSel">↩ 復原勾選的</button>`
+    +(IS_OWNER?`<button class="btn btn-sm btn-danger" data-act="trashPurgeSel">🗑 永久刪除勾選的</button>`:'')
+    +`</div>`;
+  openModal(`<div class="modal modal-tall"><div class="modal-head"><h3>🗑 垃圾桶</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">${bar}${empty?'<div class="muted" style="padding:8px 2px">垃圾桶是空的 🧹</div>':(stuRows+lesRows)}</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>`);
+  const _cks=()=>[].slice.call(document.querySelectorAll('.trash-ck'));
+  const _upd=()=>{const n=_cks().filter(c=>c.checked).length;
+    const el=document.getElementById('trash-n');if(el)el.textContent=n?('已勾選 '+n+' 筆'):'還沒勾選';
+    const a=document.getElementById('trash-all');if(a)a.checked=(n>0&&n===_cks().length);};
+  const all=document.getElementById('trash-all');
+  if(all)all.onchange=()=>{_cks().forEach(c=>{c.checked=all.checked;});_upd();};
+  _cks().forEach(c=>{c.onchange=_upd;});
+  _upd();};
+function trashSel(){return [].slice.call(document.querySelectorAll('.trash-ck'))
+  .filter(c=>c.checked).map(c=>String(c.dataset.k||''));}
+H.trashRestoreSel=async()=>{
+  const keys=trashSel();if(!keys.length)return toast('先勾要復原的那幾筆');
+  try{await ensureAuthFresh();
+    for(const k of keys){const p=k.split('::');await DB.update(p[0],p[1],{deleted_at:null});}
+    await loadAll();render();H.trash();toast('已復原 '+keys.length+' 筆');
+  }catch(e){toast(writeErr('復原失敗',e));}};
+H.trashPurgeSel=async()=>{
+  const keys=trashSel();if(!keys.length)return toast('先勾要刪掉的那幾筆');
+  if(!confirm('永久刪除勾選的 '+keys.length+' 筆？\n\n'
+    +'這個動作沒辦法復原，相關的題目和成績也會一起刪掉。'))return;
+  try{await ensureAuthFresh();
+    for(const k of keys){const p=k.split('::');await DB.remove(p[0],p[1]);}
+    await loadAll();render();H.trash();toast('已永久刪除 '+keys.length+' 筆');
+  }catch(e){toast(writeErr('刪除失敗',e));}};
 H.restoreItem=async(key)=>{const p=String(key).split('::'),table=p[0],id=p[1];try{await DB.update(table,id,{deleted_at:null});await loadAll();render();H.trash();toast('已復原');}catch(e){toast(writeErr('復原失敗',e));}};
 H.purgeItem=async(key)=>{const p=String(key).split('::'),table=p[0],id=p[1];if(!confirm('永久刪除？此動作無法復原（相關題目與成績也會一併刪除）。'))return;try{await DB.remove(table,id);await loadAll();render();H.trash();toast('已永久刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
 let CLOG_SCHED=null;let CLOG_STU=null;let PAY_STU=null;let CLOG_ALLOPEN=false;
