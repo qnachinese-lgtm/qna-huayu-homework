@@ -16263,15 +16263,28 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
       tag:s2?oweB('欠 '+s2):(itvPays(c).length?okB():'<span class="badge">還沒收款</span>'),
       extra:(c.target?`<span class="muted" style="font-size:12px">${esc(c.target)}</span>`:'')+(done?'<span class="muted" style="font-size:12px">（已結案）</span>':''),
       av:'<span class="avatar sm emo" style="background:#c7d2fe;flex:none">\u{1F3A4}</span>'});});
-  const crmPush=(arr,k,totF,curF,payF)=>arr.filter(c=>!c.deleted_at).forEach(c=>{
+  /* PKSTAGE_V1024 諮詢中只是報過價、還沒成交；沒談成更不是欠款。
+     這裡本來一律拿「報價 − 已收」當欠款標成紅色的「欠」，而且欠款會排到最前面，
+     所以一打開就是兩個根本沒欠錢的人（Quinn：「這兩個是報價，為什麼在這邊會寫欠錢」）。
+     財務頁早就只算正式案件（CONSULT_V955），這裡補上同一條規則。
+     代書沒有諮詢／沒談成這兩個階段，所以只有代辦要傳 stageF。 */
+  const crmPush=(arr,k,totF,curF,payF,stageF)=>arr.filter(c=>!c.deleted_at).forEach(c=>{
     const tot=totF(c),cur=curF(c);
     const got=payF(c).reduce((a,x)=>a+(((x.currency||'VND')===cur)?(Number(x.amount)||0):0),0);
     const due=tot?(tot-got):0;const done=(c.status||'active')!=='active';
-    const tag=!tot?'<span class="badge">還沒報價</span>':(due>0.01?oweB('欠 '+money(due,cur)):(due<-0.01?preB('預繳 '+money(-due,cur)):okB()));
-    items.push({k:k,id:c.id,name:c.name||'',sort:done?3:0,owe:!!tot&&due>0.01,tag:tag,
+    const stg=stageF?stageF(c):'case';
+    let tag,owe;
+    if(stg==='lost'){tag='<span class="badge">\u2715 沒談成</span>';owe=false;}
+    else if(stg==='consult'){
+      tag=tot?('<span class="badge">報價 '+money(tot,cur)+(got>0.01?(' \u00B7 已收 '+money(got,cur)):'')+'</span>')
+             :'<span class="badge">還沒報價</span>';
+      owe=false;}
+    else{tag=!tot?'<span class="badge">還沒報價</span>':(due>0.01?oweB('欠 '+money(due,cur)):(due<-0.01?preB('預繳 '+money(-due,cur)):okB()));
+      owe=!!tot&&due>0.01;}
+    items.push({k:k,id:c.id,name:c.name||'',sort:done?3:(stg==='lost'?4:(stg==='consult'?2:0)),owe:owe,tag:tag,
       extra:((c.school||c.docs)?`<span class="muted" style="font-size:12px">${esc(c.school||c.docs)}</span>`:'')+(done?'<span class="muted" style="font-size:12px">（已結案）</span>':''),
       av:`<span class="avatar sm emo" style="background:${k==='ag'?'#fde68a':'#bbf7d0'};flex:none">${k==='ag'?'\u{1F393}':'\u270D\uFE0F'}</span>`});});
-  crmPush(agAll(),'ag',agTotal,agTotalCur,agPays);
+  crmPush(agAll(),'ag',agTotal,agTotalCur,agPays,agStage);
   crmPush(wrAll(),'wr',wrTotal,wrTotalCur,wrPays);
   if(!items.length){toast('還沒有任何學生或客戶');return;}
   /* PKROW_V690 一列＝頭像／（姓名＋下面一行小字）／金額／箭頭。姓名一定自己一行，不會再被擠爛。 */
