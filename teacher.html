@@ -3327,7 +3327,7 @@ function quizFoldHtml(){
   const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return sc?`<button class="badge badge-ok" data-act="viewQuizResult" data-id="${qz.id}::${s.id}" style="cursor:pointer;border:0">${snm(s.name)}：${sc} 👁</button>`:`<span class="badge badge-pending">${snm(s.name)}：未考</span>`;}).join(' ');const _qd=dueInfo(qz.due_date);return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span>${_qd?`<span class="badge ${_qd.cls}">${_qd.label}</span>`:(qz.due_date?`<span class="muted" style="font-size:12px">${esc(qz.due_date)} 截止</span>`:'')}${qz.handwrite?'<span class="tag" style="background:#eef2ff;color:#4338ca;border-color:#c7d2fe">✍️ 手寫</span>':''}<span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未發佈</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
   return `<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">📝 隨堂小考${(S.quizzes||[]).length?'（'+(S.quizzes||[]).length+'）':''}</h3>
     <div class="hint" style="margin-bottom:8px">選一課的生詞發給學生做聽寫或填空，系統自動計分。</div>
-    <div class="quiz-create-row"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):'<div class="hint" style="margin-top:10px">還沒有建立任何隨堂小考。</div>'}</div>`;
+    <div class="quiz-create-row"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button><button class="btn btn-sm btn-ghost" data-act="qzHideKeys" style="margin-left:8px" title="自訂題目／老師錄音／即時比賽這三種，把答案搬到學生讀不到的地方">🔒 把答案收起來</button></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):'<div class="hint" style="margin-top:10px">還沒有建立任何隨堂小考。</div>'}</div>`;
 }
 function liveFoldHtml(){
   return `<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">🎮 即時比賽（Kahoot 式）${(S.livequizzes||[]).length?'（'+(S.livequizzes||[]).length+'）':''}</h3><div style="margin-top:10px"><div class="hint" style="margin-bottom:8px">學生登入後在首頁輸入代碼加入，你一題一題推，即時排名。</div>${(function(){const lqs=(S.livequizzes||[]).slice().sort((a,b)=>String(a.book||'').localeCompare(String(b.book||''))||((a.lesson_no||99)-(b.lesson_no||99))||String(a.quiz_type||'').localeCompare(String(b.quiz_type||'')));if(!lqs.length)return '<div class="hint">目前沒有即時比賽題庫。</div>';const TY={vocab:'詞語測驗',reading:'閱讀測驗'};const head='<div class="lqt lqt-head"><span>教材</span><span>課</span><span>類型</span><span>題數</span><span></span></div>';return head+lqs.map(l=>`<div class="lqt"><b>${esc(l.book||'—')}<span style="display:block;font-weight:400;font-size:12px;color:var(--muted)">${esc(l.title||'')}</span></b><!--LQ_TITLE_V56--><span>${l.lesson_no?('第'+l.lesson_no+'課'):'—'}</span><span>${TY[l.quiz_type]||esc(l.title||'')}${l.answers_verified?'':' <span title="答案尚未確認" style="color:#d97706;cursor:help">⚠️</span>'}</span><span>${(l.questions||[]).length} 題</span><span style="justify-self:end;display:flex;gap:6px;white-space:nowrap"><button class="btn btn-sm" data-act="liveEdit" data-id="${l.id}" title="編輯題目/答案">✏️</button><button class="btn btn-sm" data-act="lqpNew" data-id="${l.id}" title="指派給學生自己在家做，可以設期限">📤 指派</button><button class="btn btn-sm btn-accent" data-act="liveHost" data-id="${l.id}">▶ 主持</button></span></div>`).join('');})()}<div style="margin-top:10px"><button class="btn btn-sm" data-act="lqeNew">＋ 新增即時比賽題庫（自己出題）</button></div></div></div>`;
@@ -12902,9 +12902,76 @@ H.saveQuiz=async()=>{
      老師的「還沒交」清單也沒辦法排逾期。現在跟課文、作業簿一樣可以設期限。 */
   const qdue=(($('#quiz-due')&&$('#quiz-due').value)||'')||null;
   try{await DB.insert('lessons',{kind:'quiz',title,source_lesson:((mode==='custom'||mode==='audio'||mode==='live')?'':src),mode,quiz_items:(mode==='custom'?items:''),quiz_audio:(mode==='audio'?qaud:[]),quiz_live:(mode==='live'?liveTxt:''),handwrite:hand,assigned_ids:ids,due_date:qdue,created_at:new Date().toISOString()});
+    /* QKEY_V1017 這三種題型的答案不要跟題目一起存，學生那邊就拿不到 */
+    try{
+      const all0=await DB.list('lessons');
+      const mine=all0.filter(x=>x.kind==='quiz').sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')))[0];
+      if(mine&&['custom','audio','live'].indexOf(mine.mode||'')>=0&&!mine.key_hidden){
+        const b=qzKeyBuild(mine);
+        if(b){await qzKeySave(mine.id,b.key);await DB.update('lessons',mine.id,b.pub);}}
+    }catch(e){toast('小考建好了，但答案沒收起來（規則可能還沒發布）：'+((e&&e.message)||e));}
     const all=await DB.list('lessons');S.lessons=all.filter(x=>x.kind!=='quiz');S.quizzes=all.filter(x=>x.kind==='quiz');
     closeModal();render();toast('已建立隨堂小考');
   }catch(e){if(btn){btn.disabled=false;btn.textContent='建立';}toast(writeErr('建立失敗',e));}};
+/* QKEY_V1017 小考答案搬家用的工具。
+   quiz_keys/{小考id} 裡面是 {kid: [可接受的答案…]}，規則只開給老師。
+   公開的小考資料只留題目，外加每一題一個 kid 讓兩邊對得起來。 */
+function qzKid(i){return 'k'+i;}
+function qzKeyBuild(qz){
+  /* 從還沒搬家的小考資料裡把答案抽出來 */
+  const m=qz.mode||'dict',key={},pub={};
+  if(m==='custom'){
+    const lines=String(qz.quiz_items||'').split('\n').map(x=>x.trim()).filter(Boolean);
+    const qs=[];
+    lines.forEach((l,i)=>{const p=l.search(/[=＝]/);if(p<0)return;
+      const q=l.slice(0,p).trim(),a=l.slice(p+1).split(/[\/／]/).map(x=>x.trim()).filter(Boolean);
+      const kid=qzKid(qs.length); qs.push({kid,q}); key[kid]=a;});
+    pub.quiz_items='';pub.quiz_q=qs;
+  }else if(m==='audio'){
+    const arr=(Array.isArray(qz.quiz_audio)?qz.quiz_audio:[]).filter(x=>x&&x.url);
+    pub.quiz_audio=arr.map((x,i)=>{const kid=qzKid(i);
+      key[kid]=String(x.ans||'').split(/[\/／]/).map(y=>y.trim()).filter(Boolean);
+      return {url:x.url,kid:kid};});
+  }else if(m==='live'){
+    const lines=String(qz.quiz_live||'').split('\n');
+    while(lines.length&&!String(lines[lines.length-1]).trim())lines.pop();
+    lines.forEach((ln,i)=>{const raw=String(ln||'').trim();
+      key[qzKid(i)]=(raw&&raw!=='-'&&raw!=='－'&&raw!=='—')?raw.split(/[\/／]/).map(x=>x.trim()).filter(Boolean):[];});
+    pub.quiz_live='';pub.quiz_live_n=lines.length;
+  }else return null;/* 生詞類的題型答案本來就是學生的生詞，不搬 */
+  pub.key_hidden=true;
+  return {key,pub};}
+async function qzKeySave(id,key){
+  /* DB.update 用的是 Firestore 的 update()，文件不存在會直接失敗，
+     所以先找有沒有舊的一筆，有就改、沒有才新增。 */
+  let cur=null;
+  try{const all=await DB.list('quiz_keys');
+    cur=(all||[]).find(x=>x&&(x.id===id||x.quiz_id===id))||null;}catch(e){}
+  if(cur&&cur.id)await DB.update('quiz_keys',cur.id,{quiz_id:id,key:key});
+  else await DB.insert('quiz_keys',{quiz_id:id,key:key});}
+async function qzKeyLoad(id){
+  try{const all=await DB.list('quiz_keys');
+    const d=(all||[]).find(x=>x&&(x.id===id||x.quiz_id===id));
+    return (d&&d.key)||null;}catch(e){return null;}}
+/* QKEY_V1017 把舊的小考一次搬完。這顆是給 Quinn 自己按的，我不替她按。 */
+H.qzHideKeys=async()=>{
+  const list=(S.quizzes||[]).filter(q=>q&&!q.key_hidden&&['custom','audio','live'].indexOf(q.mode||'')>=0);
+  if(!list.length)return toast('沒有需要搬的小考（生詞類的題型答案本來就是學生的生詞，不用搬）');
+  if(!confirm('要把 '+list.length+' 份小考的答案收起來嗎？\n\n'
+    +'收起來之後：學生交卷只看到「已送出」，答案不會再送到他的瀏覽器；\n'
+    +'妳開他的作答視窗，按「⚡ 自動對答案」就會一次對完。\n\n'
+    +'⚠️ 這需要 Firestore 規則已經加上 quiz_keys 那一段，不然會存不進去。\n'
+    +'還沒加的話先取消，我把規則給妳貼上去發布完再回來按。'))return;
+  try{
+    await ensureAuthFresh();
+    let n=0;
+    for(const qz of list){
+      const b=qzKeyBuild(qz); if(!b)continue;
+      await qzKeySave(qz.id,b.key);
+      await DB.update('lessons',qz.id,b.pub);
+      Object.assign(qz,b.pub); n++;}
+    render();toast('收好了：'+n+' 份');
+  }catch(e){toast(writeErr('收不起來（多半是規則還沒發布）',e));}};
 H.delQuiz=async(id)=>{if(!confirm('確定刪除這個隨堂小考？（學生已考的分數記錄會保留）'))return;
   try{await DB.remove('lessons',id);const all=await DB.list('lessons');S.lessons=all.filter(x=>x.kind!=='quiz');S.quizzes=all.filter(x=>x.kind==='quiz');render();toast('已刪除隨堂小考');
   }catch(e){toast(writeErr('刪除失敗',e));}};
@@ -12922,6 +12989,29 @@ function qrvRows(){const r=QRV;if(!r)return '';
       <div class="srev-sent">學生作答：${ansHtml} ${st}${it.c?('　｜　正解：'+esc(it.c)):''}${mark}</div></div>`;}).join('');}
 function qrvPaint(){const box=document.getElementById('qrv-body');if(box)box.innerHTML=qrvRows()||'<div class="muted" style="padding:8px 0">這次沒有逐題明細（可能是更新前考的，重考一次就會記錄）。</div>';
   const sc=document.getElementById('qrv-score');if(sc&&QRV)sc.innerHTML='分數 <b>'+(QRV.score||0)+'/'+(QRV.total||0)+'</b>';}
+/* QKEY_V1017 去 quiz_keys 把答案拿回來，一次對完 */
+H.qrvAuto=async(quizId)=>{
+  if(!QRV)return;
+  const key=await qzKeyLoad(quizId);
+  if(!key)return toast('找不到這份小考的答案（可能還沒按過「🔒 把答案收起來」，或是規則還沒發布）');
+  const _p=/[\s，。、！？!?,.;；：:"'"'「」（）()]/g;
+  const nz=x=>String(x==null?'':x).toLowerCase().replace(_p,'');
+  let n=0;
+  (QRV.answers||[]).forEach(it=>{
+    if(!it||it.graded)return;
+    const acc=key[it.k]||key[it.kid]||null;
+    if(!Array.isArray(acc)||!acc.length)return;/* 老師本來就沒填答案的那幾題，留給她自己判 */
+    it.c=acc.join(' / ');
+    it.ok=!!String(it.a||'').trim()&&acc.some(a=>nz(a)===nz(it.a));
+    it.graded=true;it.pend=false;n++;});
+  if(!n)return toast('這幾題沒有對得起來的答案，要自己按');
+  QRV.score=(QRV.answers||[]).filter(x=>x&&x.ok).length;
+  qrvPaint();
+  try{await DB.update('results',QRV.id,{answers:QRV.answers,score:QRV.score});
+    const k=(S.quizResults||[]).findIndex(x=>x.id===QRV.id);
+    if(k>=0){S.quizResults[k].answers=QRV.answers;S.quizResults[k].score=QRV.score;}
+    render();toast('對完 '+n+' 題，'+QRV.score+'/'+QRV.total);
+  }catch(e){toast(writeErr('存檔失敗',e));}};
 H.qrvMark=async(key)=>{if(!QRV)return;const p=String(key).split('::');const i=Number(p[0]);const ok=p[1]==='1';
   const it=(QRV.answers||[])[i];if(!it)return;
   if(it.graded&&it.ok===ok){it.graded=false;it.ok=false;}else{it.graded=true;it.ok=ok;}
@@ -12935,7 +13025,7 @@ H.viewQuizResult=(key)=>{const p=String(key).split('::'),quizId=p[0],sid=p[1];co
   QRV=r;const nPend=(r.answers||[]).filter(x=>x&&x.pend&&!x.graded).length;
   openModal(`<div class="modal wide"><div class="modal-head"><h3>\U0001f4dd ${snm((s&&s.name)||'學生')} · 小考作答</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="meta" style="margin-bottom:10px"><span id="qrv-score">分數 <b>${r.score}/${r.total}</b></span>${r.completed_at?('　·　'+esc(String(r.completed_at).replace('T',' ').slice(5,16))):''}</div>
-   ${nPend?``:''}
+   ${nPend?`<div class="hint" style="margin:0 0 8px"><button class="btn btn-sm btn-accent" data-act="qrvAuto" data-id="${esc(quizId)}">⚡ 自動對答案</button>　還有 ${nPend} 題沒對；也可以下面一題一題自己按。</div>`:''}
    <div id="qrv-body">${qrvRows()||'<div class="muted" style="padding:8px 0">這次沒有逐題明細（可能是更新前考的，重考一次就會記錄）。</div>'}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>`);};
 H.logout=()=>{try{if(window.firebase&&firebase.auth&&firebase.apps&&firebase.apps.length)firebase.auth().signOut();}catch(e){}sessionStorage.removeItem('teacher_ok');location.reload();};
