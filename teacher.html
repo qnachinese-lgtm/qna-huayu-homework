@@ -1737,16 +1737,23 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         #app .pay-sum.pay-sum3>div>b{display:block;margin-top:3px;font-size:19px;
           line-height:1.35;overflow-wrap:anywhere}
         @media(max-width:720px){#app .pay-sum.pay-sum3{grid-template-columns:minmax(0,1fr);gap:12px}}
-        /* AGSCH_V1035 一間學校一列：學校／科系／學位／結果／刪除 */
-        #app .ag-sch{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1.3fr) 104px 168px 36px;
-          gap:6px;align-items:center;margin-bottom:6px}
-        #app .ag-sch>input,#app .ag-sch>select{margin:0;min-width:0}
-        #app .ag-sch>.btn{width:36px;padding:0;justify-content:center}
-        @media(max-width:760px){
-          #app .ag-sch{grid-template-columns:minmax(0,1fr) 36px;gap:6px}
-          #app .ag-sch>.agsch-n{grid-column:1/2}
-          #app .ag-sch>.btn{grid-row:1/2;grid-column:2/3}
-          #app .ag-sch>.agsch-d,#app .ag-sch>.agsch-g,#app .ag-sch>.agsch-r{grid-column:1/-1}}
+        /* AGSCH_V1039 這一格一律排成一行，太長的標籤自己省略，不要把列撐成兩行 */
+        #app .crm-head .cc.sch{flex-wrap:nowrap;overflow:hidden}
+        #app .crm-head .cc.sch>.tag{min-width:0;max-width:100%;flex:0 1 auto;
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        #app .crm-head .cc.sch>.tag.more{flex:none;font-weight:700}
+        /* AGSCH_V1038 一間學校一張小卡。格子用 auto-fit：夠寬就兩欄，窄就一欄，
+           不用媒體查詢（視窗寬不等於視窗裡那個框有多寬）。 */
+        #app .ag-sch{border:1px solid var(--line,#e7e0d4);border-radius:11px;
+          padding:11px 13px 13px;margin-bottom:12px;background:#FBFBFC}
+        #app .ag-sch-h{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+        #app .ag-sch-h b{font-size:12.5px;color:var(--muted,#5B6B80);font-weight:700;letter-spacing:.5px}
+        #app .ag-sch-h .btn{padding:2px 11px;font-size:12.5px;min-height:0}
+        #app .ag-sch-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));
+          gap:12px 14px}
+        #app .ag-sch-g>label{display:block;margin:0;font-size:12px;color:var(--muted,#5B6B80);font-weight:600}
+        #app .ag-sch-g>label>input,#app .ag-sch-g>label>select{
+          margin:4px 0 0;width:100%;min-width:0}
         /* MONEY_V1027 V1023 把這一欄押成「最多 148px」，是我在測試環境量出來的數字：
            「報價 6,000,000 VND」要 113px、越南文要 141px。可是字體一換、
            系統字型一換，需要的寬度就不一樣，Quinn 的電腦上還是會掉行。
@@ -4453,21 +4460,36 @@ function agSchools(c){
     out.push({name:String(c.school).trim(),dept:'',degree:'',result:String(c.result||'')});
   return out;}
 function agSchLabel(r){return [r.name,r.dept,r.degree].map(x=>String(x||'').trim()).filter(Boolean).join(' ');}
+/* AGSCH_V1039 列表那一格只有一行的高度。學校多的時候先顯示兩間，
+   其餘收成「＋N」；滑過去看得到全部，點開卡片裡也一間一間列著。
+   （Quinn：「爲什麼只有這兩個學生不能送到同一排，而要下行，下行很臭欸」） */
 function agSchTags(c){
   const rows=agSchools(c);
   if(!rows.length)return '';
-  return rows.map(r=>{const m=agResultMeta(r.result);
+  const one=(r)=>{const m=agResultMeta(r.result);
     const lb=agSchLabel(r)||'（還沒填）';
     return `<span class="tag" title="${esc(lb+(m?('　'+m[0]):''))}">🏫 ${esc(lb)}`
       +(m?`<i style="font-style:normal;margin-left:5px;color:${m[1]}">${esc(m[0].slice(0,2))}</i>`:'')
-      +`</span>`;}).join('');}
+      +`</span>`;};
+  const show=rows.slice(0,2).map(one).join('');
+  if(rows.length<=2)return show;
+  const rest=rows.slice(2).map(r=>{const m=agResultMeta(r.result);
+    return agSchLabel(r)+(m?('　'+m[0]):'');}).join('\n');
+  return show+`<span class="tag more" title="${esc(rest)}">＋${rows.length-2}</span>`;}
+/* AGSCH_V1038 本來是五個欄位擠成一排，窄一點就整排疊起來、刪除鈕還單獨落在最後一行，
+   而且四個框長得一模一樣分不出誰是誰（Quinn：「太醜了，太近了」）。
+   改成一間一張小卡：上面寫「第幾間」和移除鈕，下面每一格都有自己的小標題，
+   格子用 auto-fit 自動決定一排放幾個，不靠視窗寬度的斷點。 */
 function agSchRowsHtml(){
   return AGSCH.map((r,i)=>`<div class="ag-sch">
-    <input class="agsch-n" data-i="${i}" type="text" list="sch-dl" value="${esc(r.name||'')}" placeholder="學校名稱">
-    <input class="agsch-d" data-i="${i}" type="text" value="${esc(r.dept||'')}" placeholder="科系／班別">
-    <select class="agsch-g" data-i="${i}">${AG_DEG.map(g=>`<option value="${esc(g)}"${(r.degree||'')===g?' selected':''}>${g||'學位'}</option>`).join('')}</select>
-    <select class="agsch-r" data-i="${i}">${AG_RES.map(o=>`<option value="${esc(o[0])}"${(r.result||'')===o[0]?' selected':''}>${esc(o[1])}</option>`).join('')}</select>
-    <button class="btn btn-sm btn-danger btn-icon" type="button" data-act="agSchDel" data-id="${i}" title="刪掉這一間">✕</button></div>`).join('');}
+    <div class="ag-sch-h"><b>第 ${i+1} 間</b><span class="grow"></span>
+      <button class="btn btn-sm btn-danger" type="button" data-act="agSchDel" data-id="${i}">✕ 移除</button></div>
+    <div class="ag-sch-g">
+      <label>學校名稱<input class="agsch-n" data-i="${i}" type="text" list="sch-dl" value="${esc(r.name||'')}" placeholder="例：國立臺灣師範大學"></label>
+      <label>科系／班別<input class="agsch-d" data-i="${i}" type="text" value="${esc(r.dept||'')}" placeholder="例：華語文教學系"></label>
+      <label>學位<select class="agsch-g" data-i="${i}">${AG_DEG.map(g=>`<option value="${esc(g)}"${(r.degree||'')===g?' selected':''}>${g||'（不指定）'}</option>`).join('')}</select></label>
+      <label>這一間的結果<select class="agsch-r" data-i="${i}">${AG_RES.map(o=>`<option value="${esc(o[0])}"${(r.result||'')===o[0]?' selected':''}>${esc(o[1])}</option>`).join('')}</select></label>
+    </div></div>`).join('');}
 function agSchSync(){
   [['.agsch-n','name'],['.agsch-d','dept'],['.agsch-g','degree'],['.agsch-r','result']].forEach(([sel,k])=>{
     document.querySelectorAll(sel).forEach(el=>{const i=+el.dataset.i;if(AGSCH[i])AGSCH[i][k]=el.value;});});}
@@ -6002,7 +6024,12 @@ function clSyncLines(){if(!CL)return;document.querySelectorAll('.cl-orig').forEa
   document.querySelectorAll('.cl-ref').forEach(t=>{const i=+t.dataset.i;if(CL.lines[i])CL.lines[i].ref=t.value;});
   document.querySelectorAll('.cl-q').forEach(t=>{const i=+t.dataset.i;if(CL.qs[i])CL.qs[i].q=t.value;});
   document.querySelectorAll('.cl-qa').forEach(t=>{const i=+t.dataset.i;if(CL.qs[i])CL.qs[i].ans=t.value;});}
-function clSplitSentences(text){return String(text||'').replace(/\r/g,'').replace(/([。！？；!?;])/g,'$1\n').split(/\n+/).map(x=>x.trim()).filter(Boolean);}
+/* CLSPLIT_V1040 「…吾曩者目攝之！」後面那個收尾的「」被切成單獨一列
+   （Quinn：「這本來也是一個句子，你怎麽會變成現在的這個樣子」）。
+   標點後面如果緊跟著收尾的引號或括號，要一起帶走再斷句。 */
+function clSplitSentences(text){return String(text||'').replace(/\r/g,'')
+  .replace(/([。！？；!?;])([」』）\)】》〉”’\u300d\u300f]*)/g,'$1$2\n')
+  .split(/\n+/).map(x=>x.trim()).filter(Boolean);}
 function clForm(){const e=!!CL.id;const origText=CL.origText!=null?CL.origText:'';const intro=CL.intro!=null?CL.intro:'';
   /* CLSAVE_V1028 這個視窗沒有掛 modal-tall，所以整個視窗跟著內容一直長高，
      「💾 儲存」被推到最底下。一課有三四十句的時候，只是想在第 1 句加一條注釋，
@@ -7720,8 +7747,8 @@ function GHSENT(){
       +'<span class="gh-sn">'+(i+1)+'</span>'
       +'<span class="gh-ln">'+esc(t.slice(0,110)+(t.length>110?'…':''))+'</span>'
       +'<span class="gh-meta">'+ns+' 句</span></label>';}).join('');
-  if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 句（就是妳課文檔案裡的每一列）。'
-    +'一句都不勾就是整課都出。印出來會先印原文，底下再附註解。';}
+  if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 段（就是妳課文檔案裡的每一列）。'
+    +'一段都不勾就是整課都出。印出來會先印整段原文，底下再把那一段拆成一句一句附註解。';}
 function GHSALL(){const b=[...document.querySelectorAll('.gh-s')];if(!b.length)return;
   const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
 function ghModal(){
