@@ -7151,6 +7151,16 @@ function ghQsOf(lid){
 /* GHTR_V891 這一本有沒有聽力原文（有才要出現那個勾選） */
 function ghHasTr(book){try{
   return (baLessonsOf(book)||[]).some(l=>ghTr(l).length>0);}catch(e){return false;}}
+/* GHVOC_V1067 這一課的生詞（一段一組），順便給「這一本有沒有生詞」 */
+function ghVocSecs(l){
+  const ds=Array.isArray(l&&l.dialogues)?l.dialogues:[];
+  return ds.map((d,i)=>({
+    title:String((d&&d.title)||'').trim()||('課文'+(ds.length>1?(' '+(i+1)):'')),
+    words:tvParseVocab((d&&d.vocabulary)||''),
+    vi:String((d&&d.vocab_vi)||'').split('\n').map(x=>x.trim())
+  })).filter(x=>x.words.length);}
+function ghHasVoc(book){try{
+  return (baLessonsOf(book)||[]).some(l=>ghVocSecs(l).length>0);}catch(e){return false;}}
 /* GHBANK_V872 這一本有沒有作業簿題目（有才要出現那個選單） */
 function ghHasHw(book){try{
   const ids={};(baLessonsOf(book)||[]).forEach(l=>{ids[l.id]=1;});
@@ -7194,6 +7204,10 @@ let GHTR=0;
 /* GHDLG_V919 要不要把課文（對話／課文段落）一起印出來。預設 0＝只印語法練習，
    跟以前的行為一樣。 */
 let GHDLG=0;
+/* GHVOC_V1067 生詞。''＝不印（跟以前一樣）／'full'＝整張表都印／'blank'＝意思留空格讓學生自己寫。
+   GHVOCL：意思要印哪一種—— 'en' 課本的英文／'vi' 越南文／'both' 兩個都印。 */
+let GHVOC='';
+let GHVOCL='en';
 /* GHZHS_V875 列印文字：'tw' 繁體（原樣）／'cn' 簡體 */
 let GHLANG='tw';
 /* GHZHS_V875 繁簡對照表（2,963 組）。只轉字不轉用詞：
@@ -7305,7 +7319,9 @@ function ghCount(l){
   const cl=ghClLines(l).length,clq=ghClQs(l).length,tr=ghTr(l).length;
   /* GHVOC_V845 詞彙表那本沒有題目也沒有語法點，要另外算，不然整本會被濾掉 */
   const tw=ghTwN(l),kp=ghKp(l).length;
-  return {gp:(l.grammar_points||[]).length,cl:cl,tr:tr,tw:tw,kp:kp,
+  /* GHVOC_V1067 生詞也算「這一課有東西」 */
+  const vc=ghVocSecs(l).reduce((a,s)=>a+s.words.length,0);
+  return {gp:(l.grammar_points||[]).length,cl:cl,tr:tr,tw:tw,kp:kp,voc:vc,
     q:qs.filter(q=>q.type!=='note').length+clq+tr};}
 /* GHOPT_V865 選擇題的正解存的是第幾個（0 開始）。空字串＝還沒填答案，不要當成 A。 */
 function ghAnsIdx(q){
@@ -7624,9 +7640,62 @@ function ghDlgHtml(l){
     return '<div class="gh-blk"><div class="gh-lab b1">'+esc(nm)+'</div>'
       +'<div class="gh-txt">'+ghLines(t)+'</div></div>';}).join('');
   return h?('<div class="gh-gp">'+h+'</div>'):'';}
+/* GHVOC_V1067 生詞表。一段一張，欄位：生詞・拼音・詞性・意思。
+   老師版（withAns）一定印完整的，不然老師自己看不到答案。 */
+function ghVocabHtml(l,withAns){
+  if(!GHVOC)return '';
+  const secs=ghVocSecs(l);if(!secs.length)return '';
+  const blank=(GHVOC==='blank')&&!withAns;
+  const mean=(v,vi)=>{
+    const en=String((v&&v.back)||'').trim(),vn=String(vi||'').trim();
+    if(GHVOCL==='vi')return vn||en;
+    if(GHVOCL==='both')return [vn,en].filter(Boolean).join('　·　');
+    return en;};
+  const h=secs.map(sc=>
+    '<div class="gh-blk"><div class="gh-lab b2">'+esc(sc.title)+'　生詞</div>'
+    +'<table class="gv-t"><thead><tr><th class="gv-w">生詞</th><th class="gv-p">拼音</th>'
+    +'<th class="gv-s">詞性</th><th>'+(blank?'意思（自己寫）':'意思')+'</th></tr></thead><tbody>'
+    +sc.words.map((v,k)=>'<tr>'
+      +'<td class="gv-w"><b>'+esc(v.front||'')+'</b></td>'
+      +'<td class="gv-p">'+esc(v.py||'')+'</td>'
+      +'<td class="gv-s">'+esc(v.pos||'')+'</td>'
+      +'<td>'+(blank?'<span class="gv-b"></span>':esc(mean(v,sc.vi[k])))+'</td></tr>').join('')
+    +'</tbody></table></div>').join('');
+  return h?('<div class="gh-gp">'+h+'</div>'):'';}
+/* GHVOC_V1067 課文和生詞一段一段交錯，照課本的順序：
+   對話一 → 對話一的生詞 → 對話二 → 對話二的生詞。 */
+function ghTextVocHtml(l,withAns){
+  if(!GHDLG&&!GHVOC)return '';
+  const ds=Array.isArray(l&&l.dialogues)?l.dialogues:[];
+  const blank=(GHVOC==='blank')&&!withAns;
+  const mean=(v,vi)=>{
+    const en=String((v&&v.back)||'').trim(),vn=String(vi||'').trim();
+    if(GHVOCL==='vi')return vn||en;
+    if(GHVOCL==='both')return [vn,en].filter(Boolean).join('　·　');
+    return en;};
+  const h=ds.map((d,i)=>{
+    const nm=String((d&&d.title)||'').trim()||('課文'+(ds.length>1?(' '+(i+1)):''));
+    let s='';
+    if(GHDLG){const t=String((d&&d.content)||'').trim();
+      if(t)s+='<div class="gh-blk"><div class="gh-lab b1">'+esc(nm)+'</div>'
+        +'<div class="gh-txt">'+ghLines(t)+'</div></div>';}
+    if(GHVOC){
+      const ws=tvParseVocab((d&&d.vocabulary)||'');
+      const vi=String((d&&d.vocab_vi)||'').split('\n').map(x=>x.trim());
+      if(ws.length)s+='<div class="gh-blk"><div class="gh-lab b2">'+esc(nm)+'　生詞</div>'
+        +'<table class="gv-t"><thead><tr><th class="gv-w">生詞</th><th class="gv-p">拼音</th>'
+        +'<th class="gv-s">詞性</th><th>'+(blank?'意思（自己寫）':'意思')+'</th></tr></thead><tbody>'
+        +ws.map((v,k)=>'<tr>'
+          +'<td class="gv-w"><b>'+esc(v.front||'')+'</b></td>'
+          +'<td class="gv-p">'+esc(v.py||'')+'</td>'
+          +'<td class="gv-s">'+esc(v.pos||'')+'</td>'
+          +'<td>'+(blank?'<span class="gv-b"></span>':esc(mean(v,vi[k])))+'</td></tr>').join('')
+        +'</tbody></table></div>';}
+    return s;}).join('');
+  return h?('<div class="gh-gp">'+h+'</div>'):'';}
 function ghLessonHtml(l,withAns){
   const gps=l.grammar_points||[];const all=ghQsOf(l.id);
-  const cl=(GHDLG?ghDlgHtml(l):'')+ghClHtml(l,withAns);
+  const cl=ghTextVocHtml(l,withAns)/* GHVOC_V1067 */+ghClHtml(l,withAns);
   let rest=ghVocHtml(l,withAns);
   rest+=gps.map((g,gi)=>ghGpHtml(g,gi,all.filter(q=>q.gp_index===gi),withAns)).join('');
   const untag=all.filter(q=>q.gp_index==null);
@@ -7666,6 +7735,16 @@ function ghCss(){return ''
   +'.gh-gt{display:flex;align-items:baseline;gap:8px;font-weight:800;font-size:14.5px;color:var(--deep);margin:0 0 6px}'
   +'.gh-tag{background:var(--soft);color:var(--deep);font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;flex:none}'
   +'.gh-blk{margin:0 0 8px}'
+  /* GHVOC_V1067 生詞表 */
+  +'.gv-t{width:100%;border-collapse:collapse;font-size:12.5px;line-height:1.6}'
+  +'.gv-t th{background:#eef2f6;color:#4f5a63;font-size:10.5px;font-weight:700;letter-spacing:.6px;'
+  +'text-align:left;padding:4px 8px;border:1px solid #d9e0e7;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+  +'.gv-t td{padding:4px 8px;border:1px solid #e3e8ed;vertical-align:top}'
+  +'.gv-t tr{break-inside:avoid}'
+  +'.gv-t .gv-w{width:16%;white-space:nowrap}'
+  +'.gv-t .gv-p{width:20%;color:#6b7480;font-size:11.5px;white-space:nowrap}'
+  +'.gv-t .gv-s{width:9%;color:#6b7480;font-size:11.5px;white-space:nowrap}'
+  +'.gv-b{display:block;border-bottom:1px solid #c9d2da;height:15px;min-width:120px}'
   /* GHZONE_V830 說明／例句／練習三塊各自一個顏色，學生一眼分得出哪塊要寫 */
   /* GHSUB_V886 小節只是段落編號，印成一行小標就好 */
   +'.gh-sub{font-size:13.5px;font-weight:700;color:#143A6B;margin:0}'
@@ -7904,10 +7983,22 @@ function ghPrefApply(){
   ghSetSel('gh-bank',p.bank);ghSetSel('gh-clq',p.clq);
   const tb=document.getElementById('gh-tr');if(tb)tb.checked=!!p.tr;/* GHTR_V891 */
   const db=document.getElementById('gh-dlg');if(db)db.checked=!!p.dlg;/* GHDLG_V919 */
+  ghSetSel('gh-voc',p.voc||'');ghSetSel('gh-vocl',p.vocl||'en');/* GHVOC_V1067 */
+  try{GHVOCUI();}catch(e){}
   /* 學生可能已經停課或改名，選單裡找不到就留空白 */
   ghSetSel('gh-who',p.who);}
+/* GHVOC_V1067 沒要印生詞就不用問意思要印哪一種 */
+function GHVOCUI(){
+  const v=(document.getElementById('gh-voc')||{}).value||'';
+  const box=document.getElementById('gh-voclbox');
+  if(box)box.style.display=v?'':'none';}
+window.GHVOCUI=GHVOCUI;
 function GHFILL(){const sel=document.getElementById('gh-book'),box=document.getElementById('gh-lessons');
   if(sel&&box)box.innerHTML=ghListHtml(sel.value);
+  /* GHVOC_V1067 這一本有沒有生詞 */
+  try{const vb=document.getElementById('gh-vocbox');
+    if(vb)vb.style.display=(sel&&ghHasVoc(sel.value))?'':'none';
+    GHVOCUI();}catch(e){}
   /* GHCL_V860 「只出幾句」只有文言文用得到，別本就不要出現這一區 */
   try{const w=document.getElementById('gh-clbox'),one=sel?ghHasCl(sel.value):false;
     if(w)w.style.display=one?'':'none';
@@ -7989,6 +8080,19 @@ function ghModal(){
    +'<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
    +'<input type="checkbox" id="gh-dlg" style="width:auto;margin:0"> 課文也印出來'
    +'<span class="hint">不勾＝只印語法說明、例句和練習題（原本的樣子）</span></label></div>'
+   /* GHVOC_V1067 生詞從來沒印過，這裡給一個選單 */
+   +'<div class="field" id="gh-vocbox"'+(ghHasVoc(cur)?'':' style="display:none"')+'>'
+   +'<label>生詞</label><select id="gh-voc" onchange="GHVOCUI()">'
+   +'<option value="" selected>不印生詞</option>'
+   +'<option value="full">印生詞表（生詞・拼音・詞性・意思）</option>'
+   +'<option value="blank">只印生詞和拼音 —— 意思留空格讓學生自己寫</option>'
+   +'</select></div>'
+   +'<div class="field" id="gh-voclbox" style="display:none">'
+   +'<label>生詞的意思要印哪一種</label><select id="gh-vocl">'
+   +'<option value="en" selected>課本原本的英文</option>'
+   +'<option value="vi">越南文</option>'
+   +'<option value="both">越南文＋英文</option>'
+   +'</select><span class="hint">選了「意思留空格」的話，這裡只會影響老師版的解答頁。</span></div>'
    /* GHTR_V891 有聽力原文的書才問這一題 */
    +'<div class="field" id="gh-trbox"'+(ghHasTr(cur)?'':' style="display:none"')+'>'
    +'<label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
@@ -16579,11 +16683,13 @@ H.ghGo=(mode)=>{
   GHBANK=((document.getElementById('gh-bank')||{}).value)||'auto';/* GHBANK_V872 */
   GHTR=!!((document.getElementById('gh-tr')||{}).checked);/* GHTR_V891 */
   GHDLG=!!((document.getElementById('gh-dlg')||{}).checked);/* GHDLG_V919 */
+  GHVOC=((document.getElementById('gh-voc')||{}).value)||'';/* GHVOC_V1067 */
+  GHVOCL=((document.getElementById('gh-vocl')||{}).value)||'en';
   GHLANG='tw';/* PRINTBAR_V959 繁／簡改成印出來那一頁上即時切 */
   GHWHO=((document.getElementById('gh-who')||{}).value)||'';
   GHWHEN=((document.getElementById('gh-when')||{}).value)||'';
   /* GHPREF_V883 真的按了匯出才記起來——那才是她確定要用的組合 */
-  try{ghPrefSave(book,{bank:GHBANK,tr:GHTR?1:0,dlg:GHDLG?1:0,clq:GHCLQ,who:GHWHO});}catch(e){}
+  try{ghPrefSave(book,{bank:GHBANK,tr:GHTR?1:0,dlg:GHDLG?1:0,voc:GHVOC,vocl:GHVOCL,clq:GHCLQ,who:GHWHO});}catch(e){}
   ghBuild(book,lids,mode,wide,noimg);};
 H.bulkAssignSave=async(_x,btn)=>{
   const lids=[...document.querySelectorAll('.ba-l:checked')].map(x=>x.value);
