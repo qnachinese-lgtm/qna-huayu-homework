@@ -1826,10 +1826,18 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         /* MEMO_V820 我的備忘 */
         /* CLROW_V892 上課記錄：標籤數量不固定（出席／免費／補課／影片），
            一擠整列就換行，按鈕掉到第二行。收成三段：標籤一格、備註可壓縮、按鈕不換行。 */
+        /* CLWIDE_V1068 上課記錄視窗本來 600px，裡面那一列要 527px，月份框只剩 529px——
+           只差 2px。她換過中文字型，字型一換就爆出去（紅色的 ✕ 掉到框線外面）。
+           這個視窗裡面是一張清單，不是小表單，放寬到 760px 才合理。 */
+        #modal-root .modal.modal-log{max-width:760px}
         .cl-row{flex-wrap:nowrap;gap:8px}
-        .cl-row .cl-st{flex:0 0 152px;display:flex;gap:5px;align-items:center;min-width:0}
+        /* CLWIDE_V1068 三顆標籤（出席＋🎁免費＋🔁補課）要 206px，152px 會把最後一顆切掉。
+           視窗放寬到 760 之後裝得下，就照三顆的寬度釘，每一列的日期還是對齊的。 */
+        .cl-row .cl-st{flex:0 0 206px;display:flex;gap:5px;align-items:center;min-width:0}
         .cl-row .cl-st>.badge{margin:0;white-space:nowrap}
-        .cl-row .cl-dt{flex:0 0 auto;white-space:nowrap}
+        /* CLWIDE_V1068 最後一道防線：日期再長也不准把右邊的按鈕推出去 */
+        .cl-row .cl-dt{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .cl-row .cl-st{overflow:hidden}
         .cl-row .cl-note{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .cl-row .cl-op{flex:none;display:flex;gap:6px;align-items:center;white-space:nowrap}
         .cl-row .cl-op>.btn{flex:none}
@@ -3014,7 +3022,7 @@ function dashTodayHtml(){
     const key=it.members?(esc(it.grp)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')):(esc((it.s||{}).id||'')+'::'+esc(d));
     const act=it.members?'editClassDay':'editStuDay';
     const mb=meetBtn(it.members?meetOfGroup(it.grp):meetOfStudent((it.s||{}).id),true);
-    rows.push('<div class="dash-row" style="flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+fgTm(tm)+'</span>':'')+'<span class="td-st"><span class="badge badge-ok">\u5DF2\u9EDE\u540D</span></span><b>'+who+'</b>'+(e.note?'<span class="muted" style="margin-left:6px">'+esc(e.note)+'</span>':'')+'<span class="grow"></span>'
+    rows.push('<div class="dash-row" style="flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+fgTm(tm)+'</span>':'')+'<span class="td-st"><span class="badge badge-ok">\u2705</span><span class="badge badge-ok">\u5DF2\u9EDE\u540D</span></span><b>'+who+'</b>'+(e.note?'<span class="muted" style="margin-left:6px">'+esc(e.note)+'</span>':'')+'<span class="grow"></span>'
       /* BTNSAME_V851 本來沒包 dashBtns，「進入教室」就變深色實心，跟底下兩種列不一樣 */
       +dashBtns(mb,'','<button class="btn btn-sm" data-act="'+act+'" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button>','')+'</div>',e.start);});
   // 預排（還沒點名）
@@ -17692,7 +17700,7 @@ H.classLog=(id,pf)=>{const s=S.students.find(x=>x.id===id);if(!s)return;pf=pf||{
   const today=localToday();const useDate=(eRow&&eRow.date)||pf.date||today;const dslot=clSlotFor(useDate);const uS=(eRow?eRow.start:null)||pf.start||(dslot?dslot.s:'')||'';const uE=(eRow?eRow.end:null)||pf.end||(dslot?dslot.e:'')||'';const uN=(eRow?eRow.note:null)||pf.note||'';const slot0={s:uS,e:uE};
   const uStatus=(eRow&&eRow.status)||'attended';const uFree=!!(eRow&&eRow.free);const uMakeup=!!(eRow&&eRow.makeup);const uVideo=(eRow?eRow.video:null)||pf.video||'';
   const uLes=(eRow?eRow.lesson:null)||pf.lesson||'';
-  openModal(`<div class="modal"><div class="modal-head"><h3>${snm(s.name)} · 上課記錄</h3><button class="x" data-act="closeModal">×</button></div>
+  openModal(`<div class="modal modal-log"><div class="modal-head"><h3>${snm(s.name)} · 上課記錄</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="meta" style="margin-bottom:10px;flex-wrap:wrap"><span>本期：共 <b>${esc(String(s.sessions_total??'—'))}</b> ${unitLabel(s)} · 已上 <b>${fmtQty(usedUnits(s))}</b> · 還剩 <b class="${left!=null&&left<=1?'sess-low':''}">${left==null?'—':fmtQty(left)}</b> ${unitLabel(s)}${isHourly(s)?`　<span class="muted">（按小時計費 ${money(s.tuition,s.currency)}／小時）</span>`:''}</span>${leaveCount(s)?`<span>🟡 請假 <b>${leaveCount(s)}</b> 次 · 已補 <b>${makeupCount(s)}</b> 次${makeupDue(s)?` · <b style="color:#b91c1c">待補 ${makeupDue(s)}</b> 堂`:'　<span style="color:#16a34a">已補完 ✓</span>'}</span>`:''}</div>
      <div style="margin-bottom:6px">${rows}</div>
