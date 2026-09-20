@@ -4476,6 +4476,14 @@ function itvDueSum(c){
   Object.keys(charge).forEach(cur=>{
     const d=Math.round((charge[cur]-(Number(paid[cur])||0))*100)/100;
     if(d>0.009)by[cur]=d;});
+  return crmOffCut(c,by,itvTotalCur(c));/* FEEOFF_V1079 */}
+/* FEEOFF_V1079 減免：結案的時候她說「這筆不收了」。金額留著看得到，但不再算未收。 */
+function crmOff(c){const v=Number((c&&c.fee_off)||0);return v>0?v:0;}
+function crmOffCut(c,by,cur){
+  const off=crmOff(c);if(!off)return by;
+  const k=cur||Object.keys(by)[0];if(!k||!by[k])return by;
+  const left=Math.round((by[k]-off)*100)/100;
+  if(left>0.009)by[k]=left;else delete by[k];
   return by;}
 function itvMoneyStr(by){const k=Object.keys(by||{});return k.length?k.map(c=>money(by[c],c)).join('、'):'';}
 /* CRMFOOT_V804 合計列用：一種幣別一行，不要擠成一行被切掉 */
@@ -4628,7 +4636,7 @@ function agDueSum(c){const by={};
     const left=tot-got;if(left>0)by[cur]=(by[cur]||0)+left;}
   agLog(c).forEach(e=>{if(e.pass)return;/* PASSTHRU_V1035 代收代付不是欠款 */
     if(e.paid)return;const f=Number(e.fee)||0;if(!f)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});
-  return by;}
+  return crmOffCut(c,by,agTotalCur(c));/* FEEOFF_V1079 */}
 /* CONSULT_V955 只算正式案件。諮詢還沒成交，把報價算進「未收」會讓應收帳虛胖。 */
 function agIncome(ym){const paid={},due={};agCases().forEach(c=>{itvAddCur(paid,agPaidSum(c,ym));if(!ym)itvAddCur(due,agDueSum(c));});return {paid,due};}
 /* 共用：綠色收費進度條（代辦／面試／代書共用同一種外觀） */
@@ -4694,7 +4702,7 @@ function wrDueSum(c){const by={};
   const tot=wrTotal(c);
   if(tot){const cur=wrTotalCur(c);const got=wrPays(c).reduce((a,p)=>a+(((p.currency||'VND')===cur)?(Number(p.amount)||0):0),0);
     const left=tot-got;if(left>0)by[cur]=(by[cur]||0)+left;}
-  return by;}
+  return crmOffCut(c,by,wrTotalCur(c));/* FEEOFF_V1079 */}
 function wrIncome(ym){const paid={},due={};wrAll().forEach(c=>{itvAddCur(paid,wrPaidSum(c,ym));if(!ym)itvAddCur(due,wrDueSum(c));});return {paid,due};}
 function wrDeadlineBadge(c){if(!c||!c.deadline)return '';const d=itvDaysTo(c.deadline);if(d==null)return '';
   const done=(c.status||'active')!=='active';const col=(d<0)?'#dc2626':(d<=7?'#b91c1c':'#2563eb');
@@ -4784,7 +4792,7 @@ function renderWriting(){
           :((paidAll?esc(paidAll):'<span class="dash">—</span>')+(due?`<span class="sub2 warn">未收 ${esc(due)}</span>`:''))}</span>
         <span class="cc act"><button class="btn btn-icon crm-del" data-act="wrDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
       </div></summary><div class="crm-body">
-      ${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}
+      ${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
       ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#828C98">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#F8F8F9;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${wrStepper(c)}
       ${wrFeeBlock(c)}
@@ -4893,7 +4901,7 @@ function renderAgency(){
               :(agOver(c)?`<span class="sub2" style="color:#2563eb" title="已收比未錄取價多出來的部分">多收 ${esc(money(agOver(c),agTotalCur(c)))}・要退</span>`:'')))}</span>
         <span class="cc act"><button class="btn btn-icon crm-del" data-act="agDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
       </div></summary><div class="crm-body">
-      ${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}
+      ${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
       ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#828C98">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#F8F8F9;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${agFeeBlock(c)}
       ${docSummaryHtml(c)}
@@ -5105,7 +5113,7 @@ function renderInterview(){
         <span class="cc money">${paidAll?esc(paidAll):'<span class="dash">—</span>'}${due?`<span class="sub2 warn">未收 ${esc(due)}</span>`:''}</span>
         <span class="cc act">${meetBtn(meetOfItv(c),true)}<button class="btn btn-icon crm-del" data-act="itvDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
       </div></summary><div class="crm-body">
-      ${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}
+      ${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
       ${c.result_note?`<div class="hint" style="margin-top:4px">結果：${esc(c.result_note)}</div>`:''}${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#828C98">📄 備註／學生資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#F8F8F9;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${itvFeeBlock(c)}
       <div class="itv-acts">
@@ -5345,6 +5353,34 @@ function pChips(k,id){const ms=pMates(k,id);if(!ms.length)return '';
     ${ms.map(x=>`<button class="btn btn-sm" type="button" data-act="pGo" data-id="${esc(x.k+'::'+x.id)}" title="跳到這一筆">${P_KIND[x.k]}</button>`).join('')}
     <span class="grow"></span>
     <button class="btn btn-sm btn-accent" type="button" data-act="pSplitNew" data-id="${esc(k+'::'+id)}">\u{1F4B0} 一筆轉帳分給多種服務</button></div>`;}
+/* PDUP_V1078 名字正規化：去聲調、去空白標點、轉小寫。
+   Thuy Han / Thuyên Hàn → thuyhan / thuyenhan（還是不一樣，所以下面再比編輯距離）。 */
+function pNorm(s){return String(s||'').toLowerCase().normalize('NFD')
+  .replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/[^a-z0-9\u4e00-\u9fff]/g,'');}
+function pDist(a,b){/* 編輯距離，只算到 3 就夠了 */
+  if(a===b)return 0;if(Math.abs(a.length-b.length)>3)return 9;
+  const m=a.length,n=b.length;let prev=Array.from({length:n+1},(_,j)=>j);
+  for(let i=1;i<=m;i++){const cur=[i];
+    for(let j=1;j<=n;j++){cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));}
+    prev=cur;}
+  return prev[n];}
+function pDupPairs(){
+  const all=pAll().filter(x=>String(x.name||'').trim());
+  const out=[];
+  for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){
+    const A=all[i],B=all[j];
+    if(A.k===B.k)continue;/* 同一種服務裡重複，那是另一回事，不在這裡處理 */
+    const a=pNorm(A.name),b=pNorm(B.name);
+    if(!a||!b)continue;
+    let why='';
+    if(a===b)why='名字一樣';
+    else if(a.length>=5&&b.length>=5&&(a.indexOf(b)>=0||b.indexOf(a)>=0))why='一個包含另一個';
+    else{const d=pDist(a,b);if(d<=2&&Math.max(a.length,b.length)>=5)why='差 '+d+' 個字';}
+    if(!why)continue;
+    const same=!!(pPid(A.rec)&&pPid(A.rec)===pPid(B.rec));
+    out.push({A,B,why,same});}
+  out.sort((x,y)=>(x.same?1:0)-(y.same?1:0));
+  return out;}
 /* 客戶資料視窗裡的「這位就是……」 */
 function pPickField(selId,k,c){
   const me=(c&&c.id)?pOf(k,c.id):null;
@@ -5378,8 +5414,10 @@ function crmFoldBar(kind,list){
   const _ask=crmCloseAskList(kind,list);
   /* MAIL_V1066 整張清單的信箱一次複製，貼進 Gmail 的收件人就可以群寄 */
   const _mn=(list||[]).filter(crmMail).length;
+  const _dupN=(function(){try{return pDupPairs().filter(x=>!x.same).length;}catch(e){return 0;}})();/* PDUP_V1078 */
   return `<div class="crm-foldbar"><span class="hint">共 ${list.length} 位</span>${_mn?`
-    <button class="btn btn-sm" data-act="crmMailAll" data-id="${esc(kind)}" title="把這張清單上有填信箱的人一次複製起來">📧 複製全部信箱（${_mn}）</button>`:''}${_ask.length?`
+    <button class="btn btn-sm" data-act="crmMailAll" data-id="${esc(kind)}" title="把這張清單上有填信箱的人一次複製起來">📧 複製全部信箱（${_mn}）</button>`:''}${_dupN?`
+    <button class="btn btn-sm" data-act="pDupScan" title="同一個人散在好幾張表，這裡幫妳找出來">🔗 可能是同一個人（${_dupN}）</button>`:''}${_ask.length?`
     <span class="grow"></span>
     <span class="hint" style="color:#b91c1c">有 ${_ask.length} 位已經有結果了，還沒結案：${esc(_ask.map(x=>x.name||'').join('、'))}</span>
     <button class="btn btn-sm btn-accent" data-act="crmCloseAsk" data-id="${esc(kind)}">✓ 一次結案</button>`:''}</div>`;
@@ -6066,8 +6104,15 @@ function renderStudents(){
   const _others=[['trial','🎁 試學'],['reserved','📌 預約・詢問中'],['paused','⏸️ 休學']].filter(o=>cnt(o[0])>0);
   const _othOn=_others.find(o=>o[0]===sf);
   const _more=_others.length?`<details class="mini-menu stu-more"><summary class="segb${_othOn?' on':''}">${_othOn?esc(_othOn[1])+'（'+cnt(_othOn[0])+'）':'其他狀態'} ▾</summary><div class="mini-pop">${_others.map(o=>`<button class="btn btn-sm" data-act="stuFilter" data-id="${o[0]}">${o[1]}（${cnt(o[0])}）</button>`).join('')}</div></details>`:'';
+  /* STUMAIL_V1077 這一排（照目前篩選到的那幾位算）：複製全部信箱、誰還沒填 */
+  const _mailList=list.filter(s=>!s.is_test&&String(s.email||'').trim());
+  const _noMail=list.filter(s=>!s.is_test&&!String(s.email||'').trim());
+  const _mailBar=(IS_OWNER&&(_mailList.length||_noMail.length))?`
+    ${_mailList.length?`<button class="segb" data-act="stuMailAll" title="把下面這幾位的信箱一次複製起來，貼到 Gmail 的收件人就可以群寄">📧 複製全部信箱 <span class="segn">${_mailList.length}</span></button>`:''}
+    ${_noMail.length?`<button class="segb" data-act="stuNoMail" title="列出還沒填 Email 的人">⚠️ 沒有 Email <span class="segn">${_noMail.length}</span></button>`:''}`:'';
   const filterBar=`<div class="stu-bar">
     <div class="segbar">${chip('active','✅ 在學中')}${chip('all','全部')}</div>${_more}
+    ${_mailBar?`<div class="segbar">${_mailBar}</div>`:''}
     <span class="grow"></span>
     <div class="segbar"><button class="segb${(S.stuView!=='card')?' on':''}" data-act="stuView" data-id="table">📋 表格</button><button class="segb${(S.stuView==='card')?' on':''}" data-act="stuView" data-id="card">📇 卡片</button></div>
     <div class="segbar"><button class="segb${allOpen?' on':''}" data-act="stuSecToggle">${allOpen?'▾ 全部收起':'▸ 全部展開'}</button></div>
@@ -13927,6 +13972,28 @@ H.loginLog=(id)=>{const s=S.students.find(x=>x.id===id);const p=progOf(id);const
 H.resetPw=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s.email)return toast('此學生沒有 Email，無法寄送');if(!confirm('寄送重設密碼信給 '+s.name+'（'+s.email+'）？'))return;
   try{await firebase.auth().sendPasswordResetEmail(s.email);if(s.reset_requested)await DB.update('students',id,{reset_requested:null});await loadAll();render();toast('已寄出重設密碼信給學生');}catch(err){toast('寄送失敗：'+authMsg(err));}};
 
+/* STUMAIL_V1077 */
+H.stuMailList=()=>{let l=(S.students||[]).filter(s=>!s.is_test);
+  const sf=S.statusFilter||'active';if(sf!=='all')l=l.filter(s=>enrollOf(s)===sf);
+  if(S.q){const q=S.q.toLowerCase();l=l.filter(s=>(s.name||'').toLowerCase().includes(q));}
+  return l;};
+H.stuMailAll=async()=>{
+  const ms=[...new Set(H.stuMailList().map(s=>String(s.email||'').trim()).filter(Boolean))];
+  if(!ms.length)return toast('這一頁沒有人填了 Email');
+  try{await navigator.clipboard.writeText(ms.join(', '));
+    toast('已複製 '+ms.length+' 個信箱，貼到 Gmail 的收件人就可以一次寄');}
+  catch(e){toast('複製失敗，請手動選取');}};
+H.stuNoMail=()=>{
+  const no=H.stuMailList().filter(s=>!String(s.email||'').trim());
+  if(!no.length)return toast('大家都填了 Email 👍');
+  openModal(`<div class="modal"><div class="modal-head"><h3>⚠️ 還沒填 Email（${no.length} 位）</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="hint" style="margin-bottom:10px">Email 是學生的登入帳號，也是妳寄信的地址。點「✏️ 去填」會打開那位的資料。</div>
+     ${no.map(s=>`<div class="dash-row"><b>${snm(s.name||'')}</b>
+       <span class="muted" style="font-size:12px">${esc(s.class_type||'')}</span>
+       <span class="grow"></span>
+       <button class="btn btn-sm" data-act="editStudent" data-id="${esc(s.id)}">✏️ 去填</button></div>`).join('')}
+   </div></div>`);};
 H.stuSecToggle=()=>{S.stuSecAllOpen=!(S.stuSecAllOpen===true);renderStudents();};
 H.toggleCard=(id)=>{if(S.openCards.has(id))S.openCards.delete(id);else S.openCards.add(id);renderLessons();};
 H.toggleTranscript=async(id)=>{/*TRANSCRIPT_V75 老師開了學生才看得到聽力文本*/
@@ -15665,6 +15732,87 @@ H.opsGoCrm=(key)=>{const p=String(key||'').split('::');
   try{closeModal();}catch(e){}
   S.tab=(p[0]==='writing')?'writing':'agency';S.crmFocus=p[1];S.crmOpen={};
   render();try{window.scrollTo(0,0);}catch(e){}};
+/* FEEOFF_V1079 按「✓ 結案」的時候，還沒收的錢要怎麼辦 */
+function crmKindOf(id){
+  if(agById(id))return 'agency';if(itvById(id))return 'interview';if(wrById(id))return 'writing';return '';}
+function crmRecOf(id){return agById(id)||itvById(id)||wrById(id)||null;}
+function crmDueOf(id){const k=crmKindOf(id),c=crmRecOf(id);if(!c)return {};
+  return (k==='agency')?agDueSum(c):((k==='interview')?itvDueSum(c):wrDueSum(c));}
+function crmCurOf(id){const k=crmKindOf(id),c=crmRecOf(id);if(!c)return 'VND';
+  return (k==='agency')?agTotalCur(c):((k==='interview')?itvTotalCur(c):wrTotalCur(c));}
+H.crmCloseDue=(id)=>{
+  const c=crmRecOf(id);if(!c)return;
+  const by=crmDueOf(id);const cur=crmCurOf(id);
+  const amt=Number(by[cur]||0);
+  const other=Object.keys(by).filter(k=>k!==cur).map(k=>money(by[k],k)).join('、');
+  openModal(`<div class="modal"><div class="modal-head"><h3>✓ 結案 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="dash-row" style="background:#FEF2F2;border-radius:10px;padding:10px 12px;margin-bottom:12px">
+       <b>還沒收到</b><span class="grow"></span><b style="color:#b91c1c;font-size:17px">${esc(itvMoneyStr(by))}</b></div>
+     <div class="hint" style="margin-bottom:10px">結案之前先把錢的事講清楚，不然它會一直掛在「尚未收款」裡。</div>
+     <div style="display:flex;flex-direction:column;gap:8px">
+       <button class="btn btn-accent" data-act="crmCloseGot" data-id="${esc(id)}">💰 其實已經收到了　<span class="hint">用今天的日期補一筆 ${esc(money(amt,cur))}</span></button>
+       <button class="btn" data-act="crmCloseOff" data-id="${esc(id)}">🙅 這筆不收了　<span class="hint">記成減免，金額留著看得到，但不再算未收</span></button>
+       <button class="btn btn-ghost" data-act="crmCloseKeep" data-id="${esc(id)}">📌 還是要收，先結案　<span class="hint">未收留著</span></button>
+     </div>
+     ${other?`<div class="hint" style="margin-top:10px;color:#b45309">另外還有 ${esc(other)} 是別的幣別，這裡只處理 ${esc(cur)}，其他的要自己進去改。</div>`:''}
+   </div></div>`);};
+async function crmCloseNow(id){
+  await DB.update(crmCol(id),id,{status:'done',closed_as:'done'});
+  await loadAll();closeModal();render();}
+/* FEEOFF_V1079 取消減免 */
+H.crmOffUndo=async(id)=>{const c=crmRecOf(id);if(!c||!crmOff(c))return;
+  if(!confirm('取消「不收了」？\n\n'+money(crmOff(c),crmCurOf(id))+' 會再算回未收。'))return;
+  try{await ensureAuthFresh();await DB.update(crmCol(id),id,{fee_off:0,fee_off_at:null});
+    await loadAll();render();toast('已取消，未收算回來了');}catch(e){toast(writeErr('失敗',e));}};
+H.crmCloseKeep=async(id)=>{try{await ensureAuthFresh();await crmCloseNow(id);toast('已結案（未收留著）');}
+  catch(e){toast(writeErr('失敗',e));}};
+H.crmCloseGot=async(id)=>{
+  const c=crmRecOf(id);if(!c)return;const cur=crmCurOf(id);const amt=Number(crmDueOf(id)[cur]||0);
+  if(!amt)return H.crmCloseKeep(id);
+  try{await ensureAuthFresh();
+    const arr=(Array.isArray(c.payments)?c.payments.slice():[]);
+    arr.push({date:localToday(),amount:amt,currency:cur,method:'',note:'結案時補記'});
+    arr.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+    await DB.update(crmCol(id),id,{payments:arr});
+    await crmCloseNow(id);toast('已補記 '+money(amt,cur)+'，並結案');}
+  catch(e){toast(writeErr('失敗',e));}};
+H.crmCloseOff=async(id)=>{
+  const c=crmRecOf(id);if(!c)return;const cur=crmCurOf(id);const amt=Number(crmDueOf(id)[cur]||0);
+  if(!amt)return H.crmCloseKeep(id);
+  if(!confirm('把 '+money(amt,cur)+' 記成「不收了」？\n\n金額會留著看得到，但不再算進未收，也不會算成收入。'))return;
+  try{await ensureAuthFresh();
+    await DB.update(crmCol(id),id,{fee_off:Math.round((crmOff(c)+amt)*100)/100,
+      fee_off_at:new Date().toISOString()});
+    await crmCloseNow(id);toast('已記成不收了，並結案');}
+  catch(e){toast(writeErr('失敗',e));}};
+/* PDUP_V1078 「找出可能是同一個人」 */
+H.pDupScan=()=>{
+  const ps=pDupPairs();
+  const body=ps.length?ps.map((x,i)=>`<div class="dash-row" style="flex-wrap:wrap;${x.same?'opacity:.6':''}">
+      <span class="badge" style="background:#EDE9FE;color:#6D28D9;border-color:#6D28D955">${esc(x.why)}</span>
+      <b>${P_KIND[x.A.k]}　${snm(x.A.name)}</b>
+      <span class="muted">⟷</span>
+      <b>${P_KIND[x.B.k]}　${snm(x.B.name)}</b>
+      <span class="grow"></span>
+      ${x.same?'<span class="badge badge-ok">已經綁好了</span>'
+        :`<button class="btn btn-sm btn-accent" data-act="pDupLink" data-id="${esc(x.A.k+'::'+x.A.id+'::'+x.B.k+'::'+x.B.id)}">🔗 綁在一起</button>`}
+    </div>`).join(''):'<div class="hint" style="padding:8px 2px">沒有找到名字很像的。</div>';
+  openModal(`<div class="modal modal-log"><div class="modal-head"><h3>🔗 可能是同一個人</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="hint" style="margin-bottom:10px">把學生、代辦、面試、代書四張表的名字拿來比：去掉聲調和空白之後
+       完全一樣、一個包含另一個、或只差一兩個字母的，都列在這裡。<b>是不是同一個人還是妳決定</b>，
+       我只負責找出來。綁好之後卡片上就會出現「同一個人」，轉帳也可以一次分給好幾種服務。</div>
+     ${body}
+   </div></div>`);};
+H.pDupLink=async(key)=>{
+  const p=String(key||'').split('::');if(p.length<4)return;
+  const A=pOf(p[0],p[1]),B=pOf(p[2],p[3]);if(!A||!B)return;
+  if(!confirm('把這兩筆綁成同一個人？\n\n'+P_KIND[A.k]+'：'+(A.name||'')+'\n'+P_KIND[B.k]+'：'+(B.name||'')
+    +'\n\n綁了之後轉帳可以一次分給兩邊。綁錯了到「✏️ 客戶資料」的「這位就是」改成「不綁」就好。'))return;
+  try{await ensureAuthFresh();await pLinkApply(A.k,A.id,B.k+'::'+B.id);await loadAll();render();
+    toast('綁好了');H.pDupScan();}
+  catch(e){toast(writeErr('失敗',e));}};
 /* PERSON_V1071 一筆轉帳分給多種服務 */
 function pSplitSum(){
   const by={};
@@ -15870,7 +16018,8 @@ function agFeeBlock(c){
       <b>💰 代辦費（未錄取價）</b> <span class="badge badge-ok">未錄取，這位不收費</span>
       <span class="muted" style="font-size:12px;margin-left:6px">原本談定 ${money(agFullTotal(c),agTotalCur(c))}</span></div>`;
   const hint=(pays.length?('共 '+pays.length+' 期'):'')
-    +(rj?((pays.length?'・':'')+'原本談定 '+money(agFullTotal(c),agTotalCur(c))):'');
+    +(rj?((pays.length?'・':'')+'原本談定 '+money(agFullTotal(c),agTotalCur(c))):'')
+    +(crmOff(c)?((pays.length||rj?'・':'')+'不收了 '+money(crmOff(c),agTotalCur(c))):'');/* FEEOFF_V1079 */
   const ovRow=ov?`<div class="dash-row" style="padding:6px 0;color:#2563eb">🔁 已收比未錄取價多了 <b>${money(ov,agTotalCur(c))}</b>，要退的話自己跟學生喬，這裡只是提醒。</div>`:'';
   return feeBarHtml('代辦費'+(rj?'（未錄取價）':''),agPaidSum(c,null),agDueSum(c),agTotal(c),agTotal(c)?agTotalCur(c):'',ovRow+body,hint);
 }
@@ -16140,7 +16289,10 @@ function crmDoneBadge(c){
     : '<span class="badge badge-fin">已結案</span>');}
 function crmCloseBtns(c,act){
   const done=(c.status||'active')!=='active';
-  if(done)return '<button class="btn" data-act="'+act+'" data-id="'+esc(c.id)+'">↩ 改回進行中</button>';
+  /* FEEOFF_V1079 已經結案卻還掛著未收的（她現在有兩位），給一顆直接處理 */
+  const _due=(function(){try{return itvMoneyStr(crmDueOf(c.id));}catch(e){return '';}})();
+  if(done)return '<button class="btn" data-act="'+act+'" data-id="'+esc(c.id)+'">↩ 改回進行中</button>'
+    +(_due?'<button class="btn btn-accent" data-act="crmCloseDue" data-id="'+esc(c.id)+'" title="已經結案了，可是還掛著未收">💰 處理未收 '+esc(_due)+'</button>':'');
   return '<button class="btn" data-act="'+act+'" data-id="'+esc(c.id)+'">✓ 結案</button>'
     +'<button class="btn btn-ghost" data-act="crmDrop" data-id="'+esc(c.id)+'" title="客戶中途不做了">✕ 中途放棄</button>';}
 /* CLOSEASK_V1065 */
@@ -16158,6 +16310,7 @@ H.crmDrop=async(id)=>{
   try{await DB.update(crmCol(id),id,{status:'done',closed_as:'dropped'});await loadAll();render();toast('已標記為中途放棄');}
   catch(e){toast(writeErr('失敗',e));}};
 H.wrToggle=async(id)=>{const c=wrById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
+  if(st==='done'&&Object.keys(wrDueSum(c)).length)return H.crmCloseDue(id);/* FEEOFF_V1079 */
   try{await DB.update(crmCol(id),id,{status:st,closed_as:(st==='done'?'done':null)});await loadAll();render();toast(st==='done'?'已結案':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
 H.wrDel=async(id)=>{const c=wrById(id);if(!c)return;
   if(!confirm('確定刪除「'+(c.name||'')+'」？進度與收費記錄會一起刪除。'))return;
@@ -16487,6 +16640,7 @@ H.memoDel=async(id)=>{const m=(S.memos||[]).find(x=>x.id===id);
   try{await DB.update(crmCol(id),id,{deleted_at:new Date().toISOString()});
     S.memos=(S.memos||[]).filter(x=>x.id!==id);render();}catch(e){toast(writeErr('刪不掉',e));}};
 H.agToggle=async(id)=>{const c=agById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
+  if(st==='done'&&Object.keys(agDueSum(c)).length)return H.crmCloseDue(id);/* FEEOFF_V1079 */
   try{await DB.update(crmCol(id),id,{status:st,closed_as:(st==='done'?'done':null)});await loadAll();render();toast(st==='done'?'已結案':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
 H.agDel=async(id)=>{const c=agById(id);if(!c)return;if(!confirm('確定刪除「'+(c.name||'')+'」？所有進度與收費記錄會一起刪除。'))return;
   try{await DB.update(crmCol(id),id,{deleted_at:new Date().toISOString()});S.agencies=(S.agencies||[]).filter(x=>x.id!==id);render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
@@ -16641,6 +16795,7 @@ H.itvSave=async(id)=>{const name=($('#itv-name').value||'').trim();if(!name)retu
         await DB.update(crmCol(id),id,{status:'done',closed_as:'done'});}
     await loadAll();closeModal();S.tab='interview';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.itvToggle=async(id)=>{const c=itvById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
+  if(st==='done'&&Object.keys(itvDueSum(c)).length)return H.crmCloseDue(id);/* FEEOFF_V1079 */
   try{await DB.update(crmCol(id),id,{status:st,closed_as:(st==='done'?'done':null)});await loadAll();render();toast(st==='done'?'已結案':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
 H.itvDel=async(id)=>{const c=itvById(id);if(!c)return;if(!confirm('確定刪除「'+(c.name||'')+'」？練習與收費記錄會一起刪除。'))return;
   try{await DB.update(crmCol(id),id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
