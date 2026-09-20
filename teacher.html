@@ -5364,22 +5364,30 @@ function pDist(a,b){/* 編輯距離，只算到 3 就夠了 */
     for(let j=1;j<=n;j++){cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));}
     prev=cur;}
   return prev[n];}
-function pDupPairs(){
+/* PDUP_V1080 原本有一條「差一兩個字母就算像」，
+   可是越南文名字差一兩個字就是不同的人（Quinn：「Thuy Han ↔ Thuyên Hàn 是不同的」）。
+   sure＝有把握的（完全一樣、只差聲調或空白）；maybe＝只是有點像，要自己打開才看得到。 */
+function pDupIgnored(){try{return JSON.parse(localStorage.getItem('qna_notsame')||'[]');}catch(e){return [];}}
+function pDupKey(A,B){const a=A.k+':'+A.id,b=B.k+':'+B.id;return (a<b)?(a+'|'+b):(b+'|'+a);}
+function pDupPairs(loose){
   const all=pAll().filter(x=>String(x.name||'').trim());
-  const out=[];
+  const ig=pDupIgnored();const out=[];
+  const raw=s=>String(s||'').toLowerCase().replace(/\s+/g,'');
   for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){
     const A=all[i],B=all[j];
     if(A.k===B.k)continue;/* 同一種服務裡重複，那是另一回事，不在這裡處理 */
     const a=pNorm(A.name),b=pNorm(B.name);
     if(!a||!b)continue;
-    let why='';
-    if(a===b)why='名字一樣';
-    else if(a.length>=5&&b.length>=5&&(a.indexOf(b)>=0||b.indexOf(a)>=0))why='一個包含另一個';
-    else{const d=pDist(a,b);if(d<=2&&Math.max(a.length,b.length)>=5)why='差 '+d+' 個字';}
+    let why='',sure=false;
+    if(a===b){sure=true;why=(raw(A.name)===raw(B.name))?'名字完全一樣':'只差聲調或空白';}
+    else if(loose){
+      if(a.length>=5&&b.length>=5&&(a.indexOf(b)>=0||b.indexOf(a)>=0))why='一個包含另一個';
+      else{const d=pDist(a,b);if(d<=2&&Math.max(a.length,b.length)>=5)why='差 '+d+' 個字';}}
     if(!why)continue;
+    if(ig.indexOf(pDupKey(A,B))>=0)continue;/* 她說過不是同一個人 */
     const same=!!(pPid(A.rec)&&pPid(A.rec)===pPid(B.rec));
-    out.push({A,B,why,same});}
-  out.sort((x,y)=>(x.same?1:0)-(y.same?1:0));
+    out.push({A,B,why,same,sure});}
+  out.sort((x,y)=>((x.same?1:0)-(y.same?1:0))||((y.sure?1:0)-(x.sure?1:0)));
   return out;}
 /* 客戶資料視窗裡的「這位就是……」 */
 function pPickField(selId,k,c){
@@ -5414,7 +5422,7 @@ function crmFoldBar(kind,list){
   const _ask=crmCloseAskList(kind,list);
   /* MAIL_V1066 整張清單的信箱一次複製，貼進 Gmail 的收件人就可以群寄 */
   const _mn=(list||[]).filter(crmMail).length;
-  const _dupN=(function(){try{return pDupPairs().filter(x=>!x.same).length;}catch(e){return 0;}})();/* PDUP_V1078 */
+  const _dupN=(function(){try{return pDupPairs(false).filter(x=>!x.same&&x.sure).length;}catch(e){return 0;}})();/* PDUP_V1078／V1080 只算有把握的 */
   return `<div class="crm-foldbar"><span class="hint">共 ${list.length} 位</span>${_mn?`
     <button class="btn btn-sm" data-act="crmMailAll" data-id="${esc(kind)}" title="把這張清單上有填信箱的人一次複製起來">📧 複製全部信箱（${_mn}）</button>`:''}${_dupN?`
     <button class="btn btn-sm" data-act="pDupScan" title="同一個人散在好幾張表，這裡幫妳找出來">🔗 可能是同一個人（${_dupN}）</button>`:''}${_ask.length?`
@@ -15787,24 +15795,47 @@ H.crmCloseOff=async(id)=>{
     await crmCloseNow(id);toast('已記成不收了，並結案');}
   catch(e){toast(writeErr('失敗',e));}};
 /* PDUP_V1078 「找出可能是同一個人」 */
-H.pDupScan=()=>{
-  const ps=pDupPairs();
-  const body=ps.length?ps.map((x,i)=>`<div class="dash-row" style="flex-wrap:wrap;${x.same?'opacity:.6':''}">
-      <span class="badge" style="background:#EDE9FE;color:#6D28D9;border-color:#6D28D955">${esc(x.why)}</span>
+H.pDupScan=(loose)=>{
+  const LO=(loose==='loose');
+  const all=pDupPairs(LO);
+  const ps=LO?all.filter(x=>!x.sure):all;
+  const row=(x)=>`<div class="dash-row" style="flex-wrap:wrap;${x.same?'opacity:.6':''}">
+      <span class="badge" style="background:${x.sure?'#EDE9FE':'#EBECED'};color:${x.sure?'#6D28D9':'#5B6B80'};border-color:${x.sure?'#6D28D955':'#D2D4D7'}">${esc(x.why)}</span>
       <b>${P_KIND[x.A.k]}　${snm(x.A.name)}</b>
       <span class="muted">⟷</span>
       <b>${P_KIND[x.B.k]}　${snm(x.B.name)}</b>
       <span class="grow"></span>
       ${x.same?'<span class="badge badge-ok">已經綁好了</span>'
-        :`<button class="btn btn-sm btn-accent" data-act="pDupLink" data-id="${esc(x.A.k+'::'+x.A.id+'::'+x.B.k+'::'+x.B.id)}">🔗 綁在一起</button>`}
-    </div>`).join(''):'<div class="hint" style="padding:8px 2px">沒有找到名字很像的。</div>';
-  openModal(`<div class="modal modal-log"><div class="modal-head"><h3>🔗 可能是同一個人</h3><button class="x" data-act="closeModal">×</button></div>
+        :`<button class="btn btn-sm btn-accent" data-act="pDupLink" data-id="${esc(x.A.k+'::'+x.A.id+'::'+x.B.k+'::'+x.B.id)}">🔗 綁在一起</button>
+          <button class="btn btn-sm btn-ghost" data-act="pDupNo" data-id="${esc(x.A.k+'::'+x.A.id+'::'+x.B.k+'::'+x.B.id)}" title="以後不要再問這一組">✕ 不是同一個人</button>`}
+    </div>`;
+  const body=ps.length?ps.map(row).join('')
+    :`<div class="hint" style="padding:8px 2px">${LO?'沒有其他有點像的了。':'沒有找到名字一樣的。'}</div>`;
+  const ig=pDupIgnored().length;
+  openModal(`<div class="modal modal-log"><div class="modal-head"><h3>🔗 ${LO?'有點像的（不一定是同一個人）':'可能是同一個人'}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-     <div class="hint" style="margin-bottom:10px">把學生、代辦、面試、代書四張表的名字拿來比：去掉聲調和空白之後
-       完全一樣、一個包含另一個、或只差一兩個字母的，都列在這裡。<b>是不是同一個人還是妳決定</b>，
-       我只負責找出來。綁好之後卡片上就會出現「同一個人」，轉帳也可以一次分給好幾種服務。</div>
+     <div class="hint" style="margin-bottom:10px">${LO
+       ?'這裡是「名字有點像」而已——<b>越南文差一兩個字往往就是不同的人</b>（Thuy Han 和 Thuyên Hàn 就是兩個人），所以預設不列在前一頁。確定是同一個人再綁。'
+       :'只列兩種有把握的：名字完全一樣、或只差在聲調和空白。<b>是不是同一個人還是妳決定</b>，我只負責找出來。綁好之後卡片上就會出現「同一個人」，轉帳也可以一次分給好幾種服務。'}</div>
      ${body}
+     <div class="dash-row" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+       ${LO?'<button class="btn btn-sm" data-act="pDupScan">← 回到有把握的那幾組</button>'
+           :'<button class="btn btn-sm btn-ghost" data-act="pDupScan" data-id="loose">也看看「有點像的」…</button>'}
+       <span class="grow"></span>
+       ${ig?`<span class="muted" style="font-size:12px">已經說過不是同一個人：${ig} 組</span>
+             <button class="btn btn-sm btn-ghost" data-act="pDupReset">清掉重來</button>`:''}
+     </div>
    </div></div>`);};
+/* PDUP_V1080 她說不是同一個人的，記在這台電腦上，不再問 */
+H.pDupNo=(key)=>{const p=String(key||'').split('::');if(p.length<4)return;
+  const A=pOf(p[0],p[1]),B=pOf(p[2],p[3]);if(!A||!B)return;
+  try{const ig=pDupIgnored();const k=pDupKey(A,B);
+    if(ig.indexOf(k)<0){ig.push(k);localStorage.setItem('qna_notsame',JSON.stringify(ig));}}catch(e){}
+  toast('好，這一組以後不會再問');
+  const lo=!!document.querySelector('#modal-root [data-act="pDupScan"][data-id="loose"]');
+  render();H.pDupScan(lo?'':'loose');};
+H.pDupReset=()=>{try{localStorage.removeItem('qna_notsame');}catch(e){}
+  toast('清掉了，剛剛忽略的那幾組會再出現');render();H.pDupScan();};
 H.pDupLink=async(key)=>{
   const p=String(key||'').split('::');if(p.length<4)return;
   const A=pOf(p[0],p[1]),B=pOf(p[2],p[3]);if(!A||!B)return;
