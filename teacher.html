@@ -3390,19 +3390,24 @@ function renderDashboard(){
   const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"${it.test?' style="opacity:.72"':''}><span class="badge badge-soon">${it.tag}</span><b>${snm(it.name)}</b>${it.test?'<span class="badge" style="background:#e0e7ff;color:#4338ca;border-color:#4338ca55">🧪 測試</span>':''}<span class="muted">${esc(it.sub)}</span>${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}<span class="grow"></span>${sgWaitHtml(it.ts,true)}${it.ts?`<span class="muted">🕒 ${esc(fmtDT(it.ts))}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
   // 提醒：只看「堂數快用完／用完」（不再用付款日期做逾期提醒，因為每週時間、繳費都不固定）
   const remRows=[];
+  /* REMSORT_V1076 有日期的提醒先收在這裡，最後照「還剩幾天」一起排 */
+  const remDate=[];const remPush=(d,html)=>remDate.push({d:(d==null?9999:Number(d)),html:html});
   if(IS_OWNER)oweList.forEach(({s,b})=>remRows.push(`<div class="dash-row"><span class="badge badge-overdue">💰 欠 ${money(b.due,billCur(s))}</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">上課 ${fmtQty((function(){let q=0;(b.items||[]).forEach(x=>{const h=logHours(x.e);q+=(isHourly(s)?((h!=null)?h:1):1);});return Math.round(q*100)/100;})())} ${unitLabel(s)} · 已繳 ${money(b.paid,billCur(s))}</span><button class="btn btn-sm btn-accent" data-act="payments" data-id="${s.id}">💰 記繳費</button></div>`));
   const mkDue=S.students.filter(s=>!s.is_test&&enrollOf(s)!=='paused'&&makeupDue(s)>0).sort((a,b)=>makeupDue(b)-makeupDue(a));
   mkDue.forEach(s=>remRows.push(`<div class="dash-row"><span class="badge" style="background:#dbeafe;color:#1d4ed8;border-color:#1d4ed855">🔁 待補 ${makeupDue(s)} 堂</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">請假 ${leaveCount(s)} 次 · 已補 ${makeupCount(s)} 次</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">📝 記一堂課</button></div>`));
   /* ITVDROP_V702 已結案、中途放棄的面試客戶不要再叫老師「填面試結果」——
      人都不做了，結果自然填不出來。代辦、代書那兩區本來就有這個判斷，面試漏了。 */
   itvAll().forEach(c=>{if((c.status||'active')!=='active')return;if(!c.exam_date)return;const d=itvDaysTo(c.exam_date);if(d==null)return;
-    if(d>=0&&d<=14&&!itvResultMeta(c.result)){const col=d<=3?'#dc2626':'#3730a3';remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">🎯 ${d===0?'今天面試':(d===1?'明天面試':'還有 '+d+' 天')}</span><b>${snm(c.name||'')}</b>${c.target?`<span class="muted">${esc(c.target)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.exam_date)}${c.exam_time?(' '+esc(c.exam_time)):''}</span><button class="btn btn-sm" data-act="tab" data-id="interview">看客戶</button></div>`);}
-    else if(d<0&&!itvResultMeta(c.result)){remRows.push(`<div class="dash-row"><span class="badge badge-soon">🎯 待填結果</span><b>${snm(c.name||'')}</b><span class="muted">面試日 ${esc(c.exam_date)}（${-d} 天前）</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 填結果</button></div>`);}});
+    if(d>=0&&d<=14&&!itvResultMeta(c.result)){const col=d<=3?'#dc2626':'#3730a3';remPush(d,`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">🎯 ${d===0?'今天面試':(d===1?'明天面試':'還有 '+d+' 天')}</span><b>${snm(c.name||'')}</b>${c.target?`<span class="muted">${esc(c.target)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.exam_date)}${c.exam_time?(' '+esc(c.exam_time)):''}</span><button class="btn btn-sm" data-act="tab" data-id="interview">看客戶</button></div>`);}
+    else if(d<0&&!itvResultMeta(c.result)){remPush(d,`<div class="dash-row"><span class="badge badge-soon">🎯 待填結果</span><b>${snm(c.name||'')}</b><span class="muted">面試日 ${esc(c.exam_date)}（${-d} 天前）</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 填結果</button></div>`);}});
   (S.writings||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;const d=itvDaysTo(c.deadline);if(d==null||d>21)return;
     const col=d<0?'#dc2626':(d<=3?'#dc2626':(d<=7?'#b91c1c':'#2563eb'));
     const lab=d<0?('交件已過 '+(-d)+' 天'):(d===0?'今天要交件！':(d===1?'明天要交件':'還有 '+d+' 天交件'));
-    remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">✍️ ${lab}</span><b>${snm(c.name||'')}</b>${c.docs?`<span class="muted">${esc(c.docs)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="writing">看客戶</button></div>`);});
-  (S.agencies||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;const d=itvDaysTo(c.deadline);if(d==null)return;if(d>21)return;const col=d<0?'#dc2626':(d<=3?'#dc2626':(d<=7?'#b91c1c':'#2563eb'));const lab=d<0?('繳件已過 '+(-d)+' 天'):(d===0?'今天要繳件！':(d===1?'明天要繳件':'還有 '+d+' 天繳件'));remRows.push(`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 ${lab}</span><b>${snm(c.name||'')}</b>${c.school?`<span class="muted">${esc(c.school)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="agency">看客戶</button></div>`);});
+    remPush(d,`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">✍️ ${lab}</span><b>${snm(c.name||'')}</b>${c.docs?`<span class="muted">${esc(c.docs)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="writing">看客戶</button></div>`);});
+  (S.agencies||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;const d=itvDaysTo(c.deadline);if(d==null)return;if(d>21)return;const col=d<0?'#dc2626':(d<=3?'#dc2626':(d<=7?'#b91c1c':'#2563eb'));const lab=d<0?('繳件已過 '+(-d)+' 天'):(d===0?'今天要繳件！':(d===1?'明天要繳件':'還有 '+d+' 天繳件'));remPush(d,`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 ${lab}</span><b>${snm(c.name||'')}</b>${c.school?`<span class="muted">${esc(c.school)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="agency">看客戶</button></div>`);});
+  /* REMSORT_V1076 有日期的照剩幾天排，過期的（負數）排最前面；一樣天數的維持原本順序 */
+  remDate.sort((a,b)=>a.d-b.d);
+  remDate.forEach(x=>remRows.push(x.html));
   try{const bwk=localStorage.getItem('hyc_backup_wk')||'';const nowWk=weekStart(localToday());
     /* BKLATE_V910 本來不管幾週沒備份都只寫「這週還沒備份」，看起來像每週的例行話，
        結果一拖就是六週。改成把拖了幾週寫出來，兩週以上轉紅色。 */
@@ -4697,8 +4702,14 @@ function wrDeadlineBadge(c){if(!c||!c.deadline)return '';const d=itvDaysTo(c.dea
   /* DLONE_V906 同上 */
   const sl2=(d<0)?('過 '+(-d)+' 天'):(d===0?'今天':(d===1?'明天':(d+' 天')));
   return `<span class="badge dl-badge" title="${esc('交件 '+c.deadline+'（'+lab+'）')}" style="background:${col}18;color:${col};border-color:${col}55">📄 ${esc(dlShortDate(c.deadline))}${done?'':(`<i class="dl-left">${esc(sl2)}</i>`)}</span>`;}
+/* WRDOC_V1075 一份文件一個標籤，填了四份就是四個小方塊擠在 150px 裡，
+   每一個都被截成「📄 …」（Quinn：「為什麼中間有這麼多按鈕」）。
+   只印第一份，後面接「＋N」，完整的放在滑過去看得到的說明裡。 */
 function wrDocChips(c){const d=String((c&&c.docs)||'').split(/[,，、\s]+/).filter(Boolean);
-  return d.map(x=>`<span class="tag accent">📄 ${esc(x)}</span>`).join('');}
+  if(!d.length)return '';
+  const all=d.join('、');
+  return `<span class="tag accent" title="${esc('要寫：'+all)}">📄 ${esc(d[0])}</span>`
+    +(d.length>1?`<span class="tag" title="${esc('要寫：'+all)}">＋${d.length-1}</span>`:'');}
 function wrStepper(c){
   const st=wrStages(c);
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">`+WR_STAGES.map((x,i)=>{
