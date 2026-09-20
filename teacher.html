@@ -6995,6 +6995,17 @@ function questionEditModal(lid,q,defBank){const e=!!q;q=q||{};QE_TYPE=q.type||'c
 function stuGroups(s){return Array.isArray(s&&s.groups)?s.groups.filter(Boolean):[];}
 function groupsList(){const set=new Set();S.students.forEach(s=>stuGroups(s).forEach(g=>set.add(g)));return [...set].sort();}
 function groupSize(c){return S.students.filter(s=>stuGroups(s).includes(c)).length;}
+/* GMEMPTY_V1073 團班管理要列的清單：有學生的 ＋ 班級設定裡還留著的。
+   groupsList() 本身不動——課表和「還沒點名」照樣只排有學生的班。 */
+function groupsMgrList(){const set=new Set(groupsList());
+  try{Object.keys(classMetaAll()).forEach(k=>{if(String(k||'').trim())set.add(k);});}catch(e){}
+  return [...set].sort();}
+/* 整班刪掉的時候，班級設定也要清掉（時段、預排、教材、Meet） */
+async function dropClassMeta(cls){
+  const all=Object.assign({},classMetaAll());
+  if(!(cls in all))return;
+  delete all[cls];
+  if(S.classMeta&&S.classMeta.id){await DB.update('lessons',S.classMeta.id,{meta:all});S.classMeta.meta=all;}}
 function isAssignedTo(l,s){if(!l||!s)return false;if((l.assigned_ids||[]).includes(s.id))return true;const ag=l.assigned_groups||[];return ag.length>0&&stuGroups(s).some(g=>ag.includes(g));}
 function lessonTargets(l){return S.students.filter(s=>isAssignedTo(l,s));}
 function assignedCount(l){return lessonTargets(l).length;}
@@ -7102,9 +7113,10 @@ function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==nul
        e(window.APP_NAME||'QNA CHINESE')+'　·　'+e(localToday()),1)+'</div>'
    +'</div>'+expJs()+'</body></html>';
   fbWin(html);}
-function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
+function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY_V1073 */
   const members=sel?(S.students.length?S.students.slice().sort(stuNameCmp).map(s=>`<label class="check-row"><input type="checkbox" class="gm-mem" value="${s.id}" ${stuGroups(s).includes(sel)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'')}</span></label>`).join(''):'<div class="hint">還沒有學生。</div>'):'';
   const editPanel=sel?`<div style="margin:2px 0 14px;padding:12px 14px;background:#faf7f0;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px">
+       ${groupSize(sel)?'':'<div class="hint" style="margin:0 0 8px;color:#b45309">這一班目前沒有學生，所以固定時段不會自動排進課表。設定還留著，改完或整班刪掉都可以。</div>'/* GMEMPTY_V1073 */}
        <div class="field" style="margin:0"><label>🕒 「${esc(sel)}」上課時段 <span class="hint">整班共用；已依學生時段自動帶入，可再修改</span></label>
        <div id="gm-sched">${(classSchedOf(sel).length?classSchedOf(sel):[{}]).map(r=>schedRowHTML(r)).join('')}</div>
        <button class="btn btn-sm" type="button" data-act="gmSchedAdd" style="margin-top:6px">＋ 新增時段</button>
@@ -7120,7 +7132,7 @@ function groupMgrModal(sel){const classes=groupsList();sel=sel||'';
        <div class="check-list" id="gm-members">${members}</div>
        <div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-primary" data-act="gmSave" data-id="${esc(sel)}">儲存成員</button><button class="btn" type="button" data-act="classPage" data-id="${esc(sel)}">🔎 開啟班級頁</button></div></div>
      </div>`:'';
-  const clsRows=classes.length?classes.map(c=>`<div class="dash-row" style="padding:8px 4px;flex-wrap:wrap${c===sel?';background:#E8E9EB;border-radius:8px':''}"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span><span class="grow"></span><button class="btn btn-sm btn-accent" type="button" data-act="classPublish" data-id="${esc(c)}">📢 發佈內容</button><button class="btn btn-sm" type="button" data-act="classPage" data-id="${esc(c)}">🔎 開啟班級頁</button><button class="btn btn-sm ${c===sel?'btn-accent':''}" type="button" data-act="gmPick" data-id="${esc(c)}">${c===sel?'✏️ 設定中':'✏️ 編輯'}</button></div>`+(c===sel?editPanel:'')).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
+  const clsRows=classes.length?classes.map(c=>`<div class="dash-row" style="padding:8px 4px;flex-wrap:wrap${c===sel?';background:#E8E9EB;border-radius:8px':''}"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span>${groupSize(c)?'':'<span class="tag" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7" title="沒有學生的班不會自動排進課表，設定還留著">沒有學生</span>'}<span class="grow"></span><button class="btn btn-sm btn-accent" type="button" data-act="classPublish" data-id="${esc(c)}">📢 發佈內容</button><button class="btn btn-sm" type="button" data-act="classPage" data-id="${esc(c)}">🔎 開啟班級頁</button><button class="btn btn-sm ${c===sel?'btn-accent':''}" type="button" data-act="gmPick" data-id="${esc(c)}">${c===sel?'✏️ 設定中':'✏️ 編輯'}</button></div>`+(c===sel?editPanel:'')).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>👥 團班管理</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>建立新團班</label><div class="dual-row"><input id="gm-new" type="text" placeholder="例：週二晚班"><button class="btn btn-accent" type="button" data-act="gmCreate">＋ 建立</button></div></div>
@@ -15632,19 +15644,52 @@ function pSplitSum(){
   document.querySelectorAll('.ps-amt').forEach(el=>{
     const v=Number(el.value||0);if(!v)return;const c=el.dataset.cur||'VND';by[c]=(by[c]||0)+v;});
   const box=document.getElementById('ps-sum');
-  if(box)box.textContent=Object.keys(by).length?Object.keys(by).map(c=>money(by[c],c)).join('　＋　'):'—';}
+  if(box)box.textContent=Object.keys(by).length?Object.keys(by).map(c=>money(by[c],c)).join('　＋　'):'—';
+  /* PSAUTO_V1072 還沒分配多少 */
+  const lf=document.getElementById('ps-left');if(!lf)return;
+  const tot=Number((document.getElementById('ps-tot')||{}).value||0);
+  const cur=((document.getElementById('ps-totcur')||{}).value)||'VND';
+  if(!tot){lf.textContent='';lf.className='muted';lf.style.color='';return;}
+  const left=Math.round((tot-(by[cur]||0))*100)/100;
+  if(Math.abs(left)<0.005){lf.textContent='（剛好分完 ✓）';lf.style.color='#16a34a';}
+  else if(left>0){lf.textContent='（還沒分配 '+money(left,cur)+'）';lf.style.color='#b45309';}
+  else{lf.textContent='（分超過了 '+money(-left,cur)+'）';lf.style.color='#b91c1c';}}
 window.PSPLITSUM=pSplitSum;
+/* PSAUTO_V1072 未收少的先付清，剩下的往下一個放，還有多的掛在未收最多的那一個 */
+function pSplitAuto(){
+  const tot=Number((document.getElementById('ps-tot')||{}).value||0);
+  const cur=((document.getElementById('ps-totcur')||{}).value)||'VND';
+  if(!tot)return toast('先填「這一筆總共收到」多少');
+  const els=[...document.querySelectorAll('.ps-amt')].filter(el=>(el.dataset.cur||'VND')===cur);
+  if(!els.length)return toast('這幾種服務都不是這個幣別，請自己填');
+  els.forEach(el=>{el.value='';});
+  let left=tot;
+  const order=els.slice().sort((a,b)=>{
+    const da=Number(a.dataset.due||0),db=Number(b.dataset.due||0);
+    if(da>0&&db<=0)return -1;if(db>0&&da<=0)return 1;/* 沒有未收的排最後 */
+    return da-db;});
+  order.forEach(el=>{
+    if(left<=0)return;
+    const due=Number(el.dataset.due||0);if(due<=0)return;
+    const put=Math.min(due,left);el.value=String(Math.round(put*100)/100);left=Math.round((left-put)*100)/100;});
+  if(left>0){/* 都付清了還有多的：掛在未收最多的那一個當預繳 */
+    const big=els.slice().sort((a,b)=>Number(b.dataset.due||0)-Number(a.dataset.due||0))[0];
+    if(big)big.value=String(Math.round((Number(big.value||0)+left)*100)/100);}
+  pSplitSum();
+  toast('已照「未收少的先付清」分好，妳可以再自己改');}
+window.PSPLITAUTO=pSplitAuto;
 H.pSplitNew=(key)=>{const p=String(key||'').split('::');
   const me=pOf(p[0],p[1]);if(!me)return;
   const list=[me].concat(pMates(p[0],p[1]));
   const row=(x)=>{const due=itvMoneyStr(pDue(x));
+    const _c=pCur(x);const _dn=Number((pDue(x)||{})[_c]||0);/* PSAUTO_V1072 這一列的未收，自動分配要用 */
     return `<div class="dash-row" style="flex-wrap:wrap">
       <span style="flex:0 0 132px">${P_KIND[x.k]}</span>
       <b style="flex:0 0 130px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${snm(x.name||'')}</b>
       ${due?`<span class="sub2 warn" style="font-size:12px">未收 ${esc(due)}</span>`:'<span class="muted" style="font-size:12px">沒有未收</span>'}
       <span class="grow"></span>
       <input class="ps-amt" type="number" min="0" style="width:140px" placeholder="0"
-        data-k="${esc(x.k)}" data-id="${esc(x.id)}" data-cur="${esc(pCur(x))}" oninput="PSPLITSUM()">
+        data-k="${esc(x.k)}" data-id="${esc(x.id)}" data-cur="${esc(_c)}" data-due="${_dn}" oninput="PSPLITSUM()">
       <span class="muted" style="font-size:12px;min-width:38px">${esc(pCur(x))}</span></div>`;};
   openModal(`<div class="modal modal-log"><div class="modal-head"><h3>\u{1F4B0} 一筆轉帳分給多種服務</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
@@ -15658,10 +15703,20 @@ H.pSplitNew=(key)=>{const p=String(key||'').split('::');
         <option value="Momo">Momo</option><option value="LINE Pay">LINE Pay</option><option value="其他">其他</option></select></div>
       <div class="field full"><label>備註 <span class="hint">選填，例：9 月學費＋代辦第二期</span></label>
         <input id="ps-note" type="text" placeholder=""></div>
+      <!-- PSAUTO_V1072 -->
+      <div class="field full"><label>這一筆總共收到 <span class="hint">選填。填了就可以按「自動分配」，也會幫妳看還有多少沒分完</span></label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="ps-tot" type="number" min="0" style="flex:1" placeholder="例：700" oninput="PSPLITSUM()">
+          <select id="ps-totcur" style="width:120px" onchange="PSPLITSUM()">
+            <option value="VND">VND 千</option><option value="TWD">NT$</option><option value="USD">US$</option></select>
+          <button class="btn btn-sm btn-accent" type="button" onclick="PSPLITAUTO()">\u2696\uFE0F 自動分配</button></div>
+        <div class="hint" style="margin-top:4px">自動分配的規則：未收比較少的先付清，剩下的往下一個放；
+          分完還有多的就掛在未收最多的那一個當預繳。分完還是可以自己改。</div></div>
     </div>
     <div style="margin-top:10px">${list.map(row).join('')}</div>
     <div class="dash-row" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
-      <b>這一筆合計</b><span class="grow"></span><b id="ps-sum" style="font-size:17px">—</b></div>
+      <b>這一筆合計</b><span id="ps-left" class="muted" style="font-size:12.5px"></span>
+      <span class="grow"></span><b id="ps-sum" style="font-size:17px">—</b></div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>
      <button class="btn btn-primary" data-act="pSplitSave">\u{1F4BE} 記下來</button></div></div>`);};
@@ -16824,7 +16879,9 @@ H.gmApplyAll=async(cls)=>{
     toast('✅ 已套用到全班 '+members.length+' 位學生');groupMgrModal(cls);render();
   }catch(e){if(btn){btn.disabled=false;btn.textContent='📌 套用到全班學生';}toast('套用失敗：'+((e&&e.message)||e));}};
 H.gmCreate=()=>{const v=(($('#gm-new')&&$('#gm-new').value)||'').trim();if(!v)return toast('請輸入團班名稱');groupMgrModal(v);};
-H.gmDelClass=async(cls)=>{if(!confirm('刪除團班「'+cls+'」？（只是把學生移出這個班，不會刪除學生）'))return;const affected=S.students.filter(s=>stuGroups(s).includes(cls));try{for(const s of affected){const g=stuGroups(s).filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}groupMgrModal('');render();toast('已刪除團班');}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+H.gmDelClass=async(cls)=>{if(!confirm('刪除團班「'+cls+'」？\n\n學生只是移出這個班，不會被刪掉；\n這一班的上課時段、預排、教材、Meet 連結會一起清掉。'))return;const affected=S.students.filter(s=>stuGroups(s).includes(cls));try{for(const s of affected){const g=stuGroups(s).filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}
+  try{await dropClassMeta(cls);}catch(e){}/* GMEMPTY_V1073 設定也要清掉，不然班沒了時段還在 */
+  groupMgrModal('');render();toast('已刪除團班');}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.gmSave=async(cls)=>{const checked=new Set($$('#gm-members .gm-mem:checked').map(x=>x.value));const btn=document.querySelector('[data-act="gmSave"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
   try{for(const s of S.students){const has=stuGroups(s).includes(cls),want=checked.has(s.id);if(has===want)continue;let g=stuGroups(s).slice();if(want)g.push(cls);else g=g.filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}
     toast('已儲存團班成員');groupMgrModal(cls);render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存成員';}toast('儲存失敗：'+((e&&e.message)||e));}};
