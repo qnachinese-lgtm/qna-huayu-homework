@@ -4479,6 +4479,16 @@ function renderPay(){
 }
 /* ===================== 🎤 面試練習：資料與畫面（純函式，可放前面） ===================== */
 function itvAll(){return (S.interviews||[]);}
+/* ITVSTAGE_V1094 面試練習的三段，跟代辦、代書一樣。
+   諮詢中＝只報了價，還沒確定要做 → 報價不是欠款，不算未收。
+   沒談成＝問了價就沒下文 → 更不是欠款，收過的錢還是留著（可能要退）。 */
+function itvStage(c){const v=String((c&&c.stage)||'').trim();
+  return (v==='consult'||v==='lost')?v:'case';}
+function itvIsConsult(c){return itvStage(c)==='consult';}
+function itvIsLost(c){return itvStage(c)==='lost';}
+const ITV_STAGE={consult:['\u{1F4AC} 諮詢中','#2C6FB5'],case:['\u{1F3A4} 進行中','#1E4C86'],lost:['\u2715 沒談成','#8A8F98']};
+function itvStageBadge(c){const m=ITV_STAGE[itvStage(c)]||ITV_STAGE.case;
+  return `<span class="badge" style="background:${m[1]}18;color:${m[1]};border-color:${m[1]}55">${m[0]}</span>`;}
 function itvById(id){return itvAll().find(x=>x.id===id);}
 /* ITVNEW_V836 新增客戶的時候還沒有 id，本來練習日期和付費都得先存檔才能記。
    現在先收在這個草稿裡，按「儲存」時跟客戶一起寫進資料庫。 */
@@ -4499,6 +4509,7 @@ function itvChargeSum(c){
     const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});
   return by;}
 function itvDueSum(c){
+  if(itvIsConsult(c)||itvIsLost(c))return {};/* ITVSTAGE_V1094 報價不是欠款，沒談成更不是 */
   const charge=itvChargeSum(c),paid=itvPaidSum(c,null),by={};
   Object.keys(charge).forEach(cur=>{
     const d=Math.round((charge[cur]-(Number(paid[cur])||0))*100)/100;
@@ -5157,11 +5168,17 @@ function renderInterview(){
     return `<details class="card crm-card${done?' card-done':''}" data-cid="${esc(c.id)}" style="margin-bottom:10px"${(S.crmFocus===c.id)?' open':''}><summary class="crm-sum" data-act="crmFocus" data-id="${esc(c.id)}">
       <span class="crm-chev">▸</span><div class="crm-head itv8">
         <span class="cc nm"><b>${snm(c.name||'（未命名）')}</b><button class="btn btn-icon" data-act="itvEdit" data-id="${esc(c.id)}" title="客戶資料與付費">✏️</button></span>
-        <span class="cc st">${crmSoon(c)?crmSoonBadge(c):(done?crmDoneBadge(c):'<span class="badge badge-ok">進行中</span>')}</span>
+        <span class="cc st">${(itvIsConsult(c)||itvIsLost(c))?itvStageBadge(c)/* ITVSTAGE_V1094 */
+          :(crmSoon(c)?crmSoonBadge(c):(done?crmDoneBadge(c):'<span class="badge badge-ok">進行中</span>'))}</span>
         <span class="cc kd">${c.itv_kind?`<span class="tag accent" title="${esc(c.itv_kind)}">${esc(c.itv_kind)}</span>`:''}</span>
         <span class="cc sch">${c.target?`<span class="tag" title="${esc(c.target)}">${esc(c.target)}</span>`:''}</span>
         <span class="cc dt">${itvExamBadge(c,done)}</span>
-        <span class="cc money">${crmSoon(c)
+        <span class="cc money">${itvIsConsult(c)/* ITVSTAGE_V1094 */
+          ?((itvTotal(c)?`<span class="muted" title="諮詢階段的報價，還沒確定要做，不算進未收">報價 ${esc(money(itvTotal(c),itvTotalCur(c)))}</span>`:'<span class="dash">—</span>')
+            +(paidAll?`<span class="sub2">已收 ${esc(paidAll)}</span>`:''))
+          :itvIsLost(c)
+          ?((paidAll?esc(paidAll):'')+(itvTotal(c)?`<span class="muted"${paidAll?' style="font-size:12px"':''} title="沒談成，報過的價留著當記錄">報過 ${esc(money(itvTotal(c),itvTotalCur(c)))}</span>`:(paidAll?'':'<span class="dash">—</span>')))
+          :crmSoon(c)
           ?((itvTotal(c)?`<span class="muted" title="還沒開始做，先不算未收">談定 ${esc(money(itvTotal(c),itvTotalCur(c)))}</span>`:'<span class="dash">—</span>')
             +(paidAll?`<span class="sub2">已收 ${esc(paidAll)}</span>`:''))
           :((paidAll?esc(paidAll):'<span class="dash">—</span>')+(due?`<span class="sub2 warn">未收 ${esc(due)}</span>`:''))}</span>
@@ -5514,7 +5531,7 @@ function itvFormTotalPatch(){const tv=($('#itv-total')&&$('#itv-total').value);
 function itvForm(c){c=c||{};
   /* ITVNEW_V836 新增才開草稿；編輯既有客戶不用 */
   ITVDRAFT=c.id?null:{sessions:[],payments:[],fee_total:null,fee_cur:'VND'};
-  openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🎤 ${c.id?'編輯面試客戶':'新增面試客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>姓名</label><input id="itv-name" type="text" value="${esc(c.name||'')}" placeholder="例：Nguyễn Văn A"></div><div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="itv-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>${crmMailField('itv-email',c)}${crmSoonField('itv-soon',c)}${pPickField('itv-person','interview',c)}<div class="field"><label>面試類別 <span class="hint">這位客戶是在準備哪一種面試</span></label>
+  openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🎤 ${c.id?'編輯面試客戶':'新增面試客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>姓名</label><input id="itv-name" type="text" value="${esc(c.name||'')}" placeholder="例：Nguyễn Văn A"></div><div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="itv-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>${crmMailField('itv-email',c)}<div class="field"><label>目前階段</label><select id="itv-stage">${Object.keys(ITV_STAGE).map(k=>`<option value="${k}"${itvStage(c)===k?' selected':''}>${ITV_STAGE[k][0]}</option>`).join('')}</select><span class="hint">諮詢中＝只報了價，不算未收；沒談成＝問了就沒下文</span></div>${crmSoonField('itv-soon',c)}${pPickField('itv-person','interview',c)}<div class="field"><label>面試類別 <span class="hint">這位客戶是在準備哪一種面試</span></label>
      <input id="itv-kind" type="text" list="itv-kindlist" value="${esc(c.itv_kind||(c.id?'':'申請簽證'))}" placeholder="例：申請簽證">
      <datalist id="itv-kindlist"><option value="申請簽證"><option value="入學面試"><option value="獎學金面試"><option value="工作面試"><option value="其他"></datalist></div>
      <div class="field"><label>面試目標 <span class="hint">選填。學校、科系或單位</span></label><input id="itv-target" type="text" value="${esc(c.target||'')}" placeholder="例：中原大學 華語中心、淡江大學 企業管理系"></div><div class="field"><label>🎯 正式面試日 <span class="hint">選填</span></label><input id="itv-exam" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.exam_date||'')}"></div>
@@ -6584,6 +6601,7 @@ function todayJobsHtml(pend,bare){/*TODAYJOB_V78 只看今天、過期、還沒�
   const all=(S.writings||[]).concat(S.interviews||[],S.agencies||[])
     .filter(c=>TJ_KIND[c.kind]&&(c.status||'active')==='active')
     .filter(c=>!(c.kind==='agency'&&agIsLost(c)))/* CONSULT_V955 */
+    .filter(c=>!(c.kind==='interview'&&itvIsLost(c)))/* ITVSTAGE_V1094 */
     .filter(c=>!(c.kind==='writing'&&wrIsLost(c)))/* WRLOST_V1060 沒談成的代書也不用再提醒 */
     /*TJRESULT_V79 面試已經填了結果就不算待辦*/
     .filter(c=>!(c.kind==='interview'&&itvResultMeta(c.result)));
@@ -7324,17 +7342,24 @@ function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY
        <button class="btn btn-sm" type="button" data-act="gmSchedAdd" style="margin-top:6px">＋ 新增時段</button>
        <div class="field" style="margin:10px 0 0"><label>📕 這一班用的教材</label>
        <input id="gm-book" type="text" value="${esc(classMetaOf(sel).textbook||'')}" placeholder="例：當代中文課程三" autocomplete="off">
-       <span class="hint">改完要按下面的「儲存團班資訊」才算數。</span></div>
+       <span class="hint">改完要按最下面的「💾 儲存」才算數。</span></div>
        <div style="margin-top:8px"><input id="gm-meet" type="url" inputmode="url" value="${esc(classMetaOf(sel).meet||'')}" placeholder="🎥 上課教室 Meet 連結（選填），例：https://meet.google.com/abc-defg-hij"></div>
        <div style="margin-top:8px"><input id="gm-drive" type="url" inputmode="url" value="${esc(classMetaOf(sel).drive||'')}" placeholder="📁 教材資料夾連結（選填），例：Google Drive 分享連結，學生頁會出現按鈕"></div>
        <div class="field" style="margin:12px 0 0"><label>💵 特殊計費（照上課長度）</label>
        <div id="gm-tiers">${((Array.isArray(classMetaOf(sel).fee_tiers)&&classMetaOf(sel).fee_tiers.length)?classMetaOf(sel).fee_tiers:[{}]).map(r=>gmTierRowHTML(r)).join('')}</div>
        <button class="btn btn-sm" type="button" data-act="gmTierAdd" style="margin-top:6px">＋ 加一級</button></div>
-       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-primary" data-act="gmMetaSave" data-id="${esc(sel)}">儲存團班資訊</button> <button class="btn btn-accent" data-act="gmApplyAll" data-id="${esc(sel)}">📌 套用到全班學生</button> <span class="hint" id="gm-meta-st"></span></div>
+       <!-- GMSAVE_V1095 這裡本來還有一顆「儲存團班資訊」，跟下面的「儲存成員」分開兩顆，
+            改一個地方要記得按對的那一顆（Quinn：「兩個很容易讓我誤會」）。
+            現在只留最下面那一顆，一次全部存起來。 -->
+       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-accent" data-act="gmApplyAll" data-id="${esc(sel)}">📌 套用到全班學生</button> <span class="hint" id="gm-meta-st"></span></div>
        </div>
-       <div class="field" style="margin:12px 0 0"><label>✏️ 成員 <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}" style="float:right">刪除此團班</button></label>
-       <div class="check-list" id="gm-members">${members}</div>
-       <div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-primary" data-act="gmSave" data-id="${esc(sel)}">儲存成員</button><button class="btn" type="button" data-act="classPage" data-id="${esc(sel)}">🔎 開啟班級頁</button></div></div>
+       <div class="field" style="margin:12px 0 0"><label>✏️ 成員</label>
+       <div class="check-list" id="gm-members">${members}</div></div>
+       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+         <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}">刪除此團班</button>
+         <button class="btn" type="button" data-act="classPage" data-id="${esc(sel)}">🔎 開啟班級頁</button>
+         <span class="grow" style="flex:1"></span>
+         <button class="btn btn-primary" data-act="gmSaveAll" data-id="${esc(sel)}">💾 儲存</button></div>
      </div>`:'';
   const clsRows=classes.length?classes.map(c=>`<div class="dash-row" style="padding:8px 4px;flex-wrap:wrap${c===sel?';background:#E8E9EB;border-radius:8px':''}"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span>${groupSize(c)?'':'<span class="tag" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7" title="沒有學生的班不會自動排進課表，設定還留著">沒有學生</span>'}${clsNotYet(c)?'<span class="tag" style="background:#EDE9FE;color:#6D28D9;border-color:#6D28D955" title="還沒開始的班完全不會自動排課">🚧 還沒開始</span>':''}${clsStartTag(c)/* CLSTART_V1091 */}${classMetaOf(c).textbook?`<span class="tag" title="這一班用的教材">📕 ${esc(classMetaOf(c).textbook)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-accent" type="button" data-act="classPublish" data-id="${esc(c)}">📢 發佈內容</button><button class="btn btn-sm" type="button" data-act="classPage" data-id="${esc(c)}">🔎 開啟班級頁</button><button class="btn btn-sm ${c===sel?'btn-accent':''}" type="button" data-act="gmPick" data-id="${esc(c)}">${c===sel?'✏️ 設定中':'✏️ 編輯'}</button></div>`+(c===sel?editPanel:'')).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>👥 團班管理</h3><button class="x" data-act="closeModal">×</button></div>
@@ -17127,7 +17152,8 @@ H.itvPayDrop=async(key)=>{const p=String(key).split('::');const c=itvCtx(p[0]);i
 H.itvSave=async(id)=>{const name=($('#itv-name').value||'').trim();if(!name)return toast('請填姓名');
   const patch={kind:'interview',name,phone:($('#itv-phone').value||'').trim(),
     email:(($('#itv-email')&&$('#itv-email').value)||'').trim(),/* MAIL_V1066 */
-    not_started:!!($('#itv-soon')&&$('#itv-soon').checked),/* CRMSOON_V1083 */itv_kind:(($('#itv-kind')&&$('#itv-kind').value)||'').trim(),target:($('#itv-target').value||'').trim(),meet_url:(($('#itv-meet')&&$('#itv-meet').value)||'').trim(),note:($('#itv-note').value||'').trim(),exam_date:($('#itv-exam')&&$('#itv-exam').value)||'',exam_time:itvTimeNorm(($('#itv-examt')&&$('#itv-examt').value)||''),result:($('#itv-result')&&$('#itv-result').value)||'',result_note:($('#itv-rnote')&&$('#itv-rnote').value||'').trim()};
+    not_started:!!($('#itv-soon')&&$('#itv-soon').checked),/* CRMSOON_V1083 */
+    stage:(($('#itv-stage')&&$('#itv-stage').value)||'case'),/* ITVSTAGE_V1094 */itv_kind:(($('#itv-kind')&&$('#itv-kind').value)||'').trim(),target:($('#itv-target').value||'').trim(),meet_url:(($('#itv-meet')&&$('#itv-meet').value)||'').trim(),note:($('#itv-note').value||'').trim(),exam_date:($('#itv-exam')&&$('#itv-exam').value)||'',exam_time:itvTimeNorm(($('#itv-examt')&&$('#itv-examt').value)||''),result:($('#itv-result')&&$('#itv-result').value)||'',result_note:($('#itv-rnote')&&$('#itv-rnote').value||'').trim()};
   {const tv=($('#itv-total')&&$('#itv-total').value);if(tv!==undefined){patch.fee_total=(tv===''?null:Number(tv));patch.fee_cur=(($('#itv-fcur')&&$('#itv-fcur').value)||'VND');}}
   {const pv=($('#itv-plann')&&$('#itv-plann').value);if(pv!==undefined)patch.plan_n=(pv===''?null:Number(pv));}
   const _pv=(($('#itv-person')&&$('#itv-person').value)||'');/* PERSON_V1071 */
@@ -17422,6 +17448,28 @@ H.gmDelClass=async(cls)=>{if(!confirm('刪除團班「'+cls+'」？\n\n學生只
 H.gmSave=async(cls)=>{const checked=new Set($$('#gm-members .gm-mem:checked').map(x=>x.value));const btn=document.querySelector('[data-act="gmSave"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
   try{for(const s of S.students){const has=stuGroups(s).includes(cls),want=checked.has(s.id);if(has===want)continue;let g=stuGroups(s).slice();if(want)g.push(cls);else g=g.filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}
     toast('已儲存團班成員');groupMgrModal(cls);render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存成員';}toast('儲存失敗：'+((e&&e.message)||e));}};
+/* GMSAVE_V1095 班級資訊和成員一起存。任一邊失敗就整個停下來報錯，不會只存一半。 */
+H.gmSaveAll=async(cls)=>{
+  const btn=document.querySelector('[data-act="gmSaveAll"]');
+  if(btn){btn.disabled=true;btn.textContent='儲存中…';}
+  try{
+    const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);
+    const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();
+    const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();
+    const drive=(($('#gm-drive')&&$('#gm-drive').value)||'').trim();
+    const start=(($('#gm-start')&&$('#gm-start').value)||'').trim();/* CLSTART_V1091 */
+    const notyet=!!($('#gm-notyet')&&$('#gm-notyet').checked);/* CLSOFF_V1074 */
+    const fee_tiers=gmTiersRead();
+    await saveClassMeta(cls,{schedule,textbook,meet,drive,fee_tiers,notyet,start});
+    const checked=new Set($$('#gm-members .gm-mem:checked').map(x=>x.value));
+    for(const s of S.students){const has=stuGroups(s).includes(cls),want=checked.has(s.id);
+      if(has===want)continue;
+      let g=stuGroups(s).slice();if(want)g.push(cls);else g=g.filter(x=>x!==cls);
+      await DB.update('students',s.id,{groups:g});s.groups=g;}
+    toast(notyet?'已儲存；這一班標成「還沒開始」，不會自動排課':'已儲存');
+    groupMgrModal(cls);render();}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='💾 儲存';}
+    toast('儲存失敗：'+((e&&e.message)||e));}};
 H.bulkAssign=()=>bulkAssignModal();
 /* QCACHE_V856 在別台改過題目的時候，用這個強制重讀一次 */
 H.qReload=async(_x,btn)=>{
@@ -17718,8 +17766,15 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
   itvAll().filter(c=>!c.deleted_at).forEach(c=>{
     const s2=itvMoneyStr(itvDueSum(c));
     const done=(c.status||'active')!=='active';
-    items.push({k:'itv',id:c.id,name:c.name||'',sort:done?3:(crmSoon(c)?2:0),owe:!!s2&&!crmSoon(c),
-      tag:crmSoon(c)?('<span class="badge">\u{1F6A7} 還沒開始</span>'+(itvTotal(c)?('<span class="badge">談定 '+money(itvTotal(c),itvTotalCur(c))+'</span>'):''))/* CRMSOON_V1083 */
+    /* ITVSTAGE_V1094 諮詢中、沒談成跟代辦、代書同一種寫法 */
+    const _st=itvStage(c);
+    const _tot=itvTotal(c),_cur=itvTotalCur(c);
+    items.push({k:'itv',id:c.id,name:c.name||'',
+      sort:done?3:(_st==='lost'?4:(_st==='consult'?2:(crmSoon(c)?2:0))),
+      owe:!!s2&&!crmSoon(c)&&_st==='case',
+      tag:(_st==='lost')?'<span class="badge">\u2715 沒談成</span>'
+        :(_st==='consult')?(_tot?('<span class="badge">報價 '+money(_tot,_cur)+'</span>'):'<span class="badge">還沒報價</span>')
+        :crmSoon(c)?('<span class="badge">\u{1F6A7} 還沒開始</span>'+(_tot?('<span class="badge">談定 '+money(_tot,_cur)+'</span>'):''))/* CRMSOON_V1083 */
         :(s2?oweB('欠 '+s2):(itvPays(c).length?okB():'<span class="badge">還沒收款</span>')),
       extra:(c.target?`<span class="muted" style="font-size:12px">${esc(c.target)}</span>`:'')+(done?'<span class="muted" style="font-size:12px">（已結案）</span>':''),
       av:'<span class="avatar sm emo" style="background:#c7d2fe;flex:none">\u{1F3A4}</span>'});});
