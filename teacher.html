@@ -4500,9 +4500,10 @@ function itvFeeBlock(c){
       <span class="badge badge-pending">第 ${i+1} 期</span><b>${esc(String(p.date))}</b>
       <b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>
       ${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}</div>`).join('');
-  const note=[pays.length?('分期 '+pays.length+' 筆'):'',sess.length?('單次收費 '+sess.length+' 堂'):''].filter(Boolean).join('・');
+  const note=[pays.length?('分期 '+pays.length+' 筆'):'',sess.length?('單次收費 '+sess.length+' 堂'):'',
+    crmOff(c)?('不收了 '+money(crmOff(c),itvTotalCur(c))):''].filter(Boolean).join('・');/* FEEOFF_V1081 */
   const tot=itvTotal(c);
-  return feeBarHtml('練習費',itvPaidSum(c,null),itvDueSum(c),tot,tot?itvTotalCur(c):'',rows,note);
+  return feeBarHtml('練習費',itvPaidSum(c,null),itvDueSum(c),tot,tot?itvTotalCur(c):'',rows,note,crmOff(c));
 }
 function itvResultMeta(r){return ({pass:['✅ 通過','#16a34a'],fail:['❌ 沒通過','#dc2626'],waiting:['⏳ 等結果','#b91c1c'],
   /* ITVNONE_V707 沒去面試／中途放棄／取消：不算通過也不算沒通過，不進通過率的分母 */
@@ -4640,13 +4641,14 @@ function agDueSum(c){const by={};
 /* CONSULT_V955 只算正式案件。諮詢還沒成交，把報價算進「未收」會讓應收帳虛胖。 */
 function agIncome(ym){const paid={},due={};agCases().forEach(c=>{itvAddCur(paid,agPaidSum(c,ym));if(!ym)itvAddCur(due,agDueSum(c));});return {paid,due};}
 /* 共用：綠色收費進度條（代辦／面試／代書共用同一種外觀） */
-function feeBarHtml(label,paidBy,dueBy,totNum,totCur,rowsHtml,hint){
+/* FEEOFF_V1081 off＝「不收了」的金額，還差要扣掉它，不然進度條跟未收對不起來 */
+function feeBarHtml(label,paidBy,dueBy,totNum,totCur,rowsHtml,hint,off){
   const paid=Object.assign({},paidBy||{}),due=Object.assign({},dueBy||{});
   const keys=Object.keys(paid).concat(Object.keys(due)).filter((v,i,a)=>a.indexOf(v)===i);
   if(!keys.length&&!totNum)return '';
   const cur=totCur||keys.slice().sort((a,b)=>((paid[b]||0)+(due[b]||0))-((paid[a]||0)+(due[a]||0)))[0]||'VND';
   const got=Number(paid[cur]||0);
-  const leftRaw=totNum?(Number(totNum)-got):Number(due[cur]||0);
+  const leftRaw=totNum?(Number(totNum)-got-(Number(off)||0)):Number(due[cur]||0);/* FEEOFF_V1081 */
   const left=Math.max(0,leftRaw);
   const tot=Number(totNum||(got+Number(due[cur]||0)));
   const pct=tot>0?Math.min(100,Math.round(got/tot*100)):0;
@@ -4730,7 +4732,7 @@ function wrFeeBlock(c){
   const pays=wrPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   if(!tot&&!pays.length)return '';
   const got=pays.reduce((a,p)=>a+(((p.currency||'VND')===cur)?(Number(p.amount)||0):0),0);
-  const left=tot?Math.max(0,tot-got):0;const pct=tot?Math.min(100,Math.round(got/tot*100)):0;
+  const left=tot?Math.max(0,tot-got-crmOff(c)):0;const pct=tot?Math.min(100,Math.round(got/tot*100)):0;/* FEEOFF_V1081 */
   const rows=pays.map((p,i)=>`<div class="dash-row" style="padding:6px 0">
       <span class="badge badge-pending">第 ${i+1} 期</span><b>${esc(String(p.date))}</b>
       <b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>
@@ -4745,7 +4747,7 @@ function wrFeeBlock(c){
       ${tot?`<span>總額 <b>${money(tot,cur)}</b></span>`:''}
       <span style="color:#16a34a">已收 <b>${money(got,cur)}</b></span>
       ${tot?(left>0?`<span style="color:#b91c1c">還差 <b>${money(left,cur)}</b></span>`:'<span class="badge badge-ok">✓ 已收齊</span>'):''}
-      <span class="muted" style="font-size:12px">共 ${pays.length} 期</span></div>
+      <span class="muted" style="font-size:12px">共 ${pays.length} 期${crmOff(c)?('・不收了 '+money(crmOff(c),cur)):''}</span></div>
     ${tot?`<div style="height:8px;background:#DDE0E3;border-radius:99px;margin:9px 0 4px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:#16a34a"></i></div>`:''}
     ${rows||'<div class="hint" style="margin-top:6px">還沒有收款記錄，按下面「💰 記一筆收款」。</div>'}</div>`;}
 function renderWriting(){
@@ -16052,7 +16054,7 @@ function agFeeBlock(c){
     +(rj?((pays.length?'・':'')+'原本談定 '+money(agFullTotal(c),agTotalCur(c))):'')
     +(crmOff(c)?((pays.length||rj?'・':'')+'不收了 '+money(crmOff(c),agTotalCur(c))):'');/* FEEOFF_V1079 */
   const ovRow=ov?`<div class="dash-row" style="padding:6px 0;color:#2563eb">🔁 已收比未錄取價多了 <b>${money(ov,agTotalCur(c))}</b>，要退的話自己跟學生喬，這裡只是提醒。</div>`:'';
-  return feeBarHtml('代辦費'+(rj?'（未錄取價）':''),agPaidSum(c,null),agDueSum(c),agTotal(c),agTotal(c)?agTotalCur(c):'',ovRow+body,hint);
+  return feeBarHtml('代辦費'+(rj?'（未錄取價）':''),agPaidSum(c,null),agDueSum(c),agTotal(c),agTotal(c)?agTotalCur(c):'',ovRow+body,hint,crmOff(c));
 }
 function agPayForm(key){const p=String(key).split('::');const c=agById(p[0]);if(!c)return;
   const isNew=(p[1]==null||p[1]==='new');const idx=isNew?-1:Number(p[1]);
@@ -16330,8 +16332,13 @@ function crmCloseBtns(c,act){
 H.crmCloseAsk=async(kind)=>{if(!IS_OWNER)return;
   const list=(kind==='interview')?itvAll():((kind==='agency')?agAll():[]);
   const arr=crmCloseAskList(kind,list);if(!arr.length)return;
+  /* FEEOFF_V1081 還掛著未收的先講清楚 */
+  const _owe=arr.map(c=>{let d='';try{d=itvMoneyStr(crmDueOf(c.id));}catch(e){}
+    return d?('・'+(c.name||'')+'：還沒收 '+d):'';}).filter(Boolean);
   if(!confirm('要把這 '+arr.length+' 位結案嗎？\n\n'+arr.map(c=>'・'+(c.name||'')).join('\n')
-    +'\n\n他們的結果都已經填好了。結案之後不會再出現在「今天要處理」，資料還在，隨時可以改回進行中。'))return;
+    +'\n\n他們的結果都已經填好了。結案之後不會再出現在「今天要處理」，資料還在，隨時可以改回進行中。'
+    +(_owe.length?('\n\n⚠️ 這幾位還掛著未收：\n'+_owe.join('\n')
+      +'\n\n錢的事我不會自己決定。結案之後卡片上會有一顆「💰 處理未收」，可以補記收款或記成不收了。'):'')))return;
   try{await ensureAuthFresh();
     for(const c of arr){await DB.update(crmCol(c.id),c.id,{status:'done',closed_as:'done'});}
     await loadAll();render();toast('已結案 '+arr.length+' 位');}
@@ -17408,7 +17415,8 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
   const crmPush=(arr,k,totF,curF,payF,stageF)=>arr.filter(c=>!c.deleted_at).forEach(c=>{
     const tot=totF(c),cur=curF(c);
     const got=payF(c).reduce((a,x)=>a+(((x.currency||'VND')===cur)?(Number(x.amount)||0):0),0);
-    const due=tot?(tot-got):0;const done=(c.status||'active')!=='active';
+    const due=Math.max(0,(tot?(tot-got):0)-((typeof crmOff==='function')?crmOff(c):0));/* FEEOFF_V1081 */
+    const done=(c.status||'active')!=='active';
     const stg=stageF?stageF(c):'case';
     let tag,owe;
     if(stg==='lost'){tag='<span class="badge">\u2715 沒談成</span>';owe=false;}
