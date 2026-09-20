@@ -5887,7 +5887,7 @@ function renderOps(){const body=$('#ops-body');
   const incSummary=`<div style="display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 12px">`+
     `<div><div class="muted" style="font-size:12px">本月收入（${esc(thisM)}）</div>${bigNum(monCur)}</div>`+
     `<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計收入（全部）</div>${hidNum(bigNum,allCur)}</div></div>`;
-  const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span><button class="btn btn-sm" data-act="opsMonth" data-id="${esc(m)}">🔎 明細</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入記錄（到學生的「繳費」新增即可）。</div>';
+  const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span><button class="btn btn-sm" data-act="opsMonth" data-id="${esc(m)}">🔎 明細</button><button class="btn btn-sm btn-accent" data-act="opsSheet" data-id="${esc(m)}" title="一頁對完這個月的帳，可以列印或存 PDF">📄 月結表</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入記錄（到學生的「繳費」新增即可）。</div>';
   const billHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">🧮 累計 該收 vs 實收 <span class="hint">逐堂依時數算應收，對照累計實收，抓真正的漏收。團班用該班的收費級距。</span></div>${billCheckHtml(thisM)}</div>`;
   const due=S.students.filter(s=>!s.is_test&&!isTrial(s)&&enrollOf(s)!=='paused').map(s=>({s,b:stuBill(s)})).filter(x=>x.b&&x.b.items.length&&x.b.due>0.0001).sort((a,b)=>b.b.due-a.b.due);
   const dueRows=due.length?due.map(({s,b})=>`<div class="dash-row"><span class="badge badge-overdue">欠 ${money(b.due,billCur(s))}</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">上課 ${money(b.charge,billCur(s))} · 已繳 ${money(b.paid,billCur(s))}</span><button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒</button><button class="btn btn-sm btn-primary" data-act="payments" data-id="${s.id}">💰 記繳費</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
@@ -15732,6 +15732,140 @@ H.fiDel=async(i)=>{const f=_uaFiles[Number(i)];if(!f)return;if(!confirm('刪除�
 H.opsAllToggle=()=>{try{const on=localStorage.getItem('qna_ops_all')==='1';
     localStorage.setItem('qna_ops_all',on?'':'1');}catch(e){}
   render();};
+/* MSHEET_V1084 月結表用的資料。跟「收入明細」同一個口徑，只是多帶了方式和服務別。 */
+function msPayRows(m){
+  const rows=[];
+  (S.students||[]).forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{
+    if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
+    rows.push({date:p.date,who:s.name||'',kind:'華語教學',amt,cur:p.currency||billCur(s),
+      how:p.method||'',note:(p.note||'')});});});
+  (S.interviews||[]).forEach(c=>{
+    (Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
+      if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
+      rows.push({date:p.date,who:c.name||'',kind:'面試練習',amt,cur:p.currency||'VND',how:p.method||'',note:p.note||''});});
+    itvSessions(c).forEach(e=>{if(!e||!e.paid)return;if(String(e.date||'').slice(0,7)!==m)return;
+      const amt=Number(e.fee)||0;if(!amt)return;
+      rows.push({date:e.date,who:c.name||'',kind:'面試練習',amt,cur:e.currency||'VND',how:'',note:(e.note||'單次練習費')});});});
+  (S.agencies||[]).forEach(c=>{
+    (Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
+      if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
+      rows.push({date:p.date,who:c.name||'',kind:'代辦申請',amt,cur:p.currency||'VND',how:p.method||'',note:p.note||''});});
+    agLog(c).forEach(e=>{if(!e||e.pass||!e.paid)return;if(String(e.date||'').slice(0,7)!==m)return;
+      const amt=Number(e.fee)||0;if(!amt)return;
+      rows.push({date:e.date,who:c.name||'',kind:'代辦申請',amt,cur:e.currency||'VND',how:'',note:(e.what||e.note||'進度收費')});});});
+  (S.writings||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
+    if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
+    rows.push({date:p.date,who:c.name||'',kind:'代書',amt,cur:p.currency||'VND',how:p.method||'',note:p.note||''});});});
+  rows.sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.who).localeCompare(String(b.who)));
+  return rows;}
+/* 這個月上了幾堂、該收多少（跟繳費頁同一套算法） */
+function msClassRows(m){
+  const out=[];
+  (S.students||[]).forEach(s=>{if(s.is_test)return;
+    const es=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>e&&String(e.date||'').slice(0,7)===m);
+    if(!es.length)return;
+    let q=0,fee=0,free=0,leave=0;
+    es.forEach(e=>{
+      if(e.status==='leave'){leave++;return;}
+      if(e.free){free++;return;}
+      const h=logHours(e);q+=(isHourly(s)?((h!=null)?h:1):1);
+      const f=lessonFee(s,e);if(f!=null)fee+=f;});
+    out.push({who:s.name||'',n:es.length,qty:Math.round(q*100)/100,unit:unitLabel(s),
+      fee:Math.round(fee*100)/100,cur:billCur(s),free,leave});});
+  out.sort((a,b)=>String(a.who).localeCompare(String(b.who)));
+  return out;}
+/* 到現在為止還沒收的（跟畫面上的未收同一個口徑） */
+function msDueRows(){
+  const out=[];
+  (S.students||[]).forEach(s=>{if(s.is_test)return;
+    let b=null;try{b=stuBill(s);}catch(e){}
+    if(!b||!(b.due>0.001))return;
+    out.push({who:s.name||'',kind:'華語教學',tot:b.charge,paid:b.paid,due:b.due,cur:billCur(s)});});
+  const add=(arr,kind,totF,curF,paidF,dueF)=>(arr||[]).forEach(c=>{
+    if(c.deleted_at)return;const by=dueF(c);const cur=curF(c);const d=Number(by[cur]||0);
+    if(!(d>0.001))return;
+    out.push({who:c.name||'',kind:kind,tot:totF(c),paid:Number((paidF(c)||{})[cur]||0),due:d,cur:cur});});
+  add(S.interviews,'面試練習',itvTotal,itvTotalCur,(c)=>itvPaidSum(c,null),itvDueSum);
+  add(S.agencies,'代辦申請',agTotal,agTotalCur,(c)=>agPaidSum(c,null),agDueSum);
+  add(S.writings,'代書',wrTotal,wrTotalCur,(c)=>wrPaidSum(c,null),wrDueSum);
+  out.sort((a,b)=>String(a.kind).localeCompare(String(b.kind))||(b.due-a.due));
+  return out;}
+H.opsSheet=(m)=>{
+  if(!IS_OWNER)return toast('這個功能只有主管理員可以用');
+  m=String(m||localToday().slice(0,7));
+  const pay=msPayRows(m),cls=msClassRows(m),due=msDueRows();
+  const sumBy=(arr,f)=>{const by={};arr.forEach(x=>{const c=f(x).cur;by[c]=(by[c]||0)+f(x).amt;});return by;};
+  const money2=(by)=>{const k=Object.keys(by).filter(c=>Math.abs(by[c])>0.001);
+    return k.length?k.map(c=>money(by[c],c)).join('　＋　'):'—';};
+  const byKind={};pay.forEach(r=>{(byKind[r.kind]=byKind[r.kind]||{})[r.cur]=((byKind[r.kind]||{})[r.cur]||0)+r.amt;});
+  const total={};pay.forEach(r=>{total[r.cur]=(total[r.cur]||0)+r.amt;});
+  const dueTot={};due.forEach(r=>{dueTot[r.cur]=(dueTot[r.cur]||0)+r.due;});
+  const e=esc;
+  const KINDS=['華語教學','面試練習','代辦申請','代書'];
+  const [Y,M]=m.split('-');
+  const head=`<div class="ms-h"><div class="ms-t">${e(Y)} 年 ${e(String(Number(M)))} 月　月結表</div>
+    <div class="ms-s">${e(window.APP_NAME||'QNA CHINESE')}　·　列印於 ${e(localToday())}</div></div>`;
+  const card=`<div class="ms-sum">
+    ${KINDS.map(k=>`<div class="ms-c"><div class="ms-cl">${e(k)}</div><div class="ms-cv">${money2(byKind[k]||{})}</div></div>`).join('')}
+    <div class="ms-c ms-big"><div class="ms-cl">這個月收到合計</div><div class="ms-cv">${money2(total)}</div></div>
+    <div class="ms-c ms-owe"><div class="ms-cl">目前還沒收的</div><div class="ms-cv">${money2(dueTot)}</div></div></div>`;
+  const t1=pay.length?`<table class="ms-tb"><colgroup><col class="c-d"><col><col class="c-k"><col class="c-m"><col class="c-h"><col></colgroup><thead><tr><th>日期</th><th>對象</th><th>服務</th><th class="r">金額</th><th>方式</th><th>備註</th></tr></thead><tbody>
+    ${pay.map(r=>`<tr><td class="n">${e(String(r.date).slice(5))}</td><td><b>${e(r.who)}</b></td><td>${e(r.kind)}</td>
+      <td class="r n">${e(money(r.amt,r.cur))}</td><td>${e(r.how||'—')}</td><td class="sm">${e(r.note||'')}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="3">合計</td><td class="r n"><b>${money2(total)}</b></td><td colspan="2"></td></tr></tfoot></table>`
+    :'<div class="ms-no">這個月還沒有收到任何一筆。</div>';
+  const clsTot={};cls.forEach(r=>{clsTot[r.cur]=(clsTot[r.cur]||0)+r.fee;});
+  const t2=cls.length?`<table class="ms-tb"><thead><tr><th>學生</th><th class="r">上課</th><th class="r">這個月該收</th><th class="r">免費</th><th class="r">請假</th></tr></thead><tbody>
+    ${cls.map(r=>`<tr><td><b>${e(r.who)}</b></td><td class="r n">${e(fmtQty(r.qty))} ${e(r.unit)}</td>
+      <td class="r n">${e(money(r.fee,r.cur))}</td><td class="r n">${r.free||'—'}</td><td class="r n">${r.leave||'—'}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="2">合計</td><td class="r n"><b>${money2(clsTot)}</b></td><td colspan="2"></td></tr></tfoot></table>`
+    :'<div class="ms-no">這個月沒有上課記錄。</div>';
+  const t3=due.length?`<table class="ms-tb"><thead><tr><th>對象</th><th>服務</th><th class="r">談定／應收</th><th class="r">已收</th><th class="r">還差</th></tr></thead><tbody>
+    ${due.map(r=>`<tr><td><b>${e(r.who)}</b></td><td>${e(r.kind)}</td><td class="r n">${e(money(r.tot,r.cur))}</td>
+      <td class="r n">${e(money(r.paid,r.cur))}</td><td class="r n owe">${e(money(r.due,r.cur))}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="4">合計</td><td class="r n"><b>${money2(dueTot)}</b></td></tr></tfoot></table>`
+    :'<div class="ms-no">目前沒有還沒收的錢 👍</div>';
+  const css=`<style>
+    body{background:#fff;color:#16202E}
+    .page{max-width:900px;margin:0 auto;padding:18px 22px}
+    .ms-h{border-bottom:2px solid #C2CAD3;padding-bottom:10px;margin-bottom:14px}
+    .ms-t{font-size:23px;font-weight:800;color:#143A6B;letter-spacing:1px}
+    .ms-s{font-size:12.5px;color:#5B6B80;margin-top:4px}
+    .ms-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:16px}
+    .ms-c{border:1px solid #DCE5F0;border-radius:10px;padding:9px 12px;background:#F7FAFE;
+      -webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .ms-cl{font-size:11.5px;color:#5B6B80;font-weight:700;letter-spacing:.5px}
+    .ms-cv{font-size:15px;font-weight:800;margin-top:3px;color:#16202E}
+    .ms-big{grid-column:1/3;background:#E4EDF9;border-color:#93B0EE}
+    .ms-owe{grid-column:3/5}
+    .ms-big .ms-cv{font-size:19px;color:#143A6B}
+    .ms-owe{background:#FEF2F2;border-color:#FCA5A5}
+    .ms-owe .ms-cv{color:#b91c1c}
+    h3.ms-hh{font-size:15px;color:#143A6B;margin:18px 0 7px;padding-bottom:4px;border-bottom:1px solid #DCE5F0}
+    .ms-tb{width:100%;border-collapse:collapse;font-size:12.5px}
+    .ms-tb th{background:#eef2f6;color:#4f5a63;font-size:10.5px;letter-spacing:.6px;text-align:left;
+      padding:5px 8px;border:1px solid #d9e0e7;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .ms-tb td{padding:5px 8px;border:1px solid #e3e8ed;vertical-align:top}
+    .ms-tb tfoot td{background:#F4F7FB;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .ms-tb .r{text-align:right}.ms-tb .n{font-variant-numeric:tabular-nums;white-space:nowrap}
+    .ms-tb .sm{font-size:11.5px;color:#5B6B80}
+    .ms-tb col.c-d{width:58px}.ms-tb col.c-k{width:86px}.ms-tb col.c-m{width:132px}.ms-tb col.c-h{width:76px}
+    .ms-tb .owe{color:#b91c1c;font-weight:700}
+    .ms-tb tr{break-inside:avoid}
+    .ms-no{font-size:12.5px;color:#5B6B80;padding:8px 2px}
+    .ms-ft{margin-top:20px;padding-top:8px;border-top:1px solid #DCE5F0;font-size:11px;color:#8E98A4}
+    @media print{.bar{display:none!important}}
+  </style>`;
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'
+    +e(fnm('月結表',m))+'</title>'+expHead()+css+'</head><body class="lang-zh">'
+    +expBar(0)+'<div class="page">'+head+card
+    +'<h3 class="ms-hh">① 這個月收到的每一筆</h3>'+t1
+    +'<h3 class="ms-hh">② 這個月上課與該收的學費</h3>'+t2
+    +'<h3 class="ms-hh">③ 目前還沒收的</h3>'+t3
+    +'<div class="ms-ft">諮詢中、沒談成、還沒開始、已經記成「不收了」的都不算未收，跟後台畫面同一個口徑。'
+    +'代收代付（學生的報名費經過帳戶再付出去）不算收入。</div>'
+    +'</div></body></html>';
+  fbWin(html);};
 H.opsMonth=(m)=>{const rows=[];
   /* OPSEDIT_V902 記下每一筆是誰的第幾筆，明細上才改得動 */
   S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach((p,pi)=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||'TWD',note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null,act:'payEdit',key:s.id+'::'+pi});});});
@@ -15766,6 +15900,7 @@ H.opsMonth=(m)=>{const rows=[];
   openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${esc(m)} 收入明細</h3><button class="x" data-act="closeModal">×</button></div>
     <div class="modal-body">
       <div class="card" style="background:#F4F4F5;margin-bottom:10px"><div class="hint">本月合計（華語教學 ＋ 面試練習 ＋ 代辦 ＋ 代書）</div><div style="font-size:20px;font-weight:800">${totStr}</div>
+        <div style="margin-top:8px"><button class="btn btn-sm btn-accent" data-act="opsSheet" data-id="${esc(m)}">📄 開月結表（可列印）</button></div>
         <div class="hint" style="margin-top:4px">跟上面「🧮 總收入」同一個口徑。代收代付不算。</div></div>
       ${body}
       
