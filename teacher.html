@@ -6210,12 +6210,21 @@ function renderStudents(){
       +(cls?`<div style="margin:2px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 開啟班級頁</button></div>`:'')
       +(students.length?grpHtml(stuSort(students)):`<div class="hint" style="padding:4px 2px">這一班目前沒有學生。到「👥 學生 → 編輯 → 班別」把人加進來。</div>`)
       +`</details>`;
+    /* STUGRP_V1090 班上的人要全部列出來，不是只列「在學中」的。
+       她把預約的學生填了班級，這裡卻寫 0 人
+       （Quinn：「我不是已經填寫他們的班級了嗎？為什麼這邊還是顯示 0 人？」）。
+       每一列自己有狀態欄，看得出誰是預約、誰在學。 */
+    const _q=String(S.q||'').toLowerCase();
+    const clsPool=(S.students||[]).filter(x=>x&&!x.deleted&&!x.deleted_at&&!x.is_test
+      &&(!_q||String(x.name||'').toLowerCase().includes(_q)||String(x.nationality||'').toLowerCase().includes(_q)));
     let inner='';
     clsAll.forEach(c=>{
-      const mem=activeReal.filter(s=>stuGroups(s).includes(c));
-      const resv=reservedReal.filter(s=>stuGroups(s).includes(c));
+      const mem=clsPool.filter(s=>stuGroups(s).includes(c));
+      const resv=mem.filter(s=>enrollOf(s)==='reserved');
+      const live=mem.filter(s=>enrollOf(s)==='active'||enrollOf(s)==='trial');
       let note='';
       try{if(typeof clsNotYet==='function'&&clsNotYet(c))note+=' <span class="tag">🚧 還沒開始</span>';}catch(e){}
+      if(live.length)note+=` <span class="tag">✅ 在學 ${live.length}</span>`;
       if(resv.length)note+=` <span class="tag">📌 預約 ${resv.length}</span>`;
       inner+=subSec('👥 '+esc(c)+' 團班',mem,c,note);});
     if(teamNoGrp.length)inner+=subSec('👥 團班（尚未分班）',teamNoGrp,'','');
@@ -6225,7 +6234,8 @@ function renderStudents(){
       +inner+`</details>`;}
   if(reservedReal.length)html+=`<details class="stu-sec cool-sec"${(S.stuSecAllOpen===true)?' open':''}><summary><span style="font-size:16px;color:var(--primary);font-weight:600">📌 預約・詢問中（還沒開始上課）</span> <span class="tag">${reservedReal.length} 人</span></summary>${grpHtml(reservedReal.slice().sort(stuNameCmp))}</details>`;
   if(pausedReal.length)html+=`<details class="stu-sec cool-sec"${(S.stuSecAllOpen===true)?' open':''} style="opacity:.9"><summary><span style="font-size:16px;color:var(--muted);font-weight:600">⏸️ 已休學</span> <span class="tag">${pausedReal.length} 人</span></summary>${grpHtml(pausedReal.slice().sort(stuNameCmp))}</details>`;
-  if(testers.length)html+=`<details class="stu-sec cool-sec"${S.stuSecAllOpen===true?' open':''} style="opacity:.85"><summary><span style="font-size:16px;color:var(--muted);font-weight:600">🧪 測試帳號</span> <span class="tag">${testers.length} 人</span></summary>${grpHtml(testers.slice().sort(stuNameCmp))}</details>`;
+  /* STUGRP_V1090 測試帳號平常不用出現，切到「全部」才列（Quinn：「這裡的測試帳號不需要出現」）。 */
+  if(testers.length&&sf==='all')html+=`<details class="stu-sec cool-sec"${S.stuSecAllOpen===true?' open':''} style="opacity:.85"><summary><span style="font-size:16px;color:var(--muted);font-weight:600">🧪 測試帳號</span> <span class="tag">${testers.length} 人</span></summary>${grpHtml(testers.slice().sort(stuNameCmp))}</details>`;
   /* INQ_COLOR_V47 「預約・詢問中」標題原本是藍色 #2563eb，改成跟其他分組標題一樣的 var(--primary) */
   /* INQ_MERGE_V37 「詢問／候補」跟「預約」意思重疊，已合併：來問的人一律直接建成學生、狀態設「預約」 */
   wrap.innerHTML=filterBar+html;
