@@ -3399,7 +3399,11 @@ function renderDashboard(){
     const _bLate=(_bwn==null||_bwn>=2);
     const _bCol=_bLate?'#dc2626':'#6D28D9';
     const _bLab=(_bwn==null)?'還沒備份過':(_bwn<=1?'這週還沒備份':('已經 '+_bwn+' 週沒備份了'));
-    if(IS_OWNER&&bwk!==nowWk&&(S.students||[]).some(x=>!x.is_test))remRows.push(`<div class="dash-row"><span class="badge" style="background:${_bLate?'#fee2e2':'#EDE9FE'};color:${_bCol};border-color:${_bCol}55">📦 備份</span><b style="color:${_bCol}">${_bLab}</b><span class="grow"></span><span class="muted">${bwk?('上次備份：'+esc(bwk)+' 那週'):''}</span><button class="btn btn-sm btn-accent" data-act="exportJson">⬇ 下載完整備份</button></div>`);}catch(e){}
+    /* BKTOP_V1065 這一行本來排在待辦的最後面，前面還有九件事，所以「已經 6 週沒備份了」
+       她每天都滑過去。改成排第一個；拖過四週整行變紅底，才不會跟其他提醒長得一樣。 */
+    const _bVeryLate=(_bwn==null||_bwn>=4);
+    const _bBox=_bVeryLate?' style="background:#fee2e2;border:1.5px solid #FCA5A5;border-radius:10px;padding:8px 10px"':'';
+    if(IS_OWNER&&bwk!==nowWk&&(S.students||[]).some(x=>!x.is_test))remRows.unshift(`<div class="dash-row"${_bBox}><span class="badge" style="background:${_bLate?'#fee2e2':'#EDE9FE'};color:${_bCol};border-color:${_bCol}55">📦 備份</span><b style="color:${_bCol}">${_bLab}</b>${_bVeryLate?'<span class="muted">資料全部在雲端，誤刪就沒了</span>':''}<span class="grow"></span><span class="muted">${bwk?('上次備份：'+esc(bwk)+' 那週'):''}</span><button class="btn btn-sm btn-accent" data-act="exportJson">⬇ 下載完整備份</button></div>`);}catch(e){}
   const remHtml=remRows.length?remRows.join(''):`<div class="muted" style="padding:8px 2px">目前沒有需要提醒的事項 👍</div>`;
   const todoN=inbox.length+remRows.length;
   // 總覽數字卡：本月收入／尚未收款／待批改／待辦／堂數快用完
@@ -5262,13 +5266,26 @@ function crmBackBar(kind,c){
   const lab={agency:'代辦申請',writing:'代書',interview:'面試練習'}[kind]||'列表';
   return '<div class="crm-back"><button class="btn btn-sm" data-act="crmUnfocus">← 回'+esc(lab)+'列表</button>'
     +'<b>'+snm((c&&c.name)||'')+'</b></div>';}
+/* CLOSEASK_V1065 面試填了通過／沒通過、代辦填了錄取／未錄取，那件事就結束了，
+   可是狀態還是「進行中」，之後每天都還在待辦裡跳出來。列出來讓她一次結掉。 */
+function crmResultDone(kind,c){const r=String((c&&c.result)||'');
+  if(kind==='interview')return (r==='pass'||r==='fail');
+  if(kind==='agency')return /^(admitted|rejected)/.test(r);
+  return false;}
+function crmCloseAskList(kind,list){
+  return (list||[]).filter(c=>(c.status||'active')==='active'&&crmResultDone(kind,c));}
 function crmFoldBar(kind,list){
   /* CRMPAGE_V668 現在是點一位就只看那一位，「全部展開」會又把所有人的內容攤在同一頁，
      那正是本來看起來很亂的原因，所以拿掉了。 */
   /* CRMTIP_V757 這一行本來寫「點客戶那一列就會打開他的完整資料」，
      是給第一次用的人看的。Quinn 自己用、早就知道怎麼點，留著只是佔一行。
      人數留著——那是資料，不是說明。 */
-  return `<div class="crm-foldbar"><span class="hint">共 ${list.length} 位</span></div>`;
+  /* CLOSEASK_V1065 */
+  const _ask=crmCloseAskList(kind,list);
+  return `<div class="crm-foldbar"><span class="hint">共 ${list.length} 位</span>${_ask.length?`
+    <span class="grow"></span>
+    <span class="hint" style="color:#b91c1c">有 ${_ask.length} 位已經有結果了，還沒結案：${esc(_ask.map(x=>x.name||'').join('、'))}</span>
+    <button class="btn btn-sm btn-accent" data-act="crmCloseAsk" data-id="${esc(kind)}">✓ 一次結案</button>`:''}</div>`;
 }
 /* ITV_PLAN_V19 客戶資料裡直接填練習次數與練習日期 */
 function itvSessBoxHtml(c){
@@ -15764,6 +15781,16 @@ function crmCloseBtns(c,act){
   if(done)return '<button class="btn" data-act="'+act+'" data-id="'+esc(c.id)+'">↩ 改回進行中</button>';
   return '<button class="btn" data-act="'+act+'" data-id="'+esc(c.id)+'">✓ 結案</button>'
     +'<button class="btn btn-ghost" data-act="crmDrop" data-id="'+esc(c.id)+'" title="客戶中途不做了">✕ 中途放棄</button>';}
+/* CLOSEASK_V1065 */
+H.crmCloseAsk=async(kind)=>{if(!IS_OWNER)return;
+  const list=(kind==='interview')?itvAll():((kind==='agency')?agAll():[]);
+  const arr=crmCloseAskList(kind,list);if(!arr.length)return;
+  if(!confirm('要把這 '+arr.length+' 位結案嗎？\n\n'+arr.map(c=>'・'+(c.name||'')).join('\n')
+    +'\n\n他們的結果都已經填好了。結案之後不會再出現在「今天要處理」，資料還在，隨時可以改回進行中。'))return;
+  try{await ensureAuthFresh();
+    for(const c of arr){await DB.update(crmCol(c.id),c.id,{status:'done',closed_as:'done'});}
+    await loadAll();render();toast('已結案 '+arr.length+' 位');}
+  catch(e){toast(writeErr('失敗',e));}};
 H.crmDrop=async(id)=>{
   if(!confirm('標記成「中途放棄」？\n\n會從進行中移走，之後還查得到，也可以改回來。'))return;
   try{await DB.update(crmCol(id),id,{status:'done',closed_as:'dropped'});await loadAll();render();toast('已標記為中途放棄');}
@@ -15839,6 +15866,11 @@ H.agSave=async(id)=>{const name=($('#ag-name').value||'').trim();if(!name)return
     fee_total:(_tv===''?null:Number(_tv)),fee_cur:(($('#ag-fcur')&&$('#ag-fcur').value)||'VND'),
     fee_rejected:(_rv===''?null:Number(_rv))/* AGREJ_V1061 */};
   try{if(id){await DB.update(crmCol(id),id,patch);}else{patch.status='active';patch.log=[];patch.created_at=new Date().toISOString();await DB.insert('crm',patch);}
+    /* CLOSEASK_V1065 填了錄取／未錄取就順便問一句 */
+    if(id&&crmResultDone('agency',patch)){const _c=agById(id);
+      if(_c&&(_c.status||'active')==='active'
+        &&confirm('「'+name+'」的申請結果已經填了，要順便結案嗎？\n\n結案之後就不會再出現在「今天要處理」，資料還在，隨時可以改回進行中。'))
+        await DB.update(crmCol(id),id,{status:'done',closed_as:'done'});}
     await loadAll();closeModal();S.tab='agency';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.schNew=()=>schForm(null);
 H.schEdit=(id)=>schForm(schById(id));
@@ -16211,6 +16243,11 @@ H.itvSave=async(id)=>{const name=($('#itv-name').value||'').trim();if(!name)retu
       patch.payments=(ITVDRAFT&&Array.isArray(ITVDRAFT.payments))?ITVDRAFT.payments:[];
       await DB.insert('crm',patch);}
     ITVDRAFT=null;
+    /* CLOSEASK_V1065 填了通過／沒通過就順便問一句 */
+    if(id&&crmResultDone('interview',patch)){const _c=itvById(id);
+      if(_c&&(_c.status||'active')==='active'
+        &&confirm('「'+name+'」的面試結果已經填了，要順便結案嗎？\n\n結案之後就不會再出現在「今天要處理」，資料還在，隨時可以改回進行中。'))
+        await DB.update(crmCol(id),id,{status:'done',closed_as:'done'});}
     await loadAll();closeModal();S.tab='interview';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
 H.itvToggle=async(id)=>{const c=itvById(id);if(!c)return;const st=((c.status||'active')==='active')?'done':'active';
   try{await DB.update(crmCol(id),id,{status:st,closed_as:(st==='done'?'done':null)});await loadAll();render();toast(st==='done'?'已結案':'已改回進行中');}catch(e){toast(writeErr('失敗',e));}};
