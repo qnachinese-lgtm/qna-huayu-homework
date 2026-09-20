@@ -2356,8 +2356,11 @@ function fUpTime(v){const s=String(v||'');if(!s)return '';const x=new Date(s.ind
   if(isNaN(x))return s.replace('T',' ').slice(0,16);
   const p=(n)=>String(n).padStart(2,'0');
   return x.getFullYear()+'/'+p(x.getMonth()+1)+'/'+p(x.getDate())+' '+p(x.getHours())+':'+p(x.getMinutes());}
+/* DEFCUR_V1092 預設幣別。Quinn 的學生幾乎都在越南，新資料一律先當成越南盾；
+   已經填過幣別的資料完全不受影響（這只是「沒填的時候算哪一種」）。 */
+const DEF_CUR='VND';
 const CUR={TWD:['NT$','zh-TW'],VND:['VND','vi-VN'],USD:['US$','en-US']};
-function money(n,cur){if(n==null||n==='')return'—';const v=Number(n);if(isNaN(v))return n;const c=CUR[cur||'TWD']||CUR.TWD;if(cur==='VND')return (v*1000).toLocaleString('en-US')+' VND';return c[0]+v.toLocaleString(c[1]);}
+function money(n,cur){if(n==null||n==='')return'—';const v=Number(n);if(isNaN(v))return n;const c=CUR[cur||DEF_CUR]||CUR.TWD;if(cur==='VND')return (v*1000).toLocaleString('en-US')+' VND';return c[0]+v.toLocaleString(c[1]);}
 /* WDAY_V998 「週一 19:00–21:00」這種是拼出來的一整串，字典對不上，
    所以介面切成越南文之後，上課時段那一行還是中文（學生端同一個毛病已經修掉）。
    這裡讓 DAYS 自己跟著介面語言走：底下 26 處引用都不用動。 */
@@ -2601,8 +2604,8 @@ function famBill(k){const ms=famMembers(k);if(ms.length<2)return null;
   let charge=0,paid=0,unknown=0;const curs=new Set();
   ms.forEach(m=>{const b=stuBill(m);if(!b)return;charge+=b.charge;paid+=b.paid;unknown+=b.unknown;curs.add(billCur(m));});
   return {key:k,members:ms,charge:Math.round(charge*100)/100,paid:Math.round(paid*100)/100,
-          due:Math.round((charge-paid)*100)/100,unknown,cur:[...curs][0]||'TWD',mixed:curs.size>1};}
-function billCur(s){return (s&&s.currency)||(((s&&s.payments)||[]).slice(-1)[0]||{}).currency||'TWD';}
+          due:Math.round((charge-paid)*100)/100,unknown,cur:[...curs][0]||DEF_CUR,mixed:curs.size>1};}
+function billCur(s){return (s&&s.currency)||(((s&&s.payments)||[]).slice(-1)[0]||{}).currency||DEF_CUR;}
 function billChip(s){const b=stuBill(s);if(!b)return '';
   if(!b.items.length)return b.paid?'<span>🧾 目前應收：<b class="muted">還沒有上課記錄</b></span>':'';
   const cur=billCur(s);
@@ -3043,6 +3046,7 @@ function dashTodayHtml(){
   try{groupsList().forEach(cls=>{if(clsNotYet(cls))return;/* CLSOFF_V1074 */
     const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls)&&!x.is_test);
     classPlanned(cls).forEach(p=>{if(!p||p.date!==d)return;
+      if(clsBefore(cls,p.date))return;/* CLSTART_V1091 */
       if(mem.some(x=>(Array.isArray(x.class_log)?x.class_log:[]).some(e=>e&&e.date===d)))return;
       plans.push({cls,p});});});}catch(err){}
   try{(S.students||[]).forEach(x=>{if(x.is_test||x.class_type==='團班')return;
@@ -3436,7 +3440,7 @@ function renderDashboard(){
   const todoN=inbox.length+remRows.length;
   // 總覽數字卡：本月收入／尚未收款／待批改／待辦／堂數快用完
   const _thisM=localToday().slice(0,7);
-  const _monCur={};S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{const amt=Number(p.amount)||0;if(!amt)return;if(((p.date||'').slice(0,7))!==_thisM)return;const cur=p.currency||s.currency||'TWD';_monCur[cur]=(_monCur[cur]||0)+amt;});});
+  const _monCur={};S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{const amt=Number(p.amount)||0;if(!amt)return;if(((p.date||'').slice(0,7))!==_thisM)return;const cur=p.currency||s.currency||DEF_CUR;_monCur[cur]=(_monCur[cur]||0)+amt;});});
   const _itvNow=itvIncome(_thisM),_agNow=agIncome(_thisM),_wrNow=wrIncome(_thisM);
   const _totNow=itvAddCur(itvAddCur(itvAddCur(Object.assign({},_monCur),_itvNow.paid),_agNow.paid),_wrNow.paid);
   const _dueAll=itvAddCur(itvAddCur(Object.assign({},itvIncome(null).due),agIncome(null).due),wrIncome(null).due);
@@ -3462,7 +3466,7 @@ function renderDashboard(){
   const todayHtml=dashTodayHtml();
   const _cls=Number(dashTodayHtml.n)||0;
   const _act=S.students.filter(s=>!s.is_test&&enrollOf(s)==='active').length;
-  const _thisM2=_today.slice(0,7);const _inc={};S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{const a=Number(p.amount)||0;if(!a)return;if((p.date||'').slice(0,7)!==_thisM2)return;const c=p.currency||s.currency||'TWD';_inc[c]=(_inc[c]||0)+a;});});
+  const _thisM2=_today.slice(0,7);const _inc={};S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{const a=Number(p.amount)||0;if(!a)return;if((p.date||'').slice(0,7)!==_thisM2)return;const c=p.currency||s.currency||DEF_CUR;_inc[c]=(_inc[c]||0)+a;});});
   const _incTxt=Object.keys(_inc).length?Object.keys(_inc).map(c=>money(_inc[c],c)).join('｜'):'—';
   const _me=IS_OWNER?'美娟老師':(adminName(MY_EMAIL)||'老師');
   const _nowT=(function(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');})();
@@ -4134,9 +4138,10 @@ function buildAllClassICS(){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//
       studentPlanned(s).forEach(p=>mk('中文課 · '+(s.name||''),p.date,p.start,p.end,
         (typeof meetOfStudent==='function')?meetOfStudent(s.id):(s.meet_url||'')));});
     groupsList().forEach(cls=>{if(clsNotYet(cls))return;/* CLSOFF_V1074 */
-      classPlanned(cls).forEach(p=>
+      classPlanned(cls).forEach(p=>{
+      if(clsBefore(cls,p.date))return;/* CLSTART_V1091 */
       mk('中文課 · '+cls+' 團班',p.date,p.start,p.end,
-        (typeof meetOfGroup==='function')?meetOfGroup(cls):''));});
+        (typeof meetOfGroup==='function')?meetOfGroup(cls):'');});});
   }catch(e){}
   /* 兩份都沒有東西的時候，count 為 0，外面才會提示「沒有可以匯出的課」 */
   L.push('END:VCALENDAR');return {ics:L.join('\r\n'),count:order.length+plan};}
@@ -4237,6 +4242,7 @@ function renderCalMonth(body,toggle){
       const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls)&&!x.is_test);
       ds7.forEach(dy=>sch.forEach(r=>{
         if(!r||Number(r.d)!==dy.wd)return;
+        if(clsBefore(cls,dy.ymd))return;/* CLSTART_V1091 */
         if(mem.some(x=>(Array.isArray(x.class_log)?x.class_log:[]).some(e=>e&&e.date===dy.ymd)))return;
         if((planByDate[dy.ymd]||[]).some(p=>p.cls===cls))return;
         if((fixByDate[dy.ymd]||[]).some(p=>p.cls===cls&&p.start===(r.s||'')))return;
@@ -5621,7 +5627,9 @@ function weekActualCard(back){
   });});
   // 預排課程：若該團班該天已經點名記錄過，就不重複顯示
   groupsList().forEach(cls=>{if(clsNotYet(cls))return;/* CLSOFF_V1074 */
-    classPlanned(cls).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;if(recordedGrp.has(cls+'|'+p.date))return;items.push({type:'plan',date:p.date,start:p.start||'',end:p.end||'',cls,p});});});
+    classPlanned(cls).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;
+      if(clsBefore(cls,p.date))return;/* CLSTART_V1091 */
+      if(recordedGrp.has(cls+'|'+p.date))return;items.push({type:'plan',date:p.date,start:p.start||'',end:p.end||'',cls,p});});});
   (S.students||[]).forEach(s=>{if(s.deleted||s.is_test||s.class_type==='團班')return;studentPlanned(s).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date))return;items.push({type:'splan',date:p.date,start:p.start||'',end:p.end||'',s,p});});});
   // 🔁 固定時段：照學生／團班設定的每週時段推出來（那天已點名或已排預排就不重複）
   {
@@ -5646,6 +5654,7 @@ function weekActualCard(back){
       if(!sch.length)return;
       days7.forEach(dy=>sch.forEach(r=>{
         if(!r||Number(r.d)!==dy.wd)return;
+        if(clsBefore(cls,dy.ymd))return;/* CLSTART_V1091 */
         if(has({date:dy.ymd,cls}))return;
         if(fixSkippedC(cls,dy.ymd,r.s||''))return;/* FIXSKIP_V1000 */
         items.push({type:'fix',date:dy.ymd,start:r.s||'',end:r.e||'',cls});}));});
@@ -5800,7 +5809,7 @@ function billCheck(ym){const rows=[];
     let mqty;if(isHourly(s)){mqty=0;mi.forEach(x=>{const h=logHours(x.e);mqty+=(h!=null?h:1);});mqty=Math.round(mqty*100)/100;}else mqty=mi.length;
     const ti=tierInfoOf(s);
     const price=(s.tuition==null||s.tuition==='')?null:Number(s.tuition);
-    const cur=s.currency||'TWD';
+    const cur=s.currency||DEF_CUR;
     const should=items.length?b.charge:((price!=null||ti)?0:null);
     const brk=ti?feeBreak(items,cur):'';
     const paid=pays.filter(x=>x&&(x.currency||cur)===cur).reduce((a,x)=>a+(Number(x.amount)||0),0);
@@ -5809,11 +5818,11 @@ function billCheck(ym){const rows=[];
   return rows.sort((a,b)=>{const da=(a.should==null?0:a.should-a.paid),db=(b.should==null?0:b.should-b.paid);return db-da;});}
 function billAckOf(r){const k=r.s&&r.s.bill_ack;if(!k)return null;
   const gap=(r.should==null)?0:Math.round((r.should-r.paid)*100)/100;
-  if((k.cur||'TWD')!==(r.cur||'TWD'))return null;
+  if((k.cur||DEF_CUR)!==(r.cur||DEF_CUR))return null;
   if(Math.abs(Number(k.gap)-gap)>0.01)return null;   /* 數字變了就重新提醒 */
   return k;}
 function famAckOf(f){const m=f.members[0];const k=m&&m.bill_ack;if(!k)return null;
-  if((k.cur||'TWD')!==(f.cur||'TWD'))return null;
+  if((k.cur||DEF_CUR)!==(f.cur||DEF_CUR))return null;
   if(Math.abs(Number(k.gap)-f.gap)>0.01)return null;
   return k;}
 /* 把同一個合併帳戶的學生併成一列 */
@@ -5892,7 +5901,7 @@ function billCheckHtml(ym){const raw=billCheck(ym);
 /* ---------- 營運（收入／待收款／管理員／公告） ---------- */
 function renderOps(){const body=$('#ops-body');
   if(body&&!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','財務・營運只有主管理員看得到。');return;}
-  const byMonth={};S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{const amt=Number(p.amount)||0;if(!amt)return;const m=(p.date||'').slice(0,7)||'（無日期）';const cur=p.currency||s.currency||'TWD';byMonth[m]=byMonth[m]||{};byMonth[m][cur]=(byMonth[m][cur]||0)+amt;});});
+  const byMonth={};S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{const amt=Number(p.amount)||0;if(!amt)return;const m=(p.date||'').slice(0,7)||'（無日期）';const cur=p.currency||s.currency||DEF_CUR;byMonth[m]=byMonth[m]||{};byMonth[m][cur]=(byMonth[m][cur]||0)+amt;});});
   const months=Object.keys(byMonth).sort((a,b)=>b.localeCompare(a));const thisM=localToday().slice(0,7);
   const allCur={};months.forEach(m=>Object.keys(byMonth[m]).forEach(cur=>{allCur[cur]=(allCur[cur]||0)+byMonth[m][cur];}));
   const monCur=byMonth[thisM]||{};
@@ -6224,6 +6233,8 @@ function renderStudents(){
       const live=mem.filter(s=>enrollOf(s)==='active'||enrollOf(s)==='trial');
       let note='';
       try{if(typeof clsNotYet==='function'&&clsNotYet(c))note+=' <span class="tag">🚧 還沒開始</span>';}catch(e){}
+      try{note+=' '+clsStartTag(c);}catch(e){}/* CLSTART_V1091 */
+      try{const _bk=(classMetaOf(c)||{}).textbook;if(_bk)note+=` <span class="tag">📕 ${esc(_bk)}</span>`;}catch(e){}
       if(live.length)note+=` <span class="tag">✅ 在學 ${live.length}</span>`;
       if(resv.length)note+=` <span class="tag">📌 預約 ${resv.length}</span>`;
       inner+=subSec('👥 '+esc(c)+' 團班',mem,c,note);});
@@ -6270,7 +6281,7 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
     ${IS_OWNER?`<div class="form-sec"><div class="form-sec-h">💰 收費設定 <span class="hint" style="font-weight:400">（這裡只設怎麼收費；實際繳了多少看下面的「繳費」）</span></div><div class="form-grid">
      <div class="field"><label>學費單價 <span class="hint">越南盾打千位（350＝350,000 VND）</span></label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：臺幣 800／越南盾 350"></div>
      <div class="field"><label>計費方式</label><select id="f-feeunit"><option value="session"${st.fee_unit!=='hour'?' selected':''}>每堂</option><option value="hour"${st.fee_unit==='hour'?' selected':''}>每小時</option></select></div>
-     <div class="field"><label>幣別</label><select id="f-cur"><option value="TWD"${(st.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${st.currency==='VND'?' selected':''}>越南盾 VND</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
+     <div class="field"><label>幣別</label><select id="f-cur"><option value="VND"${(st.currency||DEF_CUR)==='VND'?' selected':''}>越南盾 VND</option><option value="TWD"${(st.currency||DEF_CUR)==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
      ${(IS_OWNER&&!st.id)?`<div class="field full" style="background:#FFFDF6;border:1px solid var(--line);border-radius:10px;padding:11px 13px">
        <div style="font-weight:700;margin-bottom:2px">💵 第一筆繳費 <span class="hint" style="font-weight:400">（選填，現在就能記，不用先存好再點進去）</span></div>
        <div class="hint" style="margin-bottom:8px">金額留空＝先不記。之後每一筆再到學生卡片的「💰 繳費」加。</div>
@@ -7206,6 +7217,17 @@ function classMeetOf(cls){const cm=classMetaOf(cls);if(/^https?:\/\//i.test(cm.m
 async function ensureClassSched(cls){return;}
 /* 🚧 還沒開始的班：不自動排課 */
 function clsNotYet(cls){return !!((classMetaOf(cls)||{}).notyet);}
+/* CLSTART_V1091 開課日：這一天以前不自動排課。
+   （Quinn：「我想要設定……課程從哪一天開始上課」）
+   跟「🚧 還沒開始」的差別：還沒開始是永遠不排，要自己取消；
+   開課日是到了那一天自己就會開始排。 */
+function clsStart(cls){const v=String((classMetaOf(cls)||{}).start||'').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(v)?v:'';}
+function clsBefore(cls,ymd){const st=clsStart(cls);return !!(st&&ymd&&String(ymd)<st);}
+function clsStartTag(cls){const st=clsStart(cls);if(!st)return '';
+  const past=(st<=localToday());
+  return '<span class="tag" title="'+(past?'已經開課':'這一天以前不會自動排課')+'">'
+    +(past?'🚀 ':'🚀 ')+esc(st.slice(5).replace('-','/'))+' 開課</span>';}
 /* 預排課程（先排到月曆，之後再點名） */
 function classPlanned(cls){const cm=classMetaOf(cls);return Array.isArray(cm.planned)?cm.planned.filter(p=>p&&p.date):[];}
 async function addPlanned(cls,rows){const cur=classPlanned(cls).slice();const seen=new Set(cur.map(p=>p.date));(rows||[]).forEach(r=>{if(r&&r.date&&!seen.has(r.date)){cur.push(r);seen.add(r.date);}});cur.sort((a,b)=>String(a.date).localeCompare(b.date));await saveClassMeta(cls,{planned:cur});}
@@ -7274,6 +7296,7 @@ function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==nul
    +'<div class="f"><span class="k">'+L2('人數','Số học viên')+'</span><span class="v">'+members.length+' '+L2('位','người')+'</span></div>'
    +(classSchedText(cls)?('<div class="f"><span class="k">'+L2('上課時段','Giờ học')+'</span><span class="v">'+e(classSchedText(cls))+'</span></div>'):'')
    +(classMetaOf(cls).textbook?('<div class="f"><span class="k">'+L2('教材','Giáo trình')+'</span><span class="v">'+e(classMetaOf(cls).textbook)+'</span></div>'):'')
+   +(clsStart(cls)?('<div class="f"><span class="k">'+L2('開課日','Ngày khai giảng')+'</span><span class="v">'+e(clsStart(cls))+'</span></div>'):'')/* CLSTART_V1091 */
    +'</div>'
    +'<div class="sec"><span class="st">'+L2('學生名單','Danh sách học viên')+'</span><span class="n">'+members.length+'</span></div>'
    +'<div class="tw"><table><thead><tr><th>'+L2('姓名','Họ tên')+'</th><th>Email</th>'
@@ -7293,10 +7316,15 @@ function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY
          <input type="checkbox" id="gm-notyet" style="width:auto;margin:0"${clsNotYet(sel)?' checked':''}>
          🚧 這一班還沒開始
          <span class="hint">勾起來就完全不自動排課（課表、今天的課、還沒點名、固定時段都不會出現）。真的開課再取消。</span></label>
+       <!-- CLSTART_V1091 -->
+       <div class="field" style="margin:0 0 10px"><label>🚀 開課日 <span class="hint">這一天以前不會自動排課；到了那一天自己就會開始。不填＝照舊</span></label>
+       <input id="gm-start" type="date" value="${esc(classMetaOf(sel).start||'')}" style="max-width:190px"></div>
        <div class="field" style="margin:0"><label>🕒 「${esc(sel)}」上課時段 <span class="hint">整班共用；已依學生時段自動帶入，可再修改</span></label>
        <div id="gm-sched">${(classSchedOf(sel).length?classSchedOf(sel):[{}]).map(r=>schedRowHTML(r)).join('')}</div>
        <button class="btn btn-sm" type="button" data-act="gmSchedAdd" style="margin-top:6px">＋ 新增時段</button>
-       <div style="margin-top:10px"><input id="gm-book" type="text" value="${esc(classMetaOf(sel).textbook||'')}" placeholder="團班教材（選填），例：時代華語三"></div>
+       <div class="field" style="margin:10px 0 0"><label>📕 這一班用的教材</label>
+       <input id="gm-book" type="text" value="${esc(classMetaOf(sel).textbook||'')}" placeholder="例：時代華語三" list="gm-booklist">
+       <datalist id="gm-booklist">${(function(){try{return [...new Set((S.students||[]).map(x=>String(x.textbook||'').trim()).filter(Boolean))].sort().map(b=>`<option value="${esc(b)}">`).join('');}catch(e){return '';}})()}</datalist></div>
        <div style="margin-top:8px"><input id="gm-meet" type="url" inputmode="url" value="${esc(classMetaOf(sel).meet||'')}" placeholder="🎥 上課教室 Meet 連結（選填），例：https://meet.google.com/abc-defg-hij"></div>
        <div style="margin-top:8px"><input id="gm-drive" type="url" inputmode="url" value="${esc(classMetaOf(sel).drive||'')}" placeholder="📁 教材資料夾連結（選填），例：Google Drive 分享連結，學生頁會出現按鈕"></div>
        <div class="field" style="margin:12px 0 0"><label>💵 特殊計費（照上課長度）</label>
@@ -7308,7 +7336,7 @@ function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY
        <div class="check-list" id="gm-members">${members}</div>
        <div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-primary" data-act="gmSave" data-id="${esc(sel)}">儲存成員</button><button class="btn" type="button" data-act="classPage" data-id="${esc(sel)}">🔎 開啟班級頁</button></div></div>
      </div>`:'';
-  const clsRows=classes.length?classes.map(c=>`<div class="dash-row" style="padding:8px 4px;flex-wrap:wrap${c===sel?';background:#E8E9EB;border-radius:8px':''}"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span>${groupSize(c)?'':'<span class="tag" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7" title="沒有學生的班不會自動排進課表，設定還留著">沒有學生</span>'}${clsNotYet(c)?'<span class="tag" style="background:#EDE9FE;color:#6D28D9;border-color:#6D28D955" title="還沒開始的班完全不會自動排課">🚧 還沒開始</span>':''}<span class="grow"></span><button class="btn btn-sm btn-accent" type="button" data-act="classPublish" data-id="${esc(c)}">📢 發佈內容</button><button class="btn btn-sm" type="button" data-act="classPage" data-id="${esc(c)}">🔎 開啟班級頁</button><button class="btn btn-sm ${c===sel?'btn-accent':''}" type="button" data-act="gmPick" data-id="${esc(c)}">${c===sel?'✏️ 設定中':'✏️ 編輯'}</button></div>`+(c===sel?editPanel:'')).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
+  const clsRows=classes.length?classes.map(c=>`<div class="dash-row" style="padding:8px 4px;flex-wrap:wrap${c===sel?';background:#E8E9EB;border-radius:8px':''}"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span>${groupSize(c)?'':'<span class="tag" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7" title="沒有學生的班不會自動排進課表，設定還留著">沒有學生</span>'}${clsNotYet(c)?'<span class="tag" style="background:#EDE9FE;color:#6D28D9;border-color:#6D28D955" title="還沒開始的班完全不會自動排課">🚧 還沒開始</span>':''}${clsStartTag(c)/* CLSTART_V1091 */}${classMetaOf(c).textbook?`<span class="tag" title="這一班用的教材">📕 ${esc(classMetaOf(c).textbook)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-accent" type="button" data-act="classPublish" data-id="${esc(c)}">📢 發佈內容</button><button class="btn btn-sm" type="button" data-act="classPage" data-id="${esc(c)}">🔎 開啟班級頁</button><button class="btn btn-sm ${c===sel?'btn-accent':''}" type="button" data-act="gmPick" data-id="${esc(c)}">${c===sel?'✏️ 設定中':'✏️ 編輯'}</button></div>`+(c===sel?editPanel:'')).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>👥 團班管理</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>建立新團班</label><div class="dual-row"><input id="gm-new" type="text" placeholder="例：週二晚班"><button class="btn btn-accent" type="button" data-act="gmCreate">＋ 建立</button></div></div>
@@ -10077,7 +10105,7 @@ function repHtml(sid,ym,note){
     :'<li class="mut">這個月沒有上課記錄。</li>';
   const wmap={};R.wrong.forEach(w=>{const k=w.l+'｜'+w.p;wmap[k]=(wmap[k]||0)+1;});
   const wrongRows=Object.keys(wmap).slice(0,12).map(k=>{const p=k.split('｜');return `<li><b>${E(p[0])}</b>　${E(p[1])}</li>`;}).join('');
-  const payRows=(IS_OWNER?R.pays:[]).map(p=>`<li>${E(p.date)}　<b>${money(p.amount,p.currency||s.currency||'TWD')}</b>${p.note?('　<span class="mut">'+E(p.note)+'</span>'):''}</li>`).join('');
+  const payRows=(IS_OWNER?R.pays:[]).map(p=>`<li>${E(p.date)}　<b>${money(p.amount,p.currency||s.currency||DEF_CUR)}</b>${p.note?('　<span class="mut">'+E(p.note)+'</span>'):''}</li>`).join('');
   const pend=[R.wb.filter(x=>x.status==='submitted').length,R.gp.filter(x=>x.status==='submitted').length,R.dc.filter(x=>x.status==='submitted').length].reduce((a,b)=>a+b,0);
   return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${E(fnm('學習報告',s.name||'',ym))}</title>
 <style>
@@ -10775,7 +10803,7 @@ function renderStudentProfile(){
   const used=(typeof usedUnits==='function')?usedUnits(s):null;
   const fbs=(typeof fbList==='function')?fbList(s):[];
   const fbSums=(typeof fbSumList==='function')?fbSumList(s):[];
-  const cur=(typeof billCur==='function')?billCur(s):(s.currency||'TWD');
+  const cur=(typeof billCur==='function')?billCur(s):(s.currency||DEF_CUR);
 
   const chips=(s.is_test?'<span class="tag" style="background:#e6e6e6;color:#666;border-color:#ccc">🧪 測試</span>':'')
     +((typeof enrollBadge==='function')?enrollBadge(s):'')
@@ -10875,7 +10903,7 @@ function spOverview(s,logs,fbs,fbSums,prog,sc,scOk,scTot){
 
 function spLogTab(s,logs,fbs){
   const hourly=(typeof isHourly==='function')&&isHourly(s);
-  const cur=(typeof billCur==='function')?billCur(s):(s.currency||'TWD');
+  const cur=(typeof billCur==='function')?billCur(s):(s.currency||DEF_CUR);
   const fbKeys={};fbs.forEach(f=>{fbKeys[String(f.date||'')+'|'+String(f.start||'')+'|'+String(f.end||'')]=1;});
   const rows=logs.map(x=>{const e=x.e,i=x.i;
     const tm=(e.start||e.end)?(esc(e.start||'')+(e.end?'–'+esc(e.end):'')):'—';
@@ -10988,7 +11016,7 @@ H.stuExport=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
 H.stuXlsx=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
   if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
   try{
-    const cur=(typeof billCur==='function')?billCur(s):(s.currency||'TWD');
+    const cur=(typeof billCur==='function')?billCur(s):(s.currency||DEF_CUR);
     const A=spAttend(s);const b=(typeof stuBill==='function')?stuBill(s):null;
     const base=[{'姓名':s.name||'','課程型態':(s.class_type==='團班'?'團班':'一對一'),'狀態':((typeof enrollOf==='function')?enrollOf(s):''),
       '國籍':s.nationality||'','Email':s.email||'','教材':s.textbook||'','上課時段':((typeof fmtSchedule==='function')?fmtSchedule(s):''),
@@ -11033,7 +11061,7 @@ function spPageOf(html){const h=String(html);const i=h.indexOf('<div class="page
 /* STUEXPALL_V931 本來整份文件是在 H.stuCardPdf 裡面直接組出來的，
    要一次印全部人就沒得用。拆成 stuCardHtml(s)，按鈕和打包都叫它。 */
 function stuCardHtml(s){
-  const cur=(typeof billCur==='function')?billCur(s):(s.currency||'TWD');
+  const cur=(typeof billCur==='function')?billCur(s):(s.currency||DEF_CUR);
   const A=spAttend(s);const b=(typeof stuBill==='function')?stuBill(s):null;
   const sc=spScores(s.id);const scOk=sc.reduce((a,x)=>a+x.ok,0),scTot=sc.reduce((a,x)=>a+x.tot,0);
   const used=(typeof usedUnits==='function')?usedUnits(s):null;
@@ -11117,7 +11145,7 @@ function cpDates(cls,members){
   return Object.keys(map).map(k=>map[k]).sort();}
 /* CVSTU_V958 團班裡點一位學生，直接攤開他自己的上課時間和繳費記錄，不用跳出班級頁 */
 function cpStuPanel(s){
-  const cur=(typeof billCur==='function')?billCur(s):((s&&s.currency)||'TWD');
+  const cur=(typeof billCur==='function')?billCur(s):((s&&s.currency)||DEF_CUR);
   const hourly=(typeof isHourly==='function')&&isHourly(s);
   const grp=(s.class_type==='團班');
   const A=(typeof spAttend==='function')?spAttend(s):{total:0,rate:null,leave:0,absent:0};
@@ -14095,8 +14123,8 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
     if(_a!==''&&isFinite(Number(_a))&&Number(_a)>=0){
       const _d=(($('#f-p0-date')&&$('#f-p0-date').value)||'')||localToday();
       const _ss=(($('#f-p0-sess')&&$('#f-p0-sess').value)||'').trim();
-      const _cu=(($('#f-p0-cur')&&$('#f-p0-cur').value)||'')||common.currency||'TWD';
-      const _bc=common.currency||'TWD';
+      const _cu=(($('#f-p0-cur')&&$('#f-p0-cur').value)||'')||common.currency||DEF_CUR;
+      const _bc=common.currency||DEF_CUR;
       const _cvv=Number((($('#f-p0-conv')&&$('#f-p0-conv').value)||''))||0;
       if(_cu!==_bc&&!(_cvv>0)){toast('第一筆繳費的幣別跟收費幣別不一樣，請填「實際收到多少 '+_bc+'」');
         try{const el=$('#f-p0-conv');if(el)el.focus();}catch(e){}return;}
@@ -15983,7 +16011,7 @@ H.opsSheet=(m)=>{
   fbWin(html);};
 H.opsMonth=(m)=>{const rows=[];
   /* OPSEDIT_V902 記下每一筆是誰的第幾筆，明細上才改得動 */
-  S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach((p,pi)=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||'TWD',note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null,act:'payEdit',key:s.id+'::'+pi});});});
+  S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach((p,pi)=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||DEF_CUR,note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null,act:'payEdit',key:s.id+'::'+pi});});});
   (S.interviews||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:'🎤 '+(c.name||''),amt,cur:p.currency||'VND',note:(p.note||'面試')?((p.note||'')+'（面試）').trim():'',sess:null,act:'itvPayList',key:c.id});});});
   /* OPSDETAIL_V1069 這張明細本來只有「學生 ＋ 面試的付費記錄」，
      可是上面的總收入是四條線加起來的，代辦、代書收的錢永遠不會出現在這裡
@@ -17274,7 +17302,7 @@ function renderClassView(cls){
       <button class="btn" data-act="classPrint" data-id="${esc(cls)}">🖨 列印 / PDF</button>
       <button class="btn" data-act="classExp" data-id="${esc(cls)}">📤 匯出這班的學生</button>
       <button class="btn" data-act="classRefresh" data-id="${esc(cls)}">↻ 重新整理</button></div>
-    <div class="meta" style="margin:2px 0 16px"><span>👤 ${members.length} 位學生</span>${sched?`<span>🕒 ${esc(sched)}</span>`:''}${cm.textbook?`<span>📖 ${esc(cm.textbook)}</span>`:''}${(Array.isArray(cm.fee_tiers)&&cm.fee_tiers.length)?`<span>💵 ${cm.fee_tiers.map(x=>(Math.round(Number(x.h)*100)/100)+'h '+money(Number(x.amt),(members[0]&&members[0].currency)||'TWD')).join('｜')}</span>`:''}<span>📚 整班發佈 ${pubN} 課</span></div>
+    <div class="meta" style="margin:2px 0 16px"><span>👤 ${members.length} 位學生</span>${sched?`<span>🕒 ${esc(sched)}</span>`:''}${cm.textbook?`<span>📖 ${esc(cm.textbook)}</span>`:''}${(Array.isArray(cm.fee_tiers)&&cm.fee_tiers.length)?`<span>💵 ${cm.fee_tiers.map(x=>(Math.round(Number(x.h)*100)/100)+'h '+money(Number(x.amt),(members[0]&&members[0].currency)||DEF_CUR)).join('｜')}</span>`:''}<span>📚 整班發佈 ${pubN} 課</span></div>
     <div class="tcwrap"><nav class="tcnav">${cvNavHtml(cls)}</nav><div class="tcbody">${cvBodyHtml(cls,members,roster)}</div></div>`;
 }
 /* 班級頁第二層導覽 */
@@ -17372,7 +17400,8 @@ H.gmTierAdd=()=>{const c=$('#gm-tiers');if(c)c.insertAdjacentHTML('beforeend',gm
 H.gmTierDel=(_,b)=>{const row=b.closest('.gm-tier-row');if(!row)return;const c=row.parentElement;row.remove();if(c&&!c.querySelector('.gm-tier-row'))c.insertAdjacentHTML('beforeend',gmTierRowHTML({}));};
 H.gmMetaSave=async(cls)=>{const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();const drive=(($('#gm-drive')&&$('#gm-drive').value)||'').trim();const fee_tiers=gmTiersRead();const st=$('#gm-meta-st');if(st)st.textContent='儲存中…';
   const notyet=!!($('#gm-notyet')&&$('#gm-notyet').checked);/* CLSOFF_V1074 */
-  try{await saveClassMeta(cls,{schedule,textbook,meet,drive,fee_tiers,notyet});if(st)st.textContent='已儲存 ✓';
+  const start=(($('#gm-start')&&$('#gm-start').value)||'').trim();/* CLSTART_V1091 */
+  try{await saveClassMeta(cls,{schedule,textbook,meet,drive,fee_tiers,notyet,start});if(st)st.textContent='已儲存 ✓';
     render();toast(notyet?'已儲存；這一班標成「還沒開始」，不會自動排課':'已儲存團班資訊');}catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}};
 H.gmApplyAll=async(cls)=>{
   const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);
@@ -17754,7 +17783,7 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
   if(kb)kb.addEventListener('click',(ev)=>{const b=ev.target.closest('.segb');if(!b)return;kind=b.dataset.k||'';draw();});
   draw();};
 H.payments=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}const s=S.students.find(x=>x.id===id);if(!s)return;PAY_STU=s;const ps=(s.payments||[]).map((p,origI)=>({p,origI})).sort((a,b)=>(b.p.date||'').localeCompare(a.p.date||''));
-  const byCur={};ps.forEach(({p})=>{const c=p.currency||s.currency||'TWD';byCur[c]=(byCur[c]||0)+(Number(p.amount)||0);});
+  const byCur={};ps.forEach(({p})=>{const c=p.currency||s.currency||DEF_CUR;byCur[c]=(byCur[c]||0)+(Number(p.amount)||0);});
   const totalStr=Object.keys(byCur).map(c=>money(byCur[c],c)).join('、')||money(0,s.currency);
   /* PAYROW_V1045 備註一長，右邊三顆鈕就被擠到第二行（Quinn：「又跑版了」）。
      左邊文字自己折行、右邊按鈕釘在同一排。 */
@@ -17778,7 +17807,7 @@ H.payments=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用')
      <div class="form-grid">
        <div class="field"><label>日期</label><input id="pay-date" type="date" min="2000-01-01" max="2100-12-31" value="${localToday()}"></div>
        <div class="field"><label>金額 <span class="hint">越南盾打千位（350＝350,000 VND）</span></label><input id="pay-amount" type="number" min="0" placeholder="例：800"></div>
-       <div class="field"><label>幣別</label><select id="pay-cur"><option value="TWD"${(s.currency||'TWD')==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${s.currency==='VND'?' selected':''}>越南盾 VND</option><option value="USD"${s.currency==='USD'?' selected':''}>美元 US$</option></select></div>
+       <div class="field"><label>幣別</label><select id="pay-cur"><option value="VND"${(s.currency||DEF_CUR)==='VND'?' selected':''}>越南盾 VND</option><option value="TWD"${(s.currency||DEF_CUR)==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${s.currency==='USD'?' selected':''}>美元 US$</option></select></div>
        <div class="field full"><label>備註</label><input id="pay-note" type="text" placeholder="選填，例：6月學費"></div>
        <div class="field full" id="pay-conv-box" style="display:none;background:#F6F6F7;border:1px solid #D5DADF;border-radius:10px;padding:11px 13px">
          <label style="margin:0">💱 這筆實際收到多少 <b>${esc(billCur(s))}</b>？ <span class="hint">選填</span></label>
@@ -17870,7 +17899,7 @@ H.renewQuick=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用
 H.renewQuickOld=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;
   const ps=(s.payments||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));const last=ps[0]||{};
   const amt=(last.amount!=null&&last.amount!=='')?last.amount:(s.tuition!=null?s.tuition:'');
-  const cur=last.currency||s.currency||'TWD';
+  const cur=last.currency||s.currency||DEF_CUR;
   const sess=(last.sessions!=null&&last.sessions!=='')?last.sessions:(s.sessions_total||'');
   const left=sessionsLeft(s);
   openModal(`<div class="modal"><div class="modal-head"><h3>💰 續約 · ${snm(s.name)}</h3><button class="x" data-act="closeModal">×</button></div>
@@ -17957,7 +17986,7 @@ H.payCurFix=async(key)=>{const p=String(key||'').split('::'),id=p[0],cur=p[1];
 H.payDel=async(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;if(!confirm('刪除這筆繳費記錄？'))return;
   const payments=(s.payments||[]).slice();const removed=payments.splice(i,1)[0];const patch={payments};if(removed&&removed.sessions){patch.sessions_total=Math.max(0,(Number(s.sessions_total)||0)-removed.sessions);}
   try{await DB.update('students',id,patch);await loadAll();H.payments(id);render();toast('已刪除');}catch(err){toast(writeErr('刪除失敗',err));}};
-H.payEdit=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;const pay=(s.payments||[])[i];if(!pay)return;const cur=pay.currency||s.currency||'TWD';PAY_STU=s;
+H.payEdit=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s=S.students.find(x=>x.id===id);if(!s)return;const pay=(s.payments||[])[i];if(!pay)return;const cur=pay.currency||s.currency||DEF_CUR;PAY_STU=s;
   openModal(`<div class="modal"><div class="modal-head"><h3>✏️ 編輯繳費 · ${snm(s.name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="form-grid">
      <div class="field"><label>日期</label><input id="pe-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(pay.date||'')}"></div>
@@ -18130,7 +18159,7 @@ function sxPick(who){
 function sxIn(d,a,b){const x=String(d||'');return (!a||x>=a)&&(!b||x<=b);}
 function sxEnroll(x){return ({active:'在學中',trial:'試學',paused:'休學',reserved:'預約・詢問中',lead:'預約中'}[enrollOf(x)]||enrollOf(x));}
 function sxBase(L){return L.map(x=>{
-  const cur=(typeof billCur==='function')?billCur(x):(x.currency||'TWD');
+  const cur=(typeof billCur==='function')?billCur(x):(x.currency||DEF_CUR);
   const A=spAttend(x),b=((typeof stuBill==='function')?stuBill(x):null)||{};
   return {'姓名':x.name||'','狀態':sxEnroll(x),'課程型態':(x.class_type==='團班'?'團班':'一對一'),
     '國籍':x.nationality||'','Email':x.email||'','教材':x.textbook||'',
@@ -18141,7 +18170,7 @@ function sxBase(L){return L.map(x=>{
     '累計應收':(b.charge!=null?b.charge:''),'累計實收':(b.paid!=null?b.paid:''),'結餘':(b.due!=null?b.due:''),
     '備註':x.notes||''};});}
 function sxLogs(L,a,b){const out=[];L.forEach(x=>{
-  const cur=(typeof billCur==='function')?billCur(x):(x.currency||'TWD');const grp=(x.class_type==='團班');
+  const cur=(typeof billCur==='function')?billCur(x):(x.currency||DEF_CUR);const grp=(x.class_type==='團班');
   (Array.isArray(x.class_log)?x.class_log:[]).filter(e=>e&&e.date&&sxIn(e.date,a,b))
    .slice().sort((p,q)=>String(p.date).localeCompare(String(q.date))).forEach(e=>{
     const h=(typeof logHours==='function')?logHours(e):null;
@@ -18153,7 +18182,7 @@ function sxLogs(L,a,b){const out=[];L.forEach(x=>{
       '這堂費用':(bl?(f==null?'未設學費':f):0),'幣別':cur,'課後小結':e.note||''});});});
   return out;}
 function sxPays(L,a,b){const out=[];L.forEach(x=>{
-  const cur=(typeof billCur==='function')?billCur(x):(x.currency||'TWD');
+  const cur=(typeof billCur==='function')?billCur(x):(x.currency||DEF_CUR);
   (Array.isArray(x.payments)?x.payments:[]).filter(p=>p&&p.date&&sxIn(p.date,a,b))
    .slice().sort((p,q)=>String(p.date).localeCompare(String(q.date))).forEach(p=>{
     out.push({'學生':x.name||'','日期':p.date,'金額':p.amount,'幣別':p.currency||cur,
