@@ -15531,17 +15531,45 @@ H.opsMonth=(m)=>{const rows=[];
   /* OPSEDIT_V902 記下每一筆是誰的第幾筆，明細上才改得動 */
   S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach((p,pi)=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||'TWD',note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null,act:'payEdit',key:s.id+'::'+pi});});});
   (S.interviews||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:'🎤 '+(c.name||''),amt,cur:p.currency||'VND',note:(p.note||'面試')?((p.note||'')+'（面試）').trim():'',sess:null,act:'itvPayList',key:c.id});});});
+  /* OPSDETAIL_V1069 這張明細本來只有「學生 ＋ 面試的付費記錄」，
+     可是上面的總收入是四條線加起來的，代辦、代書收的錢永遠不會出現在這裡
+     （Quinn：「少了今天 Trà My 匯款的」）。下面補齊，口徑跟總收入一樣。 */
+  (S.interviews||[]).forEach(c=>{itvSessions(c).forEach(e=>{
+    if(!e||!e.paid)return;if(String(e.date||'').slice(0,7)!==m)return;
+    const amt=Number(e.fee)||0;if(!amt)return;
+    rows.push({date:e.date||'',name:'🎤 '+(c.name||''),amt,cur:e.currency||'VND',
+      note:((e.note||'')+'（面試練習）').trim(),sess:null,act:'itvPayList',key:c.id});});});
+  (S.agencies||[]).forEach(c=>{
+    (Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
+      if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
+      rows.push({date:p.date||'',name:'🎓 '+(c.name||''),amt,cur:p.currency||'VND',
+        note:((p.note||'')+'（代辦）').trim(),sess:null,act:'opsGoCrm',key:'agency::'+c.id});});
+    agLog(c).forEach(e=>{
+      if(!e||e.pass||!e.paid)return;/* 代收代付不是收入 */
+      if(String(e.date||'').slice(0,7)!==m)return;const amt=Number(e.fee)||0;if(!amt)return;
+      rows.push({date:e.date||'',name:'🎓 '+(c.name||''),amt,cur:e.currency||'VND',
+        note:((e.what||e.note||'')+'（代辦・進度）').trim(),sess:null,act:'opsGoCrm',key:'agency::'+c.id});});});
+  (S.writings||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
+    if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
+    rows.push({date:p.date||'',name:'✍️ '+(c.name||''),amt,cur:p.currency||'VND',
+      note:((p.note||'')+'（代書）').trim(),sess:null,act:'opsGoCrm',key:'writing::'+c.id});});});
   rows.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const tot={};rows.forEach(r=>{tot[r.cur]=(tot[r.cur]||0)+r.amt;});
   const totStr=Object.keys(tot).map(c=>money(tot[c],c)).join('　+　')||'—';
   /* OPSEDIT_V902 金額後面加一顆 ✏️，直接改這一筆 */
-  const body=rows.length?rows.map(r=>`<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">${esc(String(r.date).slice(5))}</span><b>${snm(r.name)}</b>${r.sess!=null?`<span class="muted" style="font-size:12px">＋${esc(String(r.sess))} 堂</span>`:''}${r.note?`<span class="muted" style="font-size:12px">${esc(r.note)}</span>`:''}<span class="grow"></span><b style="color:var(--accent,#1E4C86)">${money(r.amt,r.cur)}</b><button class="btn btn-sm" type="button" data-act="${r.act}" data-id="${esc(r.key)}" title="${r.act==='payEdit'?'改這一筆繳費':'打開這位客戶的收款清單'}" style="margin-left:8px">✏️</button></div>`).join(''):'<div class="hint">這個月沒有學生繳費記錄。</div>';
+  const body=rows.length?rows.map(r=>`<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">${esc(String(r.date).slice(5))}</span><b>${snm(r.name)}</b>${r.sess!=null?`<span class="muted" style="font-size:12px">＋${esc(String(r.sess))} 堂</span>`:''}${r.note?`<span class="muted" style="font-size:12px">${esc(r.note)}</span>`:''}<span class="grow"></span><b style="color:var(--accent,#1E4C86)">${money(r.amt,r.cur)}</b><button class="btn btn-sm" type="button" data-act="${r.act}" data-id="${esc(r.key)}" title="${r.act==='payEdit'?'改這一筆繳費':'打開這位客戶的收款清單'}" style="margin-left:8px">✏️</button></div>`).join(''):'<div class="hint">這個月還沒有任何收款記錄。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${esc(m)} 收入明細</h3><button class="x" data-act="closeModal">×</button></div>
     <div class="modal-body">
-      <div class="card" style="background:#F4F4F5;margin-bottom:10px"><div class="hint">本月合計（學生繳費）</div><div style="font-size:20px;font-weight:800">${totStr}</div></div>
+      <div class="card" style="background:#F4F4F5;margin-bottom:10px"><div class="hint">本月合計（華語教學 ＋ 面試練習 ＋ 代辦 ＋ 代書）</div><div style="font-size:20px;font-weight:800">${totStr}</div>
+        <div class="hint" style="margin-top:4px">跟上面「🧮 總收入」同一個口徑。代收代付不算。</div></div>
       ${body}
       
     </div></div>`);};
+/* OPSDETAIL_V1069 明細上的 ✏️：跳到那一位客戶 */
+H.opsGoCrm=(key)=>{const p=String(key||'').split('::');
+  try{closeModal();}catch(e){}
+  S.tab=(p[0]==='writing')?'writing':'agency';S.crmFocus=p[1];S.crmOpen={};
+  render();try{window.scrollTo(0,0);}catch(e){}};
 H.layoutSet=(v)=>{const top=(v==='top');
   document.body.classList.toggle('layout-top',top);
   try{localStorage.setItem('qna_layout',top?'top':'side');}catch(e){}
