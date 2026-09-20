@@ -1155,6 +1155,13 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           border-bottom:1px solid var(--line);margin:0;min-height:46px;
           font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         #app .panel .cool-sec>summary>span:first-child{font-size:15.5px!important;font-weight:800!important}
+/* STUGRP_V1087 團班底下的每一班 */
+.cls-top>*:not(summary){padding:10px 12px 12px;background:#F7F8F9}
+.cls-sub{margin-bottom:8px;border-radius:10px}
+.cls-sub:last-child{margin-bottom:0}
+.cls-sub>summary{padding:9px 13px;background:#E9EBED}
+.cls-sub>summary>span:first-child{font-size:14px!important;font-weight:700!important;color:var(--primary)}
+.cls-sub>*:not(summary){padding:8px 12px 10px}
         #app #lessons-list>.series-group>.series-head{border-bottom-width:1px}
 
         /* 群組內容：教材的第二層（冊）不要再套一層卡，維持乾淨的縮排 */
@@ -3361,6 +3368,7 @@ function renderDashboard(){
         rows.push({s,b:{charge:fb.charge,paid:fb.paid,due:fb.due,items:[1]},cur:fb.cur,label:names,fam:true});
         return;
       }
+      if(stuSoon(s))return;/* STUSOON_V1087 首頁的「還沒收到」也一樣 */
       const b=stuBill(s); if(!b||!b.items.length||!(b.due>0.0001))return;
       rows.push({s,b,cur:billCur(s),label:snm(s.name),fam:false});
     });
@@ -4327,11 +4335,17 @@ function renderCalMonth(body,toggle){
 
 
 /* ===================== 💰 繳費：所有學生的應收／已繳／剩餘，集中在這裡記 ===================== */
+/* STUSOON_V1087 「📌 預約・詢問中」的學生還沒正式開始上課，先不算未收。
+   跟「🚧 還沒開始」的代辦同一個道理（Quinn：「這個學生目前在詢問而已，哪裡有上課？」）。
+   改成「在學中」就自動開始算，不用再設定一次。 */
+function stuSoon(s){return enrollOf(s)==='reserved';}
 function payRowsOf(list){
   return list.map(s=>{
-    const b=stuBill(s)||{items:[],charge:0,paid:0,due:0,unknown:0};
+    let b=stuBill(s)||{items:[],charge:0,paid:0,due:0,unknown:0};
     const cur=billCur(s);
     let qty=0;(b.items||[]).forEach(x=>{const h=logHours(x.e);qty+=(isHourly(s)?((h!=null)?h:1):1);});
+    /* STUSOON_V1087 金額照算，只是不掛在「還沒收」那一欄 */
+    if(stuSoon(s))b=Object.assign({},b,{soon:true,dueRaw:b.due,due:0});
     return {s,b,cur,qty:Math.round(qty*100)/100};
   });
 }
@@ -4341,12 +4355,14 @@ function payHeadHtml(){return '<div class="pay-row pay-hd">'
 function payRowHtml(r,noState){
   const s=r.s,b=r.b,cur=r.cur;
   const owe=b.due>0.0001, over=b.due<-0.0001;
+  /* STUSOON_V1087 預約中的不算未收，這一欄改成灰色的提示 */
   const state=noState?'<span class="pay-st blank"></span>'
+    :(b.soon?'<span class="pay-st muted" title="狀態改成「在學中」就會開始算未收">📌 預約中，先不算</span>'
     :(!b.items.length
       ? '<span class="pay-st muted">還沒上課</span>'
       : (owe ? '<span class="pay-st owe">欠 '+money(b.due,cur)+'</span>'
              : (over ? '<span class="pay-st over">預繳 '+money(-b.due,cur)+'</span>'
-                     : '<span class="pay-st ok">✅ 已結清</span>')));
+                     : '<span class="pay-st ok">✅ 已結清</span>'))));
   const last=(Array.isArray(s.payments)?s.payments:[]).slice().sort((a,c)=>String(c.date||'').localeCompare(String(a.date||'')))[0];
   /* DUE_DONE_V41 */
   const wv=Number(b.waived)||0;
@@ -4389,6 +4405,7 @@ function renderPay(){
   rowsAll.forEach(r=>{const k=_fk(r);
     if(k){if(_fdone.has(k))return;_fdone.add(k);const f2=famBill(k);if(!f2)return;
       if(f2.charge>0||f2.paid>0){if(f2.due>0.0001)oweN++;else clearN++;}return;}
+    if(r.b.soon)return;/* STUSOON_V1087 */
     if(r.b.items.length){if(r.b.due>0.0001)oweN++;else clearN++;}});
   // 總計（分幣別）
   const dueCur={},paidM={};const thisM=localToday().slice(0,7);
@@ -4417,7 +4434,7 @@ function renderPay(){
     +'</div>';
   let rows=rowsAll;
   if(f==='owe')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due>0.0001);
-  else if(f==='clear')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due<=0.0001);
+  else if(f==='clear')rows=rowsAll.filter(r=>r.b.items.length&&r.b.due<=0.0001&&!r.b.soon);/* STUSOON_V1087 */
   if(!rows.length){body.innerHTML=head+bar+emptyHtml(f==='owe'?'🎉':'🔍',f==='owe'?'太好了，沒有人欠款':'這個條件沒有學生','換上面的分類看看。');return;}
   /* 休學排最後；其餘一律名字 A→Z（要看誰欠最多，用上面的「🔴 還沒收」分類） */
   const _pz=r=>(enrollOf(r.s)==='paused'?1:0);
@@ -6178,8 +6195,31 @@ function renderStudents(){
   const solo=ungrouped.filter(s=>s.class_type!=='團班');const teamNoGrp=ungrouped.filter(s=>s.class_type==='團班');
   let html='';
   if(solo.length)html+=sec('🧑‍🏫 一對一',solo,'');
-  if(teamNoGrp.length)html+=sec('👥 團班（尚未分班）',teamNoGrp,'');
-  classNames.forEach(c=>html+=sec('👥 '+esc(c),activeReal.filter(s=>stuGroups(s).includes(c)),c));
+  /* STUGRP_V1087 團班全部收在一個「👥 團班」底下，一班一列。
+     以前每一班自己一大塊，夾在「一對一」和「預約」中間；
+     而且班上沒有在學學生的班（例如 001 只有一位在預約）整個不會出現，
+     她新開的班在這裡看不到（Quinn：「讓我以後新增團班就可以在那邊看到」）。 */
+  const clsAll=[...new Set(groupsList().concat(Object.keys((typeof classMetaAll==='function')?classMetaAll():{})))]
+    .filter(Boolean).sort();
+  if(clsAll.length||teamNoGrp.length){
+    const subSec=(label,students,cls,note)=>`<details class="stu-sec cool-sec cls-sub"${secOpen}>`
+      +`<summary><span>${label}</span> <span class="tag">${students.length} 人</span>${note||''}</summary>`
+      +(cls?`<div style="margin:2px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 開啟班級頁</button></div>`:'')
+      +(students.length?grpHtml(stuSort(students)):`<div class="hint" style="padding:4px 2px">這一班目前沒有學生。到「👥 學生 → 編輯 → 班別」把人加進來。</div>`)
+      +`</details>`;
+    let inner='';
+    clsAll.forEach(c=>{
+      const mem=activeReal.filter(s=>stuGroups(s).includes(c));
+      const resv=reservedReal.filter(s=>stuGroups(s).includes(c));
+      let note='';
+      try{if(typeof clsNotYet==='function'&&clsNotYet(c))note+=' <span class="tag">🚧 還沒開始</span>';}catch(e){}
+      if(resv.length)note+=` <span class="tag">📌 預約 ${resv.length}</span>`;
+      inner+=subSec('👥 '+esc(c)+' 團班',mem,c,note);});
+    if(teamNoGrp.length)inner+=subSec('👥 團班（尚未分班）',teamNoGrp,'','');
+    const nCls=clsAll.length+(teamNoGrp.length?1:0);
+    html+=`<details class="stu-sec cool-sec cls-top"${secOpen}>`
+      +`<summary><span style="font-size:16px;color:var(--primary);font-weight:600">👥 團班</span> <span class="tag">${nCls} 班</span></summary>`
+      +inner+`</details>`;}
   if(reservedReal.length)html+=`<details class="stu-sec cool-sec"${(S.stuSecAllOpen===true)?' open':''}><summary><span style="font-size:16px;color:var(--primary);font-weight:600">📌 預約・詢問中（還沒開始上課）</span> <span class="tag">${reservedReal.length} 人</span></summary>${grpHtml(reservedReal.slice().sort(stuNameCmp))}</details>`;
   if(pausedReal.length)html+=`<details class="stu-sec cool-sec"${(S.stuSecAllOpen===true)?' open':''} style="opacity:.9"><summary><span style="font-size:16px;color:var(--muted);font-weight:600">⏸️ 已休學</span> <span class="tag">${pausedReal.length} 人</span></summary>${grpHtml(pausedReal.slice().sort(stuNameCmp))}</details>`;
   if(testers.length)html+=`<details class="stu-sec cool-sec"${S.stuSecAllOpen===true?' open':''} style="opacity:.85"><summary><span style="font-size:16px;color:var(--muted);font-weight:600">🧪 測試帳號</span> <span class="tag">${testers.length} 人</span></summary>${grpHtml(testers.slice().sort(stuNameCmp))}</details>`;
@@ -13234,6 +13274,30 @@ function mbMonthsAvail(){
     (Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(e&&e.date)set[String(e.date).slice(0,7)]=1;});
     (Array.isArray(s.payments)?s.payments:[]).forEach(p=>{if(p&&p.date)set[String(p.date).slice(0,7)]=1;});});
   return Object.keys(set).sort().reverse();}
+/* MBPICK_V1086 月結單的學生勾選清單。ym＝那個月，用來標「這個月有沒有東西」。 */
+function mbPool(){return (S.students||[]).filter(s=>s&&!s.deleted&&!s.deleted_at&&!s.is_test).slice().sort(stuNameCmp);}
+function mbHas(s,ym){
+  const hl=(Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date&&String(e.date).slice(0,7)===ym);
+  const hp=(Array.isArray(s.payments)?s.payments:[]).some(p=>p&&p.date&&String(p.date).slice(0,7)===ym);
+  return hl||hp;}
+function mbPickHtml(ym){
+  return mbPool().map(s=>{
+    const pa=(enrollOf(s)==='paused'),has=mbHas(s,ym);
+    return '<label class="mb-p"><input type="checkbox" class="mb-ck" value="'+esc(s.id)+'">'
+      +'<span class="mb-n">'+esc(s.name||'')+'</span>'
+      +(pa?'<span class="mb-t pa">休學</span>':'')
+      +(has?'':'<span class="mb-t no">這個月沒記錄</span>')+'</label>';}).join('')
+    ||'<div class="hint">還沒有學生。</div>';}
+/* MBPICK_V1086 換月份的時候，「這個月沒記錄」那個標籤要跟著換 */
+H.mbYmChg=()=>{const ym=(document.getElementById('mb-ym')||{}).value||'';
+  const box=document.getElementById('mb-picklist');if(!box)return;
+  const on={};box.querySelectorAll('.mb-ck').forEach(c=>{if(c.checked)on[c.value]=1;});
+  box.innerHTML=mbPickHtml(ym);
+  box.querySelectorAll('.mb-ck').forEach(c=>{if(on[c.value])c.checked=true;});};
+H.mbScopeChg=()=>{const v=(document.getElementById('mb-scope')||{}).value||'';
+  const box=document.getElementById('mb-pickbox');if(box)box.style.display=(v==='pick')?'':'none';};
+H.mbPickAll=(on)=>{const box=document.getElementById('mb-picklist');if(!box)return;
+  box.querySelectorAll('.mb-ck').forEach(c=>{c.checked=(String(on)==='1');});};
 H.monthBills=()=>{
   if(!IS_OWNER)return toast('這個功能只有主管理員可以用');
   const ms=mbMonthsAvail();
@@ -13242,14 +13306,35 @@ H.monthBills=()=>{
   let note='';try{note=localStorage.getItem('qna_mb_note')||'';}catch(e){}
   openModal('<div class="modal" style="max-width:560px"><div class="modal-head"><h3>🧾 產生月結單</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body">'
-   +'<div class="form-grid"><div class="field"><label>月份</label><select id="mb-ym">'
+   +'<div class="form-grid"><div class="field"><label>月份</label><select id="mb-ym" onchange="H.mbYmChg()">'
    +(ms.length?ms.map(m=>'<option value="'+m+'"'+(m===def?' selected':'')+'>'+m.replace('-',' 年 ')+' 月</option>').join('')
               :('<option value="'+def+'">'+def+'</option>'))+'</select></div>'
-   +'<div class="field"><label>要算誰</label><select id="mb-scope"><option value="live">在學中的學生</option><option value="all">全部（含休學）</option></select></div>'
+   +'<div class="field"><label>要算誰</label><select id="mb-scope" onchange="H.mbScopeChg()">'
+   +'<option value="live">在學中的學生</option><option value="all">全部（含休學）</option>'
+   +'<option value="pick">自己挑（下面勾）</option></select></div>'
+   /* MBPICK_V1086 挑人 */
+   +'<div class="field full" id="mb-pickbox" style="display:none"><label>要印哪幾位 '
+   +'<button type="button" class="btn btn-sm btn-ghost" onclick="H.mbPickAll(1)">全選</button> '
+   +'<button type="button" class="btn btn-sm btn-ghost" onclick="H.mbPickAll(0)">全部取消</button></label>'
+   +'<div id="mb-picklist" class="mb-list">'+mbPickHtml(def)+'</div>'
+   +'<span class="hint">勾起來的人，就算那個月沒有上課也會印一頁。</span></div>'
    +'<div class="field full"><label>每一頁最下面要寫的付款方式／叮嚀 <span class="hint">選填，會記住下次不用再打</span></label>'
    +'<textarea id="mb-note" rows="3" placeholder="例：匯款 國泰 013-xxx-xxxxxx 黃美娟／或 Momo · 收到後請跟老師說一聲，謝謝！">'+esc(note)+'</textarea></div></div></div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
-   +'<button class="btn btn-primary" data-act="monthBillsGo">🖨 列印 / PDF</button></div></div>');};
+   +'<button class="btn btn-primary" data-act="monthBillsGo">🖨 列印 / PDF</button></div></div>');
+  /* MBPICK_V1086 */
+  if(!document.getElementById('mb-css')){const st=document.createElement('style');st.id='mb-css';
+    st.textContent='.mb-list{max-height:230px;overflow:auto;border:1px solid var(--line,#E4E7EB);'
+      +'border-radius:10px;padding:6px 8px;background:#fff}'
+      +'.mb-p{display:flex;align-items:center;gap:8px;padding:5px 4px;border-radius:8px;cursor:pointer}'
+      +'.mb-p:hover{background:#F4F5F7}'
+      +'.mb-p input{width:auto;margin:0 6px 0 0;flex:0 0 auto}'
+      +'.mb-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+      +'.mb-t{flex:0 0 auto;font-size:11px;padding:1px 7px;border-radius:999px}'
+      +'.mb-t.pa{color:#5B6472;background:#E7E9EC}'
+      +'.mb-t.no{color:#6b7480;background:#F1F3F5}';
+    document.head.appendChild(st);}
+  try{H.mbScopeChg();}catch(e){}};
 H.monthBillsGo=()=>{
   const _v=(id)=>{const e=document.getElementById(id);return e?String(e.value||''):'';};
   const ym=_v('mb-ym');if(!/^\d{4}-\d{2}$/.test(ym))return toast('請選月份');
@@ -13257,8 +13342,13 @@ H.monthBillsGo=()=>{
   try{localStorage.setItem('qna_mb_note',note);}catch(e){}
   const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const org=window.APP_NAME||'QNA CHINESE';
+  /* MBPICK_V1086 自己挑的話只印勾起來的人 */
+  let pick=null;
+  if(scope==='pick'){pick={};
+    document.querySelectorAll('#mb-picklist .mb-ck').forEach(c=>{if(c.checked)pick[c.value]=1;});
+    if(!Object.keys(pick).length)return toast('還沒勾要印誰');}
   const pool=(S.students||[]).filter(s=>s&&!s.deleted&&!s.deleted_at&&!s.is_test
-    &&(scope==='all'||enrollOf(s)!=='paused'));
+    &&(pick?pick[s.id]:(scope==='all'||enrollOf(s)!=='paused')));
   const pages=[];let sumCharge=0,sumPaid=0,nStu=0;
   pool.slice().sort(stuNameCmp).forEach(s=>{
     const cur=billCur(s),hourly=isHourly(s),grp=(s.class_type==='團班'),unit=unitLabel(s);
@@ -13266,7 +13356,8 @@ H.monthBillsGo=()=>{
       .sort((a,b)=>String(a.date).localeCompare(String(b.date)));
     const pays=(Array.isArray(s.payments)?s.payments:[]).filter(p=>p&&p.date&&String(p.date).slice(0,7)===ym)
       .sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-    if(!logs.length&&!pays.length)return;
+    /* MBPICK_V1086 她自己勾的人，就算那個月是空的也照印一頁 */
+    if(!pick&&!logs.length&&!pays.length)return;
     nStu++;
     let charge=0,unset=0;
     const lrows=logs.map(e=>{
@@ -13354,7 +13445,8 @@ H.monthBillsGo=()=>{
   const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+e2(fnm('月結單',ym,localToday()))+'</title>'
     +expHead()/* EXPUI_V934 */
     +'<style>'+css+'</style></head><body class="lang-zh">'
-    +expBar(1,'<span class="exp-l">'+e2(ym.replace('-',' 年 '))+' 月 · 共 '+nStu+' 位學生，一位一頁</span>')
+    +expBar(1,'<span class="exp-l">'+e2(ym.replace('-',' 年 '))+' 月 · '+nStu+' 位學生'
+      +(nStu>1?'，一位一頁，往下捲可以看其他人':'')+'</span>')
     +pages.join('')+expJs()+'</body></html>';
   fbWin(html);closeModal();};
 
@@ -15779,6 +15871,7 @@ function msClassRows(m){
 function msDueRows(){
   const out=[];
   (S.students||[]).forEach(s=>{if(s.is_test)return;
+    try{if(stuSoon(s))return;}catch(e){}/* STUSOON_V1087 */
     let b=null;try{b=stuBill(s);}catch(e){}
     if(!b||!(b.due>0.001))return;
     out.push({who:s.name||'',kind:'華語教學',tot:b.charge,paid:b.paid,due:b.due,cur:billCur(s)});});
