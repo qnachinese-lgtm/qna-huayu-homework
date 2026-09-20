@@ -3029,7 +3029,8 @@ function dashTodayHtml(){
       +dashBtns(mb,'','<button class="btn btn-sm" data-act="'+act+'" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button>','')+'</div>',e.start);});
   // 預排（還沒點名）
   const plans=[];
-  try{groupsList().forEach(cls=>{const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls)&&!x.is_test);
+  try{groupsList().forEach(cls=>{if(clsNotYet(cls))return;/* CLSOFF_V1074 */
+    const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls)&&!x.is_test);
     classPlanned(cls).forEach(p=>{if(!p||p.date!==d)return;
       if(mem.some(x=>(Array.isArray(x.class_log)?x.class_log:[]).some(e=>e&&e.date===d)))return;
       plans.push({cls,p});});});}catch(err){}
@@ -4115,7 +4116,8 @@ function buildAllClassICS(){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//
       if((s.class_type||'')==='團班')return;
       studentPlanned(s).forEach(p=>mk('中文課 · '+(s.name||''),p.date,p.start,p.end,
         (typeof meetOfStudent==='function')?meetOfStudent(s.id):(s.meet_url||'')));});
-    groupsList().forEach(cls=>{classPlanned(cls).forEach(p=>
+    groupsList().forEach(cls=>{if(clsNotYet(cls))return;/* CLSOFF_V1074 */
+      classPlanned(cls).forEach(p=>
       mk('中文課 · '+cls+' 團班',p.date,p.start,p.end,
         (typeof meetOfGroup==='function')?meetOfGroup(cls):''));});
   }catch(e){}
@@ -4213,6 +4215,7 @@ function renderCalMonth(body,toggle){
         if(fixSkippedS(s,dy.ymd,r.s||''))return;/* FIXSKIP_V1000 */
         push(dy.ymd,{sid:s.id,sname:s.name,start:r.s||'',end:r.e||''});}));});
     groupsList().forEach(cls=>{
+      if(clsNotYet(cls))return;/* CLSOFF_V1074 */
       const sch=classSchedOf(cls)||[];if(!sch.length)return;
       const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls)&&!x.is_test);
       ds7.forEach(dy=>sch.forEach(r=>{
@@ -5512,7 +5515,8 @@ function weekActualCard(back){
     else{items.push({type:'log',date:e.date,start:e.start||'',end:e.end||'',s,e});}
   });});
   // 預排課程：若該團班該天已經點名記錄過，就不重複顯示
-  groupsList().forEach(cls=>classPlanned(cls).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;if(recordedGrp.has(cls+'|'+p.date))return;items.push({type:'plan',date:p.date,start:p.start||'',end:p.end||'',cls,p});}));
+  groupsList().forEach(cls=>{if(clsNotYet(cls))return;/* CLSOFF_V1074 */
+    classPlanned(cls).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;if(recordedGrp.has(cls+'|'+p.date))return;items.push({type:'plan',date:p.date,start:p.start||'',end:p.end||'',cls,p});});});
   (S.students||[]).forEach(s=>{if(s.deleted||s.is_test||s.class_type==='團班')return;studentPlanned(s).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date))return;items.push({type:'splan',date:p.date,start:p.start||'',end:p.end||'',s,p});});});
   // 🔁 固定時段：照學生／團班設定的每週時段推出來（那天已點名或已排預排就不重複）
   {
@@ -5532,6 +5536,7 @@ function weekActualCard(back){
         if(fixSkippedS(s,dy.ymd,r.s||''))return;/* FIXSKIP_V1000 這一天她按過「不要再推」 */
         items.push({type:'fix',date:dy.ymd,start:r.s||'',end:r.e||'',s});}));});
     groupsList().forEach(cls=>{
+      if(clsNotYet(cls))return;/* CLSOFF_V1074 */
       const sch=classSchedOf(cls)||[];
       if(!sch.length)return;
       days7.forEach(dy=>sch.forEach(r=>{
@@ -7034,7 +7039,13 @@ function deriveClassSched(cls){const members=S.students.filter(s=>stuGroups(s).i
 function classSchedOf(cls){const cm=classMetaOf(cls);return (cm.schedule&&cm.schedule.length)?cm.schedule:deriveClassSched(cls);}
 function classSchedText(cls){const sch=classSchedOf(cls);return (sch&&sch.length)?fmtSchedule({schedule:sch}):'';}
 function classMeetOf(cls){const cm=classMetaOf(cls);if(/^https?:\/\//i.test(cm.meet||''))return cm.meet;const m=S.students.filter(s=>stuGroups(s).includes(cls)).map(s=>s.meet_url).find(u=>/^https?:\/\//i.test(u||''));return m||'';}
-async function ensureClassSched(cls){const cm=classMetaOf(cls);if(cm.schedule&&cm.schedule.length)return;const d=deriveClassSched(cls);if(d.length){try{await saveClassMeta(cls,{schedule:d});}catch(e){}}}
+/* CLSOFF_V1074 本來這裡會把「照學生時段推出來的那一份」直接存進班級設定，
+   所以班上曾經有過一位學生，他的個人時段就變成整班的固定時段，
+   老師自己從來沒按過儲存（Quinn：「我還沒設定你怎麼就可以排了呢」）。
+   現在什麼都不存——推出來的那一份只拿來預先填在格子裡，按了儲存才算數。 */
+async function ensureClassSched(cls){return;}
+/* 🚧 還沒開始的班：不自動排課 */
+function clsNotYet(cls){return !!((classMetaOf(cls)||{}).notyet);}
 /* 預排課程（先排到月曆，之後再點名） */
 function classPlanned(cls){const cm=classMetaOf(cls);return Array.isArray(cm.planned)?cm.planned.filter(p=>p&&p.date):[];}
 async function addPlanned(cls,rows){const cur=classPlanned(cls).slice();const seen=new Set(cur.map(p=>p.date));(rows||[]).forEach(r=>{if(r&&r.date&&!seen.has(r.date)){cur.push(r);seen.add(r.date);}});cur.sort((a,b)=>String(a.date).localeCompare(b.date));await saveClassMeta(cls,{planned:cur});}
@@ -7117,6 +7128,11 @@ function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY
   const members=sel?(S.students.length?S.students.slice().sort(stuNameCmp).map(s=>`<label class="check-row"><input type="checkbox" class="gm-mem" value="${s.id}" ${stuGroups(s).includes(sel)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'')}</span></label>`).join(''):'<div class="hint">還沒有學生。</div>'):'';
   const editPanel=sel?`<div style="margin:2px 0 14px;padding:12px 14px;background:#faf7f0;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px">
        ${groupSize(sel)?'':'<div class="hint" style="margin:0 0 8px;color:#b45309">這一班目前沒有學生，所以固定時段不會自動排進課表。設定還留著，改完或整班刪掉都可以。</div>'/* GMEMPTY_V1073 */}
+       <!-- CLSOFF_V1074 -->
+       <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;margin:0 0 10px">
+         <input type="checkbox" id="gm-notyet" style="width:auto;margin:0"${clsNotYet(sel)?' checked':''}>
+         🚧 這一班還沒開始
+         <span class="hint">勾起來就完全不自動排課（課表、今天的課、還沒點名、固定時段都不會出現）。真的開課再取消。</span></label>
        <div class="field" style="margin:0"><label>🕒 「${esc(sel)}」上課時段 <span class="hint">整班共用；已依學生時段自動帶入，可再修改</span></label>
        <div id="gm-sched">${(classSchedOf(sel).length?classSchedOf(sel):[{}]).map(r=>schedRowHTML(r)).join('')}</div>
        <button class="btn btn-sm" type="button" data-act="gmSchedAdd" style="margin-top:6px">＋ 新增時段</button>
@@ -7132,7 +7148,7 @@ function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY
        <div class="check-list" id="gm-members">${members}</div>
        <div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-primary" data-act="gmSave" data-id="${esc(sel)}">儲存成員</button><button class="btn" type="button" data-act="classPage" data-id="${esc(sel)}">🔎 開啟班級頁</button></div></div>
      </div>`:'';
-  const clsRows=classes.length?classes.map(c=>`<div class="dash-row" style="padding:8px 4px;flex-wrap:wrap${c===sel?';background:#E8E9EB;border-radius:8px':''}"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span>${groupSize(c)?'':'<span class="tag" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7" title="沒有學生的班不會自動排進課表，設定還留著">沒有學生</span>'}<span class="grow"></span><button class="btn btn-sm btn-accent" type="button" data-act="classPublish" data-id="${esc(c)}">📢 發佈內容</button><button class="btn btn-sm" type="button" data-act="classPage" data-id="${esc(c)}">🔎 開啟班級頁</button><button class="btn btn-sm ${c===sel?'btn-accent':''}" type="button" data-act="gmPick" data-id="${esc(c)}">${c===sel?'✏️ 設定中':'✏️ 編輯'}</button></div>`+(c===sel?editPanel:'')).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
+  const clsRows=classes.length?classes.map(c=>`<div class="dash-row" style="padding:8px 4px;flex-wrap:wrap${c===sel?';background:#E8E9EB;border-radius:8px':''}"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span>${groupSize(c)?'':'<span class="tag" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7" title="沒有學生的班不會自動排進課表，設定還留著">沒有學生</span>'}${clsNotYet(c)?'<span class="tag" style="background:#EDE9FE;color:#6D28D9;border-color:#6D28D955" title="還沒開始的班完全不會自動排課">🚧 還沒開始</span>':''}<span class="grow"></span><button class="btn btn-sm btn-accent" type="button" data-act="classPublish" data-id="${esc(c)}">📢 發佈內容</button><button class="btn btn-sm" type="button" data-act="classPage" data-id="${esc(c)}">🔎 開啟班級頁</button><button class="btn btn-sm ${c===sel?'btn-accent':''}" type="button" data-act="gmPick" data-id="${esc(c)}">${c===sel?'✏️ 設定中':'✏️ 編輯'}</button></div>`+(c===sel?editPanel:'')).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>👥 團班管理</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>建立新團班</label><div class="dual-row"><input id="gm-new" type="text" placeholder="例：週二晚班"><button class="btn btn-accent" type="button" data-act="gmCreate">＋ 建立</button></div></div>
@@ -16865,7 +16881,9 @@ H.billUnack=async(id)=>{
 H.gmTierAdd=()=>{const c=$('#gm-tiers');if(c)c.insertAdjacentHTML('beforeend',gmTierRowHTML({}));};
 H.gmTierDel=(_,b)=>{const row=b.closest('.gm-tier-row');if(!row)return;const c=row.parentElement;row.remove();if(c&&!c.querySelector('.gm-tier-row'))c.insertAdjacentHTML('beforeend',gmTierRowHTML({}));};
 H.gmMetaSave=async(cls)=>{const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();const drive=(($('#gm-drive')&&$('#gm-drive').value)||'').trim();const fee_tiers=gmTiersRead();const st=$('#gm-meta-st');if(st)st.textContent='儲存中…';
-  try{await saveClassMeta(cls,{schedule,textbook,meet,drive,fee_tiers});if(st)st.textContent='已儲存 ✓';toast('已儲存團班資訊');}catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}};
+  const notyet=!!($('#gm-notyet')&&$('#gm-notyet').checked);/* CLSOFF_V1074 */
+  try{await saveClassMeta(cls,{schedule,textbook,meet,drive,fee_tiers,notyet});if(st)st.textContent='已儲存 ✓';
+    render();toast(notyet?'已儲存；這一班標成「還沒開始」，不會自動排課':'已儲存團班資訊');}catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}};
 H.gmApplyAll=async(cls)=>{
   const schedule=$$('#gm-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);
   const textbook=(($('#gm-book')&&$('#gm-book').value)||'').trim();const meet=(($('#gm-meet')&&$('#gm-meet').value)||'').trim();const drive=(($('#gm-drive')&&$('#gm-drive').value)||'').trim();const fee_tiers=gmTiersRead();
