@@ -4482,6 +4482,15 @@ function itvAll(){return (S.interviews||[]);}
 /* ITVSTAGE_V1094 面試練習的三段，跟代辦、代書一樣。
    諮詢中＝只報了價，還沒確定要做 → 報價不是欠款，不算未收。
    沒談成＝問了價就沒下文 → 更不是欠款，收過的錢還是留著（可能要退）。 */
+/* CRMSORT_V1096 客戶清單的分群順序：進行中→還沒開始→諮詢中→沒談成→已結案。
+   同一群裡面怎麼排，各頁自己決定（面試照面試日，代辦、代書照名字）。 */
+function crmStageRank(c,stageOf){
+  if(((c&&c.status)||'active')!=='active')return 4;
+  const st=stageOf?stageOf(c):'case';
+  if(st==='lost')return 3;
+  if(st==='consult')return 2;
+  if(typeof crmSoon==='function'&&crmSoon(c))return 1;
+  return 0;}
 function itvStage(c){const v=String((c&&c.stage)||'').trim();
   return (v==='consult'||v==='lost')?v:'case';}
 function itvIsConsult(c){return itvStage(c)==='consult';}
@@ -4802,9 +4811,9 @@ function wrFeeBlock(c){
 function renderWriting(){
   const body=$('#writing-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','代書只有主管理員看得到。');return;}
-  const list=wrAll().slice().sort((a,b)=>{
-    const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;
-    if(sa!==sb)return sa-sb;
+  const list=wrAll().slice().sort((a,b)=>{/* CRMSORT_V1096 */
+    const ra=crmStageRank(a,wrStage),rb=crmStageRank(b,wrStage);
+    if(ra!==rb)return ra-rb;
     return stuNameCmp(a,b);});
   const ym=localToday().slice(0,7);const inc=wrIncome(ym),incAll=wrIncome(null);
   const dueStr=itvMoneyStr(incAll.due);
@@ -4919,7 +4928,10 @@ function renderAgency(){
   const body=$('#agency-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','代辦申請只有主管理員看得到。');return;}
   const _fkind='agency';
-  const list=agAll().slice().sort((a,b)=>{const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;if(sa!==sb)return sa-sb;return stuNameCmp(a,b);});
+  const list=agAll().slice().sort((a,b)=>{/* CRMSORT_V1096 */
+    const ra=crmStageRank(a,agStage),rb=crmStageRank(b,agStage);
+    if(ra!==rb)return ra-rb;
+    return stuNameCmp(a,b);});
   const ym=localToday().slice(0,7);const inc=agIncome(ym);const incAll=agIncome(null);
   const dueStr=itvMoneyStr(incAll.due);
   const head=navSubBar(BIZ_TABS,_fkind)+`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div>${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#b91c1c">${dueStr}</b></div>`:''}<span class="grow"></span><div class="stat-cum"><div class="muted" style="font-size:12px">累計收入</div><b style="font-size:19px">${itvMoneyStr(incAll.paid)||'—'}</b></div></div><div class="hint" style="margin-top:8px">收入會併進「營運 → 🧮 總收入」。</div>${crmMoveBanner()}</div>`;
@@ -5117,6 +5129,9 @@ function renderInterview(){
      同一天的再照名字 A→Z。 */
   const _itvT=localToday();
   const list=itvAll().slice().sort((a,b)=>{
+    /* CRMSORT_V1096 先分群，再照原本的面試日排法 */
+    const ra=crmStageRank(a,itvStage),rb=crmStageRank(b,itvStage);
+    if(ra!==rb)return ra-rb;
     const sa=(a.status||'active')==='active'?0:1,sb=(b.status||'active')==='active'?0:1;
     if(sa!==sb)return sa-sb;
     const da=String(a.exam_date||''),db=String(b.exam_date||'');
