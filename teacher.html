@@ -4626,6 +4626,11 @@ function crmMoveBanner(){
 const WR_STAGES=[{k:'gather',t:'收資料',ic:'📥'},{k:'draft',t:'初稿',ic:'✍️'},{k:'revise',t:'修改',ic:'🔁'},{k:'final',t:'定稿',ic:'✅'},{k:'deliver',t:'交件',ic:'📮'}];
 const WR_DOCS=['讀書計劃','自傳','推薦信','研究計劃','履歷','其他'];
 function wrAll(){return (S.writings||[]);}
+/* WRCONSULT_V1059 代書的「諮詢中」＝只報了價，還沒確定要做。
+   報價不是欠款，所以不進未收、不進營運的尚未收款、記收款那邊也不會說她欠錢。 */
+function wrStage(c){return (String((c&&c.stage)||'').trim()==='consult')?'consult':'case';}
+function wrIsConsult(c){return wrStage(c)==='consult';}
+const WR_STAGE={consult:['\u{1F4AC} 諮詢中','#2C6FB5']};
 function wrById(id){return wrAll().find(x=>x.id===id);}
 function wrStages(c){return (c&&c.stages&&typeof c.stages==='object')?c.stages:{};}
 function wrDoneN(c){const st=wrStages(c);return WR_STAGES.filter(x=>st[x.k]&&st[x.k].date).length;}
@@ -4636,7 +4641,9 @@ function wrTotal(c){const v=Number((c&&c.fee_total)||0);return v>0?v:0;}
 function wrPaidSum(c,ym){const by={};
   wrPays(c).forEach(p=>{if(ym&&String(p.date).slice(0,7)!==ym)return;const cur=p.currency||'VND';by[cur]=(by[cur]||0)+(Number(p.amount)||0);});
   return by;}
-function wrDueSum(c){const by={};const tot=wrTotal(c);
+function wrDueSum(c){const by={};
+  if(wrIsConsult(c))return by;/* WRCONSULT_V1059 只是報價，不是欠款 */
+  const tot=wrTotal(c);
   if(tot){const cur=wrTotalCur(c);const got=wrPays(c).reduce((a,p)=>a+(((p.currency||'VND')===cur)?(Number(p.amount)||0):0),0);
     const left=tot-got;if(left>0)by[cur]=(by[cur]||0)+left;}
   return by;}
@@ -4707,11 +4714,17 @@ function renderWriting(){
     return `<details class="card crm-card${done?' card-done':''}" data-cid="${esc(c.id)}" style="margin-bottom:10px"${(S.crmFocus===c.id)?' open':''}><summary class="crm-sum" data-act="crmFocus" data-id="${esc(c.id)}">
       <span class="crm-chev">▸</span><div class="crm-head">
         <span class="cc nm"><b>${snm(c.name||'（未命名）')}</b><button class="btn btn-icon" data-act="wrEdit" data-id="${esc(c.id)}" title="客戶資料">✏️</button></span>
-        <span class="cc st">${done?crmDoneBadge(c):`<span class="badge badge-ok">${cur?esc(cur.ic+' '+cur.t):'尚未開始'}</span>`}</span>
+        <span class="cc st">${wrIsConsult(c)
+          ?`<span class="badge" style="background:${WR_STAGE.consult[1]}18;color:${WR_STAGE.consult[1]};border-color:${WR_STAGE.consult[1]}55">${WR_STAGE.consult[0]}</span>`
+          :(done?crmDoneBadge(c):`<span class="badge badge-ok">${cur?esc(cur.ic+' '+cur.t):'尚未開始'}</span>`)}</span>
         <span class="cc sch">${wrDocChips(c)}${c.school?`<span class="tag">🏫 ${esc(c.school)}</span>`:''}</span>
         <span class="cc dt">${wrDeadlineBadge(c)}</span>
         <span class="cc num">${n}/${WR_STAGES.length}</span>
-        <span class="cc money">${paidAll?esc(paidAll):'<span class="dash">—</span>'}${due?`<span class="sub2 warn">未收 ${esc(due)}</span>`:''}</span>
+        <span class="cc money">${wrIsConsult(c)
+          /* WRCONSULT_V1059 諮詢中：只顯示報過多少（灰字），收過訂金的話也一起顯示 */
+          ?((wrTotal(c)?`<span class="muted" title="諮詢階段的報價，還沒確定要做，不算進未收">報價 ${esc(money(wrTotal(c),wrTotalCur(c)))}</span>`:'<span class="dash">—</span>')
+            +(paidAll?`<span class="sub2">已收 ${esc(paidAll)}</span>`:''))
+          :((paidAll?esc(paidAll):'<span class="dash">—</span>')+(due?`<span class="sub2 warn">未收 ${esc(due)}</span>`:''))}</span>
         <span class="cc act"><button class="btn btn-icon crm-del" data-act="wrDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
       </div></summary><div class="crm-body">
       ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#828C98">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#F8F8F9;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
@@ -4730,6 +4743,10 @@ function wrForm(c){c=c||{};
   const chk=(v)=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 12px 6px 0;font-weight:400;cursor:pointer"><input type="checkbox" class="wr-doc" value="${esc(v)}" style="width:auto;margin:0"${have.indexOf(v)>=0?' checked':''}> ${esc(v)}</label>`;
   openModal(`<div class="modal"><div class="modal-head"><h3>✍️ ${c.id?'編輯代書客戶':'新增代書客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
     <div class="field"><label>姓名 *</label><input id="wr-name" type="text" value="${esc(c.name||'')}" placeholder="例：Nguyễn Thị C"></div>
+    <!-- WRCONSULT_V1059 -->
+    <div class="field"><label>階段</label><select id="wr-stage">
+      <option value="consult"${wrStage(c)==='consult'?' selected':''}>💬 諮詢中（報價不算進未收）</option>
+      <option value="case"${wrStage(c)!=='consult'?' selected':''}>✍️ 進行中</option></select></div>
     <div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="wr-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>
     <div class="field full"><label>要寫哪些文件 *</label><div style="margin-top:4px">${WR_DOCS.map(chk).join('')}</div>
       <input id="wr-docs-other" type="text" value="${esc(have.filter(x=>WR_DOCS.indexOf(x)<0).join('、'))}" placeholder="其他文件名稱（用、隔開）" style="margin-top:6px"></div>
@@ -15673,6 +15690,7 @@ H.wrSave=async(id)=>{const name=(($('#wr-name')&&$('#wr-name').value)||'').trim(
     school:(($('#wr-school')&&$('#wr-school').value)||'').trim(),docs,
     deadline:((($('#wr-deadline')&&$('#wr-deadline').value)||'')||null),
     note:(($('#wr-note')&&$('#wr-note').value)||'').trim(),
+    stage:(($('#wr-stage')&&$('#wr-stage').value)||'case'),/* WRCONSULT_V1059 */
     fee_total:(_tv===''?null:Number(_tv)),fee_cur:(($('#wr-fcur')&&$('#wr-fcur').value)||'VND')};
   try{
     if(id){await DB.update(crmCol(id),id,patch);}
@@ -16697,7 +16715,7 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
      這裡本來一律拿「報價 − 已收」當欠款標成紅色的「欠」，而且欠款會排到最前面，
      所以一打開就是兩個根本沒欠錢的人（Quinn：「這兩個是報價，為什麼在這邊會寫欠錢」）。
      財務頁早就只算正式案件（CONSULT_V955），這裡補上同一條規則。
-     代書沒有諮詢／沒談成這兩個階段，所以只有代辦要傳 stageF。 */
+     V1059 之後代書也有「諮詢中」了，所以兩邊都傳 stageF；代書目前沒有「沒談成」。 */
   const crmPush=(arr,k,totF,curF,payF,stageF)=>arr.filter(c=>!c.deleted_at).forEach(c=>{
     const tot=totF(c),cur=curF(c);
     const got=payF(c).reduce((a,x)=>a+(((x.currency||'VND')===cur)?(Number(x.amount)||0):0),0);
@@ -16715,7 +16733,7 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
       extra:((c.school||c.docs)?`<span class="muted" style="font-size:12px">${esc(c.school||c.docs)}</span>`:'')+(done?'<span class="muted" style="font-size:12px">（已結案）</span>':''),
       av:`<span class="avatar sm emo" style="background:${k==='ag'?'#EDE9FE':'#bbf7d0'};flex:none">${k==='ag'?'\u{1F393}':'\u270D\uFE0F'}</span>`});});
   crmPush(agAll(),'ag',agTotal,agTotalCur,agPays,agStage);
-  crmPush(wrAll(),'wr',wrTotal,wrTotalCur,wrPays);
+  crmPush(wrAll(),'wr',wrTotal,wrTotalCur,wrPays,wrStage);/* WRCONSULT_V1059 代書也有諮詢中了 */
   if(!items.length){toast('還沒有任何學生或客戶');return;}
   /* PKROW_V690 一列＝頭像／（姓名＋下面一行小字）／金額／箭頭。姓名一定自己一行，不會再被擠爛。 */
   const rowOf=(x)=>{const m=PK_META[x.k];
