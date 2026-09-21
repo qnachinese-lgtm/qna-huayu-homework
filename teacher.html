@@ -3530,6 +3530,7 @@ function renderDashboard(){
       <button class="btn" data-act="planClass" data-id="">📌 排一堂課</button>
       ${IS_OWNER?'<button class="btn" data-act="payPick">💰 記繳費</button>':''}
       ${IS_OWNER?'<button class="btn" data-act="newAll" title="一張表填完，一次建好這個人的每一種身分">👤 新增一位</button>':''/* NEWALL_V1109 */}
+      ${IS_OWNER?'<button class="btn" data-act="mediaMove" title="把 mp3 和圖片搬到雲端儲存，解決 Vercel 空間用完的問題">🗂 搬音檔</button>':''/* MEDIAMOVE_V1111 */}
       ${IS_OWNER?'<button class="btn" data-act="healthCheck" title="一次列出資料裡該補、該改的地方">🩺 資料健檢</button>':''/* HEALTH_V1104 */}
     </div>
   </div>
@@ -18114,6 +18115,143 @@ H.leadMake=(id)=>{
     const st=document.getElementById('na-s-status');if(st)st.value='reserved';
     try{toast('已帶入「'+(l.name||'')+'」填的資料，確認一下再按「全部建立」');}catch(e){}
   },120);};
+
+/* MEDIAMOVE_V1111 把 mp3／圖片搬到 Firebase Storage ───────────────
+   Vercel 免費方案的 10GB 是「每一次部署各存一份」，專案裡有 233MB 的媒體檔，
+   所以改幾十次就滿了。搬到 Storage 之後每次部署只剩 6MB 左右。 */
+const MM_KEY='qna_media_map';
+const MM_REPO='https://api.github.com/repos/qnachinese-lgtm/qna-huayu-homework/git/trees/main?recursive=1';
+const MM_KEEP={'icon-192.png':1,'icon-512.png':1,'og-image.png':1,'teacher-photo.jpg':1,'apple-touch-icon.png':1};
+const MM_TABLES=['lessons','questions','site','students','crm','results'];
+function mmMap(){try{return JSON.parse(localStorage.getItem(MM_KEY)||'{}')||{};}catch(e){return {};}}
+function mmSave(m){try{localStorage.setItem(MM_KEY,JSON.stringify(m));}catch(e){}}
+function mmLog(s,cls){const el=document.getElementById('mm-log');if(!el)return;
+  const d=document.createElement('div');d.className='mm-l '+(cls||'');d.textContent=s;
+  el.appendChild(d);el.scrollTop=el.scrollHeight;}
+function mmStat(s){const el=document.getElementById('mm-stat');if(el)el.innerHTML=s;}
+function mmBar(p){const el=document.getElementById('mm-bar');if(el)el.style.width=Math.round(p)+'%';}
+async function mmList(){
+  const t=await (await fetch(MM_REPO,{cache:'no-store'})).json();
+  return (t.tree||[]).filter(x=>x.type==='blob'&&x.path.indexOf('/')<0
+    &&/\.(mp3|jpg|jpeg|png|m4a|wav)$/i.test(x.path)&&!MM_KEEP[x.path])
+    .map(x=>({name:x.path,size:x.size||0}));}
+H.mediaMove=()=>{
+  if(!IS_OWNER)return toast('這個功能只有主管理員可以用');
+  const m=mmMap(),done=Object.keys(m).length;
+  openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>\u{1F5C2} 把音檔和圖片搬到雲端</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="hint" style="margin-bottom:10px">
+       Vercel 免費方案的 10GB 是「每部署一次就整包存一份」。你的專案裡有 <b>233MB</b> 的 mp3 和圖片，
+       所以改個幾十次就滿了。把它們搬到 Firebase Storage（你本來就在用的），之後每次部署只剩 6MB 左右，
+       這個問題就不會再出現。<br>
+       <b>不會刪任何東西</b>：GitHub 上的原檔照樣留著當備份，搬過去之後資料庫裡的網址會自動換成新的。</div>
+     <div class="card" style="padding:12px 14px;margin-bottom:10px">
+       <div id="mm-stat">${done?('之前已經搬過 <b>'+done+'</b> 個，按下面會從沒搬的繼續。'):'還沒開始。'}</div>
+       <div style="height:9px;background:#E4E7EB;border-radius:99px;margin:9px 0 2px;overflow:hidden">
+         <i id="mm-bar" style="display:block;height:100%;width:0;background:#16a34a;transition:width .2s"></i></div>
+     </div>
+     <div id="mm-log" class="mm-box"></div>
+     <div class="hint" style="margin-top:8px">搬的時候<b>不要關這個視窗，也不要關這一頁</b>。中斷了再按一次會從沒搬完的繼續。
+       233MB 大概要幾分鐘到十幾分鐘，看網路速度。</div>
+   </div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>
+     <button class="btn" data-act="mediaCheck">\u{1F50E} 只檢查，不搬</button>
+     <button class="btn btn-primary" data-act="mediaGo">\u{1F680} 開始搬</button></div></div>`);
+  if(!document.getElementById('mm-css')){const st=document.createElement('style');st.id='mm-css';
+    st.textContent='.mm-box{max-height:300px;overflow:auto;border:1px solid var(--line,#E4E7EB);'
+      +'border-radius:10px;padding:8px 10px;background:#fff;font-size:12.5px;line-height:1.7}'
+      +'.mm-l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#5B6B80}'
+      +'.mm-l.ok{color:#16a34a}.mm-l.bad{color:#b91c1c}.mm-l.big{font-weight:700;color:#16202E;margin-top:4px}';
+    document.head.appendChild(st);}};
+/* 只看現在的狀況，不動任何東西 */
+H.mediaCheck=async()=>{
+  mmLog('在看現在的狀況…','big');
+  try{
+    const files=await mmList();const m=mmMap();
+    const todo=files.filter(f=>!m[f.name]);
+    const mb=(a)=>(a.reduce((s,f)=>s+f.size,0)/1048576).toFixed(1);
+    mmLog('專案裡的媒體檔：'+files.length+' 個，共 '+mb(files)+'MB');
+    mmLog('已經搬好的：'+(files.length-todo.length)+' 個');
+    mmLog('還沒搬的：'+todo.length+' 個，共 '+mb(todo)+'MB',todo.length?'bad':'ok');
+    let n=0;const hit={};
+    for(const t of MM_TABLES){
+      let rows=[];try{rows=await DB.list(t);}catch(e){continue;}
+      (rows||[]).forEach(r=>{const s=JSON.stringify(r||{});
+        files.forEach(f=>{if(s.indexOf('/'+f.name)>=0){hit[f.name]=1;n++;}});});}
+    mmLog('資料庫裡還在用舊網址的筆數：'+n+'（'+Object.keys(hit).length+' 個檔案）',n?'bad':'ok');
+    mmStat(todo.length?('還有 <b>'+todo.length+'</b> 個沒搬。'):'<b style="color:#16a34a">檔案都搬好了。</b>');
+  }catch(e){mmLog('看不了：'+((e&&e.message)||e),'bad');}};
+H.mediaGo=async()=>{
+  if(!IS_OWNER)return;
+  const btn=document.querySelector('[data-act="mediaGo"]');
+  if(btn){btn.disabled=true;btn.textContent='搬運中…';}
+  try{
+    await ensureAuthFresh();
+    mmLog('① 開始搬檔案','big');
+    const files=await mmList();
+    const m=mmMap();
+    let okN=0,skipN=0,badN=0,doneB=0;
+    const totB=files.reduce((s,f)=>s+f.size,0);
+    for(const f of files){
+      if(m[f.name]){skipN++;doneB+=f.size;mmBar(doneB/totB*100);continue;}
+      try{
+        const r=await fetch('/'+encodeURIComponent(f.name),{cache:'no-store'});
+        if(!r.ok)throw new Error('抓不到（'+r.status+'）');
+        const blob=await r.blob();
+        const ref=firebase.storage().ref('media/'+f.name);
+        await ref.put(blob,{contentType:blob.type||'application/octet-stream',
+          cacheControl:'public,max-age=31536000'});
+        m[f.name]=await ref.getDownloadURL();
+        mmSave(m);okN++;
+        mmLog('✓ '+f.name+'（'+(f.size/1048576).toFixed(1)+'MB）','ok');
+      }catch(e){badN++;mmLog('✕ '+f.name+'：'+((e&&e.message)||e),'bad');}
+      doneB+=f.size;mmBar(doneB/totB*100);
+      mmStat('搬好 <b>'+(okN+skipN)+'</b>／'+files.length+(badN?('　<span style="color:#b91c1c">失敗 '+badN+'</span>'):''));
+    }
+    mmLog('搬好 '+okN+' 個，本來就有 '+skipN+' 個'+(badN?('，失敗 '+badN+' 個'):''),badN?'bad':'ok');
+    if(badN){mmLog('有失敗的，先不要換網址。再按一次「開始搬」會只補失敗的那幾個。','bad');
+      if(btn){btn.disabled=false;btn.textContent='🚀 開始搬';}return;}
+
+    mmLog('② 換掉資料庫裡的網址','big');
+    let chg=0;
+    const names=Object.keys(m);
+    const rxEsc=(x)=>String(x).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    /* 不管網址是哪個網域，只看結尾的檔名。已經是 Storage 網址的完全不碰。 */
+    const rxOf={};names.forEach(n=>{rxOf[n]=new RegExp('https?:\\/\\/[^"\'\\s<>)]*?\\/'+rxEsc(n)+'(?:\\?[^"\'\\s<>)]*)?','g');});
+    const fix=(v)=>{
+      if(typeof v==='string'){
+        if(v.indexOf('firebasestorage.googleapis.com')>=0)return v;
+        const t=v.trim();
+        for(let i=0;i<names.length;i++){const n=names[i];
+          if(t===n||t==='/'+n)return m[n];
+          if(/^https?:\/\//i.test(t)&&t.split('?')[0].split('/').pop()===n)return m[n];}
+        let s=v;names.forEach(n=>{if(s.indexOf(n)>=0)s=s.replace(rxOf[n],m[n]);});
+        return s;}
+      if(Array.isArray(v))return v.map(fix);
+      if(v&&typeof v==='object'){const o={};Object.keys(v).forEach(k=>{o[k]=fix(v[k]);});return o;}
+      return v;};
+    for(const t of MM_TABLES){
+      let rows=[];try{rows=await DB.list(t);}catch(e){mmLog('（'+t+' 讀不到，跳過）');continue;}
+      for(const r of (rows||[])){
+        if(!r||!r.id)continue;
+        const before=JSON.stringify(r);
+        if(before.indexOf('.mp3')<0&&before.indexOf('.jpg')<0&&before.indexOf('.png')<0)continue;
+        const o=fix(r);const after=JSON.stringify(o);
+        if(after===before)continue;
+        const patch={};Object.keys(o).forEach(k=>{if(k!=='id'&&JSON.stringify(o[k])!==JSON.stringify(r[k]))patch[k]=o[k];});
+        if(!Object.keys(patch).length)continue;
+        try{await DB.update(t,r.id,patch);chg++;
+          mmLog('✓ '+t+' · '+(o.title||o.name||r.id).toString().slice(0,26),'ok');}
+        catch(e){mmLog('✕ '+t+' · '+r.id+'：'+((e&&e.message)||e),'bad');}
+      }}
+    mmLog('換掉 '+chg+' 筆','ok');
+    mmLog('③ 再檢查一次','big');
+    await H.mediaCheck();
+    await loadAll();render();
+    mmStat('<b style="color:#16a34a">搬完了。</b>接下來請 Claude 把 .vercelignore 放上去，並刪掉舊的部署。');
+    toast('搬完了');
+  }catch(e){mmLog('中斷：'+((e&&e.message)||e),'bad');toast(writeErr('搬不動',e));}
+  if(btn){btn.disabled=false;btn.textContent='🚀 開始搬';}};
 H.bulkAssign=()=>bulkAssignModal();
 /* QCACHE_V856 在別台改過題目的時候，用這個強制重讀一次 */
 H.qReload=async(_x,btn)=>{
