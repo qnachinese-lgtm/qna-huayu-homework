@@ -49,9 +49,23 @@ header{position:sticky;top:0;z-index:50;background:rgba(251,248,242,.92);backdro
 body.lang-vi .brand,body.lang-vi #brand-name{font-family:Roboto,"Noto Sans TC",system-ui,sans-serif}
 .badge{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--primary-d));color:#fff;display:grid;place-items:center;font-family:"Noto Serif TC",serif;font-size:20px;font-weight:800;letter-spacing:.5px}
 .sp{flex:1}
-.lang{display:flex;gap:2px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px}
-.lang button{border:0;background:none;padding:6px 11px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted)}
-.lang button.on{background:var(--primary);color:#fff}
+/* LANGMENU_V1121 跟老師後台同一顆：一顆「🌐 目前語言」，按下去展開清單，正在用的那一種反白 */
+.langwrap{position:relative}
+.lang-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:118px;
+  border:1px solid var(--line-2);background:#fff;border-radius:999px;padding:8px 15px;
+  font-family:inherit;font-weight:600;font-size:14px;color:var(--ink);cursor:pointer;white-space:nowrap}
+.lang-btn:hover{border-color:#1E4C86}
+.lang{position:absolute;top:calc(100% + 6px);right:0;z-index:80;background:#fff;
+  border:1px solid var(--line);border-radius:11px;box-shadow:0 10px 28px rgba(22,32,46,.16);
+  overflow:hidden;min-width:100%}
+.lang[hidden]{display:none}
+.lang button{display:block;width:100%;text-align:center;white-space:nowrap;background:none;border:0;
+  border-bottom:1px solid var(--line);padding:10px 18px;font-family:inherit;font-size:14px;
+  color:var(--ink);cursor:pointer}
+.lang button:last-child{border-bottom:0}
+.lang button:hover{background:#E4EDF9}
+.lang button.on{background:#1E4C86;color:#fff;font-weight:700}
+@media(max-width:560px){.lang-btn{min-width:0;padding:8px 12px}.lang-btn .lgn{display:none}}
 .login{position:relative}
 .login-btn{border:1px solid var(--line-2);background:#fff;border-radius:999px;padding:8px 15px;font-weight:600;font-size:14px;cursor:pointer;color:var(--ink);min-width:132px;box-sizing:border-box;text-align:center;white-space:nowrap}
 .login-menu{position:absolute;right:0;top:46px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:6px;min-width:172px;display:none}
@@ -211,10 +225,13 @@ footer{background:#221e1a;color:#cbbfae;padding:40px 0 30px;font-size:14px}
 <header><div class="wrap hd">
   <a class="brand" href="#top"><span class="badge" id="brand-badge">華</span><span id="brand-name">QNA CHINESE</span></a>
   <span class="sp"></span>
-  <div class="lang" id="lang">
-    <button data-l="zh" class="on">中文</button>
-    <button data-l="vi">VI</button>
-    <button data-l="en">EN</button>
+  <div class="langwrap"><!-- LANGMENU_V1121 -->
+    <button type="button" class="lang-btn" id="lang-btn" aria-haspopup="listbox" aria-expanded="false">🌐 <span class="lgn" id="lang-cur">中文</span></button>
+    <div class="lang" id="lang" role="listbox" hidden>
+      <button type="button" data-l="zh" class="on">中文</button>
+      <button type="button" data-l="vi">Tiếng Việt</button>
+      <button type="button" data-l="en">English</button>
+    </div>
   </div>
   <div class="login">
     <button class="login-btn" id="login-btn">🔑 <span class="lg-txt" data-t="login">登入</span></button>
@@ -502,6 +519,8 @@ function applyLang(){
   document.body.classList.toggle('lang-vi',L==='vi');
   document.body.classList.toggle('lang-en',L==='en');
   document.querySelectorAll('#lang button').forEach(b=>b.classList.toggle('on',b.dataset.l===L));
+  {const nm={zh:'中文',vi:'Tiếng Việt',en:'English'}[L]||'中文';
+   const cur=document.getElementById('lang-cur');if(cur)cur.textContent=nm;}/* LANGMENU_V1121 */
   document.querySelectorAll('[data-t]').forEach(el=>{const k=el.getAttribute('data-t');const src=(C[k]!=null)?C[k]:(UI[k]!=null?UI[k]:null);if(src==null)return;const s=val(src);if(el.dataset.html==='1')el.innerHTML=s;else el.textContent=s;});
   document.getElementById('brand-name').textContent=C.brand||'QNA CHINESE';
   document.getElementById('foot-brand').textContent=C.brand||'QNA CHINESE';
@@ -649,7 +668,14 @@ async function loadSite(){
   applyLang();
 }
 
-document.getElementById('lang').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;L=b.dataset.l;localStorage.setItem('qna_site_lang',L);applyLang();});
+/* LANGMENU_V1121 點一下展開，選完就收起來，點別的地方也收起來 */
+const _lgBtn=document.getElementById('lang-btn'),_lgMenu=document.getElementById('lang');
+function langClose(){if(_lgMenu){_lgMenu.hidden=true;}if(_lgBtn)_lgBtn.setAttribute('aria-expanded','false');}
+if(_lgBtn)_lgBtn.addEventListener('click',e=>{e.stopPropagation();
+  const open=_lgMenu.hidden;_lgMenu.hidden=!open;_lgBtn.setAttribute('aria-expanded',String(open));});
+document.addEventListener('click',langClose);
+_lgMenu.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  e.stopPropagation();L=b.dataset.l;localStorage.setItem('qna_site_lang',L);langClose();applyLang();});
 const lm=document.getElementById('login-menu');
 document.getElementById('login-btn').addEventListener('click',e=>{e.stopPropagation();lm.classList.toggle('open');});
 document.addEventListener('click',()=>lm.classList.remove('open'));
