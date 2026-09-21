@@ -6541,22 +6541,40 @@ function renderStudents(){
    （頭像、國籍、測試帳號、Meet／教材資料夾連結、付款帳號、費用提醒、合併帳戶、負責管理員）
    收進下面的「更多設定」。欄位 id 全部沒改，存檔邏輯不動。 */
 function studentModal(st){const e=!!(st&&st.id);st=st||{};
+  if(!e){/* STULAST_V1138 只在「新增」時帶預設值，不會動到既有資料 */
+    const L=stuLast();
+    if(L){st=Object.assign({},st);
+      if(!st.textbook&&L.textbook)st.textbook=L.textbook;
+      if(st.tuition==null&&L.tuition!=='')st.tuition=L.tuition;
+      if(!st.fee_unit&&L.fee_unit)st.fee_unit=L.fee_unit;
+      if(!st.currency&&L.currency)st.currency=L.currency;
+      if(!st.class_type&&L.class_type)st.class_type=L.class_type;
+      if(!(Array.isArray(st.schedule)&&st.schedule.length)&&Array.isArray(L.schedule)&&L.schedule.length)
+        st.schedule=L.schedule;}
+  }
   openModal(`<div class="modal"><div class="modal-head"><h3>${e?'編輯學生':'新增學生'}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-    <div class="form-sec"><div class="form-sec-h">📋 基本資料</div><div class="form-grid">
+    <div class="stu-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"><!-- STUTAB_V1138 -->
+      <button type="button" class="note-tab on" data-stug="a">👤 基本</button>
+      <button type="button" class="note-tab" data-stug="b">🗓️ 上課</button>
+      ${IS_OWNER?'<button type="button" class="note-tab" data-stug="c">💰 收費</button>':''}
+      <button type="button" class="note-tab" data-stug="d">⚙️ 其他</button>
+    </div>
+    ${(!e&&stuLast())?`<div class="hint" data-g="a" style="background:#FFFDF6;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:12px">已幫你帶入上次新增學生用的設定（教材／單價／幣別／時段），不對就直接改。</div>`:''/* STULAST_V1138 */}
+    <div class="form-sec" data-g="a"><div class="form-sec-h">📋 基本資料</div><div class="form-grid">
      <div class="field"><label>名字 * <span class="hint">平常畫面上顯示的，臉書名字也可以</span></label><input id="f-name" type="text" value="${esc(st.name||'')}"></div>
      ${realField('f-real',st)/* REALNAME_V1108 */}
      <div class="field"><label>國籍</label><input id="f-nat" type="text" value="${esc(st.nationality||'')}" placeholder="例：越南"></div>
      <div class="field"><label>生日</label><input id="f-birth" type="date" min="1900-01-01" max="2100-12-31" value="${esc(st.birth||'')}"></div>
     </div></div>
-    <div class="form-sec"><div class="form-sec-h">📇 聯絡方式 <span class="hint" style="font-weight:400">要寄信、要找人的時候用</span></div><div class="form-grid">
+    <div class="form-sec" data-g="a"><div class="form-sec-h">📇 聯絡方式 <span class="hint" style="font-weight:400">要寄信、要找人的時候用</span></div><div class="form-grid">
      ${(e&&st.email)
        ? `<div class="field"><label>Email <span class="hint">這組也是他的登入帳號</span></label><input id="f-email" type="email" value="${esc(st.email||'')}" disabled style="opacity:.65"></div>`
        : `<div class="field"><label>Email</label><input id="f-email" type="email" value="${esc(st.email||'')}" placeholder="例：mylinh@gmail.com" autocomplete="off"></div>`}
      <div class="field"><label>電話／Zalo</label><input id="f-phone" type="text" inputmode="tel" value="${esc(st.phone||'')}" placeholder="例：0912 345 678"></div>
      <div class="field full"><label>臉書連結</label><input id="f-fb" type="text" value="${esc(st.fb||'')}" placeholder="facebook.com/..."></div>
     </div></div>
-    <div class="form-sec"><div class="form-sec-h">👥 班級資料</div><div class="form-grid">
+    <div class="form-sec" data-g="a"><div class="form-sec-h">👥 班級資料</div><div class="form-grid">
      <div class="field"><label>班別</label><select id="f-type"><option value="1對1" ${st.class_type!=='團班'?'selected':''}>一對一</option><option value="團班" ${st.class_type==='團班'?'selected':''}>團班</option></select></div>
      <div class="field"><label>狀態 </label><select id="f-status">${ENROLL.map(x=>`<option value="${x[0]}"${enrollOf(st)===x[0]?' selected':''}>${x[1]}</option>`).join('')}</select></div>
      <div class="field"><label>使用教材</label><input id="f-book" type="text" value="${esc(st.textbook||'')}" placeholder="例：當代中文課程 1"></div>
@@ -6564,7 +6582,7 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
        <input id="f-groups" type="text" list="grouplist" autocomplete="off" value="${esc((Array.isArray(st.groups)?st.groups:[]).join('、'))}" placeholder="例：週二晚班、週六班">
        <datalist id="grouplist">${grpAllList().map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div>
     </div></div>
-    <div class="form-sec"><div class="form-sec-h">🗓️ 上課安排</div><div class="form-grid">
+    <div class="form-sec hide" data-g="b"><div class="form-sec-h">🗓️ 上課安排</div><div class="form-grid">
      ${slifeFields(st)/* LIFE_V1106 */}
      <div class="field full"><label>上課時段 <span class="hint">一週可多個，例：週三 20:00–22:00</span></label>
        <div id="sched-rows">${(Array.isArray(st.schedule)&&st.schedule.length?st.schedule:[{}]).map(r=>schedRowHTML(r)).join('')}</div>
@@ -6576,7 +6594,7 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
      <div class="field full"><label>🎥 上課連結（Google Meet） <span class="hint">貼上固定的 Meet 連結，老師和學生都能一鍵進教室</span></label>
        <input id="f-meet" type="url" inputmode="url" value="${esc(st.meet_url||'')}" placeholder="https://meet.google.com/abc-defg-hij"></div>
     </div></div>
-    ${IS_OWNER?`<div class="form-sec"><div class="form-sec-h">💰 收費設定 <span class="hint" style="font-weight:400">（這裡只設怎麼收費；實際繳了多少看下面的「繳費」）</span></div><div class="form-grid">
+    ${IS_OWNER?`<div class="form-sec hide" data-g="c"><div class="form-sec-h">💰 收費設定 <span class="hint" style="font-weight:400">（這裡只設怎麼收費；實際繳了多少看下面的「繳費」）</span></div><div class="form-grid">
      <div class="field"><label>學費單價 <span class="hint">越南盾打千位（350＝350,000 VND）</span></label><input id="f-fee" type="number" value="${st.tuition??''}" placeholder="例：臺幣 800／越南盾 350"></div>
      <div class="field"><label>計費方式</label><select id="f-feeunit"><option value="session"${st.fee_unit!=='hour'?' selected':''}>每堂</option><option value="hour"${st.fee_unit==='hour'?' selected':''}>每小時</option></select></div>
      <div class="field"><label>幣別</label><select id="f-cur"><option value="VND"${(st.currency||DEF_CUR)==='VND'?' selected':''}>越南盾 VND</option><option value="TWD"${(st.currency||DEF_CUR)==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${st.currency==='USD'?' selected':''}>美元 US$</option></select></div>
@@ -6593,13 +6611,13 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
        </div></div>`:''}
      ${(IS_OWNER&&st.id)?`<div class="field full" style="background:#f8fafc;border-radius:8px;padding:10px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>🎟️ 目前 ${st.class_type==='團班'?'<span class="muted">團班：上一堂算一堂，不用預繳堂數</span>':(sessChip(st)||'<span class="muted">還沒有堂數（去繳費新增）</span>')}</span><span class="grow"></span><button type="button" class="btn btn-sm btn-accent" data-act="payments" data-id="${st.id}">💰 繳費記錄</button></div><div class="hint" style="margin-top:6px">${st.class_type==='團班'?'團班收費看「營運 → 該收 vs 實收」，用實際上課堂數×單價自動算。':'總堂數＝每筆繳費「加堂數」的加總。匯入舊學生：到「繳費」補一筆（填日期＋金額＋堂數）即可。'}</div></div>`:''}
     </div></div>`:''}
-    <div class="form-sec" id="f-login-sec"${(!e&&enrollOf(st)==='reserved')?' style="display:none"':''}><div class="form-sec-h">🔑 登入帳號 <span class="hint" style="font-weight:400">預約／還沒開始可留空</span></div><div class="form-grid">
+    <div class="form-sec hide" data-g="d" id="f-login-sec"${(!e&&enrollOf(st)==='reserved')?' style="display:none"':''}><div class="form-sec-h">🔑 登入帳號 <span class="hint" style="font-weight:400">預約／還沒開始可留空</span></div><div class="form-grid">
      ${e
        ? `<div class="field full" style="margin-bottom:0"><div class="hint">${st.email?('登入帳號就是上面那組 Email（'+esc(st.email)+'），建立後不能改；要換密碼請按卡片上的「寄重設密碼信」。'):'上面的 Email 填好之後，按卡片上的「建立登入帳號」就能讓他登入。'}</div></div>`
        : `<div class="field"><label>初始密碼</label><input id="f-pw" type="text" value="" placeholder="選填，至少 6 碼"></div>
      <div class="field"><div class="hint" style="margin-top:22px">帳號就是上面「聯絡方式」填的 Email。</div></div>`}
     </div></div>
-    <details class="form-more"><summary>▸ 更多設定 <span class="hint">頭像、國籍、教材資料夾、付款帳號、合併帳戶，設定一次就很少動。</span></summary>
+    <details class="form-more hide" data-g="d"><summary>▸ 更多設定 <span class="hint">頭像、國籍、教材資料夾、付款帳號、合併帳戶，設定一次就很少動。</span></summary>
     <div class="form-sec" style="margin-top:10px"><div class="form-grid">
      <div class="field"><label>頭像 <span class="hint">留空＝系統自動配一個</span></label><div style="display:flex;align-items:center;gap:8px"><span id="f-av-prev" class="avatar sm emo" data-dft="${avEmoji({name:st.name||''})}" style="background:${avColor(st.name)};flex:none">${avEmoji(st)}</span><input id="f-avatar" type="text" maxlength="8" value="${esc(st.avatar||'')}" placeholder="貼一個 emoji，或按右邊挑" style="flex:1" oninput="(function(el){var p=document.getElementById('f-av-prev');if(p)p.textContent=el.value.trim()||p.dataset.dft;})(this)">${st.id?`<button type="button" class="btn btn-sm" data-act="avPick" data-id="${esc(st.id)}">挑一個</button>`:''}</div></div>
      <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-test" ${st.is_test?'checked':''} style="width:auto;margin:0"> 🧪 這是測試帳號 <span class="hint">（不算進學生統計，歸到「🧪 測試帳號」區）</span></label></div>
@@ -6616,10 +6634,10 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
      <div class="field full"><label>👨‍👩‍👦 合併帳戶（選填）</label><input id="f-billgrp" type="text" value="${esc(st.bill_group||'')}" placeholder="例：葛家（父親繳費）" list="billgrp-list"><datalist id="billgrp-list">${[...new Set((S.students||[]).map(x=>String(x.bill_group||'').trim()).filter(Boolean))].map(g=>`<option value="${esc(g)}">`).join('')}</datalist></div>
      `:''}
     </div></div>
-    ${IS_OWNER?`<div class="form-sec"><div class="form-sec-h">👤 發佈</div><div class="form-grid"><div class="field full"><label>負責管理員 <span class="hint">指定給某位管理員；選「主管理員」＝只有你管理</span></label>
+    ${IS_OWNER?`<div class="form-sec hide" data-g="d"><div class="form-sec-h">👤 發佈</div><div class="form-grid"><div class="field full"><label>負責管理員 <span class="hint">指定給某位管理員；選「主管理員」＝只有你管理</span></label>
        <select id="f-admin"><option value=""${!st.admin?' selected':''}>主管理員（你）${TEACHER_EMAIL?'・'+esc(TEACHER_EMAIL):''}</option>${(S.admins||[]).map(a=>`<option value="${esc(a.email)}"${(st.admin||'').toLowerCase()===(a.email||'').toLowerCase()?' selected':''}>${esc(a.name||a.email)}・${esc(a.email)}</option>`).join('')}</select></div></div></div>`:''}
     </details>
-    <div class="form-sec"><div class="form-sec-h">📝 備註</div><div class="field full" style="margin-bottom:0"><textarea id="f-notes" placeholder="任何需要記住的事…">${esc(st.notes||'')}</textarea></div></div>
+    <div class="form-sec hide" data-g="d"><div class="form-sec-h">📝 備註</div><div class="field full" style="margin-bottom:0"><textarea id="f-notes" placeholder="任何需要記住的事…">${esc(st.notes||'')}</textarea></div></div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
      <button class="btn btn-primary" data-act="saveStudent" data-id="${st.id||''}">💾 儲存</button></div></div>`);/* CRMBTN_V1098 全站主按鈕都叫「💾 儲存」 */
@@ -11320,6 +11338,12 @@ function renderStudentProfile(){
     +'</div>'
     +tiles+tabs+'<div class="sp-body">'+body+'</div></div>';}
 
+/* STUCARD_V1138 還有幾天生日（只算日月） */
+function bDays(b){try{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(b||''));if(!m)return null;
+  const t=new Date();t.setHours(0,0,0,0);
+  let d=new Date(t.getFullYear(),Number(m[2])-1,Number(m[3]));
+  if(d<t)d=new Date(t.getFullYear()+1,Number(m[2])-1,Number(m[3]));
+  const n=Math.round((d-t)/86400000);return n>180?null:n;}catch(e){return null;}}
 function spOverview(s,logs,fbs,fbSums,prog,sc,scOk,scTot){
   const row=(k,v)=>'<dt>'+k+'</dt><dd>'+v+'</dd>';
   const tt=(typeof tierText==='function')?tierText(s):'';
@@ -11332,8 +11356,12 @@ function spOverview(s,logs,fbs,fbSums,prog,sc,scOk,scTot){
     +(IS_OWNER?row('學費',fee):'')
     +(IS_OWNER&&s.payment_date?row('付款日',esc((typeof fmtDate==='function')?fmtDate(s.payment_date):s.payment_date)):'')
     +row('國籍',esc(s.nationality||'—'))
-    +row('Email',esc(s.email||'—'))
-    +(s.phone?row('電話',esc(s.phone)):'')
+    +row('Email',s.email?('<a href="mailto:'+esc(s.email)+'">'+esc(s.email)+'</a>'):'—')
+    +(s.phone?row('電話／Zalo','<a href="tel:'+esc(String(s.phone).replace(/[^\d+]/g,''))+'">'+esc(s.phone)+'</a>'):'')/* STUCARD_V1138 */
+    +(s.fb?row('臉書',(/^(https?:\/\/|www\.|facebook\.com|fb\.com|m\.me)/i.test(String(s.fb).trim())
+        ?('<a href="'+esc(/^https?:/i.test(s.fb)?s.fb:('https://'+String(s.fb).trim()))+'" target="_blank" rel="noopener">'+esc(s.fb)+'</a>')
+        :esc(s.fb))):'')
+    +(s.birth?row('生日',esc(s.birth)+(bDays(s.birth)!=null?(' <span class="tag">'+(bDays(s.birth)===0?'今天生日 🎂':('還有 '+bDays(s.birth)+' 天'))+'</span>'):'')):'')
     +(s.line_id?row('LINE / Zalo',esc(s.line_id)):'')
     +'</dl>'
     +(s.notes?'<div class="sp-sec" style="margin-top:18px">📝 備註・學習目標</div><div class="sp-note">'+esc(s.notes)+'</div>':'')
@@ -14565,6 +14593,23 @@ function inviteModal(name,email,pw){
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn btn-accent" data-act="copyInvite">📋 複製訊息</button></div></div>');
 }
 H.copyInvite=()=>{const t=document.getElementById('inv-msg');if(!t)return;t.select();try{document.execCommand('copy');}catch(e){}try{navigator.clipboard&&navigator.clipboard.writeText(t.value);}catch(e){}toast('已複製，貼到 Zalo／訊息傳給學生');};
+/* STUTAB_V1138 編輯學生視窗上面那排分頁 */
+document.addEventListener('click',(ev)=>{
+  const b=ev.target&&ev.target.closest&&ev.target.closest('[data-stug]');
+  if(!b)return;
+  const g=b.dataset.stug;
+  document.querySelectorAll('[data-stug]').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.modal-body [data-g]').forEach(x=>x.classList.toggle('hide',x.dataset.g!==g));
+  const bd=b.closest('.modal-body');if(bd)bd.scrollTop=0;
+});
+
+/* STULAST_V1138 新增學生時，把上一次填的教材／單價／幣別／時段帶進來 */
+function stuLast(){try{return JSON.parse(localStorage.getItem('qna_stu_last')||'null');}catch(e){return null;}}
+function stuLastSave(c){try{localStorage.setItem('qna_stu_last',JSON.stringify({
+  textbook:c.textbook||'',tuition:(c.tuition==null?'':c.tuition),fee_unit:c.fee_unit||'session',
+  currency:c.currency||DEF_CUR,class_type:c.class_type||'1對1',
+  schedule:Array.isArray(c.schedule)?c.schedule:[]}));}catch(e){}}
+
 H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return toast('請輸入名字');
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const schedule=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);
@@ -14617,14 +14662,16 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   const btn=document.querySelector('[data-act="saveStudent"]');
   if(!email&&!pw){
     if(btn){btn.disabled=true;btn.textContent='新增中…';}
-    try{await DB.insert('students',common);closeModal();await loadAll();render();toast('已新增（純資料，尚未開通登入）');}
+    try{await DB.insert('students',common);stuLastSave(common);/* STULAST_V1138 */
+      closeModal();await loadAll();render();toast('已新增（純資料，尚未開通登入）');}
     catch(err){toast('新增失敗：'+((err&&err.message)||err));if(btn){btn.disabled=false;btn.textContent='新增';}}
     return;
   }
   if(!email||!pw)return toast('要開通登入請「Email 與密碼都填」，或兩者都留空當純資料');if(pw.length<6)return toast('初始密碼至少 6 碼');
   if(S.students.some(s=>(s.email||'').toLowerCase()===email))return toast('這個 Email 已被其他學生使用');
   if(btn){btn.disabled=true;btn.textContent='建立中…';}
-  try{const u=await createStudentAuth(email,pw);await DB.insert('students',Object.assign({uid:u,email},common));closeModal();await loadAll();render();ruLater();/* READUID_V973 */ inviteModal(name,email,pw);}
+  try{const u=await createStudentAuth(email,pw);await DB.insert('students',Object.assign({uid:u,email},common));
+    stuLastSave(common);/* STULAST_V1138 */ closeModal();await loadAll();render();ruLater();/* READUID_V973 */ inviteModal(name,email,pw);}
   catch(err){toast('建立失敗：'+authMsg(err));if(btn){btn.disabled=false;btn.textContent='新增';}}};
 H.loginLog=(id)=>{const s=S.students.find(x=>x.id===id);const p=progOf(id);const logs=(((p&&Array.isArray(p.logins))?p.logins:[]).slice()).sort().reverse();
   const byDay={};logs.forEach(t=>{const d=fmtDate(t);(byDay[d]=byDay[d]||[]).push(fmtDT(t).slice(-5));});
