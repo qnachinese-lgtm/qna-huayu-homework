@@ -6248,10 +6248,14 @@ function leadsCardHtml(){
         <span class="muted" style="font-size:12px">${esc(when)}</span>
         <span class="grow"></span>
         ${l.email?`<a class="btn btn-sm" href="mailto:${esc(l.email)}">回信</a>`:''}
+        <button class="btn btn-sm btn-primary" data-act="leadMake" data-id="${l.id}" title="把這一筆帶進「新增一位」，確認後就建立">👤 建立成客戶</button><!-- JOIN_V1110 -->
         ${isNew?`<button class="btn btn-sm btn-accent" data-act="leadDone" data-id="${l.id}">標記已處理</button>`:`<button class="btn btn-sm" data-act="leadReopen" data-id="${l.id}">改回未處理</button>`}
         <button class="btn btn-sm btn-danger" data-act="leadDel" data-id="${l.id}">刪除</button>
       </div>
       <div style="margin-top:6px;font-size:14px">${esc(contact)||'<span class="muted">（沒留其他聯絡方式）</span>'}</div>
+      ${(l.real_name||l.birth)?`<div class="muted" style="font-size:13px;margin-top:3px">${l.real_name?`🪪 真實姓名：${esc(l.real_name)}`:''}${(l.real_name&&l.birth)?'　':''}${l.birth?`🎂 ${esc(l.birth)}`:''}</div>`:''/* JOIN_V1110 */}
+      ${l.want?`<div style="font-size:13px;margin-top:3px">🧩 想要：${esc(String(l.want).split(',').map(k=>({student:'👤 華語課',agency:'🎓 代辦申請',interview:'🎤 面試練習',writing:'✍️ 代書'})[k]||k).join('、'))}</div>`:''/* JOIN_V1110 */}
+      ${(l.school||l.itv_kind||l.docs)?`<div class="muted" style="font-size:13px;margin-top:3px">${[l.school&&('🏫 '+l.school),l.itv_kind&&('🎤 '+l.itv_kind),l.docs&&('✍️ '+l.docs)].filter(Boolean).map(esc).join('　')}</div>`:''/* JOIN_V1110 */}
       ${meta?`<div class="muted" style="font-size:13px;margin-top:3px">🎯 ${esc(meta)}</div>`:''}
       ${l.material?`<div class="muted" style="font-size:13px;margin-top:3px">📚 教材：${esc(l.material)}</div>`:''}
       ${(l.pref_date||l.pref_time)?`<div style="font-size:13px;margin-top:3px;color:var(--accent,#1E4C86)">📅 想約：${esc([l.pref_date,l.pref_time].filter(Boolean).join(' '))}</div>`:''}
@@ -6259,7 +6263,15 @@ function leadsCardHtml(){
       ${l.message?`<div style="margin-top:6px;background:#F4F4F5;border-radius:8px;padding:8px 10px;font-size:14px;white-space:pre-line">${esc(l.message)}</div>`:''}
     </div>`;
   }).join(''):'<div class="muted" style="padding:8px 2px">還沒有人報名。把官網網址分享出去吧！</div>';
-  return `<div class="card" style="margin-top:14px"><div class="lesson-label">📥 報名名單 ${newN?`<span class="badge badge-soon">${newN} 筆新</span>`:''} <span class="hint">從對外官網送來的諮詢／報名</span></div>${rows}</div>`;
+  /* JOIN_V1110 報名表的連結：丟給學生自己填 */
+  const joinUrl=(location.origin||'')+'/join.html';
+  const linkBar=`<div class="dash-row" style="margin:2px 0 10px;background:#F4F6F8;border-radius:10px;padding:9px 12px;flex-wrap:wrap">
+    <span style="font-size:13.5px"><b>📝 報名表連結</b> <span class="muted">丟給學生自己填，填完就會出現在下面</span></span>
+    <span class="grow"></span>
+    <code style="font-size:12.5px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:3px 8px">${esc(joinUrl)}</code>
+    <button class="btn btn-sm btn-accent" data-act="joinCopy" data-id="${esc(joinUrl)}">📋 複製連結</button>
+    <a class="btn btn-sm" href="${esc(joinUrl)}" target="_blank" rel="noopener">↗ 看一下長怎樣</a></div>`;
+  return `<div class="card" style="margin-top:14px"><div class="lesson-label">📥 報名名單 ${newN?`<span class="badge badge-soon">${newN} 筆新</span>`:''} <span class="hint">官網的諮詢，加上報名表送來的</span></div>${linkBar}${rows}</div>`;
 }
 function siteCardHtml(){
   const pend=(S.reviews||[]).filter(r=>(r.status||'pending')==='pending').length;
@@ -18074,6 +18086,34 @@ H.newAllGo=async()=>{
     toast('已建立：'+made.join('、')+(made.length>1?'（已綁成同一個人）':''));}
   catch(e){if(btn){btn.disabled=false;btn.textContent='💾 全部建立';}
     toast(writeErr('建立失敗',e));}};
+/* JOIN_V1110 複製報名表連結 */
+H.joinCopy=(u)=>{const t=String(u||'');
+  try{navigator.clipboard.writeText(t).then(()=>toast('已複製：'+t),()=>toast('複製不了，手動選起來：'+t));}
+  catch(e){toast('複製不了，手動選起來：'+t);}};
+/* JOIN_V1110 把報名那一筆帶進「新增一位」 */
+H.leadMake=(id)=>{
+  const l=(S.leads||[]).find(x=>x&&x.id===id);if(!l)return toast('找不到這一筆');
+  H.newAll();
+  setTimeout(()=>{
+    const set=(k,v)=>{const e=document.getElementById(k);if(e&&v!=null&&v!=='')e.value=v;};
+    set('na-name',l.name||'');set('na-real',l.real_name||'');
+    set('na-email',l.email||'');set('na-phone',l.phone||l.line||'');
+    const bits=[l.level&&('程度：'+l.level),l.goal&&('目標：'+l.goal),
+      l.pref_time&&('可以上課的時間：'+l.pref_time),l.birth&&('生日：'+l.birth),
+      l.referrer&&('怎麼認識的：'+l.referrer),l.message].filter(Boolean);
+    set('na-note',bits.join('\n'));
+    const want=String(l.want||'student').split(',').filter(Boolean);
+    document.querySelectorAll('.na-k').forEach(c=>{c.checked=want.indexOf(c.value)>=0;});
+    if(!want.length){const c=document.querySelector('.na-k[value="student"]');if(c)c.checked=true;}
+    try{H.naUI();}catch(e){}
+    set('na-a-school',l.school||'');
+    if(l.itv_kind)set('na-i-kind',l.itv_kind);
+    set('na-w-docs',l.docs||'');
+    /* 從報名表來的一律先當「諮詢中／預約」，確定要開始再自己改 */
+    ['na-a-stage','na-i-stage','na-w-stage'].forEach(k=>{const e=document.getElementById(k);if(e)e.value='consult';});
+    const st=document.getElementById('na-s-status');if(st)st.value='reserved';
+    try{toast('已帶入「'+(l.name||'')+'」填的資料，確認一下再按「全部建立」');}catch(e){}
+  },120);};
 H.bulkAssign=()=>bulkAssignModal();
 /* QCACHE_V856 在別台改過題目的時候，用這個強制重讀一次 */
 H.qReload=async(_x,btn)=>{
