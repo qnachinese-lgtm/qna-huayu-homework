@@ -3529,6 +3529,7 @@ function renderDashboard(){
       <button class="btn" data-act="fbWeek">💬 寫回饋單</button>
       <button class="btn" data-act="planClass" data-id="">📌 排一堂課</button>
       ${IS_OWNER?'<button class="btn" data-act="payPick">💰 記繳費</button>':''}
+      ${IS_OWNER?'<button class="btn" data-act="newAll" title="一張表填完，一次建好這個人的每一種身分">👤 新增一位</button>':''/* NEWALL_V1109 */}
       ${IS_OWNER?'<button class="btn" data-act="healthCheck" title="一次列出資料裡該補、該改的地方">🩺 資料健檢</button>':''/* HEALTH_V1104 */}
     </div>
   </div>
@@ -17945,6 +17946,134 @@ H.healthCheck=()=>{
       +'.hc-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #F0F1F3}'
       +'.hc-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}';
     document.head.appendChild(st);}};
+
+/* NEWALL_V1109 一張表，一次建好一個人的好幾種身分 ───────────────── */
+const NA_KINDS=[
+  {k:'student', ic:'\u{1F464}', t:'華語課學生'},
+  {k:'agency',  ic:'\u{1F393}', t:'代辦申請'},
+  {k:'interview',ic:'\u{1F3A4}',t:'面試練習'},
+  {k:'writing', ic:'✍️', t:'代書'}];
+function naCur(id,sel){return '<select id="'+id+'" style="width:120px">'
+  +['VND','TWD','USD'].map(c=>'<option value="'+c+'"'+((sel||DEF_CUR)===c?' selected':'')+'>'
+    +({VND:'VND 千',TWD:'NT$',USD:'US$'})[c]+'</option>').join('')+'</select>';}
+function naStage(id){return '<select id="'+id+'">'
+  +'<option value="consult">\u{1F4AC} 諮詢中（報價不算未收）</option>'
+  +'<option value="case" selected>進行中</option></select>';}
+H.newAll=()=>{
+  if(!IS_OWNER)return toast('這個功能只有主管理員可以用');
+  const box=(k,inner)=>`<div class="na-box" id="na-box-${k}" style="display:none">${inner}</div>`;
+  openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>\u{1F464} 新增一位</h3><button class="x" data-act="closeModal">×</button></div>
+   <div class="modal-body">
+     <div class="hint" style="margin-bottom:10px">一個人如果又上課又代辦，在這裡一次建好，系統會自動把它們綁成同一個人（之後一筆轉帳可以分給好幾種服務）。</div>
+     <div class="form-sec"><div class="form-sec-h">\u{1F4CB} 這個人</div><div class="form-grid">
+       <div class="field"><label>名字 * <span class="hint">平常畫面上顯示的，臉書名字也可以</span></label><input id="na-name" type="text" placeholder="例：Trà My"></div>
+       <div class="field"><label>真實姓名 <span class="hint">選填，開文件時會用到</span></label><input id="na-real" type="text" placeholder="例：Nguyễn Thị Trà My"></div>
+       <div class="field"><label>Email <span class="hint">選填</span></label><input id="na-email" type="email" autocomplete="off" placeholder="例：ten@gmail.com"></div>
+       <div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="na-phone" type="text" placeholder="電話／Zalo／LINE"></div>
+       <div class="field full"><label>備註 <span class="hint">選填</span></label><textarea id="na-note" rows="2" placeholder="怎麼認識的、想做什麼…"></textarea></div>
+     </div></div>
+     <div class="form-sec"><div class="form-sec-h">✔ 要建立哪幾種</div>
+       <div class="na-picks">${NA_KINDS.map(x=>`<label class="na-p"><input type="checkbox" class="na-k" value="${x.k}" onchange="H.naUI()"${x.k==='student'?' checked':''}> ${x.ic} ${x.t}</label>`).join('')}</div>
+
+       ${box('student',`<div class="form-grid">
+         <div class="field"><label>班別</label><select id="na-s-type"><option value="1對1" selected>一對一</option><option value="團班">團班</option></select></div>
+         <div class="field"><label>狀態</label><select id="na-s-status">${ENROLL.map(x=>`<option value="${x[0]}"${x[0]==='reserved'?' selected':''}>${x[1]}</option>`).join('')}</select></div>
+         <div class="field"><label>團班 <span class="hint">選填</span></label><input id="na-s-group" type="text" list="grouplist" autocomplete="off" placeholder="例：001">
+           <datalist id="grouplist">${grpAllList().map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div>
+         <div class="field"><label>使用教材 <span class="hint">選填</span></label><input id="na-s-book" type="text" placeholder="例：當代中文課程一"></div>
+         <div class="field"><label>學費 <span class="hint">越南盾打千位</span></label><div style="display:flex;gap:6px">
+           <input id="na-s-fee" type="number" min="0" style="flex:1" placeholder="例：250">
+           <select id="na-s-unit" style="width:110px"><option value="session" selected>每堂</option><option value="hour">每小時</option></select></div></div>
+         <div class="field"><label>收費幣別</label>${naCur('na-s-cur')}</div>
+       </div>`)}
+
+       ${box('agency',`<div class="form-grid">
+         <div class="field"><label>階段</label>${naStage('na-a-stage')}</div>
+         <div class="field"><label>申請學校 <span class="hint">選填</span></label><input id="na-a-school" type="text" placeholder="例：國立清華大學 華語文教學"></div>
+         <div class="field"><label>談定的代辦費 <span class="hint">選填，之後可改</span></label><div style="display:flex;gap:6px">
+           <input id="na-a-fee" type="number" min="0" style="flex:1" placeholder="例：8000">${naCur('na-a-cur')}</div></div>
+       </div>`)}
+
+       ${box('interview',`<div class="form-grid">
+         <div class="field"><label>階段</label>${naStage('na-i-stage')}</div>
+         <div class="field"><label>面試類別</label><input id="na-i-kind" type="text" list="itv-kindlist2" value="申請簽證" autocomplete="off">
+           <datalist id="itv-kindlist2"><option value="申請簽證"><option value="入學面試"><option value="獎學金面試"><option value="工作面試"></datalist></div>
+         <div class="field"><label>面試目標 <span class="hint">選填</span></label><input id="na-i-target" type="text" placeholder="例：淡江大學 華語中心"></div>
+         <div class="field"><label>談定的練習費 <span class="hint">選填</span></label><div style="display:flex;gap:6px">
+           <input id="na-i-fee" type="number" min="0" style="flex:1" placeholder="例：1000">${naCur('na-i-cur')}</div></div>
+       </div>`)}
+
+       ${box('writing',`<div class="form-grid">
+         <div class="field"><label>階段</label>${naStage('na-w-stage')}</div>
+         <div class="field full"><label>要寫哪些文件 *</label><input id="na-w-docs" type="text" placeholder="例：讀書計劃、自傳"></div>
+         <div class="field"><label>談定的代書費 <span class="hint">選填</span></label><div style="display:flex;gap:6px">
+           <input id="na-w-fee" type="number" min="0" style="flex:1" placeholder="例：3000">${naCur('na-w-cur')}</div></div>
+       </div>`)}
+     </div>
+   </div>
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>
+     <button class="btn btn-primary" data-act="newAllGo">\u{1F4BE} 全部建立</button></div></div>`);
+  if(!document.getElementById('na-css')){const st=document.createElement('style');st.id='na-css';
+    st.textContent='.na-picks{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}'
+      +'.na-p{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line,#E4E7EB);'
+      +'border-radius:999px;padding:7px 14px;cursor:pointer;font-weight:600;margin:0;background:#fff}'
+      +'.na-p input{width:auto;margin:0}'
+      +'.na-p:has(input:checked){background:#EEF2F7;border-color:#9FB2C8}'
+      +'.na-box{border:1px solid var(--line,#E4E7EB);border-left:3px solid var(--accent,#9FB2C8);'
+      +'border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#FAFAFB}';
+    document.head.appendChild(st);}
+  H.naUI();};
+H.naUI=()=>{const on={};
+  document.querySelectorAll('.na-k').forEach(c=>{if(c.checked)on[c.value]=1;});
+  NA_KINDS.forEach(x=>{const b=document.getElementById('na-box-'+x.k);
+    if(b)b.style.display=on[x.k]?'':'none';});};
+H.newAllGo=async()=>{
+  const V=(id)=>{const e=document.getElementById(id);return e?String(e.value||'').trim():'';};
+  const N=(id)=>{const v=V(id);return v===''?null:Number(v);};
+  const name=V('na-name');if(!name)return toast('請填名字');
+  const picks=[...document.querySelectorAll('.na-k')].filter(c=>c.checked).map(c=>c.value);
+  if(!picks.length)return toast('請至少勾一種要建立的');
+  if(picks.indexOf('writing')>=0&&!V('na-w-docs'))return toast('代書要填「要寫哪些文件」');
+  const btn=document.querySelector('[data-act="newAllGo"]');
+  if(btn){btn.disabled=true;btn.textContent='建立中…';}
+  const base={name,real_name:V('na-real'),email:V('na-email'),phone:V('na-phone'),note:V('na-note')};
+  const today=localToday(),now=new Date().toISOString();
+  const pid='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const made=[];
+  try{
+    await ensureAuthFresh();
+    if(picks.indexOf('student')>=0){
+      const stt=V('na-s-status')||'reserved';
+      const g=V('na-s-group');
+      const doc={name,real_name:base.real_name,email:base.email,notes:base.note,
+        person_id:pid,class_type:V('na-s-type')||'1對1',enroll_status:stt,
+        textbook:V('na-s-book'),groups:g?[g]:[],schedule:[],class_time:null,
+        tuition:N('na-s-fee'),fee_unit:V('na-s-unit')||'session',currency:V('na-s-cur')||DEF_CUR,
+        is_test:false,created_at:now};
+      Object.assign(doc,slifeStamp(doc,stt));/* LIFE_V1106 */
+      await DB.insert('students',doc);made.push('👤 華語課');}
+    const crm=async(kind,extra,feeId,curId,stageId)=>{
+      const stage=stageId?(V(stageId)||'case'):'case';
+      const doc=Object.assign({kind,name,real_name:base.real_name,email:base.email,
+        phone:base.phone,note:base.note,person_id:pid,status:'active',stage,
+        fee_total:N(feeId),fee_cur:V(curId)||DEF_CUR,payments:[],created_at:now},extra);
+      Object.assign(doc,lifeStamp(doc,stage));/* LIFE_V1106 */
+      if(stage==='case'&&!doc.d_consult)doc.d_consult=today;
+      await DB.insert('crm',doc);};
+    if(picks.indexOf('agency')>=0){
+      await crm('agency',{school:V('na-a-school'),schools:[],log:[]},'na-a-fee','na-a-cur','na-a-stage');
+      made.push('🎓 代辦申請');}
+    if(picks.indexOf('interview')>=0){
+      await crm('interview',{itv_kind:V('na-i-kind'),target:V('na-i-target'),sessions:[],log:[]},
+        'na-i-fee','na-i-cur','na-i-stage');
+      made.push('🎤 面試練習');}
+    if(picks.indexOf('writing')>=0){
+      await crm('writing',{docs:V('na-w-docs'),stages:{}},'na-w-fee','na-w-cur','na-w-stage');
+      made.push('✍️ 代書');}
+    await loadAll();closeModal();render();
+    toast('已建立：'+made.join('、')+(made.length>1?'（已綁成同一個人）':''));}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='💾 全部建立';}
+    toast(writeErr('建立失敗',e));}};
 H.bulkAssign=()=>bulkAssignModal();
 /* QCACHE_V856 在別台改過題目的時候，用這個強制重讀一次 */
 H.qReload=async(_x,btn)=>{
