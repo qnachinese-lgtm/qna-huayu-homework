@@ -3499,6 +3499,8 @@ function renderDashboard(){
     `</div>`;
   const _hstat=(tab,ic,label,val,unit,color)=>`<div class="hst" data-act="tab" data-id="${tab}"><div class="t"><span>${label}</span><span class="ic">${ic}</span></div><div class="v"${color?` style="color:${color}"`:''}>${val}<small>${unit}</small></div></div>`;
   const _hstatTxt=(tab,ic,label,val,color)=>`<div class="hst hst-txt" data-act="tab" data-id="${tab}"><div class="t"><span>${label}</span><span class="ic">${ic}</span></div><div class="v"${color?` style="color:${color}"`:''}>${val}</div></div>`;
+  const _leadNew=IS_OWNER?(S.leads||[]).filter(l=>(l&&(l.status||'new')==='new')).length:0;/* LEADNEW_V1122 */
+  const _hstatLead=(n)=>`<div class="hst" data-act="goLeads"><div class="t"><span>新報名</span><span class="ic">📥</span></div><div class="v"${n?' style="color:#dc2626"':''}>${n}<small>筆</small></div></div>`;/* LEADNEW_V1122 */
   const _hr=new Date().getHours();const _greet=_hr<11?'早安':(_hr<18?'午安':'晚安');
   const _wd=['日','一','二','三','四','五','六'][new Date().getDay()];
   const _pend=inbox.length;
@@ -3532,6 +3534,7 @@ function renderDashboard(){
       ${IS_OWNER?'<button class="btn" data-act="newAll" title="一張表填完，一次建好這個人的每一種身分">👤 新增一位</button>':''/* NEWALL_V1109 */}
       ${IS_OWNER?'<button class="btn" data-act="mediaMove" title="把 mp3 和圖片搬到雲端儲存，解決 Vercel 空間用完的問題">🗂 搬音檔</button>':''/* MEDIAMOVE_V1111 */}
       ${IS_OWNER?'<button class="btn" data-act="healthCheck" title="一次列出資料裡該補、該改的地方">🩺 資料健檢</button>':''/* HEALTH_V1104 */}
+      ${(IS_OWNER&&_leadNew)?`<button class="btn btn-danger" data-act="goLeads" title="有人從官網或報名表送資料進來了">📥 ${_leadNew} 筆新報名</button>`:''/* LEADNEW_V1122 */}
     </div>
   </div>
   <div class="hstats">
@@ -3539,6 +3542,7 @@ function renderDashboard(){
     ${_hstat('grades','📥','待批改',_pend,'份',(_pend&&_wmax!=null&&_wmax>=7)?'#dc2626':(_pend?'#2563eb':''))}
     ${IS_OWNER?_hstat('pay','💳','還沒收到',oweList.length,'位',oweList.length?'#dc2626':''):''}
     ${IS_OWNER?_hstatTxt('ops','💰','本月收入',_moneyStr(_totNow),'#16a34a'):''}
+    ${IS_OWNER?_hstatLead(_leadNew):''/* LEADNEW_V1122 */}
     ${_hstat('students','👥','在學學生',_act,'位','')}
     ${IS_OWNER?'':_hstat('lessons','📚','教材課數',(S.lessons||[]).length,'課','')}
   </div>`;
@@ -6269,6 +6273,7 @@ function leadsCardHtml(){
         <span class="muted" style="font-size:12px">${esc(when)}</span>
         <span class="grow"></span>
         ${l.email?`<a class="btn btn-sm" href="mailto:${esc(l.email)}">回信</a>`:''}
+        ${(Number(l.files)>0&&l.file_key)?`<button class="btn btn-sm" data-act="leadFiles" data-id="${l.id}" title="學生報名時一起傳上來的檔案">📎 ${Number(l.files)} 個檔案</button>`:''/* LEADFILE_V1123 */}
         <button class="btn btn-sm btn-primary" data-act="leadMake" data-id="${l.id}" title="把這一筆帶進「新增一位」，確認後就建立">👤 建立成客戶</button><!-- JOIN_V1110 -->
         ${isNew?`<button class="btn btn-sm btn-accent" data-act="leadDone" data-id="${l.id}">標記已處理</button>`:`<button class="btn btn-sm" data-act="leadReopen" data-id="${l.id}">改回未處理</button>`}
         <button class="btn btn-sm btn-danger" data-act="leadDel" data-id="${l.id}">刪除</button>
@@ -6293,6 +6298,7 @@ function leadsCardHtml(){
     <span class="grow"></span>
     <code style="font-size:12.5px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:3px 8px">${esc(joinUrl)}</code>
     <button class="btn btn-sm btn-accent" data-act="joinCopy" data-id="${esc(joinUrl)}">📋 複製連結</button>
+    <button class="btn btn-sm" data-act="joinQR" data-id="${esc(joinUrl)}" title="產生 QR Code，可以貼在 FB 貼文、傳單或教室海報">📱 QR Code</button><!-- LEADQR_V1122 -->
     <a class="btn btn-sm" href="${esc(joinUrl)}" target="_blank" rel="noopener">↗ 看一下長怎樣</a></div>`;
   return `<div class="card" style="margin-top:14px"><div class="lesson-label">📥 報名名單 ${newN?`<span class="badge badge-soon">${newN} 筆新</span>`:''} <span class="hint">官網的諮詢，加上報名表送來的</span></div>${linkBar}${filterBar}${rows}</div>`;
 }
@@ -9545,6 +9551,70 @@ H.inqToStudent=(id)=>{const x=(S.inquiries||[]).find(v=>v.id===id);if(!x)return;
   if(!confirm('把「'+(x.name||'')+'」收為正式學生？\n會打開新增學生視窗並帶入資料，你再補學費、建帳號即可。\n（原詢問記錄會保留，確認建好後可自行刪除）'))return;
   studentModal({name:x.name,class_type:x.want_type==='一對一'?'1對1':'團班',notes:['來自詢問名單',x.goal?('目標：'+x.goal):'',x.pref_time?('方便：'+x.pref_time):'',x.contact?('聯絡：'+x.contact):''].filter(Boolean).join('；')});};
 H.leadDone=async(id)=>{try{await DB.update('leads',id,{status:'done',handled_at:new Date().toISOString()});const l=(S.leads||[]).find(x=>x.id===id);if(l)l.status='done';render();}catch(e){toast('更新失敗：'+((e&&e.message)||e));}};
+/* LEADFILE_V1123 學生報名時附的檔案：存在 lead_files，用 file_key 對回這一筆報名 */
+H.leadFiles=async(id)=>{
+  const l=(S.leads||[]).find(x=>x&&x.id===id);if(!l)return toast('找不到這一筆');
+  openModal(`<div class="modal" style="max-width:640px">
+    <div class="modal-head"><h3>📎 ${esc(l.name||'')} 上傳的檔案</h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body" id="lf-body"><div class="muted">讀取中…</div></div>
+    <div class="modal-foot"><button class="btn" data-act="closeModal">關閉</button></div></div>`);
+  try{
+    const rows=await DB.listWhere('lead_files','lead_key',l.file_key);
+    const box=document.getElementById('lf-body');if(!box)return;
+    if(!rows||!rows.length){box.innerHTML='<div class="muted">找不到檔案（可能上傳時沒存成功）。</div>';return;}
+    box.innerHTML=rows.map(r=>{
+      const isImg=String(r.mime||'').indexOf('image/')===0;
+      const nm=esc(r.name||'檔案');
+      return `<div class="dash-row" style="align-items:flex-start;flex-direction:column;gap:8px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px;width:100%">
+          <b>${isImg?'🖼':'📄'} ${nm}</b><span class="grow"></span>
+          <a class="btn btn-sm" href="${esc(r.data||'')}" download="${nm}">⬇ 下載</a>
+          <a class="btn btn-sm btn-accent" href="${esc(r.data||'')}" target="_blank" rel="noopener">↗ 開新分頁</a></div>
+        ${isImg?`<img src="${esc(r.data||'')}" style="max-width:100%;border-radius:10px;border:1px solid var(--line)">`:''}
+      </div>`;}).join('');
+  }catch(e){const box=document.getElementById('lf-body');
+    if(box)box.innerHTML='<div class="muted">讀不到：'+esc((e&&e.message)||e)+'<br>（如果寫著 permission，請先到 Firebase 把安全規則更新到 V1123。）</div>';}
+};
+
+/* LEADNEW_V1122 從今日總覽直接跳到報名名單 */
+H.goLeads=()=>{S.tab='ops';S.opsSub='site';render();
+  setTimeout(()=>{try{const el=[...document.querySelectorAll('#ops-body .lesson-label')]
+    .find(x=>/報名名單/.test(x.textContent));
+    if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}},260);};
+
+/* LEADQR_V1122 報名表 QR Code。用 qrcode-generator 在瀏覽器裡算，不會把網址送去別的網站。 */
+let QRLIB=null;
+function loadQR(){if(QRLIB)return QRLIB;
+  QRLIB=new Promise((res,rej)=>{const s=document.createElement('script');
+    s.src='qrcode.js';/* 放在自己的網站上，不靠外部 CDN，離線也能產生 */
+    s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+  return QRLIB;}
+H.joinQR=async(url)=>{
+  const u=String(url||((location.origin||'')+'/join.html'));
+  openModal(`<div class="modal" style="max-width:430px">
+    <div class="modal-head"><h3>📱 報名表 QR Code</h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body" style="text-align:center">
+      <div id="qr-box" style="min-height:260px;display:grid;place-items:center">產生中…</div>
+      <div class="hint" style="margin-top:10px;word-break:break-all">${esc(u)}</div>
+      <div class="hint" style="margin-top:6px">手機掃一下就會打開報名表。可以貼在 FB 貼文、傳單或教室海報。</div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-act="closeModal">關閉</button><span style="flex:1"></span>
+      <button class="btn btn-primary" data-act="qrSave">⬇ 下載 PNG</button></div></div>`);
+  try{await loadQR();
+    const q=window.qrcode(0,'M');q.addData(u);q.make();
+    const box=document.getElementById('qr-box');
+    if(box)box.innerHTML=q.createImgTag(8,4).replace('<img','<img id="qr-img" style="width:256px;height:256px;image-rendering:pixelated"');
+  }catch(e){const box=document.getElementById('qr-box');if(box)box.textContent='產生不出來，請檢查網路後再試一次。';}
+};
+H.qrSave=()=>{
+  const img=document.getElementById('qr-img');if(!img)return toast('還在產生，等一下再按');
+  try{const c=document.createElement('canvas');c.width=c.height=640;
+    const g=c.getContext('2d');g.imageSmoothingEnabled=false;
+    g.fillStyle='#fff';g.fillRect(0,0,640,640);g.drawImage(img,0,0,640,640);
+    const a=document.createElement('a');a.href=c.toDataURL('image/png');
+    a.download='QNA_報名表_QR.png';a.click();toast('已下載 QR Code');
+  }catch(e){toast('下載失敗：'+((e&&e.message)||e));}
+};
 H.leadF=(v)=>{const i=String(v||'').indexOf(':');if(i<0)return;
   S.leadF=S.leadF||{st:'',src:'',q:''};S.leadF[v.slice(0,i)]=v.slice(i+1);renderOps();};/* LEADF_V1119 */
 H.leadReopen=async(id)=>{try{await DB.update('leads',id,{status:'new'});const l=(S.leads||[]).find(x=>x.id===id);if(l)l.status='new';render();}catch(e){toast('更新失敗：'+((e&&e.message)||e));}};
