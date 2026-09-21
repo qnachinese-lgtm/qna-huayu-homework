@@ -1108,9 +1108,16 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         body.layout-top #nav-toggle{display:none}
         @media(max-width:860px){
           #nav-toggle{display:none}
-          .sidenav{position:static;width:auto;flex-direction:row;overflow-x:auto;padding:6px 8px;border-right:none;border-bottom:1px solid #393C3F;gap:4px}
+          /* MNAV_V1103 本來是橫向捲動：11 個分頁加起來 1318px，
+             820px 只看得到 6 個、390px 只看得到 3 個，而且看不出來右邊還有東西。
+             改成折行，全部看得見。這一排在窄螢幕是 position:static，
+             捲頁就會往上跑掉，多佔兩排不影響使用。 */
+          .sidenav{position:static;width:auto;flex-direction:row;flex-wrap:wrap;
+            overflow-x:visible;padding:6px 8px;border-right:none;border-bottom:1px solid #393C3F;
+            gap:4px;row-gap:4px}
           .sidenav .sec{display:none}.sidenav .sbrand{display:none}
-          .sidenav .tab{white-space:nowrap;width:auto}
+          .sidenav .tab{white-space:nowrap;width:auto;flex:0 1 auto;justify-content:flex-start;
+            padding:7px 10px;font-size:13.5px}
           body .topbar{margin-left:0}
           #app .container{margin-left:0;max-width:100%}
         }
@@ -1371,6 +1378,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         /* BTNALIGN_V682 ✏️🗑 本來跟在名字後面跑（space-between 把三個東西攤開），
            名字長短不一就每一列一個位置。讓名字吃掉剩下的空間，兩顆鈕就一律貼在欄位右緣。 */
         .crm-head .cc.nm{white-space:nowrap;overflow:hidden;align-items:center;gap:2px;justify-content:flex-start}
+        /* NAMECUT_V1103 切掉的時候要有「…」，不然看不出來後面還有字 */
+        .cc.nm>b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .cc .tag{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .crm-head .cc.nm b{font-size:15px;flex:1 1 auto;min-width:0;white-space:nowrap;
           overflow:hidden;text-overflow:ellipsis;line-height:1.35}
         .crm-head .cc.nm .btn-icon{flex:none;padding:2px 6px;font-size:12.5px}
@@ -2341,7 +2351,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function snm(n){return '<span class="sname">'+esc(n)+'</span>';}
+/* NAMECUT_V1103 名字太長的時候欄位會把它切掉，把全名放進 title，滑過去就看得到 */
+function snm(n){const v=String(n==null?'':n);
+  return '<span class="sname"'+(v.length>6?(' title="'+esc(v)+'"'):'')+'>'+esc(v)+'</span>';}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 /* NOW24_V877 開立時間用 24 小時制。toLocaleString() 會印「下午4:19:47」，Quinn 不要那個。 */
 function nowStr(){const d=new Date(),p=n=>String(n).padStart(2,'0');
@@ -3488,6 +3500,7 @@ function renderDashboard(){
       <button class="btn" data-act="fbWeek">💬 寫回饋單</button>
       <button class="btn" data-act="planClass" data-id="">📌 排一堂課</button>
       ${IS_OWNER?'<button class="btn" data-act="payPick">💰 記繳費</button>':''}
+      ${IS_OWNER?'<button class="btn" data-act="healthCheck" title="一次列出資料裡該補、該改的地方">🩺 資料健檢</button>':''/* HEALTH_V1104 */}
     </div>
   </div>
   <div class="hstats">
@@ -9127,6 +9140,16 @@ const GUIDE=[
          '到「👥 學生」→ 編輯那位學生 →「負責管理員」，把學生分配給他',
          '請他先看這一頁（📖 使用說明），最上面可以按「🖨 印出來」'],
   note:'他能做的：記上課、批改、寫回饋單、編教材、開小考和比賽。看不到的：財務、學費、繳費、代辦／面試／代書、設定，以及不是他負責的學生。'},
+
+ /* GUIDE_V1104 */
+ {ic:'\u{1FA7A}',t:'資料健檢（只有主管理員）',owner:true,go:'dashboard',goLab:'去今日總覽',
+  lead:'一次列出資料裡該補、該改的地方。十項檢查，每一項點開看是誰，按「去處理」直接跳過去修。',
+  steps:['「🏠 今日總覽」最上面那排按鈕 →「🩺 資料健檢」',
+         '查的十項：沒填 Email、有上課記錄卻沒設學費、預約中卻有上課記錄、超過 60 天沒上課、'
+         +'團班沒設時段、勾著「還沒開始」卻已經上過課、開課日到了還勾著、'
+         +'已結案還掛未收、客戶一步進度都沒有、名字一樣卻沒設成同一個人',
+         '修完按右下角「🔄 重新檢查」看還剩幾項'],
+  note:'它只會告訴你哪裡怪，不會自己改任何東西——要改什麼都是你按下去才算數。'},
 
  /* GUIDE_V1101 以下五條是新加的 */
  {ic:'\u{1F465}',t:'開一個新團班',owner:true,go:'students',goLab:'去學生頁',
@@ -17573,6 +17596,162 @@ H.gmSaveAll=async(cls)=>{
     groupMgrModal(cls);render();}
   catch(e){if(btn){btn.disabled=false;btn.textContent='💾 儲存';}
     toast('儲存失敗：'+((e&&e.message)||e));}};
+
+/* HEALTH_V1104 資料健檢 ───────────────────────────────────────
+   每一項回傳 {k,ic,t,why,how,rows:[{id,lab,go}]}；rows 空的就是這一項沒問題。 */
+function hcDaysAgo(d){try{return Math.floor((new Date(localToday()+'T00:00:00')-new Date(String(d)+'T00:00:00'))/86400000);}catch(e){return null;}}
+function hcStuList(){return (S.students||[]).filter(x=>x&&!x.deleted&&!x.deleted_at&&!x.is_test);}
+function hcCrmList(){
+  const out=[];
+  (S.agencies||[]).forEach(c=>{if(c&&!c.deleted_at)out.push({kind:'agency',c});});
+  (S.interviews||[]).forEach(c=>{if(c&&!c.deleted_at)out.push({kind:'interview',c});});
+  (S.writings||[]).forEach(c=>{if(c&&!c.deleted_at)out.push({kind:'writing',c});});
+  return out;}
+function hcCrmStage(o){
+  try{if(o.kind==='agency')return agStage(o.c);
+    if(o.kind==='interview')return itvStage(o.c);
+    return wrStage(o.c);}catch(e){return 'case';}}
+function hcCrmSteps(o){
+  try{if(o.kind==='agency')return agLog(o.c).length;
+    if(o.kind==='interview')return itvLog(o.c).length+itvSessions(o.c).length;
+    return Object.keys(wrStages(o.c)).filter(k=>wrStages(o.c)[k]&&wrStages(o.c)[k].date).length;}catch(e){return 0;}}
+const HC_KIND={agency:'🎓 代辦',interview:'🎤 面試',writing:'✍️ 代書'};
+function hcRun(){
+  const S1=hcStuList(),C1=hcCrmList(),out=[];
+  const stuGo=(x)=>({id:x.id,lab:x.name||'（沒有名字）',go:'stu::'+x.id});
+  const crmGo=(o)=>({id:o.c.id,lab:(HC_KIND[o.kind]||'')+' '+(o.c.name||'（沒有名字）'),go:'crm::'+o.kind+'::'+o.c.id});
+  const clsGo=(cls,extra)=>({id:cls,lab:'👥 '+cls+' 團班'+(extra?('　'+extra):''),go:'cls::'+cls});
+
+  /* ① Email */
+  out.push({k:'mail',ic:'📧',t:'在學中的學生沒填 Email',
+    why:'沒有信箱就沒辦法寄講義、成績單給他。',
+    how:'點過去 → ✏️ 編輯 → 填「Email」。',
+    rows:S1.filter(x=>enrollOf(x)==='active'&&!String(x.email||'').trim()).map(stuGo)});
+
+  /* ② 沒設學費 */
+  out.push({k:'fee',ic:'💵',t:'有上課記錄，可是沒設學費',
+    why:'那幾堂課算不出錢，收入和未收都會少算。',
+    how:'點過去 → ✏️ 編輯 → 填「學費」和「計費方式」。',
+    rows:S1.map(x=>{let b=null;try{b=stuBill(x);}catch(e){}
+      return (b&&(b.unknown||0)>0)?Object.assign(stuGo(x),{lab:(x.name||'')+'　'+b.unknown+' 堂沒價錢'}):null;}).filter(Boolean)});
+
+  /* ③ 預約中卻有上課記錄 */
+  out.push({k:'soonlog',ic:'📌',t:'狀態是「預約・詢問中」，卻已經有上課記錄',
+    why:'不是他真的來上課了（那就把狀態改成「在學中」），就是那筆記錄記錯了。',
+    how:'點過去 → 看「上課記錄」；真的上過就改狀態，沒上過就把那一筆刪掉。',
+    rows:S1.filter(x=>enrollOf(x)==='reserved'&&(Array.isArray(x.class_log)?x.class_log:[]).some(e=>e&&e.date))
+      .map(x=>Object.assign(stuGo(x),{lab:(x.name||'')+'　'+(x.class_log||[]).length+' 筆'}))});
+
+  /* ④ 太久沒上課 */
+  out.push({k:'idle',ic:'🕸',t:'狀態是「在學中」，可是超過 60 天沒有上課記錄',
+    why:'可能其實已經停掉了。掛著會一直算進在學人數。',
+    how:'真的停了就把狀態改成「休學」或「已結束」。',
+    rows:S1.filter(x=>enrollOf(x)==='active').map(x=>{
+      const ds=(Array.isArray(x.class_log)?x.class_log:[]).map(e=>String(e&&e.date||'')).filter(Boolean).sort();
+      const last=ds[ds.length-1]||'';const n=last?hcDaysAgo(last):null;
+      if(last&&n!=null&&n>60)return Object.assign(stuGo(x),{lab:(x.name||'')+'　最後一堂 '+last+'（'+n+' 天前）'});
+      return null;}).filter(Boolean)});
+
+  /* ⑤～⑦ 團班 */
+  const clsAll=(function(){const st=new Set();
+    try{groupsList().forEach(c=>st.add(c));}catch(e){}
+    try{Object.keys(classMetaAll()).forEach(c=>{if(c)st.add(c);});}catch(e){}
+    return [...st].sort();})();
+  const memOf=(cls)=>S1.filter(x=>stuGroups(x).includes(cls));
+  const logged=(cls)=>memOf(cls).some(x=>(Array.isArray(x.class_log)?x.class_log:[]).some(e=>e&&e.date));
+  out.push({k:'nosched',ic:'🕒',t:'團班沒設固定時段，也沒勾「還沒開始」',
+    why:'課表和「還沒點名」都不會出現這一班，很容易整班忘記點名。',
+    how:'點過去 → 填「上課時段」，或勾「🚧 這一班還沒開始」。',
+    rows:clsAll.filter(cls=>{
+      let sch=[];try{sch=classSchedOf(cls)||[];}catch(e){}
+      let ny=false;try{ny=clsNotYet(cls);}catch(e){}
+      return !sch.length&&!ny&&memOf(cls).length>0;}).map(cls=>clsGo(cls,memOf(cls).length+' 人'))});
+  out.push({k:'notyetlog',ic:'🚧',t:'團班勾著「還沒開始」，可是已經有人上過課了',
+    why:'勾著就完全不自動排課，這一班的課永遠不會出現在課表上。',
+    how:'點過去 → 把「🚧 這一班還沒開始」的勾取消。',
+    rows:clsAll.filter(cls=>{let ny=false;try{ny=clsNotYet(cls);}catch(e){}
+      return ny&&logged(cls);}).map(cls=>clsGo(cls,'已經有上課記錄'))});
+  out.push({k:'startpast',ic:'🚀',t:'開課日已經到了，卻還勾著「還沒開始」',
+    why:'到了開課日還勾著，系統一樣不會排課。',
+    how:'點過去 → 取消「🚧 這一班還沒開始」。',
+    rows:clsAll.filter(cls=>{let ny=false,st='';
+      try{ny=clsNotYet(cls);st=clsStart(cls);}catch(e){}
+      return ny&&st&&st<=localToday();}).map(cls=>clsGo(cls,'開課日 '+clsStart(cls)))});
+
+  /* ⑧ 已結案還掛未收 */
+  out.push({k:'closedowe',ic:'💰',t:'已經結案的客戶，還掛著沒收的錢',
+    why:'它會一直算進「尚未收款」，月底對帳的數字就不準。',
+    how:'點過去 → 收到了就「💰 記一筆收款」；不收了就用「💰 處理未收」。',
+    rows:C1.filter(o=>((o.c.status||'active')!=='active')).map(o=>{
+      let d='';try{d=itvMoneyStr(crmDueOf(o.c.id));}catch(e){}
+      return d?Object.assign(crmGo(o),{lab:crmGo(o).lab+'　還沒收 '+d}):null;}).filter(Boolean)});
+
+  /* ⑨ 完全沒進度 */
+  out.push({k:'nostep',ic:'🗂',t:'客戶完全沒有進度，也不是諮詢中、也沒勾「還沒開始」',
+    why:'進行中卻一步都沒做，通常是忘了記，或其實還在談。',
+    how:'點過去 →「＋ 新增一筆進度」，或把階段改成「💬 諮詢中」／勾「🚧 還沒開始」。',
+    rows:C1.filter(o=>{
+      if((o.c.status||'active')!=='active')return false;
+      if(hcCrmStage(o)!=='case')return false;
+      let soon=false;try{soon=crmSoon(o.c);}catch(e){}
+      if(soon)return false;
+      return hcCrmSteps(o)===0;}).map(crmGo)});
+
+  /* ⑩ 同名卻沒連起來 */
+  const norm=(x)=>String(x||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[đĐ]/g,'d').replace(/\s+/g,'').toLowerCase();
+  const byName={};
+  S1.forEach(x=>{const k=norm(x.name);if(!k)return;(byName[k]=byName[k]||[]).push({t:'學生',id:x.id,pid:x.person_id||'',nm:x.name});});
+  C1.forEach(o=>{const k=norm(o.c.name);if(!k)return;(byName[k]=byName[k]||[]).push({t:HC_KIND[o.kind]||'',id:o.c.id,pid:o.c.person_id||'',nm:o.c.name,kind:o.kind});});
+  out.push({k:'same',ic:'👤',t:'名字一模一樣，可是沒有設成同一個人',
+    why:'設成同一個人之後，一次轉帳付好幾種服務可以自動分開記。',
+    how:'點過去 → 在那一筆的「同一個人」欄位選起來。',
+    rows:Object.keys(byName).filter(k=>{
+      const g=byName[k];if(g.length<2)return false;
+      const pids=g.map(x=>x.pid).filter(Boolean);
+      return !(pids.length===g.length&&new Set(pids).size===1);})
+      .map(k=>{const g=byName[k];const first=g.find(x=>x.kind)||g[0];
+        return {id:k,lab:g[0].nm+'　'+g.map(x=>x.t).join(' ＋ '),
+          go:first.kind?('crm::'+first.kind+'::'+first.id):('stu::'+first.id)};})});
+
+  return out;}
+H.hcGo=(key)=>{const p=String(key||'').split('::');
+  try{closeModal();}catch(e){}
+  if(p[0]==='stu'){try{H.stuDetail(p[1]);}catch(e){S.tab='students';render();}return;}
+  if(p[0]==='cls'){try{H.gmPick(p[1]);}catch(e){}return;}
+  if(p[0]==='crm'){S.tab=p[1];S.crmFocus=p[2];S.crmOpen={};render();try{window.scrollTo(0,0);}catch(e){}return;}};
+H.healthCheck=()=>{
+  if(!IS_OWNER)return toast('這個功能只有主管理員可以用');
+  const list=hcRun();
+  const bad=list.filter(x=>x.rows.length);
+  const okN=list.length-bad.length;
+  const body=bad.length?bad.map(x=>`
+    <details class="hc-sec"${bad.length<=2?' open':''}>
+      <summary><span class="hc-ic">${x.ic}</span><b>${esc(x.t)}</b><span class="tag">${x.rows.length}</span></summary>
+      <div class="hc-b">
+        <div class="hint">${x.why}<br><b>怎麼修：</b>${x.how}</div>
+        ${x.rows.map(r=>`<div class="hc-row"><span class="hc-nm">${esc(r.lab)}</span>
+          <button class="btn btn-sm btn-accent" data-act="hcGo" data-id="${esc(r.go)}">去處理 →</button></div>`).join('')}
+      </div></details>`).join('')
+    :'<div class="card" style="text-align:center;padding:28px"><div style="font-size:34px">🎉</div><h3 style="margin:8px 0">十項檢查全部通過</h3><div class="hint">資料很乾淨，沒有要補的。</div></div>';
+  openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🩺 資料健檢</h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:10px">十項檢查・<b>${bad.length}</b> 項要處理${okN?`，${okN} 項沒問題`:''}。每一項點開看是誰，按「去處理」直接跳過去。</div>
+      ${body}
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>
+      <button class="btn btn-primary" data-act="healthCheck">🔄 重新檢查</button></div></div>`);
+  if(!document.getElementById('hc-css')){const st=document.createElement('style');st.id='hc-css';
+    st.textContent='.hc-sec{border:1px solid var(--line,#E4E7EB);border-radius:11px;margin-bottom:9px;background:#fff;overflow:hidden}'
+      +'.hc-sec>summary{cursor:pointer;list-style:none;padding:11px 14px;background:#F4F5F7;display:flex;align-items:center;gap:9px}'
+      +'.hc-sec>summary::-webkit-details-marker{display:none}'
+      +'.hc-sec>summary::after{content:"\\25be";margin-left:auto;color:var(--muted,#5B6B80)}'
+      +'.hc-sec[open]>summary::after{transform:rotate(180deg)}'
+      +'.hc-sec[open]>summary{border-bottom:1px solid var(--line,#E4E7EB)}'
+      +'.hc-ic{font-size:17px;flex:0 0 auto}'
+      +'.hc-b{padding:10px 14px 12px}'
+      +'.hc-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #F0F1F3}'
+      +'.hc-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}';
+    document.head.appendChild(st);}};
 H.bulkAssign=()=>bulkAssignModal();
 /* QCACHE_V856 在別台改過題目的時候，用這個強制重讀一次 */
 H.qReload=async(_x,btn)=>{
