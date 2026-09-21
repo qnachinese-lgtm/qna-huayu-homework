@@ -1389,6 +1389,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .lf-i{font-size:12px;background:#F2F3F5;color:#4B5563;border-radius:999px;padding:2px 10px;white-space:nowrap}
         .lf-i>b{font-weight:700;color:#374151}
         .lf-i.lf-n{background:#EDE9FE;color:#5B21B6}
+        /* PASSPAY_V1107 「代收」那個勾放在那一列裡 */
+        .pay-pass{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;
+          color:var(--muted,#5B6B80);white-space:nowrap;font-weight:400;margin:0}
         .cc .tag{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .crm-head .cc.nm b{font-size:15px;flex:1 1 auto;min-width:0;white-space:nowrap;
           overflow:hidden;text-overflow:ellipsis;line-height:1.35}
@@ -4630,7 +4633,7 @@ function itvCtx(id){return id?itvById(id):ITVDRAFT;}
 function itvSessions(c){return (c&&Array.isArray(c.sessions))?c.sessions.filter(x=>x&&x.date):[];}
 function itvSorted(c){return itvSessions(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));}
 function itvPays(c){return (c&&Array.isArray(c.payments))?c.payments.filter(p=>p&&p.date):[];}
-function itvPaidSum(c,ym){const by={};itvSessions(c).forEach(e=>{if(ym&&String(e.date).slice(0,7)!==ym)return;if(!e.paid)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+(Number(e.fee)||0);});itvPays(c).forEach(p=>{if(ym&&String(p.date).slice(0,7)!==ym)return;const cur=p.currency||'VND';by[cur]=(by[cur]||0)+(Number(p.amount)||0);});return by;}
+function itvPaidSum(c,ym){const by={};itvSessions(c).forEach(e=>{if(ym&&String(e.date).slice(0,7)!==ym)return;if(!e.paid)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+(Number(e.fee)||0);});payReal(itvPays(c)).forEach(p=>{/* PASSPAY_V1107 */if(ym&&String(p.date).slice(0,7)!==ym)return;const cur=p.currency||DEF_CUR;by[cur]=(by[cur]||0)+(Number(p.amount)||0);});return by;}
 /* ITVDUE_V837 本來只看每一次練習有沒有勾「已經收款」，沒把「付費記錄」收到的錢算進來，
    所以錢明明收齊了還是顯示未收。改成：未收＝應收－已收。
    應收：有填「談定的練習費總額」就用它；沒填就用各次練習費用加總。
@@ -4678,11 +4681,12 @@ function itvTotal(c){const v=Number((c&&c.fee_total)||0);return v>0?v:0;}
 function itvFeeBlock(c){
   const pays=itvPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const sess=itvSessions(c).filter(e=>Number(e.fee)>0);
-  const rows=pays.map((p,i)=>`<div class="dash-row" style="padding:6px 0">
-      <span class="badge badge-pending">第 ${i+1} 期</span><b>${esc(String(p.date))}</b>
-      <b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>
-      ${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}</div>`).join('');
-  const note=[pays.length?('分期 '+pays.length+' 筆'):'',sess.length?('單次收費 '+sess.length+' 堂'):'',
+  const rows=pays.map((p,i)=>`<div class="dash-row" style="padding:6px 0${payIsPass(p)?';opacity:.75':''}">
+      <span class="badge badge-pending">${payIsPass(p)?'🏫 代收':('第 '+(i+1)+' 期')}</span><b>${esc(String(p.date))}</b>
+      <b style="margin-left:6px">${money(p.amount,p.currency||DEF_CUR)}</b>
+      ${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}</div>`).join('')
+    +passLine(pays)/* PASSPAY_V1107 */;
+  const note=[payReal(pays).length?('分期 '+payReal(pays).length+' 筆'):'',sess.length?('單次收費 '+sess.length+' 堂'):'',
     crmOff(c)?('不收了 '+money(crmOff(c),itvTotalCur(c))):''].filter(Boolean).join('・');/* FEEOFF_V1081 */
   const tot=itvTotal(c);
   return feeBarHtml('練習費',itvPaidSum(c,null),itvDueSum(c),tot,tot?itvTotalCur(c):'',rows,note,crmOff(c));
@@ -4790,6 +4794,17 @@ function agById(id){return agAll().find(x=>x.id===id);}
 function agLog(c){return (c&&Array.isArray(c.log))?c.log.filter(x=>x&&x.date):[];}
 function agSorted(c){return agLog(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));}
 function agPays(c){return (c&&Array.isArray(c.payments))?c.payments.filter(x=>x&&x.date):[];}
+/* PASSPAY_V1107 收款也可以是「幫學校代收」的。
+   agPays 照樣回傳全部（存檔、刪除、畫清單都要用到全部，少一筆就會被寫掉），
+   算錢的地方一律改用 payReal；代收的那幾筆用 payPass 另外算。 */
+function payIsPass(p){return !!(p&&p.pass);}
+function payReal(arr){return (arr||[]).filter(p=>!payIsPass(p));}
+function payPass(arr){return (arr||[]).filter(payIsPass);}
+function passSum(arr){const by={};
+  payPass(arr).forEach(p=>{const cur=p.currency||DEF_CUR;by[cur]=(by[cur]||0)+(Number(p.amount)||0);});
+  return by;}
+function passLine(arr){const by=passSum(arr);const s=itvMoneyStr(by);
+  return s?('<div class="hint" style="margin-top:6px">🏫 另外幫學校代收 <b>'+esc(s)+'</b>（學生的錢經過你這裡再付出去，不算你的收入，也不算未收）</div>'):'';}
 function agTotalCur(c){return (c&&c.fee_cur)||'VND';}
 /* AGREJ_V1061 沒上的話收比較少。fee_rejected 是「未錄取才收的那個數字」，
    填 0 也算數（＝不收）。結果不是「未錄取」的時候完全不影響任何計算。 */
@@ -4802,11 +4817,11 @@ function agTotal(c){if(agRejOn(c))return agRejFee(c);return agFullTotal(c);}
 function agOver(c){/* 已經收超過未錄取價的部分，可能要退 */
   if(!agRejOn(c))return 0;
   const cur=agTotalCur(c);
-  const got=agPays(c).reduce((a,p)=>a+(((p.currency||'VND')===cur)?(Number(p.amount)||0):0),0);
+  const got=payReal(agPays(c)).reduce((a,p)=>a+(((p.currency||DEF_CUR)===cur)?(Number(p.amount)||0):0),0);/* PASSPAY_V1107 */
   const d=got-agTotal(c);return d>0.01?d:0;}
 /* 已收＝分期收款 ＋ 進度裡標記「已收」的單筆費用 */
 function agPaidSum(c,ym){const by={};
-  agPays(c).forEach(p=>{if(ym&&String(p.date).slice(0,7)!==ym)return;const cur=p.currency||'VND';by[cur]=(by[cur]||0)+(Number(p.amount)||0);});
+  payReal(agPays(c)).forEach(p=>{/* PASSPAY_V1107 */if(ym&&String(p.date).slice(0,7)!==ym)return;const cur=p.currency||'VND';by[cur]=(by[cur]||0)+(Number(p.amount)||0);});
   agLog(c).forEach(e=>{if(ym&&String(e.date).slice(0,7)!==ym)return;
     /* PASSTHRU_V1035 代收代付：學生的報名費經過我的帳戶，不是我的收入 */
     if(e.pass)return;
@@ -4815,7 +4830,7 @@ function agPaidSum(c,ym){const by={};
 /* 尚欠＝（談定總費用 − 已收的分期）＋ 進度裡還沒收的單筆費用 */
 function agDueSum(c){const by={};
   const tot=agTotal(c);
-  if(tot){const cur=agTotalCur(c);const got=agPays(c).reduce((a,p)=>a+(((p.currency||'VND')===cur)?(Number(p.amount)||0):0),0);
+  if(tot){const cur=agTotalCur(c);const got=payReal(agPays(c)).reduce((a,p)=>a+(((p.currency||DEF_CUR)===cur)?(Number(p.amount)||0):0),0);/* PASSPAY_V1107 */
     const left=tot-got;if(left>0)by[cur]=(by[cur]||0)+left;}
   agLog(c).forEach(e=>{if(e.pass)return;/* PASSTHRU_V1035 代收代付不是欠款 */
     if(e.paid)return;const f=Number(e.fee)||0;if(!f)return;const cur=e.currency||'VND';by[cur]=(by[cur]||0)+f;});
@@ -4879,12 +4894,12 @@ function wrPays(c){return (c&&Array.isArray(c.payments))?c.payments.filter(x=>x&
 function wrTotalCur(c){return (c&&c.fee_cur)||'VND';}
 function wrTotal(c){const v=Number((c&&c.fee_total)||0);return v>0?v:0;}
 function wrPaidSum(c,ym){const by={};
-  wrPays(c).forEach(p=>{if(ym&&String(p.date).slice(0,7)!==ym)return;const cur=p.currency||'VND';by[cur]=(by[cur]||0)+(Number(p.amount)||0);});
+  payReal(wrPays(c)).forEach(p=>{/* PASSPAY_V1107 */if(ym&&String(p.date).slice(0,7)!==ym)return;const cur=p.currency||'VND';by[cur]=(by[cur]||0)+(Number(p.amount)||0);});
   return by;}
 function wrDueSum(c){const by={};
   if(wrIsConsult(c)||wrIsLost(c))return by;/* WRCONSULT_V1059／WRLOST_V1060 報價不是欠款，沒談成更不是 */
   const tot=wrTotal(c);
-  if(tot){const cur=wrTotalCur(c);const got=wrPays(c).reduce((a,p)=>a+(((p.currency||'VND')===cur)?(Number(p.amount)||0):0),0);
+  if(tot){const cur=wrTotalCur(c);const got=payReal(wrPays(c)).reduce((a,p)=>a+(((p.currency||DEF_CUR)===cur)?(Number(p.amount)||0):0),0);/* PASSPAY_V1107 */
     const left=tot-got;if(left>0)by[cur]=(by[cur]||0)+left;}
   return crmOffCut(c,by,wrTotalCur(c));/* FEEOFF_V1079 */}
 function wrIncome(ym){const paid={},due={};wrAll().forEach(c=>{itvAddCur(paid,wrPaidSum(c,ym));if(!ym)itvAddCur(due,wrDueSum(c));});return {paid,due};}
@@ -4913,23 +4928,24 @@ function wrFeeBlock(c){
   const tot=wrTotal(c),cur=wrTotalCur(c);
   const pays=wrPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   if(!tot&&!pays.length)return '';
-  const got=pays.reduce((a,p)=>a+(((p.currency||'VND')===cur)?(Number(p.amount)||0):0),0);
+  const got=payReal(pays).reduce((a,p)=>a+(((p.currency||DEF_CUR)===cur)?(Number(p.amount)||0):0),0);/* PASSPAY_V1107 */
   const left=tot?Math.max(0,tot-got-crmOff(c)):0;const pct=tot?Math.min(100,Math.round(got/tot*100)):0;/* FEEOFF_V1081 */
-  const rows=pays.map((p,i)=>`<div class="dash-row" style="padding:6px 0">
-      <span class="badge badge-pending">第 ${i+1} 期</span><b>${esc(String(p.date))}</b>
-      <b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>
+  const rows=pays.map((p,i)=>`<div class="dash-row" style="padding:6px 0${payIsPass(p)?';opacity:.75':''}">
+      <span class="badge badge-pending">${payIsPass(p)?'🏫 代收':('第 '+(i+1)+' 期')}</span><b>${esc(String(p.date))}</b>
+      <b style="margin-left:6px">${money(p.amount,p.currency||DEF_CUR)}</b>
       ${p.method?`<span class="tag">${esc(p.method)}</span>`:''}
       ${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}
       <span class="grow"></span>
       <button class="btn btn-sm" data-act="wrPayEdit" data-id="${esc(c.id)}::${i}">✏️</button>
-      <button class="btn btn-sm btn-danger" data-act="wrPayDel" data-id="${esc(c.id)}::${i}">✕</button></div>`).join('');
+      <button class="btn btn-sm btn-danger" data-act="wrPayDel" data-id="${esc(c.id)}::${i}">✕</button></div>`).join('')
+    +passLine(pays)/* PASSPAY_V1107 */;
   return `<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#F8F8F9">
     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <b>💰 代書費</b>
       ${tot?`<span>總額 <b>${money(tot,cur)}</b></span>`:''}
       <span style="color:#16a34a">已收 <b>${money(got,cur)}</b></span>
       ${tot?(left>0?`<span style="color:#b91c1c">還差 <b>${money(left,cur)}</b></span>`:'<span class="badge badge-ok">✓ 已收齊</span>'):''}
-      <span class="muted" style="font-size:12px">共 ${pays.length} 期${crmOff(c)?('・不收了 '+money(crmOff(c),cur)):''}</span></div>
+      <span class="muted" style="font-size:12px">共 ${payReal(pays).length} 期${crmOff(c)?('・不收了 '+money(crmOff(c),cur)):''}</span></div>
     ${tot?`<div style="height:8px;background:#DDE0E3;border-radius:99px;margin:9px 0 4px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:#16a34a"></i></div>`:''}
     ${rows||'<div class="hint" style="margin-top:6px">還沒有收款記錄，按下面「💰 記一筆收款」。</div>'}</div>`;}
 function renderWriting(){
@@ -5055,6 +5071,8 @@ function wrPayForm(key){const p=String(key).split('::');const c=wrById(p[0]);if(
       ${left>0?`<div style="margin-top:6px"><button class="btn btn-sm" type="button" data-act="wrPayFill" data-id="${left}">帶入剩下的 ${money(left,wrTotalCur(c))}</button></div>`:''}</div>
     <div class="field"><label>收款方式 <span class="hint">選填</span></label><select id="wrp-method"><option value="">—</option>${mOpt('銀行轉帳')}${mOpt('現金')}${mOpt('Momo')}${mOpt('LINE Pay')}${mOpt('其他')}</select></div>
     <div class="field"><label>備註 <span class="hint">選填，例：訂金、定稿後尾款</span></label><input id="wrp-note" type="text" value="${esc(e.note||'')}"></div>
+    <div class="field full" style="margin-bottom:0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="wrp-pass" style="width:auto;margin:0"${e.pass?' checked':''}> 這筆是<b>幫學校代收</b>（報名費之類），不算我的收入</label>
+      <div class="hint" style="margin-top:4px">學生的錢經過你這裡再付出去。金額照樣看得到，但不會算進「已收」「未收」，也不會進收入。</div></div><!-- PASSPAY_V1107 -->
    </div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="wrPaySave" data-id="${esc(c.id)}::${isNew?'new':idx}">💾 儲存</button></div></div>`);}
 function renderAgency(){
@@ -5742,6 +5760,7 @@ function itvForm(c){c=c||{};
        <input id="ipx-amt" type="number" inputmode="decimal" placeholder="金額，例：500">
        <select id="ipx-cur"><option value="VND"${itvTotalCur(c)==='VND'?' selected':''}>千 VND</option><option value="TWD"${itvTotalCur(c)==='TWD'?' selected':''}>NT$</option><option value="USD"${itvTotalCur(c)==='USD'?' selected':''}>US$</option></select>
        <input id="ipx-note" type="text" placeholder="備註（選填），例：兩次練習">
+       <label class="pay-pass" title="學生的錢經過你這裡再付出去，不算你的收入"><input type="checkbox" id="ipx-pass" style="width:auto;margin:0"> 🏫 代收</label>
        <button class="btn btn-sm btn-primary" type="button" data-act="itvPayAdd" data-id="${esc(c.id||'')}">＋ 加一筆</button>
      </div>
      <div style="margin-top:6px;font-size:12.5px;color:var(--muted,#5B6B80)">越南盾打千位：填 <b>500</b> ＝ 500,000 VND。${c.id?'加一筆會立刻存檔，上面的總額也會一起存。':'還沒存檔，先加在這裡，按下面的「💾 儲存」才會一起建立。'}</div>`}
@@ -15907,6 +15926,7 @@ H.itvPayNew=(pre)=>{const _az=a=>a.slice().sort(stuNameCmp);const list=_az(itvAl
      <div class="field"><label>付費日期</label><input id="ipay-date" type="date" min="2000-01-01" max="2100-12-31" value="${localToday()}"></div>
      <div class="field"><label>金額</label><div style="display:flex;gap:6px"><input id="ipay-amt" type="number" inputmode="decimal" placeholder="500" style="flex:1"><select id="ipay-cur" style="width:110px"><option value="VND"${_pc==='VND'?' selected':''}>千 VND</option><option value="TWD"${_pc==='TWD'?' selected':''}>NT$</option><option value="USD"${_pc==='USD'?' selected':''}>US$</option></select></div></div>
      <div class="field full"><label>備註 <span class="hint">選填，例：兩次練習、含模擬面試</span></label><input id="ipay-note" type="text"></div>
+     <div class="field full" style="margin-bottom:0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="ipay-pass" style="width:auto;margin:0"> 這筆是<b>幫學校代收</b>（報名費之類），不算我的收入</label></div><!-- PASSPAY_V1107 -->
    </div>
    
    <div><button class="btn btn-primary" data-act="itvPaySave">✅ 記錄付費</button></div>
@@ -15915,7 +15935,10 @@ H.itvPaySave=async()=>{const id=($('#ipay-who')&&$('#ipay-who').value)||'';const
   const date=($('#ipay-date')&&$('#ipay-date').value)||'';if(!date)return toast('請選日期');
   const amt=Number(($('#ipay-amt')&&$('#ipay-amt').value)||0);if(!amt)return toast('請填金額');
   const cur=($('#ipay-cur')&&$('#ipay-cur').value)||'VND';const note=(($('#ipay-note')&&$('#ipay-note').value)||'').trim();
-  const pays=itvPays(c).slice();pays.push({date:date,amount:amt,currency:cur,note:note});pays.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const pays=itvPays(c).slice();
+  pays.push({date:date,amount:amt,currency:cur,note:note,
+    pass:!!($('#ipay-pass')&&$('#ipay-pass').checked)/* PASSPAY_V1107 */});
+  pays.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   try{await DB.update(crmCol(c.id),c.id,{payments:pays});c.payments=pays;toast('已記錄：'+(c.name||'')+' '+date+' '+money(amt,cur));closeModal();renderInterview();}
   catch(e){toast('失敗：'+((e&&e.message)||e));}};
 /* ITV_PAYLIST_V5 付費記錄：先看／設「總額」，下面才是一筆一筆自己登記的實收 */
@@ -16155,19 +16178,22 @@ function msPayRows(m){
       how:p.method||'',note:(p.note||'')});});});
   (S.interviews||[]).forEach(c=>{
     (Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
+      if(payIsPass(p))return;/* PASSPAY_V1107 */
       if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
-      rows.push({date:p.date,who:c.name||'',kind:'面試練習',amt,cur:p.currency||'VND',how:p.method||'',note:p.note||''});});
+      rows.push({date:p.date,who:c.name||'',kind:'面試練習',amt,cur:p.currency||DEF_CUR,how:p.method||'',note:p.note||''});});
     itvSessions(c).forEach(e=>{if(!e||!e.paid)return;if(String(e.date||'').slice(0,7)!==m)return;
       const amt=Number(e.fee)||0;if(!amt)return;
       rows.push({date:e.date,who:c.name||'',kind:'面試練習',amt,cur:e.currency||'VND',how:'',note:(e.note||'單次練習費')});});});
   (S.agencies||[]).forEach(c=>{
     (Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
+      if(payIsPass(p))return;/* PASSPAY_V1107 */
       if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
       rows.push({date:p.date,who:c.name||'',kind:'代辦申請',amt,cur:p.currency||'VND',how:p.method||'',note:p.note||''});});
     agLog(c).forEach(e=>{if(!e||e.pass||!e.paid)return;if(String(e.date||'').slice(0,7)!==m)return;
       const amt=Number(e.fee)||0;if(!amt)return;
       rows.push({date:e.date,who:c.name||'',kind:'代辦申請',amt,cur:e.currency||'VND',how:'',note:(e.what||e.note||'進度收費')});});});
   (S.writings||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
+    if(payIsPass(p))return;/* PASSPAY_V1107 */
     if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
     rows.push({date:p.date,who:c.name||'',kind:'代書',amt,cur:p.currency||'VND',how:p.method||'',note:p.note||''});});});
   rows.sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.who).localeCompare(String(b.who)));
@@ -16284,7 +16310,7 @@ H.opsSheet=(m)=>{
 H.opsMonth=(m)=>{const rows=[];
   /* OPSEDIT_V902 記下每一筆是誰的第幾筆，明細上才改得動 */
   S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach((p,pi)=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||DEF_CUR,note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null,act:'payEdit',key:s.id+'::'+pi});});});
-  (S.interviews||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:'🎤 '+(c.name||''),amt,cur:p.currency||'VND',note:(p.note||'面試')?((p.note||'')+'（面試）').trim():'',sess:null,act:'itvPayList',key:c.id});});});
+  (S.interviews||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{if(payIsPass(p))return;/* PASSPAY_V1107 */if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:'🎤 '+(c.name||''),amt,cur:p.currency||'VND',note:(p.note||'面試')?((p.note||'')+'（面試）').trim():'',sess:null,act:'itvPayList',key:c.id});});});
   /* OPSDETAIL_V1069 這張明細本來只有「學生 ＋ 面試的付費記錄」，
      可是上面的總收入是四條線加起來的，代辦、代書收的錢永遠不會出現在這裡
      （Quinn：「少了今天 Trà My 匯款的」）。下面補齊，口徑跟總收入一樣。 */
@@ -16295,6 +16321,7 @@ H.opsMonth=(m)=>{const rows=[];
       note:((e.note||'')+'（面試練習）').trim(),sess:null,act:'itvPayList',key:c.id});});});
   (S.agencies||[]).forEach(c=>{
     (Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
+      if(payIsPass(p))return;/* PASSPAY_V1107 */
       if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
       rows.push({date:p.date||'',name:'🎓 '+(c.name||''),amt,cur:p.currency||'VND',
         note:((p.note||'')+'（代辦）').trim(),sess:null,act:'opsGoCrm',key:'agency::'+c.id});});
@@ -16304,6 +16331,7 @@ H.opsMonth=(m)=>{const rows=[];
       rows.push({date:e.date||'',name:'🎓 '+(c.name||''),amt,cur:e.currency||'VND',
         note:((e.what||e.note||'')+'（代辦・進度）').trim(),sess:null,act:'opsGoCrm',key:'agency::'+c.id});});});
   (S.writings||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
+    if(payIsPass(p))return;/* PASSPAY_V1107 */
     if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
     rows.push({date:p.date||'',name:'✍️ '+(c.name||''),amt,cur:p.currency||'VND',
       note:((p.note||'')+'（代書）').trim(),sess:null,act:'opsGoCrm',key:'writing::'+c.id});});});
@@ -16618,14 +16646,15 @@ H.calIncPaused=()=>{const inc=(S.calIncPaused!==false);S.calIncPaused=!inc;rende
 /* ===== 💰 代辦收費：談定總費用 ＋ 分期收款 ===== */
 function agFeeBlock(c){
   const pays=agPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-  const rows=pays.map((p,i)=>`<div class="dash-row" style="padding:6px 0">
-      <span class="badge badge-pending">第 ${i+1} 期</span><b>${esc(String(p.date))}</b>
-      <b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>
+  const rows=pays.map((p,i)=>`<div class="dash-row" style="padding:6px 0${payIsPass(p)?';opacity:.75':''}">
+      <span class="badge badge-pending">${payIsPass(p)?'🏫 代收':('第 '+(i+1)+' 期')}</span><b>${esc(String(p.date))}</b>
+      <b style="margin-left:6px">${money(p.amount,p.currency||DEF_CUR)}</b>
       ${p.method?`<span class="tag">${esc(p.method)}</span>`:''}
       ${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}
       <span class="grow"></span>
       <button class="btn btn-sm" data-act="agPayEdit" data-id="${esc(c.id)}::${i}">✏️</button>
-      <button class="btn btn-sm btn-danger" data-act="agPayDel" data-id="${esc(c.id)}::${i}">✕</button></div>`).join('');
+      <button class="btn btn-sm btn-danger" data-act="agPayDel" data-id="${esc(c.id)}::${i}">✕</button></div>`).join('')
+    +passLine(pays)/* PASSPAY_V1107 */;
   const body=rows||'<div class="hint" style="margin-top:6px">還沒有收款記錄，按「💰 記一筆收款」。</div>';
   /* AGREJ_V1061 用未錄取價算的時候，標題講清楚，原本談定多少也寫在後面 */
   const rj=agRejOn(c),ov=agOver(c);
@@ -16635,7 +16664,7 @@ function agFeeBlock(c){
     return `<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#F8F8F9">
       <b>💰 代辦費（未錄取價）</b> <span class="badge badge-ok">未錄取，這位不收費</span>
       <span class="muted" style="font-size:12px;margin-left:6px">原本談定 ${money(agFullTotal(c),agTotalCur(c))}</span></div>`;
-  const hint=(pays.length?('共 '+pays.length+' 期'):'')
+  const hint=(pays.length?('共 '+payReal(pays).length+' 期'):'')
     +(rj?((pays.length?'・':'')+'原本談定 '+money(agFullTotal(c),agTotalCur(c))):'')
     +(crmOff(c)?((pays.length||rj?'・':'')+'不收了 '+money(crmOff(c),agTotalCur(c))):'');/* FEEOFF_V1079 */
   const ovRow=ov?`<div class="dash-row" style="padding:6px 0;color:#2563eb">🔁 已收比未錄取價多了 <b>${money(ov,agTotalCur(c))}</b>，要退的話自己跟學生喬，這裡只是提醒。</div>`:'';
@@ -16659,6 +16688,8 @@ function agPayForm(key){const p=String(key).split('::');const c=agById(p[0]);if(
       ${left>0?`<div style="margin-top:6px"><button class="btn btn-sm" type="button" data-act="agPayFill" data-id="${left}">帶入剩下的 ${money(left,agTotalCur(c))}</button></div>`:''}</div>
     <div class="field"><label>收款方式 <span class="hint">選填</span></label><select id="agp-method"><option value="">—</option>${mOpt('銀行轉帳')}${mOpt('現金')}${mOpt('Momo')}${mOpt('LINE Pay')}${mOpt('其他')}</select></div>
     <div class="field"><label>備註 <span class="hint">選填，例：簽約訂金、第二期</span></label><input id="agp-note" type="text" value="${esc(e.note||'')}"></div>
+    <div class="field full" style="margin-bottom:0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="agp-pass" style="width:auto;margin:0"${e.pass?' checked':''}> 這筆是<b>幫學校代收</b>（報名費之類），不算我的收入</label>
+      <div class="hint" style="margin-top:4px">學生的錢經過你這裡再付出去。金額照樣看得到，但不會算進「已收」「未收」，也不會進收入。</div></div><!-- PASSPAY_V1107 -->
    </div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="agPaySave" data-id="${esc(c.id)}::${isNew?'new':idx}">💾 儲存</button></div></div>`);}
 H.agPayNew=(id)=>agPayForm(id+'::new');
@@ -16667,7 +16698,8 @@ H.agPayFill=(v)=>{const i=$('#agp-amt');if(i)i.value=String(v);};
 H.agPaySave=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if(!c)return;
   const date=($('#agp-date')&&$('#agp-date').value)||'';if(!date)return toast('請選收款日期');
   const amt=Number(($('#agp-amt')&&$('#agp-amt').value)||0);if(!amt)return toast('請填金額');
-  const row={date,amount:amt,currency:($('#agp-cur')&&$('#agp-cur').value)||'VND',method:($('#agp-method')&&$('#agp-method').value)||'',note:(($('#agp-note')&&$('#agp-note').value)||'').trim()};
+  const row={date,amount:amt,currency:($('#agp-cur')&&$('#agp-cur').value)||DEF_CUR,method:($('#agp-method')&&$('#agp-method').value)||'',note:(($('#agp-note')&&$('#agp-note').value)||'').trim(),
+    pass:!!($('#agp-pass')&&$('#agp-pass').checked)/* PASSPAY_V1107 */};
   const arr=agPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   if(p[1]==='new')arr.push(row);else arr[Number(p[1])]=row;
   arr.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
@@ -16968,7 +17000,8 @@ H.wrPayFill=(v)=>{const i=$('#wrp-amt');if(i)i.value=String(v);};
 H.wrPaySave=async(key)=>{const p=String(key).split('::');const c=wrById(p[0]);if(!c)return;
   const date=(($('#wrp-date')&&$('#wrp-date').value)||'');if(!date)return toast('請選收款日期');
   const amt=Number(($('#wrp-amt')&&$('#wrp-amt').value)||0);if(!amt)return toast('請填金額');
-  const row={date,amount:amt,currency:($('#wrp-cur')&&$('#wrp-cur').value)||'VND',method:($('#wrp-method')&&$('#wrp-method').value)||'',note:(($('#wrp-note')&&$('#wrp-note').value)||'').trim()};
+  const row={date,amount:amt,currency:($('#wrp-cur')&&$('#wrp-cur').value)||DEF_CUR,method:($('#wrp-method')&&$('#wrp-method').value)||'',note:(($('#wrp-note')&&$('#wrp-note').value)||'').trim(),
+    pass:!!($('#wrp-pass')&&$('#wrp-pass').checked)/* PASSPAY_V1107 */};
   const arr=wrPays(c).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   if(p[1]==='new')arr.push(row);else arr[Number(p[1])]=row;
   arr.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
@@ -17385,7 +17418,9 @@ H.itvPayAdd=async(id)=>{const c=itvCtx(id);if(!c)return;/* ITVNEW_V836 */
   const date=($('#ipx-date')&&$('#ipx-date').value)||'';if(!date)return toast('請選付費日期');
   const amt=Number(($('#ipx-amt')&&$('#ipx-amt').value)||0);if(!amt)return toast('請填金額');
   const cur=($('#ipx-cur')&&$('#ipx-cur').value)||'VND';const note=(($('#ipx-note')&&$('#ipx-note').value)||'').trim();
-  const pays=itvPays(c).slice();pays.push({date:date,amount:amt,currency:cur,note:note});
+  const pays=itvPays(c).slice();
+  pays.push({date:date,amount:amt,currency:cur,note:note,
+    pass:!!($('#ipx-pass')&&$('#ipx-pass').checked)/* PASSPAY_V1107 */});
   pays.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const patch=Object.assign({payments:pays},itvFormTotalPatch());
   try{if(id)await DB.update(crmCol(id),id,patch);/* ITVNEW_V836 還沒存檔就只記在草稿 */
