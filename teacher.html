@@ -1389,6 +1389,8 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .lf-i{font-size:12px;background:#F2F3F5;color:#4B5563;border-radius:999px;padding:2px 10px;white-space:nowrap}
         .lf-i>b{font-weight:700;color:#374151}
         .lf-i.lf-n{background:#EDE9FE;color:#5B21B6}
+        /* REALNAME_V1108 名字旁邊的真實姓名 */
+        .rl-t{font-size:12px;color:#6B7480;font-weight:400;margin-left:6px;white-space:nowrap}
         /* PASSPAY_V1107 「代收」那個勾放在那一列裡 */
         .pay-pass{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;
           color:var(--muted,#5B6B80);white-space:nowrap;font-weight:400;margin:0}
@@ -2364,6 +2366,21 @@ const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=(s)=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* NAMECUT_V1103 名字太長的時候欄位會把它切掉，把全名放進 title，滑過去就看得到 */
+/* REALNAME_V1108 畫面上用的是臉書名字，真實姓名另外存一欄。
+   realOf＝要正式用的名字（護照、申請表那種）；realTag＝名字旁邊那個灰字。 */
+function realOf(x){const r=String((x&&x.real_name)||'').trim();
+  return r||String((x&&x.name)||'');}
+function realHas(x){const r=String((x&&x.real_name)||'').trim();
+  return (r&&r!==String((x&&x.name)||'').trim())?r:'';}
+/* REALNAME_V1108 文件上要印的名字：有填真實姓名就印真實姓名，後面用括號附平常用的名字。
+   沒填就跟以前一樣，只印那一個名字。 */
+function docNm(x){const r=realHas(x);const n=String((x&&x.name)||'');
+  return r?(r+'（'+n+'）'):n;}
+function realTag(x){const r=realHas(x);
+  return r?('<span class="rl-t" title="真實姓名">'+esc(r)+'</span>'):'';}
+function realField(id,x){
+  return '<div class="field"><label>真實姓名 <span class="hint">選填。畫面上還是顯示上面那個名字，這個只有開文件時會用到</span></label>'
+    +'<input id="'+id+'" type="text" value="'+esc(String((x&&x.real_name)||''))+'" placeholder="例：Nguyễn Thanh Võ 阮青武"></div>';}
 function snm(n){const v=String(n==null?'':n);
   return '<span class="sname"'+(v.length>6?(' title="'+esc(v)+'"'):'')+'>'+esc(v)+'</span>';}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
@@ -4997,7 +5014,7 @@ function renderWriting(){
           :((paidAll?esc(paidAll):'<span class="dash">—</span>')+(due?`<span class="sub2 warn">未收 ${esc(due)}</span>`:''))}</span>
         <span class="cc act"><button class="btn btn-icon crm-del" data-act="wrDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
       </div></summary><div class="crm-body">
-      ${lifeLine(c)/* LIFE_V1106 */}${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
+      ${realHas(c)?`<div class="hint" style="margin-top:2px">真實姓名：<b>${esc(realHas(c))}</b></div>`:''/* REALNAME_V1108 */}${lifeLine(c)/* LIFE_V1106 */}${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
       ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#828C98">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#F8F8F9;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${wrStepper(c)}
       ${wrFeeBlock(c)}
@@ -5031,6 +5048,7 @@ function wrForm(c){c=c||{};
       <option value="case"${wrStage(c)==='case'?' selected':''}>✍️ 進行中</option>
       <option value="lost"${wrStage(c)==='lost'?' selected':''}>✕ 沒談成</option></select></div>
     <div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="wr-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>
+    ${realField('wr-real',c)/* REALNAME_V1108 */}
     ${crmMailField('wr-email',c)}
     ${crmSoonField('wr-soon',c)}
     ${lifeFields('wr',c)/* LIFE_V1106 */}
@@ -5125,7 +5143,7 @@ function renderAgency(){
               :(agOver(c)?`<span class="sub2" style="color:#2563eb" title="已收比未錄取價多出來的部分">多收 ${esc(money(agOver(c),agTotalCur(c)))}・要退</span>`:'')))}</span>
         <span class="cc act"><button class="btn btn-icon crm-del" data-act="agDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
       </div></summary><div class="crm-body">
-      ${lifeLine(c)/* LIFE_V1106 */}${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
+      ${realHas(c)?`<div class="hint" style="margin-top:2px">真實姓名：<b>${esc(realHas(c))}</b></div>`:''/* REALNAME_V1108 */}${lifeLine(c)/* LIFE_V1106 */}${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
       ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#828C98">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#F8F8F9;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${agFeeBlock(c)}
       ${docSummaryHtml(c)}
@@ -5209,6 +5227,7 @@ function agForm(c){c=c||{};
       <option value="case"${(!c.__consult&&agStage(c)!=='consult'&&agStage(c)!=='lost')?' selected':''}>📄 正式案件</option>
       <option value="lost"${agStage(c)==='lost'?' selected':''}>✕ 沒談成</option></select></div>
     <div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="ag-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>
+    ${realField('ag-real',c)/* REALNAME_V1108 */}
     ${crmMailField('ag-email',c)}
     ${crmSoonField('ag-soon',c)}
     ${lifeFields('ag',c)/* LIFE_V1106 */}
@@ -5343,7 +5362,7 @@ function renderInterview(){
           :((paidAll?esc(paidAll):'<span class="dash">—</span>')+(due?`<span class="sub2 warn">未收 ${esc(due)}</span>`:''))}</span>
         <span class="cc act">${meetBtn(meetOfItv(c),true)}<button class="btn btn-icon crm-del" data-act="itvDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
       </div></summary><div class="crm-body">
-      ${lifeLine(c)/* LIFE_V1106 */}${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
+      ${realHas(c)?`<div class="hint" style="margin-top:2px">真實姓名：<b>${esc(realHas(c))}</b></div>`:''/* REALNAME_V1108 */}${lifeLine(c)/* LIFE_V1106 */}${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EBECED;color:#5B6B80;border-color:#D2D4D7">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
       ${c.result_note?`<div class="hint" style="margin-top:4px">結果：${esc(c.result_note)}</div>`:''}${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#828C98">📄 備註／學生資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#F8F8F9;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${itvFeeBlock(c)}
       <div class="itv-acts">
@@ -5720,7 +5739,7 @@ function itvFormTotalPatch(){const tv=($('#itv-total')&&$('#itv-total').value);
 function itvForm(c){c=c||{};
   /* ITVNEW_V836 新增才開草稿；編輯既有客戶不用 */
   ITVDRAFT=c.id?null:{sessions:[],payments:[],fee_total:null,fee_cur:'VND'};
-  openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🎤 ${c.id?'編輯面試客戶':'新增面試客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>姓名</label><input id="itv-name" type="text" value="${esc(c.name||'')}" placeholder="例：Nguyễn Văn A"></div><div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="itv-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>${crmMailField('itv-email',c)}<div class="field"><label>目前階段</label><select id="itv-stage">${Object.keys(ITV_STAGE).map(k=>`<option value="${k}"${itvStage(c)===k?' selected':''}>${ITV_STAGE[k][0]}</option>`).join('')}</select><span class="hint">諮詢中＝只報了價，不算未收；沒談成＝問了就沒下文</span></div>${crmSoonField('itv-soon',c)}${lifeFields('itv',c)/* LIFE_V1106 */}${pPickField('itv-person','interview',c)}<div class="field"><label>面試類別 <span class="hint">這位客戶是在準備哪一種面試</span></label>
+  openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🎤 ${c.id?'編輯面試客戶':'新增面試客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>姓名</label><input id="itv-name" type="text" value="${esc(c.name||'')}" placeholder="例：Nguyễn Văn A"></div><div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="itv-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>${realField('itv-real',c)/* REALNAME_V1108 */}${crmMailField('itv-email',c)}<div class="field"><label>目前階段</label><select id="itv-stage">${Object.keys(ITV_STAGE).map(k=>`<option value="${k}"${itvStage(c)===k?' selected':''}>${ITV_STAGE[k][0]}</option>`).join('')}</select><span class="hint">諮詢中＝只報了價，不算未收；沒談成＝問了就沒下文</span></div>${crmSoonField('itv-soon',c)}${lifeFields('itv',c)/* LIFE_V1106 */}${pPickField('itv-person','interview',c)}<div class="field"><label>面試類別 <span class="hint">這位客戶是在準備哪一種面試</span></label>
      <input id="itv-kind" type="text" list="itv-kindlist" value="${esc(c.itv_kind||(c.id?'':'申請簽證'))}" placeholder="例：申請簽證">
      <datalist id="itv-kindlist"><option value="申請簽證"><option value="入學面試"><option value="獎學金面試"><option value="工作面試"><option value="其他"></datalist></div>
      <div class="field"><label>面試目標 <span class="hint">選填。學校、科系或單位</span></label><input id="itv-target" type="text" value="${esc(c.target||'')}" placeholder="例：中原大學 華語中心、淡江大學 企業管理系"></div><div class="field"><label>🎯 正式面試日 <span class="hint">選填</span></label><input id="itv-exam" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.exam_date||'')}"></div>
@@ -6368,7 +6387,9 @@ function stuTableRows(students){
 }
 function renderStudents(){
   const wrap=$('#students-list');let list=S.students;
-  if(S.q){const q=S.q.toLowerCase();list=list.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.nationality||'').toLowerCase().includes(q));}
+  if(S.q){const q=S.q.toLowerCase();list=list.filter(s=>(s.name||'').toLowerCase().includes(q)
+    ||(s.real_name||'').toLowerCase().includes(q)/* REALNAME_V1108 */
+    ||(s.nationality||'').toLowerCase().includes(q));}
   if(!S.students.length){wrap.className='';wrap.innerHTML=emptyHtml('👩‍🏫','還沒有學生',IS_OWNER?'點「新增學生」建立第一位。':'主管理員還沒有把學生分配給你。');return;}
   /* QUICKPICK_V660 學生頁預設只列在學中的；休學、試學按上面那排還是切得到 */
   const sf=S.statusFilter||'active';
@@ -6466,7 +6487,8 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
   openModal(`<div class="modal"><div class="modal-head"><h3>${e?'編輯學生':'新增學生'}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
     <div class="form-sec"><div class="form-sec-h">📋 基本資料</div><div class="form-grid">
-     <div class="field"><label>名字 *</label><input id="f-name" type="text" value="${esc(st.name||'')}"></div>
+     <div class="field"><label>名字 * <span class="hint">平常畫面上顯示的，臉書名字也可以</span></label><input id="f-name" type="text" value="${esc(st.name||'')}"></div>
+     ${realField('f-real',st)/* REALNAME_V1108 */}
      <div class="field"><label>班別</label><select id="f-type"><option value="1對1" ${st.class_type!=='團班'?'selected':''}>一對一</option><option value="團班" ${st.class_type==='團班'?'selected':''}>團班</option></select></div>
      <div class="field"><label>狀態 </label><select id="f-status">${ENROLL.map(x=>`<option value="${x[0]}"${enrollOf(st)===x[0]?' selected':''}>${x[1]}</option>`).join('')}</select></div>
      <div class="field"><label>使用教材</label><input id="f-book" type="text" value="${esc(st.textbook||'')}" placeholder="例：當代中文課程 1"></div>
@@ -10745,7 +10767,7 @@ function fbSheetHtml(s,rec){
     +expBar(1)
     +'<div class="page">'+fbHead(L2('華語教學 · 教師回饋單','Phiếu nhận xét buổi học'),L2('上課回饋','Nhận xét buổi học'),'CLASS FEEDBACK')
     +'<div class="top">'
-    +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+esc(s.name||'')+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+esc(docNm(s))+'</span></div>'/* REALNAME_V1108 */
     +'<div class="f"><span class="k">'+L2('日期','Ngày')+'</span><span class="v">'+esc(rec.date||'')+'（'+L2(esc(fbWd(rec.date)),esc(wdVi(rec.date)))+'）</span></div>'/* EXPVI_V937 */
     +(tm?'<div class="f"><span class="k">'+L2('時段','Giờ học')+'</span><span class="v">'+esc(tm)+'</span></div>':'')
     +'<div class="f"><span class="k">'+L2('課程','Hình thức lớp')+'</span><span class="v">'
@@ -10791,7 +10813,7 @@ function fbSumHtml(s,rec){
     +expBar(1)
     +'<div class="page">'+fbHead(L2('華語教學 · 教師回饋單','Phiếu tổng kết học tập'),L2('學習總結','Tổng kết học tập'),'PROGRESS SUMMARY')
     +'<div class="top">'
-    +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+esc(s.name||'')+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+esc(docNm(s))+'</span></div>'/* REALNAME_V1108 */
     +'<div class="f"><span class="k">'+L2('期間','Kỳ')+'</span><span class="v">'
       +L2(esc(lab),'Tháng '+esc(Number(_lv[1])||'')+'/'+esc(_lv[0]||''))+'</span></div>'
     +(s.textbook?'<div class="f"><span class="k">'+L2('教材','Giáo trình')+'</span><span class="v">'+esc(s.textbook)+'</span></div>':'')
@@ -11361,7 +11383,7 @@ function stuCardHtml(s){
     +expHead()+'<style>'+fbCss()+expCss()+'</style></head><body class="lang-zh">'
     +expBar(1)
     +'<div class="page">'+fbHead(L2('華語教學 · 學生檔案','Dạy tiếng Trung · Hồ sơ học viên'),L2('學生檔案','Hồ sơ học viên'),'STUDENT PROFILE')/* EXPVI_V937 */
-    +'<div class="top">'+f2('學生','Học viên',esc(s.name||''))
+    +'<div class="top">'+f2('學生','Học viên',esc(docNm(s)))/* REALNAME_V1108 */
       +f2('課程型態','Hình thức lớp',L2(esc(s.class_type==='團班'?'團班':'一對一'),esc(s.class_type==='團班'?'Lớp nhóm':'Học 1 kèm 1')))
       +(s.nationality?f2('國籍','Quốc tịch',esc(s.nationality)):'')
       +f2('狀態','Trạng thái',_st?L2(esc(_st[0]),esc(_st[1])):'—')+'</div>'
@@ -12689,7 +12711,7 @@ H.docForm=(id)=>{
 
   const page='<div class="page">'
    +fbHead(e2('華語教學・留學代辦 · 學生資料表'),e2('入學申請'),'PHIẾU THÔNG TIN NHẬP HỌC')
-   +(c?('<div class="top"><div class="f"><span class="k">學生</span><span class="v">'+e2(c.name||'')+'</span></div>'
+   +(c?('<div class="top"><div class="f"><span class="k">學生</span><span class="v">'+e2(docNm(c))+'</span></div>'/* REALNAME_V1108 */
        +(c.school?('<div class="f"><span class="k">申請學校</span><span class="v">'+e2(c.school)+'</span></div>'):'')
        +'</div>'):'')
    +'<div class="note"><b>填寫說明 / Hướng dẫn điền</b>'
@@ -12777,7 +12799,7 @@ H.docPrint=(id)=>{
       '<div class="kv">'+L2('列印日期','Ngày in')+' <b>'+e2(today)+'</b></div>'
      +'<div class="kv">'+L2('收到','Đã nhận')+' <b>'+d.inGot+'／'+d.inR.length+'</b>　'
      +L2('寄出','Đã gửi')+' <b>'+d.outGot+'／'+d.outR.length+'</b></div>')
-   +'<div class="who2"><span>'+L2('學生','Học viên')+' <b>'+e2(c.name||'')+'</b></span>'
+   +'<div class="who2"><span>'+L2('學生','Học viên')+' <b>'+e2(docNm(c))+'</b></span>'/* REALNAME_V1108 */
    +(c.school?('<span>'+L2('申請學校','Trường ứng tuyển')+' <b>'+e2(c.school)+'</b></span>'):'')
    +((d.inR.length-d.inGot)>0?('<span>'+L2('還缺','Còn thiếu')+' <b>'+(d.inR.length-d.inGot)+'</b> '+L2('份','hồ sơ')+'</span>')
      :('<span>📥 <b>'+L2('全部收齊','Đã đủ')+'</b></span>'))
@@ -13729,7 +13751,7 @@ H.monthBillsGo=()=>{
       +'<div class="hd-r"><div class="doc">'+L2('月結單','Bảng kê tháng')+'</div><div class="doc-s">MONTHLY BILL</div>'
       +'<div class="kv"><span>'+L2('結算月份','Tháng kê')+'</span><b>'+e2(ym)+'</b></div></div></div>'
       +'<div class="wave"></div>'
-      +'<div class="top"><div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+e2(s.name||'')+'</span></div>'
+      +'<div class="top"><div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+e2(docNm(s))+'</span></div>'/* REALNAME_V1108 */
       +'<div class="f"><span class="k">'+L2('課程型態','Hình thức lớp')+'</span><span class="v">'
         +L2(e2(grp?'團班':'一對一'),e2(grp?'Lớp nhóm':'Học 1 kèm 1'))+'</span></div>'
       +'<div class="f"><span class="k">'+L2('教材','Giáo trình')+'</span><span class="v">'+e2(s.textbook||'—')+'</span></div>'
@@ -14388,7 +14410,8 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const schedule=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);
   const fslot=$('#f-first-slot');
-  const common={name,nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
+  const common={name,real_name:((($('#f-real')&&$('#f-real').value)||'').trim()),/* REALNAME_V1108 */
+    nationality:$('#f-nat').value.trim(),textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     ...(IS_OWNER?{tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),fee_unit:($('#f-feeunit')&&$('#f-feeunit').value)||'session',currency:$('#f-cur').value}:{}),
     avatar:(($('#f-avatar')&&$('#f-avatar').value)||'').trim(),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),drive_url:(($('#f-drive')&&$('#f-drive').value)||'').trim(),...(IS_OWNER?{pay_acct:(($('#f-pay-acct')&&$('#f-pay-acct').value)||''),pay_remind_on:!!($('#f-payremind')&&$('#f-payremind').checked),bill_group:(($('#f-billgrp')&&$('#f-billgrp').value)||'').trim()}:{}),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
   Object.assign(common,slifeRead());/* LIFE_V1106 手動填的優先 */
@@ -14636,7 +14659,7 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'<div class="wave"></div>'
     /* ONEDOC_V832 欄位改成跟其他文件一樣的「標籤｜內容」兩欄式 */
     +'<div class="top">'
-    +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+e2(s.name)+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+e2(docNm(s))+'</span></div>'/* REALNAME_V1108 */
     +'<div class="f"><span class="k">'+L2('課程型態','Hình thức lớp')+'</span><span class="v">'+L2(e2(D.kind),e2(D.kindv))+'</span></div>'
     +'<div class="f"><span class="k">'+L2('教材','Giáo trình')+'</span><span class="v">'+e2(s.textbook||'—')+'</span></div>'
     +'<div class="f"><span class="k">'+L2('計費方式','Cách tính phí')+'</span><span class="v">'+L2(e2(price),e2(pricev))+'</span></div>'
@@ -16912,7 +16935,8 @@ H.wrSave=async(id)=>{const name=(($('#wr-name')&&$('#wr-name').value)||'').trim(
   const docs=picked.concat(other).join('、');
   if(!docs)return toast('請至少勾一種文件');
   const _tv=(($('#wr-total')&&$('#wr-total').value)||'').trim();
-  const patch={kind:'writing',name,email:(($('#wr-email')&&$('#wr-email').value)||'').trim(),/* MAIL_V1066 */
+  const patch={kind:'writing',name,real_name:((($('#wr-real')&&$('#wr-real').value)||'').trim()),/* REALNAME_V1108 */
+    email:(($('#wr-email')&&$('#wr-email').value)||'').trim(),/* MAIL_V1066 */
     not_started:!!($('#wr-soon')&&$('#wr-soon').checked),/* CRMSOON_V1083 */
     phone:(($('#wr-phone')&&$('#wr-phone').value)||'').trim(),
     school:(($('#wr-school')&&$('#wr-school').value)||'').trim(),docs,
@@ -17032,7 +17056,8 @@ H.agSave=async(id)=>{const name=($('#ag-name').value||'').trim();if(!name)return
   const _schs=AGSCH.filter(x=>String(x.name||'').trim()||String(x.dept||'').trim())
     .map(x=>({name:String(x.name||'').trim(),dept:String(x.dept||'').trim(),
       degree:String(x.degree||'').trim(),result:String(x.result||'')}));
-  const patch={kind:'agency',name,phone:($('#ag-phone').value||'').trim(),
+  const patch={kind:'agency',name,real_name:((($('#ag-real')&&$('#ag-real').value)||'').trim()),/* REALNAME_V1108 */
+    phone:($('#ag-phone').value||'').trim(),
     schools:_schs,school:_schs.map(agSchLabel).filter(Boolean).join('、'),
     goal:(($('#ag-goal')&&$('#ag-goal').value)||'').trim(),/* CONSULT_V955 */
     stage:(($('#ag-stage')&&$('#ag-stage').value)||'case'),
@@ -17440,7 +17465,8 @@ H.itvPayDrop=async(key)=>{const p=String(key).split('::');const c=itvCtx(p[0]);i
     const box=$('#itv-paybox');if(box)box.innerHTML=itvPayBoxHtml(c);
     toast('已刪除');if(c.id)renderInterview();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.itvSave=async(id)=>{const name=($('#itv-name').value||'').trim();if(!name)return toast('請填姓名');
-  const patch={kind:'interview',name,phone:($('#itv-phone').value||'').trim(),
+  const patch={kind:'interview',name,real_name:((($('#itv-real')&&$('#itv-real').value)||'').trim()),/* REALNAME_V1108 */
+    phone:($('#itv-phone').value||'').trim(),
     email:(($('#itv-email')&&$('#itv-email').value)||'').trim(),/* MAIL_V1066 */
     not_started:!!($('#itv-soon')&&$('#itv-soon').checked),/* CRMSOON_V1083 */
     stage:(($('#itv-stage')&&$('#itv-stage').value)||'case'),/* ITVSTAGE_V1094 */
@@ -18536,7 +18562,7 @@ H.receipt=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s
     +'<div class="page">'+fbHead((_rf?L2('退費單','Phiếu hoàn phí'):L2('繳費收據','Biên lai thu học phí'))+' · '+e2(no),
         (_rf?L2('退費單','Hoàn phí'):L2('繳費收據','Biên lai')),(_rf?'REFUND':'RECEIPT'))
     +'<div class="top">'
-    +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+e2(s.name)+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('學生','Học viên')+'</span><span class="v">'+e2(docNm(s))+'</span></div>'/* REALNAME_V1108 */
     +'<div class="f"><span class="k">'+L2('日期','Ngày')+'</span><span class="v">'+e2(pay.date||'')+'</span></div>'
     +'<div class="f"><span class="k">'+L2('收據編號','Số biên lai')+'</span><span class="v">'+e2(no)+'</span></div>'
     +(pay.sessions?'<div class="f"><span class="k">'+L2('堂數','Số buổi')+'</span><span class="v">+'+e2(pay.sessions)+' '+L2('堂','buổi')+'</span></div>':'')
