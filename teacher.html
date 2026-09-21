@@ -6234,15 +6234,35 @@ function renderOps(){const body=$('#ops-body');
   body.innerHTML=navSubBar(MONEY_TABS,'ops')+_obar+_body;}
 /* ---------- 對外官網：報名名單 + 內容編輯 ---------- */
 function leadsCardHtml(){
-  const leads=(S.leads||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
-  const newN=leads.filter(l=>(l.status||'new')==='new').length;
+  const all=(S.leads||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+  const newN=all.filter(l=>(l.status||'new')==='new').length;
+  /* LEADF_V1119 篩選：未處理／已處理、官網／報名表，再加一個搜尋框 */
+  const F=S.leadF=S.leadF||{st:'',src:'',q:''};
+  const srcOf=l=>(String(l.source||'')==='join'?'join':'website');
+  const leads=all.filter(l=>{
+    if(F.st&&(l.status||'new')!==F.st)return false;
+    if(F.src&&srcOf(l)!==F.src)return false;
+    if(F.q){const t=F.q.toLowerCase();
+      const hay=[l.name,l.real_name,l.email,l.phone,l.line,l.fb,l.level,l.goal,l.school,l.message,l.referrer]
+        .filter(Boolean).join(' ').toLowerCase();
+      if(hay.indexOf(t)<0)return false;}
+    return true;});
+  const chip=(k,v,tx)=>`<button class="btn btn-sm${F[k]===v?' btn-primary':''}" data-act="leadF" data-id="${k}:${esc(v)}">${tx}</button>`;
+  const filterBar=all.length?`<div class="dash-row" style="margin:2px 0 10px;gap:6px;flex-wrap:wrap">
+    <span class="muted" style="font-size:12.5px">狀態</span>${chip('st','','全部')}${chip('st','new','🔴 未處理')}${chip('st','done','✓ 已處理')}
+    <span class="muted" style="font-size:12.5px;margin-left:8px">來源</span>${chip('src','','全部')}${chip('src','website','🌐 官網')}${chip('src','join','📝 報名表')}
+    <span class="grow"></span>
+    <input id="lead-q" placeholder="🔎 搜尋名字／電話／學校…" value="${esc(F.q||'')}" style="width:200px;padding:6px 10px;font-size:13px">
+    <span class="muted" style="font-size:12.5px">${leads.length}／${all.length} 筆</span></div>`:'';
   const rows=leads.length?leads.map(l=>{
     const isNew=(l.status||'new')==='new';
     const contact=[l.email&&('✉ '+l.email),l.line&&('LINE/Zalo: '+l.line),l.phone&&('☎ '+l.phone)].filter(Boolean).join('　');
     const meta=[l.level,l.goal].filter(Boolean).join(' · ');
     const when=(l.created_at||'').replace('T',' ').slice(0,16);
     const langTag={zh:'中文',vi:'越南文',en:'英文'}[l.lang]||'';
-    return `<div class="card" style="margin:8px 0;padding:12px 14px${isNew?';border-color:var(--accent)':''}">
+    const hay=[l.name,l.real_name,l.email,l.phone,l.line,l.fb,l.level,l.goal,l.school,l.message,l.referrer]
+      .filter(Boolean).join(' ').toLowerCase();/* LEADF_V1119 */
+    return `<div class="card lead-row" data-n="${esc(hay)}" style="margin:8px 0;padding:12px 14px${isNew?';border-color:var(--accent)':''}">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         ${isNew?'<span class="badge badge-soon">新</span>':'<span class="badge badge-ok">已處理</span>'}
         <b>${esc(l.name||'（未填名）')}</b>${langTag?`<span class="tag">${langTag}</span>`:''}
@@ -6264,7 +6284,8 @@ function leadsCardHtml(){
       ${l.referrer?`<div style="font-size:13px;margin-top:3px;color:#7a5c00">🤝 介紹人：${esc(l.referrer)}</div>`:''}
       ${l.message?`<div style="margin-top:6px;background:#F4F4F5;border-radius:8px;padding:8px 10px;font-size:14px;white-space:pre-line">${esc(l.message)}</div>`:''}
     </div>`;
-  }).join(''):'<div class="muted" style="padding:8px 2px">還沒有人報名。把官網網址分享出去吧！</div>';
+  }).join(''):(all.length?'<div class="muted" style="padding:8px 2px">這個條件下沒有資料，換一個篩選看看。</div>'
+      :'<div class="muted" style="padding:8px 2px">還沒有人報名。把官網網址分享出去吧！</div>');
   /* JOIN_V1110 報名表的連結：丟給學生自己填 */
   const joinUrl=(location.origin||'')+'/join.html';
   const linkBar=`<div class="dash-row" style="margin:2px 0 10px;background:#F4F6F8;border-radius:10px;padding:9px 12px;flex-wrap:wrap">
@@ -6273,8 +6294,14 @@ function leadsCardHtml(){
     <code style="font-size:12.5px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:3px 8px">${esc(joinUrl)}</code>
     <button class="btn btn-sm btn-accent" data-act="joinCopy" data-id="${esc(joinUrl)}">📋 複製連結</button>
     <a class="btn btn-sm" href="${esc(joinUrl)}" target="_blank" rel="noopener">↗ 看一下長怎樣</a></div>`;
-  return `<div class="card" style="margin-top:14px"><div class="lesson-label">📥 報名名單 ${newN?`<span class="badge badge-soon">${newN} 筆新</span>`:''} <span class="hint">官網的諮詢，加上報名表送來的</span></div>${linkBar}${rows}</div>`;
+  return `<div class="card" style="margin-top:14px"><div class="lesson-label">📥 報名名單 ${newN?`<span class="badge badge-soon">${newN} 筆新</span>`:''} <span class="hint">官網的諮詢，加上報名表送來的</span></div>${linkBar}${filterBar}${rows}</div>`;
 }
+/* LEADF_V1119 搜尋框：邊打邊篩，不用重畫整頁（重畫會讓游標跑掉） */
+document.addEventListener('input',(e)=>{const el=e.target;if(!el||el.id!=='lead-q')return;
+  const t=String(el.value||'').trim().toLowerCase();
+  S.leadF=S.leadF||{st:'',src:'',q:''};S.leadF.q=t;
+  document.querySelectorAll('.lead-row').forEach(r=>{
+    r.style.display=(!t||String(r.getAttribute('data-n')||'').indexOf(t)>=0)?'':'none';});});
 function siteCardHtml(){
   const pend=(S.reviews||[]).filter(r=>(r.status||'pending')==='pending').length;
   return `<div class="card" style="margin-top:14px"><div class="lesson-label">🌐 對外官網</div>
@@ -9518,6 +9545,8 @@ H.inqToStudent=(id)=>{const x=(S.inquiries||[]).find(v=>v.id===id);if(!x)return;
   if(!confirm('把「'+(x.name||'')+'」收為正式學生？\n會打開新增學生視窗並帶入資料，你再補學費、建帳號即可。\n（原詢問記錄會保留，確認建好後可自行刪除）'))return;
   studentModal({name:x.name,class_type:x.want_type==='一對一'?'1對1':'團班',notes:['來自詢問名單',x.goal?('目標：'+x.goal):'',x.pref_time?('方便：'+x.pref_time):'',x.contact?('聯絡：'+x.contact):''].filter(Boolean).join('；')});};
 H.leadDone=async(id)=>{try{await DB.update('leads',id,{status:'done',handled_at:new Date().toISOString()});const l=(S.leads||[]).find(x=>x.id===id);if(l)l.status='done';render();}catch(e){toast('更新失敗：'+((e&&e.message)||e));}};
+H.leadF=(v)=>{const i=String(v||'').indexOf(':');if(i<0)return;
+  S.leadF=S.leadF||{st:'',src:'',q:''};S.leadF[v.slice(0,i)]=v.slice(i+1);renderOps();};/* LEADF_V1119 */
 H.leadReopen=async(id)=>{try{await DB.update('leads',id,{status:'new'});const l=(S.leads||[]).find(x=>x.id===id);if(l)l.status='new';render();}catch(e){toast('更新失敗：'+((e&&e.message)||e));}};
 H.leadDel=async(id)=>{if(!confirm('刪除這筆報名資料？刪除後就找不回來了。'))return;try{await DB.remove('leads',id);S.leads=(S.leads||[]).filter(x=>x.id!==id);render();}catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
 function revNameOf(r){const s=S.students.find(x=>x.id===r.student_id);return (r.name||(s&&s.name)||'學生');}
