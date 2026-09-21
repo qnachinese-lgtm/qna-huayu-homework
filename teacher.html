@@ -5521,17 +5521,35 @@ function pDupPairs(loose){
   out.sort((x,y)=>((x.same?1:0)-(y.same?1:0))||((y.sure?1:0)-(x.sure?1:0)));
   return out;}
 /* 客戶資料視窗裡的「這位就是……」 */
+/* PPICK_V1105 名字正規化：去聲調、去空白、小寫，拿來比對「像不像同一個人」 */
+function pNorm(x){return String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/[đĐ]/g,'d').replace(/\s+/g,'').toLowerCase();}
+function pNameCmp(a,b){const f=x=>pNorm(x&&x.name);
+  return f(a).localeCompare(f(b),'en');}
 function pPickField(selId,k,c){
   const me=(c&&c.id)?pOf(k,c.id):null;
   const cur=(me?(pMates(k,c.id)[0]||null):null);
   const curKey=cur?(cur.k+'::'+cur.id):'';
+  const mine=String((c&&c.name)||'').trim();
+  const mk=pNorm(mine);
+  const all=pAll().filter(x=>!(x.k===k&&c&&String(x.id)===String(c.id)));
+  const opt=(x,withKind)=>`<option value="${esc(x.k+'::'+x.id)}"${curKey===(x.k+'::'+x.id)?' selected':''}>`
+    +esc(x.name||'（未命名）')+(withKind?esc('　'+(P_KIND[x.k]||'')):'')+'</option>';
+  /* PPICK_V1105 名字對得上的先撈出來放最上面——她要選的通常就是這幾個 */
+  let head='';
+  if(mk){
+    const hit=all.filter(x=>{const n=pNorm(x.name);
+      return n&&(n===mk||n.indexOf(mk)>=0||mk.indexOf(n)>=0);}).sort(pNameCmp);
+    if(hit.length)head=`<optgroup label="🔎 名字很像的（${hit.length}）">`
+      +hit.map(x=>opt(x,1)).join('')+'</optgroup>';}
   const groups=['student','agency','interview','writing'].map(kk=>{
-    const items=pAll().filter(x=>x.k===kk&&!(x.k===k&&c&&String(x.id)===String(c.id)));
+    const items=all.filter(x=>x.k===kk).sort(pNameCmp);
     if(!items.length)return '';
-    return `<optgroup label="${esc(P_KIND[kk])}">`+items.map(x=>
-      `<option value="${esc(x.k+'::'+x.id)}"${curKey===(x.k+'::'+x.id)?' selected':''}>${esc(x.name||'（未命名）')}</option>`).join('')+'</optgroup>';}).join('');
+    return `<optgroup label="${esc(P_KIND[kk])}（${items.length}）">`
+      +items.map(x=>opt(x,0)).join('')+'</optgroup>';}).join('');
   return `<div class="field full"><label>這位就是 <span class="hint">選填。同一個人如果又上課、又代辦，選起來就會綁成同一個人，轉帳可以一次分給好幾種服務</span></label>
-    <select id="${selId}"><option value=""${curKey?'':' selected'}>— 不綁，單獨一筆 —</option>${groups}</select></div>`;}
+    <select id="${selId}"><option value=""${curKey?'':' selected'}>— 不綁，單獨一筆 —</option>${head}${groups}</select>
+    <span class="hint">名字對得上的排在最上面。清單很長的話，點開之後直接打名字的前幾個字母就會跳過去。</span></div>`;}
 /* 存檔之後把兩邊綁起來（或解開） */
 async function pLinkApply(k,id,val){
   const me=pOf(k,id);if(!me)return;
