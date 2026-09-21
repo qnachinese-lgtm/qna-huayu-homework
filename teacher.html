@@ -4487,6 +4487,24 @@ function itvAll(){return (S.interviews||[]);}
    沒談成＝問了價就沒下文 → 更不是欠款，收過的錢還是留著（可能要退）。 */
 /* CRMSORT_V1096 客戶清單的分群順序：進行中→還沒開始→諮詢中→沒談成→已結案。
    同一群裡面怎麼排，各頁自己決定（面試照面試日，代辦、代書照名字）。 */
+/* CRMBAND_V1100 三頁共用的分組版面（本來只有代辦有）。
+   mkRows＝那一頁自己畫一列的函式；stageOf＝那一頁的階段函式。 */
+function crmBandHtml(kind,list,mkRows,stageOf,txt){
+  const cs=list.filter(c=>stageOf(c)==='consult');
+  const ca=list.filter(c=>stageOf(c)==='case');
+  const lo=list.filter(c=>stageOf(c)==='lost');
+  const band=(ic,t,n,tip)=>'<div class="ag-band"><b>'+ic+' '+t+'</b><span class="ag-n">'+n+'</span>'
+    +(tip?'<span class="hint">'+tip+'</span>':'');
+  let out='';
+  out+=band('\u{1F4AC}','諮詢中',cs.length,cs.length?'還沒成交，報的價不算進「未收」':'')+'</div>';
+  out+=cs.length?('<div class="crm-list">'+mkRows(cs)+'</div>')
+    :('<div class="hint" style="padding:10px 14px 16px">'+txt.emptyConsult+'</div>');
+  out+=band(txt.caseIc,txt.caseT,ca.length,'')+'</div>';
+  out+=ca.length?(crmThead(kind)+'<div class="crm-list">'+mkRows(ca)+crmTfoot(kind,ca)+'</div>')
+    :('<div class="hint" style="padding:10px 14px 16px">'+txt.emptyCase+'</div>');
+  if(lo.length)out+='<details class="dash-sec" style="margin-top:14px"><summary class="dash-sec-t">\u2715 沒談成（'+lo.length+'）</summary>'
+    +'<div class="dash-sec-b"><div class="crm-list">'+mkRows(lo)+'</div></div></details>';
+  return out;}
 function crmStageRank(c,stageOf){
   if(((c&&c.status)||'active')!=='active')return 4;
   const st=stageOf?stageOf(c):'case';
@@ -4832,7 +4850,7 @@ function renderWriting(){
     建好之後卡片上會有五個階段的按鈕：收資料 → 初稿 → 修改 → 定稿 → 交件，做完一個就點一下，會自動記今天的日期。</div>
     <button class="btn btn-primary" data-act="wrNew">＋ 新增代書客戶</button></div>`;return;}
   const _foc=crmFocusOf(list);
-  body.innerHTML=(_foc?crmBackBar('writing',_foc):(head+crmFoldBar('writing',list)+crmThead('writing')))+'<div class="crm-list">'+(_foc?[_foc]:list).map(c=>{
+  const mkRows=(arr)=>arr.map(c=>{/* CRMBAND_V1100 */
     const done=(c.status||'active')!=='active';
     const n=wrDoneN(c),cur=wrCurStage(c);
     const paidAll=itvMoneyStr(wrPaidSum(c,null));const due=itvMoneyStr(wrDueSum(c));
@@ -4872,7 +4890,14 @@ function renderWriting(){
             +'<button class="btn" data-act="wrStageSet" data-id="'+esc(c.id)+'::lost">✕ 沒談成</button>';
           if(st==='lost')return '<button class="btn" data-act="wrStageSet" data-id="'+esc(c.id)+'::consult">↩︎ 放回諮詢中</button>';
           return crmCloseBtns(c,'wrToggle');})()}</div>
-    </div></details>`;}).join('')+(_foc?'':crmTfoot('writing',list))+'</div>';
+    </div></details>`;}).join('');
+  /* CRMBAND_V1100 跟代辦、面試同一種版面 */
+  body.innerHTML=_foc
+    ? (crmBackBar('writing',_foc)+'<div class="crm-list">'+mkRows([_foc])+'</div>')
+    : (head+crmFoldBar('writing',list)+crmBandHtml('writing',list,mkRows,wrStage,
+        {caseIc:'\u270D\uFE0F',caseT:'進行中',
+         emptyConsult:'有人來問價、還沒確定要做的，階段選「💬 諮詢中」就會排在這裡，報的價不算未收。',
+         emptyCase:'諮詢談成了，在那一列按「✅ 轉成進行中」就會搬到這裡。'}));
 }
 function wrForm(c){c=c||{};
   const cur=wrTotalCur(c);
@@ -4996,19 +5021,11 @@ function renderAgency(){
       <div style="margin-top:8px">${logHtml}</div>
     </div></details>`;}).join('');
   if(_foc){body.innerHTML=crmBackBar(_fkind,_foc)+'<div class="crm-list">'+mkRows([_foc])+'</div>';return;}
-  const _cs=list.filter(agIsConsult),_ca=list.filter(c=>agStage(c)==='case'),_lo=list.filter(agIsLost);
-  const _band=(ic,t,n,tip)=>'<div class="ag-band"><b>'+ic+' '+t+'</b><span class="ag-n">'+n+'</span>'
-    +(tip?'<span class="hint">'+tip+'</span>':'')+'</div>';
-  let out='';
-  out+=_band('💬','諮詢中',_cs.length,_cs.length?'還沒成交，報的價不算進「未收」':'');
-  out+=_cs.length?('<div class="crm-list">'+mkRows(_cs)+'</div>')
-    :'<div class="hint" style="padding:10px 14px 16px">按上面「＋ 新增諮詢」開始記。只填名字就能存。</div>';
-  out+=_band('📄','正式案件',_ca.length,'');
-  out+=_ca.length?(crmThead(_fkind)+'<div class="crm-list">'+mkRows(_ca)+crmTfoot(_fkind,_ca)+'</div>')
-    :'<div class="hint" style="padding:10px 14px 16px">諮詢談成了，在那一列按「✅ 轉成正式案件」就會搬到這裡。</div>';
-  if(_lo.length)out+='<details class="dash-sec" style="margin-top:14px"><summary class="dash-sec-t">✕ 沒談成（'+_lo.length+'）</summary>'
-    +'<div class="dash-sec-b"><div class="crm-list">'+mkRows(_lo)+'</div></div></details>';
-  body.innerHTML=head+crmFoldBar(_fkind,list)+out;
+  /* CRMBAND_V1100 改用三頁共用的那一套 */
+  body.innerHTML=head+crmFoldBar(_fkind,list)+crmBandHtml(_fkind,list,mkRows,agStage,
+    {caseIc:'\u{1F4C4}',caseT:'正式案件',
+     emptyConsult:'按上面「＋ 新增諮詢」開始記。只填名字就能存。',
+     emptyCase:'諮詢談成了，在那一列按「✅ 轉成正式案件」就會搬到這裡。'});
 }
 /* ===================== 🏫 學校名冊 SCHOOL_V812 ===================== */
 function schAll(){return (S.schools||[]).filter(x=>!x.deleted_at);}
@@ -5154,7 +5171,7 @@ function renderInterview(){
   const head=navSubBar(BIZ_TABS,_fkind)+`<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><div><div class="muted" style="font-size:12px">本月收入（${esc(ym)}）</div><b style="font-size:19px">${itvMoneyStr(inc.paid)||'—'}</b></div><div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">本月練習</div><b style="font-size:19px">${mCount}</b> 次</div>${dueStr?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#b91c1c">${dueStr}</b></div>`:''}${(function(){const done=itvAll().filter(x=>x.result==='pass'||x.result==='fail');const pass=done.filter(x=>x.result==='pass').length;return done.length?`<div style="border-left:1px solid var(--line);padding-left:18px"><div class="muted" style="font-size:12px">面試通過率</div><b style="font-size:19px;color:#16a34a">${Math.round(pass/done.length*100)}%</b> <span class="muted">（${pass}/${done.length}）</span></div>`:'';})()}<span class="grow"></span><div class="stat-cum"><div class="muted" style="font-size:12px">累計收入</div><b style="font-size:19px">${itvMoneyStr(incAll.paid)||'—'}</b></div></div></div>`;
   if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🎤</div><h3 style="margin:8px 0">還沒有面試客戶</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">使用方式很簡單，兩步就好：<br><b>第 1 步</b>　按下面「＋ 新增面試客戶」建立一位客戶（姓名、面試類別）。<br><b>第 2 步</b>　客戶建立後，他的卡片上就會有「<b>＋ 新增練習時間</b>」，用它安排未來的練習或補記已經練過的。<br>日期可以填<b>未來</b>——排好的練習會自動出現在「📅 課表」裡。</div><button class="btn btn-primary" data-act="itvNew">＋ 新增面試客戶</button></div>`;return;}
   const _foc=crmFocusOf(list);
-  const rows=(_foc?[_foc]:list).map(c=>{
+  const mkRows=(arr)=>arr.map(c=>{/* CRMBAND_V1100 */
     const ss=itvSorted(c);const done=(c.status||'active')!=='active';
     const paidAll=itvMoneyStr(itvPaidSum(c,null));const due=itvMoneyStr(itvDueSum(c));
     /* ITVROLL_V804 點過名的（e.done）一律算「已上過」，不管日期；
@@ -5224,7 +5241,13 @@ function renderInterview(){
             :'<div class="hint" style="padding:4px 0">還沒有記錄</div>');})()}
       ${upHtml}${pastHtml}
     </div></details>`;}).join('');
-  body.innerHTML=(_foc?crmBackBar(_fkind,_foc):(head+crmFoldBar(_fkind,list)+crmThead(_fkind)))+'<div class="crm-list">'+rows+(_foc?'':crmTfoot(_fkind,list))+'</div>';
+  /* CRMBAND_V1100 跟代辦、代書同一種版面 */
+  body.innerHTML=_foc
+    ? (crmBackBar(_fkind,_foc)+'<div class="crm-list">'+mkRows([_foc])+'</div>')
+    : (head+crmFoldBar(_fkind,list)+crmBandHtml(_fkind,list,mkRows,itvStage,
+        {caseIc:'\u{1F3A4}',caseT:'進行中',
+         emptyConsult:'有人來問價、還沒談定的，狀態選「💬 諮詢中」就會排在這裡，報的價不算未收。',
+         emptyCase:'諮詢談成了，在那一列按「✅ 轉成進行中」就會搬到這裡。'}));
 }
 /* ITVLOG_V731 面試客戶本來只有一個「備註」欄，老師只能把「9/12 提供了面試簽證問題清單」
    這種事全部擠在同一格裡，久了誰在哪一天做了什麼、給了什麼文件就查不出來。
@@ -9083,9 +9106,10 @@ const GUIDE=[
  {ic:'💰',t:'收費・財務（只有主管理員看得到）',owner:true,go:'pay',goLab:'去繳費頁',
   lead:'一般老師看不到任何跟錢有關的東西，這一區只有你會看到。',
   steps:['「💰 收費・財務」→「繳費」：誰還沒繳、按「＋ 記一筆」登記收到的錢',
-         '同一頁上面的「🧾 月結單」：挑一個月，一次產生所有學生的月結單，一位一頁，可以印或存 PDF 傳給家長',
+         '同一頁上面的「🧾 月結單」：挑一個月，印給學生看的那一張，可以整批印也可以自己挑幾位',
          '每位學生的「🧾 對帳單」在他的個人頁裡',
-         '切到「財務・營運」可以看收入、該收 vs 實收、報名名單、公告'],
+         '切到「財務・營運」可以看收入、該收 vs 實收、報名名單、公告',
+         '每月收入那一列的「🧮 月底對帳」是一頁把整個月的帳對完（詳見下面那一條）'],
   note:'幣別跟帳單不一樣的那幾筆，一定要填「實際收到多少」，不然那筆等於沒收到、收入會少算。'},
 
  {ic:'🌐',t:'改招生官網（只有主管理員）',owner:true,go:'__site',goLab:'去改官網',
@@ -9102,7 +9126,54 @@ const GUIDE=[
          '把 Email 和密碼傳給他——密碼不會存在系統裡，只有你知道',
          '到「👥 學生」→ 編輯那位學生 →「負責管理員」，把學生分配給他',
          '請他先看這一頁（📖 使用說明），最上面可以按「🖨 印出來」'],
-  note:'他能做的：記上課、批改、寫回饋單、編教材、開小考和比賽。看不到的：財務、學費、繳費、代辦／面試／代書、設定，以及不是他負責的學生。'}
+  note:'他能做的：記上課、批改、寫回饋單、編教材、開小考和比賽。看不到的：財務、學費、繳費、代辦／面試／代書、設定，以及不是他負責的學生。'},
+
+ /* GUIDE_V1101 以下五條是新加的 */
+ {ic:'\u{1F465}',t:'開一個新團班',owner:true,go:'students',goLab:'去學生頁',
+  lead:'團班是一個「班」，不是一群學生的標籤——整班共用上課時段、教材、Meet 連結和計費方式，點名一次全班都記到。',
+  steps:['「👥 學生」右上角「👥 團班管理」→ 上面打班名（例：001）→「＋ 建立」',
+         '在那一班按「✏️ 編輯」，把下面幾樣填一填：',
+         '🚀 <b>開課日</b>：這一天以前完全不會自動排課，到了那天自己就開始排。還在招生的班填未來的日期就好',
+         '🕒 <b>上課時段</b>：一週可以有好幾段，例「週一 20:00–21:30」。填了之後課表和「還沒點名」就會自動出現',
+         '📕 <b>這一班用的教材</b>、🎥 Meet 連結、📁 教材資料夾（選填）',
+         '💵 <b>特殊計費</b>：照上課長度收不同價錢的時候用，例「1.5 小時 → 200」「2 小時 → 250」',
+         '最下面勾成員，按右下角「💾 儲存」——班級資訊和成員會一起存起來'],
+  note:'「🚧 這一班還沒開始」跟開課日不一樣：還沒開始是<b>永遠</b>不排課，要你自己回來取消；開課日是<b>到了那天自動開始</b>。只是還沒決定何時開班，就勾「還沒開始」。'},
+
+ {ic:'\u{1F4CC}',t:'有人來問、還沒決定要不要上',owner:true,go:'students',goLab:'去學生頁',
+  lead:'來問課的人直接建成學生，狀態選「📌 預約・詢問中」。這樣資料留著，可是不會被當成在上課的學生。',
+  steps:['「👥 學生」→「＋ 新增學生」→ 狀態選「📌 預約・詢問中」',
+         '他不會算進「在學中」的人數，繳費頁那一欄顯示灰色的「📌 預約中，先不算」，不會掛在「還沒收到」裡',
+         '真的來上課了，把狀態改成「✅ 在學中」，未收就會自動開始算'],
+  note:'在學生名冊上，切到「其他狀態 ▾ →📌 預約・詢問中」就只看這些人。填了班別的話，那一班的標題旁邊也會標「📌 預約 N」。'},
+
+ {ic:'\u{1F4AC}',t:'客戶的三個階段（代辦／面試／代書）',owner:true,go:'agency',goLab:'去代辦申請',
+  lead:'三種業務都是同一套：💬 諮詢中 → 進行中 → 結案，談不成就標 ✕ 沒談成。清單也照這個順序分成三塊。',
+  steps:['<b>💬 諮詢中</b>＝只報了價，對方還沒決定。報的價<b>不算未收</b>，只會顯示灰色的「報價 …」',
+         '<b>進行中</b>＝談定了、開始做。這時候才會算未收（談定總額 − 已收）',
+         '<b>✕ 沒談成</b>＝問了就沒下文。收過的錢還是留著（可能要退），報過的價變成灰字記錄，也不再出現在「今天要處理」',
+         '談成了在那一列按「✅ 轉成進行中／正式案件」；要改回去按「↩︎ 放回諮詢中」',
+         '事情做完按「✓ 結案」，還掛著未收的話系統會問你要怎麼處理'],
+  note:'另外還有一個「🚧 還沒開始」的勾——那是<b>已經談定但還沒動工</b>，跟諮詢中不一樣，一樣先不算未收。'},
+
+ {ic:'\u{1F9EE}',t:'月底對帳',owner:true,go:'ops',goLab:'去財務・營運',
+  lead:'一頁把這個月的帳對完：收到多少、上了多少課、誰還沒付。可以列印或存 PDF。',
+  steps:['「💰 收費・財務」→「📈 財務・營運」→ 往下找到「每月收入」',
+         '那個月的那一列右邊按「🧮 月底對帳」',
+         '① 這個月收到的每一筆：四條線都在（華語課、面試練習、代辦、代書），逐筆列日期、是誰、多少',
+         '② 這個月上課與該收的學費：每位學生的堂數、時數、學費加總',
+         '③ 目前還沒收的：學生欠費 ＋ 三種客戶的未收'],
+  note:'諮詢中、沒談成、還沒開始、記成「不收了」的都不算未收；代收代付（學生的報名費經過你的帳戶再付出去）不算收入。跟畫面上的「🧮 總收入」同一個口徑。'},
+
+ {ic:'\u{1F9FE}',t:'印月結單給學生',owner:true,go:'pay',goLab:'去繳費頁',
+  lead:'月結單是給<b>學生</b>看的那一張：這個月上了哪幾堂、該收多少、繳了多少、還欠多少。一位一頁。',
+  steps:['「💰 收費・財務」→「繳費」→ 上面的「🧾 月結單」',
+         '選月份',
+         '「要算誰」三選一：在學中的學生／全部（含休學）／<b>自己挑（下面勾）</b>',
+         '挑人的話，勾起來的那幾位就算那個月沒上課也會印一頁',
+         '最下面可以寫付款方式或叮嚀，會印在每一頁最底下，而且會記住下次不用再打',
+         '按「🖨 列印 / PDF」——會開一個新分頁，一位一頁，往下捲可以看每一位'],
+  note:'別跟「🧮 月底對帳」搞混：月結單是給學生的，月底對帳是給你自己看的。'},
 ];
 function guideVisible(){return GUIDE.filter(g=>!g.owner||IS_OWNER);}
 function guideCardHtml(g,i){
