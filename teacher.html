@@ -352,6 +352,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .gh-qd>summary::-webkit-details-marker{display:none}
         .gh-caret{flex:0 0 14px;text-align:center;color:var(--muted);font-size:11px}
         .gh-caret::before{content:'\25BE';display:inline-block;transition:transform .15s}
+        .gh-caret-off::before{content:''}
+        /* SEGCOL_V1174 「N 句」靠右、寬度固定，不然每一列都差一點點 */
+        .gh-list.gh-seglist .gh-meta{min-width:52px;text-align:right}
         .gh-qd[open] .gh-caret::before{transform:rotate(180deg)}
         .gh-qd>summary:hover .gh-caret{color:var(--primary)}
         .gh-qn.on{color:var(--primary);font-weight:700}
@@ -8841,11 +8844,24 @@ function GHSENT(){
   if(!box)return;
   const ids=[...document.querySelectorAll('.gh-l:checked')].map(x=>x.value);
   const book=((document.getElementById('gh-book')||{}).value)||'';
-  const say=(t)=>{box.innerHTML='';if(msg)msg.textContent=t;};
+  const qmsg=document.getElementById('gh-clqmsg');
+  /* CLQMSG_V1174 */
+  const _qsay=(l)=>{
+    if(!qmsg)return;
+    if(!l){qmsg.textContent='';return;}
+    const n=ghClQs(l).length,md=l.cl_qs_mode||'hw';
+    if(!n){qmsg.textContent='這一課還沒打討論題，所以印出來不會有「三、討論」。'
+      +'要加的話，點進這一課的編輯視窗，最下面「課後問答題」。';return;}
+    if(md==='off'){qmsg.textContent='這一課有 '+n+' 題討論題，但是設成「不給學生看」，'
+      +'所以講義不會印它。要印的話，去這一課的編輯視窗把問答題改成「只顯示題目」。';return;}
+    qmsg.textContent='這一課有 '+n+' 題討論題，印在講義最後面「三、討論」。'
+      +'題目不在這裡挑，要改要加都在這一課的編輯視窗最下面「課後問答題」。';};
+  const say=(t)=>{box.innerHTML='';if(msg)msg.textContent=t;_qsay(null);};
   if(ids.length!==1)return say('先在上面選一課，這裡就會把那一課的段落列出來。');
   const l=baLessonsOf(book).find(x=>x.id===ids[0]);
   const lines=ghClLines(l);
-  if(!lines.length)return say('這一課沒有文言文原文。');
+  _qsay(l);/* CLQMSG_V1174 */
+  if(!lines.length){box.innerHTML='';if(msg)msg.textContent='這一課沒有文言文原文。';return;}
   /* GHSEG_V869 一列＝一段。本來只露 40 個字又切成一行，看起來像一句話。
      改成最多兩行，後面標這一段有幾句。 */
   /* CLSENT_V1166 每一段底下再把句子列出來，可以只挑其中幾句。
@@ -8860,7 +8876,8 @@ function GHSENT(){
       +'<span class="gh-sn">'+(i+1)+'</span>'
       +'<span class="gh-ln">'+clNameLines(_cut)+'</span>'/* 括號換成顏色，跟底下的句子一致 */
       +'<span class="gh-meta">'+sents.length+' 句<span class="gh-qn" data-i="'+i+'"></span></span>';
-    if(sents.length<2)return '<label class="check-row">'+_inner+'</label>';
+    if(sents.length<2)return '<label class="check-row gh-srow">'+_inner
+      +'<span class="gh-caret gh-caret-off"></span></label>';/* SEGCOL_V1174 留位置才對齊 */
     return '<details class="gh-qd" data-i="'+i+'">'
       +'<summary class="check-row gh-srow">'+_inner+'<span class="gh-caret"></span></summary>'
       +'<div class="gh-qs">'+sents.map((sv,j)=>
@@ -8946,7 +8963,10 @@ function ghModal(){
    +'<option value="1" selected>一、原文　二、註解　三、討論（全部）</option>'
    +'<option value="0">只出原文和註解 —— 不出討論題</option>'
    +'<option value="only">只出討論題 —— 不出原文</option>'
-   +'</select></div></div>'
+   +'</select>'
+   /* CLQMSG_V1174 討論題不在這個視窗裡挑，所以要講清楚：
+      這一課有幾題、會不會印、要改去哪裡改。 */
+   +'<div class="hint" id="gh-clqmsg" style="margin-top:6px"></div></div></div>'
    /* GHWHO_V860 這一份是給誰、哪一天上的，填了就印在抬頭 */
    +'<div class="field"><label>這一份給誰 <span class="hint">選填，選了就印在抬頭，不用學生自己寫</span></label>'
    +'<select id="gh-who"><option value="">— 不指定（留空白讓學生自己寫）—</option>'
