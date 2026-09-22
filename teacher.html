@@ -337,6 +337,15 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
            正在用的那一種反白。原本按一下就直接切換，看不出來有哪些語言可以選。 */
         #ui-langwrap{position:relative;flex:0 0 auto}
         #ui-lang{min-width:118px;justify-content:center;white-space:nowrap}
+        /* NOTEMAP_V1171 注釋底下的「掛到第幾句」對照 */
+        .cl-nmap:empty{display:none}
+        .cl-nmap{margin:6px 0 2px;background:var(--paper);border:1px solid var(--line);
+          border-radius:10px;padding:8px 10px}
+        .cl-nmap-t{font-size:12px;color:var(--muted);font-weight:700;margin-bottom:4px}
+        .cl-nmap-r{display:flex;gap:8px;align-items:baseline;font-size:12.5px;padding:2px 0}
+        .cl-nmap-n{flex:0 0 52px;color:var(--primary);font-weight:700}
+        .cl-nmap-e{flex:1;color:var(--ink)}
+        .cl-nmap-w{flex:0 0 auto;color:#B45309;font-weight:600;cursor:help}
         /* CLSENT_V1166 匯出講義裡，每一段底下的句子清單 */
         /* 注意：視窗掛在 #modal-root，不在 #app 裡面，所以這幾條不能加 #app 前綴 */
         .gh-qs{margin:2px 0 8px 30px;border-left:2px solid var(--line-strong);padding-left:12px}
@@ -6876,18 +6885,41 @@ function clSegTouch(t){
   else if(t.classList.contains('cl-q'))r.q=t.value;
   else if(t.classList.contains('cl-qa'))r.ans=t.value;
   const s=d.querySelector('.cl-seg-t');if(s)s.textContent=isQ?clQPrev(r):clSegPrev(r);
-  const m=d.querySelector('.cl-seg-m');if(m)m.innerHTML=isQ?clQMarks(r):clSegMarks(r);}
+  const m=d.querySelector('.cl-seg-m');if(m)m.innerHTML=isQ?clQMarks(r):clSegMarks(r);
+  if(!isQ)try{clNoteMapDraw(i);}catch(e){}/* NOTEMAP_V1171 */}
+/* NOTEMAP_V1171 同一個字在一段裡出現兩次的時候，自動比對一定會挑到第一句，
+   但妳要的常常是後面那一句。與其等印出來才發現，不如在這裡就寫清楚每一條會掛到第幾句。
+   要改就在那一條前面加「2｜」指定。 */
+function clNoteMapDraw(i){
+  const box=document.querySelector('.cl-nmap[data-i="'+i+'"]');if(!box)return;
+  const r=((CL&&CL.lines)||[])[i];if(!r)return;
+  const sents=ghClSents(String(r.orig||''));
+  const notes=ghClNotes(r.note);
+  if(!notes.length||!sents.length){box.innerHTML='';return;}
+  const bk=ghClMap(sents.map(clNameStrip),notes);
+  const where={};
+  bk.forEach((arr,j)=>{(arr||[]).forEach(e=>{where[e]=j+1;});});
+  box.innerHTML='<div class="cl-nmap-t">這幾條會掛到哪一句</div>'
+    +notes.map(e=>{const txt=ghClPin(e)[1];const n=where[txt]||where[e]||1;
+      const dup=sents.filter(x=>{const w=ghClHead(txt);return w&&clNameStrip(x).indexOf(w)>=0;}).length;
+      return '<div class="cl-nmap-r"><span class="cl-nmap-n">第 '+n+' 句</span>'
+        +'<span class="cl-nmap-e">'+esc(txt.slice(0,40)+(txt.length>40?'…':''))+'</span>'
+        +(dup>1?'<span class="cl-nmap-w" title="這個字在這一段出現 '+dup+' 次，系統挑了第一個。要改成別句，在這一條前面加「2｜」">⚠ 出現 '+dup+' 次</span>':'')
+        +'</div>';}).join('');}
+function clNoteMapAll(){((CL&&CL.lines)||[]).forEach((_,i)=>{try{clNoteMapDraw(i);}catch(e){}});}
 function clQSegPaint(open){const w=document.getElementById('cl-qs');if(w)w.innerHTML=clQRowsHtml();
   const c=document.getElementById('cl-qcount');if(c)c.textContent=String(((CL&&CL.qs)||[]).length);
   if(open!=null){const d=document.querySelector('#cl-qs .cl-seg[data-i="'+open+'"]');
     if(d){d.open=true;try{d.scrollIntoView({block:'nearest'});}catch(e){}}}}
 function clSegPaint(open){const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();
   const c=document.getElementById('cl-lncount');if(c)c.textContent=String(((CL&&CL.lines)||[]).length);
+  try{clNoteMapAll();}catch(e){}/* NOTEMAP_V1171 */
   if(open!=null){const d=document.querySelector('#cl-lines .cl-seg[data-i="'+open+'"]');
     if(d){d.open=true;try{d.scrollIntoView({block:'nearest'});}catch(e){}}}}
 function clLineRowsHtml(){return (CL.lines||[]).map((r,i)=>`<details class="cl-seg" data-i="${i}"><summary class="cl-seg-s"><b class="cl-seg-n">第 ${i+1} 段</b><span class="cl-seg-t">${esc(clSegPrev(r))}</span><span class="cl-seg-m">${clSegMarks(r)}</span></summary><div class="cl-seg-b"><label class="dlg-lbl">原文 <span class="hint">人名、地名可以標起來：選起來按下面的鈕。{ } 是人名、[ ] 是地名</span></label><textarea class="cl-orig" data-i="${i}" oninput="clSegTouch(this)" style="min-height:52px" placeholder="這一段的文言文原文…">${esc(r.orig||'')}</textarea>
   <!-- CLNAME_V1011 不要逼她自己打括號：把名字選起來按一下就包好 -->
-  <div class="cl-mk"><button class="btn btn-sm" type="button" data-act="clMarkPn" data-id="${i}">標人名</button><button class="btn btn-sm" type="button" data-act="clMarkLn" data-id="${i}">標地名</button><button class="btn btn-sm btn-ghost" type="button" data-act="clMarkNo" data-id="${i}">取消標記</button></div><label class="dlg-lbl">注釋 <span class="hint">這一格就是妳自己加註解的地方。一條一個「。」，例如「之：前往。卿：敬稱。」。印出來會掛到有那個字的句子底下；同一個字出現兩次的時候，寫「3｜之：前往。」＝指定掛在第 3 句。</span></label><textarea class="cl-note" data-i="${i}" oninput="clSegTouch(this)" style="min-height:44px" placeholder="例：之：前往。卿：敬稱。">${esc(r.note||'')}</textarea>
+  <div class="cl-mk"><button class="btn btn-sm" type="button" data-act="clMarkPn" data-id="${i}">標人名</button><button class="btn btn-sm" type="button" data-act="clMarkLn" data-id="${i}">標地名</button><button class="btn btn-sm btn-ghost" type="button" data-act="clMarkNo" data-id="${i}">取消標記</button></div><label class="dlg-lbl">注釋 <span class="hint">這一格就是妳自己加註解的地方。一條寫成「詞：解釋」，例如「之：前往」。<br>同一條裡再多寫幾句補充沒關係，只要沒有新的「詞：」就算同一條（例：「質：到別國做人質。古代常把王子送到別國居住。」＝一條）。<br>印出來會掛到有那個字的句子底下；同一個字出現兩次的時候，寫「3｜之：前往」＝指定掛在第 3 句。</span></label><textarea class="cl-note" data-i="${i}" oninput="clSegTouch(this)" style="min-height:44px" placeholder="例：之：前往">${esc(r.note||'')}</textarea>
+  <div class="cl-nmap" data-i="${i}"></div><!-- NOTEMAP_V1171 -->
   <label class="dlg-lbl">參考翻譯 <span class="hint">選填，你寫的白話翻譯。什麼時候給學生看，在上面設定</span></label><textarea class="cl-ref" data-i="${i}" oninput="clSegTouch(this)" style="min-height:44px" placeholder="這一段的白話翻譯…">${esc(r.ref||'')}</textarea>
   ${clPicBox(r.img||'','clPicUp','clPicDel',i,'這一段的插圖，學生看得到')}
   ${CL.lines.length>1?`<div class="cl-seg-foot"><button class="btn btn-sm btn-danger" type="button" data-act="clDelLine" data-id="${i}">🗑 刪除這一段</button></div>`:''}</div></details>`).join('');}
@@ -6949,7 +6981,8 @@ function clForm(){const e=!!CL.id;const origText=CL.origText!=null?CL.origText:'
        <div id="cl-qs">${clQRowsHtml()}</div>
        <button class="btn btn-sm" type="button" data-act="clAddQ">＋ 新增問題</button></div>
    </div>
-   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="saveClassical">💾 儲存</button></div></div>`);}
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="saveClassical">💾 儲存</button></div></div>`);
+  try{clNoteMapAll();}catch(e){}/* NOTEMAP_V1171 第一次打開也要畫 */}
 /* 教材排序：先看大類名稱，再看「一二三四…」的冊次 */
 const _CNNUM={'零':0,'〇':0,'一':1,'二':2,'兩':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10};
 /* FIXSKIP_V1000 「這幾天不要再推固定時段」的清單。
@@ -8200,8 +8233,22 @@ function ghClSents(t){
   const v=buf.trim();if(v)out.push(v);
   return out;}
 /* GHCL_V863 「質（zhì）：做人質。亡歸：逃回。」→ 一條一條 */
+/* CLNOTE_V1170 本來是看到「。」就切一條，所以
+   「質（zhì）：到別國做人質。古代國家為了表示合作…常把王子送到另一個國家居住。」
+   會被切成兩條，後面那句解釋跟它要解釋的詞就分家了。
+   改成：只有「看起來是新的一條」才切——也就是開頭是「詞：」的那種；
+   不是的就接回上一條。一行寫一條、或一行寫兩三條（之：前往。卿：敬稱。）都認得。 */
+function ghClNoteHead(p){
+  return /^\s*(?:\d{1,2}\s*[|｜]\s*)?[^：:。\n]{1,14}[：:]/.test(String(p||''));}
 function ghClNotes(n){
-  return String(n==null?'':n).split('。').map(x=>x.trim()).filter(Boolean);}
+  const raw=[];
+  String(n==null?'':n).split(/\n/).forEach(line=>{
+    String(line).split('。').forEach(x=>{x=x.trim();if(x)raw.push(x);});});
+  const out=[];
+  raw.forEach(p=>{
+    if(!out.length||ghClNoteHead(p))out.push(p);
+    else out[out.length-1]+='。'+p;});
+  return out;}
 /* CLPIN_V1009 「3｜之：前往」＝ 指定掛在第 3 句。
    同一個字在一段裡出現兩次的時候，自動比對一定會猜錯其中一次，
    所以留一個講得明白的寫法給她。回傳 [第幾句(0 起算，沒指定是 -1), 剩下的文字]。 */
