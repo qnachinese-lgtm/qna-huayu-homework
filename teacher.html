@@ -355,6 +355,13 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .gh-caret-off::before{content:''}
         /* SEGCOL_V1174 「N 句」靠右、寬度固定，不然每一列都差一點點 */
         .gh-list.gh-seglist .gh-meta{min-width:52px;text-align:right}
+        /* DQEDIT_V1175 討論題展開之後直接在這裡改 */
+        .gh-dqb{margin:2px 0 8px 30px;border-left:2px solid var(--line-strong);padding:4px 0 2px 12px}
+        .gh-dql{font-size:12px;color:var(--muted);margin:6px 0 3px}
+        .gh-dqb textarea{width:100%;min-height:54px;font:inherit;font-size:13.5px;line-height:1.75;
+          border:1px solid var(--line-strong);border-radius:8px;padding:7px 9px;background:#fff;color:var(--ink)}
+        .gh-dqb textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+        #gh-dqdirty{color:#B45309;font-weight:600}
         .gh-qd[open] .gh-caret::before{transform:rotate(180deg)}
         .gh-qd>summary:hover .gh-caret{color:var(--primary)}
         .gh-qn.on{color:var(--primary);font-weight:700}
@@ -7976,6 +7983,9 @@ let GHFONT='kaitimes';
 let GHCLSET=[],GHCLQ='1',GHWHO='',GHWHEN='';
 /* CLPICK_V1161 只印挑起來的那幾句（格式 "段index-句index"）；空的＝照原本整段出 */
 let GHCLPICK=[];
+/* DQEDIT_V1175 GHCLQPICK = 勾起來要出的討論題（空的＝全部出）；
+   GHDQ 是這一課的題目副本，按了「存起來」才寫回資料庫。 */
+let GHCLQPICK=[],GHDQ=[],GHDQID='',GHDQD=false;
 /* GHBANK_V872 這一份要出哪一邊的題目：
    'auto' 哪邊有就出哪邊／'main' 只出課本練習題／'hw' 只出作業簿／'both' 兩邊都出 */
 let GHBANK='auto';
@@ -8297,7 +8307,11 @@ function ghClSpace(){
 /* GHOTHER_V826 文言文：題解 → 原文（逐句附白話、註釋）→ 問答。
    參考答案本來就存在 cl_qs[].ans，所以老師版印得出來。 */
 function ghClHtml(l,withAns){
-  const lines=ghClLines(l),qs=ghClQs(l);
+  const lines=ghClLines(l);
+  let qs=ghClQs(l);
+  /* DQEDIT_V1175 挑了題就只出那幾題，一題都沒挑＝全部出 */
+  if(GHCLQPICK&&GHCLQPICK.length){const _p={};GHCLQPICK.forEach(n=>{_p[n]=1;});
+    const _q=qs.filter((x,i)=>_p[i]);if(_q.length)qs=_q;}
   if(!lines.length&&!qs.length)return '';
   /* CLPRINT_V827 平台上白話翻譯是學生自己要寫的作業，預設「交出來以後才看得到」。
      講義照這個設定走：學生版不印白話，留空格給他寫；老師版才印參考翻譯。 */
@@ -8844,23 +8858,12 @@ function GHSENT(){
   if(!box)return;
   const ids=[...document.querySelectorAll('.gh-l:checked')].map(x=>x.value);
   const book=((document.getElementById('gh-book')||{}).value)||'';
-  const qmsg=document.getElementById('gh-clqmsg');
-  /* CLQMSG_V1174 */
-  const _qsay=(l)=>{
-    if(!qmsg)return;
-    if(!l){qmsg.textContent='';return;}
-    const n=ghClQs(l).length,md=l.cl_qs_mode||'hw';
-    if(!n){qmsg.textContent='這一課還沒打討論題，所以印出來不會有「三、討論」。'
-      +'要加的話，點進這一課的編輯視窗，最下面「課後問答題」。';return;}
-    if(md==='off'){qmsg.textContent='這一課有 '+n+' 題討論題，但是設成「不給學生看」，'
-      +'所以講義不會印它。要印的話，去這一課的編輯視窗把問答題改成「只顯示題目」。';return;}
-    qmsg.textContent='這一課有 '+n+' 題討論題，印在講義最後面「三、討論」。'
-      +'題目不在這裡挑，要改要加都在這一課的編輯視窗最下面「課後問答題」。';};
-  const say=(t)=>{box.innerHTML='';if(msg)msg.textContent=t;_qsay(null);};
+  const say=(t)=>{box.innerHTML='';if(msg)msg.textContent=t;ghClqMsg(null);ghDqRows(null);};
   if(ids.length!==1)return say('先在上面選一課，這裡就會把那一課的段落列出來。');
   const l=baLessonsOf(book).find(x=>x.id===ids[0]);
   const lines=ghClLines(l);
-  _qsay(l);/* CLQMSG_V1174 */
+  ghClqMsg(l);/* CLQMSG_V1174 */
+  ghDqRows(l);/* DQEDIT_V1175 */
   if(!lines.length){box.innerHTML='';if(msg)msg.textContent='這一課沒有文言文原文。';return;}
   /* GHSEG_V869 一列＝一段。本來只露 40 個字又切成一行，看起來像一句話。
      改成最多兩行，後面標這一段有幾句。 */
@@ -8889,6 +8892,53 @@ function GHSENT(){
   if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 段。'
     +'什麼都不勾＝整課都出；勾「段」＝整段出；勾裡面的「句」＝只出那幾句（同一段的會接在一起）。'
     +'勾了句就以句為準，段的勾選不算。';}
+/* CLQMSG_V1174 → V1175 這一課的討論題到底有沒有、會不會印 */
+function ghClqMsg(l){
+  const qmsg=document.getElementById('gh-clqmsg');
+  if(!qmsg)return;
+  if(!l){qmsg.textContent='';return;}
+  const n=ghClQs(l).length,md=l.cl_qs_mode||'hw';
+  if(!n){qmsg.textContent='這一課還沒打討論題，所以印出來不會有「三、討論」。'
+    +'要加的話，點進這一課的編輯視窗，最下面「課後問答題」。';return;}
+  if(md==='off'){qmsg.textContent='這一課有 '+n+' 題討論題，但是設成「不給學生看」，'
+    +'所以講義不會印它。要印的話，去這一課的編輯視窗把問答題改成「只顯示題目」。';return;}
+  qmsg.textContent='這一課有 '+n+' 題討論題，印在講義最後面「三、討論」。'
+    +'下面可以挑要出哪幾題，點題目也可以直接改。';}
+/* DQEDIT_V1175 討論題清單：一題一列，點開就是題目和參考答案的格子。
+   跟上面的段落清單一樣：點左邊的框是「要不要出這一題」，點文字才是展開。 */
+function ghDqRows(l){
+  const box=document.getElementById('gh-clqlist'),wrap=document.getElementById('gh-clqbox');
+  if(!box||!wrap)return;
+  GHDQ=ghClQs(l).map(q=>({q:String((q&&q.q)||''),ans:String((q&&q.ans)||''),img:String((q&&q.img)||'')}));
+  GHDQID=(l&&l.id)||'';
+  ghDqDirty(false);
+  if(!GHDQ.length){wrap.style.display='none';box.innerHTML='';return;}
+  wrap.style.display='';
+  box.innerHTML=GHDQ.map((q,i)=>{
+    const t=q.q.replace(/\s+/g,' ').trim();
+    const cut=t.slice(0,58)+(t.length>58?'…':'');
+    return '<details class="gh-qd gh-dqd" data-i="'+i+'">'
+      +'<summary class="check-row gh-srow">'
+      +'<input type="checkbox" class="gh-dq" value="'+i+'" onclick="event.stopPropagation()">'
+      +'<span class="gh-sn">'+(i+1)+'</span>'
+      +'<span class="gh-ln">'+esc(cut)+'</span>'
+      +'<span class="gh-meta">'+(q.ans?'有答案':'')+'</span>'
+      +'<span class="gh-caret"></span></summary>'
+      +'<div class="gh-dqb">'
+      +'<div class="gh-dql">題目</div>'
+      +'<textarea class="gh-dqt" data-i="'+i+'" oninput="GHDQIN(this)">'+esc(q.q)+'</textarea>'
+      +'<div class="gh-dql">參考答案 <span class="hint">選填，只有老師版會印</span></div>'
+      +'<textarea class="gh-dqa" data-i="'+i+'" oninput="GHDQIN(this)">'+esc(q.ans)+'</textarea>'
+      +'</div></details>';}).join('');}
+function GHDQIN(el){
+  const i=+el.dataset.i;if(!GHDQ[i])return;
+  if(el.classList.contains('gh-dqt'))GHDQ[i].q=el.value;else GHDQ[i].ans=el.value;
+  ghDqDirty(true);}
+function ghDqDirty(b){
+  GHDQD=!!b;const t=document.getElementById('gh-dqdirty');
+  if(t)t.textContent=b?'改了還沒存':'';}
+function GHQPALL(){const b=[...document.querySelectorAll('.gh-dq')];if(!b.length)return;
+  const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
 function GHSALL(){const b=[...document.querySelectorAll('.gh-s,.gh-q')];if(!b.length)return;
   const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});
   try{GHQCNT();}catch(e){}}
@@ -8966,7 +9016,16 @@ function ghModal(){
    +'</select>'
    /* CLQMSG_V1174 討論題不在這個視窗裡挑，所以要講清楚：
       這一課有幾題、會不會印、要改去哪裡改。 */
-   +'<div class="hint" id="gh-clqmsg" style="margin-top:6px"></div></div></div>'
+   +'<div class="hint" id="gh-clqmsg" style="margin-top:6px"></div></div>'
+   /* DQEDIT_V1175 討論題也列在這裡：可以挑要出哪幾題，點開可以直接改。
+      改了不會自動存，一定要按「存起來」。 */
+   +'<div class="field" id="gh-clqbox" style="display:none">'
+   +'<label class="gh-lbl">討論題 <span class="hint">不勾＝全部出；點題目可以直接改</span>'
+   +'<span style="flex:1"></span><span class="hint" id="gh-dqdirty" style="margin-right:8px"></span>'
+   +'<button class="btn btn-sm btn-ghost" type="button" onclick="GHQPALL()">全選 / 取消</button>'
+   +'<button class="btn btn-sm" type="button" data-act="ghQSave">\u{1F4BE} 存起來</button></label>'
+   +'<div class="check-list gh-list gh-seglist" id="gh-clqlist"></div></div>'
+   +'</div>'
    /* GHWHO_V860 這一份是給誰、哪一天上的，填了就印在抬頭 */
    +'<div class="field"><label>這一份給誰 <span class="hint">選填，選了就印在抬頭，不用學生自己寫</span></label>'
    +'<select id="gh-who"><option value="">— 不指定（留空白讓學生自己寫）—</option>'
@@ -19117,6 +19176,25 @@ H.qReload=async(_x,btn)=>{
   finally{if(btn){btn.disabled=false;btn.textContent='🔄 重讀題目';}}};
 /* CLSENT_V1166 獨立的「印句子」視窗已經併進「匯出講義」，這裡的程式碼整段移除 */
 H.ghOpen=()=>ghModal();
+/* DQEDIT_V1175 在匯出視窗裡改討論題，按這顆才真的寫回資料庫。
+   只動 cl_qs 一個欄位，這一課其他的東西一律不碰。 */
+H.ghQSave=async()=>{
+  if(!GHDQID)return toast('先在上面選一課');
+  const l=(S.lessons||[]).find(x=>x&&x.id===GHDQID);
+  if(!l)return toast('找不到這一課');
+  const qs=GHDQ.map(x=>({q:String(x.q||'').trim(),ans:String(x.ans||'').trim(),img:String(x.img||'')}))
+    .filter(x=>x.q);
+  const gone=GHDQ.length-qs.length;
+  if(gone&&!confirm('有 '+gone+' 題題目是空的，存起來會把這幾題刪掉。要繼續嗎？'))return;
+  const keep=[...document.querySelectorAll('.gh-dq:checked')].map(x=>Number(x.value));
+  try{
+    await DB.update('lessons',GHDQID,{cl_qs:qs});
+    l.cl_qs=qs;
+    ghDqRows(l);
+    keep.forEach(i=>{const c=document.querySelector('.gh-dq[value="'+i+'"]');if(c)c.checked=true;});
+    try{ghClqMsg(l);}catch(e){}
+    toast('討論題存好了');
+  }catch(e){toast(writeErr('儲存失敗',e));}};
 H.ghGo=(mode)=>{
   const book=((document.getElementById('gh-book')||{}).value)||'';
   const lids=[...document.querySelectorAll('.gh-l:checked')].map(x=>x.value);
@@ -19130,6 +19208,10 @@ H.ghGo=(mode)=>{
   /* CLSENT_V1166 勾了句子就以句為準 */
   GHCLPICK=[...document.querySelectorAll('.gh-q:checked')].map(x=>String(x.value));
   if(GHCLPICK.length)GHCLSET=[];
+  /* DQEDIT_V1175 挑起來要出的討論題；改了沒存的話先講一聲 */
+  if(GHDQD&&!confirm('討論題改了還沒存，印出來會是改之前的。\n\n'
+    +'按「確定」照舊的印；按「取消」回去按「存起來」。'))return;
+  GHCLQPICK=[...document.querySelectorAll('.gh-dq:checked')].map(x=>Number(x.value));
   GHCLQ=((document.getElementById('gh-clq')||{}).value)||'1';
   GHBANK=((document.getElementById('gh-bank')||{}).value)||'auto';/* GHBANK_V872 */
   GHTR=!!((document.getElementById('gh-tr')||{}).checked);/* GHTR_V891 */
