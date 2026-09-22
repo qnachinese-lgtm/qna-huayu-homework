@@ -348,16 +348,14 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .cl-nmap-w{flex:0 0 auto;color:#B45309;font-weight:600;cursor:help}
         /* CLSENT_V1166 匯出講義裡，每一段底下的句子清單 */
         /* 注意：視窗掛在 #modal-root，不在 #app 裡面，所以這幾條不能加 #app 前綴 */
-        .gh-qd{margin:0 0 8px 30px}
-        .gh-qd>summary{list-style:none;cursor:pointer;font-size:12.5px;color:var(--muted);
-          padding:4px 2px;user-select:none}
+        .gh-qd>summary{list-style:none;cursor:pointer}
         .gh-qd>summary::-webkit-details-marker{display:none}
-        .gh-qd>summary::before{content:'▸ ';color:var(--primary)}
-        .gh-qd[open]>summary::before{content:'▾ '}
-        .gh-qd>summary:hover{color:var(--primary)}
-        .gh-qd.picked>summary{color:var(--primary);font-weight:700}
+        .gh-caret{flex:0 0 14px;text-align:center;color:var(--muted);font-size:11px}
+        .gh-caret::before{content:'\25BE';display:inline-block;transition:transform .15s}
+        .gh-qd[open] .gh-caret::before{transform:rotate(180deg)}
+        .gh-qd>summary:hover .gh-caret{color:var(--primary)}
         .gh-qn.on{color:var(--primary);font-weight:700}
-        .gh-qs{margin:2px 0 8px 0;border-left:2px solid var(--line-strong);padding-left:12px}
+        .gh-qs{margin:2px 0 8px 30px;border-left:2px solid var(--line-strong);padding-left:12px}
         .gh-qrow{font-size:13.5px}
         .gh-qrow .gh-ln{line-height:1.85}
         /* SETOUT_V1159 右上角的「⚙️ 設定」拿掉——側邊選單已經有一個了，重複。
@@ -8856,18 +8854,20 @@ function GHSENT(){
     const t=String(x.orig||'').replace(/\s+/g,'');
     const sents=ghClSents(t);
     const _cut=t.slice(0,110)+(t.length>110?'…':'');
-    /* CLFOLD_V1172 句子預設收起來，要挑句子才點開——一課十幾段的時候整張清單太長 */
-    return '<label class="check-row"><input type="checkbox" class="gh-s" value="'+(i+1)+'">'
+    /* CLFOLD_V1172 → V1173 段落那一列本身就是下拉：點文字展開句子，點左邊的框才是勾整段。
+       只有一句的段落不用展開，維持一般的一列。 */
+    const _inner='<input type="checkbox" class="gh-s" value="'+(i+1)+'" onclick="event.stopPropagation()">'
       +'<span class="gh-sn">'+(i+1)+'</span>'
       +'<span class="gh-ln">'+clNameLines(_cut)+'</span>'/* 括號換成顏色，跟底下的句子一致 */
-      +'<span class="gh-meta">'+sents.length+' 句</span></label>'
-      +(sents.length>1?('<details class="gh-qd" data-i="'+i+'"><summary class="gh-qsum">'
-        +'挑這一段裡面的句子<span class="gh-qn" data-i="'+i+'"></span></summary>'
-        +'<div class="gh-qs">'+sents.map((sv,j)=>
+      +'<span class="gh-meta">'+sents.length+' 句<span class="gh-qn" data-i="'+i+'"></span></span>';
+    if(sents.length<2)return '<label class="check-row">'+_inner+'</label>';
+    return '<details class="gh-qd" data-i="'+i+'">'
+      +'<summary class="check-row gh-srow">'+_inner+'<span class="gh-caret"></span></summary>'
+      +'<div class="gh-qs">'+sents.map((sv,j)=>
         '<label class="check-row gh-qrow"><input type="checkbox" class="gh-q" value="'+i+'-'+j+'">'
         +'<span class="gh-sn">'+(j+1)+'</span>'
         +'<span class="gh-ln">'+clNameLines(sv)+'</span></label>').join('')
-        +'</div></details>'):'');}).join('');
+      +'</div></details>';}).join('');
   try{GHQCNT();}catch(e){}
   if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 段。'
     +'什麼都不勾＝整課都出；勾「段」＝整段出；勾裡面的「句」＝只出那幾句（同一段的會接在一起）。'
@@ -8880,7 +8880,7 @@ function GHQCNT(){
   document.querySelectorAll('.gh-qn').forEach(el=>{
     const i=el.dataset.i;
     const n=[...document.querySelectorAll('.gh-q[value^="'+i+'-"]')].filter(x=>x.checked).length;
-    el.textContent=n?('　已挑 '+n+' 句'):'';
+    el.textContent=n?('　·　已挑 '+n):'';
     el.classList.toggle('on',!!n);
     const d=el.closest('.gh-qd');if(d)d.classList.toggle('picked',!!n);});}
 function ghModal(){
