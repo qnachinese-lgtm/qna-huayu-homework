@@ -337,16 +337,11 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
            正在用的那一種反白。原本按一下就直接切換，看不出來有哪些語言可以選。 */
         #ui-langwrap{position:relative;flex:0 0 auto}
         #ui-lang{min-width:118px;justify-content:center;white-space:nowrap}
-        /* CLSENT_V1160 挑句子那張清單 */
-        .cs-box{border:1px solid var(--line);border-radius:12px;padding:6px 8px;max-height:46vh;overflow:auto}
-        .cs-seg{font-size:12.5px;color:var(--muted);font-weight:700;margin:10px 2px 4px}
-        .cs-seg:first-child{margin-top:2px}
-        .cs-row{display:flex;gap:9px;align-items:flex-start;padding:8px 8px;border-radius:9px;cursor:pointer}
-        .cs-row:hover{background:var(--primary-soft)}
-        .cs-row.on{background:var(--primary-soft)}
-        .cs-row input{margin-top:4px;flex:0 0 auto}
-        .cs-no{flex:0 0 22px;text-align:right;font-size:12px;color:var(--muted);margin-top:2px}
-        .cs-t{flex:1;line-height:1.85;font-size:15px}
+        /* CLSENT_V1166 匯出講義裡，每一段底下的句子清單 */
+        /* 注意：視窗掛在 #modal-root，不在 #app 裡面，所以這幾條不能加 #app 前綴 */
+        .gh-qs{margin:2px 0 8px 30px;border-left:2px solid var(--line-strong);padding-left:12px}
+        .gh-qrow{font-size:13.5px}
+        .gh-qrow .gh-ln{line-height:1.85}
         /* SETOUT_V1159 右上角的「⚙️ 設定」拿掉——側邊選單已經有一個了，重複。
            元素本身留著不刪：語言鈕是掛在它前面的（mount() 找 #settings-btn
            當定位點），真的刪掉語言鈕就不會出現。這裡只讓它不顯示。 */
@@ -2377,7 +2372,6 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           <button class="btn" data-act="planNew">🗓 一鍵排課程表</button>
           <button class="btn" data-act="bulkAssign">📤 批次指派</button>
           <button class="btn" data-act="qReload" title="題目存在瀏覽器裡，重整不用重讀。在別台電腦改過題目的話，按這個重新讀一次">🔄 重讀題目</button>
-          <button class="btn" data-act="clSentModal" title="文言文挑幾句印給學生，字很大">✂️ 印句子</button><!-- CLSENT_V1160 -->
           <button class="btn" data-act="ghOpen">📤 匯出講義 PDF</button>
           <button class="btn hide" data-act="propList" id="prop-btn">📥 待審修改</button>
           <button class="btn btn-primary" data-act="addLesson">＋ 新增課文</button></div></div>
@@ -8260,20 +8254,25 @@ function ghClHtml(l,withAns){
     .filter(o=>String(o.x.orig||'').trim()||String(o.x.note||'').trim()||String(o.x.ref||'').trim()||o.x.img);
   if(GHCLSET&&GHCLSET.length){const _set={};GHCLSET.forEach(n=>{_set[n]=1;});
     segs=segs.filter(o=>_set[o.n]);}
-  /* CLPICK_V1161 挑句子模式：一句變成一段，註解只留掛在那一句的，編號從 1 重新數 */
-  let _pickOne=false;
+  /* CLPICK_V1161 → CLSEG_V1165 挑句子模式：同一段挑起來的句子接回同一段印，
+     編號用原本的段號，才看得出這幾句是哪一段來的。註解重新綁到留下來的句子上。 */
   if(GHCLPICK&&GHCLPICK.length){
     const _pk={};GHCLPICK.forEach(k=>{_pk[k]=1;});
     const _out=[];
     lines.forEach((x,i)=>{
       const _sents=ghClSents(String(x.orig||''));
       const _bk=ghClMap(_sents.map(clNameStrip),ghClNotes(x.note));
+      const _keep=[],_note=[];
       _sents.forEach((sv,j)=>{
         if(!_pk[i+'-'+j])return;
-        const _n=(_bk[j]||[]);
-        _out.push({x:{orig:sv,note:_n.length?(_n.join('。')+'。'):'',ref:'',img:''},n:_out.length+1});
-      });});
-    if(_out.length){segs=_out;_pickOne=true;}
+        _keep.push(sv);
+        /* 註解重新指定掛在第幾句：句子被篩掉之後序號會跑掉 */
+        (_bk[j]||[]).forEach(e=>{_note.push(_keep.length+'｜'+e);});
+      });
+      if(_keep.length)_out.push({x:{orig:_keep.join(''),note:_note.length?(_note.join('。')+'。'):'',
+        ref:'',img:''},n:i+1});
+    });
+    if(_out.length)segs=_out;
   }
   let sec=0;
   if(segs.length&&GHCLQ!=='only'){
@@ -8300,7 +8299,7 @@ function ghClHtml(l,withAns){
       /* CLNAME_V1011 比對要用拆掉括號的句子，不然「{荊軻}者」找不到「荊軻」 */
       const bk=ghClMap(sents.map(clNameStrip),ghClNotes(o.x.note));
       sents.forEach((sv,j)=>{
-        h+='<div class="gh-cli"><div class="gh-clo"><span class="gh-cn">'+(_pickOne?o.n:(o.n+'-'+(j+1)))+'</span>'
+        h+='<div class="gh-cli"><div class="gh-clo"><span class="gh-cn">'+o.n+'-'+(j+1)+'</span>'
           +clNameLines(sv)+'</div>'
           +(bk[j].length?('<div class="gh-cln">'+bk[j].map(e=>clNameLines(e)+'。').join('<br>')+'</div>'):'')
           +(withAns?'':ghClSpace())/* GHCL_V864 */
@@ -8795,16 +8794,24 @@ function GHSENT(){
   if(!lines.length)return say('這一課沒有文言文原文。');
   /* GHSEG_V869 一列＝一段。本來只露 40 個字又切成一行，看起來像一句話。
      改成最多兩行，後面標這一段有幾句。 */
+  /* CLSENT_V1166 每一段底下再把句子列出來，可以只挑其中幾句。
+     只勾句子的時候，原文那一區會照段落把挑起來的句子接回去，不是一句一行。 */
   box.innerHTML=lines.map((x,i)=>{
     const t=String(x.orig||'').replace(/\s+/g,'');
-    const ns=ghClSents(t).length;
+    const sents=ghClSents(t);
+    const _cut=t.slice(0,110)+(t.length>110?'…':'');
     return '<label class="check-row"><input type="checkbox" class="gh-s" value="'+(i+1)+'">'
       +'<span class="gh-sn">'+(i+1)+'</span>'
-      +'<span class="gh-ln">'+esc(t.slice(0,110)+(t.length>110?'…':''))+'</span>'
-      +'<span class="gh-meta">'+ns+' 句</span></label>';}).join('');
-  if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 段（就是妳課文檔案裡的每一列）。'
-    +'一段都不勾就是整課都出。印出來會先印整段原文，底下再把那一段拆成一句一句附註解。';}
-function GHSALL(){const b=[...document.querySelectorAll('.gh-s')];if(!b.length)return;
+      +'<span class="gh-ln">'+clNameLines(_cut)+'</span>'/* 括號換成顏色，跟底下的句子一致 */
+      +'<span class="gh-meta">'+sents.length+' 句</span></label>'
+      +(sents.length>1?('<div class="gh-qs">'+sents.map((sv,j)=>
+        '<label class="check-row gh-qrow"><input type="checkbox" class="gh-q" value="'+i+'-'+j+'">'
+        +'<span class="gh-sn">'+(j+1)+'</span>'
+        +'<span class="gh-ln">'+clNameLines(sv)+'</span></label>').join('')+'</div>'):'');}).join('');
+  if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 段。'
+    +'什麼都不勾＝整課都出；勾「段」＝整段出；勾裡面的「句」＝只出那幾句（同一段的會接在一起）。'
+    +'勾了句就以句為準，段的勾選不算。';}
+function GHSALL(){const b=[...document.querySelectorAll('.gh-s,.gh-q')];if(!b.length)return;
   const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
 function ghModal(){
   const books=baBooks();if(!books.length)return toast('還沒有課文');
@@ -9981,7 +9988,9 @@ H.reviews=()=>{
     const act=(st==='approved'?'<button class="btn btn-sm btn-accent" data-act="revPic" data-id="'+r.id+'" title="做成可以貼 FB／Zalo 的圖">\u{1F5BC} 做成圖片</button><button class="btn btn-sm" data-act="revUnapprove" data-id="'+r.id+'">取消公開</button>':'<button class="btn btn-sm btn-accent" data-act="revApprove" data-id="'+r.id+'">✓ 核准公開</button>');/* REVPIC_V1154 */
     return '<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start"><b>'+esc(revNameOf(r))+'</b>'+badge+'<span class="grow"></span>'+act+'<button class="btn btn-sm" style="color:var(--danger)" data-act="revDel" data-id="'+r.id+'">🗑</button><div style="flex-basis:100%;margin-top:4px;white-space:pre-line;color:var(--ink)">'+esc(r.text||'')+'</div></div>';
   }).join(''):'<div class="muted" style="padding:10px 0">還沒有學生評價。學生在學習頁「⭐ 給老師評價」送出後會出現在這裡，你核准後才會顯示在官網。</div>';
-  openModal('<div class="modal wide"><div class="modal-head"><h3>⭐ 學生評價審核</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="hint" style="margin-bottom:10px">核准後自動上官網，文字可到「編輯內容 → ⭐ 學生評價」再改。</div>'+rows+'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');
+  openModal('<div class="modal wide modal-tall"><div class="modal-head"><h3>⭐ 學生評價審核</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="hint" style="margin-bottom:10px">核准後自動上官網，文字可到「編輯內容 → ⭐ 學生評價」再改。<br>學生在 Zalo、FB 私訊講的好話，用底下那顆自己打進來就好。</div>'+rows+'</div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="revAdd">\u2795 我自己打一則</button></div></div>');/* REVADD_V1164 */
 };
 /* REVPIC_V1154 學生回饋圖。只吃後台「已核准」的評價，不會自己生內容。
    三種尺寸現場切換，署名每一張自己打，下載出來是 PNG，直接貼 FB／Zalo。
@@ -10148,6 +10157,47 @@ H.rpSave=()=>{
     a.download='QNA_學生回饋_'+(RP_SIZE[RP.size]||{}).lab.replace(/\s|×/g,'')+'.png';
     a.click();toast('已下載');
   }catch(e){toast('下載失敗：'+((e&&e.message)||e));}
+};
+/* REVADD_V1164 學生在私訊裡講的好話，老師自己打進來。
+   存進去一樣是「待審核」，要不要上官網還是你自己按核准，不會偷偷公開。 */
+H.revAdd=()=>{
+  const ss=(S.students||[]).filter(x=>x&&!x.deleted_at&&!x.is_test)
+    .slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'zh-Hant'));
+  openModal('<div class="modal"><div class="modal-head"><h3>\u2795 自己打一則學生評價</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:10px">打進來之後會排在「待審核」，你再決定要不要按「✓ 核准公開」。'
+   +'核准了才會出現在官網，也才做得成回饋圖。</div>'
+   +'<div class="field"><label>哪一位學生 <span class="hint">選了就自動帶名字；名單裡沒有的話選「不指定」自己打</span></label>'
+   +'<select id="ra-stu" onchange="RAPICK(this)"><option value="">（不指定，自己打名字）</option>'
+   +ss.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name||'')+'</option>').join('')
+   +'</select></div>'
+   +'<div class="field"><label>圖上／官網要顯示的名字 <span class="hint">可以只寫縮寫，例：M. L.</span></label>'
+   +'<input id="ra-name" type="text" placeholder="例：Mỹ Linh"></div>'
+   +'<div class="field"><label>他說的話 * <span class="hint">照他原本講的貼進來，不用改成漂亮的句子</span></label>'
+   +'<textarea id="ra-text" style="min-height:120px" placeholder="從 Zalo／FB 私訊複製貼上…"></textarea></div>'
+   +'</div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="reviews">取消</button><span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="revAddSave">\u{1F4BE} 存起來</button></div></div>');
+};
+function RAPICK(el){
+  const id=el.value;const n=document.getElementById('ra-name');if(!n)return;
+  const x=(S.students||[]).find(y=>y&&y.id===id);
+  n.value=x?String(x.name||''):'';
+}
+H.revAddSave=async()=>{
+  const txt=((document.getElementById('ra-text')||{}).value||'').trim();
+  if(!txt)return toast('先把他說的話貼進來');
+  const sid=((document.getElementById('ra-stu')||{}).value||'');
+  const nm=((document.getElementById('ra-name')||{}).value||'').trim();
+  try{
+    await ensureAuthFresh();
+    const doc=await DB.insert('results',{lesson_id:'__review',student_id:sid,uid:'',
+      kind:'review',text:txt,name:nm,status:'pending',by:'teacher',
+      created_at:new Date().toISOString()});
+    S.reviews=(S.reviews||[]).concat([doc]);
+    toast('存好了，在待審核那裡');
+    H.reviews();
+  }catch(e){toast('存不進去：'+((e&&e.message)||e));}
 };
 H.revApprove=async(id)=>{const r=(S.reviews||[]).find(x=>x.id===id);if(!r||!S.site)return toast('資料未就緒，請重新整理');
   try{await ensureAuthFresh();const rb=(S.site.reviews_body&&typeof S.site.reviews_body==='object')?Object.assign({},S.site.reviews_body):{zh:'',vi:'',en:''};const line=revLine(r);const cur=(rb.zh||'');if(('\n'+cur+'\n').indexOf('\n'+line+'\n')<0)rb.zh=(cur.trim()?cur.trim()+'\n':'')+line;await DB.update('site',S.site.id,{reviews_body:rb});S.site.reviews_body=rb;await DB.update('results',id,{status:'approved'});r.status='approved';toast('已核准，已加到官網評價區');H.reviews();}
@@ -18975,88 +19025,7 @@ H.qReload=async(_x,btn)=>{
     toast('已重新讀取題目（'+((S.questions||[]).length)+' 題）');}
   catch(e){toast('讀不到：'+((e&&e.message)||e));}
   finally{if(btn){btn.disabled=false;btn.textContent='🔄 重讀題目';}}};
-/* CLSENT_V1160 印句子。文言文一句一句挑出來印，只印原文、字放大。
-   跟「匯出講義」分開：講義是整課整段，這個是上課臨時要挑幾句給學生。
-   版面走「匯出講義」同一套，字級、間距、編號都一樣。 */
-var CS={book:'',les:'',pick:{}};
-function csBooks(){try{return baBooks().filter(b=>ghHasCl(b.k));}catch(e){return [];}}
-function csLessons(bk){try{return (baLessonsOf(bk)||[]).filter(l=>ghClLines(l).length>0);}catch(e){return [];}}
-function csLes(){return csLessons(CS.book).find(l=>l.id===CS.les)||null;}
-function csSents(){
-  const l=csLes();if(!l)return [];
-  const out=[];
-  ghClLines(l).forEach((seg,si)=>{
-    ghClSents(String(seg.orig||'').replace(/\s+/g,'')).forEach((s,qi)=>{
-      if(String(s||'').trim())out.push({key:si+'-'+qi,seg:si+1,no:qi+1,t:s});});});
-  return out;}
-function csDraw(){
-  const box=document.getElementById('cs-list');if(!box)return;
-  const ss=csSents();
-  const n=Object.keys(CS.pick).filter(k=>CS.pick[k]).length;
-  const cnt=document.getElementById('cs-n');
-  if(cnt)cnt.textContent=n?('已經挑了 '+n+' 句'):'還沒挑，點下面的句子就會選起來';
-  if(!ss.length){box.innerHTML='<div class="hint" style="padding:10px 0">這一課沒有文言文原文。</div>';return;}
-  let cur=-1,h='';
-  ss.forEach(s=>{
-    if(s.seg!==cur){cur=s.seg;h+='<div class="cs-seg">第 '+s.seg+' 段</div>';}
-    h+='<label class="cs-row'+(CS.pick[s.key]?' on':'')+'">'
-      +'<input type="checkbox" onchange="CSPICK(this)" value="'+esc(s.key)+'"'+(CS.pick[s.key]?' checked':'')+'>'
-      +'<span class="cs-no">'+s.no+'</span><span class="cs-t">'+clNameLines(s.t)+'</span></label>';});
-  box.innerHTML=h;}
-function CSPICK(el){const k=el.value;CS.pick[k]=!!el.checked;
-  const row=el&&el.closest('.cs-row');if(row)row.classList.toggle('on',!!CS.pick[k]);
-  const n=Object.keys(CS.pick).filter(x=>CS.pick[x]).length;
-  const cnt=document.getElementById('cs-n');
-  if(cnt)cnt.textContent=n?('已經挑了 '+n+' 句'):'還沒挑，點下面的句子就會選起來';};
-function CSBOOK(el){const v=el.value;CS.book=v;const ls=csLessons(v);CS.les=ls.length?ls[0].id:'';CS.pick={};
-  const sel=document.getElementById('cs-les');
-  if(sel)sel.innerHTML=ls.map(l=>'<option value="'+esc(l.id)+'">'+esc(l.title||'（沒有標題）')+'</option>').join('');
-  csDraw();};
-function CSLES(el){CS.les=el.value;CS.pick={};csDraw();}
-function CSALL(){const ss=csSents();const all=ss.length&&ss.every(s=>CS.pick[s.key]);
-  CS.pick={};if(!all)ss.forEach(s=>{CS.pick[s.key]=true;});csDraw();}
-H.clSentModal=()=>{
-  const bks=csBooks();
-  if(!bks.length)return toast('還沒有文言文課文');
-  if(!CS.book||!bks.some(b=>b.k===CS.book)){CS.book=bks[0].k;CS.les='';CS.pick={};}
-  const ls=csLessons(CS.book);
-  if(!CS.les||!ls.some(l=>l.id===CS.les))CS.les=ls.length?ls[0].id:'';
-  openModal('<div class="modal modal-tall" style="max-width:760px">'
-   +'<div class="modal-head"><h3>✂️ 印句子</h3><button class="x" data-act="closeModal">×</button></div>'
-   +'<div class="modal-body">'
-   +'<div class="hint" style="margin-bottom:10px">挑幾句印給學生。只印原文、字放大，人名地名的標記照你標的印。'
-   +'整課整段的講義走「📤 匯出講義 PDF」那邊。</div>'
-   +'<div class="form-grid">'
-   +'<div class="field"><label>教材</label><select id="cs-book" onchange="CSBOOK(this)">'
-   +bks.map(b=>'<option value="'+esc(b.k)+'"'+(b.k===CS.book?' selected':'')+'>'+esc(b.k)+'</option>').join('')
-   +'</select></div>'
-   +'<div class="field"><label>課文</label><select id="cs-les" onchange="CSLES(this)">'
-   +ls.map(l=>'<option value="'+esc(l.id)+'"'+(l.id===CS.les?' selected':'')+'>'+esc(l.title||'（沒有標題）')+'</option>').join('')
-   +'</select></div></div>'
-   +'<div class="dash-row" style="margin:4px 0 8px"><span class="hint" id="cs-n"></span><span class="grow"></span>'
-   +'<button class="btn btn-sm btn-ghost" type="button" onclick="CSALL()">全選 / 取消</button></div>'
-   +'<div id="cs-list" class="cs-box"></div>'
-   +'</div>'
-   +'<div class="modal-foot"><button class="btn" data-act="closeModal">關閉</button><span style="flex:1"></span>'
-   +'<button class="btn" data-act="csPrint" data-id="tea" title="含註解的答案，不留作答空間">老師版</button>'
-   +'<button class="btn btn-primary" data-act="csPrint" data-id="stu">\u{1F5A8} 印出來（學生版）</button></div></div>');
-  csDraw();};
-/* CLPICK_V1161 印出來的版面跟「匯出講義」完全一樣，只是內容換成挑起來的那幾句。
-   做法：把每一句當成一段丟給原本的講義產生器，所以字體、間距、編號、頁首頁尾都一致。 */
-H.csPrint=(mode)=>{
-  const ss=csSents().filter(s=>CS.pick[s.key]);
-  if(!ss.length)return toast('先挑幾句');
-  const l=csLes();if(!l)return toast('找不到這一課');
-  GHCLPICK=ss.map(s=>s.key);
-  GHCLSET=[];
-  GHCLQ='0';                 /* 只出原文和註解，課後問答不出 */
-  GHFONT='kaitimes';
-  GHBANK='auto';GHTR=false;GHDLG=false;GHVOC='';GHVOCL='en';
-  GHLANG='tw';GHWHO='';GHWHEN='';
-  try{ghBuild(CS.book,[l.id],(mode==='tea')?'tea':'stu',false,false);}
-  finally{GHCLPICK=[];}
-};
-
+/* CLSENT_V1166 獨立的「印句子」視窗已經併進「匯出講義」，這裡的程式碼整段移除 */
 H.ghOpen=()=>ghModal();
 H.ghGo=(mode)=>{
   const book=((document.getElementById('gh-book')||{}).value)||'';
@@ -19068,6 +19037,9 @@ H.ghGo=(mode)=>{
   /* GHCL_V861 勾起來的句號；一句都沒勾＝整課都出 */
   GHCLSET=[...document.querySelectorAll('.gh-s:checked')].map(x=>Number(x.value)).filter(n=>n>0)
     .sort((a,b)=>a-b);
+  /* CLSENT_V1166 勾了句子就以句為準 */
+  GHCLPICK=[...document.querySelectorAll('.gh-q:checked')].map(x=>String(x.value));
+  if(GHCLPICK.length)GHCLSET=[];
   GHCLQ=((document.getElementById('gh-clq')||{}).value)||'1';
   GHBANK=((document.getElementById('gh-bank')||{}).value)||'auto';/* GHBANK_V872 */
   GHTR=!!((document.getElementById('gh-tr')||{}).checked);/* GHTR_V891 */
