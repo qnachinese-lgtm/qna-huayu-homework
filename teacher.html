@@ -7937,6 +7937,8 @@ let GHFONT='kaitimes';
    GHCLQ = 這一份要出什麼：'1' 都出／'0' 只出原文和翻譯／'only' 只出課後問答。
    GHWHO／GHWHEN = 這一份是給誰、哪一天上課，填了就印在抬頭。 */
 let GHCLSET=[],GHCLQ='1',GHWHO='',GHWHEN='';
+/* CLPICK_V1161 只印挑起來的那幾句（格式 "段index-句index"）；空的＝照原本整段出 */
+let GHCLPICK=[];
 /* GHBANK_V872 這一份要出哪一邊的題目：
    'auto' 哪邊有就出哪邊／'main' 只出課本練習題／'hw' 只出作業簿／'both' 兩邊都出 */
 let GHBANK='auto';
@@ -8258,6 +8260,21 @@ function ghClHtml(l,withAns){
     .filter(o=>String(o.x.orig||'').trim()||String(o.x.note||'').trim()||String(o.x.ref||'').trim()||o.x.img);
   if(GHCLSET&&GHCLSET.length){const _set={};GHCLSET.forEach(n=>{_set[n]=1;});
     segs=segs.filter(o=>_set[o.n]);}
+  /* CLPICK_V1161 挑句子模式：一句變成一段，註解只留掛在那一句的，編號從 1 重新數 */
+  let _pickOne=false;
+  if(GHCLPICK&&GHCLPICK.length){
+    const _pk={};GHCLPICK.forEach(k=>{_pk[k]=1;});
+    const _out=[];
+    lines.forEach((x,i)=>{
+      const _sents=ghClSents(String(x.orig||''));
+      const _bk=ghClMap(_sents.map(clNameStrip),ghClNotes(x.note));
+      _sents.forEach((sv,j)=>{
+        if(!_pk[i+'-'+j])return;
+        const _n=(_bk[j]||[]);
+        _out.push({x:{orig:sv,note:_n.length?(_n.join('。')+'。'):'',ref:'',img:''},n:_out.length+1});
+      });});
+    if(_out.length){segs=_out;_pickOne=true;}
+  }
   let sec=0;
   if(segs.length&&GHCLQ!=='only'){
     /* 一、原文：整段連著印，讓學生先完整讀一次 */
@@ -8283,7 +8300,7 @@ function ghClHtml(l,withAns){
       /* CLNAME_V1011 比對要用拆掉括號的句子，不然「{荊軻}者」找不到「荊軻」 */
       const bk=ghClMap(sents.map(clNameStrip),ghClNotes(o.x.note));
       sents.forEach((sv,j)=>{
-        h+='<div class="gh-cli"><div class="gh-clo"><span class="gh-cn">'+o.n+'-'+(j+1)+'</span>'
+        h+='<div class="gh-cli"><div class="gh-clo"><span class="gh-cn">'+(_pickOne?o.n:(o.n+'-'+(j+1)))+'</span>'
           +clNameLines(sv)+'</div>'
           +(bk[j].length?('<div class="gh-cln">'+bk[j].map(e=>clNameLines(e)+'。').join('<br>')+'</div>'):'')
           +(withAns?'':ghClSpace())/* GHCL_V864 */
@@ -19021,83 +19038,25 @@ H.clSentModal=()=>{
    +'<div id="cs-list" class="cs-box"></div>'
    +'</div>'
    +'<div class="modal-foot"><button class="btn" data-act="closeModal">關閉</button><span style="flex:1"></span>'
-   +'<button class="btn btn-primary" data-act="csPrint">\u{1F5A8} 印出來</button></div></div>');
+   +'<button class="btn" data-act="csPrint" data-id="tea" title="含註解的答案，不留作答空間">老師版</button>'
+   +'<button class="btn btn-primary" data-act="csPrint" data-id="stu">\u{1F5A8} 印出來（學生版）</button></div></div>');
   csDraw();};
-/* 句子越長字就小一點，一張紙剛好放得下 */
-function csFs(t){const n=clNameStrip(String(t||'')).length;
-  if(n<=14)return 62;if(n<=24)return 50;if(n<=38)return 40;if(n<=60)return 32;if(n<=90)return 27;return 23;}
-H.csPrint=()=>{
+/* CLPICK_V1161 印出來的版面跟「匯出講義」完全一樣，只是內容換成挑起來的那幾句。
+   做法：把每一句當成一段丟給原本的講義產生器，所以字體、間距、編號、頁首頁尾都一致。 */
+H.csPrint=(mode)=>{
   const ss=csSents().filter(s=>CS.pick[s.key]);
   if(!ss.length)return toast('先挑幾句');
-  const l=csLes();
-  const title=(l&&l.title)||'文言文';
-  const book=CS.book||'';
-  const hasNm=ss.some(s=>clNameHas(s.t));
-  const w=window.open('','_blank');
-  if(!w)return toast('瀏覽器擋掉新分頁了，請允許彈出視窗');
-  const one=ss.map(s=>'<div class="sheet"><div class="hd"><b>'+esc(title)+'</b>'
-     +(book?'<span>'+esc(book)+'</span>':'')+'<span>第 '+s.seg+' 段 · 第 '+s.no+' 句</span></div>'
-     +'<div class="big"><div class="bt" style="font-size:'+csFs(s.t)+'px">'+clNameLines(s.t)+'</div></div>'
-     +(hasNm?'<div class="lg"><span class="cl-pn">人名</span>　<span class="cl-ln">地名</span></div>':'')
-     +'</div>').join('');
-  const many='<div class="sheet"><div class="hd"><b>'+esc(title)+'</b>'
-     +(book?'<span>'+esc(book)+'</span>':'')+'<span>共 '+ss.length+' 句</span></div>'
-     +ss.map(s=>'<div class="blk"><div class="no">第 '+s.seg+' 段 · 第 '+s.no+' 句</div>'
-       +'<div class="mid" style="font-size:'+Math.round(csFs(s.t)*0.6)+'px">'+clNameLines(s.t)+'</div></div>').join('')
-     +(hasNm?'<div class="lg"><span class="cl-pn">人名</span>　<span class="cl-ln">地名</span></div>':'')
-     +'</div>';
-  w.document.write('<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
-   +'<title>'+esc(title)+' · 句子</title>'
-   +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-   +'<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">'
-   +'<style>'
-   +'*{box-sizing:border-box;margin:0;padding:0}'
-   +'@page{size:A4;margin:0}'
-   +'body{font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;color:#16202E;background:#E9EEF5}'
-   +'body.serif .bt,body.serif .mid{font-family:"Noto Serif TC",serif}'
-   +'body.one .m-many,body.many .m-one{display:none}'
-   +'.sheet{width:210mm;min-height:297mm;margin:0 auto 10px;background:#fff;padding:22mm 20mm;'
-   +'  display:flex;flex-direction:column;page-break-after:always}'
-   +'.hd{display:flex;gap:14px;align-items:baseline;font-size:13px;color:#5B6B80;'
-   +'  border-bottom:1.5px solid #DCE5F0;padding-bottom:8px;margin-bottom:12mm}'
-   +'.hd b{font-size:15px;color:#16202E}'
-   +'.hd span{font-size:12.5px}'
-   +'.big{flex:1;display:flex;align-items:center}'
-   +'.bt{width:100%;font-weight:700;line-height:2.0;letter-spacing:.06em;text-align:justify}'
-   +'.blk{margin-bottom:11mm}'
-   +'.no{font-size:12px;color:#5B6B80;margin-bottom:5px}'
-   +'.mid{font-weight:700;line-height:1.95;letter-spacing:.05em}'
-   +'.lg{margin-top:auto;padding-top:8mm;font-size:12.5px;color:#5B6B80;'
-   +'  border-top:1px solid #DCE5F0}'
-   +'.cl-pn{font-weight:700;color:#1E4C86}'
-   +'.cl-ln{color:#1F7A8C;border-bottom:1px dotted #1F7A8C;padding-bottom:1px}'
-   +'.bar{max-width:210mm;margin:10px auto;display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap}'
-   +'.bar span{font-size:14px;color:#5B6B80}'
-   +'.bar button{font:inherit;font-size:15px;font-weight:700;padding:10px 18px;border-radius:10px;'
-   +'  border:1.5px solid #C0CEE0;background:#fff;color:#16202E;cursor:pointer}'
-   +'.bar button.on{background:#1E4C86;border-color:#1E4C86;color:#fff}'
-   +'.bar button.go{background:#0F2740;border-color:#0F2740;color:#fff}'
-   +'@media print{.bar{display:none}body{background:#fff}.sheet{margin:0;box-shadow:none}}'
-   +'</style></head><body class="one">'
-   +'<div class="bar">'
-   +'<span>版面：</span>'
-   +'<button id="b1" class="on" onclick="lay(\'one\')">一句一張</button>'
-   +'<button id="b2" onclick="lay(\'many\')">一張放好幾句</button>'
-   +'<span style="margin-left:10px">字體：</span>'
-   +'<button id="f1" class="on" onclick="ft(0)">黑體</button>'
-   +'<button id="f2" onclick="ft(1)">明體</button>'
-   +'<button class="go" onclick="window.print()">\u{1F5A8} 列印 / 存成 PDF</button>'
-   +'</div>'
-   +'<div class="m-one">'+one+'</div>'
-   +'<div class="m-many">'+many+'</div>'
-   +'<script>'
-   +'function lay(k){var b=document.body;b.classList.remove("one","many");b.classList.add(k);'
-   +'b1.className=(k==="one")?"on":"";b2.className=(k==="many")?"on":"";}'
-   +'function ft(s){document.body.classList.toggle("serif",!!s);'
-   +'f1.className=s?"":"on";f2.className=s?"on":"";}'
-   +'<\/script></body></html>');
-  w.document.close();
+  const l=csLes();if(!l)return toast('找不到這一課');
+  GHCLPICK=ss.map(s=>s.key);
+  GHCLSET=[];
+  GHCLQ='0';                 /* 只出原文和註解，課後問答不出 */
+  GHFONT='kaitimes';
+  GHBANK='auto';GHTR=false;GHDLG=false;GHVOC='';GHVOCL='en';
+  GHLANG='tw';GHWHO='';GHWHEN='';
+  try{ghBuild(CS.book,[l.id],(mode==='tea')?'tea':'stu',false,false);}
+  finally{GHCLPICK=[];}
 };
+
 H.ghOpen=()=>ghModal();
 H.ghGo=(mode)=>{
   const book=((document.getElementById('gh-book')||{}).value)||'';
