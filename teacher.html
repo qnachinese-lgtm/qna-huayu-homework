@@ -2400,6 +2400,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           <button class="btn" data-act="qReload" title="題目存在瀏覽器裡，重整不用重讀。在別台電腦改過題目的話，按這個重新讀一次">🔄 重讀題目</button>
           <button class="btn" data-act="ghOpen">📤 匯出講義 PDF</button>
           <button class="btn hide" data-act="propList" id="prop-btn">📥 待審修改</button>
+          <button class="btn" data-act="lxIn" title="用 Excel 範本匯入一課（對話、生詞、語法、練習），讀進來會先開在編輯視窗，按儲存才算數">📥 從 Excel 匯入課文</button>
           <button class="btn btn-primary" data-act="addLesson">＋ 新增課文</button></div></div>
         <div id="vi-bar"></div>
         <div id="lessons-list" class="cards"></div>
@@ -12902,6 +12903,198 @@ H.clXlsxOut=(id)=>{
   const safe=nm.replace(/[\\/:*?"<>|]/g,'').slice(0,40);
   XLSX.writeFile(wb,'QNA_文言文_'+safe+'_'+localToday()+'.xlsx');
   toast('匯出好了：'+lines.length+' 段、'+qs.length+' 題。改完注釋再按「📥 從 Excel 匯入」讀回來');};
+/* ══════ LXLSX_V1176 從 Excel 匯入一課（當代中文課程這一類：對話＋生詞＋語法＋練習）══════
+   一個檔案＝一課。讀進來會先開在編輯視窗裡，妳看過、按了「新增」才會真的建立，
+   跟文言文那邊一樣。練習題要等課建好才有地方掛，所以是存檔成功之後才一起建。
+   表名認關鍵字：課程／課文／生詞／語法／討論／練習。欄位認標題列的關鍵字，順序換了也讀得到。 */
+let LXQS=[];
+function lxStr(v){return String(v==null?'':v).replace(/\r/g,'').trim();}
+function lxSheet(wb,keys){
+  const n=(wb.SheetNames||[]).find(x=>keys.some(k=>String(x).indexOf(k)>=0));
+  if(!n)return null;
+  return XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:''});}
+function lxCol(head,keys,fb){
+  for(let i=0;i<(head||[]).length;i++){
+    const t=String(head[i]==null?'':head[i]);
+    if(keys.some(k=>t.indexOf(k)>=0))return i;}
+  return (fb==null?-1:fb);}
+function lxGet(r,c){return (c<0)?'':lxStr(r[c]);}
+/* 生詞一行的寫法：詞 (詞類)=英文[拼音]，例句另起一行用「-」開頭 */
+function lxVocLine(w){
+  let s=w.word;
+  if(w.pos)s+=' ('+w.pos+')';
+  if(w.en)s+='='+w.en;
+  if(w.py)s+='['+w.py+']';
+  return s;}
+function lxQType(t){
+  const s=lxStr(t);
+  if(/填空/.test(s))return 'fill';
+  if(/造句|寫出|手寫/.test(s))return 'write';
+  if(/選擇/.test(s))return 'choice';
+  if(/示範|說明|例子/.test(s))return 'note';
+  return 'qa';}
+function lxSplit(s){
+  return lxStr(s).split(/\n|[｜|]|、|\s{2,}/).map(x=>lxStr(x)).filter(Boolean);}
+/* 練習「歸到」那一欄：語法1／語法2…＝掛在第幾個語法；作業簿＝另一本；其他＝綜合 */
+function lxBank(s){
+  const t=lxStr(s);
+  if(/作業簿|作業本/.test(t))return {bank:'hw',gp:null};
+  const m=t.match(/語法\s*(\d+)/);
+  if(m)return {bank:'class',gp:parseInt(m[1],10)-1};
+  return {bank:'class',gp:null};}
+function lxParse(buf){
+  const wb=XLSX.read(new Uint8Array(buf),{type:'array'});
+  const sT=lxSheet(wb,['課文','對話']),sV=lxSheet(wb,['生詞','單字']),
+        sG=lxSheet(wb,['語法']),sC=lxSheet(wb,['課程','基本']),
+        sD=lxSheet(wb,['討論','問題']),sQ=lxSheet(wb,['練習','題目']);
+  if(!sT||sT.length<2)return {err:'這個檔裡找不到「課文」那一張表'};
+
+  /* ── 課文：一列一句，同一個段落接成一段 ── */
+  const hT=sT[0];
+  const tSeg=lxCol(hT,['段落','段'],0),tWho=lxCol(hT,['說話者','角色','人'],1),
+        tTxt=lxCol(hT,['內容','課文'],2),tPy=lxCol(hT,['拼音'],3),tEn=lxCol(hT,['英譯','英文'],4);
+  const segs=[],segOf={};
+  const touch=(nm)=>{const k=nm||'對話';
+    if(!segOf[k]){segOf[k]={title:k,lines:[],py:[],en:[],voc:[],vi:[],disc:[]};segs.push(segOf[k]);}
+    return segOf[k];};
+  sT.slice(1).forEach(r=>{
+    const txt=lxGet(r,tTxt);const who=lxGet(r,tWho);
+    if(!txt&&!who)return;
+    const d=touch(lxGet(r,tSeg));
+    d.lines.push(who?(who+'：'+txt):txt);
+    const py=lxGet(r,tPy);if(py)d.py.push(who?(who+'：'+py):py);
+    const en=lxGet(r,tEn);if(en)d.en.push(who?(who+'：'+en):en);});
+  if(!segs.length)return {err:'「課文」那一張表裡一句課文都沒有'};
+
+  /* ── 生詞：段落要跟課文那邊的段落名稱一樣 ── */
+  if(sV&&sV.length>1){
+    const hV=sV[0];
+    const vSeg=lxCol(hV,['段落','段'],0),vW=lxCol(hV,['詞','生詞','單字'],1),
+          vPy=lxCol(hV,['拼音'],2),vPos=lxCol(hV,['詞類','詞性'],3),
+          vEn=lxCol(hV,['英文','英譯','意思'],4),vVi=lxCol(hV,['越南'],5);
+    const vEx=[];
+    (hV||[]).forEach((h,i)=>{if(/例句/.test(String(h==null?'':h)))vEx.push(i);});
+    sV.slice(1).forEach(r=>{
+      const w=lxGet(r,vW);if(!w)return;
+      const d=touch(lxGet(r,vSeg)||segs[0].title);
+      d.voc.push(lxVocLine({word:w,py:lxGet(r,vPy),pos:lxGet(r,vPos),en:lxGet(r,vEn)}));
+      vEx.forEach(i=>{const e=lxGet(r,i);if(e)d.voc.push('- '+e);});
+      d.vi.push(lxGet(r,vVi));});}
+
+  /* ── 問題與討論：一列一題 ── */
+  if(sD&&sD.length>1){
+    const hD=sD[0];
+    const dSeg=lxCol(hD,['段落','段'],0),dQ=lxCol(hD,['題目','問題'],1);
+    sD.slice(1).forEach(r=>{
+      const q=lxGet(r,dQ);if(!q)return;
+      touch(lxGet(r,dSeg)||segs[0].title).disc.push(q);});}
+
+  const segIdx={};segs.forEach((d,i)=>{segIdx[d.title]=i;});
+  const dialogues=segs.map(d=>({title:d.title,content:d.lines.join('\n'),
+    content_py:d.py.join('\n'),content_en:d.en.join('\n'),
+    vocabulary:d.voc.join('\n'),
+    vocab_vi:(d.vi.some(x=>x)?d.vi.join('\n'):''),
+    discussion:d.disc.join('\n'),image_url:'',audio_url:''}));
+
+  /* ── 語法：一列一個區塊（功能／結構／用法／例句…） ── */
+  const gps=[];
+  if(sG&&sG.length>1){
+    const hG=sG[0];
+    const gNo=lxCol(hG,['語法','序號','編號'],0),gTi=lxCol(hG,['標題','名稱'],1),
+          gSeg=lxCol(hG,['段落','接在'],2),gLab=lxCol(hG,['區塊','小標'],3),
+          gTx=lxCol(hG,['說明','內容'],4),gEx=lxCol(hG,['例句'],5);
+    const byNo={};
+    sG.slice(1).forEach(r=>{
+      const no=lxGet(r,gNo)||'1';
+      const lab=lxGet(r,gLab),tx=lxGet(r,gTx),ex=lxGet(r,gEx),ti=lxGet(r,gTi);
+      if(!lab&&!tx&&!ex&&!ti)return;
+      if(!byNo[no]){byNo[no]={title:'',seg:'',blocks:[],_bk:{}};gps.push(byNo[no]);}
+      const g=byNo[no];
+      if(ti&&!g.title)g.title=ti;
+      const sg=lxGet(r,gSeg);
+      if(sg&&!g.seg)g.seg=(segIdx[sg]!=null)?String(segIdx[sg]):(/短文/.test(sg)?'短文':'');
+      const key=lab||'說明';
+      if(!g._bk[key]){g._bk[key]={label:lab,text:'',ex:'',img:'',exAudio:[]};g.blocks.push(g._bk[key]);}
+      const b=g._bk[key];
+      if(tx)b.text=b.text?(b.text+'\n'+tx):tx;
+      if(ex)b.ex=b.ex?(b.ex+'\n'+ex):ex;});
+    gps.forEach(g=>{delete g._bk;});}
+
+  /* ── 練習題：課建好之後才掛得上去 ── */
+  const qs=[];
+  if(sQ&&sQ.length>1){
+    const hQ=sQ[0];
+    const qB=lxCol(hQ,['歸到','歸類','放在'],0),qT=lxCol(hQ,['題型','類型'],1),
+          qP=lxCol(hQ,['題目'],2),qI=lxCol(hQ,['說明','指示'],3),
+          qO=lxCol(hQ,['選項'],4),qA=lxCol(hQ,['答案'],5),qS=lxCol(hQ,['小節'],6);
+    sQ.slice(1).forEach(r=>{
+      const p=lxGet(r,qP);if(!p)return;
+      const t=lxQType(lxGet(r,qT));
+      const bk=lxBank(lxGet(r,qB));
+      const opts=(t==='choice')?lxSplit(lxGet(r,qO)):[];
+      let ans=null;
+      const av=lxGet(r,qA);
+      if(t==='choice'&&av){const n=parseInt(av,10);if(!isNaN(n)&&n>0)ans=n-1;}
+      else if(t==='fill'&&av)ans=lxSplit(av);
+      qs.push({type:t,prompt:p,options:opts,items:null,answer:ans,
+        bank:bk.bank,gp_index:bk.gp,gp_sub:lxGet(r,qS)||null,
+        input_mode:(t==='fill'?'type':null),audio_url:null,image_url:null,
+        instruction:lxGet(r,qI)||null,explanation:null});});}
+
+  /* ── 課程基本資料 ── */
+  const meta={title:'',book:'',order:'',act:'',cult:'',video:''};
+  if(sC&&sC.length>1){
+    const hC=sC[0];
+    const c1=lxCol(hC,['課名','課程名'],0),c2=lxCol(hC,['教材','課本'],1),
+          c3=lxCol(hC,['課序','第幾課'],2),c4=lxCol(hC,['課室活動','活動'],3),
+          c5=lxCol(hC,['文化'],4),c6=lxCol(hC,['影片'],5);
+    const r=sC[1]||[];
+    meta.title=lxGet(r,c1);meta.book=lxGet(r,c2);meta.order=lxGet(r,c3);
+    meta.act=lxGet(r,c4);meta.cult=lxGet(r,c5);meta.video=lxGet(r,c6);}
+
+  return {lesson:{title:meta.title,textbook:meta.book,order_index:Number(meta.order)||0,
+    activities:meta.act,culture:meta.cult,video_url:meta.video,
+    dialogues:dialogues,grammar_points:gps,notes:[],examples:'',key_points:''},
+    qs:qs,
+    stat:{seg:dialogues.length,
+      line:dialogues.reduce((a,d)=>a+(d.content?d.content.split('\n').length:0),0),
+      voc:dialogues.reduce((a,d)=>a+(d.vocabulary?d.vocabulary.split('\n').filter(x=>!/^-/.test(x)).length:0),0),
+      gp:gps.length,q:qs.length,
+      disc:dialogues.reduce((a,d)=>a+(d.discussion?d.discussion.split('\n').length:0),0)}};}
+/* 覆蓋舊課的時候，檔案裡沒寫的欄位不要把舊的洗掉（注釋、例句、講義、指派…） */
+function lxMerge(old,ls){
+  const out=Object.assign({},old);
+  Object.keys(ls).forEach(k=>{
+    const v=ls[k];
+    if(v==null||v===''||v===0)return;
+    if(Array.isArray(v)&&!v.length)return;
+    out[k]=v;});
+  out.id=old.id;
+  return out;}
+H.lxIn=()=>{
+  if(typeof XLSX==='undefined'){toast('匯入元件還在載入，請過幾秒再按一次');return;}
+  const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls';
+  inp.onchange=async()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    let got;
+    try{got=lxParse(await f.arrayBuffer());}
+    catch(e){toast('讀不到這個檔：'+((e&&e.message)||e));return;}
+    if(got.err){toast(got.err);return;}
+    const s=got.stat;
+    const old=(S.lessons||[]).find(x=>x&&!x.deleted_at&&lxStr(x.title)===lxStr(got.lesson.title)
+      &&lxStr(x.textbook)===lxStr(got.lesson.textbook));
+    if(old&&!confirm('平台上已經有一課叫「'+(old.title||'')+'」（'+(old.textbook||'')+'）。\n\n'
+      +'按「確定」會把檔案裡的內容開在那一課的編輯視窗，等於覆蓋；\n'
+      +'按「取消」就先不匯入。\n\n'
+      +'⚠️ 不管哪一種，都還沒有存，要按視窗右下角的「儲存」才算數。'))return;
+    LXQS=got.qs||[];
+    if(old){lessonModal(lxMerge(old,got.lesson));LXQS=[];}
+    else lessonModal(got.lesson);
+    toast('讀好了：'+s.seg+' 段課文、'+s.voc+' 個生詞、'+s.gp+' 個語法'
+      +(s.disc?('、'+s.disc+' 題討論'):'')+(s.q?('、'+s.q+' 題練習'):'')
+      +'。確認後按「新增」才會建立'
+      +((old||!s.q)?'':'；練習題會在課建好之後一起建'));};
+  inp.click();};
 H.clImport=()=>{
   if(typeof XLSX==='undefined'){toast('匯入元件還在載入，請過幾秒再按一次');return;}
   const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls';
@@ -15993,7 +16186,7 @@ H.qMerge=async(key,b)=>{const p=String(key).split('::');const lid=p[0],qid=p[1];
     document.querySelectorAll('.qe-secfold').forEach(d=>{d.open=true;});
     toast('已併入上一題（選項只留一份）');
   }catch(err){if(b)b.disabled=false;toast(writeErr('併入失敗',err));}};
-H.addLesson=()=>lessonModal(null);
+H.addLesson=()=>{LXQS=[];lessonModal(null);};/* LXLSX_V1176 不要拿到上一次匯入剩下的題 */
 H.tplLesson=()=>tplModal();
 H.doTplLesson=async()=>{const kind=(document.querySelector('input[name="t-kind"]:checked')||{}).value||'shidai';
   const title=($('#t-title')&&$('#t-title').value.trim())||'';if(!title)return toast('請輸入課名');
@@ -16008,7 +16201,7 @@ H.doTplLesson=async()=>{const kind=(document.querySelector('input[name="t-kind"]
     const created=(S.lessons||[]).find(x=>x.id===nl.id);if(created){lessonModal(created);}else{render();}
     toast('已用範本建立「'+title+'」，把課文／生詞／語法填進去即可');
   }catch(err){if(btn){btn.disabled=false;btn.textContent='建立並編輯';}toast(writeErr('建立失敗',err));}};
-H.editLesson=(id)=>lessonModal(S.lessons.find(l=>l.id===id));
+H.editLesson=(id)=>{LXQS=[];lessonModal(S.lessons.find(l=>l.id===id));};
 let LAYOUT=[],LAYOUT_LID=null;
 function reconcileLayoutT(l){const ds=Array.isArray(l.dialogues)?l.dialogues:[];const nd=ds.length||((l.content||l.vocabulary||l.audio_url)?1:0);const ng=(l.grammar_points||[]).length;const hasQ=i=>!!(ds[i]&&(ds[i].discussion||'').split('\n').some(s=>s.trim()));const hasV=i=>!!(ds[i]&&(ds[i].vocabulary||'').trim());const saved=Array.isArray(l.layout)?l.layout:[];
   const out=[],sd=new Set(),sg=new Set(),sq=new Set(),sv=new Set();
@@ -16175,7 +16368,24 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
        toast('已送出，等主管理員確認');}
      catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent='儲存';}toast(writeErr('送出失敗',err));}
      return;}}
-  try{id?await DB.update('lessons',id,obj):await DB.insert('lessons',obj);vaReset();closeModal();await loadAll();render();toast('已儲存');}catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}};
+  try{
+    let _nid=id;
+    if(id){await DB.update('lessons',id,obj);}
+    else{const _r=await DB.insert('lessons',obj);_nid=(_r&&_r.id)||'';}
+    /* LXLSX_V1176 Excel 帶進來的練習題：課真的建好了才有 lesson_id 可以掛 */
+    let _qn=0;
+    if(!id&&_nid&&LXQS&&LXQS.length){
+      if(sbtn){sbtn.disabled=true;sbtn.textContent='建練習題…';}
+      try{
+        for(let i=0;i<LXQS.length;i++){
+          await DB.insert('questions',Object.assign({},LXQS[i],{lesson_id:_nid,order_index:i}));
+          _qn++;}
+        try{S.questions=await listQuestions(true);}catch(e){}
+      }catch(e){toast('課建好了，但練習題只建了 '+_qn+' 題：'+((e&&e.message)||e));}
+      LXQS=[];}
+    vaReset();closeModal();await loadAll();render();
+    toast(_qn?('已儲存，練習題也建好了 '+_qn+' 題'):'已儲存');
+  }catch(err){if(sbtn){sbtn.disabled=false;sbtn.textContent=id?'儲存':'新增';}const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}};
 
 /* ===== 注釋 Notes 編輯器 ===== */
 let NT=[];
