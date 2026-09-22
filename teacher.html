@@ -348,7 +348,16 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .cl-nmap-w{flex:0 0 auto;color:#B45309;font-weight:600;cursor:help}
         /* CLSENT_V1166 匯出講義裡，每一段底下的句子清單 */
         /* 注意：視窗掛在 #modal-root，不在 #app 裡面，所以這幾條不能加 #app 前綴 */
-        .gh-qs{margin:2px 0 8px 30px;border-left:2px solid var(--line-strong);padding-left:12px}
+        .gh-qd{margin:0 0 8px 30px}
+        .gh-qd>summary{list-style:none;cursor:pointer;font-size:12.5px;color:var(--muted);
+          padding:4px 2px;user-select:none}
+        .gh-qd>summary::-webkit-details-marker{display:none}
+        .gh-qd>summary::before{content:'▸ ';color:var(--primary)}
+        .gh-qd[open]>summary::before{content:'▾ '}
+        .gh-qd>summary:hover{color:var(--primary)}
+        .gh-qd.picked>summary{color:var(--primary);font-weight:700}
+        .gh-qn.on{color:var(--primary);font-weight:700}
+        .gh-qs{margin:2px 0 8px 0;border-left:2px solid var(--line-strong);padding-left:12px}
         .gh-qrow{font-size:13.5px}
         .gh-qrow .gh-ln{line-height:1.85}
         /* SETOUT_V1159 右上角的「⚙️ 設定」拿掉——側邊選單已經有一個了，重複。
@@ -8847,19 +8856,33 @@ function GHSENT(){
     const t=String(x.orig||'').replace(/\s+/g,'');
     const sents=ghClSents(t);
     const _cut=t.slice(0,110)+(t.length>110?'…':'');
+    /* CLFOLD_V1172 句子預設收起來，要挑句子才點開——一課十幾段的時候整張清單太長 */
     return '<label class="check-row"><input type="checkbox" class="gh-s" value="'+(i+1)+'">'
       +'<span class="gh-sn">'+(i+1)+'</span>'
       +'<span class="gh-ln">'+clNameLines(_cut)+'</span>'/* 括號換成顏色，跟底下的句子一致 */
       +'<span class="gh-meta">'+sents.length+' 句</span></label>'
-      +(sents.length>1?('<div class="gh-qs">'+sents.map((sv,j)=>
+      +(sents.length>1?('<details class="gh-qd" data-i="'+i+'"><summary class="gh-qsum">'
+        +'挑這一段裡面的句子<span class="gh-qn" data-i="'+i+'"></span></summary>'
+        +'<div class="gh-qs">'+sents.map((sv,j)=>
         '<label class="check-row gh-qrow"><input type="checkbox" class="gh-q" value="'+i+'-'+j+'">'
         +'<span class="gh-sn">'+(j+1)+'</span>'
-        +'<span class="gh-ln">'+clNameLines(sv)+'</span></label>').join('')+'</div>'):'');}).join('');
+        +'<span class="gh-ln">'+clNameLines(sv)+'</span></label>').join('')
+        +'</div></details>'):'');}).join('');
+  try{GHQCNT();}catch(e){}
   if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 段。'
     +'什麼都不勾＝整課都出；勾「段」＝整段出；勾裡面的「句」＝只出那幾句（同一段的會接在一起）。'
     +'勾了句就以句為準，段的勾選不算。';}
 function GHSALL(){const b=[...document.querySelectorAll('.gh-s,.gh-q')];if(!b.length)return;
-  const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
+  const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});
+  try{GHQCNT();}catch(e){}}
+/* CLFOLD_V1172 收起來的時候也要看得出這一段挑了幾句，不然會忘記 */
+function GHQCNT(){
+  document.querySelectorAll('.gh-qn').forEach(el=>{
+    const i=el.dataset.i;
+    const n=[...document.querySelectorAll('.gh-q[value^="'+i+'-"]')].filter(x=>x.checked).length;
+    el.textContent=n?('　已挑 '+n+' 句'):'';
+    el.classList.toggle('on',!!n);
+    const d=el.closest('.gh-qd');if(d)d.classList.toggle('picked',!!n);});}
 function ghModal(){
   const books=baBooks();if(!books.length)return toast('還沒有課文');
   /* GHPREF_V883 沒有特別篩教材的話，就停在上次匯出的那一本 */
@@ -8916,7 +8939,7 @@ function ghModal(){
    +'<div class="field"><label class="gh-lbl">文言文：要出哪幾段 <span class="hint">不勾＝整課都出</span>'
    +'<span style="flex:1"></span>'
    +'<button class="btn btn-sm btn-ghost" type="button" onclick="GHSALL()">全選 / 取消</button></label>'
-   +'<div class="check-list gh-list gh-seglist" id="gh-clpick"></div>'
+   +'<div class="check-list gh-list gh-seglist" id="gh-clpick" onchange="GHQCNT()"></div>'
    +'<div class="hint" id="gh-clmsg" style="margin-top:6px"></div></div>'
    /* GHCL_V861 有時候只要翻譯，不要問答（Quinn：「請給我選擇權」） */
    +'<div class="field"><label>這一份要出什麼</label><select id="gh-clq">'
