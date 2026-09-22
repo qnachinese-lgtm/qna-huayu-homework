@@ -9943,10 +9943,176 @@ H.reviews=()=>{
   const rows=list.length?list.map(r=>{
     const st=r.status||'pending';
     const badge=st==='approved'?'<span class="badge badge-ok">已公開</span>':(st==='hidden'?'<span class="badge">已隱藏</span>':'<span class="badge badge-soon">待審核</span>');
-    const act=st==='approved'?'<button class="btn btn-sm" data-act="revUnapprove" data-id="'+r.id+'">取消公開</button>':'<button class="btn btn-sm btn-accent" data-act="revApprove" data-id="'+r.id+'">✓ 核准公開</button>';
+    const act=(st==='approved'?'<button class="btn btn-sm btn-accent" data-act="revPic" data-id="'+r.id+'" title="做成可以貼 FB／Zalo 的圖">\u{1F5BC} 做成圖片</button><button class="btn btn-sm" data-act="revUnapprove" data-id="'+r.id+'">取消公開</button>':'<button class="btn btn-sm btn-accent" data-act="revApprove" data-id="'+r.id+'">✓ 核准公開</button>');/* REVPIC_V1154 */
     return '<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start"><b>'+esc(revNameOf(r))+'</b>'+badge+'<span class="grow"></span>'+act+'<button class="btn btn-sm" style="color:var(--danger)" data-act="revDel" data-id="'+r.id+'">🗑</button><div style="flex-basis:100%;margin-top:4px;white-space:pre-line;color:var(--ink)">'+esc(r.text||'')+'</div></div>';
   }).join(''):'<div class="muted" style="padding:10px 0">還沒有學生評價。學生在學習頁「⭐ 給老師評價」送出後會出現在這裡，你核准後才會顯示在官網。</div>';
   openModal('<div class="modal wide"><div class="modal-head"><h3>⭐ 學生評價審核</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="hint" style="margin-bottom:10px">核准後自動上官網，文字可到「編輯內容 → ⭐ 學生評價」再改。</div>'+rows+'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');
+};
+/* REVPIC_V1154 學生回饋圖。只吃後台「已核准」的評價，不會自己生內容。
+   三種尺寸現場切換，署名每一張自己打，下載出來是 PNG，直接貼 FB／Zalo。
+   全部在瀏覽器裡畫，不上傳任何地方。 */
+const RP_SIZE={sq:{w:1080,h:1080,lab:'方形 1080×1080',tip:'FB／IG 貼文'},
+               st:{w:1080,h:1920,lab:'直式 1080×1920',tip:'限時動態'},
+               wd:{w:1200,h:630,lab:'橫式 1200×630',tip:'連結預覽圖'}};
+let RP={id:'',size:'sq',by:'',txt:''};
+
+/* 換行：中日文一個字就能斷，越南文／英文照空白斷 */
+function rpWrap(ctx,text,maxW){
+  const out=[];
+  String(text||'').split(/\n/).forEach(para=>{
+    if(!para.trim()){out.push('');return;}
+    const toks=[];let buf='';
+    for(const ch of para){
+      if(/[　-〿㐀-鿿＀-￯]/.test(ch)){if(buf){toks.push(buf);buf='';}toks.push(ch);}
+      else if(ch===' '){if(buf){toks.push(buf);buf='';}toks.push(' ');}
+      else buf+=ch;
+    }
+    if(buf)toks.push(buf);
+    let line='';
+    toks.forEach(t=>{
+      const test=line+t;
+      if(line&&ctx.measureText(test).width>maxW){out.push(line.replace(/\s+$/,''));line=(t===' ')?'':t;}
+      else line=test;
+    });
+    out.push(line.replace(/\s+$/,''));
+  });
+  /* 避頭點：句號、逗號、右引號這些不能站在一行的開頭，往上一行擠回去 */
+  const NOHEAD=/^[。，、．,\.：:；;？?！!」』）\)\]】〉》”’…]/;
+  for(let i=1;i<out.length;i++){
+    while(out[i]&&NOHEAD.test(out[i])){out[i-1]+=out[i][0];out[i]=out[i].slice(1);}
+  }
+  return out.filter((x,i)=>x!==''||i<out.length-1);
+}
+
+function rpDraw(){
+  const cv=document.getElementById('rp-cv');if(!cv)return;
+  const S0=RP_SIZE[RP.size]||RP_SIZE.sq, W=S0.w, H=S0.h;
+  cv.width=W;cv.height=H;
+  const g=cv.getContext('2d');
+  const FT=(sz,wt)=>wt+' '+sz+'px "Noto Sans TC","Be Vietnam Pro","PingFang TC","Microsoft JhengHei",sans-serif';
+
+  /* 底 */
+  const bg=g.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,'#0F2740');bg.addColorStop(1,'#1B3A5C');
+  g.fillStyle=bg;g.fillRect(0,0,W,H);
+  /* 右下淡光 */
+  const gl=g.createRadialGradient(W*0.85,H*0.9,0,W*0.85,H*0.9,W*0.7);
+  gl.addColorStop(0,'rgba(120,170,230,.16)');gl.addColorStop(1,'rgba(120,170,230,0)');
+  g.fillStyle=gl;g.fillRect(0,0,W,H);
+
+  const pad=Math.round(W*0.095);                       /* 左右留白 */
+  const wide=(RP.size==='wd');
+  const padY=Math.round(H*(wide?0.085:(RP.size==='st'?0.055:0.095)));  /* 上下留白另外算，橫式才不會下面空一大塊 */
+
+  /* 抬頭：華 + QNA CHINESE */
+  const bs=Math.round(W*(wide?0.062:0.072));
+  const bx=pad, by=padY;
+  g.fillStyle='#fff';
+  if(g.roundRect){g.beginPath();g.roundRect(bx,by,bs,bs,bs*0.28);g.fill();}
+  else g.fillRect(bx,by,bs,bs);
+  g.fillStyle='#0F2740';g.font=FT(Math.round(bs*0.6),'700');
+  g.textAlign='center';g.textBaseline='middle';
+  g.fillText('華',bx+bs/2,by+bs/2+bs*0.03);
+  g.textAlign='left';g.textBaseline='alphabetic';
+  g.fillStyle='#fff';g.font=FT(Math.round(bs*0.44),'800');
+  g.fillText('QNA CHINESE',bx+bs+Math.round(bs*0.33),by+bs*0.45);
+  g.fillStyle='rgba(255,255,255,.62)';g.font=FT(Math.round(bs*0.30),'500');
+  g.fillText('Tiếng Trung Quyên Huỳnh',bx+bs+Math.round(bs*0.33),by+bs*0.85);
+
+  /* 版面先把底下固定佔掉，內文只用剩下的空間，字太多就自動縮，不會壓到署名 */
+  const footTxtY=H-padY;
+  const footLineY=footTxtY-Math.round(H*(wide?0.055:0.037));
+  const hasBy=!!String(RP.by||'').trim();
+  const sigY=footLineY-Math.round(H*(wide?0.045:0.055));
+  const sigTop=sigY-Math.round(W*0.045);
+  const top=by+bs+Math.round(H*(wide?0.06:0.075));
+  const boxH=(hasBy?sigTop:footLineY)-top-Math.round(H*0.02);
+  const maxW=W-pad*2;
+  const txt=String(RP.txt||'').trim();
+  let size=Math.round(W*(wide?0.055:(RP.size==='st'?0.078:0.062))), lines=[], lh=0;
+  for(;size>=Math.round(W*0.022);size-=2){
+    g.font=FT(size,'700');
+    lines=rpWrap(g,txt,maxW);
+    lh=Math.round(size*1.52);
+    if(lines.length*lh<=boxH)break;
+  }
+  /* 大引號 */
+  const qsz=Math.round(W*(wide?0.11:0.14));
+  const _y0=Math.round(top+Math.max(0,(boxH-lines.length*lh)/2)+size*0.86);
+  const qy=_y0-Math.round(size*0.62);
+  /* 擠不下就不畫，免得壓到抬頭 */
+  if(qy-qsz*0.72>by+bs+Math.round(H*0.012)){
+    g.fillStyle='rgba(255,255,255,.16)';
+    g.font=FT(qsz,'800');
+    g.fillText('“',pad-Math.round(W*0.012),qy);
+  }
+
+  /* 文字在剩下的空間裡垂直置中，直式那種很高的版面才不會上面擠、下面一大塊空 */
+  g.fillStyle='#fff';g.font=FT(size,'700');
+  const blockH=lines.length*lh;
+  const y0=Math.round(top+Math.max(0,(boxH-blockH)/2)+size*0.86);
+  lines.forEach((ln,i)=>g.fillText(ln,pad,y0+i*lh));
+
+  /* 署名（位置固定在底線上面，跟文字長短無關） */
+  if(hasBy){
+    g.strokeStyle='rgba(255,255,255,.28)';g.lineWidth=Math.max(2,Math.round(W*0.003));
+    const dY=sigY-Math.round(W*0.042);g.beginPath();g.moveTo(pad,dY);g.lineTo(pad+Math.round(W*0.085),dY);g.stroke();
+    g.fillStyle='rgba(255,255,255,.88)';g.font=FT(Math.round(W*(wide?0.032:0.036)),'600');
+    g.fillText(RP.by.trim(),pad,sigY);
+  }
+
+  /* 底線一行 */
+  g.strokeStyle='rgba(255,255,255,.18)';g.lineWidth=Math.max(1,Math.round(W*0.0015));
+  g.beginPath();g.moveTo(pad,footLineY);g.lineTo(W-pad,footLineY);g.stroke();
+  g.fillStyle='rgba(255,255,255,.62)';g.font=FT(Math.round(W*(wide?0.026:0.028)),'500');
+  g.fillText('線上華語課 · Học tiếng Trung trực tuyến',pad,footTxtY);
+  const host=(location.origin||'').replace(/^https?:\/\//,'');
+  g.textAlign='right';
+  g.fillText(host,W-pad,footTxtY);
+  g.textAlign='left';
+
+  const st=document.getElementById('rp-st');
+  if(st)st.textContent=S0.lab+'　文字 '+txt.length+' 字，排成 '+lines.length+' 行';
+}
+
+H.revPic=async(id)=>{
+  const r=(S.reviews||[]).find(x=>x&&x.id===id);
+  if(!r)return toast('找不到這一則評價');
+  RP={id:id,size:'sq',by:(revNameOf(r)||''),txt:String(r.text||'').trim()};
+  const sb=Object.keys(RP_SIZE).map(k=>`<button class="btn btn-sm${RP.size===k?' btn-primary':''}" data-act="rpSize" data-id="${k}">${RP_SIZE[k].lab}<span class="muted" style="margin-left:6px;font-weight:400">${RP_SIZE[k].tip}</span></button>`).join('');
+  openModal(`<div class="modal modal-tall" style="max-width:720px">
+    <div class="modal-head"><h3>\u{1F5BC} 做成回饋圖</h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body">
+      <div class="dash-row" id="rp-sizes" style="gap:6px;flex-wrap:wrap;margin-bottom:10px">${sb}</div>
+      <div class="field"><label>署名 <span class="hint">這一張要怎麼稱呼他，自己打。不想寫就清空</span></label>
+        <input id="rp-by" type="text" value="${esc(RP.by)}" placeholder="例：M. L. · 一對一華語課"></div>
+      <div class="field"><label>文字 <span class="hint">學生原話，需要修錯字或刪長句可以在這裡改</span></label>
+        <textarea id="rp-txt" style="min-height:110px">${esc(RP.txt)}</textarea></div>
+      <div class="hint" id="rp-st" style="margin:2px 0 8px"></div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center">
+        <canvas id="rp-cv" style="max-width:100%;max-height:420px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18)"></canvas>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-act="closeModal">關閉</button><span style="flex:1"></span>
+      <button class="btn btn-primary" data-act="rpSave">⬇ 下載 PNG</button></div></div>`);
+  try{await document.fonts.ready;}catch(e){}
+  const bind=(id,key)=>{const el=document.getElementById(id);if(!el)return;
+    el.addEventListener('input',()=>{RP[key]=el.value;rpDraw();});};
+  bind('rp-by','by');bind('rp-txt','txt');
+  rpDraw();
+  setTimeout(rpDraw,600);
+};
+H.rpSize=(k)=>{if(!RP_SIZE[k])return;RP.size=k;
+  const box=document.getElementById('rp-sizes');
+  if(box)[...box.querySelectorAll('button')].forEach(b=>b.classList.toggle('btn-primary',b.dataset.id===k));
+  rpDraw();};
+H.rpSave=()=>{
+  const cv=document.getElementById('rp-cv');if(!cv)return;
+  try{const a=document.createElement('a');
+    a.href=cv.toDataURL('image/png');
+    a.download='QNA_學生回饋_'+(RP_SIZE[RP.size]||{}).lab.replace(/\s|×/g,'')+'.png';
+    a.click();toast('已下載');
+  }catch(e){toast('下載失敗：'+((e&&e.message)||e));}
 };
 H.revApprove=async(id)=>{const r=(S.reviews||[]).find(x=>x.id===id);if(!r||!S.site)return toast('資料未就緒，請重新整理');
   try{await ensureAuthFresh();const rb=(S.site.reviews_body&&typeof S.site.reviews_body==='object')?Object.assign({},S.site.reviews_body):{zh:'',vi:'',en:''};const line=revLine(r);const cur=(rb.zh||'');if(('\n'+cur+'\n').indexOf('\n'+line+'\n')<0)rb.zh=(cur.trim()?cur.trim()+'\n':'')+line;await DB.update('site',S.site.id,{reviews_body:rb});S.site.reviews_body=rb;await DB.update('results',id,{status:'approved'});r.status='approved';toast('已核准，已加到官網評價區');H.reviews();}
