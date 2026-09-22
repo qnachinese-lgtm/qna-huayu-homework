@@ -3502,6 +3502,19 @@ function renderDashboard(){
     const lab=d<0?('交件已過 '+(-d)+' 天'):(d===0?'今天要交件！':(d===1?'明天要交件':'還有 '+d+' 天交件'));
     remPush(d,`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">✍️ ${lab}</span><b>${snm(c.name||'')}</b>${c.docs?`<span class="muted">${esc(c.docs)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="writing">看客戶</button></div>`);});
   (S.agencies||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;const d=itvDaysTo(c.deadline);if(d==null)return;if(d>21)return;const col=d<0?'#dc2626':(d<=3?'#dc2626':(d<=7?'#b91c1c':'#2563eb'));const lab=d<0?('繳件已過 '+(-d)+' 天'):(d===0?'今天要繳件！':(d===1?'明天要繳件':'還有 '+d+' 天繳件'));remPush(d,`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 ${lab}</span><b>${snm(c.name||'')}</b>${c.school?`<span class="muted">${esc(c.school)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="agency">看客戶</button></div>`);});
+  /* CLSSOON_V1147 團班開課日前七天提醒：開課前要先排課、通知學生、確認教材，
+     以前只有「開課日已經到了卻還勾著還沒開始」的事後提醒，來不及準備。 */
+  try{const _csAll=new Set();
+    try{groupsList().forEach(c=>{if(c)_csAll.add(c);});}catch(e){}
+    try{Object.keys(classMetaAll()).forEach(c=>{if(c)_csAll.add(c);});}catch(e){}
+    [..._csAll].forEach(cls=>{
+      let st='';try{st=clsStart(cls);}catch(e){}
+      if(!st)return;
+      const d=itvDaysTo(st);if(d==null||d<0||d>7)return;
+      const n=(S.students||[]).filter(x=>x&&!x.is_test&&stuGroups(x).indexOf(cls)>=0).length;
+      const col=d<=1?'#dc2626':(d<=3?'#b91c1c':'#2563eb');
+      const lab=d===0?'今天開課！':(d===1?'明天開課':'還有 '+d+' 天開課');
+      remPush(d,`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">\u{1F680} ${lab}</span><b>\u{1F465} ${esc(cls)}</b><span class="muted">${n} 人</span><span class="grow"></span><span class="muted">開課日 ${esc(st)}</span><button class="btn btn-sm" data-act="gmPick" data-id="${esc(cls)}">看這一班</button></div>`);});}catch(e){}
   /* REMSORT_V1076 有日期的照剩幾天排，過期的（負數）排最前面；一樣天數的維持原本順序 */
   remDate.sort((a,b)=>a.d-b.d);
   remDate.forEach(x=>remRows.push(x.html));
@@ -3585,6 +3598,37 @@ function renderDashboard(){
     ${_hstat('students','👥','在學學生',_act,'位','')}
     ${IS_OWNER?'':_hstat('lessons','📚','教材課數',(S.lessons||[]).length,'課','')}
   </div>`;
+  /* LEADMON_V1147 這個月招生成績：這個月進來幾筆、處理了幾筆、平均多久回、從哪來，
+     跟上個月比。數字全部來自 leads 本身，沒有推估。 */
+  const _lmHtml=(function(){
+    if(!IS_OWNER)return '';
+    const all=(S.leads||[]).filter(l=>l&&l.created_at);
+    const mOf=l=>String(l.created_at||'').slice(0,7);
+    const _pm=(function(){const d=new Date(_thisM+'-01T00:00:00');d.setMonth(d.getMonth()-1);
+      return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');})();
+    const cur=all.filter(l=>mOf(l)===_thisM), prev=all.filter(l=>mOf(l)===_pm);
+    const done=cur.filter(l=>(l.status||'new')==='done');
+    const wait=cur.length-done.length;
+    const hrs=done.map(l=>{const a=Date.parse(l.created_at||''),b=Date.parse(l.handled_at||'');
+      return (a&&b&&b>=a)?((b-a)/3600000):null;}).filter(x=>x!=null);
+    const avg=hrs.length?(hrs.reduce((x,y)=>x+y,0)/hrs.length):null;
+    const avgStr=avg==null?'—':(avg<24?(Math.round(avg*10)/10+' 小時'):(Math.round(avg/24*10)/10+' 天'));
+    const join=cur.filter(l=>String(l.source||'')==='join').length;
+    const web=cur.length-join;
+    const diff=cur.length-prev.length;
+    const diffStr=prev.length?(diff>0?('比上個月多 '+diff+' 筆'):(diff<0?('比上個月少 '+(-diff)+' 筆'):'跟上個月一樣')):'上個月沒有資料可以比';
+    const card=(ic,lab,val,col)=>`<div class="card" style="flex:1 1 140px;min-width:132px;margin:0;padding:12px 14px"><div class="muted" style="font-size:12px">${ic} ${lab}</div><b style="font-size:21px;color:${col};display:block;margin-top:2px">${val}</b></div>`;
+    return `<div style="display:flex;gap:10px;flex-wrap:wrap">`
+      +card('\u{1F4E5}','這個月新報名',cur.length+' 筆','#1E4C86')
+      +card('\u2713','已經處理',done.length+' 筆',done.length?'#16a34a':'#94a3b8')
+      +card('\u{1F534}','還沒處理',wait+' 筆',wait?'#dc2626':'#94a3b8')
+      +card('\u23F1','平均多久回',avgStr,'#6D28D9')
+      +`</div>
+      <div class="dash-row" style="margin-top:10px;flex-wrap:wrap;gap:8px">
+        <span class="muted">${esc(diffStr)}（上個月 ${prev.length} 筆）</span><span class="grow"></span>
+        <span class="tag">\u{1F4DD} 報名表 ${join} 筆</span><span class="tag">\u{1F310} 官網 ${web} 筆</span>
+        <button class="btn btn-sm" data-act="goLeads">看名單</button>
+      </div>`;})();
   const _op=(k,dft)=>{try{const v=localStorage.getItem('hyc_ds_'+k);return v==null?dft:(v==='1');}catch(e){return dft;}};
   const _sec=(k,title,badge,inner,dft)=>`<details class="dash-sec" data-ds="${k}"${_op(k,dft)?' open':''}><summary class="dash-sec-t">${title}${badge?'　<span class="dash-n">'+badge+'</span>':''}</summary><div class="dash-sec-b">${inner}</div></details>`;
   body.innerHTML=`${_hero}
@@ -3593,6 +3637,7 @@ function renderDashboard(){
       todayJobsHtml(_pend,true)
       +`<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
        <details class="dash-fold" open style="margin-top:12px"><summary>⏰ 提醒（堂數／補課／交件）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>`,true)}
+    ${_lmHtml?_sec('lead','\u{1F4C8} 這個月招生','',_lmHtml,true):''/* LEADMON_V1147 */}
     ${_sec('memo','📝 我的備忘',memoOpen().length||'',memoHtml(),true)}
     ${healthCheckHtml()}
 `;
@@ -9675,6 +9720,7 @@ H.joinQR=async(url)=>{
       <div class="hint" style="margin-top:6px">手機掃一下就會打開報名表。可以貼在 FB 貼文、傳單或教室海報。</div>
     </div>
     <div class="modal-foot"><button class="btn" data-act="closeModal">關閉</button><span style="flex:1"></span>
+      <button class="btn" data-act="qrFlyer">\u{1F5A8} 列印 A4 傳單</button>
       <button class="btn btn-primary" data-act="qrSave">⬇ 下載 PNG</button></div></div>`);
   try{await loadQR();
     const q=window.qrcode(0,'M');q.addData(u);q.make();
@@ -9690,6 +9736,94 @@ H.qrSave=()=>{
     const a=document.createElement('a');a.href=c.toDataURL('image/png');
     a.download='QNA_報名表_QR.png';a.click();toast('已下載 QR Code');
   }catch(e){toast('下載失敗：'+((e&&e.message)||e));}
+};
+/* FLYER_V1148 A4 招生傳單：QR 直接指到報名表，聯絡方式抓官網設定裡已經填的，
+   沒填的就不印，不自己編。開新分頁 → 列印／存成 PDF。 */
+H.qrFlyer=()=>{
+  const img=document.getElementById('qr-img');
+  if(!img||!img.src)return toast('QR 還在產生，等一下再按');
+  const u=(location.origin||'')+'/join.html';
+  const st=(S.site||{});
+  const esc2=(x)=>esc(String(x||''));
+  const rows=[];
+  if(st.fab_facebook)rows.push(['Facebook',st.fab_facebook]);
+  if(st.fab_zalo)rows.push(['Zalo',st.fab_zalo]);
+  if(st.contact_line)rows.push(['LINE',st.contact_line]);
+  if(st.contact_email)rows.push(['Email',st.contact_email]);
+  const contact=rows.length?rows.map(r=>`<div class="c"><b>${esc2(r[0])}</b><span>${esc2(r[1])}</span></div>`).join(''):'';
+  const w=window.open('','_blank');
+  if(!w)return toast('瀏覽器擋掉新分頁了，請允許彈出視窗');
+  w.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8">
+<title>QNA CHINESE \u00b7 \u62db\u751f\u50b3\u55ae</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+@page{size:A4;margin:0}
+body{font-family:"Be Vietnam Pro","Noto Sans TC","PingFang TC",system-ui,sans-serif;color:#16202E;background:#E9EEF5}
+.sheet{width:210mm;height:297mm;margin:0 auto;background:#fff;padding:18mm 16mm;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:12px}
+.logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(140deg,#1E4C86,#143A6B);color:#fff;
+  display:grid;place-items:center;font-size:28px;font-weight:700;font-family:"Noto Sans TC",serif}
+.mk{font-size:20px;font-weight:800;letter-spacing:3px;line-height:1.3}
+.mk span{display:block;font-size:13px;font-weight:500;letter-spacing:.4px;color:#5B6B80}
+h1{margin-top:16mm;font-size:46px;font-weight:800;line-height:1.12;letter-spacing:-.5px}
+h1 em{font-style:normal;color:#1E4C86}
+.zh{margin-top:8px;font-size:27px;font-weight:700;color:#5B6B80;font-family:"Noto Sans TC",sans-serif}
+.chips{margin-top:9mm;display:flex;flex-wrap:wrap;gap:9px}
+.chip{border:1.5px solid #DCE5F0;background:#F4F7FB;border-radius:999px;padding:9px 17px;font-size:15px;font-weight:700}
+.chip small{display:block;font-weight:500;color:#5B6B80;font-size:12.5px;margin-top:1px}
+.steps{margin-top:11mm;display:flex;gap:6mm}
+.step{flex:1;background:#F4F7FB;border:1.5px solid #DCE5F0;border-radius:14px;padding:7mm 6mm}
+.step i{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#1E4C86;color:#fff;
+  font-style:normal;font-size:17px;font-weight:800}
+.step b{display:block;margin-top:9px;font-size:17px;font-weight:700;line-height:1.35}
+.step small{display:block;margin-top:4px;font-size:13px;color:#5B6B80;line-height:1.5;font-family:"Noto Sans TC",sans-serif}
+.qrbox{margin-top:auto;display:flex;align-items:center;gap:10mm;border-top:2px solid #DCE5F0;padding-top:8mm}
+.qr{width:46mm;height:46mm;border:1.5px solid #DCE5F0;border-radius:12px;padding:3mm;background:#fff;flex:0 0 auto}
+.qr img{width:100%;height:100%;image-rendering:pixelated;display:block}
+.qt{font-size:23px;font-weight:800}
+.qs{margin-top:5px;font-size:15px;color:#5B6B80;line-height:1.55}
+.url{margin-top:7px;font-size:14px;font-weight:700;color:#1E4C86;word-break:break-all}
+.cs{margin-top:7mm;display:flex;flex-wrap:wrap;gap:6px 22px}
+.c{font-size:14px}
+.c b{color:#1E4C86;margin-right:6px}
+.c span{color:#16202E;word-break:break-all}
+.foot{margin-top:6mm;font-size:12.5px;color:#5B6B80;border-top:1px solid #DCE5F0;padding-top:4mm}
+.bar{max-width:210mm;margin:10px auto;text-align:center}
+.bar button{font:inherit;font-size:15px;font-weight:700;padding:10px 20px;border-radius:10px;border:0;
+  background:#1E4C86;color:#fff;cursor:pointer}
+@media print{.bar{display:none}body{background:#fff}.sheet{margin:0}}
+</style></head><body>
+<div class="bar"><button onclick="window.print()">\u{1F5A8} \u5217\u5370 / \u5b58\u6210 PDF</button></div>
+<div class="sheet">
+  <div class="top"><div class="logo">\u83ef</div>
+    <div class="mk">QNA CHINESE<span>Ti\u1EBFng Trung Quy\u1EC1n Hu\u1EF3nh</span></div></div>
+  <h1>Học tiếng Trung<br><em>trực tuyến 1 kèm 1</em></h1>
+  <div class="zh">\u7dda\u4e0a\u83ef\u8a9e\u8ab2\u3000\u00b7\u3000\u4e00\u5c0d\u4e00\u8207\u5c0f\u73ed</div>
+  <div class="chips">
+    <div class="chip">\u{1F4D6} Ti\u1EBFng Trung<small>\u83ef\u8a9e\u8ab2</small></div>
+    <div class="chip">\u{1F393} Du h\u1ECDc<small>\u7559\u5b78\u4ee3\u8fa6</small></div>
+    <div class="chip">\u{1F3A4} Luy\u1EC7n ph\u1ECFng v\u1EA5n<small>\u9762\u8a66\u7df4\u7fd2</small></div>
+    <div class="chip">\u270D\uFE0F Vi\u1EBFt h\u1ED3 s\u01A1<small>\u4ee3\u5beb\u6587\u4ef6</small></div>
+  </div>
+  <div class="steps">
+    <div class="step"><i>1</i><b>Qu\u00E9t m\u00E3 QR</b><small>\u7528\u624b\u6a5f\u6383\u4e0b\u9762\u7684 QR Code</small></div>
+    <div class="step"><i>2</i><b>\u0110i\u1EC1n phi\u1EBFu \u0111\u0103ng k\u00FD</b><small>\u586b\u5831\u540d\u8868\uff0c\u5927\u7d04 2 \u5206\u9418</small></div>
+    <div class="step"><i>3</i><b>Gi\u00E1o vi\u00EAn li\u00EAn h\u1EC7 x\u1EBFp l\u1EDBp</b><small>\u8001\u5e2b\u6703\u4e3b\u52d5\u8ddf\u4f60\u806f\u7d61\u3001\u5b89\u6392\u8ab2\u7a0b</small></div>
+  </div>
+  <div class="qrbox">
+    <div class="qr"><img src="${img.src}" alt="QR"></div>
+    <div>
+      <div class="qt">Qu\u00E9t m\u00E3 \u0111\u1EC3 \u0111\u0103ng k\u00FD</div>
+      <div class="qs">\u624b\u6a5f\u6383\u4e00\u4e0b\u5c31\u53ef\u4ee5\u586b\u5831\u540d\u8868\uff0c2 \u5206\u9418\u586b\u5b8c\u3002<br>\u0110i\u1EC1n phi\u1EBFu \u0111\u0103ng k\u00FD, kho\u1EA3ng 2 ph\u00FAt.</div>
+      <div class="url">${esc2(u)}</div>
+      <div class="cs">${contact}</div>
+    </div>
+  </div>
+  <div class="foot">\u4e2d\u6587 / Ti\u1EBFng Vi\u1EC7t / English \u3000\u00b7\u3000 QNA CHINESE</div>
+</div></body></html>`);
+  w.document.close();
 };
 H.leadF=(v)=>{const i=String(v||'').indexOf(':');if(i<0)return;
   S.leadF=S.leadF||{st:'',src:'',q:''};S.leadF[v.slice(0,i)]=v.slice(i+1);renderOps();};/* LEADF_V1119 */
