@@ -9864,7 +9864,10 @@ function writeErr(prefix,err){const m=((err&&(err.code||err.message))||'')+'';
   return prefix+'：'+(/permission|insufficient|unauth/i.test(m)?RELOGIN_MSG:(m||'發生錯誤'));}
 const H={};
 /* NODUP_V808 這些動作會新增／寫入資料，一次只准跑一個，避免連按存成兩筆 */
-const NODUP_ACTS=/^(agSave|itvSave|wrSave|inqSave|saveStudent|classRollSave|addClassLog|saveLogEdit|itvSessSave|itvSessAdd|agLogSave|wrStageSave|agPaySave|itvPaySave|wrPaySave|planSave|planEditSave|shareSave|docSave|wbeSave|itvRoll)$/;
+/* NODUP_V1203 本來只有清單裡那二十幾個按鈕擋連按，回覆範本、常用網站、常用檔案、
+   學校…這些後來加的都沒擋到，點兩下就存成兩筆（Quinn：「不小心儲存太多次」）。
+   改成只要動作名字裡有 Save 就一律擋，以後新加的也自動有。 */
+const NODUP_ACTS=/Save|^(addClassLog|itvSessAdd|itvRoll)$/;
 let NODUP_BUSY=null;
 
 /* GUIDE_V691 老師版使用說明。
@@ -14858,6 +14861,9 @@ H.rpNew=()=>{openModal(rpFormHtml({},1));};
 H.rpNewSave=async()=>{
   const t=(($('#rp-nt')&&$('#rp-nt').value)||'').trim();
   if(!t)return toast('請填標題');
+  /* NODUP_V1203 同名的已經有了就先問一聲，免得又多一筆一模一樣的 */
+  if((S.replies||[]).some(x=>x&&!x.deleted_at&&String(x.title||'').trim()===t)
+    &&!confirm('已經有一筆標題一樣的「'+t+'」。\n\n還是要再建一筆嗎？\n（要改舊的那一筆，請按取消，回清單按那一張的「✏️ 編輯」）'))return;
   try{await DB.insert('crm',{kind:'reply',title:t,/* RPMOVE_V945 新的一律寫 crm */
     tags:(($('#rp-ng')&&$('#rp-ng').value)||'').trim(),
     grp:(($('#rp-nc')&&$('#rp-nc').value)||'other'),
