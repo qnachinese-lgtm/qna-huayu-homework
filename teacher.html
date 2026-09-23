@@ -2181,6 +2181,8 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           .modal-foot{padding:12px 14px;gap:8px;justify-content:flex-end}
           .modal-foot>span{display:none}
           .modal-foot .btn{flex:1 1 auto;min-width:0;justify-content:center}}
+        /* WKSLOT_V1200 照固定時段補出來的時間：虛線＋淡一點，跟真的有填的分得出來 */
+        #app .badge.wk-gs{border-style:dashed;opacity:.72}
         /* LESPICK_V1198 自己畫的課次選單：貼著格子打開，最高 260px，可以打字找。 */
         .lp{position:relative}
         .lp .lp-hide{display:none!important}
@@ -6148,6 +6150,14 @@ function renderCalLedger(body,toggle){
 /* 本週實際排的課（依日期）：把 class_log 已記錄 ＋ 團班預排，落在今天起 7 天內的列出來，讓不固定時間的課也出現在本週課表 */
 /* LATEROLL_V1031 back＝往回看幾天。預設 0，等於原本的「今天起七天」，
    所以既有畫面一個像素都沒變；只有「還沒點名」那一塊會傳 7 進來。 */
+/* WKSLOT_V1200 課表上有些課看不到時間：那一筆上課記錄的「時段」是空的（時段本來就選填）。
+   沒填的時候，改成照學生／團班的固定時段補上去，用虛線淡色標，
+   表示「這是固定時段推出來的，不是當天實際記的」。 */
+function wkSlotOf(sch,dateStr){
+  if(!Array.isArray(sch)||!sch.length||!dateStr)return null;
+  let d;try{d=(new Date(dateStr+'T00:00:00').getDay()+6)%7;}catch(e){return null;}
+  const m=sch.find(r=>r&&((r.d!=null?r.d:0)===d)&&(r.s||r.e));
+  return m?{s:m.s||'',e:m.e||''}:null;}
 function weekActualCard(back){
   back=Math.max(0,Number(back)||0);
   const t=new Date();t.setHours(0,0,0,0);const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -6155,9 +6165,15 @@ function weekActualCard(back){
   const start=ymd(sD);const eD=new Date(t);eD.setDate(eD.getDate()+6);const end=ymd(eD);
   const items=[];const grpMap={};const recordedGrp=new Set();
   // 已記錄的上課：團班以「團班＋日期＋時段」合併成一筆（不用學生逐一列）
+  const _cSch={};/* WKSLOT_V1200 一個班只算一次固定時段 */
+  const _clsSch=(c)=>{if(!(c in _cSch)){try{_cSch[c]=classSchedOf(c)||[];}catch(err){_cSch[c]=[];}}return _cSch[c];};
   (S.students||[]).forEach(s=>{if(s.deleted||s.is_test)return;const grp=(s.class_type==='團班'&&stuGroups(s)[0])||'';(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date||e.date<start||e.date>end)return;
-    if(grp){const key='G|'+grp+'|'+e.date+'|'+(e.start||'')+'|'+(e.end||'');if(!grpMap[key]){grpMap[key]={type:'glog',date:e.date,start:e.start||'',end:e.end||'',grp,free:!!e.free,leave:e.status==='leave',members:[]};items.push(grpMap[key]);}grpMap[key].members.push(s.name);recordedGrp.add(grp+'|'+e.date);}
-    else{items.push({type:'log',date:e.date,start:e.start||'',end:e.end||'',s,e});}
+    /* 沒填時段就用固定時段補，補出來的標成 guess */
+    let _st=e.start||'',_en=e.end||'',_gs=false;
+    if(!_st&&!_en){const _sl=(grp?wkSlotOf(_clsSch(grp),e.date):null)||wkSlotOf(s.schedule,e.date);
+      if(_sl&&(_sl.s||_sl.e)){_st=_sl.s;_en=_sl.e;_gs=true;}}
+    if(grp){const key='G|'+grp+'|'+e.date+'|'+_st+'|'+_en;if(!grpMap[key]){grpMap[key]={type:'glog',date:e.date,start:_st,end:_en,guess:_gs,grp,free:!!e.free,leave:e.status==='leave',members:[]};items.push(grpMap[key]);}grpMap[key].members.push(s.name);recordedGrp.add(grp+'|'+e.date);}
+    else{items.push({type:'log',date:e.date,start:_st,end:_en,guess:_gs,s,e});}
   });});
   // 預排課程：若該團班該天已經點名記錄過，就不重複顯示
   groupsList().forEach(cls=>{if(clsNotYet(cls))return;/* CLSOFF_V1074 */
@@ -6208,7 +6224,7 @@ function weekActualCard(back){
       const o=Array.isArray(ops)?ops:[ops||'','','',''];
       return `<div class="dash-row wkr" style="${sty}">`
       +`<span class="wr-dt">${dt}</span>`
-      +`<span class="wr-tm">${tm?`<span class="badge badge-pending">${fgTm(tm)}</span>`:''}</span>`
+      +`<span class="wr-tm">${tm?`<span class="badge badge-pending${it.guess?' wk-gs':''}"${it.guess?' title="這一堂沒有填時段，顯示的是這位學生／這一班的固定時段"':''}>${fgTm(tm)}</span>`:''}</span>`
       +`<span class="wr-kd">${kd}</span>`
       +`<span class="wr-nm">${nm}</span>`
       +`<span class="wr-td">${isToday?'<span class="badge badge-soon">今天</span>':''}</span>`
