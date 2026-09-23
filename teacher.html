@@ -515,6 +515,19 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .rp-ad.a-anhchi{background:#eaf2fb;color:#3f6893;border-color:#d7e5f3}
         .rp-ad.a-ban{background:#eef6f0;color:#2f7a52;border-color:#d8ecdf}
         .rp-ad.a-gs{opacity:.6;font-weight:700}
+        /* RPMODE_V1179 團班／一對一的標籤，跟稱謂標籤同一個樣子 */
+        .rp-md{font-size:11px;font-weight:800;letter-spacing:.2px;white-space:nowrap;flex:none;
+          padding:2px 9px;border-radius:999px;border:1px solid transparent}
+        .rp-md.m-group{background:#eef2fb;color:#3d5a8f;border-color:#dbe4f5}
+        .rp-md.m-solo{background:#f3eff8;color:#6b4f8f;border-color:#e6ddf0}
+        .rp-md.a-gs{opacity:.6;font-weight:700}
+        /* RPCUR_V1180 幣別標籤 */
+        .rp-cu{font-size:11px;font-weight:800;letter-spacing:.2px;white-space:nowrap;flex:none;
+          padding:2px 9px;border-radius:999px;border:1px solid transparent}
+        .rp-cu.c-vnd{background:#fdf1ee;color:#9c4a33;border-color:#f3ddd6}
+        .rp-cu.c-twd{background:#eef7f1;color:#2f6b4a;border-color:#d9ebe0}
+        .rp-cu.c-usd{background:#f1f4f9;color:#44577a;border-color:#dde4ee}
+        .rp-cu.a-gs{opacity:.6;font-weight:700}
         /* PROP_V944 待審修改的差異 */
         .prop-d{border-top:1px solid var(--line);padding:8px 0}
         .prop-d:first-of-type{border-top:0;padding-top:0}
@@ -3787,8 +3800,18 @@ function rpGrpLab(g){const f=RP_GRP.find(x=>x[0]===g);return f?f[1]:'📌 其他
    標題自己就有圖示的照舊；沒有的補上所屬分類的圖示，整排看起來才整齊。
    只影響顯示，資料庫裡的標題一個字都不會動。 */
 const RP_EMO=/^[\u{1F000}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{00A9}\u{00AE}]/u;
+/* RPMODE_V1179 同一種的卡片要長得一樣。本來是標題裡自己打什麼 emoji 就用什麼，
+   所以兩張都是團班的卡片圖示廖不一樣（Quinn：「都是團班，幫我改 logo」）。
+   改成：分得出來是團班還是一對一的，一律用那一個圖示；
+   分不出來的才看標題裡打的，都沒有就用分類的。資料庫裡的標題不會動。 */
+const RP_EMOH=/^(?:[\u{1F000}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{00A9}\u{00AE}]+)/u;
+function rpTitleBare(t){
+  try{return String(t).replace(RP_EMOH,'').trim()||String(t);}catch(e){return String(t);}}
 function rpTitleIc(r){
   const t=String((r&&r.title)||'').trim()||'（沒有標題）';
+  const bare=rpTitleBare(t);
+  const md=rpModeOf(r)||rpModeGuess(r);
+  if(md)return (String(RP_MODE[md][0]).match(/^\S+/)||['📌'])[0]+' '+bare;
   try{if(RP_EMO.test(t))return t;}catch(e){return t;}
   const lab=rpGrpLab(rpGrpOf(r));
   const ic=(String(lab).match(/^\S+/)||['📌'])[0];
@@ -3815,6 +3838,47 @@ const RP_ADDR={
   ban:['🤝 平輩・不確定','用 bạn／mình']};
 function rpAddrOf(r){const a=String((r&&r.addr)||'').trim();
   return RP_ADDR[a]?a:'';}
+/* RPMODE_V1179 第三個分法：團班還是一對一。價錢和說法完全不一樣，
+   一定要分開。舊資料沒這個欄位，先從標題和關鍵字猜一個，進去編輯存一次就確定。 */
+const RP_MODE={
+  group:['👥 團班','小班、團體課'],
+  solo:['🧑‍🏫 一對一','一個學生']};
+function rpModeOf(r){const m=String((r&&r.mode)||'').trim();
+  return RP_MODE[m]?m:'';}
+function rpModeGuess(r){
+  const t=[(r&&r.title)||'',(r&&r.tags)||''].join(' ').toLowerCase();
+  if(!t.trim())return '';
+  if(/團班|小班|團體|nhóm/.test(t))return 'group';
+  if(/一對一|1對1|1 ?對 ?1|個別|kèm 1|1 kèm|riêng/.test(t))return 'solo';
+  return '';}
+/* RPCUR_V1180 第四個分法：幣別。越南盾報一套、台幣報一套，不能混。
+   舊資料一樣先從標題、關鍵字、內容裡猜，進去編輯存一次就確定。 */
+const RP_CUR={
+  vnd:['₫ 越南盾','VND'],
+  twd:['NT$ 台幣','TWD'],
+  usd:['US$ 美金','USD']};
+function rpCurOf(r){const c=String((r&&r.cur)||'').trim().toLowerCase();
+  return RP_CUR[c]?c:'';}
+function rpCurGuess(r){
+  const t=[(r&&r.title)||'',(r&&r.tags)||'',rpText(r)||''].join(' ').toLowerCase();
+  if(!t.trim())return '';
+  if(/越南盾|vnd|vnđ|₫|đồng/.test(t))return 'vnd';
+  if(/台幣|臺幣|twd|nt\$|新台幣/.test(t))return 'twd';
+  if(/美金|美元|usd|us\$/.test(t))return 'usd';
+  return '';}
+function rpCurHtml(r){
+  const c=rpCurOf(r);const g=c||rpCurGuess(r);
+  if(!g)return '';
+  const d=RP_CUR[g];
+  return '<span class="rp-cu c-'+g+(c?'':' a-gs')+'" title="'+esc(d[1]+(c?'':'　（自動判斷的，進去編輯存一次就確定）'))+'">'
+    +esc(d[0])+(c?'':' ?')+'</span>';}
+function rpModeHtml(r){
+  const m=rpModeOf(r);const g=m||rpModeGuess(r);
+  if(!g)return '';
+  const d=RP_MODE[g];
+  return '<span class="rp-md m-'+g+(m?'':' a-gs')+'" title="'+esc(d[1]+(m?'':'　（自動判斷的，進去編輯存一次就確定）'))+'">'
+    +esc(d[0])+(m?'':' ?')+'</span>';}
+
 /* 舊資料沒有這個欄位，從越南文內容猜一個。只是標籤，不會動到內容。
    「anh/chị …」是在叫對方，所以是對方比我大；沒有的話看有沒有把對方叫成 em。 */
 function rpAddrGuess(r){
@@ -3833,7 +3897,10 @@ function rpAddrHtml(r){
 function rpMatch(r,q){
   if(!q)return true;
   const a=rpAddrOf(r)||rpAddrGuess(r);/* RPADDR_V932 搜尋也吃「對方比我大」這種詞 */
-  const hay=[r.title,r.tags,r.body_zh,r.body_vi,(a?RP_ADDR[a][0]+' '+RP_ADDR[a][1]:'')]
+  const m=rpModeOf(r)||rpModeGuess(r);/* RPMODE_V1179 */
+  const hay=[r.title,r.tags,r.body_zh,r.body_vi,(a?RP_ADDR[a][0]+' '+RP_ADDR[a][1]:''),
+    (m?RP_MODE[m][0]+' '+RP_MODE[m][1]:''),
+    (()=>{const c=rpCurOf(r)||rpCurGuess(r);return c?RP_CUR[c][0]+' '+RP_CUR[c][1]:'';})()]
     .map(x=>String(x||'').toLowerCase()).join(' ');
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(w=>hay.indexOf(w)>=0);
 }
@@ -3985,7 +4052,7 @@ function rpCardHtml(r){
     +'<i class="'+(zh?'on':'')+'" title="'+(zh?'有中文':'沒有中文')+'">中</i>'
     +'<i class="'+(vi?'on':'')+'" title="'+(vi?'有越南文':'沒有越南文')+'">VI</i></span>';
   return '<div class="card rp-c rp-'+esc(rpGrpOf(r))+'">'
-    +'<div class="rp-h"><b>'+esc(rpTitleIc(r))+'</b>'+rpAddrHtml(r)+lang+'</div>'/* RPADDR_V932 ／ RPICON_V967 */
+    +'<div class="rp-h"><b>'+esc(rpTitleIc(r))+'</b>'+rpModeHtml(r)+rpCurHtml(r)+rpAddrHtml(r)+lang+'</div>'/* RPADDR_V932 ／ RPICON_V967 */
     +'<div class="rp-g">'+(tags.length?tags.map(t=>'<span class="tag">'+esc(t)+'</span>').join('')
         :'<span class="hint">沒有關鍵字</span>')+'</div>'
     +(pv?('<div class="rp-pl">'+(which==='VI'?'Tiếng Việt':'中文')+'</div>'):'')
@@ -14375,6 +14442,8 @@ H.qtGo=()=>{
    現在新增和編輯是同一張表，差別只有存去哪裡。 */
 function rpFormHtml(r,isNew){
   const a=rpAddrOf(r)||(isNew?'':rpAddrGuess(r));
+  const md=rpModeOf(r)||(isNew?'':rpModeGuess(r));/* RPMODE_V1179 */
+  const cu=rpCurOf(r)||(isNew?'':rpCurGuess(r));/* RPCUR_V1180 */
   const p=isNew?'n':'e';
   return '<div class="modal modal-wide modal-tall rp-em"><div class="modal-head"><h3>'
    +(isNew?'📮 新增回覆範本':'✏️ '+esc(r.title||''))+'</h3>'
@@ -14390,6 +14459,18 @@ function rpFormHtml(r,isNew){
    +'<option value=""'+(a?'':' selected')+'>（不指定）</option>'
    +Object.keys(RP_ADDR).map(k=>'<option value="'+k+'"'+((a===k)?' selected':'')+'>'
        +esc(RP_ADDR[k][0]+' —— '+RP_ADDR[k][1])+'</option>').join('')
+   +'</select></div>'
+   /* RPMODE_V1179 */
+   +'<div class="field"><label>團班還是一對一 <span class="hint">價錢和說法不一樣，分開存</span></label><select id="rp-'+p+'m">'
+   +'<option value=""'+(md?'':' selected')+'>（不分、或不是課程）</option>'
+   +Object.keys(RP_MODE).map(k=>'<option value="'+k+'"'+((md===k)?' selected':'')+'>'
+       +esc(RP_MODE[k][0]+' —— '+RP_MODE[k][1])+'</option>').join('')
+   +'</select></div>'
+   /* RPCUR_V1180 */
+   +'<div class="field"><label>幣別 <span class="hint">這一份報的是哪一種錢</span></label><select id="rp-'+p+'u">'
+   +'<option value=""'+(cu?'':' selected')+'>（沒有報價、或不分）</option>'
+   +Object.keys(RP_CUR).map(k=>'<option value="'+k+'"'+((cu===k)?' selected':'')+'>'
+       +esc(RP_CUR[k][0]+' —— '+RP_CUR[k][1])+'</option>').join('')
    +'</select></div>'
    +'<div class="field"><label>關鍵字 <span class="hint">用頓號隔開</span></label>'
    +'<input id="rp-'+p+'g" type="text" value="'+esc(r.tags||'')+'"'
@@ -14408,6 +14489,8 @@ H.rpNewSave=async()=>{
     tags:(($('#rp-ng')&&$('#rp-ng').value)||'').trim(),
     grp:(($('#rp-nc')&&$('#rp-nc').value)||'other'),
     addr:(($('#rp-na')&&$('#rp-na').value)||''),/* RPADDR_V932 */
+    mode:(($('#rp-nm')&&$('#rp-nm').value)||''),/* RPMODE_V1179 */
+    cur:(($('#rp-nu')&&$('#rp-nu').value)||''),/* RPCUR_V1180 */
     body_zh:'',body_vi:(($('#rp-nv')&&$('#rp-nv').value)||''),
     order_index:(S.replies||[]).length+1,created_at:new Date().toISOString()});
     await loadAll();closeModal();S.tab='reply';render();toast('已建立');}
@@ -14422,6 +14505,8 @@ H.rpEditSave=async(id)=>{
   try{await DB.update(rppCol(id),id,{title:t,tags:(($('#rp-eg')&&$('#rp-eg').value)||'').trim(),/* RPMOVE_V945 */
     grp:(($('#rp-ec')&&$('#rp-ec').value)||'other'),
     addr:(($('#rp-ea')&&$('#rp-ea').value)||''),/* RPADDR_V932 */
+    mode:(($('#rp-em')&&$('#rp-em').value)||''),/* RPMODE_V1179 */
+    cur:(($('#rp-eu')&&$('#rp-eu').value)||''),/* RPCUR_V1180 */
     body_zh:'',body_vi:(($('#rp-ev')&&$('#rp-ev').value)||'')});
     await loadAll();closeModal();render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}
 };
