@@ -3028,7 +3028,7 @@ async function loadAll(){
     S.prices=_rpp('price');}{const _lg=b.filter(x=>CRM_KINDS[x.kind]&&!x.deleted_at);_lg.forEach(x=>{x._col='lessons';});
    const _cn=crmDedupe(_crm.filter(x=>!x.deleted_at));_cn.forEach(x=>{x._col='crm';});
    const _all=_cn.concat(_lg);
-   S.interviews=_all.filter(x=>x.kind==='interview');S.inquiries=_all.filter(x=>x.kind==='inquiry');S.agencies=_all.filter(x=>x.kind==='agency');S.schools=_all.filter(x=>x.kind==='school');
+   S.interviews=_all.filter(x=>x.kind==='interview');S.inquiries=_all.filter(x=>x.kind==='inquiry');S.agencies=_all.filter(x=>x.kind==='agency');S.schools=_all.filter(x=>x.kind==='school');S.links=_all.filter(x=>x.kind==='link');/* LINKS_V1190 */
    /* MEMO_V820 自己的備忘：只放在 crm 集合，規則上 crm 是 isOwner() 才讀得到 */
    S.memos=_crm.filter(x=>x&&x.kind==='memo'&&!x.deleted_at);S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='school');
   splitResults(d);
@@ -5436,7 +5436,8 @@ function renderSchools(){
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','學校名冊只有主管理員看得到。');return;}
   const head=navSubBar(BIZ_TABS,'school');
   const list=schAll().slice().sort((a,b)=>String(a.country||'').localeCompare(String(b.country||''))||String(a.name||'').localeCompare(String(b.name||''),'zh-Hant'));
-  if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🏫</div><h3 style="margin:8px 0">還沒有學校</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">常用的學校建在這裡：官網、申請系統網址、登入帳號、承辦人信箱。<br>以後要進去，從這一頁按一下就開，不用再翻信箱找連結。<br><b>密碼不要填在這裡</b>，留在妳自己的密碼管理工具比較安全。</div><button class="btn btn-primary" data-act="schNew">＋ 新增學校</button></div>`;return;}
+  const _lk=lkCardHtml();/* LINKS_V1190 */
+  if(!list.length){body.innerHTML=head+_lk+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🏫</div><h3 style="margin:8px 0">還沒有學校</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">常用的學校建在這裡：官網、申請系統網址、登入帳號、承辦人信箱。<br>以後要進去，從這一頁按一下就開，不用再翻信箱找連結。<br><b>密碼不要填在這裡</b>，留在妳自己的密碼管理工具比較安全。</div><button class="btn btn-primary" data-act="schNew">＋ 新增學校</button></div>`;return;}
   const cards=list.map(c=>{
     const n=(S.agencies||[]).filter(a=>!a.deleted_at&&schByName(a.school)&&schByName(a.school).id===c.id).length;
     const rows=[];
@@ -5454,7 +5455,7 @@ function renderSchools(){
         <button class="btn btn-sm" data-act="schEdit" data-id="${esc(c.id)}">✏️ 編輯</button>
         <button class="btn btn-sm btn-danger btn-icon" data-act="schDel" data-id="${esc(c.id)}" title="刪掉這間學校">✕</button></div></div>
       ${rows.length?`<div style="margin-top:6px">${rows.join('')}</div>`:''}</div>`;}).join('');
-  body.innerHTML=head+`<div class="hint" style="margin-bottom:8px">共 ${list.length} 間。密碼請不要存在這裡。</div>`+cards;
+  body.innerHTML=head+_lk+`<div class="hint" style="margin-bottom:8px">共 ${list.length} 間學校。密碼請不要存在這裡。</div>`+cards;
 }
 function schForm(c){c=c||{};
   openModal(`<div class="modal modal-tall"><div class="modal-head"><h3>🏫 ${c.id?'編輯學校':'新增學校'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
@@ -18593,6 +18594,75 @@ H.agSave=async(id)=>{const name=($('#ag-name').value||'').trim();if(!name)return
         &&confirm('「'+name+'」的申請結果已經填了，要順便結案嗎？\n\n結案之後就不會再出現在「今天要處理」，資料還在，隨時可以改回進行中。'))
         await DB.update(crmCol(id),id,{status:'done',closed_as:'done'});}
     await loadAll();closeModal();S.tab='agency';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
+/* LINKS_V1190 常用網站。辦事處、外交部這種要一直回去查的官方網站，
+   存在這裡按一下就開，不用每次翻書籤或用搜尋。只存網址和備註，不存密碼。 */
+function lkAll(){return (S.links||[]).filter(x=>!x.deleted_at)
+  .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0)
+    ||String(a.name||'').localeCompare(String(b.name||''),'zh-Hant'));}
+function lkById(id){return lkAll().find(x=>x.id===id)||null;}
+function lkUrl(u){const s=String(u||'').trim();
+  if(!s)return '';
+  return /^https?:\/\//i.test(s)?s:('https://'+s);}
+function lkHost(u){try{return new URL(lkUrl(u)).host.replace(/^www\./,'');}catch(e){return '';}}
+function lkCardHtml(){
+  const list=lkAll();
+  const rows=list.length?list.map(c=>{
+    const u=lkUrl(c.url);
+    return '<div class="dash-row lk-r">'
+      +'<span class="lk-n"><b>'+esc(c.name||'（沒有名稱）')+'</b>'
+      +(c.note?('<span class="hint" style="display:block">'+esc(c.note)+'</span>'):'')
+      +(lkHost(c.url)?('<span class="muted" style="display:block;font-size:11.5px">'+esc(lkHost(c.url))+'</span>'):'')
+      +'</span><span class="grow"></span>'
+      +(u?('<a class="btn btn-sm btn-primary" href="'+esc(u)+'" target="_blank" rel="noopener">↗ 開啟</a>'):'')
+      +(u?('<button class="btn btn-sm" data-act="lkCopy" data-id="'+esc(c.id)+'" title="複製網址">\u{1F4CB}</button>'):'')
+      +'<button class="btn btn-sm" data-act="lkEdit" data-id="'+esc(c.id)+'">✏️</button>'
+      +'<button class="btn btn-sm btn-danger btn-icon" data-act="lkDel" data-id="'+esc(c.id)+'" title="刪掉">✕</button>'
+      +'</div>';}).join('')
+    :'<div class="muted" style="padding:8px 2px">還沒有存任何網站。按右邊「＋ 新增網站」加第一個。</div>';
+  return '<div class="card" style="margin-bottom:12px">'
+    +'<div class="dash-row" style="margin-bottom:6px"><div class="lesson-label" style="margin:0">\u{1F516} 常用網站</div>'
+    +'<span class="hint">要一直回去查的官方網站，按一下就開</span><span class="grow"></span>'
+    +'<button class="btn btn-sm btn-primary" data-act="lkNew">＋ 新增網站</button></div>'
+    +rows+'</div>';}
+function lkForm(c){c=c||{};
+  openModal('<div class="modal"><div class="modal-head"><h3>\u{1F516} '+(c.id?'編輯網站':'新增網站')+'</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="field"><label>名稱 * <span class="hint">自己看得懂就好</span></label>'
+   +'<input id="lk-name" type="text" value="'+esc(c.name||'')+'" placeholder="請填這個網站叫什麼"></div>'
+   +'<div class="field"><label>網址 * <span class="hint">從瀏覽器網址列複製貼上</span></label>'
+   +'<input id="lk-url" type="text" value="'+esc(c.url||'')+'" placeholder="貼上網址"></div>'
+   +'<div class="field"><label>備註 <span class="hint">選填。這個網站是用來查什麼的</span></label>'
+   +'<input id="lk-note" type="text" value="'+esc(c.note||'')+'" placeholder="這個網站用來查什麼"></div>'
+   +'<div class="hint">密碼不要存在這裡，留在妳自己的密碼管理工具比較安全。</div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="lkSave"'+(c.id?(' data-id="'+esc(c.id)+'"'):'')+'>\u{1F4BE} 儲存</button>'
+   +'</div></div>');}
+H.lkNew=()=>lkForm(null);
+H.lkEdit=(id)=>lkForm(lkById(id));
+H.lkSave=async(id)=>{
+  const g=k=>(($('#lk-'+k)&&$('#lk-'+k).value)||'').trim();
+  const name=g('name');if(!name)return toast('請填名稱');
+  const url=g('url');if(!url)return toast('請填網址');
+  const patch={kind:'link',name:name,url:url,note:g('note')};
+  try{
+    if(id){await DB.update(crmCol(id),id,patch);}
+    else{patch.order_index=(lkAll().length+1);patch.created_at=new Date().toISOString();
+      await DB.insert('crm',patch);}
+    await loadAll();closeModal();S.tab='school';render();toast('已儲存');
+  }catch(e){toast(writeErr('儲存失敗',e));}};
+H.lkDel=async(id)=>{const c=lkById(id);if(!c)return;
+  if(!confirm('把「'+(c.name||'')+'」從常用網站拿掉？'))return;
+  try{await DB.update(crmCol(id),id,{deleted_at:new Date().toISOString()});
+    S.links=(S.links||[]).filter(x=>x.id!==id);render();toast('已刪除');}
+  catch(e){toast(writeErr('刪除失敗',e));}};
+H.lkCopy=async(id)=>{const c=lkById(id);if(!c)return;
+  const u=lkUrl(c.url);if(!u)return;
+  try{await navigator.clipboard.writeText(u);toast('網址已複製');}
+  catch(e){const ta=document.createElement('textarea');ta.value=u;
+    ta.style.cssText='position:fixed;left:-9999px';document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');toast('網址已複製');}catch(e2){toast('複製失敗，請手動選取');}
+    ta.remove();}};
 H.schNew=()=>schForm(null);
 H.schEdit=(id)=>schForm(schById(id));
 H.schSave=async(id)=>{const name=($('#sch-name').value||'').trim();if(!name)return toast('請填學校名稱');
