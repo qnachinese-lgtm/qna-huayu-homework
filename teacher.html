@@ -2181,6 +2181,35 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           .modal-foot{padding:12px 14px;gap:8px;justify-content:flex-end}
           .modal-foot>span{display:none}
           .modal-foot .btn{flex:1 1 auto;min-width:0;justify-content:center}}
+        /* LESPICK_V1198 自己畫的課次選單：貼著格子打開，最高 260px，可以打字找。 */
+        .lp{position:relative}
+        .lp .lp-hide{display:none!important}
+        .lp-btn{width:100%;display:flex;align-items:center;gap:8px;text-align:left;
+          padding:9px 12px;border:1px solid var(--line,#E4E7EB);border-radius:10px;background:#fff;
+          font-family:inherit;font-size:14px;color:var(--ink,#1B1B1F);cursor:pointer}
+        .lp-btn:hover{border-color:#9AA3AE}
+        .lp-btn.on{border-color:var(--accent,#1E4C86);box-shadow:0 0 0 3px rgba(30,76,134,.12)}
+        .lp-btn .lp-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .lp-btn .lp-dim{color:#8A8F98}
+        .lp-btn .lp-bk{color:#8A8F98;font-size:12.5px;margin-right:6px}
+        .lp-btn .lp-c{flex:none;color:#8A8F98;font-size:12px}
+        .lp-pop{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:40;background:#fff;
+          border:1px solid var(--line,#E4E7EB);border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,.16);
+          padding:8px;max-height:288px;display:flex;flex-direction:column}
+        .lp-pop.hide{display:none}
+        .lp-pop.lp-up{top:auto;bottom:calc(100% + 5px)}
+        .lp-q{width:100%;box-sizing:border-box;padding:8px 11px;border:1px solid var(--line,#E4E7EB);
+          border-radius:9px;font-family:inherit;font-size:14px;margin-bottom:6px;flex:none}
+        .lp-list{overflow-y:auto;min-height:0}
+        .lp-g{font-size:11.5px;font-weight:700;color:#8A8F98;padding:8px 8px 4px;letter-spacing:.04em}
+        .lp-g.hide,.lp-i.hide,.lp-none.hide{display:none}
+        .lp-i{display:block;width:100%;text-align:left;border:0;background:transparent;
+          padding:8px 10px;border-radius:8px;font-family:inherit;font-size:14px;color:var(--ink,#1B1B1F);cursor:pointer;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .lp-i.lp-in{padding-left:20px}
+        .lp-i:hover{background:#F2F4F7}
+        .lp-i.on{background:var(--accent,#1E4C86);color:#fff;font-weight:600}
+        .lp-none{padding:12px 10px;color:#8A8F98;font-size:13.5px;text-align:center}
         /* LKROW_V1195 常用網站／常用檔案那幾列：名稱長的時候，
            右邊那幾顆鈕要一起換到下一行，不要一顆掉一行。 */
         .lk-r{align-items:flex-start;gap:8px}
@@ -3076,7 +3105,8 @@ document.addEventListener('toggle',(e)=>{const d=e.target;
 document.addEventListener('click',(e)=>{const t=e.target;if(!t||!t.closest)return;
   const b=t.closest('[data-act]');if(b&&b.closest('summary.crm-sum'))e.preventDefault();},true);
 function closeMiniMenus(){document.querySelectorAll('details.mini-menu[open]').forEach(d=>d.removeAttribute('open'));}
-function openModal(h){closeMiniMenus();$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;}
+function openModal(h){closeMiniMenus();$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;
+  setTimeout(()=>{try{lpAll();}catch(e){}},0);/* LESPICK_V1198 */}
 function closeModal(){$('#modal-root').innerHTML='';}
 async function featSet(k,checked){
   const val=checked?'on':'';
@@ -17151,6 +17181,84 @@ H.classDatesPub=async(cls)=>{const on=!!classMetaOf(cls).show_dates;
 /* ROLLLES_V803 點名順便記「這一堂上了哪一課」
    學生首頁的「繼續上次的課」就是看這個欄位，沒有它只能亂猜。
    選單會把這個班／這個學生的課排在最前面，但別的課也可以選（還沒發佈的也在）。 */
+/* LESPICK_V1198 「這一堂上了哪一課」本來是一般的下拉選單。課一多（三十幾課），
+   Chrome 就把整份清單彈到畫面最上面，蓋住整個視窗，很醜也找不到自己在哪裡。
+   改成一個自己畫的小選單：貼著格子打開、最高 260px、可以打字找課。
+   原本的 <select> 還留著（藏起來），存檔那邊完全不用改。 */
+function lpInit(sel){
+  if(!sel||sel.dataset.lpOn)return;
+  sel.dataset.lpOn='1';
+  const wrap=document.createElement('div');wrap.className='lp';
+  sel.parentNode.insertBefore(wrap,sel);wrap.appendChild(sel);
+  sel.classList.add('lp-hide');
+  const btn=document.createElement('button');btn.type='button';btn.className='lp-btn';
+  const pop=document.createElement('div');pop.className='lp-pop hide';
+  pop.innerHTML='<input type="text" class="lp-q" placeholder="打幾個字找課，例：第七課、KTV">'
+    +'<div class="lp-list"></div><div class="lp-none hide">找不到這一課</div>';
+  wrap.appendChild(btn);wrap.appendChild(pop);
+  const list=pop.querySelector('.lp-list'),q=pop.querySelector('.lp-q'),none=pop.querySelector('.lp-none');
+  /* 把 select 裡的 optgroup／option 照原樣畫成一列一列 */
+  const build=()=>{
+    let h='';
+    [].forEach.call(sel.children,n=>{
+      if(n.tagName==='OPTGROUP'){
+        h+='<div class="lp-g">'+esc(n.label||'')+'</div>';
+        [].forEach.call(n.children,o=>{h+=row(o,true,n.label||'');});
+      }else if(n.tagName==='OPTION'){h+=row(n,false,'');}});
+    list.innerHTML=h;};
+  const row=(o,ind,g)=>'<button type="button" class="lp-i'+(ind?' lp-in':'')+(o.value===sel.value?' on':'')
+    +'" data-v="'+esc(o.value)+'" data-g="'+esc(g||'')+'">'+esc(o.textContent||'')+'</button>';
+  const label=()=>{const o=sel.options[sel.selectedIndex];
+    const g=o&&o.parentNode&&o.parentNode.tagName==='OPTGROUP'?o.parentNode.label:'';
+    const txt=o?(o.textContent||''):'（不指定）';
+    const gb=String(g||'').replace(/（\s*\d+\s*課\s*）\s*$/,'');
+    btn.innerHTML='<span class="lp-t'+(sel.value?'':' lp-dim')+'">'
+      +(sel.value&&gb?('<span class="lp-bk">'+esc(gb)+'</span>'):'')+esc(txt)+'</span><span class="lp-c">▾</span>';};
+  const close=()=>{pop.classList.add('hide');btn.classList.remove('on');};
+  const open=()=>{
+    build();pop.classList.remove('hide');btn.classList.add('on');none.classList.add('hide');
+    /* 下面塞不下就往上開，兩邊都塞不下就縮矮一點，不要被視窗切掉 */
+    try{
+      const rb=btn.getBoundingClientRect();
+      const host=wrap.closest('.modal-body')||document.scrollingElement||document.documentElement;
+      const rh=host.getBoundingClientRect?host.getBoundingClientRect():{top:0,bottom:innerHeight};
+      const below=Math.max(0,Math.min(rh.bottom,innerHeight)-rb.bottom-12);
+      const above=Math.max(0,rb.top-Math.max(rh.top,0)-12);
+      pop.classList.remove('lp-up');
+      let h=288;
+      if(below<190&&above>below){pop.classList.add('lp-up');h=Math.min(288,Math.max(150,above));}
+      else h=Math.min(288,Math.max(150,below));
+      pop.style.maxHeight=h+'px';
+    }catch(e){}
+    q.value='';[].forEach.call(list.querySelectorAll('.lp-i,.lp-g'),e=>e.classList.remove('hide'));
+    try{const on=list.querySelector('.lp-i.on');if(on)on.scrollIntoView({block:'center'});}catch(e){}
+    try{pop.scrollIntoView({block:'nearest'});}catch(e){}
+    setTimeout(()=>{try{q.focus();}catch(e){}},30);};
+  btn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();
+    pop.classList.contains('hide')?open():close();});
+  q.addEventListener('input',()=>{
+    const k=q.value.trim().toLowerCase();let n=0;
+    [].forEach.call(list.children,e=>{
+      if(e.classList.contains('lp-g')){e.classList.toggle('hide',!!k);return;}
+      const hit=!k||(((e.textContent||'')+' '+(e.getAttribute('data-g')||'')).toLowerCase().indexOf(k)>=0);
+      e.classList.toggle('hide',!hit);if(hit)n++;});
+    none.classList.toggle('hide',n>0);});
+  q.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){e.preventDefault();close();btn.focus();return;}
+    if(e.key==='Enter'){e.preventDefault();
+      const f=list.querySelector('.lp-i:not(.hide)');if(f)f.click();}});
+  list.addEventListener('click',e=>{
+    const b=e.target.closest&&e.target.closest('.lp-i');if(!b)return;
+    e.preventDefault();e.stopPropagation();
+    sel.value=b.getAttribute('data-v')||'';
+    sel.dispatchEvent(new Event('change',{bubbles:true}));
+    label();close();btn.focus();});
+  label();}
+function lpAll(){try{document.querySelectorAll('#modal-root select[data-lp]').forEach(lpInit);}catch(e){}}
+document.addEventListener('click',e=>{
+  if(e.target.closest&&e.target.closest('.lp'))return;
+  try{document.querySelectorAll('.lp-pop:not(.hide)').forEach(p=>{
+    p.classList.add('hide');const b=p.parentNode.querySelector('.lp-btn');if(b)b.classList.remove('on');});}catch(err){}});
 function rollLesOpts(sel,cls,stu){
   const all=sortLessons((S.lessons||[]).filter(l=>l&&!l.deleted_at));
   const pri=[],rest=[];
@@ -17163,11 +17271,17 @@ function rollLesOpts(sel,cls,stu){
   let h='<option value="">（不指定）</option>';
   if(pri.length)h+='<optgroup label="'+(cls?'這個班的課':'這位學生的課')+'">'+pri.map(l=>opt(l)).join('')+'</optgroup>';
   if(rest.length){
+    /* CLGRP_V1199 文言文本來照 textbook 分組，早期建的沒填教材就掉進「沒有分教材」，
+       在名單裡看不出來是文言文。改成文言文自己一組。 */
+    const cls=rest.filter(l=>l&&l.kind==='classical');
+    const nor=rest.filter(l=>!(l&&l.kind==='classical'));
     const byBook={},bOrder=[];
-    rest.forEach(l=>{const k=String(l.textbook||'').trim()||'沒有分教材';
+    nor.forEach(l=>{const k=String(l.textbook||'').trim()||'沒有分教材';
       if(!byBook[k]){byBook[k]=[];bOrder.push(k);}byBook[k].push(l);});
     bOrder.forEach(k=>{h+='<optgroup label="'+esc(k)+'（'+byBook[k].length+' 課）">'
-      +byBook[k].map(l=>opt(l,true)).join('')+'</optgroup>';});}
+      +byBook[k].map(l=>opt(l,true)).join('')+'</optgroup>';});
+    if(cls.length)h+='<optgroup label="\u{1F4DC} 文言文（'+cls.length+' 課）">'
+      +cls.map(l=>opt(l,true)).join('')+'</optgroup>';}
   return h;
 }
 function rollLesTitle(id){if(!id)return '';const l=(S.lessons||[]).find(x=>x&&x.id===id);return l?String(l.title||''):'';}
@@ -17188,7 +17302,7 @@ function classRollModal(cls,prefill){const members=S.students.filter(s=>stuGroup
         排好之後會出現在課表和今日總覽，上完再回來點名。</div>
       <div class="form-grid"><div class="field"><label>上課日期${pf.date?' <span class="hint">已帶入預排日期</span>':''}</label><input id="roll-date" type="date" min="2000-01-01" max="2100-12-31" value="${useDate}"></div>
         <div class="field full"><label>時段 <span class="hint">依日期帶出，可改。打數字即可，例：2000 → 20:00</span></label><div style="display:flex;align-items:center;gap:8px"><input id="roll-start" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="開始時間" style="flex:1" value="${esc(slot?slot.s||'':'')}"><span>～</span><input id="roll-end" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="結束時間" style="flex:1" value="${esc(slot?slot.e||'':'')}"></div></div>
-        <div class="field full"><label>這一堂上了哪一課 <span class="hint">選填。選了以後，學生首頁的「繼續上次的課」就會接這一課</span></label><select id="roll-lesson">${rollLesOpts(useLes,cls,null)}</select></div>
+        <div class="field full"><label>這一堂上了哪一課 <span class="hint">選填。選了以後，學生首頁的「繼續上次的課」就會接這一課</span></label><select id="roll-lesson" data-lp="1">${rollLesOpts(useLes,cls,null)}</select></div>
         <div class="field full"><label>課後小結 <span class="hint">選填，全班學生首頁看得到</span></label><input id="roll-note" type="text" value="${esc(useNote)}" placeholder="今天上了什麼"></div>
         <input id="roll-video" type="hidden" value="${esc(useVideo)}">
         <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="roll-free" style="width:auto;margin:0"> 🎁 這堂全班免費（不扣堂、不計費）</label></div></div>
@@ -21080,7 +21194,7 @@ H.classLog=(id,pf)=>{const s=S.students.find(x=>x.id===id);if(!s)return;pf=pf||{
        <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="cl-free" style="width:auto;margin:0"${uFree?' checked':''}> 🎁 這堂免費（不扣堂、不計費）<span class="hint">為什麼這一堂不收錢</span></label></div>
        <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="cl-makeup" style="width:auto;margin:0"${uMakeup?' checked':''}> 🔁 這堂是補課<span class="hint">補之前請假的那一堂，用來追蹤還欠幾堂沒補</span></label></div>
        <div class="field full"><label>時段 <span class="hint">選填，打數字即可，例：1600 → 16:00</span></label><div style="display:flex;align-items:center;gap:8px"><input id="cl-start" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="開始時間" style="flex:1" value="${esc(slot0?slot0.s:'')}"><span>～</span><input id="cl-end" class="hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="結束時間" style="flex:1" value="${esc(slot0?slot0.e:'')}"></div><div id="cl-calc" class="hint" style="margin-top:6px"></div></div>
-       <div class="field full"><label>這一堂上了哪一課 <span class="hint">選填。選了以後，學生首頁的「繼續上次的課」就會接這一課</span></label><select id="cl-lesson">${rollLesOpts(uLes,null,s)}</select></div>
+       <div class="field full"><label>這一堂上了哪一課 <span class="hint">選填。選了以後，學生首頁的「繼續上次的課」就會接這一課</span></label><select id="cl-lesson" data-lp="1">${rollLesOpts(uLes,null,s)}</select></div>
        <div class="field full"><label>課後小結 <span class="hint">選填，學生在首頁看得到</span></label><input id="cl-note" type="text" value="${esc(uN)}" placeholder="今天上了什麼、回家要做什麼"></div>
        <div class="field full"><label>🎬 上課影片連結 <span class="hint">選填，學生可以自己看回放</span></label><input id="cl-video" type="url" value="${esc(uVideo)}" placeholder="貼上網址"></div>
      </div></div>
