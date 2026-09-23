@@ -6960,6 +6960,7 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
           <button class="btn btn-sm" data-act="printWorksheet" data-id="${l.id}">🖨 練習題卷</button>
           <button class="btn btn-sm" data-act="slides" data-id="${l.id}">🖥 上課投影片${slidePages(l).length?('（'+slidePages(l).length+' 頁）'):''}</button>
           <button class="btn btn-sm" data-act="dupLesson" data-id="${l.id}">📋 複製</button>
+          <button class="btn btn-sm" data-act="lxOut" data-id="${l.id}" title="寫成匯入用的 Excel：備份、離線改完再匯回來。圖片和音檔不會進檔案">⬇ 抓成 Excel</button>
           ${an?`<div class="mini-sep"></div><button class="btn btn-sm btn-warn" data-act="unassign" data-id="${l.id}">↩ 收回發佈</button>`:''}
           <div class="mini-sep"></div>
           ${canDelLesson(l)?`<button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">🗑 刪除</button>`:''}
@@ -13082,8 +13083,10 @@ function lxParse(buf){
     if(!txt&&!who)return;
     const d=touch(lxGet(r,tSeg));
     d.lines.push(who?(who+'：'+txt):txt);
-    const py=lxGet(r,tPy);if(py)d.py.push(who?(who+'：'+py):py);
-    const en=lxGet(r,tEn);if(en)d.en.push(who?(who+'：'+en):en);});
+    /* LXOUT_V1185 拼音和英譯照格子裡寫的原樣存：那一欄本來就可以自己決定要不要帶說話者。
+       每一句都佔一行（沒填就是空行），行數才會跟課文對得起來。 */
+    d.py.push(lxGet(r,tPy));
+    d.en.push(lxGet(r,tEn));});
   if(!segs.length)return {err:'「課文」那一張表裡一句課文都沒有'};
 
   /* ── 生詞：段落要跟課文那邊的段落名稱一樣 ── */
@@ -13110,8 +13113,9 @@ function lxParse(buf){
       touch(lxGet(r,dSeg)||segs[0].title).disc.push(q);});}
 
   const segIdx={};segs.forEach((d,i)=>{segIdx[d.title]=i;});
+  const _some=(a)=>a.some(x=>String(x||'').trim());
   const dialogues=segs.map(d=>({title:d.title,content:d.lines.join('\n'),
-    content_py:d.py.join('\n'),content_en:d.en.join('\n'),
+    content_py:(_some(d.py)?d.py.join('\n'):''),content_en:(_some(d.en)?d.en.join('\n'):''),
     vocabulary:d.voc.join('\n'),
     vocab_vi:(d.vi.some(x=>x)?d.vi.join('\n'):''),
     discussion:d.disc.join('\n'),image_url:'',audio_url:''}));
@@ -13133,6 +13137,10 @@ function lxParse(buf){
       if(ti&&!g.title)g.title=ti;
       const sg=lxGet(r,gSeg);
       if(sg&&!g.seg)g.seg=(segIdx[sg]!=null)?String(segIdx[sg]):(/短文/.test(sg)?'短文':'');
+      /* LXOUT_V1185 只填例句、區塊和說明都空著的那幾列，是上一個區塊的第二句以後 */
+      if(!lab&&!tx&&ex&&g.blocks.length){
+        const _lb=g.blocks[g.blocks.length-1];
+        _lb.ex=_lb.ex?(_lb.ex+'\n'+ex):ex;return;}
       const key=lab||'說明';
       if(!g._bk[key]){g._bk[key]={label:lab,text:'',ex:'',img:'',exAudio:[]};g.blocks.push(g._bk[key]);}
       const b=g._bk[key];
@@ -13191,6 +13199,126 @@ function lxMerge(old,ls){
     out[k]=v;});
   out.id=old.id;
   return out;}
+/* LXOUT_V1185 把平台上的一課寫成 Excel，欄位跟「📥 從 Excel 匯入課文」讀的一模一樣。
+   用途：備份、離線改完再匯回來、或照著改出下一課。
+   注意：圖片和音檔沒辦法寫進 Excel，匯回來的時候那些要重新上傳。 */
+function lxoS(v){return String(v==null?'':v);}
+/* 「阿建：小玲，…」拆成說話者和內容；冒號前面太長就當成整句沒有說話者 */
+function lxoSplitWho(line){
+  const s=lxoS(line);
+  const i=s.search(/[：:]/);
+  if(i<0||i>8)return {who:'',txt:s.trim()};
+  const who=s.slice(0,i).trim();
+  if(!who||/[，。！？、,.!?]/.test(who))return {who:'',txt:s.trim()};
+  return {who:who,txt:s.slice(i+1).trim()};}
+/* 拼音／英譯那一行如果也帶了說話者，匯出的時候拿掉，免得匯回去變成兩次 */
+function lxoStripWho(line,who){
+  const s=lxoS(line);
+  if(!who)return s.trim();
+  const re=new RegExp('^\\s*'+who.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*[：:]\\s*');
+  return s.replace(re,'').trim();}
+function lxoQType(t){
+  return ({qa:'問答',fill:'填空',write:'造句',choice:'選擇',note:'示範'})[String(t||'')]||'';}
+function lxoBank(q){
+  if(q&&q.bank==='hw')return '作業簿';
+  if(q&&q.gp_index!=null&&q.gp_index!=='')return '語法'+(Number(q.gp_index)+1);
+  return '綜合';}
+H.lxOut=(id)=>{
+  if(typeof XLSX==='undefined')return toast('匯出元件還在載入，請過幾秒再按一次');
+  const l=(S.lessons||[]).find(x=>x&&x.id===id);
+  if(!l)return toast('找不到這一課');
+  const ds=Array.isArray(l.dialogues)?l.dialogues:[];
+  const nm=lxoS(l.title).trim()||'課文';
+
+  /* 課程 */
+  const C=[['課名','教材','課序','課室活動','文化','影片連結'],
+           [nm,lxoS(l.textbook),Number(l.order_index)||'',lxoS(l.activities),lxoS(l.culture),lxoS(l.video_url)]];
+
+  /* 課文：一列一句 */
+  const T=[['段落','說話者','內容','拼音','英譯']];
+  ds.forEach((d,di)=>{
+    const seg=lxoS(d&&d.title).trim()||('段'+(di+1));
+    const ls=lxoS(d&&d.content).split('\n');
+    const py=lxoS(d&&d.content_py).split('\n');
+    const en=lxoS(d&&d.content_en).split('\n');
+    ls.forEach((ln,i)=>{
+      if(!lxoS(ln).trim())return;
+      const w=lxoSplitWho(ln);
+      T.push([seg,w.who,w.txt,lxoS(py[i]||'').trim(),lxoS(en[i]||'').trim()]);});});
+
+  /* 生詞：一列一個詞，例句各自一欄 */
+  let exN=1;
+  ds.forEach(d=>{tvParseVocab(lxoS(d&&d.vocabulary)).forEach(v=>{
+    exN=Math.max(exN,(v.ex||[]).length);});});
+  const V=[['段落','生詞','拼音','詞類','英文','越南文'].concat(
+    Array.from({length:exN},()=>'例句'))];
+  ds.forEach((d,di)=>{
+    const seg=lxoS(d&&d.title).trim()||('段'+(di+1));
+    const ws=tvParseVocab(lxoS(d&&d.vocabulary));
+    const vi=lxoS(d&&d.vocab_vi).split('\n').map(x=>x.trim());
+    ws.forEach((v,k)=>{
+      const row=[seg,lxoS(v.front),lxoS(v.py),lxoS(v.pos),lxoS(v.back),lxoS(vi[k]||'')];
+      for(let i=0;i<exN;i++)row.push(lxoS((v.ex||[])[i]||''));
+      V.push(row);});});
+
+  /* 語法：一列一個區塊，例句多的再多開幾列 */
+  const G=[['語法','標題','接在哪一段','區塊','說明','例句']];
+  (Array.isArray(l.grammar_points)?l.grammar_points:[]).forEach((g,gi)=>{
+    const segLab=(()=>{const sg=lxoS(g&&g.seg);
+      if(sg==='短文')return '短文';
+      if(/^\d+$/.test(sg)){const d=ds[Number(sg)];return lxoS(d&&d.title).trim()||('段'+(Number(sg)+1));}
+      return '';})();
+    let first=true;
+    const bs=Array.isArray(g&&g.blocks)?g.blocks:[];
+    if(!bs.length){G.push([gi+1,lxoS(g&&g.title),segLab,'','','']);return;}
+    bs.forEach(b=>{
+      const ex=lxoS(b&&b.ex).split('\n').map(x=>x.trim()).filter(Boolean);
+      const lab=lxoS(b&&b.label),tx=lxoS(b&&b.text);
+      if(!ex.length){G.push([gi+1,first?lxoS(g&&g.title):'',first?segLab:'',lab,tx,'']);first=false;return;}
+      ex.forEach((e,i)=>{
+        G.push([gi+1,(first&&i===0)?lxoS(g&&g.title):'',(first&&i===0)?segLab:'',
+          (i===0)?lab:'',(i===0)?tx:'',e]);});
+      first=false;});});
+
+  /* 討論 */
+  const D=[['段落','題目']];
+  ds.forEach((d,di)=>{
+    const seg=lxoS(d&&d.title).trim()||('段'+(di+1));
+    lxoS(d&&d.discussion).split('\n').forEach(q=>{
+      if(q.trim())D.push([seg,q.trim()]);});});
+
+  /* 練習 */
+  const Q=[['歸到','題型','題目','說明','選項','答案','小節']];
+  let skip=0;
+  (S.questions||[]).filter(q=>q&&q.lesson_id===id)
+    .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0))
+    .forEach(q=>{
+      const ty=lxoQType(q.type);
+      if(!ty){skip++;return;}
+      let ans='';
+      if(q.type==='choice'){const n=ghAnsIdx(q);if(n!=null)ans=String(n+1);}
+      else if(q.type==='fill')ans=(Array.isArray(q.answer)?q.answer:[q.answer])
+        .map(x=>lxoS(x).trim()).filter(Boolean).join('｜');
+      Q.push([lxoBank(q),ty,lxoS(q.prompt),lxoS(q.instruction),
+        (q.type==='choice'?(Array.isArray(q.options)?q.options:[]).map(lxoS).join('｜'):''),
+        ans,lxoS(q.gp_sub)]);});
+
+  const mk=(rows,ws)=>{const s=XLSX.utils.aoa_to_sheet(rows);
+    s['!cols']=ws.map(w=>({wch:w}));return s;};
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,mk(C,[30,20,8,40,40,30]),'課程');
+  XLSX.utils.book_append_sheet(wb,mk(T,[12,10,60,40,40]),'課文');
+  XLSX.utils.book_append_sheet(wb,mk(V,[12,14,16,10,34,24].concat(Array.from({length:exN},()=>34))),'生詞');
+  XLSX.utils.book_append_sheet(wb,mk(G,[8,26,14,10,52,46]),'語法');
+  XLSX.utils.book_append_sheet(wb,mk(D,[12,70]),'討論');
+  XLSX.utils.book_append_sheet(wb,mk(Q,[12,10,58,34,30,10,8]),'練習');
+  const safe=nm.replace(/[\\/:*?"<>|]/g,'').slice(0,40);
+  XLSX.writeFile(wb,'QNA_課文_'+safe+'_'+localToday()+'.xlsx');
+  toast('匯出好了：'+(T.length-1)+' 句課文、'+(V.length-1)+' 個生詞、'
+    +(new Set(G.slice(1).map(r=>r[0]))).size+' 個語法、'+(Q.length-1)+' 題練習'
+    +(skip?('（有 '+skip+' 題是選填／排序這類題型，Excel 放不下，留在平台上）'):'')
+    +'。圖片和音檔不會進檔案。');
+};
 H.lxIn=()=>{
   if(typeof XLSX==='undefined'){toast('匯入元件還在載入，請過幾秒再按一次');return;}
   const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls';
