@@ -3706,36 +3706,7 @@ function renderDashboard(){
   </div>`;
   /* LEADMON_V1147 這個月招生成績：這個月進來幾筆、處理了幾筆、平均多久回、從哪來，
      跟上個月比。數字全部來自 leads 本身，沒有推估。 */
-  const _lmHtml=(function(){
-    if(!IS_OWNER)return '';
-    const all=(S.leads||[]).filter(l=>l&&l.created_at);
-    const mOf=l=>String(l.created_at||'').slice(0,7);
-    const _pm=(function(){const d=new Date(_thisM+'-01T00:00:00');d.setMonth(d.getMonth()-1);
-      return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');})();
-    const cur=all.filter(l=>mOf(l)===_thisM), prev=all.filter(l=>mOf(l)===_pm);
-    const done=cur.filter(l=>(l.status||'new')==='done');
-    const wait=cur.length-done.length;
-    const hrs=done.map(l=>{const a=Date.parse(l.created_at||''),b=Date.parse(l.handled_at||'');
-      return (a&&b&&b>=a)?((b-a)/3600000):null;}).filter(x=>x!=null);
-    const avg=hrs.length?(hrs.reduce((x,y)=>x+y,0)/hrs.length):null;
-    const avgStr=avg==null?'—':(avg<24?(Math.round(avg*10)/10+' 小時'):(Math.round(avg/24*10)/10+' 天'));
-    const join=cur.filter(l=>String(l.source||'')==='join').length;
-    const web=cur.length-join;
-    const diff=cur.length-prev.length;
-    const diffStr=prev.length?(diff>0?('比上個月多 '+diff+' 筆'):(diff<0?('比上個月少 '+(-diff)+' 筆'):'跟上個月一樣')):'上個月沒有資料可以比';
-    const card=(ic,lab,val,col)=>`<div class="card" style="flex:1 1 140px;min-width:132px;margin:0;padding:12px 14px"><div class="muted" style="font-size:12px">${ic} ${lab}</div><b style="font-size:21px;color:${col};display:block;margin-top:2px">${val}</b></div>`;
-    return `<div style="display:flex;gap:10px;flex-wrap:wrap">`
-      +card('\u{1F4E5}','這個月新報名',cur.length+' 筆','#1E4C86')
-      +card('\u2713','已經處理',done.length+' 筆',done.length?'#16a34a':'#94a3b8')
-      +card('\u{1F534}','還沒處理',wait+' 筆',wait?'#dc2626':'#94a3b8')
-      +card('\u23F1','平均多久回',avgStr,'#6D28D9')
-      +`</div>
-      <div class="dash-row" style="margin-top:10px;flex-wrap:wrap;gap:8px">
-        <span class="muted">${esc(diffStr)}（上個月 ${prev.length} 筆）</span><span class="grow"></span>
-        <span class="tag">\u{1F4DD} 報名表 ${join} 筆</span><span class="tag">\u{1F310} 官網 ${web} 筆</span>
-        <button class="btn btn-sm" data-act="siteHits" title="官網和報名表這個月被看了幾次">\u{1F310} 官網流量</button>
-        <button class="btn btn-sm" data-act="goLeads">看名單</button>
-      </div>`;})();
+  const _lmHtml='';/* LEADMON_V1189 搬到「招生・官網」那一頁了 */
   const _op=(k,dft)=>{try{const v=localStorage.getItem('hyc_ds_'+k);return v==null?dft:(v==='1');}catch(e){return dft;}};
   const _sec=(k,title,badge,inner,dft)=>`<details class="dash-sec" data-ds="${k}"${_op(k,dft)?' open':''}><summary class="dash-sec-t">${title}${badge?'　<span class="dash-n">'+badge+'</span>':''}</summary><div class="dash-sec-b">${inner}</div></details>`;
   body.innerHTML=`${_hero}
@@ -3744,7 +3715,6 @@ function renderDashboard(){
       todayJobsHtml(_pend,true)
       +`<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
        <details class="dash-fold" open style="margin-top:12px"><summary>⏰ 提醒（堂數／補課／交件）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>`,true)}
-    ${_lmHtml?_sec('lead','\u{1F4C8} 這個月招生','',_lmHtml,true):''/* LEADMON_V1147 */}
     ${_sec('memo','📝 我的備忘',memoOpen().length||'',memoHtml(),true)}
     ${healthCheckHtml()}
 `;
@@ -6512,8 +6482,45 @@ function renderOps(){const body=$('#ops-body');
   let _body='';
   if(_os==='inc')_body=`${totalCard}${_chart}${srcCard}<div class="card" style="margin-top:14px"><div class="lesson-label">💰 華語教學收入</div>${incSummary}${incRows}</div>${itvSummary}${agSummary}<div class="card" style="margin-top:14px"><div class="lesson-label">💳 待收款</div>${dueRows}</div>`;
   else if(_os==='check')_body=`${billHtml}`;
-  else _body=`${siteHtml}${annHtml}`;
+  else {/* LEADMON_V1189 */
+    const _lm=IS_OWNER?leadMonHtml():'';
+    _body=(_lm?('<div class="card" style="margin-top:14px"><div class="lesson-label">\u{1F4C8} 這個月招生</div>'+_lm+'</div>'):'')
+      +`${siteHtml}${annHtml}`;}
   body.innerHTML=navSubBar(MONEY_TABS,'ops')+_obar+_body;}
+/* LEADMON_V1147 → V1189 這一塊本來在今日總覽，搬到營運那邊的「招生・官網」，
+   跟報名名單、官網設定放在一起看。 */
+function leadMonHtml(){
+  const _thisM=localToday().slice(0,7);
+    if(!IS_OWNER)return '';
+    const all=(S.leads||[]).filter(l=>l&&l.created_at);
+    const mOf=l=>String(l.created_at||'').slice(0,7);
+    const _pm=(function(){const d=new Date(_thisM+'-01T00:00:00');d.setMonth(d.getMonth()-1);
+      return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');})();
+    const cur=all.filter(l=>mOf(l)===_thisM), prev=all.filter(l=>mOf(l)===_pm);
+    const done=cur.filter(l=>(l.status||'new')==='done');
+    const wait=cur.length-done.length;
+    const hrs=done.map(l=>{const a=Date.parse(l.created_at||''),b=Date.parse(l.handled_at||'');
+      return (a&&b&&b>=a)?((b-a)/3600000):null;}).filter(x=>x!=null);
+    const avg=hrs.length?(hrs.reduce((x,y)=>x+y,0)/hrs.length):null;
+    const avgStr=avg==null?'—':(avg<24?(Math.round(avg*10)/10+' 小時'):(Math.round(avg/24*10)/10+' 天'));
+    const join=cur.filter(l=>String(l.source||'')==='join').length;
+    const web=cur.length-join;
+    const diff=cur.length-prev.length;
+    const diffStr=prev.length?(diff>0?('比上個月多 '+diff+' 筆'):(diff<0?('比上個月少 '+(-diff)+' 筆'):'跟上個月一樣')):'上個月沒有資料可以比';
+    const card=(ic,lab,val,col)=>`<div class="card" style="flex:1 1 140px;min-width:132px;margin:0;padding:12px 14px"><div class="muted" style="font-size:12px">${ic} ${lab}</div><b style="font-size:21px;color:${col};display:block;margin-top:2px">${val}</b></div>`;
+    return `<div style="display:flex;gap:10px;flex-wrap:wrap">`
+      +card('\u{1F4E5}','這個月新報名',cur.length+' 筆','#1E4C86')
+      +card('\u2713','已經處理',done.length+' 筆',done.length?'#16a34a':'#94a3b8')
+      +card('\u{1F534}','還沒處理',wait+' 筆',wait?'#dc2626':'#94a3b8')
+      +card('\u23F1','平均多久回',avgStr,'#6D28D9')
+      +`</div>
+      <div class="dash-row" style="margin-top:10px;flex-wrap:wrap;gap:8px">
+        <span class="muted">${esc(diffStr)}（上個月 ${prev.length} 筆）</span><span class="grow"></span>
+        <span class="tag">\u{1F4DD} 報名表 ${join} 筆</span><span class="tag">\u{1F310} 官網 ${web} 筆</span>
+        <button class="btn btn-sm" data-act="siteHits" title="官網和報名表這個月被看了幾次">\u{1F310} 官網流量</button>
+        <button class="btn btn-sm" data-act="goLeads">看名單</button>
+      </div>`;
+}
 /* ---------- 對外官網：報名名單 + 內容編輯 ---------- */
 function leadsCardHtml(){
   const all=(S.leads||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
