@@ -545,7 +545,27 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .rp-h{overflow:hidden}
         /* 預覽框上面標現在看到的是哪一種語言 */
         .rp-pl{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.4px;margin-bottom:-4px}
-        .rp-h{display:flex;align-items:center;gap:8px;min-width:0}
+        /* RPHEAD_V1181 標題旁邊本來只有一個稱謂標籤，現在是三個＋語言，
+           一排擠到標題幾乎被擠成零寬（Quinn：「icon 都被遮到了」）。
+           改成標題自己一行，標籤排下一行。 */
+        .rp-h{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap;row-gap:6px}
+        .rp-h>b{flex:1 1 auto}
+        .rp-cs{flex:1 1 100%;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+        .rp-cs:empty{display:none}
+        /* RPFILT_V1182 上面那排篩選鈕 */
+        .rpf{background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px;
+          padding:8px 12px;margin-bottom:10px}
+        .rpf-r{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:3px 0}
+        .rpf-l{flex:none;width:36px;font-size:11.5px;font-weight:800;color:var(--muted)}
+        .rpf-c{font:inherit;font-size:12px;font-weight:700;line-height:1;cursor:pointer;
+          display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
+          background:#fff;color:var(--ink);border:1px solid var(--line-strong);
+          border-radius:999px;padding:5px 11px}
+        .rpf-c:hover{border-color:var(--primary)}
+        .rpf-c.on{background:var(--primary);border-color:var(--primary);color:#fff}
+        .rpf-c i{font-style:normal;font-size:10.5px;font-weight:800;opacity:.7}
+        .rpf-x{font:inherit;font-size:12px;font-weight:700;cursor:pointer;background:none;
+          border:0;color:var(--primary);padding:4px 0}
         /* RPTITLE_V991 本來一行就切掉。中文標題短，看不太出來；
            越南文標題幾乎一定被切（「📌 Giải thích chi phí xin học trường ngôn ngữ」
            在 1280px 也只看得到一半）。改成最多兩行。 */
@@ -3894,6 +3914,37 @@ function rpAddrHtml(r){
   const d=RP_ADDR[g];
   return '<span class="rp-ad a-'+g+(a?'':' a-gs')+'" title="'+esc(d[1]+(a?'':'　（自動判斷的，進去編輯存一次就確定）'))+'">'
     +esc(d[0])+(a?'':' ?')+'</span>';}
+/* RPFILT_V1182 四種分法都做成可以點的鈕：分類、團班／一對一、幣別、稱謂。
+   點一顆就只看那一種，再點同一顆就取消；幾種可以疊著用，也可以再配上面的搜尋。
+   每一顆後面的數字是符合的份數，數字是 0 的那一顆不會出現。 */
+function rpFVal(r,key){
+  if(key==='grp')return rpGrpOf(r);
+  if(key==='mode')return rpModeOf(r)||rpModeGuess(r);
+  if(key==='cur')return rpCurOf(r)||rpCurGuess(r);
+  return rpAddrOf(r)||rpAddrGuess(r);}
+function rpPass(r){
+  const f=S.rpF||{};
+  return ['grp','mode','cur','addr'].every(k=>!f[k]||rpFVal(r,k)===f[k]);}
+function rpFiltHtml(all){
+  const f=S.rpF||{};
+  const row=(key,lab,opts)=>{
+    const cs=opts.map(o=>{
+      const n=all.filter(r=>rpFVal(r,key)===o[0]).length;
+      if(!n&&f[key]!==o[0])return '';
+      return '<button class="rpf-c'+((f[key]===o[0])?' on':'')+'" type="button" '
+        +'data-act="rpFilt" data-id="'+key+'::'+o[0]+'">'+esc(o[1])+'<i>'+n+'</i></button>';})
+      .filter(Boolean).join('');
+    if(!cs)return '';
+    return '<div class="rpf-r"><span class="rpf-l">'+esc(lab)+'</span>'+cs+'</div>';};
+  const h=row('grp','分類',RP_GRP.map(g=>[g[0],g[1]]))
+    +row('mode','班型',Object.keys(RP_MODE).map(k=>[k,RP_MODE[k][0]]))
+    +row('cur','幣別',Object.keys(RP_CUR).map(k=>[k,RP_CUR[k][0]]))
+    +row('addr','稱謂',Object.keys(RP_ADDR).map(k=>[k,RP_ADDR[k][0]]));
+  if(!h)return '';
+  const on=['grp','mode','cur','addr'].some(k=>f[k]);
+  return '<div class="rpf">'+h
+    +(on?'<div class="rpf-r"><button class="rpf-x" type="button" data-act="rpFiltClr">✕ 清掉篩選</button></div>':'')
+    +'</div>';}
 function rpMatch(r,q){
   if(!q)return true;
   const a=rpAddrOf(r)||rpAddrGuess(r);/* RPADDR_V932 搜尋也吃「對方比我大」這種詞 */
@@ -4052,7 +4103,9 @@ function rpCardHtml(r){
     +'<i class="'+(zh?'on':'')+'" title="'+(zh?'有中文':'沒有中文')+'">中</i>'
     +'<i class="'+(vi?'on':'')+'" title="'+(vi?'有越南文':'沒有越南文')+'">VI</i></span>';
   return '<div class="card rp-c rp-'+esc(rpGrpOf(r))+'">'
-    +'<div class="rp-h"><b>'+esc(rpTitleIc(r))+'</b>'+rpModeHtml(r)+rpCurHtml(r)+rpAddrHtml(r)+lang+'</div>'/* RPADDR_V932 ／ RPICON_V967 */
+    +'<div class="rp-h"><b>'+esc(rpTitleIc(r))+'</b>'+lang
+    /* RPHEAD_V1181 標題和語言留在第一行，分類標籤整排排到第二行 */
+    +'<span class="rp-cs">'+rpModeHtml(r)+rpCurHtml(r)+rpAddrHtml(r)+'</span></div>'/* RPADDR_V932 ／ RPICON_V967 */
     +'<div class="rp-g">'+(tags.length?tags.map(t=>'<span class="tag">'+esc(t)+'</span>').join('')
         :'<span class="hint">沒有關鍵字</span>')+'</div>'
     +(pv?('<div class="rp-pl">'+(which==='VI'?'Tiếng Việt':'中文')+'</div>'):'')
@@ -4067,7 +4120,7 @@ function renderReply(){
   const body=$('#panel-reply');if(!body)return;
   const sub=(S.rpSub==='price')?'price':'tpl';
   const all=rpSorted();const q=String(S.rpQ||'').trim();
-  const list=all.filter(r=>rpMatch(r,q));
+  const list=all.filter(r=>rpPass(r)&&rpMatch(r,q));/* RPFILT_V1182 */
   const nEmpty=all.filter(r=>!rpPreview(r)).length;
   const head='<div class="section-head"><h2>📮 回覆客人</h2>'
     +'<span class="sub"></span>'
@@ -4096,11 +4149,12 @@ function renderReply(){
       +(q?'<button class="btn btn-sm" data-act="rpClearQ">✕ 清除</button>':'')
       /* RPTOOL_V939 本來這裡還寫了 margin-left:auto，跟共用樣式的 margin-right:auto
          左右夾在一起就變成置中（Quinn：「這個爲什麼會在中間」）。 */
-      +'<span class="hint">'+(q?('符合 '+list.length+' ／ 共 '+all.length+' 份'):('共 '+all.length+' 份'))
+      +'<span class="hint">'+((q||list.length!==all.length)?('符合 '+list.length+' ／ 共 '+all.length+' 份'):('共 '+all.length+' 份'))
       +(nEmpty?('　·　'+nEmpty+' 份還沒填內容'):'')+'</span>'
       /* RPPRINT_V912 價目表那一頁早就有列印，這一頁沒有。補上。 */
       +(all.length?'<button class="btn btn-sm" data-act="rpPrintOpen" title="把範本列印或存成 PDF，可以挑分類、語言和字體">🖨 列印 / PDF</button>':'')
       +'</div>';
+    const filt=rpFiltHtml(all);/* RPFILT_V1182 */
     let grid;
     if(!all.length){
       grid='<div class="card" style="text-align:center;padding:30px"><div style="font-size:36px">📮</div>'
@@ -4109,7 +4163,8 @@ function renderReply(){
         +'中文和越南文各存一份，之後客人一問就複製貼上。</div>'
         +'<button class="btn btn-primary" data-act="rpNew">＋ 新增一份</button></div>';
     }else if(!list.length){
-      grid='<div class="card" style="padding:26px;text-align:center"><div class="muted">找不到符合「'+esc(q)+'」的範本</div></div>';
+      grid='<div class="card" style="padding:26px;text-align:center"><div class="muted">'
+        +(q?('找不到符合「'+esc(q)+'」的範本'):'這幾個條件底下沒有範本')+'</div></div>';
     }else{
       /* RPGRP_V715 照分類分段落畫；只有一個分類的時候不畫標題，免得多一層沒必要的框 */
       const used=RP_GRP.filter(g=>list.some(r=>rpGrpOf(r)===g[0]));
@@ -4119,7 +4174,7 @@ function renderReply(){
         return h+'<div class="cards cols-2 rp-grid">'+rows.map(rpCardHtml).join('')+'</div>';
       }).join('');
     }
-    inner=tools+grid;
+    inner=filt+tools+grid;/* RPFILT_V1182 */
   }
   body.innerHTML=head+bar+inner;
   try{const el=$('#rp-q');if(el){el.oninput=()=>{S.rpQ=el.value;const p=el.selectionStart;renderReply();
@@ -14162,7 +14217,9 @@ H.rpPrintGo=()=>{
       +'<div class="kv">份數 <b>'+list.length+'</b></div>')
    +body
    +'<div class="foot"><span class="ty">'+L2('這是內部參考用的說法，傳給客人前請再看一次 ♡',
-       'Đây là cách nói để tham khảo nội bộ, xem lại một lần trước khi gửi cho khách nhé ♡')+'</span></div></div>';
+       'Đây là cách nói để tham khảo nội bộ, xem lại một lần trước khi gửi cho khách nhé ♡',
+       1)/* RPFOOT_V1182 越南文那一句換下一行，不要跟中文擠在同一行 */
+   +'</span></div></div>';
   closeModal();
   fbWin('<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -14516,6 +14573,10 @@ H.rpDel=(id)=>{const r=(S.replies||[]).find(x=>x.id===id);if(!r)return;
     await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}})();
 };
 H.rpClearQ=()=>{S.rpQ='';render();};
+/* RPFILT_V1182 */
+H.rpFilt=(k)=>{const a=String(k).split('::');
+  S.rpF=S.rpF||{};S.rpF[a[0]]=(S.rpF[a[0]]===a[1])?'':a[1];render();};
+H.rpFiltClr=()=>{S.rpF={};render();};
 H.rpCopy=(key)=>{
   const id=String(key).split('::').pop();
   const r=(S.replies||[]).find(x=>x.id===id);if(!r)return;
