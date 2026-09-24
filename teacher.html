@@ -6213,7 +6213,16 @@ function weekActualCard(back){
     let _st=e.start||'',_en=e.end||'',_gs=false;
     if(!_st&&!_en){const _sl=(grp?wkSlotOf(_clsSch(grp),e.date):null)||wkSlotOf(s.schedule,e.date);
       if(_sl&&(_sl.s||_sl.e)){_st=_sl.s;_en=_sl.e;_gs=true;}}
-    if(grp){const key='G|'+grp+'|'+e.date+'|'+_st+'|'+_en;if(!grpMap[key]){grpMap[key]={type:'glog',date:e.date,start:_st,end:_en,guess:_gs,grp,free:!!e.free,leave:e.status==='leave',members:[]};items.push(grpMap[key]);}grpMap[key].members.push(s.name);recordedGrp.add(grp+'|'+e.date);}
+    /* GLEAVE_V1223 本來整班的「請假」是看第一個被掃到的學生：四個人裡有一個請假，
+       整列就寫請假，看起來像全班都沒上。改成把四個人的狀態都算過：
+       全部請假才寫「全班請假」，只有幾個人請假就照常寫「已點名」，旁邊註明幾個人。 */
+    if(grp){const key='G|'+grp+'|'+e.date+'|'+_st+'|'+_en;
+      if(!grpMap[key]){grpMap[key]={type:'glog',date:e.date,start:_st,end:_en,guess:_gs,grp,free:false,leave:false,lv:0,ab:0,at:0,members:[]};items.push(grpMap[key]);}
+      const G=grpMap[key];G.members.push(s.name);
+      if(e.free)G.free=true;
+      if(e.status==='leave')G.lv++;else if(e.status==='absent')G.ab++;else G.at++;
+      G.leave=(G.at===0&&G.ab===0);
+      recordedGrp.add(grp+'|'+e.date);}
     else{items.push({type:'log',date:e.date,start:_st,end:_en,guess:_gs,s,e});}
   });});
   // 預排課程：若該團班該天已經點名記錄過，就不重複顯示
@@ -6273,13 +6282,15 @@ function weekActualCard(back){
          去點名是最常按的，放最左邊（Quinn：「去點名移到這三個按鈕的最左邊」）。
          傳進來的順序不動，只有排出去的時候把前兩格對調。 */
       +`<span class="wr-op">${cell(o[1])}${cell(o[0])}${cell(o[2])}${cell(o[3])}</span></div>`;};
-    if(it.type==='glog'){const badge=it.free?'<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':(it.leave?'<span class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#fca5a5">🏖 請假</span>':'<span class="badge badge-ok">✅ 已點名</span>');
+    if(it.type==='glog'){const badge=it.free?'<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':(it.leave?'<span class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#fca5a5">🏖 全班請假</span>':'<span class="badge badge-ok">✅ 已點名</span>');
+      /* GLEAVE_V1223 沒有全班請假、但有人請假的時候，在名字後面註明幾個人 */
+      const _lv=(!it.leave&&it.lv)?`<span class="muted">・${it.lv} 人請假</span>`:'';
       return wrow('',dchip('badge badge-ok','white-space:nowrap'),badge,
-        `<b>👥 ${esc(it.grp)} 團班</b><span class="muted">（${it.members.length}人）</span>`,
+        `<b>👥 ${esc(it.grp)} 團班</b><span class="muted">（${it.members.length}人）</span>${_lv}`,
         /* WKOP_V999 四個位子的意思是固定的：[進教室, 點名, 修改, 刪除]。
            團班這一列把「上課點名」放在第三格（修改的位子），所以它跟其他列的
            點名鈕不在同一欄——中文按鈕短看不太出來，越南文一眼就歪。 */
-        [meetBtn(meetOfGroup(it.grp),true),`<button class="btn btn-sm" data-act="classRoll" data-id="${esc(it.grp)}">🗓 上課點名</button>`,'','']);}
+        [meetBtn(meetOfGroup(it.grp),true),`<button class="btn btn-sm" data-act="classRoll" data-id="${esc(it.grp)}">✏️ 改點名</button>`,'','']);}
     if(it.type==='log'){const e=it.e;const badge=e.status==='leave'?'<span class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#fca5a5">🏖 請假</span>':(e.free?'<span class="badge" style="background:#f3e8ff;color:#7c3aed;border-color:#7c3aed66">🎁 免費</span>':'<span class="badge badge-ok">✅ 已點名</span>');
       return wrow('',dchip('badge badge-ok','white-space:nowrap'),badge,
         `<b>👤 ${esc(it.s.name)}</b>`,
@@ -11975,7 +11986,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1221';
+const APP_BUILD='V1223';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -21644,7 +21655,11 @@ document.addEventListener('input',(e)=>{const m=((e.target&&e.target.id)||'').ma
 document.addEventListener('change',(e)=>{const t=e.target;if(t&&t.classList&&t.classList.contains('mist-tag')){const p=String(t.dataset.mk||'').split('::');if(p.length>=2){mistSetTag(p[0],p.slice(1).join('::'),t.value);}return;}});
 document.addEventListener('change',(e)=>{const t=e.target;if(!t)return;if((t.classList&&(t.classList.contains('sched-d')||t.classList.contains('sched-s')||t.classList.contains('sched-e')))||t.id==='f-first-date')refreshFirstSlot();if(t.id==='cl-date')clFillSlot();if(t.id==='f-groups')fillGroupSched();if(t.id==='f-status'){const ls=document.getElementById('f-login-sec');if(ls)ls.style.display=(t.value==='reserved')?'none':'';}if(t.id==='pl-cls'&&H.planCls)H.planCls();});
 /* 時段輸入：24 小時制、自動補冒號（1600→16:00），失焦補零（9:30→09:30） */
-function hhmmFmt(v){let d=String(v||'').replace(/\D/g,'');if(!d)return '';if(d.length>4)d=d.slice(0,4);if(d.length<=2)return d;return d.slice(0,d.length-2)+':'+d.slice(-2);}
+/* HHMMTYPE_V1222 本來打到第三個數字就先插冒號：打「2200」的過程中會變成「2:20」，
+   而且每次改寫 value，游標都被丟到最後面，打出來就不是妳要的時間。
+   改成四個數字到齊才插冒號，中間只讓妳看到純數字；不滿四位的（例如 930）
+   離開欄位時還是會自動補成 09:30。 */
+function hhmmFmt(v){let d=String(v||'').replace(/\D/g,'');if(!d)return '';if(d.length>4)d=d.slice(0,4);if(d.length<4)return d;return d.slice(0,2)+':'+d.slice(2);}
 function hhmmNorm(v){let s=String(v||'').trim();if(!s)return '';let h,m;if(s.indexOf(':')>=0){const p=s.split(':');h=parseInt(p[0]||'0',10)||0;m=parseInt(p[1]||'0',10)||0;}else{const d=s.replace(/\D/g,'');if(!d)return '';if(d.length<=2){h=parseInt(d,10)||0;m=0;}else{h=parseInt(d.slice(0,d.length-2),10)||0;m=parseInt(d.slice(-2),10)||0;}}h=Math.min(23,Math.max(0,h));m=Math.min(59,Math.max(0,m));return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
 /* HHMMBAD_V823 時間欄位的把關。回傳 '' 代表沒問題，否則回傳看得懂的錯誤說明。 */
 function hhmmBad(v){
@@ -21661,8 +21676,21 @@ function hhmmMark(t){
   const msg=hhmmBad(t.value);
   t.classList.toggle('bad',!!msg);
   try{t.title=msg||'';}catch(_){}}
+/* HHMMTYPE_V1222 改寫 value 之前先記住游標前面有幾個數字，改完放回同一個位子，
+   這樣在中間插字、改字才不會每打一個字就跳到最後面。 */
 document.addEventListener('input',(e)=>{const t=e.target;
-  if(t&&t.classList&&t.classList.contains('hhmm')){t.value=hhmmFmt(t.value);hhmmMark(t);}});
+  if(!(t&&t.classList&&t.classList.contains('hhmm')))return;
+  const old=String(t.value||'');
+  let pos=old.length;try{if(t.selectionStart!=null)pos=t.selectionStart;}catch(_){}
+  const before=(old.slice(0,pos).match(/\d/g)||[]).length;
+  const nv=hhmmFmt(old);
+  if(nv!==old){
+    t.value=nv;
+    let i=0,c=0;
+    while(i<nv.length&&c<before){if(/\d/.test(nv[i]))c++;i++;}
+    try{t.setSelectionRange(i,i);}catch(_){}
+  }
+  hhmmMark(t);});
 /* HHMMBAD_V823 本來離開欄位就把 11:90 偷偷夾成 11:59，數字合法但不是老師填的。
    現在不夾了，維持原樣並標紅，讓她自己看到、自己改。 */
 document.addEventListener('blur',(e)=>{const t=e.target;

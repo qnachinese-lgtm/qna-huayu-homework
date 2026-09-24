@@ -1,5 +1,5 @@
 /* 簡單的 service worker：可安裝 (PWA) + 離線顯示應用外殼 */
-const CACHE = 'hyc-v1221';
+const CACHE = 'hyc-v1223';
 /* SWFRESH_V1102 三個 .html 從這份清單拿掉了。
    本來 install 的時候會先把 teacher.html／student.html／index.html 抓一份存進快取，
    可是這個快取的名字是固定的，sw.js 不改就不會重裝——等於那一份可能放很久。
