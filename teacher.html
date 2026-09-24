@@ -3112,7 +3112,7 @@ async function loadAll(){
     const _cs=document.querySelector('#panel-calendar .section-head .sub');if(_cs&&!owner)_cs.textContent='每位學生的上課時段與 Meet 教室';}catch(e){}
   const bs=document.querySelector('.brand-sub');if(bs)bs.textContent=owner?'主管理員後台':('管理員 · '+(MY_EMAIL||''));
 }
-function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.acts=d.filter(x=>x.kind==='act');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act');S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');S.lqps=d.filter(x=>x.kind==='lqp');}
+function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.acts=d.filter(x=>x.kind==='act');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq');S.leavereqs=d.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');S.lqps=d.filter(x=>x.kind==='lqp');}
 /* MENU_MODAL_V12 一開視窗就把還開著的「⋯」收起來，不然會浮在視窗旁邊 */
 document.addEventListener('toggle',(e)=>{const d=e.target;
   if(d&&d.classList&&d.classList.contains('crm-card')){const id=d.getAttribute('data-cid');
@@ -3692,6 +3692,13 @@ function renderDashboard(){
   /* REMSORT_V1076 有日期的照剩幾天排，過期的（負數）排最前面；一樣天數的維持原本順序 */
   remDate.sort((a,b)=>a.d-b.d);
   remDate.forEach(x=>remRows.push(x.html));
+  /* LEAVEREQ_V1204 學生送過來的請假／改時間，排在待辦最前面——他在等回覆 */
+  try{const _lvn=lvNew().length;
+    if(_lvn)remRows.unshift('<div class="dash-row" style="background:#EFF6FF;border:1.5px solid #93C5FD;border-radius:10px;padding:8px 10px">'
+      +'<span class="badge" style="background:#DBEAFE;color:#1D4ED8;border-color:#93C5FD">\u{1F64B} 請假／改時間</span>'
+      +'<b>'+_lvn+' 位學生在等你回覆</b><span class="grow"></span>'
+      +'<button class="btn btn-sm btn-primary" data-act="lvList">去看</button></div>');
+  }catch(e){}
   try{const bwk=localStorage.getItem('hyc_backup_wk')||'';const nowWk=weekStart(localToday());
     /* BKLATE_V910 本來不管幾週沒備份都只寫「這週還沒備份」，看起來像每週的例行話，
        結果一拖就是六週。改成把拖了幾週寫出來，兩週以上轉紅色。 */
@@ -18947,6 +18954,66 @@ H.lkPop=()=>{
    +'</div></div>');};
 H.lkPopMng=()=>{closeModal();S.tab='school';render();
   setTimeout(()=>{const e=document.querySelector('#panel-school .card');if(e)e.scrollIntoView({block:'start',behavior:'smooth'});},120);};
+/* LEAVEREQ_V1204 學生從學生端送過來的「請假／改時間」。
+   這裡只記下你的答覆，不會自動改課表、也不會自動算請假——
+   答應之後還是要自己去課表改，這樣才不會有你沒看到就變動的事。 */
+function lvAll(){return (S.leavereqs||[]).filter(x=>x&&!x.deleted_at)
+  .slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));}
+function lvNew(){return lvAll().filter(x=>(x.status||'new')==='new');}
+function lvWhat(r){
+  const md=(d)=>esc(String(d||'').slice(5).replace('-','/'));
+  if(r.want==='move')return '想改到 <b>'+md(r.want_date)+(r.want_time?('　'+esc(r.want_time)):'')+'</b>';
+  return '<b>要請假</b>';}
+function lvRowHtml(r){
+  const st=String(r.status||'new');
+  const pill=st==='ok'?'<span class="badge badge-ok">✅ 答應了</span>'
+    :(st==='no'?'<span class="badge" style="background:#fee2e2;color:#b91c1c;border-color:#fca5a5">✖ 說不行</span>'
+    :'<span class="badge badge-soon">還沒回</span>');
+  return '<div class="lvr">'
+    +'<div class="lvr-h">'+pill
+      +'<b>'+esc(r.student_name||'（沒有名字）')+'</b>'
+      +'<span class="muted">'+esc(r.date||'')+(r.start?('　'+esc(r.start)+(r.end?('–'+esc(r.end)):'')):'')+'</span>'
+      +'<span class="grow"></span>'+lvWhat(r)+'</div>'
+    +(r.reason?('<div class="lvr-w">'+esc(r.reason)+'</div>'):'')
+    +(r.reply?('<div class="lvr-w" style="color:#166534">你的回覆：'+esc(r.reply)+'</div>'):'')
+    +'<div class="lvr-b">'
+      +'<input class="lv-rin" id="lv-rin-'+esc(r.id)+'" type="text" placeholder="回一句話（選填）">'
+      +'<button class="btn btn-sm btn-primary" data-act="lvOk" data-id="'+esc(r.id)+'">✅ 答應</button>'
+      +'<button class="btn btn-sm" data-act="lvNo" data-id="'+esc(r.id)+'">✖ 不行</button>'
+      +'<button class="btn btn-sm btn-accent" data-act="lvGo" data-id="'+esc(r.id)+'" title="去那位學生的上課記錄改">📌 去改課表</button>'
+    +'</div></div>';}
+H.lvList=()=>{
+  const rows=lvAll();
+  openModal('<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🙋 學生要請假／改時間</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:10px">學生自己送過來的。按「答應」或「不行」只是回覆他，'
+   +'課表不會自己動——真的要改，按「📌 去改課表」。</div>'
+   +(rows.length?rows.map(lvRowHtml).join('')
+     :'<div class="muted" style="padding:14px 2px">目前沒有任何請求。</div>')
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');
+  if(!document.getElementById('lv-css')){const st=document.createElement('style');st.id='lv-css';
+    st.textContent='.lvr{border:1px solid var(--line,#E4E7EB);border-radius:11px;padding:10px 12px;margin-bottom:9px;background:#fff}'
+     +'.lvr-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}'
+     +'.lvr-h .grow{flex:1}'
+     +'.lvr-w{margin-top:6px;font-size:13px;color:#5b6b6c;white-space:pre-wrap}'
+     +'.lvr-b{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}'
+     +'.lvr-b .lv-rin{flex:1 1 180px;min-width:0;padding:6px 10px;border:1px solid var(--line,#E4E7EB);border-radius:8px;font-family:inherit;font-size:13.5px}'
+     +'@media(max-width:560px){.lvr-b .btn{flex:1 1 auto;justify-content:center}}';
+    document.head.appendChild(st);}};
+async function lvAnswer(id,st){
+  const r=lvAll().find(x=>x.id===id);if(!r)return;
+  const e=document.getElementById('lv-rin-'+id);
+  const reply=e?String(e.value||'').trim():'';
+  try{await DB.update('results',id,{status:st,reply:reply,answered_at:new Date().toISOString()});
+    r.status=st;r.reply=reply;
+    H.lvList();render();toast(st==='ok'?'已回覆：答應':'已回覆：不行');
+  }catch(err){toast(writeErr('回覆失敗',err));}}
+H.lvOk=(id)=>lvAnswer(id,'ok');
+H.lvNo=(id)=>lvAnswer(id,'no');
+H.lvGo=(id)=>{const r=lvAll().find(x=>x.id===id);if(!r)return;
+  try{closeModal();}catch(e){}
+  if(r.student_id){try{H.classLog(r.student_id,{date:r.date});return;}catch(e){}}
+  S.tab='calendar';render();};
 H.schNew=()=>schForm(null);
 H.schEdit=(id)=>schForm(schById(id));
 H.schSave=async(id)=>{const name=($('#sch-name').value||'').trim();if(!name)return toast('請填學校名稱');
