@@ -8743,10 +8743,15 @@ function ghTextVocHtml(l,withAns){
     return s;}).join('');
   return h?('<div class="gh-gp">'+h+'</div>'):'';}
 function ghLessonHtml(l,withAns){
-  /* GHEX_V1186 這一課有挑例句，就只出那幾句 */
+  /* GHEX_V1186 這一課有挑例句，就只出那幾句。
+     GHEXMIX_V1208 但是「課本」和「生詞」是另外兩個選項，她勾了就該印——
+     本來連那兩個也一起被吃掉，勾了課本印出來還是只有例句。
+     改成：課本／生詞有勾就照印，後面才接挑出來的句子。 */
   {const _ex=ghExPicked(l);
-   if(_ex.length)return '<div class="gh-les"><h2 class="gh-lt">'+esc(l.title||'（未命名）')+'</h2>'
-     +'<div class="gh-gp">'+ghExHtml(l,_ex)+'</div></div>';}
+   if(_ex.length){
+     const _cl=ghTextVocHtml(l,withAns)+ghClHtml(l,withAns);
+     return '<div class="gh-les"><h2 class="gh-lt">'+esc(l.title||'（未命名）')+'</h2>'
+       +_cl+'<div class="gh-gp">'+ghExPickHtml(l,_ex)+'</div></div>';}}
   const gps=l.grammar_points||[];const all=ghQsOf(l.id);
   const cl=ghTextVocHtml(l,withAns)/* GHVOC_V1067 */+ghClHtml(l,withAns);
   let rest=ghVocHtml(l,withAns);
@@ -9117,8 +9122,10 @@ function ghExPicked(l){
   const m=ghExMap()[l&&l.id];
   if(!m)return [];
   return ghExList(l).filter(x=>m[x.k]);}
-/* 只印挑起來的例句那一份 */
-function ghExHtml(l,rows){
+/* 只印挑起來的例句那一份。
+   GHEXNAME_V1209 本來這個函式也叫 ghExHtml，跟上面「印語法例句」那個同名，
+   後面定義的會把前面的蓋掉，所以整份印的時候一叫到就當掉。改名字。 */
+function ghExPickHtml(l,rows){
   const gs=[];const by={};
   rows.forEach(r=>{if(!by[r.from]){by[r.from]=[];gs.push(r.from);}by[r.from].push(r);});
   let h='<div class="gh-gt"><span class="gh-tag">例句</span>挑出來的句子</div>';
@@ -9340,7 +9347,7 @@ function ghModal(){
    +'</div>'
    /* GHEX_V1186 挑例句印：勾了就只印那幾句 */
    +'<div class="field" id="gh-exbox" style="display:none">'
-   +'<label class="gh-lbl">例句：要出哪幾句 <span class="hint">不勾＝照原本整份印</span>'
+   +'<label class="gh-lbl">例句：要出哪幾句 <span class="hint">不勾＝照原本整份印；勾了就只印這幾句（上面勾的課本、生詞還是會印）</span>'
    +'<span style="flex:1"></span>'
    +'<button class="btn btn-sm btn-ghost" type="button" onclick="GHEXALL()">全選 / 取消</button></label>'
    +'<div class="check-list gh-list gh-seglist" id="gh-exlist" onchange="GHEXCNT()"></div>'
@@ -15181,11 +15188,28 @@ H.mbYmChg=()=>{const ym=(document.getElementById('mb-ym')||{}).value||'';
   const box=document.getElementById('mb-picklist');if(!box)return;
   const on={};box.querySelectorAll('.mb-ck').forEach(c=>{if(c.checked)on[c.value]=1;});
   box.innerHTML=mbPickHtml(ym);
-  box.querySelectorAll('.mb-ck').forEach(c=>{if(on[c.value])c.checked=true;});};
+  box.querySelectorAll('.mb-ck').forEach(c=>{if(on[c.value])c.checked=true;});
+  mbCnt();/* MBCNT_V1210 */};
 H.mbScopeChg=()=>{const v=(document.getElementById('mb-scope')||{}).value||'';
-  const box=document.getElementById('mb-pickbox');if(box)box.style.display=(v==='pick')?'':'none';};
+  const box=document.getElementById('mb-pickbox');if(box)box.style.display=(v==='pick')?'':'none';
+  mbCnt();};
+/* MBCNT_V1210 這個月照現在的設定會印幾位。算法跟真的印出來那一支完全一樣。 */
+function mbCnt(){
+  const el=document.getElementById('mb-cnt');if(!el)return;
+  const ym=(document.getElementById('mb-ym')||{}).value||'';
+  const sc=(document.getElementById('mb-scope')||{}).value||'live';
+  if(!/^\d{4}-\d{2}$/.test(ym)){el.textContent='';return;}
+  let pick=null;
+  if(sc==='pick'){pick={};
+    document.querySelectorAll('#mb-picklist .mb-ck').forEach(c=>{if(c.checked)pick[c.value]=1;});}
+  const pool=mbPool().filter(s=>pick?pick[s.id]:(sc==='all'||enrollOf(s)!=='paused'));
+  const n=pick?pool.length:pool.filter(s=>mbHas(s,ym)).length;
+  const skip=pick?0:(pool.length-n);
+  el.innerHTML=n?('這個月會印 <b>'+n+'</b> 位，一位一頁'
+      +(skip?('　<span class="muted">（另外 '+skip+' 位這個月沒有上課也沒有繳費，不印）</span>'):''))
+    :'<span style="color:#b91c1c">這個月沒有人有記錄，印不出東西</span>';}
 H.mbPickAll=(on)=>{const box=document.getElementById('mb-picklist');if(!box)return;
-  box.querySelectorAll('.mb-ck').forEach(c=>{c.checked=(String(on)==='1');});};
+  box.querySelectorAll('.mb-ck').forEach(c=>{c.checked=(String(on)==='1');});mbCnt();/* MBCNT_V1210 */};
 H.monthBills=()=>{
   if(!IS_OWNER)return toast('這個功能只有主管理員可以用');
   const ms=mbMonthsAvail();
@@ -15199,17 +15223,21 @@ H.monthBills=()=>{
               :('<option value="'+def+'">'+def+'</option>'))+'</select></div>'
    +'<div class="field"><label>要算誰</label><select id="mb-scope" onchange="H.mbScopeChg()">'
    +'<option value="live">在學中的學生</option><option value="all">全部（含休學）</option>'
-   +'<option value="pick">自己挑（下面勾）</option></select></div>'
+   +'<option value="pick">自己挑（下面勾）</option></select>'
+   /* MBCNT_V1210 本來換了「要算誰」畫面上完全沒有反應，看不出來差在哪，
+      只有印出來翻到最後才知道幾頁。改成當場寫出這個月會印幾位。 */
+   +'<div class="hint" id="mb-cnt" style="margin-top:6px"></div></div>'
    /* MBPICK_V1086 挑人 */
    +'<div class="field full" id="mb-pickbox" style="display:none"><label>要印哪幾位 '
    +'<button type="button" class="btn btn-sm btn-ghost" onclick="H.mbPickAll(1)">全選</button> '
    +'<button type="button" class="btn btn-sm btn-ghost" onclick="H.mbPickAll(0)">全部取消</button></label>'
-   +'<div id="mb-picklist" class="mb-list">'+mbPickHtml(def)+'</div>'
+   +'<div id="mb-picklist" class="mb-list" onchange="mbCnt()">'+mbPickHtml(def)+'</div>'
    +'<span class="hint">勾起來的人，就算那個月沒有上課也會印一頁。</span></div>'
    +'<div class="field full"><label>每一頁最下面要寫的付款方式／叮嚀 <span class="hint">選填，會記住下次不用再打</span></label>'
    +'<textarea id="mb-note" rows="3" placeholder="付款方式和叮嚀，自己打">'+esc(note)+'</textarea></div></div></div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
    +'<button class="btn btn-primary" data-act="monthBillsGo">🖨 列印 / PDF</button></div></div>');
+  setTimeout(mbCnt,0);/* MBCNT_V1210 */
   /* MBPICK_V1086 */
   if(!document.getElementById('mb-css')){const st=document.createElement('style');st.id='mb-css';
     st.textContent='.mb-list{max-height:230px;overflow:auto;border:1px solid var(--line,#E4E7EB);'
