@@ -12410,7 +12410,9 @@ function spLogTab(s,logs,fbs){
       +'<td class="c"><button class="btn btn-sm" type="button" data-act="fbRow" data-id="'+s.id+'::'+i+'" title="寫這一堂的回饋單">'+(has?'💬 ✓':'💬')+'</button> '
       +'<button class="btn btn-sm" type="button" data-act="editLogRow" data-id="'+s.id+'::'+i+'">✏️</button></td></tr>';}).join('');
   return '<div class="sp-bar"><button class="btn btn-sm btn-primary" data-act="classLog" data-id="'+s.id+'">📝 記一堂課</button>'
-    +'</div>'/* HINTOFF_V1201 「有打勾表示…」這一行拿掉，按鈕上滑過去就有說明 */
+    +'<span class="grow"></span>'
+    +'<button class="btn btn-sm" data-act="stuMonthMsg" data-id="'+s.id+'" title="把這個月上了幾堂、還剩幾堂做成一段話，複製去貼給學生">\u{1F4CB} 這個月的訊息</button>'
+    +'</div>'/* MONTHMSG_V1205 */
     +(logs.length?('<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>日期</th><th>時段</th><th class="c">'+(hourly?'時數':'堂')+'</th><th>狀態</th>'
       +(IS_OWNER?'<th class="r">這堂費用</th>':'')+'<th>課後小結</th><th class="c">操作</th></tr></thead><tbody>'+rows+'</tbody></table></div>')
       :'<div class="sp-empty">還沒有上課記錄，按上面「＋ 記一堂課」開始。</div>');}
@@ -19014,6 +19016,93 @@ H.lvGo=(id)=>{const r=lvAll().find(x=>x.id===id);if(!r)return;
   try{closeModal();}catch(e){}
   if(r.student_id){try{H.classLog(r.student_id,{date:r.date});return;}catch(e){}}
   S.tab='calendar';render();};
+/* MONTHMSG_V1205 「這個月上了幾堂」一鍵做成一段可以直接貼到 Zalo 的話。
+   數字全部來自上課記錄和繳費記錄，跟繳費頁看到的是同一套算法，不會另外編。
+   做好只是放在框子裡讓妳複製，不會自己送出去給任何人。 */
+function mmMonths(s){
+  const set={};(Array.isArray(s&&s.class_log)?s.class_log:[]).forEach(e=>{
+    if(e&&e.date)set[String(e.date).slice(0,7)]=1;});
+  (Array.isArray(s&&s.payments)?s.payments:[]).forEach(p=>{
+    if(p&&p.date)set[String(p.date).slice(0,7)]=1;});
+  const now=localToday().slice(0,7);set[now]=1;
+  return Object.keys(set).sort().reverse();}
+function mmBuild(s,ym,lang){
+  const vi=(lang==='vi');
+  const hourly=isHourly(s);
+  const logs=(Array.isArray(s.class_log)?s.class_log:[])
+    .filter(e=>e&&e.date&&String(e.date).slice(0,7)===ym)
+    .slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const wd=(d)=>{try{return DAYS[(new Date(d+'T00:00:00').getDay()+6)%7];}catch(e){return '';}};
+  const L=[];
+  const mLab=vi?('Tháng '+String(Number(ym.slice(5,7)))):(String(Number(ym.slice(5,7)))+' 月');
+  L.push((s.name||'')+(vi?'':' 同學'));
+  L.push(vi?('Ghi chép buổi học '+mLab):(mLab+'上課記錄'));
+  L.push('');
+  if(!logs.length){L.push(vi?'Tháng này chưa có buổi học nào.':'這個月還沒有上課記錄。');}
+  else logs.forEach(e=>{
+    const tm=(e.start||e.end)?((e.start||'')+(e.end?('–'+e.end):'')):'';
+    const st=e.status==='leave'?(vi?'nghỉ':'請假'):(e.status==='absent'?(vi?'vắng':'缺席'):'');
+    L.push('・'+String(e.date).slice(5).replace('-','/')+(vi?'':('（'+wd(e.date)+'）'))
+      +(tm?('　'+tm):'')+(st?('　'+st):'')
+      +(e.free?(vi?'　miễn phí':'　免費'):'')
+      +(e.note?('　'+e.note):''));});
+  /* 這個月算幾堂／幾小時：跟繳費頁同一個條件（免費不算；一對一請假不算，團班照算） */
+  const grp=(s.class_type==='團班');
+  const bill=logs.filter(e=>!e.free&&(grp||e.status!=='leave'));
+  let qty;if(hourly){qty=0;bill.forEach(e=>{const h=logHours(e);qty+=(h!=null?h:1);});qty=Math.round(qty*100)/100;}
+  else qty=bill.length;
+  const unit=hourly?(vi?' giờ':' 小時'):(vi?' buổi':' 堂');
+  L.push('');
+  L.push((vi?'Tổng: ':'共 ')+fmtQty(qty)+unit);
+  const lv=logs.filter(e=>e.status==='leave').length;
+  if(lv)L.push(vi?('Nghỉ '+lv+' buổi'):('請假 '+lv+' 堂'));
+  /* 本期剩幾堂 */
+  const tot=(s.sessions_total==null||s.sessions_total==='')?null:Number(s.sessions_total);
+  if(tot!=null&&!isNaN(tot)){
+    const used=usedUnits(s),left=Math.round((tot-used)*100)/100;
+    L.push('');
+    L.push(vi?('Khoá này: '+fmtQty(tot)+unit+' · đã học '+fmtQty(used)+unit+' · còn '+fmtQty(left)+unit)
+             :('本期 '+fmtQty(tot)+unit+'，已上 '+fmtQty(used)+unit+'，還剩 '+fmtQty(left)+unit));
+    if(left<=2)L.push(vi?'Sắp hết buổi rồi, cô nhắc em chuẩn bị đăng ký tiếp nhé.'
+                        :'堂數快用完了，要繼續的話跟老師說一聲。');}
+  return L.join('\n');}
+function mmFill(){
+  const s=MM_STU;if(!s)return;
+  const ym=(document.getElementById('mm-ym')||{}).value||localToday().slice(0,7);
+  const lang=(document.getElementById('mm-lang')||{}).value||'zh';
+  const ta=document.getElementById('mm-ta');
+  if(ta)ta.value=mmBuild(s,ym,lang);}
+let MM_STU=null;
+H.stuMonthMsg=(id)=>{
+  const s=(S.students||[]).find(x=>x.id===id);if(!s)return;
+  MM_STU=s;
+  const ms=mmMonths(s),now=localToday().slice(0,7);
+  openModal('<div class="modal"><div class="modal-head"><h3>\u{1F4CB} 這個月的上課訊息</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="form-grid">'
+   +'<div class="field"><label>哪一個月</label><select id="mm-ym" onchange="MMFILL()">'
+   +ms.map(m=>'<option value="'+esc(m)+'"'+(m===now?' selected':'')+'>'
+      +esc(m.slice(0,4)+' 年 '+String(Number(m.slice(5,7)))+' 月')+'</option>').join('')
+   +'</select></div>'
+   +'<div class="field"><label>語言</label><select id="mm-lang" onchange="MMFILL()">'
+   +'<option value="zh">中文</option><option value="vi">Tiếng Việt</option></select></div>'
+   +'</div>'
+   +'<div class="field"><label>內容 <span class="hint">可以直接改，改完再複製</span></label>'
+   +'<textarea id="mm-ta" rows="14" style="font-family:inherit;line-height:1.7"></textarea></div>'
+   +'<div class="hint">數字是從上課記錄和繳費記錄算出來的，跟「收費・財務」那一頁一樣。'
+   +'這裡只是做好讓妳複製，不會自己送給學生。</div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button>'
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="mmCopy">\u{1F4CB} 複製</button>'
+   +'</div></div>');
+  setTimeout(mmFill,0);};
+window.MMFILL=function(){try{mmFill();}catch(e){}};
+H.mmCopy=async()=>{
+  const ta=document.getElementById('mm-ta');if(!ta)return;
+  const v=ta.value||'';
+  try{await navigator.clipboard.writeText(v);toast('已複製，可以直接貼到 Zalo');}
+  catch(e){try{ta.select();document.execCommand('copy');toast('已複製');}
+    catch(e2){toast('複製失敗，請自己選取複製');}}};
 H.schNew=()=>schForm(null);
 H.schEdit=(id)=>schForm(schById(id));
 H.schSave=async(id)=>{const name=($('#sch-name').value||'').trim();if(!name)return toast('請填學校名稱');
