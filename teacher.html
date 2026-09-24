@@ -945,6 +945,11 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .cm-detail{border:1px solid var(--line);border-radius:12px;background:#fff;padding:13px 15px}
         .cm-dt{font-weight:800;color:var(--primary);font-size:15px;margin-bottom:8px}
         .cm-note{display:none}
+        .cm-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+        #app .cm-chips .cm-cb{font-weight:400;font-size:13px;padding:4px 10px;background:#fff;border-style:dashed}
+        #app .cm-chips .cm-cb:hover{border-style:solid;background:#f6f8fb}
+        .cm-chips .cm-sub{font-size:12px;opacity:.7}
+        @media(max-width:700px){.cm-chips{justify-content:flex-start;width:100%}}
         .cm-sum{margin-bottom:12px}
         .cm-sum>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--primary);padding:9px 13px;border:1px solid var(--line);border-radius:10px;background:#fff;list-style:none}
         .cm-sum>summary::-webkit-details-marker{display:none}
@@ -4637,9 +4642,10 @@ function renderCalMonth(body,toggle){
   itvAll().forEach(c=>itvSessions(c).forEach(e=>{if(String(e.date).slice(0,7)!==ym)return;(itvByDate[e.date]=itvByDate[e.date]||[]).push({c,e});itvCount++;if(e.paid){const cu=e.currency||'VND';itvPaidM[cu]=(itvPaidM[cu]||0)+(Number(e.fee)||0);}}));
   const examByDate={};let examCount=0;
   itvAll().forEach(c=>{if(!c.exam_date||String(c.exam_date).slice(0,7)!==ym)return;(examByDate[c.exam_date]=examByDate[c.exam_date]||[]).push(c);examCount++;});
+  CM_D={ym,label,days,planByDate,fixByDate,itvByDate,examByDate,perStu};/* CALPOP_V1219 */
   const today=localToday();
   const allDates=[...new Set([...Object.keys(days),...Object.keys(planByDate),...Object.keys(fixByDate),...Object.keys(itvByDate),...Object.keys(examByDate)])].sort();
-  const nav=`<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="calMonth" data-id="-1">‹ 上個月</button><b style="font-size:16px;color:var(--primary)">${label}</b><button class="btn btn-sm" data-act="calMonth" data-id="1">下個月 ›</button><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:400"><input type="checkbox" data-act="calIncPaused" style="width:auto;margin:0"${incPaused?' checked':''}> 含已休學</label><span class="grow"></span><span class="muted">計費 <b>${cntCharged}</b> 堂${totalCharged!==cntCharged?`<span style="font-size:12px">（扣 ${totalCharged} 人次堂數）</span>`:''}${cntFree?('　🎁 免費 '+cntFree+' 堂'):''}${cntLeave?('　請假 '+cntLeave+' 堂'):''}${planCount?('　📌 預排 '+planCount+' 堂'):''}${fixCount?('　🔁 固定 '+fixCount+' 堂'):''}${itvCount?('　🎤 面試 '+itvCount+' 次'):''}${examCount?('　🎯 正式面試 '+examCount):''}</span></div>`;
+  const nav=`<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-sm" data-act="calMonth" data-id="-1">‹ 上個月</button><b style="font-size:16px;color:var(--primary)">${label}</b><button class="btn btn-sm" data-act="calMonth" data-id="1">下個月 ›</button><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:400"><input type="checkbox" data-act="calIncPaused" style="width:auto;margin:0"${incPaused?' checked':''}> 含已休學</label><span class="grow"></span><span class="cm-chips">${cmChip('charged','計費 <b>'+cntCharged+'</b> 堂'+(totalCharged!==cntCharged?'<span class=\'cm-sub\'>（'+totalCharged+' 人次）</span>':''))}${cntFree?cmChip('free','🎁 免費 '+cntFree+' 堂'):''}${cntLeave?cmChip('leave','請假 '+cntLeave+' 堂'):''}${planCount?cmChip('plan','📌 預排 '+planCount+' 堂'):''}${fixCount?cmChip('fix','🔁 固定 '+fixCount+' 堂'):''}${itvCount?cmChip('itv','🎤 面試 '+itvCount+' 次'):''}${examCount?cmChip('exam','🎯 正式面試 '+examCount):''}</span></div>`;
   if(false){body.innerHTML=toggle+nav+emptyHtml('🗓','這個月還沒有課','按上面「📌 預排課程」先把要上的團班課排進月曆；上完課再按「✍️ 去點名」，就會自動統計計費堂數。也可以到「學生名冊 → 學生 → 上課記錄」補登。');return;}
   const nameDup={};(S.students||[]).forEach(x=>{const n=(x.name||'').trim();if(n)nameDup[n]=(nameDup[n]||0)+1;});
   const sumRows=Object.keys(perStu).sort((a,b)=>perStu[b]-perStu[a]).map(sid=>{const st=studentById(sid)||{};const nm=(st.name||'（已刪除）').trim();const dup=nameDup[nm]>1;const hint=dup?`<span class="muted" style="font-size:12px;margin-left:6px">${esc(st.email||st.id||'')}</span>`:'';return `<div class="dash-row"><b>${esc(nm)}</b>${hint}<span class="grow"></span><span class="muted">${perStu[sid]} 堂</span></div>`;}).join('');
@@ -9912,6 +9918,75 @@ function writeErr(prefix,err){const m=((err&&(err.code||err.message))||'')+'';
   try{syncTagBad('⚠ 剛剛有一筆沒存上去');}catch(e){}
   return prefix+'：'+(/permission|insufficient|unauth/i.test(m)?RELOGIN_MSG:(m||'發生錯誤'));}
 const H={};
+/* CALPOP_V1219 月曆上面那排數字太籠統：只看得到「幾堂」，看不出是誰、哪一天。
+   現在每個數字都能按，按下去列出明細（日期、星期、時間、學生或團班）。
+   計費那一項再多一行，列出每位學生各幾堂。這裡只有看，不會動到任何資料。 */
+let CM_D=null;
+function cmKindRows(kind){
+  if(!CM_D)return [];
+  const out=[];
+  if(kind==='charged'||kind==='free'||kind==='leave'){
+    Object.keys(CM_D.days).sort().forEach(d=>{
+      mergeDayItems(CM_D.days[d].slice().sort((a,b)=>String(a.e.start||'').localeCompare(String(b.e.start||''))))
+        .forEach(it=>{if(dayItemKind(it)!==kind)return;
+          const e=it.e;
+          out.push({date:d,start:e.start||'',end:e.end||'',
+            who:it.members?('\u{1F465} '+(it.grp||'團班')+'（'+it.members.join('、')+'）')
+                           :('\u{1F464} '+((it.s&&it.s.name)||'')),
+            note:e.note||''});});});
+  }else if(kind==='plan'||kind==='fix'){
+    const src=(kind==='plan')?CM_D.planByDate:CM_D.fixByDate;
+    Object.keys(src).sort().forEach(d=>src[d].forEach(p=>{
+      out.push({date:d,start:p.start||'',end:p.end||'',
+        who:p.cls?('\u{1F465} '+p.cls+' 團班'):('\u{1F464} '+(p.sname||'')),
+        note:p.note||''});}));
+  }else if(kind==='itv'){
+    Object.keys(CM_D.itvByDate).sort().forEach(d=>CM_D.itvByDate[d].forEach(x=>{
+      out.push({date:d,start:(x.e&&x.e.start)||'',end:(x.e&&x.e.end)||'',
+        who:'\u{1F3A4} '+((x.c&&x.c.name)||''),note:(x.c&&x.c.target)||''});}));
+  }else if(kind==='exam'){
+    Object.keys(CM_D.examByDate).sort().forEach(d=>CM_D.examByDate[d].forEach(c=>{
+      out.push({date:d,start:c.exam_time||'',end:'',
+        who:'\u{1F3AF} '+(c.name||''),note:c.target||''});}));
+  }
+  return out;}
+const CM_LAB={charged:'計費的課',free:'免費的課',leave:'請假',plan:'預排的課',
+  fix:'固定時段（還沒排進去的）',itv:'面試練習',exam:'正式面試'};
+function cmChip(kind,txt){
+  return '<button class="btn btn-sm cm-cb" data-act="cmPop" data-id="'+kind+'" title="按一下看是誰、哪一天">'+txt+'</button>';}
+H.cmPop=(kind)=>{
+  const rows=cmKindRows(kind);
+  const wd=(d)=>{try{return DAYS[(new Date(d+'T00:00:00').getDay()+6)%7];}catch(e){return '';}};
+  let head='';
+  if(kind==='charged'&&CM_D){
+    const per=CM_D.perStu||{};
+    const ks=Object.keys(per).sort((a,b)=>per[b]-per[a]);
+    if(ks.length)head='<div class="cmp-h">每位學生各上了幾堂（團班一人算一堂，所以加起來會比上面的堂數多）</div>'
+      +'<div class="cmp-t">'+ks.map(sid=>{const st=studentById(sid)||{};
+        return '<span class="cmp-tg">'+esc(st.name||'（已刪除）')+' <b>'+per[sid]+'</b></span>';}).join('')+'</div>';}
+  const body=rows.length
+    ?('<div class="cmp-h">一堂一列，共 '+rows.length+' 筆</div>'+rows.map(r=>
+        '<div class="cmp-r"><span class="cmp-d">'+esc(String(r.date).slice(5).replace('-','/'))
+        +'<small>（'+esc(wd(r.date))+'）</small></span>'
+        +'<span class="cmp-tm">'+esc(r.start?(r.start+(r.end?('–'+r.end):'')):'—')+'</span>'
+        +'<span class="cmp-w">'+esc(r.who)+'</span>'
+        +(r.note?('<span class="cmp-n">'+esc(r.note)+'</span>'):'')+'</div>').join(''))
+    :'<div class="muted" style="padding:14px 2px">這個月沒有。</div>';
+  openModal('<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>'
+   +esc((CM_D?CM_D.label:'')+'　'+(CM_LAB[kind]||''))+'</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +head+body
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');
+  if(!document.getElementById('cmp-css')){const st=document.createElement('style');st.id='cmp-css';
+    st.textContent='.cmp-h{font-size:12.5px;color:#8a949c;margin:2px 0 8px}'
+     +'.cmp-t{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}'
+     +'.cmp-tg{background:#f2f5f7;border-radius:999px;padding:3px 11px;font-size:13px}'
+     +'.cmp-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 2px;border-bottom:1px solid var(--line,#E4E7EB);font-size:14px}'
+     +'.cmp-d{font-weight:700;min-width:72px}.cmp-d small{font-weight:400;color:#8a949c}'
+     +'.cmp-tm{color:#5b6b6c;min-width:94px;font-size:13px}'
+     +'.cmp-w{flex:1;min-width:0}'
+     +'.cmp-n{color:#8a949c;font-size:12.5px}';
+    document.head.appendChild(st);}};
 /* NODUP_V808 這些動作會新增／寫入資料，一次只准跑一個，避免連按存成兩筆 */
 /* NODUP_V1203 本來只有清單裡那二十幾個按鈕擋連按，回覆範本、常用網站、常用檔案、
    學校…這些後來加的都沒擋到，點兩下就存成兩筆（Quinn：「不小心儲存太多次」）。
@@ -11900,7 +11975,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1218';
+const APP_BUILD='V1219';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
