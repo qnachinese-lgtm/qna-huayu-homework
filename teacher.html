@@ -8399,9 +8399,18 @@ function ghSubIdx(q){
   if(m)return Number(m[0]);
   const c=v.toUpperCase().charCodeAt(0);
   return (c>=65&&c<=90)?(c-64):0;}
+/* GHEXIN_V1211 這一課有挑例句的時候，只留挑起來的那幾句。
+   key 跟 ghExList 一樣：語法是 g<第幾個語法>-<第幾塊>-<第幾句>。 */
+let GHEXF=null;
+function ghExKeep(pre,ex){
+  const t=String(ex||'').trim();
+  if(!GHEXF||!t)return t;
+  return t.split('\n').map(x=>x.trim()).filter(Boolean)
+    .filter((x,ei)=>GHEXF[pre+'-'+ei]).join('\n');}
 function ghGpHtml(g,gi,qs,withAns,tagLab){
-  const blist=(g.blocks||[]).map(b=>{
-    const t=String((b&&b.text)||'').trim(),ex=String((b&&b.ex)||'').trim(),im=String((b&&b.img)||'').trim();
+  const blist=(g.blocks||[]).map((b,bi)=>{
+    const t=String((b&&b.text)||'').trim(),im=String((b&&b.img)||'').trim();
+    const ex=ghExKeep('g'+gi+'-'+bi,String((b&&b.ex)||''));/* GHEXIN_V1211 */
     if(!t&&!ex&&!im)return null;
     /* GHZONE_V830 本來標題是「說明」就不印，結果那一塊沒有名字，看起來跟練習一樣。 */
     const lab=String((b&&b.label)||'').trim()||'說明';
@@ -8743,15 +8752,10 @@ function ghTextVocHtml(l,withAns){
     return s;}).join('');
   return h?('<div class="gh-gp">'+h+'</div>'):'';}
 function ghLessonHtml(l,withAns){
-  /* GHEX_V1186 這一課有挑例句，就只出那幾句。
-     GHEXMIX_V1208 但是「課本」和「生詞」是另外兩個選項，她勾了就該印——
-     本來連那兩個也一起被吃掉，勾了課本印出來還是只有例句。
-     改成：課本／生詞有勾就照印，後面才接挑出來的句子。 */
-  {const _ex=ghExPicked(l);
-   if(_ex.length){
-     const _cl=ghTextVocHtml(l,withAns)+ghClHtml(l,withAns);
-     return '<div class="gh-les"><h2 class="gh-lt">'+esc(l.title||'（未命名）')+'</h2>'
-       +_cl+'<div class="gh-gp">'+ghExPickHtml(l,_ex)+'</div></div>';}}
+  /* GHEXIN_V1211 挑例句本來會變成「只印那幾句」，課本、生詞、練習題全部不見，
+     學生拿到一張沒有題目的紙。改成整份照原本印，只是語法（和生詞、課末）的例句
+     只留她挑起來的那幾句，其他照舊。 */
+  GHEXF=(function(){const m=ghExMap()[l&&l.id];return (m&&Object.keys(m).length)?m:null;})();
   const gps=l.grammar_points||[];const all=ghQsOf(l.id);
   const cl=ghTextVocHtml(l,withAns)/* GHVOC_V1067 */+ghClHtml(l,withAns);
   let rest=ghVocHtml(l,withAns);
@@ -8764,6 +8768,7 @@ function ghLessonHtml(l,withAns){
   const tr=ghTrHtml(l);
   const showTr=withAns||GHTR||!String(cl+rest).trim();
   const inner=cl+(showTr?tr:'')+rest;
+  GHEXF=null;/* GHEXIN_V1211 */
   if(!String(inner).trim())return '';
   return '<div class="gh-les"><h2 class="gh-lt">'+esc(l.title||'（未命名）')+'</h2>'+inner+'</div>';}
 function ghCss(){return ''
@@ -8799,14 +8804,14 @@ function ghCss(){return ''
   +'.gh-tag{background:var(--soft);color:var(--deep);font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;flex:none}'
   +'.gh-blk{margin:0 0 8px}'
   /* GHVOC_V1067 生詞表 */
-  +'.gv-t{width:100%;border-collapse:collapse;font-size:12.5px;line-height:1.6}'
+  +'.gv-t{width:100%;border-collapse:collapse;font-size:15.5px;line-height:1.75}'/* GHBIG_V1211 生詞表放大 */
   +'.gv-t th{background:#eef2f6;color:#4f5a63;font-size:10.5px;font-weight:700;letter-spacing:.6px;'
   +'text-align:left;padding:4px 8px;border:1px solid #d9e0e7;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
   +'.gv-t td{padding:4px 8px;border:1px solid #e3e8ed;vertical-align:top}'
   +'.gv-t tr{break-inside:avoid}'
   +'.gv-t .gv-w{width:16%;white-space:nowrap}'
-  +'.gv-t .gv-p{width:20%;color:#6b7480;font-size:11.5px;white-space:nowrap}'
-  +'.gv-t .gv-s{width:9%;color:#6b7480;font-size:11.5px;white-space:nowrap}'
+  +'.gv-t .gv-p{width:20%;color:#6b7480;font-size:14px;white-space:nowrap}'
+  +'.gv-t .gv-s{width:9%;color:#6b7480;font-size:13px;white-space:nowrap}'
   +'.gv-b{display:block;border-bottom:1px solid #c9d2da;height:15px;min-width:120px}'
   /* GHZONE_V830 說明／例句／練習三塊各自一個顏色，學生一眼分得出哪塊要寫 */
   /* GHSUB_V886 小節只是段落編號，印成一行小標就好 */
@@ -8816,8 +8821,8 @@ function ghCss(){return ''
   +'.gh-lab.b1{color:#7b8d9a}.gh-lab.b2{color:#1E4C86}.gh-lab.b3{color:#3f7a55}'
   +'.gh-lab.b3{margin-top:11px}'
   +'.gh-txt{padding:7px 13px;background:#f3f6f9;border-left:3px solid #c4d2dc;border-radius:0 8px 8px 0;'
-  +'font-size:13px;color:#4f5a63;line-height:1.75}'
-  +'.gh-ex{margin-top:0;padding:8px 13px;background:#F3F3F4;border-left:3px solid #e0b571;border-radius:0 8px 8px 0;font-size:13px;line-height:1.8}'
+  +'font-size:17px;color:#3a434c;line-height:1.95}'/* GHBIG_V1211 課文和對話放大 */
+  +'.gh-ex{margin-top:0;padding:8px 13px;background:#F3F3F4;border-left:3px solid #e0b571;border-radius:0 8px 8px 0;font-size:17px;line-height:1.95}'/* GHBIG_V1211 */
   /* 例句一句一列，左邊掛號碼 */
   +'.gh-exi{display:flex;gap:9px;margin:0 0 6px;break-inside:avoid}'
   +'.gh-exi:last-child{margin-bottom:0}'
@@ -9347,7 +9352,7 @@ function ghModal(){
    +'</div>'
    /* GHEX_V1186 挑例句印：勾了就只印那幾句 */
    +'<div class="field" id="gh-exbox" style="display:none">'
-   +'<label class="gh-lbl">例句：要出哪幾句 <span class="hint">不勾＝照原本整份印；勾了就只印這幾句（上面勾的課本、生詞還是會印）</span>'
+   +'<label class="gh-lbl">例句：要出哪幾句 <span class="hint">不勾＝例句全部印；勾了＝例句只印這幾句，其他（課本、生詞、語法說明、練習題）照舊</span>'
    +'<span style="flex:1"></span>'
    +'<button class="btn btn-sm btn-ghost" type="button" onclick="GHEXALL()">全選 / 取消</button></label>'
    +'<div class="check-list gh-list gh-seglist" id="gh-exlist" onchange="GHEXCNT()"></div>'
