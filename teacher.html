@@ -12025,7 +12025,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1226';
+const APP_BUILD='V1227';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -18243,15 +18243,19 @@ H.opsGoCrm=(key)=>{const p=String(key||'').split('::');
   S.tab=(p[0]==='writing')?'writing':'agency';S.crmFocus=p[1];S.crmOpen={};
   render();try{window.scrollTo(0,0);}catch(e){}};
 /* FEEOFF_V1079 按「✓ 結案」的時候，還沒收的錢要怎麼辦 */
-function crmKindOf(id){
+/* CRMDUP_V1227 這裡本來也叫 crmKindOf／crmRecOf，跟上面那一對同名。
+   同名的函式後面會蓋掉前面，而這一對只認「純 id」，上面那一對傳進來的是
+   「interview::xxx」這種 key，於是永遠找不到人——「📎 上傳／查看檔案」按下去
+   就什麼事都沒發生。改名字，兩邊各做各的。 */
+function crmKindById(id){
   if(agById(id))return 'agency';if(itvById(id))return 'interview';if(wrById(id))return 'writing';return '';}
-function crmRecOf(id){return agById(id)||itvById(id)||wrById(id)||null;}
-function crmDueOf(id){const k=crmKindOf(id),c=crmRecOf(id);if(!c)return {};
+function crmRecById(id){return agById(id)||itvById(id)||wrById(id)||null;}
+function crmDueOf(id){const k=crmKindById(id),c=crmRecById(id);if(!c)return {};
   return (k==='agency')?agDueSum(c):((k==='interview')?itvDueSum(c):wrDueSum(c));}
-function crmCurOf(id){const k=crmKindOf(id),c=crmRecOf(id);if(!c)return 'VND';
+function crmCurOf(id){const k=crmKindById(id),c=crmRecById(id);if(!c)return 'VND';
   return (k==='agency')?agTotalCur(c):((k==='interview')?itvTotalCur(c):wrTotalCur(c));}
 H.crmCloseDue=(id)=>{
-  const c=crmRecOf(id);if(!c)return;
+  const c=crmRecById(id);if(!c)return;
   const by=crmDueOf(id);const cur=crmCurOf(id);
   const amt=Number(by[cur]||0);
   const other=Object.keys(by).filter(k=>k!==cur).map(k=>money(by[k],k)).join('、');
@@ -18268,19 +18272,19 @@ H.crmCloseDue=(id)=>{
      ${other?`<div class="hint" style="margin-top:10px;color:#b45309">另外還有 ${esc(other)} 是別的幣別，這裡只處理 ${esc(cur)}，其他的要自己進去改。</div>`:''}
    </div></div>`);};
 async function crmCloseNow(id){
-  const _c=crmRecOf(id);/* LIFE_V1106 */
+  const _c=crmRecById(id);/* LIFE_V1106 */
   await DB.update(crmCol(id),id,Object.assign({status:'done',closed_as:'done'},
     _c?lifeStamp(_c,'done'):{}));
   await loadAll();closeModal();render();}
 /* FEEOFF_V1079 取消減免 */
-H.crmOffUndo=async(id)=>{const c=crmRecOf(id);if(!c||!crmOff(c))return;
+H.crmOffUndo=async(id)=>{const c=crmRecById(id);if(!c||!crmOff(c))return;
   if(!confirm('取消「不收了」？\n\n'+money(crmOff(c),crmCurOf(id))+' 會再算回未收。'))return;
   try{await ensureAuthFresh();await DB.update(crmCol(id),id,{fee_off:0,fee_off_at:null});
     await loadAll();render();toast('已取消，未收算回來了');}catch(e){toast(writeErr('失敗',e));}};
 H.crmCloseKeep=async(id)=>{try{await ensureAuthFresh();await crmCloseNow(id);toast('已結案（未收留著）');}
   catch(e){toast(writeErr('失敗',e));}};
 H.crmCloseGot=async(id)=>{
-  const c=crmRecOf(id);if(!c)return;const cur=crmCurOf(id);const amt=Number(crmDueOf(id)[cur]||0);
+  const c=crmRecById(id);if(!c)return;const cur=crmCurOf(id);const amt=Number(crmDueOf(id)[cur]||0);
   if(!amt)return H.crmCloseKeep(id);
   try{await ensureAuthFresh();
     const arr=(Array.isArray(c.payments)?c.payments.slice():[]);
@@ -18290,7 +18294,7 @@ H.crmCloseGot=async(id)=>{
     await crmCloseNow(id);toast('已補記 '+money(amt,cur)+'，並結案');}
   catch(e){toast(writeErr('失敗',e));}};
 H.crmCloseOff=async(id)=>{
-  const c=crmRecOf(id);if(!c)return;const cur=crmCurOf(id);const amt=Number(crmDueOf(id)[cur]||0);
+  const c=crmRecById(id);if(!c)return;const cur=crmCurOf(id);const amt=Number(crmDueOf(id)[cur]||0);
   if(!amt)return H.crmCloseKeep(id);
   if(!confirm('把 '+money(amt,cur)+' 記成「不收了」？\n\n金額會留著看得到，但不再算進未收，也不會算成收入。'))return;
   try{await ensureAuthFresh();
