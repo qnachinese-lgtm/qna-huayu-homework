@@ -7071,8 +7071,8 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
     <div class="form-sec hide" data-g="d" id="f-login-sec"${(!e&&enrollOf(st)==='reserved')?' style="display:none"':''}><div class="form-sec-h">🔑 登入帳號 <span class="hint" style="font-weight:400">預約／還沒開始可留空</span></div><div class="form-grid">
      ${e
        ? `<div class="field full" style="margin-bottom:0"><div class="hint">${st.email?('登入帳號就是上面那組 Email（'+esc(st.email)+'），建立後不能改；要換密碼請按卡片上的「寄重設密碼信」。'):'上面的 Email 填好之後，按卡片上的「建立登入帳號」就能讓他登入。'}</div></div>`
-       : `<div class="field"><label>初始密碼</label><input id="f-pw" type="text" value="" placeholder="選填，至少 6 碼"></div>
-     <div class="field"><div class="hint" style="margin-top:22px">帳號就是上面「聯絡方式」填的 Email。</div></div>`}
+       : `<div class="field"><label>初始密碼 <span class="hint">留空＝先不開通</span></label><input id="f-pw" type="text" value="" placeholder="選填，至少 6 碼"></div>
+     <div class="field"><div class="hint" style="margin-top:22px">帳號就是上面「聯絡方式」填的 Email。<b>只填 Email、不填密碼</b>的話，Email 只是存起來，不會開通登入。</div></div>`}
     </div></div>
     <details class="form-more hide" data-g="d"><summary>▸ 更多設定 <span class="hint">頭像、國籍、教材資料夾、付款帳號、合併帳戶，設定一次就很少動。</span></summary>
     <div class="form-sec" style="margin-top:10px"><div class="form-grid">
@@ -12041,7 +12041,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1230';
+const APP_BUILD='V1231';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -16223,14 +16223,23 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
     try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');ruLater();/* READUID_V973 */}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
   const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
   const btn=document.querySelector('[data-act="saveStudent"]');
-  if(!email&&!pw){
+  /* EMAILONLY_V1231 Quinn：「我只想純粹存信箱而已」。
+     本來只要填了 Email 就一定要連密碼一起填，不然存不進去。
+     改成「有沒有填密碼」才是分水嶺：沒填密碼就只是把 Email 存起來，
+     不會去建立登入帳號；之後想開通，再到那位學生的卡片按「建立登入帳號」。 */
+  if(!pw){
+    if(email){
+      if(S.students.some(s=>(s.email||'').toLowerCase()===email))return toast('這個 Email 已被其他學生使用');
+      common.email=email;
+    }
     if(btn){btn.disabled=true;btn.textContent='新增中…';}
     try{await DB.insert('students',common);stuLastSave(common);/* STULAST_V1138 */
-      closeModal();await loadAll();render();toast('已新增（純資料，尚未開通登入）');}
+      closeModal();await loadAll();render();
+      toast(email?'已新增（Email 只是存起來，還沒開通登入）':'已新增（純資料，尚未開通登入）');}
     catch(err){toast('新增失敗：'+((err&&err.message)||err));if(btn){btn.disabled=false;btn.textContent='新增';}}
     return;
   }
-  if(!email||!pw)return toast('要開通登入請「Email 與密碼都填」，或兩者都留空當純資料');if(pw.length<6)return toast('初始密碼至少 6 碼');
+  if(!email)return toast('要開通登入的話，上面的 Email 也要填');if(pw.length<6)return toast('初始密碼至少 6 碼');
   if(S.students.some(s=>(s.email||'').toLowerCase()===email))return toast('這個 Email 已被其他學生使用');
   if(btn){btn.disabled=true;btn.textContent='建立中…';}
   try{const u=await createStudentAuth(email,pw);await DB.insert('students',Object.assign({uid:u,email},common));
