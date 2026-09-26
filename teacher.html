@@ -1147,7 +1147,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
 .ag-band{display:flex;align-items:center;gap:10px;margin:18px 0 8px;font-size:15px;color:#16202E}
 .ag-band .ag-n{background:#E4EDF9;color:#1E4C86;border-radius:999px;padding:1px 10px;font-size:12px;font-weight:800}
 .ag-band .hint{margin-left:auto}
-.ag-next{margin-top:10px;padding:8px 12px;border-radius:10px;background:#F4F8FD;border:1px solid #C0CEE0;font-size:13.5px}/* TIDY_V954 */
+.ag-next{margin-top:10px;padding:8px 12px;border-radius:10px;background:#F4F8FD;border:1px solid #C0CEE0;font-size:13.5px;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap}/* TIDY_V954 ／ NEXTDONE_V1241 右邊加「做完了」 */
+.ag-next .btn{padding:3px 10px;font-size:12.5px}
         .tj-qa textarea{width:100%;min-height:76px;font-size:14px;line-height:1.7;padding:9px 11px;
           border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
         .series-body .book-group{margin-bottom:14px}
@@ -5681,7 +5683,10 @@ function renderAgency(){
           if(st==='lost')return '<button class="btn" data-act="agStageSet" data-id="'+esc(c.id)+'::consult">↩︎ 放回諮詢中</button>';
           return crmCloseBtns(c,'agToggle');})()}
       </div>
-      ${(c.next_do||c.next_on)?`<div class="ag-next">👉 下一步：<b>${esc(c.next_do||'（還沒寫）')}</b>${c.next_on?`　·　${esc(c.next_on)}`:''}</div>`:''}
+      ${(c.next_do||c.next_on)?`<div class="ag-next">👉 下一步：<b>${esc(c.next_do||'（還沒寫）')}</b>${c.next_on?`　·　${esc(c.next_on)}`:''}
+        <span style="flex:1"></span>
+        <button class="btn btn-sm" data-act="agNextDone" data-id="${esc(c.id)}" title="做完了：記成一筆進度，這一行就清掉">✓ 做完了</button>
+        <button class="btn btn-sm btn-ghost" data-act="agEdit" data-id="${esc(c.id)}" title="改下一步">✏️ 改</button></div>`:''}
       <div style="margin-top:8px">${logHtml}</div>
     </div></details>`;}).join('');
   if(_foc){body.innerHTML=crmBackBar(_fkind,_foc)+'<div class="crm-list">'+mkRows([_foc])+'</div>';return;}
@@ -12175,7 +12180,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1240';
+const APP_BUILD='V1241';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -19906,6 +19911,22 @@ H.agLogSave=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if
   if(p[1]==='new')arr.push(row);else arr[Number(p[1])]=row;
   arr.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   try{await DB.update(crmCol(c.id),c.id,{log:arr});await loadAll();closeModal();render();toast('已儲存這筆進度 ✓');}catch(e){toast(writeErr('儲存失敗',e));}};
+/* NEXTDONE_V1241 「下一步」只有一格，寫新的就蓋掉舊的，不會愈積愈多。
+   問題是做完了沒有地方按——以前只能自己回去把那一格清空，做過什麼也沒留下來。
+   現在按「✓ 做完了」就把那一句記成一筆進度（日期＝今天），那一行同時清掉。 */
+H.agNextDone=async(id)=>{
+  const c=agById(id);if(!c)return;
+  const txt=String(c.next_do||'').trim();
+  if(!txt&&!c.next_on){return toast('這裡沒有寫下一步');}
+  if(!confirm('把「'+(txt||'（沒寫內容）')+'」標成做完？\n\n'
+    +'確定 → 記成一筆進度（'+localToday()+'），上面的「下一步」清空。\n'
+    +'之後想改，到「🗂 進度記錄」那一筆按 ✏️ 就好。'))return;
+  const arr=agLog(c).slice();
+  if(txt)arr.push({date:localToday(),action:txt,content:'',fee:null,currency:'VND',paid:false});
+  arr.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  try{await DB.update(crmCol(c.id),c.id,{log:arr,next_do:'',next_on:null});
+    await loadAll();render();toast(txt?'✓ 已記成一筆進度，下一步清空了':'✓ 下一步已清空');}
+  catch(e){toast(writeErr('儲存失敗',e));}};
 H.agLogDel=async(key)=>{const p=String(key).split('::');const c=agById(p[0]);if(!c)return;if(!confirm('刪除這筆進度？'))return;
   const arr=agLog(c).slice();arr.splice(Number(p[1]),1);
   try{await DB.update(crmCol(c.id),c.id,{log:arr});await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪除失敗',e));}};
