@@ -648,7 +648,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         /* DOCPICK_V1238 檔案視窗裡的收件清單 */
         .dc-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         .dc-list{margin:6px 0 2px;border:1px solid var(--line,#E4E7EB);border-radius:12px;overflow:hidden}
-        .dc-r{display:grid;grid-template-columns:24px minmax(0,1fr) 104px;gap:8px;align-items:baseline;
+        .dc-r{display:grid;grid-template-columns:24px minmax(0,1fr) 104px auto;gap:8px;align-items:baseline;
           padding:8px 12px;border-bottom:1px solid var(--line,#E4E7EB);font-size:13.5px}
         .dc-r:last-child{border-bottom:0}
         .dc-r.on{background:#F6FBF8}
@@ -668,10 +668,25 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         @media(max-width:700px){
           .cf-row.cf-hasdoc{grid-template-columns:auto auto 1fr auto}
           .cf-row.cf-hasdoc .cf-doc{grid-column:1/-1;order:1}
-          .dc-r{grid-template-columns:24px minmax(0,1fr);}
-          .dc-d{grid-column:2;text-align:left}}
-        .doc-head,.doc-row{display:grid;grid-template-columns:126px minmax(160px,1.4fr) 150px 62px minmax(120px,1fr) 42px;
+          .dc-r{grid-template-columns:24px minmax(0,1fr) auto;}
+          .dc-d{grid-column:2;text-align:left}
+          .doc-head{display:none}}
+        .doc-head,.doc-row{display:grid;grid-template-columns:126px minmax(160px,1.4fr) 150px 96px minmax(120px,1fr) 42px;
           gap:8px;align-items:center}
+        /* DOCUP_V1240 「今天」和「📎 上傳」擠在同一格；掛上去的檔案列在那一列底下 */
+        .doc-ops{display:flex;gap:4px;align-items:center}
+        .doc-ops .btn{padding:4px 7px;font-size:12.5px}
+        .doc-ops .doc-up.on{background:#ecfdf5;border-color:#a7d8b8;color:#15803d}
+        .doc-f2{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:6px;margin:0 0 4px}
+        .doc-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;
+          background:#F2F6FA;border:1px solid #DCE5F0;border-radius:999px;padding:2px 4px 2px 10px;max-width:100%}
+        .doc-chip a{color:var(--accent,#1E4C86);text-decoration:none;overflow:hidden;
+          text-overflow:ellipsis;white-space:nowrap;max-width:340px}
+        .doc-chip a:hover{text-decoration:underline}
+        .doc-chip .doc-x{border:0;background:transparent;cursor:pointer;color:#8A8F98;
+          font-size:14px;line-height:1;padding:2px 5px;border-radius:999px}
+        .doc-chip .doc-x:hover{background:#E3E7EC;color:#b91c1c}
+        .dc-r .dc-up{padding:3px 9px;font-size:12px}
         .doc-head{font-size:11.5px;letter-spacing:.05em;color:var(--muted);
           padding:0 2px 6px;border-bottom:1.5px solid var(--line);margin-bottom:6px}
         .doc-row{padding:5px 2px;border-bottom:1px solid var(--line)}
@@ -4201,6 +4216,20 @@ function docSummaryHtml(c){
     +'<button class="btn btn-sm" data-act="docPrint" data-id="'+esc(c.id)+'">🖨 列印 / PDF</button>'
     +'<button class="btn btn-sm" data-act="docOpen" data-id="'+esc(c.id)+'">📄 看文件清單</button></div>';
 }
+/* DOCUP_V1240 她要的是「在寫名稱的那一列直接上傳」，不是先傳到檔案區再回來歸類。
+   所以每一列多一顆 📎：按下去挑檔案，上傳完就掛在這一列、日期自動填今天。
+   上傳前會先把畫面上的清單存起來，不然重畫的時候剛打的字會不見。 */
+let DOC_CID='',DOC_UPDRAW=null;
+function docFileChips(r){
+  const ids=docFids(r);if(!ids.length)return '';
+  return '<div class="doc-f2">'+ids.map(function(id){
+    const k=(_uaFiles||[]).findIndex(f=>f&&f.id===id);
+    const f=(k>=0)?_uaFiles[k]:null;
+    return '<span class="doc-chip">📎 '
+      +(f?('<a href="javascript:void(0)" data-act="uaDl" data-id="'+k+'">'+esc(String(f.filename||'檔案'))+'</a>')
+         :'<span class="muted">檔案已刪除</span>')
+      +'<button class="doc-x" data-act="docUnlink" data-id="'+esc(id)+'" title="從這一列拿掉（檔案本身不會刪）">×</button></span>';
+  }).join('')+'</div>';}
 function docEditRow(r,i){
   r=r||{};
   const out=(r.d==='out');
@@ -4210,9 +4239,13 @@ function docEditRow(r,i){
       +'<option value="out"'+(out?' selected':'')+'>📤 我給學生</option></select>'
     +'<input class="doc-n" type="text" value="'+esc(r.n||'')+'" placeholder="文件名稱">'
     +'<input class="doc-dt" type="date" min="2000-01-01" max="2100-12-31" value="'+esc(r.date||'')+'" title="收到／寄出的日期">'
-    +'<button class="btn btn-sm doc-today" data-act="docToday" data-id="'+i+'" title="填今天">今天</button>'
+    +'<span class="doc-ops">'
+      +'<button class="btn btn-sm doc-today" data-act="docToday" data-id="'+i+'" title="填今天">今天</button>'
+      +'<button class="btn btn-sm doc-up'+(docFids(r).length?' on':'')+'" data-act="docUp" data-id="'+i+'"'
+      +' title="上傳這一份文件的檔案">📎'+(docFids(r).length>1?(' '+docFids(r).length):'')+'</button></span>'
     +'<input class="doc-nt" type="text" value="'+esc(r.note||'')+'" placeholder="備註（選填）">'
     +'<button class="btn btn-sm btn-icon rp-del" data-act="docDel" data-id="'+i+'" title="刪掉這一列">🗑</button>'
+    +docFileChips(r)
     +'</div>';
 }
 function docEditorHtml(c){
@@ -5741,7 +5774,7 @@ function agForm(c){c=c||{};
       <input id="ag-nextdo" type="text" value="${esc(c.next_do||'')}" placeholder="下一步要做的事"></div>
     <div class="field"><label>👉 什麼時候 <span class="hint">到期會出現在「今天要處理」</span></label>
       <input id="ag-nexton" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.next_on||'')}"></div>
-    <div class="field full"><label>備註 <span class="hint">選填</span></label><input id="ag-note" type="text" value="${esc(c.note||'')}" placeholder="要記住的事"></div>
+    <div class="field full"><label>備註 <span class="hint">選填，可以寫很多行</span></label><textarea id="ag-note" rows="4" placeholder="要記住的事">${esc(c.note||'')}</textarea></div>
     ${c.id?('<div class="field full">'+crmFilesBlockHtml('agency',c.id)+'</div>'):''}
   </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="agSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);
   if(c.id)crmFilesWire('agency',c.id);}
@@ -6246,7 +6279,7 @@ function itvForm(c){c=c||{};
      <input id="itv-meet" type="url" inputmode="url" value="${esc(c.meet_url||'')}" placeholder="貼上 Meet 連結"></div>
      <div class="field"><label>💰 談定的練習費總額 <span class="hint">選填。填了才會算「還差多少」</span></label><input id="itv-total" type="number" min="0" value="${esc(c.fee_total==null?'':String(c.fee_total))}" placeholder="請填金額"></div>
      <div class="field"><label>總額幣別</label><select id="itv-fcur"><option value="VND"${itvTotalCur(c)==='VND'?' selected':''}>越南盾 VND（打千位）</option><option value="TWD"${itvTotalCur(c)==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${itvTotalCur(c)==='USD'?' selected':''}>美元 US$</option></select></div>
-     <div class="field full"><label>備註 <span class="hint">選填</span></label><input id="itv-note" type="text" value="${esc(c.note||'')}" placeholder="要記住的事"></div></div>
+     <div class="field full"><label>備註 <span class="hint">選填，可以寫很多行</span></label><textarea id="itv-note" rows="4" placeholder="要記住的事">${esc(c.note||'')}</textarea></div></div>
      ${c.id?crmFilesBlockHtml('interview',c.id):''}
      <div class="lesson-label" style="margin-top:18px">🎤 練習安排</div>
      <div class="form-grid">
@@ -12142,7 +12175,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1239';
+const APP_BUILD='V1240';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -14670,11 +14703,14 @@ H.docListWord=(id)=>{
   }catch(e){toast('下載失敗：'+((e&&e.message)||e));}
 };
 /* DOC_V719 申請文件清單的操作 */
-H.docOpen=(id)=>{const c=(S.agencies||[]).find(x=>x.id===id);if(!c)return;
+H.docOpen=async(id)=>{const c=(S.agencies||[]).find(x=>x.id===id);if(!c)return;
+  DOC_CID=id;/* DOCUP_V1240 */
+  try{_uaFiles=await DB.listWhere('uploads','student_id',crmBoxKey('agency::'+id));}catch(e){}
   openModal('<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>📄 '+esc(c.name||'')+' · 申請文件清單</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
    +'<div class="hint" style="margin-bottom:10px">一列一份文件。收到或寄出那天填日期，沒填就是還沒。'
-   +'按「今天」可以直接帶入今天的日期。</div>'
+   +'按「今天」帶入今天的日期；<b>直接按那一列的 📎 就可以把學生傳來的檔案掛上去</b>，日期會自己填。</div>'
+   +'<input type="file" id="doc-file" multiple style="display:none" onchange="H.docUpPick(this)">'/* DOCUP_V1240 */
    +'<div id="doc-box">'+docEditorHtml(c)+'</div>'
    +'<div class="doc-tools"><button class="btn btn-sm" data-act="docAdd">＋ 新增一列</button>'
    +'<button class="btn btn-sm" data-act="docTpl">📋 帶入範本</button>'
@@ -14778,6 +14814,40 @@ H.docTplSave=async()=>{
 H.docToday=(i)=>{
   const el=document.querySelector('#doc-rows .doc-row[data-i="'+i+'"] .doc-dt');
   if(el)el.value=localToday();
+};
+/* DOCUP_V1240 */
+H.docUp=(i)=>{const inp=document.getElementById('doc-file');if(!inp)return toast('這個視窗不能上傳');
+  inp.setAttribute('data-i',String(i));inp.value='';inp.click();};
+H.docUpPick=async(inp)=>{
+  const fs=[...((inp&&inp.files)||[])];if(!fs.length)return;
+  const i=parseInt(inp.getAttribute('data-i'),10);inp.value='';
+  const id=DOC_CID;if(!id)return;
+  const box=document.getElementById('doc-rows');
+  if(box){/* 先把畫面上的清單存起來，重畫才不會把剛打的字洗掉 */
+    const rows=docReadRows();
+    try{await DB.update(crmCol(id),id,{doc_list:rows});const c0=crmRecById(id);if(c0)c0.doc_list=rows;}
+    catch(e){return toast(writeErr('儲存失敗',e));}}
+  await _crmUpload(fs,'agency::'+id,i);
+  try{_uaFiles=await DB.listWhere('uploads','student_id',crmBoxKey('agency::'+id));}catch(e){}
+  const c=crmRecById(id);
+  const eb=document.getElementById('doc-box');if(eb&&c)eb.innerHTML=docEditorHtml(c);
+  if(typeof DOC_UPDRAW==='function')try{DOC_UPDRAW();}catch(e){}
+  try{renderAgency();}catch(e){}
+};
+H.docUnlink=async(fid)=>{
+  const id=DOC_CID;if(!id)return;
+  const c=crmRecById(id);if(!c)return;
+  const box=document.getElementById('doc-rows');
+  const base=box?docReadRows():docRows(c);
+  const rows=base.map(r=>Object.assign({},r,{fids:docFids(r).slice()}));
+  rows.forEach(r=>{const k=r.fids.indexOf(fid);if(k>=0){r.fids.splice(k,1);if(!r.fids.length)r.date='';}});
+  rows.forEach(r=>{if(!r.fids.length)delete r.fids;});
+  try{await DB.update(crmCol(id),id,{doc_list:rows});c.doc_list=rows;
+    const eb=document.getElementById('doc-box');if(eb)eb.innerHTML=docEditorHtml(c);
+    if(typeof DOC_UPDRAW==='function')try{DOC_UPDRAW();}catch(e){}
+    try{renderAgency();}catch(e){}
+    toast('已從這一列拿掉（檔案本身還在）');}
+  catch(e){toast(writeErr('儲存失敗',e));}
 };
 H.docDel=(i)=>{
   const el=document.querySelector('#doc-rows .doc-row[data-i="'+i+'"]');
@@ -18220,8 +18290,12 @@ function crmDocDraw(key){
         +'<span class="dc-k">'+(dt?'✅':'⬜')+'</span>'
         +'<span class="dc-n">'+esc(r.n||'')
         +(fs.length?('<i class="dc-f">'+esc(fs.map(f=>String(f.filename||'')).join('、'))+'</i>'):'')+'</span>'
-        +'<span class="dc-d">'+(dt?esc(dt):'<span class="muted">還沒收到</span>')+'</span></div>';}).join('')
-    +'</div>';}
+        +'<span class="dc-d">'+(dt?esc(dt):'<span class="muted">還沒收到</span>')+'</span>'
+        +'<button class="btn btn-sm dc-up" data-act="docUp" data-id="'+x[1]+'" title="上傳這一份文件的檔案">📎 上傳</button>'
+        +'</div>';}).join('')
+    +'</div>'
+    +'<input type="file" id="doc-file" multiple style="display:none" onchange="H.docUpPick(this)">';
+  DOC_CID=c.id;DOC_UPDRAW=function(){try{crmDocDraw(key);}catch(e){}try{H.crmFilesLoad(key);}catch(e){}};}
 H.docPick=async(key,sel)=>{
   const c=crmRecOf(key);if(!c)return;
   const id=crmIdOf(key);
@@ -18246,10 +18320,10 @@ H.docPick=async(key,sel)=>{
   catch(e){toast(writeErr('儲存失敗',e));}};
 H.crmFileUp=(inp,key)=>{const fs=[...((inp&&inp.files)||[])];if(!fs.length)return;inp.value='';_crmUpload(fs,key);};
 H.itvFileUp=(inp,id)=>H.crmFileUp(inp,'interview::'+id);
-async function _crmUpload(files,key){
+async function _crmUpload(files,key,linkIdx){
   const MAX=50*1024*1024;const prog=()=>document.getElementById('itvf-prog');
   const sid=crmBoxKey(key),kind=crmKindOf(key),id=crmIdOf(key);
-  let ok=0,fail=0,big=[];
+  let ok=0,fail=0,big=[];const newIds=[];/* DOCUP_V1240 */
   for(let i=0;i<files.length;i++){
     const f=files[i];const p=prog();
     if(p)p.textContent='上傳中… '+(i+1)+' / '+files.length+'：'+(f.name||'');
@@ -18268,11 +18342,20 @@ async function _crmUpload(files,key){
       if(!rec){const r=await _tuShrink(f);
         if(!r.b64||r.b64.length>930000){fail++;continue;}
         rec={filename:r.name,mime:r.mime,size:r.size,data:r.b64};}
-      await DB.insert('uploads',Object.assign({uid:uid,student_id:sid,area_id:CRM_PFX[kind],area_name:CRM_TTL[kind]||'客戶資料',lesson_id:'',lesson_title:''},rec));
+      const _doc=await DB.insert('uploads',Object.assign({uid:uid,student_id:sid,area_id:CRM_PFX[kind],area_name:CRM_TTL[kind]||'客戶資料',lesson_id:'',lesson_title:''},rec));
+      if(_doc&&_doc.id)newIds.push(_doc.id);
       ok++;
     }catch(e){fail++;}
   }
   const p=prog();if(p)p.textContent='';
+  /* DOCUP_V1240 從清單那一列傳上來的，直接掛在那一列，日期填今天 */
+  if(linkIdx!=null&&linkIdx>=0&&newIds.length){
+    const c=crmRecById(id);
+    if(c){const rows=docRows(c).map(r=>Object.assign({},r,{fids:docFids(r).slice()}));
+      if(rows[linkIdx]){newIds.forEach(x=>rows[linkIdx].fids.push(x));
+        if(!String(rows[linkIdx].date||'').trim())rows[linkIdx].date=localToday();
+        rows.forEach(r=>{if(!r.fids.length)delete r.fids;});
+        try{await DB.update(crmCol(id),id,{doc_list:rows});c.doc_list=rows;}catch(e){}}}}
   toast(ok?('✅ 已上傳 '+ok+' 個檔案'+(fail?('，'+fail+' 個失敗'):'')):('上傳失敗'+(big.length?('：'+big[0]+' 超過 50MB'):'')));
   H.crmFilesLoad(kind+'::'+id);
 }
