@@ -5512,6 +5512,16 @@ function agSchSync(){
   [['.agsch-n','name'],['.agsch-d','dept'],['.agsch-g','degree'],['.agsch-r','result'],['.agsch-due','due']].forEach(([sel,k])=>{
     document.querySelectorAll(sel).forEach(el=>{const i=+el.dataset.i;if(AGSCH[i])AGSCH[i][k]=el.value;});});}
 function agSchPaint(){const b=document.getElementById('ag-schs');if(b)b.innerHTML=agSchRowsHtml();}
+/* SCHLINK_V1248 學校名稱打完（或從建議選完）就去名冊看那一間有沒有設報名截止日。
+   只在那一列還空著的時候帶，已經自己填過的不會被蓋掉。 */
+document.addEventListener('change',(e)=>{
+  const t=e.target;if(!(t&&t.classList&&t.classList.contains('agsch-n')))return;
+  const row=t.closest('.ag-sch');if(!row)return;
+  const d=row.querySelector('.agsch-due');if(!d||String(d.value||'').trim())return;
+  let sc=null;try{sc=schByName(t.value);}catch(_){}
+  if(sc&&sc.due){d.value=sc.due;try{agSchSync();}catch(_){}
+    try{toast('帶入名冊上「'+(sc.name||'')+'」的報名截止日 '+sc.due);}catch(_){}}
+});
 function agStage(c){const v=String((c&&c.stage)||'').trim();
   return (v==='consult'||v==='lost')?v:'case';}
 function agIsConsult(c){return agStage(c)==='consult';}
@@ -5907,8 +5917,18 @@ function renderSchools(){
   const _lk=lkCardHtml()+lfCardHtml();/* LINKS_V1190 ／ FILES_V1194 */
   if(!list.length){body.innerHTML=head+_lk+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🏫</div><h3 style="margin:8px 0">還沒有學校</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">常用的學校建在這裡：官網、申請系統網址、登入帳號、承辦人信箱。<br>以後要進去，從這一頁按一下就開，不用再翻信箱找連結。<br><b>密碼不要填在這裡</b>，留在妳自己的密碼管理工具比較安全。</div><button class="btn btn-primary" data-act="schNew">＋ 新增學校</button></div>`;return;}
   const cards=list.map(c=>{
-    const n=(S.agencies||[]).filter(a=>!a.deleted_at&&schByName(a.school)&&schByName(a.school).id===c.id).length;
+    /* SCHLINK_V1248 本來只數 a.school 那一個舊欄位，學校改成一間一列以後就數不準了。
+       改成看每一位客戶的「申請學校」有沒有這一間，而且把人名列出來、點得進去。 */
+    const _nm=String(c.name||'').trim();
+    const who=(S.agencies||[]).filter(a=>a&&!a.deleted_at&&!agIsLost(a)
+      &&((agSchools(a)||[]).some(x=>x&&String(x.name||'').trim()===_nm)||String(a.school||'').trim()===_nm));
+    const n=who.length;
     const rows=[];
+    if(c.due)rows.push('<div class="sch-kv"><span class="k">報名截止</span><span class="v"><b>'+esc(c.due)+'</b>'
+      +(c.due<localToday()?' <span class="muted">（已過）</span>':'')+'</span></div>');
+    if(who.length)rows.push('<div class="sch-kv"><span class="k">申請中</span><span class="v">'
+      +who.map(a=>'<button class="btn btn-sm" data-act="bizGo" data-id="agency::'+esc(a.id)+'">'+esc(a.name||'')+'</button>').join(' ')
+      +'</span></div>');
     if(c.account)rows.push(`<div class="sch-kv"><span class="k">帳號</span><span class="v"><b>${esc(c.account)}</b> <button class="btn btn-sm btn-icon" data-act="schCopy" data-id="${esc(c.id)}" title="複製帳號">📋</button></span></div>`);
     if(c.contact||c.email||c.phone){
       const bits=[c.contact?esc(c.contact):'',c.email?`<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>`:'',c.phone?esc(c.phone):''].filter(Boolean).join('　');
@@ -5938,6 +5958,9 @@ function schForm(c){c=c||{};
     <div class="field"><label>承辦人 <span class="hint">選填</span></label><input id="sch-contact" type="text" value="${esc(c.contact||'')}" placeholder="姓名／處室"></div>
     <div class="field"><label>承辦人信箱 <span class="hint">選填</span></label><input id="sch-email" type="text" value="${esc(c.email||'')}" placeholder="請填承辦人信箱"></div>
     <div class="field"><label>電話 <span class="hint">選填</span></label><input id="sch-phone" type="text" value="${esc(c.phone||'')}"></div>
+    <!-- SCHDUE_V1248 這一間的報名截止日；代辦客戶填到這一間的時候會自動帶過去 -->
+    <div class="field"><label>📅 報名截止日 <span class="hint">選填。客戶填到這一間就自動帶入</span></label>
+      <input id="sch-due" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.due||'')}"></div>
     <div class="field full"><label>備註 <span class="hint">選填。申請期限、學費、要交什麼文件…</span></label><textarea id="sch-note" rows="4" placeholder="申請期限、學費、要交什麼文件…">${esc(c.note||'')}</textarea></div>
     <div class="field full"><div class="hint">🔒 密碼不要填在這裡，這裡只放帳號跟網址。</div></div>
   </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="schSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);}
@@ -12398,7 +12421,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1247';
+const APP_BUILD='V1248';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -19888,7 +19911,8 @@ H.schEdit=(id)=>schForm(schById(id));
 H.schSave=async(id)=>{const name=($('#sch-name').value||'').trim();if(!name)return toast('請填學校名稱');
   const g=k=>(($('#sch-'+k)&&$('#sch-'+k).value)||'').trim();
   const patch={kind:'school',name,name_en:g('en'),country:g('country'),site:g('site'),portal:g('portal'),
-    account:g('account'),contact:g('contact'),email:g('email'),phone:g('phone'),note:g('note')};
+    account:g('account'),contact:g('contact'),email:g('email'),phone:g('phone'),note:g('note'),
+    due:g('due')/* SCHDUE_V1248 */};
   try{if(id){await DB.update(crmCol(id),id,patch);}
     else{patch.status='active';patch.created_at=new Date().toISOString();await DB.insert('crm',patch);}
     await loadAll();closeModal();S.tab='school';render();toast('已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
