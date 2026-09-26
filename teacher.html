@@ -647,6 +647,10 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .doc-b.miss{white-space:normal;text-align:left;line-height:1.6;max-width:100%}
         /* DOCPICK_V1238 檔案視窗裡的收件清單 */
         .dc-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        /* DRIVE_V1242 */
+        .dv-bar{margin:0 0 10px;padding:8px 12px;border-radius:10px;background:#F4F8FD;
+          border:1px solid #C0CEE0;font-size:13px;word-break:break-all}
+        .dv-bar a{color:var(--accent,#1E4C86)}
         .dc-list{margin:6px 0 2px;border:1px solid var(--line,#E4E7EB);border-radius:12px;overflow:hidden}
         .dc-r{display:grid;grid-template-columns:24px minmax(0,1fr) 104px auto;gap:8px;align-items:baseline;
           padding:8px 12px;border-bottom:1px solid var(--line,#E4E7EB);font-size:13.5px}
@@ -4199,10 +4203,16 @@ function docStat(c){
   const got=(a)=>a.filter(r=>String(r.date||'').trim()).length;
   return {inN:inR.length,inGot:got(inR),outN:outR.length,outGot:got(outR),n:rows.length};
 }
+/* DRIVE_V1242 */
+function driveUrl(c){const u=String((c&&c.drive)||'').trim();return /^https?:\/\//i.test(u)?u:'';}
+function driveBtnHtml(c){const u=driveUrl(c);if(!u)return '';
+  return '<a class="btn btn-sm" href="'+esc(u)+'" target="_blank" rel="noopener"'
+    +' style="text-decoration:none" title="打開這位客戶的雲端資料夾">📂 雲端資料夾</a>';}
 function docSummaryHtml(c){
   const st=docStat(c);
+  const _dv=driveBtnHtml(c);/* DRIVE_V1242 */
   if(!st.n)return '<div class="doc-sum"><span class="muted">還沒有文件清單</span>'
-    +'<span style="flex:1"></span>'
+    +'<span style="flex:1"></span>'+_dv
     +'<button class="btn btn-sm" data-act="docSheet" data-id="'+esc(c.id)+'">📋 學生資料表</button>'
     +'<button class="btn btn-sm btn-accent" data-act="docOpen" data-id="'+esc(c.id)+'">📄 建立文件清單</button></div>';
   /* DOCMISS_V1238 本來只寫「還缺 3 份」，還是得點進去才知道缺什麼。直接把名字列出來。 */
@@ -4213,7 +4223,7 @@ function docSummaryHtml(c){
     +'<span class="doc-b'+((st.outGot===st.outN&&st.outN)?' ok':'')+'">📤 給學生 '+st.outGot+'／'+st.outN+'</span>'
     +(miss>0?('<span class="doc-b warn miss">還缺：'+esc(missN.slice(0,4).join('、'))
        +(miss>4?('　等 '+miss+' 份'):'')+'</span>'):'')
-    +'<span style="flex:1"></span>'
+    +'<span style="flex:1"></span>'+_dv
     +'<button class="btn btn-sm" data-act="docSheet" data-id="'+esc(c.id)+'">📋 學生資料表</button>'
     +'<button class="btn btn-sm" data-act="docPrint" data-id="'+esc(c.id)+'">🖨 列印 / PDF</button>'
     +'<button class="btn btn-sm" data-act="docOpen" data-id="'+esc(c.id)+'">📄 看文件清單</button></div>';
@@ -5779,6 +5789,9 @@ function agForm(c){c=c||{};
       <input id="ag-nextdo" type="text" value="${esc(c.next_do||'')}" placeholder="下一步要做的事"></div>
     <div class="field"><label>👉 什麼時候 <span class="hint">到期會出現在「今天要處理」</span></label>
       <input id="ag-nexton" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.next_on||'')}"></div>
+    <!-- DRIVE_V1242 放這位客戶資料的雲端資料夾（通常是 Google Drive 分享連結） -->
+    <div class="field full"><label>📂 雲端資料夾 <span class="hint">選填。貼 Google Drive（或其他）的分享連結，卡片、檔案視窗、列印出來的清單都會帶上</span></label>
+      <input id="ag-drive" type="text" value="${esc(c.drive||'')}" placeholder="https://drive.google.com/..."></div>
     <div class="field full"><label>備註 <span class="hint">選填，可以寫很多行</span></label><textarea id="ag-note" rows="4" placeholder="要記住的事">${esc(c.note||'')}</textarea></div>
     ${c.id?('<div class="field full">'+crmFilesBlockHtml('agency',c.id)+'</div>'):''}
   </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="agSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);
@@ -12180,7 +12193,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1241';
+const APP_BUILD='V1242';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -14614,8 +14627,10 @@ H.docPrint=(id)=>{
       +'<th class="c3">'+L2('狀態','Trạng thái')+'</th><th class="c4">'+L2('備註','Ghi chú')+'</th></tr></thead><tbody>'
       +arr.map(r=>{
         const dt=String(r.date||'').trim();
-        return '<tr'+(dt?'':' class="miss"')+'><td class="c1">'
-          +(dt?'<span class="ckb on">✓</span>':'<span class="ckb"></span>')+e2(r.n||'')+'</td>'
+        /* DOCPR_V1242 檔名長的時候會換行，第二行本來會跑到勾勾底下，看起來像掉下去了。
+           改成整段縮排，換行的那幾行跟第一行的字對齊。 */
+        return '<tr'+(dt?'':' class="miss"')+'><td class="c1"><span class="nmw">'
+          +(dt?'<span class="ckb on">✓</span>':'<span class="ckb"></span>')+e2(r.n||'')+'</span></td>'
           +'<td class="c2">'+(dt?e2(dt):('<span class="wait">'+L2('還沒','Chưa')+'</span>'))+'</td>'
           +'<td class="c3">'+(dt?('<span class="ok">'+L2('已完成','Hoàn thành')+'</span>')
                                :('<span class="no">'+L2('待處理','Chờ xử lý')+'</span>'))+'</td>'
@@ -14624,7 +14639,8 @@ H.docPrint=(id)=>{
   };
   /* EXPSHELL_V958 接上共同外殼，只留這份清單自己的欄寬和勾選框 */
   const css=fbCss()+docCss2()+expCss()
-   +'.c1{width:44%}.c2{width:16%}.c3{width:14%}.c4{width:26%;color:var(--mut)}'
+   +'.c1{width:46%}.c2{width:15%}.c3{width:13%}.c4{width:26%;color:var(--mut)}'
+   +'.c1 .nmw{display:block;padding-left:22px;text-indent:-22px;line-height:1.55}'
    +'.ckb{display:inline-block;width:14px;height:14px;border:1.4px solid #A8B2BF;border-radius:4px;'
    +'margin-right:8px;vertical-align:-2px;text-align:center;line-height:12px;font-size:11px;color:#fff}'
    +'.ckb.on{background:var(--bd);border-color:var(--bd)}'
@@ -14633,7 +14649,8 @@ H.docPrint=(id)=>{
    +'.who2{display:flex;gap:9px;flex-wrap:wrap;margin:11px 0 2px}'
    +'.who2 span{background:var(--soft);border:1px solid var(--line);border-radius:999px;'
    +'padding:4px 13px;font-size:12px}'
-   +'.who2 b{color:var(--deep)}';
+   +'.who2 b{color:var(--deep)}'
+   +'.dvp{margin-top:12px;font-size:11px;color:var(--mut);word-break:break-all}';
   const today=localToday();
   const page='<div class="page">'
    +fbHead(L2('留學代辦','Tư vấn du học'),L2('文件清單','Danh sách hồ sơ'),'DOCUMENT CHECKLIST',
@@ -14647,6 +14664,8 @@ H.docPrint=(id)=>{
    +'</div>'/* DOCVI_V938 */
    +sec('📥','學生給我的文件','Hồ sơ học viên gửi cô',d.inR,d.inGot)
    +sec('📤','我給學生的文件','Giấy tờ cô gửi học viên',d.outR,d.outGot)
+   +((typeof driveUrl==='function'&&driveUrl(c))
+      ?('<div class="dvp">📂 '+L2('雲端資料夾','Thư mục đám mây')+'　'+e2(driveUrl(c))+'</div>'):'')/* DRIVE_V1242 */
    +'<div class="foot">'+L2('沒填日期的就是還沒收到／還沒寄出。','Mục chưa có ngày là chưa nhận / chưa gửi.',1)+'QNA CHINESE</div>'
    +'</div>';
   const doc='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
@@ -18217,6 +18236,8 @@ H.crmBox=(key)=>{const c=crmRecOf(key);if(!c)return;const id=crmIdOf(key),kind=c
   const mine=(typeof shareForCrm==='function')?shareForCrm(id).length:0;
   openModal(`<div class="modal" style="max-width:720px"><div class="modal-head"><h3>📎 檔案 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
+     ${(function(){const u=(typeof driveUrl==='function')?driveUrl(c):'';/* DRIVE_V1242 */
+       return u?('<div class="dv-bar">📂 雲端資料夾　<a href="'+esc(u)+'" target="_blank" rel="noopener">'+esc(u)+'</a></div>'):'';})()}
      <div class="lesson-label">📥 客戶給我的檔案</div>
      <label class="drop-zone" id="itvf-drop">
        <input type="file" multiple style="display:none" onchange="H.crmFileUp(this,'${esc(kind)}::${esc(id)}')">
@@ -19296,6 +19317,7 @@ H.agSave=async(id)=>{const name=($('#ag-name').value||'').trim();if(!name)return
     schools:_schs,school:_schs.map(agSchLabel).filter(Boolean).join('、'),
     goal:(($('#ag-goal')&&$('#ag-goal').value)||'').trim(),/* CONSULT_V955 */
     stage:(($('#ag-stage')&&$('#ag-stage').value)||'case'),
+    drive:(($('#ag-drive')&&$('#ag-drive').value)||'').trim(),/* DRIVE_V1242 */
     next_do:(($('#ag-nextdo')&&$('#ag-nextdo').value)||'').trim(),
     next_on:(($('#ag-nexton')&&$('#ag-nexton').value)||'')||null,result:($('#ag-result')&&$('#ag-result').value)||'',deadline:(($('#ag-deadline')&&$('#ag-deadline').value)||'')||null,note:($('#ag-note').value||'').trim(),
     email:(($('#ag-email')&&$('#ag-email').value)||'').trim(),/* MAIL_V1066 */
