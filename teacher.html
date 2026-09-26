@@ -4239,6 +4239,46 @@ function docStat(c){
   const got=(a)=>a.filter(r=>String(r.date||'').trim()).length;
   return {inN:inR.length,inGot:got(inR),outN:outR.length,outGot:got(outR),n:rows.length};
 }
+/* ══════ REMIND_V1247 缺件催件訊息 ══════
+   起因：每次要跟學生要文件，都得自己看清單、自己打一次「還缺什麼」。
+   這裡直接把還沒收到的那幾項排成一段話（中文＋越南文），複製貼到 Zalo／Messenger 就好。
+   常見的那幾樣有現成的越南文；自己加的項目照原文放著，我不會亂翻。
+   一律只產生文字放在框裡讓妳先看、可以改，系統不會替妳送出去。 */
+const DOC_VI={
+ '護照影本':'Bản sao hộ chiếu','護照':'Hộ chiếu',
+ '身分證影本':'Bản sao CCCD/CMND',
+ '最高學歷畢業證書（經驗證）':'Bằng tốt nghiệp cao nhất (đã hợp pháp hóa)',
+ '大學畢業證書':'Bằng tốt nghiệp đại học',
+ '歷年成績單（經驗證）':'Bảng điểm các năm (đã hợp pháp hóa)',
+ '大學成績單':'Bảng điểm đại học',
+ '中文或英文能力證明':'Chứng chỉ năng lực tiếng Trung hoặc tiếng Anh',
+ '財力證明／存款證明':'Chứng minh tài chính / sổ tiết kiệm',
+ '財力證明':'Chứng minh tài chính',
+ '證件照（白底）':'Ảnh thẻ (nền trắng)','2吋照片':'Ảnh thẻ 2 inch',
+ '讀書計畫':'Kế hoạch học tập','學習計劃書':'Kế hoạch học tập',
+ '自傳':'Bản tự thuật','推薦信':'Thư giới thiệu',
+ '健康檢查表':'Giấy khám sức khỏe',
+ '申請表（本人簽名）':'Đơn đăng ký (có chữ ký)',
+ '填好的入學申請表':'Đơn nhập học đã điền',
+ '學校錄取通知書':'Giấy báo trúng tuyển',
+ '學校繳費單／收據':'Giấy nộp phí / biên lai của trường',
+ '簽證面試需要的文件':'Giấy tờ cần cho phỏng vấn visa'};
+function docViOf(n){const k=String(n||'').trim();return DOC_VI[k]||'';}
+function docRemindText(c){
+  const miss=docRows(c).filter(r=>r&&r.d!=='out'&&!String(r.date||'').trim());
+  const nm=String((c&&c.name)||'');
+  const li=miss.map((r,i)=>{const vi=docViOf(r.n);
+    return (i+1)+'. '+String(r.n||'')+(vi?('　'+vi):'');}).join('\n');
+  const due=(typeof agDueNext==='function')?agDueNext(c):null;
+  return 'Chào '+nm+',\n'
+   +'Hồ sơ du học của bạn còn thiếu '+miss.length+' mục sau đây:\n'
+   +li+'\n'
+   +(due?('Hạn: '+due[0]+'\n'):'')
+   +'Bạn gửi giúp cô qua Zalo hoặc Facebook nhé. Cảm ơn bạn!\n\n'
+   +'——\n'
+   +nm+' 你好，你的留學資料還缺這 '+miss.length+' 樣：\n'+li+'\n'
+   +(due?('截止：'+due[0]+'\n'):'')
+   +'方便的話再傳給老師，謝謝你！';}
 /* DRIVE_V1242 */
 function driveUrl(c){const u=String((c&&c.drive)||'').trim();return /^https?:\/\//i.test(u)?u:'';}
 function driveBtnHtml(c){const u=driveUrl(c);if(!u)return '';
@@ -4258,7 +4298,8 @@ function docSummaryHtml(c){
     +'<span class="doc-b'+((st.inGot===st.inN&&st.inN)?' ok':'')+'">📥 收到學生 '+st.inGot+'／'+st.inN+'</span>'
     +'<span class="doc-b'+((st.outGot===st.outN&&st.outN)?' ok':'')+'">📤 給學生 '+st.outGot+'／'+st.outN+'</span>'
     +(miss>0?('<span class="doc-b warn miss">還缺：'+esc(missN.slice(0,4).join('、'))
-       +(miss>4?('　等 '+miss+' 份'):'')+'</span>'):'')
+       +(miss>4?('　等 '+miss+' 份'):'')+'</span>'
+       +'<button class="btn btn-sm" data-act="docRemind" data-id="'+esc(c.id)+'">💬 催件訊息</button>'):'')
     +'<span style="flex:1"></span>'+_dv
     +'<button class="btn btn-sm" data-act="docSheet" data-id="'+esc(c.id)+'">📋 學生資料表</button>'
     +'<button class="btn btn-sm" data-act="docPrint" data-id="'+esc(c.id)+'">🖨 列印 / PDF</button>'
@@ -5695,6 +5736,7 @@ function renderWriting(){
       <div class="itv-acts">
         <button class="btn btn-accent" data-act="wrPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
         <button class="btn btn-file" data-act="crmBox" data-id="writing::${esc(c.id)}">📎 檔案</button>
+        ${driveBtnHtml(c)}
         <button class="btn" data-act="wrEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
         <i class="itv-sep"></i>${(function(){const st=wrStage(c);/* WRLOST_V1060 */
           if(st==='consult')return '<button class="btn btn-accent" data-act="wrStageSet" data-id="'+esc(c.id)+'::case">✅ 轉成進行中</button>'
@@ -5733,6 +5775,8 @@ function wrForm(c){c=c||{};
     <div class="field"><label>📄 交件期限 <span class="hint">選填，會在「待辦」提醒</span></label><input id="wr-deadline" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.deadline||'')}"></div>
     <div class="field"><label>💰 談定的總代書費 <span class="hint">選填。填了才會算「還差多少」</span></label><input id="wr-total" type="number" min="0" value="${esc(c.fee_total==null?'':String(c.fee_total))}" placeholder="請填金額"></div>
     <div class="field"><label>總費用幣別</label><select id="wr-fcur"><option value="VND"${cur==='VND'?' selected':''}>越南盾 VND（打千位）</option><option value="TWD"${cur==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${cur==='USD'?' selected':''}>美元 US$</option></select></div>
+    <div class="field full"><label>📂 雲端資料夾 <span class="hint">選填。貼 Google Drive（或其他）的分享連結</span></label>
+      <input id="wr-drive" type="text" value="${esc(c.drive||'')}" placeholder="https://drive.google.com/..."></div>
     <div class="field full"><label>備註／客戶資料 <span class="hint">選填，可以貼客戶的背景、經歷</span></label><textarea id="wr-note" rows="4" placeholder="客戶的背景、經歷、想申請什麼">${esc(c.note||'')}</textarea></div>
   </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="wrSave" data-id="${esc(c.id||'')}">💾 儲存</button></div></div>`);}
 function wrStageForm(key){const p=String(key).split('::');const c=wrById(p[0]);if(!c)return;
@@ -6055,6 +6099,7 @@ function renderInterview(){
         <button class="btn" data-act="itvSess" data-id="${esc(c.id)}::new">＋ 新增練習時間</button>
         <button class="btn" data-act="itvPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
         <button class="btn btn-file" data-act="itvFiles" data-id="${esc(c.id)}">📎 檔案</button>
+        ${driveBtnHtml(c)}
         <button class="btn" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
         <i class="itv-sep"></i>${(function(){const st=itvStage(c);/* ITVSTAGE_V1094 */
           if(st==='consult')return '<button class="btn btn-accent" data-act="itvStageSet" data-id="'+esc(c.id)+'::case">✅ 轉成進行中</button>'
@@ -6437,6 +6482,8 @@ function itvForm(c){c=c||{};
      <input id="itv-meet" type="url" inputmode="url" value="${esc(c.meet_url||'')}" placeholder="貼上 Meet 連結"></div>
      <div class="field"><label>💰 談定的練習費總額 <span class="hint">選填。填了才會算「還差多少」</span></label><input id="itv-total" type="number" min="0" value="${esc(c.fee_total==null?'':String(c.fee_total))}" placeholder="請填金額"></div>
      <div class="field"><label>總額幣別</label><select id="itv-fcur"><option value="VND"${itvTotalCur(c)==='VND'?' selected':''}>越南盾 VND（打千位）</option><option value="TWD"${itvTotalCur(c)==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${itvTotalCur(c)==='USD'?' selected':''}>美元 US$</option></select></div>
+     <div class="field full"><label>📂 雲端資料夾 <span class="hint">選填。貼 Google Drive（或其他）的分享連結</span></label>
+       <input id="itv-drive" type="text" value="${esc(c.drive||'')}" placeholder="https://drive.google.com/..."></div>
      <div class="field full"><label>備註 <span class="hint">選填，可以寫很多行</span></label><textarea id="itv-note" rows="4" placeholder="要記住的事">${esc(c.note||'')}</textarea></div></div>
      ${c.id?crmFilesBlockHtml('interview',c.id):''}
      <div class="lesson-label" style="margin-top:18px">🎤 練習安排</div>
@@ -7651,10 +7698,23 @@ function tjAddDays(ymd,n){/*TODAYJOB_V78*/
 const TJ_KIND={writing:{ic:'✍️',lab:'代書',tab:'writing',dk:'deadline',act:'交件'},
   interview:{ic:'🎤',lab:'面試',tab:'interview',dk:'exam_date',act:'面試'},
   agency:{ic:'📄',lab:'代辦',tab:'agency',dk:'deadline',act:'繳件'}};
+/* DUESOON_V1246 一位代辦客戶現在可能有好幾個截止日：客戶層的「文件繳交期限日」，
+   加上每一間學校各自的「報名截止日」。待辦要看最近的那一個。 */
+function agDues(c){const out=[];
+  if(c&&c.deadline)out.push([String(c.deadline),'繳件截止']);
+  (agSchools(c)||[]).forEach(x=>{if(x&&x.due)out.push([String(x.due),(x.name||'學校')+' 報名截止']);});
+  return out.sort((a,b)=>a[0].localeCompare(b[0]));}
+function agDueNext(c){const T=localToday();const ds=agDues(c);
+  if(!ds.length)return null;
+  const fut=ds.filter(x=>x[0]>=T);
+  return fut.length?fut[0]:ds[ds.length-1];}
 function tjDateOf(c){const m=TJ_KIND[c&&c.kind];if(!m)return '';
   /* CONSULT_V955 諮詢沒有繳件期限，看的是「下一步什麼時候做」 */
   if(c.kind==='agency'&&agIsConsult(c))return String(c.next_on||'');
+  if(c.kind==='agency'){const d=agDueNext(c);return d?d[0]:'';}
   return String(c[m.dk]||'');}
+function tjWhat(c){if(!c||c.kind!=='agency'||agIsConsult(c))return '';
+  const d=agDueNext(c);return d?d[1]:'';}
 function tjActOf(c){const m=TJ_KIND[c&&c.kind];
   if(c&&c.kind==='agency'&&agIsConsult(c))return '下一步';
   return m?m.act:'';}
@@ -7669,11 +7729,12 @@ function todayJobsHtml(pend,bare){/*TODAYJOB_V78 只看今天、過期、還沒�
     .filter(c=>!(c.kind==='writing'&&wrIsLost(c)))/* WRLOST_V1060 沒談成的代書也不用再提醒 */
     /*TJRESULT_V79 面試已經填了結果就不算待辦*/
     .filter(c=>!(c.kind==='interview'&&itvResultMeta(c.result)));
-  const late=[],today=[],nodate=[];
+  const late=[],today=[],soon=[],nodate=[];
+  const T7=tjAddDays(T,7);/* DUESOON_V1246 七天內快到的也要提醒 */
   all.forEach(c=>{const d=tjDateOf(c);
     if(!d){nodate.push(c);return;}
-    if(d<T)late.push(c);else if(d===T)today.push(c);});
-  const sub=(c)=>esc(String(c.docs||c.target||c.school||c.note||'').slice(0,40));
+    if(d<T)late.push(c);else if(d===T)today.push(c);else if(d<=T7)soon.push(c);});
+  const sub=(c)=>esc(String(tjWhat(c)||c.docs||c.target||c.school||c.note||'').slice(0,40));
   const row=(c,lab,col)=>{const m=TJ_KIND[c.kind];const d=tjDateOf(c);
     return '<div class="tj-row"><span class="tj-b" style="background:'+col+'18;color:'+col+';border-color:'+col+'55">'+m.ic+' '+lab+'</span>'
       +'<b>'+esc(c.name||'')+'</b><span class="muted">'+m.lab+(sub(c)?('・'+sub(c)):'')+'</span>'
@@ -7683,11 +7744,15 @@ function todayJobsHtml(pend,bare){/*TODAYJOB_V78 只看今天、過期、還沒�
   late.forEach(c=>{const n=Math.round((new Date(T)-new Date(tjDateOf(c)))/864e5);
     inner+=row(c,tjActOf(c)+'已過 '+n+' 天','#dc2626');});
   today.forEach(c=>{inner+=row(c,'今天'+tjActOf(c),'#b91c1c');});
+  /* DUESOON_V1246 七天內就要到的，先提醒，不要等到當天才看到 */
+  soon.sort((a,b)=>String(tjDateOf(a)).localeCompare(String(tjDateOf(b))));
+  soon.forEach(c=>{const n=Math.round((new Date(tjDateOf(c))-new Date(T))/864e5);
+    inner+=row(c,'還有 '+n+' 天'+tjActOf(c),'#b45309');});
   nodate.forEach(c=>{inner+=row(c,'還沒排日期','#6b7280');});
   if(!bare&&Number(pend)>0)inner='<div class="tj-row"><span class="tj-b" style="background:#2563eb18;color:#2563eb;border-color:#2563eb55">📥 待批改</span>'
     +'<b>'+Number(pend)+' 份作業</b><span class="grow"></span>'
     +'<button class="btn btn-sm" data-act="tab" data-id="grades">去批改</button></div>'+inner;
-  const n=late.length+today.length+nodate.length+((!bare&&Number(pend)>0)?1:0);
+  const n=late.length+today.length+soon.length+nodate.length+((!bare&&Number(pend)>0)?1:0);
   if(!inner&&!bare)inner='<div class="tj-none">今天沒有非做不可的事，輕鬆一下 🌿</div>';
   const qa='<details class="dash-fold tj-qa"><summary>➕ 快速新增（一行一筆）</summary>'
     +'<div style="margin-top:8px">'
@@ -12333,7 +12398,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1245';
+const APP_BUILD='V1247';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -18469,6 +18534,7 @@ function crmDocDraw(key){
     +'<span class="muted" style="font-weight:400;font-size:12.5px">學生給我 '+gotIn+'／'+inR.length+'</span>'
     +'<span style="flex:1"></span>'
     +'<button class="btn btn-sm" data-act="docOpen" data-id="'+esc(c.id)+'">📄 改清單</button>'
+    +((inR.length-gotIn)>0?('<button class="btn btn-sm" data-act="docRemind" data-id="'+esc(c.id)+'">💬 催件訊息</button>'):'')/* REMIND_V1247 */
     +'<button class="btn btn-sm" data-act="docPrint" data-id="'+esc(c.id)+'">🖨 列印 / PDF</button></div>'
     +grp(inR,'📥','學生給我','還沒收到')
     +grp(outR,'📤','我給學生','還沒給')
@@ -19348,6 +19414,7 @@ H.wrSave=async(id)=>{const name=(($('#wr-name')&&$('#wr-name').value)||'').trim(
     not_started:!!($('#wr-soon')&&$('#wr-soon').checked),/* CRMSOON_V1083 */
     phone:(($('#wr-phone')&&$('#wr-phone').value)||'').trim(),
     school:(($('#wr-school')&&$('#wr-school').value)||'').trim(),docs,
+    drive:(($('#wr-drive')&&$('#wr-drive').value)||'').trim(),/* DRIVE_V1246 */
     deadline:((($('#wr-deadline')&&$('#wr-deadline').value)||'')||null),
     note:(($('#wr-note')&&$('#wr-note').value)||'').trim(),
     stage:(($('#wr-stage')&&$('#wr-stage').value)||'case'),/* WRCONSULT_V1059 */
@@ -20222,7 +20289,7 @@ H.itvSave=async(id)=>{const name=($('#itv-name').value||'').trim();if(!name)retu
     email:(($('#itv-email')&&$('#itv-email').value)||'').trim(),/* MAIL_V1066 */
     not_started:!!($('#itv-soon')&&$('#itv-soon').checked),/* CRMSOON_V1083 */
     stage:(($('#itv-stage')&&$('#itv-stage').value)||'case'),/* ITVSTAGE_V1094 */
-    ...lifeRead('itv'),/* LIFE_V1106 */itv_kind:(($('#itv-kind')&&$('#itv-kind').value)||'').trim(),target:($('#itv-target').value||'').trim(),meet_url:(($('#itv-meet')&&$('#itv-meet').value)||'').trim(),note:($('#itv-note').value||'').trim(),exam_date:($('#itv-exam')&&$('#itv-exam').value)||'',exam_time:itvTimeNorm(($('#itv-examt')&&$('#itv-examt').value)||''),result:($('#itv-result')&&$('#itv-result').value)||'',result_note:($('#itv-rnote')&&$('#itv-rnote').value||'').trim()};
+    ...lifeRead('itv'),/* LIFE_V1106 */itv_kind:(($('#itv-kind')&&$('#itv-kind').value)||'').trim(),target:($('#itv-target').value||'').trim(),meet_url:(($('#itv-meet')&&$('#itv-meet').value)||'').trim(),drive:(($('#itv-drive')&&$('#itv-drive').value)||'').trim(),/* DRIVE_V1246 */note:($('#itv-note').value||'').trim(),exam_date:($('#itv-exam')&&$('#itv-exam').value)||'',exam_time:itvTimeNorm(($('#itv-examt')&&$('#itv-examt').value)||''),result:($('#itv-result')&&$('#itv-result').value)||'',result_note:($('#itv-rnote')&&$('#itv-rnote').value||'').trim()};
   {const tv=($('#itv-total')&&$('#itv-total').value);if(tv!==undefined){patch.fee_total=(tv===''?null:Number(tv));patch.fee_cur=(($('#itv-fcur')&&$('#itv-fcur').value)||'VND');}}
   {const pv=($('#itv-plann')&&$('#itv-plann').value);if(pv!==undefined)patch.plan_n=(pv===''?null:Number(pv));}
   const _pv=(($('#itv-person')&&$('#itv-person').value)||'');/* PERSON_V1071 */
@@ -20475,6 +20542,28 @@ H.pubSaveLessons=async(cls)=>{const checked=new Set($$('#pub-lessons .pub-les:ch
     toast('已更新發佈');closeModal();render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存發佈';}toast('失敗：'+((e&&e.message)||e));}};
 H.gmSchedAdd=()=>{const c=$('#gm-sched');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
 H.opsSub=(k)=>{S.opsSub=k||'inc';renderOps();try{window.scrollTo(0,0);}catch(e){}};
+/* REMIND_V1247 同理，這兩顆也要在 const H={} 之後 */
+H.docRemind=(id)=>{
+  const c=crmRecById(id)||((S.agencies||[]).find(x=>x&&x.id===id));if(!c)return;
+  const miss=docRows(c).filter(r=>r&&r.d!=='out'&&!String(r.date||'').trim());
+  if(!miss.length)return toast('這一位的文件都收齊了');
+  openModal('<div class="modal modal-tall" style="max-width:640px"><div class="modal-head">'
+   +'<h3>💬 催件訊息 · '+esc(c.name||'')+'</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:10px">還缺 '+miss.length+' 樣。下面這段可以先改再複製，'
+   +'系統<b>不會</b>自己送出去，要妳自己貼到 Zalo／Messenger。'
+   +'<br>自己加的項目沒有現成的越南文，就照原文放著，我不會亂翻。</div>'
+   +'<textarea id="rm-tx" style="width:100%;min-height:300px;font-size:14px;line-height:1.8;padding:12px;'
+   +'border:1px solid var(--line);border-radius:10px;box-sizing:border-box">'+esc(docRemindText(c))+'</textarea>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button>'
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="docRemindCopy">📋 複製這段字</button></div></div>');};
+H.docRemindCopy=async()=>{
+  const el=document.getElementById('rm-tx');if(!el)return;
+  const v=String(el.value||'');
+  try{await navigator.clipboard.writeText(v);toast('已複製，去貼給學生');}
+  catch(e){try{el.select();document.execCommand('copy');toast('已複製，去貼給學生');}
+    catch(_){toast('複製失敗，請自己選起來複製');}}};
 /* BIZCAL_V1245 這三顆一定要放在 const H={} 之後，不然會 TDZ */
 H.bizMonth=(d)=>{const n=Number(d)||0;const today=localToday();
   if(!n){S.bizMonth=today.slice(0,7);}
