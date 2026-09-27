@@ -1063,6 +1063,25 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .badge.bc-in,.badge.bc-out,.badge.bc-due,.badge.bc-nx,.badge.bc-lg,
         .badge.bc-py,.badge.bc-itv,.badge.bc-ex{border-color:transparent}
         .bc-dues{margin-bottom:12px;padding:12px 14px}
+        /* OC_V1257 線上課清單 */
+        .oc-list{background:var(--surface,#fff);border:1px solid var(--line,#E4E7EB);border-radius:12px;overflow:hidden}
+        .oc-r{display:grid;grid-template-columns:76px minmax(0,1fr) auto auto;gap:12px;align-items:center;
+          padding:10px 14px;border-bottom:1px solid var(--line,#E4E7EB)}
+        .oc-r.mem-r{grid-template-columns:minmax(0,1fr) auto auto}
+        .oc-r:last-child{border-bottom:0}
+        .oc-th{width:76px;height:44px;border-radius:8px;overflow:hidden;background:#EEF1F5;
+          display:flex;align-items:center;justify-content:center;font-size:20px}
+        .oc-th img{width:100%;height:100%;object-fit:cover;display:block}
+        .oc-n{min-width:0}
+        .oc-n b{display:block;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .oc-n i{display:block;font-style:normal;font-size:12px;color:var(--muted,#5B6B80);margin-top:2px;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .oc-b{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+        .oc-a{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+        @media(max-width:760px){
+          .oc-r,.oc-r.mem-r{grid-template-columns:76px minmax(0,1fr)}
+          .oc-r.mem-r{grid-template-columns:minmax(0,1fr)}
+          .oc-b,.oc-a{grid-column:1/-1;justify-content:flex-start}}
         /* SCHWIZ_V1253 */
         .sw-r{display:grid;grid-template-columns:minmax(0,1fr) 96px 86px 18px 86px;gap:8px;
           align-items:center;padding:7px 2px;border-bottom:1px solid var(--line,#E4E7EB)}
@@ -1131,6 +1150,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         <!-- TCOURSE_NAV_V54 主題課程入口（新的一區，跟課本教材分開） -->
         <button class="tab" data-act="tab" data-id="grades" data-group="students" title="批改・成績"><span class="e">📝</span><span class="lab">批改・成績</span><span class="count alert hide" id="c-pending">0</span></button>
         <button class="tab" data-act="tab" data-id="files" data-group="students" title="課堂活動"><span class="e">🎯</span><span class="lab">課堂活動</span></button>
+        <button class="tab owner-only" data-act="tab" data-id="oc" data-group="materials" title="線上課（自學會員）"><span class="e">🎬</span><span class="lab">線上課</span><span class="count" id="c-oc">0</span></button><!-- OC_V1257 -->
         <!-- NAV_SLIM_V670 本來 16 項。代辦／面試／代書是同一種東西（一樣的卡片、一樣的結案、
              一樣的上傳檔案），合成「留學業務」，進去上面有三個分頁可以切；繳費和財務都在講
              「誰還沒繳」，也合成一項。垃圾桶本來就在「設定 → 備份與垃圾桶」裡，選單這顆是重複的；
@@ -2759,6 +2779,12 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         <div id="agency-body"></div>
       </section>
 
+      <section id="panel-oc" class="panel hide"><!-- OC_V1257 -->
+        <div class="section-head"><h2>🎬 線上課</h2><span class="sub"></span><div class="head-actions">
+          <button class="btn btn-primary" data-act="ocNew">＋ 新增一課</button></div></div>
+        <div id="oc-body"></div>
+      </section>
+
       <section id="panel-bizcal" class="panel hide"><!-- BIZCAL_V1245 -->
         <div class="section-head"><h2>📅 行事曆</h2><span class="sub"></span><div class="head-actions">
           <button class="btn" data-act="agReport">📊 年度報表</button></div></div>
@@ -3320,6 +3346,7 @@ async function loadAll(){
    /* PROP_V944 老師送來的修改提案 */
    S.props=b.filter(x=>x.kind==='edit_proposal'&&!x.deleted_at)
      .sort((p,q)=>String(q.at||'').localeCompare(String(p.at||'')));
+   S.ocs=b.filter(x=>x&&x.kind==='oc'&&!x.deleted_at).sort((a,c)=>(Number(a.order_index)||0)-(Number(c.order_index)||0));/* OC_V1257 */
    S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.lqassigns=b.filter(x=>x.kind==='lqassign'&&!x.deleted_at);
    /* RPMOVE_V945 回覆範本和價目表正在從 lessons 搬到 crm（只有主管理員讀得到）。
       搬家期間兩邊都讀，畫面才不會有空窗；moved_from 用來避免同一筆出現兩次。 */
@@ -3335,7 +3362,9 @@ async function loadAll(){
    S.interviews=_all.filter(x=>x.kind==='interview');S.inquiries=_all.filter(x=>x.kind==='inquiry');S.agencies=_all.filter(x=>x.kind==='agency');S.schools=_all.filter(x=>x.kind==='school');S.links=_all.filter(x=>x.kind==='link');/* LINKS_V1190 */S.files=_all.filter(x=>x.kind==='file');/* FILES_V1194 */
    /* MEMO_V820 自己的備忘：只放在 crm 集合，規則上 crm 是 isOwner() 才讀得到 */
    S.memos=_crm.filter(x=>x&&x.kind==='memo'&&!x.deleted_at);
-   S.docTpl=_crm.find(x=>x&&x.kind==='doctpl'&&!x.deleted_at)||null;/* DOCTPL_V1238 */S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='school');
+   S.docTpl=_crm.find(x=>x&&x.kind==='doctpl'&&!x.deleted_at)||null;/* DOCTPL_V1238 */
+   /* OC_V1257 自學會員：自己註冊的人，跟正式學生分開存 */
+   if(owner){try{S.members=(await DB.list('members')).filter(x=>x&&!x.deleted_at);}catch(e){S.members=[];}}S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='school');
   splitResults(d);
   {const cut=Date.now()-7*864e5;(S.trashStudents||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('students',x.id).catch(()=>{});});(S.trashLessons||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('lessons',x.id).catch(()=>{});});}
   if(!owner){
@@ -3475,11 +3504,11 @@ function render(){
   $$('.panel').forEach(p=>p.classList.add('hide'));
   /* ROLE_V943 → TABFIX_V1192 權限檔下來要在「顯示那一頁」之前做，
      不然會先把擋下來的那一頁露出來（空白的），真正畫好的却是被藏起來的總覽。 */
-  if(!IS_OWNER&&['ops','pay','agency','interview','writing','school','bizcal','reply'].indexOf(S.tab)>=0)S.tab='dashboard';
+  if(!IS_OWNER&&['ops','pay','agency','interview','writing','school','bizcal','oc','reply'].indexOf(S.tab)>=0)S.tab='dashboard';
   /* TABFIX_V1192 舊的分頁名稱被拿掉的話，這一行會整個爆掉，畫面會全白。找不到就回總覽。 */
   if(!$('#panel-'+S.tab))S.tab='dashboard';
   $('#panel-'+S.tab).classList.remove('hide');
-  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,bizcal:renderBizCal,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,guide:renderGuide}[S.tab])();}
+  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,bizcal:renderBizCal,oc:renderOC,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,guide:renderGuide}[S.tab])();}
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
@@ -4070,6 +4099,119 @@ function schWizRow(s,i){
     +'<span class="sw-t">～</span>'
     +'<input class="sw-e hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="結束" value="'+esc(cur.e||'')+'">'
     +'</div>';}
+/* ══════ OC_V1257 線上課（自學會員） ══════
+   起因：不是她的學生、但想學中文的人，也想有地方看教學影片和做練習。
+   一課＝一支 YouTube 影片＋生詞＋練習題，練習題用現有那一套，系統自動對答案。
+   課存在 lessons（kind:'oc'），題目存在 questions，作答存在 results——
+   都是現成的東西，所以學生端那一套批改、統計不用重寫。
+   會員自己註冊，存在 members，跟正式學生完全分開，不會混進學生名冊。
+   免費／付費：一課可以設成免費或付費，付費的要會員的「可看到期日」還沒過。 */
+const OC_LV=[['','不分程度'],['a1','入門 A1'],['a2','初級 A2'],['b1','中級 B1'],['b2','中高級 B2'],['c1','高級 C1']];
+function ocAll(){return (S.ocs||[]);}
+function ocById(id){return ocAll().find(x=>x&&x.id===id)||null;}
+function ocYtId(u){const t=String(u||'');
+  let m=/(?:youtu\.be\/|v=|embed\/|shorts\/)([A-Za-z0-9_-]{6,})/.exec(t);
+  return m?m[1]:'';}
+function ocThumb(u){const id=ocYtId(u);return id?('https://i.ytimg.com/vi/'+id+'/mqdefault.jpg'):'';}
+function memAll(){return (S.members||[]);}
+function memPaid(m){const u=String((m&&m.until)||'').trim();
+  return !!(u&&u>=localToday());}
+function ocQn(id){return (S.questions||[]).filter(q=>q&&q.lesson_id===id).length;}
+function ocRowHtml(l){
+  const th=ocThumb(l.video_url);
+  const qn=ocQn(l.id);
+  const lv=(OC_LV.find(x=>x[0]===String(l.level||''))||OC_LV[0])[1];
+  return '<div class="oc-r">'
+    +'<span class="oc-th">'+(th?('<img src="'+esc(th)+'" alt="">'):'<i>🎬</i>')+'</span>'
+    +'<span class="oc-n"><b>'+esc(l.title||'（沒有標題）')+'</b>'
+      +'<i>'+esc(lv)+'　·　練習題 '+qn+' 題'+(l.intro?('　·　'+esc(String(l.intro).slice(0,28))):'')+'</i></span>'
+    +'<span class="oc-b">'+(l.tier==='paid'
+        ?'<span class="badge" style="background:#FEF3C7;color:#92400E;border-color:#FDE68A">💎 付費</span>'
+        :'<span class="badge badge-ok">免費</span>')
+      +(l.published?'<span class="badge badge-ok">已發佈</span>'
+        :'<span class="badge" style="background:#F1F4F8;color:#5B6B80">未發佈</span>')+'</span>'
+    +'<span class="oc-a">'
+      +'<button class="btn btn-sm" data-act="ocUp" data-id="'+esc(l.id)+'" title="往上">↑</button>'
+      +'<button class="btn btn-sm" data-act="ocDown" data-id="'+esc(l.id)+'" title="往下">↓</button>'
+      +'<button class="btn btn-sm" data-act="questions" data-id="'+esc(l.id)+'">📝 練習題</button>'
+      +'<button class="btn btn-sm" data-act="ocEdit" data-id="'+esc(l.id)+'">✏️ 編輯</button>'
+      +'<button class="btn btn-sm '+(l.published?'':'btn-accent')+'" data-act="ocPub" data-id="'+esc(l.id)+'">'
+        +(l.published?'🙈 收回':'🚀 發佈')+'</button>'
+      +'<button class="btn btn-sm btn-danger btn-icon" data-act="ocDel" data-id="'+esc(l.id)+'" title="刪掉這一課">🗑</button>'
+    +'</span></div>';}
+function memRowHtml(m){
+  const paid=memPaid(m);
+  const done=(S.results||[]).filter(r=>r&&r.uid===m.uid&&r.status==='done').length;
+  return '<div class="oc-r mem-r">'
+    +'<span class="oc-n"><b>'+esc(m.name||'（沒有名字）')+'</b>'
+      +'<i>'+esc(m.email||'')+'　·　註冊 '+esc(String(m.created_at||'').slice(0,10))
+      +(m.last_seen?('　·　最後一次來 '+esc(String(m.last_seen).slice(0,10))):'')
+      +'　·　做完 '+done+' 課</i></span>'
+    +'<span class="oc-b">'+(paid
+        ?('<span class="badge" style="background:#FEF3C7;color:#92400E;border-color:#FDE68A">💎 付費到 '+esc(m.until)+'</span>')
+        :'<span class="badge">免費會員</span>')+'</span>'
+    +'<span class="oc-a">'
+      +'<button class="btn btn-sm" data-act="memPay" data-id="'+esc(m.id)+'">💎 設定可看到期日</button>'
+      +'<button class="btn btn-sm btn-danger btn-icon" data-act="memDel" data-id="'+esc(m.id)+'" title="移除這位會員">🗑</button>'
+    +'</span></div>';}
+function renderOC(){
+  const body=document.getElementById('oc-body');if(!body)return;
+  if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','這一頁只有主管理員看得到。');return;}
+  const sub=(S.ocSub==='mem')?'mem':'les';
+  const ls=ocAll(),ms=memAll();
+  const bar='<div class="pagebar" style="margin-bottom:10px"><div class="segbar">'
+    +'<button class="segb'+(sub==='les'?' on':'')+'" data-act="ocSub" data-id="les">🎬 課程 <span class="segn">'+ls.length+'</span></button>'
+    +'<button class="segb'+(sub==='mem'?' on':'')+'" data-act="ocSub" data-id="mem">🙋 會員 <span class="segn">'+ms.length+'</span></button>'
+    +'</div></div>';
+  let inner='';
+  if(sub==='les'){
+    const pub=ls.filter(x=>x.published).length;
+    inner='<div class="card" style="margin-bottom:10px"><div class="hint">'
+      +'一課＝一支影片＋練習題。影片建議上傳到 YouTube、設成「不公開」，再把連結貼進來。'
+      +'<br>免費的課註冊就看得到；付費的課要那位會員的「可看到期日」還沒過。'
+      +'<b>沒有按「🚀 發佈」的課，外面看不到。</b></div>'
+      +'<div class="hint" style="margin-top:6px">共 '+ls.length+' 課，已發佈 '+pub+' 課。</div></div>'
+      +(ls.length?('<div class="oc-list">'+ls.map(ocRowHtml).join('')+'</div>')
+        :emptyHtml('🎬','還沒有線上課','按右上角「＋ 新增一課」開始。'));
+  }else{
+    inner='<div class="card" style="margin-bottom:10px"><div class="hint">'
+      +'自己註冊的人在這裡，跟正式學生分開，不會出現在學生名冊。'
+      +'要開放付費內容給某一位，按「💎 設定可看到期日」填一個日期，過了就自動收回。</div></div>'
+      +(ms.length?('<div class="oc-list">'+ms.map(memRowHtml).join('')+'</div>')
+        :emptyHtml('🙋','還沒有人註冊','把官網的「線上課」連結傳出去，就會有人註冊進來。'));
+  }
+  body.innerHTML=bar+inner;
+  try{const sb=document.querySelector('#panel-oc .section-head .sub');
+    if(sb)sb.textContent=ls.length+' 課 · '+ms.length+' 位會員';}catch(e){}
+  try{const c=document.getElementById('c-oc');if(c)c.textContent=String(ls.length);}catch(e){}}
+function ocForm(l){l=l||{};
+  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>🎬 '+(l.id?'編輯線上課':'新增線上課')+'</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">'
+   +fgSec('🎬 這一課是什麼','標題、程度、簡介')
+   +'<div class="field full"><label>標題 *</label><input id="oc-title" type="text" value="'+esc(l.title||'')+'" placeholder="例：第一課　你好，我叫…"></div>'
+   +'<div class="field"><label>程度</label><select id="oc-level">'
+   +OC_LV.map(x=>'<option value="'+x[0]+'"'+(String(l.level||'')===x[0]?' selected':'')+'>'+x[1]+'</option>').join('')+'</select></div>'
+   +'<div class="field"><label>排序 <span class="hint">數字小的排前面</span></label>'
+   +'<input id="oc-order" type="number" value="'+esc(l.order_index==null?'':String(l.order_index))+'" placeholder="1"></div>'
+   +'<div class="field full"><label>簡介 <span class="hint">選填。這一課學什麼</span></label>'
+   +'<textarea id="oc-intro" rows="3" placeholder="這一課學什麼">'+esc(l.intro||'')+'</textarea></div>'
+   +fgSec('📺 影片','貼 YouTube 連結')
+   +'<div class="field full"><label>YouTube 連結 <span class="hint">上傳到 YouTube、設成「不公開」，再把網址貼進來</span></label>'
+   +'<input id="oc-video" type="text" value="'+esc(l.video_url||'')+'" placeholder="https://youtu.be/..."></div>'
+   +fgSec('📖 生詞','選填。一行一個：生詞＝意思')
+   +'<div class="field full"><label>生詞 <span class="hint">一行一個，寫成「生詞＝意思」；沒有就留空</span></label>'
+   +'<textarea id="oc-vocab" rows="5" placeholder="你好＝xin chào">'+esc(l.vocab||'')+'</textarea></div>'
+   +fgSec('🔓 誰看得到','免費／付費、要不要發佈')
+   +'<div class="field"><label>開放對象</label><select id="oc-tier">'
+   +'<option value="free"'+(l.tier==='paid'?'':' selected')+'>免費 —— 註冊就看得到</option>'
+   +'<option value="paid"'+(l.tier==='paid'?' selected':'')+'>💎 付費 —— 要在可看期限內</option></select></div>'
+   +'<div class="field full"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
+   +'<input type="checkbox" id="oc-pub" style="width:auto;margin:0"'+(l.published?' checked':'')+'> 🚀 發佈（外面看得到）'
+   +'<span class="hint">沒勾＝只有妳自己看得到，可以先做完再發佈</span></label></div>'
+   +'</div>'+(l.id?'<div class="hint" style="margin-top:10px">練習題在清單那一列按「📝 練習題」進去出。</div>':'')
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="ocSave"'+(l.id?(' data-id="'+esc(l.id)+'"'):'')+'>💾 儲存</button></div></div>');}
 /* QUIZTAB_V661 「隨堂小考」本來只是「課堂活動」裡的第一個小分頁，
    從側邊選單按下去，亮起來的卻是「課堂活動」，看起來像沒進去。現在它自己就是一頁。 */
 function renderQuiz(){const b=$('#panel-quiz');if(!b)return;
@@ -12646,7 +12788,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1256';
+const APP_BUILD='V1257';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -20876,6 +21018,71 @@ H.dToday=(id)=>{const el=document.getElementById(String(id||''));if(!el)return;
   el.value=localToday();try{el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
 H.dClear=(id)=>{const el=document.getElementById(String(id||''));if(!el)return;
   el.value='';try{el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
+/* OC_V1257 線上課的操作 */
+H.ocSub=(k)=>{S.ocSub=(k==='mem')?'mem':'les';renderOC();};
+H.ocNew=()=>ocForm(null);
+H.ocEdit=(id)=>ocForm(ocById(id));
+H.ocSave=async(id)=>{
+  const g=(k)=>{const e=document.getElementById('oc-'+k);return e?String(e.value||'').trim():'';};
+  const title=g('title');if(!title)return toast('請填標題');
+  const ov=g('order');
+  const patch={kind:'oc',title:title,level:g('level'),intro:g('intro'),
+    video_url:g('video'),vocab:g('vocab'),tier:(g('tier')==='paid'?'paid':'free'),
+    published:!!(document.getElementById('oc-pub')&&document.getElementById('oc-pub').checked),
+    order_index:(ov===''?((ocAll().length+1)*10):Number(ov))};
+  try{
+    if(id)await DB.update('lessons',id,patch);
+    else{patch.created_at=new Date().toISOString();await DB.insert('lessons',patch);}
+    await loadAll();closeModal();S.tab='oc';render();toast('已儲存');}
+  catch(e){toast(writeErr('儲存失敗',e));}};
+H.ocPub=async(id)=>{const l=ocById(id);if(!l)return;
+  const on=!l.published;
+  if(on&&!String(l.video_url||'').trim()&&!ocQn(id)
+     &&!confirm('這一課還沒有影片也沒有練習題，確定要發佈嗎？'))return;
+  try{await DB.update('lessons',id,{published:on});l.published=on;renderOC();
+    toast(on?'已發佈，外面看得到了':'已收回，外面看不到了');}
+  catch(e){toast(writeErr('改不動',e));}};
+H.ocDel=async(id)=>{const l=ocById(id);if(!l)return;
+  if(!confirm('刪掉「'+(l.title||'')+'」？\n\n這一課的練習題不會一起刪，會留在題庫裡。'))return;
+  try{await DB.update('lessons',id,{deleted_at:new Date().toISOString()});
+    await loadAll();render();toast('已刪除');}catch(e){toast(writeErr('刪不掉',e));}};
+H.ocUp=(id)=>ocMove(id,-1);
+H.ocDown=(id)=>ocMove(id,1);
+async function ocMove(id,dir){
+  const ls=ocAll().slice();const i=ls.findIndex(x=>x&&x.id===id);
+  if(i<0)return;const j=i+dir;if(j<0||j>=ls.length)return;
+  const a=ls[i],b=ls[j];
+  const av=Number(a.order_index)||((i+1)*10),bv=Number(b.order_index)||((j+1)*10);
+  try{await DB.update('lessons',a.id,{order_index:bv});
+      await DB.update('lessons',b.id,{order_index:av});
+      a.order_index=bv;b.order_index=av;
+      S.ocs=ocAll().slice().sort((x,y)=>(Number(x.order_index)||0)-(Number(y.order_index)||0));
+      renderOC();}catch(e){toast(writeErr('排不動',e));}}
+H.memPay=(id)=>{const m=memAll().find(x=>x&&x.id===id);if(!m)return;
+  openModal('<div class="modal" style="max-width:420px"><div class="modal-head">'
+   +'<h3>💎 可看到期日 · '+esc(m.name||m.email||'')+'</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body"><div class="hint" style="margin-bottom:10px">'
+   +'填一個日期，在那天之前這位會員看得到「💎 付費」的課；過了就自動收回。留空＝只看得到免費的課。</div>'
+   +'<div class="field"><label>可看到</label><div class="lf-in">'
+   +'<input id="mp-until" type="date" min="2000-01-01" max="2100-12-31" value="'+esc(m.until||'')+'">'
+   +'<button class="btn btn-sm" type="button" data-act="dToday" data-id="mp-until">今天</button>'
+   +'<button class="btn btn-sm btn-icon" type="button" data-act="dClear" data-id="mp-until">✕</button>'
+   +'</div></div>'
+   +'<div class="hint" style="margin-top:8px">收款還是妳自己收（轉帳、Zalo 都可以），這裡只負責開權限。</div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="memPaySave" data-id="'+esc(id)+'">💾 儲存</button></div></div>');};
+H.memPaySave=async(id)=>{const m=memAll().find(x=>x&&x.id===id);if(!m)return;
+  const v=(($('#mp-until')&&$('#mp-until').value)||'').trim();
+  try{await DB.update('members',id,{until:v,tier:(v?'paid':'free')});
+    m.until=v;m.tier=v?'paid':'free';closeModal();renderOC();
+    toast(v?('已開放付費內容到 '+v):'已改回免費會員');}
+  catch(e){toast(writeErr('儲存失敗',e));}};
+H.memDel=async(id)=>{const m=memAll().find(x=>x&&x.id===id);if(!m)return;
+  if(!confirm('把「'+(m.name||m.email||'')+'」從會員名單移除？\n\n他的登入帳號還在，但進來會看不到線上課。'))return;
+  try{await DB.update('members',id,{deleted_at:new Date().toISOString()});
+    S.members=memAll().filter(x=>x!==m);renderOC();toast('已移除');}
+  catch(e){toast(writeErr('移不掉',e));}};
 /* IDLE_V1253 ／ SCHWIZ_V1253 */
 H.stuPause=async(id)=>{const s=(S.students||[]).find(x=>x&&x.id===id);if(!s)return;
   if(!confirm('把「'+(s.name||'')+'」改成「休學」？\n\n改了之後：不再算未收、課表也不再推他的固定時段。\n上課記錄和繳費記錄都留著，隨時可以改回「在學中」。'))return;
