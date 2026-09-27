@@ -2376,6 +2376,10 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .lk-r .btn{flex:none;padding:4px 9px;font-size:12.5px}
         .lk-r .btn.btn-icon{padding:4px 7px}
         .lk-e{color:#8A8F98;font-size:13px;padding:10px 0}
+        /* LKGRP_V1252 分組的小標題 */
+        .lk-g{font-size:11.5px;font-weight:700;color:#8A8F98;letter-spacing:.04em;
+          padding:9px 0 3px;border-bottom:0}
+        .lk-r+.lk-g{margin-top:4px;border-top:1px solid var(--line,#E4E7EB)}
         /* 學校卡：本來一間學校只有一顆按鈕也占掉一大塊，收緊 */
         #app .card.sch-c{padding:12px 16px;margin-bottom:8px}
         #app .card.sch-c b{font-size:15px}
@@ -12533,7 +12537,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1251';
+const APP_BUILD='V1252';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -19747,10 +19751,21 @@ function lkHost(u){try{return new URL(lkUrl(u)).host.replace(/^www\./,'');}catch
 /* LKTIDY_V1202 本來常用網站、常用檔案各占一張大卡，一筆資料分三行、
    卡跟卡之間又留一大片空白，整頁看起來很空很亂。
    改成一張卡、左右兩欄，一筆就一行（名稱一行，說明和網址／檔名併成灰色的第二行）。 */
+/* LKGRP_V1252 「華語中心／語言中心」那幾筆排在一起，其他排在一起。
+   判斷只看名稱和備註裡有沒有這幾個字，兩邊都有東西的時候才加小標題。
+   同一組裡面照原本的順序（自己排的 order_index，再照名稱）。 */
+function lkGrpOf(x){const t=String((x&&x.name)||'')+' '+String((x&&x.note)||'');
+  return /(華語中心|國語中心|語言中心|語文中心|華語文中心|中文中心|華語學校|語言學校)/.test(t)?0:1;}
+function lkGrpSort(list){return list.slice().sort((a,b)=>lkGrpOf(a)-lkGrpOf(b));}
+function lkGrpWrap(list,rowFn){
+  const A=list.filter(x=>lkGrpOf(x)===0),B=list.filter(x=>lkGrpOf(x)===1);
+  if(!A.length||!B.length)return list.map(rowFn).join('');
+  return '<div class="lk-g">🏫 華語中心</div>'+A.map(rowFn).join('')
+    +'<div class="lk-g">📄 其他</div>'+B.map(rowFn).join('');}
 function lkRowsHtml(){
-  const list=lkAll();
+  const list=lkGrpSort(lkAll());
   if(!list.length)return '<div class="lk-e">還沒有網站。按上面「＋」加第一個。</div>';
-  return list.map(c=>{
+  return lkGrpWrap(list,c=>{
     const u=lkUrl(c.url);
     const sub=[c.note?esc(c.note):'',lkHost(c.url)?esc(lkHost(c.url)):''].filter(Boolean).join('　·　');
     return '<div class="lk-r">'
@@ -19760,11 +19775,11 @@ function lkRowsHtml(){
       +(u?('<button class="btn btn-sm btn-icon" data-act="lkCopy" data-id="'+esc(c.id)+'" title="複製網址">\u{1F4CB}</button>'):'')
       +'<button class="btn btn-sm btn-icon" data-act="lkEdit" data-id="'+esc(c.id)+'" title="編輯">✏️</button>'
       +'<button class="btn btn-sm btn-danger btn-icon" data-act="lkDel" data-id="'+esc(c.id)+'" title="刪掉">✕</button>'
-      +'</div>';}).join('');}
+      +'</div>';});}
 function lfRowsHtml(){
-  const list=lfAll();
+  const list=lkGrpSort(lfAll());
   if(!list.length)return '<div class="lk-e">還沒有檔案。按上面「＋」上傳第一個。</div>';
-  return list.map(c=>{
+  return lkGrpWrap(list,c=>{
     const u=String(c.url||'');
     const sub=[c.note?esc(c.note):'',esc(c.fname||''),lfSize(c.fsize)].filter(Boolean).join('　·　');
     return '<div class="lk-r">'
@@ -19774,7 +19789,7 @@ function lfRowsHtml(){
       +(u?('<button class="btn btn-sm btn-icon" data-act="lfCopy" data-id="'+esc(c.id)+'" title="複製下載連結">\u{1F4CB}</button>'):'')
       +'<button class="btn btn-sm btn-icon" data-act="lfEdit" data-id="'+esc(c.id)+'" title="編輯">✏️</button>'
       +'<button class="btn btn-sm btn-danger btn-icon" data-act="lfDel" data-id="'+esc(c.id)+'" title="從清單拿掉">✕</button>'
-      +'</div>';}).join('');}
+      +'</div>';});}
 function lkCardHtml(){
   const nk=lkAll().length,nf=lfAll().length;
   const col=(ic,t,n,act,rows)=>'<div class="lkc-s"><div class="lkc-h">'+ic+' <b>'+t+'</b>'
