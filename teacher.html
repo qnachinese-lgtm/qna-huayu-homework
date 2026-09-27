@@ -1063,6 +1063,11 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .badge.bc-in,.badge.bc-out,.badge.bc-due,.badge.bc-nx,.badge.bc-lg,
         .badge.bc-py,.badge.bc-itv,.badge.bc-ex{border-color:transparent}
         .bc-dues{margin-bottom:12px;padding:12px 14px}
+        /* MEMROW_V1265 會員那一列的說明字，一格一格分開，長了就換行 */
+        .oc-n i.mem-l{display:flex;flex-wrap:wrap;gap:3px 0;align-items:center;
+          white-space:normal;overflow:visible;text-overflow:clip;line-height:1.7}
+        .mem-bit{white-space:nowrap}
+        .mem-bit:not(:last-child)::after{content:"·";margin:0 8px;color:var(--line-strong,#C0CEE0)}
         /* ACCT_V1261 帳號與使用狀況 */
         .ac-top{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
         .ac-h,.ac-r{display:grid;
@@ -4168,17 +4173,44 @@ function ocRowHtml(l){
         +(l.published?'🙈 收回':'🚀 發佈')+'</button>'
       +'<button class="btn btn-sm btn-danger btn-icon" data-act="ocDel" data-id="'+esc(l.id)+'" title="刪掉這一課">🗑</button>'
     +'</span></div>';}
+/* MEMROW_V1265 會員那一列本來只有信箱和兩個日期，看不出這個人到底有沒有在用。
+   現在一行把「來過幾次、上次什麼時候來、做完幾課幾分、最近做哪一課」都寫出來。 */
+function memDaysAgo(d){const x=String(d||'').slice(0,10);if(!x)return null;
+  const a=new Date(x+'T00:00:00'),b=new Date(localToday()+'T00:00:00');
+  if(isNaN(a))return null;return Math.round((b-a)/864e5);}
+function memAgoTxt(d){const n=memDaysAgo(d);if(n==null)return '';
+  return n<=0?'今天':(n===1?'昨天':(n+' 天前'));}
+function memProgOf(m){return (S.results||[]).find(r=>r&&r.lesson_id==='__progress'&&r.uid===m.uid)||null;}
+function memDoneOf(m){return (S.results||[]).filter(r=>r&&r.uid===m.uid&&r.status==='done'&&Number(r.total)>0);}
+function memLangName(v){return ({zh:'繁體中文',cn:'简体中文',en:'English',vi:'Tiếng Việt'})[String(v||'')]||'';}
 function memRowHtml(m){
   const paid=memPaid(m);
-  const done=(S.results||[]).filter(r=>r&&r.uid===m.uid&&r.status==='done').length;
+  const done=memDoneOf(m);
+  const prog=memProgOf(m);
+  const nLogin=(prog&&Array.isArray(prog.logins))?prog.logins.length:0;
+  const last=(prog&&prog.last_login)||m.last_seen||'';
+  const tot=done.reduce((a,r)=>a+(Number(r.total)||0),0);
+  const sc=done.reduce((a,r)=>a+(Number(r.score)||0),0);
+  const avg=tot?Math.round(sc/tot*100):null;
+  const recent=done.slice().sort((a,b)=>String(b.completed_at||b.updated_at||'').localeCompare(String(a.completed_at||b.updated_at||'')))[0];
+  const rl=recent?(ocById(recent.lesson_id)||{}):null;
+  const bit=(x)=>x?('<span class="mem-bit">'+x+'</span>'):'';
+  const line=bit(esc(m.email||''))
+    +bit('註冊 '+esc(String(m.created_at||'').slice(0,10))+(memAgoTxt(m.created_at)?('（'+memAgoTxt(m.created_at)+'）'):''))
+    +bit(last?('最後一次來 '+esc(String(last).slice(0,10))+'（'+memAgoTxt(last)+'）'):'<span style="color:#b45309">註冊後還沒回來過</span>')
+    +bit(nLogin?('來過 '+nLogin+' 次'):'')
+    +bit(done.length?('做完 '+done.length+' 課'+(avg!=null?('・平均 '+avg+' 分'):'')):'<span style="color:var(--muted)">還沒做過練習</span>')
+    +bit(memLangName(m.lang)?('介面 '+esc(memLangName(m.lang))):'')
+    +((recent&&rl)?bit('最近：'+esc(rl.title||'（已刪除的課）')+' '+(Number(recent.score)||0)+'/'+(Number(recent.total)||0)):'');
+  let tag='<span class="badge">免費會員</span>';
+  if(paid){const left=-memDaysAgo(m.until);
+    tag='<span class="badge" style="background:#FEF3C7;color:#92400E;border-color:#FDE68A">💎 付費到 '+esc(m.until)
+      +(left!=null&&left>=0?('（還有 '+left+' 天）'):'')+'</span>';}
+  else if(String(m.until||'').trim()){
+    tag='<span class="badge" style="background:#F8E7E4;color:#A33227;border-color:#f0c9c2">⏳ '+esc(m.until)+' 已到期</span>';}
   return '<div class="oc-r mem-r">'
-    +'<span class="oc-n"><b>'+esc(m.name||'（沒有名字）')+'</b>'
-      +'<i>'+esc(m.email||'')+'　·　註冊 '+esc(String(m.created_at||'').slice(0,10))
-      +(m.last_seen?('　·　最後一次來 '+esc(String(m.last_seen).slice(0,10))):'')
-      +'　·　做完 '+done+' 課</i></span>'
-    +'<span class="oc-b">'+(paid
-        ?('<span class="badge" style="background:#FEF3C7;color:#92400E;border-color:#FDE68A">💎 付費到 '+esc(m.until)+'</span>')
-        :'<span class="badge">免費會員</span>')+'</span>'
+    +'<span class="oc-n"><b>'+esc(m.name||'（沒有名字）')+'</b><i class="mem-l">'+line+'</i></span>'
+    +'<span class="oc-b">'+tag+'</span>'
     +'<span class="oc-a">'
       +'<button class="btn btn-sm" data-act="memPay" data-id="'+esc(m.id)+'">💎 設定可看到期日</button>'
       +'<button class="btn btn-sm btn-danger btn-icon" data-act="memDel" data-id="'+esc(m.id)+'" title="移除這位會員">🗑</button>'
@@ -12928,7 +12960,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1261';
+const APP_BUILD='V1265';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
