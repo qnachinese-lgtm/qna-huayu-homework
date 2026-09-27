@@ -1058,6 +1058,18 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .badge.bc-in,.badge.bc-out,.badge.bc-due,.badge.bc-nx,.badge.bc-lg,
         .badge.bc-py,.badge.bc-itv,.badge.bc-ex{border-color:transparent}
         .bc-dues{margin-bottom:12px;padding:12px 14px}
+        /* SCHWIZ_V1253 */
+        .sw-r{display:grid;grid-template-columns:minmax(0,1fr) 96px 86px 18px 86px;gap:8px;
+          align-items:center;padding:7px 2px;border-bottom:1px solid var(--line,#E4E7EB)}
+        .sw-r:last-child{border-bottom:0}
+        .sw-n{min-width:0;font-weight:600;font-size:14px}
+        .sw-n .sw-more{display:block;font-style:normal;font-weight:400;font-size:11.5px;color:#8A8F98}
+        .sw-r select,.sw-r input{padding:6px 8px;border:1px solid var(--line,#E4E7EB);border-radius:9px;
+          font-family:inherit;font-size:13.5px;width:100%;box-sizing:border-box}
+        .sw-t{text-align:center;color:#8A8F98}
+        @media(max-width:620px){
+          .sw-r{grid-template-columns:72px 1fr 18px 1fr}
+          .sw-n{grid-column:1/-1}}
         /* SCHFILL_V1251 */
         .sf-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px;margin-bottom:10px}
         .sf-bar .muted{font-size:12.5px}
@@ -2685,6 +2697,7 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         <div class="section-head"><h2>👥 學生</h2><span class="sub"></span><div class="head-actions">
           <input id="stu-search" type="text" placeholder="搜尋名字 / 國籍…" style="max-width:190px">
           <button class="btn owner-only" data-act="stuExpAll">📤 總匯出</button>
+          <button class="btn owner-only" data-act="schedWiz">🗓 一次設固定時段</button><!-- SCHWIZ_V1253 -->
           <button class="btn owner-only" data-act="groupsMgr">👥 團班管理</button>
           <button class="btn btn-primary owner-only" data-act="addStudent">＋ 新增學生</button></div></div>
         <div id="students-list" class="cards cols-2"></div>
@@ -4012,12 +4025,35 @@ function renderDashboard(){
       todayJobsHtml(_pend,true)
       +`<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
        <details class="dash-fold" open style="margin-top:12px"><summary>⏰ 提醒（堂數／補課／交件）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>`,true)}
+    ${(function(){const n=idleStus(30).length;return n?_sec('idle','🕰 好久沒上課',n,idleHtml(),true):'';})()/* IDLE_V1253 */}
     ${_sec('memo','📝 我的備忘',memoOpen().length||'',memoHtml(),true)}
     ${healthCheckHtml()}
 `;
   try{body.querySelectorAll('details.dash-sec').forEach(d=>{d.addEventListener('toggle',()=>{try{localStorage.setItem('hyc_ds_'+d.dataset.ds,d.open?'1':'0');}catch(e){}});});}catch(e){}
 }
 
+/* ══════ SCHWIZ_V1253 一次設固定時段 ══════
+   起因：在學中的學生裡有一半沒設固定時段，課表就推不出來，每一堂都要自己排。
+   一個一個開學生資料去設太慢，這裡一張表一次設完。
+   一位只設一段（最常見的那一段）；要兩段以上的，還是去學生資料裡加。 */
+function schWizList(){
+  return (S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test
+      &&enrollOf(s)==='active'&&s.class_type!=='團班')
+    .slice().sort(stuNameCmp);}
+function schWizRow(s,i){
+  const cur=(Array.isArray(s.schedule)?s.schedule:[])[0]||{};
+  const has=(Array.isArray(s.schedule)?s.schedule:[]).length;
+  return '<div class="sw-r" data-id="'+esc(s.id)+'">'
+    +'<span class="sw-n">'+snm(s.name||'')
+    +(has>1?('<i class="sw-more">已有 '+has+' 段，這裡只改第一段</i>')
+       :(has?'<i class="sw-more">已經設過了</i>':''))+'</span>'
+    +'<select class="sw-d">'+'<option value="">—</option>'
+    +[0,1,2,3,4,5,6].map(d=>'<option value="'+d+'"'+((cur.d!=null&&Number(cur.d)===d)?' selected':'')+'>週'+DAYS[d]+'</option>').join('')
+    +'</select>'
+    +'<input class="sw-s hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="開始" value="'+esc(cur.s||'')+'">'
+    +'<span class="sw-t">～</span>'
+    +'<input class="sw-e hhmm" type="text" inputmode="numeric" maxlength="5" placeholder="結束" value="'+esc(cur.e||'')+'">'
+    +'</div>';}
 /* QUIZTAB_V661 「隨堂小考」本來只是「課堂活動」裡的第一個小分頁，
    從側邊選單按下去，亮起來的卻是「課堂活動」，看起來像沒進去。現在它自己就是一頁。 */
 function renderQuiz(){const b=$('#panel-quiz');if(!b)return;
@@ -7296,6 +7332,36 @@ function enrollBadge(s,short){const m=enrollMeta(enrollOf(s));const ic=({active:
   const SH={'預約・詢問中':'預約','試學（免費）':'試學','在學中':'在學','已結束':'結束'};
   const lab=short?((SH[m[1]])||m[1]):m[1];
   return `<span class="tag"${short?(' title="'+esc(m[1])+'"'):''} style="background:${m[2]}22;color:${m[2]};border-color:${m[2]}66">${ic} ${lab}</span>`;}
+/* ══════ IDLE_V1253 好久沒上課 ══════
+   起因：有幾位狀態還掛在「在學中」，可是一兩個月沒有上課記錄了——
+   可能是停掉了忘了改，也可能是自己忘了排。掛著會一直算未收、也一直出現在名單上。
+   這裡只是把他們列出來讓她自己決定，系統不會自動改任何人的狀態。 */
+function stuLastLog(s){const lg=(Array.isArray(s&&s.class_log)?s.class_log:[]).filter(e=>e&&e.date);
+  return lg.map(e=>String(e.date)).sort().pop()||'';}
+function idleStus(days){
+  const T=localToday();const D=Number(days)||30;const cut=tjAddDays(T,-D);
+  return (S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test&&enrollOf(s)==='active')
+    .map(s=>{const d=stuLastLog(s);
+      /* 從來沒上過課的，用建檔日算，剛加進來的不算 */
+      const base=d||String(s.created_at||'').slice(0,10);
+      return {s:s,d:d,base:base,
+        n:base?Math.round((new Date(T)-new Date(base))/864e5):null};})
+    .filter(x=>x.base&&x.base<cut)
+    .sort((a,b)=>String(a.base).localeCompare(String(b.base)));}
+function idleHtml(){
+  const list=idleStus(30);
+  if(!list.length)return '<div class="hint" style="padding:6px 2px">沒有。在學中的學生最近一個月都有上課記錄。</div>';
+  return list.map(x=>{const s=x.s;
+    return '<div class="dash-row" style="flex-wrap:wrap">'
+      +'<span class="badge badge-soon">'+(x.d?(x.n+' 天沒上課'):(x.n+' 天沒記錄'))+'</span>'
+      +'<b>'+snm(s.name||'')+'</b>'
+      +'<span class="muted">'+(x.d?('最後一堂 '+esc(x.d)):'還沒有上課記錄')
+      +(String(s.textbook||'').trim()?('・'+esc(s.textbook)):'')+'</span>'
+      +'<span class="grow" style="flex:1"></span>'
+      +'<button class="btn btn-sm" data-act="planClass" data-id="S:'+esc(s.id)+'">📌 排一堂</button>'
+      +'<button class="btn btn-sm" data-act="stuPause" data-id="'+esc(s.id)+'">⏸ 改成休學</button>'
+      +'<button class="btn btn-sm" data-act="student" data-id="'+esc(s.id)+'">去看</button>'
+      +'</div>';}).join('');}
 function progOf(sid){return (S.results||[]).find(r=>r&&r.lesson_id==='__progress'&&r.student_id===sid)||null;}
 function fillGroupSched(force){const el=document.getElementById('f-groups');const cont=document.getElementById('sched-rows');if(!el||!cont)return;const g=(el.value||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)[0];if(!g)return;const sch=classSchedOf(g);if(!sch||!sch.length)return;const cur=$$('#sched-rows .sched-row').map(row=>({s:((row.querySelector('.sched-s')||{}).value)||'',e:((row.querySelector('.sched-e')||{}).value)||''})).filter(r=>r.s||r.e);if(cur.length&&!force)return;cont.innerHTML=sch.map(r=>schedRowHTML(r)).join('');try{refreshFirstSlot();}catch(e){}try{toast('已帶入「'+g+'」的上課時段');}catch(e){}}
 function activityLine(s){const p=progOf(s.id);const li=p&&p.last_login?fmtDT(p.last_login):'—';const la=p&&p.last_active?fmtDT(p.last_active):'尚未使用';const streak=(p&&p.progress&&p.progress.act&&p.progress.act.streak)||0;return `<div class="meta" style="margin-top:8px"><span>🕒 最後登入：<b>${esc(li)}</b></span><span>⚡ 最後活動：<b>${esc(la)}</b></span>${streak>=2?`<span>🔥 連續 ${streak} 天</span>`:''}</div>`;}
@@ -12537,7 +12603,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1252';
+const APP_BUILD='V1253';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -20762,6 +20828,45 @@ H.agReportGo=()=>{
    +expBar(1,'<span class="exp-l">'+e2(y)+' 年</span>')
    +agRptHtml(y)+expJs()+'</body></html>';
   closeModal();fbWin(doc);};
+/* IDLE_V1253 ／ SCHWIZ_V1253 */
+H.stuPause=async(id)=>{const s=(S.students||[]).find(x=>x&&x.id===id);if(!s)return;
+  if(!confirm('把「'+(s.name||'')+'」改成「休學」？\n\n改了之後：不再算未收、課表也不再推他的固定時段。\n上課記錄和繳費記錄都留著，隨時可以改回「在學中」。'))return;
+  try{await DB.update('students',id,{enroll_status:'paused'});s.enroll_status='paused';
+    render();toast('已改成休學');}catch(e){toast(writeErr('改不動',e));}};
+H.schedWiz=()=>{
+  const list=schWizList();
+  if(!list.length)return toast('沒有需要設定的一對一學生');
+  const none=list.filter(s=>!(Array.isArray(s.schedule)?s.schedule:[]).length).length;
+  openModal('<div class="modal modal-tall modal-wide"><div class="modal-head">'
+   +'<h3>🗓 一次設固定時段</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body"><div class="hint" style="margin-bottom:10px">'
+   +'在學中的一對一學生共 '+list.length+' 位'+(none?('，其中 '+none+' 位還沒設'):'')+'。'
+   +'設好之後課表就會自動把他們的課推出來（還沒點名的顯示成虛線的「固定時段」）。'
+   +'<br>一位只設一段；同一位要兩段以上，到學生資料裡加。留空＝不設。</div>'
+   +'<div id="sw-rows">'+list.map(schWizRow).join('')+'</div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="schedWizSave">💾 一起儲存</button></div></div>');};
+H.schedWizSave=async()=>{
+  const rows=[...document.querySelectorAll('#sw-rows .sw-r')];
+  const jobs=[];
+  for(const el of rows){
+    const id=el.getAttribute('data-id');const s=(S.students||[]).find(x=>x&&x.id===id);if(!s)continue;
+    const g=(sel)=>{const e=el.querySelector(sel);return e?String(e.value||'').trim():'';};
+    const d=g('.sw-d'),st=hhmmFmt(g('.sw-s')),en=hhmmFmt(g('.sw-e'));
+    const cur=(Array.isArray(s.schedule)?s.schedule:[]);
+    const old=cur[0]||{};
+    if(d===''&&!st&&!en){if(cur.length)jobs.push([s,cur]);continue;}
+    if(d===''||!st){jobs.push([s,cur]);continue;}
+    if(String(old.d)===String(d)&&String(old.s||'')===st&&String(old.e||'')===en)continue;
+    const next=cur.slice();next[0]={d:Number(d),s:st,e:en};
+    jobs.push([s,next,1]);}
+  const todo=jobs.filter(j=>j[2]);
+  if(!todo.length){closeModal();return toast('沒有改到什麼');}
+  let ok=0;
+  try{for(const [s,arr] of todo){await DB.update('students',s.id,{schedule:arr});s.schedule=arr;ok++;}
+    closeModal();render();toast('已設定 '+ok+' 位的固定時段');}
+  catch(e){toast(writeErr('儲存失敗',e));}};
 /* SCHFILL_V1251 一樣要在 const H={} 之後 */
 H.schFill=()=>{
   const miss=schMissingFromAg();
