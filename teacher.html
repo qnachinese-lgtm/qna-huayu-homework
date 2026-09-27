@@ -1663,6 +1663,17 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .lf-f{display:flex;flex-direction:column;gap:3px;font-weight:400;margin:0}
         .lf-f>span{font-size:12px;color:var(--muted,#5B6B80)}
         .lf-f>input{margin:0}
+        /* DATEBTN_V1255 日期格子後面跟著「今天」和「✕」 */
+        /* FGSEC_V1256 表單裡的分區小標 */
+        .fg-sec,.form-grid .field.fg-sec{display:flex;flex-direction:row;align-items:baseline;
+          gap:8px;flex-wrap:wrap;margin:8px 0 -2px;padding-top:12px;
+          border-top:1px solid var(--line,#E4E7EB)}
+        .fg-sec:first-child{margin-top:0;padding-top:0;border-top:0}
+        .fg-sec>b{font-size:13.5px;color:var(--primary,#1E4C86);letter-spacing:.02em}
+        .fg-sec>i{font-style:normal;font-size:12px;color:var(--muted,#5B6B80);font-weight:400}
+        .lf-in{display:flex;align-items:center;gap:4px;min-width:0}
+        .lf-in>input{flex:1;min-width:0;margin:0}
+        .lf-in>.btn{flex:none;padding:5px 8px;font-size:12px}
         .lf-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
         .lf-i{font-size:12px;background:#F2F3F5;color:#4B5563;border-radius:999px;padding:2px 10px;white-space:nowrap}
         .lf-i>b{font-weight:700;color:#374151}
@@ -5341,12 +5352,26 @@ function lifeStamp(c,st){const p={},t=localToday();
     if(/^\d{4}-\d{2}-\d{2}$/.test(cr)&&cr<=t)p.d_consult=cr;}
   return p;}
 /* 表單裡的四格日期 */
+/* DATEBTN_V1255 這四格日期常常填出「2097」這種年份——格子的順序是「年／月／日」，
+   可是越南是「ngày／tháng／năm」，習慣先打日，第一段就打進年份那一格了。
+   每一格旁邊加「今天」和「✕ 清空」，最常用的情況一按就好，不用跟格子的順序搏鬥；
+   說明也直接寫出順序。 */
+/* FGSEC_V1256 客戶表單本來是一長串欄位，從頭到尾沒有分段，
+   打開來根本不知道哪一格該寫什麼（Quinn：「有很多資料我不知道要寫在哪個地方」）。
+   這裡給一個小標題，把欄位分成幾區；只是視覺上的分隔，欄位本身沒有動。 */
+function fgSec(t,sub){return '<div class="field full fg-sec"><b>'+t+'</b>'
+  +(sub?('<i>'+sub+'</i>'):'')+'</div>';}
 function lifeFields(pfx,c){
   return '<div class="field full"><label>\u{1F5D3} 什麼時候 <span class="hint">'
-    +'按階段按鈕的時候會自動填今天，填錯了在這裡改</span></label>'
+    +'按階段按鈕的時候會自動填今天，填錯了在這裡改。'
+    +'格子的順序是<b>年／月／日</b>（Năm／Tháng／Ngày），按「今天」最快</span></label>'
     +'<div class="lf-grid">'
-    +LIFE_F.map(([k,lab])=>'<label class="lf-f"><span>'+lab+'</span>'
-      +'<input id="'+pfx+'-d-'+k+'" type="date" value="'+esc(lifeGet(c,k))+'" min="2000-01-01" max="2100-12-31"></label>').join('')
+    +LIFE_F.map(([k,lab])=>{const id=pfx+'-d-'+k;
+      return '<div class="lf-f"><span>'+lab+'</span>'
+      +'<div class="lf-in"><input id="'+id+'" type="date" value="'+esc(lifeGet(c,k))+'" min="2000-01-01" max="2100-12-31">'
+      +'<button class="btn btn-sm" type="button" data-act="dToday" data-id="'+id+'" title="填今天">今天</button>'
+      +'<button class="btn btn-sm btn-icon" type="button" data-act="dClear" data-id="'+id+'" title="清空">✕</button>'
+      +'</div></div>';}).join('')
     +'</div></div>';}
 function lifeRead(pfx){const o={};
   LIFE_F.forEach(([k])=>{const el=document.getElementById(pfx+'-d-'+k);
@@ -5828,7 +5853,9 @@ function wrForm(c){c=c||{};
   const have=String(c.docs||'').split(/[,，、\s]+/).filter(Boolean);
   const chk=(v)=>`<label style="display:inline-flex;align-items:center;gap:6px;margin:0 12px 6px 0;font-weight:400;cursor:pointer"><input type="checkbox" class="wr-doc" value="${esc(v)}" style="width:auto;margin:0"${have.indexOf(v)>=0?' checked':''}> ${esc(v)}</label>`;
   openModal(`<div class="modal"><div class="modal-head"><h3>✍️ ${c.id?'編輯代書客戶':'新增代書客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
+    ${fgSec('🧍 這個人是誰','姓名、怎麼聯絡')}
     <div class="field"><label>姓名 *</label><input id="wr-name" type="text" value="${esc(c.name||'')}" placeholder="請填寫姓名"></div>
+    ${fgSec('🚦 走到哪一步了','階段、日期，還有他是不是同一個人')}
     <!-- WRCONSULT_V1059 -->
     <div class="field"><label>階段</label><select id="wr-stage">
       <option value="consult"${wrStage(c)==='consult'?' selected':''}>💬 諮詢中（報價不算進未收）</option>
@@ -5840,12 +5867,15 @@ function wrForm(c){c=c||{};
     ${crmSoonField('wr-soon',c)}
     ${lifeFields('wr',c)/* LIFE_V1106 */}
     ${pPickField('wr-person','writing',c)}
+    ${fgSec('✍️ 要寫什麼','文件種類、給哪一間、什麼時候要')}
     <div class="field full"><label>要寫哪些文件 *</label><div style="margin-top:4px">${WR_DOCS.map(chk).join('')}</div>
       <input id="wr-docs-other" type="text" value="${esc(have.filter(x=>WR_DOCS.indexOf(x)<0).join('、'))}" placeholder="其他文件名稱（用、隔開）" style="margin-top:6px"></div>
     <div class="field full"><label>申請學校／單位 <span class="hint">選填</span></label><input id="wr-school" type="text" value="${esc(c.school||'')}" placeholder="請填要申請的學校和科系"></div>
     <div class="field"><label>📄 交件期限 <span class="hint">選填，會在「待辦」提醒</span></label><input id="wr-deadline" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.deadline||'')}"></div>
+    ${fgSec('💰 費用','談定多少；實際收款在卡片上的「記一筆收款」')}
     <div class="field"><label>💰 談定的總代書費 <span class="hint">選填。填了才會算「還差多少」</span></label><input id="wr-total" type="number" min="0" value="${esc(c.fee_total==null?'':String(c.fee_total))}" placeholder="請填金額"></div>
     <div class="field"><label>總費用幣別</label><select id="wr-fcur"><option value="VND"${cur==='VND'?' selected':''}>越南盾 VND（打千位）</option><option value="TWD"${cur==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${cur==='USD'?' selected':''}>美元 US$</option></select></div>
+    ${fgSec('📄 備註與檔案','雲端資料夾、客戶背景')}
     <div class="field full"><label>📂 雲端資料夾 <span class="hint">選填。貼 Google Drive（或其他）的分享連結</span></label>
       <input id="wr-drive" type="text" value="${esc(c.drive||'')}" placeholder="https://drive.google.com/..."></div>
     <div class="field full"><label>備註／客戶資料 <span class="hint">選填，可以貼客戶的背景、經歷</span></label><textarea id="wr-note" rows="4" placeholder="客戶的背景、經歷、想申請什麼">${esc(c.note||'')}</textarea></div>
@@ -6126,7 +6156,9 @@ function agForm(c){c=c||{};
   AGSCH=agSchools(c);if(!AGSCH.length)AGSCH=[{name:'',dept:'',degree:'',result:''}];
   const rOpt=(v,l)=>`<option value="${v}"${(c.result||'')===v?' selected':''}>${l}</option>`;
   openModal(`<div class="modal modal-tall"><div class="modal-head"><h3>🎓 ${c.id?'編輯代辦客戶':'新增代辦客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">
+    ${fgSec('🧍 這個人是誰','姓名、怎麼聯絡')}
     <div class="field"><label>姓名 *</label><input id="ag-name" type="text" value="${esc(c.name||'')}" placeholder="請填寫姓名"></div>
+    ${fgSec('🚦 走到哪一步了','階段、日期，還有他是不是同一個人')}
     <div class="field"><label>階段</label><select id="ag-stage">
       <option value="consult"${(c.__consult||agStage(c)==='consult')?' selected':''}>💬 諮詢中（報價不算進未收）</option>
       <option value="case"${(!c.__consult&&agStage(c)!=='consult'&&agStage(c)!=='lost')?' selected':''}>📄 正式案件</option>
@@ -6137,22 +6169,26 @@ function agForm(c){c=c||{};
     ${crmSoonField('ag-soon',c)}
     ${lifeFields('ag',c)/* LIFE_V1106 */}
     ${pPickField('ag-person','agency',c)}
+    ${fgSec('🏫 要申請什麼','學校、結果、繳件期限')}
     <div class="field full"><label>申請學校 <span class="hint">一間一列。學校名稱打字會從「🏫 學校與資料」跳建議；每一間可以各自記結果</span></label>
       <div id="ag-schs">${agSchRowsHtml()}</div>
       <button class="btn btn-sm" type="button" data-act="agSchAdd" style="margin-top:6px">＋ 再加一間學校</button>
       <datalist id="sch-dl">${schAll().map(x=>`<option value="${esc(x.name||'')}"></option>`).join('')}</datalist></div>
     <div class="field"><label>申請結果</label><select id="ag-result"><option value=""${!c.result?' selected':''}>— 進行中 —</option>${rOpt('submitted','📮 已送件、等結果')}${rOpt('admitted_s','🎉 錄取・有獎學金')}${rOpt('admitted_n','✅ 錄取・無獎學金')}${c.result==='admitted'?rOpt('admitted','✅ 錄取（舊）'):''}${rOpt('rejected','❌ 未錄取')}</select></div>
     <div class="field"><label>📄 文件繳交期限日 <span class="hint">選填，會在「待辦」提醒</span></label><input id="ag-deadline" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.deadline||'')}"></div>
+    ${fgSec('💰 費用','談定多少；實際收款在卡片上的「記一筆收款」')}
     <div class="field"><label>💰 談定的總代辦費 <span class="hint">選填。填了才會算「還差多少」</span></label><input id="ag-total" type="number" min="0" value="${esc(c.fee_total==null?'':String(c.fee_total))}" placeholder="請填金額"></div>
     <!-- AGREJ_V1061 -->
     <div class="field"><label>❌ 未錄取只收 <span class="hint">選填。上面的「申請結果」一改成「未錄取」，就改用這個金額算未收。填 0 ＝ 不收</span></label><input id="ag-rejfee" type="number" min="0" value="${esc(c.fee_rejected==null||c.fee_rejected===''?'':String(c.fee_rejected))}" placeholder="請填金額"></div>
     <div class="field"><label>總費用幣別</label><select id="ag-fcur"><option value="VND"${agTotalCur(c)==='VND'?' selected':''}>越南盾 VND（打千位）</option><option value="TWD"${agTotalCur(c)==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${agTotalCur(c)==='USD'?' selected':''}>美元 US$</option></select></div>
+    ${fgSec('🎯 目標與下一步','想申請什麼、接下來要做什麼')}
     <div class="field full"><label>🎯 目標 <span class="hint">選填。哪一年入學、申請什麼</span></label>
       <input id="ag-goal" type="text" value="${esc(c.goal||'')}" placeholder="想申請什麼、什麼時候入學"></div>
     <div class="field"><label>👉 下一步要做什麼 <span class="hint">選填</span></label>
       <input id="ag-nextdo" type="text" value="${esc(c.next_do||'')}" placeholder="下一步要做的事"></div>
     <div class="field"><label>👉 什麼時候 <span class="hint">到期會出現在「今天要處理」</span></label>
       <input id="ag-nexton" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.next_on||'')}"></div>
+    ${fgSec('📄 備註與檔案','雲端資料夾、要記住的事')}
     <!-- DRIVE_V1242 放這位客戶資料的雲端資料夾（通常是 Google Drive 分享連結） -->
     <div class="field full"><label>📂 雲端資料夾 <span class="hint">選填。貼 Google Drive（或其他）的分享連結，卡片、檔案視窗、列印出來的清單都會帶上</span></label>
       <input id="ag-drive" type="text" value="${esc(c.drive||'')}" placeholder="https://drive.google.com/..."></div>
@@ -6649,7 +6685,7 @@ function itvFormTotalPatch(){const tv=($('#itv-total')&&$('#itv-total').value);
 function itvForm(c){c=c||{};
   /* ITVNEW_V836 新增才開草稿；編輯既有客戶不用 */
   ITVDRAFT=c.id?null:{sessions:[],payments:[],fee_total:null,fee_cur:'VND'};
-  openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🎤 ${c.id?'編輯面試客戶':'新增面試客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>姓名</label><input id="itv-name" type="text" value="${esc(c.name||'')}" placeholder="請填寫姓名"></div><div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="itv-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>${realField('itv-real',c)/* REALNAME_V1108 */}${crmMailField('itv-email',c)}<div class="field"><label>目前階段</label><select id="itv-stage">${Object.keys(ITV_STAGE).map(k=>`<option value="${k}"${itvStage(c)===k?' selected':''}>${ITV_STAGE[k][0]}</option>`).join('')}</select><span class="hint">諮詢中＝只報了價，不算未收；沒談成＝問了就沒下文</span></div>${crmSoonField('itv-soon',c)}${lifeFields('itv',c)/* LIFE_V1106 */}${pPickField('itv-person','interview',c)}<div class="field"><label>面試類別 <span class="hint">這位客戶是在準備哪一種面試</span></label>
+  openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🎤 ${c.id?'編輯面試客戶':'新增面試客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">${fgSec('🧍 這個人是誰','姓名、怎麼聯絡')}<div class="field"><label>姓名</label><input id="itv-name" type="text" value="${esc(c.name||'')}" placeholder="請填寫姓名"></div><div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="itv-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>${realField('itv-real',c)/* REALNAME_V1108 */}${crmMailField('itv-email',c)}${fgSec('🚦 走到哪一步了','階段、日期，還有他是不是同一個人')}<div class="field"><label>目前階段</label><select id="itv-stage">${Object.keys(ITV_STAGE).map(k=>`<option value="${k}"${itvStage(c)===k?' selected':''}>${ITV_STAGE[k][0]}</option>`).join('')}</select><span class="hint">諮詢中＝只報了價，不算未收；沒談成＝問了就沒下文</span></div>${crmSoonField('itv-soon',c)}${lifeFields('itv',c)/* LIFE_V1106 */}${pPickField('itv-person','interview',c)}${fgSec('🎤 這一場面試','考什麼、什麼時候、結果')}<div class="field"><label>面試類別 <span class="hint">這位客戶是在準備哪一種面試</span></label>
      <input id="itv-kind" type="text" list="itv-kindlist" value="${esc(c.itv_kind||(c.id?'':'申請簽證'))}" placeholder="請填面試類別">
      <datalist id="itv-kindlist"><option value="申請簽證"><option value="入學面試"><option value="獎學金面試"><option value="工作面試"><option value="其他"></datalist></div>
      <div class="field"><label>面試目標 <span class="hint">選填。學校、科系或單位</span></label><input id="itv-target" type="text" value="${esc(c.target||'')}" placeholder="請填學校、科系或單位"></div><div class="field"><label>🎯 正式面試日 <span class="hint">選填</span></label><input id="itv-exam" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.exam_date||'')}"></div>
@@ -6660,8 +6696,10 @@ function itvForm(c){c=c||{};
      <div class="field"><label>結果備註 <span class="hint">選填</span></label><input id="itv-rnote" type="text" value="${esc(c.result_note||'')}" placeholder="結果要補充的話寫這裡"></div>
      <div class="field full"><label>🎥 練習用的線上教室（Google Meet） <span class="hint">貼固定的 Meet 連結，課表上就會出現「進入教室」</span></label>
      <input id="itv-meet" type="url" inputmode="url" value="${esc(c.meet_url||'')}" placeholder="貼上 Meet 連結"></div>
+     ${fgSec('💰 費用','談定多少；實際收款在下面「付費記錄」')}
      <div class="field"><label>💰 談定的練習費總額 <span class="hint">選填。填了才會算「還差多少」</span></label><input id="itv-total" type="number" min="0" value="${esc(c.fee_total==null?'':String(c.fee_total))}" placeholder="請填金額"></div>
      <div class="field"><label>總額幣別</label><select id="itv-fcur"><option value="VND"${itvTotalCur(c)==='VND'?' selected':''}>越南盾 VND（打千位）</option><option value="TWD"${itvTotalCur(c)==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${itvTotalCur(c)==='USD'?' selected':''}>美元 US$</option></select></div>
+     ${fgSec('📄 備註與檔案','雲端資料夾、要記住的事')}
      <div class="field full"><label>📂 雲端資料夾 <span class="hint">選填。貼 Google Drive（或其他）的分享連結</span></label>
        <input id="itv-drive" type="text" value="${esc(c.drive||'')}" placeholder="https://drive.google.com/..."></div>
      <div class="field full"><label>備註 <span class="hint">選填，可以寫很多行</span></label><textarea id="itv-note" rows="4" placeholder="要記住的事">${esc(c.note||'')}</textarea></div></div>
@@ -12608,7 +12646,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1254';
+const APP_BUILD='V1256';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -20833,6 +20871,11 @@ H.agReportGo=()=>{
    +expBar(1,'<span class="exp-l">'+e2(y)+' 年</span>')
    +agRptHtml(y)+expJs()+'</body></html>';
   closeModal();fbWin(doc);};
+/* DATEBTN_V1255 任何一個日期格子都可以用：data-act="dToday" / "dClear"，data-id 是那一格的 id */
+H.dToday=(id)=>{const el=document.getElementById(String(id||''));if(!el)return;
+  el.value=localToday();try{el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
+H.dClear=(id)=>{const el=document.getElementById(String(id||''));if(!el)return;
+  el.value='';try{el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
 /* IDLE_V1253 ／ SCHWIZ_V1253 */
 H.stuPause=async(id)=>{const s=(S.students||[]).find(x=>x&&x.id===id);if(!s)return;
   if(!confirm('把「'+(s.name||'')+'」改成「休學」？\n\n改了之後：不再算未收、課表也不再推他的固定時段。\n上課記錄和繳費記錄都留著，隨時可以改回「在學中」。'))return;
