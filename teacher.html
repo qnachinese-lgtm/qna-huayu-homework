@@ -1058,6 +1058,15 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .badge.bc-in,.badge.bc-out,.badge.bc-due,.badge.bc-nx,.badge.bc-lg,
         .badge.bc-py,.badge.bc-itv,.badge.bc-ex{border-color:transparent}
         .bc-dues{margin-bottom:12px;padding:12px 14px}
+        /* SCHFILL_V1251 */
+        .sf-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px;margin-bottom:10px}
+        .sf-bar .muted{font-size:12.5px}
+        .sf-r{display:flex;align-items:center;gap:9px;padding:6px 2px;border-bottom:1px solid var(--line,#E4E7EB)}
+        .sf-r:last-child{border-bottom:0}
+        .sf-r .sf-ck{width:auto;margin:0;flex:none}
+        .sf-r .sf-n{flex:1;min-width:0;padding:6px 10px;border:1px solid var(--line,#E4E7EB);
+          border-radius:9px;font-family:inherit;font-size:14px}
+        .sf-r .muted{flex:none;font-size:12px}
         /* 格子裡的字比課表長，要讓欄位縮得下去，長的才會用「…」收尾 */
         .cm-wrap.bc-wrap .cm-cell{min-width:0;overflow:hidden}
         .cm-wrap.bc-wrap .cm-list{min-width:0}
@@ -2718,7 +2727,8 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
       </section>
 
       <section id="panel-bizcal" class="panel hide"><!-- BIZCAL_V1245 -->
-        <div class="section-head"><h2>📅 行事曆</h2><span class="sub"></span></div>
+        <div class="section-head"><h2>📅 行事曆</h2><span class="sub"></span><div class="head-actions">
+          <button class="btn" data-act="agReport">📊 年度報表</button></div></div>
         <div id="bizcal-body"></div>
       </section>
 
@@ -5459,10 +5469,9 @@ function itvExamBadge(c,done){if(!c)return '';const m=itvResultMeta(c.result);
   const shortD=dlShortDate(c.exam_date);
   const shortL=d==null?'':(d<0?('過 '+(-d)+' 天'):(d===0?'今天':(d===1?'明天':(d+' 天'))));
   return `<span class="badge dl-badge" title="${esc(full)}" style="background:${col}18;color:${col};border-color:${col}55">🎯 ${esc(shortD)}${shortL?`<i class="dl-left">${esc(shortL)}</i>`:''}</span>`;}
-/* DLONE_V906 今年的日期只印月日，跨年才印完整的，單行才塞得下 */
-function dlShortDate(ds){const x=String(ds||'');
-  const y=String(new Date().getFullYear());
-  return (x.slice(0,4)===y)?x.slice(5):x;}
+/* DLONE_V906 → DLYEAR_V1251 本來今年的只印月日，可是「09-30」看不出是哪一年，
+   跟「2027-01-15」擺在一起更亂。一律印完整年月日。 */
+function dlShortDate(ds){return String(ds||'');}
 function itvIncome(ym){const paid={},due={};itvAll().forEach(c=>{itvAddCur(paid,itvPaidSum(c,ym));if(!ym)itvAddCur(due,itvDueSum(c));});return {paid,due};}
 /* ===================== 🎓 代辦申請學校：資料與畫面（純函式） ===================== */
 /* CONSULT_V955 諮詢／正式案件／沒談成。舊資料沒有 stage，一律當成正式案件。 */
@@ -5915,10 +5924,107 @@ function schByName(nm){const k=String(nm||'').trim().toLowerCase();if(!k)return 
 function schUrl(u){u=String(u||'').trim();if(!u)return '';return /^https?:\/\//i.test(u)?u:('https://'+u);}
 function schLinkBtn(u,ic,lab,strong){const h=schUrl(u);if(!h)return '';
   return `<a class="btn btn-sm${strong?' btn-accent':''}" href="${esc(h)}" target="_blank" rel="noopener">${ic} ${lab}</a>`;}
+/* ══════ AGRPT_V1251 留學業務年度報表 ══════
+   起因：一年下來到底做了幾位、收了多少、哪一間學校送最多、錄取幾位，
+   全部散在各自的卡片裡，年底要交代或自己回顧都得一張一張看。
+   這一張全部是現有資料算出來的，不會生出任何一筆新東西。 */
+function agRptYears(){
+  const y={};const add=(d)=>{const t=String(d||'').slice(0,4);if(/^\d{4}$/.test(t))y[t]=1;};
+  (S.agencies||[]).concat(S.interviews||[],S.writings||[]).forEach(c=>{if(!c||c.deleted_at)return;
+    add(c.created_at);(c.payments||[]).forEach(p=>add(p&&p.date));
+    (c.log||[]).forEach(e=>add(e&&e.date));});
+  add(localToday());
+  return Object.keys(y).sort().reverse();}
+function agRptHtml(Y){
+  const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const inY=(d)=>String(d||'').slice(0,4)===String(Y);
+  /* 1. 每月收入 */
+  const tot={ag:{},itv:{},wr:{}};
+  const mrows=[];
+  for(let m=1;m<=12;m++){const ym=Y+'-'+String(m).padStart(2,'0');
+    const a=agIncome(ym).paid,i=itvIncome(ym).paid,w=wrIncome(ym).paid;
+    itvAddCur(tot.ag,a);itvAddCur(tot.itv,i);itvAddCur(tot.wr,w);
+    const any=Object.keys(a).length||Object.keys(i).length||Object.keys(w).length;
+    if(!any)continue;
+    mrows.push('<tr><td class="c1">'+m+' 月</td><td class="c2">'+e2(itvMoneyStr(a)||'—')+'</td>'
+      +'<td class="c2">'+e2(itvMoneyStr(i)||'—')+'</td><td class="c2">'+e2(itvMoneyStr(w)||'—')+'</td></tr>');}
+  /* 2. 客戶概況 */
+  const ag=(S.agencies||[]).filter(c=>c&&!c.deleted_at);
+  const newY=ag.filter(c=>inY(c.created_at));
+  const caseY=newY.filter(c=>agStage(c)==='case');
+  const lostY=newY.filter(c=>agIsLost(c));
+  const consultY=newY.filter(c=>agIsConsult(c));
+  const doneY=ag.filter(c=>(c.status||'active')!=='active'&&inY(c.created_at));
+  const rate=(caseY.length+lostY.length)?Math.round(caseY.length/(caseY.length+lostY.length)*100):null;
+  /* 3. 每間學校 */
+  const sch={};
+  ag.forEach(c=>{if(!inY(c.created_at))return;
+    (agSchools(c)||[]).forEach(x=>{const n=String((x&&x.name)||'').trim();if(!n)return;
+      const o=sch[n]=sch[n]||{n:0,ok:0,no:0,sub:0,wait:0};o.n++;
+      const r=String((x&&x.result)||'');
+      if(/^admitted/.test(r))o.ok++;else if(r==='rejected')o.no++;
+      else if(r==='submitted')o.sub++;else o.wait++;});});
+  const srows=Object.keys(sch).sort((a,b)=>sch[b].n-sch[a].n||a.localeCompare(b,'zh-Hant'))
+    .map(n=>{const o=sch[n];
+      return '<tr><td class="c1">'+e2(n)+'</td><td class="c3">'+o.n+'</td><td class="c3">'+(o.ok||'—')+'</td>'
+        +'<td class="c3">'+(o.no||'—')+'</td><td class="c3">'+((o.sub+o.wait)||'—')+'</td></tr>';});
+  /* 4. 目前缺件 */
+  const miss=ag.filter(c=>agStage(c)==='case'&&(c.status||'active')==='active')
+    .map(c=>{const m=docRows(c).filter(r=>r&&r.d!=='out'&&!String(r.date||'').trim());
+      return m.length?[c,m]:null;}).filter(Boolean)
+    .sort((a,b)=>b[1].length-a[1].length);
+  const tbl=(head,rows,empty)=>rows.length
+    ?('<div class="tw"><table><thead><tr>'+head+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>')
+    :('<div class="none">'+empty+'</div>');
+  return '<div class="page">'
+   +fbHead('留學業務','年度報表 '+Y,'STUDY ABROAD · ANNUAL REPORT',
+      '<div class="kv">列印日期 <b>'+e2(localToday())+'</b></div>'
+     +'<div class="kv">這一年新客戶 <b>'+newY.length+'</b> 位</div>')
+   +'<div class="sec"><span class="st">💰 每月收入</span><span class="n">代辦 ／ 面試 ／ 代書</span></div>'
+   +tbl('<th class="c1">月份</th><th class="c2">代辦</th><th class="c2">面試練習</th><th class="c2">代書</th>',
+        mrows,'這一年還沒有收款記錄。')
+   +'<div class="sum">全年合計　代辦 <b>'+e2(itvMoneyStr(tot.ag)||'—')+'</b>　'
+   +'面試 <b>'+e2(itvMoneyStr(tot.itv)||'—')+'</b>　代書 <b>'+e2(itvMoneyStr(tot.wr)||'—')+'</b></div>'
+   +'<div class="sec"><span class="st">👥 客戶概況</span><span class="n">依建立年份</span></div>'
+   +'<div class="who2"><span>新客戶 <b>'+newY.length+'</b></span>'
+   +'<span>正式案件 <b>'+caseY.length+'</b></span>'
+   +'<span>諮詢中 <b>'+consultY.length+'</b></span>'
+   +'<span>沒談成 <b>'+lostY.length+'</b></span>'
+   +'<span>已結案 <b>'+doneY.length+'</b></span>'
+   +(rate!=null?('<span>成交率 <b>'+rate+'%</b></span>'):'')+'</div>'
+   +'<div class="sec"><span class="st">🏫 申請了哪些學校</span><span class="n">'+Object.keys(sch).length+' 間</span></div>'
+   +tbl('<th class="c1">學校</th><th class="c3">送件</th><th class="c3">錄取</th><th class="c3">未錄取</th><th class="c3">等結果</th>',
+        srows,'這一年還沒有填申請學校。')
+   +'<div class="sec"><span class="st">📥 目前還缺文件</span><span class="n">不分年份・現在的狀況</span></div>'
+   +tbl('<th class="c1">客戶</th><th class="c3">還缺</th><th class="c4">缺哪幾樣</th>',
+        miss.map(x=>'<tr><td class="c1">'+e2(docNm(x[0]))+'</td><td class="c3">'+x[1].length+'</td>'
+          +'<td class="c4">'+e2(x[1].map(r=>r.n).slice(0,6).join('、'))+(x[1].length>6?' 等':'')+'</td></tr>'),
+        '進行中的客戶文件都收齊了。')
+   +'<div class="foot">所有數字都是從平台現有的資料算出來的。QNA CHINESE</div></div>';}
+/* ══════ SCHFILL_V1251 名冊補齊 ══════
+   代辦客戶的「申請學校」是自己打字的，名冊卻要另外再建一次，
+   所以名冊裡只有兩間，客戶那邊卻出現十幾間。
+   這裡把「客戶填過、名冊沒有」的挑出來，一次建進去。
+   名字是她自己打的，可能長得亂七八糟（「元智大學 成功大學」這種），
+   所以建之前每一列都可以改、可以不勾——我不替她決定要不要建。 */
+function schMissingFromAg(){
+  const have={};(S.schools||[]).forEach(x=>{if(x&&!x.deleted_at){const n=String(x.name||'').trim();if(n)have[n]=1;}});
+  const used={};
+  (S.agencies||[]).forEach(a=>{if(!a||a.deleted_at)return;
+    const ss=agSchools(a)||[];
+    if(ss.length)ss.forEach(x=>{const n=String((x&&x.name)||'').trim();if(n)used[n]=(used[n]||0)+1;});
+    else{const n=String(a.school||'').trim();if(n)used[n]=(used[n]||0)+1;}});
+  return Object.keys(used).filter(n=>!have[n]).sort((x,y)=>used[y]-used[x]||x.localeCompare(y,'zh-Hant'))
+    .map(n=>({name:n,n:used[n]}));}
 function renderSchools(){
   const body=$('#school-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','這一頁只有主管理員看得到。');return;}
-  const head=navSubBar(BIZ_TABS,'school');
+  const head=navSubBar(BIZ_TABS,'school')
+    +(function(){const m=schMissingFromAg();return m.length
+      ?('<div class="card sf-bar"><b>🏫 代辦客戶裡有 '+m.length+' 間學校還沒建進名冊</b>'
+        +'<span class="muted">'+esc(m.slice(0,3).map(x=>x.name).join('、'))+(m.length>3?' 等':'')+'</span>'
+        +'<span style="flex:1"></span>'
+        +'<button class="btn btn-sm btn-accent" data-act="schFill">一次建進來</button></div>'):'';})();
   const list=schAll().slice().sort((a,b)=>String(a.country||'').localeCompare(String(b.country||''))||String(a.name||'').localeCompare(String(b.name||''),'zh-Hant'));
   const _lk=lkCardHtml()+lfCardHtml();/* LINKS_V1190 ／ FILES_V1194 */
   if(!list.length){body.innerHTML=head+_lk+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">🏫</div><h3 style="margin:8px 0">還沒有學校</h3><div class="hint" style="max-width:520px;margin:0 auto 14px">常用的學校建在這裡：官網、申請系統網址、登入帳號、承辦人信箱。<br>以後要進去，從這一頁按一下就開，不用再翻信箱找連結。<br><b>密碼不要填在這裡</b>，留在妳自己的密碼管理工具比較安全。</div><button class="btn btn-primary" data-act="schNew">＋ 新增學校</button></div>`;return;}
@@ -12427,7 +12533,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1250';
+const APP_BUILD='V1251';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -20614,6 +20720,62 @@ H.pubSaveLessons=async(cls)=>{const checked=new Set($$('#pub-lessons .pub-les:ch
     toast('已更新發佈');closeModal();render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存發佈';}toast('失敗：'+((e&&e.message)||e));}};
 H.gmSchedAdd=()=>{const c=$('#gm-sched');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
 H.opsSub=(k)=>{S.opsSub=k||'inc';renderOps();try{window.scrollTo(0,0);}catch(e){}};
+/* AGRPT_V1251 */
+H.agReport=()=>{
+  const ys=agRptYears();
+  openModal('<div class="modal" style="max-width:420px"><div class="modal-head">'
+   +'<h3>📊 留學業務年度報表</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body"><div class="field"><label>要哪一年</label>'
+   +'<select id="rp-y">'+ys.map((y,i)=>'<option value="'+y+'"'+(i===0?' selected':'')+'>'+y+' 年</option>').join('')+'</select></div>'
+   +'<div class="hint" style="margin-top:8px">每月收入、客戶概況、申請了哪些學校、目前還缺什麼文件。'
+   +'全部是現有資料算出來的，可以直接列印或存成 PDF。</div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
+   +'<span style="flex:1"></span><button class="btn btn-primary" data-act="agReportGo">🖨 產生報表</button></div></div>');};
+H.agReportGo=()=>{
+  const y=(($('#rp-y')&&$('#rp-y').value)||localToday().slice(0,4));
+  const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const css=fbCss()+expCss()
+   +'.c1{width:42%}.c2{width:19%;text-align:right}.c3{width:12%;text-align:right}.c4{width:34%;color:var(--mut)}'
+   +'.sum{margin-top:8px;font-size:12px;color:var(--mut)}.sum b{color:var(--deep)}'
+   +'.none{font-size:12px;color:var(--mut);padding:8px 2px}'
+   +'.who2{display:flex;gap:9px;flex-wrap:wrap;margin:11px 0 2px}'
+   +'.who2 span{background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:4px 13px;font-size:12px}'
+   +'.who2 b{color:var(--deep)}';
+  const doc='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
+   +'<title>'+e2(fnm('留學業務年度報表',y,localToday()))+'</title>'+expHead()
+   +'<style>'+css+'</style></head><body class="lang-zh">'
+   +expBar(1,'<span class="exp-l">'+e2(y)+' 年</span>')
+   +agRptHtml(y)+expJs()+'</body></html>';
+  closeModal();fbWin(doc);};
+/* SCHFILL_V1251 一樣要在 const H={} 之後 */
+H.schFill=()=>{
+  const miss=schMissingFromAg();
+  if(!miss.length)return toast('客戶填過的學校名冊裡都有了');
+  openModal('<div class="modal modal-tall" style="max-width:620px"><div class="modal-head">'
+   +'<h3>🏫 從代辦客戶補進名冊</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body"><div class="hint" style="margin-bottom:10px">'
+   +'這 '+miss.length+' 間是客戶的「申請學校」裡有、名冊裡還沒有的。'
+   +'名字是當初自己打的，可以先改；不想建的就把勾拿掉。建好之後再去補網址、報名截止日。</div>'
+   +'<div id="sf-rows">'+miss.map((m,i)=>'<div class="sf-r">'
+     +'<input type="checkbox" class="sf-ck" data-i="'+i+'" checked>'
+     +'<input type="text" class="sf-n" data-i="'+i+'" value="'+esc(m.name)+'">'
+     +'<span class="muted">'+m.n+' 位</span></div>').join('')+'</div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="schFillGo">🏫 建進名冊</button></div></div>');};
+H.schFillGo=async()=>{
+  const rows=[...document.querySelectorAll('#sf-rows .sf-r')].map(el=>{
+    const ck=el.querySelector('.sf-ck'),nm=el.querySelector('.sf-n');
+    return (ck&&ck.checked)?String((nm&&nm.value)||'').trim():'';}).filter(Boolean);
+  if(!rows.length)return toast('一間都沒勾');
+  const have={};(S.schools||[]).forEach(x=>{if(x&&!x.deleted_at)have[String(x.name||'').trim()]=1;});
+  let ok=0,skip=0;
+  try{for(const n of rows){if(have[n]){skip++;continue;}
+      await DB.insert('crm',{kind:'school',name:n,status:'active',created_at:new Date().toISOString()});
+      have[n]=1;ok++;}
+    await loadAll();closeModal();S.tab='school';render();
+    toast('已建立 '+ok+' 間'+(skip?('，'+skip+' 間本來就有'):''));}
+  catch(e){toast(writeErr('建立失敗',e));}};
 /* REMIND_V1247 同理，這兩顆也要在 const H={} 之後 */
 H.docRemind=(id)=>{
   const c=crmRecById(id)||((S.agencies||[]).find(x=>x&&x.id===id));if(!c)return;
