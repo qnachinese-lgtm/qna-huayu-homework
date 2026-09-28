@@ -2944,6 +2944,17 @@ function fUpTime(v){const s=String(v||'');if(!s)return '';const x=new Date(s.ind
    已經填過幣別的資料完全不受影響（這只是「沒填的時候算哪一種」）。 */
 const DEF_CUR='VND';
 const CUR={TWD:['NT$','zh-TW'],VND:['VND','vi-VN'],USD:['US$','en-US']};
+/* CURORD_V1281 幣別一律照「臺幣 → 越南盾 → 其他」的順序印。
+   本來每個地方都是 Object.keys()，順序跟著那筆資料先建立哪一種跑，
+   所以月結清單會一列「NT$2,750 ＋ 32,300,000 VND」、
+   下一列「2,075,000 VND ＋ NT$10,000」，一列一個樣（Quinn：「不要每一個亂七八糟的」）。
+   全站只認這一個順序，之後要改順序改這一行就好。 */
+const CUR_ORDER=['TWD','VND'];
+function curCmp(a,b){const i=CUR_ORDER.indexOf(a),j=CUR_ORDER.indexOf(b);
+  if(i!==j)return (i<0?99:i)-(j<0?99:j);return String(a).localeCompare(String(b));}
+function curSort(arr){return (arr||[]).slice().sort(curCmp);}
+/* keep(金額,幣別)：要留下哪些幣別；不給就全留 */
+function curKeys(o,keep){return curSort(Object.keys(o||{}).filter(c=>keep?keep(o[c],c):true));}
 function money(n,cur){if(n==null||n==='')return'—';const v=Number(n);if(isNaN(v))return n;const c=CUR[cur||DEF_CUR]||CUR.TWD;if(cur==='VND')return (v*1000).toLocaleString('en-US')+' VND';return c[0]+v.toLocaleString(c[1]);}
 /* WDAY_V998 「週一 19:00–21:00」這種是拼出來的一整串，字典對不上，
    所以介面切成越南文之後，上課時段那一行還是中文（學生端同一個毛病已經修掉）。
@@ -3155,7 +3166,7 @@ function lgItvRows(a,b){
         幣別:p.currency||'VND',面試類別:c.target||'',備註:p.note||''});});});
   return out.sort((x,y)=>String(x.日期).localeCompare(String(y.日期)));}
 /* CUR_MIX_V42 把「還沒換算的其他幣別」印成字串 */
-function otherPayStr(b){const o=(b&&b.other)||{};const ks=Object.keys(o).filter(k=>o[k]>0);
+function otherPayStr(b){const o=(b&&b.other)||{};const ks=curKeys(o,v=>v>0);/* CURORD_V1281 */
   return ks.length?ks.map(k=>money(o[k],k)).join('、'):'';}
 /* ---- 👨‍👩‍👦 合併帳戶：同一個 bill_group 的學生，帳務合在一起算（一人多繳可抵另一人少繳） ---- */
 function famKeyOf(s){return String((s&&s.bill_group)||'').trim();}
@@ -4058,7 +4069,7 @@ function renderDashboard(){
   const _itvNow=itvIncome(_thisM),_agNow=agIncome(_thisM),_wrNow=wrIncome(_thisM);
   const _totNow=itvAddCur(itvAddCur(itvAddCur(Object.assign({},_monCur),_itvNow.paid),_agNow.paid),_wrNow.paid);
   const _dueAll=itvAddCur(itvAddCur(Object.assign({},itvIncome(null).due),agIncome(null).due),wrIncome(null).due);
-  const _moneyStr=(o)=>{const ks=Object.keys(o).filter(k=>o[k]);return ks.length?ks.map(c=>money(o[c],c)).join(' ＋ '):'—';};
+  const _moneyStr=(o)=>{const ks=curKeys(o,v=>v);/* CURORD_V1281 */return ks.length?ks.map(c=>money(o[c],c)).join(' ＋ '):'—';};
   const _hasDue=Object.keys(_dueAll).filter(k=>_dueAll[k]).length>0;
   const _needRenew=oweList.length;
   const _statCard=(icon,label,val,color,act)=>`<div class="card" style="flex:1 1 150px;min-width:140px;margin:0;padding:12px 14px${act?';cursor:pointer':''}"${act?` data-act="tab" data-id="${act}"`:''}><div class="muted" style="font-size:12px">${icon} ${label}</div><b style="font-size:21px;color:${color};display:block;margin-top:2px">${val}</b></div>`;
@@ -4083,7 +4094,7 @@ function renderDashboard(){
   const _cls=Number(dashTodayHtml.n)||0;
   const _act=S.students.filter(s=>!s.is_test&&enrollOf(s)==='active').length;
   const _thisM2=_today.slice(0,7);const _inc={};S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach(p=>{const a=Number(p.amount)||0;if(!a)return;if((p.date||'').slice(0,7)!==_thisM2)return;const c=p.currency||s.currency||DEF_CUR;_inc[c]=(_inc[c]||0)+a;});});
-  const _incTxt=Object.keys(_inc).length?Object.keys(_inc).map(c=>money(_inc[c],c)).join('｜'):'—';
+  const _incTxt=(function(){const ks=curKeys(_inc);return ks.length?ks.map(c=>money(_inc[c],c)).join('｜'):'—';})();/* CURORD_V1281 */
   const _me=IS_OWNER?'美娟老師':(adminName(MY_EMAIL)||'老師');
   const _nowT=(function(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');})();
   const _wmax=sgWaitMax();
@@ -4793,9 +4804,9 @@ function prAmt(p,cur){
 function prCurs(p){const o=[];
   if(p&&p.amount!=null&&p.amount!=='')o.push(p.currency||'VND');
   if(p&&p.amount2!=null&&p.amount2!==''&&p.currency2&&p.currency2!==(p.currency||'VND'))o.push(p.currency2);
-  return o;}
+  return curSort(o);/* CURORD_V1281 */}
 function prAllCurs(){const n={};prSorted().forEach(p=>prCurs(p).forEach(c=>{n[c]=(n[c]||0)+1;}));
-  return Object.keys(n).sort((a,b)=>n[b]-n[a]);}
+  return curSort(Object.keys(n));/* CURORD_V1281 */}
 function prPriceStr(p){
   const parts=prCurs(p).map(c=>money(prAmt(p,c),c)+prUnitStr(p));
   return parts.length?parts.join('　/　'):'';
@@ -5599,7 +5610,7 @@ function renderPay(){
     else if(r.b.items.length&&r.b.due>0)dueCur[r.cur]=(dueCur[r.cur]||0)+r.b.due;
     (r.s.payments||[]).forEach(p=>{const a=Number(p.amount)||0;if(!a)return;if(String(p.date||'').slice(0,7)!==thisM)return;
       const c=p.currency||r.cur;paidM[c]=(paidM[c]||0)+a;});});
-  const mstr=o=>{const ks=Object.keys(o).filter(k=>o[k]);return ks.length?ks.map(c=>money(o[c],c)).join(' ＋ '):'—';};
+  const mstr=o=>{const ks=curKeys(o,v=>v);/* CURORD_V1281 */return ks.length?ks.map(c=>money(o[c],c)).join(' ＋ '):'—';};
   /* PAYSUM_V1036 三塊本來全部擠在左邊，右邊一大片空白（Quinn：「放寬一點」）。 */
   const head=navSubBar(MONEY_TABS,'pay')+'<div class="pay-sum pay-sum3">'
     +'<div><div class="muted">本月已收（'+esc(thisM)+'）</div><b style="color:#16a34a">'+mstr(paidM)+'</b></div>'
@@ -5834,9 +5845,9 @@ function crmOffCut(c,by,cur){
   const left=Math.round((by[k]-off)*100)/100;
   if(left>0.009)by[k]=left;else delete by[k];
   return by;}
-function itvMoneyStr(by){const k=Object.keys(by||{});return k.length?k.map(c=>money(by[c],c)).join('、'):'';}
+function itvMoneyStr(by){const k=curKeys(by);/* CURORD_V1281 */return k.length?k.map(c=>money(by[c],c)).join('、'):'';}
 /* CRMFOOT_V804 合計列用：一種幣別一行，不要擠成一行被切掉 */
-function itvMoneyLines(by){const k=Object.keys(by||{});
+function itvMoneyLines(by){const k=curKeys(by);/* CURORD_V1281 */
   return k.length?k.map(c=>'<span class="mline">'+esc(money(by[c],c))+'</span>').join(''):'';}
 function itvAddCur(t,by){Object.keys(by||{}).forEach(c=>{t[c]=(t[c]||0)+by[c];});return t;}
 /* ITV_TOTAL_V5 面試客戶：先設「總額」，再一筆一筆登記實收 */
@@ -6016,7 +6027,7 @@ function agIncome(ym){const paid={},due={};agCases().forEach(c=>{itvAddCur(paid,
 /* FEEOFF_V1081 off＝「不收了」的金額，還差要扣掉它，不然進度條跟未收對不起來 */
 function feeBarHtml(label,paidBy,dueBy,totNum,totCur,rowsHtml,hint,off){
   const paid=Object.assign({},paidBy||{}),due=Object.assign({},dueBy||{});
-  const keys=Object.keys(paid).concat(Object.keys(due)).filter((v,i,a)=>a.indexOf(v)===i);
+  const keys=curSort(Object.keys(paid).concat(Object.keys(due)).filter((v,i,a)=>a.indexOf(v)===i));/* CURORD_V1281 */
   if(!keys.length&&!totNum)return '';
   const cur=totCur||keys.slice().sort((a,b)=>((paid[b]||0)+(due[b]||0))-((paid[a]||0)+(due[a]||0)))[0]||'VND';
   const got=Number(paid[cur]||0);
@@ -7454,7 +7465,7 @@ function renderOps(){const body=$('#ops-body');
   const months=Object.keys(byMonth).sort((a,b)=>b.localeCompare(a));const thisM=localToday().slice(0,7);
   const allCur={};months.forEach(m=>Object.keys(byMonth[m]).forEach(cur=>{allCur[cur]=(allCur[cur]||0)+byMonth[m][cur];}));
   const monCur=byMonth[thisM]||{};
-  const bigNum=(obj)=>{const ks=Object.keys(obj);return ks.length?ks.map(cur=>`<b style="font-size:19px">${money(obj[cur],cur)}</b>`).join('<span class="muted"> ＋ </span>'):'<b style="font-size:19px" class="muted">—</b>';};
+  const bigNum=(obj)=>{const ks=curKeys(obj);/* CURORD_V1281 */return ks.length?ks.map(cur=>`<b style="font-size:19px">${money(obj[cur],cur)}</b>`).join('<span class="muted"> ＋ </span>'):'<b style="font-size:19px" class="muted">—</b>';};
   /* OPSALL_V956 這個開關本來只有最上面的總收入卡片在用，底下三張卡照樣把累計印出來，
      等於開關沒有用。改成同一個開關管全部的「累計」。 */
   const opsAllOn=()=>{try{return localStorage.getItem('qna_ops_all')==='1';}catch(e){return false;}};
@@ -7462,7 +7473,7 @@ function renderOps(){const body=$('#ops-body');
   const incSummary=`<div style="display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 12px">`+
     `<div><div class="muted" style="font-size:12px">本月收入（${esc(thisM)}）</div>${bigNum(monCur)}</div>`+
     `<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計收入（全部）</div>${hidNum(bigNum,allCur)}</div></div>`;
-  const incRows=months.length?months.map(m=>{const parts=Object.keys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('、');return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span><button class="btn btn-sm" data-act="opsMonth" data-id="${esc(m)}">🔎 明細</button><button class="btn btn-sm btn-accent" data-act="opsSheet" data-id="${esc(m)}" title="一頁對完這個月的帳：收到多少、上了多少課、誰還沒付。可以列印或存 PDF">🧮 月底對帳</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入記錄（到學生的「繳費」新增即可）。</div>';
+  const incRows=months.length?months.map(m=>{const parts=curKeys(byMonth[m]).map(cur=>money(byMonth[m][cur],cur)).join('　＋　');/* CURORD_V1281 上面「費用明細」同一種清單用的是「＋」，這裡本來是「、」，兩張表擺在一起看起來像兩套 */return `<div class="dash-row"><b>${esc(m)}</b>${m===thisM?' <span class="badge badge-soon">本月</span>':''}<span class="grow"></span><span class="muted">${parts}</span><button class="btn btn-sm" data-act="opsMonth" data-id="${esc(m)}">🔎 明細</button><button class="btn btn-sm btn-accent" data-act="opsSheet" data-id="${esc(m)}" title="一頁對完這個月的帳：收到多少、上了多少課、誰還沒付。可以列印或存 PDF">🧮 月底對帳</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有收入記錄（到學生的「繳費」新增即可）。</div>';
   const billHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">🧮 累計 該收 vs 實收 <span class="hint">逐堂依時數算應收，對照累計實收，抓真正的漏收。團班用該班的收費級距。</span></div>${billCheckHtml(thisM)}</div>`;
   const due=S.students.filter(s=>!s.is_test&&!isTrial(s)&&enrollOf(s)!=='paused').map(s=>({s,b:stuBill(s)})).filter(x=>x.b&&x.b.items.length&&x.b.due>0.0001).sort((a,b)=>b.b.due-a.b.due);
   const dueRows=due.length?due.map(({s,b})=>`<div class="dash-row"><span class="badge badge-overdue">欠 ${money(b.due,billCur(s))}</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">上課 ${money(b.charge,billCur(s))} · 已繳 ${money(b.paid,billCur(s))}</span><button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒</button><button class="btn btn-sm btn-primary" data-act="payments" data-id="${s.id}">💰 記繳費</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">沒有待收款 👍</div>';
@@ -7480,7 +7491,7 @@ function renderOps(){const body=$('#ops-body');
   const itvSummary=`<div class="card" style="margin-top:14px"><div class="lesson-label">🎤 面試練習收入</div><div style="display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 4px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum(itvNow.paid)}</div><div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計</div>${bigNum(itvAllInc.paid)}</div>${Object.keys(itvAllInc.due).length?`<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#b91c1c">${itvMoneyStr(itvAllInc.due)}</b></div>`:''}</div><div class="hint">只算已勾「已收款」的場次；到「🎤 面試練習」分頁管理。</div></div>`;
   const totNow=itvAddCur(itvAddCur(itvAddCur(Object.assign({},monCur),itvNow.paid),agNow.paid),wrNow.paid);const totAll=itvAddCur(itvAddCur(itvAddCur(Object.assign({},allCur),itvAllInc.paid),agAllInc.paid),wrAllInc.paid);
   /* OPSALL_V904 累計金額預設藏起來（畫面可能被學生看到）。記在這台電腦，不寫進資料庫。 */
-  const bigNum2=(obj)=>{const ks=Object.keys(obj);return ks.length?ks.map(cur=>`<b style="font-size:26px">${money(obj[cur],cur)}</b>`).join('<span class="muted" style="font-size:18px"> ＋ </span>'):'<b style="font-size:26px" class="muted">—</b>';};
+  const bigNum2=(obj)=>{const ks=curKeys(obj);/* CURORD_V1281 */return ks.length?ks.map(cur=>`<b style="font-size:26px">${money(obj[cur],cur)}</b>`).join('<span class="muted" style="font-size:18px"> ＋ </span>'):'<b style="font-size:26px" class="muted">—</b>';};
   const totalCard=`<div class="card" style="margin-bottom:14px;border:2px solid var(--primary);background:linear-gradient(180deg,#FBFBFB,#fff)"><div class="lesson-label" style="font-size:15px">🧮 總收入（華語教學 ＋ 面試練習 ＋ 代辦申請 ＋ 代書）</div><div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:6px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum2(totNow)}</div><div style="border-left:1px solid var(--line);padding-left:28px"><div class="muted" style="font-size:12px;display:flex;align-items:center;gap:8px">累計（全部）<button class="btn btn-sm btn-ghost" type="button" data-act="opsAllToggle" style="padding:1px 8px;font-size:11.5px">${opsAllOn()?'隱藏':'顯示'}</button></div>${opsAllOn()?bigNum2(totAll):'<div style="font-size:20px;font-weight:800;color:#B9BEC4;letter-spacing:2px">••••••</div>'}</div></div><div class="hint" style="margin-top:8px">下面是兩條業務線的明細。</div></div>`;
   const _tm=[];{let d=new Date(localToday()+'T00:00:00');for(let k=5;k>=0;k--){const dd=new Date(d.getFullYear(),d.getMonth()-k,1);_tm.push(dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0'));}}
   /* OPSCHART_V907 這張圖本來只算華語教學的繳費，可是上面「總收入」是四條線加起來，
@@ -7500,15 +7511,17 @@ function renderOps(){const body=$('#ops-body');
      看起來像「有收一點點」。 */
   const _bar=(v,h,c,op)=>`<div style=\"width:${_hasT?'42%':'68%'};max-width:${_hasT?'22px':'36px'};height:${v>0?Math.max(h,2):0}%;background:${c};opacity:${op};border-radius:4px 4px 0 0\"></div>`;
   const _chart=`<div class="card"><div class="lesson-label">📈 近六個月收入趨勢<span class="hint" style="font-weight:400;margin-left:8px">四條業務線合計</span>`
-   +(_hasT?`<span class="hint" style="font-weight:400;margin-left:10px"><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_CV};vertical-align:-1px"></i> 越南盾　<i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_CT};vertical-align:-1px"></i> 台幣</span>`:'')
+   +(_hasT?`<span class="hint" style="font-weight:400;margin-left:10px"><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_CT};vertical-align:-1px"></i> 台幣　<i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_CV};vertical-align:-1px"></i> 越南盾</span>`:'')
    +`</div><div style="display:flex;align-items:flex-end;gap:12px;height:130px;padding:8px 4px 0">${_tm.map((m,i)=>{
       const last=(i===_tm.length-1),op=last?'1':'.45';
       const vs=(_vnd[i]/1000).toFixed(2)+'M',ts='NT$'+_twd[i].toLocaleString();
-      const lab=last?`<span style=\"font-size:11px;font-weight:800;color:#5A6068;white-space:nowrap\">${_vnd[i]?vs:''}${(_vnd[i]&&_twd[i])?' ＋ ':''}${_twd[i]?ts:''}</span>`:'';
-      return `<div data-act=\"opsMonth\" data-id=\"${m}\" style=\"flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%;cursor:pointer\" title=\"${m}：${vs} VND${_twd[i]?('＋'+ts):''}\">${lab}`
+      /* CURORD_V1281 臺幣在前，跟底下的清單同一個順序 */
+      const lab=last?`<span style=\"font-size:11px;font-weight:800;color:#5A6068;white-space:nowrap\">${_twd[i]?ts:''}${(_vnd[i]&&_twd[i])?' ＋ ':''}${_vnd[i]?vs:''}</span>`:'';
+      return `<div data-act=\"opsMonth\" data-id=\"${m}\" style=\"flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%;cursor:pointer\" title=\"${m}：${_twd[i]?(ts+' ＋ '):''}${vs} VND\">${lab}`
        +`<div style=\"flex:1;min-height:0;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:4px\">`
-       +_bar(_vnd[i],Math.round(_vnd[i]/_mx*100),_CV,op)
+       /* CURORD_V1281 左邊台幣、右邊越南盾，跟上面的字和底下的清單同一個順序 */
        +(_hasT?_bar(_twd[i],Math.round(_twd[i]/_mxT*100),_CT,op):'')
+       +_bar(_vnd[i],Math.round(_vnd[i]/_mx*100),_CV,op)
        +`</div><span style=\"font-size:11px;color:#828C98\">${Number(m.slice(5))}月</span></div>`;}).join('')}</div>`
    +(_hasT?`<div class="hint" style="margin-top:6px">兩種幣別各自比自己的高低，兩根不能互相比大小。台幣：${_tm.map((m,i)=>_twd[i]?(Number(m.slice(5))+'月 NT$'+_twd[i].toLocaleString()):null).filter(Boolean).join('　')}</div>`:'')
    +`</div>`;
@@ -7536,7 +7549,7 @@ function renderOps(){const body=$('#ops-body');
     +SRC.map(x=>'<button class="segb'+(_src===x[0]?' on':'')+'" data-act="opsSrc" data-id="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';
   const _srcRows=(function(){
     const rows=_allM.map(m=>{const o=srcOf(_src,m);
-      const ks=Object.keys(o).filter(c=>Math.abs(o[c])>0.0001);
+      const ks=curKeys(o,v=>Math.abs(v)>0.0001);/* CURORD_V1281 */
       if(!ks.length)return '';
       return '<div class="dash-row"><b>'+esc(m)+'</b>'+(m===thisM?' <span class="badge badge-soon">本月</span>':'')
         +'<span class="grow"></span><b>'+ks.map(c=>money(o[c],c)).join('　＋　')+'</b></div>';}).filter(Boolean);
@@ -13003,7 +13016,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1280';
+const APP_BUILD='V1281';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -19331,7 +19344,7 @@ H.opsSheet=(m)=>{
   m=String(m||localToday().slice(0,7));
   const pay=msPayRows(m),cls=msClassRows(m),due=msDueRows();
   const sumBy=(arr,f)=>{const by={};arr.forEach(x=>{const c=f(x).cur;by[c]=(by[c]||0)+f(x).amt;});return by;};
-  const money2=(by)=>{const k=Object.keys(by).filter(c=>Math.abs(by[c])>0.001);
+  const money2=(by)=>{const k=curKeys(by,v=>Math.abs(v)>0.001);/* CURORD_V1281 */
     return k.length?k.map(c=>money(by[c],c)).join('　＋　'):'—';};
   const byKind={};pay.forEach(r=>{(byKind[r.kind]=byKind[r.kind]||{})[r.cur]=((byKind[r.kind]||{})[r.cur]||0)+r.amt;});
   const total={};pay.forEach(r=>{total[r.cur]=(total[r.cur]||0)+r.amt;});
@@ -19447,7 +19460,7 @@ H.opsMonth=(m)=>{const rows=[];
       note:((p.note||'')+'（代書）').trim(),sess:null,act:'opsGoCrm',key:'writing::'+c.id});});});
   rows.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const tot={};rows.forEach(r=>{tot[r.cur]=(tot[r.cur]||0)+r.amt;});
-  const totStr=Object.keys(tot).map(c=>money(tot[c],c)).join('　+　')||'—';
+  const totStr=curKeys(tot).map(c=>money(tot[c],c)).join('　＋　')||'—';/* CURORD_V1281 順序＋全形加號都跟別處一樣 */
   /* OPSEDIT_V902 金額後面加一顆 ✏️，直接改這一筆 */
   const body=rows.length?rows.map(r=>`<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">${esc(String(r.date).slice(5))}</span><b>${snm(r.name)}</b>${r.sess!=null?`<span class="muted" style="font-size:12px">＋${esc(String(r.sess))} 堂</span>`:''}${r.note?`<span class="muted" style="font-size:12px">${esc(r.note)}</span>`:''}<span class="grow"></span><b style="color:var(--accent,#1E4C86)">${money(r.amt,r.cur)}</b><button class="btn btn-sm" type="button" data-act="${r.act}" data-id="${esc(r.key)}" title="${r.act==='payEdit'?'改這一筆繳費':'打開這位客戶的收款清單'}" style="margin-left:8px">✏️</button></div>`).join(''):'<div class="hint">這個月還沒有任何收款記錄。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${esc(m)} 收入明細</h3><button class="x" data-act="closeModal">×</button></div>
@@ -19479,7 +19492,7 @@ H.crmCloseDue=(id)=>{
   const c=crmRecById(id);if(!c)return;
   const by=crmDueOf(id);const cur=crmCurOf(id);
   const amt=Number(by[cur]||0);
-  const other=Object.keys(by).filter(k=>k!==cur).map(k=>money(by[k],k)).join('、');
+  const other=curKeys(by,(v,k)=>k!==cur).map(k=>money(by[k],k)).join('、');/* CURORD_V1281 */
   openModal(`<div class="modal"><div class="modal-head"><h3>✓ 結案 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="dash-row" style="background:#FEF2F2;border-radius:10px;padding:10px 12px;margin-bottom:12px">
@@ -19579,7 +19592,7 @@ function pSplitSum(){
   document.querySelectorAll('.ps-amt').forEach(el=>{
     const v=Number(el.value||0);if(!v)return;const c=el.dataset.cur||'VND';by[c]=(by[c]||0)+v;});
   const box=document.getElementById('ps-sum');
-  if(box)box.textContent=Object.keys(by).length?Object.keys(by).map(c=>money(by[c],c)).join('　＋　'):'—';
+  if(box){const _k=curKeys(by);box.textContent=_k.length?_k.map(c=>money(by[c],c)).join('　＋　'):'—';}/* CURORD_V1281 */
   /* PSAUTO_V1072 還沒分配多少 */
   const lf=document.getElementById('ps-left');if(!lf)return;
   const tot=Number((document.getElementById('ps-tot')||{}).value||0);
@@ -22338,7 +22351,7 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
   draw();};
 H.payments=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}const s=S.students.find(x=>x.id===id);if(!s)return;PAY_STU=s;const ps=(s.payments||[]).map((p,origI)=>({p,origI})).sort((a,b)=>(b.p.date||'').localeCompare(a.p.date||''));
   const byCur={};ps.forEach(({p})=>{const c=p.currency||s.currency||DEF_CUR;byCur[c]=(byCur[c]||0)+(Number(p.amount)||0);});
-  const totalStr=Object.keys(byCur).map(c=>money(byCur[c],c)).join('、')||money(0,s.currency);
+  const totalStr=curKeys(byCur).map(c=>money(byCur[c],c)).join('、')||money(0,s.currency);/* CURORD_V1281 */
   /* PAYROW_V1045 備註一長，右邊三顆鈕就被擠到第二行（Quinn：「又跑版了」）。
      左邊文字自己折行、右邊按鈕釘在同一排。 */
   const rows=ps.length?ps.map(({p,origI})=>`<div class="dash-row payrow"><span class="grow">${isRefund(p)?'<span class="tag b-warn" >↩︎ 退費</span> ':''}<b>${esc(p.date||'')}</b> · ${money2(p.amount,p.currency||s.currency)}${(function(){const bc=billCur(s);const pc=p.currency||bc;if(pc===bc)return '';
