@@ -8239,7 +8239,11 @@ const _CNNUM={'零':0,'〇':0,'一':1,'二':2,'兩':2,'三':3,'四':4,'五':5,'�
    一筆就是 '2026-09-21::21:00'。只影響自動推算，不影響已點名的記錄。 */
 function fixSkipKey(date,start){return String(date||'')+'::'+String(start||'');}
 function fixSkipListS(s){return Array.isArray(s&&s.fix_skip)?s.fix_skip:[];}
-function fixSkipListC(cls){const m=(typeof classMeta==='function')?classMeta(cls):null;
+/* FIXCLS_V1276 這裡本來查的是 classMeta(cls)，可是全站根本沒有這個函式，
+   所以團班的「不要再推」永遠讀成空的、也永遠存不進去——
+   結果就是團班那一列的 🗑 按了沒反應（Quinn：「為什麼團班不能刪掉」）。
+   團班設定實際上存在 classMetaOf(cls) 裡，改成查那裡。 */
+function fixSkipListC(cls){const m=(typeof classMetaOf==='function')?classMetaOf(cls):null;
   return Array.isArray(m&&m.fix_skip)?m.fix_skip:[];}
 /* FIXSKIP_V1001 清單裡有兩種寫法：
      '2026-09-21::21:00' → 只有那一堂不推（固定時段那一列的 🗑 按出來的）
@@ -12998,7 +13002,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1275';
+const APP_BUILD='V1276';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -18790,12 +18794,10 @@ H.fixSkip=async(key)=>{
       const list=fixSkipListS(s).filter(x=>x!==k).concat([k]);
       await DB.update('students',s.id,{fix_skip:list});
       s.fix_skip=list;
-    }else{
+    }else{/* FIXCLS_V1276 存進團班設定（沒有的話會自己建一份） */
       const cls=tgt.indexOf('G:')===0?tgt.slice(2):tgt;
-      const m=(typeof classMeta==='function')?classMeta(cls):null;
       const list=fixSkipListC(cls).filter(x=>x!==k).concat([k]);
-      if(m&&m.id){await DB.update('lessons',m.id,{fix_skip:list});m.fix_skip=list;}
-      else{toast('找不到這個團班的設定，沒辦法記住');return;}
+      await saveClassMeta(cls,{fix_skip:list});
     }
     render();toast('這一天不會再自動出現了');
   }catch(e){toast(writeErr('沒辦法記住',e));}
@@ -18812,10 +18814,9 @@ H.planDel=async(key)=>{const p=String(key).split('::');const tgt=p[0],date=p[1];
       if(tgt.indexOf('S:')===0){const s=studentById(tgt.slice(2));
         if(s){const list=fixSkipListS(s).filter(x=>x!==k).concat([k]);
           await DB.update('students',s.id,{fix_skip:list});s.fix_skip=list;}}
-      else{const cls=tgt.indexOf('G:')===0?tgt.slice(2):tgt;
-        const m=(typeof classMeta==='function')?classMeta(cls):null;
-        if(m&&m.id){const list=fixSkipListC(cls).filter(x=>x!==k).concat([k]);
-          await DB.update('lessons',m.id,{fix_skip:list});m.fix_skip=list;}}
+      else{const cls=tgt.indexOf('G:')===0?tgt.slice(2):tgt;/* FIXCLS_V1276 */
+        const list=fixSkipListC(cls).filter(x=>x!==k).concat([k]);
+        await saveClassMeta(cls,{fix_skip:list});}
     }catch(_){}
     toast('已取消這一堂預排');render();}catch(e){toast('失敗：'+((e&&e.message)||e));}};
 function plannedEntryOf(tgt,date,start){if(tgt.indexOf('S:')===0){const s=studentById(tgt.slice(2));return {kind:'S',s,entry:studentPlanned(s).find(x=>plSame(x,date,start===undefined?null:start))};}const cls=tgt.indexOf('G:')===0?tgt.slice(2):tgt;return {kind:'G',cls,entry:classPlanned(cls).find(x=>plSame(x,date,start===undefined?null:start))};}
