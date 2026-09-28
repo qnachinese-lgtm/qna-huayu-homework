@@ -1026,6 +1026,7 @@ window.QNA_VI = {
     "Email 格式不正確": "Định dạng Email không đúng",
     "密碼不正確": "Mật khẩu không đúng",
     "系統預設": "Mặc định hệ thống",
+    "這台裝置的字體": "Phông chữ của máy này",
     "寄測試通知": "Gửi thông báo thử",
     "你現在是": "Bạn hiện là",
     "聯絡：": "Liên hệ:",
