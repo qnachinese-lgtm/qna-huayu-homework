@@ -28,8 +28,9 @@ window.SUPABASE_ANON_KEY = "";
 /* 教師帳號 Email —— 用 Firebase 帳號登入時的授權信箱（也用來收找回密碼信） */
 window.TEACHER_EMAIL = "qnachinese@gmail.com";
 
-/* 教師管理頁登入密碼 —— 僅在「示範模式（未接 Firebase）」時使用 */
-window.TEACHER_PASSWORD = "teacher2026";
+/* SECRM_V1278 這裡本來放一組「示範模式用」的後台密碼，但 config.js 是公開檔案，
+   任何人打開網頁原始碼都看得到，所以整行移除。
+   正式登入走的是 Firebase 帳號密碼（上面的 TEACHER_EMAIL），不受影響。 */
 
 /* 平台名稱（會顯示在每一頁的頁首） */
 window.APP_NAME = "QNA CHINESE 學習平台";
@@ -37,5 +38,5 @@ window.APP_NAME = "QNA CHINESE 學習平台";
 /* ============================================================
    小提醒：Firebase 的設定物件屬於前端公開金鑰，可放在網頁；
    實際存取權限由 Firestore 安全規則控管（見部署指南）。
-   教師密碼僅為基本保護，請勿視為高度機密。
+   後台登入一律走 Firebase 帳號密碼，密碼不會出現在任何公開檔案裡。
    ============================================================ */
