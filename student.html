@@ -4547,7 +4547,20 @@ H.setAnn=(id)=>{S.ann=id;localStorage.setItem('hyc_ann',id);$('#menu').innerHTML
 H.authTab=(id)=>{S.authTab=id;S.gateFix=false;renderGate();};
 /* OCREG_V1258 */
 H.memSec=(id)=>{S.section=id;S.ocOpen='';S.practiceSet=null;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
-H.ocOpen=(id)=>{S.ocOpen=id;S.section='oc';window.scrollTo(0,0);renderSection();};
+/* OCGO_V1290 會員開哪一課就記一筆，下次進來才知道「上次看到哪裡」。
+   寫在本來就有的 __progress 那一筆裡（跟登入紀錄同一筆），不另外開資料表。
+   同一課重複點不重複寫。 */
+H.ocOpen=(id)=>{S.ocOpen=id;S.section='oc';window.scrollTo(0,0);
+  if(S.member&&id)try{
+    const _pd=(S.results||[]).find(x=>x&&x.lesson_id==='__progress');
+    if(!_pd||_pd.last_oc!==id){
+      if(_pd)_pd.last_oc=id;
+      DB.upsertResult('__progress',S.me.id,{uid:myUid(),member_id:S.member.id,
+        last_oc:id,last_oc_at:now(),last_active:now()}).catch(()=>{});}
+  }catch(e){}
+  renderSection();};
+/* OCGO_V1290 程度篩選 */
+H.ocLv=(k)=>{S.ocLv=(k==='all')?'':k;renderSection();};
 H.ocBack=()=>{S.ocOpen='';window.scrollTo(0,0);renderSection();};
 H.logout=()=>{if(window.firebase&&firebase.auth)firebase.auth().signOut().then(()=>location.reload());else location.reload();};
 H.section=(id)=>{S.section=id;S.practiceSet=null;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
@@ -5523,8 +5536,12 @@ function ocVocabRows(l){return String((l&&l.vocab)||'').split('\n')
   .map(x=>x.trim()).filter(Boolean)
   .map(x=>{const i=x.search(/[=＝]/);
     return i<0?{w:x,m:''}:{w:x.slice(0,i).trim(),m:x.slice(i+1).trim()};});}
-const OC_LVN={a1:{zh:'入門 A1',vi:'Sơ cấp A1'},a2:{zh:'初級 A2',vi:'A2'},
-  b1:{zh:'中級 B1',vi:'Trung cấp B1'},b2:{zh:'中高級 B2',vi:'B2'},c1:{zh:'高級 C1',vi:'C1'}};
+/* OCGO_V1290 本來只有中文和越南文，英文介面會退回中文。四種語言補齊。 */
+const OC_LVN={a1:{zh:'入門 A1',cn:'入门 A1',en:'Beginner A1',vi:'Nhập môn A1'},/* A1 和 A2 的越南文本來都是 Sơ cấp，看起來一模一樣 */
+  a2:{zh:'初級 A2',cn:'初级 A2',en:'Elementary A2',vi:'Sơ cấp A2'},
+  b1:{zh:'中級 B1',cn:'中级 B1',en:'Intermediate B1',vi:'Trung cấp B1'},
+  b2:{zh:'中高級 B2',cn:'中高级 B2',en:'Upper-int. B2',vi:'Trung cấp cao B2'},
+  c1:{zh:'高級 C1',cn:'高级 C1',en:'Advanced C1',vi:'Cao cấp C1'}};
 function ocLvLabel(k){const m=OC_LVN[String(k||'')];return m?(LT(m)||m.zh):'';}
 
 async function tryMember(user){
@@ -5578,6 +5595,25 @@ async function loadMemberData(){
     if(!document.getElementById('oc-css')){st.textContent=OC_CSS;document.head.appendChild(st);}}catch(e){}
 }
 const OC_CSS=`
+/* OCGO_V1290 「接著上」那一張卡：左邊圖示、中間課名、右邊一顆走字。
+   三種語言的字長度差很多，中間那格允許縮短顯示「…」，右邊的字永遠在同一條線上。 */
+.ocm-go{display:flex;align-items:center;gap:14px;width:100%;text-align:left;cursor:pointer;
+  border:1.5px solid var(--s-bd,#3D74B8);border-radius:14px;background:#fff;
+  padding:14px 16px;margin-bottom:14px;min-height:72px}
+.ocm-go:hover{background:var(--s-soft,#E4EDF9)}
+.ocm-go-l{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
+  font-size:18px;background:var(--s-soft,#E4EDF9);color:var(--s-bd,#3D74B8)}
+.ocm-go-t{flex:1 1 0;min-width:0}
+.ocm-go-t i{display:block;font-style:normal;font-size:12.5px;color:var(--s-mut,#5B6B80);margin-bottom:2px}
+.ocm-go-t b{display:block;font-size:16px;color:var(--s-ink,#16202E);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ocm-go-b{flex:none;font-weight:700;color:var(--s-bd,#3D74B8);white-space:nowrap;font-size:14.5px}
+/* 程度篩選 */
+.ocm-lv{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.ocm-lv button{border:1px solid var(--s-line,#DCE5F0);background:#fff;border-radius:999px;
+  padding:7px 14px;font-size:13.5px;font-weight:600;color:var(--s-mut,#5B6B80);cursor:pointer;
+  min-height:34px;white-space:nowrap}
+.ocm-lv button.on{background:var(--s-bd,#3D74B8);border-color:var(--s-bd,#3D74B8);color:#fff}
 .ocm-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
 .ocm-c{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff;
   display:flex;flex-direction:column;cursor:pointer;text-align:left;padding:0}
@@ -5626,11 +5662,40 @@ function renderMemberList(){
            en:'Full access until '+String(S.member.until||''),vi:'Xem được tất cả, đến '+String(S.member.until||'')})
       :LT({zh:'標 💎 的要付費才看得到',cn:'标 💎 的要付费才看得到',
            en:'Lessons marked 💎 need a paid membership',vi:'Bài có 💎 cần hội viên trả phí'})}</span></div>`;
-  $('#screen').innerHTML=head+(ls.length
-    ?`<div class="ocm-g">${ls.map(ocCardHtml).join('')}</div>`
-    :emptyHtml('🎬',LT({zh:'還沒有課',cn:'还没有课',en:'No lessons yet',vi:'Chưa có bài học'}),
-       LT({zh:'老師發佈以後就會出現在這裡。',cn:'老师发布以后就会出现在这里。',
-           en:'Lessons will show up here once published.',vi:'Bài học sẽ hiện ở đây khi được đăng.'})));
+  /* OCGO_V1290 ① 最上面一張「接著上」的卡片：有上次開過的就接著那一課，
+     沒有的話就指向第一課（看得到的那一課），不要讓人自己找。 */
+  const _pd=(S.results||[]).find(x=>x&&x.lesson_id==='__progress');
+  const _lastId=(_pd&&_pd.last_oc)||'';
+  const _last=_lastId?ls.find(x=>x.id===_lastId&&!ocLocked(x)):null;
+  const _first=_last?null:ls.find(x=>!ocLocked(x));
+  const _go=_last||_first;
+  const _goCard=_go?`<button class="ocm-go" data-act="ocOpen" data-id="${esc(_go.id)}">
+      <span class="ocm-go-l">${_last?'▶':'🎬'}</span>
+      <span class="ocm-go-t">
+        <i>${_last?LT({zh:'接著上次那一課',cn:'接着上次那一课',en:'Pick up where you left off',vi:'Học tiếp bài lần trước'})
+                  :LT({zh:'從第一課開始',cn:'从第一课开始',en:'Start with lesson one',vi:'Bắt đầu từ bài đầu tiên'})}</i>
+        <b>${esc(_go.title||'')}</b></span>
+      <span class="ocm-go-b">${_last?LT({zh:'繼續',cn:'继续',en:'Continue',vi:'Học tiếp'})
+                                    :LT({zh:'開始',cn:'开始',en:'Start',vi:'Bắt đầu'})} →</span>
+    </button>`:'';
+  /* OCGO_V1290 ② 程度篩選：只列真的有課的程度，沒有分程度就整排不出現。 */
+  const _lvs=[...new Set(ls.map(x=>String(x.level||'')).filter(Boolean))]
+    .sort((a,b)=>Object.keys(OC_LVN).indexOf(a)-Object.keys(OC_LVN).indexOf(b));
+  const _cur=String(S.ocLv||'');
+  const _bar=(_lvs.length>1)?`<div class="ocm-lv">
+      <button class="${_cur?'':'on'}" data-act="ocLv" data-id="all">${LT({zh:'全部',cn:'全部',en:'All',vi:'Tất cả'})}　${ls.length}</button>
+      ${_lvs.map(k=>`<button class="${_cur===k?'on':''}" data-act="ocLv" data-id="${esc(k)}">${esc(ocLvLabel(k)||k)}　${ls.filter(x=>String(x.level||'')===k).length}</button>`).join('')}
+    </div>`:'';
+  const _show=_cur?ls.filter(x=>String(x.level||'')===_cur):ls;
+  $('#screen').innerHTML=head+_goCard+_bar+(_show.length
+    ?`<div class="ocm-g">${_show.map(ocCardHtml).join('')}</div>`
+    :(ls.length
+      ?emptyHtml('🎬',LT({zh:'這個程度還沒有課',cn:'这个程度还没有课',en:'No lessons at this level yet',vi:'Trình độ này chưa có bài'}),
+         LT({zh:'按上面的「全部」看所有課程。',cn:'按上面的「全部」看所有课程。',
+             en:'Tap “All” above to see every lesson.',vi:'Bấm “Tất cả” ở trên để xem mọi bài học.'}))
+      :emptyHtml('🎬',LT({zh:'還沒有課',cn:'还没有课',en:'No lessons yet',vi:'Chưa có bài học'}),
+         LT({zh:'老師發佈以後就會出現在這裡。',cn:'老师发布以后就会出现在这里。',
+             en:'Lessons will show up here once published.',vi:'Bài học sẽ hiện ở đây khi được đăng.'}))));
 }
 function renderMemberOne(){
   const l=(S.ocs||[]).find(x=>x&&x.id===S.ocOpen);
