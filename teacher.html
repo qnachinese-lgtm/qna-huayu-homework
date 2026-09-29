@@ -9704,29 +9704,34 @@ function ghClHtml(l,withAns){
   if(intro)h+='<div class="gh-blk"><div class="gh-lab">作者・背景</div><div class="gh-txt">'+ghLines(intro)+'</div></div>';
   h+=ghImg(l.cl_img);/* GHOPT_V844 */
   /* GHCL_V863 照 Quinn 給的範本改成三段式：一、原文　二、註解　三、討論 */
-  let segs=lines.map((x,i)=>({x:x,n:i+1}))
+  /* CLPICK_V1161 → CLSEG_V1165 → CLMIX_V1298
+     一段一段照順序看：這一段整段被勾起來就整段出（含參考翻譯和圖）；
+     沒勾整段但裡面有勾句子，就只出那幾句（接回同一段，註解重新綁到留下來的句子上）；
+     什麼都沒勾＝整課都出。兩種勾選可以混著用。 */
+  const _all=lines.map((x,i)=>({x:x,n:i+1}))
     .filter(o=>String(o.x.orig||'').trim()||String(o.x.note||'').trim()||String(o.x.ref||'').trim()||o.x.img);
-  if(GHCLSET&&GHCLSET.length){const _set={};GHCLSET.forEach(n=>{_set[n]=1;});
-    segs=segs.filter(o=>_set[o.n]);}
-  /* CLPICK_V1161 → CLSEG_V1165 挑句子模式：同一段挑起來的句子接回同一段印，
-     編號用原本的段號，才看得出這幾句是哪一段來的。註解重新綁到留下來的句子上。 */
-  if(GHCLPICK&&GHCLPICK.length){
-    const _pk={};GHCLPICK.forEach(k=>{_pk[k]=1;});
-    const _out=[];
-    lines.forEach((x,i)=>{
-      const _sents=ghClSents(String(x.orig||''));
-      const _bk=ghClMap(_sents.map(clNameStrip),ghClNotes(x.note));
+  const _segSel={};(GHCLSET||[]).forEach(n=>{_segSel[n]=1;});
+  const _pk={};(GHCLPICK||[]).forEach(k=>{_pk[k]=1;});
+  const _hasSel=((GHCLSET||[]).length>0)||((GHCLPICK||[]).length>0);
+  let segs;
+  if(!_hasSel)segs=_all;
+  else{
+    segs=[];
+    _all.forEach(o=>{
+      if(_segSel[o.n]){segs.push(o);return;}/* 整段 */
+      const _i=o.n-1;
+      const _sents=ghClSents(String(o.x.orig||''));
+      const _bk=ghClMap(_sents.map(clNameStrip),ghClNotes(o.x.note));
       const _keep=[],_note=[];
       _sents.forEach((sv,j)=>{
-        if(!_pk[i+'-'+j])return;
+        if(!_pk[_i+'-'+j])return;
         _keep.push(sv);
         /* 註解重新指定掛在第幾句：句子被篩掉之後序號會跑掉 */
         (_bk[j]||[]).forEach(e=>{_note.push(_keep.length+'｜'+e);});
       });
-      if(_keep.length)_out.push({x:{orig:_keep.join(''),note:_note.length?(_note.join('。')+'。'):'',
-        ref:'',img:''},n:i+1});
+      if(_keep.length)segs.push({x:{orig:_keep.join(''),note:_note.length?(_note.join('。')+'。'):'',
+        ref:'',img:''},n:o.n});
     });
-    if(_out.length)segs=_out;
   }
   let sec=0;
   if(segs.length&&GHCLQ!=='only'){
@@ -10381,8 +10386,9 @@ function GHSENT(){
       +'</div></details>';}).join('');
   try{GHQCNT();}catch(e){}
   if(msg)msg.textContent='「'+((l&&l.title)||'')+'」共 '+lines.length+' 段。'
-    +'什麼都不勾＝整課都出；勾「段」＝整段出；勾裡面的「句」＝只出那幾句（同一段的會接在一起）。'
-    +'勾了句就以句為準，段的勾選不算。';}
+    +'什麼都不勾＝整課都出；勾「段」＝那一段整段出；點開段落勾裡面的「句」＝那一段只出那幾句。'
+    +'兩種可以混著用，例如「第 5 段只出後面三句 ＋ 第 6、7 段整段出」。'
+    +'同一段如果整段也勾了，就以整段為準。';}
 /* CLQMSG_V1174 → V1175 這一課的討論題到底有沒有、會不會印 */
 function ghClqMsg(l){
   const qmsg=document.getElementById('gh-clqmsg');
@@ -10440,7 +10446,11 @@ function GHQCNT(){
     const n=[...document.querySelectorAll('.gh-q[value^="'+i+'-"]')].filter(x=>x.checked).length;
     el.textContent=n?('　·　已挑 '+n):'';
     el.classList.toggle('on',!!n);
-    const d=el.closest('.gh-qd');if(d)d.classList.toggle('picked',!!n);});}
+    const d=el.closest('.gh-qd');if(d)d.classList.toggle('picked',!!n);
+    /* CLMIX_V1298 這一段有勾句子、但沒勾整段的時候，左邊的框顯示成「半勾」，
+       跟「整段都出」分得出來。 */
+    try{const cb=d?d.querySelector('.gh-s'):null;
+      if(cb)cb.indeterminate=(!!n&&!cb.checked);}catch(e){}});}
 function ghModal(){
   const books=baBooks();if(!books.length)return toast('還沒有課文');
   /* GHPREF_V883 沒有特別篩教材的話，就停在上次匯出的那一本 */
@@ -13107,7 +13117,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1297';
+const APP_BUILD='V1298';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -22081,9 +22091,11 @@ H.ghGo=(mode)=>{
   /* GHCL_V861 勾起來的句號；一句都沒勾＝整課都出 */
   GHCLSET=[...document.querySelectorAll('.gh-s:checked')].map(x=>Number(x.value)).filter(n=>n>0)
     .sort((a,b)=>a-b);
-  /* CLSENT_V1166 勾了句子就以句為準 */
+  /* CLSENT_V1166 → CLMIX_V1298 本來是「勾了句子就以句為準，整段的勾選全部不算」，
+     所以「上一段挑幾句 ＋ 下面幾段整段出」這種印不出來（Quinn 的情況：
+     上次沒上完，這次要接著上一段的後半，再往下講完整的兩段）。
+     兩種勾選現在可以同時用：整段勾起來就整段出，只勾句子就只出那幾句。 */
   GHCLPICK=[...document.querySelectorAll('.gh-q:checked')].map(x=>String(x.value));
-  if(GHCLPICK.length)GHCLSET=[];
   /* DQEDIT_V1175 挑起來要出的討論題；改了沒存的話先講一聲 */
   if(GHDQD&&!confirm('討論題改了還沒存，印出來會是改之前的。\n\n'
     +'按「確定」照舊的印；按「取消」回去按「存起來」。'))return;
