@@ -349,7 +349,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .cl-nmap-r{display:flex;gap:8px;align-items:baseline;font-size:12.5px;padding:2px 0}
         .cl-nmap-n{flex:0 0 52px;color:var(--primary);font-weight:700}
         .cl-nmap-e{flex:1;color:var(--ink)}
-        .cl-nmap-w{flex:0 0 auto;color:#B45309;font-weight:600;cursor:help}
+        .cl-nmap-w{flex:0 0 auto;color:var(--muted,#5B6B80);font-weight:600;cursor:help;
+          font-size:11.5px;background:var(--surface-2,#E8EFF7);border-radius:999px;padding:1px 8px}
+        .cl-nmap-tip{display:block;font-weight:400;color:var(--muted,#5B6B80);margin-top:3px}
         /* CLSENT_V1166 匯出講義裡，每一段底下的句子清單 */
         /* 注意：視窗掛在 #modal-root，不在 #app 裡面，所以這幾條不能加 #app 前綴 */
         .gh-qd>summary{list-style:none;cursor:pointer}
@@ -8198,7 +8200,15 @@ function clQMarks(r){const a=[];
   if(String((r&&r.ans)||'').trim())a.push('答');
   if(r&&r.img)a.push('圖');
   return a.map(x=>'<i>'+x+'</i>').join('');}
+/* CLGROW_V1297 這幾格本來是固定高度，注釋寫到二十幾條就只能在小框裡捲
+   （Quinn：「還是覺得空間好小」）。改成跟著內容長高，寫多少就看得到多少。 */
+function clGrow(t){try{if(!t||!t.classList.contains('cl-grow'))return;
+  const min=parseInt((t.style.minHeight||'0'),10)||0;
+  t.style.height='auto';
+  t.style.height=Math.max(min,Math.min(t.scrollHeight+2,Math.round(innerHeight*0.7)))+'px';}catch(e){}}
+function clGrowAll(){try{document.querySelectorAll('.cl-grow').forEach(clGrow);}catch(e){}}
 function clSegTouch(t){
+  clGrow(t);/* CLGROW_V1297 */
   const d=t.closest('.cl-seg');if(!d||typeof CL==='undefined'||!CL)return;
   const i=+t.dataset.i;
   const isQ=t.classList.contains('cl-q')||t.classList.contains('cl-qa');
@@ -8223,12 +8233,21 @@ function clNoteMapDraw(i){
   const bk=ghClMap(sents.map(clNameStrip),notes);
   const where={};
   bk.forEach((arr,j)=>{(arr||[]).forEach(e=>{where[e]=j+1;});});
-  box.innerHTML='<div class="cl-nmap-t">這幾條會掛到哪一句</div>'
+  /* NOTEDUP_V1297 本來每一列都掛一顆橘色的「⚠ 出現 2 次」，
+     文言文裡常用字本來就會重複，所以整排都是驚嘆號，看起來像哪裡出錯了
+     （Quinn：「爲什麼一直出現『出現2次』？」）。
+     其實它只是說「這一段有兩句都有這個詞，系統掛在第一句」。
+     說明搬到標題那一行講一次，每一列只留一個很小的「2 句」。 */
+  const _dupN=notes.filter(e=>{const w=ghClHead(ghClPin(e)[1]);
+    return w&&sents.filter(x=>clNameStrip(x).indexOf(w)>=0).length>1;}).length;
+  box.innerHTML='<div class="cl-nmap-t">這幾條會掛到哪一句'
+    +(_dupN?'<span class="cl-nmap-tip">有 '+_dupN+' 條的詞在這一段出現不只一句，系統掛在第一句；'
+      +'要掛到別句，在那一條前面加「2｜」</span>':'')+'</div>'
     +notes.map(e=>{const txt=ghClPin(e)[1];const n=where[txt]||where[e]||1;
       const dup=sents.filter(x=>{const w=ghClHead(txt);return w&&clNameStrip(x).indexOf(w)>=0;}).length;
       return '<div class="cl-nmap-r"><span class="cl-nmap-n">第 '+n+' 句</span>'
         +'<span class="cl-nmap-e">'+esc(txt.slice(0,40)+(txt.length>40?'…':''))+'</span>'
-        +(dup>1?'<span class="cl-nmap-w" title="這個字在這一段出現 '+dup+' 次，系統挑了第一個。要改成別句，在這一條前面加「2｜」">⚠ 出現 '+dup+' 次</span>':'')
+        +(dup>1?'<span class="cl-nmap-w" title="這個詞在這一段有 '+dup+' 句都出現，系統掛在第一句。要掛到別句，在那一條前面加「2｜」">'+dup+' 句</span>':'')
         +'</div>';}).join('');}
 function clNoteMapAll(){((CL&&CL.lines)||[]).forEach((_,i)=>{try{clNoteMapDraw(i);}catch(e){}});}
 function clQSegPaint(open){const w=document.getElementById('cl-qs');if(w)w.innerHTML=clQRowsHtml();
@@ -8236,11 +8255,12 @@ function clQSegPaint(open){const w=document.getElementById('cl-qs');if(w)w.inner
   if(open!=null){const d=document.querySelector('#cl-qs .cl-seg[data-i="'+open+'"]');
     if(d){d.open=true;try{d.scrollIntoView({block:'nearest'});}catch(e){}}}}
 function clSegPaint(open){const w=document.getElementById('cl-lines');if(w)w.innerHTML=clLineRowsHtml();
+  setTimeout(clGrowAll,0);/* CLGROW_V1297 畫好之後撐開一次，不用等她打字 */
   const c=document.getElementById('cl-lncount');if(c)c.textContent=String(((CL&&CL.lines)||[]).length);
   try{clNoteMapAll();}catch(e){}/* NOTEMAP_V1171 */
   if(open!=null){const d=document.querySelector('#cl-lines .cl-seg[data-i="'+open+'"]');
     if(d){d.open=true;try{d.scrollIntoView({block:'nearest'});}catch(e){}}}}
-function clLineRowsHtml(){return (CL.lines||[]).map((r,i)=>`<details class="cl-seg" data-i="${i}"><summary class="cl-seg-s"><b class="cl-seg-n">第 ${i+1} 段</b><span class="cl-seg-t">${esc(clSegPrev(r))}</span><span class="cl-seg-m">${clSegMarks(r)}</span></summary><div class="cl-seg-b"><label class="dlg-lbl">原文 <span class="hint">人名、地名可以標起來：選起來按下面的鈕。{ } 是人名、[ ] 是地名</span></label><textarea class="cl-orig" data-i="${i}" oninput="clSegTouch(this)" style="min-height:150px" placeholder="這一段的文言文原文…">${esc(r.orig||'')}</textarea>
+function clLineRowsHtml(){return (CL.lines||[]).map((r,i)=>`<details class="cl-seg" data-i="${i}"><summary class="cl-seg-s"><b class="cl-seg-n">第 ${i+1} 段</b><span class="cl-seg-t">${esc(clSegPrev(r))}</span><span class="cl-seg-m">${clSegMarks(r)}</span></summary><div class="cl-seg-b"><label class="dlg-lbl">原文 <span class="hint">人名、地名可以標起來：選起來按下面的鈕。{ } 是人名、[ ] 是地名</span></label><textarea class="cl-orig cl-grow" data-i="${i}" oninput="clSegTouch(this)" style="min-height:150px" placeholder="這一段的文言文原文…">${esc(r.orig||'')}</textarea>
   <!-- CLNAME_V1011 不要逼她自己打括號：把名字選起來按一下就包好 -->
   <div class="cl-mk"><button class="btn btn-sm" type="button" data-act="clMarkPn" data-id="${i}">標人名</button><button class="btn btn-sm" type="button" data-act="clMarkLn" data-id="${i}">標地名</button><button class="btn btn-sm btn-ghost" type="button" data-act="clMarkNo" data-id="${i}">取消標記</button></div><label class="dlg-lbl">注釋 <span class="hint">一條寫成「詞：解釋」，例如「之：前往」</span>
     <!-- CLWIDE_V1294 這三行說明本來整段攤開，比輸入格本身還高。
@@ -8248,9 +8268,9 @@ function clLineRowsHtml(){return (CL.lines||[]).map((r,i)=>`<details class="cl-s
     <details class="cl-help"><summary>怎麼寫？</summary>
       <div>同一條裡再多寫幾句補充沒關係，只要沒有新的「詞：」就算同一條（例：「質：到別國做人質。古代常把王子送到別國居住。」＝一條）。<br>
       印出來會掛到有那個字的句子底下；同一個字出現兩次的時候，寫「3｜之：前往」＝指定掛在第 3 句。</div>
-    </details></label><textarea class="cl-note" data-i="${i}" oninput="clSegTouch(this)" style="min-height:120px" placeholder="一條寫成「詞：解釋」">${esc(r.note||'')}</textarea>
+    </details></label><textarea class="cl-note cl-grow" data-i="${i}" oninput="clSegTouch(this)" style="min-height:240px" placeholder="一條寫成「詞：解釋」">${esc(r.note||'')}</textarea>
   <div class="cl-nmap" data-i="${i}"></div><!-- NOTEMAP_V1171 -->
-  <label class="dlg-lbl">參考翻譯 <span class="hint">選填，你寫的白話翻譯。什麼時候給學生看，在上面設定</span></label><textarea class="cl-ref" data-i="${i}" oninput="clSegTouch(this)" style="min-height:80px" placeholder="這一段的白話翻譯…">${esc(r.ref||'')}</textarea>
+  <label class="dlg-lbl">參考翻譯 <span class="hint">選填，你寫的白話翻譯。什麼時候給學生看，在上面設定</span></label><textarea class="cl-ref cl-grow" data-i="${i}" oninput="clSegTouch(this)" style="min-height:80px" placeholder="這一段的白話翻譯…">${esc(r.ref||'')}</textarea>
   ${clPicBox(r.img||'','clPicUp','clPicDel',i,'這一段的插圖，學生看得到')}
   ${CL.lines.length>1?`<div class="cl-seg-foot"><button class="btn btn-sm btn-danger" type="button" data-act="clDelLine" data-id="${i}">🗑 刪除這一段</button></div>`:''}</div></details>`).join('');}
 /* CLFOLD_V1043 問答題也是一題一列，點開才看得到裡面 */
@@ -13087,7 +13107,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1294';
+const APP_BUILD='V1297';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
