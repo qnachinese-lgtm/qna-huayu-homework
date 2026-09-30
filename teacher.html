@@ -467,6 +467,14 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
            待批改、還沒收到在同一畫面出現兩次。現在只留這一排，本月收入也一起收進來。 */
         .hstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:12px;margin-bottom:16px}
         .hst.hst-txt .v{font-size:18px;line-height:1.35;word-break:break-word}
+        /* INCHIDE_V1299 蓋起來的時候顯示一排點點，旁邊一顆小小的「顯示」 */
+        #app .hst .inc-v{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:26px}
+        #app .hst .inc-dots{letter-spacing:4px;color:var(--faint,#8E9CAF);font-size:20px;line-height:1}
+        #app .hst .inc-eye{border:1px solid var(--line,#DCE5F0);background:var(--surface,#fff);
+          color:var(--muted,#5B6B80);font-weight:700;font-size:12px;cursor:pointer;
+          padding:3px 10px;border-radius:999px;line-height:1.5;white-space:nowrap}
+        #app .hst .inc-eye:hover{border-color:var(--primary,#1E4C86);color:var(--primary,#1E4C86);
+          background:var(--primary-soft,#E4EDF9)}
         /* QUIZWIZ_V665 建立小考的三步驟精靈 */
         .qzw-nav{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:12.5px;
           color:var(--muted);margin:-2px 0 14px}
@@ -4145,6 +4153,15 @@ function renderDashboard(){
     `</div>`;
   const _hstat=(tab,ic,label,val,unit,color)=>`<div class="hst" data-act="tab" data-id="${tab}"><div class="t"><span>${label}</span><span class="ic">${ic}</span></div><div class="v"${color?` style="color:${color}"`:''}>${val}<small>${unit}</small></div></div>`;
   const _hstatTxt=(tab,ic,label,val,color)=>`<div class="hst hst-txt" data-act="tab" data-id="${tab}"><div class="t"><span>${label}</span><span class="ic">${ic}</span></div><div class="v"${color?` style="color:${color}"`:''}>${val}</div></div>`;
+  /* INCHIDE_V1299 首頁一打開就會看到這個月收了多少錢，旁邊有人、或是跟學生一起看畫面的時候
+     不太方便。預設蓋起來，按「顯示」才看得到；重新整理或關掉再打開會回到蓋起來的狀態
+     （只記在這一次開著的畫面裡，不寫進設定，也不寫進資料庫）。 */
+  const _hstatInc=(val)=>`<div class="hst hst-txt" data-act="tab" data-id="ops">`
+    +`<div class="t"><span>本月收入</span><span class="ic">💰</span></div>`
+    +`<div class="v inc-v"${DASHINC?' style="color:#16a34a"':''}>`
+    +(DASHINC?`<span>${val}</span><button type="button" class="inc-eye" data-act="dashInc" title="蓋起來">隱藏</button>`
+             :`<span class="inc-dots">••••••</span><button type="button" class="inc-eye" data-act="dashInc" title="看這個月收了多少">顯示</button>`)
+    +`</div></div>`;
   const _leadNew=IS_OWNER?(S.leads||[]).filter(l=>(l&&(l.status||'new')==='new')).length:0;/* LEADNEW_V1122 */
   const _hstatLead=(n)=>`<div class="hst" data-act="goLeads"><div class="t"><span>新報名</span><span class="ic">📥</span></div><div class="v"${n?' style="color:#dc2626"':''}>${n}<small>筆</small></div></div>`;/* LEADNEW_V1122 */
   const _hr=new Date().getHours();const _greet=_hr<11?'早安':(_hr<18?'午安':'晚安');
@@ -4195,7 +4212,7 @@ function renderDashboard(){
     ${_hstat('calendar','📅','今天的課',_cls,'堂',_cls?'#7c3aed':'')}
     ${_hstat('grades','📥','待批改',_pend,'份',(_pend&&_wmax!=null&&_wmax>=7)?'#dc2626':(_pend?'#2563eb':''))}
     ${IS_OWNER?_hstat('pay','💳','還沒收到',oweList.length,'位',oweList.length?'#dc2626':''):''}
-    ${IS_OWNER?_hstatTxt('ops','💰','本月收入',_moneyStr(_totNow),'#16a34a'):''}
+    ${IS_OWNER?_hstatInc(_moneyStr(_totNow)):''/* INCHIDE_V1299 */}
     ${IS_OWNER?_hstatLead(_leadNew):''/* LEADNEW_V1122 */}
     ${_hstat('students','👥','在學學生',_act,'位','')}
     ${IS_OWNER?'':_hstat('lessons','📚','教材課數',(S.lessons||[]).length,'課','')}
@@ -7615,8 +7632,11 @@ function renderOps(){const body=$('#ops-body');
     const rows=_allM.map(m=>{const o=srcOf(_src,m);
       const ks=curKeys(o,v=>Math.abs(v)>0.0001);/* CURORD_V1281 */
       if(!ks.length)return '';
+      /* OPSSRCD_V1299 點進去看這個月這一條業務線是誰付的 */
       return '<div class="dash-row"><b>'+esc(m)+'</b>'+(m===thisM?' <span class="badge badge-soon">本月</span>':'')
-        +'<span class="grow"></span><b>'+ks.map(c=>money(o[c],c)).join('　＋　')+'</b></div>';}).filter(Boolean);
+        +'<span class="grow"></span><b>'+ks.map(c=>money(o[c],c)).join('　＋　')+'</b>'
+        +'<button class="btn btn-sm" style="margin-left:10px" data-act="opsMonth" data-id="'
+        +esc(m)+(_src==='all'?'':('::'+_src))+'">🔎 明細</button></div>';}).filter(Boolean);
     return rows.length?rows.join(''):'<div class="hint" style="padding:8px 0">這一條業務線還沒有收款記錄。</div>';})();
   const srcCard='<div class="card" style="margin-top:14px"><div class="lesson-label">📋 費用明細 '
     +'<span class="hint" style="font-weight:400">分業務線看每個月收到多少</span></div>'
@@ -9350,6 +9370,9 @@ let GHFONT='kaitimes';
 let GHCLSET=[],GHCLQ='1',GHWHO='',GHWHEN='';
 /* CLPICK_V1161 只印挑起來的那幾句（格式 "段index-句index"）；空的＝照原本整段出 */
 let GHCLPICK=[];
+/* INCHIDE_V1299 首頁「本月收入」現在是不是顯示著。故意不存起來：
+   每次重新打開都回到蓋起來的狀態。 */
+let DASHINC=false;
 /* DQEDIT_V1175 GHCLQPICK = 勾起來要出的討論題（空的＝全部出）；
    GHDQ 是這一課的題目副本，按了「存起來」才寫回資料庫。 */
 let GHCLQPICK=[],GHDQ=[],GHDQID='',GHDQD=false;
@@ -13117,7 +13140,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1298';
+const APP_BUILD='V1299';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -19528,46 +19551,54 @@ H.opsSheet=(m)=>{
     +'代收代付（學生的報名費經過帳戶再付出去）不算收入。</div>'
     +'</div>'+expJs()+'</body></html>';/* MSPRINT_V1230 字體選單要能動 */
   fbWin(html);};
-H.opsMonth=(m)=>{const rows=[];
+/* OPSSRCD_V1299 「費用明細」本來只印出一個月收多少，沒辦法點進去看是誰付的，
+   所以切到「代辦申請」只看得到一個總數（Quinn：「我看不到代辦明細收入」）。
+   這支現在收 "2026-09" 或 "2026-09::ag"，後面那一段＝只看那一條業務線。 */
+const OPS_SRCN={tw:'華語教學',itv:'面試練習',ag:'代辦申請',wr:'代書'};
+H.opsMonth=(mk)=>{const _p=String(mk||'').split('::');const m=_p[0];
+  const _src=(OPS_SRCN[_p[1]]?_p[1]:'');
+  const rows=[];
   /* OPSEDIT_V902 記下每一筆是誰的第幾筆，明細上才改得動 */
-  S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach((p,pi)=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||DEF_CUR,note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null,act:'payEdit',key:s.id+'::'+pi});});});
-  (S.interviews||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{if(payIsPass(p))return;/* PASSPAY_V1107 */if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({date:p.date||'',name:'🎤 '+(c.name||''),amt,cur:p.currency||'VND',note:(p.note||'面試')?((p.note||'')+'（面試）').trim():'',sess:null,act:'itvPayList',key:c.id});});});
+  S.students.forEach(s=>{if(s.is_test)return;(s.payments||[]).forEach((p,pi)=>{if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({src:'tw',date:p.date||'',name:s.name||'',amt,cur:p.currency||s.currency||DEF_CUR,note:(p.note||'').trim(),sess:(p.sessions!=null&&p.sessions!=='')?p.sessions:null,act:'payEdit',key:s.id+'::'+pi});});});
+  (S.interviews||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{if(payIsPass(p))return;/* PASSPAY_V1107 */if((p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;rows.push({src:'itv',date:p.date||'',name:'🎤 '+(c.name||''),amt,cur:p.currency||'VND',note:(p.note||'面試')?((p.note||'')+'（面試）').trim():'',sess:null,act:'itvPayList',key:c.id});});});
   /* OPSDETAIL_V1069 這張明細本來只有「學生 ＋ 面試的付費記錄」，
      可是上面的總收入是四條線加起來的，代辦、代書收的錢永遠不會出現在這裡
      （Quinn：「少了今天 Trà My 匯款的」）。下面補齊，口徑跟總收入一樣。 */
   (S.interviews||[]).forEach(c=>{itvSessions(c).forEach(e=>{
     if(!e||!e.paid)return;if(String(e.date||'').slice(0,7)!==m)return;
     const amt=Number(e.fee)||0;if(!amt)return;
-    rows.push({date:e.date||'',name:'🎤 '+(c.name||''),amt,cur:e.currency||'VND',
+    rows.push({src:'itv',date:e.date||'',name:'🎤 '+(c.name||''),amt,cur:e.currency||'VND',
       note:((e.note||'')+'（面試練習）').trim(),sess:null,act:'itvPayList',key:c.id});});});
   (S.agencies||[]).forEach(c=>{
     (Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
       if(payIsPass(p))return;/* PASSPAY_V1107 */
       if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
-      rows.push({date:p.date||'',name:'🎓 '+(c.name||''),amt,cur:p.currency||'VND',
+      rows.push({src:'ag',date:p.date||'',name:'🎓 '+(c.name||''),amt,cur:p.currency||'VND',
         note:((p.note||'')+'（代辦）').trim(),sess:null,act:'opsGoCrm',key:'agency::'+c.id});});
     agLog(c).forEach(e=>{
       if(!e||e.pass||!e.paid)return;/* 代收代付不是收入 */
       if(String(e.date||'').slice(0,7)!==m)return;const amt=Number(e.fee)||0;if(!amt)return;
-      rows.push({date:e.date||'',name:'🎓 '+(c.name||''),amt,cur:e.currency||'VND',
+      rows.push({src:'ag',date:e.date||'',name:'🎓 '+(c.name||''),amt,cur:e.currency||'VND',
         note:((e.what||e.note||'')+'（代辦・進度）').trim(),sess:null,act:'opsGoCrm',key:'agency::'+c.id});});});
   (S.writings||[]).forEach(c=>{(Array.isArray(c.payments)?c.payments:[]).forEach(p=>{
     if(payIsPass(p))return;/* PASSPAY_V1107 */
     if(String(p.date||'').slice(0,7)!==m)return;const amt=Number(p.amount)||0;if(!amt)return;
-    rows.push({date:p.date||'',name:'✍️ '+(c.name||''),amt,cur:p.currency||'VND',
+    rows.push({src:'wr',date:p.date||'',name:'✍️ '+(c.name||''),amt,cur:p.currency||'VND',
       note:((p.note||'')+'（代書）').trim(),sess:null,act:'opsGoCrm',key:'writing::'+c.id});});});
+  /* OPSSRCD_V1299 只看某一條業務線 */
+  if(_src){const _keep=rows.filter(r=>r.src===_src);rows.length=0;_keep.forEach(r=>rows.push(r));}
   rows.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const tot={};rows.forEach(r=>{tot[r.cur]=(tot[r.cur]||0)+r.amt;});
   const totStr=curKeys(tot).map(c=>money(tot[c],c)).join('　＋　')||'—';/* CURORD_V1281 順序＋全形加號都跟別處一樣 */
   /* OPSEDIT_V902 金額後面加一顆 ✏️，直接改這一筆 */
   const body=rows.length?rows.map(r=>`<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">${esc(String(r.date).slice(5))}</span><b>${snm(r.name)}</b>${r.sess!=null?`<span class="muted" style="font-size:12px">＋${esc(String(r.sess))} 堂</span>`:''}${r.note?`<span class="muted" style="font-size:12px">${esc(r.note)}</span>`:''}<span class="grow"></span><b style="color:var(--accent,#1E4C86)">${money(r.amt,r.cur)}</b><button class="btn btn-sm" type="button" data-act="${r.act}" data-id="${esc(r.key)}" title="${r.act==='payEdit'?'改這一筆繳費':'打開這位客戶的收款清單'}" style="margin-left:8px">✏️</button></div>`).join(''):'<div class="hint">這個月還沒有任何收款記錄。</div>';
-  openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${esc(m)} 收入明細</h3><button class="x" data-act="closeModal">×</button></div>
+  openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${esc(m)} ${_src?esc(OPS_SRCN[_src])+' ':''}收入明細</h3><button class="x" data-act="closeModal">×</button></div>
     <div class="modal-body">
-      <div class="card" style="background:#F4F4F5;margin-bottom:10px"><div class="hint">本月合計（華語教學 ＋ 面試練習 ＋ 代辦 ＋ 代書）</div><div style="font-size:20px;font-weight:800">${totStr}</div>
+      <div class="card" style="background:#F4F4F5;margin-bottom:10px"><div class="hint">${_src?('本月合計（只算'+esc(OPS_SRCN[_src])+'）'):'本月合計（華語教學 ＋ 面試練習 ＋ 代辦 ＋ 代書）'}</div><div style="font-size:20px;font-weight:800">${totStr}</div>
         <div style="margin-top:8px"><button class="btn btn-sm btn-accent" data-act="opsSheet" data-id="${esc(m)}">🧮 開月底對帳表（可列印）</button></div>
         <div class="hint" style="margin-top:4px">跟上面「🧮 總收入」同一個口徑。代收代付不算。</div></div>
       ${body}
-      
+      ${_src?`<div style="margin-top:10px;text-align:center"><button class="btn btn-sm" data-act="opsMonth" data-id="${esc(m)}">看這個月全部業務線</button></div>`:''/* OPSSRCD_V1299 */}
     </div></div>`);};
 /* OPSDETAIL_V1069 明細上的 ✏️：跳到那一位客戶 */
 H.opsGoCrm=(key)=>{const p=String(key||'').split('::');
@@ -21311,6 +21342,8 @@ H.gmSchedAdd=()=>{const c=$('#gm-sched');if(c)c.insertAdjacentHTML('beforeend',s
 H.opsSub=(k)=>{S.opsSub=k||'inc';renderOps();try{window.scrollTo(0,0);}catch(e){}};
 /* ACCT_V1261 這兩顆也要放在 const H={} 之後 */
 H.acctSort=(k)=>{S.acctSort=k||'login';renderAcct();};
+/* INCHIDE_V1299 首頁「本月收入」的顯示／隱藏 */
+H.dashInc=()=>{DASHINC=!DASHINC;render();};
 H.acctScope=(k)=>{S.acctScope=k||'active';renderAcct();};
 /* AGRPT_V1251 */
 H.agReport=()=>{
