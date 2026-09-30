@@ -2918,6 +2918,8 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
 
       <section id="panel-oc" class="panel hide"><!-- OC_V1257 -->
         <div class="section-head"><h2>🎬 線上課</h2><span class="sub"></span><div class="head-actions">
+          <!-- OCFROM_V1301 現成的課文裡課名、生詞、練習題都有了，不用重打一次 -->
+          <button class="btn" data-act="ocFromLesson" title="挑一課現有的課文，複製成線上課的草稿">📚 從課文建立</button>
           <button class="btn btn-primary" data-act="ocNew">＋ 新增一課</button></div></div>
         <div id="oc-body"></div>
       </section>
@@ -4279,6 +4281,61 @@ function memAll(){return (S.members||[]);}
 function memPaid(m){const u=String((m&&m.until)||'').trim();
   return !!(u&&u>=localToday());}
 function ocQn(id){return (S.questions||[]).filter(q=>q&&q.lesson_id===id).length;}
+/* ══════ OCFROM_V1301 從現有課文建立線上課 ══════
+   卡住的地方一直是「要從頭做一堂線上課」。可是課名、生詞、練習題在課本那邊都現成了，
+   差的只有一支影片。這裡把那些東西複製成一堂線上課的草稿（不發佈），
+   建好直接打開編輯視窗、游標停在 YouTube 那一格，貼上連結按發佈就有第一堂課。
+   原本的課文完全不動，複製出來的是新的一筆。 */
+function ocFromVocab(l){
+  try{
+    const out=[];
+    (ghVocSecs(l)||[]).forEach(sec=>{
+      (sec.words||[]).forEach((w,i)=>{
+        const f=String((w&&w.front)||'').trim();if(!f)return;
+        /* 越南文優先（線上課的會員是越南學生），沒有才用課本的英文 */
+        const vi=String(((sec.vi||[])[i])||'').trim();
+        const mean=vi||String((w&&w.back)||'').trim();
+        const py=String((w&&w.py)||'').trim();
+        const right=[py,mean].filter(Boolean).join(' · ');
+        out.push(right?(f+'＝'+right):f);});});
+    return out.join('\n');
+  }catch(e){return '';}}
+function ocFromPaint(){
+  const bk=((document.getElementById('ocf-book')||{}).value)||'';
+  const box=document.getElementById('ocf-list');if(!box)return;
+  const ls=baLessonsOf(bk)||[];
+  if(!ls.length){box.innerHTML='<div class="hint" style="padding:8px 2px">這一本還沒有課。</div>';return;}
+  box.innerHTML=ls.map((l,i)=>{
+    const vn=ocFromVocab(l).split('\n').filter(Boolean).length;
+    const qn=questionsOf(l.id).length;
+    return '<label class="check-row"><input type="radio" name="ocf-l" class="ocf-l" value="'+esc(l.id)+'"'+(i?'':' checked')+'>'
+      +'<span style="flex:1;min-width:0">'+esc(l.title||'（未命名）')+'</span>'
+      +'<span class="tag'+(vn?'':' b-off')+'">生詞 '+vn+'</span>'
+      +'<span class="tag'+(qn?'':' b-off')+'">練習 '+qn+'</span></label>';}).join('');}
+function ocFromModal(){
+  const books=baBooks();
+  if(!books.length)return toast('還沒有課文可以複製');
+  const b0=(S.bookFilter&&books.some(b=>b.k===S.bookFilter))?S.bookFilter:books[0].k;
+  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📚 從課文建立線上課</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:12px">挑一課，系統會把<b>課名、生詞、練習題</b>複製成一堂線上課的<b>草稿</b>（還不會發佈）。'
+   +'建好之後直接打開編輯視窗，妳只要貼 YouTube 連結、按發佈就好。<b>原本的課文不會被動到。</b></div>'
+   +'<div class="form-grid">'
+   +'<div class="field full"><label>教材</label><select id="ocf-book" onchange="ocFromPaint()">'
+   +books.map(b=>'<option value="'+esc(b.k)+'"'+(b.k===b0?' selected':'')+'>'+esc(b.k)+'（'+b.n+' 課）</option>').join('')
+   +'</select></div>'
+   +'<div class="field full"><label>挑一課</label>'
+   +'<div class="check-list" id="ocf-list" style="max-height:42vh;overflow:auto"></div></div>'
+   +'<div class="field full"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
+   +'<input type="checkbox" id="ocf-voc" checked style="width:auto;margin:0"> 生詞一起帶過來'
+   +'<span class="hint">有越南文就用越南文，沒有才用課本的英文</span></label></div>'
+   +'<div class="field full"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
+   +'<input type="checkbox" id="ocf-qs" checked style="width:auto;margin:0"> 練習題一起帶過來'
+   +'<span class="hint">複製一份給線上課用，改它不會影響原本那一課</span></label></div>'
+   +'</div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="ocFromGo">📚 建立草稿</button></div></div>');
+  try{ocFromPaint();}catch(e){}}
 function ocRowHtml(l){
   const th=ocThumb(l.video_url);
   const qn=ocQn(l.id);
@@ -4361,7 +4418,7 @@ function renderOC(){
       +'<b>沒有按「🚀 發佈」的課，外面看不到。</b></div>'
       +'<div class="hint" style="margin-top:6px">共 '+ls.length+' 課，已發佈 '+pub+' 課。</div></div>'
       +(ls.length?('<div class="oc-list">'+ls.map(ocRowHtml).join('')+'</div>')
-        :emptyHtml('🎬','還沒有線上課','按右上角「＋ 新增一課」開始。'));
+        :emptyHtml('🎬','還沒有線上課','最快的做法是按右上角「📚 從課文建立」，挑一課現有的課文，課名、生詞、練習題會自動帶過來，妳只要貼 YouTube 連結。'));/* OCFROM_V1301 */
   }else{
     inner='<div class="card" style="margin-bottom:10px"><div class="hint">'
       +'自己註冊的人在這裡，跟正式學生分開，不會出現在學生名冊。'
@@ -13144,7 +13201,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1300';
+const APP_BUILD='V1301';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -18245,6 +18302,9 @@ H.dupLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!co
   const copy={order_index:maxOrder+1,title:(l.title||'')+'（複本）',textbook:l.textbook||null,video_url:l.video_url||null,vi_release:l.vi_release||false,activities:l.activities||'',culture:l.culture||'',dialogues:l.dialogues||null,content:l.content||null,vocabulary:l.vocabulary||null,audio_url:l.audio_url||null,vocab_audio_url:l.vocab_audio_url||null,vocab_segments:l.vocab_segments||null,grammar_points:l.grammar_points||[],key_points:l.key_points||'',examples:l.examples||'',handout_url:l.handout_url||null,handout_name:l.handout_name||null,layout:l.layout||[],assigned_ids:[],due_date:null};
   try{const nl=await DB.insert('lessons',copy);
     const qs=questionsOf(l.id);for(const q of qs){const r=Object.assign({},q);delete r.id;delete r.created_at;r.lesson_id=nl.id;await DB.insert('questions',r);}
+    /* QCACHE_V1301 同上：題目有 5 分鐘快取，複製完要強制重讀，
+       不然複製出來的那一課看起來像「題目都不見了」。 */
+    try{await listQuestions(true);}catch(e){}
     await loadAll();render();toast('已複製為「'+copy.title+'」，可直接編輯');}
   catch(err){if(btn){btn.disabled=false;btn.textContent='📋 複製';}toast(writeErr('複製失敗',err));}};
 H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return toast('請輸入課名');
@@ -21384,6 +21444,37 @@ H.dClear=(id)=>{const el=document.getElementById(String(id||''));if(!el)return;
 /* OC_V1257 線上課的操作 */
 H.ocSub=(k)=>{S.ocSub=(k==='mem')?'mem':'les';renderOC();};
 H.ocNew=()=>ocForm(null);
+/* OCFROM_V1301 */
+H.ocFromLesson=()=>ocFromModal();
+H.ocFromGo=async(_id,btn)=>{
+  const sel=document.querySelector('.ocf-l:checked');
+  const lid=sel?String(sel.value||''):'';
+  if(!lid)return toast('請先挑一課');
+  const l=(S.lessons||[]).find(x=>x&&x.id===lid);
+  if(!l)return toast('找不到這一課');
+  const wantV=!!((document.getElementById('ocf-voc')||{}).checked);
+  const wantQ=!!((document.getElementById('ocf-qs')||{}).checked);
+  try{
+    if(btn){btn.disabled=true;btn.textContent='建立中…';}
+    const patch={kind:'oc',title:String(l.title||'（未命名）'),level:'',intro:'',
+      video_url:'',vocab:(wantV?ocFromVocab(l):''),tier:'free',published:false,
+      order_index:(ocAll().length+1)*10,created_at:new Date().toISOString(),
+      from_lesson:l.id/* 記一下是從哪一課來的 */};
+    const nl=await DB.insert('lessons',patch);
+    if(wantQ){
+      const qs=questionsOf(l.id)||[];
+      for(const q of qs){const r=Object.assign({},q);delete r.id;delete r.created_at;
+        r.lesson_id=nl.id;await DB.insert('questions',r);}
+      /* QCACHE_V1301 題目有 5 分鐘的快取，寫完要強制重讀，
+         不然剛複製好的練習題要等五分鐘才看得到。 */
+      try{await listQuestions(true);}catch(e){}
+    }
+    await loadAll();closeModal();S.tab='oc';render();
+    toast('已建立草稿：'+patch.title+'　貼上 YouTube 連結就可以發佈');
+    setTimeout(()=>{try{ocForm(ocById(nl.id));
+      setTimeout(()=>{const v=document.getElementById('oc-video');if(v)v.focus();},150);}catch(e){}},220);
+  }catch(e){if(btn){btn.disabled=false;btn.textContent='📚 建立草稿';}
+    toast(writeErr('建立失敗',e));}};
 H.ocEdit=(id)=>ocForm(ocById(id));
 H.ocSave=async(id)=>{
   const g=(k)=>{const e=document.getElementById('oc-'+k);return e?String(e.value||'').trim():'';};
