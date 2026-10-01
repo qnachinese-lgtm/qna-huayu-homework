@@ -551,6 +551,25 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
            上一版是一排裸的摺疊列，關鍵字長短不一就整排歪掉，很醜。 */
         .rp-grid{margin-top:4px}
         /* RPGRP_V715 分類標題 */
+        /* RPGAP_V1305 缺口檢查 */
+        .rpg-sum{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;margin-bottom:12px}
+        .rpg-sum .rpg-bad{background:#F8E7E4;color:#A33227;border-radius:999px;padding:3px 12px;font-weight:700;font-size:13px}
+        .rpg-sum .rpg-ok{background:#E1F0EA;color:#1F6A54;border-radius:999px;padding:3px 12px;font-weight:700;font-size:13px}
+        .rpg-sum .rpg-warn{background:#FEF3C7;color:#92400E;border-radius:999px;padding:3px 12px;font-weight:700;font-size:13px}
+        .rpg-t{padding:13px 16px;margin-bottom:10px}
+        .rpg-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+        .rpg-h b{font-size:14.5px}
+        .rpg-n{background:#F8E7E4;color:#A33227;border-radius:999px;padding:1px 10px;font-size:12px;font-weight:700}
+        .rpg-done{background:#E1F0EA;color:#1F6A54;border-radius:999px;padding:1px 10px;font-size:12px;font-weight:700}
+        .rpg-r{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 0}
+        .rpg-lab{font-size:12.5px;color:#5B6B80;min-width:124px;flex:none}
+        .rpg-cs{display:flex;gap:7px;flex-wrap:wrap}
+        .rpg-c{font:inherit;font-size:12.5px;font-weight:700;border-radius:999px;padding:4px 13px;cursor:pointer;border:1px solid transparent}
+        .rpg-c.ok{background:#E1F0EA;color:#1F6A54;border-color:#BFE0CB}
+        .rpg-c.blank{background:#FEF3C7;color:#92400E;border-color:#FDE68A}
+        .rpg-c.add{background:#fff;color:#A33227;border:1px dashed #F0C9C2}
+        .rpg-c.add:hover{background:#F8E7E4}
+        @media(max-width:700px){.rpg-lab{min-width:0;width:100%}}
         .rp-sec{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px;
           color:var(--primary-dark,#143A6B);margin:18px 0 8px;padding-bottom:6px;
           border-bottom:1.5px solid var(--line)}
@@ -4990,6 +5009,75 @@ function rpText(r){
   return String((r&&r.body_zh)||'').trim();
 }
 function rpPreview(r){return rpText(r);}
+/* RPGAP_V1305 缺口檢查。
+   同一件事，越南文寫給長輩（anh/chị）、晚輩（em）、平輩（bạn）用字完全不一樣，
+   報價的幣別也不能混，團班和一對一的說法更不一樣。真的遇到沒寫過的那一種，
+   就得當場自己想——這一頁先把哪幾格沒寫列出來。
+   軸是從她自己的資料推出來的：這個主題從來沒分過幣別，就不會要求她補幣別那幾格，
+   免得列出一堆她根本用不到的空格。 */
+const RP_ADDR_ORDER=['anhchi','em','ban'];
+let RPGAP=[];
+function rpGapRows(){
+  const all=(S.replies||[]).filter(r=>r&&!r.deleted_at);
+  const by={};
+  all.forEach(r=>{const k=(rpTitleBare(r.title||'')||'').trim()||'（沒有標題）';
+    (by[k]=by[k]||[]).push(r);});
+  const out=[];
+  Object.keys(by).sort((a,b)=>a.localeCompare(b,'zh-Hant')).forEach(k=>{
+    const rows=by[k];
+    const curs=[...new Set(rows.map(r=>rpCurOf(r)||rpCurGuess(r)).filter(Boolean))].sort();
+    const modes=[...new Set(rows.map(r=>rpModeOf(r)||rpModeGuess(r)).filter(Boolean))].sort();
+    const cl=curs.length?curs:[''], ml=modes.length?modes:[''];
+    const cells=[];
+    cl.forEach(c=>ml.forEach(m=>RP_ADDR_ORDER.forEach(a=>{
+      const hit=rows.find(r=>((rpCurOf(r)||rpCurGuess(r)||'')===c)
+        &&(((rpModeOf(r)||rpModeGuess(r))||'')===m)
+        &&((rpAddrOf(r)||rpAddrGuess(r))===a));
+      cells.push({cur:c,mode:m,addr:a,id:(hit&&hit.id)||'',
+        empty:hit?!rpPreview(hit):false});
+    })));
+    out.push({topic:k,n:rows.length,cells,
+      grp:rpGrpOf(rows[0]),
+      sample:rows[0].title||k,
+      noAddr:rows.filter(r=>!(rpAddrOf(r)||rpAddrGuess(r))).length,
+      miss:cells.filter(x=>!x.id).length,
+      blank:cells.filter(x=>x.id&&x.empty).length});
+  });
+  return out;}
+function rpGapHtml(){
+  const G=rpGapRows();
+  RPGAP=[];
+  if(!G.length)return '<div class="card" style="padding:26px;text-align:center"><div class="muted">還沒有任何範本，先新增幾份再回來看缺口。</div></div>';
+  const totMiss=G.reduce((a,x)=>a+x.miss,0), totBlank=G.reduce((a,x)=>a+x.blank,0);
+  const head='<div class="card rpg-sum"><b>共 '+G.length+' 個主題</b>'
+    +(totMiss?('<span class="rpg-bad">還缺 '+totMiss+' 格</span>'):'<span class="rpg-ok">每一格都寫了 🎉</span>')
+    +(totBlank?('<span class="rpg-warn">'+totBlank+' 格有卡片但內容是空的</span>'):'')
+    +'<div class="hint" style="width:100%;margin-top:6px">每一列是一個主題。'
+    +'越南文對長輩、晚輩、平輩的用字不一樣，所以同一件事要各存一份。'
+    +'有分幣別或班型的主題，會按它實際用過的組合再乘開。</div></div>';
+  const body=G.map(g=>{
+    const rowsHtml=[];
+    const seen={};
+    g.cells.forEach(c=>{
+      const key=c.cur+'|'+c.mode;
+      if(seen[key])return; seen[key]=1;
+      const grp=g.cells.filter(x=>x.cur===c.cur&&x.mode===c.mode);
+      const lab=[c.cur?RP_CUR[c.cur][0]:'',c.mode?RP_MODE[c.mode][0]:''].filter(Boolean).join('　');
+      const chips=grp.map(x=>{
+        const an=RP_ADDR[x.addr][0];
+        if(x.id&&!x.empty)return '<button class="rpg-c ok" data-act="rpEdit" data-id="'+esc(x.id)+'" title="已經有了，按一下編輯">✓ '+esc(an)+'</button>';
+        if(x.id&&x.empty)return '<button class="rpg-c blank" data-act="rpEdit" data-id="'+esc(x.id)+'" title="卡片在，但內容是空的">⚠ '+esc(an)+'</button>';
+        RPGAP.push({title:g.sample,grp:g.grp,cur:x.cur,mode:x.mode,addr:x.addr});
+        return '<button class="rpg-c add" data-act="rpGapNew" data-id="'+(RPGAP.length-1)+'" title="還沒寫，按一下用這個組合新增">＋ '+esc(an)+'</button>';}).join('');
+      rowsHtml.push('<div class="rpg-r">'+(lab?('<span class="rpg-lab">'+esc(lab)+'</span>'):'')+'<span class="rpg-cs">'+chips+'</span></div>');
+    });
+    return '<div class="card rpg-t"><div class="rpg-h"><b>'+esc(g.topic)+'</b>'
+      +'<span class="muted" style="font-size:12.5px">'+g.n+' 份</span>'
+      +(g.miss?('<span class="rpg-n">缺 '+g.miss+'</span>'):'<span class="rpg-done">完整</span>')
+      +'</div>'+rowsHtml.join('')
+      +(g.noAddr?('<div class="hint" style="margin-top:6px">⚠ 有 '+g.noAddr+' 份還沒標稱呼，進去編輯存一次就會歸位。</div>'):'')
+      +'</div>';}).join('');
+  return head+body;}
 /* RPCARD_V912 本來一張卡只看得到一段預覽，看不出這一份有沒有中文、有沒有越南文；
    按鈕又被拆成左右兩半。改成：左邊一條分類色帶、右上角標有哪幾種語言、
    預覽框上面寫現在看到的是哪一種、按鈕全部靠右排成一組。 */
@@ -5016,7 +5104,7 @@ function rpCardHtml(r){
 }
 function renderReply(){
   const body=$('#panel-reply');if(!body)return;
-  const sub=(S.rpSub==='price')?'price':'tpl';
+  const sub=(S.rpSub==='price'||S.rpSub==='gap')?S.rpSub:'tpl';/* RPGAP_V1305 */
   const all=rpSorted();const q=String(S.rpQ||'').trim();
   const list=all.filter(r=>rpPass(r)&&rpMatch(r,q));/* RPFILT_V1182 */
   const nEmpty=all.filter(r=>!rpPreview(r)).length;
@@ -5035,9 +5123,14 @@ function renderReply(){
   const bar='<div class="pagebar"><div class="segbar">'
     +'<button class="segb'+(sub==='tpl'?' on':'')+'" data-act="rpSub" data-id="tpl">📮 回覆範本<span class="segn">'+all.length+'</span></button>'
     +'<button class="segb'+(sub==='price'?' on':'')+'" data-act="rpSub" data-id="price">🧾 價目表<span class="segn">'+(S.prices||[]).length+'</span></button>'
+    /* RPGAP_V1305 */
+    +'<button class="segb'+(sub==='gap'?' on':'')+'" data-act="rpSub" data-id="gap">🔍 缺口檢查'
+      +(function(){try{const m=rpGapRows().reduce((a,x)=>a+x.miss,0);return m?('<span class="segn">'+m+'</span>'):'';}catch(e){return '';}})()
+      +'</button>'
     +'</div></div>';
   let inner;
-  if(sub==='price'){
+  if(sub==='gap'){ inner=rpGapHtml(); }        /* RPGAP_V1305 */
+  else if(sub==='price'){
     /* RPPRINT_V1184 列印和 Word 搬到右上角那一排了 */
     inner=prListHtml();
   }else{
@@ -13201,7 +13294,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1304';
+const APP_BUILD='V1305';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -15910,7 +16003,11 @@ H.docSave=async(id)=>{
   catch(e){toast(writeErr('儲存失敗',e));}
 };
 /* QUOTE_V713 價目表的操作 */
-H.rpSub=(k)=>{S.rpSub=(k==='price')?'price':'tpl';render();};
+H.rpSub=(k)=>{S.rpSub=(k==='price'||k==='gap')?k:'tpl';render();};
+/* RPGAP_V1305 從缺口那一格直接開新增，組合先填好，她只要寫內容 */
+H.rpGapNew=(i)=>{const g=RPGAP[+i];if(!g)return;
+  openModal(rpFormHtml({title:rpTitleBare(g.title||''),grp:g.grp||'',
+    cur:g.cur||'',mode:g.mode||'',addr:g.addr||''},1));};
 /* ══════ RPPRINT_V912 把回覆範本列印出來 ══════
    做法跟匯出講義同一套：先問要印哪一類、哪一種語言、什麼字體，再產生文件。
    字體選單就是講義那一套（ghFontHead / ghFontCss），不另外再寫一份。 */
