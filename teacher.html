@@ -5894,9 +5894,11 @@ function renderCalMonth(body,toggle){
   groupsList().forEach(cls=>{const mem=(S.students||[]).filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
     classPlanned(cls).forEach(p=>{if(!p||!p.date||String(p.date).slice(0,7)!==ym)return;
       /* SAMEDAY_V1229 同一天可以有兩堂，所以要連時段一起比；沒填時段的記錄才當成整天 */
-      if(mem.some(s=>(Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date&&(!(e.start||'')||(e.start||'')===(p.start||'')))))return;
+      /* DUPPLAN_V1334 月曆本來和週表一樣只比對開始時間，所以 10/1 同一個團班出現兩格。
+         改成時段重疊也算同一堂；真的一天兩堂（不重疊）兩格都還在。 */
+      if(mem.some(s=>(Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date&&(!(e.start||'')||(e.start||'')===(p.start||'')||tmOverlap(p.start||'',p.end||'',e.start||'',e.end||'')))))return;
       (planByDate[p.date]=planByDate[p.date]||[]).push(Object.assign({cls},p));planCount++;});});
-  (S.students||[]).forEach(s=>{if(s.is_test||s.class_type==='團班')return;if(!incPaused&&enrollOf(s)==='paused')return;studentPlanned(s).forEach(p=>{if(!p||!p.date||String(p.date).slice(0,7)!==ym)return;if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date&&(!(e.start||'')||(e.start||'')===(p.start||''))))return;(planByDate[p.date]=planByDate[p.date]||[]).push(Object.assign({sid:s.id,sname:s.name},p));planCount++;});});
+  (S.students||[]).forEach(s=>{if(s.is_test||s.class_type==='團班')return;if(!incPaused&&enrollOf(s)==='paused')return;studentPlanned(s).forEach(p=>{if(!p||!p.date||String(p.date).slice(0,7)!==ym)return;if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date&&(!(e.start||'')||(e.start||'')===(p.start||'')||tmOverlap(p.start||'',p.end||'',e.start||'',e.end||''))))return;(planByDate[p.date]=planByDate[p.date]||[]).push(Object.assign({sid:s.id,sname:s.name},p));planCount++;});});
   /* CALFIX_V784 🔁 固定時段：照學生／團班設定的每週時段，把今天以後、這個月內
      還沒點名也還沒預排的那幾天推出來。過去的日期不推。 */
   const fixByDate={};let fixCount=0;
@@ -6599,6 +6601,19 @@ function overTag(tot,got,cur,off){
   if(!(Number(tot)>0)||over<=0.5)return '';
   return '<span class="badge b-warn" title="收到的比總額多。如果這筆錢裡面包含別的服務，'
     +'可以用卡片上的「💰 一筆轉帳分給多種服務」分開記。">\u26A0\uFE0F 多收了 '+money(over,cur)+'</span>';}
+/* DUPPLAN_V1334 判斷兩個時段有沒有重疊。
+   同一個學生／同一個班不可能在互相重疊的時間上兩堂課，所以「重疊」就等於「同一堂」。
+   課表（週）和月曆各有一份預排過濾的程式碼，本來都只比對「開始時間一字不差」，
+   點名記成 22:15、預排是 22:00 就被當成兩堂，同一天列兩次。兩邊現在共用這一個判斷。
+   沒填時間的一律回 false，交給原本「整天比對」的規則處理。 */
+function tmMin(x){const a=String(x||'').split(':');if(a.length<2)return null;
+  const h=+a[0],n=+a[1];return (isNaN(h)||isNaN(n))?null:h*60+n;}
+function tmOverlap(aS,aE,bS,bE){
+  const s1=tmMin(aS),s2=tmMin(bS);if(s1==null||s2==null)return false;
+  let e1=tmMin(aE),e2=tmMin(bE);
+  if(e1==null||e1<=s1)e1=s1+60;
+  if(e2==null||e2<=s2)e2=s2+60;
+  return s1<e2&&s2<e1;}
 function payReal(arr){return (arr||[]).filter(p=>!payIsPass(p));}
 function payPass(arr){return (arr||[]).filter(payIsPass);}
 function passSum(arr){const by={};
@@ -7778,16 +7793,8 @@ function weekActualCard(back){
   const sD=new Date(t);sD.setDate(sD.getDate()-back);
   const start=ymd(sD);const eD=new Date(t);eD.setDate(eD.getDate()+6);const end=ymd(eD);
   const items=[];const grpMap={};const recordedGrp=new Set();
-  /* DUPPLAN_V1333 同一班同一天的已點名時段，用來判斷預排是不是同一堂 */
+  /* DUPPLAN_V1333 同一班同一天的已點名時段，用來判斷預排是不是同一堂（判斷式見 tmOverlap） */
   const recGrpRange={};
-  const _tmin=(x)=>{const a=String(x||'').split(':');if(a.length<2)return null;
-    const h=+a[0],n=+a[1];return (isNaN(h)||isNaN(n))?null:h*60+n;};
-  const _ovl=(aS,aE,bS,bE)=>{const s1=_tmin(aS),s2=_tmin(bS);
-    if(s1==null||s2==null)return false;
-    let e1=_tmin(aE),e2=_tmin(bE);
-    if(e1==null||e1<=s1)e1=s1+60;
-    if(e2==null||e2<=s2)e2=s2+60;
-    return s1<e2&&s2<e1;};
   // 已記錄的上課：團班以「團班＋日期＋時段」合併成一筆（不用學生逐一列）
   const _cSch={};/* WKSLOT_V1200 一個班只算一次固定時段 */
   /* GRPSCH_V1331 跟自動排課看同一份。沒填時段的那一堂，本來會拿
@@ -7824,9 +7831,9 @@ function weekActualCard(back){
       if(clsBefore(cls,p.date))return;/* CLSTART_V1091 */
       if(recordedGrp.has(cls+'|'+p.date+'|'+(p.start||''))||recordedGrp.has(cls+'|'+p.date+'|*'))return;
       /* DUPPLAN_V1333 時段重疊＝同一堂，預排不再重複列 */
-      if((recGrpRange[cls+'|'+p.date]||[]).some(r=>_ovl(p.start||'',p.end||'',r.s,r.e)))return;
+      if((recGrpRange[cls+'|'+p.date]||[]).some(r=>tmOverlap(p.start||'',p.end||'',r.s,r.e)))return;
       items.push({type:'plan',date:p.date,start:p.start||'',end:p.end||'',cls,p});});});
-  (S.students||[]).forEach(s=>{if(s.deleted||s.is_test||s.class_type==='團班')return;studentPlanned(s).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date&&(!(e.start||'')||(e.start||'')===(p.start||'')||_ovl(p.start||'',p.end||'',e.start||'',e.end||''))))return;items.push({type:'splan',date:p.date,start:p.start||'',end:p.end||'',s,p});});});
+  (S.students||[]).forEach(s=>{if(s.deleted||s.is_test||s.class_type==='團班')return;studentPlanned(s).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date&&(!(e.start||'')||(e.start||'')===(p.start||'')||tmOverlap(p.start||'',p.end||'',e.start||'',e.end||''))))return;items.push({type:'splan',date:p.date,start:p.start||'',end:p.end||'',s,p});});});
   // 🔁 固定時段：照學生／團班設定的每週時段推出來（那天已點名或已排預排就不重複）
   {
     const has=(key)=>items.some(x=>x.date===key.date&&(
@@ -13984,7 +13991,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1333';
+const APP_BUILD='V1334';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
