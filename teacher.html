@@ -5921,7 +5921,7 @@ function renderCalMonth(body,toggle){
         push(dy.ymd,{sid:s.id,sname:s.name,start:r.s||'',end:r.e||''});}));});
     groupsList().forEach(cls=>{
       if(clsNotYet(cls))return;/* CLSOFF_V1074 */
-      const sch=classSchedOf(cls)||[];if(!sch.length)return;
+      const sch=classSchedSet(cls);if(!sch.length)return;/* GRPSCH_V1330 */
       const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls)&&!x.is_test);
       ds7.forEach(dy=>sch.forEach(r=>{
         if(!r||Number(r.d)!==dy.wd)return;
@@ -7813,7 +7813,7 @@ function weekActualCard(back){
         items.push({type:'fix',date:dy.ymd,start:r.s||'',end:r.e||'',s});}));});
     groupsList().forEach(cls=>{
       if(clsNotYet(cls))return;/* CLSOFF_V1074 */
-      const sch=classSchedOf(cls)||[];
+      const sch=classSchedSet(cls);/* GRPSCH_V1330 */
       if(!sch.length)return;
       days7.forEach(dy=>sch.forEach(r=>{
         if(!r||Number(r.d)!==dy.wd)return;
@@ -8678,16 +8678,19 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
         <b class="lc-bar-t">📖 課本</b><span class="hint">練習題 ${qn}</span>
         <span class="grow"></span>
         <span class="lc-btns">
+          <!-- LCBTN_V1329 這一列本來六顆（編輯／預覽／試做／教師手冊／⋯更多／發佈），
+               而且每一課都有一列，三十課就是一百八十顆。每天會按的只有「編輯」和「發佈」，
+               預覽、試做、教師手冊收進本來就在旁邊的「⋯ 更多」那一層。 -->
           <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">✏️ 編輯</button>
-          <button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button>
-          <button class="btn btn-sm" data-act="tryLesson" data-id="${l.id}" title="像學生一樣真的做做看，不會存檔">🎒 試做</button>
-          <button class="btn btn-sm${tgTxt(l.id)?' btn-soft':''}" data-act="tguide" data-id="${l.id}" title="只有老師看得到的參考答案和教學筆記">👩‍🏫 教師手冊${tgTxt(l.id)?' ●':''}</button>
           <button class="btn btn-sm" data-act="lessonMore" data-id="${l.id}">⋯ 更多</button>
           <button class="btn btn-sm btn-accent" data-act="assign" data-id="${l.id}">👥 發佈${an?`（${an}）`:''}</button>
         </span>
       </div>
       ${wbBarHtml(l)}
       <div class="hide lc-acts" id="lmore-${l.id}">
+        <button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button>
+        <button class="btn btn-sm" data-act="tryLesson" data-id="${l.id}" title="像學生一樣真的做做看，不會存檔">🎒 試做</button>
+        <button class="btn btn-sm${tgTxt(l.id)?' btn-soft':''}" data-act="tguide" data-id="${l.id}" title="只有老師看得到的參考答案和教學筆記">👩‍🏫 教師手冊</button>
         <button class="btn btn-sm" data-act="questions" data-id="${l.id}">📝 練習題（${qn}）</button>
         <button class="btn btn-sm ${built?'':'btn-accent'}" data-act="toggleBuild" data-id="${l.id}">${built?'↩ 改回進行中':'✅ 標記完成'}</button>
         ${(Array.isArray(l.transcript)&&l.transcript.length)?`<button class="btn btn-sm${l.transcript_open?' btn-accent':' btn-warn'}" data-act="toggleTranscript" data-id="${l.id}" title="開了學生訂正時才看得到逐字稿">🎧 聽力文本${l.transcript_open?'：已開放':'：未開放'}</button>`:''}
@@ -9702,6 +9705,15 @@ async function saveClassMeta(cls,patch){const all=Object.assign({},classMetaAll(
   else{const doc=await DB.insert('lessons',{kind:'classmeta',meta:all,created_at:new Date().toISOString()});S.classMeta=doc||{kind:'classmeta',meta:all};}}
 function deriveClassSched(cls){const members=S.students.filter(s=>stuGroups(s).includes(cls));const seen={},out=[];members.forEach(s=>(Array.isArray(s.schedule)?s.schedule:[]).forEach(r=>{if(!r||(!r.s&&!r.e))return;const d=(r.d!=null?r.d:0);const k=d+'|'+(r.s||'')+'|'+(r.e||'');if(seen[k])return;seen[k]=1;out.push({d,s:r.s||'',e:r.e||''});}));out.sort((a,b)=>(a.d-b.d)||String(a.s).localeCompare(b.s));return out;}
 function classSchedOf(cls){const cm=classMetaOf(cls);return (cm.schedule&&cm.schedule.length)?cm.schedule:deriveClassSched(cls);}
+/* GRPSCH_V1330 Quinn：「固定時間不是這個時間」。
+   團班如果老師沒有自己設固定時段，classSchedOf() 會退而求其次，拿班上
+   「某一位學生的個人時段」推出一份（deriveClassSched）當成全班的時間。
+   那位學生的個人時段不是這一班的上課時間，於是自動排課就排在錯的時間上。
+   V1074 當時只擋住「不要把推出來的那份存進班級設定」，沒擋住「拿它來排課」。
+   凡是會「自動產生課」的地方一律改用這個——只認老師自己存過的那一份；
+   沒設定的班就不要自動排。推出來的那份留著給設定畫面預填、給顯示用。 */
+function classSchedSet(cls){const cm=classMetaOf(cls)||{};
+  return (cm.schedule&&cm.schedule.length)?cm.schedule:[];}
 function classSchedText(cls){const sch=classSchedOf(cls);return (sch&&sch.length)?fmtSchedule({schedule:sch}):'';}
 function classMeetOf(cls){const cm=classMetaOf(cls);if(/^https?:\/\//i.test(cm.meet||''))return cm.meet;const m=S.students.filter(s=>stuGroups(s).includes(cls)).map(s=>s.meet_url).find(u=>/^https?:\/\//i.test(u||''));return m||'';}
 /* CLSOFF_V1074 本來這裡會把「照學生時段推出來的那一份」直接存進班級設定，
@@ -13363,8 +13375,10 @@ function wbBarHtml(l,more){const w=wbOfLesson(l);
     <span class="grow"></span>
     <span class="lc-btns">
       <button class="btn btn-sm" data-act="editWb" data-id="${w.id}">✏️ 編輯</button>
-      <button class="btn btn-sm" data-act="previewWb" data-id="${w.id}">👁 預覽</button>
-      <button class="btn btn-sm" data-act="tryWb" data-id="${w.id}" title="像學生一樣真的做做看，會對答案，但不會存檔">🎒 試做</button>
+      <details class="mini-menu"><summary class="btn btn-sm">⋯ 更多</summary><div class="mini-pop">
+        <button class="btn btn-sm" data-act="previewWb" data-id="${w.id}">👁 預覽</button>
+        <button class="btn btn-sm" data-act="tryWb" data-id="${w.id}" title="像學生一樣真的做做看，會對答案，但不會存檔">🎒 試做</button>
+      </div></details>
       <span class="lc-slot"></span>
       <button class="btn btn-sm btn-accent" data-act="assignWb" data-id="${w.id}">👥 發佈</button>
     </span></div>`;}
@@ -13937,7 +13951,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1328';
+const APP_BUILD='V1330';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -19774,7 +19788,7 @@ function fixSlotsAhead(days){
       used.add(dy.ymd);rows.push({date:dy.ymd,start:r.s||'',end:r.e||'',note:''});}));
     if(rows.length)stu.push({s:x,rows});});
   groupsList().forEach(cls=>{
-    const sch=classSchedOf(cls)||[];if(!sch.length)return;
+    const sch=classSchedSet(cls);if(!sch.length)return;/* GRPSCH_V1330 */
     const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls)&&!x.is_test);
     const logged=new Set();mem.forEach(x=>(Array.isArray(x.class_log)?x.class_log:[]).forEach(e=>{if(e&&e.date)logged.add(e.date);}));
     const planned=new Set(classPlanned(cls).map(p=>p.date));
@@ -22664,7 +22678,10 @@ function hcRun(){
     why:'課表和「還沒點名」都不會出現這一班，很容易整班忘記點名。',
     how:'點過去 → 填「上課時段」，或勾「🚧 這一班還沒開始」。',
     rows:clsAll.filter(cls=>{
-      let sch=[];try{sch=classSchedOf(cls)||[];}catch(e){}
+      /* GRPSCH_V1330 這裡要跟自動排課看同一份，否則會出現
+         「不被自動排課、也不被提醒沒設時段」的死角——
+         因為班上有學生填了個人時段，推出來的那份讓健檢以為已經設好了。 */
+      let sch=[];try{sch=classSchedSet(cls);}catch(e){}
       let ny=false;try{ny=clsNotYet(cls);}catch(e){}
       return !sch.length&&!ny&&memOf(cls).length>0;}).map(cls=>clsGo(cls,memOf(cls).length+' 人'))});
   out.push({k:'notyetlog',ic:'🚧',t:'團班勾著「還沒開始」，可是已經有人上過課了',

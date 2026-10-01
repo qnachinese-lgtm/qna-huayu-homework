@@ -6566,8 +6566,45 @@ H.wbRecall=async()=>{
     var X='<button data-x aria-label="close" style="background:transparent;border:0;color:#fff;font-size:20px;cursor:pointer;line-height:1;flex:none">×</button>';
     window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferred=e;
       bar('<span style="flex:1">📲 加到主畫面，像 App 一樣開 · Thêm vào màn hình chính</span><button data-install style="background:#fff;color:#1E4C86;border:0;border-radius:999px;padding:7px 14px;font-weight:700;cursor:pointer;flex:none">安裝 · Cài</button>'+X);});
-    var isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
-    if(isIOS){setTimeout(function(){bar('<span style="flex:1">📲 點下方「分享」→「加入主畫面」安裝 · Bấm Chia sẻ → Thêm vào màn hình chính</span>'+X);},2800);}
+    /* A2HS_V1330 學生回報「有『加到主畫面』的提示，但加不進去」。
+       查過線上的 manifest、兩個圖示、service worker 都正常（都是 200），
+       所以不是安裝條件沒滿足，是打開的地方不對：
+
+       ① 從 Zalo／Facebook／Messenger 的訊息點進來，開的是那些 App 內建的瀏覽器。
+          內建瀏覽器的「分享」選單根本沒有「加入主畫面」這一項，照著做一定找不到。
+          越南的學生多半是從 Zalo 或 Facebook 點連結進來的，這應該就是主因。
+       ② iPad 從 iPadOS 13 開始，useragent 自稱 Macintosh，
+          原本的 /iphone|ipad|ipod/ 判斷不到，整條提示不會出現。
+
+       所以分成三種情況講不同的話，而且都附一顆「複製網址」，
+       這樣他可以直接貼到 Safari／Chrome 再裝。 */
+    var ua=navigator.userAgent||'';
+    var isIOS=/iphone|ipad|ipod/i.test(ua)
+      ||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);/* iPadOS 13+ 自稱 Mac */
+    var inApp=/(FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|Zalo|TikTok)/i.test(ua);
+    var COPY='<button data-copy style="background:#fff;color:#1E4C86;border:0;border-radius:999px;padding:7px 13px;font-weight:700;cursor:pointer;flex:none">📋 複製網址</button>';
+    function wire(d){
+      var cb=d.querySelector('[data-copy]');
+      if(!cb)return;
+      cb.onclick=function(){
+        var u=location.href;
+        var done=function(){cb.textContent='✅ 已複製';};
+        try{navigator.clipboard.writeText(u).then(done,function(){
+          var t=document.createElement('textarea');t.value=u;document.body.appendChild(t);
+          t.select();try{document.execCommand('copy');done();}catch(e){}t.remove();});}
+        catch(e){}};
+    }
+    if(inApp){
+      setTimeout(function(){
+        bar('<span style="flex:1">📲 要加到主畫面，請先用 Safari／Chrome 打開這一頁'
+          +'<br><span style="opacity:.85;font-size:12.5px">Để thêm vào màn hình chính, hãy mở trang này bằng Safari / Chrome</span></span>'+COPY+X);
+        var d=document.getElementById('a2hs');if(d)wire(d);},2800);
+    }else if(isIOS){
+      setTimeout(function(){
+        bar('<span style="flex:1">📲 點下方「分享」→「加入主畫面」'
+          +'<br><span style="opacity:.85;font-size:12.5px">Bấm Chia sẻ → Thêm vào màn hình chính</span></span>'+COPY+X);
+        var d=document.getElementById('a2hs');if(d)wire(d);},2800);
+    }
   }catch(e){}
 })();
 /* CLNAV_V1058 文言文的「第幾段」小方塊。沒有段落就自己躲起來。 */
