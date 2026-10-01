@@ -6589,6 +6589,16 @@ function agPays(c){return (c&&Array.isArray(c.payments))?c.payments.filter(x=>x&
    agPays 照樣回傳全部（存檔、刪除、畫清單都要用到全部，少一筆就會被寫掉），
    算錢的地方一律改用 payReal；代收的那幾筆用 payPass 另外算。 */
 function payIsPass(p){return !!(p&&p.pass);}
+/* OVERPAY_V1333 收到的錢比總額多的時候，left 會是負的，
+   本來就直接掉進「✓ 已收齊」，完全沒有提示。Quinn 的情況：學生一次付 2,000,000
+   包含代書和面試各 1,000,000，整筆記在面試這張卡上，面試總額只有 1,000,000，
+   畫面照樣寫「已收齊」，看不出有一半是別的服務的錢。
+   多收的時候改成明講，並提示可能要用「一筆轉帳分給多種服務」分開記。 */
+function overTag(tot,got,cur,off){
+  const over=Math.round(((Number(got)||0)-(Number(tot)||0)-(Number(off)||0))*100)/100;
+  if(!(Number(tot)>0)||over<=0.5)return '';
+  return '<span class="badge b-warn" title="收到的比總額多。如果這筆錢裡面包含別的服務，'
+    +'可以用卡片上的「💰 一筆轉帳分給多種服務」分開記。">\u26A0\uFE0F 多收了 '+money(over,cur)+'</span>';}
 function payReal(arr){return (arr||[]).filter(p=>!payIsPass(p));}
 function payPass(arr){return (arr||[]).filter(payIsPass);}
 function passSum(arr){const by={};
@@ -6647,7 +6657,7 @@ function feeBarHtml(label,paidBy,dueBy,totNum,totCur,rowsHtml,hint,off){
       <b>💰 ${esc(label)}</b>
       ${tot>0?`<span>總額 <b>${money(tot,cur)}</b></span>`:''}
       <span style="color:#1F6A54">已收 <b>${money(got,cur)}</b></span>
-      ${left>0?`<span style="color:#A33227">還差 <b>${money(left,cur)}</b></span>`:(tot>0?'<span class="badge badge-ok">✓ 已收齊</span>':'')}
+      ${left>0?`<span style="color:#A33227">還差 <b>${money(left,cur)}</b></span>`:(tot>0?(overTag(tot,got,cur,0)||'<span class="badge badge-ok">✓ 已收齊</span>'):'')}
       ${otherStr?`<span class="muted" style="font-size:12px">其他幣別：${esc(otherStr)}</span>`:''}
       ${hint?`<span class="muted" style="font-size:12px">${esc(hint)}</span>`:''}
     </div>
@@ -6735,7 +6745,7 @@ function wrFeeBlock(c){
       <b>💰 代書費</b>
       ${tot?`<span>總額 <b>${money(tot,cur)}</b></span>`:''}
       <span style="color:#1F6A54">已收 <b>${money(got,cur)}</b></span>
-      ${tot?(left>0?`<span style="color:#A33227">還差 <b>${money(left,cur)}</b></span>`:'<span class="badge badge-ok">✓ 已收齊</span>'):''}
+      ${tot?(left>0?`<span style="color:#A33227">還差 <b>${money(left,cur)}</b></span>`:(overTag(tot,got,cur,crmOff(c))||'<span class="badge badge-ok">✓ 已收齊</span>')):''}
       <span class="muted" style="font-size:12px">共 ${payReal(pays).length} 期${crmOff(c)?('・不收了 '+money(crmOff(c),cur)):''}</span></div>
     ${tot?`<div style="height:8px;background:#DCE5F0;border-radius:99px;margin:9px 0 4px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:#1F6A54"></i></div>`:''}
     ${rows||'<div class="hint" style="margin-top:6px">還沒有收款記錄，按下面「💰 記一筆收款」。</div>'}</div>`;}
@@ -6864,7 +6874,7 @@ function wrPayForm(key){const p=String(key).split('::');const c=wrById(p[0]);if(
   const mOpt=(v)=>`<option value="${esc(v)}"${(e.method||'')===v?' selected':''}>${esc(v)}</option>`;
   openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${isNew?'記一筆收款':'修改收款'} · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-   ${tot?`<div class="hint" style="margin-bottom:10px">談定總額 <b>${money(tot,wrTotalCur(c))}</b>${left>0?`，之前已收 <b>${money(got,wrTotalCur(c))}</b>，還差 <b style="color:#A33227">${money(left,wrTotalCur(c))}</b>`:'，已收齊'}</div>`:'<div class="hint" style="margin-bottom:10px">還沒填「談定的總代書費」，可以到「✏️ 客戶資料」補上。</div>'}
+   ${tot?`<div class="hint" style="margin-bottom:10px">談定總額 <b>${money(tot,wrTotalCur(c))}</b>${left>0?`，之前已收 <b>${money(got,wrTotalCur(c))}</b>，還差 <b style="color:#A33227">${money(left,wrTotalCur(c))}</b>`:('，'+(overTag(tot,got,wrTotalCur(c),0)||'已收齊'))}</div>`:'<div class="hint" style="margin-bottom:10px">還沒填「談定的總代書費」，可以到「✏️ 客戶資料」補上。</div>'}
    <div class="form-grid">
     <div class="field"><label>收款日期 *</label><input id="wrp-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(e.date||localToday())}"></div>
     <div class="field"><label>金額 * <span class="hint">越南盾打千位</span></label><div style="display:flex;gap:6px"><input id="wrp-amt" type="number" min="0" style="flex:1" value="${esc(e.amount==null?'':String(e.amount))}" placeholder="${left>0?String(left):'請填金額'}">
@@ -7636,7 +7646,7 @@ function itvPayBoxHtml(c){
      長得完全不一樣。改成一列講完，進度條縮成靠右的一小條。 */
   const sum=tot?`<div class="pay-sum itv-sum"><span class="k">總額</span><b>${money(tot,tcur)}</b>`
     +`<span class="k">已收</span><b class="ok">${money(got,tcur)}</b>`
-    +`${left>0?`<span class="k">還差</span><b class="due">${money(left,tcur)}</b>`:'<span class="badge badge-ok">✓ 已收齊</span>'}`
+    +`${left>0?`<span class="k">還差</span><b class="due">${money(left,tcur)}</b>`:(overTag(tot,got,tcur,0)||'<span class="badge badge-ok">✓ 已收齊</span>')}`
     +`<span class="grow"></span><span class="pay-bar sm"><i style="width:${pct}%"></i></span></div>`
     :'<div style="margin:4px 0 2px;font-size:12.5px;color:var(--muted,#5B6B80)">上面填了「談定的練習費總額」，這裡才會算「還差多少」。</div>';
   const rows=pays.length?pays.map((p,i)=>`<div class="dash-row"><span class="badge badge-pending">第 ${pays.length-i} 筆</span><b>${esc(String(p.date))}</b><b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-danger" type="button" data-act="itvPayDrop" data-id="${esc(c.id)}::${i}">🗑</button></div>`).join('')
@@ -7768,6 +7778,16 @@ function weekActualCard(back){
   const sD=new Date(t);sD.setDate(sD.getDate()-back);
   const start=ymd(sD);const eD=new Date(t);eD.setDate(eD.getDate()+6);const end=ymd(eD);
   const items=[];const grpMap={};const recordedGrp=new Set();
+  /* DUPPLAN_V1333 同一班同一天的已點名時段，用來判斷預排是不是同一堂 */
+  const recGrpRange={};
+  const _tmin=(x)=>{const a=String(x||'').split(':');if(a.length<2)return null;
+    const h=+a[0],n=+a[1];return (isNaN(h)||isNaN(n))?null:h*60+n;};
+  const _ovl=(aS,aE,bS,bE)=>{const s1=_tmin(aS),s2=_tmin(bS);
+    if(s1==null||s2==null)return false;
+    let e1=_tmin(aE),e2=_tmin(bE);
+    if(e1==null||e1<=s1)e1=s1+60;
+    if(e2==null||e2<=s2)e2=s2+60;
+    return s1<e2&&s2<e1;};
   // 已記錄的上課：團班以「團班＋日期＋時段」合併成一筆（不用學生逐一列）
   const _cSch={};/* WKSLOT_V1200 一個班只算一次固定時段 */
   /* GRPSCH_V1331 跟自動排課看同一份。沒填時段的那一堂，本來會拿
@@ -7789,15 +7809,24 @@ function weekActualCard(back){
       if(e.free)G.free=true;
       if(e.status==='leave')G.lv++;else if(e.status==='absent')G.ab++;else G.at++;
       G.leave=(G.at===0&&G.ab===0);
-      recordedGrp.add(grp+'|'+e.date+'|'+(e.start||''));if(!(e.start||''))recordedGrp.add(grp+'|'+e.date+'|*');}/* SAMEDAY_V1229 */
+      recordedGrp.add(grp+'|'+e.date+'|'+(e.start||''));if(!(e.start||''))recordedGrp.add(grp+'|'+e.date+'|*');
+      /* DUPPLAN_V1333 SAMEDAY_V1229 只在「點名時間和預排時間一字不差」時才蓋掉預排。
+         可是點名記成 22:15、預排是 22:00，就被當成兩堂不同的課，同一班同一天列兩次，
+         兩列按鈕又不一樣（預排有修改和刪除，已點名沒有），看起來就像壞掉。
+         同一個班不可能在互相重疊的時間上兩次，所以改用「時段有沒有重疊」來判斷：
+         真的一天兩堂（例如早上一堂晚上一堂）不重疊，照樣兩列都留著。 */
+      (recGrpRange[grp+'|'+e.date]=recGrpRange[grp+'|'+e.date]||[]).push({s:_st,e:_en});}
     else{items.push({type:'log',date:e.date,start:_st,end:_en,guess:_gs,s,e});}
   });});
   // 預排課程：若該團班該天已經點名記錄過，就不重複顯示
   groupsList().forEach(cls=>{if(clsNotYet(cls))return;/* CLSOFF_V1074 */
     classPlanned(cls).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;
       if(clsBefore(cls,p.date))return;/* CLSTART_V1091 */
-      if(recordedGrp.has(cls+'|'+p.date+'|'+(p.start||''))||recordedGrp.has(cls+'|'+p.date+'|*'))return;items.push({type:'plan',date:p.date,start:p.start||'',end:p.end||'',cls,p});});});
-  (S.students||[]).forEach(s=>{if(s.deleted||s.is_test||s.class_type==='團班')return;studentPlanned(s).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date&&(!(e.start||'')||(e.start||'')===(p.start||''))))return;items.push({type:'splan',date:p.date,start:p.start||'',end:p.end||'',s,p});});});
+      if(recordedGrp.has(cls+'|'+p.date+'|'+(p.start||''))||recordedGrp.has(cls+'|'+p.date+'|*'))return;
+      /* DUPPLAN_V1333 時段重疊＝同一堂，預排不再重複列 */
+      if((recGrpRange[cls+'|'+p.date]||[]).some(r=>_ovl(p.start||'',p.end||'',r.s,r.e)))return;
+      items.push({type:'plan',date:p.date,start:p.start||'',end:p.end||'',cls,p});});});
+  (S.students||[]).forEach(s=>{if(s.deleted||s.is_test||s.class_type==='團班')return;studentPlanned(s).forEach(p=>{if(!p||!p.date||p.date<start||p.date>end)return;if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===p.date&&(!(e.start||'')||(e.start||'')===(p.start||'')||_ovl(p.start||'',p.end||'',e.start||'',e.end||''))))return;items.push({type:'splan',date:p.date,start:p.start||'',end:p.end||'',s,p});});});
   // 🔁 固定時段：照學生／團班設定的每週時段推出來（那天已點名或已排預排就不重複）
   {
     const has=(key)=>items.some(x=>x.date===key.date&&(
@@ -13955,7 +13984,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1332';
+const APP_BUILD='V1333';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -20021,7 +20050,7 @@ H.itvPayList=(id)=>{const c=itvById(id);if(!c)return;
        ${tot?`<div class="pay-sum">
          <span>總額 <b>${money(tot,tcur)}</b></span>
          <span style="color:#1F6A54">已收 <b>${money(got,tcur)}</b></span>
-         ${left>0?`<span style="color:#A33227">還差 <b>${money(left,tcur)}</b></span>`:'<span class="badge badge-ok">✓ 已收齊</span>'}
+         ${left>0?`<span style="color:#A33227">還差 <b>${money(left,tcur)}</b></span>`:(overTag(tot,got,tcur,0)||'<span class="badge badge-ok">✓ 已收齊</span>')}
        </div>
        <div class="pay-bar"><i style="width:${pct}%"></i></div>`:''}
      </div>
@@ -20904,7 +20933,7 @@ function agPayForm(key){const p=String(key).split('::');const c=agById(p[0]);if(
   const mOpt=(v)=>`<option value="${esc(v)}"${(e.method||'')===v?' selected':''}>${esc(v)}</option>`;
   openModal(`<div class="modal"><div class="modal-head"><h3>💰 ${isNew?'記一筆收款':'修改收款'} · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-   ${tot?`<div class="hint" style="margin-bottom:10px">談定總額 <b>${money(tot,agTotalCur(c))}</b>${left>0?`，這筆之前已收 <b>${money(got,agTotalCur(c))}</b>，還差 <b style="color:#A33227">${money(left,agTotalCur(c))}</b>`:'，已收齊'}</div>`:'<div class="hint" style="margin-bottom:10px">還沒填「談定的總代辦費」，到「✏️ 客戶資料」補上就會自動算還差多少。</div>'}
+   ${tot?`<div class="hint" style="margin-bottom:10px">談定總額 <b>${money(tot,agTotalCur(c))}</b>${left>0?`，這筆之前已收 <b>${money(got,agTotalCur(c))}</b>，還差 <b style="color:#A33227">${money(left,agTotalCur(c))}</b>`:('，'+(overTag(tot,got,agTotalCur(c),0)||'已收齊'))}</div>`:'<div class="hint" style="margin-bottom:10px">還沒填「談定的總代辦費」，到「✏️ 客戶資料」補上就會自動算還差多少。</div>'}
    <div class="form-grid">
     <div class="field"><label>收款日期 *</label><input id="agp-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(e.date||localToday())}"></div>
     <div class="field"><label>金額 * <span class="hint">越南盾打千位</span></label><div style="display:flex;gap:6px"><input id="agp-amt" type="number" min="0" style="flex:1" value="${esc(e.amount==null?'':String(e.amount))}" placeholder="${left>0?String(left):'請填金額'}">
