@@ -2754,6 +2754,26 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .itv-acts .btn{height:36px;padding:0 15px;border-radius:10px;font-size:13.5px;font-weight:700;
           display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1;min-height:0}
         .itv-acts .itv-sep{display:block;width:1px;height:22px;background:var(--line);margin:0 3px;flex:none}
+        /* ITVBTN_V1335 面試／代辦／代書卡片裡的「⋯ 更多」。
+           本來只有 .head-actions 和 .stu-bar 有這組樣式，.itv-acts 沒有，
+           所以選單不是浮起來，而是擠在版面裡把下面的東西往下推。補上同一套。 */
+        .itv-acts .hmore{position:relative;display:inline-block}
+        .itv-acts .hmore>summary{list-style:none;cursor:pointer}
+        .itv-acts .hmore>summary::-webkit-details-marker{display:none}
+        /* 這裡的選單「不」浮起來。其他地方的 ⋯ 更多 是 position:absolute 浮在上層，
+           但客戶卡片外面那層 .crm-list 有 overflow:hidden（列表自己要用的），
+           浮起來的選單會被它裁掉一半。為了一顆選單去改列表的 overflow 代價太大，
+           所以這一個就在卡片裡展開、把下面的內容往下推——不會被裁，也不影響別人。 */
+        .itv-acts .hmore-p{display:flex;flex-direction:column;gap:2px;
+          background:#fff;border:1px solid var(--line,#DCE5F0);border-radius:12px;padding:4px;
+          box-shadow:0 2px 10px rgba(22,32,46,.07);min-width:208px;max-width:260px;margin-top:6px}
+        /* 自己占一整行，選單才不會擠在按鈕中間；但選單本身不要被拉寬 */
+        .itv-acts .hmore{flex-basis:100%;display:flex;flex-direction:column;align-items:flex-start}
+        @media(max-width:620px){.itv-acts .hmore-p{max-width:none;width:100%}}
+        .itv-acts .hmore-p .btn{width:100%;justify-content:flex-start;font-size:14px;padding:9px 13px;
+          height:auto;border:none;box-shadow:none;background:none}
+        .itv-acts .hmore-p .btn:hover{background:#F4F7FB}
+        .hmore-p .hmore-sep{display:block;height:1px;background:var(--line);margin:5px 2px}
         @media(max-width:620px){.itv-acts .itv-sep{display:none}.itv-acts .btn{flex:1 1 auto}}
         /* 卡片內的每一列（練習場次／進度）：按鈕一律同高的小鈕，「進入教室」在列裡用淺色外框，
            不然一整列都是深色大鈕，眼睛不知道要看哪裡。 */
@@ -7299,18 +7319,30 @@ function renderInterview(){
       ${c.result_note?`<div class="hint" style="margin-top:4px">結果：${esc(c.result_note)}</div>`:''}${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#6A7C95">📄 備註／學生資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#F4F7FB;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
       ${itvFeeBlock(c)}
       <div class="itv-acts">
-        <!-- CRMBTN_V1098 跟代辦、代書同一個順序和同一套名字 -->
+        <!-- ITVBTN_V1335 本來七顆並排（Quinn：「按鈕好多喔」）。
+             每天會按的只有前三顆；檔案、客戶資料是偶爾，結案和中途放棄一位客戶一輩子按一次。
+             常按的留在外面，其餘收進「⋯ 更多」——跟學生頁、教材頁同一個規則。
+             諮詢階段例外：「✅ 轉成進行中／✕ 沒談成」是那張卡的重點，留在外面。 -->
         <button class="btn btn-accent" data-act="itvLogNew" data-id="${esc(c.id)}">＋ 新增一筆進度</button>
         <button class="btn" data-act="itvSess" data-id="${esc(c.id)}::new">＋ 新增練習時間</button>
         <button class="btn" data-act="itvPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
-        <button class="btn btn-file" data-act="itvFiles" data-id="${esc(c.id)}">📎 檔案</button>
-        ${driveBtnHtml(c)}
-        <button class="btn" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
-        <i class="itv-sep"></i>${(function(){const st=itvStage(c);/* ITVSTAGE_V1094 */
-          if(st==='consult')return '<button class="btn btn-accent" data-act="itvStageSet" data-id="'+esc(c.id)+'::case">✅ 轉成進行中</button>'
+        ${(function(){const st=itvStage(c);/* ITVSTAGE_V1094 */
+          const more='<button class="btn btn-file" data-act="itvFiles" data-id="'+esc(c.id)+'">📎 檔案</button>'
+            +driveBtnHtml(c)
+            +'<button class="btn" data-act="itvEdit" data-id="'+esc(c.id)+'">✏️ 客戶資料</button>';
+          const fold=(inner)=>'<details class="hmore"><summary class="btn">⋯ 更多</summary><div class="hmore-p">'+inner+'</div></details>';
+          if(st==='consult')return fold(more)
+            +'<i class="itv-sep"></i>'
+            +'<button class="btn btn-accent" data-act="itvStageSet" data-id="'+esc(c.id)+'::case">✅ 轉成進行中</button>'
             +'<button class="btn" data-act="itvStageSet" data-id="'+esc(c.id)+'::lost">✕ 沒談成</button>';
-          if(st==='lost')return '<button class="btn" data-act="itvStageSet" data-id="'+esc(c.id)+'::consult">↩︎ 放回諮詢中</button>';
-          return crmCloseBtns(c,'itvToggle');})()}
+          if(st==='lost')return fold(more)
+            +'<i class="itv-sep"></i>'
+            +'<button class="btn" data-act="itvStageSet" data-id="'+esc(c.id)+'::consult">↩︎ 放回諮詢中</button>';
+          /* ITVBTN_V1335 已結案卻還掛著未收的時候，crmCloseBtns 會多給一顆
+             「💰 處理未收 …」——那一顆是故意要跳出來提醒的，收進選單就白做了，留在外面。 */
+          const close=crmCloseBtns(c,'itvToggle');
+          if(close.indexOf('crmCloseDue')>=0)return fold(more)+'<i class="itv-sep"></i>'+close;
+          return fold(more+'<i class="hmore-sep"></i>'+close);})()}
       </div>
       ${(function(){const lg=itvLogSorted(c);
         return '<div class="lesson-label" style="margin:12px 0 2px">🗂 進度記錄'
@@ -13991,7 +14023,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1334';
+const APP_BUILD='V1335';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
