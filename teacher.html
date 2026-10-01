@@ -5086,7 +5086,15 @@ let RPGAP=[];
 function rpGapRows(){
   const all=(S.replies||[]).filter(r=>r&&!r.deleted_at);
   const by={};
-  all.forEach(r=>{const k=(rpTitleBare(r.title||'')||'').trim()||'（沒有標題）';
+  /* RPGAP_V1308 她真實的標題長這樣：「申請學校代辦費用 （臺幣）」和「🎓 申請學校代辦費用（臺幣）」
+     ——差一個 emoji、差一個空格，照字面分組就會被拆成兩個主題，缺口就算錯。
+     而且幣別已經有自己的欄位，標題裡再寫一次會重複乘開。
+     所以分組前先把 emoji、空白、標題尾巴的（臺幣）／（越南盾）都去掉。 */
+  const _tkey=(t)=>{
+    let x=(rpTitleBare(t||'')||'').trim();
+    x=x.replace(/[（(]\s*(臺幣|台幣|越南盾|美金|TWD|VND|USD)\s*[）)]/g,'');
+    return x.replace(/\s+/g,'').trim()||'（沒有標題）';};
+  all.forEach(r=>{const k=_tkey(r.title);
     (by[k]=by[k]||[]).push(r);});
   const out=[];
   Object.keys(by).sort((a,b)=>a.localeCompare(b,'zh-Hant')).forEach(k=>{
@@ -12625,8 +12633,16 @@ H.exportJson=async(_,b)=>{if(!IS_OWNER){toast('這個功能只有主管理員可
     add('我的備忘',bizOf('memo').map(m=>({事項:m.text||'',內容:m.note||'',
       期限:m.due||'',狀態:m.done?'做完了':'還沒做',結果:m.done_note||'',
       建立時間:m.created_at||'',完成時間:m.done_at||''})));
-    add('回覆範本',(L.filter(x=>kind(x)==='reply'&&!x.deleted_at)).map(r=>({
-      標題:r.title||'',分類:r.grp||'',關鍵字:r.tags||'',內容:r.body_vi||r.body_zh||''})));
+    /* BKRP_V1308 本來只從 lessons 撈，可是範本早就搬到 crm 了（RPMOVE_V945），
+       所以備份檔裡那一頁一直是「（沒有資料）」——20 份範本一份都沒備份到。
+       改用 S.replies，它本來就是 lessons＋crm 合併去重後的結果。
+       順便把稱呼／班型／幣別也存進去，不然還原回來分不出是哪一種。 */
+    add('回覆範本',(S.replies||[]).filter(x=>x&&!x.deleted_at).map(r=>({
+      標題:r.title||'',分類:r.grp||'',
+      稱呼:(RP_ADDR[r.addr]?RP_ADDR[r.addr][0]:''),
+      班型:(RP_MODE[r.mode]?RP_MODE[r.mode][0]:''),
+      幣別:(RP_CUR[r.cur]?RP_CUR[r.cur][0]:''),
+      關鍵字:r.tags||'',中文:r.body_zh||'',越南文:r.body_vi||''})));
 
     add('價目表',(L.filter(x=>kind(x)==='price'&&!x.deleted_at)).map(p=>({
       項目:p.name||'',越南文:p.name_vi||'',單位:p.unit||'',
@@ -13360,7 +13376,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1307';
+const APP_BUILD='V1308';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
