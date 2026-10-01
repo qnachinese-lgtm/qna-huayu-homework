@@ -4176,12 +4176,8 @@ function qsFind(term){
     if(hit([x.title,x.textbook].join(' ')))add('les','📘',x.id,x.title||'',x.textbook||'');});
   (S.classicals||[]).forEach(x=>{if(!x)return;
     if(hit([x.title,x.cl_text].join(' ')))add('cl','📜',x.id,x.title||'','文言文');});
-  /* 題目最多，放後面；標題用課名才知道是哪一課的題目 */
+  /* 題目的部分移到最後面去了，見 QSQ_V1325 */
   const _lt={};(S.lessons||[]).forEach(x=>{if(x)_lt[x.id]=x.title||'';});
-  (S.questions||[]).forEach(x=>{if(!x)return;
-    if(hit([x.prompt,(Array.isArray(x.options)?x.options.join(' '):''),x.instruction].join(' ')))
-      add('q','❓',String(x.lesson_id||'')+'::'+String(x.id||''),
-        qsCut(x.prompt||x.instruction||'',46),_lt[x.lesson_id]||'');});
   (S.memos||[]).forEach(x=>{if(!x||x.deleted_at)return;
     if(hit([x.text,x.note,x.done_note].join(' ')))
       add('memo','📝',x.id,x.text||'',x.done?'做完的':'還沒做');});
@@ -4199,6 +4195,30 @@ function qsFind(term){
     (S.schools||[]).forEach(x=>{if(!x||x.deleted_at)return;
       if(hit([x.name,x.name_en,x.country,x.contact].join(' ')))
         add('sch','🏫',x.id,x.name||'',[x.country,x.contact].filter(Boolean).join(' · '));});}
+
+  /* QSQ_V1325 題目放到最後，而且改了兩件事（Quinn：「我輸入的是 te，出現的都跟 TE 沒有關係」）：
+     ① 本來題目的比對範圍包含「說明」欄。說明裡有越南文，去掉聲調之後 tên→ten，
+        裡面就有 te——於是打「te」跑出 396 題，畫面上卻只顯示中文題目，看起來毫無關係。
+        現在找到之後會把「真正對到的那一段」顯示出來，看得到為什麼。
+     ② 兩個字以內的英數字（te、ab、01）在六千多題裡一定會打到幾百題，全是雜訊。
+        這種短字只比對題目本身，不比對說明和選項。
+     題目數量最多，排最後，前面那些一筆兩筆的（學生、客戶）才不會被埋掉。 */
+  const _short=q.length<3&&/^[a-z0-9 ]+$/.test(q);
+  (S.questions||[]).forEach(x=>{if(!x)return;
+    const _p=String(x.prompt||'');
+    const _o=Array.isArray(x.options)?x.options.join(' '):'';
+    const _i=String(x.instruction||'');
+    let _where='';
+    if(hit(_p))_where='p';
+    else if(_short)return;            /* 短字只看題目本身 */
+    else if(hit(_o))_where='o';
+    else if(hit(_i))_where='i';
+    else return;
+    const _sub=(_where==='p')?(_lt[x.lesson_id]||'')
+      :((_lt[x.lesson_id]?(_lt[x.lesson_id]+' · '):'')
+        +(_where==='o'?'選項：':'說明：')+qsCut(_where==='o'?_o:_i,40));
+    add('q','❓',String(x.lesson_id||'')+'::'+String(x.id||''),
+      qsCut(_p||_i,46),_sub);});
   return out;}
 
 /* QSACT_V1307 全站搜尋本來只找得到「資料」（學生、課、題目、備忘），找不到「功能」。
@@ -4894,7 +4914,14 @@ function renderAcct(){
   const askN=list.filter(s=>s.reset_requested).length;
   const seg=(k,lb)=>'<button class="segb'+(sort===k?' on':'')+'" data-act="acctSort" data-id="'+k+'">'+lb+'</button>';
   const sc=(k,lb)=>'<button class="segb'+(scope===k?' on':'')+'" data-act="acctScope" data-id="'+k+'">'+lb+'</button>';
-  body.innerHTML='<div class="card" style="margin-bottom:12px" id="acct-vis">'+acctVisHtml(ACCT_HITS)+'</div>'
+  /* ACCTIDY_V1325 Quinn：「帳號登入進去的那些讓我覺得很混亂，不知道要怎麼去看資料」。
+     這一頁叫「帳號與使用狀況」，但最上面最大的一塊是『官網有幾個人來看』——
+     那是招生的數字，跟學生帳號沒關係，卻把真正要看的那張學生表推到畫面外。
+     官網流量收成一行摺疊，點開才出現；這一頁打開就直接看到帳號狀況和學生清單。 */
+  body.innerHTML='<details class="card" style="margin-bottom:12px" id="acct-vis">'
+    +'<summary style="cursor:pointer;font-weight:700;font-size:13.5px;color:var(--muted)">🌐 官網流量（今天 '
+    +((function(){try{const t=localToday();return (ACCT_HITS||[]).filter(r=>String(r.d||'')===t).length;}catch(e){return 0;}})())
+    +' 次）</summary><div style="margin-top:12px">'+acctVisHtml(ACCT_HITS)+'</div></details>'
     +'<div class="card" style="margin-bottom:12px"><div class="ac-top">'
       +'<div><div class="muted" style="font-size:12px">帳號已開通</div><b style="font-size:22px">'+okN+'</b> <span class="muted">／ '+list.length+' 人</span></div>'
       +'<div><div class="muted" style="font-size:12px">這 7 天有進來</div><b style="font-size:22px">'+w7+'</b> <span class="muted">人</span></div>'
@@ -4913,7 +4940,12 @@ function renderAcct(){
       ?('<div class="ac-h"><span>學生</span><span>登入 Email</span><span>帳號</span><span>最後登入</span><span>30 天內</span><span>最後動作</span><span>做完</span><span></span></div>'
         +'<div class="ac-list">'+list.map(acctRow).join('')+'</div>')
       :emptyHtml('👤','沒有學生',''));
-  acctLoadHits().then(h=>{const el=document.getElementById('acct-vis');if(el)el.innerHTML=acctVisHtml(h);});}
+  acctLoadHits().then(h=>{const el=document.getElementById('acct-vis');if(!el)return;
+    const open=el.open;
+    let today=0;try{const t=localToday();today=(h||[]).filter(r=>String(r.d||'')===t).length;}catch(e){}
+    el.innerHTML='<summary style="cursor:pointer;font-weight:700;font-size:13.5px;color:var(--muted)">🌐 官網流量（今天 '
+      +today+' 次）</summary><div style="margin-top:12px">'+acctVisHtml(h)+'</div>';
+    el.open=open;});}
 /* QUIZTAB_V661 「隨堂小考」本來只是「課堂活動」裡的第一個小分頁，
    從側邊選單按下去，亮起來的卻是「課堂活動」，看起來像沒進去。現在它自己就是一頁。 */
 function renderQuiz(){const b=$('#panel-quiz');if(!b)return;
@@ -8064,7 +8096,7 @@ function renderOps(){const body=$('#ops-body');
   const totNow=itvAddCur(itvAddCur(itvAddCur(Object.assign({},monCur),itvNow.paid),agNow.paid),wrNow.paid);const totAll=itvAddCur(itvAddCur(itvAddCur(Object.assign({},allCur),itvAllInc.paid),agAllInc.paid),wrAllInc.paid);
   /* OPSALL_V904 累計金額預設藏起來（畫面可能被學生看到）。記在這台電腦，不寫進資料庫。 */
   const bigNum2=(obj)=>{const ks=curKeys(obj);/* CURORD_V1281 */return ks.length?ks.map(cur=>`<b style="font-size:26px">${money(obj[cur],cur)}</b>`).join('<span class="muted" style="font-size:18px"> ＋ </span>'):'<b style="font-size:26px" class="muted">—</b>';};
-  const totalCard=`<div class="card" style="margin-bottom:14px;border:2px solid var(--primary);background:linear-gradient(180deg,#FFFFFF,#fff)"><div class="lesson-label" style="font-size:15px">🧮 總收入（華語教學 ＋ 面試練習 ＋ 代辦申請 ＋ 代書）</div><div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:6px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum2(totNow)}</div><div style="border-left:1px solid var(--line);padding-left:28px"><div class="muted" style="font-size:12px;display:flex;align-items:center;gap:8px">累計（全部）<button class="btn btn-sm btn-ghost" type="button" data-act="opsAllToggle" style="padding:1px 8px;font-size:11.5px">${opsAllOn()?'隱藏':'顯示'}</button></div>${opsAllOn()?bigNum2(totAll):'<div style="font-size:20px;font-weight:800;color:#C0CEE0;letter-spacing:2px">••••••</div>'}</div></div><div class="hint" style="margin-top:8px"></div></div>`;
+  const totalCard=`<div class="card" style="margin-bottom:14px;border:2px solid var(--primary);background:linear-gradient(180deg,#FFFFFF,#fff)"><div class="lesson-label" style="font-size:15px">🧮 總收入（華語教學 ＋ 面試練習 ＋ 代辦申請 ＋ 代書）</div><div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:6px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum2(totNow)}</div><div style="border-left:1px solid var(--line);padding-left:28px"><div class="muted" style="font-size:12px;display:flex;align-items:center;gap:8px">累計（全部）<button class="btn btn-sm btn-ghost" type="button" data-act="opsAllToggle" style="padding:1px 8px;font-size:11.5px;white-space:nowrap;flex:none">${opsAllOn()?'隱藏':'顯示'}</button></div>${opsAllOn()?bigNum2(totAll):'<div style="font-size:20px;font-weight:800;color:#C0CEE0;letter-spacing:2px">••••••</div>'}</div></div><div class="hint" style="margin-top:8px"></div></div>`;
   const _tm=[];{let d=new Date(localToday()+'T00:00:00');for(let k=5;k>=0;k--){const dd=new Date(d.getFullYear(),d.getMonth()-k,1);_tm.push(dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0'));}}
   /* OPSCHART_V907 這張圖本來只算華語教學的繳費，可是上面「總收入」是四條線加起來，
      所以 9 月上面寫 8,600,000、長條卻只有 5.35M，兩個數字對不起來。改成同一個口徑。 */
@@ -11707,7 +11739,15 @@ H.cmPop=(kind)=>{
    +esc((CM_D?CM_D.label:'')+'　'+(CM_LAB[kind]||''))+'</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
    +head+body
-   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');
+   /* CMACT_V1325 Quinn：「你給我這個固定時間，然後就沒有任何作用，那放在這的意義是？」
+      這個視窗只列出「還沒排進去的固定時段」，卻沒有任何地方可以把它們排進去——
+      真正能排的 H.fixToPlan() 在課表右上角另一顆按鈕上，兩個一直沒有接起來。
+      看到缺口的當下就要能動手，不然這張清單只是讓人乾著急。 */
+   +'</div><div class="modal-foot">'
+   +((kind==='fix'&&rows.length)
+      ?'<button class="btn btn-primary" data-act="fixToPlan">🔁 把這幾堂排進課表</button><span style="flex:1"></span>'
+      :'<span style="flex:1"></span>')
+   +'<button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');
   if(!document.getElementById('cmp-css')){const st=document.createElement('style');st.id='cmp-css';
     st.textContent='.cmp-h{font-size:12.5px;color:#6A7C95;margin:2px 0 8px}'
      +'.cmp-t{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}'
@@ -12012,11 +12052,16 @@ function chkinSteps(s){
   const paid=((s.payments||[]).filter(x=>x&&Number(x.amount)>0).length>0);
   const sched=!!((Array.isArray(s.schedule)&&s.schedule.length)||String(s.class_time||'').trim());
   const free=isTrial(s);
+  /* CHKTIME_V1325 Quinn：「有很多學生現在都是非固定時間，除了團班，所以固定時間那個暫時不需要」。
+     一對一多半是每週另約，那一步永遠打不了勾，報到卡就永遠停在「還差 N 件」，
+     等於這張卡自己把自己變成雜訊。只有團班還需要固定時段（整班要對同一個時間）。
+     已經設好固定時段的一對一也照樣顯示打勾，不會讓已經做過的人看起來倒退。 */
+  const needTime=(String(s.class_type||'')==='團班')||sched;
   return [
    {k:'book', t:'選好教材',   d:'學生頁 › ✏️ 編輯',      ok:!!String(s.textbook||'').trim(),
     act:'editStudent', id:s.id},
-   {k:'time', t:'設固定時段', d:'學生頁 › ✏️ 編輯，或「一次設固定時段」', ok:sched,
-    act:'editStudent', id:s.id},
+   ...(needTime?[{k:'time', t:'設固定時段', d:'學生頁 › ✏️ 編輯，或「一次設固定時段」', ok:sched,
+    act:'editStudent', id:s.id}]:[]),
    {k:'acct', t:'開通帳號',   d:'要有 Email，學生才登入得了', ok:!!String(s.uid||'').trim(),
     act:'tab', id:'acct'},
    {k:'rule', t:'給上課約定', d:'印出來給學生簽，或傳 PDF 給他', ok:!!String(s.rules_at||'').trim(),
@@ -13146,7 +13191,9 @@ H.exportJson=async(_,b)=>{if(!IS_OWNER){toast('這個功能只有主管理員可
   finally{if(b){b.disabled=false;b.textContent='⬇ 下載完整備份';}}};
 H.dataTools=()=>{openModal(`<div class="modal"><div class="modal-head"><h3>🗄️ 資料</h3><button class="x" data-act="closeModal">×</button></div>
   <div class="modal-body">
-    <div class="dash-row" style="align-items:flex-start"><span class="grow"><b>🛟 完整備份（整個平台）</b><div class="hint">把教材、課文、生詞、語法、題庫、作業簿、小考、學生、成績、繳費記錄，以及<b>面試客戶、代辦客戶、文件清單、進度記錄、回覆範本、價目表</b>全部存成<b>一個 Excel 檔</b>下載到你電腦，一個分頁一類資料，可以直接打開看。<b>建議每個月做一次。</b><br>音檔和圖片存在雲端，備份檔裡存的是它們的網址，不是檔案本身。</div>
+    <div class="dash-row" style="align-items:flex-start"><span class="grow"><b>🛟 完整備份（整個平台）</b><div class="hint">平台上的資料全部存成<b>一個 Excel 檔</b>，一個分頁一類，下載到你電腦。<b>建議每個月做一次。</b><br>音檔和圖片存在雲端，備份檔裡放的是網址，不是檔案本身。</div><!-- WORDY_V1325 本來這裡用一句話列了 16 樣東西（教材、課文、生詞、語法、題庫……）。
+     下載完的那一行本來就會把每一類的筆數列出來（lessons 324 · questions 6312 …），
+     前面那串等於同一件事講兩次，而且是在你還沒按之前講的。 -->
       <label style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="bk-up" style="width:auto"> 一併包含學生上傳的檔案內容（檔案會大很多）</label>
       <div class="hint" id="bk-st" style="margin-top:6px"></div>
       ${/* BKFIND_V1322 上次備份是哪一週，直接寫出來。本來只有「這週還沒備份」
@@ -13159,7 +13206,7 @@ H.dataTools=()=>{openModal(`<div class="modal"><div class="modal-head"><h3>🗄�
         return '<div class="hint" style="margin-top:8px">上次備份：<b style="color:'+col+'">'+esc(bw)+' 那週</b>'
           +(n<=0?'（這週已經備份過了）':(n===1?'（上週）':'（已經 '+n+' 週沒備份了）'))+'</div>';
       }catch(e){return '';}})()}</span><button class="btn btn-sm btn-accent" data-act="exportJson">⬇ 下載完整備份</button></div>
-    <div class="dash-row" style="margin-top:8px"><span class="grow"><b>Excel 備份（簡易）</b><div class="hint">只有學生、課程、上課記錄、成績、繳費，方便用 Excel 看。<b>不含課文和題庫，不能拿來還原</b>——要還原請用上面那個。</div></span><button class="btn btn-sm" data-act="exportAll">📤 匯出 Excel</button></div>
+    <div class="dash-row" style="margin-top:8px"><span class="grow"><b>Excel 備份（簡易）</b><div class="hint">學生、課程、上課記錄、成績、繳費五項，方便用 Excel 看。<b>不能拿來還原</b>，要還原用上面那個。</div></span><button class="btn btn-sm" data-act="exportAll">📤 匯出 Excel</button></div>
     <div class="dash-row" style="margin-top:8px"><span class="grow"><b>垃圾桶</b><div class="hint">刪除的學生／課程 7 天內可復原</div></span><button class="btn btn-sm" data-act="trash">🗑 開啟垃圾桶</button></div>
   </div>
   <div class="modal-foot"><span style="flex:1"></span><button class="btn" data-act="closeModal">關閉</button></div></div>`);};
@@ -13871,7 +13918,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1324';
+const APP_BUILD='V1325';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
