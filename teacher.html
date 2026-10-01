@@ -1105,7 +1105,8 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .wk-n{font-size:12.5px;color:var(--muted);font-weight:600}
         .wk-b{padding:6px 12px 10px}
         .wk-day.wk-off .wk-b{padding:2px 12px 10px}
-        .wk-none{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:2px 2px}
+        /* WKBLANK_V1328 沒課的那一列現在只剩「沒課」兩個字，不用再撐出按鈕的高度 */
+        .wk-none{font-size:13px;color:var(--faint,#6A7C95);padding:1px 2px}
         .wk-none .grow{flex:1}
         /* 這個月 */
         .cm-wrap{margin-bottom:14px}
@@ -1576,8 +1577,6 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         /* 分頁說明句：一律放在工具列下面，獨立一行 */
         #app .panel .pagetip,
         #app .panel .wk-sum{font-size:12.5px;color:var(--muted);margin:-6px 0 12px}
-        /* 課表的「？這頁怎麼用」收進同一行，展開時才佔整列 */
-        #app #panel-calendar .cal-top>.cal-help:not([open]){width:auto;flex:0 0 auto}
 
         /* ② 工具列上的按鈕字級統一 */
         #app .panel .segbar .segb,
@@ -5837,15 +5836,11 @@ function renderCalendar(){const body=$('#calendar-body');const view=S.calView||'
   const toggle=`<div class="cal-top">
     <div class="segbar">${_cvb('week','📆 這一週')}${_cvb('month','🗓 這個月')}${_cvb('ledger','👥 上課記錄')}</div>
     <button class="btn btn-sm" data-act="wkcOpen" style="margin-left:9px" title="把某一週的課整組往後排">🔁 照上一週排下一週</button>
-    <span class="grow"></span>
-    <details class="cal-help"><summary>？ 這頁怎麼用</summary><div>
-      <b>📆 這一週</b>：今天起七天，每天一列。沒課的那天會顯示「沒課」，按旁邊的「＋ 排課」就能排進去。<br>
-      <b>🗓 這個月</b>：整月月曆。方格裡是那天的課，點方格看那天的細節。上面是這個月的堂數統計。<br>
-      <b>👥 上課記錄</b>：每位學生上了幾堂、還剩幾堂、每一堂的日期。<br>
-      💰 收錢請到左邊選單的「💰 繳費」，所有學生（含團班）都在那一頁記。<br>
-      🕒 時間都以<b>台灣時間（GMT+8）</b>為準；<b>越南時間 ＝ 台灣 − 1 小時</b>。
-    </div></details>
   </div>`;
+  /* CALHELP_V1328 「？ 這頁怎麼用」整塊拿掉（Quinn：「對我來說這個也不需要」）。
+     它還有一個毛病：收起來的時候它靠右、展開之後整列被推開，那顆按鈕就跳到別的位置
+     （Quinn：「收起來那個按鈕跑來跑去」）。三個分頁的名字本來就寫在旁邊的切換鈕上，
+     這段話是講給第一次用的人聽的，那些內容在〈設定 → 使用說明〉裡也有。 */
   if(view==='ledger'){renderCalLedger(body,toggle);return;}
   if(view==='month'){renderCalMonth(body,toggle);return;}
   const byDay={};
@@ -7913,7 +7908,11 @@ function weekActualCard(back){
   };
   return {items,rowOf};}
 let WKDATE=true;
-/* 📆 這一週：今天起七天，每天都列一列（沒課的天也列，附「＋ 排課」） */
+/* 📆 這一週：今天起七天，每天都列一列。
+   WKBLANK_V1328 沒課的那幾天本來每一天都掛一顆「📌 排一堂課」。
+   一週通常有四五天沒課，等於畫面上四五顆一模一樣的按鈕，比有課的那幾列還顯眼
+   （Quinn：「沒課的話，留白，不要有排課的按鈕在每沒課的日子」）。
+   要排課上面標題列就有「📌 排一堂課」，月檢視點那一天也可以排。 */
 function weekBoardHtml(){
   let W;try{W=weekActualCard();}catch(e){W={items:[],rowOf:()=>''};}
   const items=W.items||[],rowOf=W.rowOf;
@@ -7928,8 +7927,7 @@ function weekBoardHtml(){
     const list=byDate[key]||[];nClass+=list.length;
     const md=(d.getMonth()+1)+'/'+d.getDate();
     WKDATE=false;const inner=list.length?list.map(it=>rowOf(it)).join(''):'';WKDATE=true;
-    const inner2=list.length?inner
-      :`<div class="wk-none">沒課<span class="grow"></span><button class="btn btn-sm" data-act="planClass" data-id="::${key}">📌 排一堂課</button></div>`;
+    const inner2=list.length?inner:`<div class="wk-none">沒課</div>`;
     cards+=`<div class="wk-day${i===0?' today':''}${list.length?'':' wk-off'}">
       <div class="wk-h"><span class="wk-big">${big}</span><span class="wk-md">${md}</span><span class="wk-wd">${i<2?esc(wd):''}</span><span class="grow"></span><span class="wk-n">${list.length?(list.length+' 堂'):''}</span></div>
       <div class="wk-b">${inner2}</div></div>`;
@@ -13939,7 +13937,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1327';
+const APP_BUILD='V1328';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
