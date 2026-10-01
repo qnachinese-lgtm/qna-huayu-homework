@@ -2767,13 +2767,27 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .itv-acts .hmore-p{display:flex;flex-direction:column;gap:2px;
           background:#fff;border:1px solid var(--line,#DCE5F0);border-radius:12px;padding:4px;
           box-shadow:0 2px 10px rgba(22,32,46,.07);min-width:208px;max-width:260px;margin-top:6px}
-        /* 自己占一整行，選單才不會擠在按鈕中間；但選單本身不要被拉寬 */
-        .itv-acts .hmore{flex-basis:100%;display:flex;flex-direction:column;align-items:flex-start}
+        /* ITVBTN_V1336 關著時跟其他按鈕同一行（本來一律獨佔一行，害按鈕區變兩行、更佔空間）；
+           打開才換行，讓面板有地方展開。 */
+        .itv-acts .hmore{display:flex;flex-direction:column;align-items:flex-start}
+        .itv-acts .hmore[open]{flex-basis:100%}
         @media(max-width:620px){.itv-acts .hmore-p{max-width:none;width:100%}}
         .itv-acts .hmore-p .btn{width:100%;justify-content:flex-start;font-size:14px;padding:9px 13px;
           height:auto;border:none;box-shadow:none;background:none}
         .itv-acts .hmore-p .btn:hover{background:#F4F7FB}
         .hmore-p .hmore-sep{display:block;height:1px;background:var(--line);margin:5px 2px}
+        /* OVERFIX_V1336 「多收了」那顆徽章是可以按的，給它按鈕的手感 */
+        /* ITVEDIT_V1336 標題列的小鉛筆 */
+        /* 狀態那一格會裁切（overflow:hidden），不寫 flex:none 的話這顆鉛筆
+           會被壓成 12px 寬、等於看不見。量過才發現。 */
+        .crm-ed{border:none;background:none;cursor:pointer;font-size:14px;line-height:1;
+          padding:4px 5px;border-radius:8px;opacity:.6;flex:0 0 auto}
+        .crm-ed:hover{background:#E4EDF9;opacity:1}
+        .crm-head .cc.st{display:flex;align-items:center;gap:1px;min-width:0;overflow:visible}
+        .crm-head .cc.st>.badge{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+        .crm-thead .crm-head .cc.st{display:block}
+        .ov-split{cursor:pointer;font:inherit;font-size:12px;font-weight:700;line-height:1.6}
+        .ov-split:hover{filter:brightness(.96)}
         @media(max-width:620px){.itv-acts .itv-sep{display:none}.itv-acts .btn{flex:1 1 auto}}
         /* 卡片內的每一列（練習場次／進度）：按鈕一律同高的小鈕，「進入教室」在列裡用淺色外框，
            不然一整列都是深色大鈕，眼睛不知道要看哪裡。 */
@@ -6491,7 +6505,7 @@ function itvFeeBlock(c){
   const note=[payReal(pays).length?('分期 '+payReal(pays).length+' 筆'):'',sess.length?('單次收費 '+sess.length+' 堂'):'',
     crmOff(c)?('不收了 '+money(crmOff(c),itvTotalCur(c))):''].filter(Boolean).join('・');/* FEEOFF_V1081 */
   const tot=itvTotal(c);
-  return feeBarHtml('練習費',itvPaidSum(c,null),itvDueSum(c),tot,tot?itvTotalCur(c):'',rows,note,crmOff(c));
+  return feeBarHtml('練習費',itvPaidSum(c,null),itvDueSum(c),tot,tot?itvTotalCur(c):'',rows,note,crmOff(c),'interview::'+c.id);
 }
 function itvResultMeta(r){return ({pass:['✅ 通過','#1F6A54'],fail:['❌ 沒通過','#A33227'],waiting:['⏳ 等結果','#A33227'],
   /* ITVNONE_V707 沒去面試／中途放棄／取消：不算通過也不算沒通過，不進通過率的分母 */
@@ -6616,11 +6630,21 @@ function payIsPass(p){return !!(p&&p.pass);}
    包含代書和面試各 1,000,000，整筆記在面試這張卡上，面試總額只有 1,000,000，
    畫面照樣寫「已收齊」，看不出有一半是別的服務的錢。
    多收的時候改成明講，並提示可能要用「一筆轉帳分給多種服務」分開記。 */
-function overTag(tot,got,cur,off){
+function overTag(tot,got,cur,off,splitKey){
   const over=Math.round(((Number(got)||0)-(Number(tot)||0)-(Number(off)||0))*100)/100;
   if(!(Number(tot)>0)||over<=0.5)return '';
+  /* OVERFIX_V1336 Quinn：「這裡多收的 1000 就是代書那邊的 1000，
+     合併的原因不就是錢可以分出來嗎」——她說得對。「分給多種服務」本來只能開新的收款，
+     已經記進某一張卡的錢沒有出口，只能先刪掉再重記。
+     現在這顆徽章直接可以按：按下去就把造成多收的那一筆拿去分，原本那筆會被取代。 */
+  const txt='\u26A0\uFE0F 多收了 '+money(over,cur);
+  if(splitKey){const q=String(splitKey).split('::');
+    let mates=[];try{mates=pMates(q[0],q[1]);}catch(e){mates=[];}
+    if(mates.length)return '<button class="badge b-warn ov-split" data-act="pSplitOver" data-id="'+esc(splitKey)+'"'
+      +' title="這筆錢裡面有別的服務的份？按一下把它分給 '+esc(mates.map(x=>P_KIND[x.k]||'').join('、'))+'">'
+      +txt+'　↔ 分開記</button>';}
   return '<span class="badge b-warn" title="收到的比總額多。如果這筆錢裡面包含別的服務，'
-    +'可以用卡片上的「💰 一筆轉帳分給多種服務」分開記。">\u26A0\uFE0F 多收了 '+money(over,cur)+'</span>';}
+    +'先在卡片上把這個人跟其他服務綁成「同一個人」，就可以把錢分開記。">'+txt+'</span>';}
 /* DUPPLAN_V1334 判斷兩個時段有沒有重疊。
    同一個學生／同一個班不可能在互相重疊的時間上兩堂課，所以「重疊」就等於「同一堂」。
    課表（週）和月曆各有一份預排過濾的程式碼，本來都只比對「開始時間一字不差」，
@@ -6675,7 +6699,7 @@ function agDueSum(c){const by={};
 function agIncome(ym){const paid={},due={};agCases().forEach(c=>{itvAddCur(paid,agPaidSum(c,ym));if(!ym)itvAddCur(due,agDueSum(c));});return {paid,due};}
 /* 共用：綠色收費進度條（代辦／面試／代書共用同一種外觀） */
 /* FEEOFF_V1081 off＝「不收了」的金額，還差要扣掉它，不然進度條跟未收對不起來 */
-function feeBarHtml(label,paidBy,dueBy,totNum,totCur,rowsHtml,hint,off){
+function feeBarHtml(label,paidBy,dueBy,totNum,totCur,rowsHtml,hint,off,splitKey){
   const paid=Object.assign({},paidBy||{}),due=Object.assign({},dueBy||{});
   const keys=curSort(Object.keys(paid).concat(Object.keys(due)).filter((v,i,a)=>a.indexOf(v)===i));/* CURORD_V1281 */
   if(!keys.length&&!totNum)return '';
@@ -6692,7 +6716,7 @@ function feeBarHtml(label,paidBy,dueBy,totNum,totCur,rowsHtml,hint,off){
       <b>💰 ${esc(label)}</b>
       ${tot>0?`<span>總額 <b>${money(tot,cur)}</b></span>`:''}
       <span style="color:#1F6A54">已收 <b>${money(got,cur)}</b></span>
-      ${left>0?`<span style="color:#A33227">還差 <b>${money(left,cur)}</b></span>`:(tot>0?(overTag(tot,got,cur,0)||'<span class="badge badge-ok">✓ 已收齊</span>'):'')}
+      ${left>0?`<span style="color:#A33227">還差 <b>${money(left,cur)}</b></span>`:(tot>0?(overTag(tot,got,cur,0,splitKey)||'<span class="badge badge-ok">✓ 已收齊</span>'):'')}
       ${otherStr?`<span class="muted" style="font-size:12px">其他幣別：${esc(otherStr)}</span>`:''}
       ${hint?`<span class="muted" style="font-size:12px">${esc(hint)}</span>`:''}
     </div>
@@ -7295,12 +7319,19 @@ function renderInterview(){
     const upHtml=upcoming.length?`<div class="lesson-label" style="margin:8px 0 2px">📌 接下來的練習</div>`+upcoming.map(rowHtml).join(''):'';
     const pastShow=past.slice(0,5).map(rowHtml).join('');
     const pastMore=past.length>5?`<details style="margin-top:4px"><summary style="cursor:pointer;font-size:13px;color:var(--primary)">看更早的 ${past.length-5} 次</summary>${past.slice(5).map(rowHtml).join('')}</details>`:'';
-    const pastHtml=past.length?`<div class="lesson-label" style="margin:10px 0 2px">✅ 已上過的練習（${past.length}）</div>${pastShow}${pastMore}`:(upcoming.length?'':'<div class="hint" style="padding:4px 0">還沒有練習記錄</div>');
+    const pastHtml=past.length?`<div class="lesson-label" style="margin:10px 0 2px">✅ 已上過的練習（${past.length}）</div>${pastShow}${pastMore}`:''/* EMPTY_V1336 空的就不印 */;
     return `<details class="card crm-card${done?' card-done':''}" data-cid="${esc(c.id)}" style="margin-bottom:10px"${(S.crmFocus===c.id)?' open':''}><summary class="crm-sum" data-act="crmFocus" data-id="${esc(c.id)}">
       <span class="crm-chev">▸</span><div class="crm-head itv8">
-        <span class="cc nm"><b>${snm(c.name||'（未命名）')}</b></span><!-- DUPEDIT_V1244 這顆跟底下的「✏️ 客戶資料」同一個動作，拿掉 -->
+        <span class="cc nm"><b>${snm(c.name||'（未命名）')}</b></span>
+        <!-- ITVEDIT_V1336 V1244 拿掉這顆是因為當時底下有「✏️ 客戶資料」重複；
+             V1335 那顆收進「⋯ 更多」之後就不重複了，而 Quinn 說客戶資料其實常改，
+             所以放回狀態旁邊。注意：.crm-head 是七欄固定的 grid，
+             另外開一格會多出第八欄、把整條標題擠成兩行（量過 47px→80px），
+             所以鉛筆放在狀態這一格裡面。 -->
         <span class="cc st">${(itvIsConsult(c)||itvIsLost(c))?itvStageBadge(c)/* ITVSTAGE_V1094 */
-          :(crmSoon(c)?crmSoonBadge(c):(done?crmDoneBadge(c):'<span class="badge badge-ok">進行中</span>'))}</span>
+          :(crmSoon(c)?crmSoonBadge(c):(done?crmDoneBadge(c):'<span class="badge badge-ok">進行中</span>'))}<button
+          class="crm-ed" data-act="itvEdit" data-id="${esc(c.id)}"
+          title="改客戶資料" aria-label="改客戶資料">✏️</button></span>
         <span class="cc kd">${c.itv_kind?`<span class="tag accent" title="${esc(c.itv_kind)}">${esc(c.itv_kind)}</span>`:''}</span>
         <span class="cc sch">${c.target?`<span class="tag" title="${esc(c.target)}">${esc(c.target)}</span>`:''}</span>
         <span class="cc dt">${itvExamBadge(c,done)}</span>
@@ -7327,9 +7358,9 @@ function renderInterview(){
         <button class="btn" data-act="itvSess" data-id="${esc(c.id)}::new">＋ 新增練習時間</button>
         <button class="btn" data-act="itvPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
         ${(function(){const st=itvStage(c);/* ITVSTAGE_V1094 */
+          /* ITVEDIT_V1336 客戶資料改放標題那顆 ✏️，這裡不重複 */
           const more='<button class="btn btn-file" data-act="itvFiles" data-id="'+esc(c.id)+'">📎 檔案</button>'
-            +driveBtnHtml(c)
-            +'<button class="btn" data-act="itvEdit" data-id="'+esc(c.id)+'">✏️ 客戶資料</button>';
+            +driveBtnHtml(c);
           const fold=(inner)=>'<details class="hmore"><summary class="btn">⋯ 更多</summary><div class="hmore-p">'+inner+'</div></details>';
           if(st==='consult')return fold(more)
             +'<i class="itv-sep"></i>'
@@ -7345,10 +7376,12 @@ function renderInterview(){
           return fold(more+'<i class="hmore-sep"></i>'+close);})()}
       </div>
       ${(function(){const lg=itvLogSorted(c);
-        return '<div class="lesson-label" style="margin:12px 0 2px">🗂 進度記錄'
-          +(lg.length?('（'+lg.length+' 筆）'):'')+'</div>'
-          +(lg.length?lg.map(e=>itvLogRowHtml(c,e)).join('')
-            :'<div class="hint" style="padding:4px 0">還沒有記錄</div>');})()}
+        /* EMPTY_V1336 沒記錄時本來會印「🗂 進度記錄」＋「還沒有記錄」兩行。
+           那兩行什麼都沒說——上面的按鈕就叫「＋ 新增一筆進度」了。
+           新客戶的卡片有快三成高度在講「還沒有」，整個拿掉。 */
+        if(!lg.length)return '';
+        return '<div class="lesson-label" style="margin:12px 0 2px">🗂 進度記錄（'+lg.length+' 筆）</div>'
+          +lg.map(e=>itvLogRowHtml(c,e)).join('');})()}
       ${upHtml}${pastHtml}
     </div></details>`;}).join('');
   /* CRMBAND_V1100 跟代辦、代書同一種版面 */
@@ -14023,7 +14056,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1335';
+const APP_BUILD='V1336';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -20764,11 +20797,20 @@ function pSplitAuto(){
   pSplitSum();
   toast('已照「未收少的先付清」分好，妳可以再自己改');}
 window.PSPLITAUTO=pSplitAuto;
-H.pSplitNew=(key)=>{const p=String(key||'').split('::');
+H.pSplitNew=(key,src)=>{const p=String(key||'').split('::');
   const me=pOf(p[0],p[1]);if(!me)return;
   const list=[me].concat(pMates(p[0],p[1]));
-  const row=(x)=>{const due=itvMoneyStr(pDue(x));
-    const _c=pCur(x);const _dn=Number((pDue(x)||{})[_c]||0);/* PSAUTO_V1072 這一列的未收，自動分配要用 */
+  const row=(x)=>{const _c=pCur(x);
+    /* OVERFIX_V1336 在拆一筆已經記下去的錢時，來源那張卡的「未收」要先把這一筆扣掉再算，
+       否則它看起來已經收滿（甚至多收），自動分配就會判定它不缺錢而一毛都不分給它——
+       Quinn 的情況正是如此：2000 全跑到代書，面試變成 0。
+       扣掉之後兩邊各缺 1000，自動分配才會各給 1000。 */
+    const _isSrc=!!(src&&x.k===src.k&&String(x.id)===String(src.id));
+    const _dueBy=Object.assign({},pDue(x)||{});
+    if(_isSrc&&(src.p.currency||'VND')===_c)
+      _dueBy[_c]=Math.round(((Number(_dueBy[_c])||0)+(Number(src.p.amount)||0))*100)/100;
+    const due=itvMoneyStr(_dueBy);
+    const _dn=Number(_dueBy[_c]||0);/* PSAUTO_V1072 這一列的未收，自動分配要用 */
     return `<div class="dash-row" style="flex-wrap:wrap">
       <span style="flex:0 0 132px">${P_KIND[x.k]}</span>
       <b style="flex:0 0 130px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${snm(x.name||'')}</b>
@@ -20779,11 +20821,18 @@ H.pSplitNew=(key)=>{const p=String(key||'').split('::');
       <span class="muted" style="font-size:12px;min-width:38px">${esc(pCur(x))}</span></div>`;};
   openModal(`<div class="modal modal-log"><div class="modal-head"><h3>\u{1F4B0} 一筆轉帳分給多種服務</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
+    ${src?`<input type="hidden" id="ps-src" value="${esc(src.k+'::'+src.id+'::'+src.idx)}">
+    <div class="hint" style="margin-bottom:10px;background:#E4EDF9;border:1px solid #C7D8EF;border-radius:10px;padding:9px 11px">
+      <!-- OVERFIX_V1336 -->
+      正在拆的是這一筆：<b>${esc(String(src.p.date||''))}　${esc(money(src.p.amount,src.p.currency||'VND'))}</b>
+      （記在「${esc(P_KIND[src.k]||'')}」底下）。<br>
+      下面填好之後，<b>原本那一筆會被取代</b>，換成各服務各自一筆。金額已經幫妳填好，按「⚖️ 自動分配」或自己改。
+    </div>`:''}
     <div class="hint" style="margin-bottom:10px">她一次匯了一筆，裡面包含好幾種服務。下面把金額分開填，
       各服務會各自收到一筆收款，都標「同一筆轉帳」，未收也會各自減。沒有要分的就留空。<br>
       <b>越南盾打千位</b>（填 1500 ＝ 1,500,000 VND），跟「💰 記一筆收款」那邊一樣。</div>
     <div class="form-grid">
-      <div class="field"><label>收款日期 *</label><input id="ps-date" type="date" min="2000-01-01" max="2100-12-31" value="${localToday()}"></div>
+      <div class="field"><label>收款日期 *</label><input id="ps-date" type="date" min="2000-01-01" max="2100-12-31" value="${src&&src.p&&src.p.date?esc(String(src.p.date)):localToday()}"></div>
       <div class="field"><label>收款方式 <span class="hint">選填</span></label><select id="ps-method">
         <option value="">—</option><option value="銀行轉帳" selected>銀行轉帳</option><option value="現金">現金</option>
         <option value="Momo">Momo</option><option value="LINE Pay">LINE Pay</option><option value="其他">其他</option></select></div>
@@ -20792,9 +20841,9 @@ H.pSplitNew=(key)=>{const p=String(key||'').split('::');
       <!-- PSAUTO_V1072 -->
       <div class="field full"><label>這一筆總共收到 <span class="hint">選填。填了就可以按「自動分配」，也會幫妳看還有多少沒分完</span></label>
         <div style="display:flex;gap:6px;align-items:center">
-          <input id="ps-tot" type="number" min="0" style="flex:1" placeholder="請填金額" oninput="PSPLITSUM()">
+          <input id="ps-tot" type="number" min="0" style="flex:1" placeholder="請填金額" oninput="PSPLITSUM()"${src&&src.p?(' value="'+esc(String(Number(src.p.amount)||0))+'"'):''}>
           <select id="ps-totcur" style="width:120px" onchange="PSPLITSUM()">
-            <option value="VND">VND 千</option><option value="TWD">NT$</option><option value="USD">US$</option></select>
+            ${['VND','TWD','USD'].map(cc=>'<option value="'+cc+'"'+((src&&src.p&&(src.p.currency||'VND')===cc)?' selected':'')+'>'+(cc==='VND'?'VND 千':(cc==='TWD'?'NT$':'US$'))+'</option>').join('')}</select>
           <button class="btn btn-sm btn-accent" type="button" onclick="PSPLITAUTO()">\u2696\uFE0F 自動分配</button></div>
         <div class="hint" style="margin-top:4px">自動分配的規則：未收比較少的先付清，剩下的往下一個放；
           分完還有多的就掛在未收最多的那一個當預繳。分完還是可以自己改。</div></div>
@@ -20815,16 +20864,42 @@ H.pSplitSave=async()=>{
   if(!rows.length)return toast('至少要填一個金額');
   const bid='b'+Date.now().toString(36);
   const tag=(note?(note+'・'):'')+'同一筆轉帳';
+  /* OVERFIX_V1336 從「多收了」按進來的時候，要把原本記錯地方的那一筆拿掉，
+     不然錢會變成兩倍。src＝kind::id::原陣列裡的索引。 */
+  const srcv=(($('#ps-src')&&$('#ps-src').value)||'');
+  const sq=srcv?String(srcv).split('::'):null;
+  const src=sq?{k:sq[0],id:sq[1],idx:Number(sq[2])}:null;
+  const sameSrc=(r)=>src&&r.k===src.k&&String(r.id)===String(src.id);
   try{await ensureAuthFresh();
+    let hitSrc=false;
     for(const r of rows){
       const x=pOf(r.k,r.id);if(!x)continue;
       const arr=(Array.isArray(x.rec.payments)?x.rec.payments.slice():[]);
+      if(sameSrc(r)&&src.idx>=0&&src.idx<arr.length){arr.splice(src.idx,1);hitSrc=true;}
       arr.push({date:date,amount:r.amt,currency:r.cur,method:method,note:tag,batch:bid});
       arr.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
       await DB.update(pTable(r.k,r.id),r.id,{payments:arr});}
+    /* 來源那一張卡這次一毛都沒分到（整筆都是別的服務的）：原本那筆還是要拿掉 */
+    if(src&&!hitSrc){const x=pOf(src.k,src.id);
+      if(x){const arr=(Array.isArray(x.rec.payments)?x.rec.payments.slice():[]);
+        if(src.idx>=0&&src.idx<arr.length){arr.splice(src.idx,1);
+          await DB.update(pTable(src.k,src.id),src.id,{payments:arr});}}}
     await loadAll();closeModal();render();
-    toast('已記 '+rows.length+' 筆，各服務的未收都算過了');}
+    toast(src?('已把那一筆拆成 '+rows.length+' 筆，原本那筆已取代')
+             :('已記 '+rows.length+' 筆，各服務的未收都算過了'));}
   catch(e){toast(writeErr('儲存失敗',e));}};
+
+/* OVERFIX_V1336 從「⚠️ 多收了」按進來：挑出造成多收的那一筆（金額最大的一筆），
+   帶進「分給多種服務」的視窗，存檔時取代掉它。 */
+H.pSplitOver=(key)=>{const q=String(key||'').split('::');
+  const x=pOf(q[0],q[1]);if(!x)return;
+  const arr=Array.isArray(x.rec.payments)?x.rec.payments:[];
+  let bi=-1,bv=-1;
+  arr.forEach((pp,i)=>{if(!pp||payIsPass(pp))return;
+    const v=Number(pp.amount)||0;if(v>bv){bv=v;bi=i;}});
+  if(bi<0)return toast('這張卡沒有可以拆的收款');
+  if(!pMates(q[0],q[1]).length)return toast('要先把這個人跟其他服務綁成「同一個人」，才能把錢分過去');
+  H.pSplitNew(q[0]+'::'+q[1],{k:q[0],id:q[1],idx:bi,p:arr[bi]});};
 H.layoutSet=(v)=>{const top=(v==='top');
   document.body.classList.toggle('layout-top',top);
   try{localStorage.setItem('qna_layout',top?'top':'side');}catch(e){}
@@ -20960,7 +21035,7 @@ function agFeeBlock(c){
     +(rj?((pays.length?'・':'')+'原本談定 '+money(agFullTotal(c),agTotalCur(c))):'')
     +(crmOff(c)?((pays.length||rj?'・':'')+'不收了 '+money(crmOff(c),agTotalCur(c))):'');/* FEEOFF_V1079 */
   const ovRow=ov?`<div class="dash-row" style="padding:6px 0;color:#1E4C86">🔁 已收比未錄取價多了 <b>${money(ov,agTotalCur(c))}</b>，要退的話自己跟學生喬，這裡只是提醒。</div>`:'';
-  return feeBarHtml('代辦費'+(rj?'（未錄取價）':''),agPaidSum(c,null),agDueSum(c),agTotal(c),agTotal(c)?agTotalCur(c):'',ovRow+body,hint,crmOff(c));
+  return feeBarHtml('代辦費'+(rj?'（未錄取價）':''),agPaidSum(c,null),agDueSum(c),agTotal(c),agTotal(c)?agTotalCur(c):'',ovRow+body,hint,crmOff(c),'agency::'+c.id);
 }
 function agPayForm(key){const p=String(key).split('::');const c=agById(p[0]);if(!c)return;
   const isNew=(p[1]==null||p[1]==='new');const idx=isNew?-1:Number(p[1]);
