@@ -3934,6 +3934,8 @@ let QS_SEL=0,QS_ROWS=[];
 function qsFind(term){
   const q=qsNorm(term),out=[];
   if(!q)return out;
+  /* QSACT_V1307 功能擺第一，她要找的通常是「那顆按鈕在哪」 */
+  try{qsActFind(term).forEach(a=>out.push({type:'go',icon:a.ic,id:a.k,title:a.t,sub:a.w}));}catch(e){}
   const hit=(t)=>qsNorm(t).indexOf(q)>=0;
   const add=(type,icon,id,title,sub)=>out.push({type:type,icon:icon,id:id,title:title,sub:sub});
   const own=(typeof IS_OWNER!=='undefined')&&IS_OWNER;
@@ -3968,13 +3970,74 @@ function qsFind(term){
       if(hit([x.name,x.name_en,x.country,x.contact].join(' ')))
         add('sch','🏫',x.id,x.name||'',[x.country,x.contact].filter(Boolean).join(' · '));});}
   return out;}
-const QS_LAB={stu:'學生',les:'課',cl:'文言文',q:'題目',memo:'備忘',
+
+/* QSACT_V1307 全站搜尋本來只找得到「資料」（學生、課、題目、備忘），找不到「功能」。
+   後台有十幾個分頁、上百顆按鈕，要記每一顆在哪一頁本來就不合理
+   （Quinn：「我都不太清楚我的每一個功能按鈕要在哪裡找了」）。
+   這裡把功能也登記進來：打「備份」就直接列出下載完整備份，Enter 就執行或跳過去。
+   go＝直接做；tab＝切到那一頁。需要先選學生的那幾個一律只切頁，不亂帶參數。 */
+function qsNowM(){try{return localToday().slice(0,7);}catch(e){return '';}}
+const QS_ACTS=[
+ {k:'backup', ic:'📦', t:'下載完整備份',     w:'今日總覽 › 今天要處理',  kw:'備份 beifen backup 匯出 存檔 excel xlsx 救命 雲端 備分',
+  go:()=>{const b=document.querySelector('[data-act="exportJson"]');if(b){b.click();return true;}return false;}, tab:'dashboard'},
+ {k:'trash',  ic:'🗑️', t:'垃圾桶（7 天內可救回）', w:'設定 › 備份與垃圾桶', kw:'垃圾桶 救回 復原 刪掉 誤刪 trash', go:()=>{H.trash();return true;}},
+ {k:'data',   ic:'🗄️', t:'備份與垃圾桶',      w:'設定',                 kw:'資料 備份 垃圾桶 匯出', go:()=>{H.dataTools();return true;}},
+
+ {k:'newstu', ic:'👤', t:'新增一位（學生／代辦／面試…）', w:'今日總覽 › 更多', kw:'新增 學生 報名 新學生 加人 newstu', go:()=>{H.newAll();return true;}},
+ {k:'log',    ic:'📝', t:'記一堂課',          w:'今日總覽',              kw:'記課 上課 記一堂 堂數 log 點名', go:()=>{H.stuPick('log');return true;}},
+ {k:'plan',   ic:'📌', t:'排一堂課',          w:'課表',                  kw:'排課 預排 行事曆 約時間 plan', go:()=>{H.planClass('');return true;}},
+ {k:'pay',    ic:'💰', t:'記繳費',            w:'今日總覽',              kw:'繳費 收錢 付款 學費 收款 pay', go:()=>{H.payPick();return true;}},
+
+ {k:'quote',  ic:'🧾', t:'開一張報價單',      w:'回覆範本',              kw:'報價 報價單 估價 quote 價錢', go:()=>{H.qtNew();return true;}},
+ {k:'price',  ic:'🏷️', t:'價目表',            w:'回覆範本 › 價目表',      kw:'價目 價格 收費 定價 price', tab:'reply', sub:['rpSub','price']},
+ {k:'tpl',    ic:'📮', t:'回覆範本',          w:'回覆範本',              kw:'範本 罐頭 回覆 客人 常用句 template', tab:'reply', sub:['rpSub','tpl']},
+ {k:'gap',    ic:'🔍', t:'回覆範本・缺口檢查', w:'回覆範本 › 缺口檢查',    kw:'缺口 檢查 還沒寫 稱呼 補範本', tab:'reply', sub:['rpSub','gap']},
+
+ {k:'mbill',  ic:'📨', t:'這個月的月結單',    w:'收費・財務',            kw:'月結 月結單 帳單 寄帳單 bill', go:()=>{H.monthBillsGo();return true;}},
+ {k:'ops',    ic:'📊', t:'月底對帳',          w:'收費・財務',            kw:'對帳 月底 財務 收入 結算 ops', go:()=>{try{H.opsMonth?H.opsSheet(qsNowM()):H.opsSheet(qsNowM());return true;}catch(e){return false;}}, tab:'ops'},
+ {k:'cert',   ic:'🎓', t:'結業證書',          w:'學生 › 卡片上的更多',    kw:'證書 結業 畢業 cert 獎狀', go:()=>{H.printCert();return true;}},
+ {k:'stmt',   ic:'📑', t:'對帳單（單一學生）', w:'學生 › 卡片上的更多',    kw:'對帳單 明細 收支 statement', tab:'students'},
+ {k:'report', ic:'📈', t:'學習報告（單一學生）', w:'學生 › 卡片上的更多',  kw:'學習報告 成績單 進度 report', tab:'students'},
+
+ {k:'oc',     ic:'🎬', t:'線上課',            w:'線上課',                kw:'線上課 影片 自學 會員 oc online', tab:'oc'},
+ {k:'ocfrom', ic:'📚', t:'從課文建立線上課',  w:'線上課',                kw:'從課文建立 線上課 轉成 影片課', go:()=>{H.ocFromLesson();return true;}},
+ {k:'les',    ic:'📘', t:'教材與課程',        w:'教材與課程',            kw:'課文 教材 課程 生詞 語法 課本', tab:'lessons'},
+ {k:'cl',     ic:'📜', t:'新增文言文',        w:'教材與課程',            kw:'文言文 古文 注釋 翻譯', go:()=>{H.newClassical();return true;}},
+ {k:'grade',  ic:'✅', t:'批改・成績',        w:'批改・成績',            kw:'批改 改作業 成績 分數 grade', tab:'grades'},
+ {k:'lq',     ic:'🎮', t:'即時比賽',          w:'課堂活動',              kw:'比賽 搶答 遊戲 kahoot 即時 quiz', tab:'files'},
+ {k:'cal',    ic:'🗓️', t:'課表',              w:'課表',                  kw:'課表 行事曆 時間 排程 calendar', tab:'calendar'},
+ {k:'acct',   ic:'🔑', t:'帳號・使用狀況',    w:'帳號・使用',            kw:'帳號 密碼 開通 登入 使用狀況', tab:'acct'},
+ {k:'ag',     ic:'🎓', t:'留學業務（代辦／面試／代書）', w:'留學業務',   kw:'代辦 留學 申請 面試 代書 學校', tab:'agency'},
+ {k:'money',  ic:'💵', t:'收費・財務',        w:'收費・財務',            kw:'財務 收費 收入 未收 帳 money', tab:'pay'},
+ {k:'help',   ic:'📖', t:'使用說明',          w:'使用說明',              kw:'說明 教學 怎麼用 help 手冊', tab:'guide'},
+ /* 這幾個一定要先選到某一個學生或某一筆款，所以只把你送到那一頁，不亂開視窗 */
+ {k:'refund', ic:'↩︎', t:'退費',       w:'學生 › 💰 繳費 › ↩︎ 退費',  kw:'退費 退錢 退款 不讀了 refund tuifei', tab:'students'},
+ {k:'receipt',ic:'🧾', t:'收據',       w:'學生 › 💰 繳費 › 🧾 收據',  kw:'收據 發票 憑證 receipt shouju', tab:'students'},
+ {k:'ann',    ic:'📣', t:'公告',       w:'收費・財務 › 營運',        kw:'公告 通知 佈告 announcement gonggao', tab:'ops'},
+ {k:'ws',     ic:'🖨️', t:'列印講義',   w:'教材與課程 › 課文上的列印',  kw:'講義 列印 印出來 紙本 worksheet jiangyi', tab:'lessons'},
+ {k:'wb',     ic:'📒', t:'作業簿',     w:'教材與課程',              kw:'作業簿 習作 練習本 workbook zuoyeben', tab:'lessons'},
+ {k:'qz',     ic:'❓', t:'題目・題庫', w:'教材與課程 › 課文裡的題目',  kw:'題目 題庫 出題 考題 練習題 timu', tab:'lessons'}
+];
+function qsActFind(q){
+  const n=qsNorm(q); if(!n)return [];
+  return QS_ACTS.filter(a=>qsNorm(a.t+' '+a.kw+' '+a.w).indexOf(n)>=0);}
+/* QSACT_V1307 H.qsAct 搬到下面 H.qsGo 旁邊了——
+   這裡還在 const H={} 之前，寫在這會整個後台起不來 */
+const QS_LAB={go:'功能',stu:'學生',les:'課',cl:'文言文',q:'題目',memo:'備忘',
   ag:'留學代辦',itv:'面試練習',wr:'文件代寫',sch:'學校'};
-const QS_ORDER=['stu','les','cl','q','memo','ag','itv','wr','sch'];
+const QS_ORDER=['go','stu','les','cl','q','memo','ag','itv','wr','sch'];/* QSACT_V1307 功能排最前面 */
 function qsListHtml(term){
-  if(!String(term||'').trim()){QS_ROWS=[];
-    return '<div class="hint" style="padding:16px 4px;line-height:1.9">'
-      +'打字就開始找：學生、課、題目、備忘、留學代辦、面試練習、文件代寫、學校。<br>'
+  if(!String(term||'').trim()){
+    /* QSACT_V1307 還沒打字的時候就先把最常用的功能擺出來，
+       不然「不知道東西在哪」的人連第一個字都不知道要打什麼 */
+    QS_ROWS=[];const common=['backup','log','pay','plan','newstu','quote','mbill','gap'];
+    const qs=common.map(k=>QS_ACTS.find(a=>a.k===k)).filter(Boolean);
+    return '<div class="qs-h">常用功能</div>'
+      +qs.map(a=>'<div class="qs-r" data-act="qsAct" data-id="'+esc(a.k)+'">'
+        +'<span class="qs-i">'+a.ic+'</span><span class="qs-t">'+esc(a.t)+'</span>'
+        +'<span class="qs-s">'+esc(a.w)+'</span></div>').join('')
+      +'<div class="hint" style="padding:12px 4px 2px;line-height:1.85">'
+      +'打字就開始找：<b>功能</b>（備份、報價、退費、證書…）、學生、課、題目、備忘、留學代辦、面試練習、學校。<br>'
       +'越南名字不用打聲調——打 Luong 就找得到 Lương。</div>';}
   const all=qsFind(term);
   if(!all.length){QS_ROWS=[];
@@ -3986,8 +4049,11 @@ function qsListHtml(term){
     parts.push('<div class="qs-h">'+QS_LAB[t]+'（'+g.length+'）'
       +(g.length>show.length?'　只列前 6 筆':'')+'</div>');
     show.forEach(r=>{const i=QS_ROWS.length;QS_ROWS.push(r);
-      parts.push('<div class="qs-r'+(i===QS_SEL?' on':'')+'" data-act="qsGo" data-id="'
-        +esc(r.type+'|'+r.id)+'"><span class="qs-i">'+r.icon+'</span>'
+      /* QSACT_V1307 功能走 qsAct，資料走 qsGo */
+      const act=(r.type==='go')?('data-act="qsAct" data-id="'+esc(r.id)+'"')
+                               :('data-act="qsGo" data-id="'+esc(r.type+'|'+r.id)+'"');
+      parts.push('<div class="qs-r'+(i===QS_SEL?' on':'')+'" '+act+'>'
+        +'<span class="qs-i">'+r.icon+'</span>'
         +'<span class="qs-t">'+esc(r.title||'（沒有標題）')+'</span>'
         +(r.sub?('<span class="qs-s">'+esc(r.sub)+'</span>'):'')+'</div>');});});
   return parts.join('');}
@@ -13294,7 +13360,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1305';
+const APP_BUILD='V1307';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -21065,13 +21131,27 @@ H.afSaveText=async(qid,val)=>{
 H.qsOpen=()=>{QS_SEL=0;QS_ROWS=[];
   openModal('<div class="modal qs-box"><div class="modal-body" style="padding:14px">'
    +'<input id="qs-q" type="text" autocomplete="off" spellcheck="false" '
-   +'placeholder="找學生、課、題目、備忘…（越南名字不用打聲調）">'
+   +'placeholder="找功能或資料：備份、報價、退費、學生名字…"'/* QSACT_V1307 */
+   +'>'
    +'<div id="qs-list" class="qs-list"></div>'
    +'<div class="hint" style="margin-top:8px">↑↓ 選　Enter 開　Esc 關</div>'
    +'</div></div>');
   qsPaint();
   setTimeout(function(){const el=document.getElementById('qs-q');if(el)el.focus();},20);};
+H.qsAct=(k)=>{
+  const a=QS_ACTS.find(x=>x.k===k); if(!a)return;
+  closeModal();
+  setTimeout(()=>{
+    try{
+      if(a.go){ if(a.go()===true)return; }
+      if(a.tab){ S.tab=a.tab;
+        if(a.sub){ try{ H[a.sub[0]](a.sub[1]); }catch(e){ render(); } } else render();
+        if(a.w)toast('到了：'+a.w); }
+    }catch(e){ toast('打不開，請從「'+(a.w||'選單')+'」進去'); }
+  },40);};
 H.qsGo=(key)=>{
+  /* QSACT_V1307 鍵盤 Enter 選到功能列的時候，key 會是「go|<代號>」 */
+  if(String(key||'').slice(0,3)==='go|'){H.qsAct(String(key).slice(3));return;}
   const i=String(key||'').indexOf('|');if(i<0)return;
   const t=key.slice(0,i),id=key.slice(i+1);
   closeModal();
