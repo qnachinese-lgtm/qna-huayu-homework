@@ -553,6 +553,20 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         /* RPGRP_V715 分類標題 */
         /* RPGAP_V1305 缺口檢查 */
         /* GIVE_V1312 給學生的東西 */
+        /* CHKIN_V1313 報到進度 */
+        .ck-card{padding:14px 16px;margin:12px 0;border:1px solid #C7D8EF;background:#F8FBFF}
+        .ck-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:800;font-size:14px;margin-bottom:10px}
+        .ck-n{background:#FEF3C7;color:#92400E;border-radius:999px;padding:1px 10px;font-size:12px}
+        .ck-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+        .ck-it{display:flex;gap:9px;align-items:flex-start;text-align:left;cursor:pointer;
+          background:#fff;border:1px solid #DCE5F0;border-radius:10px;padding:9px 11px;font:inherit;color:inherit}
+        .ck-it:hover{border-color:#1E4C86}
+        .ck-it.on{background:#E1F0EA;border-color:#BFE0CB}
+        .ck-mk{font-weight:800;color:#8E9CAF;flex:none;line-height:1.3}
+        .ob-it.on .ck-mk{color:#1F6A54}
+        .ck-tx{display:flex;flex-direction:column;gap:1px;min-width:0}
+        .ck-tx b{font-size:13.5px}
+        .ck-tx .hint{font-size:11.5px;line-height:1.45;white-space:normal}
         .gv-sec{padding:16px 18px;margin-bottom:14px}
         .gv-h{font-weight:800;font-size:13.5px;color:#5B6B80;margin-bottom:10px;letter-spacing:.3px}
         .gv-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px}
@@ -3082,6 +3096,30 @@ const VDAYS=['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7','Chủ 
 /* 今天（用當地時間）。不能用 toISOString()，那是 UTC：越南/台灣在半夜 0~8 點會變成「前一天」 */
 function localToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function weekStart(dstr){try{var dt=new Date((dstr||localToday())+'T00:00:00');var day=(dt.getDay()+6)%7;dt.setDate(dt.getDate()-day);return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}catch(e){return dstr||'';}}
+
+/* BKCLOUD_V1313 備份時間本來只存在瀏覽器的 localStorage，有兩個問題：
+   換一台電腦、或清過瀏覽器資料，它就忘記你備份過（會一直顯示「還沒備份過」）；
+   反過來，你在家裡的電腦備份了，工作室那台還是叫你去備份。
+   改成寫到雲端的 site 設定，兩邊取「比較晚的那一個」當準。
+   localStorage 還是繼續寫，當作離線時的備援，也避免每次開畫面都要等雲端。 */
+function bkWkGet(){
+  let a='';try{a=localStorage.getItem('hyc_backup_wk')||'';}catch(e){}
+  const b=(S.site&&S.site.backup_wk)?String(S.site.backup_wk):'';
+  if(!a)return b; if(!b)return a;
+  return (a>b)?a:b;   /* 週起日是 YYYY-MM-DD，字串比大小就是比時間 */
+}
+async function bkWkSet(){
+  const wk=weekStart(localToday());
+  try{localStorage.setItem('hyc_backup_wk',wk);}catch(e){}
+  /* 雲端寫失敗不要影響備份本身——檔案都已經下載好了 */
+  try{
+    if(IS_OWNER&&S.site&&S.site.id){
+      await ensureAuthFresh();
+      await DB.update('site',S.site.id,{backup_wk:wk,backup_at:new Date().toISOString()});
+      S.site.backup_wk=wk;S.site.backup_at=new Date().toISOString();
+    }
+  }catch(e){}
+}
 function fmtSchedule(s){if(s&&Array.isArray(s.schedule)&&s.schedule.length){return s.schedule.map(r=>(DAYS[(r.d!=null?r.d:0)]||'')+' '+(r.s||'')+(r.e?'–'+r.e:'')).join('、');}return (s&&s.class_time)||'—';}
 function _vnT(hhmm){const m=/(\d{1,2}):(\d{2})/.exec(hhmm||'');if(!m)return '';let h=(parseInt(m[1],10)+23)%24;return (h<10?'0':'')+h+':'+m[2];}
 /* 🎥 進入教室：團班看班級設定的 Meet，一對一看學生的 Meet，面試練習看客戶的 Meet */
@@ -4225,7 +4263,17 @@ function renderDashboard(){
       +'<b>'+_lvn+' 位學生在等你回覆</b><span class="grow"></span>'
       +'<button class="btn btn-sm btn-primary" data-act="lvList">去看</button></div>');
   }catch(e){}
-  try{const bwk=localStorage.getItem('hyc_backup_wk')||'';const nowWk=weekStart(localToday());
+  /* CHKIN_V1313 有學生還沒報到完，排在備份提醒前面——
+     學生登不進去、或忘了收錢，比晚一週備份更急。 */
+  try{const _ob=chkinPending();
+    if(IS_OWNER&&_ob.length){
+      const _names=_ob.slice(0,3).map(x=>snm(x.name)).join('、')+(_ob.length>3?(' 等 '+_ob.length+' 位'):'');
+      remRows.unshift('<div class="dash-row"><span class="badge b-warn">🧳 報到</span>'
+        +'<b>'+_names+'</b><span class="muted">還有沒設定完的項目</span>'
+        +'<span class="grow"></span>'
+        +'<button class="btn btn-sm" data-act="stuDetail" data-id="'+esc(_ob[0].id)+'">去看</button></div>');
+    }}catch(e){}
+  try{const bwk=bkWkGet();const nowWk=weekStart(localToday());/* BKCLOUD_V1313 改讀雲端＋本機取較晚者 */
     /* BKLATE_V910 本來不管幾週沒備份都只寫「這週還沒備份」，看起來像每週的例行話，
        結果一拖就是六週。改成把拖了幾週寫出來，兩週以上轉紅色。 */
     const _bwn=bwk?Math.round((new Date(nowWk+'T00:00:00')-new Date(bwk+'T00:00:00'))/604800000):null;
@@ -8165,6 +8213,7 @@ function stuCardInner(s){return `
         </div></div></div>
     <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(fmtSchedule(s))}</b></span>
       ${!IS_OWNER?'':(isTrial(s)?'<span>💰 <b style="color:#6D28D9">🎁 免費試學（不計費）</b></span>':`<span>💰 學費：<b>${tierText(s)?('👥 團班計費：'+tierText(s)):(money(s.tuition,s.currency)+(s.tuition!=null?(s.fee_unit==='hour'?' / 小時':' / 堂'):''))}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span>`)}<span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}${billChip(s)}${famChip(s)}</div>
+    ${chkinCard(s)/* CHKIN_V1313 */}
     ${activityLine(s)}
     ${s.reset_requested?`<div class="meta" style="margin-top:8px;align-items:center"><span class="badge badge-soon">🔑 學生申請重設密碼</span></div>`:''}
     ${s.notes?`<div class="meta" style="margin-top:8px"><span>📝 ${esc(s.notes)}</span></div>`:''}`;}
@@ -11666,6 +11715,51 @@ function giveCard(o,dis){
     +'data-act="'+esc(o.a==='tab'?'giveTab':(o.gv?'gvDo':o.a))+'" data-id="'+esc(o.gvid||o.id||'')+'">'
     +'<span class="gv-ic">'+o.ic+'</span><span class="gv-tx"><b>'+esc(o.t)+'</b>'
     +'<span class="hint">'+esc(o.d)+'</span></span></button>';}
+
+/* CHKIN_V1313 新學生報到進度。
+   注意：本來取名 obSteps，結果跟既有的 ONBOARD_V659（第一次用平台的五步教學）
+   撞名——函式宣告會被後面那個覆蓋掉，兩個功能一起壞，而且畫面上看不出來。
+   改成 chkin* 前綴。。
+   收一個新學生要做五件事，散在五個地方：建資料、設固定時段、開通帳號、
+   印上課約定、收第一筆款。每次都要自己記順序，漏掉哪一件通常是過兩週才發現
+   （學生登不進去、或是忘了收錢）。
+   這裡不另外存一份「進度」——每一步都是直接看資料算出來的，
+   所以不會有「打了勾但其實沒做」的情況。只有約定因為沒有痕跡可查，
+   印一次就在學生身上記一個日期。 */
+function chkinSteps(s){
+  if(!s)return [];
+  const p=(typeof progOf==='function')?progOf(s.id):null;
+  const paid=((s.payments||[]).filter(x=>x&&Number(x.amount)>0).length>0);
+  const sched=!!((Array.isArray(s.schedule)&&s.schedule.length)||String(s.class_time||'').trim());
+  const free=isTrial(s);
+  return [
+   {k:'book', t:'選好教材',   d:'學生頁 › ✏️ 編輯',      ok:!!String(s.textbook||'').trim(),
+    act:'editStudent', id:s.id},
+   {k:'time', t:'設固定時段', d:'學生頁 › ✏️ 編輯，或「一次設固定時段」', ok:sched,
+    act:'editStudent', id:s.id},
+   {k:'acct', t:'開通帳號',   d:'要有 Email，學生才登入得了', ok:!!String(s.uid||'').trim(),
+    act:'tab', id:'acct'},
+   {k:'rule', t:'給上課約定', d:'印出來給學生簽，或傳 PDF 給他', ok:!!String(s.rules_at||'').trim(),
+    act:'chkinRules', id:s.id},
+   {k:'pay',  t:'收第一筆款', d:(free?'免費試學，這一步可以跳過':'學生頁 › 💰 記繳費'),
+    ok:(free||paid), act:'payments', id:s.id, soft:free}
+  ];}
+function chkinLeft(s){return chkinSteps(s).filter(x=>!x.ok).length;}
+/* 只看在學中和試學的——休學、已結束的不用再催 */
+function chkinPending(){
+  return (S.students||[]).filter(x=>x&&!x.is_test&&!x.deleted
+    &&(enrollOf(x)==='active'||enrollOf(x)==='trial')&&chkinLeft(x)>0);}
+function chkinCard(s){
+  const st=chkinSteps(s);const left=st.filter(x=>!x.ok).length;
+  if(!left)return '';
+  return '<div class="card ck-card"><div class="ck-h">🧳 報到進度'
+    +'<span class="ck-n">還差 '+left+' 件</span>'
+    +'<span class="hint" style="margin-left:auto">全部做完這張卡就會自己收起來</span></div>'
+    +'<div class="ck-g">'+st.map(x=>
+      '<button class="ck-it'+(x.ok?' on':'')+'" data-act="'+esc(x.act)+'" data-id="'+esc(x.id)+'">'
+      +'<span class="ck-mk">'+(x.ok?'✓':'○')+'</span>'
+      +'<span class="ck-tx"><b>'+esc(x.t)+'</b><span class="hint">'+esc(x.d)+'</span></span>'
+      +'</button>').join('')+'</div></div>';}
 function renderGive(){
   const body=$('#panel-give');if(!body)return;
   const stus=giveStuList();
@@ -12746,7 +12840,7 @@ H.exportJson=async(_,b)=>{if(!IS_OWNER){toast('這個功能只有主管理員可
     const d=new Date();const pad=n=>String(n).padStart(2,'0');
     const name=fnm('完整備份',d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate()))+'.xlsx';
     XLSX.writeFile(wb,name);
-    try{localStorage.setItem('hyc_backup_wk',weekStart(localToday()));}catch(e){}
+    try{await bkWkSet();}catch(e){}/* BKCLOUD_V1313 */
     say('✅ 已下載 '+name+'　'+Object.keys(counts).map(k=>k+' '+counts[k]).join('　·　'));
     toast('備份已下載，請存到你自己的硬碟或雲端');
   }catch(e){say('❌ 備份失敗：'+((e&&e.message)||e));toast('備份失敗，請重試');}
@@ -13458,7 +13552,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1312';
+const APP_BUILD='V1313';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -14036,6 +14130,9 @@ function renderStudentProfile(){
         +'<div class="sp-facts">'+facts+'</div></div>'
       +'<div class="sp-acts">'+acts+'</div>'
     +'</div>'
+    /* CHKIN_V1313 報到進度放在名字底下、統計卡上面——還沒設定完的時候最該先看到。
+       只加在學生頁；班級頁（renderClassProfile）那一行長得一樣，不要誤改。 */
+    +chkinCard(s)
     +tiles+tabs+'<div class="sp-body">'+body+'</div></div>';}
 
 /* STUCARD_V1138 還有幾天生日（只算日月） */
@@ -21338,7 +21435,17 @@ H.qsOpen=()=>{QS_SEL=0;QS_ROWS=[];
    帶學生 id 就自動填姓名，不帶就留空白讓她手寫。 */
 H.printRules=(sid)=>{
   const s=sid?((S.students||[]).find(x=>x.id===sid)||null):null;
-  try{fbWin(ruleDocHtml(s));}catch(e){toast('打不開，請確認瀏覽器沒有擋彈出視窗');}};
+  try{fbWin(ruleDocHtml(s));}catch(e){toast('打不開，請確認瀏覽器沒有擋彈出視窗');return;}
+  /* CHKIN_V1313 印給某位學生的時候記一下日期，報到進度那一項才打得了勾。
+     空白版（沒有 sid）不記。存不起來也不影響列印。 */
+  if(s&&!s.rules_at){
+    const now=new Date().toISOString();
+    s.rules_at=now;
+    (async()=>{try{await ensureAuthFresh();await DB.update('students',s.id,{rules_at:now});
+      try{render();}catch(e){}}catch(e){}})();
+  }};
+/* CHKIN_V1313 報到進度卡上的「給上課約定」：開文件，順便記日期 */
+H.chkinRules=(sid)=>H.printRules(sid);
 /* GIVE_V1312 這一頁的兩種按鈕：切到某個分頁的子頁、以及「帶著選好的學生去做某件事」 */
 H.giveTab=(id)=>{const o=GIVE_FREE.find(x=>x.a==='tab'&&x.id===id&&x.sub);
   S.tab=id;
@@ -23255,7 +23362,7 @@ H.exportAll=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');
         上課內容:e.note||'',團班:(s.groups||[]).join('、')});});});
     logs.sort((a,b)=>String(b.日期).localeCompare(String(a.日期)));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(logs.length?logs:[{}]),'上課記錄');
-    XLSX.writeFile(wb,fnm('簡易備份',localToday())+'.xlsx');try{localStorage.setItem('hyc_backup_wk',weekStart(localToday()));}catch(e){}toast('已匯出 Excel 備份');render();
+    XLSX.writeFile(wb,fnm('簡易備份',localToday())+'.xlsx');bkWkSet();toast('已匯出 Excel 備份');render();/* BKCLOUD_V1313 */
   }catch(err){toast('匯出失敗：'+((err&&err.message)||err));}};
 H.exportLedger=()=>{
   if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}
