@@ -6589,6 +6589,20 @@ H.wbRecall=async()=>{
       ||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);/* iPadOS 13+ 自稱 Mac */
     var inApp=/(FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|Zalo|TikTok)/i.test(ua);
     var COPY='<button data-copy style="background:#fff;color:#1E4C86;border:0;border-radius:999px;padding:7px 13px;font-weight:700;cursor:pointer;flex:none">📋 複製網址</button>';
+    /* A2HSGATE_V1344 Quinn 回報提示出現在「還沒登入」的畫面上。
+       登入頁不該被打擾，而且那時學生根本還不知道這是什麼。
+       改成等登入完成（S.me 有值）再提示，最多等 90 秒；
+       一直沒登入就不提示。三個分支（App 內建、iOS、電腦）共用。 */
+    function afterLogin(fn){
+      var n=0;
+      var t=setInterval(function(){
+        n++;
+        try{
+          if(window.S&&S.me){clearInterval(t);setTimeout(fn,1200);return;}
+        }catch(e){}
+        if(n>60){clearInterval(t);}       /* 90 秒還沒登入就算了 */
+      },1500);
+    }
     function wire(d){
       var cb=d.querySelector('[data-copy]');
       if(!cb)return;
@@ -6601,15 +6615,15 @@ H.wbRecall=async()=>{
         catch(e){}};
     }
     if(inApp){
-      setTimeout(function(){
+      afterLogin(function(){
         bar('<span style="flex:1">📲 要加到主畫面，請先用 Safari／Chrome 打開這一頁'
           +'<br><span style="opacity:.85;font-size:12.5px">Để thêm vào màn hình chính, hãy mở trang này bằng Safari / Chrome</span></span>'+COPY+X);
-        var d=document.getElementById('a2hs');if(d)wire(d);},2800);
+        var d=document.getElementById('a2hs');if(d)wire(d);});
     }else if(isIOS){
-      setTimeout(function(){
+      afterLogin(function(){
         bar('<span style="flex:1">📲 點下方「分享」→「加入主畫面」'
           +'<br><span style="opacity:.85;font-size:12.5px">Bấm Chia sẻ → Thêm vào màn hình chính</span></span>'+COPY+X);
-        var d=document.getElementById('a2hs');if(d)wire(d);},2800);
+        var d=document.getElementById('a2hs');if(d)wire(d);});
     }else{
       /* A2HSPC_V1343 Quinn 的學生回報「電腦加不進去」。
          原本只處理三種情況：beforeinstallprompt 有觸發、App 內建瀏覽器、iOS。
@@ -6618,20 +6632,23 @@ H.wbRecall=async()=>{
          所以那些學生看到的是「什麼都沒有」，不是「按了沒反應」。
          線上的安裝條件我查過都正常（manifest、兩個圖示、sw 都是 200，HTTPS，standalone），
          所以缺的只是「告訴他要去哪裡按」。等 3 秒，Chrome 如果已經給了安裝鈕就不多嘴。 */
-      setTimeout(function(){
+      afterLogin(function(){
         if(deferred)return;                                  /* Chrome/Edge 已經接手 */
         if(document.getElementById('a2hs'))return;
         try{if(matchMedia('(display-mode: standalone)').matches)return;}catch(e){}  /* 已經裝好了 */
         var how,howVi;
         if(/Edg\//.test(ua)){
-          how='網址列右邊的「安裝」圖示（⊞）點一下';
-          howVi='Bấm biểu tượng cài đặt (⊞) ở bên phải thanh địa chỉ';
+          how='網址列最右邊有一個「安裝」圖示，點它就可以';
+          howVi='Bấm biểu tượng cài đặt ở cuối thanh địa chỉ';
         }else if(/Firefox\//.test(ua)){
           how='Firefox 沒有安裝功能，請改用 Chrome 或 Edge 開這一頁';
           howVi='Firefox không cài được; hãy mở trang này bằng Chrome hoặc Edge';
         }else if(/Chrome\//.test(ua)){
-          how='網址列右邊的「安裝」圖示（⊞）點一下；沒看到的話按右上角 ⋮ →「投放、儲存及分享」→「安裝」';
-          howVi='Bấm biểu tượng cài đặt (⊞) bên phải thanh địa chỉ, hoặc ⋮ → Cài đặt';
+          /* A2HSGATE_V1344 本來寫「（⊞）」和「⋮」。⊞ 在中文字型裡看起來就是「田」，
+             學生會以為是個字；⋮ 很多字型沒有這個字，畫面上整個空掉（Quinn 的截圖）。
+             改成用講的，不靠符號。 */
+          how='網址列最右邊有一個「安裝」圖示，點它就可以；沒看到的話按右上角的三個點選單 →「投放、儲存及分享」→「安裝」';
+          howVi='Bấm biểu tượng cài đặt ở cuối thanh địa chỉ, hoặc menu ba chấm ở góc trên bên phải → Cài đặt';
         }else if(/Safari\//.test(ua)){
           how='Safari 上方選單「檔案」→「加入 Dock」';
           howVi='Safari: menu Tệp (File) → Thêm vào Dock';
@@ -6641,7 +6658,7 @@ H.wbRecall=async()=>{
         }
         bar('<span style="flex:1">💻 '+how
           +'<br><span style="opacity:.85;font-size:12.5px">'+howVi+'</span></span>'+COPY+X);
-        var d=document.getElementById('a2hs');if(d)wire(d);},3000);
+        var d=document.getElementById('a2hs');if(d)wire(d);});
     }
   }catch(e){}
 })();
