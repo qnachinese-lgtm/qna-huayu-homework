@@ -18,6 +18,14 @@
 <link rel="stylesheet" href="styles.css?v=1220">
 <style>
 /* V813 */
+/* LOGINSAFE_V1346 登入的錯誤訊息本來是夾在密碼欄和登入鈕中間的一行小紅字，
+   很容易被當成「按了沒反應」（Quinn 就是這樣）。改成有底色的方框，空的時候完全不佔位。 */
+#gate #g-err{display:none}
+#gate #g-err:not(:empty){
+  display:block;margin:10px 0 2px;padding:10px 12px;border-radius:10px;
+  background:#FDECEA;border:1px solid #F3C2BC;color:#A33227;
+  font-size:14px;font-weight:700;line-height:1.5;text-align:left}
+
 #app .gp-qn{margin-left:auto;flex:none;font-size:12.5px;font-weight:700;color:#1E4C86;
   background:#E8EFF7;border:1px solid #C7D8EF;border-radius:99px;padding:2px 9px;white-space:nowrap}
 #app .gp-fold>summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -5080,11 +5088,60 @@ H.vocabMatch=()=>{const qs=genVocabMatch();if(!qs.length){toast(t('noCards'));re
 
 let LOGIN_TRIED=false;
 let REGING=false;/* MEMFIX_V1259 */
-H.doLogin=async()=>{const email=$('#li-email').value.trim(),p=$('#li-pw').value;
-  if(!email||!p){$('#g-err').textContent=t('errFill');return;}
-  $('#g-err').textContent='';LOGIN_TRIED=true;
-  try{await firebase.auth().signInWithEmailAndPassword(email,p);}
-  catch(e){$('#g-err').textContent=t('errLogin');}};
+/* LOGINSAFE_V1346 Quinn：「按登入完全沒反應」。
+   舊版有三個地方會「無聲失敗」：
+   ① 這是 async 函式，而按鈕分派器是 fn(id,el) 沒有 try/catch——
+      async 丟出的例外會變成「未處理的 Promise 拒絕」，不會跳任何東西，畫面完全不動。
+   ② $('#g-err')、$('#li-email') 任何一個抓不到就在這裡丟例外，連訊息都來不及顯示。
+   ③ signInWithEmailAndPassword 如果既不成功也不失敗（網路斷、Firebase 連不上），
+      就永遠停在那裡，使用者只看到什麼都沒發生。
+   ④ 而且不管什麼原因都寫「帳號或密碼不正確」，網路問題會被誤導成密碼錯。
+   改成：任何情況都一定給回應，並且把真正的原因講出來。 */
+H.doLogin=async()=>{
+  const show=(msg)=>{
+    try{const e=document.getElementById('g-err');
+      if(e){e.textContent=msg;return;}}catch(_){}
+    try{if(msg)alert(msg);}catch(_){}
+  };
+  const T=(k,fallback)=>{try{const v=t(k);return v||fallback;}catch(_){return fallback;}};
+  let email='',pw='';
+  try{
+    const ei=document.getElementById('li-email'),pi=document.getElementById('li-pw');
+    if(!ei||!pi){show('登入欄位沒有正確載入，請按 Ctrl+Shift+R（Mac：Cmd+Shift+R）重新整理');return;}
+    email=String(ei.value||'').trim();pw=String(pi.value||'');
+  }catch(e){show('讀不到輸入的內容：'+((e&&e.message)||e));return;}
+  if(!email||!pw){show(T('errFill','請完整填寫'));return;}
+  const btn=document.querySelector('#gate [data-act="doLogin"]');
+  const label=btn?btn.textContent:'';
+  show('登入中…');
+  if(btn){btn.disabled=true;btn.textContent='登入中…';}
+  LOGIN_TRIED=true;
+  try{
+    if(typeof firebase==='undefined'||!firebase.auth)
+      throw {code:'app/no-firebase'};
+    await Promise.race([
+      firebase.auth().signInWithEmailAndPassword(email,pw),
+      new Promise((_,rej)=>setTimeout(()=>rej({code:'app/timeout'}),20000))
+    ]);
+    /* 成功之後交給 onAuthStateChanged；訊息留著「登入中…」等它換掉 */
+  }catch(e){
+    const c=String((e&&e.code)||'');
+    if(c==='app/timeout')
+      show('連線逾時（20 秒沒有回應）。請檢查網路，或換個網路再試一次。');
+    else if(c==='app/no-firebase')
+      show('登入元件沒有載入成功，請重新整理頁面；如果一直這樣，可能是網路擋住了連線。');
+    else if(/wrong-password|user-not-found|invalid-credential|invalid-email|missing-password/.test(c))
+      show(T('errLogin','帳號或密碼不正確'));
+    else if(/network-request-failed/.test(c))
+      show('連不上網路，請確認網路後再試一次。');
+    else if(/too-many-requests/.test(c))
+      show('嘗試太多次被暫時擋住了，請等幾分鐘再試，或用「忘記密碼」重設。');
+    else
+      show(T('errLogin','帳號或密碼不正確')+'（'+(c||((e&&e.message)||'不明原因'))+'）');
+  }finally{
+    if(btn){btn.disabled=false;if(label)btn.textContent=label;}
+  }
+};
 /* OCREG_V1258 免費註冊：開一個登入帳號，再建一份會員資料（members）。
    會員跟老師的正式學生完全分開，不會出現在學生名冊裡。 */
 /* MEMFIX_V1259 註冊的時候 createUser 會馬上觸發 onAuthStateChanged，

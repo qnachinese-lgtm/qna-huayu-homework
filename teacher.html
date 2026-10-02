@@ -3072,13 +3072,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           #app .dash-row{flex-wrap:wrap;row-gap:4px}
         }
 
-        .navsib{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--line,#DCE5F0);
-          margin:0 0 16px;padding:0}
-        .navsib .nsb{border:none;background:none;box-shadow:none;border-radius:0;
-          padding:10px 14px;font-size:14.5px;font-weight:600;color:var(--muted,#5B6B80);
-          border-bottom:2.5px solid transparent;margin-bottom:-1px;cursor:pointer}
-        .navsib .nsb:hover{color:var(--ink,#16202E);background:#F4F7FB}
-        .navsib .nsb.on{color:var(--accent,#1E4C86);border-bottom-color:var(--accent,#1E4C86);font-weight:800}
+        /* SEGONE_V1350 .navsib 原本的底線樣式整組拿掉，改用 .segbar。
+           外層只留下來當作移除時的識別，不再負責長相。 */
+        .navsib{margin-bottom:10px}
         @media(max-width:560px){.navsib .nsb{flex:1 0 auto;padding:10px 11px;font-size:13.5px}}
 
         /* NAVSHORT_V1317 上一版把選單的行距收緊讓它變短，Quinn 說擠，改回原本的行距。
@@ -4890,18 +4886,37 @@ function acctLogins(p,days){
   return lg.filter(x=>{const d=new Date(x);return !isNaN(d)&&d>=cut;}).length;}
 function acctDoneN(sid){return (S.results||[]).filter(r=>r&&r.student_id===sid&&r.status==='done').length;}
 function acctActN(sid){return (S.acts||[]).filter(r=>r&&r.student_id===sid).length;}
+/* MEMBIND_V1345 Quinn：「學生先自己註冊，我之後才加他，他會卡在免費會員」。
+   系統配對學生靠的是 uid，不是 Email，所以那是兩筆不同的帳號紀錄。
+   這裡找出「名冊上有這個 Email、但還沒有 uid，而且剛好有人用同一個 Email 自己註冊過」的情況，
+   給一顆「綁定」讓 Quinn 確認。不自動綁：自動用 Email 認人的話，
+   任何人只要拿別人的 Email 去註冊就能接收那位學生的資料，必須由認得人的她按下去。 */
+function memberByMail(mail){
+  const m=String(mail||'').trim().toLowerCase();
+  if(!m)return null;
+  return (S.members||[]).find(x=>x&&!x.deleted_at
+    &&String(x.email||'').trim().toLowerCase()===m
+    &&String(x.uid||'').trim())||null;}
 function acctRow(s){
   const p=progOf(s.id);
   const mail=String(s.email||'').trim();
   const ok=!!String(s.uid||'').trim();
+  /* MEMBIND_V1349 本來只在「完全沒有 uid」時才給綁定。
+     可是還有一種：學生資料上掛著一個舊的 uid，但那個 uid 已經對不到任何登入帳號
+     （Quinn 的 abc@gmail.com 就是這樣——登入帳號還在，指向它的學生資料對不上了）。
+     只要同一個 Email 有人自己註冊過、而且那個 uid 跟學生身上的不一樣，就給她接上的機會。 */
+  const _mb=memberByMail(mail);
+  const selfReg=(_mb&&String(_mb.uid||'')!==String(s.uid||''))?_mb:null;
   const ll=(p&&p.last_login)||'';
   const la=(p&&p.last_active)||'';
   const n30=acctLogins(p,30);
   const daysAgo=ll?Math.floor(acctDays(ll,new Date().toISOString())):null;
   const st=ok
-    ?'<span class="badge badge-ok">✅ 已開通</span>'
-    :(mail?'<span class="badge b-warn" >⏳ 還沒登入過</span>'
-          :'<span class="badge b-warn" >⚠️ 沒有 Email</span>');
+    ?('<span class="badge badge-ok">✅ 已開通</span>'
+      +(selfReg?'<span class="badge b-info" style="margin-left:4px" title="同一個 Email 另外有一個自己註冊的帳號，跟這裡記的不是同一個。如果他是用那個在登入，按右邊「接過來」。">🔗 有另一個帳號</span>':''))
+    :(selfReg?'<span class="badge b-info" title="這個 Email 已經自己註冊成自學會員了，按右邊「接過來」就會變成正式學生">🔗 已自己註冊</span>'
+      :(mail?'<span class="badge b-warn" >⏳ 還沒登入過</span>'
+          :'<span class="badge b-warn" >⚠️ 沒有 Email</span>'));
   const llTxt=ll?(fmtDT(ll)+(daysAgo!=null?('　<span class="muted">'+(daysAgo<=0?'今天':(daysAgo+' 天前'))+'</span>'):''))
     :'<span class="muted">從來沒登入過</span>';
   return '<div class="ac-r">'
@@ -4917,6 +4932,8 @@ function acctRow(s){
       +(mail?('<button class="btn btn-sm" data-act="resetPw" data-id="'+esc(s.id)+'" title="寄一封重設密碼的信到他的信箱">✉️ 寄重設密碼信</button>'):'')
       /* DEADBTN_V1287 本來寫 data-act="student"，可是全站沒有 H.student 這個處理函式，
          按鈕按下去完全沒反應。開學生檔案的動作叫 stuDetail。 */
+      +(selfReg?('<button class="btn btn-sm btn-accent" data-act="acctBind" data-id="'+esc(s.id)
+        +'" title="把那個自己註冊的帳號接到這位學生身上，他下次登入就會進學生版">\u{1F517} 接過來</button>'):'')
       +'<button class="btn btn-sm" data-act="stuDetail" data-id="'+esc(s.id)+'">去看</button>'
     +'</span></div>';}
 /* 官網瀏覽：沿用原本 V1153 就在記的 hits（一筆＝一次開網站），
@@ -9165,8 +9182,15 @@ function navSibHtml(tab){
   const g=navSibGroup(tab);if(!g)return '';
   const ts=g.tabs.filter(t=>!t[2]||IS_OWNER);/* 只有主管理員看得到的那幾頁 */
   if(ts.length<2)return '';
-  return '<div class="navsib">'+ts.map(t=>'<button class="nsb'+(t[0]===tab?' on':'')
-    +'" data-act="tab" data-id="'+t[0]+'">'+t[1]+'</button>').join('')+'</div>';}
+  /* SEGONE_V1350 Quinn：「每個頁面的那排按鈕長得都不一樣，我要統一」。
+     這一排本來是自己一套底線式樣式（.navsib），
+     但全站同樣作用的橫排都是 .segbar（圓角方塊，22 處在用）——同一件事兩種長相。
+     改成直接用 .segbar／.segb，以後改一次就全站一致。
+     外層保留 .navsib 只為了 navSibApply 要找得到它來移除，不再帶樣式。 */
+  return '<div class="navsib pagebar" style="margin-bottom:10px"><div class="segbar">'
+    +ts.map(t=>'<button class="segb'+(t[0]===tab?' on':'')
+    +'" data-act="tab" data-id="'+t[0]+'">'+t[1]+'</button>').join('')
+    +'</div></div>';}
 function navSibApply(){
   try{
     document.querySelectorAll('.navsib').forEach(x=>x.remove());
@@ -12511,9 +12535,19 @@ H.siteHits=async()=>{
   const prv=rows.filter(r=>String(r.d||'').slice(0,7)===prevM);
   const cnt=(list,key)=>{const o={};list.forEach(r=>{const k=String(r[key]||'').trim()||'（直接進來）';o[k]=(o[k]||0)+1;});
     return Object.keys(o).sort((a,b)=>o[b]-o[a]).map(k=>[k,o[k]]);};
+  /* HITSPLAIN_V1347 Quinn：「這些我看不是那麼懂」。
+     本來直接把路徑和語言代碼印出來（/en、zh-Hant），那是給工程師看的。
+     這裡一律翻成她看得懂的話。 */
+  const LANGNAME={'en':'英文','zh-tw':'繁體中文','zh-hant':'繁體中文','zh':'繁體中文',
+    'zh-cn':'簡體中文','zh-hans':'簡體中文','vi':'越南文','vn':'越南文'};
+  const langName=(x)=>{const v=String(x||'').trim().toLowerCase();
+    if(!v)return '沒記錄到';
+    return LANGNAME[v]||LANGNAME[v.split('-')[0]]||v;};
   const pageName=(x)=>{const v=String(x||'');
     if(/join\.html/.test(v))return '\u{1F4DD} 報名表';
-    if(v==='/'||/index\.html/.test(v)||/^\/(zh-tw|zh|vi|vn|en)$/i.test(v))return '\u{1F310} 官網首頁 '+v;
+    const m=v.match(/\/(zh-tw|zh-cn|zh|vi|vn|en)(?:$|\/|\?)/i);
+    if(m)return '\u{1F310} 官網（'+langName(m[1])+'）';
+    if(v==='/'||/index\.html/.test(v))return '\u{1F310} 官網首頁';
     return v;};
   const bar=(n,max)=>{const w=max?Math.max(3,Math.round(n/max*100)):0;
     return '<span style="display:inline-block;height:9px;width:'+w+'%;min-width:3px;background:var(--primary);border-radius:5px;vertical-align:middle"></span>';};
@@ -12535,9 +12569,10 @@ H.siteHits=async()=>{
     +card('\u{1F4C6} 上個月',prv.length+' 次','#5B6B80')
     +'</div>'
     +(cur.length?'':'<div class="hint" style="margin-bottom:12px">這個月還沒有紀錄。這個功能是今天才開始記的，之前的看不到。</div>')
+    /* HITSPLAIN_V1347 「用哪個語言看」拿掉了：官網每個語言是各自一頁，
+       所以它跟上面「看了哪一頁」講的是同一件事，列兩次只會讓人以為是兩種數字。 */
     +table('\u{1F4C4} 看了哪一頁',cnt(cur,'p'),pageName)
-    +table('\u{1F517} 從哪裡來',cnt(cur,'r'))
-    +table('\u{1F310} 用哪個語言看',cnt(cur,'l'))
+    +table('\u{1F517} 從哪裡找到的',cnt(cur,'r'))
     +(days.length?('<div class="form-sec"><div class="form-sec-h">\u{1F4C5} 這個月每一天</div>'
       +days.map(([k,n])=>'<div class="dash-row" style="gap:10px"><span style="flex:0 0 110px">'+esc(k)+'</span><span style="flex:1">'+bar(n,dmax)+'</span><b style="flex:0 0 52px;text-align:right">'+n+'</b></div>').join('')+'</div>'):'')
     +'<div class="hint" style="margin-top:12px">只記日期、頁面、來源網站和語言，沒有姓名、沒有 IP、不放 cookie。同一個人同一次開網站算一筆。</div>';
@@ -14131,7 +14166,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1342';
+const APP_BUILD='V1350';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -18454,6 +18489,16 @@ function authMsg(err){const c=((err&&err.code)||'')+'';if(c.indexOf('email-alrea
 async function createStudentAuth(email,password){
   const sec=firebase.apps.find(a=>a.name==='secondary')||firebase.initializeApp(window.FIREBASE_CONFIG,'secondary');
   const cred=await sec.auth().createUserWithEmailAndPassword(email,password);const u=cred.user.uid;await sec.auth().signOut();return u;}
+/* ADOPT_V1348 這個 Email 在 Firebase 已經有登入帳號的時候，createUser 一定失敗，
+   而且前端拿不到那個帳號的 uid（要 admin 權限才查得到）——所以本來就是死路：
+   既不能重開，也沒辦法接到學生身上（Quinn 卡在這裡）。
+   出路是用「那個帳號目前的密碼」登入一次，從登入結果拿到 uid，再寫到學生資料上。
+   密碼是 Quinn 自己輸入的，而且只用來登入、不會被改也不會存起來；
+   登入是在 secondary app 上做的，不會把她自己的後台登出。 */
+async function adoptStudentAuth(email,password){
+  const sec=firebase.apps.find(a=>a.name==='secondary')||firebase.initializeApp(window.FIREBASE_CONFIG,'secondary');
+  const cred=await sec.auth().signInWithEmailAndPassword(email,password);
+  const u=cred.user.uid;await sec.auth().signOut();return u;}
 function studentPortalUrl(){try{return location.origin+'/student.html';}catch(e){return 'student.html';}}
 function inviteModal(name,email,pw){
   const url=studentPortalUrl();
@@ -18553,12 +18598,84 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
   if(btn){btn.disabled=true;btn.textContent='建立中…';}
   try{const u=await createStudentAuth(email,pw);await DB.insert('students',Object.assign({uid:u,email},common));
     stuLastSave(common);/* STULAST_V1138 */ closeModal();await loadAll();render();ruLater();/* READUID_V973 */ inviteModal(name,email,pw);}
-  catch(err){toast('建立失敗：'+authMsg(err));if(btn){btn.disabled=false;btn.textContent='新增';}}};
+  catch(err){
+    /* ADOPT_V1348 已經有登入帳號 → 不要只丟一句失敗，給她把帳號接過來的出路 */
+    if(String((err&&err.code)||'').indexOf('email-already-in-use')>=0){
+      if(btn){btn.disabled=false;btn.textContent='新增';}
+      adoptAsk(email,common);return;}
+    toast('建立失敗：'+authMsg(err));if(btn){btn.disabled=false;btn.textContent='新增';}}};
+
+/* ADOPT_V1348 「這個 Email 已經有登入帳號」的出路 */
+function adoptAsk(email,common){
+  openModal('<div class="modal" style="max-width:520px"><div class="modal-head">'
+    +'<h3>\u{1F517} 這個 Email 已經有登入帳號</h3><button class="x" data-act="closeModal">\u00D7</button></div>'
+    +'<div class="modal-body">'
+    +'<div class="hint" style="margin-bottom:12px">'
+    +'<b>'+esc(email)+'</b> 在系統裡已經註冊過了，所以沒辦法再開一次新的。<br><br>'
+    +'如果那本來就是這位學生（或妳自己測試用）的帳號，'
+    +'在下面填<b>那個帳號現在的密碼</b>，就可以直接把它接到這位學生身上。<br>'
+    +'<span style="color:#1F6A54">密碼不會被更改、也不會存起來，只用來確認是這個帳號。</span></div>'
+    +'<div class="form-grid"><div class="field full"><label>這個帳號目前的密碼</label>'
+    +'<input id="adopt-pw" type="password" autocomplete="off" placeholder="至少 6 碼"></div></div>'
+    +'<div class="hint" style="margin-top:10px">如果密碼已經忘了：請那位學生到學生登入頁按「忘記密碼」重設，'
+    +'重設完再回來做一次；或是到 Firebase 主控台把那個帳號刪掉，再回來用「Email ＋ 初始密碼」重開。</div>'
+    +'<div class="err" id="adopt-err" style="margin-top:8px"></div></div>'
+    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+    +'<button class="btn btn-primary" data-act="adoptDo">\u{1F517} 把這個帳號接過來</button></div></div>');
+  ADOPT_CTX={email:email,common:common};}
+let ADOPT_CTX=null;
+H.adoptDo=async()=>{
+  if(!ADOPT_CTX)return;
+  const er=document.getElementById('adopt-err');
+  const pw=((document.getElementById('adopt-pw')||{}).value)||'';
+  const say=(m)=>{if(er)er.textContent=m;else toast(m);};
+  if(pw.length<6)return say('請填那個帳號目前的密碼（至少 6 碼）');
+  say('確認中…');
+  try{
+    const u=await adoptStudentAuth(ADOPT_CTX.email,pw);
+    await ensureAuthFresh();
+    const dup=(S.students||[]).find(x=>String(x.uid||'')===u);
+    if(dup)return say('這個帳號已經是學生「'+((dup.name)||'')+'」了，不用再接一次。');
+    await DB.insert('students',Object.assign({uid:u,email:ADOPT_CTX.email},ADOPT_CTX.common));
+    ADOPT_CTX=null;closeModal();await loadAll();render();
+    toast('接好了，他用原本的帳號密碼登入就會進學生版');
+  }catch(e){
+    const c=String((e&&e.code)||'');
+    if(/wrong-password|invalid-credential|invalid-login/.test(c))
+      say('密碼不對。可以請他用「忘記密碼」重設之後再試。');
+    else if(/user-not-found/.test(c))
+      say('找不到這個帳號，請確認 Email 有沒有打錯。');
+    else if(/too-many-requests/.test(c))
+      say('試太多次被暫時擋住了，請等幾分鐘再試。');
+    else say('接過來失敗：'+((e&&e.message)||e));
+  }};
 H.loginLog=(id)=>{const s=S.students.find(x=>x.id===id);const p=progOf(id);const logs=(((p&&Array.isArray(p.logins))?p.logins:[]).slice()).sort().reverse();
   const byDay={};logs.forEach(t=>{const d=fmtDate(t);(byDay[d]=byDay[d]||[]).push(fmtDT(t).slice(-5));});
   const rows=logs.length?Object.keys(byDay).map(d=>`<div class="dash-row" style="align-items:flex-start"><b style="min-width:96px">${esc(d)}</b><span class="muted">${byDay[d].map(esc).join('、')}</span><span class="grow"></span><span class="tag">${byDay[d].length} 次</span></div>`).join(''):'<div class="hint" style="padding:10px 0">還沒有登入記錄。學生下次登入後就會開始記錄。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>🕒 ${snm((s&&s.name)||'學生')} · 登入記錄</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="meta" style="margin-bottom:10px"><span>共 <b>${logs.length}</b> 次登入</span>${logs.length?`<span>最近：<b>${esc(fmtDT(logs[0]))}</b></span>`:''}</div>${rows}</div></div>`);};
+/* MEMBIND_V1345 把自己註冊的那個帳號綁成正式學生：
+   只是把會員的 uid 寫到學生資料上。會員那一筆不動（刪掉反而讓她無法回頭）。
+   綁好之後，他下次用原本註冊的那組帳密登入就會進學生版。 */
+H.acctBind=async(id)=>{
+  if(!IS_OWNER)return;
+  const s=(S.students||[]).find(x=>x.id===id);if(!s)return;
+  const m=memberByMail(s.email);
+  if(!m)return toast('找不到用這個 Email 註冊的會員，請重新整理再試');
+  if(!confirm('把自己註冊的帳號接到學生「'+(s.name||'')+'」身上？\n\n'
+    +'Email：'+String(s.email||'')+'\n'
+    +'註冊時填的名字：'+String(m.name||'（沒填）')+'\n\n'
+    +(String(s.uid||'')?'（這位學生原本記的登入帳號會被換成這一個）\n\n':'')
+    +'接過來之後，他用原本註冊的那組帳號密碼登入，就會看到妳指派的課程和作業。\n'
+    +'密碼還是他自己設的那組，妳不會看到也不用改。'))return;
+  try{
+    await ensureAuthFresh();
+    await DB.update('students',s.id,{uid:m.uid});
+    s.uid=m.uid;
+    toast('接好了，他下次登入就會進學生版');
+    render();
+  }catch(e){toast(writeErr('綁定失敗',e));}};
+
 H.resetPw=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s.email)return toast('此學生沒有 Email，無法寄送');if(!confirm('寄送重設密碼信給 '+s.name+'（'+s.email+'）？'))return;
   try{await firebase.auth().sendPasswordResetEmail(s.email);if(s.reset_requested)await DB.update('students',id,{reset_requested:null});await loadAll();render();toast('已寄出重設密碼信給學生');}catch(err){toast('寄送失敗：'+authMsg(err));}};
 
