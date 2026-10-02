@@ -2779,6 +2779,9 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           height:auto;border:none;box-shadow:none;background:none}
         .itv-acts .hmore-p .btn:hover{background:#F4F7FB}
         .hmore-p .hmore-sep{display:block;height:1px;background:var(--line);margin:5px 2px}
+        /* HIDE_V1340 收在「⋯ 更多」裡的文件階段鈕：維持原本的小橫排，不要被拉成整行 */
+        .hmore-p .wr-steps-m>div{margin-top:0 !important}
+        .hmore-p .wr-steps-m .btn{width:auto;justify-content:center;font-size:12.5px;padding:5px 9px}
         /* OVERFIX_V1336 「多收了」那顆徽章是可以按的，給它按鈕的手感 */
         /* ITVEDIT_V1336 標題列的小鉛筆 */
         /* 狀態那一格會裁切（overflow:hidden），不寫 flex:none 的話這顆鉛筆
@@ -6850,7 +6853,7 @@ function renderWriting(){
   if(!list.length){body.innerHTML=head+`<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">✍️</div>
     <h3 style="margin:8px 0">還沒有代書客戶</h3>
     <div class="hint" style="max-width:560px;margin:0 auto 14px">按「＋ 新增代書客戶」填姓名、要寫哪些文件、交件期限、談定總費用。<br>
-    建好之後卡片上會有五個階段的按鈕：收資料 → 初稿 → 修改 → 定稿 → 交件，做完一個就點一下，會自動記今天的日期。</div>
+    建好之後，卡片上的「⋯ 更多」裡會有五個階段：收資料 → 初稿 → 修改 → 定稿 → 交件，做完一個就點一下，會自動記今天的日期；目前做到哪一步會顯示在客戶名字旁邊。</div>
     <button class="btn btn-primary" data-act="wrNew">＋ 新增代書客戶</button></div>`;return;}
   const _foc=crmFocusOf(list);
   const mkRows=(arr)=>arr.map(c=>{/* CRMBAND_V1100 */
@@ -6882,7 +6885,9 @@ function renderWriting(){
       </div></summary><div class="crm-body">
       ${realHas(c)?`<div class="hint" style="margin-top:2px">真實姓名：<b>${esc(realHas(c))}</b></div>`:''/* REALNAME_V1108 */}${lifeLine(c)/* LIFE_V1106 */}${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EEF0F3;color:#5B6B80;border-color:#C0CEE0">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
       ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#6A7C95">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#F4F7FB;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
-      ${wrStepper(c)}
+      ${''/* HIDE_V1340 五個階段鈕從卡片版面上拿掉，改收進下面的「⋯ 更多」。
+           本來想整組移除，但查過客戶資料視窗裡沒有階段欄位——那五顆是唯一能推進度的地方，
+           拿光的話標題還寫著「📮 交件 3/5」卻改不動，變成死路。 */}
       ${wrFeeBlock(c)}
       <!-- CRM_ROW_V11 -->
       <div class="itv-acts">
@@ -6894,7 +6899,9 @@ function renderWriting(){
         <button class="btn btn-accent" data-act="wrPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
         ${(function(){const st=wrStage(c);/* WRLOST_V1060 */
           const more='<button class="btn btn-file" data-act="crmBox" data-id="writing::'+esc(c.id)+'">📎 檔案</button>'
-            +driveBtnHtml(c);
+            +driveBtnHtml(c)
+            /* HIDE_V1340 文件階段（收資料→交件）收到這裡 */
+            +'<i class="hmore-sep"></i><div class="wr-steps-m">'+wrStepper(c)+'</div>';
           const fold=(inner)=>'<details class="hmore"><summary class="btn">⋯ 更多</summary><div class="hmore-p">'+inner+'</div></details>';
           if(st==='consult')return fold(more)+'<i class="itv-sep"></i>'
             +'<button class="btn btn-accent" data-act="wrStageSet" data-id="'+esc(c.id)+'::case">✅ 轉成進行中</button>'
@@ -7054,10 +7061,9 @@ function renderAgency(){
           if(close.indexOf('crmCloseDue')>=0)return fold(more)+'<i class="itv-sep"></i>'+close;
           return fold(more+'<i class="hmore-sep"></i>'+close);})()}
       </div>
-      ${(c.next_do||c.next_on)?`<div class="ag-next">👉 下一步：<b>${esc(c.next_do||'（還沒寫）')}</b>${c.next_on?`　·　${esc(c.next_on)}`:''}
-        <span style="flex:1"></span>
-        <button class="btn btn-sm" data-act="agNextDone" data-id="${esc(c.id)}" title="做完了：記成一筆進度，這一行就清掉">✓ 做完了</button>
-        <button class="btn btn-sm btn-ghost" data-act="agEdit" data-id="${esc(c.id)}" title="改下一步">✏️ 改</button></div>`:''}
+      ${''/* HIDE_V1340 代辦卡片上的「👉 下一步」那一條拿掉。
+           next_do／next_on 的內容還存在資料裡，客戶資料視窗裡也還能改，
+           只是卡片上不再多出這一條。 */}
       <div style="margin-top:8px">${logHtml}</div>
     </div></details>`;}).join('');
   if(_foc){body.innerHTML=crmBackBar(_fkind,_foc)+'<div class="crm-list">'+mkRows([_foc])+'</div>';return;}
@@ -14100,7 +14106,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1339';
+const APP_BUILD='V1340';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
