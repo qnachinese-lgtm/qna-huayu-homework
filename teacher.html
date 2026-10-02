@@ -6830,7 +6830,7 @@ function wrFeeBlock(c){
       ${tot?(left>0?`<span style="color:#A33227">還差 <b>${money(left,cur)}</b></span>`:(overTag(tot,got,cur,crmOff(c))||'<span class="badge badge-ok">✓ 已收齊</span>')):''}
       <span class="muted" style="font-size:12px">共 ${payReal(pays).length} 期${crmOff(c)?('・不收了 '+money(crmOff(c),cur)):''}</span></div>
     ${tot?`<div style="height:8px;background:#DCE5F0;border-radius:99px;margin:9px 0 4px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:#1F6A54"></i></div>`:''}
-    ${rows||'<div class="hint" style="margin-top:6px">還沒有收款記錄，按下面「💰 記一筆收款」。</div>'}</div>`;}
+    ${rows||''}</div>`;}
 function renderWriting(){
   const body=$('#writing-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','代書只有主管理員看得到。');return;}
@@ -6863,7 +6863,7 @@ function renderWriting(){
         <span class="cc st">${(function(){const st=wrStage(c);if(st!=='case'){const m=WR_STAGE[st];
           return '<span class="badge" style="background:'+m[1]+'18;color:'+m[1]+';border-color:'+m[1]+'55">'+m[0]+'</span>';}
           if(crmSoon(c))return crmSoonBadge(c);/* CRMSOON_V1083 */
-          return done?crmDoneBadge(c):`<span class="badge badge-ok">${cur?esc(cur.ic+' '+cur.t):'尚未開始'}</span>`;})()}</span>
+          return done?crmDoneBadge(c):`<span class="badge badge-ok">${cur?esc(cur.ic+' '+cur.t):'尚未開始'}</span>`;})()}<button class="crm-ed" data-act="wrEdit" data-id="${esc(c.id)}" title="改客戶資料" aria-label="改客戶資料">✏️</button></span>
         <span class="cc sch">${wrDocChips(c)}${c.school?`<span class="tag">🏫 ${esc(c.school)}</span>`:''}</span>
         <span class="cc dt">${wrIsLost(c)?'':wrDeadlineBadge(c)/* WRLOST_V1060 沒談成不用再催交件 */}</span>
         <span class="cc num">${n}/${WR_STAGES.length}</span>
@@ -6886,15 +6886,24 @@ function renderWriting(){
       ${wrFeeBlock(c)}
       <!-- CRM_ROW_V11 -->
       <div class="itv-acts">
+        <!-- CRMSAME_V1339 代書和代辦的卡片還停在舊樣子（外面 5 顆、沒有標題鉛筆、
+             還印「還沒有…」），面試那張早就改過了。量出來：代書 288px、代辦 347px、
+             面試 226px。三張是同一種東西，照面試那一套統一。
+             常按的留外面，偶爾的和「結案／中途放棄」收進「⋯ 更多」；
+             諮詢階段的 CTA 和「處理未收」留在外面。 -->
         <button class="btn btn-accent" data-act="wrPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
-        <button class="btn btn-file" data-act="crmBox" data-id="writing::${esc(c.id)}">📎 檔案</button>
-        ${driveBtnHtml(c)}
-        <button class="btn" data-act="wrEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button>
-        <i class="itv-sep"></i>${(function(){const st=wrStage(c);/* WRLOST_V1060 */
-          if(st==='consult')return '<button class="btn btn-accent" data-act="wrStageSet" data-id="'+esc(c.id)+'::case">✅ 轉成進行中</button>'
+        ${(function(){const st=wrStage(c);/* WRLOST_V1060 */
+          const more='<button class="btn btn-file" data-act="crmBox" data-id="writing::'+esc(c.id)+'">📎 檔案</button>'
+            +driveBtnHtml(c);
+          const fold=(inner)=>'<details class="hmore"><summary class="btn">⋯ 更多</summary><div class="hmore-p">'+inner+'</div></details>';
+          if(st==='consult')return fold(more)+'<i class="itv-sep"></i>'
+            +'<button class="btn btn-accent" data-act="wrStageSet" data-id="'+esc(c.id)+'::case">✅ 轉成進行中</button>'
             +'<button class="btn" data-act="wrStageSet" data-id="'+esc(c.id)+'::lost">✕ 沒談成</button>';
-          if(st==='lost')return '<button class="btn" data-act="wrStageSet" data-id="'+esc(c.id)+'::consult">↩︎ 放回諮詢中</button>';
-          return crmCloseBtns(c,'wrToggle');})()}</div>
+          if(st==='lost')return fold(more)+'<i class="itv-sep"></i>'
+            +'<button class="btn" data-act="wrStageSet" data-id="'+esc(c.id)+'::consult">↩︎ 放回諮詢中</button>';
+          const close=crmCloseBtns(c,'wrToggle');
+          if(close.indexOf('crmCloseDue')>=0)return fold(more)+'<i class="itv-sep"></i>'+close;
+          return fold(more+'<i class="hmore-sep"></i>'+close);})()}</div>
     </div></details>`;}).join('');
   /* CRMBAND_V1100 跟代辦、面試同一種版面 */
   body.innerHTML=_foc
@@ -6988,14 +6997,14 @@ function renderAgency(){
     const paidAll=itvMoneyStr(agPaidSum(c,null));const due=itvMoneyStr(agDueSum(c));const rm=agResultMeta(c.result);
     const rowHtml=(e)=>{const idx=agLog(c).indexOf(e);const wd=e.date?DAYS[(new Date(e.date+'T00:00:00').getDay()+6)%7]:'';const feeStr=(e.fee!=null&&e.fee!=='')?money(e.fee,e.currency||'VND'):'';
       return `<div class="dash-row" style="padding:7px 0;flex-wrap:wrap;align-items:flex-start"><b>${esc(e.date)}</b>${wd?`<span class="muted" style="font-size:12px;margin-left:4px">（${wd}）</span>`:''}${feeStr?`<span class="muted" style="margin-left:6px">${feeStr}</span>`:''}${(e.fee!=null&&e.fee!=='')?(e.pass?'<span class="badge" title="學生的錢經過我這裡再付出去，不算我的收入">↔ 代收代付</span>':(e.paid?'<span class="badge badge-ok">已收</span>':'<span class="badge badge-overdue">未收</span>')):''}<span class="grow"></span><button class="btn btn-sm" data-act="agLogEdit" data-id="${esc(c.id)}::${idx}">✏️</button><button class="btn btn-sm btn-danger" data-act="agLogDel" data-id="${esc(c.id)}::${idx}">✕</button><div style="flex-basis:100%;margin-top:2px">${e.action?`<div>📋 <b>做了什麼：</b>${esc(e.action)}</div>`:''}${e.content?`<div style="margin-top:2px">📎 <b>上傳內容：</b>${esc(e.content)}</div>`:''}${e.note?`<div class="muted" style="margin-top:2px">${esc(e.note)}</div>`:''}</div></div>`;};
-    const logHtml=lg.length?lg.map(rowHtml).join(''):'<div class="hint" style="padding:6px 0">還沒有進度，按「＋ 新增一筆進度」開始。</div>';
+    const logHtml=lg.length?lg.map(rowHtml).join(''):'';
     return `<details class="card crm-card${done?' card-done':''}" data-cid="${esc(c.id)}" style="margin-bottom:10px"${(S.crmFocus===c.id)?' open':''}><summary class="crm-sum" data-act="crmFocus" data-id="${esc(c.id)}">
       <span class="crm-chev">▸</span><div class="crm-head">
         <span class="cc nm"><b>${snm(c.name||'（未命名）')}</b></span><!-- DUPEDIT_V1244 這顆跟底下的「✏️ 客戶資料」同一個動作，拿掉 -->
         <span class="cc st">${(function(){const st=agStage(c);if(st!=='case'){const m=AG_STAGE[st];
           return '<span class="badge" style="background:'+m[1]+'18;color:'+m[1]+';border-color:'+m[1]+'55">'+m[0]+'</span>';}
           if(crmSoon(c))return crmSoonBadge(c);/* CRMSOON_V1083 */
-          return done?crmDoneBadge(c):'<span class="badge badge-ok">進行中</span>';})()}</span>
+          return done?crmDoneBadge(c):'<span class="badge badge-ok">進行中</span>';})()}<button class="crm-ed" data-act="agEdit" data-id="${esc(c.id)}" title="改客戶資料" aria-label="改客戶資料">✏️</button></span>
         <span class="cc sch">${agSchTags(c)}${c.goal?`<span class="tag">🎯 ${esc(c.goal)}</span>`:''}</span>
         <span class="cc dt">${agIsConsult(c)
           ?(c.next_on||c.next_do?`<span class="badge rbadge" title="${esc(c.next_do||'')}" style="background:#2C6FB518;color:#1E4C86;border-color:#2C6FB555">👉 ${esc(c.next_on||'')||'下一步'}</span>`:'')
@@ -7025,14 +7034,25 @@ function renderAgency(){
       ${docSummaryHtml(c)}
       <div class="itv-acts">
         <!-- CRMBTN_V1239 名字直接寫清楚裡面是什麼；文件那幾顆全部收到上面那一條文件欄，不重複 -->
+        <!-- CRMSAME_V1339 代書和代辦的卡片還停在舊樣子（外面 5 顆、沒有標題鉛筆、
+             還印「還沒有…」），面試那張早就改過了。量出來：代書 288px、代辦 347px、
+             面試 226px。三張是同一種東西，照面試那一套統一。
+             常按的留外面，偶爾的和「結案／中途放棄」收進「⋯ 更多」；
+             諮詢階段的 CTA 和「處理未收」留在外面。 -->
         <button class="btn btn-accent" data-act="agLogNew" data-id="${esc(c.id)}">＋ 新增一筆進度</button>
         <button class="btn" data-act="agPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
-        <button class="btn" data-act="agEdit" data-id="${esc(c.id)}">✏️ 客戶資料</button><!-- TIDY_V1250 檔案那一顆在上面那一條，不重複 -->
-        <i class="itv-sep"></i>${(function(){const st=agStage(c);
-          if(st==='consult')return '<button class="btn btn-accent" data-act="agStageSet" data-id="'+esc(c.id)+'::case">✅ 轉成正式案件</button>'
+        ${(function(){const st=agStage(c);
+          /* 代辦的檔案在上面那一條文件欄，所以「更多」裡只有雲端連結 */
+          const more=driveBtnHtml(c)||'';
+          const fold=(inner)=>inner?('<details class="hmore"><summary class="btn">⋯ 更多</summary><div class="hmore-p">'+inner+'</div></details>'):'';
+          if(st==='consult')return fold(more)+'<i class="itv-sep"></i>'
+            +'<button class="btn btn-accent" data-act="agStageSet" data-id="'+esc(c.id)+'::case">✅ 轉成正式案件</button>'
             +'<button class="btn" data-act="agStageSet" data-id="'+esc(c.id)+'::lost">✕ 沒談成</button>';
-          if(st==='lost')return '<button class="btn" data-act="agStageSet" data-id="'+esc(c.id)+'::consult">↩︎ 放回諮詢中</button>';
-          return crmCloseBtns(c,'agToggle');})()}
+          if(st==='lost')return fold(more)+'<i class="itv-sep"></i>'
+            +'<button class="btn" data-act="agStageSet" data-id="'+esc(c.id)+'::consult">↩︎ 放回諮詢中</button>';
+          const close=crmCloseBtns(c,'agToggle');
+          if(close.indexOf('crmCloseDue')>=0)return fold(more)+'<i class="itv-sep"></i>'+close;
+          return fold(more+'<i class="hmore-sep"></i>'+close);})()}
       </div>
       ${(c.next_do||c.next_on)?`<div class="ag-next">👉 下一步：<b>${esc(c.next_do||'（還沒寫）')}</b>${c.next_on?`　·　${esc(c.next_on)}`:''}
         <span style="flex:1"></span>
@@ -14080,7 +14100,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1338';
+const APP_BUILD='V1339';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -21053,7 +21073,7 @@ function agFeeBlock(c){
       <button class="btn btn-sm" data-act="agPayEdit" data-id="${esc(c.id)}::${i}">✏️</button>
       <button class="btn btn-sm btn-danger" data-act="agPayDel" data-id="${esc(c.id)}::${i}">✕</button></div>`).join('')
     +passLine(pays)/* PASSPAY_V1107 */;
-  const body=rows||'<div class="hint" style="margin-top:6px">還沒有收款記錄，按「💰 記一筆收款」。</div>';
+  const body=rows||'';
   /* AGREJ_V1061 用未錄取價算的時候，標題講清楚，原本談定多少也寫在後面 */
   const rj=agRejOn(c),ov=agOver(c);
   /* 未錄取價填 0 又還沒收過錢：金額全是 0，下面那條進度條會自己消失，
