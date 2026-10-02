@@ -6552,16 +6552,22 @@ H.wbRecall=async()=>{
   try{
     if(navigator.standalone)return;
     if(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)return;
-    if(localStorage.getItem('qna_a2hs_x'))return;
+    /* A2HSPC_V1343 本來按一次 ✕ 就永久不再出現（localStorage 存 '1'）。
+       學生當初順手關掉，之後就再也找不到入口了。改成記 30 天。 */
+    try{var _x=localStorage.getItem('qna_a2hs_x');
+      if(_x){var _t=Number(_x);
+        if(!_t||isNaN(_t)){localStorage.removeItem('qna_a2hs_x');}   /* 舊的 '1' 清掉 */
+        else if(Date.now()-_t<30*24*3600*1000)return;}
+    }catch(e){}
     var deferred=null;
     function bar(html){
       if(document.getElementById('a2hs'))return;
       var d=document.createElement('div');d.id='a2hs';
       d.style.cssText='position:fixed;left:12px;right:12px;bottom:12px;z-index:90;background:#1E4C86;color:#fff;border-radius:14px;padding:11px 14px;box-shadow:0 8px 24px rgba(0,0,0,.22);display:flex;align-items:center;gap:10px;font-size:14px;max-width:520px;margin:0 auto';
       d.innerHTML=html;document.body.appendChild(d);
-      d.querySelector('[data-x]').onclick=function(){d.remove();try{localStorage.setItem('qna_a2hs_x','1');}catch(e){}};
+      d.querySelector('[data-x]').onclick=function(){d.remove();try{localStorage.setItem('qna_a2hs_x',String(Date.now()));}catch(e){}};
       var ib=d.querySelector('[data-install]');
-      if(ib)ib.onclick=async function(){if(deferred){deferred.prompt();try{await deferred.userChoice;}catch(e){}deferred=null;}d.remove();try{localStorage.setItem('qna_a2hs_x','1');}catch(e){}};
+      if(ib)ib.onclick=async function(){if(deferred){deferred.prompt();try{await deferred.userChoice;}catch(e){}deferred=null;}d.remove();try{localStorage.setItem('qna_a2hs_x',String(Date.now()));}catch(e){}};
     }
     var X='<button data-x aria-label="close" style="background:transparent;border:0;color:#fff;font-size:20px;cursor:pointer;line-height:1;flex:none">×</button>';
     window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferred=e;
@@ -6604,6 +6610,38 @@ H.wbRecall=async()=>{
         bar('<span style="flex:1">📲 點下方「分享」→「加入主畫面」'
           +'<br><span style="opacity:.85;font-size:12.5px">Bấm Chia sẻ → Thêm vào màn hình chính</span></span>'+COPY+X);
         var d=document.getElementById('a2hs');if(d)wire(d);},2800);
+    }else{
+      /* A2HSPC_V1343 Quinn 的學生回報「電腦加不進去」。
+         原本只處理三種情況：beforeinstallprompt 有觸發、App 內建瀏覽器、iOS。
+         桌機是第四種，完全沒被接到——
+         Mac 的 Safari 永遠不會觸發 beforeinstallprompt，Firefox 根本不支援安裝，
+         所以那些學生看到的是「什麼都沒有」，不是「按了沒反應」。
+         線上的安裝條件我查過都正常（manifest、兩個圖示、sw 都是 200，HTTPS，standalone），
+         所以缺的只是「告訴他要去哪裡按」。等 3 秒，Chrome 如果已經給了安裝鈕就不多嘴。 */
+      setTimeout(function(){
+        if(deferred)return;                                  /* Chrome/Edge 已經接手 */
+        if(document.getElementById('a2hs'))return;
+        try{if(matchMedia('(display-mode: standalone)').matches)return;}catch(e){}  /* 已經裝好了 */
+        var how,howVi;
+        if(/Edg\//.test(ua)){
+          how='網址列右邊的「安裝」圖示（⊞）點一下';
+          howVi='Bấm biểu tượng cài đặt (⊞) ở bên phải thanh địa chỉ';
+        }else if(/Firefox\//.test(ua)){
+          how='Firefox 沒有安裝功能，請改用 Chrome 或 Edge 開這一頁';
+          howVi='Firefox không cài được; hãy mở trang này bằng Chrome hoặc Edge';
+        }else if(/Chrome\//.test(ua)){
+          how='網址列右邊的「安裝」圖示（⊞）點一下；沒看到的話按右上角 ⋮ →「投放、儲存及分享」→「安裝」';
+          howVi='Bấm biểu tượng cài đặt (⊞) bên phải thanh địa chỉ, hoặc ⋮ → Cài đặt';
+        }else if(/Safari\//.test(ua)){
+          how='Safari 上方選單「檔案」→「加入 Dock」';
+          howVi='Safari: menu Tệp (File) → Thêm vào Dock';
+        }else{
+          how='用 Chrome 或 Edge 開這一頁，網址列右邊會出現「安裝」圖示';
+          howVi='Mở bằng Chrome hoặc Edge, biểu tượng cài đặt sẽ hiện ở thanh địa chỉ';
+        }
+        bar('<span style="flex:1">💻 '+how
+          +'<br><span style="opacity:.85;font-size:12.5px">'+howVi+'</span></span>'+COPY+X);
+        var d=document.getElementById('a2hs');if(d)wire(d);},3000);
     }
   }catch(e){}
 })();
