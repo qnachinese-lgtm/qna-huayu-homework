@@ -333,11 +333,24 @@ function Shop(root, cfg){
     else if (st.seq) setTimeout(sayCurrent, 1500);
   }
   let WHYPY = "";
-  function why(parts){
-    const r = parts.find(s => s in RAD), cp = parts.find(s => !(s in RAD)); const bits = [];
+  // 少數字的字理要特別說明（自動規則講不清楚的）
+  const ZILI = {
+    "做": "「做」是「作」的後起字（《說文》只收「作」：起也，从人从乍）。亻表示人，人去「做」事；右邊的「故」只是字形，不表音"
+  };
+  // 韻母核心：去掉聲母和介音，ing≈eng、in≈en，用來判斷「讀音相近」
+  const pyFinal = p => toneless(p).replace(/^(zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])/, "").replace(/^[iuvü](?=[aeo])/, "").replace(/^ing$/, "eng").replace(/^in$/, "en");
+  function why(parts, c){
+    if (c && ZILI[c]) return ZILI[c];
+    const r = parts.find(s => s in RAD), rest = parts.filter(s => s !== r); const bits = [];
     if (r && RAD[r].hint) bits.push(`${r}（${RAD[r].name}）表示「${RAD[r].hint.replace(/\n/g, "；")}」`);
     else if (r) bits.push(`${r}（${RAD[r].name}）`);
-    if (cp && pyOf(cp)) bits.push(`${cp} 讀 ${pyOf(cp)}` + (WHYPY && toneless(pyOf(cp)) === toneless(WHYPY) ? "，和這個字的讀音一樣，是聲音線索" : ""));
+    const cp = rest.find(s => pyOf(s) && "口十八丷冂厶亠一丁".indexOf(s) < 0);
+    if (cp && WHYPY) {
+      const a = pyOf(cp).split(/[\/,，、 ]/)[0], same = toneless(a) === toneless(WHYPY);
+      if (same) bits.push(`「${cp}」讀 ${a}，和這個字的讀音一樣，是聲音線索`);
+      else if (pyFinal(a) && pyFinal(a) === pyFinal(WHYPY)) bits.push(`「${cp}」讀 ${a}，和這個字的讀音相近，可以當聲音線索`);
+      else bits.push(`「${cp}」` + (toneless(a) !== a.toLowerCase() ? `（${a}）` : "") + `跟這個字的讀音不同，不是讀音線索`);
+    }
     return bits.join("；");
   }
   function showResult(x, isBonus){
@@ -345,7 +358,7 @@ function Shop(root, cfg){
     const parts = isBonus ? x.p : (CH[x.c].p || []);
     const hw = el("div", {class:"hw"});
     const info = el("div", {}, [el("div", {class:"big"}, [el("b", {text:x.c}), "　" + x.py + "　" + x.w]),
-      el("div", {class:"why", text: isBonus ? "加分字" : "記憶提示：" + x.tip}), el("div", {class:"why", text:(WHYPY = x.py, "字理：" + why(parts))})]);
+      el("div", {class:"why", text: isBonus ? "加分字" : "記憶提示：" + x.tip}), el("div", {class:"why", text:(WHYPY = x.py, "字理：" + why(parts, isBonus ? "" : x.c))})]);
     const sayB = el("button", {class:"btn small", text:"聽讀音"}); sayB.onclick = () => say(x.c + "，" + x.w);
     const againB = el("button", {class:"btn small", text:"再看一次筆順"});
     info.append(el("div", {class:"acts"}, [sayB, againB]));
