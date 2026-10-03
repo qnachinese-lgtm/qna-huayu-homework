@@ -1740,6 +1740,53 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         #app .panel .pagebar{min-height:36px;align-items:center}
         #app .panel .segbar{align-self:center}
         /* ===== CRM_TABLE_V15 客戶清單排成表格 ===== */
+
+        /* ═══ FLATBAR_V1352 篩選列全部改成「文字＋底線」 ═══
+           Quinn：「每一頁都是不同的風格是怎麼樣？」量出來同一排裡並排的小按鈕有四種長相：
+           .segb 高32圓角0無框字重700／.btn btn-sm 高30圓角8有框字重500／
+           .btn 高37圓角10有框／.sg-chip 圓角999實心藥丸。學生頁最明顯——
+           「在學中｜全部」一個盒子、「其他狀態▾」自己一個盒子、「沒有Email」又一個，
+           三個盒子擠在同一排，怎麼排都不整齊。
+           解法不是把四種盒子調成一樣，而是把盒子拿掉：篩選＝文字＋底線，
+           只有真正的動作（新增、匯出）才留框。兩種東西終於看得出差別。 */
+        #app .segbar,#app .panel .segbar{display:inline-flex;align-items:stretch;gap:20px;
+          background:transparent!important;border:0!important;border-radius:0!important;
+          overflow:visible!important}
+        #app .segbar .segb,#app .panel .segbar .segb,
+        #app .stu-more>summary.segb,#app .panel .stu-more>summary.segb,
+        #app .sg-chip,#app .panel .sg-chip{
+          background:transparent!important;border:0!important;border-radius:0!important;
+          border-bottom:2px solid transparent!important;
+          padding:7px 1px 8px!important;min-height:0!important;
+          font-size:13.5px!important;font-weight:600!important;color:var(--muted)!important;
+          /* <button> 的 line-height 是 normal，<summary> 繼承 body 的 1.6——
+             同一排會差 4px，底線就對不齊。三種都寫死 1.25。 */
+          line-height:1.25!important;
+          display:inline-flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;
+          transition:color .15s,border-color .15s}
+        #app .segbar .segb:hover,#app .panel .segbar .segb:hover,
+        #app .stu-more>summary.segb:hover,#app .sg-chip:hover{
+          background:transparent!important;color:var(--accent,#1E4C86)!important}
+        #app .segbar .segb.on,#app .panel .segbar .segb.on,
+        #app .stu-more>summary.segb.on,#app .sg-chip.on{
+          background:transparent!important;color:#14365F!important;font-weight:800!important;
+          border-bottom-color:var(--accent,#1E4C86)!important}
+        #app .segbar .segn{font-size:11px;background:#E4EDF9;color:#30507B;
+          border-radius:999px;padding:1px 7px;font-weight:700}
+        #app .segbar .segb.on .segn{background:var(--accent,#1E4C86);color:#fff}
+        /* 「其他狀態 ▾」本來靠在 .segbar 外面，間距要跟組內一致 */
+        #app .stu-more{margin-left:20px}
+        /* 整排踩在一條細線上，下面的內容才知道這排是「篩選」不是「內容」 */
+        #app .panel .pagebar,#app .stu-bar,#app .cal-top,#app .sg-filters{
+          align-items:flex-end;border-bottom:1px solid var(--line);
+          padding-bottom:0;margin-bottom:14px;gap:0 8px}
+        #app .panel .pagebar{min-height:38px}
+        /* 動作鈕（新增、匯出…）維持原本的框，但要浮在細線上面 */
+        #app .panel .pagebar>.btn,#app .stu-bar>.btn,#app .cal-top>.btn,
+        #app .panel .pagebar>details.hmore,#app .stu-bar>details.hmore{margin-bottom:6px}
+        #app .segbar+.btn,#app .segbar+details{margin-left:12px}
+
+        /* ===== CRM_TABLE_V15 續 ===== */
         .crm-list{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
         .crm-list>details.crm-card{margin:0;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none}
         .crm-list>details.crm-card:last-child{border-bottom:0}
@@ -11823,49 +11870,10 @@ function sgAdvance(){const list=sgVisible();if(!list.length){S.sgSel=null;return
   sgOpen(list[idx]);}
 /* 學生進度（批改・成績頁用） */
 /* ===================== 📕 錯題本（老師端） ===================== */
-const MIST_TAGS=[
-  {k:'tone',zh:'聲調'},{k:'pinyin',zh:'拼音混淆'},{k:'hanzi',zh:'漢字形近'},{k:'measure',zh:'量詞'},
-  {k:'order',zh:'語序'},{k:'word',zh:'用詞'},{k:'read',zh:'看錯題目'},{k:'other',zh:'其他'}];
-function mistTagName(k){const t=MIST_TAGS.find(x=>x.k===k);return t?t.zh:'';}
-function mistSrcName(src){return ({wb:'📒 作業簿',quiz:'📝 小考',prac:'✍️ 課文練習',gprac:'📐 語法練習'}[src])||'📕';}
-function mistDocs(){return (S.mistakes||[]).filter(d=>d&&Array.isArray(d.items)&&d.items.length);}
-function mistStuName(d){const s=(S.students||[]).find(x=>x.id===d.student_id);return (s&&s.name)||d.student_name||'（未知學生）';}
-function mistUntagged(){let n=0;mistDocs().forEach(d=>d.items.forEach(it=>{if(!it.mastered&&!it.tag)n++;}));return n;}
-function mistTagSelect(docId,key,cur){
-  return `<select class="mist-tag" data-mk="${esc(docId)}::${esc(key)}" style="font-family:inherit;font-size:13px;padding:3px 6px;border-radius:8px;border:1px solid var(--line)">
-    <option value=""${cur?'':' selected'}>錯因…</option>
-    ${MIST_TAGS.map(t=>`<option value="${t.k}"${cur===t.k?' selected':''}>${t.zh}</option>`).join('')}</select>`;
-}
-function mistTagHtml(){
-  const docs=mistDocs();
-  if(!docs.length)return '<div class="hint">還沒有錯題。學生作業簿或小考答錯時會自動收進來。</div>';
-  return docs.map(d=>{
-    const items=(d.items||[]).filter(it=>!it.mastered);
-    if(!items.length)return '';
-    const un=items.filter(it=>!it.tag).length;
-    const by={};items.forEach(it=>{if(it.tag)by[it.tag]=(by[it.tag]||0)+1;});
-    const chips=Object.keys(by).sort((a,b)=>by[b]-by[a]).map(k=>`<span class="tag">${esc(mistTagName(k))} ${by[k]}</span>`).join('');
-    const rows=items.slice().sort((a,b)=>(a.tag?1:0)-(b.tag?1:0)||String(a.due).localeCompare(String(b.due))).map(it=>
-      `<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start;padding:7px 0">
-        <span class="tag">${esc(mistSrcName(it.src))}</span>
-        <b style="flex:1;min-width:180px">${esc(String(it.q||it.k).slice(0,80))}</b>
-        ${mistTagSelect(d.id,it.k,it.tag||'')}
-        <div style="flex-basis:100%;margin-top:3px" class="hint">
-          ${it.a?('學生寫：'+esc(it.a)+'　'):''}${it.c?('正解：'+esc(it.c)+'　'):''}· ${esc(it.title||'')} · 第 ${(it.stage||0)+1} 輪，${esc(it.due||'')} 再考${it.wrong>1?('　· 錯過 '+it.wrong+' 次'):''}
-        </div></div>`).join('');
-    return `<details class="disc"${un?' open':''} style="margin-top:10px"><summary><b>${snm(mistStuName(d))}</b>　<span class="hint">${items.length} 題${un?('・'+un+' 題還沒標錯因'):'・都標好了 ✓'}</span></summary>
-      ${chips?`<div style="margin:8px 0;display:flex;gap:6px;flex-wrap:wrap">${chips}</div>`:''}
-      <div style="margin-top:6px">${rows}</div></details>`;
-  }).join('');
-}
-async function mistSetTag(docId,key,tag){
-  const d=(S.mistakes||[]).find(x=>x.id===docId);if(!d)return;
-  const items=(d.items||[]).slice();const it=items.find(x=>x.k===key);if(!it)return;
-  it.tag=tag||'';
-  try{await DB.update('results',docId,{items:items,updated_at:new Date().toISOString()});d.items=items;
-    toast(tag?('已標記：'+mistTagName(tag)):'已清掉錯因');}
-  catch(e){toast(writeErr('儲存失敗',e));}
-}
+/* MISTRM_V1352 Quinn：「我感覺他沒存在的必要」。「錯題本・標錯因」整組拿掉——
+   老師這邊的標記介面、學生那邊的「你最常錯的地方」統計和每題的錯因標籤都不留。
+   學生的錯題本本身（答錯的題自動收進去、分輪複習）照舊，沒有動。
+   已經標過的 tag 欄位留在資料裡，沒有刪任何一筆資料。 */
 function gradeProgHtml(){
   const rows=(S.students||[]).filter(s=>!s.is_test&&!s.deleted_at).map(s=>{const p=studentProgress(s);
     return `<div class="dash-row">
@@ -11911,7 +11919,7 @@ function renderGrades(){
     +'<details class="disc" style="margin-top:18px"><summary>📊 各課成績總表</summary><div id="grades-matrix" style="margin-top:10px"></div></details>'
     +'<details class="disc" style="margin-top:12px"'+(_hwN?' open':'')+'><summary>📮 還沒交作業'+(_hwN?('（逾期 '+_hwN+'）'):'')+'</summary><div style="margin-top:10px">'+hwDueHtml()+'</div></details>'
     +'<details class="disc" style="margin-top:12px"><summary>📈 學生進度</summary><div style="margin-top:10px">'+gradeProgHtml()+'</div></details>'
-    +'<details class="disc" style="margin-top:12px"><summary>📕 錯題本・標錯因'+(mistUntagged()?('（'+mistUntagged()+' 題待標）'):'')+'</summary><div style="margin-top:10px"><div class="hint" style="margin-bottom:8px">學生答錯的題會自動收進來。幫每一題點一個錯因，學生就看得到自己最常錯在哪裡。</div>'+mistTagHtml()+'</div></details>';
+    ;/* MISTRM_V1352 「📕 錯題本・標錯因」拿掉 */
   renderGradesMatrix();
   if(S._sgAdvance){S._sgAdvance=false;sgAdvance();return;}
   const cur=list.find(x=>(x.kind+'::'+x.id)===S.sgSel);
@@ -14192,7 +14200,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1351';
+const APP_BUILD='V1352';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -24683,7 +24691,7 @@ document.addEventListener('input',(e)=>{const m=((e.target&&e.target.id)||'').ma
   const t=e.target;if(t&&t.classList){const v=parseFloat(t.value);
     if(t.classList.contains('va-time')){const d=DLG[+t.dataset.di];if(d&&d._va&&d._va.segs&&d._va.segs[+t.dataset.k]&&!isNaN(v))d._va.segs[+t.dataset.k][t.dataset.edge]=v;}
     else if(t.classList.contains('la-time')){const d=DLG[+t.dataset.di];if(d&&d._la&&d._la.segs&&d._la.segs[+t.dataset.k]&&!isNaN(v))d._la.segs[+t.dataset.k][t.dataset.edge]=v;}}});
-document.addEventListener('change',(e)=>{const t=e.target;if(t&&t.classList&&t.classList.contains('mist-tag')){const p=String(t.dataset.mk||'').split('::');if(p.length>=2){mistSetTag(p[0],p.slice(1).join('::'),t.value);}return;}});
+/* MISTRM_V1352 錯因下拉的監聽一併拿掉 */
 document.addEventListener('change',(e)=>{const t=e.target;if(!t)return;if((t.classList&&(t.classList.contains('sched-d')||t.classList.contains('sched-s')||t.classList.contains('sched-e')))||t.id==='f-first-date')refreshFirstSlot();if(t.id==='cl-date')clFillSlot();if(t.id==='f-groups')fillGroupSched();if(t.id==='f-status'){const ls=document.getElementById('f-login-sec');if(ls)ls.style.display=(t.value==='reserved')?'none':'';}if(t.id==='pl-cls'&&H.planCls)H.planCls();});
 /* 時段輸入：24 小時制、自動補冒號（1600→16:00），失焦補零（9:30→09:30） */
 /* HHMMTYPE_V1222 本來打到第三個數字就先插冒號：打「2200」的過程中會變成「2:20」，
