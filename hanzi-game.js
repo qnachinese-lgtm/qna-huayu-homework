@@ -17,6 +17,10 @@ const el = (tag, attrs = {}, kids = []) => { const n = document.createElement(ta
 const svgEl = html => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstChild; };
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const blankWord = x => x.w.split("").map(ch => ch === x.c ? "□" : ch).join("");
+// 讀題目：「忘，忘記的忘」——說清楚只要拼一個字
+const sayQ = x => `${x.c}，${x.w}的${x.c}`;
+// 完成後的詞：目標字正常顯示，其他字變淡
+const wordMark = x => { const w = el("div", {class:"w"}); x.w.split("").forEach(ch => w.append(el("span", {class: ch === x.c ? "t" : "o", text:ch}))); return w; };
 // 筆順資料由 hanzi-writer 自動從 jsDelivr 下載
 const use = n => (window.claude && typeof window.claude.use === "function") ? Promise.resolve(window.claude.use(n)).catch(() => null) : Promise.resolve(null);
 const ls = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k, v){ try { localStorage.setItem(k, v); } catch(e){} } };
@@ -194,7 +198,7 @@ function Shop(root, cfg){
     if (D.clue === "audio"){
       const sb = el("button", {class:"say big", "aria-label":"聽題目"}); sb.innerHTML = SPEAK; sb.onclick = () => sayCurrent();
       qcard.append(sb, el("div", {}, [el("div", {class:"qt"}), el("div", {class:"qh"})]));
-      left.append(qcard, el("p", {class:"muted", style:"font-size:13px;margin-bottom:8px", text:"聽讀音，拼出這個字。拼錯兩次以後會出現拼音提示。"}));
+      left.append(qcard, el("p", {class:"muted", style:"font-size:13px;margin-bottom:8px", text:"每一題只要拼「一個字」。讀音會說「忘，忘記的忘」，拼出那一個字就好。拼錯兩次以後會出現拼音提示。"}));
     } else {
       left.append(el("p", {class:"muted", style:"font-size:13px;margin-bottom:8px", text: D.clue === "full" ? "看拼音和詞，猜猜□是哪個字，然後在右邊拼出來。" : "看詞猜猜□是哪個字。可以按喇叭聽這個詞。"}));
     }
@@ -333,14 +337,14 @@ function Shop(root, cfg){
       if (D.clue === "audio"){
         const isCur = c === cur;
         clues.append(el("div", {class:"clue" + (done ? " done" : "") + (isCur ? " cur" : "")}, [
-          el("div", {class:"py", text: done ? x.py : ""}), el("div", {class:"w", text: done ? x.w : (isCur ? "？" : "・")}), el("div", {class:"n", text: done ? "完成" : `第 ${i + 1} 題`})]));
+          el("div", {class:"py", text: done ? x.py : ""}), (done ? wordMark(x) : el("div", {class:"w", text: isCur ? "□" : "・"})), el("div", {class:"n", text: done ? "完成" : `第 ${i + 1} 題`})]));
         return;
       }
       const card = el("div", {class:"clue" + (done ? " done" : "")});
       card.append(el("div", {class:"py", text: D.clue === "full" || done ? x.py : ""}));
-      card.append(el("div", {class:"w", text: done ? x.w : blankWord(x)}));
+      card.append(done ? wordMark(x) : el("div", {class:"w", text: blankWord(x)}));
       if (D.clue === "full" || done) card.append(el("div", {class:"n", text: done ? "完成" : expand(c).length + " 張卡"}));
-      else { const sb = el("button", {class:"say", "aria-label":"聽這個詞"}); sb.innerHTML = SPEAK; sb.onclick = () => say(x.w); card.append(sb); }
+      else { const sb = el("button", {class:"say", "aria-label":"聽這個詞"}); sb.innerHTML = SPEAK; sb.onclick = () => say(sayQ(x)); card.append(sb); }
       clues.append(card);
     });
     if (D.clue === "audio" && cur){
@@ -349,7 +353,7 @@ function Shop(root, cfg){
       st.ui.qcard.querySelector(".qh").textContent = st.curMiss >= 2 || st.hintLevel ? `${x.py}　${blankWord(x)}` : "聽讀音拼字";
     }
   }
-  function sayCurrent(){ const c = current(); if (c) say(CH[c].w); }
+  function sayCurrent(){ const c = current(); if (c) say(sayQ(CH[c])); }
   function renderStatus(){
     const u = st.ui, D = DIFF[st.diff];
     u.scoreB.textContent = st.score; u.comboB.textContent = st.combo > 1 ? "×" + st.combo : "—";
@@ -569,7 +573,7 @@ function nextQ(){
   R.writer = HanziWriter.create(box, c, { width:size, height:size, padding:10, showCharacter:false, showOutline:false,
     strokeColor:css("--ink"), outlineColor:css("--line"), drawingColor:css("--navy"), highlightColor:css("--green"), drawingWidth:Math.max(14, size / 18), showHintAfterMisses:3 });
   R.writer.quiz({ onMistake: () => sfx.bad(), onCorrectStroke: () => sfx.pick(), onComplete: s => finishQ(s.totalMistakes <= 3 && !R.hint) });
-  say(x.w);
+  say(sayQ(x));
 }
 function finishQ(ok){
   const c = R.list[R.i]; R.results[R.i] = ok;
@@ -594,7 +598,7 @@ function endRecall(){
   checkBadges(); save();
 }
 $("#rstart").onclick = () => startRecall();
-$("#rsay").onclick = () => { const c = R.list[R.i]; if (c) say(CH[c].w); };
+$("#rsay").onclick = () => { const c = R.list[R.i]; if (c) say(sayQ(CH[c])); };
 $("#rhint").onclick = () => { if (R.writer){ R.hint = true; R.writer.showOutline(); $("#rmsg").textContent = "用了提示，這題會放進難字本。"; } };
 $("#rskip").onclick = () => { if (!R.writer || !R.active) return; R.writer.cancelQuiz(); R.writer.showCharacter(); R.writer.animateCharacter(); $("#rmsg").textContent = "看清楚筆順。"; const i = R.i; R.results[i] = false; setTimeout(() => { if (R.i === i) finishQ(false); }, 1800); };
 
