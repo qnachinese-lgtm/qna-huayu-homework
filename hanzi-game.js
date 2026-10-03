@@ -1,17 +1,37 @@
 (() => {
 "use strict";
 // ================= 資料 =================
-const FAM = DATA.families, RAD = DATA.radicals, COMP = DATA.components, BONUS = DATA.bonus;
-const CH = {}; FAM.forEach((f, i) => { f.idx = i; f.key = f.name.replace(/（.*）/, "").split("／")[0]; if (f.name === "形近字") f.key = "形"; f.chars.forEach(x => { x.fam = f.name; CH[x.c] = x; }); });
+const FAM = DATA.families, BONUS = DATA.bonus, HZ = DATA.hz8k || { levels:[], chars:{}, cards:{} };
+const CH = {};
+Object.entries(HZ.chars).forEach(([c, e]) => { CH[c] = Object.assign({ c }, e); });
+FAM.forEach(f => { f.key = f.name.replace(/（.*）/, "").split("／")[0]; if (f.name === "形近字") f.key = "形"; f.chars.forEach(x => { CH[x.c] = Object.assign({}, CH[x.c] || {}, x); }); });
+const RAD = {}, COMP = {};
+Object.entries(HZ.cards).forEach(([k, v]) => { if (v.k === "r") RAD[k] = { name:v.n, hint:v.h || "" }; else COMP[k] = v.py || ""; });
+Object.assign(RAD, DATA.radicals); Object.assign(COMP, DATA.components);
+Object.keys(RAD).forEach(k => { delete COMP[k]; });
+const pyOf = s => COMP[s] || (CH[s] && CH[s].py) || "";
 const BON = {}; BONUS.forEach(b => BON[b.c] = b);
-const isBase = s => s in RAD || s in COMP;
-const expand = s => isBase(s) ? [s] : (CH[s] ? CH[s].p.flatMap(expand) : [s]);
-const keyOf = arr => arr.flatMap(expand).sort().join("|");
-const KEYMAP = {}; Object.values(CH).forEach(x => KEYMAP[keyOf(x.p)] = x.c);
-const BONKEY = {}; BONUS.forEach(b => BONKEY[keyOf(b.p)] = b.c);
-const ALLEXP = [...Object.values(CH).map(x => expand(x.c)), ...BONUS.map(b => b.p.flatMap(expand))];
+const NOSTROKE = new Set(DATA.nostroke || []);
+// 關卡：第 0 組是精選字族，後面是華語八千詞的七個等級
+const LEVELS = [{ name:"精選字族", short:"精選", stages: FAM.map(f => ({ id:f.name, name:f.name, key:f.key, chars:f.chars.map(x => x.c), curated:true })) }]
+  .concat(HZ.levels.map(L => ({ name:L.name, short:L.name.replace("級", ""), stages:L.stages })));
+const STAGES = {};
+LEVELS.forEach((L, li) => L.stages.forEach((s, i) => { s.li = li; s.i = i; STAGES[s.id] = s; }));
+const stageName = id => STAGES[id] ? (STAGES[id].li ? LEVELS[STAGES[id].li].short + "・" : "") + STAGES[id].name : id;
+// 拆字只在「這一關的題目」裡往下拆：其他的字直接給一張卡
+let SCOPE = new Set(), KEYMAP = {}, BONKEY = {}, ALLEXP = [], TOP = {};
+function expand(s, seen){ seen = seen || []; if (SCOPE.has(s) && CH[s] && CH[s].p && seen.indexOf(s) < 0) return CH[s].p.flatMap(p => expand(p, seen.concat(s))); return [s]; }
+const keyOf = arr => arr.flatMap(x => expand(x)).sort().join("|");
+Object.values(CH).forEach(x => { if (x.p) TOP[x.p.slice().sort().join("|")] = x.c; });
+function setScope(targets, curated){
+  SCOPE = new Set(targets); KEYMAP = {}; BONKEY = {};
+  targets.forEach(c => { const k = keyOf(CH[c].p); (KEYMAP[k] = KEYMAP[k] || []).push(c); });
+  if (curated) BONUS.forEach(b => { BONKEY[b.p.slice().sort().join("|")] = b.c; });
+  ALLEXP = targets.map(c => expand(c)).concat(curated ? BONUS.map(b => b.p.slice()) : []);
+}
 function subMulti(a, b){ const m = {}; b.forEach(x => m[x] = (m[x] || 0) + 1); return a.every(x => (m[x] = (m[x] || 0) - 1) >= 0); }
-const canGrow = pieces => { const e = pieces.flatMap(expand); return ALLEXP.some(t => t.length > e.length && subMulti(e, t)); };
+const canGrow = pieces => { const e = pieces.flatMap(x => expand(x)); return ALLEXP.some(t => t.length > e.length && subMulti(e, t)); };
+const toneless = p => String(p || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, kids = []) => { const n = document.createElement(tag); for (const k in attrs){ if (k === "class") n.className = attrs[k]; else if (k === "text") n.textContent = attrs[k]; else n.setAttribute(k, attrs[k]); } [].concat(kids).forEach(k => k != null && n.append(k)); return n; };
 const svgEl = html => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstChild; };
@@ -98,15 +118,15 @@ async function flush(){
 }
 function setWho(t){ const w = $("#who"); if (w) w.textContent = (store.me ? (store.me.name || "已登入") + "・" : "") + t; }
 // 等級
-const LEVELS = [[0, "漢字學徒"], [300, "拼字工匠"], [1000, "字族達人"], [2500, "字源學者"], [5000, "漢字大師"]];
-function levelOf(xp){ let i = 0; LEVELS.forEach((l, k) => { if (xp >= l[0]) i = k; }); return i; }
+const XPLV = [[0, "漢字學徒"], [300, "拼字工匠"], [1000, "字族達人"], [2500, "字源學者"], [5000, "漢字大師"]];
+function levelOf(xp){ let i = 0; XPLV.forEach((l, k) => { if (xp >= l[0]) i = k; }); return i; }
 function renderLevel(){
-  const i = levelOf(rec.xp), cur = LEVELS[i][0], next = LEVELS[i + 1] ? LEVELS[i + 1][0] : null;
-  $("#lvlNum").textContent = i + 1; $("#lvlName").textContent = LEVELS[i][1];
+  const i = levelOf(rec.xp), cur = XPLV[i][0], next = XPLV[i + 1] ? XPLV[i + 1][0] : null;
+  $("#lvlNum").textContent = i + 1; $("#lvlName").textContent = XPLV[i][1];
   $("#lvlXp").textContent = next ? `${rec.xp} / ${next} XP` : `${rec.xp} XP`;
   $("#lvlBar").style.width = next ? Math.min(100, (rec.xp - cur) / (next - cur) * 100) + "%" : "100%";
 }
-function addXp(n){ const before = levelOf(rec.xp); rec.xp += Math.round(n); const after = levelOf(rec.xp); renderLevel(); if (after > before){ toast(`升級了！你現在是「${LEVELS[after][1]}」`); sfx.win(); } }
+function addXp(n){ const before = levelOf(rec.xp); rec.xp += Math.round(n); const after = levelOf(rec.xp); renderLevel(); if (after > before){ toast(`升級了！你現在是「${XPLV[after][1]}」`); sfx.win(); } }
 // 成就
 const BADGES = [
   ["first", "初", "第一個字", "拼出第一個字"],
@@ -114,7 +134,7 @@ const BADGES = [
   ["combo5", "連", "連擊 5", "一關裡連續拼對 5 個字"],
   ["combo10", "擊", "連擊 10", "一關裡連續拼對 10 個字"],
   ["star3", "星", "三星達人", "任何一關拿到三顆星"],
-  ["allclear", "全", "全部通關", "入門難度每一關都至少一顆星"],
+  ["allclear", "全", "精選全通關", "精選字族的每一關（入門難度）都至少一顆星"],
   ["hardclear", "高", "高手之路", "用高手難度通過一關"],
   ["boss", "形", "形近字剋星", "形近字關拿到三顆星"],
   ["recall8", "憶", "過目不忘", "回想關 8 題全部寫對"],
@@ -128,7 +148,7 @@ function checkBadges(){
   if (Object.keys(rec.found).length) unlock("first");
   if (rec.bestCombo >= 5) unlock("combo5"); if (rec.bestCombo >= 10) unlock("combo10");
   if (Object.values(rec.stars).some(m => Object.values(m).some(v => v >= 3))) unlock("star3");
-  if (FAM.every(f => (rec.stars.easy[f.name] || 0) > 0)) unlock("allclear");
+  if (LEVELS[0].stages.every(f => (rec.stars.easy[f.id] || 0) > 0)) unlock("allclear");
   if (Object.values(rec.stars.hard).some(v => v > 0)) unlock("hardclear");
   if (Object.values(rec.stars).some(m => (m["形近字"] || 0) >= 3)) unlock("boss");
   if (rec.originViews >= 15) unlock("origin15");
@@ -149,7 +169,7 @@ function glyphRow(src){
 }
 function originBlock(sym){
   const o = ORIGIN[sym]; if (!o) return null;
-  const name = sym in RAD ? RAD[sym].name : "讀 " + COMP[sym];
+  const name = sym in RAD ? RAD[sym].name : (pyOf(sym) ? "讀 " + pyOf(sym) : "部件");
   const box = el("div", {class:"origin"}, [el("h4", {}, [el("span", {class:"hz", text:sym}), name])]);
   o.src.forEach(src => { const r = glyphRow(src); if (r) box.append(r); });
   box.append(el("p", {text:o.story}));
@@ -219,11 +239,11 @@ function Shop(root, cfg){
     okB.onclick = submit;
   }
   function setMsg(t, cls = ""){ st.ui.msg.className = "benchmsg " + cls; st.ui.msg.textContent = t; }
-  function kindOf(sym){ return sym in RAD ? "rad" : sym in COMP ? "comp" : "built"; }
+  function kindOf(sym){ return sym in RAD ? "rad" : (SCOPE.has(sym) && st.found.has(sym)) ? "built" : "comp"; }
   function cardEl(sym, kind, i){
     const b = el("button", {class:"card " + kind + " deal", type:"button", "aria-label":sym, "data-sym":sym});
     b.style.animationDelay = (i * 22) + "ms";
-    const label = kind === "rad" ? RAD[sym].name : kind === "comp" ? (DIFF[st.diff].clue === "full" ? COMP[sym] : "") : (CH[sym] ? CH[sym].py : "");
+    const label = kind === "rad" ? RAD[sym].name : kind === "comp" ? (DIFF[st.diff].clue === "full" ? pyOf(sym) : "") : (CH[sym] ? CH[sym].py : "");
     b.append(el("span", {class:"s", text:sym}), el("span", {class:"l", text:label}));
     b.title = kind === "rad" ? `${RAD[sym].name}：${RAD[sym].hint.replace(/\n/g, " ")}` : sym;
     attachDrag(b, sym); return b;
@@ -260,18 +280,24 @@ function Shop(root, cfg){
   }
   function current(){ return st.seq ? st.targets.find(c => !st.found.has(c)) : null; }
   function autoCheck(){
-    const k = keyOf(st.bench); const c = KEYMAP[k];
+    const k = keyOf(st.bench); const cs = KEYMAP[k] || []; const c = cs.find(x => !st.found.has(x)) || cs[0];
     if (c && st.bench.length >= 2){
       if (st.found.has(c)){ setMsg(`「${c}」已經拼過了。可以再加卡，升級成更大的字。`); if (!canGrow(st.bench)){ st.bench = []; setTimeout(renderBench, 900); } return; }
       return success(c, false);
     }
-    const b = BONKEY[k]; if (b && st.bench.length >= 2 && !st.bonus.has(b)) return success(b, true);
+    const b = BONKEY[st.bench.slice().sort().join("|")]; if (b && st.bench.length >= 2 && !st.bonus.has(b)) return success(b, true);
+    const other = st.bench.length >= 2 && TOP[st.bench.slice().sort().join("|")];
+    if (other && !SCOPE.has(other)){ st.ui.bench.classList.add("wrong"); setMsg(`「${other}」是真的字，但不在這一關。點卡片拿回去再試試。`, "bad"); return; }
     if (!canGrow(st.bench)){ st.ui.bench.classList.add("wrong"); setMsg("這樣拼不出字，點卡片拿回去再試試。", "bad"); }
     else if (st.bench.length >= 2) setMsg("還不是一個字，可以再加卡。");
   }
   function submit(){
     if (st.locked || st.over || st.bench.length < 2) return;
-    const k = keyOf(st.bench), c = KEYMAP[k], b = BONKEY[k], cur = current();
+    const k = keyOf(st.bench), cs = KEYMAP[k] || [], cur = current();
+    const c = st.seq ? (cs.includes(cur) ? cur : cs[0]) : (cs.find(x => !st.found.has(x)) || cs[0]);
+    const b = BONKEY[st.bench.slice().sort().join("|")];
+    const other = !c && TOP[st.bench.slice().sort().join("|")];
+    if (other && !SCOPE.has(other)){ setMsg(`「${other}」是真的字，但不在這一關，不扣分。`); return; }
     if (c && st.found.has(c)){ setMsg(`「${c}」已經拼過了，不扣分。`); return; }
     if (c && (st.seq ? c === cur : st.targets.includes(c))) return success(c, false);
     if (!st.seq && b && !st.bonus.has(b)) return success(b, true);
@@ -287,7 +313,7 @@ function Shop(root, cfg){
   }
   function success(c, isBonus){
     const x = isBonus ? BON[c] : CH[c];
-    const n = isBonus ? 2 : expand(c).length;
+    const n = isBonus ? 2 : Math.max(2, expand(c).length);
     if (isBonus){ st.bonus.add(c); rec.bonus[c] = 1; } else { st.found.add(c); rec.found[c] = (rec.found[c] || 0) + 1; }
     st.combo++; st.bestCombo = Math.max(st.bestCombo, st.combo); rec.bestCombo = Math.max(rec.bestCombo, st.combo);
     const mult = 1 + Math.min(st.combo - 1, 10) * .1;
@@ -306,23 +332,25 @@ function Shop(root, cfg){
     if (st.targets.every(t => st.found.has(t))) setTimeout(() => finish(true), 1300);
     else if (st.seq) setTimeout(sayCurrent, 1500);
   }
+  let WHYPY = "";
   function why(parts){
-    const base = parts.flatMap(expand); const r = base.find(s => s in RAD), cp = base.find(s => s in COMP); const bits = [];
-    if (r) bits.push(`${r}（${RAD[r].name}）表示「${RAD[r].hint.replace(/\n/g, "；")}」`);
-    if (cp) bits.push(`${cp} 讀 ${COMP[cp]}，是聲音線索`);
+    const r = parts.find(s => s in RAD), cp = parts.find(s => !(s in RAD)); const bits = [];
+    if (r && RAD[r].hint) bits.push(`${r}（${RAD[r].name}）表示「${RAD[r].hint.replace(/\n/g, "；")}」`);
+    else if (r) bits.push(`${r}（${RAD[r].name}）`);
+    if (cp && pyOf(cp)) bits.push(`${cp} 讀 ${pyOf(cp)}` + (WHYPY && toneless(pyOf(cp)) === toneless(WHYPY) ? "，和這個字的讀音一樣，是聲音線索" : ""));
     return bits.join("；");
   }
   function showResult(x, isBonus){
     const result = st.ui.result; result.hidden = false; result.innerHTML = "";
-    const parts = isBonus ? x.p : CH[x.c].p;
+    const parts = isBonus ? x.p : (CH[x.c].p || []);
     const hw = el("div", {class:"hw"});
     const info = el("div", {}, [el("div", {class:"big"}, [el("b", {text:x.c}), "　" + x.py + "　" + x.w]),
-      el("div", {class:"why", text: isBonus ? "加分字" : "記憶提示：" + x.tip}), el("div", {class:"why", text:"字理：" + why(parts)})]);
+      el("div", {class:"why", text: isBonus ? "加分字" : "記憶提示：" + x.tip}), el("div", {class:"why", text:(WHYPY = x.py, "字理：" + why(parts))})]);
     const sayB = el("button", {class:"btn small", text:"聽讀音"}); sayB.onclick = () => say(x.c + "，" + x.w);
     const againB = el("button", {class:"btn small", text:"再看一次筆順"});
     info.append(el("div", {class:"acts"}, [sayB, againB]));
     result.append(hw, info);
-    const og = el("div", {class:"origins"}); [...new Set(parts.flatMap(expand))].forEach(b => { const ob = originBlock(b); if (ob) og.append(ob); });
+    const og = el("div", {class:"origins"}); [...new Set(parts.flatMap(x => expand(x)))].forEach(b => { const ob = originBlock(b); if (ob) og.append(ob); });
     if (og.children.length) result.append(og);
     if (window.HanziWriter){
       const w = HanziWriter.create(hw, x.c, { width:140, height:140, padding:8, strokeColor:css("--navy"), outlineColor:css("--line"), strokeAnimationSpeed:1.3, delayBetweenStrokes:160 });
@@ -363,13 +391,16 @@ function Shop(root, cfg){
   function buildTray(deal = true){
     const D = DIFF[st.diff];
     const need = new Set(st.targets.flatMap(c => expand(c)));
-    let rads = [...need].filter(s => s in RAD), comps = [...need].filter(s => s in COMP);
+    let rads = [...need].filter(s => s in RAD), comps = [...need].filter(s => !(s in RAD));
     if (!st.extras){
-      st.extras = { r: shuffle(Object.keys(RAD).filter(s => !need.has(s)), st.rnd).slice(0, D.extra), c: shuffle(Object.keys(COMP).filter(s => !need.has(s)), st.rnd).slice(0, D.extra) };
+      // 干擾卡：從同一個等級的其他關卡挑
+      const lvPieces = new Set(); (LEVELS[st.stage.li] || LEVELS[0]).stages.forEach(sg => sg.chars.forEach(c => (CH[c].p || []).forEach(p => lvPieces.add(p))));
+      const pool = [...lvPieces].filter(s => !need.has(s));
+      st.extras = { r: shuffle(pool.filter(s => s in RAD), st.rnd).slice(0, D.extra), c: shuffle(pool.filter(s => !(s in RAD)), st.rnd).slice(0, D.extra) };
     }
     rads = rads.concat(st.extras.r); comps = comps.concat(st.extras.c);
-    const oR = Object.keys(RAD), oC = Object.keys(COMP);
-    if (D.clue === "full"){ rads.sort((a, b) => oR.indexOf(a) - oR.indexOf(b)); comps.sort((a, b) => oC.indexOf(a) - oC.indexOf(b)); }
+    const oR = Object.keys(RAD), oC = [...need].filter(s => !(s in RAD)).concat(Object.keys(COMP));
+    if (D.clue === "full"){ rads.sort((a, b) => oR.indexOf(a) - oR.indexOf(b)); }
     else { rads = shuffle(rads.sort(), seeded(st.seed)); comps = shuffle(comps.sort(), seeded(st.seed + 1)); }
     const u = st.ui;
     if (deal){ u.trayRad.innerHTML = ""; u.trayComp.innerHTML = ""; rads.forEach((s, i) => u.trayRad.append(cardEl(s, "rad", i))); comps.forEach((s, i) => u.trayComp.append(cardEl(s, "comp", i + rads.length))); }
@@ -384,7 +415,7 @@ function Shop(root, cfg){
     const target = current() || st.targets.find(c => !st.found.has(c)); if (!target) return;
     st.hints++; st.hintLevel = 1;
     const parts = expand(target);
-    const show = st.hints >= 2 ? parts : parts.filter(s => s in RAD).slice(0, 1);
+    const show = st.hints >= 2 ? parts : (parts.filter(s => s in RAD).slice(0, 1).length ? parts.filter(s => s in RAD).slice(0, 1) : parts.slice(0, 1));
     document.querySelectorAll("#" + root.id + " .tray .card").forEach(c => c.classList.toggle("glow", show.includes(c.dataset.sym)));
     setMsg(st.hints >= 2 ? "發光的卡片可以拼出一個字。（用了提示，最多兩顆星）" : "先試試發光的部首卡。（用了提示，最多兩顆星）");
     renderClues();
@@ -410,10 +441,12 @@ function Shop(root, cfg){
   }
   api.start = (opt) => {
     stopTimer();
-    st = { fams:opt.fams, diff:opt.diff, seq: DIFF[opt.diff].clue === "audio", seed: opt.seed || Math.floor(Math.random() * 1e9), ui:{}, bench:[], found:new Set(), bonus:new Set(),
+    const stage = opt.stage;
+    st = { stage, fams:[stage.id], diff:opt.diff, seq: DIFF[opt.diff].clue === "audio", seed: opt.seed || Math.floor(Math.random() * 1e9), ui:{}, bench:[], found:new Set(), bonus:new Set(),
       score:0, combo:0, bestCombo:0, mistakes:0, hints:0, hintLevel:0, curMiss:0, hearts:DIFF[opt.diff].hearts, locked:false, over:false, extras:null };
     st.rnd = seeded(st.seed);
-    let targets = FAM.filter(f => opt.fams.includes(f.name)).flatMap(f => f.chars.map(x => x.c));
+    let targets = stage.chars.filter(c => CH[c] && CH[c].p);
+    setScope(targets, !!stage.curated);
     // 多層字要在基礎字後面出現（高手一題一題時，也照順序出）
     targets = st.seq ? shuffle(targets, st.rnd).sort((a, b) => expand(a).length - expand(b).length) : targets;
     st.targets = targets;
@@ -440,30 +473,65 @@ document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => { if
 let diff = ls.get("zzgf-diff") || "easy"; if (!DIFF[diff] || diff === "battle") diff = "easy";
 function setDiff(d){ diff = d; ls.set("zzgf-diff", d); document.querySelectorAll("#diffSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.d === d)); $("#diffInfo").textContent = DIFF[d].info; renderMap(); }
 document.querySelectorAll("#diffSeg button").forEach(b => b.onclick = () => setDiff(b.dataset.d));
-function unlocked(i){
-  if (i === 0 || store.teacher) return true;
-  const f = FAM[i]; if (taskFams().includes(f.name)) return true;
-  return (rec.stars[diff][FAM[i - 1].name] || 0) > 0;
+let curLv = Math.min(LEVELS.length - 1, Math.max(0, Number(ls.get("hz-lv") || 0) || 0));
+function setLv(i){ curLv = i; ls.set("hz-lv", String(i)); renderMap(); }
+function unlocked(stage){
+  if (stage.i === 0 || store.teacher) return true;
+  if (taskFams().includes(stage.id)) return true;
+  const prev = LEVELS[stage.li].stages[stage.i - 1];
+  return (rec.stars[diff][prev.id] || 0) > 0;
+}
+function renderLvSeg(){
+  const seg = $("#lvSeg"); if (!seg) return; seg.innerHTML = "";
+  LEVELS.forEach((L, i) => {
+    const got = L.stages.reduce((a, s) => a + (rec.stars[diff][s.id] || 0), 0);
+    const b = el("button", {"aria-pressed": i === curLv}, [L.short, el("small", {text:` ${got}／${L.stages.length * 3}`})]);
+    b.onclick = () => setLv(i); seg.append(b);
+  });
 }
 function renderMap(){
-  const map = $("#map"); map.innerHTML = "";
+  renderLvSeg();
+  const L = LEVELS[curLv]; const map = $("#map"); map.innerHTML = "";
   let sum = 0;
-  FAM.forEach((f, i) => {
-    const stars = rec.stars[diff][f.name] || 0; sum += stars;
-    const open = unlocked(i), boss = f.name === "形近字";
+  $("#lvInfo").textContent = curLv === 0 ? "老師挑選的 27 個字族，有字源和記憶提示。" : `華語八千詞・${L.name}：${L.stages.length} 關、${L.stages.reduce((a, s) => a + s.chars.length, 0)} 個字。關卡依「同一個部件」自動分組。`;
+  L.stages.forEach((sg, i) => {
+    const stars = rec.stars[diff][sg.id] || 0; sum += stars;
+    const open = unlocked(sg), boss = sg.name === "形近字";
     const node = el("button", {class:"node" + (boss ? " boss" : "") + (stars ? " cleared" : ""), type:"button"});
     if (!open) node.setAttribute("disabled", "");
     node.append(el("span", {class:"num", text:String(i + 1)}));
-    if (taskFams().includes(f.name)) node.append(el("span", {class:"tag", text:"作業"}));
+    if (taskFams().includes(sg.id)) node.append(el("span", {class:"tag", text:"作業"}));
     else if (boss) node.append(el("span", {class:"tag", text:"魔王"}));
-    node.append(el("span", {class:"seal", text: open ? f.key : "鎖"}), el("span", {class:"nm", text:f.name}));
+    node.append(el("span", {class:"seal", text: open ? (sg.key === "綜" ? "綜" : sg.key) : "鎖"}), el("span", {class:"nm", text:sg.name}));
     const s = el("span", {}); s.innerHTML = starsHtml(stars); node.append(s.firstChild);
-    node.append(el("span", {class:"cnt", text:`${f.chars.length} 個字`}));
-    node.onclick = () => { if (open) playStage(f.name); };
+    node.append(el("span", {class:"cnt", text: open ? sg.chars.join("") : `${sg.chars.length} 個字`}));
+    node.onclick = () => { if (open) playStage(sg.id); };
     map.append(node);
   });
-  $("#starSum").textContent = `${sum}／${FAM.length * 3}`;
+  // 不能拆的字（例如「人、山、上」）：放在最後，可以看筆順、聽讀音
+  if (curLv > 0){
+    const atoms = Object.values(CH).filter(x => x.lv === curLv - 1 && !x.p);
+    if (atoms.length){
+      const node = el("button", {class:"node basic", type:"button"}, [el("span", {class:"seal", text:"字"}), el("span", {class:"nm", text:"基本字"}), el("span", {class:"cnt", text:`${atoms.length} 個字，不用拼，看筆順`})]);
+      node.onclick = () => showBasic(atoms); map.append(node);
+    }
+  }
+  $("#starSum").textContent = `${sum}／${L.stages.length * 3}`;
   renderTasks();
+}
+function showBasic(atoms){
+  const card = $("#endcard"); card.innerHTML = "";
+  card.append(el("h2", {text:"基本字"}), el("p", {class:"muted", text:"這些字本身就是一個完整的部件，不需要拼。點一下聽讀音、看筆順。"}));
+  const hw = el("div", {class:"hw", style:"margin:12px auto"}); const info = el("p", {class:"muted", style:"min-height:24px"});
+  const list = el("div", {class:"learned"});
+  atoms.forEach(x => { const b = el("button", {text:x.c, title:x.w}); b.onclick = () => {
+    say(x.c + "，" + x.w + "的" + x.c); info.textContent = `${x.c}　${x.py}　${x.w}`; hw.innerHTML = "";
+    if (window.HanziWriter && !NOSTROKE.has(x.c)){ const w = HanziWriter.create(hw, x.c, { width:140, height:140, padding:8, strokeColor:css("--navy"), outlineColor:css("--line"), strokeAnimationSpeed:1.3, delayBetweenStrokes:160 }); w.animateCharacter(); }
+    else hw.append(el("div", {class:"hz", style:"font-size:100px;text-align:center;line-height:140px", text:x.c}));
+  }; list.append(b); });
+  const close = el("button", {class:"btn", text:"關閉"}); close.onclick = closeOverlay;
+  card.append(hw, info, list, el("div", {class:"endbtns"}, [close]));
+  $("#overlay").hidden = false;
 }
 // ================= 老師指派的作業 =================
 const DNAME = { easy:"入門", normal:"進階", hard:"高手" };
@@ -486,11 +554,11 @@ function renderTasks(){
     const done = taskDone(t), dl = dueLabel(t.due_date), got = (rec.stars[t.diff] && rec.stars[t.diff][t.fam]) || 0;
     const row = el("div", {class:"task" + (done ? " done" : (dl.c === "late" ? " late" : ""))});
     const s = el("span", {}); s.innerHTML = starsHtml(got);
-    row.append(el("div", {class:"tinfo"}, [el("b", {text: t.title || `${t.fam}・${DNAME[t.diff] || ""}`}),
-      el("small", {text:`${t.fam}關・${DNAME[t.diff] || ""}難度・至少 ${t.min_stars || 1} 顆星`})]), s.firstChild,
+    row.append(el("div", {class:"tinfo"}, [el("b", {text: t.title || `${stageName(t.fam)}・${DNAME[t.diff] || ""}`}),
+      el("small", {text:`${stageName(t.fam)}・${DNAME[t.diff] || ""}難度・至少 ${t.min_stars || 1} 顆星`})]), s.firstChild,
       el("span", {class:"tstate", text: done ? "完成" : dl.t}));
     const go = el("button", {class:"btn small" + (done ? "" : " primary"), text: done ? "再玩一次" : "開始"});
-    go.onclick = () => { if (DIFF[t.diff]) setDiff(t.diff); playStage(t.fam); };
+    go.onclick = () => { if (DIFF[t.diff]) setDiff(t.diff); if (STAGES[t.fam]) curLv = STAGES[t.fam].li; playStage(t.fam); };
     row.append(go); list.append(row);
   });
   box.append(list);
@@ -499,11 +567,11 @@ function renderTasks(){
 // ================= 關卡 =================
 let curStage = null;
 const stageShop = Shop($("#stageRoot"), {
-  title: st => `${st.fams[0]}・${DIFF[st.diff].name}`,
+  title: st => `${stageName(st.stage.id)}・${DIFF[st.diff].name}`,
   onQuit: () => showTab("map"),
   onEnd: res => endStage(res)
 });
-function playStage(name){ curStage = name; showTab("stage"); stageShop.start({ fams:[name], diff }); window.scrollTo({top:0}); }
+function playStage(id){ if (!STAGES[id]) return; curStage = id; curLv = STAGES[id].li; showTab("stage"); stageShop.start({ stage:STAGES[id], diff }); window.scrollTo({top:0}); }
 function endStage(r){
   const st = r.st, prev = rec.stars[st.diff][curStage] || 0;
   if (r.ok){ rec.stars[st.diff][curStage] = Math.max(prev, r.stars); addXp(r.total); sfx.win(); }
@@ -514,7 +582,7 @@ function endStage(r){
   // 結算畫面
   const card = $("#endcard"); card.innerHTML = "";
   card.append(el("h2", {text: r.ok ? "過關！" : "差一點！"}));
-  card.append(el("p", {class:"muted", text: r.ok ? `${curStage}・${DIFF[st.diff].name}` : `${r.reason}。再試一次吧！`}));
+  card.append(el("p", {class:"muted", text: r.ok ? `${stageName(curStage)}・${DIFF[st.diff].name}` : `${r.reason}。再試一次吧！`}));
   const bs = el("div", {class:"bigstars"});
   [0, 1, 2].forEach(i => { const s = svgEl(STAR(r.ok && i < r.stars)); if (r.ok && i < r.stars){ s.classList.add("pop-in"); s.style.animationDelay = (300 + i * 350) + "ms"; setTimeout(() => sfx.star(i), 300 + i * 350); } bs.append(s); });
   card.append(bs);
@@ -532,8 +600,8 @@ function endStage(r){
   const map = el("button", {class:"btn", text:"回地圖"}); map.onclick = () => { closeOverlay(); showTab("map"); };
   const rc = el("button", {class:"btn", text:"用這些字玩回想關"}); rc.onclick = () => { closeOverlay(); showTab("recall"); startRecall([...st.found]); };
   btns.append(again, map); if (st.found.size) btns.append(rc);
-  const idx = FAM.findIndex(f => f.name === curStage);
-  if (r.ok && FAM[idx + 1]){ const nx = el("button", {class:"btn primary", text:"下一關"}); nx.onclick = () => { closeOverlay(); playStage(FAM[idx + 1].name); }; btns.append(nx); }
+  const cs = STAGES[curStage], nxt = cs && LEVELS[cs.li].stages[cs.i + 1];
+  if (r.ok && nxt){ const nx = el("button", {class:"btn primary", text:"下一關"}); nx.onclick = () => { closeOverlay(); playStage(nxt.id); }; btns.append(nx); }
   card.append(btns);
   $("#overlay").hidden = false;
   if (r.ok){ setTimeout(() => burst(innerWidth / 2, innerHeight / 2 - 80, 70), 250); }
@@ -545,12 +613,12 @@ $("#overlay").addEventListener("keydown", e => { if (e.key === "Escape"){ closeO
 // ================= 回想關 =================
 const R = { list:[], i:0, results:[], writer:null, hint:false, active:false };
 function pickRecall(only){
-  const pool = []; const add = c => { if (CH[c] && !pool.includes(c)) pool.push(c); };
+  const pool = []; const add = c => { if (CH[c] && CH[c].w && !NOSTROKE.has(c) && !pool.includes(c)) pool.push(c); };
   if (only && only.length){ shuffle(only).forEach(add); return pool.slice(0, 8); }
   shuffle(Object.keys(rec.hard)).slice(0, 4).forEach(add);
   const fams = taskFams();
-  shuffle([...FAM.filter(f => fams.includes(f.name)).flatMap(f => f.chars.map(x => x.c)), ...Object.keys(rec.found)]).forEach(c => pool.length < 8 && add(c));
-  shuffle(Object.keys(CH)).forEach(c => pool.length < 8 && add(c));
+  shuffle([...fams.flatMap(id => STAGES[id] ? STAGES[id].chars : []), ...Object.keys(rec.found)]).forEach(c => pool.length < 8 && add(c));
+  shuffle(LEVELS[curLv].stages.flatMap(sg => sg.chars)).forEach(c => pool.length < 8 && add(c));
   return shuffle(pool);
 }
 function startRecall(only){
@@ -620,7 +688,7 @@ function sumStars(d){ return Object.values(rec.stars[d] || {}).reduce((a, b) => 
 function renderMe(){
   const s = $("#meSummary"); s.innerHTML = "";
   const rc = rec.recall.done ? Math.round(rec.recall.ok / rec.recall.done * 100) + "%" : "—";
-  [["等級", `${levelOf(rec.xp) + 1}・${LEVELS[levelOf(rec.xp)][1]}`], ["經驗值", rec.xp + " XP"], ["星星（入門／進階／高手）", `${sumStars("easy")}／${sumStars("normal")}／${sumStars("hard")}`], ["拼出的字", Object.keys(rec.found).length + "／" + Object.keys(CH).length], ["最高連擊", "×" + rec.bestCombo], ["回想關正確率", rc]]
+  [["等級", `${levelOf(rec.xp) + 1}・${XPLV[levelOf(rec.xp)][1]}`], ["經驗值", rec.xp + " XP"], ["星星（入門／進階／高手）", `${sumStars("easy")}／${sumStars("normal")}／${sumStars("hard")}`], ["拼出的字", Object.keys(rec.found).length + "／" + Object.keys(CH).length], ["最高連擊", "×" + rec.bestCombo], ["回想關正確率", rc]]
     .forEach(([k, v]) => s.append(el("div", {}, [el("small", {text:k}), el("b", {text:v})])));
   renderBadges(); renderHard();
 }
@@ -661,7 +729,7 @@ setDiff(diff); renderLevel(); renderBadges();
     // 老師指派的作業
     try {
       const snap = await fb.firestore().collection("lessons").where("read_uids", "array-contains", u.uid).get();
-      store.tasks = snap.docs.map(d => Object.assign({ id:d.id }, d.data())).filter(t => t && t.kind === "hanzitask" && !t.deleted_at && FAM.some(f => f.name === t.fam));
+      store.tasks = snap.docs.map(d => Object.assign({ id:d.id }, d.data())).filter(t => t && t.kind === "hanzitask" && !t.deleted_at && !!STAGES[t.fam]);
     } catch(e){ store.tasks = []; }
     setWho(store.me ? "紀錄會自動儲存" : (store.teacher ? "老師帳號（試玩，不存紀錄）" : "這個帳號還不是學生"));
     renderLevel(); renderBadges(); renderMap();
