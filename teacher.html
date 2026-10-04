@@ -9412,9 +9412,30 @@ const TNAV=[
   {t:'留學業務',sub:[['agency','🎓 代辦申請','c-ag'],['interview','🎤 面試練習','c-itv'],
                      ['writing','✍️ 代書','c-wr'],['school','🏫 學校與資料','']]},
   {t:'收費・財務',sub:[['pay','💰 繳費','c-owe'],['ops','📈 財務・營運','']]},
-  {id:'give',t:'給學生的東西',act:'tab'},
+  /* GIVESUB_V1366 Quinn：「能不能也有下拉的方式提供給學生的東西呢？」
+     原本它是一顆平的按鈕，只能先進頁面再找。下拉直接把那一頁「不用先選學生」
+     的六件事攤開來。要先選學生的七張卡（對帳單、檔案卡、學習報告…）沒有放進來，
+     因為它們一定要先挑人，在選單裡點了只會跳「請先選一位學生」。
+     ow:1 的那幾項只有主管理員看得到，跟頁面上的條件完全一樣。 */
+  {t:'給學生的東西',sub:[
+    {k:'give',  id:'give', t:'📤 全部文件'},
+    {k:'rules', act:'printRules', di:'', t:'📋 上課約定'},
+    {k:'tpl',   act:'giveTab',    di:'tpl',   t:'📮 回覆範本', ow:1},
+    {k:'price', act:'giveTab',    di:'price', t:'🏷️ 價目表',  ow:1},
+    {k:'qt',    act:'qtNew',      di:'',      t:'💰 開一張報價單', ow:1},
+    {k:'mb',    act:'monthBills', di:'',      t:'📨 月結單',   ow:1}
+  ]},
   {id:'__settings',t:'⚙ 設定',act:'settingsCenter'}
 ];
+/* GIVESUB_V1366 子項目兩種寫法：
+     ['students','👥 學生','c-students']  ← 原本的，一律是切頁
+     {k:'rules',act:'printRules',di:'',t:'📋 上課約定',ow:1}  ← 可以帶自己的動作
+   k 是給 tnavSync 認人用的（data-id 會重複，例如兩個都是空字串）。 */
+function tnSub(x){
+  if(Array.isArray(x))return {k:x[0],id:x[0],t:x[1],n:x[2]||'',act:'tab',di:x[0],ow:0};
+  return {k:x.k||x.id||'',id:x.id||'',t:x.t||'',n:x.n||'',act:x.act||'tab',
+          di:(x.di!==undefined?x.di:(x.id||'')),ow:x.ow?1:0};
+}
 function tnavBuild(){
   if(document.getElementById('tnav'))return;
   const tb=document.querySelector('#app .topbar');if(!tb)return;
@@ -9426,8 +9447,11 @@ function tnavBuild(){
     return '<div class="tn-i has-sub" data-gi="'+gi+'">'
       +'<button class="tn-b" type="button" aria-expanded="false" aria-haspopup="true">'+esc(g.t)
       +'<span class="tn-n tn-gn"></span>'+CH+'</button>'
-      +'<div class="tn-p">'+g.sub.map(x=>'<button type="button" data-act="tab" data-id="'+esc(x[0])+'">'
-        +esc(x[1])+'<span class="tn-n" data-from="'+esc(x[2]||'')+'"></span></button>').join('')+'</div></div>';
+      +'<div class="tn-p">'+g.sub.map(x=>{const s=tnSub(x);
+        return '<button type="button" data-k="'+esc(s.k)+'" data-act="'+esc(s.act)
+          +'" data-id="'+esc(s.di)+'">'
+          +esc(s.t)+'<span class="tn-n" data-from="'+esc(s.n)+'"></span></button>';}).join('')
+      +'</div></div>';
   }).join('');
   /* HDSAME_V1361 選單從「招牌下面另起一列」改成「接在招牌右邊」，跟官網同一排。
      寬度不夠時 .topbar-inner 會自己換行，不會擠爆。 */
@@ -9480,10 +9504,14 @@ function tnavSync(){
     if(!g.sub){it.classList.toggle('on',g.act==='tab'&&g.id===cur);return;}
     let hit=false,tot=0;
     g.sub.forEach(x=>{
-      const b=it.querySelector('.tn-p button[data-id="'+x[0]+'"]');if(!b)return;
-      const me=(x[0]===cur);if(me)hit=true;
+      const sb=tnSub(x);
+      const b=it.querySelector('.tn-p button[data-k="'+sb.k+'"]');if(!b)return;
+      /* GIVESUB_V1366 權限每次重畫都重看一次。本來想在 tnavBuild 就過濾掉，
+         但選單只建一次，萬一那時候 IS_OWNER 還沒算出來就會永遠藏著。 */
+      if(sb.ow)b.style.display=IS_OWNER?'':'none';
+      const me=!!(sb.id&&sb.id===cur);if(me)hit=true;
       b.classList.toggle('on',me);
-      const n=b.querySelector('.tn-n');if(n){const v=num(x[2]);n.textContent=v;
+      const n=b.querySelector('.tn-n');if(n){const v=num(sb.n);n.textContent=v;
         const iv=parseInt(v,10);if(!isNaN(iv))tot+=iv;}
     });
     it.classList.toggle('on',hit);
@@ -12507,8 +12535,11 @@ function guideCardHtml(g,i){
    這一頁只是把入口收在一起，原本的位置全部保留，不改她現有的習慣。 */
 const GIVE_FREE=[
  {a:'printRules', id:'',  ic:'📋', t:'上課約定',   d:'請假、補課、退費的約定。中越對照，印出來給新學生簽。'},
- {a:'tab',        id:'reply', sub:['rpSub','tpl'],   ic:'📮', t:'回覆範本', d:'客人問價錢、問流程，挑一張複製貼過去。'},
- {a:'tab',        id:'reply', sub:['rpSub','price'], ic:'🏷️', t:'價目表',   d:'所有項目的收費，可以列印或存成 Word。'},
+ /* GIVESUB_V1366 這兩張本來的 id 都是 'reply'，H.giveTab 用 .find(x=>x.id===id) 去找，
+    永遠只會找到排在前面的那一張——所以「價目表」按下去是開「回覆範本」。
+    加一個 key 讓兩張分得開（原本的 id 保留，切頁還是要用它）。 */
+ {a:'tab', key:'tpl',   id:'reply', sub:['rpSub','tpl'],   ic:'📮', t:'回覆範本', d:'客人問價錢、問流程，挑一張複製貼過去。'},
+ {a:'tab', key:'price', id:'reply', sub:['rpSub','price'], ic:'🏷️', t:'價目表',   d:'所有項目的收費，可以列印或存成 Word。'},
  {a:'qtNew',      id:'',  ic:'💰', t:'開一張報價單', d:'針對某個人、某幾項服務，開一張正式報價。'},
  /* GIVE_V1314 本來直接叫 monthBillsGo，但它是去讀月結單設定表上的 #mb-ym，
     這一頁沒有那張表，所以永遠跳「請選月份」——等於一顆按不動的按鈕。
@@ -12529,7 +12560,8 @@ function giveStuList(){
 function giveCard(o,dis){
   return '<button class="btn gv-it'+(dis?' gv-off':'')+'" '
     +(dis?'disabled ':'')
-    +'data-act="'+esc(o.a==='tab'?'giveTab':(o.gv?'gvDo':o.a))+'" data-id="'+esc(o.gvid||o.id||'')+'" '
+    +'data-act="'+esc(o.a==='tab'?'giveTab':(o.gv?'gvDo':o.a))+'" '
+    +'data-id="'+esc(o.a==='tab'?(o.key||o.id||''):(o.gvid||o.id||''))+'" '
     /* GVONE_V1323 說明收成一行（文字一個字沒改，滑鼠停上去看得到完整的）。
        12 張卡各兩三行說明，整頁有一半是說明文字。 */
     +'title="'+esc(o.t+'：'+o.d)+'">'
@@ -14504,7 +14536,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1365';
+const APP_BUILD='V1366';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -22562,8 +22594,10 @@ H.printRules=(sid)=>{
 /* CHKIN_V1313 報到進度卡上的「給上課約定」：開文件，順便記日期 */
 H.chkinRules=(sid)=>H.printRules(sid);
 /* GIVE_V1312 這一頁的兩種按鈕：切到某個分頁的子頁、以及「帶著選好的學生去做某件事」 */
-H.giveTab=(id)=>{const o=GIVE_FREE.find(x=>x.a==='tab'&&x.id===id&&x.sub);
-  S.tab=id;
+H.giveTab=(k)=>{/* GIVESUB_V1366 先用 key 找，找不到再退回舊的 id（舊連結照樣能用） */
+  const o=GIVE_FREE.find(x=>x.a==='tab'&&x.key===k)
+       || GIVE_FREE.find(x=>x.a==='tab'&&x.id===k&&x.sub);
+  S.tab=(o&&o.id)||k;
   if(o&&o.sub){try{H[o.sub[0]](o.sub[1]);return;}catch(e){}}
   render();};
 H.gvDo=(key)=>{
