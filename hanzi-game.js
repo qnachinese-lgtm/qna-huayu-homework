@@ -9,6 +9,9 @@ const RAD = {}, COMP = {};
 Object.entries(HZ.cards).forEach(([k, v]) => { if (v.k === "r") RAD[k] = { name:v.n, hint:v.h || "" }; else COMP[k] = v.py || ""; });
 Object.assign(RAD, DATA.radicals); Object.assign(COMP, DATA.components);
 Object.keys(RAD).forEach(k => { delete COMP[k]; });
+// 一個字所有的讀音（第一個是主要讀音；多音字的其他讀音在 py2）
+const pysOf = s => { const e = CH[s]; const a = [pyOf(s)].filter(Boolean); if (e && e.py2) e.py2.forEach(([p]) => { if (a.indexOf(p) < 0) a.push(p); }); return a; };
+const pyLine = x => { const e = CH[x.c]; return e && e.py2 && e.py2.length ? "多音字：" + [[x.py, x.w]].concat(e.py2).map(([p, w]) => p + (w && w.length > 1 ? `（${w}）` : "")).join("／") : ""; };
 const pyOf = s => COMP[s] || (CH[s] && CH[s].py) || "";
 const BON = {}; BONUS.forEach(b => BON[b.c] = b);
 const NOSTROKE = new Set(DATA.nostroke || []);
@@ -169,7 +172,7 @@ function glyphRow(src){
 }
 function originBlock(sym){
   const o = ORIGIN[sym]; if (!o) return null;
-  const name = sym in RAD ? RAD[sym].name : (pyOf(sym) ? "讀 " + pyOf(sym) : "部件");
+  const name = sym in RAD && RAD[sym].name !== sym ? RAD[sym].name : (pysOf(sym).length ? "讀 " + pysOf(sym).join("／") : "部件");
   const box = el("div", {class:"origin"}, [el("h4", {}, [el("span", {class:"hz", text:sym}), name])]);
   o.src.forEach(src => { const r = glyphRow(src); if (r) box.append(r); });
   box.append(el("p", {text:o.story}));
@@ -342,14 +345,19 @@ function Shop(root, cfg){
   function why(parts, c){
     if (c && ZILI[c]) return ZILI[c];
     const r = parts.find(s => s in RAD), rest = parts.filter(s => s !== r); const bits = [];
-    if (r && RAD[r].hint) bits.push(`${r}（${RAD[r].name}）表示「${RAD[r].hint.replace(/\n/g, "；")}」`);
-    else if (r) bits.push(`${r}（${RAD[r].name}）`);
+    const rn = r && RAD[r].name !== r ? `（${RAD[r].name}）` : "";
+    if (r && RAD[r].hint) bits.push(`${r}${rn}表示「${RAD[r].hint.replace(/\n/g, "；")}」`);
+    else if (r) bits.push(`${r}${rn}`);
     const cp = rest.find(s => pyOf(s) && "口十八丷冂厶亠一丁".indexOf(s) < 0);
     if (cp && WHYPY) {
-      const a = pyOf(cp).split(/[\/,，、 ]/)[0], same = toneless(a) === toneless(WHYPY);
-      if (same) bits.push(`「${cp}」讀 ${a}，和這個字的讀音一樣，是聲音線索`);
-      else if (pyFinal(a) && pyFinal(a) === pyFinal(WHYPY)) bits.push(`「${cp}」讀 ${a}，和這個字的讀音相近，可以當聲音線索`);
-      else bits.push(`「${cp}」` + (toneless(a) !== a.toLowerCase() ? `（${a}）` : "") + `跟這個字的讀音不同，不是讀音線索`);
+      // 多音的部件：每個讀音都比一比，挑最接近的那個
+      const all = pysOf(cp).map(p => p.split(/[\/,，、 ]/)[0]);
+      const rank = p => toneless(p) === toneless(WHYPY) ? 2 : (pyFinal(p) && pyFinal(p) === pyFinal(WHYPY) ? 1 : 0);
+      const a = all.slice().sort((p, q) => rank(q) - rank(p))[0], k = rank(a);
+      const head = all.length > 1 ? `「${cp}」有 ${all.length} 個讀音（${all.join("／")}），讀 ${a} 時` : `「${cp}」讀 ${a}，`;
+      if (k === 2) bits.push(head + (a.toLowerCase() === String(WHYPY).toLowerCase() ? "和這個字的讀音一樣，是聲音線索" : "和這個字只差聲調，是聲音線索"));
+      else if (k === 1) bits.push(head + "和這個字的讀音相近，可以當聲音線索");
+      else bits.push(`「${cp}」` + (toneless(a) !== a.toLowerCase() ? `（${all.join("／")}）` : "") + `跟這個字的讀音不同，不是讀音線索`);
     }
     return bits.join("；");
   }
@@ -358,7 +366,7 @@ function Shop(root, cfg){
     const parts = isBonus ? x.p : (CH[x.c].p || []);
     const hw = el("div", {class:"hw"});
     const info = el("div", {}, [el("div", {class:"big"}, [el("b", {text:x.c}), "　" + x.py + "　" + x.w]),
-      el("div", {class:"why", text: isBonus ? "加分字" : "記憶提示：" + x.tip}), el("div", {class:"why", text:(WHYPY = x.py, "字理：" + why(parts, isBonus ? "" : x.c))})]);
+      el("div", {class:"why", text: isBonus ? "加分字" : "記憶提示：" + x.tip}), ...(isBonus || !pyLine(x) ? [] : [el("div", {class:"why", text: pyLine(x)})]), el("div", {class:"why", text:(WHYPY = x.py, "字理：" + why(parts, isBonus ? "" : x.c))})]);
     const sayB = el("button", {class:"btn small", text:"聽讀音"}); sayB.onclick = () => say(x.c + "，" + x.w);
     const againB = el("button", {class:"btn small", text:"再看一次筆順"});
     info.append(el("div", {class:"acts"}, [sayB, againB]));
@@ -535,15 +543,15 @@ function renderMap(){
 function showBasic(atoms){
   const card = $("#endcard"); card.innerHTML = "";
   card.append(el("h2", {text:"基本字"}), el("p", {class:"muted", text:"這些字本身就是一個完整的部件，不需要拼。點一下聽讀音、看筆順。"}));
-  const hw = el("div", {class:"hw", style:"margin:12px auto"}); const info = el("p", {class:"muted", style:"min-height:24px"});
+  const hw = el("div", {class:"hw", style:"margin:12px auto"}); const info = el("p", {class:"muted", style:"min-height:24px;white-space:pre-line"}); const ori = el("div", {class:"origins", style:"text-align:left"});
   const list = el("div", {class:"learned"});
   atoms.forEach(x => { const b = el("button", {text:x.c, title:x.w}); b.onclick = () => {
-    say(x.c + "，" + x.w + "的" + x.c); info.textContent = `${x.c}　${x.py}　${x.w}`; hw.innerHTML = "";
+    say(x.c + "，" + x.w + "的" + x.c); info.textContent = `${x.c}　${x.py}　${x.w}` + (pyLine(x) ? "\n" + pyLine(x) : ""); hw.innerHTML = ""; ori.innerHTML = ""; const ob = originBlock(x.c); if (ob) ori.append(ob);
     if (window.HanziWriter && !NOSTROKE.has(x.c)){ const w = HanziWriter.create(hw, x.c, { width:140, height:140, padding:8, strokeColor:css("--navy"), outlineColor:css("--line"), strokeAnimationSpeed:1.3, delayBetweenStrokes:160 }); w.animateCharacter(); }
     else hw.append(el("div", {class:"hz", style:"font-size:100px;text-align:center;line-height:140px", text:x.c}));
   }; list.append(b); });
   const close = el("button", {class:"btn", text:"關閉"}); close.onclick = closeOverlay;
-  card.append(hw, info, list, el("div", {class:"endbtns"}, [close]));
+  card.append(hw, info, ori, list, el("div", {class:"endbtns"}, [close]));
   $("#overlay").hidden = false;
 }
 // ================= 老師指派的作業 =================
