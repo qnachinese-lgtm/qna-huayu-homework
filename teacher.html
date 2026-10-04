@@ -885,6 +885,24 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         .bk-n{font-style:normal;font-size:12px;color:var(--muted);white-space:nowrap}
         @media(max-width:820px){.bk-row{grid-template-columns:1fr 1fr;gap:5px}
           .bk-row>b{grid-column:1/-1}.bk-head{display:none}}
+        /* NARROW_V1373 320px 的小手機（越南文最明顯）：教材進度那一塊會把整頁撐寬 16px，
+           整個畫面可以左右晃。原因是 grid 的格子預設 min-width:auto，裡面一長串
+           不能斷的字（越南文的教材名、網址）就把欄位撐大，連帶把 details 撐到 324px。
+           這不是翻譯造成的——我用上線那版字典測過，一模一樣。
+           兩格都允許縮到 0、長字可以斷行就解決了。 */
+        @media(max-width:360px){
+          .bk-row{min-width:0}
+          .bk-row>*{min-width:0;overflow-wrap:anywhere;word-break:break-word}
+          #app .panel details.disc{max-width:100%}
+          /* 空狀態那顆主要按鈕（「＋ 新增代書客戶」這種）越南文一行放不下，
+             窄螢幕讓它換行，不要頂出畫面 */
+          #app .panel .btn.btn-primary{white-space:normal;max-width:100%}
+          /* .cards 是 grid，格子的 min-width 預設是 auto，所以裡面最長的那一串
+             （教材名＋「Đã đăng 0 bài」那幾個標籤）會把整欄撐到 324px，
+             比 296px 的面板寬 28px，整頁就跟著能左右晃。允許格子縮到 0 就好。 */
+          #app .panel .cards{min-width:0}
+          #app .panel .cards>*{min-width:0}
+        }
         /* PLAN_V700 一鍵排課程表的預覽清單 */
         .plan-row{display:grid;grid-template-columns:minmax(160px,2.2fr) 124px 82px 92px;gap:10px;align-items:center;
           padding:7px 4px;border-bottom:1px solid var(--line);font-size:13.5px}
@@ -6395,7 +6413,11 @@ function renderCalMonth(body,toggle){
     cells+='<div class="'+cls+'" data-act="calDay" data-id="'+key+'"><div class="cm-d">'+dd+'</div><div class="cm-list">'+shown+'</div></div>';
   }
   {const tail=(7-((lead+lastD)%7))%7;for(let i=0;i<tail;i++)cells+='<div class="cm-cell out"></div>';}
-  const wdHead=['一','二','三','四','五','六','日'].map(w=>'<div class="cm-wd">'+w+'</div>').join('');
+  /* VI_V1373 星期標頭本來只有一個字（一二三四五六日），越南文字典沒辦法翻——
+     單獨一個「一」在別的地方可能是數字，全域翻掉會出事。
+     改成「週一…週日」整串，字典裡本來就有（週一=Thứ 2、週日=Chủ nhật）。
+     中文版多一個字，實測七欄在 320px 手機上還是排得下。 */
+  const wdHead=['週一','週二','週三','週四','週五','週六','週日'].map(w=>'<div class="cm-wd">'+w+'</div>').join('');
   const legend='<div class="cm-lg"><span class="cm-chip ok">已點名</span><span class="cm-chip pl">📌 預排</span><span class="cm-chip lv">請假</span><span class="cm-chip fr">🎁 免費</span><span class="cm-chip iv">🎤 面試練習</span><span class="cm-chip ex">🎯 正式面試</span></div>';
   const grid='<div class="cm-wrap"><div class="cm-grid">'+wdHead+cells+'</div>'+legend+'</div>';
   const selWd=sel?DAYS[(new Date(sel+'T00:00:00').getDay()+6)%7]:'';
@@ -6482,7 +6504,11 @@ function renderBizCal(){
       +' data-act="bizDay" data-id="'+key+'"><div class="cm-d">'+dd+'</div>'
       +'<div class="cm-list">'+shown+'</div></div>';}
   {const tail=(7-((lead+lastD)%7))%7;for(let i=0;i<tail;i++)cells+='<div class="cm-cell out"></div>';}
-  const wdHead=['一','二','三','四','五','六','日'].map(w=>'<div class="cm-wd">'+w+'</div>').join('');
+  /* VI_V1373 星期標頭本來只有一個字（一二三四五六日），越南文字典沒辦法翻——
+     單獨一個「一」在別的地方可能是數字，全域翻掉會出事。
+     改成「週一…週日」整串，字典裡本來就有（週一=Thứ 2、週日=Chủ nhật）。
+     中文版多一個字，實測七欄在 320px 手機上還是排得下。 */
+  const wdHead=['週一','週二','週三','週四','週五','週六','週日'].map(w=>'<div class="cm-wd">'+w+'</div>').join('');
   const legend='<div class="cm-lg">'+Object.keys(BC_K).map(k=>
     '<span class="cm-chip '+BC_K[k][2]+'">'+BC_K[k][0]+' '+BC_K[k][1]+(cnt[k]?(' '+cnt[k]):'')+'</span>').join('')+'</div>';
   const grid='<div class="cm-wrap bc-wrap"><div class="cm-grid">'+wdHead+cells+'</div>'+legend+'</div>';
@@ -14652,7 +14678,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1372';
+const APP_BUILD='V1373';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -25584,7 +25610,7 @@ boot();
     var s=document.createElement('script');
     /* VI_V1368 這個版本號一定要跟著字典一起改。不改的話瀏覽器會繼續用
        快取裡的 vi.js?v=962，新加的詞永遠不會出現——跟 styles.css 那次一樣的坑。 */
-    s.src='vi.js?v=1368';
+    s.src='vi.js?v=1373';
     s.onload=function(){
       LOADING=false;
       var d=window.QNA_VI;
