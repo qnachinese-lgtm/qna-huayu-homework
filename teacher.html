@@ -937,7 +937,31 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           .dash-sec[data-ds="todo"] .dash-row>.btn,
           .dash-sec[data-ds="todo"] .todo-hero .dash-row .sg-wait,
           .dash-sec[data-ds="todo"] .todo-hero .dash-row>.grow+.muted{flex:0 0 auto;width:auto;text-align:inherit}
+          /* REMBTN_V1371 Quinn：「按鈕太醜了」。
+             上面那條把電腦版寫死的 96px 寬放開成 width:auto，可是上面
+             「padding-left:0;padding-right:0」沒有一起放開——那個 0 內距本來是
+             靠 96px 的固定寬撐出空間的。結果手機上變成「寬度剛好等於字寬、左右沒有留白」：
+             量出來「去看」34px、「看客戶」50px、「💰 記繳費」74px，三種寬度各自靠右，
+             右邊排出一道參差的階梯。把內距補回來，再給一個 104px 的下限讓它們對齊；
+             越南文字長的還是可以自己撐大，不會被切掉。 */
+          .dash-sec[data-ds="todo"] .dash-row>.btn{
+            padding-left:14px;padding-right:14px;justify-content:center}
+          /* 104px 的對齊下限只給「⏰ 提醒」——那幾列每列只有一顆鈕，
+             對齊了右邊才會是一條直線。「今天的課」那種一列兩三顆的不套，
+             免得兩顆各 104px 把一列撐爆。 */
+          .dash-sec[data-ds="todo"] .dash-row.rem-row>.btn{min-width:104px}
         }
+        /* REMBTN_V1371 同一張提醒清單裡，「💰 記繳費」是深色實心、「去看」「看客戶」是
+           淺色外框，四列排下來深深淺淺。可是這三件事其實一樣重要——繳件也有死線。
+           深淺差別反而在暗示「記繳費比繳件急」，那不是真的。
+           統一成淺色外框：紅色的「欠 NT$1,500」標籤本來就在喊了，按鈕不用跟著喊。
+           只改「⏰ 提醒」這 8 種列（統一掛 .rem-row），
+           同一區塊裡的「📥 待批改」和「今天的課 → ✍️ 去點名」完全不動——
+           那兩個是她自己決定過的「一列只留一顆實心」，不能順手改掉。 */
+        .dash-sec[data-ds="todo"] .dash-row.rem-row>.btn.btn-accent{
+          background:#fff;color:#14365F;border:1px solid #C0CEE0;font-weight:600}
+        .dash-sec[data-ds="todo"] .dash-row.rem-row>.btn.btn-accent:hover{
+          background:#F2F6FC;border-color:#9FB6D4}
         .sg-wait.w1{background:#F4F7FB;color:#6D28D9;border-color:#C7D8EF}
         .sg-wait.w2{background:#F8E7E4;color:#A33227;border-color:#F0C9C2}
         .sg-wait.w3{background:#A33227;color:#fff;border-color:#A33227}
@@ -4715,22 +4739,22 @@ function renderDashboard(){
   const remRows=[];
   /* REMSORT_V1076 有日期的提醒先收在這裡，最後照「還剩幾天」一起排 */
   const remDate=[];const remPush=(d,html)=>remDate.push({d:(d==null?9999:Number(d)),html:html});
-  if(IS_OWNER)oweList.forEach(({s,b})=>remRows.push(`<div class="dash-row"><span class="badge badge-overdue">💰 欠 ${money(b.due,billCur(s))}</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">上課 ${fmtQty((function(){let q=0;(b.items||[]).forEach(x=>{const h=logHours(x.e);q+=(isHourly(s)?((h!=null)?h:1):1);});return Math.round(q*100)/100;})())} ${unitLabel(s)} · 已繳 ${money(b.paid,billCur(s))}</span><button class="btn btn-sm btn-accent" data-act="payments" data-id="${s.id}">💰 記繳費</button></div>`));
+  if(IS_OWNER)oweList.forEach(({s,b})=>remRows.push(`<div class="dash-row rem-row"><span class="badge badge-overdue">💰 欠 ${money(b.due,billCur(s))}</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">上課 ${fmtQty((function(){let q=0;(b.items||[]).forEach(x=>{const h=logHours(x.e);q+=(isHourly(s)?((h!=null)?h:1):1);});return Math.round(q*100)/100;})())} ${unitLabel(s)} · 已繳 ${money(b.paid,billCur(s))}</span><button class="btn btn-sm btn-accent" data-act="payments" data-id="${s.id}">💰 記繳費</button></div>`));
   const mkDue=S.students.filter(s=>!s.is_test&&enrollOf(s)!=='paused'&&makeupDue(s)>0).sort((a,b)=>makeupDue(b)-makeupDue(a));
-  mkDue.forEach(s=>remRows.push(`<div class="dash-row"><span class="badge b-info" >🔁 待補 ${makeupDue(s)} 堂</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">請假 ${leaveCount(s)} 次 · 已補 ${makeupCount(s)} 次</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">📝 記一堂課</button></div>`));
+  mkDue.forEach(s=>remRows.push(`<div class="dash-row rem-row"><span class="badge b-info" >🔁 待補 ${makeupDue(s)} 堂</span><b>${snm(s.name)}</b><span class="grow"></span><span class="muted">請假 ${leaveCount(s)} 次 · 已補 ${makeupCount(s)} 次</span><button class="btn btn-sm" data-act="classLog" data-id="${s.id}">📝 記一堂課</button></div>`));
   /* ITVDROP_V702 已結案、中途放棄的面試客戶不要再叫老師「填面試結果」——
      人都不做了，結果自然填不出來。代辦、代書那兩區本來就有這個判斷，面試漏了。 */
   itvAll().forEach(c=>{if((c.status||'active')!=='active')return;if(!c.exam_date)return;if(itvIsConsult(c)||itvIsLost(c))return;/* REMDUP_V1317 */const d=itvDaysTo(c.exam_date);if(d==null)return;
-    if(d>7&&d<=14&&!itvResultMeta(c.result)){/* REMDUP_V1317 七天內的上面那份已經列了 */const col=d<=3?'#A33227':'#1E4C86';remPush(d,`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">🎯 ${d===0?'今天面試':(d===1?'明天面試':'還有 '+d+' 天')}</span><b>${snm(c.name||'')}</b>${c.target?`<span class="muted">${esc(c.target)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.exam_date)}${c.exam_time?(' '+esc(c.exam_time)):''}</span><button class="btn btn-sm" data-act="tab" data-id="interview">看客戶</button></div>`);}
-    else if(d<0&&!itvResultMeta(c.result)){remPush(d,`<div class="dash-row"><span class="badge badge-soon">🎯 待填結果</span><b>${snm(c.name||'')}</b><span class="muted">面試日 ${esc(c.exam_date)}（${-d} 天前）</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 填結果</button></div>`);}});
+    if(d>7&&d<=14&&!itvResultMeta(c.result)){/* REMDUP_V1317 七天內的上面那份已經列了 */const col=d<=3?'#A33227':'#1E4C86';remPush(d,`<div class="dash-row rem-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">🎯 ${d===0?'今天面試':(d===1?'明天面試':'還有 '+d+' 天')}</span><b>${snm(c.name||'')}</b>${c.target?`<span class="muted">${esc(c.target)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.exam_date)}${c.exam_time?(' '+esc(c.exam_time)):''}</span><button class="btn btn-sm" data-act="tab" data-id="interview">看客戶</button></div>`);}
+    else if(d<0&&!itvResultMeta(c.result)){remPush(d,`<div class="dash-row rem-row"><span class="badge badge-soon">🎯 待填結果</span><b>${snm(c.name||'')}</b><span class="muted">面試日 ${esc(c.exam_date)}（${-d} 天前）</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 填結果</button></div>`);}});
   /* REMDUP_V1317 同一筆在上面「今天要處理」已經列過了，下面「提醒」不要再列一次
      （Quinn 的首頁上 Binh Bui、Pachamon 各出現兩次）。上面那份收的是過期的和七天內的，
      所以這裡只留第 8～21 天的提前通知。諮詢中的一樣不列。 */
   (S.writings||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;if(wrIsConsult(c)||wrIsLost(c))return;const d=itvDaysTo(c.deadline);if(d==null||d>21||d<=7)return;
     const col=d<0?'#A33227':(d<=3?'#A33227':(d<=7?'#A33227':'#1E4C86'));
     const lab=d<0?('交件已過 '+(-d)+' 天'):(d===0?'今天要交件！':(d===1?'明天要交件':'還有 '+d+' 天交件'));
-    remPush(d,`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">✍️ ${lab}</span><b>${snm(c.name||'')}</b>${c.docs?`<span class="muted">${esc(c.docs)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="writing">看客戶</button></div>`);});
-  (S.agencies||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;if(agIsConsult(c)||agIsLost(c))return;const d=itvDaysTo(c.deadline);if(d==null)return;if(d>21||d<=7)return;/* REMDUP_V1317 */const col=d<0?'#A33227':(d<=3?'#A33227':(d<=7?'#A33227':'#1E4C86'));const lab=d<0?('繳件已過 '+(-d)+' 天'):(d===0?'今天要繳件！':(d===1?'明天要繳件':'還有 '+d+' 天繳件'));remPush(d,`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 ${lab}</span><b>${snm(c.name||'')}</b>${c.school?`<span class="muted">${esc(c.school)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="agency">看客戶</button></div>`);});
+    remPush(d,`<div class="dash-row rem-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">✍️ ${lab}</span><b>${snm(c.name||'')}</b>${c.docs?`<span class="muted">${esc(c.docs)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="writing">看客戶</button></div>`);});
+  (S.agencies||[]).forEach(c=>{if((c.status||'active')!=='active'||!c.deadline)return;if(agIsConsult(c)||agIsLost(c))return;const d=itvDaysTo(c.deadline);if(d==null)return;if(d>21||d<=7)return;/* REMDUP_V1317 */const col=d<0?'#A33227':(d<=3?'#A33227':(d<=7?'#A33227':'#1E4C86'));const lab=d<0?('繳件已過 '+(-d)+' 天'):(d===0?'今天要繳件！':(d===1?'明天要繳件':'還有 '+d+' 天繳件'));remPush(d,`<div class="dash-row rem-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">📄 ${lab}</span><b>${snm(c.name||'')}</b>${c.school?`<span class="muted">${esc(c.school)}</span>`:''}<span class="grow"></span><span class="muted">${esc(c.deadline)}</span><button class="btn btn-sm" data-act="tab" data-id="agency">看客戶</button></div>`);});
   /* CLSSOON_V1147 團班開課日前七天提醒：開課前要先排課、通知學生、確認教材，
      以前只有「開課日已經到了卻還勾著還沒開始」的事後提醒，來不及準備。 */
   try{const _csAll=new Set();
@@ -4743,13 +4767,13 @@ function renderDashboard(){
       const n=(S.students||[]).filter(x=>x&&!x.is_test&&stuGroups(x).indexOf(cls)>=0).length;
       const col=d<=1?'#A33227':(d<=3?'#A33227':'#1E4C86');
       const lab=d===0?'今天開課！':(d===1?'明天開課':'還有 '+d+' 天開課');
-      remPush(d,`<div class="dash-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">\u{1F680} ${lab}</span><b>\u{1F465} ${esc(cls)}</b><span class="muted">${n} 人</span><span class="grow"></span><span class="muted">開課日 ${esc(st)}</span><button class="btn btn-sm" data-act="gmPick" data-id="${esc(cls)}">看這一班</button></div>`);});}catch(e){}
+      remPush(d,`<div class="dash-row rem-row"><span class="badge" style="background:${col}18;color:${col};border-color:${col}55">\u{1F680} ${lab}</span><b>\u{1F465} ${esc(cls)}</b><span class="muted">${n} 人</span><span class="grow"></span><span class="muted">開課日 ${esc(st)}</span><button class="btn btn-sm" data-act="gmPick" data-id="${esc(cls)}">看這一班</button></div>`);});}catch(e){}
   /* REMSORT_V1076 有日期的照剩幾天排，過期的（負數）排最前面；一樣天數的維持原本順序 */
   remDate.sort((a,b)=>a.d-b.d);
   remDate.forEach(x=>remRows.push(x.html));
   /* LEAVEREQ_V1204 學生送過來的請假／改時間，排在待辦最前面——他在等回覆 */
   try{const _lvn=lvNew().length;
-    if(_lvn)remRows.unshift('<div class="dash-row" style="background:#E8EFF7;border:1.5px solid #C7D8EF;border-radius:10px;padding:8px 10px">'
+    if(_lvn)remRows.unshift('<div class="dash-row rem-row" style="background:#E8EFF7;border:1.5px solid #C7D8EF;border-radius:10px;padding:8px 10px">'
       +'<span class="badge b-warn" >\u{1F64B} 請假／改時間</span>'
       +'<b>'+_lvn+' 位學生在等你回覆</b><span class="grow"></span>'
       +'<button class="btn btn-sm btn-primary" data-act="lvList">去看</button></div>');
@@ -4759,7 +4783,7 @@ function renderDashboard(){
   try{const _ob=chkinPending();
     if(IS_OWNER&&_ob.length){
       const _names=_ob.slice(0,3).map(x=>snm(x.name)).join('、')+(_ob.length>3?(' 等 '+_ob.length+' 位'):'');
-      remRows.unshift('<div class="dash-row"><span class="badge b-warn">🧳 報到</span>'
+      remRows.unshift('<div class="dash-row rem-row"><span class="badge b-warn">🧳 報到</span>'
         +'<b>'+_names+'</b><span class="muted">還有沒設定完的項目</span>'
         +'<span class="grow"></span>'
         +'<button class="btn btn-sm" data-act="stuDetail" data-id="'+esc(_ob[0].id)+'">去看</button></div>');
@@ -4775,7 +4799,7 @@ function renderDashboard(){
        她每天都滑過去。改成排第一個；拖過四週整行變紅底，才不會跟其他提醒長得一樣。 */
     const _bVeryLate=(_bwn==null||_bwn>=4);
     const _bBox=_bVeryLate?' style="background:#F8E7E4;border:1.5px solid #F0C9C2;border-radius:10px;padding:8px 10px"':'';
-    if(IS_OWNER&&bwk!==nowWk&&(S.students||[]).some(x=>!x.is_test))remRows.unshift(`<div class="dash-row"${_bBox}><span class="badge ${_bLate?'b-warn':'b-info'}">📦 備份</span><b style="color:${_bCol}">${_bLab}</b>${_bVeryLate?'<span class="muted">資料全部在雲端，誤刪就沒了</span>':''}<span class="grow"></span><span class="muted">${bwk?('上次備份：'+esc(bwk)+' 那週'):''}</span><button class="btn btn-sm btn-accent" data-act="exportJson">⬇ 下載完整備份</button></div>`);}catch(e){}
+    if(IS_OWNER&&bwk!==nowWk&&(S.students||[]).some(x=>!x.is_test))remRows.unshift(`<div class="dash-row rem-row"${_bBox}><span class="badge ${_bLate?'b-warn':'b-info'}">📦 備份</span><b style="color:${_bCol}">${_bLab}</b>${_bVeryLate?'<span class="muted">資料全部在雲端，誤刪就沒了</span>':''}<span class="grow"></span><span class="muted">${bwk?('上次備份：'+esc(bwk)+' 那週'):''}</span><button class="btn btn-sm btn-accent" data-act="exportJson">⬇ 下載完整備份</button></div>`);}catch(e){}
   const remHtml=remRows.length?remRows.join(''):`<div class="muted" style="padding:8px 2px">目前沒有需要提醒的事項 👍</div>`;
   const todoN=inbox.length+remRows.length;
   // 總覽數字卡：本月收入／尚未收款／待批改／待辦／堂數快用完
@@ -14578,7 +14602,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1370';
+const APP_BUILD='V1371';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
