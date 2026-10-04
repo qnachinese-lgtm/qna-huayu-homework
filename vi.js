@@ -2097,6 +2097,33 @@ window.QNA_VI = {
     "這次已經收款": "Lần này đã thu tiền",
     "補充資料 ·": "Tài liệu bổ sung ·",
     "今天上了什麼": "Hôm nay đã học gì",
-    "上課語法練習": "Bài luyện ngữ pháp trên lớp"
+    "上課語法練習": "Bài luyện ngữ pháp trên lớp",
+
+    /* ── VI_V1368 頂部選單「給學生的東西」下拉，以及那一頁本身 ── */
+    "給學生的東西": "Tài liệu cho học viên",
+    "官網": "Trang chính thức",
+    "全部文件": "Tất cả tài liệu",
+    "上課約定": "Thoả thuận lớp học",
+    "帶姓名": "kèm tên",
+    "要拿給學生或客人的，都收在這一頁": "Những thứ cần đưa cho học viên hoặc khách đều nằm ở trang này",
+    "不用先選學生": "Không cần chọn học viên trước",
+    "要先選一位學生": "Cần chọn một học viên trước",
+    "— 先選一位學生 —": "— Chọn một học viên trước —",
+    "現在是": "Hiện tại là",
+    "回饋單": "Phiếu nhận xét",
+    "回饋單打包": "Gộp phiếu nhận xét",
+    "Excel 完整資料": "Toàn bộ dữ liệu Excel",
+    "請假、補課、退費的約定。中越對照，印出來給新學生簽。": "Thoả thuận về xin nghỉ, học bù và hoàn phí. Song ngữ Trung–Việt, in ra cho học viên mới ký.",
+    "客人問價錢、問流程，挑一張複製貼過去。": "Khách hỏi giá, hỏi quy trình thì chọn một mẫu rồi sao chép gửi đi.",
+    "所有項目的收費，可以列印或存成 Word。": "Giá của tất cả hạng mục, có thể in hoặc lưu thành Word.",
+    "針對某個人、某幾項服務，開一張正式報價。": "Lập một bảng báo giá chính thức cho một người và một vài dịch vụ cụ thể.",
+    "選一個月份，一次產生所有人的月結單，一位一頁。": "Chọn một tháng, tạo một lần bảng kê hàng tháng cho tất cả mọi người, mỗi người một trang.",
+    "同一份約定，自動填好這位學生的姓名和日期。": "Vẫn thoả thuận đó, tự điền sẵn tên và ngày của học viên này.",
+    "一堂一堂列出來：哪天上課、收多少、繳多少、還差多少。": "Liệt kê từng buổi: ngày nào có học, thu bao nhiêu, đã nộp bao nhiêu, còn thiếu bao nhiêu.",
+    "一頁的學生摘要，可以列印或存 PDF。": "Bản tóm tắt học viên một trang, có thể in hoặc lưu PDF.",
+    "各課成績、較需加強的地方、各題型正確率。": "Điểm từng bài, chỗ cần cố gắng thêm, tỷ lệ đúng theo từng dạng câu.",
+    "所有寫過的上課回饋單＋月總結，合成一份。": "Gộp tất cả phiếu nhận xét buổi học đã viết ＋ tổng kết tháng thành một bản.",
+    "基本資料、上課、繳費、成績、回饋，五張分頁。": "Thông tin cơ bản, buổi học, nộp phí, điểm số, nhận xét — năm trang tính.",
+    "學生不繼續讀了，把預繳的錢退回去並開單。": "Học viên không học tiếp nữa, hoàn lại tiền đã nộp trước và lập phiếu."
   }
 };
