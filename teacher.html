@@ -3993,12 +3993,29 @@ async function loadAll(){
   /* SYNCTAG_V1047 讀得回雲端資料＝現在是好的，把警告收起來 */
   try{syncTagOK();}catch(e){}
   IS_OWNER=isOwner();MY_EMAIL=myEmailNow();const owner=IS_OWNER;
+  /* ══════ BOOTPAR_V1370 開機不要排隊 ══════
+     Quinn：「為什麼手機每次進去都很慢」。量出來開機一共打 11 次 Firestore，
+     但只有最前面那 4 次（students／lessons／questions／results）是同時發的，
+     後面 7 次是一個等一個：crm → shares → tguides → members → admins → site → leads。
+     它們彼此沒有關係，誰先回來都不影響結果，可是寫成 await 之後就變成排隊。
+     手機上一次來回大概 300ms，排隊 7 次＝白等 2.1 秒；訊號差的時候更久。
+     改法：在最前面就把 7 個請求全部發出去（promise 先拿著），
+     原本該等的地方再 await。資料的處理順序一個字都沒改，
+     只是把「等待」疊在一起。每一個 promise 建立的當下就掛好 .catch，
+     不然其中一個失敗會變成 unhandled rejection。 */
+  const pCrm  = owner?DB.list('crm').catch(()=>[]):Promise.resolve([]);
+  const pShare= shareLoad().catch(()=>{});
+  const pTg   = tgLoad().catch(()=>{});
+  const pMem  = owner?DB.list('members').catch(()=>[]):Promise.resolve([]);
+  const pAdm  = owner?listAdmins().catch(()=>[]):Promise.resolve([]);
+  const pSite = owner?DB.list('site').catch(()=>null):Promise.resolve(null);
+  const pLeads= owner?DB.list('leads').catch(()=>[]):Promise.resolve([]);
   const [a,b,c,d]=await Promise.all([
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
     DB.list('lessons'),listQuestions(),DB.list('results')]);
-  let _crm=[];if(owner){try{_crm=await DB.list('crm');}catch(e){_crm=[];}}
-  try{await shareLoad();}catch(e){}
-  try{await tgLoad();}catch(e){}/* TGUIDE_V973 */
+  let _crm=[];try{_crm=(await pCrm)||[];}catch(e){_crm=[];}
+  try{await pShare;}catch(e){}
+  try{await pTg;}catch(e){}/* TGUIDE_V973 */
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
   S.rawLessons=b.filter(x=>x&&!x.deleted_at);/* READUID_V973 算讀取名單要看整包，不能只看 S.lessons */
   S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&x.kind!=='lqassign'&&x.kind!=='reply'&&x.kind!=='price'&&x.kind!=='edit_proposal'&&x.kind!=='school'/* SCHOOL_V1046 學校資料不是課 */&&!x.deleted_at);
@@ -4023,7 +4040,7 @@ async function loadAll(){
    S.memos=_crm.filter(x=>x&&x.kind==='memo'&&!x.deleted_at);
    S.docTpl=_crm.find(x=>x&&x.kind==='doctpl'&&!x.deleted_at)||null;/* DOCTPL_V1238 */
    /* OC_V1257 自學會員：自己註冊的人，跟正式學生分開存 */
-   if(owner){try{S.members=(await DB.list('members')).filter(x=>x&&!x.deleted_at);}catch(e){S.members=[];}}
+   if(owner){try{S.members=((await pMem)||[]).filter(x=>x&&!x.deleted_at);}catch(e){S.members=[];}}/* BOOTPAR_V1370 */
 S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==='classical'&&!x.deleted_at);S.quizzes=b.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.announcements=b.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=b.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=b.find(x=>x.kind==='classmeta')||null;S.trashLessons=b.filter(x=>!!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='school');
   splitResults(d);
   {const cut=Date.now()-7*864e5;(S.trashStudents||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('students',x.id).catch(()=>{});});(S.trashLessons||[]).forEach(x=>{const t=Date.parse(x.deleted_at||'');if(t&&t<cut)DB.remove('lessons',x.id).catch(()=>{});});}
@@ -4033,10 +4050,10 @@ S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==
     S.results=S.results.filter(mine);S.sentences=S.sentences.filter(mine);S.quizResults=S.quizResults.filter(mine);S.discussions=S.discussions.filter(mine);S.shadows=(S.shadows||[]).filter(mine);S.gpracs=(S.gpracs||[]).filter(mine);S.hwvs=(S.hwvs||[]).filter(mine);S.wbdocs=(S.wbdocs||[]).filter(mine);S.lqps=(S.lqps||[]).filter(mine);
     S.quizzes=S.quizzes.filter(qz=>(qz.assigned_ids||[]).some(id=>ids.has(id)));
   }
-  S.admins=owner?await listAdmins():[];
+  S.admins=owner?((await pAdm)||[]):[];/* BOOTPAR_V1370 */
   if(owner){try{famSync();}catch(e){}}/* FAMUID_V947 不等它，慢慢寫沒關係 */
-  if(owner){try{const st=await DB.list('site');S.site=(st&&st.length)?st[st.length-1]:null;}catch(e){S.site=null;}
-    try{S.leads=await DB.list('leads');}catch(e){S.leads=[];}}
+  if(owner){try{const st=await pSite;S.site=(st&&st.length)?st[st.length-1]:null;}catch(e){S.site=null;}
+    try{S.leads=(await pLeads)||[];}catch(e){S.leads=[];}}/* BOOTPAR_V1370 */
   else{S.site=null;S.leads=[];}
   document.body.classList.toggle('is-admin',!owner);
   try{const _sb=document.querySelector('#panel-students .section-head .sub');if(_sb)_sb.textContent=owner?'基本資料與學費':'基本資料與上課記錄';
@@ -14561,7 +14578,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1369';
+const APP_BUILD='V1370';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */

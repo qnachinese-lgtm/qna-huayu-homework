@@ -2581,10 +2581,15 @@ async function loadLessonsForMe(){
   const map=Object.create(null);
   const add=(sn)=>{sn.forEach(d=>{map[d.id]=Object.assign({id:d.id},d.data());});};
   let mineOk=false;
-  try{add(await db.collection('lessons').where('read_uids','array-contains',u).get());mineOk=true;}
-  catch(e){}
-  try{add(await db.collection('lessons').where('kind','in',PUBKINDS).get());}
-  catch(e){}
+  /* BOOTPAR_V1370 這兩個查詢互相沒有關係，本來是一個等一個，等於多花一次網路來回。
+     改成同時發，回來之後照原本的順序（先我的、再公用的）塞進 map，結果一模一樣。
+     用 allSettled 是為了保留原本的行為：第一個查詢失敗時 mineOk 要維持 false，
+     才會走下面那條「整包抓」的退路。 */
+  {const [r1,r2]=await Promise.allSettled([
+     db.collection('lessons').where('read_uids','array-contains',u).get(),
+     db.collection('lessons').where('kind','in',PUBKINDS).get()]);
+   if(r1.status==='fulfilled'){add(r1.value);mineOk=true;}
+   if(r2.status==='fulfilled'){add(r2.value);}}
   let out=Object.keys(map).map(k=>map[k]);
   const anyLesson=out.some(x=>x&&!x.kind&&!x.deleted_at);
   if(!mineOk||!anyLesson){
@@ -2593,10 +2598,18 @@ async function loadLessonsForMe(){
   }
   out.sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')));
   return out;}
-async function loadMine(){const [l,siteRows]=await Promise.all([loadLessonsForMe(),DB.list('site').catch(()=>[])]);/* READCUT2_V975 */
-  S.site=(siteRows&&siteRows.length)?siteRows[siteRows.length-1]:{};
+async function loadMine(){
+  /* BOOTPAR_V1370 成績本來是等課程全部回來之後才去抓，可是它只需要 uid，
+     跟課程一點關係都沒有——等於白等一次來回。提前跟課程一起發出去。
+     錯誤照原本的方式往外丟（先接住避免 unhandled rejection，await 之後再丟）。 */
   const u=myUid();
-  const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
+  let _rErr=null;
+  const pRes=(u?DB.listWhere('results','uid',u)
+               :DB.list('results').then(a=>a.filter(x=>x.student_id===S.me.id)))
+             .catch(e=>{_rErr=e;return [];});
+  const [l,siteRows]=await Promise.all([loadLessonsForMe(),DB.list('site').catch(()=>[])]);/* READCUT2_V975 */
+  S.site=(siteRows&&siteRows.length)?siteRows[siteRows.length-1]:{};
+  const rAll=await pRes; if(_rErr)throw _rErr;
   S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook');S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.lqassigns=l.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;
   S.questions=await loadMyQuestions(l,rAll);
   splitResults(rAll);}
