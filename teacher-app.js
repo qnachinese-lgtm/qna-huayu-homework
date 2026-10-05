@@ -11262,7 +11262,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1391';
+const APP_BUILD='V1393';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -22217,8 +22217,8 @@ boot();
     LOADING=true;
     var s=document.createElement('script');
     /* VI_V1368 這個版本號一定要跟著字典一起改。不改的話瀏覽器會繼續用
-       快取裡的 vi.js?v=1391，新加的詞永遠不會出現——跟 styles.css 那次一樣的坑。 */
-    s.src='vi.js?v=1391';
+       快取裡的 vi.js?v=1393，新加的詞永遠不會出現——跟 styles.css 那次一樣的坑。 */
+    s.src='vi.js?v=1393';
     s.onload=function(){
       LOADING=false;
       var d=window.QNA_VI;
