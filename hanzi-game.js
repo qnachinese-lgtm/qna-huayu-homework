@@ -1249,4 +1249,9 @@ if (ls.get("hz-hascourse") === "1" && !new URLSearchParams(location.search).get(
     else if (C.lessons.length) showCourseHome();
   });
 })();
+// ================= 給「漢字大富翁」（hanzi-fuweng.js）用的介面 =================
+window.HZAPI = { CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
+  store, getRec: () => rec, save, addXp,
+  addReview(c, w, py){ if (!store.me || !c || rec.review[c]) return false; rec.review[c] = { box:0, due:todayStr(1), lid:"", w:w || "", py:py || "", mean:"" }; return true; } };
+document.dispatchEvent(new Event("hzapi"));
 })();

@@ -3,7 +3,7 @@
    如果有人用舊的檔案覆蓋，把漢字遊戲需要的東西弄掉了，這次部署就停下來，網站維持上一版，
    GitHub 上這一次的提交會顯示紅色的 ✕，點進去就看得到下面這段說明。 */
 const fs = require('fs');
-const need = ['hanzi.html', 'hanzi-game.js', 'hanzi-data.js', 'hanzi-teacher.js', 'hanzi-student.js', 'db.js', 'teacher.html', 'student.html'];
+const need = ['hanzi.html', 'hanzi-game.js', 'hanzi-data.js', 'hanzi-teacher.js', 'hanzi-student.js', 'hanzi-fuweng.js', 'db.js', 'teacher.html', 'student.html'];
 const bad = [];
 need.forEach(f => { if (!fs.existsSync(f)) bad.push('少了檔案：' + f); });
 const read = f => { try { return fs.readFileSync(f, 'utf8'); } catch (e) { return ''; } };
