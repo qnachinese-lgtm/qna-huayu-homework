@@ -124,6 +124,8 @@ function setWho(t){ const w = $("#who"); if (w) w.textContent = (store.me ? (sto
 const XPLV = [[0, "漢字學徒"], [300, "拼字工匠"], [1000, "字族達人"], [2500, "字源學者"], [5000, "漢字大師"]];
 function levelOf(xp){ let i = 0; XPLV.forEach((l, k) => { if (xp >= l[0]) i = k; }); return i; }
 function renderLevel(){
+  // 老師帳號只是試玩：不顯示等級（等級是學生累積經驗值升級用的）
+  if (store.teacher && !store.me){ $("#lvlNum").textContent = "師"; $("#lvlName").textContent = "老師試玩"; $("#lvlXp").textContent = "學生玩才會累積經驗值升級"; $("#lvlBar").style.width = "0%"; return; }
   const i = levelOf(rec.xp), cur = XPLV[i][0], next = XPLV[i + 1] ? XPLV[i + 1][0] : null;
   $("#lvlNum").textContent = i + 1; $("#lvlName").textContent = XPLV[i][1];
   $("#lvlXp").textContent = next ? `${rec.xp} / ${next} XP` : `${rec.xp} XP`;
@@ -830,18 +832,12 @@ function cvLesson(l){
     if ([...it.w].length > 1) return;
     const other = words.find(W => W.w.length > 1 && W.w.includes(it.c));
     if (other){ it.w = other.w; it.wpy = other.py || ""; return; }
-    const ss = sents.concat(it.ex || []).filter(x => x.includes(it.c)).sort((a, b) => a.length - b.length);
-    if (ss.length){ const t = ss[0].replace(/[^\u3400-\u9FFF\uF900-\uFAFF]+/g, " "); const k = t.indexOf(it.c);
-      // 取這個字所在的那一小句；太長才截，而且不能把詞切斷（例如「這是王先生」不能變成「這是王先」）
-      let a0 = k, b0 = k + 1; while (a0 > 0 && t[a0 - 1] !== " ") a0--; while (b0 < t.length && t[b0] !== " ") b0++;
-      if (b0 - a0 > 14){
-        let x = Math.max(a0, k - 3), y = Math.min(b0, k + 5);
-        const vw = words.map(W => W.w).concat(ALLW()).filter(w => w && w.length > 1 && t.slice(a0, b0).includes(w));
-        for (let g = 0; g < 3; g++) vw.forEach(w => { let i = t.indexOf(w, a0); while (i >= 0 && i < b0){ const j = i + w.length; if (i < x && j > x) x = i; if (i < y && j > y) y = j; i = t.indexOf(w, i + 1); } });
-        while (y - 1 > k && "也和跟的就還".includes(t[y - 1])) y--;
-        a0 = x; b0 = y;
-      }
-      const snip = t.slice(a0, b0).trim(); if ([...snip].length > 1){ it.w = snip; it.wpy = ""; return; } }
+    // 用課文裡完整的一句（或用逗號分開的完整小句），絕不從中間切
+    const ss = sents.concat(it.ex || []).filter(x => x.includes(it.c));
+    const whole = ss.filter(x => [...x].length <= 20).sort((a, b) => a.length - b.length)[0];
+    if (whole){ it.w = whole; it.wpy = ""; it.sent = true; return; }
+    const parts = ss.flatMap(x => x.split(/[，、；：,;:]/)).map(x => x.trim()).filter(x => x.includes(it.c) && [...x].length >= 3 && [...x].length <= 20).sort((a, b) => a.length - b.length);
+    if (parts.length){ it.w = parts[0]; it.wpy = ""; it.sent = true; return; }
     if (CH[it.c] && [...CH[it.c].w].length > 1){ it.w = CH[it.c].w; it.wpy = ""; }
   });
   return { id:l.id, label:cvLabel(l), tb:(l.textbook || "").trim(), order:l.order_index || 0, at:l.created_at || "", chars, sents };
@@ -874,9 +870,11 @@ function cvIndex(){
   Object.values(CH).forEach(x => { (x.p || []).forEach(p => (CVI.part[p] = CVI.part[p] || []).push(x.c)); const k = toneless(x.py); if (k) (CVI.py[k] = CVI.py[k] || []).push(x.c); });
   return CVI;
 }
-function distractors(item, n = 3){
+// 干擾選項：長得像、同音的字。allow＝只能用學生學過的字（同一本課本、到這一課為止）
+function distractors(item, n = 3, allow){
   const I = cvIndex(), c = item.c, sc = {};
-  const bump = (x, v) => { if (x && x !== c && HAN.test(x) && !NOSTROKE.has(x)) sc[x] = (sc[x] || 0) + v; };
+  if (allow && allow.size < n + 4) allow = null;
+  const bump = (x, v) => { if (x && x !== c && HAN.test(x) && !NOSTROKE.has(x) && (!allow || allow.has(x))) sc[x] = (sc[x] || 0) + v; };
   (CH[c] && CH[c].p || []).forEach(p => (I.part[p] || []).forEach(x => bump(x, p in RAD ? 1.2 : 3)));
   (I.py[toneless(item.py)] || []).forEach(x => bump(x, 2.6));
   (I.part[c] || []).forEach(x => bump(x, 1.5));
@@ -884,9 +882,14 @@ function distractors(item, n = 3){
   let pool = Object.keys(sc).sort((a, b) => sc[b] - sc[a] + (Math.random() - .5) * .8);
   // 不要選到放進去也是一個詞的字（例如「在／再」放進同一個句子都說得通的情況，盡量避開課本裡的其他詞）
   const out = pool.slice(0, n);
-  const fill = shuffle(Object.keys(CH)).filter(x => x !== c && !out.includes(x) && toneless(CH[x].py) !== toneless(item.py));
+  const fill = shuffle(allow ? [...allow] : Object.keys(CH)).filter(x => x !== c && !out.includes(x) && (!CH[x] || toneless(CH[x].py) !== toneless(item.py)));
   while (out.length < n && fill.length) out.push(fill.pop());
   return out;
+}
+// 學生學過的字：同一本課本、到這一課為止（複習時用全部的課）
+function learned(L){
+  const ls = L ? C.lessons.filter(x => x.tb === L.tb && (x.order || 0) <= (L.order || 0)) : C.lessons;
+  const set = new Set(); ls.concat(L ? [L] : []).forEach(x => x.chars.forEach(it => set.add(it.c))); return set;
 }
 function pickSentence(item, L){
   const has = s => s.includes(item.w) && [...s].length > [...item.w].length;
@@ -986,7 +989,7 @@ function nextUse(){
   const show = idx >= 0 ? src.slice(0, idx) + blankW + src.slice(idx + it.w.length) : blankW;
   show.split("\u0000").forEach((part, k) => { if (k) q.append(el("span", { class:"cblank", text:"　" })); q.append(document.createTextNode(part)); });
   $("#cuNote").textContent = sent ? (it.mean ? `「${it.w}」：${it.mean}` : "") : `（${it.wpy || it.py}${it.mean ? "，" + it.mean : ""}）`;
-  const opts = shuffle([it.c].concat(distractors(it, 3)));
+  const opts = shuffle([it.c].concat(distractors(it, 3, learned(CR.L))));
   const ob = $("#cuOpts"); ob.innerHTML = "";
   opts.forEach(o => { const b = el("button", { class:"copt", text:o }); b.onclick = () => pickUse(o, b); ob.append(b); });
   $("#cuMsg").className = "benchmsg"; $("#cuMsg").textContent = "";
@@ -1122,7 +1125,7 @@ function printSheet(L){
   const uses = [], keys = [];
   shuffle(L.chars).slice(0, 12).forEach((it, i) => { const s = pickSentence(it, L) || it.w; const idx = s.indexOf(it.w);
     const bw = [...it.w].map(ch => ch === it.c ? "（　　）" : ch).join(""); const q = idx >= 0 ? s.slice(0, idx) + bw + s.slice(idx + it.w.length) : bw;
-    const opts = shuffle([it.c].concat(distractors(it, 3))); uses.push(`<li><div>${esc2(q)}</div><div class="op">${opts.map((o, k) => "ABCD"[k] + "．" + esc2(o)).join("　　")}</div></li>`);
+    const opts = shuffle([it.c].concat(distractors(it, 3, learned(L)))); uses.push(`<li><div>${esc2(q)}</div><div class="op">${opts.map((o, k) => "ABCD"[k] + "．" + esc2(o)).join("　　")}</div></li>`);
     keys.push((i + 1) + ". " + "ABCD"[opts.indexOf(it.c)] + "（" + it.c + "）"); });
   /* 跟平台其他匯出文件一樣：開站上的 print.html，上面一排「列印／存成 PDF」和字體選單（列印時不印），預設標楷體＋Times New Roman */
   const KT = '"Times New Roman",Times,"DFKai-SB","BiauKai","Kaiti TC","Kaiti","標楷體","TW-Kai",serif';
@@ -1199,7 +1202,7 @@ function renderProject(){
     const s = pickSentence(it, PJ.L) || it.w, idx = s.indexOf(it.w);
     const bw = [...it.w].map(ch => ch === it.c ? "（　）" : ch).join("");
     stage.append(el("div", { class:"pjsent", text: idx >= 0 ? s.slice(0, idx) + bw + s.slice(idx + it.w.length) : bw }));
-    const opts = shuffle([it.c].concat(distractors(it, 3))); const row = el("div", { class:"pjopts" });
+    const opts = shuffle([it.c].concat(distractors(it, 3, learned(PJ.L)))); const row = el("div", { class:"pjopts" });
     opts.forEach(o => { const b = el("button", { class:"copt", text:o }); b.onclick = () => { b.classList.add(o === it.c ? "right" : "wrong"); if (o === it.c) say(it.w); }; row.append(b); });
     stage.append(row);
   }
