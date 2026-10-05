@@ -101,8 +101,10 @@ window.QNA_VI = {
     ["^截止 (.+)$", "Hạn chót $1"],
     ["^交件 (.+)（還有 (\\d+) 天）$", "Nộp hồ sơ $1 (còn $2 ngày)"],
     ["^繳件期限 (.+)（還有 (\\d+) 天）$", "Hạn nộp $1 (còn $2 ngày)"],
-    ["^(\\S+)（還有 (\\d+) 天）$", "$1 (còn $2 ngày)"],,
+    ["^(\\S+)（還有 (\\d+) 天）$", "$1 (còn $2 ngày)"],
 
+    /* ── VI_V1378 ── */
+    ["^還差 (\\d+) 件$", "Còn thiếu $1 mục"],
     /* ── VI_V1373 帶數字的句型 ── */
     ["^資料更新於 (.+)（週一）(.*)$", "Dữ liệu cập nhật lúc $1(Thứ 2)$2"],
     ["^資料更新於 (.+)（週二）(.*)$", "Dữ liệu cập nhật lúc $1(Thứ 3)$2"],
@@ -2343,6 +2345,20 @@ window.QNA_VI = {
     "查的十項：沒填 Email、有上課記錄卻沒設學費、預約中卻有上課記錄、超過 60 天沒上課、團班沒設時段、勾著「還沒開始」卻已經上過課、開課日到了還勾著、已結案還掛未收、客戶一步進度都沒有、名字一樣卻沒設成同一個人": "Mười mục được kiểm tra: chưa điền Email; có ghi nhận buổi học nhưng chưa đặt học phí; đang đặt lịch mà đã có ghi nhận buổi học; quá 60 ngày không học; lớp nhóm chưa đặt khung giờ; đang tích “chưa bắt đầu” mà đã học rồi; đã đến ngày khai giảng mà vẫn còn tích; đã đóng hồ sơ mà vẫn treo khoản chưa thu; khách hàng chưa có bước tiến độ nào; tên giống nhau mà chưa đặt thành cùng một người",
     "「👥 學生」右上角「👥 團班管理」→ 上面打班名（例：001）→「＋ 建立」": "“👥 Học viên” góc trên bên phải “👥 Quản lý lớp nhóm” → phía trên gõ tên lớp (ví dụ: 001) → “＋ Tạo”",
     "：一週可以有好幾段，例「週一 20:00–21:30」。填了之後課表和「還沒點名」就會自動出現": ": một tuần có thể có nhiều khung giờ, ví dụ “Thứ Hai 20:00–21:30”. Điền xong thì lịch học và mục “chưa điểm danh” sẽ tự hiện ra",
-    "：照上課長度收不同價錢的時候用，例「1.5 小時 → 200」「2 小時 → 250」": ": dùng khi thu tiền khác nhau theo độ dài buổi học, ví dụ “1.5 giờ → 200”, “2 giờ → 250”"
+    "：照上課長度收不同價錢的時候用，例「1.5 小時 → 200」「2 小時 → 250」": ": dùng khi thu tiền khác nhau theo độ dài buổi học, ví dụ “1.5 giờ → 200”, “2 giờ → 250”",
+
+    /* ── VI_V1378 學生頁上的「資料待補」那張卡 ── */
+    "資料待補": "Thiếu thông tin",
+    "還有沒填完的欄位": "Vẫn còn ô chưa điền xong",
+    "全部補完這張卡就會自己收起來": "Bổ sung xong hết thì thẻ này sẽ tự thu lại",
+    "選好教材": "Chọn giáo trình",
+    "開通帳號": "Kích hoạt tài khoản",
+    "收第一筆款": "Thu khoản tiền đầu tiên",
+    "設固定時段": "Đặt khung giờ cố định",
+    "學生頁 › ✏️ 編輯": "Trang học viên › ✏️ Sửa",
+    "學生頁 › ✏️ 編輯，或「一次設固定時段」": "Trang học viên › ✏️ Sửa, hoặc “Đặt khung giờ cố định một lần”",
+    "要有 Email，學生才登入得了": "Phải có Email thì học viên mới đăng nhập được",
+    "學生頁 › 💰 記繳費": "Trang học viên › 💰 Ghi nộp phí",
+    "免費試學，這一步可以跳過": "Học thử miễn phí, bước này có thể bỏ qua"
   }
 };

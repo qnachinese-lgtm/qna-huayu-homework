@@ -1306,13 +1306,17 @@ function renderDashboard(){
       +'<b>'+_lvn+' 位學生在等你回覆</b><span class="grow"></span>'
       +'<button class="btn btn-sm btn-primary" data-act="lvList">去看</button></div>');
   }catch(e){}
-  /* CHKIN_V1313 有學生還沒報到完，排在備份提醒前面——
-     學生登不進去、或忘了收錢，比晚一週備份更急。 */
+  /* CHKIN_V1313 有學生資料還沒補齊，排在備份提醒前面——
+     學生登不進去、或忘了收錢，比晚一週備份更急。
+     RENAME_V1378 Quinn：「報到」這個名字對老學生是錯的。上了兩年課的人因為
+     教材沒填就被標成「報到」，看起來像系統不認得他。剩下的三件事
+     （選好教材／開通帳號／收第一筆款）本質是「這個人的資料還缺東西」，
+     跟新不新沒關係，所以改叫「資料待補」。判斷條件一個字都沒改。 */
   try{const _ob=chkinPending();
     if(IS_OWNER&&_ob.length){
       const _names=_ob.slice(0,3).map(x=>snm(x.name)).join('、')+(_ob.length>3?(' 等 '+_ob.length+' 位'):'');
-      remRows.unshift('<div class="dash-row rem-row"><span class="badge b-warn">🧳 報到</span>'
-        +'<b>'+_names+'</b><span class="muted">還有沒設定完的項目</span>'
+      remRows.unshift('<div class="dash-row rem-row"><span class="badge b-warn">📋 資料待補</span>'
+        +'<b>'+_names+'</b><span class="muted">還有沒填完的欄位</span>'
         +'<span class="grow"></span>'
         +'<button class="btn btn-sm" data-act="stuDetail" data-id="'+esc(_ob[0].id)+'">去看</button></div>');
     }}catch(e){}
@@ -9170,7 +9174,7 @@ function giveCard(o,dis){
     +'<span class="gv-ic">'+o.ic+'</span><span class="gv-tx"><b>'+esc(o.t)+'</b>'
     +'<span class="hint gv-d">'+esc(o.d)+'</span></span></button>';}
 
-/* CHKIN_V1313 新學生報到進度。
+/* CHKIN_V1313 ／ RENAME_V1378 資料待補（本來叫「新學生報到進度」）。
    注意：本來取名 obSteps，結果跟既有的 ONBOARD_V659（第一次用平台的五步教學）
    撞名——函式宣告會被後面那個覆蓋掉，兩個功能一起壞，而且畫面上看不出來。
    改成 chkin* 前綴。。
@@ -9187,7 +9191,7 @@ function chkinSteps(s){
   const sched=!!((Array.isArray(s.schedule)&&s.schedule.length)||String(s.class_time||'').trim());
   const free=isTrial(s);
   /* CHKTIME_V1325 Quinn：「有很多學生現在都是非固定時間，除了團班，所以固定時間那個暫時不需要」。
-     一對一多半是每週另約，那一步永遠打不了勾，報到卡就永遠停在「還差 N 件」，
+     一對一多半是每週另約，那一步永遠打不了勾，這張卡就永遠停在「還差 N 件」，
      等於這張卡自己把自己變成雜訊。只有團班還需要固定時段（整班要對同一個時間）。
      已經設好固定時段的一對一也照樣顯示打勾，不會讓已經做過的人看起來倒退。 */
   const needTime=(String(s.class_type||'')==='團班')||sched;
@@ -9215,9 +9219,10 @@ function chkinPending(){
 function chkinCard(s){
   const st=chkinSteps(s);const left=st.filter(x=>!x.ok).length;
   if(!left)return '';
-  return '<div class="card ck-card"><div class="ck-h">🧳 報到進度'
+  /* RENAME_V1378 「報到進度」→「資料待補」，理由見 renderDashboard 那一段 */
+  return '<div class="card ck-card"><div class="ck-h">📋 資料待補'
     +'<span class="ck-n">還差 '+left+' 件</span>'
-    +'<span class="hint" style="margin-left:auto">全部做完這張卡就會自己收起來</span></div>'
+    +'<span class="hint" style="margin-left:auto">全部補完這張卡就會自己收起來</span></div>'
     +'<div class="ck-g">'+st.map(x=>
       '<button class="ck-it'+(x.ok?' on':'')+'" data-act="'+esc(x.act)+'" data-id="'+esc(x.id)+'">'
       +'<span class="ck-mk">'+(x.ok?'✓':'○')+'</span>'
@@ -11148,7 +11153,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1377';
+const APP_BUILD='V1378';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -11747,7 +11752,7 @@ function renderStudentProfile(){
         +'<div class="sp-facts">'+facts+'</div></div>'
       +'<div class="sp-acts">'+acts+'</div>'
     +'</div>'
-    /* CHKIN_V1313 報到進度放在名字底下、統計卡上面——還沒設定完的時候最該先看到。
+    /* CHKIN_V1313 資料待補放在名字底下、統計卡上面——還沒補完的時候最該先看到。
        只加在學生頁；班級頁（renderClassProfile）那一行長得一樣，不要誤改。 */
     +chkinCard(s)
     +tiles+tabs+'<div class="sp-body">'+body+'</div></div>';}
@@ -22094,7 +22099,7 @@ boot();
     var s=document.createElement('script');
     /* VI_V1368 這個版本號一定要跟著字典一起改。不改的話瀏覽器會繼續用
        快取裡的 vi.js?v=962，新加的詞永遠不會出現——跟 styles.css 那次一樣的坑。 */
-    s.src='vi.js?v=1373';
+    s.src='vi.js?v=1378';
     s.onload=function(){
       LOADING=false;
       var d=window.QNA_VI;
