@@ -832,12 +832,21 @@ function cvLesson(l){
     if (other){ it.w = other.w; it.wpy = other.py || ""; return; }
     const ss = sents.concat(it.ex || []).filter(x => x.includes(it.c)).sort((a, b) => a.length - b.length);
     if (ss.length){ const t = ss[0].replace(/[^\u3400-\u9FFF\uF900-\uFAFF]+/g, " "); const k = t.indexOf(it.c);
-      let a0 = k, b0 = k + 1; while (a0 > 0 && k - a0 < 2 && t[a0 - 1] !== " ") a0--; while (b0 < t.length && b0 - k < 4 && t[b0] !== " ") b0++;
+      // 取這個字所在的那一小句；太長才截，而且不能把詞切斷（例如「這是王先生」不能變成「這是王先」）
+      let a0 = k, b0 = k + 1; while (a0 > 0 && t[a0 - 1] !== " ") a0--; while (b0 < t.length && t[b0] !== " ") b0++;
+      if (b0 - a0 > 14){
+        let x = Math.max(a0, k - 3), y = Math.min(b0, k + 5);
+        const vw = words.map(W => W.w).concat(ALLW()).filter(w => w && w.length > 1 && t.slice(a0, b0).includes(w));
+        for (let g = 0; g < 3; g++) vw.forEach(w => { let i = t.indexOf(w, a0); while (i >= 0 && i < b0){ const j = i + w.length; if (i < x && j > x) x = i; if (i < y && j > y) y = j; i = t.indexOf(w, i + 1); } });
+        while (y - 1 > k && "也和跟的就還".includes(t[y - 1])) y--;
+        a0 = x; b0 = y;
+      }
       const snip = t.slice(a0, b0).trim(); if ([...snip].length > 1){ it.w = snip; it.wpy = ""; return; } }
     if (CH[it.c] && [...CH[it.c].w].length > 1){ it.w = CH[it.c].w; it.wpy = ""; }
   });
   return { id:l.id, label:cvLabel(l), tb:(l.textbook || "").trim(), order:l.order_index || 0, at:l.created_at || "", chars, sents };
 }
+let ALLW_ = null; const ALLW = () => ALLW_ || (ALLW_ = [...new Set(Object.values(CH).map(x => x.w).filter(Boolean))]);
 async function loadCourse(uid){
   try {
     let rows = [];
@@ -1277,7 +1286,7 @@ if (ls.get("hz-hascourse") === "1" && !new URLSearchParams(location.search).get(
   });
 })();
 // ================= 給「漢字大富翁」（hanzi-fuweng.js）用的介面 =================
-window.HZAPI = { zili, radName, CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
+window.HZAPI = { zili, radName, OV, loadOv, ovStyle, CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
   store, getRec: () => rec, save, addXp,
   addReview(c, w, py){ if (!store.me || !c || rec.review[c]) return false; rec.review[c] = { box:0, due:todayStr(1), lid:"", w:w || "", py:py || "", mean:"" }; return true; } };
 document.dispatchEvent(new Event("hzapi"));
