@@ -1719,6 +1719,7 @@ function acctRow(s){
     :'<span class="muted">從來沒登入過</span>';
   return '<div class="ac-r">'
     +'<span class="ac-nm"><b>'+esc(s.name||'（未命名）')+'</b>'
+      +(s.is_test?' <span class="tag b-off" >\u{1F9EA} 測試</span>':'')/* ACCTTEST_V1398 */
       +(s.reset_requested?' <span class="badge b-warn" >🔑 說忘記密碼</span>':'')+'</span>'
     +'<span class="ac-c ac-mail" data-l="登入 Email">'+(mail?esc(mail):'<span class="muted">—</span>')+'</span>'
     +'<span class="ac-c" data-l="帳號">'+st+'</span>'
@@ -1775,12 +1776,21 @@ function acctVisHtml(h){
 function renderAcct(){
   const body=document.getElementById('acct-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','這一頁只有主管理員看得到。');return;}
-  const all=(S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test);
+  /* ══════ ACCTTEST_V1398 「全部」要真的是全部 ══════
+     Quinn：「測試帳號你是不是沒出現在全部那邊？」——對，而且是她自己猜到的。
+     這一行本來寫 !s.is_test，所以測試帳號在這一頁<b>兩個分頁都看不到</b>，
+     按「全部」也沒用（她在畫面上搜 abcd@gmail.com 是 0/0）。
+     學生名冊那邊是「切到全部才列出🧪測試帳號那一區」，這一頁卻是整個濾掉。
+     改成：「在學中」照舊不含測試帳號（不然統計會被灌水），
+     「全部」把測試帳號也列進來，名字旁邊掛一個 🧪 標記分得出來。 */
+  const allReal=(S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test);
+  const allInc=(S.students||[]).filter(s=>s&&!s.deleted_at);
   const scope=(S.acctScope==='all')?'all':'active';
-  let list=(scope==='all')?all:all.filter(s=>enrollOf(s)==='active');
+  let list=(scope==='all')?allInc:allReal.filter(s=>enrollOf(s)==='active');
   /* ACCTHIDE_V1396 */
-  const _nActive=all.filter(s=>enrollOf(s)==='active').length;
-  const _hidden=all.filter(s=>enrollOf(s)!=='active');
+  const _nActive=allReal.filter(s=>enrollOf(s)==='active').length;
+  const _hidden=allInc.filter(s=>s.is_test||enrollOf(s)!=='active');
+  const _nTest=allInc.filter(s=>s.is_test).length;
   const sort=S.acctSort||'login';
   const llOf=(s)=>{const p=progOf(s.id);return (p&&p.last_login)||'';};
   if(sort==='name')list=list.slice().sort(stuNameCmp);
@@ -1805,11 +1815,9 @@ function renderAcct(){
       +'<div><div class="muted" style="font-size:12px">這 7 天有進來</div><b style="font-size:22px">'+w7+'</b> <span class="muted">人</span></div>'
       +'<div><div class="muted" style="font-size:12px">從來沒登入過</div><b style="font-size:22px'+(neverN?';color:#8A6B1F':'')+'">'+neverN+'</b> <span class="muted">人</span></div>'
       +(askN?('<div><div class="muted" style="font-size:12px">說忘記密碼</div><b style="font-size:22px;color:#A33227">'+askN+'</b> <span class="muted">人等你寄信</span></div>'):'')
-    +'</div>'
-    /* LESSTXT_V1323 同上，摺起來 */
-    +'<details class="dash-fold" style="margin-top:10px;border:none;padding:0;background:none">'
-    +'<summary style="cursor:pointer;font-size:13px;color:var(--muted)">忘記密碼怎麼辦</summary>'
-    +'<div class="hint" style="margin-top:6px">密碼是加密的，誰都看不到（我也看不到）。學生忘記密碼就按「✉️ 寄重設密碼信」，他會收到一封信，自己設一組新的。</div></details></div>'
+    /* NOFAQ_V1398 「忘記密碼怎麼辦」那一段摺疊說明拿掉（Quinn：下面那句廢話不用寫）。
+       同樣的事情在學生卡片按「✉️ 寄重設密碼信」的時候還是講得到，不會沒人提醒。 */
+    +'</div></div>'
     /* ══════ ACCTHIDE_V1396 被「在學中」擋掉的人要講出來 ══════
        Quinn：「我建立了 abcd@Gmail.com 帳號但沒看到在開通帳號那邊有任何資料」。
        原因：「👤 新增一位」建出來的學生，狀態預設是「預約・詢問中」，
@@ -1819,7 +1827,7 @@ function renderAcct(){
        這裡在兩顆按鈕上補人數，被藏起來的時候再多講一句話，並且可以直接點。 */
     +'<div class="stu-bar" style="margin-bottom:10px">'
       +'<div class="segbar">'+sc('active','✅ 在學中 <span class="segn">'+_nActive+'</span>')
-        +sc('all','全部 <span class="segn">'+all.length+'</span>')+'</div>'
+        +sc('all','全部 <span class="segn">'+allInc.length+'</span>')+'</div>'
       +'<span class="grow"></span>'
       +'<div class="segbar">'+seg('login','最近登入')+seg('name','名字')+seg('act','做最多')+'</div></div>'
     /* ACCTHIDE_V1396 現在是「在學中」而且真的有人被擋掉 → 講清楚有誰、按一下就看得到 */
@@ -1827,7 +1835,8 @@ function renderAcct(){
       ?('<div class="hint" style="margin:-2px 0 10px;padding:8px 11px;background:var(--primary-soft,#E8EFF7);'
         +'border-radius:9px;line-height:1.7">\u{1F4CC} 還有 <b>'+_hidden.length+'</b> 位沒有列在這裡（'
         +[['reserved','預約・詢問中'],['trial','試學'],['paused','休學']]
-            .map(function(x){const n=_hidden.filter(s=>enrollOf(s)===x[0]).length;return n?(x[1]+' '+n+' 位'):'';})
+            .map(function(x){const n=_hidden.filter(s=>!s.is_test&&enrollOf(s)===x[0]).length;return n?(x[1]+' '+n+' 位'):'';})
+            .concat(_nTest?['\u{1F9EA} 測試帳號 '+_nTest+' 位']:[])/* ACCTTEST_V1398 */
             .filter(Boolean).join('、')
         +'）。剛從「👤 新增一位」建好的學生預設是<b>預約・詢問中</b>，'
         +'按上面的 <button class="btn btn-sm" data-act="acctScope" data-id="all">全部</button> 就看得到。</div>'):'')
@@ -11306,7 +11315,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1397';
+const APP_BUILD='V1398';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
