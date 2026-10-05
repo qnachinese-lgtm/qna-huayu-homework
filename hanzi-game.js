@@ -286,7 +286,8 @@ function Shop(root, cfg){
       const layers = t && OV[t] ? [OV[t][1], OV[t][2]] : st.bench.map(sy => st.ov[sy] || ovFind(sy));
       layers.forEach((img, i) => { if (img){ const L = el("i", {class:"ovl"}); L.setAttribute("style", ovStyle(img)); board.append(L); }
         else if (!t){ board.append(el("span", {class:"ovtxt", text:st.bench[i]})); } });
-      if (!st.bench.length && !showT) board.append(el("div", {class:"empty", text:"把透明卡疊到這裡"}));
+      if (!st.bench.length && !showT){ const nx = st.targets && st.targets.find(c => !st.found.has(c)); const D = DIFF[st.diff];
+        board.append(el("div", {class:"empty"}, nx && st.found.size && D.clue !== "audio" ? [el("b", {class:"ovnext", text:"下一個：" + blankWord(CH[nx])}), el("br"), "把透明卡疊到這裡"] : ["把透明卡疊到這裡"])); }
       if (showT) board.classList.add("done");
       bench.append(board);
       if (st.bench.length){ const chips = el("div", {class:"ovchips"});
@@ -369,7 +370,8 @@ function Shop(root, cfg){
   let WHYPY = "";
   // 少數字的字理要特別說明（自動規則講不清楚的）
   const ZILI = {
-    "做": "「做」是「作」的後起字（《說文》只收「作」：起也，从人从乍）。亻表示人，人去「做」事；右邊的「故」只是字形，不表音"
+    "做": "「做」是「作」的後起字（《說文》只收「作」：起也，从人从乍）。亻表示人，人去「做」事；右邊的「故」只是字形，不表音",
+    "間": "「間」本來寫作「閒」，《說文》：「閒，隙也。从門从月。」晚上關上門，月光從門縫照進來，表示「縫隙、中間」。後來把「月」寫成「日」，就成了「間」。部首是「門」；「門」和「日」都是表示意思，不表讀音"
   };
   // 韻母核心：去掉聲母和介音，ing≈eng、in≈en，用來判斷「讀音相近」
   const pyFinal = p => toneless(p).replace(/^(zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])/, "").replace(/^[iuvü](?=[aeo])/, "").replace(/^ing$/, "eng").replace(/^in$/, "en");
