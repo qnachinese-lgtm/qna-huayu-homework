@@ -90,7 +90,7 @@ H.hzNew=()=>{
   const def=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>🀄 指派漢字遊戲作業</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body"><div class="form-grid">'
-   +'<div class="field"><label>關卡</label><select id="hz-fam">'+HZ_LIST.map(L=>'<optgroup label="'+esc(L.lv)+'">'+L.stages.map((s,i)=>'<option value="'+esc(s[0])+'">'+(i+1)+'・'+esc(s[1])+(s[2]?'（'+s[2]+' 字）':'')+'</option>').join('')+'</optgroup>').join('')+'</select></div>'
+   +'<div class="field"><label>關卡</label><input id="hz-fam-q" type="search" placeholder="先搜尋：打課本名、課名或關卡名（例如「時代華語一」「第三課」「門」）" style="width:100%;margin-bottom:6px"><select id="hz-fam">'+HZ_LIST.map(L=>'<optgroup label="'+esc(L.lv)+'">'+L.stages.map((s,i)=>'<option value="'+esc(s[0])+'">'+(i+1)+'・'+esc(s[1])+(s[2]?'（'+s[2]+' 字）':'')+'</option>').join('')+'</optgroup>').join('')+'</select></div>'
    +'<div class="field"><label>難度</label><select id="hz-diff"><option value="easy">入門（有拼音提示）</option><option value="normal" selected>進階（只給詞）</option><option value="hard">高手（只聽讀音、限時）</option></select></div>'
    +'<div class="field"><label>至少要拿幾顆星</label><select id="hz-min"><option value="1">1 顆（過關就好）</option><option value="2" selected>2 顆</option><option value="3">3 顆（不能拼錯、不能用提示）</option></select><div class="hint" style="margin-top:4px">選「課本」的課時：1 顆＝這一課的字學會三成，2 顆＝六成，3 顆＝九成（寫對也用對才算學會）。難度只影響第一步「拼」。</div></div>'
    +'<div class="field"><label>截止日</label><input id="hz-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
@@ -123,6 +123,10 @@ H.hzDel=async(id)=>{const t=(S.hanziTasks||[]).find(x=>x.id===id);if(!t)return;
   catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
 /* ══════ HANZI_V1 end ══════ */
 
+/* 指派作業的關卡清單很長：上面的搜尋框可以縮小範圍 */
+document.addEventListener('input',e=>{if(!e.target||e.target.id!=='hz-fam-q')return;const kw=e.target.value.trim();const sel=document.getElementById('hz-fam');if(!sel)return;let first=null;
+  sel.querySelectorAll('optgroup').forEach(g=>{let any=false;g.querySelectorAll('option').forEach(o=>{const ok=!kw||o.textContent.includes(kw)||g.label.includes(kw);o.hidden=!ok;o.disabled=!ok;if(ok){any=true;if(!first)first=o;}});g.hidden=!any;});
+  if(first&&sel.selectedOptions[0]&&sel.selectedOptions[0].hidden)sel.value=first.value;});
 /* ---------- 接到後台上 ---------- */
 function injectDom(){
   if (!document.getElementById('hz-css')){

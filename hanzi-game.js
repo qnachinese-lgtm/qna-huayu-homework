@@ -192,6 +192,14 @@ const DIFF = {
 };
 
 // ================= 工坊（關卡核心） =================
+// ================= 透明卡（疊字）圖：每個字拆成兩張，放在它在字裡的位置 =================
+const OV = {}, OVSH = {}, OVN = 24;
+function loadOv(chars){
+  const need = [...new Set(chars.filter(Boolean).map(c => c.codePointAt(0) % OVN))];
+  return Promise.all(need.map(i => OVSH[i] || (OVSH[i] = fetch(`hz-ov-${String(i).padStart(2, "0")}.json?v=${window.OVV || ""}`).then(r => r.ok ? r.json() : {}).then(d => Object.assign(OV, d)).catch(() => {}))));
+}
+const ovStyle = img => `--m:url("data:image/webp;base64,${img}")`;
+function ovFind(sym){ for (const c in OV){ const v = OV[c]; const i = v[0].indexOf(sym); if (i >= 0) return v[i + 1]; } return null; }
 function Shop(root, cfg){
   let st = null;
   const api = {};
@@ -247,7 +255,10 @@ function Shop(root, cfg){
     const b = el("button", {class:"card " + kind + " deal", type:"button", "aria-label":sym, "data-sym":sym});
     b.style.animationDelay = (i * 22) + "ms";
     const label = kind === "rad" ? RAD[sym].name : kind === "comp" ? (DIFF[st.diff].clue === "full" ? pyOf(sym) : "") : (CH[sym] ? CH[sym].py : "");
-    b.append(el("span", {class:"s", text:sym}), el("span", {class:"l", text:label}));
+    const img = st.ovMode && (st.ov[sym] || ovFind(sym));
+    if (img){ b.classList.add("ovc"); const m = el("span", {class:"ovm"}); const i = el("i"); i.setAttribute("style", ovStyle(img)); m.append(i);
+      b.append(m, el("span", {class:"l", text: sym + (label ? " " + label : "")})); }
+    else b.append(el("span", {class:"s", text:sym}), el("span", {class:"l", text:label}));
     b.title = kind === "rad" ? `${RAD[sym].name}：${RAD[sym].hint.replace(/\n/g, " ")}` : sym;
     attachDrag(b, sym); return b;
   }
@@ -264,8 +275,24 @@ function Shop(root, cfg){
     b.addEventListener("pointerup", end); b.addEventListener("pointercancel", end);
     b.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); add(sym); } });
   }
-  function renderBench(){
+  function renderBench(showT){
     const bench = st.ui.bench; bench.innerHTML = ""; bench.classList.remove("wrong", "right");
+    if (st.ovMode){
+      if (st.ui.okB) st.ui.okB.disabled = st.bench.length < 2;
+      // 疊字板：卡片疊在同一個方格裡
+      const board = el("div", {class:"ovboard"});
+      const k = keyOf(st.bench); const t = showT || (st.bench.length >= 2 ? (KEYMAP[k] || []).find(x => OV[x]) : null);
+      const layers = t && OV[t] ? [OV[t][1], OV[t][2]] : st.bench.map(sy => st.ov[sy] || ovFind(sy));
+      layers.forEach((img, i) => { if (img){ const L = el("i", {class:"ovl"}); L.setAttribute("style", ovStyle(img)); board.append(L); }
+        else if (!t){ board.append(el("span", {class:"ovtxt", text:st.bench[i]})); } });
+      if (!st.bench.length && !showT) board.append(el("div", {class:"empty", text:"把透明卡疊到這裡"}));
+      if (showT) board.classList.add("done");
+      bench.append(board);
+      if (st.bench.length){ const chips = el("div", {class:"ovchips"});
+        st.bench.forEach((sy, i) => { const c = el("button", {class:"btn small", type:"button", title:"點一下拿回去", text:sy + " ✕"}); c.onclick = () => { st.bench.splice(i, 1); renderBench(); setMsg(""); }; chips.append(c); });
+        bench.append(chips); }
+      return;
+    }
     if (st.ui.okB) st.ui.okB.disabled = st.bench.length < 2;
     if (!st.bench.length){ bench.append(el("div", {class:"empty", text:"把卡片拖到這裡，或點一下卡片"})); return; }
     st.bench.forEach((s, i) => {
@@ -325,9 +352,10 @@ function Shop(root, cfg){
     const [bx, by] = centerOf(st.ui.bench);
     burst(bx, by, 18 + n * 6); popText(bx, by - 30, `+${pts}` + (st.combo > 1 ? `　連擊 ×${st.combo}` : ""));
     if (st.combo > 1) sfx.combo(Math.min(st.combo, 8)); else sfx.good();
-    st.bench = []; renderBench(); st.ui.bench.classList.add("right");
+    if (st.ovMode && OV[c]){ st.bench = []; renderBench(c); st.ui.bench.classList.add("right"); const me = st; setTimeout(() => { if (st === me && !st.bench.length) renderBench(); }, 1600); }
+    else { st.bench = []; renderBench(); st.ui.bench.classList.add("right"); }
     { const left = st.targets.filter(t => !st.found.has(t) && t !== c).length;
-      setMsg((isBonus ? `加分字！「${c}」` : `拼出來了！「${c}」`) + (left ? `　還有 ${left} 個字要拼，看左邊還沒完成的格子。` : ""), "good"); }
+      setMsg((isBonus ? `加分字！「${c}」` : `${st.ovMode ? "疊" : "拼"}出來了！「${c}」`) + (left ? `　還有 ${left} 個字要拼，看左邊還沒完成的格子。` : ""), "good"); }
     if (!isBonus && n >= 4) unlock("big4");
     checkBadges();
     showResult(x, isBonus); say(x.c + "，" + x.w);
@@ -372,7 +400,7 @@ function Shop(root, cfg){
     const againB = el("button", {class:"btn small", text:"再看一次筆順"});
     const acts = el("div", {class:"acts"}, [sayB, againB]);
     const left = st.targets.filter(t => !st.found.has(t)).length;
-    if (left){ const nx = el("button", {class:"btn small primary", text:`繼續拼下一個字（還有 ${left} 個）→`});
+    if (left){ const nx = el("button", {class:"btn small primary", text:`繼續${st.ovMode ? "疊" : "拼"}下一個字（還有 ${left} 個）→`});
       nx.onclick = () => { result.hidden = true; const cl = st.ui.clues.querySelector(".clue:not(.done)"); if (cl){ cl.classList.add("nextup"); setTimeout(() => cl.classList.remove("nextup"), 1600); }
         st.ui.bench.scrollIntoView({behavior:"smooth", block:"center"}); setMsg("看左邊還沒完成的格子，把下一個字拼出來。"); };
       acts.append(nx); }
@@ -479,7 +507,16 @@ function Shop(root, cfg){
     targets = st.seq ? shuffle(targets, st.rnd).sort((a, b) => expand(a).length - expand(b).length) : targets;
     st.targets = targets;
     root.classList.remove("locked");
+    st.ov = {}; st.ovMode = false;
     build(); renderClues(); renderBench(); buildTray(true); renderStatus(); startTimer();
+    const me = st;
+    loadOv(targets.concat(targets.flatMap(c => expand(c)))).then(() => {
+      if (st !== me || !targets.some(c => OV[c])) return;
+      targets.concat(Object.keys(OV).filter(c => SCOPE.has(c))).forEach(c => { const v = OV[c]; if (v) v[0].forEach((sy, i) => { if (!st.ov[sy]) st.ov[sy] = v[i + 1]; }); });
+      st.ovMode = true; root.classList.add("ovmode"); renderBench(); buildTray(true);
+      const h3 = root.querySelector(".mat h3"); if (h3) h3.textContent = "疊字板：把透明卡疊上去，疊對了就是一個字";
+      const tip = root.querySelector(".box > p.muted"); if (tip && DIFF[st.diff].clue !== "audio") tip.textContent = "看拼音和詞，猜猜□是哪個字，然後把右邊的透明卡疊起來。每張卡上的部件，都在它在字裡的位置。";
+    });
     if (st.seq) setTimeout(sayCurrent, 700);
   };
   api.lock = v => { if (st){ st.locked = v; root.classList.toggle("locked", v); } };
@@ -782,6 +819,7 @@ async function loadCourse(uid){
   } catch(e){ C.lessons = []; }
   C.byId = {}; C.lessons.forEach(x => C.byId[x.id] = x); C.loaded = true;
   const tb = document.querySelector('nav.tabs button[data-tab="course"]'); if (tb) tb.hidden = !C.lessons.length;
+  ls.set("hz-hascourse", C.lessons.length ? "1" : "0");
 }
 // ---- 紀錄 ----
 const cRec = lid => (rec.course[lid] = rec.course[lid] || { m:{}, rounds:0 });
@@ -979,26 +1017,58 @@ function showCourseHome(){
   const rv = el("button", { class:"btn" + (due.length ? " primary" : ""), text: due.length ? `今天的複習：${due.length} 個字` : "今天沒有要複習的字" });
   rv.disabled = !due.length; rv.onclick = startReview; head.append(rv);
   box.append(head);
-  // 依課本分組：同一本書放在一起
-  const groups = {}; C.lessons.forEach(L => (groups[L.tb] = groups[L.tb] || []).push(L));
-  Object.entries(groups).forEach(([tb, Ls]) => {
-    if (Object.keys(groups).length > 1 || tb) box.append(el("h3", { class:"ctb", text: tb || "其他課" }));
-    const g = el("div", { class:"cgrid" });
-    Ls.forEach(L => { const n = L.chars.length, m = L.chars.filter(x => mastered(L.id, x.c)).length, s = lessonStars(L);
-      const task = store.tasks.find(t => t.fam === "L:" + L.id && !taskDone(t));
-      const card = el("div", { class:"ccard" + (task ? " task" : "") }); const st = el("span", {}); st.innerHTML = starsHtml(s);
-      card.append(el("div", { class:"ct" }, [el("b", { text:L.label.replace(tb + "・", "") }), st.firstChild]),
-        el("div", { class:"czs", text: L.chars.slice(0, 16).map(x => x.c).join("") + (n > 16 ? "…" : "") }),
-        el("div", { class:"cbar" }, [el("i", { style:`width:${Math.round(m / n * 100)}%` })]),
-        el("small", { class:"muted", text:`已學會 ${m}／${n} 個字` + (task ? `・老師指派${task.due_date ? "（" + dueLabel(task.due_date).t + "）" : ""}` : "") }));
-      const go = el("button", { class:"btn small" + (m < n ? " primary" : ""), text: m === 0 ? "開始" : m < n ? "繼續" : "再練一次" });
-      go.onclick = () => startRound(L.id, { all: m === n });
-      if (store.teacher){ const pr = el("button", { class:"btn small", text:"印學習單" }); pr.onclick = () => printSheet(L);
-        const pj = el("button", { class:"btn small", text:"上課投影" }); pj.onclick = () => startProject(L);
-        card.append(el("div", { class:"row" }, [go, pr, pj])); } else card.append(go);
-      g.append(card); });
-    box.append(g);
-  });
+  // 篩選：課本很多的時候，先選一本書，再用搜尋找課名或字
+  const tbs = [...new Set(C.lessons.map(L => L.tb || "其他課"))];
+  const F = C.f || (C.f = (() => { let f = {}; try { f = JSON.parse(ls.get("hz-cf") || "{}"); } catch(e){}
+    if (!f.tb || (f.tb !== "*" && !tbs.includes(f.tb))){
+      // 預設：老師指派的那本 → 最近練過的那本 → 第一本
+      const tk = store.tasks.find(t => String(t.fam).startsWith("L:") && !taskDone(t) && C.byId[String(t.fam).slice(2)]);
+      const last = Object.entries(rec.course || {}).filter(([id]) => C.byId[id]).sort((a, b) => Math.max(0, ...Object.values(b[1].m || {})) - Math.max(0, ...Object.values(a[1].m || {})))[0];
+      f.tb = tk ? (C.byId[String(tk.fam).slice(2)].tb || "其他課") : last ? (C.byId[last[0]].tb || "其他課") : (tbs.length > 1 ? tbs[0] : "*");
+    }
+    f.q = f.q || ""; f.todo = !!f.todo; return f; })());
+  const saveF = () => ls.set("hz-cf", JSON.stringify(F));
+  const bar = el("div", { class:"cfilter" });
+  const sel = el("select", { "aria-label":"課本" }); sel.append(el("option", { value:"*", text:`全部課本（${C.lessons.length} 課）` }));
+  tbs.forEach(tb => { const n = C.lessons.filter(L => (L.tb || "其他課") === tb).length; const o = el("option", { value:tb, text:`${tb}（${n} 課）` }); if (tb === F.tb) o.selected = true; sel.append(o); });
+  if (F.tb === "*") sel.value = "*";
+  const q = el("input", { type:"search", placeholder:"搜尋課名，或打一個字找它在哪一課", value:F.q, "aria-label":"搜尋" });
+  const todo = el("label", { class:"cchk" }, [el("input", { type:"checkbox" }), document.createTextNode(" 只看還沒學完的")]); todo.firstChild.checked = F.todo;
+  bar.append(sel, q, todo); box.append(bar);
+  const list = el("div"); box.append(list);
+  const card = (L, tb) => { const n = L.chars.length, m = L.chars.filter(x => mastered(L.id, x.c)).length, s = lessonStars(L);
+    const task = store.tasks.find(t => t.fam === "L:" + L.id && !taskDone(t));
+    const cd = el("div", { class:"ccard" + (task ? " task" : "") }); const st = el("span", {}); st.innerHTML = starsHtml(s);
+    cd.append(el("div", { class:"ct" }, [el("b", { text: tb ? L.label.replace(L.tb + "・", "") : L.label }), st.firstChild]),
+      el("div", { class:"czs", text: L.chars.slice(0, 16).map(x => x.c).join("") + (n > 16 ? "…" : "") }),
+      el("div", { class:"cbar" }, [el("i", { style:`width:${Math.round(m / n * 100)}%` })]),
+      el("small", { class:"muted", text:`已學會 ${m}／${n} 個字` + (task ? `・老師指派${task.due_date ? "（" + dueLabel(task.due_date).t + "）" : ""}` : "") }));
+    const go = el("button", { class:"btn small" + (m < n ? " primary" : ""), text: m === 0 ? "開始" : m < n ? "繼續" : "再練一次" });
+    go.onclick = () => startRound(L.id, { all: m === n });
+    if (store.teacher){ const pr = el("button", { class:"btn small", text:"印學習單" }); pr.onclick = () => printSheet(L);
+      const pj = el("button", { class:"btn small", text:"上課投影" }); pj.onclick = () => startProject(L);
+      cd.append(el("div", { class:"row" }, [go, pr, pj])); } else cd.append(go);
+    return cd; };
+  const draw = () => {
+    list.innerHTML = "";
+    const kw = F.q.trim();
+    let Ls = C.lessons.filter(L => (F.tb === "*" || (L.tb || "其他課") === F.tb));
+    if (kw) Ls = C.lessons.filter(L => L.label.includes(kw) || ([...kw].length <= 2 && [...kw].every(ch => L.chars.some(x => x.c === ch))));
+    if (F.todo) Ls = Ls.filter(L => L.chars.some(x => !mastered(L.id, x.c)));
+    // 老師指派的課排最前面
+    Ls = Ls.slice().sort((a, b) => !!store.tasks.find(t => t.fam === "L:" + b.id && !taskDone(t)) - !!store.tasks.find(t => t.fam === "L:" + a.id && !taskDone(t)));
+    if (!Ls.length){ list.append(el("p", { class:"muted", style:"padding:12px 2px", text: kw ? `找不到「${kw}」。可以打課名的一部分（例如「第三課」），或打一個字。` : "這裡沒有符合的課。" })); return; }
+    if (kw) list.append(el("p", { class:"muted", style:"margin:4px 0 8px", text:`找到 ${Ls.length} 課（搜尋範圍是全部課本）` }));
+    const groups = {}; Ls.forEach(L => (groups[L.tb || "其他課"] = groups[L.tb || "其他課"] || []).push(L));
+    Object.entries(groups).forEach(([tb, G]) => {
+      if (Object.keys(groups).length > 1 || F.tb === "*" || kw) list.append(el("h3", { class:"ctb", text: tb }));
+      const g = el("div", { class:"cgrid" }); G.forEach(L => g.append(card(L, tb))); list.append(g);
+    });
+  };
+  sel.onchange = () => { F.tb = sel.value; saveF(); draw(); };
+  q.oninput = () => { F.q = q.value; saveF(); draw(); };
+  todo.firstChild.onchange = () => { F.todo = todo.firstChild.checked; saveF(); draw(); };
+  draw();
 }
 
 // ---- 老師：印學習單、上課投影 ----
@@ -1135,12 +1205,14 @@ $("#hardPractice").onclick = () => { showTab("recall"); startRecall(Object.keys(
   s.onchange = () => { document.body.classList.toggle("font-wk", s.value === "wk"); ls.set("zzgf-font", s.value); }; })();
 setDiff(diff); renderLevel(); renderBadges();
 
+// 上一次有課本的人：一打開就先顯示「課本」，不要先閃一下闖關地圖
+if (ls.get("hz-hascourse") === "1" && !new URLSearchParams(location.search).get("task")){ const tb = document.querySelector('nav.tabs button[data-tab="course"]'); if (tb) tb.hidden = false; showCourseHome(); }
 // ================= 連線（QNA 學習平台的 Firebase 帳號） =================
 (() => {
   const fb = window.firebase;
   if (!fb || !fb.auth || !window.DB || DB.mode !== "firebase"){ $("#loginNote").hidden = false; setWho("訪客（紀錄只存在這台電腦）"); renderMap(); C.loaded = true; loadCourse(null).then(() => { if (C.lessons.length) showCourseHome(); }); return; }
   fb.auth().onAuthStateChanged(async u => {
-    if (!u){ store.me = null; store.uid = null; $("#loginNote").hidden = false; setWho("訪客（紀錄只存在這台電腦）"); renderMap(); C.loaded = true; C.lessons = []; const tb = document.querySelector('nav.tabs button[data-tab="course"]'); if (tb) tb.hidden = true; return; }
+    if (!u){ store.me = null; store.uid = null; $("#loginNote").hidden = false; setWho("訪客（紀錄只存在這台電腦）"); renderMap(); C.loaded = true; C.lessons = []; const tb = document.querySelector('nav.tabs button[data-tab="course"]'); if (tb) tb.hidden = true; if (!$("#p-course").hidden) showTab("map"); return; }
     store.uid = u.uid;
     try {
       const em = String(u.email || "").toLowerCase();
