@@ -191,6 +191,58 @@ const DIFF = {
   battle:{ name:"對戰", hearts:0, clue:"full",  check:"auto",   extra:4,  perChar:0,  info:"" }
 };
 
+// ================= 部首的位置 =================
+// HZPOS[字] = "LR0"：兩個部件各在哪裡（L 左、R 右、T 上、B 下、O 外、I 內），最後一碼是字典部首是第幾個部件（- 表示不知道）
+const HZP = window.HZPOS || {};
+const posOf = (c, sym) => { const e = CH[c], v = HZP[c]; if (!e || !e.p || !v) return ""; const i = e.p.indexOf(sym); return i >= 0 && i < 2 ? v[i] : ""; };
+function dictRad(c, parts){ const v = HZP[c], e = CH[c]; if (!c || !v || !e || !e.p || v[2] === "-") return ""; const r = e.p[Number(v[2])]; return parts.includes(r) ? r : ""; }
+// 「日字旁」這種名字只有放在左邊才對；放在上面叫「日字頭」，在別的位置就只說位置
+const STANDALONE = n => /^(.)字(旁|頭|底)$/.exec(n || "");
+function radName(sym, c){
+  const n = RAD[sym] ? RAD[sym].name : ""; const m = STANDALONE(n); if (!m || m[1] !== sym) return n;
+  const p = c ? posOf(c, sym) : "";
+  return { L:sym + "字旁", T:sym + "字頭", B:sym + "字底", R:"在右邊", I:"在裡面", O:"在外面" }[p] || "";
+}
+// 卡片上：本身就是一個字的部首（日、木、口……）不寫「字旁」，寫讀音
+const radCardLabel = sym => { const n = RAD[sym] ? RAD[sym].name : ""; const m = STANDALONE(n); return m && m[1] === sym ? (pyOf(sym) || sym) : n; };
+// 少數字的字理要特別說明（自動規則講不清楚的）
+const ZILI = {
+  "做": "「做」是「作」的後起字（《說文》只收「作」：起也，从人从乍）。亻表示人，人去「做」事；右邊的「故」只是字形，不表音",
+  "閒": "《說文》：「閒，隙也。从門从月。」晚上關上門，月光從門縫照進來，表示「縫隙」，後來引申為「有空」。部首是「門」；這裡的「月」是月亮，不是肉月。「門」和「月」都是表示意思，不表讀音",
+  "間": "「間」本來寫作「閒」，《說文》：「閒，隙也。从門从月。」晚上關上門，月光從門縫照進來，表示「縫隙、中間」。後來把「月」寫成「日」，就成了「間」。部首是「門」；「門」和「日」都是表示意思，不表讀音"
+};
+// 韻母核心：去掉聲母和介音，ing≈eng、in≈en，用來判斷「讀音相近」
+const pyFinal = p => toneless(p).replace(/^(zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])/, "").replace(/^[iuvü](?=[aeo])/, "").replace(/^ing$/, "eng").replace(/^in$/, "en");
+function zili(parts, c, WHYPY){
+  if (c && ZILI[c]) return ZILI[c];
+  const SKIP = "口十八丷冂厶亠一丁";
+  // 每個部件的讀音和這個字比一比（多音的部件挑最接近的讀音）
+  const rk = p => toneless(p) === toneless(WHYPY) ? 2 : (pyFinal(p) && pyFinal(p) === pyFinal(WHYPY) ? 1 : 0);
+  const sound = s => { if (!WHYPY || !pyOf(s) || SKIP.indexOf(s) >= 0) return null; const all = pysOf(s).map(p => p.split(/[\/,，、 ]/)[0]); const a = all.slice().sort((p, q) => rk(q) - rk(p))[0]; return { s, all, a, k:rk(a) }; };
+  const snd = parts.map(sound).filter(Boolean);
+  const dr = dictRad(c, parts);
+  // 聲音線索：讀音最接近的部件（同分時，不是部首卡的優先）；字典部首只有讀音完全一樣才算聲音線索
+  const ph = snd.filter(x => x.k === 2 || (x.k === 1 && x.s !== dr)).sort((x, y) => y.k - x.k || (x.s in RAD) - (y.s in RAD) || (x.s === dr) - (y.s === dr))[0] || null;
+  // 表示意思的部件：部首卡裡、不是聲音線索的那個；字典部首優先
+  const cand = parts.filter(s => s in RAD && (!ph || s !== ph.s));
+  const r = cand.includes(dr) ? dr : cand[0];
+  const bits = [];
+  if (dr && dr !== r && (!ph || dr !== ph.s) && !(dr in RAD)) bits.push(`「${dr}」是這個字的部首`);
+  const nm = r ? radName(r, c) : "", rn = nm && nm !== r ? `（${nm}）` : "";
+  // 「月」在左邊、下面多半是肉月；在右邊、裡面多半是月亮
+  const hint = r === "月" && /[RIO]/.test(posOf(c, r)) ? "月亮、時間" : r && RAD[r].hint;
+  if (r && hint) bits.push(`${r}${rn}表示「${hint.replace(/\n/g, "；")}」`);
+  else if (r) bits.push(`${r}${rn}`);
+  const x = ph || snd.find(z => z.s !== r);
+  if (x){
+    const head = x.all.length > 1 ? `「${x.s}」有 ${x.all.length} 個讀音（${x.all.join("／")}），讀 ${x.a} 時` : `「${x.s}」讀 ${x.a}，`;
+    if (x.k === 2) bits.push(head + (x.a.toLowerCase() === String(WHYPY).toLowerCase() ? "和這個字的讀音一樣，是聲音線索" : "和這個字只差聲調，是聲音線索"));
+    else if (x.k === 1) bits.push(head + "和這個字的讀音相近，可以當聲音線索");
+    else bits.push(`「${x.s}」` + (toneless(x.a) !== x.a.toLowerCase() ? `（${x.all.join("／")}）` : "") + `跟這個字的讀音不同，不是讀音線索`);
+  }
+  return bits.join("；");
+}
+
 // ================= 工坊（關卡核心） =================
 // ================= 透明卡（疊字）圖：每個字拆成兩張，放在它在字裡的位置 =================
 const OV = {}, OVSH = {}, OVN = 24;
@@ -255,7 +307,7 @@ function Shop(root, cfg){
   function cardEl(sym, kind, i){
     const b = el("button", {class:"card " + kind + " deal", type:"button", "aria-label":sym, "data-sym":sym});
     b.style.animationDelay = (i * 22) + "ms";
-    const label = kind === "rad" ? RAD[sym].name : kind === "comp" ? (DIFF[st.diff].clue === "full" ? pyOf(sym) : "") : (CH[sym] ? CH[sym].py : "");
+    const label = kind === "rad" ? radCardLabel(sym) : kind === "comp" ? (DIFF[st.diff].clue === "full" ? pyOf(sym) : "") : (CH[sym] ? CH[sym].py : "");
     const img = st.ovMode && (st.ov[sym] || ovFind(sym));
     if (img){ b.classList.add("ovc"); const m = el("span", {class:"ovm"}); const i = el("i"); i.setAttribute("style", ovStyle(img)); m.append(i);
       b.append(m, el("span", {class:"l", text: sym + (label ? " " + label : "")})); }
@@ -368,32 +420,7 @@ function Shop(root, cfg){
     else if (st.seq) setTimeout(sayCurrent, 1500);
   }
   let WHYPY = "";
-  // 少數字的字理要特別說明（自動規則講不清楚的）
-  const ZILI = {
-    "做": "「做」是「作」的後起字（《說文》只收「作」：起也，从人从乍）。亻表示人，人去「做」事；右邊的「故」只是字形，不表音",
-    "間": "「間」本來寫作「閒」，《說文》：「閒，隙也。从門从月。」晚上關上門，月光從門縫照進來，表示「縫隙、中間」。後來把「月」寫成「日」，就成了「間」。部首是「門」；「門」和「日」都是表示意思，不表讀音"
-  };
-  // 韻母核心：去掉聲母和介音，ing≈eng、in≈en，用來判斷「讀音相近」
-  const pyFinal = p => toneless(p).replace(/^(zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])/, "").replace(/^[iuvü](?=[aeo])/, "").replace(/^ing$/, "eng").replace(/^in$/, "en");
-  function why(parts, c){
-    if (c && ZILI[c]) return ZILI[c];
-    const r = parts.find(s => s in RAD), rest = parts.filter(s => s !== r); const bits = [];
-    const rn = r && RAD[r].name !== r ? `（${RAD[r].name}）` : "";
-    if (r && RAD[r].hint) bits.push(`${r}${rn}表示「${RAD[r].hint.replace(/\n/g, "；")}」`);
-    else if (r) bits.push(`${r}${rn}`);
-    const cp = rest.find(s => pyOf(s) && "口十八丷冂厶亠一丁".indexOf(s) < 0);
-    if (cp && WHYPY) {
-      // 多音的部件：每個讀音都比一比，挑最接近的那個
-      const all = pysOf(cp).map(p => p.split(/[\/,，、 ]/)[0]);
-      const rank = p => toneless(p) === toneless(WHYPY) ? 2 : (pyFinal(p) && pyFinal(p) === pyFinal(WHYPY) ? 1 : 0);
-      const a = all.slice().sort((p, q) => rank(q) - rank(p))[0], k = rank(a);
-      const head = all.length > 1 ? `「${cp}」有 ${all.length} 個讀音（${all.join("／")}），讀 ${a} 時` : `「${cp}」讀 ${a}，`;
-      if (k === 2) bits.push(head + (a.toLowerCase() === String(WHYPY).toLowerCase() ? "和這個字的讀音一樣，是聲音線索" : "和這個字只差聲調，是聲音線索"));
-      else if (k === 1) bits.push(head + "和這個字的讀音相近，可以當聲音線索");
-      else bits.push(`「${cp}」` + (toneless(a) !== a.toLowerCase() ? `（${all.join("／")}）` : "") + `跟這個字的讀音不同，不是讀音線索`);
-    }
-    return bits.join("；");
-  }
+  const why = (parts, c) => zili(parts, c, WHYPY);
   function showResult(x, isBonus){
     const result = st.ui.result; result.hidden = false; result.innerHTML = "";
     const parts = isBonus ? x.p : (CH[x.c].p || []);
@@ -1076,7 +1103,7 @@ function showCourseHome(){
 }
 
 // ---- 老師：印學習單、上課投影 ----
-function partsText(c){ const e = CH[c]; if (!e || !e.p) return ""; return e.p.map(p => p + (p in RAD && RAD[p].name !== p ? "（" + RAD[p].name + "）" : "")).join(" ＋ "); }
+function partsText(c){ const e = CH[c]; if (!e || !e.p) return ""; return e.p.map(p => { const n = p in RAD ? radName(p, c) : ""; return p + (n && n !== p ? "（" + n + "）" : ""); }).join(" ＋ "); }
 function printSheet(L){
   const esc2 = s => String(s == null ? "" : s).replace(/[&<>"]/g, m => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[m]));
   const box = (ch, ghost) => `<span class="g${ghost ? " gh" : ""}">${ghost ? esc2(ch) : ""}</span>`;
@@ -1152,7 +1179,7 @@ function renderProject(){
   } else if (PJ.step === 1){
     const e = CH[it.c];
     if (e && e.p){ const row = el("div", { class:"pjparts" }); e.p.forEach((p, k) => { if (k) row.append(el("span", { class:"plus", text:"＋" }));
-      row.append(el("div", { class:"pjcard" }, [el("div", { class:"pc", text:p }), el("small", { text: p in RAD ? RAD[p].name + "：" + (RAD[p].hint || "").replace(/\n/g, "；") : (pyOf(p) ? "讀 " + pyOf(p) : "部件") })])); });
+      row.append(el("div", { class:"pjcard" }, [el("div", { class:"pc", text:p }), el("small", { text: p in RAD ? (radName(p, it.c) || p) + "：" + (RAD[p].hint || "").replace(/\n/g, "；") : (pyOf(p) ? "讀 " + pyOf(p) : "部件") })])); });
       row.append(el("span", { class:"plus", text:"＝" }), el("div", { class:"pjcard big" }, [el("div", { class:"pc", text:it.c })])); stage.append(row);
       const o = originBlock(e.p.find(p => ORIGIN[p]) || ""); if (o) stage.append(o);
     } else stage.append(el("div", { class:"pjword", text:it.c }), el("p", { class:"muted", text:"這個字本身就是一個部件，拆不開。" }));
@@ -1250,7 +1277,7 @@ if (ls.get("hz-hascourse") === "1" && !new URLSearchParams(location.search).get(
   });
 })();
 // ================= 給「漢字大富翁」（hanzi-fuweng.js）用的介面 =================
-window.HZAPI = { CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
+window.HZAPI = { zili, radName, CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
   store, getRec: () => rec, save, addXp,
   addReview(c, w, py){ if (!store.me || !c || rec.review[c]) return false; rec.review[c] = { box:0, due:todayStr(1), lid:"", w:w || "", py:py || "", mean:"" }; return true; } };
 document.dispatchEvent(new Event("hzapi"));
