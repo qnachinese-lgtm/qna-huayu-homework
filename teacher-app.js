@@ -9198,8 +9198,12 @@ function chkinSteps(s){
     act:'editStudent', id:s.id}]:[]),
    {k:'acct', t:'開通帳號',   d:'要有 Email，學生才登入得了', ok:!!String(s.uid||'').trim(),
     act:'tab', id:'acct'},
-   {k:'rule', t:'給上課約定', d:'印出來給學生簽，或傳 PDF 給他', ok:!!String(s.rules_at||'').trim(),
-    act:'chkinRules', id:s.id},
+   /* RULEOPT_V1377 Quinn：「給上課約定這個先不要設定成必要的條件，我只是想要製作一個內容而已」。
+      原本這一步是看學生身上有沒有 rules_at（從系統印過一次才會記）。問題是這個勾
+      跟「新不新」沒關係：早期用紙本簽的、當面講過沒印的，這一格永遠是空的，
+      上了兩年課也不會自己變綠——所以像黎成勳那種上了 21.5 小時的人，
+      會一直掛在「🧳 報到」那一列。上課約定就是一份可以隨時印的文件，不是報到關卡，
+      從這張清單拿掉。文件本身完全不動：「給學生的東西」裡照樣印得出來。 */
    {k:'pay',  t:'收第一筆款', d:(free?'免費試學，這一步可以跳過':'學生頁 › 💰 記繳費'),
     ok:(free||paid), act:'payments', id:s.id, soft:free}
   ];}
@@ -11144,7 +11148,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1376';
+const APP_BUILD='V1377';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -19253,15 +19257,19 @@ H.qsOpen=()=>{QS_SEL=0;QS_ROWS=[];
 H.printRules=(sid)=>{
   const s=sid?((S.students||[]).find(x=>x.id===sid)||null):null;
   try{fbWin(ruleDocHtml(s));}catch(e){toast('打不開，請確認瀏覽器沒有擋彈出視窗');return;}
-  /* CHKIN_V1313 印給某位學生的時候記一下日期，報到進度那一項才打得了勾。
-     空白版（沒有 sid）不記。存不起來也不影響列印。 */
+  /* CHKIN_V1313 印給某位學生的時候記一下日期。
+     RULEOPT_V1377 這個日期現在不再是報到的條件（那一步已經拿掉），
+     單純留著當記錄：哪一天印過約定給這位學生。空白版（沒有 sid）不記。
+     存不起來也不影響列印。 */
   if(s&&!s.rules_at){
     const now=new Date().toISOString();
     s.rules_at=now;
     (async()=>{try{await ensureAuthFresh();await DB.update('students',s.id,{rules_at:now});
       try{render();}catch(e){}}catch(e){}})();
   }};
-/* CHKIN_V1313 報到進度卡上的「給上課約定」：開文件，順便記日期 */
+/* CHKIN_V1313 報到進度卡上的「給上課約定」：開文件，順便記日期。
+   RULEOPT_V1377 那一步拿掉之後這個入口沒人按了，但舊的畫面可能還殘留按鈕，
+   留著當保險（指向同一個函式，按下去行為一樣），不會變成按不動的死鈕。 */
 H.chkinRules=(sid)=>H.printRules(sid);
 /* GIVE_V1312 這一頁的兩種按鈕：切到某個分頁的子頁、以及「帶著選好的學生去做某件事」 */
 H.giveTab=(k)=>{/* GIVESUB_V1366 先用 key 找，找不到再退回舊的 id（舊連結照樣能用） */
