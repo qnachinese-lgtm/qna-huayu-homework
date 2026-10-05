@@ -244,7 +244,8 @@ function Shop(root, cfg){
     const result = el("div", {class:"result", hidden:""});
     const trayBuilt = el("div", {class:"tray"}), trayRad = el("div", {class:"tray"}), trayComp = el("div", {class:"tray"});
     const lblBuilt = el("div", {class:"traylabel", text:"已拼出的字（可以拿來升級成更大的字）"});
-    rightBox.append(mat, result, lblBuilt, trayBuilt, el("div", {class:"traylabel", text:"部首卡：表示意思"}), trayRad, el("div", {class:"traylabel", text:"部件卡：常常表示聲音"}), trayComp);
+    // 卡片緊接在疊字板下面；拼出來的字的說明放在最下面，不會把卡片擠到畫面外
+    rightBox.append(mat, lblBuilt, trayBuilt, el("div", {class:"traylabel", text:"部首卡：表示意思"}), trayRad, el("div", {class:"traylabel", text:"部件卡：常常表示聲音"}), trayComp, result);
     Object.assign(st.ui, { bar, scoreB, comboB, progB, hearts, timerB, qcard, clues, bench, msg, okB, result, trayBuilt, trayRad, trayComp, lblBuilt, shop, hintB });
     clearB.onclick = () => { st.bench = []; renderBench(); setMsg(""); };
     okB.onclick = submit;
@@ -355,7 +356,8 @@ function Shop(root, cfg){
     if (st.ovMode && OV[c]){ st.bench = []; renderBench(c); st.ui.bench.classList.add("right"); const me = st; setTimeout(() => { if (st === me && !st.bench.length) renderBench(); }, 1600); }
     else { st.bench = []; renderBench(); st.ui.bench.classList.add("right"); }
     { const left = st.targets.filter(t => !st.found.has(t) && t !== c).length;
-      setMsg((isBonus ? `加分字！「${c}」` : `${st.ovMode ? "疊" : "拼"}出來了！「${c}」`) + (left ? `　還有 ${left} 個字要拼，看左邊還沒完成的格子。` : ""), "good"); }
+      setMsg((isBonus ? `加分字！「${c}」` : `${st.ovMode ? "疊" : "拼"}出來了！「${c}」`) + (left ? `　接著做左邊亮起來的那一格（還有 ${left} 個字），卡片就在下面。` : ""), "good");
+      if (left) setTimeout(() => { const cl = st.ui.clues.querySelector(".clue:not(.done)"); if (cl){ cl.classList.add("nextup"); setTimeout(() => cl.classList.remove("nextup"), 2500); } }, 300); }
     if (!isBonus && n >= 4) unlock("big4");
     checkBadges();
     showResult(x, isBonus); say(x.c + "，" + x.w);
