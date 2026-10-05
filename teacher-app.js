@@ -1727,6 +1727,9 @@ function acctRow(s){
     +'<span class="ac-c" data-l="最後動作">'+(la?esc(fmtDT(la)):'<span class="muted">—</span>')+'</span>'
     +'<span class="ac-c" data-l="做完的作業">'+acctDoneN(s.id)+' 份</span>'
     +'<span class="ac-a">'
+      /* MKLOGIN_V1395 有 Email、還沒開通，而且不是「自己註冊過」那一種 → 給她開通的入口 */
+      +((mail&&!ok&&!selfReg)?('<button class="btn btn-sm btn-accent" data-act="mkLogin" data-id="'+esc(s.id)
+        +'" title="用這組 Email 幫他建立登入帳號，密碼由妳自己設">\u{1F511} 建立登入帳號</button>'):'')
       +(mail?('<button class="btn btn-sm" data-act="resetPw" data-id="'+esc(s.id)+'" title="寄一封重設密碼的信到他的信箱">✉️ 寄重設密碼信</button>'):'')
       /* DEADBTN_V1287 本來寫 data-act="student"，可是全站沒有 H.student 這個處理函式，
          按鈕按下去完全沒反應。開學生檔案的動作叫 stuDetail。 */
@@ -5435,6 +5438,7 @@ function stuCardInner(s){return `
         <div class="smore-g"><div class="smore-t">✉️ 聯絡與提醒</div><div class="smore-b">
           <button class="btn btn-sm" data-act="remindMsg" data-id="${s.id}">📋 提醒訊息</button>
           <button class="btn btn-sm" data-act="guideCard" data-id="${s.id}">🪪 使用說明卡</button>
+          ${(IS_OWNER&&s.email&&!String(s.uid||'').trim())?`<button class="btn btn-sm btn-accent" data-act="mkLogin" data-id="${s.id}">🔑 建立登入帳號</button>`:''}${/* MKLOGIN_V1395 */''}
           ${(s.email&&!s.reset_requested)?`<button class="btn btn-sm" data-act="resetPw" data-id="${s.id}">✉️ 寄重設密碼信</button>`:''}
         </div></div>
         <div class="smore-g"><div class="smore-t">📁 檔案與記錄</div><div class="smore-b">
@@ -5631,7 +5635,7 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
     </div></div>`:''}
     <div class="form-sec hide" data-g="d" id="f-login-sec"${(!e&&enrollOf(st)==='reserved')?' style="display:none"':''}><div class="form-sec-h">🔑 登入帳號 <span class="hint" style="font-weight:400">預約／還沒開始可留空</span></div><div class="form-grid">
      ${e
-       ? `<div class="field full" style="margin-bottom:0"><div class="hint">${st.email?('登入帳號就是上面那組 Email（'+esc(st.email)+'），建立後不能改；要換密碼請按卡片上的「寄重設密碼信」。'):'上面的 Email 填好之後，按卡片上的「建立登入帳號」就能讓他登入。'}</div></div>`
+       ? `<div class="field full" style="margin-bottom:0"><div class="hint">${st.email?('登入帳號就是上面那組 Email（'+esc(st.email)+'），建立後不能改；要換密碼請按卡片上的「寄重設密碼信」。'):'上面的 Email 填好、存檔之後，到他的學生卡片按「🔑 建立登入帳號」就能設密碼讓他登入。'/* MKLOGIN_V1395 這句本來指向一顆不存在的按鈕 */}</div></div>`
        : `<div class="field"><label>初始密碼 <span class="hint">留空＝先不開通</span></label><input id="f-pw" type="text" value="" placeholder="選填，至少 6 碼"></div>
      <div class="field"><div class="hint" style="margin-top:22px">帳號就是上面「聯絡方式」填的 Email。<b>只填 Email、不填密碼</b>的話，Email 只是存起來，不會開通登入。</div></div>`}
     </div></div>
@@ -11262,7 +11266,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1393';
+const APP_BUILD='V1395';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -12008,6 +12012,8 @@ H.stuTools=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
       +'<button class="btn btn-sm" data-act="cert" data-id="'+sid+'">🎓 證書</button>')
    +g('✉️ 聯絡與提醒','<button class="btn btn-sm" data-act="remindMsg" data-id="'+sid+'">📋 提醒訊息</button>'
       +'<button class="btn btn-sm" data-act="guideCard" data-id="'+sid+'">🪪 使用說明卡</button>'
+      /* MKLOGIN_V1395 */
+      +((IS_OWNER&&s.email&&!String(s.uid||'').trim())?'<button class="btn btn-sm btn-accent" data-act="mkLogin" data-id="'+sid+'">\u{1F511} 建立登入帳號</button>':'')
       +((s.email)?'<button class="btn btn-sm" data-act="resetPw" data-id="'+sid+'">✉️ 寄重設密碼信</button>':''))
    +g('📁 檔案與記錄','<button class="btn btn-sm" data-act="uploadAreas" data-id="'+sid+'">📤 上傳區</button>'
       +(/^https?:\/\//i.test(s.drive_url||'')?'<a class="btn btn-sm" href="'+esc(s.drive_url)+'" target="_blank" rel="noopener">📁 教材資料夾</a>':'')
@@ -15760,6 +15766,79 @@ H.adoptDo=async()=>{
     else if(/too-many-requests/.test(c))
       say('試太多次被暫時擋住了，請等幾分鐘再試。');
     else say('接過來失敗：'+((e&&e.message)||e));
+  }};
+/* ══════ MKLOGIN_V1395 幫既有的學生開通登入帳號 ══════
+   Quinn：「我剛剛建立一個 abcd@gmail.com 的帳號，但是為什麼我沒辦法設定密碼？」
+   量出來的狀況：
+     ·「＋ 新增學生」那張表單有「初始密碼」欄 → 會真的建一組登入帳號。
+     ·「👤 新增一位」整張表單沒有密碼這件事 → 只有資料，沒有登入。
+     · 建好之後再點進那位學生，編輯視窗也沒有密碼欄，只寫著
+       「按卡片上的『建立登入帳號』就能讓他登入」——可是全站搜不到這顆按鈕。
+   所以從「新增一位」建出來的人，事後完全沒有路可以補密碼。
+   這裡把那顆按鈕補回來。建帳號的程式是現成的（createStudentAuth，
+   「＋ 新增學生」在用的那一支），我只是把入口接回來；密碼由 Quinn 自己輸入。 */
+let MKL_CTX=null;
+H.mkLogin=(id)=>{
+  if(!IS_OWNER)return;
+  const s=(S.students||[]).find(x=>x.id===id);if(!s)return;
+  const mail=String(s.email||'').trim().toLowerCase();
+  if(!mail)return toast('這位學生還沒有 Email。先點進他的資料把 Email 填好，再回來開通。');
+  if(String(s.uid||'').trim())return toast('這位學生已經開通過了。要換密碼請按「✉️ 寄重設密碼信」。');
+  MKL_CTX={id:s.id,name:s.name||'',email:mail,adopt:false};
+  mklDraw();
+};
+function mklDraw(){
+  const C=MKL_CTX;if(!C)return;
+  const head=C.adopt?'\u{1F517} 這個 Email 已經有登入帳號':'\u{1F511} 幫 '+esc(C.name||'這位學生')+' 建立登入帳號';
+  const body=C.adopt
+    ? '<div class="hint" style="margin-bottom:12px"><b>'+esc(C.email)+'</b> 在 Firebase 裡已經註冊過了，沒辦法再開一次新的。<br><br>'
+      +'如果那本來就是這位學生（或妳自己測試用）的帳號，在下面填<b>那個帳號現在的密碼</b>，就可以直接接到他身上。<br>'
+      +'<span style="color:#1F6A54">密碼不會被更改、也不會存起來，只用來確認是這個帳號。</span></div>'
+      +'<div class="form-grid"><div class="field full"><label>這個帳號目前的密碼</label>'
+      +'<input id="mkl-pw" type="password" autocomplete="off" placeholder="至少 6 碼"></div></div>'
+      +'<div class="hint" style="margin-top:10px">密碼已經忘了的話：請那位學生到學生登入頁按「忘記密碼」重設，重設完再回來做一次。</div>'
+    : '<div class="hint" style="margin-bottom:12px">登入帳號就是 <b>'+esc(C.email)+'</b>（建立之後不能改）。<br>'
+      +'下面填一組初始密碼，建好之後會跳一段訊息給妳複製，傳給學生就能登入。<br>'
+      +'<span style="color:#1F6A54">密碼不會存進資料庫，之後忘了只能用「✉️ 寄重設密碼信」重設。</span></div>'
+      +'<div class="form-grid"><div class="field full"><label>初始密碼</label>'
+      +'<input id="mkl-pw" type="text" autocomplete="off" placeholder="至少 6 碼"></div></div>';
+  openModal('<div class="modal" style="max-width:520px"><div class="modal-head"><h3>'+head+'</h3>'
+    +'<button class="x" data-act="closeModal">×</button></div>'
+    +'<div class="modal-body">'+body+'<div class="err" id="mkl-err" style="margin-top:8px"></div></div>'
+    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+    +'<button class="btn btn-primary" data-act="mkLoginDo">'
+    +(C.adopt?'\u{1F517} 把這個帳號接過來':'\u{1F511} 建立登入帳號')+'</button></div></div>');
+}
+H.mkLoginDo=async()=>{
+  const C=MKL_CTX;if(!C)return;
+  const er=document.getElementById('mkl-err');
+  const say=(m)=>{if(er)er.textContent=m;else toast(m);};
+  const pw=((document.getElementById('mkl-pw')||{}).value)||'';
+  if(pw.length<6)return say(C.adopt?'請填那個帳號目前的密碼（至少 6 碼）':'初始密碼至少 6 碼');
+  const btn=document.querySelector('[data-act="mkLoginDo"]');
+  if(btn){btn.disabled=true;btn.textContent=C.adopt?'確認中…':'建立中…';}
+  const back=()=>{if(btn){btn.disabled=false;btn.textContent=C.adopt?'\u{1F517} 把這個帳號接過來':'\u{1F511} 建立登入帳號';}};
+  try{
+    const u=C.adopt?await adoptStudentAuth(C.email,pw):await createStudentAuth(C.email,pw);
+    await ensureAuthFresh();
+    const dup=(S.students||[]).find(x=>x.id!==C.id&&String(x.uid||'')===u);
+    if(dup){back();return say('這個帳號已經是學生「'+((dup.name)||'')+'」了，不用再接一次。');}
+    await DB.update('students',C.id,{uid:u,email:C.email});
+    const nm=C.name,em=C.email,ad=C.adopt;
+    MKL_CTX=null;closeModal();await loadAll();render();
+    try{ruLater();}catch(e){}/* READUID_V973 讓他讀得到自己的資料 */
+    if(ad)toast('接好了，他用原本的帳號密碼登入就會進學生版');
+    else inviteModal(nm,em,pw);
+  }catch(e){
+    const c=String((e&&e.code)||'');
+    if(!C.adopt&&c.indexOf('email-already-in-use')>=0){
+      /* 走到這裡表示 Firebase 已經有這組帳號了 —— 換成「接過來」那一條路 */
+      C.adopt=true;mklDraw();return;}
+    back();
+    if(/wrong-password|invalid-credential|invalid-login/.test(c))say('密碼不對。可以請他用「忘記密碼」重設之後再試。');
+    else if(/user-not-found/.test(c))say('找不到這個帳號，請確認 Email 有沒有打錯。');
+    else if(/too-many-requests/.test(c))say('試太多次被暫時擋住了，請等幾分鐘再試。');
+    else say((C.adopt?'接過來失敗：':'建立失敗：')+authMsg(e));
   }};
 H.loginLog=(id)=>{const s=S.students.find(x=>x.id===id);const p=progOf(id);const logs=(((p&&Array.isArray(p.logins))?p.logins:[]).slice()).sort().reverse();
   const byDay={};logs.forEach(t=>{const d=fmtDate(t);(byDay[d]=byDay[d]||[]).push(fmtDT(t).slice(-5));});
