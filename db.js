@@ -116,3 +116,14 @@
   const impl = hasFirebase ? firebaseDB : (hasSupabase ? supabaseDB : localDB);
   window.DB = Object.assign({ mode }, impl);
 })();
+
+/* ══════ HANZI_LOADER 漢字遊戲外掛 ══════
+   老師後台（teacher.html）自動載入 hanzi-teacher.js，學生端（student.html）自動載入 hanzi-student.js。
+   漢字遊戲的程式全部在那兩支檔案裡，teacher.html／student.html 不用寫任何東西，
+   所以改後台、用舊檔案覆蓋都不會讓漢字遊戲不見。這一段請保留。 */
+(function () {
+  var p = location.pathname, f = /\/teacher(\.html)?$/.test(p) ? 'hanzi-teacher.js' : (/\/student(\.html)?$/.test(p) ? 'hanzi-student.js' : null);
+  if (!f) return;
+  function go() { var s = document.createElement('script'); s.src = f; document.body.appendChild(s); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+})();

@@ -570,12 +570,12 @@ async function loadAll(){
   try{await pTg;}catch(e){}/* TGUIDE_V973 */
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
   S.rawLessons=b.filter(x=>x&&!x.deleted_at);/* READUID_V973 算讀取名單要看整包，不能只看 S.lessons */
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&x.kind!=='lqassign'&&x.kind!=='reply'&&x.kind!=='price'&&x.kind!=='edit_proposal'&&x.kind!=='school'/* SCHOOL_V1046 學校資料不是課 */&&x.kind!=='hanzitask'/* HANZI_V1 */&&!x.deleted_at);
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&x.kind!=='lqassign'&&x.kind!=='reply'&&x.kind!=='price'&&x.kind!=='edit_proposal'&&x.kind!=='school'/* SCHOOL_V1046 學校資料不是課 */&&!x.deleted_at);
    /* PROP_V944 老師送來的修改提案 */
    S.props=b.filter(x=>x.kind==='edit_proposal'&&!x.deleted_at)
      .sort((p,q)=>String(q.at||'').localeCompare(String(p.at||'')));
    S.ocs=b.filter(x=>x&&x.kind==='oc'&&!x.deleted_at).sort((a,c)=>(Number(a.order_index)||0)-(Number(c.order_index)||0));/* OC_V1257 */
-   S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.lqassigns=b.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.hanziTasks=b.filter(x=>x.kind==='hanzitask'&&!x.deleted_at);/* HANZI_V1 */
+   S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.lqassigns=b.filter(x=>x.kind==='lqassign'&&!x.deleted_at);
    /* RPMOVE_V945 回覆範本和價目表正在從 lessons 搬到 crm（只有主管理員讀得到）。
       搬家期間兩邊都讀，畫面才不會有空窗；moved_from 用來避免同一筆出現兩次。 */
    {const _rpp=(k)=>{
@@ -599,7 +599,7 @@ S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==
   if(!owner){
     const ids=new Set(S.students.map(s=>s.id)),uids=new Set(S.students.map(s=>s.uid).filter(Boolean));
     const mine=r=>ids.has(r.student_id)||(r.uid&&uids.has(r.uid));
-    S.results=S.results.filter(mine);S.hanzis=(S.hanzis||[]).filter(mine);/* HANZI_V1 */S.sentences=S.sentences.filter(mine);S.quizResults=S.quizResults.filter(mine);S.discussions=S.discussions.filter(mine);S.shadows=(S.shadows||[]).filter(mine);S.gpracs=(S.gpracs||[]).filter(mine);S.hwvs=(S.hwvs||[]).filter(mine);S.wbdocs=(S.wbdocs||[]).filter(mine);S.lqps=(S.lqps||[]).filter(mine);
+    S.results=S.results.filter(mine);S.sentences=S.sentences.filter(mine);S.quizResults=S.quizResults.filter(mine);S.discussions=S.discussions.filter(mine);S.shadows=(S.shadows||[]).filter(mine);S.gpracs=(S.gpracs||[]).filter(mine);S.hwvs=(S.hwvs||[]).filter(mine);S.wbdocs=(S.wbdocs||[]).filter(mine);S.lqps=(S.lqps||[]).filter(mine);
     S.quizzes=S.quizzes.filter(qz=>(qz.assigned_ids||[]).some(id=>ids.has(id)));
   }
   S.admins=owner?((await pAdm)||[]):[];/* BOOTPAR_V1370 */
@@ -616,7 +616,7 @@ S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==
   const bs=document.querySelector('.brand-sub');
   if(bs)bs.textContent=owner?'Tiếng Trung Quyên Huỳnh':('管理員 · '+(MY_EMAIL||''));
 }
-function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.acts=d.filter(x=>x.kind==='act');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq'&&x.kind!=='hanzi');S.hanzis=d.filter(x=>x.kind==='hanzi');/* HANZI_V1 */S.leavereqs=d.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');S.lqps=d.filter(x=>x.kind==='lqp');}
+function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.acts=d.filter(x=>x.kind==='act');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq');S.leavereqs=d.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');S.lqps=d.filter(x=>x.kind==='lqp');}
 /* MENU_MODAL_V12 一開視窗就把還開著的「⋯」收起來，不然會浮在視窗旁邊 */
 document.addEventListener('toggle',(e)=>{const d=e.target;
   if(d&&d.classList&&d.classList.contains('crm-card')){const id=d.getAttribute('data-cid');
@@ -745,7 +745,7 @@ function render(){
   /* TABFIX_V1192 舊的分頁名稱被拿掉的話，這一行會整個爆掉，畫面會全白。找不到就回總覽。 */
   if(!$('#panel-'+S.tab))S.tab='dashboard';
   $('#panel-'+S.tab).classList.remove('hide');
-  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,bizcal:renderBizCal,oc:renderOC,acct:renderAcct,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,give:renderGive,guide:renderGuide,hanzi:renderHanzi}[S.tab])();}/* GIVE_V1312 */
+  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,bizcal:renderBizCal,oc:renderOC,acct:renderAcct,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,give:renderGive,guide:renderGuide}[S.tab])();}/* GIVE_V1312 */
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
   /* NAVMERGE_V1317 一定要在畫完之後才插分頁列——畫面是整個 innerHTML 換掉的，
      先插會被蓋掉。 */
@@ -2605,10 +2605,6 @@ function hwPending(){
     (q.assigned_ids||[]).forEach(id=>{const s=S.students.find(x=>x.id===id);if(!live(s))return;
       if((S.quizResults||[]).some(r=>r&&r.quiz_id===q.id&&r.student_id===id))return;
       out.push({sid:id,name:s.name||'',what:q.title||'隨堂小考',lid:q.id,kind:'隨堂小考',due:q.due_date||'',draft:false});});});
-  /* HANZI_V1 漢字遊戲作業：在指定難度、指定關卡拿到足夠的星星才算完成 */
-  try{(S.hanziTasks||[]).forEach(t=>{if(!t||t.deleted_at)return;
-    lessonTargets(t).filter(live).forEach(s=>{if(hzDone(t,s))return;
-      out.push({sid:s.id,name:s.name||'',what:t.title||t.fam,lid:t.id,kind:'漢字遊戲',due:t.due_date||'',draft:hzStars(s,t.diff,t.fam)>0});});});}catch(e){}
   out.forEach(x=>{x.days=hwDaysTo(x.due);});
   out.sort((a,b)=>{
     const ra=(a.days==null)?2:(a.days<0?0:1), rb=(b.days==null)?2:(b.days<0?0:1);
@@ -6020,7 +6016,7 @@ function navSibHtml(tab){
 const TNAV=[
   {id:'dashboard',t:'今日總覽',act:'tab'},
   {t:'教學',sub:[['students','👥 學生','c-students'],['calendar','📅 課表',''],
-                 ['lessons','📚 教材與課程','c-lessons'],['hanzi','🀄 漢字遊戲',''],/* HANZI_V4 頂部選單也放漢字遊戲 */['grades','📝 批改・成績','c-pending']]},
+                 ['lessons','📚 教材與課程','c-lessons'],['grades','📝 批改・成績','c-pending']]},
   {t:'留學業務',sub:[['agency','🎓 代辦申請','c-ag'],['interview','🎤 面試練習','c-itv'],
                      ['writing','✍️ 代書','c-wr'],['school','🏫 學校與資料','']]},
   {t:'收費・財務',sub:[['pay','💰 繳費','c-owe'],['ops','📈 財務・營運','']]},
@@ -9234,103 +9230,6 @@ function chkinCard(s){
       +'<span class="ck-mk">'+(x.ok?'✓':'○')+'</span>'
       +'<span class="ck-tx"><b>'+esc(x.t)+'</b><span class="hint">'+esc(x.d)+'</span></span>'
       +'</button>').join('')+'</div></div>';}
-/* ══════ HANZI_V1 漢字遊戲（字族工坊 hanzi.html） ══════
-   作業存在 lessons（kind:'hanzitask'，指派名單 assigned_ids + read_uids）。
-   學生的遊戲紀錄存在 results（kind:'hanzi'，lesson_id:'__hanzi__'，一位學生一筆）。
-   完成條件：學生在指定難度、指定關卡拿到的星星 ≥ 作業要求的星星。 */
-const HZ_CUR=['青','艮','寺','包','反','方','官','交','古','己','果／頁','隹','音（多層）','相（多層）','買（多層）','每','門','射','僉','戔','余','兆','非','者','采','至（多層）','形近字'];
-/* HANZI_V3 關卡清單在 hanzi-stages.js（精選字族＋華語八千詞七個等級，約 430 關）。檔案沒載入時退回精選字族。 */
-const HZ_LIST=(window.HZ_STAGE_LIST&&window.HZ_STAGE_LIST.length)?window.HZ_STAGE_LIST:[{lv:'精選字族',stages:HZ_CUR.map(n=>[n,n,0])}];
-const HZ_NAME={};HZ_LIST.forEach(L=>L.stages.forEach(s=>{HZ_NAME[s[0]]=(L.lv==='精選字族'?'':L.lv.replace('級','')+'・')+s[1];}));
-const HZ_STAGES=Object.keys(HZ_NAME);
-const HZ_DIFF={easy:'入門',normal:'進階',hard:'高手'};
-function hzDocOf(s){if(!s)return null;return (S.hanzis||[]).find(r=>r&&((s.uid&&r.uid===s.uid)||r.student_id===s.id))||null;}
-function hzStars(s,diff,fam){const d=hzDocOf(s);const st=d&&d.rec&&d.rec.stars&&d.rec.stars[diff];return (st&&Number(st[fam]))||0;}
-function hzDone(t,s){return hzStars(s,t.diff,t.fam)>=(Number(t.min_stars)||1);}
-function hzLive(s){return s&&!s.deleted_at&&!s.is_test&&enrollOf(s)!=='paused';}
-function hzWhen(iso){if(!iso)return '—';const d=new Date(iso);if(isNaN(d))return '—';return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
-const HZ_LV=[[0,'漢字學徒'],[300,'拼字工匠'],[1000,'字族達人'],[2500,'字源學者'],[5000,'漢字大師']];
-function hzLevel(xp){let i=0;HZ_LV.forEach((l,k)=>{if((xp||0)>=l[0])i=k;});return (i+1)+'・'+HZ_LV[i][1];}
-function renderHanzi(){
-  const body=$('#panel-hanzi');if(!body)return;
-  const tasks=(S.hanziTasks||[]).slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
-  const chip=(t,s)=>{/* HANZI_V3 */
-    const got=hzStars(s,t.diff,t.fam);
-    if(hzDone(t,s))return '<span class="badge" style="background:#E1F0E8;color:#1F6A54">✓ '+snm(s.name)+' '+'★'.repeat(got)+'</span>';
-    const dd=hwDaysTo(t.due_date);
-    if(dd!=null&&dd<0)return '<span class="badge badge-overdue">'+snm(s.name)+' 逾期 '+(-dd)+' 天</span>';
-    return '<span class="badge'+(dd!=null&&dd<=2?' badge-soon':'')+'">'+snm(s.name)+(got?(' 目前 '+'★'.repeat(got)):' 還沒完成')+'</span>';};
-  const taskHtml=tasks.length?tasks.map(t=>{
-    const who=lessonTargets(t).filter(hzLive);
-    const done=who.filter(s=>hzDone(t,s)).length;
-    return '<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start">'
-      +'<b>'+esc(t.title||((HZ_NAME[t.fam]||t.fam)+'・'+(HZ_DIFF[t.diff]||'')))+'</b>'
-      +'<span class="tag">'+esc(HZ_NAME[t.fam]||t.fam)+'・'+esc(HZ_DIFF[t.diff]||'')+'・至少 '+(Number(t.min_stars)||1)+' 星</span>'
-      +'<span class="muted" style="font-size:12px">'+(t.due_date?('截止 '+esc(t.due_date)):'沒有截止日')+'</span>'
-      +'<span class="grow"></span><span class="muted" style="font-size:13px">完成 '+done+'／'+who.length+'</span>'
-      +'<button class="btn btn-sm btn-ghost" data-act="hzDel" data-id="'+esc(t.id)+'">刪除</button>'
-      +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'+(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
-    :'<div class="muted" style="padding:8px 2px">還沒有指派漢字遊戲作業。按右上角「＋ 指派作業」開始。</div>';
-  const stus=(S.students||[]).filter(hzLive).slice().sort((a,b)=>{const x=hzDocOf(a),y=hzDocOf(b);return String((y&&y.updated_at)||'').localeCompare(String((x&&x.updated_at)||''))||stuNameCmp(a,b);});
-  const rows=stus.map(s=>{const d=hzDocOf(s);const r=(d&&d.rec)||null;
-    if(!r)return '<tr><td>'+snm(s.name)+'</td><td colspan="6" class="muted">還沒玩過</td></tr>';
-    const sm=k=>Object.values((r.stars&&r.stars[k])||{}).reduce((a,b)=>a+(Number(b)||0),0);
-    const rc=r.recall||{};const rate=rc.done?(Math.round(rc.ok/rc.done*100)+'%（'+rc.done+' 題）'):'—';
-    const hard=Object.entries(r.hard||{}).sort((a,b)=>((b[1]&&b[1].miss)||0)-((a[1]&&a[1].miss)||0)).slice(0,6).map(x=>x[0]).join(' ');
-    return '<tr><td>'+snm(s.name)+'</td><td>'+hzWhen(d.updated_at)+'</td><td>'+hzLevel(r.xp)+'<br><span class="muted" style="font-size:12px">'+(r.xp||0)+' XP</span></td>'
-      +'<td>'+sm('easy')+'／'+sm('normal')+'／'+sm('hard')+'</td><td>'+Object.keys(r.found||{}).length+' 個</td><td>'+rate+'</td>'
-      +'<td style="font-size:20px;letter-spacing:2px">'+esc(hard||'—')+'</td></tr>';}).join('');
-  body.innerHTML='<div class="section-head"><h2>🀄 漢字遊戲（字族工坊）</h2><span class="sub">指派關卡給學生，看每個人的漢字進度</span>'
-    +'<span class="grow"></span><a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">開啟遊戲試玩 ↗</a>'
-    +'<button class="btn btn-sm btn-accent" data-act="hzNew">＋ 指派作業</button></div>'
-    +'<div class="card"><h3 style="margin:0 0 8px">作業</h3><div class="hint" style="margin-bottom:8px">綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。</div>'+taskHtml+'</div>'
-    +'<div class="card" style="margin-top:14px"><h3 style="margin:0 0 8px">學生進度</h3><div class="hint" style="margin-bottom:8px">星星欄是「入門／進階／高手」三個難度拿到的星星總數（每個難度最多 81 顆）。難字＝回想關最常寫錯的字。</div>'
-    +'<div style="overflow-x:auto"><table class="hz-tb" style="min-width:720px;width:100%"><thead><tr><th>學生</th><th>最近玩</th><th>等級</th><th>星星</th><th>拼出的字</th><th>回想關正確率</th><th>難字</th></tr></thead><tbody>'
-    +(rows||'<tr><td colspan="7" class="muted">還沒有學生</td></tr>')+'</tbody></table></div></div>';
-}
-H.hzNew=()=>{
-  const live=(S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test);
-  const rank=(x)=>{const e=enrollOf(x);return e==='active'?0:(e==='trial'?1:(e==='reserved'?2:3));};
-  const checks=live.slice().sort((a,b)=>rank(a)-rank(b)||stuNameCmp(a,b)).map(s=>{const on=enrollOf(s)==='active';
-    return '<label class="qzw-s"><input type="checkbox" class="hz-stu" value="'+esc(s.id)+'"'+(on?' checked':'')+'><span>'+snm(s.name)+'</span>'
-      +(on?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[enrollOf(s)]||'')+'）</i>')+'</label>';}).join('');
-  const d=new Date();d.setDate(d.getDate()+7);
-  const def=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>🀄 指派漢字遊戲作業</h3><button class="x" data-act="closeModal">×</button></div>'
-   +'<div class="modal-body"><div class="form-grid">'
-   +'<div class="field"><label>關卡</label><select id="hz-fam">'+HZ_LIST.map(L=>'<optgroup label="'+esc(L.lv)+'">'+L.stages.map((s,i)=>'<option value="'+esc(s[0])+'">'+(i+1)+'・'+esc(s[1])+(s[2]?'（'+s[2]+' 字）':'')+'</option>').join('')+'</optgroup>').join('')+'</select></div>'
-   +'<div class="field"><label>難度</label><select id="hz-diff"><option value="easy">入門（有拼音提示）</option><option value="normal" selected>進階（只給詞）</option><option value="hard">高手（只聽讀音、限時）</option></select></div>'
-   +'<div class="field"><label>至少要拿幾顆星</label><select id="hz-min"><option value="1">1 顆（過關就好）</option><option value="2" selected>2 顆</option><option value="3">3 顆（不能拼錯、不能用提示）</option></select></div>'
-   +'<div class="field"><label>截止日</label><input id="hz-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
-   +'<div class="field full"><label>作業名稱 <span class="hint">可以不填，會自動用「關卡・難度」</span></label><input id="hz-title" placeholder="例如：這週練艮家族"></div></div>'
-   +'<div class="field full"><label>指派給誰</label>'
-   +'<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap"><button class="btn btn-sm" type="button" data-act="hzStuAll">✔ 全選</button><button class="btn btn-sm" type="button" data-act="hzStuNone">✕ 全部取消</button></div>'
-   +'<div class="qzw-stus">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div></div>'
-   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
-   +'<button class="btn btn-primary" data-act="hzSave">📤 指派出去</button></div></div>');};
-H.hzStuAll=()=>{document.querySelectorAll('.hz-stu').forEach(c=>{c.checked=true;});};
-H.hzStuNone=()=>{document.querySelectorAll('.hz-stu').forEach(c=>{c.checked=false;});};
-H.hzSave=async()=>{
-  const ids=[].slice.call(document.querySelectorAll('.hz-stu:checked')).map(c=>c.value);
-  if(!ids.length)return toast('請至少選一位學生');
-  const _v=(id)=>{const e=document.getElementById(id);return e?String(e.value||'').trim():'';};
-  const fam=_v('hz-fam'),diff=_v('hz-diff')||'normal',min=Number(_v('hz-min'))||1,due=_v('hz-due');
-  if(HZ_STAGES.indexOf(fam)<0)return toast('請選一個關卡');
-  const title=_v('hz-title')||((HZ_NAME[fam]||fam)+'・'+HZ_DIFF[diff]+'・'+min+' 星');
-  const btn=document.querySelector('[data-act="hzSave"]');if(btn){btn.disabled=true;btn.textContent='指派中…';}
-  try{await ensureAuthFresh();
-    const row={kind:'hanzitask',title:title,fam:fam,diff:diff,min_stars:min,due_date:due,assigned_ids:ids,created_at:new Date().toISOString()};
-    row.read_uids=ruCalc(row);
-    await DB.insert('lessons',row);
-    await loadAll();closeModal();render();toast('已指派給 '+ids.length+' 位學生'+(due?('，截止 '+due):''));
-  }catch(e){if(btn){btn.disabled=false;btn.textContent='📤 指派出去';}toast('指派失敗：'+((e&&e.message)||e));}};
-H.hzDel=async(id)=>{const t=(S.hanziTasks||[]).find(x=>x.id===id);if(!t)return;
-  const b=document.querySelector('[data-act="hzDel"][data-id="'+id+'"]');
-  if(b&&!b.dataset.sure){b.dataset.sure='1';b.textContent='再按一次確定刪除';b.classList.add('btn-danger');setTimeout(()=>{if(b){delete b.dataset.sure;b.textContent='刪除';b.classList.remove('btn-danger');}},4000);return;}
-  try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除這份作業');}
-  catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
-/* ══════ HANZI_V1 end ══════ */
-
 function renderGive(){
   const body=$('#panel-give');if(!body)return;
   const stus=giveStuList();
