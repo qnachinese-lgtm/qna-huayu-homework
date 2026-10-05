@@ -11256,7 +11256,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1384';
+const APP_BUILD='V1386';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -22201,8 +22201,8 @@ boot();
     LOADING=true;
     var s=document.createElement('script');
     /* VI_V1368 這個版本號一定要跟著字典一起改。不改的話瀏覽器會繼續用
-       快取裡的 vi.js?v=962，新加的詞永遠不會出現——跟 styles.css 那次一樣的坑。 */
-    s.src='vi.js?v=1384';
+       快取裡的 vi.js?v=1386，新加的詞永遠不會出現——跟 styles.css 那次一樣的坑。 */
+    s.src='vi.js?v=1386';
     s.onload=function(){
       LOADING=false;
       var d=window.QNA_VI;
@@ -22227,19 +22227,25 @@ boot();
      改成鈕上寫「現在是哪一種」，按下去展開清單，正在用的那一種反白。
      選單本身不翻（data-novi），語言名稱一律用該語言自己的寫法。 */
   var LANGS=[{v:'zh',n:'繁體中文'},{v:'vi',n:'Tiếng Việt'}];
-  function mount(){
-    if(document.getElementById('ui-langwrap'))return;
-    var btn=document.getElementById('settings-btn');
-    if(!btn||!btn.parentNode)return;
+  /* GATELANG_V1386 Quinn：「教師語言，也要補」。
+     本來這一顆只掛在登入「之後」的工具列（下面那句註解寫得很清楚：
+     「app 進來之後才掛，登入畫面不需要」）。但學生端的登入頁右上角
+     一直都有語言鈕，老師端沒有——人還沒登入就已經兩邊不一樣了。
+     所以把做鈕的那一段抽成 buildPicker()，登入頁和工具列各掛一顆，
+     共用同一個 localStorage、同一個 setLang。 */
+  function buildPicker(id){
     var wrap=document.createElement('div');
-    wrap.id='ui-langwrap';
-    wrap.setAttribute('data-novi','1');
+    wrap.id=id;
+    wrap.setAttribute('data-novi','1');/* 語言選單本身不翻 */
     var b=document.createElement('button');
-    b.id='ui-lang';b.type='button';
+    b.id=(id==='ui-langwrap')?'ui-lang':(id+'-btn');
+    b.type='button';
     b.className='btn btn-sm btn-ghost';
     b.setAttribute('aria-haspopup','listbox');
     var menu=document.createElement('div');
-    menu.id='ui-lang-menu';menu.hidden=true;
+    menu.id=(id==='ui-langwrap')?'ui-lang-menu':(id+'-menu');
+    menu.className='ui-lang-menu';
+    menu.hidden=true;
     menu.setAttribute('role','listbox');
     function nameOf(v){for(var i=0;i<LANGS.length;i++){if(LANGS[i].v===v)return LANGS[i].n;}return LANGS[0].n;}
     function close(){if(!menu.hidden){menu.hidden=true;b.setAttribute('aria-expanded','false');}}
@@ -22262,7 +22268,7 @@ boot();
         r.addEventListener('click',function(ev){
           ev.stopPropagation();close();
           if(L.v!==cur())setLang(L.v);
-          paint();
+          repaintAll();
         });
         menu.appendChild(r);
       });
@@ -22274,12 +22280,42 @@ boot();
     });
     document.addEventListener('click',function(ev){if(!wrap.contains(ev.target))close();});
     document.addEventListener('keydown',function(ev){if(ev.key==='Escape')close();});
-    paint();
     wrap.appendChild(b);wrap.appendChild(menu);
-    btn.parentNode.insertBefore(wrap,btn);
+    PAINTERS.push(paint);
+    paint();
+    return wrap;
+  }
+  var PAINTERS=[];
+  function repaintAll(){PAINTERS.forEach(function(f){try{f();}catch(e){}});}
+  /* 選單塞在右上角「設定」旁邊，不動原本的 HTML */
+  /* LANGMENU_V988 本來是「按一下就換成另一種語言」，鈕上寫的是「按下去會變成哪一種」，
+     所以越南文介面的鈕上寫的是「繁體中文」——看起來像現在是中文。
+     改成鈕上寫「現在是哪一種」，按下去展開清單，正在用的那一種反白。
+     選單本身不翻（data-novi），語言名稱一律用該語言自己的寫法。 */
+  function mount(){
+    if(document.getElementById('ui-langwrap'))return;
+    var btn=document.getElementById('settings-btn');
+    if(!btn||!btn.parentNode)return;
+    btn.parentNode.insertBefore(buildPicker('ui-langwrap'),btn);
     if(cur()==='vi')setLang('vi');
   }
-  /* app 進來之後才掛，登入畫面不需要 */
+  /* GATELANG_V1386 登入頁那一顆：位置跟學生端一樣，卡片右上角。 */
+  function mountGate(){
+    if(document.getElementById('ui-langwrap-gate'))return true;
+    var g=document.getElementById('gate');
+    if(!g)return false;
+    var card=g.querySelector('.login-card');
+    if(!card)return false;
+    card.insertBefore(buildPicker('ui-langwrap-gate'),card.firstChild);
+    /* 上次選越南文的人，登入頁就要直接是越南文，不是登入後才變 */
+    if(cur()==='vi')setLang('vi');
+    return true;
+  }
+  if(!mountGate()){
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mountGate);
+    else setTimeout(mountGate,0);
+  }
+  /* app 進來之後再掛工具列那一顆 */
   var tries=0;
   var iv=setInterval(function(){
     tries++;

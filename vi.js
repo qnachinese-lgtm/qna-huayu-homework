@@ -164,7 +164,9 @@ window.QNA_VI = {
     ["^共 (\\d+) 課，已發佈 (\\d+) 課。$", "Tổng cộng $1 bài, đã đăng $2 bài."],
     ["^共 (\\d+) 份$", "Tổng cộng $1 bản"],
     ["^今天 (\\d+) 次$", "Hôm nay $1 lượt"],
-    ["^資料更新於 (.+)$", "Dữ liệu cập nhật lúc $1"]
+    ["^資料更新於 (.+)$", "Dữ liệu cập nhật lúc $1"],
+    /* VI_V1386 登入頁：自動登出那一句帶分鐘數，要用規則換 */
+    ["^為了安全已自動登出（瀏覽器關過，或超過 (\\d+) 分鐘沒有動作），請重新登入。$","Đã tự động đăng xuất vì lý do an toàn (trình duyệt đã đóng, hoặc quá $1 phút không thao tác), vui lòng đăng nhập lại."],
   ],
   M: {
     /* VI_V988 第七輪 */
@@ -3045,6 +3047,27 @@ window.QNA_VI = {
     "💾 儲存範本": "💾 Lưu mẫu",
     "儲存範本": "Lưu mẫu",
     "護照影本 身分證影本 最高學歷畢業證書（經驗證） 歷年成績單（經驗證） 中文或英文能力證明 財力證明／存款證明 證件照（白底） 讀書計畫 自傳 推薦信 健康檢查表 申請表（本人簽名）": "Bản sao hộ chiếu Bản sao CCCD Bằng tốt nghiệp cao nhất (đã công chứng) Bảng điểm các năm (đã công chứng) Chứng chỉ năng lực tiếng Trung hoặc tiếng Anh Chứng minh tài chính／giấy xác nhận số dư Ảnh thẻ (nền trắng) Kế hoạch học tập Bài tự giới thiệu Thư giới thiệu Giấy khám sức khoẻ Đơn đăng ký (có chữ ký của chính mình)",
-    "填好的入學申請表 學校錄取通知書 學校繳費單／收據 簽證面試需要的文件": "Đơn nhập học đã điền xong Giấy báo trúng tuyển của trường Phiếu thu học phí／biên lai của trường Hồ sơ cần cho phỏng vấn visa"
+    "填好的入學申請表 學校錄取通知書 學校繳費單／收據 簽證面試需要的文件": "Đơn nhập học đã điền xong Giấy báo trúng tuyển của trường Phiếu thu học phí／biên lai của trường Hồ sơ cần cho phỏng vấn visa",
+
+    /* ── VI_V1386 老師端登入頁（跟學生端登入頁同一套用字）── */
+    "學生登入": "Học viên",
+    "免費註冊": "Đăng ký",
+    "老師登入": "Giáo viên",
+    "密碼": "Mật khẩu",
+    "顯示密碼": "Hiện mật khẩu",
+    "登入 →": "Đăng nhập →",
+    "忘記密碼": "Quên mật khẩu",
+    "回官網": "Về trang chủ",
+    "請填 Email": "Vui lòng nhập Email",
+    "請輸入密碼": "Vui lòng nhập mật khẩu",
+    "這一頁是老師專用的管理後台。學生請按上面的「學生登入」。": "Trang này là trang quản trị dành riêng cho giáo viên. Học viên vui lòng bấm「Học viên」ở phía trên.",
+    "登入中…": "Đang đăng nhập…",
+    "此帳號沒有管理權限": "Tài khoản này không có quyền quản trị",
+    "請先輸入 Email": "Vui lòng nhập Email trước",
+    "已寄出重設密碼信，請到信箱收信（含垃圾信匣）": "Đã gửi email đặt lại mật khẩu, vui lòng kiểm tra hộp thư (kể cả thư rác)",
+    "查無此帳號": "Không tìm thấy tài khoản này",
+    "嘗試太多次，請稍後再試": "Thử quá nhiều lần, vui lòng thử lại sau",
+    "登入失敗": "Đăng nhập thất bại",
+    "介面語言：繁體中文": "Ngôn ngữ giao diện: 繁體中文"
   }
 };
