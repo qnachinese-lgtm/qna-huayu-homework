@@ -5610,9 +5610,17 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
      <div class="field"><label>生日</label><input id="f-birth" type="date" min="1900-01-01" max="2100-12-31" value="${esc(st.birth||'')}"></div>
     </div></div>
     <div class="form-sec" data-g="a"><div class="form-sec-h">📇 聯絡方式 <span class="hint" style="font-weight:400">要寄信、要找人的時候用</span></div><div class="form-grid">
-     ${(e&&st.email)
-       ? `<div class="field"><label>Email <span class="hint">這組也是他的登入帳號</span></label><input id="f-email" type="email" value="${esc(st.email||'')}" disabled style="opacity:.65"></div>`
-       : `<div class="field"><label>Email</label><input id="f-email" type="email" value="${esc(st.email||'')}" placeholder="請填寫 Email" autocomplete="off"></div>`}
+     ${/* ══════ MAILLOCK_V1397 Email 只有「真的已經開通登入」才鎖起來 ══════
+          Quinn：編輯學生裡 Email 欄是灰的、旁邊寫「這組也是他的登入帳號」，
+          可是那位學生根本還沒開通登入（abcd@gmail.com 在 Firebase 裡還不存在）。
+          原因：這裡的條件寫的是「編輯模式 && 有 Email」，沒有看 uid——
+          只要填過 Email 就鎖住，不管有沒有建過登入帳號。
+          結果是：①說明是錯的 ②Email 打錯了也改不掉（她那筆大寫 G 就卡在這）。
+          改成看 uid：真的開通了才鎖（Firebase 的登入 Email 確實不能改）；
+          還沒開通的就讓她改，旁邊也寫清楚現在是什麼狀態。 */''}
+     ${(e&&st.uid&&st.email)
+       ? `<div class="field"><label>Email <span class="hint">這組也是他的登入帳號，開通後不能改</span></label><input id="f-email" type="email" value="${esc(st.email||'')}" disabled style="opacity:.65"></div>`
+       : `<div class="field"><label>Email ${(e&&st.email)?'<span class="hint">還沒開通登入，改得動</span>':''}</label><input id="f-email" type="email" value="${esc(st.email||'')}" placeholder="請填寫 Email" autocomplete="off"></div>`}
      <div class="field"><label>電話／Zalo</label><input id="f-phone" type="text" inputmode="tel" value="${esc(st.phone||'')}" placeholder="請填寫電話或 Zalo"></div>
      <div class="field full"><label>臉書連結</label><input id="f-fb" type="text" value="${esc(st.fb||'')}" placeholder="貼上粉專連結"></div>
     </div></div>
@@ -5655,7 +5663,19 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
     </div></div>`:''}
     <div class="form-sec hide" data-g="d" id="f-login-sec"${(!e&&enrollOf(st)==='reserved')?' style="display:none"':''}><div class="form-sec-h">🔑 登入帳號 <span class="hint" style="font-weight:400">預約／還沒開始可留空</span></div><div class="form-grid">
      ${e
-       ? `<div class="field full" style="margin-bottom:0"><div class="hint">${st.email?('登入帳號就是上面那組 Email（'+esc(st.email)+'），建立後不能改；要換密碼請按卡片上的「寄重設密碼信」。'):'上面的 Email 填好、存檔之後，到他的學生卡片按「🔑 建立登入帳號」就能設密碼讓他登入。'/* MKLOGIN_V1395 這句本來指向一顆不存在的按鈕 */}</div></div>`
+       ? `<div class="field full" style="margin-bottom:0"><div class="hint">${
+            /* MAILLOCK_V1397 三種狀態分開講，不要再把「有 Email」當成「已經開通」 */
+            st.uid
+              ? ('✅ 已經開通了。登入帳號就是上面那組 Email（'+esc(st.email||'')+'），開通後不能改；要換密碼請按卡片上的「✉️ 寄重設密碼信」。')
+              : (st.email
+                  ? ('⏳ 這組 Email（'+esc(st.email)+'）<b>還沒開通登入</b>，他現在登入不了。按下面這顆設一組初始密碼就可以了。'
+                     /* MAILLOCK_V1397 Quinn 連續兩次都是在這個視窗裡找密碼，
+                        所以不要只寫「去別的地方按」，直接把那顆按鈕放在這裡。 */
+                     +'<div style="margin-top:8px"><button type="button" class="btn btn-sm btn-accent" '
+                     +'data-act="mkLoginHere" data-id="'+esc(st.id)+'" '
+                     +'title="用存檔的 Email 幫他建立登入帳號，密碼由妳自己設">\u{1F511} 建立登入帳號</button></div>')
+                  : '上面的 Email 填好、存檔之後，到他的學生卡片按「🔑 建立登入帳號」就能設密碼讓他登入。')
+          }</div></div>`
        : `<div class="field"><label>初始密碼 <span class="hint">留空＝先不開通</span></label><input id="f-pw" type="text" value="" placeholder="選填，至少 6 碼"></div>
      <div class="field"><div class="hint" style="margin-top:22px">帳號就是上面「聯絡方式」填的 Email。<b>只填 Email、不填密碼</b>的話，Email 只是存起來，不會開通登入。</div></div>`}
     </div></div>
@@ -11286,7 +11306,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1396';
+const APP_BUILD='V1397';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -15797,6 +15817,17 @@ H.adoptDo=async()=>{
    所以從「新增一位」建出來的人，事後完全沒有路可以補密碼。
    這裡把那顆按鈕補回來。建帳號的程式是現成的（createStudentAuth，
    「＋ 新增學生」在用的那一支），我只是把入口接回來；密碼由 Quinn 自己輸入。 */
+/* MAILLOCK_V1397 從「編輯學生」視窗裡直接開通。
+   用的是「已經存檔」的那組 Email，所以欄位被改過還沒存的話先擋下來，
+   免得她以為開通的是剛打進去的那一組。 */
+H.mkLoginHere=(id)=>{
+  const s=(S.students||[]).find(x=>x.id===id);if(!s)return;
+  const box=document.getElementById('f-email');
+  const now=box?String(box.value||'').trim().toLowerCase():'';
+  const saved=String(s.email||'').trim().toLowerCase();
+  if(box&&now!==saved)return toast('Email 改過了還沒存。請先按「💾 儲存」，再回來按「建立登入帳號」。');
+  closeModal();setTimeout(()=>{H.mkLogin(id);},120);
+};
 let MKL_CTX=null;
 H.mkLogin=(id)=>{
   if(!IS_OWNER)return;
