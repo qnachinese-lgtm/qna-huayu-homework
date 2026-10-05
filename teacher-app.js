@@ -11153,7 +11153,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1378';
+const APP_BUILD='V1379';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
