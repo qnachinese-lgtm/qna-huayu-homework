@@ -6,7 +6,7 @@
 (function(){
 'use strict';
 if (window.__HZ_STUDENT__) return; window.__HZ_STUDENT__ = true;
-if (typeof window.hzHomeCard === 'function') return;  /* 舊版 student.html 還留著漢字遊戲的程式，就讓舊的做 */
+const INLINE = typeof window.hzHomeCard === 'function';  /* 舊版 student.html 還留著漢字遊戲的程式：作業那部分讓舊的算，避免重複；其他用新版 */
 const L4 = (zh, cn, en, vi) => LT({zh, cn, en, vi});
 function hzMine(){ return (S.hanziTasks || []).filter(t => t && !t.deleted_at && assignedToMe(t)); }
 function hzTaskDone(t){ const r = S.hanziDoc && S.hanziDoc.rec; const st = r && r.stars && r.stars[t.diff]; return ((st && Number(st[t.fam])) || 0) >= (Number(t.min_stars) || 1); }
@@ -54,7 +54,7 @@ if (typeof _rows === 'function') window.dueRows = function(){
 const _counts = window.dueCounts;
 if (typeof _counts === 'function') window.dueCounts = function(){
   const c = _counts.apply(this, arguments);
-  try{ hzOpen().forEach(t => { const d = dueInfo(t.due_date); if (!d) return; if (d.cls === 'badge-overdue') c.overdue++; else if (d.cls === 'badge-soon') c.soon++; }); }catch(e){}
+  try{ if (!INLINE) hzOpen().forEach(t => { const d = dueInfo(t.due_date); if (!d) return; if (d.cls === 'badge-overdue') c.overdue++; else if (d.cls === 'badge-soon') c.soon++; }); }catch(e){}
   return c;
 };
 const _banner = window.dueBanner;
@@ -62,7 +62,7 @@ if (typeof _banner === 'function') window.dueBanner = function(){
   let html = _banner.apply(this, arguments);
   try{
     const its = [];
-    hzOpen().forEach(t => { const di = dueInfo(t.due_date); if (di && (di.cls === 'badge-overdue' || di.cls === 'badge-soon')) its.push({over:di.cls === 'badge-overdue', t:'🀄 ' + (t.title || t.fam || ''), due:t.due_date}); });
+    if (!INLINE) hzOpen().forEach(t => { const di = dueInfo(t.due_date); if (di && (di.cls === 'badge-overdue' || di.cls === 'badge-soon')) its.push({over:di.cls === 'badge-overdue', t:'🀄 ' + (t.title || t.fam || ''), due:t.due_date}); });
     if (!its.length) return html;
     const li = its.map(x => '<li>' + (x.over ? '<span class="db-o">' + esc(L4('逾期', '逾期', 'Overdue', 'Quá hạn')) + '</span>' : '<span class="db-s">' + esc(L4('快到期', '快到期', 'Due soon', 'Sắp hạn')) + '</span>') + ' ' + esc(x.t) + (x.due ? (' <span class="db-d">' + esc(x.due) + '</span>') : '') + '</li>').join('');
     const nOver = its.filter(x => x.over).length;

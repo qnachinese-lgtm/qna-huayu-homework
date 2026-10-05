@@ -8,8 +8,7 @@ var HZ_STAGE_LIST = [{"lv":"精選字族","stages":[["青","青",7],["艮","艮"
 (function(){
 'use strict';
 if (window.__HZ_TEACHER__) return; window.__HZ_TEACHER__ = true;
-/* 舊版 teacher-app.js 裡如果還留著漢字遊戲的程式，就讓舊的那份做，不重複 */
-if (typeof window.renderHanzi === 'function') return;
+/* 如果有人用舊檔案把舊的漢字遊戲程式放回 teacher-app.js，這支外掛還是會蓋過去，用新版的畫面和功能 */
 /* ══════ HANZI_V1 漢字遊戲（字族工坊 hanzi.html） ══════
    作業存在 lessons（kind:'hanzitask'，指派名單 assigned_ids + read_uids）。
    學生的遊戲紀錄存在 results（kind:'hanzi'，lesson_id:'__hanzi__'，一位學生一筆）。

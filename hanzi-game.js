@@ -749,6 +749,18 @@ function cvLesson(l){
     chars.push({ c, w:W.w, wpy:W.py, py:charPy(c, W.w, W.py), mean:W.mean, ex:W.ex.map(cvClean) }); }));
   // 沒有生詞的課：拿課文裡、華語八千詞有的字
   if (!chars.length) sents.join("").split("").forEach(c => { if (chars.length >= 30 || seen.has(c) || !CH[c] || NOSTROKE.has(c)) return; seen.add(c); chars.push({ c, w:CH[c].w, wpy:"", py:pyOf(c), mean:"", ex:[] }); });
+  // 單字詞（例如「他、誰、很」）只給一個□，學生猜不出是哪個字：換成有上下文的提示
+  chars.forEach(it => {
+    it.word = it.w;
+    if ([...it.w].length > 1) return;
+    const other = words.find(W => W.w.length > 1 && W.w.includes(it.c));
+    if (other){ it.w = other.w; it.wpy = other.py || ""; return; }
+    const ss = sents.concat(it.ex || []).filter(x => x.includes(it.c)).sort((a, b) => a.length - b.length);
+    if (ss.length){ const t = ss[0].replace(/[^\u3400-\u9FFF\uF900-\uFAFF]+/g, " "); const k = t.indexOf(it.c);
+      let a0 = k, b0 = k + 1; while (a0 > 0 && k - a0 < 2 && t[a0 - 1] !== " ") a0--; while (b0 < t.length && b0 - k < 4 && t[b0] !== " ") b0++;
+      const snip = t.slice(a0, b0).trim(); if ([...snip].length > 1){ it.w = snip; it.wpy = ""; return; } }
+    if (CH[it.c] && [...CH[it.c].w].length > 1){ it.w = CH[it.c].w; it.wpy = ""; }
+  });
   return { id:l.id, label:cvLabel(l), tb:(l.textbook || "").trim(), order:l.order_index || 0, at:l.created_at || "", chars, sents };
 }
 async function loadCourse(uid){
@@ -826,7 +838,8 @@ function startRound(lid, opts = {}){
   showTab("course");
   const comp = list.filter(x => CH[x.c] && CH[x.c].p);
   if (comp.length >= 1){
-    courseView("#cShopWrap"); $("#cShopHead").innerHTML = ""; $("#cShopHead").append(stepBar(), el("p", { class:"muted", text:`這一輪 ${list.length} 個字。先把拆得開的 ${comp.length} 個字拼出來，看懂每個字是哪些部件組成的。` }));
+    courseView("#cShopWrap"); $("#cShopHead").innerHTML = ""; $("#cShopHead").append(stepBar(), el("p", { class:"muted", text:`這一輪 ${list.length} 個字。先把拆得開的 ${comp.length} 個字拼出來，看懂每個字是哪些部件組成的。每一格的□就是要拼的字，拼哪一個都可以。` }));
+    const skip = el("button", { class:"btn small", style:"margin-top:6px", text:"跳過拼字，直接到②寫" }); skip.onclick = () => { courseShop.stop(); unpatch(); stepWrite(); }; $("#cShopHead").append(skip);
     patch(list); courseShop.start({ stage:{ id:"L:" + lid, name:L.label, chars:comp.map(x => x.c) }, diff });
   } else stepWrite();
 }
@@ -935,7 +948,7 @@ function finishRound(){
   tb.append(el("tr", {}, [el("th", { text:"字" }), el("th", { text:"課本裡的詞" }), el("th", { text:"②寫" }), el("th", { text:"③用" })]));
   CR.list.forEach(it => { const r = CR.res[it.c]; const mk = v => el("td", { class: v === false ? "no" : "ok", text: v === false ? "✗" : "✓" });
     const zi = el("td", { class:"cz" }, [el("button", { class:"czb", text:it.c, title:"聽讀音" })]); zi.firstChild.onclick = () => say(`${it.c}，${it.w}的${it.c}`);
-    tb.append(el("tr", {}, [zi, el("td", { text: it.w + (it.mean ? "　" + it.mean : "") }), mk(r.w), mk(r.u)])); });
+    tb.append(el("tr", {}, [zi, el("td", { text: (it.word || it.w) + (it.mean ? "　" + it.mean : "") }), mk(r.w), mk(r.u)])); });
   box.append(tb);
   const btns = el("div", { class:"endbtns" });
   if (CR.L){
