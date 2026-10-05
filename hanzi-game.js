@@ -326,7 +326,8 @@ function Shop(root, cfg){
     burst(bx, by, 18 + n * 6); popText(bx, by - 30, `+${pts}` + (st.combo > 1 ? `　連擊 ×${st.combo}` : ""));
     if (st.combo > 1) sfx.combo(Math.min(st.combo, 8)); else sfx.good();
     st.bench = []; renderBench(); st.ui.bench.classList.add("right");
-    setMsg(isBonus ? `加分字！「${c}」` : `拼出來了！「${c}」`, "good");
+    { const left = st.targets.filter(t => !st.found.has(t) && t !== c).length;
+      setMsg((isBonus ? `加分字！「${c}」` : `拼出來了！「${c}」`) + (left ? `　還有 ${left} 個字要拼，看左邊還沒完成的格子。` : ""), "good"); }
     if (!isBonus && n >= 4) unlock("big4");
     checkBadges();
     showResult(x, isBonus); say(x.c + "，" + x.w);
@@ -369,7 +370,13 @@ function Shop(root, cfg){
       el("div", {class:"why", text: isBonus ? "加分字" : "記憶提示：" + x.tip}), ...(isBonus || !pyLine(x) ? [] : [el("div", {class:"why", text: pyLine(x)})]), el("div", {class:"why", text:(WHYPY = x.py, "字理：" + why(parts, isBonus ? "" : x.c))})]);
     const sayB = el("button", {class:"btn small", text:"聽讀音"}); sayB.onclick = () => say(x.c + "，" + x.w);
     const againB = el("button", {class:"btn small", text:"再看一次筆順"});
-    info.append(el("div", {class:"acts"}, [sayB, againB]));
+    const acts = el("div", {class:"acts"}, [sayB, againB]);
+    const left = st.targets.filter(t => !st.found.has(t)).length;
+    if (left){ const nx = el("button", {class:"btn small primary", text:`繼續拼下一個字（還有 ${left} 個）→`});
+      nx.onclick = () => { result.hidden = true; const cl = st.ui.clues.querySelector(".clue:not(.done)"); if (cl){ cl.classList.add("nextup"); setTimeout(() => cl.classList.remove("nextup"), 1600); }
+        st.ui.bench.scrollIntoView({behavior:"smooth", block:"center"}); setMsg("看左邊還沒完成的格子，把下一個字拼出來。"); };
+      acts.append(nx); }
+    info.append(acts);
     result.append(hw, info);
     const og = el("div", {class:"origins"}); [...new Set(parts.flatMap(x => expand(x)))].forEach(b => { const ob = originBlock(b); if (ob) og.append(ob); });
     if (og.children.length) result.append(og);
@@ -997,34 +1004,58 @@ function showCourseHome(){
 // ---- 老師：印學習單、上課投影 ----
 function partsText(c){ const e = CH[c]; if (!e || !e.p) return ""; return e.p.map(p => p + (p in RAD && RAD[p].name !== p ? "（" + RAD[p].name + "）" : "")).join(" ＋ "); }
 function printSheet(L){
-  const w = window.open("", "_blank"); if (!w){ toast("瀏覽器擋住了新視窗，請允許彈出視窗"); return; }
   const esc2 = s => String(s == null ? "" : s).replace(/[&<>"]/g, m => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[m]));
   const box = (ch, ghost) => `<span class="g${ghost ? " gh" : ""}">${ghost ? esc2(ch) : ""}</span>`;
   const rows = L.chars.map((it, i) => `<tr><td class="no">${i + 1}</td><td class="big">${esc2(it.c)}</td>
-    <td><div class="w">${esc2(it.w)}　<span class="py">${esc2(it.wpy || it.py)}</span></div><div class="m">${esc2(it.mean)}</div><div class="pt">${esc2(partsText(it.c))}</div></td>
-    <td class="tr">${box(it.c, 1)}${box(it.c, 1)}${box(it.c, 0)}${box(it.c, 0)}${box(it.c, 0)}</td></tr>`).join("");
+    <td><div class="w">${esc2(it.word || it.w)}　<span class="py">${esc2(it.word && it.word !== it.w ? it.py : (it.wpy || it.py))}</span>${it.word && it.word !== it.w ? '　<span class="py">例：' + esc2(it.w) + '</span>' : ''}</div><div class="m">${esc2(it.mean)}</div><div class="pt">${esc2(partsText(it.c))}</div></td>
+    <td class="tr"><div class="trw">${box(it.c, 1)}${box(it.c, 1)}${box(it.c, 0)}${box(it.c, 0)}${box(it.c, 0)}</div></td></tr>`).join("");
   const uses = [], keys = [];
   shuffle(L.chars).slice(0, 12).forEach((it, i) => { const s = pickSentence(it, L) || it.w; const idx = s.indexOf(it.w);
     const bw = [...it.w].map(ch => ch === it.c ? "（　　）" : ch).join(""); const q = idx >= 0 ? s.slice(0, idx) + bw + s.slice(idx + it.w.length) : bw;
     const opts = shuffle([it.c].concat(distractors(it, 3))); uses.push(`<li><div>${esc2(q)}</div><div class="op">${opts.map((o, k) => "ABCD"[k] + "．" + esc2(o)).join("　　")}</div></li>`);
     keys.push((i + 1) + ". " + "ABCD"[opts.indexOf(it.c)] + "（" + it.c + "）"); });
-  w.document.write(`<!doctype html><html lang="zh-Hant-TW"><head><meta charset="utf-8"><title>${esc2(L.label)}・漢字學習單</title>
+  /* 跟平台其他匯出文件一樣：開站上的 print.html，上面一排「列印／存成 PDF」和字體選單（列印時不印），預設標楷體＋Times New Roman */
+  const KT = '"Times New Roman",Times,"DFKai-SB","BiauKai","Kaiti TC","Kaiti","標楷體","TW-Kai",serif';
+  const doc = `<!doctype html><html lang="zh-Hant-TW"><head><meta charset="utf-8"><title>${esc2(L.label)}・漢字學習單</title>
+<meta name="qna-font" content="QNAFONT_FIXED">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ivanagyro/tw-kai@20260805.1.0/tw-kai.css">
-<style>@page{size:A4;margin:12mm}body{font-family:"TW-Kai","標楷體",serif;color:#1B2533;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+<style id="fsx">html body{font-family:${KT}!important}</style>
+<style>@page{size:A4;margin:12mm}body{color:#1B2533;background:#EEF2F8;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.bar{max-width:210mm;margin:10px auto;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif!important;font-size:14px}
+.bar button{background:#1E4C86;color:#fff;border:0;border-radius:9px;padding:10px 20px;font-size:15px;cursor:pointer}
+.bar select{font-size:14px;padding:5px 8px;border-radius:8px;border:1px solid #c9d3e0}.bar .hint{color:#5B6878;font-size:12px}
+.page{max-width:186mm;margin:0 auto 20px;background:#fff;padding:12mm;box-shadow:0 2px 12px rgba(22,40,70,.12)}
+@media print{.bar{display:none!important}body{background:#fff}.page{margin:0;padding:0;box-shadow:none;max-width:none}}
+body:not(.show-key) .key{display:none}
 h1{font-size:20pt;color:#1E4C86;margin:0 0 2mm}.sub{font-family:"Noto Sans TC",sans-serif;font-size:9.5pt;color:#5B6878;margin-bottom:4mm}
 h2{font-size:13pt;color:#fff;background:#1E4C86;padding:1mm 3mm;border-radius:1.5mm;margin:5mm 0 2mm}
 table{border-collapse:collapse;width:100%}td{border-bottom:.2mm solid #D3DCE8;padding:1.6mm 1.5mm;vertical-align:middle}
 td.no{font-family:sans-serif;font-size:8pt;color:#8a96a5;width:5mm}td.big{font-size:30pt;color:#1E4C86;width:14mm;text-align:center}
 .w{font-size:13pt}.py{font-family:"Noto Sans TC",sans-serif;font-size:9pt;color:#5B6878}.m{font-family:"Noto Sans TC",sans-serif;font-size:8.5pt;color:#5B6878}.pt{font-size:10pt;color:#2E7D5B}
-td.tr{white-space:nowrap;width:78mm}.g{display:inline-block;width:14mm;height:14mm;border:.3mm solid #9AA7B6;margin-left:1mm;position:relative;font-size:30pt;line-height:14mm;text-align:center;color:#D5DDE8;
+td.tr{white-space:nowrap;width:78mm}.trw{display:flex;gap:1mm;align-items:center}.g{display:block;flex:none;vertical-align:top;width:14mm;height:14mm;border:.3mm solid #9AA7B6;margin-left:1mm;position:relative;font-size:30pt;line-height:14mm;text-align:center;color:#D5DDE8;
 background:linear-gradient(#E3E9F1,#E3E9F1) center/.2mm 100% no-repeat,linear-gradient(#E3E9F1,#E3E9F1) center/100% .2mm no-repeat}
 ol{padding-left:6mm;margin:0}li{font-size:13pt;margin:2.5mm 0;break-inside:avoid}.op{font-size:13pt;color:#1E4C86;margin-top:1mm}
 .key{font-family:"Noto Sans TC",sans-serif;font-size:8.5pt;color:#5B6878;margin-top:6mm;border-top:.2mm dashed #9AA7B6;padding-top:2mm}
-.name{float:right;font-family:"Noto Sans TC",sans-serif;font-size:10pt}tr{break-inside:avoid}</style></head><body>
-<div class="name">姓名：＿＿＿＿＿＿　日期：＿＿＿＿＿</div><h1>${esc2(L.label)}・漢字學習單</h1><div class="sub">①看部件：這個字是哪幾個部件拼成的　②寫：先描兩次，再自己寫三次　③用：選出句子裡應該放的字</div>
+.name{float:right;font-family:"Noto Sans TC",sans-serif;font-size:10pt}tr{break-inside:avoid}.g.gh{color:#CBD5E2}</style></head><body class="show-key">
+<div class="bar"><button onclick="window.print()">🖨 列印 / 存成 PDF</button>
+<span>字體</span><select id="fs"><option value="kt">標楷體 ＋ Times New Roman —— 標準</option><option value="tw">全字庫正楷體（台灣教育部標準字形）</option></select>
+<label><input type="checkbox" id="ky" checked> 印答案</label><span class="hint">列印時這排按鈕不會印出來；要存 PDF，在列印視窗的「目的地」選「另存為 PDF」</span></div>
+<div class="page"><div class="name">姓名：＿＿＿＿＿＿　日期：＿＿＿＿＿</div><h1>${esc2(L.label)}・漢字學習單</h1><div class="sub">①看部件：這個字是哪幾個部件拼成的　②寫：先描兩次，再自己寫三次　③用：選出句子裡應該放的字</div>
 <h2>①拼 ②寫</h2><table>${rows}</table><h2>③用</h2><ol>${uses.join("")}</ol>
-<div class="key">答案：${keys.join("　")}</div><script>document.fonts.ready.then(()=>setTimeout(()=>print(),300));<\/script></body></html>`);
-  w.document.close();
+<div class="key">答案：${keys.join("　")}</div></div>
+<script>(function(){var fs=document.getElementById("fs"),st=document.getElementById("fsx");
+fs.addEventListener("change",function(){st.textContent=fs.value==="tw"?'html body{font-family:"TW-Kai","Times New Roman","標楷體",serif!important}':'html body{font-family:${KT.replace(/"/g, '\\"')}!important}';});
+document.getElementById("ky").addEventListener("change",function(e){document.body.classList.toggle("show-key",e.target.checked);});})();<\/script></body></html>`;
+  try {
+    const k = "__qnaprint_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+    localStorage.setItem(k, doc);
+    const w = window.open("/print.html#" + k, "_blank");
+    if (w) return;
+    try { localStorage.removeItem(k); } catch(_){}
+    toast("請允許彈出視窗後再按一次"); return;
+  } catch(e){}
+  const w = window.open("", "_blank"); if (!w){ toast("請允許彈出視窗後再按一次"); return; }
+  w.document.open(); w.document.write(doc); w.document.close();
 }
 const PJ = { L:null, list:[], i:0, step:0, writer:null };
 function startProject(L){
