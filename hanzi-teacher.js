@@ -27,8 +27,21 @@ function hzLive(s){return s&&!s.deleted_at&&!s.is_test&&enrollOf(s)!=='paused';}
 function hzWhen(iso){if(!iso)return '—';const d=new Date(iso);if(isNaN(d))return '—';return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
 const HZ_LV=[[0,'漢字學徒'],[300,'拼字工匠'],[1000,'字族達人'],[2500,'字源學者'],[5000,'漢字大師']];
 function hzLevel(xp){let i=0;HZ_LV.forEach((l,k)=>{if((xp||0)>=l[0])i=k;});return (i+1)+'・'+HZ_LV[i][1];}
+/* 課本：平台上有生詞的課，也可以指派成漢字作業（關卡 id 是 'L:' + 課的 id） */
+function hzVocabChars(l){const ds=(Array.isArray(l.dialogues)&&l.dialogues.length)?l.dialogues:[{vocabulary:l.vocabulary||''}];const seen=new Set();
+  ds.forEach(d=>String(d.vocabulary||'').split('\n').forEach(raw=>{const t=raw.trim();if(!t||/^[-－・·→*]|^例[:：]/.test(t))return;
+    const f=t.split(/[｜|\s\[【（(=＝:：]/)[0];[...f].forEach(c=>{if(/[\u3400-\u9FFF]/.test(c))seen.add(c);});}));return seen.size;}
+function hzSyncCourse(){
+  const ls=(S.rawLessons||S.lessons||[]).filter(l=>l&&!l.kind&&!l.deleted_at).map(l=>({l,n:hzVocabChars(l)})).filter(x=>x.n)
+    .sort((a,b)=>String(a.l.textbook||'').localeCompare(String(b.l.textbook||''))||((a.l.order_index||0)-(b.l.order_index||0)));
+  const lab=l=>((l.textbook||'').trim()?(l.textbook.trim()+'・'):'')+((l.title||'').trim()||('第'+(l.order_index||'')+'課'));
+  const g={lv:'課本（平台上的課，練這一課生詞裡的字）',course:true,stages:ls.map(x=>['L:'+x.l.id,lab(x.l),x.n])};
+  if(HZ_LIST[0]&&HZ_LIST[0].course)HZ_LIST[0]=g;else if(g.stages.length)HZ_LIST.unshift(g);
+  g.stages.forEach(s=>{HZ_NAME[s[0]]='課本・'+s[1];if(HZ_STAGES.indexOf(s[0])<0)HZ_STAGES.push(s[0]);});
+}
 function renderHanzi(){
   const body=$('#panel-hanzi');if(!body)return;
+  try{hzSyncCourse();}catch(e){}
   const tasks=(S.hanziTasks||[]).slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
   const chip=(t,s)=>{/* HANZI_V3 */
     const got=hzStars(s,t.diff,t.fam);
@@ -49,20 +62,24 @@ function renderHanzi(){
     :'<div class="muted" style="padding:8px 2px">還沒有指派漢字遊戲作業。按右上角「＋ 指派作業」開始。</div>';
   const stus=(S.students||[]).filter(hzLive).slice().sort((a,b)=>{const x=hzDocOf(a),y=hzDocOf(b);return String((y&&y.updated_at)||'').localeCompare(String((x&&x.updated_at)||''))||stuNameCmp(a,b);});
   const rows=stus.map(s=>{const d=hzDocOf(s);const r=(d&&d.rec)||null;
-    if(!r)return '<tr><td>'+snm(s.name)+'</td><td colspan="6" class="muted">還沒玩過</td></tr>';
+    if(!r)return '<tr><td>'+snm(s.name)+'</td><td colspan="7" class="muted">還沒玩過</td></tr>';
     const sm=k=>Object.values((r.stars&&r.stars[k])||{}).reduce((a,b)=>a+(Number(b)||0),0);
     const rc=r.recall||{};const rate=rc.done?(Math.round(rc.ok/rc.done*100)+'%（'+rc.done+' 題）'):'—';
-    const hard=Object.entries(r.hard||{}).sort((a,b)=>((b[1]&&b[1].miss)||0)-((a[1]&&a[1].miss)||0)).slice(0,6).map(x=>x[0]).join(' ');
+    const wr=Object.entries(r.wrong||{}).sort((a,b)=>b[1]-a[1]);
+    const hard=(wr.length?wr.slice(0,8).map(x=>x[0]+(x[1]>1?'<sub style="font-size:11px;color:#B4364A">×'+x[1]+'</sub>':'')):Object.entries(r.hard||{}).sort((a,b)=>((b[1]&&b[1].miss)||0)-((a[1]&&a[1].miss)||0)).slice(0,6).map(x=>x[0])).join(' ');
+    const today=new Date().toISOString().slice(0,10);const rv=Object.values(r.review||{});const rvDue=rv.filter(x=>x&&x.due<=today).length;
+    const learned=Object.values(r.course||{}).reduce((a,c)=>a+Object.keys((c&&c.m)||{}).length,0);
     return '<tr><td>'+snm(s.name)+'</td><td>'+hzWhen(d.updated_at)+'</td><td>'+hzLevel(r.xp)+'<br><span class="muted" style="font-size:12px">'+(r.xp||0)+' XP</span></td>'
-      +'<td>'+sm('easy')+'／'+sm('normal')+'／'+sm('hard')+'</td><td>'+Object.keys(r.found||{}).length+' 個</td><td>'+rate+'</td>'
-      +'<td style="font-size:20px;letter-spacing:2px">'+esc(hard||'—')+'</td></tr>';}).join('');
+      +'<td>'+learned+' 個</td><td>'+(rv.length?(rv.length+' 個'+(rvDue?'<br><span class="badge badge-soon">今天 '+rvDue+'</span>':'')):'—')+'</td>'
+      +'<td>'+sm('easy')+'／'+sm('normal')+'／'+sm('hard')+'</td><td>'+rate+'</td>'
+      +'<td style="font-size:20px;letter-spacing:2px">'+(hard||'—')+'</td></tr>';}).join('');
   body.innerHTML='<div class="section-head"><h2>🀄 漢字遊戲（字族工坊）</h2><span class="sub">指派關卡給學生，看每個人的漢字進度</span>'
     +'<span class="grow"></span><a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">開啟遊戲試玩 ↗</a>'
     +'<button class="btn btn-sm btn-accent" data-act="hzNew">＋ 指派作業</button></div>'
     +'<div class="card"><h3 style="margin:0 0 8px">作業</h3><div class="hint" style="margin-bottom:8px">綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。</div>'+taskHtml+'</div>'
-    +'<div class="card" style="margin-top:14px"><h3 style="margin:0 0 8px">學生進度</h3><div class="hint" style="margin-bottom:8px">星星欄是「入門／進階／高手」三個難度拿到的星星總數（每個難度最多 81 顆）。難字＝回想關最常寫錯的字。</div>'
-    +'<div style="overflow-x:auto"><table class="hz-tb" style="min-width:720px;width:100%"><thead><tr><th>學生</th><th>最近玩</th><th>等級</th><th>星星</th><th>拼出的字</th><th>回想關正確率</th><th>難字</th></tr></thead><tbody>'
-    +(rows||'<tr><td colspan="7" class="muted">還沒有學生</td></tr>')+'</tbody></table></div></div>';
+    +'<div class="card" style="margin-top:14px"><h3 style="margin:0 0 8px">學生進度</h3><div class="hint" style="margin-bottom:8px">課本學會＝在「課本」練習裡寫對也用對的字。待複習＝寫錯或選錯、排了 1／3／7／15 天複習的字。最常錯的字：右下角的 ×2 是錯了幾次，上課可以先帶這些字。</div>'
+    +'<div style="overflow-x:auto"><table class="hz-tb" style="min-width:720px;width:100%"><thead><tr><th>學生</th><th>最近玩</th><th>等級</th><th>課本學會</th><th>待複習</th><th>闖關星星</th><th>回想關正確率</th><th>最常錯的字</th></tr></thead><tbody>'
+    +(rows||'<tr><td colspan="8" class="muted">還沒有學生</td></tr>')+'</tbody></table></div></div>';
 }
 H.hzNew=()=>{
   const live=(S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test);
@@ -76,7 +93,7 @@ H.hzNew=()=>{
    +'<div class="modal-body"><div class="form-grid">'
    +'<div class="field"><label>關卡</label><select id="hz-fam">'+HZ_LIST.map(L=>'<optgroup label="'+esc(L.lv)+'">'+L.stages.map((s,i)=>'<option value="'+esc(s[0])+'">'+(i+1)+'・'+esc(s[1])+(s[2]?'（'+s[2]+' 字）':'')+'</option>').join('')+'</optgroup>').join('')+'</select></div>'
    +'<div class="field"><label>難度</label><select id="hz-diff"><option value="easy">入門（有拼音提示）</option><option value="normal" selected>進階（只給詞）</option><option value="hard">高手（只聽讀音、限時）</option></select></div>'
-   +'<div class="field"><label>至少要拿幾顆星</label><select id="hz-min"><option value="1">1 顆（過關就好）</option><option value="2" selected>2 顆</option><option value="3">3 顆（不能拼錯、不能用提示）</option></select></div>'
+   +'<div class="field"><label>至少要拿幾顆星</label><select id="hz-min"><option value="1">1 顆（過關就好）</option><option value="2" selected>2 顆</option><option value="3">3 顆（不能拼錯、不能用提示）</option></select><div class="hint" style="margin-top:4px">選「課本」的課時：1 顆＝這一課的字學會三成，2 顆＝六成，3 顆＝九成（寫對也用對才算學會）。難度只影響第一步「拼」。</div></div>'
    +'<div class="field"><label>截止日</label><input id="hz-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
    +'<div class="field full"><label>作業名稱 <span class="hint">可以不填，會自動用「關卡・難度」</span></label><input id="hz-title" placeholder="例如：這週練艮家族"></div></div>'
    +'<div class="field full"><label>指派給誰</label>'

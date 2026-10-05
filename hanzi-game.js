@@ -20,7 +20,7 @@ const LEVELS = [{ name:"精選字族", short:"精選", stages: FAM.map(f => ({ i
   .concat(HZ.levels.map(L => ({ name:L.name, short:L.name.replace("級", ""), stages:L.stages })));
 const STAGES = {};
 LEVELS.forEach((L, li) => L.stages.forEach((s, i) => { s.li = li; s.i = i; STAGES[s.id] = s; }));
-const stageName = id => STAGES[id] ? (STAGES[id].li ? LEVELS[STAGES[id].li].short + "・" : "") + STAGES[id].name : id;
+const stageName = id => String(id).startsWith("L:") ? "課本・" + ((C.byId[String(id).slice(2)] || {}).label || "課") : STAGES[id] ? (STAGES[id].li ? LEVELS[STAGES[id].li].short + "・" : "") + STAGES[id].name : id;
 // 拆字只在「這一關的題目」裡往下拆：其他的字直接給一張卡
 let SCOPE = new Set(), KEYMAP = {}, BONKEY = {}, ALLEXP = [], TOP = {};
 function expand(s, seen){ seen = seen || []; if (SCOPE.has(s) && CH[s] && CH[s].p && seen.indexOf(s) < 0) return CH[s].p.flatMap(p => expand(p, seen.concat(s))); return [s]; }
@@ -102,8 +102,8 @@ const centerOf = node => { const r = node.getBoundingClientRect(); return [r.lef
 // ================= 紀錄 =================
 const store = { me:null, uid:null, teacher:false, tasks:[], saved:"" };
 let LSKEY = "hz-rec-guest";
-function emptyRec(){ return { v:2, xp:0, totalScore:0, found:{}, hard:{}, recall:{done:0, ok:0}, stars:{easy:{}, normal:{}, hard:{}}, badges:{}, bestCombo:0, bonus:{}, originViews:0, wins:0, lastAt:0, sessions:[] }; }
-function normRec(r){ const e = emptyRec(); r = Object.assign(e, r || {}); r.stars = Object.assign({easy:{}, normal:{}, hard:{}}, r.stars || {}); if (!r.xp && r.totalScore) r.xp = r.totalScore; return r; }
+function emptyRec(){ return { v:2, xp:0, totalScore:0, found:{}, hard:{}, recall:{done:0, ok:0}, stars:{easy:{}, normal:{}, hard:{}}, badges:{}, bestCombo:0, bonus:{}, originViews:0, wins:0, lastAt:0, sessions:[], course:{}, review:{}, wrong:{} }; }
+function normRec(r){ const e = emptyRec(); r = Object.assign(e, r || {}); r.stars = Object.assign({easy:{}, normal:{}, hard:{}}, r.stars || {}); if (!r.xp && r.totalScore) r.xp = r.totalScore; ['course', 'review', 'wrong'].forEach(k => { if (!r[k] || typeof r[k] !== 'object') r[k] = {}; }); return r; }
 let rec = normRec(JSON.parse(ls.get(LSKEY) || "null"));
 let saveTimer = null, saving = false, dirty = false;
 function save(){ rec.lastAt = Date.now(); rec.totalScore = rec.xp; ls.set(LSKEY, JSON.stringify(rec)); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 1500); renderTasks(); }
@@ -488,7 +488,7 @@ function showTab(name){
   if (name === "me") renderMe();
   if (name === "map") renderMap();
 }
-document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => { if (b.dataset.tab === "map" && stageShop.state() && !stageShop.state().over && !$("#p-stage").hidden) return; showTab(b.dataset.tab); });
+document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => { if (b.dataset.tab === "course"){ courseShop.stop(); unpatch(); showCourseHome(); return; } if (b.dataset.tab === "map" && stageShop.state() && !stageShop.state().over && !$("#p-stage").hidden) return; showTab(b.dataset.tab); });
 
 // ================= 關卡地圖 =================
 let diff = ls.get("zzgf-diff") || "easy"; if (!DIFF[diff] || diff === "battle") diff = "easy";
@@ -592,7 +592,7 @@ const stageShop = Shop($("#stageRoot"), {
   onQuit: () => showTab("map"),
   onEnd: res => endStage(res)
 });
-function playStage(id){ if (!STAGES[id]) return; curStage = id; curLv = STAGES[id].li; showTab("stage"); stageShop.start({ stage:STAGES[id], diff }); window.scrollTo({top:0}); }
+function playStage(id){ if (String(id).startsWith("L:")){ startRound(String(id).slice(2)); return; } if (!STAGES[id]) return; curStage = id; curLv = STAGES[id].li; showTab("stage"); stageShop.start({ stage:STAGES[id], diff }); window.scrollTo({top:0}); }
 function endStage(r){
   const st = r.st, prev = rec.stars[st.diff][curStage] || 0;
   if (r.ok){ rec.stars[st.diff][curStage] = Math.max(prev, r.stars); addXp(r.total); sfx.win(); }
@@ -691,6 +691,373 @@ $("#rsay").onclick = () => { const c = R.list[R.i]; if (c) say(sayQ(CH[c])); };
 $("#rhint").onclick = () => { if (R.writer){ R.hint = true; R.writer.showOutline(); $("#rmsg").textContent = "用了提示，這題會放進難字本。"; } };
 $("#rskip").onclick = () => { if (!R.writer || !R.active) return; R.writer.cancelQuiz(); R.writer.showCharacter(); R.writer.animateCharacter(); $("#rmsg").textContent = "看清楚筆順。"; const i = R.i; R.results[i] = false; setTimeout(() => { if (R.i === i) finishQ(false); }, 1800); };
 
+// ================= 課本：平台上每一課的生詞 → 拼、寫、用 =================
+/* 學生登入後，抓老師開給他的課（lessons 裡沒有 kind 的那些），把生詞裡的字變成這一課的漢字練習。
+   每一輪最多 8 個字，三步：①拼（看懂部件；拆不開的字跳過）→②寫（不看提示默寫）→③用（句子挖空，從形近字、同音字裡選）。
+   寫錯或選錯的字進「複習」：隔 1、3、7、15 天再出一次，連續過關四次就畢業。 */
+const HAN = /[㐀-鿿豈-﫿]/;
+const C = { lessons:[], byId:{}, loaded:false };
+const DAY = 864e5;
+const todayStr = (plus = 0) => { const d = new Date(Date.now() + plus * DAY); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+const BOXDAYS = [1, 3, 7, 15];
+function cvPluck(s){ let py = ""; const text = String(s || "").replace(/[\[【]([^\]】]*)[\]】]/g, (m, i) => { if (HAN.test(i)) return m; if (!py) py = i.trim(); return ""; }).replace(/\s{2,}/g, " ").trim(); return { text, py }; }
+/* 跟學生頁的 parseVocab 同一套格式：「詞［拼音］（詞類）意思」或「詞｜詞類｜意思｜例句…」，「- 例句」接在上一個詞後面 */
+function cvParse(text){
+  const out = [];
+  String(text || "").split("\n").forEach(raw => {
+    const l0 = raw.trim(); if (!l0) return;
+    const exm = l0.match(/^[-－・·→*]\s*(.+)$/) || l0.match(/^例[:：]\s*(.+)$/);
+    if (exm){ if (out.length){ const pk = cvPluck(exm[1]); if (pk.text) out[out.length - 1].ex.push(pk.text); if (pk.py && !out[out.length - 1].py) out[out.length - 1].py = pk.py; } return; }
+    if (/[｜|]/.test(l0)){ const cols = l0.split(/\s*[｜|]\s*/); if (cols.length >= 2){
+      let f = (cols[0] || "").trim(), py = ""; const pm = f.match(/[\[【]([^\]】]*)[\]】]/); if (pm){ py = pm[1].trim(); f = f.replace(pm[0], "").trim(); }
+      const bk = cvPluck(cols[2] || ""); if (bk.py && !py) py = bk.py; const ex = [];
+      cols.slice(3).forEach(s => { const pk = cvPluck(s); if (pk.py && !py) py = pk.py; if (pk.text) ex.push(pk.text); });
+      if (f){ out.push({ front:f, py, back:bk.text, ex }); return; } } }
+    let l = l0, py = ""; const m = l.match(/[\[【]([^\]】]*)[\]】]/); if (m){ py = m[1].trim(); l = l.replace(m[0], "").trim(); }
+    const pm = l.match(/[（(]\s*([^（）()]{1,10}?)\s*[）)]/); if (pm) l = (l.slice(0, pm.index) + " " + l.slice(pm.index + pm[0].length)).trim();
+    let front, back;
+    if (/[=＝]/.test(l)){ const p = l.split(/[=＝]/).map(s => s.trim()); front = p[0]; back = p.slice(1).filter(Boolean).join(" · "); }
+    else { const si = l.search(/[：:\t\s]/); if (si < 0){ front = l; back = ""; } else { front = l.slice(0, si).trim(); back = l.slice(si + 1).replace(/^[：:·\s]+/, "").trim(); } }
+    out.push({ front:(front || "").trim(), py, back, ex:[] });
+  });
+  return out;
+}
+const cvDialogs = l => (Array.isArray(l.dialogues) && l.dialogues.length) ? l.dialogues : [{ title:"課文", content:l.content || "", vocabulary:l.vocabulary || "" }];
+const cvClean = s => String(s || "").replace(/<[^>]+>/g, "").replace(/[\[【]([^\]】]*)[\]】]/g, (m, i) => HAN.test(i) ? i : "").replace(/&nbsp;/g, " ");
+function cvSentences(text){
+  return cvClean(text).split(/\n|(?<=[。！？!?；])/).map(x => x.replace(/^\s*[^\s：:，。、]{1,8}[：:]\s*/, "").replace(/\s+/g, "").trim())
+    .filter(x => HAN.test(x) && [...x].length >= 4 && [...x].length <= 42);
+}
+/* 拼音切成一個字一個音節（切不準就退回字典讀音） */
+const SYL = /(?:zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?[aeiouüvāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]+(?:ng|n|r(?![aeiouüāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]))?/gi;
+function charPy(c, w, wpy){
+  const syl = String(wpy || "").replace(/[^a-zA-Züāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]/g, " ").match(SYL);
+  const i = [...w].indexOf(c);
+  if (syl && syl.length === [...w].length && i >= 0) return syl[i].toLowerCase();
+  return pyOf(c);
+}
+const cvLabel = l => { const tb = (l.textbook || "").trim(), ti = (l.title || "").trim(); const core = ti || (l.order_index ? "第" + l.order_index + "課" : "課"); return (tb ? tb + "・" : "") + core; };
+function cvLesson(l){
+  const words = [], texts = [];
+  cvDialogs(l).forEach(d => {
+    cvParse(d.vocabulary).forEach(v => { const w = cvClean(v.front).replace(/[^㐀-鿿豈-﫿]/g, ""); if (w) words.push({ w, py:v.py || "", mean:v.back || "", ex:v.ex || [] }); });
+    if (d.content) texts.push(d.content);
+  });
+  const sents = cvSentences(texts.join("\n"));
+  const chars = [], seen = new Set();
+  words.forEach(W => [...W.w].forEach(c => { if (!HAN.test(c) || seen.has(c) || NOSTROKE.has(c)) return; seen.add(c);
+    chars.push({ c, w:W.w, wpy:W.py, py:charPy(c, W.w, W.py), mean:W.mean, ex:W.ex.map(cvClean) }); }));
+  // 沒有生詞的課：拿課文裡、華語八千詞有的字
+  if (!chars.length) sents.join("").split("").forEach(c => { if (chars.length >= 30 || seen.has(c) || !CH[c] || NOSTROKE.has(c)) return; seen.add(c); chars.push({ c, w:CH[c].w, wpy:"", py:pyOf(c), mean:"", ex:[] }); });
+  return { id:l.id, label:cvLabel(l), tb:(l.textbook || "").trim(), order:l.order_index || 0, at:l.created_at || "", chars, sents };
+}
+async function loadCourse(uid){
+  try {
+    let rows = [];
+    const fs = window.firebase && firebase.firestore ? firebase.firestore() : null;
+    if (store.teacher && window.DB) rows = await DB.list("lessons");
+    else if (fs && uid){ const sn = await fs.collection("lessons").where("read_uids", "array-contains", uid).get(); rows = sn.docs.map(d => Object.assign({ id:d.id }, d.data())); }
+    else if (window.DB && DB.mode !== "firebase") rows = await DB.list("lessons");
+    C.lessons = rows.filter(l => l && !l.kind && !l.deleted_at).map(cvLesson).filter(x => x.chars.length)
+      .sort((a, b) => a.tb.localeCompare(b.tb) || a.order - b.order || String(a.at).localeCompare(String(b.at)));
+  } catch(e){ C.lessons = []; }
+  C.byId = {}; C.lessons.forEach(x => C.byId[x.id] = x); C.loaded = true;
+  const tb = document.querySelector('nav.tabs button[data-tab="course"]'); if (tb) tb.hidden = !C.lessons.length;
+}
+// ---- 紀錄 ----
+const cRec = lid => (rec.course[lid] = rec.course[lid] || { m:{}, rounds:0 });
+const mastered = (lid, c) => !!(rec.course[lid] && rec.course[lid].m[c]);
+const dueReview = () => Object.entries(rec.review || {}).filter(([c, r]) => r && r.due <= todayStr()).map(([c]) => c);
+function lessonStars(L){ const n = L.chars.length; if (!n) return 0; const k = L.chars.filter(x => mastered(L.id, x.c)).length / n; return k >= .9 ? 3 : k >= .6 ? 2 : k >= .3 ? 1 : 0; }
+function setLessonStars(L){ const s = lessonStars(L); ["easy", "normal", "hard"].forEach(d => { rec.stars[d] = rec.stars[d] || {}; rec.stars[d]["L:" + L.id] = Math.max(rec.stars[d]["L:" + L.id] || 0, s); }); }
+// ---- 形近字、同音字（選項）----
+let CVI = null;
+function cvIndex(){
+  if (CVI) return CVI; CVI = { part:{}, py:{} };
+  Object.values(CH).forEach(x => { (x.p || []).forEach(p => (CVI.part[p] = CVI.part[p] || []).push(x.c)); const k = toneless(x.py); if (k) (CVI.py[k] = CVI.py[k] || []).push(x.c); });
+  return CVI;
+}
+function distractors(item, n = 3){
+  const I = cvIndex(), c = item.c, sc = {};
+  const bump = (x, v) => { if (x && x !== c && HAN.test(x) && !NOSTROKE.has(x)) sc[x] = (sc[x] || 0) + v; };
+  (CH[c] && CH[c].p || []).forEach(p => (I.part[p] || []).forEach(x => bump(x, p in RAD ? 1.2 : 3)));
+  (I.py[toneless(item.py)] || []).forEach(x => bump(x, 2.6));
+  (I.part[c] || []).forEach(x => bump(x, 1.5));
+  if (CH[c] && CH[c].p) CH[c].p.forEach(p => { if (CH[p] && !(p in RAD)) bump(p, 1.4); });
+  let pool = Object.keys(sc).sort((a, b) => sc[b] - sc[a] + (Math.random() - .5) * .8);
+  // 不要選到放進去也是一個詞的字（例如「在／再」放進同一個句子都說得通的情況，盡量避開課本裡的其他詞）
+  const out = pool.slice(0, n);
+  const fill = shuffle(Object.keys(CH)).filter(x => x !== c && !out.includes(x) && toneless(CH[x].py) !== toneless(item.py));
+  while (out.length < n && fill.length) out.push(fill.pop());
+  return out;
+}
+function pickSentence(item, L){
+  const has = s => s.includes(item.w) && [...s].length > [...item.w].length;
+  const exs = (item.ex || []).filter(has);
+  if (exs.length) return exs[Math.floor(Math.random() * exs.length)];
+  const ss = (L ? L.sents : []).filter(has);
+  if (ss.length) return ss.sort((a, b) => a.length - b.length)[0];
+  const sc = (L ? L.sents : []).filter(s => s.includes(item.c));
+  if (sc.length) return null;
+  return null;
+}
+// ---- 一輪 ----
+const CR = { L:null, list:[], step:"", i:0, res:{}, review:false, writer:null, hint:false, patch:{} };
+const courseShop = Shop($("#courseShop"), {
+  title: st => `${CR.L ? CR.L.label : "複習"}・①拼`,
+  onQuit: () => { unpatch(); showCourseHome(); },
+  onEnd: r => { unpatch(); if (r.ok){ addXp(r.total); sfx.win(); } stepWrite(); }
+});
+function patch(items){ CR.patch = {}; items.forEach(it => { if (!CH[it.c]) return; CR.patch[it.c] = { w:CH[it.c].w, py:CH[it.c].py }; CH[it.c].w = it.w; CH[it.c].py = it.py || CH[it.c].py; }); }
+function unpatch(){ Object.entries(CR.patch || {}).forEach(([c, v]) => { if (CH[c]) Object.assign(CH[c], v); }); CR.patch = {}; }
+function courseView(name){ ["#cHome", "#cShopWrap", "#cWrite", "#cUse", "#cDone"].forEach(s => $(s).hidden = s !== name); window.scrollTo({ top:0 }); }
+function stepBar(){
+  const steps = CR.review ? [["write", "②寫"], ["use", "③用"]] : [["build", "①拼"], ["write", "②寫"], ["use", "③用"]];
+  const order = steps.map(s => s[0]); const cur = order.indexOf(CR.step);
+  return el("div", { class:"csteps" }, steps.map(([k, t], i) => el("span", { class: i < cur ? "done" : i === cur ? "cur" : "", text:t })));
+}
+function startRound(lid, opts = {}){
+  const L = C.byId[lid]; if (!L) return;
+  const todo = L.chars.filter(x => !mastered(lid, x.c)), doneOnes = L.chars.filter(x => mastered(lid, x.c));
+  let list = (opts.all ? L.chars : todo).slice(0, 8);
+  if (list.length < 8 && !opts.all) list = list.concat(shuffle(doneOnes).slice(0, Math.min(8 - list.length, todo.length ? 2 : 8)));
+  Object.assign(CR, { L, list, step:"build", i:0, res:{}, review:false });
+  list.forEach(x => CR.res[x.c] = { w:null, u:null });
+  showTab("course");
+  const comp = list.filter(x => CH[x.c] && CH[x.c].p);
+  if (comp.length >= 1){
+    courseView("#cShopWrap"); $("#cShopHead").innerHTML = ""; $("#cShopHead").append(stepBar(), el("p", { class:"muted", text:`這一輪 ${list.length} 個字。先把拆得開的 ${comp.length} 個字拼出來，看懂每個字是哪些部件組成的。` }));
+    patch(list); courseShop.start({ stage:{ id:"L:" + lid, name:L.label, chars:comp.map(x => x.c) }, diff });
+  } else stepWrite();
+}
+function startReview(){
+  const cs = dueReview().slice(0, 10); if (!cs.length){ toast("今天沒有要複習的字"); return; }
+  const list = cs.map(c => { const r = rec.review[c]; const L = C.byId[r.lid]; const it = L && L.chars.find(x => x.c === c);
+    return it || { c, w:r.w || (CH[c] && CH[c].w) || c, wpy:"", py:r.py || pyOf(c), mean:r.mean || "", ex:[] }; });
+  Object.assign(CR, { L:null, list:shuffle(list), step:"write", i:0, res:{}, review:true });
+  CR.list.forEach(x => CR.res[x.c] = { w:null, u:null });
+  showTab("course"); stepWrite();
+}
+// ②寫
+function stepWrite(){
+  CR.step = "write"; CR.i = 0; courseView("#cWrite");
+  const h = $("#cWriteHead"); h.innerHTML = ""; h.append(stepBar(), el("p", { class:"muted", text:"不看答案，在格子裡寫出□的字。要照筆順寫，寫錯的筆畫會被擦掉。" }));
+  nextWrite();
+}
+function nextWrite(){
+  const pr = $("#cwProg"); pr.innerHTML = ""; CR.list.forEach((x, i) => pr.append(el("i", { class: CR.res[x.c].w === true ? "ok" : CR.res[x.c].w === false ? "no" : i === CR.i ? "cur" : "" })));
+  if (CR.i >= CR.list.length) return stepUse();
+  const it = CR.list[CR.i]; CR.hint = false;
+  $("#cwPy").textContent = `第 ${CR.i + 1}／${CR.list.length} 題　${it.wpy || it.py}`;
+  $("#cwWord").textContent = [...it.w].map(ch => ch === it.c ? "□" : ch).join("");
+  $("#cwMean").textContent = it.mean || "";
+  $("#cwMsg").className = "benchmsg"; $("#cwMsg").textContent = "";
+  const box = $("#cwq"); box.innerHTML = "";
+  const size = Math.round(box.getBoundingClientRect().width) || 260;
+  if (!window.HanziWriter){ $("#cwMsg").textContent = "筆順工具沒有載入，請重新整理頁面。"; return; }
+  CR.writer = HanziWriter.create(box, it.c, { width:size, height:size, padding:10, showCharacter:false, showOutline:false,
+    strokeColor:css("--ink"), outlineColor:css("--line"), drawingColor:css("--navy"), highlightColor:css("--green"), drawingWidth:Math.max(14, size / 18), showHintAfterMisses:3,
+    onLoadCharDataError: () => { if (CR.res[it.c].w !== null) return; CR.res[it.c].w = true; $("#cwMsg").textContent = "這個字暫時沒有筆順資料，先跳過。"; setTimeout(() => { CR.i++; nextWrite(); }, 1200); } });
+  CR.writer.quiz({ onMistake: () => sfx.bad(), onCorrectStroke: () => sfx.pick(), onComplete: s => doneWrite(s.totalMistakes <= 3 && !CR.hint) });
+  say(`${it.c}，${it.w}的${it.c}`);
+}
+function doneWrite(ok){
+  const it = CR.list[CR.i]; if (CR.res[it.c].w !== null) return; CR.res[it.c].w = ok;
+  if (ok){ addXp(10); sfx.good(); const [x, y] = centerOf($("#cwBox")); burst(x, y, 18); } else sfx.bad();
+  $("#cwMsg").className = "benchmsg " + (ok ? "good" : "bad"); $("#cwMsg").textContent = ok ? `寫對了！「${it.c}」` : `「${it.c}」等一下會再複習。`;
+  CR.i++; setTimeout(nextWrite, ok ? 1000 : 2400);
+}
+$("#cwSay").onclick = () => { const it = CR.list[CR.i]; if (it) say(`${it.c}，${it.w}的${it.c}`); };
+$("#cwHint").onclick = () => { if (CR.writer){ CR.hint = true; CR.writer.showOutline(); $("#cwMsg").textContent = "用了提示，這個字等一下會再複習。"; } };
+$("#cwSkip").onclick = () => { const it = CR.list[CR.i]; if (!it || !CR.writer || CR.res[it.c].w !== null) return; CR.writer.cancelQuiz(); CR.writer.showCharacter(); CR.writer.animateCharacter(); CR.res[it.c].w = false; sfx.bad();
+  $("#cwMsg").className = "benchmsg bad"; $("#cwMsg").textContent = "看清楚筆順。這個字等一下會再複習。"; setTimeout(() => { CR.i++; nextWrite(); }, 3200); };
+// ③用
+function stepUse(){
+  CR.step = "use"; CR.i = 0; courseView("#cUse");
+  const h = $("#cUseHead"); h.innerHTML = ""; h.append(stepBar(), el("p", { class:"muted", text:"句子裡空著的地方，應該放哪一個字？選項裡有長得像的字、讀音一樣的字，要看清楚。" }));
+  nextUse();
+}
+function nextUse(){
+  const pr = $("#cuProg"); pr.innerHTML = ""; CR.list.forEach((x, i) => pr.append(el("i", { class: CR.res[x.c].u === true ? "ok" : CR.res[x.c].u === false ? "no" : i === CR.i ? "cur" : "" })));
+  if (CR.i >= CR.list.length) return finishRound();
+  const it = CR.list[CR.i], L = CR.L || (rec.review[it.c] && C.byId[rec.review[it.c].lid]);
+  const sent = pickSentence(it, L);
+  const q = $("#cuQ"); q.innerHTML = "";
+  const blankW = [...it.w].map(ch => ch === it.c ? "\u0000" : ch).join("");
+  const src = sent || it.w; const idx = src.indexOf(it.w);
+  const show = idx >= 0 ? src.slice(0, idx) + blankW + src.slice(idx + it.w.length) : blankW;
+  show.split("\u0000").forEach((part, k) => { if (k) q.append(el("span", { class:"cblank", text:"　" })); q.append(document.createTextNode(part)); });
+  $("#cuNote").textContent = sent ? (it.mean ? `「${it.w}」：${it.mean}` : "") : `（${it.wpy || it.py}${it.mean ? "，" + it.mean : ""}）`;
+  const opts = shuffle([it.c].concat(distractors(it, 3)));
+  const ob = $("#cuOpts"); ob.innerHTML = "";
+  opts.forEach(o => { const b = el("button", { class:"copt", text:o }); b.onclick = () => pickUse(o, b); ob.append(b); });
+  $("#cuMsg").className = "benchmsg"; $("#cuMsg").textContent = "";
+}
+function pickUse(o, b){
+  const it = CR.list[CR.i]; if (CR.res[it.c].u !== null) return;
+  const ok = o === it.c; CR.res[it.c].u = ok;
+  document.querySelectorAll("#cuOpts .copt").forEach(x => { x.disabled = true; if (x.textContent === it.c) x.classList.add("right"); });
+  if (!ok) b.classList.add("wrong");
+  const bl = document.querySelector("#cuQ .cblank"); if (bl){ bl.textContent = it.c; bl.classList.add(ok ? "ok" : "no"); }
+  if (ok){ addXp(8); sfx.good(); } else sfx.bad();
+  const diffNote = !ok && CH[o] ? `「${o}」是 ${CH[o].py}，${CH[o].w}的${o}。` : "";
+  $("#cuMsg").className = "benchmsg " + (ok ? "good" : "bad"); $("#cuMsg").textContent = ok ? "對了！" : `應該是「${it.c}」（${it.w}）。${diffNote}`;
+  say(it.w);
+  CR.i++; setTimeout(nextUse, ok ? 1100 : 3200);
+}
+// 結算
+function finishRound(){
+  courseView("#cDone");
+  const box = $("#cDoneBody"); box.innerHTML = "";
+  let good = 0; const wrong = [];
+  CR.list.forEach(it => {
+    const r = CR.res[it.c], ok = r.w !== false && r.u !== false; if (ok) good++; else wrong.push(it);
+    if (CR.review){
+      const rv = rec.review[it.c]; if (!rv) return;
+      if (ok){ rv.box = (rv.box || 0) + 1; if (rv.box >= BOXDAYS.length){ delete rec.review[it.c]; delete rec.hard[it.c]; } else rv.due = todayStr(BOXDAYS[rv.box]); }
+      else { rv.box = 0; rv.due = todayStr(1); rec.wrong[it.c] = (rec.wrong[it.c] || 0) + 1; }
+    } else {
+      const lid = CR.L.id;
+      if (ok) cRec(lid).m[it.c] = Date.now();
+      else {
+        rec.review[it.c] = { box:0, due:todayStr(1), lid, w:it.w, py:it.py, mean:it.mean };
+        rec.wrong[it.c] = (rec.wrong[it.c] || 0) + 1;
+        rec.hard[it.c] = { miss:((rec.hard[it.c] && rec.hard[it.c].miss) || 0) + 1, ok:0, at:Date.now() };
+      }
+    }
+  });
+  if (CR.L){ cRec(CR.L.id).rounds++; setLessonStars(CR.L); }
+  rec.sessions = (rec.sessions || []).concat({ at:Date.now(), mode:CR.review ? "review" : "course", lid:CR.L ? CR.L.id : "", ok:good, total:CR.list.length }).slice(-30);
+  checkBadges(); save();
+  box.append(el("h2", { text: CR.review ? "複習完成" : (good === CR.list.length ? "這一輪全部過關！" : "這一輪完成了") }));
+  box.append(el("p", { class:"muted", text: `${CR.list.length} 個字，寫對而且用對的有 ${good} 個。` + (wrong.length ? (CR.review ? "沒過的字明天再出一次。" : "沒過的字放進複習，明天會再出現。") : "") }));
+  const tb = el("table", { class:"ctable" });
+  tb.append(el("tr", {}, [el("th", { text:"字" }), el("th", { text:"課本裡的詞" }), el("th", { text:"②寫" }), el("th", { text:"③用" })]));
+  CR.list.forEach(it => { const r = CR.res[it.c]; const mk = v => el("td", { class: v === false ? "no" : "ok", text: v === false ? "✗" : "✓" });
+    const zi = el("td", { class:"cz" }, [el("button", { class:"czb", text:it.c, title:"聽讀音" })]); zi.firstChild.onclick = () => say(`${it.c}，${it.w}的${it.c}`);
+    tb.append(el("tr", {}, [zi, el("td", { text: it.w + (it.mean ? "　" + it.mean : "") }), mk(r.w), mk(r.u)])); });
+  box.append(tb);
+  const btns = el("div", { class:"endbtns" });
+  if (CR.L){
+    const more = CR.L.chars.filter(x => !mastered(CR.L.id, x.c)).length;
+    if (more){ const nx = el("button", { class:"btn primary", text:`下一輪（還有 ${more} 個字）` }); nx.onclick = () => startRound(CR.L.id); btns.append(nx); }
+    const again = el("button", { class:"btn", text:"這一課全部再練一次" }); again.onclick = () => startRound(CR.L.id, { all:true }); btns.append(again);
+  }
+  if (dueReview().length){ const rv = el("button", { class:"btn" + (CR.L ? "" : " primary"), text:`今天的複習（${dueReview().length} 個字）` }); rv.onclick = startReview; btns.append(rv); }
+  const home = el("button", { class:"btn", text:"回課本列表" }); home.onclick = showCourseHome; btns.append(home);
+  box.append(btns);
+  if (good === CR.list.length) setTimeout(() => burst(innerWidth / 2, 200, 60), 200);
+}
+// 課本列表
+function showCourseHome(){
+  showTab("course"); courseView("#cHome");
+  const box = $("#cHome"); box.innerHTML = "";
+  if (!C.loaded){ box.append(el("p", { class:"muted", text:"正在讀取你的課本……" })); return; }
+  if (!C.lessons.length){ box.append(el("div", { class:"notice", text: store.me || store.teacher ? "目前還沒有開給你的課（或課裡還沒有生詞）。老師開課以後，這裡會自動出現每一課的漢字練習。" : "登入學生帳號以後，這裡會出現你課本每一課的漢字練習。請先到學生頁登入。" })); return; }
+  const due = dueReview();
+  const head = el("div", { class:"chead" }, [el("div", {}, [el("h2", { text:"我的課本" }), el("p", { class:"muted", text:"每一課的生詞會變成這一課要練的字。每一輪 8 個字：①拼（看懂部件）→②寫（默寫）→③用（句子裡選對的字）。" })])]);
+  const rv = el("button", { class:"btn" + (due.length ? " primary" : ""), text: due.length ? `今天的複習：${due.length} 個字` : "今天沒有要複習的字" });
+  rv.disabled = !due.length; rv.onclick = startReview; head.append(rv);
+  box.append(head);
+  // 依課本分組：同一本書放在一起
+  const groups = {}; C.lessons.forEach(L => (groups[L.tb] = groups[L.tb] || []).push(L));
+  Object.entries(groups).forEach(([tb, Ls]) => {
+    if (Object.keys(groups).length > 1 || tb) box.append(el("h3", { class:"ctb", text: tb || "其他課" }));
+    const g = el("div", { class:"cgrid" });
+    Ls.forEach(L => { const n = L.chars.length, m = L.chars.filter(x => mastered(L.id, x.c)).length, s = lessonStars(L);
+      const task = store.tasks.find(t => t.fam === "L:" + L.id && !taskDone(t));
+      const card = el("div", { class:"ccard" + (task ? " task" : "") }); const st = el("span", {}); st.innerHTML = starsHtml(s);
+      card.append(el("div", { class:"ct" }, [el("b", { text:L.label.replace(tb + "・", "") }), st.firstChild]),
+        el("div", { class:"czs", text: L.chars.slice(0, 16).map(x => x.c).join("") + (n > 16 ? "…" : "") }),
+        el("div", { class:"cbar" }, [el("i", { style:`width:${Math.round(m / n * 100)}%` })]),
+        el("small", { class:"muted", text:`已學會 ${m}／${n} 個字` + (task ? `・老師指派${task.due_date ? "（" + dueLabel(task.due_date).t + "）" : ""}` : "") }));
+      const go = el("button", { class:"btn small" + (m < n ? " primary" : ""), text: m === 0 ? "開始" : m < n ? "繼續" : "再練一次" });
+      go.onclick = () => startRound(L.id, { all: m === n });
+      if (store.teacher){ const pr = el("button", { class:"btn small", text:"印學習單" }); pr.onclick = () => printSheet(L);
+        const pj = el("button", { class:"btn small", text:"上課投影" }); pj.onclick = () => startProject(L);
+        card.append(el("div", { class:"row" }, [go, pr, pj])); } else card.append(go);
+      g.append(card); });
+    box.append(g);
+  });
+}
+
+// ---- 老師：印學習單、上課投影 ----
+function partsText(c){ const e = CH[c]; if (!e || !e.p) return ""; return e.p.map(p => p + (p in RAD && RAD[p].name !== p ? "（" + RAD[p].name + "）" : "")).join(" ＋ "); }
+function printSheet(L){
+  const w = window.open("", "_blank"); if (!w){ toast("瀏覽器擋住了新視窗，請允許彈出視窗"); return; }
+  const esc2 = s => String(s == null ? "" : s).replace(/[&<>"]/g, m => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[m]));
+  const box = (ch, ghost) => `<span class="g${ghost ? " gh" : ""}">${ghost ? esc2(ch) : ""}</span>`;
+  const rows = L.chars.map((it, i) => `<tr><td class="no">${i + 1}</td><td class="big">${esc2(it.c)}</td>
+    <td><div class="w">${esc2(it.w)}　<span class="py">${esc2(it.wpy || it.py)}</span></div><div class="m">${esc2(it.mean)}</div><div class="pt">${esc2(partsText(it.c))}</div></td>
+    <td class="tr">${box(it.c, 1)}${box(it.c, 1)}${box(it.c, 0)}${box(it.c, 0)}${box(it.c, 0)}</td></tr>`).join("");
+  const uses = [], keys = [];
+  shuffle(L.chars).slice(0, 12).forEach((it, i) => { const s = pickSentence(it, L) || it.w; const idx = s.indexOf(it.w);
+    const bw = [...it.w].map(ch => ch === it.c ? "（　　）" : ch).join(""); const q = idx >= 0 ? s.slice(0, idx) + bw + s.slice(idx + it.w.length) : bw;
+    const opts = shuffle([it.c].concat(distractors(it, 3))); uses.push(`<li><div>${esc2(q)}</div><div class="op">${opts.map((o, k) => "ABCD"[k] + "．" + esc2(o)).join("　　")}</div></li>`);
+    keys.push((i + 1) + ". " + "ABCD"[opts.indexOf(it.c)] + "（" + it.c + "）"); });
+  w.document.write(`<!doctype html><html lang="zh-Hant-TW"><head><meta charset="utf-8"><title>${esc2(L.label)}・漢字學習單</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ivanagyro/tw-kai@20260805.1.0/tw-kai.css">
+<style>@page{size:A4;margin:12mm}body{font-family:"TW-Kai","標楷體",serif;color:#1B2533;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+h1{font-size:20pt;color:#1E4C86;margin:0 0 2mm}.sub{font-family:"Noto Sans TC",sans-serif;font-size:9.5pt;color:#5B6878;margin-bottom:4mm}
+h2{font-size:13pt;color:#fff;background:#1E4C86;padding:1mm 3mm;border-radius:1.5mm;margin:5mm 0 2mm}
+table{border-collapse:collapse;width:100%}td{border-bottom:.2mm solid #D3DCE8;padding:1.6mm 1.5mm;vertical-align:middle}
+td.no{font-family:sans-serif;font-size:8pt;color:#8a96a5;width:5mm}td.big{font-size:30pt;color:#1E4C86;width:14mm;text-align:center}
+.w{font-size:13pt}.py{font-family:"Noto Sans TC",sans-serif;font-size:9pt;color:#5B6878}.m{font-family:"Noto Sans TC",sans-serif;font-size:8.5pt;color:#5B6878}.pt{font-size:10pt;color:#2E7D5B}
+td.tr{white-space:nowrap;width:78mm}.g{display:inline-block;width:14mm;height:14mm;border:.3mm solid #9AA7B6;margin-left:1mm;position:relative;font-size:30pt;line-height:14mm;text-align:center;color:#D5DDE8;
+background:linear-gradient(#E3E9F1,#E3E9F1) center/.2mm 100% no-repeat,linear-gradient(#E3E9F1,#E3E9F1) center/100% .2mm no-repeat}
+ol{padding-left:6mm;margin:0}li{font-size:13pt;margin:2.5mm 0;break-inside:avoid}.op{font-size:13pt;color:#1E4C86;margin-top:1mm}
+.key{font-family:"Noto Sans TC",sans-serif;font-size:8.5pt;color:#5B6878;margin-top:6mm;border-top:.2mm dashed #9AA7B6;padding-top:2mm}
+.name{float:right;font-family:"Noto Sans TC",sans-serif;font-size:10pt}tr{break-inside:avoid}</style></head><body>
+<div class="name">姓名：＿＿＿＿＿＿　日期：＿＿＿＿＿</div><h1>${esc2(L.label)}・漢字學習單</h1><div class="sub">①看部件：這個字是哪幾個部件拼成的　②寫：先描兩次，再自己寫三次　③用：選出句子裡應該放的字</div>
+<h2>①拼 ②寫</h2><table>${rows}</table><h2>③用</h2><ol>${uses.join("")}</ol>
+<div class="key">答案：${keys.join("　")}</div><script>document.fonts.ready.then(()=>setTimeout(()=>print(),300));<\/script></body></html>`);
+  w.document.close();
+}
+const PJ = { L:null, list:[], i:0, step:0, writer:null };
+function startProject(L){
+  Object.assign(PJ, { L, list:L.chars.slice(), i:0, step:0 });
+  let ov = $("#proj"); if (!ov){ ov = el("div", { id:"proj", class:"proj" }); document.body.append(ov); }
+  ov.hidden = false; try { ov.requestFullscreen && ov.requestFullscreen(); } catch(e){}
+  renderProject();
+}
+function closeProject(){ const ov = $("#proj"); if (ov) ov.hidden = true; try { document.fullscreenElement && document.exitFullscreen(); } catch(e){} }
+function renderProject(){
+  const ov = $("#proj"), it = PJ.list[PJ.i]; ov.innerHTML = "";
+  const top = el("div", { class:"pjtop" }, [el("b", { text:PJ.L.label }), el("span", { text:`${PJ.i + 1}／${PJ.list.length}` })]);
+  const close = el("button", { class:"btn small", text:"結束投影（Esc）" }); close.onclick = closeProject; top.append(close);
+  ov.append(top);
+  const stage = el("div", { class:"pjstage" }); ov.append(stage);
+  const labels = ["猜猜看：是哪個字？", "部件", "寫寫看（看筆順）", "用用看"];
+  stage.append(el("div", { class:"pjstep", text: labels[PJ.step] }));
+  if (PJ.step === 0){
+    stage.append(el("div", { class:"pjword", text:[...it.w].map(ch => ch === it.c ? "□" : ch).join("") }), el("div", { class:"pjpy", text:(it.wpy || it.py) + (it.mean ? "　" + it.mean : "") }));
+  } else if (PJ.step === 1){
+    const e = CH[it.c];
+    if (e && e.p){ const row = el("div", { class:"pjparts" }); e.p.forEach((p, k) => { if (k) row.append(el("span", { class:"plus", text:"＋" }));
+      row.append(el("div", { class:"pjcard" }, [el("div", { class:"pc", text:p }), el("small", { text: p in RAD ? RAD[p].name + "：" + (RAD[p].hint || "").replace(/\n/g, "；") : (pyOf(p) ? "讀 " + pyOf(p) : "部件") })])); });
+      row.append(el("span", { class:"plus", text:"＝" }), el("div", { class:"pjcard big" }, [el("div", { class:"pc", text:it.c })])); stage.append(row);
+      const o = originBlock(e.p.find(p => ORIGIN[p]) || ""); if (o) stage.append(o);
+    } else stage.append(el("div", { class:"pjword", text:it.c }), el("p", { class:"muted", text:"這個字本身就是一個部件，拆不開。" }));
+  } else if (PJ.step === 2){
+    const hw = el("div", { class:"pjhw" }); stage.append(hw, el("div", { class:"pjpy", text:it.w + "　" + (it.wpy || it.py) }));
+    if (window.HanziWriter){ const W = HanziWriter.create(hw, it.c, { width:340, height:340, padding:10, strokeColor:css("--navy"), outlineColor:css("--line"), strokeAnimationSpeed:1, delayBetweenStrokes:250 }); W.animateCharacter(); }
+  } else {
+    const s = pickSentence(it, PJ.L) || it.w, idx = s.indexOf(it.w);
+    const bw = [...it.w].map(ch => ch === it.c ? "（　）" : ch).join("");
+    stage.append(el("div", { class:"pjsent", text: idx >= 0 ? s.slice(0, idx) + bw + s.slice(idx + it.w.length) : bw }));
+    const opts = shuffle([it.c].concat(distractors(it, 3))); const row = el("div", { class:"pjopts" });
+    opts.forEach(o => { const b = el("button", { class:"copt", text:o }); b.onclick = () => { b.classList.add(o === it.c ? "right" : "wrong"); if (o === it.c) say(it.w); }; row.append(b); });
+    stage.append(row);
+  }
+  const nav = el("div", { class:"pjnav" });
+  const prev = el("button", { class:"btn", text:"← 上一步" }); prev.onclick = () => projMove(-1);
+  const next = el("button", { class:"btn primary", text:"下一步 →" }); next.onclick = () => projMove(1);
+  const sayB = el("button", { class:"btn", text:"🔊 讀音" }); sayB.onclick = () => say(`${it.c}，${it.w}的${it.c}`);
+  nav.append(prev, sayB, next); ov.append(nav);
+}
+function projMove(d){ PJ.step += d; if (PJ.step > 3){ PJ.step = 0; PJ.i = Math.min(PJ.list.length - 1, PJ.i + 1); } if (PJ.step < 0){ PJ.step = 3; PJ.i = Math.max(0, PJ.i - 1); } renderProject(); }
+document.addEventListener("keydown", e => { const ov = $("#proj"); if (!ov || ov.hidden) return; if (e.key === "ArrowRight" || e.key === " "){ e.preventDefault(); projMove(1); } else if (e.key === "ArrowLeft") projMove(-1); else if (e.key === "Escape") closeProject(); });
+
 // ================= 我的紀錄 =================
 function renderBadges(){
   const g = $("#badges"); if (!g) return; g.innerHTML = "";
@@ -727,9 +1094,9 @@ setDiff(diff); renderLevel(); renderBadges();
 // ================= 連線（QNA 學習平台的 Firebase 帳號） =================
 (() => {
   const fb = window.firebase;
-  if (!fb || !fb.auth || !window.DB || DB.mode !== "firebase"){ $("#loginNote").hidden = false; setWho("訪客（紀錄只存在這台電腦）"); renderMap(); return; }
+  if (!fb || !fb.auth || !window.DB || DB.mode !== "firebase"){ $("#loginNote").hidden = false; setWho("訪客（紀錄只存在這台電腦）"); renderMap(); C.loaded = true; loadCourse(null).then(() => { if (C.lessons.length) showCourseHome(); }); return; }
   fb.auth().onAuthStateChanged(async u => {
-    if (!u){ store.me = null; store.uid = null; $("#loginNote").hidden = false; setWho("訪客（紀錄只存在這台電腦）"); renderMap(); return; }
+    if (!u){ store.me = null; store.uid = null; $("#loginNote").hidden = false; setWho("訪客（紀錄只存在這台電腦）"); renderMap(); C.loaded = true; C.lessons = []; const tb = document.querySelector('nav.tabs button[data-tab="course"]'); if (tb) tb.hidden = true; return; }
     store.uid = u.uid;
     try {
       const em = String(u.email || "").toLowerCase();
@@ -750,13 +1117,16 @@ setDiff(diff); renderLevel(); renderBadges();
     // 老師指派的作業
     try {
       const snap = await fb.firestore().collection("lessons").where("read_uids", "array-contains", u.uid).get();
-      store.tasks = snap.docs.map(d => Object.assign({ id:d.id }, d.data())).filter(t => t && t.kind === "hanzitask" && !t.deleted_at && !!STAGES[t.fam]);
+      store.tasks = snap.docs.map(d => Object.assign({ id:d.id }, d.data())).filter(t => t && t.kind === "hanzitask" && !t.deleted_at && (!!STAGES[t.fam] || String(t.fam).startsWith("L:")));
     } catch(e){ store.tasks = []; }
     setWho(store.me ? "紀錄會自動儲存" : (store.teacher ? "老師帳號（試玩，不存紀錄）" : "這個帳號還不是學生"));
     renderLevel(); renderBadges(); renderMap();
+    await loadCourse(u.uid);
     const q = new URLSearchParams(location.search).get("task");
     const t = q && store.tasks.find(x => x.id === q);
-    if (t){ if (DIFF[t.diff]) setDiff(t.diff); playStage(t.fam); }
+    if (q === "review" && dueReview().length) startReview();
+    else if (t){ if (DIFF[t.diff]) setDiff(t.diff); playStage(t.fam); }
+    else if (C.lessons.length) showCourseHome();
   });
 })();
 })();

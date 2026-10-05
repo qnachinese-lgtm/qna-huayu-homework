@@ -11,11 +11,14 @@ const L4 = (zh, cn, en, vi) => LT({zh, cn, en, vi});
 function hzMine(){ return (S.hanziTasks || []).filter(t => t && !t.deleted_at && assignedToMe(t)); }
 function hzTaskDone(t){ const r = S.hanziDoc && S.hanziDoc.rec; const st = r && r.stars && r.stars[t.diff]; return ((st && Number(st[t.fam])) || 0) >= (Number(t.min_stars) || 1); }
 function hzOpen(){ return hzMine().filter(t => !hzTaskDone(t)); }
+/* 漢字複習：遊戲裡寫錯、選錯的字，照 1、3、7、15 天排好的複習 */
+function hzToday(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function hzReviewDue(){ const r = S.hanziDoc && S.hanziDoc.rec && S.hanziDoc.rec.review; if (!r) return 0; const t = hzToday(); return Object.values(r).filter(x => x && x.due && x.due <= t).length; }
 function hzHomeCard(){
   const n = hzOpen().length;
   return '<div class="card hz-card" style="margin-top:14px;display:flex;align-items:center;gap:10px;cursor:pointer" data-act="openHanzi" data-id="">'
     + '<span style="font-size:28px">🀄</span><span style="flex:1"><b>' + esc(L4('漢字遊戲・字族工坊', '汉字游戏・字族工坊', 'Hanzi game', 'Trò chơi chữ Hán')) + '</b><br>'
-    + '<small class="muted">' + esc(n ? L4('老師指派了 ' + n + ' 關', '老师指派了 ' + n + ' 关', n + ' stage(s) assigned', 'Cô giao ' + n + ' màn') : L4('拼部件、學字源、練寫字', '拼部件、学字源、练写字', 'Build characters from parts', 'Ghép bộ thủ, học chữ')) + '</small></span>'
+    + '<small class="muted">' + (hzReviewDue() ? esc(L4('今天要複習 ' + hzReviewDue() + ' 個字', '今天要复习 ' + hzReviewDue() + ' 个字', hzReviewDue() + ' character(s) to review today', 'Hôm nay ôn ' + hzReviewDue() + ' chữ')) + '・' : '') + esc(n ? L4('老師指派了 ' + n + ' 關', '老师指派了 ' + n + ' 关', n + ' stage(s) assigned', 'Cô giao ' + n + ' màn') : L4('拼部件、學字源、練寫字', '拼部件、学字源、练写字', 'Build characters from parts', 'Ghép bộ thủ, học chữ')) + '</small></span>'
     + '<span class="btn btn-sm btn-accent">' + esc(L4('去玩', '去玩', 'Play', 'Chơi')) + '</span></div>';
 }
 H.openHanzi = (id) => { location.href = 'hanzi.html' + (id ? ('?task=' + encodeURIComponent(id)) : ''); };
@@ -40,7 +43,12 @@ if (typeof _rows === 'function') window.dueRows = function(){
     hzOpen().forEach(t => { const di = dueInfo(t.due_date);
       rows.push({lid:t.id, k:'hanzi', act:'openHanzi', title:'🀄 ' + (t.title || t.fam || ''), due:t.due_date || '',
         cls:di ? di.cls : 'badge-pending', lab:di ? di.label : L4('未完成', '未完成', 'To do', 'Chưa làm'), sort:di ? di.sort : 9999}); });
-    rows.sort((a, b) => a.sort - b.sort); } }catch(e){}
+    rows.sort((a, b) => a.sort - b.sort); }
+    const rv = hzReviewDue();
+    if (rv && !rows.some(x => x && x.k === 'hzrev')){
+      rows.push({lid:'review', k:'hzrev', act:'openHanzi', title:'🀄 ' + L4('漢字複習：' + rv + ' 個字', '汉字复习：' + rv + ' 个字', 'Hanzi review: ' + rv, 'Ôn chữ Hán: ' + rv + ' chữ'), due:hzToday(),
+        cls:'badge-soon', lab:L4('今天', '今天', 'Today', 'Hôm nay'), sort:0});
+      rows.sort((a, b) => a.sort - b.sort); } }catch(e){}
   return rows;
 };
 const _counts = window.dueCounts;
