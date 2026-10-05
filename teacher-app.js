@@ -11262,7 +11262,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1388';
+const APP_BUILD='V1391';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -20356,7 +20356,7 @@ H.newAll=()=>{
        <div class="field"><label>名字 * <span class="hint">平常畫面上顯示的，臉書名字也可以</span></label><input id="na-name" type="text" placeholder="請填寫名字"></div>
        <div class="field"><label>真實姓名 <span class="hint">選填，開文件時會用到</span></label><input id="na-real" type="text" placeholder="請填寫護照上的全名"></div>
        <div class="field"><label>Email <span class="hint">選填。這組就是他以後登入平台的帳號，填了才能幫他建立登入</span></label><input id="na-email" type="email" autocomplete="off" placeholder="請填寫 Email"></div>
-       <div class="field"><label>聯絡方式 <span class="hint">選填。電話、Zalo 或 LINE 都可以，記起來方便找人</span></label><input id="na-phone" type="text" placeholder="電話／Zalo／LINE"></div>
+       <div class="field"><label>電話／Zalo <span class="hint">選填。電話、Zalo 或 LINE 都可以，記起來方便找人</span></label><input id="na-phone" type="text" placeholder="電話／Zalo／LINE"></div>
        <div class="field full"><label>備註 <span class="hint">選填。怎麼認識的、想做什麼，只有後台看得到</span></label><textarea id="na-note" rows="2" placeholder="怎麼認識的、想做什麼…"></textarea></div>
      </div></div>
      <div class="form-sec"><div class="form-sec-h">✔ 要建立哪幾種</div>
@@ -20432,7 +20432,11 @@ H.newAllGo=async()=>{
     if(picks.indexOf('student')>=0){
       const stt=V('na-s-status')||'reserved';
       const g=V('na-s-group');
-      const doc={name,real_name:base.real_name,email:base.email,notes:base.note,
+      /* NAPHONE_V1389 Quinn：「新增一位出來提供的資訊跟單獨點進去會很不一樣」。
+         實測：在這裡填的「聯絡方式」只存進代辦／面試／代書那三種（crm），
+         華語課學生這一筆從頭到尾沒有 phone 這個欄位——所以建完之後點進那位學生，
+         「電話／Zalo」是空的，打的字等於丟掉了。欄位名稱也對齊成「電話／Zalo」。 */
+      const doc={name,real_name:base.real_name,email:base.email,phone:base.phone,notes:base.note,
         person_id:pid,class_type:V('na-s-type')||'1對1',enroll_status:stt,
         textbook:V('na-s-book'),groups:g?[g]:[],schedule:[],class_time:null,
         tuition:N('na-s-fee'),fee_unit:V('na-s-unit')||'session',currency:V('na-s-cur')||DEF_CUR,
@@ -22213,8 +22217,8 @@ boot();
     LOADING=true;
     var s=document.createElement('script');
     /* VI_V1368 這個版本號一定要跟著字典一起改。不改的話瀏覽器會繼續用
-       快取裡的 vi.js?v=1386，新加的詞永遠不會出現——跟 styles.css 那次一樣的坑。 */
-    s.src='vi.js?v=1386';
+       快取裡的 vi.js?v=1391，新加的詞永遠不會出現——跟 styles.css 那次一樣的坑。 */
+    s.src='vi.js?v=1391';
     s.onload=function(){
       LOADING=false;
       var d=window.QNA_VI;

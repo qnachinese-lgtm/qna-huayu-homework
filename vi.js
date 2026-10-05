@@ -3068,6 +3068,33 @@ window.QNA_VI = {
     "查無此帳號": "Không tìm thấy tài khoản này",
     "嘗試太多次，請稍後再試": "Thử quá nhiều lần, vui lòng thử lại sau",
     "登入失敗": "Đăng nhập thất bại",
-    "介面語言：繁體中文": "Ngôn ngữ giao diện: 繁體中文"
+    "介面語言：繁體中文": "Ngôn ngữ giao diện: 繁體中文",
+
+    /* ── VI_V1389 教師後台「🀄 漢字遊戲」分頁＋指派作業的彈窗 ── */
+    "🀄 漢字遊戲（字族工坊）": "🀄 Trò chơi chữ Hán (Xưởng gia tộc chữ)",
+    "指派關卡給學生，看每個人的漢字進度": "Giao màn chơi cho học viên, xem tiến độ chữ Hán của từng người",
+    "開啟遊戲試玩 ↗": "Mở trò chơi để thử ↗",
+    "＋ 指派作業": "＋ Giao bài tập",
+    "綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。": "Xanh lá = đã hoàn thành; đỏ = đã quá hạn mà chưa hoàn thành. Học viên cũng thấy các bài này ở mục「Việc cần làm」trong trang học viên.",
+    "還沒有指派漢字遊戲作業。按右上角「＋ 指派作業」開始。": "Chưa giao bài tập trò chơi chữ Hán nào. Bấm「＋ Giao bài tập」ở góc trên bên phải để bắt đầu.",
+    "課本學會＝在「課本」練習裡寫對也用對的字。待複習＝寫錯或選錯、排了 1／3／7／15 天複習的字。最常錯的字：右下角的 ×2 是錯了幾次，上課可以先帶這些字。": "Đã học qua giáo trình = những chữ viết đúng và dùng đúng trong phần luyện tập「giáo trình」. Cần ôn lại = những chữ viết sai hoặc chọn sai, đã xếp lịch ôn lại sau 1／3／7／15 ngày. Chữ hay sai nhất: số ×2 ở góc dưới bên phải là số lần sai, trên lớp có thể ưu tiên dạy những chữ này.",
+    "最近玩": "Chơi gần nhất",
+    "等級": "Cấp độ",
+    "課本學會": "Đã học qua giáo trình",
+    "待複習": "Cần ôn lại",
+    "闖關星星": "Sao vượt màn",
+    "回想關正確率": "Tỉ lệ đúng màn nhớ lại",
+    "最常錯的字": "Chữ hay sai nhất",
+    "還沒玩過": "Chưa chơi lần nào",
+    "選「課本」的課時：1 顆＝這一課的字學會三成，2 顆＝六成，3 顆＝九成（寫對也用對才算學會）。難度只影響第一步「拼」。": "Khi chọn bài theo「giáo trình」: 1 sao = học được 30% số chữ của bài, 2 sao = 60%, 3 sao = 90% (viết đúng và dùng đúng mới tính là học được). Độ khó chỉ ảnh hưởng đến bước đầu tiên là「ghép」.",
+    "✔ 全選": "✔ Chọn tất cả",
+    "✕ 全部取消": "✕ Bỏ chọn tất cả",
+    "📤 指派出去": "📤 Giao bài",
+    "先搜尋：打課本名、課名或關卡名（例如「時代華語一」「第三課」「門」）": "Tìm trước: gõ tên giáo trình, tên bài hoặc tên màn (ví dụ「時代華語一」「第三課」「門」)",
+    "還沒有指派漢字遊戲作業": "Chưa giao bài tập trò chơi chữ Hán nào",
+    "這份作業沒有指派給在學中的學生": "Bài tập này chưa giao cho học viên đang học",
+    "再按一次確定刪除": "Bấm thêm một lần nữa để xoá",
+    "沒有截止日": "Không có hạn nộp",
+    "還沒完成": "Chưa hoàn thành"
   }
 };
