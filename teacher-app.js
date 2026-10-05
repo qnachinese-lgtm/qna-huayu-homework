@@ -1778,6 +1778,9 @@ function renderAcct(){
   const all=(S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test);
   const scope=(S.acctScope==='all')?'all':'active';
   let list=(scope==='all')?all:all.filter(s=>enrollOf(s)==='active');
+  /* ACCTHIDE_V1396 */
+  const _nActive=all.filter(s=>enrollOf(s)==='active').length;
+  const _hidden=all.filter(s=>enrollOf(s)!=='active');
   const sort=S.acctSort||'login';
   const llOf=(s)=>{const p=progOf(s.id);return (p&&p.last_login)||'';};
   if(sort==='name')list=list.slice().sort(stuNameCmp);
@@ -1807,10 +1810,27 @@ function renderAcct(){
     +'<details class="dash-fold" style="margin-top:10px;border:none;padding:0;background:none">'
     +'<summary style="cursor:pointer;font-size:13px;color:var(--muted)">忘記密碼怎麼辦</summary>'
     +'<div class="hint" style="margin-top:6px">密碼是加密的，誰都看不到（我也看不到）。學生忘記密碼就按「✉️ 寄重設密碼信」，他會收到一封信，自己設一組新的。</div></details></div>'
+    /* ══════ ACCTHIDE_V1396 被「在學中」擋掉的人要講出來 ══════
+       Quinn：「我建立了 abcd@Gmail.com 帳號但沒看到在開通帳號那邊有任何資料」。
+       原因：「👤 新增一位」建出來的學生，狀態預設是「預約・詢問中」，
+       而這一頁預設只列「在學中」——所以剛建好的人一定不在畫面上，
+       而且這兩顆按鈕上沒有人數，看不出有人被藏起來。
+       （學生名冊那邊的「其他狀態 ▾」本來就有人數，只有這一頁沒有。）
+       這裡在兩顆按鈕上補人數，被藏起來的時候再多講一句話，並且可以直接點。 */
     +'<div class="stu-bar" style="margin-bottom:10px">'
-      +'<div class="segbar">'+sc('active','✅ 在學中')+sc('all','全部')+'</div>'
+      +'<div class="segbar">'+sc('active','✅ 在學中 <span class="segn">'+_nActive+'</span>')
+        +sc('all','全部 <span class="segn">'+all.length+'</span>')+'</div>'
       +'<span class="grow"></span>'
       +'<div class="segbar">'+seg('login','最近登入')+seg('name','名字')+seg('act','做最多')+'</div></div>'
+    /* ACCTHIDE_V1396 現在是「在學中」而且真的有人被擋掉 → 講清楚有誰、按一下就看得到 */
+    +((scope==='active'&&_hidden.length)
+      ?('<div class="hint" style="margin:-2px 0 10px;padding:8px 11px;background:var(--primary-soft,#E8EFF7);'
+        +'border-radius:9px;line-height:1.7">\u{1F4CC} 還有 <b>'+_hidden.length+'</b> 位沒有列在這裡（'
+        +[['reserved','預約・詢問中'],['trial','試學'],['paused','休學']]
+            .map(function(x){const n=_hidden.filter(s=>enrollOf(s)===x[0]).length;return n?(x[1]+' '+n+' 位'):'';})
+            .filter(Boolean).join('、')
+        +'）。剛從「👤 新增一位」建好的學生預設是<b>預約・詢問中</b>，'
+        +'按上面的 <button class="btn btn-sm" data-act="acctScope" data-id="all">全部</button> 就看得到。</div>'):'')
     +(list.length
       ?('<div class="ac-h"><span>學生</span><span>登入 Email</span><span>帳號</span><span>最後登入</span><span>30 天內</span><span>最後動作</span><span>做完</span><span></span></div>'
         +'<div class="ac-list">'+list.map(acctRow).join('')+'</div>')
@@ -11266,7 +11286,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1395';
+const APP_BUILD='V1396';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -20502,7 +20522,10 @@ H.newAllGo=async()=>{
   if(picks.indexOf('writing')>=0&&!V('na-w-docs'))return toast('代書要填「要寫哪些文件」');
   const btn=document.querySelector('[data-act="newAllGo"]');
   if(btn){btn.disabled=true;btn.textContent='建立中…';}
-  const base={name,real_name:V('na-real'),email:V('na-email'),phone:V('na-phone'),note:V('na-note')};
+  /* ACCTHIDE_V1396 Email 轉小寫。名冊那條路（studentModal）本來就有 .toLowerCase()，
+     只有這裡沒有，所以打成「abcd@Gmail.com」會原樣存進去，之後跟 Firebase
+     （一律小寫）和各處的比對都對不上。 */
+  const base={name,real_name:V('na-real'),email:V('na-email').toLowerCase(),phone:V('na-phone'),note:V('na-note')};
   const today=localToday(),now=new Date().toISOString();
   const pid='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
   const made=[];
