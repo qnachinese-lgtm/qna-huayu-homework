@@ -172,6 +172,25 @@ const _split = window.splitResults;
 if (typeof _split === 'function'){
   window.splitResults = function(d){ const r = _split.apply(this, arguments); try{ S.hanzis = (d || []).filter(x => x && x.kind === 'hanzi'); splitHz(); }catch(e){} return r; };
 }
+/* HZREG：後台「線上課 → 會員」每一位會員那一列，加上他玩漢字遊戲的情形 */
+const HZ_XPLV = [[0, '漢字學徒'], [300, '拼字工匠'], [1000, '字族達人'], [2500, '字源學者'], [5000, '漢字大師']];
+function hzMemBit(d){
+  const r = d && d.rec;
+  if (!r) return '<span class="mem-bit" style="color:var(--muted)">🀄 還沒玩過漢字遊戲</span>';
+  let lv = 0; HZ_XPLV.forEach((x, i) => { if ((r.xp || 0) >= x[0]) lv = i; });
+  const found = Object.keys(r.found || {}).length + Object.values(r.course || {}).reduce((a, c) => a + Object.keys((c && c.m) || {}).length, 0);
+  const t = new Date(), today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+  const due = Object.values(r.review || {}).filter(x => x && x.due && x.due <= today).length;
+  const weak = Object.entries(r.wrong || {}).sort((a, b) => b[1] - a[1]).slice(0, 5).map(x => x[0]).join('');
+  const last = String(r.lastAt ? new Date(r.lastAt).toISOString() : (d.updated_at || '')).slice(0, 10);
+  return '<span class="mem-bit">🀄 漢字遊戲 ' + esc(HZ_XPLV[lv][1]) + '・' + (r.xp || 0) + ' XP・會 ' + found + ' 字' + (due ? '・待複習 ' + due : '') + (weak ? '・常錯 ' + esc(weak) : '') + (last ? '・最後玩 ' + esc(last) : '') + '</span>';
+}
+const _memRow = window.memRowHtml;
+if (typeof _memRow === 'function') window.memRowHtml = function(m){
+  let h = _memRow.apply(this, arguments);
+  try{ const d = (S.hanzis || []).find(x => x && m && m.uid && x.uid === m.uid); h = h.replace('</i></span><span class="oc-b">', hzMemBit(d) + '</i></span><span class="oc-b">'); }catch(e){}
+  return h;
+};
 const _render = window.render;
 if (typeof _render === 'function'){
   window.render = function(){

@@ -18,3 +18,4 @@
       allow delete: if teacher() || resource.data.host == request.auth.uid;
     }
 ```
+7. 漢字遊戲要註冊才能玩（HZREG_V1400）：沒登入的人打開 hanzi.html 只會看到「免費註冊／登入」。註冊、登入的連結是 student.html?reg=1&next=hanzi，學生端的 hanzi-student.js 看到 next=hanzi 會在登入後自動送回遊戲。自己註冊的會員（members）也能玩，紀錄存在 results（student_id 是 mem_ 開頭），後台「線上課 → 會員」每一列會顯示他的漢字遊戲情形。官網「線上課」那一段有入口（index.html 裡標 HZREG_V1400 的兩處）。

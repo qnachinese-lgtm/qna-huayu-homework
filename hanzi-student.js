@@ -94,6 +94,18 @@ if (typeof _content === 'function') window.renderContent = function(){
   return r;
 };
 window.hzHomeCard = hzHomeCard;
+/* HZREG：漢字遊戲要註冊才能玩。從遊戲過來註冊／登入的人（網址有 next=hanzi），進來以後直接送回遊戲 */
+const HZNEXT = (function(){ try { return new URLSearchParams(location.search).get('next') === 'hanzi'; } catch(e){ return false; } })();
+function hzBack(){ if (HZNEXT && S.me && S.me.id && S.me.id !== '__preview') setTimeout(() => { location.href = 'hanzi.html'; }, 300); }
+['enter', 'enterMember'].forEach(fn => { const _f = window[fn]; if (typeof _f === 'function') window[fn] = async function(){ const r = await _f.apply(this, arguments); try{ hzBack(); }catch(e){} return r; }; });
+/* 自學會員的選單也加上「漢字遊戲」 */
+const _mnav = window.renderMemberNav;
+if (typeof _mnav === 'function') window.renderMemberNav = function(){
+  const r = _mnav.apply(this, arguments);
+  try{ const nav = document.getElementById('snav'); if (nav && !nav.querySelector('[data-act="openHanzi"]'))
+    nav.insertAdjacentHTML('beforeend', '<button data-act="openHanzi" data-id=""><span class="ic">🀄</span>' + esc(L4('漢字遊戲', '汉字游戏', 'Hanzi game', 'Chữ Hán')) + '</button>'); }catch(e){}
+  return r;
+};
 /* 如果學生端已經先載好、畫好了，補畫一次 */
 try{ if (S.me && (S.lessons || []).length){ splitHz(); if (typeof renderSection === 'function') renderSection(); } }catch(e){}
 })();

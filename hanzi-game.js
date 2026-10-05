@@ -1255,7 +1255,7 @@ if (ls.get("hz-hascourse") === "1" && !new URLSearchParams(location.search).get(
   const fb = window.firebase;
   if (!fb || !fb.auth || !window.DB || DB.mode !== "firebase"){ $("#loginNote").hidden = false; setWho("訪客（紀錄只存在這台電腦）"); renderMap(); C.loaded = true; loadCourse(null).then(() => { if (C.lessons.length) showCourseHome(); }); return; }
   fb.auth().onAuthStateChanged(async u => {
-    if (!u){ store.me = null; store.uid = null; $("#loginNote").hidden = false; setWho("訪客（紀錄只存在這台電腦）"); renderMap(); C.loaded = true; C.lessons = []; const tb = document.querySelector('nav.tabs button[data-tab="course"]'); if (tb) tb.hidden = true; if (!$("#p-course").hidden) showTab("map"); return; }
+    if (!u){ store.me = null; store.uid = null; hzGate("guest"); return; }
     store.uid = u.uid;
     try {
       const em = String(u.email || "").toLowerCase();
@@ -1263,7 +1263,12 @@ if (ls.get("hz-hascourse") === "1" && !new URLSearchParams(location.search).get(
       const ss = await DB.listWhere("students", "uid", u.uid);
       store.me = ss.find(x => x && !x.deleted_at) || null;
       if (!store.me && store.teacher) store.me = null;
+      // 自己註冊的會員（members）：跟學生端一樣，id 用 mem_ 開頭
+      if (!store.me && !store.teacher){ const ms = await DB.listWhere("members", "uid", u.uid); const m = (ms || []).find(x => x && !x.deleted_at);
+        if (m) store.me = { id:"mem_" + m.id, name:m.name || "", uid:u.uid, member:true }; }
     } catch(e){}
+    if (!store.me && !store.teacher){ hzGate("nomember"); return; }
+    hzUngate();
     $("#loginNote").hidden = !!(store.me || store.teacher);
     // 每個帳號自己的本機備份
     LSKEY = "hz-rec-" + u.uid;
@@ -1288,6 +1293,24 @@ if (ls.get("hz-hascourse") === "1" && !new URLSearchParams(location.search).get(
     else if (C.lessons.length) showCourseHome();
   });
 })();
+// ================= 要註冊才能玩 =================
+// 沒登入、或登入了但不是學生／會員／老師：整個遊戲蓋起來，只給「免費註冊」和「登入」
+function hzGate(kind){
+  document.body.classList.add("hz-gated"); try { setWho(kind === "nomember" ? "已登入，但還沒有會員資料" : "還沒登入"); } catch(e){}
+  let g = $("#hzGate"); if (!g){ g = el("section", { id:"hzGate", class:"hzgate" }); const nav = document.querySelector("nav.tabs"); (nav ? nav.parentNode : document.body).insertBefore(g, nav ? nav.nextSibling : null); }
+  const back = encodeURIComponent("hanzi");
+  g.innerHTML = "";
+  g.append(el("div", { class:"gbig", text:"字" }),
+    el("h2", { text: kind === "nomember" ? "這個帳號還沒有會員資料" : "免費註冊，就能玩漢字遊戲" }),
+    el("p", { class:"vi", text: kind === "nomember" ? "Tài khoản này chưa có hồ sơ hội viên." : "Đăng ký miễn phí để chơi trò chơi chữ Hán." }),
+    el("p", { text:"只要名字和 Email，不用付款。註冊以後可以玩闖關、課本練習、漢字大富翁，紀錄會自動存起來，老師也看得到你的進度。" }),
+    el("p", { class:"vi", text:"Chỉ cần tên và email, không cần thanh toán. Kết quả được lưu tự động và giáo viên xem được tiến độ của bạn." }),
+    el("div", { class:"row gbtn" }, [
+      el("a", { class:"btn primary big", href:"student.html?reg=1&next=" + back, text:"免費註冊 · Đăng ký miễn phí" }),
+      kind === "nomember" ? null : el("a", { class:"btn big", href:"student.html?next=" + back, text:"已經有帳號，登入 · Đăng nhập" })]));
+}
+function hzUngate(){ document.body.classList.remove("hz-gated"); const g = $("#hzGate"); if (g) g.remove(); }
+
 // ================= 給「漢字大富翁」（hanzi-fuweng.js）用的介面 =================
 window.HZAPI = { zili, radName, OV, loadOv, ovStyle, CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
   store, getRec: () => rec, save, addXp,
