@@ -11262,7 +11262,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1386';
+const APP_BUILD='V1388';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -22091,7 +22091,13 @@ function boot(){/* HDSAME_V1361 招牌固定寫 QNA CHINESE，跟官網一致；
     _tg.addEventListener('click',()=>{if(_tg.classList.contains('bad'))syncTagOK();});
     window.addEventListener('online',()=>syncTagOK());
     window.addEventListener('offline',()=>syncTagBad('⚠ 目前離線'));}
-  if(useAuth){$('#f-email-wrap').classList.remove('hide');$('#gate-forgot').classList.remove('hide');if(window.TEACHER_EMAIL)$('#gate-email').value=window.TEACHER_EMAIL;}}
+  /* GATEFLASH_V1388 本來是「有雲端才拿掉 hide」，所以卡片一定會先矮一截再長高。
+     現在 HTML 預設就是看得到的，config.js 後面那段會先處理示範模式，
+     這裡只負責對齊最終狀態（兩個方向都寫，重跑也不會錯）。 */
+  {const _e=$('#f-email-wrap'),_f=$('#gate-forgot');
+   if(_e)_e.classList.toggle('hide',!useAuth);
+   if(_f)_f.classList.toggle('hide',!useAuth);
+   if(useAuth&&window.TEACHER_EMAIL)$('#gate-email').value=window.TEACHER_EMAIL;}}
 function showLoad(b,soft){let el=document.getElementById('app-loading');if(b){if(!el){el=document.createElement('div');el.id='app-loading';el.className='loading-overlay'+(soft?' soft':'');el.innerHTML='<div class="spinner"></div>';document.body.appendChild(el);}}else if(el){el.remove();}}
 async function enter(){$('#gate').classList.add('hide');$('#app').classList.remove('hide');showLoad(true);try{await loadAll();render();}catch(e){toast('讀取失敗：'+e.message);}finally{showLoad(false);}}
 async function tryLogin(){

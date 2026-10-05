@@ -200,7 +200,18 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
 
 /* HANZI_V1 */
 .hz-tb{border-collapse:collapse;font-size:14px}.hz-tb th{text-align:left;font-weight:500;color:var(--muted,#667);border-bottom:1px solid #dde3ea;padding:6px 8px;white-space:nowrap}.hz-tb td{border-bottom:1px solid #eef1f5;padding:8px;vertical-align:top}
+/* ══════ GATEPAINT_V1388 登入卡先別畫，等樣式讀完再出現 ══════
+   Quinn：「切換教師後臺，那個白色框子的大小會不一」。
+   登入卡的 HTML 在第 201 行，但它的樣式整包在 <body> 裡面那支 2000 多行的
+   <style>（1400～3575 行）。瀏覽器會先把卡片用「還沒上妝」的樣子畫出來
+   （量到的：標題 99 高、三選一只有 34 高、登入鈕 37 高、卡片 652），
+   等讀到那包樣式才變成最後的 629——所以看起來就是框子大小跳了一下。
+   做法：這裡先藏起來，那包樣式的最後一行再放出來。CSS 是邊讀邊套的，
+   所以卡片第一次出現就已經是最後的樣子，不會再跳。
+   （學生端沒有這個問題——它的登入卡是 JS 畫的，本來就等到最後。） */
+#gate{visibility:hidden}
 </style>
+<noscript><style>#gate{visibility:visible}</style></noscript>
 </head>
 <body class="bg-pattern">
 
@@ -220,11 +231,15 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
         <a class="at-lnk" href="student.html?reg=1">免費註冊</a>
         <span class="at-cur">老師登入</span>
       </div>
-      <div class="field hide" id="f-email-wrap"><label>Email</label><input id="gate-email" type="email" placeholder="請填 Email" autocomplete="username"></div>
+      <!-- GATEFLASH_V1388 本來寫 class="field hide"，Email 欄要等 teacher-app.js（1.6MB、defer）
+           跑到 boot() 才拿掉 hide。量出來：卡片先畫成 492 高，約 0.5 秒後才跳成 629——
+           Quinn：「切換教師後臺，那個白色框子的大小會不一」。改成預設就看得到，
+           只有沒接 Firebase 的示範模式才由下面 config.js 後面那段把它藏起來。 -->
+      <div class="field" id="f-email-wrap"><label>Email</label><input id="gate-email" type="email" placeholder="請填 Email" autocomplete="username"></div>
       <div class="field"><label>密碼</label><input id="gate-pw" type="password" placeholder="請輸入密碼" autocomplete="current-password"><label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin-top:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="gate-pw-show" style="width:auto;margin:0" onclick="var p=document.getElementById('gate-pw');if(p)p.type=this.checked?'text':'password';"> 顯示密碼</label></div>
       <div class="err" id="gate-err"></div>
       <button class="btn btn-primary" style="width:100%" id="gate-btn">登入 →</button>
-      <button class="btn btn-ghost hide" style="width:100%;margin-top:14px;font-size:13px" id="gate-forgot">忘記密碼</button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:14px;font-size:13px" id="gate-forgot">忘記密碼</button>
       <div class="notice" style="margin-top:16px">這一頁是老師專用的管理後台。學生請按上面的「學生登入」。</div>
     </div>
   </div>
@@ -3569,6 +3584,16 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
           background:#FDECEA;border:1px solid #F3C2BC;color:#A33227;
           font-size:14px;font-weight:700;line-height:1.5;text-align:left}
 </style>
+<script>/* ══════ GATEPAINT_V1388 登入卡什麼時候可以出現 ══════
+   兩件事都好了才放出來：①上面那包樣式已經讀完（走到這一行就是了）
+   ②中文字型已經就緒。少了②的話，卡片會先用系統備用字畫出來，字型一到
+   就整個重排——量到的：説明文字從 1 行變 2 行，卡片 599 跳到 629。
+   最多只等 0.7 秒，字型再慢也一定會出現，不會卡住登入。 */
+(function(){var g=document.getElementById('gate');if(!g)return;
+ var done=false;function show(){if(done)return;done=true;try{g.style.visibility='visible';}catch(e){}}
+ setTimeout(show,700);/* 最多等 0.7 秒；字型通常第二次進來就有快取，等於立刻 */
+ try{if(document.fonts&&document.fonts.ready)document.fonts.ready.then(show,show);else show();}catch(e){show();}
+})();</script>
 
       <section id="panel-dashboard" class="panel">
         <div class="section-head"><h2>📋 待辦</h2><span class="sub"></span></div>
@@ -3714,11 +3739,17 @@ ruby rt,.flash-rd,.zi-pop .zi-py{font-family:'PinyinRoman',"Helvetica Neue",Aria
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="hanzi-stages.js"></script><!-- HANZI_V3 漢字遊戲關卡清單 -->
 <script src="config.js"></script>
+<!-- GATEFLASH_V1388 示範模式（config.js 裡沒有 Firebase 金鑰）才把 Email 和忘記密碼藏起來。
+     放在 config.js 後面、teacher-app.js 前面，是因為這裡才讀得到 FIREBASE_CONFIG，
+     而且比那支 1.6MB 的程式早非常多。正常接雲端的情況下這段什麼都不做，
+     卡片從第一次畫出來就是最後的大小，不會再跳。 -->
+<script>try{var _ua=!!(window.firebase&&window.firebase.auth&&window.FIREBASE_CONFIG&&window.FIREBASE_CONFIG.apiKey);
+if(!_ua){['f-email-wrap','gate-forgot'].forEach(function(i){var e=document.getElementById(i);if(e)e.classList.add('hide');});}}catch(e){}</script>
 <script src="db.js"></script>
 <!-- SPLIT_V1376 程式碼搬到 teacher-app.js。?v= 要跟著 APP_BUILD 一起改，
      不然瀏覽器會繼續用快取裡的舊版（跟 vi.js 那次同一個坑）。
      defer＝HTML 讀完才執行，畫面可以先出來；config.js 和 db.js 是一般 script，
      照樣排在它前面執行，載入順序沒有變。 -->
-<script src="teacher-app.js?v=1386hz" defer></script>
+<script src="teacher-app.js?v=1388" defer></script>
 </body>
 </html>
