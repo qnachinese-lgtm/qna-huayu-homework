@@ -5691,7 +5691,8 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
     <details class="form-more hide" data-g="d"><summary>▸ 更多設定 <span class="hint">頭像、國籍、教材資料夾、付款帳號、合併帳戶，設定一次就很少動。</span></summary>
     <div class="form-sec" style="margin-top:10px"><div class="form-grid">
      <div class="field"><label>頭像 <span class="hint">留空＝系統自動配一個</span></label><div style="display:flex;align-items:center;gap:8px"><span id="f-av-prev" class="avatar sm emo" data-dft="${avEmoji({name:st.name||''})}" style="background:${avColor(st.name)};flex:none">${avEmoji(st)}</span><input id="f-avatar" type="text" maxlength="8" value="${esc(st.avatar||'')}" placeholder="貼一個 emoji，或按右邊挑" style="flex:1" oninput="(function(el){var p=document.getElementById('f-av-prev');if(p)p.textContent=el.value.trim()||p.dataset.dft;})(this)">${st.id?`<button type="button" class="btn btn-sm" data-act="avPick" data-id="${esc(st.id)}">挑一個</button>`:''}</div></div>
-     <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-test" ${st.is_test?'checked':''} style="width:auto;margin:0"> 🧪 這是測試帳號 <span class="hint">（不算進學生統計，歸到「🧪 測試帳號」區）</span></label></div>
+     <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-hzok" ${st.hanzi_ok?'checked':''} style="width:auto;margin:0"> 🀄 開放漢字遊戲 <span class="hint" style="font-weight:400">（還在測試中，預設不開放。勾了這位學生才看得到；指派過漢字作業的人也會自動看得到）</span></label></div>${/* HZOK_V1404 */''}
+     <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-test" ${st.is_test?'checked':''} style="width:auto;margin:0"> 🧪 這是測試帳號     <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-test" ${st.is_test?'checked':''} style="width:auto;margin:0"> 🧪 這是測試帳號 <span class="hint">（不算進學生統計，歸到「🧪 測試帳號」區）</span></label></div>
      <div class="field full"><label>📁 教材資料夾連結 </label>
        <input id="f-drive" type="url" inputmode="url" value="${esc(st.drive_url||'')}" placeholder="貼上資料夾連結"></div>
      ${IS_OWNER?`
@@ -11315,7 +11316,7 @@ function viTxt(t){let x=String(t==null?'':t);VI_W.forEach(p=>{x=x.replace(p[0],p
 function L2t(t){return L2(esc(t),esc(viTxt(t)));}
 /* BUILD_V1218 版本號。印在匯出視窗那一排工具列上（列印時不會印出來），
    這樣妳截圖給我，我一眼就知道妳的瀏覽器跑的是哪一版，不用再猜是不是快取。 */
-const APP_BUILD='V1398';
+const APP_BUILD='V1404';
 function expBar(vi,extra,k){
   const F=expFonts();
   /* EXPUI_V938 選單一開始要停在這一份實際用的那一種，不然畫面寫標楷體、紙上卻是別的字體 */
@@ -15703,7 +15704,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
     phone:(($('#f-phone')&&$('#f-phone').value)||'').trim(),/* STUFORM_V1137 */
     fb:(($('#f-fb')&&$('#f-fb').value)||'').trim(),
     birth:(($('#f-birth')&&$('#f-birth').value)||''),
-    textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
+    textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),hanzi_ok:!!($('#f-hzok')&&$('#f-hzok').checked),/* HZOK_V1404 */schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     ...(IS_OWNER?{tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),fee_unit:($('#f-feeunit')&&$('#f-feeunit').value)||'session',currency:$('#f-cur').value}:{}),
     avatar:(($('#f-avatar')&&$('#f-avatar').value)||'').trim(),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),drive_url:(($('#f-drive')&&$('#f-drive').value)||'').trim(),...(IS_OWNER?{pay_acct:(($('#f-pay-acct')&&$('#f-pay-acct').value)||''),pay_remind_on:!!($('#f-payremind')&&$('#f-payremind').checked),bill_group:(($('#f-billgrp')&&$('#f-billgrp').value)||'').trim()}:{}),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
   Object.assign(common,slifeRead());/* LIFE_V1106 手動填的優先 */

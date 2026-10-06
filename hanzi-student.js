@@ -7,57 +7,50 @@
 'use strict';
 if (window.__HZ_STUDENT__) return; window.__HZ_STUDENT__ = true;
 
-/* ══════ HZOFF_V1401 學生端完全不顯示漢字遊戲 ══════
-   Quinn：「我不是說所有學生那邊的漢字遊戲不要放了嗎？請全部拿掉。」
-   所以現在是「學生端一個入口都不給」——首頁卡片、上課內容那張卡、
-   近期待辦、自學會員的選單，全部不出現；就算用舊畫面殘留的按鈕點，也會被擋下來。
+/* ══════ HZWHO_V1404 誰看得到漢字遊戲 ══════
+   Quinn 的規則：「先給我教師帳號以及免費註冊那邊
+                （但是我後臺要批准學生才可以進去）」
+   所以：
+     · 老師 ── 教師後台的「🀄 漢字遊戲」分頁和「開啟遊戲試玩」本來就有，不受這裡影響。
+     · 免費註冊的自學會員 ── 直接看得到，不用批准。
+     · 正式學生 ── 預設看不到，要她在後台批准過才看得到。
+       「批准」有兩種，符合任一種就算：
+         ① 在學生資料裡勾「🀄 開放漢字遊戲」（存成 hanzi_ok）
+         ② 已經被指派過漢字遊戲作業（指派本身就是一種批准）
 
-   ★ 這一個開關控制全部：
-       var HZ_SHOW = false;              ← 現在：學生端完全看不到（誰都看不到）
-       var HZ_SHOW = true;               ← 之後要全面開放給所有學生時改這個
-       var HZ_SHOW = ['a@b.com'];        ← 只開放給名單上的 Email（小寫）
-
-   注意：妳自己要測遊戲的話，從「教師後台 →🀄 漢字遊戲 →開啟遊戲試玩」進去，
-   或直接打 hanzi.html 這個網址，都還是進得去，不受這個開關影響。
-   教師後台的「🀄 漢字遊戲」分頁（指派作業、看進度）也照常，沒有動到。 */
-var HZ_SHOW = false;
+   ★ 總開關（要的時候再動，平常不用）：
+       var HZ_SHOW = 'rule';   ← 現在：照上面那套規則
+       var HZ_SHOW = true;     ← 全部開放，誰都看得到
+       var HZ_SHOW = false;    ← 全部關掉，誰都看不到 */
+var HZ_SHOW = 'rule';
 function hzOK(){
   try{
-    if (HZ_SHOW === false) return false;              /* 關掉：誰都看不到 */
-    if (HZ_SHOW === true) return true;                /* 全面開放 */
-    if (!Array.isArray(HZ_SHOW) || !HZ_SHOW.length) return false;
-    /* student.html 的 S 是檔案最外層的 const，不掛在 window 上
-       （之前在教師端踩過同一個坑：window.H 也是 undefined）。 */
-    var m = (typeof S !== 'undefined' && S) ? S : null;
-    var e = String(((m && m.me && m.me.email) || '')).trim().toLowerCase();
-    if (!e && m && m.member) e = String(m.member.email || '').trim().toLowerCase();
-    if (!e){ try{ e = String((firebase.auth().currentUser || {}).email || '').trim().toLowerCase(); }catch(x){} }
-    return !!e && HZ_SHOW.indexOf(e) >= 0;
+    if (HZ_SHOW === true) return true;
+    if (HZ_SHOW === false) return false;
+    var m = (typeof S !== 'undefined' && S) ? S : null;   /* S 是外層 const，不在 window 上 */
+    if (!m) return false;
+    if (m.member) return true;                            /* 免費註冊的會員：直接給 */
+    var me = m.me;
+    if (!me || me.id === '__preview') return false;
+    if (me.hanzi_ok === true) return true;                /* 後台勾過「開放漢字遊戲」 */
+    try{                                                  /* 或是已經被指派過漢字作業 */
+      var ts = m.hanziTasks || (m.lessons || []).filter(function(x){ return x && x.kind === 'hanzitask'; });
+      if (ts.some(function(t){ return t && !t.deleted_at && assignedToMe(t); })) return true;
+    }catch(e){}
+    return false;
   }catch(x){ return false; }
 }
-function hzOK(){
-  try{
-    if (!HZ_BETA.length) return true;                 /* 空名單＝全面開放 */
-    /* student.html 的 S 是檔案最外層的 const，不掛在 window 上
-       （之前在教師端踩過同一個坑：window.H 也是 undefined）。
-       所以這裡要直接用名字 S，不能寫 window.S。 */
-    var m = (typeof S !== 'undefined' && S) ? S : null;
-    var e = String(((m && m.me && m.me.email) || '')).trim().toLowerCase();
-    if (!e && m && m.member) e = String(m.member.email || '').trim().toLowerCase();
-    if (!e){ try{ e = String((firebase.auth().currentUser || {}).email || '').trim().toLowerCase(); }catch(x){} }
-    return !!e && HZ_BETA.indexOf(e) >= 0;
-  }catch(x){ return false; }
-}
+
 const INLINE = typeof window.hzHomeCard === 'function';  /* 舊版 student.html 還留著漢字遊戲的程式：作業那部分讓舊的算，避免重複；其他用新版 */
 const L4 = (zh, cn, en, vi) => LT({zh, cn, en, vi});
-function hzMine(){ if (!hzOK()) return []; /* HZOFF_V1401 */ return (S.hanziTasks || []).filter(t => t && !t.deleted_at && assignedToMe(t)); }
+function hzMine(){ if (!hzOK()) return []; /* HZWHO_V1404 */ return (S.hanziTasks || []).filter(t => t && !t.deleted_at && assignedToMe(t)); }
 function hzTaskDone(t){ const r = S.hanziDoc && S.hanziDoc.rec; const st = r && r.stars && r.stars[t.diff]; return ((st && Number(st[t.fam])) || 0) >= (Number(t.min_stars) || 1); }
 function hzOpen(){ return hzMine().filter(t => !hzTaskDone(t)); }
 /* 漢字複習：遊戲裡寫錯、選錯的字，照 1、3、7、15 天排好的複習 */
 function hzToday(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-function hzReviewDue(){ if (!hzOK()) return 0; /* HZOFF_V1401 */ const r = S.hanziDoc && S.hanziDoc.rec && S.hanziDoc.rec.review; if (!r) return 0; const t = hzToday(); return Object.values(r).filter(x => x && x.due && x.due <= t).length; }
+function hzReviewDue(){ if (!hzOK()) return 0; /* HZWHO_V1404 */ const r = S.hanziDoc && S.hanziDoc.rec && S.hanziDoc.rec.review; if (!r) return 0; const t = hzToday(); return Object.values(r).filter(x => x && x.due && x.due <= t).length; }
 function hzHomeCard(){
-  if (!hzOK()) return ''; /* HZOFF_V1401 名單外的人連卡片都不要畫 */
+  if (!hzOK()) return ''; /* HZWHO_V1404 名單外的人連卡片都不要畫 */
   const n = hzOpen().length;
   return '<div class="card hz-card" style="margin-top:14px;display:flex;align-items:center;gap:10px;cursor:pointer" data-act="openHanzi" data-id="">'
     + '<span style="font-size:28px">🀄</span><span style="flex:1"><b>' + esc(L4('漢字遊戲・字族工坊', '汉字游戏・字族工坊', 'Hanzi game', 'Trò chơi chữ Hán')) + '</b><br>'
@@ -65,7 +58,7 @@ function hzHomeCard(){
     + '<span class="btn btn-sm btn-accent">' + esc(L4('去玩', '去玩', 'Play', 'Chơi')) + '</span></div>';
 }
 H.openHanzi = (id) => {
-  /* HZOFF_V1401 名單外的人就算用舊畫面的按鈕點進來，也擋下來 */
+  /* HZWHO_V1404 名單外的人就算用舊畫面的按鈕點進來，也擋下來 */
   if (!hzOK()){ try{ toast(LT({zh:'漢字遊戲還在測試中，開放之後會通知你',cn:'汉字游戏还在测试中，开放之后会通知你',en:'The Hanzi game is still in testing.',vi:'Trò chơi chữ Hán đang trong giai đoạn thử nghiệm.'})); }catch(e){} return; }
   location.href = 'hanzi.html' + (id ? ('?task=' + encodeURIComponent(id)) : '');
 };
@@ -124,7 +117,7 @@ if (typeof _banner === 'function') window.dueBanner = function(){
   }catch(e){ return html; }
 };
 function addCard(sel, where){
-  if (!hzOK()) return; /* HZOFF_V1401 */
+  if (!hzOK()) return; /* HZWHO_V1404 */
   const scr = document.getElementById('screen'); if (!scr || scr.querySelector('.hz-card')) return;
   const t = scr.querySelector(sel); if (t) t.insertAdjacentHTML(where, hzHomeCard());
 }
@@ -138,7 +131,7 @@ if (typeof _home === 'function') window.renderHome = function(){
 const _content = window.renderContent;
 if (typeof _content === 'function') window.renderContent = function(){
   const r = _content.apply(this, arguments);
-  if (!hzOK()) return r; /* HZOFF_V1401 */
+  if (!hzOK()) return r; /* HZWHO_V1404 */
   try{ const cw = document.querySelector('#screen .cwrap'); if (cw && !document.querySelector('#screen .hz-card')){ cw.insertAdjacentHTML('beforebegin', '<div style="margin:-6px 0 14px">' + hzHomeCard() + '</div>'); } }catch(e){}
   return r;
 };
@@ -151,7 +144,7 @@ function hzBack(){ if (HZNEXT && S.me && S.me.id && S.me.id !== '__preview') set
 const _mnav = window.renderMemberNav;
 if (typeof _mnav === 'function') window.renderMemberNav = function(){
   const r = _mnav.apply(this, arguments);
-  if (!hzOK()) return r; /* HZOFF_V1401 自學會員的選單也不要出現 */
+  if (!hzOK()) return r; /* HZWHO_V1404 自學會員的選單也不要出現 */
   try{ const nav = document.getElementById('snav'); if (nav && !nav.querySelector('[data-act="openHanzi"]'))
     nav.insertAdjacentHTML('beforeend', '<button data-act="openHanzi" data-id=""><span class="ic">🀄</span>' + esc(L4('漢字遊戲', '汉字游戏', 'Hanzi game', 'Chữ Hán')) + '</button>'); }catch(e){}
   return r;

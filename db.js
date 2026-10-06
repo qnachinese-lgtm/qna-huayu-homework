@@ -27,6 +27,18 @@
   if (hasFirebase) {
     if (!firebase.apps.length) firebase.initializeApp(FB);
     fdb = firebase.firestore();
+    /* ══════ LONGPOLL_V1404 Firestore 連不上就自動改用長輪詢 ══════
+       Quinn 的 Console 截圖裡有這兩條：
+         GET https://firestore.googleapis.com/.../Firestore/Listen/channel  404 (Not Found)
+         @firebase/firestore: WebChannelConnection RPC 'Listen' stream transport errored
+       意思是 Firestore 用的那條即時連線（WebChannel）被擋掉或接不起來。
+       常見原因是中間有防毒／擋廣告／公司或電信的代理在擋那條連線。
+       接不起來的時候，程式會一直等資料回來，畫面看起來就是「卡住」或「超慢」。
+       這是 Firebase 官方給的對策：偵測到接不起來就自動改用長輪詢（長輪詢比較慢一點，
+       但一定連得上）。連得上的人完全不受影響。
+       settings() 一定要在任何一次讀寫之前呼叫，所以放在這裡；
+       萬一哪裡已經設定過會丟例外，包起來不讓它擋住整個程式。 */
+    try { fdb.settings({ experimentalAutoDetectLongPolling: true, merge: true }); } catch (e) {}
   }
   async function fbDelWhere(table, field, val) {
     const snap = await fdb.collection(table).where(field, "==", val).get();
