@@ -20,7 +20,7 @@
   'use strict';
   var LS_STU = 'hyc_lang';      /* 學生端 */
   var LS_TCH = 'qna_ui_lang';   /* 教師後台 */
-  var VI_VER = '1393';          /* ⚠ 字典改了就要跟著改，不然瀏覽器會用快取裡的舊字典 */
+  var VI_VER = '1406';          /* ⚠ 字典改了就要跟著改，不然瀏覽器會用快取裡的舊字典 */
   var DICT = null, LOADING = false, OB = null, T = null;
 
   function readLS(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }

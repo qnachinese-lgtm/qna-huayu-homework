@@ -4554,9 +4554,9 @@ async function enterMember(m){
   S.me={id:'mem_'+m.id,name:m.name||'',uid:m.uid,member:true};
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');
   try{applyChrome();}catch(e){}
-  showLoad(true);
+  showLoad(true,'boot');
   try{
-    await loadMemberData();
+    await waitMax(loadMemberData(),20000,'會員資料');
     S.section='oc';S.ocOpen='';
     renderSection();
     try{DB.update('members',m.id,{last_seen:now()}).catch(()=>{});}catch(e){}
@@ -4566,7 +4566,7 @@ async function enterMember(m){
       const _lg=((_pd&&Array.isArray(_pd.logins))?_pd.logins:[]).concat([now()]).slice(-100);
       DB.upsertResult('__progress',S.me.id,{uid:_u,member_id:m.id,student_name:(m.name||''),
         last_login:now(),last_active:now(),logins:_lg}).catch(()=>{});}catch(e){}
-  }catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc((e&&e.message)||e));}
+  }catch(e){var _m2=String((e&&e.message)||e);$('#screen').innerHTML=/^TIMEOUT:/.test(_m2)?stuckHtml(_m2.slice(8)):emptyHtml('⚠️','Error',esc(_m2));}
   finally{showLoad(false);}
 }
 async function loadMemberData(){
@@ -4776,11 +4776,62 @@ function renderMemberNav(){
 }
 
 /* ============ 啟動 ============ */
-function showLoad(b){let el=document.getElementById('app-loading');if(b){if(!el){el=document.createElement('div');el.id='app-loading';el.className='loading-overlay';el.innerHTML='<div class="spinner"></div>';document.body.appendChild(el);}}else if(el){el.remove();}}
+/* ══════ STUCK_V1405 不要再讓學生卡在轉圈畫面 ══════
+   Quinn：「按完開始上課就整個畫面都當掉」。她的 Console 有兩行
+   Firestore 的 Listen/channel 404 和 WebChannelConnection transport errored，
+   那代表連線斷在半路：get() 既不成功、也不失敗，就這樣一直掛著。
+
+   原本 enter() 的順序是「先把登入卡藏起來、開轉圈 → await 三份資料
+   → finally 關掉轉圈」。資料永遠不回來的時候 finally 不會執行，
+   所以轉圈永遠不會停，也回不去登入頁——這就是她說的「整個畫面都當掉」。
+   （不是畫面算太久，是在等一個不會來的回答。）
+
+   兩層保險：
+     ① waitMax()：每份資料給 20 秒，逾時就丟 TIMEOUT 錯誤，走原本的
+        catch，變成一個看得懂又有鈕可按的畫面，而不是一直轉。
+     ② showLoad(true,'boot') 另外壓一個 30 秒看門狗，萬一是別的地方
+        掛住（不只這幾個 await），轉圈也會自己收掉並跳錯誤畫面。
+        只有開機那一段才上看門狗，平常的小動作不受影響，
+        免得正常但比較久的操作被誤判。
+   順便把真正的錯誤訊息記下來顯示在畫面最下面：下次她截圖給我，
+   我就知道是哪一段斷掉，不用再猜。 */
+var _STUCK_T=null, _STUCK_LAST='';
+try{
+  window.addEventListener('unhandledrejection',function(ev){
+    try{var r=ev&&ev.reason;_STUCK_LAST=String((r&&(r.message||r.code))||r||'').slice(0,160);}catch(e){}});
+  window.addEventListener('error',function(ev){
+    try{_STUCK_LAST=String((ev&&ev.message)||'').slice(0,160);}catch(e){}});
+}catch(e){}
+
+function waitMax(p,ms,what){
+  return Promise.race([p,new Promise(function(_,rej){
+    setTimeout(function(){rej(new Error('TIMEOUT:'+what));},ms);})]);
+}
+function stuckHtml(what){
+  var extra=_STUCK_LAST?('<div style="margin-top:12px;font-size:12px;color:#8A7E72;word-break:break-all">'+esc(_STUCK_LAST)+'</div>'):'';
+  return '<div class="empty"><div class="big">📡</div><b>連不上伺服器</b>'
+   +'<div style="margin-top:8px;line-height:1.7">資料一直沒有回來。可能是網路不穩，'
+   +'或是現在用的網路（學校、公司、公共 Wi-Fi）把連線擋掉了。<br>'
+   +'先按「重新載入」試一次；還是一樣的話，換成手機網路或別的 Wi-Fi 再試。</div>'
+   +'<div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">'
+   +'<button class="btn primary" onclick="try{location.reload()}catch(e){}" style="min-height:40px;padding:0 18px">重新載入</button>'
+   +'<button class="btn" onclick="try{H.logout()}catch(e){location.reload()}" style="min-height:40px;padding:0 18px">回登入頁</button></div>'
+   +'<div style="margin-top:12px;font-size:12px;color:#8A7E72">卡在：'+esc(what||'載入資料')+'</div>'
+   +extra+'</div>';
+}
+function showStuck(what){
+  try{var el=document.getElementById('app-loading');if(el)el.remove();}catch(e){}
+  try{var sc=document.getElementById('screen');if(sc)sc.innerHTML=stuckHtml(what);}catch(e){}
+}
+function showLoad(b,why){let el=document.getElementById('app-loading');
+  try{if(_STUCK_T){clearTimeout(_STUCK_T);_STUCK_T=null;}}catch(e){}
+  if(b){if(!el){el=document.createElement('div');el.id='app-loading';el.className='loading-overlay';el.innerHTML='<div class="spinner"></div>';document.body.appendChild(el);}
+    if(why==='boot'){try{_STUCK_T=setTimeout(function(){_STUCK_T=null;showStuck('載入資料（超過 30 秒）');},30000);}catch(e){}}
+  }else if(el){el.remove();}}
 async function enter(me){S.me=me;try{syncStart();}catch(e){}
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');
-  applyChrome();showLoad(true);
-  try{await loadMine();await loadFam();await loadProgress();try{loadMyFiles().then(()=>{try{if($('#screen')&&!$('#screen').dataset.mode)renderSection();}catch(e){}});}catch(e){}try{mistSyncPractice();}catch(e){}try{const _pd=(S.results||[]).find(x=>x.lesson_id==='__progress');const _lg=((_pd&&Array.isArray(_pd.logins))?_pd.logins:[]).concat([now()]).slice(-100);DB.upsertResult('__progress',S.me.id,{uid:myUid(),last_login:now(),last_active:now(),logins:_lg}).catch(()=>{});}catch(_){}S.section='home';renderSection();setTimeout(notifyDue,1200);setTimeout(maybeShowGuide,600);}catch(e){$('#screen').innerHTML=emptyHtml('⚠️','Error',esc(e.message));}finally{showLoad(false);}}
+  applyChrome();showLoad(true,'boot');
+  try{await waitMax(loadMine(),20000,'我的資料');await waitMax(loadFam(),20000,'家庭帳單');await waitMax(loadProgress(),20000,'學習紀錄');try{loadMyFiles().then(()=>{try{if($('#screen')&&!$('#screen').dataset.mode)renderSection();}catch(e){}});}catch(e){}try{mistSyncPractice();}catch(e){}try{const _pd=(S.results||[]).find(x=>x.lesson_id==='__progress');const _lg=((_pd&&Array.isArray(_pd.logins))?_pd.logins:[]).concat([now()]).slice(-100);DB.upsertResult('__progress',S.me.id,{uid:myUid(),last_login:now(),last_active:now(),logins:_lg}).catch(()=>{});}catch(_){}S.section='home';renderSection();setTimeout(notifyDue,1200);setTimeout(maybeShowGuide,600);}catch(e){var _m=String((e&&e.message)||e);$('#screen').innerHTML=/^TIMEOUT:/.test(_m)?stuckHtml(_m.slice(8)):emptyHtml('⚠️','Error',esc(_m));}finally{showLoad(false);}}
 /* FAMUID_V947 本來這裡是用 bill_group 查同帳戶的人，但那個查詢會把別人整份
    學生資料（含學費）撈回來，安全規則擋掉了，所以家庭帳單一直是空的。
    改成查老師那邊自動維護的 fam_uids：裡面是同帳戶每個人的 uid，

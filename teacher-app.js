@@ -15598,6 +15598,9 @@ H.genCode=()=>{$('#f-code').value=genCodeStr();};
 
 H.addStudent=()=>studentModal(null);
 H.editStudent=(id)=>studentModal(S.students.find(s=>s.id===id));
+/* NASCHED_V1405 「新增一位」有自己的容器 #na-sched，H.schedAdd 是寫死 #sched-rows 的，
+   所以另外給一顆；刪除鈕沿用 H.schedDel（它用 closest 找列，兩邊都通）。 */
+H.naSchedAdd=()=>{const c=$('#na-sched');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
 H.schedAdd=()=>{const c=$('#sched-rows');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));refreshFirstSlot();};
 H.schedDel=(_,b)=>{const row=b.closest('.sched-row');if(!row)return;const c=row.parentElement;row.remove();if(c&&!c.querySelector('.sched-row'))c.insertAdjacentHTML('beforeend',schedRowHTML({}));refreshFirstSlot();};
 /* DELCHK_V999 本來寫完就直接報「已移到垃圾桶」，沒有回頭確認。
@@ -20512,6 +20515,16 @@ H.newAll=()=>{
            <input id="na-s-fee" type="number" min="0" style="flex:1" placeholder="請填金額">
            <select id="na-s-unit" style="width:110px"><option value="session" selected>每堂</option><option value="hour">每小時</option></select></div></div>
          <div class="field"><label>收費幣別 <span class="hint">之後繳費、帳單都照這個幣別算</span></label>${naCur('na-s-cur')}</div>
+         <!-- NASCHED_V1405 這裡本來沒有上課時段也沒有第一堂課，所以從「新增一位」
+              建出來的學生 schedule 是空陣列、連 first_class 這個欄位都沒有：
+              不會出現在行事曆上，也算不出用掉幾堂，要再點進去編輯一次才會有。
+              用的是跟「編輯學生」同一個 schedRowHTML／.sched-row，所以補零、
+              刪除鈕、星期選單的行為兩邊完全一樣，不會各走各的。 -->
+         <div class="field full"><label>上課時段 <span class="hint">選填，但填了才會排進行事曆。一週可以排好幾個；選星期，再填開始和結束時間</span></label>
+           <div id="na-sched">${schedRowHTML({})}</div>
+           <button class="btn btn-sm" type="button" data-act="naSchedAdd" style="margin-top:8px">＋ 新增時段</button></div>
+         <div class="field full"><label>第一堂課 <span class="hint">選填。填了才知道從哪一天開始往後算堂數；是哪一個時段會自動抓那天的</span></label>
+           <input id="na-first-date" type="date" min="2000-01-01" max="2100-12-31"></div>
        </div>`)}
 
        ${box('agency',`<div class="form-grid">
@@ -20581,7 +20594,12 @@ H.newAllGo=async()=>{
          「電話／Zalo」是空的，打的字等於丟掉了。欄位名稱也對齊成「電話／Zalo」。 */
       const doc={name,real_name:base.real_name,email:base.email,phone:base.phone,notes:base.note,
         person_id:pid,class_type:V('na-s-type')||'1對1',enroll_status:stt,
-        textbook:V('na-s-book'),groups:g?[g]:[],schedule:[],class_time:null,
+        textbook:V('na-s-book'),groups:g?[g]:[],
+        /* NASCHED_V1405 讀法跟 studentModal 存檔那一行一模一樣（hhmmNorm 補零、
+           只留有填時間的列）。first_slot 給 null＝「第一個時段／自動」，
+           跟編輯視窗裡那個下拉留空是同一個意思。 */
+        schedule:$$('#na-sched .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e),
+        class_time:null,first_class:V('na-first-date')||null,first_slot:null,
         tuition:N('na-s-fee'),fee_unit:V('na-s-unit')||'session',currency:V('na-s-cur')||DEF_CUR,
         is_test:false,created_at:now};
       Object.assign(doc,slifeStamp(doc,stt));/* LIFE_V1106 */
@@ -22360,8 +22378,8 @@ boot();
     LOADING=true;
     var s=document.createElement('script');
     /* VI_V1368 這個版本號一定要跟著字典一起改。不改的話瀏覽器會繼續用
-       快取裡的 vi.js?v=1393，新加的詞永遠不會出現——跟 styles.css 那次一樣的坑。 */
-    s.src='vi.js?v=1393';
+       快取裡的 vi.js?v=1406，新加的詞永遠不會出現——跟 styles.css 那次一樣的坑。 */
+    s.src='vi.js?v=1406';
     s.onload=function(){
       LOADING=false;
       var d=window.QNA_VI;

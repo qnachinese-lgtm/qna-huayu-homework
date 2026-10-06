@@ -193,6 +193,32 @@ const DIFF = {
   battle:{ name:"對戰", hearts:0, clue:"full",  check:"auto",   extra:4,  perChar:0,  info:"" }
 };
 
+/* ══════ HZTIMER_V1406 高手難度的倒數計時，學生可以自己關掉 ══════
+   高手是「只聽讀音拼字、3 顆心、10 張干擾卡」，再加每字 20 秒倒數，
+   對初學的越南學生壓力太大，很多人會因為趕時間而不敢挑這個難度。
+   預設還是有倒數（想拚時間加分的人不受影響），但給一個開關；
+   關掉之後不計時，自然也就沒有時間加分——難度本身沒有變簡單。
+   存在這台裝置的 localStorage，跟音效（zzgf-snd）同一個做法。 */
+function timerOff(){ return ls.get("hz-notimer") === "1"; }
+function perCharOf(D){ return (D && D.perChar && !timerOff()) ? D.perChar : 0; }
+function renderTimerToggle(){
+  const info = document.getElementById("diffInfo"); if (!info) return;
+  let w = document.getElementById("hz-timeropt");
+  if (!DIFF[diff] || !DIFF[diff].perChar){ if (w) w.remove(); return; }   /* 只有高手才出現 */
+  if (!w){
+    w = document.createElement("label");
+    w.id = "hz-timeropt";
+    w.style.cssText = "display:inline-flex;align-items:center;gap:7px;min-height:32px;margin:0 0 6px;font-size:13px;cursor:pointer";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.id = "hz-notimer-cb";
+    cb.style.cssText = "width:auto;margin:0;min-width:18px;min-height:18px";
+    cb.onchange = () => { ls.set("hz-notimer", cb.checked ? "1" : "0"); };
+    w.append(cb, document.createTextNode("關掉倒數計時（不趕時間，但就沒有時間加分）"));
+    info.insertAdjacentElement("afterend", w);
+  }
+  const cb = document.getElementById("hz-notimer-cb"); if (cb) cb.checked = timerOff();
+}
+
 // ================= 部首的位置 =================
 // HZPOS[字] = "LR0"：兩個部件各在哪裡（L 左、R 右、T 上、B 下、O 外、I 內），最後一碼是字典部首是第幾個部件（- 表示不知道）
 const HZP = window.HZPOS || {};
@@ -269,7 +295,7 @@ function Shop(root, cfg){
     bar.append(el("div", {class:"stat"}, [el("small", {text:"進度"}), progB]));
     bar.append(el("div", {class:"stat"}, [el("small", {text:"連擊"}), comboB]));
     if (D.hearts) bar.append(el("div", {class:"stat"}, [el("small", {text:"生命"}), hearts]));
-    if (D.perChar) bar.append(el("div", {class:"stat"}, [el("small", {text:"時間"}), timerB]));
+    if (perCharOf(D)) bar.append(el("div", {class:"stat"}, [el("small", {text:"時間"}), timerB]));
     const right = el("div", {class:"right"});
     const hintB = el("button", {class:"btn small", text:"提示"}); hintB.onclick = hint;
     right.append(hintB);
@@ -506,13 +532,14 @@ function Shop(root, cfg){
     const parts = expand(target);
     const show = st.hints >= 2 ? parts : (parts.filter(s => s in RAD).slice(0, 1).length ? parts.filter(s => s in RAD).slice(0, 1) : parts.slice(0, 1));
     document.querySelectorAll("#" + root.id + " .tray .card").forEach(c => c.classList.toggle("glow", show.includes(c.dataset.sym)));
-    setMsg(st.hints >= 2 ? "發光的卡片可以拼出一個字。（用了提示，最多兩顆星）" : "先試試發光的部首卡。（用了提示，最多兩顆星）");
+    /* HZSTAR_V1406 提示已經不扣星了，這兩句不能再寫「最多兩顆星」，不然畫面在騙學生。 */
+    setMsg(st.hints >= 2 ? "發光的卡片可以拼出一個字。" : "先試試發光的部首卡。");
     renderClues();
   }
   // 計時
   function startTimer(){
-    const D = DIFF[st.diff]; if (!D.perChar) return;
-    st.deadline = Date.now() + (D.perChar * st.targets.length + 20) * 1000;
+    const D = DIFF[st.diff]; const per = perCharOf(D); if (!per) return;
+    st.deadline = Date.now() + (per * st.targets.length + 20) * 1000;
     st.tick = setInterval(() => { const left = Math.max(0, st.deadline - Date.now()); const s = Math.ceil(left / 1000);
       st.ui.timerB.textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); st.ui.timerB.classList.toggle("low", s <= 15);
       if (left <= 0) finish(false, "時間到了"); }, 250);
@@ -522,7 +549,10 @@ function Shop(root, cfg){
     if (st.over) return; st.over = true; stopTimer(); st.locked = true; root.classList.add("locked");
     let stars = 0, timeBonus = 0;
     if (ok){
-      stars = st.mistakes === 0 && st.hints === 0 ? 3 : (st.mistakes <= 2 && st.hints <= 1 ? 2 : 1);
+      /* HZSTAR_V1406 提示不再扣星，只看拼錯幾次。
+         原本用了提示最多兩顆，等於在懲罰求助；提示本來就是讓學生學會的工具，
+         初學的越南學生最需要它。拼錯還是照扣，所以「會不會」仍然算得準。 */
+      stars = st.mistakes === 0 ? 3 : (st.mistakes <= 2 ? 2 : 1);
       if (st.deadline) timeBonus = Math.round(Math.max(0, st.deadline - Date.now()) / 1000) * 2;
     }
     const total = st.score + timeBonus;
@@ -573,11 +603,17 @@ function setDiff(d){ diff = d; ls.set("zzgf-diff", d); document.querySelectorAll
 document.querySelectorAll("#diffSeg button").forEach(b => b.onclick = () => setDiff(b.dataset.d));
 let curLv = Math.min(LEVELS.length - 1, Math.max(0, Number(ls.get("hz-lv") || 0) || 0));
 function setLv(i){ curLv = i; ls.set("hz-lv", String(i)); renderMap(); }
+/* HZOPEN_V1406 解鎖改成「難度之間共用」。
+   原本是 rec.stars[diff][前一關] > 0：星星分難度記，所以學生把 27 個字族
+   在入門全破了，切到進階會整排重新鎖起來，得照順序再破一次才走得到後面。
+   已經會的字不該重新鎖。改成任一難度拿過星就算解鎖；關卡順序和
+   「前一關要先過」的結構都沒動，只是不再因為換難度而倒退。 */
+const DIFFKEYS = ["easy", "normal", "hard"];
 function unlocked(stage){
   if (stage.i === 0 || store.teacher) return true;
   if (taskFams().includes(stage.id)) return true;
   const prev = LEVELS[stage.li].stages[stage.i - 1];
-  return (rec.stars[diff][prev.id] || 0) > 0;
+  return DIFFKEYS.some(d => ((rec.stars[d] || {})[prev.id] || 0) > 0);
 }
 function renderLvSeg(){
   const seg = $("#lvSeg"); if (!seg) return; seg.innerHTML = "";
@@ -589,6 +625,7 @@ function renderLvSeg(){
 }
 function renderMap(){
   renderLvSeg();
+  try { renderTimerToggle(); } catch(e){}   /* HZTIMER_V1406 */
   const L = LEVELS[curLv]; const map = $("#map"); map.innerHTML = "";
   let sum = 0;
   $("#lvInfo").textContent = curLv === 0 ? "老師挑選的 27 個字族，有字源和記憶提示。" : `華語八千詞・${L.name}：${L.stages.length} 關、${L.stages.reduce((a, s) => a + s.chars.length, 0)} 個字。關卡依「同一個部件」自動分組。`;
@@ -692,7 +729,7 @@ function endStage(r){
   [...st.found].forEach(c => { const b = el("button", {text:c, title:CH[c].w}); b.onclick = () => say(c + "，" + CH[c].w); learned.append(b); });
   if (learned.children.length){ card.append(el("p", {class:"muted", style:"font-size:13px", text:"這一關拼出的字（點一下聽讀音）"}), learned); }
   if (newB.length){ const nb = el("div", {class:"newbadges"}); newB.forEach(k => { const b = BADGES.find(x => x[0] === k); nb.append(el("span", {class:"chipbadge", text:"新徽章：" + b[2]})); }); card.append(nb); }
-  if (r.ok && r.stars < 3) card.append(el("p", {class:"muted", style:"font-size:13px;margin-bottom:10px", text:"三顆星的條件：不拼錯、不用提示。"}));
+  if (r.ok && r.stars < 3) card.append(el("p", {class:"muted", style:"font-size:13px;margin-bottom:10px", text:"三顆星的條件：不拼錯。用提示不扣星。"}));
   const btns = el("div", {class:"endbtns"});
   const again = el("button", {class:"btn", text:"再玩一次"}); again.onclick = () => { closeOverlay(); playStage(curStage); };
   const map = el("button", {class:"btn", text:"回地圖"}); map.onclick = () => { closeOverlay(); showTab("map"); };
@@ -805,56 +842,19 @@ function cvSentences(text){
   return cvClean(text).split(/\n|(?<=[。！？!?；])/).map(x => x.replace(/^\s*[^\s：:，。、]{1,8}[：:]\s*/, "").replace(/\s+/g, "").trim())
     .filter(x => HAN.test(x) && [...x].length >= 4 && [...x].length <= 42);
 }
-/* 拼音切成一個字一個音節：照每個字的字典讀音去對（不分聲調），對不上就退回字典讀音 */
-const SYL = /(?:zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?[aeiou]+(?:ng|n|r(?![aeiou]))?/y;
-const PYCH = /[a-zA-Züāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/;
-const pyBase = p => toneless(p).replace(/v/g, "u").replace(/[^a-z]/g, "");
-function pyReads(c){
-  const r = new Set(pysOf(c).flatMap(p => String(p).split(/[\/,，、 ]/)).map(pyBase).filter(Boolean));
-  if (c === "兒"){ r.add("r"); r.add("er"); }
-  return [...r].sort((a, b) => b.length - a.length);
-}
-// 回傳每個字的音節（帶聲調）；exact＝拼音要剛好用完。對不上回傳 null
-function pySplit(w, wpy, exact){
-  const cs = [...w], T = [...String(wpy || "").replace(/[()（）]/g, "")].filter(ch => PYCH.test(ch.toLowerCase())), B = T.map(ch => pyBase(ch) || "u").join("");
-  if (!cs.length || !B || B.length !== T.length) return null;
-  const R = cs.map(pyReads), memo = {};
-  const go = (i, k) => {
-    const key = i + "," + k; if (key in memo) return memo[key];
-    let res = null;
-    if (k === cs.length) res = (!exact || i === B.length) ? [] : null;
-    else {
-      let cands = R[k].filter(r => B.startsWith(r, i));
-      if (!R[k].length){ SYL.lastIndex = i; const m = SYL.exec(B); cands = m ? [m[0]] : []; }
-      for (const r of cands){ const rest = go(i + r.length, k + 1); if (rest){ res = [T.slice(i, i + r.length).join("").toLowerCase()].concat(rest); break; } }
-    }
-    return (memo[key] = res);
-  };
-  return go(0, 0);
-}
+/* 拼音切成一個字一個音節（切不準就退回字典讀音） */
+const SYL = /(?:zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?[aeiouüvāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]+(?:ng|n|r(?![aeiouüāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]))?/gi;
 function charPy(c, w, wpy){
-  const i = [...w].indexOf(c); if (i < 0) return pyOf(c);
-  const sp = pySplit(w, wpy, true) || pySplit(w, wpy, false);
-  return sp ? sp[i] : pyOf(c);
-}
-// 生詞欄位常把兩種寫法連在一起（做夢作夢、凶兇、箱子箱 xiāngzi/xiāng）：拆成兩個詞
-function cvVariants(w, py){
-  const n = [...w].length, vs = String(py || "").split(/[\/／]/).map(x => x.trim()).filter(Boolean);
-  if (n < 2 || !vs.length) return [{ w, py }];
-  const cut = (k, a, b) => { const x = [...w].slice(0, k).join(""), y = [...w].slice(k).join(""); return pySplit(x, a, true) && pySplit(y, b, true) ? [{ w:x, py:a }, { w:y, py:b }] : null; };
-  if (vs.length >= 2){
-    if (pySplit(w, vs[0], true)) return [{ w, py:vs[0] }];
-    for (let k = 1; k < n; k++){ const r = cut(k, vs[0], vs[1]); if (r) return r; }
-    return [{ w, py:vs[0] }];
-  }
-  if (pySplit(w, vs[0], true) || n % 2) return [{ w, py:vs[0] }];
-  return cut(n / 2, vs[0], vs[0]) || [{ w, py:vs[0] }];
+  const syl = String(wpy || "").replace(/[^a-zA-Züāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]/g, " ").match(SYL);
+  const i = [...w].indexOf(c);
+  if (syl && syl.length === [...w].length && i >= 0) return syl[i].toLowerCase();
+  return pyOf(c);
 }
 const cvLabel = l => { const tb = (l.textbook || "").trim(), ti = (l.title || "").trim(); const core = ti || (l.order_index ? "第" + l.order_index + "課" : "課"); return (tb ? tb + "・" : "") + core; };
 function cvLesson(l){
   const words = [], texts = [];
   cvDialogs(l).forEach(d => {
-    cvParse(d.vocabulary).forEach(v => { const w0 = cvClean(v.front).replace(/[^㐀-鿿豈-﫿]/g, ""); if (w0) cvVariants(w0, v.py || "").forEach((x, j) => { if (!words.some(W => W.w === x.w)) words.push({ w:x.w, py:x.py, mean:v.back || "", ex:v.ex || [], alt:j > 0 || undefined }); }); });
+    cvParse(d.vocabulary).forEach(v => { const w = cvClean(v.front).replace(/[^㐀-鿿豈-﫿]/g, ""); if (w) words.push({ w, py:v.py || "", mean:v.back || "", ex:v.ex || [] }); });
     if (d.content) texts.push(d.content);
   });
   const sents = cvSentences(texts.join("\n"));
@@ -908,7 +908,7 @@ function cvIndex(){
   return CVI;
 }
 // 干擾選項：長得像、同音的字。allow＝只能用學生學過的字（同一本課本、到這一課為止）
-function distractors(item, n = 3, allow, minSc){
+function distractors(item, n = 3, allow){
   const I = cvIndex(), c = item.c, sc = {};
   if (allow && allow.size < n + 4) allow = null;
   const bump = (x, v) => { if (x && x !== c && HAN.test(x) && !NOSTROKE.has(x) && (!allow || allow.has(x))) sc[x] = (sc[x] || 0) + v; };
@@ -917,8 +917,6 @@ function distractors(item, n = 3, allow, minSc){
   (I.part[c] || []).forEach(x => bump(x, 1.5));
   if (CH[c] && CH[c].p) CH[c].p.forEach(p => { if (CH[p] && !(p in RAD)) bump(p, 1.4); });
   let pool = Object.keys(sc).sort((a, b) => sc[b] - sc[a] + (Math.random() - .5) * .8);
-  // minSc：只要「真的像」的字（同音或共用聲旁），不夠就少給，不亂補
-  if (minSc) return pool.filter(x => sc[x] >= minSc).slice(0, n);
   // 不要選到放進去也是一個詞的字（例如「在／再」放進同一個句子都說得通的情況，盡量避開課本裡的其他詞）
   const out = pool.slice(0, n);
   const fill = shuffle(allow ? [...allow] : Object.keys(CH)).filter(x => x !== c && !out.includes(x) && (!CH[x] || toneless(CH[x].py) !== toneless(item.py)));
@@ -1351,7 +1349,7 @@ function hzGate(kind){
 function hzUngate(){ document.body.classList.remove("hz-gated"); const g = $("#hzGate"); if (g) g.remove(); }
 
 // ================= 給「漢字大富翁」（hanzi-fuweng.js）用的介面 =================
-window.HZAPI = { zili, pySplit, charPy, cvVariants, pysOf, radName, OV, loadOv, ovStyle, CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
+window.HZAPI = { zili, radName, OV, loadOv, ovStyle, CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
   store, getRec: () => rec, save, addXp,
   addReview(c, w, py){ if (!store.me || !c || rec.review[c]) return false; rec.review[c] = { box:0, due:todayStr(1), lid:"", w:w || "", py:py || "", mean:"" }; return true; } };
 document.dispatchEvent(new Event("hzapi"));
