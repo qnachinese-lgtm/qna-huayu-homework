@@ -751,7 +751,7 @@ function render(){
   /* TABFIX_V1192 舊的分頁名稱被拿掉的話，這一行會整個爆掉，畫面會全白。找不到就回總覽。 */
   if(!$('#panel-'+S.tab))S.tab='dashboard';
   $('#panel-'+S.tab).classList.remove('hide');
-  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,bizcal:renderBizCal,oc:renderOC,acct:renderAcct,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,give:renderGive,guide:renderGuide,hanzi:renderHanzi}[S.tab])();}/* GIVE_V1312 */
+  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,bizcal:renderBizCal,oc:renderOC,acct:renderAcct,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,give:renderGive,guide:renderGuide,hanzi:renderHanzi,lib:renderLib/* LIB_V1412 */}[S.tab])();}/* GIVE_V1312 */
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
   /* NAVMERGE_V1317 一定要在畫完之後才插分頁列——畫面是整個 innerHTML 換掉的，
      先插會被蓋掉。 */
@@ -6080,7 +6080,7 @@ function navSibHtml(tab){
 const TNAV=[
   {id:'dashboard',t:'今日總覽',act:'tab'},
   {t:'教學',sub:[['students','👥 學生','c-students'],['calendar','📅 課表',''],
-                 ['lessons','📚 教材與課程','c-lessons'],['hanzi','🀄 漢字遊戲',''],/* HANZI_V4 頂部選單也放漢字遊戲 */['grades','📝 批改・成績','c-pending']]},
+                 ['lessons','📚 教材與課程','c-lessons'],['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字遊戲',''],/* HANZI_V4 頂部選單也放漢字遊戲 */['grades','📝 批改・成績','c-pending']]},
   {t:'留學業務',sub:[['agency','🎓 代辦申請','c-ag'],['interview','🎤 面試練習','c-itv'],
                      ['writing','✍️ 代書','c-wr'],['school','🏫 學校與資料','']]},
   {t:'收費・財務',sub:[['pay','💰 繳費','c-owe'],['ops','📈 財務・營運','']]},
@@ -9311,6 +9311,218 @@ function hzLive(s){return s&&!s.deleted_at&&!s.is_test&&enrollOf(s)!=='paused';}
 function hzWhen(iso){if(!iso)return '—';const d=new Date(iso);if(isNaN(d))return '—';return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
 const HZ_LV=[[0,'漢字學徒'],[300,'拼字工匠'],[1000,'字族達人'],[2500,'字源學者'],[5000,'漢字大師']];
 function hzLevel(xp){let i=0;HZ_LV.forEach((l,k)=>{if((xp||0)>=l[0])i=k;});return (i+1)+'・'+HZ_LV[i][1];}
+/* ══════════════════════════════════════════════════════════════
+   LIB_V1412 教材庫 ── Quinn：「我還要做一個資料庫，就是全部的教材，
+   我有時候會有一些 PPT、PDF 檔之類的，我想要儲存到裡面以免我檔案亂丟」
+
+   三個決定（她選的）：
+     ① 分類跟教材走（時代華語三、文言文…），底下可以再指到某一課
+     ② 要能「挑一挑就掛到課上」——掛上去學生在上課內容就看得到
+     ③ 存 Google Drive 連結，不存檔案本身（PPT 動輒 20–50MB，
+        Firebase 免費額度只有 5GB，存一年就滿了）
+
+   為什麼不開新的 collection：存進既有的 shares，用 kind:'lib' 分出來。
+   shares 的三個讀取點（shareForStudent / shareForCrm / 8540 那行）
+   都有 .filter(kind==='stu'|'crm')，學生端也只讀 uids array-contains 自己的，
+   所以 kind:'lib' 不會漏到任何既有畫面，而且不用動 Firestore 安全規則
+   （規則我碰不到，開新 collection 會直接被擋下來）。
+
+   ⚠ 連結權限：Drive 檔案預設只有她看得到。掛給學生之前要把共用設成
+   「知道連結的人都可以檢視」，否則學生會看到「要求存取權」。
+   這點程式檢查不到（跨網域讀不到 Drive 的權限），所以寫在畫面上提醒。 ══ */
+const LIB_KINDS=[['pdf','📄','PDF'],['ppt','📊','簡報'],['doc','📝','文件'],
+  ['sheet','📈','表格'],['video','🎬','影片'],['audio','🎵','音檔'],
+  ['img','🖼','圖片'],['other','📎','其他']];
+function libGuess(url,title){
+  const s=((url||'')+' '+(title||'')).toLowerCase();
+  if(/presentation|\.pptx?\b|簡報/.test(s))return 'ppt';
+  if(/spreadsheets|\.xlsx?\b|試算|表格/.test(s))return 'sheet';
+  if(/document\/|\.docx?\b/.test(s))return 'doc';
+  if(/\.pdf\b|pdf/.test(s))return 'pdf';
+  if(/youtu|\.mp4\b|\.mov\b|影片/.test(s))return 'video';
+  if(/\.mp3\b|\.m4a\b|\.wav\b|音檔/.test(s))return 'audio';
+  if(/\.png\b|\.jpe?g\b|\.webp\b|圖片/.test(s))return 'img';
+  return 'other';
+}
+/* 文言文是一篇一篇的選文，不是課本的第幾課。Quinn 早就說過
+   「文言文課程那邊不要出現這種第幾課」，學生端的 lesTitle 修過了，
+   後台的 lesNo 還是舊寫法，所以這裡自己擋一層，不要又帶回來。 */
+function libLesName(l){
+  if(!l)return '';
+  if(l.kind==='classical')return String(l.title||'').trim();
+  return lesNo(l,'')||String(l.title||'');
+}
+function libIcon(k){const f=LIB_KINDS.find(x=>x[0]===k);return f?f[1]:'📎';}
+function libName(k){const f=LIB_KINDS.find(x=>x[0]===k);return f?f[2]:'其他';}
+function libAll(){return (SHARES||[]).filter(f=>f&&f.kind==='lib'&&!f.deleted_at);}
+/* 教材清單：已經有課的教材 ＋ 教材庫自己用過的，合起來不重複 */
+function libBooks(){
+  const m={};
+  (S.lessons||[]).forEach(l=>{if(!l)return;const b=l.kind==='classical'?'文言文':String(l.textbook||'').trim();if(b)m[b]=1;});
+  libAll().forEach(f=>{const b=String(f.book||'').trim();if(b)m[b]=1;});
+  return Object.keys(m).sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+}
+function libLessonsOf(book){
+  return (S.lessons||[]).filter(l=>{
+    if(!l||l.deleted_at)return false;
+    const b=l.kind==='classical'?'文言文':String(l.textbook||'').trim();
+    return b===book;
+  }).sort((a,b)=>((a.order_index||0)-(b.order_index||0)));
+}
+function libRowHtml(f){
+  const les=f.lesson_id?(S.lessons||[]).find(l=>l&&l.id===f.lesson_id):null;
+  return '<div class="dash-row" style="align-items:flex-start;gap:10px">'
+    +'<span style="font-size:20px;line-height:1.3">'+libIcon(f.ftype)+'</span>'
+    +'<div style="min-width:0;flex:1">'
+      +'<a href="'+esc(f.url||'')+'" target="_blank" rel="noopener"><b>'+esc(f.title||'(沒有標題)')+'</b></a>'
+      +(les?' <span class="badge">'+esc(libLesName(les))+'</span>':'')
+      +(f.note?'<div class="hint" style="margin-top:2px">'+esc(f.note)+'</div>':'')
+    +'</div>'
+    +'<span class="grow"></span>'
+    +'<button class="btn btn-sm" type="button" data-act="libToLes" data-id="'+esc(f.id)+'">📌 掛到課上</button> '
+    +'<button class="btn btn-sm" type="button" data-act="libEdit" data-id="'+esc(f.id)+'">編輯</button> '
+    +'<button class="btn btn-sm btn-ghost" type="button" data-act="libDel" data-id="'+esc(f.id)+'">刪除</button>'
+    +'</div>';
+}
+function renderLib(){
+  const body=$('#panel-lib');if(!body)return;
+  const q=String(S.libQ||'').trim().toLowerCase();
+  let items=libAll();
+  if(q)items=items.filter(f=>((f.title||'')+' '+(f.note||'')+' '+(f.book||'')).toLowerCase().indexOf(q)>=0);
+  items.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  const by={};items.forEach(f=>{const b=String(f.book||'').trim()||'（還沒分到教材）';(by[b]=by[b]||[]).push(f);});
+  const books=Object.keys(by).sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+  const total=libAll().length;
+  let html='<div class="card"><div class="dash-row">'
+    +'<h2 style="margin:0">📚 教材庫</h2><span class="grow"></span>'
+    +'<button class="btn btn-accent" type="button" data-act="libNew">＋ 加一份教材</button></div>'
+    +'<div class="hint" style="margin-top:6px">把 PPT、PDF 的 Google Drive 連結收在這裡，照教材分好，要用的時候挑一份就能掛到課上給學生。</div>'
+    +'<div class="hint" style="margin-top:8px;padding:8px 10px;background:#FFF7E6;border:1px solid #F0DDB0;border-radius:8px">'
+    +'⚠ <b>掛給學生之前</b>，記得先到 Google Drive 把那份檔案的共用改成「知道連結的人都可以檢視」，不然學生點開會變成「要求存取權」。這一點程式檢查不到，只能靠妳設定。</div>'
+    +'<div style="margin-top:10px"><input id="lib-q" type="search" placeholder="搜尋標題、備註、教材…" value="'+esc(S.libQ||'')+'" oninput="H.libSearch(this.value)" style="max-width:320px"></div>'
+    +'</div>';
+  if(!total){
+    html+='<div class="card"><div class="empty"><div class="big">📚</div><b>教材庫還是空的</b>'
+      +'<div style="margin-top:6px">按右上角「＋ 加一份教材」，把 Drive 連結貼進來就好。</div></div></div>';
+  }else if(!books.length){
+    html+='<div class="card"><div class="empty"><div class="big">🔍</div><b>找不到符合的</b>'
+      +'<div style="margin-top:6px">換個關鍵字，或把搜尋清空。</div></div></div>';
+  }else{
+    books.forEach(b=>{
+      html+='<div class="card"><details open><summary><b>'+esc(b)+'</b> <span class="hint">'+by[b].length+' 份</span></summary>'
+        +'<div style="margin-top:8px">'+by[b].map(libRowHtml).join('')+'</div></details></div>';
+    });
+  }
+  body.innerHTML=html;
+}
+H.libSearch=(v)=>{S.libQ=v;clearTimeout(H._libT);H._libT=setTimeout(()=>{renderLib();const el=$('#lib-q');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},250);};
+function libFormHtml(f){
+  f=f||{};
+  const books=libBooks();
+  /* 新增的時候預設「自動判斷」：下拉的第一個如果是 PDF，不管貼什麼連結都會存成 PDF。 */
+  const kinds='<option value=""'+(f.ftype?'':' selected')+'>✨ 自動判斷</option>'
+    +LIB_KINDS.map(k=>'<option value="'+k[0]+'"'+((f.ftype||'')===k[0]?' selected':'')+'>'+k[1]+' '+k[2]+'</option>').join('');
+  const curBook=String(f.book||'').trim();
+  const lessons=curBook?libLessonsOf(curBook):[];
+  return '<div class="modal"><div class="modal-head"><h3>'+(f.id?'✏️ 編輯教材':'📚 加一份教材')+'</h3>'
+    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+    +'<div class="form-grid">'
+    +'<div class="field full"><label>標題 * <span class="hint">之後妳是用這個找檔案的，寫清楚一點</span></label>'
+      +'<input id="lib-title" type="text" value="'+esc(f.title||'')+'" placeholder="例：第三課 生詞簡報"></div>'
+    +'<div class="field full"><label>Google Drive 連結 * <span class="hint">在 Drive 上按「共用 → 複製連結」，貼進來</span></label>'
+      +'<input id="lib-url" type="url" inputmode="url" value="'+esc(f.url||'')+'" placeholder="貼上連結"></div>'
+    +'<div class="field"><label>教材 <span class="hint">照教材分，之後才找得到</span></label>'
+      +'<input id="lib-book" type="text" list="lib-books" value="'+esc(curBook)+'" placeholder="例：時代華語三">'
+      +'<datalist id="lib-books">'+books.map(b=>'<option value="'+esc(b)+'">').join('')+'</datalist></div>'
+    +'<div class="field"><label>類型</label><select id="lib-ftype">'+kinds+'</select></div>'
+    +'<div class="field full"><label>哪一課 <span class="hint">選填。指到某一課，之後掛上去更快</span></label>'
+      +'<select id="lib-les"><option value="">（不指定）</option>'
+      +lessons.map(l=>'<option value="'+esc(l.id)+'"'+(f.lesson_id===l.id?' selected':'')+'>'+esc(libLesName(l))+'</option>').join('')
+      +'</select></div>'
+    +'<div class="field full"><label>備註 <span class="hint">選填。用在哪、要注意什麼</span></label>'
+      +'<textarea id="lib-note" rows="2" placeholder="例：第二段要搭配音檔一起放">'+esc(f.note||'')+'</textarea></div>'
+    +'</div>'
+    +'<div class="row mt"><button class="btn primary" type="button" data-act="libSave" data-id="'+esc(f.id||'')+'">儲存</button> '
+    +'<span class="hint" id="lib-st"></span></div></div></div>';
+}
+H.libNew=()=>{openModal(libFormHtml(null));};
+H.libEdit=(id)=>{const f=libAll().find(x=>x.id===id);if(!f)return toast('找不到這一份');openModal(libFormHtml(f));};
+H.libSave=async(id)=>{
+  const V=(x)=>{const e=document.getElementById(x);return e?String(e.value||'').trim():'';};
+  const title=V('lib-title'),url=V('lib-url');
+  if(!title)return toast('請填標題');
+  if(!url)return toast('請貼上連結');
+  if(!/^https?:\/\//i.test(url))return toast('連結要以 http:// 或 https:// 開頭');
+  const st=$('#lib-st');if(st)st.textContent='儲存中…';
+  const doc={kind:'lib',title,url,book:V('lib-book'),lesson_id:V('lib-les')||null,
+    note:V('lib-note'),ftype:V('lib-ftype')||libGuess(url,title)};
+  try{
+    await ensureAuthFresh();
+    if(id){
+      await DB.update('shares',id,doc);
+      const f=(SHARES||[]).find(x=>x&&x.id===id);if(f)Object.assign(f,doc);
+    }else{
+      doc.created_at=new Date().toISOString();
+      const r=await DB.insert('shares',doc);
+      SHARES.push(Object.assign({id:(r&&r.id)?r.id:r},doc));
+    }
+    closeModal();renderLib();toast(id?'已更新':'已加進教材庫');
+  }catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}
+};
+H.libDel=async(id)=>{
+  const f=libAll().find(x=>x.id===id);if(!f)return;
+  if(!confirm('把「'+(f.title||'')+'」從教材庫移除？\n（只是從這份清單移除，Google Drive 上的檔案不會動）'))return;
+  try{
+    await ensureAuthFresh();
+    await DB.update('shares',id,{deleted_at:new Date().toISOString()});
+    const x=(SHARES||[]).find(y=>y&&y.id===id);if(x)x.deleted_at=new Date().toISOString();
+    renderLib();toast('已移除');
+  }catch(e){toast('移除失敗：'+((e&&e.message)||e));}
+};
+/* 掛到課上：寫進那一課的 resources，學生在「上課內容」就看得到。
+   用的是既有的補充資料格式 {url,name,type,size}，所以學生端不用改一行。 */
+H.libToLes=(id)=>{
+  const f=libAll().find(x=>x.id===id);if(!f)return toast('找不到這一份');
+  const ls=(S.lessons||[]).filter(l=>l&&!l.deleted_at)
+    .sort((a,b)=>{
+      const ba=(a.kind==='classical'?'文言文':String(a.textbook||'')),bb=(b.kind==='classical'?'文言文':String(b.textbook||''));
+      return ba.localeCompare(bb,'zh-Hant')||((a.order_index||0)-(b.order_index||0));});
+  if(!ls.length)return toast('還沒有任何課可以掛');
+  const opts=ls.map(l=>{
+    const b=l.kind==='classical'?'文言文':String(l.textbook||'').trim();
+    return '<option value="'+esc(l.id)+'"'+(f.lesson_id===l.id?' selected':'')+'>'
+      +esc((b?('【'+b+'】'):'')+(libLesName(l)))+'</option>';}).join('');
+  openModal('<div class="modal"><div class="modal-head"><h3>📌 掛到課上</h3>'
+    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+    +'<div class="hint" style="margin-bottom:8px">「'+esc(f.title||'')+'」會變成那一課的補充資料，學生在「上課內容」就看得到、可以點開。</div>'
+    +'<div class="hint" style="margin-bottom:10px;padding:8px 10px;background:#FFF7E6;border:1px solid #F0DDB0;border-radius:8px">'
+    +'⚠ 先確認這份在 Google Drive 的共用是「知道連結的人都可以檢視」，不然學生會點不開。</div>'
+    +'<div class="field full"><label>要掛到哪一課</label><select id="lib-tl">'+opts+'</select></div>'
+    +'<div class="row mt"><button class="btn primary" type="button" data-act="libToLesGo" data-id="'+esc(f.id)+'">掛上去</button> '
+    +'<span class="hint" id="lib-tl-st"></span></div></div></div>');
+};
+H.libToLesGo=async(id)=>{
+  const f=libAll().find(x=>x.id===id);if(!f)return;
+  const sel=$('#lib-tl');const lid=sel?sel.value:'';
+  const l=(S.lessons||[]).find(x=>x&&x.id===lid);
+  if(!l)return toast('請選一課');
+  const st=$('#lib-tl-st');if(st)st.textContent='處理中…';
+  const rs=Array.isArray(l.resources)?l.resources.slice():[];
+  if(rs.some(r=>r&&r.url===f.url)){if(st)st.textContent='';return toast('這一課已經有這一份了');}
+  /* 學生端的 resourcesHtml 是看 type＋name 猜圖示的。
+     這裡把類型翻成它認得的字，PDF／簡報／文件／表格／影片就會有對的圖示。
+     音檔和圖片故意不翻：那兩種它會直接嵌 <audio>／<img>，
+     但 Drive 的檢視連結不是檔案本身，嵌進去只會變成壞掉的播放器或破圖，
+     所以讓它們走一般連結（📎），點開在 Drive 裡看。 */
+  const TMAP={pdf:'pdf-link',ppt:'powerpoint-link',doc:'word-link',sheet:'sheet-link',video:'video-link'};
+  rs.push({url:f.url,name:f.title||'教材',type:(TMAP[f.ftype]||'link'),size:0});
+  try{
+    await ensureAuthFresh();
+    await DB.update('lessons',l.id,{resources:rs});l.resources=rs;
+    closeModal();toast('已掛到「'+(libLesName(l))+'」');
+  }catch(e){if(st)st.textContent='';toast('失敗：'+((e&&e.message)||e));}
+};
+
 function renderHanzi(){
   const body=$('#panel-hanzi');if(!body)return;
   const tasks=(S.hanziTasks||[]).slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
