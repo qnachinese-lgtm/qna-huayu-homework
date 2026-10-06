@@ -63,7 +63,7 @@ const blank = (w, i) => [...w].map((x, k) => k === i ? "□" : x).join("");
 
 // ---------- 題目範圍：生詞（2～4 個字）----------
 function wordsFrom(src){
-  const out = {}, put = (w, py) => { if (!w || out[w] || !HAN.test(w) || w.length < 2 || w.length > 4 || [...w].some(c => NOSTROKE.has(c))) return; out[w] = py || [...w].map(c => pyOf(c)).join(" "); };
+  const out = {}, real = new Set(), put = (w, py) => { if (!w || (out[w] && (real.has(w) || !py)) || !HAN.test(w) || w.length < 2 || w.length > 4 || [...w].some(c => NOSTROKE.has(c))) return; out[w] = py || [...w].map(c => pyOf(c)).join(""); if (py) real.add(w); };
   if (src.k === "course") src.ids.forEach(id => { const L = C.byId[id]; if (L) L.chars.forEach(x => { if (!x.sent && x.w) put(x.w, x.wpy); }); });
   else if (src.k === "fam") FAM.forEach(f => { if (src.v === "*" || f.name === src.v) f.chars.forEach(x => { const e = CH[x.c]; if (e) put(e.w); }); });
   else if (src.k === "lv"){ const L = LEVELS[src.v]; if (L) L.stages.forEach(st => st.chars.forEach(c => { const e = CH[c]; if (e) put(e.w); })); }

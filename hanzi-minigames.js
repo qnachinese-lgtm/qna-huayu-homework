@@ -23,7 +23,9 @@ const keep = () => { try { localStorage.setItem("hz-mg", JSON.stringify(SET)); }
 // ---------- 題目來源：生詞＋句子 ----------
 function pool(){
   const words = [], seen = new Set(), sents = [];
-  const put = (w, py, mean) => { w = String(w || "").trim(); if (!w || seen.has(w) || !HAN.test(w) || w.length > 4) return; seen.add(w); words.push({ w, py:(py || "").trim() || [...w].map(c => pyOf(c)).join(""), mean:(mean || "").trim() }); };
+  const put = (w, py, mean) => { w = String(w || "").trim(); py = (py || "").trim(); if (!w || !HAN.test(w) || w.length > 4) return;
+    if (seen.has(w)){ const o = words.find(x => x.w === w); if (o && py && o.fb){ o.py = py; o.fb = false; } if (o && !o.mean && mean) o.mean = mean.trim(); return; }
+    seen.add(w); words.push({ w, py:py || [...w].map(c => pyOf(c)).join(""), fb:!py, mean:(mean || "").trim() }); };
   if (SET.src === "course" && C.lessons.length){
     SET.lids.filter(id => C.byId[id]).forEach(id => { const L = C.byId[id];
       L.chars.forEach(x => { const w = x.word || x.w; put(w, [...w].length > 1 ? (x.w === w ? x.wpy : "") : x.py, x.mean); (x.ex || []).forEach(s => sents.push(s)); });
