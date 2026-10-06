@@ -31,7 +31,7 @@ const CHANCE = [
   { t:"back", n:3, text:"踩到香蕉皮：後退 3 格" },
   { t:"move", n:3, text:"順風：前進 3 格" },
   { t:"tax", n:40, text:"生日快樂：大家各給你 40" },
-  { t:"q", kind:"listen", win:120, lose:40, text:"聽音挑戰：答對 +120，答錯 −40" },
+  /* NOLISTEN_V1409 聽音挑戰這張機會卡拿掉了，理由同下面的 kindFor。 */
   { t:"q", kind:"typo", win:120, lose:40, text:"找錯字：答對 +120，答錯 −40" }
 ];
 
@@ -172,7 +172,17 @@ const isRight = (q, v) => {
 };
 // 字要選「這一局疊得出來」的：疊字題的目標字一定要有透明卡
 const charFor = (list, kind) => { const ok = kind === "stack" ? list.filter(c => OV[c] && partsOf(c).length === 2) : list; return pick(ok.length ? ok : list); };
-const kindFor = () => pick(["stack", "stack", "pick", "typo", "listen", "tone"]);
+/* ══════ NOLISTEN_V1409 不再出「聽音」題 ══════
+   Quinn：「請你不要出現『聽力』的考試的那種了，因為你的是 AI 聲音，
+   而且有很多多音字你都沒辦法處理好。」
+   兩個理由都成立：讀音是用瀏覽器的語音合成唸的，不是真人；而且像「什」
+   這種字，資料裡記的是詞裡的音（什麼的 shén）而不是單字本音（shí），
+   唸出來會教錯。考聽力卻唸錯音，比不考還糟。
+   所以從題型池和機會卡裡把 listen 拿掉。listen 這個分支的畫面程式先留著
+   （沒有題目會走到），之後若要恢復不用重寫。
+   ⚠「聲調」題也吃同一份拼音資料，一樣會受多音字影響，但 Quinn 只說了聽力，
+     所以沒動；要不要一起拿掉由她決定。 */
+const kindFor = () => pick(["stack", "stack", "pick", "typo", "tone"]);
 function land(s){
   const p = cur(s), sq = s.board[p.pos]; s.q = null; s.card = ""; s.steal = null; s.rest = ""; s.learn = null;
   const anyChar = k => charFor(Object.keys(s.items), k);
@@ -822,8 +832,8 @@ function renderSetup(){
     tb.append(el("div", { class:"bankhelp" }, [
       el("b", { text:"題目怎麼來的" }),
       el("p", { text:"上面選的範圍裡每一個字，就是題庫（選「我的課本」就是那幾課的生詞）。每個字用它的生詞當提示，例如「謝」就用「謝謝」。只有一個字的生詞，用課文裡完整的一句。錯的選項只從這一局的字裡挑長得像或讀音一樣的，不會出現沒學過的字。" }),
-      el("b", { text:"六種題目" }),
-      el("ul", {}, ["選字：看詞和拼音，選出 □ 是哪個字", "疊字：選兩張透明卡，疊出 □ 這個字", "聽音：聽讀音，選出對的字", "聲調：選這個字的正確聲調", "找錯字：詞裡有一個字寫錯，點出來", "部首館：看部件，選它的意思"].map(t => el("li", { text:t }))),
+      el("b", { text:"五種題目" }),
+      el("ul", {}, ["選字：看詞和拼音，選出 □ 是哪個字", "疊字：選兩張透明卡，疊出 □ 這個字", "聲調：選這個字的正確聲調", "找錯字：詞裡有一個字寫錯，點出來", "部首館：看部件，選它的意思"].map(t => el("li", { text:t }))),
       el("small", { class:"muted", text:"不想考的字，把勾勾拿掉就好。" })]));
     const g = el("div", { class:"bankgrid" });
     Object.entries(items0).forEach(([c, it]) => { const cb = el("input", { type:"checkbox" }); cb.checked = !ex.has(c);
