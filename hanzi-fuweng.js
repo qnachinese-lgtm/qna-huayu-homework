@@ -132,12 +132,13 @@ function mkQ(s, kind, c, extra){
   if (kind === "typo" && ([...w].length < 2 || [...w].length > 6 || /[^\u3400-\u9FFF]/.test(w))) kind = "pick";
   if (kind === "tone" && (!bare(py) || new Set([1, 2, 3, 4].map(k => retone(py, k))).size < 4)) kind = "pick";
   // 找錯字：一定要用長得像或同音的字；找不到就改出選字題
-  const look = () => distractors({ c, py }, 6, null, 2.5).filter(x => x !== c && [...w].indexOf(x) < 0);
+  const look = () => distractors({ c, py, w }, 6, null, 2.5).filter(x => x !== c && [...w].indexOf(x) < 0);
   if (kind === "typo" && !look().length) kind = "pick";
   const tm = s.tmul == null ? 1 : s.tmul;
   const q = Object.assign({ kind, c, w, py, opts:null, ans:0, res:null, tried:[], t0:Date.now(), lim: tm ? Math.round((LIM[kind] || 20) * tm) : 0 }, extra || {});
   const pool = Object.keys(s.items).filter(x => x !== c);
-  const near = () => { const ds = distractors({ c, py }, 4, new Set(Object.keys(s.items))).filter(x => x !== c && [...w].indexOf(x) < 0); return shuffle(ds.filter(x => s.items[x]).concat(ds, shuffle(pool).slice(0, 2))).filter((x, i, a) => a.indexOf(x) === i && x !== c); };
+  const okW = x => !(A.makesWord && A.makesWord(w, c, x));
+  const near = () => { const ds = distractors({ c, py, w }, 4, new Set(Object.keys(s.items))).filter(x => x !== c && [...w].indexOf(x) < 0); return shuffle(ds.filter(x => s.items[x]).concat(ds, shuffle(pool.filter(okW)).slice(0, 2))).filter((x, i, a) => a.indexOf(x) === i && x !== c); };
   if (kind === "pick" || kind === "listen"){ q.opts = shuffle([c].concat(near().slice(0, 3))); q.ans = q.opts.indexOf(c); }
   else if (kind === "typo"){
     // 把詞裡的這個字換成長得像或同音的字，請學生找出寫錯的那一個
@@ -325,7 +326,7 @@ const DEFC = ["blue", "rose", "green", "purple"];
 function pcolors(ps){ const used = new Set(); return ps.map((p, i) => { let k = p.bot ? "ink" : (COLV[p.av] ? p.av : DEFC[i % 4]); if (used.has(k)) k = COLS.map(c => c[0]).find(c => !used.has(c)) || k; used.add(k); return COLV[k]; }); }
 function initial(p){
   const n = String(p.name || "").trim();
-  if (p.bot) return "電" + (n.match(/[一二三]/) || [""])[0];
+  if (p.bot) return "電";
   const m = n.match(/^玩家\s*(\d+)$/); if (m) return m[1];
   const c = [...n][0] || "?"; return /[a-z]/i.test(c) ? c.toUpperCase() : c;
 }
@@ -400,7 +401,9 @@ function render(){
   const pop = m && m.classList.contains("fwmodal") ? el("div", { class:"fwov" + (S.phase === "pick" ? " low" : "") }, [m]) : null;
   const side = el("div", { class:"fwside" }, [pop ? null : m, missionEl(), combosEl(), logEl()]);
   wrap.append(bw, side); P.append(wrap); if (pop) P.append(pop);
-  if (S.phase === "over") P.append(overEl());
+  if (S.phase === "over"){ const ov = el("div", { class:"fwov over" }), ob = overEl();
+    ob.append(el("div", { class:"overbtns" }, [el("button", { class:"btn primary big", type:"button", text:"再玩一次", onclick: leave }), el("button", { class:"btn big", type:"button", text:"看一下棋盤", onclick: () => ov.remove() })]));
+    ov.append(ob); P.append(ov); }
   // 動畫：骰子滾、棋子一格一格走、金幣飛、大字標語
   const a = S.anim;
   if (a && a.seq === S.seq && animSeq !== S.seq){ animSeq = S.seq; rollThenWalk(a); }
@@ -545,8 +548,8 @@ function modalEl(){
   if (!["q", "steal", "pick", "end"].includes(ph)){ if (ph !== "roll") return null; const p = cur(S); return el("div", { class:"fwcard2 idle" }, [avEl(p, S.turn, "big"), el("b", { text: mine(S.turn) ? "輪到你了，按中間的「擲骰子」" : `輪到 ${p.name}` })]); }
   if (ph === "end" && !q && !S.card && !S.rest && !S.learn) return null;
   const box = el("div", { class:"fwmodal fwcard2" }), inner = el("div", { class:"fwq" }); box.append(inner);
-  if (S.card) inner.append(el("div", { class:"fwcard", text:"機會卡：" + S.card }));
-  if (q){
+  if (S.card && ph !== "pick") inner.append(el("div", { class:"fwcard", text:"機會卡：" + S.card }));
+  if (q && ph !== "pick"){
     const P = S.players[answerer()];
     inner.append(el("div", { class:"qhead" }, [el("span", { class:"kind", text:KNAME[q.kind] || "" }), el("b", { text:q.tag || "" }), el("span", { class:"who", style:`--oc:var(${PCOL[answerer()]})`, text:P.name + (q.stolen ? " 搶答" : " 作答") })]));
     if (q.sub && !q.res) inner.append(el("div", { class:"muted sub", text:q.sub }));
@@ -592,7 +595,7 @@ function learnEl(L){
     if (chars.length){ const row = el("div", { class:"lchars" }); chars.forEach(c => { const it = itemOf(S, c); row.append(el("button", { class:"lc", type:"button", title:"聽", onclick: () => say(`${c}，${it[0]}的${c}`) }, [el("b", { text:c }), el("small", { text:it[1] }), el("small", { class:"muted", text:it[0] })])); }); box.append(el("div", { class:"muted", text:"這一局有它的字：" }), row); }
   } else if (L.k === "city"){
     const it = itemOf(S, L.c);
-    box.append(el("div", { class:"lh" }, [el("b", { class:"hz", text:L.c }), el("div", {}, [el("b", { text:`合成「${L.c}」：${L.a}＋${L.b}` }), el("div", { text:`${it[1]}　${it[0]}` }), A.zili ? el("div", { class:"muted", text:"字理：" + A.zili([L.a, L.b], L.c, it[1]) }) : null]), el("button", { class:"btn small", type:"button", text:"🔊", onclick: () => say(`${L.c}，${it[0]}的${L.c}`) })]));
+    box.append(el("div", { class:"lh" }, [el("b", { class:"hz", text:L.c }), el("div", {}, [el("b", { text:`合成「${L.c}」：${L.a}＋${L.b}` }), el("div", {}, [el("span", { class:"pyl", text:it[1] }), "　" + it[0]]), A.zili ? el("div", { class:"muted", text:"字理：" + A.zili([L.a, L.b], L.c, it[1]) }) : null]), el("button", { class:"btn small", type:"button", text:"🔊", onclick: () => say(`${L.c}，${it[0]}的${L.c}`) })]));
   }
   return box;
 }
@@ -660,7 +663,7 @@ function qBody(q, live){
 function feedback(q){
   const ok = q.res.ok, e = CH[q.c] || {};
   const tm = q.res.pick === "timeout";
-  const fb = el("div", { class:"fwfb " + (ok ? "ok" : "no") }, [el("b", { text: ok ? (q.res.speed > .6 ? "秒答！" : "答對了！") : tm ? "時間到！" : "答錯了" }), `　${q.c}　${q.py || ""}　${q.kind === "origin" ? (nameOf(q.c) !== q.py ? nameOf(q.c) : "") : q.w}`]);
+  const fb = el("div", { class:"fwfb " + (ok ? "ok" : "no") }, [el("b", { text: ok ? (q.res.speed > .6 ? "秒答！" : "答對了！") : tm ? "時間到！" : "答錯了" }), `　${q.c}　`, el("span", { class:"pyl", text:q.py || "" }), `　${q.kind === "origin" ? (nameOf(q.c) !== q.py ? nameOf(q.c) : "") : q.w}`]);
   if (q.kind === "typo" && !ok) fb.append(el("div", { class:"muted", text:`「${q.d}」應該是「${q.c}」` }));
   if (q.kind === "meaning"){ fb.append(el("div", { class:"muted", text:`「${q.c}」${nameOf(q.c) ? "（" + nameOf(q.c) + "）" : ""}表示：${q.opts[q.ans]}${q.ex && q.ex.length ? "，例如 " + q.ex.join("、") : ""}` })); }
   else if (e.tip && q.kind !== "origin") fb.append(el("div", { class:"muted", text:"記憶提示：" + e.tip }));
@@ -762,12 +765,25 @@ const SET = { avs:["blue", "rose", "green", "purple"], mode:"A", src:"course", r
 try { Object.assign(SET, JSON.parse(localStorage.getItem("hz-fw") || "{}")); } catch(e){}
 if (!Array.isArray(SET.avs) || SET.avs.length < 4 || !SET.avs.every(k => COLV[k])) SET.avs = ["blue", "rose", "green", "purple"];
 // 選棋子顏色
+// 預設名字：會員用自己的名字，老師帳號叫「老師」
+const myName = () => (A.store.me && A.store.me.name) || (A.store.teacher ? "老師" : "我");
+const nameOfSeat = i => SET.mode === "A" ? ((SET.names[i] || "").trim() || `玩家 ${i + 1}`) : ((SET.names[0] || "").trim() || myName());
+// 選棋子：左邊一顆大棋子（名字第一個字＋選的顏色），右邊是顏色
 function avPick(i){
-  const row = el("div", { class:"avpick" });
-  const nm = () => { if (SET.mode === "A") return (SET.names[i] || "").trim() || `玩家 ${i + 1}`; return (A.store.me && A.store.me.name) || "我"; };
-  COLS.filter(c => c[0] !== "ink").forEach(([k, v, n]) => { const on = SET.avs[i] === k; const b = el("button", { type:"button", class:"avb2" + (on ? " on" : "") + (/^[\x20-\x7e]+$/.test(initial({ name:nm() })) ? " lat" : ""), title:n, "aria-label":n, "aria-pressed":String(on), style:`--c:${v}`, text:initial({ name:nm() }) });
-    b.onclick = () => { const j = SET.avs.indexOf(k); if (j >= 0 && j !== i) SET.avs[j] = SET.avs[i]; SET.avs[i] = k; keep(); renderSetup(); }; row.append(b); });
+  const col = COLV[SET.avs[i]] || COLV.blue;
+  const pv = el("i", { class:"av pv", style:`background:${col}` });
+  const upd = () => { const t = initial({ name:nameOfSeat(i) }); pv.textContent = t; pv.classList.toggle("lat", /^[\x20-\x7e]+$/.test(t)); pv.classList.toggle("two", [...t].length > 1); };
+  const dots = el("div", { class:"cdots" });
+  COLS.filter(c => c[0] !== "ink").forEach(([k, v, n]) => { const on = SET.avs[i] === k; const b = el("button", { type:"button", class:"cdot" + (on ? " on" : ""), title:n, "aria-label":n, "aria-pressed":String(on), style:`--c:${v}` });
+    b.onclick = () => { const j = SET.avs.indexOf(k); if (j >= 0 && j !== i) SET.avs[j] = SET.avs[i]; SET.avs[i] = k; keep(); renderSetup(); }; dots.append(b); });
+  const row = el("div", { class:"avpick" }, [pv, dots]); row.upd = upd; upd();
   return row;
+}
+// 名字＋棋子（一行）
+function nameRow(i, ph){
+  const inp = el("input", { class:"fwin", placeholder:ph || `玩家 ${i + 1}`, value:SET.names[i] || (SET.mode === "A" ? "" : myName()) });
+  const ap = avPick(i); inp.oninput = () => { SET.names[i] = inp.value; keep(); ap.upd(); };
+  const pr = el("div", { class:"prow" }, [inp, ap]); pr.inp = inp; return pr;
 }
 const keep = () => { try { localStorage.setItem("hz-fw", JSON.stringify(SET)); } catch(e){} };
 function seg(opts, val, on){ const s = el("div", { class:"seg" }); opts.forEach(([v, t]) => { const b = el("button", { type:"button", text:t, "aria-pressed":String(v === val) }); b.onclick = () => on(v); s.append(b); }); return s; }
@@ -787,16 +803,16 @@ function renderSetup(){
   if (SET.mode === "B"){
     if (!myUid()){ f.append(el("div", { class:"notice", text:"連線玩要先登入（學生用自己的帳號登入，老師用老師帳號）。" })); return; }
     const code = el("input", { class:"fwin", inputmode:"numeric", maxlength:"5", placeholder:"房間代碼（5 位數）" });
-    const nm = el("input", { class:"fwin", placeholder:"你的名字", value:(A.store.me && A.store.me.name) || SET.names[0] || "" });
-    row("選棋子", avPick(0));
-    f.append(el("h3", { text:"加入同學開的房間" }), el("div", { class:"row" }, [code, nm, el("button", { class:"btn primary", type:"button", text:"加入", onclick: () => join(code.value.trim(), nm.value.trim()) })]));
+    const me0 = nameRow(0, "你的名字"), nm = me0.inp;
+    row("名字和棋子", me0);
+    f.append(el("h3", { text:"加入同學開的房間" }), el("div", { class:"row" }, [code, el("button", { class:"btn primary", type:"button", text:"加入", onclick: () => join(code.value.trim(), nm.value.trim()) })]));
     f.append(el("h3", { class:"mt", text:"或是：自己開一個房間（老師開房，學生用代碼加入）" }));
   }
   if (SET.mode === "A"){
     row("人數", seg([[2, "2 人"], [3, "3 人"], [4, "4 人"]], SET.np, v => { SET.np = v; keep(); renderSetup(); }));
-    const ns = el("div", { class:"fwcol" }); for (let i = 0; i < SET.np; i++){ const inp = el("input", { class:"fwin", placeholder:`玩家 ${i + 1}`, value:SET.names[i] || "" }); const pr = el("div", { class:"prow" }, [inp, avPick(i)]); inp.oninput = () => { SET.names[i] = inp.value; keep(); const t = initial({ name:inp.value.trim() || `玩家 ${i + 1}` }); pr.querySelectorAll(".avb2").forEach(b => b.textContent = t); }; ns.append(pr); } row("玩家和棋子", ns);
+    const ns = el("div", { class:"fwcol" }); for (let i = 0; i < SET.np; i++) ns.append(nameRow(i)); row("玩家和棋子", ns);
   }
-  if (SET.mode === "C") row("選棋子", avPick(0));
+  if (SET.mode === "C") row("名字和棋子", nameRow(0, "你的名字"));
   if (SET.mode === "C"){
     row("電腦", seg([[1, "1 個"], [2, "2 個"], [3, "3 個"]], SET.nbot, v => { SET.nbot = v; keep(); renderSetup(); }));
     row("電腦程度", seg(Object.entries(BOTLV).map(([k, v]) => [k, v.name]), SET.bot, v => { SET.bot = v; keep(); renderSetup(); }));
@@ -854,7 +870,7 @@ function start(){
   const si = srcInfo(); const items = itemsFrom(si.src);
   (SET.excl || []).forEach(c => delete items[c]);
   if (Object.keys(items).length < 6){ toast(SET.src === "course" ? "請至少選一課（合起來要有 6 個字以上）" : "這個範圍的字太少了"); return; }
-  const me = (A.store.me && A.store.me.name) || "我";
+  const me = nameOfSeat(0);
   let players;
   if (SET.mode === "A") players = Array.from({ length:SET.np }, (_, i) => ({ name:(SET.names[i] || "").trim() || `玩家 ${i + 1}`, av:SET.avs[i] }));
   if (SET.mode === "C") players = [{ name:me, av:SET.avs[0] }].concat(Array.from({ length:SET.nbot }, (_, i) => ({ name:["電腦一號", "電腦二號", "電腦三號"][i], bot:SET.bot })));

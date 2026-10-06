@@ -949,10 +949,25 @@ function cvIndex(){
   return CVI;
 }
 // 干擾選項：長得像、同音的字。allow＝只能用學生學過的字（同一本課本、到這一課為止）
+/* 換進去也成詞的字不能當錯的選項（例如 □們 的「人」：人們也是詞）
+   詞表＝華語八千詞＋老師課本裡的生詞 */
+let WSET = null;
+function wordSet(){
+  if (WSET) return WSET; WSET = new Set(String(window.HZWORDS || "").split("|").filter(Boolean));
+  (C.lessons || []).forEach(L => (L.chars || []).forEach(x => { [x.w, x.word].forEach(w => { if (w && w.length >= 2 && w.length <= 6 && /^[\u3400-\u9fff]+$/.test(w)) WSET.add(w); }); }));
+  return WSET;
+}
+function makesWord(w, c, x){
+  const cs = [...String(w || "")]; if (cs.length < 2) return false; const W = wordSet();
+  for (let i = 0; i < cs.length; i++){ if (cs[i] !== c) continue; const t = cs.slice(); t[i] = x;
+    for (let a = Math.max(0, i - 3); a <= i; a++) for (let b = i + 1; b <= Math.min(t.length, a + 5); b++){ if (b - a >= 2 && W.has(t.slice(a, b).join(""))) return true; } }
+  return false;
+}
 function distractors(item, n = 3, allow, minSc){
   const I = cvIndex(), c = item.c, sc = {};
   if (allow && allow.size < n + 4) allow = null;
-  const bump = (x, v) => { if (x && x !== c && HAN.test(x) && !NOSTROKE.has(x) && (!allow || allow.has(x))) sc[x] = (sc[x] || 0) + v; };
+  const bad = x => item.w && makesWord(item.w, c, x);
+  const bump = (x, v) => { if (x && x !== c && HAN.test(x) && !NOSTROKE.has(x) && (!allow || allow.has(x)) && !bad(x)) sc[x] = (sc[x] || 0) + v; };
   (CH[c] && CH[c].p || []).forEach(p => (I.part[p] || []).forEach(x => bump(x, p in RAD ? 1.2 : 3)));
   (I.py[toneless(item.py)] || []).forEach(x => bump(x, 2.6));
   (I.part[c] || []).forEach(x => bump(x, 1.5));
@@ -962,7 +977,7 @@ function distractors(item, n = 3, allow, minSc){
   if (minSc) return pool.filter(x => sc[x] >= minSc).slice(0, n);
   // 不要選到放進去也是一個詞的字（例如「在／再」放進同一個句子都說得通的情況，盡量避開課本裡的其他詞）
   const out = pool.slice(0, n);
-  const fill = shuffle(allow ? [...allow] : Object.keys(CH)).filter(x => x !== c && !out.includes(x) && (!CH[x] || toneless(CH[x].py) !== toneless(item.py)));
+  const fill = shuffle(allow ? [...allow] : Object.keys(CH)).filter(x => x !== c && !out.includes(x) && (!CH[x] || toneless(CH[x].py) !== toneless(item.py)) && !bad(x));
   while (out.length < n && fill.length) out.push(fill.pop());
   return out;
 }
@@ -1392,7 +1407,7 @@ function hzGate(kind){
 function hzUngate(){ document.body.classList.remove("hz-gated"); const g = $("#hzGate"); if (g) g.remove(); }
 
 // ================= 給「漢字大富翁」（hanzi-fuweng.js）用的介面 =================
-window.HZAPI = { zili, pySplit, charPy, cvVariants, pysOf, radName, OV, loadOv, ovStyle, CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
+window.HZAPI = { zili, makesWord, pySplit, charPy, cvVariants, pysOf, radName, OV, loadOv, ovStyle, CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
   store, getRec: () => rec, save, addXp,
   addReview(c, w, py){ if (!store.me || !c || rec.review[c]) return false; rec.review[c] = { box:0, due:todayStr(1), lid:"", w:w || "", py:py || "", mean:"" }; return true; } };
 document.dispatchEvent(new Event("hzapi"));
