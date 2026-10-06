@@ -189,7 +189,11 @@ function originBlock(sym){
 const DIFF = {
   easy:  { name:"入門", hearts:0, clue:"full",  check:"auto",   extra:3,  perChar:0,  info:"看拼音和詞猜字，放上卡片就會自動檢查，拼錯不扣分。適合第一次玩。" },
   normal:{ name:"進階", hearts:5, clue:"word",  check:"submit", extra:6,  perChar:0,  info:"只給詞，沒有拼音和卡片數；要按「確定」才檢查，拼錯扣一顆心。干擾卡變多。" },
-  hard:  { name:"高手", hearts:3, clue:"audio", check:"submit", extra:10, perChar:20, info:"一題一題來，只聽讀音拼字；拼錯扣一顆心，還有倒數計時。剩下的時間會變成加分。" },
+  /* NOLISTEN_V1409 高手原本是 clue:"audio"——不給詞也不給拼音，只放聲音，
+     那就是 Quinn 不要的那種聽力考試。改成 clue:"word"（只給詞，不給拼音）。
+     「一題一題來」本來是綁在 clue==="audio" 上的，改用獨立的 seq 旗標，
+     這樣拿掉聲音之後，一題一題的節奏還在，高手不會退化成進階。 */
+  hard:  { name:"高手", hearts:3, clue:"word", seq:true, check:"submit", extra:10, perChar:20, info:"一題一題來，只給詞、不給拼音；拼錯扣一顆心，還有倒數計時（可以關掉）。剩下的時間會變成加分。" },
   battle:{ name:"對戰", hearts:0, clue:"full",  check:"auto",   extra:4,  perChar:0,  info:"" }
 };
 
@@ -306,10 +310,10 @@ function Shop(root, cfg){
     const left = el("div", {class:"box"}), rightBox = el("div", {class:"box"});
     const shop = el("div", {class:"shop"}, [left, rightBox]); root.append(shop);
     const qcard = el("div", {class:"qcard"}); const clues = el("div", {class:"clues"});
-    if (D.clue === "audio"){
-      const sb = el("button", {class:"say big", "aria-label":"聽題目"}); sb.innerHTML = SPEAK; sb.onclick = () => sayCurrent();
+    if (D.seq){   /* NOLISTEN_V1409 原本是 D.clue === "audio" */
+      const sb = el("button", {class:"say big", "aria-label":"聽這個詞"}); sb.innerHTML = SPEAK; sb.onclick = () => sayCurrent();
       qcard.append(sb, el("div", {}, [el("div", {class:"qt"}), el("div", {class:"qh"})]));
-      left.append(qcard, el("p", {class:"muted", style:"font-size:13px;margin-bottom:8px", text:"每一題只要拼「一個字」。讀音會說「忘，忘記的忘」，拼出那一個字就好。拼錯兩次以後會出現拼音提示。"}));
+      left.append(qcard, el("p", {class:"muted", style:"font-size:13px;margin-bottom:8px", text:"每一題只要拼「一個字」。看詞拼出被挖掉的那個字就好；想聽讀音可以按喇叭。拼錯兩次以後會出現拼音提示。"}));
     } else {
       left.append(el("p", {class:"muted", style:"font-size:13px;margin-bottom:8px", text: D.clue === "full" ? "看拼音和詞，猜猜□是哪個字，然後在右邊拼出來。" : "看詞猜猜□是哪個字。可以按喇叭聽這個詞。"}));
     }
@@ -367,7 +371,7 @@ function Shop(root, cfg){
       layers.forEach((img, i) => { if (img){ const L = el("i", {class:"ovl"}); L.setAttribute("style", ovStyle(img)); board.append(L); }
         else if (!t){ board.append(el("span", {class:"ovtxt", text:st.bench[i]})); } });
       if (!st.bench.length && !showT){ const nx = st.targets && st.targets.find(c => !st.found.has(c)); const D = DIFF[st.diff];
-        board.append(el("div", {class:"empty"}, nx && st.found.size && D.clue !== "audio" ? [el("b", {class:"ovnext", text:"下一個：" + blankWord(CH[nx])}), el("br"), "把透明卡疊到這裡"] : ["把透明卡疊到這裡"])); }
+        board.append(el("div", {class:"empty"}, nx && st.found.size && !D.seq ? [el("b", {class:"ovnext", text:"下一個：" + blankWord(CH[nx])}), el("br"), "把透明卡疊到這裡"] : ["把透明卡疊到這裡"])); }
       if (showT) board.classList.add("done");
       bench.append(board);
       if (st.bench.length){ const chips = el("div", {class:"ovchips"});
@@ -445,7 +449,7 @@ function Shop(root, cfg){
     renderClues(); buildTray(false); renderStatus();
     save(); cfg.onScore && cfg.onScore(st);
     if (st.targets.every(t => st.found.has(t))) setTimeout(() => finish(true), 1300);
-    else if (st.seq) setTimeout(sayCurrent, 1500);
+    /* NOLISTEN_V1409 原本每題會自動唸出來，現在聲音只在學生自己按喇叭時才響。 */
   }
   let WHYPY = "";
   const why = (parts, c) => zili(parts, c, WHYPY);
@@ -477,10 +481,10 @@ function Shop(root, cfg){
     const cur = current();
     st.targets.forEach((c, i) => {
       const x = CH[c], done = st.found.has(c);
-      if (D.clue === "audio"){
+      if (D.seq){   /* NOLISTEN_V1409 */
         const isCur = c === cur;
         clues.append(el("div", {class:"clue" + (done ? " done" : "") + (isCur ? " cur" : "")}, [
-          el("div", {class:"py", text: done ? x.py : ""}), (done ? wordMark(x) : el("div", {class:"w", text: isCur ? "□" : "・"})), el("div", {class:"n", text: done ? "完成" : `第 ${i + 1} 題`})]));
+          el("div", {class:"py", text: done ? x.py : ""}), (done ? wordMark(x) : el("div", {class:"w", text: isCur ? blankWord(x) : "・"})), el("div", {class:"n", text: done ? "完成" : `第 ${i + 1} 題`})]));
         return;
       }
       const card = el("div", {class:"clue" + (done ? " done" : "")});
@@ -490,10 +494,10 @@ function Shop(root, cfg){
       else { const sb = el("button", {class:"say", "aria-label":"聽這個詞"}); sb.innerHTML = SPEAK; sb.onclick = () => say(sayQ(x)); card.append(sb); }
       clues.append(card);
     });
-    if (D.clue === "audio" && cur){
+    if (D.seq && cur){   /* NOLISTEN_V1409 */
       const x = CH[cur];
       st.ui.qcard.querySelector(".qt").textContent = `第 ${st.targets.indexOf(cur) + 1}／${st.targets.length} 題`;
-      st.ui.qcard.querySelector(".qh").textContent = st.curMiss >= 2 || st.hintLevel ? `${x.py}　${blankWord(x)}` : "聽讀音拼字";
+      st.ui.qcard.querySelector(".qh").textContent = st.curMiss >= 2 || st.hintLevel ? `${x.py}　${blankWord(x)}` : blankWord(x);
     }
   }
   function sayCurrent(){ const c = current(); if (c) say(sayQ(CH[c])); }
@@ -561,7 +565,7 @@ function Shop(root, cfg){
   api.start = (opt) => {
     stopTimer();
     const stage = opt.stage;
-    st = { stage, fams:[stage.id], diff:opt.diff, seq: DIFF[opt.diff].clue === "audio", seed: opt.seed || Math.floor(Math.random() * 1e9), ui:{}, bench:[], found:new Set(), bonus:new Set(),
+    st = { stage, fams:[stage.id], diff:opt.diff, seq: !!DIFF[opt.diff].seq /* NOLISTEN_V1409 */, seed: opt.seed || Math.floor(Math.random() * 1e9), ui:{}, bench:[], found:new Set(), bonus:new Set(),
       score:0, combo:0, bestCombo:0, mistakes:0, hints:0, hintLevel:0, curMiss:0, hearts:DIFF[opt.diff].hearts, locked:false, over:false, extras:null };
     st.rnd = seeded(st.seed);
     let targets = stage.chars.filter(c => CH[c] && CH[c].p);
@@ -578,9 +582,9 @@ function Shop(root, cfg){
       targets.concat(Object.keys(OV).filter(c => SCOPE.has(c))).forEach(c => { const v = OV[c]; if (v) v[0].forEach((sy, i) => { if (!st.ov[sy]) st.ov[sy] = v[i + 1]; }); });
       st.ovMode = true; root.classList.add("ovmode"); renderBench(); buildTray(true);
       const h3 = root.querySelector(".mat h3"); if (h3) h3.textContent = "疊字板：把透明卡疊上去，疊對了就是一個字";
-      const tip = root.querySelector(".box > p.muted"); if (tip && DIFF[st.diff].clue !== "audio") tip.textContent = "看拼音和詞，猜猜□是哪個字，然後把右邊的透明卡疊起來。每張卡上的部件，都在它在字裡的位置。";
+      const tip = root.querySelector(".box > p.muted"); if (tip && !DIFF[st.diff].seq) tip.textContent = "看拼音和詞，猜猜□是哪個字，然後把右邊的透明卡疊起來。每張卡上的部件，都在它在字裡的位置。";
     });
-    if (st.seq) setTimeout(sayCurrent, 700);
+    /* NOLISTEN_V1409 開場也不自動唸了。 */
   };
   api.lock = v => { if (st){ st.locked = v; root.classList.toggle("locked", v); } };
   api.stop = () => stopTimer();
