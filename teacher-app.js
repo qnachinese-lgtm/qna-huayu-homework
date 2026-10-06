@@ -9395,6 +9395,7 @@ function renderLib(){
   const total=libAll().length;
   let html='<div class="card"><div class="dash-row">'
     +'<h2 style="margin:0">📚 教材庫</h2><span class="grow"></span>'
+    +'<button class="btn btn-sm" type="button" data-act="libScan">🔍 掃一遍課裡的檔案</button> '/* LIBSCAN_V1416 */
     +'<button class="btn btn-accent" type="button" data-act="libNew">＋ 加一份教材</button></div>'
     +'<div class="hint" style="margin-top:6px">把 PPT、PDF 的 Google Drive 連結收在這裡，照教材分好，要用的時候挑一份就能掛到課上給學生。</div>'
     +'<div class="hint" style="margin-top:8px;padding:8px 10px;background:#FFF7E6;border:1px solid #F0DDB0;border-radius:8px">'
@@ -9521,6 +9522,92 @@ H.libToLesGo=async(id)=>{
     await DB.update('lessons',l.id,{resources:rs});l.resources=rs;
     closeModal();toast('已掛到「'+(libLesName(l))+'」');
   }catch(e){if(st)st.textContent='';toast('失敗：'+((e&&e.message)||e));}
+};
+
+/* ══════ LIBSCAN_V1416 把課裡散落的檔案收進教材庫 ══════
+   Quinn 當初的問題是「檔案亂丟」。教材庫解決的是「以後」——
+   可是她以前傳在各個課裡的講義、補充資料、課文圖片、影片連結，
+   還是散在各處，沒有一個地方看得到全部。這一顆就是把它們掃出來。
+
+   掃哪些欄位（課上真的會放檔案的，就這四個）：
+     l.handout_url  講義 PDF
+     l.resources[]  補充資料（{url,name,type,size}）
+     l.cl_img       文言文的課文圖片
+     l.video_url    影片連結
+   故意不掃 l.slides：那是上傳簡報後轉成的「一頁一張圖」，
+   一份簡報會變成幾十筆，收進來只是洗版，而且沒有單一的檔案連結。
+
+   已經在教材庫裡的（網址一樣）會自動跳過，重複掃不會變兩筆。
+   收進來的只是「記一筆」，原本掛在課上的檔案不會被動到、也不會被搬走。 */
+function libScanFind(){
+  const have={};libAll().forEach(f=>{have[String(f.url||'')]=1;});
+  const seen={},out=[];
+  (S.lessons||[]).forEach(l=>{
+    if(!l||l.deleted_at)return;
+    const book=(l.kind==='classical')?'文言文':String(l.textbook||'').trim();
+    const lname=libLesName(l);
+    const add=(url,name,from)=>{
+      url=String(url||'').trim();if(!url)return;
+      if(have[url]||seen[url])return;seen[url]=1;
+      out.push({url:url,name:String(name||'').trim()||'未命名',book:book,
+        lesson_id:l.id,lesson:lname,from:from,ftype:libGuess(url,name)});
+    };
+    add(l.handout_url,l.handout_name||('講義 · '+lname),'講義');
+    (Array.isArray(l.resources)?l.resources:[]).forEach(r=>{if(r)add(r.url,r.name,'補充資料');});
+    if(l.cl_img)add(l.cl_img,'課文圖片 · '+lname,'圖片');
+    if(l.video_url)add(l.video_url,'影片 · '+lname,'影片');
+  });
+  return out;
+}
+let LIBSCAN=[];
+H.libScan=()=>{
+  LIBSCAN=libScanFind();
+  if(!LIBSCAN.length){
+    return openModal('<div class="modal"><div class="modal-head"><h3>🔍 掃一遍課裡的檔案</h3>'
+      +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+      +'<div class="empty"><div class="big">✅</div><b>沒有漏掉的</b>'
+      +'<div style="margin-top:6px">課裡的講義、補充資料、課文圖片和影片連結，都已經在教材庫裡了。</div></div>'
+      +'</div></div>');
+  }
+  const by={};LIBSCAN.forEach((x,i)=>{const b=x.book||'（還沒分到教材）';(by[b]=by[b]||[]).push([x,i]);});
+  const books=Object.keys(by).sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+  const rows=books.map(b=>'<div style="margin-top:12px"><b>'+esc(b)+'</b> <span class="hint">'+by[b].length+' 份</span>'
+    +by[b].map(([x,i])=>'<label class="dash-row" style="align-items:flex-start;gap:9px;cursor:pointer">'
+      +'<input type="checkbox" class="lib-sc" value="'+i+'" checked style="width:auto;margin:3px 0 0">'
+      +'<span style="font-size:18px;line-height:1.2">'+libIcon(x.ftype)+'</span>'
+      +'<span style="min-width:0;flex:1"><b>'+esc(x.name)+'</b>'
+      +'<div class="hint" style="margin-top:2px">'+esc(x.from)
+      +((x.lesson&&x.name.indexOf(x.lesson)<0)?('　·　'+esc(x.lesson)):'')+'</div></span>'
+      +'</label>').join('')+'</div>').join('');
+  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>🔍 掃一遍課裡的檔案</h3>'
+    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+    +'<div class="hint">在各個課裡找到 <b>'+LIBSCAN.length+'</b> 份還沒收進教材庫的檔案。'
+    +'勾起來的會記進教材庫——<b>原本掛在課上的不會被動到，也不會被搬走</b>，只是多一個地方找得到。</div>'
+    +'<div style="margin-top:8px"><button class="btn btn-sm" type="button" data-act="libScanAll" data-id="1">全選</button> '
+    +'<button class="btn btn-sm" type="button" data-act="libScanAll" data-id="0">全不選</button></div>'
+    +rows
+    +'<div class="row mt"><button class="btn primary" type="button" data-act="libScanGo">收進教材庫</button> '
+    +'<span class="hint" id="lib-sc-st"></span></div></div></div>');
+};
+H.libScanAll=(on)=>{document.querySelectorAll('.lib-sc').forEach(c=>{c.checked=(String(on)==='1');});};
+H.libScanGo=async()=>{
+  const picked=[...document.querySelectorAll('.lib-sc')].filter(c=>c.checked).map(c=>LIBSCAN[+c.value]).filter(Boolean);
+  if(!picked.length)return toast('一份都沒勾');
+  const st=$('#lib-sc-st');if(st)st.textContent='收進來中…（0／'+picked.length+'）';
+  let ok=0,bad=0;
+  try{await ensureAuthFresh();}catch(e){}
+  for(const x of picked){
+    const doc={kind:'lib',title:x.name,url:x.url,book:x.book,lesson_id:x.lesson_id||null,
+      note:'從「'+(x.lesson||'課程')+'」的'+x.from+'收進來',ftype:x.ftype,
+      created_at:new Date().toISOString()};
+    try{
+      const r=await DB.insert('shares',doc);
+      SHARES.push(Object.assign({id:(r&&r.id)?r.id:r},doc));ok++;
+    }catch(e){bad++;}
+    if(st)st.textContent='收進來中…（'+(ok+bad)+'／'+picked.length+'）';
+  }
+  closeModal();renderLib();
+  toast(bad?('收進 '+ok+' 份，'+bad+' 份失敗'):('已收進 '+ok+' 份'));
 };
 
 function renderHanzi(){
