@@ -1,3 +1,9 @@
+/* HZTB_V1415 學生進度表在手機上：八欄一次只看得到兩欄。
+   表格 720px、手機框 331px，雖然外面有 overflow-x:auto 滑得動，
+   但沒有任何提示說可以往右滑。表格又沒辦法像關卡列那樣折行，
+   所以 820px 以下把每一列攤成一張卡片：表頭藏起來，欄位名用
+   td::before 從 data-l 印在值前面。樣式寫在這支檔案自己注入的
+   #hz-css 裡，不去碰 teacher.html／teacher-app.js（見上面第 3 條）。 */
 /* ══════ 漢字遊戲・老師後台外掛（hanzi-teacher.js）══════
    這支檔案自己把漢字遊戲接到老師後台上：側欄／頂部選單的按鈕、漢字遊戲那一頁、
    「待交作業」裡的漢字遊戲作業。teacher.html 和 teacher-app.js 裡完全不用寫任何漢字遊戲的程式，
@@ -61,17 +67,19 @@ function renderHanzi(){
     :'<div class="muted" style="padding:8px 2px">還沒有指派漢字遊戲作業。按右上角「＋ 指派作業」開始。</div>';
   const stus=(S.students||[]).filter(hzLive).slice().sort((a,b)=>{const x=hzDocOf(a),y=hzDocOf(b);return String((y&&y.updated_at)||'').localeCompare(String((x&&x.updated_at)||''))||stuNameCmp(a,b);});
   const rows=stus.map(s=>{const d=hzDocOf(s);const r=(d&&d.rec)||null;
-    if(!r)return '<tr><td>'+snm(s.name)+'</td><td colspan="7" class="muted">還沒玩過</td></tr>';
+    /* HZTB_V1415 每個 td 補 data-l（欄位名）。手機上表頭會藏起來，
+       改用 td::before 把欄位名印在值前面——八欄才不會只看得到兩欄。 */
+    if(!r)return '<tr><td data-l="學生">'+snm(s.name)+'</td><td colspan="7" class="muted" data-l="進度">還沒玩過</td></tr>';
     const sm=k=>Object.values((r.stars&&r.stars[k])||{}).reduce((a,b)=>a+(Number(b)||0),0);
     const rc=r.recall||{};const rate=rc.done?(Math.round(rc.ok/rc.done*100)+'%（'+rc.done+' 題）'):'—';
     const wr=Object.entries(r.wrong||{}).sort((a,b)=>b[1]-a[1]);
     const hard=(wr.length?wr.slice(0,8).map(x=>x[0]+(x[1]>1?'<sub style="font-size:11px;color:#B4364A">×'+x[1]+'</sub>':'')):Object.entries(r.hard||{}).sort((a,b)=>((b[1]&&b[1].miss)||0)-((a[1]&&a[1].miss)||0)).slice(0,6).map(x=>x[0])).join(' ');
     const today=new Date().toISOString().slice(0,10);const rv=Object.values(r.review||{});const rvDue=rv.filter(x=>x&&x.due<=today).length;
     const learned=Object.values(r.course||{}).reduce((a,c)=>a+Object.keys((c&&c.m)||{}).length,0);
-    return '<tr><td>'+snm(s.name)+'</td><td>'+hzWhen(d.updated_at)+'</td><td>'+hzLevel(r.xp)+'<br><span class="muted" style="font-size:12px">'+(r.xp||0)+' XP</span></td>'
-      +'<td>'+learned+' 個</td><td>'+(rv.length?(rv.length+' 個'+(rvDue?'<br><span class="badge badge-soon">今天 '+rvDue+'</span>':'')):'—')+'</td>'
-      +'<td>'+sm('easy')+'／'+sm('normal')+'／'+sm('hard')+'</td><td>'+rate+'</td>'
-      +'<td style="font-size:20px;letter-spacing:2px">'+(hard||'—')+'</td></tr>';}).join('');
+    return '<tr><td data-l="學生">'+snm(s.name)+'</td><td data-l="最近玩">'+hzWhen(d.updated_at)+'</td><td data-l="等級">'+hzLevel(r.xp)+'<br><span class="muted" style="font-size:12px">'+(r.xp||0)+' XP</span></td>'
+      +'<td data-l="課本學會">'+learned+' 個</td><td data-l="待複習">'+(rv.length?(rv.length+' 個'+(rvDue?'<br><span class="badge badge-soon">今天 '+rvDue+'</span>':'')):'—')+'</td>'
+      +'<td data-l="闖關星星">'+sm('easy')+'／'+sm('normal')+'／'+sm('hard')+'</td><td data-l="回想關正確率">'+rate+'</td>'
+      +'<td data-l="最常錯的字" style="font-size:20px;letter-spacing:2px">'+(hard||'—')+'</td></tr>';}).join('');
   body.innerHTML='<div class="section-head"><h2>🀄 漢字遊戲（字族工坊）</h2><span class="sub">指派關卡給學生，看每個人的漢字進度</span>'
     +'<span class="grow"></span><a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">開啟遊戲試玩 ↗</a>'
     +'<button class="btn btn-sm btn-accent" data-act="hzNew">＋ 指派作業</button></div>'
@@ -91,7 +99,7 @@ H.hzNew=()=>{
   openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>🀄 指派漢字遊戲作業</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body"><div class="form-grid">'
    +'<div class="field"><label>關卡</label><input id="hz-fam-q" type="search" placeholder="先搜尋：打課本名、課名或關卡名（例如「時代華語一」「第三課」「門」）" style="width:100%;margin-bottom:6px"><select id="hz-fam">'+HZ_LIST.map(L=>'<optgroup label="'+esc(L.lv)+'">'+L.stages.map((s,i)=>'<option value="'+esc(s[0])+'">'+(i+1)+'・'+esc(s[1])+(s[2]?'（'+s[2]+' 字）':'')+'</option>').join('')+'</optgroup>').join('')+'</select></div>'
-   +'<div class="field"><label>難度</label><select id="hz-diff"><option value="easy">入門（有拼音提示）</option><option value="normal" selected>進階（只給詞）</option><option value="hard">高手（只聽讀音、限時）</option></select></div>'
+   +'<div class="field"><label>難度</label><select id="hz-diff"><option value="easy">入門（有拼音提示）</option><option value="normal" selected>進階（只給詞）</option><option value="hard">高手（只給詞、限時）</option></select></div>'
    +'<div class="field"><label>至少要拿幾顆星</label><select id="hz-min"><option value="1">1 顆（過關就好）</option><option value="2" selected>2 顆</option><option value="3">3 顆（不能拼錯、不能用提示）</option></select><div class="hint" style="margin-top:4px">選「課本」的課時：1 顆＝這一課的字學會三成，2 顆＝六成，3 顆＝九成（寫對也用對才算學會）。難度只影響第一步「拼」。</div></div>'
    +'<div class="field"><label>截止日</label><input id="hz-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
    +'<div class="field full"><label>作業名稱 <span class="hint">可以不填，會自動用「關卡・難度」</span></label><input id="hz-title" placeholder="例如：這週練艮家族"></div></div>'
@@ -131,7 +139,7 @@ document.addEventListener('input',e=>{if(!e.target||e.target.id!=='hz-fam-q')ret
 function injectDom(){
   if (!document.getElementById('hz-css')){
     const st = document.createElement('style'); st.id = 'hz-css';
-    st.textContent = ".hz-tb{border-collapse:collapse;font-size:14px}.hz-tb th{text-align:left;font-weight:500;color:var(--muted,#667);border-bottom:1px solid #dde3ea;padding:6px 8px;white-space:nowrap}.hz-tb td{border-bottom:1px solid #eef1f5;padding:8px;vertical-align:top}"; document.head.appendChild(st);
+    st.textContent = ".hz-tb{border-collapse:collapse;font-size:14px}.hz-tb th{text-align:left;font-weight:500;color:var(--muted,#667);border-bottom:1px solid #dde3ea;padding:6px 8px;white-space:nowrap}.hz-tb td{border-bottom:1px solid #eef1f5;padding:8px;vertical-align:top}@media(max-width:820px){.hz-tb{min-width:0!important;width:100%!important;display:block}.hz-tb thead{display:none}.hz-tb tbody,.hz-tb tr,.hz-tb td{display:block;width:auto}.hz-tb tr{border:1px solid #E3E8EF;border-radius:10px;background:#fff;padding:9px 11px;margin-bottom:9px}.hz-tb td{border-bottom:0!important;padding:3px 0;display:flex;gap:10px;align-items:baseline}.hz-tb td::before{content:attr(data-l);flex:0 0 94px;color:var(--muted,#667);font-size:12.5px;font-weight:600}.hz-tb td:first-child{display:block;font-weight:700;font-size:15px;padding:0 0 7px;margin-bottom:5px;border-bottom:1px solid #E3E8EF!important}.hz-tb td:first-child::before{display:none}}"; document.head.appendChild(st);
   }
   if (!document.querySelector('.sidenav .tab[data-id="hanzi"]')){
     const after = document.querySelector('.sidenav .tab[data-id="lessons"]');
