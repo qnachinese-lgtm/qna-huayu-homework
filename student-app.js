@@ -1723,7 +1723,54 @@ function renderNav(){
   const items=[['home','🏠',nl('home'),''],['content','📚',nl('course'),''],['work','✍️',t('navWork'),works],['grades','📈',t('navGrades'),fbN||''],['info','ℹ️',t('navInfo'),'']];
   $('#snav').innerHTML=items.map(([id,ic,lb,n])=>`<button class="${S.section===id?'on':''}" data-act="section" data-id="${id}">${navIc(id)||`<span class="ic">${ic}</span>`}${esc(lb)}${n!==''&&n?`<span class="n">${n}</span>`:''}</button>`).join('');
 }
-function renderSection(){try{syncStickTop();}catch(e){}
+/* ══════ BLANK_V1410 畫面畫不出來時，不要只剩一片空白 ══════
+   Quinn：「還是當了」。這一次不是連不上（資料有載到，首頁畫得出來），
+   是按下「開始上課」之後那一頁畫不出來。
+
+   上一版 STUCK_V1405 只守「資料永遠不來」那條路，沒守「畫到一半出錯」。
+   而這個程式原本完全沒有任何錯誤攔截：
+     ・點擊分派是 fn(b.dataset.id,b)，沒有 try，處理函式一爆就整個沒反應；
+     ・H.openLessonView 會先把 S.section 改成 'content' 再 renderSection()，
+       所以 render 一爆，畫面已經切過去了、內容卻沒畫出來 → 一片空白又回不去。
+   這就是「當掉」的真正長相：不是卡住，是爆掉而且沒人接。
+
+   這裡補上接的人：render 失敗就顯示「這一頁打不開」＋真正的錯誤訊息
+   ＋「回首頁」「重新載入」兩顆鈕。錯誤訊息印出來，下次她截圖我就知道是哪一行。 */
+var _BLANK_BUSY=false;
+function blankErrHtml(err){
+  var msg='';try{msg=String((err&&(err.message||err))||'').slice(0,200);}catch(e){}
+  return '<div class="empty"><div class="big">📄</div><b>這一頁打不開</b>'
+   +'<div style="margin-top:8px;line-height:1.7">這一課的內容在顯示的時候出錯了。'
+   +'先回首頁或重新載入試試；如果每次都這樣，把下面那行字截圖給老師。</div>'
+   +'<div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">'
+   +'<button class="btn primary" onclick="try{qnaBlankHome()}catch(e){location.reload()}" style="min-height:40px;padding:0 18px">回首頁</button>'
+   +'<button class="btn" onclick="try{location.reload()}catch(e){}" style="min-height:40px;padding:0 18px">重新載入</button></div>'
+   +(msg?('<div style="margin-top:12px;font-size:12px;color:#8A7E72;word-break:break-all">'+esc(msg)+'</div>'):'')
+   +'</div>';
+}
+function showBlankErr(err){
+  try{console.error('[BLANK_V1410]',err);}catch(e){}
+  try{var el=document.getElementById('app-loading');if(el)el.remove();}catch(e){}
+  try{var sc=document.getElementById('screen');if(sc)sc.innerHTML=blankErrHtml(err);}catch(e){}
+}
+function renderSection(){
+  try{ return _renderSectionRaw.apply(this,arguments); }
+  catch(err){ showBlankErr(err); }
+}
+/* 回首頁。注意：不能寫成 H.blankHome ——「const H」宣告在這支檔案更後面，
+   在這裡碰它會踩到暫時死區直接 ReferenceError，整個學生端都開不起來。
+   掛在 window 上，inline onclick 是點下去才解析，不受前後順序影響。 */
+window.qnaBlankHome=function(){
+  if(_BLANK_BUSY){ try{location.reload();}catch(e){} return; }
+  _BLANK_BUSY=true;
+  try{
+    S.section='home'; S.openLesson=null;
+    try{ if($('#screen')) $('#screen').dataset.mode=''; }catch(e){}
+    _renderSectionRaw();
+  }catch(e){ try{location.reload();}catch(_){} }
+  finally{ _BLANK_BUSY=false; }
+};
+function _renderSectionRaw(){try{syncStickTop();}catch(e){}
   clearInterval(AUTOSAVE);AUTOSAVE=null;
   /* NOWRONG_V1402 錯題本沒有入口了；舊網址或殘留狀態停在這一頁的話送回首頁 */
   if(S.section==='wrong')S.section='home';
@@ -4491,7 +4538,7 @@ document.addEventListener('input',(e)=>{const ed=e.target&&e.target.closest&&e.t
 document.addEventListener('click',(e)=>{
   if(!e.target.closest('.settings-wrap')){const m=$('#menu');if(m)m.classList.add('hide');}
   if(!e.target.closest('#zi-pop')&&!e.target.closest('.zi'))hideZiPopup();
-  const b=e.target.closest('[data-act]');if(!b)return;const fn=H[b.dataset.act];if(fn){e.preventDefault();fn(b.dataset.id,b);}});
+  const b=e.target.closest('[data-act]');if(!b)return;const fn=H[b.dataset.act];if(fn){e.preventDefault();try{fn(b.dataset.id,b);}catch(err){showBlankErr(err);}/* BLANK_V1410 */}});
 document.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&e.target&&e.target.id==='dict-in'){e.preventDefault();H.dictCheck();}});
 document.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&e.target&&e.target.id==='mist-in'){e.preventDefault();H.mistCheck();}});
 
