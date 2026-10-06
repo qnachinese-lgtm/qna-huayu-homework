@@ -17,7 +17,7 @@ const N = 20, START = 1000, PASS = 150, CITY_BONUS = 100;
 const PRICE = [100, 140, 180, 220];
 // 棋盤：0 起點、5 字源館、10 休息站、15 複習站；2、8、12、17 機會；其他 12 格是部件地
 const LAYOUT = ["start","lot","chance","lot","lot","origin","lot","lot","chance","lot","rest","lot","chance","lot","lot","review","lot","chance","lot","lot"];
-const PCOL = ["--navy", "--green", "--plum", "--gold"];
+const PCOL = ["--pc0", "--pc1", "--pc2", "--pc3"];
 const BOTLV = { easy:{ name:"簡單", p:.55 }, normal:{ name:"普通", p:.75 }, hard:{ name:"厲害", p:.92 } };
 const LIM = { meaning:20, stack:30, pick:20, listen:20, tone:20, typo:25, origin:20, write:60 };
 const KNAME = { meaning:"部首", stack:"疊字", pick:"選字", listen:"聽音", tone:"聲調", typo:"找錯字", origin:"字源", write:"寫字" };
@@ -316,26 +316,20 @@ const ACT = {
   }
 };
 
-/* ---------- 棋子圖示（每個人自己選；電腦固定是機器人）----------
-   PIECE_V1408 Quinn：「你的這個叫角色？」——毛筆、墨條、硯台、書卷、燈籠、
-   扇子、茶杯、竹子都是東西，不是人物，這在大富翁裡叫「棋子」。
-   程式裡原本就有一處寫「棋子」（骰子動畫那段註解），只是畫面上寫成「角色」，
-   這裡把使用者看得到的字統一成「棋子」。圖示本身和程式邏輯都沒動。 */
-const AVS = [["brush", "毛筆"], ["ink", "墨條"], ["stone", "硯台"], ["scroll", "書卷"], ["lantern", "燈籠"], ["fan", "扇子"], ["tea", "茶杯"], ["bamboo", "竹子"]];
-const AVP = {
-  brush:'<path d="M15.5 3.5l5 5-8 8-5-5z"/><path d="M7.5 11.5l-2.5 2.5c-1.2 1.2-1 4-2.5 6.5 2.5-1.5 5.3-1.3 6.5-2.5l2.5-2.5"/>',
-  ink:'<rect x="8" y="2.5" width="8" height="19" rx="1.5"/><path d="M10 7h4"/><circle cx="12" cy="13.5" r="2"/>',
-  stone:'<ellipse cx="12" cy="13.5" rx="9.5" ry="6.5"/><ellipse cx="12" cy="11.5" rx="4.5" ry="2.6"/><path d="M5 17.5c2 1.5 4.5 2 7 2s5-.5 7-2"/>',
-  scroll:'<path d="M3.5 4.5h17M3.5 19.5h17"/><rect x="5.5" y="4.5" width="13" height="15"/><path d="M9 9h6M9 12.5h6M9 16h3.5"/>',
-  lantern:'<path d="M10 2.5h4M12 2.5v2"/><ellipse cx="12" cy="12" rx="7" ry="7.5"/><path d="M12 4.5v15M8 6.5c-1.5 3-1.5 8 0 11M16 6.5c1.5 3 1.5 8 0 11M12 19.5v3"/>',
-  fan:'<path d="M2.5 16A11 11 0 0 1 21.5 16L12 21z"/><path d="M12 21L6 8.5M12 21V6M12 21l6-12.5"/>',
-  tea:'<path d="M4.5 9.5h12v3.5a6 6 0 0 1-12 0z"/><path d="M16.5 10.5h1.5a2.5 2.5 0 0 1 0 5h-1.5M3 21h15"/><path d="M8.5 2.5c-1 1.5 1 2.5 0 4.5M12.5 2.5c-1 1.5 1 2.5 0 4.5"/>',
-  bamboo:'<path d="M8.5 2.5v19M15 6v15.5M6.5 9h4M6.5 15h4M13 12h4"/><path d="M8.5 9c3-.5 5.5-2.5 7-6M15 12c2.5-.5 4.5-2 5.5-4.5"/>',
-  robot:'<rect x="4.5" y="8" width="15" height="11.5" rx="3"/><path d="M12 4.5V8M9.5 16.5h5"/><circle cx="12" cy="3.5" r="1.2"/><circle cx="9" cy="12.5" r="1.3" fill="currentColor"/><circle cx="15" cy="12.5" r="1.3" fill="currentColor"/><path d="M2.5 12v3M21.5 12v3"/>'
-};
-const avKey = p => p.bot ? "robot" : (AVP[p.av] ? p.av : AVS[(p.seat || 0) % AVS.length][0]);
-const avSvg = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${AVP[k] || AVP.brush}</svg>`;
-function avEl(p, i, cls){ const n = el("i", { class:"av " + (cls || ""), style:`background:var(${PCOL[i]})`, title:p.name }); n.innerHTML = avSvg(avKey(p)); return n; }
+// ---------- 棋子：彩色圓形＋名字的第一個字（顏色每個人自己選）----------
+// PIECE_V1408 畫面上叫「棋子」（Quinn 定的），V1410 改成名字縮寫的彩色圓形
+const COLS = [["blue", "#1E4C86", "藍"], ["sky", "#2F86D1", "天藍"], ["teal", "#13918F", "青綠"], ["green", "#3A9A4A", "綠"], ["purple", "#7A52C7", "紫"], ["rose", "#D2457A", "玫瑰"], ["red", "#C93C3C", "紅"], ["ink", "#33415C", "墨灰"]];
+const COLV = Object.fromEntries(COLS.map(([k, v]) => [k, v]));
+const DEFC = ["blue", "rose", "green", "purple"];
+// 每個玩家的顏色（重複的話後面的人自動換一個沒人用的）
+function pcolors(ps){ const used = new Set(); return ps.map((p, i) => { let k = p.bot ? "ink" : (COLV[p.av] ? p.av : DEFC[i % 4]); if (used.has(k)) k = COLS.map(c => c[0]).find(c => !used.has(c)) || k; used.add(k); return COLV[k]; }); }
+function initial(p){
+  const n = String(p.name || "").trim();
+  if (p.bot) return "電" + (n.match(/[一二三]/) || [""])[0];
+  const m = n.match(/^玩家\s*(\d+)$/); if (m) return m[1];
+  const c = [...n][0] || "?"; return /[a-z]/i.test(c) ? c.toUpperCase() : c;
+}
+function avEl(p, i, cls){ const t = initial(p); return el("i", { class:"av " + (cls || "") + ([...t].length > 1 ? " two" : "") + (/^[\x20-\x7e]+$/.test(t) ? " lat" : ""), style:`background:var(${PCOL[i]})`, title:p.name, text:t }); }
 // ---------- 地圖上的建築（棋盤是「漢字城」）----------
 function bldSvg(sq, city){
   const oc = "var(--oc)";
@@ -393,6 +387,7 @@ function render(){
   // 題目要用的透明卡圖還沒下載：先下載再畫
   if (S.q && S.q.kind === "stack"){ const ks = [...new Set(S.q.opts.map(o => o.k))].filter(k => !OV[k]); if (ks.length){ loadOv(ks).then(() => render()); } }
   P.innerHTML = ""; document.body.classList.add("fw-ingame"); P.setAttribute("data-novi", ""); P.setAttribute("translate", "no"); P.classList.add("notranslate");
+  pcolors(S.players).forEach((c, i) => P.style.setProperty("--pc" + i, c));
   P.append(hudEl());
   const wrap = el("div", { class:"fwwrap" });
   const bw = el("div", { class:"fwbw" });
@@ -401,8 +396,10 @@ function render(){
   board.append(centerEl());
   bw.append(board);
   const m = modalEl();
-  const side = el("div", { class:"fwside" }, [m, missionEl(), combosEl(), logEl()]);
-  wrap.append(bw, side); P.append(wrap);
+  // 題目用跳出的視窗；輪到誰的小卡留在旁邊
+  const pop = m && m.classList.contains("fwmodal") ? el("div", { class:"fwov" + (S.phase === "pick" ? " low" : "") }, [m]) : null;
+  const side = el("div", { class:"fwside" }, [pop ? null : m, missionEl(), combosEl(), logEl()]);
+  wrap.append(bw, side); P.append(wrap); if (pop) P.append(pop);
   if (S.phase === "over") P.append(overEl());
   // 動畫：骰子滾、棋子一格一格走、金幣飛、大字標語
   const a = S.anim;
@@ -425,6 +422,7 @@ function hudEl(){
     el("div", { class:"logo" }, [el("b", { class:"hz", text:"漢字大富翁" })]),
     el("span", { class:"round", text:`第 ${Math.min(S.round, S.rounds)}／${S.rounds} 輪` + (ROOM ? `・房間 ${ROOM.id}` : "") }),
     ps,
+    el("button", { class:"btn small fsbtn", type:"button", text: isFs() ? "縮小" : "全螢幕", onclick: () => { isFs() ? fsOff() : fsOn(); setTimeout(render, 300); } }),
     el("button", { class:"btn small leave", type:"button", text: S.phase === "over" ? "再玩一次" : "離開", onclick: leave })]);
 }
 function missionEl(){
@@ -486,9 +484,13 @@ function rollThenWalk(a){
 }
 function tone(f, d){ try { const ctx = tone.c || (tone.c = new (window.AudioContext || window.webkitAudioContext)()); const o = ctx.createOscillator(), g = ctx.createGain(); o.type = "triangle"; o.frequency.value = f; g.gain.value = .05; g.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + d + .05); o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + d + .06); } catch(e){} }
 const coinSnd = () => { tone(988, .06); setTimeout(() => tone(1319, .12), 70); };
-function hideModal(h){ const x = panel().querySelector(".fwmodal"); if (x) x.style.visibility = h ? "hidden" : ""; }
-function exitGameLook(){ document.body.classList.remove("fw-ingame"); }
-function focusMe(){ const x = panel().querySelector(".fwmodal"); if (x && (S.mode === "B" || innerWidth < 700) && (mine(answerer()) || S.phase === "steal")){ const r = x.getBoundingClientRect(); if (r.top < 0 || r.bottom > innerHeight) x.scrollIntoView({ behavior:"smooth", block:"center" }); } }
+function hideModal(h){ const x = panel().querySelector(".fwov") || panel().querySelector(".fwmodal"); if (x) x.style.visibility = h ? "hidden" : ""; }
+function exitGameLook(){ document.body.classList.remove("fw-ingame"); fsOff(); }
+// 全螢幕：開始遊戲時打開（手機不支援就用整個畫面的版面）
+function fsOn(){ try { const d = document.documentElement; if (!document.fullscreenElement && d.requestFullscreen) d.requestFullscreen({ navigationUI:"hide" }).catch(() => {}); else if (d.webkitRequestFullscreen && !document.webkitFullscreenElement) d.webkitRequestFullscreen(); } catch(e){} }
+function fsOff(){ try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); else if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen(); } catch(e){} }
+const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+function focusMe(){ if (panel().querySelector(".fwov")) return; const x = panel().querySelector(".fwmodal"); if (x && (S.mode === "B" || innerWidth < 700) && (mine(answerer()) || S.phase === "steal")){ const r = x.getBoundingClientRect(); if (r.top < 0 || r.bottom > innerHeight) x.scrollIntoView({ behavior:"smooth", block:"center" }); } }
 function floats(d){
   Object.entries(d).forEach(([i, n]) => { if (!n) return; const row = panel().querySelector(`.fwp[data-i="${i}"]`); if (!row) return; const r = row.getBoundingClientRect();
     const f = el("div", { class:"fwfloat " + (n > 0 ? "up" : "down"), text:(n > 0 ? "+" : "−") + Math.abs(n) }); f.style.left = (r.right - 70) + "px"; f.style.top = (r.top + 4) + "px"; document.body.append(f); setTimeout(() => f.remove(), 1500);
@@ -756,13 +758,15 @@ function preload(){
 }
 
 // ---------- 開始畫面 ----------
-const SET = { avs:["brush", "lantern", "fan", "tea"], mode:"A", src:"course", rounds:8, names:["", "", "", ""], np:2, bot:"normal", nbot:1, tb:"", lids:[], fam:"*", lv:1, hostOnly:false };
+const SET = { avs:["blue", "rose", "green", "purple"], mode:"A", src:"course", rounds:8, names:["", "", "", ""], np:2, bot:"normal", nbot:1, tb:"", lids:[], fam:"*", lv:1, hostOnly:false };
 try { Object.assign(SET, JSON.parse(localStorage.getItem("hz-fw") || "{}")); } catch(e){}
-if (!Array.isArray(SET.avs) || SET.avs.length < 4) SET.avs = ["brush", "lantern", "fan", "tea"];
-// 選棋子圖示
+if (!Array.isArray(SET.avs) || SET.avs.length < 4 || !SET.avs.every(k => COLV[k])) SET.avs = ["blue", "rose", "green", "purple"];
+// 選棋子顏色
 function avPick(i){
   const row = el("div", { class:"avpick" });
-  AVS.forEach(([k, n]) => { const b = el("button", { type:"button", class:"avb" + (SET.avs[i] === k ? " on" : ""), title:n, "aria-label":n, "aria-pressed":String(SET.avs[i] === k), style:`--oc:var(${PCOL[i]})` }); b.innerHTML = avSvg(k) + `<small>${n}</small>`; b.onclick = () => { SET.avs[i] = k; keep(); renderSetup(); }; row.append(b); });
+  const nm = () => { if (SET.mode === "A") return (SET.names[i] || "").trim() || `玩家 ${i + 1}`; return (A.store.me && A.store.me.name) || "我"; };
+  COLS.filter(c => c[0] !== "ink").forEach(([k, v, n]) => { const on = SET.avs[i] === k; const b = el("button", { type:"button", class:"avb2" + (on ? " on" : "") + (/^[\x20-\x7e]+$/.test(initial({ name:nm() })) ? " lat" : ""), title:n, "aria-label":n, "aria-pressed":String(on), style:`--c:${v}`, text:initial({ name:nm() }) });
+    b.onclick = () => { const j = SET.avs.indexOf(k); if (j >= 0 && j !== i) SET.avs[j] = SET.avs[i]; SET.avs[i] = k; keep(); renderSetup(); }; row.append(b); });
   return row;
 }
 const keep = () => { try { localStorage.setItem("hz-fw", JSON.stringify(SET)); } catch(e){} };
@@ -790,7 +794,7 @@ function renderSetup(){
   }
   if (SET.mode === "A"){
     row("人數", seg([[2, "2 人"], [3, "3 人"], [4, "4 人"]], SET.np, v => { SET.np = v; keep(); renderSetup(); }));
-    const ns = el("div", { class:"fwcol" }); for (let i = 0; i < SET.np; i++){ const inp = el("input", { class:"fwin", placeholder:`玩家 ${i + 1}`, value:SET.names[i] || "" }); inp.oninput = () => { SET.names[i] = inp.value; keep(); }; ns.append(el("div", { class:"prow" }, [inp, avPick(i)])); } row("玩家和棋子", ns);
+    const ns = el("div", { class:"fwcol" }); for (let i = 0; i < SET.np; i++){ const inp = el("input", { class:"fwin", placeholder:`玩家 ${i + 1}`, value:SET.names[i] || "" }); const pr = el("div", { class:"prow" }, [inp, avPick(i)]); inp.oninput = () => { SET.names[i] = inp.value; keep(); const t = initial({ name:inp.value.trim() || `玩家 ${i + 1}` }); pr.querySelectorAll(".avb2").forEach(b => b.textContent = t); }; ns.append(pr); } row("玩家和棋子", ns);
   }
   if (SET.mode === "C") row("選棋子", avPick(0));
   if (SET.mode === "C"){
@@ -858,7 +862,7 @@ function start(){
   saved = false;
   const s = newGame({ mode:SET.mode, rounds:SET.rounds, src:si.src, srcName:si.name, players, host:myUid(), excl:SET.excl || [], tmul:SET.tmul == null ? 1.5 : SET.tmul });
   if (SET.mode === "B") return openRoom(s);
-  startGame(s); S = s; preload(); render(); window.scrollTo({ top:0 });
+  startGame(s); S = s; fsOn(); preload(); render(); window.scrollTo({ top:0 });
 }
 
 // ---------- 連線（房間）----------
@@ -898,7 +902,7 @@ function listen(code){
 }
 function stopRoom(){ if (unsub){ try { unsub(); } catch(e){} } unsub = null; }
 function renderLobby(){
-  const P = panel(); P.innerHTML = "";
+  const P = panel(); P.innerHTML = ""; pcolors(S.players).forEach((c, i) => P.style.setProperty("--pc" + i, c));
   P.append(el("div", { class:"fwhead" }, [el("h2", { text:"漢字大富翁・等大家進來" }), el("button", { class:"btn small", type:"button", text:"離開", onclick: leave })]));
   const b = el("div", { class:"box fwlobby" });
   b.append(el("p", { class:"muted", text:"請同學打開漢字遊戲 →「大富翁」→「各自用自己的裝置」，輸入房間代碼：" }), el("div", { class:"code", text:ROOM ? ROOM.id : "" }));
@@ -908,7 +912,7 @@ function renderLobby(){
   b.append(ul);
   if (isHost()){
     const go = el("button", { class:"btn primary big", type:"button", text:"開始！" }); go.disabled = S.players.length < 2;
-    go.onclick = () => { const s = startGame(clone(S)); s.seq++; s.log = ["遊戲開始！每人 " + START + " 金幣。"]; commit(s); };
+    go.onclick = () => { fsOn(); const s = startGame(clone(S)); s.seq++; s.log = ["遊戲開始！每人 " + START + " 金幣。"]; commit(s); };
     b.append(el("div", { class:"row mt" }, [go, el("small", { class:"muted", text: S.players.length < 2 ? "至少要 2 個人" : "" })]));
   } else b.append(el("p", { class:"mt", text:"等老師按「開始」……" }));
   P.append(b);
@@ -917,7 +921,7 @@ async function leave(){
   clearTimeout(botT);
   if (S && S.phase !== "over" && S.phase !== "lobby" && !confirmLeave()) return;
   if (ROOM && isHost()){ try { await ROOM.delete(); } catch(e){} }
-  stopRoom(); ROOM = null; S = null; render();
+  stopRoom(); ROOM = null; S = null; fsOff(); render();
 }
 function confirmLeave(){ const P = panel(); const b = P.querySelector(".fwhead .btn"); if (b && b.dataset.sure) return true; if (b){ b.dataset.sure = "1"; b.textContent = "確定要離開？再按一次"; setTimeout(() => { if (b.isConnected){ delete b.dataset.sure; b.textContent = "離開"; } }, 3000); } return false; }
 
