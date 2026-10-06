@@ -306,7 +306,11 @@ const ACT = {
   }
 };
 
-// ---------- 角色圖示（每個人自己選；電腦固定是機器人）----------
+/* ---------- 棋子圖示（每個人自己選；電腦固定是機器人）----------
+   PIECE_V1408 Quinn：「你的這個叫角色？」——毛筆、墨條、硯台、書卷、燈籠、
+   扇子、茶杯、竹子都是東西，不是人物，這在大富翁裡叫「棋子」。
+   程式裡原本就有一處寫「棋子」（骰子動畫那段註解），只是畫面上寫成「角色」，
+   這裡把使用者看得到的字統一成「棋子」。圖示本身和程式邏輯都沒動。 */
 const AVS = [["brush", "毛筆"], ["ink", "墨條"], ["stone", "硯台"], ["scroll", "書卷"], ["lantern", "燈籠"], ["fan", "扇子"], ["tea", "茶杯"], ["bamboo", "竹子"]];
 const AVP = {
   brush:'<path d="M15.5 3.5l5 5-8 8-5-5z"/><path d="M7.5 11.5l-2.5 2.5c-1.2 1.2-1 4-2.5 6.5 2.5-1.5 5.3-1.3 6.5-2.5l2.5-2.5"/>',
@@ -745,7 +749,7 @@ function preload(){
 const SET = { avs:["brush", "lantern", "fan", "tea"], mode:"A", src:"course", rounds:8, names:["", "", "", ""], np:2, bot:"normal", nbot:1, tb:"", lids:[], fam:"*", lv:1, hostOnly:false };
 try { Object.assign(SET, JSON.parse(localStorage.getItem("hz-fw") || "{}")); } catch(e){}
 if (!Array.isArray(SET.avs) || SET.avs.length < 4) SET.avs = ["brush", "lantern", "fan", "tea"];
-// 選角色圖示
+// 選棋子圖示
 function avPick(i){
   const row = el("div", { class:"avpick" });
   AVS.forEach(([k, n]) => { const b = el("button", { type:"button", class:"avb" + (SET.avs[i] === k ? " on" : ""), title:n, "aria-label":n, "aria-pressed":String(SET.avs[i] === k), style:`--oc:var(${PCOL[i]})` }); b.innerHTML = avSvg(k) + `<small>${n}</small>`; b.onclick = () => { SET.avs[i] = k; keep(); renderSetup(); }; row.append(b); });
@@ -770,15 +774,15 @@ function renderSetup(){
     if (!myUid()){ f.append(el("div", { class:"notice", text:"連線玩要先登入（學生用自己的帳號登入，老師用老師帳號）。" })); return; }
     const code = el("input", { class:"fwin", inputmode:"numeric", maxlength:"5", placeholder:"房間代碼（5 位數）" });
     const nm = el("input", { class:"fwin", placeholder:"你的名字", value:(A.store.me && A.store.me.name) || SET.names[0] || "" });
-    row("選角色", avPick(0));
+    row("選棋子", avPick(0));
     f.append(el("h3", { text:"加入同學開的房間" }), el("div", { class:"row" }, [code, nm, el("button", { class:"btn primary", type:"button", text:"加入", onclick: () => join(code.value.trim(), nm.value.trim()) })]));
     f.append(el("h3", { class:"mt", text:"或是：自己開一個房間（老師開房，學生用代碼加入）" }));
   }
   if (SET.mode === "A"){
     row("人數", seg([[2, "2 人"], [3, "3 人"], [4, "4 人"]], SET.np, v => { SET.np = v; keep(); renderSetup(); }));
-    const ns = el("div", { class:"fwcol" }); for (let i = 0; i < SET.np; i++){ const inp = el("input", { class:"fwin", placeholder:`玩家 ${i + 1}`, value:SET.names[i] || "" }); inp.oninput = () => { SET.names[i] = inp.value; keep(); }; ns.append(el("div", { class:"prow" }, [inp, avPick(i)])); } row("玩家和角色", ns);
+    const ns = el("div", { class:"fwcol" }); for (let i = 0; i < SET.np; i++){ const inp = el("input", { class:"fwin", placeholder:`玩家 ${i + 1}`, value:SET.names[i] || "" }); inp.oninput = () => { SET.names[i] = inp.value; keep(); }; ns.append(el("div", { class:"prow" }, [inp, avPick(i)])); } row("玩家和棋子", ns);
   }
-  if (SET.mode === "C") row("選角色", avPick(0));
+  if (SET.mode === "C") row("選棋子", avPick(0));
   if (SET.mode === "C"){
     row("電腦", seg([[1, "1 個"], [2, "2 個"], [3, "3 個"]], SET.nbot, v => { SET.nbot = v; keep(); renderSetup(); }));
     row("電腦程度", seg(Object.entries(BOTLV).map(([k, v]) => [k, v.name]), SET.bot, v => { SET.bot = v; keep(); renderSetup(); }));
