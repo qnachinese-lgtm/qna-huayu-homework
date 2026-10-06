@@ -19,7 +19,7 @@ const PRICE = [100, 140, 180, 220];
 const LAYOUT = ["start","lot","chance","lot","lot","origin","lot","lot","chance","lot","rest","lot","chance","lot","lot","review","lot","chance","lot","lot"];
 const PCOL = ["--navy", "--green", "--plum", "--gold"];
 const BOTLV = { easy:{ name:"簡單", p:.55 }, normal:{ name:"普通", p:.75 }, hard:{ name:"厲害", p:.92 } };
-const LIM = { meaning:10, stack:15, pick:10, listen:10, tone:10, typo:12, origin:12, write:45 };
+const LIM = { meaning:20, stack:30, pick:20, listen:20, tone:20, typo:25, origin:20, write:60 };
 const KNAME = { meaning:"部首", stack:"疊字", pick:"選字", listen:"聽音", tone:"聲調", typo:"找錯字", origin:"字源", write:"寫字" };
 const CHANCE = [
   { t:"rain", text:"金幣雨：連答三題，每題 +60" },
@@ -96,8 +96,8 @@ function dealMissions(s){
   s.players.forEach(p => { p.missions = []; for (let j = 0; j < 2 && pool.length; j++){ p.missions.push(pool[k % pool.length].c); k++; } });
 }
 function newGame(cfg){
-  const items = itemsFrom(cfg.src), board = makeBoard(items);
-  return { v:2, mode:cfg.mode, rounds:cfg.rounds, round:1, turn:0, seq:1, srcName:cfg.srcName || "",
+  const items = itemsFrom(cfg.src); (cfg.excl || []).forEach(c => { if (Object.keys(items).length > 6) delete items[c]; }); const board = makeBoard(items);
+  return { v:2, tmul:cfg.tmul == null ? 1 : cfg.tmul, mode:cfg.mode, rounds:cfg.rounds, round:1, turn:0, seq:1, srcName:cfg.srcName || "",
     players:cfg.players.map(newPlayer), items, board, combos:makeCombos(board, items), cities:[], learn:null, winner:-1,
     phase:cfg.mode === "B" ? "lobby" : "roll", dice:0, anim:null, q:null, card:"", steal:null, fx:null, dl:null,
     log:["遊戲開始！每人 " + START + " 金幣。"], host:cfg.host || "" };
@@ -119,10 +119,10 @@ const worth = (s, i) => s.players[i].coins + s.board.filter(b => b.owner === i).
 function updateCities(s){
   const before = new Set(s.cities.map(x => x.c + x.owner));
   s.cities = s.combos.filter(x => { const A1 = lotOf(s, x.a), B1 = lotOf(s, x.b); return A1 && B1 && A1.owner >= 0 && A1.owner === B1.owner; }).map(x => Object.assign({}, x, { owner:lotOf(s, x.a).owner }));
-  s.cities.forEach(x => { if (!before.has(x.c + x.owner)){ const P = s.players[x.owner]; money(s, x.owner, CITY_BONUS); banner(s, "city", `${P.name} 蓋了字城「${x.c}」！`, x.c); log(s, `${P.name}：${x.a}＋${x.b}＝${x.c}，蓋成字城 +${CITY_BONUS}，這兩塊地過路費翻倍`); s.learn = { k:"city", c:x.c, a:x.a, b:x.b, w:x.w };
+  s.cities.forEach(x => { if (!before.has(x.c + x.owner)){ const P = s.players[x.owner]; money(s, x.owner, CITY_BONUS); banner(s, "city", `${P.name} 合成了「${x.c}」！`, x.c); log(s, `${P.name}：${x.a}＋${x.b}＝${x.c}，合成「${x.c}」+${CITY_BONUS}，這兩塊地過路費翻倍`); s.learn = { k:"city", c:x.c, a:x.a, b:x.b, w:x.w };
     if ((P.missions || []).includes(x.c) && !(P.done || []).includes(x.c)){ P.done = (P.done || []).concat(x.c); money(s, x.owner, 300); banner(s, "mission", `${P.name} 完成任務「${x.c}」！+300`, x.c); log(s, `${P.name} 完成任務「${x.c}」+300`); } } });
   // 勝利：兩個任務都完成，或手上有三座字城
-  s.players.forEach((P, i) => { if (s.winner < 0 && !P.out && ((P.missions.length && P.done.length >= P.missions.length) || s.cities.filter(x => x.owner === i).length >= 3)){ s.winner = i; s.winWhy = P.done.length >= P.missions.length && P.missions.length ? "完成兩個任務" : "蓋了三座字城"; } });
+  s.players.forEach((P, i) => { if (s.winner < 0 && !P.out && ((P.missions.length && P.done.length >= P.missions.length) || s.cities.filter(x => x.owner === i).length >= 3)){ s.winner = i; s.winWhy = P.done.length >= P.missions.length && P.missions.length ? "完成兩個任務" : "合成了三個字"; } });
 }
 function mkQ(s, kind, c, extra){
   const it = itemOf(s, c), w = it[0], py = it[1];
@@ -130,14 +130,18 @@ function mkQ(s, kind, c, extra){
   if (kind === "write" && (NOSTROKE.has(c) || !window.HanziWriter)) kind = "stack";
   if (kind === "stack" && (partsOf(c).length !== 2 || !OV[c])) kind = "pick";
   if (kind === "typo" && ([...w].length < 2 || [...w].length > 6 || /[^\u3400-\u9FFF]/.test(w))) kind = "pick";
-  if (kind === "tone" && !bare(py)) kind = "pick";
-  const q = Object.assign({ kind, c, w, py, opts:null, ans:0, res:null, tried:[], t0:Date.now(), lim:LIM[kind] || 10 }, extra || {});
+  if (kind === "tone" && (!bare(py) || new Set([1, 2, 3, 4].map(k => retone(py, k))).size < 4)) kind = "pick";
+  // 找錯字：一定要用長得像或同音的字；找不到就改出選字題
+  const look = () => distractors({ c, py }, 6, null, 2.5).filter(x => x !== c && [...w].indexOf(x) < 0);
+  if (kind === "typo" && !look().length) kind = "pick";
+  const tm = s.tmul == null ? 1 : s.tmul;
+  const q = Object.assign({ kind, c, w, py, opts:null, ans:0, res:null, tried:[], t0:Date.now(), lim: tm ? Math.round((LIM[kind] || 20) * tm) : 0 }, extra || {});
   const pool = Object.keys(s.items).filter(x => x !== c);
   const near = () => { const ds = distractors({ c, py }, 4, new Set(Object.keys(s.items))).filter(x => x !== c && [...w].indexOf(x) < 0); return shuffle(ds.filter(x => s.items[x]).concat(ds, shuffle(pool).slice(0, 2))).filter((x, i, a) => a.indexOf(x) === i && x !== c); };
   if (kind === "pick" || kind === "listen"){ q.opts = shuffle([c].concat(near().slice(0, 3))); q.ans = q.opts.indexOf(c); }
   else if (kind === "typo"){
     // 把詞裡的這個字換成長得像或同音的字，請學生找出寫錯的那一個
-    const d = near()[0] || pool[0]; const chars = [...w]; const k = chars.indexOf(c); chars[k] = d;
+    const lk = look(), d = lk.find(x => s.items[x]) || lk[0]; const chars = [...w]; const k = chars.indexOf(c); chars[k] = d;
     q.opts = chars; q.ans = k; q.d = d;
   } else if (kind === "tone"){
     const t = [1, 2, 3, 4, 0].map(k => retone(py, k)).filter(x => x !== py);
@@ -232,7 +236,7 @@ function openSteal(s){
   if (q.stolen || !["buy", "reward"].includes(q.why) || q.kind === "write") return false;
   const can = s.players.map((o, i) => i).filter(i => i !== s.turn && !s.players[i].out && (q.why !== "buy" || s.players[i].coins >= sq.price));
   if (!can.length) return false;
-  s.steal = { until:Date.now() + 6000, can }; s.phase = "steal"; return true;
+  s.steal = { until:Date.now() + 10000, can }; s.phase = "steal"; return true;
 }
 const ACT = {
   roll(s){
@@ -244,7 +248,7 @@ const ACT = {
   answer(s, v){
     if (s.phase !== "q" || !s.q || s.q.res) return false;
     const q = s.q, by = q.by == null ? s.turn : q.by, P = s.players[by], ok = isRight(q, v);
-    const speed = Math.max(0, 1 - (Date.now() - q.t0) / 1000 / q.lim);
+    const speed = q.lim ? Math.max(0, 1 - (Date.now() - q.t0) / 1000 / q.lim) : 0;
     q.res = { ok, pick:v, by, speed };
     P.n++; P.kinds = P.kinds || {}; const kk = P.kinds[q.kind] = P.kinds[q.kind] || [0, 0]; kk[1]++; if (ok) kk[0]++;
     if (ok && q.kind !== "origin" && q.kind !== "meaning" && !(P.got || []).includes(q.c)) P.got = (P.got || []).concat(q.c);
@@ -282,7 +286,7 @@ const ACT = {
   },
   claim(s, i){
     if (s.phase !== "steal" || !s.steal || !s.steal.can.includes(i) || Date.now() > s.steal.until + 800) return false;
-    const q = s.q; q.tried = (q.tried || []).concat([q.res && q.res.pick]); q.res = null; q.by = i; q.stolen = true; q.t0 = Date.now(); q.lim = Math.min(q.lim, 8);
+    const q = s.q; q.tried = (q.tried || []).concat([q.res && q.res.pick]); q.res = null; q.by = i; q.stolen = true; q.t0 = Date.now(); q.lim = q.lim ? Math.max(12, Math.round(q.lim * .6)) : 0;
     s.steal = null; s.phase = "q"; log(s, `${s.players[i].name} 搶答！`); banner(s, "steal", `${s.players[i].name} 搶答！`); return true;
   },
   closeSteal(s){ if (s.phase !== "steal") return false; s.steal = null; s.phase = "end"; return true; },
@@ -363,31 +367,27 @@ function commit(s){
   render();
 }
 
-function panel(){ return $("#p-fw"); }
+// 大富翁不翻譯成越南文（hanzi-vi.js 看到 data-novi 就跳過；瀏覽器翻譯看 translate="no"）
+function panel(){ const P = $("#p-fw"); if (P && !P.hasAttribute("data-novi")){ P.setAttribute("data-novi", ""); P.setAttribute("translate", "no"); P.classList.add("notranslate"); const t = document.querySelector('nav.tabs button[data-tab="fw"]'); if (t){ t.setAttribute("data-novi", ""); t.setAttribute("translate", "no"); } } return P; }
 function render(){
   const P = panel(); if (!P) return;
   clearTimeout(tickT);
-  if (!S){ renderSetup(); return; }
-  if (S.phase === "lobby"){ renderLobby(); return; }
+  if (!S){ exitGameLook(); renderSetup(); return; }
+  if (S.phase === "lobby"){ exitGameLook(); renderLobby(); return; }
   preload();
   if (!(S.q && S.q.kind === "write" && !S.q.res)){ writer = null; wPad = null; }
   // 題目要用的透明卡圖還沒下載：先下載再畫
   if (S.q && S.q.kind === "stack"){ const ks = [...new Set(S.q.opts.map(o => o.k))].filter(k => !OV[k]); if (ks.length){ loadOv(ks).then(() => render()); } }
-  const keepScroll = P.querySelector(".fwmodal .fwq");
-  P.innerHTML = "";
-  P.append(el("div", { class:"fwhead" }, [
-    el("h2", { text:"漢字大富翁" }),
-    el("span", { class:"muted", text:`第 ${Math.min(S.round, S.rounds)}／${S.rounds} 輪${S.srcName ? "・" + S.srcName : ""}${ROOM ? "　房間 " + ROOM.id : ""}` }),
-    el("button", { class:"btn small", type:"button", text: S.phase === "over" ? "再玩一次" : "離開", onclick: leave })
-  ]));
+  P.innerHTML = ""; document.body.classList.add("fw-ingame"); P.setAttribute("data-novi", ""); P.setAttribute("translate", "no"); P.classList.add("notranslate");
+  P.append(hudEl());
   const wrap = el("div", { class:"fwwrap" });
   const bw = el("div", { class:"fwbw" });
   const board = el("div", { class:"fwboard" });
   S.board.forEach((sq, i) => board.append(cellEl(sq, i)));
   board.append(centerEl());
   bw.append(board);
-  const m = modalEl(); if (m) bw.append(m);
-  const side = el("div", { class:"fwside" }, [playersEl(), combosEl(), logEl()]);
+  const m = modalEl();
+  const side = el("div", { class:"fwside" }, [m, missionEl(), combosEl(), logEl()]);
   wrap.append(bw, side); P.append(wrap);
   if (S.phase === "over") P.append(overEl());
   // 動畫：骰子滾、棋子一格一格走、金幣飛、大字標語
@@ -399,6 +399,27 @@ function render(){
   if (S.q && !S.q.res && S.phase === "q") startTick();
   if (S.phase === "steal") startTick();
 }
+// 上方的遊戲列：名稱、第幾輪、每個玩家（圖示＋金幣）、離開
+function hudEl(){
+  const ps = el("div", { class:"hps" });
+  S.players.forEach((p, i) => {
+    const tags = [p.streak >= 2 ? el("span", { class:"tag hot", text:`連對 ${p.streak}` }) : null, p.hint ? el("span", { class:"tag", text:`提示 ${p.hint}` }) : null, p.time ? el("span", { class:"tag", text:`加時 ${p.time}` }) : null, p.free ? el("span", { class:"tag", text:`免過路 ${p.free}` }) : null].filter(Boolean);
+    ps.append(el("div", { class:"fwp" + (i === S.turn && S.phase !== "over" ? " on" : "") + (p.out ? " out" : ""), "data-i":i, style:`--oc:var(${PCOL[i]})` }, [
+      avEl(p, i, "big"), el("div", { class:"nm" }, [el("b", { text:p.name + (p.out ? "（破產）" : "") }), el("span", { class:"coin", text:p.coins.toLocaleString() }), tags.length ? el("span", { class:"tags" }, tags) : null])]));
+  });
+  return el("div", { class:"fwhud" }, [
+    el("div", { class:"logo" }, [el("b", { class:"hz", text:"漢字大富翁" })]),
+    el("span", { class:"round", text:`第 ${Math.min(S.round, S.rounds)}／${S.rounds} 輪` + (ROOM ? `・房間 ${ROOM.id}` : "") }),
+    ps,
+    el("button", { class:"btn small leave", type:"button", text: S.phase === "over" ? "再玩一次" : "離開", onclick: leave })]);
+}
+function missionEl(){
+  const meI = S.mode === "B" ? myIdx() : S.mode === "C" ? 0 : S.turn; const p = S.players[meI]; if (!p || !(p.missions || []).length) return null;
+  const box = el("div", { class:"fwcard2 mcard" }, [el("h3", { text:`${S.mode === "A" ? p.name + " 的" : "我的"}任務：合出這兩個字` })]);
+  const row = el("div", { class:"mrow" });
+  p.missions.forEach(c => { const x = (S.combos || []).find(y => y.c === c); row.append(el("div", { class:"mitem" + ((p.done || []).includes(c) ? " ok" : "") }, [el("b", { class:"hz", text:c }), el("small", { text: x ? `${x.a}＋${x.b}` : "" })])); });
+  box.append(row, el("small", { class:"muted", text:"兩個都完成，或合出三個字，就直接贏。" })); return box;
+}
 function afterAnim(){ hideModal(false); scheduleBot(); scheduleAuto(); focusMe(); }
 const RC = i => { // 20 格排在 6×6 的外圈
   if (i <= 5) return [1, i + 1];
@@ -408,28 +429,28 @@ const RC = i => { // 20 格排在 6×6 的外圈
 };
 function cellEl(sq, i){
   const [r, c] = RC(i);
-  const d = el("div", { class:"fwc t-" + sq.t + (sq.t === "lot" ? " g" + sq.g : ""), "data-i":i });
+  const d = el("div", { class:"tile t-" + sq.t + (sq.t === "lot" ? " lot g" + sq.g : " sp"), "data-i":i });
   d.style.gridArea = `${r} / ${c}`;
   if (sq.t === "lot"){
     const city = S.cities.find(x => x.owner === sq.owner && (x.a === sq.comp || x.b === sq.comp));
-    if (sq.owner >= 0){ d.classList.add("own"); d.style.setProperty("--oc", `var(${PCOL[sq.owner]})`); if (city) d.classList.add("city"); }
-    d.insertAdjacentHTML("beforeend", bldSvg(sq, city));
-    d.append(el("div", { class:"sign" }, [el("b", { class:"hz", text:sq.comp }), el("small", { class:"nm", text:sq.name || "" })]));
-    d.append(el("small", { class:"tagp", text: sq.owner >= 0 ? (city ? city.c + "城" : "過路 " + toll(S, sq)) : "$" + sq.price }));
-    d.title = sq.owner >= 0 ? `${S.players[sq.owner].name} 的地，過路費 ${toll(S, sq)}` : `「${sq.comp}」可以組成：${sq.chars.join("、")}`;
+    d.append(el("span", { class:"band" }), el("b", { class:"hz", text:sq.comp }), el("small", { class:"sub", text:sq.name || "" }));
+    if (sq.owner >= 0){ d.classList.add("own"); d.style.setProperty("--oc", `var(${PCOL[sq.owner]})`);
+      const h = el("span", { class:"houses" }); for (let k = 0; k <= sq.lv; k++) h.append(el("i", { class:"h" })); d.append(h);
+      if (city){ d.classList.add("city"); d.append(el("span", { class:"price ct", text:"合「" + city.c + "」" })); } else d.append(el("span", { class:"price ow", text:"過路 " + toll(S, sq) }));
+      d.title = `${S.players[sq.owner].name} 的地，過路費 ${toll(S, sq)}`; }
+    else { d.append(el("span", { class:"price", text:"$" + sq.price })); d.title = `「${sq.comp}」可以組成：${sq.chars.join("、")}`; }
     if (S.phase === "pick" && mine(S.turn) && sq.owner >= 0 && sq.owner !== S.turn){ d.classList.add("grabme"); d.onclick = () => act("grab", i); }
   } else {
-    const L = { start:["起點", "+" + PASS], chance:["機會", "抽卡"], origin:["部首館", "猜意思"], rest:["公園", "+50"], review:["圖書館", "複習"] }[sq.t];
-    d.insertAdjacentHTML("beforeend", spotSvg(sq.t));
-    d.append(el("div", { class:"sign spot" }, [el("b", { text:L[0] }), el("small", { text:L[1] })]));
+    const L = { start:["起點", "+" + PASS, "→"], chance:["機會", "", "?"], origin:["部首館", "猜意思", "部"], rest:["公園", "+50", "❀"], review:["複習站", "答錯的字", "複"] }[sq.t];
+    d.append(el("span", { class:"ic" + (sq.t === "chance" ? " q" : ""), text:L[2] }), el("b", { class:"nm", text:L[0] })); if (L[1]) d.append(el("small", { class:"sub", text:L[1] }));
   }
   d.append(el("div", { class:"tok" }));
   return d;
 }
 function placeTokens(over){
-  const P = panel(); P.querySelectorAll(".fwc .tok").forEach(t => t.innerHTML = "");
+  const P = panel(); P.querySelectorAll(".tile .tok").forEach(t => t.innerHTML = "");
   S.players.forEach((p, i) => { if (p.out) return; const pos = over && over[i] != null ? over[i] : p.pos;
-    const t = P.querySelector(`.fwc[data-i="${pos}"] .tok`); if (t) t.append(avEl(p, i, (i === S.turn ? "me" : "") + (over && over[i] != null ? " hop" : ""))); });
+    const t = P.querySelector(`.tile[data-i="${pos}"] .tok`); if (t) t.append(avEl(p, i, (i === S.turn ? "me" : "") + (over && over[i] != null ? " hop" : ""))); });
 }
 function dieSvg(n){
   const P = { 1:[[50,50]], 2:[[28,28],[72,72]], 3:[[28,28],[50,50],[72,72]], 4:[[28,28],[72,28],[28,72],[72,72]], 5:[[28,28],[72,28],[50,50],[28,72],[72,72]], 6:[[28,25],[72,25],[28,50],[72,50],[28,75],[72,75]] }[n] || [];
@@ -441,7 +462,7 @@ function rollThenWalk(a){
   const walk = () => {
     let k = 0; const over = {}; over[a.i] = a.from; placeTokens(over); const dir = a.n < 0 ? -1 : 1, n = Math.abs(a.n);
     const step = () => { k++; over[a.i] = (a.from + dir * k + N) % N; placeTokens(over); A.sfx.pick();
-      if (k < n) setTimeout(step, 260); else setTimeout(() => { animating = false; placeTokens(); const t = panel().querySelector(`.fwc[data-i="${S.players[a.i].pos}"]`); if (t) t.classList.add("land"); afterAnim(); }, 300); };
+      if (k < n) setTimeout(step, 260); else setTimeout(() => { animating = false; placeTokens(); const t = panel().querySelector(`.tile[data-i="${S.players[a.i].pos}"]`); if (t) t.classList.add("land"); afterAnim(); }, 300); };
     setTimeout(step, 200);
   };
   if (a.d && dz){ let f = 0; dz.classList.add("rolling");
@@ -452,6 +473,7 @@ function rollThenWalk(a){
 function tone(f, d){ try { const ctx = tone.c || (tone.c = new (window.AudioContext || window.webkitAudioContext)()); const o = ctx.createOscillator(), g = ctx.createGain(); o.type = "triangle"; o.frequency.value = f; g.gain.value = .05; g.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + d + .05); o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + d + .06); } catch(e){} }
 const coinSnd = () => { tone(988, .06); setTimeout(() => tone(1319, .12), 70); };
 function hideModal(h){ const x = panel().querySelector(".fwmodal"); if (x) x.style.visibility = h ? "hidden" : ""; }
+function exitGameLook(){ document.body.classList.remove("fw-ingame"); }
 function focusMe(){ const x = panel().querySelector(".fwmodal"); if (x && (S.mode === "B" || innerWidth < 700) && (mine(answerer()) || S.phase === "steal")){ const r = x.getBoundingClientRect(); if (r.top < 0 || r.bottom > innerHeight) x.scrollIntoView({ behavior:"smooth", block:"center" }); } }
 function floats(d){
   Object.entries(d).forEach(([i, n]) => { if (!n) return; const row = panel().querySelector(`.fwp[data-i="${i}"]`); if (!row) return; const r = row.getBoundingClientRect();
@@ -467,23 +489,24 @@ function showBanner(f){
 }
 function centerEl(){
   const p = cur(S), box = el("div", { class:"fwcenter" });
-  if (S.phase === "over"){ box.append(el("div", { class:"big", text:"遊戲結束" })); return box; }
-  box.append(el("div", { class:"city-name", text:"漢字城" }), el("div", { class:"who" }, [avEl(p, S.turn), `輪到 ${p.name}`]));
-  const d = el("button", { class:"dice", type:"button", "aria-label":"擲骰子" }); d.innerHTML = dieSvg(S.dice || 6);
-  if (S.phase === "roll" && mine(S.turn)){ d.classList.add("go"); d.onclick = () => act("roll"); box.append(d, el("div", { class:"hint", text:"點骰子" })); }
-  else { d.disabled = true; box.append(d); if (S.phase === "roll") box.append(el("div", { class:"hint", text: p.bot ? "電腦在擲骰子……" : `等 ${p.name} 擲骰子` })); }
+  box.append(el("div", { class:"title hz", text:"漢字大富翁" }));
+  if (S.phase === "over"){ box.append(el("div", { class:"turn", text:"遊戲結束" })); return box; }
+  box.append(el("div", { class:"turn" }, [avEl(p, S.turn), `輪到 ${p.name}`]));
+  const d = el("button", { class:"dicebtn", type:"button", "aria-label":"擲骰子" }); const dz = el("span", { class:"dice" }); dz.innerHTML = dieSvg(S.dice || 5); d.append(dz, el("span", { text: S.phase === "roll" ? (mine(S.turn) ? "擲骰子" : p.bot ? "電腦擲骰子……" : `等 ${p.name}`) : "" }));
+  if (S.phase === "roll" && mine(S.turn)){ d.classList.add("go"); d.onclick = () => act("roll"); } else d.disabled = true;
+  box.append(d);
   return box;
 }
-function playersEl(){
+function playersEl_old(){
   const box = el("div", { class:"fwplayers" });
   S.players.forEach((p, i) => {
     const lots = S.board.filter(b => b.owner === i).map(b => b.comp).join(" "), cities = S.cities.filter(x => x.owner === i).map(x => x.c).join("");
-    const ms = (p.missions || []).map(c => el("span", { class:"mis" + ((p.done || []).includes(c) ? " ok" : ""), title:"任務：蓋出這個字城", text:c }));
+    const ms = (p.missions || []).map(c => el("span", { class:"mis" + ((p.done || []).includes(c) ? " ok" : ""), title:"任務：合出這個字", text:c }));
     const tags = [p.streak >= 2 ? el("span", { class:"tag hot", text:`連對 ${p.streak}` }) : null, p.hint ? el("span", { class:"tag", text:`提示 ×${p.hint}` }) : null, p.time ? el("span", { class:"tag", text:`加時 ×${p.time}` }) : null, p.free ? el("span", { class:"tag", text:`免過路費 ×${p.free}` }) : null].filter(Boolean);
     box.append(el("div", { class:"fwp" + (i === S.turn && S.phase !== "over" ? " on" : "") + (p.out ? " out" : "") + (p.bot ? " bot" : ""), "data-i":i, style:`--oc:var(${PCOL[i]})` }, [
       avEl(p, i, "big"),
       el("div", { class:"nm" }, [el("b", { text:p.name + (p.bot ? `（電腦・${BOTLV[p.bot].name}）` : "") + (p.out ? "　破產" : "") }),
-        el("small", { text:(lots ? "地 " + lots : "還沒有地") + (cities ? "　字城 " + cities : "") }),
+        el("small", { text:(lots ? "地 " + lots : "還沒有地") + (cities ? "　合字 " + cities : "") }),
         ms.length ? el("small", { class:"mrow" }, [el("span", { class:"muted", text:"任務 " })].concat(ms)) : null,
         tags.length ? el("small", { class:"tags" }, tags) : null]),
       el("div", { class:"coin", text:p.coins })
@@ -493,7 +516,7 @@ function playersEl(){
 }
 function combosEl(){
   if (!S.combos || !S.combos.length) return null;
-  const box = el("div", { class:"fwcombo box" }, [el("h3", { text:"字城：買下兩塊地就能蓋" })]);
+  const box = el("div", { class:"fwcombo box" }, [el("h3", { text:"合字：同一個人買到兩塊地，就合成一個字（過路費翻倍）" })]);
   const row = el("div", { class:"row" });
   S.combos.slice(0, 10).forEach(x => { const c = S.cities.find(y => y.c === x.c); const ch = el("span", { class:"cchip" + (c ? " built" : ""), title:`${x.a}＋${x.b}＝${x.c}（${x.w}）`, text:`${x.a}＋${x.b}＝${c ? x.c : "？"}` }); if (c) ch.style.setProperty("--oc", `var(${PCOL[c.owner]})`); row.append(ch); });
   box.append(row); return box;
@@ -503,15 +526,15 @@ function logEl(){ const lg = el("div", { class:"fwlog box" }); S.log.slice(-5).f
 // 題目卡：蓋在棋盤上面
 function modalEl(){
   const ph = S.phase, q = S.q;
-  if (!["q", "steal", "pick", "end"].includes(ph)) return null;
-  if (ph === "end" && !q && !S.card && !S.rest) return null;
-  const box = el("div", { class:"fwmodal" }), inner = el("div", { class:"fwq" }); box.append(inner);
+  if (!["q", "steal", "pick", "end"].includes(ph)){ if (ph !== "roll") return null; const p = cur(S); return el("div", { class:"fwcard2 idle" }, [avEl(p, S.turn, "big"), el("b", { text: mine(S.turn) ? "輪到你了，按中間的「擲骰子」" : `輪到 ${p.name}` })]); }
+  if (ph === "end" && !q && !S.card && !S.rest && !S.learn) return null;
+  const box = el("div", { class:"fwmodal fwcard2" }), inner = el("div", { class:"fwq" }); box.append(inner);
   if (S.card) inner.append(el("div", { class:"fwcard", text:"機會卡：" + S.card }));
   if (q){
     const P = S.players[answerer()];
     inner.append(el("div", { class:"qhead" }, [el("span", { class:"kind", text:KNAME[q.kind] || "" }), el("b", { text:q.tag || "" }), el("span", { class:"who", style:`--oc:var(${PCOL[answerer()]})`, text:P.name + (q.stolen ? " 搶答" : " 作答") })]));
     if (q.sub && !q.res) inner.append(el("div", { class:"muted sub", text:q.sub }));
-    if (!q.res && ph === "q" && q.kind !== "write") inner.append(el("div", { class:"timer" }, [el("i")]));
+    if (!q.res && ph === "q" && q.kind !== "write" && q.lim) inner.append(el("div", { class:"timer" }, [el("i")]));
     inner.append(qBody(q, ph === "q" && !q.res && mine(answerer())));
     if (ph === "q" && !q.res && mine(answerer())){
       const items = el("div", { class:"items" });
@@ -553,7 +576,7 @@ function learnEl(L){
     if (chars.length){ const row = el("div", { class:"lchars" }); chars.forEach(c => { const it = itemOf(S, c); row.append(el("button", { class:"lc", type:"button", title:"聽", onclick: () => say(`${c}，${it[0]}的${c}`) }, [el("b", { text:c }), el("small", { text:it[1] }), el("small", { class:"muted", text:it[0] })])); }); box.append(el("div", { class:"muted", text:"這一局有它的字：" }), row); }
   } else if (L.k === "city"){
     const it = itemOf(S, L.c);
-    box.append(el("div", { class:"lh" }, [el("b", { class:"hz", text:L.c }), el("div", {}, [el("b", { text:`字城「${L.c}」：${L.a}＋${L.b}` }), el("div", { text:`${it[1]}　${it[0]}` }), A.zili ? el("div", { class:"muted", text:"字理：" + A.zili([L.a, L.b], L.c, it[1]) }) : null]), el("button", { class:"btn small", type:"button", text:"🔊", onclick: () => say(`${L.c}，${it[0]}的${L.c}`) })]));
+    box.append(el("div", { class:"lh" }, [el("b", { class:"hz", text:L.c }), el("div", {}, [el("b", { text:`合成「${L.c}」：${L.a}＋${L.b}` }), el("div", { text:`${it[1]}　${it[0]}` }), A.zili ? el("div", { class:"muted", text:"字理：" + A.zili([L.a, L.b], L.c, it[1]) }) : null]), el("button", { class:"btn small", type:"button", text:"🔊", onclick: () => say(`${L.c}，${it[0]}的${L.c}`) })]));
   }
   return box;
 }
@@ -637,7 +660,7 @@ function answered(v){
 function startTick(){
   const tick = () => {
     if (!S) return;
-    if (S.phase === "q" && S.q && !S.q.res && S.q.kind !== "write"){
+    if (S.phase === "q" && S.q && !S.q.res && S.q.kind !== "write" && S.q.lim){
       const left = S.q.lim - (Date.now() - S.q.t0) / 1000, bar = panel().querySelector(".fwmodal .timer i");
       if (bar){ bar.style.width = Math.max(0, left / S.q.lim * 100) + "%"; bar.classList.toggle("hurry", left < 3.5); }
       if (left < 3.2 && left > 0 && Math.floor(left * 4) % 4 === 0) tone(440, .03);
@@ -668,7 +691,7 @@ function overEl(){
   const KN = { meaning:"部首", stack:"疊字", pick:"選字", listen:"聽音", tone:"聲調", typo:"找錯字", origin:"字源", write:"寫字" };
   rank.forEach((r, k) => {
     const p = r.p, cities = S.cities.filter(x => x.owner === r.i).map(x => x.c).join("、");
-    const card = el("div", { class:"rep", style:`--oc:var(${PCOL[r.i]})` }, [el("div", { class:"rh" }, [avEl(p, r.i), el("b", { text:`${k + 1}. ${p.name}` }), el("span", { class:"muted", text:`總資產 ${r.w}・答對 ${p.ok}／${p.n}${cities ? "・字城 " + cities : ""}` })])]);
+    const card = el("div", { class:"rep", style:`--oc:var(${PCOL[r.i]})` }, [el("div", { class:"rh" }, [avEl(p, r.i), el("b", { text:`${k + 1}. ${p.name}` }), el("span", { class:"muted", text:`總資產 ${r.w}・答對 ${p.ok}／${p.n}${cities ? "・合字 " + cities : ""}` })])]);
     if (!p.bot){
       const ks = Object.entries(p.kinds || {}); if (ks.length) card.append(el("div", { class:"kbar" }, ks.map(([k2, v]) => el("span", { class:"kb" + (v[0] / v[1] >= .7 ? " good" : v[0] / v[1] < .5 ? " bad" : ""), text:`${KN[k2] || k2} ${v[0]}／${v[1]}` }))));
       const got = (p.got || []).filter(c => !p.wrong.includes(c));
@@ -703,7 +726,7 @@ function scheduleBot(){
     let v = ok;
     if (q.kind === "stack") v = ok ? q.ans.slice() : shuffle(q.opts.map((o, i) => i)).slice(0, 2);
     else if (q.opts) v = ok ? q.ans : pick(q.opts.map((o, i) => i).filter(i => i !== q.ans && !(q.tried || []).includes(i)));
-    go(() => act("answer", v), 1600 + rnd(q.lim * 350));
+    go(() => act("answer", v), 1800 + rnd((q.lim || 15) * 250));
   }
   else if (S.phase === "pick"){ const best = S.board.map((b, i) => [b, i]).filter(([b]) => b.t === "lot" && b.owner >= 0 && b.owner !== S.turn).sort((x, y) => toll(S, y[0]) - toll(S, x[0]))[0]; if (best) go(() => act("grab", best[1]), 1500); }
 }
@@ -739,7 +762,7 @@ function renderSetup(){
   const P = panel(); P.innerHTML = "";
   if (SET.src === "course" && !C.lessons.length) SET.src = "fam";
   P.append(el("div", { class:"fwhead" }, [el("h2", { text:"漢字大富翁" })]));
-  P.append(el("p", { class:"muted fwrule", text:"擲骰子走棋盤，地都是「部件」。答對就買地；同一個人買到能合成一個字的兩塊地（例如 言＋射＝謝），就蓋成「字城」，過路費翻倍。每題都有時間限制，答越快賺越多；答錯了別人可以搶答。機會卡有搶地、免過路費、交換位置、金幣雨……幾輪後總資產最多的人贏，答錯的字會列出來複習。" }));
+  P.append(el("p", { class:"muted fwrule", text:"擲骰子走棋盤，地都是「部件」。答對就買地；同一個人買到能合成一個字的兩塊地（例如 言＋射＝謝），就「合字」成功，過路費翻倍。每題都有時間限制，答越快賺越多；答錯了別人可以搶答。機會卡有搶地、免過路費、交換位置、金幣雨……幾輪後總資產最多的人贏，答錯的字會列出來複習。" }));
   const f = el("div", { class:"fwset box" }); P.append(f);
   const row = (label, node) => f.append(el("div", { class:"fwrow" }, [el("label", { text:label }), node]));
   row("玩法", seg([["A", "一台電腦輪流玩"], ["B", "各自用自己的裝置"], ["C", "跟電腦對戰"]], SET.mode, v => { SET.mode = v; keep(); renderSetup(); }));
@@ -747,15 +770,15 @@ function renderSetup(){
     if (!myUid()){ f.append(el("div", { class:"notice", text:"連線玩要先登入（學生用自己的帳號登入，老師用老師帳號）。" })); return; }
     const code = el("input", { class:"fwin", inputmode:"numeric", maxlength:"5", placeholder:"房間代碼（5 位數）" });
     const nm = el("input", { class:"fwin", placeholder:"你的名字", value:(A.store.me && A.store.me.name) || SET.names[0] || "" });
-    row("我的圖示", avPick(0));
+    row("選角色", avPick(0));
     f.append(el("h3", { text:"加入同學開的房間" }), el("div", { class:"row" }, [code, nm, el("button", { class:"btn primary", type:"button", text:"加入", onclick: () => join(code.value.trim(), nm.value.trim()) })]));
     f.append(el("h3", { class:"mt", text:"或是：自己開一個房間（老師開房，學生用代碼加入）" }));
   }
   if (SET.mode === "A"){
     row("人數", seg([[2, "2 人"], [3, "3 人"], [4, "4 人"]], SET.np, v => { SET.np = v; keep(); renderSetup(); }));
-    const ns = el("div", { class:"fwcol" }); for (let i = 0; i < SET.np; i++){ const inp = el("input", { class:"fwin", placeholder:`玩家 ${i + 1}`, value:SET.names[i] || "" }); inp.oninput = () => { SET.names[i] = inp.value; keep(); }; ns.append(el("div", { class:"prow" }, [inp, avPick(i)])); } row("玩家", ns);
+    const ns = el("div", { class:"fwcol" }); for (let i = 0; i < SET.np; i++){ const inp = el("input", { class:"fwin", placeholder:`玩家 ${i + 1}`, value:SET.names[i] || "" }); inp.oninput = () => { SET.names[i] = inp.value; keep(); }; ns.append(el("div", { class:"prow" }, [inp, avPick(i)])); } row("玩家和角色", ns);
   }
-  if (SET.mode === "C") row("我的圖示", avPick(0));
+  if (SET.mode === "C") row("選角色", avPick(0));
   if (SET.mode === "C"){
     row("電腦", seg([[1, "1 個"], [2, "2 個"], [3, "3 個"]], SET.nbot, v => { SET.nbot = v; keep(); renderSetup(); }));
     row("電腦程度", seg(Object.entries(BOTLV).map(([k, v]) => [k, v.name]), SET.bot, v => { SET.bot = v; keep(); renderSetup(); }));
@@ -784,12 +807,34 @@ function renderSetup(){
   }
   if (SET.src === "fam"){ const sel = el("select", { class:"fwsel" }); sel.append(el("option", { value:"*", text:"全部精選字族" })); FAM.forEach(x => sel.append(el("option", { value:x.name, text:x.name }))); sel.value = SET.fam; sel.onchange = () => { SET.fam = sel.value; keep(); }; row("字族", sel); }
   if (SET.src === "lv"){ const sel = el("select", { class:"fwsel" }); LEVELS.forEach((L, i) => { if (i) sel.append(el("option", { value:i, text:L.name })); }); sel.value = SET.lv; sel.onchange = () => { SET.lv = Number(sel.value); keep(); }; row("等級", sel); }
+  row("答題時間", seg([[1.5, "寬鬆（30 秒左右）"], [1, "標準（20 秒左右）"], [0, "不限時"]], SET.tmul == null ? 1.5 : SET.tmul, v => { SET.tmul = v; keep(); renderSetup(); }));
+  // 題庫：這一局會考哪些字、題目怎麼出（老師可以把不要的字拿掉）
+  const si0 = srcInfo(), items0 = itemsFrom(si0.src), ex = new Set(SET.excl || []);
+  const tb = el("div", { class:"fwbank" });
+  const n0 = Object.keys(items0).filter(c => !ex.has(c)).length;
+  const tog = el("button", { class:"btn", type:"button", text:(SET.showBank ? "收起題庫" : "看題庫") + `（這一局會考 ${n0} 個字）`, onclick: () => { SET.showBank = !SET.showBank; keep(); renderSetup(); } });
+  tb.append(tog);
+  if (SET.showBank){
+    tb.append(el("div", { class:"bankhelp" }, [
+      el("b", { text:"題目怎麼來的" }),
+      el("p", { text:"上面選的範圍裡每一個字，就是題庫（選「我的課本」就是那幾課的生詞）。每個字用它的生詞當提示，例如「謝」就用「謝謝」。只有一個字的生詞，用課文裡完整的一句。錯的選項只從這一局的字裡挑長得像或讀音一樣的，不會出現沒學過的字。" }),
+      el("b", { text:"六種題目" }),
+      el("ul", {}, ["選字：看詞和拼音，選出 □ 是哪個字", "疊字：選兩張透明卡，疊出 □ 這個字", "聽音：聽讀音，選出對的字", "聲調：選這個字的正確聲調", "找錯字：詞裡有一個字寫錯，點出來", "部首館：看部件，選它的意思"].map(t => el("li", { text:t }))),
+      el("small", { class:"muted", text:"不想考的字，把勾勾拿掉就好。" })]));
+    const g = el("div", { class:"bankgrid" });
+    Object.entries(items0).forEach(([c, it]) => { const cb = el("input", { type:"checkbox" }); cb.checked = !ex.has(c);
+      cb.onchange = () => { const e2 = new Set(SET.excl || []); if (cb.checked) e2.delete(c); else e2.add(c); SET.excl = [...e2]; keep(); tog.textContent = `收起題庫（這一局會考 ${Object.keys(items0).filter(x => !e2.has(x)).length} 個字）`; };
+      g.append(el("label", { class:"bk" + (ex.has(c) ? " off" : "") }, [cb, el("b", { class:"hz", text:c }), el("span", {}, [el("small", { text:it[1] || "" }), el("small", { class:"muted", text:it[0] || "" })])])); });
+    tb.append(g);
+  }
+  row("題庫", tb);
   row("輪數", seg([[6, "6 輪（約 15 分鐘）"], [8, "8 輪"], [12, "12 輪"]], SET.rounds, v => { SET.rounds = v; keep(); renderSetup(); }));
   const go = el("button", { class:"btn primary big", type:"button", text: SET.mode === "B" ? "開房間" : "開始玩" }); go.onclick = start;
   f.append(el("div", { class:"row mt" }, [go]));
 }
 function start(){
   const si = srcInfo(); const items = itemsFrom(si.src);
+  (SET.excl || []).forEach(c => delete items[c]);
   if (Object.keys(items).length < 6){ toast(SET.src === "course" ? "請至少選一課（合起來要有 6 個字以上）" : "這個範圍的字太少了"); return; }
   const me = (A.store.me && A.store.me.name) || "我";
   let players;
@@ -797,7 +842,7 @@ function start(){
   if (SET.mode === "C") players = [{ name:me, av:SET.avs[0] }].concat(Array.from({ length:SET.nbot }, (_, i) => ({ name:["電腦一號", "電腦二號", "電腦三號"][i], bot:SET.bot })));
   if (SET.mode === "B") players = SET.hostOnly ? [] : [{ name:me, uid:myUid(), av:SET.avs[0] }];
   saved = false;
-  const s = newGame({ mode:SET.mode, rounds:SET.rounds, src:si.src, srcName:si.name, players, host:myUid() });
+  const s = newGame({ mode:SET.mode, rounds:SET.rounds, src:si.src, srcName:si.name, players, host:myUid(), excl:SET.excl || [], tmul:SET.tmul == null ? 1.5 : SET.tmul });
   if (SET.mode === "B") return openRoom(s);
   startGame(s); S = s; preload(); render(); window.scrollTo({ top:0 });
 }

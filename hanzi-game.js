@@ -805,19 +805,56 @@ function cvSentences(text){
   return cvClean(text).split(/\n|(?<=[。！？!?；])/).map(x => x.replace(/^\s*[^\s：:，。、]{1,8}[：:]\s*/, "").replace(/\s+/g, "").trim())
     .filter(x => HAN.test(x) && [...x].length >= 4 && [...x].length <= 42);
 }
-/* 拼音切成一個字一個音節（切不準就退回字典讀音） */
-const SYL = /(?:zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?[aeiouüvāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]+(?:ng|n|r(?![aeiouüāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]))?/gi;
+/* 拼音切成一個字一個音節：照每個字的字典讀音去對（不分聲調），對不上就退回字典讀音 */
+const SYL = /(?:zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?[aeiou]+(?:ng|n|r(?![aeiou]))?/y;
+const PYCH = /[a-zA-Züāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/;
+const pyBase = p => toneless(p).replace(/v/g, "u").replace(/[^a-z]/g, "");
+function pyReads(c){
+  const r = new Set(pysOf(c).flatMap(p => String(p).split(/[\/,，、 ]/)).map(pyBase).filter(Boolean));
+  if (c === "兒"){ r.add("r"); r.add("er"); }
+  return [...r].sort((a, b) => b.length - a.length);
+}
+// 回傳每個字的音節（帶聲調）；exact＝拼音要剛好用完。對不上回傳 null
+function pySplit(w, wpy, exact){
+  const cs = [...w], T = [...String(wpy || "").replace(/[()（）]/g, "")].filter(ch => PYCH.test(ch.toLowerCase())), B = T.map(ch => pyBase(ch) || "u").join("");
+  if (!cs.length || !B || B.length !== T.length) return null;
+  const R = cs.map(pyReads), memo = {};
+  const go = (i, k) => {
+    const key = i + "," + k; if (key in memo) return memo[key];
+    let res = null;
+    if (k === cs.length) res = (!exact || i === B.length) ? [] : null;
+    else {
+      let cands = R[k].filter(r => B.startsWith(r, i));
+      if (!R[k].length){ SYL.lastIndex = i; const m = SYL.exec(B); cands = m ? [m[0]] : []; }
+      for (const r of cands){ const rest = go(i + r.length, k + 1); if (rest){ res = [T.slice(i, i + r.length).join("").toLowerCase()].concat(rest); break; } }
+    }
+    return (memo[key] = res);
+  };
+  return go(0, 0);
+}
 function charPy(c, w, wpy){
-  const syl = String(wpy || "").replace(/[^a-zA-Züāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]/g, " ").match(SYL);
-  const i = [...w].indexOf(c);
-  if (syl && syl.length === [...w].length && i >= 0) return syl[i].toLowerCase();
-  return pyOf(c);
+  const i = [...w].indexOf(c); if (i < 0) return pyOf(c);
+  const sp = pySplit(w, wpy, true) || pySplit(w, wpy, false);
+  return sp ? sp[i] : pyOf(c);
+}
+// 生詞欄位常把兩種寫法連在一起（做夢作夢、凶兇、箱子箱 xiāngzi/xiāng）：拆成兩個詞
+function cvVariants(w, py){
+  const n = [...w].length, vs = String(py || "").split(/[\/／]/).map(x => x.trim()).filter(Boolean);
+  if (n < 2 || !vs.length) return [{ w, py }];
+  const cut = (k, a, b) => { const x = [...w].slice(0, k).join(""), y = [...w].slice(k).join(""); return pySplit(x, a, true) && pySplit(y, b, true) ? [{ w:x, py:a }, { w:y, py:b }] : null; };
+  if (vs.length >= 2){
+    if (pySplit(w, vs[0], true)) return [{ w, py:vs[0] }];
+    for (let k = 1; k < n; k++){ const r = cut(k, vs[0], vs[1]); if (r) return r; }
+    return [{ w, py:vs[0] }];
+  }
+  if (pySplit(w, vs[0], true) || n % 2) return [{ w, py:vs[0] }];
+  return cut(n / 2, vs[0], vs[0]) || [{ w, py:vs[0] }];
 }
 const cvLabel = l => { const tb = (l.textbook || "").trim(), ti = (l.title || "").trim(); const core = ti || (l.order_index ? "第" + l.order_index + "課" : "課"); return (tb ? tb + "・" : "") + core; };
 function cvLesson(l){
   const words = [], texts = [];
   cvDialogs(l).forEach(d => {
-    cvParse(d.vocabulary).forEach(v => { const w = cvClean(v.front).replace(/[^㐀-鿿豈-﫿]/g, ""); if (w) words.push({ w, py:v.py || "", mean:v.back || "", ex:v.ex || [] }); });
+    cvParse(d.vocabulary).forEach(v => { const w0 = cvClean(v.front).replace(/[^㐀-鿿豈-﫿]/g, ""); if (w0) cvVariants(w0, v.py || "").forEach((x, j) => { if (!words.some(W => W.w === x.w)) words.push({ w:x.w, py:x.py, mean:v.back || "", ex:v.ex || [], alt:j > 0 || undefined }); }); });
     if (d.content) texts.push(d.content);
   });
   const sents = cvSentences(texts.join("\n"));
@@ -871,7 +908,7 @@ function cvIndex(){
   return CVI;
 }
 // 干擾選項：長得像、同音的字。allow＝只能用學生學過的字（同一本課本、到這一課為止）
-function distractors(item, n = 3, allow){
+function distractors(item, n = 3, allow, minSc){
   const I = cvIndex(), c = item.c, sc = {};
   if (allow && allow.size < n + 4) allow = null;
   const bump = (x, v) => { if (x && x !== c && HAN.test(x) && !NOSTROKE.has(x) && (!allow || allow.has(x))) sc[x] = (sc[x] || 0) + v; };
@@ -880,6 +917,8 @@ function distractors(item, n = 3, allow){
   (I.part[c] || []).forEach(x => bump(x, 1.5));
   if (CH[c] && CH[c].p) CH[c].p.forEach(p => { if (CH[p] && !(p in RAD)) bump(p, 1.4); });
   let pool = Object.keys(sc).sort((a, b) => sc[b] - sc[a] + (Math.random() - .5) * .8);
+  // minSc：只要「真的像」的字（同音或共用聲旁），不夠就少給，不亂補
+  if (minSc) return pool.filter(x => sc[x] >= minSc).slice(0, n);
   // 不要選到放進去也是一個詞的字（例如「在／再」放進同一個句子都說得通的情況，盡量避開課本裡的其他詞）
   const out = pool.slice(0, n);
   const fill = shuffle(allow ? [...allow] : Object.keys(CH)).filter(x => x !== c && !out.includes(x) && (!CH[x] || toneless(CH[x].py) !== toneless(item.py)));
@@ -1312,7 +1351,7 @@ function hzGate(kind){
 function hzUngate(){ document.body.classList.remove("hz-gated"); const g = $("#hzGate"); if (g) g.remove(); }
 
 // ================= 給「漢字大富翁」（hanzi-fuweng.js）用的介面 =================
-window.HZAPI = { zili, radName, OV, loadOv, ovStyle, CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
+window.HZAPI = { zili, pySplit, charPy, cvVariants, pysOf, radName, OV, loadOv, ovStyle, CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
   store, getRec: () => rec, save, addXp,
   addReview(c, w, py){ if (!store.me || !c || rec.review[c]) return false; rec.review[c] = { box:0, due:todayStr(1), lid:"", w:w || "", py:py || "", mean:"" }; return true; } };
 document.dispatchEvent(new Event("hzapi"));
