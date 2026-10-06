@@ -19,8 +19,8 @@ const PRICE = [100, 140, 180, 220];
 const LAYOUT = ["start","lot","chance","lot","lot","origin","lot","lot","chance","lot","rest","lot","chance","lot","lot","review","lot","chance","lot","lot"];
 const PCOL = ["--navy", "--green", "--plum", "--gold"];
 const BOTLV = { easy:{ name:"簡單", p:.55 }, normal:{ name:"普通", p:.75 }, hard:{ name:"厲害", p:.92 } };
-const LIM = { stack:15, pick:10, listen:10, tone:10, typo:12, origin:12, write:45 };
-const KNAME = { stack:"疊字", pick:"選字", listen:"聽音", tone:"聲調", typo:"找錯字", origin:"字源", write:"寫字" };
+const LIM = { meaning:10, stack:15, pick:10, listen:10, tone:10, typo:12, origin:12, write:45 };
+const KNAME = { meaning:"部首", stack:"疊字", pick:"選字", listen:"聽音", tone:"聲調", typo:"找錯字", origin:"字源", write:"寫字" };
 const CHANCE = [
   { t:"rain", text:"金幣雨：連答三題，每題 +60" },
   { t:"grab", text:"搶地卡：答對就搶走別人一塊地" },
@@ -149,18 +149,15 @@ function mkQ(s, kind, c, extra){
     // 干擾卡優先挑這一局出現過的部件
     const lots = new Set(s.board.map(b => b.comp)); others.sort((a, b) => lots.has(b.s) - lots.has(a.s));
     q.opts = shuffle(own.concat(shuffle(others.slice(0, 6)).slice(0, 4))); q.ans = own.map(o => q.opts.indexOf(o));
-  } else if (kind === "origin"){
-    // 字源題要猜得出來：答案和選項都用這一局的字裡看得到的部件（最好是象形、常見的），再給「在哪些字裡」的提示
-    const EASY = "人女子大日月木口山水火門馬魚目耳手心土田刀力牛羊鳥車雨石竹米貝衣言足走子王犬虫舟弓矢魚".split("");
-    const used = {}; Object.keys(s.items).forEach(x => partsOf(x).concat([x]).forEach(k => { if (ORI[k] && hasGlyph(k)) (used[k] = used[k] || []).push(x); }));
-    const cand = Object.keys(used).sort((x, y) => (EASY.indexOf(y) >= 0) - (EASY.indexOf(x) >= 0) || used[y].length - used[x].length);
-    const top = cand.slice(0, Math.max(4, Math.ceil(cand.length / 2)));
-    const k = top.length ? pick(top) : pick(EASY.filter(x => ORI[x] && hasGlyph(x)));
-    const sc = ["oracle", "bronze", "seal"].filter(x => GLY[k + "-" + x]);
-    q.c = k; q.w = k; q.py = pyOf(k); q.script = sc.includes("oracle") ? "oracle" : sc[0];
-    const fill = cand.filter(x => x !== k).concat(shuffle(EASY.filter(x => x !== k && ORI[x] && hasGlyph(x))));
-    q.opts = shuffle([k].concat([...new Set(fill)].slice(0, 3))); q.ans = q.opts.indexOf(k);
-    q.hint = (used[k] || []).filter(x => x !== k).slice(0, 3);
+  } else if (kind === "meaning"){
+    // 部首館：看部件，選它的意思（不出現甲骨文等古文字）
+    const has = k => RAD[k] && RAD[k].hint;
+    const near = [...new Set(s.board.filter(b => b.t === "lot").map(b => b.comp).concat(Object.keys(s.items).flatMap(partsOf)))].filter(has);
+    const k = near.length ? pick(near) : pick(Object.keys(RAD).filter(has));
+    const hint = x => RAD[x].hint.split(/\n/)[0];
+    const others = shuffle([...new Set(Object.keys(RAD).filter(x => has(x) && x !== k).map(hint))].filter(h => h !== hint(k)));
+    q.c = k; q.w = k; q.py = ""; q.opts = shuffle([hint(k)].concat(others.slice(0, 3))); q.ans = q.opts.indexOf(hint(k));
+    q.ex = Object.keys(s.items).filter(c => partsOf(c).includes(k)).slice(0, 4);
   }
   return q;
 }
@@ -213,15 +210,16 @@ function land(s){
       s.anim = { i:s.turn, from, n, seq:s.seq + 1, d:0 }; const card = s.card; land(s); s.card = s.card || card; return;
     }
   }
-  if (sq.t === "origin"){ s.q = mkQ(s, "origin", anyChar("origin"), { why:"reward", by:s.turn, win:150, lose:0, tag:"字源館：猜古字 +150" }); s.phase = "q"; return; }
+  if (sq.t === "origin"){ s.q = mkQ(s, "meaning", "", { why:"reward", by:s.turn, win:150, lose:0, tag:"部首館：猜意思 +150" }); s.phase = "q"; return; }
   if (sq.t === "review"){
     const c = p.wrong.length ? pick(p.wrong) : anyChar("pick"); const k = pick(["pick", "typo", "stack"]);
     s.q = mkQ(s, k, c, { why:"review", by:s.turn, win:100, lose:0, tag: p.wrong.length ? "複習站：你這局答錯過的字 +100" : "複習站 +100" }); s.phase = "q"; return;
   }
   if (sq.t === "rest"){
-    const near = Object.keys(s.items).flatMap(partsOf).filter(k => ORI[k]);
-    s.rest = near.length ? pick(near) : ""; money(s, s.turn, 50); log(s, `${p.name} 在休息站看字源 +50`); s.phase = "end"; return;
+    const lots = s.board.filter(b => b.t === "lot").map(b => b.comp);
+    money(s, s.turn, 50); if (lots.length) s.learn = { k:"lot", comp:pick(lots) }; log(s, `${p.name} 在公園休息 +50`); s.phase = "end"; return;
   }
+
   s.phase = "end";
 }
 function bankrupt(s){
@@ -249,9 +247,9 @@ const ACT = {
     const speed = Math.max(0, 1 - (Date.now() - q.t0) / 1000 / q.lim);
     q.res = { ok, pick:v, by, speed };
     P.n++; P.kinds = P.kinds || {}; const kk = P.kinds[q.kind] = P.kinds[q.kind] || [0, 0]; kk[1]++; if (ok) kk[0]++;
-    if (ok && q.kind !== "origin" && !(P.got || []).includes(q.c)) P.got = (P.got || []).concat(q.c);
+    if (ok && q.kind !== "origin" && q.kind !== "meaning" && !(P.got || []).includes(q.c)) P.got = (P.got || []).concat(q.c);
     if (ok){ P.ok++; P.streak = (P.streak || 0) + 1; if (P.streak >= 3 && P.streak % 2 === 1){ money(s, by, 50); P.hint = (P.hint || 0) + 1; banner(s, "streak", `${P.name} 連對 ${P.streak} 題！+50＋提示卡`); } }
-    else { P.streak = 0; if (q.kind !== "origin" && !P.wrong.includes(q.c)) P.wrong.push(q.c); }
+    else { P.streak = 0; if (q.kind !== "origin" && q.kind !== "meaning" && !P.wrong.includes(q.c)) P.wrong.push(q.c); }
     if (ok && q.why === "review") P.wrong = P.wrong.filter(x => x !== q.c);
     const sq = s.board[cur(s).pos]; s.phase = "end";
     if (q.why === "buy"){
@@ -421,7 +419,7 @@ function cellEl(sq, i){
     d.title = sq.owner >= 0 ? `${S.players[sq.owner].name} 的地，過路費 ${toll(S, sq)}` : `「${sq.comp}」可以組成：${sq.chars.join("、")}`;
     if (S.phase === "pick" && mine(S.turn) && sq.owner >= 0 && sq.owner !== S.turn){ d.classList.add("grabme"); d.onclick = () => act("grab", i); }
   } else {
-    const L = { start:["起點", "+" + PASS], chance:["機會", "抽卡"], origin:["字源館", "猜古字"], rest:["公園", "+50"], review:["圖書館", "複習"] }[sq.t];
+    const L = { start:["起點", "+" + PASS], chance:["機會", "抽卡"], origin:["部首館", "猜意思"], rest:["公園", "+50"], review:["圖書館", "複習"] }[sq.t];
     d.insertAdjacentHTML("beforeend", spotSvg(sq.t));
     d.append(el("div", { class:"sign spot" }, [el("b", { text:L[0] }), el("small", { text:L[1] })]));
   }
@@ -538,7 +536,7 @@ function modalEl(){
     inner.append(pk);
   }
   if (ph === "end" && S.learn) inner.append(learnEl(S.learn));
-  if (ph === "end" && S.rest && ORI[S.rest]){ const o = originBlock(S.rest); if (o){ inner.append(el("p", { class:"muted", text:"休息站：看一個部件的字源 +50" }), o); } }
+  if (false){ const o = originBlock(S.rest); if (o){ inner.append(el("p", { class:"muted", text:"休息站：看一個部件的字源 +50" }), o); } }
   if (ph === "end"){
     const nx = el("button", { class:"btn small nextb", type:"button", text:"下一位 →" });
     if (isHost() || mine(S.turn)) nx.onclick = () => { clearTimeout(autoT); act("next"); }; else nx.disabled = true;
@@ -568,6 +566,7 @@ function qBody(q, live){
   if (q.kind === "tone"){ prompt.append(el("div", { class:"w", text:q.w }), el("div", { class:"muted", text:`「${q.c}」的聲調是？` })); }
   if (q.kind === "typo"){ ask = "這個詞有一個字寫錯了，點出來！"; }
   if (q.kind === "stack"){ prompt.append(el("div", { class:"w" + ([...q.w].length > 6 ? " long" : ""), text:blank(q.w, q.c) }), el("div", { class:"py", text:q.py })); ask = "選兩張透明卡，疊出 □"; }
+  if (q.kind === "meaning"){ prompt.append(el("div", { class:"w", text:q.c })); ask = "這個部件表示什麼意思？"; }
   if (q.kind === "origin"){ const g = el("span", { class:"gw big" }); g.style.setProperty("--m", `url("data:image/webp;base64,${GLY[q.c + "-" + q.script]}")`); prompt.append(g, el("div", { class:"muted", text:{ oracle:"甲骨文", bronze:"金文", seal:"小篆" }[q.script] })); ask = "這個古字是今天的哪一個字？" + (q.hint && q.hint.length ? `（提示：在「${q.hint.join("、")}」裡面）` : ""); }
   if (q.kind === "write"){ prompt.append(el("div", { class:"w", text:blank(q.w, q.c) }), el("div", { class:"py", text:q.py })); ask = "照筆順把 □ 寫出來"; }
   if (prompt.children.length) box.append(prompt);
@@ -607,7 +606,7 @@ function qBody(q, live){
     box.append(el("div", { class:"stackwrap" }, [bd, g]));
     return box;
   }
-  const g = el("div", { class:"opts" + (q.kind === "tone" ? " pyo" : "") + (q.kind === "typo" ? " typo" : "") });
+  const g = el("div", { class:"opts" + (q.kind === "tone" || q.kind === "meaning" ? " pyo" : "") + (q.kind === "meaning" ? " mean" : "") + (q.kind === "typo" ? " typo" : "") });
   q.opts.forEach((o, i) => {
     const b = el("button", { class:"opt", type:"button", text:o });
     if (q.res && S.phase !== "steal"){ b.disabled = true; if (i === q.ans) b.classList.add("right"); else if (i === q.res.pick) b.classList.add("wrong"); }
@@ -624,7 +623,8 @@ function feedback(q){
   const tm = q.res.pick === "timeout";
   const fb = el("div", { class:"fwfb " + (ok ? "ok" : "no") }, [el("b", { text: ok ? (q.res.speed > .6 ? "秒答！" : "答對了！") : tm ? "時間到！" : "答錯了" }), `　${q.c}　${q.py || ""}　${q.kind === "origin" ? (nameOf(q.c) !== q.py ? nameOf(q.c) : "") : q.w}`]);
   if (q.kind === "typo" && !ok) fb.append(el("div", { class:"muted", text:`「${q.d}」應該是「${q.c}」` }));
-  if (e.tip && q.kind !== "origin") fb.append(el("div", { class:"muted", text:"記憶提示：" + e.tip }));
+  if (q.kind === "meaning"){ fb.append(el("div", { class:"muted", text:`「${q.c}」${nameOf(q.c) ? "（" + nameOf(q.c) + "）" : ""}表示：${q.opts[q.ans]}${q.ex && q.ex.length ? "，例如 " + q.ex.join("、") : ""}` })); }
+  else if (e.tip && q.kind !== "origin") fb.append(el("div", { class:"muted", text:"記憶提示：" + e.tip }));
   fb.append(" ", el("button", { class:"btn small", type:"button", text:"🔊", onclick: () => say(`${q.c}，${q.w}的${q.c}`) }));
   return fb;
 }
@@ -665,7 +665,7 @@ function overEl(){
   const rank = S.players.map((p, i) => ({ p, i, w:worth(S, i) })).sort((a, b) => (b.i === S.winner) - (a.i === S.winner) || b.w - a.w);
   const W = rank[0];
   box.append(el("div", { class:"winner" }, [avEl(W.p, W.i, "big"), el("h3", { text:`${W.p.name} 贏了！` + (S.winner >= 0 ? `（${S.winWhy}）` : "（總資產最多）") })]));
-  const KN = { stack:"疊字", pick:"選字", listen:"聽音", tone:"聲調", typo:"找錯字", origin:"字源", write:"寫字" };
+  const KN = { meaning:"部首", stack:"疊字", pick:"選字", listen:"聽音", tone:"聲調", typo:"找錯字", origin:"字源", write:"寫字" };
   rank.forEach((r, k) => {
     const p = r.p, cities = S.cities.filter(x => x.owner === r.i).map(x => x.c).join("、");
     const card = el("div", { class:"rep", style:`--oc:var(${PCOL[r.i]})` }, [el("div", { class:"rh" }, [avEl(p, r.i), el("b", { text:`${k + 1}. ${p.name}` }), el("span", { class:"muted", text:`總資產 ${r.w}・答對 ${p.ok}／${p.n}${cities ? "・字城 " + cities : ""}` })])]);
