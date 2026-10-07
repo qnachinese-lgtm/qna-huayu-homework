@@ -23,15 +23,18 @@ const keep = () => { try { localStorage.setItem("hz-mg", JSON.stringify(SET)); }
 // ---------- 題目來源：生詞＋句子 ----------
 function pool(){
   const words = [], seen = new Set(), sents = [];
-  const put = (w, py, mean) => { w = String(w || "").trim(); py = (py || "").trim(); if (!w || !HAN.test(w) || w.length > 4) return;
-    if (seen.has(w)){ const o = words.find(x => x.w === w); if (o && py && o.fb){ o.py = py; o.fb = false; } if (o && !o.mean && mean) o.mean = mean.trim(); return; }
-    seen.add(w); words.push({ w, py:py || [...w].map(c => pyOf(c)).join(""), fb:!py, mean:(mean || "").trim() }); };
+  /* CLOZE_V1428 每個詞自己的例句也帶出來（課本生詞欄第四格就是那一句），句子挖空要用。 */
+  const exOf = (ex, w) => (Array.isArray(ex) ? ex : []).map(x => String(x || "").replace(/\s+/g, "")).filter(x => x.indexOf(w) >= 0);
+  const put = (w, py, mean, ex) => { w = String(w || "").trim(); py = (py || "").trim(); if (!w || !HAN.test(w) || w.length > 4) return;
+    if (seen.has(w)){ const o = words.find(x => x.w === w); if (o && py && o.fb){ o.py = py; o.fb = false; } if (o && !o.mean && mean) o.mean = mean.trim();
+      if (o && !(o.ex || []).length) o.ex = exOf(ex, w); return; }
+    seen.add(w); words.push({ w, py:py || [...w].map(c => pyOf(c)).join(""), fb:!py, mean:(mean || "").trim(), ex:exOf(ex, w) }); };
   if (SET.src === "course" && C.lessons.length){
     SET.lids.filter(id => C.byId[id]).forEach(id => { const L = C.byId[id];
-      L.chars.forEach(x => { const w = x.word || x.w; put(w, [...w].length > 1 ? (x.w === w ? x.wpy : "") : x.py, x.mean); (x.ex || []).forEach(s => sents.push(s)); });
+      L.chars.forEach(x => { const w = x.word || x.w; put(w, [...w].length > 1 ? (x.w === w ? x.wpy : "") : x.py, x.mean, x.ex); (x.ex || []).forEach(s => sents.push(s)); });
       (L.sents || []).forEach(s => sents.push(s)); });
   } else {
-    const L = LEVELS[SET.lv] || LEVELS[1]; (L ? L.stages : []).forEach(st => st.chars.forEach(c => { const e = CH[c]; if (e && e.w) put(e.w, e.w.length === 1 ? e.py : ""); }));
+    const L = LEVELS[SET.lv] || LEVELS[1]; (L ? L.stages : []).forEach(st => st.chars.forEach(c => { const e = CH[c]; if (e && e.w) put(e.w, e.w.length === 1 ? e.py : "", "", null); }));
   }
   const S2 = [...new Set(sents.map(s => String(s).replace(/\s+/g, "")))].filter(s => { const n = [...s].length; return n >= 5 && n <= 24 && /[㐀-鿿]/.test(s) && !/[A-Za-z]/.test(s); });
   return { words, sents:S2 };
@@ -55,7 +58,8 @@ const GAMES = [
   { k:"bingo", t:"生詞賓果", d:"老師叫詞，學生找詞，先連成一條線的人贏。可以跟電腦玩，也可以全班一起玩。", ic:"賓" },
   { k:"flip", t:"翻牌配對", d:"翻兩張牌，把「詞」和它的拼音（或意思）配成一對。", ic:"配" },
   { k:"quiz", t:"快問快答", d:"看拼音選詞、看詞選拼音、選字填空。全班用手機一起搶分，或自己練習。", ic:"答" },
-  { k:"order", t:"句子排序", d:"把課文的句子打散，排回正確的順序。", ic:"排" }
+  { k:"order", t:"句子排序", d:"把課文的句子打散，排回正確的順序。", ic:"排" },
+  { k:"cloze", t:"句子挖空", d:"用這個詞在課本裡的那一句，把詞挖掉讓學生填。要看懂整句才填得出來，不是比對拼音。", ic:"空" }/* CLOZE_V1428 */
 ];
 const GAPP = document.body.classList.contains("games-app");
 const FWCARD = { k:"fw", t:"大富翁", d:"擲骰子走棋盤，地是課本的生詞。答對才買得到地，機會卡、命運卡要看懂中文。", ic:"富" };
@@ -137,9 +141,11 @@ function goFw(){ const b = document.querySelector('nav.tabs button[data-tab="fw"
 function openGame(k){
   if (GAPP){ A.showTab("mg"); selTab(k); }
   const p = pool();
-  const need = { bingo:9, flip:6, quiz:4, order:0 }[k];
+  const need = { bingo:9, flip:6, quiz:4, order:0, cloze:4 }[k];
   if (k === "order" && p.sents.length < 3){ toast(SET.src === "course" ? "選的課沒有課文句子，請換幾課" : "句子排序要用「我的課本」的課文"); return; }
   if (p.words.length < need){ toast(`生詞太少了（至少要 ${need} 個），請多選幾課`); return; }
+  if (k === "cloze"){ if (clozeCount(p) < 4){ toast("這幾課的生詞沒有附例句，挖不出空來。換幾課試試看。"); return; }
+    quizSolo(p, { make:makeCloze, lim:25, title:"句子挖空" }); return; }/* CLOZE_V1428 */
   ({ bingo:bingoHome, flip:flipSetup, quiz:quizHome, order:orderStart })[k](p);
 }
 
@@ -278,7 +284,9 @@ function makeQs(p, n){
   const ws = p.words, out = [];
   const others = (x, k) => shuffle(ws.filter(y => y.w !== x.w)).sort((a, b) => (b.w.length === x.w.length) - (a.w.length === x.w.length)).slice(0, k);
   shuffle(ws.slice()).slice(0, n).forEach((x, k) => {
-    const t = ["pyword", "wordpy", "blank"][k % 3];
+    /* CLOZE_V1428 有例句的詞，輪到第四種就出挖空題——快問快答不再只是認字 */
+    const t = ["pyword", "wordpy", "blank", "cloze"][k % 4];
+    if (t === "cloze" && (x.ex || []).length && ws.length >= 4){ const one = makeCloze({ words:[x].concat(ws.filter(y => y.w !== x.w)) }, 1); if (one.length){ out.push(one[0]); return; } }
     if (t === "pyword" && ws.length >= 4){ const o = shuffle([x.w].concat(others(x, 3).map(y => y.w))); out.push({ t, ask:"這是哪一個詞？", show:x.py, sl:"py", opts:o, ans:o.indexOf(x.w), w:x.w, py:x.py }); return; }
     if (t === "wordpy" && ws.length >= 4){ const o = shuffle([x.py].concat(others(x, 3).map(y => y.py))); if (new Set(o).size === 4){ out.push({ t, ask:"這個詞怎麼唸？", show:x.w, sl:"hz", opts:o, ans:o.indexOf(x.py), opy:true, w:x.w, py:x.py }); return; } }
     const cs = [...x.w]; if (cs.length >= 2){ const i = rnd(cs.length), c = cs[i]; const allow = new Set(ws.map(y => y.w).join("")); const ds = distractors({ c, py:pyOf(c), w:x.w }, 3, allow).filter(d => d !== c && !cs.includes(d)).slice(0, 3);
@@ -287,6 +295,30 @@ function makeQs(p, n){
   });
   return out;
 }
+/* ══════ CLOZE_V1428 句子挖空 ══════
+   Quinn：「我想要不是純粹玩而是要學習到內容的」。查過之後：賓果、翻牌、快問快答、大富翁
+   這四個其實都在做同一件事——從四個選項裡「認出」那個詞。認得出來不等於會用。
+   句子挖空用的是這個詞在她課本裡自己的那一句（生詞欄第四格，例如
+   「新｜Vs｜new｜他是新同學。」），把詞挖掉變成「他是＿＿同學。」，
+   學生得看懂整句才填得出來，而不是比對拼音。
+   誘答選項盡量挑同長度的詞，不然用字數就猜得出來。 */
+function makeCloze(p, n){
+  const has = p.words.filter(x => (x.ex || []).length);
+  const out = [];
+  shuffle(has.slice()).slice(0, n).forEach(x => {
+    const sent = pick(x.ex);
+    if (!sent || sent.indexOf(x.w) < 0) return;
+    const blank = sent.split(x.w).join("＿".repeat(Math.max(2, [...x.w].length)));
+    const sameLen = p.words.filter(y => y.w !== x.w && [...y.w].length === [...x.w].length);
+    const bag = shuffle(sameLen.slice()).slice(0, 3).map(y => y.w);
+    shuffle(p.words.slice()).forEach(y => { if (bag.length < 3 && y.w !== x.w && bag.indexOf(y.w) < 0) bag.push(y.w); });
+    if (bag.length < 3) return;
+    const o = shuffle([x.w].concat(bag));
+    out.push({ t:"cloze", ask:"這一句少了哪一個詞？", show:blank, sl:"hz cz", sub:x.mean || "", opts:o, ans:o.indexOf(x.w), w:x.w, py:x.py, full:sent });
+  });
+  return out;
+}
+const clozeCount = p => p.words.filter(x => (x.ex || []).length).length;
 const OCOL = ["#1E4C86", "#D2457A", "#13918F", "#7A52C7"];
 const OSYM = ["▲", "◆", "●", "■"];
 function quizHome(p){
@@ -307,20 +339,21 @@ function qView(q, live, onPick, res){
   q.opts.forEach((o, i) => { const bb = el("button", { class:"qopt" + (q.opy ? " pyl" : " hz") + (res ? (i === q.ans ? " right" : res.pick === i ? " wrong" : " dim") : ""), type:"button", style:`--oc:${OCOL[i]}`, onclick: () => live && onPick(i) }, [el("span", { class:"sym", text:OSYM[i] }), el("span", { class:"ot", text:o })]); if (!live) bb.disabled = true; g.append(bb); });
   box.append(g); return box;
 }
-function quizSolo(p){
-  const qs = makeQs(p, 10), LIM = 15; let i = 0, score = 0, ok = 0, t0 = 0, tm = null, res = null;
-  const b = shell("快問快答・自己練習", srcName());
+function quizSolo(p, opt){
+  opt = opt || {};/* CLOZE_V1428 句子挖空沿用這一套畫面，只換出題方式和秒數 */
+  const qs = (opt.make || makeQs)(p, opt.n || 10), LIM = opt.lim || 15; let i = 0, score = 0, ok = 0, t0 = 0, tm = null, res = null;
+  const b = shell(opt.title || "快問快答・自己練習", srcName());
   const top = el("div", { class:"qtop" }), area = el("div"), timer = el("div", { class:"qtimer" }, [el("i")]);
   b.append(top, timer, area);
   const draw = () => {
     top.innerHTML = ""; top.append(el("span", { text:`第 ${i + 1}／${qs.length} 題` }), el("b", { text:`${score} 分` }));
     area.innerHTML = ""; area.append(qView(qs[i], !res, pickIt, res));
-    if (res){ area.append(el("div", { class:"qfb " + (res.ok ? "ok" : "no") }, [el("b", { text: res.ok ? `答對了！+${res.pts}` : res.pick === -1 ? "時間到！" : "答錯了" }), `　${qs[i].w}　`, el("span", { class:"pyl", text:qs[i].py })]), el("div", { class:"row center" }, [btn(i < qs.length - 1 ? "下一題 →" : "看結果", nextQ, "primary big")])); }
+    if (res){ area.append(el("div", { class:"qfb " + (res.ok ? "ok" : "no") }, [el("b", { text: res.ok ? `答對了！+${res.pts}` : res.pick === -1 ? "時間到！" : "答錯了" }), `　${qs[i].w}　`, el("span", { class:"pyl", text:qs[i].py }), qs[i].full ? el("div", { class:"czfull", text:qs[i].full }) : null]), el("div", { class:"row center" }, [btn(i < qs.length - 1 ? "下一題 →" : "看結果", nextQ, "primary big")])); }
   };
   const tick = () => { const left = LIM - (Date.now() - t0) / 1000; const bar = timer.querySelector("i"); bar.style.width = Math.max(0, left / LIM * 100) + "%"; if (left <= 0){ pickIt(-1); return; } tm = setTimeout(tick, 100); };
   function pickIt(k){ if (res) return; clearTimeout(tm); const q = qs[i], good = k === q.ans, pts = good ? 500 + Math.round(500 * Math.max(0, 1 - (Date.now() - t0) / 1000 / LIM)) : 0; score += pts; if (good){ ok++; sfx.good(); } else sfx.bad(); res = { ok:good, pick:k, pts }; draw(); }
   function nextQ(){ if (i >= qs.length - 1){ end(); return; } i++; res = null; t0 = Date.now(); draw(); tick(); }
-  function end(){ clearTimeout(tm); area.innerHTML = ""; timer.hidden = true; const m = el("div", { class:"mgdone" }, [el("b", { text:`答對 ${ok}／${qs.length} 題，${score} 分` }), el("div", { class:"row center" }, [btn("再玩一次", () => quizSolo(p), "primary big"), btn("回快問快答", () => quizHome(p))])]); area.append(m); sfx.win(); const [x, y] = centerOf(m); burst(x, y, 50); if (A.store.me) A.addXp(ok * 3); }
+  function end(){ clearTimeout(tm); area.innerHTML = ""; timer.hidden = true; const m = el("div", { class:"mgdone" }, [el("b", { text:`答對 ${ok}／${qs.length} 題，${score} 分` }), el("div", { class:"row center" }, [btn("再玩一次", () => quizSolo(p, opt), "primary big"), btn("回快問快答", () => quizHome(p))])]); area.append(m); sfx.win(); const [x, y] = centerOf(m); burst(x, y, 50); if (A.store.me) A.addXp(ok * 3); }
   t0 = Date.now(); draw(); tick();
   GAME = { k:"quiz", stop: () => clearTimeout(tm) };
 }
@@ -501,7 +534,7 @@ function orderStart(p){
 // ---------- 接到漢字遊戲的分頁 ----------
 // 字族工坊：一個「小遊戲」分頁；生詞遊戲（games.html）：每個遊戲各一個分頁
 document.querySelectorAll('nav.tabs button[data-tab="mg"]').forEach(tab => { tab.setAttribute("data-novi", ""); tab.setAttribute("translate", "no");
-  tab.addEventListener("click", () => { A.showTab("mg"); const k = tab.dataset.game || ""; if (GAPP){ stopGame(); fsOff(); if (k){ home(); const p = pool(); const need = { bingo:9, flip:6, quiz:4, order:0 }[k]; if ((k === "order" && p.sents.length < 3) || p.words.length < need){ toast("請先在這一頁勾選要玩哪幾課"); selTab(""); return; } openGame(k); } else home(); } else if (!GAME) home(); }); });
+  tab.addEventListener("click", () => { A.showTab("mg"); const k = tab.dataset.game || ""; if (GAPP){ stopGame(); fsOff(); if (k){ home(); const p = pool(); const need = { bingo:9, flip:6, quiz:4, order:0, cloze:4 }[k]; if ((k === "order" && p.sents.length < 3) || p.words.length < need){ toast("請先在這一頁勾選要玩哪幾課"); selTab(""); return; } openGame(k); } else home(); } else if (!GAME) home(); }); });
 if (GAPP){ document.querySelectorAll("nav.tabs button").forEach(b => { b.setAttribute("data-novi", ""); b.setAttribute("translate", "no"); }); A.showTab("mg"); home(); }
 window.HZMG = { home, pool, chunks, makeQs, open:openGame, get game(){ return GAME; } };
 }
