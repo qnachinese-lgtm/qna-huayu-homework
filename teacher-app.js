@@ -22907,7 +22907,18 @@ H.goLogin=()=>{location.reload();};
    判斷一定要在註冊 onAuthStateChanged 之前做完，而且要等 signOut() 真的完成
    才註冊監聽，否則 Firebase 還原的登入會搶先觸發 enter()，人就已經在後台了。
    還有分頁開著的時候每 10 秒蓋一次 qna_alive，所以重新整理、開新分頁都不受影響。 */
-const COLD_GRACE=60*1000;
+/* ══════ COLD_V1429 冷開機門檻從 60 秒放寬到 8 小時 ══════
+   Quinn 今天兩次「資料都不見了」「還是沒變」，有一部分就是這條規則造成的：
+   只要這個瀏覽器超過 60 秒沒有後台在活動（關掉分頁、切去別的網站、手機切出去），
+   一回來就先強制登出。登出之後每一格都讀不到，畫面長得跟資料被刪光一樣。
+   手機上幾乎每次打開都會中。我自己今天也踩到兩次。
+   原本的用意（AUTHCOLD_V961）是「瀏覽器整個關過再打開不要自動進來」，
+   用 60 秒去代表「關過」太短了，改成 8 小時：當天來回進出不會被踢，
+   隔天早上還是要重新登入。
+   另一層保護沒有動：分頁開著但 30 分鐘沒有任何操作，照樣自動登出（IDLE_MIN）。
+   想自己調：在網址列打 localStorage.setItem('qna_cold_hours','4') 再重新整理。 */
+const COLD_GRACE=(function(){try{const h=Number(localStorage.getItem('qna_cold_hours'));
+  if(h>=0.05&&h<=72)return h*3600*1000;}catch(e){}return 8*3600*1000;})();
 let WAS_COLD=false;
 try{const _al=Number(localStorage.getItem('qna_alive')||0);
   if(!_al||(Date.now()-_al)>COLD_GRACE)WAS_COLD=true;}catch(e){}
