@@ -66,9 +66,43 @@ function home(){
   const P = panel(); P.innerHTML = "";
   P.append(el("div", { class:"mgtop" }, [el("h2", { text: GAPP ? "生詞遊戲" : "小遊戲" }), el("p", { class:"muted", text:"先選要玩哪幾課的生詞，再選一個遊戲。" })]));
   P.append(srcPicker());
+  mgWaitWatch(); /* MGWAIT_V1418 */
   const g = el("div", { class:"mggrid" });
   (GAPP ? [FWCARD].concat(GAMES) : GAMES).forEach(x => g.append(el("button", { class:"mgcard", type:"button", onclick: () => x.k === "fw" ? goFw() : openGame(x.k) }, [el("span", { class:"mgic hz", text:x.ic }), el("b", { text:x.t }), el("small", { text:x.d })])));
   P.append(g);
+}
+/* MGWAIT_V1418：課本是「登入之後」才去抓的（老師帳號要抓整個 lessons，324 筆、1.7MB），
+   抓好以前 C.lessons 是空的，「我的課本」那顆按鈕根本還不存在。以前這段時間畫面一個字都沒說，
+   看起來就像「只能玩八千詞」；抓失敗（loadCourse 的 try/catch 把錯誤吞掉）也長得一模一樣。 */
+let MGW_ON = false;
+function mgWaitWatch(){
+  if (C.loaded || MGW_ON) return;
+  MGW_ON = true; let n = 0;
+  const iv = setInterval(() => { n++;
+    if (!C.loaded){ if (n > 480){ clearInterval(iv); MGW_ON = false; } return; }
+    clearInterval(iv); MGW_ON = false;
+    if (!GAME && document.querySelector("#p-mg .mgsrc")) home();
+  }, 250);
+}
+// 讀不到課本的時候，讓人可以自己再讀一次；真的讀不到就把原因寫出來，不要只是沉默
+async function mgReload(note, b){
+  const u = window.firebase && firebase.auth ? firebase.auth().currentUser : null;
+  b.disabled = true; const t0 = b.textContent; b.textContent = "正在讀…";
+  note.textContent = "正在讀你的課本…";
+  try {
+    await A.loadCourse(u ? u.uid : null);
+    if (C.lessons.length){ home(); return; }
+    let msg = "";
+    try {
+      const fs = firebase.firestore();
+      const sn = A.store && A.store.teacher
+        ? await fs.collection("lessons").get()
+        : await fs.collection("lessons").where("read_uids", "array-contains", u ? u.uid : "-").get();
+      msg = "後台讀到 " + sn.size + " 課，但沒有一課有生詞。";
+    } catch(e){ msg = "讀不到課本：" + String((e && e.message) || e); }
+    note.textContent = msg;
+  } catch(e){ note.textContent = "讀不到課本：" + String((e && e.message) || e); }
+  finally { b.disabled = false; b.textContent = t0; }
 }
 function srcPicker(){
   const box = el("div", { class:"mgsrc box" });
@@ -76,6 +110,15 @@ function srcPicker(){
   const segEl = el("div", { class:"seg" });
   [["course", "我的課本"], ["lv", "華語八千詞"]].forEach(([v, t]) => { if (v === "course" && !has) return; const b = el("button", { type:"button", text:t, "aria-pressed":String(src === v), onclick: () => { SET.src = v; keep(); home(); } }); segEl.append(b); });
   box.append(el("div", { class:"row" }, [el("b", { text:"生詞" }), segEl]));
+  if (!has){ /* MGWAIT_V1418 */
+    const note = el("small", { class:"mgwait" }); box.append(note);
+    if (!C.loaded) note.textContent = "正在讀你的課本…讀好以後，上面會多一顆「我的課本」，就可以挑要玩哪幾課。";
+    else {
+      note.textContent = "現在讀不到你的課本，所以只剩「華語八千詞」。（老師還沒開課、或課裡還沒有生詞，也會是這樣。）";
+      const rb = btn("再讀一次課本", () => mgReload(note, rb), "small");
+      box.append(el("div", { class:"row" }, [rb]));
+    }
+  }
   const info = el("small", { class:"muted" }); const upd = () => { const p = pool(); info.textContent = `已選：${srcName()}（${p.words.length} 個詞、${p.sents.length} 個句子）`; };
   if (src === "course"){
     const tbs = [...new Set(C.lessons.map(L => L.tb || "其他課"))]; if (!tbs.includes(SET.tb)) SET.tb = tbs[0];

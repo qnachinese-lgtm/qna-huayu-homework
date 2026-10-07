@@ -81,8 +81,19 @@ function renderHanzi(){
       +'<td data-l="闖關星星">'+sm('easy')+'／'+sm('normal')+'／'+sm('hard')+'</td><td data-l="回想關正確率">'+rate+'</td>'
       +'<td data-l="最常錯的字" style="font-size:20px;letter-spacing:2px">'+(hard||'—')+'</td></tr>';}).join('');
   body.innerHTML='<div class="section-head"><h2>🀄 漢字遊戲（字族工坊）</h2><span class="sub">指派關卡給學生，看每個人的漢字進度</span>'
-    +'<span class="grow"></span><a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">開啟字族工坊 ↗</a>'
-    +'<a class="btn btn-sm" href="games.html" target="_blank" rel="noopener">開啟生詞遊戲 ↗</a>' /* GAMES_V1414 大富翁、賓果、翻牌、快問快答、句子排序 */
+    /* ══════ GAMEMENU_V1420 兩顆「開啟…↗」合成一個選單 ══════
+       Quinn：「我覺得這個太奇怪了」。原本標題列右邊是三顆：
+       「開啟字族工坊 ↗」「開啟生詞遊戲 ↗」「＋ 指派作業」。
+       前兩顆同一個樣式、同樣以「開啟」開頭、同樣收在 ↗，一眼看過去像同一顆印了兩次，
+       而且這一頁底下只講字族工坊，生詞遊戲在這裡沒有任何資料卻佔同等大小的位置。
+       合成一個 mini-menu 之後，標題列只剩「＋ 指派作業」一顆真正的動作鈕。
+       mini-menu／mini-pop 是後台本來就有的樣式（teacher-app.js 也有
+       <summary class="btn btn-sm">⋯ 更多</summary> 這種用法），點外面會自己收起來。 */
+    +'<span class="grow"></span>'
+    +'<details class="mini-menu"><summary class="btn btn-sm">開啟遊戲 ▾</summary><div class="mini-pop">'
+    +'<a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">🀄 字族工坊 ↗</a>'
+    +'<a class="btn btn-sm" href="games.html" target="_blank" rel="noopener">🎲 生詞遊戲 ↗</a>'
+    +'</div></details>'
     +'<button class="btn btn-sm btn-accent" data-act="hzNew">＋ 指派作業</button></div>'
     +'<div class="card"><h3 style="margin:0 0 8px">作業</h3><div class="hint" style="margin-bottom:8px">綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。</div>'+taskHtml+'</div>'
     +'<div class="card" style="margin-top:14px"><h3 style="margin:0 0 8px">學生進度</h3><div class="hint" style="margin-bottom:8px">課本學會＝在「課本」練習裡寫對也用對的字。待複習＝寫錯或選錯、排了 1／3／7／15 天複習的字。最常錯的字：右下角的 ×2 是錯了幾次，上課可以先帶這些字。</div>'

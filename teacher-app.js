@@ -547,9 +547,38 @@ async function listQuestions(force){
   QCACHE={at:Date.now(),rows:rows};
   qcacheWrite(rows);
   return rows;}
+/* ══════ READERR_V1419 讀不到資料，不可以畫成「沒有資料」 ══════
+   2026-10-07 Quinn：「為什麼我網站上所有的資料都不見了」。查出來資料一筆都沒少
+   （當下點名：課程 324、學生 49、作業 39、會員 3），是手機上那一次讀取沒成功。
+   原本的行為有兩個洞：
+     1. enter() 讀整包失敗 → 只跳一個幾秒就消失的 toast，畫面留在空的後台。
+     2. loadAll() 裡七個讀取寫成 .catch(()=>[])，失敗完全沒有聲音——
+        crm 一掛，諮詢、仲介、學校、備忘、回覆範本、價目表就整批變空的。
+   手機訊號差、或閒置自動登出之後，看起來就跟「資料被刪光」一模一樣。
+   改法：記下是哪一塊沒讀到，用「留在畫面上」的橫幅講出來，並且給一顆再讀一次。
+   讀失敗跟登入失效要分開講，因為處理方式不一樣（重讀 vs 重新登入）。 */
+let LOADFAIL=[],LOADAUTH=false;
+function _lfNote(name,fallback){return function(e){
+  const m=(((e&&(e.code||e.message))||'')+'').toLowerCase();
+  if(/permission|insufficient|unauth|unauthenticated/.test(m))LOADAUTH=true;
+  if(LOADFAIL.indexOf(name)<0)LOADFAIL.push(name);
+  return fallback;};}
+function loadFailBanner(){
+  let b=document.getElementById('load-warn');
+  if(!LOADFAIL.length){if(b)b.remove();return;}
+  if(!b){b=document.createElement('div');b.id='load-warn';b.className='auth-warn';document.body.insertBefore(b,document.body.firstChild);}
+  const list=LOADFAIL.map(function(x){return esc(x);}).join('、');
+  b.innerHTML = LOADAUTH
+    ? '⚠️ <b>登入可能已經失效</b>，所以這幾塊讀不到：'+list+'。<b>妳的資料沒有不見</b>，是這一次沒讀到。請重新登入。 '
+      +'<button class="btn btn-sm" type="button" data-act="reloadAll">再讀一次</button> '
+      +'<button class="btn btn-sm" type="button" data-act="goLogin">重新登入</button>'
+    : '⚠️ 這幾塊<b>沒有讀進來</b>：'+list+'。<b>妳的資料沒有不見</b>，是這一次沒讀到（常見原因是訊號不穩）。畫面上那幾塊現在是空的。 '
+      +'<button class="btn btn-sm" type="button" data-act="reloadAll">再讀一次</button>';
+}
 async function loadAll(){
   /* SYNCTAG_V1047 讀得回雲端資料＝現在是好的，把警告收起來 */
   try{syncTagOK();}catch(e){}
+  LOADFAIL=[];LOADAUTH=false;/* READERR_V1419 */
   IS_OWNER=isOwner();MY_EMAIL=myEmailNow();const owner=IS_OWNER;
   /* ══════ BOOTPAR_V1370 開機不要排隊 ══════
      Quinn：「為什麼手機每次進去都很慢」。量出來開機一共打 11 次 Firestore，
@@ -561,16 +590,22 @@ async function loadAll(){
      原本該等的地方再 await。資料的處理順序一個字都沒改，
      只是把「等待」疊在一起。每一個 promise 建立的當下就掛好 .catch，
      不然其中一個失敗會變成 unhandled rejection。 */
-  const pCrm  = owner?DB.list('crm').catch(()=>[]):Promise.resolve([]);
-  const pShare= shareLoad().catch(()=>{});
-  const pTg   = tgLoad().catch(()=>{});
-  const pMem  = owner?DB.list('members').catch(()=>[]):Promise.resolve([]);
-  const pAdm  = owner?listAdmins().catch(()=>[]):Promise.resolve([]);
-  const pSite = owner?DB.list('site').catch(()=>null):Promise.resolve(null);
-  const pLeads= owner?DB.list('leads').catch(()=>[]):Promise.resolve([]);
-  const [a,b,c,d]=await Promise.all([
+  const pCrm  = owner?DB.list('crm').catch(_lfNote('諮詢・仲介・學校・備忘・回覆範本・價目表',[])):Promise.resolve([]);/* READERR_V1419 */
+  const pShare= shareLoad().catch(_lfNote('分享與教材庫',undefined));/* READERR_V1419 */
+  const pTg   = tgLoad().catch(_lfNote('教學指引',undefined));/* READERR_V1419 */
+  const pMem  = owner?DB.list('members').catch(_lfNote('自學會員',[])):Promise.resolve([]);/* READERR_V1419 */
+  const pAdm  = owner?listAdmins().catch(_lfNote('管理員名單',[])):Promise.resolve([]);/* READERR_V1419 */
+  const pSite = owner?DB.list('site').catch(_lfNote('官網設定',null)):Promise.resolve(null);/* READERR_V1419 */
+  const pLeads= owner?DB.list('leads').catch(_lfNote('網站詢問名單',[])):Promise.resolve([]);/* READERR_V1419 */
+  /* READERR_V1419 這四包本來是 Promise.all：其中一包掛掉只會丟出一個看不懂的錯誤，
+     而且不知道是哪一包。改成 allSettled，記下是哪一包沒讀到再丟。 */
+  const _n4=['學生','課程','題目','作業紀錄'];
+  const _s4=await Promise.allSettled([
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
     DB.list('lessons'),listQuestions(),DB.list('results')]);
+  _s4.forEach(function(x,i){if(x.status==='rejected')_lfNote(_n4[i],null)(x.reason);});
+  if(_s4.some(function(x){return x.status==='rejected';})){loadFailBanner();throw new Error('讀不到：'+LOADFAIL.join('、'));}
+  const [a,b,c,d]=_s4.map(function(x){return x.value;});
   let _crm=[];try{_crm=(await pCrm)||[];}catch(e){_crm=[];}
   try{await pShare;}catch(e){}
   try{await pTg;}catch(e){}/* TGUIDE_V973 */
@@ -621,6 +656,7 @@ S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==
      協作的管理員還是留「管理員 · email」——他們需要知道自己是用哪個帳號登入的。 */
   const bs=document.querySelector('.brand-sub');
   if(bs)bs.textContent=owner?'Tiếng Trung Quyên Huỳnh':('管理員 · '+(MY_EMAIL||''));
+  loadFailBanner();/* READERR_V1419 */
 }
 function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.acts=d.filter(x=>x.kind==='act');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq'&&x.kind!=='hanzi');S.hanzis=d.filter(x=>x.kind==='hanzi');/* HANZI_V1 */S.leavereqs=d.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');S.lqps=d.filter(x=>x.kind==='lqp');}
 /* MENU_MODAL_V12 一開視窗就把還開著的「⋯」收起來，不然會浮在視窗旁邊 */
@@ -22563,7 +22599,7 @@ function boot(){/* HDSAME_V1361 招牌固定寫 QNA CHINESE，跟官網一致；
    if(_f)_f.classList.toggle('hide',!useAuth);
    if(useAuth&&window.TEACHER_EMAIL)$('#gate-email').value=window.TEACHER_EMAIL;}}
 function showLoad(b,soft){let el=document.getElementById('app-loading');if(b){if(!el){el=document.createElement('div');el.id='app-loading';el.className='loading-overlay'+(soft?' soft':'');el.innerHTML='<div class="spinner"></div>';document.body.appendChild(el);}}else if(el){el.remove();}}
-async function enter(){$('#gate').classList.add('hide');$('#app').classList.remove('hide');showLoad(true);try{await loadAll();render();}catch(e){toast('讀取失敗：'+e.message);}finally{showLoad(false);}}
+async function enter(){$('#gate').classList.add('hide');$('#app').classList.remove('hide');showLoad(true);try{await loadAll();render();}catch(e){if(!LOADFAIL.length){LOADFAIL=['資料'];}loadFailBanner();/* READERR_V1419 */toast('讀取失敗：'+e.message);}finally{showLoad(false);}}
 async function tryLogin(){
   if(useAuth){const email=$('#gate-email').value.trim(),pw=$('#gate-pw').value;
     if(!email||!pw){$('#gate-err').textContent='請輸入 Email 與密碼';return;}
@@ -22803,6 +22839,11 @@ boot();
 
 function authBanner(show){let b=document.getElementById('auth-warn');if(show){if(!b){b=document.createElement('div');b.id='auth-warn';b.className='auth-warn';b.innerHTML='⚠️ 登入已失效，目前無法儲存。請<b>開新分頁登入教師頁</b>，再回到這個分頁按一次儲存（<u>不要重新整理</u>，正在編輯的內容才不會不見）。 <button class="btn btn-sm" data-act="reloginTab">開新分頁登入</button>';document.body.insertBefore(b,document.body.firstChild);}}else if(b){b.remove();}}
 H.reloginTab=()=>{window.open('teacher.html','_blank');};
+/* READERR_V1419 */
+H.reloadAll=async()=>{const b=document.getElementById('load-warn');if(b)b.innerHTML='⏳ 正在再讀一次…';
+  try{await loadAll();render();}catch(e){loadFailBanner();toast('還是讀不到：'+((e&&e.message)||e));}
+  if(!LOADFAIL.length)toast('讀回來了 ✅');};
+H.goLogin=()=>{location.reload();};
 /* AUTHCOLD_V961 瀏覽器整個關過再打開 → 不要自動進來，停在登入畫面。
    判斷一定要在註冊 onAuthStateChanged 之前做完，而且要等 signOut() 真的完成
    才註冊監聽，否則 Firebase 還原的登入會搶先觸發 enter()，人就已經在後台了。
