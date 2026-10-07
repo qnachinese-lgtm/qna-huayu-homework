@@ -934,6 +934,7 @@ async function loadCourse(uid){
   C.byId = {}; C.lessons.forEach(x => C.byId[x.id] = x); C.loaded = true;
   const tb = document.querySelector('nav.tabs button[data-tab="course"]'); if (tb) tb.hidden = !C.lessons.length;
   ls.set("hz-hascourse", C.lessons.length ? "1" : "0");
+  if (document.body.classList.contains("games-app") && window.HZMG && !window.HZMG.game && document.querySelector("#p-mg") && !document.querySelector("#p-mg").hidden) window.HZMG.home();
 }
 // ---- 紀錄 ----
 const cRec = lid => (rec.course[lid] = rec.course[lid] || { m:{}, rounds:0 });
@@ -1145,7 +1146,10 @@ function finishRound(){
   if (good === CR.list.length) setTimeout(() => burst(innerWidth / 2, 200, 60), 200);
 }
 // 課本列表
+/* GAMES_V1414 生詞遊戲（games.html）跟字族工坊共用這支程式；那一頁沒有「課本」分頁，回到遊戲首頁 */
+const GAMESAPP = document.body.classList.contains("games-app");
 function showCourseHome(){
+  if (GAMESAPP){ showTab("mg"); if (window.HZMG && !window.HZMG.game) window.HZMG.home(); return; }
   showTab("course"); courseView("#cHome");
   const box = $("#cHome"); box.innerHTML = "";
   if (!C.loaded){ box.append(el("p", { class:"muted", text:"正在讀取你的課本……" })); return; }

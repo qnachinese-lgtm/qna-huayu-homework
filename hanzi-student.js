@@ -55,7 +55,12 @@ function hzHomeCard(){
   return '<div class="card hz-card" style="margin-top:14px;display:flex;align-items:center;gap:10px;cursor:pointer" data-act="openHanzi" data-id="">'
     + '<span style="font-size:28px">🀄</span><span style="flex:1"><b>' + esc(L4('漢字遊戲・字族工坊', '汉字游戏・字族工坊', 'Hanzi game', 'Trò chơi chữ Hán')) + '</b><br>'
     + '<small class="muted">' + (hzReviewDue() ? esc(L4('今天要複習 ' + hzReviewDue() + ' 個字', '今天要复习 ' + hzReviewDue() + ' 个字', hzReviewDue() + ' character(s) to review today', 'Hôm nay ôn ' + hzReviewDue() + ' chữ')) + '・' : '') + esc(n ? L4('老師指派了 ' + n + ' 關', '老师指派了 ' + n + ' 关', n + ' stage(s) assigned', 'Cô giao ' + n + ' màn') : L4('拼部件、學字源、練寫字', '拼部件、学字源、练写字', 'Build characters from parts', 'Ghép bộ thủ, học chữ')) + '</small></span>'
-    + '<span class="btn btn-sm btn-accent">' + esc(L4('去玩', '去玩', 'Play', 'Chơi')) + '</span></div>';
+    + '<span class="btn btn-sm btn-accent">' + esc(L4('去玩', '去玩', 'Play', 'Chơi')) + '</span></div>'
+    /* GAMES_V1414 生詞遊戲（games.html）：大富翁、生詞賓果、翻牌配對、快問快答、句子排序 */
+    + '<a class="card hz-card" href="games.html" style="margin-top:10px;display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit">'
+    + '<span style="font-size:28px">🎲</span><span style="flex:1"><b>' + esc(L4('生詞遊戲', '生词游戏', 'Vocabulary games', 'Trò chơi từ vựng')) + '</b><br>'
+    + '<small class="muted">' + esc(L4('大富翁、賓果、翻牌、快問快答、句子排序', '大富翁、宾果、翻牌、快问快答、句子排序', 'Monopoly, bingo, memory, quiz, sentence order', 'Cờ tỷ phú, bingo, lật thẻ, đố nhanh, xếp câu')) + '</small></span>'
+    + '<span class="btn btn-sm btn-accent">' + esc(L4('去玩', '去玩', 'Play', 'Chơi')) + '</span></a>';
 }
 H.openHanzi = (id) => {
   /* HZWHO_V1404 名單外的人就算用舊畫面的按鈕點進來，也擋下來 */

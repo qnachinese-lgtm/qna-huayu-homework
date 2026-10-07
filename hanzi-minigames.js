@@ -48,7 +48,7 @@ function stopGame(){ if (GAME && GAME.stop) try { GAME.stop(); } catch(e){} GAME
 function shell(title, sub){
   const P = panel(); P.innerHTML = ""; document.body.classList.add("mg-ingame");
   const fsb = btn(isFs() ? "縮小" : "全螢幕", () => { isFs() ? fsOff() : fsOn(); setTimeout(() => { fsb.textContent = isFs() ? "縮小" : "全螢幕"; }, 300); }, "small");
-  P.append(el("div", { class:"mghead" }, [btn("← 小遊戲", () => { stopGame(); fsOff(); home(); }, "small"), el("b", { class:"hz", text:title }), sub ? el("span", { class:"muted", text:sub }) : null, el("span", { class:"sp" }), fsb]));
+  P.append(el("div", { class:"mghead" }, [btn(GAPP ? "← 全部遊戲" : "← 小遊戲", () => { stopGame(); fsOff(); home(); }, "small"), el("b", { class:"hz", text:title }), sub ? el("span", { class:"muted", text:sub }) : null, el("span", { class:"sp" }), fsb]));
   const body = el("div", { class:"mgbody" }); P.append(body); return body;
 }
 const GAMES = [
@@ -57,23 +57,27 @@ const GAMES = [
   { k:"quiz", t:"快問快答", d:"看拼音選詞、看詞選拼音、選字填空。全班用手機一起搶分，或自己練習。", ic:"答" },
   { k:"order", t:"句子排序", d:"把課文的句子打散，排回正確的順序。", ic:"排" }
 ];
+const GAPP = document.body.classList.contains("games-app");
+const FWCARD = { k:"fw", t:"大富翁", d:"擲骰子走棋盤，地是課本的生詞。答對才買得到地，機會卡、命運卡要看懂中文。", ic:"富" };
+function selTab(k){ document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === "mg" ? (b.dataset.game || "") === (k || "") : false))); }
 function home(){
-  stopGame();
+  stopGame(); try { Object.assign(SET, JSON.parse(localStorage.getItem("hz-mg") || "{}")); } catch(e){}
+  if (GAPP) selTab("");
   const P = panel(); P.innerHTML = "";
-  P.append(el("div", { class:"mgtop" }, [el("h2", { text:"小遊戲" }), el("p", { class:"muted", text:"題目都從下面選的課來。" })]));
+  P.append(el("div", { class:"mgtop" }, [el("h2", { text: GAPP ? "生詞遊戲" : "小遊戲" }), el("p", { class:"muted", text:"先選要玩哪幾課的生詞，再選一個遊戲。" })]));
   P.append(srcPicker());
   const g = el("div", { class:"mggrid" });
-  GAMES.forEach(x => g.append(el("button", { class:"mgcard", type:"button", onclick: () => openGame(x.k) }, [el("span", { class:"mgic hz", text:x.ic }), el("b", { text:x.t }), el("small", { text:x.d })])));
+  (GAPP ? [FWCARD].concat(GAMES) : GAMES).forEach(x => g.append(el("button", { class:"mgcard", type:"button", onclick: () => x.k === "fw" ? goFw() : openGame(x.k) }, [el("span", { class:"mgic hz", text:x.ic }), el("b", { text:x.t }), el("small", { text:x.d })])));
   P.append(g);
 }
 function srcPicker(){
   const box = el("div", { class:"mgsrc box" });
-  const has = C.lessons.length > 0; if (!has) SET.src = "lv";
+  const has = C.lessons.length > 0, src = has ? SET.src : "lv";
   const segEl = el("div", { class:"seg" });
-  [["course", "我的課本"], ["lv", "華語八千詞"]].forEach(([v, t]) => { if (v === "course" && !has) return; const b = el("button", { type:"button", text:t, "aria-pressed":String(SET.src === v), onclick: () => { SET.src = v; keep(); home(); } }); segEl.append(b); });
+  [["course", "我的課本"], ["lv", "華語八千詞"]].forEach(([v, t]) => { if (v === "course" && !has) return; const b = el("button", { type:"button", text:t, "aria-pressed":String(src === v), onclick: () => { SET.src = v; keep(); home(); } }); segEl.append(b); });
   box.append(el("div", { class:"row" }, [el("b", { text:"生詞" }), segEl]));
   const info = el("small", { class:"muted" }); const upd = () => { const p = pool(); info.textContent = `已選：${srcName()}（${p.words.length} 個詞、${p.sents.length} 個句子）`; };
-  if (SET.src === "course" && has){
+  if (src === "course"){
     const tbs = [...new Set(C.lessons.map(L => L.tb || "其他課"))]; if (!tbs.includes(SET.tb)) SET.tb = tbs[0];
     const sel = el("select", { class:"fwsel" }); tbs.forEach(t => sel.append(el("option", { value:t, text:t }))); sel.value = SET.tb; sel.onchange = () => { SET.tb = sel.value; keep(); home(); };
     const list = el("div", { class:"mglessons" });
@@ -86,7 +90,9 @@ function srcPicker(){
   }
   box.append(info); upd(); return box;
 }
+function goFw(){ const b = document.querySelector('nav.tabs button[data-tab="fw"]'); if (b) b.click(); }
 function openGame(k){
+  if (GAPP){ A.showTab("mg"); selTab(k); }
   const p = pool();
   const need = { bingo:9, flip:6, quiz:4, order:0 }[k];
   if (k === "order" && p.sents.length < 3){ toast(SET.src === "course" ? "選的課沒有課文句子，請換幾課" : "句子排序要用「我的課本」的課文"); return; }
@@ -307,7 +313,7 @@ function hostDraw(code, R){
   const b = shell("快問快答", `房間 ${code}・${s.src}`);
   const save = s2 => RQ.update({ s:JSON.stringify(s2) }).catch(roomErr);
   if (s.phase === "lobby"){
-    b.append(el("div", { class:"lobbyq" }, [el("p", { text:"學生打開「漢字遊戲 → 小遊戲 → 快問快答 → 學生加入」，輸入代碼：" }), el("div", { class:"code", text:code }), el("p", { class:"muted", text:`已經有 ${ps.length} 個人加入` }), el("div", { class:"plist" }, ps.map(x => el("span", { class:"chip", text:x.n })))]),
+    b.append(el("div", { class:"lobbyq" }, [el("p", { text:"學生打開「生詞遊戲 → 快問快答 → 學生加入」，輸入代碼：" }), el("div", { class:"code", text:code }), el("p", { class:"muted", text:`已經有 ${ps.length} 個人加入` }), el("div", { class:"plist" }, ps.map(x => el("span", { class:"chip", text:x.n })))]),
       el("div", { class:"row center" }, [btn("開始！", () => { const s2 = Object.assign({}, s, { phase:"q", i:0, t0:Date.now() }); save(s2); }, "primary big")]));
     return;
   }
@@ -375,27 +381,37 @@ function studentDraw(s, name, t0f, onPick, mine){
     return;
   }
   if (s.phase === "over"){ const rs = Object.entries(s.scores || {}).sort((a, b) => b[1].score - a[1].score), rk = rs.findIndex(([u]) => u === A.store.uid) + 1;
-    b.append(el("div", { class:"mgdone" }, [el("b", { text:`遊戲結束！你是第 ${rk || "-"} 名（${me ? me.score : 0} 分）` }), btn("回小遊戲", () => { stopGame(); home(); }, "primary big")])); if (rk && rk <= 3){ sfx.win(); } }
+    b.append(el("div", { class:"mgdone" }, [el("b", { text:`遊戲結束！你是第 ${rk || "-"} 名（${me ? me.score : 0} 分）` }), btn("回到遊戲首頁", () => { stopGame(); home(); }, "primary big")])); if (rk && rk <= 3){ sfx.win(); } }
 }
 
 // ============ 4. 句子排序 ============
 let WS = null;
-function wordSet(p){ if (WS) return WS; WS = new Set(String(window.HZWORDS || "").split("|").filter(Boolean)); p.words.forEach(x => WS.add(x.w)); return WS; }
+// 詞表：華語八千詞＋這幾課的生詞。人名也要算一個詞：「王開文」的「開文」、「田中誠一」的「田中」「誠一」
+const SURN = "王李陳張林黃馬白田何方錢康吳劉楊趙周徐孫胡朱高郭羅梁宋鄭謝韓唐馮于董蕭程曹袁鄧許傅沈曾彭呂蘇盧蔣蔡賈丁魏薛葉余潘杜戴夏鍾汪任姜范石姚譚廖鄒熊金陸郝孔崔邱秦江史顧侯邵孟龍萬段雷錢湯尹黎易常武喬賀賴龔文";
+let WSK = "";
+function wordSet(p){ const key = p.words.map(x => x.w).join("|"); if (WS && WSK === key) return WS; WSK = key;
+  WS = new Set(String(window.HZWORDS || "").split("|").filter(Boolean));
+  p.words.forEach(x => { const w = x.w; WS.add(w); if (w.length === 3 && SURN.includes(w[0])) WS.add(w.slice(1)); if (w.length === 4 && /^[A-Z]/.test(x.py || "")){ WS.add(w.slice(0, 2)); WS.add(w.slice(2)); } });
+  return WS; }
 // 把句子切成一塊一塊：用詞表找最長的詞；標點、語氣詞（了嗎呢吧啊的）跟著前一塊；「一部、那部、兩個」黏在一起
 // 切出來超過 8 塊的句子太難，不出
 function chunks(s, p){
-  const W = wordSet(p), cs = [...s], out = [];
-  for (let i = 0; i < cs.length;){
-    let L = 1; for (let k = Math.min(5, cs.length - i); k > 1; k--){ if (W.has(cs.slice(i, i + k).join(""))){ L = k; break; } }
-    out.push(cs.slice(i, i + L).join("")); i += L;
-  }
+  const W = wordSet(p), LW = new Set(p.words.map(x => x.w)), cs = [...s], n = cs.length;
+  const MEAS = "個本杯塊支張件種家位次天年歲點分隻條雙碗瓶間棟部輛場頓趟句篇課";
+  // 每一段可能的切法打分數：長的詞分數高；課本生詞、數字＋量詞、「要不要」再加分。用動態規劃找總分最高的切法
+  const cand = i => { const out = [[1, 1]]; if (!/[㐀-鿿]/.test(cs[i])) return out;
+    for (let k = 2; k <= 5 && i + k <= n; k++){ const w = cs.slice(i, i + k).join(""); let sc = -1;
+      if (W.has(w)) sc = k * k + (LW.has(w) ? 3 : 0);
+      if (k === 2 && /[一兩三四五六七八九十幾這那每哪半]/.test(cs[i]) && MEAS.includes(cs[i + 1])) sc = Math.max(sc, 6);
+      if ((k === 3 || k === 4) && (cs[i + 1] === "不" || cs[i + 1] === "沒") && cs[i + 2] === cs[i] && (k === 3 || W.has(cs[i] + cs[i + 3]))) sc = Math.max(sc, k * k + 6);
+      if (sc > 0) out.push([k, sc]); }
+    return out; };
+  const best = Array(n + 1).fill(null); best[n] = [0, []];
+  for (let i = n - 1; i >= 0; i--){ let bb = null; cand(i).forEach(([k, sc]) => { const r = best[i + k]; if (r && (!bb || sc + r[0] > bb[0])) bb = [sc + r[0], [k].concat(r[1])]; }); best[i] = bb; }
+  const out = []; let i = 0; best[0][1].forEach(k => { out.push(cs.slice(i, i + k).join("")); i += k; });
   const res = [];
-  out.forEach(t => {
-    const prev = res[res.length - 1];
-    if (prev != null && (/^[^㐀-鿿]+$/.test(t) || /^[了嗎呢吧啊的喔嘛呀兒]$/.test(t))) res[res.length - 1] = prev + t;
-    else if (prev != null && /^[一兩幾這那每哪]$/.test(prev) && t.length === 1) res[res.length - 1] = prev + t;
-    else res.push(t);
-  });
+  out.forEach(t => { const prev = res[res.length - 1];
+    if (prev != null && (/^[^㐀-鿿]+$/.test(t) || /^[了嗎呢吧啊的喔嘛呀兒]$/.test(t))) res[res.length - 1] = prev + t; else res.push(t); });
   return res;
 }
 function orderStart(p){
@@ -426,13 +442,15 @@ function orderStart(p){
     area.append(line, pool2, msg, el("div", { class:"row center" }, [hint, btn("全部拿回來", () => { while (ans.length) tiles.push(ans.pop()); redraw(); }, "small")]));
     redraw();
   };
-  const end = () => { area.innerHTML = ""; const m = el("div", { class:"mgdone" }, [el("b", { text:`全部完成！${score} 分（滿分 ${sents.length * 100}）` }), el("div", { class:"row center" }, [btn("再玩一次", () => orderStart(p), "primary big"), btn("回小遊戲", () => { stopGame(); home(); })])]); area.append(m); sfx.win(); const [x, y] = centerOf(m); burst(x, y, 60); if (A.store.me) A.addXp(Math.round(score / 20)); };
+  const end = () => { area.innerHTML = ""; const m = el("div", { class:"mgdone" }, [el("b", { text:`全部完成！${score} 分（滿分 ${sents.length * 100}）` }), el("div", { class:"row center" }, [btn("再玩一次", () => orderStart(p), "primary big"), btn("回到遊戲首頁", () => { stopGame(); home(); })])]); area.append(m); sfx.win(); const [x, y] = centerOf(m); burst(x, y, 60); if (A.store.me) A.addXp(Math.round(score / 20)); };
   draw(); GAME = { k:"order" };
 }
 
 // ---------- 接到漢字遊戲的分頁 ----------
-const tab = document.querySelector('nav.tabs button[data-tab="mg"]');
-if (tab){ tab.setAttribute("data-novi", ""); tab.setAttribute("translate", "no"); tab.addEventListener("click", () => { A.showTab("mg"); if (!GAME) home(); }); }
+// 字族工坊：一個「小遊戲」分頁；生詞遊戲（games.html）：每個遊戲各一個分頁
+document.querySelectorAll('nav.tabs button[data-tab="mg"]').forEach(tab => { tab.setAttribute("data-novi", ""); tab.setAttribute("translate", "no");
+  tab.addEventListener("click", () => { A.showTab("mg"); const k = tab.dataset.game || ""; if (GAPP){ stopGame(); fsOff(); if (k){ home(); const p = pool(); const need = { bingo:9, flip:6, quiz:4, order:0 }[k]; if ((k === "order" && p.sents.length < 3) || p.words.length < need){ toast("請先在這一頁勾選要玩哪幾課"); selTab(""); return; } openGame(k); } else home(); } else if (!GAME) home(); }); });
+if (GAPP){ document.querySelectorAll("nav.tabs button").forEach(b => { b.setAttribute("data-novi", ""); b.setAttribute("translate", "no"); }); A.showTab("mg"); home(); }
 window.HZMG = { home, pool, chunks, makeQs, open:openGame, get game(){ return GAME; } };
 }
 if (window.HZAPI) boot(); else document.addEventListener("hzapi", boot);

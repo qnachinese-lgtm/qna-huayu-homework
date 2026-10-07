@@ -507,7 +507,9 @@ function nameRow(i, ph){
   const ap = avPick(i); inp.oninput = () => { SET.names[i] = inp.value; keep(); ap.upd(); };
   const pr = el("div", { class:"prow" }, [inp, ap]); pr.inp = inp; return pr;
 }
-const keep = () => { try { localStorage.setItem("hz-fw7", JSON.stringify(SET)); } catch(e){} };
+// 生詞遊戲首頁選的課，大富翁也一起用（hz-mg）
+const keep = () => { try { localStorage.setItem("hz-fw7", JSON.stringify(SET)); if (SET.src !== "fam"){ const g = JSON.parse(localStorage.getItem("hz-mg") || "{}"); Object.assign(g, { src:SET.src, tb:SET.tb, lids:SET.lids, lv:SET.lv }); localStorage.setItem("hz-mg", JSON.stringify(g)); } } catch(e){} };
+const syncMg = () => { try { const g = JSON.parse(localStorage.getItem("hz-mg") || "null"); if (g && SET.src !== "fam"){ ["src", "tb", "lids", "lv"].forEach(k => { if (g[k] != null) SET[k] = g[k]; }); } } catch(e){} };
 function seg(opts, val, on){ const s = el("div", { class:"seg" }); opts.forEach(([v, t]) => { const b = el("button", { type:"button", text:t, "aria-pressed":String(v === val) }); b.onclick = () => on(v); s.append(b); }); return s; }
 function srcInfo(){
   if (SET.src === "course"){ const ids = SET.lids.filter(id => C.byId[id]); return { src:{ k:"course", ids }, name: ids.length === 1 ? C.byId[ids[0]].label : `課本 ${ids.length} 課` }; }
@@ -515,6 +517,7 @@ function srcInfo(){
   return { src:{ k:"lv", v:SET.lv }, name:(LEVELS[SET.lv] || {}).name || "" };
 }
 function renderSetup(){
+  syncMg();
   const P = panel(); P.innerHTML = "";
   if (SET.src === "course" && !C.lessons.length) SET.src = "lv";
   P.append(el("div", { class:"fwhead" }, [el("h2", { text:"漢字大富翁" })]));

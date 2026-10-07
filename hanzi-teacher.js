@@ -81,7 +81,8 @@ function renderHanzi(){
       +'<td data-l="闖關星星">'+sm('easy')+'／'+sm('normal')+'／'+sm('hard')+'</td><td data-l="回想關正確率">'+rate+'</td>'
       +'<td data-l="最常錯的字" style="font-size:20px;letter-spacing:2px">'+(hard||'—')+'</td></tr>';}).join('');
   body.innerHTML='<div class="section-head"><h2>🀄 漢字遊戲（字族工坊）</h2><span class="sub">指派關卡給學生，看每個人的漢字進度</span>'
-    +'<span class="grow"></span><a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">開啟遊戲試玩 ↗</a>'
+    +'<span class="grow"></span><a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">開啟字族工坊 ↗</a>'
+    +'<a class="btn btn-sm" href="games.html" target="_blank" rel="noopener">開啟生詞遊戲 ↗</a>' /* GAMES_V1414 大富翁、賓果、翻牌、快問快答、句子排序 */
     +'<button class="btn btn-sm btn-accent" data-act="hzNew">＋ 指派作業</button></div>'
     +'<div class="card"><h3 style="margin:0 0 8px">作業</h3><div class="hint" style="margin-bottom:8px">綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。</div>'+taskHtml+'</div>'
     +'<div class="card" style="margin-top:14px"><h3 style="margin:0 0 8px">學生進度</h3><div class="hint" style="margin-bottom:8px">課本學會＝在「課本」練習裡寫對也用對的字。待複習＝寫錯或選錯、排了 1／3／7／15 天複習的字。最常錯的字：右下角的 ×2 是錯了幾次，上課可以先帶這些字。</div>'
