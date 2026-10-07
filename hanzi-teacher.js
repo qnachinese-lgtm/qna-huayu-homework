@@ -94,14 +94,15 @@ function renderHanzi(){
       rate,
       hard]};});
   // 前兩欄（學生、最近玩）一定留著；其他欄只要有人有值才留
-  const keep=COLS.map((c,i)=>i<2||cells.some(x=>x.v&&x.v[i]));
-  const nKeep=keep.filter(Boolean).length;
-  const thead=COLS.filter((c,i)=>keep[i]).map(c=>'<th>'+c[0]+'</th>').join('');
+  /* HZCOL_V1423 本來這裡會把「整欄都空」的欄位藏起來，Quinn：「我覺得這些都需要出現在這啊」
+     「隔出太多的空位了吧」——藏起來之後只剩兩欄，右邊空一大片，反而更難看，
+     而且她要看得到這一頁到底會記哪幾件事。八欄一律留著，沒有值的格子寫「—」。 */
+  const nKeep=COLS.length;
+  const thead=COLS.map(c=>'<th>'+c[0]+'</th>').join('');
   const rows=cells.map(x=>{
     if(!x.v)return '<tr><td data-l="學生">'+x.name+'</td><td colspan="'+(nKeep-1)+'" class="muted" data-l="進度">還沒玩過</td></tr>';
-    return '<tr>'+COLS.map((c,i)=>keep[i]?('<td data-l="'+c[0]+'"'+c[1]+'>'+(x.v[i]||'—')+'</td>'):'').join('')+'</tr>';}).join('');
-  // 只剩兩三欄的時候不要撐滿整個寬度，不然「還沒玩過」會被推到最右邊
-  const tbW=nKeep<=3?'width:auto':('min-width:'+Math.max(320,nKeep*96)+'px;width:100%');
+    return '<tr>'+COLS.map((c,i)=>'<td data-l="'+c[0]+'"'+c[1]+'>'+(x.v[i]||'—')+'</td>').join('')+'</tr>';}).join('');
+  const tbW='min-width:720px;width:100%';
   body.innerHTML='<div class="section-head"><h2>🀄 漢字遊戲（字族工坊）</h2>'/* HZLEAN_V1421 副標刪掉 */
     /* ══════ GAMEMENU_V1420 兩顆「開啟…↗」合成一個選單 ══════
        Quinn：「我覺得這個太奇怪了」。原本標題列右邊是三顆：
