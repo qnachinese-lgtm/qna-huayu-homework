@@ -492,8 +492,25 @@ let WS = null;
 // 詞表：華語八千詞＋這幾課的生詞。人名也要算一個詞：「王開文」的「開文」、「田中誠一」的「田中」「誠一」
 const SURN = "王李陳張林黃馬白田何方錢康吳劉楊趙周徐孫胡朱高郭羅梁宋鄭謝韓唐馮于董蕭程曹袁鄧許傅沈曾彭呂蘇盧蔣蔡賈丁魏薛葉余潘杜戴夏鍾汪任姜范石姚譚廖鄒熊金陸郝孔崔邱秦江史顧侯邵孟龍萬段雷錢湯尹黎易常武喬賀賴龔文";
 let WSK = "";
+/* ══════ SEG_V1432 切詞：以「詞」為單位 ══════
+   Quinn：「字請以『詞』為單位，不要亂切」。拿真的八千詞表跑過一遍，問題有三種：
+     1. 助詞被黏在前一塊：好嗎、網球吧、我的、感冒的、來不及了。
+        「的、了、嗎、呢、吧」本來就各自是一個詞（助詞），照一般的斷詞標準要自己一塊，
+        而且「的」放哪裡、句尾要不要「嗎」，本來就是這個遊戲該練的語法點。
+     2. 動補結構被拆開：找／不到、聽／不／懂。那是一個詞。
+        想用「VC 在詞表裡就把 V不C 當一個詞」這個規則，但詞表裡連「找到」「聽懂」都沒有，
+        所以改成列一張課本常用的動補表。
+     3. 詞表只有 6014 個詞，連「你好」「好看」「寫字」都沒有，所以補一張常用詞。
+   數字和英文也不再跟漢字黏成一塊（以前會切出「書 300 」這種）。 */
+const SEG_VC = ("找不到|找得到|看不懂|看得懂|聽不懂|聽得懂|來不及|來得及|吃不下|吃得下|買不到|買得到|"
+  + "睡不著|睡得著|受不了|說不出|說不定|想不到|忘不了|做不到|走不動|起不來|趕不上|跟不上|"
+  + "划不來|劃不來|吃不完|寫不完|看不見|聽不見|進不去|出不來|回不去|付不起|買不起").split("|");
+const SEG_EXTRA = ("你好|好看|好吃|好喝|好玩|好聽|寫字|找到|看懂|聽懂|多久|多遠|怎麼辦|沒關係|不客氣|"
+  + "對不起|謝謝你|請問|早安|午安|晚安|再見|加油|一下子|有一點|有點兒|這樣子|那樣子|什麼時候|為什麼|"
+  + "上網|打工|上課|下課|考試|作業|功課|同學|老師|朋友|家人").split("|");
 function wordSet(p){ const key = p.words.map(x => x.w).join("|"); if (WS && WSK === key) return WS; WSK = key;
   WS = new Set(String(window.HZWORDS || "").split("|").filter(Boolean));
+  SEG_VC.forEach(w => WS.add(w)); SEG_EXTRA.forEach(w => WS.add(w));/* SEG_V1432 */
   p.words.forEach(x => { const w = x.w; WS.add(w); if (w.length === 3 && SURN.includes(w[0])) WS.add(w.slice(1)); if (w.length === 4 && /^[A-Z]/.test(x.py || "")){ WS.add(w.slice(0, 2)); WS.add(w.slice(2)); } });
   return WS; }
 // 把句子切成一塊一塊：用詞表找最長的詞；標點、語氣詞（了嗎呢吧啊的）跟著前一塊；「一部、那部、兩個」黏在一起
@@ -502,7 +519,17 @@ function chunks(s, p){
   const W = wordSet(p), LW = new Set(p.words.map(x => x.w)), cs = [...s], n = cs.length;
   const MEAS = "個本杯塊支張件種家位次天年歲點分隻條雙碗瓶間棟部輛場頓趟句篇課";
   // 每一段可能的切法打分數：長的詞分數高；課本生詞、數字＋量詞、「要不要」再加分。用動態規劃找總分最高的切法
+  const VCSET = new Set(SEG_VC);/* SEG_V1432 */
   const cand = i => { const out = [[1, 1]]; if (!/[㐀-鿿]/.test(cs[i])) return out;
+    /* SEG_V1432 動補（找不到、聽不懂）是一個詞，優先度要高過「找」＋「不到」 */
+    if (i + 3 <= n && VCSET.has(cs.slice(i, i + 3).join(""))) out.push([3, 14]);
+    /* SEG_V1432 人名：只認「姓＋兩個字」，而且那兩個字本身不是詞才算
+       （王宜文→一塊；王老師→王／老師，因為「老師」是詞）。
+       只認三個字，不認「姓＋一個字」——那個太容易把「王老」這種切出來。 */
+    if (SURN.includes(cs[i]) && i + 3 <= n){
+      const rest = cs.slice(i + 1, i + 3).join("");
+      if (/^[㐀-鿿]{2}$/.test(rest) && !W.has(rest) && !W.has(cs.slice(i, i + 3).join("")) && !W.has(cs[i + 1] + (cs[i + 2] || "")))
+        out.push([3, 8]); }
     for (let k = 2; k <= 5 && i + k <= n; k++){ const w = cs.slice(i, i + k).join(""); let sc = -1;
       if (W.has(w)) sc = k * k + (LW.has(w) ? 3 : 0);
       if (k === 2 && /[一兩三四五六七八九十幾這那每哪半]/.test(cs[i]) && MEAS.includes(cs[i + 1])) sc = Math.max(sc, 6);
@@ -519,15 +546,20 @@ function chunks(s, p){
      其他非漢字（數字、英文字母）和輕聲的了嗎呢吧照舊併進前一塊。
      這樣學生得自己決定句號放哪裡——本來就該學的事。 */
   const PUNC = /^[。，、；：！？…—～·「」『』（）《》〈〉〔〕【】,.!?;:()\[\]"'\u2018\u2019\u201C\u201D-]+$/;
+  const HANCH = /^[㐀-鿿]+$/;
   const res = [];
   out.forEach(t => { const prev = res[res.length - 1];
+    /* SEG_V1432 標點自己一塊（連在一起的算同一塊） */
     if (PUNC.test(t)){ if (prev != null && PUNC.test(prev)) res[res.length - 1] = prev + t; else res.push(t); return; }
-    if (prev != null && !PUNC.test(prev) && (/^[^㐀-鿿]+$/.test(t) || /^[了嗎呢吧啊的喔嘛呀兒]$/.test(t))) res[res.length - 1] = prev + t; else res.push(t); });
-  return res;
+    /* SEG_V1432 數字、英文、空白自己一塊，不要黏進漢字（以前會切出「書 300 」） */
+    if (!HANCH.test(t)){ if (prev != null && !HANCH.test(prev) && !PUNC.test(prev)) res[res.length - 1] = prev + t; else res.push(t); return; }
+    /* SEG_V1432 助詞（的了嗎呢吧…）本來就各自是一個詞，不再黏在前一塊 */
+    res.push(t); });
+  return res.filter(x => x !== "");
 }
 function orderStart(p){
   /* PUNCT_V1427 標點獨立出來之後每一句會多一塊，上限跟著放寬一塊，不然會少掉一些句子 */
-  const sents = shuffle(p.sents.slice()).map(s => ({ s, c:chunks(s, p) })).filter(x => x.c.length >= 3 && x.c.length <= 9).slice(0, 10);
+  const sents = shuffle(p.sents.slice()).map(s => ({ s, c:chunks(s, p) })).filter(x => x.c.length >= 3 && x.c.length <= 12).slice(0, 10);/* SEG_V1432 助詞獨立之後每句會多幾塊，上限跟著放寬 */
   if (sents.length < 3){ toast("可以用的句子太少了，請多選幾課"); return; }
   let i = 0, score = 0, tries = 0;
   const b = shell("句子排序", srcName());
