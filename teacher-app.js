@@ -6122,9 +6122,16 @@ function tjActOf(c){const m=TJ_KIND[c&&c.kind];
    回覆範本本來就在〈給學生的東西〉裡面了（同一件事有兩個入口）；
    使用說明在〈設定〉最底下本來就有一顆大的入口。兩個都只是把重複的那顆拿掉。
    右上角的搜尋仍然打得到每一頁。 */
+/* ══════ TEACHSIB_V1424 「教學」也要有分頁列 ══════
+   Quinn：「為什麼遊戲那邊也不這樣排？」——她指的是〈留學業務〉點進去，上面有一排
+   代辦・面試・代書・學校・行事曆，一眼就知道這一區有哪幾頁、現在在哪一頁。
+   〈教學〉底下本來只有兩小撮（學生／帳號、教材／課堂活動／線上課），
+   課表、教材庫、漢字遊戲、批改完全沒有分頁列，每一頁都是孤立的。
+   併成一排，內容就是側邊選單「教學」那一區原本就有的那幾頁，沒有多也沒有少。 */
 const NAVSIB=[
-  {tabs:[['students','👥 學生名冊',0],['acct','🔑 帳號・使用',1]]},
-  {tabs:[['lessons','📖 教材與課程',0],['files','🎯 課堂活動',0],['oc','▶️ 線上課',1]]}
+  {tabs:[['students','👥 學生名冊',0],['acct','🔑 帳號・使用',1],['calendar','📅 課表',0],
+         ['lessons','📖 教材與課程',0],['files','🎯 課堂活動',0],['oc','▶️ 線上課',1],
+         ['lib','🗂 教材庫',0],['hanzi','🀄 漢字遊戲',0],['grades','📝 批改・成績',0]]}
 ];
 function navSibGroup(tab){
   for(let i=0;i<NAVSIB.length;i++){
@@ -6278,7 +6285,9 @@ function navSibApply(){
     document.querySelectorAll('.navsib').forEach(x=>x.remove());
     const h=navSibHtml(S.tab);if(!h)return;
     const p=document.querySelector('#panel-'+S.tab);if(!p)return;
-    const head=p.querySelector(':scope > .section-head');
+    /* TEACHSIB_V1424 漢字遊戲那一頁的標題列是外掛自己畫進 body 裡的，
+       不是面板的直接子元素，所以直接子元素找不到就往下找第一個。 */
+    const head=p.querySelector(':scope > .section-head')||p.querySelector('.section-head');
     if(head)head.insertAdjacentHTML('afterend',h);
     else p.insertAdjacentHTML('afterbegin',h);
   }catch(e){}}
