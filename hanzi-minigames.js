@@ -452,13 +452,22 @@ function chunks(s, p){
   const best = Array(n + 1).fill(null); best[n] = [0, []];
   for (let i = n - 1; i >= 0; i--){ let bb = null; cand(i).forEach(([k, sc]) => { const r = best[i + k]; if (r && (!bb || sc + r[0] > bb[0])) bb = [sc + r[0], [k].concat(r[1])]; }); best[i] = bb; }
   const out = []; let i = 0; best[0][1].forEach(k => { out.push(cs.slice(i, i + k).join("")); i += k; });
+  /* ══════ PUNCT_V1427 標點自己一塊 ══════
+     Quinn：「我想要標點符號也是獨立的一部分」。原本「人。」是黏在一起的一塊，
+     因為下面那一行把「所有非漢字的東西」都併進前一塊，句號也被歸進去。
+     改成：標點自己一塊（連在一起的標點算同一塊，例如「」。），
+     其他非漢字（數字、英文字母）和輕聲的了嗎呢吧照舊併進前一塊。
+     這樣學生得自己決定句號放哪裡——本來就該學的事。 */
+  const PUNC = /^[。，、；：！？…—～·「」『』（）《》〈〉〔〕【】,.!?;:()\[\]"'\u2018\u2019\u201C\u201D-]+$/;
   const res = [];
   out.forEach(t => { const prev = res[res.length - 1];
-    if (prev != null && (/^[^㐀-鿿]+$/.test(t) || /^[了嗎呢吧啊的喔嘛呀兒]$/.test(t))) res[res.length - 1] = prev + t; else res.push(t); });
+    if (PUNC.test(t)){ if (prev != null && PUNC.test(prev)) res[res.length - 1] = prev + t; else res.push(t); return; }
+    if (prev != null && !PUNC.test(prev) && (/^[^㐀-鿿]+$/.test(t) || /^[了嗎呢吧啊的喔嘛呀兒]$/.test(t))) res[res.length - 1] = prev + t; else res.push(t); });
   return res;
 }
 function orderStart(p){
-  const sents = shuffle(p.sents.slice()).map(s => ({ s, c:chunks(s, p) })).filter(x => x.c.length >= 3 && x.c.length <= 8).slice(0, 10);
+  /* PUNCT_V1427 標點獨立出來之後每一句會多一塊，上限跟著放寬一塊，不然會少掉一些句子 */
+  const sents = shuffle(p.sents.slice()).map(s => ({ s, c:chunks(s, p) })).filter(x => x.c.length >= 3 && x.c.length <= 9).slice(0, 10);
   if (sents.length < 3){ toast("可以用的句子太少了，請多選幾課"); return; }
   let i = 0, score = 0, tries = 0;
   const b = shell("句子排序", srcName());

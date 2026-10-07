@@ -9482,11 +9482,17 @@ function renderLib(){
   const by={};items.forEach(f=>{const b=String(f.book||'').trim()||'（還沒分到教材）';(by[b]=by[b]||[]).push(f);});
   const books=Object.keys(by).sort((a,b)=>a.localeCompare(b,'zh-Hant'));
   const total=libAll().length;
-  let html='<div class="card"><div class="dash-row">'
-    +'<h2 style="margin:0">📚 教材庫</h2><span class="grow"></span>'
-    +'<button class="btn btn-sm" type="button" data-act="libScan">🔍 掃一遍課裡的檔案</button> '/* LIBSCAN_V1416 */
-    +'<button class="btn btn-accent" type="button" data-act="libNew">＋ 加一份教材</button></div>'
-    +'<div class="hint" style="margin-top:6px">把 PPT、PDF 的 Google Drive 連結收在這裡，照教材分好，要用的時候挑一份就能掛到課上給學生。</div>'
+  /* ══════ LIBHEAD_V1426 標題列搬到面板最上層 ══════
+     Quinn：「教材那邊不出現教材庫的地方，讓我覺得很躁，因為每一個都有，就它沒有」。
+     教學那九頁的形狀都是「標題列 → 分頁列 → 內容」，只有教材庫不是——因為它的標題
+     本來寫在第一張卡片裡，不是面板的直接子元素，navSibApply 找不到可以接的標題，
+     就把分頁列丟到最上面去了，看起來就跟別頁不一樣。
+     把標題和那兩顆鈕改成跟別頁一樣的 .section-head，分頁列自然就會落在它下面。 */
+  let html='<div class="section-head"><h2>📚 教材庫</h2><span class="sub">'+(total?('共 '+total+' 份'):'')+'</span><div class="head-actions">'
+    +'<button class="btn btn-sm" type="button" data-act="libScan">🔍 掃一遍課裡的檔案</button>'
+    +'<button class="btn btn-accent" type="button" data-act="libNew">＋ 加一份教材</button></div></div>'
+    +'<div class="card">'
+    +'<div class="hint">把 PPT、PDF 的 Google Drive 連結收在這裡，照教材分好，要用的時候挑一份就能掛到課上給學生。</div>'
     +'<div class="hint" style="margin-top:8px;padding:8px 10px;background:#FFF7E6;border:1px solid #F0DDB0;border-radius:8px">'
     +'⚠ <b>掛給學生之前</b>，記得先到 Google Drive 把那份檔案的共用改成「知道連結的人都可以檢視」，不然學生點開會變成「要求存取權」。這一點程式檢查不到，只能靠妳設定。</div>'
     +'<div style="margin-top:10px"><input id="lib-q" type="search" placeholder="搜尋標題、備註、教材…" value="'+esc(S.libQ||'')+'" oninput="H.libSearch(this.value)" style="max-width:320px"></div>'
