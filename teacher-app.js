@@ -665,6 +665,47 @@ document.addEventListener('toggle',(e)=>{const d=e.target;
     if(id){S.crmOpen=S.crmOpen||{};if(d.open)S.crmOpen[id]=true;else delete S.crmOpen[id];}}},true);
 document.addEventListener('click',(e)=>{const t=e.target;if(!t||!t.closest)return;
   const b=t.closest('[data-act]');if(b&&b.closest('summary.crm-sum'))e.preventDefault();},true);
+/* ══════ HMORE_V1422 客戶卡片裡的「⋯ 更多」══════
+   Quinn：「這裡的更多有bug」「長相跟功能都有」。量出來是兩件事：
+     長相：它是後台唯一一個「不浮起來」的選單。打開會把卡片從 374px 撐到 513px，
+           下面的東西整個被推下去。當初不浮，是因為外層 .crm-list 有 overflow
+           （圓角要裁、又要能左右捲），絕對定位會被裁掉。
+     功能：點旁邊關不掉。上面那個「點外面收起來」的監聽只認 details.mini-menu，
+           .hmore 不在名單裡，所以一打開就一直開著，除非再點一次那顆。
+   解法：打開的時候把面板整個搬到 <body> 底下（position:fixed 自己算位置）。
+   為什麼不是單純改成 position:fixed 留在原地——實測過，手機寬度下祖先元素會
+   變成 fixed 的定位基準（量到 inline left 寫 8px，實際卻落在 319px），
+   iPad 寬度下又會被上層元素蓋住。搬到 body 底下這兩個問題都不會發生。
+   關掉的時候再搬回原來的 <details> 裡，所以 render() 重畫卡片不受影響；
+   萬一重畫時面板還在外面，下一次開啟會先把孤兒清掉。 */
+let HM_D=null,HM_POP=null;
+function hmoreShut(){
+  if(HM_POP&&HM_D){try{HM_D.appendChild(HM_POP);HM_POP.removeAttribute('style');HM_POP.classList.remove('hmore-float');}catch(e){}}
+  if(HM_D){try{HM_D.removeAttribute('open');}catch(e){}}
+  HM_D=HM_POP=null;
+  document.querySelectorAll('body>.hmore-p').forEach(x=>{try{x.remove();}catch(e){}});
+}
+function hmoreShow(d){
+  hmoreShut();
+  const sum=d.querySelector(':scope>summary'),pop=d.querySelector(':scope>.hmore-p');
+  if(!sum||!pop)return;
+  HM_D=d;HM_POP=pop;pop.classList.add('hmore-float');document.body.appendChild(pop);/* 樣式本來綁在 .itv-acts 底下，搬出來要靠這個 class */
+  pop.style.position='fixed';pop.style.margin='0';pop.style.zIndex='9998';
+  const r=sum.getBoundingClientRect(),w=pop.offsetWidth||208,h=pop.offsetHeight||0;
+  pop.style.left=Math.max(8,Math.min(r.left,window.innerWidth-w-8))+'px';
+  let top=r.bottom+6;if(top+h>window.innerHeight-8)top=Math.max(8,r.top-h-6);
+  pop.style.top=top+'px';
+}
+document.addEventListener('toggle',(e)=>{const d=e.target;
+  if(!d||!d.classList||!d.classList.contains('hmore')||!d.closest('.itv-acts'))return;
+  if(d.open)hmoreShow(d);else if(d===HM_D)hmoreShut();},true);
+document.addEventListener('click',(e)=>{const t=e.target;
+  if(!HM_D)return;
+  if(HM_POP&&HM_POP.contains(t)){setTimeout(hmoreShut,0);return;}/* 面板裡的按鈕：先讓它跑完再收 */
+  if(HM_D.contains(t))return;/* 再點一次那顆「⋯ 更多」交給 toggle 處理 */
+  hmoreShut();},true);
+window.addEventListener('scroll',()=>{if(HM_D)hmoreShut();},true);
+window.addEventListener('resize',()=>{if(HM_D)hmoreShut();});
 function closeMiniMenus(){document.querySelectorAll('details.mini-menu[open]').forEach(d=>d.removeAttribute('open'));}
 function openModal(h){closeMiniMenus();$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;
   setTimeout(()=>{try{lpAll();}catch(e){}},0);/* LESPICK_V1198 */}
@@ -3816,7 +3857,8 @@ function renderWriting(){
             +'<button class="btn" data-act="wrStageSet" data-id="'+esc(c.id)+'::consult">↩︎ 放回諮詢中</button>';
           const close=crmCloseBtns(c,'wrToggle');
           if(close.indexOf('crmCloseDue')>=0)return fold(more)+'<i class="itv-sep"></i>'+close;
-          return fold(more+'<i class="hmore-sep"></i>'+close);})()}</div>
+          /* HMORE_V1422 代辦客戶沒有雲端連結的時候 more 是空字串，分隔線就變成選單最上面一條「分隔不了東西」的灰線 */
+          return fold((more?more+'<i class="hmore-sep"></i>':'')+close);})()}</div>
     </div></details>`;}).join('');
   /* CRMBAND_V1100 跟代辦、面試同一種版面 */
   body.innerHTML=_foc
@@ -3965,7 +4007,8 @@ function renderAgency(){
             +'<button class="btn" data-act="agStageSet" data-id="'+esc(c.id)+'::consult">↩︎ 放回諮詢中</button>';
           const close=crmCloseBtns(c,'agToggle');
           if(close.indexOf('crmCloseDue')>=0)return fold(more)+'<i class="itv-sep"></i>'+close;
-          return fold(more+'<i class="hmore-sep"></i>'+close);})()}
+          /* HMORE_V1422 代辦客戶沒有雲端連結的時候 more 是空字串，分隔線就變成選單最上面一條「分隔不了東西」的灰線 */
+          return fold((more?more+'<i class="hmore-sep"></i>':'')+close);})()}
       </div>
       ${''/* HIDE_V1340 代辦卡片上的「👉 下一步」那一條拿掉。
            next_do／next_on 的內容還存在資料裡，客戶資料視窗裡也還能改，
@@ -4333,7 +4376,8 @@ function renderInterview(){
              「💰 處理未收 …」——那一顆是故意要跳出來提醒的，收進選單就白做了，留在外面。 */
           const close=crmCloseBtns(c,'itvToggle');
           if(close.indexOf('crmCloseDue')>=0)return fold(more)+'<i class="itv-sep"></i>'+close;
-          return fold(more+'<i class="hmore-sep"></i>'+close);})()}
+          /* HMORE_V1422 代辦客戶沒有雲端連結的時候 more 是空字串，分隔線就變成選單最上面一條「分隔不了東西」的灰線 */
+          return fold((more?more+'<i class="hmore-sep"></i>':'')+close);})()}
       </div>
       ${(function(){const lg=itvLogSorted(c);
         /* EMPTY_V1336 沒記錄時本來會印「🗂 進度記錄」＋「還沒有記錄」兩行。
