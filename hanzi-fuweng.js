@@ -62,9 +62,19 @@ const round10 = n => Math.round(n / 10) * 10;
 const blank = (w, i) => [...w].map((x, k) => k === i ? "□" : x).join("");
 
 // ---------- 題目範圍：生詞（2～4 個字）----------
+/* ══════ FWCLOZE_V1430 大富翁也出句子挖空題 ══════
+   Quinn：「我想要不是純粹玩而是要學習到內容的」。大富翁原本買地只問兩種：
+   「□ 是哪一個字」和「看拼音選詞」，兩種都是認字，擲骰子買地才是主戲。
+   這裡多收一份「每個詞在課本裡自己的那一句」，出題時有三分之一機會改成挖空，
+   學生要看懂整句才填得出來。沒有例句的詞（八千詞、字族那兩種來源）照舊。 */
+const FWEX = {};
 function wordsFrom(src){
+  for (const k in FWEX) delete FWEX[k];
   const out = {}, real = new Set(), put = (w, py) => { if (!w || (out[w] && (real.has(w) || !py)) || !HAN.test(w) || w.length < 2 || w.length > 4 || [...w].some(c => NOSTROKE.has(c))) return; out[w] = py || [...w].map(c => pyOf(c)).join(""); if (py) real.add(w); };
-  if (src.k === "course") src.ids.forEach(id => { const L = C.byId[id]; if (L) L.chars.forEach(x => { if (!x.sent && x.w) put(x.w, x.wpy); }); });
+  if (src.k === "course") src.ids.forEach(id => { const L = C.byId[id]; if (L) L.chars.forEach(x => { if (!x.sent && x.w){ put(x.w, x.wpy);
+    /* FWCLOZE_V1430 這個詞自己的例句（課本生詞欄第四格） */
+    const ex = (Array.isArray(x.ex) ? x.ex : []).map(t => String(t || "").replace(/\s+/g, "")).filter(t => t.indexOf(x.w) >= 0 && [...t].length <= 26);
+    if (ex.length) FWEX[x.w] = ex; } }); });
   else if (src.k === "fam") FAM.forEach(f => { if (src.v === "*" || f.name === src.v) f.chars.forEach(x => { const e = CH[x.c]; if (e) put(e.w); }); });
   else if (src.k === "lv"){ const L = LEVELS[src.v]; if (L) L.stages.forEach(st => st.chars.forEach(c => { const e = CH[c]; if (e) put(e.w); })); }
   return out;
@@ -101,6 +111,16 @@ function mkQ(s, w){
   const py = (s.board.find(b => b.w === w) || {}).py || sylOf(w, s.words[w]).join(""), syl = sylOf(w, s.words[w]);
   const others = Object.keys(s.words).filter(x => x !== w);
   const tm = s.tmul == null ? 1.5 : s.tmul, lim = tm ? Math.round(LIM * tm) : 0;
+  /* FWCLOZE_V1430 有例句就有三分之一機會出挖空題；選項盡量同字數，不然數格子就猜到了 */
+  if ((FWEX[w] || []).length && others.length >= 3 && Math.random() < .34){
+    const sent = FWEX[w][Math.floor(Math.random() * FWEX[w].length)];
+    const same = others.filter(x => [...x].length === [...w].length);
+    const bag = shuffle((same.length >= 3 ? same : others).slice()).slice(0, 3);
+    shuffle(others.slice()).forEach(x => { if (bag.length < 3 && bag.indexOf(x) < 0) bag.push(x); });
+    const opts = shuffle([w].concat(bag));
+    return { kind:"cloze", w, py, sent, blank:sent.split(w).join("＿".repeat(Math.max(2, [...w].length))),
+      opts, ans:opts.indexOf(w), t0:Date.now(), lim:lim ? Math.round(lim * 1.6) : 0, res:null };
+  }
   if (Math.random() < .5 && others.length >= 3){
     // 看拼音選詞：錯的選項優先挑字數一樣、有同一個字的詞
     const sc = x => (x.length === w.length ? 2 : 0) + ([...x].some(c => w.includes(c)) ? 1 : 0) + Math.random();
@@ -400,13 +420,15 @@ function modalEl(){
   }
   if (ph === "q" && S.q){
     const q = S.q, live = me && !q.res;
-    box.append(el("div", { class:"qhead" }, [el("span", { class:"kind", text: q.kind === "blank" ? "選字" : "看拼音" }), el("b", { text:`買地「${q.w}」$${sq.price}` }), el("span", { class:"who", text:p.name + " 作答" })]));
+    box.append(el("div", { class:"qhead" }, [el("span", { class:"kind", text: q.kind === "blank" ? "選字" : (q.kind === "cloze" ? "填空" : "看拼音") }), el("b", { text:`買地「${q.w}」$${sq.price}` }), el("span", { class:"who", text:p.name + " 作答" })]));
     if (!q.res && q.lim) box.append(el("div", { class:"timer" }, [el("i")]));
     const pr = el("div", { class:"prompt" });
     if (q.kind === "blank"){ pr.append(el("div", { class:"w", text:blank(q.w, q.i) }), el("div", { class:"py pyl", text:q.py })); }
+    else if (q.kind === "cloze") pr.append(el("div", { class:"w cz", text:q.blank }));/* FWCLOZE_V1430 */
     else pr.append(el("div", { class:"py pyl big", text:q.py }));
-    box.append(pr, el("p", { class:"ask", text: q.kind === "blank" ? "□ 是哪一個字？" : "這是哪一個詞？" }));
-    const g = el("div", { class:"opts" + (q.kind === "pyword" ? " words" : "") });
+    box.append(pr, el("p", { class:"ask", text: q.kind === "blank" ? "□ 是哪一個字？" : (q.kind === "cloze" ? "這一句少了哪一個詞？" : "這是哪一個詞？") }));
+    if (q.kind === "cloze" && q.res) box.append(el("p", { class:"ask czfull", text:q.sent }));/* 答完把整句印出來 */
+    const g = el("div", { class:"opts" + (q.kind === "pyword" || q.kind === "cloze" ? " words" : "") });
     q.opts.forEach((o, i) => { const b = el("button", { class:"opt", type:"button", text:o });
       if (q.res){ b.disabled = true; if (i === q.ans) b.classList.add("right"); else if (i === q.res.pick) b.classList.add("wrong"); }
       else if (live) b.onclick = () => answered(i); else b.disabled = true;

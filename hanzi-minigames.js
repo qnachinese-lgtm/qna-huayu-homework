@@ -202,12 +202,36 @@ function bingoBot(p, n){
   draw(); next();
   GAME = { k:"bingo" };
 }
+/* ══════ BINGOQ_V1431 賓果不要只叫詞 ══════
+   Quinn：「我想要不是純粹玩而是要學習到內容的」。原本老師螢幕上直接印那個詞，
+   學生在卡上找一模一樣的字——那是比對字形，不用懂意思。
+   多兩種叫法：念那個詞的「意思」，或念它課本裡的例句（把詞挖掉）。
+   學生要聽懂才找得到。叫法可以隨時切換，詞還是會印在小字那一行給老師自己看。 */
 function bingoCaller(p){
-  const b = shell("生詞賓果・老師叫詞", srcName());
+  const b = shell("生詞賓果・老師出題", srcName());
   const calls = shuffle(p.words.slice()); let i = 0, showPy = true;
+  const canMean = p.words.filter(x => x.mean).length >= 5;
+  const canEx = p.words.filter(x => (x.ex || []).length).length >= 5;
+  let mode = "w";
+  const clueOfWord = (x) => {
+    if (mode === "mean" && x.mean) return { big:x.mean, cls:"txt", sub:"（念意思，不要念詞）" };
+    if (mode === "ex" && (x.ex || []).length){
+      const sent = x.ex[0];
+      return { big:sent.split(x.w).join("＿".repeat(Math.max(2, [...x.w].length))), cls:"txt", sub:"（念這一句，學生找那個詞）" };
+    }
+    return { big:x.w, cls:"hz w", sub:"" };
+  };
   const big = el("div", { class:"callbig" }), hist = el("div", { class:"callhist" });
-  const draw = () => { const x = calls[i]; big.innerHTML = ""; big.append(el("small", { text:`第 ${i + 1}／${calls.length} 個` }), el("div", { class:"hz w", text:x.w }), showPy ? el("div", { class:"pyl", text:x.py }) : null);
+  const draw = () => { const x = calls[i]; const c = clueOfWord(x); big.innerHTML = "";
+    big.append(el("small", { text:`第 ${i + 1}／${calls.length} 個` }),
+      el("div", { class:(c.cls === "hz w" ? "hz w" : "callclue"), text:c.big }),
+      (mode !== "w" ? el("small", { class:"muted", text:"答案：" + x.w + (showPy ? "　" + x.py : "") + c.sub }) : (showPy ? el("div", { class:"pyl", text:x.py }) : null)));
     hist.innerHTML = ""; calls.slice(0, i).reverse().forEach(y => hist.append(el("span", { class:"chip", text:y.w }))); };
+  const modeSeg = el("div", { class:"seg" });
+  [["w", "念詞"]].concat(canMean ? [["mean", "念意思"]] : []).concat(canEx ? [["ex", "念例句"]] : [])
+    .forEach(([v, t]) => { const bb = el("button", { type:"button", text:t, "aria-pressed":String(mode === v),
+      onclick: () => { mode = v; [...modeSeg.children].forEach(z => z.setAttribute("aria-pressed", "false")); bb.setAttribute("aria-pressed", "true"); draw(); } }); modeSeg.append(bb); });
+  if (modeSeg.children.length > 1) b.append(el("div", { class:"row center", style:"margin-bottom:8px" }, [el("b", { text:"怎麼叫" }), modeSeg]));
   b.append(big, el("div", { class:"row center" }, [btn("← 上一個", () => { if (i > 0){ i--; draw(); } }), btn("下一個 →", () => { if (i < calls.length - 1){ i++; draw(); sfx.pick(); } }, "primary big"), btn("拼音：顯示／隱藏", () => { showPy = !showPy; draw(); })]), el("p", { class:"muted", text:"已經叫過的詞：" }), hist);
   draw(); GAME = { k:"bingo" };
 }
@@ -239,10 +263,11 @@ function bingoPrint(p, n0){
 function flipSetup(p){
   const b = shell("翻牌配對", srcName());
   const hasMean = p.words.filter(x => x.mean).length >= 6;
+  const hasEx = p.words.filter(x => (x.ex || []).length).length >= 6;/* BINGOQ_V1431 */
   const st = { pairs:Math.min(8, p.words.length), kind:"py", np:1 };
   const f = el("div", { class:"mgform box" });
   const seg = (opts, k) => { const s = el("div", { class:"seg" }); opts.forEach(([v, t]) => { const bb = el("button", { type:"button", text:t, "aria-pressed":String(st[k] === v), onclick: () => { st[k] = v; [...s.children].forEach(z => z.setAttribute("aria-pressed", String(z === bb))); } }); s.append(bb); }); return s; };
-  f.append(el("div", { class:"row" }, [el("b", { text:"配什麼" }), seg([["py", "詞 ↔ 拼音"]].concat(hasMean ? [["mean", "詞 ↔ 意思"]] : []), "kind")]));
+  f.append(el("div", { class:"row" }, [el("b", { text:"配什麼" }), seg([["py", "詞 ↔ 拼音"]].concat(hasMean ? [["mean", "詞 ↔ 意思"]] : []).concat(hasEx ? [["ex", "詞 ↔ 例句"]] : []), "kind")]));/* BINGOQ_V1431 詞配例句：要看懂句子才配得起來 */
   f.append(el("div", { class:"row" }, [el("b", { text:"幾對" }), seg([[6, "6 對"], [8, "8 對"], [10, "10 對"]].filter(([v]) => v <= p.words.length), "pairs")]));
   f.append(el("div", { class:"row" }, [el("b", { text:"人數" }), seg([[1, "1 個人"], [2, "2 個人輪流"]], "np")]));
   f.append(btn("開始", () => flipPlay(p, st), "primary big"));
@@ -250,8 +275,10 @@ function flipSetup(p){
 }
 function flipPlay(p, st){
   const b = shell("翻牌配對", srcName());
-  const ws = shuffle(p.words.filter(x => st.kind === "py" || x.mean)).slice(0, st.pairs);
-  const cards = shuffle(ws.flatMap((x, i) => [{ id:i, t:x.w, hz:true }, { id:i, t: st.kind === "py" ? x.py : x.mean, hz:false }]));
+  const ws = shuffle(p.words.filter(x => st.kind === "py" ? true : (st.kind === "ex" ? (x.ex || []).length : x.mean))).slice(0, st.pairs);
+  /* BINGOQ_V1431 例句那一面要把詞挖掉，不然答案就印在卡片上了 */
+  const faceOf = (x) => st.kind === "py" ? x.py : (st.kind === "mean" ? x.mean : x.ex[0].split(x.w).join("＿".repeat(Math.max(2, [...x.w].length))));
+  const cards = shuffle(ws.flatMap((x, i) => [{ id:i, t:x.w, hz:true }, { id:i, t:faceOf(x), hz:false }]));
   const cols = cards.length % 5 === 0 ? 5 : 4, rows = Math.ceil(cards.length / cols);
   let open = [], done = 0, moves = 0, turn = 0, lock = false; const score = [0, 0]; const t0 = Date.now();
   const bar = el("div", { class:"fbar" }), grid = el("div", { class:"fgrid", style:`--c:${cols};--r:${rows}` });
