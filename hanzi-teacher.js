@@ -66,21 +66,43 @@ function renderHanzi(){
       +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'+(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
     :'<div class="muted" style="padding:8px 2px">還沒有指派漢字遊戲作業。按右上角「＋ 指派作業」開始。</div>';
   const stus=(S.students||[]).filter(hzLive).slice().sort((a,b)=>{const x=hzDocOf(a),y=hzDocOf(b);return String((y&&y.updated_at)||'').localeCompare(String((x&&x.updated_at)||''))||stuNameCmp(a,b);});
-  const rows=stus.map(s=>{const d=hzDocOf(s);const r=(d&&d.rec)||null;
-    /* HZTB_V1415 每個 td 補 data-l（欄位名）。手機上表頭會藏起來，
-       改用 td::before 把欄位名印在值前面——八欄才不會只看得到兩欄。 */
-    if(!r)return '<tr><td data-l="學生">'+snm(s.name)+'</td><td colspan="7" class="muted" data-l="進度">還沒玩過</td></tr>';
+  /* ══════ HZLEAN_V1421 整欄都是空的就不要畫 ══════
+     Quinn：「我覺得這些太亂了，不需要那麼多資訊在這裡吧」。她的截圖裡十二位學生
+     全部都還沒玩過，八欄表格有七欄整欄空白，卻還是撐在那裡。
+     改成先把每一格算出來，再把「所有人都沒有值」的欄整欄拿掉；
+     有人開始玩了，那一欄就自己長回來，不用改程式。
+     HZTB_V1415 的 data-l（手機上用 td::before 印欄位名）照樣每一格都帶。 */
+  const COLS=[
+    ['學生',''],['最近玩',''],['等級',''],['課本學會',''],['待複習',''],
+    ['闖關星星',''],['回想關正確率',''],['最常錯的字',' style="font-size:20px;letter-spacing:2px"']];
+  const cells=stus.map(s=>{const d=hzDocOf(s);const r=(d&&d.rec)||null;
+    if(!r)return {name:snm(s.name),v:null};
     const sm=k=>Object.values((r.stars&&r.stars[k])||{}).reduce((a,b)=>a+(Number(b)||0),0);
-    const rc=r.recall||{};const rate=rc.done?(Math.round(rc.ok/rc.done*100)+'%（'+rc.done+' 題）'):'—';
+    const rc=r.recall||{};const rate=rc.done?(Math.round(rc.ok/rc.done*100)+'%（'+rc.done+' 題）'):'';
     const wr=Object.entries(r.wrong||{}).sort((a,b)=>b[1]-a[1]);
     const hard=(wr.length?wr.slice(0,8).map(x=>x[0]+(x[1]>1?'<sub style="font-size:11px;color:#B4364A">×'+x[1]+'</sub>':'')):Object.entries(r.hard||{}).sort((a,b)=>((b[1]&&b[1].miss)||0)-((a[1]&&a[1].miss)||0)).slice(0,6).map(x=>x[0])).join(' ');
     const today=new Date().toISOString().slice(0,10);const rv=Object.values(r.review||{});const rvDue=rv.filter(x=>x&&x.due<=today).length;
     const learned=Object.values(r.course||{}).reduce((a,c)=>a+Object.keys((c&&c.m)||{}).length,0);
-    return '<tr><td data-l="學生">'+snm(s.name)+'</td><td data-l="最近玩">'+hzWhen(d.updated_at)+'</td><td data-l="等級">'+hzLevel(r.xp)+'<br><span class="muted" style="font-size:12px">'+(r.xp||0)+' XP</span></td>'
-      +'<td data-l="課本學會">'+learned+' 個</td><td data-l="待複習">'+(rv.length?(rv.length+' 個'+(rvDue?'<br><span class="badge badge-soon">今天 '+rvDue+'</span>':'')):'—')+'</td>'
-      +'<td data-l="闖關星星">'+sm('easy')+'／'+sm('normal')+'／'+sm('hard')+'</td><td data-l="回想關正確率">'+rate+'</td>'
-      +'<td data-l="最常錯的字" style="font-size:20px;letter-spacing:2px">'+(hard||'—')+'</td></tr>';}).join('');
-  body.innerHTML='<div class="section-head"><h2>🀄 漢字遊戲（字族工坊）</h2><span class="sub">指派關卡給學生，看每個人的漢字進度</span>'
+    const st=sm('easy')+sm('normal')+sm('hard');
+    return {name:snm(s.name),v:[
+      snm(s.name),
+      hzWhen(d.updated_at),
+      (r.xp?hzLevel(r.xp)+'<br><span class="muted" style="font-size:12px">'+r.xp+' XP</span>':''),
+      (learned?learned+' 個':''),
+      (rv.length?(rv.length+' 個'+(rvDue?'<br><span class="badge badge-soon">今天 '+rvDue+'</span>':'')):''),
+      (st?sm('easy')+'／'+sm('normal')+'／'+sm('hard'):''),
+      rate,
+      hard]};});
+  // 前兩欄（學生、最近玩）一定留著；其他欄只要有人有值才留
+  const keep=COLS.map((c,i)=>i<2||cells.some(x=>x.v&&x.v[i]));
+  const nKeep=keep.filter(Boolean).length;
+  const thead=COLS.filter((c,i)=>keep[i]).map(c=>'<th>'+c[0]+'</th>').join('');
+  const rows=cells.map(x=>{
+    if(!x.v)return '<tr><td data-l="學生">'+x.name+'</td><td colspan="'+(nKeep-1)+'" class="muted" data-l="進度">還沒玩過</td></tr>';
+    return '<tr>'+COLS.map((c,i)=>keep[i]?('<td data-l="'+c[0]+'"'+c[1]+'>'+(x.v[i]||'—')+'</td>'):'').join('')+'</tr>';}).join('');
+  // 只剩兩三欄的時候不要撐滿整個寬度，不然「還沒玩過」會被推到最右邊
+  const tbW=nKeep<=3?'width:auto':('min-width:'+Math.max(320,nKeep*96)+'px;width:100%');
+  body.innerHTML='<div class="section-head"><h2>🀄 漢字遊戲（字族工坊）</h2>'/* HZLEAN_V1421 副標刪掉 */
     /* ══════ GAMEMENU_V1420 兩顆「開啟…↗」合成一個選單 ══════
        Quinn：「我覺得這個太奇怪了」。原本標題列右邊是三顆：
        「開啟字族工坊 ↗」「開啟生詞遊戲 ↗」「＋ 指派作業」。
@@ -95,10 +117,13 @@ function renderHanzi(){
     +'<a class="btn btn-sm" href="games.html" target="_blank" rel="noopener">🎲 生詞遊戲 ↗</a>'
     +'</div></details>'
     +'<button class="btn btn-sm btn-accent" data-act="hzNew">＋ 指派作業</button></div>'
-    +'<div class="card"><h3 style="margin:0 0 8px">作業</h3><div class="hint" style="margin-bottom:8px">綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。</div>'+taskHtml+'</div>'
-    +'<div class="card" style="margin-top:14px"><h3 style="margin:0 0 8px">學生進度</h3><div class="hint" style="margin-bottom:8px">課本學會＝在「課本」練習裡寫對也用對的字。待複習＝寫錯或選錯、排了 1／3／7／15 天複習的字。最常錯的字：右下角的 ×2 是錯了幾次，上課可以先帶這些字。</div>'
-    +'<div style="overflow-x:auto"><table class="hz-tb" style="min-width:720px;width:100%"><thead><tr><th>學生</th><th>最近玩</th><th>等級</th><th>課本學會</th><th>待複習</th><th>闖關星星</th><th>回想關正確率</th><th>最常錯的字</th></tr></thead><tbody>'
-    +(rows||'<tr><td colspan="8" class="muted">還沒有學生</td></tr>')+'</tbody></table></div></div>';
+    +'<div class="card"><h3 style="margin:0 0 8px">作業</h3>'+(tasks.length?'<div class="hint" style="margin-bottom:8px">綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。</div>':'')/* HZLEAN_V1421 沒有作業就不要解釋顏色 */+taskHtml+'</div>'
+    +'<div class="card" style="margin-top:14px"><h3 style="margin:0 0 8px">學生進度</h3>'
+    /* HZLEAN_V1421 三句話的名詞解釋收起來，要看再點開 */
+    +'<details style="margin-bottom:8px"><summary class="hint" style="cursor:pointer;display:list-item;width:fit-content">欄位說明</summary>'
+    +'<div class="hint" style="margin-top:6px">課本學會＝在「課本」練習裡寫對也用對的字。待複習＝寫錯或選錯、排了 1／3／7／15 天複習的字。最常錯的字：右下角的 ×2 是錯了幾次，上課可以先帶這些字。</div></details>'
+    +'<div style="overflow-x:auto"><table class="hz-tb" style="'+tbW+'"><thead><tr>'+thead+'</tr></thead><tbody>'
+    +(rows||'<tr><td colspan="'+nKeep+'" class="muted">還沒有學生</td></tr>')+'</tbody></table></div></div>';
 }
 H.hzNew=()=>{
   const live=(S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test);
