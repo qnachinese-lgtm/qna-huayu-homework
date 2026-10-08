@@ -5672,17 +5672,10 @@ function renderStudents(){
    （頭像、國籍、測試帳號、Meet／教材資料夾連結、付款帳號、費用提醒、合併帳戶、負責管理員）
    收進下面的「更多設定」。欄位 id 全部沒改，存檔邏輯不動。 */
 function studentModal(st){const e=!!(st&&st.id);st=st||{};
-  if(!e){/* STULAST_V1138 只在「新增」時帶預設值，不會動到既有資料 */
-    const L=stuLast();
-    if(L){st=Object.assign({},st);
-      if(!st.textbook&&L.textbook)st.textbook=L.textbook;
-      if(st.tuition==null&&L.tuition!=='')st.tuition=L.tuition;
-      if(!st.fee_unit&&L.fee_unit)st.fee_unit=L.fee_unit;
-      if(!st.currency&&L.currency)st.currency=L.currency;
-      if(!st.class_type&&L.class_type)st.class_type=L.class_type;
-      if(!(Array.isArray(st.schedule)&&st.schedule.length)&&Array.isArray(L.schedule)&&L.schedule.length)
-        st.schedule=L.schedule;}
-  }
+  /* STULAST_V1443 Quinn：「新增一個學生，寫完他教材以後就突然直接設定給下一位也是這樣」。
+     V1138 本來是一打開新增視窗就自動把上一位的教材／單價／幣別／收費單位／班別／
+     時段填好，所以一不小心就會把前一位的教材帶給下一位。改成預設全空，
+     想要的時候自己按上面那顆「帶入上一位的設定」(H.stuFillLast)。 */
   openModal(`<div class="modal modal-tall stu-modal"><div class="modal-head"><h3>${e?'編輯學生':'新增學生'}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
     <div class="stu-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"><!-- STUTAB_V1138 -->
@@ -5691,7 +5684,7 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
       ${IS_OWNER?'<button type="button" class="note-tab" data-stug="c">💰 收費</button>':''}
       <button type="button" class="note-tab" data-stug="d">⚙️ 其他</button>
     </div>
-    ${(!e&&stuLast())?`<div class="hint" data-g="a" style="background:#FDF3D8;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:12px">已幫你帶入上次新增學生用的設定（教材／單價／幣別／時段），不對就直接改。</div>`:''/* STULAST_V1138 */}
+    ${(!e&&stuLast())?`<div class="hint" data-g="a" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#F4F7FB;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:12px"><span>要跟上一位新增的學生用同樣的設定嗎？</span><button type="button" class="btn btn-sm" data-act="stuFillLast">帶入上一位的設定</button></div>`:''/* STULAST_V1443 */}
     <div class="form-sec" data-g="a"><div class="form-sec-h">📋 基本資料</div><div class="form-grid">
      <div class="field"><label>名字 * <span class="hint">平常畫面上顯示的，臉書名字也可以</span></label><input id="f-name" type="text" value="${esc(st.name||'')}"></div>
      ${realField('f-real',st)/* REALNAME_V1108 */}
@@ -6167,8 +6160,17 @@ function navSibHtml(tab){
    側欄還在 DOM 裡（只是藏起來），所以原本更新數字的程式照跑，不會有兩套。 */
 const TNAV=[
   {id:'dashboard',t:'今日總覽',act:'tab'},
-  {t:'教學',sub:[['students','👥 學生','c-students'],['calendar','📅 課表',''],
-                 ['lessons','📚 教材與課程','c-lessons'],['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],/* HANZI_V4 頂部選單也放漢字遊戲 */['grades','📝 批改・成績','c-pending']]},
+  /* TNAVFIX_V1442 Quinn：「這邊有帳號使用，為什麼下拉沒有？」
+     底下的分頁列（NAVSIB）有九頁，這個下拉卻只有六頁——帳號・使用、課堂活動、
+     線上課這三頁從來沒被放進來。順序改成跟分頁列一模一樣；帳號和線上課是
+     主管理員才看得到，用 ow:1 標記，跟 NAVSIB 第三欄的 1 是同一個意思。 */
+  {t:'教學',sub:[['students','👥 學生','c-students'],
+                 {k:'acct',id:'acct',t:'🔑 帳號・使用',ow:1},
+                 ['calendar','📅 課表',''],
+                 ['lessons','📚 教材與課程','c-lessons'],
+                 ['files','🎯 課堂活動',''],
+                 {k:'oc',id:'oc',t:'▶️ 線上課',ow:1},
+                 ['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],/* HANZI_V4 */['grades','📝 批改・成績','c-pending']]},
   {t:'留學業務',sub:[['agency','🎓 代辦申請','c-ag'],['interview','🎤 面試練習','c-itv'],
                      ['writing','✍️ 代書','c-wr'],['school','🏫 學校與資料','']]},
   {t:'收費・財務',sub:[['pay','💰 繳費','c-owe'],['ops','📈 財務・營運','']]},
@@ -16109,6 +16111,23 @@ H.logout=()=>{try{if(window.firebase&&firebase.auth&&firebase.apps&&firebase.app
 H.closeModal=closeModal;
 H.genCode=()=>{$('#f-code').value=genCodeStr();};
 
+/* STULAST_V1443 按下去才把上一位的設定填進表單；沒按就什麼都不會變。 */
+H.stuFillLast=()=>{
+  const L=stuLast(); if(!L) return toast('還沒有上一位可以帶');
+  const set=(id,v)=>{const el=document.getElementById(id); if(el&&v!==''&&v!=null&&v!==undefined)el.value=v;};
+  set('f-book',L.textbook||'');
+  set('f-fee',(L.tuition===''||L.tuition==null)?'':L.tuition);
+  set('f-feeunit',L.fee_unit||'');
+  set('f-cur',L.currency||'');
+  set('f-type',L.class_type||'');
+  const c=document.getElementById('sched-rows');
+  if(c&&Array.isArray(L.schedule)&&L.schedule.length){
+    c.innerHTML=L.schedule.map(r=>schedRowHTML(r)).join('');
+    try{refreshFirstSlot();}catch(e){}}
+  const n=[L.textbook&&'教材',(L.tuition!==''&&L.tuition!=null)&&'單價',L.class_type&&'班別',
+           (Array.isArray(L.schedule)&&L.schedule.length)&&'時段'].filter(Boolean);
+  toast(n.length?('已帶入：'+n.join('、')+'，不對就直接改'):'上一位沒有可以帶的設定');
+};
 H.addStudent=()=>studentModal(null);
 H.editStudent=(id)=>studentModal(S.students.find(s=>s.id===id));
 /* NASCHED_V1405 「新增一位」有自己的容器 #na-sched，H.schedAdd 是寫死 #sched-rows 的，

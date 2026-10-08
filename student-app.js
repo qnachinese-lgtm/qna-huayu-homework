@@ -2754,7 +2754,16 @@ function renderHome(){
             vi:{hi:'Xin chào',todo:'Sắp đến hạn',none:'Không có bài nào đến hạn. Tuyệt!',go:'Làm bài',cs:'Giáo trình của tôi',grp:'Lớp',solo:'1 kèm 1',todo2:'Chưa làm xong',none2:'Đã làm xong hết'}})[L]
         ||{hi:'你好',todo:'近期待辦',none:'目前沒有待辦，很棒！',go:'去作答',cs:'我的教材',grp:'團班',solo:'一對一',todo2:'還沒做完',none2:'都做完了'};
   const cs=courseList();
-  const G=['linear-gradient(135deg,#1E4C86,#A33227)','linear-gradient(135deg,#1E4C86,#16334F)','linear-gradient(135deg,#1E4C86,#143A6B)','linear-gradient(135deg,#1E4C86,#143A6B)'];
+  /* CSCOLOR_V1443 Quinn：「能不能幫我改成其他顏色，類似這個當代中文課程一？」
+     本來四個裡面只有第一個（深藍→磚紅）看得出顏色，第二個是深藍→更深的藍，
+     第三、第四個完全一模一樣（都是 #1E4C86→#143A6B），所以第二本之後全都長得像同一本。
+     換成六個真的分得開的，底色都留 #1E4C86，只換收尾的那一色，跟平台色票一致。 */
+  const G=['linear-gradient(135deg,#1E4C86,#A33227)',   /* 磚紅 */
+           'linear-gradient(135deg,#1E4C86,#2E7D5B)',   /* 墨綠 */
+           'linear-gradient(135deg,#1E4C86,#8A6A2A)',   /* 赭金 */
+           'linear-gradient(135deg,#1E4C86,#6A4C9C)',   /* 紫 */
+           'linear-gradient(135deg,#1E4C86,#1C6E7E)',   /* 青 */
+           'linear-gradient(135deg,#1E4C86,#16334F)'];  /* 深藍 */
   const annN=(S.announcements||[]).filter(a=>assignedToMe(a)).length;
   const cards=cs.map((c,i)=>{
     const wN=c.lessons.filter(l=>{const r=resultOf(l.id);return answerableOf(l.id).length&&!(r&&r.status==='done');}).length;
