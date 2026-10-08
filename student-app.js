@@ -1604,7 +1604,7 @@ function applyChrome(){
   $('#app-name').textContent=_nm;
   $('#app-sub').textContent=t('sub');
   try{const _f=document.getElementById('foot-note');
-    if(_f)_f.textContent='QNA Chinese · '+t('sub');}catch(e){}
+    if(_f)_f.textContent='QNA CHINESE · '+t('sub');/* BRAND_V1441 全站都是大寫，只有這一行是 QNA Chinese */}catch(e){}
   $('#langs').innerHTML=langsHTML();
   $('#menu').innerHTML=menuHTML();
   $('#btn-logout').textContent=t('logout');

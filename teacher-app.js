@@ -18978,10 +18978,12 @@ function drawerSync(){
 window.addEventListener('resize',()=>{drawerSync();});
 setTimeout(()=>{drawerInit();drawerSync();},320);
 
-H.navToggle=()=>{const off=document.body.classList.toggle('nav-off');try{localStorage.setItem('qna_nav_off',off?'1':'0');}catch(e){}const b=document.getElementById('nav-toggle');if(b)b.textContent=off?'☰':'⟨';};
+/* NAVTOG_V1441 這兩行本來用 textContent 把鈕寫成「⟨」或「☰」，會把 teacher.html 裡的
+   SVG 箭頭整個洗掉。方向改成用 body.nav-off 的 CSS 旋轉，這裡不要再碰內容。 */
+H.navToggle=()=>{const off=document.body.classList.toggle('nav-off');try{localStorage.setItem('qna_nav_off',off?'1':'0');}catch(e){}};
 try{if(localStorage.getItem('qna_nav_off')==='1'){document.body.classList.add('nav-off');}}catch(e){}
 try{if(localStorage.getItem('qna_layout')==='top'){document.body.classList.add('layout-top');document.body.classList.remove('nav-off');}}catch(e){}
-setTimeout(()=>{const b=document.getElementById('nav-toggle');if(b)b.textContent=document.body.classList.contains('nav-off')?'☰':'⟨';},0);
+/* NAVTOG_V1441 同上，不再覆寫鈕的內容 */
 H.filesViewLes=()=>{S.filesView='les';renderFiles();};
 H.uaBatch=()=>{const studs=S.students.filter(s=>enrollOf(s)==='active'||s.is_test).sort((a,b)=>((a.is_test?1:0)-(b.is_test?1:0)));const grps=groupsList();
   openModal('<div class="modal"><div class="modal-head"><h3>＋ 開放上傳格子</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
