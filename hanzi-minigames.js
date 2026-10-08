@@ -62,12 +62,18 @@ const GAMES = [
   { k:"cloze", t:"句子挖空", d:"用這個詞在課本裡的那一句，把詞挖掉讓學生填。要看懂整句才填得出來，不是比對拼音。", ic:"空" }/* CLOZE_V1428 */
 ];
 const GAPP = document.body.classList.contains("games-app");
+/* JOIN_V1450 games.html?join=1 或 #join → 直接開「學生加入」 */
+const WANT_JOIN = (function(){ try { return /(^|[?&])join=1/.test(location.search) || /^#join$/i.test(location.hash); } catch(e){ return false; } })();
 const FWCARD = { k:"fw", t:"大富翁", d:"擲骰子走棋盤，地是課本的生詞。答對才買得到地，機會卡、命運卡要看懂中文。", ic:"富" };
 const RVCARD = { k:"revenge", t:"錯題復仇戰", d:"把你以前答錯過的字詞抓回來重打一次。同一個字答對兩次，難字本上才會消掉。", ic:"復" };/* REVENGE_V1436 */
 /* UI_V1433：字謎猜猜看本來只有上面的分頁有，卡片牆裡沒有，分頁 8 個、卡片只有 6 張，對不起來。 */
 const RDCARD = { k:"riddle", t:"字謎猜猜看", d:"把一個字拆成部件當謎面，猜是哪個字。可以自己玩，也可以投影出來帶全班一起猜。", ic:"謎" };
 function selTab(k){ document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === "mg" ? (b.dataset.game || "") === (k || "") : false))); }
+let JOIN_DONE = false;/* JOIN_V1450 */
 function home(){
+  /* JOIN_V1450 從學生頁帶 ?join=1 進來：第一次不要停在首頁，直接開「學生加入」。
+     之後按「← 全部遊戲」還是會正常回到這裡。 */
+  if (GAPP && WANT_JOIN && !JOIN_DONE){ JOIN_DONE = true; try { joinOnly(); return; } catch(e){} }
   stopGame(); try { Object.assign(SET, JSON.parse(localStorage.getItem("hz-mg") || "{}")); } catch(e){}
   if (GAPP) selTab("");
   const P = panel(); P.innerHTML = "";
@@ -382,6 +388,32 @@ const clozeCount = p => p.words.filter(x => (x.ex || []).length).length;
 /* OCOL_V1439 再壓深、彩度再降一階。四個色相還是分得開——上課學生會喊「紅的那個」。 */
 const OCOL = ["#2B4C73", "#8E3A46", "#2F6B55", "#8A6A2A"];
 const OSYM = ["▲", "◆", "●", "■"];
+/* JOIN_V1450 Quinn：「加上一點就到輸入代碼的畫面」。
+   課堂上老師喊代碼的時候，學生從學生頁點進來還要再按「快問快答 → 學生加入」兩下。
+   這裡給一個單獨的加入畫面：games.html?join=1（或 #join）直接開。
+   注意它「不經過 openGame」——加入別人的房間不需要自己這邊有生詞，
+   走 openGame 會被「生詞至少要 4 個」擋掉。 */
+function joinCard(){
+  const uid = A.store && A.store.uid;
+  const inp = el("input", { class:"fwin big", inputmode:"numeric", maxlength:"5", placeholder:"代碼" });
+  const nm = el("input", { class:"fwin", placeholder:"你的名字", value:(A.store.me && A.store.me.name) || "" });
+  const go = () => uid ? quizJoin(inp.value.trim(), nm.value.trim()) : toast("要先登入才能加入");
+  inp.onkeydown = e => { if (e.key === "Enter") go(); };
+  nm.onkeydown = e => { if (e.key === "Enter") go(); };
+  return el("div", { class:"mgcard join" }, [
+    el("b", { text:"學生加入" }),
+    el("small", { text:"輸入老師螢幕上的 5 位數代碼：" }),
+    el("div", { class:"row" }, [inp, nm, btn("加入", go, "primary")])
+  ]);
+}
+function joinOnly(){
+  if (GAPP) selTab("quiz");
+  const b = shell("快問快答・學生加入", "輸入老師螢幕上的代碼");
+  const c = joinCard();
+  b.append(el("div", { class:"mgmenu" }, [c]));
+  GAME = { k:"quiz" };
+  try { const i = c.querySelector("input"); if (i) setTimeout(() => i.focus(), 60); } catch(e){}
+}
 function quizHome(p){
   const b = shell("快問快答", srcName());
   const uid = A.store && A.store.uid;
@@ -684,7 +716,7 @@ function orderStart(p){
 document.querySelectorAll('nav.tabs button[data-tab="mg"]').forEach(tab => { tab.setAttribute("data-novi", ""); tab.setAttribute("translate", "no");
   tab.addEventListener("click", () => { A.showTab("mg"); const k = tab.dataset.game || ""; if (GAPP){ stopGame(); fsOff(); if (k){ home(); const p = pool(); const need = { bingo:9, flip:6, quiz:4, order:0, cloze:4 }[k]; if ((k === "order" && p.sents.length < 3) || p.words.length < need){ toast("請先在這一頁勾選要玩哪幾課"); selTab(""); return; } openGame(k); } else home(); } else if (!GAME) home(); }); });
 if (GAPP){ document.querySelectorAll("nav.tabs button").forEach(b => { b.setAttribute("data-novi", ""); b.setAttribute("translate", "no"); }); A.showTab("mg"); home(); }
-window.HZMG = { home, pool, chunks, makeQs, open:openGame, get game(){ return GAME; } };
+window.HZMG = { home, pool, chunks, makeQs, open:openGame, join:joinOnly/* JOIN_V1450 */, get game(){ return GAME; } };
 }
 if (window.HZAPI) boot(); else document.addEventListener("hzapi", boot);
 })();

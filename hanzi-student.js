@@ -49,18 +49,33 @@ function hzOpen(){ return hzMine().filter(t => !hzTaskDone(t)); }
 /* 漢字複習：遊戲裡寫錯、選錯的字，照 1、3、7、15 天排好的複習 */
 function hzToday(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function hzReviewDue(){ if (!hzOK()) return 0; /* HZWHO_V1404 */ const r = S.hanziDoc && S.hanziDoc.rec && S.hanziDoc.rec.review; if (!r) return 0; const t = hzToday(); return Object.values(r).filter(x => x && x.due && x.due <= t).length; }
+/* CARDGATE_V1450 Quinn 的學生找不到生詞遊戲。原因不是沒有入口——入口一直在這裡，
+   是整個函式第一行 if(!hzOK()) return '' 把兩張卡一起擋掉了。那個名單是當初
+   「漢字遊戲還在測試中」才加的，但生詞遊戲玩的是老師課本裡的生詞，跟漢字遊戲
+   的測試狀態無關，不該一起被擋。改成：漢字闖關照舊看名單，生詞遊戲每個登入的
+   學生都看得到。老師在課堂上喊代碼的時候，學生一登入就找得到。 */
 function hzHomeCard(){
-  if (!hzOK()) return ''; /* HZWHO_V1404 名單外的人連卡片都不要畫 */
-  const n = hzOpen().length;
-  return '<div class="card hz-card" style="margin-top:14px;display:flex;align-items:center;gap:10px;cursor:pointer" data-act="openHanzi" data-id="">'
-    + '<span style="font-size:28px">🀄</span><span style="flex:1"><b>' + esc(L4('漢字闖關', '汉字闯关', 'Hanzi game', 'Trò chơi chữ Hán')) + '</b><br>'
-    + '<small class="muted">' + (hzReviewDue() ? esc(L4('今天要複習 ' + hzReviewDue() + ' 個字', '今天要复习 ' + hzReviewDue() + ' 个字', hzReviewDue() + ' character(s) to review today', 'Hôm nay ôn ' + hzReviewDue() + ' chữ')) + '・' : '') + esc(n ? L4('老師指派了 ' + n + ' 關', '老师指派了 ' + n + ' 关', n + ' stage(s) assigned', 'Cô giao ' + n + ' màn') : L4('拼部件、學字源、練寫字', '拼部件、学字源、练写字', 'Build characters from parts', 'Ghép bộ thủ, học chữ')) + '</small></span>'
-    + '<span class="btn btn-sm btn-accent">' + esc(L4('去玩', '去玩', 'Play', 'Chơi')) + '</span></div>'
-    /* GAMES_V1414 生詞遊戲（games.html）：大富翁、生詞賓果、翻牌配對、快問快答、句子排序 */
-    + '<a class="card hz-card" href="games.html" style="margin-top:10px;display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit">'
+  const me = (typeof S !== 'undefined' && S) ? S.me : null;
+  if (me && me.id === '__preview') return '';          /* 老師預覽學生畫面時不要出現 */
+  const mt = (first) => first ? 'margin-top:14px' : 'margin-top:10px';
+  let out = '';
+  if (hzOK()){
+    out += '<div class="card hz-card" style="' + mt(true) + ';display:flex;align-items:center;gap:10px;cursor:pointer" data-act="openHanzi" data-id="">'
+      + '<span style="font-size:28px">🀄</span><span style="flex:1"><b>' + esc(L4('漢字闖關', '汉字闯关', 'Hanzi game', 'Trò chơi chữ Hán')) + '</b><br>'
+      + '<small class="muted">' + (hzReviewDue() ? esc(L4('今天要複習 ' + hzReviewDue() + ' 個字', '今天要复习 ' + hzReviewDue() + ' 个字', hzReviewDue() + ' character(s) to review today', 'Hôm nay ôn ' + hzReviewDue() + ' chữ')) : esc(L4('拆部件、認字、闖關', '拆部件、认字、闯关', 'Radicals, characters, levels', 'Bộ thủ, chữ Hán, vượt ải'))) + '</small></span>'
+      + '<span class="btn btn-sm btn-accent">' + esc(L4('去玩', '去玩', 'Play', 'Chơi')) + '</span></div>';
+  }
+  /* GAMES_V1414 生詞遊戲（games.html）：大富翁、生詞賓果、翻牌配對、快問快答、句子排序、句子挖空、字謎、錯題復仇戰 */
+  out += '<a class="card hz-card" href="games.html" style="' + mt(!hzOK()) + ';display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit">'
     + '<span style="font-size:28px">🎲</span><span style="flex:1"><b>' + esc(L4('生詞遊戲', '生词游戏', 'Vocabulary games', 'Trò chơi từ vựng')) + '</b><br>'
-    + '<small class="muted">' + esc(L4('大富翁、賓果、翻牌、快問快答、句子排序', '大富翁、宾果、翻牌、快问快答、句子排序', 'Monopoly, bingo, memory, quiz, sentence order', 'Cờ tỷ phú, bingo, lật thẻ, đố nhanh, xếp câu')) + '</small></span>'
+    + '<small class="muted">' + esc(L4('大富翁、賓果、翻牌、快問快答、句子排序', '大富翁、宾果、翻牌、快问快答、句子排序', 'Monopoly, bingo, memory, quiz, sentence order', 'Cờ tỷ phú, bingo, lật thẻ, hỏi nhanh, sắp xếp câu')) + '</small></span>'
     + '<span class="btn btn-sm btn-accent">' + esc(L4('去玩', '去玩', 'Play', 'Chơi')) + '</span></a>';
+  /* JOIN_V1450 老師在課堂上開房、喊 5 位數代碼的時候，這一條直接跳到輸入代碼的畫面 */
+  out += '<a class="card hz-card" href="games.html?join=1" style="margin-top:10px;display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit">'
+    + '<span style="font-size:28px">🔢</span><span style="flex:1"><b>' + esc(L4('輸入老師給的代碼', '输入老师给的代码', 'Enter the code from your teacher', 'Nhập mã của cô giáo')) + '</b><br>'
+    + '<small class="muted">' + esc(L4('上課玩「快問快答」搶分的時候用', '上课玩「快问快答」抢分的时候用', 'For the live quiz in class', 'Dùng khi chơi hỏi nhanh trên lớp')) + '</small></span>'
+    + '<span class="btn btn-sm btn-accent">' + esc(L4('加入', '加入', 'Join', 'Vào')) + '</span></a>';
+  return out;
 }
 H.openHanzi = (id) => {
   /* HZWHO_V1404 名單外的人就算用舊畫面的按鈕點進來，也擋下來 */
