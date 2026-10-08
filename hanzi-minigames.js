@@ -63,6 +63,7 @@ const GAMES = [
 ];
 const GAPP = document.body.classList.contains("games-app");
 const FWCARD = { k:"fw", t:"大富翁", d:"擲骰子走棋盤，地是課本的生詞。答對才買得到地，機會卡、命運卡要看懂中文。", ic:"富" };
+const RVCARD = { k:"revenge", t:"錯題復仇戰", d:"把你以前答錯過的字詞抓回來重打一次。同一個字答對兩次，難字本上才會消掉。", ic:"復" };/* REVENGE_V1436 */
 /* UI_V1433：字謎猜猜看本來只有上面的分頁有，卡片牆裡沒有，分頁 8 個、卡片只有 6 張，對不起來。 */
 const RDCARD = { k:"riddle", t:"字謎猜猜看", d:"把一個字拆成部件當謎面，猜是哪個字。可以自己玩，也可以投影出來帶全班一起猜。", ic:"謎" };
 function selTab(k){ document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === "mg" ? (b.dataset.game || "") === (k || "") : false))); }
@@ -80,6 +81,7 @@ function home(){
   let nSent = 0; try { nSent = pool().sents.length; } catch(e){}
   const cards = GAPP ? [FWCARD].concat(GAMES) : GAMES.slice();
   if (GAPP && document.querySelector('nav.tabs button[data-tab="riddle"]')) cards.push(RDCARD);
+  if (GAPP && document.querySelector('nav.tabs button[data-game="revenge"]')) cards.push(RVCARD);/* REVENGE_V1436 */
   cards.forEach(x => {
     const need = (x.k === "order" || x.k === "cloze") && !nSent;
     const kids = [el("span", { class:"mgic hz", text:x.ic }), el("b", { text:x.t }), el("small", { text:x.d })];
@@ -156,6 +158,7 @@ function srcPicker(){
 function goFw(){ const b = document.querySelector('nav.tabs button[data-tab="fw"]'); if (b) b.click(); }
 function openGame(k){
   if (GAPP){ A.showTab("mg"); selTab(k); }
+  if (k === "revenge"){ revengeStart(); return; }/* REVENGE_V1436 題目來自自己的錯題，跟選了哪幾課無關 */
   const p = pool();
   const need = { bingo:9, flip:6, quiz:4, order:0, cloze:4 }[k];
   if (k === "order" && p.sents.length < 3){ toast(SET.src === "course" ? "選的課沒有課文句子，請換幾課" : "句子排序要用「我的課本」的課文"); return; }
@@ -362,7 +365,10 @@ function makeCloze(p, n){
   return out;
 }
 const clozeCount = p => p.words.filter(x => (x.ex || []).length).length;
-const OCOL = ["#1E4C86", "#D2457A", "#13918F", "#7A52C7"];
+/* OCOL_V1437 Quinn：「顏色能不能不要那麼奇怪」。本來的桃紅跟紫不在平台的色票裡，
+   跟後台、學生頁放在一起很跳。換成 :root 本來就有的四個：navy／bad／green／gold。
+   四個要夠好分辨——上課學生會喊「紅的那個」。 */
+const OCOL = ["#1E4C86", "#B4364A", "#2E7D5B", "#B8901C"];
 const OSYM = ["▲", "◆", "●", "■"];
 function quizHome(p){
   const b = shell("快問快答", srcName());
@@ -382,10 +388,63 @@ function qView(q, live, onPick, res){
   q.opts.forEach((o, i) => { const bb = el("button", { class:"qopt" + (q.opy ? " pyl" : " hz") + (res ? (i === q.ans ? " right" : res.pick === i ? " wrong" : " dim") : ""), type:"button", style:`--oc:${OCOL[i]}`, onclick: () => live && onPick(i) }, [el("span", { class:"sym", text:OSYM[i] }), el("span", { class:"ot", text:o })]); if (!live) bb.disabled = true; g.append(bb); });
   box.append(g); return box;
 }
+/* ══════ REVENGE_V1436 錯題復仇戰 ══════
+   Quinn 點名要的。平台本來就一直在記學生答錯的東西——
+     rec.review  排進複習的項目，{w 詞, py 拼音, mean 意思}，資料最完整
+     rec.hard    難字本，key 是「字」，{miss 錯幾次, ok 之後對幾次}
+     rec.wrong   每個字累積錯幾次
+   但這三份只有漢字闖關那邊在用，生詞遊戲這邊完全沒入口。
+   這一關就是把三份合起來、錯最多的排前面，用快問快答同一套畫面重打。
+   答對的處理跟 hanzi-game.js 的回想關一致：ok 累積到 2 就從難字本刪掉，
+   不是答對一次就算會了。 */
+function revPool(){
+  const rec = (A.getRec && A.getRec()) || {};
+  const hard = rec.hard || {}, rev = rec.review || {}, wrong = rec.wrong || {};
+  const seen = new Set(), out = [];
+  const add = (w, py, mean, miss) => {
+    w = String(w || "").trim();
+    if (!w || seen.has(w) || !HAN.test(w)) return;
+    py = String(py || "").trim() || [...w].map(c => pyOf(c) || "").filter(Boolean).join(" ");
+    if (!py) return;                       /* 沒拼音就出不了題，寧可不收 */
+    seen.add(w);
+    out.push({ w, py, fb:false, mean:String(mean || ""), ex:[], miss:Number(miss) || 1 });
+  };
+  Object.keys(rev).forEach(c => { const r = rev[c] || {};
+    add(r.w || c, r.py, r.mean, (hard[c] && hard[c].miss) || wrong[c] || 1); });
+  Object.keys(hard).forEach(c => add(c, "", "", (hard[c] && hard[c].miss) || 1));
+  Object.keys(wrong).forEach(c => add(c, "", "", wrong[c] || 1));
+  out.sort((a, b) => b.miss - a.miss);
+  return out;
+}
+function revClear(q, good){
+  if (!good) return;
+  const rec = (A.getRec && A.getRec()) || {}; const hard = rec.hard || {};
+  let chg = false;
+  [...String(q.w || "")].forEach(c => { if (!hard[c]) return;
+    hard[c].ok = (hard[c].ok || 0) + 1;
+    if (hard[c].ok >= 2) delete hard[c];
+    chg = true; });
+  /* 答對一次只是 ok+1，也要存——不然關掉頁面就忘了，下一次又從零開始。 */
+  if (chg) try { A.save(); } catch(e){}
+}
+function revengeStart(){
+  const ws = revPool();
+  if (ws.length < 4){
+    toast(ws.length ? "你答錯過的字詞還不夠出一局（至少要 4 個），先去玩幾局再回來報仇。"
+                    : "目前沒有錯題可以報仇——先去玩幾局吧。");
+    if (GAPP) selTab("");
+    home(); return;
+  }
+  /* 錯最多的優先，但多抓一些進來當誘答，也不會每一局都一模一樣 */
+  const top = ws.slice(0, Math.max(12, Math.min(ws.length, 24)));
+  const n = Math.min(10, top.length);
+  quizSolo({ words:top, sents:[] },
+    { lim:18, n, title:"錯題復仇戰", sub:"你答錯過的 " + ws.length + " 個字詞", onAns:revClear });
+}
 function quizSolo(p, opt){
   opt = opt || {};/* CLOZE_V1428 句子挖空沿用這一套畫面，只換出題方式和秒數 */
   const qs = (opt.make || makeQs)(p, opt.n || 10), LIM = opt.lim || 15; let i = 0, score = 0, ok = 0, t0 = 0, tm = null, res = null;
-  const b = shell(opt.title || "快問快答・自己練習", srcName());
+  const b = shell(opt.title || "快問快答・自己練習", ("sub" in opt) ? opt.sub : srcName());/* REVENGE_V1436 */
   const top = el("div", { class:"qtop" }), area = el("div"), timer = el("div", { class:"qtimer" }, [el("i")]);
   b.append(top, timer, area);
   const draw = () => {
@@ -394,7 +453,9 @@ function quizSolo(p, opt){
     if (res){ area.append(el("div", { class:"qfb " + (res.ok ? "ok" : "no") }, [el("b", { text: res.ok ? `答對了！+${res.pts}` : res.pick === -1 ? "時間到！" : "答錯了" }), `　${qs[i].w}　`, el("span", { class:"pyl", text:qs[i].py }), qs[i].full ? el("div", { class:"czfull", text:qs[i].full }) : null]), el("div", { class:"row center" }, [btn(i < qs.length - 1 ? "下一題 →" : "看結果", nextQ, "primary big")])); }
   };
   const tick = () => { const left = LIM - (Date.now() - t0) / 1000; const bar = timer.querySelector("i"); bar.style.width = Math.max(0, left / LIM * 100) + "%"; if (left <= 0){ pickIt(-1); return; } tm = setTimeout(tick, 100); };
-  function pickIt(k){ if (res) return; clearTimeout(tm); const q = qs[i], good = k === q.ans, pts = good ? 500 + Math.round(500 * Math.max(0, 1 - (Date.now() - t0) / 1000 / LIM)) : 0; score += pts; if (good){ ok++; sfx.good(); } else sfx.bad(); res = { ok:good, pick:k, pts }; draw(); }
+  function pickIt(k){ if (res) return; clearTimeout(tm); const q = qs[i], good = k === q.ans;
+    if (opt.onAns) try { opt.onAns(q, good); } catch(e){}/* REVENGE_V1436 */
+    const pts = good ? 500 + Math.round(500 * Math.max(0, 1 - (Date.now() - t0) / 1000 / LIM)) : 0; score += pts; if (good){ ok++; sfx.good(); } else sfx.bad(); res = { ok:good, pick:k, pts }; draw(); }
   function nextQ(){ if (i >= qs.length - 1){ end(); return; } i++; res = null; t0 = Date.now(); draw(); tick(); }
   function end(){ clearTimeout(tm); area.innerHTML = ""; timer.hidden = true; const m = el("div", { class:"mgdone" }, [el("b", { text:`答對 ${ok}／${qs.length} 題，${score} 分` }), el("div", { class:"row center" }, [btn("再玩一次", () => quizSolo(p, opt), "primary big"), btn("回快問快答", () => quizHome(p))])]); area.append(m); sfx.win(); const [x, y] = centerOf(m); burst(x, y, 50); if (A.store.me) A.addXp(ok * 3); }
   t0 = Date.now(); draw(); tick();

@@ -5827,6 +5827,7 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
         <button class="btn btn-sm" data-act="tryLesson" data-id="${l.id}" title="像學生一樣真的做做看，不會存檔">🎒 試做</button>
         <button class="btn btn-sm${tgTxt(l.id)?' btn-soft':''}" data-act="tguide" data-id="${l.id}" title="只有老師看得到的參考答案和教學筆記">👩‍🏫 教師手冊</button>
         <button class="btn btn-sm" data-act="questions" data-id="${l.id}">📝 練習題（${qn}）</button>
+        <button class="btn btn-sm" data-act="vocSheet" data-id="${l.id}" title="印出這一課的生詞表、聽寫卷和答案卷">🖨 生詞表・聽寫卷</button><!-- VOCSHEET_V1435 -->
         <button class="btn btn-sm ${built?'':'btn-accent'}" data-act="toggleBuild" data-id="${l.id}">${built?'↩ 改回進行中':'✅ 標記完成'}</button>
         ${(Array.isArray(l.transcript)&&l.transcript.length)?`<button class="btn btn-sm${l.transcript_open?' btn-accent':' btn-warn'}" data-act="toggleTranscript" data-id="${l.id}" title="開了學生訂正時才看得到逐字稿">🎧 聽力文本${l.transcript_open?'：已開放':'：未開放'}</button>`:''}
         <span class="grow"></span>
@@ -15750,6 +15751,73 @@ H.qzModeChg=()=>{const m=($('#quiz-mode')&&$('#quiz-mode').value)||'live';
    但那三種是學生端當場生成的：老師看不到題目、不能刪、不能只考其中十個、
    也不能一張卷子混題型。這支把同一份生詞展開成文字丟進「自己打題目」，
    出完之後就是普通的手打題目，後面的流程一行都沒改。 */
+/* ══════ VOCSHEET_V1435 生詞表／聽寫卷／答案卷 ══════
+   平台本來印得出賓果卡和招生傳單，就是印不出最常用的那一張：這一課的生詞。
+   一頁三種，用上面那排切換：
+     生詞表 ── 詞、拼音、詞性、意思、例句，發給學生當講義。
+     聽寫卷 ── 只給拼音（沒拼音就給意思）和空格子，格子數＝這個詞幾個字。
+     答案卷 ── 同一張，答案直接印上去，老師改考卷用。
+   走既有的 fbWin()，字體由 printFontInject 補成標楷體＋Times New Roman。 */
+function vsWords(l){
+  const out=[];
+  ((l&&l.dialogues)||[]).forEach(d=>tvParseVocab((d&&d.vocabulary)||'').forEach(v=>{if(v&&v.front)out.push(v);}));
+  return out;
+}
+H.vocSheet=(id)=>{
+  const l=(S.lessons||[]).find(x=>x.id===id);
+  if(!l){toast('找不到這一課');return;}
+  const ws=vsWords(l);
+  if(!ws.length){toast('這一課還沒有生詞，印不出來');return;}
+  const E=esc;
+  const title=[String(l.textbook||'').trim(),lesNo(l,'（未命名）')].filter(Boolean).join('　·　');
+  const boxes=(w)=>{const n=Math.max(1,[...String(w)].length);let s='';for(let i=0;i<n;i++)s+='<i></i>';return '<span class="bx">'+s+'</span>';};
+  const rows=ws.map((v,i)=>'<tr><td class="n">'+(i+1)+'</td><td class="w">'+E(v.front)+'</td>'
+    +'<td class="py">'+E(v.py||'')+'</td><td class="ps">'+E(v.pos||'')+'</td>'
+    +'<td class="mn">'+E(v.back||'')+'</td><td class="ex">'+E((v.ex||[])[0]||'')+'</td></tr>').join('');
+  const dict=(ans)=>ws.map((v,i)=>'<div class="dq"><span class="dn">'+(i+1)+'.</span>'
+    +'<span class="cl">'+E(v.py||v.back||'（看老師唸）')+'</span>'
+    +(ans?('<span class="an">'+E(v.front)+'</span>'):boxes(v.front))+'</div>').join('');
+  /* 生詞表是發下去的講義，不用寫名字；聽寫卷和答案卷要。 */
+  const hd=(sub,who)=>'<div class="hd"><b>'+E(title)+'</b><span>'+E(sub)+'</span></div>'
+    +(who?'<div class="who">姓名：＿＿＿＿＿＿＿＿　日期：＿＿＿＿／＿＿＿＿</div>':'<div style="height:5mm"></div>');
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'
+   +E(title+'　生詞表')+'</title><style>'
+   +'*{box-sizing:border-box}body{margin:0;background:#EEF2F8;color:#16202E}'
+   +'.bar{max-width:210mm;margin:10px auto;display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap}'
+   +'.bar button{font:inherit;font-size:15px;font-weight:700;padding:10px 18px;border-radius:10px;border:1.5px solid #C0CEE0;background:#fff;color:#16202E;cursor:pointer}'
+   +'.bar button.on{background:#1E4C86;border-color:#1E4C86;color:#fff}'
+   +'.bar button.go{background:#0F2740;border-color:#0F2740;color:#fff}'
+   +'.sheet{width:210mm;min-height:297mm;margin:10px auto;padding:16mm 14mm;background:#fff;box-shadow:0 2px 12px rgba(22,32,46,.12)}'
+   +'body.a .s2,body.a .s3,body.b .s1,body.b .s3,body.c .s1,body.c .s2{display:none}'
+   +'.hd{display:flex;align-items:baseline;gap:10px;border-bottom:2px solid #1E4C86;padding-bottom:3mm}'
+   +'.hd b{font-size:19px}.hd span{font-size:14px;color:#5B6B80}'
+   +'.who{margin:4mm 0 6mm;font-size:14px;color:#5B6B80}'
+   +'table{width:100%;border-collapse:collapse;font-size:14px}'
+   +'th,td{border:1px solid #CBD6E4;padding:5px 7px;vertical-align:top}'
+   +'th{background:#EDF2F9;font-size:13px;text-align:left}'
+   +'td.n{width:9mm;text-align:center;color:#5B6B80}td.w{width:26mm;font-size:17px}'
+   +'td.py{width:28mm;font-size:13px;color:#30486A}td.ps{width:13mm;text-align:center;font-size:12px;color:#5B6B80}'
+   +'td.mn{width:38mm;font-size:13px}td.ex{font-size:13px}'
+   +'.dq{display:flex;align-items:center;gap:6px;padding:3.2mm 0;border-bottom:1px dotted #CBD6E4}'
+   +'.dn{width:9mm;color:#5B6B80;font-size:13px}'
+   +'.cl{width:46mm;font-size:14px;color:#30486A}'
+   +'.bx{display:inline-flex;gap:3px}'
+   +'.bx i{display:block;width:12mm;height:12mm;border:1px solid #AFC1D6;border-radius:2px;'
+   +'background:linear-gradient(#DCE5F0,#DCE5F0) center/100% 1px no-repeat,linear-gradient(#DCE5F0,#DCE5F0) center/1px 100% no-repeat}'
+   +'.an{font-size:20px;letter-spacing:4px}'
+   +'@media print{.bar{display:none}body{background:#fff}.sheet{margin:0;box-shadow:none;width:auto;min-height:0;padding:12mm}}'
+   +'</style></head><body class="a">'
+   +'<div class="bar"><span style="font-size:14px;color:#5B6B80">要印哪一張：</span>'
+   +'<button id="b1" class="on" onclick="document.body.className=\'a\';b1.className=\'on\';b2.className=\'\';b3.className=\'\'">生詞表</button>'
+   +'<button id="b2" onclick="document.body.className=\'b\';b2.className=\'on\';b1.className=\'\';b3.className=\'\'">聽寫卷</button>'
+   +'<button id="b3" onclick="document.body.className=\'c\';b3.className=\'on\';b1.className=\'\';b2.className=\'\'">答案卷</button>'
+   +'<button class="go" onclick="window.print()">\U0001F5A8 列印 / 存成 PDF</button></div>'
+   +'<div class="sheet s1">'+hd('生詞表（共 '+ws.length+' 個詞）',false)+'<table><tr><th></th><th>生詞</th><th>拼音</th><th>詞性</th><th>意思</th><th>例句</th></tr>'+rows+'</table></div>'
+   +'<div class="sheet s2">'+hd('聽寫卷（共 '+ws.length+' 題）',true)+dict(false)+'</div>'
+   +'<div class="sheet s3">'+hd('聽寫卷・答案（共 '+ws.length+' 題）',true)+dict(true)+'</div>'
+   +'</body></html>';
+  fbWin(html);
+};
 H.qzGen=()=>{
   const lid=($('#qzgen-lesson')&&$('#qzgen-lesson').value)||'';
   if(!lid){toast('請先選一課');return;}
