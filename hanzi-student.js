@@ -53,7 +53,7 @@ function hzHomeCard(){
   if (!hzOK()) return ''; /* HZWHO_V1404 名單外的人連卡片都不要畫 */
   const n = hzOpen().length;
   return '<div class="card hz-card" style="margin-top:14px;display:flex;align-items:center;gap:10px;cursor:pointer" data-act="openHanzi" data-id="">'
-    + '<span style="font-size:28px">🀄</span><span style="flex:1"><b>' + esc(L4('漢字遊戲・字族工坊', '汉字游戏・字族工坊', 'Hanzi game', 'Trò chơi chữ Hán')) + '</b><br>'
+    + '<span style="font-size:28px">🀄</span><span style="flex:1"><b>' + esc(L4('漢字闖關', '汉字闯关', 'Hanzi game', 'Trò chơi chữ Hán')) + '</b><br>'
     + '<small class="muted">' + (hzReviewDue() ? esc(L4('今天要複習 ' + hzReviewDue() + ' 個字', '今天要复习 ' + hzReviewDue() + ' 个字', hzReviewDue() + ' character(s) to review today', 'Hôm nay ôn ' + hzReviewDue() + ' chữ')) + '・' : '') + esc(n ? L4('老師指派了 ' + n + ' 關', '老师指派了 ' + n + ' 关', n + ' stage(s) assigned', 'Cô giao ' + n + ' màn') : L4('拼部件、學字源、練寫字', '拼部件、学字源、练写字', 'Build characters from parts', 'Ghép bộ thủ, học chữ')) + '</small></span>'
     + '<span class="btn btn-sm btn-accent">' + esc(L4('去玩', '去玩', 'Play', 'Chơi')) + '</span></div>'
     /* GAMES_V1414 生詞遊戲（games.html）：大富翁、生詞賓果、翻牌配對、快問快答、句子排序 */

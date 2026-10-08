@@ -181,7 +181,7 @@ function home(){
   const wrap = mk("div", { class:"rd-wrap" });
   wrap.append(mk("div", { class:"mgtop" }, [
     mk("h2", { text:"字謎猜猜看" }),
-    mk("p", { class:"muted", text:"只給部件的線索，猜是哪一個字。題目出自字族工坊的 " + (FAM || []).length + " 個字族，選項都是同一族裡長得像的字。" })
+    mk("p", { class:"muted", text:"只給部件的線索，猜是哪一個字。題目出自漢字闖關的 " + (FAM || []).length + " 個字族，選項都是同一族裡長得像的字。" })
   ]));
   const g = mk("div", { class:"rd-menu" });
   g.append(mk("button", { class:"rd-card", type:"button", onclick: () => solo(10) }, [

@@ -103,7 +103,7 @@ function renderHanzi(){
     if(!x.v)return '<tr><td data-l="學生">'+x.name+'</td><td colspan="'+(nKeep-1)+'" class="muted" data-l="進度">還沒玩過</td></tr>';
     return '<tr>'+COLS.map((c,i)=>'<td data-l="'+c[0]+'"'+c[1]+'>'+(x.v[i]||'—')+'</td>').join('')+'</tr>';}).join('');
   const tbW='min-width:720px;width:100%';
-  body.innerHTML='<div class="section-head"><h2>🀄 漢字遊戲（字族工坊）</h2>'/* HZLEAN_V1421 副標刪掉 */
+  body.innerHTML='<div class="section-head"><h2>🀄 漢字闖關</h2>'/* HZLEAN_V1421 副標刪掉 */
     /* ══════ GAMEMENU_V1420 兩顆「開啟…↗」合成一個選單 ══════
        Quinn：「我覺得這個太奇怪了」。原本標題列右邊是三顆：
        「開啟字族工坊 ↗」「開啟生詞遊戲 ↗」「＋ 指派作業」。
@@ -114,7 +114,7 @@ function renderHanzi(){
        <summary class="btn btn-sm">⋯ 更多</summary> 這種用法），點外面會自己收起來。 */
     +'<span class="grow"></span>'
     +'<details class="mini-menu"><summary class="btn btn-sm">開啟遊戲 ▾</summary><div class="mini-pop">'
-    +'<a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">🀄 字族工坊 ↗</a>'
+    +'<a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">🀄 漢字闖關 ↗</a>'
     +'<a class="btn btn-sm" href="games.html" target="_blank" rel="noopener">🎲 生詞遊戲 ↗</a>'
     +'</div></details>'
     +'<button class="btn btn-sm btn-accent" data-act="hzNew">＋ 指派作業</button></div>'
