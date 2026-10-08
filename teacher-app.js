@@ -15745,6 +15745,41 @@ H.qzModeChg=()=>{const m=($('#quiz-mode')&&$('#quiz-mode').value)||'live';
   if(hw)hw.style.display=(m==='choice')?'none':'';
   if(m==='audio'&&!QAUD.length)QAUD=[{url:'',ans:''},{url:'',ans:''},{url:'',ans:''}];
   if(m==='audio')qzAudRender();};
+/* ══════ GENQ_V1434 把一課的生詞帶成「題目＝答案」 ══════
+   平台本來就有「看拼音寫字／看意思寫字／看例句填生詞」三種整課自動出題，
+   但那三種是學生端當場生成的：老師看不到題目、不能刪、不能只考其中十個、
+   也不能一張卷子混題型。這支把同一份生詞展開成文字丟進「自己打題目」，
+   出完之後就是普通的手打題目，後面的流程一行都沒改。 */
+H.qzGen=()=>{
+  const lid=($('#qzgen-lesson')&&$('#qzgen-lesson').value)||'';
+  if(!lid){toast('請先選一課');return;}
+  const kind=($('#qzgen-kind')&&$('#qzgen-kind').value)||'mix';
+  const L=(S.lessons||[]).find(x=>x.id===lid);
+  const ws=[];
+  ((L&&L.dialogues)||[]).forEach(d=>tvParseVocab((d&&d.vocabulary)||'').forEach(v=>{if(v&&v.front)ws.push(v);}));
+  if(!ws.length){toast('這一課還沒有生詞');return;}
+  const mk={
+    cloze:(v)=>{const w=v.front;const ex=(v.ex||[]).find(x=>String(x).indexOf(w)>=0);
+      return ex?(String(ex).replace(w,'＿＿')+'＝'+w):'';},
+    pinyin:(v)=>v.py?(v.py+'＝'+v.front):'',
+    mean:(v)=>v.back?(v.back+(v.pos?'（'+v.pos+'）':'')+'＝'+v.front):''
+  };
+  const order=['cloze','pinyin','mean'];
+  const lines=[];let skip=0;
+  ws.forEach((v,i)=>{
+    let s='';
+    if(kind==='mix'){for(let k=0;k<3&&!s;k++)s=mk[order[(i+k)%3]](v);}
+    else{s=mk[kind](v);if(!s)for(let k=0;k<3&&!s;k++)s=mk[order[k]](v);}
+    if(s)lines.push(s);else skip++;
+  });
+  if(!lines.length){toast('這一課的生詞沒有拼音、意思也沒有例句，出不了題');return;}
+  const ta=$('#quiz-items');if(!ta)return;
+  const cur=String(ta.value||'').replace(/\s+$/,'');
+  ta.value=(cur?cur+'\n':'')+lines.join('\n');
+  const msg=document.getElementById('qzgen-msg');
+  if(msg)msg.textContent='帶出 '+lines.length+' 題'+(skip?('，另外 '+skip+' 個詞資料不夠沒出'):'')+'，可以直接改或刪。';
+  toast('帶出 '+lines.length+' 題');
+};
 H.qzNext=()=>{
   const m=($('#quiz-mode')&&$('#quiz-mode').value)||'live';
   if(m!=='custom'&&m!=='audio'&&m!=='live'){
@@ -15789,6 +15824,14 @@ H.newQuiz=()=>{
        <div class="field"><label>小考名稱</label><input id="quiz-title" type="text" value="隨堂小考"></div>
        <div class="field" id="qzf-lesson"><label>考哪一課</label><select id="quiz-lesson"><option value="">（請選一課）</option>${lessonOpts}</select></div>
        <div class="field" id="qzf-items"><label>題目 <span class="hint">一行一題，寫成「題目＝答案」。多種答案用 / 隔開。</span></label>
+         <!-- GENQ_V1434 「看拼音寫字」那幾種是整課自動出題、老師看不到也改不了。
+              這裡讓老師把同一套題目「帶出來」變成文字，想刪想改想混題型都可以。 -->
+         <div id="qzf-gen" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+           <select id="qzgen-lesson" style="max-width:250px"><option value="">（從某一課的生詞帶出題目）</option>${lessonOpts}</select>
+           <select id="qzgen-kind" style="max-width:150px"><option value="mix">混合題型</option><option value="cloze">看例句填生詞</option><option value="pinyin">看拼音寫字</option><option value="mean">看意思寫字</option></select>
+           <button type="button" class="btn btn-sm" data-act="qzGen">帶出題目</button>
+           <span class="hint" id="qzgen-msg"></span>
+         </div>
          <textarea id="quiz-items" rows="6" placeholder="「謝謝」要怎麼回應？＝不客氣&#10;banana 的中文＝香蕉&#10;我＿＿喜歡喝茶。＝很/真的"></textarea></div>
        <div class="field" id="qzf-live">
          <label>這次要唸幾句</label>
