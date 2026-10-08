@@ -2419,14 +2419,14 @@ function renderContent(){
   if(S.openLesson){renderLegacyContent();return;}
   const L=S.lang||'zh';
   const T=({zh:{mod:'課程模組',ann:'公告',work:'作業',grade:'成績',file:'檔案',prog:'本課程進度',done:'已完成',items:'個項目',
-                nomod:'老師還沒發佈課程內容',noann:'目前沒有公告',lock:'老師還沒開放',ing:'進行中',fin:'已完成',open:'開啟'},
+                nomod:'老師還沒發佈課程內容',noann:'目前沒有公告',lock:'老師還沒開放',ing:'進行中',fin:'已完成',open:'開啟',nofile:'老師還沒放檔案到這門課',nofilesub:'老師上傳講義、音檔或作業檔之後，會出現在這裡。'},
             cn:{mod:'课程模组',ann:'公告',work:'作业',grade:'成绩',file:'档案',prog:'本课程进度',done:'已完成',items:'个项目',
-                nomod:'老师还没发布课程内容',noann:'目前没有公告',lock:'老师还没开放',ing:'进行中',fin:'已完成',open:'开启'},
+                nomod:'老师还没发布课程内容',noann:'目前没有公告',lock:'老师还没开放',ing:'进行中',fin:'已完成',open:'开启',nofile:'老师还没放档案到这门课',nofilesub:'老师上传讲义、音档或作业档之后，会出现在这里。'},
             en:{mod:'Modules',ann:'Announcements',work:'Assignments',grade:'Grades',file:'Files',prog:'Course progress',done:'Completed',items:'items',
-                nomod:'No content published yet',noann:'No announcements',lock:'Not open yet',ing:'In progress',fin:'Done',open:'Open'},
+                nomod:'No content published yet',noann:'No announcements',lock:'Not open yet',ing:'In progress',fin:'Done',open:'Open',nofile:'No files for this course yet',nofilesub:'Handouts, audio and worksheets from your teacher will appear here.'},
             vi:{mod:'Bài học',ann:'Thông báo',work:'Bài tập',grade:'Điểm số',file:'Tài liệu',prog:'Tiến độ khoá học',done:'Đã xong',items:'mục',
-                nomod:'Cô chưa đăng nội dung',noann:'Chưa có thông báo',lock:'Chưa mở',ing:'Đang học',fin:'Xong',open:'Mở'}})[L]
-        ||{mod:'課程模組',ann:'公告',work:'作業',grade:'成績',file:'檔案',prog:'本課程進度',done:'已完成',items:'個項目',nomod:'老師還沒發佈課程內容',noann:'目前沒有公告',lock:'老師還沒開放',ing:'進行中',fin:'已完成',open:'開啟'};
+                nomod:'Cô chưa đăng nội dung',noann:'Chưa có thông báo',lock:'Chưa mở',ing:'Đang học',fin:'Xong',open:'Mở',nofile:'Khoá này chưa có tài liệu',nofilesub:'Tài liệu, file nghe hoặc bài tập cô gửi sẽ hiện ở đây.'}})[L]
+        ||{mod:'課程模組',ann:'公告',work:'作業',grade:'成績',file:'檔案',prog:'本課程進度',done:'已完成',items:'個項目',nomod:'老師還沒發佈課程內容',noann:'目前沒有公告',lock:'老師還沒開放',ing:'進行中',fin:'已完成',open:'開啟',nofile:'老師還沒放檔案到這門課',nofilesub:'老師上傳講義、音檔或作業檔之後，會出現在這裡。'};
   const cs=courseList();
   const cur=courseById(S.courseId)||cs[0];
   if(!cur){$('#screen').innerHTML=emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
@@ -2501,7 +2501,7 @@ function renderContent(){
       :emptyHtml('📈',t('noGrades'),t('noGradesSub'));
   }else{
     body=(driveCardHtml()||'')+(uploadCardHtml()||'');
-    if(!body)body=emptyHtml('📁',T.file,'');
+    if(!body)body=emptyHtml('📁',T.nofile||T.file,T.nofilesub||'');/* FILEEMPTY_V1451 本來標題直接重印分頁名「檔案」、副標是空字串，學生看不懂 */
   }
   $('#screen').innerHTML='<div class="pg-h"><h2>'+esc(cur.name)+'</h2>'+(cur.sub?'<div class="sub">'+esc(cur.sub)+'</div>':'')+'</div>'
     +(cs.length>1?('<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px">'+cs.map(c=>'<button class="btn btn-sm '+(c.id===cur.id?'btn-accent':'')+'" data-act="openCourse" data-id="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('')+'</div>'):'')
@@ -2754,16 +2754,19 @@ function renderHome(){
             vi:{hi:'Xin chào',todo:'Sắp đến hạn',none:'Không có bài nào đến hạn. Tuyệt!',go:'Làm bài',cs:'Giáo trình của tôi',grp:'Lớp',solo:'1 kèm 1',todo2:'Chưa làm xong',none2:'Đã làm xong hết'}})[L]
         ||{hi:'你好',todo:'近期待辦',none:'目前沒有待辦，很棒！',go:'去作答',cs:'我的教材',grp:'團班',solo:'一對一',todo2:'還沒做完',none2:'都做完了'};
   const cs=courseList();
-  /* CSCOLOR_V1443 Quinn：「能不能幫我改成其他顏色，類似這個當代中文課程一？」
-     本來四個裡面只有第一個（深藍→磚紅）看得出顏色，第二個是深藍→更深的藍，
-     第三、第四個完全一模一樣（都是 #1E4C86→#143A6B），所以第二本之後全都長得像同一本。
-     換成六個真的分得開的，底色都留 #1E4C86，只換收尾的那一色，跟平台色票一致。 */
-  const G=['linear-gradient(135deg,#1E4C86,#A33227)',   /* 磚紅 */
-           'linear-gradient(135deg,#1E4C86,#2E7D5B)',   /* 墨綠 */
-           'linear-gradient(135deg,#1E4C86,#8A6A2A)',   /* 赭金 */
-           'linear-gradient(135deg,#1E4C86,#6A4C9C)',   /* 紫 */
-           'linear-gradient(135deg,#1E4C86,#1C6E7E)',   /* 青 */
-           'linear-gradient(135deg,#1E4C86,#16334F)'];  /* 深藍 */
+  /* CSCOLOR_V1451 Quinn：「不是說顏色要根據我的官網嗎？」——對，V1443 那組沒照。
+     官網（index.html）的色票只有五個：--primary #1E4C86、--primary-d #143A6B、
+     --teal #0F2740、--teal-d #16334F、--gold #9C7D2A，四個藍一個金。
+     完全照它走的話六本書會有四本是藍的，又回到「分不出來」的原點。
+     折衷：六個收尾色裡有四個直接用官網色票（金、primary-d、teal-d、teal），
+     另外兩個（磚紅、松綠）壓到跟官網同樣的暗度和低彩度，站在一起是同一套。
+     第一本維持偏紅，因為那本她本來就喜歡。 */
+  const G=['linear-gradient(135deg,#1E4C86,#8C3A3F)',   /* 磚紅（壓到跟官網同暗度） */
+           'linear-gradient(135deg,#1E4C86,#9C7D2A)',   /* 官網 --gold */
+           'linear-gradient(135deg,#1E4C86,#2F6450)',   /* 松綠（同上） */
+           'linear-gradient(135deg,#1E4C86,#143A6B)',   /* 官網 --primary-d */
+           'linear-gradient(135deg,#1E4C86,#16334F)',   /* 官網 --teal-d */
+           'linear-gradient(135deg,#1E4C86,#0F2740)'];  /* 官網 --teal */  /* 深藍 */
   const annN=(S.announcements||[]).filter(a=>assignedToMe(a)).length;
   const cards=cs.map((c,i)=>{
     const wN=c.lessons.filter(l=>{const r=resultOf(l.id);return answerableOf(l.id).length&&!(r&&r.status==='done');}).length;

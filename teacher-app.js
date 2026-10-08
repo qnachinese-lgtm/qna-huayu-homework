@@ -11053,8 +11053,18 @@ function wbBarHtml(l,more){const w=wbOfLesson(l);
   const needN=auds.length||((w.wb&&(w.wb.listen||[]).length)?1:0);
   const haveN=auds.length?auds.filter(x=>x.url).length:(w.audio_url?1:0);
   const warn=(needN&&haveN<needN)?('<span class="tag b-warn" >⚠️ 缺聽力音檔 '+(needN-haveN)+'/'+needN+'</span>'):'';
+  /* PUBTAG_V1451 Quinn：「同樣發佈，但是呈現出來的樣子都不一樣？」
+     課本那一列把人數放在按鈕裡（發佈（2）），作業簿這一列卻放在旁邊一個綠色標籤
+     （已發佈＋2人）、按鈕不帶數字——同一件事兩種長相。
+     統一成課本那一種：人數進按鈕，標籤只在「還沒發佈」的時候留著（那才是要提醒的狀態）。
+     卡片最上面本來就有整課的「已發佈 N 人」，所以發佈後再掛一個綠標籤是重複的。 */
+  /* 個別指派和整班指派會重疊，所以用 Set 去重，不是兩個數字相加。 */
+  const _pset=new Set(w.assigned_ids||[]);
+  if(ng)(S.students||[]).forEach(x=>{if(x&&!x.deleted&&!x.is_test&&stuGroups(x).some(g=>(w.assigned_groups||[]).includes(g)))_pset.add(x.id);});
+  const pubN=_pset.size;
+  const pubLeft = (ng||na) ? (ng ? ('<span class="hint">'+esc(ng)+'</span>') : '') : '<span class="tag tpub-n">未發佈</span>';
   return `<div class="lc-bar">
-    <b class="lc-bar-t">📒 作業簿</b>${pub}${dueTag}${warn}${sub?('<span class="hint">已交 '+sub+' 份</span>'):''}${subT?('<span class="hint">🧪 測試 '+subT+' 份</span>'):''}
+    <b class="lc-bar-t">📒 作業簿</b>${pubLeft}${dueTag}${warn}${sub?('<span class="hint">已交 '+sub+' 份</span>'):''}${subT?('<span class="hint">🧪 測試 '+subT+' 份</span>'):''}
     <span class="grow"></span>
     <span class="lc-btns">
       <button class="btn btn-sm" data-act="editWb" data-id="${w.id}">✏️ 編輯</button>
@@ -11062,7 +11072,7 @@ function wbBarHtml(l,more){const w=wbOfLesson(l);
         <button class="btn btn-sm" data-act="previewWb" data-id="${w.id}">👁 預覽</button>
         <button class="btn btn-sm" data-act="tryWb" data-id="${w.id}" title="像學生一樣真的做做看，會對答案，但不會存檔">🎒 試做</button>
       </div></details>
-      <button class="btn btn-sm btn-accent" data-act="assignWb" data-id="${w.id}">👥 發佈</button>
+      <button class="btn btn-sm btn-accent" data-act="assignWb" data-id="${w.id}">👥 發佈${pubN?`（${pubN}）`:''}</button><!-- PUBTAG_V1451 -->
     </span></div>`;}
 function wbTitleOf(id){const w=(S.workbooks||[]).find(x=>x.id===id);return (w&&w.title)||'作業簿';}
 function wbCardHtml(w){
