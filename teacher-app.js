@@ -6131,7 +6131,7 @@ function tjActOf(c){const m=TJ_KIND[c&&c.kind];
 const NAVSIB=[
   {tabs:[['students','👥 學生名冊',0],['acct','🔑 帳號・使用',1],['calendar','📅 課表',0],
          ['lessons','📖 教材與課程',0],['files','🎯 課堂活動',0],['oc','▶️ 線上課',1],
-         ['lib','🗂 教材庫',0],['hanzi','🀄 漢字遊戲',0],['grades','📝 批改・成績',0]]}
+         ['lib','🗂 教材庫',0],['hanzi','🀄 漢字闖關',0],['grades','📝 批改・成績',0]]}
 ];
 function navSibGroup(tab){
   for(let i=0;i<NAVSIB.length;i++){
@@ -6167,7 +6167,7 @@ function navSibHtml(tab){
 const TNAV=[
   {id:'dashboard',t:'今日總覽',act:'tab'},
   {t:'教學',sub:[['students','👥 學生','c-students'],['calendar','📅 課表',''],
-                 ['lessons','📚 教材與課程','c-lessons'],['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字遊戲',''],/* HANZI_V4 頂部選單也放漢字遊戲 */['grades','📝 批改・成績','c-pending']]},
+                 ['lessons','📚 教材與課程','c-lessons'],['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],/* HANZI_V4 頂部選單也放漢字遊戲 */['grades','📝 批改・成績','c-pending']]},
   {t:'留學業務',sub:[['agency','🎓 代辦申請','c-ag'],['interview','🎤 面試練習','c-itv'],
                      ['writing','✍️ 代書','c-wr'],['school','🏫 學校與資料','']]},
   {t:'收費・財務',sub:[['pay','💰 繳費','c-owe'],['ops','📈 財務・營運','']]},
@@ -9734,7 +9734,7 @@ function renderHanzi(){
     return '<tr><td>'+snm(s.name)+'</td><td>'+hzWhen(d.updated_at)+'</td><td>'+hzLevel(r.xp)+'<br><span class="muted" style="font-size:12px">'+(r.xp||0)+' XP</span></td>'
       +'<td>'+sm('easy')+'／'+sm('normal')+'／'+sm('hard')+'</td><td>'+Object.keys(r.found||{}).length+' 個</td><td>'+rate+'</td>'
       +'<td style="font-size:20px;letter-spacing:2px">'+esc(hard||'—')+'</td></tr>';}).join('');
-  body.innerHTML='<div class="section-head"><h2>🀄 漢字遊戲（字族工坊）</h2><span class="sub">指派關卡給學生，看每個人的漢字進度</span>'
+  body.innerHTML='<div class="section-head"><h2>🀄 漢字闖關</h2><span class="sub">指派關卡給學生，看每個人的漢字進度</span>'
     +'<span class="grow"></span><a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">開啟遊戲試玩 ↗</a>'
     +'<button class="btn btn-sm btn-accent" data-act="hzNew">＋ 指派作業</button></div>'
     +'<div class="card"><h3 style="margin:0 0 8px">作業</h3><div class="hint" style="margin-bottom:8px">綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。</div>'+taskHtml+'</div>'
