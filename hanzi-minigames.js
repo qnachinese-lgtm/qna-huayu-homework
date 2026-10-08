@@ -76,17 +76,28 @@ function home(){
   P.append(srcPicker());
   mgWaitWatch(); /* MGWAIT_V1418 */
   const g = el("div", { class:"mggrid" });
-  /* UI_V1433：句子排序跟句子挖空要有課文句子才出得了題（八千詞沒有句子）。
-     以前卡片長得跟別人一樣，點下去才跳一行提示；現在在卡片上就先講。 */
-  let nSent = 0; try { nSent = pool().sents.length; } catch(e){}
+  /* UI_V1433 → NOGO_V1445：卡片先講清楚「這一款現在玩不了」，不要等點下去才跳提示。
+     V1433 我只看「有沒有課文句子」，但句子挖空真正的條件是「生詞有沒有附例句」——
+     課文有句子、生詞沒例句的時候，卡片看起來正常，點了才跳「挖不出空來」。
+     這裡改成跟 openGame 的擋法逐條對齊，理由也照每一款分開寫。 */
+  let PL = null; try { PL = pool(); } catch(e){}
+  const whyNo = (k) => {
+    if (!PL) return "";
+    const nw = PL.words.length;
+    if (k === "order") return PL.sents.length < 3
+      ? (SET.src === "course" ? "這幾課沒有課文句子，排不出順序。" : "句子排序要用「我的課本」的課文。") : "";
+    if (k === "cloze") return clozeCount(PL) < 4 ? "這幾課的生詞沒有附例句，挖不出空來。" : "";
+    const need = { bingo:9, flip:6, quiz:4 }[k];
+    return (need && nw < need) ? ("生詞不夠，至少要 " + need + " 個（現在 " + nw + " 個）。") : "";
+  };
   const cards = GAPP ? [FWCARD].concat(GAMES) : GAMES.slice();
   if (GAPP && document.querySelector('nav.tabs button[data-tab="riddle"]')) cards.push(RDCARD);
   if (GAPP && document.querySelector('nav.tabs button[data-game="revenge"]')) cards.push(RVCARD);/* REVENGE_V1436 */
   cards.forEach(x => {
-    const need = (x.k === "order" || x.k === "cloze") && !nSent;
+    const why = whyNo(x.k);
     const kids = [el("span", { class:"mgic hz", text:x.ic }), el("b", { text:x.t }), el("small", { text:x.d })];
-    if (need) kids.push(el("em", { class:"mgneed", text:"這幾課沒有課文句子，出不了題。換幾課，或改用「我的課本」。" }));
-    g.append(el("button", { class:"mgcard" + (need ? " off" : ""), type:"button", "data-g":x.k,
+    if (why) kids.push(el("em", { class:"mgneed", text:why }));
+    g.append(el("button", { class:"mgcard" + (why ? " off" : ""), type:"button", "data-g":x.k,
       onclick: () => { if (x.k === "fw") return goFw();
         if (x.k === "riddle"){ const t = document.querySelector('nav.tabs button[data-tab="riddle"]'); if (t) t.click(); return; }
         openGame(x.k); } }, kids));
