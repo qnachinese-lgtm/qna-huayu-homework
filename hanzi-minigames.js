@@ -63,16 +63,32 @@ const GAMES = [
 ];
 const GAPP = document.body.classList.contains("games-app");
 const FWCARD = { k:"fw", t:"大富翁", d:"擲骰子走棋盤，地是課本的生詞。答對才買得到地，機會卡、命運卡要看懂中文。", ic:"富" };
+/* UI_V1433：字謎猜猜看本來只有上面的分頁有，卡片牆裡沒有，分頁 8 個、卡片只有 6 張，對不起來。 */
+const RDCARD = { k:"riddle", t:"字謎猜猜看", d:"把一個字拆成部件當謎面，猜是哪個字。可以自己玩，也可以投影出來帶全班一起猜。", ic:"謎" };
 function selTab(k){ document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === "mg" ? (b.dataset.game || "") === (k || "") : false))); }
 function home(){
   stopGame(); try { Object.assign(SET, JSON.parse(localStorage.getItem("hz-mg") || "{}")); } catch(e){}
   if (GAPP) selTab("");
   const P = panel(); P.innerHTML = "";
-  P.append(el("div", { class:"mgtop" }, [el("h2", { text: GAPP ? "生詞遊戲" : "小遊戲" }), el("p", { class:"muted", text:"先選要玩哪幾課的生詞，再選一個遊戲。" })]));
+  /* UI_V1433：games.html 的頁首已經有「生詞遊戲」四個大字了，這裡不要再印第二次。 */
+  P.append(el("div", { class:"mgtop" }, (GAPP ? [] : [el("h2", { text:"小遊戲" })]).concat([el("p", { class:"muted", text:"先選要玩哪幾課的生詞，再選一個遊戲。" })])));
   P.append(srcPicker());
   mgWaitWatch(); /* MGWAIT_V1418 */
   const g = el("div", { class:"mggrid" });
-  (GAPP ? [FWCARD].concat(GAMES) : GAMES).forEach(x => g.append(el("button", { class:"mgcard", type:"button", onclick: () => x.k === "fw" ? goFw() : openGame(x.k) }, [el("span", { class:"mgic hz", text:x.ic }), el("b", { text:x.t }), el("small", { text:x.d })])));
+  /* UI_V1433：句子排序跟句子挖空要有課文句子才出得了題（八千詞沒有句子）。
+     以前卡片長得跟別人一樣，點下去才跳一行提示；現在在卡片上就先講。 */
+  let nSent = 0; try { nSent = pool().sents.length; } catch(e){}
+  const cards = GAPP ? [FWCARD].concat(GAMES) : GAMES.slice();
+  if (GAPP && document.querySelector('nav.tabs button[data-tab="riddle"]')) cards.push(RDCARD);
+  cards.forEach(x => {
+    const need = (x.k === "order" || x.k === "cloze") && !nSent;
+    const kids = [el("span", { class:"mgic hz", text:x.ic }), el("b", { text:x.t }), el("small", { text:x.d })];
+    if (need) kids.push(el("em", { class:"mgneed", text:"這幾課沒有課文句子，出不了題。換幾課，或改用「我的課本」。" }));
+    g.append(el("button", { class:"mgcard" + (need ? " off" : ""), type:"button", "data-g":x.k,
+      onclick: () => { if (x.k === "fw") return goFw();
+        if (x.k === "riddle"){ const t = document.querySelector('nav.tabs button[data-tab="riddle"]'); if (t) t.click(); return; }
+        openGame(x.k); } }, kids));
+  });
   P.append(g);
 }
 /* MGWAIT_V1418：課本是「登入之後」才去抓的（老師帳號要抓整個 lessons，324 筆、1.7MB），
