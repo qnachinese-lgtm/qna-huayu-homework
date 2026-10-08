@@ -2761,12 +2761,18 @@ function renderHome(){
      折衷：六個收尾色裡有四個直接用官網色票（金、primary-d、teal-d、teal），
      另外兩個（磚紅、松綠）壓到跟官網同樣的暗度和低彩度，站在一起是同一套。
      第一本維持偏紅，因為那本她本來就喜歡。 */
-  const G=['linear-gradient(135deg,#1E4C86,#8C3A3F)',   /* 磚紅（壓到跟官網同暗度） */
-           'linear-gradient(135deg,#1E4C86,#9C7D2A)',   /* 官網 --gold */
-           'linear-gradient(135deg,#1E4C86,#2F6450)',   /* 松綠（同上） */
-           'linear-gradient(135deg,#1E4C86,#143A6B)',   /* 官網 --primary-d */
-           'linear-gradient(135deg,#1E4C86,#16334F)',   /* 官網 --teal-d */
-           'linear-gradient(135deg,#1E4C86,#0F2740)'];  /* 官網 --teal */  /* 深藍 */
+  /* CSCOLOR_V1452 V1451 那組排出來一看，第 4、5、6 張（primary-d / teal-d / teal）
+     三張都是深藍，縮成課程清單上那顆小方塊之後根本分不出來。
+     這版把七個色（官網五色＋磚紅、松綠）的所有兩兩組合都算過一次，
+     挑出「六張彼此距離最遠」的那一組：最接近的兩張 ΔE 從 2.7 拉到 21.2。
+     深藍只留一張，後兩張改用暖色收尾（赭、橄欖）。起點一律用暗色，
+     萬一版面改回大卡片、左上角要放「一對一／小班」白膠囊也壓得住。 */
+  const G=['linear-gradient(135deg,#1E4C86,#8C3A3F)',   /* 藍→磚紅 */
+           'linear-gradient(135deg,#1E4C86,#9C7D2A)',   /* 藍→官網 --gold */
+           'linear-gradient(135deg,#1E4C86,#2F6450)',   /* 藍→松綠 */
+           'linear-gradient(135deg,#1E4C86,#143A6B)',   /* 藍→官網 --primary-d（純深藍） */
+           'linear-gradient(135deg,#8C3A3F,#9C7D2A)',   /* 磚紅→金（赭） */
+           'linear-gradient(135deg,#2F6450,#9C7D2A)'];  /* 松綠→金（橄欖） */
   const annN=(S.announcements||[]).filter(a=>assignedToMe(a)).length;
   const cards=cs.map((c,i)=>{
     const wN=c.lessons.filter(l=>{const r=resultOf(l.id);return answerableOf(l.id).length&&!(r&&r.status==='done');}).length;
