@@ -368,7 +368,8 @@ const clozeCount = p => p.words.filter(x => (x.ex || []).length).length;
 /* OCOL_V1437 Quinn：「顏色能不能不要那麼奇怪」。本來的桃紅跟紫不在平台的色票裡，
    跟後台、學生頁放在一起很跳。換成 :root 本來就有的四個：navy／bad／green／gold。
    四個要夠好分辨——上課學生會喊「紅的那個」。 */
-const OCOL = ["#1E4C86", "#B4364A", "#2E7D5B", "#B8901C"];
+/* OCOL_V1439 再壓深、彩度再降一階。四個色相還是分得開——上課學生會喊「紅的那個」。 */
+const OCOL = ["#2B4C73", "#8E3A46", "#2F6B55", "#8A6A2A"];
 const OSYM = ["▲", "◆", "●", "■"];
 function quizHome(p){
   const b = shell("快問快答", srcName());
