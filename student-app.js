@@ -3376,6 +3376,14 @@ function syncFp(){try{
   ['results','discussions','gpracs','sentences','shadows','hwvs'].forEach(k=>(S[k]||[]).forEach(r=>
     p.push(r.id,String(r.status||''),String(r.reviewed_at||''),String(r.updated_at||''),String(Object.keys(r.feedback||{}).length))));
   return p.join('|');}catch(e){return '';}}
+/* NOJUMP_V1447 學生回報（越南文）：「我只是切到別的分頁去翻譯題目，回來的時候
+   畫面就跳出去了。做過的答案沒有不見，但不要跳會更好。」
+   原因：切回分頁時如果離上次同步超過 3 分鐘就會自動同步，資料有變就整頁重畫，
+   人就被拉回課程頁最上面。下面本來就有四道保護，但漏掉「課文／語法練習那一頁」——
+   那一頁不會設 S.practiceSet，而且切出去的時候輸入框早就失焦、12 秒也過了，
+   四道全部放行。補兩道：①畫面上只要有題目卡就不要重畫 ②有打了還沒送出的字更不能重畫。
+   擋下來不代表看不到新東西——右下角那顆「有新內容，點這裡更新」照樣會出現，
+   學生自己決定什麼時候更新。 */
 function syncCanRender(){
   const a=document.activeElement;
   if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName||''))return false;   // 正在打字不動它
@@ -3383,6 +3391,12 @@ function syncCanRender(){
   const slq=document.getElementById('slq');
   if(slq&&slq.style.display!=='none')return false;                      // 正在比賽不動
   if(S.practiceSet)return false;                                        // 正在做作業不動
+  const sc=document.getElementById('screen');
+  if(sc){
+    if(sc.querySelector('.q-card,.sent-card,.qa-inp'))return false;     // 正在看／寫題目不動
+    const fs=sc.querySelectorAll('textarea,input[type="text"]');
+    for(let i=0;i<fs.length;i++){ if(String(fs[i].value||'').trim())return false; } // 有還沒送出的字
+  }
   return true;}
 function syncPill(on){let el=document.getElementById('sync-pill');
   if(!on){if(el)el.remove();return;}
