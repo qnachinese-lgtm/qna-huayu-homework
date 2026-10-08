@@ -3095,8 +3095,16 @@ function qHtml(q,idx,noInstr){
   const multiOpt=(q.type==='opt'&&(q.items||[]).length>1)||isOptBank(q);
   return `<div class="q-card${isOptBank(q)?' q-optbank':''}">${instr}<div class="q-head">${multiOpt?'':`<span class="q-num">${idx+1}</span>`}
      <div style="flex:1">${showTypeTag(q)?`<span class="q-type-tag tag accent">${TYPE_LABELS[q.type]}</span>`:''} ${q.audio_url?'<span class="tag gold">🔊</span>':''}
-     ${showPrompt?`<div class="q-prompt">${esc(q.prompt||'')}</div>`:''}</div></div>${audioHtml(q.audio_url)}${pic}${body}</div>`;
+     ${showPrompt?`<div class="q-prompt">${esc(multiOpt?(q.prompt||''):qStripNo(q.prompt))}</div>`:''}</div></div>${audioHtml(q.audio_url)}${pic}${body}</div>`;/* QNUM_V1444 */
 }
+/* QNUM_V1444 Quinn：「已經有題號了，重複了？」
+   卡片左邊本來就會自動印一個題號（.q-num = idx+1），而她在題目文字裡也打了
+   「1. 」「2. 」，所以畫面上變成「1. 1. 王先生要不要喝咖啡？」。
+   資料不動（她後台打的字原樣留著），只在「卡片已經自己印了題號」的時候，
+   把開頭那個 N. 拿掉。限制：N 是 1～99、後面要有 . 、 ) ：這類分隔符號，
+   所以「3 個人在教室」這種開頭是數字但沒有分隔符的句子不會被動到。 */
+const qStripNo = (txt) => String(txt == null ? '' : txt)
+  .replace(/^[\s　]*\(?\d{1,2}[\s　]*[.．、。)）:：]+[\s　]*/, '');
 function qHtmlGraded(q,idx){
   if(q.type==='note')return qHtml(q,-1);
   const resp=GRADE.answers[q.id],ok=isCorrect(q,resp);let body='',ct='';
@@ -3121,7 +3129,7 @@ function qHtmlGraded(q,idx){
   const pic=q.image_url?`<div class="q-pic"><img src="${esc(q.image_url)}" alt="" loading="lazy"></div>`:'';
   const multiOptG=q.type==='opt'&&(q.items||[]).length>1;
   return `<div class="q-card">${instr}<div class="q-head">${multiOptG?'':`<span class="q-num">${idx+1}</span>`}
-    <div style="flex:1">${showTypeTag(q)?`<span class="q-type-tag tag accent">${TYPE_LABELS[q.type]}</span>`:''}<div class="q-prompt">${esc(q.prompt||'')}</div></div></div>${audioHtml(q.audio_url)}${pic}${body}
+    <div style="flex:1">${showTypeTag(q)?`<span class="q-type-tag tag accent">${TYPE_LABELS[q.type]}</span>`:''}<div class="q-prompt">${esc(multiOptG?(q.prompt||''):qStripNo(q.prompt))}</div></div></div>${audioHtml(q.audio_url)}${pic}${body}/* QNUM_V1444 */
     ${fb}
     ${q.explanation?`<div class="q-explain">💡 ${esc(q.explanation)}</div>`:''}</div>`;
 }
