@@ -3376,9 +3376,7 @@ function syncFp(){try{
   ['results','discussions','gpracs','sentences','shadows','hwvs'].forEach(k=>(S[k]||[]).forEach(r=>
     p.push(r.id,String(r.status||''),String(r.reviewed_at||''),String(r.updated_at||''),String(Object.keys(r.feedback||{}).length))));
   return p.join('|');}catch(e){return '';}}
-/* ⚠️ NOJUMP_V1448 起這支已經沒有人呼叫了——自動同步一律不重畫，所以不需要再判斷
-   「現在可不可以重畫」。先留著不刪：如果之後要回到「有條件才自動重畫」的做法，
-   把 syncNow 裡那一行改回 if(syncCanRender())… 就好。下面是當初的原始說明。
+/* NOJUMP_V1449 這支就是「現在可不可以自動重畫」的判斷，syncNow 的自動那一支會先問它。
 
    NOJUMP_V1447 學生回報（越南文）：「我只是切到別的分頁去翻譯題目，回來的時候
    畫面就跳出去了。做過的答案沒有不見，但不要跳會更好。」
@@ -3418,11 +3416,12 @@ async function syncNow(manual){
     const changed=(syncFp()!==before);
     SYNC.last=Date.now();
     if(manual){syncPill(false);renderSection();toast(changed?LT({zh:'已更新',cn:'已更新',en:'Updated',vi:'Đã cập nhật'}):LT({zh:'已經是最新的',cn:'已经是最新的',en:'Already up to date',vi:'Đã là mới nhất'}));}
-    /* NOJUMP_V1448 Quinn 指定：切回分頁一律不自動重畫。
-       資料照樣在背景同步到最新，但畫面一律不動，只亮出右下角那顆
-       「有新內容，點這裡更新」，由學生自己決定什麼時候更新。
-       手動按右上角的 🔄 仍然會立刻重畫（上面 manual 那一支）。 */
-    else if(changed){ syncPill(true); }
+    /* NOJUMP_V1449 最後定案：「畫面上沒有題目、也沒有打到一半的字」的時候才自動更新。
+       V1448 曾經改成一律不重畫，但那樣連在首頁也要自己按一下才看得到新作業，
+       對學生太被動。現在回到有條件的做法，條件寫在 syncCanRender()：
+       有題目卡、有還沒送出的字、游標在輸入框裡、剛打完字、比賽中、做作業中 —— 都不重畫，
+       只亮出「有新內容，點這裡更新」；其餘情況（純瀏覽的列表頁）照樣自動更新。 */
+    else if(changed){ if(syncCanRender()){renderSection();} else {syncPill(true);} }
   }catch(e){if(manual)toast(LT({zh:'更新失敗，請檢查網路',cn:'更新失败，请检查网络',en:'Refresh failed',vi:'Cập nhật thất bại'}));}
   finally{SYNC.busy=false;const b2=document.getElementById('btn-sync');if(b2)b2.classList.remove('spin');}}
 H.syncNow=()=>syncNow(true);
