@@ -946,7 +946,7 @@ function dashTodayHtml(){
         e.done?'':('<button class="btn btn-sm btn-danger btn-icon" data-act="itvSessDel" data-id="'+_ik+'" title="\u522A\u6389\u9019\u4E00\u6B21\u9762\u8A66\u7DF4\u7FD2">\uD83D\uDDD1</button>'))
       +'</div>',e.start);}));}catch(err){}
   dashTodayHtml.n=_rows.length;
-  if(!_rows.length)return '<div class="muted" style="padding:8px 2px">今天沒有排課。要排課到「\u{1F4C5} 課表」按「\u{1F4CC} 預排課程」。</div>';
+  if(!_rows.length)return '<div class="muted" style="padding:8px 2px">今天沒有排課。</div>';
   _rows.sort((a,b)=>a.t.localeCompare(b.t));
   return _rows.map(x=>x.h).join('');
 }
@@ -3135,7 +3135,7 @@ function renderBizCal(){
       +byDate[d].slice().sort((a,b)=>String(a.k).localeCompare(b.k)).map(rowHtml).join('')+'</div>').join('')
     :'<div class="hint" style="padding:10px 2px">這個月沒有事。</div>')+'</div>';
   body.innerHTML=head+nav+dueBar+grid+mlist+detail
-    +'<div class="hint" style="margin-top:10px">日期都是從各自的地方帶過來的：文件清單每一列的日期、客戶資料的「文件繳交期限日」和每一間學校的「報名截止日」、「下一步」的日期、進度記錄和收款。改那邊，這裡就跟著改。</div>';}
+    +'<details class="hint" style="margin-top:10px"><summary style="cursor:pointer">這些日期從哪裡來</summary><div style="margin-top:4px">文件清單每一列的日期、客戶資料的「文件繳交期限日」、每一間學校的「報名截止日」、「下一步」的日期、進度記錄和收款。改那邊，這裡就跟著改。</div></details>';}
 
 /* ===================== 💰 繳費：所有學生的應收／已繳／剩餘，集中在這裡記 ===================== */
 /* STUSOON_V1087 「📌 預約・詢問中」的學生還沒正式開始上課，先不算未收。
@@ -3951,7 +3951,7 @@ function wrPayForm(key){const p=String(key).split('::');const c=wrById(p[0]);if(
     <div class="field"><label>收款方式 <span class="hint">選填</span></label><select id="wrp-method"><option value="">—</option>${mOpt('銀行轉帳')}${mOpt('現金')}${mOpt('Momo')}${mOpt('LINE Pay')}${mOpt('其他')}</select></div>
     <div class="field"><label>備註 <span class="hint">選填。這一筆是哪一期</span></label><input id="wrp-note" type="text" value="${esc(e.note||'')}"></div>
     <div class="field full" style="margin-bottom:0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="wrp-pass" style="width:auto;margin:0"${e.pass?' checked':''}> 這筆是<b>幫學校代收</b>（報名費之類），不算我的收入</label>
-      <div class="hint" style="margin-top:4px">學生的錢經過你這裡再付出去。金額照樣看得到，但不會算進「已收」「未收」，也不會進收入。</div></div><!-- PASSPAY_V1107 -->
+      <div class="hint" style="margin-top:4px">學生的錢經過你這裡再付出去，不算進「已收」「未收」，也不進收入。</div></div><!-- PASSPAY_V1107 -->
    </div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="wrPaySave" data-id="${esc(c.id)}::${isNew?'new':idx}">💾 儲存</button></div></div>`);}
 function renderAgency(){
@@ -4273,7 +4273,7 @@ function agLogForm(key){const p=String(key).split('::');const c=agById(p[0]);if(
         <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="ag-paid" style="width:auto;margin:0"${(e.paid)?' checked':''}> 這筆已經收到了</label></div>
         <!-- PASSTHRU_V1035 -->
         <div class="field full" style="margin-bottom:0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="ag-pass" style="width:auto;margin:0"${(e.pass)?' checked':''}> 這筆是<b>代收代付</b>（報名費之類），不算我的收入</label>
-          <div class="hint" style="margin-top:4px">學生的錢經過我這裡再付出去。金額照樣記在這一筆進度裡，但不會算進「已收」「未收」，也不會進收入。匯率換算寫在上面「備註」就好。</div></div>
+          <div class="hint" style="margin-top:4px">學生的錢經過我這裡再付出去，不算進「已收」「未收」，也不進收入。</div></div>
       </div></details></div>
   </div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="agLogSave" data-id="${esc(c.id)}::${isNew?'new':idx}">💾 儲存</button></div></div>`);}
 function renderInterview(){
@@ -5825,6 +5825,9 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
   try{if(!(Array.isArray(st.schedule)&&st.schedule.length))fillGroupSched(true);}catch(e){}
 }
 
+/* WORDY_V1464 Quinn：「這些廢話不用多說」。掃出來後台有 15 段四十字以上的說明文字。
+   規則：講「這一頁在幹嘛」的直接拿掉（按鈕和標題本來就看得懂）；
+   講「你猜不到的規則」的留著，但收進可以點開的一行，不要每次都擋在前面。 */
 /* ---------- 課文與練習 ---------- */
 function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
     const qn=questionsOf(l.id).length, an=assignedCount(l), di=dueInfo(l.due_date);
@@ -8469,7 +8472,7 @@ function ghModal(){
     :((_last&&books.some(b=>b.k===_last))?_last:books[0].k);
   openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📄 匯出講義</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body">'
-   +'<div class="hint" style="margin-bottom:10px">把課文內容和底下的練習題整理成一份講義，可以列印或存成 PDF 給學生帶回家，不用登入平台。<br>語法課出語法說明＋例句＋練習（課文要不要一起印，下面可以勾）；文言文出原文、白話和註釋；關鍵詞彙出聽力對話和題目。</div>'
+   /* WORDY_V1464 這一段介紹拿掉：這個視窗本來就叫「列印講義」，底下每一個選項也都有自己的字。 */
    +'<div class="field"><label>教材</label><select id="gh-book" onchange="GHFILL()">'
    +books.map(b=>'<option value="'+esc(b.k)+'"'+(b.k===cur?' selected':'')+'>'+esc(b.k)+'（'+b.n+' 課）</option>').join('')
    +'</select></div>'
@@ -8690,8 +8693,7 @@ function shareRowHtml(f,acts){
 function shareStuHtml(){
   const files=shareAll().filter(f=>f.kind==='stu');
   const head=`<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 6px">📁 我發給學生的檔案</h3>
-    <div class="hint" style="line-height:1.8">上傳講義、範文、考卷給指定的學生 —— 學生在自己的頁面會看到「老師給我的檔案」，可以直接下載。<br>
-    每一份可以寫說明、標類別和課次、記交付日期，之後你自己也查得到「我到底給過這位學生什麼」。</div>
+    ${/* WORDY_V1464 介紹拿掉——上傳的視窗裡每一欄都有自己的標籤 */''}
     <div style="margin-top:10px"><button class="btn btn-primary" data-act="shareNew">⬆ 上傳新檔案</button>
     <button class="btn btn-sm" data-act="shareReload">↻ 重新整理</button></div></div>`;
   if(!files.length)return head+'<div class="card"><div class="hint">還沒有發過檔案。按「⬆ 上傳新檔案」開始。</div></div>';
@@ -9800,8 +9802,8 @@ function renderHanzi(){
   body.innerHTML='<div class="section-head"><h2>🀄 漢字闖關</h2><span class="sub">指派關卡給學生，看每個人的漢字進度</span>'
     +'<span class="grow"></span><a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">開啟遊戲試玩 ↗</a>'
     +'<button class="btn btn-sm btn-accent" data-act="hzNew">＋ 指派作業</button></div>'
-    +'<div class="card"><h3 style="margin:0 0 8px">作業</h3><div class="hint" style="margin-bottom:8px">綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。</div>'+taskHtml+'</div>'
-    +'<div class="card" style="margin-top:14px"><h3 style="margin:0 0 8px">學生進度</h3><div class="hint" style="margin-bottom:8px">星星欄是「入門／進階／高手」三個難度拿到的星星總數（每個難度最多 81 顆）。難字＝回想關最常寫錯的字。</div>'
+    +'<div class="card"><h3 style="margin:0 0 8px">作業</h3>'+taskHtml+'</div>'
+    +'<div class="card" style="margin-top:14px"><h3 style="margin:0 0 8px">學生進度</h3><details class="hint" style="margin-bottom:8px"><summary style="cursor:pointer">這幾欄怎麼看</summary><div style="margin-top:4px">星星欄是「入門／進階／高手」三個難度拿到的星星總數（每個難度最多 81 顆）。難字＝回想關最常寫錯的字。</div></details>'
     +'<div style="overflow-x:auto"><table class="hz-tb" style="min-width:720px;width:100%"><thead><tr><th>學生</th><th>最近玩</th><th>等級</th><th>星星</th><th>拼出的字</th><th>回想關正確率</th><th>難字</th></tr></thead><tbody>'
     +(rows||'<tr><td colspan="7" class="muted">還沒有學生</td></tr>')+'</tbody></table></div></div>';
 }
@@ -10103,7 +10105,7 @@ H.siteHits=async()=>{
     +table('\u{1F517} 從哪裡找到的',cnt(cur,'r'))
     +(days.length?('<div class="form-sec"><div class="form-sec-h">\u{1F4C5} 這個月每一天</div>'
       +days.map(([k,n])=>'<div class="dash-row" style="gap:10px"><span style="flex:0 0 110px">'+esc(k)+'</span><span style="flex:1">'+bar(n,dmax)+'</span><b style="flex:0 0 52px;text-align:right">'+n+'</b></div>').join('')+'</div>'):'')
-    +'<div class="hint" style="margin-top:12px">只記日期、頁面、來源網站和語言，沒有姓名、沒有 IP、不放 cookie。同一個人同一次開網站算一筆。</div>';
+    +'<details class="hint" style="margin-top:12px"><summary style="cursor:pointer">這裡記了什麼</summary><div style="margin-top:4px">只記日期、頁面、來源網站和語言，沒有姓名、沒有 IP、不放 cookie。同一個人同一次開網站算一筆。</div></details>';
 };
 
 /* LEADQR_V1122 報名表 QR Code。用 qrcode-generator 在瀏覽器裡算，不會把網址送去別的網站。 */
@@ -10261,7 +10263,7 @@ H.reviews=()=>{
     const badge=st==='approved'?'<span class="badge badge-ok">已公開</span>':(st==='hidden'?'<span class="badge">已隱藏</span>':'<span class="badge badge-soon">待審核</span>');
     const act=(st==='approved'?'<button class="btn btn-sm btn-accent" data-act="revPic" data-id="'+r.id+'" title="做成可以貼 FB／Zalo 的圖">\u{1F5BC} 做成圖片</button><button class="btn btn-sm" data-act="revUnapprove" data-id="'+r.id+'">取消公開</button>':'<button class="btn btn-sm btn-accent" data-act="revApprove" data-id="'+r.id+'">✓ 核准公開</button>');/* REVPIC_V1154 */
     return '<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start"><b>'+esc(revNameOf(r))+'</b>'+badge+'<span class="grow"></span>'+act+'<button class="btn btn-sm" style="color:var(--danger)" data-act="revDel" data-id="'+r.id+'">🗑</button><div style="flex-basis:100%;margin-top:4px;white-space:pre-line;color:var(--ink)">'+esc(r.text||'')+'</div></div>';
-  }).join(''):'<div class="muted" style="padding:10px 0">還沒有學生評價。學生在學習頁「⭐ 給老師評價」送出後會出現在這裡，你核准後才會顯示在官網。</div>';
+  }).join(''):'<div class="muted" style="padding:10px 0">還沒有學生評價。學生送出後會出現在這裡，核准才會上官網。</div>';
   openModal('<div class="modal wide modal-tall"><div class="modal-head"><h3>⭐ 學生評價審核</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="hint" style="margin-bottom:10px">核准後自動上官網，文字可到「編輯內容 → ⭐ 學生評價」再改。<br>學生在 Zalo、FB 私訊講的好話，用底下那顆自己打進來就好。</div>'+rows+'</div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>'
    +'<button class="btn btn-primary" data-act="revAdd">\u2795 我自己打一則</button></div></div>');/* REVADD_V1164 */
@@ -15998,7 +16000,13 @@ function qzStuCount(){const n=document.querySelectorAll('.quiz-stu:checked').len
   const ok=document.getElementById('qzw-ok');if(ok)ok.disabled=!n;}
 H.newQuiz=()=>{
   const grp={},gorder=[];sortLessons(S.lessons).forEach(l=>{const tb=(l.textbook||'').trim()||'（未分類教材）';if(!grp[tb]){grp[tb]=[];gorder.push(tb);}grp[tb].push(l);});
-  const lessonOpts=gorder.map(tb=>`<optgroup label="${esc(tb)}">${grp[tb].map(l=>`<option value="${l.id}">${esc(lesNo(l,'（未命名）'))}</option>`).join('')}</optgroup>`).join('');
+  /* WORDN_V1464 Quinn：「後台選課的地方也標出詞數」。本來下拉只有課名，
+     要按了「帶出題目」才會跳「這一課還沒有生詞」。現在課名後面直接寫幾個詞，
+     沒有生詞的寫「無生詞」——選之前就看得到。
+     數法跟 vsWords 一樣（就是這一課生詞欄實際解析出來的筆數）。 */
+  const _wn=(l)=>{try{return vsWords(l).length;}catch(e){return 0;}};
+  const lessonOpts=gorder.map(tb=>`<optgroup label="${esc(tb)}">${grp[tb].map(l=>{const n=_wn(l);
+    return `<option value="${l.id}">${esc(lesNo(l,'（未命名）'))}${n?('　'+n+' 詞'):'　無生詞'}</option>`;}).join('')}</optgroup>`).join('');
   const live=S.students.filter(s=>s&&!s.deleted&&!s.deleted_at&&!s.is_test);
   const rank=(x)=>{const e=enrollOf(x);return e==='active'?0:(e==='trial'?1:(e==='reserved'?2:3));};
   const studentChecks=live.slice().sort((a,b)=>rank(a)-rank(b)||stuNameCmp(a,b)).map(s=>{
@@ -19231,7 +19239,7 @@ function agPayForm(key){const p=String(key).split('::');const c=agById(p[0]);if(
     <div class="field"><label>收款方式 <span class="hint">選填</span></label><select id="agp-method"><option value="">—</option>${mOpt('銀行轉帳')}${mOpt('現金')}${mOpt('Momo')}${mOpt('LINE Pay')}${mOpt('其他')}</select></div>
     <div class="field"><label>備註 <span class="hint">選填。這一筆是哪一期</span></label><input id="agp-note" type="text" value="${esc(e.note||'')}"></div>
     <div class="field full" style="margin-bottom:0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="agp-pass" style="width:auto;margin:0"${e.pass?' checked':''}> 這筆是<b>幫學校代收</b>（報名費之類），不算我的收入</label>
-      <div class="hint" style="margin-top:4px">學生的錢經過你這裡再付出去。金額照樣看得到，但不會算進「已收」「未收」，也不會進收入。</div></div><!-- PASSPAY_V1107 -->
+      <div class="hint" style="margin-top:4px">學生的錢經過你這裡再付出去，不算進「已收」「未收」，也不進收入。</div></div><!-- PASSPAY_V1107 -->
    </div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="agPaySave" data-id="${esc(c.id)}::${isNew?'new':idx}">💾 儲存</button></div></div>`);}
 H.agPayNew=(id)=>agPayForm(id+'::new');
@@ -21148,7 +21156,7 @@ H.newAll=()=>{
   const box=(k,inner)=>`<div class="na-box" id="na-box-${k}" style="display:none">${inner}</div>`;
   openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>\u{1F464} 新增一位</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
-     <div class="hint" style="margin-bottom:10px">一個人如果又上課又代辦，在這裡一次建好，系統會自動把它們綁成同一個人（之後一筆轉帳可以分給好幾種服務）。</div>
+     <details class="hint" style="margin-bottom:10px"><summary style="cursor:pointer">同一個人有好幾種服務？</summary><div style="margin-top:4px">在這裡一次建好，系統會自動綁成同一個人，之後一筆轉帳可以分給好幾種服務。</div></details>
      <div class="form-sec"><div class="form-sec-h">\u{1F4CB} 這個人</div><div class="form-grid">
        <div class="field"><label>名字 * <span class="hint">平常畫面上顯示的，臉書名字也可以</span></label><input id="na-name" type="text" placeholder="請填寫名字"></div>
        <div class="field"><label>真實姓名 <span class="hint">選填，開文件時會用到</span></label><input id="na-real" type="text" placeholder="請填寫護照上的全名"></div>
