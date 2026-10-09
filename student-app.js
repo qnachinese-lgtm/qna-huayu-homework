@@ -2089,7 +2089,7 @@ function renderWork(){
   const quizCard=myQuizzes.length?('<div class="lesson-label" style="margin-top:6px">'+t('quizSec')+'</div><div class="quiz-list">'+myQuizzes.map(qz=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;const qm=t({audio:'qmAudio',dict:'qmDict',pinyin:'qmPinyin',mean:'qmMean',choice:'qmChoice',cloze:'qmCloze',custom:'qmCustom'}[qz.mode||'dict']||'qmDict');const _qd=done?null:dueInfo(qz.due_date);return `<div class="quiz-card${done?' done':''}"${done?'':' data-act="startQuiz" data-id="'+qz.id+'"'}><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>${esc(qz.title||t('quizDefTitle'))}</b><div class="muted" style="font-size:12px">${qm}${(!done&&qz.due_date)?('　📅 '+esc(qz.due_date)):''}</div></div>${done?`<span class="badge badge-ok">${r.score}/${r.total}</span>`:(_qd?`<span class="badge ${_qd.cls}">${_qd.label}</span>`:`<span class="badge badge-soon">${t('quizNotTaken')}</span>`)}</div>`;}).join('')+'</div>'):'';
   const _wbTodo=todoWbHtml();
   const lqpCard=lqpCardHtml();
-  if(!ls.length&&!myQuizzes.length&&!lqpCard){$('#screen').innerHTML=myFilesHtml()+'<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>'+banner+_wbTodo+infoBarHtml('drive')+uploadCardHtml()+submittedWorkHtml()+(_wbTodo?'':emptyHtml('✍️',t('noWork'),t('noWorkSub')));return;}
+  if(!ls.length&&!myQuizzes.length&&!lqpCard){$('#screen').innerHTML='<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>'+banner+_wbTodo+uploadCardHtml()+submittedWorkHtml()+(_wbTodo?'':emptyHtml('✍️',t('noWork'),t('noWorkSub')));return;}
   let overdue=0,soon=0;ls.forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});
   const fbN=ls.filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
   const sentFbN=(S.sentences||[]).filter(s=>s.status==='reviewed'&&((s.overall&&s.overall.trim())||(s.feedback&&Object.keys(s.feedback).length))).length;
@@ -2099,7 +2099,10 @@ function renderWork(){
   if((overdue||soon)&&('Notification'in window)&&Notification.permission==='default')nbp.push('<button class="nb-item" data-act="enableNotify">🔔 '+LT({zh:'開啟提醒',cn:'开启提醒',en:'Turn on reminders',vi:'Bật nhắc nhở'})+'</button>');
   const nb=nbp.length?`<div class="notify-bar">${nbp.join('')}</div>`:'';
   const sessCard='';
-  const meetCard=infoBarHtml('drive');
+  const meetCard='';   /* DEDUP_V1454 這一行本來是 infoBarHtml('drive')：
+     Drive 連結同時出現在這裡、課程›檔案、資訊›快速連結三個地方。
+     檔案的主人是「課程 › 檔案」，這一頁只管作業，所以這裡不放了。
+     （變數名字叫 meetCard 但裝的是 Drive，是以前改到一半留下來的。） */
   /* CLEANWORK_V976 「加入手機／Google 日曆」從作業頁拿掉——這一頁是給學生做作業的，
      不是看行事曆的地方。（H.addCal 留著，之後要放回別頁隨時可以叫。） */
   // 成就徽章
@@ -2108,9 +2111,12 @@ function renderWork(){
   if(doneCnt>0)_b.push(LT({zh:'<span class="achv">✅ 完成 '+doneCnt+' 課</span>',cn:'<span class="achv">✅ 完成 '+doneCnt+' 课</span>',en:'<span class="achv">✅ '+doneCnt+' lessons done</span>',vi:'<span class="achv">✅ Đã xong '+doneCnt+' bài</span>'}));
   if(allLs.length>0&&doneCnt>=allLs.length)_b.push(LT({zh:'<span class="achv gold">🏆 全部完成！</span>',cn:'<span class="achv gold">🏆 全部完成！</span>',en:'<span class="achv gold">🏆 All done!</span>',vi:'<span class="achv gold">🏆 Hoàn thành tất cả!</span>'}));
   const badgeStrip=_b.length?'<div class="achv-row">'+_b.join('')+'</div>':'';
-  // 公告
-  const anns=(S.announcements||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).slice(0,3);
-  const annCard=anns.length?'<div class="ann-card"><div class="ann-h">📢 公告 Notice</div>'+anns.map(a=>'<div class="ann-item"><span class="ann-date">'+esc((a.created_at||'').slice(0,10))+'</span>'+esc(a.text||'')+'</div>').join('')+'</div>':'';
+  /* DEDUP_V1454 這張「📢 公告 Notice」拿掉了，而且它本來就是壞的，兩個毛病：
+     （一）它讀 a.text，但公告存的是 title 和 body——所以印出來只有日期，一個字都沒有。
+     （二）另外兩個放公告的地方都會先過濾 assignedToMe，只有這裡沒有，
+          所以學生會在這裡看到「別的學生的公告」的日期。實測：兩列，都是空的，
+          其中一列是發給別人的。公告統一由「課程 › 公告」負責，首頁有摘要。 */
+  const annCard='';
   const liveJoinCard=(S.preview||!(S.site&&S.site.live_on==='on'))?'':'<div class="ann-card" style="cursor:pointer;background:linear-gradient(135deg,#FDF3D8,#FDF3D8)" onclick="SLQ.join()"><div class="ann-h">🎮 '+esc(LT({zh:'加入即時比賽',cn:'加入即时比赛',en:'Join live quiz',vi:'Tham gia thi trực tiếp'}))+'</div><div class="ann-item">'+esc(LT({zh:'老師開始後，點這裡輸入代碼一起玩！',cn:'老师开始后，点这里输入代码一起玩！',en:'When your teacher starts, tap here and enter the code!',vi:'Khi cô bắt đầu, bấm vào đây và nhập mã!'}))+'</div></div>';
   /* CLEANWORK_V976 「課後小結」拿掉。那一欄是老師點名時寫給自己的備註
      （例如「提早10分鐘下課，下次補回來」），不是寫給學生看的。 */
@@ -2146,7 +2152,7 @@ function renderWork(){
   /* WORKTOP_V1013 本來作業排在最後面，手機上第一張卡在 563px，滑不到。
      這一頁就叫「我的作業」，作業要在最上面。其餘的東西一個都沒拿掉，往下移而已。 */
   $('#screen').innerHTML=_wh+banner+nb+lesBlk+quizCard+lqpCard+_wbTodo
-    +badgeStrip+liveJoinCard+annCard+submittedWorkHtml()+classUpcomingHtml()+sessCard+meetCard+payCard;
+    +badgeStrip+liveJoinCard+submittedWorkHtml()+classUpcomingHtml()+payCard;
 }
 function lessonTags(l){const tags=[];
   try{
@@ -2431,14 +2437,28 @@ function renderContent(){
   const cur=courseById(S.courseId)||cs[0];
   if(!cur){$('#screen').innerHTML=emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
   S.courseId=cur.id;
-  const tab=S.cTab||'mod';
+/* DEDUP_V1454 Quinn：「上面五個分頁跟下面點進去有點重複」「重複太多了」。
+   實際跑過一次九個畫面，同一樣東西最多出現在三個地方。這一版的規則是
+   「每一樣東西有一個主人，首頁只放摘要和入口」：
+     公告   → 主人是「課程 › 公告」；首頁留三則摘要＋「看全部公告 →」
+     作業   → 主人是「我的作業」（課文練習、小考、作業簿、交檔案、已交的）
+     成績   → 主人是「我的成績」（只有那裡看得到老師評語）
+     檔案   → 主人是「課程 › 檔案」（雲端連結＋老師給我的檔案）
+   所以課程裡的「作業」「成績」兩個分頁拿掉，「我的作業」裡的公告卡、
+   Drive 連結、老師給我的檔案也拿掉。沒有任何功能消失，只是各歸各位。 */
+  let tab=S.cTab||'mod';
+  if(tab==='work'||tab==='grade')tab='mod';   /* 這兩個分頁拿掉了，舊的狀態導回課程模組 */
   const anns=(S.announcements||[]).filter(a=>assignedToMe(a)).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
   const TABMETA={mod:['📚',T.mod],ann:['📣',T.ann],work:['✍️',T.work],grade:['📈',T.grade],file:['📁',T.file]};
   const tm=TABMETA[tab]||TABMETA.mod;
   const cr=document.getElementById('crumb');
   if(cr){cr.classList.remove('hide');
     cr.innerHTML='<a data-act="section" data-id="home">'+esc(LT({zh:'首頁',cn:'首页',en:'Home',vi:'Trang chủ'}))+'</a> › <a data-act="openCourse" data-id="'+esc(cur.id)+'">'+esc(cur.name)+'</a> › <span>'+esc(tm[1])+'</span>';}
-  const nav=[['mod','📚 '+T.mod,''],['ann','📣 '+T.ann,anns.length||''],['work','✍️ '+T.work,''],['grade','📈 '+T.grade,''],['file','📁 '+T.file,'']]
+  /* DEDUP_V1454 本來這裡還有 ['work','✍️ 作業'] 和 ['grade','📈 成績']。
+     作業跟「我的作業」是同一批東西換個排法；成績那張表更是「我的成績」的縮水版——
+     少了老師評語，學生在這裡看成績會以為老師沒寫話。兩個都拿掉，
+     下面 tab==='work' / tab==='grade' 的程式原封不動留著，想放回來就把這兩項加回去。 */
+  const nav=[['mod','📚 '+T.mod,''],['ann','📣 '+T.ann,anns.length||''],['file','📁 '+T.file,'']]
     .map(([k,lb,n])=>'<button class="'+(tab===k?'on':'')+'" data-act="cTab" data-id="'+k+'">'+esc(lb)+(n?'<span class="n">'+n+'</span>':'')+'</button>').join('');
   const ls=sortLes(cur.lessons);
   let body='';
@@ -2500,7 +2520,9 @@ function renderContent(){
     body=rows?('<div class="card" style="padding:0"><table class="ctab"><thead><tr><th>'+esc(t('navContent'))+'</th><th></th><th>'+esc(t('score'))+'</th></tr></thead><tbody>'+rows+'</tbody></table></div>')
       :emptyHtml('📈',t('noGrades'),t('noGradesSub'));
   }else{
-    body=(driveCardHtml()||'')+(uploadCardHtml()||'');
+    /* DEDUP_V1454 這裡本來是「雲端連結＋交檔案給老師」。交東西是作業的事，
+       已經統一到「我的作業」；這一頁改成放「老師給我的」：雲端連結＋老師上傳的檔案。 */
+    body=(driveCardHtml()||'')+(myFilesHtml()||'');
     if(!body)body=emptyHtml('📁',T.nofile||T.file,T.nofilesub||'');/* FILEEMPTY_V1451 本來標題直接重印分頁名「檔案」、副標是空字串，學生看不懂 */
   }
   $('#screen').innerHTML='<div class="pg-h"><h2>'+esc(cur.name)+'</h2>'+(cur.sub?'<div class="sub">'+esc(cur.sub)+'</div>':'')+'</div>'
