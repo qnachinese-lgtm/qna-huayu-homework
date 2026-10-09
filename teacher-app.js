@@ -516,8 +516,29 @@ function sortQuestionsLogical(qs){return qs.slice().sort((a,b)=>{
   if(sa!==sb)return sa<sb?-1:1;
   return (a.order_index||0)-(b.order_index||0);});}
 const resultOf=(lid,sid)=>S.results.find(r=>r.lesson_id===lid&&r.student_id===sid);
-function manualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||q.type==='opt'||q.type==='fill';} // 填空一律老師批改
-function scoreOf(l,r){const qs=questionsOf(l.id);const manual=r.manual||{};let md=0;qs.forEach(q=>{if(manualQ(q)&&manual[q.id]==='done')md++;});return (r.auto!=null?r.auto:(r.score||0))+md;}
+/* AUTOFILL_V1458 填空本來「一律」要老師批改，所以學生一交卷分數就先少一截
+   （Quinn：「爲什麼只出現 20/28」）。改成跟學生端同一條規則：
+     沒填標準答案、或手寫板作答 → 還是老師批改
+     空白沒寫                   → 直接算錯，不進待批改
+     寫了而且跟標準答案一樣      → 自動給分，不進待批改
+     寫了但對不起來             → 還是進待批改（可能是另一種對的說法，要你判斷）
+   所以這個函式多吃一個「學生寫了什麼」；沒給第二個參數就維持舊的保守行為。
+   學生端 student-app.js 的 isManualQ 是同一條規則，兩邊要一起改才不會對不上。 */
+function manualQ(q,resp){
+  if(!q)return false;
+  if(q.type==='write'||q.type==='speak'||q.type==='qa'||q.type==='opt')return true;
+  /* NOKEY_V1458 順手補一個對不起來的舊問題：學生端 isManualQ 早就把「沒填標準答案的單選題」
+     算成要人工批改（NOKEY_V64），後台這邊卻沒有。結果學生交卷後狀態是 pending，
+     可是批改台不給這一題打勾的地方，它就永遠卡在待批改。兩邊規則改成一樣。 */
+  if(q.type==='choice')return (q.answer==null||q.answer==='');
+  if(q.type!=='fill')return false;
+  if(q.input_mode==='write')return true;
+  const key=Array.isArray(q.answer)?q.answer:((q.answer!=null&&q.answer!=='')?[q.answer]:[]);
+  if(!key.some(x=>String(x==null?'':x).trim()!==''))return true;
+  if(arguments.length<2)return true;
+  if(resp==null||resp===''||(Array.isArray(resp)&&!resp.join('')))return false;
+  return qCorrect(q,resp)!==true;}
+function scoreOf(l,r){const qs=questionsOf(l.id);const manual=r.manual||{};const ans=(r&&r.answers)||{};let md=0;qs.forEach(q=>{if(manualQ(q,ans[q.id])&&manual[q.id]==='done')md++;});return (r.auto!=null?r.auto:(r.score||0))+md;}
 
 function myEmailNow(){try{return (firebase.auth().currentUser.email||'').toLowerCase();}catch(e){return '';}}
 /* READCUT_V815 題目的快取。loadAll() 有 77 個呼叫點，每一次都整庫重讀幾千筆題目，
@@ -5203,8 +5224,13 @@ function renderOps(){const body=$('#ops-body');
     adminHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">👥 管理員負責學生</div><div class="dash-row"><span class="badge" style="background:var(--accent);color:#fff;border-color:var(--accent)">主管理員</span><b>你</b><span class="grow"></span><span class="muted">${ownCnt} 位</span></div>${(S.admins||[]).map(a=>`<div class="dash-row"><span class="badge badge-ok">管理員</span><b>${snm(a.name||a.email)}</b><span class="grow"></span><span class="muted">${cnt(a.email)} 位</span></div>`).join('')}</div>`;}
   let annHtml='';
   if(IS_OWNER){const anns=(S.announcements||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
-    const annRows=anns.length?anns.map(a=>`<div class="dash-row"><span class="grow"><b>${esc((a.created_at||'').slice(0,10))}</b> · ${esc(a.text||'')}</span><button class="btn btn-sm btn-danger" data-act="delAnnounce" data-id="${a.id}">✕</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">還沒有公告。</div>';
-    annHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">📢 站內公告 <span class="hint">所有學生登入首頁都會看到</span></div><div class="quiz-create-row" style="margin:6px 0 10px"><button class="btn btn-sm btn-accent" data-act="newAnnounce">＋ 發布公告</button></div>${annRows}</div>`;}
+    /* ANN2_V1458 列表也要看得出標題和發給哪一班 */
+    const annRows=anns.length?anns.map(a=>{
+      const _g=(a.assigned_groups||[]).filter(Boolean);
+      const who=_g.length?('<span class="tag">'+esc(_g.join('、'))+'</span>'):'<span class="hint">全部學生</span>';
+      const _t=String(a.title||'').trim(),_b=String(a.text||a.body||a.content||'').trim();
+      return `<div class="dash-row"><span class="grow"><b>${esc((a.created_at||'').slice(0,10))}</b> · ${_t?('<b>'+esc(_t)+'</b>　'):''}${esc(_b)} ${who}</span><button class="btn btn-sm btn-danger" data-act="delAnnounce" data-id="${a.id}">✕</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有公告。</div>';
+    annHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">📢 站內公告 <span class="hint">預設所有學生都看得到，也可以只發給某幾班</span></div><div class="quiz-create-row" style="margin:6px 0 10px"><button class="btn btn-sm btn-accent" data-act="newAnnounce">＋ 發布公告</button></div>${annRows}</div>`;}
   const siteHtml=IS_OWNER?leadsCardHtml()+siteCardHtml():'';
   const itvNow=itvIncome(thisM),itvAllInc=itvIncome(null);
   const agNow=agIncome(thisM),agAllInc=agIncome(null);const wrNow=wrIncome(thisM),wrAllInc=wrIncome(null);
@@ -8573,7 +8599,7 @@ function aiBar(kind,rid){
     +'<div id="'+boxId+'" class="ai-wrap"></div>';
 }
 function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length;
-  const perQ=qs.map((q,qi)=>{const resp=(r.answers||{})[q.id];const fb=(r.feedback||{})[q.id]||'';const man=manualQ(q);const mk=(r.manual||{})[q.id];
+  const perQ=qs.map((q,qi)=>{const resp=(r.answers||{})[q.id];const fb=(r.feedback||{})[q.id]||'';const man=manualQ(q,resp);/* AUTOFILL_V1458 */const mk=(r.manual||{})[q.id];
     const corr=man?(mk==='done'?true:(mk==='wrong'?false:null)):qCorrect(q,resp);
     const badge=corr===true?'<span class="gd-ok">✓ 對</span>':corr===false?'<span class="gd-no">✗ 錯</span>':(man?'<span class="badge badge-soon">待批改</span>':'<span class="hint">—</span>');
     const ref=gdRefText(q);
@@ -21449,7 +21475,7 @@ H.unassign=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;
 };
 H.markWrite=async(key,btn)=>{const[rid,qid,mark]=key.split('::');const r=S.results.find(x=>x.id===rid);if(!r)return;
   const l=S.lessons.find(x=>x.id===r.lesson_id);const manual=Object.assign({},r.manual||{});manual[qid]=mark;
-  const qs=questionsOf(r.lesson_id);let pend=false;qs.forEach(q=>{if(manualQ(q)&&!manual[q.id])pend=true;});
+  const qs=questionsOf(r.lesson_id);const _ans=(r.answers||{});let pend=false;qs.forEach(q=>{if(manualQ(q,_ans[q.id])&&!manual[q.id])pend=true;});/* AUTOFILL_V1458 */
   const sc=scoreOf(l,Object.assign({},r,{manual}));
   try{await DB.update('results',rid,{manual,score:sc,status:pend?'pending':'done'});
     r.manual=manual;r.score=sc;r.status=pend?'pending':'done';
@@ -21509,7 +21535,7 @@ H.aiDraft=async(rid)=>{
   const box=document.getElementById('aiw-'+rid);
   const say=(html,cls)=>{if(box)box.innerHTML='<div class="ai-note'+(cls?' '+cls:'')+'">'+html+'</div>';};
   const btn=document.querySelector('[data-act="aiDraft"][data-id="'+rid+'"]');
-  const items=qs.map(q=>{const resp=(r.answers||{})[q.id];const man=manualQ(q);const mk=(r.manual||{})[q.id];
+  const items=qs.map(q=>{const resp=(r.answers||{})[q.id];const man=manualQ(q,resp);/* AUTOFILL_V1458 */const mk=(r.manual||{})[q.id];
     const corr=man?(mk==='done'?true:(mk==='wrong'?false:null)):qCorrect(q,resp);
     return {id:String(q.id),type:(TYPE_LABELS[q.type]||q.type||''),prompt:String(q.prompt||''),
       ref:gdRefText(q)||'',ans:aiAnsText(q,resp),mark:corr};});
@@ -22320,8 +22346,32 @@ H.printCert=()=>{const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&a
     +'<span class="line">'+L2('日期：'+e2(date),'Ngày cấp: '+e2(date),1)+'</span></div></div>'
     +expJs()+'</body></html>';
   fbWin(html);};
-H.newAnnounce=()=>{if(!IS_OWNER)return;openModal(`<div class="modal"><div class="modal-head"><h3>📢 發布公告</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="field full"><label>公告內容 <span class="hint">所有學生登入首頁都會看到</span></label><textarea id="ann-text" placeholder="請填公告內容"></textarea></div></div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><button class="btn btn-primary" data-act="saveAnnounce">發布</button></div></div>`);};
-H.saveAnnounce=async()=>{const t=(($('#ann-text')&&$('#ann-text').value)||'').trim();if(!t)return toast('請輸入公告內容');try{await ensureAuthFresh();await DB.insert('lessons',{kind:'announcement',text:t});closeModal();await loadAll();render();toast('已發布公告');}catch(e){toast(writeErr('發布失敗',e));}};
+/* ANN2_V1458 本來這個視窗只有一個文字框：沒有標題欄，也不能選發給誰（程式寫死全部人）。
+   現在加上標題（選填）和班級勾選。不勾任何班＝給全部學生，跟以前一樣。
+   學生端讀的是同一批欄位（title / text / assigned_groups），V1457 已經接好。 */
+function annGroupsAll(){const out=new Set();
+  (S.students||[]).forEach(x=>{if(!x||x.deleted_at)return;stuGroups(x).forEach(g=>{if(g)out.add(g);});});
+  return [...out].sort();}
+H.newAnnounce=()=>{if(!IS_OWNER)return;
+  const gs=annGroupsAll();
+  const gBox=gs.length
+    ? ('<div class="field full"><label>發給誰 <span class="hint">不勾＝全部學生都看得到</span></label>'
+       +'<div id="ann-grps" style="display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:4px">'
+       +gs.map(g=>'<label style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:500">'
+         +'<input type="checkbox" class="ann-g" value="'+esc(g)+'"> '+esc(g)+'</label>').join('')
+       +'</div></div>')
+    : '<div class="hint">目前還沒有分班，這則公告所有學生都看得到。</div>';
+  openModal(`<div class="modal"><div class="modal-head"><h3>📢 發布公告</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">
+    <div class="field full"><label>標題 <span class="hint">選填，學生會先看到這一行</span></label><input id="ann-title" type="text" placeholder="例：下週停課一次"></div>
+    <div class="field full"><label>公告內容</label><textarea id="ann-text" placeholder="請填公告內容"></textarea></div>
+    ${gBox}
+    </div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><button class="btn btn-primary" data-act="saveAnnounce">發布</button></div></div>`);};
+H.saveAnnounce=async()=>{const t=(($('#ann-text')&&$('#ann-text').value)||'').trim();
+  const ti=(($('#ann-title')&&$('#ann-title').value)||'').trim();
+  if(!t&&!ti)return toast('請輸入公告內容');
+  const gs=[...document.querySelectorAll('#ann-grps .ann-g:checked')].map(x=>x.value).filter(Boolean);
+  try{await ensureAuthFresh();await DB.insert('lessons',{kind:'announcement',title:ti,text:t,assigned_groups:gs});
+    closeModal();await loadAll();render();toast(gs.length?('已發布給 '+gs.join('、')):'已發布給全部學生');}catch(e){toast(writeErr('發布失敗',e));}};
 H.delAnnounce=async(id)=>{if(!confirm('刪除這則公告？'))return;try{await DB.remove('lessons',id);await loadAll();render();toast('已刪除公告');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.trash=()=>{const dleft=d=>{const t=Date.parse(d||'');if(!t)return '';const left=Math.ceil((t+7*864e5-Date.now())/864e5);return left>0?('剩 '+left+' 天'):'即將清除';};
   /* TRASHSEL_V1030 一筆一筆按太慢。加上勾選＋全選，一次復原或一次刪完。

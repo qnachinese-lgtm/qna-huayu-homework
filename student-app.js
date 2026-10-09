@@ -1015,8 +1015,12 @@ function gpBlocksHtml(g){return (g.blocks||[]).map(b=>{
     const imh=im?`<div class="gp-img"><img src="${esc(im)}" alt="" loading="lazy" data-act="picBig" data-src="${esc(im)}"><div class="ls-img-hint">🔍 ${esc(LT({zh:'點圖可放大',cn:'点图可放大',en:'Tap to enlarge',vi:'Chạm để phóng to'}))}</div></div>`:'';
     const aud=Array.isArray(b.exAudio)?b.exAudio:[];
     const exg=exGroupLines(exl);
+    /* EXNUM_V1458 Quinn：「這裡還是看到題號跟數字重複？」
+       這一排是 <ol>，瀏覽器自己會印 1. 2. 3.，可是課本打進來的字本身
+       常常也帶著「1.」「2. 」。V1444 只處理了題目的開頭，例句漏掉了。
+       用同一個 qStripNo（只吃 1～99 加分隔符，「3 個人」這種不會被動到）。 */
     const ex=exg.length?`<div class="gp-exwrap"><div class="gp-seclbl">${esc(LT({zh:'例句',cn:'例句',en:'Examples',vi:'Câu ví dụ'}))}</div><ol class="gp-ex-ol">${exg.map((s,i)=>{const au=aud[i];
-      return `<li class="gp-ex-li"><div class="gp-ex-body">${exLinesHtml(s)}</div>${au?`<button type="button" class="gp-ex-play" data-act="exAudio" data-url="${esc(au)}" title="${esc(LT({zh:'播放',cn:'播放',en:'Play',vi:'Phát'}))}">▶</button>`:''}</li>`;}).join('')}</ol></div>`:'';
+      return `<li class="gp-ex-li"><div class="gp-ex-body">${exLinesHtml(qStripNo(s))}</div>${au?`<button type="button" class="gp-ex-play" data-act="exAudio" data-url="${esc(au)}" title="${esc(LT({zh:'播放',cn:'播放',en:'Play',vi:'Phát'}))}">▶</button>`:''}</li>`;}).join('')}</ol></div>`:'';
     const autoLab=(!lab&&txt&&!mono)?LT({zh:'說明',cn:'说明',en:'Explanation',vi:'Giải thích'}):'';
     const labHtml=lab?`<div class="gp-seclbl">${esc(gpLabel(lab))}</div>`:(autoLab?`<div class="gp-seclbl">${esc(autoLab)}</div>`:'');
     return `<div class="gp-sec">${labHtml}${body}${imh}${ex}</div>`;
@@ -1050,7 +1054,30 @@ function transcriptHtml(l){/*TRANSCRIPT_V75 老師沒開就完全不輸出*/
 }
 window.TSCTOG=function(h){var b=h.nextElementSibling,c=h.querySelector('.chev');if(!b)return;
   var open=b.classList.toggle('hide')===false;if(c)c.textContent=open?'\u25be':'\u25b8';};
-function isManualQ(q){return q.type==='write'||q.type==='speak'||q.type==='qa'||q.type==='opt'||q.type==='fill'||(q.type==='choice'&&(q.answer==null||q.answer===''));}/*NOKEY_V64 沒填標準答案的單選題一律老師人工批改，不會自動判對*/ // 填空一律老師人工批改，不自動對答案
+/* AUTOFILL_V1458 Quinn 問「爲什麼只出現 20/28」。原因是填空題以前「一律」等老師批改，
+   學生一交卷，所有填空先算 0 分，看起來就像考壞了。
+   改成三段：
+     老師沒填標準答案、或是手寫板作答 → 還是老師批改（沒得自動比）
+     填了標準答案而且學生答對   → 當場給分，不進待批改
+     填了標準答案但對不起來     → 還是送到你面前（學生可能寫了另一種對的說法，
+                                 這種要你判斷，不能直接判錯）
+   所以這個函式多吃一個「學生寫了什麼」。不給第二個參數的呼叫點維持保守（當作要批改），
+   行為跟以前一樣。 */
+const respBlank=(r)=>r==null||r===''||(Array.isArray(r)&&!r.join(''));
+function fillHasKey(q){ if(!q||q.type!=='fill')return false; if(q.input_mode==='write')return false;
+  const a=Array.isArray(q.answer)?q.answer:((q.answer!=null&&q.answer!=='')?[q.answer]:[]);
+  return a.some(x=>String(x==null?'':x).trim()!==''); }
+function isManualQ(q,resp){
+  if(!q)return false;
+  if(q.type==='write'||q.type==='speak'||q.type==='qa'||q.type==='opt')return true;
+  if(q.type==='choice')return (q.answer==null||q.answer==='');/*NOKEY_V64 沒填標準答案的單選題一律人工批改*/
+  if(q.type==='fill'){
+    if(!fillHasKey(q))return true;
+    if(arguments.length<2)return true;
+    if(respBlank(resp))return false;   /* 整格空白＝沒寫，直接算錯，不用麻煩老師看 */
+    return !isCorrect(q,resp);
+  }
+  return false;}
 function stripOptLabel(s){return String(s||'').replace(/^\s*[a-hA-HＡ-Ｈａ-ｈ]\s*[\.．、）)：:]\s*/,'').trim();}
 function optBlank(s){return esc(String(s||'')).replace(/[_＿]{2,}/g,'<span class="opt-blank"></span>').replace(/\n/g,'<br>');}
 /* 題型標籤：填空／問答／選填對學生來說都是「填答案」，標了只會混淆，只有作答方式真的不同才標 */
@@ -1625,9 +1652,12 @@ function applyChrome(){
         不動 config.js——那是她的設定檔，而且中文介面要維持原樣。
      ② 頁尾 —— 寫死在 HTML 裡，從來沒有人翻它。改成跟副標同一個字典 key。
      教師後台 V1361 已經是「招牌＝QNA CHINESE、副標另外寫」，這樣兩邊也一致。 */
-  const _zhUi=(S.lang==='zh'||S.lang==='cn');
+  /* BRAND_V1458 Quinn：「學生頁招牌重複」。招牌印「QNA CHINESE 學習平台」，
+     底下副標又印「學習者平台」——同一句話講兩次。V1374 那次只有非中文介面
+     把中文尾巴拿掉，中文介面維持原樣，所以中文的學生一直看到兩次。
+     現在四種語言一致：招牌只有品牌名，平台名交給副標。config.js 不動。 */
   let _nm=window.APP_NAME||'QNA CHINESE 學習平台';
-  if(!_zhUi)_nm=String(_nm).replace(/\s*(學習者平台|學習平台|学习者平台|学习平台)\s*$/,'').trim()||'QNA CHINESE';
+  _nm=String(_nm).replace(/\s*(學習者平台|學習平台|学习者平台|学习平台)\s*$/,'').trim()||'QNA CHINESE';
   $('#app-name').textContent=_nm;
   $('#app-sub').textContent=t('sub');
   try{const _f=document.getElementById('foot-note');
@@ -3003,7 +3033,8 @@ function renderGrades(){
      學生看起來就是一個已經定案的分數。要人工批改的題在老師批改前都算 0 分，
      所以這裡要講出「還有幾題在等批改」，分數也標成暫計。 */
   const waitOf=(l,r)=>{ if(!r||r.status!=='pending')return 0;
-    const mq=questionsOf(l.id).filter(q=>q.type!=='note'&&isManualQ(q)).length;
+    const _a=(r&&r.answers)||{};
+    const mq=questionsOf(l.id).filter(q=>q.type!=='note'&&isManualQ(q,_a[q.id])).length;/* AUTOFILL_V1458 */
     return Math.max(0,mq-Object.keys((r&&r.manual)||{}).length); };
   const rows=ls.map(l=>{const r=resultOf(l.id),done=r&&r.status==='done',qn=answerableOf(l.id).length;
     const w=waitOf(l,r),pend=!!(r&&r.status==='pending');
@@ -3224,7 +3255,7 @@ function qHtmlGraded(q,idx){
       const a=it.mode==='open'?(esc(r.t||'')||('<span class="hint">'+t('blank')+'</span>')):((r.s||[]).map(oi=>String.fromCharCode(97+oi)+'. '+esc(stripOptLabel((q.options||[])[oi]||''))).join('；')||('<span class="hint">'+t('blank')+'</span>'));
       return `<div class="optitem${singleA?' nonum':''}">${num}<div class="optitem-body">${txt}<div class="qa-ans">${a}</div></div></div>`;}).join('');ct='';}
   else{body=(q.options||[]).map((p,i)=>{const r=(resp||[])[i]||'';const good=r===p.r;return `<div class="match-row"><span class="l">${esc(p.l)}</span><span class="badge ${good?'badge-ok':'badge-overdue'}"><span data-trvi="${esc(r)}">${esc(viOf(r)||'—')}</span> ${good?'✓':'✗'}</span></div>`;}).join('');ct=t('ans')+'：'+(q.options||[]).map(p=>esc(p.l)+'→'+esc(viOf(p.r))).join('、');}
-  const fb=isManualQ(q)
+  const fb=isManualQ(q,resp)/* AUTOFILL_V1458 答對的填空直接顯示 ✓，不要還掛著「等老師批改」 */
     ? `<div class="q-feedback hw-pending">⏳ ${th('pending')}${ct?` <span class="ans">｜${ct}</span>`:''}</div>`
     : `<div class="q-feedback ${ok?'ok':'no'}">${ok?'✓ '+t('correct'):'✗ '+t('wrong')} <span class="ans">｜${ct}</span></div>`;
   const instr=q.instruction?`<div class="q-instr">${esc(q.instruction)}</div>`:'';
@@ -3294,7 +3325,7 @@ function renderPractice(){
   if(!qs.length)practice=emptyHtml('📝',t('noLessonQ'),t('noLessonQSub'));
   else if(S.graded){const g=GRADE,pct=g.total?Math.round(g.score/g.total*100):0;
     practice=`<div class="score-banner ${pct>=80?'win':''}"><div class="big">${g.score}/${g.total}</div>
-      <div><div style="font-weight:600;font-size:16px">${pct>=80?t('great'):t('done')}</div><div style="color:var(--muted);font-size:14px">${pct}% ${t('acc')}</div></div></div>${g.hasWrite?`<div class="notice" style="margin-bottom:14px">⏳ ${qs.filter(isManualQ).length} ${th('pendingNote')}</div>`:''}`+
+      <div><div style="font-weight:600;font-size:16px">${pct>=80?t('great'):t('done')}</div><div style="color:var(--muted);font-size:14px">${pct}% ${t('acc')}</div></div></div>${g.hasWrite?`<div class="notice" style="margin-bottom:14px">⏳ ${qs.filter(q=>isManualQ(q,(g.answers||{})[q.id])).length} ${th('pendingNote')}</div>`:''}`+/* AUTOFILL_V1458 */
       (()=>{let n=0;return qs.map(q=>{if(q.type==='note')return qHtmlGraded(q,-1);const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;return qHtmlGraded(q,st);}).join('');})()+
       transcriptHtml(l)+/*TRANSCRIPT_V75*/
       `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn" data-act="retry">${t('retry')}</button><button class="btn btn-primary" data-act="back">${t('finishBack')}</button></div>`;
@@ -3312,7 +3343,7 @@ function renderPractice(){
 }
 function gradeAll(qs){let score=0;const answers={};let hasWrite=false;
   qs.forEach(q=>{if(q.type==='note')return;const resp=readResp(q);answers[q.id]=resp;
-    if(isManualQ(q))hasWrite=true;else if(isCorrect(q,resp))score++;});
+    if(isManualQ(q,resp))hasWrite=true;else if(isCorrect(q,resp))score++;});/* AUTOFILL_V1458 */
   return{score,total:qs.filter(q=>q.type!=='note').length,answers,hasWrite};}
 // 把之前儲存（草稿或已送出）的答案填回作答畫面，方便接著做
 function fillSaved(qs,saved){if(!saved)return;qs.forEach(q=>{const v=saved[q.id];if(v==null)return;
@@ -4616,7 +4647,7 @@ H.submit=async()=>{const set=S.practiceSet,qs=set.questions;GRADE=gradeAll(qs);S
     else{const byL={};qs.forEach(q=>{(byL[q.lesson_id]=byL[q.lesson_id]||[]).push(q);});
       for(const lid of Object.keys(byL)){const r=S.results.find(x=>x.lesson_id===lid);const answers=Object.assign({},(r&&r.answers)||{});const manual=(r&&r.manual)||{};
         byL[lid].forEach(q=>{answers[q.id]=GRADE.answers[q.id];});
-        const lq=S.questions.filter(x=>x.lesson_id===lid&&x.type!=='note');let autoSc=0,manualSc=0,pend=false;lq.forEach(q=>{if(isManualQ(q)){if(manual[q.id]==='done')manualSc++;if(!manual[q.id])pend=true;}else if((q.id in answers)&&isCorrect(q,answers[q.id]))autoSc++;});
+        const lq=S.questions.filter(x=>x.lesson_id===lid&&x.type!=='note');let autoSc=0,manualSc=0,pend=false;lq.forEach(q=>{if(isManualQ(q,answers[q.id])){if(manual[q.id]==='done')manualSc++;if(!manual[q.id])pend=true;}else if((q.id in answers)&&isCorrect(q,answers[q.id]))autoSc++;});/* AUTOFILL_V1458 */
         await DB.upsertResult(lid,S.me.id,{uid:myUid(),answers,score:autoSc+manualSc,auto:autoSc,total:lq.length,status:pend?'pending':'done',completed_at:now()});}}
     {const u=myUid();const _r=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);splitResults(_r);}
   }catch(e){toast(e.message);}
