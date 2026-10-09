@@ -1238,7 +1238,7 @@ function showCourseHome(){
       const last = Object.entries(rec.course || {}).filter(([id]) => C.byId[id]).sort((a, b) => Math.max(0, ...Object.values(b[1].m || {})) - Math.max(0, ...Object.values(a[1].m || {})))[0];
       f.tb = tk ? (C.byId[String(tk.fam).slice(2)].tb || "其他課") : last ? (C.byId[last[0]].tb || "其他課") : (tbs.length > 1 ? tbs[0] : "*");
     }
-    f.q = f.q || ""; f.todo = !!f.todo; return f; })());
+    f.q = f.q || ""; f.todo = !!f.todo; f.lid = f.lid || "";/* BKDD_V1472 */ return f; })());
   const saveF = () => ls.set("hz-cf", JSON.stringify(F));
   const bar = el("div", { class:"cfilter" });
   const sel = el("select", { "aria-label":"課本" }); sel.append(el("option", { value:"*", text:`全部課本（${C.lessons.length} 課）` }));
@@ -1250,17 +1250,31 @@ function showCourseHome(){
   const list = el("div"); box.append(list);
   const card = (L, tb) => { const n = L.chars.length, m = L.chars.filter(x => mastered(L.id, x.c)).length, s = lessonStars(L);
     const task = store.tasks.find(t => t.fam === "L:" + L.id && !taskDone(t));
-    const cd = el("div", { class:"ccard" + (task ? " task" : "") }); const st = el("span", {}); st.innerHTML = starsHtml(s);
-    cd.append(el("div", { class:"ct" }, [el("b", { text: tb ? L.label.replace(L.tb + "・", "") : L.label }), st.firstChild]),
-      el("div", { class:"czs", text: L.chars.slice(0, 16).map(x => x.c).join("") + (n > 16 ? "…" : "") }),
+    const cd = el("div", { class:"ccard one" + (task ? " task" : "") }); const st = el("span", {}); st.innerHTML = starsHtml(s);
+    /* BKDD_V1472 這塊十六個字的預覽（「陳月美李明華王開文你來是小姐嗎接…」）拿掉了。
+       十五張卡就是十五面字牆，是整頁最重的東西，而要看這一課有哪些字，按進去就看得到。 */
+    cd.append(el("div", { class:"ct" }, [el("b", { text: L.label }), st.firstChild]),
       el("div", { class:"cbar" }, [el("i", { style:`width:${Math.round(m / n * 100)}%` })]),
-      el("small", { class:"muted", text:`已學會 ${m}／${n} 個字` + (task ? `・老師指派${task.due_date ? "（" + dueLabel(task.due_date).t + "）" : ""}` : "") }));
+      el("small", { class:"muted", text:`${n} 個字・已學會 ${m}` + (task ? `・老師指派${task.due_date ? "（" + dueLabel(task.due_date).t + "）" : ""}` : "") }));
     const go = el("button", { class:"btn small" + (m < n ? " primary" : ""), text: m === 0 ? "開始" : m < n ? "繼續" : "再練一次" });
     go.onclick = () => startRound(L.id, { all: m === n });
     if (store.teacher){ const pr = el("button", { class:"btn small", text:"印學習單" }); pr.onclick = () => printSheet(L);
       const pj = el("button", { class:"btn small", text:"上課投影" }); pj.onclick = () => startProject(L);
       cd.append(el("div", { class:"row" }, [go, pr, pj])); } else cd.append(go);
     return cd; };
+  /* ══════ BKDD_V1472 我的課本改成下拉 ══════
+     Quinn：「不是已經跟你說這樣排版很醜了嗎」→「我覺得做下拉會比較好」。
+     經過：她先說排版很醜，我自己去量按鈕對不對齊、修了對齊（V1469）。
+     她再說一次很醜，我量她的新截圖——四排按鈕分別在 y=176/396/616/836，
+     每一欄都一樣，對齊早就是完美的。我修了一個她沒抱怨的東西。
+     然後我做了兩個版本（一課一行的清單、瘦一半的卡片）給她挑，她說兩個都不對。
+     最後她自己講了：下拉。跟生詞遊戲選課同一套，那個她用過說好。
+     所以十五張卡整個拿掉，改成選一課、下面只展開那一課。
+     每個選項自己帶進度（已學會 m／n），不用展開就看得到。
+     順便拿掉那塊十六個字的字牆和三顆永遠灰的星星——兩個版本我都拿掉了，她沒有反對。 */
+  const lesNo = (L, i) => { const full = String(L.label || "").split("・").pop();
+    const m = /^\s*第?\s*([0-9０-９一二三四五六七八九十百]+)\s*課\s*[：:．.、]?\s*(.*)$/.exec(full);
+    return { no: m ? m[1] : String(i + 1), ttl: (m && m[2]) ? m[2] : full }; };
   const draw = () => {
     list.innerHTML = "";
     const kw = F.q.trim();
@@ -1271,11 +1285,26 @@ function showCourseHome(){
     Ls = Ls.slice().sort((a, b) => !!store.tasks.find(t => t.fam === "L:" + b.id && !taskDone(t)) - !!store.tasks.find(t => t.fam === "L:" + a.id && !taskDone(t)));
     if (!Ls.length){ list.append(el("p", { class:"muted", style:"padding:12px 2px", text: kw ? `找不到「${kw}」。可以打課名的一部分（例如「第三課」），或打一個字。` : "這裡沒有符合的課。" })); return; }
     if (kw) list.append(el("p", { class:"muted", style:"margin:4px 0 8px", text:`找到 ${Ls.length} 課（搜尋範圍是全部課本）` }));
+    /* 上次選的那一課還在清單裡就留著，不在就選第一課（老師指派的已經排在最前面） */
+    if (!Ls.some(L => L.id === F.lid)) F.lid = Ls[0].id;
+    const lsel = el("select", { class:"lsel", "aria-label":"選一課" });
     const groups = {}; Ls.forEach(L => (groups[L.tb || "其他課"] = groups[L.tb || "其他課"] || []).push(L));
+    const many = Object.keys(groups).length > 1;
     Object.entries(groups).forEach(([tb, G]) => {
-      if (Object.keys(groups).length > 1 || F.tb === "*" || kw) list.append(el("h3", { class:"ctb", text: tb }));
-      const g = el("div", { class:"cgrid" }); G.forEach(L => g.append(card(L, tb))); list.append(g);
+      const box = many ? el("optgroup", { label:tb }) : lsel;
+      G.forEach((L, i) => { const n = L.chars.length, m = L.chars.filter(x => mastered(L.id, x.c)).length;
+        const { no, ttl } = lesNo(L, i);
+        const task = store.tasks.find(t => t.fam === "L:" + L.id && !taskDone(t));
+        const o = el("option", { value:L.id,
+          text:`${no}　${ttl}　${m === n ? "全部學會" : `已學會 ${m}／${n}`}${task ? "　★老師指派" : ""}` });
+        if (L.id === F.lid) o.selected = true;
+        box.append(o); });
+      if (many) lsel.append(box);
     });
+    lsel.onchange = () => { F.lid = lsel.value; saveF(); draw(); };
+    list.append(el("div", { class:"bkpick" }, [lsel]));
+    const cur = Ls.find(L => L.id === F.lid);
+    if (cur) list.append(card(cur, true));
   };
   sel.onchange = () => { F.tb = sel.value; saveF(); draw(); };
   q.oninput = () => { F.q = q.value; saveF(); draw(); };
