@@ -381,6 +381,8 @@ function flipPlay(p, st){
 // ============ 3. 快問快答 ============
 // 題型：看拼音選詞、看詞選拼音、選字填空
 function makeQs(p, n){
+  /* QZSRC_V1465 題目來源是老師自己出的小考就走那一套，不用課本生詞 */
+  if (p && p.qz) return qzQs(p.qz.items, n);
   const ws = p.words, out = [];
   const others = (x, k) => shuffle(ws.filter(y => y.w !== x.w)).sort((a, b) => (b.w.length === x.w.length) - (a.w.length === x.w.length)).slice(0, k);
   shuffle(ws.slice()).slice(0, n).forEach((x, k) => {
@@ -451,12 +453,57 @@ function joinOnly(){
   GAME = { k:"quiz" };
   try { const i = c.querySelector("input"); if (i) setTimeout(() => i.focus(), 60); } catch(e){}
 }
+/* ══════ QZSRC_V1465 快問快答：用老師自己出的小考題 ══════
+   Quinn：「這邊的話，我能不能設計題目」。
+   她後台「隨堂小考 → 自訂題目」的格式是一行一題「題目＝答案」（答案可以用／分隔好幾個）。
+   快問快答是四選一，所以要補三個干擾選項——從同一份小考裡別題的答案拿。
+   因此一份小考至少要四題、而且答案不能全部一樣，才轉得出來；轉不出來的那幾題會跳過。
+   答案太長（超過 12 個字）的也跳過，選項按鈕塞不下。 */
+function qzLines(items){
+  return String(items || "").split("\n").map(l => l.trim()).filter(Boolean).map(l => {
+    const i = l.search(/[=＝]/); if (i < 0) return null;
+    const q = l.slice(0, i).trim();
+    const a = l.slice(i + 1).split(/[\/／]/).map(x => x.trim()).filter(Boolean);
+    return (q && a.length) ? { q, a } : null; }).filter(Boolean);
+}
+function qzCanUse(items){ return qzOf(items).length >= 4; }
+function qzOf(items){
+  const rows = qzLines(items).filter(r => [...r.a[0]].length <= 12);
+  const pool = [...new Set(rows.map(r => r.a[0]))];
+  return (pool.length >= 4) ? rows : [];
+}
+function qzQs(items, n){
+  const rows = qzOf(items); if (!rows.length) return [];
+  const pool = [...new Set(rows.map(r => r.a[0]))];
+  return shuffle(rows.slice()).slice(0, n).map(r => {
+    const right = r.a[0];
+    const ds = shuffle(pool.filter(x => x !== right && !r.a.includes(x))).slice(0, 3);
+    if (ds.length < 3) return null;
+    const o = shuffle([right].concat(ds));
+    /* 題幹就印她打的那一句；選項是答案，所以一律當中文排 */
+    return { t:"qz", ask:"", show:r.q, sl:"hz", opts:o, ans:o.indexOf(right), w:right, py:"" };
+  }).filter(Boolean);
+}
 function quizHome(p){
   const b = shell("快問快答", srcName());
   const uid = A.store && A.store.uid;
+  /* 題目來源：預設還是這幾課的生詞；老師有出自訂小考才會多一排可以挑 */
+  const qzs = ((A.C && A.C.quizzes) || []).filter(q => qzCanUse(q.items));
+  let pickQz = null;
+  if (qzs.length){
+    const row = el("div", { class:"mgqsrc" });
+    const mk = (lab, val, on) => { const x = el("button", { class:"mgqs" + (on ? " on" : ""), type:"button", text:lab,
+      onclick: () => { pickQz = val; [...row.querySelectorAll(".mgqs")].forEach(y => y.classList.remove("on")); x.classList.add("on"); } }); return x; };
+    row.append(el("b", { text:"題目" }), mk("這幾課的生詞", null, true));
+    qzs.forEach(q => row.append(mk("📝 " + q.title, q)));
+    b.append(row);
+  }
+  const src = () => pickQz ? { qz:pickQz } : p;
   b.append(el("div", { class:"mgmenu" }, [
-    el("button", { class:"mgcard", type:"button", onclick: () => quizSolo(p) }, [el("b", { text:"自己練習" }), el("small", { text:"10 題，答得越快分數越高。" })]),
-    el("button", { class:"mgcard", type:"button", onclick: () => uid ? quizHostSetup(p) : toast("要先登入才能開房") }, [el("b", { text:"老師開房（投影用）" }), el("small", { text:"老師的螢幕投影題目，學生用手機輸入代碼一起搶答，最後看排行榜。" })]),
+    el("button", { class:"mgcard", type:"button", onclick: () => { const q = src();
+      if (q.qz && !qzOf(q.qz.items).length){ toast("這一份題目轉不出四選一（至少要四題、答案不能都一樣）"); return; }
+      quizSolo(q, q.qz ? { sub:"📝 " + q.qz.title } : undefined); } }, [el("b", { text:"自己練習" }), el("small", { text:"10 題，答得越快分數越高。" })]),
+    el("button", { class:"mgcard", type:"button", onclick: () => uid ? quizHostSetup(src()) : toast("要先登入才能開房") }, [el("b", { text:"老師開房（投影用）" }), el("small", { text:"老師的螢幕投影題目，學生用手機輸入代碼一起搶答，最後看排行榜。" })]),
     el("div", { class:"mgcard join" }, [el("b", { text:"學生加入" }), el("small", { text:"輸入老師螢幕上的 5 位數代碼：" }), (() => { const inp = el("input", { class:"fwin big", inputmode:"numeric", maxlength:"5", placeholder:"代碼" }); const nm = el("input", { class:"fwin", placeholder:"你的名字", value:(A.store.me && A.store.me.name) || "" }); return el("div", { class:"row" }, [inp, nm, btn("加入", () => uid ? quizJoin(inp.value.trim(), nm.value.trim()) : toast("要先登入才能加入"), "primary")]); })()])
   ]));
   GAME = { k:"quiz" };
@@ -548,16 +595,18 @@ let RQ = null, unsubQ = null, qTimer = null;
 const stopQ = () => { if (unsubQ){ try { unsubQ(); } catch(e){} } unsubQ = null; clearTimeout(qTimer); };
 function roomErr(e){ const perm = /permission|insufficient/i.test(String(e && (e.code || e.message))); toast(perm ? "連線還沒開通：Firebase 要有 hz_rooms 的規則。" : "連線失敗：" + (e && (e.message || e.code) || e)); }
 function quizHostSetup(p){
-  const b = shell("快問快答・老師開房", srcName());
+  const b = shell("快問快答・老師開房", (p && p.qz) ? ("📝 " + p.qz.title) : srcName());/* QZSRC_V1465 */
   const st = { n:10, lim:20 };
   const seg = (opts, k) => { const s = el("div", { class:"seg" }); opts.forEach(([v, t]) => { const bb = el("button", { type:"button", text:t, "aria-pressed":String(st[k] === v), onclick: () => { st[k] = v; [...s.children].forEach(z => z.setAttribute("aria-pressed", String(z === bb))); } }); s.append(bb); }); return s; };
   b.append(el("div", { class:"mgform box" }, [el("div", { class:"row" }, [el("b", { text:"題數" }), seg([[10, "10 題"], [15, "15 題"], [20, "20 題"]], "n")]), el("div", { class:"row" }, [el("b", { text:"每題時間" }), seg([[10, "10 秒"], [20, "20 秒"], [30, "30 秒"]], "lim")]), btn("開房間", () => quizOpen(p, st), "primary big")]));
 }
 async function quizOpen(p, st){
   try {
-    const qs = makeQs(p, Math.min(st.n, p.words.length));
+    const _max = (p && p.qz) ? qzOf(p.qz.items).length : p.words.length;/* QZSRC_V1465 */
+    const qs = makeQs(p, Math.min(st.n, _max));
+    if (!qs.length){ toast("這一份題目轉不出四選一（至少要四題、答案不能都一樣）"); return; }
     let code = "", tries = 0; do { code = String(10000 + rnd(90000)); tries++; } while (tries < 5 && (await rooms().doc(code).get()).exists);
-    const s = { v:"quiz", phase:"lobby", qs, i:-1, lim:st.lim, scores:{}, src:srcName() };
+    const s = { v:"quiz", phase:"lobby", qs, i:-1, lim:st.lim, scores:{}, src:(p && p.qz) ? ("📝 " + p.qz.title) : srcName() };/* QZSRC_V1465 */
     await rooms().doc(code).set({ host:A.store.uid, kind:"quiz", s:JSON.stringify(s), a:{}, at:new Date().toISOString() });
     hostListen(code);
   } catch(e){ roomErr(e); }

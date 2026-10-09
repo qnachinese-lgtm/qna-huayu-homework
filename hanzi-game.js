@@ -930,7 +930,15 @@ async function loadCourse(uid){
     else if (window.DB && DB.mode !== "firebase") rows = await DB.list("lessons");
     C.lessons = rows.filter(l => l && !l.kind && !l.deleted_at).map(cvLesson).filter(x => x.chars.length)
       .sort((a, b) => a.tb.localeCompare(b.tb) || a.order - b.order || String(a.at).localeCompare(String(b.at)));
-  } catch(e){ C.lessons = []; }
+    /* QZSRC_V1465 Quinn：「快問快答這邊我能不能設計題目」。
+       她在後台「隨堂小考 → 自訂題目」出的題（一行一題，「題目＝答案」）也一起收下來，
+       快問快答可以拿那一份當題庫。只收自訂題目而且真的有寫東西的；
+       這些資料本來就在同一個 collection 裡，不用多跑一次網路。 */
+    C.quizzes = rows.filter(l => l && l.kind === "quiz" && l.mode === "custom" && !l.deleted_at
+      && String(l.quiz_items || "").trim())
+      .map(l => ({ id:l.id, title:String(l.title || "自訂題目").trim(), items:String(l.quiz_items || "") }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  } catch(e){ C.lessons = []; C.quizzes = []; }
   C.byId = {}; C.lessons.forEach(x => C.byId[x.id] = x); C.loaded = true;
   const tb = document.querySelector('nav.tabs button[data-tab="course"]'); if (tb) tb.hidden = !C.lessons.length;
   ls.set("hz-hascourse", C.lessons.length ? "1" : "0");
