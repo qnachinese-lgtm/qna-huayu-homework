@@ -1238,6 +1238,10 @@ const S={me:null,lessons:[],questions:[],results:[],sentences:[],quizzes:[],quiz
 let responses={},SHUF={},GRADE=null,AUTOSAVE=null;
 const myGroups=()=>Array.isArray(S.me&&S.me.groups)?S.me.groups:[];
 const classMetaOf=(cls)=>{const m=(S.classMeta&&S.classMeta.meta)||{};return m[cls]||{};};
+/* BOOKCOVER_V1459 老師在後台替每一本教材上傳的封面。存在 classmeta 那份文件的 covers 欄，
+   key 是教材名稱——「一門課」本來就是用教材名稱分組的，所以直接對得上。
+   沒上傳的教材回傳空字串，卡片就沿用原本的漸層色塊。 */
+const bookCoverOf=(name)=>{const c=(S.classMeta&&S.classMeta.covers)||{};return c[String(name||'').trim()]||'';};
 /* 上課教室 Meet 連結：優先用學生自己的，其次用團班設定的 */
 function myMeetUrl(){if(/^https?:\/\//i.test((S.me&&S.me.meet_url)||''))return S.me.meet_url;for(const g of myGroups()){const m=classMetaOf(g).meet;if(/^https?:\/\//i.test(m||''))return m;}return '';}
 function meetCardHtml(){if(S.preview)return '';const u=myMeetUrl();if(!u)return '';const lab=S.lang==='en'?'Enter classroom':(S.lang==='vi'?'Vào lớp học':'進入上課教室');return `<a class="meet-card" href="${esc(u)}" target="_blank" rel="noopener"><span class="meet-ic">🎥</span><span class="meet-tx"><b>${lab}</b><small>Google Meet · ${LT({zh:'點此直接上課',cn:'点此直接上课',en:'tap to join your lesson',vi:'bấm vào để vào học'})}</small></span><span class="meet-go">→</span></a>`;}
@@ -2882,8 +2886,13 @@ function renderHome(){
   const annN=(S.announcements||[]).filter(annMine).length;/* ANNFIX_V1457 */
   const cards=cs.map((c,i)=>{
     const wN=c.lessons.filter(l=>{const r=resultOf(l.id);return answerableOf(l.id).length&&!(r&&r.status==='done');}).length;
+    /* BOOKCOVER_V1459 有封面就放封面，沒有就維持漸層色塊 */
+    const _cv=bookCoverOf(c.name);
+    const _top=_cv
+      ? '<div class="ccard-top has-cover" style="background-image:url('+esc(_cv)+')"><span class="tg">'+esc(c.kind==='grp'?T.grp:T.solo)+'</span></div>'
+      : '<div class="ccard-top" style="background:'+G[i%G.length]+'"><span class="tg">'+esc(c.kind==='grp'?T.grp:T.solo)+'</span></div>';
     return '<div class="ccard" data-act="openCourse" data-id="'+esc(c.id)+'">'
-      +'<div class="ccard-top" style="background:'+G[i%G.length]+'"><span class="tg">'+esc(c.kind==='grp'?T.grp:T.solo)+'</span></div>'
+      +_top
       +'<div class="ccard-b"><h3>'+esc(c.name)+'</h3>'+(c.sub?'<div class="m">'+esc(c.sub)+'</div>':'')+'</div>'
       /* CCARDF_V978 本來這裡有 📣✍️📁📈 四個小圖示。它們不是按鈕、按了沒反應，
          其中兩個永遠是灰的，另外兩個只是「有沒有新東西」的小點，沒有字也看不懂在說什麼。

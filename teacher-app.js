@@ -6557,7 +6557,12 @@ function renderLessons(){
     if(!groups[b]||!groups[b].length)return '';
     const op=_isOpen(b);
     const cards=op?unitGroupHtml(b,groups[b]):'';/*UNITGRP_V77*/
-    return books.length?`<div class="book-group">${_bh(b,'📚 '+esc(b==='__none'?'未分類':b),groups[b].length+' 課',op,'')}${cards}</div>`:unitGroupHtml(b,groups[b]);/*BOOKICON_V69 UNITGRP_V77*/
+    /* BOOKCOVER_V1459 展開教材時，標題列右邊多一顆「封面」 */
+    const _cv=(b==='__none')?'':bookCoverOf(b);
+    const _cvBtn=(b==='__none')?'':('<button class="btn btn-sm btn-ghost" data-act="bookCover" data-id="'+esc(b)+'" style="margin-right:10px" title="學生端「我的教材」會顯示這張封面">'
+      +(_cv?('<img src="'+esc(_cv)+'" alt="" style="width:15px;height:20px;object-fit:cover;border-radius:3px;vertical-align:-5px;margin-right:5px">封面')
+           :'🖼 封面')+'</button>');
+    return books.length?`<div class="book-group">${_bh(b,'📚 '+esc(b==='__none'?'未分類':b),groups[b].length+' 課',op,_cvBtn)}${cards}</div>`:unitGroupHtml(b,groups[b]);/*BOOKICON_V69 UNITGRP_V77*/
   };
   /* 同一個大類（例：時代華語一／二／三）收在一起 */
   const cntOf=(b)=>b==='📜 文言文'?(S.classicals||[]).length:(b==='發音'?(S.prons||[]).length:((groups[b]||[]).length));
@@ -7024,6 +7029,22 @@ function classBoardHtml(cls){
   const prows=prons.map(p=>`<div class="card" style="margin:8px 0;padding:12px"><div class="row-between"><b>🔤 ${esc(p.title||'發音')}</b><span class="tag">發音教材</span></div></div>`).join('');
   return `<div class="hint" style="margin-bottom:6px">整班發佈 ${pub.length} 課${prons.length?('＋'+prons.length+' 份發音'):''}　徽章：<span class="badge badge-ok">已完成</span> <span class="badge badge-soon">待批改／作答中</span> <span class="badge badge-pending">未開始</span></div>${lrows}${prows}`;
 }
+/* BOOKCOVER_V1459 Quinn：「這裡，我覺得你能不能使用課本的封面？」
+   每一本教材可以上傳一張封面，學生端「我的教材」就顯示真的課本封面，
+   沒上傳的照舊用漸層色塊，不會變空白。
+   存在哪裡：沒有另外開一種文件，寄在既有的 classmeta 那一份上（多一個 covers 欄）。
+   理由是 classmeta 兩邊的載入程式早就在抓了，不用動 S.lessons 的排除清單——
+   少動一個地方就少一個「新文件被當成一課顯示出來」的風險。
+   key 用教材名稱，因為學生端的「一門課」本來就是用教材名稱分組的。 */
+function bookCoversAll(){const d=S.classMeta;return (d&&d.covers)||{};}
+function bookCoverOf(name){return bookCoversAll()[String(name||'').trim()]||'';}
+async function saveBookCover(name,url){
+  const all=Object.assign({},bookCoversAll());
+  const k=String(name||'').trim(); if(!k)return;
+  if(url)all[k]=url; else delete all[k];
+  if(S.classMeta&&S.classMeta.id){await DB.update('lessons',S.classMeta.id,{covers:all});S.classMeta.covers=all;}
+  else{const doc=await DB.insert('lessons',{kind:'classmeta',meta:{},covers:all,created_at:new Date().toISOString()});
+    S.classMeta=doc||{kind:'classmeta',meta:{},covers:all};}}
 function classMetaAll(){const d=S.classMeta;return (d&&d.meta)||{};}
 function classMetaOf(cls){return classMetaAll()[cls]||{};}
 async function saveClassMeta(cls,patch){const all=Object.assign({},classMetaAll());all[cls]=Object.assign({},all[cls]||{},patch);
@@ -22352,6 +22373,46 @@ H.printCert=()=>{const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&a
 function annGroupsAll(){const out=new Set();
   (S.students||[]).forEach(x=>{if(!x||x.deleted_at)return;stuGroups(x).forEach(g=>{if(g)out.add(g);});});
   return [...out].sort();}
+/* BOOKCOVER_V1459 封面視窗：看現在是什麼、換一張、拿掉 */
+let _CVPICK=null;
+H.bookCover=(name)=>{
+  const cur=bookCoverOf(name);
+  _CVPICK=null;
+  openModal(`<div class="modal"><div class="modal-head"><h3>🖼 ${esc(name)} 的封面</h3><button class="x" data-act="closeModal">×</button></div>
+    <div class="modal-body">
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div id="cv-prev" style="width:104px;height:140px;flex:none;border:1px solid var(--line);border-radius:8px;background:#F3F6F9 center/cover no-repeat;${cur?`background-image:url(${esc(cur)})`:''}"></div>
+        <div style="flex:1;min-width:220px">
+          <div class="hint" style="margin-bottom:8px">學生在「我的教材」那一排會看到這張圖。沒有上傳的教材維持現在的漸層色塊。<br>建議用課本封面的直式照片或截圖，單張 5MB 以內。</div>
+          <input id="cv-file" type="file" accept="image/*" style="display:block;margin-bottom:10px">
+          <div id="cv-st" class="hint"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      ${cur?'<button class="btn btn-danger" data-act="bookCoverDel" data-id="'+esc(name)+'">拿掉封面</button>':''}
+      <span class="grow"></span>
+      <button class="btn btn-ghost" data-act="closeModal">取消</button>
+      <button class="btn btn-primary" data-act="bookCoverSave" data-id="${esc(name)}">儲存</button>
+    </div></div>`);
+  setTimeout(()=>{const f=document.getElementById('cv-file');if(!f)return;
+    f.addEventListener('change',()=>{const x=f.files&&f.files[0];if(!x)return;_CVPICK=x;
+      const pv=document.getElementById('cv-prev');
+      try{const u=URL.createObjectURL(x);if(pv)pv.style.backgroundImage='url('+u+')';}catch(e){}
+      const st=document.getElementById('cv-st');if(st)st.textContent='選好了：'+(x.name||'')+'（按「儲存」才會上傳）';});},60);};
+H.bookCoverSave=async(name)=>{
+  const st=document.getElementById('cv-st');
+  if(!_CVPICK){toast('請先選一張圖片');return;}
+  if(_CVPICK.size>5*1024*1024){toast('這張圖超過 5MB，請換小一點的');return;}
+  if(st)st.textContent='上傳中…';
+  try{const url=await uploadImage(_CVPICK);
+    await saveBookCover(name,url);
+    _CVPICK=null;closeModal();render();toast('封面已更新');
+  }catch(e){if(st)st.textContent='';toast(writeErr('上傳失敗',e));}};
+H.bookCoverDel=async(name)=>{
+  if(!confirm('拿掉「'+name+'」的封面？學生端會變回原本的色塊。'))return;
+  try{await saveBookCover(name,'');_CVPICK=null;closeModal();render();toast('已拿掉封面');}
+  catch(e){toast(writeErr('失敗',e));}};
 H.newAnnounce=()=>{if(!IS_OWNER)return;
   const gs=annGroupsAll();
   const gBox=gs.length
