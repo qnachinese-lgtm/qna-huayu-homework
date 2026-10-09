@@ -287,9 +287,17 @@ function ovFind(sym){ for (const c in OV){ const v = OV[c]; const i = v[0].index
 function Shop(root, cfg){
   let st = null;
   const api = {};
+  /* ══════ CALM_V1471 課本①拼：不計時、不扣心 ══════
+     Quinn 看了提案之後要改這一條。提案寫「預設不計時，以完成與發現規律為主」，
+     也寫「不以提示作為處罰」（提示本來就已經不扣星了，見 HZSTAR_V1406）。
+     課本那一輪是練習，不是挑戰，所以不管學生在上面選的是哪個難度，
+     進到①拼一律拿掉倒數和生命值；題目難度（給不給拼音、要不要按確定、
+     干擾卡幾張、一題一題還是自由順序）照她選的走，沒有變簡單。
+     關卡地圖那邊（stageShop）不帶 calm，照原本的規則。 */
+  function diffOf(){ const d = DIFF[st.diff]; return st.calm ? Object.assign({}, d, { hearts:0, perChar:0 }) : d; }
   function build(){
     root.innerHTML = "";
-    const D = DIFF[st.diff];
+    const D = diffOf();
     // 狀態列
     const bar = el("div", {class:"stagebar"});
     const scoreB = el("b", {text:"0"}), comboB = el("b", {class:"combo", text:"—"}), progB = el("b", {text:"0／0"});
@@ -319,16 +327,24 @@ function Shop(root, cfg){
     const qcard = el("div", {class:"qcard"}); const clues = el("div", {class:"clues dots"});
     const sb = el("button", {class:"say big", "aria-label":"聽這個詞"}); sb.innerHTML = SPEAK; sb.onclick = () => sayCurrent();
     qcard.append(sb, el("div", {}, [el("div", {class:"qt"}), el("div", {class:"qh"})]));
-    left.append(clues, qcard, el("p", {class:"muted", style:"font-size:13px;margin:10px 0 0", text: D.seq
+    /* ══════ TWOCOL_V1471 改回左右兩欄，但照提案的分法 ══════
+       V1470 我把它改成單欄，因為原本的兩欄左邊只放提示卡、下面空一大片。
+       Quinn 讀了提案之後要用提案的分法：左區放任務、題號和疊卡字框，
+       右區放候選卡和說明。左邊有字框就不會空了——他們是用另一個方式
+       解掉同一個問題。手機維持上下排（@media 一欄）。 */
+    left.append(clues, qcard, el("p", {class:"muted", style:"font-size:13px;margin:10px 0 12px", text: D.seq
       ? "每一題只要拼「一個字」。看詞拼出被挖掉的那個字就好；想聽讀音可以按喇叭。拼錯兩次以後會出現拼音提示。"
-      : "看詞猜猜□是哪個字，然後用下面的卡片疊出來。上面的圓點可以跳到別題。"}));
+      : "看詞猜猜□是哪個字，然後用右邊的卡片疊出來。上面的圓點可以跳到別題。"}));
     const mat = el("div", {class:"mat"});
     const bench = el("div", {class:"bench", "aria-label":"工作檯"});
     const msg = el("div", {class:"benchmsg"});
     const clearB = el("button", {class:"btn small", text:"清空"});
     const okB = el("button", {class:"btn primary", text:"確定"});
     const acts = el("div", {class:"row"}, [clearB]); if (D.check === "submit") acts.append(okB);
-    mat.append(el("h3", {text:"工作檯"}), bench, el("div", {class:"benchact"}, [msg, acts]));
+    /* TWOCOL_V1471 照提案的分區：左邊是任務和字框，右邊是候選卡、答案檢查、說明。
+       所以「清空／確定」和回饋訊息從字框底下搬到右欄卡片下面。 */
+    const benchact = el("div", {class:"benchact"}, [msg, acts]);
+    mat.append(el("h3", {text:"工作檯"}), bench);
     const result = el("div", {class:"result", hidden:""});
     const trayBuilt = el("div", {class:"tray"}), trayAll = el("div", {class:"tray"});
     const lblBuilt = el("div", {class:"traylabel", text:"已拼出的字（可以拿來升級成更大的字）"});
@@ -338,7 +354,9 @@ function Shop(root, cfg){
        根本不用判斷 阝 跟 東 哪個表意哪個表音，一排挑一個就湊出來了。
        合成一排他才真的要想。「部首表意、聲符表音」本來就寫在答對之後的「字理」那一行，
        教學沒有少，只是移到他拼出來之後才講——那時候他看得懂。 */
-    rightBox.append(mat, lblBuilt, trayBuilt, el("div", {class:"traylabel", text:"卡片"}), trayAll, result);
+    /* TWOCOL_V1471 疊字板搬到左欄，跟任務放在一起；右欄只放卡片和說明。 */
+    left.append(mat);
+    rightBox.append(lblBuilt, trayBuilt, el("div", {class:"traylabel", text:"卡片"}), trayAll, benchact, result);
     Object.assign(st.ui, { bar, scoreB, comboB, progB, hearts, timerB, qcard, clues, bench, msg, okB, result, trayBuilt, trayAll, lblBuilt, shop, hintB });
     clearB.onclick = () => { st.bench = []; renderBench(); setMsg(""); };
     okB.onclick = submit;
@@ -348,7 +366,7 @@ function Shop(root, cfg){
   function cardEl(sym, kind, i){
     const b = el("button", {class:"card " + kind + " deal", type:"button", "aria-label":sym, "data-sym":sym});
     b.style.animationDelay = (i * 22) + "ms";
-    const label = kind === "rad" ? radCardLabel(sym) : kind === "comp" ? (DIFF[st.diff].clue === "full" ? pyOf(sym) : "") : (CH[sym] ? CH[sym].py : "");
+    const label = kind === "rad" ? radCardLabel(sym) : kind === "comp" ? (diffOf().clue === "full" ? pyOf(sym) : "") : (CH[sym] ? CH[sym].py : "");
     const img = st.ovMode && (st.ov[sym] || ovFind(sym));
     if (img){ b.classList.add("ovc"); const m = el("span", {class:"ovm"}); const i = el("i"); i.setAttribute("style", ovStyle(img)); m.append(i);
       b.append(m, el("span", {class:"l", text: sym + (label ? " " + label : "")})); }
@@ -379,7 +397,7 @@ function Shop(root, cfg){
       const layers = t && OV[t] ? [OV[t][1], OV[t][2]] : st.bench.map(sy => st.ov[sy] || ovFind(sy));
       layers.forEach((img, i) => { if (img){ const L = el("i", {class:"ovl"}); L.setAttribute("style", ovStyle(img)); board.append(L); }
         else if (!t){ board.append(el("span", {class:"ovtxt", text:st.bench[i]})); } });
-      if (!st.bench.length && !showT){ const nx = st.targets && st.targets.find(c => !st.found.has(c)); const D = DIFF[st.diff];
+      if (!st.bench.length && !showT){ const nx = st.targets && st.targets.find(c => !st.found.has(c)); const D = diffOf();
         board.append(el("div", {class:"empty"}, nx && st.found.size && !D.seq ? [el("b", {class:"ovnext", text:"下一個：" + blankWord(CH[nx])}), el("br"), "把透明卡疊到這裡"] : ["把透明卡疊到這裡"])); }
       if (showT) board.classList.add("done");
       bench.append(board);
@@ -401,7 +419,7 @@ function Shop(root, cfg){
     if (st.locked || st.over) return;
     if (st.bench.length >= 4){ setMsg("工作檯最多放 4 張卡。", "bad"); return; }
     sfx.pick(); st.bench.push(sym); renderBench();
-    if (DIFF[st.diff].check === "auto") autoCheck(); else setMsg("");
+    if (diffOf().check === "auto") autoCheck(); else setMsg("");
   }
   function current(){ return st.seq ? st.targets.find(c => !st.found.has(c)) : null; }
   function autoCheck(){
@@ -430,7 +448,7 @@ function Shop(root, cfg){
     mistake(c ? `「${c}」不是這一題的答案。` : "這樣拼不出正確的字。");
   }
   function mistake(text){
-    const D = DIFF[st.diff];
+    const D = diffOf();
     st.mistakes++; st.combo = 0; st.curMiss++; sfx.bad();
     st.ui.bench.classList.add("wrong"); setMsg(text + (D.hearts ? " 扣一顆心。" : ""), "bad");
     if (D.hearts){ st.hearts--; renderStatus(); if (st.hearts <= 0) return finish(false, "生命用完了"); }
@@ -493,7 +511,7 @@ function Shop(root, cfg){
     return st.targets.find(c => !st.found.has(c)) || null;
   }
   function renderClues(){
-    const D = DIFF[st.diff], clues = st.ui.clues; clues.innerHTML = "";
+    const D = diffOf(), clues = st.ui.clues; clues.innerHTML = "";
     const cur = curTarget();
     /* PZ_V1470 進度點：做完的直接顯示那個字，沒做的顯示題號，正在做的反白。 */
     st.targets.forEach((c, i) => {
@@ -517,13 +535,13 @@ function Shop(root, cfg){
   }
   function sayCurrent(){ const c = curTarget(); if (c) say(sayQ(CH[c])); }/* PZ_V1470 非 seq 的難度也要能按喇叭 */
   function renderStatus(){
-    const u = st.ui, D = DIFF[st.diff];
+    const u = st.ui, D = diffOf();
     u.scoreB.textContent = st.score; u.comboB.textContent = st.combo > 1 ? "×" + st.combo : "—";
     u.progB.textContent = `${st.targets.filter(c => st.found.has(c)).length}／${st.targets.length}`;
     if (D.hearts) u.hearts.innerHTML = Array.from({length:D.hearts}, (_, i) => HEART(i < st.hearts)).join("");
   }
   function buildTray(deal = true){
-    const D = DIFF[st.diff];
+    const D = diffOf();
     const need = new Set(st.targets.flatMap(c => expand(c)));
     let rads = [...need].filter(s => s in RAD), comps = [...need].filter(s => !(s in RAD));
     if (!st.extras){
@@ -556,12 +574,12 @@ function Shop(root, cfg){
     const show = st.hints >= 2 ? parts : (parts.filter(s => s in RAD).slice(0, 1).length ? parts.filter(s => s in RAD).slice(0, 1) : parts.slice(0, 1));
     document.querySelectorAll("#" + root.id + " .tray .card").forEach(c => c.classList.toggle("glow", show.includes(c.dataset.sym)));
     /* HZSTAR_V1406 提示已經不扣星了，這兩句不能再寫「最多兩顆星」，不然畫面在騙學生。 */
-    setMsg(st.hints >= 2 ? "發光的卡片可以拼出一個字。" : "先試試發光的部首卡。");
+    setMsg(st.hints >= 2 ? "發光的卡片可以拼出一個字。" : "先試試發光的那一張卡。");/* PZ_V1470 卡片已經不分兩排了 */
     renderClues();
   }
   // 計時
   function startTimer(){
-    const D = DIFF[st.diff]; const per = perCharOf(D); if (!per) return;
+    const D = diffOf(); const per = perCharOf(D); if (!per) return;
     st.deadline = Date.now() + (per * st.targets.length + 20) * 1000;
     st.tick = setInterval(() => { const left = Math.max(0, st.deadline - Date.now()); const s = Math.ceil(left / 1000);
       st.ui.timerB.textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); st.ui.timerB.classList.toggle("low", s <= 15);
@@ -584,8 +602,8 @@ function Shop(root, cfg){
   api.start = (opt) => {
     stopTimer();
     const stage = opt.stage;
-    st = { stage, fams:[stage.id], diff:opt.diff, seq: !!DIFF[opt.diff].seq /* NOLISTEN_V1409 */, seed: opt.seed || Math.floor(Math.random() * 1e9), ui:{}, bench:[], found:new Set(), bonus:new Set(),
-      score:0, combo:0, bestCombo:0, mistakes:0, hints:0, hintLevel:0, curMiss:0, hearts:DIFF[opt.diff].hearts, locked:false, over:false, extras:null };
+    st = { stage, fams:[stage.id], diff:opt.diff, seq: !!DIFF[opt.diff].seq, calm: !!opt.calm/* CALM_V1471 */ /* NOLISTEN_V1409 */, seed: opt.seed || Math.floor(Math.random() * 1e9), ui:{}, bench:[], found:new Set(), bonus:new Set(),
+      score:0, combo:0, bestCombo:0, mistakes:0, hints:0, hintLevel:0, curMiss:0, hearts: opt.calm ? 0 : DIFF[opt.diff].hearts, locked:false, over:false, extras:null };
     st.rnd = seeded(st.seed);
     let targets = stage.chars.filter(c => CH[c] && CH[c].p);
     setScope(targets, !!stage.curated);
@@ -601,7 +619,7 @@ function Shop(root, cfg){
       targets.concat(Object.keys(OV).filter(c => SCOPE.has(c))).forEach(c => { const v = OV[c]; if (v) v[0].forEach((sy, i) => { if (!st.ov[sy]) st.ov[sy] = v[i + 1]; }); });
       st.ovMode = true; root.classList.add("ovmode"); renderBench(); buildTray(true);
       const h3 = root.querySelector(".mat h3"); if (h3) h3.textContent = "疊字板：把透明卡疊上去，疊對了就是一個字";
-      const tip = root.querySelector(".box > p.muted"); if (tip && !DIFF[st.diff].seq) tip.textContent = "看拼音和詞，猜猜□是哪個字，然後把右邊的透明卡疊起來。每張卡上的部件，都在它在字裡的位置。";
+      const tip = root.querySelector(".box > p.muted"); if (tip && !diffOf().seq) tip.textContent = "看拼音和詞，猜猜□是哪個字，然後把右邊的透明卡疊起來。每張卡上的部件，都在它在字裡的位置。";
     });
     /* NOLISTEN_V1409 開場也不自動唸了。 */
   };
@@ -1076,7 +1094,7 @@ function startRound(lid, opts = {}){
     skip.onclick = () => { courseShop.stop(); unpatch(); stepWrite(); };
     $("#cShopHead").append(el("div", { class:"chead2-l" }, [stepBar(),
       el("p", { class:"muted", text:`這一輪 ${list.length} 個字，其中 ${comp.length} 個拆得開，一次拼一個。` })]), skip);
-    patch(list); courseShop.start({ stage:{ id:"L:" + lid, name:L.label, chars:comp.map(x => x.c) }, diff });
+    patch(list); courseShop.start({ stage:{ id:"L:" + lid, name:L.label, chars:comp.map(x => x.c) }, diff, calm:true/* CALM_V1471 */ });
   } else stepWrite();
 }
 function startReview(){
