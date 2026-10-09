@@ -6,7 +6,7 @@
 "use strict";
 function boot(){
 const A = window.HZAPI; if (!A || window.__FW) return; window.__FW = true;
-const { CH, LEVELS, FAM, C, NOSTROKE, shuffle, pyOf, sfx, burst, toast, centerOf, distractors } = A;
+const { CH, LEVELS, FAM, C, NOSTROKE, shuffle, pyOf, sfx, burst, toast, centerOf, distractors, okDistract, sameWord } = A;/* VAR_V1468 */
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, kids = []) => { const fn = {}, at = {}; for (const k in attrs){ if (typeof attrs[k] === "function") fn[k] = attrs[k]; else at[k] = attrs[k]; } const n = A.el(tag, at, kids); Object.assign(n, fn); return n; };
 const HAN = /^[㐀-鿿]+$/;
@@ -112,20 +112,23 @@ function mkQ(s, w){
   const others = Object.keys(s.words).filter(x => x !== w);
   const tm = s.tmul == null ? 1.5 : s.tmul, lim = tm ? Math.round(LIM * tm) : 0;
   /* FWCLOZE_V1430 有例句就有三分之一機會出挖空題；選項盡量同字數，不然數格子就猜到了 */
-  if ((FWEX[w] || []).length && others.length >= 3 && Math.random() < .34){
+  /* FWQ_V1468 兩個改動：
+       1. 「看拼音選詞」整個拿掉。棋盤上每一格本來就印著「詞＋拼音」（見 lotSquare），
+          臺灣那一格上面就寫著 táiwān，這題型在大富翁裡等於白送分，不是調一調就好。
+          只留填空和選字，所以有例句的時候一律出填空（本來是 34% 機率）。
+       2. 誘答要過 okDistract：不能是異體字寫法（臺灣／台灣）、不能跟答案共用任何一個字、
+          不能已經在題目句子裡。湊不到三個就退回選字題，不出有爭議的題目。 */
+  if ((FWEX[w] || []).length && others.length >= 3){
     const sent = FWEX[w][Math.floor(Math.random() * FWEX[w].length)];
-    const same = others.filter(x => [...x].length === [...w].length);
-    const bag = shuffle((same.length >= 3 ? same : others).slice()).slice(0, 3);
-    shuffle(others.slice()).forEach(x => { if (bag.length < 3 && bag.indexOf(x) < 0) bag.push(x); });
-    const opts = shuffle([w].concat(bag));
-    return { kind:"cloze", w, py, sent, blank:sent.split(w).join("＿".repeat(Math.max(2, [...w].length))),
-      opts, ans:opts.indexOf(w), t0:Date.now(), lim:lim ? Math.round(lim * 1.6) : 0, res:null };
-  }
-  if (Math.random() < .5 && others.length >= 3){
-    // 看拼音選詞：錯的選項優先挑字數一樣、有同一個字的詞
-    const sc = x => (x.length === w.length ? 2 : 0) + ([...x].some(c => w.includes(c)) ? 1 : 0) + Math.random();
-    const opts = shuffle([w].concat(others.sort((a, b) => sc(b) - sc(a)).slice(0, 3)));
-    return { kind:"pyword", w, py, opts, ans:opts.indexOf(w), t0:Date.now(), lim, res:null };
+    const pool = others.filter(x => okDistract(w, x, sent));
+    const same = pool.filter(x => [...x].length === [...w].length);
+    const bag = shuffle((same.length >= 3 ? same : pool).slice()).slice(0, 3);
+    shuffle(pool.slice()).forEach(x => { if (bag.length < 3 && bag.indexOf(x) < 0) bag.push(x); });
+    if (bag.length >= 3){
+      const opts = shuffle([w].concat(bag));
+      return { kind:"cloze", w, py, sent, blank:sent.split(w).join("＿".repeat(Math.max(2, [...w].length))),
+        opts, ans:opts.indexOf(w), t0:Date.now(), lim:lim ? Math.round(lim * 1.6) : 0, res:null };
+    }
   }
   const cs = [...w]; const allow = new Set(Object.keys(s.words).join(""));
   let best = null;
@@ -420,7 +423,10 @@ function modalEl(){
   }
   if (ph === "q" && S.q){
     const q = S.q, live = me && !q.res;
-    box.append(el("div", { class:"qhead" }, [el("span", { class:"kind", text: q.kind === "blank" ? "選字" : (q.kind === "cloze" ? "填空" : "看拼音") }), el("b", { text:`買地「${q.w}」$${sq.price}` }), el("span", { class:"who", text:p.name + " 作答" })]));
+    /* QLEAK_V1468 Quinn：「不是已經出現過『臺灣』，然後選擇答案那邊『臺灣』跟『台灣』其實都是對的啊？」
+       這一行本來寫 `買地「${q.w}」$${價}`——標頭直接把答案印出來，三種題型都一樣。
+       答完再印（q.res）沒問題，作答中不能印。 */
+    box.append(el("div", { class:"qhead" }, [el("span", { class:"kind", text: q.kind === "blank" ? "選字" : (q.kind === "cloze" ? "填空" : "看拼音") }), el("b", { text: q.res ? `買地「${q.w}」$${sq.price}` : `買這一格　$${sq.price}` }), el("span", { class:"who", text:p.name + " 作答" })]));
     if (!q.res && q.lim) box.append(el("div", { class:"timer" }, [el("i")]));
     const pr = el("div", { class:"prompt" });
     if (q.kind === "blank"){ pr.append(el("div", { class:"w", text:blank(q.w, q.i) }), el("div", { class:"py pyl", text:q.py })); }
@@ -585,29 +591,13 @@ function renderSetup(){
         if (!HAN.test(w) || w.length < 2 || w.length > 4) return;
         if ([...w].some(c => NOSTROKE.has(c))) return; seen.add(w); });
       return seen.size; };
-    const list = el("div", { class:"mglessons" });
-    const redraw = () => { [...list.children].forEach(c => { const on = SET.lids.includes(c.dataset.lid);
-      c.classList.toggle("on", on); c.setAttribute("aria-pressed", String(on)); }); cnt(); };
-    mine.forEach((L, i) => {
-      const full = String(L.label || "").split("・").pop();
-      const m = /^\s*第?\s*([0-9０-９一二三四五六七八九十百]+)\s*課\s*[：:．.、]?\s*(.*)$/.exec(full);
-      const no = m ? m[1] : String(i + 1), ttl = (m && m[2]) ? m[2] : full;
-      const wn = lesWordN(L);
-      const b = el("button", { type:"button", class:"mglsn" + (wn ? "" : " off"),
-        "aria-pressed":String(SET.lids.includes(L.id)), title: wn ? full : (full + "（這一課出不了詞）") });
-      b.dataset.lid = L.id;
-      b.append(el("span", { class:"n", text:no }), el("span", { class:"t", text:ttl }),
-               el("span", { class:"w", text: wn ? (wn + " 詞") : "出不了詞" }));
-      if (!wn) b.disabled = true;
-      else b.onclick = () => { SET.lids = SET.lids.includes(L.id) ? SET.lids.filter(x => x !== L.id) : SET.lids.concat(L.id); keep(); redraw(); };
-      list.append(b); });
-    const playable = mine.filter(L => lesWordN(L));
-    const bAll = el("button", { class:"btn small", type:"button", text:"全選",
-      onclick: () => { SET.lids = [...new Set(SET.lids.concat(playable.map(L => L.id)))]; keep(); redraw(); } });
-    const bNone = el("button", { class:"btn small", type:"button", text:"清除",
-      onclick: () => { const ids = mine.map(L => L.id); SET.lids = SET.lids.filter(x => !ids.includes(x)); keep(); redraw(); } });
-    const top = el("div", { class:"mgpick-top" }, [sel, el("span", { class:"grow" }), bAll, bNone]);
-    row("課本", el("div", { class:"fwcol" }, [top, list, n]));
+    /* PICK_V1469 卡片格改成下拉，見 hanzi-game.js 的 lessonDropdown */
+    const ddo = A.lessonDropdown({ lessons:mine, wordN:lesWordN,
+      selected: () => SET.lids,
+      onToggle: (id, on) => { SET.lids = on ? SET.lids.concat(id) : SET.lids.filter(x => x !== id); keep(); cnt(); },
+      onAll: (ids) => { SET.lids = [...new Set(SET.lids.concat(ids))]; keep(); cnt(); },
+      onNone: (ids) => { SET.lids = SET.lids.filter(x => !ids.includes(x)); keep(); cnt(); } });
+    row("課本", el("div", { class:"fwcol" }, [el("div", { class:"mgpick-top" }, [sel]), ddo.el, n]));
   }
   if (SET.src === "fam"){ const sel = el("select", { class:"fwsel" }); sel.append(el("option", { value:"*", text:"全部精選字族" })); FAM.forEach(x => sel.append(el("option", { value:x.name, text:x.name }))); sel.value = SET.fam; sel.onchange = () => { SET.fam = sel.value; keep(); cnt(); }; row("字族", el("div", { class:"fwcol" }, [sel, n])); }
   if (SET.src === "lv"){ const sel = el("select", { class:"fwsel" }); LEVELS.forEach((L, i) => { if (i) sel.append(el("option", { value:i, text:L.name })); }); sel.value = SET.lv; sel.onchange = () => { SET.lv = Number(sel.value); keep(); cnt(); }; row("等級", el("div", { class:"fwcol" }, [sel, n])); }

@@ -7,7 +7,7 @@
 "use strict";
 function boot(){
 const A = window.HZAPI; if (!A || window.__MG) return; window.__MG = true;
-const { CH, LEVELS, C, shuffle, pyOf, sfx, burst, toast, centerOf, distractors } = A;
+const { CH, LEVELS, C, shuffle, pyOf, sfx, burst, toast, centerOf, distractors, okDistract, sameWord } = A;/* VAR_V1468 */
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, kids = []) => { const fn = {}, at = {}; for (const k in attrs){ if (typeof attrs[k] === "function") fn[k] = attrs[k]; else if (attrs[k] != null && attrs[k] !== false) at[k] = attrs[k]; } const n = A.el(tag, at, kids); Object.assign(n, fn); return n; };
 const HAN = /^[㐀-鿿]+$/;
@@ -162,9 +162,9 @@ function srcPicker(){
     /* PICK_V1462 本來是「已選：第一課：歡迎你來臺灣！（36 個詞、15 個句子）」，
        選了五課就是一長串課名。改成先講幾課，課名交給上面反白的卡片去表示。 */
     const n = (SET.src === "course" && C.lessons.length) ? SET.lids.filter(id => C.byId[id]).length : 0;
+    /* PICK_V1469 「已選 N 課」已經寫在下拉那一行了，這裡不要再講一次 */
     info.innerHTML = (SET.src === "course" && C.lessons.length)
-      ? (n ? `已選 <b>${n}</b> 課 · <b>${p.words.length}</b> 個詞 · ${p.sents.length} 個句子`
-           : "還沒選課——上面點一下就選起來了")
+      ? (n ? `<b>${p.words.length}</b> 個詞 · ${p.sents.length} 個句子` : "")
       : `${srcName()} · <b>${p.words.length}</b> 個詞`; };
   if (src === "course"){
     /* ══════ PICK_V1462 選課改成卡片 ══════
@@ -182,28 +182,13 @@ function srcPicker(){
       (L.chars || []).forEach(x => { const w = String((x.word || x.w) || "").trim();
         if (w && HAN.test(w) && w.length <= 4) seen.add(w); });
       return seen.size; };
-    const list = el("div", { class:"mglessons" });
-    const redraw = () => { [...list.children].forEach(c => { const on = SET.lids.includes(c.dataset.lid);
-      c.classList.toggle("on", on); c.setAttribute("aria-pressed", String(on)); }); upd(); };
-    mine.forEach((L, i) => {
-      const full = L.label.split("・").pop();
-      const m = /^\s*第?\s*([0-9０-９一二三四五六七八九十百]+)\s*課\s*[：:．.、]?\s*(.*)$/.exec(full);
-      const no = m ? m[1] : String(i + 1), ttl = (m && m[2]) ? m[2] : full;
-      const wn = lesWordN(L);
-      const b = el("button", { type:"button", class:"mglsn" + (wn ? "" : " off"),
-        "aria-pressed":String(SET.lids.includes(L.id)), title: wn ? full : (full + "（這一課還沒有生詞）") });
-      b.dataset.lid = L.id;
-      b.append(el("span", { class:"n", text:no }),
-               el("span", { class:"t", text:ttl }),
-               el("span", { class:"w", text: wn ? (wn + " 詞") : "沒有生詞" }));
-      if (!wn){ b.disabled = true; }
-      else b.onclick = () => { SET.lids = SET.lids.includes(L.id) ? SET.lids.filter(x => x !== L.id) : SET.lids.concat(L.id); keep(); redraw(); };
-      list.append(b); });
-    const playable = mine.filter(L => lesWordN(L));
-    const bAll = btn("全選", () => { SET.lids = [...new Set(SET.lids.concat(playable.map(L => L.id)))]; keep(); redraw(); }, "small");
-    const bNone = btn("清除", () => { const ids = mine.map(L => L.id); SET.lids = SET.lids.filter(x => !ids.includes(x)); keep(); redraw(); }, "small");
-    const top = el("div", { class:"mgpick-top" }, [sel, el("span", { class:"grow" }), bAll, bNone]);
-    box.append(el("div", { class:"mgpick" }, [top, list]));
+    /* PICK_V1469 卡片格改成下拉，見 hanzi-game.js 的 lessonDropdown */
+    const ddo = A.lessonDropdown({ lessons:mine, wordN:lesWordN,
+      selected: () => SET.lids,
+      onToggle: (id, on) => { SET.lids = on ? SET.lids.concat(id) : SET.lids.filter(x => x !== id); keep(); upd(); },
+      onAll: (ids) => { SET.lids = [...new Set(SET.lids.concat(ids))]; keep(); upd(); },
+      onNone: (ids) => { SET.lids = SET.lids.filter(x => !ids.includes(x)); keep(); upd(); } });
+    box.append(el("div", { class:"mgpick" }, [el("div", { class:"mgpick-top" }, [sel]), ddo.el]));
   } else {
     const sel = el("select", { class:"fwsel" }); LEVELS.forEach((L, i) => { if (i) sel.append(el("option", { value:i, text:L.name })); }); sel.value = SET.lv; sel.onchange = () => { SET.lv = Number(sel.value); keep(); upd(); }; box.append(sel);
   }
@@ -404,23 +389,45 @@ function makeQs(p, n){
    「新｜Vs｜new｜他是新同學。」），把詞挖掉變成「他是＿＿同學。」，
    學生得看懂整句才填得出來，而不是比對拼音。
    誘答選項盡量挑同長度的詞，不然用字數就猜得出來。 */
+/* CZAMB_V1468 Quinn：「這裡的妳跟她都是正確的答案欸」
+   「早安跟午安也是對的，如果沒有英文翻譯，不就是兩個都可以嗎」
+   本來誘答只管一件事：字數跟答案一樣。完全沒管它填進去那一句通不通。所以：
+     大家＿＿！     答案 早安，誘答挑到 午安 —— 填進去一樣成立
+     ＿＿是誰？     答案 她，  誘答挑到 妳   —— 填進去也一樣成立
+   能分出來的只剩底下那行英文，等於在考英文不是考中文；要看越南文的學生根本沒得答。
+   兩條規則：
+     一、誘答要過 okDistract（不同字、不共用任何一個字、不是異體字寫法、不在句子裡）。
+     二、挖掉答案之後，句子至少要剩四個漢字。「大家！」只剩兩個字、「是誰？」也只剩兩個，
+         這種框架本來就塞什麼都通，不該拿來出題。
+   任一條不過就換下一個詞，所以改成走完整份生詞、湊滿 n 題為止，不是先切 n 個再篩。
+   先講清楚：自動出的四選一沒辦法保證唯一解（「他是＿＿同學」填「好」也通），
+   這兩條只擋得掉明顯的。 */
+const CZMIN = 4;/* 挖空後句子至少要剩幾個漢字 */
+const czHan = s => (String(s || "").match(/[㐀-鿿]/g) || []).length;
 function makeCloze(p, n){
   const has = p.words.filter(x => (x.ex || []).length);
   const out = [];
-  shuffle(has.slice()).slice(0, n).forEach(x => {
+  for (const x of shuffle(has.slice())){
+    if (out.length >= n) break;
     const sent = pick(x.ex);
-    if (!sent || sent.indexOf(x.w) < 0) return;
+    if (!sent || sent.indexOf(x.w) < 0) continue;
+    if (czHan(sent) - czHan(x.w) < CZMIN) continue;
     const blank = sent.split(x.w).join("＿".repeat(Math.max(2, [...x.w].length)));
-    const sameLen = p.words.filter(y => y.w !== x.w && [...y.w].length === [...x.w].length);
+    const pool = p.words.filter(y => okDistract(x.w, y.w, sent));
+    const sameLen = pool.filter(y => [...y.w].length === [...x.w].length);
     const bag = shuffle(sameLen.slice()).slice(0, 3).map(y => y.w);
-    shuffle(p.words.slice()).forEach(y => { if (bag.length < 3 && y.w !== x.w && bag.indexOf(y.w) < 0) bag.push(y.w); });
-    if (bag.length < 3) return;
+    shuffle(pool.slice()).forEach(y => { if (bag.length < 3 && bag.indexOf(y.w) < 0) bag.push(y.w); });
+    if (bag.length < 3) continue;
     const o = shuffle([x.w].concat(bag));
     out.push({ t:"cloze", ask:"這一句少了哪一個詞？", show:blank, sl:"hz cz", sub:x.mean || "", opts:o, ans:o.indexOf(x.w), w:x.w, py:x.py, full:sent });
-  });
+  }
   return out;
 }
-const clozeCount = p => p.words.filter(x => (x.ex || []).length).length;
+/* CZAMB_V1468 這個數字是「夠不夠出題」的門檻，要跟 makeCloze 用同一套規則算，
+   不然會發生「說可以玩，進去只出得了一題」。 */
+const clozeCount = p => p.words.filter(x => (x.ex || []).some(s =>
+  s && s.indexOf(x.w) >= 0 && czHan(s) - czHan(x.w) >= CZMIN
+  && p.words.filter(y => okDistract(x.w, y.w, s)).length >= 3)).length;
 /* OCOL_V1437 Quinn：「顏色能不能不要那麼奇怪」。本來的桃紅跟紫不在平台的色票裡，
    跟後台、學生頁放在一起很跳。換成 :root 本來就有的四個：navy／bad／green／gold。
    四個要夠好分辨——上課學生會喊「紅的那個」。 */

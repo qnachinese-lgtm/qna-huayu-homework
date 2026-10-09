@@ -891,6 +891,24 @@ function cvVariants(w, py){
   if (pySplit(w, vs[0], true) || n % 2) return [{ w, py:vs[0] }];
   return cut(n / 2, vs[0], vs[0]) || [{ w, py:vs[0] }];
 }
+/* ══════ VAR_V1468 異體字：台／臺 這種「同一個詞的兩種寫法」 ══════
+   Quinn：「不是已經出現過『臺灣』，然後選擇答案那邊『臺灣』跟『台灣』其實都是對的啊？」
+   她的生詞表裡 台灣 和 臺灣 是兩筆，程式當成兩個不同的詞，所以一個可以拿來當另一個的誘答。
+   更糟的是看拼音題的誘答評分還加分給「跟答案有同一個字」，等於主動把它挑出來。
+   這裡只做一件事：把異體字正規化，讓遊戲判斷「是不是同一個詞」的時候兩種寫法算同一個。
+   表只收台灣教學現場真的會兩種都寫的那幾組，不做全套繁簡轉換。 */
+const VARCH = { "臺":"台","裏":"裡","着":"著","爲":"為","衆":"眾","綫":"線","羣":"群","峯":"峰","牀":"床","鷄":"雞","麪":"麵","却":"卻","祕":"秘","濕":"溼","搾":"榨","絃":"弦" };
+const vnorm = w => [...String(w || "")].map(c => VARCH[c] || c).join("");
+const sameWord = (a, b) => vnorm(a) === vnorm(b);
+/* 誘答能不能用：不能是同一個詞（含異體字）、不能跟答案共用任何一個字
+   （早安／午安共用「安」填進去都成立）、不能已經出現在題目句子裡。 */
+function okDistract(ans, x, sent){
+  if (!x || sameWord(ans, x)) return false;
+  const a = new Set([...vnorm(ans)]);
+  for (const c of vnorm(x)) if (a.has(c)) return false;
+  if (sent && String(sent).indexOf(x) >= 0) return false;
+  return true;
+}
 const cvLabel = l => { const tb = (l.textbook || "").trim(), ti = (l.title || "").trim(); const core = ti || (l.order_index ? "第" + l.order_index + "課" : "課"); return (tb ? tb + "・" : "") + core; };
 function cvLesson(l){
   const words = [], texts = [];
@@ -1419,7 +1437,47 @@ function hzGate(kind){
 function hzUngate(){ document.body.classList.remove("hz-gated"); const g = $("#hzGate"); if (g) g.remove(); }
 
 // ================= 給「漢字大富翁」（hanzi-fuweng.js）用的介面 =================
-window.HZAPI = { zili, makesWord, pySplit, charPy, cvVariants, pysOf, radName, OV, loadOv, ovStyle, CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
+/* ══════ LDD_V1469 選課下拉（生詞遊戲和大富翁共用一份） ══════
+   Quinn：「爲什麼不使用下拉方式？」十五課排成卡片格，一列塞不下右邊就被切掉，
+   換行又長短不一。但選課是可以複選的，單純的 <select> 做不到，
+   所以用 <details> 收成一行：平常只看到「已選 3 課」，點開才是一課一列的勾選清單
+   （課號、課名、這一課有幾個詞）。沒有生詞的課標灰、勾不動——以前是點下去才發現玩不了。
+   wordN 由呼叫的人提供，因為生詞遊戲和大富翁算「能玩幾個詞」的規則不一樣。 */
+function lessonDropdown(o){
+  const rows = (o.lessons || []).map((L, i) => {
+    const full = String(L.label || "").split("・").pop();
+    const m = /^\s*第?\s*([0-9０-９一二三四五六七八九十百]+)\s*課\s*[：:．.、]?\s*(.*)$/.exec(full);
+    return { L, no: m ? m[1] : String(i + 1), ttl: (m && m[2]) ? m[2] : full, full, wn: o.wordN(L) };
+  });
+  const list = el("div", { class:"lddlist" });
+  const sumT = el("span", { class:"t" });
+  const sum = el("summary", { class:"lddsum" }, [sumT]);
+  const dd = el("details", { class:"ldd" }, [sum, list]);
+  const paint = () => {
+    const sel = o.selected() || [];
+    const n = rows.filter(r => sel.includes(r.L.id)).length;
+    sumT.textContent = n ? `已選 ${n} 課` : "還沒選課——點開來勾";
+    dd.classList.toggle("none", !n);
+    [...list.querySelectorAll("input")].forEach(i => { i.checked = sel.includes(i.value); });
+  };
+  const mk = (txt, fn) => { const b = el("button", { type:"button", class:"btn small", text:txt });
+    b.onclick = (e) => { e.preventDefault(); fn(); paint(); }; return b; };
+  list.append(el("div", { class:"lddbar" }, [
+    mk("全選", () => o.onAll(rows.filter(r => r.wn).map(r => r.L.id))),
+    mk("清除", () => o.onNone(rows.map(r => r.L.id)))]));
+  rows.forEach(r => {
+    const cb = el("input", { type:"checkbox", value:r.L.id });
+    if (!r.wn) cb.disabled = true;
+    else cb.onchange = () => { o.onToggle(r.L.id, cb.checked); paint(); };
+    list.append(el("label", { class:"lddrow" + (r.wn ? "" : " off"),
+      title: r.wn ? r.full : (r.full + "（這一課還沒有生詞）") },
+      [cb, el("span", { class:"n", text:r.no }), el("span", { class:"t", text:r.ttl }),
+       el("span", { class:"w", text: r.wn ? (r.wn + " 詞") : "沒有生詞" })]));
+  });
+  paint();
+  return { el:dd, paint };
+}
+window.HZAPI = { zili, makesWord, pySplit, charPy, cvVariants, pysOf, radName, vnorm, sameWord, okDistract/* VAR_V1468 */, lessonDropdown/* LDD_V1469 */, OV, loadOv, ovStyle, CH, RAD, LEVELS, FAM, C, NOSTROKE, el, shuffle, css, toneless, pyOf, say, sfx, burst, toast, centerOf, distractors, originBlock, glyphRow, showTab, todayStr, loadCourse,
   store, getRec: () => rec, save, addXp,
   addReview(c, w, py){ if (!store.me || !c || rec.review[c]) return false; rec.review[c] = { box:0, due:todayStr(1), lid:"", w:w || "", py:py || "", mean:"" }; return true; } };
 document.dispatchEvent(new Event("hzapi"));
