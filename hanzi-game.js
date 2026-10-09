@@ -309,15 +309,19 @@ function Shop(root, cfg){
     // 主體
     const left = el("div", {class:"box"}), rightBox = el("div", {class:"box"});
     const shop = el("div", {class:"shop"}, [left, rightBox]); root.append(shop);
-    const qcard = el("div", {class:"qcard"}); const clues = el("div", {class:"clues"});
-    if (D.seq){   /* NOLISTEN_V1409 原本是 D.clue === "audio" */
-      const sb = el("button", {class:"say big", "aria-label":"聽這個詞"}); sb.innerHTML = SPEAK; sb.onclick = () => sayCurrent();
-      qcard.append(sb, el("div", {}, [el("div", {class:"qt"}), el("div", {class:"qh"})]));
-      left.append(qcard, el("p", {class:"muted", style:"font-size:13px;margin-bottom:8px", text:"每一題只要拼「一個字」。看詞拼出被挖掉的那個字就好；想聽讀音可以按喇叭。拼錯兩次以後會出現拼音提示。"}));
-    } else {
-      left.append(el("p", {class:"muted", style:"font-size:13px;margin-bottom:8px", text: D.clue === "full" ? "看拼音和詞，猜猜□是哪個字，然後在右邊拼出來。" : "看詞猜猜□是哪個字。可以按喇叭聽這個詞。"}));
-    }
-    left.append(clues);
+    /* ══════ PZ_V1470 ①拼 改成一次一題 ══════
+       Quinn：「這裡的這個遊戲我覺得設計很不美，很醜欸」。原本是左右兩欄：
+       左欄把六題的提示卡全部攤開，可是一次只做得了一題，另外五張只是佔位子，
+       下面整片空白（左欄的高度是被右欄撐出來的）。
+       改成單欄、一次一題：上面一排進度點（做完的那一格直接顯示拼出來的字），
+       中間是放大的當題，再下面是疊字板和卡片。手機和投影是同一個樣子。
+       非 seq 的難度可以點進度點跳題（st.pick），順序自由還在。 */
+    const qcard = el("div", {class:"qcard"}); const clues = el("div", {class:"clues dots"});
+    const sb = el("button", {class:"say big", "aria-label":"聽這個詞"}); sb.innerHTML = SPEAK; sb.onclick = () => sayCurrent();
+    qcard.append(sb, el("div", {}, [el("div", {class:"qt"}), el("div", {class:"qh"})]));
+    left.append(clues, qcard, el("p", {class:"muted", style:"font-size:13px;margin:10px 0 0", text: D.seq
+      ? "每一題只要拼「一個字」。看詞拼出被挖掉的那個字就好；想聽讀音可以按喇叭。拼錯兩次以後會出現拼音提示。"
+      : "看詞猜猜□是哪個字，然後用下面的卡片疊出來。上面的圓點可以跳到別題。"}));
     const mat = el("div", {class:"mat"});
     const bench = el("div", {class:"bench", "aria-label":"工作檯"});
     const msg = el("div", {class:"benchmsg"});
@@ -326,11 +330,16 @@ function Shop(root, cfg){
     const acts = el("div", {class:"row"}, [clearB]); if (D.check === "submit") acts.append(okB);
     mat.append(el("h3", {text:"工作檯"}), bench, el("div", {class:"benchact"}, [msg, acts]));
     const result = el("div", {class:"result", hidden:""});
-    const trayBuilt = el("div", {class:"tray"}), trayRad = el("div", {class:"tray"}), trayComp = el("div", {class:"tray"});
+    const trayBuilt = el("div", {class:"tray"}), trayAll = el("div", {class:"tray"});
     const lblBuilt = el("div", {class:"traylabel", text:"已拼出的字（可以拿來升級成更大的字）"});
     // 卡片緊接在疊字板下面；拼出來的字的說明放在最下面，不會把卡片擠到畫面外
-    rightBox.append(mat, lblBuilt, trayBuilt, el("div", {class:"traylabel", text:"部首卡：表示意思"}), trayRad, el("div", {class:"traylabel", text:"部件卡：常常表示聲音"}), trayComp, result);
-    Object.assign(st.ui, { bar, scoreB, comboB, progB, hearts, timerB, qcard, clues, bench, msg, okB, result, trayBuilt, trayRad, trayComp, lblBuilt, shop, hintB });
+    /* PZ_V1470 Quinn：「應該是不需要把部件卡跟部首卡分出來吧？」——對，而且不只是好看的問題。
+       拆成兩排等於先講「上排挑一張、下排挑一張」，學生知道是「陳」的時候，
+       根本不用判斷 阝 跟 東 哪個表意哪個表音，一排挑一個就湊出來了。
+       合成一排他才真的要想。「部首表意、聲符表音」本來就寫在答對之後的「字理」那一行，
+       教學沒有少，只是移到他拼出來之後才講——那時候他看得懂。 */
+    rightBox.append(mat, lblBuilt, trayBuilt, el("div", {class:"traylabel", text:"卡片"}), trayAll, result);
+    Object.assign(st.ui, { bar, scoreB, comboB, progB, hearts, timerB, qcard, clues, bench, msg, okB, result, trayBuilt, trayAll, lblBuilt, shop, hintB });
     clearB.onclick = () => { st.bench = []; renderBench(); setMsg(""); };
     okB.onclick = submit;
   }
@@ -441,8 +450,8 @@ function Shop(root, cfg){
     if (st.ovMode && OV[c]){ st.bench = []; renderBench(c); st.ui.bench.classList.add("right"); const me = st; setTimeout(() => { if (st === me && !st.bench.length) renderBench(); }, 1600); }
     else { st.bench = []; renderBench(); st.ui.bench.classList.add("right"); }
     { const left = st.targets.filter(t => !st.found.has(t) && t !== c).length;
-      setMsg((isBonus ? `加分字！「${c}」` : `${st.ovMode ? "疊" : "拼"}出來了！「${c}」`) + (left ? `　接著做左邊亮起來的那一格（還有 ${left} 個字），卡片就在下面。` : ""), "good");
-      if (left) setTimeout(() => { const cl = st.ui.clues.querySelector(".clue:not(.done)"); if (cl){ cl.classList.add("nextup"); setTimeout(() => cl.classList.remove("nextup"), 2500); } }, 300); }
+      setMsg((isBonus ? `加分字！「${c}」` : `${st.ovMode ? "疊" : "拼"}出來了！「${c}」`) + (left ? `　接著做下一題（還有 ${left} 個字），題目在上面，卡片在下面。` : ""), "good");
+      if (left) setTimeout(() => { const cl = st.ui.clues.querySelector(".pzdot.cur"); if (cl){ cl.classList.add("nextup"); setTimeout(() => cl.classList.remove("nextup"), 2500); } }, 300); }
     if (!isBonus && n >= 4) unlock("big4");
     checkBadges();
     showResult(x, isBonus); say(x.c + "，" + x.w);
@@ -464,8 +473,8 @@ function Shop(root, cfg){
     const acts = el("div", {class:"acts"}, [sayB, againB]);
     const left = st.targets.filter(t => !st.found.has(t)).length;
     if (left){ const nx = el("button", {class:"btn small primary", text:`繼續${st.ovMode ? "疊" : "拼"}下一個字（還有 ${left} 個）→`});
-      nx.onclick = () => { result.hidden = true; const cl = st.ui.clues.querySelector(".clue:not(.done)"); if (cl){ cl.classList.add("nextup"); setTimeout(() => cl.classList.remove("nextup"), 1600); }
-        st.ui.bench.scrollIntoView({behavior:"smooth", block:"center"}); setMsg("看左邊還沒完成的格子，把下一個字拼出來。"); };
+      nx.onclick = () => { result.hidden = true; const cl = st.ui.clues.querySelector(".pzdot.cur"); if (cl){ cl.classList.add("nextup"); setTimeout(() => cl.classList.remove("nextup"), 1600); }
+        st.ui.bench.scrollIntoView({behavior:"smooth", block:"center"}); setMsg("看上面的題目，把下一個字拼出來。"); };
       acts.append(nx); }
     info.append(acts);
     result.append(hw, info);
@@ -476,31 +485,37 @@ function Shop(root, cfg){
       w.animateCharacter(); againB.onclick = () => w.animateCharacter();
     } else { hw.append(el("div", {class:"hz", style:"font-size:100px;text-align:center;line-height:140px", text:x.c})); againB.hidden = true; }
   }
+  /* PZ_V1470 現在在做哪一題：seq 的難度照舊「由上往下」，
+     其他難度可以按上面的進度點跳題（st.pick）。 */
+  function curTarget(){
+    if (!st.targets) return null;
+    if (!st.seq && st.pick && st.targets.includes(st.pick) && !st.found.has(st.pick)) return st.pick;
+    return st.targets.find(c => !st.found.has(c)) || null;
+  }
   function renderClues(){
     const D = DIFF[st.diff], clues = st.ui.clues; clues.innerHTML = "";
-    const cur = current();
+    const cur = curTarget();
+    /* PZ_V1470 進度點：做完的直接顯示那個字，沒做的顯示題號，正在做的反白。 */
     st.targets.forEach((c, i) => {
-      const x = CH[c], done = st.found.has(c);
-      if (D.seq){   /* NOLISTEN_V1409 */
-        const isCur = c === cur;
-        clues.append(el("div", {class:"clue" + (done ? " done" : "") + (isCur ? " cur" : "")}, [
-          el("div", {class:"py", text: done ? x.py : ""}), (done ? wordMark(x) : el("div", {class:"w", text: isCur ? blankWord(x) : "・"})), el("div", {class:"n", text: done ? "完成" : `第 ${i + 1} 題`})]));
-        return;
-      }
-      const card = el("div", {class:"clue" + (done ? " done" : "")});
-      card.append(el("div", {class:"py", text: D.clue === "full" || done ? x.py : ""}));
-      card.append(done ? wordMark(x) : el("div", {class:"w", text: blankWord(x)}));
-      if (D.clue === "full" || done) card.append(el("div", {class:"n", text: done ? "完成" : expand(c).length + " 張卡"}));
-      else { const sb = el("button", {class:"say", "aria-label":"聽這個詞"}); sb.innerHTML = SPEAK; sb.onclick = () => say(sayQ(x)); card.append(sb); }
-      clues.append(card);
+      const done = st.found.has(c);
+      const d = el("button", {class:"pzdot" + (done ? " done" : "") + (c === cur ? " cur" : ""), type:"button",
+        title: done ? `第 ${i + 1} 題　${c}　完成` : `第 ${i + 1} 題`,
+        "aria-label": done ? `第 ${i + 1} 題 已完成` : `第 ${i + 1} 題`,
+        text: done ? c : String(i + 1)});
+      if (done || D.seq || c === cur) d.disabled = true;
+      else d.onclick = () => { st.pick = c; st.bench = []; renderClues(); renderBench(); setMsg(""); };
+      clues.append(d);
     });
-    if (D.seq && cur){   /* NOLISTEN_V1409 */
+    const q = st.ui.qcard;
+    if (cur){
       const x = CH[cur];
-      st.ui.qcard.querySelector(".qt").textContent = `第 ${st.targets.indexOf(cur) + 1}／${st.targets.length} 題`;
-      st.ui.qcard.querySelector(".qh").textContent = st.curMiss >= 2 || st.hintLevel ? `${x.py}　${blankWord(x)}` : blankWord(x);
-    }
+      q.hidden = false;
+      const n = expand(cur).length;
+      q.querySelector(".qt").textContent = `第 ${st.targets.indexOf(cur) + 1}／${st.targets.length} 題　這個字要 ${n} 張卡`;
+      q.querySelector(".qh").textContent = (D.clue === "full" || st.curMiss >= 2 || st.hintLevel) ? `${x.py}　${blankWord(x)}` : blankWord(x);
+    } else q.hidden = true;
   }
-  function sayCurrent(){ const c = current(); if (c) say(sayQ(CH[c])); }
+  function sayCurrent(){ const c = curTarget(); if (c) say(sayQ(CH[c])); }/* PZ_V1470 非 seq 的難度也要能按喇叭 */
   function renderStatus(){
     const u = st.ui, D = DIFF[st.diff];
     u.scoreB.textContent = st.score; u.comboB.textContent = st.combo > 1 ? "×" + st.combo : "—";
@@ -522,12 +537,16 @@ function Shop(root, cfg){
     if (D.clue === "full"){ rads.sort((a, b) => oR.indexOf(a) - oR.indexOf(b)); }
     else { rads = shuffle(rads.sort(), seeded(st.seed)); comps = shuffle(comps.sort(), seeded(st.seed + 1)); }
     const u = st.ui;
-    if (deal){ u.trayRad.innerHTML = ""; u.trayComp.innerHTML = ""; rads.forEach((s, i) => u.trayRad.append(cardEl(s, "rad", i))); comps.forEach((s, i) => u.trayComp.append(cardEl(s, "comp", i + rads.length))); }
+    /* PZ_V1470 兩排併成一排。順序也要洗過——照「先全部部首、再全部部件」排下去，
+       等於換個方式把拆開這件事講出來，那就白合併了。 */
+    if (deal){ u.trayAll.innerHTML = "";
+      shuffle(rads.map(s => [s, "rad"]).concat(comps.map(s => [s, "comp"])), seeded(st.seed + 2))
+        .forEach(([s, k], i) => u.trayAll.append(cardEl(s, k, i))); }
     u.trayBuilt.innerHTML = "";
     const built = [...st.found].filter(c => canGrow([c]));
     built.forEach((c, i) => u.trayBuilt.append(cardEl(c, "built", 0)));
     u.lblBuilt.hidden = u.trayBuilt.hidden = !built.length;
-    if (!deal) [u.trayRad, u.trayComp].forEach(t => t.querySelectorAll(".card").forEach(c => c.classList.remove("deal", "glow")));
+    if (!deal) u.trayAll.querySelectorAll(".card").forEach(c => c.classList.remove("deal", "glow"));
   }
   function hint(){
     if (st.over) return;
@@ -1048,8 +1067,15 @@ function startRound(lid, opts = {}){
   showTab("course");
   const comp = list.filter(x => CH[x.c] && CH[x.c].p);
   if (comp.length >= 1){
-    courseView("#cShopWrap"); $("#cShopHead").innerHTML = ""; $("#cShopHead").append(stepBar(), el("p", { class:"muted", text:`這一輪 ${list.length} 個字。先把拆得開的 ${comp.length} 個字拼出來，看懂每個字是哪些部件組成的。每一格的□就是要拼的字，拼哪一個都可以。` }));
-    const skip = el("button", { class:"btn small", style:"margin-top:6px", text:"跳過拼字，直接到②寫" }); skip.onclick = () => { courseShop.stop(); unpatch(); stepWrite(); }; $("#cShopHead").append(skip);
+    /* PZ_V1470 這一段本來是：步驟列、一段說明、再一顆「跳過拼字」浮在最上面，
+       跟下面遊戲自己的標題列對不齊，左邊還會被切掉。
+       改成一列：左邊步驟列和說明，右邊跳過鈕靠右對齊（.chead2 已經是 flex）。
+       說明也縮短——「每一格的□」那句在改成一次一題之後已經不對了。 */
+    courseView("#cShopWrap"); $("#cShopHead").innerHTML = "";
+    const skip = el("button", { class:"btn small", text:"跳過拼字，直接到②寫" });
+    skip.onclick = () => { courseShop.stop(); unpatch(); stepWrite(); };
+    $("#cShopHead").append(el("div", { class:"chead2-l" }, [stepBar(),
+      el("p", { class:"muted", text:`這一輪 ${list.length} 個字，其中 ${comp.length} 個拆得開，一次拼一個。` })]), skip);
     patch(list); courseShop.start({ stage:{ id:"L:" + lid, name:L.label, chars:comp.map(x => x.c) }, diff });
   } else stepWrite();
 }
