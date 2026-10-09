@@ -5229,7 +5229,7 @@ function renderOps(){const body=$('#ops-body');
       const _g=(a.assigned_groups||[]).filter(Boolean);
       const who=_g.length?('<span class="tag">'+esc(_g.join('、'))+'</span>'):'<span class="hint">全部學生</span>';
       const _t=String(a.title||'').trim(),_b=String(a.text||a.body||a.content||'').trim();
-      return `<div class="dash-row"><span class="grow"><b>${esc((a.created_at||'').slice(0,10))}</b> · ${_t?('<b>'+esc(_t)+'</b>　'):''}${esc(_b)} ${who}</span><button class="btn btn-sm btn-danger" data-act="delAnnounce" data-id="${a.id}">✕</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有公告。</div>';
+      return `<div class="dash-row"><span class="grow"><b>${esc((a.created_at||'').slice(0,10))}</b> · ${_t?('<b>'+esc(_t)+'</b>　'):''}${esc(_b)} ${who}</span><button class="btn btn-sm" data-act="editAnnounce" data-id="${a.id}">✏️ 編輯</button><button class="btn btn-sm btn-danger" data-act="delAnnounce" data-id="${a.id}">✕</button></div>`;}).join(''):'<div class="muted" style="padding:8px 2px">還沒有公告。</div>';/* ANNEDIT_V1460 */
     annHtml=`<div class="card" style="margin-top:14px"><div class="lesson-label">📢 站內公告 <span class="hint">預設所有學生都看得到，也可以只發給某幾班</span></div><div class="quiz-create-row" style="margin:6px 0 10px"><button class="btn btn-sm btn-accent" data-act="newAnnounce">＋ 發布公告</button></div>${annRows}</div>`;}
   const siteHtml=IS_OWNER?leadsCardHtml()+siteCardHtml():'';
   const itvNow=itvIncome(thisM),itvAllInc=itvIncome(null);
@@ -10931,7 +10931,9 @@ H.exportJson=async(_,b)=>{if(!IS_OWNER){toast('這個功能只有主管理員可
       幣別2:p.currency2||'',金額2:p.amount2==null?'':p.amount2})));
 
     add('報名',(raw.leads||[]).map(x=>({姓名:x.name||'',Email:x.email||'',聯絡:x.line||x.phone||'',程度:x.level||'',目標:x.goal||'',訊息:x.message||'',時間:x.created_at||''})));
-    add('公告',anns.map(a=>({標題:a.title||'',內容:a.body||a.content||'',發佈給班:(a.assigned_groups||[]).join('、'),時間:a.created_at||''})));
+    /* ANNFIX_V1460 這一欄一直是空的：公告實際存的是 text，這裡只讀 body / content。
+       跟學生端那兩個地方同一個毛病，新舊欄位都讀才抓得到。 */
+    add('公告',anns.map(a=>({標題:a.title||'',內容:a.text||a.body||a.content||'',發佈給班:((a.assigned_groups||[]).join('、'))||'全部學生',時間:a.created_at||''})));
     add('學生上傳檔案',(raw.uploads||[]).map(f=>({學生:upOwnerName(f.student_id),課次:f.lesson_title||'',區域:f.area_name||'',檔名:f.filename||'',大小KB:f.size?Math.round(f.size/1024):'',時間:f.created_at||''})));
 
     /* 還原用：原始資料，每列一筆，長的自動切成多欄 */
@@ -15822,20 +15824,62 @@ function vsWords(l){
   ((l&&l.dialogues)||[]).forEach(d=>tvParseVocab((d&&d.vocabulary)||'').forEach(v=>{if(v&&v.front)out.push(v);}));
   return out;
 }
+/* VSMULTI_V1460 Quinn：「生詞表一次只能印一課，想多課合印」。
+   點下去先看這一本還有沒有別課有生詞：只有這一課就直接印（跟以前一樣，不多一步），
+   有別課才跳一個勾選視窗，預設只勾你按的那一課。 */
+function vsSameBook(l){
+  const bk=String((l&&l.textbook)||'').trim();
+  return (S.lessons||[]).filter(x=>x&&!x.deleted_at&&String(x.textbook||'').trim()===bk&&vsWords(x).length)
+    .sort((a,b)=>((a.order_index||0)-(b.order_index||0))||String(a.created_at||'').localeCompare(String(b.created_at||'')));}
 H.vocSheet=(id)=>{
   const l=(S.lessons||[]).find(x=>x.id===id);
   if(!l){toast('找不到這一課');return;}
-  const ws=vsWords(l);
-  if(!ws.length){toast('這一課還沒有生詞，印不出來');return;}
+  if(!vsWords(l).length){toast('這一課還沒有生詞，印不出來');return;}
+  const sib=vsSameBook(l);
+  if(sib.length<=1){vsPrint([id]);return;}
+  const rows=sib.map(x=>'<label class="vs-row"><input type="checkbox" class="vs-l" value="'+esc(x.id)+'"'+(x.id===id?' checked':'')+'>'
+    +'<span class="vs-t">'+esc(lesNo(x,'（未命名）'))+'</span>'
+    +'<span class="vs-n">'+vsWords(x).length+' 詞</span></label>').join('');
+  openModal('<div class="modal"><div class="modal-head"><h3>🖨 生詞表・聽寫卷</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body"><div class="hint" style="margin-bottom:8px">要印哪幾課？勾起來的會合成同一份（複習卷就這樣印）。</div>'
+   +'<style>.vs-row{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px dashed var(--line);font-size:14.5px}'
+   +'.vs-row:last-child{border-bottom:0}.vs-t{flex:1;min-width:0}.vs-n{color:var(--muted);font-size:12.5px}</style>'
+   +'<div style="display:flex;gap:8px;margin-bottom:6px">'
+   +'<button class="btn btn-sm" type="button" onclick="document.querySelectorAll(\'.vs-l\').forEach(function(x){x.checked=true})">全選</button>'
+   +'<button class="btn btn-sm" type="button" onclick="document.querySelectorAll(\'.vs-l\').forEach(function(x){x.checked=false})">全不選</button>'
+   +'</div><div style="max-height:46vh;overflow:auto">'+rows+'</div></div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
+   +'<button class="btn btn-primary" data-act="vocSheetGo">印出來</button></div></div>');};
+H.vocSheetGo=()=>{
+  const ids=[...document.querySelectorAll('.vs-l:checked')].map(x=>x.value);
+  if(!ids.length){toast('請至少勾一課');return;}
+  closeModal();vsPrint(ids);};
+function vsPrint(ids){
+  const ls=(ids||[]).map(i=>(S.lessons||[]).find(x=>x.id===i)).filter(x=>x&&vsWords(x).length);
+  if(!ls.length){toast('沒有可以印的生詞');return;}
+  const l=ls[0];
+  const ws=[];ls.forEach(x=>vsWords(x).forEach(v=>ws.push(v)));
   const E=esc;
-  const title=[String(l.textbook||'').trim(),lesNo(l,'（未命名）')].filter(Boolean).join('　·　');
+  /* VSMULTI_V1460 多課合印時標題印「第1課・第2課・第3課」，超過四課只印頭尾 */
+  const _names=ls.map(x=>lesNo(x,'（未命名）'));
+  const _lab=(_names.length<=4)?_names.join('・'):(_names[0]+' ～ '+_names[_names.length-1]+'（共 '+_names.length+' 課）');
+  const title=[String(l.textbook||'').trim(),_lab].filter(Boolean).join('　·　');
   const boxes=(w)=>{const n=Math.max(1,[...String(w)].length);let s='';for(let i=0;i<n;i++)s+='<i></i>';return '<span class="bx">'+s+'</span>';};
-  const rows=ws.map((v,i)=>'<tr><td class="n">'+(i+1)+'</td><td class="w">'+E(v.front)+'</td>'
-    +'<td class="py">'+E(v.py||'')+'</td><td class="ps">'+E(v.pos||'')+'</td>'
-    +'<td class="mn">'+E(v.back||'')+'</td><td class="ex">'+E((v.ex||[])[0]||'')+'</td></tr>').join('');
-  const dict=(ans)=>ws.map((v,i)=>'<div class="dq"><span class="dn">'+(i+1)+'.</span>'
-    +'<span class="cl">'+E(v.py||v.back||'（看老師唸）')+'</span>'
-    +(ans?('<span class="an">'+E(v.front)+'</span>'):boxes(v.front))+'</div>').join('');
+  /* VSMULTI_V1460 一課一段：生詞表的編號每一課重新從 1 開始（老師是照課在講的）；
+     聽寫卷是一張考卷，所以題號從頭連到尾，只在換課的地方插一條細標。 */
+  const multi=ls.length>1;
+  const rows=ls.map(x=>{
+    const vs=vsWords(x);
+    const head=multi?('<tr class="sec"><td colspan="6">'+E(lesNo(x,'（未命名）'))+'　<span>'+vs.length+' 詞</span></td></tr>'):'';
+    return head+vs.map((v,i)=>'<tr><td class="n">'+(i+1)+'</td><td class="w">'+E(v.front)+'</td>'
+      +'<td class="py">'+E(v.py||'')+'</td><td class="ps">'+E(v.pos||'')+'</td>'
+      +'<td class="mn">'+E(v.back||'')+'</td><td class="ex">'+E((v.ex||[])[0]||'')+'</td></tr>').join('');}).join('');
+  const dict=(ans)=>{let n=0;return ls.map(x=>{
+    const vs=vsWords(x);
+    const head=multi?('<div class="dsec">'+E(lesNo(x,'（未命名）'))+'</div>'):'';
+    return head+vs.map(v=>{n++;return '<div class="dq"><span class="dn">'+n+'.</span>'
+      +'<span class="cl">'+E(v.py||v.back||'（看老師唸）')+'</span>'
+      +(ans?('<span class="an">'+E(v.front)+'</span>'):boxes(v.front))+'</div>';}).join('');}).join('');};
   /* 生詞表是發下去的講義，不用寫名字；聽寫卷和答案卷要。 */
   const hd=(sub,who)=>'<div class="hd"><b>'+E(title)+'</b><span>'+E(sub)+'</span></div>'
     +(who?'<div class="who">姓名：＿＿＿＿＿＿＿＿　日期：＿＿＿＿／＿＿＿＿</div>':'<div style="height:5mm"></div>');
@@ -15864,6 +15908,10 @@ H.vocSheet=(id)=>{
    +'.bx i{display:block;width:12mm;height:12mm;border:1px solid #AFC1D6;border-radius:2px;'
    +'background:linear-gradient(#DCE5F0,#DCE5F0) center/100% 1px no-repeat,linear-gradient(#DCE5F0,#DCE5F0) center/1px 100% no-repeat}'
    +'.an{font-size:20px;letter-spacing:4px}'
+   /* VSMULTI_V1460 換課的小標 */
+   +'tr.sec td{background:#E7EEF7;font-weight:700;font-size:13.5px;color:#1E4C86;border-top:2px solid #1E4C86}'
+   +'tr.sec td span{font-weight:400;color:#5B6B80;font-size:12px}'
+   +'.dsec{break-inside:avoid;break-after:avoid;margin:3mm 0 1mm;font-size:12.5px;font-weight:700;color:#1E4C86;border-bottom:1.5px solid #1E4C86;padding-bottom:1mm}'
    /* WS2COL_V1439 聽寫卷和答案卷排兩欄——同一張紙放得下兩倍的題目，格子還是寫得下。 */
    +'.sheet.s2,.sheet.s3{column-count:2;column-gap:9mm}'
    +'.sheet.s2 .hd,.sheet.s2 .who,.sheet.s3 .hd,.sheet.s3 .who{column-span:all}'
@@ -15878,7 +15926,9 @@ H.vocSheet=(id)=>{
    +'<button id="b1" class="on" onclick="document.body.className=\'a\';b1.className=\'on\';b2.className=\'\';b3.className=\'\'">生詞表</button>'
    +'<button id="b2" onclick="document.body.className=\'b\';b2.className=\'on\';b1.className=\'\';b3.className=\'\'">聽寫卷</button>'
    +'<button id="b3" onclick="document.body.className=\'c\';b3.className=\'on\';b1.className=\'\';b2.className=\'\'">答案卷</button>'
-   +'<button class="go" onclick="window.print()">\U0001F5A8 列印 / 存成 PDF</button></div>'
+   /* PRTICON_V1460 這顆按鈕上一直印著「U0001F5A8 列印」。JS 沒有 \U 這種跳脫，
+      反斜線被吃掉就剩那一串字。改成 \u{...}（小寫 u 加大括號才是 JS 的寫法）。 */
+   +'<button class="go" onclick="window.print()">\u{1F5A8} 列印 / 存成 PDF</button></div>'
    +'<div class="sheet s1">'+hd('生詞表（共 '+ws.length+' 個詞）',false)+'<table><tr><th></th><th>生詞</th><th>拼音</th><th>詞性</th><th>意思</th><th>例句</th></tr>'+rows+'</table></div>'
    +'<div class="sheet s2">'+hd('聽寫卷（共 '+ws.length+' 題）',true)+dict(false)+'</div>'
    +'<div class="sheet s3">'+hd('聽寫卷・答案（共 '+ws.length+' 題）',true)+dict(true)+'</div>'
@@ -22413,26 +22463,39 @@ H.bookCoverDel=async(name)=>{
   if(!confirm('拿掉「'+name+'」的封面？學生端會變回原本的色塊。'))return;
   try{await saveBookCover(name,'');_CVPICK=null;closeModal();render();toast('已拿掉封面');}
   catch(e){toast(writeErr('失敗',e));}};
-H.newAnnounce=()=>{if(!IS_OWNER)return;
+/* ANNEDIT_V1460 本來公告只能刪掉重發，打錯一個字就得整則重來。
+   同一個視窗兼做新增和編輯：帶 id 進來就是改那一則，不帶就是新的。 */
+function annById(id){return (S.announcements||[]).find(x=>x&&x.id===id)||null;}
+function annModal(a){
   const gs=annGroupsAll();
+  const cur=(a&&a.assigned_groups)||[];
   const gBox=gs.length
     ? ('<div class="field full"><label>發給誰 <span class="hint">不勾＝全部學生都看得到</span></label>'
        +'<div id="ann-grps" style="display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:4px">'
        +gs.map(g=>'<label style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:500">'
-         +'<input type="checkbox" class="ann-g" value="'+esc(g)+'"> '+esc(g)+'</label>').join('')
+         +'<input type="checkbox" class="ann-g" value="'+esc(g)+'"'+(cur.indexOf(g)>=0?' checked':'')+'> '+esc(g)+'</label>').join('')
        +'</div></div>')
     : '<div class="hint">目前還沒有分班，這則公告所有學生都看得到。</div>';
-  openModal(`<div class="modal"><div class="modal-head"><h3>📢 發布公告</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">
-    <div class="field full"><label>標題 <span class="hint">選填，學生會先看到這一行</span></label><input id="ann-title" type="text" placeholder="例：下週停課一次"></div>
-    <div class="field full"><label>公告內容</label><textarea id="ann-text" placeholder="請填公告內容"></textarea></div>
+  const ti=a?String(a.title||''):'';
+  const tx=a?String(a.text||a.body||a.content||''):'';
+  openModal(`<div class="modal"><div class="modal-head"><h3>📢 ${a?'編輯公告':'發布公告'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">
+    <div class="field full"><label>標題 <span class="hint">選填，學生會先看到這一行</span></label><input id="ann-title" type="text" value="${esc(ti)}" placeholder="例：下週停課一次"></div>
+    <div class="field full"><label>公告內容</label><textarea id="ann-text" placeholder="請填公告內容">${esc(tx)}</textarea></div>
     ${gBox}
-    </div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><button class="btn btn-primary" data-act="saveAnnounce">發布</button></div></div>`);};
-H.saveAnnounce=async()=>{const t=(($('#ann-text')&&$('#ann-text').value)||'').trim();
+    </div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><button class="btn btn-primary" data-act="saveAnnounce"${a?(' data-id="'+esc(a.id)+'"'):''}>${a?'儲存':'發布'}</button></div></div>`);}
+H.newAnnounce=()=>{if(!IS_OWNER)return;annModal(null);};
+H.editAnnounce=(id)=>{if(!IS_OWNER)return;const a=annById(id);if(!a)return toast('找不到這則公告');annModal(a);};
+H.saveAnnounce=async(id)=>{
+  const t=(($('#ann-text')&&$('#ann-text').value)||'').trim();
   const ti=(($('#ann-title')&&$('#ann-title').value)||'').trim();
   if(!t&&!ti)return toast('請輸入公告內容');
   const gs=[...document.querySelectorAll('#ann-grps .ann-g:checked')].map(x=>x.value).filter(Boolean);
-  try{await ensureAuthFresh();await DB.insert('lessons',{kind:'announcement',title:ti,text:t,assigned_groups:gs});
-    closeModal();await loadAll();render();toast(gs.length?('已發布給 '+gs.join('、')):'已發布給全部學生');}catch(e){toast(writeErr('發布失敗',e));}};
+  const who=gs.length?('已發布給 '+gs.join('、')):'已發布給全部學生';
+  try{await ensureAuthFresh();
+    if(id)await DB.update('lessons',id,{title:ti,text:t,assigned_groups:gs});
+    else   await DB.insert('lessons',{kind:'announcement',title:ti,text:t,assigned_groups:gs});
+    closeModal();await loadAll();render();toast(id?'公告已更新':who);
+  }catch(e){toast(writeErr(id?'更新失敗':'發布失敗',e));}};
 H.delAnnounce=async(id)=>{if(!confirm('刪除這則公告？'))return;try{await DB.remove('lessons',id);await loadAll();render();toast('已刪除公告');}catch(e){toast(writeErr('刪除失敗',e));}};
 H.trash=()=>{const dleft=d=>{const t=Date.parse(d||'');if(!t)return '';const left=Math.ceil((t+7*864e5-Date.now())/864e5);return left>0?('剩 '+left+' 天'):'即將清除';};
   /* TRASHSEL_V1030 一筆一筆按太慢。加上勾選＋全選，一次復原或一次刪完。
