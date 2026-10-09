@@ -292,7 +292,7 @@ function zili(parts, c, WHYPY){
 const OV = {}, OVSH = {}, OVN = 24;
 function loadOv(chars){
   const need = [...new Set(chars.filter(Boolean).map(c => c.codePointAt(0) % OVN))];
-  return Promise.all(need.map(i => OVSH[i] || (OVSH[i] = fetch(`hz-ov-${String(i).padStart(2, "0")}.json?v=${window.OVV || "1473clean"}`)/* OVFIX_V1473 遮罩檔重做過，換一個預設版本號強制重抓 */.then(r => r.ok ? r.json() : {}).then(d => Object.assign(OV, d)).catch(() => {}))));
+  return Promise.all(need.map(i => OVSH[i] || (OVSH[i] = fetch(`hz-ov-${String(i).padStart(2, "0")}.json?v=${window.OVV || "1474recut"}`)/* OVFIX_V1473 遮罩檔重做過，換一個預設版本號強制重抓 */.then(r => r.ok ? r.json() : {}).then(d => Object.assign(OV, d)).catch(() => {}))));
 }
 const ovStyle = img => `--m:url("data:image/webp;base64,${img}")`;
 /* ══════ OVFIX_V1473 切壞的透明卡 ══════
@@ -307,7 +307,10 @@ const ovStyle = img => `--m:url("data:image/webp;base64,${img}")`;
    產生這些圖的程式不在這個 repo 裡，筆順資料這邊也抓不到，所以我沒辦法重算。
    能做的是：確定切壞的字就不要用圖，退回文字卡——寧可樸素，不要騙人。
    以後再看到哪個字怪怪的，跟我說那個字，加進這一行就好。 */
-const OVSKIP = new Set(["\u674e", "\u4f86"]);
+/* OVCUT_V1474 「李」已經修好了（重切），從名單拿掉。
+   「來」留著：它不是切壞，是兩張圖根本對調＋散掉——木 那張是兩撇、从 那張是「朮」。
+   重切是從現有的切法長出來的，它會沿用那個錯的歸屬，所以救不回來。 */
+const OVSKIP = new Set(["\u4f86"]);
 const ovOf = c => (OVSKIP.has(c) ? null : OV[c]);
 /* 有些部件不在常用漢字區（擴充A／B、筆畫符號），很多裝置的字型沒有這個字，
    卡片上就會印出一個空白方框。73 個部件、160 張卡會這樣。
