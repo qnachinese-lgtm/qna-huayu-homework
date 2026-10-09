@@ -292,7 +292,7 @@ function zili(parts, c, WHYPY){
 const OV = {}, OVSH = {}, OVN = 24;
 function loadOv(chars){
   const need = [...new Set(chars.filter(Boolean).map(c => c.codePointAt(0) % OVN))];
-  return Promise.all(need.map(i => OVSH[i] || (OVSH[i] = fetch(`hz-ov-${String(i).padStart(2, "0")}.json?v=${window.OVV || ""}`).then(r => r.ok ? r.json() : {}).then(d => Object.assign(OV, d)).catch(() => {}))));
+  return Promise.all(need.map(i => OVSH[i] || (OVSH[i] = fetch(`hz-ov-${String(i).padStart(2, "0")}.json?v=${window.OVV || "1473clean"}`)/* OVFIX_V1473 遮罩檔重做過，換一個預設版本號強制重抓 */.then(r => r.ok ? r.json() : {}).then(d => Object.assign(OV, d)).catch(() => {}))));
 }
 const ovStyle = img => `--m:url("data:image/webp;base64,${img}")`;
 /* ══════ OVFIX_V1473 切壞的透明卡 ══════
