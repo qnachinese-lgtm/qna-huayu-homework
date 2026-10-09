@@ -2126,14 +2126,23 @@ function renderWork(){
      看起來就變成時代華語三的東西。改成跟作業簿一樣照「教材」分組，
      每一本自己一個標題，屬於別本的課就不會被算在別人頭上。 */
   const _lesRow=(l,i)=>{
+    /* PEND_V1455 Quinn：「你只出現 20/28，是不是因爲課外活動沒做？」不是。
+       課室活動分開存（kind:'act'），從來沒進過分母。真正的原因是 isManualQ 的範圍：
+       造句、口說、問答、選項題、填空（一律人工批改）、沒填標準答案的單選題，
+       這些題在老師批改前一律 0 分，但分母照算，所以會先看到 20/28。
+       以前送出之後這一列還是印「開始作答 →」，學生會以為沒交成功；
+       現在明講「已送出，等老師批改」。 */
     const r=resultOf(l.id),qn=answerableOf(l.id).length,done=r&&r.status==='done';
+    const pend=!!(r&&r.status==='pending');
     const pct=done&&r.total?Math.round(r.score/r.total*100):0,di=dueInfo(l.due_date);
     return `<div class="card lesson-row ${done?'done':''}" data-act="openLesson" data-id="${l.id}">
       <div class="lesson-no">${done?'✓':(l.kind==='classical'?'📜':(l.order_index||i+1))}</div>
       <div class="grow"><h3>${esc(l.title)}</h3>
         <div class="meta" style="margin-top:4px;align-items:center"><span>📝 ${qn} ${t('q')}</span>${dlgHasAudio(l)?'<span class="tag gold">🔊</span>':''}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}</div>
         ${done?`<div class="progress"><span style="width:${pct}%"></span></div>`:''}</div>
-      ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`:`<div class="tag accent">${(r&&r.status==='draft')?t('resume'):t('start')} →</div>`}</div>`;};
+      ${done?`<div class="score-pill">${r.score}/${r.total}<br><small>${t('score')}</small></div>`
+        :(pend?`<div class="tag">⏳ ${esc(th('pending'))}</div>`
+              :`<div class="tag accent">${(r&&r.status==='draft')?t('resume'):t('start')} →</div>`)}</div>`;};
   const lesBlk=(function(){
     if(!ls.length)return '';
     const OTHER=LT({zh:'其他教材',cn:'其他教材',en:'Other materials',vi:'Giáo trình khác'});
@@ -2451,9 +2460,12 @@ function renderContent(){
   const anns=(S.announcements||[]).filter(a=>assignedToMe(a)).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
   const TABMETA={mod:['📚',T.mod],ann:['📣',T.ann],work:['✍️',T.work],grade:['📈',T.grade],file:['📁',T.file]};
   const tm=TABMETA[tab]||TABMETA.mod;
+  /* CRUMB_V1455 Quinn：「爲什麼還要出現『課程模組』『公告』『檔案』？」
+     量出來這一頁上面疊了四排導覽（麵包屑 23px＋大標 30px＋課程切換鈕 30px＋分頁列 41px），
+     而且「當代中文課程一」出現 3 次（麵包屑、大標、切換鈕）、分頁名出現 2 次（麵包屑、分頁鈕）。
+     麵包屑講的三件事下面全都看得到，所以課程頁不再顯示它。 */
   const cr=document.getElementById('crumb');
-  if(cr){cr.classList.remove('hide');
-    cr.innerHTML='<a data-act="section" data-id="home">'+esc(LT({zh:'首頁',cn:'首页',en:'Home',vi:'Trang chủ'}))+'</a> › <a data-act="openCourse" data-id="'+esc(cur.id)+'">'+esc(cur.name)+'</a> › <span>'+esc(tm[1])+'</span>';}
+  if(cr){cr.classList.add('hide');cr.innerHTML='';}
   /* DEDUP_V1454 本來這裡還有 ['work','✍️ 作業'] 和 ['grade','📈 成績']。
      作業跟「我的作業」是同一批東西換個排法；成績那張表更是「我的成績」的縮水版——
      少了老師評語，學生在這裡看成績會以為老師沒寫話。兩個都拿掉，
@@ -2525,8 +2537,15 @@ function renderContent(){
     body=(driveCardHtml()||'')+(myFilesHtml()||'');
     if(!body)body=emptyHtml('📁',T.nofile||T.file,T.nofilesub||'');/* FILEEMPTY_V1451 本來標題直接重印分頁名「檔案」、副標是空字串，學生看不懂 */
   }
-  $('#screen').innerHTML='<div class="pg-h"><h2>'+esc(cur.name)+'</h2>'+(cur.sub?'<div class="sub">'+esc(cur.sub)+'</div>':'')+'</div>'
-    +(cs.length>1?('<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px">'+cs.map(c=>'<button class="btn btn-sm '+(c.id===cur.id?'btn-accent':'')+'" data-act="openCourse" data-id="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('')+'</div>'):'')
+  /* CRUMB_V1455 課程不只一門的時候，切換鈕那一排已經把目前這本反白了，
+     上面再印一次同樣的大標是第三次重複，所以只有「單一課程」才印大標。
+     手機上那行「📚 課程模組」（.cbody-h）留著不動：它在 821px 以上本來就是隱藏的，
+     不屬於這次看到的重複；而 820px 以下分頁列會變成可以橫滑的，選到的那顆有可能
+     被滑出畫面，那時候它是唯一知道「我在哪一頁」的線索。 */
+  const _multi=cs.length>1;
+  $('#screen').innerHTML=(_multi?'':('<div class="pg-h"><h2>'+esc(cur.name)+'</h2>'+(cur.sub?'<div class="sub">'+esc(cur.sub)+'</div>':'')+'</div>'))
+    +(_multi?('<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px">'+cs.map(c=>'<button class="btn btn-sm '+(c.id===cur.id?'btn-accent':'')+'" data-act="openCourse" data-id="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('')
+        +(cur.sub?'<div class="sub" style="flex-basis:100%;margin-top:2px">'+esc(cur.sub)+'</div>':'')+'</div>'):'')
     +'<div class="cwrap"><nav class="cnav">'+nav+'</nav><div class="cbody">'
     +'<div class="cbody-h"><span class="cbody-ic">'+tm[0]+'</span><h2>'+esc(tm[1])+'</h2></div>'
     +body+'</div></div>';
@@ -2899,7 +2918,11 @@ function renderInfo(){
     +'.ip-card[open]>summary::after{transform:rotate(180deg)}'
     +'.ip-card[open]>summary{border-bottom:1px solid var(--line)}'
     +'.ip-card>summary .ip-n{background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:1px 9px;font-size:12px}'
-    +'.ip-head{margin:0 0 14px}.ip-head h2{margin:0;font-size:21px}.ip-head .hint{margin-top:3px}'
+    /* IPH_V1455 Quinn：「我的資訊這邊，字爲什麼比其他分頁小？」
+       量出來這一頁的大標是 21px，其他四頁都是 23px，而且少了 --serif。
+       原因是這一頁自己寫了 .ip-head，沒有掛全站的 .pg-h。
+       改成跟別頁共用 .pg-h，字級和字體都不用在這裡再寫一次。 */
+    +'.ip-head{margin:0 0 14px}.ip-head .hint{margin-top:3px}'
     +'</style>';
   const blocks=[];
   // 快速連結
@@ -2930,7 +2953,7 @@ function renderInfo(){
   const cd=classDaysHtml(true);
   if(cd){const n=(Array.isArray(S.me&&S.me.class_log)?S.me.class_log:[]).filter(e=>e&&e.date).length;
     blocks.push('<details class="ip-card"><summary>\ud83d\uddd3 '+esc(T.days)+' <span class="ip-n">'+n+(T.cnt?(' '+T.cnt):'')+'</span></summary><div class="ip-body">'+cd+'</div></details>');}
-  const head='<div class="ip-head"><h2>\u2139\ufe0f '+esc(T.h)+'</h2></div>';
+  const head='<div class="pg-h ip-head"><h2>\u2139\ufe0f '+esc(T.h)+'</h2></div>';
   $('#screen').innerHTML='<div class="ip-wrap">'+css+head+(blocks.length?blocks.join(''):emptyHtml('\u2139\ufe0f',T.h,T.none))+'</div>';
   convScreen();
 }
@@ -2938,10 +2961,20 @@ function renderGrades(){
   const _gh='<div class="pg-h"><h2>📈 '+esc(t('navGrades'))+'</h2></div>';
   const ls=myLessons().filter(l=>answerableOf(l.id).length);
   if(!ls.length){$('#screen').innerHTML=_gh+emptyHtml('📈',t('noGrades'),t('noGradesSub'));return;}
+  /* PEND_V1455 本來不管批改完沒有，一律印「20/28」配一個「進行中」的標籤，
+     學生看起來就是一個已經定案的分數。要人工批改的題在老師批改前都算 0 分，
+     所以這裡要講出「還有幾題在等批改」，分數也標成暫計。 */
+  const waitOf=(l,r)=>{ if(!r||r.status!=='pending')return 0;
+    const mq=questionsOf(l.id).filter(q=>q.type!=='note'&&isManualQ(q)).length;
+    return Math.max(0,mq-Object.keys((r&&r.manual)||{}).length); };
   const rows=ls.map(l=>{const r=resultOf(l.id),done=r&&r.status==='done',qn=answerableOf(l.id).length;
+    const w=waitOf(l,r),pend=!!(r&&r.status==='pending');
     return `<tr><td>${esc(l.title)}</td>
-      <td>${done?`<span class="badge badge-ok">${t('sDone')}</span>`:(r?`<span class="badge badge-soon">${t('sDoing')}</span>`:`<span class="badge badge-pending">${t('sTodo')}</span>`)}</td>
-      <td><b>${r?(r.score+'/'+(r.total||qn)):'—'}</b></td></tr>`;}).join('');
+      <td>${done?`<span class="badge badge-ok">${t('sDone')}</span>`
+            :(pend?`<span class="badge badge-soon">⏳ ${esc(th('pending'))}</span>`
+            :(r?`<span class="badge badge-soon">${t('sDoing')}</span>`:`<span class="badge badge-pending">${t('sTodo')}</span>`))}</td>
+      <td>${r?(pend?`<b>${r.score}/${r.total||qn}</b>${w?`<div class="hint">${esc(LT({zh:'還有 '+w+' 題等老師批改',cn:'还有 '+w+' 题等老师批改',en:w+' still to be graded',vi:'còn '+w+' câu chờ chấm'}))}</div>`:''}`
+                   :`<b>${r.score}/${r.total||qn}</b>`):'<b>—</b>'}</td></tr>`;}).join('');
   const fbCards=ls.map(l=>{const r=resultOf(l.id);if(!r||(!r.comment&&!(r.feedback&&Object.keys(r.feedback).length)))return '';
     const qs=questionsOf(l.id);
     const perQ=qs.map((q,i)=>{const c=(r.feedback||{})[q.id];if(!c)return '';
