@@ -5792,6 +5792,15 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
      <div class="field"><label>頭像 <span class="hint">留空＝系統自動配一個</span></label><div style="display:flex;align-items:center;gap:8px"><span id="f-av-prev" class="avatar sm emo" data-dft="${avEmoji({name:st.name||''})}" style="background:${avColor(st.name)};flex:none">${avEmoji(st)}</span><input id="f-avatar" type="text" maxlength="8" value="${esc(st.avatar||'')}" placeholder="貼一個 emoji，或按右邊挑" style="flex:1" oninput="(function(el){var p=document.getElementById('f-av-prev');if(p)p.textContent=el.value.trim()||p.dataset.dft;})(this)">${st.id?`<button type="button" class="btn btn-sm" data-act="avPick" data-id="${esc(st.id)}">挑一個</button>`:''}</div></div>
      <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-hzok" ${st.hanzi_ok?'checked':''} style="width:auto;margin:0"> 🀄 開放漢字遊戲 <span class="hint" style="font-weight:400">（還在測試中，預設不開放。勾了這位學生才看得到；指派過漢字作業的人也會自動看得到）</span></label></div>${/* HZOK_V1404 */''}
      <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-test" ${st.is_test?'checked':''} style="width:auto;margin:0"> 🧪 這是測試帳號     <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-test" ${st.is_test?'checked':''} style="width:auto;margin:0"> 🧪 這是測試帳號 <span class="hint">（不算進學生統計，歸到「🧪 測試帳號」區）</span></label></div>
+     ${/* GPLANG_V1461 Quinn：「我可以指定給哪個學生看越南文，因爲有時候我學生有的是要看英文，有的要看越南文」。
+          跟著介面＝學生自己把介面切到越南文才看越南文；另外兩個是你替他定死。
+          沒有越南文翻譯的語法一律自動退回原文，不會變空白。 */''}
+     <div class="field"><label>📘 語法說明用哪一種 <span class="hint">沒翻譯的會退回原文</span></label>
+       <select id="f-gplang">
+         <option value=""${!st.gp_lang?' selected':''}>跟著學生自己選的介面</option>
+         <option value="en"${st.gp_lang==='en'?' selected':''}>一律看原文（英文）</option>
+         <option value="vi"${st.gp_lang==='vi'?' selected':''}>一律看越南文</option>
+       </select></div>
      <div class="field full"><label>📁 教材資料夾連結 </label>
        <input id="f-drive" type="url" inputmode="url" value="${esc(st.drive_url||'')}" placeholder="貼上資料夾連結"></div>
      ${IS_OWNER?`
@@ -6534,6 +6543,9 @@ function renderLessons(){
     +(_lf==='wip'&&ls.length?('<button class="btn btn-sm btn-accent" style="margin-left:9px" data-act="lesDoneAll">✅ 把這 '+ls.length+' 課標成完成</button>'):'')
     /* AF_V882 補參考答案的入口；全部補齊了就不用出現 */
     +(function(){try{const n=afMissingAll();return n?('<button class="btn btn-sm" style="margin-left:9px" data-act="afOpen" title="一次補整本的參考答案">✅ 補參考答案<span class="segn">'+n+'</span></button>'):'';}catch(e){return '';}})()
+    /* GPTRANS_V1461 */
+    +'<button class="btn btn-sm" style="margin-left:9px" data-act="gpTransOut" title="把所有語法說明寫成 Excel，最後一欄留空給你填越南文">⬇ 匯出語法翻譯表</button>'
+    +'<button class="btn btn-sm" style="margin-left:6px" data-act="gpTransIn" title="把填好越南文的那份 Excel 讀回來，只會寫越南文那一欄">📥 匯入越南文</button>'
     +'<span class="grow"></span><div class="segbar">'
     +'<button class="segb'+(bkAnyOpen?' on':'')+'" data-act="toggleAllBooks">'+(bkAnyOpen?'📚 全部收起':'📚 全部展開')+'</button>'
     +'<button class="segb'+(anyOpen?' on':'')+'" data-act="toggleAllCards">'+(anyOpen?'▴ 課卡收起':'▾ 課卡展開')+'</button>'
@@ -16348,7 +16360,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
     birth:(($('#f-birth')&&$('#f-birth').value)||''),
     textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),hanzi_ok:!!($('#f-hzok')&&$('#f-hzok').checked),/* HZOK_V1404 */schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
     ...(IS_OWNER?{tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),fee_unit:($('#f-feeunit')&&$('#f-feeunit').value)||'session',currency:$('#f-cur').value}:{}),
-    avatar:(($('#f-avatar')&&$('#f-avatar').value)||'').trim(),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),drive_url:(($('#f-drive')&&$('#f-drive').value)||'').trim(),...(IS_OWNER?{pay_acct:(($('#f-pay-acct')&&$('#f-pay-acct').value)||''),pay_remind_on:!!($('#f-payremind')&&$('#f-payremind').checked),bill_group:(($('#f-billgrp')&&$('#f-billgrp').value)||'').trim()}:{}),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
+    avatar:(($('#f-avatar')&&$('#f-avatar').value)||'').trim(),first_class:$('#f-first-date').value||null,first_slot:(fslot&&fslot.value!=='')?Number(fslot.value):null,sessions_start:null,meet_url:(($('#f-meet')&&$('#f-meet').value)||'').trim(),drive_url:(($('#f-drive')&&$('#f-drive').value)||'').trim(),gp_lang:(($('#f-gplang')&&$('#f-gplang').value)||''),/* GPLANG_V1461 */...(IS_OWNER?{pay_acct:(($('#f-pay-acct')&&$('#f-pay-acct').value)||''),pay_remind_on:!!($('#f-payremind')&&$('#f-payremind').checked),bill_group:(($('#f-billgrp')&&$('#f-billgrp').value)||'').trim()}:{}),notes:$('#f-notes').value.trim(),groups:(($('#f-groups')&&$('#f-groups').value)||'').split(/[、,，;；]/).map(x=>x.trim()).filter(Boolean)};
   Object.assign(common,slifeRead());/* LIFE_V1106 手動填的優先 */
   /* LIFE_V1106 狀態一改就把對應的日期補上（本來沒填才補） */
   try{const _old=id?(S.students||[]).find(x=>x.id===id):null;
@@ -22483,6 +22495,69 @@ function annModal(a){
     <div class="field full"><label>公告內容</label><textarea id="ann-text" placeholder="請填公告內容">${esc(tx)}</textarea></div>
     ${gBox}
     </div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><button class="btn btn-primary" data-act="saveAnnounce"${a?(' data-id="'+esc(a.id)+'"'):''}>${a?'儲存':'發布'}</button></div></div>`);}
+/* GPTRANS_V1461 Quinn：「語法有一些可以用簡單的越南文來解釋，可以請你提供全部語法的英文版本，
+   讓我附上越南文版再提供給你嗎」。我讀不到她的資料庫，所以不是我產檔案給她，
+   而是後台自己匯出一份 Excel：一列一段語法說明，最後一欄空著給她填越南文，填完再匯回來。
+   「對照編號」那一欄是 課ID|語法序號|區塊序號，匯入時靠它找回原位；她不要動它。
+   匯入只寫 text_vi 這個新欄位，原本的中文和英文一個字都不碰。 */
+function gpTransRows(){
+  const out=[];
+  (S.lessons||[]).forEach(l=>{
+    if(!l||l.deleted_at)return;
+    (l.grammar_points||[]).forEach((g,gi)=>{
+      ((g&&g.blocks)||[]).forEach((b,bi)=>{
+        const tx=String((b&&b.text)||'').trim();
+        if(!tx)return;                      /* 沒有說明文字的區塊（只有例句、只有圖）不用翻 */
+        if(String((b&&b.label)||'').trim()==='小節')return;
+        out.push({key:l.id+'|'+gi+'|'+bi,textbook:String(l.textbook||'').trim(),
+          lesson:lesNo(l,'（未命名）'),gtitle:String((g&&g.title)||'').trim(),
+          label:String((b&&b.label)||'').trim(),text:tx,vi:String((b&&b.text_vi)||'').trim()});});});});
+  return out;}
+H.gpTransOut=()=>{
+  if(typeof XLSX==='undefined'){toast('匯出元件還在載入，請過幾秒再按一次');return;}
+  const rows=gpTransRows();
+  if(!rows.length){toast('目前沒有語法說明可以匯出');return;}
+  const data=rows.map(r=>({教材:r.textbook,課:r.lesson,語法:r.gtitle,區塊:r.label,
+    原文:r.text,'越南文（請填這一欄）':r.vi,'對照編號（請勿更動）':r.key}));
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet(data);
+  ws['!cols']=[{wch:18},{wch:20},{wch:24},{wch:8},{wch:60},{wch:60},{wch:26}];
+  XLSX.utils.book_append_sheet(wb,ws,'語法翻譯');
+  XLSX.writeFile(wb,'語法翻譯表_'+localToday()+'.xlsx');
+  toast('匯出 '+rows.length+' 段語法');};
+H.gpTransIn=()=>{
+  if(typeof XLSX==='undefined'){toast('元件還在載入，請過幾秒再按一次');return;}
+  const inp=document.createElement('input');inp.type='file';
+  inp.accept='.xlsx,.xls,.csv';
+  inp.onchange=async()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    try{
+      const buf=await f.arrayBuffer();
+      const wb=XLSX.read(buf,{type:'array'});
+      const sh=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(sh,{defval:''});
+      const byL={};let n=0,bad=0;
+      rows.forEach(r=>{
+        const key=String(r['對照編號（請勿更動）']||r['對照編號']||'').trim();
+        const vi=String(r['越南文（請填這一欄）']||r['越南文']||'').trim();
+        if(!key)return;
+        const pr=key.split('|');if(pr.length!==3){bad++;return;}
+        const l=(S.lessons||[]).find(x=>x.id===pr[0]);
+        const g=l&&(l.grammar_points||[])[Number(pr[1])];
+        const b=g&&(g.blocks||[])[Number(pr[2])];
+        if(!b){bad++;return;}
+        if(String(b.text_vi||'')===vi)return;   /* 沒改就不寫 */
+        b.text_vi=vi;n++;
+        byL[l.id]=l;});
+      if(!n){toast(bad?('沒有可以更新的，'+bad+' 列對不上'):'沒有任何一列有改動');return;}
+      if(!confirm('要更新 '+n+' 段語法的越南文嗎？'+(bad?('（有 '+bad+' 列對照編號對不上，會跳過）'):'')))return;
+      await ensureAuthFresh();
+      const ids=Object.keys(byL);
+      for(const id of ids)await DB.update('lessons',id,{grammar_points:byL[id].grammar_points});
+      await loadAll();render();
+      toast('已更新 '+n+' 段（'+ids.length+' 課）');
+    }catch(e){toast(writeErr('匯入失敗',e));}};
+  inp.click();};
 H.newAnnounce=()=>{if(!IS_OWNER)return;annModal(null);};
 H.editAnnounce=(id)=>{if(!IS_OWNER)return;const a=annById(id);if(!a)return toast('找不到這則公告');annModal(a);};
 H.saveAnnounce=async(id)=>{

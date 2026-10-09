@@ -1005,8 +1005,20 @@ function exLinesHtml(str){
     return m?`<div class="ex-turn"><span class="ex-sp">${esc(m[1])}</span><span class="ex-tx">${annotate(m[2])}</span></div>`
             :`<div class="ex-turn"><span class="ex-tx">${annotate(x)}</span></div>`;}).join('');
 }
+/* GPLANG_V1461 語法說明要看原文還是越南文：
+     老師在這位學生的資料裡指定了 en／vi 就照指定的；沒指定就跟著他自己選的介面語言。
+     指定看越南文、可是這一段還沒翻譯的，自動退回原文——不會變空白。 */
+function gpLangWant(){
+  const f=String((S.me&&S.me.gp_lang)||'').trim();
+  if(f==='vi'||f==='en')return f;
+  return (S.lang==='vi')?'vi':'en';}
+function gpText(b){
+  const raw=String((b&&b.text)||'').trim();
+  if(gpLangWant()!=='vi')return raw;
+  const vi=String((b&&b.text_vi)||'').trim();
+  return vi||raw;}
 function gpBlocksHtml(g){return (g.blocks||[]).map(b=>{
-    const lab=(b.label||'').trim(),txt=(b.text||'').trim(),exl=(b.ex||'').split('\n').map(s=>s.trim()).filter(Boolean);
+    const lab=(b.label||'').trim(),txt=gpText(b),exl=(b.ex||'').split('\n').map(s=>s.trim()).filter(Boolean);/* GPLANG_V1461 */
     if(lab==='小節')return txt?`<div class="gp-subsec">${esc(txt)}</div>`:'';
     if(!lab&&!txt&&!exl.length&&!(b.img||'').trim())return '';
     const mono=/[+＋]/.test(txt)&&txt.length<=60;
