@@ -3011,7 +3011,14 @@ function renderInfo(){
        量出來這一頁的大標是 21px，其他四頁都是 23px，而且少了 --serif。
        原因是這一頁自己寫了 .ip-head，沒有掛全站的 .pg-h。
        改成跟別頁共用 .pg-h，字級和字體都不用在這裡再寫一次。 */
-    +'.ip-head{margin:0 0 14px}.ip-head .hint{margin-top:3px}'
+    /* IPH2_V1467 Quinn：「我的資訊下面的框子跟其他的框子有稍微移位」。
+       量出來是上下差，不是左右（左右兩邊都是 L24 W1037，一模一樣）：
+         我的成績  大標 top 139、框 top 187（.pg-h 的 margin 2px / 18px）
+         我的資訊  大標 top 137、框 top 181（.ip-head 把 margin 蓋成 0 / 14px）
+       大標高 2px、框高 6px。V1455 修字級的時候把 .pg-h 掛上來了，
+       卻留著這一行自己的 margin，所以字對齊了、位置還是偏。整行拿掉，
+       margin 跟全站的 .pg-h 一樣就好。 */
+    +'.ip-head .hint{margin-top:3px}'
     +'</style>';
   const blocks=[];
   // 快速連結
