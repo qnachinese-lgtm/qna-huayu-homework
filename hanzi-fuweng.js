@@ -574,12 +574,40 @@ function renderSetup(){
     if (!tbs.includes(SET.tb)) SET.tb = tbs[0];
     const sel = el("select", { class:"fwsel" }); tbs.forEach(t => sel.append(el("option", { value:t, text:t }))); sel.value = SET.tb;
     sel.onchange = () => { SET.tb = sel.value; keep(); renderSetup(); };
-    const list = el("div", { class:"fwlist" });
-    C.lessons.filter(L => (L.tb || "其他課") === SET.tb).forEach(L => {
-      const cb = el("input", { type:"checkbox" }); cb.checked = SET.lids.includes(L.id);
-      cb.onchange = () => { SET.lids = cb.checked ? SET.lids.concat(L.id) : SET.lids.filter(x => x !== L.id); keep(); cnt(); };
-      list.append(el("label", { class:"chk" }, [cb, ` ${L.label}`])); });
-    row("課本", el("div", { class:"fwcol" }, [sel, list, n]));
+    /* ══════ PICK_V1463 選課改成卡片（跟生詞遊戲那一頁同一套） ══════
+       Quinn：「這邊也很醜」。本來是一長條可以捲的 checkbox，每一列還把課本名字
+       重印一次（「當代中文課程一・第一課：…」）——課本上面那個下拉已經選過了。
+       改成等寬卡片：課號、課名、這一課能出幾個詞；選到的整張反白。 */
+    const mine = C.lessons.filter(L => (L.tb || "其他課") === SET.tb);
+    /* 這一課能出幾個詞：跟 wordsFrom 同一條規則（兩到四個字、漢字、排除沒有筆順的字） */
+    const lesWordN = (L) => { const seen = new Set();
+      (L.chars || []).forEach(x => { if (x.sent || !x.w) return; const w = String(x.w);
+        if (!HAN.test(w) || w.length < 2 || w.length > 4) return;
+        if ([...w].some(c => NOSTROKE.has(c))) return; seen.add(w); });
+      return seen.size; };
+    const list = el("div", { class:"mglessons" });
+    const redraw = () => { [...list.children].forEach(c => { const on = SET.lids.includes(c.dataset.lid);
+      c.classList.toggle("on", on); c.setAttribute("aria-pressed", String(on)); }); cnt(); };
+    mine.forEach((L, i) => {
+      const full = String(L.label || "").split("・").pop();
+      const m = /^\s*第?\s*([0-9０-９一二三四五六七八九十百]+)\s*課\s*[：:．.、]?\s*(.*)$/.exec(full);
+      const no = m ? m[1] : String(i + 1), ttl = (m && m[2]) ? m[2] : full;
+      const wn = lesWordN(L);
+      const b = el("button", { type:"button", class:"mglsn" + (wn ? "" : " off"),
+        "aria-pressed":String(SET.lids.includes(L.id)), title: wn ? full : (full + "（這一課出不了詞）") });
+      b.dataset.lid = L.id;
+      b.append(el("span", { class:"n", text:no }), el("span", { class:"t", text:ttl }),
+               el("span", { class:"w", text: wn ? (wn + " 詞") : "出不了詞" }));
+      if (!wn) b.disabled = true;
+      else b.onclick = () => { SET.lids = SET.lids.includes(L.id) ? SET.lids.filter(x => x !== L.id) : SET.lids.concat(L.id); keep(); redraw(); };
+      list.append(b); });
+    const playable = mine.filter(L => lesWordN(L));
+    const bAll = el("button", { class:"btn small", type:"button", text:"全選",
+      onclick: () => { SET.lids = [...new Set(SET.lids.concat(playable.map(L => L.id)))]; keep(); redraw(); } });
+    const bNone = el("button", { class:"btn small", type:"button", text:"清除",
+      onclick: () => { const ids = mine.map(L => L.id); SET.lids = SET.lids.filter(x => !ids.includes(x)); keep(); redraw(); } });
+    const top = el("div", { class:"mgpick-top" }, [sel, el("span", { class:"grow" }), bAll, bNone]);
+    row("課本", el("div", { class:"fwcol" }, [top, list, n]));
   }
   if (SET.src === "fam"){ const sel = el("select", { class:"fwsel" }); sel.append(el("option", { value:"*", text:"全部精選字族" })); FAM.forEach(x => sel.append(el("option", { value:x.name, text:x.name }))); sel.value = SET.fam; sel.onchange = () => { SET.fam = sel.value; keep(); cnt(); }; row("字族", el("div", { class:"fwcol" }, [sel, n])); }
   if (SET.src === "lv"){ const sel = el("select", { class:"fwsel" }); LEVELS.forEach((L, i) => { if (i) sel.append(el("option", { value:i, text:L.name })); }); sel.value = SET.lv; sel.onchange = () => { SET.lv = Number(sel.value); keep(); cnt(); }; row("等級", el("div", { class:"fwcol" }, [sel, n])); }
