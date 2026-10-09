@@ -962,9 +962,13 @@ function lessonBodyHtml2(l,opts){opts=opts||{};const seq=reconcileLayout(l);cons
     actCultParts(l).forEach(x=>{html+=sec([{k:'x',n:0,h:x.h}],x.ic,x.lab,l.id+'::'+x.key);});
     const _nh=notesBlockHtml(l);
     if(_nh)html+=sec([{k:'n',n:0,h:_nh}],'📌',notesLabel(),l.id+'::notes');
-    return startPracBar(l)+videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)+html+tail+gpracBarHtml(l)+examplesHtml(l.examples);
+    return gpracBarHtml(l)+videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)+html+tail+examplesHtml(l.examples);
   }
-  return startPracBar(l)+videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)
+  /* STARTPRAC_V1456 Quinn：「我感覺開始作答這邊沒有存在的必要」。
+     同一頁上面是「✏️ 開始作答　還有 28 題」，下面是「📊 本課完成度　0 / 28 題已完成」——
+     同一個數字講兩次，而且進度條在整頁最後面，看到的時候早就滑過去了。
+     合併成一塊放最上面：進度條、數字、還有那顆會跳到第一題沒寫完的按鈕。 */
+  return gpracBarHtml(l)+videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)
     +(function(){const hd=dlgText.some(x=>x&&x.k==='d'&&String(x.h||'').trim());/*VOCONLY_V66 只有生詞就不要叫「對話內容」*/
       return sec(dlgText,hd?'📖':'📇',hd?pk(SLAB.dlg,'對話內容'):LT({zh:'生詞',cn:'生词',en:'Vocabulary',vi:'Từ vựng'}),l.id+'::dlg');})()
     +(function(){/* GRAMONLY_V812 整課只有語法（例如「看圖學中文語法」這種語法書），
@@ -978,7 +982,7 @@ function lessonBodyHtml2(l,opts){opts=opts||{};const seq=reconcileLayout(l);cons
     +sec(shortGram.map(h=>({k:'g',n:0,h})),'📘',pk(SLAB.shG,'短文語法'),l.id+'::shG')
     +actCultParts(l).map(x=>sec([{k:'x',n:0,h:x.h}],x.ic,x.lab,l.id+'::'+x.key)).join('')
     +(notesBlockHtml(l)?sec([{k:'n',n:0,h:notesBlockHtml(l)}],'📌',notesLabel(),l.id+'::notes'):'')
-    +tail+gpracBarHtml(l)+examplesHtml(l.examples);}
+    +tail+examplesHtml(l.examples);}
 function gpLabel(lab){lab=(lab||'').trim();if(!lab)return '';const m=GP_LBL[lab];if(m&&(S.lang==='en'||S.lang==='vi'))return m[S.lang]||lab;return lab;}
 // 例句若是對話（A：… B：… 或 人名：…），自動在換人說話時斷行，不再擠成一行
 function exTurns(s){const m=String(s||'').replace(/([。！？?!.])[ 　\t]+(?=[^\s，,。！？?!.：:、；;]{1,4}[：:])/g,'$1');return m.split('').map(p=>annotate(p)).join('<br>');}
@@ -1544,6 +1548,8 @@ function lessonAnsweredStats(l){
   return {total,done,pct:total?Math.round(done/total*100):0};
 }
 /* STARTPRAC_V813 課的最上面給一個入口，按了直接跳到第一個還沒寫完的語法練習 */
+/* V1456 已停用：功能搬進 gpracBarHtml 那一塊了，這個函式沒有人再呼叫。
+   留著是因為想把它放回頁首很容易——把 renderLesson 的 gpracBarHtml(l) 換回 startPracBar(l) 就好。 */
 function startPracBar(l){
   try{
     const st=lessonAnsweredStats(l);
@@ -1568,9 +1574,16 @@ function gpracBarHtml(l){
   const ttl=S.lang==='en'?'Lesson progress':(S.lang==='vi'?'Tiến độ bài học':'本課完成度');
   const unit=S.lang==='en'?'answered':(S.lang==='vi'?'câu đã làm':'題已完成');
   const doneMsg=full?(S.lang==='en'?'🎉 All done!':(S.lang==='vi'?'🎉 Hoàn thành!':'🎉 這一課都做完了！')):'';
+  /* STARTPRAC_V1456 原本單獨放在頁首的「✏️ 開始作答」收進來，數字就只會出現一次。
+     已經全部寫完就不出現這顆（沒有地方可以跳）。 */
+  const goBtn=full?'':('<button class="btn btn-accent btn-sm" data-act="goPrac" data-id="'+esc(l.id)+'" style="flex:none">✏️ '
+      +esc(st.done>0?LT({zh:'繼續作答',cn:'继续作答',en:'Continue',vi:'Làm tiếp'})
+                    :LT({zh:'開始作答',cn:'开始作答',en:'Start practice',vi:'Bắt đầu làm bài'}))+'</button>');
   return `<div class="lesson-block"><div style="display:flex;justify-content:space-between;align-items:center;font-size:14px;margin-bottom:6px"><b>📊 ${ttl}</b><span style="color:${col};font-weight:800;font-size:17px">${st.pct}%</span></div>
     <div style="height:12px;background:var(--line,#DCE5F0);border-radius:99px;overflow:hidden"><div style="height:100%;width:${st.pct}%;background:${col};border-radius:99px;transition:width .35s"></div></div>
-    <div class="hint" style="margin-top:5px">${st.done} / ${st.total} ${unit}${doneMsg?'　'+doneMsg:''}</div></div>`;
+    <div style="margin-top:7px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span class="hint" style="margin:0">${st.done} / ${st.total} ${unit}${doneMsg?'　'+doneMsg:''}</span>
+      <span style="flex:1"></span>${goBtn}</div></div>`;
 }
 function shadowDocOf(lid,di){return (S.shadows||[]).find(x=>x.shadow_lesson===lid&&x.shadow_di===di)||null;}
 
