@@ -9553,11 +9553,12 @@ function renderLib(){
   let html='<div class="section-head"><h2>📚 教材庫</h2><span class="sub">'+(total?('共 '+total+' 份'):'')+'</span><div class="head-actions">'
     +'<button class="btn btn-sm" type="button" data-act="libScan">🔍 掃一遍課裡的檔案</button>'
     +'<button class="btn btn-accent" type="button" data-act="libNew">＋ 加一份教材</button></div></div>'
+    /* TRIM_V1462 Quinn：「這些廢話不用多說」。本來這裡有一段介紹文＋一整塊黃底提醒，
+       佔掉整個畫面最上面，而且每次進來都要看一次。介紹文拿掉；
+       Drive 共用那件事還是要講（她設錯學生就點不開），但那是「加／編輯一份教材」
+       的時候才需要知道的，第 9657 行那個視窗裡本來就有同一句，所以這一頁不重複。 */
     +'<div class="card">'
-    +'<div class="hint">把 PPT、PDF 的 Google Drive 連結收在這裡，照教材分好，要用的時候挑一份就能掛到課上給學生。</div>'
-    +'<div class="hint" style="margin-top:8px;padding:8px 10px;background:#FFF7E6;border:1px solid #F0DDB0;border-radius:8px">'
-    +'⚠ <b>掛給學生之前</b>，記得先到 Google Drive 把那份檔案的共用改成「知道連結的人都可以檢視」，不然學生點開會變成「要求存取權」。這一點程式檢查不到，只能靠妳設定。</div>'
-    +'<div style="margin-top:10px"><input id="lib-q" type="search" placeholder="搜尋標題、備註、教材…" value="'+esc(S.libQ||'')+'" oninput="H.libSearch(this.value)" style="max-width:320px"></div>'
+    +'<input id="lib-q" type="search" placeholder="搜尋標題、備註、教材…" value="'+esc(S.libQ||'')+'" oninput="H.libSearch(this.value)" style="max-width:320px">'
     +'</div>';
   if(!total){
     html+='<div class="card"><div class="empty"><div class="big">📚</div><b>教材庫還是空的</b>'

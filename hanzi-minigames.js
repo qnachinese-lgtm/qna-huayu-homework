@@ -158,15 +158,52 @@ function srcPicker(){
       box.append(el("div", { class:"row" }, [rb]));
     }
   }
-  const info = el("small", { class:"muted" }); const upd = () => { const p = pool(); info.textContent = `已選：${srcName()}（${p.words.length} 個詞、${p.sents.length} 個句子）`; };
+  const info = el("small", { class:"mgsum" }); const upd = () => { const p = pool();
+    /* PICK_V1462 本來是「已選：第一課：歡迎你來臺灣！（36 個詞、15 個句子）」，
+       選了五課就是一長串課名。改成先講幾課，課名交給上面反白的卡片去表示。 */
+    const n = (SET.src === "course" && C.lessons.length) ? SET.lids.filter(id => C.byId[id]).length : 0;
+    info.innerHTML = (SET.src === "course" && C.lessons.length)
+      ? (n ? `已選 <b>${n}</b> 課 · <b>${p.words.length}</b> 個詞 · ${p.sents.length} 個句子`
+           : "還沒選課——上面點一下就選起來了")
+      : `${srcName()} · <b>${p.words.length}</b> 個詞`; };
   if (src === "course"){
+    /* ══════ PICK_V1462 選課改成卡片 ══════
+       Quinn：「這個不好看，請你再調整，重新設計」。原本是十五個小方塊
+       自由換行，每一列長短不一、課名長的那幾個把後面擠到下一行，眼睛沒有一條可以對齊的線。
+       改成等寬的卡片格：左邊課號、中間課名、右邊這一課有幾個詞；
+       選到的整張反白。順便補上「全選／清除」和「沒有生詞的課直接標灰點不下去」
+       ——以前是點下去才發現玩不了。 */
     const tbs = [...new Set(C.lessons.map(L => L.tb || "其他課"))]; if (!tbs.includes(SET.tb)) SET.tb = tbs[0];
     const sel = el("select", { class:"fwsel" }); tbs.forEach(t => sel.append(el("option", { value:t, text:t }))); sel.value = SET.tb; sel.onchange = () => { SET.tb = sel.value; keep(); home(); };
+    const mine = C.lessons.filter(L => (L.tb || "其他課") === SET.tb);
+    /* 這一課實際上能玩幾個詞：跟 pool() 同一條規則（漢字、四個字以內、去重複），
+       免得卡片寫「12 詞」結果進去只有 3 個。 */
+    const lesWordN = (L) => { const seen = new Set();
+      (L.chars || []).forEach(x => { const w = String((x.word || x.w) || "").trim();
+        if (w && HAN.test(w) && w.length <= 4) seen.add(w); });
+      return seen.size; };
     const list = el("div", { class:"mglessons" });
-    C.lessons.filter(L => (L.tb || "其他課") === SET.tb).forEach(L => { const cb = el("input", { type:"checkbox" }); cb.checked = SET.lids.includes(L.id);
-      cb.onchange = () => { SET.lids = cb.checked ? SET.lids.concat(L.id) : SET.lids.filter(x => x !== L.id); keep(); upd(); };
-      list.append(el("label", { class:"chk" }, [cb, " " + L.label.split("・").pop()])); });
-    box.append(sel, list);
+    const redraw = () => { [...list.children].forEach(c => { const on = SET.lids.includes(c.dataset.lid);
+      c.classList.toggle("on", on); c.setAttribute("aria-pressed", String(on)); }); upd(); };
+    mine.forEach((L, i) => {
+      const full = L.label.split("・").pop();
+      const m = /^\s*第?\s*([0-9０-９一二三四五六七八九十百]+)\s*課\s*[：:．.、]?\s*(.*)$/.exec(full);
+      const no = m ? m[1] : String(i + 1), ttl = (m && m[2]) ? m[2] : full;
+      const wn = lesWordN(L);
+      const b = el("button", { type:"button", class:"mglsn" + (wn ? "" : " off"),
+        "aria-pressed":String(SET.lids.includes(L.id)), title: wn ? full : (full + "（這一課還沒有生詞）") });
+      b.dataset.lid = L.id;
+      b.append(el("span", { class:"n", text:no }),
+               el("span", { class:"t", text:ttl }),
+               el("span", { class:"w", text: wn ? (wn + " 詞") : "沒有生詞" }));
+      if (!wn){ b.disabled = true; }
+      else b.onclick = () => { SET.lids = SET.lids.includes(L.id) ? SET.lids.filter(x => x !== L.id) : SET.lids.concat(L.id); keep(); redraw(); };
+      list.append(b); });
+    const playable = mine.filter(L => lesWordN(L));
+    const bAll = btn("全選", () => { SET.lids = [...new Set(SET.lids.concat(playable.map(L => L.id)))]; keep(); redraw(); }, "small");
+    const bNone = btn("清除", () => { const ids = mine.map(L => L.id); SET.lids = SET.lids.filter(x => !ids.includes(x)); keep(); redraw(); }, "small");
+    const top = el("div", { class:"mgpick-top" }, [sel, el("span", { class:"grow" }), bAll, bNone]);
+    box.append(el("div", { class:"mgpick" }, [top, list]));
   } else {
     const sel = el("select", { class:"fwsel" }); LEVELS.forEach((L, i) => { if (i) sel.append(el("option", { value:i, text:L.name })); }); sel.value = SET.lv; sel.onchange = () => { SET.lv = Number(sel.value); keep(); upd(); }; box.append(sel);
   }
