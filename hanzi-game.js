@@ -230,6 +230,18 @@ const posOf = (c, sym) => { const e = CH[c], v = HZP[c]; if (!e || !e.p || !v) r
 function dictRad(c, parts){ const v = HZP[c], e = CH[c]; if (!c || !v || !e || !e.p || v[2] === "-") return ""; const r = e.p[Number(v[2])]; return parts.includes(r) ? r : ""; }
 // 「日字旁」這種名字只有放在左邊才對；放在上面叫「日字頭」，在別的位置就只說位置
 const STANDALONE = n => /^(.)字(旁|頭|底)$/.exec(n || "");
+/* ══════ COMPFIX_V1473 簡體／誤導性的部件名 ══════
+   Quinn：「這是『從』嗎？有沒有搞錯？」——卡片上寫著「从 cóng」。
+   拆字資料來自 cjk-decomp，是簡體導向的，所以有幾個部件在繁體平台上看起來是錯的。
+   我把全部 1,045 個部件掃過一次，真正會誤導的是這四個。
+   處理方式：不印那個會讓人以為「這是一個字」的拼音，改成「部件」兩個字，
+   滑過去才說明它是什麼、出現在哪些字。字形本身不動（那是另一件事：切圖）。 */
+const COMPFIX = {
+  "\u4ece": ["\u4f86\u3001\u5750\u3001\u593e", "\u55ae\u7368\u5beb\u7684\u300c\u4ece\u300d\u662f\u300c\u5f9e\u300d\u7684\u7c21\u9ad4\u5b57\uff0c\u9019\u88e1\u4e0d\u662f\u90a3\u500b\u610f\u601d\uff0c\u53ea\u662f\u62c6\u5b57\u8cc7\u6599\u7528\u9019\u500b\u5beb\u6cd5\u6a19\u8a18\u9019\u4e00\u584a\u3002"],
+  "\u4eb2": ["\u65b0\u3001\u89aa", "\u300c\u65b0\u300d\u548c\u300c\u89aa\u300d\u5171\u7528\u7684\u90a3\u4e00\u584a\u3002\u55ae\u7368\u5beb\u7684\u300c\u4eb2\u300d\u662f\u300c\u89aa\u300d\u7684\u7c21\u9ad4\u5b57\u3002"],
+  "\u52a1": ["\u52d9", "\u62c6\u5b57\u8cc7\u6599\u7d66\u7684\u662f\u7c21\u9ad4\u5beb\u6cd5\u300c\u52a1\u300d\uff1b\u7e41\u9ad4\u7684\u300c\u52d9\u300d\u4e0d\u662f\u9019\u6a23\u5beb\u7684\u3002"],
+  "\u5723": ["\u602a", "\u300c\u602a\u300d\u53f3\u908a\u7684\u90e8\u4ef6\uff0c\u525b\u597d\u8ddf\u300c\u8056\u300d\u7684\u7c21\u9ad4\u5b57\u5beb\u6cd5\u76f8\u540c\uff0c\u4f46\u4e0d\u662f\u540c\u4e00\u500b\u610f\u601d\u3002"]
+};
 function radName(sym, c){
   const n = RAD[sym] ? RAD[sym].name : ""; const m = STANDALONE(n); if (!m || m[1] !== sym) return n;
   const p = c ? posOf(c, sym) : "";
@@ -283,7 +295,27 @@ function loadOv(chars){
   return Promise.all(need.map(i => OVSH[i] || (OVSH[i] = fetch(`hz-ov-${String(i).padStart(2, "0")}.json?v=${window.OVV || ""}`).then(r => r.ok ? r.json() : {}).then(d => Object.assign(OV, d)).catch(() => {}))));
 }
 const ovStyle = img => `--m:url("data:image/webp;base64,${img}")`;
-function ovFind(sym){ for (const c in OV){ const v = OV[c]; const i = v[0].indexOf(sym); if (i >= 0) return v[i + 1]; } return null; }
+/* ══════ OVFIX_V1473 切壞的透明卡 ══════
+   Quinn：「這是「從」嗎？」「你切圖切得不夠乾淨」。透明卡不是現場畫的，
+   是預先產生好的遮罩圖，存在 hz-ov-00～23 這 24 個檔裡（2,058 個字、4,116 張卡）。
+   我把它們解出來逐張看過：
+     精選字族的 119 個字 —— 全部正確。
+     她第一課的 16 個字 —— 李（子切成「予」）和 來（兩張對調，而且一張變「朮」）兩個錯。
+     八千詞裡隨機抽 48 個 —— 切圖都正確。
+   兩種自動偵測都失敗了（拿字型比對：李的錯卡分數最高；拿同一個部件的兄弟互比：
+   同一個部件的遮罩彼此 IoU 中位數只有 0.044，根本分不出來）。
+   產生這些圖的程式不在這個 repo 裡，筆順資料這邊也抓不到，所以我沒辦法重算。
+   能做的是：確定切壞的字就不要用圖，退回文字卡——寧可樸素，不要騙人。
+   以後再看到哪個字怪怪的，跟我說那個字，加進這一行就好。 */
+const OVSKIP = new Set(["\u674e", "\u4f86"]);
+const ovOf = c => (OVSKIP.has(c) ? null : OV[c]);
+/* 有些部件不在常用漢字區（擴充A／B、筆畫符號），很多裝置的字型沒有這個字，
+   卡片上就會印出一個空白方框。73 個部件、160 張卡會這樣。
+   圖本身沒問題（圖是遮罩不是文字），只有底下那行標示要換掉。 */
+const OVNOGLYPH = s => { const o = String(s || "").codePointAt(0) || 0;
+  return !(o >= 0x4E00 && o <= 0x9FFF) && !(o >= 0x2E80 && o <= 0x2FDF) && !(o >= 0xF900 && o <= 0xFAFF); };
+
+function ovFind(sym){ for (const c in OV){ if (OVSKIP.has(c)) continue;/* OVFIX_V1473 */ const v = OV[c]; const i = v[0].indexOf(sym); if (i >= 0) return v[i + 1]; } return null; }
 function Shop(root, cfg){
   let st = null;
   const api = {};
@@ -366,12 +398,16 @@ function Shop(root, cfg){
   function cardEl(sym, kind, i){
     const b = el("button", {class:"card " + kind + " deal", type:"button", "aria-label":sym, "data-sym":sym});
     b.style.animationDelay = (i * 22) + "ms";
-    const label = kind === "rad" ? radCardLabel(sym) : kind === "comp" ? (diffOf().clue === "full" ? pyOf(sym) : "") : (CH[sym] ? CH[sym].py : "");
+    const fix = COMPFIX[sym];/* COMPFIX_V1473 */
+    const label = fix ? "\u90e8\u4ef6"
+      : kind === "rad" ? radCardLabel(sym) : kind === "comp" ? (diffOf().clue === "full" ? pyOf(sym) : "") : (CH[sym] ? CH[sym].py : "");
     const img = st.ovMode && (st.ov[sym] || ovFind(sym));
     if (img){ b.classList.add("ovc"); const m = el("span", {class:"ovm"}); const i = el("i"); i.setAttribute("style", ovStyle(img)); m.append(i);
-      b.append(m, el("span", {class:"l", text: sym + (label ? " " + label : "")})); }
+      /* OVFIX_V1473 字型沒有的部件，印出來是一個空白方框，改成只寫「部件」 */
+      b.append(m, el("span", {class:"l", text: OVNOGLYPH(sym) ? "\u90e8\u4ef6" : (sym + (label ? " " + label : ""))})); }
     else b.append(el("span", {class:"s", text:sym}), el("span", {class:"l", text:label}));
-    b.title = kind === "rad" ? `${RAD[sym].name}：${RAD[sym].hint.replace(/\n/g, " ")}` : sym;
+    b.title = fix ? `\u300c${sym}\u300d${fix[1]}\u3000\u51fa\u73fe\u5728\uff1a${fix[0]}`
+      : kind === "rad" ? `${RAD[sym].name}：${RAD[sym].hint.replace(/\n/g, " ")}` : sym;
     attachDrag(b, sym); return b;
   }
   function attachDrag(b, sym){
@@ -393,8 +429,8 @@ function Shop(root, cfg){
       if (st.ui.okB) st.ui.okB.disabled = st.bench.length < 2;
       // 疊字板：卡片疊在同一個方格裡
       const board = el("div", {class:"ovboard"});
-      const k = keyOf(st.bench); const t = showT || (st.bench.length >= 2 ? (KEYMAP[k] || []).find(x => OV[x]) : null);
-      const layers = t && OV[t] ? [OV[t][1], OV[t][2]] : st.bench.map(sy => st.ov[sy] || ovFind(sy));
+      const k = keyOf(st.bench); const t = showT || (st.bench.length >= 2 ? (KEYMAP[k] || []).find(x => ovOf(x)) : null);
+      const layers = t && ovOf(t) ? [ovOf(t)[1], ovOf(t)[2]] : st.bench.map(sy => st.ov[sy] || ovFind(sy));
       layers.forEach((img, i) => { if (img){ const L = el("i", {class:"ovl"}); L.setAttribute("style", ovStyle(img)); board.append(L); }
         else if (!t){ board.append(el("span", {class:"ovtxt", text:st.bench[i]})); } });
       if (!st.bench.length && !showT){ const nx = st.targets && st.targets.find(c => !st.found.has(c)); const D = diffOf();
@@ -465,7 +501,7 @@ function Shop(root, cfg){
     const [bx, by] = centerOf(st.ui.bench);
     burst(bx, by, 18 + n * 6); popText(bx, by - 30, `+${pts}` + (st.combo > 1 ? `　連擊 ×${st.combo}` : ""));
     if (st.combo > 1) sfx.combo(Math.min(st.combo, 8)); else sfx.good();
-    if (st.ovMode && OV[c]){ st.bench = []; renderBench(c); st.ui.bench.classList.add("right"); const me = st; setTimeout(() => { if (st === me && !st.bench.length) renderBench(); }, 1600); }
+    if (st.ovMode && ovOf(c)){ st.bench = []; renderBench(c); st.ui.bench.classList.add("right"); const me = st; setTimeout(() => { if (st === me && !st.bench.length) renderBench(); }, 1600); }
     else { st.bench = []; renderBench(); st.ui.bench.classList.add("right"); }
     { const left = st.targets.filter(t => !st.found.has(t) && t !== c).length;
       setMsg((isBonus ? `加分字！「${c}」` : `${st.ovMode ? "疊" : "拼"}出來了！「${c}」`) + (left ? `　接著做下一題（還有 ${left} 個字），題目在上面，卡片在下面。` : ""), "good");
@@ -615,8 +651,12 @@ function Shop(root, cfg){
     build(); renderClues(); renderBench(); buildTray(true); renderStatus(); startTimer();
     const me = st;
     loadOv(targets.concat(targets.flatMap(c => expand(c)))).then(() => {
-      if (st !== me || !targets.some(c => OV[c])) return;
-      targets.concat(Object.keys(OV).filter(c => SCOPE.has(c))).forEach(c => { const v = OV[c]; if (v) v[0].forEach((sy, i) => { if (!st.ov[sy]) st.ov[sy] = v[i + 1]; }); });
+      /* OVFIX_V1473 這一關只要有一個字的遮罩是壞的，整關就不用圖。
+         原因：卡片是用「部件」當 key 共用的，壞掉的字被跳過之後，
+         它的部件會去拿別的字切出來的圖——那張圖的位置是為別的字排的，
+         疊起來不會變成這個字。寧可整關用文字卡，也不要疊出一個不對的東西。 */
+      if (st !== me || targets.some(c => OVSKIP.has(c)) || !targets.some(c => ovOf(c))) return;
+      targets.concat(Object.keys(OV).filter(c => SCOPE.has(c))).forEach(c => { const v = ovOf(c); if (v) v[0].forEach((sy, i) => { if (!st.ov[sy]) st.ov[sy] = v[i + 1]; }); });
       st.ovMode = true; root.classList.add("ovmode"); renderBench(); buildTray(true);
       const h3 = root.querySelector(".mat h3"); if (h3) h3.textContent = "疊字板：把透明卡疊上去，疊對了就是一個字";
       const tip = root.querySelector(".box > p.muted"); if (tip && !diffOf().seq) tip.textContent = "看拼音和詞，猜猜□是哪個字，然後把右邊的透明卡疊起來。每張卡上的部件，都在它在字裡的位置。";
@@ -1295,8 +1335,9 @@ function showCourseHome(){
       G.forEach((L, i) => { const n = L.chars.length, m = L.chars.filter(x => mastered(L.id, x.c)).length;
         const { no, ttl } = lesNo(L, i);
         const task = store.tasks.find(t => t.fam === "L:" + L.id && !taskDone(t));
+        /* BKDD2_V1473 Quinn：「出現『第一課、第二課』之類的。不要只出現一、二之類的而已」 */
         const o = el("option", { value:L.id,
-          text:`${no}　${ttl}　${m === n ? "全部學會" : `已學會 ${m}／${n}`}${task ? "　★老師指派" : ""}` });
+          text:`第${no}課　${ttl}　${m === n ? "全部學會" : `已學會 ${m}／${n}`}${task ? "　★老師指派" : ""}` });
         if (L.id === F.lid) o.selected = true;
         box.append(o); });
       if (many) lsel.append(box);
