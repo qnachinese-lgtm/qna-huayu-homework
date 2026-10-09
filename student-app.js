@@ -1279,6 +1279,20 @@ const fmtSched=(sch)=>{const L=S.lang||'zh';const W=_WDL[L]||_WDL.zh;
   return (Array.isArray(sch)?sch:[]).filter(r=>r&&(r.s||r.e))
     .map(r=>(W[r.d!=null?r.d:0]||'')+' '+(r.s||'')+(r.e?'–'+r.e:'')).join(sep);};
 const assignedToMe=(x)=>{if(!x||!S.me)return false;if((x.assigned_ids||[]).includes(S.me.id))return true;const ag=x.assigned_groups||[];return ag.length>0&&myGroups().some(g=>ag.includes(g));};
+/* ANNFIX_V1457 公告讀不到的兩個原因，查後台的程式才確定：
+   （一）後台只有一個地方會發公告（H.saveAnnounce），它存的是 {kind:'announcement', text:...}，
+        完全沒有 title / body，而且畫面上寫明「所有學生登入首頁都會看到」——
+        也就是沒有「發給誰」這回事，公告本來就是全站的。
+   （二）學生端卻用 assignedToMe 過濾，而 assignedToMe 對「沒有 assigned_ids
+        也沒有 assigned_groups」的資料一律回傳 false。兩件事湊在一起，
+        公告在課程頁和首頁永遠是空的。
+   annMine：沒有指定對象的公告＝給全部人（照後台那句話的意思）。
+   annText：新舊兩種欄位都讀（舊資料有 title/body，現在存的是 text）。 */
+const annMine=(a)=>{ if(!a)return false;
+  const hasTarget=((a.assigned_ids||[]).length>0)||((a.assigned_groups||[]).length>0);
+  return hasTarget?assignedToMe(a):true; };
+const annText=(a)=>String((a&&(a.text||a.body||a.content))||'');
+const annTitle=(a)=>String((a&&a.title)||'');
 const myLessons=()=>S.lessons.filter(l=>assignedToMe(l)).sort((a,b)=>((a.order_index||0)-(b.order_index||0))||((a.created_at||'').localeCompare(b.created_at||'')));
 const questionsOf=(lid)=>S.questions.filter(q=>q.lesson_id===lid).sort((a,b)=>(a.order_index||0)-(b.order_index||0));
 const answerableOf=(lid)=>questionsOf(lid).filter(q=>!isRefItem(q)&&q.bank==='hw'); // 作業簿（hw）才在「作業」作答；上課語法練習留在上課內容
@@ -2470,7 +2484,7 @@ function renderContent(){
    Drive 連結、老師給我的檔案也拿掉。沒有任何功能消失，只是各歸各位。 */
   let tab=S.cTab||'mod';
   if(tab==='work'||tab==='grade')tab='mod';   /* 這兩個分頁拿掉了，舊的狀態導回課程模組 */
-  const anns=(S.announcements||[]).filter(a=>assignedToMe(a)).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  const anns=(S.announcements||[]).filter(annMine).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));/* ANNFIX_V1457 */
   const TABMETA={mod:['📚',T.mod],ann:['📣',T.ann],work:['✍️',T.work],grade:['📈',T.grade],file:['📁',T.file]};
   const tm=TABMETA[tab]||TABMETA.mod;
   /* CRUMB_V1455 Quinn：「爲什麼還要出現『課程模組』『公告』『檔案』？」
@@ -2506,10 +2520,15 @@ function renderContent(){
         +'<div class="bar"><i style="width:'+pct+'%"></i></div><b style="color:var(--accent)">'+pct+'%</b></div>'+mods;
     }
   }else if(tab==='ann'){
-    body=anns.length?('<div class="card" style="padding:0">'+anns.map(a=>'<div class="row" style="align-items:flex-start;padding:14px 16px">'
-      +'<span style="font-size:19px">📣</span><div style="flex:1;min-width:0"><b>'+esc(a.title||'')+'</b>'
-      +'<div style="color:var(--muted);font-size:13.5px;white-space:pre-line;margin-top:2px">'+esc(a.body||a.content||'')+'</div>'
-      +'<div class="hint" style="margin-top:4px">'+esc(String(a.created_at||'').replace('T',' ').slice(0,16))+'</div></div></div>').join('')+'</div>')
+    /* ANNFIX_V1457 沒有標題的公告（現在後台存的就是這種）不要印一行空的粗體字，
+       直接把內容當主體；有標題的舊公告照舊標題＋內文。 */
+    body=anns.length?('<div class="card" style="padding:0">'+anns.map(a=>{
+        const _t=annTitle(a),_b=annText(a);
+        return '<div class="row" style="align-items:flex-start;padding:14px 16px">'
+      +'<span style="font-size:19px">📣</span><div style="flex:1;min-width:0">'
+      +(_t?('<b>'+esc(_t)+'</b>'):'')
+      +(_b?('<div style="'+(_t?'color:var(--muted);font-size:13.5px;margin-top:2px':'font-size:14.5px')+';white-space:pre-line">'+esc(_b)+'</div>'):'')
+      +'<div class="hint" style="margin-top:4px">'+esc(String(a.created_at||'').replace('T',' ').slice(0,16))+'</div></div></div>';}).join('')+'</div>')
       :emptyHtml('📣',T.noann,'');
   }else if(tab==='work'){
     const rows=ls.filter(l=>answerableOf(l.id).length).map(l=>{const r=resultOf(l.id),qn=answerableOf(l.id).length,di=dueInfo(l.due_date);
@@ -2782,16 +2801,19 @@ function homeHeroHtml(ls,QL){
 }
 function homeAnnHtml(course){
   let anns=[];
-  try{anns=(S.announcements||[]).filter(a=>assignedToMe(a))
+  try{anns=(S.announcements||[]).filter(annMine)/* ANNFIX_V1457 */
     .sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));}catch(e){anns=[];}
   if(!anns.length)return '';
   const cid=esc((course&&course.id)||'');
   const rows=anns.slice(0,3).map(a=>{
-    const body=String(a.body||a.content||'').replace(/\s+/g,' ').trim();
+    /* ANNFIX_V1457 沒標題的公告：把內容當成那一行的主字，不要留一行空的粗體 */
+    const _t=annTitle(a);
+    const _b=annText(a).replace(/\s+/g,' ').trim();
+    const cut=(x)=>x.length>58?(x.slice(0,58)+'…'):x;
     return '<div class="todo" data-act="goAnn" data-id="'+cid+'">'
       +'<span class="badge badge-pending">📣</span>'
-      +'<span class="tt"><b>'+esc(a.title||'')+'</b>'
-      +(body?'<small>'+esc(body.length>58?(body.slice(0,58)+'…'):body)+'</small>':'')+'</span></div>';}).join('');
+      +'<span class="tt"><b>'+esc(_t||cut(_b))+'</b>'
+      +((_t&&_b)?'<small>'+esc(cut(_b))+'</small>':'')+'</span></div>';}).join('');
   return '<div class="pg-h" style="margin:18px 0 10px"><h2 style="font-size:16px">📣 '
       +esc(LT({zh:'老師公告',cn:'老师公告',en:'Announcements',vi:'Thông báo của cô'}))+'</h2></div>'
     +'<div class="card" style="padding:0">'+rows+'</div>'
@@ -2827,7 +2849,7 @@ function renderHome(){
            'linear-gradient(135deg,#1E4C86,#143A6B)',   /* 藍→官網 --primary-d（純深藍） */
            'linear-gradient(135deg,#8C3A3F,#9C7D2A)',   /* 磚紅→金（赭） */
            'linear-gradient(135deg,#2F6450,#9C7D2A)'];  /* 松綠→金（橄欖） */
-  const annN=(S.announcements||[]).filter(a=>assignedToMe(a)).length;
+  const annN=(S.announcements||[]).filter(annMine).length;/* ANNFIX_V1457 */
   const cards=cs.map((c,i)=>{
     const wN=c.lessons.filter(l=>{const r=resultOf(l.id);return answerableOf(l.id).length&&!(r&&r.status==='done');}).length;
     return '<div class="ccard" data-act="openCourse" data-id="'+esc(c.id)+'">'
@@ -2863,7 +2885,10 @@ function renderHome(){
         ||{go:'開始上課',les:'課次',w:'我的作業',m:'錯題本',g:'我的成績',f:'老師給我的檔案',more:'看全部課次'};
   let mainBlock;
   if(!one){
-    mainBlock='<div class="pg-h" style="margin:0 0 10px"><h2 style="font-size:16px">📚 '+esc(T.cs)+'</h2></div><div class="cgrid">'+cards+'</div>';
+    /* ANNFIX_V1457 公告摘要本來只有「只有一門課」的學生看得到。
+       課程多的學生一登入就是這一塊，完全看不到公告。兩邊都放。 */
+    mainBlock='<div class="pg-h" style="margin:0 0 10px"><h2 style="font-size:16px">📚 '+esc(T.cs)+'</h2></div><div class="cgrid">'+cards+'</div>'
+      +homeAnnHtml(cs[0]);
   }else{
     const myLs=sortLes((cs[0]&&cs[0].lessons)||[]);
     const _fN=(MYFILES||[]).filter(f=>f&&f.url).length;
