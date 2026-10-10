@@ -3289,8 +3289,12 @@ function qHtmlGraded(q,idx){
   const instr=q.instruction?`<div class="q-instr">${esc(q.instruction)}</div>`:'';
   const pic=q.image_url?`<div class="q-pic"><img src="${esc(q.image_url)}" alt="" loading="lazy"></div>`:'';
   const multiOptG=q.type==='opt'&&(q.items||[]).length>1;
+  /* QNUMFIX_V1475 Quinn：「爲什麼這邊學生送出去答案會出現這個亂碼」。
+     V1444 的註解被寫在樣板字串「裡面」，所以 /* QNUM_V1444 *​/ 這幾個字
+     直接變成 HTML 的內容印在每一題下面。不是亂碼，是我的註解漏出去了。
+     上面 3259 行那一個寫在字串外面，所以沒事；只有這一個在裡面。 */
   return `<div class="q-card">${instr}<div class="q-head">${multiOptG?'':`<span class="q-num">${idx+1}</span>`}
-    <div style="flex:1">${showTypeTag(q)?`<span class="q-type-tag tag accent">${TYPE_LABELS[q.type]}</span>`:''}<div class="q-prompt">${esc(multiOptG?(q.prompt||''):qStripNo(q.prompt))}</div></div></div>${audioHtml(q.audio_url)}${pic}${body}/* QNUM_V1444 */
+    <div style="flex:1">${showTypeTag(q)?`<span class="q-type-tag tag accent">${TYPE_LABELS[q.type]}</span>`:''}<div class="q-prompt">${esc(multiOptG?(q.prompt||''):qStripNo(q.prompt))}</div></div></div>${audioHtml(q.audio_url)}${pic}${body}
     ${fb}
     ${q.explanation?`<div class="q-explain">💡 ${esc(q.explanation)}</div>`:''}</div>`;
 }
