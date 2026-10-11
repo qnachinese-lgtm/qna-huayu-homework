@@ -3197,10 +3197,12 @@ function payRowsOf(list){
   return list.map(s=>{
     let b=stuBill(s)||{items:[],charge:0,paid:0,due:0,unknown:0};
     const cur=billCur(s);
-    let qty=0;(b.items||[]).forEach(x=>{const h=logHours(x.e);qty+=(isHourly(s)?((h!=null)?h:1):1);});
+    /* PAYQTY_V1489 兩種班型、單位不一樣的時候，堂和小時不能加在一起 */
+    let qty=0;(b.items||[]).forEach(x=>{const h=logHours(x.e);qty+=(eHourly(s,x.e)?((h!=null)?h:1):1);});
+    const qtyText=unitSplit(s)?usedText(s):null;
     /* STUSOON_V1087 金額照算，只是不掛在「還沒收」那一欄 */
     if(stuSoon(s))b=Object.assign({},b,{soon:true,dueRaw:b.due,due:0});
-    return {s,b,cur,qty:Math.round(qty*100)/100};
+    return {s,b,cur,qty:Math.round(qty*100)/100,qtyText};
   });
 }
 const PAY_COLS=['學生','狀態','上課','應收','已繳','目前'];
@@ -3224,7 +3226,7 @@ function payRowHtml(r,noState){
   return '<div class="pay-row'+((owe&&!noState)?' is-owe':'')+'">'
     +'<span class="pay-nm">'+snm(s.name)+'</span>'
     +'<span class="pay-tag">'+enrollBadge(s,1)/* PAYTAG_V1082 */+'</span>'
-    +'<span class="pay-c" data-l="上課">'+(b.items.length?('<b>'+fmtQty(r.qty)+'</b> '+unitLabel(s)):'—')
+    +'<span class="pay-c" data-l="上課">'+(b.items.length?(r.qtyText?('<b>'+r.qtyText+'</b>'):('<b>'+fmtQty(r.qty)+'</b> '+unitLabel(s))):'—')/* PAYQTY_V1489 */
       +(b.unknown?(' <span class="badge badge-soon" title="有課沒設定收費">⚠️ '+b.unknown+'</span>'):'')+'</span>'
     +'<span class="pay-c" data-l="應收"><b>'+(b.items.length?money(b.charge,cur):'—')+'</b></span>'
     +'<span class="pay-c pay-paid" data-l="已繳"><b>'+money(b.paid,cur)+'</b>'
@@ -22838,6 +22840,14 @@ H.classLog=(id,pf)=>{const s=S.students.find(x=>x.id===id);if(!s)return;pf=pf||{
       +(e.status==='leave'?'請假':(e.status==='absent'?'缺席':'出席'))+'</span>'
       /* BOTH_V1485 兩種身分的學生，每一堂都要看得出是哪一種 */
       +(isBoth(s)?('<span class="badge '+(eIsGrp(s,e)?'b-info':'accent')+'">'+(eIsGrp(s,e)?'👥 團班':'🧑‍🏫 一對一')+'</span>'):'')
+      /* FEEROW_V1489 兩種班型的學生每一堂價錢不一樣，直接把這一堂多少錢寫在列上
+         （Quinn：「這裡的 1 對 1 你的費用寫的是多少？」——本來根本沒寫） */
+      +(isBoth(s)?(function(){
+         if(e.free)return '<span class="muted" style="font-size:12px">不計費</span>';
+         if(!eIsGrp(s,e)&&e.status==='leave')return '<span class="muted" style="font-size:12px">請假不計費</span>';
+         const f=lessonFee(s,e);
+         return (f==null)?'<span class="muted" style="font-size:12px;color:#A33227">單價未設定</span>'
+                         :('<span class="muted" style="font-size:12px">'+esc(money(f,billCur(s)))+'</span>');})():'')
       +(e.free?'<span class="badge b-gift" >🎁 免費</span>':'')
       +(e.makeup?'<span class="badge b-info" >🔁 補課</span>':'');
     const vb=e.video?`<a class="badge b-info"  href="${esc(e.video)}" target="_blank" rel="noopener">🎬 影片</a>`:'';
@@ -22855,9 +22865,22 @@ H.classLog=(id,pf)=>{const s=S.students.find(x=>x.id===id);if(!s)return;pf=pf||{
     const toggle=`<div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="btn btn-sm btn-ghost" type="button" data-act="clogToggleAll" data-id="${id}">${CLOG_ALLOPEN?'▾ 全部收起':'▸ 全部展開'}</button></div>`;
     rows=toggle+order.map(mk=>{const items=byM[mk];const cnt=items.length;
       const hrs=isHourly(s)?Math.round(items.reduce((n,o)=>{const e=o.e;if(e.status==='leave'||e.free)return n;const h=logHours(e);return n+(h!=null?h:1);},0)*100)/100:null;
+      /* MONTH2_V1489 兩種班型、單位又不一樣的時候，「2 堂 · 2.25 小時」會讓人以為
+         同樣兩堂課有兩個數字。改成分開寫：團班幾堂、一對一幾小時。 */
+      let _mtag=`${cnt} 堂${isHourly(s)&&hrs!=null?(' · '+fmtQty(hrs)+' 小時'):''}`;
+      if(unitSplit(s)){
+        const acc={g:0,so:0};
+        items.forEach(o=>{const e=o.e;if(!e||e.free||(!eIsGrp(s,e)&&e.status==='leave'))return;
+          const k=eIsGrp(s,e)?'g':'so';
+          if(eHourly(s,e)){const h=logHours(e);acc[k]+=(h!=null?h:1);}else acc[k]+=1;});
+        const _u=(hr)=>hr?'小時':'堂';
+        const parts=[];
+        if(acc.g)parts.push('團班 '+fmtQty(Math.round(acc.g*100)/100)+' '+_u(s.fee_unit==='hour'));
+        if(acc.so)parts.push('一對一 '+fmtQty(Math.round(acc.so*100)/100)+' '+_u(s.fee_unit_solo==='hour'));
+        _mtag=parts.length?parts.join('　·　'):(cnt+' 筆');}
       const open=(CLOG_ALLOPEN||mk===newest||mk===editMonth)?' open':'';
       const label=(mk==='（無日期）')?mk:(mk.split('-')[0]+' 年 '+String(Number(mk.split('-')[1]))+' 月');
-      return `<details${open} style="margin-bottom:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px"><summary style="cursor:pointer;font-weight:600;color:var(--primary);list-style-position:inside">${label} <span class="tag">${cnt} 堂${isHourly(s)&&hrs!=null?(' · '+fmtQty(hrs)+' 小時'):''}</span></summary><div style="margin-top:6px">${items.map(clRow).join('')}</div></details>`;}).join('');}
+      return `<details${open} style="margin-bottom:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px"><summary style="cursor:pointer;font-weight:600;color:var(--primary);list-style-position:inside">${label} <span class="tag">${_mtag}</span></summary><div style="margin-top:6px">${items.map(clRow).join('')}</div></details>`;}).join('');}
   const today=localToday();const useDate=(eRow&&eRow.date)||pf.date||today;const dslot=clSlotFor(useDate);const uS=(eRow?eRow.start:null)||pf.start||(dslot?dslot.s:'')||'';const uE=(eRow?eRow.end:null)||pf.end||(dslot?dslot.e:'')||'';const uN=(eRow?eRow.note:null)||pf.note||'';const slot0={s:uS,e:uE};
   /* BOTH_V1485 編輯就用那一堂的；新增就沿用最近一筆的，少按一次 */
   const uCt=eRow?(eRow.ctype==='solo'?'solo':'group')
