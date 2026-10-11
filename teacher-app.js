@@ -7311,6 +7311,17 @@ function BAFILL(){const sel=document.getElementById('ba-book'),box=document.getE
 function BAALL(){const b=[...document.querySelectorAll('.ba-l')];if(!b.length)return;
   const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
 /* ===================== 📄 語法講義 GHANDOUT_V824 ===================== */
+/* INSPICK_V1482 只出某幾個大題。Quinn：「我今天想要用的就是只有短文閱讀這邊而已。」
+   關鍵詞那兩本一個單元裡有一、二、三…好幾個大題，整個單元印出來太多。
+   大題是靠題目的「說明」（instruction）分組的，例如「五、短文閱讀　短文」，
+   全形空白前面那一段就是大題名；短文自己存在課文欄，標題也是同一個大題名，
+   所以用同一把鑰匙就能把短文和它的題目一起挑出來。空陣列＝全部都出。 */
+let GHINSPICK=[];
+function ghInsKey(s){const t=String(s==null?'':s).trim();
+  const i=t.indexOf('　');return (i<0?t:t.slice(0,i)).trim();}
+function ghInsOk(x){return !GHINSPICK.length||GHINSPICK.indexOf(ghInsKey(x))>=0;}
+function ghInsFilter(list){
+  return GHINSPICK.length?(list||[]).filter(q=>ghInsOk(q&&q.instruction)):(list||[]);}
 function ghQsOf(lid){
   const all=(S.questions||[]).filter(q=>q&&q.lesson_id===lid)
     .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0));
@@ -7545,7 +7556,9 @@ function ghInsHtml(ins){
   const i=t.indexOf('\u3000');
   if(i<0)return ghLines(t);
   const a=t.slice(0,i).trim(),b=t.slice(i+1).trim();
-  if(!b)return ghLines(a);
+  /* INS2_V1482 「五、短文閱讀　短文」第二行是多餘的（前面已經寫了短文）。
+     「三、選詞填空（一）　短文」那種第二行才有意義，所以只在重複的時候拿掉。 */
+  if(!b||a.indexOf(b)>=0)return ghLines(a);
   return ghLines(a)+'<div class="gh-in2">'+ghLines(b)+'</div>';}
 function ghQHtml(q,n,withAns,noSpace){/* CLPRINT_V827 noSpace：只印題目，不留作答空間 */
   const isNote=(q.type==='note');
@@ -7849,7 +7862,7 @@ function ghKeyGp(title,qs){
   if(!items.length)return '';
   return '<div class="gk-gp"><div class="gk-t">'+esc(title||'')+'</div>'+items.join('')+'</div>';}
 function ghKeyHtml(l){
-  const gps=l.grammar_points||[],all=ghQsOf(l.id);
+  const gps=l.grammar_points||[],all=ghInsFilter(ghQsOf(l.id));/* INSPICK_V1482 */
   let out='';
   gps.forEach((g,gi)=>{out+=ghKeyGp((gps.length?('語法 '+(gi+1)+'　'):'')+gpT(g.title),
     all.filter(q=>q.gp_index===gi));});
@@ -7935,7 +7948,8 @@ function ghVocabHtml(l,withAns){
    對話一 → 對話一的生詞 → 對話二 → 對話二的生詞。 */
 function ghTextVocHtml(l,withAns){
   if(!GHDLG&&!GHVOC)return '';
-  const ds=Array.isArray(l&&l.dialogues)?l.dialogues:[];
+  /* INSPICK_V1482 挑了大題的話，只出標題對得上的那幾篇短文 */
+  const ds=(Array.isArray(l&&l.dialogues)?l.dialogues:[]).filter(d=>ghInsOk(d&&d.title));
   const blank=(GHVOC==='blank')&&!withAns;
   const mean=(v,vi)=>{
     const en=String((v&&v.back)||'').trim(),vn=String(vi||'').trim();
@@ -7969,13 +7983,13 @@ function ghLessonHtml(l,withAns){
      學生拿到一張沒有題目的紙。改成整份照原本印，只是語法（和生詞、課末）的例句
      只留她挑起來的那幾句，其他照舊。 */
   GHEXF=(function(){const m=ghExMap()[l&&l.id];return (m&&Object.keys(m).length)?m:null;})();
-  const gps=l.grammar_points||[];const all=ghQsOf(l.id);
+  const gps=l.grammar_points||[];const all=ghInsFilter(ghQsOf(l.id));/* INSPICK_V1482 */
   const cl=ghTextVocHtml(l,withAns)/* GHVOC_V1067 */+ghClHtml(l,withAns);
   /* GHONLY_V1480 「只印課文」＝後面全部不要；「只印課文和題目」＝不要詞彙表，
      語法說明和例句在 ghGpHtml 裡面已經跳過，這裡只剩題目。 */
   let rest='';
   if(GHDLG!=='only'){
-    if(GHDLG!=='q')rest+=ghVocHtml(l,withAns);
+    if(GHDLG!=='q'&&!GHINSPICK.length)rest+=ghVocHtml(l,withAns);/* INSPICK_V1482 */
     rest+=gps.map((g,gi)=>ghGpHtml(g,gi,all.filter(q=>q.gp_index===gi),withAns)).join('');
     const untag=all.filter(q=>q.gp_index==null);
     if(untag.length)rest+=ghGpHtml({title:gps.length?'其他練習':'練習',blocks:[]},gps.length,untag,withAns,null);
@@ -8246,6 +8260,40 @@ function ghListHtml(book){
       +'<span class="gh-ln">'+esc(l.title||'（未命名）')+'</span>'
       +'<span class="gh-meta">'+esc(meta)+'</span></label>';}).join('');
   return rows||'<div class="hint">這本裡面沒有可以印的練習。</div>';}
+/* INSPICK_V1482 勾起來的那幾課裡面有哪些大題。順序照題目的 order_index，
+   也就是課本原本的順序；只存在課文欄、沒有題目的短文排在後面補上。 */
+function ghInsRows(book,lids){
+  const ls=baLessonsOf(book).filter(l=>lids.indexOf(l.id)>=0);
+  const seen={},out=[];
+  const hit=k=>{if(!seen[k]){seen[k]={k:k,q:0,txt:0};out.push(seen[k]);}return seen[k];};
+  ls.forEach(l=>{
+    (S.questions||[]).filter(q=>q&&q.lesson_id===l.id)
+      .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0))
+      .forEach(q=>{const r=hit(ghInsKey(q.instruction)||'（沒有大題標題）');
+        if(q.type!=='note')r.q++;});});
+  ls.forEach(l=>{(Array.isArray(l.dialogues)?l.dialogues:[]).forEach(d=>{
+    const k=ghInsKey(d&&d.title);if(!k)return;
+    if(!String((d&&d.content)||'').trim())return;
+    hit(k).txt++;});});
+  return out;}
+function ghInsListHtml(book,lids){
+  const rows=ghInsRows(book,lids);
+  if(!rows.length)return '<div class="hint">先在上面勾課，這裡就會把大題列出來。</div>';
+  return rows.map(r=>'<label class="check-row"><input type="checkbox" class="gh-i" value="'+esc(r.k)+'">'
+    +'<span class="gh-ln">'+esc(r.k)+'</span>'
+    +'<span class="gh-meta">'+esc([r.txt?('短文 '+r.txt+' 篇'):'',r.q?(r.q+' 題'):''].filter(Boolean).join('　·　'))+'</span></label>').join('');}
+function GHINS(){
+  const box=document.getElementById('gh-inspick');if(!box)return;
+  const book=((document.getElementById('gh-book')||{}).value)||'';
+  const wrap=document.getElementById('gh-insbox');
+  if(wrap)wrap.style.display=ghQBook(book)?'':'none';
+  if(!ghQBook(book)){box.innerHTML='';return;}
+  const keep={};[...box.querySelectorAll('.gh-i:checked')].forEach(x=>{keep[x.value]=1;});
+  const ids=[...document.querySelectorAll('.gh-l:checked')].map(x=>x.value);
+  box.innerHTML=ghInsListHtml(book,ids);
+  [...box.querySelectorAll('.gh-i')].forEach(x=>{if(keep[x.value])x.checked=true;});}
+function GHINSALL(){const b=[...document.querySelectorAll('.gh-i')];
+  if(!b.length)return;const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});}
 /* ══════ GHPREF_V883 記住上次的匯出設定 ══════
    存在這台電腦的 localStorage，不寫進資料庫——這是「我習慣怎麼印」，不是教材資料。
    結構：{ '書名': {lay,font,lang,bank,noimg,clq,who,when}, __last:'上次用的書名' } */
@@ -8402,6 +8450,7 @@ function GHEXALL(){const b=[...document.querySelectorAll('.gh-x')];if(!b.length)
   const all=b.every(x=>x.checked);b.forEach(x=>{x.checked=!all;});GHEXCNT();}
 function GHSENT(){
   try{GHEX();}catch(e){}/* GHEX_V1186 */
+  try{GHINS();}catch(e){}/* INSPICK_V1482 */
   const box=document.getElementById('gh-clpick'),msg=document.getElementById('gh-clmsg');
   if(!box)return;
   const ids=[...document.querySelectorAll('.gh-l:checked')].map(x=>x.value);
@@ -8521,6 +8570,12 @@ function ghModal(){
    +'<button class="btn btn-sm btn-ghost" type="button" id="gh-allbtn" onclick="GHALL()"'
    +(ghHasCl(cur)?' style="display:none"':'')+'>全選 / 取消</button></label>'
    +'<div class="check-list gh-list" id="gh-lessons" onchange="GHSENT()">'+ghListHtml(cur)+'</div></div>'
+   /* INSPICK_V1482 關鍵詞那兩本：一個單元有好幾個大題，可以只挑其中幾個 */
+   +'<div class="field" id="gh-insbox"'+(ghQBook(cur)?'':' style="display:none"')+'>'
+   +'<label class="gh-lbl">要出哪幾個大題 <span class="hint">不勾＝整個單元都出</span>'
+   +'<span style="flex:1"></span>'
+   +'<button class="btn btn-sm btn-ghost" type="button" onclick="GHINSALL()">全選 / 取消</button></label>'
+   +'<div class="check-list gh-list" id="gh-inspick"></div></div>'
    /* PRINTBAR_V960 作答空間、圖片、字體、繁／簡都不在這裡先選了——
       印出來的那一頁上面按一下就換，不用回來重出一份 */
    /* GHBANK_V872 有作業簿的書才問這一題 */
@@ -21548,6 +21603,8 @@ H.ghGo=(mode)=>{
      （會讀到上一本留下來的，例如「只出課本練習題」，短文題就整批被濾掉了）。
      一律固定：短文印、兩邊的題目都印、不另外出生詞表、不印聽力原文。 */
   if(ghQBook(book)){GHDLG='1';GHBANK='auto';GHVOC='';GHTR=0;}
+  /* INSPICK_V1482 只出勾起來的大題；沒勾＝整個單元都出 */
+  GHINSPICK=ghQBook(book)?[...document.querySelectorAll('.gh-i:checked')].map(x=>String(x.value)):[];
   GHLANG='tw';/* PRINTBAR_V959 繁／簡改成印出來那一頁上即時切 */
   GHWHO=((document.getElementById('gh-who')||{}).value)||'';
   GHWHEN=((document.getElementById('gh-when')||{}).value)||'';
