@@ -1352,9 +1352,16 @@ function _eIsGrp(s,e){if(!s)return false;
 function _eTuition(s,e){if(!s)return null;
   if(_isBoth(s)&&e&&e.ctype==='solo')return s.tuition_solo;
   return s.tuition;}
+/* UNIT2_V1486 計價單位也分開：團班按堂、一對一按小時這種組合 */
+function _eHourly(s,e){
+  if(_isBoth(s)&&e&&e.ctype==='solo')return (s.fee_unit_solo==='hour');
+  return !!(s&&s.fee_unit==='hour');}
+function _unitSplit(s){return _isBoth(s)&&((s.fee_unit==='hour')!==(s.fee_unit_solo==='hour'));}
 function myUnit(){const L={zh:['小時','堂'],cn:['小时','堂'],en:['hr','class'],vi:['giờ','buổi']}[S.lang||'zh']||['小時','堂'];return myHourly()?L[0]:L[1];}
 function myFmtQty(n){if(n==null)return '—';const r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}
-function myLeft(){const s=S.me;if(!s||s.sessions_total==null||s.sessions_total==='')return null;const log=Array.isArray(s.class_log)?s.class_log:[];
+function myLeft(){const s=S.me;if(!s||s.sessions_total==null||s.sessions_total==='')return null;
+  if(_unitSplit(s))return null;/* UNIT2_V1486 兩種單位不同，加不起來 */
+  const log=Array.isArray(s.class_log)?s.class_log:[];
   const skip=e=>!e||e.free||(!_eIsGrp(s,e)&&e.status==='leave');/* BOTH_V1485 */
   let used;if(myHourly()){used=0;log.forEach(e=>{if(skip(e))return;const h=_logHours(e);used+=(h!=null?h:1);});}
   else used=log.filter(e=>!skip(e)).length;
@@ -1926,7 +1933,8 @@ function myFeeOf(e){
   const s=S.me;const _tu=_eTuition(s,e);
   if(!s||_tu==null||_tu==='')return null;
   const t=Number(_tu);if(isNaN(t))return null;
-  if(!myHourly())return t;const h=_logHours(e);return h==null?t:Math.round(t*h*100)/100;}
+  if(!_eHourly(s,e))return t;/* UNIT2_V1486 */
+  const h=_logHours(e);return h==null?t:Math.round(t*h*100)/100;}
 function myIsGroup(){return (S.me&&S.me.class_type)==='團班';}
 /* 團班請假照樣收費（課還是開了）；一對一請假不收 */
 function myChargeable(e){if(!e||!e.date||e.free)return false;
@@ -1940,7 +1948,8 @@ function _feeFor(s,e){const ts=_eIsGrp(s,e)?_tiersFor(s):null;/* BOTH_V1485 */
   if(ts){const h=_logHours(e);if(h!=null){const m=ts.find(x=>Math.abs(Number(x.h)-h)<0.01);if(m)return Number(m.amt);}}
   const _tu=_eTuition(s,e);
   if(!s||_tu==null||_tu==='')return null;const t=Number(_tu);if(isNaN(t))return null;
-  if(s.fee_unit!=='hour')return t;const h=_logHours(e);return h==null?t:Math.round(t*h*100)/100;}
+  if(!_eHourly(s,e))return t;/* UNIT2_V1486 */
+  const h=_logHours(e);return h==null?t:Math.round(t*h*100)/100;}
 function _chargeableFor(s,e){if(!e||!e.date||e.free)return false;
   return _eIsGrp(s,e)||e.status!=='leave';}/* BOTH_V1485 */
 function billFor(s){
