@@ -6651,11 +6651,10 @@ function renderLessons(){
     +_fchip('wip','🟡 進行中',_wipN)
     +'</div>'
     +(_lf==='wip'&&ls.length?('<button class="btn btn-sm btn-accent" style="margin-left:9px" data-act="lesDoneAll">✅ 把這 '+ls.length+' 課標成完成</button>'):'')
-    /* AF_V882 補參考答案的入口；全部補齊了就不用出現 */
-    +(function(){try{const n=afMissingAll();return n?('<button class="btn btn-sm" style="margin-left:9px" data-act="afOpen" title="一次補整本的參考答案">✅ 補參考答案<span class="segn">'+n+'</span></button>'):'';}catch(e){return '';}})()
-    /* GPTRANS_V1461 */
-    +'<button class="btn btn-sm" style="margin-left:9px" data-act="gpTransOut" title="把所有語法說明寫成 Excel，最後一欄留空給你填越南文">⬇ 匯出語法翻譯表</button>'
-    +'<button class="btn btn-sm" style="margin-left:6px" data-act="gpTransIn" title="把填好越南文的那份 Excel 讀回來，只會寫越南文那一欄">📥 匯入越南文</button>'
+    /* RMBTN_V1493 這一排拿掉三顆（Quinn：「我不喜歡這些功能，我覺得沒存在的必要」）：
+       ✅ 補參考答案（AF_V882）、⬇ 匯出語法翻譯表、📥 匯入越南文（GPTRANS_V1461）。
+       三個視窗的程式都還在（afOpen／gpTransOut／gpTransIn），只是這裡不再放入口，
+       以後想找回來就是把這幾行加回去。已經填過的語法越南文照常留著、學生照常看得到。 */
     +'<span class="grow"></span><div class="segbar">'
     +'<button class="segb'+(bkAnyOpen?' on':'')+'" data-act="toggleAllBooks">'+(bkAnyOpen?'📚 全部收起':'📚 全部展開')+'</button>'
     +'<button class="segb'+(anyOpen?' on':'')+'" data-act="toggleAllCards">'+(anyOpen?'▴ 課卡收起':'▾ 課卡展開')+'</button>'
@@ -13769,6 +13768,10 @@ H.lxOut=(id)=>{
       if(q.type==='choice'){const n=ghAnsIdx(q);if(n!=null)ans=String(n+1);}
       else if(q.type==='fill')ans=(Array.isArray(q.answer)?q.answer:[q.answer])
         .map(x=>lxoS(x).trim()).filter(Boolean).join('｜');
+      /* ANSIN_V1493 問答和造句的參考答案本來沒寫進 Excel，所以教師手冊的答案沒地方填。
+         一起寫出來，多個答案一樣用｜隔開。 */
+      else if(q.type==='qa'||q.type==='write')ans=(Array.isArray(q.answer)?q.answer:[q.answer])
+        .map(x=>lxoS(x).trim()).filter(Boolean).join('｜');
       Q.push([lxoBank(q),ty,lxoS(q.prompt),lxoS(q.instruction),
         (q.type==='choice'?(Array.isArray(q.options)?q.options:[]).map(lxoS).join('｜'):''),
         ans,lxoS(q.gp_sub)]);});
@@ -13812,6 +13815,65 @@ H.lxIn=()=>{
       +(s.disc?('、'+s.disc+' 題討論'):'')+(s.q?('、'+s.q+' 題練習'):'')
       +'。確認後按「新增」才會建立'
       +((old||!s.q)?'':'；練習題會在課建好之後一起建'));};
+  inp.click();};
+/* ANSIN_V1493 只匯入參考答案。Quinn：「參考答案那邊，我會提供給你教師手冊，你自行幫我匯入」——
+   我沒辦法寫她的資料庫，只能把答案填進 Excel 再由她匯回來。
+   現成的「從 Excel 匯入」(lxIn) 不能用：那一支對「已經存在的課」會把練習題整批丟掉
+   （LXQS=[]），而且是整課覆蓋。這一支只做一件事：
+   照「題目」文字對出是哪一題，只寫 answer，其他欄位一個字都不碰。 */
+function ansNorm(t){return String(t==null?'':t).replace(/\s+/g,'').replace(/[＿_]{2,}/g,'＿＿').trim();}
+function ansParse(q,raw){
+  const t=String(raw==null?'':raw).trim();
+  if(!t)return null;
+  if(q.type==='choice'){const n=Number(t.replace(/[^0-9]/g,''));
+    return (n>=1&&n<=((q.options||[]).length||99))?(n-1):undefined;}
+  return t.split(/[｜|\/／\n]/).map(x=>x.trim()).filter(Boolean);}
+H.ansIn=()=>{
+  if(typeof XLSX==='undefined'){toast('匯入元件還在載入，請過幾秒再按一次');return;}
+  const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls';
+  inp.onchange=async()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    let rows,lesName='',lesBook='';
+    try{
+      const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+      const shQ=wb.Sheets['練習'];
+      if(!shQ){toast('這個檔裡沒有「練習」那一張表。請用課卡上的「⬇ 抓成 Excel」匯出的檔。');return;}
+      rows=XLSX.utils.sheet_to_json(shQ,{defval:''});
+      const shC=wb.Sheets['課程'];
+      if(shC){const c=XLSX.utils.sheet_to_json(shC,{defval:''})[0]||{};
+        lesName=String(c['課名']||'').trim();lesBook=String(c['教材']||'').trim();}
+    }catch(e){toast('讀不到這個檔：'+((e&&e.message)||e));return;}
+    if(!rows.length){toast('「練習」那一張表是空的');return;}
+    /* 先找出是哪一課 */
+    const cand=(S.lessons||[]).filter(l=>l&&!l.deleted_at
+      &&String(l.title||'').trim()===lesName
+      &&(!lesBook||String(l.textbook||'').trim()===lesBook));
+    if(!cand.length){toast('對不到課：檔案寫的是「'+(lesName||'（沒有課名）')+'」，平台上找不到同名的課');return;}
+    const l=cand[0];
+    const qs=(S.questions||[]).filter(q=>q&&q.lesson_id===l.id);
+    const byP={};qs.forEach(q=>{const k=ansNorm(q.prompt);if(k&&!(k in byP))byP[k]=q;});
+    const jobs=[];let miss=0,same=0,blank=0;
+    rows.forEach(r=>{
+      const pr=ansNorm(r['題目']);const raw=String(r['答案']==null?'':r['答案']).trim();
+      if(!pr)return;
+      if(!raw){blank++;return;}
+      const q=byP[pr];
+      if(!q){miss++;return;}
+      if(q.type==='note')return;
+      const nv=ansParse(q,raw);
+      if(nv===undefined){miss++;return;}
+      if(JSON.stringify(nv)===JSON.stringify(q.answer==null?null:q.answer)){same++;return;}
+      jobs.push({q,nv});});
+    if(!jobs.length){toast('沒有要更新的：'+same+' 題本來就一樣、'+blank+' 題答案欄是空的'
+      +(miss?('、'+miss+' 題對不上'):''));return;}
+    if(!confirm('這一課：「'+(l.title||'')+'」\n\n要寫入 '+jobs.length+' 題的參考答案嗎？\n'
+      +'（'+same+' 題本來就一樣會跳過、'+blank+' 題答案欄空白會跳過'
+      +(miss?('、'+miss+' 題題目對不上會跳過'):'')+'）\n\n只會動「答案」，題目、選項、說明都不碰。'))return;
+    try{
+      await ensureAuthFresh();
+      for(const j of jobs){await DB.update('questions',j.q.id,{answer:j.nv});j.q.answer=j.nv;}
+      render();toast('寫好了：'+jobs.length+' 題的參考答案');
+    }catch(e){toast(writeErr('寫不進去',e));}};
   inp.click();};
 H.clImport=()=>{
   if(typeof XLSX==='undefined'){toast('匯入元件還在載入，請過幾秒再按一次');return;}
