@@ -23056,19 +23056,31 @@ document.addEventListener('blur',(e)=>{const t=e.target;
     hhmmMark(t);}},true);
 function clUpdateCalc(){const el=document.getElementById('cl-calc');if(!el)return;const s=CLOG_STU;if(!s){el.textContent='';return;}
   const st=(document.getElementById('cl-start')||{}).value||'',en=(document.getElementById('cl-end')||{}).value||'';
-  const e={start:hhmmNorm(st),end:hhmmNorm(en)};const h=logHours(e);
-  if(isHourly(s)){
+  /* CALC2_V1488 這一行預覽本來一律用學生的計費方式和單價算，所以兩種身分的學生
+     選了「一對一」還是拿團班的價錢在算（Quinn：「這邊不是寫 1 對 1 嗎？」）。
+     改成照上面那一格選的種類算。 */
+  const _ct=(((document.getElementById('cl-ctype')||{}).value)==='solo')?'solo':(isBoth(s)?'group':undefined);
+  const e={start:hhmmNorm(st),end:hhmmNorm(en),ctype:_ct};const h=logHours(e);
+  const _who=isBoth(s)?((_ct==='solo')?'一對一':'團班'):'';
+  const _tag=_who?('<span class="muted">（'+_who+'）</span> '):'';
+  if(eHourly(s,e)){
     if(h==null){el.innerHTML='<span style="color:#A33227">填好起訖時間就會自動算時數與費用</span>';return;}
     const fee=lessonFee(s,e);const left=sessionsLeft(s);
     const after=(left==null)?null:Math.round((left-h)*100)/100;
-    el.innerHTML=`⏱ 這堂 <b>${fmtQty(h)}</b> 小時${fee!=null?` · 費用 <b>${money(fee,s.currency)}</b>`:''}${after!=null?` · 記錄後剩 <b style="color:${after<0?'#A33227':(after<=1?'#A33227':'#1F6A54')}">${fmtQty(after)}</b> 小時${after<0?'（會超過購買時數）':''}`:''}`;
+    el.innerHTML=`${_tag}⏱ 這堂 <b>${fmtQty(h)}</b> 小時${fee!=null?` · 費用 <b>${money(fee,s.currency)}</b>`:(isBoth(s)?' · <span style="color:#A33227">這一邊的單價還沒設定</span>':'')}${after!=null?` · 記錄後剩 <b style="color:${after<0?'#A33227':(after<=1?'#A33227':'#1F6A54')}">${fmtQty(after)}</b> 小時${after<0?'（會超過購買時數）':''}`:''}`;
   }else{
-    el.innerHTML=h!=null?`⏱ 這堂 ${fmtQty(h)} 小時 · 以「每堂」計費，扣 1 堂`:'';
+    const _f1=lessonFee(s,e);
+    el.innerHTML=`${_tag}⏱ ${h!=null?('這堂 '+fmtQty(h)+' 小時 · '):''}以「每堂」計費，扣 1 堂`
+      +(_f1!=null?` · 費用 <b>${money(_f1,s.currency)}</b>`:(isBoth(s)?' · <span style="color:#A33227">這一邊的單價還沒設定</span>':''));
   }}
 document.addEventListener('input',(e)=>{const t=e.target;if(t&&(t.id==='cl-start'||t.id==='cl-end'))setTimeout(clUpdateCalc,0);});
+/* CALC2_V1488 換「這一堂是」也要重算 */
+document.addEventListener('change',(e)=>{const t=e.target;if(t&&t.id==='cl-ctype')setTimeout(clUpdateCalc,0);});
 function payCalc(pfx,fromAmount){const el=document.getElementById(pfx+'-calc');const s=PAY_STU;if(!el||!s)return;
   const aEl=document.getElementById(pfx+'-amount'),sEl=document.getElementById(pfx+'-sess');if(!aEl||!sEl)return;
   const amt=Number(aEl.value);const unit=isHourly(s)?'小時':'堂';
+  /* CALC2_V1488 兩種身分的學生有兩個單價，沒辦法用一個單價回推堂數，不要亂猜 */
+  if(isBoth(s)){el.innerHTML='<span class="muted">這位學生團班和一對一單價不同，堂數請自己填。</span>';return;}
   const price=Number(s.tuition);
   if(!price||!amt||isNaN(amt)){el.innerHTML=s.tuition==null?'<span style="color:#A33227">這位學生還沒設定學費，沒辦法自動換算</span>':'';return;}
   const n=Math.round((amt/price)*100)/100;
