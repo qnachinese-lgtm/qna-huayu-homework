@@ -4961,7 +4961,11 @@ function weekActualCard(back){
      但那個時間根本不是這一班的，標了也只是把錯的東西講得客氣一點。
      老師沒設過就顯示「—」，不要編。 */
   const _clsSch=(c)=>{if(!(c in _cSch)){try{_cSch[c]=classSchedSet(c);}catch(err){_cSch[c]=[];}}return _cSch[c];};
-  (S.students||[]).forEach(s=>{if(s.deleted||s.is_test)return;const grp=(s.class_type==='團班'&&stuGroups(s)[0])||'';(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date||e.date<start||e.date>end)return;
+  (S.students||[]).forEach(s=>{if(s.deleted||s.is_test)return;(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date||e.date<start||e.date>end)return;
+    /* CALBOTH_V1492 本來是看「這個學生是不是團班」，所以「兩種都有」的學生整個被當成
+       一對一，她的團班課在課表上自己一列，不會跟全班合併（Quinn 要做課表這一段）。
+       改成看「這一堂是不是團班」——上課記錄上已經有標記了。 */
+    const grp=(eIsGrp(s,e)&&stuGroups(s)[0])||'';
     /* 沒填時段就用固定時段補，補出來的標成 guess */
     let _st=e.start||'',_en=e.end||'',_gs=false;
     if(!_st&&!_en){const _sl=(grp?wkSlotOf(_clsSch(grp),e.date):null)||wkSlotOf(s.schedule,e.date);
