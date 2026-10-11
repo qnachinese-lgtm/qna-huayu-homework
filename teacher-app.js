@@ -16204,6 +16204,16 @@ function vsPrint(ids){
     return head+vs.map(v=>{n++;return '<div class="dq"><span class="dn">'+n+'.</span>'
       +'<span class="cl">'+E(v.py||v.back||'（看老師唸）')+'</span>'
       +(ans?('<span class="an">'+E(v.front)+'</span>'):boxes(v.front))+'</div>';}).join('');}).join('');};
+  /* TZG_V1496 寫字練習紙的字：這一課生詞裡的每一個漢字，去掉重複，照生詞的順序。
+     Quinn：「我希望的就是有一個地方給學生做手寫，因爲他們真的要手寫才會記得字怎麼寫」。
+     印出來那一頁上可以自己改、自己貼別的字，不用回來重出一份。 */
+  const TZCJK=/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/;
+  const tzSrc=(function(){const seen={},out=[];
+    ws.forEach(v=>{[...String((v&&v.front)||'')].forEach(c=>{
+      if(!TZCJK.test(c)||seen[c])return;
+      seen[c]=1;out.push({c:c,w:String((v&&v.front)||''),p:String((v&&v.py)||'')});});});
+    return out;})();
+  const tzChars=tzSrc.map(x=>x.c).join('');
   /* 生詞表是發下去的講義，不用寫名字；聽寫卷和答案卷要。 */
   const hd=(sub,who)=>'<div class="hd"><b>'+E(title)+'</b><span>'+E(sub)+'</span></div>'
     +(who?'<div class="who">姓名：＿＿＿＿＿＿＿＿　日期：＿＿＿＿／＿＿＿＿</div>':'<div style="height:5mm"></div>');
@@ -16215,7 +16225,29 @@ function vsPrint(ids){
    +'.bar button.on{background:#1E4C86;border-color:#1E4C86;color:#fff}'
    +'.bar button.go{background:#0F2740;border-color:#0F2740;color:#fff}'
    +'.sheet{width:210mm;min-height:297mm;margin:10px auto;padding:16mm 14mm;background:#fff;box-shadow:0 2px 12px rgba(22,32,46,.12)}'
-   +'body.a .s2,body.a .s3,body.b .s1,body.b .s3,body.c .s1,body.c .s2{display:none}'
+   /* TZG_V1496 四張了，改成「一律藏起來，只開現在這一張」，以後再加也不用重寫 */
+   +'.sheet{display:none}body.a .s1,body.b .s2,body.c .s3,body.d .s4{display:block}'
+   /* TZG_V1496 田字格：一字一行，第一格印深色範字，接著幾格淺色給學生描，其餘留空。 */
+   +'#tzbar{max-width:210mm;margin:0 auto 10px;display:none;gap:12px;justify-content:center;'
+   +'align-items:center;flex-wrap:wrap;font-size:13.5px;color:#30486A}'
+   +'#tzbar label{display:inline-flex;align-items:center;gap:5px}'
+   +'#tzbar select,#tzbar input[type=text]{font:inherit;padding:6px 8px;border:1.5px solid #C0CEE0;'
+   +'border-radius:8px;background:#fff;color:#16202E}'
+   +'#tzs{width:min(60vw,430px)}'
+   +'.tzr{display:flex;align-items:center;break-inside:avoid;page-break-inside:avoid;margin-bottom:1.8mm}'
+   +'.tzl{width:24mm;flex:none;padding-right:2.5mm;text-align:right;line-height:1.35}'
+   +'.tzl b{display:block;font-size:13px;color:#16202E;font-weight:700;'
+   +'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+   +'.tzl span{display:block;font-size:10.5px;color:#5B6B80}'
+   +'.tzc{display:flex}'
+   +'.tz{position:relative;flex:none;border:1px solid #9FB4CC;border-left-width:0;overflow:hidden}'
+   +'.tz:first-child{border-left-width:1px}'
+   +'.tz::before{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px dashed #C7D5E6}'
+   +'.tz::after{content:"";position:absolute;top:0;bottom:0;left:50%;border-left:1px dashed #C7D5E6}'
+   +'.tz i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;'
+   +'font-style:normal;line-height:1}'
+   +'.tz.s i{color:#16202E}.tz.t i{color:#C3D0E0}'
+   +'.tzempty{color:#5B6B80;font-size:14px;line-height:1.8}'
    +'.hd{display:flex;align-items:baseline;gap:10px;border-bottom:2px solid #1E4C86;padding-bottom:3mm}'
    +'.hd b{font-size:19px}.hd span{font-size:14px;color:#5B6B80}'
    +'.who{margin:4mm 0 6mm;font-size:14px;color:#5B6B80}'
@@ -16247,15 +16279,68 @@ function vsPrint(ids){
    +'@media print{.bar{display:none}body{background:#fff}.sheet{margin:0;box-shadow:none;width:auto;min-height:0;padding:12mm}}'
    +'</style></head><body class="a">'
    +'<div class="bar"><span style="font-size:14px;color:#5B6B80">要印哪一張：</span>'
-   +'<button id="b1" class="on" onclick="document.body.className=\'a\';b1.className=\'on\';b2.className=\'\';b3.className=\'\'">生詞表</button>'
-   +'<button id="b2" onclick="document.body.className=\'b\';b2.className=\'on\';b1.className=\'\';b3.className=\'\'">聽寫卷</button>'
-   +'<button id="b3" onclick="document.body.className=\'c\';b3.className=\'on\';b1.className=\'\';b2.className=\'\'">答案卷</button>'
+   /* TZG_V1496 四顆了，切換那段 JS 收進 SW()，不然每顆都要寫一串 className */
+   +'<button id="b1" class="on" onclick="SW(\'a\')">生詞表</button>'
+   +'<button id="b2" onclick="SW(\'b\')">聽寫卷</button>'
+   +'<button id="b3" onclick="SW(\'c\')">答案卷</button>'
+   +'<button id="b4" onclick="SW(\'d\')">✍️ 寫字練習紙</button>'
    /* PRTICON_V1460 這顆按鈕上一直印著「U0001F5A8 列印」。JS 沒有 \U 這種跳脫，
       反斜線被吃掉就剩那一串字。改成 \u{...}（小寫 u 加大括號才是 JS 的寫法）。 */
    +'<button class="go" onclick="window.print()">\u{1F5A8} 列印 / 存成 PDF</button></div>'
+   /* TZG_V1496 練習紙的設定列：切到「寫字練習紙」才出現，改了馬上重排 */
+   +'<div id="tzbar">'
+   +'<label>每個字幾格 <select id="tzn">'
+   +'<option value="6">6</option><option value="8">8</option>'
+   +'<option value="10" selected>10</option><option value="12">12</option></select></label>'
+   +'<label>描紅 <select id="tzt">'
+   +'<option value="1">前 1 格</option><option value="2" selected>前 2 格</option>'
+   +'<option value="3">前 3 格</option><option value="5">前 5 格</option>'
+   +'<option value="99">全部都描</option><option value="0">不要</option></select></label>'
+   +'<label><input type="checkbox" id="tzp" checked style="width:auto;margin:0"> 印生詞和拼音</label>'
+   +'<label title="可以自己改，或者貼別的字進來">要練哪些字 '
+   +'<input type="text" id="tzs" value="'+E(tzChars)+'" placeholder="貼中文字進來"></label>'
+   +'</div>'
    +'<div class="sheet s1">'+hd('生詞表（共 '+ws.length+' 個詞）',false)+'<table><tr><th></th><th>生詞</th><th>拼音</th><th>詞性</th><th>意思</th><th>例句</th></tr>'+rows+'</table></div>'
    +'<div class="sheet s2">'+hd('聽寫卷（共 '+ws.length+' 題）',true)+dict(false)+'</div>'
    +'<div class="sheet s3">'+hd('聽寫卷・答案（共 '+ws.length+' 題）',true)+dict(true)+'</div>'
+   /* TZG_V1496 第四張：寫字練習紙。格子是上面那排設定即時排出來的，所以這裡先留空。 */
+   +'<div class="sheet s4">'+hd('寫字練習紙',true)+'<div id="tzrows"></div></div>'
+   /* TZG_V1496 切換四張紙＋排田字格。寫在這裡（body 尾），上面的 onclick 點下去才解析。 */
+   +'<script>var TZ='+JSON.stringify(tzSrc)+';'
+   +'var TZK=["a","b","c","d"],TZT='+JSON.stringify([title+'　生詞表',
+       title+'　聽寫卷',title+'　聽寫卷・答案',
+       title+'　寫字練習紙'])+';'
+   +'function SW(k){document.body.className=k;'
+   +'TZK.forEach(function(x,i){var b=document.getElementById("b"+(i+1));if(b)b.className=(x===k?"on":"");});'
+   +'var t=document.getElementById("tzbar");if(t)t.style.display=(k==="d"?"flex":"none");'
+   /* 存成 PDF 的檔名＝這一頁的 title，所以換紙也要換標題，四份才不會同名 */
+   +'try{var _i=TZK.indexOf(k);if(_i>=0)document.title=TZT[_i];}catch(e){}'
+   +'if(k==="d")TZR();}'
+   +'function TZR(){var box=document.getElementById("tzrows");if(!box)return;'
+   +'var raw=String((document.getElementById("tzs")||{}).value||"");'
+   +'var n=Number((document.getElementById("tzn")||{}).value||10);'
+   +'var tn=Number((document.getElementById("tzt")||{}).value||2);'
+   +'var py=!!((document.getElementById("tzp")||{}).checked);'
+   +'var re=/[\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF]/;'
+   +'var map={};TZ.forEach(function(x){if(!map[x.c])map[x.c]=x;});'
+   /* 貼進來的字也吃：只留漢字、去掉重複 */
+   +'var seen={},cs=[];for(var i=0;i<raw.length;i++){var c=raw.charAt(i);'
+   +'if(!re.test(c)||seen[c])continue;seen[c]=1;cs.push(c);}'
+   /* 螢幕上這張紙的可寫寬度是 182mm（列印時 186mm，比較寬），
+      所以照 182 算，兩邊都塞得下。減掉左邊 24mm 的標籤欄，格子最大 18mm。 */
+   +'var cw=Math.min(18,Math.floor((182-24)/n*10)/10),fs=Math.round(cw*0.72*10)/10;'
+   +'box.innerHTML=cs.map(function(c){var m=map[c]||{},cells="";'
+   +'for(var j=0;j<n;j++){var cl=(j===0)?" s":((j>=1&&j<=tn)?" t":"");'
+   +'cells+=\'<div class="tz\'+cl+\'" style="width:\'+cw+\'mm;height:\'+cw+\'mm">\''
+   +'+(cl?(\'<i style="font-size:\'+fs+\'mm">\'+c+"</i>"):"")+"</div>";}'
+   +'var lab=(py&&(m.w||m.p))?(\'<b>\'+(m.w||"")+"</b>"+(m.p?(\'<span>\'+m.p+"</span>"):"")):"";'
+   +'return \'<div class="tzr"><div class="tzl">\'+lab+\'</div><div class="tzc">\'+cells+"</div></div>";'
+   +'}).join("")||\'<div class="tzempty">上面「要練哪些字」裡貼幾個中文字進去，就排成練習紙。</div>\';'
+   +'var h=document.querySelector(".s4 .hd span");'
+   +'if(h)h.textContent="寫字練習紙（共 "+cs.length+" 個字）";}'
+   +'["tzn","tzt","tzp","tzs"].forEach(function(id){var e=document.getElementById(id);'
+   +'if(e){e.addEventListener("change",TZR);e.addEventListener("input",TZR);}});'
+   +'TZR();<'+'/script>'
    +'</body></html>';
   fbWin(html);
 };
