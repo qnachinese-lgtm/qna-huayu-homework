@@ -17925,6 +17925,9 @@ H.ntDel=(i)=>{ntSync();NT.splice(Number(i),1);ntRender();};
 function ntCollect(){ntSync();return NT.map(n=>({title:(n.title||'').trim(),blocks:[{label:'',text:(n.text||'').trim(),ex:(n.ex||'').trim()}]})).filter(n=>n.title||n.blocks[0].text||n.blocks[0].ex);}
 /* ===== 語法點結構化編輯器 ===== */
 let GP=[];const GP_PRESETS=['說明','例句','功能','結構','否定','疑問','用法'];
+/* EDSLIM_V1498 Quinn 確認常用的是說明・例句・功能・結構，其餘三個＋自訂收進「⋯ 更多」。
+   GP_PRESETS 本身不動——下面那個 datalist 還是要能打出全部七個標籤。 */
+const GP_MAIN=['說明','例句','功能','結構'],GP_MORE=['否定','疑問','用法'];
 function gpInit(l){
   if(l&&Array.isArray(l.grammar_points)&&l.grammar_points.length){
     GP=l.grammar_points.map(g=>({title:g.title||'',seg:g.seg||'',blocks:(g.blocks||[]).map(b=>({label:b.label||'',text:b.text||'',ex:b.ex||'',img:b.img||'',exAudio:Array.isArray(b.exAudio)?b.exAudio.slice():[]}))}));
@@ -17968,7 +17971,8 @@ function gpExAudioHtml(gi,bi){const b=GP[gi].blocks[bi];if((b.label||'').trim()=
 function gpImgHtml(gi,bi){const b=(GP[gi]&&GP[gi].blocks[bi])||{};const u=(b.img||'').trim();
   return u
     ? `<div class="gp-imgbox"><img src="${esc(u)}" alt=""><span class="hint">課本圖表</span><button type="button" class="btn btn-sm" data-act="gpImgPick" data-id="${gi}::${bi}">換一張</button><button type="button" class="btn btn-sm btn-ghost" data-act="gpImgDel" data-id="${gi}::${bi}">移除</button></div>`
-    : `<div class="gp-imgbox"><button type="button" class="btn btn-sm" data-act="gpImgPick" data-id="${gi}::${bi}">🖼 加課本圖表</button><span class="hint" id="gpimg-st-${gi}-${bi}">選填，會顯示在說明和例句中間</span></div>`;}
+    /* EDSLIM_V1498 沒放圖的時候收成一行；放了圖就照常顯示出來 */
+    : `<details class="gp-imgfold"><summary>🖼 課本圖表<span class="hint">選填</span></summary><div class="gp-imgbox"><button type="button" class="btn btn-sm" data-act="gpImgPick" data-id="${gi}::${bi}">🖼 加課本圖表</button><span class="hint" id="gpimg-st-${gi}-${bi}">會顯示在說明和例句中間</span></div></details>`;}
 function refreshGpImg(gi,bi){const el=document.getElementById('gpimg-'+gi+'-'+bi);if(el)el.innerHTML=gpImgHtml(gi,bi);}
 H.gpImgPick=(key)=>{const p=String(key).split('::').map(Number);const st=document.getElementById('gpimg-st-'+p[0]+'-'+p[1]);
   const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.style.display='none';document.body.appendChild(inp);
@@ -18029,9 +18033,13 @@ function gpRender(){const wrap=document.getElementById('gp-editor');if(!wrap)ret
       <select class="gp-seg" data-gi="${gi}" title="這個語法點放在哪一段課文後面" style="flex:0 0 auto;width:auto">${gpSegOpts(g.seg)}</select>
       <button class="btn btn-sm btn-danger" type="button" data-act="gpDel" data-id="${gi}">刪除</button></div>
       ${blocks}
-      <div class="gp-addrow"><span class="gp-addlbl">加區塊：</span><button class="gp-chip gp-chip-sec" type="button" data-act="gpBlockAdd" data-id="${gi}::小節">＋小節 A／B</button>${GP_PRESETS.map(p=>`<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::${p}">${p}</button>`).join('')}<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::">＋自訂</button></div>
-      <div class="gp-ex-hint">💡 這個語法的 <b>練習題（Exercise）</b>：先按下面「儲存」，再到課文卡上點「<b>練習題</b>」新增題目，把「<b>屬於哪個語法點</b>」選成「<b>語法 ${gi+1}</b>」——學生看完這個語法的解釋後，就會接著做這些練習。</div></div></details>`;
-  }).join('')+addBtn+dl;
+      <div class="gp-addrow"><span class="gp-addlbl">加區塊：</span><button class="gp-chip gp-chip-sec" type="button" data-act="gpBlockAdd" data-id="${gi}::小節">＋小節 A／B</button>${GP_MAIN.map(p=>`<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::${p}">${p}</button>`).join('')}<details class="gp-morechip"><summary class="gp-chip">⋯ 更多</summary><span class="gp-morerow">${GP_MORE.map(p=>`<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::${p}">${p}</button>`).join('')}<button class="gp-chip" type="button" data-act="gpBlockAdd" data-id="${gi}::">＋自訂</button></span></details></div></div></details>`;
+  }).join('')
+  /* EDSLIM_V1498 這段「練習題怎麼出」的說明本來每一個語法點都印一次——五個語法點就印五次，
+     一字不差。改成整個語法區底下只印一次。 */
+  +'<div class="gp-ex-hint">💡 <b>練習題（Exercise）</b>：先按下面「儲存」，再到課文卡上點「<b>練習題</b>」新增題目，'
+  +'把「<b>屬於哪個語法點</b>」選成對應的那一個——學生看完那個語法的解釋後，就會接著做這些練習。</div>'
+  +addBtn+dl;
   wrap.querySelectorAll('details.gp-card').forEach((det,gi)=>det.addEventListener('toggle',()=>{if(GP[gi])GP[gi]._open=det.open;}));}
 H.gpAdd=()=>{gpSync();GP.push({title:'',blocks:[{label:'說明',text:'',ex:''}],_open:true});gpRender();};
 H.gpFoldAll=()=>{gpSync();const anyClosed=GP.some(g=>!g._open);GP.forEach(g=>g._open=anyClosed);gpRender();};
@@ -18060,34 +18068,44 @@ function dlgSync(){DLG.forEach((d,i)=>{
   const q=document.querySelector('.dlg-disc-in[data-i="'+i+'"]');if(q)d.discussion=q.value;
   const im=document.querySelector('.dlg-img-in[data-i="'+i+'"]');if(im)d.image_url=im.value.trim();});}
 function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)return;
-  wrap.innerHTML=DLG.map((d,i)=>`<details class="dlg-card edit-fold"${d._open?' open':''}><summary class="edit-fold-sum"><span class="gp-no">段 ${i+1}</span><span class="edit-fold-title">${esc((d.title||'').trim()||'（未命名）')}</span><span class="edit-fold-caret">▾</span></summary><div class="edit-fold-body"><div class="dlg-card-head">
+  /* EDSLIM_V1498 Quinn：「編輯教材那邊，太多太複雜的東西了」，而且接下來要交給另一位管理員。
+     量出來：一段對話 10 個格子＋8 顆按鈕，整個視窗展開有 3252px（螢幕一次只看得到 900）。
+     她確認每課都會用的只有：標題・課文・拼音・生詞。其餘六項收進「其他（選填）」，
+     但只要那一課本來就填過其中任何一項，這一折預設是打開的——不然她會以為資料不見了。 */
+  wrap.innerHTML=DLG.map((d,i)=>{
+    const xtraFilled=!!(String(d.image_url||'').trim()||String(d.content_en||'').trim()
+      ||String(d.vocab_vi||'').trim()||String(d.audio_url||'').trim()
+      ||String(d.vocab_audio_url||'').trim()||String(d.discussion||'').trim());
+    return `<details class="dlg-card edit-fold"${d._open?' open':''}><summary class="edit-fold-sum"><span class="gp-no">段 ${i+1}</span><span class="edit-fold-title">${esc((d.title||'').trim()||'（未命名）')}</span><span class="edit-fold-caret">▾</span></summary><div class="edit-fold-body"><div class="dlg-card-head">
     <input class="dlg-title-in" data-i="${i}" value="${esc(d.title||'')}" placeholder="請填這一段的標題">
     ${DLG.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="dlgDel" data-id="${i}">刪除</button>`:''}</div>
     <label class="dlg-lbl">課文／對話</label><textarea class="dlg-content-in" data-i="${i}" style="min-height:100px" placeholder="貼上或輸入這段對話／課文…">${esc(d.content||'')}</textarea>
-    <label class="dlg-lbl">🖼 情境圖片 <span class="hint">選填。上傳一張圖或貼網址，學生在這段課文上方會看到。</span></label>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input class="dlg-img-in" id="dlg-img-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.image_url||'')}" placeholder="上傳圖片，或貼圖片網址"><button class="btn btn-sm" type="button" data-act="pickDlgImg" data-id="${i}">⬆ 上傳圖片</button><button class="btn btn-sm btn-danger" type="button" data-act="dlgImgClear" data-id="${i}" style="${d.image_url?'':'display:none'}">移除</button><input type="file" id="file-dlgimg-${i}" class="hide" accept="image/*"><span class="hint" id="dlgimg-st-${i}"></span></div>
-    <img id="dlgimg-prev-${i}" src="${esc(d.image_url||'')}" style="${d.image_url?'':'display:none;'}max-width:200px;max-height:140px;border:1px solid #DCE5F0;border-radius:6px;margin-top:6px">
-    <label class="dlg-lbl">課文拼音 Text in Pinyin </label>
+    <label class="dlg-lbl">課文拼音</label>
     <textarea class="dlg-py-in" data-i="${i}" placeholder="這一段課文的拼音">${esc(d.content_py||'')}</textarea>
-    <label class="dlg-lbl">課文英譯 Text in English <span class="hint">選填。課本的英譯整段貼上，學生點開才看到。</span></label>
-    <textarea class="dlg-en-in" data-i="${i}" placeholder="這一段課文的英譯">${esc(d.content_en||'')}</textarea>
-    <label class="dlg-lbl">生詞 <span class="hint">每行一個。格式：<b>詞 (詞類)=英文翻譯</b>；自訂拼音加 <b>[拼音]</b>。<b>例句（時代華語）</b>：在那個詞的下一行用「<b>-</b>」開頭打，可打多句。</span></label>
-    <div class="act-row" style="margin:0 0 6px"><button class="btn btn-sm" type="button" data-act="dlgAutoPinyin" data-id="${i}">✨ 自動加拼音</button> <span class="hint">幫沒有 [拼音] 的詞自動補上(可再改)</span></div>
+    <label class="dlg-lbl">生詞 <span class="hint">一行一個：<b>詞 (詞類)=英文</b>；自訂拼音加 <b>[拼音]</b>。例句用「<b>-</b>」開頭打在下一行。</span></label>
+    <div class="act-row" style="margin:0 0 6px"><button class="btn btn-sm" type="button" data-act="dlgAutoPinyin" data-id="${i}">✨ 自動加拼音</button> <span class="hint">幫沒有 [拼音] 的詞補上，補完可以再改</span></div>
     <textarea class="dlg-vocab-in" data-i="${i}" placeholder="高興 (Vs)=happy[gāoxìng]&#10;- 我今天很高興。&#10;- 他高興得跳起來。&#10;香蕉 (N)=banana&#10;- 我買了三根香蕉。">${esc(d.vocabulary||'')}</textarea>
     <details class="vocab-imp"><summary>📋 批次匯入生詞（從 Excel／表格貼上）</summary>
       <div class="hint" style="margin:6px 0">欄位用 <b>｜</b>（課本格式）或 <b>Tab</b>（Excel）隔開，順序：<b>詞 ｜ 詞類 ｜ 翻譯 ｜ 例句1 ｜ 例句2…</b>。沒有詞類就留空；一個詞多個例句就再加一個 ｜。<b>課本整段一次貼上也可以</b>（詞與詞之間用空白，系統會自動拆成一個一個）。按按鈕自動排好、加到上面生詞欄。</div>
       <textarea class="dlg-imp-in" data-i="${i}" placeholder="夢想｜N｜dream｜美美最大的夢想是有一棟大房子。 夢｜N｜dream｜晚安！希望你有個好夢。 明星｜N｜star"></textarea>
       <button class="btn btn-sm btn-accent" type="button" data-act="vocabImport" data-id="${i}" style="margin-top:6px">⬇ 轉換並加入生詞欄</button></details>
-    <label class="dlg-lbl">生詞越南文翻譯 <span class="hint">一行一個，<b>順序對齊上面的生詞</b>（第1行＝第1個生詞…，例句行不算）。要學生看得到，記得在最上面勾「公開生詞越南文」。</span></label>
+
+    <details class="ed-xtra"${xtraFilled?' open':''}><summary class="ed-xtra-sum">其他（選填）<span class="ed-xtra-what">情境圖片・英譯・越南文・音檔・討論題</span><span class="ed-xtra-caret">▾</span></summary><div class="ed-xtra-body">
+    <label class="dlg-lbl">🖼 情境圖片 <span class="hint">學生在這段課文上方會看到。</span></label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input class="dlg-img-in" id="dlg-img-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.image_url||'')}" placeholder="上傳圖片，或貼圖片網址"><button class="btn btn-sm" type="button" data-act="pickDlgImg" data-id="${i}">⬆ 上傳圖片</button><button class="btn btn-sm btn-danger" type="button" data-act="dlgImgClear" data-id="${i}" style="${d.image_url?'':'display:none'}">移除</button><input type="file" id="file-dlgimg-${i}" class="hide" accept="image/*"><span class="hint" id="dlgimg-st-${i}"></span></div>
+    <img id="dlgimg-prev-${i}" src="${esc(d.image_url||'')}" style="${d.image_url?'':'display:none;'}max-width:200px;max-height:140px;border:1px solid #DCE5F0;border-radius:6px;margin-top:6px">
+    <label class="dlg-lbl">課文英譯 <span class="hint">課本的英譯整段貼上，學生點開才看到。</span></label>
+    <textarea class="dlg-en-in" data-i="${i}" placeholder="這一段課文的英譯">${esc(d.content_en||'')}</textarea>
+    <label class="dlg-lbl">生詞越南文翻譯 <span class="hint">一行一個，<b>順序對齊上面的生詞</b>（例句行不算）。要學生看得到，記得在最上面勾「公開生詞越南文」。</span></label>
     <div style="margin:2px 0 6px"><button class="btn btn-sm" type="button" data-act="viGen" data-id="${i}">✨ AI 幫我翻越南文（草稿）</button></div>
     <textarea class="dlg-vocabvi-in" data-i="${i}" placeholder="一行一個，順序對齊上面的生詞">${esc(d.vocab_vi||'')}</textarea>
-    <label class="dlg-lbl">這段的課文音檔（上傳整段朗讀，會自動切成逐句） </label>
+    <label class="dlg-lbl">這段的課文音檔 <span class="hint">上傳整段朗讀，會自動切成逐句。</span></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="dlg-audio-in" id="dlg-audio-${i}" data-i="${i}" type="text" style="flex:1;min-width:160px" value="${esc(d.audio_url||'')}" placeholder="上傳整段朗讀，或貼 mp3／YouTube 連結">
       <button class="btn" type="button" data-act="pickDlgAudio" data-id="${i}">⬆ 上傳並切逐句</button></div>
     <input type="file" id="file-dlgaud-${i}" class="hide" accept="audio/*">
     <div class="hint" id="dlgaud-status-${i}" style="margin-top:4px">${(d.line_segments&&d.line_segments.length)?('逐句已切：'+d.line_segments.length+' 句（學生逐句跟讀會用真人朗讀）'):''}</div>
     <div id="la-preview-${i}" style="margin-top:8px"></div>
-    <label class="dlg-lbl">這段生詞的真人發音（自動切割） <span class="hint">上傳依序唸生詞的錄音（字間要停頓），系統自動切片給生詞卡用。</span></label>
+    <label class="dlg-lbl">這段生詞的真人發音 <span class="hint">上傳依序唸生詞的錄音（字間要停頓），系統自動切片給生詞卡用。</span></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-sm" type="button" data-act="pickVocabAudio" data-id="${i}">⬆ 上傳並自動切割</button>
       <input type="file" id="file-va-${i}" class="hide" accept="audio/*">
@@ -18100,7 +18118,8 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
     <div id="va-preview-${i}" style="margin-top:8px"></div>
     <label class="dlg-lbl">問題與討論 <span class="hint">每行一題。學生在「課文」看得到，可打字作答送給你批改。</span></label>
     <textarea class="dlg-disc-in" data-i="${i}" placeholder="一行一題">${esc(d.discussion||'')}</textarea>
-    </div></details>`).join('')+'<div class="edit-fold-bar"><button class="btn btn-sm" type="button" data-act="dlgAdd">＋ 新增對話／段落</button> <button class="btn btn-sm btn-ghost" type="button" data-act="dlgFoldAll">▾ 全部展開／收起</button></div>';
+    </div></details>
+    </div></details>`;}).join('')+'<div class="edit-fold-bar"><button class="btn btn-sm" type="button" data-act="dlgAdd">＋ 新增對話／段落</button> <button class="btn btn-sm btn-ghost" type="button" data-act="dlgFoldAll">▾ 全部展開／收起</button></div>';
   wrap.querySelectorAll('details.dlg-card').forEach((det,i)=>det.addEventListener('toggle',()=>{if(DLG[i])DLG[i]._open=det.open;}));
   DLG.forEach((d,i)=>{if(d._va&&d._va.loud){const c=document.getElementById('va-controls-'+i);if(c)c.classList.remove('hide');const tr=document.getElementById('va-trim-'+i);if(tr){tr.max=Math.ceil(d._va.loud.dur);tr.value=d._va.start||0;}const tv=document.getElementById('va-trim-val-'+i);if(tv)tv.textContent=(d._va.start||0).toFixed(1);const sl=document.getElementById('va-sens-'+i);if(sl&&d._va.ms)sl.value=Math.round(d._va.ms*100);vaRenderPreview(i);}});}
 H.dlgAdd=()=>{dlgSync();DLG.push({title:'對話'+(DLG_CN[DLG.length]||(DLG.length+1)),content:'',vocabulary:'',audio_url:'',vocab_audio_url:'',vocab_segments:[],_open:true});dlgRender();};
