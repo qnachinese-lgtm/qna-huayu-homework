@@ -7344,6 +7344,11 @@ function ghHasVoc(book){try{
 function ghHasHw(book){try{
   const ids={};(baLessonsOf(book)||[]).forEach(l=>{ids[l.id]=1;});
   return (S.questions||[]).some(q=>q&&q.bank==='hw'&&ids[q.lesson_id]);}catch(e){return false;}}
+/* QBOOK_V1481 題庫型教材（《華語文能力測驗關鍵詞彙 進階級》《關鍵詞 高階級》）。
+   Quinn：「這兩個教材是要用單元、題目來區分，而不是課文、生詞、練習題、作業簿。」
+   這種書一個單元就是一整套題目，所以匯出講義不要再問課文／生詞／作業簿／聽力，
+   那幾個選單整個不顯示，一律照課本順序把整個單元印出來。 */
+function ghQBook(book){return /關鍵詞/.test(String(book||''));}
 function ghLines(t){return esc(String(t==null?'':t)).replace(/\n/g,'<br>');}
 /* CLNAME_V1011 文言文的人名／地名：{荊軻} 是人名、[衛] 是地名。
    全形括號也認，因為中文輸入法打出來常常是全形。
@@ -7524,7 +7529,11 @@ function ghOptsHtml(q,withAns){
   const o=(q.options||[]).map(x=>String(x==null?'':x)).filter(x=>x.trim()!=='');
   if(!o.length)return '';
   const ai=ghAnsIdx(q);
-  const one=o.length>4||o.some(x=>x.length>14);
+  /* OPTCOL_V1481 門檻本來是 14 個字，可是量過：兩欄每欄放得下 24 個全形字。
+     14 太緊，同一大題裡只要有一題的選項 15 個字就變成一行一個，
+     旁邊幾題還是兩欄，看起來像壞掉（Quinn：「第二題爲什麼會是這樣？」）。
+     放寬到 22，留一點空間給老師版的 ✓ 和半形字。 */
+  const one=o.length>4||o.some(x=>x.length>22);
   return '<div class="gh-ops'+(one?' one':'')+'">'
     +o.map((x,i)=>{const ok=!!withAns&&ai===i;
       return '<div class="gh-op'+(ok?' ok':'')+'"><span class="gh-oi">'+GHAB.charAt(i)+'</span>'
@@ -8037,7 +8046,7 @@ function ghCss(){return ''
   +'.gh-exi{display:flex;gap:9px;margin:0 0 6px;break-inside:avoid}'
   +'.gh-exi:last-child{margin-bottom:0}'
   +'.gh-exb{flex:1;min-width:0}'
-  +'.gh-img{margin:6px 0}'
+  +'.gh-img{margin:6px 0;text-align:center}'/* IMGMID_V1481 圖本來靠左貼邊，置中 */
   /* GHIMG_V841 圖照原尺寸印太大，一張就吃掉大半頁 */
   +'.gh-img img{max-width:100%;max-height:56mm;border:1px solid var(--line);border-radius:8px}'
   +'.gh-q .gh-img img{max-width:66mm;max-height:46mm}'
@@ -8277,8 +8286,11 @@ function GHFILL(){const sel=document.getElementById('gh-book'),box=document.getE
   if(sel&&box)box.innerHTML=ghListHtml(sel.value);
   /* GHVOC_V1067 這一本有沒有生詞 */
   try{const vb=document.getElementById('gh-vocbox');
-    if(vb)vb.style.display=(sel&&ghHasVoc(sel.value))?'':'none';
+    if(vb)vb.style.display=(sel&&ghHasVoc(sel.value)&&!ghQBook(sel.value))?'':'none';
     GHVOCUI();}catch(e){}
+  /* QBOOK_V1481 題庫型教材：課文那一格也不要出現 */
+  try{const db2=document.getElementById('gh-dlgbox');
+    if(db2&&sel)db2.style.display=ghQBook(sel.value)?'none':'';}catch(e){}
   /* GHCL_V860 「只出幾句」只有文言文用得到，別本就不要出現這一區 */
   try{const w=document.getElementById('gh-clbox'),one=sel?ghHasCl(sel.value):false;
     if(w)w.style.display=one?'':'none';
@@ -8292,10 +8304,10 @@ function GHFILL(){const sel=document.getElementById('gh-book'),box=document.getE
   }catch(e){}
   /* GHBANK_V872 沒有作業簿的書就不要出現那個選單 */
   try{const bb=document.getElementById('gh-bankbox');
-    if(bb&&sel)bb.style.display=ghHasHw(sel.value)?'':'none';}catch(e){}
+    if(bb&&sel)bb.style.display=(ghHasHw(sel.value)&&!ghQBook(sel.value))?'':'none';}catch(e){}
   /* GHTR_V891 沒有聽力原文的書就不要出現那個勾選 */
   try{const tb=document.getElementById('gh-trbox');
-    if(tb&&sel)tb.style.display=ghHasTr(sel.value)?'':'none';}catch(e){}
+    if(tb&&sel)tb.style.display=(ghHasTr(sel.value)&&!ghQBook(sel.value))?'':'none';}catch(e){}
   try{ghPrefApply();}catch(e){}/* GHPREF_V883 換一本就換那一本的設定 */
   try{GHSENT();}catch(e){}}
 function GHALL(){const b=[...document.querySelectorAll('.gh-l')].filter(x=>x.type==='checkbox');
@@ -8512,7 +8524,7 @@ function ghModal(){
    /* PRINTBAR_V960 作答空間、圖片、字體、繁／簡都不在這裡先選了——
       印出來的那一頁上面按一下就換，不用回來重出一份 */
    /* GHBANK_V872 有作業簿的書才問這一題 */
-   +'<div class="field" id="gh-bankbox"'+(ghHasHw(cur)?'':' style="display:none"')+'>'
+   +'<div class="field" id="gh-bankbox"'+((ghHasHw(cur)&&!ghQBook(cur))?'':' style="display:none"')+'>'/* QBOOK_V1481 */
    +'<label>要出哪一邊的題目</label><select id="gh-bank">'
    +'<option value="auto" selected>自動 —— 哪邊有題目就出哪邊</option>'
    +'<option value="main">只出課本練習題</option>'
@@ -8522,14 +8534,14 @@ function ghModal(){
    /* GHDLG_V919 以前講義只出語法說明＋例句＋練習，課文從來不印。給一個開關。
       GHONLY_V1480 Quinn 要出「短文閱讀」練習（短文＋底下的選擇題），所以從
       勾選框改成四選一，多了「只印課文」和「只印課文和題目」。 */
-   +'<div class="field"><label>課文</label><select id="gh-dlg">'
+   +'<div class="field" id="gh-dlgbox"'+(ghQBook(cur)?' style="display:none"':'')+'><label>課文</label><select id="gh-dlg">'
    +'<option value="" selected>不印課文 —— 只印語法說明、例句和練習題</option>'
    +'<option value="1">課文也印出來</option>'
    +'<option value="only">只印課文</option>'
    +'<option value="q">只印課文和題目 —— 不印語法說明、例句、詞彙表</option>'
    +'</select></div>'
    /* GHVOC_V1067 生詞從來沒印過，這裡給一個選單 */
-   +'<div class="field" id="gh-vocbox"'+(ghHasVoc(cur)?'':' style="display:none"')+'>'
+   +'<div class="field" id="gh-vocbox"'+((ghHasVoc(cur)&&!ghQBook(cur))?'':' style="display:none"')+'>'/* QBOOK_V1481 */
    +'<label>生詞</label><select id="gh-voc" onchange="GHVOCUI()">'
    +'<option value="" selected>不印生詞</option>'
    +'<option value="full">印生詞表（生詞・拼音・詞性・意思）</option>'
@@ -8542,7 +8554,7 @@ function ghModal(){
    +'<option value="both">越南文＋英文</option>'
    +'</select><span class="hint">選了「意思留空格」的話，這裡只會影響老師版的解答頁。</span></div>'
    /* GHTR_V891 有聽力原文的書才問這一題 */
-   +'<div class="field" id="gh-trbox"'+(ghHasTr(cur)?'':' style="display:none"')+'>'
+   +'<div class="field" id="gh-trbox"'+((ghHasTr(cur)&&!ghQBook(cur))?'':' style="display:none"')+'>'/* QBOOK_V1481 */
    +'<label class="ckl" style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
    +'<input type="checkbox" id="gh-tr" style="width:auto;margin:0"> 學生版也印聽力原文'
    +'<span class="hint">預設不印——印了學生用看的就答完了。老師版一定會印。</span></label></div>'
@@ -21532,6 +21544,10 @@ H.ghGo=(mode)=>{
   GHDLG=String(((document.getElementById('gh-dlg')||{}).value)||'');/* GHONLY_V1480 */
   GHVOC=((document.getElementById('gh-voc')||{}).value)||'';/* GHVOC_V1067 */
   GHVOCL=((document.getElementById('gh-vocl')||{}).value)||'en';
+  /* QBOOK_V1481 題庫型教材（關鍵詞）那幾個選單根本沒顯示，所以不能讀畫面上的值
+     （會讀到上一本留下來的，例如「只出課本練習題」，短文題就整批被濾掉了）。
+     一律固定：短文印、兩邊的題目都印、不另外出生詞表、不印聽力原文。 */
+  if(ghQBook(book)){GHDLG='1';GHBANK='auto';GHVOC='';GHTR=0;}
   GHLANG='tw';/* PRINTBAR_V959 繁／簡改成印出來那一頁上即時切 */
   GHWHO=((document.getElementById('gh-who')||{}).value)||'';
   GHWHEN=((document.getElementById('gh-when')||{}).value)||'';
