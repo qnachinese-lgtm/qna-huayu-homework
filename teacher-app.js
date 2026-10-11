@@ -5238,8 +5238,26 @@ function renderOps(){const body=$('#ops-body');
   const itvSummary=`<div class="card" style="margin-top:14px"><div class="lesson-label">🎤 面試練習收入</div><div style="display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 4px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum(itvNow.paid)}</div><div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">累計</div>${bigNum(itvAllInc.paid)}</div>${Object.keys(itvAllInc.due).length?`<div style="border-left:1px solid var(--line);padding-left:22px"><div class="muted" style="font-size:12px">尚未收款</div><b style="font-size:19px;color:#A33227">${itvMoneyStr(itvAllInc.due)}</b></div>`:''}</div><div class="hint">只算已勾「已收款」的場次；到「🎤 面試練習」分頁管理。</div></div>`;
   const totNow=itvAddCur(itvAddCur(itvAddCur(Object.assign({},monCur),itvNow.paid),agNow.paid),wrNow.paid);const totAll=itvAddCur(itvAddCur(itvAddCur(Object.assign({},allCur),itvAllInc.paid),agAllInc.paid),wrAllInc.paid);
   /* OPSALL_V904 累計金額預設藏起來（畫面可能被學生看到）。記在這台電腦，不寫進資料庫。 */
-  const bigNum2=(obj)=>{const ks=curKeys(obj);/* CURORD_V1281 */return ks.length?ks.map(cur=>`<b style="font-size:26px">${money(obj[cur],cur)}</b>`).join('<span class="muted" style="font-size:18px"> ＋ </span>'):'<b style="font-size:26px" class="muted">—</b>';};
-  const totalCard=`<div class="card" style="margin-bottom:14px;border:2px solid var(--primary);background:linear-gradient(180deg,#FFFFFF,#fff)"><div class="lesson-label" style="font-size:15px">🧮 總收入（華語教學 ＋ 面試練習 ＋ 代辦申請 ＋ 代書）</div><div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:6px"><div><div class="muted" style="font-size:12px">本月（${esc(thisM)}）</div>${bigNum2(totNow)}</div><div style="border-left:1px solid var(--line);padding-left:28px"><div class="muted" style="font-size:12px;display:flex;align-items:center;gap:8px">累計（全部）<button class="inc-eye" type="button" data-act="opsAllToggle" style="flex:none">${opsAllOn()?'隱藏':'顯示'}</button></div>${opsAllOn()?bigNum2(totAll):'<div style="font-size:20px;font-weight:800;color:#C0CEE0;letter-spacing:2px">••••••</div>'}</div></div><div class="hint" style="margin-top:8px"></div></div>`;
+  /* ══════ INCTBL_V1476 總收入改成小表格 ══════
+     Quinn：「排版不好看」。本來是 `NT$4,200 ＋ 10,800,000 VND`，四個毛病：
+       一、那個加號是假的——台幣跟越南盾加不起來，卻寫成一個算式。
+       二、幣別一前一後（NT$ 在前、VND 在後），同一行兩種寫法。
+       三、沒有設 tabular-nums，數字寬度不一；而且數字跟著中文字體走
+           （霞鶩文楷的舊式數字會上上下下），所以 106,950 的 9 和 5 掉到基線下面。
+       四、左窄右寬，右半邊空一大片。
+     改成：幣別當列、本月／累計當欄，數字右對齊、等寬、用拉丁字體。
+     以後要加第三種幣別或第三欄（例如「上個月」）就是多一行、多一欄。
+     數字字體只改這張卡的金額，中文句子裡夾的數字（「第 3 課・27 個生詞」）不動。 */
+  const moneyBare=(n,cur)=>{if(n==null||n==='')return'—';const v=Number(n);if(isNaN(v))return String(n);
+    if(cur==='VND')return (v*1000).toLocaleString('en-US');
+    return v.toLocaleString((CUR[cur]||CUR.TWD)[1]);};
+  const incTable=(now,all,showAll)=>{
+    const ks=curSort([...new Set([...curKeys(now),...curKeys(all)])]);
+    if(!ks.length)return '<div class="muted" style="margin-top:8px">—</div>';
+    const head=`<tr><th></th><th>本月（${esc(thisM)}）</th><th>累計（全部）<button class="inc-eye" type="button" data-act="opsAllToggle">${showAll?'隱藏':'顯示'}</button></th></tr>`;
+    const body=ks.map(c=>`<tr><td class="c">${esc(c)}</td><td>${esc(moneyBare(now[c]||0,c))}</td><td>${showAll?esc(moneyBare(all[c]||0,c)):'••••'}</td></tr>`).join('');
+    return `<table class="inctbl">${head}${body}</table>`;};
+  const totalCard=`<div class="card" style="margin-bottom:14px;border:2px solid var(--primary)"><div class="lesson-label" style="font-size:15px">🧮 總收入（華語教學 ＋ 面試練習 ＋ 代辦申請 ＋ 代書）</div>${incTable(totNow,totAll,opsAllOn())}</div>`;/* INCTBL_V1476 */
   const _tm=[];{let d=new Date(localToday()+'T00:00:00');for(let k=5;k>=0;k--){const dd=new Date(d.getFullYear(),d.getMonth()-k,1);_tm.push(dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0'));}}
   /* OPSCHART_V907 這張圖本來只算華語教學的繳費，可是上面「總收入」是四條線加起來，
      所以 9 月上面寫 8,600,000、長條卻只有 5.35M，兩個數字對不起來。改成同一個口徑。 */
