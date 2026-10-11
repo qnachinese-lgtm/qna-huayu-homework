@@ -5972,6 +5972,7 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
           <button class="btn btn-sm" data-act="printWorksheet" data-id="${l.id}">🖨 練習題卷</button>
           <button class="btn btn-sm" data-act="slides" data-id="${l.id}">🖥 上課投影片${slidePages(l).length?('（'+slidePages(l).length+' 頁）'):''}</button>
           <button class="btn btn-sm" data-act="dupLesson" data-id="${l.id}">📋 複製</button>
+          <button class="btn btn-sm" data-act="ansFill" data-id="${l.id}" title="這一課每一題的參考答案，一題一個格子">✅ 參考答案</button>
           <button class="btn btn-sm" data-act="lxOut" data-id="${l.id}" title="寫成匯入用的 Excel：備份、離線改完再匯回來。圖片和音檔不會進檔案">⬇ 抓成 Excel</button>
           ${an?`<div class="mini-sep"></div><button class="btn btn-sm btn-warn" data-act="unassign" data-id="${l.id}">↩ 收回發佈</button>`:''}
           <div class="mini-sep"></div>
@@ -13816,104 +13817,105 @@ H.lxIn=()=>{
       +'。確認後按「新增」才會建立'
       +((old||!s.q)?'':'；練習題會在課建好之後一起建'));};
   inp.click();};
-/* ANSP_V1494 貼上參考答案。Quinn：「我不要你給我下載 EXCEL」。
-   我沒辦法寫她的資料庫，所以答案一定要有個管道進去；改成最輕的那一種：
-   我在對話裡把答案打成「題號＝答案」，她複製貼進這個框，先預覽再寫。
-   沒有檔案、沒有下載。題號＝那一課第幾題，跟印出來的練習題卷同一套算法
-   （示範題不給號，所以這裡也跳過）。 */
-let ANSP=null;
+/* ANSFILL_V1495 參考答案：一題一個格子，直接打。
+   Quinn：「你現在提供給我補進去的方式我覺得以後我要寫就很難使用」——
+   對著題號打「1＝答案」她自己要用很痛苦，所以把題目列出來、每一題旁邊一個格子。
+   上面留一個小框給 Claude 用：把「題號＝答案」整批貼進去會自動填到對應的格子，
+   填完她確認再一起存。只動 answer，其他欄位不碰。
+   題號跟印出來的練習題卷同一套：示範題不給號，這裡也跳過。 */
+let ANSF=null;
 function ansQList(lid){
   const all=(S.questions||[]).filter(q=>q&&q.lesson_id===lid)
     .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0));
   let n=0;const out=[];
   all.forEach(q=>{if(q.type==='note')return;n++;out.push({n:n,q:q});});
   return out;}
-function ansParseVal(q,raw){
-  const t=String(raw==null?'':raw).trim();
-  if(!t)return null;
+function ansNow(q){
+  if(q.type==='choice')return (typeof q.answer==='number')?String(q.answer+1):'';
+  return (Array.isArray(q.answer)?q.answer:(q.answer==null?[]:[q.answer]))
+    .map(x=>String(x||'').trim()).filter(Boolean).join('｜');}
+function ansRowHtml(o){
+  const q=o.q,cur=ansNow(q);
+  const tag=({choice:'單選',fill:'填空',qa:'問答',write:'造句',order:'重組',match:'配對',opt:'選填'})[q.type]||q.type;
+  let box;
   if(q.type==='choice'){
-    /* 選擇題可以寫 3、C、(C) 都認 */
-    const num=t.match(/\d+/);
-    if(num)return Number(num[0])-1;
-    const L=t.toUpperCase().replace(/[^A-Z]/g,'').charAt(0);
-    if(L)return L.charCodeAt(0)-65;
-    return null;}
-  return t.split(/[｜|\/／]/).map(x=>x.trim()).filter(Boolean);}
-function ansParseLines(txt){
-  const out=[];
-  String(txt||'').replace(/\r/g,'').split('\n').forEach(ln=>{
+    const ops=(q.options||[]);
+    box='<select class="ansf-in" data-qid="'+esc(q.id)+'">'
+      +'<option value="">（還沒設）</option>'
+      +ops.map((o2,i)=>'<option value="'+(i+1)+'"'+(cur===String(i+1)?' selected':'')+'>'
+        +esc(GHAB.charAt(i)+'　'+String(o2||''))+'</option>').join('')
+      +'</select>';
+  }else{
+    box='<input class="ansf-in" type="text" data-qid="'+esc(q.id)+'" value="'+esc(cur)+'"'
+      +' placeholder="多個可接受答案用 ｜ 隔開">';}
+  return '<div class="ansf-r"><span class="ansf-n">'+o.n+'</span>'
+    +'<div class="ansf-q"><span class="ansf-t">'+esc(tag)+'</span>'+esc(String(q.prompt||'（沒有題目）'))
+    +(q.type==='choice'&&(q.options||[]).length?('<div class="ansf-o">'
+      +(q.options||[]).map((x,i)=>esc(GHAB.charAt(i)+'. '+String(x||''))).join('　')+'</div>'):'')
+    +'</div><div class="ansf-a">'+box+'</div></div>';}
+H.ansFill=(lid)=>{
+  const l=(S.lessons||[]).find(x=>x&&x.id===lid);if(!l)return toast('找不到這一課');
+  const list=ansQList(lid);
+  if(!list.length)return toast('這一課還沒有練習題');
+  ANSF={lid:lid,list:list};
+  const miss=list.filter(o=>!ansNow(o.q)).length;
+  openModal('<div class="modal modal-tall modal-wide"><div class="modal-head">'
+   +'<h3>✅ 參考答案 · '+esc(lesNo(l,''))+'</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:10px">共 '+list.length+' 題'
+   +(miss?('，其中 <b>'+miss+' 題</b>還沒有答案'):'，都填好了')+'。改完按右下角「儲存」。</div>'
+   +'<details class="ansf-paste"><summary>⬇ 一次貼上（Claude 給的整批答案）</summary>'
+   +'<div style="padding:8px 2px 2px">'
+   +'<textarea id="ansf-txt" style="min-height:90px" placeholder="1＝C&#10;2＝也｜都&#10;3＝我叫林小明。"></textarea>'
+   +'<div style="margin-top:6px"><button class="btn btn-sm btn-accent" type="button" data-act="ansSpread">↧ 填進下面的格子</button>'
+   +'<span class="hint" style="margin-left:8px">只是填進格子，還沒存。</span></div></div></details>'
+   +'<div id="ansf-rows">'+list.map(ansRowHtml).join('')+'</div>'
+   +'<div class="hint" id="ansf-msg" style="margin-top:8px"></div></div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="ansSave">💾 儲存</button></div></div>');};
+H.ansSpread=()=>{
+  if(!ANSF)return;
+  const txt=((document.getElementById('ansf-txt')||{}).value)||'';
+  const byN={};ANSF.list.forEach(o=>{byN[o.n]=o.q;});
+  let ok=0;const bad=[];
+  String(txt).replace(/\r/g,'').split('\n').forEach(ln=>{
     const t=ln.trim();if(!t)return;
     const m=t.match(/^第?\s*(\d+)\s*題?\s*[=＝:：．.、\t]\s*(.+)$/);
-    if(!m){out.push({bad:t});return;}
-    out.push({n:Number(m[1]),v:m[2].trim()});});
-  return out;}
-function ansBooks(){return [...new Set((S.lessons||[]).filter(l=>l&&!l.deleted_at)
-  .map(l=>String(l.textbook||'').trim()).filter(Boolean))].sort(bookCmp);}
-function ansLesOpts(book){
-  return sortLessons((S.lessons||[]).filter(l=>l&&!l.deleted_at
-    &&String(l.textbook||'').trim()===book))
-    .map(l=>'<option value="'+esc(l.id)+'">'+esc(lesNo(l,'（未命名）'))
-      +'（'+ansQList(l.id).length+' 題）</option>').join('');}
-function ANSPBOOK(){
-  const b=((document.getElementById('ansp-book')||{}).value)||'';
-  const sel=document.getElementById('ansp-les');
-  if(sel){sel.innerHTML=ansLesOpts(b);}
-  const pv=document.getElementById('ansp-pv');if(pv)pv.innerHTML='';
-  ANSP=null;}
-H.ansPaste=()=>{
-  const books=ansBooks();
-  if(!books.length)return toast('還沒有教材');
-  const b0=books[0];
-  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📥 貼上參考答案</h3>'
-   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-   +'<div class="form-grid">'
-   +'<div class="field"><label>教材</label><select id="ansp-book" onchange="ANSPBOOK()">'
-   +books.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select></div>'
-   +'<div class="field"><label>哪一課</label><select id="ansp-les" onchange="(function(){var p=document.getElementById(\'ansp-pv\');if(p)p.innerHTML=\'\';})()">'
-   +ansLesOpts(b0)+'</select></div></div>'
-   +'<div class="field"><label>答案 <span class="hint">一行一題，寫成「題號＝答案」。選擇題填 3 或 C；一題有多個可接受答案用 ｜ 隔開</span></label>'
-   +'<textarea id="ansp-txt" style="min-height:170px" placeholder="1＝3&#10;2＝也｜都&#10;3＝我叫林小明。"></textarea></div>'
-   +'<div id="ansp-pv"></div></div>'
-   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
-   +'<button class="btn" data-act="ansPreview">👀 預覽</button>'
-   +'<button class="btn btn-primary" data-act="ansWrite">💾 寫入</button></div></div>');};
-H.ansPreview=()=>{
-  const lid=((document.getElementById('ansp-les')||{}).value)||'';
-  const l=(S.lessons||[]).find(x=>x&&x.id===lid);
-  const pv=document.getElementById('ansp-pv');if(!pv)return;
-  if(!l){pv.innerHTML='<div class="hint">先選一課。</div>';ANSP=null;return;}
-  const list=ansQList(lid);const byN={};list.forEach(o=>{byN[o.n]=o.q;});
-  const lines=ansParseLines((document.getElementById('ansp-txt')||{}).value);
-  if(!lines.length){pv.innerHTML='<div class="hint">上面還沒貼東西。</div>';ANSP=null;return;}
-  const jobs=[];const rows=[];
-  lines.forEach(x=>{
-    if(x.bad){rows.push('<tr><td colspan="4" style="color:#A33227">看不懂這一行：'+esc(x.bad)+'</td></tr>');return;}
-    const q=byN[x.n];
-    if(!q){rows.push('<tr><td>'+x.n+'</td><td colspan="3" style="color:#A33227">這一課沒有第 '+x.n+' 題（只有 '+list.length+' 題）</td></tr>');return;}
-    const nv=ansParseVal(q,x.v);
-    const now=(q.type==='choice')?((typeof q.answer==='number')?String(q.answer+1):'—')
-      :((Array.isArray(q.answer)&&q.answer.length)?q.answer.join('｜'):'—');
-    const to=(q.type==='choice')?((nv==null)?'？':String(nv+1)+'　'+esc(String((q.options||[])[nv]||'（沒有這個選項）')))
-      :((nv&&nv.length)?esc(nv.join('｜')):'？');
-    const okOpt=(q.type!=='choice')||(nv!=null&&nv>=0&&nv<((q.options||[]).length||0));
-    rows.push('<tr'+(okOpt?'':' style="color:#A33227"')+'><td><b>'+x.n+'</b></td>'
-      +'<td>'+esc(String(q.prompt||'').slice(0,26))+'</td>'
-      +'<td class="muted">'+esc(now)+'</td><td><b>'+to+'</b></td></tr>');
-    if(okOpt)jobs.push({q:q,nv:nv});});
-  ANSP={lid:lid,jobs:jobs};
-  pv.innerHTML='<div class="hint" style="margin:8px 0 4px">對一下題目和答案有沒有錯行，沒問題再按「💾 寫入」。'
-    +'可以寫入 <b>'+jobs.length+'</b> 題。</div>'
-    +'<table class="anspv"><tr><th>題號</th><th>題目</th><th>現在</th><th>要寫入</th></tr>'
-    +rows.join('')+'</table>';};
-H.ansWrite=async()=>{
-  if(!ANSP||!ANSP.jobs||!ANSP.jobs.length){toast('先按「👀 預覽」看一下要寫什麼');return;}
-  const n=ANSP.jobs.length;
-  if(!confirm('要寫入 '+n+' 題的參考答案嗎？\n\n只會動「答案」，題目、選項、說明都不碰。'))return;
+    if(!m){bad.push(t.slice(0,18));return;}
+    const q=byN[Number(m[1])];
+    if(!q){bad.push('第 '+m[1]+' 題（這一課沒有）');return;}
+    const el=document.querySelector('.ansf-in[data-qid="'+q.id+'"]');
+    if(!el){bad.push('第 '+m[1]+' 題');return;}
+    const v=m[2].trim();
+    if(q.type==='choice'){
+      let idx=null;const num=v.match(/\d+/);
+      if(num)idx=Number(num[0]);
+      else{const L=v.toUpperCase().replace(/[^A-Z]/g,'').charAt(0);if(L)idx=L.charCodeAt(0)-64;}
+      if(idx&&idx>=1&&idx<=((q.options||[]).length||0)){el.value=String(idx);ok++;}
+      else bad.push('第 '+m[1]+' 題的「'+v+'」不是選項');
+    }else{el.value=v;ok++;}});
+  const msg=document.getElementById('ansf-msg');
+  if(msg)msg.innerHTML='填好 <b>'+ok+'</b> 題'
+    +(bad.length?('；這幾行沒填進去：<span style="color:#A33227">'+esc(bad.join('、'))+'</span>'):'')
+    +'。確認過再按「💾 儲存」。';};
+H.ansSave=async()=>{
+  if(!ANSF)return;
+  const jobs=[];
+  ANSF.list.forEach(o=>{
+    const q=o.q,el=document.querySelector('.ansf-in[data-qid="'+q.id+'"]');
+    if(!el)return;
+    const v=String(el.value||'').trim();
+    let nv;
+    if(q.type==='choice')nv=v?(Number(v)-1):null;
+    else{const a=v.split(/[｜|\/／]/).map(x=>x.trim()).filter(Boolean);nv=a.length?a:null;}
+    const old=(q.answer===undefined)?null:q.answer;
+    if(JSON.stringify(nv)!==JSON.stringify(old))jobs.push({q:q,nv:nv});});
+  if(!jobs.length)return toast('沒有改到東西');
   try{
     await ensureAuthFresh();
-    for(const j of ANSP.jobs){await DB.update('questions',j.q.id,{answer:j.nv});j.q.answer=j.nv;}
-    ANSP=null;closeModal();render();toast('寫好了：'+n+' 題的參考答案');
-  }catch(e){toast(writeErr('寫不進去',e));}};
+    for(const j of jobs){await DB.update('questions',j.q.id,{answer:j.nv});j.q.answer=j.nv;}
+    const n=jobs.length;ANSF=null;closeModal();render();toast('存好了：'+n+' 題');
+  }catch(e){toast(writeErr('存不進去',e));}};
 H.clImport=()=>{
   if(typeof XLSX==='undefined'){toast('匯入元件還在載入，請過幾秒再按一次');return;}
   const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls';
