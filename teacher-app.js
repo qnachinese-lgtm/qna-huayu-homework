@@ -2418,9 +2418,8 @@ function rpGapHtml(){
   const head='<div class="card rpg-sum"><b>共 '+G.length+' 個主題</b>'
     +(totMiss?('<span class="rpg-bad">還缺 '+totMiss+' 格</span>'):'<span class="rpg-ok">每一格都寫了 🎉</span>')
     +(totBlank?('<span class="rpg-warn">'+totBlank+' 格有卡片但內容是空的</span>'):'')
-    +'<div class="hint" style="width:100%;margin-top:6px">每一列是一個主題。'
-    +'越南文對長輩、晚輩、平輩的用字不一樣，所以同一件事要各存一份。'
-    +'有分幣別或班型的主題，會按它實際用過的組合再乘開。</div></div>';
+    +'<div class="hint" style="width:100%;margin-top:6px">越南文對長輩、晚輩、平輩用字不同，同一件事各存一份；'/* WORDY3_V1478 */
+    +'有分幣別或班型的，再按實際用過的組合乘開。</div></div>';
   const body=G.map(g=>{
     const rowsHtml=[];
     const seen={};
@@ -16463,8 +16462,7 @@ function adoptAsk(email,common){
     +'<span style="color:#1F6A54">密碼不會被更改、也不會存起來，只用來確認是這個帳號。</span></div>'
     +'<div class="form-grid"><div class="field full"><label>這個帳號目前的密碼</label>'
     +'<input id="adopt-pw" type="password" autocomplete="off" placeholder="至少 6 碼"></div></div>'
-    +'<div class="hint" style="margin-top:10px">如果密碼已經忘了：請那位學生到學生登入頁按「忘記密碼」重設，'
-    +'重設完再回來做一次；或是到 Firebase 主控台把那個帳號刪掉，再回來用「Email ＋ 初始密碼」重開。</div>'
+    +'<div class="hint" style="margin-top:10px">密碼忘了的話，請學生到學生登入頁按「忘記密碼」重設，重設完再回來做一次。</div>'/* WORDY3_V1478 兩個入口同一句 */
     +'<div class="err" id="adopt-err" style="margin-top:8px"></div></div>'
     +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
     +'<button class="btn btn-primary" data-act="adoptDo">\u{1F517} 把這個帳號接過來</button></div></div>');
@@ -16535,7 +16533,7 @@ function mklDraw(){
       +'<span style="color:#1F6A54">密碼不會被更改、也不會存起來，只用來確認是這個帳號。</span></div>'
       +'<div class="form-grid"><div class="field full"><label>這個帳號目前的密碼</label>'
       +'<input id="mkl-pw" type="password" autocomplete="off" placeholder="至少 6 碼"></div></div>'
-      +'<div class="hint" style="margin-top:10px">密碼已經忘了的話：請那位學生到學生登入頁按「忘記密碼」重設，重設完再回來做一次。</div>'
+      +'<div class="hint" style="margin-top:10px">密碼忘了的話，請學生到學生登入頁按「忘記密碼」重設，重設完再回來做一次。</div>'/* WORDY3_V1478 兩個入口同一句 */
     : '<div class="hint" style="margin-bottom:12px">登入帳號就是 <b>'+esc(C.email)+'</b>（建立之後不能改）。<br>'
       +'下面填一組初始密碼，建好之後會跳一段訊息給妳複製，傳給學生就能登入。<br>'
       +'<span style="color:#1F6A54">密碼不會存進資料庫，之後忘了只能用「✉️ 寄重設密碼信」重設。</span></div>'
@@ -18971,8 +18969,7 @@ function pSplitOpen(key,src){const p=String(key||'').split('::');
       （記在「${esc(P_KIND[src.k]||'')}」底下）。<br>
       下面填好之後，<b>原本那一筆會被取代</b>，換成各服務各自一筆。金額已經幫妳填好，按「⚖️ 自動分配」或自己改。
     </div>`:''}
-    <div class="hint" style="margin-bottom:10px">她一次匯了一筆，裡面包含好幾種服務。下面把金額分開填，
-      各服務會各自收到一筆收款，都標「同一筆轉帳」，未收也會各自減。沒有要分的就留空。<br>
+    <div class="hint" style="margin-bottom:10px">各服務會各自收到一筆收款，都標「同一筆轉帳」，未收也會各自減。沒有要分的就留空。<br>
       <b>越南盾打千位</b>（填 1500 ＝ 1,500,000 VND），跟「💰 記一筆收款」那邊一樣。</div>
     <div class="form-grid">
       <div class="field"><label>收款日期 *</label><input id="ps-date" type="date" min="2000-01-01" max="2100-12-31" value="${src&&src.p&&src.p.date?esc(String(src.p.date)):localToday()}"></div>
@@ -18988,8 +18985,7 @@ function pSplitOpen(key,src){const p=String(key||'').split('::');
           <select id="ps-totcur" style="width:120px" onchange="PSPLITSUM()">
             ${['VND','TWD','USD'].map(cc=>'<option value="'+cc+'"'+((src&&src.p&&(src.p.currency||'VND')===cc)?' selected':'')+'>'+(cc==='VND'?'VND 千':(cc==='TWD'?'NT$':'US$'))+'</option>').join('')}</select>
           <button class="btn btn-sm btn-accent" type="button" onclick="PSPLITAUTO()">\u2696\uFE0F 自動分配</button></div>
-        <div class="hint" style="margin-top:4px">自動分配的規則：未收比較少的先付清，剩下的往下一個放；
-          分完還有多的就掛在未收最多的那一個當預繳。分完還是可以自己改。</div></div>
+        <div class="hint" style="margin-top:4px">未收比較少的先付清，剩下的往下一個放；還有多的掛在未收最多的那一個當預繳。</div></div>
     </div>
     <div style="margin-top:10px">${list.map(row).join('')}</div>
     <div class="dash-row" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
@@ -20092,9 +20088,8 @@ H.wkcOpen=()=>{
   const thisMon=weekStart(localToday());
   openModal('<div class="modal wide"><div class="modal-head"><h3>🔁 照上一週排下一週</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-   +'<div class="hint" style="margin-bottom:10px">把某一週每個人上的課（預排的和已經點名的都算）'
-   +'整組往後搬到另一週，星期幾和時間都照舊。排出來的是「預排」，'
-   +'不會點名、不會扣堂數，之後上完課再去點名。</div>'
+   +'<div class="hint" style="margin-bottom:10px">預排的和已經點名的課都會照搬，星期幾和時間不變。'/* WORDY3_V1478 */
+   +'排出來的是「預排」，不會點名、不會扣堂數。</div>'
    +'<div class="wkc-top">'
    +'<div class="field"><label>照哪一週排</label>'
    +'<input id="wkc-from" type="date" min="2000-01-01" max="2100-12-31" value="'+esc(thisMon)+'"></div>'
@@ -20778,7 +20773,7 @@ H.memPay=(id)=>{const m=memAll().find(x=>x&&x.id===id);if(!m)return;
   openModal('<div class="modal" style="max-width:420px"><div class="modal-head">'
    +'<h3>💎 可看到期日 · '+esc(m.name||m.email||'')+'</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body"><div class="hint" style="margin-bottom:10px">'
-   +'填一個日期，在那天之前這位會員看得到「💎 付費」的課；過了就自動收回。留空＝只看得到免費的課。</div>'
+   +'到期日之前看得到「💎 付費」的課，過了自動收回。留空＝只看得到免費的課。</div>'/* WORDY3_V1478 */
    +'<div class="field"><label>可看到</label><div class="lf-in">'
    +'<input id="mp-until" type="date" min="2000-01-01" max="2100-12-31" value="'+esc(m.until||'')+'">'
    +'<button class="btn btn-sm" type="button" data-act="dToday" data-id="mp-until">今天</button>'
@@ -20812,8 +20807,8 @@ H.schedWiz=()=>{
    +'<h3>🗓 一次設固定時段</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body"><div class="hint" style="margin-bottom:10px">'
    +'在學中的一對一學生共 '+list.length+' 位'+(none?('，其中 '+none+' 位還沒設'):'')+'。'
-   +'設好之後課表就會自動把他們的課推出來（還沒點名的顯示成虛線的「固定時段」）。'
-   +'<br>一位只設一段；同一位要兩段以上，到學生資料裡加。留空＝不設。</div>'
+   +'設好之後課表會自動推出來，還沒點名的顯示成虛線。'/* WORDY3_V1478 */
+   +'<br>一位只設一段，要兩段以上到學生資料裡加。</div>'
    +'<div id="sw-rows">'+list.map(schWizRow).join('')+'</div>'
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
    +'<span style="flex:1"></span>'
@@ -20846,7 +20841,7 @@ H.schFill=()=>{
    +'<h3>🏫 從代辦客戶補進名冊</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body"><div class="hint" style="margin-bottom:10px">'
    +'這 '+miss.length+' 間是客戶的「申請學校」裡有、名冊裡還沒有的。'
-   +'名字是當初自己打的，可以先改；不想建的就把勾拿掉。建好之後再去補網址、報名截止日。</div>'
+   +'名字是當初自己打的，可以先改。</div>'/* WORDY3_V1478 */
    +'<div id="sf-rows">'+miss.map((m,i)=>'<div class="sf-r">'
      +'<input type="checkbox" class="sf-ck" data-i="'+i+'" checked>'
      +'<input type="text" class="sf-n" data-i="'+i+'" value="'+esc(m.name)+'">'
