@@ -6512,7 +6512,10 @@ function unitGroupHtml(book,list){/*UNITGRP_V77 先照單元收起來，展開�
     const nm=(items.find(x=>x.unit_title)||{}).unit_title||'';
     const key=book+'##'+u;
     const op=S.openUnits.has(key);
-    const pub=items.filter(x=>(x.assigned_ids||[]).length).length;
+    /* UNITPUB_V1484 本來只算「指派給某幾位學生」的小節，發佈給整個班級的沒算到，
+       所以 3 個小節全發佈出去卻只顯示「已發佈 1」。兩種發佈方式都要算
+       （後台其他地方算法本來就是兩種都算，這裡漏掉）。 */
+    const pub=items.filter(x=>((x.assigned_ids||[]).length)||((x.assigned_groups||[]).length)).length;
     return '<div class="unit-group"><div class="unit-head" data-act="toggleUnit" data-id="'+esc(key)+'">'
       +'<span class="uh-ar">'+(op?'\u25be':'\u25b8')+'</span>'
       +'<span class="uh-no">'+esc(u)+'</span>'
@@ -7320,8 +7323,27 @@ let GHINSPICK=[];
 function ghInsKey(s){const t=String(s==null?'':s).trim();
   const i=t.indexOf('　');return (i<0?t:t.slice(0,i)).trim();}
 function ghInsOk(x){return !GHINSPICK.length||GHINSPICK.indexOf(ghInsKey(x))>=0;}
-function ghInsFilter(list){
-  return GHINSPICK.length?(list||[]).filter(q=>ghInsOk(q&&q.instruction)):(list||[]);}
+/* INSCARRY_V1483 大題的標題不一定存在每一題的「說明」欄。Quinn 那兩本實際上是：
+   整課 29 題的說明欄都空白，大題（二、三、四、五…）是夾在題目中間的「示範」題，
+   標題寫在題目欄裡。所以這裡兩種都認，然後往下帶：
+   一題自己沒有標題，就跟前面最近的那個大題走。 */
+function ghInsHead(q){
+  if(!q)return '';
+  const k=ghInsKey(q.instruction);if(k)return k;
+  if(q.type!=='note')return '';
+  const first=String(q.prompt==null?'':q.prompt).split('\n')[0].trim();
+  if(!first||first.length>24)return '';
+  return /^[一二三四五六七八九十壹貳參肆伍陸柒捌玖拾百]+\s*[、.．,，:：]/.test(first)?ghInsKey(first):'';}
+function ghInsMap(l){
+  const m={};let cur='';
+  (S.questions||[]).filter(q=>q&&q.lesson_id===(l&&l.id))
+    .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0))
+    .forEach(q=>{const k=ghInsHead(q);if(k)cur=k;m[q.id]=cur;});
+  return m;}
+function ghInsFilter(l,list){
+  if(!GHINSPICK.length)return list||[];
+  const m=ghInsMap(l);
+  return (list||[]).filter(q=>GHINSPICK.indexOf(m[q.id]||'')>=0);}
 function ghQsOf(lid){
   const all=(S.questions||[]).filter(q=>q&&q.lesson_id===lid)
     .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0));
@@ -7862,7 +7884,7 @@ function ghKeyGp(title,qs){
   if(!items.length)return '';
   return '<div class="gk-gp"><div class="gk-t">'+esc(title||'')+'</div>'+items.join('')+'</div>';}
 function ghKeyHtml(l){
-  const gps=l.grammar_points||[],all=ghInsFilter(ghQsOf(l.id));/* INSPICK_V1482 */
+  const gps=l.grammar_points||[],all=ghInsFilter(l,ghQsOf(l.id));/* INSCARRY_V1483 */
   let out='';
   gps.forEach((g,gi)=>{out+=ghKeyGp((gps.length?('語法 '+(gi+1)+'　'):'')+gpT(g.title),
     all.filter(q=>q.gp_index===gi));});
@@ -7983,7 +8005,7 @@ function ghLessonHtml(l,withAns){
      學生拿到一張沒有題目的紙。改成整份照原本印，只是語法（和生詞、課末）的例句
      只留她挑起來的那幾句，其他照舊。 */
   GHEXF=(function(){const m=ghExMap()[l&&l.id];return (m&&Object.keys(m).length)?m:null;})();
-  const gps=l.grammar_points||[];const all=ghInsFilter(ghQsOf(l.id));/* INSPICK_V1482 */
+  const gps=l.grammar_points||[];const all=ghInsFilter(l,ghQsOf(l.id));/* INSCARRY_V1483 */
   const cl=ghTextVocHtml(l,withAns)/* GHVOC_V1067 */+ghClHtml(l,withAns);
   /* GHONLY_V1480 「只印課文」＝後面全部不要；「只印課文和題目」＝不要詞彙表，
      語法說明和例句在 ghGpHtml 裡面已經跳過，這裡只剩題目。 */
@@ -8267,9 +8289,10 @@ function ghInsRows(book,lids){
   const seen={},out=[];
   const hit=k=>{if(!seen[k]){seen[k]={k:k,q:0,txt:0};out.push(seen[k]);}return seen[k];};
   ls.forEach(l=>{
+    const m=ghInsMap(l);/* INSCARRY_V1483 沒填說明的題目跟前面最近的大題走 */
     (S.questions||[]).filter(q=>q&&q.lesson_id===l.id)
       .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0))
-      .forEach(q=>{const r=hit(ghInsKey(q.instruction)||'（沒有大題標題）');
+      .forEach(q=>{const r=hit(m[q.id]||'（大題標題前面的題目）');
         if(q.type!=='note')r.q++;});});
   ls.forEach(l=>{(Array.isArray(l.dialogues)?l.dialogues:[]).forEach(d=>{
     const k=ghInsKey(d&&d.title);if(!k)return;
