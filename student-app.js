@@ -1342,11 +1342,20 @@ const answerableOf=(lid)=>questionsOf(lid).filter(q=>!isRefItem(q)&&q.bank==='hw
 /* 與教師端同一套算法：請假不扣、免費不扣；按小時計費就以「時數」計算 */
 function _logHours(e){if(!e||!e.start||!e.end)return null;const p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};let m=p(e.end)-p(e.start);if(m<0)m+=1440;/* 跨午夜：如 22:00–00:00 */return m>0?Math.round(m/60*100)/100:null;}
 function myHourly(){return !!(S.me&&S.me.fee_unit==='hour');}
+/* BOTH_V1485 跟後台同一套：班別「兩種」的學生，每一堂用 e.ctype 判斷是團班還是一對一
+   （'solo'＝一對一，其他＝團班）；團班請假照收、一對一請假不收。
+   單價也分兩個：團班 tuition、一對一 tuition_solo。這裡要跟後台算出一樣的數字。 */
+function _isBoth(s){return !!(s&&s.class_type==='兩種');}
+function _eIsGrp(s,e){if(!s)return false;
+  if(_isBoth(s))return !(e&&e.ctype==='solo');
+  return s.class_type==='團班';}
+function _eTuition(s,e){if(!s)return null;
+  if(_isBoth(s)&&e&&e.ctype==='solo')return s.tuition_solo;
+  return s.tuition;}
 function myUnit(){const L={zh:['小時','堂'],cn:['小时','堂'],en:['hr','class'],vi:['giờ','buổi']}[S.lang||'zh']||['小時','堂'];return myHourly()?L[0]:L[1];}
 function myFmtQty(n){if(n==null)return '—';const r=Math.round(n*100)/100;return (Math.abs(r-Math.round(r))<0.005)?String(Math.round(r)):String(r);}
 function myLeft(){const s=S.me;if(!s||s.sessions_total==null||s.sessions_total==='')return null;const log=Array.isArray(s.class_log)?s.class_log:[];
-  const lv=(s.class_type==='團班');/* 團班請假照算，一對一不算（要補課） */
-  const skip=e=>!e||e.free||(!lv&&e.status==='leave');
+  const skip=e=>!e||e.free||(!_eIsGrp(s,e)&&e.status==='leave');/* BOTH_V1485 */
   let used;if(myHourly()){used=0;log.forEach(e=>{if(skip(e))return;const h=_logHours(e);used+=(h!=null?h:1);});}
   else used=log.filter(e=>!skip(e)).length;
   return Math.round((Number(s.sessions_total)-used)*100)/100;}
@@ -1911,24 +1920,29 @@ function payCardHtml(){
 function myTiers(){for(const g of myGroups()){const t=(classMetaOf(g)||{}).fee_tiers;
   if(Array.isArray(t)){const ts=t.filter(x=>x&&Number(x.h)>0&&x.amt!=null&&!isNaN(Number(x.amt)));if(ts.length)return ts;}}return null;}
 function myFeeOf(e){
-  const ts=myTiers();
+  const s0=S.me;
+  const ts=_eIsGrp(s0,e)?myTiers():null;/* BOTH_V1485 一對一那幾堂不套團班級距 */
   if(ts){const h=_logHours(e);if(h!=null){const m=ts.find(x=>Math.abs(Number(x.h)-h)<0.01);if(m)return Number(m.amt);}}
-  const s=S.me;if(!s||s.tuition==null||s.tuition==='')return null;
-  const t=Number(s.tuition);if(isNaN(t))return null;
+  const s=S.me;const _tu=_eTuition(s,e);
+  if(!s||_tu==null||_tu==='')return null;
+  const t=Number(_tu);if(isNaN(t))return null;
   if(!myHourly())return t;const h=_logHours(e);return h==null?t:Math.round(t*h*100)/100;}
 function myIsGroup(){return (S.me&&S.me.class_type)==='團班';}
 /* 團班請假照樣收費（課還是開了）；一對一請假不收 */
-function myChargeable(e){if(!e||!e.date||e.free)return false;return myIsGroup()?true:(e.status!=='leave');}
+function myChargeable(e){if(!e||!e.date||e.free)return false;
+  return _eIsGrp(S.me,e)||e.status!=='leave';}/* BOTH_V1485 */
 /* 給「合併帳戶」用：可以算別人的費用，不只算 S.me */
 function _tiersFor(s){const gs=Array.isArray(s&&s.groups)?s.groups:[];
   for(const g of gs){const t=(classMetaOf(g)||{}).fee_tiers;
     if(Array.isArray(t)){const ts=t.filter(x=>x&&Number(x.h)>0&&x.amt!=null&&!isNaN(Number(x.amt)));if(ts.length)return ts;}}
   return null;}
-function _feeFor(s,e){const ts=_tiersFor(s);
+function _feeFor(s,e){const ts=_eIsGrp(s,e)?_tiersFor(s):null;/* BOTH_V1485 */
   if(ts){const h=_logHours(e);if(h!=null){const m=ts.find(x=>Math.abs(Number(x.h)-h)<0.01);if(m)return Number(m.amt);}}
-  if(!s||s.tuition==null||s.tuition==='')return null;const t=Number(s.tuition);if(isNaN(t))return null;
+  const _tu=_eTuition(s,e);
+  if(!s||_tu==null||_tu==='')return null;const t=Number(_tu);if(isNaN(t))return null;
   if(s.fee_unit!=='hour')return t;const h=_logHours(e);return h==null?t:Math.round(t*h*100)/100;}
-function _chargeableFor(s,e){if(!e||!e.date||e.free)return false;return (s&&s.class_type==='團班')?true:(e.status!=='leave');}
+function _chargeableFor(s,e){if(!e||!e.date||e.free)return false;
+  return _eIsGrp(s,e)||e.status!=='leave';}/* BOTH_V1485 */
 function billFor(s){
   if(!s)return null;
   const log=(Array.isArray(s.class_log)?s.class_log:[]).filter(e=>_chargeableFor(s,e));
