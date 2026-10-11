@@ -7388,9 +7388,11 @@ let GHCLQPICK=[],GHDQ=[],GHDQID='',GHDQD=false;
 let GHBANK='auto';
 /* GHTR_V891 學生版要不要印聽力原文。預設 0＝不印。 */
 let GHTR=0;
-/* GHDLG_V919 要不要把課文（對話／課文段落）一起印出來。預設 0＝只印語法練習，
-   跟以前的行為一樣。 */
-let GHDLG=0;
+/* GHDLG_V919 要不要把課文（對話／課文段落）一起印出來。預設 ''＝只印語法練習，
+   跟以前的行為一樣。
+   GHONLY_V1480 改成四選一：''＝不印課文／'1'＝課文也印／'only'＝只印課文／
+   'q'＝只印課文和題目（閱讀練習用：短文＋底下的選擇題，不要語法說明、例句、詞彙表）。 */
+let GHDLG='';
 /* GHVOC_V1067 生詞。''＝不印（跟以前一樣）／'full'＝整張表都印／'blank'＝意思留空格讓學生自己寫。
    GHVOCL：意思要印哪一種—— 'en' 課本的英文／'vi' 越南文／'both' 兩個都印。 */
 let GHVOC='';
@@ -7584,7 +7586,8 @@ function ghExKeep(pre,ex){
   return t.split('\n').map(x=>x.trim()).filter(Boolean)
     .filter((x,ei)=>GHEXF[pre+'-'+ei]).join('\n');}
 function ghGpHtml(g,gi,qs,withAns,tagLab){
-  const blist=(g.blocks||[]).map((b,bi)=>{
+  /* GHONLY_V1480 「只印課文和題目」：語法說明、例句、圖片整個跳過，只留題目 */
+  const blist=(GHDLG==='q'?[]:(g.blocks||[])).map((b,bi)=>{
     const t=String((b&&b.text)||'').trim(),im=String((b&&b.img)||'').trim();
     const ex=ghExKeep('g'+gi+'-'+bi,String((b&&b.ex)||''));/* GHEXIN_V1211 */
     if(!t&&!ex&&!im)return null;
@@ -7959,10 +7962,15 @@ function ghLessonHtml(l,withAns){
   GHEXF=(function(){const m=ghExMap()[l&&l.id];return (m&&Object.keys(m).length)?m:null;})();
   const gps=l.grammar_points||[];const all=ghQsOf(l.id);
   const cl=ghTextVocHtml(l,withAns)/* GHVOC_V1067 */+ghClHtml(l,withAns);
-  let rest=ghVocHtml(l,withAns);
-  rest+=gps.map((g,gi)=>ghGpHtml(g,gi,all.filter(q=>q.gp_index===gi),withAns)).join('');
-  const untag=all.filter(q=>q.gp_index==null);
-  if(untag.length)rest+=ghGpHtml({title:gps.length?'其他練習':'練習',blocks:[]},gps.length,untag,withAns,null);
+  /* GHONLY_V1480 「只印課文」＝後面全部不要；「只印課文和題目」＝不要詞彙表，
+     語法說明和例句在 ghGpHtml 裡面已經跳過，這裡只剩題目。 */
+  let rest='';
+  if(GHDLG!=='only'){
+    if(GHDLG!=='q')rest+=ghVocHtml(l,withAns);
+    rest+=gps.map((g,gi)=>ghGpHtml(g,gi,all.filter(q=>q.gp_index===gi),withAns)).join('');
+    const untag=all.filter(q=>q.gp_index==null);
+    if(untag.length)rest+=ghGpHtml({title:gps.length?'其他練習':'練習',blocks:[]},gps.length,untag,withAns,null);
+  }
   /* GHTR_V891 聽力原文印在學生版上，學生用看的就答完了，那就不是聽力練習。
      只有老師版／解答頁印；學生版要印的話自己去勾。
      但如果這一課除了原文沒有別的東西，還是要印，不然整份是空白的。 */
@@ -8252,7 +8260,9 @@ function ghPrefApply(){
   if(!p)return;
   ghSetSel('gh-bank',p.bank);ghSetSel('gh-clq',p.clq);
   const tb=document.getElementById('gh-tr');if(tb)tb.checked=!!p.tr;/* GHTR_V891 */
-  const db=document.getElementById('gh-dlg');if(db)db.checked=!!p.dlg;/* GHDLG_V919 */
+  /* GHONLY_V1480 以前存的是 1／0，要對應回新的選項值 */
+  const db=document.getElementById('gh-dlg');
+  if(db)db.value=(p.dlg===1||p.dlg===true)?'1':String(p.dlg||'');
   ghSetSel('gh-voc',p.voc||'');ghSetSel('gh-vocl',p.vocl||'en');/* GHVOC_V1067 */
   try{GHVOCUI();}catch(e){}
   /* 學生可能已經停課或改名，選單裡找不到就留空白 */
@@ -8509,10 +8519,15 @@ function ghModal(){
    +'<option value="hw">只出作業簿</option>'
    +'<option value="both">課本練習題＋作業簿都出</option>'
    +'</select></div>'
-   /* GHDLG_V919 以前講義只出語法說明＋例句＋練習，課文從來不印。給一個開關。 */
-   +'<div class="field"><label class="ckl" style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">'
-   +'<input type="checkbox" id="gh-dlg" style="width:auto;margin:0"> 課文也印出來'
-   +'<span class="hint">不勾＝只印語法說明、例句和練習題（原本的樣子）</span></label></div>'
+   /* GHDLG_V919 以前講義只出語法說明＋例句＋練習，課文從來不印。給一個開關。
+      GHONLY_V1480 Quinn 要出「短文閱讀」練習（短文＋底下的選擇題），所以從
+      勾選框改成四選一，多了「只印課文」和「只印課文和題目」。 */
+   +'<div class="field"><label>課文</label><select id="gh-dlg">'
+   +'<option value="" selected>不印課文 —— 只印語法說明、例句和練習題</option>'
+   +'<option value="1">課文也印出來</option>'
+   +'<option value="only">只印課文</option>'
+   +'<option value="q">只印課文和題目 —— 不印語法說明、例句、詞彙表</option>'
+   +'</select></div>'
    /* GHVOC_V1067 生詞從來沒印過，這裡給一個選單 */
    +'<div class="field" id="gh-vocbox"'+(ghHasVoc(cur)?'':' style="display:none"')+'>'
    +'<label>生詞</label><select id="gh-voc" onchange="GHVOCUI()">'
@@ -21514,14 +21529,14 @@ H.ghGo=(mode)=>{
   GHCLQ=((document.getElementById('gh-clq')||{}).value)||'1';
   GHBANK=((document.getElementById('gh-bank')||{}).value)||'auto';/* GHBANK_V872 */
   GHTR=!!((document.getElementById('gh-tr')||{}).checked);/* GHTR_V891 */
-  GHDLG=!!((document.getElementById('gh-dlg')||{}).checked);/* GHDLG_V919 */
+  GHDLG=String(((document.getElementById('gh-dlg')||{}).value)||'');/* GHONLY_V1480 */
   GHVOC=((document.getElementById('gh-voc')||{}).value)||'';/* GHVOC_V1067 */
   GHVOCL=((document.getElementById('gh-vocl')||{}).value)||'en';
   GHLANG='tw';/* PRINTBAR_V959 繁／簡改成印出來那一頁上即時切 */
   GHWHO=((document.getElementById('gh-who')||{}).value)||'';
   GHWHEN=((document.getElementById('gh-when')||{}).value)||'';
   /* GHPREF_V883 真的按了匯出才記起來——那才是她確定要用的組合 */
-  try{ghPrefSave(book,{bank:GHBANK,tr:GHTR?1:0,dlg:GHDLG?1:0,voc:GHVOC,vocl:GHVOCL,clq:GHCLQ,who:GHWHO});}catch(e){}
+  try{ghPrefSave(book,{bank:GHBANK,tr:GHTR?1:0,dlg:GHDLG,voc:GHVOC,vocl:GHVOCL,clq:GHCLQ,who:GHWHO});}catch(e){}
   ghBuild(book,lids,mode,wide,noimg);};
 H.bulkAssignSave=async(_x,btn)=>{
   const lids=[...document.querySelectorAll('.ba-l:checked')].map(x=>x.value);
