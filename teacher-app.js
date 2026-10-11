@@ -5932,6 +5932,88 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
 /* WORDY_V1464 Quinn：「這些廢話不用多說」。掃出來後台有 15 段四十字以上的說明文字。
    規則：講「這一頁在幹嘛」的直接拿掉（按鈕和標題本來就看得懂）；
    講「你猜不到的規則」的留著，但收進可以點開的一行，不要每次都擋在前面。 */
+/* ══════ LCMENU_V1497 一課一個選單 ══════
+   Quinn：「太多按鈕，然後按鈕每個地方都不太一樣讓我很難操作」。
+   量出來：一張課卡展開、全部點開＝21 顆按鈕，分在三層
+   （卡片 →「⋯ 更多」那一排 → 再一顆「⋯」的彈出選單），
+   而且兩種「⋯」一個是按鈕、一個是點點點，行為也不一樣；
+   有些按鈕還會因為這一課有沒有逐字稿、有沒有發佈而整顆消失，
+   所以同一顆在不同課位置不同——這就是「每個地方都不太一樣」。
+
+   改成：每一排都是固定五格
+     ［✏️ 編輯］［👁 預覽］［🖨 印出來］［👥 發佈］［⋯ 更多］
+   這一排沒有的那一格留空，位置不會跑。其他操作全部集中在「⋯ 更多」
+   打開的同一個視窗，分四區、順序固定；這一課用不到的照樣排在原位，
+   只是變灰並寫清楚為什麼，不會整顆不見。
+   「🖨 印出來」打開的是同一個視窗，只是直接停在列印那一區。 */
+function lcSlot(){return '<span class="lc-slot" aria-hidden="true"></span>';}
+function lcBtn(act,id,label,cls,tip){
+  return '<button class="btn btn-sm'+(cls?' '+cls:'')+'" data-act="'+act+'" data-id="'+esc(id)+'"'
+    +(tip?' title="'+esc(tip)+'"':'')+'>'+label+'</button>';}
+/* 五格：缺的用空格佔住，幾排的「發佈」和「⋯ 更多」才會上下對齊 */
+function lcRow5(a){a=a||{};return '<span class="lc-btns">'
+  +[a.edit,a.prev,a.print,a.pub,a.more].map(x=>x||lcSlot()).join('')+'</span>';}
+/* 視窗裡的一顆。用不到的不拿掉，改成灰的並寫出原因——位置才不會跑。 */
+function lcmItem(on,act,id,label,why,cls){
+  if(on)return '<button class="btn btn-sm'+(cls?' '+cls:'')+'" data-act="lcmGo" data-id="'+esc(act+'::'+id)+'">'+label+'</button>';
+  return '<span class="lcm-off">'+label+(why?('<small>'+esc(why)+'</small>'):'')+'</span>';}
+function lcmGrp(key,title,items){
+  const r=items.filter(Boolean).join('');if(!r)return '';
+  return '<div class="lcm-g" id="lcm-'+key+'"><div class="lcm-h">'+title+'</div><div class="lcm-r">'+r+'</div></div>';}
+function lcmOpen(title,body,focus){
+  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>'+esc(title)+'</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body lcm-body">'+body+'</div>'
+   +'<div class="modal-foot"><span style="flex:1"></span>'
+   +'<button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');
+  if(focus)setTimeout(()=>{try{const g=document.getElementById('lcm-'+focus);
+    if(g){g.classList.add('on');g.scrollIntoView({block:'nearest'});}}catch(e){}},30);}
+/* 課本那一課 */
+function lesMenu(l,focus){
+  const qn=questionsOf(l.id).length,an=assignedCount(l),built=l.build==='done';
+  const nseg=(((l.dialogues||[]).length)||0)+(((l.grammar_points||[]).length)||0);
+  const nres=((l.resources||[]).length)||0,nsl=slidePages(l).length;
+  const hasTr=Array.isArray(l.transcript)&&l.transcript.length>0;
+  const hasVoc=(l.dialogues||[]).some(d=>String((d&&d.vocabulary)||'').trim());
+  const I=lcmItem;
+  lcmOpen(l.title||'（未命名）',
+    lcmGrp('see','👁 看一看',[
+      I(1,'previewLesson',l.id,'👁 預覽'),
+      I(1,'tryLesson',l.id,'🎒 試做'),
+      I(1,'slides',l.id,'🖥 上課投影片'+(nsl?('（'+nsl+' 頁）'):''))])
+   +lcmGrp('edit','✏️ 改內容',[
+      I(1,'editLesson',l.id,'✏️ 編輯課文'),
+      I(1,'questions',l.id,'📝 練習題（'+qn+'）'),
+      I(qn>0,'ansFill',l.id,'✅ 參考答案','這一課還沒有題目'),
+      I(1,'tguide',l.id,'👩‍🏫 教師手冊'),
+      I(1,'resources',l.id,'📎 補充資料'+(nres?('（'+nres+'）'):'')),
+      I(nseg>=2,'orderLayout',l.id,'📐 課文順序','要兩段以上才有順序可排')])
+   +lcmGrp('print','🖨 印出來',[
+      I(hasVoc,'vocSheet',l.id,'🖨 生詞表・聽寫卷・寫字練習紙','這一課還沒有生詞'),
+      I(qn>0,'printWorksheet',l.id,'🖨 練習題卷','這一課還沒有題目')])
+   +lcmGrp('this','⚙️ 這一課',[
+      I(1,'toggleBuild',l.id,built?'↩ 改回進行中':'✅ 標記完成'),
+      I(hasTr,'toggleTranscript',l.id,'🎧 聽力文本：'+(l.transcript_open?'已開放':'未開放'),'這一課沒有聽力文本'),
+      I(an>0,'unassign',l.id,'↩ 收回發佈','這一課還沒有發佈','btn-warn'),
+      I(1,'dupLesson',l.id,'📋 複製'),
+      I(1,'lxOut',l.id,'⬇ 抓成 Excel'),
+      I(canDelLesson(l),'delLesson',l.id,'🗑 刪除','有學生做過的課不能刪','btn-danger')]),focus);}
+/* 作業簿那一份 */
+function wbMenu(w){
+  const I=lcmItem;
+  lcmOpen('📒 '+((w&&w.title)||'作業簿'),
+    lcmGrp('see','👁 看一看',[I(1,'previewWb',w.id,'👁 預覽'),I(1,'tryWb',w.id,'🎒 試做')])
+   +lcmGrp('this','⚙️ 這一份',[I(1,'delWb',w.id,'🗑 刪除','','btn-danger')]),'');}
+/* 文言文那一課 */
+function clMenu(l){
+  const I=lcmItem,na=(l.assigned_ids||[]).length,nsl=slidePages(l).length;
+  lcmOpen('📜 '+(l.title||'文言文'),
+    lcmGrp('see','👁 看一看',[I(1,'previewLesson',l.id,'👁 預覽'),I(1,'tryLesson',l.id,'🎒 試做'),
+      I(1,'slides',l.id,'🖥 上課投影片'+(nsl?('（'+nsl+' 頁）'):''))])
+   +lcmGrp('edit','✏️ 改內容',[I(1,'editClassical',l.id,'✏️ 編輯課文'),
+      I(1,'clXlsxOut',l.id,'⬇ 抓成 Excel（改完可以匯回來）')])
+   +lcmGrp('this','⚙️ 這一課',[I(na>0,'unassign',l.id,'↩ 收回發佈','這一課還沒有發佈','btn-warn'),
+      I(1,'delClassical',l.id,'🗑 刪除','','btn-danger')]),'');}
 /* ---------- 課文與練習 ---------- */
 function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
     const qn=questionsOf(l.id).length, an=assignedCount(l), di=dueInfo(l.due_date);
@@ -5947,39 +6029,13 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
       ${open?`<div class="lc-bar">
         <b class="lc-bar-t">📖 課本</b><span class="hint">練習題 ${qn}</span>
         <span class="grow"></span>
-        <span class="lc-btns">
-          <!-- LCBTN_V1329 這一列本來六顆（編輯／預覽／試做／教師手冊／⋯更多／發佈），
-               而且每一課都有一列，三十課就是一百八十顆。每天會按的只有「編輯」和「發佈」，
-               預覽、試做、教師手冊收進本來就在旁邊的「⋯ 更多」那一層。 -->
-          <button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">✏️ 編輯</button>
-          <button class="btn btn-sm" data-act="lessonMore" data-id="${l.id}">⋯ 更多</button>
-          <button class="btn btn-sm btn-accent" data-act="assign" data-id="${l.id}">👥 發佈${an?`（${an}）`:''}</button>
-        </span>
+        ${lcRow5({edit:lcBtn('editLesson',l.id,'✏️ 編輯'),
+                  prev:lcBtn('previewLesson',l.id,'👁 預覽'),
+                  print:lcBtn('lesPrint',l.id,'🖨 印出來'),
+                  pub:lcBtn('assign',l.id,'👥 發佈'+(an?('（'+an+'）'):''),'btn-accent'),
+                  more:lcBtn('lesAll',l.id,'⋯ 更多')})}
       </div>
-      ${wbBarHtml(l)}
-      <div class="hide lc-acts" id="lmore-${l.id}">
-        <button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button>
-        <button class="btn btn-sm" data-act="tryLesson" data-id="${l.id}" title="像學生一樣真的做做看，不會存檔">🎒 試做</button>
-        <button class="btn btn-sm${tgTxt(l.id)?' btn-soft':''}" data-act="tguide" data-id="${l.id}" title="只有老師看得到的參考答案和教學筆記">👩‍🏫 教師手冊</button>
-        <button class="btn btn-sm" data-act="questions" data-id="${l.id}">📝 練習題（${qn}）</button>
-        <button class="btn btn-sm" data-act="vocSheet" data-id="${l.id}" title="印出這一課的生詞表、聽寫卷和答案卷">🖨 生詞表・聽寫卷</button><!-- VOCSHEET_V1435 -->
-        <button class="btn btn-sm ${built?'':'btn-accent'}" data-act="toggleBuild" data-id="${l.id}">${built?'↩ 改回進行中':'✅ 標記完成'}</button>
-        ${(Array.isArray(l.transcript)&&l.transcript.length)?`<button class="btn btn-sm${l.transcript_open?' btn-accent':' btn-warn'}" data-act="toggleTranscript" data-id="${l.id}" title="開了學生訂正時才看得到逐字稿">🎧 聽力文本${l.transcript_open?'：已開放':'：未開放'}</button>`:''}
-        <span class="grow"></span>
-        <details class="mini-menu"><summary class="dots" title="其他">⋯</summary><div class="mini-pop">
-          ${((((l.dialogues&&l.dialogues.length)||0)+((l.grammar_points&&l.grammar_points.length)||0))>=2)?`<button class="btn btn-sm" data-act="orderLayout" data-id="${l.id}">📐 課文順序</button>`:''}
-          <button class="btn btn-sm" data-act="resources" data-id="${l.id}">📎 補充資料${(l.resources&&l.resources.length)?('（'+l.resources.length+'）'):''}</button>
-          <button class="btn btn-sm" data-act="printWorksheet" data-id="${l.id}">🖨 練習題卷</button>
-          <button class="btn btn-sm" data-act="slides" data-id="${l.id}">🖥 上課投影片${slidePages(l).length?('（'+slidePages(l).length+' 頁）'):''}</button>
-          <button class="btn btn-sm" data-act="dupLesson" data-id="${l.id}">📋 複製</button>
-          <button class="btn btn-sm" data-act="ansFill" data-id="${l.id}" title="這一課每一題的參考答案，一題一個格子">✅ 參考答案</button>
-          <button class="btn btn-sm" data-act="lxOut" data-id="${l.id}" title="寫成匯入用的 Excel：備份、離線改完再匯回來。圖片和音檔不會進檔案">⬇ 抓成 Excel</button>
-          ${an?`<div class="mini-sep"></div><button class="btn btn-sm btn-warn" data-act="unassign" data-id="${l.id}">↩ 收回發佈</button>`:''}
-          <div class="mini-sep"></div>
-          ${canDelLesson(l)?`<button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">🗑 刪除</button>`:''}
-        </div></details>
-        ${wbBarHtml(l,true)}
-      </div>`:''}</div>`;
+      ${wbBarHtml(l)}`:''}</div>`;
   }catch(err){return `<div class="card"><h3>${esc((l&&l.title)||'（未命名課文）')}</h3><div class="hint" style="color:var(--danger);margin-top:6px">這一課顯示時出了點問題（資料沒有遺失，可照常編輯或刪除）。</div><div class="actions" style="margin-top:10px"><button class="btn btn-sm" data-act="editLesson" data-id="${l.id}">✏️ 編輯</button><button class="btn btn-sm btn-accent" data-act="questions" data-id="${l.id}">📝 練習題</button><button class="btn btn-sm btn-danger" data-act="delLesson" data-id="${l.id}">🗑 刪除</button></div></div>`;}}
 function pronTeacherCardHtml(p){const gs=p.pron_groups||[];const ni=gs.reduce((a,g)=>a+((g.items||[]).length),0);const na=assignedCount(p);const nq=(p.pron_quiz||[]).length;
   return `<div class="card"><div class="row-between"><h3>🔤 ${esc(p.title||'發音')}</h3><div style="display:flex;gap:6px"><button class="btn btn-sm btn-accent" data-act="editPron" data-id="${p.id}">編輯</button><button class="btn btn-sm btn-danger" data-act="delPron" data-id="${p.id}">刪除</button></div></div><div class="hint" style="margin-top:4px">${gs.length} 組 · ${ni} 個音${nq?(' · 聽辨 '+nq+' 題'):''}${p.handout_url?' · 📄 PDF':''} · 發佈 ${na} 人</div></div>`;}
@@ -5993,21 +6049,11 @@ function clCardHtml(l){const lines=clLinesOf(l);const na=(l.assigned_ids||[]).le
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${na?'<span class="tag tpub-y">已發佈 '+na+' 人</span>':'<span class="tag tpub-n">未發佈</span>'}${slideTag(l)}</div></div>
     <div class="hint" style="margin-top:4px">${lines.length} 句 · 注釋 ${nn} · 參考翻譯 ${nr}${nq?(' · 課後問答 '+nq+' 題'):''}${np?(' · 🖼 '+np+' 張圖'):''}</div>
     <div class="lc-bar"><b class="lc-bar-t">📜 課文</b><span class="grow"></span>
-      <span class="lc-btns">
-        <button class="btn btn-sm" data-act="editClassical" data-id="${l.id}">✏️ 編輯</button>
-        <button class="btn btn-sm" data-act="previewLesson" data-id="${l.id}">👁 預覽</button>
-        <button class="btn btn-sm" data-act="tryLesson" data-id="${l.id}" title="像學生一樣做做看，不會存檔">🎒 試做</button>
-        <button class="btn btn-sm" data-act="clMore" data-id="${l.id}">⋯ 更多</button>
-        <button class="btn btn-sm btn-accent" data-act="assign" data-id="${l.id}">👥 發佈${na?('（'+na+'）'):''}</button>
-      </span></div>
-    <div class="hide lc-acts" id="clmore-${l.id}">
-      <span class="hint">這一課的其他操作</span>
-      <button class="btn btn-sm" data-act="slides" data-id="${l.id}">🖥 上課投影片${slidePages(l).length?('（'+slidePages(l).length+' 頁）'):''}</button>
-      <!-- CLXOUT_V1044 抓成 Excel，改完注釋再用「📥 從 Excel 匯入」讀回來 -->
-      <button class="btn btn-sm" data-act="clXlsxOut" data-id="${l.id}">📤 匯出成 Excel（改完可以再匯回來）</button>
-      <span class="grow"></span>
-      <button class="btn btn-sm btn-danger" data-act="delClassical" data-id="${l.id}">🗑 刪除這一課</button>
-    </div></div>`;}
+      ${lcRow5({edit:lcBtn('editClassical',l.id,'✏️ 編輯'),
+                prev:lcBtn('previewLesson',l.id,'👁 預覽'),
+                pub:lcBtn('assign',l.id,'👥 發佈'+(na?('（'+na+'）'):''),'btn-accent'),
+                more:lcBtn('clAll',l.id,'⋯ 更多')})}
+      </div></div>`;}
 /* CLFOLD_V1042 一課二三十段，每一段都攤開來的話，只是想在第 1 段加一條注釋，
    也得從頭拉到尾（Quinn：「在編輯文言文這邊你如果讓我看到每一個句子出現，
    就會太長，讓我往下拉很久」）。改成一段一列：平常只看得到段號、開頭那幾個字，
@@ -11307,8 +11353,7 @@ function wbBarHtml(l,more){const w=wbOfLesson(l);
   if(!w){if(more)return '';
     return `<div class="lc-bar">
       <b class="lc-bar-t">📒 作業簿</b><span class="hint">這一課還沒有作業簿</span><span class="grow"></span>
-      <span class="lc-btns">
-      <button class="btn btn-sm btn-accent" data-act="newWb" data-id="${l.id}">＋ 建立</button></span></div>`;}
+      ${lcRow5({pub:lcBtn('newWb',l.id,'＋ 建立','btn-accent')})}</div>`;}
   const na=(w.assigned_ids||[]).length,ng=(w.assigned_groups||[]).join('、');
   const pub=(ng||na)?('<span class="tag tpub-y">已發佈'+(ng?('：'+esc(ng)):'')+(na?('＋'+na+'人'):'')+'</span>'):'<span class="tag tpub-n">未發佈</span>';
   /* WB_ASSIGN_V38 截止日也跟課文卡片一樣顯示 */
@@ -11339,14 +11384,11 @@ function wbBarHtml(l,more){const w=wbOfLesson(l);
   return `<div class="lc-bar">
     <b class="lc-bar-t">📒 作業簿</b>${pubLeft}${dueTag}${warn}${sub?('<span class="hint">已交 '+sub+' 份</span>'):''}${subT?('<span class="hint">🧪 測試 '+subT+' 份</span>'):''}
     <span class="grow"></span>
-    <span class="lc-btns">
-      <button class="btn btn-sm" data-act="editWb" data-id="${w.id}">✏️ 編輯</button>
-      <details class="mini-menu"><summary class="btn btn-sm">⋯ 更多</summary><div class="mini-pop">
-        <button class="btn btn-sm" data-act="previewWb" data-id="${w.id}">👁 預覽</button>
-        <button class="btn btn-sm" data-act="tryWb" data-id="${w.id}" title="像學生一樣真的做做看，會對答案，但不會存檔">🎒 試做</button>
-      </div></details>
-      <button class="btn btn-sm btn-accent" data-act="assignWb" data-id="${w.id}">👥 發佈${pubN?`（${pubN}）`:''}</button><!-- PUBTAG_V1451 -->
-    </span></div>`;}
+    ${lcRow5({edit:lcBtn('editWb',w.id,'✏️ 編輯'),
+              prev:lcBtn('previewWb',w.id,'👁 預覽'),
+              pub:lcBtn('assignWb',w.id,'👥 發佈'+(pubN?('（'+pubN+'）'):''),'btn-accent'),
+              more:lcBtn('wbAll',w.id,'⋯ 更多')})}
+    </div>`;}
 function wbTitleOf(id){const w=(S.workbooks||[]).find(x=>x.id===id);return (w&&w.title)||'作業簿';}
 function wbCardHtml(w){
   const d=w.wb||{};
@@ -14280,6 +14322,19 @@ H.slToggle=async(id)=>{
   catch(e){toast('失敗：'+((e&&e.message)||e));}
 };
 H.lessonMore=(id)=>{const el=document.getElementById('lmore-'+id);if(el)el.classList.toggle('hide');};
+/* LCMENU_V1497 「⋯ 更多」和「🖨 印出來」都開同一個視窗；印出來只是直接停在列印那一區。 */
+H.lesAll=(id)=>{const l=(S.lessons||[]).find(x=>x&&x.id===id);if(!l)return toast('找不到這一課');lesMenu(l,'');};
+H.lesPrint=(id)=>{const l=(S.lessons||[]).find(x=>x&&x.id===id);if(!l)return toast('找不到這一課');lesMenu(l,'print');};
+H.wbAll=(id)=>{const w=(S.workbooks||[]).find(x=>x&&x.id===id);if(!w)return toast('找不到這一份作業簿');wbMenu(w);};
+H.clAll=(id)=>{const l=(S.classicals||[]).find(x=>x&&x.id===id);if(!l)return toast('找不到這一課');clMenu(l);};
+/* 視窗裡每一顆都走這裡：先把視窗關掉，再做那件事。
+   這樣不管那件事會不會自己開新視窗，行為都一樣。 */
+H.lcmGo=(key)=>{
+  const k=String(key||''),i=k.indexOf('::');if(i<0)return;
+  const act=k.slice(0,i),id=k.slice(i+2);/* 分隔是「::」兩個字，所以是 i+2 */
+  closeModal();
+  try{if(typeof H[act]==='function')H[act](id);else toast('這個功能找不到：'+act);}
+  catch(e){toast('打不開：'+((e&&e.message)||e));}};
 H.clMore=(id)=>{const el=document.getElementById('clmore-'+id);if(el)el.classList.toggle('hide');};
 /* ===== 🎮 即時比賽 主持端 ===== */
 function lqFS(){return firebase.firestore();}
