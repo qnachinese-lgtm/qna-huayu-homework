@@ -3322,16 +3322,28 @@ function renderPay(){
   // 分組：一對一 ／ 各團班（合併帳戶的人已經在上面列過）
   const rest=rows.filter(r=>!inFam.has(r.s.id));
   const solo=rest.filter(r=>r.s.class_type!=='團班');
-  const grpNames=[...new Set(rest.filter(r=>r.s.class_type==='團班').flatMap(r=>stuGroups(r.s)))].sort();
+  /* BOTHGRP_V1490 團班分組要把「兩種都有」的學生的班也算進去，不然她的班可能整組不出現 */
+  const grpNames=[...new Set(rest.filter(r=>r.s.class_type==='團班'||isBoth(r.s)).flatMap(r=>stuGroups(r.s)))].sort();
   const noGrp=rest.filter(r=>r.s.class_type==='團班'&&!stuGroups(r.s).length);
-  const sec=(label,arr)=>{if(!arr.length)return '';
+  /* BOTHGRP_V1490 「兩種都有」的學生本來只出現在一對一那一組，團班那邊看不到她
+     （Quinn：「這位學生要不要也該出現在一對一那邊？」）。現在團班那一組也列出來，
+     但只是提醒用的一列：不算進那一組的「還沒收」小計，金額完整的那一列在一對一那邊，
+     不然同一筆錢會被加兩次。 */
+  const sec=(label,arr,ghosts)=>{ghosts=ghosts||[];
+    if(!arr.length&&!ghosts.length)return '';
     const d={};arr.forEach(r=>{if(r.b.items.length&&r.b.due>0)d[r.cur]=(d[r.cur]||0)+r.b.due;});
     const sub=Object.keys(d).length?('<span class="pay-gs">還沒收 '+mstr(d)+'</span>'):'<span class="pay-gs ok">✅ 都收齊了</span>';
-    return '<div class="pay-grp"><div class="pay-gh">'+label+' <span class="tag">'+arr.length+' 位</span>'+sub+'</div>'
-      +payHeadHtml()+sortR(arr).map(r=>payRowHtml(r)).join('')+'</div>';};
+    const tag='<span class="tag">'+arr.length+' 位'+(ghosts.length?('　＋'+ghosts.length+' 位兩種都有'):'')+'</span>';
+    return '<div class="pay-grp"><div class="pay-gh">'+label+' '+tag+sub+'</div>'
+      +payHeadHtml()+sortR(arr).map(r=>payRowHtml(r)).join('')
+      +(ghosts.length?('<div class="pay-famnote">下面這幾位同時也上一對一。完整的金額列在「🧑‍🏫 一對一」那一組，這裡不重複算進上面的小計。</div>'
+        +sortR(ghosts).map(r=>payRowHtml(r,true)).join('')):'')
+      +'</div>';};
   let html=famHtml;
   html+=sec('🧑‍🏫 一對一',solo);
-  grpNames.forEach(g=>html+=sec('👥 '+esc(g)+' 團班',rest.filter(r=>r.s.class_type==='團班'&&stuGroups(r.s).includes(g))));
+  grpNames.forEach(g=>html+=sec('👥 '+esc(g)+' 團班',
+    rest.filter(r=>r.s.class_type==='團班'&&stuGroups(r.s).includes(g)),
+    rest.filter(r=>isBoth(r.s)&&stuGroups(r.s).includes(g))));/* BOTHGRP_V1490 */
   html+=sec('👥 團班（尚未分班）',noGrp);
   body.innerHTML=head+bar+(html||emptyHtml('🎉','沒有符合的學生','換上面的分類看看。'));
 }
