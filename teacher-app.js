@@ -5726,15 +5726,21 @@ function renderStudents(){
   const secOpen=(S.stuSecAllOpen===true)?' open':'';
   /* STU_SORT_V7 每一組學生一律照名字 A→Z 排（休學的仍然排最後），跟「預約」「已休學」那兩組一致 */
   const stuSort=(arr)=>arr.slice().sort((a,b)=>((enrollOf(a)==='paused'?1:0)-(enrollOf(b)==='paused'?1:0))||stuNameCmp(a,b));
-  const sec=(label,students,cls)=>`<details class="stu-sec cool-sec"${secOpen}><summary><span style="font-size:16px;color:var(--primary);font-weight:600">${label}</span> <span class="tag">${students.length} 人</span></summary>${cls?`<div style="margin:8px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 開啟班級頁</button></div>`:''}${grpHtml(stuSort(students))}</details>`;
+  const sec=(label,students,cls,note)=>`<details class="stu-sec cool-sec"${secOpen}><summary><span style="font-size:16px;color:var(--primary);font-weight:600">${label}</span> <span class="tag">${students.length} 人</span></summary>${cls?`<div style="margin:8px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 開啟班級頁</button></div>`:''}${note||''}${grpHtml(stuSort(students))}</details>`;
   const real=list.filter(s=>!s.is_test);const testers=list.filter(s=>s.is_test);
   const reservedReal=real.filter(s=>enrollOf(s)==='reserved');
   const pausedReal=real.filter(s=>enrollOf(s)==='paused');const activeReal=real.filter(s=>enrollOf(s)!=='paused'&&enrollOf(s)!=='reserved');
   const classNames=[...new Set(activeReal.flatMap(s=>stuGroups(s)))].sort();
   const ungrouped=activeReal.filter(s=>!stuGroups(s).length);
-  const solo=ungrouped.filter(s=>s.class_type!=='團班');const teamNoGrp=ungrouped.filter(s=>s.class_type==='團班');
+  /* BOTHGRP2_V1491 「兩種都有」的學生有填團班，所以本來被 ungrouped 擋掉，
+     一對一那一組看不到她，只在她的班裡面。改成跟繳費頁一樣兩邊都出現：
+     一對一這一組照常列她，她的班那一列也照常有她。 */
+  const _both=activeReal.filter(s=>isBoth(s));
+  const solo=ungrouped.filter(s=>s.class_type!=='團班'&&!isBoth(s)).concat(_both);
+  const teamNoGrp=ungrouped.filter(s=>s.class_type==='團班');
   let html='';
-  if(solo.length)html+=sec('🧑‍🏫 一對一',solo,'');
+  if(solo.length)html+=sec('🧑‍🏫 一對一',solo,'',
+    _both.length?('<div class="hint" style="padding:2px 2px 6px">其中 '+_both.length+' 位是「兩種都有」，在下面自己的團班那一列也看得到。</div>'):'');
   /* STUGRP_V1087 團班全部收在一個「👥 團班」底下，一班一列。
      以前每一班自己一大塊，夾在「一對一」和「預約」中間；
      而且班上沒有在學學生的班（例如 001 只有一位在預約）整個不會出現，
