@@ -5684,9 +5684,15 @@ function renderStudents(){
   const _others=[['trial','🎁 試學'],['reserved','📌 預約・詢問中'],['paused','⏸️ 休學']].filter(o=>cnt(o[0])>0);
   const _othOn=_others.find(o=>o[0]===sf);
   const _more=_others.length?`<details class="mini-menu stu-more"><summary class="segb${_othOn?' on':''}">${_othOn?esc(_othOn[1])+'（'+cnt(_othOn[0])+'）':'其他狀態'} ▾</summary><div class="mini-pop">${_others.map(o=>`<button class="btn btn-sm" data-act="stuFilter" data-id="${o[0]}">${o[1]}（${cnt(o[0])}）</button>`).join('')}</div></details>`:'';
-  /* STUMAIL_V1077 這一排（照目前篩選到的那幾位算）：複製全部信箱、誰還沒填 */
-  const _mailList=list.filter(s=>!s.is_test&&String(s.email||'').trim());
-  const _noMail=list.filter(s=>!s.is_test&&!String(s.email||'').trim());
+  /* STUMAIL_V1077 這一排（照目前篩選到的那幾位算）：複製全部信箱、誰還沒填
+     MAILCNT_V1487 這裡本來是用 list 算的，而 list 在這一行還沒套上「在學中／休學…」
+     那個狀態篩選，所以按鈕上的數字是「全部學生」裡沒填 Email 的人數，
+     點下去的視窗卻只看「目前篩選到的」，兩邊對不起來
+     （Quinn 看到「沒有 Email 8」，點下去卻跳「大家都填了 Email」）。
+     改成兩邊都用 H.stuMailList()，同一份名單算出來就不會再打架。 */
+  const _ml=H.stuMailList();
+  const _mailList=_ml.filter(s=>String(s.email||'').trim());
+  const _noMail=_ml.filter(s=>!String(s.email||'').trim());
   const _mailBar=(IS_OWNER&&(_mailList.length||_noMail.length))?`
     ${/* STUBTN_V1318 複製全部信箱搬到上面的「⋯ 更多」了 */''}
     ${_noMail.length?`<button class="segb" data-act="stuNoMail" title="列出還沒填 Email 的人">⚠️ 沒有 Email <span class="segn">${_noMail.length}</span></button>`:''}`:'';
@@ -16778,7 +16784,10 @@ H.resetPw=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s.email)return t
 /* STUMAIL_V1077 */
 H.stuMailList=()=>{let l=(S.students||[]).filter(s=>!s.is_test);
   const sf=S.statusFilter||'active';if(sf!=='all')l=l.filter(s=>enrollOf(s)===sf);
-  if(S.q){const q=S.q.toLowerCase();l=l.filter(s=>(s.name||'').toLowerCase().includes(q));}
+  /* MAILCNT_V1487 搜尋條件要跟學生名冊那邊一模一樣（名字、本名、國籍都比對） */
+  if(S.q){const q=S.q.toLowerCase();l=l.filter(s=>(s.name||'').toLowerCase().includes(q)
+    ||(s.real_name||'').toLowerCase().includes(q)
+    ||(s.nationality||'').toLowerCase().includes(q));}
   return l;};
 H.stuMailAll=async()=>{
   const ms=[...new Set(H.stuMailList().map(s=>String(s.email||'').trim()).filter(Boolean))];
