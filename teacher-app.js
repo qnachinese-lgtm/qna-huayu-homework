@@ -12957,9 +12957,7 @@ H.stuPick=(mode)=>{
   openModal('<div class="modal" style="max-width:560px"><div class="modal-head"><h3>'
     +(m==='log'?'📝 記一堂課':'💬 寫回饋單')+' · 選學生</h3><button class="x" data-act="closeModal">×</button></div>'
     +'<div class="modal-body">'
-    +'<div class="hint" style="margin-bottom:9px">'
-    +(m==='log'?'選一位學生就會打開他的上課記錄，日期跟時段會自動帶好。':'選一位學生就會打開他的上課回饋單，日期選好、內容會自動帶入課後小結。')
-    +'</div>'
+    /* WORDY2_V1477 Quinn 核准拿掉的 5 段說明（按下去就知道的操作描述） */
     +(todayN?'<div class="segbar" style="margin-bottom:9px"><button type="button" class="segb" id="spk-today">📅 只看今天有課<span class="segn">'+todayN+'</span></button></div>':'')
     +'<input id="spk-q" type="text" placeholder="打名字快速找…" autocomplete="off" style="width:100%;font-size:15px;padding:10px 13px;border:1.5px solid var(--line);border-radius:10px">'
     +'<div id="spk-res" style="margin-top:10px;max-height:52vh;overflow:auto"></div>'
@@ -14155,8 +14153,7 @@ H.docFill=(id)=>{
   openModal('<div class="modal modal-wide modal-tall"><div class="modal-head">'
    +'<h3>✍️ 填學生資料 · '+esc(c.name||'')+'</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-   +'<div class="hint" style="margin-bottom:4px">不確定或沒有的欄位留空就好，不用自己猜。'
-   +'填完按儲存，之後按「🖨 列印」就會把這些內容一起印出來。</div>'
+   /* WORDY2_V1477 Quinn 核准拿掉的 5 段說明（按下去就知道的操作描述） */
    +'<div id="df-box">'+html+'</div></div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
    +'<span style="flex:1"></span>'
@@ -19951,8 +19948,7 @@ H.stuMonthMsg=(id)=>{
    +'</div>'
    +'<div class="field"><label>內容 <span class="hint">可以直接改，改完再複製</span></label>'
    +'<textarea id="mm-ta" rows="14" style="font-family:inherit;line-height:1.7"></textarea></div>'
-   +'<div class="hint">數字是從上課記錄和繳費記錄算出來的，跟「收費・財務」那一頁一樣。'
-   +'這裡只是做好讓妳複製，不會自己送給學生。</div>'
+   /* WORDY2_V1477 Quinn 核准拿掉的 5 段說明（按下去就知道的操作描述） */
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button>'
    +'<span style="flex:1"></span>'
    +'<button class="btn btn-primary" data-act="mmCopy">\u{1F4CB} 複製</button>'
@@ -20146,8 +20142,7 @@ H.afOpen=()=>{
    +'<input type="checkbox" id="af-only"'+(AF_ONLY?' checked':'')+'>只看沒答案的</label>'
    +'<span class="hint" id="af-cnt"></span></div>'
    +'<div class="af-body" id="af-body"></div>'
-   +'<div class="hint" style="margin-top:8px">改了就自動存：選擇題按下去、打字的移開游標。'
-   +'參考答案只有你看得到，不會因為補答案就發佈給學生。</div>'
+   +'<div class="hint" style="margin-top:8px">參考答案只有你看得到，不會因為補答案就發佈給學生。</div>'/* WORDY2_V1477 「改了就自動存」那句拿掉；後面這句是規則，留著 */
    +'</div></div>');
   afPaint();};
 H.afPick=async(key)=>{
@@ -20684,8 +20679,7 @@ H.agReport=()=>{
    +'<h3>📊 留學業務年度報表</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body"><div class="field"><label>要哪一年</label>'
    +'<select id="rp-y">'+ys.map((y,i)=>'<option value="'+y+'"'+(i===0?' selected':'')+'>'+y+' 年</option>').join('')+'</select></div>'
-   +'<div class="hint" style="margin-top:8px">每月收入、客戶概況、申請了哪些學校、目前還缺什麼文件。'
-   +'全部是現有資料算出來的，可以直接列印或存成 PDF。</div>'
+   /* WORDY2_V1477 Quinn 核准拿掉的 5 段說明（按下去就知道的操作描述） */
    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>'
    +'<span style="flex:1"></span><button class="btn btn-primary" data-act="agReportGo">🖨 產生報表</button></div></div>');};
 H.agReportGo=()=>{
