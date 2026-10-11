@@ -6878,7 +6878,7 @@ function bulkImportModal(lid){const l=S.lessons.find(x=>x.id===lid)||{};const gp
        <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label style="margin:0;white-space:nowrap;font-weight:600">小節（選填）</label><input id="bi-sub" type="text" style="width:120px" placeholder="請填小節代號"></div></div>
      <div class="field"><label>說明（套用到整批，選填）<span class="hint">這批每一題上方都會顯示這句</span></label>
        <textarea id="bi-instr" style="min-height:38px" placeholder="這一批題目上面要寫的指示語"></textarea></div>
-     <div class="field"><label>內容 </label>
+     <div class="field"><label>內容 <span class="hint">一行一題，照上面「題型」的格式寫；一題有多種答案用 / 隔開</span></label>
        <textarea id="bi-text" style="min-height:160px" placeholder="他＿＿不＿＿美國人？=是不是&#10;你叫什麼名字？=我叫…&#10;李明華是哪國人？=美國/美國人"></textarea></div>
      <div class="hint" id="bi-status"></div>
    </div>
