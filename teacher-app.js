@@ -13816,65 +13816,104 @@ H.lxIn=()=>{
       +'。確認後按「新增」才會建立'
       +((old||!s.q)?'':'；練習題會在課建好之後一起建'));};
   inp.click();};
-/* ANSIN_V1493 只匯入參考答案。Quinn：「參考答案那邊，我會提供給你教師手冊，你自行幫我匯入」——
-   我沒辦法寫她的資料庫，只能把答案填進 Excel 再由她匯回來。
-   現成的「從 Excel 匯入」(lxIn) 不能用：那一支對「已經存在的課」會把練習題整批丟掉
-   （LXQS=[]），而且是整課覆蓋。這一支只做一件事：
-   照「題目」文字對出是哪一題，只寫 answer，其他欄位一個字都不碰。 */
-function ansNorm(t){return String(t==null?'':t).replace(/\s+/g,'').replace(/[＿_]{2,}/g,'＿＿').trim();}
-function ansParse(q,raw){
+/* ANSP_V1494 貼上參考答案。Quinn：「我不要你給我下載 EXCEL」。
+   我沒辦法寫她的資料庫，所以答案一定要有個管道進去；改成最輕的那一種：
+   我在對話裡把答案打成「題號＝答案」，她複製貼進這個框，先預覽再寫。
+   沒有檔案、沒有下載。題號＝那一課第幾題，跟印出來的練習題卷同一套算法
+   （示範題不給號，所以這裡也跳過）。 */
+let ANSP=null;
+function ansQList(lid){
+  const all=(S.questions||[]).filter(q=>q&&q.lesson_id===lid)
+    .slice().sort((a,b)=>(Number(a.order_index)||0)-(Number(b.order_index)||0));
+  let n=0;const out=[];
+  all.forEach(q=>{if(q.type==='note')return;n++;out.push({n:n,q:q});});
+  return out;}
+function ansParseVal(q,raw){
   const t=String(raw==null?'':raw).trim();
   if(!t)return null;
-  if(q.type==='choice'){const n=Number(t.replace(/[^0-9]/g,''));
-    return (n>=1&&n<=((q.options||[]).length||99))?(n-1):undefined;}
-  return t.split(/[｜|\/／\n]/).map(x=>x.trim()).filter(Boolean);}
-H.ansIn=()=>{
-  if(typeof XLSX==='undefined'){toast('匯入元件還在載入，請過幾秒再按一次');return;}
-  const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls';
-  inp.onchange=async()=>{
-    const f=inp.files&&inp.files[0];if(!f)return;
-    let rows,lesName='',lesBook='';
-    try{
-      const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
-      const shQ=wb.Sheets['練習'];
-      if(!shQ){toast('這個檔裡沒有「練習」那一張表。請用課卡上的「⬇ 抓成 Excel」匯出的檔。');return;}
-      rows=XLSX.utils.sheet_to_json(shQ,{defval:''});
-      const shC=wb.Sheets['課程'];
-      if(shC){const c=XLSX.utils.sheet_to_json(shC,{defval:''})[0]||{};
-        lesName=String(c['課名']||'').trim();lesBook=String(c['教材']||'').trim();}
-    }catch(e){toast('讀不到這個檔：'+((e&&e.message)||e));return;}
-    if(!rows.length){toast('「練習」那一張表是空的');return;}
-    /* 先找出是哪一課 */
-    const cand=(S.lessons||[]).filter(l=>l&&!l.deleted_at
-      &&String(l.title||'').trim()===lesName
-      &&(!lesBook||String(l.textbook||'').trim()===lesBook));
-    if(!cand.length){toast('對不到課：檔案寫的是「'+(lesName||'（沒有課名）')+'」，平台上找不到同名的課');return;}
-    const l=cand[0];
-    const qs=(S.questions||[]).filter(q=>q&&q.lesson_id===l.id);
-    const byP={};qs.forEach(q=>{const k=ansNorm(q.prompt);if(k&&!(k in byP))byP[k]=q;});
-    const jobs=[];let miss=0,same=0,blank=0;
-    rows.forEach(r=>{
-      const pr=ansNorm(r['題目']);const raw=String(r['答案']==null?'':r['答案']).trim();
-      if(!pr)return;
-      if(!raw){blank++;return;}
-      const q=byP[pr];
-      if(!q){miss++;return;}
-      if(q.type==='note')return;
-      const nv=ansParse(q,raw);
-      if(nv===undefined){miss++;return;}
-      if(JSON.stringify(nv)===JSON.stringify(q.answer==null?null:q.answer)){same++;return;}
-      jobs.push({q,nv});});
-    if(!jobs.length){toast('沒有要更新的：'+same+' 題本來就一樣、'+blank+' 題答案欄是空的'
-      +(miss?('、'+miss+' 題對不上'):''));return;}
-    if(!confirm('這一課：「'+(l.title||'')+'」\n\n要寫入 '+jobs.length+' 題的參考答案嗎？\n'
-      +'（'+same+' 題本來就一樣會跳過、'+blank+' 題答案欄空白會跳過'
-      +(miss?('、'+miss+' 題題目對不上會跳過'):'')+'）\n\n只會動「答案」，題目、選項、說明都不碰。'))return;
-    try{
-      await ensureAuthFresh();
-      for(const j of jobs){await DB.update('questions',j.q.id,{answer:j.nv});j.q.answer=j.nv;}
-      render();toast('寫好了：'+jobs.length+' 題的參考答案');
-    }catch(e){toast(writeErr('寫不進去',e));}};
-  inp.click();};
+  if(q.type==='choice'){
+    /* 選擇題可以寫 3、C、(C) 都認 */
+    const num=t.match(/\d+/);
+    if(num)return Number(num[0])-1;
+    const L=t.toUpperCase().replace(/[^A-Z]/g,'').charAt(0);
+    if(L)return L.charCodeAt(0)-65;
+    return null;}
+  return t.split(/[｜|\/／]/).map(x=>x.trim()).filter(Boolean);}
+function ansParseLines(txt){
+  const out=[];
+  String(txt||'').replace(/\r/g,'').split('\n').forEach(ln=>{
+    const t=ln.trim();if(!t)return;
+    const m=t.match(/^第?\s*(\d+)\s*題?\s*[=＝:：．.、\t]\s*(.+)$/);
+    if(!m){out.push({bad:t});return;}
+    out.push({n:Number(m[1]),v:m[2].trim()});});
+  return out;}
+function ansBooks(){return [...new Set((S.lessons||[]).filter(l=>l&&!l.deleted_at)
+  .map(l=>String(l.textbook||'').trim()).filter(Boolean))].sort(bookCmp);}
+function ansLesOpts(book){
+  return sortLessons((S.lessons||[]).filter(l=>l&&!l.deleted_at
+    &&String(l.textbook||'').trim()===book))
+    .map(l=>'<option value="'+esc(l.id)+'">'+esc(lesNo(l,'（未命名）'))
+      +'（'+ansQList(l.id).length+' 題）</option>').join('');}
+function ANSPBOOK(){
+  const b=((document.getElementById('ansp-book')||{}).value)||'';
+  const sel=document.getElementById('ansp-les');
+  if(sel){sel.innerHTML=ansLesOpts(b);}
+  const pv=document.getElementById('ansp-pv');if(pv)pv.innerHTML='';
+  ANSP=null;}
+H.ansPaste=()=>{
+  const books=ansBooks();
+  if(!books.length)return toast('還沒有教材');
+  const b0=books[0];
+  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📥 貼上參考答案</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+   +'<div class="form-grid">'
+   +'<div class="field"><label>教材</label><select id="ansp-book" onchange="ANSPBOOK()">'
+   +books.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select></div>'
+   +'<div class="field"><label>哪一課</label><select id="ansp-les" onchange="(function(){var p=document.getElementById(\'ansp-pv\');if(p)p.innerHTML=\'\';})()">'
+   +ansLesOpts(b0)+'</select></div></div>'
+   +'<div class="field"><label>答案 <span class="hint">一行一題，寫成「題號＝答案」。選擇題填 3 或 C；一題有多個可接受答案用 ｜ 隔開</span></label>'
+   +'<textarea id="ansp-txt" style="min-height:170px" placeholder="1＝3&#10;2＝也｜都&#10;3＝我叫林小明。"></textarea></div>'
+   +'<div id="ansp-pv"></div></div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+   +'<button class="btn" data-act="ansPreview">👀 預覽</button>'
+   +'<button class="btn btn-primary" data-act="ansWrite">💾 寫入</button></div></div>');};
+H.ansPreview=()=>{
+  const lid=((document.getElementById('ansp-les')||{}).value)||'';
+  const l=(S.lessons||[]).find(x=>x&&x.id===lid);
+  const pv=document.getElementById('ansp-pv');if(!pv)return;
+  if(!l){pv.innerHTML='<div class="hint">先選一課。</div>';ANSP=null;return;}
+  const list=ansQList(lid);const byN={};list.forEach(o=>{byN[o.n]=o.q;});
+  const lines=ansParseLines((document.getElementById('ansp-txt')||{}).value);
+  if(!lines.length){pv.innerHTML='<div class="hint">上面還沒貼東西。</div>';ANSP=null;return;}
+  const jobs=[];const rows=[];
+  lines.forEach(x=>{
+    if(x.bad){rows.push('<tr><td colspan="4" style="color:#A33227">看不懂這一行：'+esc(x.bad)+'</td></tr>');return;}
+    const q=byN[x.n];
+    if(!q){rows.push('<tr><td>'+x.n+'</td><td colspan="3" style="color:#A33227">這一課沒有第 '+x.n+' 題（只有 '+list.length+' 題）</td></tr>');return;}
+    const nv=ansParseVal(q,x.v);
+    const now=(q.type==='choice')?((typeof q.answer==='number')?String(q.answer+1):'—')
+      :((Array.isArray(q.answer)&&q.answer.length)?q.answer.join('｜'):'—');
+    const to=(q.type==='choice')?((nv==null)?'？':String(nv+1)+'　'+esc(String((q.options||[])[nv]||'（沒有這個選項）')))
+      :((nv&&nv.length)?esc(nv.join('｜')):'？');
+    const okOpt=(q.type!=='choice')||(nv!=null&&nv>=0&&nv<((q.options||[]).length||0));
+    rows.push('<tr'+(okOpt?'':' style="color:#A33227"')+'><td><b>'+x.n+'</b></td>'
+      +'<td>'+esc(String(q.prompt||'').slice(0,26))+'</td>'
+      +'<td class="muted">'+esc(now)+'</td><td><b>'+to+'</b></td></tr>');
+    if(okOpt)jobs.push({q:q,nv:nv});});
+  ANSP={lid:lid,jobs:jobs};
+  pv.innerHTML='<div class="hint" style="margin:8px 0 4px">對一下題目和答案有沒有錯行，沒問題再按「💾 寫入」。'
+    +'可以寫入 <b>'+jobs.length+'</b> 題。</div>'
+    +'<table class="anspv"><tr><th>題號</th><th>題目</th><th>現在</th><th>要寫入</th></tr>'
+    +rows.join('')+'</table>';};
+H.ansWrite=async()=>{
+  if(!ANSP||!ANSP.jobs||!ANSP.jobs.length){toast('先按「👀 預覽」看一下要寫什麼');return;}
+  const n=ANSP.jobs.length;
+  if(!confirm('要寫入 '+n+' 題的參考答案嗎？\n\n只會動「答案」，題目、選項、說明都不碰。'))return;
+  try{
+    await ensureAuthFresh();
+    for(const j of ANSP.jobs){await DB.update('questions',j.q.id,{answer:j.nv});j.q.answer=j.nv;}
+    ANSP=null;closeModal();render();toast('寫好了：'+n+' 題的參考答案');
+  }catch(e){toast(writeErr('寫不進去',e));}};
 H.clImport=()=>{
   if(typeof XLSX==='undefined'){toast('匯入元件還在載入，請過幾秒再按一次');return;}
   const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls';
