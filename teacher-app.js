@@ -16942,6 +16942,7 @@ H.admins=async()=>{if(!isOwner()){toast('只有主管理員可以管理管理員
        </div>
        <div class="hint" style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
          <button class="btn btn-sm" data-act="shareBackfill">補齊教材的分享設定</button>
+         <button class="btn btn-sm" data-act="dataShape">檢查資料結構</button>
          <span>以前指派出去的課還沒有這個設定。按一次，系統會照「學生的負責管理員」自動補上；只會增加，不會拿掉你手動勾的。</span>
        </div></div>
    </div>
@@ -16957,6 +16958,51 @@ H.addAdmin=async(_,b)=>{if(!isOwner())return;const name=$('#adm-name').value.tri
 /* SHARE_V1505 一次性的補齊：以前指派出去的課還沒有 share_admins 這個欄位，
    這顆按鈕把「已經指派給某位學生／某個班」的課，補上那些學生的負責管理員。
    只有主管理員按得動，而且只「加」不「減」——不會動到她手動勾的。 */
+/* ══════ SHAPE_V1506 資料結構檢查（只有主管理員） ══════
+   要把「管理員看不到未指定的教材」做到資料庫層級，Firestore 的規則必須
+   跟程式的查詢對得起來——而規則要列出 lessons 這個集合裡「可以放行」的
+   kind。我只能從程式碼反推那份清單，反推會漏。
+   這顆按鈕直接去數真正的資料，印出來讓 Quinn 貼給我，照實際的寫。
+   它只讀不寫，也不顯示任何學生個資（只有 kind 和筆數）。 */
+H.dataShape=async(_,btn)=>{
+  if(!isOwner())return toast('只有主管理員可以用');
+  if(btn){btn.disabled=true;btn.textContent='檢查中…';}
+  let rows=[];
+  try{rows=await DB.list('lessons');}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='檢查資料結構';}return toast('讀不到：'+((e&&e.message)||e));}
+  const by={};
+  rows.forEach(r=>{
+    const k=(r&&r.kind)?String(r.kind):'(沒有 kind ＝ 課文)';
+    const o=by[k]||(by[k]={n:0,share:0,ruids:0,del:0,assigned:0});
+    o.n++;
+    if(Array.isArray(r.share_admins)&&r.share_admins.length)o.share++;
+    if(Array.isArray(r.read_uids)&&r.read_uids.length)o.ruids++;
+    if(r.deleted_at)o.del++;
+    if((r.assigned_ids&&r.assigned_ids.length)||(r.assigned_groups&&r.assigned_groups.length))o.assigned++;
+  });
+  const keys=Object.keys(by).sort((x,y)=>by[y].n-by[x].n);
+  const txt='lessons 集合共 '+rows.length+' 筆\n'
+    +keys.map(k=>'  '+k+' ： '+by[k].n+' 筆'
+      +'（有指派 '+by[k].assigned+'、有 share_admins '+by[k].share
+      +'、有 read_uids '+by[k].ruids+'、垃圾桶 '+by[k].del+'）').join('\n');
+  if(btn){btn.disabled=false;btn.textContent='檢查資料結構';}
+  openModal('<div class="modal"><div class="modal-head"><h3>資料結構檢查</h3>'
+    +'<button class="x" data-act="closeModal">×</button></div>'
+    +'<div class="modal-body"><div class="hint" style="margin-bottom:8px">'
+    +'這是你的 lessons 集合裡實際有的東西（只有種類和筆數，沒有任何學生資料）。'
+    +'整段複製貼給 Claude，他要照這個寫資料庫規則。</div>'
+    +'<textarea id="shape-out" readonly style="width:100%;min-height:260px;font-family:ui-monospace,monospace;'
+    +'font-size:12.5px;line-height:1.7">'+esc(txt)+'</textarea></div>'
+    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button>'
+    +'<span style="flex:1"></span>'
+    +'<button class="btn btn-accent" data-act="shapeCopy">複製</button></div></div>');
+};
+H.shapeCopy=()=>{
+  const t=document.getElementById('shape-out');if(!t)return;
+  t.select();
+  try{document.execCommand('copy');toast('複製好了，貼給 Claude');}
+  catch(e){toast('複製失敗，請自己選取後 Ctrl+C');}
+};
 H.shareBackfill=async(_,btn)=>{
   if(!isOwner())return toast('只有主管理員可以用');
   const all=(S.lessons||[]).concat(S.workbooks||[],S.classicals||[]);
