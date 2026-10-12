@@ -59,6 +59,22 @@
       return snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
         .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
     },
+    /* RULES_V1507 這兩個是為了「安全規則擋得住」才加的。
+       Firestore 的規則不是過濾器：程式如果一次撈整個集合，規則只要不是
+       無條件放行就會整包失敗。所以查詢要寫成規則「證明得了」的形狀——
+       array-contains 和 in 這兩種，規則那邊用同一個欄位檢查就對得起來。 */
+    async listHas(table, field, val) {
+      const snap = await fdb.collection(table).where(field, "array-contains", val).get();
+      return snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
+        .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+    },
+    async listIn(table, field, vals) {
+      const arr = (vals || []).slice(0, 10);          /* Firestore 的 in 最多 10 個 */
+      if (!arr.length) return [];
+      const snap = await fdb.collection(table).where(field, "in", arr).get();
+      return snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
+        .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+    },
     async insert(table, obj) {
       await fbFresh();
       const row = Object.assign({ created_at: stamp() }, obj);
@@ -97,6 +113,8 @@
   const supabaseDB = {
     async list(table) { const { data, error } = await sb.from(table).select("*").order("created_at", { ascending: true }); if (error) throw error; return data || []; },
     async listWhere(table, field, val) { const { data, error } = await sb.from(table).select("*").eq(field, val).order("created_at", { ascending: true }); if (error) throw error; return data || []; },
+    async listHas(table, field, vals) { const { data, error } = await sb.from(table).select("*").contains(field, [vals]).order("created_at", { ascending: true }); if (error) throw error; return data || []; },
+    async listIn(table, field, vals) { const { data, error } = await sb.from(table).select("*").in(field, vals || []).order("created_at", { ascending: true }); if (error) throw error; return data || []; },
     async insert(table, obj) { const { data, error } = await sb.from(table).insert(obj).select().single(); if (error) throw error; return data; },
     async update(table, id, patch) { const { data, error } = await sb.from(table).update(patch).eq("id", id).select().single(); if (error) throw error; return data; },
     async remove(table, id) { const { error } = await sb.from(table).delete().eq("id", id); if (error) throw error; return true; },
@@ -114,6 +132,8 @@
   const localDB = {
     async list(table) { return lsGet(table).slice().sort((a, b) => (a.created_at || "").localeCompare(b.created_at || "")); },
     async listWhere(table, field, val) { return lsGet(table).filter(r => r[field] === val).sort((a, b) => (a.created_at || "").localeCompare(b.created_at || "")); },
+    async listHas(table, field, val) { return lsGet(table).filter(r => Array.isArray(r[field]) && r[field].indexOf(val) >= 0).sort((a, b) => (a.created_at || "").localeCompare(b.created_at || "")); },
+    async listIn(table, field, vals) { return lsGet(table).filter(r => (vals || []).indexOf(r[field]) >= 0).sort((a, b) => (a.created_at || "").localeCompare(b.created_at || "")); },
     async insert(table, obj) { const rows = lsGet(table); const row = Object.assign({ id: uid(), created_at: stamp() }, obj); rows.push(row); lsSet(table, rows); return row; },
     async update(table, id, patch) { const rows = lsGet(table); const i = rows.findIndex(r => r.id === id); if (i < 0) return null; rows[i] = Object.assign({}, rows[i], patch); lsSet(table, rows); return rows[i]; },
     async remove(table, id) {

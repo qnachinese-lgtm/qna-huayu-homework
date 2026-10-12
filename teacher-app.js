@@ -722,7 +722,7 @@ async function loadAll(){
   const _n4=['學生','課程','題目','作業紀錄'];
   const _s4=await Promise.allSettled([
     owner?DB.list('students'):DB.listWhere('students','admin',MY_EMAIL),
-    DB.list('lessons'),listQuestions(),DB.list('results')]);
+    (owner?DB.list('lessons'):lessonsForAdmin()),listQuestions(),DB.list('results')]);
   _s4.forEach(function(x,i){if(x.status==='rejected')_lfNote(_n4[i],null)(x.reason);});
   if(_s4.some(function(x){return x.status==='rejected';})){loadFailBanner();throw new Error('讀不到：'+LOADFAIL.join('、'));}
   const [a,b,c,d]=_s4.map(function(x){return x.value;});
@@ -7022,12 +7022,54 @@ function ruSame(a,b){
 function ruTargets(){
   return (S.rawLessons||[]).filter(x=>x&&!x.deleted_at
     &&(((x.assigned_ids||[]).length)||((x.assigned_groups||[]).length)));}
-/* quiet=true 是平常存檔後順手補，不出訊息、失敗也不打斷妳正在做的事 */
+
+/* ══════════════════════════════════════════════════════════════
+   RULES_V1507 一般管理員怎麼讀教材
+   Firestore 的安全規則不是過濾器：程式如果一次撈整個 lessons 集合，
+   規則只要不是無條件放行，整包就會失敗（不是少給幾筆，是整個讀不到）。
+   所以一般管理員改成發兩個「規則證明得了」的查詢：
+     1. share_admins 陣列裡有他 → 主管理員指定給他的教材
+     2. kind 在下面這張清單裡 → 後台運作要用的（班級時間、公告、
+        即時比賽、發音…），這些不是教材，不在管制範圍
+   沒有 kind 的（課文）、workbook（作業簿）、classical（文言文）
+   一律只能靠第 1 條拿到——這就是「要我指定才看得到」。
+   主管理員不走這條，她照舊一次撈完。
+
+   ⚠ 這張清單要跟 Firestore 規則裡的 admKinds() 一模一樣。
+     改這裡就要改規則，改規則就要改這裡，否則管理員會少看到東西。
+   ⚠ Firestore 的 in 查詢最多 10 個值，不要超過。
+   ══════════════════════════════════════════════════════════════ */
+const ADM_KINDS=['announcement','classmeta','livesession','livequiz','lqassign','quiz','pron','oc'];
+async function lessonsForAdmin(){
+  const me=String(MY_EMAIL||'').toLowerCase();
+  const rs=await Promise.allSettled([
+    DB.listHas('lessons','share_admins',me),
+    DB.listIn('lessons','kind',ADM_KINDS)
+  ]);
+  /* 用 allSettled：其中一個查詢失敗（例如規則還沒發布）也要把另一個的
+     結果拿出來用，不要整個後台變空白。 */
+  const map={};
+  rs.forEach(r=>{ if(r.status==='fulfilled')(r.value||[]).forEach(x=>{ if(x&&x.id)map[x.id]=x; }); });
+  if(rs.every(r=>r.status==='rejected'))throw (rs[0]&&rs[0].reason)||new Error('讀不到教材');
+  return Object.keys(map).map(k=>map[k])
+    .sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')));
+}/* quiet=true 是平常存檔後順手補，不出訊息、失敗也不打斷妳正在做的事 */
 async function ruSync(quiet){
   const rows=ruTargets();let n=0,bad=0;
   for(let i=0;i<rows.length;i++){
     const l=rows[i];const want=ruCalc(l);
     if(ruSame(want,l.read_uids))continue;
+    /* ══════ RULES_V1507 一般管理員只能加，不能減 ══════
+       ruCalc 是用 S.students 算的，而一般管理員的 S.students 只有
+       「他負責的學生」。所以他一存檔，別的管理員負責的學生就會從
+       read_uids 裡被算掉——那些學生會突然看不到作業。
+       這個問題在這一版之前就存在。這裡擋住：非主管理員只接受
+       「名單變多」的更新，只要會讓任何一個人消失就跳過不寫。 */
+    if(!IS_OWNER){
+      const _cur=Array.isArray(l.read_uids)?l.read_uids:[];
+      const _w={};want.forEach(function(x){_w[x]=1;});
+      if(_cur.some(function(x){return !_w[x];}))continue;
+    }
     try{await DB.update('lessons',l.id,{read_uids:want});l.read_uids=want;n++;}
     catch(e){bad++;}
   }
