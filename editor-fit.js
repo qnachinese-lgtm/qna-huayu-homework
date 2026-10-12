@@ -43,12 +43,33 @@
       if(!ts[i].offsetHeight&&!ts[i].value)continue;
       fit(ts[i]);
     }
+    pairUp(root);
+  }
+
+  /* EDSBS_V1504 課文和拼音左右並排的時候，兩個框要一樣高，
+     不然右邊那欄會比左邊短一截，看起來像壞掉。
+     判斷「有沒有並排」是比 offsetTop：並排的話兩個的上緣一樣高。   */
+  function pairUp(root){
+    var bodies=root.querySelectorAll('.edit-fold-body');
+    for(var i=0;i<bodies.length;i++){
+      var a=bodies[i].querySelector('.dlg-content-in');
+      var c=bodies[i].querySelector('.dlg-py-in');
+      if(!a||!c||!a.offsetHeight||!c.offsetHeight)continue;
+      if(Math.abs(a.offsetTop-c.offsetTop)>2)continue;   /* 上下排，不用管 */
+      var h=Math.max(a.getBoundingClientRect().height,c.getBoundingClientRect().height);
+      a.style.height=h+'px';
+      c.style.height=h+'px';
+    }
   }
 
   /* 打字、貼上 */
   document.addEventListener('input',function(e){
     var t=e.target;
-    if(t&&t.tagName==='TEXTAREA'&&t.closest&&t.closest('.ed2-on'))fit(t);
+    if(t&&t.tagName==='TEXTAREA'&&t.closest&&t.closest('.ed2-on')){
+      fit(t);
+      var body=t.closest('.edit-fold-body');
+      if(body&&/dlg-(content|py)-in/.test(t.className))pairUp(body.parentNode||body);
+    }
   },true);
   document.addEventListener('paste',function(e){
     var t=e.target;

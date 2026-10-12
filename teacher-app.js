@@ -18204,8 +18204,8 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
     return `<details class="dlg-card edit-fold"${d._open?' open':''}><summary class="edit-fold-sum"><span class="gp-no">段 ${i+1}</span><span class="edit-fold-title">${esc((d.title||'').trim()||'（未命名）')}</span><span class="edit-fold-caret">▾</span></summary><div class="edit-fold-body"><div class="dlg-card-head">
     <input class="dlg-title-in" data-i="${i}" value="${esc(d.title||'')}" placeholder="請填這一段的標題">
     ${DLG.length>1?`<button class="btn btn-sm btn-danger" type="button" data-act="dlgDel" data-id="${i}">刪除</button>`:''}</div>
-    <label class="dlg-lbl">課文／對話</label><textarea class="dlg-content-in" data-i="${i}" style="min-height:100px" placeholder="貼上或輸入這段對話／課文…">${esc(d.content||'')}</textarea>
-    <label class="dlg-lbl">課文拼音</label>
+    <label class="dlg-lbl dlg-l-tx">課文／對話</label><textarea class="dlg-content-in" data-i="${i}" style="min-height:100px" placeholder="貼上或輸入這段對話／課文…">${esc(d.content||'')}</textarea>
+    <label class="dlg-lbl dlg-l-py">課文拼音</label>
     <textarea class="dlg-py-in" data-i="${i}" placeholder="這一段課文的拼音">${esc(d.content_py||'')}</textarea>
     <label class="dlg-lbl">生詞 <span class="hint">一行一個：<b>詞 (詞類)=英文</b>；自訂拼音加 <b>[拼音]</b>。例句用「<b>-</b>」開頭打在下一行。</span></label>
     <div class="act-row" style="margin:0 0 6px"><button class="btn btn-sm" type="button" data-act="dlgAutoPinyin" data-id="${i}">✨ 自動加拼音</button> <span class="hint">幫沒有 [拼音] 的詞補上，補完可以再改</span></div>
