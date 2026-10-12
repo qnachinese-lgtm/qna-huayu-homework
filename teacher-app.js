@@ -6786,38 +6786,133 @@ function tplModal(){const nextNo=S.lessons.length+1;const bookOpts=[...new Set(S
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>
      <button class="btn btn-primary" data-act="doTplLesson">建立並編輯</button></div></div>`);}
+/* ══════ EDPAGE_V1499 編輯課文改成「整頁＋左邊目錄」 ══════
+   Quinn：「我覺得還不夠。想要重新設計」「要不要把它變成是編輯時會出現一個分頁，
+   然後開始選擇要編輯哪一個」。對的——一筆四十幾個欄位的資料本來就不該塞在彈窗裡。
+
+   作法：版面換成左目錄、右內容，一次只顯示點到的那一塊。
+   關鍵是「只顯示」不是「只產生」——每一塊的 input 照樣全部留在畫面上（用 CSS 藏），
+   因為 saveLesson 是直接用 $('#l-act')、$('#l-examples') 這種方式去讀值的，
+   欄位一旦沒有產生出來就會讀到空字串，等於把她的資料清掉。這一條不能省。 */
+let ED_CUR='basic',ED_DIRTY=false;
+function edPane(k){return String(k||'').split(':')[0];}
+function edIdx(k){return Number(String(k||'').split(':')[1])||0;}
+function edVal(id){const el=document.getElementById(id);return el?String(el.value||'').trim():'';}
+function edFull(x){return String(x==null?'':x).trim()!=='';}
+function edApply(){
+  const root=document.querySelector('.ed2-on');if(!root)return;
+  /* 段落／語法被刪掉之後，目前選的那一個可能已經不存在 */
+  if(edPane(ED_CUR)==='dlg'&&edIdx(ED_CUR)>=DLG.length)ED_CUR=DLG.length?('dlg:'+(DLG.length-1)):'basic';
+  if(edPane(ED_CUR)==='gp'&&edIdx(ED_CUR)>=GP.length)ED_CUR=GP.length?('gp:'+(GP.length-1)):'basic';
+  const pane=edPane(ED_CUR);
+  root.querySelectorAll('.ed2-pane').forEach(p=>p.classList.toggle('hide',p.dataset.pane!==pane));
+  if(pane==='dlg'){const i=edIdx(ED_CUR);
+    root.querySelectorAll('#dlg-editor details.dlg-card').forEach((d,k)=>{
+      d.classList.toggle('hide',k!==i);if(k===i){d.open=true;if(DLG[k])DLG[k]._open=true;}});}
+  if(pane==='gp'){const i=edIdx(ED_CUR);
+    root.querySelectorAll('#gp-editor details.gp-card').forEach((d,k)=>{
+      d.classList.toggle('hide',k!==i);if(k===i){d.open=true;if(GP[k])GP[k]._open=true;}});}
+  edNav();}
+function edNav(){
+  const nav=document.getElementById('ed2-nav');if(!nav)return;
+  const mk=ok=>ok?'<i>✓</i>':'<i class="w">空</i>';
+  const it=(k,lab,ok)=>'<button type="button" class="ed2-i'+(ED_CUR===k?' on':'')
+    +'" data-act="edGo" data-id="'+esc(k)+'">'+lab+mk(ok)+'</button>';
+  let h='<div class="ed2-nav-g">課程</div>'+it('basic','基本資料',edFull(edVal('l-title')));
+  h+='<div class="ed2-nav-g">課文</div>';
+  DLG.forEach((d,i)=>h+=it('dlg:'+i,esc((d.title||'').trim()||('段 '+(i+1))),edFull(d.content)||edFull(d.vocabulary)));
+  h+='<button type="button" class="ed2-add" data-act="edAddDlg">＋ 新增段落</button>';
+  h+='<div class="ed2-nav-g">語法</div>';
+  GP.forEach((g,i)=>h+=it('gp:'+i,'<span class="ed2-n">'+(i+1)+'</span>'+esc((gpT(g.title)||'').trim()||'（未命名）'),
+    edFull(g.title)||((g.blocks||[]).some(b=>edFull(b&&b.text)||edFull(b&&b.ex)))));
+  h+='<button type="button" class="ed2-add" data-act="edAddGp">＋ 新增語法點</button>';
+  let ntN=0;try{ntN=(NT||[]).filter(n=>edFull(n.title)||edFull(n.text)||edFull(n.ex)).length;}catch(e){}
+  h+='<div class="ed2-nav-g">其他</div>'
+   +it('act','課室活動',edFull(edVal('l-act')))
+   +it('cult','文化',edFull(edVal('l-cult')))
+   +it('nt','注釋',ntN>0)
+   +it('ex','例句',edFull(edVal('l-examples')));
+  nav.innerHTML=h;}
+function edSyncAll(){try{dlgSync();}catch(e){}try{gpSync();}catch(e){}try{ntSync();}catch(e){}}
+/* 這幾個不能寫成 H.edGo=…：const H 宣告在這支檔案更後面，在這裡碰它會踩到暫時死區，
+   整個後台都開不起來（檔案裡別處已經為同樣的事情踩過一次）。先寫成函式，
+   等 H 存在了再掛上去（往下找 EDPAGE_V1499 掛載）。 */
+function edGoFn(k){edSyncAll();ED_CUR=String(k);edApply();
+  const m=document.getElementById('ed2-main');if(m)m.scrollTop=0;}
+function edAddDlgFn(){H.dlgAdd();ED_CUR='dlg:'+(DLG.length-1);edApply();}
+function edAddGpFn(){H.gpAdd();ED_CUR='gp:'+(GP.length-1);edApply();}
+/* 關掉之前先問——這一頁蓋住整個畫面，誤觸關掉等於整課白做 */
+function edCloseFn(){
+  if(ED_DIRTY&&!confirm('還沒按「儲存」，剛剛改的會不見。確定要離開嗎？'))return;
+  ED_DIRTY=false;closeModal();}
+function edKey(ev){
+  if(ev.key!=='Escape')return;
+  if(!document.querySelector('.ed2-on'))return;
+  ev.preventDefault();edCloseFn();}
+function edSec(title,sub,body){
+  return '<div class="ed2-h">'+title+'</div>'
+    +(sub?('<div class="ed2-sub">'+sub+'</div>'):'')+body;}
 function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaReset();gpInit(l);ntInit(l);dlgInit(l);
+  ED_CUR='basic';ED_DIRTY=false;
   const bookOpts=[...new Set(S.lessons.map(x=>(x.textbook||'').trim()).filter(Boolean))];
-  openModal(`<div class="modal wide modal-wide"><div class="modal-head"><h3>${e?'編輯課文':'新增課文'}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="form-grid">
-     <div class="field"><label>課序 <span class="hint">第幾課</span></label><input id="l-order" type="number" min="1" value="${l.order_index||nextNo}"></div>
-     <div class="field"><label>課名 *</label><input id="l-title" type="text" value="${esc(l.title||'')}" placeholder="請填課名"></div></div>
-     <div class="field full"><label>教材 <span class="hint">分類用。打教材名稱，沒有的可以直接打新的。</span></label><input id="l-textbook" type="text" list="book-list" value="${esc(l.textbook||'')}" placeholder="請填教材名稱"><datalist id="book-list">${[...new Set([...bookOpts,'發音'])].map(b=>'<option>'+esc(b)+'</option>').join('')}</datalist></div>
-     <div class="field full"><label>📄 講義（PDF）</label>
-       <div class="handout-edit"><input type="hidden" id="l-handout-url" value="${esc(l.handout_url||'')}"><input type="hidden" id="l-handout-name" value="${esc(l.handout_name||'')}">
-         <button class="btn btn-sm" type="button" data-act="lhUp">⬆ 上傳 PDF</button>
-         <button class="btn btn-sm btn-danger" type="button" data-act="lhClear" style="${l.handout_url?'':'display:none'}" id="l-handout-clr">移除</button>
-         <span id="l-handout-disp">${l.handout_url?('📄 '+esc(l.handout_name||'已上傳')):'<span class="hint">尚未上傳</span>'}</span>
-         <span class="hint" id="l-handout-st"></span></div></div>
-     <div class="field full"><label>🎬 課文影片連結 </label><input id="l-video" type="url" value="${esc(l.video_url||'')}" placeholder="貼上影片連結"></div>
-     ${viHas(l)?`<div class="field full vi-box"><label class="vi-box-h">🇻🇳 生詞越南文</label>
-       <div class="vi-box-row">
-         <label class="vi-sw as-label"><input type="checkbox" id="l-vi-release" ${l.vi_release?'checked':''}><span class="knob"></span><span class="vi-sw-t">公開給學生</span></label>
-         <button class="btn btn-sm" type="button" data-act="viCheckFromEdit" data-id="${l.id||''}">📋 對照表（檢查／修改）</button>
-       </div>
-       <div class="hint" style="margin-top:6px">預設<b>不公開</b>：學生只看得到中文和英文釋義，用中文學中文。想讓他們看的時候再打開。改了這個開關要按下面的「儲存」才會生效。</div></div>`
-     :`<div class="field full"><label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer"><input type="checkbox" id="l-vi-release" ${l.vi_release?'checked':''} style="width:auto;margin-top:3px"><span>公開生詞越南文翻譯給學生 <span class="hint">這一課還沒有越南文翻譯，先在下面生詞欄貼上。</span></span></label></div>`}
-     
-     <div class="field full"><label>對話／課文段落 </label><div id="dlg-editor" class="dlg-editor"></div></div>
-     <div class="field full"><label>語法點 </label><div id="gp-editor" class="gp-editor"></div></div>
-     <div class="field full"><label>🗣 課室活動 </label><textarea id="l-act" rows="6" placeholder="I. 活動標題&#10;【目標 Goal】…&#10;【做法 Task】…">${esc(l.activities||'')}</textarea></div>
-     <div class="field full"><label>🏮 文化 <span class="hint">選填。課本的 Bits of Chinese Culture，獨立一區。</span></label><textarea id="l-cult" rows="6" placeholder="標題&#10;內容…">${esc(l.culture||'')}</textarea></div>
-     <div class="field full"><label>注釋 Notes </label><div id="nt-editor" class="gp-editor"></div></div>
-     <div class="field"><label>例句 <span class="hint">每行一句；學生可點來聽發音、看拼音／注音</span></label><textarea id="l-examples" placeholder="今天天氣很好。&#10;我喜歡喝茶。">${esc(l.examples||'')}</textarea></div>
-   </div>
-   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button>
-     <button class="btn btn-primary" data-act="saveLesson" data-id="${l.id||''}">${e?'儲存':'新增'}</button></div></div>`);
-  dlgRender();gpRender();ntRender();
+  const basic=
+     '<div class="form-grid">'
+    +'<div class="field"><label>課序 <span class="hint">第幾課</span></label><input id="l-order" type="number" min="1" value="'+(l.order_index||nextNo)+'"></div>'
+    +'<div class="field"><label>課名 *</label><input id="l-title" type="text" value="'+esc(l.title||'')+'" placeholder="請填課名"></div></div>'
+    +'<div class="field full"><label>教材 <span class="hint">分類用。打教材名稱，沒有的可以直接打新的。</span></label>'
+    +'<input id="l-textbook" type="text" list="book-list" value="'+esc(l.textbook||'')+'" placeholder="請填教材名稱">'
+    +'<datalist id="book-list">'+[...new Set([...bookOpts,'發音'])].map(b=>'<option>'+esc(b)+'</option>').join('')+'</datalist></div>'
+    +'<div class="field full"><label>📄 講義（PDF）</label>'
+    +'<div class="handout-edit"><input type="hidden" id="l-handout-url" value="'+esc(l.handout_url||'')+'"><input type="hidden" id="l-handout-name" value="'+esc(l.handout_name||'')+'">'
+    +'<button class="btn btn-sm" type="button" data-act="lhUp">⬆ 上傳 PDF</button>'
+    +'<button class="btn btn-sm btn-danger" type="button" data-act="lhClear" style="'+(l.handout_url?'':'display:none')+'" id="l-handout-clr">移除</button>'
+    +'<span id="l-handout-disp">'+(l.handout_url?('📄 '+esc(l.handout_name||'已上傳')):'<span class="hint">尚未上傳</span>')+'</span>'
+    +'<span class="hint" id="l-handout-st"></span></div></div>'
+    +'<div class="field full"><label>🎬 課文影片連結</label><input id="l-video" type="url" value="'+esc(l.video_url||'')+'" placeholder="貼上影片連結"></div>'
+    +(viHas(l)
+      ?('<div class="field full vi-box"><label class="vi-box-h">🇻🇳 生詞越南文</label><div class="vi-box-row">'
+        +'<label class="vi-sw as-label"><input type="checkbox" id="l-vi-release" '+(l.vi_release?'checked':'')+'><span class="knob"></span><span class="vi-sw-t">公開給學生</span></label>'
+        +'<button class="btn btn-sm" type="button" data-act="viCheckFromEdit" data-id="'+(l.id||'')+'">📋 對照表（檢查／修改）</button></div>'
+        +'<div class="hint" style="margin-top:6px">預設<b>不公開</b>：學生只看得到中文和英文釋義。改了這個開關要按「儲存」才生效。</div></div>')
+      :('<div class="field full"><label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer">'
+        +'<input type="checkbox" id="l-vi-release" '+(l.vi_release?'checked':'')+' style="width:auto;margin-top:3px">'
+        +'<span>公開生詞越南文翻譯給學生 <span class="hint">這一課還沒有越南文翻譯，先在段落的「其他」裡貼上。</span></span></label></div>'));
+
+  openModal('<div class="modal ed2 ed2-on">'
+   +'<div class="ed2-top">'
+   +'<button type="button" class="ed2-back" data-act="edClose">← 回課程列表</button>'
+   +'<div class="ed2-ttl"><b>'+esc(e?(l.title||'（未命名）'):'新增課文')+'</b>'
+   +'<span class="ed2-book">'+esc(l.textbook||'')+'</span></div>'
+   +'<span class="ed2-save hide" id="ed2-dirty">● 有未存的修改</span>'
+   +'<button class="btn btn-primary" data-act="saveLesson" data-id="'+(l.id||'')+'">💾 '+(e?'儲存':'新增')+'</button>'
+   +'</div>'
+   +'<div class="ed2-body">'
+   +'<nav class="ed2-nav" id="ed2-nav"></nav>'
+   +'<section class="ed2-main" id="ed2-main">'
+   +'<div class="ed2-pane" data-pane="basic">'+edSec('基本資料','這一課的名字、排序和教材。只有課名一定要填。',basic)+'</div>'
+   +'<div class="ed2-pane hide" data-pane="dlg">'+edSec('課文','','<div id="dlg-editor" class="dlg-editor"></div>')+'</div>'
+   +'<div class="ed2-pane hide" data-pane="gp">'+edSec('語法點','','<div id="gp-editor" class="gp-editor"></div>')+'</div>'
+   +'<div class="ed2-pane hide" data-pane="act">'+edSec('🗣 課室活動','上課要帶的活動。一個活動一段，學生看得到。',
+       '<div class="field full"><textarea id="l-act" rows="14" placeholder="I. 活動標題&#10;【目標 Goal】…&#10;【做法 Task】…">'+esc(l.activities||'')+'</textarea></div>')+'</div>'
+   +'<div class="ed2-pane hide" data-pane="cult">'+edSec('🏮 文化','課本的 Bits of Chinese Culture，學生端獨立一區。',
+       '<div class="field full"><textarea id="l-cult" rows="14" placeholder="標題&#10;內容…">'+esc(l.culture||'')+'</textarea></div>')+'</div>'
+   +'<div class="ed2-pane hide" data-pane="nt">'+edSec('注釋 Notes','課本的註解，學生在課文底下看得到。',
+       '<div id="nt-editor" class="gp-editor"></div>')+'</div>'
+   +'<div class="ed2-pane hide" data-pane="ex">'+edSec('例句','每行一句。學生可以點來聽發音、看拼音／注音。',
+       '<div class="field full"><textarea id="l-examples" rows="14" placeholder="今天天氣很好。&#10;我喜歡喝茶。">'+esc(l.examples||'')+'</textarea></div>')+'</div>'
+   +'</section></div></div>');
+  /* EDPAGE_V1499 側欄是 z-index:60，overlay 只有 50——整頁蓋上去會被側欄壓在底下，
+     左邊那條目錄整個看不見。層級要設在 overlay 身上：它是 position:fixed，吃得到 z-index；
+     設在 #modal-root 沒有用，那個是 position:static。overlay 每次開視窗都會重新產生，
+     所以不必還原，別的視窗照舊是 50。 */
+  {const ov=document.querySelector('#modal-root .overlay');if(ov)ov.style.zIndex='200';}
+  dlgRender();gpRender();ntRender();edApply();
+  /* 有改過就記下來，關掉之前才問得出口 */
+  const root=document.querySelector('.ed2-on');
+  if(root)root.addEventListener('input',()=>{if(ED_DIRTY)return;ED_DIRTY=true;
+    const t=document.getElementById('ed2-dirty');if(t)t.classList.remove('hide');},true);
+  document.removeEventListener('keydown',edKey);
+  document.addEventListener('keydown',edKey);
 }
 
 
@@ -14323,6 +14418,11 @@ H.slToggle=async(id)=>{
 };
 H.lessonMore=(id)=>{const el=document.getElementById('lmore-'+id);if(el)el.classList.toggle('hide');};
 /* LCMENU_V1497 「⋯ 更多」和「🖨 印出來」都開同一個視窗；印出來只是直接停在列印那一區。 */
+/* EDPAGE_V1499 整頁編輯器的四個動作掛在這裡——H 到這一行才存在 */
+H.edGo=(k)=>edGoFn(k);
+H.edAddDlg=()=>edAddDlgFn();
+H.edAddGp=()=>edAddGpFn();
+H.edClose=()=>edCloseFn();
 H.lesAll=(id)=>{const l=(S.lessons||[]).find(x=>x&&x.id===id);if(!l)return toast('找不到這一課');lesMenu(l,'');};
 H.lesPrint=(id)=>{const l=(S.lessons||[]).find(x=>x&&x.id===id);if(!l)return toast('找不到這一課');lesMenu(l,'print');};
 H.wbAll=(id)=>{const w=(S.workbooks||[]).find(x=>x&&x.id===id);if(!w)return toast('找不到這一份作業簿');wbMenu(w);};
@@ -18040,7 +18140,8 @@ function gpRender(){const wrap=document.getElementById('gp-editor');if(!wrap)ret
   +'<div class="gp-ex-hint">💡 <b>練習題（Exercise）</b>：先按下面「儲存」，再到課文卡上點「<b>練習題</b>」新增題目，'
   +'把「<b>屬於哪個語法點</b>」選成對應的那一個——學生看完那個語法的解釋後，就會接著做這些練習。</div>'
   +addBtn+dl;
-  wrap.querySelectorAll('details.gp-card').forEach((det,gi)=>det.addEventListener('toggle',()=>{if(GP[gi])GP[gi]._open=det.open;}));}
+  wrap.querySelectorAll('details.gp-card').forEach((det,gi)=>det.addEventListener('toggle',()=>{if(GP[gi])GP[gi]._open=det.open;}));
+  try{edApply();}catch(e){}/* EDPAGE_V1499 */}
 H.gpAdd=()=>{gpSync();GP.push({title:'',blocks:[{label:'說明',text:'',ex:''}],_open:true});gpRender();};
 H.gpFoldAll=()=>{gpSync();const anyClosed=GP.some(g=>!g._open);GP.forEach(g=>g._open=anyClosed);gpRender();};
 H.gpDel=(i)=>{gpSync();GP.splice(Number(i),1);gpRender();};
@@ -18121,6 +18222,7 @@ function dlgRender(){const wrap=document.getElementById('dlg-editor');if(!wrap)r
     </div></details>
     </div></details>`;}).join('')+'<div class="edit-fold-bar"><button class="btn btn-sm" type="button" data-act="dlgAdd">＋ 新增對話／段落</button> <button class="btn btn-sm btn-ghost" type="button" data-act="dlgFoldAll">▾ 全部展開／收起</button></div>';
   wrap.querySelectorAll('details.dlg-card').forEach((det,i)=>det.addEventListener('toggle',()=>{if(DLG[i])DLG[i]._open=det.open;}));
+  try{edApply();}catch(e){}/* EDPAGE_V1499 重畫之後 .hide 會被洗掉，要再套一次 */
   DLG.forEach((d,i)=>{if(d._va&&d._va.loud){const c=document.getElementById('va-controls-'+i);if(c)c.classList.remove('hide');const tr=document.getElementById('va-trim-'+i);if(tr){tr.max=Math.ceil(d._va.loud.dur);tr.value=d._va.start||0;}const tv=document.getElementById('va-trim-val-'+i);if(tv)tv.textContent=(d._va.start||0).toFixed(1);const sl=document.getElementById('va-sens-'+i);if(sl&&d._va.ms)sl.value=Math.round(d._va.ms*100);vaRenderPreview(i);}});}
 H.dlgAdd=()=>{dlgSync();DLG.push({title:'對話'+(DLG_CN[DLG.length]||(DLG.length+1)),content:'',vocabulary:'',audio_url:'',vocab_audio_url:'',vocab_segments:[],_open:true});dlgRender();};
 H.dlgFoldAll=()=>{dlgSync();const anyClosed=DLG.some(d=>!d._open);DLG.forEach(d=>d._open=anyClosed);dlgRender();};
