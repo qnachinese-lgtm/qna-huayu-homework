@@ -462,6 +462,53 @@ let IS_OWNER=false, MY_EMAIL='';
 function lessonMine(l){const a=String((l&&l.created_by)||'').toLowerCase();
   return !!(a&&a===String(MY_EMAIL||'').toLowerCase());}
 function canDelLesson(l){return IS_OWNER||lessonMine(l);}
+/* ══════ SHARE_V1505 教材要「主管理員指定」管理員才看得到 ══════
+   Quinn：「教材與課程管理員那邊也不要給他全部，要我指定才可以拿到」。
+   做法：課文上多一個 share_admins 欄位（存 email 的陣列）。
+   一般管理員看得到一課，條件是下面任何一個成立：
+     1. 那一課是他自己建的（created_by）
+     2. 主管理員在那一課勾了他（share_admins）
+     3. 那一課已經指派給「他負責的學生」或他學生的班
+   第 3 條是刻意留的：那種課其實也是主管理員指派出去的，
+   不放行的話他的批改頁會出現打不開、看不到課名的待批改。
+   ⚠ 這一層是畫面上的過濾。真正擋住資料要靠 Firestore 規則，
+     那個要另外做（lessons 集合裡還混著班級時間、公告、發音，
+     規則一寫錯管理員的課表會整個消失）。 */
+function shareList(l){
+  return (Array.isArray(l&&l.share_admins)?l.share_admins:[])
+    .map(x=>String(x||'').toLowerCase()).filter(Boolean);
+}
+/* 這些學生／班級是誰在負責——指派課文的時候順便把他們記進 share_admins，
+   以後就不用靠「推算」，規則也才寫得出來。 */
+function adminsForTargets(ids,groups){
+  const out={},gs={};
+  (groups||[]).forEach(g=>{gs[g]=1;});
+  (S.students||[]).forEach(s=>{
+    const a=String(s.admin||'').toLowerCase();if(!a)return;
+    if((ids||[]).indexOf(s.id)>=0){out[a]=1;return;}
+    if((s.groups||[]).some(g=>gs[g]))out[a]=1;
+  });
+  return Object.keys(out);
+}
+function mergeShare(prev,add){
+  const o={};
+  (Array.isArray(prev)?prev:[]).forEach(x=>{const v=String(x||'').toLowerCase();if(v)o[v]=1;});
+  (add||[]).forEach(x=>{const v=String(x||'').toLowerCase();if(v)o[v]=1;});
+  return Object.keys(o);
+}
+function lessonVisible(l){
+  if(!l)return false;
+  if(IS_OWNER)return true;
+  const me=String(MY_EMAIL||'').toLowerCase();
+  if(!me)return false;
+  if(String(l.created_by||'').toLowerCase()===me)return true;
+  if(shareList(l).indexOf(me)>=0)return true;
+  const sid={},grp={};
+  (S.students||[]).forEach(s=>{sid[s.id]=1;(s.groups||[]).forEach(g=>{grp[g]=1;});});
+  if((l.assigned_ids||[]).some(i=>sid[i]))return true;
+  if((l.assigned_groups||[]).some(g=>grp[g]))return true;
+  return false;
+}
 /* PROP_V944 這一課（或這一題所屬的課）是不是主管理員建的——是的話老師要走送審 */
 function needsReview(l){return !IS_OWNER&&!lessonMine(l);}
 function propPending(){return (S.props||[]).filter(p=>(p.status||'pending')==='pending'
@@ -715,6 +762,12 @@ S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==
     const mine=r=>ids.has(r.student_id)||(r.uid&&uids.has(r.uid));
     S.results=S.results.filter(mine);S.hanzis=(S.hanzis||[]).filter(mine);/* HANZI_V1 */S.sentences=S.sentences.filter(mine);S.quizResults=S.quizResults.filter(mine);S.discussions=S.discussions.filter(mine);S.shadows=(S.shadows||[]).filter(mine);S.gpracs=(S.gpracs||[]).filter(mine);S.hwvs=(S.hwvs||[]).filter(mine);S.wbdocs=(S.wbdocs||[]).filter(mine);S.lqps=(S.lqps||[]).filter(mine);
     S.quizzes=S.quizzes.filter(qz=>(qz.assigned_ids||[]).some(id=>ids.has(id)));
+    /* SHARE_V1505 教材與課程：只留主管理員指定的、自己建的、以及
+       已經指派給自己學生的。公告、發音、班級時間不在這裡過濾——
+       那幾類是後台運作要用的，藏掉管理員的課表會壞掉。 */
+    S.lessons=(S.lessons||[]).filter(lessonVisible);
+    S.workbooks=(S.workbooks||[]).filter(lessonVisible);
+    S.classicals=(S.classicals||[]).filter(lessonVisible);
   }
   S.admins=owner?((await pAdm)||[]):[];/* BOOTPAR_V1370 */
   if(owner){try{famSync();}catch(e){}}/* FAMUID_V947 不等它，慢慢寫沒關係 */
@@ -6889,6 +6942,16 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
     +'<span id="l-handout-disp">'+(l.handout_url?('📄 '+esc(l.handout_name||'已上傳')):'<span class="hint">尚未上傳</span>')+'</span>'
     +'<span class="hint" id="l-handout-st"></span></div></div>'
     +'<div class="field full"><label>🎬 課文影片連結</label><input id="l-video" type="url" value="'+esc(l.video_url||'')+'" placeholder="貼上影片連結"></div>'
+    /* SHARE_V1505 只有主管理員看得到這一區，而且要先有一般管理員才會出現 */
+    +((IS_OWNER&&(S.admins||[]).length)
+      ?('<div class="field full shadm"><label>可以看到這一課的管理員 <span class="hint">不勾＝只有你看得到。已經指派給他負責的學生的課，他本來就看得到。</span></label>'
+        +(S.admins||[]).map(a=>{
+          const em=String(a.email||'').toLowerCase();
+          const on=shareList(l).indexOf(em)>=0;
+          return '<label class="as-label shadm-i"><input type="checkbox" class="l-shadm" value="'+esc(em)+'"'+(on?' checked':'')+'>'
+            +'<span>'+esc(a.name||a.email||'')+' <span class="hint">'+esc(a.email||'')+'</span></span></label>';}).join('')
+        +'</div>')
+      :'')
     +(viHas(l)
       ?('<div class="field full vi-box"><label class="vi-box-h">🇻🇳 生詞越南文</label><div class="vi-box-row">'
         +'<label class="vi-sw as-label"><input type="checkbox" id="l-vi-release" '+(l.vi_release?'checked':'')+'><span class="knob"></span><span class="vi-sw-t">公開給學生</span></label>'
@@ -13363,7 +13426,9 @@ H.saveWbAssign=async(id,b)=>{const w=(S.workbooks||[]).find(x=>x.id===id);if(!w)
   const g=$$('.as-grp:checked').map(x=>x.value);
   const due=($('#as-due')&&$('#as-due').value)||null;
   if(b){b.disabled=true;b.textContent='儲存中…';}
-  try{await ensureAuthFresh();await DB.update('lessons',id,{assigned_groups:g,assigned_ids:i,due_date:due});
+  /* SHARE_V1505 作業簿同上 */
+  const _sh2=mergeShare(shareList(w),adminsForTargets(i,g));
+  try{await ensureAuthFresh();await DB.update('lessons',id,{assigned_groups:g,assigned_ids:i,due_date:due,share_admins:_sh2});w.share_admins=_sh2;
     w.assigned_groups=g;w.assigned_ids=i;w.due_date=due;closeModal();render();toast('已發佈');}
   catch(e){if(b){b.disabled=false;b.textContent='儲存';}toast(writeErr('儲存失敗',e));}};
 H.unassignWb=async(id)=>{const w=(S.workbooks||[]).find(x=>x.id===id);if(!w)return;
@@ -16866,13 +16931,18 @@ H.admins=async()=>{if(!isOwner()){toast('只有主管理員可以管理管理員
          · 只看得到你分配給他的學生<br>
          · 記上課、改上課記錄、預排課程<br>
          · 批改作業、看成績、產生學習報告<br>
-         · 編輯共用的課文／題庫／作業簿、開小考和即時比賽<br>
+         · 編輯<b>你指定給他</b>的課文／題庫／作業簿、開小考和即時比賽<br>
          <b style="display:block;margin-top:7px">管理員看不到的</b>
          · 財務・營運（收入、待收款、對帳）<br>
          · 學生的學費、繳費記錄、對帳單、續約<br>
          · 代辦申請、面試練習<br>
          · 設定、資料備份、管理員管理<br>
-         · 別的管理員負責的學生
+         · 別的管理員負責的學生<br>
+         · <b>你沒有指定給他的教材</b>（在課文的「基本資料」裡勾選；指派給他學生的課他本來就看得到）
+       </div>
+       <div class="hint" style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+         <button class="btn btn-sm" data-act="shareBackfill">補齊教材的分享設定</button>
+         <span>以前指派出去的課還沒有這個設定。按一次，系統會照「學生的負責管理員」自動補上；只會增加，不會拿掉你手動勾的。</span>
        </div></div>
    </div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn btn-accent" data-act="addAdmin">＋ 新增管理員</button></div></div>`);};
@@ -16884,6 +16954,33 @@ H.addAdmin=async(_,b)=>{if(!isOwner())return;const name=$('#adm-name').value.tri
     await firebase.firestore().collection('admins').doc(email).set({email,name:name||email,created_at:new Date().toISOString()});
     toast('已新增管理員');H.admins();
   }catch(err){if(b){b.disabled=false;b.textContent='＋ 新增管理員';}toast(adminWriteErr(err));}};
+/* SHARE_V1505 一次性的補齊：以前指派出去的課還沒有 share_admins 這個欄位，
+   這顆按鈕把「已經指派給某位學生／某個班」的課，補上那些學生的負責管理員。
+   只有主管理員按得動，而且只「加」不「減」——不會動到她手動勾的。 */
+H.shareBackfill=async(_,btn)=>{
+  if(!isOwner())return toast('只有主管理員可以用');
+  const all=(S.lessons||[]).concat(S.workbooks||[],S.classicals||[]);
+  const todo=[];
+  all.forEach(l=>{
+    if(!l||!l.id)return;
+    const add=adminsForTargets(l.assigned_ids||[],l.assigned_groups||[]);
+    if(!add.length)return;
+    const cur=shareList(l),next=mergeShare(cur,add);
+    if(next.length!==cur.length)todo.push({l:l,next:next});
+  });
+  if(!todo.length)return toast('沒有需要補的，全部都設好了');
+  if(!confirm('有 '+todo.length+' 課需要補上「可以看到的管理員」。\n這只會增加，不會把你手動勾的拿掉。要現在補嗎？'))return;
+  if(btn){btn.disabled=true;btn.textContent='補齊中…';}
+  let ok=0,bad=0;
+  for(let i=0;i<todo.length;i++){
+    try{await DB.update('lessons',todo[i].l.id,{share_admins:todo[i].next});todo[i].l.share_admins=todo[i].next;ok++;}
+    catch(e){bad++;}
+    if(btn)btn.textContent='補齊中… '+(i+1)+'/'+todo.length;
+  }
+  if(btn){btn.disabled=false;btn.textContent='補齊教材的分享設定';}
+  toast('補好 '+ok+' 課'+(bad?('，'+bad+' 課失敗'):''));
+  try{render();}catch(e){}
+};
 H.delAdmin=async(id)=>{if(!isOwner())return;let list=[];try{list=await DB.list('admins');}catch(e){}const a=list.find(x=>x.id===id);
   if(!confirm('確定移除管理員「'+((a&&(a.name||a.email))||'')+'」？移除後他就無法登入後台。'))return;
   try{await DB.remove('admins',id);toast('已移除管理員');H.admins();}catch(err){toast(adminWriteErr(err));}};
@@ -17999,7 +18096,13 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
   const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',content_py:(d.content_py||'').trim(),content_en:(d.content_en||'').trim(),vocabulary:d.vocabulary||'',vocab_vi:(d.vocab_vi||'').trim(),discussion:(d.discussion||'').trim(),image_url:(d.image_url||'').trim()||null,audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.discussion||d.image_url||d.audio_url||d.vocab_audio_url);
   const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,video_url:(($('#l-video')&&$('#l-video').value)||'').trim()||null,
     /* ACT_CULT_V44 課室活動／文化是獨立的兩區，不再塞進對話段落 */
-    activities:(($('#l-act')&&$('#l-act').value)||'').trim(),culture:(($('#l-cult')&&$('#l-cult').value)||'').trim(),vi_release:!!($('#l-vi-release')&&$('#l-vi-release').checked),dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,notes:ntCollect(),key_points:'',examples:$('#l-examples').value,handout_url:(($('#l-handout-url')&&$('#l-handout-url').value)||'')||null,handout_name:(($('#l-handout-name')&&$('#l-handout-name').value)||'')||null,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[])};
+    activities:(($('#l-act')&&$('#l-act').value)||'').trim(),culture:(($('#l-cult')&&$('#l-cult').value)||'').trim(),vi_release:!!($('#l-vi-release')&&$('#l-vi-release').checked),dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,notes:ntCollect(),key_points:'',examples:$('#l-examples').value,handout_url:(($('#l-handout-url')&&$('#l-handout-url').value)||'')||null,handout_name:(($('#l-handout-name')&&$('#l-handout-name').value)||'')||null,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[]),
+  /* SHARE_V1505 勾選框只有主管理員畫得出來；一般管理員在編輯同一課的時候
+     畫面上根本沒有那些框，直接收集會收到空陣列＝把主管理員的設定清掉。
+     所以非主管理員一律沿用原本的值。新建的課，建立者自己要看得到。 */
+  share_admins:(IS_OWNER
+    ?Array.from(new Set($$('.l-shadm:checked').map(x=>String(x.value||'').toLowerCase()).filter(Boolean)))
+    :(id?shareList(S.lessons.find(x=>x.id===id)||{}):[String(MY_EMAIL||'').toLowerCase()].filter(Boolean)))};
   if(!id)stampBy(obj);/* ROLE_V943 */
   /* PROP_V944 老師改主管理員建的課，不直接寫回去，存成提案 */
   {const _cur=id?(S.lessons.find(x=>x.id===id)||null):null;
@@ -22153,7 +22256,9 @@ H.saveAssign=async(id)=>{
   const ids=$$('#as-targets input:checked').map(x=>x.value);
   const grps=$$('.as-grp:checked').map(x=>x.value);
   const btn=document.querySelector('[data-act="saveAssign"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
-  try{await DB.update('lessons',id,{assigned_ids:ids,assigned_groups:grps,due_date:$('#as-due').value||null});}
+  /* SHARE_V1505 指派給某位學生＝那位學生的負責管理員要看得到這一課 */
+  const _sh=mergeShare(shareList(S.lessons.find(x=>x.id===id)||{}),adminsForTargets(ids,grps));
+  try{await DB.update('lessons',id,{assigned_ids:ids,assigned_groups:grps,due_date:$('#as-due').value||null,share_admins:_sh});}
   catch(e){if(btn){btn.disabled=false;btn.textContent='儲存';}toast('儲存失敗：'+(e.code||e.message||e));return;}
   closeModal();toast('已發佈');
   try{await loadAll();render();}catch(e){}
