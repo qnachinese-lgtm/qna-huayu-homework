@@ -2965,14 +2965,20 @@ function renderCalMonth(body,toggle){
       if(s.is_test||s.deleted||s.class_type==='團班')return;
       if(!incPaused&&enrollOf(s)==='paused')return;
       if(enrollOf(s)==='trial')return; /* TRIAL_V807 */
-      const sch=Array.isArray(s.schedule)?s.schedule:[];if(!sch.length)return;
+      /* SOLOSCH_V1500 「兩種」的人：團班那幾堂由下面 groupsList() 那一段照班級時段推，
+         這裡只負責她一對一的時段——所以要讀 schedule_solo，不是 schedule
+         （schedule 裝的是團班時間，之前就是這樣把一對一畫到週一團班時段上的）。 */
+      const _both=isBoth(s);
+      const sch=_both?(Array.isArray(s.schedule_solo)?s.schedule_solo:[])
+                     :(Array.isArray(s.schedule)?s.schedule:[]);
+      if(!sch.length)return;
       ds7.forEach(dy=>sch.forEach(r=>{
         if(!r||Number(r.d)!==dy.wd)return;
         if((Array.isArray(s.class_log)?s.class_log:[]).some(e=>e&&e.date===dy.ymd))return;
         if((planByDate[dy.ymd]||[]).some(p=>p.sid===s.id))return;
         if((fixByDate[dy.ymd]||[]).some(p=>p.sid===s.id&&p.start===(r.s||'')))return;
         if(fixSkippedS(s,dy.ymd,r.s||''))return;/* FIXSKIP_V1000 */
-        push(dy.ymd,{sid:s.id,sname:s.name,start:r.s||'',end:r.e||''});}));});
+        push(dy.ymd,{sid:s.id,sname:s.name,start:r.s||'',end:r.e||'',solo1:_both});}));});
     groupsList().forEach(cls=>{
       if(clsNotYet(cls))return;/* CLSOFF_V1074 */
       const sch=classSchedSet(cls);if(!sch.length)return;/* GRPSCH_V1330 */
@@ -3012,7 +3018,8 @@ function renderCalMonth(body,toggle){
     const fixes=(fixByDate[d]||[]);
     const fixArr=fixes.map(p=>{const tm=twVnStr(p.start,p.end);const isSolo=!!p.sid;
       const key=(isSolo?('S:'+esc(p.sid)):('G:'+esc(p.cls)))+'::'+esc(d)+'::'+esc(p.start||'')+'::'+esc(p.end||'');
-      const label=isSolo?('👤 '+esc(p.sname||'')):('👥 '+esc(p.cls)+' 團班');
+      /* SOLOSCH_V1500 「兩種」的人同一天可能同時有團班和一對一，列上要分得出來 */
+      const label=isSolo?('👤 '+esc(p.sname||'')+(p.solo1?' <span class="tag">一對一</span>':'')):('👥 '+esc(p.cls)+' 團班');
       return `<div class="dash-row" style="background:#F4F7FB;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${fgTm(tm)}</span>`:''}<span class="badge b-info" >🔁 固定時段</span><b>${label}</b><span class="grow"></span>${dashBtns(meetBtn(isSolo?meetOfStudent(p.sid):meetOfGroup(p.cls),true),`<button class="btn btn-sm btn-accent" data-act="rollFixed" data-id="${key}">✍️ 去點名</button>`,''/* FIXNOPLAN_V924 排預排先拿掉（Quinn：「先不要出現『排預排』」）；要批次轉還是用工具列的「🔁 固定時段轉預排」 */,'')}</div>`;});
     const itvs=(itvByDate[d]||[]);
     const itvArr=itvs.map(({c,e})=>{const tm=twVnStr(e.start,e.end);const ik=esc(c.id)+'::'+itvSessions(c).indexOf(e);
@@ -4968,7 +4975,9 @@ function weekActualCard(back){
     const grp=(eIsGrp(s,e)&&stuGroups(s)[0])||'';
     /* 沒填時段就用固定時段補，補出來的標成 guess */
     let _st=e.start||'',_en=e.end||'',_gs=false;
-    if(!_st&&!_en){const _sl=(grp?wkSlotOf(_clsSch(grp),e.date):null)||wkSlotOf(s.schedule,e.date);
+    /* SOLOSCH_V1500 「兩種」的人，一對一那幾堂要用她自己的一對一時段補，不是團班那組 */
+    const _psch=(isBoth(s)&&!eIsGrp(s,e))?(Array.isArray(s.schedule_solo)?s.schedule_solo:[]):s.schedule;
+    if(!_st&&!_en){const _sl=(grp?wkSlotOf(_clsSch(grp),e.date):null)||wkSlotOf(_psch,e.date);
       if(_sl&&(_sl.s||_sl.e)){_st=_sl.s;_en=_sl.e;_gs=true;}}
     /* GLEAVE_V1223 本來整班的「請假」是看第一個被掃到的學生：四個人裡有一個請假，
        整列就寫請假，看起來像全班都沒上。改成把四個人的狀態都算過：
@@ -5007,13 +5016,17 @@ function weekActualCard(back){
       if(s.deleted||s.is_test||s.class_type==='團班')return;
       /* TRIAL_V807 試學還沒定下固定時間，別自動推進課表 */
       if(enrollOf&&(enrollOf(s)==='paused'||enrollOf(s)==='trial'))return;
-      const sch=Array.isArray(s.schedule)?s.schedule:[];
+      /* SOLOSCH_V1500 這一頁自己有一份固定時段的產生器（跟今日總覽那一份是兩套）。
+         「兩種」的人一樣要讀 schedule_solo——她的團班時間由下面 groupsList() 那段推。 */
+      const _both=isBoth(s);
+      const sch=_both?(Array.isArray(s.schedule_solo)?s.schedule_solo:[])
+                     :(Array.isArray(s.schedule)?s.schedule:[]);
       if(!sch.length)return;
       days7.forEach(dy=>sch.forEach(r=>{
         if(!r||Number(r.d)!==dy.wd)return;
         if(has({date:dy.ymd,sid:s.id}))return;
         if(fixSkippedS(s,dy.ymd,r.s||''))return;/* FIXSKIP_V1000 這一天她按過「不要再推」 */
-        items.push({type:'fix',date:dy.ymd,start:r.s||'',end:r.e||'',s});}));});
+        items.push({type:'fix',date:dy.ymd,start:r.s||'',end:r.e||'',s,solo1:_both});}));});
     groupsList().forEach(cls=>{
       if(clsNotYet(cls))return;/* CLSOFF_V1074 */
       const sch=classSchedSet(cls);/* GRPSCH_V1330 */
@@ -5082,7 +5095,7 @@ function weekActualCard(back){
       return wrow('background:#F4F7FB',
         dchip('badge','background:#E4EDF9;color:#1E4C86;border-color:#3b5b8055;white-space:nowrap'),
         '<span class="badge b-info" >🔁 固定時段</span>',
-        solo?`<b>👤 ${esc(it.s.name)}</b>`:`<b>👥 ${esc(it.cls)} 團班</b>`,
+        solo?`<b>👤 ${esc(it.s.name)}</b>${it.solo1?' <span class="tag">一對一</span>':''}`:`<b>👥 ${esc(it.cls)} 團班</b>`,/* SOLOSCH_V1500 */
         [meetBtn(solo?meetOfStudent(it.s.id):meetOfGroup(it.cls),true),
          `<button class="btn btn-sm btn-accent" data-act="rollFixed" data-id="${key}">✍️ 去點名</button>`,
          /* FIXNOPLAN_V924 排預排先拿掉（Quinn：「先不要出現『排預排』」） */
@@ -5847,6 +5860,13 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
      <div class="field full"><label>上課時段 <span class="hint">一週可以排好幾個。選星期，再填開始和結束時間</span></label>
        <div id="sched-rows">${(Array.isArray(st.schedule)&&st.schedule.length?st.schedule:[{}]).map(r=>schedRowHTML(r)).join('')}</div>
        <button class="btn btn-sm" type="button" data-act="schedAdd" style="margin-top:8px">＋ 新增時段</button></div>
+     ${/* SOLOSCH_V1500 Quinn：「一對一的課目前是固定禮拜日晚上，不是跟團班時間一樣」。
+          原本一位學生只有一組固定時段。團班學生那一組會被「帶入團班時段」自動填成班上的時間，
+          所以「兩種都有」的人，她的一對一就被畫在團班的時間上（課表上出現週一 22:00 的一對一）。
+          這裡多一組，只給「兩種」用：上面那組＝團班，這一組＝一對一。 */''}
+     <div class="field full"><label>一對一的上課時段 <span class="hint">班別選「兩種都有」才用得到。上面那一組是團班的時間，這一組才是一對一自己的。</span></label>
+       <div id="sched2-rows">${(Array.isArray(st.schedule_solo)&&st.schedule_solo.length?st.schedule_solo:[{}]).map(r=>schedRowHTML(r)).join('')}</div>
+       <button class="btn btn-sm" type="button" data-act="sched2Add" style="margin-top:8px">＋ 新增時段</button></div>
      <div class="field full"><label>第一堂課 <span class="hint">先選第一次上課日期，右邊帶出時段，之後依每週時段往後扣。</span></label>
        <div class="dual-row">
          <input id="f-first-date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(st.first_class||st.sessions_start||'')}">
@@ -16811,6 +16831,8 @@ H.editStudent=(id)=>studentModal(S.students.find(s=>s.id===id));
    所以另外給一顆；刪除鈕沿用 H.schedDel（它用 closest 找列，兩邊都通）。 */
 H.naSchedAdd=()=>{const c=$('#na-sched');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
 H.schedAdd=()=>{const c=$('#sched-rows');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));refreshFirstSlot();};
+/* SOLOSCH_V1500 一對一那一組。刪除沿用 H.schedDel（它是用 closest 找列，兩組都通）。 */
+H.sched2Add=()=>{const c=$('#sched2-rows');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
 H.schedDel=(_,b)=>{const row=b.closest('.sched-row');if(!row)return;const c=row.parentElement;row.remove();if(c&&!c.querySelector('.sched-row'))c.insertAdjacentHTML('beforeend',schedRowHTML({}));refreshFirstSlot();};
 /* DELCHK_V999 本來寫完就直接報「已移到垃圾桶」，沒有回頭確認。
    如果那一筆其實沒寫進去（權限、離線、寫入被擋），畫面上還是會看到那位學生，
@@ -16912,13 +16934,15 @@ function stuLastSave(c){try{localStorage.setItem('qna_stu_last',JSON.stringify({
 H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return toast('請輸入名字');
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const schedule=$$('#sched-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);
+  /* SOLOSCH_V1500 一對一的固定時段，獨立一欄 */
+  const schedule_solo=$$('#sched2-rows .sched-row').map(row=>({d:Number(row.querySelector('.sched-d').value),s:hhmmNorm(row.querySelector('.sched-s').value),e:hhmmNorm(row.querySelector('.sched-e').value)})).filter(r=>r.s||r.e);
   const fslot=$('#f-first-slot');
   const common={name,real_name:((($('#f-real')&&$('#f-real').value)||'').trim()),/* REALNAME_V1108 */
     nationality:(($('#f-nat')&&$('#f-nat').value)||'').trim(),
     phone:(($('#f-phone')&&$('#f-phone').value)||'').trim(),/* STUFORM_V1137 */
     fb:(($('#f-fb')&&$('#f-fb').value)||'').trim(),
     birth:(($('#f-birth')&&$('#f-birth').value)||''),
-    textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),hanzi_ok:!!($('#f-hzok')&&$('#f-hzok').checked),/* HZOK_V1404 */schedule,class_time:schedule.length?fmtSchedule({schedule}):null,
+    textbook:$('#f-book').value.trim(),class_type:$('#f-type').value,enroll_status:($('#f-status')&&$('#f-status').value)||'active',is_test:!!($('#f-test')&&$('#f-test').checked),hanzi_ok:!!($('#f-hzok')&&$('#f-hzok').checked),/* HZOK_V1404 */schedule,schedule_solo,/* SOLOSCH_V1500 */class_time:schedule.length?fmtSchedule({schedule}):null,
     ...(IS_OWNER?{tuition:$('#f-fee').value===''?null:Number($('#f-fee').value),
       tuition_solo:(($('#f-fee2')&&$('#f-fee2').value)==='' ||!$('#f-fee2'))?null:Number($('#f-fee2').value),/* BOTH_V1485 */
       fee_unit:($('#f-feeunit')&&$('#f-feeunit').value)||'session',
