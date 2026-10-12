@@ -2307,7 +2307,7 @@ function lessonCardHtml(l,i){
     return `<details class="card ls-card" data-lslid="${lid}"${(S.preview||S.openLesson===l.id)?' open':''}><summary class="row-between" style="cursor:pointer;list-style:none" title="${esc(t('lsToggle'))}"><div style="display:flex;gap:12px;align-items:center;min-width:0">
       <div class="lesson-no">${(l.handout_url&&!lessonHasContent(l))?'📄':(l.kind==='classical'?'📜':(l.order_index||i+1))}</div><div style="min-width:0"><h3 style="margin:0">${esc(l.title)}</h3>${lessonTags(l)}</div></div><div style="display:flex;gap:8px;align-items:center;flex:none">${S.preview?'':`<button class="btn btn-sm note-toggle" type="button" data-act="toggleNotes" data-id="${lid}">📝 ${t('myNotes')}</button>`}${dlgHasAudio(l)?'<span class="tag gold">🔊</span>':''}<span class="ls-chev" style="opacity:.45">▾</span></div></summary>
       ${(function(){const vN=lessonVocab(l).length;const wN=S.preview?0:wrongQuestions().filter(q=>q.lesson_id===lid).length;if(!vN&&!wN)return '';
-        return `<div class="ls-lesson-tools" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0">${vN?`<button class="btn btn-sm" type="button" data-act="lessonCards" data-id="${lid}">🃏 ${t('navCards')}（${vN}）</button>`:''}${wN?`<button class="btn btn-sm" type="button" data-act="lessonWrong" data-id="${lid}" style="border-color:#6D28D988">📒 ${t('navWrong')}（${wN}）</button>`:''}</div>`;})()}
+        return `<div class="ls-lesson-tools" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0">${vN?`<button class="btn btn-sm" type="button" data-act="lessonCards" data-id="${lid}">🃏 ${t('navCards')}（${vN}）</button>`:''}${''/* NOWRONG_V1508 錯題本的第二個入口（課文頁動作列）也拿掉 */}</div>`;})()}
       <div class="lesson-split" id="ls-${lid}" style="margin-top:12px">
         <div class="ls-text">${lessonBodyHtml(l,{answerable:canAns,doc:ddoc})}</div>
         ${notesCol}
@@ -2521,8 +2521,13 @@ function modItems(l){
     else if(dd&&dd.status==='draft')b='<span class="badge badge-soon">'+esc(t('sDoing'))+'</span>';
     out.push({ic:'📒',t:LT({zh:'作業簿',cn:'作业簿',en:'Workbook',vi:'Sách bài tập'}),s:cnt+' '+t('q'),badge:b,act:'wbOpen',id:wbk.id});
   }
-  const wN=S.preview?0:wrongQuestions().filter(q=>q.lesson_id===l.id).length;
-  if(wN)out.push({ic:'🔁',t:t('navWrong'),s:wN+' '+t('toReview'),badge:'',act:'lessonWrong',id:l.id});
+  /* ══════ NOWRONG_V1508 錯題本不要出現在課程模組裡 ══════
+     Quinn 第三次說了：「我感覺不需要錯題本」。
+     前兩次（MISTRM_V1352 標錯因、NOWRONG_V1402 選單入口）都只拿掉一個入口，
+     這一列是漏掉的——它還會從「課程模組」長出來，而且會被算進
+     「本課程進度 2/2」，造成「23 待複習」卻顯示 100% 已完成的矛盾。
+     這裡把這一列也拿掉。底層的程式（wrongQuestions／mistDue）先留著不刪，
+     刪掉牽連太廣；沒有任何入口叫得到它，學生就看不到了。 */
   return out;
 }
 function renderContent(){
