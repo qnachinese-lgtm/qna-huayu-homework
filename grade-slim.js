@@ -201,10 +201,26 @@
     if(AUTO&&done(item,ctx.scr.fb))fold(item,true);
   }
 
+  /* FOOT_V1520 批改彈出視窗的存檔列貼在畫面底下。
+     量出來的：一份作業簿的視窗 2787px，〔儲存建議〕在往下 2276px 的最底部，
+     畫面才 585px 高——要捲四個螢幕才找得到存檔鍵。
+     只動「裡面有批改建議框」的視窗，其他視窗一律不碰。 */
+  function stickFoot(ctx){
+    try{
+      var ta=document.querySelector('textarea.'+ctx.scr.fb);
+      if(!ta)return;
+      var modal=ta.closest?ta.closest('.modal'):null;
+      if(!modal)return;                      /* 左右分割那一條不用 */
+      if(!modal.querySelector('.modal-foot'))return;
+      modal.classList.add('gs-stick');
+    }catch(e){}
+  }
+
   function scan(){
     try{
       var ctx=cur();
       if(!ctx)return;
+      stickFoot(ctx);
       var items=document.querySelectorAll('.srev-item');
       for(var i=0;i<items.length;i++){mountEdit(ctx,items[i]);mountSlim(ctx,items[i]);}
       paintBar(ctx);
