@@ -270,11 +270,20 @@
   }
 
   /* ── 存檔：套用修改，原文備份一次 ───────────────────────────────── */
+  /* ORIG_V1519 在真的後台跑出來的：原文備份會被「改過的內容」蓋掉。
+     備份的旗標 sd.answers_orig 本來要等 DB.update 回來才寫進記憶體，
+     但 e.set() 是馬上就把 sd.answers 改掉了。網路一慢、或手滑按了兩次存檔，
+     第二次進來時 sd.answers_orig 還是空的，它就把「已經改過的答案」當成原文備份——
+     學生真正寫的那一版就永遠找不回來了。
+     兩個修法：一、備份先寫進記憶體再去 await；二、同一份正在存的時候不接第二次。 */
+  var BUSY={};
   function hookOne(scr){
     var orig=H[scr.act];
     if(typeof orig!=='function')return false;
     if(orig.__ged)return true;
     var wrapped=async function(id,b){
+      if(BUSY[id]){try{toast('上一次存檔還在進行中，等它跑完再按一次');}catch(_){}return;}
+      BUSY[id]=1;
       try{
         var ps=pending(id);
         if(ps.length){
@@ -282,9 +291,11 @@
           if(sd){
             var patch={};
             if(scr.field==='items'){
-              if(!sd.items_orig)patch.items_orig=JSON.parse(JSON.stringify(sd.items||[]));
+              if(!sd.items_orig){patch.items_orig=JSON.parse(JSON.stringify(sd.items||[]));
+                sd.items_orig=patch.items_orig;/* 先占住，不能等 await 回來才寫 */}
             }else{
-              if(!sd.answers_orig)patch.answers_orig=JSON.parse(JSON.stringify(sd.answers||{}));
+              if(!sd.answers_orig){patch.answers_orig=JSON.parse(JSON.stringify(sd.answers||{}));
+                sd.answers_orig=patch.answers_orig;/* 先占住，不能等 await 回來才寫 */}
             }
             ps.forEach(function(e){try{if(typeof e.set==='function')e.set(e.val);}catch(_){}});
             patch[scr.field]=(scr.field==='items')?(sd.items||[]):(sd.answers||{});
@@ -297,7 +308,8 @@
       }catch(e){
         try{toast('學生答案沒改成功：'+((e&&e.message)||e));}catch(_){}
       }
-      return orig.call(H,id,b);
+      try{ return await orig.call(H,id,b); }
+      finally{ delete BUSY[id]; }
     };
     wrapped.__ged=1;
     H[scr.act]=wrapped;
