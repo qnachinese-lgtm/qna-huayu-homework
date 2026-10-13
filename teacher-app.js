@@ -811,16 +811,28 @@ function hmoreShut(){
   HM_D=HM_POP=null;
   document.querySelectorAll('body>.hmore-p').forEach(x=>{try{x.remove();}catch(e){}});
 }
+/* HMORE_V1517 把選單重新貼回「⻰ 更多」那顆按鈕下面。
+   選單是 position:fixed、而且搬到 body 底下，不會跟著頁面捲，
+   所以每次捲動都要重算一次位置。 */
+function hmorePos(){
+  if(!HM_D||!HM_POP)return;
+  const sum=HM_D.querySelector(':scope>summary');
+  if(!sum){hmoreShut();return;}
+  const r=sum.getBoundingClientRect();
+  /* 錢點：只有「那顆按鈕整個捲出畫面」才關，捲一點點不關。 */
+  if(r.bottom<-4||r.top>window.innerHeight+4){hmoreShut();return;}
+  const w=HM_POP.offsetWidth||208,h=HM_POP.offsetHeight||0;
+  HM_POP.style.left=Math.max(8,Math.min(r.left,window.innerWidth-w-8))+'px';
+  let top=r.bottom+6;if(top+h>window.innerHeight-8)top=Math.max(8,r.top-h-6);
+  HM_POP.style.top=top+'px';
+}
 function hmoreShow(d){
   hmoreShut();
   const sum=d.querySelector(':scope>summary'),pop=d.querySelector(':scope>.hmore-p');
   if(!sum||!pop)return;
   HM_D=d;HM_POP=pop;pop.classList.add('hmore-float');document.body.appendChild(pop);/* 樣式本來綁在 .itv-acts 底下，搬出來要靠這個 class */
   pop.style.position='fixed';pop.style.margin='0';pop.style.zIndex='9998';
-  const r=sum.getBoundingClientRect(),w=pop.offsetWidth||208,h=pop.offsetHeight||0;
-  pop.style.left=Math.max(8,Math.min(r.left,window.innerWidth-w-8))+'px';
-  let top=r.bottom+6;if(top+h>window.innerHeight-8)top=Math.max(8,r.top-h-6);
-  pop.style.top=top+'px';
+  hmorePos();
 }
 document.addEventListener('toggle',(e)=>{const d=e.target;
   if(!d||!d.classList||!d.classList.contains('hmore')||!d.closest('.itv-acts'))return;
@@ -830,8 +842,14 @@ document.addEventListener('click',(e)=>{const t=e.target;
   if(HM_POP&&HM_POP.contains(t)){setTimeout(hmoreShut,0);return;}/* 面板裡的按鈕：先讓它跑完再收 */
   if(HM_D.contains(t))return;/* 再點一次那顆「⋯ 更多」交給 toggle 處理 */
   hmoreShut();},true);
-window.addEventListener('scroll',()=>{if(HM_D)hmoreShut();},true);
-window.addEventListener('resize',()=>{if(HM_D)hmoreShut();});
+/* HMORE_V1517 Quinn：「檔案這邊按不到」「選單閃一下就關掉」。
+   原本這兩行是「只要發生任何捲動就把選單關掉」，而且是捕獲模式掛在
+   window 上，頁面裡任何一個容器滯一點點都算。卡片較長、按鈕列又靠近
+   畫面下緣的時候，一打開面板就把版面撐高，再加上觸控板按下去常帶的
+   慣性滾動——選單就在手指還沒移過去之前被自己關掉。
+   改成：捲動時跟著按鈕重新定位，只有按鈕整個捲出畫面才關。 */
+window.addEventListener('scroll',()=>{if(HM_D)hmorePos();},true);
+window.addEventListener('resize',()=>{if(HM_D)hmorePos();});
 function closeMiniMenus(){document.querySelectorAll('details.mini-menu[open]').forEach(d=>d.removeAttribute('open'));}
 function openModal(h){closeMiniMenus();$('#modal-root').innerHTML=`<div class="overlay" data-overlay>${h}</div>`;
   setTimeout(()=>{try{lpAll();}catch(e){}},0);/* LESPICK_V1198 */}
@@ -6591,7 +6609,18 @@ document.addEventListener('toggle',function(e){
   let openAt=0;
   const closeAll=(keep)=>{try{document.querySelectorAll('details.hmore[open]').forEach(d=>{if(d!==keep)d.open=false;});}catch(e){}};
   document.addEventListener('pointerdown',(e)=>{
-    const t=e.target;const d=(t&&t.closest)?t.closest('details.hmore'):null;
+    const t=e.target;
+    /* HMORE_V1517 這裡本來只用 closest('details.hmore') 判斷「有沒有按在選單裡」。
+       但 HMORE_V1422 之後，面板打開時會被搬到 <body> 底下（為了不被
+       .crm-list 的 overflow 裁掉），所以按在「📎 檔案」上面的時候，
+       closest('details.hmore') 是 null —— 被當成「按外面」，pointerdown
+       就先把選單關掉了，按鈕從游標底下消失，click 永遠落不到它身上。
+       （Quinn：「檔案這邊按不到」。程式用 element.click() 測不出來，
+       因為那不會發 pointerdown，要真的用滑鼠按才重現得了。）
+       所以浮起來的面板也要算「選單裡面」。 */
+    const inPop=(t&&t.closest)?t.closest('.hmore-p'):null;
+    if(inPop)return;                         /* 按在面板裡：什麼都不做，讓 click 跑完再收 */
+    const d=(t&&t.closest)?t.closest('details.hmore'):null;
     if(d&&!d.open)openAt=Date.now();
     closeAll(d);
   },true);
@@ -6601,8 +6630,15 @@ document.addEventListener('toggle',function(e){
     const b=t.closest('details.hmore .hmore-p [data-act]');
     if(b){const d=b.closest('details.hmore');if(d)d.open=false;}
   });
-  /* 往下滑就收起來。剛打開的那 400 毫秒不算——展開本身有時候會帶動一次捲動。 */
-  window.addEventListener('scroll',()=>{if(Date.now()-openAt>400)closeAll(null);},true);
+  /* HMORE_V1517 本來是「剛打開 400 毫秒之後，只要再有任何捲動就全部關掉」。
+     卡片比較長、按鈕列又靠畫面下緣的時候，滑鼠手勢帶的一點點慣性滾動
+     就把選單關掉（Quinn：「選單閃一下就關掉」）。
+     浮起來的那一個交給 hmorePos() 負責：跟著按鈕走，按鈕整個捲出畫面才關。
+     這裡只負責沒浮起來的那些。 */
+  window.addEventListener('scroll',()=>{
+    if(Date.now()-openAt<=400)return;
+    try{document.querySelectorAll('details.hmore[open]').forEach(d=>{if(d!==HM_D)d.open=false;});}catch(e){}
+  },true);
   document.addEventListener('keydown',(e)=>{if(e.key==='Escape')closeAll(null);});
 })();
 
