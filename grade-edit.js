@@ -30,6 +30,18 @@
    ══════════════════════════════════════════════════════════════════════ */
 (function(){
   'use strict';
+  /* ══════ RAF_V1518 分頁在背景的時候，這些東西通通長不出來 ══════
+     本來排程是用 requestAnimationFrame，而 Chrome 對「看不見的分頁」會把 rAF
+     完全停掉（不是變慢，是不跑）。這裡又有一個 sched 旗標防重複，
+     結果：在背景分頁裡，MutationObserver 第一次觸發就把 sched 設成 true、
+     排了一個永遠不會執行的 rAF，之後所有變動都被那個旗標擋掉，
+     等於整支覆蓋程式死在那裡（切回前景才會補跑）。
+     改成：看不見的時候退回 setTimeout，看得見才用 rAF。 */
+  function soon(fn){
+    try{ if(document.hidden){setTimeout(fn,60);return;} }catch(e){}
+    if(window.requestAnimationFrame)requestAnimationFrame(fn); else setTimeout(fn,16);
+  }
+
 
   var SCREENS=[
     {fb:'wbrev-fb', act:'saveWbReview',    coll:'wbdocs',      field:'answers'},
@@ -302,7 +314,7 @@
       var sched=false;
       new MutationObserver(function(){
         if(sched)return;sched=true;
-        requestAnimationFrame(function(){sched=false;scan();});
+        soon(function(){sched=false;scan();});
       }).observe(document.body,{childList:true,subtree:true});
     }
     scan();
