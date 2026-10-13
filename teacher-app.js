@@ -23526,7 +23526,7 @@ H.saveLogEdit=async(key)=>{const p=String(key).split('::');const id=p[0],idx=Num
     return;
   }
   const _cle=($('#cl-lesson')&&$('#cl-lesson').value||'').trim();
-  log[idx]={date,ctype:(($('#cl-ctype')&&$('#cl-ctype').value)==='solo'?'solo':(isBoth(s)?'group':undefined)),/* BOTH_V1485 */
+  log[idx]={date,ctype:(($('#cl-ctype')&&$('#cl-ctype').value)==='solo'?'solo':'group'),/* CTYPE_V1515 這裡本來在「學生不是兩種都有」的時候寫 undefined，Firestore 不收 undefined 的欄位值，整個 update 會被擋下來，錯誤碼就是 invalid-argument——所以只要不是『兩種都有』的學生，按「記錄這一堂」一定失敗（BOTH_V1485 帶進來的）。改成一律寫 'group'：eIsGrp() 只有在『兩種都有』的學生身上才看 ctype，其他人是看班別，所以多存這個字不會影響任何計費。 */
     status:$('#cl-status').value,free:!!($('#cl-free')&&$('#cl-free').checked),makeup:!!($('#cl-makeup')&&$('#cl-makeup').checked),video:($('#cl-video')&&$('#cl-video').value||'').trim(),start:hhmmNorm(($('#cl-start')&&$('#cl-start').value)||''),end:hhmmNorm(($('#cl-end')&&$('#cl-end').value)||''),note:($('#cl-note')&&$('#cl-note').value||'').trim(),lesson:_cle,lesson_t:rollLesTitle(_cle)};
   try{await DB.update('students',id,{class_log:log});await loadAll();H.classLog(id);render();toast('已更新這一堂 ✓');}catch(e){toast(writeErr('更新失敗',e));}};
 H.addClassLog=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const date=$('#cl-date').value;if(!date)return toast('請選日期');
@@ -23543,7 +23543,7 @@ H.addClassLog=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;con
   }
   if(enrollOf(s)==='paused'&&!confirm((s.name||'這位學生')+' 目前是「休學中」。\n還是要幫他記錄這一堂嗎？'))return;
   const _cll=($('#cl-lesson')&&$('#cl-lesson').value||'').trim();
-  const entry={date,ctype:(($('#cl-ctype')&&$('#cl-ctype').value)==='solo'?'solo':(isBoth(s)?'group':undefined)),/* BOTH_V1485 */
+  const entry={date,ctype:(($('#cl-ctype')&&$('#cl-ctype').value)==='solo'?'solo':'group'),/* CTYPE_V1515 這裡本來在「學生不是兩種都有」的時候寫 undefined，Firestore 不收 undefined 的欄位值，整個 update 會被擋下來，錯誤碼就是 invalid-argument——所以只要不是『兩種都有』的學生，按「記錄這一堂」一定失敗（BOTH_V1485 帶進來的）。改成一律寫 'group'：eIsGrp() 只有在『兩種都有』的學生身上才看 ctype，其他人是看班別，所以多存這個字不會影響任何計費。 */
     status:$('#cl-status').value,free:!!($('#cl-free')&&$('#cl-free').checked),makeup:!!($('#cl-makeup')&&$('#cl-makeup').checked),video:($('#cl-video')&&$('#cl-video').value||'').trim(),start:($('#cl-start')&&$('#cl-start').value)||'',end:($('#cl-end')&&$('#cl-end').value)||'',note:$('#cl-note').value.trim(),lesson:_cll,lesson_t:rollLesTitle(_cll)};
   // 同一天＋同時段只記一筆，並清掉現有重複
   const raw=Array.isArray(s.class_log)?s.class_log:[];const seen=new Set();const clean=[];let removedDup=0;
