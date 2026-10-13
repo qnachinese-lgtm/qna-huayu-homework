@@ -223,6 +223,25 @@ function leaveUnits(s){const log=Array.isArray(s&&s.class_log)?s.class_log:[];
 /* 這一堂的費用（按小時＝時數×時薪；按堂＝每堂學費） */
 function tierInfoOf(s){if(!s)return null;for(const g of stuGroups(s)){const cm=classMetaOf(g);const ts=(cm&&Array.isArray(cm.fee_tiers))?cm.fee_tiers.filter(x=>x&&Number(x.h)>0&&x.amt!=null&&!isNaN(Number(x.amt))):[];if(ts.length)return {cls:g,tiers:ts};}return null;}
 function tierText(s){const ti=tierInfoOf(s);if(!ti)return '';return ti.tiers.map(x=>(Math.round(Number(x.h)*100)/100)+'小時 '+money(Number(x.amt),s.currency)).join('｜');}
+/* BOTHFEE_V1521 Quinn：「潘氏蘭在一對一那一組，學費欄為什麼是團班的級距？」
+   這一欄本來的規則是「有團班級距就印級距，否則印 tuition」。
+   「兩種都有」的學生身上一定有團班級距，所以她的一對一單價（tuition_solo）
+   從頭到尾不會出現在任何清單上——在一對一那一區看到的反而是團班的價錢。
+   改成：兩種都有的人兩段都印，而且一對一那一段排在前面。
+   單價沒填也要講出來，不要留白讓人以為沒設。 */
+function feeUnitStr(u){return (u==='hour')?' /時':' /堂';}
+function feeListStr(s){
+  if(typeof isTrial==='function'&&isTrial(s))return '🎁 免費試學';
+  const tt=tierText(s);
+  const grp=tt?('👥 團班 '+tt)
+    :((s.tuition!=null&&s.tuition!=='')?('👥 團班 '+money(s.tuition,s.currency)+feeUnitStr(s.fee_unit)):'');
+  if(!isBoth(s))return tt?('👥 '+tt)
+    :((s.tuition!=null&&s.tuition!=='')?(money(s.tuition,s.currency)+feeUnitStr(s.fee_unit)):'—');
+  const solo=(s.tuition_solo!=null&&s.tuition_solo!=='')
+    ? ('🧑‍🏫 一對一 '+money(s.tuition_solo,s.currency)+feeUnitStr(s.fee_unit_solo))
+    : '<span class="muted">🧑‍🏫 一對一單價沒填</span>';
+  return [solo,grp].filter(Boolean).join('<br>');
+}
 function lessonFee(s,e){
   const ti=eIsGrp(s,e)?tierInfoOf(s):null;/* BOTH_V1485 一對一那幾堂不套團班的級距 */
   if(ti){const h=logHours(e);if(h!=null){const m=ti.tiers.find(x=>Math.abs(Number(x.h)-h)<0.01);if(m)return Number(m.amt);}}
@@ -5754,7 +5773,7 @@ function stuCardInner(s){return `
           ${IS_OWNER?`<button class="btn btn-sm btn-danger" data-act="delStudent" data-id="${s.id}">🗑 刪除學生</button>`:''}
         </div></div></div>
     <div class="meta" style="margin-top:14px"><span>📖 教材：<b>${esc(s.textbook||'—')}</b></span><span>🕒 上課：<b>${esc(fmtSchedule(s))}</b></span>
-      ${!IS_OWNER?'':(isTrial(s)?'<span>💰 <b style="color:#6D28D9">🎁 免費試學（不計費）</b></span>':`<span>💰 學費：<b>${tierText(s)?('👥 團班計費：'+tierText(s)):(money(s.tuition,s.currency)+(s.tuition!=null?(s.fee_unit==='hour'?' / 小時':' / 堂'):''))}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span>`)}<span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}${billChip(s)}${famChip(s)}</div>
+      ${!IS_OWNER?'':(isTrial(s)?'<span>💰 <b style="color:#6D28D9">🎁 免費試學（不計費）</b></span>':`<span>💰 學費：<b>${feeListStr(s)}</b></span><span>📅 付款日：<b>${fmtDate(s.payment_date)}</b></span>`)}<span>✉️ Email：<b>${esc(s.email||'—')}</b></span>${sessChip(s)}${billChip(s)}${famChip(s)}</div>
     ${chkinCard(s)/* CHKIN_V1313 */}
     ${activityLine(s)}
     ${s.reset_requested?`<div class="meta" style="margin-top:8px;align-items:center"><span class="badge badge-soon">🔑 學生申請重設密碼</span></div>`:''}
@@ -5765,7 +5784,7 @@ function stuTableRows(students){
      點進學生卡片還是看得到，匯出也還留著，只是列表不再擠這一段。 */
   const head='<div class="stu-tr stu-th"><span>姓名</span><span>狀態</span><span>教材</span><span>時數</span><span>'+(IS_OWNER?'學費':'Email')+'</span></div>';
   const rows=students.map(s=>{
-    const _tt=tierText(s);const fee=isTrial(s)?'🎁 免費試學':((_tt?('👥 '+_tt):(s.tuition!=null?money(s.tuition,s.currency)+(s.fee_unit==='hour'?' /時':' /堂'):'—')));/* PAYDATE_V1310 付款日拿掉 */
+    const fee=feeListStr(s);/* BOTHFEE_V1521 兩種都有的學生要兩段都印 *//* PAYDATE_V1310 付款日拿掉 */
     return `<div class="stu-tr" data-act="stuDetail" data-id="${s.id}" style="cursor:pointer"><span class="stu-nm"><span class="avatar sm emo" data-act="avPick" data-id="${s.id}" title="換頭像" style="background:${avColor(s.name)};cursor:pointer">${avEmoji(s)}</span><span class="nmx">${snm(s.name)}${s.is_test?' 🧪':''}</span></span><span>${enrollBadge(s)}</span><span>${esc(s.textbook||'—')}</span><span>${sessChip(s)||'<span class="muted">—</span>'}</span><span>${fee}</span></div>`;
   }).join('');
   return `<div class="stu-tb">${head}${rows}</div>`;
