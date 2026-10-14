@@ -65,8 +65,13 @@
         if(n)noType.push({s:s,n:n});
       }
 
-      /* ⑤ 兩種都有、而且有繳費 —— 已繳沒辦法確定是哪一種課的錢 */
-      if(both&&pays.length)fifo.push({s:s});
+      /* ⑤ 兩種都有、而且有「沒標是哪一種課」的繳費 —— 那幾筆只能用推算的。
+         PAYTYPE_V1528 之後標過的就不算在這裡了。 */
+      if(both){
+        var untag=pays.filter(function(p){
+          return p&&Number(p.amount)&&p.ctype!=='group'&&p.ctype!=='solo'; }).length;
+        if(untag)fifo.push({s:s,n:untag,all:pays.length});
+      }
 
       /* ⑥ 欠 / 溢繳 */
       if(b.due>0.5)owes.push({s:s,v:b.due,cur:cur});
@@ -135,11 +140,13 @@
       r.noType.map(function(x){ return row('<b>'+nm(x.s)+'</b>　<span class="hint">'+x.n+' 堂沒標</span>'); }).join(''),
       '打開那位學生的上課記錄，把實際是一對一的那幾堂改過來。');
 
-    if(r.fifo.length)h+=block('🟡 有 '+r.fifo.length+' 位「兩種都有」的學生，已繳的錢是用推算分的','warn',
-      '繳費那一筆上面沒有記「這是哪一種課的錢」，所以分到兩種課上的時候，'
-      +'是用<b>先抵最早的課</b>去推的。總額一定對，但「一對一欠多少、團班欠多少」可能不是實際情況。',
-      r.fifo.map(function(x){ return row('<b>'+nm(x.s)+'</b>'); }).join(''),
-      '這一項要改程式（每筆繳費加一個「哪一種課」），不是你這邊能填的。總額不受影響。');
+    if(r.fifo.length)h+=block('🟡 有 '+r.fifo.length+' 位「兩種都有」的學生，有幾筆繳費還沒標是哪一種課','warn',
+      '沒標的那幾筆，分到兩種課上的時候是用<b>先抵最早的課</b>去推的。'
+      +'總額一定對，但「一對一欠多少、團班欠多少」可能不是實際情況。',
+      r.fifo.map(function(x){ return row('<b>'+nm(x.s)+'</b>　<span class="hint">'
+        +x.n+'／'+x.all+' 筆沒標</span>'); }).join(''),
+      '點那一筆繳費的〔✏️ 編輯〕，最下面「這筆是哪一種課的錢」選一下就好。'
+      +'之後新增繳費的時候也會問。標過的就直接抵那一種課，不再用推算的。');
 
     /* ⚪️ 參考 */
     if(r.owes.length){

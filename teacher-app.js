@@ -22720,6 +22720,28 @@ H.payPick=()=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');re
   const kb=document.getElementById('pk-kinds');
   if(kb)kb.addEventListener('click',(ev)=>{const b=ev.target.closest('.segb');if(!b)return;kind=b.dataset.k||'';draw();});
   draw();};
+/* PAYTYPE_V1528 「兩種都有」的學生，繳的錢本來沒有記是哪一種課的。
+   fee-why 的 splitBill 只好用「先抵最早的課」去推，總額一定對，
+   但「一對一欠多少、團班欠多少」就不一定是實情。
+   這裡讓她可以在記帳當下標起來；不標也行，不標就還是照原本的推算。
+   ⚠ 只有 class_type==='兩種' 的學生才顯示，別人多一個欄位只是干擾。
+   ⚠ 沒選的時候欄位要「不存在」，不可以寫 undefined——
+     Firestore 會直接回 invalid-argument（CTYPE_V1515 踩過一次）。 */
+function payTypeField(s,id,cur){
+  try{ if(!isBoth(s))return ''; }catch(e){ return ''; }
+  const v=cur||'';
+  return '<div class="field full"><label>這筆是哪一種課的錢？ <span class="hint">選填，不選就照「先抵最早的課」分</span></label>'
+    +'<select id="'+id+'">'
+    +'<option value=""'+(v?'':' selected')+'>不分（照先後順序抵）</option>'
+    +'<option value="group"'+(v==='group'?' selected':'')+'>👥 團班的錢</option>'
+    +'<option value="solo"'+(v==='solo'?' selected':'')+'>🧑‍🏫 一對一的錢</option>'
+    +'</select></div>';
+}
+function payTypeVal(id){
+  try{ const el=document.getElementById(id); if(!el)return '';
+       const v=String(el.value||''); return (v==='group'||v==='solo')?v:''; }
+  catch(e){ return ''; }
+}
 H.payments=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用');return;}const s=S.students.find(x=>x.id===id);if(!s)return;PAY_STU=s;const ps=(s.payments||[]).map((p,origI)=>({p,origI})).sort((a,b)=>(b.p.date||'').localeCompare(a.p.date||''));
   const byCur={};ps.forEach(({p})=>{const c=p.currency||s.currency||DEF_CUR;byCur[c]=(byCur[c]||0)+(Number(p.amount)||0);});
   const totalStr=curKeys(byCur).map(c=>money(byCur[c],c)).join('、')||money(0,s.currency);/* CURORD_V1281 */
@@ -22747,6 +22769,7 @@ H.payments=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以用')
        <div class="field"><label>金額 <span class="hint">越南盾打千位（350＝350,000 VND）</span></label><input id="pay-amount" type="number" min="0" placeholder="請填金額"></div>
        <div class="field"><label>幣別</label><select id="pay-cur"><option value="VND"${(s.currency||DEF_CUR)==='VND'?' selected':''}>越南盾 VND</option><option value="TWD"${(s.currency||DEF_CUR)==='TWD'?' selected':''}>臺幣 NT$</option><option value="USD"${s.currency==='USD'?' selected':''}>美元 US$</option></select></div>
        <div class="field full"><label>備註</label><input id="pay-note" type="text" placeholder="這一筆是什麼（選填）"></div>
+       ${payTypeField(s,'pay-ctype','')}
        <div class="field full" id="pay-conv-box" style="display:none;background:#F4F7FB;border:1px solid #DCE5F0;border-radius:10px;padding:11px 13px">
          <label style="margin:0">💱 這筆實際收到多少 <b>${esc(billCur(s))}</b>？ <span class="hint">選填</span></label>
          <!-- PAYCUR_V850 本來是必填、不填就擋著不讓存，太死。改成選填，只提醒不擋路。 -->
@@ -22850,6 +22873,7 @@ H.renewQuickOld=(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;
        <div class="field"><label>幣別</label><select id="pay-cur"><option value="TWD"${cur==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${cur==='VND'?' selected':''}>越南盾 VND</option><option value="USD"${cur==='USD'?' selected':''}>美元 US$</option></select></div>
        <div class="field"><label>加堂數 <span class="hint">會加進總堂數</span></label><input id="pay-sess" type="number" min="0" value="${esc(String(sess))}"></div>
        <div class="field full"><label>備註</label><input id="pay-note" type="text" value="續約" placeholder="選填"></div>
+       ${payTypeField(s,'pay-ctype',(last&&last.ctype)||'')}
      </div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="payAdd" data-id="${esc(id)}">✅ 確認續約</button></div></div>`);};
 H.payAdd=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const date=$('#pay-date').value;if(!date)return toast('請選日期');
@@ -22857,6 +22881,7 @@ H.payAdd=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;const da
   const _se=$('#pay-sess');const sess=_se?_se.value:'';
   const _cv=($('#pay-conv')&&$('#pay-conv').value)||'';
   const entry={date,amount:amt===''?null:Number(amt),currency:$('#pay-cur').value,sessions:sess===''?null:Number(sess),note:$('#pay-note').value.trim(),conv:(_cv===''?null:Number(_cv))};
+  {const _ct=payTypeVal('pay-ctype');if(_ct)entry.ctype=_ct;}/* PAYTYPE_V1528 沒選就不要有這個欄位 */
   if(entry.amount==null||!(entry.amount>=0))return toast('請填金額');
   /* PAYCUR_V850 本來不填就擋著不讓存（V682）。改成問一次，願意就存，不再擋路。 */
   if(entry.currency&&entry.currency!==billCur(s)&&!(entry.conv>0)){
@@ -22932,6 +22957,7 @@ H.payEdit=(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]);const s
      <div class="field"><label>幣別</label><select id="pe-cur"><option value="TWD"${cur==='TWD'?' selected':''}>臺幣 NT$</option><option value="VND"${cur==='VND'?' selected':''}>越南盾 VND</option><option value="USD"${cur==='USD'?' selected':''}>美元 US$</option></select></div>
      <div class="field"><label>實際收到多少 ${esc(billCur(s))} <span class="hint">幣別跟帳單不一樣時必填；填當天入帳的金額就好</span></label><input id="pe-conv" type="number" min="0" value="${pay.conv==null?'':esc(pay.conv)}" placeholder="這筆等於多少 ${esc(billCur(s))}"></div>
      <div class="field full"><label>備註</label><input id="pe-note" type="text" value="${esc(pay.note||'')}"></div>
+     ${payTypeField(s,'pe-ctype',pay.ctype||'')}
    </div>
    <div class="hint" style="margin-top:8px">💱 這位學生的帳單幣別是 <b>${esc(billCur(s))}</b>。幣別不一樣的款項要填了換算金額才會去抵應收，匯率請你自己填，我不會用假匯率換算。</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="payments" data-id="${esc(id)}">← 返回</button><span style="flex:1"></span><button class="btn btn-primary" data-act="paySaveEdit" data-id="${esc(id)}::${i}">💾 儲存修改</button></div></div>`);};
@@ -22944,6 +22970,9 @@ H.paySaveEdit=async(key)=>{const p=String(key).split('::'),id=p[0],i=Number(p[1]
   const amt=$('#pe-amount').value;const _pe=$('#pe-sess');const sess=_pe?_pe.value:(old.sessions==null?'':String(old.sessions));
   const _cv2=($('#pe-conv')&&$('#pe-conv').value)||'';
   const entry={date,amount:amt===''?null:Number(amt),currency:$('#pe-cur').value,sessions:sess===''?null:Number(sess),note:($('#pe-note').value||'').trim(),conv:(_cv2===''?null:Number(_cv2))};
+  {const _ct=payTypeVal('pe-ctype');
+   if(_ct)entry.ctype=_ct;
+   else if(!document.getElementById('pe-ctype')&&old.ctype)entry.ctype=old.ctype;/* 不是兩種的學生，欄位不存在，舊值照留 */}
   payments[i]=entry;const patch={payments};
   const delta=(Number(entry.sessions)||0)-(Number(old.sessions)||0);if(delta)patch.sessions_total=Math.max(0,(Number(s.sessions_total)||0)+delta);
   patch.payment_date=payments.map(x=>x&&x.date).filter(Boolean).sort().pop()||null;

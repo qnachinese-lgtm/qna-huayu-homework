@@ -79,30 +79,69 @@
      · 兩邊的欠款加起來，一定等於原本那一個總數。
      ══════════════════════════════════════════════════════════════════ */
   var COVER=(typeof WeakMap==='function')?new WeakMap():{get:function(){return null;},set:function(){}};
+  /* PAYTYPE_V1528 繳費那一筆現在可以標 ctype（group／solo）。
+     標了的錢只抵它自己那一種課，沒標的才回到舊規則（先抵最早的課）。
+     幣別的算法跟 stuBill 完全一樣：同幣別直接算，不同幣別要填了 conv 才算，
+     絕不自己套匯率。 */
+  function payToBill(s,p,cur){
+    if(!p)return 0;
+    var pc=p.currency||cur, amt=Number(p.amount)||0;
+    if(pc===cur)return amt;
+    var cv=Number(p.conv);
+    return (cv>0)?cv:0;
+  }
+  function pools(s,b,cur){
+    var o={g:0,so:0,any:(Number(b.waived)||0),tagged:0,untagged:0};
+    (Array.isArray(s.payments)?s.payments:[]).forEach(function(p){
+      var v=payToBill(s,p,cur);
+      if(!v)return;
+      if(p.ctype==='group'){o.g+=v;o.tagged+=v;}
+      else if(p.ctype==='solo'){o.so+=v;o.tagged+=v;}
+      else {o.any+=v;o.untagged+=v;}
+    });
+    return o;
+  }
   function splitBill(s){
     var b=g('stuBill')(s);
     if(!b)return null;
-    var pool=(Number(b.paid)||0)+(Number(b.waived)||0);
+    var cur0=g('billCur')(s);
+    var pl=pools(s,b,cur0);
     var out={g:{charge:0,paid:0,qty:0,n:0},so:{charge:0,paid:0,qty:0,n:0},
-             lastSide:'so',over:0,cur:g('billCur')(s)};
+             lastSide:'so',over:0,cur:cur0,
+             tagged:Math.round(pl.tagged*100)/100,untagged:Math.round(pl.untagged*100)/100};
     (b.items||[]).forEach(function(it){
       var e=it.e, f=Number(it.f)||0;
       var side=g('eIsGrp')(s,e)?'g':'so';
-      var cover=Math.min(pool,f);pool=Math.round((pool-cover)*100)/100;
+      /* 先用「標給這一種課」的錢，不夠再動沒標的那一池 */
+      var own=(side==='g')?'g':'so';
+      var cover=Math.min(pl[own],f);
+      pl[own]=Math.round((pl[own]-cover)*100)/100;
+      var rest=f-cover;
+      if(rest>0.0001){
+        var c2=Math.min(pl.any,rest);
+        pl.any=Math.round((pl.any-c2)*100)/100;
+        cover+=c2;
+      }
       out[side].charge+=f;out[side].paid+=cover;out[side].n++;
       var h=g('logHours')(e);
       out[side].qty+=g('eHourly')(s,e)?((h!=null)?h:1):1;
       out.lastSide=side;
       try{COVER.set(e,Math.round(cover*100)/100);}catch(_){}   /* 給「怎麼算的」用 */
     });
+    /* 標過、但超過那一種課應收的錢，是<那一種課>的預繳，不可以跑去抵另一種。
+       （第一版沒分，全部掛在「最後一堂那一邊」，結果標成團班的餘額
+         會跑去折一對一的欠款，標了等於白標。）
+       沒標的那一池才照舊規則，掛在最後一堂那一邊。 */
+    var leftG=pl.g, leftS=pl.so, leftAny=pl.any;
+    out.g.paid+=leftG; out.so.paid+=leftS;
     ['g','so'].forEach(function(k){
       out[k].charge=Math.round(out[k].charge*100)/100;
       out[k].paid=Math.round(out[k].paid*100)/100;
       out[k].qty=Math.round(out[k].qty*100)/100;
       out[k].due=Math.round((out[k].charge-out[k].paid)*100)/100;
     });
-    out.over=Math.round(pool*100)/100;        /* 繳超過的，掛在最後一堂那一邊 */
-    if(out.over>0)out[out.lastSide].due=Math.round((out[out.lastSide].due-out.over)*100)/100;
+    out.over=Math.round((leftG+leftS+leftAny)*100)/100;
+    if(leftAny>0)out[out.lastSide].due=Math.round((out[out.lastSide].due-leftAny)*100)/100;
     out.gu=(s.fee_unit==='hour')?'小時':'堂';
     out.su=(s.fee_unit_solo==='hour')?'小時':'堂';
     return out;
@@ -300,8 +339,12 @@
       };
       split='<div class="fw-split"><b>這位學生兩種課都有，兩邊分開算：</b>'
         +line('👥 團班',sp.g)+line('🧑‍🏫 一對一',sp.so)
-        +'<div class="fw-rule">應收是逐堂拆的，不用猜。<b>已繳沒辦法逐堂拆</b>——繳費記錄上沒有寫這筆是繳哪一種課，'
-        +'所以規則是<b>「先抵最早的課」</b>：錢從最舊的那一堂開始扣，扣完為止。'
+        +'<div class="fw-rule">應收是逐堂拆的，不用猜。已繳的部分：'
+        +((sp.tagged>0)
+           ? ('有 <b>'+M(sp.tagged,cur)+'</b> 已經在繳費那一筆標了是哪一種課的錢，<b>直接抵那一種</b>。'
+              +(sp.untagged>0?('剩下沒標的 <b>'+M(sp.untagged,cur)+'</b> 才照<b>「先抵最早的課」</b>分。'):''))
+           : '繳費記錄上沒有寫這筆是繳哪一種課，所以照<b>「先抵最早的課」</b>分：錢從最舊的那一堂開始扣，扣完為止。'
+             +'要讓它照實分的話，記帳的時候在「這筆是哪一種課的錢」選一下就好。')
         +'上面每一堂右邊都有寫抵掉多少，可以自己核。兩邊的欠款加起來一定等於下面的總數。</div></div>';
     }
 
