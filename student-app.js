@@ -53,10 +53,10 @@ Object.assign(I18N.en,{refresh:'Refresh',vfAll:'All',flkNo:'Not yet',flkYes:'Got
 Object.assign(I18N.vi,{refresh:'Làm mới',vfAll:'Tất cả',flkNo:'Chưa thuộc',flkYes:'Thuộc rồi 👍',strokeBtn:'✍️ Thứ tự nét',hwriteBtn:'📝 Luyện viết tay',fmtBold:'In đậm',fmtItalic:'In nghiêng',fmtUnder:'Gạch chân',fmtHl:'Bút dạ quang',fmtHlNone:'Bỏ dạ quang',fmtClear:'Xoá định dạng',cYellow:'Vàng',cGreen:'Xanh lá',cPink:'Hồng',cBlue:'Xanh dương',cOrange:'Cam',collapse:'Thu gọn',lsToggle:'Chạm để mở hoặc thu gọn bài này'});
 Object.assign(I18N.zh,{showPw:'顯示密碼'});Object.assign(I18N.cn,{showPw:'显示密码'});Object.assign(I18N.en,{showPw:'Show password'});Object.assign(I18N.vi,{showPw:'Hiện mật khẩu'});
 Object.assign(I18N.zh,{grammar:'語法'});Object.assign(I18N.cn,{grammar:'语法'});Object.assign(I18N.en,{grammar:'Grammar'});Object.assign(I18N.vi,{grammar:'Ngữ pháp'});
-Object.assign(I18N.zh,{gTitle:'怎麼使用這個平台',gWelcome:'三個步驟就上手，需要時右上角 ❓ 可以再看一次。',g1t:'看「上課內容」',g1b:'看課文、對話、生詞。點任何中文字就能聽發音、看拼音和意思。',g2t:'聽發音、練生詞',g2b:'點生詞卡片聽老師真人發音；「生詞卡」還能玩測驗和跟讀。',g3t:'做語法練習、送出',g3b:'每個語法下面都有練習。做完按「📤 送出這個語法的練習」交給老師，老師會批改回覆你。',g4t:'作業與成績',g4b:'「作業簿」是老師發佈的作業；「我的成績」看分數和老師評語。',gStart:'開始學習 →',gTip:'💡 之後想再看教學，點右上角的 ❓',gHelp:'怎麼用'});
-Object.assign(I18N.cn,{gTitle:'怎么使用这个平台',gWelcome:'三个步骤就上手，需要时右上角 ❓ 可以再看一次。',g1t:'看「上课内容」',g1b:'看课文、对话、生词。点任何中文字就能听发音、看拼音和意思。',g2t:'听发音、练生词',g2b:'点生词卡片听老师真人发音；「生词卡」还能玩测验和跟读。',g3t:'做语法练习、送出',g3b:'每个语法下面都有练习。做完按「📤 送出这个语法的练习」交给老师，老师会批改回复你。',g4t:'作业与成绩',g4b:'「作业簿」是老师發佈的作业；「我的成绩」看分数和老师评语。',gStart:'开始学习 →',gTip:'💡 之后想再看教学，点右上角的 ❓',gHelp:'怎么用'});
-Object.assign(I18N.en,{gTitle:'How to use this platform',gWelcome:'Just 3 steps. Tap ❓ (top-right) anytime to see this again.',g1t:'Open “Lessons”',g1b:'Read texts, dialogues and vocabulary. Tap any Chinese character to hear it and see pinyin & meaning.',g2t:'Listen & practice words',g2b:'Tap a vocab card to hear your teacher’s real voice; “Flashcards” also has quizzes and shadowing.',g3t:'Do grammar practice & submit',g3b:'Each grammar point has practice. When done, tap “📤 Submit this grammar set” — your teacher will grade and reply.',g4t:'Workbook & scores',g4b:'“Workbook” is homework your teacher assigns; “My scores” shows grades and teacher comments.',gStart:'Start learning →',gTip:'💡 Tap ❓ (top-right) to see this guide again.',gHelp:'Help'});
-Object.assign(I18N.vi,{gTitle:'Cách dùng nền tảng này',gWelcome:'Chỉ 3 bước. Chạm ❓ (góc trên bên phải) để xem lại bất cứ lúc nào.',g1t:'Mở “Nội dung học”',g1b:'Xem bài khoá, hội thoại và từ vựng. Chạm vào chữ Hán để nghe phát âm, xem pinyin và nghĩa.',g2t:'Nghe & luyện từ',g2b:'Chạm thẻ từ để nghe giọng thật của giáo viên; “Thẻ từ” còn có trắc nghiệm và nhại theo.',g3t:'Làm bài ngữ pháp & nộp',g3b:'Mỗi điểm ngữ pháp đều có bài luyện. Làm xong chạm “📤 Nộp phần ngữ pháp này” — giáo viên sẽ chấm và phản hồi.',g4t:'Sách bài tập & điểm',g4b:'“Sách bài tập” là bài giáo viên giao; “Điểm của tôi” xem điểm và nhận xét.',gStart:'Bắt đầu học →',gTip:'💡 Chạm ❓ (góc trên phải) để xem lại hướng dẫn.',gHelp:'Trợ giúp'});
+Object.assign(I18N.zh,{gTitle:'怎麼使用這個平台',gWelcome:'四個步驟就上手，需要時右上角 ❓ 可以再看一次。',g1t:'看「上課內容」',g1b:'看課文、對話、生詞。點任何中文字就能聽發音、看拼音和意思。',g2t:'聽發音、練生詞',g2b:'點生詞卡片聽老師真人發音；「生詞卡」還能玩測驗和跟讀。',g3t:'做語法練習、送出',g3b:'每個語法下面都有練習。做完按「📤 送出這個語法的練習」交給老師，老師會批改回覆你。',g4t:'作業與成績',g4b:'「作業簿」是老師發佈的作業；「我的成績」看分數和老師評語。',gStart:'開始學習 →',gTip:'💡 之後想再看教學，點右上角的 ❓',gHelp:'怎麼用'});
+Object.assign(I18N.cn,{gTitle:'怎么使用这个平台',gWelcome:'四个步骤就上手，需要时右上角 ❓ 可以再看一次。',g1t:'看「上课内容」',g1b:'看课文、对话、生词。点任何中文字就能听发音、看拼音和意思。',g2t:'听发音、练生词',g2b:'点生词卡片听老师真人发音；「生词卡」还能玩测验和跟读。',g3t:'做语法练习、送出',g3b:'每个语法下面都有练习。做完按「📤 送出这个语法的练习」交给老师，老师会批改回复你。',g4t:'作业与成绩',g4b:'「作业簿」是老师發佈的作业；「我的成绩」看分数和老师评语。',gStart:'开始学习 →',gTip:'💡 之后想再看教学，点右上角的 ❓',gHelp:'怎么用'});
+Object.assign(I18N.en,{gTitle:'How to use this platform',gWelcome:'Just 4 steps. Tap ❓ (top-right) anytime to see this again.',g1t:'Open “Lessons”',g1b:'Read texts, dialogues and vocabulary. Tap any Chinese character to hear it and see pinyin & meaning.',g2t:'Listen & practice words',g2b:'Tap a vocab card to hear your teacher’s real voice; “Flashcards” also has quizzes and shadowing.',g3t:'Do grammar practice & submit',g3b:'Each grammar point has practice. When done, tap “📤 Submit this grammar set” — your teacher will grade and reply.',g4t:'Workbook & scores',g4b:'“Workbook” is homework your teacher assigns; “My scores” shows grades and teacher comments.',gStart:'Start learning →',gTip:'💡 Tap ❓ (top-right) to see this guide again.',gHelp:'Help'});
+Object.assign(I18N.vi,{gTitle:'Cách dùng nền tảng này',gWelcome:'Chỉ 4 bước. Chạm ❓ (góc trên bên phải) để xem lại bất cứ lúc nào.',g1t:'Mở “Nội dung học”',g1b:'Xem bài khoá, hội thoại và từ vựng. Chạm vào chữ Hán để nghe phát âm, xem pinyin và nghĩa.',g2t:'Nghe & luyện từ',g2b:'Chạm thẻ từ để nghe giọng thật của giáo viên; “Thẻ từ” còn có trắc nghiệm và nhại theo.',g3t:'Làm bài ngữ pháp & nộp',g3b:'Mỗi điểm ngữ pháp đều có bài luyện. Làm xong chạm “📤 Nộp phần ngữ pháp này” — giáo viên sẽ chấm và phản hồi.',g4t:'Sách bài tập & điểm',g4b:'“Sách bài tập” là bài giáo viên giao; “Điểm của tôi” xem điểm và nhận xét.',gStart:'Bắt đầu học →',gTip:'💡 Chạm ❓ (góc trên phải) để xem lại hướng dẫn.',gHelp:'Trợ giúp'});
 Object.assign(I18N.zh,{dAllLesson:'全部課程',dAllV:'全部生詞',dDlg:'對話生詞',dShort:'短文生詞',dLessonLbl:'選擇課程',dRangeLbl:'生詞範圍',dStart:'開始聽寫',dCntUnit:'個生詞',dNoneRange:'這個範圍還沒有生詞'});
 Object.assign(I18N.cn,{dAllLesson:'全部课程',dAllV:'全部生词',dDlg:'对话生词',dShort:'短文生词',dLessonLbl:'选择课程',dRangeLbl:'生词范围',dStart:'开始听写',dCntUnit:'个生词',dNoneRange:'这个范围还没有生词'});
 Object.assign(I18N.en,{dAllLesson:'All lessons',dAllV:'All words',dDlg:'Dialogue words',dShort:'Reading words',dLessonLbl:'Choose lesson',dRangeLbl:'Word range',dStart:'Start dictation',dCntUnit:'words',dNoneRange:'No words in this range yet'});
@@ -4821,8 +4821,21 @@ function guideHtml(){
 }
 function showGuide(){const ex=document.getElementById('guide-ov');if(ex)ex.remove();document.body.insertAdjacentHTML('beforeend',guideHtml());}
 H.showGuide=()=>{showGuide();};
-H.closeGuide=()=>{const el=document.getElementById('guide-ov');if(el)el.remove();try{localStorage.setItem('hyc_guide_seen','1');}catch(e){}};
-function maybeShowGuide(){if(S.preview)return;try{if(localStorage.getItem('hyc_guide_seen'))return;}catch(e){}showGuide();}
+/* STUGD_V1526 「看過了」本來記成一把共用的鑰匙（hyc_guide_seen），
+   記的是「這台裝置」，不是「這個人」。同一台電腦或平板換第二位學生登入，
+   他就永遠看不到這份教學了——教室、網咖、或是家裡共用一台的情況都會中。
+   改成綁 uid。舊的那把鑰匙會轉移給現在登入的這位（他本來就看過了），
+   然後刪掉，所以他不會被重問，別人也不會被連坐。 */
+function gdKey(){var u='';try{u=myUid()||'';}catch(e){}return 'hyc_guide_seen_'+(u||'x');}
+function gdMigrate(){
+  try{
+    if(!localStorage.getItem('hyc_guide_seen'))return;
+    localStorage.setItem(gdKey(),'1');
+    localStorage.removeItem('hyc_guide_seen');
+  }catch(e){}
+}
+H.closeGuide=()=>{const el=document.getElementById('guide-ov');if(el)el.remove();try{localStorage.setItem(gdKey(),'1');}catch(e){}};
+function maybeShowGuide(){if(S.preview)return;gdMigrate();try{if(localStorage.getItem(gdKey()))return;}catch(e){}showGuide();}
 
 
 /* ══════════ OCREG_V1258 線上課會員（自學的人，不是老師收的正式學生）══════════
