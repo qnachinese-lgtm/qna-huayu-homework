@@ -1603,11 +1603,21 @@ function renderDashboard(){
   /* INCHIDE_V1299 首頁一打開就會看到這個月收了多少錢，旁邊有人、或是跟學生一起看畫面的時候
      不太方便。預設蓋起來，按「顯示」才看得到；重新整理或關掉再打開會回到蓋起來的狀態
      （只記在這一次開著的畫面裡，不寫進設定，也不寫進資料庫）。 */
-  const _hstatInc=(val)=>`<div class="hst hst-txt" data-act="tab" data-id="ops">`
-    +`<div class="t"><span>本月收入</span><span class="ic">💰</span></div>`
+  /* INCFIX_V1533 本來金額和〔隱藏〕擠在同一個會折行的格子裡：
+     「NT$4,200 ＋ 11,500,000 VND」一折行，按鈕就被擠到下一行，
+     整格從 50px 變成 102px，五張卡高度互相看齊，整頁跟著跳 41px。
+     改兩件事：
+       ① 按鈕移到標題那一列（跟 💰 同一行），不再跟金額搶位子；
+       ② 金額一種幣別一行，而且固定留兩行的高度——蓋起來和打開一樣高。
+     三種以上的幣別才會再長高，她目前是臺幣和越南盾兩種。 */
+  const _incLines=(o)=>{const ks=curKeys(o,v=>v);/* CURORD_V1281 */
+    return ks.length?ks.map(c=>`<span class="inc-ln">${money(o[c],c)}</span>`).join(''):'<span class="inc-ln">—</span>';};
+  const _hstatInc=(obj)=>`<div class="hst hst-txt" data-act="tab" data-id="ops">`
+    +`<div class="t"><span>本月收入</span><span class="grow"></span>`
+    +`<button type="button" class="inc-eye" data-act="dashInc" title="${DASHINC?'蓋起來':'看這個月收了多少'}">${DASHINC?'隱藏':'顯示'}</button>`
+    +`<span class="ic">💰</span></div>`
     +`<div class="v inc-v"${DASHINC?' style="color:#1F6A54"':''}>`
-    +(DASHINC?`<span>${val}</span><button type="button" class="inc-eye" data-act="dashInc" title="蓋起來">隱藏</button>`
-             :`<span class="inc-dots">••••••</span><button type="button" class="inc-eye" data-act="dashInc" title="看這個月收了多少">顯示</button>`)
+    +(DASHINC?_incLines(obj):`<span class="inc-dots">••••••</span>`)
     +`</div></div>`;
   const _leadNew=IS_OWNER?(S.leads||[]).filter(l=>(l&&(l.status||'new')==='new')).length:0;/* LEADNEW_V1122 */
   /* LEADDUP_V1300 _hstatLead 的框拿掉了，這支也一起刪，不留沒有人用的程式。 */
@@ -1656,7 +1666,7 @@ function renderDashboard(){
     ${_hstat('calendar','📅','今天的課',_cls,'堂','')/* TIDY_V1319 這個數字本來是紫的，是全畫面唯一一個紫色 */}
     ${_hstat('grades','📥','待批改',_pend,'份',(_pend&&_wmax!=null&&_wmax>=7)?'#A33227':(_pend?'#1E4C86':''))}
     ${IS_OWNER?_hstat('pay','💳','還沒收到',oweList.length,'位',oweList.length?'#A33227':''):''}
-    ${IS_OWNER?_hstatInc(_moneyStr(_totNow)):''/* INCHIDE_V1299 */}
+    ${IS_OWNER?_hstatInc(_totNow):''/* INCHIDE_V1299 */}
     <!-- LEADDUP_V1300 「新報名」這個框拿掉了。
          同一件事在同一個畫面上出現兩次：標題旁邊那顆紅色的「📥 N 筆新報名」
          跟這個框讀的是同一個數字、點下去也是同一個地方（招生・官網的報名名單）。
@@ -19683,7 +19693,12 @@ H.crmCloseDue=(id)=>{
    </div></div>`);};
 async function crmCloseNow(id){
   const _c=crmRecById(id);/* LIFE_V1106 */
-  await DB.update(crmCol(id),id,Object.assign({status:'done',closed_as:'done'},
+  /* DROPKEEP_V1533 本來一律寫 closed_as:'done'。可是已經標成「✕ 中途放棄」的客戶，
+     只要按〔💰 處理未收〕把錢處理掉，標籤就被改回「已結案」——
+     那兩種本來是故意分開的（做完了 vs 客戶自己不做了），改掉就看不出是哪一種。
+     已經是 dropped 的就保持 dropped。 */
+  const _as=(_c&&_c.closed_as==='dropped')?'dropped':'done';
+  await DB.update(crmCol(id),id,Object.assign({status:'done',closed_as:_as},
     _c?lifeStamp(_c,'done'):{}));
   await loadAll();closeModal();render();}
 /* FEEOFF_V1079 取消減免 */
