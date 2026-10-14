@@ -5166,7 +5166,11 @@ function weekActualCard(back){
         [meetBtn(meetOfStudent(it.s.id),true),'',`<button class="btn btn-sm" data-act="editLogRow" data-id="${esc(it.s.id)}::${(Array.isArray(it.s.class_log)?it.s.class_log:[]).indexOf(it.e)}">✏️ 修改</button>`,'']);}
     /* WK_EDIT_V32 已點名的課也要能改（時間打錯、其實還沒上、想改成請假） */
     if(it.type==='exam'){const m=itvResultMeta(it.c.result);
-      return wrow('background:#F8E7E4;border:1px solid #F0C9C2',
+      /* WKROW_V1530 這一列的底色本來是 #F8E7E4——跟「今天」那張卡的表頭同一個色號，
+         兩塊貼在一起就糊成一片粉紅。改成淺底＋左邊一條深紅，表頭是表頭、列是列。 */
+      /* 左邊那條用 inset 陰影畫，不用 border——border 會把這一列的內容往右推 4px，
+         上下幾列就對不齊了（量過：類別欄 226 vs 230）。 */
+      return wrow('background:#FDF4F2;border:1px solid #F0C9C2;box-shadow:inset 4px 0 0 #A33227',
         dchip('badge','background:#F0C9C2;color:#A33227;border-color:#b91c1c55;white-space:nowrap'),
         '<span class="badge b-info" >🎯 正式面試</span>',
         `<b>👤 ${esc(it.c.name||'')}</b>${it.c.target?`<span class="muted wr-tg">${esc(it.c.target)}</span>`:''}${m?`<span class="badge wr-rs" style="background:${m[1]}18;color:${m[1]}">${m[0]}</span>`:''}`,/* WRWRAP_V1216 */
