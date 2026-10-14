@@ -18247,7 +18247,13 @@ H.dupLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!co
   catch(err){if(btn){btn.disabled=false;btn.textContent='📋 複製';}toast(writeErr('複製失敗',err));}};
 H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return toast('請輸入課名');
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
-  gpSync();const gps=GP.map(g=>({title:(g.title||'').trim(),seg:(g.seg==='短文'?'短文':(/^\d+$/.test(String(g.seg||''))?String(g.seg):'')),blocks:(g.blocks||[]).map(b=>{const ex=(b.ex||'').trim();const lines=ex.split('\n').map(s=>s.trim()).filter(Boolean);const ea=Array.isArray(b.exAudio)?lines.map((_,i)=>b.exAudio[i]||''):[];const hasA=ea.some(Boolean);const im=(b.img||'').trim();return Object.assign({label:(b.label||'').trim(),text:(b.text||'').trim(),ex},hasA?{exAudio:ea}:{},im?{img:im}:{});}).filter(b=>b.label==='小節'?!!b.text:(b.label||b.text||b.ex||b.img))})).filter(g=>g.title||g.blocks.length);
+  gpSync();const gps=GP.map(g=>({title:(g.title||'').trim(),seg:(g.seg==='短文'?'短文':(/^\d+$/.test(String(g.seg||''))?String(g.seg):'')),blocks:(g.blocks||[]).map(b=>{const ex=(b.ex||'').trim();const lines=ex.split('\n').map(s=>s.trim()).filter(Boolean);const ea=Array.isArray(b.exAudio)?lines.map((_,i)=>b.exAudio[i]||''):[];const hasA=ea.some(Boolean);const im=(b.img||'').trim();
+      /* GPVI_V1532 這裡是把每一個區塊重新組一次，欄位是白名單。
+         text_vi 本來不在名單裡，所以只要在編輯器按一次「儲存」，
+         之前用匯入表填好的越南文就會被洗掉（舊的匯入是直接寫資料庫，繞過這裡）。
+         補進名單，而且空的就不寫，不要在資料裡留一堆空欄位。 */
+      const vi=(b.text_vi||'').trim();
+      return Object.assign({label:(b.label||'').trim(),text:(b.text||'').trim(),ex},hasA?{exAudio:ea}:{},im?{img:im}:{},vi?{text_vi:vi}:{});}).filter(b=>b.label==='小節'?!!b.text:(b.label||b.text||b.ex||b.img||b.text_vi))})).filter(g=>g.title||g.blocks.length);
   dlgSync();
   const sbtn=document.querySelector('[data-act="saveLesson"]');
   for(let i=0;i<DLG.length;i++){const d=DLG[i];
@@ -18344,6 +18350,9 @@ function gpSync(){GP.forEach((g,gi)=>{
     const lab=document.querySelector('.gp-lab[data-gi="'+gi+'"][data-bi="'+bi+'"]');if(lab)b.label=lab.value;
     const tx=document.querySelector('.gp-tx[data-gi="'+gi+'"][data-bi="'+bi+'"]');if(tx)b.text=tx.value;
     const ex=document.querySelector('.gp-ex[data-gi="'+gi+'"][data-bi="'+bi+'"]');if(ex)b.ex=ex.value;
+    /* GPVI_V1532 空字串就把欄位拿掉，不要在資料裡留一堆空的 text_vi */
+    const vi=document.querySelector('.gp-vi[data-gi="'+gi+'"][data-bi="'+bi+'"]');
+    if(vi){const v=String(vi.value||'').trim();if(v)b.text_vi=v;else delete b.text_vi;}
   });});}
 // 例句逐句錄音／上傳（教師用自己的聲音取代 AI 朗讀）
 function gpExLines(gi,bi){const b=GP[gi]&&GP[gi].blocks[bi];return ((b&&b.ex)||'').split('\n').map(s=>s.trim()).filter(Boolean);}
@@ -18416,6 +18425,12 @@ function gpRender(){const wrap=document.getElementById('gp-editor');if(!wrap)ret
       <div class="gp-block-head"><input class="gp-lab" data-gi="${gi}" data-bi="${bi}" list="gp-labels" value="${esc(b.label||'')}" placeholder="標籤（說明／例句／功能／結構…，可留空）">
       <button class="gp-bx" type="button" data-act="gpBlockDel" data-id="${gi}::${bi}" aria-label="刪除區塊">✕</button></div>
       <textarea class="gp-tx" data-gi="${gi}" data-bi="${bi}" placeholder="說明…">${esc(b.text||'')}</textarea>
+      <!-- GPVI_V1532 越南文說明。學生端早就會讀這個欄位（GPLANG_V1461 的 text_vi），
+           可是後台一直沒有地方填——本來只能用「匯出 Excel →填→匯回來」，
+           而那兩顆鈕在 RMBTN_V1493 被拿掉了，等於沒有入口。
+           這一格就是入口：空著學生看原文，填了、而且那位學生看越南文，就顯示這一段。 -->
+      <textarea class="gp-vi" data-gi="${gi}" data-bi="${bi}" rows="1"
+        placeholder="🇻🇳 越南文說明（選填，填了越南學生就會看到這一段，空著就看上面的原文）">${esc(b.text_vi||'')}</textarea>
       <textarea class="gp-ex" data-gi="${gi}" data-bi="${bi}" rows="1" placeholder="例句（選填，一行一句，學生可點來聽）">${esc(b.ex||'')}</textarea>
       <div class="gp-exaudio" id="gpexa-list-${gi}-${bi}">${gpExAudioHtml(gi,bi)}</div>
       <div class="gp-imgrow" id="gpimg-${gi}-${bi}">${gpImgHtml(gi,bi)}</div></div>`;}).join('');
