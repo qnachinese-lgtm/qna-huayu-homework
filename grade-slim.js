@@ -78,7 +78,89 @@
     return false;
   }
 
-  async function goEdit(ctx,qid){
+
+  /* ══════ GSJUMP_V1531 〔✎ 改題目〕開到那一題 ══════
+     本來只有語法練習（gprac）開得到單題，作業簿／造句／問題與討論一律開整份，
+     打開之後還要自己在一長串欄位裡找那一題。
+     兩個編輯器都有可以鎖定的東西（實際打開量過的）：
+       · 作業簿編輯器：每個大題一個 textarea，id 是 wbe-tone／pron／mcq／tf／py／hz／
+         ord／dlg／pic／g7／dlg2。
+       · 課文編輯器：每個對話區塊的生詞欄是 .dlg-vocab-in[data-i]、
+         問題與討論欄是 .dlg-disc-in[data-i]。
+     「這一題是哪一段」沿用 grade-edit.js 已經在用的同一條規則
+     （d2x 而且標題有「語法練習」才算 dlg2），兩支判斷不一致的話，
+     改字的地方和跳的地方會對不上，那比不會跳還糟。
+     ⚠ 只捲動和閃一下，不碰任何值。寫作那一段在作業簿編輯器裡沒有獨立欄位，就不跳。 */
+  function nearH4(el){
+    var n=el;
+    while(n&&n!==document.body){
+      var p=n.previousElementSibling;
+      while(p){
+        if(p.tagName==='H4')return (p.textContent||'');
+        var inner=p.querySelectorAll?p.querySelectorAll('h4'):null;
+        if(inner&&inner.length)return (inner[inner.length-1].textContent||'');
+        p=p.previousElementSibling;
+      }
+      n=n.parentNode;
+    }
+    return '';
+  }
+  function flash(el){
+    if(!el)return false;
+    try{
+      el.scrollIntoView({block:'center'});
+      var old=el.style.boxShadow, old2=el.style.transition;
+      el.style.transition='box-shadow .25s';
+      el.style.boxShadow='0 0 0 3px #1E4C86, 0 0 0 7px #1E4C8633';
+      setTimeout(function(){el.style.boxShadow=old;el.style.transition=old2;},2200);
+      try{ if(el.focus)el.focus({preventScroll:true}); }catch(_){}
+    }catch(e){ return false; }
+    return true;
+  }
+  /* 作業簿：這一題在哪一個大題的框裡 */
+  function wbTargetId(item,ta){
+    var k=ta.getAttribute('data-k')||'';
+    if(/^g\d+$/.test(k))return 'wbe-g7';
+    if(/^d\d/.test(k)){
+      var h=nearH4(item)||'';
+      return (h.indexOf('語法練習')>=0 && /^d2\d/.test(k)) ? 'wbe-dlg2' : 'wbe-dlg';
+    }
+    return null;                       /* write 之類的，沒有對應的欄位 */
+  }
+  /* 課文：造句看生詞欄、問題與討論看討論欄 */
+  function lesTarget(scr,item,ta){
+    if(scr.coll==='sentences'){
+      var w=ta.getAttribute('data-w')||'';
+      if(!w)return null;
+      var vs=document.querySelectorAll('.dlg-vocab-in');
+      for(var i=0;i<vs.length;i++)if(String(vs[i].value||'').indexOf(w)>=0)return vs[i];
+      return null;
+    }
+    if(scr.coll==='discussions'){
+      var k=ta.getAttribute('data-k')||'';
+      var m=k.match(/^(\d+)_/);
+      if(!m)return null;
+      return document.querySelector('.dlg-disc-in[data-i="'+m[1]+'"]');
+    }
+    return null;
+  }
+  function jumpAfterOpen(ctx,item,ta){
+    var tries=0;
+    var go=function(){
+      tries++;
+      var el=null;
+      try{
+        if(ctx.scr.open==='wb'){ var id=wbTargetId(item,ta); el=id?document.getElementById(id):null;
+          if(!id&&tries===1){try{toast('這一題在作業簿編輯器裡沒有獨立的欄位，幫妳開整份');}catch(_){}} }
+        else { el=lesTarget(ctx.scr,item,ta); }
+      }catch(e){}
+      if(el){ flash(el); return; }
+      if(tries<14)setTimeout(go,120);   /* 編輯器還沒畫好就再等一下 */
+    };
+    setTimeout(go,150);
+  }
+
+  async function goEdit(ctx,qid,item,ta){
     var lid=ctx.sd[ctx.scr.les];
     if(!lid){try{toast('找不到這一份是從哪一課來的');}catch(e){}return;}
     if(dirty(ctx)){
@@ -87,9 +169,10 @@
       catch(e){ try{toast('存檔沒成功，先不要離開');}catch(_){ } return; }
     }
     try{
-      if(ctx.scr.open==='question'&&qid)H.editQuestion(lid+'::'+qid);
-      else if(ctx.scr.open==='wb')H.editWb(lid);
+      if(ctx.scr.open==='question'&&qid){H.editQuestion(lid+'::'+qid);return;}
+      if(ctx.scr.open==='wb')H.editWb(lid);
       else H.editLesson(lid);
+      if(item&&ta)jumpAfterOpen(ctx,item,ta);      /* GSJUMP_V1531 開完再捲到那一題 */
     }catch(e){ try{toast('打不開編輯器：'+((e&&e.message)||e));}catch(_){ } }
   }
 
@@ -105,7 +188,7 @@
     b.title=(ctx.scr.open==='question')?'直接開到這一題':'開啟這一份的編輯畫面';
     b.addEventListener('click',function(ev){
       ev.preventDefault();ev.stopPropagation();
-      goEdit(ctx,qid);
+      goEdit(ctx,qid,item,ta);
     });
     var head=item.querySelector('.srev-word')||item.firstElementChild;
     if(head)head.appendChild(b); else item.insertBefore(b,item.firstChild);
