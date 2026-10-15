@@ -3144,14 +3144,15 @@ function renderGrades(){
             :(pend?`<span class="badge badge-soon">⏳ ${esc(th('pending'))}</span>`
             :(r?`<span class="badge badge-soon">${t('sDoing')}</span>`:`<span class="badge badge-pending">${t('sTodo')}</span>`))}</td>
       <td>${r?(pend?`<b>${r.score}/${r.total||qn}</b>${w?`<div class="hint">${esc(LT({zh:'還有 '+w+' 題等老師批改',cn:'还有 '+w+' 题等老师批改',en:w+' still to be graded',vi:'còn '+w+' câu chờ chấm'}))}</div>`:''}`
-                   :`<b>${r.score}/${r.total||qn}</b>`):'<b>—</b>'}</td></tr>`;}).join('');
+                   :`<b>${r.score}/${r.total||qn}</b>`):'<b>—</b>'}</td>
+      <td>${(r&&r.answers&&Object.keys(r.answers).length)?`<button class="btn btn-sm" data-act="reviewLesson" data-id="${esc(l.id)}">👁 ${esc(LT({zh:'看作答',cn:'看作答',en:'See answers',vi:'Xem bài làm'}))}</button>`:''}</td></tr>`;}).join('');
   const fbCards=ls.map(l=>{const r=resultOf(l.id);if(!r||(!r.comment&&!(r.feedback&&Object.keys(r.feedback).length)))return '';
     const qs=questionsOf(l.id);
     const perQ=qs.map((q,i)=>{const c=(r.feedback||{})[q.id];if(!c)return '';
       return `<div class="fb-q"><div class="fb-qh">${t('q')} ${i+1}　<span class="fb-prompt">${esc((q.prompt||'').replace(/[_＿]{2,}/g,'＿').slice(0,36))}</span></div><div class="fb-c">💬 ${esc(c)}</div></div>`;}).filter(Boolean).join('');
     return `<div class="card fb-card"><div class="fb-title">📝 ${esc(l.title)}</div>${r.comment?`<div class="fb-overall">${esc(r.comment)}</div>`:''}${perQ}</div>`;}).filter(Boolean).join('');
   $('#screen').innerHTML=_gh+`<div class="card"><div style="overflow:auto"><table class="matrix">
-    <thead><tr><th>${t('navContent')}</th><th></th><th>${t('score')}</th></tr></thead><tbody>${rows}</tbody></table></div></div>`+fbCards;
+    <thead><tr><th>${t('navContent')}</th><th></th><th>${t('score')}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`+fbCards;
 }
 function mistSrcLabel(src){return ({wb:'📒 作業簿',quiz:'📝 小考',prac:'✍️ 課文練習',gprac:'📐 語法練習'}[src])||'📕';}
 function mistStageLabel(it){const n=(it.stage||0);const d=MIST_STEPS[n];return it.mastered?wbL({zh:'已熟練',cn:'已熟练',en:'Mastered',vi:'Đã thuộc'}):(wbL({zh:'第 '+(n+1)+' 輪',cn:'第 '+(n+1)+' 轮',en:'Round '+(n+1),vi:'Vòng '+(n+1)})+(d?('・'+d+wbL({zh:' 天後再考',cn:' 天后再考',en:'d gap',vi:' ngày'})):''));}
@@ -3339,9 +3340,23 @@ function qHtml(q,idx,noInstr){
    所以「3 個人在教室」這種開頭是數字但沒有分隔符的句子不會被動到。 */
 const qStripNo = (txt) => String(txt == null ? '' : txt)
   .replace(/^[\s　]*\(?\d{1,2}[\s　]*[.．、。)）:：]+[\s　]*/, '');
+/* STUREV_V1546 老師可以改學生寫的字（課文練習）之後，這裡要跟老師端講同一句話：
+   對錯一律照<學生原本寫的>算，改過的那一題另外把原文列出來。
+   不然老師看到 ✗、學生看到 ✓，同一題兩個人看到的結果不一樣。 */
+function revOrig(qid){
+  try{const d=GRADE&&GRADE.doc;if(!d||!d.stu_edited_at)return null;
+    const o=d.answers_orig;
+    if(!o||!Object.prototype.hasOwnProperty.call(o,qid))return null;
+    return {v:o[qid]};}catch(e){return null;}}
+function revPlain(v){
+  if(v==null)return '';
+  if(Array.isArray(v))return v.map(x=>String(x==null?'':x)).join(' / ');
+  return String(v);}
 function qHtmlGraded(q,idx){
   if(q.type==='note')return qHtml(q,-1);
-  const resp=GRADE.answers[q.id],ok=isCorrect(q,resp);let body='',ct='';
+  const resp=GRADE.answers[q.id];
+  const _og=revOrig(q.id);
+  const ok=isCorrect(q,_og?_og.v:resp);let body='',ct='';
   if(q.type==='choice'){const _gc=((q.options||[]).length===4)?' c2':'';/*EXAMFIX_V81 批改後也兩格兩格*/
     body='<div class="opts'+_gc+'">'+(q.options||[]).map((o,i)=>{let cls='';if(i===Number(q.answer))cls='is-correct';else if(resp!=null&&i===Number(resp))cls='is-wrong';
       return `<div class="opt ${cls}"><span>${esc(o)}</span><span style="margin-left:auto">${i===Number(q.answer)?'✓':(resp!=null&&i===Number(resp)?'✗':'')}</span></div>`;}).join('')+'</div>';
@@ -3356,9 +3371,14 @@ function qHtmlGraded(q,idx){
       const a=it.mode==='open'?(esc(r.t||'')||('<span class="hint">'+t('blank')+'</span>')):((r.s||[]).map(oi=>String.fromCharCode(97+oi)+'. '+esc(stripOptLabel((q.options||[])[oi]||''))).join('；')||('<span class="hint">'+t('blank')+'</span>'));
       return `<div class="optitem${singleA?' nonum':''}">${num}<div class="optitem-body">${txt}<div class="qa-ans">${a}</div></div></div>`;}).join('');ct='';}
   else{body=(q.options||[]).map((p,i)=>{const r=(resp||[])[i]||'';const good=r===p.r;return `<div class="match-row"><span class="l">${esc(p.l)}</span><span class="badge ${good?'badge-ok':'badge-overdue'}"><span data-trvi="${esc(r)}">${esc(viOf(r)||'—')}</span> ${good?'✓':'✗'}</span></div>`;}).join('');ct=t('ans')+'：'+(q.options||[]).map(p=>esc(p.l)+'→'+esc(viOf(p.r))).join('、');}
-  const fb=isManualQ(q,resp)/* AUTOFILL_V1458 答對的填空直接顯示 ✓，不要還掛著「等老師批改」 */
+  /* STUREV_V1546 要老師看的題（問答、填空手寫…），老師改完會在 manual 標 done／wrong。
+     本來不管老師標了沒有，學生一律看到「⏳ 等老師批改」——
+     回去看以前的作答時，老師明明早就改完了，他還是看到在等。 */
+  const _mk=(()=>{try{return ((GRADE&&GRADE.doc&&GRADE.doc.manual)||{})[q.id]||'';}catch(e){return '';}})();
+  const fb=(isManualQ(q,resp)&&!_mk)/* AUTOFILL_V1458 答對的填空直接顯示 ✓，不要還掛著「等老師批改」 */
     ? `<div class="q-feedback hw-pending">⏳ ${th('pending')}${ct?` <span class="ans">｜${ct}</span>`:''}</div>`
-    : `<div class="q-feedback ${ok?'ok':'no'}">${ok?'✓ '+t('correct'):'✗ '+t('wrong')} <span class="ans">｜${ct}</span></div>`;
+    : (()=>{const good=_mk?(_mk==='done'):ok;
+        return `<div class="q-feedback ${good?'ok':'no'}">${good?'✓ '+t('correct'):'✗ '+t('wrong')} <span class="ans">｜${ct}</span></div>`;})();
   const instr=q.instruction?`<div class="q-instr">${esc(q.instruction)}</div>`:'';
   const pic=q.image_url?`<div class="q-pic"><img src="${esc(q.image_url)}" alt="" loading="lazy"></div>`:'';
   const multiOptG=q.type==='opt'&&(q.items||[]).length>1;
@@ -3366,9 +3386,17 @@ function qHtmlGraded(q,idx){
      V1444 的註解被寫在樣板字串「裡面」，所以 /* QNUM_V1444 *​/ 這幾個字
      直接變成 HTML 的內容印在每一題下面。不是亂碼，是我的註解漏出去了。
      上面 3259 行那一個寫在字串外面，所以沒事；只有這一個在裡面。 */
+  /* STUREV_V1546 老師改過這一題的話，把他原本寫的列在下面；老師寫的建議也一起顯示 */
+  const origBox=_og?`<div class="orig-box"><div class="orig-h">${esc(LT({zh:'你原本寫的',cn:'你原本写的',en:'What you wrote',vi:'Bạn đã viết'}))}</div>
+      <div class="orig-v">${esc(revPlain(_og.v)||LT({zh:'（沒寫）',cn:'（没写）',en:'(blank)',vi:'(bỏ trống)'}))}</div>
+      <div class="orig-n">${esc(LT({zh:'上面那一句是老師改過的',cn:'上面那一句是老师改过的',en:'The one above is your teacher\u2019s correction',vi:'Câu ở trên là bản giáo viên đã sửa'}))}</div></div>`:'';
+  const tfb=(()=>{try{const c=((GRADE&&GRADE.doc&&GRADE.doc.feedback)||{})[q.id];
+    return c?`<div class="q-explain">💬 ${esc(c)}</div>`:'';}catch(e){return '';}})();
   return `<div class="q-card">${instr}<div class="q-head">${multiOptG?'':`<span class="q-num">${idx+1}</span>`}
     <div style="flex:1">${showTypeTag(q)?`<span class="q-type-tag tag accent">${TYPE_LABELS[q.type]}</span>`:''}<div class="q-prompt">${esc(multiOptG?(q.prompt||''):qStripNo(q.prompt))}</div></div></div>${audioHtml(q.audio_url)}${pic}${body}
+    ${origBox}
     ${fb}
+    ${tfb}
     ${q.explanation?`<div class="q-explain">💡 ${esc(q.explanation)}</div>`:''}</div>`;
 }
 // 作業：每個語法收成一個可摺疊的卡（語法說明＋該語法的練習），未指定語法的「綜合練習」放最後
@@ -3433,14 +3461,20 @@ function renderPractice(){
       <div><div style="font-weight:600;font-size:16px">${pct>=80?t('great'):t('done')}</div><div style="color:var(--muted);font-size:14px">${pct}% ${t('acc')}</div></div></div>${g.hasWrite?`<div class="notice" style="margin-bottom:14px">⏳ ${qs.filter(q=>isManualQ(q,(g.answers||{})[q.id])).length} ${th('pendingNote')}</div>`:''}`+/* AUTOFILL_V1458 */
       (()=>{let n=0;return qs.map(q=>{if(q.type==='note')return qHtmlGraded(q,-1);const st=n;n+=(q.type==='opt'&&(q.items||[]).length>1)?(q.items||[]).length:1;return qHtmlGraded(q,st);}).join('');})()+
       transcriptHtml(l)+/*TRANSCRIPT_V75*/
-      `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn" data-act="retry">${t('retry')}</button><button class="btn btn-primary" data-act="back">${t('finishBack')}</button></div>`;
+      /* STUREV_V1546 看以前的作答＝純看，不給「再做一次」（會把紀錄洗掉）*/
+      (S.ansReview
+        ? ((GRADE&&GRADE.doc&&GRADE.doc.comment)?`<div class="notice" style="margin:14px 0">💬 ${esc(GRADE.doc.comment)}</div>`:'')
+          +`<div style="display:flex;gap:10px;margin-top:6px"><button class="btn btn-primary" data-act="back">← ${esc(LT({zh:'回成績',cn:'回成绩',en:'Back to scores',vi:'Về bảng điểm'}))}</button></div>`
+        : `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn" data-act="retry">${t('retry')}</button><button class="btn btn-primary" data-act="back">${t('finishBack')}</button></div>`);
   }else{practice=`<div class="section-head" style="margin-top:24px"><h2 style="font-size:19px">${t('practice')}</h2><span class="sub">${qs.filter(q=>q.type!=='note').length} ${t('q')}</span></div>`+
       quizBodyHtml(qs,l)+
       (S.tryMode
         ? `<div style="display:flex;gap:10px;margin-top:6px"><button class="btn btn-accent" style="flex:1 1 0;padding:13px;font-size:15px" data-act="submit">✅ ${LT({zh:'對答案（不會存檔）',cn:'对答案（不会存档）',en:'Check answers (not saved)',vi:'Kiểm tra đáp án (không lưu)'})}</button></div>`
           +`<div class="hint" style="text-align:center;margin-top:8px">學生看到的是「${esc(t('submit'))}」，按下去會送給你批改；試做模式只會當場算分。</div>`
         : (S.preview?'':`<div style="display:flex;gap:10px;margin-top:6px">${set.mode==='lesson'?`<button class="btn" style="flex:1 1 0;padding:13px" data-act="saveDraft">💾 ${t('saveDraft')}</button>`:''}<button class="btn btn-accent" style="flex:2 1 0;padding:13px;font-size:15px" data-act="submit">${t('submit')}</button></div>${set.mode==='lesson'?`<div class="hint" style="text-align:center;margin-top:8px">${S.member?LT({zh:'按「交卷，看分數」會馬上算分、顯示正解。',cn:'按「交卷，看分数」会马上算分、显示正解。',en:'Press Submit to see your score and the answers right away.',vi:'Bấm Nộp bài để xem điểm và đáp án ngay.'}):t('draftHint')}</div>`:''}`));}
-  $('#screen').innerHTML=head+textCard+practice;
+  /* STUREV_V1546 「看作答」是回來看自己寫了什麼，不是重新上課——
+     前面再放一整份課文和生詞，他要捲很久才看得到第一題。 */
+  $('#screen').innerHTML=head+(S.ansReview?'':textCard)+practice;
   convScreen();
   if(S.lang==='vi'){const _vm=[];qs.forEach(q=>{if(q.type==='match')(q.options||[]).forEach(p=>_vm.push(p.r));});hydrateVi(_vm);}
   if(!S.graded){setupCanvases();if(set.mode==='lesson'){const prev=S.results.find(x=>x.lesson_id===set.lessonId);if(prev&&prev.answers)fillSaved(qs,prev.answers);
@@ -4488,7 +4522,7 @@ H.doReset=async()=>{const email=$('#rs-email').value.trim();if(!email){$('#g-err
   catch(e){$('#g-err').textContent=t('errNoUser');}};
 
 H.openLesson=(id)=>{const l=S.lessons.find(x=>x.id===id);S.practiceSet={mode:'lesson',lessonId:id,lesson:l,questions:questionsOf(id),title:lesTitle(l)};
-  S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
+  S.graded=false;S.ansReview=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
 
 /* LQP_V688 題庫練習（老師從「即時比賽」的題庫指派出來的）。
    一題一題作答，最後自己對答案，成績直接存回去；老師那邊不用再批改。 */
@@ -4726,8 +4760,22 @@ H.lessonCards=(id)=>{S.section='cards';S.vocabLesson=id||'';S.flashIdx=0;S.flash
 H.lessonWrong=(id)=>{const l=S.lessons.find(x=>x.id===id);const qs=wrongQuestions().filter(q=>q.lesson_id===id);if(!qs.length)return;
   S.practiceSet={mode:'wrong',lesson:null,questions:qs,title:'📒 '+t('wrongTitle')+'｜'+((l&&''+(l.title||''))||'')};
   S.graded=false;responses={};SHUF={};GRADE=null;$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderPractice();};
-H.back=()=>{S.practiceSet=null;S.graded=false;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
-H.retry=()=>{S.graded=false;responses={};SHUF={};GRADE=null;window.scrollTo(0,0);renderPractice();};
+/* STUREV_V1546 回去看以前交的課文練習。
+   本來只有交卷當下看得到對錯，之後就再也打不開了——
+   老師在後台改了他寫的字，他也看不到。現在成績表每一列都點得進來。
+   這是純看的：不會重做、不會重算分數、不會寫任何東西回資料庫。 */
+H.reviewLesson=(id)=>{
+  const l=(S.lessons||[]).find(x=>x&&x.id===id);
+  const r=(typeof resultOf==='function')?resultOf(id):null;
+  if(!l||!r||!r.answers){try{toast(LT({zh:'這一課還沒有作答記錄',cn:'这一课还没有作答记录',en:'No answers saved for this lesson yet',vi:'Bài này chưa có bài làm nào'}));}catch(e){}return;}
+  S.practiceSet={mode:'lesson',lessonId:id,lesson:l,questions:questionsOf(id),title:lesTitle(l)};
+  responses={};SHUF={};
+  GRADE={answers:r.answers||{},score:r.score||0,total:r.total||0,hasWrite:false,doc:r};
+  S.graded=true;S.ansReview=true;/* 不可以叫 S.review——那是單字卡複習在用的 */
+  try{$('#screen').dataset.mode='practice';}catch(e){}
+  window.scrollTo(0,0);renderPractice();};
+H.back=()=>{S.practiceSet=null;S.graded=false;S.ansReview=false;$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
+H.retry=()=>{S.graded=false;S.ansReview=false;responses={};SHUF={};GRADE=null;window.scrollTo(0,0);renderPractice();};
 H.oradd=(_,b)=>{const qid=b.dataset.q;(responses[qid]||(responses[qid]=[])).push(Number(b.dataset.idx));const el=document.getElementById('order-'+qid);el.innerHTML=orderInner(S.questions.find(q=>q.id===qid));convEl(el);};
 H.ordel=(_,b)=>{const qid=b.dataset.q;responses[qid].splice(Number(b.dataset.pos),1);const el=document.getElementById('order-'+qid);el.innerHTML=orderInner(S.questions.find(q=>q.id===qid));convEl(el);};
 H.hwclear=(_,b)=>{const cv=document.getElementById('hw-'+b.dataset.q);if(cv){cv.getContext('2d').clearRect(0,0,cv.width,cv.height);cv.dataset.drawn='';}};
