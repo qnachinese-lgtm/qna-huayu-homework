@@ -12956,9 +12956,10 @@ function spScores(sid){
   const out=[];
   const mine=(x)=>x&&x.student_id===sid;
   try{(S.results||[]).filter(x=>mine(x)&&x.lesson_id&&String(x.lesson_id).indexOf('__')!==0)
-    .forEach(r=>{if(r.status==='done'&&r.total)out.push({t:'課文練習',n:repLessonName(r.lesson_id),ok:r.score||0,tot:r.total,d:String(r.completed_at||'').slice(0,10)});});}catch(e){}
-  try{(S.wbdocs||[]).filter(mine).forEach(r=>{const sc=r.score||{};if(sc.total)out.push({t:'作業簿',n:(typeof wbTitleOf==='function'?wbTitleOf(r.wb_lesson):'作業簿'),ok:sc.ok||0,tot:sc.total,d:String(r.submitted_at||'').slice(0,10)});});}catch(e){}
-  try{(S.quizResults||[]).filter(mine).forEach(r=>{if(r.total)out.push({t:'隨堂小考',n:((S.quizzes||[]).find(q=>q.id===r.quiz_id)||{}).title||'小考',ok:r.score||0,tot:r.total,d:String(r.completed_at||'').slice(0,10)});});}catch(e){}
+    .forEach(r=>{if(r.status==='done'&&r.total)out.push({t:'課文練習',n:repLessonName(r.lesson_id),ok:r.score||0,tot:r.total,d:String(r.completed_at||'').slice(0,10),go:(r.kind?'':'hw::'+r.id)});});}catch(e){}
+  try{(S.wbdocs||[]).filter(mine).forEach(r=>{const sc=r.score||{};if(sc.total)out.push({t:'作業簿',n:(typeof wbTitleOf==='function'?wbTitleOf(r.wb_lesson):'作業簿'),ok:sc.ok||0,tot:sc.total,d:String(r.submitted_at||'').slice(0,10),go:'wb::'+r.id});});}catch(e){}
+  /* HWSEE_V1540 小考不在批改台裡，它有自己的看法（viewQuizResult），鍵是「小考id::學生id」 */
+  try{(S.quizResults||[]).filter(mine).forEach(r=>{if(r.total)out.push({t:'隨堂小考',n:((S.quizzes||[]).find(q=>q.id===r.quiz_id)||{}).title||'小考',ok:r.score||0,tot:r.total,d:String(r.completed_at||'').slice(0,10),quiz:(r.quiz_id||'')+'::'+sid});});}catch(e){}
   out.sort((a,b)=>String(b.d).localeCompare(String(a.d)));
   return out;}
 function spPct(a,b){return b?Math.round(a/b*100):0;}
@@ -13088,9 +13089,13 @@ function spOverview(s,logs,fbs,fbSums,prog,sc,scOk,scTot){
 
   const right='<div class="sp-blk"><div class="sp-sec">🗓 最近上課 <span class="n">最新 6 筆</span></div>'+recent+'</div>'
     +'<div class="sp-blk"><div class="sp-sec">💬 最近回饋單 <span class="n">'+fbs.length+' 張 · 月總結 '+fbSums.length+' 份</span></div>'+fbRecent+'</div>'
+    /* HWSEE_V1540 這一塊本來只有數字，沒有路可以走到「學生到底寫了什麼」。
+       加一顆按鈕直接到「作業成績」那一頁，那裡每一筆都點得進去看原文。 */
     +(sc.length?('<div class="sp-blk"><div class="sp-sec">📊 作業表現</div><div class="sp-note">完成 <b>'+sc.length+'</b> 份'
         +(scTot?('，答對率 <b>'+spPct(scOk,scTot)+'%</b>（'+scOk+' / '+scTot+' 題）'):'')
-        +(prog&&prog.total?('<br>指派 '+prog.total+' 課，完成 '+prog.done+' 課（'+prog.pct+'%）'):'')+'</div></div>'):'');
+        +(prog&&prog.total?('<br>指派 '+prog.total+' 課，完成 '+prog.done+' 課（'+prog.pct+'%）'):'')+'</div>'
+        +'<div style="margin-top:10px"><button class="btn btn-sm btn-primary" data-act="stuTab" data-id="hw">👁 看他每一份寫了什麼</button></div>'
+        +'</div>'):'');
 
   return '<div class="sp-2"><div>'+left+'</div><div>'+right+'</div></div>';}
 
@@ -13140,9 +13145,35 @@ function spDueHtml(s){
       +'<td class="r">'+(x.lid?('<button class="btn btn-sm" data-act="previewLesson" data-id="'+esc(x.lid)+' title="學生看到的樣子">👁 預覽</button>'):'')+'</td></tr>';}).join('');
   return '<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>還沒交的</th><th>類型</th><th>期限</th><th class="r"></th></tr></thead><tbody>'
     +rows+'</tbody></table></div>';}
+/* HWSEE_V1540 Quinn：「為甚麼我看不到學生的這個作業？我要我這邊看得到，
+   我才知道學生的問題在哪裡啊」。她說得對——這一頁本來只有「70%、21/30 題」這種數字，
+   沒有任何一個地方點得進去看學生到底寫了什麼。
+   而且這張成績表只收「算得出分數」的（課文練習、作業簿、小考）；
+   造句、問題與討論、語法練習、跟讀這些沒有分數，整張表看不到，
+   偏偏那幾樣才看得出學生的毛病。所以另外列一區「交過的東西」，一筆都不漏。 */
+function spSubs(sid){
+  let q=[];try{q=gradeQueue(true)||[];}catch(e){}
+  return q.filter(x=>x&&x.sd&&x.sd.student_id===sid)
+    .sort((a,b)=>String(b.ts||'').localeCompare(String(a.ts||'')));}
+function spSubsHtml(sid){
+  const q=spSubs(sid);
+  if(!q.length)return '<div class="sp-empty">這位學生還沒有交過任何作業。</div>';
+  return '<div class="sp-scroll"><table class="sp-tb"><thead><tr>'
+    +'<th>交的時間</th><th>類型</th><th>哪一課</th><th>狀態</th><th class="r"></th>'
+    +'</tr></thead><tbody>'
+    +q.map(x=>{const k=SGKIND[x.kind]||{lab:x.kind,ic:'📄'};
+      return '<tr><td>'+esc(String(x.ts||'').slice(0,10)||'—')+'</td>'
+        +'<td><span class="tag">'+k.ic+' '+esc(k.lab)+'</span></td>'
+        +'<td>'+esc(x.les||'—')+(x.extra?(' <span class="tag">'+esc(x.extra)+'</span>'):'')+'</td>'
+        +'<td>'+(x.pend?'<span class="badge badge-soon">待批改</span>':'<span class="badge badge-ok">已批改</span>')+'</td>'
+        +'<td class="r"><button class="btn btn-sm btn-primary" data-act="spSeeHw" data-id="'
+        +esc(x.kind+'::'+x.id)+'">👁 看他寫了什麼</button></td></tr>';}).join('')
+    +'</tbody></table></div>';}
 function spHwTab(s,sc,scOk,scTot,prog,pend){
   const rows=sc.map(x=>'<tr><td>'+esc(x.d||'—')+'</td><td><span class="tag">'+esc(x.t)+'</span></td><td>'+esc(x.n||'')+'</td>'
-    +'<td class="r"><b>'+x.ok+'</b> / '+x.tot+'</td><td class="r">'+spPct(x.ok,x.tot)+'%</td></tr>').join('');
+    +'<td class="r"><b>'+x.ok+'</b> / '+x.tot+'</td><td class="r">'+spPct(x.ok,x.tot)+'%</td>'
+    +'<td class="r">'+(x.go?('<button class="btn btn-sm" data-act="spSeeHw" data-id="'+esc(x.go)+'">👁 看答案</button>')
+       :(x.quiz?('<button class="btn btn-sm" data-act="viewQuizResult" data-id="'+esc(x.quiz)+'">👁 看答案</button>'):''))+'</td></tr>').join('');
   const head='<div class="sp-tiles" style="margin-bottom:14px">'
     +'<div class="sp-tile"><div class="k">完成份數</div><div class="v">'+sc.length+'</div></div>'
     +'<div class="sp-tile"><div class="k">答對率</div><div class="v">'+(scTot?(spPct(scOk,scTot)+' %'):'—')+'</div><div class="s">'+scOk+' / '+scTot+' 題</div></div>'
@@ -13152,9 +13183,12 @@ function spHwTab(s,sc,scOk,scTot,prog,pend){
   let _dueN=0;try{_dueN=(hwPending()||[]).filter(x=>x&&x.sid===s.id).length;}catch(e){}
   const dueSec='<div class="sp-h2">📮 還沒交的作業'+(_dueN?('（'+_dueN+'）'):'')+'</div>'+spDueHtml(s);
   const doneSec='<div class="sp-h2" style="margin-top:20px">✅ 已完成・成績</div>'
-    +(sc.length?('<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>日期</th><th>類型</th><th>名稱</th><th class="r">得分</th><th class="r">百分比</th></tr></thead><tbody>'+rows+'</tbody></table></div>')
+    +(sc.length?('<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>日期</th><th>類型</th><th>名稱</th><th class="r">得分</th><th class="r">百分比</th><th class="r"></th></tr></thead><tbody>'+rows+'</tbody></table></div>')
       :'<div class="sp-empty">還沒有完成的作業記錄。</div>');
-  return head+dueSec+doneSec;}
+  /* HWSEE_V1540 這一區才是她要的：不管有沒有分數，交過的每一筆都在，點進去看原文 */
+  const subSec='<div class="sp-h2" style="margin-top:20px">📄 他交過的東西 <span class="n">點「看他寫了什麼」就會跳到批改畫面</span></div>'
+    +spSubsHtml(s.id);
+  return head+dueSec+subSec+doneSec;}
 
 function spPayTab(s,bill,cur){
   if(!IS_OWNER)return '<div class="sp-empty">這個分頁只有主管理員看得到。</div>';
@@ -13177,6 +13211,18 @@ function spPayTab(s,bill,cur){
     +(pays.length?('<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>日期</th><th class="r">收款金額</th><th class="r">折合帳單幣別</th><th>備註</th></tr></thead><tbody>'+rows+'</tbody></table></div>')
       :'<div class="sp-empty">還沒有繳費記錄。</div>');}
 
+/* HWSEE_V1540 從學生頁直接跳到批改畫面看他寫了什麼。
+   批改台預設只列「待批改」，已經改完的在那個篩選下根本不在清單裡，
+   所以要先把篩選切成「全部」，不然 sgPick 會找不到而沒反應。 */
+H.spSeeHw=(key)=>{
+  S.sgOnly='all';S.sgKind='';S.sgLesson='';
+  const find=()=>{try{return sgVisible().find(x=>(x.kind+'::'+x.id)===String(key))||null;}catch(e){return null;}};
+  let it=find();
+  /* 測試帳號的作答平常不排進批改台，只有在看測試帳號的時候才把它打開 */
+  if(!it&&!S.sgTest){S.sgTest=true;it=find();if(!it)S.sgTest=false;}
+  if(!it)return toast('找不到這一筆了，重新整理看看。');
+  S.sgSel=String(key);S.tab='grades';render();
+  try{window.scrollTo(0,0);}catch(e){}};
 H.stuTab=(k)=>{S.stuTab=k;render();};
 H.stuBack=()=>{S.tab='students';render();try{window.scrollTo(0,0);}catch(e){}};
 H.stuTools=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
