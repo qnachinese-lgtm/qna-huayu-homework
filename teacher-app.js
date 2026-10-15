@@ -7656,6 +7656,8 @@ function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY
        <!-- CRMBTN_V1098 儲存搬到視窗右下角那一條，跟其他視窗一致 -->
        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
          <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}">刪除此團班</button>
+         <!-- GMMERGE_V1535 -->
+         <button class="btn btn-sm" type="button" data-act="gmMerge" data-id="${esc(sel)}" title="學生、發佈出去的內容、預排課程一起搬到另一個班，這一班就收起來">🔀 併到另一個班</button>
          <button class="btn" type="button" data-act="classPage" data-id="${esc(sel)}">🔎 開啟班級頁</button></div>
      </div>`:'';
   const clsRows=classes.length?classes.map(c=>`<div class="dash-row" style="padding:8px 4px;flex-wrap:wrap${c===sel?';background:#EEF0F3;border-radius:8px':''}"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span>${groupSize(c)?'':'<span class="tag b-off"  title="沒有學生的班不會自動排進課表，設定還留著">沒有學生</span>'}${clsNotYet(c)?'<span class="tag b-info"  title="還沒開始的班完全不會自動排課">🚧 還沒開始</span>':''}${clsStartTag(c)/* CLSTART_V1091 */}${classMetaOf(c).textbook?`<span class="tag" title="這一班用的教材">📕 ${esc(classMetaOf(c).textbook)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-accent" type="button" data-act="classPublish" data-id="${esc(c)}">📢 發佈內容</button><button class="btn btn-sm" type="button" data-act="classPage" data-id="${esc(c)}">🔎 開啟班級頁</button><button class="btn btn-sm ${c===sel?'btn-accent':''}" type="button" data-act="gmPick" data-id="${esc(c)}">${c===sel?'✏️ 設定中':'✏️ 編輯'}</button></div>`+(c===sel?editPanel:'')).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
@@ -21827,6 +21829,75 @@ H.gmCreate=()=>{const v=(($('#gm-new')&&$('#gm-new').value)||'').trim();if(!v)re
 H.gmDelClass=async(cls)=>{if(!confirm('刪除團班「'+cls+'」？\n\n學生只是移出這個班，不會被刪掉；\n這一班的上課時段、預排、教材、Meet 連結會一起清掉。'))return;const affected=S.students.filter(s=>stuGroups(s).includes(cls));try{for(const s of affected){const g=stuGroups(s).filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}
   try{await dropClassMeta(cls);}catch(e){}/* GMEMPTY_V1073 設定也要清掉，不然班沒了時段還在 */
   groupMgrModal('');render();toast('已刪除團班');}catch(e){toast('失敗：'+((e&&e.message)||e));}};
+/* GMMERGE_V1535 整班併到另一班。
+   Quinn：「我想要把 002 的學生變成 001 班」。
+   手動做是三步（到 001 勾成員 → 儲存 → 回去刪掉 002），中間會掉兩樣東西：
+   發佈給 002 的課文／作業／公告，和 002 的預排課程——002 一刪，學生那邊就看不到了。
+   所以不是只搬人，連「發佈給 002」也要改寫成「發佈給 001」。
+   中途失敗不會把舊班刪掉，再按一次會從沒搬完的地方接著做（重跑是安全的）。 */
+function gmGroupDocs(cls){
+  const seen={},out=[];
+  [S.lessons,S.workbooks,S.quizzes,S.announcements,S.prons,S.classicals,
+   S.livequizzes,S.lqassigns,S.hanziTasks,S.writings].forEach(arr=>{
+    (arr||[]).forEach(x=>{
+      if(!x||!x.id||seen[x.id])return;
+      if(!((x.assigned_groups||[]).indexOf(cls)>=0))return;
+      seen[x.id]=1;out.push(x);});});
+  return out;}
+function gmMergeStat(from,to){
+  const stu=(S.students||[]).filter(s=>stuGroups(s).includes(from));
+  const already=stu.filter(s=>stuGroups(s).includes(to)).length;
+  const tp=classPlanned(to)||[];
+  /* 同一天同一個時段的預排，目標班已經有了就不要重複排一筆 */
+  const plan=(classPlanned(from)||[]).filter(p=>p&&p.date
+    &&!tp.some(q=>q&&q.date===p.date&&(q.start||'')===(p.start||'')));
+  return {stu,already,docs:gmGroupDocs(from),plan};}
+H.gmMerge=(cls)=>{
+  const others=groupsMgrList().filter(c=>c&&c!==cls);
+  if(!others.length)return toast('目前只有這一個團班，沒有別的班可以併過去。');
+  const n=(S.students||[]).filter(s=>stuGroups(s).includes(cls)).length;
+  const d=gmGroupDocs(cls).length,pl=(classPlanned(cls)||[]).length;
+  const rows=others.map(c=>'<div class="dash-row" style="padding:8px 4px;flex-wrap:wrap">'
+    +'<b>👥 '+esc(c)+'</b> <span class="tag">'+groupSize(c)+' 人</span>'
+    +(classMetaOf(c).textbook?('<span class="tag">📕 '+esc(classMetaOf(c).textbook)+'</span>'):'')
+    +'<span class="grow"></span>'
+    +'<button class="btn btn-sm btn-accent" type="button" data-act="gmMergeGo" data-id="'+esc(cls+'::'+c)+'">併到這一班 →</button></div>').join('');
+  openModal('<div class="modal"><div class="modal-head"><h3>🔀 把「'+esc(cls)+'」併到另一個班</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="hint" style="line-height:1.9;margin-bottom:10px">「'+esc(cls)+'」現在有 <b>'+n+' 位學生</b>、<b>'+d+' 份發佈出去的內容</b>、<b>'+pl+' 筆預排課程</b>。<br>'
+   +'選一個班併過去，這三樣都會搬到那一班，然後<b>「'+esc(cls)+'」就收起來不見了</b>。<br>'
+   +'學生不會被刪掉，他們已經交的作業、上過的課、繳的錢全部留著。<br>'
+   +'目標班自己的時段、教材、Meet 連結<b>不會</b>被蓋掉。</div>'
+   +rows
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button></div></div>');};
+H.gmMergeGo=async(key)=>{
+  const p=String(key).split('::'),from=p[0],to=p[1];
+  if(!from||!to||from===to)return;
+  const st=gmMergeStat(from,to),add=st.stu.length-st.already;
+  if(!confirm('把「'+from+'」併到「'+to+'」？\n\n'
+    +'· '+add+' 位學生加入「'+to+'」'+(st.already?('（另外 '+st.already+' 位本來就在這一班）'):'')+'\n'
+    +'· '+st.docs.length+' 份已發佈的內容改成發佈給「'+to+'」\n'
+    +'· '+st.plan.length+' 筆預排課程搬過去\n'
+    +'· 「'+from+'」連同它的時段、教材、Meet 連結一起收起來\n\n'
+    +'學生、作業、繳費記錄都不會被刪掉。這個動作沒辦法復原。'))return;
+  const btn=document.querySelector('[data-act="gmMergeGo"][data-id="'+key+'"]');
+  if(btn){btn.disabled=true;btn.textContent='搬移中…';}
+  try{
+    for(const s of st.stu){let g=stuGroups(s).filter(x=>x!==from);
+      if(g.indexOf(to)<0)g=g.concat([to]);
+      await DB.update('students',s.id,{groups:g});s.groups=g;}
+    for(const x of st.docs){let g=(x.assigned_groups||[]).filter(y=>y!==from);
+      if(g.indexOf(to)<0)g=g.concat([to]);
+      await DB.update(x._col||'lessons',x.id,{assigned_groups:g});x.assigned_groups=g;}
+    if(st.plan.length){
+      const tp=(classPlanned(to)||[]).concat(st.plan)
+        .sort((a,b)=>String((a.date||'')+(a.start||'')).localeCompare(String((b.date||'')+(b.start||''))));
+      await saveClassMeta(to,{planned:tp});}
+    await dropClassMeta(from);
+    closeModal();groupMgrModal(to);render();
+    toast('✅ 已把「'+from+'」併到「'+to+'」（'+add+' 位學生、'+st.docs.length+' 份內容）');
+  }catch(e){if(btn){btn.disabled=false;btn.textContent='併到這一班 →';}
+    toast('沒有全部搬完：'+((e&&e.message)||e)+'　「'+from+'」還在，再按一次會接著搬。');}};
 H.gmSave=async(cls)=>{const checked=new Set($$('#gm-members .gm-mem:checked').map(x=>x.value));const btn=document.querySelector('[data-act="gmSave"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
   try{for(const s of S.students){const has=stuGroups(s).includes(cls),want=checked.has(s.id);if(has===want)continue;let g=stuGroups(s).slice();if(want)g.push(cls);else g=g.filter(x=>x!==cls);await DB.update('students',s.id,{groups:g});s.groups=g;}
     toast('已儲存團班成員');groupMgrModal(cls);render();}catch(e){if(btn){btn.disabled=false;btn.textContent='儲存成員';}toast('儲存失敗：'+((e&&e.message)||e));}};
