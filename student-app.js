@@ -393,6 +393,50 @@ function renderQuizChoice(){const dd=S.dict,v=dd.list[dd.idx];
      ${dd.checked?`<div class="q-feedback ${dd.ok?'ok':'no'}">${dd.ok?'✓ '+t('correct'):'✗ '+t('wrong')+'　'+t('ans')+'：'+esc(v.back)}</div><button class="btn btn-primary" style="margin-top:12px" data-act="dictNext">${dd.idx+1>=dd.list.length?t('finishBack'):t('dictNext')}</button>`:''}</div>`;}
 function renderReviewDone(){const r=S.review;S.review=null;$('#screen').dataset.mode='';$('#screen').innerHTML=`<div class="card" style="text-align:center"><div style="font-size:40px">🎉</div><h3>${t('revFinish')}</h3><div class="muted" style="margin-top:6px">${t('know')} ${r.know} / ${r.list.length}</div><button class="btn btn-primary" style="margin-top:14px" data-act="section" data-id="cards">${t('finishBack')}</button></div>`;}
 function sentLessonId(){return S.vocabLesson||((vocabLessons().length===1)?vocabLessons()[0].id:'');}
+/* ══════ STUORIG_V1534 「你原本寫的 / 老師改的」並排 ══════
+   Quinn：老師改過學生寫的字之後，學生打開作業看到的是<b>改好的那一版</b>，
+   他看不到自己原本寫錯什麼，訂正的意義少一半。
+   原文其實一直都存著——老師按儲存時 grade-edit 會先備份一次：
+     作業簿／問題與討論／語法練習 → answers_orig（跟 answers 同一組 key）
+     造句                        → items_orig（陣列，照 word 對）
+   而且會寫一個 stu_edited_at 表示「老師動過學生的字」。
+   學生端從來沒有讀這兩個欄位，這裡補上。
+   規則：
+     · 老師沒動過（沒有 stu_edited_at）就什麼都不顯示，畫面不變。
+     · 這一題原文跟現在顯示的一樣（老師只改了別題）也不顯示。
+     · 只多一塊灰色的小框，不動原本那一行，所以不會影響任何既有版面。 */
+function stuOrigRaw(doc,key){
+  try{
+    if(!doc||!doc.stu_edited_at)return '';
+    var o=doc.answers_orig;if(!o)return '';
+    var v=o[key];
+    return (v==null)?'':String(v);
+  }catch(e){return '';}
+}
+function stuOrigWord(doc,word){
+  try{
+    if(!doc||!doc.stu_edited_at)return '';
+    var arr=doc.items_orig;if(!Array.isArray(arr))return '';
+    for(var i=0;i<arr.length;i++){
+      var it=arr[i];
+      if(it&&String(it.word)===String(word))return String(it.sentence||'');
+    }
+    return '';
+  }catch(e){return '';}
+}
+function stuOrigBox(orig,shown){
+  var o=String(orig==null?'':orig).trim();
+  if(!o)return '';
+  if(o===String(shown==null?'':shown).trim())return '';
+  return '<div class="orig-box"><div class="orig-h">'
+    +esc(LT({zh:'你原本寫的',cn:'你原本写的',en:'What you wrote',vi:'Bạn đã viết'}))+'</div>'
+    +'<div class="orig-v">'+esc(o).replace(/\n/g,'<br>')+'</div>'
+    +'<div class="orig-n">'+esc(LT({zh:'上面那一句是老師改過的',cn:'上面那一句是老师改过的',
+        en:'The line above is your teacher\u2019s corrected version',
+        vi:'Câu ở trên là bản giáo viên đã sửa'}))+'</div></div>';
+}
+function stuOrigHtml(doc,key,shown){return stuOrigBox(stuOrigRaw(doc,key),shown);}
+
 function renderSentence(){
   const dd=S.sent,doc=dd.doc;const fb=(doc&&doc.feedback)||{};
   const submitted=doc&&doc.status==='submitted',reviewed=doc&&doc.status==='reviewed';
@@ -400,6 +444,7 @@ function renderSentence(){
     return `<div class="card sent-card">
       <div class="sent-word">${vocabAnno({front:w.front,py:w.py})}${w.pos?' <span class="vpos">'+esc(w.pos)+'</span>':''} <span class="sent-mean">${esc((w.back)||'')}</span></div>
       <textarea class="qa-inp sent-inp" data-w="${esc(w.front)}" rows="2" placeholder="${esc(t('sentPh'))}">${esc(val)}</textarea>
+      ${stuOrigBox(stuOrigWord(doc,w.front),val)/* STUORIG_V1534 */}
       ${note?`<div class="fb-note">💬 ${t('sentFb')}：${esc(note)}</div>`:''}
     </div>`;}).join('');
   $('#screen').innerHTML=`<button class="btn btn-sm btn-ghost" data-act="back">${t('back')}</button>
@@ -501,7 +546,7 @@ function discSectionHtml(l,di,opts){opts=opts||{};const answerable=!!opts.answer
   const _rlab=(_rt&&[..._rt].length<=6)?_rt:(/短文/.test(_rt)?t('shortText'):t('dlgText'));
   const refTxt=(d.content||'').trim()?`<aside class="disc-ref${refOn?'':' off'}" data-ref="${esc(rkey)}"><div class="disc-ref-h"><span>📖 ${esc(_rlab)}</span><button type="button" class="disc-ref-x" data-act="discRefTog" data-id="${esc(rkey)}">✕</button></div><div class="disc-ref-b prose lookup">${prose2(d.content)}</div></aside>`:'';
   const refBtn=((d.content||'').trim()&&!refOn)?`<button type="button" class="disc-ref-open" data-act="discRefTog" data-id="${esc(rkey)}">📖 ${t('refShow')}</button>`:'';
-  return `<details class="disc sub-fold" open data-disc-di="${di}" data-disc-lid="${l.id}"><summary>💬 ${t('discTitle')}${bt?('（'+esc(bt)+'）'):''}</summary><div class="disc-split${refOn?'':' noref'}">${refTxt}<div class="disc-body">${refBtn}<ol class="disc-qs">${discQs.map((q,qi)=>{const key=di+'_'+qi;const note=fb[key];const a=ans[key]!=null?ans[key]:'';return `<li><div class="disc-q lookup">${prose2(q)}</div>${answerable?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(t('discPh'))}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`:(a?`<div class="disc-myans">${esc(a)}</div>`:'')}${note?`<div class="fb-note">💬 ${t('sentFb')}：${esc(note)}</div>`:''}</li>`;}).join('')}</ol>${answerable?`<div class="disc-submit" style="margin-top:10px">${(blockDone&&doc.status==='submitted')?`<div class="notice">📨 ${t('discSubmitted')}</div>`:''}${(blockDone&&doc.status==='reviewed')?`<div class="notice">✅ ${t('discReviewed')}</div>`:''}${(blockDone&&doc.submitted_at)?`<div class="hint" style="text-align:center;margin-top:4px">🕒 ${t('submittedAt')}：${fmtDT(doc.submitted_at)}</div>`:''}${(blockDone&&doc.status==='reviewed'&&doc.overall)?`<div class="card fb-overall" style="margin:6px 0"><b>${t('discOverall')}</b><div style="margin-top:4px">${esc(doc.overall)}</div></div>`:''}${(blockDone&&doc.status==='submitted')?`<button class="btn btn-sm" style="width:100%;margin-bottom:8px" data-act="recallDisc" data-id="${l.id}">${t('discRecall')}</button>`:''}<button class="btn btn-accent" style="width:100%;padding:11px" data-act="submitDisc" data-id="${l.id}::${di}">${blockDone?t('discResubmit'):t('discSubmit')}</button><div class="hint disc-draft-hint" data-lid="${l.id}" style="text-align:center;margin-top:2px;color:var(--teal,#1E4C86)"></div></div>`:''}</div></div></details>`;}
+  return `<details class="disc sub-fold" open data-disc-di="${di}" data-disc-lid="${l.id}"><summary>💬 ${t('discTitle')}${bt?('（'+esc(bt)+'）'):''}</summary><div class="disc-split${refOn?'':' noref'}">${refTxt}<div class="disc-body">${refBtn}<ol class="disc-qs">${discQs.map((q,qi)=>{const key=di+'_'+qi;const note=fb[key];const a=ans[key]!=null?ans[key]:'';return `<li><div class="disc-q lookup">${prose2(q)}</div>${answerable?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(t('discPh'))}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`:(a?`<div class="disc-myans">${esc(a)}</div>`:'')}${stuOrigHtml(doc,key,a)/* STUORIG_V1534 */}${note?`<div class="fb-note">💬 ${t('sentFb')}：${esc(note)}</div>`:''}</li>`;}).join('')}</ol>${answerable?`<div class="disc-submit" style="margin-top:10px">${(blockDone&&doc.status==='submitted')?`<div class="notice">📨 ${t('discSubmitted')}</div>`:''}${(blockDone&&doc.status==='reviewed')?`<div class="notice">✅ ${t('discReviewed')}</div>`:''}${(blockDone&&doc.submitted_at)?`<div class="hint" style="text-align:center;margin-top:4px">🕒 ${t('submittedAt')}：${fmtDT(doc.submitted_at)}</div>`:''}${(blockDone&&doc.status==='reviewed'&&doc.overall)?`<div class="card fb-overall" style="margin:6px 0"><b>${t('discOverall')}</b><div style="margin-top:4px">${esc(doc.overall)}</div></div>`:''}${(blockDone&&doc.status==='submitted')?`<button class="btn btn-sm" style="width:100%;margin-bottom:8px" data-act="recallDisc" data-id="${l.id}">${t('discRecall')}</button>`:''}<button class="btn btn-accent" style="width:100%;padding:11px" data-act="submitDisc" data-id="${l.id}::${di}">${blockDone?t('discResubmit'):t('discSubmit')}</button><div class="hint disc-draft-hint" data-lid="${l.id}" style="text-align:center;margin-top:2px;color:var(--teal,#1E4C86)"></div></div>`:''}</div></div></details>`;}
 function dialoguesHtml(l,opts){return lessonDialogues(l).map((d,di)=>dialogueBlockHtml(l,di,opts)+discSectionHtml(l,di,opts)+vocabSectionHtml(l,di,opts)).join('');}
 function reconcileLayout(l){const ds=lessonDialogues(l);const nd=ds.length,ng=(l.grammar_points||[]).length;const hasQ=i=>!!(ds[i]&&(ds[i].discussion||'').split('\n').some(s=>s.trim()));const hasV=i=>!!(ds[i]&&parseVocab(ds[i].vocabulary).length);const saved=Array.isArray(l.layout)?l.layout:[];
   const out=[],sd=new Set(),sg=new Set(),sq=new Set(),sv=new Set();
@@ -5450,7 +5495,8 @@ function wbGramHtml(w,graded,doc){
     const v=ans[g.n]||'';
     const body=graded?`<div class="wb-ta" style="min-height:auto;background:#FDF3D8">${v?esc(v).replace(/\n/g,'<br>'):('<span class="hint">'+LT({zh:'（未作答）',cn:'（未作答）',en:'(not answered)',vi:'(chưa trả lời)'})+'</span>')}</div>`
       :`<textarea class="wb-ta" rows="2" data-wb="gram" data-n="${g.n}" placeholder="B：…">${esc(v)}</textarea>`;
-    const f=fb['g'+g.n]?`<div class="wb-fb">💬 ${esc(fb['g'+g.n])}</div>`:'';
+    const f=stuOrigHtml(doc,'g'+g.n,v)/* STUORIG_V1534 */
+      +(fb['g'+g.n]?`<div class="wb-fb">💬 ${esc(fb['g'+g.n])}</div>`:'');
     return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${g.n}</span>A：${esc(g.a)}${g.pattern?`<span class="wb-tag">${esc(g.pattern)}</span>`:''}</div><div style="margin-top:8px">${body}</div>${f}</div>`;
   }).join('');
 }
@@ -5469,7 +5515,8 @@ function wbWriteHtml(w,graded,doc){
   const chips=(arr)=>arr&&arr.length?`<div class="wb-chips">${arr.map(x=>`<span class="wb-chip">${esc(x)}</span>`).join('')}</div>`:'';
   const body=graded?`<div class="wb-ta" style="min-height:auto;background:#FDF3D8;white-space:pre-wrap">${v?esc(v):('<span class="hint">'+LT({zh:'（未作答）',cn:'（未作答）',en:'(not answered)',vi:'(chưa trả lời)'})+'</span>')}</div>`
     :`<textarea class="wb-ta" id="wb-write" rows="14" data-wb="write" placeholder="${esc(wbL({zh:'在這裡寫…',cn:'在这里写…',en:'Write here…',vi:'Viết ở đây…'}))}">${esc(v)}</textarea><div class="wb-cnt ${cls}" id="wb-cnt">${n} ${wbL({zh:'字',cn:'字',en:'chars',vi:'chữ'})}</div>`;
-  const fb=(doc&&doc.feedback&&doc.feedback.write)?`<div class="wb-fb">💬 ${esc(doc.feedback.write)}</div>`:'';
+  const fb=stuOrigHtml(doc,'write',v)/* STUORIG_V1534 */
+    +((doc&&doc.feedback&&doc.feedback.write)?`<div class="wb-fb">💬 ${esc(doc.feedback.write)}</div>`:'');
   return (wr.intro?`<div class="wb-qt" style="margin-bottom:8px">${esc(wr.intro)}</div>`:'')
     +(wr.points&&wr.points.length?`<div class="wb-sub">${wbL({zh:'內容要包括',cn:'内容要包括',en:'Include',vi:'Cần có'})}</div>`+list(wr.points):'')
     +(wr.notes&&wr.notes.length?`<div class="wb-sub">${wbL({zh:'注意',cn:'注意',en:'Notes',vi:'Lưu ý'})}</div>`+list(wr.notes):'')
@@ -5689,7 +5736,8 @@ function wbDlgHtml(w,graded,doc,sec){
      if(!c.main)return `<div class="wb-q"><div class="wb-dlg-ctx">${c.ctx.map(lineHtml).join('<br>')}</div></div>`;
      const ln=c.main;
      const ref=(graded&&ln.ans)?`<div class="wb-ref">${wbL({zh:'參考答案',cn:'参考答案',en:'Answer',vi:'Đáp án'})}：${esc(ln.ans)}</div>`:'';
-     const f=fb[pfx+ln.i]?`<div class="wb-fb">💬 ${esc(fb[pfx+ln.i])}</div>`:'';
+     const f=stuOrigHtml(doc,pfx+ln.i,(wbAns()[pfx==='d2'?'dlg2':'dlg']||{})[ln.i])/* STUORIG_V1534 */
+       +(fb[pfx+ln.i]?`<div class="wb-fb">💬 ${esc(fb[pfx+ln.i])}</div>`:'');
      const ctx=c.ctx.length?`<div class="wb-dlg-ctx">${c.ctx.map(lineHtml).join('<br>')}</div>`:'';
      return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${c.n}</span><span class="wb-dlg-main">${lineHtml(ln)}</span></div>${ctx}${ref}${f}</div>`;}).join('');
 }
@@ -5701,7 +5749,8 @@ function wbPicHtml(w,graded,doc){
       const body=wbHandOn('pic')?wbHwBox('pic',q.n,v,graded,q.ans,240)
         :(graded?`<div class="wb-filled">${v?esc(v):('<span class="hint">'+LT({zh:'（未作答）',cn:'（未作答）',en:'(not answered)',vi:'(chưa trả lời)'})+'</span>')}</div>`+(q.ans?`<div class="wb-ref">${wbL({zh:'參考答案',cn:'参考答案',en:'Answer',vi:'Đáp án'})}：${esc(q.ans)}</div>`:'')
         :`<textarea class="wb-ta" rows="2" data-wb="pic" data-n="${q.n}" placeholder="…">${esc(v)}</textarea>`);
-      const f=fb['p'+q.n]?`<div class="wb-fb">💬 ${esc(fb['p'+q.n])}</div>`:'';
+      const f=stuOrigHtml(doc,'p'+q.n,v)/* STUORIG_V1534 */
+        +(fb['p'+q.n]?`<div class="wb-fb">💬 ${esc(fb['p'+q.n])}</div>`:'');
       return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${wbNo(q)}</span>${(q.hint&&!q.img)?`<span class="wb-tag">${esc(q.hint)}</span>`:''}</div>`
         +(q.img?`<div class="wb-pic"><img src="${esc(q.img)}" alt="" loading="lazy"></div>`:'')
         +`<div style="margin-top:8px">${body}</div>${f}</div>`;}).join('');
