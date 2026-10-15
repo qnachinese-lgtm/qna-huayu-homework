@@ -7662,7 +7662,10 @@ function gmgGridHtml(){
           +'title="'+esc(String(s.name||'')+(on?' 在':' 不在')+'「'+c+'」')+'" '
           +'aria-pressed="'+(on?'true':'false')+'">'+(on?'✓':'')+'</button></td>';}).join('')
       +'<td class="gg-fill"></td></tr>';}).join('');
-  return '<table class="gg"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';}
+  /* GMFIX_V1539 欄寬是寫死的（190 ＋ 每班 104），班多到塞不下就讓它橫向捲，
+     不要把欄位壓扁——壓扁才是真的點不到。 */
+  return '<table class="gg" style="min-width:'+(190+classes.length*104)+'px"><thead>'
+    +head+'</thead><tbody>'+body+'</tbody></table>';}
 function gmgBoxHtml(){
   const n=Object.keys(GMG).length;
   return '<div class="gg-wrap" id="gg-wrap">'+gmgGridHtml()+'</div>'
