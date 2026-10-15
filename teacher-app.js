@@ -12906,6 +12906,32 @@ function spCss(){
    +'.sp-tb tr:hover td{background:#FFFFFF}'
    +'.sp-tb .r{text-align:right;white-space:nowrap}.sp-tb .c{text-align:center;white-space:nowrap}'
    +'.sp-empty{color:#607188;text-align:center;padding:26px}'
+   /* PERF_V1541 做題狀況 */
+   +'.pf-list{display:flex;flex-direction:column;gap:2px}'
+   +'.pf-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #EEF0F3}'
+   +'.pf-row:first-child{border-top:0}'
+   +'.pf-nm{flex:0 0 92px;font-weight:600;font-size:13.5px}'
+   +'.pf-bar{flex:1 1 auto;height:12px;background:#EEF0F3;border-radius:7px;overflow:hidden;min-width:60px}'
+   +'.pf-fill{height:100%;border-radius:7px}'
+   +'.pf-fill.ok{background:#2F855A}.pf-fill.mid{background:#C9A227}.pf-fill.bad{background:#A33227}'
+   +'.pf-v{flex:0 0 108px;text-align:right;font-size:13px}'
+   +'.pf-trend{display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding:6px 2px 0}'
+   +'.pf-col{flex:0 0 46px;text-align:center}'
+   +'.pf-cv{font-size:12px;font-weight:700;color:#425466}'
+   +'.pf-cb{height:92px;display:flex;align-items:flex-end;justify-content:center;'
+     +'background:#F4F7FB;border-radius:7px;margin:3px 0}'
+   +'.pf-cf{width:22px;border-radius:6px 6px 0 0}'
+   +'.pf-cf.ok{background:#2F855A}.pf-cf.mid{background:#C9A227}.pf-cf.bad{background:#A33227}'
+   +'.pf-cd{font-size:11px;color:#607188}'
+   +'.pf-verdict{margin-top:10px;padding:9px 12px;border-radius:10px;background:#F4F7FB;font-size:13.5px;font-weight:600}'
+   +'.pf-verdict.up{background:#E1F0EA;color:#1F6F3F}.pf-verdict.down{background:#FDF4F2;color:#A33227}'
+   +'.pf-wg{border:1px solid #EEF0F3;border-radius:12px;padding:10px 13px;margin:8px 0;background:#fff}'
+   +'.pf-wg>summary{cursor:pointer;font-size:13.5px}'
+   +'.pf-w{border-top:1px solid #EEF0F3;padding:8px 0}'
+   +'.pf-wl{font-size:12px;color:#607188;font-weight:600}'
+   +'.pf-wq{font-size:13.5px;margin:2px 0 4px}'
+   +'.pf-wa{display:flex;gap:12px;flex-wrap:wrap;font-size:13px}'
+   +'.pf-wa .no{color:#A33227}.pf-wa .yes{color:#1F6F3F}'
    +'.sp-note{background:#F4F7FB;border-radius:12px;padding:10px 13px;font-size:13.5px;white-space:pre-line}'
    +'.sp-mini{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-top:1px solid #EEF0F3;font-size:13px}'
    +'.sp-mini:first-child{border-top:0}'
@@ -13026,12 +13052,13 @@ function renderStudentProfile(){
     +'</div>';
 
   const T=(k,label,n)=>'<button class="sp-tab'+(tab===k?' on':'')+'" type="button" data-act="stuTab" data-id="'+k+'">'+label+(n!=null?'<span class="n">'+n+'</span>':'')+'</button>';
-  const tabs='<div class="sp-tabs">'+T('ov','總覽',null)+T('log','上課記錄',A.total)+T('hw','作業成績',sc.length)+(IS_OWNER?T('pay','繳費與對帳',(s.payments||[]).length):'')+'</div>';
+  const tabs='<div class="sp-tabs">'+T('ov','總覽',null)+T('log','上課記錄',A.total)+T('hw','作業成績',sc.length)+T('perf','做題狀況',null)/* PERF_V1541 */+(IS_OWNER?T('pay','繳費與對帳',(s.payments||[]).length):'')+'</div>';
 
   let body='';
   if(tab==='ov')body=spOverview(s,logs,fbs,fbSums,prog,sc,scOk,scTot);
   else if(tab==='log')body=spLogTab(s,logs,fbs);
   else if(tab==='hw')body=spHwTab(s,sc,scOk,scTot,prog,pend);
+  else if(tab==='perf')body=spPerfTab(s);/* PERF_V1541 */
   else body=spPayTab(s,bill,cur);
 
   el.innerHTML='<div class="sp-wrap">'
@@ -13189,6 +13216,160 @@ function spHwTab(s,sc,scOk,scTot,prog,pend){
   const subSec='<div class="sp-h2" style="margin-top:20px">📄 他交過的東西 <span class="n">點「看他寫了什麼」就會跳到批改畫面</span></div>'
     +spSubsHtml(s.id);
   return head+dueSec+subSec+doneSec;}
+
+/* ===== PERF_V1541 做題狀況 =====
+   Quinn：「我想要看到學生做題狀況」。
+   這一頁回答四個問題：哪一類題型最弱、錯過哪幾題、有沒有進步、跟同學比起來如何。
+   全部從已經存下來的資料算，不另外寫任何東西進資料庫。
+   「待批改」那一格留著——那是在提醒她還有東西沒改，拿掉會漏批。 */
+const PF_SEC=[['listen','聽力'],['vocab','詞彙選擇'],['cloze','選詞填空'],['match','配合題'],
+  ['read','閱讀'],['tone','聲調'],['pron','拼音'],['tf','是非'],['hz','寫漢字'],
+  ['ord','句子重組'],['g7','語法練習'],['mcq','選擇題'],['free','簡答']];
+function pfPct(a,b){return b?Math.round(a/b*100):null;}
+function pfBar(ok,tot){
+  const p=pfPct(ok,tot);if(p==null)return '';
+  const cls=(p>=80?'ok':(p>=60?'mid':'bad'));
+  return '<div class="pf-bar"><div class="pf-fill '+cls+'" style="width:'+p+'%"></div></div>';}
+/* 題型強弱：作業簿的分項分數加總（一份一份存在 sd.score 裡） */
+function pfSections(sid){
+  const agg={};
+  (S.wbdocs||[]).filter(x=>x&&x.student_id===sid).forEach(sd=>{
+    const sc=sd.score||{};
+    PF_SEC.forEach(([k,lab])=>{const o=sc[k];
+      if(!o||!o.total)return;
+      if(!agg[k])agg[k]={lab:lab,ok:0,tot:0,n:0};
+      agg[k].ok+=(o.ok||0);agg[k].tot+=o.total;agg[k].n++;});});
+  const out=Object.keys(agg).map(k=>agg[k]);
+  out.sort((a,b)=>(pfPct(a.ok,a.tot)-pfPct(b.ok,b.tot))||(b.tot-a.tot));
+  return out;}
+/* 每一次交的成績，照時間排（看進步用） */
+function pfTrend(sid){
+  const out=[];
+  (S.wbdocs||[]).filter(x=>x&&x.student_id===sid).forEach(sd=>{const sc=sd.score||{};
+    if(sc.total)out.push({d:String(sd.submitted_at||'').slice(0,10),
+      n:(typeof wbTitleOf==='function'?wbTitleOf(sd.wb_lesson):'作業簿'),t:'作業簿',ok:sc.ok||0,tot:sc.total});});
+  (S.results||[]).filter(x=>x&&x.student_id===sid&&!x.kind&&x.status==='done'&&x.total).forEach(r=>{
+    out.push({d:String(r.completed_at||'').slice(0,10),n:repLessonName(r.lesson_id),t:'課文練習',ok:r.score||0,tot:r.total});});
+  (S.quizResults||[]).filter(x=>x&&x.student_id===sid&&x.total).forEach(r=>{
+    out.push({d:String(r.completed_at||'').slice(0,10),
+      n:((S.quizzes||[]).find(q=>q.id===r.quiz_id)||{}).title||'小考',t:'小考',ok:r.score||0,tot:r.total});});
+  out.sort((a,b)=>String(a.d).localeCompare(String(b.d)));
+  return out;}
+/* 錯過哪幾題：作業簿用 wbBadList，課文練習比對題庫答案 */
+function pfWrong(sid){
+  const out=[];
+  (S.wbdocs||[]).filter(x=>x&&x.student_id===sid).forEach(sd=>{
+    let bad=[];try{bad=wbBadList(sd)||[];}catch(e){}
+    if(bad.length)out.push({src:(typeof wbTitleOf==='function'?wbTitleOf(sd.wb_lesson):'作業簿'),
+      d:String(sd.submitted_at||'').slice(0,10),go:'wb::'+sd.id,items:bad});});
+  (S.results||[]).filter(x=>x&&x.student_id===sid&&!x.kind&&x.status==='done').forEach(r=>{
+    const qs=(S.questions||[]).filter(q=>q&&q.lesson_id===r.lesson_id&&q.type!=='note');
+    const ans=r.answers||{},items=[];
+    qs.forEach(q=>{const a=ans[q.id];if(a==null||a==='')return;
+      let ok=null;
+      if(q.type==='choice')ok=(Number(a)===Number(q.answer));
+      else if(q.type==='order')ok=((Array.isArray(a)?a.join(''):String(a))===((q.options||[]).join('')));
+      if(ok!==false)return;
+      const opt=(q.options||[]);
+      items.push({lab:'課文練習',q:String(q.prompt||q.instruction||'').slice(0,80),
+        stu:(q.type==='choice'?(opt[Number(a)]||String(a)):(Array.isArray(a)?a.join(''):String(a))),
+        ans:(q.type==='choice'?(opt[Number(q.answer)]||String(q.answer)):(opt.join('')))});});
+    if(items.length)out.push({src:repLessonName(r.lesson_id),d:String(r.completed_at||'').slice(0,10),
+      go:'hw::'+r.id,items:items});});
+  out.sort((a,b)=>String(b.d).localeCompare(String(a.d)));
+  return out;}
+/* 整班比一比：同一份作業，班上每個人的分數 */
+function pfClass(s){
+  const cls=((typeof stuGroups==='function')?stuGroups(s):[]);
+  const peers=(S.students||[]).filter(x=>x&&!x.is_test&&x.id!==s.id
+    &&((typeof stuGroups==='function')?stuGroups(x):[]).some(g=>cls.indexOf(g)>=0));
+  if(!cls.length||!peers.length)return null;
+  const rows=[];
+  /* PERF_V1541 同一份作業、同一個人可能有不只一筆（重交、或舊資料沒清）。
+     一人只留最後一筆，不然他自己會被當成好幾個人一起算進班平均，
+     而且「他的分數」會抓到最早那一筆——兩邊都錯。 */
+  const latest=(list,keyOf,timeOf)=>{
+    const m={};
+    list.forEach(x=>{const k=x.student_id+'\u0001'+keyOf(x);
+      if(!m[k]||String(timeOf(x)||'')>String(timeOf(m[k])||''))m[k]=x;});
+    return Object.keys(m).map(k=>m[k]);};
+  const whoOk=(x)=>x.student_id===s.id||peers.some(p=>p.id===x.student_id);
+  const wbAll=latest((S.wbdocs||[]).filter(x=>x&&(x.score||{}).total&&whoOk(x)),
+    x=>x.wb_lesson,x=>x.submitted_at);
+  const mineWb=[...new Set(wbAll.filter(x=>x.student_id===s.id).map(x=>x.wb_lesson))];
+  mineWb.forEach(wid=>{
+    const same=wbAll.filter(x=>x.wb_lesson===wid);
+    rows.push(pfCmpRow((typeof wbTitleOf==='function'?wbTitleOf(wid):'作業簿'),s.id,
+      same.map(x=>({sid:x.student_id,p:pfPct(x.score.ok||0,x.score.total)}))));});
+  const qzAll=latest((S.quizResults||[]).filter(x=>x&&x.total&&whoOk(x)),
+    x=>x.quiz_id,x=>x.completed_at);
+  const mineQz=[...new Set(qzAll.filter(x=>x.student_id===s.id).map(x=>x.quiz_id))];
+  mineQz.forEach(qid=>{
+    const same=qzAll.filter(x=>x.quiz_id===qid);
+    rows.push(pfCmpRow(((S.quizzes||[]).find(q=>q.id===qid)||{}).title||'小考',s.id,
+      same.map(x=>({sid:x.student_id,p:pfPct(x.score||0,x.total)}))));});
+  return {cls:cls.join('、'),peers:peers.length,rows:rows.filter(x=>x&&x.n>1)};}
+function pfCmpRow(name,sid,list){
+  const ok=list.filter(x=>x&&x.p!=null);if(!ok.length)return null;
+  const me=ok.find(x=>x.sid===sid);if(!me)return null;
+  const avg=Math.round(ok.reduce((a,x)=>a+x.p,0)/ok.length);
+  const sorted=ok.slice().sort((a,b)=>b.p-a.p);
+  const rank=sorted.findIndex(x=>x.sid===sid)+1;
+  return {name:name,me:me.p,avg:avg,rank:rank,n:ok.length};}
+function spPerfTab(s){
+  const secs=pfSections(s.id),tr=pfTrend(s.id),wr=pfWrong(s.id),cp=pfClass(s);
+  /* ① 哪一類題型最弱 */
+  let a='<div class="sp-h2">🎯 哪一類題型最弱 <span class="n">所有作業簿的分項成績加起來算</span></div>';
+  a+=secs.length?('<div class="pf-list">'+secs.map(x=>{const p=pfPct(x.ok,x.tot);
+      return '<div class="pf-row"><span class="pf-nm">'+esc(x.lab)+'</span>'
+        +pfBar(x.ok,x.tot)
+        +'<span class="pf-v"><b>'+p+'%</b> <span class="muted">'+x.ok+'/'+x.tot+' 題</span></span></div>';}).join('')
+    +'</div><div class="hint" style="margin-top:8px">由弱到強排。只有「電腦改得出對錯」的題型會出現在這裡；造句、問答那種要你看的不在裡面。</div>')
+    :'<div class="sp-empty">還沒有可以自動計分的作業簿記錄。</div>';
+  /* ② 有沒有進步 */
+  let b='<div class="sp-h2" style="margin-top:22px">📈 成績有沒有進步 <span class="n">每一次交的答對率，照時間排</span></div>';
+  if(tr.length<2){
+    b+='<div class="sp-empty">'+(tr.length?'目前只有 1 筆成績，還看不出趨勢。':'還沒有成績記錄。')+'</div>';
+  }else{
+    const half=Math.floor(tr.length/2);
+    const av=(arr)=>Math.round(arr.reduce((x,y)=>x+pfPct(y.ok,y.tot),0)/arr.length);
+    const e1=av(tr.slice(0,half)),e2=av(tr.slice(tr.length-half));
+    const dd=e2-e1;
+    const verdict=(Math.abs(dd)<5)?('前後差不多（前期 '+e1+'% → 近期 '+e2+'%）')
+      :(dd>0?('進步了：前期 '+e1+'% → 近期 '+e2+'%，多了 '+dd+' 個百分點')
+            :('退步了：前期 '+e1+'% → 近期 '+e2+'%，少了 '+(-dd)+' 個百分點'));
+    b+='<div class="pf-trend">'+tr.map(x=>{const p=pfPct(x.ok,x.tot);
+        const cls=(p>=80?'ok':(p>=60?'mid':'bad'));
+        return '<div class="pf-col" title="'+esc(x.d+' '+x.n+' '+x.ok+'/'+x.tot)+'">'
+          +'<div class="pf-cv">'+p+'</div>'
+          +'<div class="pf-cb"><div class="pf-cf '+cls+'" style="height:'+Math.max(4,p)+'%"></div></div>'
+          +'<div class="pf-cd">'+esc(String(x.d).slice(5))+'</div></div>';}).join('')+'</div>'
+      +'<div class="pf-verdict'+(Math.abs(dd)<5?'':(dd>0?' up':' down'))+'">'+esc(verdict)+'</div>';
+  }
+  /* ③ 錯過哪幾題 */
+  let c='<div class="sp-h2" style="margin-top:22px">❌ 錯過哪幾題 <span class="n">題目、他寫的、正解</span></div>';
+  if(!wr.length)c+='<div class="sp-empty">沒有錯題記錄（可能是還沒交、或是客觀題全對）。</div>';
+  else c+=wr.map(g=>'<details class="pf-wg"'+(wr.length===1?' open':'')+'><summary><b>'+esc(g.src)+'</b> '
+      +'<span class="tag">'+g.items.length+' 題錯</span> <span class="muted">'+esc(g.d)+'</span>'
+      +'</summary>'
+      +'<div style="margin:8px 0 2px"><button class="btn btn-sm" data-act="spSeeHw" data-id="'+esc(g.go)+'">👁 打開這一份</button></div>'
+      +g.items.map(x=>'<div class="pf-w"><div class="pf-wl">'+esc(x.lab)+'</div>'
+        +(x.q?('<div class="pf-wq">'+esc(x.q)+'</div>'):'')
+        +'<div class="pf-wa"><span class="no">他寫：'+esc(x.stu)+'</span>'
+        +'<span class="yes">正解：'+esc(x.ans)+'</span></div></div>').join('')
+      +'</details>').join('');
+  /* ④ 整班比一比 */
+  let d='<div class="sp-h2" style="margin-top:22px">👥 整班比一比</div>';
+  if(!cp)d+='<div class="sp-empty">這位學生沒有分到團班，或班上沒有其他人，所以沒得比。</div>';
+  else if(!cp.rows.length)d+='<div class="sp-empty">同一份作業目前只有他交，班上還沒有人可以比。</div>';
+  else d+='<div class="hint" style="margin-bottom:8px">跟「'+esc(cp.cls)+'」的同學比（班上另外 '+cp.peers+' 人）。只比同一份作業、而且對方也交了的。</div>'
+      +'<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>作業</th><th class="r">他</th><th class="r">班平均</th><th class="r">名次</th></tr></thead><tbody>'
+      +cp.rows.map(r=>'<tr><td>'+esc(r.name)+'</td>'
+        +'<td class="r"><b>'+r.me+'%</b></td><td class="r">'+r.avg+'%</td>'
+        +'<td class="r">'+(r.rank<=Math.ceil(r.n/3)?'<span class="badge badge-ok">':'<span class="badge badge-pending">')
+        +r.rank+' / '+r.n+'</span></td></tr>').join('')
+      +'</tbody></table></div>';
+  return a+b+c+d;}
 
 function spPayTab(s,bill,cur){
   if(!IS_OWNER)return '<div class="sp-empty">這個分頁只有主管理員看得到。</div>';
@@ -13712,14 +13893,12 @@ H.unassignWb=async(id)=>{const w=(S.workbooks||[]).find(x=>x.id===id);if(!w)retu
   closeModal();toast('已收回發佈，學生已看不到');
   try{await loadAll();render();}catch(e){}};
 
-H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
-  const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
-  const w=(S.workbooks||[]).find(x=>x.id===sd.wb_lesson)||{};const d=w.wb||{};
-  const a=sd.answers||{},fb=sd.feedback||{},sc=sd.score||{};
-  const pill=(lab,o)=>o&&o.total?`<span class="tag">${lab} ${o.ok}/${o.total}</span>`:'';
-  let head=`<div class="hint" style="margin-bottom:8px">${esc(w.title||'作業簿')}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'wbrev-fb')}
-   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span class="tag tpub-y">自動批改 ${sc.ok||0}/${sc.total||0}</span>${pill('聽力',sc.listen)}${pill('詞彙選擇',sc.vocab)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀',sc.read)}</div>`;
-  /* WB_BAD_V29 錯的題目要看得到題目內容，不能只有「答 C，正解 D」 */
+/* WB_BAD_V29 錯的題目要看得到題目內容，不能只有「答 C，正解 D」
+   PERF_V1541 本來寫死在 H.reviewWb 裡面，現在「做題狀況」也要用同一份。
+   抽成函式，兩邊永遠講同一件事——不然同一題在兩個畫面上會對不起來。 */
+function wbBadList(sd){
+  const w=(S.workbooks||[]).find(x=>x.id===(sd&&sd.wb_lesson))||{};const d=w.wb||{};
+  const a=(sd&&sd.answers)||{};
   const bad=[];
   const _opt=(q,L)=>{const k=String(L||'').toLowerCase();return (q&&q[k])?String(q[k]):'';};
   const _pick=(q,L)=>{const t=_opt(q,L);return L?(String(L)+(t?('　'+t):'')):'（未作答）';};
@@ -13738,6 +13917,15 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
     _row('三、配合題 '+r.n,r.left||'',_mp((d.match||{}).rows,v),_mp((d.match||{}).rows,r.ans));});
   (((d.read||{}).qs)||[]).forEach(q=>{const v=(a.read||{})[q.n]||'';if(q.ans&&v!==q.ans)
     _row('五、閱讀 '+q.n,q.q||'',_pick(q,v),_pick(q,q.ans));});
+  return bad;}
+H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
+  const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
+  const w=(S.workbooks||[]).find(x=>x.id===sd.wb_lesson)||{};const d=w.wb||{};
+  const a=sd.answers||{},fb=sd.feedback||{},sc=sd.score||{};
+  const pill=(lab,o)=>o&&o.total?`<span class="tag">${lab} ${o.ok}/${o.total}</span>`:'';
+  let head=`<div class="hint" style="margin-bottom:8px">${esc(w.title||'作業簿')}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'wbrev-fb')}
+   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span class="tag tpub-y">自動批改 ${sc.ok||0}/${sc.total||0}</span>${pill('聽力',sc.listen)}${pill('詞彙選擇',sc.vocab)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀',sc.read)}</div>`;
+  const bad=wbBadList(sd);
   head+=bad.length?('<div class="card wb-bad"><b class="wb-bh">錯的題目（'+bad.length+' 題）</b>'
     +bad.map(x=>'<div class="wb-b"><div class="wb-bl">'+esc(x.lab)+'</div>'
       +(x.q?('<div class="wb-bq">'+esc(x.q)+'</div>'):'')
