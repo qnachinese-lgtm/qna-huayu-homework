@@ -13204,22 +13204,32 @@ function spDueHtml(s){
    偏偏那幾樣才看得出學生的毛病。所以另外列一區「交過的東西」，一筆都不漏。 */
 function spSubs(sid){
   let q=[];try{q=gradeQueue(true)||[];}catch(e){}
-  return q.filter(x=>x&&x.sd&&x.sd.student_id===sid)
-    .sort((a,b)=>String(b.ts||'').localeCompare(String(a.ts||'')));}
+  const out=q.filter(x=>x&&x.sd&&x.sd.student_id===sid);
+  /* QZSUB_V1544 隨堂小考不在批改台的清單裡（它自動計分、不用批改），
+     所以本來整個漏掉。這裡補進來，不然「他交過的東西」就不是「每一筆」。 */
+  (S.quizResults||[]).filter(x=>x&&x.student_id===sid).forEach(r=>{
+    const qz=(S.quizzes||[]).find(x=>x.id===r.quiz_id)||{};
+    out.push({kind:'quiz',id:r.id,sd:r,les:qz.title||'隨堂小考',pend:false,
+      ts:r.completed_at||'',extra:(r.total?('自動 '+(r.score||0)+'/'+r.total):''),
+      quizKey:(r.quiz_id||'')+'::'+sid});});
+  return out.sort((a,b)=>String(b.ts||'').localeCompare(String(a.ts||'')));}
 function spSubsHtml(sid){
   const q=spSubs(sid);
   if(!q.length)return '<div class="sp-empty">這位學生還沒有交過任何作業。</div>';
   return '<div class="sp-scroll"><table class="sp-tb"><thead><tr>'
     +'<th>交的時間</th><th>類型</th><th>哪一課</th><th>狀態</th><th class="r"></th>'
     +'</tr></thead><tbody>'
-    +q.map(x=>{const k=SGKIND[x.kind]||{lab:x.kind,ic:'📄'};
+    +q.map(x=>{const k=SGKIND[x.kind]||(x.kind==='quiz'?{lab:'隨堂小考',ic:'📝'}:{lab:x.kind,ic:'📄'});
       return '<tr><td>'+esc(String(x.ts||'').slice(0,10)||'—')+'</td>'
         +'<td><span class="tag">'+k.ic+' '+esc(k.lab)+'</span></td>'
         +'<td>'+esc(x.les||'—')+(x.extra?(' <span class="tag">'+esc(x.extra)+'</span>'):'')+'</td>'
-        +'<td>'+(x.pend?'<span class="badge badge-soon">待批改</span>':'<span class="badge badge-ok">已批改</span>')+'</td>'
+        +'<td>'+(x.kind==='quiz'?'<span class="badge badge-ok">電腦計分</span>'
+            :(x.pend?'<span class="badge badge-soon">待批改</span>':'<span class="badge badge-ok">已批改</span>'))+'</td>'
+        /* SEEANS_V1543／QZSUB_V1544 電腦自己改的（課文練習、作業簿、小考）直接看對錯，
+           要你親自看的（造句、問答…）才進批改台 */
         +'<td class="r"><button class="btn btn-sm btn-primary" data-act="'
-        +(x.kind==='hw'?'spSeeAns':'spSeeHw')+'" data-id="'
-        +esc(x.kind==='hw'?x.id:(x.kind+'::'+x.id))+'">👁 看他寫了什麼</button></td></tr>';}).join('')
+        +(x.kind==='hw'?'spSeeAns':(x.kind==='wb'?'spSeeWb':(x.kind==='quiz'?'viewQuizResult':'spSeeHw')))+'" data-id="'
+        +esc(x.kind==='hw'||x.kind==='wb'?x.id:(x.kind==='quiz'?x.quizKey:(x.kind+'::'+x.id)))+'">👁 看他寫了什麼</button></td></tr>';}).join('')
     +'</tbody></table></div>';}
 function spHwTab(s,sc,scOk,scTot,prog,pend){
   const rows=sc.map(x=>'<tr><td>'+esc(x.d||'—')+'</td><td><span class="tag">'+esc(x.t)+'</span></td><td>'+esc(x.n||'')+'</td>'
@@ -13227,7 +13237,9 @@ function spHwTab(s,sc,scOk,scTot,prog,pend){
     /* SEEANS_V1543 課文練習是自動改的，看答案就只是看，不進批改台 */
     +'<td class="r">'+(x.go?((String(x.go).indexOf('hw::')===0)
          ?('<button class="btn btn-sm" data-act="spSeeAns" data-id="'+esc(String(x.go).slice(4))+'">👁 看答案</button>')
-         :('<button class="btn btn-sm" data-act="spSeeHw" data-id="'+esc(x.go)+'">👁 看答案</button>'))
+         :((String(x.go).indexOf('wb::')===0)
+           ?('<button class="btn btn-sm" data-act="spSeeWb" data-id="'+esc(String(x.go).slice(4))+'">👁 看答案</button>')
+           :('<button class="btn btn-sm" data-act="spSeeHw" data-id="'+esc(x.go)+'">👁 看答案</button>')))
        :(x.quiz?('<button class="btn btn-sm" data-act="viewQuizResult" data-id="'+esc(x.quiz)+'">👁 看答案</button>'):''))+'</td></tr>').join('');
   const head='<div class="sp-tiles" style="margin-bottom:14px">'
     +'<div class="sp-tile"><div class="k">完成份數</div><div class="v">'+sc.length+'</div></div>'
@@ -13388,8 +13400,8 @@ function spPerfTab(s){
       +'<span class="tag">'+g.items.length+' 題錯</span> <span class="muted">'+esc(g.d)+'</span>'
       +'</summary>'
       +'<div style="margin:8px 0 2px"><button class="btn btn-sm" data-act="'
-      +(String(g.go).indexOf('hw::')===0?'spSeeAns':'spSeeHw')+'" data-id="'
-      +esc(String(g.go).indexOf('hw::')===0?String(g.go).slice(4):g.go)+'">👁 打開這一份</button></div>'
+      +(String(g.go).indexOf('hw::')===0?'spSeeAns':(String(g.go).indexOf('wb::')===0?'spSeeWb':'spSeeHw'))+'" data-id="'
+      +esc(/^(hw|wb)::/.test(String(g.go))?String(g.go).slice(4):g.go)+'">👁 打開這一份</button></div>'
       +g.items.map(x=>'<div class="pf-w"><div class="pf-wl">'+esc(x.lab)+'</div>'
         +(x.q?('<div class="pf-wq">'+esc(x.q)+'</div>'):'')
         +'<div class="pf-wa"><span class="no">他寫：'+esc(x.stu)+'</span>'
@@ -13483,6 +13495,41 @@ H.spSeeAns=(rid)=>{
      +'<span class="grow"></span>'
      +'<button class="btn btn-sm" data-act="spSeeHw" data-id="'+esc('hw::'+r.id)+'">✏️ 要寫建議 → 去批改</button></div>'
    +(qs.length?rows:'<div class="sp-empty">這一課沒有題目。</div>')
+   +'</div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');};
+/* SEEWB_V1544 作業簿的「純看」。跟課文練習同一個道理：
+   電腦改得出來的那幾題，她只是要看對錯，不是要批改。
+   語法練習、完成對話那種要她親自看的題，這裡只提醒一句、按鈕帶她去批改台。 */
+H.spSeeWb=(id)=>{
+  const sd=(S.wbdocs||[]).find(x=>x&&x.id===id);
+  if(!sd)return toast('找不到這一份作業簿了，重新整理看看。');
+  const w=(S.workbooks||[]).find(x=>x.id===sd.wb_lesson)||{};
+  const st=(S.students||[]).find(x=>x.id===sd.student_id)||{name:'學生'};
+  const sc=sd.score||{};
+  let bad=[];try{bad=wbBadList(sd)||[];}catch(e){}
+  const pill=(lab,o)=>(o&&o.total)?('<span class="tag">'+lab+' '+(o.ok||0)+'/'+o.total+'</span>'):'';
+  const manual=(()=>{const d=w.wb||{};let n=0;
+    n+=((d.gram||[]).length);
+    [['dlg'],['dlg2']].forEach(([k])=>{n+=((d[k]||[]).filter(ln=>/[_＿]{2,}/.test(String(ln.text||''))).length);});
+    return n;})();
+  openModal('<div class="modal modal-wide modal-tall"><div class="modal-head">'
+   +'<h3>👁 '+snm(st.name)+'　'+esc(w.title||'作業簿')+'</h3>'
+   +'<button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="sa-top"><span class="tag tpub-y">電腦改的 '+(sc.ok||0)+'/'+(sc.total||0)+'</span>'
+     +PF_SEC.map(([k,lab])=>pill(lab,sc[k])).join('')
+     +(sd.submitted_at?('<span class="hint">🕒 '+esc(fmtDT(sd.submitted_at))+'</span>'):'')
+     +'<span class="grow"></span>'
+     +'<button class="btn btn-sm" data-act="spSeeHw" data-id="'+esc('wb::'+sd.id)+'">✏️ 要寫建議 → 去批改</button></div>'
+   +(bad.length
+      ?('<div class="sp-h2">❌ 錯的題目（'+bad.length+' 題）</div>'
+        +bad.map(x=>'<div class="gd-q sa-no"><div class="gd-qhead"><span class="tag accent">'+esc(x.lab)+'</span> <span class="gd-no">✗ 錯</span></div>'
+          +(x.q?('<div class="gd-prompt">'+esc(x.q)+'</div>'):'')
+          +'<div class="pf-wa"><span class="no">他寫：'+esc(x.stu)+'</span>'
+          +'<span class="yes">正解：'+esc(x.ans)+'</span></div></div>').join(''))
+      :'<div class="card" style="background:#E1F0EA;border-color:#BFE0CB"><b style="font-size:13px">電腦改的這幾題全對 🎉</b></div>')
+   +(manual?('<div class="hint" style="margin-top:14px">這份裡面還有 '+manual+' 題是要你親自看的（語法練習、完成對話那種），'
+       +'電腦改不出對錯，所以不在上面。按右上角〔要寫建議 → 去批改〕可以看那些題。</div>'):'')
    +'</div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');};
 H.stuTab=(k)=>{S.stuTab=k;render();};
@@ -13790,7 +13837,9 @@ function renderClassProfile(){
   const tab=S.cvTab||'stu';
   const T=(k,label,n)=>'<button class="sp-tab'+(tab===k?' on':'')+'" type="button" data-act="cvTab" data-id="'+k+'">'+label+(n!=null?'<span class="n">'+n+'</span>':'')+'</button>';
   const tabs='<div class="sp-tabs">'+T('stu','成員',members.length)+T('days','上課記錄',dates.length)
-    +T('mod','課程模組',null)+T('board','繳交狀況',null)+T('links','班級資訊',null)+'</div>';
+    +T('mod','課程模組',null)+T('board','繳交狀況',null)
+    +T('perf','做題狀況',null)/* CLSPERF_V1544 */
+    +T('links','班級資訊',null)+'</div>';
 
   const roster=cpRoster(cls,members);
   let body='';
@@ -13808,6 +13857,9 @@ function renderClassProfile(){
     +'</div>'
     +tiles+tabs+'<div class="sp-body">'+body+'</div></div>';}
 
+/* CLSPERF_V1544 從班級的做題狀況直接跳到某一位學生的做題狀況 */
+H.cvGoStu=(sid)=>{S.stuId=sid;S.stuTab='perf';S.tab='student';render();
+  try{window.scrollTo(0,0);}catch(e){}};
 H.clsBack=()=>{S.tab='students';render();try{window.scrollTo(0,0);}catch(e){}};
 /* ONBOARD_V659 給第一次用的人一個起點：今日總覽最上面出現「先做這五件事」。
    每一步都會自己去看資料判斷做完了沒（有沒有學生、有沒有排課、有沒有點過名、有沒有指派教材、有沒有寫過回饋單），
@@ -21947,8 +21999,68 @@ function tModItems(l,cls){
       badge:`<span class="badge ${done===members.length&&members.length?'badge-ok':'badge-soon'}">${done} / ${members.length} 已交</span>`,
       btn:`<button class="btn btn-sm" data-act="tab" data-id="grades">批改</button>`});}
   return out;}
+/* CLSPERF_V1544 整班的做題狀況。
+   Quinn 選的：「哪一類題型全班都弱、哪一題大家都錯——那就是下次上課要重講的」。
+   做題狀況本來只能一個一個學生看，備課的時候根本用不起來。 */
+function cvPerfHtml(cls,members){
+  const ms=(members||[]).filter(x=>x&&!x.is_test);
+  if(!ms.length)return '<div class="sp-empty">這一班還沒有成員。</div>';
+  /* ① 全班題型強弱 */
+  const agg={};
+  ms.forEach(s=>pfSections(s.id).forEach(x=>{
+    if(!agg[x.lab])agg[x.lab]={lab:x.lab,ok:0,tot:0,who:0};
+    agg[x.lab].ok+=x.ok;agg[x.lab].tot+=x.tot;agg[x.lab].who++;}));
+  const secs=Object.keys(agg).map(k=>agg[k]).sort((a,b)=>pfPct(a.ok,a.tot)-pfPct(b.ok,b.tot));
+  let a='<div class="sp-h2">🎯 全班哪一類題型最弱 <span class="n">全班的作業簿分項成績加起來</span></div>'
+    +(secs.length?('<div class="pf-list">'+secs.map(x=>{const p=pfPct(x.ok,x.tot);
+        return '<div class="pf-row"><span class="pf-nm">'+esc(x.lab)+'</span>'+pfBar(x.ok,x.tot)
+          +'<span class="pf-v"><b>'+p+'%</b> <span class="muted">'+x.ok+'/'+x.tot+' 題 · '+x.who+' 人</span></span></div>';}).join('')
+      +'</div>')
+      :'<div class="sp-empty">這一班還沒有可以自動計分的作業記錄。</div>');
+  /* ② 哪一題大家都錯 */
+  const qm={};
+  ms.forEach(s=>{(S.wbdocs||[]).filter(x=>x&&x.student_id===s.id).forEach(sd=>{
+    let bad=[];try{bad=wbBadList(sd)||[];}catch(e){}
+    bad.forEach(x=>{const k=x.lab+'\u0001'+x.q;
+      if(!qm[k])qm[k]={lab:x.lab,q:x.q,ans:x.ans,who:[],src:(typeof wbTitleOf==='function'?wbTitleOf(sd.wb_lesson):'作業簿')};
+      if(qm[k].who.indexOf(s.id)<0)qm[k].who.push(s.id);});});});
+  /* 有交這份作業的人數當分母，才知道「幾個人裡有幾個錯」 */
+  const didN={};
+  ms.forEach(s=>{(S.wbdocs||[]).filter(x=>x&&x.student_id===s.id).forEach(sd=>{
+    const t=(typeof wbTitleOf==='function'?wbTitleOf(sd.wb_lesson):'作業簿');
+    didN[t]=(didN[t]||0)+1;});});
+  const hot=Object.keys(qm).map(k=>qm[k])
+    .filter(x=>x.who.length>=2)
+    .sort((x,y)=>y.who.length-x.who.length).slice(0,20);
+  let b='<div class="sp-h2" style="margin-top:22px">🔥 哪幾題大家都錯 <span class="n">兩個人以上錯的才列出來，最多 20 題</span></div>'
+    +(hot.length?('<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>題目</th><th>正解</th><th class="r">幾個人錯</th></tr></thead><tbody>'
+      +hot.map(x=>'<tr><td><div style="font-size:12px;color:#607188">'+esc(x.src)+' · '+esc(x.lab)+'</div>'
+        +(x.q?esc(x.q):'<span class="muted">（這題沒有文字，例如聽力題）</span>')+'</td><td>'+esc(x.ans)+'</td>'
+        +'<td class="r"><b>'+x.who.length+'</b>'+(didN[x.src]?(' <span class="muted">/ '+didN[x.src]+'</span>'):'')+'</td></tr>').join('')
+      +'</tbody></table></div><div class="hint" style="margin-top:8px">這幾題是下次上課最值得重講的。</div>')
+      :'<div class="sp-empty">目前沒有兩個人以上錯同一題。</div>');
+  /* ③ 每個人 */
+  const rows=ms.map(s=>{
+    const tr=pfTrend(s.id);
+    const ok=tr.reduce((x,y)=>x+y.ok,0),tot=tr.reduce((x,y)=>x+y.tot,0);
+    const w=pfWeakest(s.id);
+    const vd=pfVerdict(s.id);
+    return {s,n:tr.length,p:pfPct(ok,tot),w:w,vd:vd};});
+  rows.sort((x,y)=>((x.p==null)-(y.p==null))||((x.p||0)-(y.p||0)));
+  let c='<div class="sp-h2" style="margin-top:22px">👤 每個人 <span class="n">答對率低的排前面</span></div>'
+    +'<div class="sp-scroll"><table class="sp-tb"><thead><tr><th>學生</th><th class="r">交了</th><th class="r">答對率</th><th>最弱</th><th>趨勢</th><th class="r"></th></tr></thead><tbody>'
+    +rows.map(r=>'<tr><td>'+snm(r.s.name)+'</td>'
+      +'<td class="r">'+r.n+' 份</td>'
+      +'<td class="r">'+(r.p==null?'—':('<b>'+r.p+'%</b>'))+'</td>'
+      +'<td>'+(r.w?(esc(r.w.lab)+' <span class="muted">'+pfPct(r.w.ok,r.w.tot)+'%</span>'):'—')+'</td>'
+      +'<td>'+(r.vd?('<span class="badge '+(r.vd.dir==='up'?'badge-ok':(r.vd.dir==='down'?'badge-overdue':'badge-pending'))+'">'
+          +(r.vd.dir==='up'?'進步':(r.vd.dir==='down'?'退步':'持平'))+'</span>'):'<span class="muted">資料不夠</span>')+'</td>'
+      +'<td class="r"><button class="btn btn-sm" data-act="cvGoStu" data-id="'+esc(r.s.id)+'">看他的</button></td></tr>').join('')
+    +'</tbody></table></div>';
+  return a+b+c;}
 function cvBodyHtml(cls,members,roster){
   const tab=S.cvTab||'mod';const TD='padding:7px 9px;border-top:1px solid var(--line)';
+  if(tab==='perf')return cvPerfHtml(cls,members);/* CLSPERF_V1544 */
   if(tab==='stu')return `<div class="card"><h3 style="margin:0 0 10px">👥 學生名單 <span class="tag">${members.length} 位</span></h3><div class="hint" style="margin-bottom:8px">團班每位學生各繳各的。按「💰 記繳費」寫進那位學生的記錄。</div><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:6px 9px;color:var(--primary)">姓名</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">Email</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">作業完成</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">繳費</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">操作</th></tr></thead><tbody>${roster}</tbody></table></div>`;
   if(tab==='days')return classDatesHtml(cls);
   if(tab==='board')return classBoardHtml(cls);
