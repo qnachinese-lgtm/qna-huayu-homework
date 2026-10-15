@@ -3360,7 +3360,10 @@ function qHtmlGraded(q,idx){
   if(q.type==='choice'){const _gc=((q.options||[]).length===4)?' c2':'';/*EXAMFIX_V81 批改後也兩格兩格*/
     body='<div class="opts'+_gc+'">'+(q.options||[]).map((o,i)=>{let cls='';if(i===Number(q.answer))cls='is-correct';else if(resp!=null&&i===Number(resp))cls='is-wrong';
       return `<div class="opt ${cls}"><span>${esc(o)}</span><span style="margin-left:auto">${i===Number(q.answer)?'✓':(resp!=null&&i===Number(resp)?'✗':'')}</span></div>`;}).join('')+'</div>';
-    ct=t('ans')+'：'+esc((q.options||[])[Number(q.answer)]||'');}
+    /* NOANS_V1547 Quinn：「不是直接給學生看選項的顏色就可以了嗎？
+       幹嘛還需要你的一個『正解』？」——對的那一格已經是綠底加 ✓ 了，
+       底下再寫一行「正解：⋯」只是把同一件事講第二次。 */
+    ct='';}
   else if(q.type==='fill'){if(q.input_mode==='write'){body=resp?`<img class="hw-img" src="${resp}" alt="">`:`<div class="hint">${t('blank')}</div>`;}else{const shown=Array.isArray(resp)?reconFill(q.prompt,resp):resp;body=`<div class="q-prompt">${esc(shown||t('blank'))}</div>`;}ct='';} // 參考答案不給學生看，由老師批改
   else if(q.type==='order'){body='<div class="order-tray">'+((resp||[]).map(s=>`<span class="seg">${esc(s)}</span>`).join('')||`<span class="hint">${t('blank')}</span>`)+'</div>';ct=t('ans')+'：'+esc((q.options||[]).join(' '));}
   else if(q.type==='write'){body=resp?`<img class="hw-img" src="${resp}" alt="">`:`<div class="hint">${t('blank')}</div>`;ct=(q.answer&&q.answer.length)?(t('ans')+'：'+esc(q.answer.join('')))  :'';}
@@ -3378,7 +3381,7 @@ function qHtmlGraded(q,idx){
   const fb=(isManualQ(q,resp)&&!_mk)/* AUTOFILL_V1458 答對的填空直接顯示 ✓，不要還掛著「等老師批改」 */
     ? `<div class="q-feedback hw-pending">⏳ ${th('pending')}${ct?` <span class="ans">｜${ct}</span>`:''}</div>`
     : (()=>{const good=_mk?(_mk==='done'):ok;
-        return `<div class="q-feedback ${good?'ok':'no'}">${good?'✓ '+t('correct'):'✗ '+t('wrong')} <span class="ans">｜${ct}</span></div>`;})();
+        return `<div class="q-feedback ${good?'ok':'no'}">${good?'✓ '+t('correct'):'✗ '+t('wrong')}${ct?` <span class="ans">｜${ct}</span>`:''}</div>`;})();
   const instr=q.instruction?`<div class="q-instr">${esc(q.instruction)}</div>`:'';
   const pic=q.image_url?`<div class="q-pic"><img src="${esc(q.image_url)}" alt="" loading="lazy"></div>`:'';
   const multiOptG=q.type==='opt'&&(q.items||[]).length>1;
@@ -3449,10 +3452,14 @@ function renderPractice(){
     const hasGps=l.grammar_points&&l.grammar_points.length;
     // 作答時語法說明已收進下方各語法的摺疊卡，這裡不重複；批改後（檢視）才於上方完整列出語法
     const topG=(hasGps&&!S.graded)?'':(hasGps?grammarHtml(l.grammar_points):(l.key_points?`<div class="lesson-label" style="margin-top:14px">${t('keys')}</div><div class="prose">${esc(l.key_points)}</div>`:''));
-    textCard=`<div class="card">
-      ${dialoguesHtml(l)}
-      ${topG}
-      ${examplesHtml(l.examples)}</div>`;
+    /* EMPTYCARD_V1547 Quinn：「學生這邊好醜」——標題下面浮著一個空白的框。
+       這張課文卡只看 lessonHasContent()，而那個函式連「這一課有題目」都算有內容，
+       所以一課只有題目、沒有課文沒有生詞的時候，就印出一個完全空的 .card。
+       改成：真的有東西（文字或圖片音檔）才印。 */
+    const _inner=`${dialoguesHtml(l)}${topG}${examplesHtml(l.examples)}`;
+    const _vis=_inner.replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ').trim();
+    const _media=/<(img|audio|video|iframe)\b/i.test(_inner);
+    textCard=(_vis||_media)?`<div class="card">${_inner}</div>`:'';
   }
   let practice='';
   if(!qs.length)practice=emptyHtml('📝',t('noLessonQ'),t('noLessonQSub'));
