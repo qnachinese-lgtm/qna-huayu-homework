@@ -7625,13 +7625,26 @@ function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==nul
   fbWin(html);}
 function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY_V1073 */
   const members=sel?(S.students.length?S.students.slice().sort(stuNameCmp).map(s=>`<label class="check-row"><input type="checkbox" class="gm-mem" value="${s.id}" ${stuGroups(s).includes(sel)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'')}</span></label>`).join(''):'<div class="hint">還沒有學生。</div>'):'';
-  const editPanel=sel?`<div style="margin:2px 0 14px;padding:12px 14px;background:#FDF3D8;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px">
+  /* GMUI_V1536 Quinn：「頁面有夠難操作的」「找不到那顆按鈕」。
+     量過她那個寬度（574px）：三個班就要捲 1537px，每一班的按鈕散成兩行，
+     而她要的〔🔀 併到另一個班〕在往下 1442px 的地方——等於看不到。
+     重排成：要「對這一班做什麼」的三顆放最上面，接著是最常改的「成員」，
+     再來才是時段教材，很少動的（Meet、資料夾、特殊計費）收進「其他設定」。 */
+  const editPanel=sel?`<div class="gm-panel">
        ${groupSize(sel)?'':'<div class="hint" style="margin:0 0 8px;color:#8A6B1F">這一班目前沒有學生，所以固定時段不會自動排進課表。設定還留著，改完或整班刪掉都可以。</div>'/* GMEMPTY_V1073 */}
+       <div class="gm-top">
+         <!-- GMMERGE_V1535 -->
+         <button class="btn btn-sm" type="button" data-act="gmMerge" data-id="${esc(sel)}" title="學生、發佈出去的內容、預排課程一起搬到另一個班，這一班就收起來">🔀 併到另一個班</button>
+         <button class="btn btn-sm" type="button" data-act="classPage" data-id="${esc(sel)}">🔎 開啟班級頁</button>
+         <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}">🗑 刪除此團班</button>
+       </div>
+       <div class="field" style="margin:0 0 12px"><label>✏️ 成員 <span class="hint">勾起來＝在這一班。改完按右下角的「💾 儲存」</span></label>
+       <div class="check-list" id="gm-members">${members}</div></div>
        <!-- CLSOFF_V1074 -->
-       <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;margin:0 0 10px">
-         <input type="checkbox" id="gm-notyet" style="width:auto;margin:0"${clsNotYet(sel)?' checked':''}>
-         🚧 這一班還沒開始
-         <span class="hint">勾起來就完全不自動排課（課表、今天的課、還沒點名、固定時段都不會出現）。真的開課再取消。</span></label>
+       <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;margin:0 0 10px">
+         <input type="checkbox" id="gm-notyet" style="width:auto;margin:3px 0 0"${clsNotYet(sel)?' checked':''}>
+         <span>🚧 這一班還沒開始
+         <span class="hint">勾起來就完全不自動排課（課表、今天的課、還沒點名、固定時段都不會出現）。真的開課再取消。</span></span></label>
        <!-- CLSTART_V1091 -->
        <div class="field" style="margin:0 0 10px"><label>🚀 開課日 <span class="hint">這一天以前不會自動排課；到了那一天自己就會開始。不填＝照舊</span></label>
        <input id="gm-start" type="date" value="${esc(classMetaOf(sel).start||'')}" style="max-width:190px" min="2000-01-01" max="2100-12-31"></div>
@@ -7640,27 +7653,26 @@ function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY
        <button class="btn btn-sm" type="button" data-act="gmSchedAdd" style="margin-top:6px">＋ 新增時段</button>
        <div class="field" style="margin:10px 0 0"><label>📕 這一班用的教材</label>
        <input id="gm-book" type="text" value="${esc(classMetaOf(sel).textbook||'')}" placeholder="請填教材名稱" autocomplete="off">
-       <span class="hint">改完要按最下面的「💾 儲存」才算數。</span></div>
-       <div style="margin-top:8px"><input id="gm-meet" type="url" inputmode="url" value="${esc(classMetaOf(sel).meet||'')}" placeholder="貼上這一班的 Meet 連結（選填）"></div>
-       <div style="margin-top:8px"><input id="gm-drive" type="url" inputmode="url" value="${esc(classMetaOf(sel).drive||'')}" placeholder="貼上教材資料夾連結（選填），學生頁會出現按鈕"></div>
-       <div class="field" style="margin:12px 0 0"><label>💵 特殊計費（照上課長度）</label>
-       <div id="gm-tiers">${((Array.isArray(classMetaOf(sel).fee_tiers)&&classMetaOf(sel).fee_tiers.length)?classMetaOf(sel).fee_tiers:[{}]).map(r=>gmTierRowHTML(r)).join('')}</div>
-       <button class="btn btn-sm" type="button" data-act="gmTierAdd" style="margin-top:6px">＋ 加一級</button></div>
+       <span class="hint">改完要按右下角的「💾 儲存」才算數。</span></div>
        <!-- GMSAVE_V1095 這裡本來還有一顆「儲存團班資訊」，跟下面的「儲存成員」分開兩顆，
             改一個地方要記得按對的那一顆（Quinn：「兩個很容易讓我誤會」）。
-            現在只留最下面那一顆，一次全部存起來。 -->
+            現在只留視窗右下角那一顆，一次全部存起來。 -->
        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-accent" data-act="gmApplyAll" data-id="${esc(sel)}">📌 套用到全班學生</button> <span class="hint" id="gm-meta-st"></span></div>
        </div>
-       <div class="field" style="margin:12px 0 0"><label>✏️ 成員</label>
-       <div class="check-list" id="gm-members">${members}</div></div>
-       <!-- CRMBTN_V1098 儲存搬到視窗右下角那一條，跟其他視窗一致 -->
-       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-         <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}">刪除此團班</button>
-         <!-- GMMERGE_V1535 -->
-         <button class="btn btn-sm" type="button" data-act="gmMerge" data-id="${esc(sel)}" title="學生、發佈出去的內容、預排課程一起搬到另一個班，這一班就收起來">🔀 併到另一個班</button>
-         <button class="btn" type="button" data-act="classPage" data-id="${esc(sel)}">🔎 開啟班級頁</button></div>
+       <!-- GMUI_V1536 很少動的三樣收起來，不然光捲就捲很久 -->
+       <details class="gm-more"${(classMetaOf(sel).meet||classMetaOf(sel).drive||(Array.isArray(classMetaOf(sel).fee_tiers)&&classMetaOf(sel).fee_tiers.length))?' open':''}>
+         <summary>⚙️ 其他設定 <span class="hint">Meet 連結、教材資料夾、特殊計費</span></summary>
+         <div style="margin-top:8px"><input id="gm-meet" type="url" inputmode="url" value="${esc(classMetaOf(sel).meet||'')}" placeholder="貼上這一班的 Meet 連結（選填）"></div>
+         <div style="margin-top:8px"><input id="gm-drive" type="url" inputmode="url" value="${esc(classMetaOf(sel).drive||'')}" placeholder="貼上教材資料夾連結（選填），學生頁會出現按鈕"></div>
+         <div class="field" style="margin:12px 0 0"><label>💵 特殊計費（照上課長度）</label>
+         <div id="gm-tiers">${((Array.isArray(classMetaOf(sel).fee_tiers)&&classMetaOf(sel).fee_tiers.length)?classMetaOf(sel).fee_tiers:[{}]).map(r=>gmTierRowHTML(r)).join('')}</div>
+         <button class="btn btn-sm" type="button" data-act="gmTierAdd" style="margin-top:6px">＋ 加一級</button></div>
+       </details>
      </div>`:'';
-  const clsRows=classes.length?classes.map(c=>`<div class="dash-row" style="padding:8px 4px;flex-wrap:wrap${c===sel?';background:#EEF0F3;border-radius:8px':''}"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span>${groupSize(c)?'':'<span class="tag b-off"  title="沒有學生的班不會自動排進課表，設定還留著">沒有學生</span>'}${clsNotYet(c)?'<span class="tag b-info"  title="還沒開始的班完全不會自動排課">🚧 還沒開始</span>':''}${clsStartTag(c)/* CLSTART_V1091 */}${classMetaOf(c).textbook?`<span class="tag" title="這一班用的教材">📕 ${esc(classMetaOf(c).textbook)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-accent" type="button" data-act="classPublish" data-id="${esc(c)}">📢 發佈內容</button><button class="btn btn-sm" type="button" data-act="classPage" data-id="${esc(c)}">🔎 開啟班級頁</button><button class="btn btn-sm ${c===sel?'btn-accent':''}" type="button" data-act="gmPick" data-id="${esc(c)}">${c===sel?'✏️ 設定中':'✏️ 編輯'}</button></div>`+(c===sel?editPanel:'')).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
+  /* GMUI_V1536 一班一列：名字和標籤一行，兩顆按鈕自己一行、各佔一半，
+     位置固定不會因為班名長短跳來跳去（〔開啟班級頁〕移到打開後的面板裡，
+     一列三顆在窄視窗會散成兩行，按錯的就是這個）。 */
+  const clsRows=classes.length?classes.map(c=>`<div class="gm-cls${c===sel?' on':''}"><div class="gm-nm"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span>${groupSize(c)?'':'<span class="tag b-off"  title="沒有學生的班不會自動排進課表，設定還留著">沒有學生</span>'}${clsNotYet(c)?'<span class="tag b-info"  title="還沒開始的班完全不會自動排課">🚧 還沒開始</span>':''}${clsStartTag(c)/* CLSTART_V1091 */}${classMetaOf(c).textbook?`<span class="tag" title="這一班用的教材">📕 ${esc(classMetaOf(c).textbook)}</span>`:''}</div><div class="gm-acts"><button class="btn btn-sm" type="button" data-act="classPublish" data-id="${esc(c)}">📢 發佈內容</button><button class="btn btn-sm ${c===sel?'btn-accent':'btn-primary'}" type="button" data-act="gmPick" data-id="${esc(c)}">${c===sel?'✏️ 設定中':'✏️ 編輯'}</button></div></div>`+(c===sel?editPanel:'')).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>👥 團班管理</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="field"><label>建立新團班</label><div class="dual-row"><input id="gm-new" type="text" placeholder="請填團班名稱"><button class="btn btn-accent" type="button" data-act="gmCreate">＋ 建立</button></div></div>
