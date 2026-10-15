@@ -7647,7 +7647,8 @@ function gmgGridHtml(){
   if(!stu.length)return '<div class="hint" style="padding:10px 2px">找不到符合「'+esc(GMGQ)+'」的學生。</div>';
   const head='<tr><th class="gg-nm">學生</th>'
     +classes.map(c=>'<th class="gg-h"><span class="gg-hn">'+esc(c)+'</span>'
-      +'<span class="gg-hc">'+gmgCount(c)+' 人</span></th>').join('')+'</tr>';
+      +'<span class="gg-hc">'+gmgCount(c)+' 人</span></th>').join('')
+    +'<th class="gg-fill"></th></tr>';
   const body=stu.map(s=>{
     const mine=gmgOf(s),ch=gmgChanged(s);
     /* snm() 吐出來的是 HTML，不可以再 esc 一次，不然畫面會出現整串標籤 */
@@ -7660,7 +7661,7 @@ function gmgGridHtml(){
           +'" data-act="gmSet" data-id="'+esc(s.id+'\u0001'+c)+'" '
           +'title="'+esc(String(s.name||'')+(on?' 在':' 不在')+'「'+c+'」')+'" '
           +'aria-pressed="'+(on?'true':'false')+'">'+(on?'✓':'')+'</button></td>';}).join('')
-      +'</tr>';}).join('');
+      +'<td class="gg-fill"></td></tr>';}).join('');
   return '<table class="gg"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';}
 function gmgBoxHtml(){
   const n=Object.keys(GMG).length;
@@ -7677,7 +7678,11 @@ function gmgRender(){
 function groupGridModal(){
   const classes=groupsMgrList();
   const many=(S.students||[]).length>10;
-  openModal('<div class="modal"><div class="modal-head"><h3>👥 誰在哪一班</h3>'
+  /* GMWIDE_V1538 Quinn：「視窗太小了」。本來用的是預設寬度的小視窗，
+     桌機上左右兩邊整片空白，表格卻擠在中間一條。
+     改用 modal-wide＋modal-tall：寬度吃到 96vw，高度吃到整個畫面，
+     表格自己撐滿中間，「班的設定」那排固定在下面不跟著捲。 */
+  openModal('<div class="modal modal-wide modal-tall gg-modal"><div class="modal-head"><h3>👥 誰在哪一班</h3>'
    +'<button class="x" data-act="gmGridClose">×</button></div>'
    +'<div class="modal-body">'
    +(many?'<div class="field" style="margin:0 0 10px"><input id="gg-q" type="search" value="'+esc(GMGQ)+'" placeholder="找學生或班名…" autocomplete="off"></div>':'')
@@ -7745,7 +7750,7 @@ function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY
   /* GMGRID_V1537 這個視窗現在只做一件事：設定「某一班」。
      班的清單和成員都在總表那一頁，不再把三件事疊在同一個畫面上。 */
   if(!sel)return groupGridModal();
-  openModal(`<div class="modal"><div class="modal-head">
+  openModal(`<div class="modal modal-tall"><div class="modal-head">
      <h3>⚙️ 「${esc(sel)}」的設定</h3><button class="x" data-act="gmBack">×</button></div>
    <div class="modal-body">
      <div class="gm-crumb"><button class="btn btn-sm" type="button" data-act="gmBack">← 回成員總表</button>
