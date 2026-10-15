@@ -7623,8 +7623,77 @@ function classWindow(cls){const e=(typeof esc==='function'?esc:(x=>String(x==nul
        e(window.APP_NAME||'QNA CHINESE')+'　·　'+e(localToday()),1)+'</div>'
    +'</div>'+expJs()+'</body></html>';
   fbWin(html);}
+/* ===== GMGRID_V1537 團班成員總表 =====
+   Quinn：「我覺得你現在設計有點反人類邏輯，超級難用，請重新設計」。
+   她說得對。本來要把一個學生換班，得先點進某一班、捲過一長串設定去勾人、
+   存檔、再回去把舊班刪掉；另一條路是在「編輯學生」裡用手打班名，打錯就多一個鬼班。
+   現在就一張表：學生一列、班一欄，哪一格打勾就是在哪一班。
+   改過的格子會標起來，按「存起來」才真的寫進去，沒按就什麼都沒變。 */
+var GMG={};                       /* 還沒存的改動 {學生id:[班…]}，只放被動過的人 */
+var GMGQ='';                      /* 找人用的關鍵字 */
+function gmgOf(s){return GMG[s.id]?GMG[s.id]:stuGroups(s);}
+function gmgSame(a,b){return a.length===b.length&&a.slice().sort().join('\u0001')===b.slice().sort().join('\u0001');}
+function gmgCount(c){return (S.students||[]).filter(s=>!s.is_test&&gmgOf(s).indexOf(c)>=0).length;}
+function gmgChanged(s){return !!GMG[s.id];}
+function gmgList(){
+  const q=GMGQ.trim().toLowerCase();
+  let a=(S.students||[]).slice().sort(stuNameCmp);
+  if(q)a=a.filter(s=>String(s.name||'').toLowerCase().indexOf(q)>=0
+    ||gmgOf(s).some(g=>String(g).toLowerCase().indexOf(q)>=0));
+  return a;}
+function gmgGridHtml(){
+  const classes=groupsMgrList(),stu=gmgList();
+  if(!classes.length)return '<div class="hint" style="padding:10px 2px">還沒有團班。先在下面「＋ 建立新團班」開一個，這張表就會多一欄。</div>';
+  if(!stu.length)return '<div class="hint" style="padding:10px 2px">找不到符合「'+esc(GMGQ)+'」的學生。</div>';
+  const head='<tr><th class="gg-nm">學生</th>'
+    +classes.map(c=>'<th class="gg-h"><span class="gg-hn">'+esc(c)+'</span>'
+      +'<span class="gg-hc">'+gmgCount(c)+' 人</span></th>').join('')+'</tr>';
+  const body=stu.map(s=>{
+    const mine=gmgOf(s),ch=gmgChanged(s);
+    /* snm() 吐出來的是 HTML，不可以再 esc 一次，不然畫面會出現整串標籤 */
+    return '<tr'+(ch?' class="ch"':'')+'><th class="gg-nm">'+snm(s.name)
+      +(s.is_test?' <span class="tag">測試</span>':'')
+      +(String(s.class_type||'').indexOf('1對1')>=0?' <span class="tag">1對1</span>':'')
+      +(ch?'<span class="gg-ch">改</span>':'')+'</th>'
+      +classes.map(c=>{const on=mine.indexOf(c)>=0,was=stuGroups(s).indexOf(c)>=0;
+        return '<td><button type="button" class="gg-c'+(on?' on':'')+(on!==was?' df':'')
+          +'" data-act="gmSet" data-id="'+esc(s.id+'\u0001'+c)+'" '
+          +'title="'+esc(String(s.name||'')+(on?' 在':' 不在')+'「'+c+'」')+'" '
+          +'aria-pressed="'+(on?'true':'false')+'">'+(on?'✓':'')+'</button></td>';}).join('')
+      +'</tr>';}).join('');
+  return '<table class="gg"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';}
+function gmgBoxHtml(){
+  const n=Object.keys(GMG).length;
+  return '<div class="gg-wrap" id="gg-wrap">'+gmgGridHtml()+'</div>'
+    +'<div class="gg-foot">'+(n
+      ?('<b class="gg-dirty">已改 '+n+' 位學生</b>　<span class="hint">按右下角「💾 存起來」才算數</span>')
+      :'<span class="hint">點格子就是加入／退出那一班。還沒有改動。</span>')+'</div>';}
+function gmgRender(){
+  const box=document.getElementById('gg-box');if(!box)return groupGridModal();
+  const w=document.getElementById('gg-wrap'),sl=w?w.scrollLeft:0,st=w?w.scrollTop:0;
+  box.innerHTML=gmgBoxHtml();
+  const w2=document.getElementById('gg-wrap');if(w2){w2.scrollLeft=sl;w2.scrollTop=st;}
+  const f=document.getElementById('gg-save');if(f)f.classList.toggle('btn-primary',!!Object.keys(GMG).length);}
+function groupGridModal(){
+  const classes=groupsMgrList();
+  const many=(S.students||[]).length>10;
+  openModal('<div class="modal"><div class="modal-head"><h3>👥 誰在哪一班</h3>'
+   +'<button class="x" data-act="gmGridClose">×</button></div>'
+   +'<div class="modal-body">'
+   +(many?'<div class="field" style="margin:0 0 10px"><input id="gg-q" type="search" value="'+esc(GMGQ)+'" placeholder="找學生或班名…" autocomplete="off"></div>':'')
+   +'<div id="gg-box">'+gmgBoxHtml()+'</div>'
+   +'<div class="gg-sec">班的設定 <span class="hint">上課時段、教材、併班、刪除</span></div>'
+   +'<div class="gg-cls">'
+     +classes.map(c=>'<button class="btn btn-sm" type="button" data-act="gmPick" data-id="'+esc(c)+'">⚙️ '+esc(c)+'</button>').join('')
+     +'<button class="btn btn-sm btn-accent" type="button" data-act="gmNew">＋ 建立新團班</button></div>'
+   +'</div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="gmGridClose">關閉</button><span style="flex:1"></span>'
+   +'<button class="btn" id="gg-save" data-act="gmGridSave">💾 存起來</button></div></div>');
+  const q=document.getElementById('gg-q');
+  if(q)q.oninput=()=>{GMGQ=q.value;gmgRender();};
+  const f=document.getElementById('gg-save');
+  if(f)f.classList.toggle('btn-primary',!!Object.keys(GMG).length);}
 function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY_V1073 */
-  const members=sel?(S.students.length?S.students.slice().sort(stuNameCmp).map(s=>`<label class="check-row"><input type="checkbox" class="gm-mem" value="${s.id}" ${stuGroups(s).includes(sel)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'')}</span></label>`).join(''):'<div class="hint">還沒有學生。</div>'):'';
   /* GMUI_V1536 Quinn：「頁面有夠難操作的」「找不到那顆按鈕」。
      量過她那個寬度（574px）：三個班就要捲 1537px，每一班的按鈕散成兩行，
      而她要的〔🔀 併到另一個班〕在往下 1442px 的地方——等於看不到。
@@ -7638,8 +7707,9 @@ function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY
          <button class="btn btn-sm" type="button" data-act="classPage" data-id="${esc(sel)}">🔎 開啟班級頁</button>
          <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}">🗑 刪除此團班</button>
        </div>
-       <div class="field" style="margin:0 0 12px"><label>✏️ 成員 <span class="hint">勾起來＝在這一班。改完按右下角的「💾 儲存」</span></label>
-       <div class="check-list" id="gm-members">${members}</div></div>
+       <!-- GMGRID_V1537 成員不在這裡了，改到「誰在哪一班」那張總表 -->
+       <div class="gm-who"><b>👥 這一班有 ${groupSize(sel)} 人</b>
+         <span class="hint">要加人／換班，回上一頁那張表打勾就好</span></div>
        <!-- CLSOFF_V1074 -->
        <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;margin:0 0 10px">
          <input type="checkbox" id="gm-notyet" style="width:auto;margin:3px 0 0"${clsNotYet(sel)?' checked':''}>
@@ -7672,14 +7742,20 @@ function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY
   /* GMUI_V1536 一班一列：名字和標籤一行，兩顆按鈕自己一行、各佔一半，
      位置固定不會因為班名長短跳來跳去（〔開啟班級頁〕移到打開後的面板裡，
      一列三顆在窄視窗會散成兩行，按錯的就是這個）。 */
-  const clsRows=classes.length?classes.map(c=>`<div class="gm-cls${c===sel?' on':''}"><div class="gm-nm"><b>👥 ${esc(c)}</b> <span class="tag">${groupSize(c)} 人</span>${groupSize(c)?'':'<span class="tag b-off"  title="沒有學生的班不會自動排進課表，設定還留著">沒有學生</span>'}${clsNotYet(c)?'<span class="tag b-info"  title="還沒開始的班完全不會自動排課">🚧 還沒開始</span>':''}${clsStartTag(c)/* CLSTART_V1091 */}${classMetaOf(c).textbook?`<span class="tag" title="這一班用的教材">📕 ${esc(classMetaOf(c).textbook)}</span>`:''}</div><div class="gm-acts"><button class="btn btn-sm" type="button" data-act="classPublish" data-id="${esc(c)}">📢 發佈內容</button><button class="btn btn-sm ${c===sel?'btn-accent':'btn-primary'}" type="button" data-act="gmPick" data-id="${esc(c)}">${c===sel?'✏️ 設定中':'✏️ 編輯'}</button></div></div>`+(c===sel?editPanel:'')).join(''):'<div class="hint">還沒有團班，先在上面建立一個。</div>';
-  openModal(`<div class="modal"><div class="modal-head"><h3>👥 團班管理</h3><button class="x" data-act="closeModal">×</button></div>
+  /* GMGRID_V1537 這個視窗現在只做一件事：設定「某一班」。
+     班的清單和成員都在總表那一頁，不再把三件事疊在同一個畫面上。 */
+  if(!sel)return groupGridModal();
+  openModal(`<div class="modal"><div class="modal-head">
+     <h3>⚙️ 「${esc(sel)}」的設定</h3><button class="x" data-act="gmBack">×</button></div>
    <div class="modal-body">
-     <div class="field"><label>建立新團班</label><div class="dual-row"><input id="gm-new" type="text" placeholder="請填團班名稱"><button class="btn btn-accent" type="button" data-act="gmCreate">＋ 建立</button></div></div>
-     <div class="field"><label>現有團班 <span class="hint">點右邊「✏️ 編輯」設定時段、教材、成員</span></label>${clsRows}</div>
+     <div class="gm-crumb"><button class="btn btn-sm" type="button" data-act="gmBack">← 回成員總表</button>
+       <span class="tag">${groupSize(sel)} 人</span>${clsNotYet(sel)?'<span class="tag b-info">🚧 還沒開始</span>':''}${clsStartTag(sel)}
+       <span class="grow"></span>
+       <button class="btn btn-sm" type="button" data-act="classPublish" data-id="${esc(sel)}">📢 發佈內容</button></div>
+     ${editPanel}
    </div>
-   <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>
-     ${sel?`<span class="hint" style="margin-right:8px">正在設定「${esc(sel)}」</span><button class="btn btn-primary" data-act="gmSaveAll" data-id="${esc(sel)}">💾 儲存</button>`:''}</div></div>`);
+   <div class="modal-foot"><button class="btn btn-ghost" data-act="gmBack">← 回總表</button><span style="flex:1"></span>
+     <button class="btn btn-primary" data-act="gmSaveAll" data-id="${esc(sel)}">💾 儲存</button></div></div>`);
 }
 /* WB_ASSIGN_V38 課文與作業簿共用同一個發佈視窗，畫面、順序、按鈕全部一樣 */
 function assignModalCore(o){
@@ -9849,13 +9925,14 @@ const GUIDE=[
  /* GUIDE_V1101 以下五條是新加的 */
  {ic:'\u{1F465}',t:'開一個新團班',owner:true,go:'students',goLab:'去學生頁',
   lead:'團班是一個「班」，不是一群學生的標籤——整班共用上課時段、教材、Meet 連結和計費方式，點名一次全班都記到。',
-  steps:['「👥 學生」右上角「👥 團班管理」→ 上面打班名（例：001）→「＋ 建立」',
-         '在那一班按「✏️ 編輯」，把下面幾樣填一填：',
+  steps:['「👥 學生」右上角「👥 團班管理」→ 下面「＋ 建立新團班」→ 打班名（例：001）',
+         '建好以後表上會多一欄。<b>誰在這一班，就在那一欄的格子上點一下打勾</b>，改完按「💾 存起來」',
+         '要設定這一班的時段教材，按下面的「⚙️ 001」：',
          '🚀 <b>開課日</b>：這一天以前完全不會自動排課，到了那天自己就開始排。還在招生的班填未來的日期就好',
          '🕒 <b>上課時段</b>：一週可以有好幾段，例「週一 20:00–21:30」。填了之後課表和「還沒點名」就會自動出現',
          '📕 <b>這一班用的教材</b>、🎥 Meet 連結、📁 教材資料夾（選填）',
          '💵 <b>特殊計費</b>：照上課長度收不同價錢的時候用，例「1.5 小時 → 200」「2 小時 → 250」',
-         '最下面勾成員，按右下角「💾 儲存」——班級資訊和成員會一起存起來'],
+         '填完按右下角「💾 儲存」。成員不在這一頁，在上一頁那張表上打勾'],
   note:'「🚧 這一班還沒開始」跟開課日不一樣：還沒開始是<b>永遠</b>不排課，要你自己回來取消；開課日是<b>到了那天自動開始</b>。只是還沒決定何時開班，就勾「還沒開始」。'},
 
  {ic:'\u{1F4CC}',t:'有人來問、還沒決定要不要上',owner:true,go:'students',goLab:'去學生頁',
@@ -18680,8 +18757,45 @@ H.saveQuestion=async(key)=>{const[lid,qid]=key.split('::');const type=QE_TYPE;co
 
 H.assign=(id)=>assignModal(S.lessons.find(l=>l.id===id));
 H.assignAll=()=>{const b=$$('#as-targets input');const all=b.every(x=>x.checked);b.forEach(x=>x.checked=!all);};
-H.groupsMgr=()=>groupMgrModal('');
+H.groupsMgr=()=>{GMG={};groupGridModal();};/* GMGRID_V1537 進來先看總表 */
 H.gmPick=(id)=>groupMgrModal(id);
+/* GMGRID_V1537 這一段以前放在 groupGridModal() 旁邊，結果整個後台起不來：
+   那裡還在 const H={} 之前，H.xxx= 會撞上 TDZ。跟檔案裡其他警語同一個坑。 */
+H.gmSet=(key)=>{
+  const p=String(key).split('\u0001'),sid=p[0],cls=p.slice(1).join('\u0001');
+  const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
+  const g=gmgOf(s).slice(),i=g.indexOf(cls);
+  if(i>=0)g.splice(i,1);else g.push(cls);
+  if(gmgSame(g,stuGroups(s)))delete GMG[sid];else GMG[sid]=g;
+  gmgRender();};
+H.gmNew=()=>{
+  const v=(prompt('新團班叫什麼名字？（例如 003）')||'').trim();
+  if(!v)return;
+  if(groupsMgrList().indexOf(v)>=0)return toast('已經有一個叫「'+v+'」的班了。');
+  saveClassMeta(v,{}).then(()=>{groupGridModal();toast('建好了，表上多一欄「'+v+'」');})
+    .catch(e=>toast('建不起來：'+((e&&e.message)||e)));};
+H.gmGridClose=()=>{
+  if(Object.keys(GMG).length&&!confirm('有 '+Object.keys(GMG).length+' 位學生改了還沒存，關掉就不算數。確定要關嗎？'))return;
+  GMG={};GMGQ='';closeModal();};
+H.gmGridSave=async()=>{
+  const ids=Object.keys(GMG);
+  if(!ids.length)return toast('還沒有改到東西。點格子就可以換班。');
+  const btn=document.getElementById('gg-save');
+  if(btn){btn.disabled=true;btn.textContent='存檔中…';}
+  const done=[];
+  try{
+    for(const id of ids){
+      const s=(S.students||[]).find(x=>x.id===id);if(!s){done.push(id);continue;}
+      await DB.update('students',id,{groups:GMG[id]});s.groups=GMG[id];done.push(id);}
+    GMG={};groupGridModal();render();
+    toast('✅ 存好了，'+done.length+' 位學生的班級更新了');
+  }catch(e){
+    /* 存到一半斷掉：存成功的就從待存清單拿掉，剩下的留著，再按一次接著存 */
+    done.forEach(id=>{delete GMG[id];});
+    if(btn){btn.disabled=false;btn.textContent='💾 存起來';}
+    gmgRender();
+    toast('只存了 '+done.length+' 位就斷了：'+((e&&e.message)||e)+'　剩下的還留著，再按一次。');}};
+H.gmBack=()=>groupGridModal();/* GMGRID_V1537 */
 H.classPage=(id)=>{S.clsId=id;if(!S.cvTab)S.cvTab='stu';S.tab='class';render();try{window.scrollTo(0,0);}catch(e){}};
 H.classPrint=(id)=>classWindow(id);
 /* CLSEXP_V957 從班級直接開總匯出，範圍先縮到這一班 */
@@ -21926,11 +22040,14 @@ H.gmSaveAll=async(cls)=>{
     const notyet=!!($('#gm-notyet')&&$('#gm-notyet').checked);/* CLSOFF_V1074 */
     const fee_tiers=gmTiersRead();
     await saveClassMeta(cls,{schedule,textbook,meet,drive,fee_tiers,notyet,start});
-    const checked=new Set($$('#gm-members .gm-mem:checked').map(x=>x.value));
-    for(const s of S.students){const has=stuGroups(s).includes(cls),want=checked.has(s.id);
-      if(has===want)continue;
-      let g=stuGroups(s).slice();if(want)g.push(cls);else g=g.filter(x=>x!==cls);
-      await DB.update('students',s.id,{groups:g});s.groups=g;}
+    /* GMGRID_V1537 成員改到總表去了，這個視窗已經沒有那份名單。
+       沒有名單還照跑的話，checked 會是空的＝把全班的人都踢出去。一定要擋住。 */
+    if(document.getElementById('gm-members')){
+      const checked=new Set($$('#gm-members .gm-mem:checked').map(x=>x.value));
+      for(const s of S.students){const has=stuGroups(s).includes(cls),want=checked.has(s.id);
+        if(has===want)continue;
+        let g=stuGroups(s).slice();if(want)g.push(cls);else g=g.filter(x=>x!==cls);
+        await DB.update('students',s.id,{groups:g});s.groups=g;}}
     toast(notyet?'已儲存；這一班標成「還沒開始」，不會自動排課':'已儲存');
     groupMgrModal(cls);render();}
   catch(e){if(btn){btn.disabled=false;btn.textContent='💾 儲存';}
