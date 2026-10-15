@@ -47,7 +47,15 @@
     {fb:'wbrev-fb', act:'saveWbReview',    coll:'wbdocs',      field:'answers'},
     {fb:'srev-fb',  act:'saveSentReview',  coll:'sentences',   field:'items'},
     {fb:'drev-fb',  act:'saveDiscReview',  coll:'discussions', field:'answers'},
-    {fb:'gprev-fb', act:'saveGpracReview', coll:'gpracs',      field:'answers'}
+    {fb:'gprev-fb', act:'saveGpracReview', coll:'gpracs',      field:'answers'},
+    /* GEDIT2_V1545 Quinn：「批改時可以改更多字」。
+       課文練習（作業）本來完全不能改——它的批改畫面長得跟其他四個不一樣：
+       一題是 .gd-q，建議欄是 <input class="gd-fb">，學生寫的在 .gd-ans。
+       所以前一版的覆蓋程式根本掛不上去。這裡補上第五個畫面。
+       只有「答案本來就是一段文字」的題型能改（問答、填空）；
+       選擇、排序、配合改字沒有意義，手寫和錄音存的不是文字。 */
+    {fb:'gd-fb', act:'saveReview', coll:'results', field:'answers',
+     fbTag:'input', item:'.gd-q', disp:'.gd-ans', exercise:true}
   ];
 
   function coll(name){
@@ -62,7 +70,7 @@
   }
   function curScreen(){
     for(var i=0;i<SCREENS.length;i++){
-      if(document.querySelector('textarea.'+SCREENS[i].fb)){
+      if(document.querySelector((SCREENS[i].fbTag||'textarea')+'.'+SCREENS[i].fb)){
         var d=docOf(SCREENS[i]);
         if(d)return {scr:SCREENS[i],id:d.id,sd:d.sd};
       }
@@ -91,6 +99,37 @@
   /* 一個 .srev-item 對應到資料裡的哪些格子。回傳 null＝這一題不給改。 */
   function fieldsFor(scr,sd,item,ta,shown){
     var k=ta.getAttribute('data-k'), w=ta.getAttribute('data-w');
+
+    /* ── GEDIT2_V1545 課文練習 ── */
+    if(scr.exercise){
+      var fb=String(ta.getAttribute('data-fb')||'');
+      var qid=fb.split('::')[1]||'';
+      if(!qid)return null;
+      var q=null;
+      try{ q=(typeof S!=='undefined'&&S.questions||[]).filter(function(x){return x&&x.id===qid;})[0]||null; }catch(e){}
+      if(!q)return null;
+      /* 手寫和錄音存的是圖片／音檔網址，不是文字 */
+      if(q.type==='write'||q.type==='speak')return null;
+      if(q.type==='fill'&&q.input_mode==='write')return null;
+      /* 結構化的答案（選項編號、排列順序）改字沒有意義 */
+      if(q.type==='choice'||q.type==='order'||q.type==='match'||q.type==='opt')return null;
+      var ea=sd.answers=sd.answers||{};
+      var v=ea[qid];
+      if(Array.isArray(v)){
+        /* 多個空格的填空：一格一個框 */
+        var outs=[];
+        for(var bi=0;bi<v.length;bi++)(function(bi){
+          outs.push({label:'第'+(bi+1)+'格',
+            get:function(){var arr=ea[qid];return (arr&&arr[bi]!=null)?String(arr[bi]):'';},
+            set:function(val){var arr=ea[qid]=Array.isArray(ea[qid])?ea[qid]:[];arr[bi]=val;}});
+        })(bi);
+        return outs.length?outs:null;
+      }
+      if(v==null||typeof v==='string')
+        return [{get:function(){return ea[qid]==null?'':String(ea[qid]);},
+                 set:function(val){ea[qid]=val;}}];
+      return null;
+    }
 
     if(scr.coll==='sentences'){
       var its=(sd.items||[]), it=null;
@@ -172,14 +211,14 @@
   }
 
   function fidOf(ta,j){
-    return (ta.getAttribute('data-k')||ta.getAttribute('data-w')||'')+'#'+j;
+    return (ta.getAttribute('data-k')||ta.getAttribute('data-w')||ta.getAttribute('data-fb')||'')+'#'+j;
   }
 
   function mountItem(ctx,item){
     if(item.__ged)return;
-    var ta=item.querySelector('textarea.'+ctx.scr.fb);
+    var ta=item.querySelector((ctx.scr.fbTag||'textarea')+'.'+ctx.scr.fb);
     if(!ta)return;
-    var disp=item.querySelector('.srev-sent');
+    var disp=item.querySelector(ctx.scr.disp||'.srev-sent');
     if(!disp)return;
     item.__ged=1;
     var fs=fieldsFor(ctx.scr,ctx.sd,item,ta,disp.textContent||'');
@@ -249,6 +288,9 @@
     }
 
     btn.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();open();});
+    /* GEDIT2_V1545 課文練習那一格裡面可能有錄音播放器、圖片，
+       整格做成「點一下就開始改」會打架，所以只留按鈕。 */
+    if(ctx.scr.exercise){mark();return;}
     /* 直接點學生寫的那一行也可以開始改 */
     disp.classList.add('ged-click');
     disp.title='點一下可以改';
@@ -263,7 +305,7 @@
     try{
       var ctx=curScreen();
       if(!ctx)return;
-      var items=document.querySelectorAll('.srev-item');
+      var items=document.querySelectorAll(ctx.scr.item||'.srev-item');
       for(var i=0;i<items.length;i++)mountItem(ctx,items[i]);
       paintPill(ctx.id);
     }catch(e){}

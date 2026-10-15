@@ -9276,13 +9276,30 @@ function aiBar(kind,rid){
     +'<button class="btn btn-ai" type="button" '+act+'>✨ 幫我擬草稿</button></div>'
     +'<div id="'+boxId+'" class="ai-wrap"></div>';
 }
+/* GEDIT2_V1545 老師可以改學生寫的字之後，「對不對」一定要照<學生原本寫的>算。
+   不然她把錯的那句改成正確寫法，畫面上那一題就自己變成 ✓，
+   可是存起來的分數（21/30）不會跟著變——同一份作業兩個地方說不一樣的話。
+   學生原本寫的沒做對就是沒做對；老師補的是正確寫法，不是他的成績。 */
+function gdJudged(r,qid){
+  try{ if(!r||!r.stu_edited_at)return false;
+    var o=r.answers_orig;return !!(o&&Object.prototype.hasOwnProperty.call(o,qid));
+  }catch(e){return false;}}
+/* 把存起來的答案變成一行看得懂的字（填空會是陣列） */
+function gdPlain(v){
+  if(v==null)return '（沒寫）';
+  if(Array.isArray(v))return v.map(x=>String(x==null?'':x)).join(' / ')||'（沒寫）';
+  return String(v)||'（沒寫）';}
+function gdJudgeResp(r,qid){
+  return gdJudged(r,qid)?r.answers_orig[qid]:((r&&r.answers)||{})[qid];}
 function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length;
   const perQ=qs.map((q,qi)=>{const resp=(r.answers||{})[q.id];const fb=(r.feedback||{})[q.id]||'';const man=manualQ(q,resp);/* AUTOFILL_V1458 */const mk=(r.manual||{})[q.id];
-    const corr=man?(mk==='done'?true:(mk==='wrong'?false:null)):qCorrect(q,resp);
+    /* GEDIT2_V1545 判斷用學生原本寫的，顯示用改過的 */
+    const corr=man?(mk==='done'?true:(mk==='wrong'?false:null)):qCorrect(q,gdJudgeResp(r,q.id));
+    const edited=gdJudged(r,q.id);
     const badge=corr===true?'<span class="gd-ok">✓ 對</span>':corr===false?'<span class="gd-no">✗ 錯</span>':(man?'<span class="badge badge-soon">待批改</span>':'<span class="hint">—</span>');
     const ref=gdRefText(q);
     const mark=man?`<span class="gd-mk"><button class="btn btn-sm ${mk==='done'?'btn-accent':''}" data-act="markWrite" data-id="${r.id}::${q.id}::done">✓ 對</button><button class="btn btn-sm ${mk==='wrong'?'btn-danger':''}" data-act="markWrite" data-id="${r.id}::${q.id}::wrong">✗ 錯</button></span>`:'';
-    return `<div class="gd-q"><div class="gd-qhead"><span class="q-num">${qi+1}</span><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${badge}</div>
+    return `<div class="gd-q"><div class="gd-qhead"><span class="q-num">${qi+1}</span><span class="tag accent">${TYPE_LABELS[q.type]||q.type}</span> ${badge}${edited?' <span class="tag">✎ 你改過</span>':''}</div>
       <div class="gd-prompt">${esc(q.prompt||'（無題目）')}</div>
       <div class="gd-ans">${ansHtml(q,resp)}</div>
       ${ref?`<div class="gd-refline">參考答案：${esc(ref)}</div>`:''}
@@ -13306,9 +13323,11 @@ function pfWrong(sid){
     const qs=(S.questions||[]).filter(q=>q&&q.lesson_id===r.lesson_id&&q.type!=='note');
     const ans=r.answers||{},items=[];
     qs.forEach(q=>{const a=ans[q.id];if(a==null||a==='')return;
+      /* GEDIT2_V1545 對錯照學生原本寫的算 */
+      const ja=gdJudgeResp(r,q.id);
       let ok=null;
-      if(q.type==='choice')ok=(Number(a)===Number(q.answer));
-      else if(q.type==='order')ok=((Array.isArray(a)?a.join(''):String(a))===((q.options||[]).join('')));
+      if(q.type==='choice')ok=(Number(ja)===Number(q.answer));
+      else if(q.type==='order')ok=((Array.isArray(ja)?ja.join(''):String(ja))===((q.options||[]).join('')));
       if(ok!==false)return;
       const opt=(q.options||[]);
       items.push({lab:'課文練習',q:String(q.prompt||q.instruction||'').slice(0,80),
@@ -13469,7 +13488,9 @@ H.spSeeAns=(rid)=>{
     const resp=(r.answers||{})[q.id];
     const man=(typeof manualQ==='function')&&manualQ(q,resp);
     const mk=(r.manual||{})[q.id];
-    const corr=man?(mk==='done'?true:(mk==='wrong'?false:null)):qCorrect(q,resp);
+    /* GEDIT2_V1545 對錯照學生原本寫的算 */
+    const corr=man?(mk==='done'?true:(mk==='wrong'?false:null)):qCorrect(q,gdJudgeResp(r,q.id));
+    const edited=gdJudged(r,q.id);
     if(corr===true)ok++;else if(corr===false)no++;else wait++;
     const badge=corr===true?'<span class="gd-ok">✓ 對</span>'
       :corr===false?'<span class="gd-no">✗ 錯</span>'
@@ -13478,10 +13499,12 @@ H.spSeeAns=(rid)=>{
     const fb=(r.feedback||{})[q.id]||'';
     return '<div class="gd-q'+(corr===false?' sa-no':'')+'">'
       +'<div class="gd-qhead"><span class="q-num">'+(i+1)+'</span>'
-      +'<span class="tag accent">'+esc(TYPE_LABELS[q.type]||q.type)+'</span> '+badge+'</div>'
+      +'<span class="tag accent">'+esc(TYPE_LABELS[q.type]||q.type)+'</span> '+badge
+      +(edited?' <span class="tag">✎ 你改過</span>':'')+'</div>'
       +'<div class="gd-prompt">'+esc(q.prompt||'（無題目）')+'</div>'
       +'<div class="gd-ans">'+((typeof ansHtml==='function')?ansHtml(q,resp):esc(String(resp==null?'':resp)))+'</div>'
       +(ref?('<div class="gd-refline">正解：'+esc(ref)+'</div>'):'')
+      +(edited?('<div class="hint" style="margin-top:4px">他原本寫：'+esc(gdPlain(r.answers_orig[q.id]))+'</div>'):'')
       +(fb?('<div class="hint" style="margin-top:4px">你之前寫的建議：'+esc(fb)+'</div>'):'')
       +'</div>';}).join('');
   openModal('<div class="modal modal-wide modal-tall"><div class="modal-head">'
