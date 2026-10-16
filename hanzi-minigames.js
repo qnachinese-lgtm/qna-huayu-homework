@@ -337,7 +337,15 @@ function flipPlay(p, st){
   /* BINGOQ_V1431 例句那一面要把詞挖掉，不然答案就印在卡片上了 */
   const faceOf = (x) => st.kind === "py" ? x.py : (st.kind === "mean" ? x.mean : x.ex[0].split(x.w).join("＿".repeat(Math.max(2, [...x.w].length))));
   const cards = shuffle(ws.flatMap((x, i) => [{ id:i, t:x.w, hz:true }, { id:i, t:faceOf(x), hz:false }]));
-  const cols = cards.length % 5 === 0 ? 5 : 4, rows = Math.ceil(cards.length / cols);
+  /* FLIPBIG_V1551 Quinn：「牌放大、拼音不要被切」。
+     本來不管螢幕多寬都排 4（或 5）欄，手機上一張牌只剩 83×62，
+     長一點的拼音（qǐchuáng、xìngmíng）直接被切掉，下面卻空一大片。
+     窄螢幕改排 3 欄：牌變大、字放得下，整疊還是一眼看得完（記憶遊戲不能用捲的）。 */
+  const vw = (typeof window !== "undefined" && window.innerWidth) || 1024;
+  const cols = vw < 480 ? (cards.length <= 12 ? 3 : 3)
+             : vw < 760 ? 4
+             : (cards.length % 5 === 0 ? 5 : 4);
+  const rows = Math.ceil(cards.length / cols);
   let open = [], done = 0, moves = 0, turn = 0, lock = false; const score = [0, 0]; const t0 = Date.now();
   const bar = el("div", { class:"fbar" }), grid = el("div", { class:"fgrid", style:`--c:${cols};--r:${rows}` });
   const drawBar = () => { bar.innerHTML = ""; if (st.np === 2) [0, 1].forEach(i => bar.append(el("span", { class:"fp" + (turn === i ? " on" : ""), text:`玩家 ${i + 1}：${score[i]} 對` }))); else bar.append(el("span", { class:"fp on", text:`翻了 ${moves} 次・配好 ${done}／${ws.length} 對` })); };
