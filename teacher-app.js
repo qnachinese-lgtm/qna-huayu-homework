@@ -17301,7 +17301,21 @@ function vsPrint(ids){
    +'.bar button.go{background:#0F2740;border-color:#0F2740;color:#fff}'
    +'.sheet{width:210mm;min-height:297mm;margin:10px auto;padding:16mm 14mm;background:#fff;box-shadow:0 2px 12px rgba(22,32,46,.12)}'
    /* TZG_V1496 四張了，改成「一律藏起來，只開現在這一張」，以後再加也不用重寫 */
-   +'.sheet{display:none}body.a .s1,body.b .s2,body.c .s3,body.d .s4{display:block}'
+   +'.sheet{display:none}body.a .s1,body.b .s2,body.c .s3,body.d .s4,body.e .s5{display:block}'
+   /* ══════ DICT_V1558 句子聽寫紙 ══════
+      Quinn：「我念句子，他們要寫句子出來」，而且她選「全空白，我自己念」——
+      所以這一張不印任何句子，只有題號和一整排空的田字格。
+      格子用跟寫字練習紙同一種（.tz），學生寫起來是同一個手感。 */
+   +'#dzbar{max-width:210mm;margin:0 auto 10px;display:none;gap:12px;justify-content:center;'
+   +'align-items:center;flex-wrap:wrap;font-size:13.5px;color:#30486A}'
+   +'#dzbar label{display:inline-flex;align-items:center;gap:5px}'
+   +'#dzbar select{font:inherit;padding:6px 8px;border:1.5px solid #C0CEE0;'
+   +'border-radius:8px;background:#fff;color:#16202E}'
+   +'.dzi{display:flex;break-inside:avoid;page-break-inside:avoid;margin-bottom:5mm}'
+   +'.dzn{width:9mm;flex:none;font-size:13px;color:#5B6B80;font-weight:700;padding-top:1.5mm}'
+   +'.dzrows{flex:1;min-width:0}'
+   +'.dzr{display:flex;margin-bottom:1.2mm}'
+   +'.dzr:last-child{margin-bottom:0}'
    /* TZG_V1496 田字格：一字一行，第一格印深色範字，接著幾格淺色給學生描，其餘留空。 */
    +'#tzbar{max-width:210mm;margin:0 auto 10px;display:none;gap:12px;justify-content:center;'
    +'align-items:center;flex-wrap:wrap;font-size:13.5px;color:#30486A}'
@@ -17370,11 +17384,18 @@ function vsPrint(ids){
    +'<button id="b2" onclick="SW(\'b\')">聽寫卷</button>'
    +'<button id="b3" onclick="SW(\'c\')">答案卷</button>'
    +'<button id="b4" onclick="SW(\'d\')">✍️ 寫字練習紙</button>'
+   +'<button id="b5" onclick="SW(\'e\')">\u{1F442} 句子聽寫紙</button>'/* DICT_V1558 */
    /* PRTICON_V1460 這顆按鈕上一直印著「U0001F5A8 列印」。JS 沒有 \U 這種跳脫，
       反斜線被吃掉就剩那一串字。改成 \u{...}（小寫 u 加大括號才是 JS 的寫法）。 */
    +'<button class="go" onclick="window.print()">\u{1F5A8} 列印 / 存成 PDF</button></div>'
    /* TZG_V1496 練習紙的設定列：切到「寫字練習紙」才出現，改了馬上重排 */
    +'<div id="tzbar">'
+   /* TZ2COL_V1557 Quinn：一課 118 個字、一個字一行印出來要 8 頁，太耗紙。
+      一排放兩個字＋格數調少，同樣的字數大概少一半的紙。
+      右邊即時寫出「格子幾 mm・大約幾頁」，她一邊調就一邊看得到後果，
+      不用印出來才發現格子小到寫不下。 */
+   +'<label>一排放幾個字 <select id="tzw">'
+   +'<option value="1" selected>1 個</option><option value="2">2 個（省紙）</option></select></label>'
    +'<label>每個字幾格 <select id="tzn">'
    +'<option value="6">6</option><option value="8">8</option>'
    +'<option value="10" selected>10</option><option value="12">12</option></select></label>'
@@ -17385,23 +17406,64 @@ function vsPrint(ids){
    +'<label><input type="checkbox" id="tzp" checked style="width:auto;margin:0"> 印生詞和拼音</label>'
    +'<label title="可以自己改，或者貼別的字進來">要練哪些字 '
    +'<input type="text" id="tzs" value="'+E(tzChars)+'" placeholder="貼中文字進來"></label>'
+   +'<span id="tztip" style="font-size:12.5px;color:#5B6B80"></span>'
+   +'</div>'
+   /* DICT_V1558 句子聽寫紙的設定列。全空白、她自己念，所以只要決定「幾題、一題幾行、一行幾格」。 */
+   +'<div id="dzbar">'
+   +'<label>幾題 <select id="dzq">'
+   +'<option value="5">5 題</option><option value="8">8 題</option>'
+   +'<option value="10" selected>10 題</option><option value="12">12 題</option>'
+   +'<option value="15">15 題</option><option value="20">20 題</option></select></label>'
+   +'<label>一題幾行 <select id="dzl">'
+   +'<option value="1">1 行</option><option value="2" selected>2 行</option>'
+   +'<option value="3">3 行</option></select></label>'
+   +'<label>一行幾格 <select id="dzc">'
+   +'<option value="12">12 格</option><option value="14">14 格</option>'
+   +'<option value="16" selected>16 格</option><option value="18">18 格</option>'
+   +'<option value="20">20 格</option></select></label>'
+   +'<span id="dztip" style="font-size:12.5px;color:#5B6B80"></span>'
    +'</div>'
    +'<div class="sheet s1">'+hd('生詞表（共 '+ws.length+' 個詞）',false)+'<table><tr><th></th><th>生詞</th><th>拼音</th><th>詞性</th><th>意思</th><th>例句</th></tr>'+rows+'</table></div>'
    +'<div class="sheet s2">'+hd('聽寫卷（共 '+ws.length+' 題）',true)+dict(false)+'</div>'
    +'<div class="sheet s3">'+hd('聽寫卷・答案（共 '+ws.length+' 題）',true)+dict(true)+'</div>'
    /* TZG_V1496 第四張：寫字練習紙。格子是上面那排設定即時排出來的，所以這裡先留空。 */
    +'<div class="sheet s4">'+hd('寫字練習紙',true)+'<div id="tzrows"></div></div>'
+   /* DICT_V1558 第五張：句子聽寫紙。紙上不印句子，老師念、學生寫。 */
+   +'<div class="sheet s5">'+hd('句子聽寫紙',true)
+   +'<div style="font-size:12.5px;color:#5B6B80;margin:-2mm 0 4mm">老師念句子，一句寫一題。標點符號也要寫進格子裡。</div>'
+   +'<div id="dzrows"></div></div>'
    /* TZG_V1496 切換四張紙＋排田字格。寫在這裡（body 尾），上面的 onclick 點下去才解析。 */
    +'<script>var TZ='+JSON.stringify(tzSrc)+';'
-   +'var TZK=["a","b","c","d"],TZT='+JSON.stringify([title+'　生詞表',
+   +'var TZK=["a","b","c","d","e"],TZT='+JSON.stringify([title+'　生詞表',
        title+'　聽寫卷',title+'　聽寫卷・答案',
-       title+'　寫字練習紙'])+';'
+       title+'　寫字練習紙',title+'　句子聽寫紙'])+';'
    +'function SW(k){document.body.className=k;'
    +'TZK.forEach(function(x,i){var b=document.getElementById("b"+(i+1));if(b)b.className=(x===k?"on":"");});'
    +'var t=document.getElementById("tzbar");if(t)t.style.display=(k==="d"?"flex":"none");'
+   +'var dz=document.getElementById("dzbar");if(dz)dz.style.display=(k==="e"?"flex":"none");'
    /* 存成 PDF 的檔名＝這一頁的 title，所以換紙也要換標題，四份才不會同名 */
    +'try{var _i=TZK.indexOf(k);if(_i>=0)document.title=TZT[_i];}catch(e){}'
-   +'if(k==="d")TZR();}'
+   +'if(k==="d")TZR();if(k==="e")DZR();}'
+   /* DICT_V1558 句子聽寫紙：題號＋一整排空格子，紙上不印任何句子。
+      格子寬度＝(可寫寬度 182mm − 題號那 9mm) ÷ 一行幾格，最大 14mm。 */
+   +'function DZR(){var box=document.getElementById("dzrows");if(!box)return;'
+   +'var q=Number((document.getElementById("dzq")||{}).value||10);'
+   +'var ln=Number((document.getElementById("dzl")||{}).value||2);'
+   +'var pc=Number((document.getElementById("dzc")||{}).value||16);'
+   +'var cw=Math.min(14,Math.floor((182-9)/pc*10)/10);'
+   +'var one="";for(var j=0;j<pc;j++)one+=\'<div class="tz" style="width:\'+cw+\'mm;height:\'+cw+\'mm"></div>\';'
+   +'var rows="";for(var r=0;r<ln;r++)rows+=\'<div class="dzr">\'+one+"</div>";'
+   +'var out="";for(var i=1;i<=q;i++)out+=\'<div class="dzi"><div class="dzn">\'+i'
+   +'+\'.</div><div class="dzrows">\'+rows+"</div></div>";'
+   +'box.innerHTML=out;'
+   +'var h=document.querySelector(".s5 .hd span");'
+   +'if(h)h.textContent="句子聽寫紙（共 "+q+" 題，一題 "+(ln*pc)+" 格）";'
+   +'var tip=document.getElementById("dztip");'
+   +'if(tip){var mm=box.scrollHeight/(96/25.4);var pg=Math.max(1,Math.ceil(mm/250));'
+   +'tip.textContent="格子 "+cw+"mm・一題最多寫 "+(ln*pc)+" 個字・大約 "+pg+" 頁";'
+   +'tip.style.color=(cw<9?"#A33227":"#5B6B80");}}'
+   +'["dzq","dzl","dzc"].forEach(function(id){var e=document.getElementById(id);'
+   +'if(e)e.addEventListener("change",DZR);});'
    +'function TZR(){var box=document.getElementById("tzrows");if(!box)return;'
    +'var raw=String((document.getElementById("tzs")||{}).value||"");'
    +'var n=Number((document.getElementById("tzn")||{}).value||10);'
@@ -17416,28 +17478,43 @@ function vsPrint(ids){
       所以照 182 算，兩邊都塞得下。減掉左邊 24mm 的標籤欄，格子最大 18mm。 */
    /* TZFIT_V1556 不印生詞和拼音的時候，左邊那 24mm 就不要佔著，格子可以更大 */
    +'var LW=py?24:0;'
-   +'var cw=Math.min(18,Math.floor((182-LW)/n*10)/10),fs=Math.round(cw*0.72*10)/10;'
+   /* TZ2COL_V1557 一排放幾個字。兩個字並排的時候中間留 6mm，各分一半的寬度。 */
+   +'var W2=Number((document.getElementById("tzw")||{}).value||1)>1?2:1;'
+   +'var GAP=(W2>1)?6:0;'
+   +'var cw=Math.min(18,Math.floor(((182-LW-GAP)/W2)/n*10)/10),fs=Math.round(cw*0.72*10)/10;'
    /* 照「同一個詞」把字分組。字本來就是照生詞順序、去掉重複排出來的，
       所以同一個詞的字一定連在一起；貼進來、不屬於任何生詞的字自成一組（沒有標題）。 */
    +'var gs=[],cur=null;'
    +'cs.forEach(function(c){var m=map[c]||{},w=m.w||"";'
    +'if(cur&&w&&cur.w===w){cur.cs.push(c);return;}'
    +'cur={w:w,p:(m.p||""),cs:[c]};gs.push(cur);});'
-   +'box.innerHTML=gs.map(function(g){'
-   +'var rows=g.cs.map(function(c){var cells="";'
+   +'function BLK(c){var cells="";'
    +'for(var j=0;j<n;j++){var cl=(j===0)?" s":((j>=1&&j<=tn)?" t":"");'
    +'cells+=\'<div class="tz\'+cl+\'" style="width:\'+cw+\'mm;height:\'+cw+\'mm">\''
    +'+(cl?(\'<i style="font-size:\'+fs+\'mm">\'+c+"</i>"):"")+"</div>";}'
-   +'return \'<div class="tzr"><div class="tzc">\'+cells+"</div></div>";}).join("");'
+   +'return \'<div class="tzc">\'+cells+"</div>";}'
+   +'box.innerHTML=gs.map(function(g){'
+   /* 一排放 W2 個字：把這一組的字切成每 W2 個一排。最後一排不足的就空著，不補假格子。 */
+   +'var rows="";'
+   +'for(var k=0;k<g.cs.length;k+=W2){var seg="";'
+   +'for(var q=k;q<Math.min(k+W2,g.cs.length);q++)seg+=BLK(g.cs[q]);'
+   +'rows+=\'<div class="tzr" style="gap:\'+GAP+\'mm">\'+seg+"</div>";}'
    +'var lab=(py&&(g.w||g.p))?(\'<div class="tzl"><b>\'+g.w+"</b>"'
    +'+(g.p?(\'<span>\'+g.p+"</span>"):"")+"</div>"):"";'
    +'return \'<div class="tzg">\'+lab+\'<div class="tzrows">\'+rows+"</div></div>";'
    +'}).join("")||\'<div class="tzempty">上面「要練哪些字」裡貼幾個中文字進去，就排成練習紙。</div>\';'
    +'var h=document.querySelector(".s4 .hd span");'
-   +'if(h)h.textContent="寫字練習紙（共 "+cs.length+" 個字）";}'
-   +'["tzn","tzt","tzp","tzs"].forEach(function(id){var e=document.getElementById(id);'
+   +'if(h)h.textContent="寫字練習紙（共 "+cs.length+" 個字）";'
+   /* 即時告訴她「格子多大、大約幾頁」——不用印出來才發現格子小到寫不下。
+      一頁可寫高度抓 250mm（A4 扣掉上下留白和標題），所以寫「大約」。 */
+   +'var tip=document.getElementById("tztip");'
+   +'if(tip){var mm=box.scrollHeight/(96/25.4);var pg=Math.max(1,Math.ceil(mm/250));'
+   +'tip.textContent="格子 "+cw+"mm・大約 "+pg+" 頁"'
+   +'+(cw<9?"（格子偏小，不好寫）":"");'
+   +'tip.style.color=(cw<9?"#A33227":"#5B6B80");}}'
+   +'["tzw","tzn","tzt","tzp","tzs"].forEach(function(id){var e=document.getElementById(id);'
    +'if(e){e.addEventListener("change",TZR);e.addEventListener("input",TZR);}});'
-   +'TZR();<'+'/script>'
+   +'TZR();DZR();<'+'/script>'
    +'</body></html>';
   fbWin(html);
 };
