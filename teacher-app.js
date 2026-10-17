@@ -17309,11 +17309,22 @@ function vsPrint(ids){
    +'#tzbar select,#tzbar input[type=text]{font:inherit;padding:6px 8px;border:1.5px solid #C0CEE0;'
    +'border-radius:8px;background:#fff;color:#16202E}'
    +'#tzs{width:min(60vw,430px)}'
-   +'.tzr{display:flex;align-items:center;break-inside:avoid;page-break-inside:avoid;margin-bottom:1.8mm}'
-   +'.tzl{width:24mm;flex:none;padding-right:2.5mm;text-align:right;line-height:1.35}'
-   +'.tzl b{display:block;font-size:13px;color:#16202E;font-weight:700;'
-   +'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
-   +'.tzl span{display:block;font-size:10.5px;color:#5B6B80}'
+   /* ══════ TZFIT_V1556 一個詞只寫一次 ══════
+      Quinn：「排版不好看」。量過她那一張：46 行裡 46 行都在重複左邊那個詞——
+      「環島旅行」連印四次、「騎腳踏車」連印四次，而且「島」旁邊寫的是整個詞的拼音
+      huándǎolǚxíng，看不出「島」自己怎麼唸，等於印了一堆看不懂又重複的字。
+      改成「一個詞一組」：詞和拼音在左邊只寫一次，右邊是這個詞每一個字各一行，
+      中間一條細線把它們框成一組。行高沒變（不會多出紙），重複的字全部消失。
+      整組 break-inside:avoid，所以一個詞不會被切到下一頁去、留下沒有標題的孤行。 */
+   +'.tzg{display:flex;align-items:center;break-inside:avoid;page-break-inside:avoid;margin-bottom:2.6mm}'
+   +'.tzl{width:24mm;flex:none;padding-right:3mm;margin-right:3mm;text-align:right;line-height:1.3;'
+   +'border-right:2px solid #DCE6F2;align-self:stretch;display:flex;flex-direction:column;'
+   +'justify-content:center}'
+   +'.tzl b{display:block;font-size:13px;color:#16202E;font-weight:700;line-height:1.25;word-break:break-all}'
+   +'.tzl span{display:block;font-size:10px;color:#5B6B80;line-height:1.25;word-break:break-all;margin-top:1px}'
+   +'.tzrows{flex:1;min-width:0}'
+   +'.tzr{display:flex;margin-bottom:1.2mm}'
+   +'.tzr:last-child{margin-bottom:0}'
    +'.tzc{display:flex}'
    +'.tz{position:relative;flex:none;border:1px solid #9FB4CC;border-left-width:0;overflow:hidden}'
    +'.tz:first-child{border-left-width:1px}'
@@ -17403,13 +17414,24 @@ function vsPrint(ids){
    +'if(!re.test(c)||seen[c])continue;seen[c]=1;cs.push(c);}'
    /* 螢幕上這張紙的可寫寬度是 182mm（列印時 186mm，比較寬），
       所以照 182 算，兩邊都塞得下。減掉左邊 24mm 的標籤欄，格子最大 18mm。 */
-   +'var cw=Math.min(18,Math.floor((182-24)/n*10)/10),fs=Math.round(cw*0.72*10)/10;'
-   +'box.innerHTML=cs.map(function(c){var m=map[c]||{},cells="";'
+   /* TZFIT_V1556 不印生詞和拼音的時候，左邊那 24mm 就不要佔著，格子可以更大 */
+   +'var LW=py?24:0;'
+   +'var cw=Math.min(18,Math.floor((182-LW)/n*10)/10),fs=Math.round(cw*0.72*10)/10;'
+   /* 照「同一個詞」把字分組。字本來就是照生詞順序、去掉重複排出來的，
+      所以同一個詞的字一定連在一起；貼進來、不屬於任何生詞的字自成一組（沒有標題）。 */
+   +'var gs=[],cur=null;'
+   +'cs.forEach(function(c){var m=map[c]||{},w=m.w||"";'
+   +'if(cur&&w&&cur.w===w){cur.cs.push(c);return;}'
+   +'cur={w:w,p:(m.p||""),cs:[c]};gs.push(cur);});'
+   +'box.innerHTML=gs.map(function(g){'
+   +'var rows=g.cs.map(function(c){var cells="";'
    +'for(var j=0;j<n;j++){var cl=(j===0)?" s":((j>=1&&j<=tn)?" t":"");'
    +'cells+=\'<div class="tz\'+cl+\'" style="width:\'+cw+\'mm;height:\'+cw+\'mm">\''
    +'+(cl?(\'<i style="font-size:\'+fs+\'mm">\'+c+"</i>"):"")+"</div>";}'
-   +'var lab=(py&&(m.w||m.p))?(\'<b>\'+(m.w||"")+"</b>"+(m.p?(\'<span>\'+m.p+"</span>"):"")):"";'
-   +'return \'<div class="tzr"><div class="tzl">\'+lab+\'</div><div class="tzc">\'+cells+"</div></div>";'
+   +'return \'<div class="tzr"><div class="tzc">\'+cells+"</div></div>";}).join("");'
+   +'var lab=(py&&(g.w||g.p))?(\'<div class="tzl"><b>\'+g.w+"</b>"'
+   +'+(g.p?(\'<span>\'+g.p+"</span>"):"")+"</div>"):"";'
+   +'return \'<div class="tzg">\'+lab+\'<div class="tzrows">\'+rows+"</div></div>";'
    +'}).join("")||\'<div class="tzempty">上面「要練哪些字」裡貼幾個中文字進去，就排成練習紙。</div>\';'
    +'var h=document.querySelector(".s4 .hd span");'
    +'if(h)h.textContent="寫字練習紙（共 "+cs.length+" 個字）";}'
