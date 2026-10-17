@@ -7792,7 +7792,16 @@ function assignModalCore(o){
      <div class="field"><label>截止日期 <span class="hint">選填</span></label><input id="as-due" type="date" min="2000-01-01" max="2100-12-31" value="${esc(o.due||'')}"></div>
      <div class="field"><label>發佈給整個團班 <span class="hint">之後加入這個班的學生會自動拿到</span></label><div class="check-list">${grpList}</div></div>
      <div class="field"><label>再發佈個別學生（選填） <button class="btn btn-sm btn-ghost" data-act="assignAll" type="button" style="float:right">全選 / 取消</button></label>
-       <div class="check-list" id="as-targets">${list}</div></div></div>
+       <div class="check-list" id="as-targets">${list}</div></div>
+     ${o.game?`<div class="field" style="background:#F4F7FB;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:0">
+       ${o.game.ok
+         ? `<label style="display:flex;align-items:flex-start;gap:9px;cursor:pointer;font-weight:400;margin:0">
+              <input type="checkbox" id="as-game" style="width:auto;margin:3px 0 0;flex:none"${o.game.on?' checked':''}>
+              <span><b>🃏 順便出一份翻牌配對作業</b>
+              <span class="hint" style="display:block;margin-top:3px">用這一課的 ${o.game.n} 個生詞，一張漢字、一張漢語拼音。對象和截止日跟上面一樣，學生配完一盤就算交了，妳在「漢字闖關」那一頁看得到分數。</span></span></label>
+            ${o.game.on?'<div class="hint" style="margin-top:7px">這一課已經有一份了。取消打勾再存檔，就會把它收回去。</div>':''}`
+         : `<span class="lcm-off" style="display:block">🃏 順便出一份翻牌配對作業<small>這一課只有 ${o.game.n} 個生詞，至少要 6 個才排得成一盤</small></span>`}
+     </div>`:''}</div>
    <div class="modal-foot">${(ids.length||ag.length)?`<button class="btn btn-warn" data-act="${esc(o.unassignAct)}" data-id="${esc(o.id)}">↩ 全部收回</button>`:''}<span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">取消</button>
      <button class="btn btn-primary" data-act="${esc(o.saveAct)}" data-id="${esc(o.id)}">儲存</button></div></div>`);
 }
@@ -9221,8 +9230,13 @@ function ghModal(){
   try{ghPrefApply();}catch(e){}/* GHPREF_V883 */
   try{GHSENT();}catch(e){}/* GHCL_V861 */}
 function assignModal(l){
+  /* 找不到那一課就講出來，不要整顆按鈕按下去沒反應（例如在另一個分頁被刪掉了） */
+  if(!l||!l.id)return toast('找不到這一課，請重新整理後再試');
+  /* GAMEHW_V1554 課文才有「順便出翻牌作業」，作業簿那一支走同一個視窗但沒有這一塊 */
+  const _n=gtWordsOf(l).length,_cur=gtTaskOfLesson(l.id);
   assignModalCore({id:l.id,title:l.title,ids:l.assigned_ids||[],groups:l.assigned_groups||[],
-    due:l.due_date||'',saveAct:'saveAssign',unassignAct:'unassign'});
+    due:l.due_date||'',saveAct:'saveAssign',unassignAct:'unassign',
+    game:{n:_n,on:!!_cur,ok:_n>=6}});
 }
 
 /* ---------- 成績：作答呈現與對錯判斷 ---------- */
@@ -10170,6 +10184,59 @@ function gtLesNames(t){
   const ids=(t&&t.lids)||[];
   const names=ids.map(id=>{const l=(S.lessons||[]).find(x=>x&&x.id===id);return l?lesNo(l,''):'';}).filter(Boolean);
   return names.length?names.join('、'):(ids.length+' 課');}
+/* ══════ GAMEHW_V1554 發佈課文的時候順手指派翻牌作業 ══════
+   Quinn：「能不能在發佈課本那邊一起出現，把它當作回家作業」。
+   發佈視窗裡本來就已經在選「截止日、發給哪個班、發給哪幾位」——翻牌作業要的
+   正好是同一組東西，所以不要再開一個視窗叫她選第二次，加一個打勾就好。
+
+   這顆勾是「開關」不是「再發一份」：
+     勾起來存檔 → 沒有就新建、已經有就更新（截止日、名單跟著課走）
+     取消勾存檔 → 把那一份收回去
+   認親靠 lesson_src（記住是哪一課生出來的），所以重複按發佈不會長出第二份。
+   從「漢字闖關」那一頁自己開的作業沒有 lesson_src，不會被這裡動到。
+
+   幾個詞才排得成一盤：遊戲那邊的門檻是 6 個，所以不到 6 個就把勾灰掉並寫原因
+   （跟課卡「⋯ 更多」裡用不到的那些按鈕同一個做法）。這裡只數生詞欄裡的中文詞，
+   數得比遊戲實際拿到的少一點——寧可說「不夠」也不要讓她發出去才發現玩不了。 */
+function gtWordsOf(l){
+  const out=[],seen={};
+  if(!l)return out;
+  const ds=(Array.isArray(l.dialogues)&&l.dialogues.length)?l.dialogues:[{vocabulary:l.vocabulary||''}];
+  ds.forEach(d=>{
+    let vs=[];try{vs=tvParseVocab(String((d&&d.vocabulary)||''));}catch(e){vs=[];}
+    vs.forEach(v=>{
+      const w=String((v&&v.front)||'').replace(/[^㐀-鿿豈-﫿]/g,'');
+      if(!w||w.length>4||seen[w])return;seen[w]=1;out.push(w);});});
+  return out;}
+function gtTaskOfLesson(lid){
+  return (S.gameTasks||[]).filter(t=>t&&!t.deleted_at&&t.lesson_src===lid)[0]||null;}
+/* 回傳一句話接在「已發佈」後面；沒有這顆勾（生詞不夠）就回空字串，什麼都不做。 */
+async function gtSyncFromAssign(lid,ids,grps,due){
+  const box=document.getElementById('as-game');
+  if(!box)return '';
+  const l=(S.lessons||[]).filter(x=>x&&x.id===lid)[0];if(!l)return '';
+  const cur=gtTaskOfLesson(lid);
+  /* 整課都收回去了，翻牌作業也沒有對象可言，一起收 */
+  const none=!(ids||[]).length&&!(grps||[]).length;
+  if(!box.checked||none){
+    if(!cur)return '';
+    await DB.update('lessons',cur.id,{deleted_at:new Date().toISOString()});
+    return '翻牌作業也收回了';
+  }
+  const row={kind:'gametask',game:'flip',
+    title:'翻牌配對・'+(lesNo(l,'')||l.title||''),
+    book:String(l.textbook||'').trim(),lids:[lid],lesson_src:lid,
+    due_date:due||'',assigned_ids:ids||[],assigned_groups:grps||[]};
+  row.read_uids=ruCalc(row);
+  if(cur){await DB.update('lessons',cur.id,row);return '翻牌作業也跟著更新了';}
+  await DB.insert('lessons',Object.assign({created_at:new Date().toISOString()},row));
+  return '翻牌作業也出好了';}
+/* 「↩ 全部收回」也要把這一課生出來的翻牌作業一起收掉，不然學生那邊課不見了、
+   作業還掛在待辦上，點進去也玩不了（那一課他已經讀不到）。 */
+async function gtDropForLesson(lid){
+  const cur=gtTaskOfLesson(lid);if(!cur)return false;
+  try{await DB.update('lessons',cur.id,{deleted_at:new Date().toISOString()});return true;}
+  catch(e){return false;}}
 /* ══════════════════════════════════════════════════════════════
    LIB_V1412 教材庫 ── Quinn：「我還要做一個資料庫，就是全部的教材，
    我有時候會有一些 PPT、PDF 檔之類的，我想要儲存到裡面以免我檔案亂丟」
@@ -23261,9 +23328,15 @@ H.saveAssign=async(id)=>{
   const btn=document.querySelector('[data-act="saveAssign"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
   /* SHARE_V1505 指派給某位學生＝那位學生的負責管理員要看得到這一課 */
   const _sh=mergeShare(shareList(S.lessons.find(x=>x.id===id)||{}),adminsForTargets(ids,grps));
-  try{await DB.update('lessons',id,{assigned_ids:ids,assigned_groups:grps,due_date:$('#as-due').value||null,share_admins:_sh});}
+  const _due=$('#as-due').value||null;
+  try{await DB.update('lessons',id,{assigned_ids:ids,assigned_groups:grps,due_date:_due,share_admins:_sh});}
   catch(e){if(btn){btn.disabled=false;btn.textContent='儲存';}toast('儲存失敗：'+(e.code||e.message||e));return;}
-  closeModal();toast('已發佈');
+  /* GAMEHW_V1554 課文存好了才動翻牌作業。這一段失敗不要把「已發佈」講成失敗——
+     課確實已經發出去了，只是遊戲作業那一份沒弄好，分開講比較不會誤導。 */
+  let _gmsg='';
+  try{_gmsg=await gtSyncFromAssign(id,ids,grps,_due);}
+  catch(e){_gmsg='（翻牌作業沒弄好：'+((e&&e.message)||e)+'）';}
+  closeModal();toast('已發佈'+(_gmsg?('　'+_gmsg):''));
   try{await loadAll();render();}catch(e){}
   ruLater();/* READUID_V973 */
 };
@@ -23272,7 +23345,8 @@ H.unassign=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;
   const btn=document.querySelector('[data-act="unassign"]');if(btn){btn.disabled=true;btn.textContent='收回中…';}
   try{await DB.update('lessons',id,{assigned_ids:[],assigned_groups:[]});}
   catch(e){if(btn){btn.disabled=false;btn.textContent='↩ 收回';}toast('收回失敗：'+(e.code||e.message||e));return;}
-  closeModal();toast('已收回發佈，學生已看不到');
+  const _gm=await gtDropForLesson(id);/* GAMEHW_V1554 這一課生出來的翻牌作業一起收 */
+  closeModal();toast('已收回發佈，學生已看不到'+(_gm?'（翻牌作業也收回了）':''));
   try{await loadAll();render();}catch(e){}
   ruLater();/* READUID_V973 */
 };
