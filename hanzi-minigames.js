@@ -20,6 +20,15 @@ const SET = { src:"course", tb:"", lids:[], lv:1 };
 try { Object.assign(SET, JSON.parse(localStorage.getItem("hz-mg") || "{}")); } catch(e){}
 const keep = () => { try { localStorage.setItem("hz-mg", JSON.stringify(SET)); } catch(e){} };
 
+/* ══════ GAMEHW_V1553 翻牌作業模式 ══════
+   老師在後台指派的翻牌作業，學生從「我的作業」點進來會帶 ?task=<作業id>。
+   這時候不給他挑課、不給他挑幾對——直接用老師指定的那幾課生詞開一盤，
+   配完就把「幾分、翻了幾次、花多久」寫回他自己的漢字紀錄（rec.gt）。
+   作業單本身存在 lessons（kind:'gametask'），讀法跟課本一樣是
+   read_uids array-contains 自己，所以安全規則不用動。 */
+const GT = { id:"", doc:null, saved:false };
+try { GT.id = (new URLSearchParams(location.search).get("task") || "").trim(); } catch(e){}
+
 // ---------- 題目來源：生詞＋句子 ----------
 function pool(){
   const words = [], seen = new Set(), sents = [];
@@ -74,6 +83,9 @@ function home(){
   /* JOIN_V1450 從學生頁帶 ?join=1 進來：第一次不要停在首頁，直接開「學生加入」。
      之後按「← 全部遊戲」還是會正常回到這裡。 */
   if (GAPP && WANT_JOIN && !JOIN_DONE){ JOIN_DONE = true; try { joinOnly(); return; } catch(e){} }
+  /* GAMEHW_V1553 帶著 ?task= 進來＝老師指派的翻牌作業，直接開那一盤，不停在首頁。
+     課本還沒讀完的時候 gtBoot 會回 false，等 loadCourse 讀好再呼叫 home() 就會進得來。 */
+  if (GT.id && !GT.saved){ try { if (gtBoot()) return; } catch(e){} }
   stopGame(); try { Object.assign(SET, JSON.parse(localStorage.getItem("hz-mg") || "{}")); } catch(e){}
   if (GAPP) selTab("");
   const P = panel(); P.innerHTML = "";
@@ -317,6 +329,60 @@ function bingoPrint(p, n0){
   GAME = { k:"bingo" };
 }
 
+/* ══════ GAMEHW_V1553 翻牌作業：開場與存紀錄 ══════ */
+function gtWait(msg){
+  const P = panel(); P.innerHTML = "";
+  P.append(el("div", { class:"mgtop" }, [el("h2", { text:"🃏 翻牌配對作業" }), el("p", { class:"muted", text:msg })]));
+}
+function gtFail(msg){ GT.id = ""; GT.fail = true; try { toast(msg); } catch(e){} }
+async function gtFetch(){
+  let why = "";
+  try {
+    const fs = (window.firebase && firebase.firestore) ? firebase.firestore() : null;
+    const u = (window.firebase && firebase.auth && firebase.auth().currentUser) || null;
+    if (!fs || !u) why = "要先登入才看得到老師指派的作業。";
+    else {
+      const sn = await fs.collection("lessons").where("read_uids", "array-contains", u.uid).get();
+      const d = sn.docs.find(x => x.id === GT.id);
+      if (d) GT.doc = Object.assign({ id:d.id }, d.data());
+      else why = "讀不到這份作業，可能老師已經收回去了。";
+    }
+  } catch(e){ why = "讀不到這份作業：" + String((e && e.message) || e); }
+  GT.loading = false;
+  if (why) gtFail(why);
+  home();
+}
+function gtBoot(){
+  if (GT.fail || !GT.id) return false;
+  if (!GT.doc){ if (!GT.loading){ GT.loading = true; gtFetch(); } gtWait("正在讀這份作業…"); return true; }
+  if (!C.loaded){ gtWait("正在讀你的課本…"); return true; }
+  const lids = (GT.doc.lids || []).filter(id => C.byId[id]);
+  if (!lids.length){ gtFail("這份作業指定的課現在讀不到，先跟老師說一聲。下面可以自己挑幾課玩。"); return false; }
+  SET.src = "course"; SET.lids = lids;
+  const tb = (C.byId[lids[0]] || {}).tb; if (tb) SET.tb = tb;
+  keep();
+  let p = null; try { p = pool(); } catch(e){}
+  if (!p || p.words.length < 6){ gtFail("這份作業的生詞不夠排一盤（至少要 6 個），先跟老師說一聲。"); return false; }
+  if (GAPP){ A.showTab("mg"); selTab("flip"); }
+  flipPlay(p, { pairs:Math.min(8, p.words.length), kind:"py", np:1 });
+  return true;
+}
+/* 分數＝配對數 ÷ 翻牌次數 × 100：每一次都翻對＝100 分。
+   寫進學生自己那一筆漢字紀錄的 rec.gt，老師後台「生詞翻牌作業」那一區就讀這裡。 */
+function gtSave(sec, moves, pairs){
+  GT.saved = true;
+  try {
+    const rec = (A.getRec && A.getRec()) || null;
+    if (!rec || !GT.id) return;
+    rec.gt = rec.gt || {};
+    const sc = moves ? Math.max(0, Math.min(100, Math.round(pairs / moves * 100))) : 0;
+    const prev = rec.gt[GT.id] || null;
+    rec.gt[GT.id] = { game:"flip", at:new Date().toISOString(), secs:sec, moves, pairs, score:sc,
+      best:Math.max(sc, (prev && Number(prev.best)) || 0), n:((prev && Number(prev.n)) || 0) + 1 };
+    A.save();
+  } catch(e){}
+}
+
 // ============ 2. 翻牌配對 ============
 function flipSetup(p){
   const b = shell("翻牌配對", srcName());
@@ -363,8 +429,18 @@ function flipPlay(p, st){
   }
   function end(){
     const sec = Math.round((Date.now() - t0) / 1000);
-    const text = st.np === 2 ? (score[0] === score[1] ? "平手！" : `玩家 ${score[0] > score[1] ? 1 : 2} 贏了！`) : `全部配好了！翻了 ${moves} 次，用了 ${sec} 秒。`;
-    const m = el("div", { class:"mgdone" }, [el("b", { text }), el("div", { class:"row center" }, [btn("再玩一次", () => flipPlay(p, st), "primary big"), btn("換設定", () => flipSetup(p))])]);
+    let text = st.np === 2 ? (score[0] === score[1] ? "平手！" : `玩家 ${score[0] > score[1] ? 1 : 2} 贏了！`) : `全部配好了！翻了 ${moves} 次，用了 ${sec} 秒。`;
+    const acts = [btn("再玩一次", () => flipPlay(p, st), "primary big"), btn("換設定", () => flipSetup(p))];
+    /* GAMEHW_V1553 作業模式：配完就算寫完了，成績存回去，然後讓他一鍵回作業清單 */
+    if (GT.id && GT.doc){
+      gtSave(sec, moves, ws.length);
+      const sc = moves ? Math.max(0, Math.min(100, Math.round(ws.length / moves * 100))) : 0;
+      text = `作業完成！翻了 ${moves} 次、用了 ${sec} 秒，${sc} 分。成績已經交給老師了。`;
+      acts.length = 0;
+      acts.push(btn("✓ 回我的作業", () => { try { location.href = "student.html"; } catch(e){} }, "primary big"));
+      acts.push(btn("再玩一次", () => flipPlay(p, st)));
+    }
+    const m = el("div", { class:"mgdone" }, [el("b", { text }), el("div", { class:"row center" }, acts)]);
     b.append(m); sfx.win(); const [x, y] = centerOf(m); burst(x, y, 60);
     if (A.store.me) A.addXp(ws.length * 2);
   }
@@ -817,7 +893,8 @@ function orderStart(p){
 document.querySelectorAll('nav.tabs button[data-tab="mg"]').forEach(tab => { tab.setAttribute("data-novi", ""); tab.setAttribute("translate", "no");
   tab.addEventListener("click", () => { A.showTab("mg"); const k = tab.dataset.game || ""; if (GAPP){ stopGame(); fsOff(); if (k){ home(); const p = pool(); const need = { bingo:9, flip:6, quiz:4, order:0, cloze:4 }[k]; if ((k === "order" && p.sents.length < 3) || p.words.length < need){ toast("請先在這一頁勾選要玩哪幾課"); selTab(""); return; } openGame(k); } else home(); } else if (!GAME) home(); }); });
 if (GAPP){ document.querySelectorAll("nav.tabs button").forEach(b => { b.setAttribute("data-novi", ""); b.setAttribute("translate", "no"); }); A.showTab("mg"); home(); }
-window.HZMG = { home, pool, chunks, makeQs, open:openGame, join:joinOnly/* JOIN_V1450 */, get game(){ return GAME; } };
+window.HZMG = { home, pool, chunks, makeQs, open:openGame, join:joinOnly/* JOIN_V1450 */, get game(){ return GAME; },
+  get gt(){ return GT; }/* GAMEHW_V1553 測試用：作業模式的狀態（讀到哪一份、存了沒） */ };
 }
 if (window.HZAPI) boot(); else document.addEventListener("hzapi", boot);
 })();

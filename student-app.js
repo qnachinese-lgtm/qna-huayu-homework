@@ -1535,7 +1535,7 @@ async function loadMine(){
   const [l,siteRows]=await Promise.all([loadLessonsForMe(),DB.list('site').catch(()=>[])]);/* READCUT2_V975 */
   S.site=(siteRows&&siteRows.length)?siteRows[siteRows.length-1]:{};
   const rAll=await pRes; if(_rErr)throw _rErr;
-  S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook'&&x.kind!=='hanzitask'/* HZTASK_V1389 */);S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.lqassigns=l.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;
+  S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook'&&x.kind!=='hanzitask'/* HZTASK_V1389 */&&x.kind!=='gametask'/* GAMEHW_V1553 */);S.gameTasks=l.filter(x=>x.kind==='gametask'&&!x.deleted_at);/* GAMEHW_V1553 */S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.lqassigns=l.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;
   S.questions=await loadMyQuestions(l,rAll);
   splitResults(rAll);}
 /* ===================== 📕 錯題本 Mistake notebook ===================== */
@@ -2836,9 +2836,24 @@ function dueRows(){
     rows.push({lid:a.id,k:'lqp',act:'startLqp',title:'🎯 '+(a.title||''),due:a.due_date||'',
       cls:di?di.cls:'badge-pending',lab:di?di.label:LT({zh:'未完成',cn:'未完成',en:'To do',vi:'Chưa làm'}),
       sort:di?di.sort:9999});});}catch(e){}
+  /* GAMEHW_V1553 翻牌配對作業：玩完一輪就算做完了（紀錄在漢字紀錄的 rec.gt） */
+  try{gtMine().forEach(t=>{if(gtMyRec(t.id))return;
+    const di=dueInfo(t.due_date);
+    rows.push({lid:t.id,k:'game',act:'startGame',title:'🃏 '+(t.title||LT({zh:'翻牌配對',cn:'翻牌配对',en:'Memory match',vi:'Lật thẻ ghép đôi'})),
+      due:t.due_date||'',
+      cls:di?di.cls:'badge-pending',lab:di?di.label:LT({zh:'未完成',cn:'未完成',en:'To do',vi:'Chưa làm'}),
+      sort:di?di.sort:9999});});}catch(e){}
   rows.sort((a,b)=>a.sort-b.sort);
   return rows;
 }
+/* ══════ GAMEHW_V1553 翻牌配對作業（學生端） ══════
+   作業單是 lessons 裡 kind:'gametask' 的那幾筆，老師在後台「漢字闖關」那一頁指派。
+   做完沒做完看的是他自己的漢字紀錄（results 裡 kind:'hanzi' 那一筆）的 rec.gt[作業id]，
+   那一筆是遊戲頁自己寫的，這邊只讀不寫。 */
+function gtMine(){return (S.gameTasks||[]).filter(t=>t&&!t.deleted_at&&assignedToMe(t));}
+function gtMyRec(tid){
+  try{const d=(S.results||[]).find(r=>r&&r.kind==='hanzi');
+    return (d&&d.rec&&d.rec.gt&&d.rec.gt[tid])||null;}catch(e){return null;}}
 /* ===== HOME_V802 首頁「接著上這一課」 =====
    首頁本來把課次整份列一次，跟「課程」頁重複。改成只告訴學生「現在該上哪一課」。 */
 function homeTouchMap(){
@@ -4132,6 +4147,10 @@ H.quizPick=(_,b)=>{const val=(b&&b.dataset&&b.dataset.v)||'';const dd=S.dict;if(
 function clozeSentence(v){const f=(v&&v.front)||'';const ex=(v.ex||[]).find(s=>s.indexOf(f)>=0)||(v.ex||[])[0]||'';return f?ex.replace(f,'＿＿'):ex;}
 function parseQuizItems(text){return (text||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const i=l.search(/[=＝]/);if(i<0)return null;const q=l.slice(0,i).trim();const a=l.slice(i+1).split(/[\/／]/).map(s=>s.trim()).filter(Boolean);return (q&&a.length)?{q,a}:null;}).filter(Boolean);}
 H.vocabEx=(id)=>{const el=document.getElementById('vex-'+id);if(el)el.classList.toggle('hide');};
+/* GAMEHW_V1553 去玩翻牌作業。遊戲頁（games.html）看到 ?task= 就會自己把老師指定的
+   那幾課生詞排成一盤，配完它會把成績寫回學生自己的漢字紀錄，這邊不用做任何事。 */
+H.startGame=(id)=>{const t=(S.gameTasks||[]).find(x=>x&&x.id===id);if(!t)return;
+  try{location.href='games.html?task='+encodeURIComponent(id);}catch(e){}};
 H.startQuiz=(id)=>{const qz=(S.quizzes||[]).find(x=>x.id===id);if(!qz)return;const mode=qz.mode||'dict';
   if(mode==='audio'){const arr=(qz.quiz_audio||[]).filter(x=>x&&x.url);
     if(!arr.length){toast(t('noCards'));return;}
@@ -5310,7 +5329,7 @@ function renderPreviewLesson(){
 }
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;S.tryMode=PREVIEW_TRY;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
-  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook'&&x.kind!=='hanzitask'/* HZTASK_V1389 */);S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=[];S.lqassigns=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];S.hwvs=[];
+  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook'&&x.kind!=='hanzitask'/* HZTASK_V1389 */&&x.kind!=='gametask'/* GAMEHW_V1553 */);S.gameTasks=[];S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=[];S.lqassigns=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];S.hwvs=[];
   S.previewLid=lid;
   renderPreviewLesson();
 }

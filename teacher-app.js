@@ -750,12 +750,12 @@ async function loadAll(){
   try{await pTg;}catch(e){}/* TGUIDE_V973 */
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
   S.rawLessons=b.filter(x=>x&&!x.deleted_at);/* READUID_V973 算讀取名單要看整包，不能只看 S.lessons */
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&x.kind!=='lqassign'&&x.kind!=='reply'&&x.kind!=='price'&&x.kind!=='edit_proposal'&&x.kind!=='school'/* SCHOOL_V1046 學校資料不是課 */&&x.kind!=='hanzitask'/* HANZI_V1 */&&!x.deleted_at);
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&x.kind!=='lqassign'&&x.kind!=='reply'&&x.kind!=='price'&&x.kind!=='edit_proposal'&&x.kind!=='school'/* SCHOOL_V1046 學校資料不是課 */&&x.kind!=='hanzitask'/* HANZI_V1 */&&x.kind!=='gametask'/* GAMEHW_V1553 */&&!x.deleted_at);
    /* PROP_V944 老師送來的修改提案 */
    S.props=b.filter(x=>x.kind==='edit_proposal'&&!x.deleted_at)
      .sort((p,q)=>String(q.at||'').localeCompare(String(p.at||'')));
    S.ocs=b.filter(x=>x&&x.kind==='oc'&&!x.deleted_at).sort((a,c)=>(Number(a.order_index)||0)-(Number(c.order_index)||0));/* OC_V1257 */
-   S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.lqassigns=b.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.hanziTasks=b.filter(x=>x.kind==='hanzitask'&&!x.deleted_at);/* HANZI_V1 */
+   S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.lqassigns=b.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.hanziTasks=b.filter(x=>x.kind==='hanzitask'&&!x.deleted_at);/* HANZI_V1 */S.gameTasks=b.filter(x=>x.kind==='gametask'&&!x.deleted_at);/* GAMEHW_V1553 */
    /* RPMOVE_V945 回覆範本和價目表正在從 lessons 搬到 crm（只有主管理員讀得到）。
       搬家期間兩邊都讀，畫面才不會有空窗；moved_from 用來避免同一筆出現兩次。 */
    {const _rpp=(k)=>{
@@ -2896,6 +2896,10 @@ function hwPending(){
   try{(S.hanziTasks||[]).forEach(t=>{if(!t||t.deleted_at)return;
     lessonTargets(t).filter(live).forEach(s=>{if(hzDone(t,s))return;
       out.push({sid:s.id,name:s.name||'',what:t.title||t.fam,lid:t.id,kind:'漢字遊戲',due:t.due_date||'',draft:hzStars(s,t.diff,t.fam)>0});});});}catch(e){}
+  /* GAMEHW_V1553 翻牌作業：玩完一輪就算交了，沒玩過的才進這張待繳清單 */
+  try{(S.gameTasks||[]).forEach(t=>{if(!t||t.deleted_at)return;
+    lessonTargets(t).filter(live).forEach(s=>{if(gtDone(t,s))return;
+      out.push({sid:s.id,name:s.name||'',what:t.title||'翻牌配對',lid:t.id,kind:'翻牌配對',due:t.due_date||'',draft:false});});});}catch(e){}
   out.forEach(x=>{x.days=hwDaysTo(x.due);});
   out.sort((a,b)=>{
     const ra=(a.days==null)?2:(a.days<0?0:1), rb=(b.days==null)?2:(b.days<0?0:1);
@@ -10145,6 +10149,27 @@ function hzLive(s){return s&&!s.deleted_at&&!s.is_test&&enrollOf(s)!=='paused';}
 function hzWhen(iso){if(!iso)return '—';const d=new Date(iso);if(isNaN(d))return '—';return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
 const HZ_LV=[[0,'漢字學徒'],[300,'拼字工匠'],[1000,'字族達人'],[2500,'字源學者'],[5000,'漢字大師']];
 function hzLevel(xp){let i=0;HZ_LV.forEach((l,k)=>{if((xp||0)>=l[0])i=k;});return (i+1)+'・'+HZ_LV[i][1];}
+/* ══════ GAMEHW_V1553 生詞翻牌作業 ══════
+   Quinn：「我覺得這個遊戲可以放在我的作業」（指翻牌配對）。她選的三件事：
+     ① 只做翻牌配對 ② 玩完一輪就算寫完 ③ 要看到誰玩了、幾分、花多久。
+
+   為什麼不開新的 collection：
+     作業單存在 lessons（kind:'gametask'），走漢字作業（hanzitask）同一條路，
+     指派名單一樣是 assigned_ids + read_uids，所以 Firestore 安全規則不用動
+     （規則我碰不到，開新 collection 會直接被擋下來）。
+     學生玩完的紀錄寫進他本來就有的那一筆漢字紀錄（results 的 __hanzi__）裡的 rec.gt，
+     那條寫入路徑學生天天在用，一定過得了規則。
+
+   分數＝配對數 ÷ 翻牌次數 × 100：每一次都翻對就是 100 分。
+   這是「記不記得住」的指標，不是對錯——玩完就算寫完，分數只是給她看的。 */
+function gtRecOf(s){const d=hzDocOf(s);return (d&&d.rec&&d.rec.gt)||null;}
+function gtOf(s,tid){const g=gtRecOf(s);return (g&&tid&&g[tid])||null;}
+function gtDone(t,s){return !!gtOf(s,t&&t.id);}
+function gtSecs(n){n=Number(n)||0;return n<60?(n+' 秒'):(Math.floor(n/60)+' 分 '+(n%60)+' 秒');}
+function gtLesNames(t){
+  const ids=(t&&t.lids)||[];
+  const names=ids.map(id=>{const l=(S.lessons||[]).find(x=>x&&x.id===id);return l?lesNo(l,''):'';}).filter(Boolean);
+  return names.length?names.join('、'):(ids.length+' 課');}
 /* ══════════════════════════════════════════════════════════════
    LIB_V1412 教材庫 ── Quinn：「我還要做一個資料庫，就是全部的教材，
    我有時候會有一些 PPT、PDF 檔之類的，我想要儲存到裡面以免我檔案亂丟」
@@ -10484,6 +10509,7 @@ function renderHanzi(){
     +'<span class="grow"></span><a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">開啟遊戲試玩 ↗</a>'
     +'<button class="btn btn-sm btn-accent" data-act="hzNew">＋ 指派作業</button></div>'
     +'<div class="card"><h3 style="margin:0 0 8px">作業</h3>'+taskHtml+'</div>'
+    +gtCardHtml()/* GAMEHW_V1553 */
     +'<div class="card" style="margin-top:14px"><h3 style="margin:0 0 8px">學生進度</h3><details class="hint" style="margin-bottom:8px"><summary style="cursor:pointer">這幾欄怎麼看</summary><div style="margin-top:4px">星星欄是「入門／進階／高手」三個難度拿到的星星總數（每個難度最多 81 顆）。難字＝回想關最常寫錯的字。</div></details>'
     +'<div style="overflow-x:auto"><table class="hz-tb" style="min-width:720px;width:100%"><thead><tr><th>學生</th><th>最近玩</th><th>等級</th><th>星星</th><th>拼出的字</th><th>回想關正確率</th><th>難字</th></tr></thead><tbody>'
     +(rows||'<tr><td colspan="7" class="muted">還沒有學生</td></tr>')+'</tbody></table></div></div>';
@@ -10530,6 +10556,122 @@ H.hzDel=async(id)=>{const t=(S.hanziTasks||[]).find(x=>x.id===id);if(!t)return;
   try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除這份作業');}
   catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
 /* ══════ HANZI_V1 end ══════ */
+
+/* ══════ GAMEHW_V1553 生詞翻牌作業：指派、看進度、刪除 ══════ */
+function gtCardHtml(){
+  const tasks=(S.gameTasks||[]).slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  const chip=(t,s)=>{
+    const g=gtOf(s,t.id);
+    if(g)return '<span class="badge" style="background:#E1F0E8;color:#1F6A54">✓ '+snm(s.name)+' '+(Number(g.score)||0)+' 分・'+esc(gtSecs(g.secs))+'</span>';
+    const dd=hwDaysTo(t.due_date);
+    if(dd!=null&&dd<0)return '<span class="badge badge-overdue">'+snm(s.name)+' 逾期 '+(-dd)+' 天</span>';
+    return '<span class="badge'+(dd!=null&&dd<=2?' badge-soon':'')+'">'+snm(s.name)+' 還沒玩</span>';};
+  const rows=tasks.length?tasks.map(t=>{
+    const who=lessonTargets(t).filter(hzLive);
+    const done=who.filter(s=>gtDone(t,s)).length;
+    return '<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start">'
+      +'<b>'+esc(t.title||'翻牌配對')+'</b>'
+      +'<span class="tag">🃏 翻牌配對・'+esc(gtLesNames(t))+'</span>'
+      +'<span class="muted" style="font-size:12px">'+(t.due_date?('截止 '+esc(t.due_date)):'沒有截止日')+'</span>'
+      +'<span class="grow"></span><span class="muted" style="font-size:13px">完成 '+done+'／'+who.length+'</span>'
+      +'<button class="btn btn-sm btn-ghost" data-act="gtDel" data-id="'+esc(t.id)+'">刪除</button>'
+      +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'
+      +(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
+    :'<div class="muted" style="padding:8px 2px">還沒有指派翻牌作業。按右邊「＋ 指派翻牌作業」開始。</div>';
+  return '<div class="card" data-gtcard="1" style="margin-top:14px">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
+    +'<h3 style="margin:0">🃏 生詞翻牌作業</h3>'
+    +'<span class="hint">一張漢字、一張漢語拼音，用的是課本生詞。玩完一輪就算寫完。</span>'
+    +'<span class="grow"></span>'
+    +'<button class="btn btn-sm btn-accent" data-act="gtNew">＋ 指派翻牌作業</button></div>'
+    +rows+'</div>';
+}
+/* ══════ GAMEHW_V1553 這張卡怎麼進到「漢字闖關」那一頁 ══════
+   那一頁真正在畫的是 hanzi-teacher.js 的 renderHanzi（它會蓋掉這支檔案裡的同名函式），
+   而 hanzi-teacher.js 是 db.js 的 HANZI_LOADER 動態載入的、網址上沒有版號，
+   所以瀏覽器可能還拿著舊的那一份。teacher-app.js 有版號、一定是新的，
+   就由這裡盯著那個區塊：新版的 hanzi-teacher.js 會自己叫 gtCardHtml（卡片上有
+   data-gtcard，這裡看到就不做事）；還是舊版的話，這裡把卡片補進去。
+   兩邊都不會重複，也不用去改 HANZI_LOADER（那一段她交代要保留）。 */
+function gtMount(){
+  try{
+    const body=document.getElementById('panel-hanzi');
+    if(!body||!body.firstElementChild)return;
+    if(body.querySelector('[data-gtcard]'))return;
+    const wrap=document.createElement('div');wrap.innerHTML=gtCardHtml();
+    const card=wrap.firstElementChild;if(!card)return;
+    const cards=[].slice.call(body.querySelectorAll('.card'));
+    const after=cards.filter(c=>{const h=c.querySelector('h3');return h&&/^作業/.test((h.textContent||'').trim());})[0];
+    if(after&&after.parentNode)after.parentNode.insertBefore(card,after.nextSibling);
+    else body.appendChild(card);
+  }catch(e){}
+}
+try{
+  const _gtp=document.getElementById('panel-hanzi');
+  if(_gtp&&window.MutationObserver)new MutationObserver(function(){gtMount();}).observe(_gtp,{childList:true});
+}catch(e){}
+function gtFillLes(){
+  const box=document.getElementById('gt-les'),sel=document.getElementById('gt-book');
+  if(!box||!sel)return;
+  const ls=planLessonsOf(sel.value);
+  box.innerHTML=ls.length
+    ?ls.map(l=>'<label class="qzw-s"><input type="checkbox" class="gt-les" value="'+esc(l.id)+'"><span>'+esc(lesNo(l,''))+'</span></label>').join('')
+    :'<span class="muted">這本教材還沒有課</span>';
+}
+H.gtNew=()=>{
+  const books=planBooks();
+  if(!books.length)return toast('還沒有教材，要先到「教材與課程」建課');
+  const live=(S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test);
+  const rank=(x)=>{const e=enrollOf(x);return e==='active'?0:(e==='trial'?1:(e==='reserved'?2:3));};
+  const checks=live.slice().sort((a,b)=>rank(a)-rank(b)||stuNameCmp(a,b)).map(s=>{const on=enrollOf(s)==='active';
+    return '<label class="qzw-s"><input type="checkbox" class="gt-stu" value="'+esc(s.id)+'"'+(on?' checked':'')+'><span>'+snm(s.name)+'</span>'
+      +(on?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[enrollOf(s)]||'')+'）</i>')+'</label>';}).join('');
+  const d=new Date();d.setDate(d.getDate()+7);
+  const def=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>🃏 指派翻牌配對作業</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:10px">題目是下面這幾課的生詞：一張漢字、一張漢語拼音，翻開配成一對。整盤配完就算寫完了，不用批改。</div>'
+   +'<div class="form-grid">'
+   +'<div class="field"><label>教材</label><select id="gt-book">'
+   +books.map((b,i)=>'<option value="'+esc(b[0])+'"'+(i?'':' selected')+'>'+esc(b[0])+'（'+b[1]+' 課）</option>').join('')+'</select></div>'
+   +'<div class="field"><label>截止日</label><input id="gt-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
+   +'<div class="field full"><label>作業名稱 <span class="hint">可以不填，會自動用課名</span></label><input id="gt-title" placeholder="例如：第五課生詞翻牌"></div>'
+   +'</div>'
+   +'<div class="field full"><label>要玩哪幾課的生詞 <span class="hint">可以複選。生詞合起來至少 6 個才配得成一盤</span></label>'
+   +'<div id="gt-les" class="qzw-stus"></div></div>'
+   +'<div class="field full"><label>指派給誰</label>'
+   +'<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap"><button class="btn btn-sm" type="button" data-act="gtStuAll">✔ 全選</button><button class="btn btn-sm" type="button" data-act="gtStuNone">✕ 全部取消</button></div>'
+   +'<div class="qzw-stus">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div></div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="gtSave">📤 指派出去</button></div></div>');
+  gtFillLes();
+  const sel=document.getElementById('gt-book');if(sel)sel.onchange=gtFillLes;
+};
+H.gtStuAll=()=>{document.querySelectorAll('.gt-stu').forEach(c=>{c.checked=true;});};
+H.gtStuNone=()=>{document.querySelectorAll('.gt-stu').forEach(c=>{c.checked=false;});};
+H.gtSave=async()=>{
+  const ids=[].slice.call(document.querySelectorAll('.gt-stu:checked')).map(c=>c.value);
+  if(!ids.length)return toast('請至少選一位學生');
+  const lids=[].slice.call(document.querySelectorAll('.gt-les:checked')).map(c=>c.value);
+  if(!lids.length)return toast('請至少選一課');
+  const _v=(id)=>{const e=document.getElementById(id);return e?String(e.value||'').trim():'';};
+  const book=_v('gt-book'),due=_v('gt-due');
+  const nm=lids.map(id=>{const l=(S.lessons||[]).find(x=>x&&x.id===id);return l?lesNo(l,''):'';}).filter(Boolean).join('、');
+  const title=_v('gt-title')||('翻牌配對・'+(nm||book));
+  const btn=document.querySelector('[data-act="gtSave"]');if(btn){btn.disabled=true;btn.textContent='指派中…';}
+  try{await ensureAuthFresh();
+    const row={kind:'gametask',game:'flip',title:title,book:book,lids:lids,due_date:due,
+      assigned_ids:ids,created_at:new Date().toISOString()};
+    row.read_uids=ruCalc(row);
+    await DB.insert('lessons',row);
+    await loadAll();closeModal();render();toast('已指派給 '+ids.length+' 位學生'+(due?('，截止 '+due):''));
+  }catch(e){if(btn){btn.disabled=false;btn.textContent='📤 指派出去';}toast('指派失敗：'+((e&&e.message)||e));}};
+H.gtDel=async(id)=>{const t=(S.gameTasks||[]).find(x=>x.id===id);if(!t)return;
+  const b=document.querySelector('[data-act="gtDel"][data-id="'+id+'"]');
+  if(b&&!b.dataset.sure){b.dataset.sure='1';b.textContent='再按一次確定刪除';b.classList.add('btn-danger');setTimeout(()=>{if(b){delete b.dataset.sure;b.textContent='刪除';b.classList.remove('btn-danger');}},4000);return;}
+  try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除這份作業');}
+  catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
+/* ══════ GAMEHW_V1553 end ══════ */
 
 function renderGive(){
   const body=$('#panel-give');if(!body)return;
@@ -22431,7 +22573,7 @@ H.gmDelClass=async(cls)=>{if(!confirm('刪除團班「'+cls+'」？\n\n學生只
 function gmGroupDocs(cls){
   const seen={},out=[];
   [S.lessons,S.workbooks,S.quizzes,S.announcements,S.prons,S.classicals,
-   S.livequizzes,S.lqassigns,S.hanziTasks,S.writings].forEach(arr=>{
+   S.livequizzes,S.lqassigns,S.hanziTasks,S.gameTasks/* GAMEHW_V1553 */,S.writings].forEach(arr=>{
     (arr||[]).forEach(x=>{
       if(!x||!x.id||seen[x.id])return;
       if(!((x.assigned_groups||[]).indexOf(cls)>=0))return;

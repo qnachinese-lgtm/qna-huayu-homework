@@ -119,6 +119,10 @@ function renderHanzi(){
     +'</div></details>'
     +'<button class="btn btn-sm btn-accent" data-act="hzNew">＋ 指派作業</button></div>'
     +'<div class="card"><h3 style="margin:0 0 8px">作業</h3>'+(tasks.length?'<div class="hint" style="margin-bottom:8px">綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。</div>':'')/* HZLEAN_V1421 沒有作業就不要解釋顏色 */+taskHtml+'</div>'
+    /* GAMEHW_V1553 生詞翻牌作業那一塊。程式在 teacher-app.js（gtCardHtml），
+       這裡只負責把它放進畫面——漢字遊戲的程式不混進後台、後台的程式也不混進這裡。
+       teacher-app.js 沒載到的時候就當作沒有，這一頁照樣開得起來。 */
+    +((typeof gtCardHtml==='function')?gtCardHtml():'')
     +'<div class="card" style="margin-top:14px"><h3 style="margin:0 0 8px">學生進度</h3>'
     /* HZLEAN_V1421 三句話的名詞解釋收起來，要看再點開 */
     +'<details style="margin-bottom:8px"><summary class="hint" style="cursor:pointer;display:list-item;width:fit-content">欄位說明</summary>'
