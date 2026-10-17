@@ -10688,11 +10688,22 @@ function gtFillLes(){
 H.gtNew=()=>{
   const books=planBooks();
   if(!books.length)return toast('還沒有教材，要先到「教材與課程」建課');
-  const live=(S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test);
-  const rank=(x)=>{const e=enrollOf(x);return e==='active'?0:(e==='trial'?1:(e==='reserved'?2:3));};
-  const checks=live.slice().sort((a,b)=>rank(a)-rank(b)||stuNameCmp(a,b)).map(s=>{const on=enrollOf(s)==='active';
-    return '<label class="qzw-s"><input type="checkbox" class="gt-stu" value="'+esc(s.id)+'"'+(on?' checked':'')+'><span>'+snm(s.name)+'</span>'
-      +(on?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[enrollOf(s)]||'')+'）</i>')+'</label>';}).join('');
+  /* STUFIND_V1559 Quinn：「我看不到我的測試帳號？」——本來這裡跟漢字作業一樣
+     把 is_test 整個濾掉，所以她想指派給自己先試玩一次都做不到。測試帳號列進來，
+     標成「🧪 測試」排在在學中後面，預設不打勾（她要才勾）。
+     休學／預約照後台本來的做法預設收起來，按「👀 也顯示」才出現。 */
+  const live=(S.students||[]).filter(s=>s&&!s.deleted_at);
+  const rank=(x)=>{if(x.is_test)return 1;const e=enrollOf(x);
+    return e==='active'?0:(e==='trial'?2:(e==='reserved'?3:4));};
+  const checks=live.slice().sort((a,b)=>rank(a)-rank(b)||stuNameCmp(a,b)).map(s=>{
+    const en=enrollOf(s),act=(en==='active'&&!s.is_test);
+    const show=act||s.is_test;/* 預設看得到的：在學中＋測試帳號 */
+    return '<label class="qzw-s"'+(show?'':' data-off="1"')+'>'
+      +'<input type="checkbox" class="gt-stu" value="'+esc(s.id)+'"'+(act?' checked':'')+'>'
+      +'<span>'+snm(s.name)+'</span>'
+      +(s.is_test?'<i>🧪 測試</i>':(act?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[en]||'')+'）</i>'))
+      +'</label>';}).join('');
+  const offN=live.filter(s=>!(enrollOf(s)==='active'&&!s.is_test)&&!s.is_test).length;
   const d=new Date();d.setDate(d.getDate()+7);
   const def=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>🃏 指派翻牌配對作業</h3><button class="x" data-act="closeModal">×</button></div>'
@@ -10705,16 +10716,22 @@ H.gtNew=()=>{
    +'<div class="field full"><label>作業名稱 <span class="hint">可以不填，會自動用課名</span></label><input id="gt-title" placeholder="例如：第五課生詞翻牌"></div>'
    +'</div>'
    +'<div class="field full"><label>要玩哪幾課的生詞 <span class="hint">可以複選。生詞合起來至少 6 個才配得成一盤</span></label>'
-   +'<div id="gt-les" class="qzw-stus"></div></div>'
+   +'<div id="gt-les" class="qzw-stus qzw-grid"></div></div>'/* GTLIST_V1559 課名長短差很多，排等寬格子 */
    +'<div class="field full"><label>指派給誰</label>'
-   +'<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap"><button class="btn btn-sm" type="button" data-act="gtStuAll">✔ 全選</button><button class="btn btn-sm" type="button" data-act="gtStuNone">✕ 全部取消</button></div>'
-   +'<div class="qzw-stus">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div></div>'
+   +'<div style="display:flex;gap:6px;margin-bottom:7px;flex-wrap:wrap;align-items:center">'
+   +'<button class="btn btn-sm" type="button" data-act="gtStuAll">✔ 全選看得到的</button>'
+   +'<button class="btn btn-sm" type="button" data-act="gtStuNone">✕ 全部取消</button>'
+   +(offN?('<button class="btn btn-sm" type="button" data-act="stuOffToggle">👀 也顯示休學／預約（'+offN+'）</button>'):'')
+   +stuFindBox(live)+'</div>'
+   +'<div class="qzw-stus qzw-grid qzw-grid-sm off-hide">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div></div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
    +'<button class="btn btn-primary" data-act="gtSave">📤 指派出去</button></div></div>');
   gtFillLes();
   const sel=document.getElementById('gt-book');if(sel)sel.onchange=gtFillLes;
 };
-H.gtStuAll=()=>{document.querySelectorAll('.gt-stu').forEach(c=>{c.checked=true;});};
+/* 只勾現在看得到的：被「只看在學中」收起來、或被搜尋過濾掉的人不要偷偷被勾進去 */
+H.gtStuAll=()=>{document.querySelectorAll('.gt-stu').forEach(c=>{
+  const l=c.closest('label');if(l&&l.offsetParent===null)return;c.checked=true;});};
 H.gtStuNone=()=>{document.querySelectorAll('.gt-stu').forEach(c=>{c.checked=false;});};
 H.gtSave=async()=>{
   const ids=[].slice.call(document.querySelectorAll('.gt-stu:checked')).map(c=>c.value);
@@ -16530,6 +16547,36 @@ H.stuOffToggle=(_,btn)=>{
   const n=box.querySelectorAll('label[data-off="1"]').length;
   btn.textContent=hid?('👀 也顯示休學／預約（'+n+'）'):'🙈 只看在學中';
 };
+/* ══════ STUFIND_V1559 「發給誰」的名單要找得到人 ══════
+   Quinn：「你這樣排，我要怎麽找學生？亂死了」。她那一份 40 幾個人的名單，
+   STUOFF_V742 本來就有「預設只列在學中」這個開關，但人再少還是得用眼睛撈。
+   加一個打字找人的欄位：越南名字不打聲調也找得到（Thương 打 thuong 就找得到），
+   而且一開始打字就自動把「只看在學中」解除——不然打了名字卻說找不到人，更氣。
+   清空欄位會自己恢復原狀。 */
+function stuNoTone(s){
+  try{return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();}
+  catch(e){return String(s||'').toLowerCase();}}
+function stuFindBox(list){
+  if(((list||[]).length)<10)return '';/* 人少的時候多一個欄位反而礙事 */
+  return '<input type="search" class="stu-find" placeholder="🔍 找學生（不用打聲調）" autocomplete="off"'
+    +' style="flex:1;min-width:168px;font:inherit;font-size:13.5px;padding:6px 12px;'
+    +'border:1.5px solid var(--line);border-radius:999px;background:#fff">'
+    +'<span class="stu-find-n" style="font-size:12.5px;color:var(--muted)"></span>';}
+document.addEventListener('input',(e)=>{
+  const el=e.target;
+  if(!el||!el.classList||!el.classList.contains('stu-find'))return;
+  const wrap=el.closest('.field');const box=wrap&&wrap.querySelector('.qzw-stus');
+  if(!box)return;
+  const q=stuNoTone(String(el.value||'').trim());
+  if(q){if(box.classList.contains('off-hide')){box.classList.add('find-was-off');box.classList.remove('off-hide');}}
+  else if(box.classList.contains('find-was-off')){box.classList.remove('find-was-off');box.classList.add('off-hide');}
+  let n=0;
+  box.querySelectorAll('label.qzw-s').forEach(l=>{
+    const hit=!q||stuNoTone(l.textContent).indexOf(q)>=0;
+    l.style.display=hit?'':'none';if(hit)n++;});
+  const tip=wrap.querySelector('.stu-find-n');
+  if(tip)tip.textContent=q?('找到 '+n+' 位'):'';
+});
 
 /* PLAN_V700 一鍵排課程表：操作 */
 H.planNew=()=>{
@@ -16557,7 +16604,7 @@ H.planNew=()=>{
    +'<div class="field full"><label>發給誰 <span class="hint" id="plan-stun"></span></label>'
    +'<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap"><button class="btn btn-sm" type="button" data-act="planStuAll">✔ 全選在學中</button>'
    +'<button class="btn btn-sm" type="button" data-act="planStuNone">✕ 全部取消</button>'
-   +stuOffBtn(live)+'</div>'
+   +stuOffBtn(live)+stuFindBox(live)/* STUFIND_V1559 */+'</div>'
    +'<div class="qzw-stus off-hide">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div>'
    +'<div style="margin-top:12px"><button class="btn btn-accent" data-act="planPreview">👁 看清單</button></div>'
    +'<div id="plan-prev" style="margin-top:12px"></div>'
@@ -16640,7 +16687,7 @@ H.lqpNew=(lqId)=>{
    +'<div class="field full"><label>指派給誰 <span class="hint" id="lqp-stun"></span></label>'
    +'<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap"><button class="btn btn-sm" type="button" data-act="lqpStuAll">✔ 全選在學中</button>'
    +'<button class="btn btn-sm" type="button" data-act="lqpStuNone">✕ 全部取消</button>'
-   +stuOffBtn(live)+'</div>'
+   +stuOffBtn(live)+stuFindBox(live)/* STUFIND_V1559 */+'</div>'
    +'<div class="qzw-stus off-hide">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div></div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
    +'<button class="btn btn-primary" data-act="lqpSave">📤 指派出去</button></div></div>');
@@ -17626,7 +17673,7 @@ H.newQuiz=()=>{
          <div style="display:flex;gap:7px;margin:2px 0 9px;flex-wrap:wrap">
            <button class="btn btn-sm" type="button" data-act="qzStuAll">✔ 全選在學中</button>
            <button class="btn btn-sm btn-ghost" type="button" data-act="qzStuNone">✕ 清除</button>
-           ${stuOffBtn(live)}</div>
+           ${stuOffBtn(live)}${stuFindBox(live)/* STUFIND_V1559 */}</div>
          <div class="qzw-stus off-hide">${studentChecks||'<span class="muted">還沒有學生</span>'}</div></div>
        <div class="field" id="qzf-hand" style="margin-bottom:0">
          <label class="qzw-hand"><input type="checkbox" id="quiz-hand"><span><b>✍️ 讓學生用手寫作答</b><i>會出現一個有格線的寫字板，用手指或觸控筆寫。手寫的題目不自動對答案，你在結果頁看字跡按 ⭕／❌。</i></span></label></div>
