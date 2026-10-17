@@ -6018,8 +6018,18 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
     <details class="form-more hide" data-g="d"><summary>▸ 更多設定 <span class="hint">頭像、國籍、教材資料夾、付款帳號、合併帳戶，設定一次就很少動。</span></summary>
     <div class="form-sec" style="margin-top:10px"><div class="form-grid">
      <div class="field"><label>頭像 <span class="hint">留空＝系統自動配一個</span></label><div style="display:flex;align-items:center;gap:8px"><span id="f-av-prev" class="avatar sm emo" data-dft="${avEmoji({name:st.name||''})}" style="background:${avColor(st.name)};flex:none">${avEmoji(st)}</span><input id="f-avatar" type="text" maxlength="8" value="${esc(st.avatar||'')}" placeholder="貼一個 emoji，或按右邊挑" style="flex:1" oninput="(function(el){var p=document.getElementById('f-av-prev');if(p)p.textContent=el.value.trim()||p.dataset.dft;})(this)">${st.id?`<button type="button" class="btn btn-sm" data-act="avPick" data-id="${esc(st.id)}">挑一個</button>`:''}</div></div>
-     <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-hzok" ${st.hanzi_ok?'checked':''} style="width:auto;margin:0"> 🀄 開放漢字遊戲 <span class="hint" style="font-weight:400">（還在測試中，預設不開放。勾了這位學生才看得到；指派過漢字作業的人也會自動看得到）</span></label></div>${/* HZOK_V1404 */''}
-     <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-test" ${st.is_test?'checked':''} style="width:auto;margin:0"> 🧪 這是測試帳號     <div class="field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-test" ${st.is_test?'checked':''} style="width:auto;margin:0"> 🧪 這是測試帳號 <span class="hint">（不算進學生統計，歸到「🧪 測試帳號」區）</span></label></div>
+     ${/* TESTDUP_V1552 打勾那一行本來是「☑ ＋ 一段文字 ＋ 一段說明」三個 flex 格子，
+          說明一長，中間那段標題就被擠到剩幾個字寬，變成「開放漢字遊」／「戲」。
+          標題和說明包成同一個 <span>＝一整段文字，就會正常換行。 */''}
+     <div class="field full"><label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-hzok" ${st.hanzi_ok?'checked':''} style="width:auto;margin:3px 0 0;flex:none"> <span>🀄 開放漢字遊戲 <span class="hint" style="font-weight:400">（還在測試中，預設不開放。勾了這位學生才看得到；指派過漢字作業的人也會自動看得到）</span></span></label></div>${/* HZOK_V1404 */''}
+     ${/* TESTDUP_V1552 Quinn：「爲什麼有兩個測試帳號？」「你這邊的設計好醜」。
+          原因是這一行被貼了兩次：第一份的 <label> 和 <div> 都沒有收尾，
+          所以瀏覽器把後面的「語法說明、教材資料夾、付款帳號、費用提醒、
+          合併帳戶」通通塞進那個沒關起來的 <label> 裡，變成一排擠在一起、
+          一個字一行的窄欄——整區會爛就是這個原因。
+          而且兩顆的 id 都是 f-test，存檔時 $('#f-test') 只看得到第一顆，
+          勾第二顆是沒有用的。這裡只留一份。 */''}
+     <div class="field full"><label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:400"><input type="checkbox" id="f-test" ${st.is_test?'checked':''} style="width:auto;margin:3px 0 0;flex:none"> <span>🧪 這是測試帳號 <span class="hint">（不算進學生統計，歸到「🧪 測試帳號」區）</span></span></label></div>
      ${/* GPLANG_V1461 Quinn：「我可以指定給哪個學生看越南文，因爲有時候我學生有的是要看英文，有的要看越南文」。
           跟著介面＝學生自己把介面切到越南文才看越南文；另外兩個是你替他定死。
           沒有越南文翻譯的語法一律自動退回原文，不會變空白。 */''}
@@ -6037,7 +6047,6 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
        <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-weight:700;margin:0">
          <input type="checkbox" id="f-payremind" style="width:auto;margin:0"${st.pay_remind_on?' checked':''}> 📢 讓這位學生在自己的頁面看到費用提醒
        </label>
-       
      </div>
      <div class="field full"><label>👨‍👩‍👦 合併帳戶（選填）</label><input id="f-billgrp" type="text" value="${esc(st.bill_group||'')}" placeholder="同一戶填一樣的名稱" list="billgrp-list"><datalist id="billgrp-list">${[...new Set((S.students||[]).map(x=>String(x.bill_group||'').trim()).filter(Boolean))].map(g=>`<option value="${esc(g)}">`).join('')}</datalist></div>
      `:''}
