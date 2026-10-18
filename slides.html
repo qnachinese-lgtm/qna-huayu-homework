@@ -622,6 +622,7 @@ function openEditor(L){
   ED._id = (L && L.id!=="sample") ? L.id : "lesson-" + Date.now().toString(36);
   if(!ED.grammars.length) ED.grammars.push({pattern:"", gnote:"", gex:[blank(2)]});
   edTab = "basic";
+  $("#edCancel").textContent = "取消";
   $("#edTitle").textContent = !L ? "新增一課" : L.id==="sample" ? "以範例為底，存成新的一課" : `編輯 第${L.num}課`;
   $("#edDel").hidden = !L || L.id==="sample"; $("#edDel").textContent = "刪除這一課";
   msg(db ? "" : "還沒登入老師帳號：按「儲存」只會暫時套用，重新整理就會不見。");
@@ -763,6 +764,13 @@ function readForm(){
 $("#editBtn").onclick = () => openEditor(LESSON);
 $("#newBtn").onclick = () => openEditor(null);
 $("#edCancel").onclick = () => { $("#modal").hidden = true; };
+/* STAYSAVE_V1 儲存後留在編輯畫面，不會跳出去；Ctrl+S 也可以存 */
+function afterSave(id, L){
+  editingId = id; ED._id = id; delArmed = false;
+  $("#edTitle").textContent = "編輯 " + (L.num ? `第${L.num}課` : L.name); $("#edDel").hidden = false; $("#edDel").textContent = "刪除這一課"; $("#edCancel").textContent = "關閉";
+  const t = new Date(); msg(`已儲存（${t.getHours()}:${String(t.getMinutes()).padStart(2,"0")}），可以繼續編輯；按「關閉」回到投影片。`);
+}
+document.addEventListener("keydown", e => { if(!$("#modal").hidden && (e.ctrlKey || e.metaKey) && (e.key||"").toLowerCase()==="s"){ e.preventDefault(); $("#edSave").click(); } });
 $("#edSave").onclick = async () => {
   const d = readForm();
   if(!d.name){ edTab = "basic"; renderEd(); msg("請先填課名。", true); $("#b-name").focus(); return; }
@@ -770,9 +778,9 @@ $("#edSave").onclick = async () => {
   const id = isNew ? ED._id : editingId;
   const body = { ...d, num: Number(d.num)||0, updatedAt: Date.now() };
   const L = fromDoc(id, body); if(ED.audio && ED.audio.local) L.audio = ED.audio; if(ED.warmImg && ED.warmImg.local) L.warm.img = ED.warmImg; if(ED.cultImg && ED.cultImg.local) L.culture.img = ED.cultImg;
-  if(!db){ lessons = lessons.filter(x=>x.id!==id).concat(L); $("#modal").hidden = true; useLesson(id); return; }
+  if(!db){ lessons = lessons.filter(x=>x.id!==id).concat(L); useLesson(id); afterSave(id, L); return; }
   $("#edSave").disabled = true; msg("儲存中…");
-  try { await db.collection(COL).doc(id).set(body); lessons = lessons.filter(x=>x.id!==id).concat(L); sortL(); $("#modal").hidden = true; useLesson(id, !isNew); }
+  try { await db.collection(COL).doc(id).set(body); lessons = lessons.filter(x=>x.id!==id).concat(L); sortL(); useLesson(id, !isNew); afterSave(id, L); }
   catch(e){ msg(e && e.code==="permission-denied" ? "沒有儲存權限：請確認已用老師帳號登入，以及 Firestore 規則已經加上 slide_lessons。" : "儲存失敗，請再試一次。（" + (e && (e.code||e.message) || "") + "）", true); }
   finally { $("#edSave").disabled = false; }
 };
