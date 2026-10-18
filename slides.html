@@ -6,6 +6,7 @@
 <title>上課投影片｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
 <!-- IMPORT_V1 從教材與課程匯入 -->
+<!-- RTITLE_V1 匯入短文標題 -->
 <!-- QAIMPORT_V1 匯入問題與討論 -->
 <!-- GFONT_V1 語法說明例句同大小 -->
 <!-- NAVSAME_V1 上一頁下一頁同色 -->
@@ -1321,14 +1322,16 @@ function parseVoc(text){ const out = [];
 function srcToDoc(l, idx){
   const T = x => String(x||"").trim();
   const ds = Array.isArray(l.dialogues) && l.dialogues.length ? l.dialogues : [{content: l.content||"", vocabulary: l.vocabulary||""}];
-  const words = [], dialog = [], paras = [], cast = {A:"",B:"",C:"",D:""}; let textTitle = "";
+  const words = [], dialog = [], paras = [], cast = {A:"",B:"",C:"",D:""}; let textTitle = "", readTitle = "";
   ds.forEach(d => parseVoc(d.vocabulary).forEach(v => { if(!v.front) return;
     words.push([v.front, v.py, v.pos ? "(" + v.pos + ")" : "", v.back, v.ex[0]||"", "", ""].map(clean).join("｜"));
     v.ex.slice(1).forEach(e => words.push(["","","","", e, "", "ex"].map(clean).join("｜"))); }));
   ds.forEach((d, di) => { let rows = String(d.content||"").split("\n").map(x=>x.trim()).filter(Boolean); if(!rows.length) return;
-    const first = rows[0]; if(rows.length > 1 && first.length <= 18 && !/[。！？，、；：:（(]/.test(first)){ if(!textTitle) textTitle = first; rows = rows.slice(1); }
+    let blockTitle = ""; const first = rows[0]; if(rows.length > 1 && first.length <= 18 && !/[。！？，、；：:（(]/.test(first)){ blockTitle = first; rows = rows.slice(1); }
     const isDlg = rows.some(x => /^[^：:\s]{1,8}\s*[：:]/.test(x));
-    if(!isDlg){ rows.forEach(x => paras.push(clean(x))); return; }
+    /* RTITLE_V1 短文用自己的標題：內文第一行的標題，沒有就用那一段的名稱（「課文」「短文」這種通稱不算） */
+    if(!isDlg){ if(!readTitle){ const dt = T(d.title); readTitle = blockTitle || (dt && !/^(課文|對話|短文|閱讀|本文)?\s*[一二三四五六七八九十0-9０-９]*$/.test(dt) ? dt : ""); } rows.forEach(x => paras.push(clean(x))); return; }
+    if(blockTitle && !textTitle) textTitle = blockTitle;
     let last = null;
     rows.forEach(x => {
       if(/^[（(].*[）)]$/.test(x)){ dialog.push(["S", "", clean(x)].join("｜")); last = null; return; }
@@ -1358,7 +1361,7 @@ function srcToDoc(l, idx){
   const title = T(l.title) || "未命名"; const nm = title.match(/第\s*([0-9０-９一二三四五六七八九十百兩]+)\s*課/);
   return { num: nm ? zhNum(nm[1]) : idx + 1, name: title, pinyin: "", textTitle, goals: "", words: words.join("\n"),
     dialog: dialog.map(r => Array.isArray(r) ? r.join("｜") : r).join("\n"), dict: "", grammars, cast,
-    readTitle: paras.length ? (textTitle || "短文") : "", readParas: paras.join("\n"),
+    readTitle: paras.length ? readTitle : "", readParas: paras.join("\n"),
     audio: (()=>{ const d = ds.find(x=>x && T(x.audio_url) && /^[^：:\s]{1,8}\s*[：:]/m.test(String(x.content||""))) || ds.find(x=>x && T(x.audio_url)); const u = d ? T(d.audio_url) : T(l.audio_url); return u ? {url: u, name: "課文音檔", path: ""} : null; })(),
     qa: ds.flatMap(d => String((d && d.discussion) || "").split("\n").map(x => x.trim().replace(/^\s*[0-9０-９]+[.、．)）]\s*/, "")).filter(Boolean)).map(q => [clean(q), ""].join("｜")).join("\n"),
     book: T(l.textbook), flow: null, cards: "", review: "", homework: "", textImgs: [], src: l.id, updatedAt: Date.now() };
