@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>上課投影片｜QNA CHINESE</title>
+<link rel="icon" href="icon-192.png">
+<!-- SLIDES_V1 上課投影片：課程內容存在 Firestore 的 slide_lessons（不碰 lessons 和漢字遊戲） -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap">
+<style>
+[hidden]{display:none!important}
+body{margin:0}
+/* 版面：左側課次＋直式進度｜中間主舞台｜右側老師控制面板 */
+:root{
+  --navy:#1E4C86; --navy-ink:#163a68; --sky:#8FB8E8; --ice:#EEF4FB;
+  --pink:#FF8FAB; --mint:#5BC0A8; --yellow:#FFD34E; --lav:#B79CED;
+  --bg:#E3EDFA; --panel:#FFFFFF; --fg:#1F2A44; --muted:#5E6B86; --line:#D9E3F1;
+  --stage:#FFFFFF; --chip:#FFFFFF; --done:#5BC0A8; --blank:#E14D7A; --ansc:#2E8F7A;
+  color-scheme:light;
+  --zh:"Times New Roman","LXGW WenKai TC","BiauKai","DFKai-SB","KaiTi",serif;
+}
+html,body{height:100%;overflow:hidden}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--zh);font-size:16px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px;box-sizing:border-box;display:grid;place-items:center}
+.fit{position:relative;flex:none}
+.fit .app{position:absolute;left:0;top:0;transform-origin:0 0}
+*{box-sizing:border-box}
+button{font-family:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+.app{width:1280px;height:720px;display:grid;grid-template-columns:200px minmax(0,1fr) 250px;grid-template-rows:auto minmax(0,1fr) auto;gap:14px;
+  background:var(--panel);border-radius:22px;padding:18px;box-shadow:0 6px 30px rgba(30,76,134,.10)}
+/* 左側 */
+.side{grid-row:1/4;display:flex;flex-direction:column;gap:6px;border-right:1px dashed var(--line);padding-right:14px;min-width:0}
+.side .k{font-size:13px;color:var(--muted);letter-spacing:.1em}
+.side .num{font-size:84px;line-height:1;font-weight:700;color:var(--navy)}
+.side .lname{font-size:18px;font-weight:700;margin-bottom:6px}
+.now{font-size:13px;color:var(--muted)} .now b{display:block;color:var(--fg);font-size:15px}
+.steps{list-style:none;margin:auto 0 0;padding:0;position:relative}
+.steps::before{content:"";position:absolute;left:9px;top:12px;bottom:12px;width:2px;background:var(--line)}
+.steps li button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:7px 4px;width:100%;font-size:16px;color:var(--muted);position:relative;border-radius:8px}
+.steps li button:focus-visible{outline:3px solid var(--sky)}
+.dot{width:20px;height:20px;border-radius:50%;border:2px solid var(--sky);background:var(--panel);flex:none;display:grid;place-items:center;font-size:11px;color:#fff}
+.steps li.done .dot{background:var(--done);border-color:var(--done)}
+.steps li.done .dot::after{content:"✓"}
+.steps li.cur button{color:var(--fg);font-weight:700}
+.steps li.cur .dot{background:var(--pink);border-color:var(--pink);box-shadow:0 0 0 5px color-mix(in srgb,var(--pink) 25%,transparent)}
+/* 標題列 */
+.head{grid-column:2/4;display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.head h1{margin:0;font-size:26px;color:var(--navy);text-wrap:balance}
+.head .hint{font-size:13px;color:var(--muted)}
+/* 舞台 */
+.stage{background:var(--stage);border:2px solid var(--line);border-radius:18px;padding:22px 28px;display:flex;flex-direction:column;min-width:0;min-height:340px;overflow:auto;position:relative}
+.tag{display:inline-flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+.tag span{background:var(--navy);color:#fff;border-radius:6px;padding:2px 8px;font-weight:700}
+.big{font-size:52px;font-weight:700;line-height:1.5}
+.py{font-size:22px;color:var(--navy);font-style:italic}
+.tr{font-size:15px;color:var(--muted)}
+.blank{display:inline-block;min-width:3.2em;border-bottom:3px solid var(--blank);margin:0 .15em}
+.ans{border-top:2px dashed var(--line);padding-top:14px;margin-top:auto}
+.ans .big{font-size:34px;color:var(--ansc)}
+.center{margin:auto 0;display:flex;flex-direction:column;gap:6px}
+.hidePy .py{visibility:hidden} .hideTr .tr{visibility:hidden}
+/* 右側 */
+.ctrl{display:flex;flex-direction:column;gap:10px;min-width:0}
+.ctrl h3{margin:0;font-size:13px;color:var(--muted);font-weight:400}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:2px solid var(--navy);background:var(--chip);color:var(--fg);border-radius:999px;padding:4px 12px;font-size:14px}
+.chip[aria-pressed="true"]{background:var(--navy);color:#fff}
+.btn{border:none;border-radius:12px;padding:11px 12px;font-size:16px;font-weight:700;background:var(--navy);color:#fff}
+.btn.ghost{background:transparent;color:var(--fg);border:2px solid var(--navy)}
+.btn.pink{background:var(--pink);color:#3a1020}
+.btn.mint{background:var(--mint);color:#08322a}
+.meta{font-size:13px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+.note{margin-top:auto;font-size:13px;color:var(--muted);background:var(--ice);border-radius:12px;padding:10px 12px;line-height:1.6}
+.note b{color:var(--fg)}
+.timer{display:flex;align-items:center;gap:10px;justify-content:center}
+.timer svg{width:54px;height:54px}
+.timer .t{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;min-width:2ch}
+/* 底部 */
+.foot{grid-column:2/4;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.foot .pager{display:flex;gap:8px;align-items:center}
+.bar{flex:1;min-width:120px;height:8px;background:var(--ice);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--sky),var(--navy));transition:width .35s}
+.small{font-size:14px;padding:7px 12px;border-radius:10px;border:2px solid var(--line);background:var(--panel);color:var(--fg)}
+/* 內容樣式 */
+.goals{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}
+.goal{background:var(--ice);border-radius:14px;padding:14px}
+.goal b{display:block;font-size:20px;margin-bottom:4px}
+.dlg{display:flex;flex-direction:column;gap:10px;margin:auto 0}
+.line{display:flex;gap:12px;align-items:flex-start;transition:opacity .2s}
+.line.r{flex-direction:row-reverse}
+.line.dim{opacity:.35}
+.av{flex:none;width:58px;display:flex;flex-direction:column;align-items:center;gap:3px}
+.who{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:20px;color:#fff}
+.av .nm{font-size:12px;color:var(--muted)}
+.bub{max-width:68%;background:var(--panel);border:2px solid var(--pink);border-radius:16px;padding:8px 16px;line-height:1.35;transition:box-shadow .2s,transform .2s}
+.line.r .bub{background:var(--ice);border-color:var(--mint)}
+.line.on .bub{box-shadow:0 6px 18px rgba(30,76,134,.18);transform:scale(1.02)}
+.bub .zh{font-size:25px}
+.bub .py{font-size:16px}
+.bub .tr{font-size:13px}
+.pattern{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:24px;font-weight:700;margin:14px 0 20px}
+.pattern span{padding:6px 18px;border-radius:999px;color:#1F2A44}
+.exs{display:flex;flex-direction:column;gap:12px}
+.ex .zh{font-size:28px}
+.check{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}
+.check label{display:flex;gap:10px;align-items:center;background:var(--ice);border-radius:12px;padding:12px;font-size:18px;cursor:pointer}
+.check input{width:22px;height:22px;accent-color:var(--mint)}
+.app{position:relative}
+.lsel{display:flex;flex-direction:column;gap:6px;margin:4px 0 8px}
+.lsel select{font-family:inherit;font-size:14px;padding:6px 8px;border-radius:10px;border:2px solid var(--line);background:var(--panel);color:var(--fg);max-width:100%}
+.lsel .row{display:flex;gap:6px}
+.lsel .row button{flex:1;font-size:13px;padding:6px 4px;border-radius:10px;border:2px solid var(--navy);background:var(--panel);color:var(--fg)}
+.lsel .row button.pri{background:var(--navy);color:#fff}
+.modal{position:absolute;inset:0;background:rgba(22,40,72,.45);border-radius:22px;display:flex;align-items:center;justify-content:center;z-index:20}
+.sheet{width:1180px;height:670px;background:var(--panel);border-radius:18px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.sheet header{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line);gap:12px}
+.sheet header h2{margin:0;font-size:22px;color:var(--navy)}
+.edwrap{flex:1;display:flex;min-height:0}
+.edtabs{width:170px;flex:none;border-right:1px solid var(--line);padding:12px 10px;display:flex;flex-direction:column;gap:4px;background:var(--ice)}
+.edtabs button{all:unset;cursor:pointer;padding:10px 12px;border-radius:10px;font-size:16px;display:flex;justify-content:space-between;align-items:center;color:var(--fg)}
+.edtabs button:focus-visible{outline:3px solid var(--sky)}
+.edtabs button[aria-selected="true"]{background:var(--navy);color:#fff;font-weight:700}
+.edtabs .cnt{font-size:12px;opacity:.75;font-variant-numeric:tabular-nums}
+.sheet .body{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.sec-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.sec-h h3{margin:0;font-size:20px;color:var(--navy)}
+.sec-h small{color:var(--muted);font-size:13px}
+.tbl{display:grid;gap:6px;align-items:center}
+.tbl .th{font-size:13px;color:var(--muted);font-weight:700;padding:0 4px}
+.tbl input{font-family:inherit;font-size:15px;border:2px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--panel);color:var(--fg);width:100%;min-width:0}
+.tbl input:focus{outline:none;border-color:var(--sky)}
+.tbl .no{font-size:13px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+.tbl .x{border:none;background:none;color:var(--muted);font-size:18px;width:28px;height:28px;border-radius:8px}
+.tbl .x:hover{background:var(--ice);color:var(--blank)}
+.role{width:40px;height:34px;border-radius:50%;border:none;font-weight:700;color:#fff;font-size:15px}
+.addrow{align-self:flex-start;border:2px dashed var(--sky);background:transparent;color:var(--navy);border-radius:10px;padding:8px 16px;font-size:15px}
+.basic{display:grid;grid-template-columns:120px 1fr;gap:12px 14px;align-items:center;max-width:760px}
+.basic label{font-weight:700}
+.basic input{font-family:inherit;font-size:16px;border:2px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel);color:var(--fg);width:100%}
+.basic small{grid-column:2;color:var(--muted);font-size:12px;margin-top:-8px}
+.pv{display:flex;gap:6px;flex-wrap:wrap;grid-column:2}
+.pv span{padding:4px 14px;border-radius:999px;font-weight:700;color:#1F2A44}
+.sheet .full{grid-column:1/3}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fld label{font-weight:700;font-size:15px}
+.fld small{color:var(--muted);font-size:12px;line-height:1.5}
+.fld input,.fld textarea{font-family:inherit;font-size:15px;border:2px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel);color:var(--fg);width:100%}
+.fld textarea{min-height:120px;resize:vertical;line-height:1.5;white-space:pre;overflow:auto}
+.fld input:focus,.fld textarea:focus{outline:none;border-color:var(--sky)}
+.trio{display:grid;grid-template-columns:110px 1fr 1fr;gap:10px}
+.sheet footer{display:flex;gap:10px;align-items:center;padding:12px 20px;border-top:1px solid var(--line)}
+.sheet footer .msg{flex:1;font-size:14px;color:var(--muted)}
+.sheet footer .msg.err{color:var(--blank)}
+.sheet .btn{padding:9px 16px;font-size:15px}
+.btn.danger{background:transparent;color:var(--blank);border:2px solid var(--blank)}
+.mini{font-size:13px;padding:4px 10px;border-radius:8px;border:2px solid var(--mint);background:var(--panel);color:var(--fg);align-self:flex-start}
+@keyframes pop{from{transform:translateY(8px) scale(.98);opacity:.4}to{transform:none;opacity:1}}
+.pop{animation:pop .28s ease-out}
+@media (prefers-reduced-motion:reduce){.pop{animation:none}.bar i{transition:none}}
+</style>
+</head>
+<body>
+<div class="fit" id="fit"><div class="app" id="app">
+  <aside class="side">
+    <div class="k">第</div>
+    <div class="num" id="sNum">3</div>
+    <div class="lname" id="sName">你喜歡做什麼？</div>
+    <div class="lsel">
+      <select id="lessonSel" aria-label="選擇課次"></select>
+      <div class="row" id="editRow" hidden><button id="editBtn" class="pri">編輯／匯入</button><button id="newBtn">＋新的一課</button></div>
+      <div class="row" id="loginRow"><button id="loginBtn">老師登入</button></div>
+      <form id="loginForm" hidden style="display:flex;flex-direction:column;gap:6px">
+        <input id="lg-email" type="email" placeholder="Email" autocomplete="username" style="font:inherit;font-size:13px;padding:6px 8px;border:2px solid var(--line);border-radius:8px">
+        <input id="lg-pw" type="password" placeholder="密碼" autocomplete="current-password" style="font:inherit;font-size:13px;padding:6px 8px;border:2px solid var(--line);border-radius:8px">
+        <button class="btn" type="submit" style="padding:6px;font-size:14px">登入</button>
+        <span id="lg-err" style="font-size:12px;color:var(--blank)"></span>
+      </form>
+      <button id="logoutBtn" hidden style="all:unset;cursor:pointer;font-size:12px;color:var(--muted);text-decoration:underline">登出</button>
+    </div>
+    <div class="now">正在<b id="nowName">開始</b></div>
+    <ol class="steps" id="steps"></ol>
+  </aside>
+  <header class="head">
+    <h1 id="title"></h1>
+    <span class="hint" id="hint"></span>
+  </header>
+  <main class="stage" id="stage" aria-live="polite"></main>
+  <section class="ctrl" id="ctrl" aria-label="老師控制面板"></section>
+  <footer class="foot">
+    <div class="pager">
+      <button class="small" id="prev">← 上一步</button>
+      <button class="small" id="next">下一步 →</button>
+    </div>
+    <div class="bar" aria-hidden="true"><i id="barFill"></i></div>
+    <span class="meta" id="pageNo"></span>
+    <button class="small" id="fs">全螢幕</button>
+  </footer>
+  <div class="modal" id="modal" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="edTitle">
+      <header><h2 id="edTitle">編輯課程內容</h2><span class="hint">一格填一個欄位・可以從 Excel／Google 試算表直接貼上多行</span></header>
+      <div class="edwrap">
+        <nav class="edtabs" id="edTabs" aria-label="編輯分類"></nav>
+        <div class="body" id="edBody"></div>
+      </div>
+      <footer>
+        <button class="btn danger" id="edDel" type="button">刪除這一課</button>
+        <span class="msg" id="edMsg" aria-live="polite"></span>
+        <button class="btn ghost" id="edCancel" type="button">取消</button>
+        <button class="btn" id="edSave" type="button">儲存</button>
+      </footer>
+    </div>
+  </div>
+</div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="config.js"></script>
+<script>
+/* ===== 課程內容：換課時只要改這裡 ===== */
+const SAMPLE = {
+  id: "sample", num: 3, name: "你喜歡做什麼？", pinyin: "Nǐ xǐhuān zuò shénme?", textTitle: "週末做什麼？",
+  goals: [["生詞","認識 6 個和興趣有關的生詞"],["課文","念出兩人聊週末的對話"],["語法","用「喜歡＋V／N」說句子"],["練習","抽卡填空，看誰最快"]],
+  words: [
+    ["喜歡","xǐhuān","V","to like","我很喜歡看書。","Wǒ hěn xǐhuān kàn shū."],
+    ["運動","yùndòng","N/V","sports; to exercise","他每天都運動。","Tā měi tiān dōu yùndòng."],
+    ["看書","kàn shū","V-O","to read","週末我喜歡看書。","Zhōumò wǒ xǐhuān kàn shū."],
+    ["聽音樂","tīng yīnyuè","V-O","to listen to music","你常常聽音樂嗎？","Nǐ chángcháng tīng yīnyuè ma?"],
+    ["週末","zhōumò","N","weekend","這個週末你做什麼？","Zhège zhōumò nǐ zuò shénme?"],
+    ["一起","yìqǐ","Adv","together","我們一起去吧！","Wǒmen yìqǐ qù ba!"],
+  ],
+  dialog: [
+    ["A","王小美","你週末喜歡做什麼？","Nǐ zhōumò xǐhuān zuò shénme?","What do you like to do on weekends?"],
+    ["B","李明","我喜歡運動。你呢？","Wǒ xǐhuān yùndòng. Nǐ ne?","I like sports. And you?"],
+    ["A","王小美","我喜歡聽音樂，也喜歡看書。","Wǒ xǐhuān tīng yīnyuè, yě xǐhuān kàn shū.","I like listening to music, and reading too."],
+    ["B","李明","這個週末我們一起去看電影，好不好？","Zhège zhōumò wǒmen yìqǐ qù kàn diànyǐng, hǎo bù hǎo?","Shall we go to a movie together this weekend?"],
+    ["A","王小美","好啊！","Hǎo a!","Sure!"],
+  ],
+  grammar: { pattern:["主語","（很）喜歡","V／N"], note:"「很」放在「喜歡」前面；否定說「不喜歡」。",
+    examples:[["我喜歡咖啡。","Wǒ xǐhuān kāfēi."],["他很喜歡打籃球。","Tā hěn xǐhuān dǎ lánqiú."],["你喜歡看電影嗎？","Nǐ xǐhuān kàn diànyǐng ma?"]] },
+  // 抽卡：[分類, 題目(用 ＿ 表示空格), 答案詞, 完整句拼音, 翻譯]
+  cards: [
+    ["課文","你週末喜歡＿＿什麼？","做","Nǐ zhōumò xǐhuān zuò shénme?","What do you like to do on weekends?"],
+    ["課文","我喜歡運動。你＿＿？","呢","Wǒ xǐhuān yùndòng. Nǐ ne?","I like sports. And you?"],
+    ["課文","我喜歡聽音樂，＿＿喜歡看書。","也","Wǒ xǐhuān tīng yīnyuè, yě xǐhuān kàn shū.","I like music, and reading too."],
+    ["課文","這個週末我們＿＿去看電影。","一起","Zhège zhōumò wǒmen yìqǐ qù kàn diànyǐng.","Let's go to a movie together this weekend."],
+    ["生詞","他每天都＿＿，身體很好。","運動","Tā měi tiān dōu yùndòng, shēntǐ hěn hǎo.","He exercises every day and is very healthy."],
+    ["生詞","＿＿我常常在家看書。","週末","Zhōumò wǒ chángcháng zài jiā kàn shū.","On weekends I often read at home."],
+    ["生詞","你常常＿＿＿嗎？","聽音樂","Nǐ chángcháng tīng yīnyuè ma?","Do you often listen to music?"],
+    ["語法","我很＿＿喝咖啡。","喜歡","Wǒ hěn xǐhuān hē kāfēi.","I really like drinking coffee."],
+    ["語法","你喜歡看電影＿＿？","嗎","Nǐ xǐhuān kàn diànyǐng ma?","Do you like watching movies?"],
+    ["語法","她不＿＿打籃球。","喜歡","Tā bù xǐhuān dǎ lánqiú.","She doesn't like playing basketball."],
+  ],
+  review: ["我會說 6 個興趣的生詞","我會念課文的對話","我會用「喜歡＋V」說句子","我可以介紹同學的週末"],
+  homework: ["寫生詞：每個生詞寫三次","錄音：念課文對話一次","造句：用「喜歡」寫三個句子"],
+};
+/* ===================================== */
+let LESSON = SAMPLE;
+const PCOL = ["var(--sky)","var(--pink)","var(--mint)","var(--yellow)","var(--lav)"];
+
+const STEPS = [
+  {key:"start", name:"開始"}, {key:"words", name:"生詞"}, {key:"text", name:"課文"},
+  {key:"grammar", name:"語法"}, {key:"draw", name:"抽卡練習"}, {key:"review", name:"複習"},
+];
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let step = 0, wi = 0, li = -1, showPy = true, showTr = true;
+let deck = [], drawn = 0, cur = null, showAns = false, filter = "全部";
+let timerId = null, left = 0;
+try { step = Math.min(STEPS.length-1, +localStorage.getItem("slides-step") || 0) } catch(e) {}
+function updSide(){ $("#sNum").textContent = LESSON.num; $("#sName").textContent = LESSON.name; }
+
+function renderSteps(){
+  updSide();
+  $("#steps").innerHTML = STEPS.map((s,i)=>`<li class="${i<step?'done':''} ${i===step?'cur':''}"><button data-i="${i}" ${i===step?'aria-current="step"':''}><span class="dot"></span>${s.name}</button></li>`).join("");
+  $("#nowName").textContent = STEPS[step].name;
+  $("#barFill").style.width = ((step)/(STEPS.length-1)*100)+"%";
+  $("#pageNo").textContent = `${step+1} / ${STEPS.length}`;
+  $("#prev").disabled = step===0; $("#next").disabled = step===STEPS.length-1;
+}
+function go(i){
+  stopTimer(); step = Math.max(0, Math.min(STEPS.length-1, i));
+  try { localStorage.setItem("slides-step", step) } catch(e) {}
+  li = -1; render();
+}
+function toggles(){
+  return `<h3>顯示</h3><div class="chips">
+    <button class="chip" aria-pressed="${showPy}" data-t="py">拼音</button>
+    <button class="chip" aria-pressed="${showTr}" data-t="tr">翻譯</button></div>`;
+}
+function render(){
+  renderSteps();
+  const st = $("#stage"), ct = $("#ctrl");
+  st.className = "stage" + (showPy?"":" hidePy") + (showTr?"":" hideTr");
+  const k = STEPS[step].key;
+  if(k==="start"){
+    $("#title").textContent = `第${LESSON.num}課：${LESSON.name}`;
+    $("#hint").textContent = "今天要學的內容";
+    st.innerHTML = `<div class="center pop"><div class="tag"><span>第${LESSON.num}課</span>今天的目標</div>
+      <div class="big">${esc(LESSON.name)}</div><div class="py">${esc(LESSON.pinyin)}</div>
+      <div class="goals">${LESSON.goals.map(g=>`<div class="goal"><b>${esc(g[0])}</b>${esc(g[1])}</div>`).join("")}</div></div>`;
+    ct.innerHTML = `<button class="btn" data-a="next">開始上課 →</button>
+      <div class="note"><b>上課流程</b><br>${STEPS.map((s,i)=>`${i+1}. ${s.name}`).join("<br>")}</div>`;
+  }
+  if(k==="words"){
+    if(!LESSON.words.length){ $("#title").textContent="生詞卡"; $("#hint").textContent=""; st.innerHTML=`<div class="center"><div class="tr">這一課還沒有生詞，按左邊「編輯／匯入」加入。</div></div>`; ct.innerHTML=""; return; }
+    wi = Math.min(wi, LESSON.words.length-1);
+    const w = LESSON.words[wi];
+    $("#title").textContent = "生詞卡";
+    $("#hint").textContent = "按 ← → 換生詞";
+    st.innerHTML = `<div class="tag"><span>生詞 ${wi+1}</span>${esc(w[2])}</div>
+      <div class="center pop" style="align-items:center;text-align:center">
+        <div class="big" style="font-size:104px">${esc(w[0])}</div>
+        <div class="py" style="font-size:32px">${esc(w[1])}</div>
+        <div class="tr">${esc(w[3])}</div></div>
+      <div class="ans"><div class="tag" style="margin-bottom:4px">例句</div>
+        <div style="font-size:28px">${esc(w[4])}</div><div class="py">${esc(w[5])}</div></div>`;
+    ct.innerHTML = `<h3>生詞</h3><div class="chips">${LESSON.words.map((x,i)=>`<button class="chip" aria-pressed="${i===wi}" data-w="${i}">${esc(x[0])}</button>`).join("")}</div>
+      <button class="btn" data-a="wnext">下一個生詞</button>
+      <button class="btn ghost" data-a="wrand">隨機一個</button>${toggles()}
+      <div class="meta">第 ${wi+1} 個・共 ${LESSON.words.length} 個</div>
+      <div class="note"><b>玩法</b><br>先關掉拼音，請學生念念看，再打開對答案。</div>`;
+  }
+  if(k==="text"){
+    $("#title").textContent = "課文" + (LESSON.textTitle ? "：" + LESSON.textTitle : "");
+    $("#hint").textContent = "按「下一句」一句一句帶念";
+    st.innerHTML = `<div class="dlg">${LESSON.dialog.map((d,i)=>`<div class="line ${d[0]==='B'?'r':''} ${i===li?'on':''} ${li>=0&&i!==li?'dim':''}">
+      <div class="av"><div class="who" style="background:${d[0]==='A'?'var(--pink)':'var(--mint)'}">${d[0]}</div><div class="nm">${esc(d[1])}</div></div>
+      <div class="bub"><div class="zh">${esc(d[2])}</div><div class="py">${esc(d[3])}</div><div class="tr">${esc(d[4])}</div></div></div>`).join("")}</div>`;
+    ct.innerHTML = `<button class="btn" data-a="lnext">下一句</button>
+      <button class="btn ghost" data-a="lall">全部顯示</button>${toggles()}
+      <div class="meta">${li<0?"全部":"第 "+(li+1)+" 句"}・共 ${LESSON.dialog.length} 句</div>
+      <div class="note"><b>建議</b><br>老師念 → 全班跟讀 → 分 A、B 角色念。</div>`;
+  }
+  if(k==="grammar"){
+    const g = LESSON.grammar;
+    $("#title").textContent = "語法點：" + g.pattern.filter((x,i)=>!(i===0&&/主語|主詞|S$/.test(x))).join("＋");
+    $("#hint").textContent = "說自己喜歡什麼、喜歡做什麼";
+    st.innerHTML = `<div class="pop"><div class="tag"><span>句型</span></div>
+      <div class="pattern">${g.pattern.map((p,i)=>`${i?'＋':''}<span style="background:${PCOL[i%PCOL.length]}">${esc(p)}</span>`).join(" ")}</div>
+      <div class="exs">${g.examples.map(e=>`<div class="ex"><div class="zh">${esc(e[0])}</div><div class="py">${esc(e[1])}</div></div>`).join("")}</div></div>`;
+    ct.innerHTML = `${toggles()}${g.note?`<div class="note"><b>小提醒</b><br>${esc(g.note)}</div>`:""}`;
+  }
+  if(k==="draw"){ renderDraw(); }
+  if(k==="review"){
+    $("#title").textContent = "今天學了什麼？";
+    $("#hint").textContent = "學生自己打勾";
+    st.innerHTML = `<div class="pop"><div class="tag"><span>複習</span>打勾確認一下</div>
+      <div class="check">${LESSON.review.map((r,i)=>`<label for="rv${i}"><input type="checkbox" id="rv${i}">${esc(r)}</label>`).join("")}</div>
+      <div class="ans" style="margin-top:22px"><div class="tag"><span style="background:var(--pink);color:#3a1020">回家作業</span></div>
+      <ul style="font-size:19px;line-height:1.9;margin:8px 0 0">${LESSON.homework.map(h=>`<li>${esc(h)}</li>`).join("")}</ul></div></div>`;
+    ct.innerHTML = `<div class="note" style="margin-top:0"><b>下課囉！</b><br>下次見！</div>
+      <button class="btn ghost" data-a="restart">回到開始</button>`;
+  }
+}
+/* 抽卡 */
+function pool(){ return LESSON.cards.filter(c => filter==="全部" || c[0]===filter) }
+function shuffle(){ deck = pool().slice().sort(()=>Math.random()-.5); drawn = 0; cur = null; }
+function draw(){
+  stopTimer(); if(!deck.length) shuffle();
+  cur = deck.shift(); drawn++; showAns = false; renderDraw();
+}
+function renderDraw(){
+  const st = $("#stage"), ct = $("#ctrl");
+  $("#title").textContent = "抽卡練習：填空";
+  $("#hint").textContent = "點學生回答・按「顯示答案」對答案";
+  const cats = ["全部", ...new Set(LESSON.cards.map(c=>c[0]))];
+  if(!cur){
+    st.innerHTML = `<div class="center" style="align-items:center;text-align:center"><div class="big">準備好了嗎？</div><div class="tr" style="visibility:visible">按右邊「抽一張」開始</div></div>`;
+  } else {
+    const q = esc(cur[1]).replace(/＿+/, '<span class="blank"></span>');
+    st.innerHTML = `<div class="tag"><span>${esc(cur[0])}</span>填入缺少的字詞</div>
+      <div class="center pop"><div class="big">${q}</div><div class="tr">${esc(cur[4])}</div></div>
+      <div class="ans" ${showAns?'':'hidden'}><div class="big">${esc(cur[1]).replace(/＿+/, `<u>${esc(cur[2])}</u>`)}</div><div class="py">${esc(cur[3])}</div></div>`;
+  }
+  ct.innerHTML = `<h3>選擇範圍</h3><div class="chips">${cats.map(c=>`<button class="chip" aria-pressed="${c===filter}" data-f="${c}">${c}</button>`).join("")}</div>
+    <button class="btn" data-a="draw">抽一張</button>
+    <button class="btn ghost" data-a="ans" ${cur?'':'disabled'}>${showAns?'隱藏答案':'顯示答案'}</button>
+    <button class="btn pink" data-a="timer" ${cur?'':'disabled'}>${timerId?'停止計時':'計時 20 秒'}</button>
+    <div class="timer" id="timerBox" ${timerId?'':'hidden'}>
+      <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="var(--ice)" stroke-width="4"/>
+      <circle id="ring" cx="18" cy="18" r="15" fill="none" stroke="var(--pink)" stroke-width="4" stroke-linecap="round" stroke-dasharray="94.2" stroke-dashoffset="0" transform="rotate(-90 18 18)"/></svg>
+      <span class="t" id="tLeft">${left}</span><span class="tr" style="visibility:visible">秒</span></div>
+    ${toggles()}
+    <div class="meta">已抽 ${drawn} 張・剩 ${deck.length} 張（共 ${pool().length} 張）</div>
+    <div class="note"><b>${LESSON.cards.length} 張卡</b>，題目都來自本課的課文、生詞和語法。</div>`;
+  updRing();
+}
+function updRing(){ const r = document.getElementById("ring"); if(r) r.setAttribute("stroke-dashoffset", 94.2*(1-left/20)); const t=document.getElementById("tLeft"); if(t) t.textContent=left; }
+function startTimer(){ left = 20; timerId = setInterval(()=>{ left--; updRing(); if(left<=0){ stopTimer(); showAns = true; renderDraw(); } }, 1000); renderDraw(); }
+function stopTimer(){ if(timerId){ clearInterval(timerId); timerId = null; } }
+
+/* 事件 */
+document.addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  if(b.dataset.i) return go(+b.dataset.i);
+  if(b.dataset.w){ wi = +b.dataset.w; return render(); }
+  if(b.dataset.f){ filter = b.dataset.f; stopTimer(); shuffle(); return renderDraw(); }
+  if(b.dataset.t){ if(b.dataset.t==="py") showPy=!showPy; else showTr=!showTr; return STEPS[step].key==="draw"?renderDraw():render(); }
+  const a = b.dataset.a;
+  if(a==="next") go(step+1);
+  if(a==="restart") go(0);
+  if(a==="wnext"){ wi = (wi+1)%LESSON.words.length; render(); }
+  if(a==="wrand"){ wi = Math.floor(Math.random()*LESSON.words.length); render(); }
+  if(a==="lnext"){ li = (li+1)%LESSON.dialog.length; render(); }
+  if(a==="lall"){ li = -1; render(); }
+  if(a==="draw") draw();
+  if(a==="ans"){ showAns=!showAns; renderDraw(); }
+  if(a==="timer"){ timerId ? (stopTimer(), renderDraw()) : startTimer(); }
+});
+$("#prev").onclick = ()=>go(step-1);
+$("#next").onclick = ()=>go(step+1);
+$("#fs").onclick = ()=>{ try{ document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(()=>{}) }catch(e){} };
+document.addEventListener("keydown", e=>{
+  if(e.target.closest("input,textarea,select") || !$("#modal").hidden) return;
+  const k = STEPS[step].key;
+  if(e.key==="ArrowRight"){ if(k==="words"){ wi=Math.min(wi+1,LESSON.words.length-1); render(); } else if(k==="text"){ li=Math.min(li+1,LESSON.dialog.length-1); render(); } else go(step+1); }
+  if(e.key==="ArrowLeft"){ if(k==="words"){ wi=Math.max(wi-1,0); render(); } else if(k==="text"&&li>0){ li--; render(); } else go(step-1); }
+  if(e.key===" " && k==="draw"){ e.preventDefault(); draw(); }
+});
+function fit(){
+  const cs=getComputedStyle(document.body);
+  const w=document.body.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+  const h=document.body.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);
+  const k=Math.max(.1,Math.min(w/1280,h/720));
+  const f=$("#fit"); f.style.width=1280*k+"px"; f.style.height=720*k+"px";
+  $("#app").style.transform=`scale(${k})`;
+}
+window.addEventListener("resize",fit); document.addEventListener("fullscreenchange",fit);
+/* ===== 課程庫：存在這個網頁的資料庫 ===== */
+const rows = t => String(t||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+const cells = (t,n) => rows(t).map(r=>{ const c=r.split(/\s*[｜|\t]\s*/); while(c.length<n) c.push(""); return c.slice(0,n); });
+const join = a => (a||[]).map(r=>Array.isArray(r)?r.join("｜"):r).join("\n");
+function fromDoc(id, d){
+  return { id, num: d.num || "", name: d.name || "未命名", pinyin: d.pinyin || "", textTitle: d.textTitle || "",
+    goals: cells(d.goals,2), words: cells(d.words,6), dialog: cells(d.dialog,5).map(r=>{r[0]=/^b$/i.test(r[0])?"B":"A";return r}),
+    grammar: { pattern: String(d.pattern||"").split(/\s*[＋+]\s*/).filter(Boolean), examples: cells(d.gex,2), note: d.gnote || "" },
+    cards: cells(d.cards,5).filter(r=>r[1]), review: rows(d.review), homework: rows(d.homework) };
+}
+function toDoc(L){
+  return { num: Number(L.num)||0, name: L.name, pinyin: L.pinyin, textTitle: L.textTitle||"", goals: join(L.goals), words: join(L.words),
+    dialog: join(L.dialog), pattern: (L.grammar.pattern||[]).join("＋"), gex: join(L.grammar.examples), gnote: L.grammar.note||"",
+    cards: join(L.cards), review: join(L.review), homework: join(L.homework) };
+}
+let lessons = [SAMPLE], db = null, editingId = null, delArmed = false;
+let curId = "sample"; try { curId = localStorage.getItem("slides-lesson") || "sample" } catch(e) {}
+function fillSel(){
+  $("#lessonSel").innerHTML = lessons.map(L=>`<option value="${esc(L.id)}" ${L.id===curId?"selected":""}>${L.id==="sample"?"範例・":""}第${esc(L.num)}課 ${esc(L.name)}</option>`).join("");
+}
+function useLesson(id, keepStep){
+  const L = lessons.find(x=>x.id===id) || SAMPLE;
+  curId = L.id; LESSON = L; wi = 0; li = -1; filter = "全部"; stopTimer(); shuffle();
+  try { localStorage.setItem("slides-lesson", curId) } catch(e) {}
+  fillSel(); keepStep ? render() : go(0);
+}
+$("#lessonSel").onchange = e => useLesson(e.target.value);
+const SECS = [
+  {k:"basic", name:"基本資料"},
+  {k:"goals", name:"學習目標", cols:["標題","說明"], w:"160px 1fr"},
+  {k:"words", name:"生詞", cols:["生詞","拼音","詞性","翻譯","例句","例句拼音"], w:"100px 120px 70px 1fr 1.3fr 1.3fr"},
+  {k:"dialog", name:"課文", cols:["角色","名字","句子","拼音","翻譯"], w:"44px 90px 1.4fr 1.4fr 1fr", tip:"點 A／B 可以切換：A 在左邊，B 在右邊"},
+  {k:"gex", name:"語法", cols:["例句","拼音"], w:"1fr 1fr"},
+  {k:"cards", name:"抽卡填空", cols:["分類","題目","答案","完整句拼音","翻譯"], w:"90px 1.4fr 90px 1.3fr 1fr", tip:"題目裡用 ＿＿ 表示空格"},
+  {k:"review", name:"複習", cols:["打勾項目"], w:"1fr"},
+  {k:"homework", name:"作業", cols:["回家作業"], w:"1fr"},
+];
+let ED = null, edTab = "basic";
+const blank = n => Array(n).fill("");
+function openEditor(L){
+  editingId = L ? L.id : null; delArmed = false;
+  const c = x => (x||[]).map(r => Array.isArray(r) ? r.slice() : [r]);
+  ED = L ? { num:String(L.num||""), name:L.name||"", pinyin:L.pinyin||"", textTitle:L.textTitle||"", pattern:(L.grammar.pattern||[]).join("＋"), gnote:L.grammar.note||"",
+      goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), gex:c(L.grammar.examples), cards:c(L.cards), review:c(L.review), homework:c(L.homework) }
+    : { num:"", name:"", pinyin:"", textTitle:"", pattern:"", gnote:"", goals:[["生詞",""],["課文",""],["語法",""],["練習","抽卡填空"]], words:[blank(6)], dialog:[["A","","","",""],["B","","","",""]], gex:[blank(2)], cards:[], review:[[""]], homework:[[""]] };
+  edTab = "basic";
+  $("#edTitle").textContent = !L ? "新增一課" : L.id==="sample" ? "以範例為底，存成新的一課" : `編輯 第${L.num}課`;
+  $("#edDel").hidden = !L || L.id==="sample"; $("#edDel").textContent = "刪除這一課";
+  msg(db ? "" : "還沒登入老師帳號：按「儲存」只會暫時套用，重新整理就會不見。");
+  $("#modal").hidden = false; renderEd();
+}
+function msg(t, err){ const m=$("#edMsg"); m.textContent=t; m.className="msg"+(err?" err":""); }
+const filled = r => r.some(x => String(x).trim() && !/^[AB]$/.test(x));
+function renderTabs(){
+  $("#edTabs").innerHTML = SECS.map(x => `<button role="tab" data-tab="${x.k}" aria-selected="${x.k===edTab}">${x.name}${x.cols?`<span class="cnt">${ED[x.k].filter(filled).length}</span>`:""}</button>`).join("");
+}
+function renderEd(){
+  renderTabs();
+  const S = SECS.find(x=>x.k===edTab), B = $("#edBody");
+  if(S.k==="basic"){
+    B.innerHTML = `<div class="sec-h"><h3>基本資料</h3></div><div class="basic">
+      <label for="b-num">課次</label><input id="b-num" data-b="num" inputmode="numeric" placeholder="例如 3" value="${esc(ED.num)}">
+      <label for="b-name">課名</label><input id="b-name" data-b="name" placeholder="例如 你喜歡做什麼？" value="${esc(ED.name)}">
+      <label for="b-py">課名拼音</label><input id="b-py" data-b="pinyin" placeholder="例如 Nǐ xǐhuān zuò shénme?" value="${esc(ED.pinyin)}">
+      <label for="b-tt">課文標題</label><input id="b-tt" data-b="textTitle" placeholder="例如 週末做什麼？" value="${esc(ED.textTitle)}">
+      <label for="b-pt">語法句型</label><input id="b-pt" data-b="pattern" placeholder="例如 主語＋（很）喜歡＋V／N" value="${esc(ED.pattern)}">
+      <small>用「＋」分開，每一塊會變成一個彩色標籤</small><div class="pv" id="pv"></div>
+      <label for="b-gn">語法小提醒</label><input id="b-gn" data-b="gnote" placeholder="可以空白" value="${esc(ED.gnote)}">
+    </div>`;
+    pv(); return;
+  }
+  const rowsHtml = ED[S.k].map((r,i) => `<span class="no">${i+1}</span>` + S.cols.map((cn,j) =>
+      S.k==="dialog" && j===0 ? `<button class="role" type="button" data-role="${i}" style="background:${r[0]==='B'?'var(--mint)':'var(--pink)'}" aria-label="切換角色">${r[0]==='B'?'B':'A'}</button>`
+      : `<input data-r="${i}" data-c="${j}" value="${esc(r[j]||"")}" aria-label="${cn} 第${i+1}行">`).join("") + `<button class="x" type="button" data-del="${i}" aria-label="刪除第${i+1}行">×</button>`).join("");
+  B.innerHTML = `<div class="sec-h"><h3>${S.name}</h3><small>${S.tip||"一格填一個欄位，從試算表複製多行貼到第一格會自動分好"}</small></div>
+    ${S.k==="cards"?'<button class="mini" id="autoCards" type="button">用生詞例句和課文自動出題</button>':""}
+    <div class="tbl" style="grid-template-columns:28px ${S.w} 28px"><span></span>${S.cols.map(c=>`<span class="th">${c}</span>`).join("")}<span></span>${rowsHtml}</div>
+    <button class="addrow" type="button" id="addRow">＋ 新增一行</button>`;
+}
+function pv(){ const el = $("#pv"); if(el) el.innerHTML = ED.pattern.split(/\s*[＋+]\s*/).filter(Boolean).map((x,i)=>`<span style="background:${PCOL[i%PCOL.length]}">${esc(x)}</span>`).join("＋"); }
+const S = () => SECS.find(x=>x.k===edTab);
+$("#edTabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if(b){ edTab = b.dataset.tab; renderEd(); } });
+$("#edBody").addEventListener("input", e => {
+  const t = e.target;
+  if(t.dataset.b){ ED[t.dataset.b] = t.value; if(t.dataset.b==="pattern") pv(); return; }
+  if(t.dataset.r){ const r = ED[edTab][+t.dataset.r]; r[+t.dataset.c] = t.value; renderTabs(); }
+});
+$("#edBody").addEventListener("paste", e => {
+  const t = e.target; if(!t.dataset || t.dataset.r===undefined) return;
+  const txt = (e.clipboardData||window.clipboardData).getData("text"); if(!/[\t\n｜|]/.test(txt.trim())) return;
+  e.preventDefault();
+  const n = S().cols.length, r0 = +t.dataset.r, c0 = +t.dataset.c;
+  rows(txt).forEach((line,k) => {
+    const parts = line.split(/\s*[\t｜|]\s*/); const row = ED[edTab][r0+k] || (ED[edTab][r0+k] = blank(n));
+    if(edTab==="dialog" && !row[0]) row[0] = "A";
+    parts.forEach((v,j) => { if(c0+j < n){ row[c0+j] = (edTab==="dialog" && c0+j===0) ? (/^b$/i.test(v)?"B":"A") : v; } });
+  });
+  renderEd(); msg(`貼上了 ${rows(txt).length} 行。`);
+});
+$("#edBody").addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  const n = S().cols ? S().cols.length : 0;
+  if(b.id==="addRow"){ ED[edTab].push(edTab==="dialog" ? [ED[edTab].length%2?"B":"A","","","",""] : blank(n)); renderEd(); const ins = $("#edBody").querySelectorAll(`input[data-r="${ED[edTab].length-1}"]`); if(ins[0]) ins[0].focus(); }
+  if(b.dataset.del){ ED[edTab].splice(+b.dataset.del,1); renderEd(); }
+  if(b.dataset.role){ const r = ED.dialog[+b.dataset.role]; r[0] = r[0]==="B"?"A":"B"; renderEd(); }
+  if(b.id==="autoCards"){
+    const ws = ED.words.filter(w=>w[0]), out = [];
+    ws.forEach(w=>{ if(w[4] && w[4].includes(w[0])) out.push(["生詞", w[4].replace(w[0],"＿＿"), w[0], w[5]||"", ""]); });
+    ED.dialog.forEach(d=>{ const w = ws.find(w=>d[2] && d[2].includes(w[0])); if(w) out.push(["課文", d[2].replace(w[0],"＿＿"), w[0], d[3]||"", d[4]||""]); });
+    if(!out.length){ msg("找不到可以出題的句子：請先填生詞和例句。", true); return; }
+    ED.cards = ED.cards.filter(filled).concat(out); renderEd(); msg(`加入了 ${out.length} 題，可以再自己修改。`);
+  }
+});
+function readForm(){
+  const j = k => ED[k].filter(filled).map(r=>r.map(x=>String(x).replace(/[｜|\n]/g," ").trim()).join("｜")).join("\n");
+  return { num: ED.num.trim(), name: ED.name.trim(), pinyin: ED.pinyin.trim(), textTitle: ED.textTitle.trim(), pattern: ED.pattern.trim(), gnote: ED.gnote.trim(),
+    goals: j("goals"), words: j("words"), dialog: j("dialog"), gex: j("gex"), cards: j("cards"), review: j("review"), homework: j("homework") };
+}
+$("#editBtn").onclick = () => openEditor(LESSON);
+$("#newBtn").onclick = () => openEditor(null);
+$("#edCancel").onclick = () => { $("#modal").hidden = true; };
+$("#edSave").onclick = async () => {
+  const d = readForm();
+  if(!d.name){ edTab = "basic"; renderEd(); msg("請先填課名。", true); $("#b-name").focus(); return; }
+  const isNew = !editingId || editingId==="sample";
+  const id = isNew ? "lesson-" + Date.now().toString(36) : editingId;
+  const body = { ...d, num: Number(d.num)||0, updatedAt: Date.now() };
+  const L = fromDoc(id, body);
+  if(!db){ lessons = lessons.filter(x=>x.id!==id).concat(L); $("#modal").hidden = true; useLesson(id); return; }
+  $("#edSave").disabled = true; msg("儲存中…");
+  try { await db.collection(COL).doc(id).set(body); lessons = lessons.filter(x=>x.id!==id).concat(L); sortL(); $("#modal").hidden = true; useLesson(id, !isNew); }
+  catch(e){ msg(e && e.code==="permission-denied" ? "沒有儲存權限：請確認已用老師帳號登入，以及 Firestore 規則已經加上 slide_lessons。" : "儲存失敗，請再試一次。（" + (e && (e.code||e.message) || "") + "）", true); }
+  finally { $("#edSave").disabled = false; }
+};
+$("#edDel").onclick = async () => {
+  if(!delArmed){ delArmed = true; $("#edDel").textContent = "再按一次確認刪除"; return; }
+  try { if(db) await db.collection(COL).doc(editingId).delete(); lessons = lessons.filter(x=>x.id!==editingId); $("#modal").hidden = true; useLesson("sample"); }
+  catch(e){ msg("刪除失敗，請再試一次。", true); }
+};
+function sortL(){ lessons.sort((a,b)=> a.id==="sample" ? -1 : b.id==="sample" ? 1 : (Number(a.num)||0)-(Number(b.num)||0)); }
+/* ===== Firebase：跟作業網站同一個專案（config.js） ===== */
+const COL = "slide_lessons";
+let unsub = null;
+function startFirebase(){
+  try{
+    if(!(window.firebase && window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey)) return;
+    if(!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+    const fdb = firebase.firestore();
+    $("#loginBtn").onclick = () => { $("#loginForm").hidden = !$("#loginForm").hidden; if(!$("#loginForm").hidden){ $("#lg-email").value = window.TEACHER_EMAIL || ""; $("#lg-pw").focus(); } };
+    $("#loginForm").onsubmit = async e => { e.preventDefault(); $("#lg-err").textContent = "";
+      try{ await firebase.auth().signInWithEmailAndPassword($("#lg-email").value.trim(), $("#lg-pw").value); $("#lg-pw").value = ""; }
+      catch(err){ $("#lg-err").textContent = "登入失敗：請檢查 Email 和密碼"; } };
+    $("#logoutBtn").onclick = () => firebase.auth().signOut();
+    firebase.auth().onAuthStateChanged(u => {
+      const on = !!u;
+      $("#editRow").hidden = !on; $("#logoutBtn").hidden = !on; $("#loginRow").hidden = on; if(on) $("#loginForm").hidden = true;
+      if(unsub){ unsub(); unsub = null; }
+      db = on ? fdb : null;
+      if(!on){ lessons = lessons.filter(x=>x.id==="sample" || x._local); fillSel(); return; }
+      unsub = fdb.collection(COL).onSnapshot(snap => {
+        lessons = [SAMPLE, ...snap.docs.map(d=>fromDoc(d.id, d.data()))]; sortL();
+        if(!lessons.find(x=>x.id===curId)) curId = "sample";
+        const same = LESSON.id===curId; LESSON = lessons.find(x=>x.id===curId); fillSel();
+        if(same && $("#modal").hidden){ updSide(); } else if(!same){ shuffle(); render(); }
+      }, err => { console.warn("slide_lessons", err); });
+    });
+  }catch(e){ console.warn(e); }
+}
+startFirebase();
+fillSel(); LESSON = lessons.find(x=>x.id===curId) || SAMPLE;
+shuffle(); render(); fit();
+</script>
+</body>
+</html>
