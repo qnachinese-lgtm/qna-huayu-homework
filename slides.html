@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>上課投影片｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
+<!-- AVDRAG_V1 拖曳圓框選臉 -->
 <!-- AVATAR_V1 人物頭像照片 -->
 <!-- BLUE_V1 不用粉紅綠，改藍色系 -->
 <!-- NOPH_V1 輸入框不放範例 -->
@@ -193,8 +194,11 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .avbtn:focus-within{outline:3px solid var(--sky)}
 .avedit{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:4px}
 .avcard{display:flex;gap:12px;align-items:flex-start;border:2px dashed var(--line);border-radius:12px;padding:10px}
-.avsrc{position:relative;width:190px;flex:none;cursor:crosshair;border-radius:8px;overflow:hidden;line-height:0}
-.avsrc img{width:100%;display:block}
+.avsrc{position:relative;width:240px;flex:none;cursor:grab;border-radius:8px;overflow:hidden;line-height:0;touch-action:none;user-select:none}
+.avsrc.drag{cursor:grabbing}
+.avsrc img{width:100%;display:block;pointer-events:none;-webkit-user-drag:none}
+.avframe{position:absolute;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px var(--navy),0 0 0 999px rgba(15,30,60,.45);pointer-events:none;box-sizing:border-box}
+[data-avprev]{cursor:grab;touch-action:none}
 .avdot{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px var(--navy);pointer-events:none}
 .avside{display:flex;flex-direction:column;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
 .avside input[type=range]{width:110px}
@@ -808,12 +812,35 @@ function flowHtml(){
   return ED.flow.map((k,i)=>`<div class="flowrow"><span class="no">${i+1}</span><b>${STEP_DEFS[k]}</b>${k==="start"?"":`<button type="button" data-fl="up" data-fi="${i}" aria-label="往上">↑</button><button type="button" data-fl="down" data-fi="${i}" aria-label="往下">↓</button><button type="button" data-fl="del" data-fi="${i}" aria-label="拿掉">×</button>`}</div>`).join("")
     + (rest.length ? `<div class="chips"><span class="tr" style="visibility:visible;align-self:center">加入步驟：</span>${rest.map(k=>`<button class="mini" type="button" data-fl="add" data-fk="${k}">＋ ${STEP_DEFS[k]}</button>`).join("")}</div>` : "");
 }
+/* AVDRAG_V1 拖曳圓框選臉 */
+function avFrame(a){ const z = +a.z||1, ar = +a.ar||1; return `left:${(a.x - .5/z)*100}%;top:${(a.y - .5/(z*ar))*100}%;width:${100/z}%;height:${100/(z*ar)}%`; }
+function avSync(k){ const a = ED.avatars[k]; if(!a) return; const fr = $(`[data-avframe="${k}"]`); if(fr) fr.style.cssText = avFrame(a);
+  [$(`[data-avprev="${k}"]`), $(`[data-avmini="${k}"]`)].forEach(el=>{ if(el) el.innerHTML = avImg(a); }); }
+let avDrag = null;
+document.addEventListener("pointerdown", e => {
+  const src = e.target.closest && e.target.closest("[data-avpick]"), pv = !src && e.target.closest && e.target.closest("[data-avprev]");
+  if(!src && !pv) return; e.preventDefault();
+  const k = (src || pv).dataset[src ? "avpick" : "avprev"], a = ED.avatars[k], r = (src || pv).getBoundingClientRect();
+  avDrag = {k, src: !!src, r, sx: e.clientX, sy: e.clientY, ox: a.x, oy: a.y, el: src || pv};
+  if(src){ const z = +a.z||1, ar = +a.ar||1, fx = (e.clientX - r.left)/r.width, fy = (e.clientY - r.top)/r.height;
+    const inside = Math.hypot((fx - a.x)*z, (fy - a.y)*z*ar) <= .5;
+    if(!inside){ a.x = fx; a.y = fy; avDrag.ox = fx; avDrag.oy = fy; avSync(k); } src.classList.add("drag"); }
+  try { (src || pv).setPointerCapture(e.pointerId); } catch(_){}
+});
+document.addEventListener("pointermove", e => { if(!avDrag) return; const d = avDrag, a = ED.avatars[d.k]; if(!a) return;
+  const z = +a.z||1, ar = +a.ar||1, dx = (e.clientX - d.sx)/d.r.width, dy = (e.clientY - d.sy)/d.r.height;
+  if(d.src){ a.x = d.ox + dx; a.y = d.oy + dy; } else { a.x = d.ox - dx/z; a.y = d.oy - dy/(z*ar); }
+  a.x = Math.min(1, Math.max(0, a.x)); a.y = Math.min(1, Math.max(0, a.y)); avSync(d.k); });
+document.addEventListener("pointerup", () => { if(avDrag){ avDrag.el.classList.remove("drag"); avDrag = null; } });
+document.addEventListener("wheel", e => { const el = e.target.closest && e.target.closest("[data-avpick],[data-avprev]"); if(!el) return; e.preventDefault();
+  const k = el.dataset.avpick || el.dataset.avprev, a = ED.avatars[k]; a.z = Math.min(8, Math.max(1, (+a.z||1) * (e.deltaY < 0 ? 1.08 : 1/1.08)));
+  const rg = $(`[data-avz="${k}"]`); if(rg) rg.value = a.z; avSync(k); }, {passive: false});
 function castBox(){ return `<div class="gcard"><b>人物（設定一次，每一句就不用再打名字）</b>
   <div class="castgrid">${["A","B","C","D"].map(k=>{ const a = (ED.avatars||{})[k]; return `<div class="castitem"><label class="avbtn" style="background:${RCOL[k]}" title="${a?"換照片":"放照片"}">${a ? `<span class="avclip" data-avmini="${k}" style="width:40px;height:40px">${avImg(a)}</span>` : k}<input type="file" data-av="${k}" accept="image/*" hidden aria-label="${k} 的照片"></label><input data-cast="${k}" value="${esc(ED.cast[k]||"")}" aria-label="${k} 是誰"></div>`; }).join("")}</div>
-  ${Object.keys(ED.avatars||{}).length ? `<div class="avedit">${["A","B","C","D"].filter(k=>(ED.avatars||{})[k]).map(k=>{ const a = ED.avatars[k]; return `<div class="avcard"><div class="avsrc" data-avpick="${k}" title="點一下臉的位置"><img src="${esc(a.url)}" alt="${k} 的照片"></div>
+  ${Object.keys(ED.avatars||{}).length ? `<div class="avedit">${["A","B","C","D"].filter(k=>(ED.avatars||{})[k]).map(k=>{ const a = ED.avatars[k]; return `<div class="avcard"><div class="avsrc" data-avpick="${k}" title="拖曳圓框到臉上"><img src="${esc(a.url)}" alt="${k} 的照片" draggable="false"><span class="avframe" data-avframe="${k}" style="${avFrame(a)}"></span></div>
     <div class="avside"><b style="color:var(--fg)">${k}${ED.cast[k]?"・"+esc(ED.cast[k]):""}</b><span class="avclip" data-avprev="${k}" style="width:72px;height:72px;border:3px solid ${RCOL[k]}">${avImg(a)}</span>
     <label>放大 <input type="range" min="1" max="8" step="0.1" value="${a.z}" data-avz="${k}"></label><button class="mini" type="button" data-avdel="${k}" style="align-self:center">移除照片</button></div></div>`; }).join("")}</div>
-  <small style="color:var(--muted);line-height:1.7">在左邊的大圖上點一下臉，右邊圓圈就會以那裡為中心；再用「放大」調整大小。同一張插圖可以給 A 和 B 都用，各點各的臉。</small>` : ""}
+  <small style="color:var(--muted);line-height:1.7">把大圖上的圓框拖到臉上（也可以直接拖右邊的小圓圈），用「放大」或滑鼠滾輪調整大小。同一張插圖可以給 A 和 B 都用，各點各的臉。</small>` : ""}
   <small style="color:var(--muted);line-height:1.7">點 A、B 的圓圈可以放人物照片，上課時就會用照片代替字母。</small>
   <small style="color:var(--muted);line-height:1.7">場景或動作：把那一行的圓圈點到「景」，上課時會用小字放在中間。句子裡的（笑）這種括號也會變成小字。<br>
   可以直接從課本複製整段對話（「名字：句子」的格式），貼到第一句的格子，會自動分好人物和句子；括號那一行會自動變成場景，課本換行斷掉的句子也會自動接回去。</small></div>`; }
@@ -832,7 +859,7 @@ $("#edTabs").addEventListener("click", e => { const b = e.target.closest("[data-
 $("#edBody").addEventListener("input", e => {
   const t = e.target;
   if(t.dataset.cast){ ED.cast[t.dataset.cast] = t.value.trim(); return; }
-  if(t.dataset.avz){ const k = t.dataset.avz, a = ED.avatars[k]; a.z = +t.value; const p = $(`[data-avprev="${k}"]`); if(p) p.innerHTML = avImg(a); const mi = $(`[data-avmini="${k}"]`); if(mi) mi.innerHTML = avImg(a); return; }
+  if(t.dataset.avz){ const k = t.dataset.avz, a = ED.avatars[k]; a.z = +t.value; const p = $(`[data-avprev="${k}"]`); avSync(k); return; }
   if(t.dataset.b){ ED[t.dataset.b] = t.value;
     if(t.dataset.b==="book" && (!editingId || editingId==="sample") && !ED._flowTouched){ const same = lessons.filter(L=>L.id!=="sample" && L.book===t.value.trim()).sort((a,b)=>(+b.num||0)-(+a.num||0))[0];
       if(same){ ED.flow = flowOf(same).slice(); const fb = document.getElementById("flowBox"); if(fb) fb.innerHTML = flowHtml(); msg(`已經套用「${t.value.trim()}」第${same.num}課的上課步驟。`); } }
@@ -852,7 +879,7 @@ $("#edBody").addEventListener("change", async e => {
     try { const ar = await new Promise(res=>{ const im = new Image(), u = URL.createObjectURL(f); im.onload = ()=>res(im.naturalHeight/im.naturalWidth || 1); im.onerror = ()=>res(1); im.src = u; });
       const m = uploadAudio ? await uploadAudio(f, ED._id) : {url: URL.createObjectURL(f), name: f.name, local: true};
       ED.avatars = ED.avatars || {}; ED.avatars[k] = {...m, ar, x:.5, y:ar<1?.4:.3, z: Math.max(1, 1/ar)};
-      renderEd(); msg(uploadAudio ? "照片上傳好了：在大圖上點一下臉，記得按「儲存」。" : "還沒登入：照片只會暫時套用。", !uploadAudio); }
+      renderEd(); msg(uploadAudio ? "照片上傳好了：把圓框拖到臉上，記得按「儲存」。" : "還沒登入：照片只會暫時套用。", !uploadAudio); }
     catch(err){ msg("照片上傳失敗：" + (err && (err.code || err.message) || ""), true); }
     return; }
   if(e.target.dataset && (e.target.dataset.gal || e.target.dataset.limg !== undefined)){
@@ -905,10 +932,6 @@ $("#edBody").addEventListener("paste", e => {
   renderEd(); msg(`貼上了 ${count} 行。`);
 });
 $("#edBody").addEventListener("click", e => {
-  const pk = e.target.closest && e.target.closest("[data-avpick]");
-  if(pk){ const k = pk.dataset.avpick, r = pk.getBoundingClientRect(), a = ED.avatars[k];
-    a.x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); a.y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
-    const p = $(`[data-avprev="${k}"]`); if(p) p.innerHTML = avImg(a); const mi = $(`[data-avmini="${k}"]`); if(mi) mi.innerHTML = avImg(a); return; }
   const ad = e.target.closest && e.target.closest("[data-avdel]");
   if(ad){ delete ED.avatars[ad.dataset.avdel]; renderEd(); return; }
   const b = e.target.closest("button"); if(!b) return;
