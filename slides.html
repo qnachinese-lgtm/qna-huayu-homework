@@ -1336,7 +1336,7 @@ function srcToDoc(l, idx){
   /* GQIMPORT_V1 把「教材與課程」的上課語法練習（questions）一起帶過來 */
   const L8 = i => String.fromCharCode(97+i) + ". ";
   const qRef = q => { const o = q.options||[]; if(q.type==="choice") return o[Number(q.answer)] != null ? L8(Number(q.answer)) + o[Number(q.answer)] : ""; if(q.type==="order") return o.join(" "); if(q.type==="match") return o.map(p=>p && (p.l + "→" + p.r)).filter(Boolean).join("、"); return Array.isArray(q.answer) ? q.answer.filter(Boolean).join(" / ") : (typeof q.answer === "string" ? q.answer : ""); };
-  const exsOf = gi => { const qs = (l._qs||[]).filter(q => q && q.bank !== "hw" && q.type !== "note" && Number(q.gp_index) === gi).sort((a,b)=>(String(a.gp_sub||"")).localeCompare(String(b.gp_sub||"")) || (a.order_index||0)-(b.order_index||0));
+  const exsOf = gi => { const qs = (l._qs||[]).filter(q => q && q.bank !== "hw" && q.type !== "note" && (q.gp_index == null || q.gp_index === "" ? 0 : Number(q.gp_index)) === gi).sort((a,b)=>(String(a.gp_sub||"")).localeCompare(String(b.gp_sub||"")) || (a.order_index||0)-(b.order_index||0));
     const out = [];
     qs.forEach(q => { const instr = T(q.instruction) || T(q.gp_sub);
       if(q.type==="opt"){ out.push({_opt: true, instr, opts: (q.options||[]).map((o,i)=>L8(i)+o).join("\n"), qs: (q.items||[]).map(it=>[clean(it.text||""), ""].join("｜")).join("\n")}); return; }
@@ -1387,16 +1387,17 @@ $("#impBtn").onclick = async () => { const box = impUI(); box.hidden = false; $(
 async function impGo(){ const b = $("#impBook").value, ls = impOf(b), picks = [...document.querySelectorAll("#impList input:checked")];
   if(!picks.length){ $("#impMsg").textContent = "請先勾選要匯入的課。"; return; }
   if(!db){ $("#impMsg").textContent = "請先登入。"; return; }
-  $("#impGo").disabled = true; let ok = 0, bad = 0, lastId = null;
+  $("#impGo").disabled = true; let ok = 0, bad = 0, lastId = null, qAll = 0, qNoGp = 0, qErr = "";
   for(const c of picks){ const l = ls[+c.dataset.i]; $("#impMsg").textContent = `匯入中… ${ok+bad+1}/${picks.length}`;
-    try { try { const qs = await firebase.firestore().collection("questions").where("lesson_id", "==", l.id).get(); l._qs = qs.docs.map(d=>d.data()); } catch(_){ l._qs = []; }
+    try { try { const qs = await firebase.firestore().collection("questions").where("lesson_id", "==", l.id).get(); l._qs = qs.docs.map(d=>d.data()); } catch(err){ l._qs = []; qErr = (err && (err.code || err.message)) || "error"; }
+      qAll += l._qs.filter(q => q && q.bank !== "hw" && q.type !== "note").length; qNoGp += l._qs.filter(q => q && q.bank !== "hw" && q.type !== "note" && (q.gp_index == null || q.gp_index === "")).length;
       const id = "src_" + l.id, old = lessons.find(x=>x.id===id), doc = srcToDoc(l, +c.dataset.i);
       if(old){ doc.flow = flowOf(old); ["goals","dict","cards","review","homework","textImgs","pinyin"].forEach(k=>delete doc[k]); if(old.audio && old.audio.url) delete doc.audio; }
       if(!doc.audio) delete doc.audio;
       else { const fl = ["start","words"]; if(doc.dialog) fl.push("text","dict"); if(doc.readParas) fl.push("read"); if(doc.grammars.length) fl.push("grammar"); fl.push("review"); doc.flow = fl; }
       await db.collection(COL).doc(id).set(doc, {merge: true}); ok++; lastId = id; }
     catch(e){ bad++; console.warn(e); } }
-  $("#impGo").disabled = false; $("#impMsg").textContent = `完成：匯入 ${ok} 課` + (bad ? `，${bad} 課失敗` : "");
+  $("#impGo").disabled = false; $("#impMsg").textContent = `完成：匯入 ${ok} 課` + (bad ? `，${bad} 課失敗` : "") + (qErr ? `；練習題讀不到（${qErr}）` : `；上課語法練習 ${qAll} 題` + (qNoGp ? `（其中 ${qNoGp} 題沒有指定語法，放進第 1 個語法）` : ""));
   if(lastId) setTimeout(()=>{ if(lessons.find(x=>x.id===lastId)) useLesson(lastId); impList(); }, 800); }
 fillSel(); LESSON = lessons.find(x=>x.id===curId) || SAMPLE; applyFlow();
 shuffle(); render(); fit();
