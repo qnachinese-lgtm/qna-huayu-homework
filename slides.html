@@ -6,6 +6,7 @@
 <title>上課投影片｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
 <!-- IMPORT_V1 從教材與課程匯入 -->
+<!-- ORDER_V1 看圖排序；WCOVER_V1 生詞先遮住 -->
 <!-- ONENAV_V1 只留一組上一頁下一頁 -->
 <!-- DOCK_V2 下方工具列改成一般按鈕 -->
 <!-- WDOCK_V1 生詞工具列重做、拿掉提示字 -->
@@ -96,6 +97,26 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .whead .tr{font-size:20px}
 .wex{padding:8px 18px 0}
 .wex .zh{font-size:28px}
+.wq{all:unset;cursor:pointer;font-weight:700;line-height:1.2;color:var(--sky);border:4px dashed var(--sky);border-radius:22px;padding:0 .25em;letter-spacing:.1em}
+.wq:hover{background:var(--ice)}
+.wblank{color:var(--navy);font-weight:700;letter-spacing:.1em}
+.ogrid{display:grid;gap:16px;margin:auto 0;align-items:start}
+.ocard{all:unset;box-sizing:border-box;cursor:pointer;position:relative;background:var(--ice);border:3px solid var(--line);border-radius:18px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:6px;transition:transform .15s,border-color .15s}
+.ocard:hover:not(:disabled){transform:translateY(-3px);border-color:var(--sky)}
+.ocard:focus-visible{outline:3px solid var(--sky)}
+.ocard img{max-width:100%;object-fit:contain;border-radius:10px;display:block}
+.ocard.ok{border-color:var(--navy)} .ocard.bad{border-color:var(--err)}
+.obadge{position:absolute;top:-12px;left:-12px;width:40px;height:40px;border-radius:50%;background:var(--panel);border:3px dashed var(--sky);display:grid;place-items:center;font-size:20px;font-weight:700;color:var(--navy)}
+.obadge.on{background:var(--navy);border:3px solid var(--navy);color:#fff}
+.obadge.on.bad{background:var(--err);border-color:var(--err)}
+.ofix{font-size:15px;color:var(--err);font-weight:700}
+.ocap{font-size:20px;text-align:center;line-height:1.5}
+.oedit{display:flex;flex-direction:column;gap:10px}
+.orow{display:grid;grid-template-columns:28px 140px 1fr auto;gap:10px;align-items:center;border:2px solid var(--line);border-radius:12px;padding:8px}
+.orow img{width:140px;height:90px;object-fit:contain;background:var(--ice);border-radius:8px}
+.orow input{font:inherit;font-size:15px;border:2px solid var(--line);border-radius:8px;padding:7px 9px;width:100%}
+.orow .obtns{display:flex;gap:4px}
+.orow .obtns button{width:32px;height:32px;border-radius:8px;border:2px solid var(--line);background:var(--panel);color:var(--fg)}
 .wexc .wexs{display:inline-flex;text-align:left}
 .wexs{display:flex;flex-direction:column;gap:6px;margin:0;padding-left:1.4em}
 .wexs li .zh{font-size:24px}
@@ -502,7 +523,7 @@ let gi = 0;
 const PCOL = ["var(--sky)","#C9DCF4","#DCCEF7","var(--yellow)","#B7D0EE"];
 
 /* FLOW_V1 每一課自己挑步驟、排順序；同一套教材沿用 */
-const STEP_DEFS = {start:"開始", warm:"暖身", words:"生詞", text:"對話", read:"短文", dict:"聽寫", grammar:"語法", speak:"口說", qa:"問題與討論", culture:"文化", draw:"抽卡練習", review:"複習"};
+const STEP_DEFS = {start:"開始", warm:"暖身", words:"生詞", text:"對話", read:"短文", dict:"聽寫", grammar:"語法", speak:"口說", qa:"問題與討論", culture:"文化", draw:"抽卡練習", order:"看圖排序", review:"複習"};
 const DEFAULT_FLOW = ["start","words","text","dict","grammar","draw","review"];
 const flowOf = L => { const f = (L && Array.isArray(L.flow) && L.flow.length) ? L.flow.filter(k=>STEP_DEFS[k]) : DEFAULT_FLOW; return f[0]==="start" ? f : ["start", ...f.filter(k=>k!=="start")]; };
 let STEPS = DEFAULT_FLOW.map(k=>({key:k, name:STEP_DEFS[k]}));
@@ -517,6 +538,8 @@ function stopSp(){ if(spId){ clearInterval(spId); spId = null; } }
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let step = 0, wi = 0, li = -1, showPy = true, showTr = true;
+/* ORDER_V1 看圖排序；WCOVER_V1 生詞先遮住 */
+let oPerm = null, oPick = [], oCheck = false, oStory = false, wCover = false, wOpen = -1;
 let deck = [], drawn = 0, cur = null, showAns = false, filter = "全部";
 let timerId = null, left = 0;
 try { step = Math.min(STEPS.length-1, +localStorage.getItem("slides-step") || 0) } catch(e) {}
@@ -532,7 +555,7 @@ function renderSteps(){
   $("#prev").disabled = step===0; $("#next").disabled = false;
 }
 function go(i){
-  stopTimer(); stopSp(); step = Math.max(0, Math.min(STEPS.length-1, i)); gi = 0; gp = 0; gShow = false; gRev = {}; ri = -1; si = 0; qi = -1; qShow = false; qRev = {}; dShow = false; dRev = {}; if(AUD) AUD.pause();
+  stopTimer(); stopSp(); step = Math.max(0, Math.min(STEPS.length-1, i)); gi = 0; gp = 0; gShow = false; gRev = {}; ri = -1; si = 0; qi = -1; qShow = false; qRev = {}; dShow = false; dRev = {}; oPerm = null; oPick = []; oCheck = false; oStory = false; wOpen = -1; if(AUD) AUD.pause();
   try { localStorage.setItem("slides-step", step) } catch(e) {}
   li = -1; render();
 }
@@ -563,6 +586,14 @@ function render(){
     $("#hint").textContent = "按 ← → 換生詞";
     if(it.subs.length){ const row = (x, sub) => `<div class="wbk ${sub?'sub':''}"><div class="whead"><b class="ww">${esc(x.r[0])}</b><span class="py">${esc(x.r[1])}</span><span class="wpos">${esc(x.r[2])}</span><span class="tr">${esc(x.r[3])}</span></div>${x.exs.map(e=>`<div class="wex"><div class="zh">${brAB(e[0])}</div><div class="py">${esc(e[1])}</div></div>`).join("")}</div>`;
       st.innerHTML = `<div class="tag"><span>生詞 ${wi+1}</span></div><div class="wbook pop">${row(it,false)}${it.subs.map(x=>row(x,true)).join("")}</div>`; }
+    else if(wCover && wOpen !== wi){ const bl = t => esc(t).split(esc(w[0])).join(`<span class="wblank">＿＿</span>`);
+      st.innerHTML = `<div class="tag"><span>生詞 ${wi+1}</span>${esc(w[2])}</div>
+      <div class="center pop" style="align-items:center;justify-content:center;text-align:center;flex:1;margin:0">
+        <button class="wq" type="button" data-a="wopen" style="font-size:${rich?80:104}px" aria-label="翻開">${[...String(w[0]||"？")].map(()=>"？").join("")}</button>
+        <div class="py" style="font-size:${rich?26:32}px;visibility:hidden">${esc(w[1])||"&nbsp;"}</div>
+        <div class="tr" style="font-size:22px;color:var(--fg)">${esc(w[3])}</div>
+</div>
+      <div class="ans wexc" style="flex:none;margin-top:0;height:${it.exs.length > 1 ? 230 : 160}px;overflow:auto;box-sizing:border-box;text-align:center;${it.exs.length ? "" : "visibility:hidden"}">${it.exs.length ? `<div class="tag" style="margin-bottom:4px">例句</div>${it.exs.map(e=>`<div style="font-size:28px">${bl(e[0])}</div>`).join("")}` : ""}</div>`; }
     else st.innerHTML = `<div class="tag"><span>生詞 ${wi+1}</span>${esc(w[2])}</div>
       <div class="center pop" style="align-items:center;justify-content:center;text-align:center;flex:1;margin:0">
         <div class="big" style="font-size:${rich?80:104}px;line-height:1.2">${esc(w[0])}</div>
@@ -571,8 +602,21 @@ function render(){
 </div>
       <div class="ans wexc" style="flex:none;margin-top:0;height:${it.exs.length > 1 ? 230 : 160}px;overflow:auto;box-sizing:border-box;text-align:center;${it.exs.length ? "" : "visibility:hidden"}">${it.exs.length ? `<div class="tag" style="margin-bottom:4px">例句</div>${it.exs.length > 1 ? exList(it.exs) : `<div style="font-size:28px">${brAB(it.exs[0][0])}</div><div class="py">${esc(it.exs[0][1])}</div>`}` : ""}</div>`;
     ct.innerHTML = `<div class="wpick"><button class="chip wlb" id="wlBtn" type="button" aria-expanded="false">${wi+1} / ${WGS.length} ▾</button><div class="wlist" id="wlist" hidden>${WGS.map((x,i)=>`<button type="button" aria-pressed="${i===wi}" data-w="${i}" title="${esc(x.r[0])}">${esc(x.r[0])}</button>`).join("")}</div></div>
-      <button class="btn ghost" data-a="wrand">隨機</button><span class="gap"></span>${toggles()}`;
+      <button class="btn ghost" data-a="wrand">隨機</button><button class="chip" aria-pressed="${wCover}" data-a="wcover">先遮住</button>${wCover && wOpen !== wi ? `<button class="btn" data-a="wopen">翻開</button>` : ""}<span class="gap"></span>${toggles()}`;
     $("#wlBtn").onclick = e => { e.stopPropagation(); const wl = $("#wlist"); wl.hidden = !wl.hidden; $("#wlBtn").setAttribute("aria-expanded", !wl.hidden); const on = wl.querySelector("[aria-pressed=true]"); if(!wl.hidden && on) wl.scrollTop = on.offsetTop - wl.clientHeight/2; };
+  }
+  if(k==="order"){
+    const imgs = (LESSON.orderImgs||[]).filter(x=>x && x.url), n = imgs.length;
+    $("#title").textContent = oStory ? "看圖說故事" : "看圖排序";
+    if(!n){ st.innerHTML = `<div class="center"><div class="tr">這一課還沒有排序的圖片，按右上角「老師」→「編輯／匯入」→「看圖排序」加入。</div></div>`; ct.innerHTML = ""; return; }
+    if(!oPerm || oPerm.length !== n){ oPerm = [...Array(n).keys()]; for(let t=0; t<20; t++){ for(let i=n-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [oPerm[i],oPerm[j]] = [oPerm[j],oPerm[i]]; } if(n<2 || oPerm.some((v,i)=>v!==i)) break; } }
+    const cols = n<=4 ? n : Math.ceil(n/2), rows = Math.ceil(n/cols), hasCap = oStory && imgs.some(x=>x.cap), ih = rows===1 ? (hasCap ? 290 : 360) : (hasCap ? 140 : 190);
+    const order = oStory ? [...Array(n).keys()] : oPerm;
+    st.innerHTML = `<div class="ogrid pop" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${order.map(i => { const m = imgs[i], p = oPick.indexOf(i), ok = p === i;
+      const badge = oStory ? `<span class="obadge on">${i+1}</span>` : p >= 0 ? `<span class="obadge on ${oCheck ? (ok ? "ok" : "bad") : ""}">${p+1}</span>` : `<span class="obadge"></span>`;
+      return `<button class="ocard ${!oStory && oCheck && p>=0 ? (ok ? "ok" : "bad") : ""}" type="button" ${oStory ? "disabled" : `data-oi="${i}"`}>${badge}<img src="${esc(m.url)}" alt="" style="height:${ih}px">${!oStory && oCheck && !ok ? `<span class="ofix">正確是第 ${i+1} 張</span>` : ""}${oStory && m.cap ? `<span class="ocap">${esc(m.cap)}</span>` : ""}</button>`; }).join("")}</div>`;
+    ct.innerHTML = oStory ? `<button class="btn ghost" data-a="ostory">回到排序</button>`
+      : `<button class="btn" data-a="ocheck">${oCheck ? "隱藏答案" : "對答案"}</button><button class="btn ghost" data-a="oclear">清除</button><button class="btn ghost" data-a="oshuf">重新打亂</button><span class="meta">已排 ${oPick.length} / ${n}</span><span class="gap"></span><button class="btn ghost" data-a="ostory">看圖說故事</button>`;
   }
   if(k==="text"){
     $("#title").textContent = "對話";
@@ -730,6 +774,7 @@ document.addEventListener("click", e=>{
   const b = e.target.closest("button"); if(!b) return;
   if(b.dataset.i) return go(+b.dataset.i);
   if(b.dataset.w){ wi = +b.dataset.w; return render(); }
+  if(b.dataset.oi !== undefined && $("#modal").hidden){ const i = +b.dataset.oi, p = oPick.indexOf(i); if(p >= 0) oPick.splice(p, 1); else oPick.push(i); oCheck = false; return render(); }
   if(b.dataset.qa !== undefined && $("#modal").hidden){ const i = +b.dataset.qa; qi = i; qRev[i] = !qRev[i]; return render(); }
   if(b.dataset.db !== undefined){ const id = +b.dataset.db; dRev[id] = !dRev[id]; return render(); }
   if(b.dataset.rate){ aRate = +b.dataset.rate; if(AUD) AUD.playbackRate = aRate; return render(); }
@@ -741,6 +786,12 @@ document.addEventListener("click", e=>{
   const a = b.dataset.a;
   if(a==="next") go(step+1);
   if(a==="restart") go(0);
+  if(a==="wcover"){ wCover = !wCover; wOpen = -1; return render(); }
+  if(a==="wopen"){ wOpen = wi; return render(); }
+  if(a==="oshuf"){ oPerm = null; oPick = []; oCheck = false; return render(); }
+  if(a==="oclear"){ oPick = []; oCheck = false; return render(); }
+  if(a==="ocheck"){ oCheck = !oCheck; return render(); }
+  if(a==="ostory"){ oStory = !oStory; return render(); }
   if(a==="wprev"){ const n = Math.max(1,WG(LESSON).length); wi = (wi-1+n)%n; render(); }
   if(a==="wnext"){ wi = (wi+1)%Math.max(1,WG(LESSON).length); render(); }
   if(a==="wrand"){ wi = Math.floor(Math.random()*WG(LESSON).length); render(); }
@@ -831,12 +882,13 @@ function fromDoc(id, d){
     warm: {qs: rows(d.warmQs), img: d.warmImg || null}, read: {title: d.readTitle || "", paras: cells(d.readParas,3).filter(r=>r[0])},
     speak: cells(d.speak,2).filter(r=>r[0]), qa: cells(d.qa,2).filter(r=>r[0]), culture: {title: d.cultTitle || "", paras: rows(d.cultText), img: d.cultImg || null},
     dict: cells(d.dict,3).map(r=>{r[0]=normRole(r[0]);return r}).filter(r=>r[2]), audio: d.audio && d.audio.url ? {url:d.audio.url, name:d.audio.name||"", path:d.audio.path||""} : null,
+    orderImgs: Array.isArray(d.orderImgs) ? d.orderImgs.filter(x=>x && x.url) : [],
     cards: cells(d.cards,5).filter(r=>r[1]), review: rows(d.review), homework: rows(d.homework) };
 }
 function toDoc(L){
   return { num: Number(L.num)||0, name: L.name, pinyin: L.pinyin, textTitle: L.textTitle||"", goals: join(L.goals), words: join(L.words),
     dialog: join(L.dialog), grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gex: join(g.examples), note: g.note||"", exs: (g.exs||[]).map(x=>({instr: x.instr||"", opts: join(x.opts||[]), qs: join(x.qs||[])}))})), cast: castOf(L), avatars: cleanAv(L.avatars),
-    cards: join(L.cards), review: join(L.review), homework: join(L.homework), textImgs: (L.textImgs||[]).filter(x=>!x.local), book: L.book||"", flow: flowOf(L), warmQs: join((L.warm||{}).qs||[]), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: join((L.read||{}).paras||[]), speak: join(L.speak||[]), qa: join(L.qa||[]), cultTitle: (L.culture||{}).title||"", cultText: join((L.culture||{}).paras||[]), cultImg: (L.culture||{}).img||null, dict: join(L.dict||[]), audio: L.audio && !L.audio.local ? L.audio : null };
+    cards: join(L.cards), review: join(L.review), homework: join(L.homework), textImgs: (L.textImgs||[]).filter(x=>!x.local), orderImgs: (L.orderImgs||[]).filter(x=>x && x.url && !x.local), book: L.book||"", flow: flowOf(L), warmQs: join((L.warm||{}).qs||[]), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: join((L.read||{}).paras||[]), speak: join(L.speak||[]), qa: join(L.qa||[]), cultTitle: (L.culture||{}).title||"", cultText: join((L.culture||{}).paras||[]), cultImg: (L.culture||{}).img||null, dict: join(L.dict||[]), audio: L.audio && !L.audio.local ? L.audio : null };
 }
 let lessons = [SAMPLE], db = null, editingId = null, delArmed = false;
 let curId = "sample"; try { curId = localStorage.getItem("slides-lesson") || "sample" } catch(e) {}
@@ -862,7 +914,7 @@ function fillSel(){
 }
 function useLesson(id, keepStep){
   const L = lessons.find(x=>x.id===id) || SAMPLE;
-  curId = L.id; LESSON = L; applyFlow(); if(AUD){ AUD.pause(); AUD = null; } wi = 0; li = -1; filter = "全部"; stopTimer(); shuffle();
+  curId = L.id; LESSON = L; applyFlow(); if(AUD){ AUD.pause(); AUD = null; } wi = 0; li = -1; oPerm = null; oPick = []; oCheck = false; oStory = false; wOpen = -1; filter = "全部"; stopTimer(); shuffle();
   try { localStorage.setItem("slides-lesson", curId) } catch(e) {}
   fillSel(); keepStep ? render() : go(0);
 }
@@ -875,6 +927,7 @@ const SECS = [
   {k:"dialog", name:"對話", cols:["角色","句子","拼音","翻譯","圖片"], idx:[0,2,3,4,5], size:6, w:"44px 1.5fr 1.4fr 1fr 72px", tip:"點圓圈換角色；景＝場景／動作"},
   {k:"readParas", name:"短文", cols:["段落","拼音","翻譯"], w:"1.4fr 1.2fr 1fr", tip:""},
   {k:"dict", name:"聽寫", cols:["角色","句子（【】裡的字會變成空格）"], idx:[0,2], size:3, w:"44px 1fr", tip:"【】裡的字會挖空"},
+  {k:"order", name:"看圖排序"},
   {k:"grammars", name:"語法"},
   {k:"speak", name:"口說", cols:["任務／問題","計時（秒）"], w:"1fr 110px", tip:"計時沒填就是 60 秒"},
   {k:"qa", name:"問題與討論", cols:["問題","參考答案（可以空白）"], w:"1.2fr 1fr", tip:""},
@@ -890,10 +943,10 @@ function openEditor(L){
   const c = x => (x||[]).map(r => Array.isArray(r) ? r.slice() : [r]);
   ED = L ? { num:String(L.num||""), name:L.name||"", pinyin:L.pinyin||"", textTitle:L.textTitle||"",
       grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", gex:c(g.examples), exs:(g.exs||[]).map(x=>({instr:x.instr||"", opts:(x.opts||[]).join("\n"), qs:c(x.qs)}))})), cast: castOf(L), avatars: JSON.parse(JSON.stringify(L.avatars||{})),
-      goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null, textImgs: (L.textImgs||[]).slice(),
+      goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null, textImgs: (L.textImgs||[]).slice(), orderImgs: (L.orderImgs||[]).map(x=>({...x})),
       book: L.book||"", flow: flowOf(L).slice(), warmQs: c((L.warm||{}).qs), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: c((L.read||{}).paras), speak: c(L.speak), qa: c(L.qa), cultTitle: (L.culture||{}).title||"", cultText: c((L.culture||{}).paras), cultImg: (L.culture||{}).img||null }
     : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{title:"", pattern:"", gnote:"", gex:[blank(2),blank(2)], exs:[]}], cast:{A:"",B:"",C:"",D:""}, avatars:{}, goals:[[""],[""],[""]], words:[blank(7)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]], dict:[], audio:null,
-      book: LESSON.id!=="sample" ? (LESSON.book||"") : "", flow: flowOf(LESSON).slice(), warmQs:[[""]], warmImg:null, readTitle:"", readParas:[blank(3)], speak:[blank(2)], qa:[blank(2)], cultTitle:"", cultText:[[""]], cultImg:null, textImgs:[] };
+      book: LESSON.id!=="sample" ? (LESSON.book||"") : "", flow: flowOf(LESSON).slice(), warmQs:[[""]], warmImg:null, readTitle:"", readParas:[blank(3)], speak:[blank(2)], qa:[blank(2)], cultTitle:"", cultText:[[""]], cultImg:null, textImgs:[], orderImgs:[] };
   ED._id = (L && L.id!=="sample") ? L.id : "lesson-" + Date.now().toString(36);
   if(!ED.grammars.length) ED.grammars.push({title:"", pattern:"", gnote:"", gex:[blank(2)], exs:[]});
   SECS.forEach(x=>{ if(x.cols && Array.isArray(ED[x.k]) && !ED[x.k].length && x.k!=="dict" && x.k!=="cards") ED[x.k].push((x.k==="dialog") ? ["A", ...blank((x.size||x.cols.length)-1)] : blank(x.size||x.cols.length)); });
@@ -907,7 +960,7 @@ function openEditor(L){
 function msg(t, err){ const m=$("#edMsg"); m.textContent=t; m.className="msg"+(err?" err":""); }
 const filled = r => r.some(x => String(x).trim() && !/^([ABCDS]|sub|ex)$/.test(x));
 function renderTabs(){
-  $("#edTabs").innerHTML = SECS.map(x => `<button role="tab" data-tab="${x.k}" aria-selected="${x.k===edTab}">${x.name}${x.cols?`<span class="cnt">${ED[x.k].filter(filled).length}</span>`:x.k==="grammars"?`<span class="cnt">${ED.grammars.filter(g=>(g.title||g.pattern).trim()).length}</span>`:""}</button>`).join("");
+  $("#edTabs").innerHTML = SECS.map(x => `<button role="tab" data-tab="${x.k}" aria-selected="${x.k===edTab}">${x.name}${x.cols?`<span class="cnt">${ED[x.k].filter(filled).length}</span>`:x.k==="order"?`<span class="cnt">${ED.orderImgs.length}</span>`:x.k==="grammars"?`<span class="cnt">${ED.grammars.filter(g=>(g.title||g.pattern).trim()).length}</span>`:""}</button>`).join("");
 }
 function renderEd(){
   renderTabs();
@@ -922,6 +975,13 @@ function renderEd(){
     </div></div>
     <div class="col"><div class="sec-h"><h3>上課步驟</h3></div>
     <div class="flowbox" id="flowBox">${flowHtml()}</div></div></div>`;
+    return;
+  }
+  if(S.k==="order"){
+    B.innerHTML = `<div class="sec-h"><h3>看圖排序</h3><small>照正確順序排好，上課時會自動打亂；文字框是看圖說故事時顯示的說明，可以空白</small></div>
+      <div class="oedit">${ED.orderImgs.map((m,i)=>`<div class="orow"><span class="no">${i+1}</span><img src="${esc(m.url)}" alt="第${i+1}張"><input data-oc="${i}" value="${esc(m.cap||"")}" aria-label="第${i+1}張的說明（看圖說故事時顯示，可以空白）">
+        <span class="obtns"><button type="button" data-oup="${i}" aria-label="往上" ${i===0?"disabled":""}>↑</button><button type="button" data-odown="${i}" aria-label="往下" ${i===ED.orderImgs.length-1?"disabled":""}>↓</button><button type="button" data-odel="${i}" aria-label="刪除">×</button></span></div>`).join("")}</div>
+      <div class="chips" style="margin-top:12px"><label class="mini" style="cursor:pointer">＋ 上傳圖片<input type="file" data-ogal="1" accept="image/*" multiple hidden></label>${(ED.textImgs.length || ED.dialog.some(r=>r[5])) ? `<button class="mini" type="button" id="ordFrom">用對話的圖片</button>` : ""}</div>`;
     return;
   }
   if(S.k==="grammars"){
@@ -1012,6 +1072,7 @@ const S = () => SECS.find(x=>x.k===edTab);
 $("#edTabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if(b){ edTab = b.dataset.tab; renderEd(); } });
 $("#edBody").addEventListener("input", e => {
   const t = e.target;
+  if(t.dataset.oc !== undefined){ ED.orderImgs[+t.dataset.oc].cap = t.value; return; }
   if(t.dataset.cast){ ED.cast[t.dataset.cast] = t.value.trim(); return; }
   if(t.dataset.avz){ const k = t.dataset.avz, a = ED.avatars[k]; a.z = +t.value; const p = $(`[data-avprev="${k}"]`); avSync(k); return; }
   if(t.dataset.b){ ED[t.dataset.b] = t.value;
@@ -1027,6 +1088,13 @@ $("#edBody").addEventListener("input", e => {
   if(t.dataset.r){ const r = ED[edTab][+t.dataset.r]; r[+t.dataset.c] = t.value; if(t.classList.contains("grow")) growTa(t); renderTabs(); }
 });
 $("#edBody").addEventListener("change", async e => {
+  if(e.target.dataset && e.target.dataset.ogal){ const files = [...e.target.files]; if(!files.length) return;
+    if(files.some(f=>f.size > 10*1024*1024)){ msg("圖片太大了（超過 10MB）。", true); return; }
+    msg("圖片上傳中…");
+    try { for(const f of files){ const m = uploadAudio ? await uploadAudio(f, ED._id) : {url: URL.createObjectURL(f), name: f.name, local: true}; ED.orderImgs.push({...m, cap: ""}); }
+      renderEd(); msg(uploadAudio ? "圖片上傳好了，記得按「儲存」。" : "還沒登入：圖片只會暫時套用。", !uploadAudio); }
+    catch(err){ msg("圖片上傳失敗：" + (err && (err.code || err.message) || ""), true); }
+    return; }
   if(e.target.dataset && e.target.dataset.av){ const k = e.target.dataset.av, f = e.target.files[0]; if(!f) return;
     if(f.size > 10*1024*1024){ msg("圖片太大了（超過 10MB）。", true); return; }
     msg("照片上傳中…");
@@ -1086,6 +1154,11 @@ $("#edBody").addEventListener("paste", e => {
   renderEd(); msg(`貼上了 ${count} 行。`);
 });
 $("#edBody").addEventListener("click", e => {
+  const ob = e.target.closest && e.target.closest("button");
+  if(ob && ob.dataset.oup !== undefined){ const i = +ob.dataset.oup, a = ED.orderImgs; [a[i-1], a[i]] = [a[i], a[i-1]]; renderEd(); return; }
+  if(ob && ob.dataset.odown !== undefined){ const i = +ob.dataset.odown, a = ED.orderImgs; [a[i+1], a[i]] = [a[i], a[i+1]]; renderEd(); return; }
+  if(ob && ob.dataset.odel !== undefined){ ED.orderImgs.splice(+ob.dataset.odel, 1); renderEd(); return; }
+  if(ob && ob.id === "ordFrom"){ const seen = new Set(ED.orderImgs.map(x=>x.url)); [...ED.dialog.map(r=>r[5]).filter(Boolean).map(u=>({url:u})), ...ED.textImgs].forEach(m=>{ if(m && m.url && !seen.has(m.url)){ seen.add(m.url); ED.orderImgs.push({url: m.url, path: m.path||"", cap: "", local: m.local}); } }); renderEd(); msg("帶入了對話的圖片，請排好正確順序。"); return; }
   const ad = e.target.closest && e.target.closest("[data-avdel]");
   if(ad){ delete ED.avatars[ad.dataset.avdel]; renderEd(); return; }
   const b = e.target.closest("button"); if(!b) return;
@@ -1129,7 +1202,7 @@ function readForm(){
     grammars: ED.grammars.filter(g=>(g.title||"").trim() || g.pattern.trim() || g.gex.some(filled) || (g.exs||[]).length).map(g=>({title: (g.title||"").trim(), pattern: g.pattern.trim(), note: g.gnote.trim(), gex: jr(g.gex),
       exs: (g.exs||[]).map(x=>({instr: x.instr.trim(), opts: x.opts.trim(), qs: jr(x.qs)}))})), cast: {...ED.cast}, avatars: cleanAv(ED.avatars),
     goals: j("goals"), words: j("words"), dialog: j("dialog"), dict: j("dict"), audio: ED.audio && !ED.audio.local ? ED.audio : null,
-    textImgs: ED.textImgs.filter(x=>!x.local), book: ED.book.trim(), flow: ED.flow.slice(), warmQs: j("warmQs"), warmImg: ED.warmImg && !ED.warmImg.local ? ED.warmImg : null, readTitle: ED.readTitle.trim(), readParas: j("readParas"),
+    textImgs: ED.textImgs.filter(x=>!x.local), orderImgs: ED.orderImgs.filter(x=>!x.local).map(x=>({url: x.url, path: x.path||"", cap: String(x.cap||"").trim()})), book: ED.book.trim(), flow: (()=>{ const fl = ED.flow.slice(); if(ED.orderImgs.length && !fl.includes("order")){ const at = Math.max(fl.indexOf("dict"), fl.indexOf("text")); if(at >= 0) fl.splice(at+1, 0, "order"); else fl.splice(Math.max(1, fl.length-1), 0, "order"); } return fl; })(), warmQs: j("warmQs"), warmImg: ED.warmImg && !ED.warmImg.local ? ED.warmImg : null, readTitle: ED.readTitle.trim(), readParas: j("readParas"),
     speak: j("speak"), qa: j("qa"), cultTitle: ED.cultTitle.trim(), cultText: j("cultText"), cultImg: ED.cultImg && !ED.cultImg.local ? ED.cultImg : null, cards: j("cards"), review: j("review"), homework: j("homework") };
 }
 $("#editBtn").onclick = () => openEditor(LESSON);
@@ -1148,7 +1221,7 @@ $("#edSave").onclick = async () => {
   const isNew = !editingId || editingId==="sample";
   const id = isNew ? ED._id : editingId;
   const body = { ...d, num: Number(d.num)||0, updatedAt: Date.now() };
-  const L = fromDoc(id, body); if(ED.audio && ED.audio.local) L.audio = ED.audio; if(ED.warmImg && ED.warmImg.local) L.warm.img = ED.warmImg; if(ED.cultImg && ED.cultImg.local) L.culture.img = ED.cultImg; L.textImgs = ED.textImgs.slice();
+  const L = fromDoc(id, body); if(ED.audio && ED.audio.local) L.audio = ED.audio; if(ED.warmImg && ED.warmImg.local) L.warm.img = ED.warmImg; if(ED.cultImg && ED.cultImg.local) L.culture.img = ED.cultImg; L.textImgs = ED.textImgs.slice(); L.orderImgs = ED.orderImgs.slice();
   if(!db){ lessons = lessons.filter(x=>x.id!==id).concat(L); useLesson(id); afterSave(id, L); return; }
   $("#edSave").disabled = true; msg("儲存中…");
   try { await db.collection(COL).doc(id).set(body); lessons = lessons.filter(x=>x.id!==id).concat(L); sortL(); useLesson(id, !isNew); afterSave(id, L); }
