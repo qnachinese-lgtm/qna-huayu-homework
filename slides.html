@@ -136,6 +136,9 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .tbl .x{border:none;background:none;color:var(--muted);font-size:18px;width:28px;height:28px;border-radius:8px}
 .tbl .x:hover{background:var(--ice);color:var(--blank)}
 .role{width:40px;height:34px;border-radius:50%;border:none;font-weight:700;color:#fff;font-size:15px}
+.dblank{display:inline-flex;align-items:center;justify-content:center;min-width:3.2em;height:1.35em;margin:0 .12em;padding:0 .3em;border:none;border-bottom:3px solid var(--blank);background:var(--ice);border-radius:6px 6px 0 0;font:inherit;color:var(--fg);cursor:pointer;vertical-align:baseline}
+.dblank i{font-style:normal;font-size:.55em;color:var(--muted)}
+.dblank.on{color:var(--ansc);font-weight:700;background:transparent}
 .gcard{border:2px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .gcard .basic{max-width:none}
 .addrow{align-self:flex-start;border:2px dashed var(--sky);background:transparent;color:var(--navy);border-radius:10px;padding:8px 16px;font-size:15px}
@@ -220,6 +223,7 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script src="config.js"></script>
 <script>
 /* ===== 課程內容：換課時只要改這裡 ===== */
@@ -274,7 +278,7 @@ let gi = 0;
 const PCOL = ["var(--sky)","var(--pink)","var(--mint)","var(--yellow)","var(--lav)"];
 
 const STEPS = [
-  {key:"start", name:"開始"}, {key:"words", name:"生詞"}, {key:"text", name:"課文"},
+  {key:"start", name:"開始"}, {key:"words", name:"生詞"}, {key:"text", name:"課文"}, {key:"dict", name:"聽寫"},
   {key:"grammar", name:"語法"}, {key:"draw", name:"抽卡練習"}, {key:"review", name:"複習"},
 ];
 const $ = s => document.querySelector(s);
@@ -294,7 +298,7 @@ function renderSteps(){
   $("#prev").disabled = step===0; $("#next").disabled = step===STEPS.length-1;
 }
 function go(i){
-  stopTimer(); step = Math.max(0, Math.min(STEPS.length-1, i)); gi = 0;
+  stopTimer(); step = Math.max(0, Math.min(STEPS.length-1, i)); gi = 0; dShow = false; dRev = {}; if(AUD) AUD.pause();
   try { localStorage.setItem("slides-step", step) } catch(e) {}
   li = -1; render();
 }
@@ -346,6 +350,23 @@ function render(){
       <button class="btn ghost" data-a="lall">全部顯示</button>${toggles()}
       <div class="meta">${li<0?"全部":"第 "+(li+1)+" 句"}・共 ${LESSON.dialog.length} 句</div>
       <div class="note"><b>建議</b><br>老師念 → 全班跟讀 → 分角色念。</div>`;
+  }
+  if(k==="dict"){
+    const ds = DICT(LESSON); let n = 0;
+    $("#title").textContent = "聽寫" + (LESSON.textTitle ? "：" + LESSON.textTitle : "");
+    $("#hint").textContent = "聽音檔，把空格裡的生詞寫下來";
+    st.innerHTML = ds.length ? `<div class="dlg">${ds.map(d=>`<div class="line ${RIGHT(d[0])?'r':''}"><div class="av"><div class="who" style="background:${RCOL[d[0]]||RCOL.A}">${esc(d[0])}</div><div class="nm">${esc(d[1])}</div></div>
+      <div class="bub" style="border-color:${RCOL[d[0]]||RCOL.A}"><div class="zh">${String(d[2]).split(/【(.+?)】/).map((p,j)=>{ if(!(j%2)) return esc(p); const id = n++, on = dShow || dRev[id];
+        return `<button class="dblank${on?' on':''}" data-db="${id}" aria-label="第${id+1}格">${on?esc(p):`<i>${id+1}</i>`}</button>`; }).join("")}</div></div></div>`).join("")}</div>`
+      : `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有課文，按左邊「編輯／匯入」加入。</div></div>`;
+    const au = LESSON.audio && LESSON.audio.url;
+    ct.innerHTML = (au ? `<h3>音檔</h3><button class="btn" data-a="aplay" id="aplayBtn">播放</button>
+      <div class="chips"><button class="chip" data-a="aback">倒退 5 秒</button><button class="chip" data-a="arestart">從頭播</button></div>
+      <div class="chips">${[0.75,1].map(r=>`<button class="chip" aria-pressed="${aRate===r}" data-rate="${r}">${r===1?"正常速度":"慢速"}</button>`).join("")}</div>
+      <div class="meta" id="aTime"></div>` : `<div class="note" style="margin-top:0"><b>還沒有音檔</b><br>到「編輯／匯入」→「聽寫」上傳課文音檔。</div>`)
+      + `<button class="btn ghost" data-a="dshow">${dShow?"隱藏答案":"顯示全部答案"}</button><div class="meta">共 ${n} 格・點一格可以只看那一格</div>
+      <div class="note"><b>玩法</b><br>先播一次聽全文，再慢速播一次讓學生寫，最後對答案。</div>`;
+    setAudio(au);
   }
   if(k==="grammar"){
     const gs = GR(LESSON);
@@ -414,6 +435,8 @@ document.addEventListener("click", e=>{
   const b = e.target.closest("button"); if(!b) return;
   if(b.dataset.i) return go(+b.dataset.i);
   if(b.dataset.w){ wi = +b.dataset.w; return render(); }
+  if(b.dataset.db !== undefined){ const id = +b.dataset.db; dRev[id] = !dRev[id]; return render(); }
+  if(b.dataset.rate){ aRate = +b.dataset.rate; if(AUD) AUD.playbackRate = aRate; return render(); }
   if(b.dataset.g && $("#modal").hidden){ gi = +b.dataset.g; return render(); }
   if(b.dataset.f){ filter = b.dataset.f; stopTimer(); shuffle(); return renderDraw(); }
   if(b.dataset.t){ if(b.dataset.t==="py") showPy=!showPy; else showTr=!showTr; return STEPS[step].key==="draw"?renderDraw():render(); }
@@ -424,6 +447,10 @@ document.addEventListener("click", e=>{
   if(a==="wrand"){ wi = Math.floor(Math.random()*LESSON.words.length); render(); }
   if(a==="lnext"){ li = (li+1)%LESSON.dialog.length; render(); }
   if(a==="lall"){ li = -1; render(); }
+  if(a==="aplay" && AUD){ AUD.paused ? AUD.play().catch(()=>{}) : AUD.pause(); }
+  if(a==="aback" && AUD){ AUD.currentTime = Math.max(0, AUD.currentTime - 5); }
+  if(a==="arestart" && AUD){ AUD.currentTime = 0; AUD.play().catch(()=>{}); }
+  if(a==="dshow"){ dShow = !dShow; dRev = {}; render(); }
   if(a==="gnext"){ gi = (gi+1) % GR(LESSON).length; render(); }
   if(a==="draw") draw();
   if(a==="ans"){ showAns=!showAns; renderDraw(); }
@@ -448,6 +475,29 @@ function fit(){
   $("#app").style.transform=`scale(${k})`;
 }
 window.addEventListener("resize",fit); document.addEventListener("fullscreenchange",fit);
+/* ===== 聽寫（DICT_V1）：課文挖空生詞＋整篇音檔 ===== */
+let dShow = false, dRev = {}, AUD = null, aRate = 1, uploadAudio = null;
+const inB = (s,i) => { const p = s.slice(0,i); return p.split("【").length > p.split("】").length; };
+function autoBlank(sentence, words){
+  let s = String(sentence||""); if(/【/.test(s)) return s;
+  const ws = (words||[]).map(w=>w[0]).filter(Boolean).sort((a,b)=>b.length-a.length);
+  for(const w of ws){ const i = s.indexOf(w); if(i>=0 && !inB(s,i)) s = s.slice(0,i)+"【"+w+"】"+s.slice(i+w.length); }
+  return s;
+}
+const DICT = L => (L.dict && L.dict.length) ? L.dict : (L.dialog||[]).map(d=>[d[0], d[1], autoBlank(d[2], L.words)]);
+function fmtT(t){ t = Math.floor(t||0); return Math.floor(t/60) + ":" + String(t%60).padStart(2,"0"); }
+function updA(){ const b = document.getElementById("aplayBtn"); if(b && AUD) b.textContent = AUD.paused ? "播放" : "暫停";
+  const tm = document.getElementById("aTime"); if(tm && AUD) tm.textContent = fmtT(AUD.currentTime) + " / " + (isFinite(AUD.duration) ? fmtT(AUD.duration) : "--:--"); }
+function setAudio(url){
+  if(!url){ if(AUD) AUD.pause(); return; }
+  if(!AUD || AUD.dataset.src !== url){ if(AUD) AUD.pause(); AUD = new Audio(url); AUD.dataset.src = url; AUD.preload = "metadata";
+    ["play","pause","timeupdate","ended","loadedmetadata"].forEach(ev=>AUD.addEventListener(ev, updA)); }
+  AUD.playbackRate = aRate; updA();
+}
+function dictTop(){ const a = ED.audio; return `<div class="gcard"><b>課文音檔</b>
+  ${a && a.url ? `<audio controls src="${esc(a.url)}" style="width:100%"></audio><small style="color:var(--muted)">${esc(a.name||"")}</small>` : `<small style="color:var(--muted)">還沒有音檔（mp3、m4a、wav 都可以）</small>`}
+  <div class="chips"><label class="mini" style="cursor:pointer">${a && a.url ? "換一個音檔" : "上傳音檔"}<input type="file" id="audFile" accept="audio/*" hidden></label>${a && a.url ? '<button class="mini" type="button" id="audDel">移除音檔</button>' : ""}</div></div>
+  <div class="chips"><button class="mini" type="button" id="dictFrom">從課文帶入（自動挖空生詞）</button><button class="mini" type="button" id="dictAuto">還沒挖空的句子自動挖空</button></div>`; }
 /* ===== 課程庫：存在這個網頁的資料庫 ===== */
 const rows = t => String(t||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
 const cells = (t,n) => rows(t).map(r=>{ const c=r.split(/\s*[｜|\t]\s*/); while(c.length<n) c.push(""); return c.slice(0,n); });
@@ -457,12 +507,13 @@ function fromDoc(id, d){
     goals: rows(d.goals).map(g=>g.replace(/\s*[｜|]\s*/,"：").replace(/：$/,"")), words: cells(d.words,6), dialog: cells(d.dialog,5).map(r=>{r[0]=normRole(r[0]);return r}),
     grammars: (Array.isArray(d.grammars) ? d.grammars : (d.pattern||d.gex ? [{pattern:d.pattern, gex:d.gex, note:d.gnote}] : []))
       .map(g=>({ pattern: String(g.pattern||"").split(/\s*[＋+]\s*/).filter(Boolean), examples: cells(g.gex,2), note: g.note || "" })),
+    dict: cells(d.dict,3).map(r=>{r[0]=normRole(r[0]);return r}).filter(r=>r[2]), audio: d.audio && d.audio.url ? {url:d.audio.url, name:d.audio.name||"", path:d.audio.path||""} : null,
     cards: cells(d.cards,5).filter(r=>r[1]), review: rows(d.review), homework: rows(d.homework) };
 }
 function toDoc(L){
   return { num: Number(L.num)||0, name: L.name, pinyin: L.pinyin, textTitle: L.textTitle||"", goals: join(L.goals), words: join(L.words),
     dialog: join(L.dialog), grammars: GR(L).map(g=>({pattern:(g.pattern||[]).join("＋"), gex: join(g.examples), note: g.note||""})),
-    cards: join(L.cards), review: join(L.review), homework: join(L.homework) };
+    cards: join(L.cards), review: join(L.review), homework: join(L.homework), dict: join(L.dict||[]), audio: L.audio && !L.audio.local ? L.audio : null };
 }
 let lessons = [SAMPLE], db = null, editingId = null, delArmed = false;
 let curId = "sample"; try { curId = localStorage.getItem("slides-lesson") || "sample" } catch(e) {}
@@ -471,7 +522,7 @@ function fillSel(){
 }
 function useLesson(id, keepStep){
   const L = lessons.find(x=>x.id===id) || SAMPLE;
-  curId = L.id; LESSON = L; wi = 0; li = -1; filter = "全部"; stopTimer(); shuffle();
+  curId = L.id; LESSON = L; if(AUD){ AUD.pause(); AUD = null; } wi = 0; li = -1; filter = "全部"; stopTimer(); shuffle();
   try { localStorage.setItem("slides-lesson", curId) } catch(e) {}
   fillSel(); keepStep ? render() : go(0);
 }
@@ -481,6 +532,7 @@ const SECS = [
   {k:"goals", name:"學習目標", cols:["學習目標"], w:"1fr", tip:"照教師手冊寫，一行一個目標"},
   {k:"words", name:"生詞", cols:["生詞","拼音","詞性","翻譯","例句","例句拼音"], w:"100px 120px 70px 1fr 1.3fr 1.3fr"},
   {k:"dialog", name:"課文", cols:["角色","名字","句子","拼音","翻譯"], w:"44px 90px 1.4fr 1.4fr 1fr", tip:"點圓圈換角色（A→B→C→D）：A、C 在左邊，B、D 在右邊"},
+  {k:"dict", name:"聽寫", cols:["角色","名字","句子（【】裡的字會變成空格）"], w:"44px 90px 1fr", tip:"用【】把要挖空的生詞框起來，例如：你【週末】喜歡做什麼？"},
   {k:"grammars", name:"語法"},
   {k:"cards", name:"抽卡填空", cols:["分類","題目","答案","完整句拼音","翻譯"], w:"90px 1.4fr 90px 1.3fr 1fr", tip:"題目裡用 ＿＿ 表示空格"},
   {k:"review", name:"複習", cols:["打勾項目"], w:"1fr"},
@@ -493,8 +545,9 @@ function openEditor(L){
   const c = x => (x||[]).map(r => Array.isArray(r) ? r.slice() : [r]);
   ED = L ? { num:String(L.num||""), name:L.name||"", pinyin:L.pinyin||"", textTitle:L.textTitle||"",
       grammars: GR(L).map(g=>({pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", gex:c(g.examples)})),
-      goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework) }
-    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{pattern:"", gnote:"", gex:[blank(2),blank(2)]}], goals:[[""],[""],[""]], words:[blank(6)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]] };
+      goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null }
+    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{pattern:"", gnote:"", gex:[blank(2),blank(2)]}], goals:[[""],[""],[""]], words:[blank(6)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]], dict:[], audio:null };
+  ED._id = (L && L.id!=="sample") ? L.id : "lesson-" + Date.now().toString(36);
   if(!ED.grammars.length) ED.grammars.push({pattern:"", gnote:"", gex:[blank(2)]});
   edTab = "basic";
   $("#edTitle").textContent = !L ? "新增一課" : L.id==="sample" ? "以範例為底，存成新的一課" : `編輯 第${L.num}課`;
@@ -536,10 +589,10 @@ function renderEd(){
     return;
   }
   const rowsHtml = ED[S.k].map((r,i) => `<span class="no">${i+1}</span>` + S.cols.map((cn,j) =>
-      S.k==="dialog" && j===0 ? `<button class="role" type="button" data-role="${i}" style="background:${RCOL[normRole(r[0])]}" aria-label="切換角色">${normRole(r[0])}</button>`
+      (S.k==="dialog" || S.k==="dict") && j===0 ? `<button class="role" type="button" data-role="${i}" style="background:${RCOL[normRole(r[0])]}" aria-label="切換角色">${normRole(r[0])}</button>`
       : `<input data-r="${i}" data-c="${j}" value="${esc(r[j]||"")}" aria-label="${cn} 第${i+1}行">`).join("") + `<button class="x" type="button" data-del="${i}" aria-label="刪除第${i+1}行">×</button>`).join("");
   B.innerHTML = `<div class="sec-h"><h3>${S.name}</h3><small>${S.tip||"一格填一個欄位，從試算表複製多行貼到第一格會自動分好"}</small></div>
-    ${S.k==="cards"?'<button class="mini" id="autoCards" type="button">用生詞例句和課文自動出題</button>':""}
+    ${S.k==="dict"?dictTop():""}${S.k==="cards"?'<button class="mini" id="autoCards" type="button">用生詞例句和課文自動出題</button>':""}
     <div class="tbl" style="grid-template-columns:28px ${S.w} 28px"><span></span>${S.cols.map(c=>`<span class="th">${c}</span>`).join("")}<span></span>${rowsHtml}</div>
     <button class="addrow" type="button" id="addRow">＋ 新增一行</button>`;
 }
@@ -555,6 +608,14 @@ $("#edBody").addEventListener("input", e => {
     return; }
   if(t.dataset.r){ const r = ED[edTab][+t.dataset.r]; r[+t.dataset.c] = t.value; renderTabs(); }
 });
+$("#edBody").addEventListener("change", async e => {
+  if(e.target.id !== "audFile") return; const f = e.target.files[0]; if(!f) return;
+  if(f.size > 30*1024*1024){ msg("音檔太大了（超過 30MB），請先壓縮。", true); return; }
+  msg("音檔上傳中…");
+  try { ED.audio = uploadAudio ? await uploadAudio(f, ED._id) : {url: URL.createObjectURL(f), name: f.name, local: true};
+    renderEd(); msg(uploadAudio ? "音檔上傳好了，記得按「儲存」。" : "還沒登入：音檔只會暫時套用，重新整理就會不見。", !uploadAudio); }
+  catch(err){ msg("音檔上傳失敗：" + (err && (err.code || err.message) || ""), true); }
+});
 $("#edBody").addEventListener("paste", e => {
   const t = e.target; if(!t.dataset || t.dataset.r===undefined) return;
   const txt = (e.clipboardData||window.clipboardData).getData("text"); if(!/[\t\n｜|]/.test(txt.trim())) return;
@@ -565,21 +626,24 @@ $("#edBody").addEventListener("paste", e => {
   const n = S().cols.length, r0 = +t.dataset.r, c0 = +t.dataset.c;
   rows(txt).forEach((line,k) => {
     const parts = line.split(/\s*[\t｜|]\s*/); const row = ED[edTab][r0+k] || (ED[edTab][r0+k] = blank(n));
-    if(edTab==="dialog" && !row[0]) row[0] = "A";
-    parts.forEach((v,j) => { if(c0+j < n){ row[c0+j] = (edTab==="dialog" && c0+j===0) ? normRole(v) : v; } });
+    if((edTab==="dialog"||edTab==="dict") && !row[0]) row[0] = "A";
+    parts.forEach((v,j) => { if(c0+j < n){ row[c0+j] = ((edTab==="dialog"||edTab==="dict") && c0+j===0) ? normRole(v) : v; } });
   });
   renderEd(); msg(`貼上了 ${rows(txt).length} 行。`);
 });
 $("#edBody").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b) return;
   const n = S().cols ? S().cols.length : 0;
+  if(b.id==="audDel"){ ED.audio = null; renderEd(); msg("音檔移除了，記得按「儲存」。"); return; }
+  if(b.id==="dictFrom"){ ED.dict = ED.dialog.filter(filled).map(d=>[normRole(d[0]), d[1]||"", autoBlank(d[2]||"", ED.words)]); renderEd(); msg(ED.dict.length ? `帶入了 ${ED.dict.length} 句，生詞已經自動挖空，可以再自己改【】。` : "課文還是空的，請先到「課文」分頁填。", !ED.dict.length); return; }
+  if(b.id==="dictAuto"){ ED.dict.forEach(r=>{ r[2] = autoBlank(r[2], ED.words); }); renderEd(); msg("已經把還沒挖空的句子自動挖空。"); return; }
   if(b.id==="addGram"){ ED.grammars.push({pattern:"", gnote:"", gex:[blank(2),blank(2)]}); renderEd(); const ins=$("#edBody").querySelectorAll(`[data-f="pattern"]`); ins[ins.length-1].focus(); return; }
   if(b.dataset.gdel!==undefined){ ED.grammars.splice(+b.dataset.gdel,1); if(!ED.grammars.length) ED.grammars.push({pattern:"", gnote:"", gex:[blank(2)]}); renderEd(); return; }
   if(b.dataset.gadd!==undefined){ ED.grammars[+b.dataset.gadd].gex.push(blank(2)); renderEd(); return; }
   if(b.dataset.g!==undefined && b.dataset.del!==undefined){ ED.grammars[+b.dataset.g].gex.splice(+b.dataset.del,1); renderEd(); return; }
-  if(b.id==="addRow"){ ED[edTab].push(edTab==="dialog" ? [ED[edTab].length%2?"B":"A","","","",""] : blank(n)); renderEd(); const ins = $("#edBody").querySelectorAll(`input[data-r="${ED[edTab].length-1}"]`); if(ins[0]) ins[0].focus(); }
+  if(b.id==="addRow"){ ED[edTab].push((edTab==="dialog"||edTab==="dict") ? [ED[edTab].length%2?"B":"A", ...blank(n-1)] : blank(n)); renderEd(); const ins = $("#edBody").querySelectorAll(`input[data-r="${ED[edTab].length-1}"]`); if(ins[0]) ins[0].focus(); }
   if(b.dataset.del){ ED[edTab].splice(+b.dataset.del,1); renderEd(); }
-  if(b.dataset.role){ const r = ED.dialog[+b.dataset.role]; r[0] = ROLES[(ROLES.indexOf(normRole(r[0]))+1)%ROLES.length]; renderEd(); }
+  if(b.dataset.role){ const r = ED[edTab][+b.dataset.role]; r[0] = ROLES[(ROLES.indexOf(normRole(r[0]))+1)%ROLES.length]; renderEd(); }
   if(b.id==="autoCards"){
     const ws = ED.words.filter(w=>w[0]), out = [];
     ws.forEach(w=>{ if(w[4] && w[4].includes(w[0])) out.push(["生詞", w[4].replace(w[0],"＿＿"), w[0], w[5]||"", ""]); });
@@ -593,7 +657,7 @@ function readForm(){
   const jr = a => a.filter(filled).map(r=>r.map(x=>String(x).replace(/[｜|\n]/g," ").trim()).join("｜")).join("\n");
   return { num: ED.num.trim(), name: ED.name.trim(), pinyin: ED.pinyin.trim(), textTitle: ED.textTitle.trim(),
     grammars: ED.grammars.filter(g=>g.pattern.trim() || g.gex.some(filled)).map(g=>({pattern: g.pattern.trim(), note: g.gnote.trim(), gex: jr(g.gex)})),
-    goals: j("goals"), words: j("words"), dialog: j("dialog"), cards: j("cards"), review: j("review"), homework: j("homework") };
+    goals: j("goals"), words: j("words"), dialog: j("dialog"), dict: j("dict"), audio: ED.audio && !ED.audio.local ? ED.audio : null, cards: j("cards"), review: j("review"), homework: j("homework") };
 }
 $("#editBtn").onclick = () => openEditor(LESSON);
 $("#newBtn").onclick = () => openEditor(null);
@@ -602,9 +666,9 @@ $("#edSave").onclick = async () => {
   const d = readForm();
   if(!d.name){ edTab = "basic"; renderEd(); msg("請先填課名。", true); $("#b-name").focus(); return; }
   const isNew = !editingId || editingId==="sample";
-  const id = isNew ? "lesson-" + Date.now().toString(36) : editingId;
+  const id = isNew ? ED._id : editingId;
   const body = { ...d, num: Number(d.num)||0, updatedAt: Date.now() };
-  const L = fromDoc(id, body);
+  const L = fromDoc(id, body); if(ED.audio && ED.audio.local) L.audio = ED.audio;
   if(!db){ lessons = lessons.filter(x=>x.id!==id).concat(L); $("#modal").hidden = true; useLesson(id); return; }
   $("#edSave").disabled = true; msg("儲存中…");
   try { await db.collection(COL).doc(id).set(body); lessons = lessons.filter(x=>x.id!==id).concat(L); sortL(); $("#modal").hidden = true; useLesson(id, !isNew); }
@@ -635,6 +699,11 @@ function startFirebase(){
       $("#editRow").hidden = !on; $("#logoutBtn").hidden = !on; $("#loginRow").hidden = on; if(on) $("#loginForm").hidden = true;
       if(unsub){ unsub(); unsub = null; }
       db = on ? fdb : null;
+      uploadAudio = on ? async (f, id) => {
+        const path = "slide_audio/" + id + "/" + Date.now() + "-" + f.name.replace(/[^\w.\-]+/g, "_");
+        const ref = firebase.storage().ref(path); await ref.put(f, {contentType: f.type || "audio/mpeg"});
+        return {url: await ref.getDownloadURL(), name: f.name, path};
+      } : null;
       if(!on){ lessons = lessons.filter(x=>x.id==="sample" || x._local); fillSel(); return; }
       unsub = fdb.collection(COL).onSnapshot(snap => {
         lessons = [SAMPLE, ...snap.docs.map(d=>fromDoc(d.id, d.data()))]; sortL();
