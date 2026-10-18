@@ -6,6 +6,7 @@
 <title>上課投影片｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
 <!-- IMPORT_V1 從教材與課程匯入 -->
+<!-- QAIMPORT_V1 匯入問題與討論 -->
 <!-- GFONT_V1 語法說明例句同大小 -->
 <!-- NAVSAME_V1 上一頁下一頁同色 -->
 <!-- GDOCK_V1 語法工具列；IMPAUDIO_V1 匯入音檔 -->
@@ -691,7 +692,7 @@ function render(){
     $("#title").textContent = "問題與討論"; $("#hint").textContent = qs.length ? "點一題可以看參考答案" : "";
     st.innerHTML = qs.length ? `<div class="qas">${qs.map((q,i)=>`<button class="qa ${i===qi?'on':''} ${qi>=0&&i!==qi?'dim':''}" data-qa="${i}"><span class="qn">${i+1}</span><span class="qb"><span class="qq">${esc(q[0])}</span>${q[1] && (qShow||qRev[i]) ? `<span class="qans">${esc(q[1])}</span>` : ""}</span></button>`).join("")}</div>`
       : `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有問題，按右上角「老師」→「編輯／匯入」加入。</div></div>`;
-    ct.innerHTML = qs.length ? `<button class="btn" data-a="qnext">下一題</button><button class="btn ghost" data-a="qall">全部顯示</button>
+    ct.innerHTML = qs.length ? `<button class="btn ghost" data-a="qall">全部顯示</button>
       ${qs.some(q=>q[1]) ? `<button class="btn mint" data-a="qshow">${qShow?"隱藏參考答案":"顯示參考答案"}</button>` : ""}
       <div class="meta">${qi<0?"全部":"第 "+(qi+1)+" 題"}・共 ${qs.length} 題</div>
       <div class="note"><b>建議</b><br>先讓學生兩人一組討論，再請幾位分享。</div>` : "";
@@ -846,6 +847,7 @@ function advance(d){ const k = STEPS[step].key;
   if(k==="words"){ const n = WG(LESSON).length; if(d>0 && wi<n-1){ wi++; return render(); } if(d<0 && wi>0){ wi--; return render(); } }
   if(k==="text"){ const n = LESSON.dialog.length; if(d>0 && li<n-1){ li++; return render(); } if(d<0 && li>0){ li--; return render(); } }
   if(k==="read"){ const n = ((LESSON.read||{}).paras||[]).length; if(d>0 && ri<n-1){ ri++; return render(); } if(d<0 && ri>0){ ri--; return render(); } }
+  if(k==="qa"){ const n = (LESSON.qa||[]).length; if(d>0 && qi<n-1){ qi++; return render(); } if(d<0 && qi>0){ qi--; return render(); } }
   if(k==="grammar" && gStep(d)) return render();
   go(step+d); }
 $("#prev").onclick = ()=>advance(-1);
@@ -1358,6 +1360,7 @@ function srcToDoc(l, idx){
     dialog: dialog.map(r => Array.isArray(r) ? r.join("｜") : r).join("\n"), dict: "", grammars, cast,
     readTitle: paras.length ? (textTitle || "短文") : "", readParas: paras.join("\n"),
     audio: (()=>{ const d = ds.find(x=>x && T(x.audio_url) && /^[^：:\s]{1,8}\s*[：:]/m.test(String(x.content||""))) || ds.find(x=>x && T(x.audio_url)); const u = d ? T(d.audio_url) : T(l.audio_url); return u ? {url: u, name: "課文音檔", path: ""} : null; })(),
+    qa: ds.flatMap(d => String((d && d.discussion) || "").split("\n").map(x => x.trim().replace(/^\s*[0-9０-９]+[.、．)）]\s*/, "")).filter(Boolean)).map(q => [clean(q), ""].join("｜")).join("\n"),
     book: T(l.textbook), flow: null, cards: "", review: "", homework: "", textImgs: [], src: l.id, updatedAt: Date.now() };
 }
 function impUI(){
@@ -1394,9 +1397,11 @@ async function impGo(){ const b = $("#impBook").value, ls = impOf(b), picks = [.
     try { try { const qs = await firebase.firestore().collection("questions").where("lesson_id", "==", l.id).get(); l._qs = qs.docs.map(d=>d.data()); } catch(err){ l._qs = []; qErr = (err && (err.code || err.message)) || "error"; }
       qAll += l._qs.filter(q => q && q.bank !== "hw" && q.type !== "note").length; qNoGp += l._qs.filter(q => q && q.bank !== "hw" && q.type !== "note" && (q.gp_index == null || q.gp_index === "")).length;
       const id = "src_" + l.id, old = lessons.find(x=>x.id===id), doc = srcToDoc(l, +c.dataset.i);
-      if(old){ doc.flow = flowOf(old); ["goals","dict","cards","review","homework","textImgs","pinyin"].forEach(k=>delete doc[k]); if(old.audio && old.audio.url) delete doc.audio; }
+      if(old){ doc.flow = flowOf(old); ["goals","dict","cards","review","homework","textImgs","pinyin"].forEach(k=>delete doc[k]); if(old.audio && old.audio.url) delete doc.audio; if(old.qa && old.qa.length) delete doc.qa;
+        const addStep = (k, after) => { if(doc.flow.includes(k)) return; const at = after.map(a=>doc.flow.indexOf(a)).filter(i=>i>=0).pop(); doc.flow.splice(at != null ? at+1 : Math.max(1, doc.flow.length-1), 0, k); };
+        if(doc.qa || (old.qa && old.qa.length)) addStep("qa", ["text","dict","order","read"]); }
       if(!doc.audio) delete doc.audio;
-      else { const fl = ["start","words"]; if(doc.dialog) fl.push("text","dict"); if(doc.readParas) fl.push("read"); if(doc.grammars.length) fl.push("grammar"); fl.push("review"); doc.flow = fl; }
+      else { const fl = ["start","words"]; if(doc.dialog) fl.push("text","dict"); if(doc.readParas) fl.push("read"); if(doc.qa) fl.push("qa"); if(doc.grammars.length) fl.push("grammar"); fl.push("review"); doc.flow = fl; }
       await db.collection(COL).doc(id).set(doc, {merge: true}); ok++; lastId = id; }
     catch(e){ bad++; console.warn(e); } }
   $("#impGo").disabled = false; $("#impMsg").textContent = `完成：匯入 ${ok} 課` + (bad ? `，${bad} 課失敗` : "") + (qErr ? `；練習題讀不到（${qErr}）` : `；上課語法練習 ${qAll} 題` + (qNoGp ? `（其中 ${qNoGp} 題沒有指定語法，放進第 1 個語法）` : ""));
