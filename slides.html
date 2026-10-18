@@ -39,6 +39,7 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .now{font-size:13px;color:var(--muted)} .now b{display:block;color:var(--fg);font-size:15px}
 .steps{list-style:none;margin:auto 0 0;padding:0;position:relative}
 .steps::before{content:"";position:absolute;left:9px;top:12px;bottom:12px;width:2px;background:var(--line)}
+.steps.many li button{padding:4px 4px;font-size:15px}
 .steps li button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:7px 4px;width:100%;font-size:16px;color:var(--muted);position:relative;border-radius:8px}
 .steps li button:focus-visible{outline:3px solid var(--sky)}
 .dot{width:20px;height:20px;border-radius:50%;border:2px solid var(--sky);background:var(--panel);flex:none;display:grid;place-items:center;font-size:11px;color:#fff}
@@ -136,6 +137,17 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .tbl .x{border:none;background:none;color:var(--muted);font-size:18px;width:28px;height:28px;border-radius:8px}
 .tbl .x:hover{background:var(--ice);color:var(--blank)}
 .role{width:40px;height:34px;border-radius:50%;border:none;font-weight:700;color:#fff;font-size:15px}
+.wrow{display:flex;gap:24px;align-items:flex-start;margin:auto 0}
+.wimg{max-width:44%;max-height:430px;border-radius:14px;object-fit:contain;background:var(--ice)}
+.paras{display:flex;flex-direction:column;gap:12px}
+.para{padding:10px 14px;border-radius:12px;border:2px solid transparent;transition:opacity .2s}
+.para.on{background:var(--ice);border-color:var(--sky)}
+.para.dim{opacity:.35}
+.para .zh{font-size:24px;line-height:1.6}
+.flowbox{display:flex;flex-direction:column;gap:8px;max-width:760px}
+.flowrow{display:flex;align-items:center;gap:8px;background:var(--ice);border-radius:10px;padding:6px 10px}
+.flowrow b{flex:1;font-size:16px}
+.flowrow button{border:none;background:var(--panel);border-radius:8px;width:30px;height:28px;cursor:pointer;color:var(--fg)}
 .dblank{display:inline-flex;align-items:center;justify-content:center;min-width:3.2em;height:1.35em;margin:0 .12em;padding:0 .3em;border:none;border-bottom:3px solid var(--blank);background:var(--ice);border-radius:6px 6px 0 0;font:inherit;color:var(--fg);cursor:pointer;vertical-align:baseline}
 .dblank i{font-style:normal;font-size:.55em;color:var(--muted)}
 .dblank.on{color:var(--ansc);font-weight:700;background:transparent}
@@ -277,10 +289,14 @@ const GR = L => L.grammars || (L.grammar ? [L.grammar] : []);
 let gi = 0;
 const PCOL = ["var(--sky)","var(--pink)","var(--mint)","var(--yellow)","var(--lav)"];
 
-const STEPS = [
-  {key:"start", name:"開始"}, {key:"words", name:"生詞"}, {key:"text", name:"課文"}, {key:"dict", name:"聽寫"},
-  {key:"grammar", name:"語法"}, {key:"draw", name:"抽卡練習"}, {key:"review", name:"複習"},
-];
+/* FLOW_V1 每一課自己挑步驟、排順序；同一套教材沿用 */
+const STEP_DEFS = {start:"開始", warm:"暖身", words:"生詞", text:"課文", read:"短文", dict:"聽寫", grammar:"語法", speak:"口說", culture:"文化", draw:"抽卡練習", review:"複習"};
+const DEFAULT_FLOW = ["start","words","text","dict","grammar","draw","review"];
+const flowOf = L => { const f = (L && Array.isArray(L.flow) && L.flow.length) ? L.flow.filter(k=>STEP_DEFS[k]) : DEFAULT_FLOW; return f[0]==="start" ? f : ["start", ...f.filter(k=>k!=="start")]; };
+let STEPS = DEFAULT_FLOW.map(k=>({key:k, name:STEP_DEFS[k]}));
+function applyFlow(){ STEPS = flowOf(LESSON).map(k=>({key:k, name:STEP_DEFS[k]})); step = Math.min(step, STEPS.length-1); }
+let ri = -1, si = 0, spLeft = 0, spId = null;
+function stopSp(){ if(spId){ clearInterval(spId); spId = null; } }
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let step = 0, wi = 0, li = -1, showPy = true, showTr = true;
@@ -291,6 +307,7 @@ function updSide(){ $("#sNum").textContent = LESSON.num; $("#sName").textContent
 
 function renderSteps(){
   updSide();
+  $("#steps").classList.toggle("many", STEPS.length > 8);
   $("#steps").innerHTML = STEPS.map((s,i)=>`<li class="${i<step?'done':''} ${i===step?'cur':''}"><button data-i="${i}" ${i===step?'aria-current="step"':''}><span class="dot"></span>${s.name}</button></li>`).join("");
   $("#nowName").textContent = STEPS[step].name;
   $("#barFill").style.width = ((step)/(STEPS.length-1)*100)+"%";
@@ -298,7 +315,7 @@ function renderSteps(){
   $("#prev").disabled = step===0; $("#next").disabled = step===STEPS.length-1;
 }
 function go(i){
-  stopTimer(); step = Math.max(0, Math.min(STEPS.length-1, i)); gi = 0; dShow = false; dRev = {}; if(AUD) AUD.pause();
+  stopTimer(); stopSp(); step = Math.max(0, Math.min(STEPS.length-1, i)); gi = 0; ri = -1; si = 0; dShow = false; dRev = {}; if(AUD) AUD.pause();
   try { localStorage.setItem("slides-step", step) } catch(e) {}
   li = -1; render();
 }
@@ -350,6 +367,41 @@ function render(){
       <button class="btn ghost" data-a="lall">全部顯示</button>${toggles()}
       <div class="meta">${li<0?"全部":"第 "+(li+1)+" 句"}・共 ${LESSON.dialog.length} 句</div>
       <div class="note"><b>建議</b><br>老師念 → 全班跟讀 → 分角色念。</div>`;
+  }
+  if(k==="warm"){
+    const w = LESSON.warm || {};
+    $("#title").textContent = "暖身"; $("#hint").textContent = "看一看，想一想，說一說";
+    const qs = (w.qs||[]).filter(Boolean);
+    st.innerHTML = `<div class="pop wrow">${w.img && w.img.url ? `<img class="wimg" src="${esc(w.img.url)}" alt="">` : ""}
+      <ol class="goals" style="flex:1;margin:0">${qs.map(q=>`<li style="font-size:24px">${esc(q)}</li>`).join("") || `<li>還沒有暖身問題，按左邊「編輯／匯入」加入。</li>`}</ol></div>`;
+    ct.innerHTML = `<div class="note" style="margin-top:0"><b>建議</b><br>先讓學生看圖猜一猜今天的主題，再一題一題問。</div>`;
+  }
+  if(k==="read"){
+    const r = LESSON.read || {}, ps = r.paras || [];
+    $("#title").textContent = "短文" + (r.title ? "：" + r.title : ""); $("#hint").textContent = "按「下一段」一段一段帶讀";
+    st.innerHTML = ps.length ? `<div class="paras">${ps.map((x,i)=>`<div class="para ${i===ri?'on':''} ${ri>=0&&i!==ri?'dim':''}"><div class="zh">${esc(x[0])}</div><div class="py">${esc(x[1]||"")}</div><div class="tr">${esc(x[2]||"")}</div></div>`).join("")}</div>`
+      : `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有短文，按左邊「編輯／匯入」加入。</div></div>`;
+    ct.innerHTML = `<button class="btn" data-a="rnext">下一段</button><button class="btn ghost" data-a="rall">全部顯示</button>${toggles()}
+      <div class="meta">${ri<0?"全部":"第 "+(ri+1)+" 段"}・共 ${ps.length} 段</div>`;
+  }
+  if(k==="speak"){
+    const ts = LESSON.speak || [];
+    $("#title").textContent = "口說任務"; $("#hint").textContent = ts.length ? `第 ${si+1} 題・共 ${ts.length} 題` : "";
+    if(!ts.length){ st.innerHTML = `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有口說任務，按左邊「編輯／匯入」加入。</div></div>`; ct.innerHTML = ""; }
+    else { si = Math.min(si, ts.length-1); const t = ts[si], sec = +t[1] || 60;
+      st.innerHTML = `<div class="center pop"><div class="tag"><span>任務 ${si+1}</span></div><div class="big" style="font-size:40px">${esc(t[0])}</div></div>
+        <div class="ans" style="font-size:15px;color:var(--muted)">${ts.map((x,i)=>`<span style="margin-right:14px;${i===si?'color:var(--fg);font-weight:700':''}">${i+1}. ${esc(x[0]).slice(0,14)}${x[0].length>14?"…":""}</span>`).join("")}</div>`;
+      ct.innerHTML = `<button class="btn" data-a="snext">下一題</button><button class="btn ghost" data-a="sprev">上一題</button>
+        <button class="btn pink" data-a="stimer">${spId ? "停止計時" : "計時 " + sec + " 秒"}</button>
+        <div class="timer" ${spId ? "" : "hidden"}><span class="t" id="spLeft" style="font-size:40px">${spLeft}</span><span class="tr" style="visibility:visible">秒</span></div>
+        <div class="note"><b>建議</b><br>先兩人一組練習，時間到再請幾組上台說。</div>`; }
+  }
+  if(k==="culture"){
+    const c = LESSON.culture || {}, ps = (c.paras||[]).filter(Boolean);
+    $("#title").textContent = "文化" + (c.title ? "：" + c.title : ""); $("#hint").textContent = "";
+    st.innerHTML = `<div class="pop wrow">${c.img && c.img.url ? `<img class="wimg" src="${esc(c.img.url)}" alt="">` : ""}
+      <div style="flex:1;display:flex;flex-direction:column;gap:12px">${ps.map(x=>`<p style="margin:0;font-size:22px;line-height:1.7">${esc(x)}</p>`).join("") || `<div class="tr" style="visibility:visible">還沒有內容，按左邊「編輯／匯入」加入。</div>`}</div></div>`;
+    ct.innerHTML = `<div class="note" style="margin-top:0"><b>聊一聊</b><br>你的國家也有這樣的習慣嗎？</div>`;
   }
   if(k==="dict"){
     const ds = DICT(LESSON); let n = 0;
@@ -451,6 +503,10 @@ document.addEventListener("click", e=>{
   if(a==="aback" && AUD){ AUD.currentTime = Math.max(0, AUD.currentTime - 5); }
   if(a==="arestart" && AUD){ AUD.currentTime = 0; AUD.play().catch(()=>{}); }
   if(a==="dshow"){ dShow = !dShow; dRev = {}; render(); }
+  if(a==="rnext"){ const n = ((LESSON.read||{}).paras||[]).length; if(n){ ri = (ri+1) % n; render(); } }
+  if(a==="rall"){ ri = -1; render(); }
+  if(a==="snext" || a==="sprev"){ const n = (LESSON.speak||[]).length; if(n){ stopSp(); si = (si + (a==="snext"?1:n-1)) % n; render(); } }
+  if(a==="stimer"){ if(spId){ stopSp(); render(); } else { const t = (LESSON.speak||[])[si]; spLeft = +(t&&t[1]) || 60; spId = setInterval(()=>{ spLeft--; const el = document.getElementById("spLeft"); if(el) el.textContent = spLeft; if(spLeft<=0){ stopSp(); render(); } }, 1000); render(); } }
   if(a==="gnext"){ gi = (gi+1) % GR(LESSON).length; render(); }
   if(a==="draw") draw();
   if(a==="ans"){ showAns=!showAns; renderDraw(); }
@@ -509,33 +565,42 @@ function fromDoc(id, d){
     goals: rows(d.goals).map(g=>g.replace(/\s*[｜|]\s*/,"：").replace(/：$/,"")), words: cells(d.words,6), dialog: cells(d.dialog,5).map(r=>{r[0]=normRole(r[0]);return r}),
     grammars: (Array.isArray(d.grammars) ? d.grammars : (d.pattern||d.gex ? [{pattern:d.pattern, gex:d.gex, note:d.gnote}] : []))
       .map(g=>({ pattern: String(g.pattern||"").split(/\s*[＋+]\s*/).filter(Boolean), examples: cells(g.gex,2), note: g.note || "" })),
+    book: d.book || "", flow: Array.isArray(d.flow) ? d.flow.filter(k=>STEP_DEFS[k]) : null,
+    warm: {qs: rows(d.warmQs), img: d.warmImg || null}, read: {title: d.readTitle || "", paras: cells(d.readParas,3).filter(r=>r[0])},
+    speak: cells(d.speak,2).filter(r=>r[0]), culture: {title: d.cultTitle || "", paras: rows(d.cultText), img: d.cultImg || null},
     dict: cells(d.dict,3).map(r=>{r[0]=normRole(r[0]);return r}).filter(r=>r[2]), audio: d.audio && d.audio.url ? {url:d.audio.url, name:d.audio.name||"", path:d.audio.path||""} : null,
     cards: cells(d.cards,5).filter(r=>r[1]), review: rows(d.review), homework: rows(d.homework) };
 }
 function toDoc(L){
   return { num: Number(L.num)||0, name: L.name, pinyin: L.pinyin, textTitle: L.textTitle||"", goals: join(L.goals), words: join(L.words),
     dialog: join(L.dialog), grammars: GR(L).map(g=>({pattern:(g.pattern||[]).join("＋"), gex: join(g.examples), note: g.note||""})),
-    cards: join(L.cards), review: join(L.review), homework: join(L.homework), dict: join(L.dict||[]), audio: L.audio && !L.audio.local ? L.audio : null };
+    cards: join(L.cards), review: join(L.review), homework: join(L.homework), book: L.book||"", flow: flowOf(L), warmQs: join((L.warm||{}).qs||[]), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: join((L.read||{}).paras||[]), speak: join(L.speak||[]), cultTitle: (L.culture||{}).title||"", cultText: join((L.culture||{}).paras||[]), cultImg: (L.culture||{}).img||null, dict: join(L.dict||[]), audio: L.audio && !L.audio.local ? L.audio : null };
 }
 let lessons = [SAMPLE], db = null, editingId = null, delArmed = false;
 let curId = "sample"; try { curId = localStorage.getItem("slides-lesson") || "sample" } catch(e) {}
 function fillSel(){
-  $("#lessonSel").innerHTML = lessons.map(L=>`<option value="${esc(L.id)}" ${L.id===curId?"selected":""}>${L.id==="sample"?"範例・":""}第${esc(L.num)}課 ${esc(L.name)}</option>`).join("");
+  const opt = L=>`<option value="${esc(L.id)}" ${L.id===curId?"selected":""}>${L.id==="sample"?"範例・":""}第${esc(L.num)}課 ${esc(L.name)}</option>`;
+  const books = [...new Set(lessons.filter(L=>L.id!=="sample").map(L=>L.book||"未分類"))];
+  $("#lessonSel").innerHTML = opt(SAMPLE) + books.map(b=>`<optgroup label="${esc(b)}">${lessons.filter(L=>L.id!=="sample" && (L.book||"未分類")===b).map(opt).join("")}</optgroup>`).join("");
 }
 function useLesson(id, keepStep){
   const L = lessons.find(x=>x.id===id) || SAMPLE;
-  curId = L.id; LESSON = L; if(AUD){ AUD.pause(); AUD = null; } wi = 0; li = -1; filter = "全部"; stopTimer(); shuffle();
+  curId = L.id; LESSON = L; applyFlow(); if(AUD){ AUD.pause(); AUD = null; } wi = 0; li = -1; filter = "全部"; stopTimer(); shuffle();
   try { localStorage.setItem("slides-lesson", curId) } catch(e) {}
   fillSel(); keepStep ? render() : go(0);
 }
 $("#lessonSel").onchange = e => useLesson(e.target.value);
 const SECS = [
   {k:"basic", name:"基本資料"},
+  {k:"warmQs", name:"暖身", cols:["暖身問題"], w:"1fr", tip:"可以放一張圖，再寫幾個暖身問題"},
   {k:"goals", name:"學習目標", cols:["學習目標"], w:"1fr", tip:"照教師手冊寫，一行一個目標"},
   {k:"words", name:"生詞", cols:["生詞","拼音","詞性","翻譯","例句","例句拼音"], w:"100px 120px 70px 1fr 1.3fr 1.3fr"},
   {k:"dialog", name:"課文", cols:["角色","名字","句子","拼音","翻譯"], w:"44px 90px 1.4fr 1.4fr 1fr", tip:"點圓圈換角色（A→B→C→D）：A、C 在左邊，B、D 在右邊"},
+  {k:"readParas", name:"短文", cols:["段落","拼音","翻譯"], w:"1.4fr 1.2fr 1fr", tip:"一段一行，上課時可以一段一段帶讀"},
   {k:"dict", name:"聽寫", cols:["角色","名字","句子（【】裡的字會變成空格）"], w:"44px 90px 1fr", tip:"用【】把要挖空的生詞框起來，例如：你【週末】喜歡做什麼？"},
   {k:"grammars", name:"語法"},
+  {k:"speak", name:"口說", cols:["任務／問題","計時（秒）"], w:"1fr 110px", tip:"計時沒填就是 60 秒"},
+  {k:"cultText", name:"文化", cols:["內容（一段一行）"], w:"1fr", tip:"可以放一張圖，再寫幾段說明"},
   {k:"cards", name:"抽卡填空", cols:["分類","題目","答案","完整句拼音","翻譯"], w:"90px 1.4fr 90px 1.3fr 1fr", tip:"題目裡用 ＿＿ 表示空格"},
   {k:"review", name:"複習", cols:["打勾項目"], w:"1fr"},
   {k:"homework", name:"作業", cols:["回家作業"], w:"1fr"},
@@ -547,8 +612,10 @@ function openEditor(L){
   const c = x => (x||[]).map(r => Array.isArray(r) ? r.slice() : [r]);
   ED = L ? { num:String(L.num||""), name:L.name||"", pinyin:L.pinyin||"", textTitle:L.textTitle||"",
       grammars: GR(L).map(g=>({pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", gex:c(g.examples)})),
-      goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null }
-    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{pattern:"", gnote:"", gex:[blank(2),blank(2)]}], goals:[[""],[""],[""]], words:[blank(6)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]], dict:[], audio:null };
+      goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null,
+      book: L.book||"", flow: flowOf(L).slice(), warmQs: c((L.warm||{}).qs), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: c((L.read||{}).paras), speak: c(L.speak), cultTitle: (L.culture||{}).title||"", cultText: c((L.culture||{}).paras), cultImg: (L.culture||{}).img||null }
+    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{pattern:"", gnote:"", gex:[blank(2),blank(2)]}], goals:[[""],[""],[""]], words:[blank(6)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]], dict:[], audio:null,
+      book: LESSON.id!=="sample" ? (LESSON.book||"") : "", flow: flowOf(LESSON).slice(), warmQs:[[""]], warmImg:null, readTitle:"", readParas:[blank(3)], speak:[blank(2)], cultTitle:"", cultText:[[""]], cultImg:null };
   ED._id = (L && L.id!=="sample") ? L.id : "lesson-" + Date.now().toString(36);
   if(!ED.grammars.length) ED.grammars.push({pattern:"", gnote:"", gex:[blank(2)]});
   edTab = "basic";
@@ -571,7 +638,12 @@ function renderEd(){
       <label for="b-name">課名</label><input id="b-name" data-b="name" placeholder="例如 你喜歡做什麼？" value="${esc(ED.name)}">
       <label for="b-py">課名拼音</label><input id="b-py" data-b="pinyin" placeholder="例如 Nǐ xǐhuān zuò shénme?" value="${esc(ED.pinyin)}">
       <label for="b-tt">課文標題</label><input id="b-tt" data-b="textTitle" placeholder="例如 週末做什麼？" value="${esc(ED.textTitle)}">
-    </div>`;
+      <label for="b-book">教材</label><input id="b-book" data-b="book" list="bookList" placeholder="例如 時代華語三、當代中文一、TOCFL" value="${esc(ED.book)}">
+      <datalist id="bookList">${[...new Set(lessons.map(L=>L.book).filter(Boolean))].map(b=>`<option value="${esc(b)}">`).join("")}</datalist>
+      <small>同一套教材的課會放在一起；新的一課會沿用同一套教材上一課的步驟</small>
+    </div>
+    <div class="sec-h" style="margin-top:8px"><h3>上課步驟</h3><small>用 ↑ ↓ 排順序，按 × 拿掉；「開始」一定在第一個</small></div>
+    <div class="flowbox" id="flowBox">${flowHtml()}</div>`;
     return;
   }
   if(S.k==="grammars"){
@@ -594,16 +666,27 @@ function renderEd(){
       (S.k==="dialog" || S.k==="dict") && j===0 ? `<button class="role" type="button" data-role="${i}" style="background:${RCOL[normRole(r[0])]}" aria-label="切換角色">${normRole(r[0])}</button>`
       : `<input data-r="${i}" data-c="${j}" value="${esc(r[j]||"")}" aria-label="${cn} 第${i+1}行">`).join("") + `<button class="x" type="button" data-del="${i}" aria-label="刪除第${i+1}行">×</button>`).join("");
   B.innerHTML = `<div class="sec-h"><h3>${S.name}</h3><small>${S.tip||"一格填一個欄位，從試算表複製多行貼到第一格會自動分好"}</small></div>
-    ${S.k==="dict"?dictTop():""}${S.k==="cards"?'<button class="mini" id="autoCards" type="button">用生詞例句和課文自動出題</button>':""}
+    ${S.k==="dict"?dictTop():""}${S.k==="warmQs"?mediaBox("warmImg","暖身圖片"):""}${S.k==="cultText"?`<div class="basic"><label for="b-ct">標題</label><input id="b-ct" data-b="cultTitle" value="${esc(ED.cultTitle)}" placeholder="例如 台灣人週末喜歡做什麼"></div>`+mediaBox("cultImg","文化圖片"):""}${S.k==="readParas"?`<div class="basic"><label for="b-rt">短文標題</label><input id="b-rt" data-b="readTitle" value="${esc(ED.readTitle)}" placeholder="可以空白"></div>`:""}${S.k==="cards"?'<button class="mini" id="autoCards" type="button">用生詞例句和課文自動出題</button>':""}
     <div class="tbl" style="grid-template-columns:28px ${S.w} 28px"><span></span>${S.cols.map(c=>`<span class="th">${c}</span>`).join("")}<span></span>${rowsHtml}</div>
     <button class="addrow" type="button" id="addRow">＋ 新增一行</button>`;
 }
+function flowHtml(){
+  const rest = Object.keys(STEP_DEFS).filter(k=>!ED.flow.includes(k));
+  return ED.flow.map((k,i)=>`<div class="flowrow"><span class="no">${i+1}</span><b>${STEP_DEFS[k]}</b>${k==="start"?"":`<button type="button" data-fl="up" data-fi="${i}" aria-label="往上">↑</button><button type="button" data-fl="down" data-fi="${i}" aria-label="往下">↓</button><button type="button" data-fl="del" data-fi="${i}" aria-label="拿掉">×</button>`}</div>`).join("")
+    + (rest.length ? `<div class="chips"><span class="tr" style="visibility:visible;align-self:center">加入步驟：</span>${rest.map(k=>`<button class="mini" type="button" data-fl="add" data-fk="${k}">＋ ${STEP_DEFS[k]}</button>`).join("")}</div>` : "");
+}
+function mediaBox(key, label){ const m = ED[key]; return `<div class="gcard"><b>${label}</b>
+  ${m && m.url ? `<img src="${esc(m.url)}" alt="" style="max-width:320px;max-height:200px;border-radius:10px;object-fit:contain">` : `<small style="color:var(--muted)">還沒有圖片（可以不放）</small>`}
+  <div class="chips"><label class="mini" style="cursor:pointer">${m && m.url ? "換一張圖" : "上傳圖片"}<input type="file" data-up="${key}" accept="image/*" hidden></label>${m && m.url ? `<button class="mini" type="button" data-updel="${key}">移除圖片</button>` : ""}</div></div>`; }
 function pvHtml(t){ return String(t||"").split(/\s*[＋+]\s*/).filter(Boolean).map((x,i)=>`<span style="background:${PCOL[i%PCOL.length]}">${esc(x)}</span>`).join("＋"); }
 const S = () => SECS.find(x=>x.k===edTab);
 $("#edTabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if(b){ edTab = b.dataset.tab; renderEd(); } });
 $("#edBody").addEventListener("input", e => {
   const t = e.target;
-  if(t.dataset.b){ ED[t.dataset.b] = t.value; return; }
+  if(t.dataset.b){ ED[t.dataset.b] = t.value;
+    if(t.dataset.b==="book" && (!editingId || editingId==="sample") && !ED._flowTouched){ const same = lessons.filter(L=>L.id!=="sample" && L.book===t.value.trim()).sort((a,b)=>(+b.num||0)-(+a.num||0))[0];
+      if(same){ ED.flow = flowOf(same).slice(); const fb = document.getElementById("flowBox"); if(fb) fb.innerHTML = flowHtml(); msg(`已經套用「${t.value.trim()}」第${same.num}課的上課步驟。`); } }
+    return; }
   if(t.dataset.g !== undefined){ const g = ED.grammars[+t.dataset.g];
     if(t.dataset.f){ g[t.dataset.f] = t.value; if(t.dataset.f==="pattern"){ const el = document.getElementById("pv"+t.dataset.g); if(el) el.innerHTML = pvHtml(t.value); renderTabs(); } }
     else g.gex[+t.dataset.r][+t.dataset.c] = t.value;
@@ -611,6 +694,12 @@ $("#edBody").addEventListener("input", e => {
   if(t.dataset.r){ const r = ED[edTab][+t.dataset.r]; r[+t.dataset.c] = t.value; renderTabs(); }
 });
 $("#edBody").addEventListener("change", async e => {
+  if(e.target.dataset && e.target.dataset.up){ const key = e.target.dataset.up, f = e.target.files[0]; if(!f) return;
+    if(f.size > 10*1024*1024){ msg("圖片太大了（超過 10MB）。", true); return; }
+    msg("圖片上傳中…");
+    try { ED[key] = uploadAudio ? await uploadAudio(f, ED._id) : {url: URL.createObjectURL(f), name: f.name, local: true}; renderEd(); msg(uploadAudio ? "圖片上傳好了，記得按「儲存」。" : "還沒登入：圖片只會暫時套用。", !uploadAudio); }
+    catch(err){ msg("圖片上傳失敗：" + (err && (err.code || err.message) || ""), true); }
+    return; }
   if(e.target.id !== "audFile") return; const f = e.target.files[0]; if(!f) return;
   if(f.size > 30*1024*1024){ msg("音檔太大了（超過 30MB），請先壓縮。", true); return; }
   msg("音檔上傳中…");
@@ -636,6 +725,11 @@ $("#edBody").addEventListener("paste", e => {
 $("#edBody").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b) return;
   const n = S().cols ? S().cols.length : 0;
+  if(b.dataset.fl){ const i = +b.dataset.fi, f = ED.flow; ED._flowTouched = true;
+    if(b.dataset.fl==="up" && i>1){ [f[i-1],f[i]]=[f[i],f[i-1]]; } if(b.dataset.fl==="down" && i<f.length-1){ [f[i+1],f[i]]=[f[i],f[i+1]]; }
+    if(b.dataset.fl==="del") f.splice(i,1); if(b.dataset.fl==="add") f.splice(b.dataset.fk==="warm" ? 1 : Math.max(1, f.indexOf("review")>=0 ? f.indexOf("review") : f.length), 0, b.dataset.fk);
+    document.getElementById("flowBox").innerHTML = flowHtml(); return; }
+  if(b.dataset.updel){ ED[b.dataset.updel] = null; renderEd(); return; }
   if(b.id==="audDel"){ ED.audio = null; renderEd(); msg("音檔移除了，記得按「儲存」。"); return; }
   if(b.id==="dictFrom"){ ED.dict = ED.dialog.filter(filled).map(d=>[normRole(d[0]), d[1]||"", autoBlank(d[2]||"", ED.words)]); renderEd(); msg(ED.dict.length ? `帶入了 ${ED.dict.length} 句，生詞已經自動挖空，可以再自己改【】。` : "課文還是空的，請先到「課文」分頁填。", !ED.dict.length); return; }
   if(b.id==="dictAuto"){ ED.dict.forEach(r=>{ r[2] = autoBlank(r[2], ED.words); }); renderEd(); msg("已經把還沒挖空的句子自動挖空。"); return; }
@@ -659,7 +753,9 @@ function readForm(){
   const jr = a => a.filter(filled).map(r=>r.map(x=>String(x).replace(/[｜|\n]/g," ").trim()).join("｜")).join("\n");
   return { num: ED.num.trim(), name: ED.name.trim(), pinyin: ED.pinyin.trim(), textTitle: ED.textTitle.trim(),
     grammars: ED.grammars.filter(g=>g.pattern.trim() || g.gex.some(filled)).map(g=>({pattern: g.pattern.trim(), note: g.gnote.trim(), gex: jr(g.gex)})),
-    goals: j("goals"), words: j("words"), dialog: j("dialog"), dict: j("dict"), audio: ED.audio && !ED.audio.local ? ED.audio : null, cards: j("cards"), review: j("review"), homework: j("homework") };
+    goals: j("goals"), words: j("words"), dialog: j("dialog"), dict: j("dict"), audio: ED.audio && !ED.audio.local ? ED.audio : null,
+    book: ED.book.trim(), flow: ED.flow.slice(), warmQs: j("warmQs"), warmImg: ED.warmImg && !ED.warmImg.local ? ED.warmImg : null, readTitle: ED.readTitle.trim(), readParas: j("readParas"),
+    speak: j("speak"), cultTitle: ED.cultTitle.trim(), cultText: j("cultText"), cultImg: ED.cultImg && !ED.cultImg.local ? ED.cultImg : null, cards: j("cards"), review: j("review"), homework: j("homework") };
 }
 $("#editBtn").onclick = () => openEditor(LESSON);
 $("#newBtn").onclick = () => openEditor(null);
@@ -670,7 +766,7 @@ $("#edSave").onclick = async () => {
   const isNew = !editingId || editingId==="sample";
   const id = isNew ? ED._id : editingId;
   const body = { ...d, num: Number(d.num)||0, updatedAt: Date.now() };
-  const L = fromDoc(id, body); if(ED.audio && ED.audio.local) L.audio = ED.audio;
+  const L = fromDoc(id, body); if(ED.audio && ED.audio.local) L.audio = ED.audio; if(ED.warmImg && ED.warmImg.local) L.warm.img = ED.warmImg; if(ED.cultImg && ED.cultImg.local) L.culture.img = ED.cultImg;
   if(!db){ lessons = lessons.filter(x=>x.id!==id).concat(L); $("#modal").hidden = true; useLesson(id); return; }
   $("#edSave").disabled = true; msg("儲存中…");
   try { await db.collection(COL).doc(id).set(body); lessons = lessons.filter(x=>x.id!==id).concat(L); sortL(); $("#modal").hidden = true; useLesson(id, !isNew); }
@@ -710,14 +806,14 @@ function startFirebase(){
       unsub = fdb.collection(COL).onSnapshot(snap => {
         lessons = [SAMPLE, ...snap.docs.map(d=>fromDoc(d.id, d.data()))]; sortL();
         if(!lessons.find(x=>x.id===curId)) curId = "sample";
-        const same = LESSON.id===curId; LESSON = lessons.find(x=>x.id===curId); fillSel();
+        const same = LESSON.id===curId; LESSON = lessons.find(x=>x.id===curId); applyFlow(); fillSel();
         if(same && $("#modal").hidden){ updSide(); } else if(!same){ shuffle(); render(); }
       }, err => { console.warn("slide_lessons", err); });
     });
   }catch(e){ console.warn(e); }
 }
 startFirebase();
-fillSel(); LESSON = lessons.find(x=>x.id===curId) || SAMPLE;
+fillSel(); LESSON = lessons.find(x=>x.id===curId) || SAMPLE; applyFlow();
 shuffle(); render(); fit();
 </script>
 </body>
