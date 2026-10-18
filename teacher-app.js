@@ -1928,6 +1928,23 @@ function ocForm(l){l=l||{};
    · 活動：results 裡狀態 done 的份數、acts 的筆數
    · 瀏覽：官網每天寫一筆 visits/YYYY-MM-DD，n 是人次 */
 function acctDays(a,b){if(!a||!b)return null;const d=(new Date(b)-new Date(a))/864e5;return isNaN(d)?null:d;}
+/* ══════ DAYSAGO_V1561 「今天／N 天前」要照日曆算 ══════
+   Quinn：「今天 10/18。為什麼 10/17 顯示今天」。
+   原本是 acctDays()：兩個時間點相減再除以 24 小時，也就是「差幾個 24 小時」。
+   潘氏蘭 10/17 22:59 登入，她 10/18 早上看，中間才 9 小時 → 0.375 天 → 寫成「今天」，
+   可是那明明是昨天；同一個算法也讓 10/15 寫成「2 天前」（其實是 3 天前）。
+   只要是晚上登入的，整欄都會少算一天，看起來比實際上更活躍。
+   改成比「日曆上的日期」差幾天，而且用瀏覽器的當地時間（她在越南，UTC+7，
+   晚上十一點的紀錄用 UTC 算會落到前一天，這也是同一個坑）。
+   旁邊 memDaysAgo() 早就是這樣寫的，這裡照它。 */
+function acctDaysAgo(iso){
+  const x=String(iso||'');if(!x)return null;
+  const d=new Date(x);if(isNaN(d))return null;
+  const a=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  const n=new Date(),b=new Date(n.getFullYear(),n.getMonth(),n.getDate());
+  return Math.round((b-a)/864e5);}
+function acctAgoTxt(iso){const n=acctDaysAgo(iso);if(n==null)return '';
+  return n<=0?'今天':(n===1?'昨天':(n+' 天前'));}
 function acctLogins(p,days){
   const lg=(p&&Array.isArray(p.logins))?p.logins:[];
   const cut=new Date(Date.now()-(Number(days)||30)*864e5);
@@ -1958,14 +1975,14 @@ function acctRow(s){
   const ll=(p&&p.last_login)||'';
   const la=(p&&p.last_active)||'';
   const n30=acctLogins(p,30);
-  const daysAgo=ll?Math.floor(acctDays(ll,new Date().toISOString())):null;
+  const daysAgo=ll?acctDaysAgo(ll):null;/* DAYSAGO_V1561 照日曆算 */
   const st=ok
     ?('<span class="badge badge-ok">✅ 已開通</span>'
       +(selfReg?'<span class="badge b-info" style="margin-left:4px" title="同一個 Email 另外有一個自己註冊的帳號，跟這裡記的不是同一個。如果他是用那個在登入，按右邊「接過來」。">🔗 有另一個帳號</span>':''))
     :(selfReg?'<span class="badge b-info" title="這個 Email 已經自己註冊成自學會員了，按右邊「接過來」就會變成正式學生">🔗 已自己註冊</span>'
       :(mail?'<span class="badge b-warn" >⏳ 還沒登入過</span>'
           :'<span class="badge b-warn" >⚠️ 沒有 Email</span>'));
-  const llTxt=ll?(fmtDT(ll)+(daysAgo!=null?('　<span class="muted">'+(daysAgo<=0?'今天':(daysAgo+' 天前'))+'</span>'):''))
+  const llTxt=ll?(fmtDT(ll)+(daysAgo!=null?('　<span class="muted">'+acctAgoTxt(ll)+'</span>'):''))
     :'<span class="muted">從來沒登入過</span>';
   return '<div class="ac-r">'
     +'<span class="ac-nm"><b>'+esc(s.name||'（未命名）')+'</b>'
@@ -2048,7 +2065,7 @@ function renderAcct(){
   else list=list.slice().sort((a,b)=>String(llOf(b)).localeCompare(String(llOf(a))));
   const okN=list.filter(s=>String(s.uid||'').trim()).length;
   const neverN=list.filter(s=>!llOf(s)).length;
-  const w7=list.filter(s=>{const d=acctDays(llOf(s),new Date().toISOString());return d!=null&&d<=7;}).length;
+  const w7=list.filter(s=>{const d=acctDaysAgo(llOf(s));return d!=null&&d<=7;}).length;/* DAYSAGO_V1561 */
   const askN=list.filter(s=>s.reset_requested).length;
   const seg=(k,lb)=>'<button class="segb'+(sort===k?' on':'')+'" data-act="acctSort" data-id="'+k+'">'+lb+'</button>';
   const sc=(k,lb)=>'<button class="segb'+(scope===k?' on':'')+'" data-act="acctScope" data-id="'+k+'">'+lb+'</button>';
@@ -10684,6 +10701,7 @@ function gtFillLes(){
   box.innerHTML=ls.length
     ?ls.map(l=>'<label class="qzw-s"><input type="checkbox" class="gt-les" value="'+esc(l.id)+'"><span>'+esc(lesNo(l,''))+'</span></label>').join('')
     :'<span class="muted">這本教材還沒有課</span>';
+  try{gtSums();}catch(e){}
 }
 H.gtNew=()=>{
   const books=planBooks();
@@ -10715,24 +10733,55 @@ H.gtNew=()=>{
    +'<div class="field"><label>截止日</label><input id="gt-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
    +'<div class="field full"><label>作業名稱 <span class="hint">可以不填，會自動用課名</span></label><input id="gt-title" placeholder="例如：第五課生詞翻牌"></div>'
    +'</div>'
-   +'<div class="field full"><label>要玩哪幾課的生詞 <span class="hint">可以複選。生詞合起來至少 6 個才配得成一盤</span></label>'
-   +'<div id="gt-les" class="qzw-stus qzw-grid"></div></div>'/* GTLIST_V1559 課名長短差很多，排等寬格子 */
-   +'<div class="field full"><label>指派給誰</label>'
-   +'<div style="display:flex;gap:6px;margin-bottom:7px;flex-wrap:wrap;align-items:center">'
+   /* PICKLIST_V1560 Quinn：「我喜歡下拉方式」。兩份清單收進下拉裡，
+      收起來只留一行「選了什麼」，視窗就不再是一長串打勾。
+      課還沒選，所以第一個預設打開；學生預設已經勾好在學中的，收起來就好。 */
+   +'<div class="field full"><details class="pickdd" open data-pick="les">'
+   +'<summary>要玩哪幾課的生詞 <span class="pick-sum none">還沒選</span></summary>'
+   +'<div class="pick-body">'
+   +'<div class="hint" style="margin-bottom:8px">可以複選。生詞合起來至少 6 個才配得成一盤。</div>'
+   +'<div id="gt-les" class="qzw-stus"></div></div></details></div>'
+   +'<div class="field full"><details class="pickdd" data-pick="stu">'
+   +'<summary>指派給誰 <span class="pick-sum"></span></summary>'
+   +'<div class="pick-body">'
+   +'<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center">'
    +'<button class="btn btn-sm" type="button" data-act="gtStuAll">✔ 全選看得到的</button>'
    +'<button class="btn btn-sm" type="button" data-act="gtStuNone">✕ 全部取消</button>'
    +(offN?('<button class="btn btn-sm" type="button" data-act="stuOffToggle">👀 也顯示休學／預約（'+offN+'）</button>'):'')
    +stuFindBox(live)+'</div>'
-   +'<div class="qzw-stus qzw-grid qzw-grid-sm off-hide">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div></div>'
+   +'<div class="qzw-stus off-hide">'+(checks||'<span class="muted">還沒有學生</span>')+'</div>'
+   +'</div></details></div></div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
    +'<button class="btn btn-primary" data-act="gtSave">📤 指派出去</button></div></div>');
-  gtFillLes();
-  const sel=document.getElementById('gt-book');if(sel)sel.onchange=gtFillLes;
+  gtFillLes();gtSums();/* PICKLIST_V1560 開場先把兩行結論寫上 */
+  const sel=document.getElementById('gt-book');
+  if(sel)sel.onchange=()=>{gtFillLes();gtSums();};
 };
 /* 只勾現在看得到的：被「只看在學中」收起來、或被搜尋過濾掉的人不要偷偷被勾進去 */
 H.gtStuAll=()=>{document.querySelectorAll('.gt-stu').forEach(c=>{
-  const l=c.closest('label');if(l&&l.offsetParent===null)return;c.checked=true;});};
-H.gtStuNone=()=>{document.querySelectorAll('.gt-stu').forEach(c=>{c.checked=false;});};
+  const l=c.closest('label');if(l&&l.offsetParent===null)return;c.checked=true;});gtSums();};
+/* PICKLIST_V1560 下拉收起來的時候那一行要寫出「現在選了什麼」，
+   不然收起來就看不出自己到底選了沒。打勾一變就重寫一次。 */
+function gtSums(){
+  try{
+    document.querySelectorAll('.pickdd[data-pick]').forEach(d=>{
+      const sum=d.querySelector('.pick-sum');if(!sum)return;
+      const ck=[].slice.call(d.querySelectorAll('input[type="checkbox"]:checked'));
+      const names=ck.map(c=>{const l=c.closest('label');
+        return l?(l.querySelector('span')||{}).textContent||'':'';}).filter(Boolean);
+      const kind=d.getAttribute('data-pick')==='les'?'課':'位';
+      if(!names.length){sum.textContent=(kind==='課'?'還沒選課':'還沒選人');sum.classList.add('none');return;}
+      sum.classList.remove('none');
+      sum.textContent='已選 '+names.length+' '+kind+'：'+names.slice(0,2).join('、')+(names.length>2?'…':'');
+    });
+  }catch(e){}
+}
+document.addEventListener('change',(e)=>{
+  const el=e.target;
+  if(!el||el.type!=='checkbox'||!el.closest||!el.closest('.pickdd'))return;
+  gtSums();
+});
+H.gtStuNone=()=>{document.querySelectorAll('.gt-stu').forEach(c=>{c.checked=false;});gtSums();};
 H.gtSave=async()=>{
   const ids=[].slice.call(document.querySelectorAll('.gt-stu:checked')).map(c=>c.value);
   if(!ids.length)return toast('請至少選一位學生');
