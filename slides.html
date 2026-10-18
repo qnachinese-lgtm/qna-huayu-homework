@@ -6,6 +6,8 @@
 <title>上課投影片｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
 <!-- IMPORT_V1 從教材與課程匯入 -->
+<!-- GQIMPORT_V1 匯入語法練習題 -->
+<!-- READFIT_V1 短文放進同一個框 -->
 <!-- ORDER_V1 看圖排序；WCOVER_V1 生詞先遮住 -->
 <!-- ONENAV_V1 只留一組上一頁下一頁 -->
 <!-- DOCK_V2 下方工具列改成一般按鈕 -->
@@ -229,7 +231,9 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .para{padding:10px 14px;border-radius:12px;border:2px solid transparent;transition:opacity .2s}
 .para.on{background:var(--ice);border-color:var(--sky)}
 .para.dim{opacity:.35}
-.para .zh{font-size:24px;line-height:1.6}
+.para .zh{font-size:var(--rfs,24px);line-height:1.6}
+.paras{display:flex;flex-direction:column;gap:4px}
+.paras .para{padding:6px 14px}
 .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;align-items:start}
 .col{display:flex;flex-direction:column;gap:14px;min-width:0}
 .split .basic,.split .flowbox{max-width:none}
@@ -644,11 +648,16 @@ function render(){
   }
   if(k==="read"){
     const r = LESSON.read || {}, ps = r.paras || [];
-    $("#title").textContent = "短文" + (r.title ? "：" + r.title : ""); $("#hint").textContent = "按「下一段」一段一段帶讀";
+    $("#title").textContent = "短文" + (r.title && !/^[（(]/.test(r.title.trim()) ? "：" + r.title : ""); $("#hint").textContent = "按「下一段」一段一段帶讀";
     st.innerHTML = ps.length ? `<div class="paras">${ps.map((x,i)=>`<div class="para ${i===ri?'on':''} ${ri>=0&&i!==ri?'dim':''}"><div class="zh">${esc(x[0])}</div><div class="py">${esc(x[1]||"")}</div><div class="tr">${esc(x[2]||"")}</div></div>`).join("")}</div>`
       : `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有短文，按右上角「老師」→「編輯／匯入」加入。</div></div>`;
     ct.innerHTML = `<button class="btn ghost" data-a="rall">全部顯示</button>${toggles()}
       <div class="meta">${ri<0?"全部":"第 "+(ri+1)+" 段"}・共 ${ps.length} 段</div>`;
+    /* READFIT_V1 短文整篇放進框裡，不用捲 */
+    { const box = st.querySelector(".paras"); if(box){ st.style.overflow = "hidden"; let fs = 24;
+      const fitIt = () => { box.style.setProperty("--rfs", fs + "px"); };
+      fitIt(); while(fs > 15 && st.scrollHeight > st.clientHeight + 1){ fs -= 1; fitIt(); }
+      st.style.overflow = ""; } }
   }
   if(k==="speak"){
     const ts = LESSON.speak || [];
@@ -1308,11 +1317,24 @@ function srcToDoc(l, idx){
         last = [r, nm, clean(m[2])]; dialog.push(last); return; }
       if(last){ last[2] = clean(last[2] + x); } else dialog.push(["S", "", clean(x)]); });
   });
-  const grammars = (l.grammar_points||[]).filter(g => g && (T(g.title) || (g.blocks||[]).some(b=>T(b.text)||T(b.ex)))).map(g => {
+  /* GQIMPORT_V1 把「教材與課程」的上課語法練習（questions）一起帶過來 */
+  const L8 = i => String.fromCharCode(97+i) + ". ";
+  const qRef = q => { const o = q.options||[]; if(q.type==="choice") return o[Number(q.answer)] != null ? L8(Number(q.answer)) + o[Number(q.answer)] : ""; if(q.type==="order") return o.join(" "); if(q.type==="match") return o.map(p=>p && (p.l + "→" + p.r)).filter(Boolean).join("、"); return Array.isArray(q.answer) ? q.answer.filter(Boolean).join(" / ") : (typeof q.answer === "string" ? q.answer : ""); };
+  const exsOf = gi => { const qs = (l._qs||[]).filter(q => q && q.bank !== "hw" && q.type !== "note" && Number(q.gp_index) === gi).sort((a,b)=>(String(a.gp_sub||"")).localeCompare(String(b.gp_sub||"")) || (a.order_index||0)-(b.order_index||0));
+    const out = [];
+    qs.forEach(q => { const instr = T(q.instruction) || T(q.gp_sub);
+      if(q.type==="opt"){ out.push({_opt: true, instr, opts: (q.options||[]).map((o,i)=>L8(i)+o).join("\n"), qs: (q.items||[]).map(it=>[clean(it.text||""), ""].join("｜")).join("\n")}); return; }
+      let p = T(q.prompt); if(q.type==="choice" && (q.options||[]).length) p += "　" + q.options.map((o,i)=>"（" + String.fromCharCode(97+i) + "）" + o).join(" ");
+      if(q.type==="order" && (q.options||[]).length && !p) p = q.options.slice().sort(()=>0).join("／");
+      if(!p) return;
+      let last = out[out.length-1]; if(!last || last.instr !== instr || last._opt){ last = {instr, opts: "", qs: ""}; out.push(last); }
+      last.qs += (last.qs ? "\n" : "") + [clean(p), clean(qRef(q))].join("｜"); });
+    return out.map(x=>({instr: x.instr, opts: x.opts, qs: x.qs})); };
+  const grammars = (l.grammar_points||[]).map((g, gi) => g ? {...g, _gi: gi} : g).filter(g => g && (T(g.title) || (g.blocks||[]).some(b=>T(b.text)||T(b.ex)))).map(g => {
     const bl = g.blocks || [];
     const note = bl.map(b => { const tx = T(b.text); if(!tx) return ""; const lb = T(b.label); return lb && lb !== "說明" ? lb + "：" + tx : tx; }).filter(Boolean).join("\n");
     const gex = bl.flatMap(b => T(b.ex).split("\n").map(x=>x.trim()).filter(Boolean)).map(x => { const p = plPy(x); return [clean(p.t), clean(p.py)].join("｜"); }).join("\n");
-    return {title: clean(T(g.title)), pattern: "", gex, note, exs: []}; });
+    return {title: clean(T(g.title)), pattern: "", gex, note, exs: exsOf(g._gi)}; });
   const title = T(l.title) || "未命名"; const nm = title.match(/第\s*([0-9０-９一二三四五六七八九十百兩]+)\s*課/);
   return { num: nm ? zhNum(nm[1]) : idx + 1, name: title, pinyin: "", textTitle, goals: "", words: words.join("\n"),
     dialog: dialog.map(r => Array.isArray(r) ? r.join("｜") : r).join("\n"), dict: "", grammars, cast,
@@ -1350,7 +1372,8 @@ async function impGo(){ const b = $("#impBook").value, ls = impOf(b), picks = [.
   if(!db){ $("#impMsg").textContent = "請先登入。"; return; }
   $("#impGo").disabled = true; let ok = 0, bad = 0, lastId = null;
   for(const c of picks){ const l = ls[+c.dataset.i]; $("#impMsg").textContent = `匯入中… ${ok+bad+1}/${picks.length}`;
-    try { const id = "src_" + l.id, old = lessons.find(x=>x.id===id), doc = srcToDoc(l, +c.dataset.i);
+    try { try { const qs = await firebase.firestore().collection("questions").where("lesson_id", "==", l.id).get(); l._qs = qs.docs.map(d=>d.data()); } catch(_){ l._qs = []; }
+      const id = "src_" + l.id, old = lessons.find(x=>x.id===id), doc = srcToDoc(l, +c.dataset.i);
       if(old){ doc.flow = flowOf(old); ["goals","dict","cards","review","homework","textImgs","pinyin"].forEach(k=>delete doc[k]); }
       else { const fl = ["start","words"]; if(doc.dialog) fl.push("text","dict"); if(doc.readParas) fl.push("read"); if(doc.grammars.length) fl.push("grammar"); fl.push("review"); doc.flow = fl; }
       await db.collection(COL).doc(id).set(doc, {merge: true}); ok++; lastId = id; }
