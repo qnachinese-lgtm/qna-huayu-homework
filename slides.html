@@ -136,6 +136,8 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .tbl .x{border:none;background:none;color:var(--muted);font-size:18px;width:28px;height:28px;border-radius:8px}
 .tbl .x:hover{background:var(--ice);color:var(--blank)}
 .role{width:40px;height:34px;border-radius:50%;border:none;font-weight:700;color:#fff;font-size:15px}
+.gcard{border:2px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.gcard .basic{max-width:none}
 .addrow{align-self:flex-start;border:2px dashed var(--sky);background:transparent;color:var(--navy);border-radius:10px;padding:8px 16px;font-size:15px}
 .basic{display:grid;grid-template-columns:120px 1fr;gap:12px 14px;align-items:center;max-width:760px}
 .basic label{font-weight:700}
@@ -239,8 +241,12 @@ const SAMPLE = {
     ["B","李明","這個週末我們一起去看電影，好不好？","Zhège zhōumò wǒmen yìqǐ qù kàn diànyǐng, hǎo bù hǎo?","Shall we go to a movie together this weekend?"],
     ["A","王小美","好啊！","Hǎo a!","Sure!"],
   ],
-  grammar: { pattern:["主語","（很）喜歡","V／N"], note:"「很」放在「喜歡」前面；否定說「不喜歡」。",
-    examples:[["我喜歡咖啡。","Wǒ xǐhuān kāfēi."],["他很喜歡打籃球。","Tā hěn xǐhuān dǎ lánqiú."],["你喜歡看電影嗎？","Nǐ xǐhuān kàn diànyǐng ma?"]] },
+  grammars: [
+    { pattern:["主語","（很）喜歡","V／N"], note:"「很」放在「喜歡」前面；否定說「不喜歡」。",
+      examples:[["我喜歡咖啡。","Wǒ xǐhuān kāfēi."],["他很喜歡打籃球。","Tā hěn xǐhuān dǎ lánqiú."],["你喜歡看電影嗎？","Nǐ xǐhuān kàn diànyǐng ma?"]] },
+    { pattern:["主語","也","V"], note:"「也」放在動詞前面，不能放在主語前面。",
+      examples:[["我喜歡聽音樂，也喜歡看書。","Wǒ xǐhuān tīng yīnyuè, yě xǐhuān kàn shū."],["他也喜歡運動。","Tā yě xǐhuān yùndòng."]] },
+  ],
   // 抽卡：[分類, 題目(用 ＿ 表示空格), 答案詞, 完整句拼音, 翻譯]
   cards: [
     ["課文","你週末喜歡＿＿什麼？","做","Nǐ zhōumò xǐhuān zuò shénme?","What do you like to do on weekends?"],
@@ -259,6 +265,12 @@ const SAMPLE = {
 };
 /* ===================================== */
 let LESSON = SAMPLE;
+const ROLES = ["A","B","C","D"];
+const RCOL = {A:"var(--pink)", B:"var(--mint)", C:"var(--lav)", D:"var(--sky)"};
+const RIGHT = r => r==="B" || r==="D";
+const normRole = v => { v = String(v||"").trim().toUpperCase(); return ROLES.includes(v) ? v : "A"; };
+const GR = L => L.grammars || (L.grammar ? [L.grammar] : []);
+let gi = 0;
 const PCOL = ["var(--sky)","var(--pink)","var(--mint)","var(--yellow)","var(--lav)"];
 
 const STEPS = [
@@ -282,7 +294,7 @@ function renderSteps(){
   $("#prev").disabled = step===0; $("#next").disabled = step===STEPS.length-1;
 }
 function go(i){
-  stopTimer(); step = Math.max(0, Math.min(STEPS.length-1, i));
+  stopTimer(); step = Math.max(0, Math.min(STEPS.length-1, i)); gi = 0;
   try { localStorage.setItem("slides-step", step) } catch(e) {}
   li = -1; render();
 }
@@ -327,22 +339,26 @@ function render(){
   if(k==="text"){
     $("#title").textContent = "課文" + (LESSON.textTitle ? "：" + LESSON.textTitle : "");
     $("#hint").textContent = "按「下一句」一句一句帶念";
-    st.innerHTML = `<div class="dlg">${LESSON.dialog.map((d,i)=>`<div class="line ${d[0]==='B'?'r':''} ${i===li?'on':''} ${li>=0&&i!==li?'dim':''}">
-      <div class="av"><div class="who" style="background:${d[0]==='A'?'var(--pink)':'var(--mint)'}">${d[0]}</div><div class="nm">${esc(d[1])}</div></div>
-      <div class="bub"><div class="zh">${esc(d[2])}</div><div class="py">${esc(d[3])}</div><div class="tr">${esc(d[4])}</div></div></div>`).join("")}</div>`;
+    st.innerHTML = `<div class="dlg">${LESSON.dialog.map((d,i)=>`<div class="line ${RIGHT(d[0])?'r':''} ${i===li?'on':''} ${li>=0&&i!==li?'dim':''}">
+      <div class="av"><div class="who" style="background:${RCOL[d[0]]||RCOL.A}">${esc(d[0])}</div><div class="nm">${esc(d[1])}</div></div>
+      <div class="bub" style="border-color:${RCOL[d[0]]||RCOL.A}"><div class="zh">${esc(d[2])}</div><div class="py">${esc(d[3])}</div><div class="tr">${esc(d[4])}</div></div></div>`).join("")}</div>`;
     ct.innerHTML = `<button class="btn" data-a="lnext">下一句</button>
       <button class="btn ghost" data-a="lall">全部顯示</button>${toggles()}
       <div class="meta">${li<0?"全部":"第 "+(li+1)+" 句"}・共 ${LESSON.dialog.length} 句</div>
-      <div class="note"><b>建議</b><br>老師念 → 全班跟讀 → 分 A、B 角色念。</div>`;
+      <div class="note"><b>建議</b><br>老師念 → 全班跟讀 → 分角色念。</div>`;
   }
   if(k==="grammar"){
-    const g = LESSON.grammar;
-    $("#title").textContent = "語法點：" + g.pattern.filter((x,i)=>!(i===0&&/主語|主詞|S$/.test(x))).join("＋");
-    $("#hint").textContent = "說自己喜歡什麼、喜歡做什麼";
-    st.innerHTML = `<div class="pop"><div class="tag"><span>句型</span></div>
+    const gs = GR(LESSON);
+    if(!gs.length){ $("#title").textContent="語法"; $("#hint").textContent=""; st.innerHTML=`<div class="center"><div class="tr">這一課還沒有語法點，按左邊「編輯／匯入」加入。</div></div>`; ct.innerHTML=""; return; }
+    gi = Math.min(gi, gs.length-1);
+    const g = gs[gi], short = p => p.filter((x,i)=>!(i===0&&/主語|主詞|^S$/.test(x))).join("＋");
+    $("#title").textContent = (gs.length>1 ? `語法點 ${gi+1}：` : "語法點：") + short(g.pattern);
+    $("#hint").textContent = gs.length>1 ? `共 ${gs.length} 個語法點・按 ← → 換下一個` : "";
+    st.innerHTML = `<div class="pop"><div class="tag"><span>句型${gs.length>1?" "+(gi+1):""}</span></div>
       <div class="pattern">${g.pattern.map((p,i)=>`${i?'＋':''}<span style="background:${PCOL[i%PCOL.length]}">${esc(p)}</span>`).join(" ")}</div>
       <div class="exs">${g.examples.map(e=>`<div class="ex"><div class="zh">${esc(e[0])}</div><div class="py">${esc(e[1])}</div></div>`).join("")}</div></div>`;
-    ct.innerHTML = `${toggles()}${g.note?`<div class="note"><b>小提醒</b><br>${esc(g.note)}</div>`:""}`;
+    ct.innerHTML = `${gs.length>1?`<h3>語法點</h3><div class="chips">${gs.map((x,i)=>`<button class="chip" aria-pressed="${i===gi}" data-g="${i}">${i+1}. ${esc(short(x.pattern)||"語法")}</button>`).join("")}</div>
+      <button class="btn" data-a="gnext">下一個語法點</button>`:""}${toggles()}${g.note?`<div class="note"><b>小提醒</b><br>${esc(g.note)}</div>`:""}`;
   }
   if(k==="draw"){ renderDraw(); }
   if(k==="review"){
@@ -398,6 +414,7 @@ document.addEventListener("click", e=>{
   const b = e.target.closest("button"); if(!b) return;
   if(b.dataset.i) return go(+b.dataset.i);
   if(b.dataset.w){ wi = +b.dataset.w; return render(); }
+  if(b.dataset.g && $("#modal").hidden){ gi = +b.dataset.g; return render(); }
   if(b.dataset.f){ filter = b.dataset.f; stopTimer(); shuffle(); return renderDraw(); }
   if(b.dataset.t){ if(b.dataset.t==="py") showPy=!showPy; else showTr=!showTr; return STEPS[step].key==="draw"?renderDraw():render(); }
   const a = b.dataset.a;
@@ -407,6 +424,7 @@ document.addEventListener("click", e=>{
   if(a==="wrand"){ wi = Math.floor(Math.random()*LESSON.words.length); render(); }
   if(a==="lnext"){ li = (li+1)%LESSON.dialog.length; render(); }
   if(a==="lall"){ li = -1; render(); }
+  if(a==="gnext"){ gi = (gi+1) % GR(LESSON).length; render(); }
   if(a==="draw") draw();
   if(a==="ans"){ showAns=!showAns; renderDraw(); }
   if(a==="timer"){ timerId ? (stopTimer(), renderDraw()) : startTimer(); }
@@ -417,8 +435,8 @@ $("#fs").onclick = ()=>{ try{ document.fullscreenElement ? document.exitFullscre
 document.addEventListener("keydown", e=>{
   if(e.target.closest("input,textarea,select") || !$("#modal").hidden) return;
   const k = STEPS[step].key;
-  if(e.key==="ArrowRight"){ if(k==="words"){ wi=Math.min(wi+1,LESSON.words.length-1); render(); } else if(k==="text"){ li=Math.min(li+1,LESSON.dialog.length-1); render(); } else go(step+1); }
-  if(e.key==="ArrowLeft"){ if(k==="words"){ wi=Math.max(wi-1,0); render(); } else if(k==="text"&&li>0){ li--; render(); } else go(step-1); }
+  if(e.key==="ArrowRight"){ if(k==="words"){ wi=Math.min(wi+1,LESSON.words.length-1); render(); } else if(k==="text"){ li=Math.min(li+1,LESSON.dialog.length-1); render(); } else if(k==="grammar" && gi<GR(LESSON).length-1){ gi++; render(); } else go(step+1); }
+  if(e.key==="ArrowLeft"){ if(k==="words"){ wi=Math.max(wi-1,0); render(); } else if(k==="text"&&li>0){ li--; render(); } else if(k==="grammar"&&gi>0){ gi--; render(); } else go(step-1); }
   if(e.key===" " && k==="draw"){ e.preventDefault(); draw(); }
 });
 function fit(){
@@ -436,13 +454,14 @@ const cells = (t,n) => rows(t).map(r=>{ const c=r.split(/\s*[｜|\t]\s*/); while
 const join = a => (a||[]).map(r=>Array.isArray(r)?r.join("｜"):r).join("\n");
 function fromDoc(id, d){
   return { id, num: d.num || "", name: d.name || "未命名", pinyin: d.pinyin || "", textTitle: d.textTitle || "",
-    goals: cells(d.goals,2), words: cells(d.words,6), dialog: cells(d.dialog,5).map(r=>{r[0]=/^b$/i.test(r[0])?"B":"A";return r}),
-    grammar: { pattern: String(d.pattern||"").split(/\s*[＋+]\s*/).filter(Boolean), examples: cells(d.gex,2), note: d.gnote || "" },
+    goals: cells(d.goals,2), words: cells(d.words,6), dialog: cells(d.dialog,5).map(r=>{r[0]=normRole(r[0]);return r}),
+    grammars: (Array.isArray(d.grammars) ? d.grammars : (d.pattern||d.gex ? [{pattern:d.pattern, gex:d.gex, note:d.gnote}] : []))
+      .map(g=>({ pattern: String(g.pattern||"").split(/\s*[＋+]\s*/).filter(Boolean), examples: cells(g.gex,2), note: g.note || "" })),
     cards: cells(d.cards,5).filter(r=>r[1]), review: rows(d.review), homework: rows(d.homework) };
 }
 function toDoc(L){
   return { num: Number(L.num)||0, name: L.name, pinyin: L.pinyin, textTitle: L.textTitle||"", goals: join(L.goals), words: join(L.words),
-    dialog: join(L.dialog), pattern: (L.grammar.pattern||[]).join("＋"), gex: join(L.grammar.examples), gnote: L.grammar.note||"",
+    dialog: join(L.dialog), grammars: GR(L).map(g=>({pattern:(g.pattern||[]).join("＋"), gex: join(g.examples), note: g.note||""})),
     cards: join(L.cards), review: join(L.review), homework: join(L.homework) };
 }
 let lessons = [SAMPLE], db = null, editingId = null, delArmed = false;
@@ -461,8 +480,8 @@ const SECS = [
   {k:"basic", name:"基本資料"},
   {k:"goals", name:"學習目標", cols:["標題","說明"], w:"160px 1fr"},
   {k:"words", name:"生詞", cols:["生詞","拼音","詞性","翻譯","例句","例句拼音"], w:"100px 120px 70px 1fr 1.3fr 1.3fr"},
-  {k:"dialog", name:"課文", cols:["角色","名字","句子","拼音","翻譯"], w:"44px 90px 1.4fr 1.4fr 1fr", tip:"點 A／B 可以切換：A 在左邊，B 在右邊"},
-  {k:"gex", name:"語法", cols:["例句","拼音"], w:"1fr 1fr"},
+  {k:"dialog", name:"課文", cols:["角色","名字","句子","拼音","翻譯"], w:"44px 90px 1.4fr 1.4fr 1fr", tip:"點圓圈換角色（A→B→C→D）：A、C 在左邊，B、D 在右邊"},
+  {k:"grammars", name:"語法"},
   {k:"cards", name:"抽卡填空", cols:["分類","題目","答案","完整句拼音","翻譯"], w:"90px 1.4fr 90px 1.3fr 1fr", tip:"題目裡用 ＿＿ 表示空格"},
   {k:"review", name:"複習", cols:["打勾項目"], w:"1fr"},
   {k:"homework", name:"作業", cols:["回家作業"], w:"1fr"},
@@ -472,9 +491,11 @@ const blank = n => Array(n).fill("");
 function openEditor(L){
   editingId = L ? L.id : null; delArmed = false;
   const c = x => (x||[]).map(r => Array.isArray(r) ? r.slice() : [r]);
-  ED = L ? { num:String(L.num||""), name:L.name||"", pinyin:L.pinyin||"", textTitle:L.textTitle||"", pattern:(L.grammar.pattern||[]).join("＋"), gnote:L.grammar.note||"",
-      goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), gex:c(L.grammar.examples), cards:c(L.cards), review:c(L.review), homework:c(L.homework) }
-    : { num:"", name:"", pinyin:"", textTitle:"", pattern:"", gnote:"", goals:[["生詞",""],["課文",""],["語法",""],["練習","抽卡填空"]], words:[blank(6)], dialog:[["A","","","",""],["B","","","",""]], gex:[blank(2)], cards:[], review:[[""]], homework:[[""]] };
+  ED = L ? { num:String(L.num||""), name:L.name||"", pinyin:L.pinyin||"", textTitle:L.textTitle||"",
+      grammars: GR(L).map(g=>({pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", gex:c(g.examples)})),
+      goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework) }
+    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{pattern:"", gnote:"", gex:[blank(2),blank(2)]}], goals:[["生詞",""],["課文",""],["語法",""],["練習","抽卡填空"]], words:[blank(6)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]] };
+  if(!ED.grammars.length) ED.grammars.push({pattern:"", gnote:"", gex:[blank(2)]});
   edTab = "basic";
   $("#edTitle").textContent = !L ? "新增一課" : L.id==="sample" ? "以範例為底，存成新的一課" : `編輯 第${L.num}課`;
   $("#edDel").hidden = !L || L.id==="sample"; $("#edDel").textContent = "刪除這一課";
@@ -484,7 +505,7 @@ function openEditor(L){
 function msg(t, err){ const m=$("#edMsg"); m.textContent=t; m.className="msg"+(err?" err":""); }
 const filled = r => r.some(x => String(x).trim() && !/^[AB]$/.test(x));
 function renderTabs(){
-  $("#edTabs").innerHTML = SECS.map(x => `<button role="tab" data-tab="${x.k}" aria-selected="${x.k===edTab}">${x.name}${x.cols?`<span class="cnt">${ED[x.k].filter(filled).length}</span>`:""}</button>`).join("");
+  $("#edTabs").innerHTML = SECS.map(x => `<button role="tab" data-tab="${x.k}" aria-selected="${x.k===edTab}">${x.name}${x.cols?`<span class="cnt">${ED[x.k].filter(filled).length}</span>`:x.k==="grammars"?`<span class="cnt">${ED.grammars.filter(g=>g.pattern.trim()).length}</span>`:""}</button>`).join("");
 }
 function renderEd(){
   renderTabs();
@@ -495,46 +516,70 @@ function renderEd(){
       <label for="b-name">課名</label><input id="b-name" data-b="name" placeholder="例如 你喜歡做什麼？" value="${esc(ED.name)}">
       <label for="b-py">課名拼音</label><input id="b-py" data-b="pinyin" placeholder="例如 Nǐ xǐhuān zuò shénme?" value="${esc(ED.pinyin)}">
       <label for="b-tt">課文標題</label><input id="b-tt" data-b="textTitle" placeholder="例如 週末做什麼？" value="${esc(ED.textTitle)}">
-      <label for="b-pt">語法句型</label><input id="b-pt" data-b="pattern" placeholder="例如 主語＋（很）喜歡＋V／N" value="${esc(ED.pattern)}">
-      <small>用「＋」分開，每一塊會變成一個彩色標籤</small><div class="pv" id="pv"></div>
-      <label for="b-gn">語法小提醒</label><input id="b-gn" data-b="gnote" placeholder="可以空白" value="${esc(ED.gnote)}">
     </div>`;
-    pv(); return;
+    return;
+  }
+  if(S.k==="grammars"){
+    B.innerHTML = `<div class="sec-h"><h3>語法</h3><small>一課可以有好幾個語法點，上課時會一個一個顯示</small></div>` +
+      ED.grammars.map((g,gx)=>`<div class="gcard">
+        <div class="sec-h"><b>語法點 ${gx+1}</b><button class="x" type="button" data-gdel="${gx}" aria-label="刪除語法點 ${gx+1}">×</button></div>
+        <div class="basic">
+          <label for="gp${gx}">句型</label><input id="gp${gx}" data-g="${gx}" data-f="pattern" placeholder="例如 主語＋（很）喜歡＋V／N" value="${esc(g.pattern)}">
+          <small>用「＋」分開，每一塊會變成一個彩色標籤</small><div class="pv" id="pv${gx}">${pvHtml(g.pattern)}</div>
+          <label for="gn${gx}">小提醒</label><input id="gn${gx}" data-g="${gx}" data-f="gnote" placeholder="可以空白" value="${esc(g.gnote)}">
+        </div>
+        <div class="tbl" style="grid-template-columns:28px 1fr 1fr 28px"><span></span><span class="th">例句</span><span class="th">拼音</span><span></span>
+          ${g.gex.map((r,i)=>`<span class="no">${i+1}</span>`+[0,1].map(j=>`<input data-g="${gx}" data-r="${i}" data-c="${j}" value="${esc(r[j]||"")}" aria-label="語法點${gx+1} 例句${i+1}">`).join("")+`<button class="x" type="button" data-g="${gx}" data-del="${i}" aria-label="刪除例句${i+1}">×</button>`).join("")}
+        </div>
+        <button class="addrow" type="button" data-gadd="${gx}">＋ 新增例句</button>
+      </div>`).join("") + `<button class="addrow" type="button" id="addGram" style="border-color:var(--navy)">＋ 新增一個語法點</button>`;
+    return;
   }
   const rowsHtml = ED[S.k].map((r,i) => `<span class="no">${i+1}</span>` + S.cols.map((cn,j) =>
-      S.k==="dialog" && j===0 ? `<button class="role" type="button" data-role="${i}" style="background:${r[0]==='B'?'var(--mint)':'var(--pink)'}" aria-label="切換角色">${r[0]==='B'?'B':'A'}</button>`
+      S.k==="dialog" && j===0 ? `<button class="role" type="button" data-role="${i}" style="background:${RCOL[normRole(r[0])]}" aria-label="切換角色">${normRole(r[0])}</button>`
       : `<input data-r="${i}" data-c="${j}" value="${esc(r[j]||"")}" aria-label="${cn} 第${i+1}行">`).join("") + `<button class="x" type="button" data-del="${i}" aria-label="刪除第${i+1}行">×</button>`).join("");
   B.innerHTML = `<div class="sec-h"><h3>${S.name}</h3><small>${S.tip||"一格填一個欄位，從試算表複製多行貼到第一格會自動分好"}</small></div>
     ${S.k==="cards"?'<button class="mini" id="autoCards" type="button">用生詞例句和課文自動出題</button>':""}
     <div class="tbl" style="grid-template-columns:28px ${S.w} 28px"><span></span>${S.cols.map(c=>`<span class="th">${c}</span>`).join("")}<span></span>${rowsHtml}</div>
     <button class="addrow" type="button" id="addRow">＋ 新增一行</button>`;
 }
-function pv(){ const el = $("#pv"); if(el) el.innerHTML = ED.pattern.split(/\s*[＋+]\s*/).filter(Boolean).map((x,i)=>`<span style="background:${PCOL[i%PCOL.length]}">${esc(x)}</span>`).join("＋"); }
+function pvHtml(t){ return String(t||"").split(/\s*[＋+]\s*/).filter(Boolean).map((x,i)=>`<span style="background:${PCOL[i%PCOL.length]}">${esc(x)}</span>`).join("＋"); }
 const S = () => SECS.find(x=>x.k===edTab);
 $("#edTabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if(b){ edTab = b.dataset.tab; renderEd(); } });
 $("#edBody").addEventListener("input", e => {
   const t = e.target;
-  if(t.dataset.b){ ED[t.dataset.b] = t.value; if(t.dataset.b==="pattern") pv(); return; }
+  if(t.dataset.b){ ED[t.dataset.b] = t.value; return; }
+  if(t.dataset.g !== undefined){ const g = ED.grammars[+t.dataset.g];
+    if(t.dataset.f){ g[t.dataset.f] = t.value; if(t.dataset.f==="pattern"){ const el = document.getElementById("pv"+t.dataset.g); if(el) el.innerHTML = pvHtml(t.value); renderTabs(); } }
+    else g.gex[+t.dataset.r][+t.dataset.c] = t.value;
+    return; }
   if(t.dataset.r){ const r = ED[edTab][+t.dataset.r]; r[+t.dataset.c] = t.value; renderTabs(); }
 });
 $("#edBody").addEventListener("paste", e => {
   const t = e.target; if(!t.dataset || t.dataset.r===undefined) return;
   const txt = (e.clipboardData||window.clipboardData).getData("text"); if(!/[\t\n｜|]/.test(txt.trim())) return;
   e.preventDefault();
+  if(t.dataset.g !== undefined){ e.preventDefault(); const g = ED.grammars[+t.dataset.g], r0 = +t.dataset.r, c0 = +t.dataset.c;
+    rows(txt).forEach((line,k)=>{ const parts=line.split(/\s*[\t｜|]\s*/); const row = g.gex[r0+k] || (g.gex[r0+k]=blank(2)); parts.forEach((v,j)=>{ if(c0+j<2) row[c0+j]=v; }); });
+    renderEd(); msg(`貼上了 ${rows(txt).length} 行。`); return; }
   const n = S().cols.length, r0 = +t.dataset.r, c0 = +t.dataset.c;
   rows(txt).forEach((line,k) => {
     const parts = line.split(/\s*[\t｜|]\s*/); const row = ED[edTab][r0+k] || (ED[edTab][r0+k] = blank(n));
     if(edTab==="dialog" && !row[0]) row[0] = "A";
-    parts.forEach((v,j) => { if(c0+j < n){ row[c0+j] = (edTab==="dialog" && c0+j===0) ? (/^b$/i.test(v)?"B":"A") : v; } });
+    parts.forEach((v,j) => { if(c0+j < n){ row[c0+j] = (edTab==="dialog" && c0+j===0) ? normRole(v) : v; } });
   });
   renderEd(); msg(`貼上了 ${rows(txt).length} 行。`);
 });
 $("#edBody").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b) return;
   const n = S().cols ? S().cols.length : 0;
+  if(b.id==="addGram"){ ED.grammars.push({pattern:"", gnote:"", gex:[blank(2),blank(2)]}); renderEd(); const ins=$("#edBody").querySelectorAll(`[data-f="pattern"]`); ins[ins.length-1].focus(); return; }
+  if(b.dataset.gdel!==undefined){ ED.grammars.splice(+b.dataset.gdel,1); if(!ED.grammars.length) ED.grammars.push({pattern:"", gnote:"", gex:[blank(2)]}); renderEd(); return; }
+  if(b.dataset.gadd!==undefined){ ED.grammars[+b.dataset.gadd].gex.push(blank(2)); renderEd(); return; }
+  if(b.dataset.g!==undefined && b.dataset.del!==undefined){ ED.grammars[+b.dataset.g].gex.splice(+b.dataset.del,1); renderEd(); return; }
   if(b.id==="addRow"){ ED[edTab].push(edTab==="dialog" ? [ED[edTab].length%2?"B":"A","","","",""] : blank(n)); renderEd(); const ins = $("#edBody").querySelectorAll(`input[data-r="${ED[edTab].length-1}"]`); if(ins[0]) ins[0].focus(); }
   if(b.dataset.del){ ED[edTab].splice(+b.dataset.del,1); renderEd(); }
-  if(b.dataset.role){ const r = ED.dialog[+b.dataset.role]; r[0] = r[0]==="B"?"A":"B"; renderEd(); }
+  if(b.dataset.role){ const r = ED.dialog[+b.dataset.role]; r[0] = ROLES[(ROLES.indexOf(normRole(r[0]))+1)%ROLES.length]; renderEd(); }
   if(b.id==="autoCards"){
     const ws = ED.words.filter(w=>w[0]), out = [];
     ws.forEach(w=>{ if(w[4] && w[4].includes(w[0])) out.push(["生詞", w[4].replace(w[0],"＿＿"), w[0], w[5]||"", ""]); });
@@ -545,8 +590,10 @@ $("#edBody").addEventListener("click", e => {
 });
 function readForm(){
   const j = k => ED[k].filter(filled).map(r=>r.map(x=>String(x).replace(/[｜|\n]/g," ").trim()).join("｜")).join("\n");
-  return { num: ED.num.trim(), name: ED.name.trim(), pinyin: ED.pinyin.trim(), textTitle: ED.textTitle.trim(), pattern: ED.pattern.trim(), gnote: ED.gnote.trim(),
-    goals: j("goals"), words: j("words"), dialog: j("dialog"), gex: j("gex"), cards: j("cards"), review: j("review"), homework: j("homework") };
+  const jr = a => a.filter(filled).map(r=>r.map(x=>String(x).replace(/[｜|\n]/g," ").trim()).join("｜")).join("\n");
+  return { num: ED.num.trim(), name: ED.name.trim(), pinyin: ED.pinyin.trim(), textTitle: ED.textTitle.trim(),
+    grammars: ED.grammars.filter(g=>g.pattern.trim() || g.gex.some(filled)).map(g=>({pattern: g.pattern.trim(), note: g.gnote.trim(), gex: jr(g.gex)})),
+    goals: j("goals"), words: j("words"), dialog: j("dialog"), cards: j("cards"), review: j("review"), homework: j("homework") };
 }
 $("#editBtn").onclick = () => openEditor(LESSON);
 $("#newBtn").onclick = () => openEditor(null);
