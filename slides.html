@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>上課投影片｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
+<!-- WORDGRP_V1 生詞可加相關詞與多個例句 -->
 <!-- SMALLNUM_V1 課次數字縮小 -->
 <!-- SHORTTIP_V1 說明文字精簡 -->
 <!-- AVDRAG_V1 拖曳圓框選臉 -->
@@ -68,6 +69,16 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .ans{border-top:2px dashed var(--line);padding-top:14px;margin-top:auto}
 .ans .big{font-size:34px;color:var(--ansc)}
 .center{margin:auto 0;display:flex;flex-direction:column;gap:6px}
+.wexs{display:flex;flex-direction:column;gap:6px;margin:0;padding-left:1.4em}
+.wexs li .zh{font-size:24px}
+.wexs .py{font-size:17px}
+.wsubs{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:6px}
+.wsub{background:var(--ice);border-radius:12px;padding:8px 14px;text-align:left;max-width:100%}
+.wsub b{font-size:26px;font-weight:700;margin-right:8px}
+.wsub .py{font-size:17px}
+.wsub .wexs li .zh{font-size:18px}
+.wtype{width:52px;height:32px;border-radius:9px;border:none;font:inherit;font-size:13px;font-weight:700;color:#fff;cursor:pointer}
+.tbl input.subin{border-left:5px solid var(--sky)}
 .hidePy .py{visibility:hidden} .hideTr .tr{visibility:hidden}
 /* 右側 */
 .ctrl{display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -360,6 +371,15 @@ const normRole = v => { v = String(v||"").trim(); if(/^(景|場景|旁白|動作
 /* CAST_V1 人物只設定一次；SCENE_V1 場景／動作那一行 */
 const castOf = L => { const c = {A:"",B:"",C:"",D:""}; if(L && L.cast) return {...c, ...L.cast}; ((L&&L.dialog)||[]).forEach(d=>{ if(d[0]!=="S" && d[1] && !c[d[0]]) c[d[0]] = d[1]; }); return c; };
 const nameOf = d => (LESSON.cast && LESSON.cast[d[0]]) || d[1] || "";
+/* WORDGRP_V1 生詞下面可以有相關詞、多個例句 */
+const WTYPE = ["", "sub", "ex"], WLAB = {"":"生詞", sub:"相關詞", ex:"例句"}, WCOL = {"":"var(--navy)", sub:"var(--mint)", ex:"var(--lav)"};
+function WG(L){ const out = []; let cur = null, last = null;
+  (L.words||[]).forEach(r=>{ const t = r[6]||"";
+    if(t==="ex"){ if(last && r[4]) last.exs.push([r[4], r[5]||""]); return; }
+    const it = {r, exs: r[4] ? [[r[4], r[5]||""]] : [], subs: []};
+    if(t==="sub" && cur){ cur.subs.push(it); last = it; } else { out.push(it); cur = it; last = it; } });
+  return out; }
+const exList = exs => exs.length ? `<ol class="wexs">${exs.map(e=>`<li><div class="zh">${esc(e[0])}</div><div class="py">${esc(e[1])}</div></li>`).join("")}</ol>` : "";
 /* AVATAR_V1 人物頭像照片 */
 const avImg = a => { const z = +a.z||1, ar = +a.ar||1, x = a.x==null?.5:+a.x, y = a.y==null?.5:+a.y;
   return `<img src="${esc(a.url)}" alt="" style="width:${z*100}%;left:${50 - x*z*100}%;top:${50 - y*z*ar*100}%">`; };
@@ -427,22 +447,23 @@ function render(){
       <div class="note"><b>上課流程</b><br>${STEPS.map((s,i)=>`${i+1}. ${s.name}`).join("<br>")}</div>`;
   }
   if(k==="words"){
-    if(!LESSON.words.length){ $("#title").textContent="生詞卡"; $("#hint").textContent=""; st.innerHTML=`<div class="center"><div class="tr">這一課還沒有生詞，按左邊「編輯／匯入」加入。</div></div>`; ct.innerHTML=""; return; }
-    wi = Math.min(wi, LESSON.words.length-1);
-    const w = LESSON.words[wi];
+    const WGS = WG(LESSON);
+    if(!WGS.length){ $("#title").textContent="生詞卡"; $("#hint").textContent=""; st.innerHTML=`<div class="center"><div class="tr">這一課還沒有生詞，按左邊「編輯／匯入」加入。</div></div>`; ct.innerHTML=""; return; }
+    wi = Math.min(wi, WGS.length-1);
+    const it = WGS[wi], w = it.r, rich = it.subs.length || it.exs.length > 1;
     $("#title").textContent = "生詞卡";
     $("#hint").textContent = "按 ← → 換生詞";
     st.innerHTML = `<div class="tag"><span>生詞 ${wi+1}</span>${esc(w[2])}</div>
       <div class="center pop" style="align-items:center;text-align:center">
-        <div class="big" style="font-size:104px">${esc(w[0])}</div>
-        <div class="py" style="font-size:32px">${esc(w[1])}</div>
-        <div class="tr">${esc(w[3])}</div></div>
-      <div class="ans"><div class="tag" style="margin-bottom:4px">例句</div>
-        <div style="font-size:28px">${esc(w[4])}</div><div class="py">${esc(w[5])}</div></div>`;
-    ct.innerHTML = `<h3>生詞</h3><div class="chips">${LESSON.words.map((x,i)=>`<button class="chip" aria-pressed="${i===wi}" data-w="${i}">${esc(x[0])}</button>`).join("")}</div>
+        <div class="big" style="font-size:${rich?80:104}px;line-height:1.2">${esc(w[0])}</div>
+        <div class="py" style="font-size:${rich?26:32}px">${esc(w[1])}</div>
+        <div class="tr">${esc(w[3])}</div>
+        ${it.subs.length ? `<div class="wsubs">${it.subs.map(sb=>`<div class="wsub"><b>${esc(sb.r[0])}</b><span class="py">${esc(sb.r[1])}</span> <span class="tr">${sb.r[2]?esc(sb.r[2])+" ":""}${esc(sb.r[3])}</span>${exList(sb.exs)}</div>`).join("")}</div>` : ""}</div>
+      ${it.exs.length ? `<div class="ans"><div class="tag" style="margin-bottom:4px">例句</div>${it.exs.length > 1 ? exList(it.exs) : `<div style="font-size:28px">${esc(it.exs[0][0])}</div><div class="py">${esc(it.exs[0][1])}</div>`}</div>` : ""}`;
+    ct.innerHTML = `<h3>生詞</h3><div class="chips">${WGS.map((x,i)=>`<button class="chip" aria-pressed="${i===wi}" data-w="${i}">${esc(x.r[0])}</button>`).join("")}</div>
       <button class="btn" data-a="wnext">下一個生詞</button>
       <button class="btn ghost" data-a="wrand">隨機一個</button>${toggles()}
-      <div class="meta">第 ${wi+1} 個・共 ${LESSON.words.length} 個</div>
+      <div class="meta">第 ${wi+1} 個・共 ${WGS.length} 個</div>
       <div class="note"><b>玩法</b><br>先關掉拼音，請學生念念看，再打開對答案。</div>`;
   }
   if(k==="text"){
@@ -613,8 +634,8 @@ document.addEventListener("click", e=>{
   const a = b.dataset.a;
   if(a==="next") go(step+1);
   if(a==="restart") go(0);
-  if(a==="wnext"){ wi = (wi+1)%LESSON.words.length; render(); }
-  if(a==="wrand"){ wi = Math.floor(Math.random()*LESSON.words.length); render(); }
+  if(a==="wnext"){ wi = (wi+1)%Math.max(1,WG(LESSON).length); render(); }
+  if(a==="wrand"){ wi = Math.floor(Math.random()*WG(LESSON).length); render(); }
   if(a==="lnext"){ li = (li+1)%LESSON.dialog.length; render(); }
   if(a==="lall"){ li = -1; render(); }
   if(a==="aplay" && AUD){ AUD.paused ? AUD.play().catch(()=>{}) : AUD.pause(); }
@@ -641,7 +662,7 @@ $("#fs").onclick = ()=>{ try{ document.fullscreenElement ? document.exitFullscre
 document.addEventListener("keydown", e=>{
   if(e.target.closest("input,textarea,select") || !$("#modal").hidden) return;
   const k = STEPS[step].key;
-  if(e.key==="ArrowRight"){ if(k==="words"){ wi=Math.min(wi+1,LESSON.words.length-1); render(); } else if(k==="text"){ li=Math.min(li+1,LESSON.dialog.length-1); render(); } else if(k==="grammar" && gStep(1)){ render(); } else go(step+1); }
+  if(e.key==="ArrowRight"){ if(k==="words"){ wi=Math.min(wi+1,WG(LESSON).length-1); render(); } else if(k==="text"){ li=Math.min(li+1,LESSON.dialog.length-1); render(); } else if(k==="grammar" && gStep(1)){ render(); } else go(step+1); }
   if(e.key==="ArrowLeft"){ if(k==="words"){ wi=Math.max(wi-1,0); render(); } else if(k==="text"&&li>0){ li--; render(); } else if(k==="grammar" && gStep(-1)){ render(); } else go(step-1); }
   if(e.key===" " && k==="draw"){ e.preventDefault(); draw(); }
 });
@@ -686,7 +707,7 @@ const join = a => (a||[]).map(r=>Array.isArray(r)?r.join("｜"):r).join("\n");
 const cleanAv = o => { const r = {}; Object.entries(o||{}).forEach(([k,a])=>{ if(a && a.url && !a.local) r[k] = {url:a.url, path:a.path||"", x:+a.x||0, y:+a.y||0, z:+a.z||1, ar:+a.ar||1}; }); return r; };
 function fromDoc(id, d){
   return { id, num: d.num || "", name: d.name || "未命名", pinyin: d.pinyin || "", textTitle: d.textTitle || "",
-    goals: rows(d.goals).map(g=>g.replace(/\s*[｜|]\s*/,"：").replace(/：$/,"")), words: cells(d.words,6), dialog: cells(d.dialog,6).map(r=>{r[0]=normRole(r[0]);return r}), textImgs: Array.isArray(d.textImgs) ? d.textImgs.filter(x=>x && x.url) : [],
+    goals: rows(d.goals).map(g=>g.replace(/\s*[｜|]\s*/,"：").replace(/：$/,"")), words: cells(d.words,7).map(r=>{ if(!/^(sub|ex)$/.test(r[6])) r[6] = ""; return r; }), dialog: cells(d.dialog,6).map(r=>{r[0]=normRole(r[0]);return r}), textImgs: Array.isArray(d.textImgs) ? d.textImgs.filter(x=>x && x.url) : [],
     grammars: (Array.isArray(d.grammars) ? d.grammars : (d.pattern||d.gex ? [{pattern:d.pattern, gex:d.gex, note:d.gnote}] : []))
       .map(g=>({ title: g.title || "", pattern: String(g.pattern||"").split(/\s*[＋+]\s*/).filter(Boolean), examples: cells(g.gex,2), note: g.note || "",
         exs: (Array.isArray(g.exs) ? g.exs : []).map(x=>({instr: x.instr || "", opts: rows(x.opts), qs: cells(x.qs,2).filter(r=>r[0])})) })),
@@ -720,7 +741,7 @@ const SECS = [
   {k:"basic", name:"基本資料"},
   {k:"warmQs", name:"暖身", cols:["暖身問題"], w:"1fr", tip:""},
   {k:"goals", name:"學習目標", cols:["學習目標"], w:"1fr", tip:""},
-  {k:"words", name:"生詞", cols:["生詞","拼音","詞性","翻譯","例句","例句拼音"], w:"100px 120px 70px 1fr 1.3fr 1.3fr"},
+  {k:"words", name:"生詞", cols:["類型","生詞","拼音","詞性","翻譯","例句","例句拼音"], idx:[6,0,1,2,3,4,5], size:7, w:"60px 100px 120px 70px 1fr 1.3fr 1.3fr", tip:"點「類型」切換：生詞／相關詞／例句"},
   {k:"dialog", name:"對話", cols:["角色","句子","拼音","翻譯","圖片"], idx:[0,2,3,4,5], size:6, w:"44px 1.5fr 1.4fr 1fr 72px", tip:"點圓圈換角色；景＝場景／動作"},
   {k:"readParas", name:"短文", cols:["段落","拼音","翻譯"], w:"1.4fr 1.2fr 1fr", tip:""},
   {k:"dict", name:"聽寫", cols:["角色","句子（【】裡的字會變成空格）"], idx:[0,2], size:3, w:"44px 1fr", tip:"【】裡的字會挖空"},
@@ -741,7 +762,7 @@ function openEditor(L){
       grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", gex:c(g.examples), exs:(g.exs||[]).map(x=>({instr:x.instr||"", opts:(x.opts||[]).join("\n"), qs:c(x.qs)}))})), cast: castOf(L), avatars: JSON.parse(JSON.stringify(L.avatars||{})),
       goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null, textImgs: (L.textImgs||[]).slice(),
       book: L.book||"", flow: flowOf(L).slice(), warmQs: c((L.warm||{}).qs), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: c((L.read||{}).paras), speak: c(L.speak), qa: c(L.qa), cultTitle: (L.culture||{}).title||"", cultText: c((L.culture||{}).paras), cultImg: (L.culture||{}).img||null }
-    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{title:"", pattern:"", gnote:"", gex:[blank(2),blank(2)], exs:[]}], cast:{A:"",B:"",C:"",D:""}, avatars:{}, goals:[[""],[""],[""]], words:[blank(6)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]], dict:[], audio:null,
+    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{title:"", pattern:"", gnote:"", gex:[blank(2),blank(2)], exs:[]}], cast:{A:"",B:"",C:"",D:""}, avatars:{}, goals:[[""],[""],[""]], words:[blank(7)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]], dict:[], audio:null,
       book: LESSON.id!=="sample" ? (LESSON.book||"") : "", flow: flowOf(LESSON).slice(), warmQs:[[""]], warmImg:null, readTitle:"", readParas:[blank(3)], speak:[blank(2)], qa:[blank(2)], cultTitle:"", cultText:[[""]], cultImg:null, textImgs:[] };
   ED._id = (L && L.id!=="sample") ? L.id : "lesson-" + Date.now().toString(36);
   if(!ED.grammars.length) ED.grammars.push({title:"", pattern:"", gnote:"", gex:[blank(2)], exs:[]});
@@ -754,7 +775,7 @@ function openEditor(L){
   $("#modal").hidden = false; renderEd();
 }
 function msg(t, err){ const m=$("#edMsg"); m.textContent=t; m.className="msg"+(err?" err":""); }
-const filled = r => r.some(x => String(x).trim() && !/^[ABCDS]$/.test(x));
+const filled = r => r.some(x => String(x).trim() && !/^([ABCDS]|sub|ex)$/.test(x));
 function renderTabs(){
   $("#edTabs").innerHTML = SECS.map(x => `<button role="tab" data-tab="${x.k}" aria-selected="${x.k===edTab}">${x.name}${x.cols?`<span class="cnt">${ED[x.k].filter(filled).length}</span>`:x.k==="grammars"?`<span class="cnt">${ED.grammars.filter(g=>(g.title||g.pattern).trim()).length}</span>`:""}</button>`).join("");
 }
@@ -800,8 +821,10 @@ function renderEd(){
   }
   const rowsHtml = ED[S.k].map((r,i) => `<span class="no">${i+1}</span>` + S.cols.map((cn,j) => { const ci = S.idx ? S.idx[j] : j;
       return S.k==="dialog" && ci===5 ? (r[0]==="S" ? "<span></span>" : limgCell(i, r[5]))
+      : S.k==="words" && ci===6 ? `<button class="wtype" type="button" data-wtype="${i}" style="background:${WCOL[r[6]||""]}" aria-label="切換類型">${WLAB[r[6]||""]}</button>`
+      : S.k==="words" && r[6]==="ex" && ci<4 ? "<span></span>"
       : (S.k==="dialog" || S.k==="dict") && ci===0 ? `<button class="role" type="button" data-role="${i}" style="background:${RCOL[normRole(r[0])]}" aria-label="切換角色">${RLAB(normRole(r[0]))}</button>`
-      : `<input data-r="${i}" data-c="${ci}" value="${esc(r[ci]||"")}" aria-label="${cn} 第${i+1}行"${r[0]==="S" && ci===2 ? ' class="scenein"' : ""}>`; }).join("") + `<button class="x" type="button" data-del="${i}" aria-label="刪除第${i+1}行">×</button>`).join("");
+      : `<input data-r="${i}" data-c="${ci}" value="${esc(r[ci]||"")}" aria-label="${cn} 第${i+1}行"${r[0]==="S" && ci===2 && S.k!=="words" ? ' class="scenein"' : ""}${S.k==="words" && r[6]==="sub" && ci===0 ? ' class="subin"' : ""}>`; }).join("") + `<button class="x" type="button" data-del="${i}" aria-label="刪除第${i+1}行">×</button>`).join("");
   B.innerHTML = `<div class="sec-h"><h3>${S.name}</h3>${S.tip?`<small>${S.tip}</small>`:""}</div>
     ${S.k==="dialog"?castBox()+galleryBox():""}${S.k==="dict"?dictTop():""}${S.k==="warmQs"?mediaBox("warmImg","暖身圖片"):""}${S.k==="cultText"?`<div class="basic"><label for="b-ct">標題</label><input id="b-ct" data-b="cultTitle" value="${esc(ED.cultTitle)}"></div>`+mediaBox("cultImg","文化圖片"):""}${S.k==="readParas"?`<div class="basic"><label for="b-rt">短文標題</label><input id="b-rt" data-b="readTitle" value="${esc(ED.readTitle)}"></div>`:""}${S.k==="cards"?'<button class="mini" id="autoCards" type="button">用生詞例句和對話自動出題</button>':""}
     <div class="tbl" style="grid-template-columns:28px ${S.w} 28px"><span></span>${S.cols.map(c=>`<span class="th">${c}</span>`).join("")}<span></span>${rowsHtml}</div>
@@ -951,10 +974,11 @@ $("#edBody").addEventListener("click", e => {
   if(b.dataset.g!==undefined && b.dataset.del!==undefined){ ED.grammars[+b.dataset.g].gex.splice(+b.dataset.del,1); renderEd(); return; }
   if(b.id==="addRow"){ ED[edTab].push((edTab==="dialog"||edTab==="dict") ? [ED[edTab].length%2?"B":"A", ...blank(n-1)] : blank(n)); renderEd(); const ins = $("#edBody").querySelectorAll(`input[data-r="${ED[edTab].length-1}"]`); if(ins[0]) ins[0].focus(); }
   if(b.dataset.del){ ED[edTab].splice(+b.dataset.del,1); renderEd(); }
+  if(b.dataset.wtype){ const r = ED.words[+b.dataset.wtype]; while(r.length<7) r.push(""); r[6] = WTYPE[(WTYPE.indexOf(r[6]||"")+1)%3]; renderEd(); return; }
   if(b.dataset.role){ const r = ED[edTab][+b.dataset.role]; r[0] = ROLES[(ROLES.indexOf(normRole(r[0]))+1)%ROLES.length]; renderEd(); }
   if(b.id==="autoCards"){
     const ws = ED.words.filter(w=>w[0]), out = [];
-    ws.forEach(w=>{ if(w[4] && w[4].includes(w[0])) out.push(["生詞", w[4].replace(w[0],"＿＿"), w[0], w[5]||"", ""]); });
+    let lw = null; ED.words.forEach(w=>{ if(w[6]!=="ex" && w[0]) lw = w[0]; if(lw && w[4] && w[4].includes(lw)) out.push(["生詞", w[4].replace(lw,"＿＿"), lw, w[5]||"", ""]); });
     ED.dialog.forEach(d=>{ const w = ws.find(w=>d[2] && d[2].includes(w[0])); if(w) out.push(["課文", d[2].replace(w[0],"＿＿"), w[0], d[3]||"", d[4]||""]); });
     if(!out.length){ msg("找不到可以出題的句子：請先填生詞和例句。", true); return; }
     ED.cards = ED.cards.filter(filled).concat(out); renderEd(); msg(`加入了 ${out.length} 題，可以再自己修改。`);
