@@ -85,9 +85,9 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--sky),var(--navy));transition:width .35s}
 .small{font-size:14px;padding:7px 12px;border-radius:10px;border:2px solid var(--line);background:var(--panel);color:var(--fg)}
 /* 內容樣式 */
-.goals{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}
-.goal{background:var(--ice);border-radius:14px;padding:14px}
-.goal b{display:block;font-size:20px;margin-bottom:4px}
+.goals{list-style:none;margin:18px 0 0;padding:0;display:flex;flex-direction:column;gap:10px;counter-reset:g}
+.goals li{counter-increment:g;display:flex;gap:12px;align-items:flex-start;background:var(--ice);border-radius:12px;padding:10px 14px;font-size:20px;line-height:1.5}
+.goals li::before{content:counter(g);flex:none;width:30px;height:30px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:16px;font-weight:700;margin-top:2px}
 .dlg{display:flex;flex-direction:column;gap:10px;margin:auto 0}
 .line{display:flex;gap:12px;align-items:flex-start;transition:opacity .2s}
 .line.r{flex-direction:row-reverse}
@@ -225,7 +225,7 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 /* ===== 課程內容：換課時只要改這裡 ===== */
 const SAMPLE = {
   id: "sample", num: 3, name: "你喜歡做什麼？", pinyin: "Nǐ xǐhuān zuò shénme?", textTitle: "週末做什麼？",
-  goals: [["生詞","認識 6 個和興趣有關的生詞"],["課文","念出兩人聊週末的對話"],["語法","用「喜歡＋V／N」說句子"],["練習","抽卡填空，看誰最快"]],
+  goals: ["能說出自己喜歡做的活動","能用「喜歡＋V／N」表達自己的喜好","能用「你呢？」「也」跟別人聊週末的安排"],
   words: [
     ["喜歡","xǐhuān","V","to like","我很喜歡看書。","Wǒ hěn xǐhuān kàn shū."],
     ["運動","yùndòng","N/V","sports; to exercise","他每天都運動。","Tā měi tiān dōu yùndòng."],
@@ -313,7 +313,7 @@ function render(){
     $("#hint").textContent = "今天要學的內容";
     st.innerHTML = `<div class="center pop"><div class="tag"><span>第${LESSON.num}課</span>今天的目標</div>
       <div class="big">${esc(LESSON.name)}</div><div class="py">${esc(LESSON.pinyin)}</div>
-      <div class="goals">${LESSON.goals.map(g=>`<div class="goal"><b>${esc(g[0])}</b>${esc(g[1])}</div>`).join("")}</div></div>`;
+      ${LESSON.goals.length?`<ol class="goals">${LESSON.goals.map(g=>`<li>${esc(Array.isArray(g)?g.filter(Boolean).join("："):g)}</li>`).join("")}</ol>`:""}</div>`;
     ct.innerHTML = `<button class="btn" data-a="next">開始上課 →</button>
       <div class="note"><b>上課流程</b><br>${STEPS.map((s,i)=>`${i+1}. ${s.name}`).join("<br>")}</div>`;
   }
@@ -454,7 +454,7 @@ const cells = (t,n) => rows(t).map(r=>{ const c=r.split(/\s*[｜|\t]\s*/); while
 const join = a => (a||[]).map(r=>Array.isArray(r)?r.join("｜"):r).join("\n");
 function fromDoc(id, d){
   return { id, num: d.num || "", name: d.name || "未命名", pinyin: d.pinyin || "", textTitle: d.textTitle || "",
-    goals: cells(d.goals,2), words: cells(d.words,6), dialog: cells(d.dialog,5).map(r=>{r[0]=normRole(r[0]);return r}),
+    goals: rows(d.goals).map(g=>g.replace(/\s*[｜|]\s*/,"：").replace(/：$/,"")), words: cells(d.words,6), dialog: cells(d.dialog,5).map(r=>{r[0]=normRole(r[0]);return r}),
     grammars: (Array.isArray(d.grammars) ? d.grammars : (d.pattern||d.gex ? [{pattern:d.pattern, gex:d.gex, note:d.gnote}] : []))
       .map(g=>({ pattern: String(g.pattern||"").split(/\s*[＋+]\s*/).filter(Boolean), examples: cells(g.gex,2), note: g.note || "" })),
     cards: cells(d.cards,5).filter(r=>r[1]), review: rows(d.review), homework: rows(d.homework) };
@@ -478,7 +478,7 @@ function useLesson(id, keepStep){
 $("#lessonSel").onchange = e => useLesson(e.target.value);
 const SECS = [
   {k:"basic", name:"基本資料"},
-  {k:"goals", name:"學習目標", cols:["標題","說明"], w:"160px 1fr"},
+  {k:"goals", name:"學習目標", cols:["學習目標"], w:"1fr", tip:"照教師手冊寫，一行一個目標"},
   {k:"words", name:"生詞", cols:["生詞","拼音","詞性","翻譯","例句","例句拼音"], w:"100px 120px 70px 1fr 1.3fr 1.3fr"},
   {k:"dialog", name:"課文", cols:["角色","名字","句子","拼音","翻譯"], w:"44px 90px 1.4fr 1.4fr 1fr", tip:"點圓圈換角色（A→B→C→D）：A、C 在左邊，B、D 在右邊"},
   {k:"grammars", name:"語法"},
@@ -494,7 +494,7 @@ function openEditor(L){
   ED = L ? { num:String(L.num||""), name:L.name||"", pinyin:L.pinyin||"", textTitle:L.textTitle||"",
       grammars: GR(L).map(g=>({pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", gex:c(g.examples)})),
       goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework) }
-    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{pattern:"", gnote:"", gex:[blank(2),blank(2)]}], goals:[["生詞",""],["課文",""],["語法",""],["練習","抽卡填空"]], words:[blank(6)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]] };
+    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{pattern:"", gnote:"", gex:[blank(2),blank(2)]}], goals:[[""],[""],[""]], words:[blank(6)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]] };
   if(!ED.grammars.length) ED.grammars.push({pattern:"", gnote:"", gex:[blank(2)]});
   edTab = "basic";
   $("#edTitle").textContent = !L ? "新增一課" : L.id==="sample" ? "以範例為底，存成新的一課" : `編輯 第${L.num}課`;
