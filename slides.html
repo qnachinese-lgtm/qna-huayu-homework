@@ -6,6 +6,7 @@
 <title>上課投影片｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
 <!-- IMPORT_V1 從教材與課程匯入 -->
+<!-- QA2_V1 對話、短文討論分開 -->
 <!-- RTITLE_V2 短文標題不重複 -->
 <!-- GQIMPORT_V3 選項標號不重複、同說明合併 -->
 <!-- IMPFLOW_V1 再匯入保留流程 -->
@@ -565,11 +566,11 @@ let gi = 0;
 const PCOL = ["var(--sky)","#C9DCF4","#DCCEF7","var(--yellow)","#B7D0EE"];
 
 /* FLOW_V1 每一課自己挑步驟、排順序；同一套教材沿用 */
-const STEP_DEFS = {start:"開始", warm:"暖身", words:"生詞", text:"對話", read:"短文", dict:"聽寫", grammar:"語法", speak:"口說", qa:"問題與討論", culture:"文化", draw:"抽卡練習", order:"看圖排序", review:"複習"};
+const STEP_DEFS = {start:"開始", warm:"暖身", words:"生詞", text:"對話", read:"短文", dict:"聽寫", grammar:"語法", speak:"口說", qa:"問題與討論", qa2:"短文討論", culture:"文化", draw:"抽卡練習", order:"看圖排序", review:"複習"};
 const DEFAULT_FLOW = ["start","words","text","dict","grammar","draw","review"];
 const flowOf = L => { const f = (L && Array.isArray(L.flow) && L.flow.length) ? L.flow.filter(k=>STEP_DEFS[k]) : DEFAULT_FLOW; return f[0]==="start" ? f : ["start", ...f.filter(k=>k!=="start")]; };
 let STEPS = DEFAULT_FLOW.map(k=>({key:k, name:STEP_DEFS[k]}));
-function applyFlow(){ STEPS = flowOf(LESSON).map(k=>({key:k, name:STEP_DEFS[k]})); step = Math.min(step, STEPS.length-1); }
+function applyFlow(){ const fl = flowOf(LESSON); STEPS = fl.map(k=>({key:k, name: k==="qa" && fl.includes("qa2") ? "對話討論" : STEP_DEFS[k]})); step = Math.min(step, STEPS.length-1); }
 let gp = 0, gShow = false, gRev = {};
 function fmtQ(q){ return esc(q).replace(/(\S)\s*([AB甲乙][：:])/g, "$1<br>$2").replace(/＿{2,}|_{3,}/g, `<span class="qblank"></span>`); }
 function gStep(d){ const gs = GR(LESSON); if(!gs.length) return false; const pg = x => 1 + ((x.exs||[]).length); let ngi = gi, ngp = gp + d;
@@ -713,9 +714,10 @@ function render(){
         <div class="timer" ${spId ? "" : "hidden"}><span class="t" id="spLeft" style="font-size:40px">${spLeft}</span><span class="tr" style="visibility:visible">秒</span></div>
         <div class="note"><b>建議</b><br>先兩人一組練習，時間到再請幾組上台說。</div>`; }
   }
-  if(k==="qa"){
-    const qs = LESSON.qa || [];
-    $("#title").textContent = "問題與討論"; $("#hint").textContent = qs.length ? "點一題可以看參考答案" : "";
+  if(k==="qa" || k==="qa2"){
+    /* QA2_V1 對話、短文的問題與討論分開 */
+    const qs = LESSON[k] || [];
+    $("#title").textContent = k==="qa2" ? "短文・問題與討論" : flowOf(LESSON).includes("qa2") ? "對話・問題與討論" : "問題與討論"; $("#hint").textContent = qs.length ? "點一題可以看參考答案" : "";
     st.innerHTML = qs.length ? `<div class="qas">${qs.map((q,i)=>`<button class="qa ${i===qi?'on':''} ${qi>=0&&i!==qi?'dim':''}" data-qa="${i}"><span class="qn">${i+1}</span><span class="qb"><span class="qq">${esc(q[0])}</span>${q[1] && (qShow||qRev[i]) ? `<span class="qans">${esc(q[1])}</span>` : ""}</span></button>`).join("")}</div>`
       : `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有問題，按右上角「老師」→「編輯／匯入」加入。</div></div>`;
     ct.innerHTML = qs.length ? `<button class="btn ghost" data-a="qall">全部顯示</button>
@@ -865,7 +867,7 @@ document.addEventListener("click", e=>{
   if(a==="dshow"){ dShow = !dShow; dRev = {}; render(); }
   if(a==="rnext"){ const n = ((LESSON.read||{}).paras||[]).length; if(n){ ri = (ri+1) % n; render(); } }
   if(a==="rall"){ ri = -1; render(); }
-  if(a==="qnext"){ const n = (LESSON.qa||[]).length; if(n){ qi = (qi+1) % n; render(); } }
+  if(a==="qnext"){ const n = (LESSON[STEPS[step].key==="qa2"?"qa2":"qa"]||[]).length; if(n){ qi = (qi+1) % n; render(); } }
   if(a==="qall"){ qi = -1; render(); }
   if(a==="qshow"){ qShow = !qShow; qRev = {}; render(); }
   if(a==="tnext" || a==="tprev"){ const n = (LESSON.textImgs||[]).length; if(n){ ti = (ti + (a==="tnext"?1:n-1)) % n; render(); } }
@@ -882,7 +884,7 @@ function advance(d){ const k = STEPS[step].key;
   if(k==="words"){ const n = WG(LESSON).length; if(d>0 && wCover && wOpen !== wi){ wOpen = wi; return render(); } if(d>0 && wi<n-1){ wi++; return render(); } if(d<0 && wi>0){ wi--; return render(); } }
   if(k==="text"){ const n = LESSON.dialog.length; if(d>0 && li<n-1){ li++; return render(); } if(d<0 && li>0){ li--; return render(); } }
   if(k==="read"){ const n = ((LESSON.read||{}).paras||[]).length; if(d>0 && ri<n-1){ ri++; return render(); } if(d<0 && ri>0){ ri--; return render(); } }
-  if(k==="qa"){ const n = (LESSON.qa||[]).length; if(d>0 && qi<n-1){ qi++; return render(); } if(d<0 && qi>0){ qi--; return render(); } }
+  if(k==="qa" || k==="qa2"){ const n = (LESSON[k]||[]).length; if(d>0 && qi<n-1){ qi++; return render(); } if(d<0 && qi>0){ qi--; return render(); } }
   if(k==="grammar" && gStep(d)) return render();
   go(step+d); }
 $("#prev").onclick = ()=>advance(-1);
@@ -953,7 +955,7 @@ function fromDoc(id, d){
     cast: d.cast || null, avatars: d.avatars && typeof d.avatars === "object" ? d.avatars : {},
     book: d.book || "", flow: Array.isArray(d.flow) ? d.flow.filter(k=>STEP_DEFS[k]) : null,
     warm: {qs: rows(d.warmQs), img: d.warmImg || null}, read: {title: d.readTitle || "", paras: cells(d.readParas,3).filter(r=>r[0])},
-    speak: cells(d.speak,2).filter(r=>r[0]), qa: cells(d.qa,2).filter(r=>r[0]), culture: {title: d.cultTitle || "", paras: rows(d.cultText), img: d.cultImg || null},
+    speak: cells(d.speak,2).filter(r=>r[0]), qa: cells(d.qa,2).filter(r=>r[0]), qa2: cells(d.qa2,2).filter(r=>r[0]), qaSplit: !!d.qaSplit, culture: {title: d.cultTitle || "", paras: rows(d.cultText), img: d.cultImg || null},
     dict: cells(d.dict,3).map(r=>{r[0]=normRole(r[0]);return r}).filter(r=>r[2]), audio: d.audio && d.audio.url ? {url:d.audio.url, name:d.audio.name||"", path:d.audio.path||""} : null,
     orderImgs: Array.isArray(d.orderImgs) ? d.orderImgs.filter(x=>x && x.url) : [],
     cards: cells(d.cards,5).filter(r=>r[1]), review: rows(d.review), homework: rows(d.homework) };
@@ -1004,7 +1006,8 @@ const SECS = [
   {k:"order", name:"看圖排序"},
   {k:"grammars", name:"語法"},
   {k:"speak", name:"口說", cols:["任務／問題","計時（秒）"], w:"1fr 110px", tip:"計時沒填就是 60 秒"},
-  {k:"qa", name:"問題與討論", cols:["問題","參考答案（可以空白）"], w:"1.2fr 1fr", tip:""},
+  {k:"qa", name:"對話討論", cols:["問題","參考答案（可以空白）"], w:"1.2fr 1fr", tip:""},
+  {k:"qa2", name:"短文討論", cols:["問題","參考答案（可以空白）"], w:"1.2fr 1fr", tip:""},
   {k:"cultText", name:"文化", cols:["內容（一段一行）"], w:"1fr", tip:""},
   {k:"cards", name:"抽卡填空", cols:["分類","題目","答案","完整句拼音","翻譯"], w:"90px 1.4fr 90px 1.3fr 1fr", tip:"＿＿＝空格"},
   {k:"review", name:"複習", cols:["打勾項目"], w:"1fr"},
@@ -1018,9 +1021,9 @@ function openEditor(L){
   ED = L ? { num:String(L.num||""), name:L.name||"", pinyin:L.pinyin||"", textTitle:L.textTitle||"",
       grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", gex:c(g.examples), exs:(g.exs||[]).map(x=>({instr:x.instr||"", opts:(x.opts||[]).join("\n"), qs:c(x.qs)}))})), cast: castOf(L), avatars: JSON.parse(JSON.stringify(L.avatars||{})),
       goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null, textImgs: (L.textImgs||[]).slice(), orderImgs: (L.orderImgs||[]).map(x=>({...x})),
-      book: L.book||"", flow: flowOf(L).slice(), warmQs: c((L.warm||{}).qs), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: c((L.read||{}).paras), speak: c(L.speak), qa: c(L.qa), cultTitle: (L.culture||{}).title||"", cultText: c((L.culture||{}).paras), cultImg: (L.culture||{}).img||null }
+      book: L.book||"", flow: flowOf(L).slice(), warmQs: c((L.warm||{}).qs), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: c((L.read||{}).paras), speak: c(L.speak), qa: c(L.qa), qa2: c(L.qa2||[]), cultTitle: (L.culture||{}).title||"", cultText: c((L.culture||{}).paras), cultImg: (L.culture||{}).img||null }
     : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{title:"", pattern:"", gnote:"", gex:[blank(2),blank(2)], exs:[]}], cast:{A:"",B:"",C:"",D:""}, avatars:{}, goals:[[""],[""],[""]], words:[blank(7)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]], dict:[], audio:null,
-      book: LESSON.id!=="sample" ? (LESSON.book||"") : "", flow: flowOf(LESSON).slice(), warmQs:[[""]], warmImg:null, readTitle:"", readParas:[blank(3)], speak:[blank(2)], qa:[blank(2)], cultTitle:"", cultText:[[""]], cultImg:null, textImgs:[], orderImgs:[] };
+      book: LESSON.id!=="sample" ? (LESSON.book||"") : "", flow: flowOf(LESSON).slice(), warmQs:[[""]], warmImg:null, readTitle:"", readParas:[blank(3)], speak:[blank(2)], qa:[blank(2)], qa2:[blank(2)], cultTitle:"", cultText:[[""]], cultImg:null, textImgs:[], orderImgs:[] };
   ED._id = (L && L.id!=="sample") ? L.id : "lesson-" + Date.now().toString(36);
   if(!ED.grammars.length) ED.grammars.push({title:"", pattern:"", gnote:"", gex:[blank(2)], exs:[]});
   SECS.forEach(x=>{ if(x.cols && Array.isArray(ED[x.k]) && !ED[x.k].length && x.k!=="dict" && x.k!=="cards") ED[x.k].push((x.k==="dialog") ? ["A", ...blank((x.size||x.cols.length)-1)] : blank(x.size||x.cols.length)); });
@@ -1277,7 +1280,7 @@ function readForm(){
       exs: (g.exs||[]).map(x=>({instr: x.instr.trim(), opts: x.opts.trim(), qs: jr(x.qs)}))})), cast: {...ED.cast}, avatars: cleanAv(ED.avatars),
     goals: j("goals"), words: j("words"), dialog: j("dialog"), dict: j("dict"), audio: ED.audio && !ED.audio.local ? ED.audio : null,
     textImgs: ED.textImgs.filter(x=>!x.local), orderImgs: ED.orderImgs.filter(x=>!x.local).map(x=>({url: x.url, path: x.path||"", cap: String(x.cap||"").trim()})), book: ED.book.trim(), flow: (()=>{ const fl = ED.flow.slice(); if(ED.orderImgs.length && !fl.includes("order")){ const at = Math.max(fl.indexOf("dict"), fl.indexOf("text")); if(at >= 0) fl.splice(at+1, 0, "order"); else fl.splice(Math.max(1, fl.length-1), 0, "order"); } return fl; })(), warmQs: j("warmQs"), warmImg: ED.warmImg && !ED.warmImg.local ? ED.warmImg : null, readTitle: ED.readTitle.trim(), readParas: j("readParas"),
-    speak: j("speak"), qa: j("qa"), cultTitle: ED.cultTitle.trim(), cultText: j("cultText"), cultImg: ED.cultImg && !ED.cultImg.local ? ED.cultImg : null, cards: j("cards"), review: j("review"), homework: j("homework") };
+    speak: j("speak"), qa: j("qa"), qa2: j("qa2"), qaSplit: true, cultTitle: ED.cultTitle.trim(), cultText: j("cultText"), cultImg: ED.cultImg && !ED.cultImg.local ? ED.cultImg : null, cards: j("cards"), review: j("review"), homework: j("homework") };
 }
 $("#editBtn").onclick = () => openEditor(LESSON);
 $("#newBtn").onclick = () => openEditor(null);
@@ -1407,7 +1410,9 @@ function srcToDoc(l, idx){
     dialog: dialog.map(r => Array.isArray(r) ? r.join("｜") : r).join("\n"), dict: "", grammars, cast,
     readTitle: paras.length ? readTitle : "", readParas: paras.join("\n"),
     audio: (()=>{ const d = ds.find(x=>x && T(x.audio_url) && /^[^：:\s]{1,8}\s*[：:]/m.test(String(x.content||""))) || ds.find(x=>x && T(x.audio_url)); const u = d ? T(d.audio_url) : T(l.audio_url); return u ? {url: u, name: "課文音檔", path: ""} : null; })(),
-    qa: ds.flatMap(d => String((d && d.discussion) || "").split("\n").map(x => x.trim().replace(/^\s*[0-9０-９]+[.、．)）]\s*/, "")).filter(Boolean)).map(q => [clean(q), ""].join("｜")).join("\n"),
+    qaSplit: true, qa2: (()=>{ const isD = d => /^[^：:\s]{1,8}\s*[：:]/m.test(String((d && d.content) || "")), disc = a => a.flatMap(d => String((d && d.discussion) || "").split("\n").map(x => x.trim().replace(/^\s*[0-9０-９]+[.、．)）]\s*/, "")).filter(Boolean)).map(q => [clean(q), ""].join("｜")).join("\n");
+      l._qa1 = disc(ds.filter(isD)); return disc(ds.filter(d => !isD(d))); })(),
+    qa: ds.flatMap(d => String((d && d.discussion) || "").split("\n").map(x => x.trim().replace(/^\s*[0-9０-９]+[.、．)）]\s*/, "")).filter(Boolean)).map(q => [clean(q), ""].join("｜")).join("\n") && l._qa1,
     book: T(l.textbook), flow: null, cards: "", review: "", homework: "", textImgs: [], src: l.id, updatedAt: Date.now() };
 }
 function impUI(){
@@ -1444,11 +1449,11 @@ async function impGo(){ const b = $("#impBook").value, ls = impOf(b), picks = [.
     try { try { const qs = await firebase.firestore().collection("questions").where("lesson_id", "==", l.id).get(); l._qs = qs.docs.map(d=>d.data()); } catch(err){ l._qs = []; qErr = (err && (err.code || err.message)) || "error"; }
       qAll += l._qs.filter(q => q && q.bank !== "hw" && q.type !== "note").length; qNoGp += l._qs.filter(q => q && q.bank !== "hw" && q.type !== "note" && (q.gp_index == null || q.gp_index === "")).length;
       const id = "src_" + l.id, old = lessons.find(x=>x.id===id), doc = srcToDoc(l, +c.dataset.i);
-      if(old){ doc.flow = flowOf(old); ["goals","dict","cards","review","homework","textImgs","pinyin"].forEach(k=>delete doc[k]); if(old.audio && old.audio.url) delete doc.audio; if(old.qa && old.qa.length) delete doc.qa;
+      if(old){ doc.flow = flowOf(old); ["goals","dict","cards","review","homework","textImgs","pinyin"].forEach(k=>delete doc[k]); if(old.audio && old.audio.url) delete doc.audio; if(old.qaSplit){ if(old.qa && old.qa.length) delete doc.qa; if(old.qa2 && old.qa2.length) delete doc.qa2; } else { doc.flow = doc.flow.filter(k=>k!=="qa"); }
         const addStep = (k, after) => { if(doc.flow.includes(k)) return; const at = after.map(a=>doc.flow.indexOf(a)).filter(i=>i>=0).pop(); doc.flow.splice(at != null ? at+1 : Math.max(1, doc.flow.length-1), 0, k); };
-        if(doc.qa || (old.qa && old.qa.length)) addStep("qa", ["text","dict","order","read"]); }
+        if(doc.qa || (old.qa && old.qa.length && old.qaSplit)) addStep("qa", ["text","dict"]); if(doc.qa2 || (old.qa2 && old.qa2.length)) addStep("qa2", ["read"]); }
       if(!doc.audio) delete doc.audio;
-      if(!old){ const fl = ["start","words"]; if(doc.dialog) fl.push("text","dict"); if(doc.readParas) fl.push("read"); if(doc.qa) fl.push("qa"); if(doc.grammars.length) fl.push("grammar"); fl.push("review"); doc.flow = fl; }
+      if(!old){ const fl = ["start","words"]; if(doc.dialog) fl.push("text","dict"); if(doc.qa) fl.push("qa"); if(doc.readParas) fl.push("read"); if(doc.qa2) fl.push("qa2"); if(doc.grammars.length) fl.push("grammar"); fl.push("review"); doc.flow = fl; }
       await db.collection(COL).doc(id).set(doc, {merge: true}); ok++; lastId = id; }
     catch(e){ bad++; console.warn(e); } }
   $("#impGo").disabled = false; $("#impMsg").textContent = `完成：匯入 ${ok} 課` + (bad ? `，${bad} 課失敗` : "") + (qErr ? `；練習題讀不到（${qErr}）` : `；上課語法練習 ${qAll} 題` + (qNoGp ? `（其中 ${qNoGp} 題沒有指定語法，放進第 1 個語法）` : ""));
