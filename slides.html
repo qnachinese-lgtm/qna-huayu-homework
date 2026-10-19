@@ -7,6 +7,7 @@
 <title>上課投影片｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
 <!-- IMPORT_V1 從教材與課程匯入 -->
+<!-- GBLANK_V1 語法答案寫在空格線上 -->
 <!-- HCENTER_V1 頁面標題置中 -->
 <!-- WORDS2_V1 對話生詞、短文生詞分開 -->
 <!-- EXSPLIT_V1 例句一句一行 -->
@@ -339,6 +340,9 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .gq{all:unset;cursor:pointer;display:flex;gap:14px;align-items:flex-start;background:var(--ice);border-radius:14px;padding:calc(10px*var(--gs,1)) 14px}
 .gq:focus-visible{outline:3px solid var(--sky)}
 .qblank{display:inline-block;min-width:5em;border-bottom:2px solid var(--blank);margin:0 .2em;vertical-align:baseline;height:1em}
+.qblank.qfill{display:inline;height:auto;padding:0 .35em;line-height:1.6;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.qfill .qfa{visibility:hidden;color:var(--ansc);font-weight:700}
+.qfill.on .qfa{visibility:visible}
 .dword{all:unset;cursor:pointer;border-bottom:3px dotted var(--sky);padding:0 .08em;border-radius:4px}
 .dword:hover{background:var(--ice)}
 .dword.on{background:var(--navy);color:#fff;border-bottom-color:var(--navy)}
@@ -711,6 +715,11 @@ const flowOf = L => { const f = (L && Array.isArray(L.flow) && L.flow.length) ? 
 let STEPS = DEFAULT_FLOW.map(k=>({key:k, name:STEP_DEFS[k]}));
 function applyFlow(){ const fl = flowOf(LESSON); STEPS = fl.map(k=>({key:k, name: k==="qa" && fl.includes("qa2") ? "對話討論" : k==="words" && fl.includes("words2") ? "對話生詞" : STEP_DEFS[k]})); step = Math.min(step, STEPS.length-1); }
 let gp = 0, gShow = false, gRev = {};
+/* GBLANK_V1 語法答案寫在空格線上（像聽寫），空格大小先留好，顯示答案時不會跳動 */
+function fmtQA(q, ans, show){ const BL = /＿{2,}|_{3,}/g, n = (String(q).match(BL)||[]).length; ans = String(ans||"").trim();
+  if(!ans || !n) return null;
+  let parts = [ans]; if(n > 1){ const sp = ans.split(/\s*／\s*/); parts = sp.length === n ? sp.map(x => x.replace(/[（(][^）)]*[）)]/g, "").trim() || x) : [ans]; }
+  let k = 0; return esc(q).replace(/(\S)\s*([AB甲乙][：:])/g, "$1<br>$2").replace(BL, () => { const p = (parts[k++] || "").replace(/[。．.！!]+$/, ""); return p ? `<span class="qblank qfill${show ? " on" : ""}"><span class="qfa">${esc(p)}</span></span>` : `<span class="qblank"></span>`; }); }
 function fmtQ(q){ return esc(q).replace(/(\S)\s*([AB甲乙][：:])/g, "$1<br>$2").replace(/＿{2,}|_{3,}/g, `<span class="qblank"></span>`); }
 function gStep(d){ const gs = GR(LESSON); if(!gs.length) return false; const pg = x => 1 + ((x.exs||[]).length); let ngi = gi, ngp = gp + d;
   if(ngp >= pg(gs[gi])){ if(gi+1 >= gs.length) return false; ngi = gi+1; ngp = 0; } else if(ngp < 0){ if(gi===0) return false; ngi = gi-1; ngp = pg(gs[ngi])-1; }
@@ -910,7 +919,7 @@ function render(){
       const ex = exs[gp-1], qs = ex.qs || [];
       st.innerHTML = `<div class="pop gpage"><div class="tag"><span>練習 ${gp}</span>${esc(ex.instr||"")}</div>
         ${(ex.opts||[]).filter(Boolean).length ? `<div class="gopts">${ex.opts.filter(Boolean).map(o=>`<div>${esc(o)}</div>`).join("")}</div>` : ""}
-        <div class="gqs">${qs.map((q,i)=>`<button class="gq" data-gq="${i}"><span class="qn">${i+1}</span><span class="qb"><span class="qq">${fmtQ(q[0])}</span>${q[1] && (gShow||gRev[i]) ? `<span class="qans">${esc(q[1])}</span>` : ""}</span></button>`).join("")}</div></div>`;
+        <div class="gqs">${qs.map((q,i)=>`<button class="gq" data-gq="${i}"><span class="qn">${i+1}</span><span class="qb">${(()=>{ const f = fmtQA(q[0], q[1], gShow||gRev[i]); return f != null ? `<span class="qq">${f}</span>` : `<span class="qq">${fmtQ(q[0])}</span>${q[1] ? `<span class="qans" style="${gShow||gRev[i] ? "" : "visibility:hidden"}">${esc(q[1])}</span>` : ""}`; })()}</span></button>`).join("")}</div></div>`;
     }
     /* GDOCK_V1 語法工具列：語法點用下拉選單，頁面用分段按鈕 */
     ct.innerHTML = `${gs.length>1?`<div class="wpick"><button class="chip wlb" id="glBtn" type="button" aria-expanded="false">語法 ${gi+1} / ${gs.length} ▾</button><div class="glist" id="glist" hidden>${gs.map((x,i)=>`<button type="button" aria-pressed="${i===gi}" data-g="${i}"><b>${i+1}</b>${esc(x.title || short(x.pattern) || "語法")}</button>`).join("")}</div></div>`:""}
