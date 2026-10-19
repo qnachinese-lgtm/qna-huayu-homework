@@ -7,6 +7,7 @@
 <title>上課投影片｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
 <!-- IMPORT_V1 從教材與課程匯入 -->
+<!-- PENTYPE_V1 原子筆／鋼筆／螢光筆 -->
 <!-- PEN_V1 手寫畫筆（iPad／Apple Pencil） -->
 <!-- GANS_V1 語法參考答案保留；LIVEUI_V2 作答視窗重新設計 -->
 <!-- GFIT_V1 語法練習整頁放得下 -->
@@ -1702,7 +1703,8 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
   const app = $("#app"), cv = document.createElement("canvas"); cv.className = "pencv"; app.appendChild(cv);
   const bar = document.createElement("div"); bar.className = "pentools"; bar.hidden = true; app.appendChild(bar);
   const COLS = ["#1E4C86", "#C23B3B", "#1F2A44", "#8FB8E8"], SZ = [3, 6, 12];
-  const P = {on: false, col: COLS[1], sz: 6, er: false, pages: {}, cur: null, penSeen: false};
+  const P = {on: false, col: COLS[1], sz: 6, er: false, pages: {}, cur: null, penSeen: false, ty: "ball"};
+  const TYPES = [["ball", "原子筆"], ["fount", "鋼筆"], ["hl", "螢光筆"]];
   const ctx = cv.getContext("2d"); let box = {x: 0, y: 0, w: 0, h: 0}, dpr = 1;
   const pkey = () => [LESSON.id, step, gi, gp, wi].join("|");
   const strokes = () => (P.pages[pkey()] = P.pages[pkey()] || []);
@@ -1712,25 +1714,36 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
     dpr = Math.min(3, (window.devicePixelRatio || 1) * k); const W = Math.round(box.w * dpr), H = Math.round(box.h * dpr);
     if(cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; }
     Object.assign(bar.style, {right: (1280 - box.x - box.w + 12) + "px", top: (box.y + 10) + "px"}); draw(); }
-  function line(s){ if(s.p.length < 1) return; ctx.strokeStyle = s.c; ctx.fillStyle = s.c; ctx.lineWidth = s.w * dpr; ctx.lineCap = "round"; ctx.lineJoin = "round";
-    if(s.p.length === 1){ ctx.beginPath(); ctx.arc(s.p[0][0] * dpr, s.p[0][1] * dpr, s.w * dpr / 2, 0, 7); ctx.fill(); return; }
-    ctx.beginPath(); ctx.moveTo(s.p[0][0] * dpr, s.p[0][1] * dpr);
-    for(let i = 1; i < s.p.length - 1; i++){ const m = [(s.p[i][0] + s.p[i+1][0]) / 2, (s.p[i][1] + s.p[i+1][1]) / 2]; ctx.quadraticCurveTo(s.p[i][0] * dpr, s.p[i][1] * dpr, m[0] * dpr, m[1] * dpr); }
-    const L = s.p[s.p.length - 1]; ctx.lineTo(L[0] * dpr, L[1] * dpr); ctx.stroke(); }
+  /* PENTYPE_V1 原子筆：粗細一致；鋼筆：依筆壓和速度變粗細；螢光筆：半透明寬筆 */
+  function line(s){ if(s.p.length < 1) return; const t = s.t || "ball", X = q => q[0] * dpr, Y = q => q[1] * dpr;
+    ctx.save(); ctx.strokeStyle = s.c; ctx.fillStyle = s.c; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    if(t === "hl"){ ctx.globalAlpha = .32; ctx.lineCap = "square"; }
+    const base = (t === "hl" ? s.w * 3.2 : s.w) * dpr;
+    if(s.p.length === 1){ ctx.beginPath(); ctx.arc(X(s.p[0]), Y(s.p[0]), base / 2, 0, 7); ctx.fill(); ctx.restore(); return; }
+    if(t !== "fount"){ ctx.lineWidth = base; ctx.beginPath(); ctx.moveTo(X(s.p[0]), Y(s.p[0]));
+      for(let i = 1; i < s.p.length - 1; i++){ ctx.quadraticCurveTo(X(s.p[i]), Y(s.p[i]), (X(s.p[i]) + X(s.p[i+1])) / 2, (Y(s.p[i]) + Y(s.p[i+1])) / 2); }
+      const L = s.p[s.p.length - 1]; ctx.lineTo(X(L), Y(L)); ctx.stroke(); ctx.restore(); return; }
+    let wPrev = null, mPrev = [X(s.p[0]), Y(s.p[0])];
+    for(let i = 1; i < s.p.length; i++){ const a = s.p[i-1], b = s.p[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const pr = b[2] > 0 && b[2] !== .5 ? b[2] : null, f = pr != null ? .35 + pr * 1.3 : Math.max(.4, Math.min(1.5, 1.6 - d / 9));
+      const w = wPrev == null ? base * f : wPrev * .6 + base * f * .4; wPrev = w;
+      const m = i < s.p.length - 1 ? [(X(b) + X(s.p[i+1])) / 2, (Y(b) + Y(s.p[i+1])) / 2] : [X(b), Y(b)];
+      ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(mPrev[0], mPrev[1]); ctx.quadraticCurveTo(X(b), Y(b), m[0], m[1]); ctx.stroke(); mPrev = m; }
+    ctx.restore(); }
   function draw(){ ctx.clearRect(0, 0, cv.width, cv.height); strokes().forEach(line); if(P.cur) line(P.cur); }
-  const pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * box.w, (e.clientY - r.top) / r.height * box.h]; };
+  const pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * box.w, (e.clientY - r.top) / r.height * box.h, e.pointerType === "pen" ? (e.pressure || .5) : .5]; };
   function erase(p){ const ss = strokes(), r = 14; for(let i = ss.length - 1; i >= 0; i--) if(ss[i].p.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < r + ss[i].w)) ss.splice(i, 1); draw(); }
   cv.addEventListener("pointerdown", e => { if(!P.on) return; if(e.pointerType === "pen") P.penSeen = true; if(P.penSeen && e.pointerType === "touch") return;
-    e.preventDefault(); cv.setPointerCapture(e.pointerId); const p = pt(e); if(P.er){ P.cur = {erase: true}; erase(p); return; } P.cur = {c: P.col, w: P.sz, p: [p]}; draw(); });
+    e.preventDefault(); cv.setPointerCapture(e.pointerId); const p = pt(e); if(P.er){ P.cur = {erase: true}; erase(p); return; } P.cur = {c: P.col, w: P.sz, t: P.ty, p: [p]}; draw(); });
   cv.addEventListener("pointermove", e => { if(!P.cur) return; e.preventDefault(); const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
     if(P.cur.erase){ evs.forEach(x => erase(pt(x))); return; } evs.forEach(x => P.cur.p.push(pt(x))); draw(); });
   const up = () => { if(!P.cur) return; if(!P.cur.erase) strokes().push(P.cur); P.cur = null; draw(); };
   cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
-  function tools(){ bar.innerHTML = COLS.map(c => `<button type="button" data-pc="${c}" aria-pressed="${!P.er && P.col === c}" aria-label="顏色"><span class="dot" style="background:${c}"></span></button>`).join("")
+  function tools(){ bar.innerHTML = TYPES.map(([k, n]) => `<button type="button" class="txt" data-pt="${k}" aria-pressed="${!P.er && P.ty === k}">${n}</button>`).join("") + `<span class="sep"></span>` + COLS.map(c => `<button type="button" data-pc="${c}" aria-pressed="${!P.er && P.col === c}" aria-label="顏色"><span class="dot" style="background:${c}"></span></button>`).join("")
       + `<span class="sep"></span>` + SZ.map(s => `<button type="button" class="sz" data-ps="${s}" aria-pressed="${P.sz === s}" aria-label="粗細"><span class="dot" style="width:${s + 4}px;height:${s + 4}px;background:var(--fg)"></span></button>`).join("")
       + `<span class="sep"></span><button type="button" class="txt" data-pe="1" aria-pressed="${P.er}">橡皮擦</button><button type="button" class="txt" data-px="1">清除</button><button type="button" class="txt end" data-pq="1">收起</button>`; }
   bar.addEventListener("click", e => { const b = e.target.closest("button"); if(!b) return; e.stopPropagation();
-    if(b.dataset.pc){ P.col = b.dataset.pc; P.er = false; } if(b.dataset.ps) P.sz = +b.dataset.ps; if(b.dataset.pe) P.er = !P.er;
+    if(b.dataset.pt){ P.ty = b.dataset.pt; P.er = false; } if(b.dataset.pc){ P.col = b.dataset.pc; P.er = false; } if(b.dataset.ps) P.sz = +b.dataset.ps; if(b.dataset.pe) P.er = !P.er;
     if(b.dataset.px){ P.pages[pkey()] = []; draw(); } if(b.dataset.pq) return set(false); tools(); });
   function set(on){ P.on = on; cv.classList.toggle("on", on); bar.hidden = !on; const pb = $("#penBtn"); if(pb) pb.setAttribute("aria-pressed", on); if(on){ tools(); place(); } }
   const pb = document.createElement("button"); pb.className = "small penbtn"; pb.id = "penBtn"; pb.type = "button"; pb.textContent = "畫筆"; pb.setAttribute("aria-pressed", "false");
