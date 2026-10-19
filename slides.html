@@ -7,6 +7,7 @@
 <title>上課投影片｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
 <!-- IMPORT_V1 從教材與課程匯入 -->
+<!-- APLAYER_V2 對話也有音檔 -->
 <!-- LIVECLS_V1 作答班級、點名字、作答紀錄；修學生輸入名字被清掉 -->
 <!-- APLAYER_V1 音檔播放器重新設計 -->
 <!-- GBLANK_V1 語法答案寫在空格線上 -->
@@ -866,10 +867,12 @@ function render(){
       <div class="av">${whoHtml(d[0])}<div class="nm">${esc(nameOf(d))}</div></div>
       <div class="bub" style="border-color:${RCOL[d[0]]||RCOL.A}"><div class="zh">${fmtZh(d[2])}</div><div class="py">${esc(d[3])}</div><div class="tr">${esc(d[4])}</div></div></div>`).join("")}</div>` + (anyImg ? `</div>` : "");
     setTimeout(()=>{ const on = st.querySelector(".line.on"); if(on) on.scrollIntoView({block:"nearest"}); }, 0);
-    ct.innerHTML = `${timgs.length>1 && !lineImg ? `<div class="chips"><button class="chip" data-a="tprev">上一張圖</button><button class="chip" data-a="tnext">下一張圖</button><span class="meta" style="align-self:center">${ti+1} / ${timgs.length}</span></div>` : ""}
+    const tau = LESSON.audio && LESSON.audio.url;
+    ct.innerHTML = (tau ? aPlayerHtml() : "") + `${timgs.length>1 && !lineImg ? `<div class="chips"><button class="chip" data-a="tprev">上一張圖</button><button class="chip" data-a="tnext">下一張圖</button><span class="meta" style="align-self:center">${ti+1} / ${timgs.length}</span></div>` : ""}
       <button class="btn ghost" data-a="lall">全部顯示</button>${toggles()}
       <div class="meta">${li<0?"全部":"第 "+(li+1)+" 句"}・共 ${LESSON.dialog.length} 句</div>
       <div class="note"><b>建議</b><br>老師念 → 全班跟讀 → 分角色念。</div>`;
+    if(tau){ setAudio(tau); updA(); }
   }
   if(k==="warm"){
     const w = LESSON.warm || {};
@@ -936,13 +939,7 @@ function render(){
       : `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有對話，按右上角「老師」→「編輯／匯入」加入。</div></div>`;
     const au = LESSON.audio && LESSON.audio.url;
     /* APLAYER_V1 音檔播放器：一條膠囊（從頭、倒退 5 秒、播放、進度條、時間、速度） */
-    ct.innerHTML = (au ? `<div class="aplayer" role="group" aria-label="音檔">
-      <button type="button" class="aic" data-a="arestart" title="從頭播" aria-label="從頭播"><svg viewBox="0 0 24 24"><path d="M6 5v14"/><path d="M19 6l-9 6 9 6z"/></svg></button>
-      <button type="button" class="aic" data-a="aback" title="倒退 5 秒" aria-label="倒退 5 秒"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg><b>5</b></button>
-      <button type="button" class="aplay" data-a="aplay" id="aplayBtn" aria-label="播放"></button>
-      <input type="range" class="aseek" id="aSeek" min="0" max="1000" value="0" aria-label="播放進度">
-      <span class="atime" id="aTime">0:00</span>
-      <button type="button" class="arate" data-rate="${aRate===1?0.75:1}" title="切換速度">${aRate===1?"1×":"0.75×"}</button></div>` : `<div class="note" style="margin-top:0"><b>還沒有音檔</b><br>到「編輯／匯入」→「聽寫」上傳音檔。</div>`)
+    ct.innerHTML = (au ? aPlayerHtml() : `<div class="note" style="margin-top:0"><b>還沒有音檔</b><br>到「編輯／匯入」→「聽寫」上傳音檔。</div>`)
       + `<div class="seg" role="group" aria-label="聽寫模式"><button type="button" aria-pressed="${!dPickMode}" data-a="dmode0">聽寫</button><button type="button" aria-pressed="${dPickMode}" data-a="dmode1">選生詞</button></div>
       ${dPickMode ? `<button class="btn ghost" data-a="dall">全選</button><button class="btn ghost" data-a="dnone">全部取消</button><span class="meta">已選 ${dSel.size} 個</span>` : `<button class="btn ghost" data-a="dshow">${dShow?"隱藏答案":"顯示答案"}</button><span class="meta">共 ${n} 格</span>`}`;
     setAudio(au); updA();
@@ -1123,6 +1120,14 @@ function dPicked(L, ds, ws){ const key = L.id || "x"; if(dPickStore[key]) return
 function dSave(L, set){ const key = L.id || "x"; dPickStore[key] = set; try { localStorage.setItem("dict-pick-" + key, JSON.stringify([...set])); } catch(e){} }
 const DICT = L => (L.dict && L.dict.length) ? L.dict : (L.dialog||[]).map(d=> d[0]==="S" ? ["S","",d[2]] : [d[0], d[1], autoBlank(d[2], L.words)]);
 function fmtT(t){ t = Math.floor(t||0); return Math.floor(t/60) + ":" + String(t%60).padStart(2,"0"); }
+/* APLAYER_V2 播放器共用：聽寫、對話都有 */
+const aPlayerHtml = () => `<div class="aplayer" role="group" aria-label="音檔">
+      <button type="button" class="aic" data-a="arestart" title="從頭播" aria-label="從頭播"><svg viewBox="0 0 24 24"><path d="M6 5v14"/><path d="M19 6l-9 6 9 6z"/></svg></button>
+      <button type="button" class="aic" data-a="aback" title="倒退 5 秒" aria-label="倒退 5 秒"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg><b>5</b></button>
+      <button type="button" class="aplay" data-a="aplay" id="aplayBtn" aria-label="播放"></button>
+      <input type="range" class="aseek" id="aSeek" min="0" max="1000" value="0" aria-label="播放進度">
+      <span class="atime" id="aTime">0:00</span>
+      <button type="button" class="arate" data-rate="${aRate===1?0.75:1}" title="切換速度">${aRate===1?"1×":"0.75×"}</button></div>`;
 const AIC_PLAY = `<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>`, AIC_PAUSE = `<svg viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg>`;
 function updA(){ const b = document.getElementById("aplayBtn"); if(b && AUD){ const p = AUD.paused; if(b.dataset.st !== String(p)){ b.dataset.st = String(p); b.innerHTML = p ? AIC_PLAY : AIC_PAUSE; b.setAttribute("aria-label", p ? "播放" : "暫停"); } }
   const tm = document.getElementById("aTime"); if(tm && AUD) tm.textContent = fmtT(AUD.currentTime) + " / " + (isFinite(AUD.duration) ? fmtT(AUD.duration) : "--:--");
