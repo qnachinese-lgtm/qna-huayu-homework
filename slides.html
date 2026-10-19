@@ -7,6 +7,7 @@
 <title>上課投影片｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
 <!-- IMPORT_V1 從教材與課程匯入 -->
+<!-- WORDS2_V1 對話生詞、短文生詞分開 -->
 <!-- EXSPLIT_V1 例句一句一行 -->
 <!-- WPOS_V1 詞類移到拼音旁 -->
 <!-- GATE_V2 登入畫面重新設計 -->
@@ -675,8 +676,10 @@ const WTYPE = ["", "sub", "ex"], WLAB = {"":"生詞", sub:"相關詞", ex:"例�
 function exSplit(zh, py){ const M = /[（(]\s*[0-9０-９]+\s*[)）]/g, cut = t => String(t||"").split(M).map(x=>x.trim()).filter(Boolean);
   if((String(zh||"").match(M)||[]).length < 2) return [[zh, py||""]];
   const zs = cut(zh), ps = cut(py); return zs.map((z, i) => [z, ps.length === zs.length ? ps[i] : (i ? "" : (ps.length ? "" : ""))]); }
+/* WORDS2_V1 對話生詞、短文生詞分開 */
+const wKey = () => (STEPS[step] && STEPS[step].key === "words2") ? "words2" : "words";
 function WG(L){ const out = []; let cur = null, last = null;
-  (L.words||[]).forEach(r=>{ const t = r[6]||"";
+  (L[wKey()]||[]).forEach(r=>{ const t = r[6]||"";
     if(t==="ex"){ if(last && r[4]) last.exs.push(...exSplit(r[4], r[5])); return; }
     const it = {r, exs: r[4] ? exSplit(r[4], r[5]) : [], subs: []};
     if(t==="sub" && cur){ cur.subs.push(it); last = it; } else { out.push(it); cur = it; last = it; } });
@@ -698,11 +701,11 @@ let gi = 0;
 const PCOL = ["var(--sky)","#C9DCF4","#DCCEF7","var(--yellow)","#B7D0EE"];
 
 /* FLOW_V1 每一課自己挑步驟、排順序；同一套教材沿用 */
-const STEP_DEFS = {start:"開始", warm:"暖身", words:"生詞", text:"對話", read:"短文", dict:"聽寫", grammar:"語法", speak:"口說", qa:"問題與討論", qa2:"短文討論", culture:"文化", draw:"抽卡練習", order:"看圖排序", review:"複習"};
+const STEP_DEFS = {start:"開始", warm:"暖身", words:"生詞", words2:"短文生詞", text:"對話", read:"短文", dict:"聽寫", grammar:"語法", speak:"口說", qa:"問題與討論", qa2:"短文討論", culture:"文化", draw:"抽卡練習", order:"看圖排序", review:"複習"};
 const DEFAULT_FLOW = ["start","words","text","dict","grammar","draw","review"];
 const flowOf = L => { const f = (L && Array.isArray(L.flow) && L.flow.length) ? L.flow.filter(k=>STEP_DEFS[k]) : DEFAULT_FLOW; return f[0]==="start" ? f : ["start", ...f.filter(k=>k!=="start")]; };
 let STEPS = DEFAULT_FLOW.map(k=>({key:k, name:STEP_DEFS[k]}));
-function applyFlow(){ const fl = flowOf(LESSON); STEPS = fl.map(k=>({key:k, name: k==="qa" && fl.includes("qa2") ? "對話討論" : STEP_DEFS[k]})); step = Math.min(step, STEPS.length-1); }
+function applyFlow(){ const fl = flowOf(LESSON); STEPS = fl.map(k=>({key:k, name: k==="qa" && fl.includes("qa2") ? "對話討論" : k==="words" && fl.includes("words2") ? "對話生詞" : STEP_DEFS[k]})); step = Math.min(step, STEPS.length-1); }
 let gp = 0, gShow = false, gRev = {};
 function fmtQ(q){ return esc(q).replace(/(\S)\s*([AB甲乙][：:])/g, "$1<br>$2").replace(/＿{2,}|_{3,}/g, `<span class="qblank"></span>`); }
 function gStep(d){ const gs = GR(LESSON); if(!gs.length) return false; const pg = x => 1 + ((x.exs||[]).length); let ngi = gi, ngp = gp + d;
@@ -730,6 +733,7 @@ function renderSteps(){
   $("#prev").disabled = step===0; $("#next").disabled = false;
 }
 function go(i){
+  { const ok = STEPS[step] && STEPS[step].key, nk = STEPS[Math.max(0, Math.min(STEPS.length-1, i))]; if(nk && ok !== nk.key && /^words2?$/.test(nk.key)) wi = 0; }
   stopTimer(); stopSp(); step = Math.max(0, Math.min(STEPS.length-1, i)); gi = 0; gp = 0; gShow = false; gRev = {}; ri = -1; si = 0; qi = -1; qShow = false; qRev = {}; dShow = false; dRev = {}; oPerm = null; oPick = []; oCheck = false; oStory = false; wOpen = -1; if(AUD) AUD.pause();
   try { localStorage.setItem("slides-step", step) } catch(e) {}
   li = -1; render();
@@ -737,7 +741,7 @@ function go(i){
 function toggles(){
   /* PTHIDE_V1 這一步沒有拼音、翻譯就不顯示這兩個按鈕 */
   { const k = STEPS[step] && STEPS[step].key, has = r => r && (String(r[0]||"").trim() || String(r[1]||"").trim());
-    const rows = k==="words" ? (LESSON.words||[]).map(w=>[w[1]||w[5], w[3]]) : k==="text" ? (LESSON.dialog||[]).map(d=>[d[3], d[4]]) : k==="read" ? ((LESSON.read||{}).paras||[]).map(p=>[p[1], p[2]]) : k==="grammar" ? GR(LESSON).flatMap(g=>(g.examples||[]).map(e=>[e[1], ""])) : k==="draw" ? (LESSON.cards||[]).map(c=>[c[3], c[4]]) : null;
+    const rows = (k==="words"||k==="words2") ? (LESSON[k]||[]).map(w=>[w[1]||w[5], w[3]]) : k==="text" ? (LESSON.dialog||[]).map(d=>[d[3], d[4]]) : k==="read" ? ((LESSON.read||{}).paras||[]).map(p=>[p[1], p[2]]) : k==="grammar" ? GR(LESSON).flatMap(g=>(g.examples||[]).map(e=>[e[1], ""])) : k==="draw" ? (LESSON.cards||[]).map(c=>[c[3], c[4]]) : null;
     if(rows && !rows.some(has)) return ""; }
   return `<h3>顯示</h3><div class="chips">
     <button class="chip" aria-pressed="${showPy}" data-t="py">拼音</button>
@@ -756,12 +760,12 @@ function render(){
       ${LESSON.goals.length?`<ol class="goals">${LESSON.goals.map(g=>`<li>${esc(Array.isArray(g)?g.filter(Boolean).join("："):g)}</li>`).join("")}</ol>`:""}</div>`;
     ct.innerHTML = "";
   }
-  if(k==="words"){
+  if(k==="words" || k==="words2"){
     const WGS = WG(LESSON);
     if(!WGS.length){ $("#title").textContent="生詞卡"; $("#hint").textContent=""; st.innerHTML=`<div class="center"><div class="tr">這一課還沒有生詞，按右上角「老師」→「編輯／匯入」加入。</div></div>`; ct.innerHTML=""; return; }
     wi = Math.min(wi, WGS.length-1);
     const it = WGS[wi], w = it.r, rich = it.subs.length || it.exs.length > 1;
-    $("#title").textContent = "生詞卡";
+    $("#title").textContent = k==="words2" ? "短文生詞" : flowOf(LESSON).includes("words2") ? "對話生詞" : "生詞卡";
     $("#hint").textContent = "按 ← → 換生詞";
     if(it.subs.length){ const row = (x, sub) => `<div class="wbk ${sub?'sub':''}"><div class="whead"><b class="ww">${esc(x.r[0])}</b><span class="py">${esc(x.r[1])}</span><span class="wpos">${esc(x.r[2])}</span><span class="tr">${esc(x.r[3])}</span></div>${x.exs.map(e=>`<div class="wex"><div class="zh">${brAB(e[0])}</div><div class="py">${esc(e[1])}</div></div>`).join("")}</div>`;
       st.innerHTML = `<div class="tag"><span>生詞 ${wi+1}</span></div><div class="wbook pop">${row(it,false)}${it.subs.map(x=>row(x,true)).join("")}</div>`; }
@@ -1013,7 +1017,7 @@ document.addEventListener("click", e=>{
 });
 /* ONENAV_V1 只有一組上一頁／下一頁：先換步驟裡的生詞、句子、段落、語法頁，換完才到下一步 */
 function advance(d){ const k = STEPS[step].key;
-  if(k==="words"){ const n = WG(LESSON).length; if(d>0 && wCover && wOpen !== wi){ wOpen = wi; return render(); } if(d>0 && wi<n-1){ wi++; return render(); } if(d<0 && wi>0){ wi--; return render(); } }
+  if(k==="words" || k==="words2"){ const n = WG(LESSON).length; if(d>0 && wCover && wOpen !== wi){ wOpen = wi; return render(); } if(d>0 && wi<n-1){ wi++; return render(); } if(d<0 && wi>0){ wi--; return render(); } }
   if(k==="text"){ const n = LESSON.dialog.length; if(d>0 && li<n-1){ li++; return render(); } if(d<0 && li>0){ li--; return render(); } }
   if(k==="read"){ const n = ((LESSON.read||{}).paras||[]).length; if(d>0 && ri<n-1){ ri++; return render(); } if(d<0 && ri>0){ ri--; return render(); } }
   if(k==="qa" || k==="qa2"){ const n = (LESSON[k]||[]).length; if(d>0 && qi<n-1){ qi++; return render(); } if(d<0 && qi>0){ qi--; return render(); } }
@@ -1080,7 +1084,7 @@ const join = a => (a||[]).map(r=>Array.isArray(r)?r.join("｜"):r).join("\n");
 const cleanAv = o => { const r = {}; Object.entries(o||{}).forEach(([k,a])=>{ if(a && a.url && !a.local) r[k] = {url:a.url, path:a.path||"", x:+a.x||0, y:+a.y||0, z:+a.z||1, ar:+a.ar||1}; }); return r; };
 function fromDoc(id, d){
   return { id, num: d.num || "", name: d.name || "未命名", pinyin: d.pinyin || "", textTitle: d.textTitle || "",
-    goals: rows(d.goals).map(g=>g.replace(/\s*[｜|]\s*/,"：").replace(/：$/,"")), words: cells(d.words,7).map(r=>{ if(!/^(sub|ex)$/.test(r[6])) r[6] = ""; return r; }), dialog: cells(d.dialog,6).map(r=>{r[0]=normRole(r[0]);return r}), textImgs: Array.isArray(d.textImgs) ? d.textImgs.filter(x=>x && x.url) : [],
+    goals: rows(d.goals).map(g=>g.replace(/\s*[｜|]\s*/,"：").replace(/：$/,"")), words: cells(d.words,7).map(r=>{ if(!/^(sub|ex)$/.test(r[6])) r[6] = ""; return r; }), words2: cells(d.words2,7).map(r=>{ if(!/^(sub|ex)$/.test(r[6])) r[6] = ""; return r; }), dialog: cells(d.dialog,6).map(r=>{r[0]=normRole(r[0]);return r}), textImgs: Array.isArray(d.textImgs) ? d.textImgs.filter(x=>x && x.url) : [],
     grammars: (Array.isArray(d.grammars) ? d.grammars : (d.pattern||d.gex ? [{pattern:d.pattern, gex:d.gex, note:d.gnote}] : []))
       .map(g=>({ title: g.title || "", pattern: String(g.pattern||"").split(/\s*[＋+]\s*/).filter(Boolean), examples: cells(g.gex,2), note: g.note || "",
         exs: (Array.isArray(g.exs) ? g.exs : []).map(x=>({instr: x.instr || "", opts: rows(x.opts), qs: cells(x.qs,2).filter(r=>r[0])})) })),
@@ -1093,7 +1097,7 @@ function fromDoc(id, d){
     cards: cells(d.cards,5).filter(r=>r[1]), review: rows(d.review), homework: rows(d.homework) };
 }
 function toDoc(L){
-  return { num: Number(L.num)||0, name: L.name, pinyin: L.pinyin, textTitle: L.textTitle||"", goals: join(L.goals), words: join(L.words),
+  return { num: Number(L.num)||0, name: L.name, pinyin: L.pinyin, textTitle: L.textTitle||"", goals: join(L.goals), words: join(L.words), words2: join(L.words2||[]),
     dialog: join(L.dialog), grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gex: join(g.examples), note: g.note||"", exs: (g.exs||[]).map(x=>({instr: x.instr||"", opts: join(x.opts||[]), qs: join(x.qs||[])}))})), cast: castOf(L), avatars: cleanAv(L.avatars),
     cards: join(L.cards), review: join(L.review), homework: join(L.homework), textImgs: (L.textImgs||[]).filter(x=>!x.local), orderImgs: (L.orderImgs||[]).filter(x=>x && x.url && !x.local), book: L.book||"", flow: flowOf(L), warmQs: join((L.warm||{}).qs||[]), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: join((L.read||{}).paras||[]), speak: join(L.speak||[]), qa: join(L.qa||[]), cultTitle: (L.culture||{}).title||"", cultText: join((L.culture||{}).paras||[]), cultImg: (L.culture||{}).img||null, dict: join(L.dict||[]), audio: L.audio && !L.audio.local ? L.audio : null };
 }
@@ -1132,6 +1136,7 @@ const SECS = [
   {k:"warmQs", name:"暖身", cols:["暖身問題"], w:"1fr", tip:""},
   {k:"goals", name:"學習目標", cols:["學習目標"], w:"1fr", tip:""},
   {k:"words", name:"生詞", cols:["類型","生詞","拼音","詞性","翻譯","例句","例句拼音"], idx:[6,0,1,2,3,4,5], size:7, w:"60px 100px 120px 70px 1fr 1.3fr 1.3fr", tip:"點「類型」切換：生詞／相關詞／例句"},
+  {k:"words2", name:"短文生詞", cols:["類型","生詞","拼音","詞性","翻譯","例句","例句拼音"], idx:[6,0,1,2,3,4,5], size:7, w:"60px 100px 120px 70px 1fr 1.3fr 1.3fr", tip:"點「類型」切換：生詞／相關詞／例句"},
   {k:"dialog", name:"對話", cols:["角色","句子","拼音","翻譯","圖片"], idx:[0,2,3,4,5], size:6, w:"44px 1.5fr 1.4fr 1fr 72px", tip:"點圓圈換角色；景＝場景／動作"},
   {k:"readParas", name:"短文", cols:["段落","拼音","翻譯"], w:"1.4fr 1.2fr 1fr", tip:""},
   {k:"dict", name:"聽寫", cols:["角色","句子（【】裡的字會變成空格）"], idx:[0,2], size:3, w:"44px 1fr", tip:"【】裡的字會挖空"},
@@ -1152,9 +1157,9 @@ function openEditor(L){
   const c = x => (x||[]).map(r => Array.isArray(r) ? r.slice() : [r]);
   ED = L ? { num:String(L.num||""), name:L.name||"", pinyin:L.pinyin||"", textTitle:L.textTitle||"",
       grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", gex:c(g.examples), exs:(g.exs||[]).map(x=>({instr:x.instr||"", opts:(x.opts||[]).join("\n"), qs:c(x.qs)}))})), cast: castOf(L), avatars: JSON.parse(JSON.stringify(L.avatars||{})),
-      goals:c(L.goals), words:c(L.words), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null, textImgs: (L.textImgs||[]).slice(), orderImgs: (L.orderImgs||[]).map(x=>({...x})),
+      goals:c(L.goals), words:c(L.words), words2:c(L.words2||[]), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null, textImgs: (L.textImgs||[]).slice(), orderImgs: (L.orderImgs||[]).map(x=>({...x})),
       book: L.book||"", flow: flowOf(L).slice(), warmQs: c((L.warm||{}).qs), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: c((L.read||{}).paras), speak: c(L.speak), qa: c(L.qa), qa2: c(L.qa2||[]), cultTitle: (L.culture||{}).title||"", cultText: c((L.culture||{}).paras), cultImg: (L.culture||{}).img||null }
-    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{title:"", pattern:"", gnote:"", gex:[blank(2),blank(2)], exs:[]}], cast:{A:"",B:"",C:"",D:""}, avatars:{}, goals:[[""],[""],[""]], words:[blank(7)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]], dict:[], audio:null,
+    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{title:"", pattern:"", gnote:"", gex:[blank(2),blank(2)], exs:[]}], cast:{A:"",B:"",C:"",D:""}, avatars:{}, goals:[[""],[""],[""]], words:[blank(7)], words2:[blank(7)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]], dict:[], audio:null,
       book: LESSON.id!=="sample" ? (LESSON.book||"") : "", flow: flowOf(LESSON).slice(), warmQs:[[""]], warmImg:null, readTitle:"", readParas:[blank(3)], speak:[blank(2)], qa:[blank(2)], qa2:[blank(2)], cultTitle:"", cultText:[[""]], cultImg:null, textImgs:[], orderImgs:[] };
   ED._id = (L && L.id!=="sample") ? L.id : "lesson-" + Date.now().toString(36);
   if(!ED.grammars.length) ED.grammars.push({title:"", pattern:"", gnote:"", gex:[blank(2)], exs:[]});
@@ -1223,11 +1228,11 @@ function renderEd(){
   const big = ci => (S.k==="dialog" && ci===2) || (S.k==="readParas" && ci===0);
   const rowsHtml = ED[S.k].map((r,i) => `<span class="no">${i+1}</span>` + SC.cols.map((cn,j) => { const ci = SC.idx ? SC.idx[j] : j;
       return S.k==="dialog" && ci===5 ? (r[0]==="S" ? "<span></span>" : limgCell(i, r[5]))
-      : S.k==="words" && ci===6 ? `<button class="wtype" type="button" data-wtype="${i}" style="background:${WCOL[r[6]||""]}" aria-label="切換類型">${WLAB[r[6]||""]}</button>`
-      : S.k==="words" && r[6]==="ex" && ci<4 ? "<span></span>"
+      : (S.k==="words"||S.k==="words2") && ci===6 ? `<button class="wtype" type="button" data-wk="${S.k}" data-wtype="${i}" style="background:${WCOL[r[6]||""]}" aria-label="切換類型">${WLAB[r[6]||""]}</button>`
+      : (S.k==="words"||S.k==="words2") && r[6]==="ex" && ci<4 ? "<span></span>"
       : (S.k==="dialog" || S.k==="dict") && ci===0 ? `<button class="role" type="button" data-role="${i}" style="background:${RCOL[normRole(r[0])]}" aria-label="切換角色">${RLAB(normRole(r[0]))}</button>`
       : big(ci) ? `<textarea class="grow${r[0]==="S" && S.k==="dialog" ? " scenein" : ""}" rows="1" data-r="${i}" data-c="${ci}" aria-label="${cn} 第${i+1}行">${esc(r[ci]||"")}</textarea>`
-      : `<input data-r="${i}" data-c="${ci}" value="${esc(r[ci]||"")}" aria-label="${cn} 第${i+1}行"${r[0]==="S" && ci===2 && S.k!=="words" ? ' class="scenein"' : ""}${S.k==="words" && r[6]==="sub" && ci===0 ? ' class="subin"' : ""}>`; }).join("") + `<button class="x" type="button" data-del="${i}" aria-label="刪除第${i+1}行">×</button>`).join("");
+      : `<input data-r="${i}" data-c="${ci}" value="${esc(r[ci]||"")}" aria-label="${cn} 第${i+1}行"${r[0]==="S" && ci===2 && S.k!=="words" ? ' class="scenein"' : ""}${(S.k==="words"||S.k==="words2") && r[6]==="sub" && ci===0 ? ' class="subin"' : ""}>`; }).join("") + `<button class="x" type="button" data-del="${i}" aria-label="刪除第${i+1}行">×</button>`).join("");
   B.innerHTML = `<div class="sec-h"><h3>${S.name}</h3>${S.tip?`<small>${S.tip}</small>`:""}${ptK ? `<button class="mini" type="button" id="ptTog" style="margin-left:auto">${showPT ? "隱藏拼音／翻譯" : "＋ 拼音／翻譯欄（初級用）"}</button>` : ""}</div>
     ${S.k==="dialog"?castBox()+galleryBox():""}${S.k==="dict"?dictTop():""}${S.k==="warmQs"?mediaBox("warmImg","暖身圖片"):""}${S.k==="cultText"?`<div class="basic"><label for="b-ct">標題</label><input id="b-ct" data-b="cultTitle" value="${esc(ED.cultTitle)}"></div>`+mediaBox("cultImg","文化圖片"):""}${S.k==="readParas"?`<div class="basic"><label for="b-rt">短文標題</label><input id="b-rt" data-b="readTitle" value="${esc(ED.readTitle)}"></div>`:""}${S.k==="cards"?'<button class="mini" id="autoCards" type="button">用生詞例句和對話自動出題</button>':""}
     <div class="tbl" style="grid-template-columns:28px ${SC.w} 28px"><span></span>${SC.cols.map(c=>`<span class="th">${c}</span>`).join("")}<span></span>${rowsHtml}</div>
@@ -1393,7 +1398,7 @@ $("#edBody").addEventListener("click", e => {
   if(b.id==="addRow"){ ED[edTab].push((edTab==="dialog"||edTab==="dict") ? [ED[edTab].length%2?"B":"A", ...blank(n-1)] : blank(n)); renderEd(); const ins = $("#edBody").querySelectorAll(`input[data-r="${ED[edTab].length-1}"]`); if(ins[0]) ins[0].focus(); }
   if(b.dataset.del){ ED[edTab].splice(+b.dataset.del,1); renderEd(); }
   if(b.id==="ptTog"){ const k = edTab, has = ED[k].some(r => k==="dialog" ? (r[3]||r[4]) : (r[1]||r[2])); ED._pt = !(ED._pt===undefined ? has : ED._pt); renderEd(); return; }
-  if(b.dataset.wtype){ const r = ED.words[+b.dataset.wtype]; while(r.length<7) r.push(""); r[6] = WTYPE[(WTYPE.indexOf(r[6]||"")+1)%3]; renderEd(); return; }
+  if(b.dataset.wtype){ const r = ED[b.dataset.wk || "words"][+b.dataset.wtype]; while(r.length<7) r.push(""); r[6] = WTYPE[(WTYPE.indexOf(r[6]||"")+1)%3]; renderEd(); return; }
   if(b.dataset.role){ const r = ED[edTab][+b.dataset.role]; r[0] = ROLES[(ROLES.indexOf(normRole(r[0]))+1)%ROLES.length]; renderEd(); }
   if(b.id==="autoCards"){
     const ws = ED.words.filter(w=>w[0]), out = [];
@@ -1410,7 +1415,7 @@ function readForm(){
   return { num: ED.num.trim(), name: ED.name.trim(), pinyin: ED.pinyin.trim(), textTitle: ED.textTitle.trim(),
     grammars: ED.grammars.filter(g=>(g.title||"").trim() || g.pattern.trim() || g.gex.some(filled) || (g.exs||[]).length).map(g=>({title: (g.title||"").trim(), pattern: g.pattern.trim(), note: g.gnote.trim(), gex: jr(g.gex),
       exs: (g.exs||[]).map(x=>({instr: x.instr.trim(), opts: x.opts.trim(), qs: jr(x.qs)}))})), cast: {...ED.cast}, avatars: cleanAv(ED.avatars),
-    goals: j("goals"), words: j("words"), dialog: j("dialog"), dict: j("dict"), audio: ED.audio && !ED.audio.local ? ED.audio : null,
+    goals: j("goals"), words: j("words"), words2: j("words2"), dialog: j("dialog"), dict: j("dict"), audio: ED.audio && !ED.audio.local ? ED.audio : null,
     textImgs: ED.textImgs.filter(x=>!x.local), orderImgs: ED.orderImgs.filter(x=>!x.local).map(x=>({url: x.url, path: x.path||"", cap: String(x.cap||"").trim()})), book: ED.book.trim(), flow: (()=>{ const fl = ED.flow.slice(); if(ED.orderImgs.length && !fl.includes("order")){ const at = Math.max(fl.indexOf("dict"), fl.indexOf("text")); if(at >= 0) fl.splice(at+1, 0, "order"); else fl.splice(Math.max(1, fl.length-1), 0, "order"); } return fl; })(), warmQs: j("warmQs"), warmImg: ED.warmImg && !ED.warmImg.local ? ED.warmImg : null, readTitle: ED.readTitle.trim(), readParas: j("readParas"),
     speak: j("speak"), qa: j("qa"), qa2: j("qa2"), qaSplit: true, cultTitle: ED.cultTitle.trim(), cultText: j("cultText"), cultImg: ED.cultImg && !ED.cultImg.local ? ED.cultImg : null, cards: j("cards"), review: j("review"), homework: j("homework") };
 }
@@ -1501,10 +1506,11 @@ function parseVoc(text){ const out = [];
 function srcToDoc(l, idx){
   const T = x => String(x||"").trim();
   const ds = Array.isArray(l.dialogues) && l.dialogues.length ? l.dialogues : [{content: l.content||"", vocabulary: l.vocabulary||""}];
-  const words = [], dialog = [], paras = [], cast = {A:"",B:"",C:"",D:""}; let textTitle = "", readTitle = "";
-  ds.forEach(d => parseVoc(d.vocabulary).forEach(v => { if(!v.front) return;
-    words.push([v.front, v.py, v.pos ? "(" + v.pos + ")" : "", v.back, v.ex[0]||"", "", ""].map(clean).join("｜"));
-    v.ex.slice(1).forEach(e => words.push(["","","","", e, "", "ex"].map(clean).join("｜"))); }));
+  const words = [], words2 = [], dialog = [], paras = [], cast = {A:"",B:"",C:"",D:""}; let textTitle = "", readTitle = "";
+  const isDv = d => { const c = String((d && d.content) || "").trim(); return !c || /^[^：:\s]{1,8}\s*[：:]/m.test(c); };
+  ds.forEach(d => { const W = isDv(d) ? words : words2; parseVoc(d.vocabulary).forEach(v => { if(!v.front) return;
+    W.push([v.front, v.py, v.pos ? "(" + v.pos + ")" : "", v.back, v.ex[0]||"", "", ""].map(clean).join("｜"));
+    v.ex.slice(1).forEach(e => W.push(["","","","", e, "", "ex"].map(clean).join("｜"))); }); });
   ds.forEach((d, di) => { let rows = String(d.content||"").split("\n").map(x=>x.trim()).filter(Boolean); if(!rows.length) return;
     let blockTitle = ""; const first = rows[0]; if(rows.length > 1 && first.length <= 18 && !/[。！？，、；：:（(]/.test(first)){ blockTitle = first; rows = rows.slice(1); }
     const isDlg = rows.some(x => /^[^：:\s]{1,8}\s*[：:]/.test(x));
@@ -1540,7 +1546,7 @@ function srcToDoc(l, idx){
     const gex = bl.flatMap(b => T(b.ex).split("\n").map(x=>x.trim()).filter(Boolean)).map(x => { const p = plPy(x); return [clean(p.t), clean(p.py)].join("｜"); }).join("\n");
     return {title: clean(T(g.title)), pattern: "", gex, note, exs: exsOf(g._gi)}; });
   const title = T(l.title) || "未命名"; const nm = title.match(/第\s*([0-9０-９一二三四五六七八九十百兩]+)\s*課/);
-  return { num: nm ? zhNum(nm[1]) : idx + 1, name: title, pinyin: "", textTitle, goals: "", words: words.join("\n"),
+  return { num: nm ? zhNum(nm[1]) : idx + 1, name: title, pinyin: "", textTitle, goals: "", words: words.join("\n"), words2: words2.join("\n"),
     dialog: dialog.map(r => Array.isArray(r) ? r.join("｜") : r).join("\n"), dict: "", grammars, cast,
     readTitle: paras.length ? readTitle : "", readParas: paras.join("\n"),
     audio: (()=>{ const d = ds.find(x=>x && T(x.audio_url) && /^[^：:\s]{1,8}\s*[：:]/m.test(String(x.content||""))) || ds.find(x=>x && T(x.audio_url)); const u = d ? T(d.audio_url) : T(l.audio_url); return u ? {url: u, name: "課文音檔", path: ""} : null; })(),
@@ -1588,9 +1594,10 @@ async function impGo(){ const b = $("#impBook").value, ls = impOf(b), picks = [.
         /* GANS_V1 再匯入時保留老師寫的語法參考答案 */
         { const nz = x => String(x||"").replace(/\s+/g, ""), am = {}; (old.grammars||[]).forEach(g => (g.exs||[]).forEach(e => (e.qs||[]).forEach(q => { if(q && q[1]) am[nz(q[0])] = q[1]; })));
           (doc.grammars||[]).forEach(g => (g.exs||[]).forEach(e => { e.qs = String(e.qs||"").split("\n").map(r => { const p = r.split("｜"); return (p[0] && !p[1] && am[nz(p[0])]) ? p[0] + "｜" + am[nz(p[0])] : r; }).join("\n"); })); }
-        if(doc.qa || (old.qa && old.qa.length && old.qaSplit)) addStep("qa", ["text","dict"]); if(doc.qa2 || (old.qa2 && old.qa2.length)) addStep("qa2", ["read"]); }
+        if(doc.qa || (old.qa && old.qa.length && old.qaSplit)) addStep("qa", ["text","dict"]); if(doc.qa2 || (old.qa2 && old.qa2.length)) addStep("qa2", ["read"]);
+        if(doc.words2 && !doc.flow.includes("words2")){ const ri2 = doc.flow.indexOf("read"); doc.flow.splice(ri2 >= 0 ? ri2 : doc.flow.length - 1, 0, "words2"); } }
       if(!doc.audio) delete doc.audio;
-      if(!old){ const fl = ["start","words"]; if(doc.dialog) fl.push("text","dict"); if(doc.qa) fl.push("qa"); if(doc.readParas) fl.push("read"); if(doc.qa2) fl.push("qa2"); if(doc.grammars.length) fl.push("grammar"); fl.push("review"); doc.flow = fl; }
+      if(!old){ const fl = ["start","words"]; if(doc.dialog) fl.push("text","dict"); if(doc.qa) fl.push("qa"); if(doc.words2) fl.push("words2"); if(doc.readParas) fl.push("read"); if(doc.qa2) fl.push("qa2"); if(doc.grammars.length) fl.push("grammar"); fl.push("review"); doc.flow = fl; }
       await db.collection(COL).doc(id).set(doc, {merge: true}); ok++; lastId = id; }
     catch(e){ bad++; console.warn(e); } }
   $("#impGo").disabled = false; $("#impMsg").textContent = `完成：匯入 ${ok} 課` + (bad ? `，${bad} 課失敗` : "") + (qErr ? `；練習題讀不到（${qErr}）` : `；上課語法練習 ${qAll} 題` + (qNoGp ? `（其中 ${qNoGp} 題沒有指定語法，放進第 1 個語法）` : ""));
