@@ -7,6 +7,7 @@
 <title>上課投影片｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
 <!-- IMPORT_V1 從教材與課程匯入 -->
+<!-- PEN_V1 手寫畫筆（iPad／Apple Pencil） -->
 <!-- GANS_V1 語法參考答案保留；LIVEUI_V2 作答視窗重新設計 -->
 <!-- GFIT_V1 語法練習整頁放得下 -->
 <!-- GATE_V1 投影片要老師登入 -->
@@ -522,6 +523,19 @@ html.locked #fit{visibility:hidden}
 .gcard button{font:inherit;font-size:17px;padding:10px;border:none;border-radius:999px;background:var(--navy);color:#fff;cursor:pointer;margin-top:4px}
 .gcard button:disabled{opacity:.6}
 .gcard .ge{font-size:14px;color:var(--err);min-height:1.2em}
+/* PEN_V1 手寫畫筆 */
+.pencv{position:absolute;z-index:30;pointer-events:none;touch-action:auto}
+.pencv.on{pointer-events:auto;touch-action:none;cursor:crosshair}
+.pentools{position:absolute;z-index:31;display:flex;align-items:center;gap:6px;background:#fff;border:2px solid var(--line);border-radius:999px;padding:6px 10px;box-shadow:0 6px 18px rgba(30,76,134,.18)}
+.pentools[hidden]{display:none}
+.pentools button{all:unset;cursor:pointer;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:14px;color:var(--navy);font-family:var(--zh)}
+.pentools button[aria-pressed=true]{background:var(--ice);box-shadow:inset 0 0 0 2px var(--navy)}
+.pentools .dot{width:18px;height:18px;border-radius:50%;display:block}
+.pentools .sz{width:auto;padding:0 8px;border-radius:999px}
+.pentools .sep{width:1px;height:22px;background:var(--line);margin:0 2px}
+.pentools .txt{width:auto;padding:0 10px;border-radius:999px;font-size:15px}
+.pentools .txt.end{background:var(--navy);color:#fff}
+.penbtn[aria-pressed=true]{background:var(--navy);color:#fff;border-color:var(--navy)}
 </style>
 </head>
 <body>
@@ -1682,6 +1696,49 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
     try { await firebase.auth().signInWithEmailAndPassword($("#gEm").value.trim(), $("#gPw").value); $("#gPw").value = ""; }
     catch(err){ $("#gErr").textContent = "登入失敗：請檢查 Email 和密碼。"; }
     $("#gGo").disabled = false; };
+})();
+/* PEN_V1 手寫畫筆：iPad 可以用 Apple Pencil 在投影片上寫字；每一頁的筆跡分開記 */
+(function pen(){ if(/[?&]join=/i.test(location.search)) return;
+  const app = $("#app"), cv = document.createElement("canvas"); cv.className = "pencv"; app.appendChild(cv);
+  const bar = document.createElement("div"); bar.className = "pentools"; bar.hidden = true; app.appendChild(bar);
+  const COLS = ["#1E4C86", "#C23B3B", "#1F2A44", "#8FB8E8"], SZ = [3, 6, 12];
+  const P = {on: false, col: COLS[1], sz: 6, er: false, pages: {}, cur: null, penSeen: false};
+  const ctx = cv.getContext("2d"); let box = {x: 0, y: 0, w: 0, h: 0}, dpr = 1;
+  const pkey = () => [LESSON.id, step, gi, gp, wi].join("|");
+  const strokes = () => (P.pages[pkey()] = P.pages[pkey()] || []);
+  function place(){ const st = $("#stage"); if(!st) return; const a = app.getBoundingClientRect(), r = st.getBoundingClientRect(), k = a.width / 1280 || 1;
+    box = {x: (r.left - a.left) / k, y: (r.top - a.top) / k, w: r.width / k, h: r.height / k};
+    Object.assign(cv.style, {left: box.x + "px", top: box.y + "px", width: box.w + "px", height: box.h + "px"});
+    dpr = Math.min(3, (window.devicePixelRatio || 1) * k); const W = Math.round(box.w * dpr), H = Math.round(box.h * dpr);
+    if(cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; }
+    Object.assign(bar.style, {right: (1280 - box.x - box.w + 12) + "px", top: (box.y + 10) + "px"}); draw(); }
+  function line(s){ if(s.p.length < 1) return; ctx.strokeStyle = s.c; ctx.fillStyle = s.c; ctx.lineWidth = s.w * dpr; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    if(s.p.length === 1){ ctx.beginPath(); ctx.arc(s.p[0][0] * dpr, s.p[0][1] * dpr, s.w * dpr / 2, 0, 7); ctx.fill(); return; }
+    ctx.beginPath(); ctx.moveTo(s.p[0][0] * dpr, s.p[0][1] * dpr);
+    for(let i = 1; i < s.p.length - 1; i++){ const m = [(s.p[i][0] + s.p[i+1][0]) / 2, (s.p[i][1] + s.p[i+1][1]) / 2]; ctx.quadraticCurveTo(s.p[i][0] * dpr, s.p[i][1] * dpr, m[0] * dpr, m[1] * dpr); }
+    const L = s.p[s.p.length - 1]; ctx.lineTo(L[0] * dpr, L[1] * dpr); ctx.stroke(); }
+  function draw(){ ctx.clearRect(0, 0, cv.width, cv.height); strokes().forEach(line); if(P.cur) line(P.cur); }
+  const pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * box.w, (e.clientY - r.top) / r.height * box.h]; };
+  function erase(p){ const ss = strokes(), r = 14; for(let i = ss.length - 1; i >= 0; i--) if(ss[i].p.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < r + ss[i].w)) ss.splice(i, 1); draw(); }
+  cv.addEventListener("pointerdown", e => { if(!P.on) return; if(e.pointerType === "pen") P.penSeen = true; if(P.penSeen && e.pointerType === "touch") return;
+    e.preventDefault(); cv.setPointerCapture(e.pointerId); const p = pt(e); if(P.er){ P.cur = {erase: true}; erase(p); return; } P.cur = {c: P.col, w: P.sz, p: [p]}; draw(); });
+  cv.addEventListener("pointermove", e => { if(!P.cur) return; e.preventDefault(); const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    if(P.cur.erase){ evs.forEach(x => erase(pt(x))); return; } evs.forEach(x => P.cur.p.push(pt(x))); draw(); });
+  const up = () => { if(!P.cur) return; if(!P.cur.erase) strokes().push(P.cur); P.cur = null; draw(); };
+  cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+  function tools(){ bar.innerHTML = COLS.map(c => `<button type="button" data-pc="${c}" aria-pressed="${!P.er && P.col === c}" aria-label="顏色"><span class="dot" style="background:${c}"></span></button>`).join("")
+      + `<span class="sep"></span>` + SZ.map(s => `<button type="button" class="sz" data-ps="${s}" aria-pressed="${P.sz === s}" aria-label="粗細"><span class="dot" style="width:${s + 4}px;height:${s + 4}px;background:var(--fg)"></span></button>`).join("")
+      + `<span class="sep"></span><button type="button" class="txt" data-pe="1" aria-pressed="${P.er}">橡皮擦</button><button type="button" class="txt" data-px="1">清除</button><button type="button" class="txt end" data-pq="1">收起</button>`; }
+  bar.addEventListener("click", e => { const b = e.target.closest("button"); if(!b) return; e.stopPropagation();
+    if(b.dataset.pc){ P.col = b.dataset.pc; P.er = false; } if(b.dataset.ps) P.sz = +b.dataset.ps; if(b.dataset.pe) P.er = !P.er;
+    if(b.dataset.px){ P.pages[pkey()] = []; draw(); } if(b.dataset.pq) return set(false); tools(); });
+  function set(on){ P.on = on; cv.classList.toggle("on", on); bar.hidden = !on; const pb = $("#penBtn"); if(pb) pb.setAttribute("aria-pressed", on); if(on){ tools(); place(); } }
+  const pb = document.createElement("button"); pb.className = "small penbtn"; pb.id = "penBtn"; pb.type = "button"; pb.textContent = "畫筆"; pb.setAttribute("aria-pressed", "false");
+  $("#fs").before(pb); pb.onclick = () => set(!P.on);
+  const _r = render; render = function(){ _r(); try { place(); } catch(e){} };
+  window.addEventListener("resize", () => setTimeout(place, 50)); document.addEventListener("fullscreenchange", () => setTimeout(place, 80));
+  document.addEventListener("keydown", e => { if(e.key === "Escape" && P.on) set(false); });
+  setTimeout(place, 300);
 })();
 /* 學生端：slides.html?join=代碼 */
 (function joinApp(){ const m = location.search.match(/[?&]join=([A-Z0-9]{4,10})/i); if(!m) return;
