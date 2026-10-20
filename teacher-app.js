@@ -19823,9 +19823,26 @@ H.classPage=(id)=>{S.clsId=id;if(!S.cvTab)S.cvTab='stu';S.tab='class';render();t
 H.classPrint=(id)=>classWindow(id);
 /* CLSEXP_V957 從班級直接開總匯出，範圍先縮到這一班 */
 H.classExp=(cls)=>H.stuExpAll(cls);
-H.classRefresh=async(id)=>{try{await loadAll();if(S.tab==='class'&&!CLASS_VIEW)render();else renderClassView(id);toast('已更新');}catch(e){toast('更新失敗');}};
+/* CVONE_V1569 Quinn：「團班000跟團班001的學生編輯畫面都不一樣」。
+   班級其實有「兩套」畫面：平常進去的是班級檔案頁（#panel-class，點名字可以攤開、
+   裡面有 ✏️ 編輯資料），另外還留著一套舊的 #panel-classview（名字不能點、沒有攤開）。
+   問題是「💾 儲存班級連結」「公開費用」「公開上課日期」「↻ 重新整理」這幾顆
+   一律叫 renderClassView()——在哪一班按過，那一班就被換成舊畫面而且留在那裡
+   （它會把 #panel-class 和整排分頁藏起來），沒按過的還是新畫面。
+   所以 000 和 001 長得不一樣，差別只在她在哪一班按過那幾顆。
+   這裡統一出口：教師後台（CLASS_VIEW 是 null）一律重畫班級檔案頁，
+   順便把舊畫面藏回去、分頁列放出來。獨立的班級頁（CLASS_VIEW 有值）維持原樣。 */
+function cvRepaint(cls){
+  if(cls)S.clsId=cls;
+  if(CLASS_VIEW){try{renderClassView(CLASS_VIEW);}catch(e){}return;}
+  S.tab='class';if(!S.cvTab)S.cvTab='stu';
+  try{const p=document.getElementById('panel-classview');if(p)p.classList.add('hide');}catch(e){}
+  try{const t=document.querySelector('.tabs');if(t)t.classList.remove('hide');}catch(e){}
+  render();
+}
+H.classRefresh=async(id)=>{try{await loadAll();cvRepaint(id);toast('已更新');}catch(e){toast('更新失敗');}};
 H.cvStu=(sid)=>{S.cvStu=(S.cvStu===sid)?'':sid;if(!S.cvTab)S.cvTab='stu';render();};/* CVSTU_V958 */
-H.cvTab=(k)=>{S.cvTab=k;if(S.tab==='class'&&!CLASS_VIEW){render();return;}const c=CLASS_VIEW||S._cvCls;if(c)renderClassView(c);};
+H.cvTab=(k)=>{S.cvTab=k;if(S.tab==='class'&&!CLASS_VIEW){render();return;}cvRepaint(CLASS_VIEW||S._cvCls||S.clsId);};
 H.tModTog=(id)=>{S.tModOpen=S.tModOpen||{};S.tModOpen[id]=(S.tModOpen[id]===false);
   const el=document.querySelector('.tmod[data-mid="'+id+'"]');if(el)el.classList.toggle('closed',S.tModOpen[id]===false);};
 H.classLinksSave=async(cls)=>{const drive=(($('#cv-drive')&&$('#cv-drive').value)||'').trim();const meet=(($('#cv-meet')&&$('#cv-meet').value)||'').trim();
@@ -19834,7 +19851,7 @@ H.classLinksSave=async(cls)=>{const drive=(($('#cv-drive')&&$('#cv-drive').value
   if(bad(drive)||bad(meet)){if(st)st.textContent='連結要以 http:// 或 https:// 開頭喔';return toast('連結格式不對，請貼完整網址');}
   if(st)st.textContent='儲存中…';
   try{await saveClassMeta(cls,{drive,meet});
-    toast(drive?('✅ 已儲存，「'+cls+'」的學生現在看得到教材資料夾了'):'已儲存');renderClassView(cls);}
+    toast(drive?('✅ 已儲存，「'+cls+'」的學生現在看得到教材資料夾了'):'已儲存');cvRepaint(cls);/* CVONE_V1569 */}
   catch(e){if(st)st.textContent='';toast('儲存失敗：'+((e&&e.message)||e));}};
 H.classFeePub=async(cls)=>{
   const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
@@ -19849,11 +19866,11 @@ H.classFeePub=async(cls)=>{
     if(!!s.pay_remind_on===to){ok++;continue;}
     try{await DB.update('students',s.id,{pay_remind_on:to});s.pay_remind_on=to;ok++;}catch(e){bad++;}
   }
-  renderClassView(cls);render();
+  cvRepaint(cls);/* CVONE_V1569 */
   toast(bad?('已處理 '+ok+' 位，有 '+bad+' 位失敗'):(to?('✅ 全班 '+ok+' 位都看得到費用了'):('已關閉，'+ok+' 位學生看不到費用')));
 };
 H.classDatesPub=async(cls)=>{const on=!!classMetaOf(cls).show_dates;
-  try{await saveClassMeta(cls,{show_dates:!on});toast(!on?'✅ 已公開！「'+cls+'」的學生現在看得到上課日期了':'已關閉，學生看不到上課日期');renderClassView(cls);}
+  try{await saveClassMeta(cls,{show_dates:!on});toast(!on?'✅ 已公開！「'+cls+'」的學生現在看得到上課日期了':'已關閉，學生看不到上課日期');cvRepaint(cls);/* CVONE_V1569 */}
   catch(e){toast('儲存失敗：'+((e&&e.message)||e));}};
 /* ROLLLES_V803 點名順便記「這一堂上了哪一課」
    學生首頁的「繼續上次的課」就是看這個欄位，沒有它只能亂猜。
@@ -22613,10 +22630,9 @@ function renderClassView(cls){
   const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
   ensureClassSched(cls);
   const cm=classMetaOf(cls);const sched=classSchedText(cls);const meetUrl=classMeetOf(cls);const TD='padding:7px 9px;border-top:1px solid var(--line)';
-  const roster=members.length?members.map(s=>{const asg=S.lessons.filter(l=>isAssignedTo(l,s)&&answerableOf(l.id).length);const done=asg.filter(l=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;
-    const _b=stuBill(s);const _c=billCur(s);
-    const _pay=!_b||!_b.items.length?'<span class="muted">—</span>':(_b.due>0.0001?('<b style="color:#A33227">欠 '+money(_b.due,_c)+'</b>'):(_b.due<-0.0001?('<span style="color:#6D28D9">預繳 '+money(-_b.due,_c)+'</span>'):'<b style="color:#1F6A54">✅ 已結清</b>'));
-    return `<tr><td style="${TD}"><b>${snm(s.name)}</b></td><td style="${TD}">${esc(s.email||'')}</td><td style="${TD}">${asg.length?(done+' / '+asg.length):'—'}</td><td style="${TD}">${_pay}</td><td style="${TD};white-space:nowrap"><button class="btn btn-sm btn-primary" data-act="payments" data-id="${esc(s.id)}">💰 記繳費</button> <button class="btn btn-sm" data-act="classLog" data-id="${esc(s.id)}">📝 記一堂課</button></td></tr>`;}).join(''):`<tr><td colspan="5" style="${TD};color:var(--muted)">還沒有成員，按「✏️ 成員／時段」勾選學生。</td></tr>`;
+  /* CVONE_V1569 這一頁本來自己又寫了一份名單（名字不能點、沒有攤開、樣式寫死在 td 上），
+     跟班級檔案頁那一份長得不一樣，手機上也不會攤成卡片。改成共用同一個 cpRoster。 */
+  const roster=cpRoster(cls,members);
   const pubN=sortLessons(S.lessons).filter(l=>(l.assigned_groups||[]).includes(cls)).length;
   document.getElementById('classview-body').innerHTML=`
     <div class="section-head" style="flex-wrap:wrap;gap:8px"><a class="btn btn-sm btn-ghost" href="teacher.html">← 返回後台</a><h2 style="margin:0">👥 ${esc(cls)}</h2><span class="grow"></span>
