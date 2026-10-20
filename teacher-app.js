@@ -750,12 +750,12 @@ async function loadAll(){
   try{await pTg;}catch(e){}/* TGUIDE_V973 */
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
   S.rawLessons=b.filter(x=>x&&!x.deleted_at);/* READUID_V973 算讀取名單要看整包，不能只看 S.lessons */
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&x.kind!=='lqassign'&&x.kind!=='reply'&&x.kind!=='price'&&x.kind!=='edit_proposal'&&x.kind!=='school'/* SCHOOL_V1046 學校資料不是課 */&&x.kind!=='hanzitask'/* HANZI_V1 */&&x.kind!=='gametask'/* GAMEHW_V1553 */&&!x.deleted_at);
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&x.kind!=='lqassign'&&x.kind!=='reply'&&x.kind!=='price'&&x.kind!=='edit_proposal'&&x.kind!=='school'/* SCHOOL_V1046 學校資料不是課 */&&x.kind!=='hanzitask'/* HANZI_V1 */&&x.kind!=='gametask'/* GAMEHW_V1553 */&&x.kind!=='writetask'/* WRITEHW_V1566 */&&!x.deleted_at);
    /* PROP_V944 老師送來的修改提案 */
    S.props=b.filter(x=>x.kind==='edit_proposal'&&!x.deleted_at)
      .sort((p,q)=>String(q.at||'').localeCompare(String(p.at||'')));
    S.ocs=b.filter(x=>x&&x.kind==='oc'&&!x.deleted_at).sort((a,c)=>(Number(a.order_index)||0)-(Number(c.order_index)||0));/* OC_V1257 */
-   S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.lqassigns=b.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.hanziTasks=b.filter(x=>x.kind==='hanzitask'&&!x.deleted_at);/* HANZI_V1 */S.gameTasks=b.filter(x=>x.kind==='gametask'&&!x.deleted_at);/* GAMEHW_V1553 */
+   S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.lqassigns=b.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.hanziTasks=b.filter(x=>x.kind==='hanzitask'&&!x.deleted_at);/* HANZI_V1 */S.gameTasks=b.filter(x=>x.kind==='gametask'&&!x.deleted_at);/* GAMEHW_V1553 */S.writeTasks=b.filter(x=>x.kind==='writetask'&&!x.deleted_at);/* WRITEHW_V1566 */
    /* RPMOVE_V945 回覆範本和價目表正在從 lessons 搬到 crm（只有主管理員讀得到）。
       搬家期間兩邊都讀，畫面才不會有空窗；moved_from 用來避免同一筆出現兩次。 */
    {const _rpp=(k)=>{
@@ -803,7 +803,7 @@ S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==
   if(bs)bs.textContent=owner?'Tiếng Trung Quyên Huỳnh':('管理員 · '+(MY_EMAIL||''));
   loadFailBanner();/* READERR_V1419 */
 }
-function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.acts=d.filter(x=>x.kind==='act');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq'&&x.kind!=='hanzi');S.hanzis=d.filter(x=>x.kind==='hanzi');/* HANZI_V1 */S.leavereqs=d.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');S.lqps=d.filter(x=>x.kind==='lqp');}
+function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.acts=d.filter(x=>x.kind==='act');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='wt'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq'&&x.kind!=='hanzi');S.hanzis=d.filter(x=>x.kind==='hanzi');/* HANZI_V1 */S.leavereqs=d.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');S.lqps=d.filter(x=>x.kind==='lqp');S.wts=d.filter(x=>x.kind==='wt');/* WRITEHW_V1566 */}
 /* MENU_MODAL_V12 一開視窗就把還開著的「⋯」收起來，不然會浮在視窗旁邊 */
 document.addEventListener('toggle',(e)=>{const d=e.target;
   if(d&&d.classList&&d.classList.contains('crm-card')){const id=d.getAttribute('data-cid');
@@ -2936,6 +2936,11 @@ function hwPending(){
   try{(S.hanziTasks||[]).forEach(t=>{if(!t||t.deleted_at)return;
     lessonTargets(t).filter(live).forEach(s=>{if(hzDone(t,s))return;
       out.push({sid:s.id,name:s.name||'',what:t.title||t.fam,lid:t.id,kind:'漢字遊戲',due:t.due_date||'',draft:hzStars(s,t.diff,t.fam)>0});});});}catch(e){}
+  /* WRITEHW_V1566 寫字作業：每個字都寫滿才算交了 */
+  try{(S.writeTasks||[]).forEach(t=>{if(!t||t.deleted_at)return;
+    lessonTargets(t).filter(live).forEach(s=>{if(wtAllDoneT(t,s))return;
+      out.push({sid:s.id,name:s.name||'',what:t.title||'寫字作業',lid:t.id,kind:'寫字作業',due:t.due_date||'',
+        draft:wtStat(t,s).times>0});});});}catch(e){}
   /* GAMEHW_V1553 翻牌作業：玩完一輪就算交了，沒玩過的才進這張待繳清單 */
   try{(S.gameTasks||[]).forEach(t=>{if(!t||t.deleted_at)return;
     lessonTargets(t).filter(live).forEach(s=>{if(gtDone(t,s))return;
@@ -10665,6 +10670,56 @@ H.hzDel=async(id)=>{const t=(S.hanziTasks||[]).find(x=>x.id===id);if(!t)return;
 /* ══════ HANZI_V1 end ══════ */
 
 /* ══════ GAMEHW_V1553 生詞翻牌作業：指派、看進度、刪除 ══════ */
+/* ══════ WRITEHW_V1566 寫字作業（老師端） ══════
+   Quinn：「教師設定『這個字要寫幾次』，學生自行練習後就好了」。
+   她選了「跟翻牌作業一樣出一份作業」，所以整個做法照 GAMEHW 那一套：
+   作業單存 lessons（kind:'writetask'），學生的進度存 results（kind:'wt'），
+   兩條都是現成的路，Firestore 規則不用動。
+   她不用批改——學生每個字寫滿指定次數就自動算完成，這裡只看進度。 */
+function wtNeedOf(t){const n=Number((t&&t.times)||0);return (n>0&&n<=20)?n:3;}
+function wtCharsOf(t){return [...String((t&&t.chars)||'')]
+  .filter(c=>/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/.test(c));}
+function wtDocFor(tid,s){
+  return (S.wts||[]).find(x=>x&&x.wt_task===tid&&((s.uid&&x.uid===s.uid)||x.student_id===s.id))||null;}
+function wtStat(t,s){
+  const need=wtNeedOf(t),cs=wtCharsOf(t);
+  const d=wtDocFor(t.id,s);const m=(d&&d.done&&typeof d.done==='object')?d.done:{};
+  let full=0,times=0;
+  cs.forEach(c=>{const n=Number(m[c])||0;times+=Math.min(n,need);if(n>=need)full++;});
+  return {full:full,total:cs.length,times:times,max:cs.length*need,at:(d&&d.updated_at)||''};}
+function wtAllDoneT(t,s){const st=wtStat(t,s);return st.total>0&&st.full>=st.total;}
+function wtCardHtml(){
+  const tasks=(S.writeTasks||[]).slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  const chip=(t,s)=>{
+    const st=wtStat(t,s);
+    if(st.total&&st.full>=st.total)
+      return '<span class="badge" style="background:#E1F0E8;color:#1F6A54">✓ '+snm(s.name)+' '+st.full+'／'+st.total+' 字</span>';
+    const dd=hwDaysTo(t.due_date);
+    const prog=st.times?('　'+st.full+'／'+st.total+' 字'):'';
+    if(dd!=null&&dd<0)return '<span class="badge badge-overdue">'+snm(s.name)+' 逾期 '+(-dd)+' 天'+prog+'</span>';
+    return '<span class="badge'+(dd!=null&&dd<=2?' badge-soon':'')+'">'+snm(s.name)
+      +(st.times?('　'+st.full+'／'+st.total+' 字'):' 還沒寫')+'</span>';};
+  const rows=tasks.length?tasks.map(t=>{
+    const who=lessonTargets(t).filter(hzLive);
+    const done=who.filter(s=>wtAllDoneT(t,s)).length;
+    return '<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start">'
+      +'<b>'+esc(t.title||'寫字作業')+'</b>'
+      +'<span class="tag">✍️ '+wtCharsOf(t).length+' 個字・每個寫 '+wtNeedOf(t)+' 次</span>'
+      +'<span class="muted" style="font-size:12px">'+(t.due_date?('截止 '+esc(t.due_date)):'沒有截止日')+'</span>'
+      +'<span class="grow"></span><span class="muted" style="font-size:13px">完成 '+done+'／'+who.length+'</span>'
+      +'<button class="btn btn-sm btn-ghost" data-act="wtDel" data-id="'+esc(t.id)+'">刪除</button>'
+      +'<div style="flex-basis:100%;margin-top:4px;font-size:18px;letter-spacing:3px;color:#30486A">'+esc(wtCharsOf(t).join(''))+'</div>'
+      +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'
+      +(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
+    :'<div class="muted" style="padding:8px 2px">還沒有指派寫字作業。按右邊「＋ 指派寫字作業」開始。</div>';
+  return '<div class="card" data-wtcard="1" style="margin-top:14px">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
+    +'<h3 style="margin:0">✍️ 寫字作業</h3>'
+    +'<span class="hint">學生照筆順一筆一筆寫，每個字寫滿指定次數就算完成，不用妳批改。</span>'
+    +'<span class="grow"></span>'
+    +'<button class="btn btn-sm btn-accent" data-act="wtNew">＋ 指派寫字作業</button></div>'
+    +rows+'</div>';
+}
 function gtCardHtml(){
   const tasks=(S.gameTasks||[]).slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
   const chip=(t,s)=>{
@@ -10704,13 +10759,16 @@ function gtMount(){
   try{
     const body=document.getElementById('panel-hanzi');
     if(!body||!body.firstElementChild)return;
-    if(body.querySelector('[data-gtcard]'))return;
-    const wrap=document.createElement('div');wrap.innerHTML=gtCardHtml();
-    const card=wrap.firstElementChild;if(!card)return;
     const cards=[].slice.call(body.querySelectorAll('.card'));
     const after=cards.filter(c=>{const h=c.querySelector('h3');return h&&/^作業/.test((h.textContent||'').trim());})[0];
-    if(after&&after.parentNode)after.parentNode.insertBefore(card,after.nextSibling);
-    else body.appendChild(card);
+    const put=(html,sel)=>{if(body.querySelector(sel))return null;
+      const wrap=document.createElement('div');wrap.innerHTML=html;
+      const card=wrap.firstElementChild;if(!card)return null;
+      const ref=body.querySelector('[data-wtcard]')||body.querySelector('[data-gtcard]')||after;
+      if(ref&&ref.parentNode)ref.parentNode.insertBefore(card,ref.nextSibling);
+      else body.appendChild(card);return card;};
+    put(gtCardHtml(),'[data-gtcard]');
+    put(wtCardHtml(),'[data-wtcard]');/* WRITEHW_V1566 */
   }catch(e){}
 }
 try{
@@ -10828,6 +10886,116 @@ H.gtDel=async(id)=>{const t=(S.gameTasks||[]).find(x=>x.id===id);if(!t)return;
   try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除這份作業');}
   catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
 /* ══════ GAMEHW_V1553 end ══════ */
+
+/* ══════ WRITEHW_V1566 指派寫字作業 ══════ */
+function wtFillLes(){
+  const box=document.getElementById('wt-les'),sel=document.getElementById('wt-book');
+  if(!box||!sel)return;
+  const ls=planLessonsOf(sel.value);
+  box.innerHTML=ls.length
+    ?ls.map(l=>'<label class="qzw-s"><input type="checkbox" class="wt-les" value="'+esc(l.id)+'"><span>'+esc(lesNo(l,''))+'</span></label>').join('')
+    :'<span class="muted">這本教材還沒有課</span>';
+  try{wtSums();}catch(e){}
+}
+/* 勾了哪幾課 → 那幾課生詞裡的漢字，去掉重複 */
+function wtCharsPicked(){
+  const ids=[].slice.call(document.querySelectorAll('.wt-les:checked')).map(c=>c.value);
+  const seen={},out=[];
+  ids.forEach(id=>{const l=(S.lessons||[]).find(x=>x&&x.id===id);if(!l)return;
+    gtWordsOf(l).forEach(w=>[...String(w)].forEach(c=>{
+      if(!/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/.test(c)||seen[c])return;seen[c]=1;out.push(c);}));});
+  return out.join('');
+}
+function wtSums(){
+  try{
+    const box=document.getElementById('wt-chars');if(!box)return;
+    const cs=wtCharsPicked();
+    const n=Number((document.getElementById('wt-times')||{}).value||3);
+    box.value=cs;
+    const tip=document.getElementById('wt-tip');
+    if(tip)tip.textContent=cs?('共 '+[...cs].length+' 個字，每個寫 '+n+' 次＝一共要寫 '+([...cs].length*n)+' 次'):'還沒選課';
+  }catch(e){}
+}
+H.wtNew=()=>{
+  const books=planBooks();
+  if(!books.length)return toast('還沒有教材，要先到「教材與課程」建課');
+  const live=(S.students||[]).filter(s=>s&&!s.deleted_at);
+  const rank=(x)=>{if(x.is_test)return 1;const e=enrollOf(x);
+    return e==='active'?0:(e==='trial'?2:(e==='reserved'?3:4));};
+  const checks=live.slice().sort((a,b)=>rank(a)-rank(b)||stuNameCmp(a,b)).map(s=>{
+    const en=enrollOf(s),act=(en==='active'&&!s.is_test);
+    const show=act||s.is_test;
+    return '<label class="qzw-s"'+(show?'':' data-off="1"')+'>'
+      +'<input type="checkbox" class="wt-stu" value="'+esc(s.id)+'"'+(act?' checked':'')+'>'
+      +'<span>'+snm(s.name)+'</span>'
+      +(s.is_test?'<i>🧪 測試</i>':(act?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[en]||'')+'）</i>'))
+      +'</label>';}).join('');
+  const offN=live.filter(s=>!(enrollOf(s)==='active'&&!s.is_test)&&!s.is_test).length;
+  const d=new Date();d.setDate(d.getDate()+7);
+  const def=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>✍️ 指派寫字作業</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:10px">學生照筆順一筆一筆寫，寫錯會停在那一筆。每個字寫滿妳指定的次數就自動算完成，不用妳批改。</div>'
+   +'<div class="form-grid">'
+   +'<div class="field"><label>教材</label><select id="wt-book">'
+   +books.map((b,i)=>'<option value="'+esc(b[0])+'"'+(i?'':' selected')+'>'+esc(b[0])+'（'+b[1]+' 課）</option>').join('')+'</select></div>'
+   +'<div class="field"><label>每個字寫幾次</label><select id="wt-times">'
+   +[1,2,3,5,8,10].map(n=>'<option value="'+n+'"'+(n===3?' selected':'')+'>'+n+' 次</option>').join('')+'</select></div>'
+   +'<div class="field"><label>截止日</label><input id="wt-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
+   +'<div class="field"><label>作業名稱 <span class="hint">可以不填</span></label><input id="wt-title" placeholder="例如：第五課寫字"></div>'
+   +'</div>'
+   +'<div class="field full"><details class="pickdd" open data-pick="les">'
+   +'<summary>要練哪幾課的字 <span class="pick-sum none">還沒選課</span></summary>'
+   +'<div class="pick-body"><div id="wt-les" class="qzw-stus"></div></div></details></div>'
+   +'<div class="field full"><label>這些字 <span class="hint" id="wt-tip"></span></label>'
+   +'<textarea id="wt-chars" rows="2" placeholder="勾了課會自動填，妳也可以自己改或貼字進來" style="font-size:19px;letter-spacing:3px"></textarea></div>'
+   +'<div class="field full"><details class="pickdd" data-pick="stu">'
+   +'<summary>指派給誰 <span class="pick-sum"></span></summary><div class="pick-body">'
+   +'<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center">'
+   +'<button class="btn btn-sm" type="button" data-act="wtStuAll">✔ 全選看得到的</button>'
+   +'<button class="btn btn-sm" type="button" data-act="wtStuNone">✕ 全部取消</button>'
+   +(offN?('<button class="btn btn-sm" type="button" data-act="stuOffToggle">👀 也顯示休學／預約（'+offN+'）</button>'):'')
+   +stuFindBox(live)+'</div>'
+   +'<div class="qzw-stus off-hide">'+(checks||'<span class="muted">還沒有學生</span>')+'</div>'
+   +'</div></details></div></div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="wtSave">📤 指派出去</button></div></div>');
+  wtFillLes();gtSums();
+  const sel=document.getElementById('wt-book');if(sel)sel.onchange=()=>{wtFillLes();gtSums();};
+  const tms=document.getElementById('wt-times');if(tms)tms.onchange=wtSums;
+  const box=document.getElementById('wt-les');
+  if(box)box.addEventListener('change',()=>{wtSums();gtSums();});
+};
+H.wtStuAll=()=>{document.querySelectorAll('.wt-stu').forEach(c=>{
+  const l=c.closest('label');if(l&&l.offsetParent===null)return;c.checked=true;});gtSums();};
+H.wtStuNone=()=>{document.querySelectorAll('.wt-stu').forEach(c=>{c.checked=false;});gtSums();};
+H.wtSave=async()=>{
+  const ids=[].slice.call(document.querySelectorAll('.wt-stu:checked')).map(c=>c.value);
+  if(!ids.length)return toast('請至少選一位學生');
+  const _v=(id)=>{const e=document.getElementById(id);return e?String(e.value||'').trim():'';};
+  const chars=[...( _v('wt-chars')||'')].filter(c=>/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/.test(c));
+  const uniq=[];const seen={};chars.forEach(c=>{if(!seen[c]){seen[c]=1;uniq.push(c);}});
+  if(!uniq.length)return toast('請至少選一課，或自己貼幾個字進去');
+  const lids=[].slice.call(document.querySelectorAll('.wt-les:checked')).map(c=>c.value);
+  const times=Number(_v('wt-times'))||3;
+  const book=_v('wt-book'),due=_v('wt-due');
+  const nm=lids.map(id=>{const l=(S.lessons||[]).find(x=>x&&x.id===id);return l?lesNo(l,''):'';}).filter(Boolean).join('、');
+  const title=_v('wt-title')||('寫字・'+(nm||book));
+  const btn=document.querySelector('[data-act="wtSave"]');if(btn){btn.disabled=true;btn.textContent='指派中…';}
+  try{await ensureAuthFresh();
+    const row={kind:'writetask',title:title,book:book,lids:lids,chars:uniq.join(''),times:times,
+      due_date:due,assigned_ids:ids,created_at:new Date().toISOString()};
+    row.read_uids=ruCalc(row);
+    await DB.insert('lessons',row);
+    await loadAll();closeModal();render();
+    toast('已指派給 '+ids.length+' 位學生：'+uniq.length+' 個字、每個寫 '+times+' 次');
+  }catch(e){if(btn){btn.disabled=false;btn.textContent='📤 指派出去';}toast('指派失敗：'+((e&&e.message)||e));}};
+H.wtDel=async(id)=>{const t=(S.writeTasks||[]).find(x=>x.id===id);if(!t)return;
+  const b=document.querySelector('[data-act="wtDel"][data-id="'+id+'"]');
+  if(b&&!b.dataset.sure){b.dataset.sure='1';b.textContent='再按一次確定刪除';b.classList.add('btn-danger');setTimeout(()=>{if(b){delete b.dataset.sure;b.textContent='刪除';b.classList.remove('btn-danger');}},4000);return;}
+  try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除這份作業');}
+  catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
+/* ══════ WRITEHW_V1566 end ══════ */
 
 function renderGive(){
   const body=$('#panel-give');if(!body)return;
@@ -22858,7 +23026,7 @@ H.gmDelClass=async(cls)=>{if(!confirm('刪除團班「'+cls+'」？\n\n學生只
 function gmGroupDocs(cls){
   const seen={},out=[];
   [S.lessons,S.workbooks,S.quizzes,S.announcements,S.prons,S.classicals,
-   S.livequizzes,S.lqassigns,S.hanziTasks,S.gameTasks/* GAMEHW_V1553 */,S.writings].forEach(arr=>{
+   S.livequizzes,S.lqassigns,S.hanziTasks,S.gameTasks/* GAMEHW_V1553 */,S.writeTasks/* WRITEHW_V1566 */,S.writings].forEach(arr=>{
     (arr||[]).forEach(x=>{
       if(!x||!x.id||seen[x.id])return;
       if(!((x.assigned_groups||[]).indexOf(cls)>=0))return;

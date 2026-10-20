@@ -1555,7 +1555,7 @@ async function loadMine(){
   const [l,siteRows]=await Promise.all([loadLessonsForMe(),DB.list('site').catch(()=>[])]);/* READCUT2_V975 */
   S.site=(siteRows&&siteRows.length)?siteRows[siteRows.length-1]:{};
   const rAll=await pRes; if(_rErr)throw _rErr;
-  S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook'&&x.kind!=='hanzitask'/* HZTASK_V1389 */&&x.kind!=='gametask'/* GAMEHW_V1553 */);S.gameTasks=l.filter(x=>x.kind==='gametask'&&!x.deleted_at);/* GAMEHW_V1553 */S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.lqassigns=l.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;
+  S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook'&&x.kind!=='hanzitask'/* HZTASK_V1389 */&&x.kind!=='gametask'/* GAMEHW_V1553 */&&x.kind!=='writetask'/* WRITEHW_V1566 */);S.gameTasks=l.filter(x=>x.kind==='gametask'&&!x.deleted_at);/* GAMEHW_V1553 */S.writeTasks=l.filter(x=>x.kind==='writetask'&&!x.deleted_at);/* WRITEHW_V1566 */S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.lqassigns=l.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;
   S.questions=await loadMyQuestions(l,rAll);
   splitResults(rAll);}
 /* ===================== 📕 錯題本 Mistake notebook ===================== */
@@ -1653,7 +1653,7 @@ function wbWrongList(w,ans){
   (d.listen||[]).forEach(q=>{if(!q.ans)return;const v=(ans.listen||{})[q.n];if(v!==q.ans)push('listen',q.n,q.q||('聽力 '+q.n),v,q.ans);});
   return out;
 }
-function splitResults(rAll){rAll=rAll||[];S.mistDoc=rAll.find(x=>x.kind==='mistake')||null;S.acts=rAll.filter(x=>x.kind==='act');S.results=rAll.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq');S.leavereqs=rAll.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');S.wbdocs=rAll.filter(x=>x.kind==='wb');S.lqps=rAll.filter(x=>x.kind==='lqp');}
+function splitResults(rAll){rAll=rAll||[];S.mistDoc=rAll.find(x=>x.kind==='mistake')||null;S.acts=rAll.filter(x=>x.kind==='act');S.results=rAll.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='wt'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq');S.leavereqs=rAll.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');S.wbdocs=rAll.filter(x=>x.kind==='wb');S.lqps=rAll.filter(x=>x.kind==='lqp');S.wts=rAll.filter(x=>x.kind==='wt');/* WRITEHW_V1566 */}
 function hwvDocOf(lid,word){return (S.hwvs||[]).find(x=>x.hwv_lesson===lid&&x.hwv_word===word)||null;}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
 function discDocOf(lid){return (S.discussions||[]).find(x=>x.disc_lesson===lid)||null;}
@@ -2856,6 +2856,14 @@ function dueRows(){
     rows.push({lid:a.id,k:'lqp',act:'startLqp',title:'🎯 '+(a.title||''),due:a.due_date||'',
       cls:di?di.cls:'badge-pending',lab:di?di.label:LT({zh:'未完成',cn:'未完成',en:'To do',vi:'Chưa làm'}),
       sort:di?di.sort:9999});});}catch(e){}
+  /* WRITEHW_V1566 寫字作業：每個字都寫滿老師指定的次數才算做完 */
+  try{wtMine().forEach(t=>{if(wtAllDone(t))return;
+    const di=dueInfo(t.due_date);
+    rows.push({lid:t.id,k:'write',act:'startWrite',
+      title:'✍️ '+(t.title||LT({zh:'寫字作業',cn:'写字作业',en:'Writing practice',vi:'Luyện viết'})),
+      due:t.due_date||'',
+      cls:di?di.cls:'badge-pending',lab:di?di.label:LT({zh:'未完成',cn:'未完成',en:'To do',vi:'Chưa làm'}),
+      sort:di?di.sort:9999});});}catch(e){}
   /* GAMEHW_V1553 翻牌配對作業：玩完一輪就算做完了（紀錄在漢字紀錄的 rec.gt） */
   try{gtMine().forEach(t=>{if(gtMyRec(t.id))return;
     const di=dueInfo(t.due_date);
@@ -2871,6 +2879,37 @@ function dueRows(){
    做完沒做完看的是他自己的漢字紀錄（results 裡 kind:'hanzi' 那一筆）的 rec.gt[作業id]，
    那一筆是遊戲頁自己寫的，這邊只讀不寫。 */
 function gtMine(){return (S.gameTasks||[]).filter(t=>t&&!t.deleted_at&&assignedToMe(t));}
+/* ══════ WRITEHW_V1566 寫字作業（學生端） ══════
+   Quinn：「教師設定『這個字要寫幾次』，學生自行練習後就好了」。
+   作業單是 lessons 裡 kind:'writetask' 的那幾筆（老師在後台指派）；
+   學生寫到第幾次記在 results 裡 kind:'wt' 的一筆（一份作業一筆，欄位 done={字:次數}）。
+   兩條都是現成的路（跟手寫、註記同一種寫法），所以 Firestore 規則不用動。 */
+function wtMine(){return (S.writeTasks||[]).filter(t=>t&&!t.deleted_at&&assignedToMe(t));}
+function wtChars(t){return [...String((t&&t.chars)||'')].filter(c=>/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/.test(c));}
+function wtNeed(t){const n=Number((t&&t.times)||0);return (n>0&&n<=20)?n:3;}
+function wtDocOf(tid){return (S.wts||[]).find(x=>x&&x.wt_task===tid)||null;}
+function wtDoneMap(tid){const d=wtDocOf(tid);return (d&&d.done&&typeof d.done==='object')?d.done:{};}
+function wtGot(tid,c){return Number(wtDoneMap(tid)[c])||0;}
+function wtAllDone(t){if(!t)return false;const need=wtNeed(t),m=wtDoneMap(t.id);
+  const cs=wtChars(t);if(!cs.length)return false;
+  return cs.every(c=>(Number(m[c])||0)>=need);}
+function wtLeft(t){const need=wtNeed(t),m=wtDoneMap(t.id);
+  return wtChars(t).reduce((a,c)=>a+Math.max(0,need-(Number(m[c])||0)),0);}
+/* 寫完一次：存回那一筆紀錄。沒登入／預覽模式不存。 */
+async function wtBump(tid,c){
+  try{
+    const t=(S.writeTasks||[]).find(x=>x&&x.id===tid);if(!t||!c)return;
+    const need=wtNeed(t);const d=wtDocOf(tid);
+    const done=Object.assign({},(d&&d.done)||{});
+    if((Number(done[c])||0)>=need)return;/* 已經寫滿就不再加 */
+    done[c]=(Number(done[c])||0)+1;
+    if(S.preview)   {if(d)d.done=done;return;}
+    if(d&&d.id){await DB.update('results',d.id,{done:done,updated_at:new Date().toISOString()});d.done=done;}
+    else{const doc=await DB.insert('results',{kind:'wt',wt_task:tid,done:done,
+      uid:myUid(),student_id:(S.me||{}).id,updated_at:new Date().toISOString()});
+      (S.wts=S.wts||[]).push(doc);}
+  }catch(e){}
+}
 function gtMyRec(tid){
   try{const d=(S.results||[]).find(r=>r&&r.kind==='hanzi');
     return (d&&d.rec&&d.rec.gt&&d.rec.gt[tid])||null;}catch(e){return null;}}
@@ -3954,10 +3993,10 @@ let HWP=null;const HWP_MAX=12;
 function hwL(zh,vi,en){return S.lang==='vi'?vi:(S.lang==='en'?en:zh);}
 /* TZS_V1496 prac＝純練字：整課的字排成一排，寫完換下一個，不存也不送給老師。
    Quinn：「我希望的就是有一個地方給學生做手寫，因爲他們真的要手寫才會記得字怎麼寫」。 */
-function openHwrite(word,lid,prac){if(!word){toast(t('noCards'));return;}
+function openHwrite(word,lid,prac,task){if(!word){toast(t('noCards'));return;}
   const ex=prac?null:hwvDocOf(lid,word);
   /* HWONE_V919 ci＝現在在描第幾個字 */
-  HWP={word,lid,prac:!!prac,ci:0,mode:'quiz',/* HWONLY_V1565 只剩「跟著筆順寫」 */images:(ex&&Array.isArray(ex.images))?ex.images.slice():[],status:(ex&&ex.status)||'draft',comment:(ex&&ex.comment)||''};HWP_STROKES=[];HWP_ERASE=false;HWP_DEMO_OPEN=false;
+  HWP={word,lid,prac:!!prac,task:task||null,/* WRITEHW_V1566 */ci:0,mode:'quiz',/* HWONLY_V1565 只剩「跟著筆順寫」 */images:(ex&&Array.isArray(ex.images))?ex.images.slice():[],status:(ex&&ex.status)||'draft',comment:(ex&&ex.comment)||''};HWP_STROKES=[];HWP_ERASE=false;HWP_DEMO_OPEN=false;
   let ov=document.getElementById('hw-ov');if(ov)ov.remove();
   ov=document.createElement('div');ov.id='hw-ov';ov.className='stroke-ov';ov.innerHTML=hwriteInner();
   document.body.appendChild(ov);hwRenderQuiz();}
@@ -4003,9 +4042,20 @@ function hwriteInner(){const n=HWP.images.length;
   const thumbs=HWP.images.map((im,i)=>`<div style="position:relative;display:inline-block;margin:2px"><img src="${im}" style="width:48px;height:48px;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff"><button data-act="hwDelImg" data-id="${i}" style="position:absolute;top:-6px;right:-6px;background:#A33227;color:#fff;border:none;border-radius:50%;width:18px;height:18px;line-height:16px;cursor:pointer;padding:0">×</button></div>`).join('');
   return `<div class="stroke-box" style="max-width:320px">
     <button class="stroke-x" data-act="hwClose" aria-label="關閉">✕</button>
-    <div style="text-align:center;font-weight:700;font-size:17px;margin-bottom:4px">${HWP.prac
+    ${/* WRITEHW_V1566 作業模式：上面寫清楚這個字還要寫幾次、整份還剩幾次 */''}
+    ${HWP.task?(function(){const t=HWP.task,need=wtNeed(t),got=wtGot(t.id,_gc);
+      const left=wtLeft(t);
+      return `<div style="text-align:center;margin-bottom:6px">
+        <div style="font-weight:700;font-size:16px">✍️ ${esc(t.title||hwL('寫字作業','Luyện viết','Writing homework'))}</div>
+        <div style="font-size:13px;color:${got>=need?'#1F6A54':'#5B6B80'};margin-top:2px">
+          ${esc(_gc)}：${hwL('已寫','Đã viết','')} ${got} / ${need} ${hwL('次','lần','')}
+          ${got>=need?('　✅ '+hwL('這個字寫完了','Chữ này xong rồi','Done')):''}
+          　<span style="color:#5B6B80">${hwL('整份還剩','Còn lại','Left')} ${left} ${hwL('次','lần','')}</span>
+        </div></div>`;})():''}
+    ${/* WRITEHW_V1566 作業模式上面已經有一行標題了，不要再印一次「手寫練習：夢想」 */''}
+    ${HWP.task?'':`<div style="text-align:center;font-weight:700;font-size:17px;margin-bottom:4px">${HWP.prac
       ?('✍️ '+hwL('練字','Luyện viết','Writing practice')+'　<span style="font-weight:400;font-size:14px;color:#5B6B80">'+(HWP.ci+1)+' / '+_cs.length+'</span>')
-      :('📝 '+hwL('手寫練習','Luyện viết tay','Handwriting')+'：'+esc(HWP.word))}</div>
+      :('📝 '+hwL('手寫練習','Luyện viết tay','Handwriting')+'：'+esc(HWP.word))}</div>`}
     ${_pick}
     <div style="text-align:center;margin-bottom:6px"><button class="btn btn-sm" data-act="hwDemoToggle">${HWP_DEMO_OPEN?'▲ '+hwL('收起筆順','Ẩn thứ tự nét','Hide strokes'):'▶ '+hwL('看筆順示範','Xem thứ tự nét','Stroke order')}</button></div>
     <div style="position:relative;width:260px;height:260px;margin:0 auto;border:2px solid #C0CEE0;border-radius:12px;background:#fff;overflow:hidden">
@@ -4071,6 +4121,7 @@ function hwRenderQuiz(){
     +hwL('筆順元件載入中…','Đang tải…','Loading…')+'</div>';setTimeout(hwRenderQuiz,700);return;}
   box.innerHTML='';HWQ=null;HWQ_N=0;HWQ_DONE=0;HWQ_MISS=0;HWQ_OK=false;hwQuizMsg();
   const cs=[...String(HWP.word||'')];const c=cs[(HWP.ci>=0&&HWP.ci<cs.length)?HWP.ci:0]||'';
+  const c0=c;/* WRITEHW_V1566 寫完回報用 */
   if(!c||!/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/.test(c)){
     box.innerHTML='<div class="hint" style="padding:16px;text-align:center">'
       +hwL('這個不是漢字，沒有筆順','Ký tự này không có thứ tự nét','No stroke data')+'</div>';return;}
@@ -4087,11 +4138,43 @@ function hwRenderQuiz(){
       onMistake:(d)=>{HWQ_MISS++;if(d&&d.strokeNum!=null)HWQ_DONE=d.strokeNum;
         if(d&&d.strokesRemaining!=null)HWQ_N=HWQ_DONE+d.strokesRemaining;hwQuizMsg(true);},
       onComplete:(d)=>{HWQ_OK=true;if(d&&d.totalMistakes!=null)HWQ_MISS=d.totalMistakes;
-        if(!HWQ_N)HWQ_N=HWQ_DONE;hwQuizMsg();}
+        if(!HWQ_N)HWQ_N=HWQ_DONE;hwQuizMsg();
+        /* WRITEHW_V1566 作業模式：寫完整個字才算一次 */
+        if(HWP&&HWP.task){const c=c0;wtBump(HWP.task.id,c).then(()=>{try{hwTaskTick(c);}catch(e){}});}}
     });
   }catch(e){box.innerHTML='<div class="hint" style="padding:16px;text-align:center">'
     +hwL('這個字還沒有筆順資料，先練別的字','Chữ này chưa có dữ liệu nét','No stroke data')+'</div>';}
 }
+/* WRITEHW_V1566 作業模式寫完一次之後：把上面那一行次數重寫，
+   這個字寫滿了就自動跳下一個還沒寫滿的字；全部寫滿就說一聲。
+   這裡只動上面那一行文字，不重畫整個視窗（框才不會跳）。 */
+function hwTaskTick(c){
+  if(!HWP||!HWP.task)return;
+  const t=HWP.task,need=wtNeed(t);
+  const head=document.querySelector('#hw-ov .stroke-box');if(!head)return;
+  if(wtAllDone(t)){
+    const m=document.getElementById('hw-qmsg');
+    if(m)m.innerHTML='<b style="color:#1F6A54">🎉 '+hwL('這份寫字作業完成了！','Hoàn thành bài luyện viết!','Writing homework complete!')+'</b>';
+    setTimeout(()=>{hwRefresh();},1200);return;
+  }
+  if(wtGot(t.id,c)>=need){
+    const cs=[...String(HWP.word||'')];
+    let nx=-1;for(let i=1;i<=cs.length;i++){const k=(HWP.ci+i)%cs.length;
+      if(wtGot(t.id,cs[k])<need){nx=k;break;}}
+    if(nx>=0){HWP.ci=nx;setTimeout(()=>{hwRefresh();},900);return;}
+  }
+  setTimeout(()=>{hwRefresh();},700);
+}
+/* 從待辦點進來：用這份作業指定的那些字開練習 */
+H.startWrite=(id)=>{
+  const t=(S.writeTasks||[]).find(x=>x&&x.id===id);if(!t)return;
+  const cs=wtChars(t);
+  if(!cs.length){toast(hwL('這份作業沒有字','Bài này chưa có chữ','No characters'));return;}
+  const need=wtNeed(t);
+  let i=cs.findIndex(c=>wtGot(t.id,c)<need);if(i<0)i=0;
+  openHwrite(cs.join(''),t.lids&&t.lids[0]||'',false,t);
+  if(HWP){HWP.ci=i;hwRefresh();}
+};
 H.hwQuizAgain=()=>hwRenderQuiz();
 H.hwQuizHint=()=>{try{if(HWQ&&HWQ.highlightStroke)HWQ.highlightStroke(HWQ_DONE,{duration:900});
   else if(HWQ&&HWQ.animateStroke)HWQ.animateStroke(HWQ_DONE);}catch(e){}};
@@ -5411,7 +5494,7 @@ function renderPreviewLesson(){
 }
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;S.tryMode=PREVIEW_TRY;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
-  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook'&&x.kind!=='hanzitask'/* HZTASK_V1389 */&&x.kind!=='gametask'/* GAMEHW_V1553 */);S.gameTasks=[];S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=[];S.lqassigns=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];S.hwvs=[];
+  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook'&&x.kind!=='hanzitask'/* HZTASK_V1389 */&&x.kind!=='gametask'/* GAMEHW_V1553 */&&x.kind!=='writetask');S.gameTasks=[];S.writeTasks=[];S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=[];S.lqassigns=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];S.hwvs=[];
   S.previewLid=lid;
   renderPreviewLesson();
 }
