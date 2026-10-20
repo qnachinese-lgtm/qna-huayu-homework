@@ -9,6 +9,7 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- HWANS_V2 講義語法練習答案也能放出；PSYNC_V2 課堂答案也存進講義 -->
 <!-- JNAV_V1 學生可回前面題目、換題不會被切走 -->
 <!-- LORDER_V1 看圖排序／說故事作答；JDICT_V1 聽寫挖空填寫；TGRP_V1 工具按鈕成組；CLOG_V1 課堂紀錄 -->
 <!-- HWANS_V1 上課可放出學生已寫好的作業答案 -->
@@ -1927,9 +1928,9 @@ document.addEventListener("click", e => { if(e.target.closest("#recBtn")){ $("#t
 const HW = {lid: null, data: null, loading: false};
 function hwLid(L){ return L && (L.src || (String(L.id).startsWith("src_") ? L.id.slice(4) : "")); }
 async function hwLoad(lid){ if(HW.loading) return; HW.loading = true; const f = liveDb();
-  try { const src = await psSrc(lid); const [a, b, s] = await Promise.all([f.collection("results").where("lesson_id", "==", lid).get(), f.collection("results").where("disc_lesson", "==", lid).get(), f.collection("students").get()]);
+  try { const src = await psSrc(lid); const [a, b, s, g] = await Promise.all([f.collection("results").where("lesson_id", "==", lid).get(), f.collection("results").where("disc_lesson", "==", lid).get(), f.collection("students").get(), f.collection("results").where("gprac_lesson", "==", lid).get()]);
     const stu = {}; s.docs.forEach(d => { const x = d.data(); stu[d.id] = {n: String(x.name || "").trim(), g: Array.isArray(x.groups) ? x.groups : []}; if(x.uid) stu["u:" + x.uid] = stu[d.id]; });
-    const pick = d => ({id: d.id, ...d.data()}); HW.data = {src, res: a.docs.map(pick), disc: b.docs.map(pick), stu}; HW.lid = lid; }
+    const pick = d => ({id: d.id, ...d.data()}); HW.data = {src, res: g.docs.map(pick).concat(a.docs.map(pick)), disc: b.docs.map(pick), stu}; /* HWANS_V2 講義裡的語法練習（gprac）也算 */ HW.lid = lid; }
   catch(e){ console.warn("hw", e); HW.lid = lid; HW.data = null; }
   HW.loading = false; if($("#modal").hidden){ document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); } }
 function hwFor(key, i){ const D = HW.data; if(!ansOn || !D) return []; const mm = String(key).match(/^([^:]+):(.+)$/); if(!mm) return [];
@@ -1945,7 +1946,7 @@ function hwFor(key, i){ const D = HW.data; if(!ansOn || !D) return []; const mm 
   D.res.forEach(r => { const n = who(r); if(n == null || skip(r)) return; let v = (r.answers||{})[Q.id]; if(v == null) return;
     if(ii >= 0){ const it = Array.isArray(v) ? v[ii] : null; v = !it ? "" : it.t != null ? it.t : (it.s||[]).map(lt).join(""); }
     else if(Q.type === "choice") v = typeof v === "number" ? lt(v) : ""; else if(Array.isArray(v)) v = v.every(x => typeof x === "string") ? v.join("／") : ""; else if(typeof v !== "string" || /^data:/.test(v)) v = "";
-    v = String(v).trim(); if(v && v.replace(/／/g, "")) out.push({n, x: v, id: "hw:" + r.id + "#" + i, hw: 1}); });
+    v = String(v).trim(); if(v && v.replace(/／/g, "") && !out.some(o => o.n === n && o.x === v)) out.push({n, x: v, id: "hw:" + r.id + "#" + i, hw: 1}); });
   return out; }
 /* PSYNC_V1 學生登入作答的答案，自動存進他在學習平台的練習題（草稿，學生回家打開就看得到，按送出就好） */
 const PS = {done: {}, cache: {}, t: null};
@@ -1989,6 +1990,9 @@ async function psRun(){ const f = liveDb(); if(!f || !db) return;
         if(Object.keys(B.ans).length){ const r = mine.find(x => x.lesson_id === lid);
           if(!r) await f.collection("results").add({lesson_id: lid, student_id: sid, uid, answers: B.ans, status: "draft", created_at: now, updated_at: now, saved_at: now, from_class: LIVE.code || ""});
           else if(!r.status || r.status === "draft") await r.ref.update({answers: Object.assign({}, r.answers || {}, B.ans), status: "draft", updated_at: now, saved_at: now, from_class: LIVE.code || ""}); }
+        if(Object.keys(B.ans).length){ const r = mine.find(x => x.kind === "gprac" && x.gprac_lesson === lid); /* PSYNC_V2 也存進講義裡的語法練習 */
+          if(!r) await f.collection("results").add({kind: "gprac", lesson_id: "__gprac__", gprac_lesson: lid, uid, student_id: sid, student_name: String(st.data().name || ""), answers: B.ans, status: "draft", saved_at: now, created_at: now, from_class: LIVE.code || ""});
+          else if(!r.status || r.status === "draft") await r.ref.update({answers: Object.assign({}, r.answers || {}, B.ans), status: "draft", saved_at: now, from_class: LIVE.code || ""}); }
         if(Object.keys(B.disc).length){ const r = mine.find(x => x.kind === "discussion" && x.disc_lesson === lid);
           if(!r) await f.collection("results").add({kind: "discussion", lesson_id: "__discussion__", disc_lesson: lid, uid, student_id: sid, student_name: String(st.data().name || ""), answers: B.disc, status: "draft", created_at: now, saved_at: now, from_class: LIVE.code || ""});
           else if(!r.status || r.status === "draft") await r.ref.update({answers: Object.assign({}, r.answers || {}, B.disc), status: "draft", saved_at: now, from_class: LIVE.code || ""}); } }
