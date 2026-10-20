@@ -4088,11 +4088,21 @@ function hwriteInner(){const n=HWP.images.length;
   if(!(HWP.ci>=0&&HWP.ci<_cs.length))HWP.ci=0;
   const _gc=_cs[HWP.ci]||HWP.word;
   const guide=esc(_gc);const gsize=150;
-  /* TZS_V1496 整課練字會有二三十個字，一排放不下；給它一個高度上限，超過就捲。 */
-  const _pick=(_cs.length>1)?('<div style="display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin-bottom:6px'
-    +(_cs.length>12?';max-height:96px;overflow:auto':'')+'">'
-    +_cs.map((c,i)=>'<button class="btn btn-sm'+(i===HWP.ci?' btn-accent':'')+'" data-act="hwPick" data-id="'+i+'" style="min-width:34px;padding:4px 9px;font-size:17px">'+esc(c)+'</button>').join('')
-    +'</div>'):'';
+  /* HWPICK_V1572 Quinn：「感覺裡面設計得不夠好設計得好醜」（她截的是整課練字那一版）。
+     量到的毛病：
+     （一）那個字選單是一個 max-height:96px 的捲動框，而一列大約 39px——
+          96 不是 39 的倍數，所以最底下那一列永遠被「切一半」（她的截圖就是這樣）。
+     （二）整課練字會有五六十個字，這張捲動框變成整個視窗最搶眼的東西，
+          真正要寫的米字格反而被擠到下面。選字是偶爾才用的，不該佔住版面。
+     （三）「看筆順示範」卡在選單和米字格中間，把兩個本來該連在一起的東西切開。
+     改法：選單預設收起來，變成一行「挑別的字（51）」，要換字才打開；
+     打開時高度用整數列（每格固定 36px、間距 6px → 三列剛好 120px），不會再切到一半。 */
+  const _pick=(_cs.length>1)?(
+    '<details class="hw-pick"'+(HWP_PICK_OPEN?' open':'')+'>'
+    +'<summary>'+hwL('挑別的字','Chọn chữ khác','Pick another')+'（'+_cs.length+'）</summary>'
+    +'<div class="hw-pick-b">'
+    +_cs.map((c,i)=>'<button class="btn btn-sm'+(i===HWP.ci?' btn-accent':'')+'" data-act="hwPick" data-id="'+i+'">'+esc(c)+'</button>').join('')
+    +'</div></details>'):'';
   const sent=HWP.status==='submitted'||HWP.status==='reviewed';
   const thumbs=HWP.images.map((im,i)=>`<div style="position:relative;display:inline-block;margin:2px"><img src="${im}" style="width:48px;height:48px;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff"><button data-act="hwDelImg" data-id="${i}" style="position:absolute;top:-6px;right:-6px;background:#A33227;color:#fff;border:none;border-radius:50%;width:18px;height:18px;line-height:16px;cursor:pointer;padding:0">×</button></div>`).join('');
   return `<div class="stroke-box" style="max-width:320px">
@@ -4112,7 +4122,8 @@ function hwriteInner(){const n=HWP.images.length;
       ?('✍️ '+hwL('練字','Luyện viết','Writing practice')+'　<span style="font-weight:400;font-size:14px;color:#5B6B80">'+(HWP.ci+1)+' / '+_cs.length+'</span>')
       :('📝 '+hwL('手寫練習','Luyện viết tay','Handwriting')+'：'+esc(HWP.word))}</div>`}
     ${_pick}
-    <div style="text-align:center;margin-bottom:6px"><button class="btn btn-sm" data-act="hwDemoToggle">${HWP_DEMO_OPEN?'▲ '+hwL('收起筆順','Ẩn thứ tự nét','Hide strokes'):'▶ '+hwL('看筆順示範','Xem thứ tự nét','Stroke order')}</button></div>
+    ${/* HWPICK_V1572 「看筆順示範」本來卡在選字和米字格中間，把它搬到下面
+          跟「重寫這個字」「提示這一筆」同一排——那三顆都是「這個字幫我一下」。 */''}
     <div style="position:relative;width:260px;height:260px;margin:0 auto;border:2px solid #C0CEE0;border-radius:12px;background:#fff;overflow:hidden">
       <!-- TZS_V1496 米字格：本來只有一個空的虛線框，字寫出來偏一邊、大小也抓不準。
            中線虛線、對角線更淡，跟練習簿上的格子一樣。 -->
@@ -4131,8 +4142,10 @@ function hwriteInner(){const n=HWP.images.length;
     </div>
     ${_quiz?`<div id="hw-qmsg" class="hint" style="text-align:center;margin-top:7px;min-height:20px"></div>`:''}
     <div style="display:flex;gap:6px;justify-content:center;margin-top:8px;flex-wrap:wrap">
-      <button class="btn btn-sm" data-act="hwQuizAgain">🔁 ${hwL('重寫這個字','Viết lại','Restart')}</button>
-      <button class="btn btn-sm" data-act="hwQuizHint">💡 ${hwL('提示這一筆','Gợi ý nét này','Hint')}</button>
+      ${/* HWPICK_V1572 三顆排一排才不會 2+1 折行，字縮短一點（有圖示看得懂） */''}
+      <button class="btn btn-sm" data-act="hwDemoToggle">${HWP_DEMO_OPEN?'▲ '+hwL('收起','Ẩn','Hide'):'▶ '+hwL('看筆順','Thứ tự nét','Strokes')}</button>
+      <button class="btn btn-sm" data-act="hwQuizAgain">🔁 ${hwL('重寫','Viết lại','Restart')}</button>
+      <button class="btn btn-sm" data-act="hwQuizHint">💡 ${hwL('提示','Gợi ý','Hint')}</button>
     </div>
     ${HWP.prac?`<div style="margin-top:10px;display:flex;gap:6px;justify-content:center;align-items:center">
       <button class="btn btn-sm" data-act="hwPrev" ${HWP.ci<=0?'disabled':''}>◀ ${hwL('上一個','Trước','Prev')}</button>
@@ -4144,6 +4157,11 @@ function hwriteInner(){const n=HWP.images.length;
       'Write stroke by stroke in order; a wrong stroke stops there, and after two misses you get a hint.')}</div>
   </div>`;}
 let HWP_STROKES=[],HWP_ERASE=false,HWP_DEMO_OPEN=false;
+/* HWPICK_V1572 選字那一塊開著還是收著要記住——換字會整個重畫，不記就每次自己合起來 */
+let HWP_PICK_OPEN=false;
+/* toggle 事件不會冒泡，所以用捕獲階段聽。學生自己開／收都記得住。 */
+try{document.addEventListener('toggle',(e)=>{const t=e.target;
+  if(t&&t.classList&&t.classList.contains('hw-pick'))HWP_PICK_OPEN=!!t.open;},true);}catch(e){}
 function hwRedraw(cv){const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);ctx.lineCap='round';ctx.lineJoin='round';
   HWP_STROKES.forEach(s=>{if(!s.pts||!s.pts.length)return;ctx.globalCompositeOperation=s.erase?'destination-out':'source-over';ctx.strokeStyle='#16202E';ctx.lineWidth=s.erase?30:11;ctx.beginPath();ctx.moveTo(s.pts[0].x,s.pts[0].y);for(let i=1;i<s.pts.length;i++)ctx.lineTo(s.pts[i].x,s.pts[i].y);if(s.pts.length===1)ctx.lineTo(s.pts[0].x+0.1,s.pts[0].y+0.1);ctx.stroke();});
   ctx.globalCompositeOperation='source-over';}
@@ -4251,6 +4269,10 @@ H.hwDemoToggle=()=>{
 H.hwrite=(_,b)=>openHwrite(b.dataset.text,b.dataset.lesson);
 H.hwClose=()=>{const ov=document.getElementById('hw-ov');if(ov)ov.remove();HWP=null;};
 /* HWONE_V919 換一個字來描。畫布上那個是上一個字，直接清掉；已經存起來的張數不受影響。 */
+/* HWPICK_V1572 這裡刻意不去動 HWP_PICK_OPEN。
+   本來寫成「挑完維持打開」，但是「上一個／下一個」也是走這一支（hwPrev／hwNext），
+   結果學生把清單收起來、按下一個，清單又自己打開。
+   開或收一律由學生自己決定，toggle 那支聽眾負責記住。 */
 H.hwPick=(i)=>{if(!HWP)return;HWP.ci=Number(i)||0;HWP_STROKES=[];HWP_ERASE=false;hwRefresh();/* HWQUIZ_V1564 hwRefresh 裡會重掛 quiz */};
 /* TZS_V1496 練字模式：照順序換字。畫到一半的筆畫直接清掉——這裡本來就不存。 */
 H.hwPrev=()=>{if(!HWP||HWP.ci<=0)return;H.hwPick(HWP.ci-1);};
