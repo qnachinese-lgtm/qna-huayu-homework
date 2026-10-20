@@ -4063,8 +4063,9 @@ function hwRenderDemo(autoplay){const wrap=document.getElementById('hw-demo');if
   wrap.innerHTML='';HWP_WRITERS=[];
   const cs=[...String(HWP.word||'')];const c=cs[(HWP.ci>=0&&HWP.ci<cs.length)?HWP.ci:0]||'';
   if(!c){return;}
-  const d=document.createElement('div');d.style.cssText='width:260px;height:260px';wrap.appendChild(d);
-  try{const w=HanziWriter.create(d,c,{width:260,height:260,padding:8,showOutline:true,
+  const _z=hwSize();/* HWBIG_V1573 示範要跟底下的練習框一樣大，不然點開會跳一下 */
+  const d=document.createElement('div');d.style.cssText='width:'+_z+'px;height:'+_z+'px';wrap.appendChild(d);
+  try{const w=HanziWriter.create(d,c,{width:_z,height:_z,padding:8,showOutline:true,
     strokeColor:'#1E4C86',outlineColor:'#D9E3F0',strokeAnimationSpeed:1,delayBetweenStrokes:220});HWP_WRITERS.push(w);}catch(e){}
   const bar=document.createElement('div');
   bar.style.cssText='position:absolute;left:0;right:0;bottom:6px;text-align:center';
@@ -4105,7 +4106,8 @@ function hwriteInner(){const n=HWP.images.length;
     +'</div></details>'):'';
   const sent=HWP.status==='submitted'||HWP.status==='reviewed';
   const thumbs=HWP.images.map((im,i)=>`<div style="position:relative;display:inline-block;margin:2px"><img src="${im}" style="width:48px;height:48px;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff"><button data-act="hwDelImg" data-id="${i}" style="position:absolute;top:-6px;right:-6px;background:#A33227;color:#fff;border:none;border-radius:50%;width:18px;height:18px;line-height:16px;cursor:pointer;padding:0">×</button></div>`).join('');
-  return `<div class="stroke-box" style="max-width:320px">
+  const _z=hwSize();/* HWBIG_V1573 */
+  return `<div class="stroke-box" style="max-width:${_z+44}px;max-height:96vh;overflow:auto">
     <button class="stroke-x" data-act="hwClose" aria-label="關閉">✕</button>
     ${/* WRITEHW_V1566 作業模式：上面寫清楚這個字還要寫幾次、整份還剩幾次 */''}
     ${HWP.task?(function(){const t=HWP.task,need=wtNeed(t),got=wtGot(t.id,_gc);
@@ -4124,7 +4126,7 @@ function hwriteInner(){const n=HWP.images.length;
     ${_pick}
     ${/* HWPICK_V1572 「看筆順示範」本來卡在選字和米字格中間，把它搬到下面
           跟「重寫這個字」「提示這一筆」同一排——那三顆都是「這個字幫我一下」。 */''}
-    <div style="position:relative;width:260px;height:260px;margin:0 auto;border:2px solid #C0CEE0;border-radius:12px;background:#fff;overflow:hidden">
+    <div style="position:relative;width:${_z}px;height:${_z}px;margin:0 auto;border:2px solid #C0CEE0;border-radius:12px;background:#fff;overflow:hidden">
       <!-- TZS_V1496 米字格：本來只有一個空的虛線框，字寫出來偏一邊、大小也抓不準。
            中線虛線、對角線更淡，跟練習簿上的格子一樣。 -->
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"
@@ -4135,7 +4137,7 @@ function hwriteInner(){const n=HWP.images.length;
         <line x1="0" y1="50" x2="100" y2="50" stroke="#D3DEEC" stroke-width=".6" stroke-dasharray="3 2.6"/>
       </svg>
       ${_quiz?'':`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${gsize}px;color:#FDF3D8;pointer-events:none;user-select:none;font-family:'Kaiti TC','Kaiti','DFKai-SB','BiauKai',serif;line-height:1">${guide}</div>`}
-      <div id="hw-quiz" style="position:relative;width:260px;height:260px;touch-action:none"></div>
+      <div id="hw-quiz" style="position:relative;width:${_z}px;height:${_z}px;touch-action:none"></div>
       ${/* HWFIX_V1565 筆順示範蓋在同一個框上面，所以點開點收框都不會變高、
             底下的字也不用重畫（學生描到一半的筆畫留得住） */''}
       <div id="hw-demo" style="position:absolute;inset:0;background:#fff;display:${HWP_DEMO_OPEN?'block':'none'}"></div>
@@ -4156,6 +4158,18 @@ function hwriteInner(){const n=HWP.images.length;
       'Viết từng nét theo thứ tự; sai sẽ dừng lại ở nét đó, sai hai lần sẽ gợi ý.',
       'Write stroke by stroke in order; a wrong stroke stops there, and after two misses you get a hint.')}</div>
   </div>`;}
+/* HWBIG_V1573 Quinn：「視窗能不能大一點」。
+   米字格本來寫死 260×260，不管螢幕多大都一樣——手機上還行，電腦上就是一個小方塊。
+   改成照畫面算：寬度扣掉視窗左右的留白，高度扣掉視窗裡其他東西
+   （標題、挑字那一行、第幾筆、三顆幫忙的、上一個下一個、說明，加起來大約 330px），
+   夾在 240～420 之間。小螢幕不會比以前小，大螢幕就撐得開。 */
+function hwSize(){
+  let w=820,h=900;
+  try{w=window.innerWidth||820;h=window.innerHeight||900;}catch(e){}
+  const byW=w-76;          /* 視窗左右各 20 的外距 ＋ 盒子左右各 18 的內距 */
+  const byH=h-330;         /* 視窗裡除了格子以外的東西 */
+  return Math.max(240,Math.min(420,Math.floor(Math.min(byW,byH))));
+}
 let HWP_STROKES=[],HWP_ERASE=false,HWP_DEMO_OPEN=false;
 /* HWPICK_V1572 選字那一塊開著還是收著要記住——換字會整個重畫，不記就每次自己合起來 */
 let HWP_PICK_OPEN=false;
@@ -4199,7 +4213,8 @@ function hwRenderQuiz(){
     box.innerHTML='<div class="hint" style="padding:16px;text-align:center">'
       +hwL('這個不是漢字，沒有筆順','Ký tự này không có thứ tự nét','No stroke data')+'</div>';return;}
   try{
-    HWQ=HanziWriter.create(box,c,{width:260,height:260,padding:8,
+    const _z=hwSize();/* HWBIG_V1573 */
+    HWQ=HanziWriter.create(box,c,{width:_z,height:_z,padding:8,
       showCharacter:false,showOutline:true,
       outlineColor:'#D9E3F0',strokeColor:'#16202E',drawingColor:'#1E4C86',
       drawingWidth:18,showHintAfterMisses:2,highlightOnComplete:true,
