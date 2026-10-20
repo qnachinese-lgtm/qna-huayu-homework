@@ -9,6 +9,7 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- JOINAUTH_V1 學生登入作答；PSYNC_V1 答案存進練習題 -->
 <!-- REVIEW_V1 複習自動產生、抽生詞 -->
 <!-- GREVEAL_V1 語法答案一題一題顯示 -->
 <!-- APLAYER_V3 播放器精簡、聽寫按鈕減少 -->
@@ -1197,7 +1198,7 @@ function fromDoc(id, d){
     speak: cells(d.speak,2).filter(r=>r[0]), qa: cells(d.qa,2).filter(r=>r[0]), qa2: cells(d.qa2,2).filter(r=>r[0]), qaSplit: !!d.qaSplit, culture: {title: d.cultTitle || "", paras: rows(d.cultText), img: d.cultImg || null},
     dict: cells(d.dict,3).map(r=>{r[0]=normRole(r[0]);return r}).filter(r=>r[2]), audio: d.audio && d.audio.url ? {url:d.audio.url, name:d.audio.name||"", path:d.audio.path||""} : null,
     orderImgs: Array.isArray(d.orderImgs) ? d.orderImgs.filter(x=>x && x.url) : [],
-    cards: cells(d.cards,5).filter(r=>r[1]), review: rows(d.review), homework: rows(d.homework) };
+    cards: cells(d.cards,5).filter(r=>r[1]), review: rows(d.review), homework: rows(d.homework), src: d.src || "" };
 }
 function toDoc(L){
   return { num: Number(L.num)||0, name: L.name, pinyin: L.pinyin, textTitle: L.textTitle||"", goals: join(L.goals), words: join(L.words), words2: join(L.words2||[]),
@@ -1786,7 +1787,7 @@ function liveOpen(mode){ const box = liveUI(); box.hidden = false; box.dataset.d
   $("#liveIn").innerHTML = !db ? head("學生作答", "請先用老師帳號登入。")
     : on ? head("學生作答中", (LIVE.cls ? "班級 " + esc(LIVE.cls) + "・" : "") + "學生的題目會跟著投影片換頁") + `<div class="lgrid"><div class="qr" id="liveQr"></div><div><div class="lcode">作答代碼</div><div class="code">${LIVE.code}</div><div class="lnk">${esc(liveLink())}</div><span class="lcount"><i></i>已有 ${nS} 位學生送出答案</span></div></div>
       <div class="lfoot"><button class="lbtn warn" data-lx="stop">結束作答</button><button class="lbtn ghost" data-lx="copy">複製連結</button><button class="lbtn" data-lx="close">回到投影片</button></div><div class="msg" id="liveMsg"></div>`
-    : head("學生作答", "學生用手機作答，不用登入") + `<label class="lcls"><span>班級</span><select id="liveCls"><option value="">不指定（一對一）</option>${(LIVE.groups||[]).map(g=>`<option${g===LIVE.lastCls?" selected":""}>${esc(g)}</option>`).join("")}</select></label><ol class="lsteps"><li><b>1</b>按「開始作答」，畫面會出現 QR code</li><li><b>2</b>學生掃 QR code，輸入自己的名字</li><li><b>3</b>學生送出的答案會出現在投影片上</li></ol>
+    : head("學生作答", "學生用自己的帳號登入作答") + `<label class="lcls"><span>班級</span><select id="liveCls"><option value="">不指定（一對一）</option>${(LIVE.groups||[]).map(g=>`<option${g===LIVE.lastCls?" selected":""}>${esc(g)}</option>`).join("")}</select></label><ol class="lsteps"><li><b>1</b>按「開始作答」，畫面會出現 QR code</li><li><b>2</b>學生掃 QR code，登入學生帳號</li><li><b>3</b>答案會出現在投影片上，也會存進學生的練習題</li></ol>
       <button class="lbtn full" data-lx="start">開始作答</button><div class="msg" id="liveMsg"></div>`;
   $("#liveIn").onclick = liveAct;
   if(!on && db && !LIVE.groups) liveGroups().then(() => { if(!LIVE.code && !$("#liveBox").hidden && $("#liveCls")) liveOpen(); });
@@ -1852,11 +1853,57 @@ function recAct(e){ const b = e.target.closest("button"); if(!b) return;
   if(b.dataset.rx === "csv"){ const q = x => `"${String(x).replace(/"/g, '""')}"`; const csv = "\ufeff" + [["班級","課","練習","題目","學生","答案"], ...LIVE.recRows].map(r => r.map(q).join(",")).join("\r\n");
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"})); a.download = LIVE.recName + ".csv"; document.body.appendChild(a); a.click(); a.remove(); } }
 document.addEventListener("click", e => { if(e.target.closest("#recBtn")){ $("#tmPanel").hidden = true; LIVE.recCls = null; recOpen(); } });
+/* PSYNC_V1 學生登入作答的答案，自動存進他在學習平台的練習題（草稿，學生回家打開就看得到，按送出就好） */
+const PS = {done: {}, cache: {}, t: null};
+const psN = s => String(s||"").replace(/[【】]/g, "").replace(/^\s*[0-9０-９]+\s*[.、．)）]\s*/, "").replace(/[\s　]+/g, "");
+async function psSrc(lid){ if(PS.cache[lid]) return PS.cache[lid]; const f = liveDb(); const out = {qs: [], disc: []};
+  try { out.qs = (await f.collection("questions").where("lesson_id", "==", lid).get()).docs.map(d => ({id: d.id, ...d.data()})); } catch(e){}
+  try { const l = (await f.collection("lessons").doc(lid).get()).data() || {}; const ds = Array.isArray(l.dialogues) && l.dialogues.length ? l.dialogues : [{discussion: l.discussion || ""}];
+    ds.forEach((d, di) => String((d && d.discussion) || "").split("\n").map(x => x.trim().replace(/^\d+\s*[.、）)．]\s*/, "")).filter(Boolean).forEach((q, qi) => out.disc.push({k: di + "_" + qi, n: psN(q)}))); } catch(e){}
+  return PS.cache[lid] = out; }
+function psQText(q){ let p = String(q.prompt||"").trim(); if(q.type === "choice" && (q.options||[]).length) p += "　" + q.options.map((o,i) => "（" + String.fromCharCode(97+i) + "）" + o).join(" "); return psN(clean(p)); }
+function psPick(v, opts){ v = String(v||"").trim(); const L = v.match(/^[（(]?\s*([a-zA-Z])\s*[）)]?\.?$/); if(L) return L[1].toLowerCase().charCodeAt(0) - 97;
+  const N = v.match(/^[0-9]$/); if(N) return +v - 1; const i = (opts||[]).findIndex(o => psN(String(o).replace(/^[（(]?[a-zA-Z][）)．.、]\s*/, "")) === psN(v)); return i; }
+function psSync(){ clearTimeout(PS.t); PS.t = setTimeout(psRun, 2500); }
+async function psRun(){ const f = liveDb(); if(!f || !db) return;
+  const todo = (LIVE.ans||[]).filter(d => String(d._id||"").startsWith("u_") && PS.done[d._id] !== d.t); if(!todo.length) return;
+  const byU = {}; todo.forEach(d => { const uid = d._id.slice(2).split("__")[0]; (byU[uid] = byU[uid] || []).push(d); });
+  for(const uid of Object.keys(byU)){
+    try { const st = (await f.collection("students").where("uid", "==", uid).limit(1).get()).docs[0]; if(!st) continue; const sid = st.id;
+      const mine = (await f.collection("results").where("uid", "==", uid).get()).docs.map(d => ({ref: d.ref, ...d.data()}));
+      const byL = {};
+      for(const a of byU[uid]){ const mm = String(a.q||"").match(/^([^:]+):(.+)$/); if(!mm) continue; const slid = mm[1], part = mm[2];
+        const L = lessons.find(x => x.id === slid); const lid = L && (L.src || (slid.startsWith("src_") ? slid.slice(4) : "")); if(!lid) continue;
+        const src = await psSrc(lid), B = byL[lid] = byL[lid] || {ans: {}, disc: {}};
+        if(part === "qa" || part === "qa2"){ (L[part]||[]).forEach((q, i) => { const v = (a.a||{})[i]; if(!v) return; const hit = src.disc.find(x => x.n === psN(q[0])); if(hit) B.disc[hit.k] = v; }); }
+        const g = part.match(/^g(\d+)p(\d+)$/); if(g){ const ex = ((GR(L)[+g[1]] || {}).exs || [])[+g[2] - 1]; if(!ex) continue;
+          (ex.qs||[]).forEach((q, i) => { const v = String((a.a||{})[i] || "").trim(); if(!v) return; const n = psN(q[0]);
+            let Q = src.qs.find(x => x.type !== "opt" && psQText(x) === n);
+            if(Q){ if(Q.type === "qa") B.ans[Q.id] = v;
+              else if(Q.type === "fill" && Q.input_mode !== "write"){ const nb = (String(Q.prompt||"").match(/[_＿]{2,}/g) || []).length;
+                if(nb > 1){ let ps = v.split(/\s*[／/、,，;；]\s*/); if(ps.length !== nb) ps = v.split(/\s+/); if(ps.length !== nb) ps = [v]; B.ans[Q.id] = [...Array(nb).keys()].map(k => ps[k] || ""); } else B.ans[Q.id] = v; }
+              else if(Q.type === "choice"){ const k = psPick(v, Q.options); if(k >= 0 && k < (Q.options||[]).length) B.ans[Q.id] = k; }
+              return; }
+            Q = src.qs.find(x => x.type === "opt" && (x.items||[]).some(it => psN(clean(it.text||"")) === n)); if(!Q) return;
+            const its = Q.items || [], ii = its.findIndex(it => psN(clean(it.text||"")) === n);
+            const arr = Array.isArray(B.ans[Q.id]) ? B.ans[Q.id] : its.map(it => it.mode === "open" ? {t: ""} : {s: []});
+            if(its[ii].mode === "open") arr[ii] = {t: v}; else { const k = psPick(v, Q.options); if(k >= 0 && k < (Q.options||[]).length) arr[ii] = {s: [k]}; }
+            B.ans[Q.id] = arr; }); } }
+      const now = new Date().toISOString();
+      for(const lid of Object.keys(byL)){ const B = byL[lid];
+        if(Object.keys(B.ans).length){ const r = mine.find(x => x.lesson_id === lid);
+          if(!r) await f.collection("results").add({lesson_id: lid, student_id: sid, uid, answers: B.ans, status: "draft", created_at: now, updated_at: now, saved_at: now, from_class: LIVE.code || ""});
+          else if(!r.status || r.status === "draft") await r.ref.update({answers: Object.assign({}, r.answers || {}, B.ans), status: "draft", updated_at: now, saved_at: now, from_class: LIVE.code || ""}); }
+        if(Object.keys(B.disc).length){ const r = mine.find(x => x.kind === "discussion" && x.disc_lesson === lid);
+          if(!r) await f.collection("results").add({kind: "discussion", lesson_id: "__discussion__", disc_lesson: lid, uid, student_id: sid, student_name: String(st.data().name || ""), answers: B.disc, status: "draft", created_at: now, saved_at: now, from_class: LIVE.code || ""});
+          else if(!r.status || r.status === "draft") await r.ref.update({answers: Object.assign({}, r.answers || {}, B.disc), status: "draft", saved_at: now, from_class: LIVE.code || ""}); } }
+      byU[uid].forEach(d => PS.done[d._id] = d.t);
+    } catch(e){ console.warn("psync", e); } } }
 function liveUnsub(){ if(LIVE.unA){ LIVE.unA(); LIVE.unA = null; } if(LIVE.unS){ LIVE.unS(); LIVE.unS = null; } livePill(); }
 function livePill(){ const p = $("#livePill"); if(!p) return; p.hidden = !(LIVE.code && LIVE.open && db); p.textContent = `作答中・${new Set(LIVE.ans.map(d => d.name)).size} 人`; }
 function liveSub(){ liveUnsub(); if(!LIVE.code || !db) return; const ref = liveDb().collection("slide_live").doc(LIVE.code);
   LIVE.unS = ref.onSnapshot(s => { LIVE.open = !!(s.exists && s.data().open); if(!LIVE.open){ liveUnsub(); LIVE.code = null; try { localStorage.removeItem("slides-live"); } catch(e){} } else { LIVE.sig = ""; livePush(); } livePill(); }, () => {});
-  LIVE.unA = ref.collection("answers").onSnapshot(s => { LIVE.ans = s.docs.map(d => ({_id: d.id, ...d.data()})); livePill(); if($("#modal").hidden){ document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); } }, err => console.warn("live answers", err)); }
+  LIVE.unA = ref.collection("answers").onSnapshot(s => { LIVE.ans = s.docs.map(d => ({_id: d.id, ...d.data()})); livePill(); psSync(); if($("#modal").hidden){ document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); } }, err => console.warn("live answers", err)); }
 if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u => { const r = $("#liveRow"); if(r) r.hidden = !u; if(u && LIVE.code){ LIVE.open = true; liveSub(); } else if(!u) liveUnsub(); });
 /* GATE_V1 投影片要老師登入才看得到；學生作答連結（?join=）不受影響 */
 (function gate(){ if(/[?&]join=/i.test(location.search)) return;
@@ -1930,16 +1977,19 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
   setTimeout(place, 300);
 })();
 /* 學生端：slides.html?join=代碼 */
+/* JOINAUTH_V1 學生用學習平台的帳號登入再作答；答案會自動存進他自己的練習題 */
 (function joinApp(){ const m = location.search.match(/[?&]join=([A-Z0-9]{4,10})/i); if(!m) return;
   const code = m[1].toUpperCase(), fs = liveDb(); const root = document.createElement("div"); root.id = "joinApp"; document.body.appendChild(root);
-  let cid = ""; try { cid = localStorage.getItem("join-cid") || ""; if(!cid){ cid = Math.random().toString(36).slice(2, 12); localStorage.setItem("join-cid", cid); } } catch(e){ cid = Math.random().toString(36).slice(2, 12); }
-  let name = ""; try { name = localStorage.getItem("join-name") || ""; } catch(e){}
-  let cur = null, state = "load", roster = [];
+  let me = null, cur = null, state = "load", auth = "wait", lerr = "";
   const dk = k => "join-" + code + "-" + k; const draft = k => { try { return JSON.parse(localStorage.getItem(dk(k)) || "{}"); } catch(e){ return {}; } };
   const fmt = s => esc(s).replace(/(\S)\s*([AB甲乙][：:])/g, "$1<br>$2").replace(/＿{2,}|_{3,}/g, "＿＿＿＿");
-  function draw(msg, cls){ const head = `<header class="jh"><span class="logo">Q</span><b>課堂作答</b>${name ? `<span class="who">${esc(name)}<button type="button" data-j="rename">換名字</button></span>` : ""}</header>`;
-    if(!name){ if(root.querySelector("form[data-j='name']") && root.dataset.ros === JSON.stringify(roster)) return; root.dataset.ros = JSON.stringify(roster);
-      root.innerHTML = head + `<form class="jcard" data-j="name"><h2>${roster.length ? "你是哪一位？" : "請輸入你的名字"}</h2>${roster.length ? `<div class="roster">${roster.map(n => `<button type="button" data-jn="${esc(n)}">${esc(n)}</button>`).join("")}</div><div class="or">名單上沒有你？在下面輸入名字</div>` : ""}<input id="jn" maxlength="20" autocomplete="name" placeholder="名字"${roster.length ? "" : " required"}><button class="send" type="submit">進入</button></form>`; return; }
+  function draw(msg, cls){ const head = `<header class="jh"><span class="logo">Q</span><b>課堂作答</b>${me ? `<span class="who">${esc(me.name)}<button type="button" data-j="out">登出</button></span>` : ""}</header>`;
+    if(auth === "wait"){ root.innerHTML = head + `<div class="jcard"><div class="note">連線中…</div></div>`; return; }
+    if(auth === "out"){ if(root.querySelector("form[data-j='login']")){ const e = $("#jerr"); if(e) e.textContent = lerr; return; }
+      root.innerHTML = head + `<form class="jcard" data-j="login"><h2>登入你的學生帳號</h2><div class="instr">跟平常寫練習題的帳號一樣</div>
+        <input id="jem" type="email" autocomplete="username" placeholder="Email" required><input id="jpw" type="password" autocomplete="current-password" placeholder="密碼" required>
+        <button class="send" type="submit">登入</button><div class="note err" id="jerr">${esc(lerr)}</div></form>`; return; }
+    if(auth === "nostu"){ root.innerHTML = head + `<div class="jcard"><div class="note err">這個帳號不是學生帳號。</div><button class="send" type="button" data-j="out">換一個帳號</button></div>`; return; }
     if(state === "load"){ root.innerHTML = head + `<div class="jcard"><div class="note">連線中…</div></div>`; return; }
     if(state === "closed"){ root.innerHTML = head + `<div class="jcard"><div class="note">這個作答連結已經結束了。</div></div>`; return; }
     if(!cur){ root.innerHTML = head + `<div class="jcard"><div class="note">等老師出題…</div></div>`; return; }
@@ -1950,23 +2000,30 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
       ${(cur.items||[]).map((q, i) => `<label class="item"><span class="q"><i>${i+1}</i>${cur.kind === "dict" ? "" : fmt(q)}</span>${cur.kind === "dict" ? `<input data-i="${i}" maxlength="40" value="${esc(d[i] || "")}" placeholder="第 ${i+1} 格">` : `<textarea data-i="${i}" maxlength="500">${esc(d[i] || "")}</textarea>`}</label>`).join("")}
       <button class="send" type="submit">送出</button><div class="note ${cls || ""}" id="jmsg">${msg || ""}</div></form>`; }
   root.addEventListener("input", e => { const t = e.target; if(!cur || t.dataset.i === undefined) return; const d = draft(cur.key); d[t.dataset.i] = t.value; try { localStorage.setItem(dk(cur.key), JSON.stringify(d)); } catch(err){} });
-  root.addEventListener("click", e => { if(e.target.closest("[data-j='rename']")){ name = ""; root.innerHTML = ""; draw(); return; }
-    const nb = e.target.closest("[data-jn]"); if(nb){ name = nb.dataset.jn; try { localStorage.setItem("join-name", name); } catch(err){} root.innerHTML = ""; draw(); } });
+  root.addEventListener("click", e => { if(e.target.closest("[data-j='out']")){ firebase.auth().signOut(); } });
   root.addEventListener("submit", async e => { e.preventDefault(); const f = e.target;
-    if(f.dataset.j === "name"){ name = $("#jn").value.trim().slice(0, 20); if(!name){ $("#jn").focus(); return; } try { localStorage.setItem("join-name", name); } catch(err){} root.innerHTML = ""; return draw(); }
-    if(f.dataset.j === "send" && cur){ const a = {}; f.querySelectorAll("[data-i]").forEach(x => { const v = x.value.trim().slice(0, 500); if(v) a[x.dataset.i] = v; });
+    if(f.dataset.j === "login"){ const b = f.querySelector(".send"); b.disabled = true; lerr = ""; draw();
+      try { await firebase.auth().signInWithEmailAndPassword($("#jem").value.trim(), $("#jpw").value); }
+      catch(err){ lerr = /network/i.test(err && err.code || "") ? "連不上網路，請再試一次。" : "Email 或密碼不對。"; b.disabled = false; draw(); } return; }
+    if(f.dataset.j === "send" && cur && me){ const a = {}; f.querySelectorAll("[data-i]").forEach(x => { const v = x.value.trim().slice(0, 500); if(v) a[x.dataset.i] = v; });
       if(!Object.keys(a).length){ $("#jmsg").textContent = "請先寫答案。"; return; }
       const btn = f.querySelector(".send"); btn.disabled = true;
-      try { await fs.collection("slide_live").doc(code).collection("answers").doc((cid + "_" + cur.key).replace(/\//g, "_").slice(0, 140)).set({name, q: cur.key, a, t: Date.now()});
+      try { await fs.collection("slide_live").doc(code).collection("answers").doc(("u_" + me.uid + "__" + cur.key).replace(/\//g, "_").slice(0, 300)).set({name: me.name, q: cur.key, a, t: Date.now()});
         $("#jmsg").textContent = "已送出 ✓（改了可以再送出一次）"; $("#jmsg").className = "note ok"; }
       catch(err){ $("#jmsg").textContent = "送出失敗，請再試一次。"; $("#jmsg").className = "note err"; }
       btn.disabled = false; } });
   draw();
-  if(!fs){ state = "closed"; return draw(); }
-  fs.collection("slide_live").doc(code).onSnapshot(s => { if(!s.exists || !s.data().open){ state = "closed"; cur = null; return draw(); }
-    const nc = s.data().cur || null, changed = JSON.stringify(nc) !== JSON.stringify(cur); state = "on"; cur = nc; roster = Array.isArray(s.data().roster) ? s.data().roster : [];
-    if(!name){ draw(); return; }
-    if(changed || !root.querySelector("form[data-j='send']")) draw(); }, () => { state = "closed"; draw(); });
+  if(!fs){ auth = "on"; state = "closed"; return draw(); }
+  let unS = null;
+  const listen = () => { if(unS) return; unS = fs.collection("slide_live").doc(code).onSnapshot(s => { if(!s.exists || !s.data().open){ state = "closed"; cur = null; return draw(); }
+    const nc = s.data().cur || null, changed = JSON.stringify(nc) !== JSON.stringify(cur); state = "on"; cur = nc;
+    if(changed || !root.querySelector("form[data-j='send']")) draw(); }, () => { state = "closed"; draw(); }); };
+  firebase.auth().onAuthStateChanged(async u => {
+    if(!u){ me = null; auth = "out"; if(unS){ unS(); unS = null; } cur = null; state = "load"; root.innerHTML = ""; return draw(); }
+    try { const s = await fs.collection("students").where("uid", "==", u.uid).limit(1).get(); const d = s.docs[0];
+      if(!d){ me = null; auth = "nostu"; return draw(); }
+      me = {uid: u.uid, sid: d.id, name: String(d.data().name || u.email || "").trim().slice(0, 30)}; auth = "on"; draw(); listen(); }
+    catch(err){ me = null; auth = "nostu"; draw(); } });
 })();
 fillSel(); LESSON = lessons.find(x=>x.id===curId) || SAMPLE; applyFlow();
 shuffle(); render(); fit();
