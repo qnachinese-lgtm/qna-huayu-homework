@@ -9,6 +9,7 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- JOINUI_V2 作答頁對話排版、空格直接打；LIVELOOP_V1 多分頁不互搶 -->
 <!-- JOINFIX_V1 作答頁不再跳動；GATE_V3 只有老師帳號能進投影片 -->
 <!-- JOINAUTH_V1 學生登入作答；PSYNC_V1 答案存進練習題 -->
 <!-- REVIEW_V1 複習自動產生、抽生詞 -->
@@ -523,14 +524,23 @@ html.joinmode,.joinmode body{height:auto;overflow:auto}
 #joinApp .jh{display:flex;align-items:center;gap:10px;margin-bottom:14px}
 #joinApp .jh .logo{width:36px;height:36px;border-radius:10px;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700}
 #joinApp .jh b{font-size:20px;color:var(--navy)}
-#joinApp .jh .who{margin-left:auto;white-space:nowrap;display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted)}
-#joinApp .jh .who button{all:unset;cursor:pointer;text-decoration:underline;margin-left:6px}
+#joinApp .jh .jwho{margin-left:auto;white-space:nowrap;display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted)}
+#joinApp .jh .jwho button{all:unset;cursor:pointer;text-decoration:underline;margin-left:6px}
 #joinApp .jcard{background:#fff;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
 #joinApp h2{margin:0;font-size:20px;color:var(--navy)}
 #joinApp .instr{font-size:16px;color:var(--muted)}
 #joinApp .opts{border:2px dashed var(--sky);border-radius:12px;padding:8px 12px;font-size:17px;line-height:1.7}
 #joinApp .lines{font-size:18px;line-height:1.8;background:var(--ice);border-radius:12px;padding:8px 12px}
-#joinApp .item{display:flex;flex-direction:column;gap:6px}
+#joinApp .item{display:flex;flex-direction:row;gap:12px;align-items:flex-start;background:var(--ice);border-radius:14px;padding:14px 16px}
+#joinApp .item .no{font-style:normal;flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--navy);color:#fff;font-size:15px;font-family:"Times New Roman",serif;margin-top:3px}
+#joinApp .qb{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+#joinApp .dl{display:flex;gap:8px;font-size:18px;line-height:1.9}
+#joinApp .dl b{flex:none;color:var(--navy);font-family:"Times New Roman",serif;font-weight:700;width:18px}
+#joinApp .dl span{flex:1;min-width:0}
+#joinApp .jh .jwho{flex:none}
+#joinApp input.bl{width:7em;max-width:100%;border:none;border-bottom:2px solid var(--navy);border-radius:0;background:transparent;padding:0 4px;font-size:18px;color:var(--navy);text-align:center;vertical-align:baseline}
+#joinApp input.bl:focus{outline:none;background:#fff}
+#joinApp .qb textarea{margin-top:4px;background:#fff}
 #joinApp .item .q{font-size:18px;line-height:1.6}
 #joinApp .item .q i{font-style:normal;display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;font-size:14px;margin-right:6px}
 #joinApp textarea,#joinApp input{font:inherit;font-size:18px;padding:8px 10px;border:2px solid var(--sky);border-radius:10px;width:100%;box-sizing:border-box;background:#fff;color:var(--fg)}
@@ -1727,7 +1737,7 @@ function liveCur(){
     if(!n) return null; LIVE.right = right;
     return {key: base + "dict", kind: "dict", title: "聽寫", instr: "聽音檔，把空格的詞打出來。", opts: [], lines, items: right.map((_, i) => "第 " + (i+1) + " 格")}; }
   return null; }
-function livePush(){ if(!LIVE.code || !db || !LIVE.open || /[?&]join=/i.test(location.search)) return; const c = liveCur(), sig = JSON.stringify(c);
+function livePush(){ if(!LIVE.code || !db || !LIVE.open || document.hidden || /[?&]join=/i.test(location.search)) return; const c = liveCur(), sig = JSON.stringify(c);
   if(sig === LIVE.sig) return; LIVE.sig = sig; clearTimeout(LIVE.t);
   LIVE.t = setTimeout(() => { const ref = liveDb().collection("slide_live").doc(LIVE.code); (c ? ref.update("cur", c, "t", Date.now(), new firebase.firestore.FieldPath("qs", c.key), {title: c.title, items: c.items, kind: c.kind, right: c.kind === "dict" ? (LIVE.right||[]) : []}) : ref.update({cur: null, t: Date.now()})).catch(e => console.warn("live", e)); }, 250); }
 function ansFor(key, i){ const out = [];
@@ -1901,10 +1911,12 @@ async function psRun(){ const f = liveDb(); if(!f || !db) return;
           else if(!r.status || r.status === "draft") await r.ref.update({answers: Object.assign({}, r.answers || {}, B.disc), status: "draft", saved_at: now, from_class: LIVE.code || ""}); } }
       byU[uid].forEach(d => PS.done[d._id] = d.t);
     } catch(e){ console.warn("psync", e); } } }
+/* LIVELOOP_V1 只有正在看的那個分頁會換題，不會好幾個分頁互搶 */
+document.addEventListener("visibilitychange", () => { if(!document.hidden && LIVE.code){ LIVE.sig = ""; livePush(); } });
 function liveUnsub(){ if(LIVE.unA){ LIVE.unA(); LIVE.unA = null; } if(LIVE.unS){ LIVE.unS(); LIVE.unS = null; } livePill(); }
 function livePill(){ const p = $("#livePill"); if(!p) return; p.hidden = !(LIVE.code && LIVE.open && db); p.textContent = `作答中・${new Set(LIVE.ans.map(d => d.name)).size} 人`; }
 function liveSub(){ liveUnsub(); if(!LIVE.code || !db || /[?&]join=/i.test(location.search)) return; const ref = liveDb().collection("slide_live").doc(LIVE.code);
-  LIVE.unS = ref.onSnapshot(s => { LIVE.open = !!(s.exists && s.data().open); if(!LIVE.open){ liveUnsub(); LIVE.code = null; try { localStorage.removeItem("slides-live"); } catch(e){} } else { LIVE.sig = ""; livePush(); } livePill(); }, () => {});
+  LIVE.unS = ref.onSnapshot(s => { LIVE.open = !!(s.exists && s.data().open); if(!LIVE.open){ liveUnsub(); LIVE.code = null; try { localStorage.removeItem("slides-live"); } catch(e){} } else if(!document.hidden && JSON.stringify(s.data().cur || null) !== JSON.stringify(liveCur())){ LIVE.sig = ""; livePush(); } livePill(); }, () => {});
   LIVE.unA = ref.collection("answers").onSnapshot(s => { LIVE.ans = s.docs.map(d => ({_id: d.id, ...d.data()})); livePill(); psSync(); if($("#modal").hidden){ document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); } }, err => console.warn("live answers", err)); }
 if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u => { const r = $("#liveRow"); if(r) r.hidden = !u; if(u && LIVE.code){ LIVE.open = true; liveSub(); } else if(!u) liveUnsub(); });
 /* GATE_V1 投影片要老師登入才看得到；學生作答連結（?join=）不受影響 */
@@ -1986,8 +1998,15 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
   const code = m[1].toUpperCase(), fs = liveDb(); const root = document.createElement("div"); root.id = "joinApp"; document.body.appendChild(root);
   let me = null, cur = null, state = "load", auth = "wait", lerr = "";
   const dk = k => "join-" + code + "-" + k; const draft = k => { try { return JSON.parse(localStorage.getItem(dk(k)) || "{}"); } catch(e){ return {}; } };
-  const fmt = s => esc(s).replace(/(\S)\s*([AB甲乙][：:])/g, "$1<br>$2").replace(/＿{2,}|_{3,}/g, "＿＿＿＿");
-  function draw(msg, cls){ const head = `<header class="jh"><span class="logo">Q</span><b>課堂作答</b>${me ? `<span class="who">${esc(me.name)}<button type="button" data-j="out">登出</button></span>` : ""}</header>`;
+  /* JOINUI_V2 對話分行、A/B 標在前面；空格直接打在線上 */
+  const BL = /[＿_]{2,}/g;
+  const jItem = (q, i, dv) => { const parts = String(dv || "").split("／"); let b = 0;
+    const lines = String(q).split(/\s*(?=[AB甲乙][：:])/).map(x => x.trim()).filter(Boolean);
+    const body = lines.map(l => { const m = l.match(/^([AB甲乙])[：:]\s*(.*)$/); const t = esc(m ? m[2] : l).replace(BL, () => { const v = parts[b] || ""; return `<input class="bl" data-i="${i}" data-b="${b++}" value="${esc(v)}" style="width:${Math.max(7, [...v].length + 1.5)}em" maxlength="80" aria-label="第 ${i+1} 題空格">`; });
+      return m ? `<div class="dl"><b>${m[1]}</b><span>${t}</span></div>` : `<div class="dl"><span>${t}</span></div>`; }).join("");
+    return `<div class="item${b ? "" : " open"}"><i class="no">${i+1}</i><div class="qb">${body}${b ? "" : `<textarea data-i="${i}" data-b="-1" maxlength="500" placeholder="寫你的回答">${esc(dv || "")}</textarea>`}</div></div>`; };
+  const jVal = (f, i) => { const xs = [...f.querySelectorAll(`[data-i="${i}"]`)]; if(xs.length === 1 && xs[0].dataset.b !== "0") return xs[0].value.trim(); const vs = xs.map(x => x.value.trim()); return vs.some(Boolean) ? vs.join("／") : ""; };
+  function draw(msg, cls){ const head = `<header class="jh"><span class="logo">Q</span><b>課堂作答</b>${me ? `<span class="jwho">${esc(me.name)}<button type="button" data-j="out">登出</button></span>` : ""}</header>`;
     if(auth === "wait"){ root.innerHTML = head + `<div class="jcard"><div class="note">連線中…</div></div>`; return; }
     if(auth === "out"){ if(root.querySelector("form[data-j='login']")){ const e = $("#jerr"); if(e) e.textContent = lerr; return; }
       root.innerHTML = head + `<form class="jcard" data-j="login"><h2>登入你的學生帳號</h2><div class="instr">跟平常寫練習題的帳號一樣</div>
@@ -2001,15 +2020,15 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
     root.innerHTML = head + `<form class="jcard" data-j="send"><h2>${esc(cur.title || "")}</h2>${cur.instr ? `<div class="instr">${esc(cur.instr)}</div>` : ""}
       ${(cur.opts||[]).length ? `<div class="opts">${cur.opts.map(o => `<div>${esc(o)}</div>`).join("")}</div>` : ""}
       ${(cur.lines||[]).length ? `<div class="lines">${cur.lines.map(l => `<div>${esc(l)}</div>`).join("")}</div>` : ""}
-      ${(cur.items||[]).map((q, i) => `<label class="item"><span class="q"><i>${i+1}</i>${cur.kind === "dict" ? "" : fmt(q)}</span>${cur.kind === "dict" ? `<input data-i="${i}" maxlength="40" value="${esc(d[i] || "")}" placeholder="第 ${i+1} 格">` : `<textarea data-i="${i}" maxlength="500">${esc(d[i] || "")}</textarea>`}</label>`).join("")}
+      ${(cur.items||[]).map((q, i) => cur.kind === "dict" ? `<label class="item"><span class="q"><i>${i+1}</i></span><input data-i="${i}" maxlength="40" value="${esc(d[i] || "")}" placeholder="第 ${i+1} 格"></label>` : jItem(q, i, d[i])).join("")}
       <button class="send" type="submit">送出</button><div class="note ${cls || ""}" id="jmsg">${msg || ""}</div></form>`; }
-  root.addEventListener("input", e => { const t = e.target; if(!cur || t.dataset.i === undefined) return; const d = draft(cur.key); d[t.dataset.i] = t.value; try { localStorage.setItem(dk(cur.key), JSON.stringify(d)); } catch(err){} });
+  root.addEventListener("input", e => { const t = e.target; if(!cur || t.dataset.i === undefined) return; if(t.classList.contains("bl")) t.style.width = Math.max(7, [...t.value].length + 1.5) + "em"; const d = draft(cur.key); d[t.dataset.i] = t.dataset.b === undefined ? t.value : jVal(t.form, t.dataset.i); try { localStorage.setItem(dk(cur.key), JSON.stringify(d)); } catch(err){} });
   root.addEventListener("click", e => { if(e.target.closest("[data-j='out']")){ firebase.auth().signOut(); } });
   root.addEventListener("submit", async e => { e.preventDefault(); const f = e.target;
     if(f.dataset.j === "login"){ const b = f.querySelector(".send"); b.disabled = true; lerr = ""; draw();
       try { await firebase.auth().signInWithEmailAndPassword($("#jem").value.trim(), $("#jpw").value); }
       catch(err){ lerr = /network/i.test(err && err.code || "") ? "連不上網路，請再試一次。" : "Email 或密碼不對。"; b.disabled = false; draw(); } return; }
-    if(f.dataset.j === "send" && cur && me){ const a = {}; f.querySelectorAll("[data-i]").forEach(x => { const v = x.value.trim().slice(0, 500); if(v) a[x.dataset.i] = v; });
+    if(f.dataset.j === "send" && cur && me){ const a = {}; [...new Set([...f.querySelectorAll("[data-i]")].map(x => x.dataset.i))].forEach(i => { const x = f.querySelector(`[data-i="${i}"]`); const v = (x.dataset.b === undefined ? x.value.trim() : jVal(f, i)).slice(0, 500); if(v && v.replace(/／/g, "")) a[i] = v; });
       if(!Object.keys(a).length){ $("#jmsg").textContent = "請先寫答案。"; return; }
       const btn = f.querySelector(".send"); btn.disabled = true;
       try { await fs.collection("slide_live").doc(code).collection("answers").doc(("u_" + me.uid + "__" + cur.key).replace(/\//g, "_").slice(0, 300)).set({name: me.name, q: cur.key, a, t: Date.now()});
