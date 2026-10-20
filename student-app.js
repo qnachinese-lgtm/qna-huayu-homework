@@ -486,7 +486,19 @@ function vocabBlockHtml(l,di,vocab,chips){
   const H_P=L({zh:'拼音',cn:'拼音',en:'Pinyin',vi:'Phiên âm'});
   const H_C=L({zh:'詞類',cn:'词类',en:'Type',vi:'Từ loại'});
   const H_M=L({zh:'翻譯',cn:'翻译',en:'Meaning',vi:'Nghĩa'});
-  let out='<div class="vocab-rows vtab">'
+  /* HWVOC_V1563 整課一起練：把這一課生詞裡的漢字去掉重複，照順序一個一個描。
+     走的是手寫區本來就有的「練字模式」（不會送出，純練）。 */
+  const _hwCs=(function(){const seen={},cs=[];
+    (vocab||[]).forEach(v=>[...String((v&&v.front)||'')].forEach(c=>{
+      if(!/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/.test(c)||seen[c])return;seen[c]=1;cs.push(c);}));
+    return cs.join('');})();
+  const _hwBar=_hwCs?('<div class="vhw-bar"><button type="button" class="vex-btn" data-act="hwVocAll" '
+    +'data-chars="'+esc(_hwCs)+'" data-lesson="'+esc(l.id)+'">✍️ '
+    +esc(LT({zh:'練這一課的字',cn:'练这一课的字',en:'Write the characters',vi:'Luyện viết chữ'}))
+    +'（'+[..._hwCs].length+'）</button>'
+    +'<span class="hint">'+esc(LT({zh:'一個一個描，有米字格和筆順',cn:'一个一个描，有米字格和笔顺',
+      en:'One by one, with a grid and stroke order',vi:'Viết từng chữ, có ô kẻ và thứ tự nét'}))+'</span></div>'):'';
+  let out=_hwBar+'<div class="vocab-rows vtab">'
     +`<div class="vtab-h">${esc(H_W)}</div><div class="vtab-h">${esc(H_P)}</div><div class="vtab-h">${esc(H_C)}</div><div class="vtab-h">${esc(H_M)}</div><div class="vtab-h"></div>`;
   vocab.forEach((v,k)=>{
     const hasEx=v.ex&&v.ex.length;
@@ -499,7 +511,15 @@ function vocabBlockHtml(l,di,vocab,chips){
       +`<div class="vtab-c vt-py" data-l="${esc(H_P)}">${rd?esc(rd):''}</div>`
       +`<div class="vtab-c vt-pos" data-l="${esc(H_C)}">${v.pos?`<span class="vpos">${esc(v.pos)}</span>`:''}</div>`
       +`<div class="vtab-c vt-mean" data-l="${esc(H_M)}">${v.back?esc(vocabMean(v)):''}</div>`
-      +`<div class="vtab-c vt-act">${hasEx?`<button type="button" class="vex-btn" data-act="vexTog" data-id="${exId}">📝 ${t('exLabel')}（${v.ex.length}）</button>`:''}</div>`
+      /* ══════ HWVOC_V1563 生詞表每一列加手寫 ══════
+         Quinn：「我還想要製作一個漢字手寫區，就是練習生詞那邊」。
+         手寫區（米字格、描紅底字、筆順示範、橡皮擦、送出給老師批改）TZS_V1496
+         就做好了，只是入口一直只在「🃏 單字卡」那一頁，課程內容的生詞表沒有，
+         所以她在生詞那邊找不到。這裡補上入口，開的是同一個手寫區、同一份紀錄
+         （送出過的會顯示 📤，老師看過的顯示 ✅），不是另外做一套。 */
+      +`<div class="vtab-c vt-act">${hasEx?`<button type="button" class="vex-btn" data-act="vexTog" data-id="${exId}">📝 ${t('exLabel')}（${v.ex.length}）</button>`:''}`
+        +`<button type="button" class="vex-btn vhw-btn" data-act="hwrite" data-text="${esc(v.front)}" data-lesson="${esc(l.id)}" title="${esc(LT({zh:'在米字格裡手寫這個詞，可以看筆順，寫完可以送給老師看',cn:'在米字格里手写这个词，可以看笔顺，写完可以送给老师看',en:'Write this word in the grid, with stroke order; you can send it to your teacher',vi:'Viết từ này trong ô kẻ, có thứ tự nét; viết xong có thể gửi cho cô'}))}">✍️${(function(){const d=(typeof hwvDocOf==='function')?hwvDocOf(l.id,v.front):null;return d?(d.status==='reviewed'?' ✅':' 📤'):'';})()}</button>`
+      +`</div>`
       +(hasEx?`<div class="vtab-ex hide" id="${exId}">${v.ex.map(x=>`<div class="ex-item">${exDlg(x)}</div>`).join('')}</div>`:'');
   });
   return out+'</div>';}
@@ -1633,7 +1653,7 @@ function wbWrongList(w,ans){
   (d.listen||[]).forEach(q=>{if(!q.ans)return;const v=(ans.listen||{})[q.n];if(v!==q.ans)push('listen',q.n,q.q||('聽力 '+q.n),v,q.ans);});
   return out;
 }
-function splitResults(rAll){rAll=rAll||[];S.mistDoc=rAll.find(x=>x.kind==='mistake')||null;S.acts=rAll.filter(x=>x.kind==='act');S.results=rAll.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq'&&x.kind!=='classlog');S.classlogs=rAll.filter(x=>x.kind==='classlog');S.leavereqs=rAll.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');S.wbdocs=rAll.filter(x=>x.kind==='wb');S.lqps=rAll.filter(x=>x.kind==='lqp');}
+function splitResults(rAll){rAll=rAll||[];S.mistDoc=rAll.find(x=>x.kind==='mistake')||null;S.acts=rAll.filter(x=>x.kind==='act');S.results=rAll.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq');S.leavereqs=rAll.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');S.wbdocs=rAll.filter(x=>x.kind==='wb');S.lqps=rAll.filter(x=>x.kind==='lqp');}
 function hwvDocOf(lid,word){return (S.hwvs||[]).find(x=>x.hwv_lesson===lid&&x.hwv_word===word)||null;}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
 function discDocOf(lid){return (S.discussions||[]).find(x=>x.disc_lesson===lid)||null;}
@@ -1824,7 +1844,6 @@ const NAVIC={
  info:'<circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5"/><path d="M12 7.9h.01"/>',
  oc:'<rect x="3" y="5" width="18" height="14" rx="2.6"/><path d="m10.4 9.4 4.6 2.6-4.6 2.6Z"/>',
  mine:'<path d="M4.5 20v-8M10 20V4.6M15.5 20v-5.4M21.5 20h-19"/>',
- classlog:'<path d="M6.5 3.5h8l3 3V20.5h-11Z"/><path d="M9.3 10.5h5.4M9.3 14h5.4M9.3 17.5h3.2"/>',
  acct:'<circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5"/><path d="M12 7.9h.01"/>'};
 function navIc(k){const b=NAVIC[k];
   return b?('<span class="ic"><svg class="nv-svg" viewBox="0 0 24 24" aria-hidden="true">'+b+'</svg></span>'):'';}
@@ -1855,7 +1874,7 @@ function renderNav(){
      選單這一排不再出現「📕 錯題本」。錯題本本身的程式（收錄、複習、mistDue…）
      原封不動留著，只是學生沒有入口；以後想放回來，把下面那一行的
      ['wrong','📕',(_mn[L]||_mn.zh),_md||''] 加回 items 就好。 */
-  const items=[['home','🏠',nl('home'),''],['content','📚',nl('course'),''],['work','✍️',t('navWork'),works],['grades','📈',t('navGrades'),fbN||''],['classlog','📝',LT({zh:'課堂紀錄',cn:'课堂记录',en:'Class record',vi:'Nhật ký lớp'}),''],['info','ℹ️',t('navInfo'),'']];
+  const items=[['home','🏠',nl('home'),''],['content','📚',nl('course'),''],['work','✍️',t('navWork'),works],['grades','📈',t('navGrades'),fbN||''],['info','ℹ️',t('navInfo'),'']];
   $('#snav').innerHTML=items.map(([id,ic,lb,n])=>`<button class="${S.section===id?'on':''}" data-act="section" data-id="${id}">${navIc(id)||`<span class="ic">${ic}</span>`}${esc(lb)}${n!==''&&n?`<span class="n">${n}</span>`:''}</button>`).join('');
 }
 /* ══════ BLANK_V1410 畫面畫不出來時，不要只剩一片空白 ══════
@@ -1915,7 +1934,7 @@ function _renderSectionRaw(){try{syncStickTop();}catch(e){}
   document.body.classList.remove('notes-active');
   renderNav();
   const _cr=document.getElementById('crumb');if(_cr){_cr.classList.add('hide');_cr.innerHTML='';}
-  ({home:renderHome,work:renderWork,content:renderContent,wb:renderWb,pron:renderPron,cards:renderCards,grades:renderGrades,wrong:renderWrong,info:renderInfo,classlog:renderClassLog}[S.section]||renderHome)();
+  ({home:renderHome,work:renderWork,content:renderContent,wb:renderWb,pron:renderPron,cards:renderCards,grades:renderGrades,wrong:renderWrong,info:renderInfo}[S.section]||renderHome)();
   convScreen();
 }
 
@@ -3142,18 +3161,6 @@ function renderInfo(){
   $('#screen').innerHTML='<div class="ip-wrap">'+css+head+(blocks.length?blocks.join(''):emptyHtml('\u2139\ufe0f',T.h,T.none))+'</div>';
   convScreen();
 }
-/* CLOG_V1 課堂紀錄：上課掃 QR code 作答的每一份答案（老師端自動存進來） */
-function renderClassLog(){
-  if(!document.getElementById('clog-css')){const st=document.createElement('style');st.id='clog-css';st.textContent='.clg{padding:16px 18px;margin-bottom:14px}.clg-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-bottom:1px solid rgba(30,76,134,.12);padding-bottom:10px;margin-bottom:6px}.clg-h b{font-size:17px;color:#1E4C86}.clg-h span{font-size:13px;color:#7A8699;white-space:nowrap}.clg-sec{margin-top:12px}.clg-sec h4{margin:0 0 6px;font-size:15px;color:#1E4C86}.clg-q{padding:8px 12px;background:#F2F6FC;border-radius:10px;margin-bottom:6px}.clg-qt{font-size:14px;color:#55627A;line-height:1.6}.clg-a{font-size:16px;margin-top:4px;line-height:1.6;white-space:pre-wrap}';document.head.appendChild(st);}
-  const h='<div class="pg-h"><h2>'+esc(LT({zh:'課堂紀錄',cn:'课堂记录',en:'Class record',vi:'Nhật ký lớp học'}))+'</h2></div>';
-  const ls=(S.classlogs||[]).slice().sort((a,b)=>(b.t||0)-(a.t||0));
-  if(!ls.length){$('#screen').innerHTML=h+emptyHtml('📝',LT({zh:'還沒有課堂紀錄',cn:'还没有课堂记录',en:'No class records yet',vi:'Chưa có nhật ký lớp học'}),LT({zh:'上課時掃 QR code 作答，答案會自動存在這裡。',cn:'上课时扫 QR code 作答，答案会自动存在这里。',en:'Answers you send in class (QR code) are saved here.',vi:'Câu trả lời trong lớp (quét QR) sẽ lưu ở đây.'}));return;}
-  const dt=v=>{const x=new Date(v);return (x.getMonth()+1)+'/'+x.getDate()+' '+String(x.getHours()).padStart(2,'0')+':'+String(x.getMinutes()).padStart(2,'0');};
-  $('#screen').innerHTML=h+ls.map(r=>{const its=Object.values(r.items||{}).sort((a,b)=>(a.t||0)-(b.t||0));
-    return '<div class="card clg"><div class="clg-h"><b>'+esc(r.lesson||'')+'</b><span>'+dt(r.t||Date.now())+'</span></div>'
-      +its.map(it=>{const qs=it.qs||[],A=it.a||{};const n=Math.max(qs.length,...Object.keys(A).map(k=>+k+1));
-        const rows=[...Array(n).keys()].map(i=>{const a=A[i];if(!a)return '';return '<div class="clg-q">'+(qs[i]?'<div class="clg-qt">'+(n>1?(i+1)+'. ':'')+esc(qs[i])+'</div>':'')+'<div class="clg-a">'+esc(a)+'</div></div>';}).join('');
-        return rows?'<div class="clg-sec"><h4>'+esc(it.title||'')+'</h4>'+rows+'</div>':'';}).join('')+'</div>';}).join('');}
 function renderGrades(){
   const _gh='<div class="pg-h"><h2>📈 '+esc(t('navGrades'))+'</h2></div>';
   const ls=myLessons().filter(l=>answerableOf(l.id).length);
@@ -4044,6 +4051,11 @@ H.hwPick=(i)=>{if(!HWP)return;HWP.ci=Number(i)||0;HWP_STROKES=[];HWP_ERASE=false
 H.hwPrev=()=>{if(!HWP||HWP.ci<=0)return;H.hwPick(HWP.ci-1);};
 H.hwNext=()=>{if(!HWP)return;const n=[...String(HWP.word||'')].length;if(HWP.ci>=n-1)return;H.hwPick(HWP.ci+1);};
 /* TZS_V1496 「練這一課的字」：現在詞卡看到的那些生詞，裡面每一個漢字各練一次（去掉重複）。 */
+/* HWVOC_V1563 從生詞表按「練這一課的字」：字是那一列的 data-chars 帶過來的 */
+H.hwVocAll=(_,b)=>{
+  const cs=String((b&&b.dataset&&b.dataset.chars)||'');
+  if(!cs){toast(hwL('這一課沒有可以練的字','Chưa có chữ để luyện','No characters yet'));return;}
+  openHwrite(cs,(b&&b.dataset&&b.dataset.lesson)||'',true);};
 H.hwLesson=()=>{
   const all=(typeof vocabScoped==='function')?vocabScoped():[];
   const seen={},cs=[];
