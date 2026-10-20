@@ -2250,7 +2250,42 @@ function renderWork(){
   const quizCard=myQuizzes.length?('<div class="lesson-label" style="margin-top:6px">'+t('quizSec')+'</div><div class="quiz-list">'+myQuizzes.map(qz=>{const r=(S.quizResults||[]).find(x=>x.quiz_id===qz.id);const done=!!r;const qm=t({audio:'qmAudio',dict:'qmDict',pinyin:'qmPinyin',mean:'qmMean',choice:'qmChoice',cloze:'qmCloze',custom:'qmCustom'}[qz.mode||'dict']||'qmDict');const _qd=done?null:dueInfo(qz.due_date);return `<div class="quiz-card${done?' done':''}"${done?'':' data-act="startQuiz" data-id="'+qz.id+'"'}><span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>${esc(qz.title||t('quizDefTitle'))}</b><div class="muted" style="font-size:12px">${qm}${(!done&&qz.due_date)?('　📅 '+esc(qz.due_date)):''}</div></div>${done?`<span class="badge badge-ok">${r.score}/${r.total}</span>`:(_qd?`<span class="badge ${_qd.cls}">${_qd.label}</span>`:`<span class="badge badge-soon">${t('quizNotTaken')}</span>`)}</div>`;}).join('')+'</div>'):'';
   const _wbTodo=todoWbHtml();
   const lqpCard=lqpCardHtml();
-  if(!ls.length&&!myQuizzes.length&&!lqpCard){$('#screen').innerHTML='<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>'+banner+_wbTodo+uploadCardHtml()+submittedWorkHtml()+(_wbTodo?'':emptyHtml('✍️',t('noWork'),t('noWorkSub')));return;}
+  /* WORKTASK_V1568 Quinn：「然後手寫的那個跑到哪裡去了」。
+     老師指派的「寫字作業」和「翻牌配對作業」本來只長在〈首頁 › 近期待辦〉，
+     〈我的作業〉這一頁一個字都沒有——她在作業頁找，當然找不到。
+     這裡把「還沒做完的」那幾份也列到作業頁，資料和入口都跟首頁同一個，不是另做一套。
+     做完的就不列（寫字＝每個字都寫滿次數／翻牌＝玩完一輪），跟首頁的判斷一致。 */
+  const taskCard=(function(){
+    if(S.preview)return '';
+    const rows=[];
+    try{wtMine().forEach(x=>{if(wtAllDone(x))return;
+      const need=wtNeed(x),left=wtLeft(x);
+      rows.push({act:'startWrite',id:x.id,ic:'✍️',
+        tt:x.title||LT({zh:'寫字作業',cn:'写字作业',en:'Writing practice',vi:'Luyện viết'}),
+        sb:LT({zh:'每個字寫 '+need+' 次'+(left?('　還剩 '+left+' 次'):''),
+               cn:'每个字写 '+need+' 次'+(left?('　还剩 '+left+' 次'):''),
+               en:need+'× each character'+(left?('　'+left+' left'):''),
+               vi:'Mỗi chữ viết '+need+' lần'+(left?('　còn '+left+' lần'):'')}),
+        due:x.due_date||''});});}catch(e){}
+    try{gtMine().forEach(x=>{if(gtMyRec(x.id))return;
+      rows.push({act:'startGame',id:x.id,ic:'🃏',
+        tt:x.title||LT({zh:'翻牌配對',cn:'翻牌配对',en:'Memory match',vi:'Lật thẻ ghép đôi'}),
+        sb:LT({zh:'玩完一輪就算完成',cn:'玩完一轮就算完成',
+               en:'Finish one round to complete it',vi:'Chơi xong một vòng là hoàn thành'}),
+        due:x.due_date||''});});}catch(e){}
+    if(!rows.length)return '';
+    return '<div class="lesson-label" style="margin-top:6px">'
+      +esc(LT({zh:'老師指派的練習',cn:'老师指派的练习',en:'Assigned practice',vi:'Bài luyện cô giao'}))
+      +'</div><div class="quiz-list">'
+      +rows.map(r=>{const di=r.due?dueInfo(r.due):null;
+        return '<div class="quiz-card" data-act="'+r.act+'" data-id="'+esc(r.id)+'">'
+          +'<span class="quiz-ic">'+r.ic+'</span>'
+          +'<div style="flex:1;min-width:0"><b>'+esc(r.tt)+'</b>'
+          +'<div class="muted" style="font-size:12px">'+esc(r.sb)+(r.due?('　📅 '+esc(r.due)):'')+'</div></div>'
+          +(di?('<span class="badge '+esc(di.cls)+'">'+esc(di.label)+'</span>')
+              :('<span class="badge badge-soon">'+esc(LT({zh:'未完成',cn:'未完成',en:'To do',vi:'Chưa làm'}))+'</span>'))
+          +'</div>';}).join('')+'</div>';})();
+  if(!ls.length&&!myQuizzes.length&&!lqpCard&&!taskCard){$('#screen').innerHTML='<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>'+banner+_wbTodo+uploadCardHtml()+submittedWorkHtml()+(_wbTodo?'':emptyHtml('✍️',t('noWork'),t('noWorkSub')));return;}
   let overdue=0,soon=0;ls.forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});
   const fbN=ls.filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
   const sentFbN=(S.sentences||[]).filter(s=>s.status==='reviewed'&&((s.overall&&s.overall.trim())||(s.feedback&&Object.keys(s.feedback).length))).length;
@@ -2325,7 +2360,7 @@ function renderWork(){
   })();
   /* WORKTOP_V1013 本來作業排在最後面，手機上第一張卡在 563px，滑不到。
      這一頁就叫「我的作業」，作業要在最上面。其餘的東西一個都沒拿掉，往下移而已。 */
-  $('#screen').innerHTML=_wh+banner+nb+lesBlk+quizCard+lqpCard+_wbTodo
+  $('#screen').innerHTML=_wh+banner+nb+lesBlk+quizCard+lqpCard+taskCard+_wbTodo
     +badgeStrip+liveJoinCard+submittedWorkHtml()+classUpcomingHtml()+payCard;
 }
 function lessonTags(l){const tags=[];
@@ -4427,7 +4462,11 @@ H.recallDoc=async(id)=>{if(S.preview||!id)return;
   const doc=[].concat(S.results||[],S.discussions||[],S.gpracs||[],S.sentences||[],S.shadows||[],S.hwvs||[]).find(x=>x&&x.id===id);
   if(doc&&doc.status==='reviewed'&&!confirm(t('swRecallConfirm')))return;
   try{await DB.update('results',id,{status:'draft',saved_at:now()});await reloadMineResults();toast(t('discRecalled'));renderContent();}catch(e){toast(e.message);}};
+/* RECALLT_V1568 這顆只有測試帳號看得到（按鈕本來就有擋），這裡把同一條件補在動作上，
+   「（測試用）」三個字才名副其實——一般學生就算用別的方法叫到這支也不會動。
+   單份收回（每一份自己的 ↩️）不受影響，那是所有學生都能用的。 */
 H.recallAll=async()=>{if(S.preview)return;
+  if(!(S.me&&S.me.is_test))return;
   const all=[].concat((S.results||[]).filter(x=>x.status==='pending'||x.status==='done'),(S.discussions||[]).filter(x=>x.status==='submitted'||x.status==='reviewed'),(S.gpracs||[]).filter(x=>x.status==='submitted'||x.status==='reviewed'),(S.sentences||[]).filter(x=>x.status==='submitted'||x.status==='reviewed'),(S.shadows||[]).filter(x=>x.status==='submitted'||x.status==='reviewed'),(S.hwvs||[]).filter(x=>x.status==='submitted'||x.status==='reviewed'));
   if(!all.length){toast(LT({zh:'目前沒有已送出的作業',cn:'目前没有已送出的作业',en:'You have no submitted homework right now',vi:'Hiện chưa có bài nào đã nộp'}));return;}
   if(!confirm(LT({zh:'確定把全部 '+all.length+' 份已送出的作業收回嗎？\n收回後會變成「作答中」，可以重新作答與送出。',
