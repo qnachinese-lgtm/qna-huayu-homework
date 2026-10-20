@@ -9,6 +9,7 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- REVIEW_V1 複習自動產生、抽生詞 -->
 <!-- GREVEAL_V1 語法答案一題一題顯示 -->
 <!-- APLAYER_V3 播放器精簡、聽寫按鈕減少 -->
 <!-- LIVECLS_V1 作答班級、點名字、作答紀錄；修學生輸入名字被清掉 -->
@@ -216,6 +217,13 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .check{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}
 .check label{display:flex;gap:10px;align-items:center;background:var(--ice);border-radius:12px;padding:12px;font-size:18px;cursor:pointer}
 .check input{width:22px;height:22px;accent-color:var(--mint)}
+.rvc{grid-template-columns:1fr 1fr}
+.rvc label{font-size:20px;padding:10px 16px}
+.rvq{all:unset;cursor:pointer;box-sizing:border-box;margin:16px auto 0;width:fit-content;min-width:360px;display:flex;align-items:baseline;gap:22px;justify-content:center;background:#fff;border:2px solid var(--navy);border-radius:16px;padding:14px 24px;min-height:62px}
+.rvq .rvw0{font-size:44px;color:var(--navy);font-weight:700}
+.rvq .rvpy{font-family:"Times New Roman",serif;font-size:24px;color:var(--muted)}
+.rvq .rvmn{font-family:"Times New Roman",serif;font-size:22px}
+.rvq .rvtip{font-size:17px;color:var(--muted)}
 .app{position:relative}
 .lsel{display:flex;flex-direction:column;gap:6px;margin:4px 0 8px}
 .lsel select{font-family:inherit;font-size:14px;padding:6px 8px;border-radius:10px;border:2px solid var(--line);background:var(--panel);color:var(--fg);max-width:100%}
@@ -976,16 +984,37 @@ function render(){
   }
   if(k==="draw"){ renderDraw(); }
   if(k==="review"){
+    /* REVIEW_V1 複習沒填時自動從本課內容產生；可抽生詞考考看 */
     $("#title").textContent = "今天學了什麼？";
-    $("#hint").textContent = "學生自己打勾";
-    st.innerHTML = `<div class="pop"><div class="tag"><span>複習</span>打勾確認一下</div>
-      <div class="check">${LESSON.review.map((r,i)=>`<label for="rv${i}"><input type="checkbox" id="rv${i}">${esc(r)}</label>`).join("")}</div>
-      <div class="ans" style="margin-top:22px"><div class="tag"><span style="background:var(--pink);color:#fff">回家作業</span></div>
-      <ul style="font-size:19px;line-height:1.9;margin:8px 0 0">${LESSON.homework.map(h=>`<li>${esc(h)}</li>`).join("")}</ul></div></div>`;
-    ct.innerHTML = `<div class="note" style="margin-top:0"><b>下課囉！</b><br>下次見！</div>
-      <button class="btn ghost" data-a="restart">回到開始</button>`;
+    $("#hint").textContent = "";
+    const fl = flowOf(LESSON), mains = key => (LESSON[key]||[]).filter(r=>r[0] && !r[6]);
+    let items = (LESSON.review||[]).filter(Boolean);
+    if(!items.length){
+      const w1 = mains("words"), w2 = fl.includes("words2") ? mains("words2") : [];
+      if(w1.length) items.push(`我認得${w2.length?"對話":"這課的"} ${w1.length} 個生詞`);
+      if(w2.length) items.push(`我認得短文 ${w2.length} 個生詞`);
+      if(fl.includes("text") && (LESSON.dialog||[]).length) items.push(`我會念對話${LESSON.textTitle?`「${LESSON.textTitle}」`:""}`);
+      if(fl.includes("read") && LESSON.read && (LESSON.read.paras||[]).length) items.push(`我會念短文${LESSON.read.title?`「${LESSON.read.title}」`:""}`);
+      GR(LESSON).forEach(g => { const t = g.title || (g.pattern||[]).join("＋"); if(t) items.push(`我會用「${t}」造句`); });
+      if(fl.includes("qa") || fl.includes("qa2")) items.push("我能回答課文的問題");
+    }
+    const hw = (LESSON.homework||[]).filter(Boolean);
+    const pool = [...mains("words"), ...mains("words2")];
+    if(rvPick && !pool.includes(rvPick)) rvPick = null;
+    st.innerHTML = `<div class="pop rvw"><div class="tag"><span>複習</span>打勾確認一下</div>
+      <div class="check rvc">${items.map((r,i)=>`<label for="rv${i}"><input type="checkbox" id="rv${i}">${esc(r)}</label>`).join("")}</div>
+      ${rvPick ? `<button type="button" class="rvq" data-a="rvflip"><span class="rvw0">${esc(rvPick[0])}</span>${rvOpen ? `<span class="rvpy">${esc(rvPick[1]||"")}</span><span class="rvmn">${esc(rvPick[3]||"")}</span>` : `<span class="rvtip">念念看，說說意思</span>`}</button>` : ""}
+      ${hw.length ? `<div class="ans" style="margin-top:18px"><div class="tag"><span>回家作業</span></div>
+      <ul style="font-size:19px;line-height:1.9;margin:8px 0 0">${hw.map(h=>`<li>${esc(h)}</li>`).join("")}</ul></div>` : ""}</div>`;
+    ct.innerHTML = (pool.length ? `<button class="btn ghost" data-a="rvdraw">抽生詞</button>` : "") + `<span class="gap"></span><button class="btn ghost" data-a="restart">回到開始</button>`;
   }
 }
+let rvPick = null, rvOpen = false;
+document.addEventListener("click", e => { const b = e.target.closest("[data-a='rvdraw'],[data-a='rvflip']"); if(!b) return;
+  if(b.dataset.a === "rvflip"){ rvOpen = !rvOpen; return render(); }
+  const mains = key => (LESSON[key]||[]).filter(r=>r[0] && !r[6]), pool = [...mains("words"), ...mains("words2")];
+  let n = pool[Math.floor(Math.random()*pool.length)]; if(pool.length > 1) while(n === rvPick) n = pool[Math.floor(Math.random()*pool.length)];
+  rvPick = n; rvOpen = false; render(); });
 /* 抽卡 */
 function pool(){ return LESSON.cards.filter(c => filter==="全部" || c[0]===filter) }
 function shuffle(){ deck = pool().slice().sort(()=>Math.random()-.5); drawn = 0; cur = null; }
