@@ -9,6 +9,7 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- CLSMARK_V1 投影片顯示班級＋浮水印 -->
 <!-- CLSPICK_V2 班級收進老師選單 -->
 <!-- CLSPICK_V1 開投影片先選班級 -->
 <!-- SANSQ_V1 學生答案一次展開一題、字不縮小 -->
@@ -497,6 +498,9 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .sform input{font:inherit;font-size:16px;padding:4px 8px;border:2px solid var(--sky);border-radius:8px;background:#fff;color:var(--fg)}
 .sform .nm{width:90px} .sform .tx{width:340px}
 .sform button{font:inherit;font-size:14px;padding:5px 12px;border-radius:8px;border:none;background:var(--navy);color:#fff;cursor:pointer}
+.scls{display:inline-block;margin-left:8px;padding:0 8px;border-radius:999px;background:var(--navy);color:#fff;font-size:12px;line-height:18px;vertical-align:1px}
+.wmark{position:absolute;right:44px;bottom:96px;z-index:30;pointer-events:none;font-family:"Times New Roman",var(--zh);font-size:15px;letter-spacing:.08em;color:var(--navy);opacity:.32}
+.wmark[hidden]{display:none}
 .clschip{font:inherit;font-size:14px;padding:7px 12px;border-radius:10px;border:2px solid var(--line);background:var(--panel);color:var(--navy);cursor:pointer}
 .cpcard{background:#fff;border-radius:24px;padding:34px 38px;box-shadow:0 24px 60px rgba(30,76,134,.18);width:min(520px,100%);box-sizing:border-box}
 .cpcard h2{margin:0 0 20px;font-size:26px;color:var(--navy);text-align:center}
@@ -863,7 +867,7 @@ let oPerm = null, oPick = [], oCheck = false, oStory = false, wCover = false, wO
 let deck = [], drawn = 0, cur = null, showAns = false, filter = "全部";
 let timerId = null, left = 0;
 try { step = Math.min(STEPS.length-1, +localStorage.getItem("slides-step") || 0) } catch(e) {}
-function updSide(){ $("#sNum").textContent = LESSON.id==="sample" ? "範例" : (LESSON.book || (LESSON.num && !hasNo(LESSON) ? `第${LESSON.num}課` : "")); $("#sName").textContent = LESSON.name; if($("#lpPanel")) fillPick(); }
+function updSide(){ $("#sNum").textContent = LESSON.id==="sample" ? "範例" : (LESSON.book || (LESSON.num && !hasNo(LESSON) ? `第${LESSON.num}課` : "")); clsMark(); $("#sName").textContent = LESSON.name; if($("#lpPanel")) fillPick(); }
 
 function renderSteps(){
   updSide();
@@ -2061,10 +2065,14 @@ function liveSub(){ liveUnsub(); if(!LIVE.code || !db || /[?&]join=/i.test(locat
   LIVE.unS = ref.onSnapshot(s => { LIVE.open = !!(s.exists && s.data().open); if(!LIVE.open){ liveUnsub(); LIVE.code = null; try { localStorage.removeItem("slides-live"); } catch(e){} } else if(!document.hidden && !s.metadata.hasPendingWrites && ((s.data().cur || {}).key || "") !== ((liveCur() || {}).key || "")){ LIVE.sig = ""; livePush(); } /* LIVELOOP_V2 只比對題目代號，不再無限重寫 */ livePill(); }, () => {});
   LIVE.unA = ref.collection("answers").onSnapshot(s => { LIVE.ans = s.docs.map(d => ({_id: d.id, ...d.data()})); livePill(); psSync(); if($("#modal").hidden){ document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); } }, err => console.warn("live answers", err)); }
 if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u => { const r = $("#liveRow"); if(r) r.hidden = !u; if(u && LIVE.code){ LIVE.open = true; liveSub(); } else if(!u) liveUnsub(); });
+/* CLSMARK_V1 班級顯示在投影片上（標題旁＋右下角浮水印），截圖也看得出是哪一班 */
+function clsMark(){ let v = ""; try { v = (document.documentElement.classList.contains("locked") || /[?&]join=/i.test(location.search)) ? "" : (sessionStorage.getItem("slides-cls-ok") ? hwCls() : ""); } catch(e){}
+  const n = $("#sNum"); if(n){ const o = n.querySelector(".scls"); if(o) o.remove(); if(v){ const b = document.createElement("span"); b.className = "scls"; b.textContent = v + " 班"; n.appendChild(b); } }
+  let w = $("#wmark"); if(!w && $("#app")){ w = document.createElement("div"); w.id = "wmark"; w.className = "wmark"; $("#app").appendChild(w); } if(w){ w.textContent = v ? `QNA CHINESE・${v} 班` : ""; w.hidden = !v; } }
 /* CLSPICK_V1 打開投影片先選今天上哪一班；學生答案只顯示這一班 */
 function clsLab(v){ return v ? v + " 班" : "不分班"; }
 function clsSet(v){ LIVE.hwCls = v; LIVE.lastCls = v; try { localStorage.setItem("slides-hw-cls", v); localStorage.setItem("slides-live-cls", v); sessionStorage.setItem("slides-cls-ok", "1"); } catch(e){}
-  const c = $("#clsBtn"); if(c) c.textContent = "上課班級：" + clsLab(v);
+  const c = $("#clsBtn"); if(c) c.textContent = "上課班級：" + clsLab(v); clsMark();
   HW.lid = null; document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); try { paintAns(); gFit(); } catch(e){} }
 async function clsPick(){ if(!LIVE.groups) await liveGroups(); let ov = $("#clsPick"); if(!ov){ ov = document.createElement("div"); ov.id = "clsPick"; ov.className = "gate"; document.body.appendChild(ov); }
   const cur = hwCls(), gs = LIVE.groups || [];
@@ -2072,7 +2080,7 @@ async function clsPick(){ if(!LIVE.groups) await liveGroups(); let ov = $("#clsP
   ov.hidden = false; ov.onclick = e => { const b = e.target.closest("[data-cp]"); if(!b) return; clsSet(b.dataset.cp); ov.hidden = true; }; }
 /* CLSPICK_V2 班級不顯示在投影片上（避免截圖），收在「老師」選單裡 */
 function clsInit(){ const r = $("#clsRow"), c = $("#clsBtn"); if(r) r.hidden = false; if(c){ c.textContent = "上課班級：" + clsLab(hwCls()); c.onclick = () => { $("#tmPanel").hidden = true; clsPick(); }; }
-  let ok = null; try { ok = sessionStorage.getItem("slides-cls-ok"); } catch(e){} if(!ok) clsPick(); }
+  let ok = null; try { ok = sessionStorage.getItem("slides-cls-ok"); } catch(e){} if(!ok) clsPick(); clsMark(); }
 /* GATE_V1 投影片要老師登入才看得到；學生作答連結（?join=）不受影響 */
 (function gate(){ if(/[?&]join=/i.test(location.search)) return;
   const g = document.createElement("div"); g.className = "gate"; g.id = "gate";
