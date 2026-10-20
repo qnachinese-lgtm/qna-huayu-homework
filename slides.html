@@ -9,6 +9,7 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- JOINFIX_V1 作答頁不再跳動；GATE_V3 只有老師帳號能進投影片 -->
 <!-- JOINAUTH_V1 學生登入作答；PSYNC_V1 答案存進練習題 -->
 <!-- REVIEW_V1 複習自動產生、抽生詞 -->
 <!-- GREVEAL_V1 語法答案一題一題顯示 -->
@@ -1560,6 +1561,7 @@ function startFirebase(){
     if(!(window.firebase && window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey)) return;
     if(!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
     const fdb = firebase.firestore();
+    if(/[?&]join=/i.test(location.search)) return; /* JOINFIX_V1 學生作答頁不跑老師端的東西 */
     $("#loginBtn").onclick = () => { $("#loginForm").hidden = !$("#loginForm").hidden; if(!$("#loginForm").hidden){ $("#lg-email").value = window.TEACHER_EMAIL || ""; $("#lg-pw").focus(); } };
     $("#loginForm").onsubmit = async e => { e.preventDefault(); $("#lg-err").textContent = "";
       try{ await firebase.auth().signInWithEmailAndPassword($("#lg-email").value.trim(), $("#lg-pw").value); $("#lg-pw").value = ""; }
@@ -1725,7 +1727,7 @@ function liveCur(){
     if(!n) return null; LIVE.right = right;
     return {key: base + "dict", kind: "dict", title: "聽寫", instr: "聽音檔，把空格的詞打出來。", opts: [], lines, items: right.map((_, i) => "第 " + (i+1) + " 格")}; }
   return null; }
-function livePush(){ if(!LIVE.code || !db || !LIVE.open) return; const c = liveCur(), sig = JSON.stringify(c);
+function livePush(){ if(!LIVE.code || !db || !LIVE.open || /[?&]join=/i.test(location.search)) return; const c = liveCur(), sig = JSON.stringify(c);
   if(sig === LIVE.sig) return; LIVE.sig = sig; clearTimeout(LIVE.t);
   LIVE.t = setTimeout(() => { const ref = liveDb().collection("slide_live").doc(LIVE.code); (c ? ref.update("cur", c, "t", Date.now(), new firebase.firestore.FieldPath("qs", c.key), {title: c.title, items: c.items, kind: c.kind, right: c.kind === "dict" ? (LIVE.right||[]) : []}) : ref.update({cur: null, t: Date.now()})).catch(e => console.warn("live", e)); }, 250); }
 function ansFor(key, i){ const out = [];
@@ -1901,7 +1903,7 @@ async function psRun(){ const f = liveDb(); if(!f || !db) return;
     } catch(e){ console.warn("psync", e); } } }
 function liveUnsub(){ if(LIVE.unA){ LIVE.unA(); LIVE.unA = null; } if(LIVE.unS){ LIVE.unS(); LIVE.unS = null; } livePill(); }
 function livePill(){ const p = $("#livePill"); if(!p) return; p.hidden = !(LIVE.code && LIVE.open && db); p.textContent = `作答中・${new Set(LIVE.ans.map(d => d.name)).size} 人`; }
-function liveSub(){ liveUnsub(); if(!LIVE.code || !db) return; const ref = liveDb().collection("slide_live").doc(LIVE.code);
+function liveSub(){ liveUnsub(); if(!LIVE.code || !db || /[?&]join=/i.test(location.search)) return; const ref = liveDb().collection("slide_live").doc(LIVE.code);
   LIVE.unS = ref.onSnapshot(s => { LIVE.open = !!(s.exists && s.data().open); if(!LIVE.open){ liveUnsub(); LIVE.code = null; try { localStorage.removeItem("slides-live"); } catch(e){} } else { LIVE.sig = ""; livePush(); } livePill(); }, () => {});
   LIVE.unA = ref.collection("answers").onSnapshot(s => { LIVE.ans = s.docs.map(d => ({_id: d.id, ...d.data()})); livePill(); psSync(); if($("#modal").hidden){ document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); } }, err => console.warn("live answers", err)); }
 if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u => { const r = $("#liveRow"); if(r) r.hidden = !u; if(u && LIVE.code){ LIVE.open = true; liveSub(); } else if(!u) liveUnsub(); });
@@ -1915,7 +1917,9 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
   document.body.appendChild(g);
   const show = on => { g.hidden = !on; document.documentElement.classList.toggle("locked", on); if(!on) setTimeout(fit, 0); };
   if(!(window.firebase && firebase.apps.length)){ $("#gMsg").textContent = "連不上登入服務，請重新整理。"; return; }
-  firebase.auth().onAuthStateChanged(u => { if(u){ show(false); return; } show(true); $("#gMsg").textContent = "登入後才能使用投影片"; $("#gFields").hidden = false; $("#gEm").value = $("#gEm").value || window.TEACHER_EMAIL || ""; ($("#gEm").value ? $("#gPw") : $("#gEm")).focus(); });
+  /* GATE_V3 只有老師帳號能進投影片（學生帳號登入也擋住） */
+  const isT = async u => { const em = String(u.email || "").toLowerCase(); if(em === "qnachinese@gmail.com") return true; try { return (await firebase.firestore().collection("admins").doc(em).get()).exists; } catch(e){ return false; } };
+  firebase.auth().onAuthStateChanged(async u => { if(u && await isT(u)){ show(false); return; } show(true); $("#gMsg").textContent = u ? "這個帳號不是老師帳號，請用老師帳號登入" : "登入後才能使用投影片"; $("#gFields").hidden = false; $("#gEm").value = $("#gEm").value || window.TEACHER_EMAIL || ""; ($("#gEm").value ? $("#gPw") : $("#gEm")).focus(); });
   $("#gForm").onsubmit = async e => { e.preventDefault(); $("#gErr").textContent = ""; $("#gGo").disabled = true;
     try { await firebase.auth().signInWithEmailAndPassword($("#gEm").value.trim(), $("#gPw").value); $("#gPw").value = ""; }
     catch(err){ $("#gErr").textContent = "登入失敗：請檢查 Email 和密碼。"; }
