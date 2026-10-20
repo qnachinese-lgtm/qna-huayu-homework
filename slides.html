@@ -9,6 +9,8 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- SANSQ_V1 學生答案一次展開一題、字不縮小 -->
+<!-- HWCLS_V1 學生答案可選只看某一班 -->
 <!-- HWANS_V3 講義改過的答案也會顯示 -->
 <!-- JPICK_V1 選項題用點的、可複選 -->
 <!-- HWANS_V2 講義語法練習答案也能放出；PSYNC_V2 課堂答案也存進講義 -->
@@ -475,7 +477,13 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .head h1{text-align:center}
 .ctrl .timer svg{width:40px;height:40px}
 /* LIVEANS_V1 學生作答 */
-.sans{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-2px 0 4px 50px}
+.sans{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:-2px 0 4px 50px}
+.sans:not(.open){justify-content:flex-end;align-items:flex-end;height:0;margin:0 12px 0 50px;position:relative;z-index:2;transform:translateY(-40px)}
+.sopen{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:15px;color:var(--navy);padding:3px 4px 3px 12px;border-radius:999px;background:#fff;border:1.5px solid var(--line)}
+.sopen.on{padding:3px 12px;color:var(--muted)}
+.sopen .nb{min-width:22px;height:22px;padding:0 6px;box-sizing:border-box;border-radius:999px;background:var(--navy);color:#fff;font-size:13px;display:inline-grid;place-items:center;font-family:"Times New Roman",serif}
+.sans.open .schip{font-size:max(18px,calc(22px*var(--gs,1)));padding:5px 12px}
+.sans.open .schip b{font-size:15px}
 .schip{display:inline-flex;align-items:baseline;gap:6px;background:#fff;border:2px solid var(--sky);border-radius:12px;padding:3px 10px;font-size:calc(20px*var(--gs,1));line-height:1.4;color:var(--fg)}
 .schip b{font-size:14px;color:var(--navy)}
 .schip.hw{border-style:dashed}
@@ -642,6 +650,8 @@ html.locked #fit{visibility:hidden}
 .tgrp .btn.ghost:hover{background:var(--ice)}
 .tgrp .btn.ghost + .btn.ghost{position:relative}
 .tgrp .btn.ghost + .btn.ghost::before{content:"";position:absolute;left:0;top:25%;height:50%;border-left:1px solid var(--line)}
+.tgrp select.hcls{font:inherit;font-size:15px;color:var(--navy);border:none;background:var(--ice);border-radius:999px;padding:6px 10px;margin-left:4px;cursor:pointer}
+.tgrp .hclsf{font-size:15px;color:var(--muted);padding:0 12px 0 6px}
 .tgrp .nb{min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:999px;background:var(--navy);color:#fff;font-size:12px;display:inline-grid;place-items:center;font-family:"Times New Roman",serif}
 .livecard span.ok{color:var(--navy);font-weight:700} .livecard span.bad{color:var(--err)}
 .aplayer{display:flex;align-items:center;gap:8px;flex:none;background:#fff;border:2px solid var(--line);border-radius:999px;padding:3px 8px 3px 3px}
@@ -1806,15 +1816,27 @@ function paintAns(){
     if(!ct.querySelector("[data-a='lorder']")){ const b = document.createElement("button"); b.className = "btn ghost"; b.dataset.a = "lorder"; const gap = ct.querySelector(".gap"); gap ? ct.insertBefore(b, gap) : ct.appendChild(b); }
     ct.querySelector("[data-a='lorder']").textContent = `學生答案（${new Set(LIVE.ans.filter(d => keys.includes(d.q)).map(d => d.name)).size}）`;
     if($("#liveBox") && !$("#liveBox").hidden && $("#liveBox").dataset.dict === "order") liveOrderTable(); return; }
-  if(!ct.querySelector("[data-a='ansTog']")){ const b = document.createElement("button"); b.className = "btn ghost"; b.dataset.a = "ansTog"; const gap = ct.querySelector(".gap"); gap ? ct.insertBefore(b, gap) : ct.appendChild(b); }
+  /* HWCLS_V1 學生答案只看這一班：開著「學生答案」時旁邊可以選班級 */
+  if(!ct.querySelector("[data-a='ansTog']")){ const g = document.createElement("span"); g.className = "tgrp"; g.innerHTML = `<button class="btn ghost" data-a="ansTog"></button>`; const gap = ct.querySelector(".gap"); gap ? ct.insertBefore(g, gap) : ct.appendChild(g); }
   const tb = ct.querySelector("[data-a='ansTog']"); tb.textContent = ansOn ? "隱藏學生答案" : "學生答案";
+  { const g = tb.parentNode; let sel = g.querySelector("select.hcls"); if(ansOn && !LIVE.cls){ if(!LIVE.groups && !LIVE.gload){ LIVE.gload = 1; liveGroups().then(() => paintAns()); }
+      const opts = `<option value="">全部班級</option>` + (LIVE.groups || []).map(x => `<option value="${esc(x)}"${x === hwCls() ? " selected" : ""}>${esc(x)} 班</option>`).join("");
+      if(!sel){ sel = document.createElement("select"); sel.className = "hcls"; sel.setAttribute("aria-label", "班級"); g.appendChild(sel); sel.onchange = () => { LIVE.hwCls = sel.value; try { localStorage.setItem("slides-hw-cls", sel.value); } catch(e){} document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); }; }
+      if(sel.dataset.o !== opts){ sel.dataset.o = opts; sel.innerHTML = opts; } sel.value = hwCls(); }
+    else if(sel) sel.remove();
+    if(ansOn && LIVE.cls && !g.querySelector(".hclsf")){ const f = document.createElement("span"); f.className = "hclsf"; f.textContent = LIVE.cls + " 班"; g.appendChild(f); } else if(!(ansOn && LIVE.cls)){ const f = g.querySelector(".hclsf"); if(f) f.remove(); } }
   if(ansOn && db){ const lid = hwLid(LESSON); if(lid && HW.lid !== lid && !HW.loading) hwLoad(lid); }
   const qs = [...document.querySelectorAll("#stage .gq[data-gq], #stage .qa[data-qa]")];
   qs.forEach((el, i) => { let box = el.nextElementSibling; if(!box || !box.classList.contains("sans")){ box = document.createElement("div"); box.className = "sans"; el.after(box); }
     box.dataset.si = i; box.hidden = !ansOn; if(!ansOn) return; if(box.querySelector(".sform")) return;
     const list = ansFor(c.key, i);
+    /* SANSQ_V1 一次只展開一題的學生答案，題目字不會被縮小 */
+    if(!(LIVE.aq && LIVE.aq.k === c.key && LIVE.aq.i === i)){ box.classList.remove("open"); box.innerHTML = `<button class="sopen" type="button" data-aq="${i}">學生答案<span class="nb">${list.length}</span></button>`; return; }
+    box.classList.add("open");
     box.innerHTML = list.map(a => `<span class="schip${a.hw ? " hw" : ""}">${a.hw ? `<i>作業</i>` : ""}${a.n ? `<b>${esc(a.n)}</b>` : ""}${esc(a.x)}<button class="x" type="button" aria-label="移除" ${a.tid != null ? `data-tdel="${i}|${a.tid}"` : `data-hid="${esc(a.id)}"`}>×</button></span>`).join("")
-      + `<button class="sadd" type="button" data-sadd="${i}">＋ 輸入答案</button>`; }); }
+      + `<button class="sadd" type="button" data-sadd="${i}">＋ 輸入答案</button><button class="sopen on" type="button" data-aq="${i}">收起</button>`; }); }
+document.addEventListener("click", e => { const b = e.target.closest("[data-aq]"); if(!b) return; const c = liveCur(); if(!c) return; const i = +b.dataset.aq;
+  LIVE.aq = (LIVE.aq && LIVE.aq.k === c.key && LIVE.aq.i === i) ? null : {k: c.key, i}; document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); });
 /* GFIT_V1 語法和討論題自動縮小，整頁放得下不用捲 */
 function gFit(){ const st = $("#stage"); if(!st) return; st.style.setProperty("--gs", 1);
   const k = STEPS[step] && STEPS[step].key; if(!["grammar","qa","qa2"].includes(k)) return;
@@ -1936,6 +1958,7 @@ function recAct(e){ const b = e.target.closest("button"); if(!b) return;
 document.addEventListener("click", e => { if(e.target.closest("#recBtn")){ $("#tmPanel").hidden = true; LIVE.recCls = null; recOpen(); } });
 /* HWANS_V1 學生在學習平台已經寫好的練習題答案，上課按「學生答案」也一起放出來（標「作業」） */
 const HW = {lid: null, data: null, loading: false};
+function hwCls(){ if(LIVE.cls) return LIVE.cls; if(LIVE.hwCls == null){ try { LIVE.hwCls = localStorage.getItem("slides-hw-cls"); } catch(e){} if(LIVE.hwCls == null) LIVE.hwCls = LIVE.lastCls || ""; } return LIVE.hwCls; }
 function hwLid(L){ return L && (L.src || (String(L.id).startsWith("src_") ? L.id.slice(4) : "")); }
 async function hwLoad(lid){ if(HW.loading) return; HW.loading = true; const f = liveDb();
   try { const src = await psSrc(lid); const [a, b, s, g] = await Promise.all([f.collection("results").where("lesson_id", "==", lid).get(), f.collection("results").where("disc_lesson", "==", lid).get(), f.collection("students").get(), f.collection("results").where("gprac_lesson", "==", lid).get()]);
@@ -1944,7 +1967,7 @@ async function hwLoad(lid){ if(HW.loading) return; HW.loading = true; const f = 
   catch(e){ console.warn("hw", e); HW.lid = lid; HW.data = null; }
   HW.loading = false; if($("#modal").hidden){ document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); } }
 function hwFor(key, i){ const D = HW.data; if(!ansOn || !D) return []; const mm = String(key).match(/^([^:]+):(.+)$/); if(!mm) return [];
-  const L = lessons.find(x => x.id === mm[1]); if(!L || hwLid(L) !== HW.lid) return []; const part = mm[2], cls = LIVE.cls || "";
+  const L = lessons.find(x => x.id === mm[1]); if(!L || hwLid(L) !== HW.lid) return []; const part = mm[2], cls = hwCls();
   const who = r => { const s = D.stu[r.student_id] || D.stu["u:" + r.uid]; if(!s) return null; if(cls && !s.g.includes(cls)) return null; return s.n || r.student_name || ""; };
   const skip = r => false; /* HWANS_V3 不再整份略過，重複的答案在 ansFor 裡去掉 */
   const lt = k => "（" + String.fromCharCode(97 + k) + "）", out = [];
