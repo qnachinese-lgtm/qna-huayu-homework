@@ -14244,15 +14244,28 @@ function cpStuPanel(s){
     +'<span>✅ 已上 <b>'+((used==null)?'—':(fmtQty(used)+' '+((typeof unitLabel==='function')?unitLabel(s):'堂')))+'</b></span>'
     +'<span>出席率 <b>'+(A.rate==null?'—':(A.rate+' %'))+'</b>　請假 '+A.leave+'　缺席 '+A.absent+'</span>'
     +(IS_OWNER?('<span>💰 '+bal+'</span>'):'');
-  const acts='<button class="btn btn-sm btn-primary" data-act="classLog" data-id="'+esc(s.id)+'">📝 記一堂課</button>'
-    +(IS_OWNER?'<button class="btn btn-sm btn-primary" data-act="payments" data-id="'+esc(s.id)+'">💰 記繳費</button>':'')
-    +(IS_OWNER?'<button class="btn btn-sm" data-act="billStatement" data-id="'+esc(s.id)+'">🧾 對帳單</button>':'')
-    +'<button class="btn btn-sm" data-act="stuCardPdf" data-id="'+esc(s.id)+'">📄 檔案卡</button>'
-    +'<button class="btn btn-sm" data-act="stuExport" data-id="'+esc(s.id)+'">📤 匯出</button>'
-    +'<button class="btn btn-sm btn-ghost" data-act="stuDetail" data-id="'+esc(s.id)+'">🔎 完整檔案</button>';
-  return '<div style="border:1px solid var(--line);border-left:3px solid var(--primary);border-radius:12px;padding:12px 14px;background:var(--surface-2,#E8EFF7)">'
-    +'<div class="meta" style="margin:0 0 10px;flex-wrap:wrap">'+facts+'</div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+acts+'</div>'
+  /* CPEDIT_V1567 Quinn：「我點擊學生名字時有時候是想要修改他們的一些資料。
+     你現在這樣設計，我很難知道我要找的功能在哪裡」。
+     兩個毛病：（一）攤開來根本沒有「編輯」這顆，要改資料得先退回學生列表再找一次。
+     （二）六顆長得差不多的按鈕排成一排，看不出哪顆是做什麼的。
+     改成三組、每組有標題：改資料／記一筆／印出・匯出，「✏️ 編輯資料」放第一組第一顆。 */
+  const _i=esc(s.id);
+  const G=(t,b)=>b?('<div class="cpa-g"><span class="cpa-t">'+t+'</span><div class="cpa-b">'+b+'</div></div>'):'';
+  const acts='<div class="cpa">'
+    +G('改資料','<button class="btn btn-sm btn-primary" data-act="editStudent" data-id="'+_i+'">✏️ 編輯資料</button>'
+      +'<button class="btn btn-sm" data-act="stuDetail" data-id="'+_i+'">🔎 完整檔案</button>')
+    +G('記一筆','<button class="btn btn-sm" data-act="classLog" data-id="'+_i+'">📝 記一堂課</button>'
+      +(IS_OWNER?'<button class="btn btn-sm" data-act="payments" data-id="'+_i+'">💰 記繳費</button>':''))
+    +G('印出 · 匯出',(IS_OWNER?'<button class="btn btn-sm" data-act="billStatement" data-id="'+_i+'">🧾 對帳單</button>':'')
+      +'<button class="btn btn-sm" data-act="stuCardPdf" data-id="'+_i+'">📄 檔案卡</button>'
+      +'<button class="btn btn-sm" data-act="stuExport" data-id="'+_i+'">📤 匯出</button>')
+    +'</div>';
+  /* CPBOX_V1567 Quinn：「這個框子是不是靠太近了，太醜了」。
+     這塊本來上緣直接貼著學生那一列、左右幾乎頂到卡片邊，裡面的字又貼著框線。
+     改成：上面留白、左右縮排一點（看得出是「那一位學生底下的東西」）、裡面的內距放大。 */
+  return '<div class="cps">'
+    +'<div class="meta cps-facts">'+facts+'</div>'
+    +acts
     +'<div style="font-weight:700;color:var(--primary);margin-bottom:4px">🗓 上課記錄'
       +(all.length>logs.length?('<span class="muted" style="font-weight:400;font-size:12px">　最近 '+logs.length+' 筆，共 '+all.length+' 筆</span>'):'')+'</div>'
     +'<div style="overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:10px">'
@@ -14268,8 +14281,15 @@ function cpStuPanel(s){
       +'</tr></thead><tbody>'+prows+'</tbody></table></div>'):'')
     +'</div>';}
 function cpRoster(cls,members){
-  const TD='padding:8px 10px;border-top:1px solid var(--line)';
-  if(!members.length)return `<tr><td colspan="5" style="${TD};color:var(--muted)">還沒有成員，按上面「✏️ 成員／時段」勾選學生。</td></tr>`;
+  /* CLSMOB_V1567 Quinn：「手機進入網頁版，全部都跑版」。
+     量到的：390px 下整頁要左右捲 281px，「作業完成」「繳費」兩欄被擠成一個字一行，
+     〔💰 記繳費〕〔📝 記一堂課〕整個在畫面外按不到。
+     原因是這張表的 padding／border 都寫成 td 的 inline style，
+     手機的 CSS 再怎麼寫都蓋不過去。改成用 class（.cpr-*），
+     窄螢幕時整列改成一張卡片（表頭收起來、每一格自己帶標籤），
+     用的是專案本來就有的 data-l + ::before 那一套（繳費頁、帳務頁都是這樣排的）。 */
+  const TD='';
+  if(!members.length)return `<tr class="cpr-r"><td class="cpr-c" colspan="5" style="color:var(--muted)">還沒有成員，按上面「✏️ 成員／時段」勾選學生。</td></tr>`;
   return members.map(s=>{
     const asg=S.lessons.filter(l=>isAssignedTo(l,s)&&answerableOf(l.id).length);
     const done=asg.filter(l=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;
@@ -14280,13 +14300,13 @@ function cpRoster(cls,members){
       :'<b style="color:#1F6A54">✅ 已結清</b>'));
     /* CVSTU_V958 點名字攤開這一位的上課時間和繳費記錄 */
     const _on=(S.cvStu===s.id);
-    return `<tr${_on?' style="background:var(--primary-soft,#E4EDF9)"':''}><td style="${TD}"><button class="btn btn-sm btn-ghost" type="button" data-act="cvStu" data-id="${esc(s.id)}" style="padding:2px 8px;font-weight:700;color:var(--primary)">${_on?'▾':'▸'} ${esc(s.name||'')}</button></td>`
-      +`<td style="${TD}">${esc(s.email||'')}</td>`
-      +`<td style="${TD}">${asg.length?(done+' / '+asg.length):'—'}</td>`
-      +`<td style="${TD}">${_pay}</td>`
-      +`<td style="${TD};white-space:nowrap"><button class="btn btn-sm btn-primary" data-act="payments" data-id="${esc(s.id)}">💰 記繳費</button> `
+    return `<tr class="cpr-r${_on?' on':''}"><td class="cpr-c cpr-nm"><button class="btn btn-sm btn-ghost" type="button" data-act="cvStu" data-id="${esc(s.id)}" style="padding:2px 8px;font-weight:700;color:var(--primary)">${_on?'▾':'▸'} ${esc(s.name||'')}</button></td>`
+      +`<td class="cpr-c cpr-em" data-l="Email">${esc(s.email||'')}</td>`
+      +`<td class="cpr-c" data-l="作業完成">${asg.length?(done+' / '+asg.length):'—'}</td>`
+      +`<td class="cpr-c" data-l="繳費">${_pay}</td>`
+      +`<td class="cpr-c cpr-act"><button class="btn btn-sm btn-primary" data-act="payments" data-id="${esc(s.id)}">💰 記繳費</button> `
       +`<button class="btn btn-sm" data-act="classLog" data-id="${esc(s.id)}">📝 記一堂課</button></td></tr>`
-      +(_on?`<tr><td colspan="5" style="padding:0 6px 12px">${cpStuPanel(s)}</td></tr>`:'');}).join('');}
+      +(_on?`<tr class="cpr-p"><td colspan="5">${cpStuPanel(s)}</td></tr>`:'');}).join('');}
 
 function renderClassProfile(){
   if(typeof spCss==='function')spCss();
@@ -18691,11 +18711,12 @@ H.billStatement=(id)=>{if(!IS_OWNER){toast('這個功能只有主管理員可以
     +'<meta name="qna-font" content="QNAFONT_FIXED">'
     +ghFontHead('kaitimes')
     +'<style id="fsx">'+ghFontCss('kaitimes')+'</style>'
-    +'<style>'+fbCss()+docCss2()
-    +'body.lang-zh .l-vi{display:none}'
-    +'body.lang-vi .l-zh{display:none}'
-    +'body.lang-both .l-vi:not(.nl):before{content:"　·　"}'
-    +'body.lang-both .l-vi.nl{display:block}'
+    /* STMTEN_V1567 這一份本來自己寫了一小段語言 CSS，是 V1362 加英文之前留下來的：
+       只管中文和越南文，沒有管 .l-en。V1362 之後每個 L2() 都會多吐一個英文 span，
+       這一份沒有「把英文藏起來」的規則，所以選越南文時英文也跟著印出來
+       （Quinn 的截圖：「Account statementBảng đối chiếu」「StudentHọc viên」）。
+       改成跟其他列印文件用同一套 expCss()，五種語言的顯示規則一次到位。 */
+    +'<style>'+fbCss()+docCss2()+expCss()
     +'.card .cl .t2{display:block;font-weight:700;opacity:.85;font-size:10px;letter-spacing:.2px;margin-top:1px}'
     /* DQTODAY_V929 */
     +'.dq{font:inherit;font-size:11.5px;padding:3px 9px;border:1px solid #DCE5F0;border-radius:999px;background:#fff;color:#5B6B80;cursor:pointer;margin-left:-3px}'
@@ -22688,7 +22709,8 @@ function cvPerfHtml(cls,members){
 function cvBodyHtml(cls,members,roster){
   const tab=S.cvTab||'mod';const TD='padding:7px 9px;border-top:1px solid var(--line)';
   if(tab==='perf')return cvPerfHtml(cls,members);/* CLSPERF_V1544 */
-  if(tab==='stu')return `<div class="card"><h3 style="margin:0 0 10px">👥 學生名單 <span class="tag">${members.length} 位</span></h3><div class="hint" style="margin-bottom:8px">團班每位學生各繳各的。按「💰 記繳費」寫進那位學生的記錄。</div><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:6px 9px;color:var(--primary)">姓名</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">Email</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">作業完成</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">繳費</th><th style="text-align:left;padding:6px 9px;color:var(--primary)">操作</th></tr></thead><tbody>${roster}</tbody></table></div>`;
+  /* CLSMOB_V1567 表頭也改成 class，窄螢幕才收得起來（每一格自己帶標籤） */
+  if(tab==='stu')return `<div class="card"><h3 style="margin:0 0 10px">👥 學生名單 <span class="tag">${members.length} 位</span></h3><div class="hint" style="margin-bottom:8px">點學生的名字可以攤開他的上課和繳費記錄，裡面有「✏️ 編輯資料」。團班每位學生各繳各的。</div><table class="cpr-tb"><thead class="cpr-hd"><tr><th>姓名</th><th>Email</th><th>作業完成</th><th>繳費</th><th>操作</th></tr></thead><tbody>${roster}</tbody></table></div>`;
   if(tab==='days')return classDatesHtml(cls);
   if(tab==='board')return classBoardHtml(cls);
   if(tab==='links'){const cm=classMetaOf(cls);const meetUrl=classMeetOf(cls);

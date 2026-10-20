@@ -2278,7 +2278,11 @@ function renderWork(){
           所以學生會在這裡看到「別的學生的公告」的日期。實測：兩列，都是空的，
           其中一列是發給別人的。公告統一由「課程 › 公告」負責，首頁有摘要。 */
   const annCard='';
-  const liveJoinCard=(S.preview||!(S.site&&S.site.live_on==='on'))?'':'<div class="ann-card" style="cursor:pointer;background:linear-gradient(135deg,#FDF3D8,#FDF3D8)" onclick="SLQ.join()"><div class="ann-h">🎮 '+esc(LT({zh:'加入即時比賽',cn:'加入即时比赛',en:'Join live quiz',vi:'Tham gia thi trực tiếp'}))+'</div><div class="ann-item">'+esc(LT({zh:'老師開始後，點這裡輸入代碼一起玩！',cn:'老师开始后，点这里输入代码一起玩！',en:'When your teacher starts, tap here and enter the code!',vi:'Khi cô bắt đầu, bấm vào đây và nhập mã!'}))+'</div></div>';
+  /* LIVEWORK_V1567 Quinn：「這邊出現加入即時比賽，那邊請你先關掉」。
+     這張黃卡本來同時出現在「課程」和「我的作業」兩頁，功能開關的說明也只寫「學生首頁」。
+     作業頁是學生要找作業的地方，這裡拿掉；「課程」那一頁保留。
+     要整個關掉（兩頁都不出現）：設定 › 功能開關 › 🎮 即時比賽 Live Quiz 關起來即可。 */
+  const liveJoinCard='';
   /* CLEANWORK_V976 「課後小結」拿掉。那一欄是老師點名時寫給自己的備註
      （例如「提早10分鐘下課，下次補回來」），不是寫給學生看的。 */
   const _wh='<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>';
@@ -3455,6 +3459,14 @@ function qHtmlGraded(q,idx){
   const fb=(isManualQ(q,resp)&&!_mk)/* AUTOFILL_V1458 答對的填空直接顯示 ✓，不要還掛著「等老師批改」 */
     ? `<div class="q-feedback hw-pending">⏳ ${th('pending')}${ct?` <span class="ans">｜${ct}</span>`:''}</div>`
     : (()=>{const good=_mk?(_mk==='done'):ok;
+        /* NOWORDY_V1567 Quinn：「這裡你有紅框，只寫打錯了，跟答對了，好像沒有意義。
+           我覺得顏色就已經足夠讓學生瞭解對錯了。不需要這行，顯得廢話太多」。
+           選擇題和配對題的作答區本身就是綠底 ✓／紅底 ✗，底下那一行是把同一件事再講一次，
+           整行拿掉；這一題如果還有「正解：⋯」要交代，就只留正解那句。
+           填空、問答、手寫、朗讀這些題型的作答區沒有顏色，那一行是學生唯一的對錯依據，照舊。 */
+        const _selfMk=(q.type==='choice')
+          ||['fill','write','qa','speak','opt','order','note'].indexOf(q.type)<0;
+        if(_selfMk)return ct?`<div class="q-feedback ${good?'ok':'no'}"><span class="ans">${ct}</span></div>`:'';
         return `<div class="q-feedback ${good?'ok':'no'}">${good?'✓ '+t('correct'):'✗ '+t('wrong')}${ct?` <span class="ans">｜${ct}</span>`:''}</div>`;})();
   const instr=q.instruction?`<div class="q-instr">${esc(q.instruction)}</div>`:'';
   const pic=q.image_url?`<div class="q-pic"><img src="${esc(q.image_url)}" alt="" loading="lazy"></div>`:'';
