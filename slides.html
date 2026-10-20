@@ -9,6 +9,7 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- JNAV_V1 學生可回前面題目、換題不會被切走 -->
 <!-- LORDER_V1 看圖排序／說故事作答；JDICT_V1 聽寫挖空填寫；TGRP_V1 工具按鈕成組；CLOG_V1 課堂紀錄 -->
 <!-- HWANS_V1 上課可放出學生已寫好的作業答案 -->
 <!-- JGATE_V1 學生登入畫面跟老師一樣樣式、分開 -->
@@ -545,6 +546,12 @@ html.joinmode,.joinmode body{height:auto;overflow:auto}
 #joinApp .jh .jwho{flex:none}
 #joinApp input.bl{width:7em;max-width:100%;border:none;border-bottom:2px solid var(--navy);border-radius:0;background:transparent;padding:0 4px;font-size:18px;color:var(--navy);text-align:center;vertical-align:baseline}
 #joinApp input.bl:focus{outline:none;background:#fff}
+#joinApp .jnav{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+#joinApp .jnav::-webkit-scrollbar{display:none}
+#joinApp .jnav button{all:unset;flex:none;cursor:pointer;font-size:14px;padding:6px 12px;border-radius:999px;background:#fff;color:var(--navy);border:1.5px solid var(--line);position:relative;white-space:nowrap}
+#joinApp .jnav button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+#joinApp .jnav .jlive{position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;background:var(--err)}
+#joinApp .jnew{all:unset;box-sizing:border-box;cursor:pointer;display:block;width:100%;margin-bottom:10px;padding:10px 14px;border-radius:12px;background:var(--navy);color:#fff;font-size:15px}
 #joinApp input.bl.wide{display:block;width:100%;text-align:left;background:#fff;border-radius:8px 8px 0 0;padding:4px 8px}
 #joinApp input.bl.db{width:4em;min-width:3em}
 #joinApp .jdict{background:var(--ice);border-radius:14px;padding:12px 16px;display:flex;flex-direction:column;gap:4px}
@@ -1772,7 +1779,7 @@ function liveCur(){
   return null; }
 function livePush(){ if(!LIVE.code || !db || !LIVE.open || document.hidden || /[?&]join=/i.test(location.search)) return; const c = liveCur(), sig = JSON.stringify(c);
   if(sig === LIVE.sig) return; LIVE.sig = sig; clearTimeout(LIVE.t);
-  LIVE.t = setTimeout(() => { const ref = liveDb().collection("slide_live").doc(LIVE.code); (c ? ref.update("cur", c, "t", Date.now(), new firebase.firestore.FieldPath("qs", c.key), {title: c.title, items: c.items, kind: c.kind, right: c.kind === "dict" ? (LIVE.right||[]) : [], n: (c.imgs||[]).length}) : ref.update({cur: null, t: Date.now()})).catch(e => console.warn("live", e)); }, 250); }
+  LIVE.t = setTimeout(() => { const ref = liveDb().collection("slide_live").doc(LIVE.code); (c ? ref.update("cur", c, "t", Date.now(), new firebase.firestore.FieldPath("qs", c.key), Object.assign({}, c, {right: c.kind === "dict" ? (LIVE.right||[]) : [], n: (c.imgs||[]).length}), "order", firebase.firestore.FieldValue.arrayUnion(c.key)) : ref.update({cur: null, t: Date.now()})).catch(e => console.warn("live", e)); }, 250); }
 function ansFor(key, i){ const out = [];
   LIVE.ans.forEach(d => { if(d.q !== key) return; const v = String((d.a||{})[i] || "").trim(); if(v && !LIVE.hide.has(d._id + "#" + i)) out.push({n: d.name || "", x: v, id: d._id + "#" + i}); });
   ((tansGet()[key] || {})[i] || []).forEach((t, j) => out.push({n: t.n, x: t.x, tid: j}));
@@ -2084,7 +2091,16 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
   const code = m[1].toUpperCase(), fs = liveDb(); const root = document.createElement("div"); root.id = "joinApp"; document.body.appendChild(root);
   const jg = document.createElement("div"); jg.className = "gate"; jg.hidden = true; document.body.appendChild(jg);
   let me = null, cur = null, state = "load", auth = "wait", lerr = "";
+  /* JNAV_V1 學生可以回到前面出過的題目；老師換題時，正在寫的不會被切走 */
+  let live = null, Q = {}, ORD = [], view = null, lastLive = null, sig = "";
   const dk = k => "join-" + code + "-" + k; const draft = k => { try { return JSON.parse(localStorage.getItem(dk(k)) || "{}"); } catch(e){ return {}; } };
+  const sentOf = k => { try { return localStorage.getItem(dk(k) + "-sent"); } catch(e){ return null; } };
+  const markSent = k => { try { localStorage.setItem(dk(k) + "-sent", JSON.stringify(draft(k))); } catch(e){} };
+  const dirty = k => { const d = JSON.stringify(draft(k)); return d !== "{}" && d !== sentOf(k); };
+  const shortT = t => String(t || "").replace(/：[^・]*・/, "・");
+  const navHtml = () => { const ks = ORD.filter(k => Q[k]); if(ks.length < 2 && !(live && view && live.key !== view)) return "";
+    return `<nav class="jnav">${ks.map(k => `<button type="button" data-jv="${esc(k)}" class="${k === view ? "on" : ""}">${sentOf(k) ? "✓ " : ""}${esc(shortT(Q[k].title))}${live && live.key === k && k !== view ? `<i class="jlive"></i>` : ""}</button>`).join("")}</nav>`
+      + (live && view && live.key !== view ? `<button type="button" class="jnew" data-jv="${esc(live.key)}">老師在：${esc(shortT(live.title))}　前往 ›</button>` : ""); };
   /* JOINUI_V2 對話分行、A/B 標在前面；空格直接打在線上 */
   const BL = /[＿_]{2,}/g;
   const jItem = (q, i, dv) => { const parts = String(dv || "").split("／"); let b = 0;
@@ -2111,9 +2127,9 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
       $("#jerr").textContent = msg; return; }
     if(state === "load"){ root.innerHTML = head + `<div class="jcard"><div class="note">連線中…</div></div>`; return; }
     if(state === "closed"){ root.innerHTML = head + `<div class="jcard"><div class="note">這個作答連結已經結束了。</div></div>`; return; }
-    if(!cur){ root.innerHTML = head + `<div class="jcard"><div class="note">等老師出題…</div></div>`; return; }
+    if(!cur){ root.innerHTML = head + navHtml() + `<div class="jcard"><div class="note">等老師出題…</div></div>`; return; }
     const d = draft(cur.key);
-    root.innerHTML = head + `<form class="jcard" data-j="send"><h2>${esc(cur.title || "")}</h2>${cur.instr ? `<div class="instr">${esc(cur.instr)}</div>` : ""}
+    root.innerHTML = head + navHtml() + `<form class="jcard" data-j="send"><h2>${esc(cur.title || "")}</h2>${cur.instr ? `<div class="instr">${esc(cur.instr)}</div>` : ""}
       ${(cur.opts||[]).length ? `<div class="opts">${cur.opts.map(o => `<div>${esc(o)}</div>`).join("")}</div>` : ""}
       ${cur.kind === "dict" ? jDict(d) : cur.kind === "order" ? jOrder(d) : ((cur.imgs||[]).length ? `<div class="jimgs">${cur.imgs.map((u, i) => `<figure><img src="${esc(u)}" alt=""><figcaption>${i+1}</figcaption></figure>`).join("")}</div>` : "") + (cur.items||[]).map((q, i) => jItem(q, i, d[i])).join("")}
       <button class="send" type="submit">送出</button><div class="note ${cls || ""}" id="jmsg">${msg || ""}</div></form>`; }
@@ -2123,6 +2139,7 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
     b.disabled = false; });
   root.addEventListener("input", e => { const t = e.target; if(!cur || t.dataset.i === undefined) return; if(t.classList.contains("bl") && !t.classList.contains("wide")) t.style.width = Math.max(7, [...t.value].length + 1.5) + "em"; const d = draft(cur.key); d[t.dataset.i] = t.dataset.b === undefined ? t.value : jVal(t.form, t.dataset.i); try { localStorage.setItem(dk(cur.key), JSON.stringify(d)); } catch(err){} });
   root.addEventListener("click", e => { if(e.target.closest("[data-j='out']")){ firebase.auth().signOut(); return; }
+    const jv = e.target.closest("[data-jv]"); if(jv){ view = jv.dataset.jv; cur = Q[view] || null; sig = ""; draw(); window.scrollTo(0, 0); return; }
     const o = e.target.closest("[data-ok]"), clr = e.target.closest("[data-j='oclr']"); if(!(o || clr) || !cur) return;
     const d = draft(cur.key); let pk = String(d.pk || "").split(",").filter(x => x !== "").map(Number);
     if(clr) pk = []; else { const k = +o.dataset.ok, p = pk.indexOf(k); if(p >= 0) pk.splice(p, 1); else pk.push(k); }
@@ -2132,21 +2149,24 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
       if(pk.length < n){ $("#jmsg").textContent = "請把每一張圖都排好。"; $("#jmsg").className = "note err"; return; }
       const a = {0: pk.map(k => (cur.perm||[])[k]).join(",")}, btn = f.querySelector(".send"); btn.disabled = true;
       try { await fs.collection("slide_live").doc(code).collection("answers").doc(("u_" + me.uid + "__" + cur.key).replace(/\//g, "_").slice(0, 300)).set({name: me.name, q: cur.key, a, t: Date.now()});
-        $("#jmsg").textContent = "已送出 ✓（改了可以再送出一次）"; $("#jmsg").className = "note ok"; } catch(err){ $("#jmsg").textContent = "送出失敗，請再試一次。"; $("#jmsg").className = "note err"; }
+        markSent(cur.key); $("#jmsg").textContent = "已送出 ✓（改了可以再送出一次）"; $("#jmsg").className = "note ok"; } catch(err){ $("#jmsg").textContent = "送出失敗，請再試一次。"; $("#jmsg").className = "note err"; }
       btn.disabled = false; return; }
     if(f.dataset.j === "send" && cur && me){ const a = {}; [...new Set([...f.querySelectorAll("[data-i]")].map(x => x.dataset.i))].forEach(i => { const x = f.querySelector(`[data-i="${i}"]`); const v = (x.dataset.b === undefined ? x.value.trim() : jVal(f, i)).slice(0, 500); if(v && v.replace(/／/g, "")) a[i] = v; });
       if(!Object.keys(a).length){ $("#jmsg").textContent = "請先寫答案。"; return; }
       const btn = f.querySelector(".send"); btn.disabled = true;
       try { await fs.collection("slide_live").doc(code).collection("answers").doc(("u_" + me.uid + "__" + cur.key).replace(/\//g, "_").slice(0, 300)).set({name: me.name, q: cur.key, a, t: Date.now()});
-        $("#jmsg").textContent = "已送出 ✓（改了可以再送出一次）"; $("#jmsg").className = "note ok"; }
+        markSent(cur.key); const sm = $("#jmsg"), nv = root.querySelector("nav.jnav button.on"); if(nv && !/^✓/.test(nv.textContent)) nv.textContent = "✓ " + nv.textContent; sm.textContent = "已送出 ✓（改了可以再送出一次）"; sm.className = "note ok"; }
       catch(err){ $("#jmsg").textContent = "送出失敗，請再試一次。"; $("#jmsg").className = "note err"; }
       btn.disabled = false; } });
   draw();
   if(!fs){ auth = "on"; state = "closed"; return draw(); }
   let unS = null;
   const listen = () => { if(unS) return; unS = fs.collection("slide_live").doc(code).onSnapshot(s => { if(!s.exists || !s.data().open){ state = "closed"; cur = null; return draw(); }
-    const nc = s.data().cur || null, changed = JSON.stringify(nc) !== JSON.stringify(cur); state = "on"; cur = nc;
-    if(changed || !root.querySelector("form[data-j='send']")) draw(); }, () => { state = "closed"; draw(); }); };
+    const D = s.data(); state = "on"; live = D.cur || null; Q = Object.assign({}, D.qs || {}); if(live) Q[live.key] = live;
+    ORD = (Array.isArray(D.order) ? D.order : []).filter(k => Q[k]); if(live && !ORD.includes(live.key)) ORD.push(live.key);
+    const lk = live ? live.key : null; if(!view || !Q[view] || (view === lastLive && lk !== lastLive && !dirty(view))) view = lk; lastLive = lk;
+    cur = view ? (Q[view] || null) : null;
+    const ns = JSON.stringify([view, cur, lk, ORD]); if(ns !== sig || !root.querySelector("form[data-j='send']")){ sig = ns; draw(); } }, () => { state = "closed"; draw(); }); };
   firebase.auth().onAuthStateChanged(async u => {
     if(!u){ me = null; auth = "out"; if(unS){ unS(); unS = null; } cur = null; state = "load"; root.innerHTML = ""; return draw(); }
     try { const s = await fs.collection("students").where("uid", "==", u.uid).limit(1).get(); const d = s.docs[0];
