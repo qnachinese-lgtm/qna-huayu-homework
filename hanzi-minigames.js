@@ -26,8 +26,12 @@ const keep = () => { try { localStorage.setItem("hz-mg", JSON.stringify(SET)); }
    配完就把「幾分、翻了幾次、花多久」寫回他自己的漢字紀錄（rec.gt）。
    作業單本身存在 lessons（kind:'gametask'），讀法跟課本一樣是
    read_uids array-contains 自己，所以安全規則不用動。 */
-const GT = { id:"", doc:null, saved:false };
+const GT = { id:"", doc:null, saved:false, only:false };
 try { GT.id = (new URLSearchParams(location.search).get("task") || "").trim(); } catch(e){}
+/* GTONLY_V1568 只要網址帶了 ?task=，這一頁從頭到尾就只做這份作業。
+   GT.id 在讀失敗的時候會被清掉（gtFail），所以另外記一個 only 當旗子——
+   不然一失敗就掉回「全部遊戲」那個選單，那正是 Quinn 不要的。 */
+GT.only = !!GT.id;
 
 // ---------- 題目來源：生詞＋句子 ----------
 function pool(){
@@ -60,7 +64,12 @@ function stopGame(){ if (GAME && GAME.stop) try { GAME.stop(); } catch(e){} GAME
 function shell(title, sub){
   const P = panel(); P.innerHTML = ""; document.body.classList.add("mg-ingame");
   const fsb = btn(isFs() ? "縮小" : "全螢幕", () => { isFs() ? fsOff() : fsOn(); setTimeout(() => { fsb.textContent = isFs() ? "縮小" : "全螢幕"; }, 300); }, "small");
-  P.append(el("div", { class:"mghead" }, [btn(GAPP ? "← 全部遊戲" : "← 小遊戲", () => { stopGame(); fsOff(); home(); }, "small"), el("b", { class:"hz", text:title }), sub ? el("span", { class:"muted", text:sub }) : null, el("span", { class:"sp" }), fsb]));
+  /* GTONLY_V1568 作業模式（?task=）：左上角那顆本來是「← 全部遊戲」，
+     按下去就是 Quinn 說的「全部的遊戲都會出現」。這裡改成直接回我的作業。 */
+  const back = GT.only
+    ? btn("← 回我的作業", () => { stopGame(); fsOff(); try { location.href = "student.html"; } catch(e){} }, "small")
+    : btn(GAPP ? "← 全部遊戲" : "← 小遊戲", () => { stopGame(); fsOff(); home(); }, "small");
+  P.append(el("div", { class:"mghead" }, [back, el("b", { class:"hz", text:title }), sub ? el("span", { class:"muted", text:sub }) : null, el("span", { class:"sp" }), fsb]));
   const body = el("div", { class:"mgbody" }); P.append(body); return body;
 }
 const GAMES = [
@@ -85,7 +94,10 @@ function home(){
   if (GAPP && WANT_JOIN && !JOIN_DONE){ JOIN_DONE = true; try { joinOnly(); return; } catch(e){} }
   /* GAMEHW_V1553 帶著 ?task= 進來＝老師指派的翻牌作業，直接開那一盤，不停在首頁。
      課本還沒讀完的時候 gtBoot 會回 false，等 loadCourse 讀好再呼叫 home() 就會進得來。 */
-  if (GT.id && !GT.saved){ try { if (gtBoot()) return; } catch(e){} }
+  if (GT.only && !GT.saved){ try { if (gtBoot()) return; } catch(e){}
+    /* GTONLY_V1568 gtBoot 回 false＝這份作業開不起來，gtFail 已經把說明畫上去了。
+       這裡要直接回去，不然底下就會把八款遊戲的選單蓋上來。 */
+    if (GT.fail) return; }
   stopGame(); try { Object.assign(SET, JSON.parse(localStorage.getItem("hz-mg") || "{}")); } catch(e){}
   if (GAPP) selTab("");
   const P = panel(); P.innerHTML = "";
@@ -334,7 +346,19 @@ function gtWait(msg){
   const P = panel(); P.innerHTML = "";
   P.append(el("div", { class:"mgtop" }, [el("h2", { text:"🃏 翻牌配對作業" }), el("p", { class:"muted", text:msg })]));
 }
-function gtFail(msg){ GT.id = ""; GT.fail = true; try { toast(msg); } catch(e){} }
+/* GTONLY_V1568 讀不到作業的時候，本來是跳一個 toast 就讓他看「全部遊戲」的選單。
+   作業模式下改成留在這一頁，把原因寫清楚，再給一顆回我的作業。 */
+function gtFail(msg){ GT.id = ""; GT.fail = true; try { toast(msg); } catch(e){}
+  if (!GT.only) return;
+  try {
+    const P = panel(); P.innerHTML = "";
+    P.append(el("div", { class:"gtmsg" }, [
+      el("div", { class:"gbig", text:"🃏" }),
+      el("h2", { text:"這份翻牌作業現在打不開" }),
+      el("p", { class:"muted", text:msg }),
+      el("a", { class:"btn primary", href:"student.html", text:"← 回我的作業" })]));
+  } catch(e){}
+}
 async function gtFetch(){
   let why = "";
   try {
@@ -349,7 +373,9 @@ async function gtFetch(){
     }
   } catch(e){ why = "讀不到這份作業：" + String((e && e.message) || e); }
   GT.loading = false;
-  if (why) gtFail(why);
+  /* GTONLY_V1568 讀失敗就由 gtFail 自己把畫面畫好，不要再回去 home()——
+     home() 在這個狀態下畫的是「全部遊戲」的選單。 */
+  if (why){ gtFail(why); return; }
   home();
 }
 function gtBoot(){
@@ -357,7 +383,7 @@ function gtBoot(){
   if (!GT.doc){ if (!GT.loading){ GT.loading = true; gtFetch(); } gtWait("正在讀這份作業…"); return true; }
   if (!C.loaded){ gtWait("正在讀你的課本…"); return true; }
   const lids = (GT.doc.lids || []).filter(id => C.byId[id]);
-  if (!lids.length){ gtFail("這份作業指定的課現在讀不到，先跟老師說一聲。下面可以自己挑幾課玩。"); return false; }
+  if (!lids.length){ gtFail("這份作業指定的課現在讀不到，先跟老師說一聲。"); return false; }
   SET.src = "course"; SET.lids = lids;
   const tb = (C.byId[lids[0]] || {}).tb; if (tb) SET.tb = tb;
   keep();
