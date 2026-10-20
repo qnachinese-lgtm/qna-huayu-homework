@@ -518,7 +518,7 @@ function vocabBlockHtml(l,di,vocab,chips){
          所以她在生詞那邊找不到。這裡補上入口，開的是同一個手寫區、同一份紀錄
          （送出過的會顯示 📤，老師看過的顯示 ✅），不是另外做一套。 */
       +`<div class="vtab-c vt-act">${hasEx?`<button type="button" class="vex-btn" data-act="vexTog" data-id="${exId}">📝 ${t('exLabel')}（${v.ex.length}）</button>`:''}`
-        +`<button type="button" class="vex-btn vhw-btn" data-act="hwrite" data-text="${esc(v.front)}" data-lesson="${esc(l.id)}" title="${esc(LT({zh:'在米字格裡手寫這個詞，可以看筆順，寫完可以送給老師看',cn:'在米字格里手写这个词，可以看笔顺，写完可以送给老师看',en:'Write this word in the grid, with stroke order; you can send it to your teacher',vi:'Viết từ này trong ô kẻ, có thứ tự nét; viết xong có thể gửi cho cô'}))}">✍️${(function(){const d=(typeof hwvDocOf==='function')?hwvDocOf(l.id,v.front):null;return d?(d.status==='reviewed'?' ✅':' 📤'):'';})()}</button>`
+        +`<button type="button" class="vex-btn vhw-btn" data-act="hwrite" data-text="${esc(v.front)}" data-lesson="${esc(l.id)}" title="${esc(LT({zh:'在米字格裡手寫這個詞，可以看筆順，寫完可以送給老師看',cn:'在米字格里手写这个词，可以看笔顺，写完可以送给老师看',en:'Write this word in the grid, with stroke order; you can send it to your teacher',vi:'Viết từ này trong ô kẻ, có thứ tự nét; viết xong có thể gửi cho cô'}))}">✍️</button>`
       +`</div>`
       +(hasEx?`<div class="vtab-ex hide" id="${exId}">${v.ex.map(x=>`<div class="ex-item">${exDlg(x)}</div>`).join('')}</div>`:'');
   });
@@ -2787,7 +2787,7 @@ function renderCards(){
       ${vocabHasAudio(S.lessons.find(x=>x.id===v.lessonId),v.di,v.vi)?`<button class="btn btn-sm" data-act="vocabPlay" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}">🔊 ${LT({zh:'發音',cn:'发音',en:'Sound',vi:'Phát âm'})}</button>`:''}
       <button class="btn btn-sm" data-act="shadowRec" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}">${t('shadow')}</button>
       <button class="btn btn-sm" data-act="stroke" data-text="${esc(v.front)}">${t('strokeBtn')}</button>
-      <button class="btn btn-sm" data-act="hwrite" data-text="${esc(v.front)}" data-lesson="${v.lessonId}">${t('hwriteBtn')}${(function(){const d=hwvDocOf(v.lessonId,v.front);return d?(d.status==='reviewed'?' ✅':' 📤'):'';})()}</button>
+      <button class="btn btn-sm" data-act="hwrite" data-text="${esc(v.front)}" data-lesson="${v.lessonId}">${t('hwriteBtn')}</button>
       ${vocabHasAudio(S.lessons.find(x=>x.id===v.lessonId),v.di,v.vi)?`<button class="btn btn-sm ${S.flashAuto?'btn-accent':''}" data-act="flashAuto">🔁 自動發音${S.flashAuto?'：開':'：關'}</button>`:''}
       ${(SHADOW&&SHADOW.idx===S.flashIdx)?`<button class="btn btn-sm" data-act="shadowPlay">${t('shadowMine')}</button>`:''}
       </div>
@@ -3957,27 +3957,37 @@ function hwL(zh,vi,en){return S.lang==='vi'?vi:(S.lang==='en'?en:zh);}
 function openHwrite(word,lid,prac){if(!word){toast(t('noCards'));return;}
   const ex=prac?null:hwvDocOf(lid,word);
   /* HWONE_V919 ci＝現在在描第幾個字 */
-  HWP={word,lid,prac:!!prac,ci:0,mode:'free',/* HWQUIZ_V1564 free＝自由寫，quiz＝跟著筆順寫 */images:(ex&&Array.isArray(ex.images))?ex.images.slice():[],status:(ex&&ex.status)||'draft',comment:(ex&&ex.comment)||''};HWP_STROKES=[];HWP_ERASE=false;HWP_DEMO_OPEN=false;
+  HWP={word,lid,prac:!!prac,ci:0,mode:'quiz',/* HWONLY_V1565 只剩「跟著筆順寫」 */images:(ex&&Array.isArray(ex.images))?ex.images.slice():[],status:(ex&&ex.status)||'draft',comment:(ex&&ex.comment)||''};HWP_STROKES=[];HWP_ERASE=false;HWP_DEMO_OPEN=false;
   let ov=document.getElementById('hw-ov');if(ov)ov.remove();
   ov=document.createElement('div');ov.id='hw-ov';ov.className='stroke-ov';ov.innerHTML=hwriteInner();
-  document.body.appendChild(ov);const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);
-  if(HWP.mode==='quiz')hwRenderQuiz();}
+  document.body.appendChild(ov);hwRenderQuiz();}
 let HWP_WRITERS=[];
 function hwRenderDemo(autoplay){const wrap=document.getElementById('hw-demo');if(!wrap||!HWP)return;
-  if(!window.HanziWriter){wrap.innerHTML='<span class="hint">'+hwL('筆順元件載入中…','Đang tải…','Loading…')+'</span>';setTimeout(()=>hwRenderDemo(autoplay),700);return;}
-  wrap.innerHTML='';HWP_WRITERS=[];const chars=[...HWP.word].filter(c=>/[㐀-鿿]/.test(c));
-  chars.forEach(c=>{const d=document.createElement('div');d.style.cssText='background:#fff;border:1px solid var(--line,#DCE5F0);border-radius:8px';wrap.appendChild(d);
-    try{const w=HanziWriter.create(d,c,{width:64,height:64,padding:4,showOutline:true,strokeColor:'#1E4C86',outlineColor:'#C0CEE0',strokeAnimationSpeed:1,delayBetweenStrokes:220});HWP_WRITERS.push(w);}catch(e){}});
+  if(!window.HanziWriter){wrap.innerHTML='<div class="hint" style="padding:18px;text-align:center">'+hwL('筆順元件載入中…','Đang tải…','Loading…')+'</div>';setTimeout(()=>hwRenderDemo(autoplay),700);return;}
+  /* HWFIX_V1565 示範只畫「現在在練的那一個字」，大小跟底下的練習框一樣，
+     所以點開點收都不會把框撐大、也不會把學生描到一半的筆畫洗掉。 */
+  wrap.innerHTML='';HWP_WRITERS=[];
+  const cs=[...String(HWP.word||'')];const c=cs[(HWP.ci>=0&&HWP.ci<cs.length)?HWP.ci:0]||'';
+  if(!c){return;}
+  const d=document.createElement('div');d.style.cssText='width:260px;height:260px';wrap.appendChild(d);
+  try{const w=HanziWriter.create(d,c,{width:260,height:260,padding:8,showOutline:true,
+    strokeColor:'#1E4C86',outlineColor:'#D9E3F0',strokeAnimationSpeed:1,delayBetweenStrokes:220});HWP_WRITERS.push(w);}catch(e){}
+  const bar=document.createElement('div');
+  bar.style.cssText='position:absolute;left:0;right:0;bottom:6px;text-align:center';
+  bar.innerHTML='<button class="btn btn-sm" data-act="hwDemoReplay">🔁 '+hwL('重播','Phát lại','Replay')+'</button>';
+  wrap.appendChild(bar);
   if(autoplay)hwPlayDemo();}
 function hwPlayDemo(){let i=0;const next=()=>{if(i>=HWP_WRITERS.length)return;try{HWP_WRITERS[i].animateCharacter({onComplete:()=>{i++;setTimeout(next,300);}});}catch(e){i++;next();}};next();}
 H.hwDemoReplay=()=>hwPlayDemo();
 function hwriteInner(){const n=HWP.images.length;
-  /* ══════ HWQUIZ_V1564 兩種模式 ══════
-     Quinn：「我想要做類似教育部筆順學習網」。那個站的重點是「跟著筆順一筆一筆寫，
-     寫錯會擋下來」，我們本來這個是自由塗鴉、格子裡放一個淡淡的底字，不會檢查。
-     學生頁本來就載了 HanziWriter（筆順示範在用），它的 quiz 就是那個做法，
-     所以加成第二種模式，原本的自由寫完全不動（送出給老師那條路也還在那邊）。 */
-  const _quiz=(HWP.mode==='quiz');
+  /* ══════ HWONLY_V1565 只剩「跟著筆順寫」 ══════
+     Quinn：「那請你把自由寫功能刪掉」。自由寫（空白米字格＋淡底字＋存這張＋
+     送出給老師）整個拿掉，只留 HanziWriter 的筆順練習。
+     ⚠ 一起沒了的是「學生把手寫送給老師批改」那條路——自由寫是唯一會產生圖片的模式。
+       已經交過的紀錄還在資料庫裡，老師後台也還看得到，只是學生不能再交新的。
+     底層那幾支畫布小工具（hwAttach／hwRedraw／hwSnap／hwBlank）故意留著沒刪，
+     她哪天想把自由寫加回來，改回來只要幾行。 */
+  const _quiz=true;
   /* HWONE_V919 底字本來印整個詞，「火腿蛋吐司」五個字擠在 260px 的格子裡會繞行、疊在一起。
      改成一次只描一個字，底字放回 150px。 */
   const _cs=[...String(HWP.word||'')];
@@ -3991,20 +4001,13 @@ function hwriteInner(){const n=HWP.images.length;
     +'</div>'):'';
   const sent=HWP.status==='submitted'||HWP.status==='reviewed';
   const thumbs=HWP.images.map((im,i)=>`<div style="position:relative;display:inline-block;margin:2px"><img src="${im}" style="width:48px;height:48px;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff"><button data-act="hwDelImg" data-id="${i}" style="position:absolute;top:-6px;right:-6px;background:#A33227;color:#fff;border:none;border-radius:50%;width:18px;height:18px;line-height:16px;cursor:pointer;padding:0">×</button></div>`).join('');
-  const demo=HWP_DEMO_OPEN?`<div style="margin-top:6px"><div id="hw-demo" style="display:inline-flex;gap:6px;justify-content:center"></div> <button class="btn btn-sm" data-act="hwDemoReplay">🔁 ${hwL('重播','Phát lại','Replay')}</button></div>`:'';
   return `<div class="stroke-box" style="max-width:320px">
     <button class="stroke-x" data-act="hwClose" aria-label="關閉">✕</button>
     <div style="text-align:center;font-weight:700;font-size:17px;margin-bottom:4px">${HWP.prac
       ?('✍️ '+hwL('練字','Luyện viết','Writing practice')+'　<span style="font-weight:400;font-size:14px;color:#5B6B80">'+(HWP.ci+1)+' / '+_cs.length+'</span>')
       :('📝 '+hwL('手寫練習','Luyện viết tay','Handwriting')+'：'+esc(HWP.word))}</div>
-    <div style="display:flex;gap:0;justify-content:center;margin-bottom:7px">
-      <button class="btn btn-sm hwmode${_quiz?'':' btn-accent'}" data-act="hwMode" data-id="free"
-        style="border-radius:999px 0 0 999px;padding:6px 14px">✍️ ${hwL('自由寫','Viết tự do','Free')}</button>
-      <button class="btn btn-sm hwmode${_quiz?' btn-accent':''}" data-act="hwMode" data-id="quiz"
-        style="border-radius:0 999px 999px 0;padding:6px 14px;margin-left:-1px">🖊 ${hwL('跟著筆順寫','Theo thứ tự nét','Stroke quiz')}</button>
-    </div>
     ${_pick}
-    <div style="text-align:center;margin-bottom:6px"><button class="btn btn-sm" data-act="hwDemoToggle">${HWP_DEMO_OPEN?'▲ '+hwL('收起筆順','Ẩn thứ tự nét','Hide strokes'):'▶ '+hwL('看筆順示範','Xem thứ tự nét','Stroke order')}</button>${demo}</div>
+    <div style="text-align:center;margin-bottom:6px"><button class="btn btn-sm" data-act="hwDemoToggle">${HWP_DEMO_OPEN?'▲ '+hwL('收起筆順','Ẩn thứ tự nét','Hide strokes'):'▶ '+hwL('看筆順示範','Xem thứ tự nét','Stroke order')}</button></div>
     <div style="position:relative;width:260px;height:260px;margin:0 auto;border:2px solid #C0CEE0;border-radius:12px;background:#fff;overflow:hidden">
       <!-- TZS_V1496 米字格：本來只有一個空的虛線框，字寫出來偏一邊、大小也抓不準。
            中線虛線、對角線更淡，跟練習簿上的格子一樣。 -->
@@ -4016,37 +4019,24 @@ function hwriteInner(){const n=HWP.images.length;
         <line x1="0" y1="50" x2="100" y2="50" stroke="#D3DEEC" stroke-width=".6" stroke-dasharray="3 2.6"/>
       </svg>
       ${_quiz?'':`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${gsize}px;color:#FDF3D8;pointer-events:none;user-select:none;font-family:'Kaiti TC','Kaiti','DFKai-SB','BiauKai',serif;line-height:1">${guide}</div>`}
-      ${_quiz
-        ? `<div id="hw-quiz" style="position:relative;width:260px;height:260px;touch-action:none"></div>`
-        : `<canvas id="hw-cv" width="260" height="260" style="position:relative;touch-action:none;width:260px;height:260px;display:block"></canvas>`}
+      <div id="hw-quiz" style="position:relative;width:260px;height:260px;touch-action:none"></div>
+      ${/* HWFIX_V1565 筆順示範蓋在同一個框上面，所以點開點收框都不會變高、
+            底下的字也不用重畫（學生描到一半的筆畫留得住） */''}
+      <div id="hw-demo" style="position:absolute;inset:0;background:#fff;display:${HWP_DEMO_OPEN?'block':'none'}"></div>
     </div>
     ${_quiz?`<div id="hw-qmsg" class="hint" style="text-align:center;margin-top:7px;min-height:20px"></div>`:''}
     <div style="display:flex;gap:6px;justify-content:center;margin-top:8px;flex-wrap:wrap">
-      ${_quiz
-        ? `<button class="btn btn-sm" data-act="hwQuizAgain">🔁 ${hwL('重寫這個字','Viết lại','Restart')}</button>
-           <button class="btn btn-sm" data-act="hwQuizHint">💡 ${hwL('提示這一筆','Gợi ý nét này','Hint')}</button>`
-        : `<button class="btn btn-sm" data-act="hwUndo">↩ ${hwL('上一筆','Nét cuối','Undo')}</button>
-           <button class="btn btn-sm ${HWP_ERASE?'btn-accent':''}" data-act="hwErase">🧽 ${hwL('橡皮擦','Tẩy','Eraser')}</button>
-           <button class="btn btn-sm" data-act="hwClearCv">🧹 ${hwL('清除','Xoá hết','Clear')}</button>
-           ${HWP.prac?'':`<button class="btn btn-sm btn-accent" data-act="hwAdd">➕ ${hwL('存這張','Lưu','Save')}</button>`}`}
+      <button class="btn btn-sm" data-act="hwQuizAgain">🔁 ${hwL('重寫這個字','Viết lại','Restart')}</button>
+      <button class="btn btn-sm" data-act="hwQuizHint">💡 ${hwL('提示這一筆','Gợi ý nét này','Hint')}</button>
     </div>
     ${HWP.prac?`<div style="margin-top:10px;display:flex;gap:6px;justify-content:center;align-items:center">
       <button class="btn btn-sm" data-act="hwPrev" ${HWP.ci<=0?'disabled':''}>◀ ${hwL('上一個','Trước','Prev')}</button>
       <button class="btn btn-primary btn-sm" data-act="hwNext" ${HWP.ci>=_cs.length-1?'disabled':''} style="padding:9px 18px">${hwL('下一個','Tiếp','Next')} ▶</button>
-    </div>
-    <div class="hint" style="margin-top:8px;text-align:center">${hwL('寫完按「下一個」。這裡只是練習，不會存起來、也不會送給老師。',
-      'Viết xong bấm “Tiếp”. Đây chỉ là luyện tập, không lưu và không gửi cho giáo viên.',
-      'Tap “Next” when done. This is practice only — nothing is saved or sent.')}</div>`
-    :(_quiz?`<div class="hint" style="margin-top:10px;text-align:center">${hwL(
-        '一筆一筆照順序寫，寫錯會停在那一筆；連錯兩次會自動提示。這裡只是練習，不會送給老師。',
-        'Viết từng nét theo thứ tự; sai sẽ dừng lại ở nét đó, sai hai lần sẽ gợi ý. Đây chỉ là luyện tập.',
-        'Write stroke by stroke in order; a wrong stroke stops there, and after two misses you get a hint. Practice only.')}</div>`
-    :`<div style="margin-top:8px;text-align:center"><span class="hint">${hwL('已寫','Đã viết','')} ${n} ${hwL('張','tờ','sheets')}</span>${thumbs?`<div style="margin-top:4px">${thumbs}</div>`:''}</div>
-    <div style="margin-top:10px;text-align:center">
-      <button class="btn btn-primary" data-act="hwSubmit" style="padding:9px 18px">📤 ${hwL('送出給老師','Gửi cho giáo viên','Submit')}（${n}）</button>
-      ${sent?`<div class="hint" style="margin-top:4px;color:#1F6A54">✅ ${hwL('已送出','Đã gửi','Submitted')}</div>`:''}
-      ${(HWP.status==='reviewed'&&HWP.comment)?`<div class="fb-note" style="margin-top:6px">💬 ${esc(HWP.comment)}</div>`:''}
-    </div>`)}
+    </div>`:''}
+    <div class="hint" style="margin-top:10px;text-align:center">${hwL(
+      '一筆一筆照順序寫，寫錯會停在那一筆；連錯兩次會自動提示。',
+      'Viết từng nét theo thứ tự; sai sẽ dừng lại ở nét đó, sai hai lần sẽ gợi ý.',
+      'Write stroke by stroke in order; a wrong stroke stops there, and after two misses you get a hint.')}</div>
   </div>`;}
 let HWP_STROKES=[],HWP_ERASE=false,HWP_DEMO_OPEN=false;
 function hwRedraw(cv){const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);ctx.lineCap='round';ctx.lineJoin='round';
@@ -4059,7 +4049,7 @@ function hwAttach(cv){hwRedraw(cv);let cur=null;
   cv.addEventListener('pointerup',()=>{cur=null;});cv.addEventListener('pointerleave',()=>{cur=null;});}
 function hwBlank(cv){return !HWP_STROKES.some(s=>s.pts&&s.pts.length&&!s.erase);}
 function hwSnap(cv){const out=document.createElement('canvas');out.width=180;out.height=180;const o=out.getContext('2d');o.fillStyle='#fff';o.fillRect(0,0,180,180);o.drawImage(cv,0,0,180,180);return out.toDataURL('image/png');}
-function hwRefresh(){const ov=document.getElementById('hw-ov');if(!ov)return;ov.innerHTML=hwriteInner();const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);if(HWP_DEMO_OPEN)hwRenderDemo(false);if(HWP&&HWP.mode==='quiz')hwRenderQuiz();/* HWQUIZ_V1564 */}
+function hwRefresh(){const ov=document.getElementById('hw-ov');if(!ov)return;ov.innerHTML=hwriteInner();if(HWP_DEMO_OPEN)hwRenderDemo(false);hwRenderQuiz();/* HWONLY_V1565 */}
 /* ══════ HWQUIZ_V1564 跟著筆順寫（教育部筆順學習網那種） ══════
    HanziWriter 的 quiz：學生用手指照順序描，描對才會留下那一筆，描錯停在原地，
    連錯兩次自動把那一筆閃給他看。全部寫完會報「幾筆、錯幾次」。
@@ -4090,7 +4080,7 @@ function hwRenderQuiz(){
       outlineColor:'#D9E3F0',strokeColor:'#16202E',drawingColor:'#1E4C86',
       drawingWidth:18,showHintAfterMisses:2,highlightOnComplete:true,
       onLoadCharDataError:()=>{box.innerHTML='<div class="hint" style="padding:16px;text-align:center">'
-        +hwL('這個字沒有筆順資料，先用「自由寫」吧','Chữ này chưa có dữ liệu nét','No stroke data for this character')+'</div>';}});
+        +hwL('這個字還沒有筆順資料，先練別的字','Chữ này chưa có dữ liệu nét','No stroke data for this character')+'</div>';}});
     HWQ.quiz({
       onCorrectStroke:(d)=>{HWQ_DONE=(d&&d.strokeNum!=null)?d.strokeNum+1:HWQ_DONE+1;
         if(d&&d.strokesRemaining!=null)HWQ_N=HWQ_DONE+d.strokesRemaining;hwQuizMsg();},
@@ -4100,21 +4090,28 @@ function hwRenderQuiz(){
         if(!HWQ_N)HWQ_N=HWQ_DONE;hwQuizMsg();}
     });
   }catch(e){box.innerHTML='<div class="hint" style="padding:16px;text-align:center">'
-    +hwL('這個字沒有筆順資料，先用「自由寫」吧','Chữ này chưa có dữ liệu nét','No stroke data')+'</div>';}
+    +hwL('這個字還沒有筆順資料，先練別的字','Chữ này chưa có dữ liệu nét','No stroke data')+'</div>';}
 }
-H.hwMode=(id)=>{if(!HWP)return;const m=(String(id)==='quiz')?'quiz':'free';
-  if(HWP.mode===m)return;HWP.mode=m;HWP_STROKES=[];HWP_ERASE=false;hwRefresh();};
 H.hwQuizAgain=()=>hwRenderQuiz();
 H.hwQuizHint=()=>{try{if(HWQ&&HWQ.highlightStroke)HWQ.highlightStroke(HWQ_DONE,{duration:900});
   else if(HWQ&&HWQ.animateStroke)HWQ.animateStroke(HWQ_DONE);}catch(e){}};
-H.hwDemoToggle=()=>{HWP_DEMO_OPEN=!HWP_DEMO_OPEN;hwRefresh();if(HWP_DEMO_OPEN)setTimeout(()=>hwRenderDemo(true),40);};
+H.hwDemoToggle=()=>{
+  HWP_DEMO_OPEN=!HWP_DEMO_OPEN;
+  /* HWFIX_V1565 Quinn：「按『看筆順示範』那邊點完以後，整個框就會跑掉」。
+     本來這裡是 hwRefresh()——整個視窗重畫一次，所以高度會變、位置會跳，
+     而且更糟的是底下的練習框會跟著重建，學生描到一半的筆畫全部不見。
+     改成只把蓋在上面那一層開關掉，框完全不動。 */
+  const d=document.getElementById('hw-demo');
+  const b=document.querySelector('[data-act="hwDemoToggle"]');
+  if(b)b.textContent=HWP_DEMO_OPEN
+    ?('▲ '+hwL('收起筆順','Ẩn thứ tự nét','Hide strokes'))
+    :('▶ '+hwL('看筆順示範','Xem thứ tự nét','Stroke order'));
+  if(!d)return;
+  if(HWP_DEMO_OPEN){d.style.display='block';hwRenderDemo(true);}
+  else{d.style.display='none';d.innerHTML='';HWP_WRITERS=[];}
+};
 H.hwrite=(_,b)=>openHwrite(b.dataset.text,b.dataset.lesson);
 H.hwClose=()=>{const ov=document.getElementById('hw-ov');if(ov)ov.remove();HWP=null;};
-H.hwClearCv=()=>{HWP_STROKES=[];const cv=document.getElementById('hw-cv');if(cv)hwRedraw(cv);};
-H.hwUndo=()=>{if(HWP_STROKES.length){HWP_STROKES.pop();const cv=document.getElementById('hw-cv');if(cv)hwRedraw(cv);}};
-H.hwErase=()=>{HWP_ERASE=!HWP_ERASE;hwRefresh();};
-H.hwAdd=()=>{if(!HWP)return;if(HWP.images.length>=HWP_MAX){toast(hwL('最多寫 '+HWP_MAX+' 張','Tối đa '+HWP_MAX,'Max '+HWP_MAX));return;}const cv=document.getElementById('hw-cv');if(hwBlank(cv)){toast(hwL('先在框裡寫一個字','Hãy viết một chữ trước','Write a character first'));return;}HWP.images.push(hwSnap(cv));HWP_STROKES=[];HWP_ERASE=false;hwRefresh();};
-H.hwDelImg=(idx)=>{if(!HWP)return;HWP.images.splice(Number(idx),1);hwRefresh();};
 /* HWONE_V919 換一個字來描。畫布上那個是上一個字，直接清掉；已經存起來的張數不受影響。 */
 H.hwPick=(i)=>{if(!HWP)return;HWP.ci=Number(i)||0;HWP_STROKES=[];HWP_ERASE=false;hwRefresh();/* HWQUIZ_V1564 hwRefresh 裡會重掛 quiz */};
 /* TZS_V1496 練字模式：照順序換字。畫到一半的筆畫直接清掉——這裡本來就不存。 */
@@ -4133,18 +4130,8 @@ H.hwLesson=()=>{
     if(!/[㐀-䶿一-鿿豈-﫿]/.test(c)||seen[c])return;seen[c]=1;cs.push(c);}));
   if(!cs.length){toast(hwL('這裡沒有可以練的字','Chưa có chữ để luyện','No characters yet'));return;}
   openHwrite(cs.join(''),(all[0]&&all[0].lessonId)||'',true);};
-H.hwSubmit=async()=>{if(S.preview){toast(S.tryMode?'試做：正式使用時，手寫會送去給老師批改（現在不會存）':'預覽模式無法送出');return;}if(!HWP)return;
-  const cv=document.getElementById('hw-cv');if(cv&&!hwBlank(cv)&&HWP.images.length<HWP_MAX)HWP.images.push(hwSnap(cv));
-  if(!HWP.images.length){toast(hwL('先寫一張再送出','Hãy viết trước khi gửi','Write at least one first'));return;}
-  const btn=document.querySelector('[data-act="hwSubmit"]');if(btn){btn.disabled=true;btn.textContent='…';}
-  try{const u=myUid();const ex=hwvDocOf(HWP.lid,HWP.word);
-    const payload={kind:'hwv',lesson_id:'__hwv__',hwv_lesson:HWP.lid,hwv_word:HWP.word,uid:u,student_id:S.me.id,student_name:S.me.name||'',images:HWP.images,status:'submitted',submitted_at:now()};
-    if(ex&&ex.id){await DB.update('results',ex.id,Object.assign({},payload,{comment:ex.comment||'',reviewed_at:ex.reviewed_at||''}));}
-    else{await DB.insert('results',payload);}
-    const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);splitResults(rAll);
-    try{bumpActivity(HWP.images.length);}catch(e){}
-    toast('✅ '+hwL('已送出手寫給老師','Đã gửi bài viết tay','Sent to teacher'));H.hwClose();renderCards();
-  }catch(e){toast((e&&e.message)||e);if(btn){btn.disabled=false;btn.textContent='📤';}}};
+/* HWONLY_V1565 送出給老師是自由寫在用的，整個模式拿掉了，這一段也跟著移除。
+   已經交過的紀錄留在資料庫裡，老師後台照樣看得到。 */
 /* ---- 課文逐句跟讀 ---- */
 let SS=null;
 function splitSentences(text){return (text||'').replace(/\r/g,'').split('\n').flatMap(line=>(line.match(/[^。！？!?；;]+[。！？!?；;]*/g)||[])).map(s=>s.trim()).filter(s=>s&&/[㐀-鿿]/.test(s));}
