@@ -9,6 +9,7 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- CLSPICK_V1 開投影片先選班級 -->
 <!-- SANSQ_V1 學生答案一次展開一題、字不縮小 -->
 <!-- HWCLS_V1 學生答案可選只看某一班 -->
 <!-- HWANS_V3 講義改過的答案也會顯示 -->
@@ -495,6 +496,13 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .sform input{font:inherit;font-size:16px;padding:4px 8px;border:2px solid var(--sky);border-radius:8px;background:#fff;color:var(--fg)}
 .sform .nm{width:90px} .sform .tx{width:340px}
 .sform button{font:inherit;font-size:14px;padding:5px 12px;border-radius:8px;border:none;background:var(--navy);color:#fff;cursor:pointer}
+.clschip{font:inherit;font-size:14px;padding:7px 12px;border-radius:10px;border:2px solid var(--line);background:var(--panel);color:var(--navy);cursor:pointer}
+.cpcard{background:#fff;border-radius:24px;padding:34px 38px;box-shadow:0 24px 60px rgba(30,76,134,.18);width:min(520px,100%);box-sizing:border-box}
+.cpcard h2{margin:0 0 20px;font-size:26px;color:var(--navy);text-align:center}
+.cpgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}
+.cpgrid button{all:unset;box-sizing:border-box;cursor:pointer;text-align:center;padding:16px 10px;border-radius:14px;background:var(--ice);color:var(--navy);font-size:20px;border:2px solid transparent}
+.cpgrid button:hover{border-color:var(--sky)}
+.cpgrid button.on{background:var(--navy);color:#fff}
 .livepill{font:inherit;font-size:14px;padding:7px 12px;border-radius:10px;border:2px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer}
 .livebox{position:fixed;inset:0;background:rgba(20,40,80,.35);display:grid;place-items:center;z-index:80}
 .livebox[hidden]{display:none}
@@ -691,6 +699,7 @@ html.locked #fit{visibility:hidden}
     <div class="tools">
       <div class="lpick"><button id="lpBtn" type="button" aria-haspopup="listbox" aria-expanded="false"><span id="lpLab"></span><span aria-hidden="true">▾</span></button><div class="lpPanel" id="lpPanel" role="listbox" hidden></div></div>
       <select id="lessonSel" aria-label="選擇課次" hidden></select>
+      <button class="clschip" id="clsChip" type="button" hidden></button>
       <button class="livepill" id="livePill" type="button" hidden></button>
       <div class="tmenu"><button id="tmBtn" type="button" aria-expanded="false">老師 ▾</button>
         <div class="tmPanel" id="tmPanel" hidden>
@@ -1819,12 +1828,12 @@ function paintAns(){
   /* HWCLS_V1 學生答案只看這一班：開著「學生答案」時旁邊可以選班級 */
   if(!ct.querySelector("[data-a='ansTog']")){ const g = document.createElement("span"); g.className = "tgrp"; g.innerHTML = `<button class="btn ghost" data-a="ansTog"></button>`; const gap = ct.querySelector(".gap"); gap ? ct.insertBefore(g, gap) : ct.appendChild(g); }
   const tb = ct.querySelector("[data-a='ansTog']"); tb.textContent = ansOn ? "隱藏學生答案" : "學生答案";
-  { const g = tb.parentNode; let sel = g.querySelector("select.hcls"); if(ansOn && !LIVE.cls){ if(!LIVE.groups && !LIVE.gload){ LIVE.gload = 1; liveGroups().then(() => paintAns()); }
+  { const g = tb.parentNode; let sel = g.querySelector("select.hcls"); if(false){ if(!LIVE.groups && !LIVE.gload){ LIVE.gload = 1; liveGroups().then(() => paintAns()); }
       const opts = `<option value="">全部班級</option>` + (LIVE.groups || []).map(x => `<option value="${esc(x)}"${x === hwCls() ? " selected" : ""}>${esc(x)} 班</option>`).join("");
       if(!sel){ sel = document.createElement("select"); sel.className = "hcls"; sel.setAttribute("aria-label", "班級"); g.appendChild(sel); sel.onchange = () => { LIVE.hwCls = sel.value; try { localStorage.setItem("slides-hw-cls", sel.value); } catch(e){} document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); }; }
       if(sel.dataset.o !== opts){ sel.dataset.o = opts; sel.innerHTML = opts; } sel.value = hwCls(); }
     else if(sel) sel.remove();
-    if(ansOn && LIVE.cls && !g.querySelector(".hclsf")){ const f = document.createElement("span"); f.className = "hclsf"; f.textContent = LIVE.cls + " 班"; g.appendChild(f); } else if(!(ansOn && LIVE.cls)){ const f = g.querySelector(".hclsf"); if(f) f.remove(); } }
+    if(false){ const f = document.createElement("span"); f.className = "hclsf"; f.textContent = LIVE.cls + " 班"; g.appendChild(f); } else if(!(ansOn && LIVE.cls)){ const f = g.querySelector(".hclsf"); if(f) f.remove(); } }
   if(ansOn && db){ const lid = hwLid(LESSON); if(lid && HW.lid !== lid && !HW.loading) hwLoad(lid); }
   const qs = [...document.querySelectorAll("#stage .gq[data-gq], #stage .qa[data-qa]")];
   qs.forEach((el, i) => { let box = el.nextElementSibling; if(!box || !box.classList.contains("sans")){ box = document.createElement("div"); box.className = "sans"; el.after(box); }
@@ -2050,6 +2059,17 @@ function liveSub(){ liveUnsub(); if(!LIVE.code || !db || /[?&]join=/i.test(locat
   LIVE.unS = ref.onSnapshot(s => { LIVE.open = !!(s.exists && s.data().open); if(!LIVE.open){ liveUnsub(); LIVE.code = null; try { localStorage.removeItem("slides-live"); } catch(e){} } else if(!document.hidden && !s.metadata.hasPendingWrites && ((s.data().cur || {}).key || "") !== ((liveCur() || {}).key || "")){ LIVE.sig = ""; livePush(); } /* LIVELOOP_V2 只比對題目代號，不再無限重寫 */ livePill(); }, () => {});
   LIVE.unA = ref.collection("answers").onSnapshot(s => { LIVE.ans = s.docs.map(d => ({_id: d.id, ...d.data()})); livePill(); psSync(); if($("#modal").hidden){ document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); } }, err => console.warn("live answers", err)); }
 if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u => { const r = $("#liveRow"); if(r) r.hidden = !u; if(u && LIVE.code){ LIVE.open = true; liveSub(); } else if(!u) liveUnsub(); });
+/* CLSPICK_V1 打開投影片先選今天上哪一班；學生答案只顯示這一班 */
+function clsLab(v){ return v ? v + " 班" : "不分班"; }
+function clsSet(v){ LIVE.hwCls = v; LIVE.lastCls = v; try { localStorage.setItem("slides-hw-cls", v); localStorage.setItem("slides-live-cls", v); sessionStorage.setItem("slides-cls-ok", "1"); } catch(e){}
+  const c = $("#clsChip"); if(c){ c.hidden = false; c.textContent = clsLab(v); }
+  HW.lid = null; document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); try { paintAns(); gFit(); } catch(e){} }
+async function clsPick(){ if(!LIVE.groups) await liveGroups(); let ov = $("#clsPick"); if(!ov){ ov = document.createElement("div"); ov.id = "clsPick"; ov.className = "gate"; document.body.appendChild(ov); }
+  const cur = hwCls(), gs = LIVE.groups || [];
+  ov.innerHTML = `<div class="cpcard"><h2>今天上哪一班？</h2><div class="cpgrid">${gs.map(g => `<button type="button" data-cp="${esc(g)}" class="${g === cur ? "on" : ""}">${esc(g)} 班</button>`).join("")}<button type="button" data-cp="" class="${!cur ? "on" : ""}">不分班</button></div></div>`;
+  ov.hidden = false; ov.onclick = e => { const b = e.target.closest("[data-cp]"); if(!b) return; clsSet(b.dataset.cp); ov.hidden = true; }; }
+function clsInit(){ const c = $("#clsChip"); if(c){ c.hidden = false; c.textContent = clsLab(hwCls()); c.onclick = clsPick; }
+  let ok = null; try { ok = sessionStorage.getItem("slides-cls-ok"); } catch(e){} if(!ok) clsPick(); }
 /* GATE_V1 投影片要老師登入才看得到；學生作答連結（?join=）不受影響 */
 (function gate(){ if(/[?&]join=/i.test(location.search)) return;
   const g = document.createElement("div"); g.className = "gate"; g.id = "gate";
@@ -2062,7 +2082,7 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
   if(!(window.firebase && firebase.apps.length)){ $("#gMsg").textContent = "連不上登入服務，請重新整理。"; return; }
   /* GATE_V3 只有老師帳號能進投影片（學生帳號登入也擋住） */
   const isT = async u => { const em = String(u.email || "").toLowerCase(); if(em === "qnachinese@gmail.com") return true; try { return (await firebase.firestore().collection("admins").doc(em).get()).exists; } catch(e){ return false; } };
-  firebase.auth().onAuthStateChanged(async u => { if(u && await isT(u)){ show(false); return; } show(true); $("#gMsg").textContent = u ? "這個帳號不是老師帳號，請用老師帳號登入" : "登入後才能使用投影片"; $("#gFields").hidden = false; $("#gEm").value = $("#gEm").value || window.TEACHER_EMAIL || ""; ($("#gEm").value ? $("#gPw") : $("#gEm")).focus(); });
+  firebase.auth().onAuthStateChanged(async u => { if(u && await isT(u)){ show(false); clsInit(); return; } show(true); $("#gMsg").textContent = u ? "這個帳號不是老師帳號，請用老師帳號登入" : "登入後才能使用投影片"; $("#gFields").hidden = false; $("#gEm").value = $("#gEm").value || window.TEACHER_EMAIL || ""; ($("#gEm").value ? $("#gPw") : $("#gEm")).focus(); });
   $("#gForm").onsubmit = async e => { e.preventDefault(); $("#gErr").textContent = ""; $("#gGo").disabled = true;
     try { await firebase.auth().signInWithEmailAndPassword($("#gEm").value.trim(), $("#gPw").value); $("#gPw").value = ""; }
     catch(err){ $("#gErr").textContent = "登入失敗：請檢查 Email 和密碼。"; }
