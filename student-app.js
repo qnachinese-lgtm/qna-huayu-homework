@@ -2815,26 +2815,49 @@ function renderCards(){
   if(!all.length){$('#screen').innerHTML=backBtn+fbar+emptyHtml('🃏',t('noCards'),t('noCardsSub'));return;}
   if(S.flashIdx>=all.length)S.flashIdx=0;
   const v=all[S.flashIdx];const dueN=srsDueList().length;
-  $('#screen').innerHTML=backBtn+fbar+`<div class="vocab-actions"><button class="btn btn-sm" data-act="review">${t('revBtn')}${dueN?'（'+dueN+'）':''}</button><button class="btn btn-sm" data-act="hwLesson" title="把這裡的生詞拆成一個一個字，照順序練">✍️ ${LT({zh:'練這一課的字',cn:'练这一课的字',en:'Write the characters',vi:'Luyện viết chữ'})}</button><button class="btn btn-primary btn-sm" data-act="vocabQuiz">${t('vqBtn')}</button><button class="btn btn-sm" data-act="vocabMatch">${t('vmBtn')}</button><button class="btn btn-sm" data-act="dictation">${t('dictBtn')}</button><button class="btn btn-sm" data-act="vocabSentence">${t('sentBtn')}</button></div>
+  /* CARDUI_V1570 Quinn：「我覺得這個生詞卡設計太亂了。裡面很奇怪」。
+     量到的四件事：
+     （一）這一排六顆本來連一條 CSS 都沒有（.vocab-actions 全站找不到樣式），
+          就是六顆按鈕散在那裡，沒有分組也沒有標題。
+     （二）「🎯 生詞測驗」是 btn-primary 深色實心，看起來像被按住／選中，其實不是。
+     （三）兩顆都用 ✍️（練這一課的字、造句），看不出差別。
+     （四）卡片底下把「上一張／下一張」和「還沒／會了」混成一排，「1 / 4」卡在中間。
+     改成兩層：上面是「整課一起練」的五顆（都平的，沒有誰被強調），
+     「複習」是到期的生詞、性質不同，用一條線隔開放右邊；
+     練字改用 🖌，✍️ 只留給造句。 */
+  const _vaPr=`<button class="btn btn-sm" data-act="vocabQuiz">${t('vqBtn')}</button>`
+    +`<button class="btn btn-sm" data-act="vocabMatch">${t('vmBtn')}</button>`
+    +`<button class="btn btn-sm" data-act="dictation">${t('dictBtn')}</button>`
+    +`<button class="btn btn-sm" data-act="vocabSentence">${t('sentBtn')}</button>`
+    +`<button class="btn btn-sm" data-act="hwLesson" title="${esc(LT({zh:'把這裡的生詞拆成一個一個字，照順序練',cn:'把这里的生词拆成一个一个字，照顺序练',en:'Split these words into single characters and write them in order',vi:'Tách các từ này thành từng chữ và luyện viết theo thứ tự'}))}">🖌 ${LT({zh:'練這一課的字',cn:'练这一课的字',en:'Write the characters',vi:'Luyện viết chữ'})}</button>`;
+  const _vaRev=`<button class="btn btn-sm" data-act="review">${t('revBtn')}${dueN?'（'+dueN+'）':''}</button>`;
+  const _va=`<div class="va">`
+    +`<div class="va-g"><span class="va-t">${esc(LT({zh:'整課一起練',cn:'整课一起练',en:'Practise the whole lesson',vi:'Luyện cả bài'}))}</span><div class="va-b">${_vaPr}</div></div>`
+    +`<div class="va-g va-right"><span class="va-t">${esc(LT({zh:'到期要複習的',cn:'到期要复习的',en:'Due for review',vi:'Đến hạn ôn'}))}</span><div class="va-b">${_vaRev}</div></div>`
+    +`</div>`;
+  $('#screen').innerHTML=backBtn+fbar+_va+`
     <div class="flash-wrap">
+    <div class="flash-top">${S.flashIdx+1} / ${all.length}</div>
     <div class="flash ${S.flashFlip?'flip':''}" data-act="flip"><div class="flash-inner">
       <div class="flash-face flash-front">${flashFront(v)}<small>${t('flip')}</small></div>
       <div class="flash-face flash-back">${v.pos?'<span class="vpos">'+esc(v.pos)+'</span> ':''}<span>${esc((v.back)||'—')}</span></div>
     </div></div>
     <div class="flash-controls">
+      <div class="fc-g"><span class="va-t">${esc(LT({zh:'這張卡',cn:'这张卡',en:'This card',vi:'Thẻ này'}))}</span>
       <div class="flash-tools">
       ${vocabHasAudio(S.lessons.find(x=>x.id===v.lessonId),v.di,v.vi)?`<button class="btn btn-sm" data-act="vocabPlay" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}">🔊 ${LT({zh:'發音',cn:'发音',en:'Sound',vi:'Phát âm'})}</button>`:''}
       <button class="btn btn-sm" data-act="shadowRec" data-lesson="${v.lessonId}" data-di="${v.di}" data-vi="${v.vi}" data-text="${esc(v.front)}">${t('shadow')}</button>
-      <button class="btn btn-sm" data-act="stroke" data-text="${esc(v.front)}">${t('strokeBtn')}</button>
-      <button class="btn btn-sm" data-act="hwrite" data-text="${esc(v.front)}" data-lesson="${v.lessonId}">${t('hwriteBtn')}</button>
+      <button class="btn btn-sm" data-act="hwrite" data-text="${esc(v.front)}" data-lesson="${v.lessonId}" title="${esc(LT({zh:'在米字格裡寫，裡面可以按「看筆順示範」',cn:'在米字格里写，里面可以按「看笔顺示范」',en:'Write it in the grid; the stroke-order demo is inside',vi:'Viết trong ô kẻ; bên trong có nút xem thứ tự nét'}))}">🖊 ${LT({zh:'寫這個字',cn:'写这个字',en:'Write it',vi:'Viết chữ này'})}</button>
       ${vocabHasAudio(S.lessons.find(x=>x.id===v.lessonId),v.di,v.vi)?`<button class="btn btn-sm ${S.flashAuto?'btn-accent':''}" data-act="flashAuto">🔁 自動發音${S.flashAuto?'：開':'：關'}</button>`:''}
       ${(SHADOW&&SHADOW.idx===S.flashIdx)?`<button class="btn btn-sm" data-act="shadowPlay">${t('shadowMine')}</button>`:''}
-      </div>
-      <div class="flash-nav">
-      <button class="btn" data-act="flprev">${t('prev')}</button>
+      </div></div>
+      <div class="fc-g"><span class="va-t">${esc(LT({zh:'記住了嗎',cn:'记住了吗',en:'Do you know it?',vi:'Thuộc chưa?'}))}</span>
+      <div class="flash-know">
       <button class="btn btn-know-no" data-act="flknow" data-id="0">${t('flkNo')}</button>
       <button class="btn btn-know-yes" data-act="flknow" data-id="1">${t('flkYes')}</button>
-      <span class="flash-count">${S.flashIdx+1} / ${all.length}</span>
+      </div></div>
+      <div class="flash-nav">
+      <button class="btn" data-act="flprev">${t('prev')}</button>
       <button class="btn" data-act="flnext">${t('next')}</button>
       </div></div></div>`;
   if(S.flashAuto){setTimeout(()=>{const b=document.querySelector('.flash-tools [data-act="vocabPlay"]');if(b)b.click();},180);}
