@@ -3957,10 +3957,11 @@ function hwL(zh,vi,en){return S.lang==='vi'?vi:(S.lang==='en'?en:zh);}
 function openHwrite(word,lid,prac){if(!word){toast(t('noCards'));return;}
   const ex=prac?null:hwvDocOf(lid,word);
   /* HWONE_V919 ci＝現在在描第幾個字 */
-  HWP={word,lid,prac:!!prac,ci:0,images:(ex&&Array.isArray(ex.images))?ex.images.slice():[],status:(ex&&ex.status)||'draft',comment:(ex&&ex.comment)||''};HWP_STROKES=[];HWP_ERASE=false;HWP_DEMO_OPEN=false;
+  HWP={word,lid,prac:!!prac,ci:0,mode:'free',/* HWQUIZ_V1564 free＝自由寫，quiz＝跟著筆順寫 */images:(ex&&Array.isArray(ex.images))?ex.images.slice():[],status:(ex&&ex.status)||'draft',comment:(ex&&ex.comment)||''};HWP_STROKES=[];HWP_ERASE=false;HWP_DEMO_OPEN=false;
   let ov=document.getElementById('hw-ov');if(ov)ov.remove();
   ov=document.createElement('div');ov.id='hw-ov';ov.className='stroke-ov';ov.innerHTML=hwriteInner();
-  document.body.appendChild(ov);const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);}
+  document.body.appendChild(ov);const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);
+  if(HWP.mode==='quiz')hwRenderQuiz();}
 let HWP_WRITERS=[];
 function hwRenderDemo(autoplay){const wrap=document.getElementById('hw-demo');if(!wrap||!HWP)return;
   if(!window.HanziWriter){wrap.innerHTML='<span class="hint">'+hwL('筆順元件載入中…','Đang tải…','Loading…')+'</span>';setTimeout(()=>hwRenderDemo(autoplay),700);return;}
@@ -3971,6 +3972,12 @@ function hwRenderDemo(autoplay){const wrap=document.getElementById('hw-demo');if
 function hwPlayDemo(){let i=0;const next=()=>{if(i>=HWP_WRITERS.length)return;try{HWP_WRITERS[i].animateCharacter({onComplete:()=>{i++;setTimeout(next,300);}});}catch(e){i++;next();}};next();}
 H.hwDemoReplay=()=>hwPlayDemo();
 function hwriteInner(){const n=HWP.images.length;
+  /* ══════ HWQUIZ_V1564 兩種模式 ══════
+     Quinn：「我想要做類似教育部筆順學習網」。那個站的重點是「跟著筆順一筆一筆寫，
+     寫錯會擋下來」，我們本來這個是自由塗鴉、格子裡放一個淡淡的底字，不會檢查。
+     學生頁本來就載了 HanziWriter（筆順示範在用），它的 quiz 就是那個做法，
+     所以加成第二種模式，原本的自由寫完全不動（送出給老師那條路也還在那邊）。 */
+  const _quiz=(HWP.mode==='quiz');
   /* HWONE_V919 底字本來印整個詞，「火腿蛋吐司」五個字擠在 260px 的格子裡會繞行、疊在一起。
      改成一次只描一個字，底字放回 150px。 */
   const _cs=[...String(HWP.word||'')];
@@ -3990,6 +3997,12 @@ function hwriteInner(){const n=HWP.images.length;
     <div style="text-align:center;font-weight:700;font-size:17px;margin-bottom:4px">${HWP.prac
       ?('✍️ '+hwL('練字','Luyện viết','Writing practice')+'　<span style="font-weight:400;font-size:14px;color:#5B6B80">'+(HWP.ci+1)+' / '+_cs.length+'</span>')
       :('📝 '+hwL('手寫練習','Luyện viết tay','Handwriting')+'：'+esc(HWP.word))}</div>
+    <div style="display:flex;gap:0;justify-content:center;margin-bottom:7px">
+      <button class="btn btn-sm hwmode${_quiz?'':' btn-accent'}" data-act="hwMode" data-id="free"
+        style="border-radius:999px 0 0 999px;padding:6px 14px">✍️ ${hwL('自由寫','Viết tự do','Free')}</button>
+      <button class="btn btn-sm hwmode${_quiz?' btn-accent':''}" data-act="hwMode" data-id="quiz"
+        style="border-radius:0 999px 999px 0;padding:6px 14px;margin-left:-1px">🖊 ${hwL('跟著筆順寫','Theo thứ tự nét','Stroke quiz')}</button>
+    </div>
     ${_pick}
     <div style="text-align:center;margin-bottom:6px"><button class="btn btn-sm" data-act="hwDemoToggle">${HWP_DEMO_OPEN?'▲ '+hwL('收起筆順','Ẩn thứ tự nét','Hide strokes'):'▶ '+hwL('看筆順示範','Xem thứ tự nét','Stroke order')}</button>${demo}</div>
     <div style="position:relative;width:260px;height:260px;margin:0 auto;border:2px solid #C0CEE0;border-radius:12px;background:#fff;overflow:hidden">
@@ -4002,14 +4015,20 @@ function hwriteInner(){const n=HWP.images.length;
         <line x1="50" y1="0" x2="50" y2="100" stroke="#D3DEEC" stroke-width=".6" stroke-dasharray="3 2.6"/>
         <line x1="0" y1="50" x2="100" y2="50" stroke="#D3DEEC" stroke-width=".6" stroke-dasharray="3 2.6"/>
       </svg>
-      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${gsize}px;color:#FDF3D8;pointer-events:none;user-select:none;font-family:'Kaiti TC','Kaiti','DFKai-SB','BiauKai',serif;line-height:1">${guide}</div>
-      <canvas id="hw-cv" width="260" height="260" style="position:relative;touch-action:none;width:260px;height:260px;display:block"></canvas>
+      ${_quiz?'':`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${gsize}px;color:#FDF3D8;pointer-events:none;user-select:none;font-family:'Kaiti TC','Kaiti','DFKai-SB','BiauKai',serif;line-height:1">${guide}</div>`}
+      ${_quiz
+        ? `<div id="hw-quiz" style="position:relative;width:260px;height:260px;touch-action:none"></div>`
+        : `<canvas id="hw-cv" width="260" height="260" style="position:relative;touch-action:none;width:260px;height:260px;display:block"></canvas>`}
     </div>
+    ${_quiz?`<div id="hw-qmsg" class="hint" style="text-align:center;margin-top:7px;min-height:20px"></div>`:''}
     <div style="display:flex;gap:6px;justify-content:center;margin-top:8px;flex-wrap:wrap">
-      <button class="btn btn-sm" data-act="hwUndo">↩ ${hwL('上一筆','Nét cuối','Undo')}</button>
-      <button class="btn btn-sm ${HWP_ERASE?'btn-accent':''}" data-act="hwErase">🧽 ${hwL('橡皮擦','Tẩy','Eraser')}</button>
-      <button class="btn btn-sm" data-act="hwClearCv">🧹 ${hwL('清除','Xoá hết','Clear')}</button>
-      ${HWP.prac?'':`<button class="btn btn-sm btn-accent" data-act="hwAdd">➕ ${hwL('存這張','Lưu','Save')}</button>`}
+      ${_quiz
+        ? `<button class="btn btn-sm" data-act="hwQuizAgain">🔁 ${hwL('重寫這個字','Viết lại','Restart')}</button>
+           <button class="btn btn-sm" data-act="hwQuizHint">💡 ${hwL('提示這一筆','Gợi ý nét này','Hint')}</button>`
+        : `<button class="btn btn-sm" data-act="hwUndo">↩ ${hwL('上一筆','Nét cuối','Undo')}</button>
+           <button class="btn btn-sm ${HWP_ERASE?'btn-accent':''}" data-act="hwErase">🧽 ${hwL('橡皮擦','Tẩy','Eraser')}</button>
+           <button class="btn btn-sm" data-act="hwClearCv">🧹 ${hwL('清除','Xoá hết','Clear')}</button>
+           ${HWP.prac?'':`<button class="btn btn-sm btn-accent" data-act="hwAdd">➕ ${hwL('存這張','Lưu','Save')}</button>`}`}
     </div>
     ${HWP.prac?`<div style="margin-top:10px;display:flex;gap:6px;justify-content:center;align-items:center">
       <button class="btn btn-sm" data-act="hwPrev" ${HWP.ci<=0?'disabled':''}>◀ ${hwL('上一個','Trước','Prev')}</button>
@@ -4018,12 +4037,16 @@ function hwriteInner(){const n=HWP.images.length;
     <div class="hint" style="margin-top:8px;text-align:center">${hwL('寫完按「下一個」。這裡只是練習，不會存起來、也不會送給老師。',
       'Viết xong bấm “Tiếp”. Đây chỉ là luyện tập, không lưu và không gửi cho giáo viên.',
       'Tap “Next” when done. This is practice only — nothing is saved or sent.')}</div>`
+    :(_quiz?`<div class="hint" style="margin-top:10px;text-align:center">${hwL(
+        '一筆一筆照順序寫，寫錯會停在那一筆；連錯兩次會自動提示。這裡只是練習，不會送給老師。',
+        'Viết từng nét theo thứ tự; sai sẽ dừng lại ở nét đó, sai hai lần sẽ gợi ý. Đây chỉ là luyện tập.',
+        'Write stroke by stroke in order; a wrong stroke stops there, and after two misses you get a hint. Practice only.')}</div>`
     :`<div style="margin-top:8px;text-align:center"><span class="hint">${hwL('已寫','Đã viết','')} ${n} ${hwL('張','tờ','sheets')}</span>${thumbs?`<div style="margin-top:4px">${thumbs}</div>`:''}</div>
     <div style="margin-top:10px;text-align:center">
       <button class="btn btn-primary" data-act="hwSubmit" style="padding:9px 18px">📤 ${hwL('送出給老師','Gửi cho giáo viên','Submit')}（${n}）</button>
       ${sent?`<div class="hint" style="margin-top:4px;color:#1F6A54">✅ ${hwL('已送出','Đã gửi','Submitted')}</div>`:''}
       ${(HWP.status==='reviewed'&&HWP.comment)?`<div class="fb-note" style="margin-top:6px">💬 ${esc(HWP.comment)}</div>`:''}
-    </div>`}
+    </div>`)}
   </div>`;}
 let HWP_STROKES=[],HWP_ERASE=false,HWP_DEMO_OPEN=false;
 function hwRedraw(cv){const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);ctx.lineCap='round';ctx.lineJoin='round';
@@ -4036,7 +4059,54 @@ function hwAttach(cv){hwRedraw(cv);let cur=null;
   cv.addEventListener('pointerup',()=>{cur=null;});cv.addEventListener('pointerleave',()=>{cur=null;});}
 function hwBlank(cv){return !HWP_STROKES.some(s=>s.pts&&s.pts.length&&!s.erase);}
 function hwSnap(cv){const out=document.createElement('canvas');out.width=180;out.height=180;const o=out.getContext('2d');o.fillStyle='#fff';o.fillRect(0,0,180,180);o.drawImage(cv,0,0,180,180);return out.toDataURL('image/png');}
-function hwRefresh(){const ov=document.getElementById('hw-ov');if(!ov)return;ov.innerHTML=hwriteInner();const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);if(HWP_DEMO_OPEN)hwRenderDemo(false);}
+function hwRefresh(){const ov=document.getElementById('hw-ov');if(!ov)return;ov.innerHTML=hwriteInner();const cv=document.getElementById('hw-cv');if(cv)hwAttach(cv);if(HWP_DEMO_OPEN)hwRenderDemo(false);if(HWP&&HWP.mode==='quiz')hwRenderQuiz();/* HWQUIZ_V1564 */}
+/* ══════ HWQUIZ_V1564 跟著筆順寫（教育部筆順學習網那種） ══════
+   HanziWriter 的 quiz：學生用手指照順序描，描對才會留下那一筆，描錯停在原地，
+   連錯兩次自動把那一筆閃給他看。全部寫完會報「幾筆、錯幾次」。
+   ⚠ 筆順資料是 HanziWriter 自己那一份，不是教育部標準字體那一份，
+      少數字的筆順可能跟臺灣標準不一樣——這點要跟老師講清楚，不要當成標準答案。 */
+let HWQ=null,HWQ_N=0,HWQ_DONE=0,HWQ_MISS=0,HWQ_OK=false;
+function hwQuizMsg(bad){
+  const el=document.getElementById('hw-qmsg');if(!el)return;
+  if(HWQ_OK){el.innerHTML='<b style="color:#1F6A54">✅ '+hwL('寫對了！','Đúng rồi!','Correct!')+'</b>　'
+    +hwL('共','Tổng','')+' '+HWQ_N+' '+hwL('筆','nét','strokes')
+    +'　'+hwL('錯','Sai','Misses')+' '+HWQ_MISS+' '+hwL('次','lần','');return;}
+  el.innerHTML=(bad?'<b style="color:#A33227">✗ '+hwL('這一筆不對，再試一次','Nét này chưa đúng, thử lại','Not this stroke — try again')+'</b>　':'')
+    +hwL('第','Nét','Stroke')+' '+(HWQ_DONE+1)+(HWQ_N?(' / '+HWQ_N):'')+' '+hwL('筆','','')
+    +(HWQ_MISS?('　'+hwL('錯','Sai','Misses')+' '+HWQ_MISS+' '+hwL('次','lần','')):'');
+}
+function hwRenderQuiz(){
+  const box=document.getElementById('hw-quiz');if(!box||!HWP)return;
+  if(!window.HanziWriter){box.innerHTML='<div class="hint" style="padding:16px;text-align:center">'
+    +hwL('筆順元件載入中…','Đang tải…','Loading…')+'</div>';setTimeout(hwRenderQuiz,700);return;}
+  box.innerHTML='';HWQ=null;HWQ_N=0;HWQ_DONE=0;HWQ_MISS=0;HWQ_OK=false;hwQuizMsg();
+  const cs=[...String(HWP.word||'')];const c=cs[(HWP.ci>=0&&HWP.ci<cs.length)?HWP.ci:0]||'';
+  if(!c||!/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/.test(c)){
+    box.innerHTML='<div class="hint" style="padding:16px;text-align:center">'
+      +hwL('這個不是漢字，沒有筆順','Ký tự này không có thứ tự nét','No stroke data')+'</div>';return;}
+  try{
+    HWQ=HanziWriter.create(box,c,{width:260,height:260,padding:8,
+      showCharacter:false,showOutline:true,
+      outlineColor:'#D9E3F0',strokeColor:'#16202E',drawingColor:'#1E4C86',
+      drawingWidth:18,showHintAfterMisses:2,highlightOnComplete:true,
+      onLoadCharDataError:()=>{box.innerHTML='<div class="hint" style="padding:16px;text-align:center">'
+        +hwL('這個字沒有筆順資料，先用「自由寫」吧','Chữ này chưa có dữ liệu nét','No stroke data for this character')+'</div>';}});
+    HWQ.quiz({
+      onCorrectStroke:(d)=>{HWQ_DONE=(d&&d.strokeNum!=null)?d.strokeNum+1:HWQ_DONE+1;
+        if(d&&d.strokesRemaining!=null)HWQ_N=HWQ_DONE+d.strokesRemaining;hwQuizMsg();},
+      onMistake:(d)=>{HWQ_MISS++;if(d&&d.strokeNum!=null)HWQ_DONE=d.strokeNum;
+        if(d&&d.strokesRemaining!=null)HWQ_N=HWQ_DONE+d.strokesRemaining;hwQuizMsg(true);},
+      onComplete:(d)=>{HWQ_OK=true;if(d&&d.totalMistakes!=null)HWQ_MISS=d.totalMistakes;
+        if(!HWQ_N)HWQ_N=HWQ_DONE;hwQuizMsg();}
+    });
+  }catch(e){box.innerHTML='<div class="hint" style="padding:16px;text-align:center">'
+    +hwL('這個字沒有筆順資料，先用「自由寫」吧','Chữ này chưa có dữ liệu nét','No stroke data')+'</div>';}
+}
+H.hwMode=(id)=>{if(!HWP)return;const m=(String(id)==='quiz')?'quiz':'free';
+  if(HWP.mode===m)return;HWP.mode=m;HWP_STROKES=[];HWP_ERASE=false;hwRefresh();};
+H.hwQuizAgain=()=>hwRenderQuiz();
+H.hwQuizHint=()=>{try{if(HWQ&&HWQ.highlightStroke)HWQ.highlightStroke(HWQ_DONE,{duration:900});
+  else if(HWQ&&HWQ.animateStroke)HWQ.animateStroke(HWQ_DONE);}catch(e){}};
 H.hwDemoToggle=()=>{HWP_DEMO_OPEN=!HWP_DEMO_OPEN;hwRefresh();if(HWP_DEMO_OPEN)setTimeout(()=>hwRenderDemo(true),40);};
 H.hwrite=(_,b)=>openHwrite(b.dataset.text,b.dataset.lesson);
 H.hwClose=()=>{const ov=document.getElementById('hw-ov');if(ov)ov.remove();HWP=null;};
@@ -4046,7 +4116,7 @@ H.hwErase=()=>{HWP_ERASE=!HWP_ERASE;hwRefresh();};
 H.hwAdd=()=>{if(!HWP)return;if(HWP.images.length>=HWP_MAX){toast(hwL('最多寫 '+HWP_MAX+' 張','Tối đa '+HWP_MAX,'Max '+HWP_MAX));return;}const cv=document.getElementById('hw-cv');if(hwBlank(cv)){toast(hwL('先在框裡寫一個字','Hãy viết một chữ trước','Write a character first'));return;}HWP.images.push(hwSnap(cv));HWP_STROKES=[];HWP_ERASE=false;hwRefresh();};
 H.hwDelImg=(idx)=>{if(!HWP)return;HWP.images.splice(Number(idx),1);hwRefresh();};
 /* HWONE_V919 換一個字來描。畫布上那個是上一個字，直接清掉；已經存起來的張數不受影響。 */
-H.hwPick=(i)=>{if(!HWP)return;HWP.ci=Number(i)||0;HWP_STROKES=[];HWP_ERASE=false;hwRefresh();};
+H.hwPick=(i)=>{if(!HWP)return;HWP.ci=Number(i)||0;HWP_STROKES=[];HWP_ERASE=false;hwRefresh();/* HWQUIZ_V1564 hwRefresh 裡會重掛 quiz */};
 /* TZS_V1496 練字模式：照順序換字。畫到一半的筆畫直接清掉——這裡本來就不存。 */
 H.hwPrev=()=>{if(!HWP||HWP.ci<=0)return;H.hwPick(HWP.ci-1);};
 H.hwNext=()=>{if(!HWP)return;const n=[...String(HWP.word||'')].length;if(HWP.ci>=n-1)return;H.hwPick(HWP.ci+1);};
