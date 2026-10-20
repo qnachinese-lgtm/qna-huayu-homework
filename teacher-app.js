@@ -1056,19 +1056,42 @@ function dashTodayHtml(){
       +dashBtns(mb,'','<button class="btn btn-sm" data-act="'+act+'" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button>','')+'</div>',e.start);});
   // 預排（還沒點名）
   const plans=[];
-  try{groupsList().forEach(cls=>{if(clsNotYet(cls))return;/* CLSOFF_V1074 */
+  /* ══════ CLSSHOW_V1562 團班預排：課表看得到，今天的課也要看得到 ══════
+     Quinn：「團班在課表出現但為什麼在今天沒有出現？」
+     查出來是兩邊條件不一樣：這裡本來多擋兩關——班級設定的「🚧 還沒開始上課」
+     （clsNotYet）和「開課日」（clsBefore）——而月曆那一段根本沒檢查這兩個，
+     所以同一堂課在課表上畫得出來、在今天的課卻不見了。
+     我用四個假團班重現過：勾了「還沒開始」的、開課日在未來的，都是課表有、今天沒有。
+
+     她選「兩邊都要出現」，理由是預排是她自己排的，排了就該出現，不然會漏課。
+     那兩關拿掉，改成照樣列出來、但在那一列標出原因（🚧 還沒開始／🚀 X/X 才開課），
+     她一眼就知道這一班為什麼怪，而不是整堂課默默消失。
+     注意：那兩個設定本來的用途是擋「自動排課」（固定時段），這裡處理的是
+     「已經排進 planned 的那一筆」，兩件事不一樣，所以拿掉不影響自動排課。
+
+     順便把「算不算已經點過名」的判斷也跟月曆對齊：月曆多比一個「時段有沒有重疊」
+     （DUPPLAN_V1334），這裡本來只比開始時間，所以同一堂課月曆收掉了、這裡還留著。 */
+  try{groupsList().forEach(cls=>{
     const mem=(S.students||[]).filter(x=>stuGroups(x).includes(cls)&&!x.is_test);
     classPlanned(cls).forEach(p=>{if(!p||p.date!==d)return;
-      if(clsBefore(cls,p.date))return;/* CLSTART_V1091 */
-      if(mem.some(x=>(Array.isArray(x.class_log)?x.class_log:[]).some(e=>e&&e.date===d&&(!(e.start||'')||(e.start||'')===(p.start||'')))))return;
-      plans.push({cls,p});});});}catch(err){}
+      if(mem.some(x=>(Array.isArray(x.class_log)?x.class_log:[]).some(e=>e&&e.date===d&&(!(e.start||'')||(e.start||'')===(p.start||'')||tmOverlap(p.start||'',p.end||'',e.start||'',e.end||'')))))return;
+      let why='';
+      try{
+        if(clsNotYet(cls))why='🚧 這班還沒開始';
+        else if(clsBefore(cls,p.date)){const st=clsStart(cls);
+          why='🚀 '+String(st||'').slice(5).replace('-','/')+' 才開課';}
+      }catch(e){}
+      plans.push({cls,p,why});});});}catch(err){}
   try{(S.students||[]).forEach(x=>{if(x.is_test||x.class_type==='團班')return;
     studentPlanned(x).forEach(p=>{if(!p||p.date!==d)return;
       if((Array.isArray(x.class_log)?x.class_log:[]).some(e=>e&&e.date===d&&(!(e.start||'')||(e.start||'')===(p.start||''))))return;
       plans.push({sid:x.id,sname:x.name,p});});});}catch(err){}
   plans.forEach(o=>{const p=o.p;let tm='';try{tm=twVnStr(p.start,p.end);}catch(err){tm=(p.start||'')+(p.end?'\u2013'+p.end:'');}
     const solo=!!o.sid;const key=(solo?('S:'+o.sid+'::'+d):(esc(o.cls)+'::'+esc(d)))+'::'+esc(p.start||'');/* SAMEDAY_V1229 */
-    const lab=solo?('\u{1F464} '+esc(o.sname||'')):('\u{1F465} '+esc(o.cls)+' 團班');
+    /* CLSSHOW_V1562 這一班為什麼特別（還沒開始／還沒到開課日）就標在名字後面 */
+    const lab=solo?('\u{1F464} '+esc(o.sname||''))
+      :('\u{1F465} '+esc(o.cls)+' 團班'
+        +(o.why?('<span class="tag" style="margin-left:6px;font-weight:400" title="這一堂是你自己排進去的，所以照樣列出來；這個標記只是提醒你這一班的設定">'+esc(o.why)+'</span>'):''));
     const mb=meetBtn(solo?meetOfStudent(o.sid):meetOfGroup(o.cls),true);
     rows.push('<div class="dash-row" style="background:#F4F7FB;border-radius:8px;flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+fgTm(tm)+'</span>':'')+'<span class="td-st"><span class="badge b-info" >\u{1F4CC} \u5F85\u4E0A</span></span><b>'+lab+'</b>'+(p.note?'<span class="muted td-note" title="'+esc(p.note)+'" style="margin-left:6px">'+esc(p.note)+'</span>':'')+'<span class="grow"></span>'
       /* BTNSAME_V851 同上 */
