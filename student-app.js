@@ -1633,7 +1633,7 @@ function wbWrongList(w,ans){
   (d.listen||[]).forEach(q=>{if(!q.ans)return;const v=(ans.listen||{})[q.n];if(v!==q.ans)push('listen',q.n,q.q||('聽力 '+q.n),v,q.ans);});
   return out;
 }
-function splitResults(rAll){rAll=rAll||[];S.mistDoc=rAll.find(x=>x.kind==='mistake')||null;S.acts=rAll.filter(x=>x.kind==='act');S.results=rAll.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq');S.leavereqs=rAll.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');S.wbdocs=rAll.filter(x=>x.kind==='wb');S.lqps=rAll.filter(x=>x.kind==='lqp');}
+function splitResults(rAll){rAll=rAll||[];S.mistDoc=rAll.find(x=>x.kind==='mistake')||null;S.acts=rAll.filter(x=>x.kind==='act');S.results=rAll.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq'&&x.kind!=='classlog');S.classlogs=rAll.filter(x=>x.kind==='classlog');S.leavereqs=rAll.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');S.wbdocs=rAll.filter(x=>x.kind==='wb');S.lqps=rAll.filter(x=>x.kind==='lqp');}
 function hwvDocOf(lid,word){return (S.hwvs||[]).find(x=>x.hwv_lesson===lid&&x.hwv_word===word)||null;}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
 function discDocOf(lid){return (S.discussions||[]).find(x=>x.disc_lesson===lid)||null;}
@@ -1824,6 +1824,7 @@ const NAVIC={
  info:'<circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5"/><path d="M12 7.9h.01"/>',
  oc:'<rect x="3" y="5" width="18" height="14" rx="2.6"/><path d="m10.4 9.4 4.6 2.6-4.6 2.6Z"/>',
  mine:'<path d="M4.5 20v-8M10 20V4.6M15.5 20v-5.4M21.5 20h-19"/>',
+ classlog:'<path d="M6.5 3.5h8l3 3V20.5h-11Z"/><path d="M9.3 10.5h5.4M9.3 14h5.4M9.3 17.5h3.2"/>',
  acct:'<circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5"/><path d="M12 7.9h.01"/>'};
 function navIc(k){const b=NAVIC[k];
   return b?('<span class="ic"><svg class="nv-svg" viewBox="0 0 24 24" aria-hidden="true">'+b+'</svg></span>'):'';}
@@ -1854,7 +1855,7 @@ function renderNav(){
      選單這一排不再出現「📕 錯題本」。錯題本本身的程式（收錄、複習、mistDue…）
      原封不動留著，只是學生沒有入口；以後想放回來，把下面那一行的
      ['wrong','📕',(_mn[L]||_mn.zh),_md||''] 加回 items 就好。 */
-  const items=[['home','🏠',nl('home'),''],['content','📚',nl('course'),''],['work','✍️',t('navWork'),works],['grades','📈',t('navGrades'),fbN||''],['info','ℹ️',t('navInfo'),'']];
+  const items=[['home','🏠',nl('home'),''],['content','📚',nl('course'),''],['work','✍️',t('navWork'),works],['grades','📈',t('navGrades'),fbN||''],['classlog','📝',LT({zh:'課堂紀錄',cn:'课堂记录',en:'Class record',vi:'Nhật ký lớp'}),''],['info','ℹ️',t('navInfo'),'']];
   $('#snav').innerHTML=items.map(([id,ic,lb,n])=>`<button class="${S.section===id?'on':''}" data-act="section" data-id="${id}">${navIc(id)||`<span class="ic">${ic}</span>`}${esc(lb)}${n!==''&&n?`<span class="n">${n}</span>`:''}</button>`).join('');
 }
 /* ══════ BLANK_V1410 畫面畫不出來時，不要只剩一片空白 ══════
@@ -1914,7 +1915,7 @@ function _renderSectionRaw(){try{syncStickTop();}catch(e){}
   document.body.classList.remove('notes-active');
   renderNav();
   const _cr=document.getElementById('crumb');if(_cr){_cr.classList.add('hide');_cr.innerHTML='';}
-  ({home:renderHome,work:renderWork,content:renderContent,wb:renderWb,pron:renderPron,cards:renderCards,grades:renderGrades,wrong:renderWrong,info:renderInfo}[S.section]||renderHome)();
+  ({home:renderHome,work:renderWork,content:renderContent,wb:renderWb,pron:renderPron,cards:renderCards,grades:renderGrades,wrong:renderWrong,info:renderInfo,classlog:renderClassLog}[S.section]||renderHome)();
   convScreen();
 }
 
@@ -3141,6 +3142,18 @@ function renderInfo(){
   $('#screen').innerHTML='<div class="ip-wrap">'+css+head+(blocks.length?blocks.join(''):emptyHtml('\u2139\ufe0f',T.h,T.none))+'</div>';
   convScreen();
 }
+/* CLOG_V1 課堂紀錄：上課掃 QR code 作答的每一份答案（老師端自動存進來） */
+function renderClassLog(){
+  if(!document.getElementById('clog-css')){const st=document.createElement('style');st.id='clog-css';st.textContent='.clg{padding:16px 18px;margin-bottom:14px}.clg-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-bottom:1px solid rgba(30,76,134,.12);padding-bottom:10px;margin-bottom:6px}.clg-h b{font-size:17px;color:#1E4C86}.clg-h span{font-size:13px;color:#7A8699;white-space:nowrap}.clg-sec{margin-top:12px}.clg-sec h4{margin:0 0 6px;font-size:15px;color:#1E4C86}.clg-q{padding:8px 12px;background:#F2F6FC;border-radius:10px;margin-bottom:6px}.clg-qt{font-size:14px;color:#55627A;line-height:1.6}.clg-a{font-size:16px;margin-top:4px;line-height:1.6;white-space:pre-wrap}';document.head.appendChild(st);}
+  const h='<div class="pg-h"><h2>'+esc(LT({zh:'課堂紀錄',cn:'课堂记录',en:'Class record',vi:'Nhật ký lớp học'}))+'</h2></div>';
+  const ls=(S.classlogs||[]).slice().sort((a,b)=>(b.t||0)-(a.t||0));
+  if(!ls.length){$('#screen').innerHTML=h+emptyHtml('📝',LT({zh:'還沒有課堂紀錄',cn:'还没有课堂记录',en:'No class records yet',vi:'Chưa có nhật ký lớp học'}),LT({zh:'上課時掃 QR code 作答，答案會自動存在這裡。',cn:'上课时扫 QR code 作答，答案会自动存在这里。',en:'Answers you send in class (QR code) are saved here.',vi:'Câu trả lời trong lớp (quét QR) sẽ lưu ở đây.'}));return;}
+  const dt=v=>{const x=new Date(v);return (x.getMonth()+1)+'/'+x.getDate()+' '+String(x.getHours()).padStart(2,'0')+':'+String(x.getMinutes()).padStart(2,'0');};
+  $('#screen').innerHTML=h+ls.map(r=>{const its=Object.values(r.items||{}).sort((a,b)=>(a.t||0)-(b.t||0));
+    return '<div class="card clg"><div class="clg-h"><b>'+esc(r.lesson||'')+'</b><span>'+dt(r.t||Date.now())+'</span></div>'
+      +its.map(it=>{const qs=it.qs||[],A=it.a||{};const n=Math.max(qs.length,...Object.keys(A).map(k=>+k+1));
+        const rows=[...Array(n).keys()].map(i=>{const a=A[i];if(!a)return '';return '<div class="clg-q">'+(qs[i]?'<div class="clg-qt">'+(n>1?(i+1)+'. ':'')+esc(qs[i])+'</div>':'')+'<div class="clg-a">'+esc(a)+'</div></div>';}).join('');
+        return rows?'<div class="clg-sec"><h4>'+esc(it.title||'')+'</h4>'+rows+'</div>':'';}).join('')+'</div>';}).join('');}
 function renderGrades(){
   const _gh='<div class="pg-h"><h2>📈 '+esc(t('navGrades'))+'</h2></div>';
   const ls=myLessons().filter(l=>answerableOf(l.id).length);
