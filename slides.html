@@ -9,6 +9,8 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- HWANS_V1 上課可放出學生已寫好的作業答案 -->
+<!-- JGATE_V1 學生登入畫面跟老師一樣樣式、分開 -->
 <!-- JOINUI_V2 作答頁對話排版、空格直接打；LIVELOOP_V1 多分頁不互搶 -->
 <!-- JOINFIX_V1 作答頁不再跳動；GATE_V3 只有老師帳號能進投影片 -->
 <!-- JOINAUTH_V1 學生登入作答；PSYNC_V1 答案存進練習題 -->
@@ -471,6 +473,8 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .sans{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-2px 0 4px 50px}
 .schip{display:inline-flex;align-items:baseline;gap:6px;background:#fff;border:2px solid var(--sky);border-radius:12px;padding:3px 10px;font-size:calc(20px*var(--gs,1));line-height:1.4;color:var(--fg)}
 .schip b{font-size:14px;color:var(--navy)}
+.schip.hw{border-style:dashed}
+.schip.hw i{font-style:normal;font-size:12px;color:#fff;background:var(--muted);border-radius:6px;padding:0 5px}
 .schip .x{all:unset;cursor:pointer;color:var(--muted);font-size:13px;padding:0 2px}
 .schip .x:hover{color:var(--err)}
 .sadd{all:unset;cursor:pointer;font-size:14px;color:var(--navy);border:2px dashed var(--sky);border-radius:12px;padding:3px 10px}
@@ -1743,6 +1747,7 @@ function livePush(){ if(!LIVE.code || !db || !LIVE.open || document.hidden || /[
 function ansFor(key, i){ const out = [];
   LIVE.ans.forEach(d => { if(d.q !== key) return; const v = String((d.a||{})[i] || "").trim(); if(v && !LIVE.hide.has(d._id + "#" + i)) out.push({n: d.name || "", x: v, id: d._id + "#" + i}); });
   ((tansGet()[key] || {})[i] || []).forEach((t, j) => out.push({n: t.n, x: t.x, tid: j}));
+  hwFor(key, i).forEach(a => { if(!LIVE.hide.has(a.id)) out.push(a); });
   return out; }
 function paintAns(){
   const c = liveCur(); const ct = $("#ctrl"); if(!c || $("#modal").hidden === false) return;
@@ -1752,11 +1757,12 @@ function paintAns(){
     if(!$("#liveBox") || $("#liveBox").hidden || !$("#liveBox").dataset.dict) return; liveDictTable(); return; }
   if(!ct.querySelector("[data-a='ansTog']")){ const b = document.createElement("button"); b.className = "btn ghost"; b.dataset.a = "ansTog"; const gap = ct.querySelector(".gap"); gap ? ct.insertBefore(b, gap) : ct.appendChild(b); }
   const tb = ct.querySelector("[data-a='ansTog']"); tb.textContent = ansOn ? "隱藏學生答案" : "學生答案";
+  if(ansOn && db){ const lid = hwLid(LESSON); if(lid && HW.lid !== lid && !HW.loading) hwLoad(lid); }
   const qs = [...document.querySelectorAll("#stage .gq[data-gq], #stage .qa[data-qa]")];
   qs.forEach((el, i) => { let box = el.nextElementSibling; if(!box || !box.classList.contains("sans")){ box = document.createElement("div"); box.className = "sans"; el.after(box); }
     box.dataset.si = i; box.hidden = !ansOn; if(!ansOn) return; if(box.querySelector(".sform")) return;
     const list = ansFor(c.key, i);
-    box.innerHTML = list.map(a => `<span class="schip">${a.n ? `<b>${esc(a.n)}</b>` : ""}${esc(a.x)}<button class="x" type="button" aria-label="移除" ${a.tid != null ? `data-tdel="${i}|${a.tid}"` : `data-hid="${esc(a.id)}"`}>×</button></span>`).join("")
+    box.innerHTML = list.map(a => `<span class="schip${a.hw ? " hw" : ""}">${a.hw ? `<i>作業</i>` : ""}${a.n ? `<b>${esc(a.n)}</b>` : ""}${esc(a.x)}<button class="x" type="button" aria-label="移除" ${a.tid != null ? `data-tdel="${i}|${a.tid}"` : `data-hid="${esc(a.id)}"`}>×</button></span>`).join("")
       + `<button class="sadd" type="button" data-sadd="${i}">＋ 輸入答案</button>`; }); }
 /* GFIT_V1 語法和討論題自動縮小，整頁放得下不用捲 */
 function gFit(){ const st = $("#stage"); if(!st) return; st.style.setProperty("--gs", 1);
@@ -1770,7 +1776,7 @@ document.addEventListener("click", e => {
   const b = e.target.closest("[data-sadd],[data-tdel],[data-hid],[data-a='ansTog'],[data-a='ldict'],[data-sok],#liveBtn,#livePill"); if(!b) return;
   const c = liveCur();
   if(b.id === "liveBtn" || b.id === "livePill"){ $("#tmPanel").hidden = true; return liveOpen(); }
-  if(b.dataset.a === "ansTog"){ ansOn = !ansOn; paintAns(); return gFit(); }
+  if(b.dataset.a === "ansTog"){ ansOn = !ansOn; if(ansOn) HW.lid = null; paintAns(); return gFit(); }
   if(b.dataset.a === "ldict"){ return liveOpen("dict"); }
   if(!c) return;
   if(b.dataset.hid !== undefined){ LIVE.hide.add(b.dataset.hid); const bx = b.closest(".sans"); bx.innerHTML = ""; return paintAns(); }
@@ -1865,6 +1871,30 @@ function recAct(e){ const b = e.target.closest("button"); if(!b) return;
   if(b.dataset.rx === "csv"){ const q = x => `"${String(x).replace(/"/g, '""')}"`; const csv = "\ufeff" + [["班級","課","練習","題目","學生","答案"], ...LIVE.recRows].map(r => r.map(q).join(",")).join("\r\n");
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"})); a.download = LIVE.recName + ".csv"; document.body.appendChild(a); a.click(); a.remove(); } }
 document.addEventListener("click", e => { if(e.target.closest("#recBtn")){ $("#tmPanel").hidden = true; LIVE.recCls = null; recOpen(); } });
+/* HWANS_V1 學生在學習平台已經寫好的練習題答案，上課按「學生答案」也一起放出來（標「作業」） */
+const HW = {lid: null, data: null, loading: false};
+function hwLid(L){ return L && (L.src || (String(L.id).startsWith("src_") ? L.id.slice(4) : "")); }
+async function hwLoad(lid){ if(HW.loading) return; HW.loading = true; const f = liveDb();
+  try { const src = await psSrc(lid); const [a, b, s] = await Promise.all([f.collection("results").where("lesson_id", "==", lid).get(), f.collection("results").where("disc_lesson", "==", lid).get(), f.collection("students").get()]);
+    const stu = {}; s.docs.forEach(d => { const x = d.data(); stu[d.id] = {n: String(x.name || "").trim(), g: Array.isArray(x.groups) ? x.groups : []}; if(x.uid) stu["u:" + x.uid] = stu[d.id]; });
+    const pick = d => ({id: d.id, ...d.data()}); HW.data = {src, res: a.docs.map(pick), disc: b.docs.map(pick), stu}; HW.lid = lid; }
+  catch(e){ console.warn("hw", e); HW.lid = lid; HW.data = null; }
+  HW.loading = false; if($("#modal").hidden){ document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); } }
+function hwFor(key, i){ const D = HW.data; if(!ansOn || !D) return []; const mm = String(key).match(/^([^:]+):(.+)$/); if(!mm) return [];
+  const L = lessons.find(x => x.id === mm[1]); if(!L || hwLid(L) !== HW.lid) return []; const part = mm[2], cls = LIVE.cls || "";
+  const who = r => { const s = D.stu[r.student_id] || D.stu["u:" + r.uid]; if(!s) return null; if(cls && !s.g.includes(cls)) return null; return s.n || r.student_name || ""; };
+  const skip = r => r.from_class && r.from_class === LIVE.code;
+  const lt = k => "（" + String.fromCharCode(97 + k) + "）", out = [];
+  if(part === "qa" || part === "qa2"){ const q = (L[part]||[])[i]; if(!q) return []; const hit = D.src.disc.find(x => x.n === psN(q[0])); if(!hit) return [];
+    D.disc.forEach(r => { const n = who(r), v = String((r.answers||{})[hit.k] || "").trim(); if(n != null && v && !skip(r)) out.push({n, x: v, id: "hw:" + r.id + "#" + i, hw: 1}); }); return out; }
+  const g = part.match(/^g(\d+)p(\d+)$/); if(!g) return []; const ex = ((GR(L)[+g[1]] || {}).exs || [])[+g[2] - 1], q = ex && (ex.qs||[])[i]; if(!q) return []; const n0 = psN(q[0]);
+  let Q = D.src.qs.find(x => x.type !== "opt" && psQText(x) === n0), ii = -1;
+  if(!Q){ Q = D.src.qs.find(x => x.type === "opt" && (x.items||[]).some(it => psN(clean(it.text||"")) === n0)); if(!Q) return []; ii = Q.items.findIndex(it => psN(clean(it.text||"")) === n0); }
+  D.res.forEach(r => { const n = who(r); if(n == null || skip(r)) return; let v = (r.answers||{})[Q.id]; if(v == null) return;
+    if(ii >= 0){ const it = Array.isArray(v) ? v[ii] : null; v = !it ? "" : it.t != null ? it.t : (it.s||[]).map(lt).join(""); }
+    else if(Q.type === "choice") v = typeof v === "number" ? lt(v) : ""; else if(Array.isArray(v)) v = v.every(x => typeof x === "string") ? v.join("／") : ""; else if(typeof v !== "string" || /^data:/.test(v)) v = "";
+    v = String(v).trim(); if(v && v.replace(/／/g, "")) out.push({n, x: v, id: "hw:" + r.id + "#" + i, hw: 1}); });
+  return out; }
 /* PSYNC_V1 學生登入作答的答案，自動存進他在學習平台的練習題（草稿，學生回家打開就看得到，按送出就好） */
 const PS = {done: {}, cache: {}, t: null};
 const psN = s => String(s||"").replace(/[【】]/g, "").replace(/^\s*[0-9０-９]+\s*[.、．)）]\s*/, "").replace(/[\s　]+/g, "");
@@ -1996,6 +2026,7 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
 /* JOINAUTH_V1 學生用學習平台的帳號登入再作答；答案會自動存進他自己的練習題 */
 (function joinApp(){ const m = location.search.match(/[?&]join=([A-Z0-9]{4,10})/i); if(!m) return;
   const code = m[1].toUpperCase(), fs = liveDb(); const root = document.createElement("div"); root.id = "joinApp"; document.body.appendChild(root);
+  const jg = document.createElement("div"); jg.className = "gate"; jg.hidden = true; document.body.appendChild(jg);
   let me = null, cur = null, state = "load", auth = "wait", lerr = "";
   const dk = k => "join-" + code + "-" + k; const draft = k => { try { return JSON.parse(localStorage.getItem(dk(k)) || "{}"); } catch(e){ return {}; } };
   /* JOINUI_V2 對話分行、A/B 標在前面；空格直接打在線上 */
@@ -2008,11 +2039,13 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
   const jVal = (f, i) => { const xs = [...f.querySelectorAll(`[data-i="${i}"]`)]; if(xs.length === 1 && xs[0].dataset.b !== "0") return xs[0].value.trim(); const vs = xs.map(x => x.value.trim()); return vs.some(Boolean) ? vs.join("／") : ""; };
   function draw(msg, cls){ const head = `<header class="jh"><span class="logo">Q</span><b>課堂作答</b>${me ? `<span class="jwho">${esc(me.name)}<button type="button" data-j="out">登出</button></span>` : ""}</header>`;
     if(auth === "wait"){ root.innerHTML = head + `<div class="jcard"><div class="note">連線中…</div></div>`; return; }
-    if(auth === "out"){ if(root.querySelector("form[data-j='login']")){ const e = $("#jerr"); if(e) e.textContent = lerr; return; }
-      root.innerHTML = head + `<form class="jcard" data-j="login"><h2>登入你的學生帳號</h2>
-        <input id="jem" type="email" autocomplete="username" placeholder="Email" required><input id="jpw" type="password" autocomplete="current-password" placeholder="密碼" required>
-        <button class="send" type="submit">登入</button><div class="note err" id="jerr">${esc(lerr)}</div></form>`; return; }
-    if(auth === "nostu"){ root.innerHTML = head + `<div class="jcard"><div class="note err">這個帳號不是學生帳號。</div><button class="send" type="button" data-j="out">換一個帳號</button></div>`; return; }
+    /* JGATE_V1 學生登入畫面：跟老師登入一樣的樣子，但分開、不帶老師帳號 */
+    const lg = auth === "out" || auth === "nostu"; jg.hidden = !lg; root.hidden = lg;
+    if(lg){ const msg = auth === "nostu" ? "這個帳號不是學生帳號，請用學生帳號登入。" : lerr;
+      if(!jg.querySelector("form")){ jg.innerHTML = `<div class="gtcard"><div class="gside"><div><span class="gtq">Q</span><div class="gbrand">QNA CHINESE</div><h1>課堂作答</h1></div><div class="gzh">華語</div></div>
+        <form class="gform" data-j="login"><h2>學生登入</h2><div class="gfield"><label for="jem">Email</label><input id="jem" type="email" autocomplete="username" required></div>
+        <div class="gfield"><label for="jpw">密碼</label><input id="jpw" type="password" autocomplete="current-password" required></div><button type="submit">登入</button><div class="ge" id="jerr"></div></form></div>`; }
+      $("#jerr").textContent = msg; return; }
     if(state === "load"){ root.innerHTML = head + `<div class="jcard"><div class="note">連線中…</div></div>`; return; }
     if(state === "closed"){ root.innerHTML = head + `<div class="jcard"><div class="note">這個作答連結已經結束了。</div></div>`; return; }
     if(!cur){ root.innerHTML = head + `<div class="jcard"><div class="note">等老師出題…</div></div>`; return; }
@@ -2022,12 +2055,13 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
       ${(cur.lines||[]).length ? `<div class="lines">${cur.lines.map(l => `<div>${esc(l)}</div>`).join("")}</div>` : ""}
       ${(cur.items||[]).map((q, i) => cur.kind === "dict" ? `<label class="item"><span class="q"><i>${i+1}</i></span><input data-i="${i}" maxlength="40" value="${esc(d[i] || "")}" placeholder="第 ${i+1} 格"></label>` : jItem(q, i, d[i])).join("")}
       <button class="send" type="submit">送出</button><div class="note ${cls || ""}" id="jmsg">${msg || ""}</div></form>`; }
+  jg.addEventListener("submit", async e => { e.preventDefault(); const f = e.target, b = f.querySelector("button"); b.disabled = true; lerr = ""; $("#jerr").textContent = "";
+    try { await firebase.auth().signInWithEmailAndPassword($("#jem").value.trim(), $("#jpw").value); $("#jpw").value = ""; }
+    catch(err){ lerr = /network/i.test(err && err.code || "") ? "連不上網路，請再試一次。" : "Email 或密碼不對。"; draw(); }
+    b.disabled = false; });
   root.addEventListener("input", e => { const t = e.target; if(!cur || t.dataset.i === undefined) return; if(t.classList.contains("bl")) t.style.width = Math.max(7, [...t.value].length + 1.5) + "em"; const d = draft(cur.key); d[t.dataset.i] = t.dataset.b === undefined ? t.value : jVal(t.form, t.dataset.i); try { localStorage.setItem(dk(cur.key), JSON.stringify(d)); } catch(err){} });
   root.addEventListener("click", e => { if(e.target.closest("[data-j='out']")){ firebase.auth().signOut(); } });
   root.addEventListener("submit", async e => { e.preventDefault(); const f = e.target;
-    if(f.dataset.j === "login"){ const b = f.querySelector(".send"); b.disabled = true; lerr = ""; draw();
-      try { await firebase.auth().signInWithEmailAndPassword($("#jem").value.trim(), $("#jpw").value); }
-      catch(err){ lerr = /network/i.test(err && err.code || "") ? "連不上網路，請再試一次。" : "Email 或密碼不對。"; b.disabled = false; draw(); } return; }
     if(f.dataset.j === "send" && cur && me){ const a = {}; [...new Set([...f.querySelectorAll("[data-i]")].map(x => x.dataset.i))].forEach(i => { const x = f.querySelector(`[data-i="${i}"]`); const v = (x.dataset.b === undefined ? x.value.trim() : jVal(f, i)).slice(0, 500); if(v && v.replace(/／/g, "")) a[i] = v; });
       if(!Object.keys(a).length){ $("#jmsg").textContent = "請先寫答案。"; return; }
       const btn = f.querySelector(".send"); btn.disabled = true;
