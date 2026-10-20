@@ -9,6 +9,8 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- HWANS_V3 講義改過的答案也會顯示 -->
+<!-- JPICK_V1 選項題用點的、可複選 -->
 <!-- HWANS_V2 講義語法練習答案也能放出；PSYNC_V2 課堂答案也存進講義 -->
 <!-- JNAV_V1 學生可回前面題目、換題不會被切走 -->
 <!-- LORDER_V1 看圖排序／說故事作答；JDICT_V1 聽寫挖空填寫；TGRP_V1 工具按鈕成組；CLOG_V1 課堂紀錄 -->
@@ -547,6 +549,10 @@ html.joinmode,.joinmode body{height:auto;overflow:auto}
 #joinApp .jh .jwho{flex:none}
 #joinApp input.bl{width:7em;max-width:100%;border:none;border-bottom:2px solid var(--navy);border-radius:0;background:transparent;padding:0 4px;font-size:18px;color:var(--navy);text-align:center;vertical-align:baseline}
 #joinApp input.bl:focus{outline:none;background:#fff}
+#joinApp .jpick{display:flex;gap:8px;margin-top:6px}
+#joinApp .jpick button{all:unset;cursor:pointer;width:44px;height:40px;border-radius:10px;background:#fff;border:2px solid var(--line);display:grid;place-items:center;font-size:18px;font-family:"Times New Roman",serif;color:var(--navy)}
+#joinApp .jpick button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+#joinApp .jline{display:inline-block;width:4em;border-bottom:2px solid var(--fg);margin:0 4px;vertical-align:baseline}
 #joinApp .jnav{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
 #joinApp .jnav::-webkit-scrollbar{display:none}
 #joinApp .jnav button{all:unset;flex:none;cursor:pointer;font-size:14px;padding:6px 12px;border-radius:999px;background:#fff;color:var(--navy);border:1.5px solid var(--line);position:relative;white-space:nowrap}
@@ -1765,7 +1771,11 @@ function tansSet(o){ try { localStorage.setItem("slides-tans-" + (LESSON.id||"x"
 function liveCur(){
   const k = STEPS[step] && STEPS[step].key, base = (LESSON.id || "x") + ":";
   if(k === "grammar"){ const gs = GR(LESSON); if(!gs.length || gp < 1) return null; const g = gs[gi], ex = (g.exs||[])[gp-1]; if(!ex) return null;
-    return {key: base + "g" + gi + "p" + gp, kind: "q", title: `語法 ${gi+1}：${g.title || "語法"}・練習 ${gp}`, instr: ex.instr || "", opts: (ex.opts||[]).filter(Boolean), items: (ex.qs||[]).map(q => lStrip(q[0]))}; }
+    /* JPICK_V1 選項題（a、b、c、d）學生用點的，不用打字 */
+    const lid = hwLid(LESSON), src = lid && PS.cache[lid]; if(lid && !src && db && !PS.pre){ PS.pre = 1; psSrc(lid).then(() => { PS.pre = 0; LIVE.sig = ""; livePush(); }); }
+    const pick = (ex.qs||[]).map(q => { if(!src) return 0; const n = psN(q[0]), Q = src.qs.find(x => x.type === "opt" && (x.items||[]).some(it => psN(clean(it.text||"")) === n)); if(Q){ const it = Q.items.find(it => psN(clean(it.text||"")) === n); return it && it.mode === "open" ? 0 : (Q.options||[]).length || 1; }
+      const C = src.qs.find(x => x.type === "choice" && psQText(x) === n); return C ? -((C.options||[]).length) : 0; });
+    return {key: base + "g" + gi + "p" + gp, kind: "q", title: `語法 ${gi+1}：${g.title || "語法"}・練習 ${gp}`, instr: ex.instr || "", opts: (ex.opts||[]).filter(Boolean), items: (ex.qs||[]).map(q => lStrip(q[0])), pick}; }
   if(k === "qa" || k === "qa2"){ const qs = LESSON[k] || []; if(!qs.length) return null;
     return {key: base + k, kind: "q", title: $("#title").textContent, instr: "", opts: [], items: qs.map(q => lStrip(q[0]))}; }
   /* LORDER_V1 看圖排序、看圖說故事也讓學生作答 */
@@ -1784,7 +1794,7 @@ function livePush(){ if(!LIVE.code || !db || !LIVE.open || document.hidden || /[
 function ansFor(key, i){ const out = [];
   LIVE.ans.forEach(d => { if(d.q !== key) return; const v = String((d.a||{})[i] || "").trim(); if(v && !LIVE.hide.has(d._id + "#" + i)) out.push({n: d.name || "", x: v, id: d._id + "#" + i}); });
   ((tansGet()[key] || {})[i] || []).forEach((t, j) => out.push({n: t.n, x: t.x, tid: j}));
-  hwFor(key, i).forEach(a => { if(!LIVE.hide.has(a.id)) out.push(a); });
+  hwFor(key, i).forEach(a => { if(!LIVE.hide.has(a.id) && !out.some(o => o.n === a.n && String(o.x).replace(/\s/g, "") === String(a.x).replace(/\s/g, ""))) out.push(a); });
   return out; }
 function paintAns(){
   const c = liveCur(); const ct = $("#ctrl"); if(!c || $("#modal").hidden === false) return;
@@ -1936,7 +1946,7 @@ async function hwLoad(lid){ if(HW.loading) return; HW.loading = true; const f = 
 function hwFor(key, i){ const D = HW.data; if(!ansOn || !D) return []; const mm = String(key).match(/^([^:]+):(.+)$/); if(!mm) return [];
   const L = lessons.find(x => x.id === mm[1]); if(!L || hwLid(L) !== HW.lid) return []; const part = mm[2], cls = LIVE.cls || "";
   const who = r => { const s = D.stu[r.student_id] || D.stu["u:" + r.uid]; if(!s) return null; if(cls && !s.g.includes(cls)) return null; return s.n || r.student_name || ""; };
-  const skip = r => r.from_class && r.from_class === LIVE.code;
+  const skip = r => false; /* HWANS_V3 不再整份略過，重複的答案在 ansFor 裡去掉 */
   const lt = k => "（" + String.fromCharCode(97 + k) + "）", out = [];
   if(part === "qa" || part === "qa2"){ const q = (L[part]||[])[i]; if(!q) return []; const hit = D.src.disc.find(x => x.n === psN(q[0])); if(!hit) return [];
     D.disc.forEach(r => { const n = who(r), v = String((r.answers||{})[hit.k] || "").trim(); if(n != null && v && !skip(r)) out.push({n, x: v, id: "hw:" + r.id + "#" + i, hw: 1}); }); return out; }
@@ -1957,6 +1967,7 @@ async function psSrc(lid){ if(PS.cache[lid]) return PS.cache[lid]; const f = liv
     ds.forEach((d, di) => String((d && d.discussion) || "").split("\n").map(x => x.trim().replace(/^\d+\s*[.、）)．]\s*/, "")).filter(Boolean).forEach((q, qi) => out.disc.push({k: di + "_" + qi, n: psN(q)}))); } catch(e){}
   return PS.cache[lid] = out; }
 function psQText(q){ let p = String(q.prompt||"").trim(); if(q.type === "choice" && (q.options||[]).length) p += "　" + q.options.map((o,i) => "（" + String.fromCharCode(97+i) + "）" + o).join(" "); return psN(clean(p)); }
+function psPicks(v, opts){ v = String(v||"").trim(); if(/^[（(]?\s*[a-zA-Z](\s*[）)]?[\s,，、／/]*[（(]?\s*[a-zA-Z])*\s*[）)]?$/.test(v)) return [...new Set(v.match(/[a-zA-Z]/g).map(c => c.toLowerCase().charCodeAt(0) - 97))].filter(k => k < (opts||[]).length); const k = psPick(v, opts); return k >= 0 ? [k] : []; }
 function psPick(v, opts){ v = String(v||"").trim(); const L = v.match(/^[（(]?\s*([a-zA-Z])\s*[）)]?\.?$/); if(L) return L[1].toLowerCase().charCodeAt(0) - 97;
   const N = v.match(/^[0-9]$/); if(N) return +v - 1; const i = (opts||[]).findIndex(o => psN(String(o).replace(/^[（(]?[a-zA-Z][）)．.、]\s*/, "")) === psN(v)); return i; }
 function psSync(){ clearTimeout(PS.t); PS.t = setTimeout(psRun, 2500); }
@@ -1983,7 +1994,7 @@ async function psRun(){ const f = liveDb(); if(!f || !db) return;
             Q = src.qs.find(x => x.type === "opt" && (x.items||[]).some(it => psN(clean(it.text||"")) === n)); if(!Q) return;
             const its = Q.items || [], ii = its.findIndex(it => psN(clean(it.text||"")) === n);
             const arr = Array.isArray(B.ans[Q.id]) ? B.ans[Q.id] : its.map(it => it.mode === "open" ? {t: ""} : {s: []});
-            if(its[ii].mode === "open") arr[ii] = {t: v}; else { const k = psPick(v, Q.options); if(k >= 0 && k < (Q.options||[]).length) arr[ii] = {s: [k]}; }
+            if(its[ii].mode === "open") arr[ii] = {t: v}; else { const ks = psPicks(v, Q.options); if(ks.length) arr[ii] = {s: ks}; }
             B.ans[Q.id] = arr; }); } }
       const now = new Date().toISOString();
       for(const lid of Object.keys(byL)){ const B = byL[lid];
@@ -2107,7 +2118,10 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
       + (live && view && live.key !== view ? `<button type="button" class="jnew" data-jv="${esc(live.key)}">老師在：${esc(shortT(live.title))}　前往 ›</button>` : ""); };
   /* JOINUI_V2 對話分行、A/B 標在前面；空格直接打在線上 */
   const BL = /[＿_]{2,}/g;
-  const jItem = (q, i, dv) => { const parts = String(dv || "").split("／"); let b = 0;
+  const jItem = (q, i, dv) => { const pk = (cur.pick || [])[i]; if(pk){ const n = Math.abs(pk), sel = String(dv || "").toLowerCase();
+      const lines = String(q).split(/\s*(?=[AB甲乙][：:])/).map(x => x.trim()).filter(Boolean).map(l => { const m = l.match(/^([AB甲乙])[：:]\s*(.*)$/), t = esc(m ? m[2] : l).replace(BL, `<span class="jline"></span>`); return m ? `<div class="dl"><b>${m[1]}</b><span>${t}</span></div>` : `<div class="dl"><span>${t}</span></div>`; }).join("");
+      return `<div class="item"><i class="no">${i+1}</i><div class="qb">${lines}<div class="jpick">${[...Array(n).keys()].map(k => { const c = String.fromCharCode(97 + k); return `<button type="button" class="${sel.includes(c) ? "on" : ""}" data-pi="${i}" data-pc="${c}" data-one="${pk < 0 ? 1 : ""}">${c}</button>`; }).join("")}<input type="hidden" data-i="${i}" data-b="-1" value="${esc(sel)}"></div></div></div>`; }
+    const parts = String(dv || "").split("／"); let b = 0;
     const lines = String(q).split(/\s*(?=[AB甲乙][：:])/).map(x => x.trim()).filter(Boolean);
     const body = lines.map(l => { const m = l.match(/^([AB甲乙])[：:]\s*(.*)$/); const wide = !String(m ? m[2] : l).replace(BL, "").replace(/[\s。，！？、,.!?；;…]/g, ""); const t = esc(m ? m[2] : l).replace(BL, () => { const v = parts[b] || ""; return `<input class="bl${wide ? " wide" : ""}" data-i="${i}" data-b="${b++}" value="${esc(v)}" style="${wide ? "" : `width:${Math.max(7, [...v].length + 1.5)}em`}" maxlength="80" aria-label="第 ${i+1} 題空格">`; }), tt = wide ? (t.match(/<input[^>]*>/g) || []).join("") : t;
       return m ? `<div class="dl"><b>${m[1]}</b><span>${tt}</span></div>` : `<div class="dl"><span>${tt}</span></div>`; }).join("");
@@ -2143,6 +2157,9 @@ if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u
     b.disabled = false; });
   root.addEventListener("input", e => { const t = e.target; if(!cur || t.dataset.i === undefined) return; if(t.classList.contains("bl") && !t.classList.contains("wide")) t.style.width = Math.max(7, [...t.value].length + 1.5) + "em"; const d = draft(cur.key); d[t.dataset.i] = t.dataset.b === undefined ? t.value : jVal(t.form, t.dataset.i); try { localStorage.setItem(dk(cur.key), JSON.stringify(d)); } catch(err){} });
   root.addEventListener("click", e => { if(e.target.closest("[data-j='out']")){ firebase.auth().signOut(); return; }
+    const pb = e.target.closest("[data-pi]"); if(pb && cur){ const i = pb.dataset.pi, c = pb.dataset.pc, d = draft(cur.key); let v = String(d[i] || "");
+      v = pb.dataset.one ? (v === c ? "" : c) : (v.includes(c) ? v.replace(c, "") : [...(v + c)].sort().join("")); d[i] = v; try { localStorage.setItem(dk(cur.key), JSON.stringify(d)); } catch(err){}
+      pb.parentNode.querySelectorAll("button").forEach(x => x.classList.toggle("on", v.includes(x.dataset.pc))); pb.parentNode.querySelector("input").value = v; return; }
     const jv = e.target.closest("[data-jv]"); if(jv){ view = jv.dataset.jv; cur = Q[view] || null; sig = ""; draw(); window.scrollTo(0, 0); return; }
     const o = e.target.closest("[data-ok]"), clr = e.target.closest("[data-j='oclr']"); if(!(o || clr) || !cur) return;
     const d = draft(cur.key); let pk = String(d.pk || "").split(",").filter(x => x !== "").map(Number);
