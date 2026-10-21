@@ -54,25 +54,28 @@ function renderHanzi(){
     const dd=hwDaysTo(t.due_date);
     if(dd!=null&&dd<0)return '<span class="badge badge-overdue">'+snm(s.name)+' 逾期 '+(-dd)+' 天</span>';
     return '<span class="badge'+(dd!=null&&dd<=2?' badge-soon':'')+'">'+snm(s.name)+(got?(' 目前 '+'★'.repeat(got)):' 還沒完成')+'</span>';};
+  /* HWROW_V1580 Quinn 選的版本：一份作業一行，學生名字收在裡面點開才看。
+     列的樣子跟翻牌、寫字共用 teacher-app.js 的 hwItemHtml，三種才會長得一樣；
+     teacher-app.js 沒載到的時候退回原本那種一整塊的排法，這一頁照樣開得起來。 */
   const taskHtml=tasks.length?tasks.map(t=>{
     const who=lessonTargets(t).filter(hzLive);
     const done=who.filter(s=>hzDone(t,s)).length;
+    const body='<div class="hint" style="margin-bottom:6px">'
+      +esc(HZ_NAME[t.fam]||t.fam)+'・'+esc(HZ_DIFF[t.diff]||'')+'・至少 '+(Number(t.min_stars)||1)+' 星</div>'
+      +(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>');
+    if(typeof hwItemHtml==='function')
+      return hwItemHtml({ic:'🀄',title:t.title||((HZ_NAME[t.fam]||t.fam)+'・'+(HZ_DIFF[t.diff]||'')),
+        due:t.due_date,done:done,n:who.length,del:'hzDel',id:t.id,body:body});
     return '<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start">'
       +'<b>'+esc(t.title||((HZ_NAME[t.fam]||t.fam)+'・'+(HZ_DIFF[t.diff]||'')))+'</b>'
-      +'<span class="tag">'+esc(HZ_NAME[t.fam]||t.fam)+'・'+esc(HZ_DIFF[t.diff]||'')+'・至少 '+(Number(t.min_stars)||1)+' 星</span>'
       +'<span class="muted" style="font-size:12px">'+(t.due_date?('截止 '+esc(t.due_date)):'沒有截止日')+'</span>'
       +'<span class="grow"></span><span class="muted" style="font-size:13px">完成 '+done+'／'+who.length+'</span>'
       +'<button class="btn btn-sm btn-ghost" data-act="hzDel" data-id="'+esc(t.id)+'">刪除</button>'
-      +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'+(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
-    :'<div class="muted" style="padding:6px 2px">還沒有指派。</div>';/* LEANHW_V1579 */
-  /* HWONE_V1577 Quinn：「太多指派作業了吧？這樣很難去抓欸」。
-     這一頁本來三張卡、四顆指派鈕，右上角那顆還跟這張卡重複。
-     現在三種作業合進同一張「作業」卡，各有一個小標題；
-     指派統一走右上角那一顆（hzPickKind），按了再選要出哪一種。 */
-  const hzSecHtml='<div class="hw-sec" data-hzcard="1">'
-    /* LEANHW_V1579 Quinn：「太多解釋，廢話太多了」。說明在指派視窗裡講過了，這裡只留標題。 */
-    +'<div class="hw-sec-h">🀄 漢字遊戲作業</div>'
-    +taskHtml+'</div>';
+      +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'+body+'</div></div>';
+  }).join(''):'';
+  /* 三種都沒有才講一句話，不然每一種各講一句又是廢話 */
+  const hzSecHtml=taskHtml||(((S.gameTasks||[]).length||(S.writeTasks||[]).length)?''
+    :'<div class="muted" style="padding:6px 2px">還沒有指派任何作業。</div>');
   const stus=(S.students||[]).filter(hzLive).slice().sort((a,b)=>{const x=hzDocOf(a),y=hzDocOf(b);return String((y&&y.updated_at)||'').localeCompare(String((x&&x.updated_at)||''))||stuNameCmp(a,b);});
   /* ══════ HZLEAN_V1421 整欄都是空的就不要畫 ══════
      Quinn：「我覺得這些太亂了，不需要那麼多資訊在這裡吧」。她的截圖裡十二位學生

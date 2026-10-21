@@ -10703,27 +10703,15 @@ function wtCardHtml(){
   const rows=tasks.length?tasks.map(t=>{
     const who=lessonTargets(t).filter(hzLive);
     const done=who.filter(s=>wtAllDoneT(t,s)).length;
-    return '<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start">'
-      +'<b>'+esc(t.title||'寫字作業')+'</b>'
-      +'<span class="tag">✍️ '+wtCharsOf(t).length+' 個字・每個寫 '+wtNeedOf(t)+' 次</span>'
-      +'<span class="muted" style="font-size:12px">'+(t.due_date?('截止 '+esc(t.due_date)):'沒有截止日')+'</span>'
-      +'<span class="grow"></span><span class="muted" style="font-size:13px">完成 '+done+'／'+who.length+'</span>'
-      +'<button class="btn btn-sm btn-ghost" data-act="wtDel" data-id="'+esc(t.id)+'">刪除</button>'
-      /* WTCHARS_V1578 Quinn：「選完以後出現在這邊，好像也太怪了」。
-         她勾了整本書，99 個字就整串印出來變成一面字牆。
-         上面那個標籤已經寫了「99 個字・每個寫 10 次」，這裡只要讓她認得出是哪些字就夠了：
-         超過 24 個就先印前 24 個，要看全部再點開。 */
-      +(function(){const cs=wtCharsOf(t);
-        if(cs.length<=24)return '<div class="wt-cs">'+esc(cs.join(''))+'</div>';
-        return '<details class="wt-cs-d"><summary><span class="wt-cs">'+esc(cs.slice(0,24).join(''))
-          +'…</span><span class="hint">全部 '+cs.length+' 個字</span></summary>'/* LEANHW_V1579 */
-          +'<div class="wt-cs" style="margin-top:6px">'+esc(cs.join(''))+'</div></details>';})()
-      +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'
-      +(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
-    :'<div class="muted" style="padding:6px 2px">還沒有指派。</div>';/* LEANHW_V1579 */
-  return '<div class="hw-sec" data-wtcard="1">'
-    +'<div class="hw-sec-h">✍️ 寫字作業</div>'/* LEANHW_V1579 */
-    +rows+'</div>';
+    const cs=wtCharsOf(t);
+    const head='<div class="hint" style="margin-bottom:6px">'+cs.length+' 個字・每個寫 '+wtNeedOf(t)+' 次</div>'
+      +'<div class="wt-cs" style="margin-bottom:8px">'+esc(cs.join(''))+'</div>';
+    return hwItemHtml({ic:'✍️',title:t.title||'寫字作業',due:t.due_date,done:done,n:who.length,
+      del:'wtDel',id:t.id,
+      body:head+(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')});
+  }).join('')
+    :'';
+  return rows;
 }
 function gtCardHtml(){
   const tasks=(S.gameTasks||[]).slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
@@ -10736,23 +10724,19 @@ function gtCardHtml(){
        玩過的是綠底打勾加分數、逾期的是紅底，剩下的本來就是還沒玩——
        七個人七個「還沒玩」只是把同一句話講七遍。只留名字。 */
     return '<span class="badge'+(dd!=null&&dd<=2?' badge-soon':'')+'">'+snm(s.name)+'</span>';};
+  /* HWROW_V1580 Quinn 連說三次「太亂」。做了三個版本給她挑，她選了 C：一份一行。
+     真正佔版面的是那一排學生名字（七顆）和寫字作業那一串字——那些不是每次都要看。
+     改成：每一份作業就是一行（圖示＋名稱＋截止＋完成幾／幾），
+     學生名字和那些字收在裡面，點開才出來。段落標題整個拿掉，類型用圖示認。 */
   const rows=tasks.length?tasks.map(t=>{
     const who=lessonTargets(t).filter(hzLive);
     const done=who.filter(s=>gtDone(t,s)).length;
-    return '<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start">'
-      +'<b>'+esc(t.title||'翻牌配對')+'</b>'
-      +'<span class="tag">🃏 翻牌配對・'+esc(gtLesNames(t))+'</span>'
-      +'<span class="muted" style="font-size:12px">'+(t.due_date?('截止 '+esc(t.due_date)):'沒有截止日')+'</span>'
-      +'<span class="grow"></span><span class="muted" style="font-size:13px">完成 '+done+'／'+who.length+'</span>'
-      +'<button class="btn btn-sm btn-ghost" data-act="gtDel" data-id="'+esc(t.id)+'">刪除</button>'
-      +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'
-      +(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
-    :'<div class="muted" style="padding:6px 2px">還沒有指派。</div>';/* LEANHW_V1579 */
-  return '<div class="hw-sec" data-gtcard="1">'
-    /* LEANHW_V1579 Quinn：「我覺得這邊太多解釋，廢話太多了。請以簡單明瞭爲主」。
-       標題已經寫了這是什麼，後面那句說明搬回指派視窗裡講就好，列表上不重複。 */
-    +'<div class="hw-sec-h">🃏 生詞翻牌作業</div>'
-    +rows+'</div>';
+    return hwItemHtml({ic:'🃏',title:t.title||'翻牌配對',due:t.due_date,done:done,n:who.length,
+      del:'gtDel',id:t.id,
+      body:(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')});
+  }).join('')
+    :'';
+  return rows;
 }
 /* ══════ GAMEHW_V1553 這張卡怎麼進到「漢字闖關」那一頁 ══════
    那一頁真正在畫的是 hanzi-teacher.js 的 renderHanzi（它會蓋掉這支檔案裡的同名函式），
@@ -10766,6 +10750,20 @@ function gtCardHtml(){
    而且第一張卡只叫「作業」，沒寫它其實是漢字遊戲作業。
    改成一張「作業」卡，三種各一小段；指派統一走右上角那一顆，按了再選要出哪一種。
    這兩支本來各自吐一整張 .card（含自己的標題和指派鈕），現在只吐中間那一段。 */
+/* HWROW_V1580 作業列表的一行：圖示＋名稱＋截止＋完成幾／幾，其餘收在裡面。
+   「刪除」在 summary 裡面，不擋掉預設行為的話按一下會順便把整行展開，
+   所以那一顆自己 preventDefault；原本的 data-act 照樣會被外面的總處理器接到。 */
+function hwItemHtml(o){
+  return '<details class="hw-it"><summary>'
+    +'<span class="hw-ic">'+o.ic+'</span>'
+    +'<span class="hw-nm">'+esc(o.title||'')+'</span>'
+    +'<span class="grow"></span>'
+    +'<span class="hint">'+(o.due?('截止 '+esc(o.due)):'沒有截止日')+'</span>'
+    +'<span class="hw-done">完成 '+o.done+'／'+o.n+'</span>'
+    +'<span class="hw-arw">▾</span>'
+    +'<button class="btn btn-sm btn-ghost" onclick="event.preventDefault()" data-act="'+o.del+'" data-id="'+esc(o.id)+'">刪除</button>'
+    +'</summary><div class="hw-who">'+(o.body||'')+'</div></details>';
+}
 /* HWONE_V1577 右上角「＋ 指派作業」按了先問要出哪一種，三種各一句話說清楚差別。
    ⚠ 本來取名 H.hwPick，可是那個名字早就被「課本生詞手寫」那一支用掉了，
    後載入的把先載入的蓋掉，按了完全沒反應。改成 hzPickKind。 */
