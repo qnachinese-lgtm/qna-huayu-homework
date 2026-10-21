@@ -65,6 +65,14 @@ function renderHanzi(){
       +'<button class="btn btn-sm btn-ghost" data-act="hzDel" data-id="'+esc(t.id)+'">刪除</button>'
       +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'+(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
     :'<div class="muted" style="padding:8px 2px">還沒有指派漢字遊戲作業。按右上角「＋ 指派作業」開始。</div>';
+  /* HWONE_V1577 Quinn：「太多指派作業了吧？這樣很難去抓欸」。
+     這一頁本來三張卡、四顆指派鈕，右上角那顆還跟這張卡重複。
+     現在三種作業合進同一張「作業」卡，各有一個小標題；
+     指派統一走右上角那一顆（hzPickKind），按了再選要出哪一種。 */
+  const hzSecHtml='<div class="hw-sec" data-hzcard="1">'
+    +'<div class="hw-sec-h">🀄 漢字遊戲作業'
+    +'<span class="hint">一輪最多 8 個字，拼 → 寫 → 用三步。</span></div>'
+    +taskHtml+'</div>';
   const stus=(S.students||[]).filter(hzLive).slice().sort((a,b)=>{const x=hzDocOf(a),y=hzDocOf(b);return String((y&&y.updated_at)||'').localeCompare(String((x&&x.updated_at)||''))||stuNameCmp(a,b);});
   /* ══════ HZLEAN_V1421 整欄都是空的就不要畫 ══════
      Quinn：「我覺得這些太亂了，不需要那麼多資訊在這裡吧」。她的截圖裡十二位學生
@@ -117,12 +125,15 @@ function renderHanzi(){
     +'<a class="btn btn-sm" href="hanzi.html" target="_blank" rel="noopener">🀄 漢字闖關 ↗</a>'
     +'<a class="btn btn-sm" href="games.html" target="_blank" rel="noopener">🎲 生詞遊戲 ↗</a>'
     +'</div></details>'
-    +'<button class="btn btn-sm btn-accent" data-act="hzNew">＋ 指派作業</button></div>'
-    +'<div class="card"><h3 style="margin:0 0 8px">作業</h3>'+(tasks.length?'<div class="hint" style="margin-bottom:8px">綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。</div>':'')/* HZLEAN_V1421 沒有作業就不要解釋顏色 */+taskHtml+'</div>'
+    +'<button class="btn btn-sm btn-accent" data-act="'+((typeof H==='object'&&H&&typeof H.hzPickKind==='function')?'hzPickKind':'hzNew')+'">＋ 指派作業</button></div>'
+    +'<div class="card"><h3 style="margin:0 0 8px">作業</h3>'+(tasks.length?'<div class="hint" style="margin-bottom:8px">綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。</div>':'')/* HZLEAN_V1421 沒有作業就不要解釋顏色 */+hzSecHtml
     /* GAMEHW_V1553 生詞翻牌作業那一塊。程式在 teacher-app.js（gtCardHtml），
        這裡只負責把它放進畫面——漢字遊戲的程式不混進後台、後台的程式也不混進這裡。
        teacher-app.js 沒載到的時候就當作沒有，這一頁照樣開得起來。 */
-    +((typeof gtCardHtml==='function')?gtCardHtml():'')
+    /* HWONE_V1577 翻牌和寫字那兩段由 teacher-app.js（gtCardHtml／wtCardHtml）填進這個洞，
+       跟漢字遊戲作業同在一張卡裡。漢字遊戲的程式不混進後台、後台的程式也不混進這裡。
+       teacher-app.js 沒載到的時候這個洞就是空的，這一頁照樣開得起來。 */
+    +'<div data-hwmore="1"></div></div>'
     +'<div class="card" style="margin-top:14px"><h3 style="margin:0 0 8px">學生進度</h3>'
     /* HZLEAN_V1421 三句話的名詞解釋收起來，要看再點開 */
     +'<details style="margin-bottom:8px"><summary class="hint" style="cursor:pointer;display:list-item;width:fit-content">欄位說明</summary>'

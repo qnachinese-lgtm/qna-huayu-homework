@@ -10697,8 +10697,9 @@ function wtCardHtml(){
     const dd=hwDaysTo(t.due_date);
     const prog=st.times?('　'+st.full+'／'+st.total+' 字'):'';
     if(dd!=null&&dd<0)return '<span class="badge badge-overdue">'+snm(s.name)+' 逾期 '+(-dd)+' 天'+prog+'</span>';
+    /* NOWORDY_V1576 寫字作業同理：還沒動筆的就只留名字（寫到一半的照樣顯示進度）。 */
     return '<span class="badge'+(dd!=null&&dd<=2?' badge-soon':'')+'">'+snm(s.name)
-      +(st.times?('　'+st.full+'／'+st.total+' 字'):' 還沒寫')+'</span>';};
+      +(st.times?('　'+st.full+'／'+st.total+' 字'):'')+'</span>';};
   const rows=tasks.length?tasks.map(t=>{
     const who=lessonTargets(t).filter(hzLive);
     const done=who.filter(s=>wtAllDoneT(t,s)).length;
@@ -10708,16 +10709,21 @@ function wtCardHtml(){
       +'<span class="muted" style="font-size:12px">'+(t.due_date?('截止 '+esc(t.due_date)):'沒有截止日')+'</span>'
       +'<span class="grow"></span><span class="muted" style="font-size:13px">完成 '+done+'／'+who.length+'</span>'
       +'<button class="btn btn-sm btn-ghost" data-act="wtDel" data-id="'+esc(t.id)+'">刪除</button>'
-      +'<div style="flex-basis:100%;margin-top:4px;font-size:18px;letter-spacing:3px;color:#30486A">'+esc(wtCharsOf(t).join(''))+'</div>'
+      /* WTCHARS_V1578 Quinn：「選完以後出現在這邊，好像也太怪了」。
+         她勾了整本書，99 個字就整串印出來變成一面字牆。
+         上面那個標籤已經寫了「99 個字・每個寫 10 次」，這裡只要讓她認得出是哪些字就夠了：
+         超過 24 個就先印前 24 個，要看全部再點開。 */
+      +(function(){const cs=wtCharsOf(t);
+        if(cs.length<=24)return '<div class="wt-cs">'+esc(cs.join(''))+'</div>';
+        return '<details class="wt-cs-d"><summary><span class="wt-cs">'+esc(cs.slice(0,24).join(''))
+          +'…</span><span class="hint">共 '+cs.length+' 個字，點開看全部</span></summary>'
+          +'<div class="wt-cs" style="margin-top:6px">'+esc(cs.join(''))+'</div></details>';})()
       +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'
       +(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
-    :'<div class="muted" style="padding:8px 2px">還沒有指派寫字作業。按右邊「＋ 指派寫字作業」開始。</div>';
-  return '<div class="card" data-wtcard="1" style="margin-top:14px">'
-    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
-    +'<h3 style="margin:0">✍️ 寫字作業</h3>'
-    +'<span class="hint">學生照筆順一筆一筆寫，每個字寫滿指定次數就算完成，不用妳批改。</span>'
-    +'<span class="grow"></span>'
-    +'<button class="btn btn-sm btn-accent" data-act="wtNew">＋ 指派寫字作業</button></div>'
+    :'<div class="muted" style="padding:8px 2px">還沒有指派寫字作業。按右上角「＋ 指派作業」開始。</div>';
+  return '<div class="hw-sec" data-wtcard="1">'
+    +'<div class="hw-sec-h">✍️ 寫字作業'
+    +'<span class="hint">學生照筆順一筆一筆寫，每個字寫滿指定次數就算完成，不用妳批改。</span></div>'
     +rows+'</div>';
 }
 function gtCardHtml(){
@@ -10727,7 +10733,10 @@ function gtCardHtml(){
     if(g)return '<span class="badge" style="background:#E1F0E8;color:#1F6A54">✓ '+snm(s.name)+' '+(Number(g.score)||0)+' 分・'+esc(gtSecs(g.secs))+'</span>';
     const dd=hwDaysTo(t.due_date);
     if(dd!=null&&dd<0)return '<span class="badge badge-overdue">'+snm(s.name)+' 逾期 '+(-dd)+' 天</span>';
-    return '<span class="badge'+(dd!=null&&dd<=2?' badge-soon':'')+'">'+snm(s.name)+' 還沒玩</span>';};
+    /* NOWORDY_V1576 Quinn：「應該也沒必要寫『還沒玩』吧？」
+       玩過的是綠底打勾加分數、逾期的是紅底，剩下的本來就是還沒玩——
+       七個人七個「還沒玩」只是把同一句話講七遍。只留名字。 */
+    return '<span class="badge'+(dd!=null&&dd<=2?' badge-soon':'')+'">'+snm(s.name)+'</span>';};
   const rows=tasks.length?tasks.map(t=>{
     const who=lessonTargets(t).filter(hzLive);
     const done=who.filter(s=>gtDone(t,s)).length;
@@ -10739,13 +10748,10 @@ function gtCardHtml(){
       +'<button class="btn btn-sm btn-ghost" data-act="gtDel" data-id="'+esc(t.id)+'">刪除</button>'
       +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'
       +(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
-    :'<div class="muted" style="padding:8px 2px">還沒有指派翻牌作業。按右邊「＋ 指派翻牌作業」開始。</div>';
-  return '<div class="card" data-gtcard="1" style="margin-top:14px">'
-    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
-    +'<h3 style="margin:0">🃏 生詞翻牌作業</h3>'
-    +'<span class="hint">一張漢字、一張漢語拼音，用的是課本生詞。玩完一輪就算寫完。</span>'
-    +'<span class="grow"></span>'
-    +'<button class="btn btn-sm btn-accent" data-act="gtNew">＋ 指派翻牌作業</button></div>'
+    :'<div class="muted" style="padding:8px 2px">還沒有指派翻牌作業。按右上角「＋ 指派作業」開始。</div>';
+  return '<div class="hw-sec" data-gtcard="1">'
+    +'<div class="hw-sec-h">🃏 生詞翻牌作業'
+    +'<span class="hint">一張漢字、一張漢語拼音，用的是課本生詞。玩完一輪就算寫完。</span></div>'
     +rows+'</div>';
 }
 /* ══════ GAMEHW_V1553 這張卡怎麼進到「漢字闖關」那一頁 ══════
@@ -10755,12 +10761,41 @@ function gtCardHtml(){
    就由這裡盯著那個區塊：新版的 hanzi-teacher.js 會自己叫 gtCardHtml（卡片上有
    data-gtcard，這裡看到就不做事）；還是舊版的話，這裡把卡片補進去。
    兩邊都不會重複，也不用去改 HANZI_LOADER（那一段她交代要保留）。 */
+/* HWONE_V1577 Quinn：「太多指派作業了吧？這樣很難去抓欸」。
+   漢字闖關本來有三張卡、四顆指派鈕（右上角那顆還跟第一張卡重複），
+   而且第一張卡只叫「作業」，沒寫它其實是漢字遊戲作業。
+   改成一張「作業」卡，三種各一小段；指派統一走右上角那一顆，按了再選要出哪一種。
+   這兩支本來各自吐一整張 .card（含自己的標題和指派鈕），現在只吐中間那一段。 */
+/* HWONE_V1577 右上角「＋ 指派作業」按了先問要出哪一種，三種各一句話說清楚差別。
+   ⚠ 本來取名 H.hwPick，可是那個名字早就被「課本生詞手寫」那一支用掉了，
+   後載入的把先載入的蓋掉，按了完全沒反應。改成 hzPickKind。 */
+H.hzPickKind=()=>{
+  const row=(act,ic,t,d)=>'<button class="btn hwp-b" data-act="'+act+'">'
+    +'<b>'+ic+' '+t+'</b><span class="hint">'+d+'</span></button>';
+  openModal('<div class="modal" style="max-width:520px">'
+    +'<div class="modal-head"><h3>＋ 指派作業</h3><button class="x" data-act="closeModal">×</button></div>'
+    +'<div class="modal-body"><div class="hwp">'
+    +row('hzNew','🀄','漢字遊戲作業','一輪最多 8 個字，拼 → 寫 → 用三步，用的是漢字闖關的關卡。')
+    +row('gtNew','🃏','生詞翻牌作業','一張漢字、一張拼音配對，用的是課本生詞。玩完一輪就算完成。')
+    +row('wtNew','✍️','寫字作業','照筆順一筆一筆寫，每個字寫滿妳指定的次數就算完成。')
+    +'</div></div></div>');};
 function gtMount(){
   try{
     const body=document.getElementById('panel-hanzi');
     if(!body||!body.firstElementChild)return;
     const cards=[].slice.call(body.querySelectorAll('.card'));
     const after=cards.filter(c=>{const h=c.querySelector('h3');return h&&/^作業/.test((h.textContent||'').trim());})[0];
+    /* HWONE_V1577 三種作業合進同一張「作業」卡。
+       hanzi-teacher.js 在那張卡裡留了一個空的 <div data-hwmore>，這裡把翻牌和寫字
+       那兩段填進去。填的是那個 div 的內容，不是 panel 的直接子節點，
+       所以不會再觸發上面那個 MutationObserver（它只看直接子節點）。
+       找不到那個洞的話（舊版的 hanzi-teacher.js），退回舊做法：插在「作業」卡後面。 */
+    const slot=body.querySelector('[data-hwmore]');
+    if(slot){
+      if(slot.getAttribute('data-filled')!=='1'){
+        slot.setAttribute('data-filled','1');
+        slot.innerHTML=gtCardHtml()+wtCardHtml();}
+      return;}
     const put=(html,sel)=>{if(body.querySelector(sel))return null;
       const wrap=document.createElement('div');wrap.innerHTML=html;
       const card=wrap.firstElementChild;if(!card)return null;
@@ -10935,21 +10970,29 @@ H.wtNew=()=>{
   const def=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>✍️ 指派寫字作業</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body">'
-   +'<div class="hint" style="margin-bottom:10px">學生照筆順一筆一筆寫，寫錯會停在那一筆。每個字寫滿妳指定的次數就自動算完成，不用妳批改。</div>'
-   +'<div class="form-grid">'
+   /* WTSEC_V1578 Quinn：「我剛剛沒看到設定期限欸」。
+      截止日本來夾在四格一排的表單中間，很容易看過去。
+      改成跟「指派漢字遊戲作業」同一套三段式：練什麼／怎麼練／給誰、什麼時候，
+      截止日就在第三段的第一格，跑不掉。欄位 id 全部沒動。 */
+   +'<div class="hint" style="margin-bottom:4px">學生照筆順一筆一筆寫，寫錯會停在那一筆。每個字寫滿妳指定的次數就自動算完成，不用妳批改。</div>'
+   +'<div class="hz-sec">① 練什麼</div>'
    +'<div class="field"><label>教材</label><select id="wt-book">'
    +books.map((b,i)=>'<option value="'+esc(b[0])+'"'+(i?'':' selected')+'>'+esc(b[0])+'（'+b[1]+' 課）</option>').join('')+'</select></div>'
-   +'<div class="field"><label>每個字寫幾次</label><select id="wt-times">'
-   +[1,2,3,5,8,10].map(n=>'<option value="'+n+'"'+(n===3?' selected':'')+'>'+n+' 次</option>').join('')+'</select></div>'
-   +'<div class="field"><label>截止日</label><input id="wt-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
-   +'<div class="field"><label>作業名稱 <span class="hint">可以不填</span></label><input id="wt-title" placeholder=""></div>'
-   +'</div>'
    +'<div class="field full"><details class="pickdd" open data-pick="les">'
    +'<summary>要練哪幾課的字 <span class="pick-sum none">還沒選課</span></summary>'
    +'<div class="pick-body"><div id="wt-les" class="qzw-stus"></div></div></details></div>'
    +'<div class="field full"><label>這些字 <span class="hint" id="wt-tip"></span></label>'
    +'<textarea id="wt-chars" rows="2" placeholder="勾了課會自動填，妳也可以自己改或貼字進來" style="font-size:19px;letter-spacing:3px"></textarea></div>'
-   +'<div class="field full"><details class="pickdd" data-pick="stu">'
+   +'<div class="hz-sec">② 怎麼練</div>'
+   +'<div class="field"><label>每個字寫幾次</label><select id="wt-times">'
+   +[1,2,3,5,8,10].map(n=>'<option value="'+n+'"'+(n===3?' selected':'')+'>'+n+' 次</option>').join('')+'</select>'
+   +'<div class="hint" style="margin-top:4px">字數 × 次數＝學生總共要寫幾次，選課之後上面會算給妳看。</div></div>'
+   +'<div class="hz-sec">③ 給誰、什麼時候</div>'
+   +'<div class="form-grid">'
+   +'<div class="field"><label>截止日</label><input id="wt-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
+   +'<div class="field"><label>作業名稱 <span class="hint">可以不填</span></label><input id="wt-title" placeholder=""></div>'
+   +'</div>'
+   +'<div class="field full"><details class="pickdd" open data-pick="stu">'
    +'<summary>指派給誰 <span class="pick-sum"></span></summary><div class="pick-body">'
    +'<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center">'
    +'<button class="btn btn-sm" type="button" data-act="wtStuAll">✔ 全選看得到的</button>'
