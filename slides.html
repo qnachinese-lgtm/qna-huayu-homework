@@ -9,6 +9,7 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- GBLOCK_V1 語法例句跟著各段說明 -->
 <!-- BIGTXT_V1 語法／討論字不再縮小 -->
 <!-- SANSQ_V2 學生答案標籤放進題目框 -->
 <!-- WARMLIVE_V1 暖身可作答 -->
@@ -371,6 +372,9 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .gtag{flex:none;background:var(--navy);color:#fff;border-radius:8px;padding:3px 10px;font-size:15px;font-weight:700;margin-top:4px}
 .gnote p{margin:0 0 4px;font-size:calc(26px*var(--gs,1));line-height:1.6}
 .gex{margin:0;padding-left:1.4em;display:flex;flex-direction:column;gap:8px}
+.gblk .gbody{display:flex;flex-direction:column;gap:6px;min-width:0}
+
+.gblk .gex{margin-top:2px}
 .gex .zh{font-size:calc(26px*var(--gs,1));line-height:1.6}
 .gex li::marker{font-size:20px}
 .gopts{border:2px dashed var(--sky);border-radius:12px;padding:calc(10px*var(--gs,1)) 16px;font-size:calc(24px*var(--gs,1));line-height:1.6;display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));column-gap:28px}
@@ -1066,8 +1070,10 @@ function render(){
     $("#hint").textContent = (gs.length>1 || exs.length) ? "按 ← → 換下一頁" : "";
     if(gp===0){
       st.innerHTML = `<div class="pop gpage">${(g.pattern||[]).length ? `<div class="pattern">${g.pattern.map((p,i)=>`${i?'＋':''}<span style="background:${PCOL[i%PCOL.length]}">${esc(p)}</span>`).join(" ")}</div>` : ""}
+        ${(g.blocks||[]).some(b=>b.ex.length) ? g.blocks.map(b => { const lb = b.label && b.label !== "說明" ? b.label : (b.text ? "說明" : "例句");
+          return `<div class="gsec gblk"><span class="gtag">${esc(lb)}</span><div class="gbody">${b.text ? `<div class="gnote">${String(b.text).split(/\n/).map(x=>`<p>${esc(x)}</p>`).join("")}</div>` : ""}${b.ex.length ? `<ol class="gex">${b.ex.map(e=>`<li><div class="zh">${brAB(e[0])}</div><div class="py">${esc(e[1]||"")}</div></li>`).join("")}</ol>` : ""}</div></div>`; }).join("") : `
         ${g.note ? `<div class="gsec"><span class="gtag">說明</span><div class="gnote">${String(g.note).split(/\n/).map(x=>`<p>${esc(x)}</p>`).join("")}</div></div>` : ""}
-        ${(g.examples||[]).length ? `<div class="gsec"><span class="gtag">例句</span><ol class="gex">${g.examples.map(e=>`<li><div class="zh">${brAB(e[0])}</div><div class="py">${esc(e[1]||"")}</div></li>`).join("")}</ol></div>` : ""}</div>`;
+        ${(g.examples||[]).length ? `<div class="gsec"><span class="gtag">例句</span><ol class="gex">${g.examples.map(e=>`<li><div class="zh">${brAB(e[0])}</div><div class="py">${esc(e[1]||"")}</div></li>`).join("")}</ol></div>` : ""}`}</div>`;
     } else {
       const ex = exs[gp-1], qs = ex.qs || [];
       st.innerHTML = `<div class="pop gpage"><div class="tag"><span>練習 ${gp}</span>${esc(ex.instr||"")}</div>
@@ -1289,7 +1295,8 @@ function fromDoc(id, d){
     goals: rows(d.goals).map(g=>g.replace(/\s*[｜|]\s*/,"：").replace(/：$/,"")), words: cells(d.words,7).map(r=>{ if(!/^(sub|ex)$/.test(r[6])) r[6] = ""; return r; }), words2: cells(d.words2,7).map(r=>{ if(!/^(sub|ex)$/.test(r[6])) r[6] = ""; return r; }), dialog: cells(d.dialog,6).map(r=>{r[0]=normRole(r[0]);return r}), textImgs: Array.isArray(d.textImgs) ? d.textImgs.filter(x=>x && x.url) : [],
     grammars: (Array.isArray(d.grammars) ? d.grammars : (d.pattern||d.gex ? [{pattern:d.pattern, gex:d.gex, note:d.gnote}] : []))
       .map(g=>({ title: g.title || "", pattern: String(g.pattern||"").split(/\s*[＋+]\s*/).filter(Boolean), examples: cells(g.gex,2), note: g.note || "",
-        exs: (Array.isArray(g.exs) ? g.exs : []).map(x=>({instr: x.instr || "", opts: rows(x.opts), qs: cells(x.qs,2).filter(r=>r[0])})) })),
+        exs: (Array.isArray(g.exs) ? g.exs : []).map(x=>({instr: x.instr || "", opts: rows(x.opts), qs: cells(x.qs,2).filter(r=>r[0])})),
+        blocks: Array.isArray(g.blocks) && g.blocks.length ? g.blocks.map(b=>({label: b.label || "", text: b.text || "", ex: cells(b.ex,2).filter(r=>r[0])})) : null })),
     cast: d.cast || null, avatars: d.avatars && typeof d.avatars === "object" ? d.avatars : {},
     book: d.book || "", flow: Array.isArray(d.flow) ? d.flow.filter(k=>STEP_DEFS[k]) : null,
     warm: {qs: rows(d.warmQs), img: d.warmImg || null}, read: {title: d.readTitle || "", paras: cells(d.readParas,3).filter(r=>r[0])},
@@ -1300,7 +1307,7 @@ function fromDoc(id, d){
 }
 function toDoc(L){
   return { num: Number(L.num)||0, name: L.name, pinyin: L.pinyin, textTitle: L.textTitle||"", goals: join(L.goals), words: join(L.words), words2: join(L.words2||[]),
-    dialog: join(L.dialog), grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gex: join(g.examples), note: g.note||"", exs: (g.exs||[]).map(x=>({instr: x.instr||"", opts: join(x.opts||[]), qs: join(x.qs||[])}))})), cast: castOf(L), avatars: cleanAv(L.avatars),
+    dialog: join(L.dialog), grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gex: join(g.examples), note: g.note||"", exs: (g.exs||[]).map(x=>({instr: x.instr||"", opts: join(x.opts||[]), qs: join(x.qs||[])})), blocks: g.blocks ? g.blocks.map(b=>({label: b.label||"", text: b.text||"", ex: join(b.ex||[])})) : null})), cast: castOf(L), avatars: cleanAv(L.avatars),
     cards: join(L.cards), review: join(L.review), homework: join(L.homework), textImgs: (L.textImgs||[]).filter(x=>!x.local), orderImgs: (L.orderImgs||[]).filter(x=>x && x.url && !x.local), book: L.book||"", flow: flowOf(L), warmQs: join((L.warm||{}).qs||[]), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: join((L.read||{}).paras||[]), speak: join(L.speak||[]), qa: join(L.qa||[]), cultTitle: (L.culture||{}).title||"", cultText: join((L.culture||{}).paras||[]), cultImg: (L.culture||{}).img||null, dict: join(L.dict||[]), audio: L.audio && !L.audio.local ? L.audio : null };
 }
 let lessons = [SAMPLE], db = null, editingId = null, delArmed = false;
@@ -1358,7 +1365,7 @@ function openEditor(L){
   editingId = L ? L.id : null; delArmed = false;
   const c = x => (x||[]).map(r => Array.isArray(r) ? r.slice() : [r]);
   ED = L ? { num:String(L.num||""), name:L.name||"", pinyin:L.pinyin||"", textTitle:L.textTitle||"",
-      grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", gex:c(g.examples), exs:(g.exs||[]).map(x=>({instr:x.instr||"", opts:(x.opts||[]).join("\n"), qs:c(x.qs)}))})), cast: castOf(L), avatars: JSON.parse(JSON.stringify(L.avatars||{})),
+      grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", gex:c(g.examples), _blocks: g.blocks || null, _sig: (g.note||"").trim() + "##" + JSON.stringify((g.examples||[]).map(r=>r[0])), exs:(g.exs||[]).map(x=>({instr:x.instr||"", opts:(x.opts||[]).join("\n"), qs:c(x.qs)}))})), cast: castOf(L), avatars: JSON.parse(JSON.stringify(L.avatars||{})),
       goals:c(L.goals), words:c(L.words), words2:c(L.words2||[]), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null, textImgs: (L.textImgs||[]).slice(), orderImgs: (L.orderImgs||[]).map(x=>({...x})),
       book: L.book||"", flow: flowOf(L).slice(), warmQs: c((L.warm||{}).qs), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: c((L.read||{}).paras), speak: c(L.speak), qa: c(L.qa), qa2: c(L.qa2||[]), cultTitle: (L.culture||{}).title||"", cultText: c((L.culture||{}).paras), cultImg: (L.culture||{}).img||null }
     : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{title:"", pattern:"", gnote:"", gex:[blank(2),blank(2)], exs:[]}], cast:{A:"",B:"",C:"",D:""}, avatars:{}, goals:[[""],[""],[""]], words:[blank(7)], words2:[blank(7)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]], dict:[], audio:null,
@@ -1616,7 +1623,8 @@ function readForm(){
   const jr = a => a.filter(filled).map(r=>r.map(x=>String(x).replace(/[｜|\n]/g," ").trim()).join("｜")).join("\n");
   return { num: ED.num.trim(), name: ED.name.trim(), pinyin: ED.pinyin.trim(), textTitle: ED.textTitle.trim(),
     grammars: ED.grammars.filter(g=>(g.title||"").trim() || g.pattern.trim() || g.gex.some(filled) || (g.exs||[]).length).map(g=>({title: (g.title||"").trim(), pattern: g.pattern.trim(), note: g.gnote.trim(), gex: jr(g.gex),
-      exs: (g.exs||[]).map(x=>({instr: x.instr.trim(), opts: x.opts.trim(), qs: jr(x.qs)}))})), cast: {...ED.cast}, avatars: cleanAv(ED.avatars),
+      exs: (g.exs||[]).map(x=>({instr: x.instr.trim(), opts: x.opts.trim(), qs: jr(x.qs)})),
+      blocks: g._blocks && g._sig === g.gnote.trim() + "##" + JSON.stringify(g.gex.filter(r=>(r[0]||"").trim()).map(r=>r[0].trim())) ? g._blocks.map(b=>({label: b.label||"", text: b.text||"", ex: (b.ex||[]).map(r=>r.join("｜")).join("\n")})) : null})), cast: {...ED.cast}, avatars: cleanAv(ED.avatars),
     goals: j("goals"), words: j("words"), words2: j("words2"), dialog: j("dialog"), dict: j("dict"), audio: ED.audio && !ED.audio.local ? ED.audio : null,
     textImgs: ED.textImgs.filter(x=>!x.local), orderImgs: ED.orderImgs.filter(x=>!x.local).map(x=>({url: x.url, path: x.path||"", cap: String(x.cap||"").trim()})), book: ED.book.trim(), flow: (()=>{ const fl = ED.flow.slice(); if(ED.orderImgs.length && !fl.includes("order")){ const at = Math.max(fl.indexOf("dict"), fl.indexOf("text")); if(at >= 0) fl.splice(at+1, 0, "order"); else fl.splice(Math.max(1, fl.length-1), 0, "order"); } return fl; })(), warmQs: j("warmQs"), warmImg: ED.warmImg && !ED.warmImg.local ? ED.warmImg : null, readTitle: ED.readTitle.trim(), readParas: j("readParas"),
     speak: j("speak"), qa: j("qa"), qa2: j("qa2"), qaSplit: true, cultTitle: ED.cultTitle.trim(), cultText: j("cultText"), cultImg: ED.cultImg && !ED.cultImg.local ? ED.cultImg : null, cards: j("cards"), review: j("review"), homework: j("homework") };
@@ -1747,7 +1755,9 @@ function srcToDoc(l, idx){
     const bl = g.blocks || [];
     const note = bl.map(b => { const tx = T(b.text); if(!tx) return ""; const lb = T(b.label); return lb && lb !== "說明" ? lb + "：" + tx : tx; }).filter(Boolean).join("\n");
     const gex = bl.flatMap(b => T(b.ex).split("\n").map(x=>x.trim()).filter(Boolean)).map(x => { const p = plPy(x); return [clean(p.t), clean(p.py)].join("｜"); }).join("\n");
-    return {title: clean(T(g.title)), pattern: "", gex, note, exs: exsOf(g._gi)}; });
+    /* GBLOCK_V1 每一段說明（功能、結構、否定、用法）和它自己的例句放在一起 */
+    const blocks = bl.filter(b => T(b.text) || T(b.ex)).map(b => ({label: T(b.label), text: T(b.text), ex: T(b.ex).split("\n").map(x=>x.trim()).filter(Boolean).map(x => { const p = plPy(x); return [clean(p.t), clean(p.py)].join("｜"); }).join("\n")}));
+    return {title: clean(T(g.title)), pattern: "", gex, note, exs: exsOf(g._gi), blocks}; });
   const title = T(l.title) || "未命名"; const nm = title.match(/第\s*([0-9０-９一二三四五六七八九十百兩]+)\s*課/);
   return { num: nm ? zhNum(nm[1]) : idx + 1, name: title, pinyin: "", textTitle, goals: "", words: words.join("\n"), words2: words2.join("\n"),
     dialog: dialog.map(r => Array.isArray(r) ? r.join("｜") : r).join("\n"), dict: "", grammars, cast,
@@ -1967,7 +1977,7 @@ async function liveGroups(){ try { const s = await liveDb().collection("students
     Object.keys(R).forEach(g => R[g] = R[g].filter(Boolean).sort((a,b) => a.localeCompare(b, "zh-Hant")));
     LIVE.roster = R; LIVE.groups = Object.keys(R).sort((a,b) => a.localeCompare(b, "zh-Hant", {numeric: true})); }
   catch(e){ LIVE.groups = []; } }
-const fmtD = t => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
+const fmtD = t => { const d = new Date(t); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
 async function recOpen(code){ const box = liveUI(); box.hidden = false; box.dataset.dict = ""; const card = box.querySelector(".livecard"); card.classList.add("wide");
   const head = (t, sub) => `<button class="lx" type="button" data-lx="close" aria-label="關閉">×</button><div class="lhead"><span class="lico">${LICO}</span><div><h2>${t}</h2>${sub ? `<div class="sub">${sub}</div>` : ""}</div></div>`;
   $("#liveIn").innerHTML = head("作答紀錄", "讀取中…"); $("#liveIn").onclick = recAct;
