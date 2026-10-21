@@ -131,11 +131,44 @@ function renderHanzi(){
     +(rows||'<tr><td colspan="'+nKeep+'" class="muted">還沒有學生</td></tr>')+'</tbody></table></div></div>';
 }
 H.hzNew=()=>{
-  const live=(S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test);
-  const rank=(x)=>{const e=enrollOf(x);return e==='active'?0:(e==='trial'?1:(e==='reserved'?2:3));};
-  const checks=live.slice().sort((a,b)=>rank(a)-rank(b)||stuNameCmp(a,b)).map(s=>{const on=enrollOf(s)==='active';
-    return '<label class="qzw-s"><input type="checkbox" class="hz-stu" value="'+esc(s.id)+'"'+(on?' checked':'')+'><span>'+snm(s.name)+'</span>'
-      +(on?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[enrollOf(s)]||'')+'）</i>')+'</label>';}).join('');
+  /* HZWHO_V1575 Quinn：「已經休學，幹嘛還要放在這裡？」「還有這邊也有團班的學生，
+     爲什麼不有『團班』的選項？」
+     這份名單本來是把所有人一次攤開——休學的、預約的全列出來，四十幾個人一片牆，
+     而且沒有辦法一次指派給一整個團班。
+     翻牌作業和寫字作業早就有這一套了（STUOFF_V742 ＋ STUFIND_V1559），這裡補齊：
+       ・休學／預約／試學預設收起來，要看按「👀 也顯示休學／預約」
+       ・打字找人（越南名字不打聲調也找得到）
+       ・一排團班按鈕，按一下就只指派給那一班
+     「全選」也改成只勾看得到的，不會偷偷勾到收起來的休學生。 */
+  /* HZWHO_V1575 Quinn：「我也沒看到我的測試帳號出現在這邊，這樣我怎麽去測試？」
+     這一份名單本來寫死 !s.is_test，把她的「美娟（測試）」整個濾掉了——
+     跟我在翻牌作業犯過的是同一個錯。測試帳號要看得到（標 🧪），而且不預先勾起來，
+     要測的時候自己勾。 */
+  const live=(S.students||[]).filter(s=>s&&!s.deleted_at);
+  const rank=(x)=>{if(x.is_test)return 1;const e=enrollOf(x);
+    return e==='active'?0:(e==='trial'?2:(e==='reserved'?3:4));};
+  const checks=live.slice().sort((a,b)=>rank(a)-rank(b)||stuNameCmp(a,b)).map(s=>{
+    const en=enrollOf(s),on=(en==='active'&&!s.is_test);
+    const show=on||s.is_test;
+    return '<label class="qzw-s"'+(show?'':' data-off="1"')+'>'
+      +'<input type="checkbox" class="hz-stu" value="'+esc(s.id)+'"'+(on?' checked':'')+'>'
+      +'<span>'+snm(s.name)+'</span>'
+      +(s.is_test?'<i>🧪 測試</i>':(on?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[en]||'')+'）</i>'))
+      +'</label>';}).join('');
+  const offN=live.filter(s=>!(enrollOf(s)==='active'&&!s.is_test)&&!s.is_test).length;
+  const grpBtns=(function(){
+    try{
+      const gs=(typeof groupsList==='function')?groupsList():[];
+      const rows=gs.map(g=>{
+        const n=live.filter(s=>enrollOf(s)==='active'&&!s.is_test&&stuGroups(s).indexOf(g)>=0).length;
+        return n?('<button class="btn btn-sm" type="button" data-act="hzGrp" data-id="'+esc(g)+'">👥 '+esc(g)+'（'+n+'）</button>'):'';
+      }).filter(Boolean);
+      if(!rows.length)return '';
+      return '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'
+        +'<span class="hint">整班指派：</span>'+rows.join('')
+        +'<span class="hint">按一下＝只指派給那一班</span></div>';
+    }catch(e){return '';}
+  })();
   const d=new Date();d.setDate(d.getDate()+7);
   const def=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>🀄 指派漢字遊戲作業</h3><button class="x" data-act="closeModal">×</button></div>'
@@ -174,14 +207,28 @@ H.hzNew=()=>{
    +'<div class="hz-sec">③ 給誰、什麼時候</div>'
    +'<div class="form-grid">'
    +'<div class="field"><label>截止日</label><input id="hz-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
-   +'<div class="field"><label>作業名稱 <span class="hint">不填會自動取名</span></label><input id="hz-title" placeholder="例如：這週練艮家族"></div>'
+   +'<div class="field"><label>作業名稱 <span class="hint">不填會自動取名</span></label><input id="hz-title" placeholder=""></div>'
    +'</div>'
    +'<div class="field full"><label>指派給誰</label>'
-   +'<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap"><button class="btn btn-sm" type="button" data-act="hzStuAll">✔ 全選</button><button class="btn btn-sm" type="button" data-act="hzStuNone">✕ 全部取消</button></div>'
-   +'<div class="qzw-stus">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div></div>'
+   +grpBtns
+   +'<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center">'
+   +'<button class="btn btn-sm" type="button" data-act="hzStuAll">✔ 全選看得到的</button>'
+   +'<button class="btn btn-sm" type="button" data-act="hzStuNone">✕ 全部取消</button>'
+   +(offN?('<button class="btn btn-sm" type="button" data-act="stuOffToggle">👀 也顯示休學／預約（'+offN+'）</button>'):'')
+   +((typeof stuFindBox==='function')?stuFindBox(live):'')+'</div>'
+   +'<div class="qzw-stus off-hide">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div></div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
    +'<button class="btn btn-primary" data-act="hzSave">📤 指派出去</button></div></div>');};
-H.hzStuAll=()=>{document.querySelectorAll('.hz-stu').forEach(c=>{c.checked=true;});};
+/* HZWHO_V1575 只勾看得到的，收起來的休學生不會被偷偷勾到 */
+H.hzStuAll=()=>{document.querySelectorAll('.hz-stu').forEach(c=>{
+  const l=c.closest('label');if(l&&l.offsetParent===null)return;c.checked=true;});};
+/* HZWHO_V1575 按一個團班＝只指派給那一班（先全部取消，再勾那一班在學中的人） */
+H.hzGrp=(g)=>{
+  const ids=(S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test&&enrollOf(s)==='active'
+    &&stuGroups(s).indexOf(g)>=0).map(s=>s.id);
+  document.querySelectorAll('.hz-stu').forEach(c=>{c.checked=ids.indexOf(c.value)>=0;});
+  try{toast('已選「'+g+'」的 '+ids.length+' 位學生');}catch(e){}
+};
 H.hzStuNone=()=>{document.querySelectorAll('.hz-stu').forEach(c=>{c.checked=false;});};
 H.hzSave=async()=>{
   const ids=[].slice.call(document.querySelectorAll('.hz-stu:checked')).map(c=>c.value);

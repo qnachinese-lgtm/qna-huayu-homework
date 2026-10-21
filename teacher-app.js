@@ -1918,7 +1918,7 @@ function ocForm(l){l=l||{};
   openModal('<div class="modal modal-tall"><div class="modal-head"><h3>🎬 '+(l.id?'編輯線上課':'新增線上課')+'</h3>'
    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">'
    +fgSec('🎬 這一課是什麼','標題、程度、簡介')
-   +'<div class="field full"><label>標題 *</label><input id="oc-title" type="text" value="'+esc(l.title||'')+'" placeholder="例：第一課　你好，我叫…"></div>'
+   +'<div class="field full"><label>標題 *</label><input id="oc-title" type="text" value="'+esc(l.title||'')+'" placeholder=""></div>'
    +'<div class="field"><label>程度</label><select id="oc-level">'
    +OC_LV.map(x=>'<option value="'+x[0]+'"'+(String(l.level||'')===x[0]?' selected':'')+'>'+x[1]+'</option>').join('')+'</select></div>'
    +'<div class="field"><label>排序 <span class="hint">數字小的排前面</span></label>'
@@ -10407,11 +10407,11 @@ function libFormHtml(f){
     +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
     +'<div class="form-grid">'
     +'<div class="field full"><label>標題 * <span class="hint">之後妳是用這個找檔案的，寫清楚一點</span></label>'
-      +'<input id="lib-title" type="text" value="'+esc(f.title||'')+'" placeholder="例：第三課 生詞簡報"></div>'
+      +'<input id="lib-title" type="text" value="'+esc(f.title||'')+'" placeholder=""></div>'
     +'<div class="field full"><label>Google Drive 連結 * <span class="hint">在 Drive 上按「共用 → 複製連結」，貼進來</span></label>'
       +'<input id="lib-url" type="url" inputmode="url" value="'+esc(f.url||'')+'" placeholder="貼上連結"></div>'
     +'<div class="field"><label>教材 <span class="hint">照教材分，之後才找得到</span></label>'
-      +'<input id="lib-book" type="text" list="lib-books" value="'+esc(curBook)+'" placeholder="例：時代華語三">'
+      +'<input id="lib-book" type="text" list="lib-books" value="'+esc(curBook)+'" placeholder="">'
       +'<datalist id="lib-books">'+books.map(b=>'<option value="'+esc(b)+'">').join('')+'</datalist></div>'
     +'<div class="field"><label>類型</label><select id="lib-ftype">'+kinds+'</select></div>'
     +'<div class="field full"><label>哪一課 <span class="hint">選填。指到某一課，之後掛上去更快</span></label>'
@@ -10419,7 +10419,7 @@ function libFormHtml(f){
       +lessons.map(l=>'<option value="'+esc(l.id)+'"'+(f.lesson_id===l.id?' selected':'')+'>'+esc(libLesName(l))+'</option>').join('')
       +'</select></div>'
     +'<div class="field full"><label>備註 <span class="hint">選填。用在哪、要注意什麼</span></label>'
-      +'<textarea id="lib-note" rows="2" placeholder="例：第二段要搭配音檔一起放">'+esc(f.note||'')+'</textarea></div>'
+      +'<textarea id="lib-note" rows="2" placeholder="">'+esc(f.note||'')+'</textarea></div>'
     +'</div>'
     +'<div class="row mt"><button class="btn primary" type="button" data-act="libSave" data-id="'+esc(f.id||'')+'">儲存</button> '
     +'<span class="hint" id="lib-st"></span></div></div></div>';
@@ -10640,7 +10640,7 @@ H.hzNew=()=>{
    +'<div class="field"><label>難度</label><select id="hz-diff"><option value="easy">入門（有拼音提示）</option><option value="normal" selected>進階（只給詞）</option><option value="hard">高手（只聽讀音、限時）</option></select></div>'
    +'<div class="field"><label>至少要拿幾顆星</label><select id="hz-min"><option value="1">1 顆（過關就好）</option><option value="2" selected>2 顆</option><option value="3">3 顆（不能拼錯、不能用提示）</option></select></div>'
    +'<div class="field"><label>截止日</label><input id="hz-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
-   +'<div class="field full"><label>作業名稱 <span class="hint">可以不填，會自動用「關卡・難度」</span></label><input id="hz-title" placeholder="例如：這週練艮家族"></div></div>'
+   +'<div class="field full"><label>作業名稱 <span class="hint">可以不填，會自動用「關卡・難度」</span></label><input id="hz-title" placeholder=""></div></div>'
    +'<div class="field full"><label>指派給誰</label>'
    +'<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap"><button class="btn btn-sm" type="button" data-act="hzStuAll">✔ 全選</button><button class="btn btn-sm" type="button" data-act="hzStuNone">✕ 全部取消</button></div>'
    +'<div class="qzw-stus">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div></div>'
@@ -10812,7 +10812,7 @@ H.gtNew=()=>{
    +'<div class="field"><label>教材</label><select id="gt-book">'
    +books.map((b,i)=>'<option value="'+esc(b[0])+'"'+(i?'':' selected')+'>'+esc(b[0])+'（'+b[1]+' 課）</option>').join('')+'</select></div>'
    +'<div class="field"><label>截止日</label><input id="gt-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
-   +'<div class="field full"><label>作業名稱 <span class="hint">可以不填，會自動用課名</span></label><input id="gt-title" placeholder="例如：第五課生詞翻牌"></div>'
+   +'<div class="field full"><label>作業名稱 <span class="hint">可以不填，會自動用課名</span></label><input id="gt-title" placeholder=""></div>'
    +'</div>'
    /* PICKLIST_V1560 Quinn：「我喜歡下拉方式」。兩份清單收進下拉裡，
       收起來只留一行「選了什麼」，視窗就不再是一長串打勾。
@@ -10942,7 +10942,7 @@ H.wtNew=()=>{
    +'<div class="field"><label>每個字寫幾次</label><select id="wt-times">'
    +[1,2,3,5,8,10].map(n=>'<option value="'+n+'"'+(n===3?' selected':'')+'>'+n+' 次</option>').join('')+'</select></div>'
    +'<div class="field"><label>截止日</label><input id="wt-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
-   +'<div class="field"><label>作業名稱 <span class="hint">可以不填</span></label><input id="wt-title" placeholder="例如：第五課寫字"></div>'
+   +'<div class="field"><label>作業名稱 <span class="hint">可以不填</span></label><input id="wt-title" placeholder=""></div>'
    +'</div>'
    +'<div class="field full"><details class="pickdd" open data-pick="les">'
    +'<summary>要練哪幾課的字 <span class="pick-sum none">還沒選課</span></summary>'
@@ -24738,7 +24738,7 @@ function annModal(a){
   const ti=a?String(a.title||''):'';
   const tx=a?String(a.text||a.body||a.content||''):'';
   openModal(`<div class="modal"><div class="modal-head"><h3>📢 ${a?'編輯公告':'發布公告'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">
-    <div class="field full"><label>標題 <span class="hint">選填，學生會先看到這一行</span></label><input id="ann-title" type="text" value="${esc(ti)}" placeholder="例：下週停課一次"></div>
+    <div class="field full"><label>標題 <span class="hint">選填，學生會先看到這一行</span></label><input id="ann-title" type="text" value="${esc(ti)}" placeholder=""></div>
     <div class="field full"><label>公告內容</label><textarea id="ann-text" placeholder="請填公告內容">${esc(tx)}</textarea></div>
     ${gBox}
     </div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><button class="btn btn-primary" data-act="saveAnnounce"${a?(' data-id="'+esc(a.id)+'"'):''}>${a?'儲存':'發布'}</button></div></div>`);}
