@@ -1096,7 +1096,7 @@ function dashTodayHtml(){
     rows.push('<div class="dash-row" style="background:#F4F7FB;border-radius:8px;flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+fgTm(tm)+'</span>':'')+'<span class="td-st"><span class="badge b-info" >\u{1F4CC} \u5F85\u4E0A</span></span><b>'+lab+'</b>'+(p.note?'<span class="muted td-note" title="'+esc(p.note)+'" style="margin-left:6px">'+esc(p.note)+'</span>':'')+'<span class="grow"></span>'
       /* BTNSAME_V851 同上 */
       /* TDDEL_V889 學生臨時取消的時候，直接在這裡就能取消預排 */
-      +dashBtns(mb,'<button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="'+key+'">\u270D\uFE0F \u53BB\u9EDE\u540D</button>','<button class="btn btn-sm" data-act="planEdit" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button>','<button class="btn btn-sm btn-danger btn-icon" data-act="planDel" data-id="'+key+'" title="\u5B78\u751F\u53D6\u6D88\u4E86\uFF1A\u53D6\u6D88\u9019\u4E00\u5802\u9810\u6392">\uD83D\uDDD1</button>')+'</div>',p.start);});
+      +dashBtns(mb,'<button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="'+key+'">\u270D\uFE0F \u53BB\u9EDE\u540D</button>','<button class="btn btn-sm" data-act="planEdit" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button>','<button class="btn btn-sm btn-danger btn-icon btn-del" data-act="planDel" data-id="'+key+'" title="\u5B78\u751F\u53D6\u6D88\u4E86\uFF1A\u53D6\u6D88\u9019\u4E00\u5802\u9810\u6392">\uD83D\uDDD1</button>')+'</div>',p.start);});
   // 面試練習
   try{itvAll().forEach(c=>itvSessions(c).forEach(e=>{if(e.date!==d)return;let tm='';try{tm=twVnStr(e.start,e.end);}catch(err){tm=(e.start||'')+(e.end?'\u2013'+e.end:'');}
     const _ik=esc(c.id)+'::'+itvSessions(c).indexOf(e);
@@ -1108,7 +1108,7 @@ function dashTodayHtml(){
       +dashBtns(meetBtn(meetOfItv(c),true),
         e.done?'':('<button class="btn btn-sm btn-accent" data-act="itvRoll" data-id="'+_ik+'">\u270D\uFE0F \u53BB\u9EDE\u540D</button>'),
         '<button class="btn btn-sm" data-act="itvSess" data-id="'+_ik+'">\u270F\uFE0F \u4FEE\u6539</button>',
-        e.done?'':('<button class="btn btn-sm btn-danger btn-icon" data-act="itvSessDel" data-id="'+_ik+'" title="\u522A\u6389\u9019\u4E00\u6B21\u9762\u8A66\u7DF4\u7FD2">\uD83D\uDDD1</button>'))
+        e.done?'':('<button class="btn btn-sm btn-danger btn-icon btn-del" data-act="itvSessDel" data-id="'+_ik+'" title="\u522A\u6389\u9019\u4E00\u6B21\u9762\u8A66\u7DF4\u7FD2">\uD83D\uDDD1</button>'))
       +'</div>',e.start);}));}catch(err){}
   dashTodayHtml.n=_rows.length;
   if(!_rows.length)return '<div class="muted" style="padding:8px 2px">今天沒有排課。</div>';
@@ -1835,7 +1835,7 @@ function ocRowHtml(l){
       +'<button class="btn btn-sm" data-act="ocEdit" data-id="'+esc(l.id)+'">✏️ 編輯</button>'
       +'<button class="btn btn-sm '+(l.published?'':'btn-accent')+'" data-act="ocPub" data-id="'+esc(l.id)+'">'
         +(l.published?'🙈 收回':'🚀 發佈')+'</button>'
-      +'<button class="btn btn-sm btn-danger btn-icon" data-act="ocDel" data-id="'+esc(l.id)+'" title="刪掉這一課">🗑</button>'
+      +'<button class="btn btn-sm btn-danger btn-icon btn-del" data-act="ocDel" data-id="'+esc(l.id)+'" title="刪掉這一課">🗑</button>'
     +'</span></div>';}
 /* MEMROW_V1265 會員那一列本來只有信箱和兩個日期，看不出這個人到底有沒有在用。
    現在一行把「來過幾次、上次什麼時候來、做完幾課幾分、最近做哪一課」都寫出來。 */
@@ -1877,7 +1877,7 @@ function memRowHtml(m){
     +'<span class="oc-b">'+tag+'</span>'
     +'<span class="oc-a">'
       +'<button class="btn btn-sm" data-act="memPay" data-id="'+esc(m.id)+'">💎 設定可看到期日</button>'
-      +'<button class="btn btn-sm btn-danger btn-icon" data-act="memDel" data-id="'+esc(m.id)+'" title="移除這位會員">🗑</button>'
+      +'<button class="btn btn-sm btn-danger btn-icon btn-del" data-act="memDel" data-id="'+esc(m.id)+'" title="移除這位會員">🗑</button>'
     +'</span></div>';}
 function renderOC(){
   const body=document.getElementById('oc-body');if(!body)return;
@@ -2151,7 +2151,7 @@ function quizFoldHtml(){
   const quizSrcName=qz=>{if(qz.mode==='audio')return '🎙️ 老師錄音（'+((qz.quiz_audio||[]).length)+' 題）';
     if(qz.mode==='custom'){const n=(qz.quiz_items||'').split('\n').filter(s=>/[=＝]/.test(s)).length;return '自訂題目（'+n+' 題）';}const l=S.lessons.find(x=>x.id===qz.source_lesson)||{};return (l.textbook?('【'+l.textbook+'】'):'')+lesNo(l,'');};
   const QM={audio:'🎙️ 老師錄音聽寫',dict:'聽寫',pinyin:'看拼音寫字',mean:'看意思寫字',choice:'看字選意思',cloze:'看例句填生詞',custom:'自訂題目'};
-  const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return sc?`<button class="badge badge-ok" data-act="viewQuizResult" data-id="${qz.id}::${s.id}" style="cursor:pointer;border:0">${snm(s.name)}：${sc} 👁</button>`:`<span class="badge badge-pending">${snm(s.name)}：未考</span>`;}).join(' ');const _qd=dueInfo(qz.due_date);return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span>${_qd?`<span class="badge ${_qd.cls}">${_qd.label}</span>`:(qz.due_date?`<span class="muted" style="font-size:12px">${esc(qz.due_date)} 截止</span>`:'')}${qz.handwrite?'<span class="tag b-info" >✍️ 手寫</span>':''}<span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未發佈</span>'}<button class="btn btn-sm" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
+  const quizRows=(S.quizzes||[]).slice().sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map(qz=>{const tgts=(qz.assigned_ids||[]).map(id=>S.students.find(s=>s.id===id)).filter(Boolean);const chips=tgts.map(s=>{const sc=quizScore(qz.id,s.id);return sc?`<button class="badge badge-ok" data-act="viewQuizResult" data-id="${qz.id}::${s.id}" style="cursor:pointer;border:0">${snm(s.name)}：${sc} 👁</button>`:`<span class="badge badge-pending">${snm(s.name)}：未考</span>`;}).join(' ');const _qd=dueInfo(qz.due_date);return `<div class="quiz-dash-row"><b>${esc(qz.title||'隨堂小考')}</b><span class="tag accent">${QM[qz.mode||'dict']}</span>${_qd?`<span class="badge ${_qd.cls}">${_qd.label}</span>`:(qz.due_date?`<span class="muted" style="font-size:12px">${esc(qz.due_date)} 截止</span>`:'')}${qz.handwrite?'<span class="tag b-info" >✍️ 手寫</span>':''}<span class="muted">${esc(quizSrcName(qz))}</span><span class="grow"></span>${chips||'<span class="muted">未發佈</span>'}<button class="btn btn-sm btn-del" style="color:var(--danger)" data-act="delQuiz" data-id="${qz.id}">🗑</button></div>`;}).join('');
   return `<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">📝 隨堂小考${(S.quizzes||[]).length?'（'+(S.quizzes||[]).length+'）':''}</h3>
     <div class="hint" style="margin-bottom:8px">選一課的生詞發給學生做聽寫或填空，系統自動計分。</div>
     <div class="quiz-create-row"><button class="btn btn-sm btn-accent" data-act="newQuiz">＋ 建立隨堂小考</button><button class="btn btn-sm btn-ghost" data-act="qzHideKeys" style="margin-left:8px" title="自訂題目／老師錄音／即時比賽這三種，把答案搬到學生讀不到的地方">🔒 把答案收起來</button></div>${(S.quizzes||[]).length?('<div style="margin-top:10px">'+quizRows+'</div>'):'<div class="hint" style="margin-top:10px">還沒有建立任何隨堂小考。</div>'}</div>`;
@@ -2184,7 +2184,7 @@ function lqpFoldHtml(){
       +'<span>'+(st.pct==null?'<span class="muted">—</span>':('平均 '+st.pct+'%'))+'</span>'
       +'<span class="lqp-b"><button class="btn btn-sm" data-act="lqpView" data-id="'+esc(a.id)+'">📊 看結果</button>'
       +'<button class="btn btn-sm" data-act="lqpDue" data-id="'+esc(a.id)+'" title="改期限">📅</button>'
-      +'<button class="btn btn-sm btn-danger" data-act="lqpDel" data-id="'+esc(a.id)+'" title="收回這份練習">🗑</button></span></div>';}).join('');
+      +'<button class="btn btn-sm btn-danger btn-del" data-act="lqpDel" data-id="'+esc(a.id)+'" title="收回這份練習">🗑</button></span></div>';}).join('');
   return '<div class="card" style="margin-bottom:12px"><h3 style="margin:0 0 4px">📤 指派出去的題庫練習'+(as.length?('（'+as.length+'）'):'')+'</h3>'
     +''
     +(as.length?('<div class="lqp-row lqp-head"><b>練習</b><span>期限</span><span>完成</span><span>平均</span><span></span></div>'+rows)
@@ -2476,7 +2476,7 @@ function docEditRow(r,i){
       +'<button class="btn btn-sm doc-up'+(docFids(r).length?' on':'')+'" data-act="docUp" data-id="'+i+'"'
       +' title="上傳這一份文件的檔案">📎'+(docFids(r).length>1?(' '+docFids(r).length):'')+'</button></span>'
     +'<input class="doc-nt" type="text" value="'+esc(r.note||'')+'" placeholder="備註（選填）">'
-    +'<button class="btn btn-sm btn-icon rp-del" data-act="docDel" data-id="'+i+'" title="刪掉這一列">🗑</button>'
+    +'<button class="btn btn-sm btn-icon rp-del btn-del" data-act="docDel" data-id="'+i+'" title="刪掉這一列">🗑</button>'
     +docFileChips(r)
     +'</div>';
 }
@@ -2536,7 +2536,7 @@ function prRowHtml(p){
       +(p.name_vi?'<i class="pr-vi">'+esc(p.name_vi)+'</i>':'')+'</span>'
     +'<span class="pr-a">'+(pstr||'<span class="muted">沒填單價</span>')+'</span>'/* PRWRAP_V939 */
     +'<span class="pr-o"><button class="btn btn-sm" data-act="prEdit" data-id="'+esc(p.id)+'">✏️ 編輯</button>'
-      +'<button class="btn btn-sm btn-icon rp-del" data-act="prDel" data-id="'+esc(p.id)+'" title="刪除">🗑</button></span>'
+      +'<button class="btn btn-sm btn-icon rp-del btn-del" data-act="prDel" data-id="'+esc(p.id)+'" title="刪除">🗑</button></span>'
     +'</div>';
 }
 function prListHtml(){
@@ -2656,7 +2656,7 @@ function rpCardHtml(r){
     +'<div class="rp-f"><span style="flex:1"></span>'
       +'<button class="btn btn-sm" data-act="rpEdit" data-id="'+esc(r.id)+'">✏️ 編輯</button>'
       +'<button class="btn btn-sm btn-primary'+(pv?'':' is-off')+'" data-act="rpCopy" data-id="'+esc(r.id)+'">📋 複製</button>'
-      +'<button class="btn btn-sm btn-icon rp-del" data-act="rpDel" data-id="'+esc(r.id)+'" title="刪除這一份">🗑</button>'
+      +'<button class="btn btn-sm btn-icon rp-del btn-del" data-act="rpDel" data-id="'+esc(r.id)+'" title="刪除這一份">🗑</button>'
     +'</div></div>';
 }
 function renderReply(){
@@ -3161,9 +3161,9 @@ function renderCalMonth(body,toggle){
           :(kind==='leave'?'<span class="badge badge-overdue">請假</span>':(kind==='free'?freeB:'<span class="badge badge-ok">出席</span>'));
         const who=it.members?`👥 ${esc(it.grp)} 團班<span class="muted" style="font-weight:400;margin-left:4px">（${it.members.length}人）</span>`:esc(it.s.name);
         const eact=it.members?'editClassDay':'editStuDay';const ekey=it.members?(esc(it.grp)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')):(esc(it.s.id)+'::'+esc(d));
-        const delBtn=it.members?`<button class="btn btn-sm btn-danger" data-act="rollDel" data-id="${ekey}" title="整個團班刪掉這一堂">🗑</button>`:`<button class="btn btn-sm btn-danger" data-act="stuDayDel" data-id="${esc(it.s.id)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')}" title="刪掉這一堂">🗑</button>`;
+        const delBtn=it.members?`<button class="btn btn-sm btn-danger btn-del" data-act="rollDel" data-id="${ekey}" title="整個團班刪掉這一堂">🗑</button>`:`<button class="btn btn-sm btn-danger btn-del" data-act="stuDayDel" data-id="${esc(it.s.id)+'::'+esc(d)+'::'+esc(e.start||'')+'::'+esc(e.end||'')}" title="刪掉這一堂">🗑</button>`;
         return `<div class="dash-row" style="flex-wrap:wrap">${tm?`<span class="badge badge-pending">${fgTm(tm)}</span>`:''}<b>${who}</b>${badge}${e.note?`<span class="muted" style="margin-left:6px">${esc(e.note)}</span>`:''}<span class="grow"></span>${dashBtns(meetBtn(it.members?meetOfGroup(it.grp):meetOfStudent(it.s.id),true),'',`<button class="btn btn-sm" data-act="${eact}" data-id="${ekey}">✏️ 修改</button>`,delBtn)}</div>`;});
-    const planArr=plans.map(p=>{const tm=twVnStr(p.start,p.end);const isSolo=!!p.sid;const key=(isSolo?('S:'+p.sid+'::'+d):(esc(p.cls)+'::'+esc(d)))+'::'+esc(p.start||'');/* SAMEDAY_V1229 */const label=isSolo?('👤 '+esc(p.sname||'')):('👥 '+esc(p.cls)+' 團班');return `<div class="dash-row" style="background:#F4F7FB;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${fgTm(tm)}</span>`:''}<span class="badge b-info" >📌 預排</span><b>${label}</b>${p.note?`<span class="muted" style="margin-left:4px">${esc(p.note)}</span>`:''}<span class="grow"></span>${dashBtns(meetBtn(isSolo?meetOfStudent(p.sid):meetOfGroup(p.cls),true),`<button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="${key}">✍️ 去點名</button>`,`<button class="btn btn-sm" data-act="planEdit" data-id="${key}">✏️ 修改</button>`,`<button class="btn btn-sm btn-danger" data-act="planDel" data-id="${key}" title="刪掉這一堂">🗑</button>`)}</div>`;});
+    const planArr=plans.map(p=>{const tm=twVnStr(p.start,p.end);const isSolo=!!p.sid;const key=(isSolo?('S:'+p.sid+'::'+d):(esc(p.cls)+'::'+esc(d)))+'::'+esc(p.start||'');/* SAMEDAY_V1229 */const label=isSolo?('👤 '+esc(p.sname||'')):('👥 '+esc(p.cls)+' 團班');return `<div class="dash-row" style="background:#F4F7FB;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${fgTm(tm)}</span>`:''}<span class="badge b-info" >📌 預排</span><b>${label}</b>${p.note?`<span class="muted" style="margin-left:4px">${esc(p.note)}</span>`:''}<span class="grow"></span>${dashBtns(meetBtn(isSolo?meetOfStudent(p.sid):meetOfGroup(p.cls),true),`<button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="${key}">✍️ 去點名</button>`,`<button class="btn btn-sm" data-act="planEdit" data-id="${key}">✏️ 修改</button>`,`<button class="btn btn-sm btn-danger btn-del" data-act="planDel" data-id="${key}" title="刪掉這一堂">🗑</button>`)}</div>`;});
     const fixes=(fixByDate[d]||[]);
     const fixArr=fixes.map(p=>{const tm=twVnStr(p.start,p.end);const isSolo=!!p.sid;
       const key=(isSolo?('S:'+esc(p.sid)):('G:'+esc(p.cls)))+'::'+esc(d)+'::'+esc(p.start||'')+'::'+esc(p.end||'');
@@ -3172,7 +3172,7 @@ function renderCalMonth(body,toggle){
       return `<div class="dash-row" style="background:#F4F7FB;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${fgTm(tm)}</span>`:''}<span class="badge b-info" >🔁 固定時段</span><b>${label}</b><span class="grow"></span>${dashBtns(meetBtn(isSolo?meetOfStudent(p.sid):meetOfGroup(p.cls),true),`<button class="btn btn-sm btn-accent" data-act="rollFixed" data-id="${key}">✍️ 去點名</button>`,''/* FIXNOPLAN_V924 排預排先拿掉（Quinn：「先不要出現『排預排』」）；要批次轉還是用工具列的「🔁 固定時段轉預排」 */,'')}</div>`;});
     const itvs=(itvByDate[d]||[]);
     const itvArr=itvs.map(({c,e})=>{const tm=twVnStr(e.start,e.end);const ik=esc(c.id)+'::'+itvSessions(c).indexOf(e);
-      return `<div class="dash-row" style="background:#E4EDF9;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${fgTm(tm)}</span>`:''}${e.done?'<span class="badge badge-ok">✅ 已完成</span>':''}<span class="badge b-info" >🎤 面試練習</span><b>👤 ${snm(c.name||'')}</b>${(e.fee!=null&&e.fee!=='')?`<span class="muted">${money(e.fee,e.currency||'VND')}</span>`:''}${itvPayBadge(e,c,true)}<span class="grow"></span>${dashBtns(meetBtn(meetOfItv(c),true),e.done?'':`<button class="btn btn-sm btn-accent" data-act="itvRoll" data-id="${ik}">✍️ 去點名</button>`,`<button class="btn btn-sm" data-act="itvSess" data-id="${ik}">✏️ 修改</button>`,e.done?'':`<button class="btn btn-sm btn-danger btn-icon" data-act="itvSessDel" data-id="${ik}" title="刪掉這一次面試練習">🗑</button>`)}</div>`;});
+      return `<div class="dash-row" style="background:#E4EDF9;border-radius:8px;flex-wrap:wrap">${tm?`<span class="badge badge-pending">${fgTm(tm)}</span>`:''}${e.done?'<span class="badge badge-ok">✅ 已完成</span>':''}<span class="badge b-info" >🎤 面試練習</span><b>👤 ${snm(c.name||'')}</b>${(e.fee!=null&&e.fee!=='')?`<span class="muted">${money(e.fee,e.currency||'VND')}</span>`:''}${itvPayBadge(e,c,true)}<span class="grow"></span>${dashBtns(meetBtn(meetOfItv(c),true),e.done?'':`<button class="btn btn-sm btn-accent" data-act="itvRoll" data-id="${ik}">✍️ 去點名</button>`,`<button class="btn btn-sm" data-act="itvSess" data-id="${ik}">✏️ 修改</button>`,e.done?'':`<button class="btn btn-sm btn-danger btn-icon btn-del" data-act="itvSessDel" data-id="${ik}" title="刪掉這一次面試練習">🗑</button>`)}</div>`;});
     const exams=(examByDate[d]||[]);
     const examArr=exams.map(c=>{const m=itvResultMeta(c.result);return `<div class="dash-row" style="background:#F8E7E4;border-radius:8px;flex-wrap:wrap;border:1px solid #F0C9C2">${c.exam_time?`<span class="badge badge-pending">${esc(c.exam_time)}</span>`:''}<span class="badge b-info" >🎯 正式面試</span><b>👤 ${snm(c.name||'')}</b>${c.target?`<span class="muted">${esc(c.target)}</span>`:''}${m?`<span class="badge" style="background:${m[1]}18;color:${m[1]}">${m[0]}</span>`:''}<span class="grow"></span>${dashBtns('','',`<button class="btn btn-sm" data-act="itvEdit" data-id="${esc(c.id)}">✏️ 填結果</button>`,'')}</div>`;});
     const note=[items.length?items.length+' 堂已點名':'',plans.length?plans.length+' 堂待上':'',fixes.length?fixes.length+' 堂固定時段':'',itvs.length?itvs.length+' 次面試':'',exams.length?'🎯 正式面試':''].filter(Boolean).join('　');
@@ -4070,7 +4070,7 @@ function renderWriting(){
           :wrIsLost(c)
           ?((paidAll?esc(paidAll):'')+(wrTotal(c)?`<span class="muted"${paidAll?' style="margin-left:6px"':''}>報過 ${esc(money(wrTotal(c),wrTotalCur(c)))}</span>`:(paidAll?'':'<span class="dash">—</span>')))
           :((paidAll?esc(paidAll):'<span class="dash">—</span>')+(due?`<span class="sub2 warn">未收 ${esc(due)}</span>`:''))}</span>
-        <span class="cc act"><button class="btn btn-icon crm-del" data-act="wrDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
+        <span class="cc act"><button class="btn btn-icon crm-del btn-del" data-act="wrDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑</button></span>
       </div></summary><div class="crm-body">
       ${realHas(c)?`<div class="hint" style="margin-top:2px">真實姓名：<b>${esc(realHas(c))}</b></div>`:''/* REALNAME_V1108 */}${lifeLine(c)/* LIFE_V1106 */}${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EEF0F3;color:#5B6B80;border-color:#C0CEE0">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
       ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#607188">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#F4F7FB;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
@@ -4223,7 +4223,7 @@ function renderAgency(){
           :((paidAll?esc(paidAll):'<span class="dash">—</span>')
             +(due?`<span class="sub2 warn">未收 ${esc(due)}</span>`
               :(agOver(c)?`<span class="sub2" style="color:#1E4C86" title="已收比未錄取價多出來的部分">多收 ${esc(money(agOver(c),agTotalCur(c)))}・要退</span>`:'')))}</span>
-        <span class="cc act"><button class="btn btn-icon crm-del" data-act="agDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
+        <span class="cc act"><button class="btn btn-icon crm-del btn-del" data-act="agDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑</button></span>
       </div></summary><div class="crm-body">
       ${realHas(c)?`<div class="hint" style="margin-top:2px">真實姓名：<b>${esc(realHas(c))}</b></div>`:''/* REALNAME_V1108 */}${lifeLine(c)/* LIFE_V1106 */}${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EEF0F3;color:#5B6B80;border-color:#C0CEE0">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
       ${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#607188">📄 備註／客戶資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#F4F7FB;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
@@ -4559,7 +4559,7 @@ function renderInterview(){
         +`${fut?meetBtn(meetOfItv(c),true):''}`
         +`<button class="btn btn-sm" data-act="itvSess" data-id="${esc(c.id)}::${idx}" title="修改這一次練習">✏️</button>`
         +`<span class="ir-gap"></span>`
-        +`<button class="btn btn-sm btn-danger" data-act="itvSessDel" data-id="${esc(c.id)}::${idx}" title="刪掉這一次練習">🗑</button>`
+        +`<button class="btn btn-sm btn-danger btn-del" data-act="itvSessDel" data-id="${esc(c.id)}::${idx}" title="刪掉這一次練習">🗑</button>`
         +`</span></div>`;};
     const upHtml=upcoming.length?`<div class="lesson-label" style="margin:8px 0 2px">📌 接下來的練習</div>`+upcoming.map(rowHtml).join(''):'';
     const pastShow=past.slice(0,5).map(rowHtml).join('');
@@ -4589,7 +4589,7 @@ function renderInterview(){
           ?((itvTotal(c)?`<span class="muted" title="還沒開始做，先不算未收">談定 ${esc(money(itvTotal(c),itvTotalCur(c)))}</span>`:'<span class="dash">—</span>')
             +(paidAll?`<span class="sub2">已收 ${esc(paidAll)}</span>`:''))
           :((paidAll?esc(paidAll):'<span class="dash">—</span>')+(due?`<span class="sub2 warn">未收 ${esc(due)}</span>`:''))}</span>
-        <span class="cc act">${meetBtn(meetOfItv(c),true)}<button class="btn btn-icon crm-del" data-act="itvDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑️</button></span>
+        <span class="cc act">${meetBtn(meetOfItv(c),true)}<button class="btn btn-icon crm-del btn-del" data-act="itvDel" data-id="${esc(c.id)}" title="刪除這位客戶">🗑</button></span>
       </div></summary><div class="crm-body">
       ${realHas(c)?`<div class="hint" style="margin-top:2px">真實姓名：<b>${esc(realHas(c))}</b></div>`:''/* REALNAME_V1108 */}${lifeLine(c)/* LIFE_V1106 */}${crmMailRow(c)/* MAIL_V1066 */}${pChips(c.kind,c.id)/* PERSON_V1071 */}${crmOff(c)?`<div class="dash-row" style="margin-top:4px"><span class="badge" style="background:#EEF0F3;color:#5B6B80;border-color:#C0CEE0">🙅 不收了 ${esc(money(crmOff(c),crmCurOf(c.id)))}</span><span class="grow"></span><button class="btn btn-sm btn-ghost" data-act="crmOffUndo" data-id="${esc(c.id)}">取消</button></div>`:''/* FEEOFF_V1079 */}
       ${c.result_note?`<div class="hint" style="margin-top:4px">結果：${esc(c.result_note)}</div>`:''}${c.note?(String(c.note).length>80?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:#607188">📄 備註／學生資料（${String(c.note).length} 字，點開看）</summary><div class="hint" style="white-space:pre-line;margin-top:6px;background:#F4F7FB;border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:320px;overflow:auto">${esc(c.note)}</div></details>`:`<div class="hint" style="margin-top:4px">${esc(c.note)}</div>`):''}
@@ -4661,7 +4661,7 @@ function itvLogRowHtml(c,e){
     +'<span class="ir-ex"></span>'
     +'<span class="ir-op">'
     +'<button class="btn btn-sm" data-act="itvLogEdit" data-id="'+esc(c.id)+'::'+idx+'">✏️</button>'
-    +'<button class="btn btn-sm btn-danger" data-act="itvLogDel" data-id="'+esc(c.id)+'::'+idx+'">🗑</button>'
+    +'<button class="btn btn-sm btn-danger btn-del" data-act="itvLogDel" data-id="'+esc(c.id)+'::'+idx+'">🗑</button>'
     +'</span></div>';
 }
 function itvLogForm(key){
@@ -4965,7 +4965,7 @@ function itvSessBoxHtml(c){
   if(!ss.length)return '<div style="margin:10px 0 2px;font-size:13px;color:var(--muted,#5B6B80)">還沒有排練習。用下面那一列加第一次。</div>';
   const today=localToday();
   return ss.map((e,i)=>{const fut=String(e.date)>=today;const tm=(e.start||'')+(e.end?('–'+e.end):'');
-    return `<div class="dash-row"><span class="badge ${fut?'badge-soon':'badge-pending'}">${fut?'待練':'已練'}</span><b>${esc(String(e.date))}</b>${tm?`<span class="muted" style="font-size:12.5px">${esc(tm)}</span>`:''}${e.note?`<span class="muted" style="font-size:12px">${esc(e.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-danger" type="button" data-act="itvSessDrop" data-id="${esc(c.id)}::${i}">🗑</button></div>`;}).join('');
+    return `<div class="dash-row"><span class="badge ${fut?'badge-soon':'badge-pending'}">${fut?'待練':'已練'}</span><b>${esc(String(e.date))}</b>${tm?`<span class="muted" style="font-size:12.5px">${esc(tm)}</span>`:''}${e.note?`<span class="muted" style="font-size:12px">${esc(e.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-danger btn-del" type="button" data-act="itvSessDrop" data-id="${esc(c.id)}::${i}">🗑</button></div>`;}).join('');
 }
 function itvPayBoxHtml(c){
   const tot=itvTotal(c),tcur=itvTotalCur(c);
@@ -4979,7 +4979,7 @@ function itvPayBoxHtml(c){
     +`${left>0?`<span class="k">還差</span><b class="due">${money(left,tcur)}</b>`:(overTag(tot,got,tcur,0)||'<span class="badge badge-ok">✓ 已收齊</span>')}`
     +`<span class="grow"></span><span class="pay-bar sm"><i style="width:${pct}%"></i></span></div>`
     :'<div style="margin:4px 0 2px;font-size:12.5px;color:var(--muted,#5B6B80)">上面填了「談定的練習費總額」，這裡才會算「還差多少」。</div>';
-  const rows=pays.length?pays.map((p,i)=>`<div class="dash-row"><span class="badge badge-pending">第 ${pays.length-i} 筆</span><b>${esc(String(p.date))}</b><b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-danger" type="button" data-act="itvPayDrop" data-id="${esc(c.id)}::${i}">🗑</button></div>`).join('')
+  const rows=pays.length?pays.map((p,i)=>`<div class="dash-row"><span class="badge badge-pending">第 ${pays.length-i} 筆</span><b>${esc(String(p.date))}</b><b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm btn-danger btn-del" type="button" data-act="itvPayDrop" data-id="${esc(c.id)}::${i}">🗑</button></div>`).join('')
     :'<div style="margin:10px 0 2px;font-size:13px;color:var(--muted,#5B6B80)">還沒有登記任何一筆。用下面那一列記第一筆。</div>';
   return sum+rows;
 }
@@ -5229,7 +5229,9 @@ function weekActualCard(back){
          兩塊貼在一起就糊成一片粉紅。改成淺底＋左邊一條深紅，表頭是表頭、列是列。 */
       /* 左邊那條用 inset 陰影畫，不用 border——border 會把這一列的內容往右推 4px，
          上下幾列就對不齊了（量過：類別欄 226 vs 230）。 */
-      return wrow('background:#FDF4F2;border:1px solid #F0C9C2;box-shadow:inset 4px 0 0 #A33227',
+      /* WKROW1PX_V1585 外框本來用 border:1px，整列內容被推進 1px，
+         「填結果」比上下列的「修改」偏右 1px。外框也改成 inset 陰影，跟左邊那條一樣不佔位置。 */
+      return wrow('background:#FDF4F2;box-shadow:inset 4px 0 0 #A33227,inset 0 0 0 1px #F0C9C2',
         dchip('badge','background:#F0C9C2;color:#A33227;border-color:#b91c1c55;white-space:nowrap'),
         '<span class="badge b-info" >🎯 正式面試</span>',
         `<b>👤 ${esc(it.c.name||'')}</b>${it.c.target?`<span class="muted wr-tg">${esc(it.c.target)}</span>`:''}${m?`<span class="badge wr-rs" style="background:${m[1]}18;color:${m[1]}">${m[0]}</span>`:''}`,/* WRWRAP_V1216 */
@@ -5242,7 +5244,7 @@ function weekActualCard(back){
         [meetBtn(meetOfItv(it.c),true),
          e.done?'':`<button class="btn btn-sm btn-accent" data-act="itvRoll" data-id="${ik}">✍️ 去點名</button>`,
          `<button class="btn btn-sm" data-act="itvSess" data-id="${ik}">✏️ 修改</button>`,
-         e.done?'':`<button class="btn btn-sm btn-danger btn-icon" data-act="itvSessDel" data-id="${ik}" title="刪掉這一次面試練習">🗑</button>`]);}
+         e.done?'':`<button class="btn btn-sm btn-danger btn-icon btn-del" data-act="itvSessDel" data-id="${ik}" title="刪掉這一次面試練習">🗑</button>`]);}
     if(it.type==='fix'){const solo=!!it.s;
       const key=(solo?('S:'+esc(it.s.id)):('G:'+esc(it.cls)))+'::'+esc(it.date)+'::'+esc(it.start||'')+'::'+esc(it.end||'');
       return wrow('background:#F4F7FB',
@@ -5256,7 +5258,7 @@ function weekActualCard(back){
          /* FIXSKIP_V1000 這一列本來沒有刪除鈕，因為它不是一筆記錄，是算出來的。
             可是「這禮拜這天不上」是很常見的事，沒有出口就只能一直看著它。
             按這顆＝只把這一天從自動推算裡拿掉。 */
-         `<button class="btn btn-sm btn-danger btn-icon" data-act="fixSkip" data-id="${solo?('S:'+esc(it.s.id)):('G:'+esc(it.cls))}::${esc(it.date)}::${esc(it.start||'')}" title="這一天不要再自動出現（不影響已點名的記錄）">🗑</button>`]);}
+         `<button class="btn btn-sm btn-danger btn-icon btn-del" data-act="fixSkip" data-id="${solo?('S:'+esc(it.s.id)):('G:'+esc(it.cls))}::${esc(it.date)}::${esc(it.start||'')}" title="這一天不要再自動出現（不影響已點名的記錄）">🗑</button>`]);}
     if(it.type==='splan'){
       return wrow('background:#F4F7FB',
         dchip('badge','background:#EDE9FE;color:#6D28D9;border-color:#6D28D9;white-space:nowrap'),
@@ -5265,7 +5267,7 @@ function weekActualCard(back){
         [meetBtn(meetOfStudent(it.s.id),true),
          `<button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="S:${esc(it.s.id)}::${esc(it.date)}::${esc(it.start||'')}">✍️ 去點名</button>`,
          `<button class="btn btn-sm" data-act="planEdit" data-id="S:${esc(it.s.id)}::${esc(it.date)}::${esc(it.start||'')}">✏️ 修改</button>`,
-         `<button class="btn btn-sm btn-danger btn-icon" data-act="planDel" data-id="S:${esc(it.s.id)}::${esc(it.date)}::${esc(it.start||'')}" title="刪掉這一堂">🗑</button>`]);}
+         `<button class="btn btn-sm btn-danger btn-icon btn-del" data-act="planDel" data-id="S:${esc(it.s.id)}::${esc(it.date)}::${esc(it.start||'')}" title="刪掉這一堂">🗑</button>`]);}
     return wrow('background:#F4F7FB',
       dchip('badge','background:#EDE9FE;color:#6D28D9;border-color:#6D28D9;white-space:nowrap'),
       '<span class="badge b-info" >📌 預排</span>',
@@ -5273,7 +5275,7 @@ function weekActualCard(back){
       [meetBtn(meetOfGroup(it.cls),true),
        `<button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="${esc(it.cls)}::${esc(it.date)}::${esc(it.start||'')}">✍️ 去點名</button>`,
        `<button class="btn btn-sm" data-act="planEdit" data-id="${esc(it.cls)}::${esc(it.date)}::${esc(it.start||'')}">✏️ 修改</button>`,
-       `<button class="btn btn-sm btn-danger btn-icon" data-act="planDel" data-id="${esc(it.cls)}::${esc(it.date)}::${esc(it.start||'')}" title="刪掉這一堂">🗑</button>`]);
+       `<button class="btn btn-sm btn-danger btn-icon btn-del" data-act="planDel" data-id="${esc(it.cls)}::${esc(it.date)}::${esc(it.start||'')}" title="刪掉這一堂">🗑</button>`]);
   };
   return {items,rowOf};}
 let WKDATE=true;
@@ -9417,7 +9419,7 @@ function shareRowHtml(f,acts){
     <a class="btn btn-sm" href="${esc(f.url||'#')}" target="_blank" rel="noopener">⬇ 下載</a>
     ${acts||''}
     <button class="btn btn-sm" data-act="shareEdit" data-id="${esc(f.id)}">✏️</button>
-    <button class="btn btn-sm btn-danger" data-act="shareDel" data-id="${esc(f.id)}">🗑</button>
+    <button class="btn btn-sm btn-danger btn-del" data-act="shareDel" data-id="${esc(f.id)}">🗑</button>
     ${f.desc?`<div style="flex-basis:100%;margin-top:2px" class="hint">${esc(f.desc)}</div>`:''}</div>`;
 }
 /* ---- 教師端：發給學生的檔案 ---- */
@@ -9529,7 +9531,7 @@ async function _filesLoadInbox(){const box=document.getElementById('files-inbox'
         +'<span class="muted" style="font-size:12px">'+esc(f.area_name||'')+'　'+esc(String(f.created_at||'').replace('T',' ').slice(0,16))+(f.size?('　'+(f.size>1048576?((f.size/1048576).toFixed(1)+' MB'):(Math.max(1,Math.round(f.size/1024))+' KB'))):'')+'</span>'
         +'<span class="grow"></span>'
         +'<button class="btn btn-sm" data-act="uaDl" data-id="'+i+'">⬇ 下載</button>'
-        +'<button class="btn btn-sm btn-danger" data-act="fiDel" data-id="'+i+'">🗑</button></div>';};
+        +'<button class="btn btn-sm btn-danger btn-del" data-act="fiDel" data-id="'+i+'">🗑</button></div>';};
     const _view=S.filesView||'stu';
     let html='';
     if(_view==='les'){
@@ -11519,7 +11521,7 @@ H.reviews=()=>{
     const st=r.status||'pending';
     const badge=st==='approved'?'<span class="badge badge-ok">已公開</span>':(st==='hidden'?'<span class="badge">已隱藏</span>':'<span class="badge badge-soon">待審核</span>');
     const act=(st==='approved'?'<button class="btn btn-sm btn-accent" data-act="revPic" data-id="'+r.id+'" title="做成可以貼 FB／Zalo 的圖">\u{1F5BC} 做成圖片</button><button class="btn btn-sm" data-act="revUnapprove" data-id="'+r.id+'">取消公開</button>':'<button class="btn btn-sm btn-accent" data-act="revApprove" data-id="'+r.id+'">✓ 核准公開</button>');/* REVPIC_V1154 */
-    return '<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start"><b>'+esc(revNameOf(r))+'</b>'+badge+'<span class="grow"></span>'+act+'<button class="btn btn-sm" style="color:var(--danger)" data-act="revDel" data-id="'+r.id+'">🗑</button><div style="flex-basis:100%;margin-top:4px;white-space:pre-line;color:var(--ink)">'+esc(r.text||'')+'</div></div>';
+    return '<div class="dash-row" style="flex-wrap:wrap;align-items:flex-start"><b>'+esc(revNameOf(r))+'</b>'+badge+'<span class="grow"></span>'+act+'<button class="btn btn-sm btn-del" style="color:var(--danger)" data-act="revDel" data-id="'+r.id+'">🗑</button><div style="flex-basis:100%;margin-top:4px;white-space:pre-line;color:var(--ink)">'+esc(r.text||'')+'</div></div>';
   }).join(''):'<div class="muted" style="padding:10px 0">還沒有學生評價。學生送出後會出現在這裡，核准才會上官網。</div>';
   openModal('<div class="modal wide modal-tall"><div class="modal-head"><h3>⭐ 學生評價審核</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="hint" style="margin-bottom:10px">核准後自動上官網，文字可到「編輯內容 → ⭐ 學生評價」再改。<br>學生在 Zalo、FB 私訊講的好話，用底下那顆自己打進來就好。</div>'+rows+'</div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>'
@@ -12269,7 +12271,7 @@ function pronEditorHtml(){
   const groups=pe.groups.map((g,gi)=>{
     const items=g.items.map((it,ii)=>{
       const key=gi+'-'+ii;
-      const aud=it.audio?`<button class="btn btn-sm btn-accent" type="button" data-act="pePlay" data-u="${esc(it.audio)}">▶ 試聽</button><button class="btn btn-sm" type="button" data-act="peClearAud" data-id="${key}">🗑</button>`:'<span class="hint">尚無音檔</span>';
+      const aud=it.audio?`<button class="btn btn-sm btn-accent" type="button" data-act="pePlay" data-u="${esc(it.audio)}">▶ 試聽</button><button class="btn btn-sm btn-del" type="button" data-act="peClearAud" data-id="${key}">🗑</button>`:'<span class="hint">尚無音檔</span>';
       return `<div class="pe-item">
         <div class="pe-item-row">
           <input class="pe-z" id="pe-z-${key}" placeholder="注音" value="${esc(it.zh||'')}">
@@ -20091,7 +20093,7 @@ function classRollModal(cls,prefill){const members=S.students.filter(s=>stuGroup
   CLOG_SCHED=classSchedOf(cls)||[];const today=localToday();const pf=prefill||{};const useDate=pf.date||today;const dslot=clSlotFor(useDate);const slot={s:pf.start||(dslot&&dslot.s)||'',e:pf.end||(dslot&&dslot.e)||''};const useNote=pf.note||'';const useVideo=pf.video||'';const useLes=pf.lesson||'';
   const dateMap={};members.forEach(s=>(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date)return;const k=e.date+'|'+(e.start||'')+'|'+(e.end||'');const c=(dateMap[k]=dateMap[k]||{date:e.date,att:0,leave:0,absent:0,start:e.start||'',end:e.end||'',free:false,note:'',lesson:'',lesson_t:''});if(e.status==='leave')c.leave++;else if(e.status==='absent')c.absent++;else c.att++;if(e.free)c.free=true;if(e.note)c.note=e.note;if(e.video)c.video=e.video;if(e.lesson&&!c.lesson){c.lesson=e.lesson;c.lesson_t=e.lesson_t||'';}}));
   const dates=Object.keys(dateMap).sort().reverse().slice(0,10);
-  const recent=dates.length?dates.map(d=>{const c=dateMap[d];const wd=c.date?DAYS[(new Date(c.date+'T00:00:00').getDay()+6)%7]:'';const tm=(c.start&&c.end)?`<span class="muted" style="font-size:12px">${esc(c.start)}–${esc(c.end)}</span>`:'';const fb=c.free?' <span class="badge b-gift" >🎁 免費</span>':'';const vb=c.video?' <a class="badge b-info"  href="'+esc(c.video)+'" target="_blank" rel="noopener">🎬 影片</a>':'';return `<div class="dash-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(c.date)}</b>${wd?`<span class="muted" style="font-size:12px">（${wd}）</span>`:''}${tm}${fb}${vb}${rollLesTag(c)}<span class="grow" style="flex:1"></span><span class="badge badge-ok">出席 ${c.att}</span> <span class="badge badge-soon">請假 ${c.leave}</span> <span class="badge badge-overdue">缺席 ${c.absent}</span> <button class="btn btn-sm btn-ghost" type="button" data-act="rollEdit" data-id="${esc(d)}">✏️ 修改</button><button class="btn btn-sm btn-danger" type="button" data-act="rollDel" data-id="${esc(cls)+'::'+esc(c.date)+'::'+esc(c.start||'')+'::'+esc(c.end||'')}" title="全班一起刪掉這一堂">🗑</button></div>`;}).join(''):'<div class="hint">還沒有上課記錄。</div>';
+  const recent=dates.length?dates.map(d=>{const c=dateMap[d];const wd=c.date?DAYS[(new Date(c.date+'T00:00:00').getDay()+6)%7]:'';const tm=(c.start&&c.end)?`<span class="muted" style="font-size:12px">${esc(c.start)}–${esc(c.end)}</span>`:'';const fb=c.free?' <span class="badge b-gift" >🎁 免費</span>':'';const vb=c.video?' <a class="badge b-info"  href="'+esc(c.video)+'" target="_blank" rel="noopener">🎬 影片</a>':'';return `<div class="dash-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(c.date)}</b>${wd?`<span class="muted" style="font-size:12px">（${wd}）</span>`:''}${tm}${fb}${vb}${rollLesTag(c)}<span class="grow" style="flex:1"></span><span class="badge badge-ok">出席 ${c.att}</span> <span class="badge badge-soon">請假 ${c.leave}</span> <span class="badge badge-overdue">缺席 ${c.absent}</span> <button class="btn btn-sm btn-ghost" type="button" data-act="rollEdit" data-id="${esc(d)}">✏️ 修改</button><button class="btn btn-sm btn-danger btn-del" type="button" data-act="rollDel" data-id="${esc(cls)+'::'+esc(c.date)+'::'+esc(c.start||'')+'::'+esc(c.end||'')}" title="全班一起刪掉這一堂">🗑</button></div>`;}).join(''):'<div class="hint">還沒有上課記錄。</div>';
   const seg=(sid,st,lb,def)=>`<button type="button" class="${def?'on':''}" data-act="rollPick" data-id="${sid}::${st}" data-st="${st}">${lb}</button>`;
   const rows=members.length?members.map(s=>{const _b=stuBill(s);const _owe=(_b&&_b.items.length&&_b.due>0.0001)?_b.due:0;return `<div class="dash-row" style="display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box"><div style="flex:1 1 auto;min-width:0"><b>${snm(s.name)}</b>${s.is_test?' <span class="tag b-off" >🧪 測試</span>':''}${_owe?` <span class="muted" style="font-size:12px;color:#A33227">欠 ${money(_owe,billCur(s))}</span>`:''}</div><span class="seg-mini roll-seg" data-sid="${s.id}" style="flex:0 0 auto;white-space:nowrap">${seg(s.id,'attended','出席',true)}${seg(s.id,'leave','請假',false)}${seg(s.id,'absent','缺席',false)}</span></div>`;}).join(''):'<div class="hint">這個團班還沒有成員。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>🗓 「${esc(cls)}」上課點名</h3><button class="x" data-act="closeModal">×</button></div>
@@ -20329,7 +20331,7 @@ let _uaFiles=[];
 H.uaView=async(key)=>{const p=String(key).split('::');const sid=p[0],aid=p[1];const box=$('#ua-files');if(box)box.innerHTML='<div class="hint">載入中…</div>';
   try{let files=await DB.listWhere('uploads','student_id',sid);if(aid!=='*')files=files.filter(f=>f&&f.area_id===aid);files.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));_uaFiles=files;
     files.sort((a,b)=>String(a.lesson_title||'').localeCompare(String(b.lesson_title||''))||String(b.created_at||'').localeCompare(String(a.created_at||'')));_uaFiles=files;
-    if(box)box.innerHTML=files.length?('<div class="lesson-label">📂 檔案（'+files.length+'）</div>'+files.map((f,i)=>`<div class="dash-row" style="flex-wrap:wrap">${f.lesson_title?`<span class="badge badge-pending">${esc(f.lesson_title)}</span>`:'<span class="badge b-off" >未指定課次</span>'}<b>${esc(f.filename||'檔案')}</b><span class="muted" style="font-size:12px">${esc(f.area_name||'')}　${esc(fUpTime(f.created_at))}　${f.size?(Math.round(f.size/1024)+' KB'):''}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="${i}">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="${i}">🗑</button></div>`).join('')):'<div class="hint">這裡還沒有檔案。</div>';
+    if(box)box.innerHTML=files.length?('<div class="lesson-label">📂 檔案（'+files.length+'）</div>'+files.map((f,i)=>`<div class="dash-row" style="flex-wrap:wrap">${f.lesson_title?`<span class="badge badge-pending">${esc(f.lesson_title)}</span>`:'<span class="badge b-off" >未指定課次</span>'}<b>${esc(f.filename||'檔案')}</b><span class="muted" style="font-size:12px">${esc(f.area_name||'')}　${esc(fUpTime(f.created_at))}　${f.size?(Math.round(f.size/1024)+' KB'):''}</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="${i}">⬇ 下載</button><button class="btn btn-sm btn-danger btn-del" data-act="uaFileDel" data-id="${i}">🗑</button></div>`).join('')):'<div class="hint">這裡還沒有檔案。</div>';
   }catch(e){if(box)box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'。若是權限錯誤，代表 Firestore 規則還沒加 uploads 那段（我有給你要貼的文字）。</div>';}};
 H.uaDl=(i)=>{const f=_uaFiles[Number(i)];if(!f)return;
   if(f.url){window.open(f.url,'_blank');return;}
@@ -20341,7 +20343,7 @@ async function _filesLoadLessons(){const box=document.getElementById('files-les'
     const groups={};const order=[];files.forEach((f,i)=>{const k=f.lesson_title||'（未指定課次）';if(!groups[k]){groups[k]=[];order.push(k);}groups[k].push(i);});
     order.sort((a,b)=>a==='（未指定課次）'?1:(b==='（未指定課次）'?-1:a.localeCompare(b)));
     const stuName=(id)=>{const s=S.students.find(x=>x.id===id);return (s&&s.name)||'?';};
-    box.innerHTML=order.map(k=>'<details open style="margin-bottom:10px"><summary style="font-weight:800;cursor:pointer;padding:6px 0">📚 '+esc(k)+'　<span class="hint">（'+groups[k].length+' 個檔案）</span></summary>'+groups[k].map(i=>{const f=_uaFiles[i];return '<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">'+esc(f.area_name||'')+'</span><b>'+snm(stuName(f.student_id))+'</b><span class="muted" style="font-size:12px">'+esc(f.filename||'')+'　'+esc(fUpTime(f.created_at))+'　'+(f.size?(Math.round(f.size/1024)+' KB'):'')+'</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="'+i+'">⬇ 下載</button><button class="btn btn-sm btn-danger" data-act="uaFileDel" data-id="'+i+'">🗑</button></div>';}).join('')+'</details>').join('');
+    box.innerHTML=order.map(k=>'<details open style="margin-bottom:10px"><summary style="font-weight:800;cursor:pointer;padding:6px 0">📚 '+esc(k)+'　<span class="hint">（'+groups[k].length+' 個檔案）</span></summary>'+groups[k].map(i=>{const f=_uaFiles[i];return '<div class="dash-row" style="flex-wrap:wrap"><span class="badge badge-pending">'+esc(f.area_name||'')+'</span><b>'+snm(stuName(f.student_id))+'</b><span class="muted" style="font-size:12px">'+esc(f.filename||'')+'　'+esc(fUpTime(f.created_at))+'　'+(f.size?(Math.round(f.size/1024)+' KB'):'')+'</span><span class="grow"></span><button class="btn btn-sm btn-accent" data-act="uaDl" data-id="'+i+'">⬇ 下載</button><button class="btn btn-sm btn-danger btn-del" data-act="uaFileDel" data-id="'+i+'">🗑</button></div>';}).join('')+'</details>').join('');
   }catch(e){box.innerHTML='<div class="hint">載入失敗：'+esc((e&&e.message)||'')+'</div>';}}
 function _tuB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{res(String(r.result).split(',')[1]||'');};r.onerror=rej;r.readAsDataURL(file);});}
 async function _tuShrink(file){
@@ -20395,7 +20397,7 @@ H.itvPayList=(id)=>{const c=itvById(id);if(!c)return;
   const left=tot?Math.max(0,tot-got):0;
   const pct=tot>0?Math.min(100,Math.round(got/tot*100)):0;
   const cOpt=(v,t)=>`<option value="${v}"${tcur===v?' selected':''}>${t}</option>`;
-  const rows=pays.length?pays.map((p,i)=>`<div class="dash-row"><span class="badge badge-pending">第 ${pays.length-i} 筆</span><b>${esc(String(p.date))}</b><b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm" data-act="itvPayEdit" data-id="${esc(id)}::${i}" title="改這一筆">✏️</button><button class="btn btn-sm btn-danger" data-act="itvPayDel" data-id="${esc(id)}::${i}">🗑</button></div>`).join(''):'<div style="margin:12px 0;font-size:13px;color:var(--muted,#5B6B80)">還沒有登記任何一筆。按下面「＋ 記一筆付費」，每收一次錢就記一筆。</div>';
+  const rows=pays.length?pays.map((p,i)=>`<div class="dash-row"><span class="badge badge-pending">第 ${pays.length-i} 筆</span><b>${esc(String(p.date))}</b><b style="margin-left:6px">${money(p.amount,p.currency||'VND')}</b>${p.note?`<span class="muted" style="font-size:12px">${esc(p.note)}</span>`:''}<span class="grow"></span><button class="btn btn-sm" data-act="itvPayEdit" data-id="${esc(id)}::${i}" title="改這一筆">✏️</button><button class="btn btn-sm btn-danger btn-del" data-act="itvPayDel" data-id="${esc(id)}::${i}">🗑</button></div>`).join(''):'<div style="margin:12px 0;font-size:13px;color:var(--muted,#5B6B80)">還沒有登記任何一筆。按下面「＋ 記一筆付費」，每收一次錢就記一筆。</div>';
   const sessRows=sessPaid.length?('<div class="lesson-label" style="margin-top:14px">綁在練習時間上的收款</div>'+sessPaid.map(x=>`<div class="dash-row"><span class="badge badge-pending">${esc(String(x.e.date))}</span><b>${money(x.e.fee,x.e.currency||'VND')}</b><span class="muted" style="font-size:12px">記在練習上</span><span class="grow"></span><button class="btn btn-sm" data-act="itvPayConv" data-id="${esc(id)}::${x.i}">⇄ 轉成獨立付費</button></div>`).join('')+'<div style="margin-top:6px;font-size:12.5px;color:var(--muted,#5B6B80)">「轉成獨立付費」＝把錢改記在實際付款日（可改日期），練習列上就不再顯示這筆錢。</div>'):'';
   openModal(`<div class="modal" style="max-width:640px"><div class="modal-head"><h3>💰 付費 · ${snm(c.name||'')}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
@@ -20584,7 +20586,7 @@ H.crmFilesLoad=async(key)=>{const box=$('#itvf-list');if(!box)return;
        +'<span class="cf-meta cf-dt">'+esc(fUpTime(f.created_at))+'</span>'
        +'<span class="cf-meta cf-sz">'+kb(f.size)+'</span>'
        +'<span class="cf-op"><button class="btn btn-sm" data-act="uaDl" data-id="'+i+'">⬇ 下載</button>'
-       +'<button class="btn btn-sm btn-danger btn-icon" data-act="crmFileDel" data-id="'+esc(key)+'::'+i+'" title="刪掉這個檔案">🗑</button></span>'
+       +'<button class="btn btn-sm btn-danger btn-icon btn-del" data-act="crmFileDel" data-id="'+esc(key)+'::'+i+'" title="刪掉這個檔案">🗑</button></span>'
        +'</div>';}).join('')):(_dk?'':'<div style="margin:14px 0 4px;font-size:13px;color:var(--muted,#5B6B80);text-align:center">還沒有檔案。把檔案拖到上面那個框，或點一下選檔就可以了。</div>');
     try{crmDocDraw(key);}catch(e){}/* DOCPICK_V1238 */
   }catch(e){box.innerHTML='<div style="margin:12px 0;font-size:13px;color:#A33227">載入失敗：'+esc((e&&e.message)||'')+'</div>';}};
