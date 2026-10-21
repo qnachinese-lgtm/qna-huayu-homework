@@ -10,6 +10,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- CLGRP_V1 文言文一頁一段、短的合併 -->
 <!-- CLGLOSS_V1 文言文詞語解釋照段落、拆對 -->
 <!-- CLPARA_V1 文言文一段一段顯示、拿掉人名地名括號 -->
 <!-- CLIMP_V1 文言文也能匯入投影片 -->
@@ -312,8 +313,10 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .cl-ln{color:var(--navy);border-bottom:1.5px dotted currentColor;padding-bottom:1px}
 .paras.solo .para{padding:6px 4px}
 .paras.solo .zh{line-height:1.9}
+.clp{margin:0 0 .35em}
+.clseg{margin-bottom:6px}
 .paras.solo:has(.clgl){display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:22px;align-items:start}
-.clgl{background:var(--ice);border-radius:14px;padding:14px 18px;font-size:calc(var(--rfs,24px) * .72);line-height:1.65;max-height:100%;overflow:auto}
+.clgl{background:var(--ice);border-radius:14px;padding:14px 18px;font-size:max(18px, calc(var(--rfs,24px) * .72));line-height:1.65;max-height:100%;overflow:auto}
 .clglh{font-weight:700;color:var(--navy);margin-bottom:6px;letter-spacing:.08em}
 .clgi{padding:3px 0;border-bottom:1px dashed var(--line)} .clgi:last-child{border-bottom:0}
 .clgi b{color:var(--navy)} .clpy{font-family:"Times New Roman",serif;color:var(--muted);margin-left:4px}
@@ -921,6 +924,12 @@ function clGloss(t){ const out = [];
     if(!m) return {raw: x, term: "", py: "", body: x};
     let head = m[1].trim(), py = ""; const pm = head.match(/[（(]([^）)]*[A-Za-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü][^）)]*)[）)]/); if(pm){ py = pm[1].trim(); head = head.replace(pm[0], "").trim(); }
     return {raw: x, term: clStrip(head), py, body: m[2].trim().replace(/。$/, "")}; }); }
+/* CLGRP_V1 文言文一頁一段；太短的段落就跟下一段合在同一頁（合起來不超過約 260 字） */
+function clGroups(ps){ const G = []; let cur = null;
+  ps.forEach((x, i) => { const n = clStrip(x[0]).length;
+    if(cur && cur.len + n <= 260){ cur.rows.push(x); cur.to = i; cur.len += n; }
+    else { cur = {rows: [x], from: i, to: i, len: n}; G.push(cur); } });
+  return G.map(g => ({row: [g.rows.map(x=>x[0]).join("\n"), g.rows.map(x=>x[1]).filter(Boolean).join("⏎"), g.rows.map(x=>x[2]).filter(Boolean).join("\n")], lab: g.from === g.to ? "第" + (g.from+1) + "段" : "第" + (g.from+1) + "-" + (g.to+1) + "段"})); }
 let step = 0, wi = 0, li = -1, showPy = true, showTr = true;
 /* ORDER_V1 看圖排序；WCOVER_V1 生詞先遮住 */
 let oPerm = null, oPick = [], oCheck = false, oStory = false, wCover = false, wOpen = -1;
@@ -1034,17 +1043,17 @@ function render(){
     ct.innerHTML = `<div class="note" style="margin-top:0"><b>建議</b><br>先讓學生看圖猜一猜今天的主題，再一題一題問。</div>`;
   }
   if(k==="read"){
-    const r = LESSON.read || {}, ps = r.paras || [];
+    const r = LESSON.read || {}, ps0 = r.paras || [], CG = isClL() ? clGroups(ps0) : null, ps = CG ? CG.map(g=>g.row) : ps0;
     { const rt = String(r.title||"").trim().replace(/^(短文|閱讀|課文)\s*[一二三四五六七八九十0-9０-９]*\s*[：:]\s*/, ""); $("#title").textContent = (isClL() ? "原文" : "短文") + (rt && !/^[（(]/.test(rt) ? "：" + rt : ""); } $("#hint").textContent = "按「下一段」一段一段帶讀";
     /* CLPARA_V1 長的短文（像文言文）一段一段顯示；{人名}[地名] 的括號拿掉，改成顏色和底線 */
     const big = isClL() || ps.reduce((n,x)=>n + clStrip(x[0]).length, 0) > 320; if(big && ri === -1) ri = 0;
     const solo = big && ri >= 0;
     /* CLGLOSS_V1 文言文：每一段旁邊放這一段的詞語解釋 */
     const isCl = isClL(), clGlBox = g => { const it = clGloss(String(g||"").replace(/⏎/g, "\n")); return it.length ? `<div class="clgl"><div class="clglh">詞語解釋</div>${it.map(x => x.term ? `<div class="clgi"><b>${esc(x.term)}</b>${x.py ? `<span class="clpy">${esc(x.py)}</span>` : ""}：${esc(x.body)}</div>` : `<div class="clgi">${esc(x.raw)}</div>`).join("")}</div>` : ""; };
-    st.innerHTML = ps.length ? `<div class="paras${solo ? " solo" : ""}">${ps.map((x,i)=> solo && i !== ri ? "" : `<div class="para ${i===ri && !solo?'on':''} ${ri>=0&&i!==ri?'dim':''}"><div class="zh">${clMark(x[0])}</div>${isCl ? "" : `<div class="py">${esc(x[1]||"")}</div>`}<div class="tr">${esc(x[2]||"")}</div></div>${isCl && solo ? clGlBox(x[1]) : ""}`).join("")}</div>`
+    st.innerHTML = ps.length ? `<div class="paras${solo ? " solo" : ""}">${ps.map((x,i)=> solo && i !== ri ? "" : `<div class="para ${i===ri && !solo?'on':''} ${ri>=0&&i!==ri?'dim':''}">${CG && solo ? `<div class="tag clseg"><span>${CG[i].lab}</span></div>` : ""}<div class="zh">${isCl ? String(x[0]).split("\n").map(t=>`<p class="clp">${clMark(t)}</p>`).join("") : clMark(x[0])}</div>${isCl ? "" : `<div class="py">${esc(x[1]||"")}</div>`}<div class="tr">${isCl ? String(x[2]||"").split("\n").map(t=>`<p class="clp">${esc(t)}</p>`).join("") : esc(x[2]||"")}</div></div>${isCl && solo ? clGlBox(x[1]) : ""}`).join("")}</div>`
       : `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有短文，按右上角「老師」→「編輯／匯入」加入。</div></div>`;
     ct.innerHTML = `<button class="btn ghost" data-a="rall">全部顯示</button>${toggles()}
-      <div class="meta">${ri<0?"全部":"第 "+(ri+1)+" 段"}・共 ${ps.length} 段</div>`;
+      <div class="meta">${ri<0?"全部":CG ? CG[ri].lab.replace("第","第 ").replace("段"," 段") : "第 "+(ri+1)+" 段"}・共 ${ps0.length} 段</div>`;
     /* READFIT_V1 短文整篇放進框裡，不用捲 */
     { const box = st.querySelector(".paras"); if(box){ st.style.overflow = "hidden"; let fs = solo ? 32 : 24;
       const fitIt = () => { box.style.setProperty("--rfs", fs + "px"); };
@@ -1253,7 +1262,7 @@ document.addEventListener("click", e=>{
 function advance(d){ const k = STEPS[step].key;
   if(k==="words" || k==="words2"){ const n = WG(LESSON).length; if(d>0 && wCover && wOpen !== wi){ wOpen = wi; return render(); } if(d>0 && wi<n-1){ wi++; return render(); } if(d<0 && wi>0){ wi--; return render(); } }
   if(k==="text"){ const n = LESSON.dialog.length; if(d>0 && li<n-1){ li++; return render(); } if(d<0 && li>0){ li--; return render(); } }
-  if(k==="read"){ const n = ((LESSON.read||{}).paras||[]).length; if(d>0 && ri<n-1){ ri++; return render(); } if(d<0 && ri>0){ ri--; return render(); } }
+  if(k==="read"){ const n = isClL() ? clGroups((LESSON.read||{}).paras||[]).length : ((LESSON.read||{}).paras||[]).length; if(d>0 && ri<n-1){ ri++; return render(); } if(d<0 && ri>0){ ri--; return render(); } }
   if(k==="qa" || k==="qa2"){ const n = (LESSON[k]||[]).length; if(d>0 && qi<n-1){ qi++; return render(); } if(d<0 && qi>0){ qi--; return render(); } }
   /* GREVEAL_V1 語法練習：按下一頁先一題一題顯示答案，全部顯示完才換頁；上一頁先一題一題收回 */
   if(k==="grammar" && gp > 0 && !gShow){ const ex = (GR(LESSON)[gi].exs||[])[gp-1], qs = ex ? (ex.qs||[]) : [], idx = qs.map((q,i)=>q[1] ? i : -1).filter(i=>i>=0);
