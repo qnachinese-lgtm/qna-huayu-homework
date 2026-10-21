@@ -10750,6 +10750,72 @@ function gtCardHtml(){
    而且第一張卡只叫「作業」，沒寫它其實是漢字遊戲作業。
    改成一張「作業」卡，三種各一小段；指派統一走右上角那一顆，按了再選要出哪一種。
    這兩支本來各自吐一整張 .card（含自己的標題和指派鈕），現在只吐中間那一段。 */
+/* ══════ TSYNC_V1582 教師後台自己跟著更新，不用按 F5 ══════
+   Quinn：「學生那邊可以即時更新，請你也把教師後台那邊變成即時更新」。
+   先說清楚學生端實際上在做什麼（READCUT_V814 的註解寫得很明白）：
+   它不是 Firestore 的即時監聽，本來有每 90 秒輪詢一次，後來因為帳單太貴拿掉了，
+   改成「切回這個分頁的時候才同步，而且至少隔 3 分鐘」。
+   這裡給教師後台同一套，所以不會多出任何背景流量：
+     ・切回分頁／視窗重新取得焦點時自動重讀，預設至少隔 45 秒（比學生端積極，
+       因為她常常是學生頁改完立刻切回後台看）
+     ・正在打字（10 秒內）、有視窗開著、正在跑即時比賽的時候不重讀，
+       免得把她打到一半的東西洗掉
+     ・重讀失敗不跳錯誤，下次切回來再試
+   真正的即時監聽（onSnapshot）做得到，但那是每一份資料都長期掛著連線，
+   讀取次數和帳單都會往上跳，所以沒有自己決定要開。 */
+const TSYNC={last:Date.now(),typed:0,busy:false};
+const TSYNC_GAP=45000;
+try{document.addEventListener('input',function(){TSYNC.typed=Date.now();},true);}catch(e){}
+function tsyncBlocked(){
+  try{
+    if(TSYNC.busy)return '正在同步';
+    if(document.querySelector('#modal-root .modal'))return '有視窗開著';
+    if(document.querySelector('#hw-ov,.stroke-ov'))return '有視窗開著';
+    if(Date.now()-TSYNC.typed<10000)return '正在打字';
+    if(window.LQ&&LQ.code)return '正在跑即時比賽';
+    const a=document.activeElement;
+    if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return '游標在輸入框裡';
+  }catch(e){}
+  return '';
+}
+async function tsyncNow(force){
+  if(!force){
+    if(Date.now()-TSYNC.last<TSYNC_GAP)return 'gap';
+    const why=tsyncBlocked();if(why)return why;
+  }
+  TSYNC.busy=true;
+  try{await loadAll();TSYNC.last=Date.now();render();return 'ok';}
+  catch(e){return 'fail';}
+  finally{TSYNC.busy=false;}
+}
+window.__tsyncNow=tsyncNow;/* 測試用 */
+try{
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)tsyncNow(false);});
+  window.addEventListener('focus',function(){tsyncNow(false);});
+}catch(e){}
+/* HWDEL_V1581 Quinn：「按刪除要花好久才會刪掉」。
+   三支刪除（漢字遊戲／翻牌／寫字）都在寫出去之後 await loadAll()——
+   那是把整個資料庫重讀一遍（學生、課、作業、上課記錄、繳費…），
+   只為了讓畫面上少一列。資料越多就越慢。
+   改成：先把那一列從本機陣列拿掉、立刻重畫，再把刪除寫出去；
+   萬一寫失敗就把它放回原位並說一聲，不會變成「畫面刪了、資料庫還在」。 */
+async function hwDelTask(arrKey,id){
+  const arr=S[arrKey]||[];
+  const i=arr.findIndex(x=>x&&x.id===id);
+  if(i<0)return;
+  const row=arr[i];
+  arr.splice(i,1);
+  try{render();}catch(e){}
+  try{
+    await ensureAuthFresh();
+    await DB.update('lessons',id,{deleted_at:new Date().toISOString()});
+    toast('已刪除這份作業');
+  }catch(e){
+    arr.splice(i,0,row);
+    try{render();}catch(_){}
+    toast('刪除失敗，已經放回去：'+((e&&e.message)||e));
+  }
+}
 /* HWROW_V1580 作業列表的一行：圖示＋名稱＋截止＋完成幾／幾，其餘收在裡面。
    「刪除」在 summary 裡面，不擋掉預設行為的話按一下會順便把整行展開，
    所以那一顆自己 preventDefault；原本的 data-act 照樣會被外面的總處理器接到。 */
@@ -10916,8 +10982,7 @@ H.gtSave=async()=>{
 H.gtDel=async(id)=>{const t=(S.gameTasks||[]).find(x=>x.id===id);if(!t)return;
   const b=document.querySelector('[data-act="gtDel"][data-id="'+id+'"]');
   if(b&&!b.dataset.sure){b.dataset.sure='1';b.textContent='再按一次確定刪除';b.classList.add('btn-danger');setTimeout(()=>{if(b){delete b.dataset.sure;b.textContent='刪除';b.classList.remove('btn-danger');}},4000);return;}
-  try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除這份作業');}
-  catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
+  await hwDelTask('gameTasks',id);};/* HWDEL_V1581 */
 /* ══════ GAMEHW_V1553 end ══════ */
 
 /* ══════ WRITEHW_V1566 指派寫字作業 ══════ */
@@ -11034,8 +11099,7 @@ H.wtSave=async()=>{
 H.wtDel=async(id)=>{const t=(S.writeTasks||[]).find(x=>x.id===id);if(!t)return;
   const b=document.querySelector('[data-act="wtDel"][data-id="'+id+'"]');
   if(b&&!b.dataset.sure){b.dataset.sure='1';b.textContent='再按一次確定刪除';b.classList.add('btn-danger');setTimeout(()=>{if(b){delete b.dataset.sure;b.textContent='刪除';b.classList.remove('btn-danger');}},4000);return;}
-  try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除這份作業');}
-  catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
+  await hwDelTask('writeTasks',id);};/* HWDEL_V1581 */
 /* ══════ WRITEHW_V1566 end ══════ */
 
 function renderGive(){

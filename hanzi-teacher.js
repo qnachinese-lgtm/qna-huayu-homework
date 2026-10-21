@@ -261,6 +261,9 @@ H.hzSave=async()=>{
 H.hzDel=async(id)=>{const t=(S.hanziTasks||[]).find(x=>x.id===id);if(!t)return;
   const b=document.querySelector('[data-act="hzDel"][data-id="'+id+'"]');
   if(b&&!b.dataset.sure){b.dataset.sure='1';b.textContent='再按一次確定刪除';b.classList.add('btn-danger');setTimeout(()=>{if(b){delete b.dataset.sure;b.textContent='刪除';b.classList.remove('btn-danger');}},4000);return;}
+  /* HWDEL_V1581 共用 teacher-app.js 那一支（先拿掉再寫出去，不重讀整個資料庫）。
+     teacher-app.js 沒載到的時候退回原本的做法，功能照樣在，只是比較慢。 */
+  if(typeof hwDelTask==='function'){await hwDelTask('hanziTasks',id);return;}
   try{await ensureAuthFresh();await DB.update('lessons',id,{deleted_at:new Date().toISOString()});await loadAll();render();toast('已刪除這份作業');}
   catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
 /* ══════ HANZI_V1 end ══════ */
