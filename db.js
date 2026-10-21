@@ -165,3 +165,12 @@
   function go() { var s = document.createElement('script'); s.src = f; document.body.appendChild(s); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
 })();
+
+/* ══════ SLIDES_LOADER 上課投影片外掛 ══════
+   老師後台（teacher.html）自動載入 slides-btn.js，在右上角出現「上課投影片」圖示。
+   跟漢字遊戲一樣，teacher.html 不用寫任何東西，用舊檔案覆蓋也不會不見。這一段請保留。 */
+(function () {
+  if (!/\/teacher(\.html)?$/.test(location.pathname)) return;
+  function go() { if (document.getElementById('slides-btn-js')) return; var s = document.createElement('script'); s.id = 'slides-btn-js'; s.src = 'slides-btn.js?v=3'; document.body.appendChild(s); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+})();
