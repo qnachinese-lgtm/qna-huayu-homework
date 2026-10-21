@@ -10716,14 +10716,13 @@ function wtCardHtml(){
       +(function(){const cs=wtCharsOf(t);
         if(cs.length<=24)return '<div class="wt-cs">'+esc(cs.join(''))+'</div>';
         return '<details class="wt-cs-d"><summary><span class="wt-cs">'+esc(cs.slice(0,24).join(''))
-          +'…</span><span class="hint">共 '+cs.length+' 個字，點開看全部</span></summary>'
+          +'…</span><span class="hint">全部 '+cs.length+' 個字</span></summary>'/* LEANHW_V1579 */
           +'<div class="wt-cs" style="margin-top:6px">'+esc(cs.join(''))+'</div></details>';})()
       +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'
       +(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
-    :'<div class="muted" style="padding:8px 2px">還沒有指派寫字作業。按右上角「＋ 指派作業」開始。</div>';
+    :'<div class="muted" style="padding:6px 2px">還沒有指派。</div>';/* LEANHW_V1579 */
   return '<div class="hw-sec" data-wtcard="1">'
-    +'<div class="hw-sec-h">✍️ 寫字作業'
-    +'<span class="hint">學生照筆順一筆一筆寫，每個字寫滿指定次數就算完成，不用妳批改。</span></div>'
+    +'<div class="hw-sec-h">✍️ 寫字作業</div>'/* LEANHW_V1579 */
     +rows+'</div>';
 }
 function gtCardHtml(){
@@ -10748,10 +10747,11 @@ function gtCardHtml(){
       +'<button class="btn btn-sm btn-ghost" data-act="gtDel" data-id="'+esc(t.id)+'">刪除</button>'
       +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'
       +(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
-    :'<div class="muted" style="padding:8px 2px">還沒有指派翻牌作業。按右上角「＋ 指派作業」開始。</div>';
+    :'<div class="muted" style="padding:6px 2px">還沒有指派。</div>';/* LEANHW_V1579 */
   return '<div class="hw-sec" data-gtcard="1">'
-    +'<div class="hw-sec-h">🃏 生詞翻牌作業'
-    +'<span class="hint">一張漢字、一張漢語拼音，用的是課本生詞。玩完一輪就算寫完。</span></div>'
+    /* LEANHW_V1579 Quinn：「我覺得這邊太多解釋，廢話太多了。請以簡單明瞭爲主」。
+       標題已經寫了這是什麼，後面那句說明搬回指派視窗裡講就好，列表上不重複。 */
+    +'<div class="hw-sec-h">🃏 生詞翻牌作業</div>'
     +rows+'</div>';
 }
 /* ══════ GAMEHW_V1553 這張卡怎麼進到「漢字闖關」那一頁 ══════

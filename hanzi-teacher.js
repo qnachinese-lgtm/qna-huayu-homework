@@ -64,14 +64,14 @@ function renderHanzi(){
       +'<span class="grow"></span><span class="muted" style="font-size:13px">完成 '+done+'／'+who.length+'</span>'
       +'<button class="btn btn-sm btn-ghost" data-act="hzDel" data-id="'+esc(t.id)+'">刪除</button>'
       +'<div style="flex-basis:100%;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'+(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')+'</div></div>';}).join('')
-    :'<div class="muted" style="padding:8px 2px">還沒有指派漢字遊戲作業。按右上角「＋ 指派作業」開始。</div>';
+    :'<div class="muted" style="padding:6px 2px">還沒有指派。</div>';/* LEANHW_V1579 */
   /* HWONE_V1577 Quinn：「太多指派作業了吧？這樣很難去抓欸」。
      這一頁本來三張卡、四顆指派鈕，右上角那顆還跟這張卡重複。
      現在三種作業合進同一張「作業」卡，各有一個小標題；
      指派統一走右上角那一顆（hzPickKind），按了再選要出哪一種。 */
   const hzSecHtml='<div class="hw-sec" data-hzcard="1">'
-    +'<div class="hw-sec-h">🀄 漢字遊戲作業'
-    +'<span class="hint">一輪最多 8 個字，拼 → 寫 → 用三步。</span></div>'
+    /* LEANHW_V1579 Quinn：「太多解釋，廢話太多了」。說明在指派視窗裡講過了，這裡只留標題。 */
+    +'<div class="hw-sec-h">🀄 漢字遊戲作業</div>'
     +taskHtml+'</div>';
   const stus=(S.students||[]).filter(hzLive).slice().sort((a,b)=>{const x=hzDocOf(a),y=hzDocOf(b);return String((y&&y.updated_at)||'').localeCompare(String((x&&x.updated_at)||''))||stuNameCmp(a,b);});
   /* ══════ HZLEAN_V1421 整欄都是空的就不要畫 ══════
@@ -126,7 +126,7 @@ function renderHanzi(){
     +'<a class="btn btn-sm" href="games.html" target="_blank" rel="noopener">🎲 生詞遊戲 ↗</a>'
     +'</div></details>'
     +'<button class="btn btn-sm btn-accent" data-act="'+((typeof H==='object'&&H&&typeof H.hzPickKind==='function')?'hzPickKind':'hzNew')+'">＋ 指派作業</button></div>'
-    +'<div class="card"><h3 style="margin:0 0 8px">作業</h3>'+(tasks.length?'<div class="hint" style="margin-bottom:8px">綠色＝已完成；紅色＝已經過了截止日還沒完成。學生在學生頁的「待辦」也會看到這些作業。</div>':'')/* HZLEAN_V1421 沒有作業就不要解釋顏色 */+hzSecHtml
+    +'<div class="card"><h3 style="margin:0 0 8px">作業</h3>'/* LEANHW_V1579 顏色的解釋拿掉：綠色打勾、紅色逾期本來就看得懂 *//* HZLEAN_V1421 沒有作業就不要解釋顏色 */+hzSecHtml
     /* GAMEHW_V1553 生詞翻牌作業那一塊。程式在 teacher-app.js（gtCardHtml），
        這裡只負責把它放進畫面——漢字遊戲的程式不混進後台、後台的程式也不混進這裡。
        teacher-app.js 沒載到的時候就當作沒有，這一頁照樣開得起來。 */
