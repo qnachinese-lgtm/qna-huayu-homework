@@ -9,6 +9,7 @@
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- SANSQ_V2 學生答案標籤放進題目框 -->
 <!-- WARMLIVE_V1 暖身可作答 -->
 <!-- DOCKC_V1 工具列置中 -->
 <!-- WLAYOUT_V1 生詞卡版面統一 -->
@@ -495,9 +496,14 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 /* LIVEANS_V1 學生作答 */
 .sans{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:-2px 0 4px 50px}
 .sans:not(.open){justify-content:flex-end;align-items:flex-end;height:0;margin:0 12px 0 50px;position:relative;z-index:2;transform:translateY(-40px)}
+#stage .gq[data-gq],#stage .qa[data-qa],#stage li[data-wq]{position:relative}
+#stage .hasq{padding-right:150px!important}
 .sopen{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:15px;color:var(--navy);padding:3px 4px 3px 12px;border-radius:999px;background:#fff;border:1.5px solid var(--line)}
 .sopen.on{padding:3px 12px;color:var(--muted)}
 .sopen .nb{min-width:22px;height:22px;padding:0 6px;box-sizing:border-box;border-radius:999px;background:var(--navy);color:#fff;font-size:13px;display:inline-grid;place-items:center;font-family:"Times New Roman",serif}
+#stage .sopen.inq{position:absolute;right:14px;top:50%;transform:translateY(-50%);z-index:2}
+#stage .sopen.inq.add{width:28px;height:28px;padding:0;justify-content:center;color:var(--muted);opacity:.6}
+#stage .sopen.inq.add:hover{opacity:1;color:var(--navy)}
 .sans.open .schip{font-size:max(18px,calc(22px*var(--gs,1)));padding:5px 12px}
 .sans.open .schip b{font-size:15px}
 .schip{display:inline-flex;align-items:baseline;gap:6px;background:#fff;border:2px solid var(--sky);border-radius:12px;padding:3px 10px;font-size:calc(20px*var(--gs,1));line-height:1.4;color:var(--fg)}
@@ -1858,10 +1864,13 @@ function paintAns(){
   if(ansOn && db){ const lid = hwLid(LESSON); if(lid && HW.lid !== lid && !HW.loading) hwLoad(lid); }
   const qs = [...document.querySelectorAll("#stage .gq[data-gq], #stage .qa[data-qa], #stage li[data-wq]")];
   qs.forEach((el, i) => { let box = el.nextElementSibling; if(!box || !box.classList.contains("sans")){ box = document.createElement("div"); box.className = "sans"; el.after(box); }
+    /* SANSQ_V2 「學生答案 N」放在題目框裡面右邊、垂直置中；0 人就不顯示 */
+    const pin = el.querySelector(":scope > .sopen.inq"); if(pin) pin.remove(); el.classList.remove("hasq");
     box.dataset.si = i; box.hidden = !ansOn; if(!ansOn) return; if(box.querySelector(".sform")) return;
     const list = ansFor(c.key, i);
     /* SANSQ_V1 一次只展開一題的學生答案，題目字不會被縮小 */
-    if(!(LIVE.aq && LIVE.aq.k === c.key && LIVE.aq.i === i)){ box.classList.remove("open"); box.innerHTML = `<button class="sopen" type="button" data-aq="${i}">學生答案<span class="nb">${list.length}</span></button>`; return; }
+    if(!(LIVE.aq && LIVE.aq.k === c.key && LIVE.aq.i === i)){ box.classList.remove("open"); box.innerHTML = ""; box.hidden = true;
+      { const b = document.createElement("button"); b.className = "sopen inq" + (list.length ? "" : " add"); b.type = "button"; b.dataset.aq = i; b.title = list.length ? "看學生答案" : "輸入答案"; b.innerHTML = list.length ? `學生答案<span class="nb">${list.length}</span>` : "＋"; el.appendChild(b); if(list.length) el.classList.add("hasq"); } return; }
     box.classList.add("open");
     box.innerHTML = list.map(a => `<span class="schip${a.hw ? " hw" : ""}">${a.hw ? `<i>作業</i>` : ""}${a.n ? `<b>${esc(a.n)}</b>` : ""}${esc(a.x)}<button class="x" type="button" aria-label="移除" ${a.tid != null ? `data-tdel="${i}|${a.tid}"` : `data-hid="${esc(a.id)}"`}>×</button></span>`).join("")
       + `<button class="sadd" type="button" data-sadd="${i}">＋ 輸入答案</button><button class="sopen on" type="button" data-aq="${i}">收起</button>`; }); }
