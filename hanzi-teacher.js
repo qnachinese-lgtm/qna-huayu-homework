@@ -139,12 +139,43 @@ H.hzNew=()=>{
   const d=new Date();d.setDate(d.getDate()+7);
   const def=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>🀄 指派漢字遊戲作業</h3><button class="x" data-act="closeModal">×</button></div>'
-   +'<div class="modal-body"><div class="form-grid">'
-   +'<div class="field"><label>關卡</label><input id="hz-fam-q" type="search" placeholder="先搜尋：打課本名、課名或關卡名（例如「時代華語一」「第三課」「門」）" style="width:100%;margin-bottom:6px"><select id="hz-fam">'+HZ_LIST.map(L=>'<optgroup label="'+esc(L.lv)+'">'+L.stages.map((s,i)=>'<option value="'+esc(s[0])+'">'+(i+1)+'・'+esc(s[1])+(s[2]?'（'+s[2]+' 字）':'')+'</option>').join('')+'</optgroup>').join('')+'</select></div>'
-   +'<div class="field"><label>難度</label><select id="hz-diff"><option value="easy">入門（有拼音提示）</option><option value="normal" selected>進階（只給詞）</option><option value="hard">高手（只給詞、限時）</option></select></div>'
-   +'<div class="field"><label>至少要拿幾顆星</label><select id="hz-min"><option value="1">1 顆（過關就好）</option><option value="2" selected>2 顆</option><option value="3">3 顆（不能拼錯、不能用提示）</option></select><div class="hint" style="margin-top:4px">選「課本」的課時：1 顆＝這一課的字學會三成，2 顆＝六成，3 顆＝九成（寫對也用對才算學會）。難度只影響第一步「拼」。</div></div>'
+   /* HZWORD_V1574 Quinn：「其實這邊的設計我看得不太懂欸」「設計得太亂了」。
+      兩個毛病分開修。
+      看不懂：整張表單用的都是遊戲自己的詞（關卡、星、拼），老師腦袋裡想的是「哪一課」。
+        → 最上面加一句話講清楚一輪是什麼，欄位名稱全部換成人話。
+      太亂：本來是一個兩欄的 form-grid，左右配對是隨機的
+        （「要練哪一課」配「難度」、「幾顆星」配「截止日」），
+        而且有的欄位底下有說明、有的沒有，兩欄高度對不齊，截止日就浮在半空中。
+        → 改成三段，每段一個小標題：練什麼／怎麼練／給誰・什麼時候。
+           並排的兩個欄位一定是同一類、說明都只有一行，高度才對得齊。
+      欄位 id 和存出去的值完全沒動（hzSave 照舊讀 hz-fam／hz-diff／hz-min／hz-due／hz-title）。 */
+   +'<div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:4px;line-height:1.7">一輪最多 <b>8 個字</b>，學生要走三步：<b>①拼</b>（看部件組字）→ <b>②寫</b>（默寫）→ <b>③用</b>（句子挖空）。</div>'
+
+   +'<div class="hz-sec">① 練什麼</div>'
+   +'<div class="field full"><label>要練哪一課的字</label>'
+   +'<input id="hz-fam-q" type="search" placeholder="先搜尋：打課本名、課名或關卡名（例如「時代華語一」「第三課」「門」）" style="width:100%;margin-bottom:6px">'
+   +'<select id="hz-fam">'+HZ_LIST.map(L=>'<optgroup label="'+esc(L.lv)+'">'+L.stages.map((s,i)=>'<option value="'+esc(s[0])+'">'+(i+1)+'・'+esc(s[1])+(s[2]?'（'+s[2]+' 字）':'')+'</option>').join('')+'</optgroup>').join('')+'</select></div>'
+
+   +'<div class="hz-sec">② 怎麼練</div>'
+   +'<div class="form-grid">'
+   +'<div class="field"><label>第一步「拼」的難度</label><select id="hz-diff">'
+   +'<option value="easy">入門（有拼音提示）</option>'
+   +'<option value="normal" selected>進階（只給詞）</option>'
+   +'<option value="hard">高手（只給詞、限時）</option></select>'
+   +'<div class="hint" style="margin-top:4px">只影響①拼，作業不會變長。</div></div>'
+   +'<div class="field"><label>要做到什麼程度</label><select id="hz-min">'
+   +'<option value="1">1 顆星・過關就好（約學會三成）</option>'
+   +'<option value="2" selected>2 顆星・約學會六成</option>'
+   +'<option value="3">3 顆星・約學會九成</option></select>'
+   +'<div class="hint" style="margin-top:4px">「學會」＝那個字寫對又用對。</div></div>'
+   +'</div>'
+
+   +'<div class="hz-sec">③ 給誰、什麼時候</div>'
+   +'<div class="form-grid">'
    +'<div class="field"><label>截止日</label><input id="hz-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
-   +'<div class="field full"><label>作業名稱 <span class="hint">可以不填，會自動用「關卡・難度」</span></label><input id="hz-title" placeholder="例如：這週練艮家族"></div></div>'
+   +'<div class="field"><label>作業名稱 <span class="hint">不填會自動取名</span></label><input id="hz-title" placeholder="例如：這週練艮家族"></div>'
+   +'</div>'
    +'<div class="field full"><label>指派給誰</label>'
    +'<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap"><button class="btn btn-sm" type="button" data-act="hzStuAll">✔ 全選</button><button class="btn btn-sm" type="button" data-act="hzStuNone">✕ 全部取消</button></div>'
    +'<div class="qzw-stus">'+(checks||'<span class="muted">還沒有學生</span>')+'</div></div></div>'
