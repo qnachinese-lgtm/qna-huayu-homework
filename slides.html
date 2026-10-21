@@ -10,6 +10,8 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- CLGLOSS_V1 文言文詞語解釋照段落、拆對 -->
+<!-- CLPARA_V1 文言文一段一段顯示、拿掉人名地名括號 -->
 <!-- CLIMP_V1 文言文也能匯入投影片 -->
 <!-- MENU1_V1 課次選單和老師選單不會同時打開 -->
 <!-- JCODE_V1 學生可輸入作答代碼（/join） -->
@@ -306,6 +308,15 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .wrow{display:flex;gap:24px;align-items:flex-start;margin:auto 0}
 .wimg{max-width:44%;max-height:430px;border-radius:14px;object-fit:contain;background:var(--ice)}
 .paras{display:flex;flex-direction:column;gap:12px}
+.cl-pn{font-weight:700;color:var(--navy)}
+.cl-ln{color:var(--navy);border-bottom:1.5px dotted currentColor;padding-bottom:1px}
+.paras.solo .para{padding:6px 4px}
+.paras.solo .zh{line-height:1.9}
+.paras.solo:has(.clgl){display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:22px;align-items:start}
+.clgl{background:var(--ice);border-radius:14px;padding:14px 18px;font-size:calc(var(--rfs,24px) * .72);line-height:1.65;max-height:100%;overflow:auto}
+.clglh{font-weight:700;color:var(--navy);margin-bottom:6px;letter-spacing:.08em}
+.clgi{padding:3px 0;border-bottom:1px dashed var(--line)} .clgi:last-child{border-bottom:0}
+.clgi b{color:var(--navy)} .clpy{font-family:"Times New Roman",serif;color:var(--muted);margin-left:4px}
 .para{padding:10px 14px;border-radius:12px;border:2px solid transparent;transition:opacity .2s}
 .para.on{background:var(--ice);border-color:var(--sky)}
 .para.dim{opacity:.35}
@@ -878,7 +889,7 @@ const STEP_DEFS = {start:"開始", warm:"暖身", words:"生詞", words2:"短文
 const DEFAULT_FLOW = ["start","words","text","dict","grammar","draw","review"];
 const flowOf = L => { const f = (L && Array.isArray(L.flow) && L.flow.length) ? L.flow.filter(k=>STEP_DEFS[k]) : DEFAULT_FLOW; return f[0]==="start" ? f : ["start", ...f.filter(k=>k!=="start")]; };
 let STEPS = DEFAULT_FLOW.map(k=>({key:k, name:STEP_DEFS[k]}));
-function applyFlow(){ const fl = flowOf(LESSON); STEPS = fl.map(k=>({key:k, name: k==="qa" && fl.includes("qa2") ? "對話討論" : k==="words" && fl.includes("words2") ? "對話生詞" : STEP_DEFS[k]})); step = Math.min(step, STEPS.length-1); }
+function applyFlow(){ const fl = flowOf(LESSON); STEPS = fl.map(k=>({key:k, name: k==="words" && isClL() ? "詞語解釋" : k==="read" && isClL() ? "原文" : k==="qa" && fl.includes("qa2") ? "對話討論" : k==="words" && fl.includes("words2") ? "對話生詞" : STEP_DEFS[k]})); step = Math.min(step, STEPS.length-1); }
 let gp = 0, gShow = false, gRev = {};
 /* GBLANK_V1 語法答案寫在空格線上（像聽寫），空格大小先留好，顯示答案時不會跳動 */
 function fmtQA(q, ans, show){ const BL = /＿{2,}|_{3,}/g, n = (String(q).match(BL)||[]).length; ans = String(ans||"").trim();
@@ -893,6 +904,23 @@ let ri = -1, si = 0, spLeft = 0, spId = null, ti = 0, qi = -1, qShow = false, qR
 function stopSp(){ if(spId){ clearInterval(spId); spId = null; } }
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+/* CLPARA_V1 文言文原文裡的 {人名} [地名] 記號：括號不顯示，人名粗體、地名點底線（跟學習平台一樣） */
+const CLN_RE = /[{｛]([^{}｛｝\n]{1,16})[}｝]|[\[［]([^\[\]［］\n]{1,16})[\]］]/g;
+const isClL = () => /文言/.test(String((typeof LESSON !== "undefined" && LESSON && LESSON.book) || ""));
+const clStrip = t => String(t == null ? "" : t).replace(CLN_RE, (m, a, b) => a != null ? a : b);
+const clMark = t => esc(String(t == null ? "" : t)).replace(CLN_RE, (m, a, b) => a != null ? `<span class="cl-pn">${a}</span>` : `<span class="cl-ln">${b}</span>`);
+/* CLGLOSS_V1 文言文注釋拆成一條一條（跟學習平台的拆法一樣）：「徙（xǐ）：遷移。」→ 詞、讀音、解釋 */
+function clGloss(t){ const out = [];
+  String(t||"").replace(/\r/g, "").split("\n").forEach(line => { const ch = [...line.trim()]; if(!ch.length) return; let buf = "", par = 0;
+    for(let i = 0; i < ch.length; i++){ buf += ch[i];
+      if(ch[i] === "（" || ch[i] === "(") par++; else if(ch[i] === "）" || ch[i] === ")") par = Math.max(0, par - 1);
+      else if(!par && (ch[i] === "。" || ch[i] === "；")){ const rest = ch.slice(i+1).join("").trim(); if(!rest) break;
+        const probe = rest.replace(/（[^）]*）/g, "").replace(/\([^)]*\)/g, "").replace(/^[0-9０-９]+[｜|]/, ""); if(/^[^。；！？\n]{1,24}：/.test(probe)){ out.push(buf.trim()); buf = ""; } } }
+    if(buf.trim()) out.push(buf.trim()); });
+  return out.map(x => x.replace(/^[0-9０-９]+[｜|]\s*/, "").trim()).filter(Boolean).map(x => { const m = x.match(/^([^：]{1,24})：([\s\S]*)$/);
+    if(!m) return {raw: x, term: "", py: "", body: x};
+    let head = m[1].trim(), py = ""; const pm = head.match(/[（(]([^）)]*[A-Za-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü][^）)]*)[）)]/); if(pm){ py = pm[1].trim(); head = head.replace(pm[0], "").trim(); }
+    return {raw: x, term: clStrip(head), py, body: m[2].trim().replace(/。$/, "")}; }); }
 let step = 0, wi = 0, li = -1, showPy = true, showTr = true;
 /* ORDER_V1 看圖排序；WCOVER_V1 生詞先遮住 */
 let oPerm = null, oPick = [], oCheck = false, oStory = false, wCover = false, wOpen = -1;
@@ -919,7 +947,7 @@ function go(i){
 function toggles(){
   /* PTHIDE_V1 這一步沒有拼音、翻譯就不顯示這兩個按鈕 */
   { const k = STEPS[step] && STEPS[step].key, has = r => r && (String(r[0]||"").trim() || String(r[1]||"").trim());
-    const rows = (k==="words"||k==="words2") ? (LESSON[k]||[]).map(w=>[w[1]||w[5], w[3]]) : k==="text" ? (LESSON.dialog||[]).map(d=>[d[3], d[4]]) : k==="read" ? ((LESSON.read||{}).paras||[]).map(p=>[p[1], p[2]]) : k==="grammar" ? GR(LESSON).flatMap(g=>(g.examples||[]).map(e=>[e[1], ""])) : k==="draw" ? (LESSON.cards||[]).map(c=>[c[3], c[4]]) : null;
+    const rows = (k==="words"||k==="words2") ? (LESSON[k]||[]).map(w=>[w[1]||w[5], w[3]]) : k==="text" ? (LESSON.dialog||[]).map(d=>[d[3], d[4]]) : k==="read" ? ((LESSON.read||{}).paras||[]).map(p=>[isClL() ? "" : p[1], p[2]]) : k==="grammar" ? GR(LESSON).flatMap(g=>(g.examples||[]).map(e=>[e[1], ""])) : k==="draw" ? (LESSON.cards||[]).map(c=>[c[3], c[4]]) : null;
     if(rows && !rows.some(has)) return ""; }
   return `<h3>顯示</h3><div class="chips">
     <button class="chip" aria-pressed="${showPy}" data-t="py">拼音</button>
@@ -943,19 +971,19 @@ function render(){
     if(!WGS.length){ $("#title").textContent="生詞卡"; $("#hint").textContent=""; st.innerHTML=`<div class="center"><div class="tr">這一課還沒有生詞，按右上角「老師」→「編輯／匯入」加入。</div></div>`; ct.innerHTML=""; return; }
     wi = Math.min(wi, WGS.length-1);
     const it = WGS[wi], w = it.r, rich = it.subs.length || it.exs.length > 1;
-    $("#title").textContent = k==="words2" ? "短文生詞" : flowOf(LESSON).includes("words2") ? "對話生詞" : "生詞卡";
+    $("#title").textContent = isClL() ? "詞語解釋" : k==="words2" ? "短文生詞" : flowOf(LESSON).includes("words2") ? "對話生詞" : "生詞卡";
     $("#hint").textContent = "按 ← → 換生詞";
     if(it.subs.length){ const row = (x, sub) => `<div class="wbk ${sub?'sub':''}"><div class="whead"><b class="ww">${esc(x.r[0])}</b><span class="py">${esc(x.r[1])}</span><span class="wpos">${esc(x.r[2])}</span><span class="tr">${esc(x.r[3])}</span></div>${x.exs.map(e=>`<div class="wex"><div class="zh">${brAB(e[0])}</div><div class="py">${esc(e[1])}</div></div>`).join("")}</div>`;
-      st.innerHTML = `<div class="tag"><span>生詞 ${wi+1}</span></div><div class="wbook pop">${row(it,false)}${it.subs.map(x=>row(x,true)).join("")}</div>`; }
+      st.innerHTML = `<div class="tag"><span>${isClL() ? "詞語" : "生詞"} ${wi+1}</span></div><div class="wbook pop">${row(it,false)}${it.subs.map(x=>row(x,true)).join("")}</div>`; }
     else if(wCover && wOpen !== wi){ const bl = t => esc(t).split(esc(w[0])).join(`<span class="wblank">＿＿</span>`);
-      st.innerHTML = `<div class="tag"><span>生詞 ${wi+1}</span></div>
+      st.innerHTML = `<div class="tag"><span>${isClL() ? "詞語" : "生詞"} ${wi+1}</span></div>
       <div class="center pop" style="align-items:center;justify-content:center;text-align:center;flex:1;margin:0">
         <button class="wq" type="button" data-a="wopen" style="font-size:88px" aria-label="翻開">${[...String(w[0]||"？")].map(()=>"？").join("")}</button>
         <div class="wmeta"><span class="py" style="font-size:30px;visibility:hidden">${esc(w[1])||"&nbsp;"}</span>${wPos(w[2])}</div>
         <div class="tr" style="font-size:22px;color:var(--fg)">${esc(w[3])}</div>
 </div>
       <div class="ans wexc" style="flex:none;margin-top:0;height:180px;overflow:auto;box-sizing:border-box;text-align:center;${it.exs.length ? "" : "visibility:hidden"}">${it.exs.length ? `<div class="tag" style="margin-bottom:4px">例句</div>${it.exs.map(e=>`<div style="font-size:28px">${bl(e[0])}</div>`).join("")}` : ""}</div>`; }
-    else st.innerHTML = `<div class="tag"><span>生詞 ${wi+1}</span></div>
+    else st.innerHTML = `<div class="tag"><span>${isClL() ? "詞語" : "生詞"} ${wi+1}</span></div>
       <div class="center pop" style="align-items:center;justify-content:center;text-align:center;flex:1;margin:0">
         <div class="big" style="font-size:88px;line-height:1.2">${esc(w[0])}</div>
         <div class="wmeta"><span class="py" style="font-size:30px">${esc(w[1])}</span>${wPos(w[2])}</div>
@@ -1007,13 +1035,18 @@ function render(){
   }
   if(k==="read"){
     const r = LESSON.read || {}, ps = r.paras || [];
-    { const rt = String(r.title||"").trim().replace(/^(短文|閱讀|課文)\s*[一二三四五六七八九十0-9０-９]*\s*[：:]\s*/, ""); $("#title").textContent = "短文" + (rt && !/^[（(]/.test(rt) ? "：" + rt : ""); } $("#hint").textContent = "按「下一段」一段一段帶讀";
-    st.innerHTML = ps.length ? `<div class="paras">${ps.map((x,i)=>`<div class="para ${i===ri?'on':''} ${ri>=0&&i!==ri?'dim':''}"><div class="zh">${esc(x[0])}</div><div class="py">${esc(x[1]||"")}</div><div class="tr">${esc(x[2]||"")}</div></div>`).join("")}</div>`
+    { const rt = String(r.title||"").trim().replace(/^(短文|閱讀|課文)\s*[一二三四五六七八九十0-9０-９]*\s*[：:]\s*/, ""); $("#title").textContent = (isClL() ? "原文" : "短文") + (rt && !/^[（(]/.test(rt) ? "：" + rt : ""); } $("#hint").textContent = "按「下一段」一段一段帶讀";
+    /* CLPARA_V1 長的短文（像文言文）一段一段顯示；{人名}[地名] 的括號拿掉，改成顏色和底線 */
+    const big = isClL() || ps.reduce((n,x)=>n + clStrip(x[0]).length, 0) > 320; if(big && ri === -1) ri = 0;
+    const solo = big && ri >= 0;
+    /* CLGLOSS_V1 文言文：每一段旁邊放這一段的詞語解釋 */
+    const isCl = isClL(), clGlBox = g => { const it = clGloss(String(g||"").replace(/⏎/g, "\n")); return it.length ? `<div class="clgl"><div class="clglh">詞語解釋</div>${it.map(x => x.term ? `<div class="clgi"><b>${esc(x.term)}</b>${x.py ? `<span class="clpy">${esc(x.py)}</span>` : ""}：${esc(x.body)}</div>` : `<div class="clgi">${esc(x.raw)}</div>`).join("")}</div>` : ""; };
+    st.innerHTML = ps.length ? `<div class="paras${solo ? " solo" : ""}">${ps.map((x,i)=> solo && i !== ri ? "" : `<div class="para ${i===ri && !solo?'on':''} ${ri>=0&&i!==ri?'dim':''}"><div class="zh">${clMark(x[0])}</div>${isCl ? "" : `<div class="py">${esc(x[1]||"")}</div>`}<div class="tr">${esc(x[2]||"")}</div></div>${isCl && solo ? clGlBox(x[1]) : ""}`).join("")}</div>`
       : `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有短文，按右上角「老師」→「編輯／匯入」加入。</div></div>`;
     ct.innerHTML = `<button class="btn ghost" data-a="rall">全部顯示</button>${toggles()}
       <div class="meta">${ri<0?"全部":"第 "+(ri+1)+" 段"}・共 ${ps.length} 段</div>`;
     /* READFIT_V1 短文整篇放進框裡，不用捲 */
-    { const box = st.querySelector(".paras"); if(box){ st.style.overflow = "hidden"; let fs = 24;
+    { const box = st.querySelector(".paras"); if(box){ st.style.overflow = "hidden"; let fs = solo ? 32 : 24;
       const fitIt = () => { box.style.setProperty("--rfs", fs + "px"); };
       fitIt(); while(fs > 15 && st.scrollHeight > st.clientHeight + 1){ fs -= 1; fitIt(); }
       st.style.overflow = ""; } }
@@ -1203,7 +1236,7 @@ document.addEventListener("click", e=>{
   if(a==="arestart" && AUD){ AUD.currentTime = 0; AUD.play().catch(()=>{}); }
   if(a==="dshow"){ dShow = !dShow; dRev = {}; render(); }
   if(a==="rnext"){ const n = ((LESSON.read||{}).paras||[]).length; if(n){ ri = (ri+1) % n; render(); } }
-  if(a==="rall"){ ri = -1; render(); }
+  if(a==="rall"){ ri = -2; render(); }
   if(a==="qnext"){ const n = (LESSON[STEPS[step].key==="qa2"?"qa2":"qa"]||[]).length; if(n){ qi = (qi+1) % n; render(); } }
   if(a==="qall"){ qi = -1; render(); }
   if(a==="qshow"){ qShow = !qShow; qRev = {}; render(); }
@@ -1730,12 +1763,12 @@ function srcToDoc(l, idx){
   const T = x => String(x||"").trim();
   /* CLIMP_V1 文言文：原文 → 短文頁；注釋 → 生詞卡；參考翻譯 → 原文下面的譯文；課後問答 → 問題與討論 */
   if(l.kind === "classical"){ const ls = (Array.isArray(l.cl_lines) && l.cl_lines.length ? l.cl_lines : String(l.cl_text||"").split("\n").map(x=>({orig: x}))).filter(x => x && T(x.orig));
-    const ws = []; ls.forEach(x => String(x.note||"").split(/\n|[；;]/).map(y=>y.trim()).filter(Boolean).forEach(y => { const v = parseVoc(y)[0]; if(v && v.front) ws.push([v.front, v.py, v.pos ? "(" + v.pos + ")" : "", v.back, "", "", ""].map(clean).join("｜")); }));
+    const ws = []; ls.forEach((x, pi) => clGloss(x.note).forEach(g => { if(g.term) ws.push([g.term, g.py, "第" + (pi+1) + "段", clStrip(g.body), "", "", ""].map(clean).join("｜")); }));
     const refs = ls.map(x => T(x.ref)).filter(Boolean), title = T(l.title) || "未命名", nm = title.match(/第\s*([0-9０-９一二三四五六七八九十百兩]+)\s*課/);
-    const paras = [ls.map(x => clean(x.orig)).join("")].concat(refs.length ? ["【譯文】" + refs.map(clean).join("")] : []);
+    const paras = ls.map(x => [clean(x.orig), clGloss(x.note).map(g => clean(g.raw)).join("\n").replace(/｜/g, " "), clStrip(clean(x.ref||""))].map(v => String(v).replace(/\n/g, "⏎")).join("｜"));
     return { num: nm ? zhNum(nm[1]) : idx + 1, name: title, pinyin: "", textTitle: "", goals: "", words: ws.join("\n"), words2: "",
       dialog: "", dict: "", grammars: [], cast: {A:"",B:"",C:"",D:""}, readTitle: title, readParas: paras.join("\n"), audio: null, qaSplit: false, qa2: "",
-      qa: (l.cl_qs||[]).filter(q => q && T(q.q)).map(q => [clean(q.q), clean(q.ans||"")].join("｜")).join("\n"),
+      qa: (l.cl_qs||[]).filter(q => q && T(q.q)).map(q => [clStrip(clean(q.q)), clStrip(clean(q.ans||""))].join("｜")).join("\n"),
       book: T(l.textbook) || "文言文", flow: null, cards: "", review: "", homework: "", textImgs: [], src: l.id, updatedAt: Date.now() }; }
   const ds = Array.isArray(l.dialogues) && l.dialogues.length ? l.dialogues : [{content: l.content||"", vocabulary: l.vocabulary||""}];
   const words = [], words2 = [], dialog = [], paras = [], cast = {A:"",B:"",C:"",D:""}; let textTitle = "", readTitle = "";
