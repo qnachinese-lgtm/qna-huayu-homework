@@ -240,7 +240,7 @@ select{appearance:none;-webkit-appearance:none;padding-right:40px;cursor:pointer
       <span id="t-draft">Đã giữ lại nội dung bạn điền dở lần trước.</span>
       <button type="button" id="draft-clear">Xoá, điền lại</button>
     </div>
-    <form id="form" autocomplete="off">
+    <form id="form" autocomplete="off" novalidate><!-- JOINSEND2_V1587 不用瀏覽器內建的檢查：欄位在別的步驟被藏起來時，瀏覽器擋下送出卻沒辦法顯示原因，按了等於沒反應 -->
       <div class="hp"><label>Company<input type="text" id="company" tabindex="-1"></label></div>
 
       <div class="sec">
@@ -368,7 +368,7 @@ var T={
    draft:'Đã giữ lại nội dung bạn điền dở lần trước.',draftClr:'Xoá, điền lại',
    dup:'Bạn đã gửi đăng ký ngày {d} rồi. Vẫn muốn gửi nữa thì bấm “Gửi” lần nữa nhé.',
    socT:'Kết bạn với mình luôn nhé',socFb:'Facebook',socZa:'Zalo',
-   pick:'— Chọn —',opt:'(không bắt buộc)',needAll:'Bạn điền hết các ô có dấu * giúp mình nhé.',needKind:'Bạn chọn ít nhất một dịch vụ nhé.',
+   pick:'— Chọn —',opt:'(không bắt buộc)',needAll:'Bạn điền hết các ô có dấu * giúp mình nhé.',badEmail:'Email chưa đúng định dạng, ví dụ phải có @ và dấu chấm.',badBirth:'Năm sinh ghi 4 số, ví dụ 1998.',needKind:'Bạn chọn ít nhất một dịch vụ nhé.',
    go:'Gửi',sending:'Đang gửi…',need:'Bạn điền tên và ít nhất một cách liên hệ nhé.',
    err:'Gửi không được, bạn thử lại hoặc nhắn trực tiếp cho mình nhé.',
    okT:'Mình nhận được rồi!',okB:'Mình sẽ liên hệ lại với bạn sớm nhất có thể.',
@@ -404,7 +404,7 @@ var T={
    draft:'幫你留著上次填到一半的內容。',draftClr:'清空重填',
    dup:'你在 {d} 已經報名過了。還是要再送一次的話，再按一次「送出」。',
    socT:'順便加老師好友',socFb:'Facebook',socZa:'Zalo',
-   pick:'— 請選擇 —',opt:'（選填）',needAll:'請把有 ＊ 的欄位都填完再送出。',needKind:'請至少選一項服務。',
+   pick:'— 請選擇 —',opt:'（選填）',needAll:'請把有 ＊ 的欄位都填完再送出。',badEmail:'Email 的格式不對，要有 @ 和「.」。',badBirth:'出生年份請填四位數字。',needKind:'請至少選一項服務。',
    go:'送出',sending:'送出中…',need:'請填名字，還有至少一種聯絡方式。',
    err:'送不出去，請再試一次，或直接私訊老師。',
    okT:'收到了！',okB:'老師會盡快跟你聯絡。',
@@ -440,7 +440,7 @@ var T={
    draft:'We kept what you filled in last time.',draftClr:'Clear and start over',
    dup:'You already sent a form on {d}. Press “Send” again if you really want to send another.',
    socT:'Add the teacher while you are here',socFb:'Facebook',socZa:'Zalo',
-   pick:'— Select —',opt:'(optional)',needAll:'Please fill in every field marked *.',needKind:'Please choose at least one service.',
+   pick:'— Select —',opt:'(optional)',needAll:'Please fill in every field marked *.',badEmail:'That email address doesn’t look right — it needs an @ and a dot.',badBirth:'Please enter your birth year as 4 digits.',needKind:'Please choose at least one service.',
    go:'Send',sending:'Sending…',need:'Please fill in your name and at least one way to reach you.',
    err:'Could not send. Please try again or message the teacher directly.',
    okT:'Got it!',okB:'The teacher will contact you soon.',
@@ -718,6 +718,19 @@ function markNeed(ids){
   if(!first&&ids.indexOf('f-slot')>=0&&sl.value.trim()&&!hhmmNorm(sl.value)){sl.classList.add('bad');first=sl;}
   return first;
 }
+/* JOINSEND2_V1587 格式檢查（Email、出生年份）。
+   本來 Email 是靠瀏覽器內建的 type="email" 檢查，可是 Email 在第一步，送出鈕在第三步，
+   格式錯的時候瀏覽器把送出擋下來，卻沒辦法把提示顯示在一個被藏起來的欄位上——
+   結果就是按「送出」完全沒反應，也沒有任何訊息。改成自己檢查、自己講清楚。 */
+function fmtBad(){
+  var t=T[L],em=$('f-email'),by=$('f-birth');
+  var ev=String(em&&em.value||'').trim();
+  if(ev&&!/^[^\s@]+@[^\s@]+\.[^\s@.]+$/.test(ev)){em.classList.add('bad');return {el:em,msg:t.badEmail};}
+  var bv=String(by&&by.value||'').trim();
+  if(bv){var yn=Number(bv);
+    if(!/^\d{4}$/.test(bv)||yn<1930||yn>(new Date().getFullYear())){by.classList.add('bad');return {el:by,msg:t.badBirth};}}
+  return null;
+}
 function stepGo(n){
   var t=T[L],msg=$('msg');
   if(n>STEP){
@@ -725,8 +738,9 @@ function stepGo(n){
       var want=[];document.querySelectorAll('.pick input').forEach(function(c){if(c.checked)want.push(c.value);});
       if(!want.length){msg.className='msg err';msg.textContent=t.needKind;return;}
     }
-    var bad=markNeed(stepNeed());
-    if(bad){msg.className='msg err';msg.textContent=t.needAll;
+    var bad=markNeed(stepNeed()),why=t.needAll;
+    if(!bad&&STEP===1){var fb2=fmtBad();if(fb2){bad=fb2.el;why=fb2.msg;}}
+    if(bad){msg.className='msg err';msg.textContent=why;
       bad.scrollIntoView({behavior:'smooth',block:'center'});
       setTimeout(function(){try{bad.focus({preventScroll:true});}catch(e){}},320);return;}
   }
@@ -812,11 +826,8 @@ $('form').addEventListener('submit',async function(ev){
       e.classList.toggle('bad',must&&empty);
       if(must&&empty&&!first)first=e;});
   /* BIRTHY_V1279 年份只收四位數，而且要落在合理範圍 */
-  var by=$('f-birth');
-  if(!first&&by&&String(by.value||'').trim()){
-    var yn=Number(String(by.value).trim());
-    if(!/^\d{4}$/.test(String(by.value).trim())||yn<1930||yn>(new Date().getFullYear())){
-      by.classList.add('bad');first=by;}}
+  var why=t.needAll;
+  if(!first){var fb3=fmtBad();if(fb3){first=fb3.el;why=fb3.msg;}}
   var sl=$('f-slot');
   if(!first&&sl&&sl.value.trim()&&!hhmmNorm(sl.value)){sl.classList.add('bad');first=sl;}/* HHMM_V1133 */
   if(first){
@@ -824,7 +835,7 @@ $('form').addEventListener('submit',async function(ev){
        不然畫面上看不到哪裡沒填，只會一直卡在這裡。 */
     try{var S2=secs(),at=-1;S2.forEach(function(sec,i){if(sec.contains(first))at=i+1;});
       if(at>=1&&at!==STEP){STEP=at;stepDraw();}}catch(e){}
-    msg.className='msg err';msg.textContent=t.needAll;
+    msg.className='msg err';msg.textContent=why;
     first.scrollIntoView({behavior:'smooth',block:'center'});
     setTimeout(function(){try{first.focus({preventScroll:true});}catch(e){}},320);return;}
   var lvI=$('f-level').value,glI=$('f-goal').value;
