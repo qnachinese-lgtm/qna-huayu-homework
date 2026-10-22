@@ -956,6 +956,23 @@ function clGroups(ps){ const G = []; let cur = null;
 let step = 0, wi = 0, li = -1, showPy = true, showTr = true;
 /* ORDER_V1 看圖排序；WCOVER_V1 生詞先遮住 */
 let oPerm = null, oPick = [], oCheck = false, oStory = false, wCover = false, wOpen = -1;
+/* OTAP_V1 看圖排序：底下那一排按鈕抽成一個函式，重畫整頁和只改號碼共用 */
+function oCtrlHtml(n){
+  return `<button class="btn" data-a="ocheck">${oCheck ? "隱藏答案" : "對答案"}</button><button class="btn ghost" data-a="oclear">清除</button><button class="btn ghost" data-a="oshuf">重新打亂</button>${oCheck ? (()=>{ const c = oPick.filter((v,p)=>v===p).length; return c===n ? `<span class="oresult">全部正確！</span>` : `<span class="oresult bad">對了 ${c} / ${n}</span>`; })() : `<span class="meta">已排 ${oPick.length} / ${n}</span>`}<span class="gap"></span><button class="btn ghost" data-a="ostory">看圖說故事</button>`;
+}
+/* OTAP_V1 老師端點圖片只改號碼，不重畫整頁。
+   本來每點一張就整區重畫：六張圖全部重新建立、整區再淡入一次（.pop 動畫從 40% 透明開始），
+   所以每點一下整片圖就閃一下；圖片大的時候還要重新解碼，閃得更明顯。
+   學生手機版（JOFAST_V1）早就是這樣做，老師端跟著改。 */
+function oTap(){
+  const st = $("#stage"), g = st && st.querySelector(".ogrid"), n = ((LESSON.orderImgs||[]).filter(x=>x && x.url)).length;
+  if(!g || oStory || !n) return render();
+  g.classList.remove("pop");
+  g.querySelectorAll(".ocard[data-oi]").forEach(c => { const i = +c.dataset.oi, p = oPick.indexOf(i);
+    c.classList.remove("ok", "bad"); c.querySelectorAll(".omark,.ofix").forEach(x => x.remove());
+    const bd = c.querySelector(".obadge"); if(bd){ bd.className = "obadge" + (p >= 0 ? " on" : ""); bd.textContent = p >= 0 ? String(p+1) : ""; } });
+  const ct = $("#ctrl"); if(ct) ct.innerHTML = oCtrlHtml(n);
+}
 let deck = [], drawn = 0, cur = null, showAns = false, filter = "全部";
 let timerId = null, left = 0;
 try { step = Math.min(STEPS.length-1, +localStorage.getItem("slides-step") || 0) } catch(e) {}
@@ -1037,7 +1054,7 @@ function render(){
       const badge = oStory ? `<span class="obadge on">${i+1}</span>` : p >= 0 ? `<span class="obadge on ${oCheck ? (ok ? "ok" : "bad") : ""}">${p+1}</span>` : `<span class="obadge"></span>`;
       return `<button class="ocard ${!oStory && oCheck && p>=0 ? (ok ? "ok" : "bad") : ""}" type="button" ${oStory ? "disabled" : `data-oi="${i}"`}>${badge}<img src="${esc(m.url)}" alt="" style="height:${ih}px">${!oStory && oCheck ? `<span class="omark ${ok?"ok":"bad"}">${ok?"✓":"✗"}</span>` : ""}${!oStory && oCheck && !ok ? `<span class="ofix">正確是第 ${i+1} 張</span>` : ""}${oStory && m.cap ? `<span class="ocap">${esc(m.cap)}</span>` : ""}</button>`; }).join("")}</div>`;
     ct.innerHTML = oStory ? `<button class="btn ghost" data-a="ostory">回到排序</button>`
-      : `<button class="btn" data-a="ocheck">${oCheck ? "隱藏答案" : "對答案"}</button><button class="btn ghost" data-a="oclear">清除</button><button class="btn ghost" data-a="oshuf">重新打亂</button>${oCheck ? (()=>{ const c = oPick.filter((v,p)=>v===p).length; return c===n ? `<span class="oresult">全部正確！</span>` : `<span class="oresult bad">對了 ${c} / ${n}</span>`; })() : `<span class="meta">已排 ${oPick.length} / ${n}</span>`}<span class="gap"></span><button class="btn ghost" data-a="ostory">看圖說故事</button>`;
+      : oCtrlHtml(n);
   }
   if(k==="text"){
     $("#title").textContent = "對話";
@@ -1235,7 +1252,7 @@ document.addEventListener("click", e=>{
   const b = e.target.closest("button"); if(!b) return;
   if(b.dataset.i) return go(+b.dataset.i);
   if(b.dataset.w){ wi = +b.dataset.w; return render(); }
-  if(b.dataset.oi !== undefined && $("#modal").hidden){ const i = +b.dataset.oi, p = oPick.indexOf(i); if(p >= 0) oPick.splice(p, 1); else oPick.push(i); oCheck = false; return render(); }
+  if(b.dataset.oi !== undefined && $("#modal").hidden){ const i = +b.dataset.oi, p = oPick.indexOf(i); if(p >= 0) oPick.splice(p, 1); else oPick.push(i); oCheck = false; return oTap(); }
   if(b.dataset.qa !== undefined && $("#modal").hidden){ const i = +b.dataset.qa; qi = i; qRev[i] = !qRev[i]; return render(); }
   if(b.dataset.dw !== undefined){ const w = b.dataset.dw, ds = DICT(LESSON), dW = dWords(LESSON), sel = dPicked(LESSON, ds, dW); sel.has(w) ? sel.delete(w) : sel.add(w); dSave(LESSON, sel); return render(); }
   if(b.dataset.db !== undefined){ const id = +b.dataset.db; dRev[id] = !dRev[id]; return render(); }
