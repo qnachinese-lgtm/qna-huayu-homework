@@ -241,7 +241,7 @@ select{appearance:none;-webkit-appearance:none;padding-right:40px;cursor:pointer
       <button type="button" id="draft-clear">Xoá, điền lại</button>
     </div>
     <form id="form" autocomplete="off" novalidate><!-- JOINSEND2_V1587 不用瀏覽器內建的檢查：欄位在別的步驟被藏起來時，瀏覽器擋下送出卻沒辦法顯示原因，按了等於沒反應 -->
-      <div class="hp"><label>Company<input type="text" id="company" tabindex="-1"></label></div>
+      <div class="hp" aria-hidden="true"><input type="text" id="hpx-q" name="hpx_q" tabindex="-1" autocomplete="off" value=""></div><!-- JOINSEND3_V1588 擋機器人的隱藏欄位本來叫 company、標籤寫 Company，手機瀏覽器「自動填入」會把使用者的公司名稱填進去，送出就被當成機器人、一聲不響地擋掉。改成瀏覽器認不出來的名字 -->
 
       <div class="sec">
         <div class="sec-h"><span class="no">1</span><span class="tx" id="t-s1">THÔNG TIN CỦA BẠN</span></div>
@@ -800,10 +800,22 @@ function socHtml(){
     +(b?'<a class="za" href="'+b+'" target="_blank" rel="noopener">💬 '+t.socZa+'</a>':'')+'</div>';
 }
 
-$('form').addEventListener('submit',async function(ev){
+var JOIN_T0=Date.now();
+/* JOINSEND3_V1588 送出流程裡任何一步出錯，都要在按鈕下面講出來，不能再「按了沒反應」 */
+$('form').addEventListener('submit',function(ev){
   ev.preventDefault();
+  var go=$('go'),msg=$('msg');
+  joinSubmit(ev).catch(function(e){
+    try{var t=T[L];go.disabled=false;go.textContent=t.go;msg.className='msg err';
+      msg.textContent=t.err+'（'+String((e&&(e.code||e.message))||e).slice(0,80)+'）';}catch(_){}
+  });
+});
+async function joinSubmit(ev){
   var t=T[L],msg=$('msg'),go=$('go');
-  if($('company').value)return;               /* 擋機器人 */
+  /* 擋機器人：隱藏欄位有值「而且」從打開網頁到送出不到 4 秒——真人填三個步驟不可能這麼快。
+     只看隱藏欄位的話，萬一瀏覽器自動填入又填了它，真人也會被擋。 */
+  var hp=$('hpx-q');
+  if(hp&&hp.value&&(Date.now()-JOIN_T0)<4000){msg.className='msg err';msg.textContent=t.err+'（hp）';return;}
   var v=function(id){return ($(id).value||'').trim();};
   var name=v('f-name'),email=v('f-email'),phone=v('f-phone'),fb=v('f-fb');
   var want=[];document.querySelectorAll('.pick input').forEach(function(c){if(c.checked)want.push(c.value);});
@@ -886,13 +898,16 @@ $('form').addEventListener('submit',async function(ev){
     $('card').innerHTML='<div class="done"><div class="big">🎉</div><h2>'+t.okT+'</h2><p>'+t.okB+'</p>'
       +socHtml()+'</div>';
     window.scrollTo(0,0);
-  }catch(e){go.disabled=false;go.textContent=t.go;msg.className='msg err';msg.textContent=t.err;}
-});
+  }catch(e){go.disabled=false;go.textContent=t.go;msg.className='msg err';
+    /* JOINSEND3_V1588 把錯誤代碼帶出來，截圖給老師看就知道是哪一種問題 */
+    msg.textContent=t.err+'（'+String((e&&(e.code||e.message))||e).slice(0,80)+'）';}
+}
 
 /* DRAFT_V1135 放在最後面才叫：上面的 var（DKEY 之類）都指定好了，
    而且 apply() 已經把下拉選項建好，暫存的選項才貼得回去。 */
 (function(){try{if(draftLoad())$('draft-bar').classList.remove('hide');}catch(e){}
-  try{STEP=1;stepDraw();}catch(e){}})();   /* STEPFIX_V1139 全部定義好之後再畫一次 */
+  try{STEP=1;stepDraw();}catch(e){}
+  try{fileDraw();}catch(e){}/* JOINSEND3_V1588 「＋新增檔案」那顆一開始照網頁語言顯示，不要固定是越南文 */})();   /* STEPFIX_V1139 全部定義好之後再畫一次 */
 </script>
 <script>
 /* HITS_V1153 官網瀏覽次數。只記「哪一天、哪一頁、從哪個網站來的、什麼語言」，
