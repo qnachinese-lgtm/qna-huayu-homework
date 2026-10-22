@@ -10,6 +10,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
 <!-- CLFIT_V1 文言文詞語解釋多時自己捲動 -->
 <!-- SCHIP_V2 學生答案名字不再斷成兩行 -->
 <!-- PENCUR_V1 畫筆游標改成筆的圖示 -->
@@ -2306,7 +2307,7 @@ function clsInit(){ const r = $("#clsRow"), c = $("#clsBtn"); if(r) r.hidden = f
     return m ? `<div class="dl"><b>${esc(m[1])}</b><span>${body}</span></div>` : `<div class="dl"><span>${body}</span></div>`; }).join("")}</div>`;
   /* LORDER_V1 看圖排序：照順序點圖片 */
   const jOrder = d => { const pk = String(d.pk || "").split(",").filter(x => x !== "").map(Number);
-    return `<div class="jord">${(cur.imgs||[]).map((u, k) => { const p = pk.indexOf(k); return `<button type="button" class="jo${p >= 0 ? " on" : ""}" data-ok="${k}"><img src="${esc(u)}" alt=""><span class="jb">${p >= 0 ? p + 1 : ""}</span></button>`; }).join("")}</div>
+    return `<div class="jord">${(cur.imgs||[]).map((u, k) => { const p = pk.indexOf(k); return `<button type="button" class="jo${p >= 0 ? " on" : ""}" data-ok="${k}"><img src="${esc(u)}" alt="" decoding="async"><span class="jb">${p >= 0 ? p + 1 : ""}</span></button>`; }).join("")}</div>
       <div class="jometa">已排 ${pk.length} / ${(cur.imgs||[]).length}<button type="button" data-j="oclr">重排</button></div>`; };
   const jVal = (f, i) => { const xs = [...f.querySelectorAll(`[data-i="${i}"]`)]; if(xs.length === 1 && xs[0].dataset.b !== "0") return xs[0].value.trim(); const vs = xs.map(x => x.value.trim()); return vs.some(Boolean) ? vs.join("／") : ""; };
   function draw(msg, cls){ const head = `<header class="jh"><span class="logo">Q</span><b>課堂作答</b>${me ? `<span class="jwho">${esc(me.name)}<button type="button" data-j="out">登出</button></span>` : ""}</header>`;
@@ -2339,7 +2340,11 @@ function clsInit(){ const r = $("#clsRow"), c = $("#clsBtn"); if(r) r.hidden = f
     const o = e.target.closest("[data-ok]"), clr = e.target.closest("[data-j='oclr']"); if(!(o || clr) || !cur) return;
     const d = draft(cur.key); let pk = String(d.pk || "").split(",").filter(x => x !== "").map(Number);
     if(clr) pk = []; else { const k = +o.dataset.ok, p = pk.indexOf(k); if(p >= 0) pk.splice(p, 1); else pk.push(k); }
-    d.pk = pk.join(","); try { localStorage.setItem(dk(cur.key), JSON.stringify(d)); } catch(err){} draw(); });
+    d.pk = pk.join(","); try { localStorage.setItem(dk(cur.key), JSON.stringify(d)); } catch(err){}
+    /* JOFAST_V1 點圖片只改號碼，不重畫整頁（重畫會把圖片全部重新載入，手機很卡） */
+    const box = root.querySelector(".jord"); if(!box) return draw();
+    box.querySelectorAll("[data-ok]").forEach(b => { const p = pk.indexOf(+b.dataset.ok); b.classList.toggle("on", p >= 0); const jb = b.querySelector(".jb"); if(jb) jb.textContent = p >= 0 ? p + 1 : ""; });
+    const mt = root.querySelector(".jometa"); if(mt && mt.firstChild) mt.firstChild.textContent = `已排 ${pk.length} / ${(cur.imgs||[]).length}`; });
   root.addEventListener("submit", async e => { e.preventDefault(); const f = e.target;
     if(f.dataset.j === "send" && cur && me && cur.kind === "order"){ const pk = String(draft(cur.key).pk || "").split(",").filter(x => x !== "").map(Number), n = (cur.imgs||[]).length;
       if(pk.length < n){ $("#jmsg").textContent = "請把每一張圖都排好。"; $("#jmsg").className = "note err"; return; }
