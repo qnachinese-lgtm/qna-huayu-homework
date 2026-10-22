@@ -10,6 +10,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
 <!-- CLFIT_V1 文言文詞語解釋多時自己捲動 -->
 <!-- SCHIP_V2 學生答案名字不再斷成兩行 -->
@@ -543,6 +544,14 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .schip.hw i{font-style:normal;font-size:12px;color:#fff;background:var(--muted);border-radius:6px;padding:0 5px}
 .schip .x{all:unset;cursor:pointer;color:var(--muted);font-size:13px;padding:0 2px}
 .schip .x:hover{color:var(--err)}
+/* LOTHUMB_V1 看圖排序學生答案直接用小圖顯示 */
+.lothumbs{display:flex;flex-wrap:nowrap;gap:6px;align-items:center}
+.lothumbs figure{margin:0;width:78px;border:3px solid var(--navy);border-radius:10px;overflow:hidden;background:#fff}
+.lothumbs figure.bad{border-color:var(--err)}
+.lothumbs img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.lothumbs figcaption{font-size:12px;text-align:center;padding:2px 0;color:var(--navy);white-space:nowrap}
+.lothumbs figure.bad figcaption{color:var(--err)}
+.lothumbs .loscore{margin-left:6px;font-size:18px;color:var(--navy)}
 /* SCHIP_V2 名字和「作業」標籤不換行，答案自己換行，對齊第一行 */
 .schip{max-width:100%;box-sizing:border-box}
 .schip i,.schip b,.schip .x{white-space:nowrap;flex:none}
@@ -567,6 +576,8 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .livebox[hidden]{display:none}
 .livecard{position:relative;background:#fff;border-radius:24px;padding:28px 32px 26px;width:min(600px,92vw);max-height:90vh;overflow:auto;display:flex;flex-direction:column;gap:18px;color:var(--fg);font-family:var(--zh);box-shadow:0 18px 50px rgba(20,50,100,.25)}
 .livecard.wide{width:min(760px,94vw)}
+.livecard.wide.lo{width:min(1180px,96vw)}
+.livecard.lo td:last-child{min-width:220px}
 .livecard .lx{all:unset;position:absolute;top:16px;right:18px;cursor:pointer;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:22px;color:var(--muted)}
 .livecard .lx:hover{background:var(--ice);color:var(--navy)}
 .livecard .lhead{display:flex;align-items:center;gap:14px}
@@ -1997,7 +2008,7 @@ function liveUI(){ let box = $("#liveBox"); if(box) return box;
   document.body.appendChild(box); return box; }
 const liveLink = () => location.origin + location.pathname + "?join=" + LIVE.code;
 const LICO = `<svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>`;
-function liveOpen(mode){ const box = liveUI(); box.hidden = false; box.dataset.dict = mode === "dict" ? "1" : mode === "order" ? "order" : "";
+function liveOpen(mode){ const box = liveUI(); box.hidden = false; { const lc = box.querySelector(".livecard"); if(lc) lc.classList.remove("lo"); } box.dataset.dict = mode === "dict" ? "1" : mode === "order" ? "order" : "";
   if(mode === "dict") return liveDictTable();
   if(mode === "order") return liveOrderTable();
   const nS = new Set(LIVE.ans.map(d => d.name)).size, card = box.querySelector(".livecard"), on = !!(db && LIVE.code && LIVE.open);
@@ -2011,13 +2022,13 @@ function liveOpen(mode){ const box = liveUI(); box.hidden = false; box.dataset.d
   $("#liveIn").onclick = liveAct;
   if(!on && db && !LIVE.groups) liveGroups().then(() => { if(!LIVE.code && !$("#liveBox").hidden && $("#liveCls")) liveOpen(); });
   if(on) liveQr(); }
-function liveOrderTable(){ const base = (LESSON.id || "x") + ":", n = (LESSON.orderImgs||[]).filter(x => x && x.url).length;
+function liveOrderTable(){ const base = (LESSON.id || "x") + ":", OI = (LESSON.orderImgs||[]).filter(x => x && x.url), n = OI.length;
   const byN = {}; LIVE.ans.forEach(d => { if(d.q === base + "order" || d.q === base + "story") (byN[d.name] = byN[d.name] || {})[d.q.endsWith("story") ? "s" : "o"] = (d.a||{})[0] || ""; });
   const names = Object.keys(byN).sort((a,b) => a.localeCompare(b, "zh-Hant"));
   const row = nm => { const o = byN[nm].o, ps = o ? String(o).split(",").map(Number) : [], ok = ps.filter((v,p) => v === p).length;
-    return `<tr><td>${esc(nm)}</td><td>${ps.length ? ps.map((v,p) => `<span class="${v===p?"ok":"bad"}" style="display:inline-block;min-width:1.6em;text-align:center">${v+1}</span>`).join("") + `<span style="margin-left:8px">${ok}/${n}</span>` : "—"}</td><td style="text-align:left;white-space:normal">${esc(byN[nm].s || "—")}</td></tr>`; };
-  const card = $("#liveBox").querySelector(".livecard"); card.classList.add("wide");
-  $("#liveIn").innerHTML = `<button class="lx" type="button" data-lx="close" aria-label="關閉">×</button><div class="lhead"><span class="lico">${LICO}</span><div><h2>看圖排序・學生答案</h2><div class="sub">數字是學生排的第幾張；深藍是對的，紅色是錯的</div></div></div>`
+    return `<tr><td style="white-space:nowrap">${esc(nm)}</td><td>${ps.length ? `<div class="lothumbs">${ps.map((v,p) => `<figure class="${v===p?"ok":"bad"}"><img src="${esc((OI[v]||{}).url||"")}" alt=""><figcaption>${v===p ? "✓ 對" : "應是第 " + (v+1) + " 張"}</figcaption></figure>`).join("")}<b class="loscore">${ok}/${n}</b></div>` : "—"}</td><td style="text-align:left;white-space:normal">${esc(byN[nm].s || "—")}</td></tr>`; };
+  const card = $("#liveBox").querySelector(".livecard"); card.classList.add("wide", "lo");
+  $("#liveIn").innerHTML = `<button class="lx" type="button" data-lx="close" aria-label="關閉">×</button><div class="lhead"><span class="lico">${LICO}</span><div><h2>看圖排序・學生答案</h2><div class="sub">圖片照學生排的順序由左到右；藍框是放對了，紅框是放錯，下面寫它應該是第幾張</div></div></div>`
     + (names.length ? `<div style="overflow:auto"><table><thead><tr><th>名字</th><th>排序</th><th>看圖說故事</th></tr></thead><tbody>${names.map(row).join("")}</tbody></table></div>` : `<div class="msg">還沒有學生送出答案。</div>`)
     + `<div class="lfoot"><button class="lbtn" data-lx="close">關閉</button></div>`;
   $("#liveIn").onclick = liveAct; }
