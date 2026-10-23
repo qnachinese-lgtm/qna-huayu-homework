@@ -1389,9 +1389,12 @@ const fmtSched=(sch)=>{const L=S.lang||'zh';const W=_WDL[L]||_WDL.zh;
 /* OPENPLAN_V1594 老師在「開課時間表」排了開放日的課：透過班級拿到的，日期還沒到就先不顯示，到了那天自動出現。
    單獨指派給我的（assigned_ids）不看日期。 */
 const _opToday=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
-const assignedToMe=(x)=>{if(!x||!S.me)return false;if((x.assigned_ids||[]).includes(S.me.id))return true;const ag=x.assigned_groups||[];
-  if(!ag.length)return false;const od=x.open_dates||{},t=_opToday();
-  return myGroups().some(g=>ag.includes(g)&&!(od[g]&&String(od[g])>t));};
+/* LESROWC_V1596 一課也可以有自己的開放日（open_date，不分班），一個一個指派的學生也照這個日期。
+   班級自己排的日期（open_dates[班]）比這個優先。 */
+const assignedToMe=(x)=>{if(!x||!S.me)return false;const t=_opToday(),d0=String(x.open_date||'');
+  if((x.assigned_ids||[]).includes(S.me.id)&&!(d0&&d0>t))return true;const ag=x.assigned_groups||[];
+  if(!ag.length)return false;const od=x.open_dates||{};
+  return myGroups().some(g=>{if(!ag.includes(g))return false;const d=String(od[g]||d0);return !(d&&d>t);});};
 /* ANNFIX_V1457 公告讀不到的兩個原因，查後台的程式才確定：
    （一）後台只有一個地方會發公告（H.saveAnnounce），它存的是 {kind:'announcement', text:...}，
         完全沒有 title / body，而且畫面上寫明「所有學生登入首頁都會看到」——

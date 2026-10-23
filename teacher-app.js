@@ -6204,13 +6204,23 @@ function clMenu(l){
 function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
     const qn=questionsOf(l.id).length, an=assignedCount(l), di=dueInfo(l.due_date);
     const open=S.openCards&&S.openCards.has(l.id);const built=l.build==='done';
-    return `<div class="card lesson-card${open?' open':''}">
-      <div class="row-between lesson-head" data-act="toggleCard" data-id="${l.id}"><div style="display:flex;gap:14px;align-items:center;min-width:0;flex:1">
+    /* LESROWC_V1596 Quinn 選的 C・精簡清單：一課一行，開放日｜學生完成｜狀態，每一欄對齊。 */
+    const _od=String(l.open_date||''),_today=localToday(),_md=d=>{const m=String(d||'').match(/^\d{4}-(\d{2})-(\d{2})$/);return m?(+m[1]+'/'+m[2]):'';};
+    const _open=!an?'<span class="tag tpub-n">未發佈</span>'
+      :(_od&&_od>_today)?('<span class="tag lcr-fut" title="到了這天學生才看得到">'+_md(_od)+' 開放</span>')
+      :('<span class="tag tpub-y">'+(_od?(_md(_od)+' ✓'):'已開放')+'</span>');
+    const _st=lesStat(l),_tot=_st?_st.total:an,_sub=_st?_st.sub:0,_pct=_tot?Math.round(_sub/_tot*100):0;
+    const _done=(!an||(_od&&_od>_today))?'<span class="muted">—</span>'
+      :('<span class="lcr-bar"><span class="lcr-tr"><i style="width:'+_pct+'%"></i></span><small>'+_sub+'/'+_tot+'</small></span>'
+        +((_st&&_st.pend)?('<button class="btn btn-sm lcr-pend" data-act="gradeLesson" data-id="'+esc(l.id)+'" title="只看這一課的作答">待批改 '+_st.pend+'</button>'):''));
+    return `<div class="card lesson-card lcr-card${open?' open':''}">
+      <div class="lesson-head lcr" data-act="toggleCard" data-id="${l.id}">
         <div class="lesson-no">${ov.num!=null?ov.num:(l.order_index||i+1)}</div>
-        <div style="min-width:0"><h3>${esc(ov.title!=null?ov.title:l.title)}</h3><div class="meta" style="margin-top:5px;align-items:center">
-          ${an?'<span class="tag tpub-y">已發佈 '+an+' 人</span>':'<span class="tag tpub-n">未發佈</span>'}${slideTag(l)}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${viChip(l)}${lesStatHtml(l)}</div></div></div>
-        <div style="display:flex;gap:10px;align-items:center;flex:none;margin-left:12px"><span class="badge ${built?'badge-ok':'badge-soon'}">${built?'✅ 完成':'🟡 進行中'}</span>
-        <span class="card-chev" aria-hidden="true">${open?'▾':'▸'}</span></div></div>
+        <div class="lcr-t"><h3>${esc(ov.title!=null?ov.title:l.title)}</h3><div class="lcr-chips">${slideTag(l)}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${viChip(l)}${an?'<span class="lcr-n">'+an+' 人</span>':''}</div></div>
+        <div class="lcr-open">${_open}</div>
+        <div class="lcr-done">${_done}</div>
+        <span class="lcr-built ${built?'ok':''}" title="${built?'這一課做完了':'這一課還在做'}">${built?'✅':'🟡'}</span>
+        <span class="card-chev" aria-hidden="true">${open?'▾':'▸'}</span></div>
       ${ov.bar||''}
       ${open?`<div class="lc-bar">
         <b class="lc-bar-t">📖 課本</b><span class="hint">練習題 ${qn}</span>
@@ -6933,8 +6943,9 @@ function renderLessons(){
     const _cv=(b==='__none')?'':bookCoverOf(b);
     const _cvBtn=(b==='__none')?'':('<button class="btn btn-sm btn-ghost" data-act="bookCover" data-id="'+esc(b)+'" style="margin-right:10px" title="學生端「我的教材」會顯示這張封面">'
       +(_cv?('<img src="'+esc(_cv)+'" alt="" style="width:15px;height:20px;object-fit:cover;border-radius:3px;vertical-align:-5px;margin-right:5px">封面')
-           :'🖼 封面')+'</button>');
-    return books.length?`<div class="book-group">${_bh(b,'📚 '+esc(b==='__none'?'未分類':b),groups[b].length+' 課',op,_cvBtn)}${cards}</div>`:unitGroupHtml(b,groups[b]);/*BOOKICON_V69 UNITGRP_V77*/
+           :'🖼<span class="bh-tx"> 封面</span>')+'</button>');
+    const _odBtn=(b==='__none')?'':('<button class="btn btn-sm btn-ghost" data-act="lesDates" data-id="'+esc(b)+'" style="margin-right:6px" title="每一課設一個開放日，到了那天學生才看得到">📅<span class="bh-tx"> 開放日期</span></button>');/* LESROWC_V1596 */
+    return books.length?`<div class="book-group">${_bh(b,'📚 '+esc(b==='__none'?'未分類':b),groups[b].length+' 課',op,_odBtn+_cvBtn)}${cards}</div>`:unitGroupHtml(b,groups[b]);/*BOOKICON_V69 UNITGRP_V77*/
   };
   /* 同一個大類（例：時代華語一／二／三）收在一起 */
   const cntOf=(b)=>b==='📜 文言文'?(S.classicals||[]).length:(b==='發音'?(S.prons||[]).length:((groups[b]||[]).length));
@@ -22977,7 +22988,7 @@ function cvBodyHtml(cls,members,roster){
    如果是透過班級拿到的、而且那個班的開放日還沒到，就先不顯示——到了那天打開就看得到。
    不用伺服器排程，也沒有「忘了按發佈」這回事。
    單獨指派給某位學生（assigned_ids）的不受開放日影響，照舊馬上看得到。 */
-function opDate(l,cls){const m=(l&&l.open_dates)||{};return String(m[cls]||'');}
+function opDate(l,cls){const m=(l&&l.open_dates)||{};return String(m[cls]||(l&&l.open_date)||'');}
 function opInCls(l,cls){return !!l&&!l.deleted_at&&(((l.assigned_groups||[]).includes(cls))||!!opDate(l,cls));}
 function opFuture(l,cls){const d=opDate(l,cls);return !!d&&d>localToday();}
 function opMD(d){const m=String(d||'').match(/^\d{4}-(\d{2})-(\d{2})$/);return m?(+m[1]+'/'+m[2]):String(d||'');}
@@ -23051,6 +23062,40 @@ H.opSave=async()=>{
       await DB.update('lessons',l.id,{assigned_groups:ag,open_dates:od});l.assigned_groups=ag;l.open_dates=od;n++;}
     try{ruLater();}catch(e){}
     OP_CTX=null;closeModal();render();toast(n?('已更新 '+n+' 課'):'沒有改變');}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='儲存';}toast('儲存失敗：'+((e&&(e.code||e.message))||e));}};
+/* LESROWC_V1596 一整本教材排開放日：一課一個日期，發給誰不變（還是用「發佈」）。
+   存在 lessons.open_date；學生端到了那天才看得到這一課（不管是一個一個指派的還是整班發佈的）。
+   團班自己另外排的日期（open_dates[班]）優先。 */
+let LD_CTX=null;
+H.lesDates=(book)=>{
+  const ls=sortLessons(S.lessons).filter(l=>!l.deleted_at&&!l.kind&&String(l.textbook||'').trim()===String(book||'').trim());
+  if(!ls.length)return toast('這本教材還沒有課');
+  LD_CTX={book:book};
+  openModal('<div class="modal" style="max-width:600px"><div class="modal-head"><h3>📅 開放日期 · '+esc(book)+'</h3><button class="x" data-act="closeModal">×</button></div>'
+    +'<div class="modal-body">'
+    +'<div class="op-fill"><span>從</span><input type="date" id="ld-start" value="'+esc(localToday())+'"><span>開始，每</span>'
+    +'<select id="ld-step"><option value="7">1 週</option><option value="14">2 週</option><option value="3">3 天</option><option value="1">1 天</option></select>'
+    +'<span>一課，從</span><select id="ld-from">'+ls.map((l,i)=>'<option value="'+i+'">'+esc((l.order_index?('第'+l.order_index+'課'):(l.title||'')).slice(0,14))+'</option>').join('')+'</select>'
+    +'<span>開始排</span><button class="btn btn-sm" type="button" data-act="lesDatesFill">套用</button></div>'
+    +'<div class="op-list">'+ls.map(l=>'<div class="op-row"><span class="op-ck" style="cursor:default"><span>'+esc(l.title||'（未命名）')+'</span>'
+      +(assignedCount(l)?'':'<span class="muted" style="font-size:12px;margin-left:6px">未發佈</span>')+'</span>'
+      +'<input type="date" class="ld-d" data-id="'+esc(l.id)+'" value="'+esc(l.open_date||'')+'"></div>').join('')+'</div>'
+    +'<div class="hint" style="margin-top:8px">日期空白＝發佈了就馬上看得到。</div>'
+    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+    +'<button class="btn btn-primary" data-act="lesDatesSave">儲存</button></div></div>');};
+H.lesDatesFill=()=>{
+  const st=($('#ld-start')&&$('#ld-start').value)||localToday();const step=Number(($('#ld-step')&&$('#ld-step').value)||7)||7;
+  const from=Number(($('#ld-from')&&$('#ld-from').value)||0)||0;const d0=new Date(st+'T00:00:00');
+  $$('.ld-d').forEach((inp,i)=>{if(i<from)return;const d=new Date(d0.getTime());d.setDate(d.getDate()+step*(i-from));
+    inp.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');});};
+H.lesDatesSave=async()=>{
+  const btn=document.querySelector('[data-act="lesDatesSave"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
+  let n=0;
+  try{await ensureAuthFresh();
+    for(const inp of $$('.ld-d')){const l=(S.lessons||[]).find(x=>x.id===inp.dataset.id);if(!l)continue;
+      const v=String(inp.value||'');if(v===String(l.open_date||''))continue;
+      await DB.update('lessons',l.id,{open_date:v});l.open_date=v;n++;}
+    LD_CTX=null;closeModal();render();toast(n?('已更新 '+n+' 課'):'沒有改變');}
   catch(e){if(btn){btn.disabled=false;btn.textContent='儲存';}toast('儲存失敗：'+((e&&(e.code||e.message))||e));}};
 function publishModal(cls){const lessons=sortLessons(S.lessons);
   const rows=lessons.length?lessons.map(l=>{const on=(l.assigned_groups||[]).includes(cls);return `<label class="check-row"><input type="checkbox" class="pub-les" value="${l.id}" ${on?'checked':''}> ${l.textbook?`<span class="tag">${esc(l.textbook)}</span> `:''}${esc(l.title||'（未命名）')}${on?' <span class="tag gold">已發佈</span>':''}</label>`;}).join(''):'<div class="hint">還沒有做好的課文。可先到「上課教材」新增。</div>';
