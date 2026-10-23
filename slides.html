@@ -12,6 +12,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- DDOCK_V1 聽寫工具列不換行 -->
 <!-- RPARA_V1 只有文言文一段一段顯示，其他短文照原本整篇顯示 -->
 <!-- TOPBAR_V1 上方按鈕收成一組：換課、畫筆、全螢幕改小圖示，老師選單改成清單 -->
+<!-- GALIGN_V1 語法答案寫整句時只把空格的字放進空格；GTITLE_V1 語法標題不重複編號 -->
 <!-- RDT_V1 標題是「短文」的段落一定當短文（書信開頭「親愛的…：」不會被當成對話） -->
 <!-- GSPLIT_V1 語法分成對話語法、短文語法 -->
 <!-- GEXIMG_V1 語法練習可以放圖片 -->
@@ -952,9 +953,19 @@ let STEPS = DEFAULT_FLOW.map(k=>({key:k, name:STEP_DEFS[k]}));
 function applyFlow(){ const fl = flowOf(LESSON); STEPS = fl.map(k=>({key:k, name: k==="words" && isClL() ? "詞語解釋" : k==="read" && isClL() ? "原文" : k==="qa" && fl.includes("qa2") ? "對話討論" : k==="words" && fl.includes("words2") ? (fl.includes("text2") ? "生詞一" : "對話生詞") : fl.includes("text2") && k==="words2" ? "生詞二" : fl.includes("text2") && k==="text" ? "對話一" : k==="grammar" && fl.includes("grammar2") ? "對話語法" : STEP_DEFS[k]})); /* DLG2_V1 當代中文：生詞一、對話一、生詞二、對話二 */ step = Math.min(step, STEPS.length-1); }
 let gp = 0, gShow = false, gRev = {};
 /* GBLANK_V1 語法答案寫在空格線上（像聽寫），空格大小先留好，顯示答案時不會跳動 */
+/* GALIGN_V1 參考答案寫的是整句（例：我們坐著聊天吧，一直站著太累了）→ 對照題目，只取出空格裡的字（著、著） */
+function gAlign(segs, ans){ const nz = x => String(x||"").replace(/\s+/g, ""), strip = x => nz(x).replace(/[。．.！!？?]+$/, "");
+  const a = strip(ans), S = segs.map((x, i) => i === segs.length - 1 ? strip(x) : nz(x)); if(!a.startsWith(S[0])) return null;
+  let pos = S[0].length; const out = [];
+  for(let i = 1; i < S.length; i++){ const last = i === S.length - 1; let idx = last ? (S[i] ? a.lastIndexOf(S[i]) : a.length) : a.indexOf(S[i], pos);
+    if(idx < pos || (S[i] && idx < 0)) return null; const f = a.slice(pos, idx); if(!f) return null; out.push(f); pos = idx + S[i].length; }
+  return pos === a.length ? out : null; }
+/* GTITLE_V1 語法標題前面教材的編號（I.、II.、一、）拿掉，因為投影片已經寫「語法 1」 */
+const gTit = t => String(t||"").replace(/^\s*(?:[IVXLⅠ-Ⅻ]+|[0-9０-９]+|[一二三四五六七八九十]+)\s*[.．、]\s*/, "");
 function fmtQA(q, ans, show){ const BL = /＿{2,}|_{3,}/g, n = (String(q).match(BL)||[]).length; ans = String(ans||"").trim();
   if(!ans || !n) return null;
   let parts = [ans]; if(n > 1){ const sp = ans.split(/\s*／\s*/); parts = sp.length === n ? sp.map(x => x.replace(/[（(][^）)]*[）)]/g, "").trim() || x) : [ans]; }
+  if(parts.length === 1){ const al = gAlign(String(q).split(BL), ans); if(al && al.length === n) parts = al; }/* GALIGN_V1 */
   let k = 0; return esc(q).replace(/(\S)\s*([AB甲乙][：:])/g, "$1<br>$2").replace(BL, () => { const p = (parts[k++] || "").replace(/[。．.！!]+$/, ""); return p ? `<span class="qblank qfill${show ? " on" : ""}"><span class="qfa">${esc(p)}</span></span>` : `<span class="qblank"></span>`; }); }
 function fmtQ(q){ return esc(q).replace(/(\S)\s*([AB甲乙][：:])/g, "$1<br>$2").replace(/＿{2,}|_{3,}/g, `<span class="qblank"></span>`); }
 function gStep(d){ const gs = GR(LESSON), ids = gIds(LESSON, STEPS[step] && STEPS[step].key); if(!ids.length) return false; const pg = x => 1 + ((x.exs||[]).length);
@@ -1196,7 +1207,7 @@ function render(){
     if(!gids.includes(gi)) gi = gids[0];
     const g = gs[gi], exs = g.exs || [], short = p => (p||[]).filter((x,i)=>!(i===0&&/主語|主詞|^S$/.test(x))).join("＋");
     gp = Math.min(gp, exs.length);
-    const gname = g.title || short(g.pattern) || "語法";
+    const gname = gTit(g.title) || short(g.pattern) || "語法";
     $("#title").textContent = "語法" + (gs.length>1 ? ` ${gi+1}` : "") + "：" + gname;
     $("#hint").textContent = (gs.length>1 || exs.length) ? "按 ← → 換下一頁" : "";
     if(gp===0){
@@ -1212,7 +1223,7 @@ function render(){
         ${ex.img && ex.img.url ? `<div class="gximg"><img src="${esc(ex.img.url)}" alt=""></div>` : ""}<div class="gqs">${qs.map((q,i)=>`<button class="gq" data-gq="${i}"><span class="qn">${i+1}</span><span class="qb">${(()=>{ const f = fmtQA(q[0], q[1], gShow||gRev[i]); return f != null ? `<span class="qq">${f}</span>` : `<span class="qq">${fmtQ(q[0])}</span>${q[1] ? `<span class="qans" style="${gShow||gRev[i] ? "" : "visibility:hidden"}">${esc(q[1])}</span>` : ""}`; })()}</span></button>`).join("")}</div></div>`;
     }
     /* GDOCK_V1 語法工具列：語法點用下拉選單，頁面用分段按鈕 */
-    ct.innerHTML = `${gids.length>1?`<div class="wpick"><button class="chip wlb" id="glBtn" type="button" aria-expanded="false">語法 ${gi+1}${gids.length===gs.length ? ` / ${gs.length}` : ""} ▾</button><div class="glist" id="glist" hidden>${gids.map(i=>{ const x = gs[i]; return `<button type="button" aria-pressed="${i===gi}" data-g="${i}"><b>${i+1}</b>${esc(x.title || short(x.pattern) || "語法")}</button>`; }).join("")}</div></div>`:""}
+    ct.innerHTML = `${gids.length>1?`<div class="wpick"><button class="chip wlb" id="glBtn" type="button" aria-expanded="false">語法 ${gi+1}${gids.length===gs.length ? ` / ${gs.length}` : ""} ▾</button><div class="glist" id="glist" hidden>${gids.map(i=>{ const x = gs[i]; return `<button type="button" aria-pressed="${i===gi}" data-g="${i}"><b>${i+1}</b>${esc(gTit(x.title) || short(x.pattern) || "語法")}</button>`; }).join("")}</div></div>`:""}
       ${exs.length?`<div class="seg"><button type="button" aria-pressed="${gp===0}" data-gp="0">說明・例句</button>${exs.map((x,i)=>`<button type="button" aria-pressed="${gp===i+1}" data-gp="${i+1}">練習 ${i+1}</button>`).join("")}</div>`:""}
       <span class="tgrp mix">${gp>0 && (exs[gp-1].qs||[]).some(q=>q[1]) ? `<button class="btn ghost" data-a="gshow">${gShow?"隱藏答案":"顯示答案"}</button>` : ""}</span>
       <span class="gap"></span>${toggles()}`;
