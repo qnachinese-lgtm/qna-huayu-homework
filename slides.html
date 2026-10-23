@@ -10,6 +10,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- RDT_V1 標題是「短文」的段落一定當短文（書信開頭「親愛的…：」不會被當成對話） -->
 <!-- GSPLIT_V1 語法分成對話語法、短文語法 -->
 <!-- GEXIMG_V1 語法練習可以放圖片 -->
 <!-- DPICK_V2 自動聽寫每句最多一個空格 -->
@@ -1858,10 +1859,12 @@ function srcToDoc(l, idx){
       book: T(l.textbook) || "文言文", flow: null, cards: "", review: "", homework: "", textImgs: [], src: l.id, updatedAt: Date.now() }; }
   const ds = Array.isArray(l.dialogues) && l.dialogues.length ? l.dialogues : [{content: l.content||"", vocabulary: l.vocabulary||""}];
   const words = [], words2 = [], dialog = [], dialog2 = [], paras = [], cast = {A:"",B:"",C:"",D:""}; let textTitle = "", readTitle = "", textTitle2 = "";
-  const isDv = d => { const c = String((d && d.content) || "").trim(); return !c || /^[^：:\s]{1,8}\s*[：:]/m.test(c); };
+  /* RDT_V1 標題是「短文／閱讀」的段落一定是短文：書信開頭「親愛的以晴：」不能被當成對話 */
+  const RDT = d => /^\s*(短文|閱讀)/.test(String((d && d.title) || ""));
+  const isDv = d => { const c = String((d && d.content) || "").trim(); if(RDT(d)) return false; return !c || /^[^：:\s]{1,8}\s*[：:]/m.test(c); };
   /* DLG2_V1 當代中文那種「對話一、對話二」（兩段都是對話、沒有短文）：
      第二段以後的對話放進「對話二」，它的生詞放進「生詞二」。有短文的課照舊。 */
-  const hasC = d => !!String((d && d.content) || "").trim(), isD = d => hasC(d) && /^[^：:\s]{1,8}\s*[：:]/m.test(String(d.content));
+  const hasC = d => !!String((d && d.content) || "").trim(), isD = d => hasC(d) && !RDT(d) && /^[^：:\s]{1,8}\s*[：:]/m.test(String(d.content));
   const TWO = ds.filter(isD).length >= 2 && !ds.some(d => hasC(d) && !isD(d));
   const dNo = []; { let n = -1; ds.forEach(d => { if(isD(d)) n++; dNo.push(Math.max(0, n)); }); }
   ds.forEach((d, di0) => { const W = TWO ? (dNo[di0] >= 1 ? words2 : words) : isDv(d) ? words : words2; parseVoc(d.vocabulary).forEach(v => { if(!v.front) return;
@@ -1869,7 +1872,7 @@ function srcToDoc(l, idx){
     v.ex.slice(1).forEach(e => W.push(["","","","", e, "", "ex"].map(clean).join("｜"))); }); });
   ds.forEach((d, di) => { let rows = String(d.content||"").split("\n").map(x=>x.trim()).filter(Boolean); if(!rows.length) return;
     let blockTitle = ""; const first = rows[0]; if(rows.length > 1 && first.length <= 18 && !/[。！？，、；：:（(]/.test(first)){ blockTitle = first; rows = rows.slice(1); }
-    const isDlg = rows.some(x => /^[^：:\s]{1,8}\s*[：:]/.test(x));
+    const isDlg = !RDT(d) && rows.some(x => /^[^：:\s]{1,8}\s*[：:]/.test(x));
     /* RTITLE_V1 短文用自己的標題：內文第一行的標題，沒有就用那一段的名稱（「課文」「短文」這種通稱不算） */
     if(!isDlg){ if(!readTitle){ const dt = T(d.title); readTitle = blockTitle || (dt && !/^(課文|對話|短文|閱讀|本文)?\s*[一二三四五六七八九十0-9０-９]*$/.test(dt) ? dt : ""); } rows.forEach(x => paras.push(clean(x))); return; }
     const D2 = TWO && dNo[di] >= 1, DL = D2 ? dialog2 : dialog;
@@ -1911,7 +1914,7 @@ function srcToDoc(l, idx){
     readTitle: paras.length ? readTitle : "", readParas: paras.join("\n"),
     audio: (()=>{ const d = ds.find(x=>x && T(x.audio_url) && /^[^：:\s]{1,8}\s*[：:]/m.test(String(x.content||""))) || ds.find(x=>x && T(x.audio_url)); const u = d ? T(d.audio_url) : T(l.audio_url); return u ? {url: u, name: "課文音檔", path: ""} : null; })(),
     readAudio: (()=>{ const d = ds.find(x=>x && T(x.audio_url) && T(x.content) && !/^[^：:\s]{1,8}\s*[：:]/m.test(String(x.content||""))); return d ? {url: T(d.audio_url), name: "短文音檔"} : null; })(),
-    qaSplit: true, qa2: (()=>{ const isD = d => /^[^：:\s]{1,8}\s*[：:]/m.test(String((d && d.content) || "")), disc = a => a.flatMap(d => String((d && d.discussion) || "").split("\n").map(x => x.trim().replace(/^\s*[0-9０-９]+[.、．)）]\s*/, "")).filter(Boolean)).map(q => [clean(q), ""].join("｜")).join("\n");
+    qaSplit: true, qa2: (()=>{ const isD = d => !RDT(d) && /^[^：:\s]{1,8}\s*[：:]/m.test(String((d && d.content) || "")), disc = a => a.flatMap(d => String((d && d.discussion) || "").split("\n").map(x => x.trim().replace(/^\s*[0-9０-９]+[.、．)）]\s*/, "")).filter(Boolean)).map(q => [clean(q), ""].join("｜")).join("\n");
       l._qa1 = disc(ds.filter(isD)); return disc(ds.filter(d => !isD(d))); })(),
     qa: ds.flatMap(d => String((d && d.discussion) || "").split("\n").map(x => x.trim().replace(/^\s*[0-9０-９]+[.、．)）]\s*/, "")).filter(Boolean)).map(q => [clean(q), ""].join("｜")).join("\n") && l._qa1,
     book: T(l.textbook), flow: null, cards: "", review: "", homework: "", textImgs: [], src: l.id, updatedAt: Date.now() };
