@@ -6200,6 +6200,31 @@ function clMenu(l){
       I(1,'clXlsxOut',l.id,'⬇ 抓成 Excel（改完可以匯回來）')])
    +lcmGrp('this','⚙️ 這一課',[I(na>0,'unassign',l.id,'↩ 收回發佈','這一課還沒有發佈','btn-warn'),
       I(1,'delClassical',l.id,'🗑 刪除','','btn-danger')]),'');}
+/* ══════ SLDCOL_V1598 教材與課程：這一課的上課投影片做好了沒 ══════
+   Quinn：「投影片那邊，能不能在這裡也順便寫進去，讓我知道 PPT 到底做好了沒」。
+   投影片存在另一個資料表 slide_lessons（投影片網頁自己的），從教材匯入的那一份 id 是 src_課程id。
+   後台本來不讀它，這裡只「讀」一次（打開教材頁的時候，5 分鐘內不重讀），不寫。
+   有投影片 → ✓（點了直接開那一課的投影片）；沒有 → —。
+   只看「上課投影片」網頁那一套（Quinn：PPT 主要看我最近在用的）；舊的「上傳 PDF 投影片」不算。 */
+const SLD={at:0,busy:false,map:{}};
+function sldLoad(){
+  if(SLD.busy||(SLD.at&&Date.now()-SLD.at<300000))return;
+  if(!(window.firebase&&firebase.firestore))return;
+  SLD.busy=true;
+  firebase.firestore().collection('slide_lessons').get().then(sn=>{
+    const m={};sn.docs.forEach(d=>{if(String(d.id).charAt(0)==='_')return;const x=d.data()||{};
+      const lid=String(x.src||'')||(String(d.id).indexOf('src_')===0?String(d.id).slice(4):'');
+      if(!lid)return;
+      const has=!!(String(x.words||'').trim()||String(x.dialog||'').trim()||String(x.readParas||'').trim()||(Array.isArray(x.grammars)&&x.grammars.length));
+      if(has)m[lid]={id:d.id};});
+    SLD.map=m;SLD.at=Date.now();SLD.busy=false;
+    try{if(S.tab==='lessons')render();}catch(e){}
+  }).catch(()=>{SLD.busy=false;SLD.at=Date.now();});}
+function sldCell(l){
+  try{sldLoad();}catch(e){}
+  const d=SLD.map[l.id];
+  if(d)return '<a class="lcr-slok" href="slides.html?lesson='+encodeURIComponent(d.id)+'" target="_blank" rel="noopener" title="投影片做好了，點了打開">✓</a>';
+  return SLD.at?'<span class="muted" title="這一課還沒有投影片">—</span>':'<span class="muted">…</span>';}
 /* ---------- 課文與練習 ---------- */
 function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
     const qn=questionsOf(l.id).length, an=assignedCount(l), di=dueInfo(l.due_date);
@@ -6216,10 +6241,10 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
     return `<div class="card lesson-card lcr-card${open?' open':''}">
       <div class="lesson-head lcr" data-act="toggleCard" data-id="${l.id}">
         <div class="lesson-no">${ov.num!=null?ov.num:(l.order_index||i+1)}</div>
-        <div class="lcr-t"><h3>${esc(ov.title!=null?ov.title:l.title)}</h3><div class="lcr-chips">${slideTag(l)}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${viChip(l)}${an?'<span class="lcr-n">'+an+' 人</span>':''}</div></div>
+        <div class="lcr-t"><h3>${esc(ov.title!=null?ov.title:l.title)}</h3><div class="lcr-chips">${l.slides_open?slideTag(l):''}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${viChip(l)}${an?'<span class="lcr-n">'+an+' 人</span>':''}${built?'':'<span class="lcr-built" title="這一課的內容還在做">還在做</span>'}</div></div>
         <div class="lcr-open">${_open}</div>
+        <div class="lcr-sl">${sldCell(l)}</div>
         <div class="lcr-done">${_done}</div>
-        <span class="lcr-built ${built?'ok':''}" title="${built?'這一課的課文、題目都做好了':'這一課的內容還在做'}">${built?'做好了':'還在做'}</span>
         <span class="card-chev" title="${open?'收起來':'打開看這一課的按鈕'}">${open?'▾':'▸'}</span></div>
       ${ov.bar||''}
       ${open?`<div class="lc-bar">
@@ -6939,7 +6964,7 @@ function renderLessons(){
     if(!groups[b]||!groups[b].length)return '';
     const op=_isOpen(b);
     /* LESHEAD_V1597 Quinn：「看不太懂這些按鈕的意思」。每一本教材的課上面加一行欄位名稱 */
-    const cards=op?('<div class="lcr-hd" aria-hidden="true"><span></span><span>課</span><span>學生看得到嗎</span><span>學生交了幾位</span><span>課文</span><span></span></div>'+unitGroupHtml(b,groups[b])):'';/*UNITGRP_V77*/
+    const cards=op?('<div class="lcr-hd" aria-hidden="true"><span></span><span>課</span><span>學生看得到嗎</span><span>投影片</span><span>學生交了幾位</span><span></span></div>'+unitGroupHtml(b,groups[b])):'';/*UNITGRP_V77*/
     /* BOOKCOVER_V1459 展開教材時，標題列右邊多一顆「封面」 */
     const _cv=(b==='__none')?'':bookCoverOf(b);
     const _cvBtn=(b==='__none')?'':('<button class="btn btn-sm btn-ghost" data-act="bookCover" data-id="'+esc(b)+'" style="margin-right:10px" title="學生端「我的教材」會顯示這張封面">'
@@ -15672,17 +15697,21 @@ H.slUp=(id)=>{
   };
   inp.click();
 };
-H.slDel=async(id)=>{
+H.slDel=async(id,b)=>{
   const l=lessonAnyById(id);if(!l)return;
   if(!confirm('移除這一課的投影片？學生馬上就看不到了。'))return;
+  /* SLDEL_V1598 Quinn：「這裡的 PPT 我刪不了」。本來是先把每一頁圖片一張一張從雲端刪掉（70 頁就要等 70 次），
+     全部刪完才更新這一課，中間畫面完全沒反應，看起來像按了沒用。
+     改成：先把這一課的投影片拿掉（馬上生效），圖片檔放到背景一起刪，刪不掉的不影響。 */
+  const btn=(b&&b.tagName)?b:document.querySelector('[data-act="slDel"]');if(btn){btn.disabled=true;btn.textContent='移除中…';}
+  const pages=slidePages(l).slice(),fd=l.slides&&l.slides.folder;
   try{
-    const fd=l.slides&&l.slides.folder;
-    if(fd&&window.firebase&&firebase.storage){
-      for(const u of slidePages(l)){try{await firebase.storage().refFromURL(u).delete();}catch(_){}}
-    }
+    await ensureAuthFresh();
     await DB.update('lessons',id,{slides:null,slides_open:false});
     l.slides=null;l.slides_open=false;toast('已移除');H.slides(id);render();}
-  catch(e){toast('失敗：'+((e&&e.message)||e));}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='🗑 移除';}toast('移除失敗：'+((e&&(e.code||e.message))||e));return;}
+  if(fd&&pages.length&&window.firebase&&firebase.storage){
+    Promise.all(pages.map(u=>firebase.storage().refFromURL(u).delete().catch(()=>{}))).catch(()=>{});}
 };
 /* SLPLAY_V794 播放器：頁碼寫進 Firestore，學生端跟著跳 */
 let SLP=null;
