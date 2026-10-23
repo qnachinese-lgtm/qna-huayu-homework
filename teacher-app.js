@@ -6248,9 +6248,10 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
     return `<div class="card lesson-card lcb-card${open?' open':''}">
       <div class="lesson-head lcb" data-act="toggleCard" data-id="${l.id}">
         <span class="lcb-n">${ov.num!=null?ov.num:(l.order_index||i+1)}</span>
-        <div class="lcb-main"><h3>${esc(ov.title!=null?ov.title:l.title)}</h3></div>
+        <div class="lcb-main"><h3>${esc(ov.title!=null?ov.title:l.title)}</h3>${(di||l.slides_open||!built)?`<span class="lcb-x">${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${l.slides_open?slideTag(l):''}${built?'':'<span class="lcr-built" title="這一課的內容還在做">還在做</span>'}</span>`:''}</div>
         <span class="grow"></span>
-          <div class="lcb-m">${_open}${sldTxt(l)}${_done}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${l.slides_open?slideTag(l):''}${viChip(l)}${built?'':'<span class="lcr-built" title="這一課的內容還在做">還在做</span>'}</div>
+          <!-- LESALIGN_V1601 右邊三格固定寬度，每一課都對齊成直的一排 -->
+          <div class="lcb-m"><span class="lcb-c1">${_open}</span><span class="lcb-c2">${sldTxt(l)}</span><span class="lcb-c3">${_done}</span>${viChip(l)}</div>
         <span class="card-chev" title="${open?'收起來':'打開看這一課的按鈕'}">${open?'▾':'▸'}</span></div>
       ${ov.bar||''}
       ${open?`<div class="lc-bar">
