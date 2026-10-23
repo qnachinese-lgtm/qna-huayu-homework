@@ -6211,7 +6211,7 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
       :('<span class="tag tpub-y">'+(_od?(_md(_od)+' ✓'):'已開放')+'</span>');
     const _st=lesStat(l),_tot=_st?_st.total:an,_sub=_st?_st.sub:0,_pct=_tot?Math.round(_sub/_tot*100):0;
     const _done=(!an||(_od&&_od>_today))?'<span class="muted">—</span>'
-      :('<span class="lcr-bar"><span class="lcr-tr"><i style="width:'+_pct+'%"></i></span><small>'+_sub+'/'+_tot+'</small></span>'
+      :('<span class="lcr-bar"><span class="lcr-tr"><i style="width:'+_pct+'%"></i></span><small>已交 '+_sub+'/'+_tot+'</small></span>'
         +((_st&&_st.pend)?('<button class="btn btn-sm lcr-pend" data-act="gradeLesson" data-id="'+esc(l.id)+'" title="只看這一課的作答">待批改 '+_st.pend+'</button>'):''));
     return `<div class="card lesson-card lcr-card${open?' open':''}">
       <div class="lesson-head lcr" data-act="toggleCard" data-id="${l.id}">
@@ -6219,8 +6219,8 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
         <div class="lcr-t"><h3>${esc(ov.title!=null?ov.title:l.title)}</h3><div class="lcr-chips">${slideTag(l)}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${viChip(l)}${an?'<span class="lcr-n">'+an+' 人</span>':''}</div></div>
         <div class="lcr-open">${_open}</div>
         <div class="lcr-done">${_done}</div>
-        <span class="lcr-built ${built?'ok':''}" title="${built?'這一課做完了':'這一課還在做'}">${built?'✅':'🟡'}</span>
-        <span class="card-chev" aria-hidden="true">${open?'▾':'▸'}</span></div>
+        <span class="lcr-built ${built?'ok':''}" title="${built?'這一課的課文、題目都做好了':'這一課的內容還在做'}">${built?'做好了':'還在做'}</span>
+        <span class="card-chev" title="${open?'收起來':'打開看這一課的按鈕'}">${open?'▾':'▸'}</span></div>
       ${ov.bar||''}
       ${open?`<div class="lc-bar">
         <b class="lc-bar-t">📖 課本</b><span class="hint">練習題 ${qn}</span>
@@ -6938,13 +6938,14 @@ function renderLessons(){
       return `<div class="book-group">${_bh(b,'🔤 發音',S.prons.length+' 課',op,'<button class="btn btn-sm" data-act="newPron" style="margin-right:10px">＋ 建立發音課</button>')}${op?cards:''}</div>`;}
     if(!groups[b]||!groups[b].length)return '';
     const op=_isOpen(b);
-    const cards=op?unitGroupHtml(b,groups[b]):'';/*UNITGRP_V77*/
+    /* LESHEAD_V1597 Quinn：「看不太懂這些按鈕的意思」。每一本教材的課上面加一行欄位名稱 */
+    const cards=op?('<div class="lcr-hd" aria-hidden="true"><span></span><span>課</span><span>學生看得到嗎</span><span>學生交了幾位</span><span>課文</span><span></span></div>'+unitGroupHtml(b,groups[b])):'';/*UNITGRP_V77*/
     /* BOOKCOVER_V1459 展開教材時，標題列右邊多一顆「封面」 */
     const _cv=(b==='__none')?'':bookCoverOf(b);
     const _cvBtn=(b==='__none')?'':('<button class="btn btn-sm btn-ghost" data-act="bookCover" data-id="'+esc(b)+'" style="margin-right:10px" title="學生端「我的教材」會顯示這張封面">'
       +(_cv?('<img src="'+esc(_cv)+'" alt="" style="width:15px;height:20px;object-fit:cover;border-radius:3px;vertical-align:-5px;margin-right:5px">封面')
-           :'🖼<span class="bh-tx"> 封面</span>')+'</button>');
-    const _odBtn=(b==='__none')?'':('<button class="btn btn-sm btn-ghost" data-act="lesDates" data-id="'+esc(b)+'" style="margin-right:6px" title="每一課設一個開放日，到了那天學生才看得到">📅<span class="bh-tx"> 開放日期</span></button>');/* LESROWC_V1596 */
+           :'🖼<span class="bh-tx"> 課本封面</span>')+'</button>');
+    const _odBtn=(b==='__none')?'':('<button class="btn btn-sm btn-ghost" data-act="lesDates" data-id="'+esc(b)+'" style="margin-right:6px" title="每一課設一個開放日，到了那天學生才看得到">📅<span class="bh-tx"> 排開放日期</span></button>');/* LESROWC_V1596 */
     return books.length?`<div class="book-group">${_bh(b,'📚 '+esc(b==='__none'?'未分類':b),groups[b].length+' 課',op,_odBtn+_cvBtn)}${cards}</div>`:unitGroupHtml(b,groups[b]);/*BOOKICON_V69 UNITGRP_V77*/
   };
   /* 同一個大類（例：時代華語一／二／三）收在一起 */
