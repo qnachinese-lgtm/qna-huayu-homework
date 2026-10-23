@@ -6220,6 +6220,11 @@ function sldLoad(){
     SLD.map=m;SLD.at=Date.now();SLD.busy=false;
     try{if(S.tab==='lessons')render();}catch(e){}
   }).catch(()=>{SLD.busy=false;SLD.at=Date.now();});}
+function sldTxt(l){
+  try{sldLoad();}catch(e){}
+  const d=SLD.map[l.id];
+  if(d)return '<a class="lcb-sl ok" href="slides.html?lesson='+encodeURIComponent(d.id)+'" target="_blank" rel="noopener" title="點了打開這一課的投影片">🖥 投影片 ✓</a>';
+  return SLD.at?'<span class="lcb-sl">🖥 還沒有投影片</span>':'';}
 function sldCell(l){
   try{sldLoad();}catch(e){}
   const d=SLD.map[l.id];
@@ -6229,22 +6234,22 @@ function sldCell(l){
 function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
     const qn=questionsOf(l.id).length, an=assignedCount(l), di=dueInfo(l.due_date);
     const open=S.openCards&&S.openCards.has(l.id);const built=l.build==='done';
-    /* LESROWC_V1596 Quinn 選的 C・精簡清單：一課一行，開放日｜學生完成｜狀態，每一欄對齊。 */
+    /* LESROWB_V1599 Quinn 選的 B・兩行小字：課名一行，下面一行小字寫狀態，全部靠左、沒有大空白。
+       （V1596 的欄位版在寬螢幕上，欄位被推到最右邊，課名跟狀態中間空一大片。） */
     const _od=String(l.open_date||''),_today=localToday(),_md=d=>{const m=String(d||'').match(/^\d{4}-(\d{2})-(\d{2})$/);return m?(+m[1]+'/'+m[2]):'';};
     const _open=!an?'<span class="tag tpub-n">未發佈</span>'
       :(_od&&_od>_today)?('<span class="tag lcr-fut" title="到了這天學生才看得到">'+_md(_od)+' 開放</span>')
-      :('<span class="tag tpub-y">'+(_od?(_md(_od)+' ✓'):'已開放')+'</span>');
-    const _st=lesStat(l),_tot=_st?_st.total:an,_sub=_st?_st.sub:0,_pct=_tot?Math.round(_sub/_tot*100):0;
-    const _done=(!an||(_od&&_od>_today))?'<span class="muted">—</span>'
-      :('<span class="lcr-bar"><span class="lcr-tr"><i style="width:'+_pct+'%"></i></span><small>已交 '+_sub+'/'+_tot+'</small></span>'
+      :('<span class="tag lcb-ok">'+(_od?(_md(_od)+' 開放 ✓'):'已開放')+'</span>');
+    const _st=lesStat(l),_tot=_st?_st.total:an,_sub=_st?_st.sub:0;
+    const _done=(!an||(_od&&_od>_today))?''
+      :('<span>已交 '+_sub+'/'+_tot+'</span>'
         +((_st&&_st.pend)?('<button class="btn btn-sm lcr-pend" data-act="gradeLesson" data-id="'+esc(l.id)+'" title="只看這一課的作答">待批改 '+_st.pend+'</button>'):''));
-    return `<div class="card lesson-card lcr-card${open?' open':''}">
-      <div class="lesson-head lcr" data-act="toggleCard" data-id="${l.id}">
-        <div class="lesson-no">${ov.num!=null?ov.num:(l.order_index||i+1)}</div>
-        <div class="lcr-t"><h3>${esc(ov.title!=null?ov.title:l.title)}</h3><div class="lcr-chips">${l.slides_open?slideTag(l):''}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${viChip(l)}${an?'<span class="lcr-n">'+an+' 人</span>':''}${built?'':'<span class="lcr-built" title="這一課的內容還在做">還在做</span>'}</div></div>
-        <div class="lcr-open">${_open}</div>
-        <div class="lcr-sl">${sldCell(l)}</div>
-        <div class="lcr-done">${_done}</div>
+    return `<div class="card lesson-card lcb-card${open?' open':''}">
+      <div class="lesson-head lcb" data-act="toggleCard" data-id="${l.id}">
+        <span class="lcb-n">${ov.num!=null?ov.num:(l.order_index||i+1)}</span>
+        <div class="lcb-main"><h3>${esc(ov.title!=null?ov.title:l.title)}</h3>
+          <div class="lcb-m">${_open}${sldTxt(l)}${_done}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${l.slides_open?slideTag(l):''}${viChip(l)}${built?'':'<span class="lcr-built" title="這一課的內容還在做">還在做</span>'}</div></div>
+        <span class="grow"></span>
         <span class="card-chev" title="${open?'收起來':'打開看這一課的按鈕'}">${open?'▾':'▸'}</span></div>
       ${ov.bar||''}
       ${open?`<div class="lc-bar">
@@ -6964,7 +6969,7 @@ function renderLessons(){
     if(!groups[b]||!groups[b].length)return '';
     const op=_isOpen(b);
     /* LESHEAD_V1597 Quinn：「看不太懂這些按鈕的意思」。每一本教材的課上面加一行欄位名稱 */
-    const cards=op?('<div class="lcr-hd" aria-hidden="true"><span></span><span>課</span><span>學生看得到嗎</span><span>投影片</span><span>學生交了幾位</span><span></span></div>'+unitGroupHtml(b,groups[b])):'';/*UNITGRP_V77*/
+    const cards=op?unitGroupHtml(b,groups[b]):'';/*UNITGRP_V77*//* LESROWB_V1599 兩行版不需要欄位名稱 */
     /* BOOKCOVER_V1459 展開教材時，標題列右邊多一顆「封面」 */
     const _cv=(b==='__none')?'':bookCoverOf(b);
     const _cvBtn=(b==='__none')?'':('<button class="btn btn-sm btn-ghost" data-act="bookCover" data-id="'+esc(b)+'" style="margin-right:10px" title="學生端「我的教材」會顯示這張封面">'
