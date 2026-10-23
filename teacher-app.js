@@ -6223,7 +6223,8 @@ function sldLoad(){
 function sldTxt(l){
   try{sldLoad();}catch(e){}
   const d=SLD.map[l.id];
-  if(d)return '<a class="lcb-sl ok" href="slides.html?lesson='+encodeURIComponent(d.id)+'" target="_blank" rel="noopener" title="點了打開這一課的投影片">🖥 投影片 ✓</a>';
+  /* SLDOPEN_V1600 連結在整行（點了會展開）裡面，原本被攔下來打不開；改成自己的動作直接開投影片 */
+  if(d)return '<a class="lcb-sl ok" data-act="openSld" data-id="'+esc(d.id)+'" href="slides.html?lesson='+encodeURIComponent(d.id)+'" target="_blank" rel="noopener" title="點了打開這一課的投影片">🖥 投影片 ✓</a>';
   return SLD.at?'<span class="lcb-sl">🖥 還沒有投影片</span>':'';}
 function sldCell(l){
   try{sldLoad();}catch(e){}
@@ -6247,9 +6248,9 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
     return `<div class="card lesson-card lcb-card${open?' open':''}">
       <div class="lesson-head lcb" data-act="toggleCard" data-id="${l.id}">
         <span class="lcb-n">${ov.num!=null?ov.num:(l.order_index||i+1)}</span>
-        <div class="lcb-main"><h3>${esc(ov.title!=null?ov.title:l.title)}</h3>
-          <div class="lcb-m">${_open}${sldTxt(l)}${_done}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${l.slides_open?slideTag(l):''}${viChip(l)}${built?'':'<span class="lcr-built" title="這一課的內容還在做">還在做</span>'}</div></div>
+        <div class="lcb-main"><h3>${esc(ov.title!=null?ov.title:l.title)}</h3></div>
         <span class="grow"></span>
+          <div class="lcb-m">${_open}${sldTxt(l)}${_done}${di?`<span class="badge ${di.cls}">${di.label}</span>`:''}${l.slides_open?slideTag(l):''}${viChip(l)}${built?'':'<span class="lcr-built" title="這一課的內容還在做">還在做</span>'}</div>
         <span class="card-chev" title="${open?'收起來':'打開看這一課的按鈕'}">${open?'▾':'▸'}</span></div>
       ${ov.bar||''}
       ${open?`<div class="lc-bar">
@@ -18845,6 +18846,7 @@ H.stuNoMail=()=>{
        <button class="btn btn-sm" data-act="editStudent" data-id="${esc(s.id)}">✏️ 去填</button></div>`).join('')}
    </div></div>`);};
 H.stuSecToggle=()=>{S.stuSecAllOpen=!(S.stuSecAllOpen===true);renderStudents();};
+H.openSld=(id)=>{try{window.open('slides.html?lesson='+encodeURIComponent(id),'_blank','noopener');}catch(e){}};
 H.toggleCard=(id)=>{if(S.openCards.has(id))S.openCards.delete(id);else S.openCards.add(id);renderLessons();};
 H.toggleTranscript=async(id)=>{/*TRANSCRIPT_V75 老師開了學生才看得到聽力文本*/
   const l=S.lessons.find(x=>x.id===id);if(!l)return;const nv=!l.transcript_open;
