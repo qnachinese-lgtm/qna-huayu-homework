@@ -10,6 +10,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
 <!-- CLFIT_V1 文言文詞語解釋多時自己捲動 -->
@@ -2281,14 +2282,26 @@ function clsInit(){ const r = $("#clsRow"), c = $("#clsBtn"); if(r) r.hidden = f
     ctx.fill("nonzero");
     ctx.lineWidth = thin; ctx.beginPath(); ctx.moveTo(X(s.p[0]), Y(s.p[0])); for(let i = 1; i < N; i++) ctx.lineTo(X(s.p[i]), Y(s.p[i])); ctx.stroke();
     ctx.restore(); }
-  function draw(){ ctx.clearRect(0, 0, cv.width, cv.height); strokes().forEach(line); if(P.cur) line(P.cur); }
+  /* PENSCROLL_V1 畫筆模式也能捲動：滾輪／觸控板、兩指（有觸控筆時一指）都會捲投影片；寫好的字跟著內容一起捲 */
+  const sTop = () => { const st = $("#stage"); return st ? st.scrollTop : 0; };
+  function draw(){ ctx.clearRect(0, 0, cv.width, cv.height); const y0 = sTop();
+    const one = s => { const dy = (s.oy || 0) - y0; if(!dy) return line(s); ctx.save(); ctx.translate(0, dy * dpr); line(s); ctx.restore(); };
+    strokes().forEach(one); if(P.cur) one(P.cur); }
+  function scrollerAt(x, y){ cv.style.pointerEvents = "none"; let el = document.elementFromPoint(x, y); cv.style.pointerEvents = "";
+    for(; el && el !== document.body; el = el.parentElement){ const cs = getComputedStyle(el); if(/(auto|scroll)/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 1) return el; }
+    return $("#stage"); }
+  cv.addEventListener("wheel", e => { if(!P.on) return; const el = scrollerAt(e.clientX, e.clientY); if(!el) return; e.preventDefault(); el.scrollBy({top: e.deltaY, left: e.deltaX}); }, {passive: false});
+  document.addEventListener("scroll", () => { if(P.on || strokes().length) draw(); }, true);
+  const tch = new Map(); let pan = null;
   const pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * box.w, (e.clientY - r.top) / r.height * box.h, e.pointerType === "pen" ? (e.pressure || .5) : .5]; };
-  function erase(p){ const ss = strokes(), r = 14; for(let i = ss.length - 1; i >= 0; i--) if(ss[i].p.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < r + ss[i].w)) ss.splice(i, 1); draw(); }
-  cv.addEventListener("pointerdown", e => { if(!P.on) return; if(e.pointerType === "pen") P.penSeen = true; if(P.penSeen && e.pointerType === "touch") return;
-    e.preventDefault(); cv.setPointerCapture(e.pointerId); const p = pt(e); if(P.er){ P.cur = {erase: true}; erase(p); return; } P.cur = {c: P.col, w: P.sz, t: P.ty, p: [p]}; draw(); });
-  cv.addEventListener("pointermove", e => { if(!P.cur) return; e.preventDefault(); const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+  function erase(p){ const ss = strokes(), r = 14, y0 = sTop(); for(let i = ss.length - 1; i >= 0; i--){ const dy = (ss[i].oy || 0) - y0; if(ss[i].p.some(q => Math.hypot(q[0] - p[0], q[1] + dy - p[1]) < r + ss[i].w)) ss.splice(i, 1); } draw(); }
+  cv.addEventListener("pointerdown", e => { if(!P.on) return; if(e.pointerType === "pen") P.penSeen = true;
+    if(e.pointerType === "touch"){ tch.set(e.pointerId, e.clientY);
+      if(P.penSeen || tch.size >= 2){ if(P.cur && !P.cur.erase && P.cur.p.length < 4) P.cur = null; e.preventDefault(); cv.setPointerCapture(e.pointerId); pan = {el: scrollerAt(e.clientX, e.clientY), id: e.pointerId, y: e.clientY}; draw(); return; } }
+    e.preventDefault(); cv.setPointerCapture(e.pointerId); const p = pt(e); if(P.er){ P.cur = {erase: true}; erase(p); return; } P.cur = {c: P.col, w: P.sz, t: P.ty, p: [p], oy: sTop()}; draw(); });
+  cv.addEventListener("pointermove", e => { if(pan && e.pointerType === "touch"){ if(e.pointerId === pan.id){ e.preventDefault(); if(pan.el) pan.el.scrollBy(0, pan.y - e.clientY); pan.y = e.clientY; } return; } if(!P.cur) return; e.preventDefault(); const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
     if(P.cur.erase){ evs.forEach(x => erase(pt(x))); return; } evs.forEach(x => P.cur.p.push(pt(x))); draw(); });
-  const up = () => { if(!P.cur) return; if(!P.cur.erase) strokes().push(P.cur); P.cur = null; draw(); };
+  const up = e => { if(e && e.pointerType === "touch"){ tch.delete(e.pointerId); if(pan && (!tch.size || e.pointerId === pan.id)) pan = null; } if(!P.cur) return; if(!P.cur.erase) strokes().push(P.cur); P.cur = null; draw(); };
   cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
   function tools(){ cv.classList.toggle("er", !!P.er); bar.innerHTML = TYPES.map(([k, n]) => `<button type="button" class="txt" data-pt="${k}" aria-pressed="${!P.er && P.ty === k}">${n}</button>`).join("") + `<span class="sep"></span>` + COLS.map(c => `<button type="button" data-pc="${c}" aria-pressed="${!P.er && P.col === c}" aria-label="顏色"><span class="dot" style="background:${c}"></span></button>`).join("")
       + `<span class="sep"></span>` + SZ.map(s => `<button type="button" class="sz" data-ps="${s}" aria-pressed="${P.sz === s}" aria-label="粗細"><span class="dot" style="width:${s + 4}px;height:${s + 4}px;background:var(--fg)"></span></button>`).join("")
