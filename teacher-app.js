@@ -14464,7 +14464,8 @@ function renderClassProfile(){
 
   const tab=S.cvTab||'stu';
   const T=(k,label,n)=>'<button class="sp-tab'+(tab===k?' on':'')+'" type="button" data-act="cvTab" data-id="'+k+'">'+label+(n!=null?'<span class="n">'+n+'</span>':'')+'</button>';
-  const tabs='<div class="sp-tabs">'+T('stu','成員',members.length)+T('days','上課記錄',dates.length)
+  const _opN=sortLessons(S.lessons).filter(l=>opInCls(l,cls)).length;/* OPENPLAN_V1594 */
+  const tabs='<div class="sp-tabs">'+T('stu','成員',members.length)+T('plan','開課時間表',_opN||null)+T('days','上課記錄',dates.length)
     +T('mod','課程模組',null)+T('board','繳交狀況',null)
     +T('perf','做題狀況',null)/* CLSPERF_V1544 */
     +T('links','班級資訊',null)+'</div>';
@@ -22935,6 +22936,7 @@ function cvPerfHtml(cls,members){
 function cvBodyHtml(cls,members,roster){
   const tab=S.cvTab||'mod';const TD='padding:7px 9px;border-top:1px solid var(--line)';
   if(tab==='perf')return cvPerfHtml(cls,members);/* CLSPERF_V1544 */
+  if(tab==='plan')return cvPlanHtml(cls,members);/* OPENPLAN_V1594 */
   /* CLSMOB_V1567 表頭也改成 class，窄螢幕才收得起來（每一格自己帶標籤） */
   if(tab==='stu')return `<div class="card"><h3 style="margin:0 0 10px">👥 學生名單 <span class="tag">${members.length} 位</span></h3><div class="hint" style="margin-bottom:8px">點學生的名字可以攤開他的上課和繳費記錄，裡面有「✏️ 編輯資料」。團班每位學生各繳各的。</div><table class="cpr-tb"><thead class="cpr-hd"><tr><th>姓名</th><th>Email</th><th>作業完成</th><th>繳費</th><th>操作</th></tr></thead><tbody>${roster}</tbody></table></div>`;
   if(tab==='days')return classDatesHtml(cls);
@@ -22956,12 +22958,94 @@ function cvBodyHtml(cls,members,roster){
   if(!ls.length)return `<div class="card"><div class="hint">這個班還沒有發佈任何課程內容。</div><div style="margin-top:10px"><button class="btn btn-primary" data-act="classPublish" data-id="${esc(cls)}">📢 發佈內容</button></div></div>`;
   const mods=ls.map(l=>{const its=tModItems(l,cls);
     const open=(S.tModOpen&&S.tModOpen[l.id]===false)?' closed':'';
-    return `<div class="tmod${open}" data-mid="${esc(l.id)}"><div class="tmod-h" data-act="tModTog" data-id="${esc(l.id)}"><span class="chev">▾</span>${esc((l.order_index?('L'+l.order_index+' · '):'')+(l.title||''))}<span class="grow"></span><span class="badge badge-ok">已發佈</span></div>
+    return `<div class="tmod${open}" data-mid="${esc(l.id)}"><div class="tmod-h" data-act="tModTog" data-id="${esc(l.id)}"><span class="chev">▾</span>${esc((l.order_index?('L'+l.order_index+' · '):'')+(l.title||''))}<span class="grow"></span>${opFuture(l,cls)?`<span class="badge b-info">開放日 ${esc(opMD(opDate(l,cls)))}</span>`:'<span class="badge badge-ok">已發佈</span>'}</div>
       <div class="tmod-items">${its.map(it=>`<div class="tmitem"><span class="mi">${it.ic}</span><span class="mt">${esc(it.t)}${it.s?`<span class="ms">${esc(it.s)}</span>`:''}</span>${it.badge||''}${it.btn||''}<span class="tpub tpub-y">✓</span></div>`).join('')}</div></div>`;}).join('');
   const un=all.length?`<div class="tmod closed"><div class="tmod-h" data-act="tModTog" data-id="__un"><span class="chev">▾</span>尚未發佈給這個班<span class="grow"></span><span class="badge">${all.length} 課</span></div>
     <div class="tmod-items">${all.slice(0,12).map(l=>`<div class="tmitem"><span class="mi">📖</span><span class="mt">${esc((l.order_index?('L'+l.order_index+' · '):'')+(l.title||''))}${l.textbook?`<span class="ms">${esc(l.textbook)}</span>`:''}</span><button class="btn btn-sm btn-accent" data-act="classPublish" data-id="${esc(cls)}">📢 發佈內容</button><span class="tpub tpub-n">◯</span></div>`).join('')}</div></div>`:'';
   return `<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-sm btn-primary" data-act="classPublish" data-id="${esc(cls)}">📢 發佈內容</button></div>${mods}${un}`;
 }
+/* ══════ OPENPLAN_V1594 開課時間表（Quinn 選的 C・精簡清單） ══════
+   一課一行：開放日期、學生完成幾位、上課投影片。
+   「自動開放」怎麼做到的：一課可以先發佈給這個班（assigned_groups），再記一個這個班的開放日
+   （lessons.open_dates = {班級代號: 'YYYY-MM-DD'}）。學生端判斷「這課是不是給我的」時，
+   如果是透過班級拿到的、而且那個班的開放日還沒到，就先不顯示——到了那天打開就看得到。
+   不用伺服器排程，也沒有「忘了按發佈」這回事。
+   單獨指派給某位學生（assigned_ids）的不受開放日影響，照舊馬上看得到。 */
+function opDate(l,cls){const m=(l&&l.open_dates)||{};return String(m[cls]||'');}
+function opInCls(l,cls){return !!l&&!l.deleted_at&&(((l.assigned_groups||[]).includes(cls))||!!opDate(l,cls));}
+function opFuture(l,cls){const d=opDate(l,cls);return !!d&&d>localToday();}
+function opMD(d){const m=String(d||'').match(/^\d{4}-(\d{2})-(\d{2})$/);return m?(+m[1]+'/'+m[2]):String(d||'');}
+function cvPlanHtml(cls,members){
+  const mem=(members||[]).filter(s=>!s.is_test);
+  const ls=sortLessons(S.lessons).filter(l=>opInCls(l,cls))
+    .sort((a,b)=>{const x=opDate(a,cls)||'0000',y=opDate(b,cls)||'0000';return x.localeCompare(y)||((a.order_index||0)-(b.order_index||0));});
+  const top='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">'
+    +'<button class="btn btn-sm btn-primary" data-act="opEdit" data-id="'+esc(cls)+'">✏️ 排開放日期</button></div>';
+  if(!ls.length)return top+'<div class="card"><div class="hint">還沒有排任何一課。按「✏️ 排開放日期」，勾要上的課、填日期就好。</div></div>';
+  const today=localToday();
+  const rows=ls.map((l,i)=>{
+    const d=opDate(l,cls),pub=(l.assigned_groups||[]).includes(cls),fut=d&&d>today;
+    const open=pub&&!fut;
+    const pill=fut?('<span class="badge b-info">'+esc(opMD(d))+'</span>')
+      :(d?('<span class="badge badge-ok">'+esc(opMD(d))+' ✓</span>'):'<span class="badge badge-ok">已開放</span>');
+    const done=open?mem.filter(s=>{const r=resultOf(l.id,s.id);return r&&(r.status==='pending'||r.status==='done');}).length:0;
+    const pct=(open&&mem.length)?Math.round(done/mem.length*100):0;
+    const prog=open?('<div class="opl-bar"><span class="opl-tr"><i style="width:'+pct+'%"></i></span><small>'+done+'/'+mem.length+'</small></div>')
+      :'<span class="muted">—</span>';
+    const now=open&&(!ls[i+1]||!((l2=>{const d2=opDate(l2,cls);return (l2.assigned_groups||[]).includes(cls)&&!(d2&&d2>today);})(ls[i+1])));
+    return '<tr class="'+(fut?'fut':'')+(now?' now':'')+'"><td class="n">'+(i+1)+'</td>'
+      +'<td class="t"><b>'+esc((l.order_index?('L'+l.order_index+' · '):'')+(l.title||'（未命名）'))+'</b>'+(l.textbook?'<span class="muted" style="margin-left:6px;font-size:12px">'+esc(l.textbook)+'</span>':'')+'</td>'
+      +'<td data-l="開放">'+pill+'</td>'
+      +'<td data-l="學生完成">'+prog+'</td>'
+      +'<td class="a"><a class="opl-sl" href="slides.html?lesson=src_'+encodeURIComponent(l.id)+'" target="_blank" rel="noopener">▶ 投影片</a></td></tr>';}).join('');
+  return top+'<div class="card" style="padding:6px 14px"><table class="opl"><thead><tr><th></th><th>課</th><th>開放</th><th>學生完成</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>';}
+let OP_CTX=null;
+H.opEdit=(cls)=>{
+  const cm=classMetaOf(cls)||{};const book=String(cm.textbook||'').trim();
+  const all=sortLessons(S.lessons).filter(l=>!l.deleted_at);
+  /* 這班的教材排前面，其他的收在後面 */
+  const mine=all.filter(l=>opInCls(l,cls)||(book&&String(l.textbook||'').trim()===book));
+  const rest=all.filter(l=>mine.indexOf(l)<0);
+  OP_CTX={cls:cls};
+  const row=l=>{const on=opInCls(l,cls),d=opDate(l,cls);
+    return '<div class="op-row"><label class="op-ck"><input type="checkbox" class="op-on" data-id="'+esc(l.id)+'"'+(on?' checked':'')+'>'
+      +'<span>'+esc((l.order_index?('L'+l.order_index+' · '):'')+(l.title||'（未命名）'))+(l.textbook?'<span class="muted" style="margin-left:6px;font-size:12px">'+esc(l.textbook)+'</span>':'')+'</span></label>'
+      +'<input type="date" class="op-d" data-id="'+esc(l.id)+'" value="'+esc(d)+'"></div>';};
+  openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>✏️ 排開放日期 · '+esc(cls)+'</h3><button class="x" data-act="closeModal">×</button></div>'
+    +'<div class="modal-body">'
+    +'<div class="op-fill"><span>從</span><input type="date" id="op-start" value="'+esc(localToday())+'"><span>開始，每</span>'
+    +'<select id="op-step"><option value="7">1 週</option><option value="14">2 週</option><option value="3">3 天</option><option value="1">1 天</option></select>'
+    +'<span>一課</span><button class="btn btn-sm" type="button" data-act="opFill">套用到勾選的課</button></div>'
+    +'<div class="op-list">'+mine.map(row).join('')
+    +(rest.length?('<details class="op-more"><summary>其他教材（'+rest.length+'）</summary>'+rest.map(row).join('')+'</details>'):'')+'</div>'
+    +'<div class="hint" style="margin-top:8px">日期空白＝馬上開放。</div>'
+    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+    +'<button class="btn btn-primary" data-act="opSave">儲存</button></div></div>');};
+H.opFill=()=>{
+  const st=($('#op-start')&&$('#op-start').value)||localToday();const step=Number(($('#op-step')&&$('#op-step').value)||7)||7;
+  const d0=new Date(st+'T00:00:00');let k=0;
+  $$('.op-row').forEach(r=>{const c=r.querySelector('.op-on'),i=r.querySelector('.op-d');if(!c||!c.checked||!i)return;
+    const d=new Date(d0.getTime());d.setDate(d.getDate()+step*k);k++;
+    i.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');});
+  if(!k)toast('先勾要排的課');};
+H.opSave=async()=>{
+  const C=OP_CTX;if(!C)return;const cls=C.cls;
+  const btn=document.querySelector('[data-act="opSave"]');if(btn){btn.disabled=true;btn.textContent='儲存中…';}
+  let n=0;
+  try{await ensureAuthFresh();
+    for(const r of $$('.op-row')){
+      const c=r.querySelector('.op-on'),i=r.querySelector('.op-d');if(!c)continue;
+      const l=(S.lessons||[]).find(x=>x.id===c.dataset.id);if(!l)continue;
+      const want=!!c.checked,date=want?String((i&&i.value)||''):'';
+      const ag0=Array.isArray(l.assigned_groups)?l.assigned_groups:[];
+      const od0=Object.assign({},l.open_dates||{});
+      const ag=want?(ag0.includes(cls)?ag0.slice():ag0.concat([cls])):ag0.filter(x=>x!==cls);
+      const od=Object.assign({},od0);if(date)od[cls]=date;else delete od[cls];
+      if(JSON.stringify(ag)===JSON.stringify(ag0)&&JSON.stringify(od)===JSON.stringify(od0))continue;
+      await DB.update('lessons',l.id,{assigned_groups:ag,open_dates:od});l.assigned_groups=ag;l.open_dates=od;n++;}
+    try{ruLater();}catch(e){}
+    OP_CTX=null;closeModal();render();toast(n?('已更新 '+n+' 課'):'沒有改變');}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='儲存';}toast('儲存失敗：'+((e&&(e.code||e.message))||e));}};
 function publishModal(cls){const lessons=sortLessons(S.lessons);
   const rows=lessons.length?lessons.map(l=>{const on=(l.assigned_groups||[]).includes(cls);return `<label class="check-row"><input type="checkbox" class="pub-les" value="${l.id}" ${on?'checked':''}> ${l.textbook?`<span class="tag">${esc(l.textbook)}</span> `:''}${esc(l.title||'（未命名）')}${on?' <span class="tag gold">已發佈</span>':''}</label>`;}).join(''):'<div class="hint">還沒有做好的課文。可先到「上課教材」新增。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>📢 發佈給「${esc(cls)}」</h3><button class="x" data-act="closeModal">×</button></div>
