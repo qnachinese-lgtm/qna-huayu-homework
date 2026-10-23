@@ -914,11 +914,11 @@ let gi = 0;
 const PCOL = ["var(--sky)","#C9DCF4","#DCCEF7","var(--yellow)","#B7D0EE"];
 
 /* FLOW_V1 每一課自己挑步驟、排順序；同一套教材沿用 */
-const STEP_DEFS = {start:"開始", warm:"暖身", words:"生詞", words2:"短文生詞", text:"對話", read:"短文", dict:"聽寫", grammar:"語法", speak:"口說", qa:"問題與討論", qa2:"短文討論", culture:"文化", draw:"抽卡練習", order:"看圖排序", review:"複習"};
+const STEP_DEFS = {start:"開始", warm:"暖身", words:"生詞", words2:"短文生詞", text:"對話", text2:"對話二", read:"短文", dict:"聽寫", grammar:"語法", speak:"口說", qa:"問題與討論", qa2:"短文討論", culture:"文化", draw:"抽卡練習", order:"看圖排序", review:"複習"};
 const DEFAULT_FLOW = ["start","words","text","dict","grammar","draw","review"];
 const flowOf = L => { const f = (L && Array.isArray(L.flow) && L.flow.length) ? L.flow.filter(k=>STEP_DEFS[k]) : DEFAULT_FLOW; return f[0]==="start" ? f : ["start", ...f.filter(k=>k!=="start")]; };
 let STEPS = DEFAULT_FLOW.map(k=>({key:k, name:STEP_DEFS[k]}));
-function applyFlow(){ const fl = flowOf(LESSON); STEPS = fl.map(k=>({key:k, name: k==="words" && isClL() ? "詞語解釋" : k==="read" && isClL() ? "原文" : k==="qa" && fl.includes("qa2") ? "對話討論" : k==="words" && fl.includes("words2") ? "對話生詞" : STEP_DEFS[k]})); step = Math.min(step, STEPS.length-1); }
+function applyFlow(){ const fl = flowOf(LESSON); STEPS = fl.map(k=>({key:k, name: k==="words" && isClL() ? "詞語解釋" : k==="read" && isClL() ? "原文" : k==="qa" && fl.includes("qa2") ? "對話討論" : k==="words" && fl.includes("words2") ? (fl.includes("text2") ? "生詞一" : "對話生詞") : fl.includes("text2") && k==="words2" ? "生詞二" : fl.includes("text2") && k==="text" ? "對話一" : STEP_DEFS[k]})); /* DLG2_V1 當代中文：生詞一、對話一、生詞二、對話二 */ step = Math.min(step, STEPS.length-1); }
 let gp = 0, gShow = false, gRev = {};
 /* GBLANK_V1 語法答案寫在空格線上（像聽寫），空格大小先留好，顯示答案時不會跳動 */
 function fmtQA(q, ans, show){ const BL = /＿{2,}|_{3,}/g, n = (String(q).match(BL)||[]).length; ans = String(ans||"").trim();
@@ -999,7 +999,7 @@ function go(i){
 function toggles(){
   /* PTHIDE_V1 這一步沒有拼音、翻譯就不顯示這兩個按鈕 */
   { const k = STEPS[step] && STEPS[step].key, has = r => r && (String(r[0]||"").trim() || String(r[1]||"").trim());
-    const rows = (k==="words"||k==="words2") ? (LESSON[k]||[]).map(w=>[w[1]||w[5], w[3]]) : k==="text" ? (LESSON.dialog||[]).map(d=>[d[3], d[4]]) : k==="read" ? ((LESSON.read||{}).paras||[]).map(p=>[isClL() ? "" : p[1], p[2]]) : k==="grammar" ? GR(LESSON).flatMap(g=>(g.examples||[]).map(e=>[e[1], ""])) : k==="draw" ? (LESSON.cards||[]).map(c=>[c[3], c[4]]) : null;
+    const rows = (k==="words"||k==="words2") ? (LESSON[k]||[]).map(w=>[w[1]||w[5], w[3]]) : k==="text" ? (LESSON.dialog||[]).map(d=>[d[3], d[4]]) : k==="text2" ? (LESSON.dialog2||[]).map(d=>[d[3], d[4]]) : k==="read" ? ((LESSON.read||{}).paras||[]).map(p=>[isClL() ? "" : p[1], p[2]]) : k==="grammar" ? GR(LESSON).flatMap(g=>(g.examples||[]).map(e=>[e[1], ""])) : k==="draw" ? (LESSON.cards||[]).map(c=>[c[3], c[4]]) : null;
     if(rows && !rows.some(has)) return ""; }
   return `<h3>顯示</h3><div class="chips">
     <button class="chip" aria-pressed="${showPy}" data-t="py">拼音</button>
@@ -1023,7 +1023,7 @@ function render(){
     if(!WGS.length){ $("#title").textContent="生詞卡"; $("#hint").textContent=""; st.innerHTML=`<div class="center"><div class="tr">這一課還沒有生詞，按右上角「老師」→「編輯／匯入」加入。</div></div>`; ct.innerHTML=""; return; }
     wi = Math.min(wi, WGS.length-1);
     const it = WGS[wi], w = it.r, rich = it.subs.length || it.exs.length > 1;
-    $("#title").textContent = isClL() ? "詞語解釋" : k==="words2" ? "短文生詞" : flowOf(LESSON).includes("words2") ? "對話生詞" : "生詞卡";
+    $("#title").textContent = isClL() ? "詞語解釋" : k==="words2" ? (flowOf(LESSON).includes("text2") ? "生詞二" : "短文生詞") : flowOf(LESSON).includes("text2") ? "生詞一" : flowOf(LESSON).includes("words2") ? "對話生詞" : "生詞卡";
     $("#hint").textContent = "按 ← → 換生詞";
     if(it.subs.length){ const row = (x, sub) => `<div class="wbk ${sub?'sub':''}"><div class="whead"><b class="ww">${esc(x.r[0])}</b><span class="py">${esc(x.r[1])}</span><span class="wpos">${esc(x.r[2])}</span><span class="tr">${esc(x.r[3])}</span></div>${x.exs.map(e=>`<div class="wex"><div class="zh">${brAB(e[0])}</div><div class="py">${esc(e[1])}</div></div>`).join("")}</div>`;
       st.innerHTML = `<div class="tag"><span>${isClL() ? "詞語" : "生詞"} ${wi+1}</span></div><div class="wbook pop">${row(it,false)}${it.subs.map(x=>row(x,true)).join("")}</div>`; }
@@ -1059,21 +1059,24 @@ function render(){
     ct.innerHTML = oStory ? `<button class="btn ghost" data-a="ostory">回到排序</button>`
       : oCtrlHtml(n);
   }
-  if(k==="text"){
-    $("#title").textContent = "對話";
+  if(k==="text" || k==="text2"){
+    /* DLG2_V1 對話二：跟對話一同一個畫面，換一份句子。圖片、音檔只有對話一有（對話二用每一句自己的圖） */
+    const D2 = k==="text2", DLG = D2 ? (LESSON.dialog2||[]) : LESSON.dialog, two = flowOf(LESSON).includes("text2");
+    $("#title").textContent = D2 ? "對話二" + (LESSON.textTitle2 ? "：" + LESSON.textTitle2 : "") : two ? "對話一" + (LESSON.textTitle ? "：" + LESSON.textTitle : "") : "對話";
     $("#hint").textContent = "按「下一句」一句一句帶念";
-    const timgs = LESSON.textImgs || [], lineImg = li>=0 && LESSON.dialog[li] && LESSON.dialog[li][5];
-    const anyImg = timgs.length || LESSON.dialog.some(d=>d[5]);
+    if(!DLG.length){ st.innerHTML = `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有對話二，按右上角「老師」→「編輯／匯入」→「對話二」加入。</div></div>`; ct.innerHTML = ""; return; }
+    const timgs = D2 ? [] : (LESSON.textImgs || []), lineImg = li>=0 && DLG[li] && DLG[li][5];
+    const anyImg = timgs.length || DLG.some(d=>d[5]);
     ti = Math.min(ti, Math.max(0, timgs.length-1));
-    const pic = lineImg || (timgs[ti] && timgs[ti].url) || (LESSON.dialog.find(d=>d[5])||[])[5];
-    st.innerHTML = (anyImg ? `<div class="tsplit"><div class="tpic">${pic?`<img src="${esc(pic)}" alt="">`:""}</div>` : "") + `<div class="dlg">${LESSON.dialog.map((d,i)=> d[0]==="S" ? sceneHtml(d[2], i) : `<div class="line ${RIGHT(d[0])?'r':''} ${i===li?'on':''} ${li>=0&&i!==li?'dim':''}">
+    const pic = lineImg || (timgs[ti] && timgs[ti].url) || (DLG.find(d=>d[5])||[])[5];
+    st.innerHTML = (anyImg ? `<div class="tsplit"><div class="tpic">${pic?`<img src="${esc(pic)}" alt="">`:""}</div>` : "") + `<div class="dlg">${DLG.map((d,i)=> d[0]==="S" ? sceneHtml(d[2], i) : `<div class="line ${RIGHT(d[0])?'r':''} ${i===li?'on':''} ${li>=0&&i!==li?'dim':''}">
       <div class="av">${whoHtml(d[0])}<div class="nm">${esc(nameOf(d))}</div></div>
       <div class="bub" style="border-color:${RCOL[d[0]]||RCOL.A}"><div class="zh">${fmtZh(d[2])}</div><div class="py">${esc(d[3])}</div><div class="tr">${esc(d[4])}</div></div></div>`).join("")}</div>` + (anyImg ? `</div>` : "");
     setTimeout(()=>{ const on = st.querySelector(".line.on"); if(on) on.scrollIntoView({block:"nearest"}); }, 0);
-    const tau = LESSON.audio && LESSON.audio.url;
+    const tau = !D2 && LESSON.audio && LESSON.audio.url;
     ct.innerHTML = (tau ? aPlayerHtml() : "") + `${timgs.length>1 && !lineImg ? `<div class="chips"><button class="chip" data-a="tprev">上一張圖</button><button class="chip" data-a="tnext">下一張圖</button><span class="meta" style="align-self:center">${ti+1} / ${timgs.length}</span></div>` : ""}
       <button class="btn ghost" data-a="lall">全部顯示</button>${toggles()}
-      <div class="meta">${li<0?"全部":"第 "+(li+1)+" 句"}・共 ${LESSON.dialog.length} 句</div>
+      <div class="meta">${li<0?"全部":"第 "+(li+1)+" 句"}・共 ${DLG.length} 句</div>
       <div class="note"><b>建議</b><br>老師念 → 全班跟讀 → 分角色念。</div>`;
     if(tau){ setAudio(tau); updA(); }
   }
@@ -1192,9 +1195,10 @@ function render(){
     let items = (LESSON.review||[]).filter(Boolean);
     if(!items.length){
       const w1 = mains("words"), w2 = fl.includes("words2") ? mains("words2") : [];
-      if(w1.length) items.push(`我認得${w2.length?"對話":"這課的"} ${w1.length} 個生詞`);
-      if(w2.length) items.push(`我認得短文 ${w2.length} 個生詞`);
-      if(fl.includes("text") && (LESSON.dialog||[]).length) items.push(`我會念對話${LESSON.textTitle?`「${LESSON.textTitle}」`:""}`);
+      if(w1.length) items.push(`我認得${w2.length?(fl.includes("text2")?"對話一":"對話"):"這課的"} ${w1.length} 個生詞`);
+      if(w2.length) items.push(`我認得${fl.includes("text2")?"對話二":"短文"} ${w2.length} 個生詞`);
+      if(fl.includes("text") && (LESSON.dialog||[]).length) items.push(`我會念對話${fl.includes("text2")?"一":""}${LESSON.textTitle?`「${LESSON.textTitle}」`:""}`);
+      if(fl.includes("text2") && (LESSON.dialog2||[]).length) items.push(`我會念對話二${LESSON.textTitle2?`「${LESSON.textTitle2}」`:""}`);
       if(fl.includes("read") && LESSON.read && (LESSON.read.paras||[]).length) items.push(`我會念短文${LESSON.read.title?`「${LESSON.read.title}」`:""}`);
       GR(LESSON).forEach(g => { const t = g.title || (g.pattern||[]).join("＋"); if(t) items.push(`我會用「${t}」造句`); });
       if(fl.includes("qa") || fl.includes("qa2")) items.push("我能回答課文的問題");
@@ -1284,7 +1288,7 @@ document.addEventListener("click", e=>{
   if(a==="wprev"){ const n = Math.max(1,WG(LESSON).length); wi = (wi-1+n)%n; render(); }
   if(a==="wnext"){ wi = (wi+1)%Math.max(1,WG(LESSON).length); render(); }
   if(a==="wrand"){ wi = Math.floor(Math.random()*WG(LESSON).length); render(); }
-  if(a==="lnext"){ li = (li+1)%LESSON.dialog.length; render(); }
+  if(a==="lnext"){ const DL = (STEPS[step]||{}).key==="text2" ? (LESSON.dialog2||[]) : LESSON.dialog; li = (li+1)%Math.max(1, DL.length); render(); }
   if(a==="lall"){ li = -1; render(); }
   if(a==="aplay" && AUD){ AUD.paused ? AUD.play().catch(()=>{}) : AUD.pause(); }
   if(a==="aback" && AUD){ AUD.currentTime = Math.max(0, AUD.currentTime - 5); }
@@ -1307,7 +1311,7 @@ document.addEventListener("click", e=>{
 /* ONENAV_V1 只有一組上一頁／下一頁：先換步驟裡的生詞、句子、段落、語法頁，換完才到下一步 */
 function advance(d){ const k = STEPS[step].key;
   if(k==="words" || k==="words2"){ const n = WG(LESSON).length; if(d>0 && wCover && wOpen !== wi){ wOpen = wi; return render(); } if(d>0 && wi<n-1){ wi++; return render(); } if(d<0 && wi>0){ wi--; return render(); } }
-  if(k==="text"){ const n = LESSON.dialog.length; if(d>0 && li<n-1){ li++; return render(); } if(d<0 && li>0){ li--; return render(); } }
+  if(k==="text" || k==="text2"){ const n = (k==="text2" ? (LESSON.dialog2||[]) : LESSON.dialog).length; if(d>0 && li<n-1){ li++; return render(); } if(d<0 && li>0){ li--; return render(); } }
   if(k==="read"){ const n = isClL() ? clGroups((LESSON.read||{}).paras||[]).length : ((LESSON.read||{}).paras||[]).length; if(d>0 && ri<n-1){ ri++; return render(); } if(d<0 && ri>0){ ri--; return render(); } }
   if(k==="qa" || k==="qa2"){ const n = (LESSON[k]||[]).length; if(d>0 && qi<n-1){ qi++; return render(); } if(d<0 && qi>0){ qi--; return render(); } }
   /* GREVEAL_V1 語法練習：按下一頁先一題一題顯示答案，全部顯示完才換頁；上一頁先一題一題收回 */
@@ -1394,7 +1398,7 @@ const join = a => (a||[]).map(r=>Array.isArray(r)?r.join("｜"):r).join("\n");
 const cleanAv = o => { const r = {}; Object.entries(o||{}).forEach(([k,a])=>{ if(a && a.url && !a.local) r[k] = {url:a.url, path:a.path||"", x:+a.x||0, y:+a.y||0, z:+a.z||1, ar:+a.ar||1}; }); return r; };
 function fromDoc(id, d){
   return { id, num: d.num || "", name: d.name || "未命名", pinyin: d.pinyin || "", textTitle: d.textTitle || "",
-    goals: rows(d.goals).map(g=>g.replace(/\s*[｜|]\s*/,"：").replace(/：$/,"")), words: cells(d.words,7).map(r=>{ if(!/^(sub|ex)$/.test(r[6])) r[6] = ""; return r; }), words2: cells(d.words2,7).map(r=>{ if(!/^(sub|ex)$/.test(r[6])) r[6] = ""; return r; }), dialog: cells(d.dialog,6).map(r=>{r[0]=normRole(r[0]);return r}), textImgs: Array.isArray(d.textImgs) ? d.textImgs.filter(x=>x && x.url) : [],
+    goals: rows(d.goals).map(g=>g.replace(/\s*[｜|]\s*/,"：").replace(/：$/,"")), words: cells(d.words,7).map(r=>{ if(!/^(sub|ex)$/.test(r[6])) r[6] = ""; return r; }), words2: cells(d.words2,7).map(r=>{ if(!/^(sub|ex)$/.test(r[6])) r[6] = ""; return r; }), dialog: cells(d.dialog,6).map(r=>{r[0]=normRole(r[0]);return r}), dialog2: cells(d.dialog2,6).map(r=>{r[0]=normRole(r[0]);return r}), textTitle2: d.textTitle2 || "", textImgs: Array.isArray(d.textImgs) ? d.textImgs.filter(x=>x && x.url) : [],
     grammars: (Array.isArray(d.grammars) ? d.grammars : (d.pattern||d.gex ? [{pattern:d.pattern, gex:d.gex, note:d.gnote}] : []))
       .map(g=>({ title: g.title || "", pattern: String(g.pattern||"").split(/\s*[＋+]\s*/).filter(Boolean), examples: cells(g.gex,2), note: g.note || "",
         exs: (Array.isArray(g.exs) ? g.exs : []).map(x=>({instr: x.instr || "", opts: rows(x.opts), qs: cells(x.qs,2).filter(r=>r[0])})),
@@ -1409,7 +1413,7 @@ function fromDoc(id, d){
 }
 function toDoc(L){
   return { num: Number(L.num)||0, name: L.name, pinyin: L.pinyin, textTitle: L.textTitle||"", goals: join(L.goals), words: join(L.words), words2: join(L.words2||[]),
-    dialog: join(L.dialog), grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gex: join(g.examples), note: g.note||"", exs: (g.exs||[]).map(x=>({instr: x.instr||"", opts: join(x.opts||[]), qs: join(x.qs||[])})), blocks: g.blocks ? g.blocks.map(b=>({label: b.label||"", text: b.text||"", ex: join(b.ex||[])})) : null})), cast: castOf(L), avatars: cleanAv(L.avatars),
+    dialog: join(L.dialog), dialog2: join(L.dialog2||[]), textTitle2: L.textTitle2||"", grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gex: join(g.examples), note: g.note||"", exs: (g.exs||[]).map(x=>({instr: x.instr||"", opts: join(x.opts||[]), qs: join(x.qs||[])})), blocks: g.blocks ? g.blocks.map(b=>({label: b.label||"", text: b.text||"", ex: join(b.ex||[])})) : null})), cast: castOf(L), avatars: cleanAv(L.avatars),
     cards: join(L.cards), review: join(L.review), homework: join(L.homework), textImgs: (L.textImgs||[]).filter(x=>!x.local), orderImgs: (L.orderImgs||[]).filter(x=>x && x.url && !x.local), book: L.book||"", flow: flowOf(L), warmQs: join((L.warm||{}).qs||[]), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: join((L.read||{}).paras||[]), speak: join(L.speak||[]), qa: join(L.qa||[]), cultTitle: (L.culture||{}).title||"", cultText: join((L.culture||{}).paras||[]), cultImg: (L.culture||{}).img||null, dict: join(L.dict||[]), audio: L.audio && !L.audio.local ? L.audio : null };
 }
 let lessons = [SAMPLE], db = null, editingId = null, delArmed = false;
@@ -1453,6 +1457,7 @@ const SECS = [
   {k:"words", name:"生詞", cols:["類型","生詞","拼音","詞性","翻譯","例句","例句拼音"], idx:[6,0,1,2,3,4,5], size:7, w:"60px 100px 120px 70px 1fr 1.3fr 1.3fr", tip:"點「類型」切換：生詞／相關詞／例句"},
   {k:"words2", name:"短文生詞", cols:["類型","生詞","拼音","詞性","翻譯","例句","例句拼音"], idx:[6,0,1,2,3,4,5], size:7, w:"60px 100px 120px 70px 1fr 1.3fr 1.3fr", tip:"點「類型」切換：生詞／相關詞／例句"},
   {k:"dialog", name:"對話", cols:["角色","句子","拼音","翻譯","圖片"], idx:[0,2,3,4,5], size:6, w:"44px 1.5fr 1.4fr 1fr 72px", tip:"點圓圈換角色；景＝場景／動作"},
+  {k:"dialog2", name:"對話二", cols:["角色","句子","拼音","翻譯"], idx:[0,2,3,4], size:6, w:"44px 1.5fr 1.4fr 1fr", tip:"點圓圈換角色；景＝場景／動作"},/* DLG2_V1 */
   {k:"readParas", name:"短文", cols:["段落","拼音","翻譯"], w:"1.4fr 1.2fr 1fr", tip:""},
   {k:"dict", name:"聽寫", cols:["角色","句子（【】裡的字會變成空格）"], idx:[0,2], size:3, w:"44px 1fr", tip:"【】裡的字會挖空"},
   {k:"order", name:"看圖排序"},
@@ -1472,13 +1477,13 @@ function openEditor(L){
   const c = x => (x||[]).map(r => Array.isArray(r) ? r.slice() : [r]);
   ED = L ? { num:String(L.num||""), name:L.name||"", pinyin:L.pinyin||"", textTitle:L.textTitle||"",
       grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", gex:c(g.examples), _blocks: g.blocks || null, _sig: (g.note||"").trim() + "##" + JSON.stringify((g.examples||[]).map(r=>r[0])), exs:(g.exs||[]).map(x=>({instr:x.instr||"", opts:(x.opts||[]).join("\n"), qs:c(x.qs)}))})), cast: castOf(L), avatars: JSON.parse(JSON.stringify(L.avatars||{})),
-      goals:c(L.goals), words:c(L.words), words2:c(L.words2||[]), dialog:c(L.dialog), cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null, textImgs: (L.textImgs||[]).slice(), orderImgs: (L.orderImgs||[]).map(x=>({...x})),
+      goals:c(L.goals), words:c(L.words), words2:c(L.words2||[]), dialog:c(L.dialog), dialog2:c(L.dialog2||[]), textTitle2:L.textTitle2||"", cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null, textImgs: (L.textImgs||[]).slice(), orderImgs: (L.orderImgs||[]).map(x=>({...x})),
       book: L.book||"", flow: flowOf(L).slice(), warmQs: c((L.warm||{}).qs), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: c((L.read||{}).paras), speak: c(L.speak), qa: c(L.qa), qa2: c(L.qa2||[]), cultTitle: (L.culture||{}).title||"", cultText: c((L.culture||{}).paras), cultImg: (L.culture||{}).img||null }
-    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{title:"", pattern:"", gnote:"", gex:[blank(2),blank(2)], exs:[]}], cast:{A:"",B:"",C:"",D:""}, avatars:{}, goals:[[""],[""],[""]], words:[blank(7)], words2:[blank(7)], dialog:[["A","","","",""],["B","","","",""]], cards:[], review:[[""]], homework:[[""]], dict:[], audio:null,
+    : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{title:"", pattern:"", gnote:"", gex:[blank(2),blank(2)], exs:[]}], cast:{A:"",B:"",C:"",D:""}, avatars:{}, goals:[[""],[""],[""]], words:[blank(7)], words2:[blank(7)], dialog:[["A","","","",""],["B","","","",""]], dialog2:[], textTitle2:"", cards:[], review:[[""]], homework:[[""]], dict:[], audio:null,
       book: LESSON.id!=="sample" ? (LESSON.book||"") : "", flow: flowOf(LESSON).slice(), warmQs:[[""]], warmImg:null, readTitle:"", readParas:[blank(3)], speak:[blank(2)], qa:[blank(2)], qa2:[blank(2)], cultTitle:"", cultText:[[""]], cultImg:null, textImgs:[], orderImgs:[] };
   ED._id = (L && L.id!=="sample") ? L.id : "lesson-" + Date.now().toString(36);
   if(!ED.grammars.length) ED.grammars.push({title:"", pattern:"", gnote:"", gex:[blank(2)], exs:[]});
-  SECS.forEach(x=>{ if(x.cols && Array.isArray(ED[x.k]) && !ED[x.k].length && x.k!=="dict" && x.k!=="cards") ED[x.k].push((x.k==="dialog") ? ["A", ...blank((x.size||x.cols.length)-1)] : blank(x.size||x.cols.length)); });
+  SECS.forEach(x=>{ if(x.cols && Array.isArray(ED[x.k]) && !ED[x.k].length && x.k!=="dict" && x.k!=="cards") ED[x.k].push((x.k==="dialog"||x.k==="dialog2") ? ["A", ...blank((x.size||x.cols.length)-1)] : blank(x.size||x.cols.length)); });
   edTab = "basic";
   $("#edCancel").textContent = "取消";
   $("#edTitle").textContent = !L ? "新增一課" : L.id==="sample" ? "以範例為底，存成新的一課" : `編輯 第${L.num}課`;
@@ -1538,18 +1543,19 @@ function renderEd(){
     return;
   }
   /* PTOPT_V1 拼音／翻譯欄可隱藏；句子用可以長高的框 */
-  const ptK = S.k==="dialog" || S.k==="readParas", ptHas = ptK && ED[S.k].some(r => S.k==="dialog" ? (r[3]||r[4]) : (r[1]||r[2])), showPT = !ptK || (ED._pt===undefined ? ptHas : ED._pt);
-  const SC = showPT ? S : S.k==="dialog" ? {...S, cols:["角色","句子","圖片"], idx:[0,2,5], w:"44px 1fr 72px"} : {...S, cols:["段落"], idx:[0], w:"1fr"};
-  const big = ci => (S.k==="dialog" && ci===2) || (S.k==="readParas" && ci===0);
+  const isD = S.k==="dialog" || S.k==="dialog2";/* DLG2_V1 */
+  const ptK = isD || S.k==="readParas", ptHas = ptK && ED[S.k].some(r => isD ? (r[3]||r[4]) : (r[1]||r[2])), showPT = !ptK || (ED._pt===undefined ? ptHas : ED._pt);
+  const SC = showPT ? S : S.k==="dialog" ? {...S, cols:["角色","句子","圖片"], idx:[0,2,5], w:"44px 1fr 72px"} : S.k==="dialog2" ? {...S, cols:["角色","句子"], idx:[0,2], w:"44px 1fr"} : {...S, cols:["段落"], idx:[0], w:"1fr"};
+  const big = ci => (isD && ci===2) || (S.k==="readParas" && ci===0);
   const rowsHtml = ED[S.k].map((r,i) => `<span class="no">${i+1}</span>` + SC.cols.map((cn,j) => { const ci = SC.idx ? SC.idx[j] : j;
       return S.k==="dialog" && ci===5 ? (r[0]==="S" ? "<span></span>" : limgCell(i, r[5]))
       : (S.k==="words"||S.k==="words2") && ci===6 ? `<button class="wtype" type="button" data-wk="${S.k}" data-wtype="${i}" style="background:${WCOL[r[6]||""]}" aria-label="切換類型">${WLAB[r[6]||""]}</button>`
       : (S.k==="words"||S.k==="words2") && r[6]==="ex" && ci<4 ? "<span></span>"
-      : (S.k==="dialog" || S.k==="dict") && ci===0 ? `<button class="role" type="button" data-role="${i}" style="background:${RCOL[normRole(r[0])]}" aria-label="切換角色">${RLAB(normRole(r[0]))}</button>`
-      : big(ci) ? `<textarea class="grow${r[0]==="S" && S.k==="dialog" ? " scenein" : ""}" rows="1" data-r="${i}" data-c="${ci}" aria-label="${cn} 第${i+1}行">${esc(r[ci]||"")}</textarea>`
+      : (isD || S.k==="dict") && ci===0 ? `<button class="role" type="button" data-role="${i}" style="background:${RCOL[normRole(r[0])]}" aria-label="切換角色">${RLAB(normRole(r[0]))}</button>`
+      : big(ci) ? `<textarea class="grow${r[0]==="S" && isD ? " scenein" : ""}" rows="1" data-r="${i}" data-c="${ci}" aria-label="${cn} 第${i+1}行">${esc(r[ci]||"")}</textarea>`
       : `<input data-r="${i}" data-c="${ci}" value="${esc(r[ci]||"")}" aria-label="${cn} 第${i+1}行"${r[0]==="S" && ci===2 && S.k!=="words" ? ' class="scenein"' : ""}${(S.k==="words"||S.k==="words2") && r[6]==="sub" && ci===0 ? ' class="subin"' : ""}>`; }).join("") + `<button class="x" type="button" data-del="${i}" aria-label="刪除第${i+1}行">×</button>`).join("");
   B.innerHTML = `<div class="sec-h"><h3>${S.name}</h3>${S.tip?`<small>${S.tip}</small>`:""}${ptK ? `<button class="mini" type="button" id="ptTog" style="margin-left:auto">${showPT ? "隱藏拼音／翻譯" : "＋ 拼音／翻譯欄（初級用）"}</button>` : ""}</div>
-    ${S.k==="dialog"?castBox()+galleryBox():""}${S.k==="dict"?dictTop():""}${S.k==="warmQs"?mediaBox("warmImg","暖身圖片"):""}${S.k==="cultText"?`<div class="basic"><label for="b-ct">標題</label><input id="b-ct" data-b="cultTitle" value="${esc(ED.cultTitle)}"></div>`+mediaBox("cultImg","文化圖片"):""}${S.k==="readParas"?`<div class="basic"><label for="b-rt">短文標題</label><input id="b-rt" data-b="readTitle" value="${esc(ED.readTitle)}"></div>`:""}${S.k==="cards"?'<button class="mini" id="autoCards" type="button">用生詞例句和對話自動出題</button>':""}
+    ${S.k==="dialog"?castBox()+galleryBox():""}${S.k==="dialog2"?`<div class="basic"><label for="b-tt2">對話二標題</label><input id="b-tt2" data-b="textTitle2" value="${esc(ED.textTitle2||"")}"></div>`:""}${S.k==="dict"?dictTop():""}${S.k==="warmQs"?mediaBox("warmImg","暖身圖片"):""}${S.k==="cultText"?`<div class="basic"><label for="b-ct">標題</label><input id="b-ct" data-b="cultTitle" value="${esc(ED.cultTitle)}"></div>`+mediaBox("cultImg","文化圖片"):""}${S.k==="readParas"?`<div class="basic"><label for="b-rt">短文標題</label><input id="b-rt" data-b="readTitle" value="${esc(ED.readTitle)}"></div>`:""}${S.k==="cards"?'<button class="mini" id="autoCards" type="button">用生詞例句和對話自動出題</button>':""}
     <div class="tbl" style="grid-template-columns:28px ${SC.w} 28px"><span></span>${SC.cols.map(c=>`<span class="th">${c}</span>`).join("")}<span></span>${rowsHtml}</div>
     <button class="addrow" type="button" id="addRow">＋ 新增一行</button>`;
   B.querySelectorAll("textarea.grow").forEach(growTa);
@@ -1658,7 +1664,7 @@ $("#edBody").addEventListener("change", async e => {
 });
 $("#edBody").addEventListener("paste", e => {
   const t = e.target; if(!t.dataset || t.dataset.r===undefined) return;
-  const txt = (e.clipboardData||window.clipboardData).getData("text"); const isDlg = edTab==="dialog" || edTab==="dict";
+  const txt = (e.clipboardData||window.clipboardData).getData("text"); const isDlg = edTab==="dialog" || edTab==="dialog2" || edTab==="dict";
   if(!/[\t\n｜|]/.test(txt.trim()) && !(isDlg && t.dataset.g===undefined && /^([^：:\s]{1,8})\s*[：:]|^[（(]/.test(txt.trim()))) return;
   e.preventDefault();
   if(t.dataset.g !== undefined){ e.preventDefault(); const g = ED.grammars[+t.dataset.g], r0 = +t.dataset.r, c0 = +t.dataset.c;
@@ -1710,9 +1716,9 @@ $("#edBody").addEventListener("click", e => {
   if(b.dataset.gdel!==undefined){ ED.grammars.splice(+b.dataset.gdel,1); if(!ED.grammars.length) ED.grammars.push({title:"", pattern:"", gnote:"", gex:[blank(2)], exs:[]}); renderEd(); return; }
   if(b.dataset.gadd!==undefined){ ED.grammars[+b.dataset.gadd].gex.push(blank(2)); renderEd(); return; }
   if(b.dataset.g!==undefined && b.dataset.del!==undefined){ ED.grammars[+b.dataset.g].gex.splice(+b.dataset.del,1); renderEd(); return; }
-  if(b.id==="addRow"){ ED[edTab].push((edTab==="dialog"||edTab==="dict") ? [ED[edTab].length%2?"B":"A", ...blank(n-1)] : blank(n)); renderEd(); const ins = $("#edBody").querySelectorAll(`input[data-r="${ED[edTab].length-1}"]`); if(ins[0]) ins[0].focus(); }
+  if(b.id==="addRow"){ ED[edTab].push((edTab==="dialog"||edTab==="dialog2"||edTab==="dict") ? [ED[edTab].length%2?"B":"A", ...blank(n-1)] : blank(n)); renderEd(); const ins = $("#edBody").querySelectorAll(`input[data-r="${ED[edTab].length-1}"]`); if(ins[0]) ins[0].focus(); }
   if(b.dataset.del){ ED[edTab].splice(+b.dataset.del,1); renderEd(); }
-  if(b.id==="ptTog"){ const k = edTab, has = ED[k].some(r => k==="dialog" ? (r[3]||r[4]) : (r[1]||r[2])); ED._pt = !(ED._pt===undefined ? has : ED._pt); renderEd(); return; }
+  if(b.id==="ptTog"){ const k = edTab, has = ED[k].some(r => (k==="dialog"||k==="dialog2") ? (r[3]||r[4]) : (r[1]||r[2])); ED._pt = !(ED._pt===undefined ? has : ED._pt); renderEd(); return; }
   if(b.dataset.wtype){ const r = ED[b.dataset.wk || "words"][+b.dataset.wtype]; while(r.length<7) r.push(""); r[6] = WTYPE[(WTYPE.indexOf(r[6]||"")+1)%3]; renderEd(); return; }
   if(b.dataset.role){ const r = ED[edTab][+b.dataset.role]; r[0] = ROLES[(ROLES.indexOf(normRole(r[0]))+1)%ROLES.length]; renderEd(); }
   if(b.id==="autoCards"){
@@ -1724,14 +1730,14 @@ $("#edBody").addEventListener("click", e => {
   }
 });
 function readForm(){
-  [ED.dialog, ED.dict].forEach(a=>a.forEach(r=>{ if(r[0]!=="S") r[1] = ED.cast[r[0]] || r[1] || ""; }));
+  [ED.dialog, ED.dialog2||[], ED.dict].forEach(a=>a.forEach(r=>{ if(r[0]!=="S") r[1] = ED.cast[r[0]] || r[1] || ""; }));
   const j = k => ED[k].filter(filled).map(r=>r.map(x=>String(x).replace(/[｜|\n]/g," ").trim()).join("｜")).join("\n");
   const jr = a => a.filter(filled).map(r=>r.map(x=>String(x).replace(/[｜|\n]/g," ").trim()).join("｜")).join("\n");
   return { num: ED.num.trim(), name: ED.name.trim(), pinyin: ED.pinyin.trim(), textTitle: ED.textTitle.trim(),
     grammars: ED.grammars.filter(g=>(g.title||"").trim() || g.pattern.trim() || g.gex.some(filled) || (g.exs||[]).length).map(g=>({title: (g.title||"").trim(), pattern: g.pattern.trim(), note: g.gnote.trim(), gex: jr(g.gex),
       exs: (g.exs||[]).map(x=>({instr: x.instr.trim(), opts: x.opts.trim(), qs: jr(x.qs)})),
       blocks: g._blocks && g._sig === g.gnote.trim() + "##" + JSON.stringify(g.gex.filter(r=>(r[0]||"").trim()).map(r=>r[0].trim())) ? g._blocks.map(b=>({label: b.label||"", text: b.text||"", ex: (b.ex||[]).map(r=>r.join("｜")).join("\n")})) : null})), cast: {...ED.cast}, avatars: cleanAv(ED.avatars),
-    goals: j("goals"), words: j("words"), words2: j("words2"), dialog: j("dialog"), dict: j("dict"), audio: ED.audio && !ED.audio.local ? ED.audio : null,
+    goals: j("goals"), words: j("words"), words2: j("words2"), dialog: j("dialog"), dialog2: j("dialog2"), textTitle2: String(ED.textTitle2||"").trim(), dict: j("dict"), audio: ED.audio && !ED.audio.local ? ED.audio : null,
     textImgs: ED.textImgs.filter(x=>!x.local), orderImgs: ED.orderImgs.filter(x=>!x.local).map(x=>({url: x.url, path: x.path||"", cap: String(x.cap||"").trim()})), book: ED.book.trim(), flow: (()=>{ const fl = ED.flow.slice(); if(ED.orderImgs.length && !fl.includes("order")){ const at = Math.max(fl.indexOf("dict"), fl.indexOf("text")); if(at >= 0) fl.splice(at+1, 0, "order"); else fl.splice(Math.max(1, fl.length-1), 0, "order"); } return fl; })(), warmQs: j("warmQs"), warmImg: ED.warmImg && !ED.warmImg.local ? ED.warmImg : null, readTitle: ED.readTitle.trim(), readParas: j("readParas"),
     speak: j("speak"), qa: j("qa"), qa2: j("qa2"), qaSplit: true, cultTitle: ED.cultTitle.trim(), cultText: j("cultText"), cultImg: ED.cultImg && !ED.cultImg.local ? ED.cultImg : null, cards: j("cards"), review: j("review"), homework: j("homework") };
 }
@@ -1833,9 +1839,14 @@ function srcToDoc(l, idx){
       qa: (l.cl_qs||[]).filter(q => q && T(q.q)).map(q => [clStrip(clean(q.q)), clStrip(clean(q.ans||""))].join("｜")).join("\n"),
       book: T(l.textbook) || "文言文", flow: null, cards: "", review: "", homework: "", textImgs: [], src: l.id, updatedAt: Date.now() }; }
   const ds = Array.isArray(l.dialogues) && l.dialogues.length ? l.dialogues : [{content: l.content||"", vocabulary: l.vocabulary||""}];
-  const words = [], words2 = [], dialog = [], paras = [], cast = {A:"",B:"",C:"",D:""}; let textTitle = "", readTitle = "";
+  const words = [], words2 = [], dialog = [], dialog2 = [], paras = [], cast = {A:"",B:"",C:"",D:""}; let textTitle = "", readTitle = "", textTitle2 = "";
   const isDv = d => { const c = String((d && d.content) || "").trim(); return !c || /^[^：:\s]{1,8}\s*[：:]/m.test(c); };
-  ds.forEach(d => { const W = isDv(d) ? words : words2; parseVoc(d.vocabulary).forEach(v => { if(!v.front) return;
+  /* DLG2_V1 當代中文那種「對話一、對話二」（兩段都是對話、沒有短文）：
+     第二段以後的對話放進「對話二」，它的生詞放進「生詞二」。有短文的課照舊。 */
+  const hasC = d => !!String((d && d.content) || "").trim(), isD = d => hasC(d) && /^[^：:\s]{1,8}\s*[：:]/m.test(String(d.content));
+  const TWO = ds.filter(isD).length >= 2 && !ds.some(d => hasC(d) && !isD(d));
+  const dNo = []; { let n = -1; ds.forEach(d => { if(isD(d)) n++; dNo.push(Math.max(0, n)); }); }
+  ds.forEach((d, di0) => { const W = TWO ? (dNo[di0] >= 1 ? words2 : words) : isDv(d) ? words : words2; parseVoc(d.vocabulary).forEach(v => { if(!v.front) return;
     W.push([v.front, v.py, v.pos ? "(" + v.pos + ")" : "", v.back, v.ex[0]||"", "", ""].map(clean).join("｜"));
     v.ex.slice(1).forEach(e => W.push(["","","","", e, "", "ex"].map(clean).join("｜"))); }); });
   ds.forEach((d, di) => { let rows = String(d.content||"").split("\n").map(x=>x.trim()).filter(Boolean); if(!rows.length) return;
@@ -1843,14 +1854,16 @@ function srcToDoc(l, idx){
     const isDlg = rows.some(x => /^[^：:\s]{1,8}\s*[：:]/.test(x));
     /* RTITLE_V1 短文用自己的標題：內文第一行的標題，沒有就用那一段的名稱（「課文」「短文」這種通稱不算） */
     if(!isDlg){ if(!readTitle){ const dt = T(d.title); readTitle = blockTitle || (dt && !/^(課文|對話|短文|閱讀|本文)?\s*[一二三四五六七八九十0-9０-９]*$/.test(dt) ? dt : ""); } rows.forEach(x => paras.push(clean(x))); return; }
-    if(blockTitle && !textTitle) textTitle = blockTitle;
+    const D2 = TWO && dNo[di] >= 1, DL = D2 ? dialog2 : dialog;
+    if(D2){ if(!textTitle2) textTitle2 = blockTitle || (T(d.title) && !/^(課文|對話|短文|閱讀|本文)?\s*[一二三四五六七八九十0-9０-９]*$/.test(T(d.title)) ? T(d.title) : ""); }
+    else if(blockTitle && !textTitle) textTitle = blockTitle;
     let last = null;
     rows.forEach(x => {
-      if(/^[（(].*[）)]$/.test(x)){ dialog.push(["S", "", clean(x)].join("｜")); last = null; return; }
+      if(/^[（(].*[）)]$/.test(x)){ DL.push(["S", "", clean(x)].join("｜")); last = null; return; }
       const m = x.match(/^([^：:\s]{1,8})\s*[：:]\s*(.*)$/);
       if(m){ const nm = m[1]; let r = ["A","B","C","D"].find(k=>cast[k]===nm); if(!r){ r = ["A","B","C","D"].find(k=>!cast[k]) || "D"; if(!cast[r]) cast[r] = nm; }
-        last = [r, nm, clean(m[2])]; dialog.push(last); return; }
-      if(last){ last[2] = clean(last[2] + x); } else dialog.push(["S", "", clean(x)]); });
+        last = [r, nm, clean(m[2])]; DL.push(last); return; }
+      if(last){ last[2] = clean(last[2] + x); } else DL.push(["S", "", clean(x)]); });
   });
   /* GQIMPORT_V1 把「教材與課程」的上課語法練習（questions）一起帶過來 */
   const L8 = i => String.fromCharCode(97+i) + ". ", nIns = x => String(x||"").replace(/\s+/g,""), oLab = (o,i) => /^\s*[a-zA-Z][.、．)）]\s*/.test(String(o||"")) ? String(o).replace(/^(\s*[a-zA-Z][.、．)）]\s*)+/, m => m.trim().slice(0,1).toLowerCase() + ". ") : L8(i) + o;
@@ -1876,7 +1889,7 @@ function srcToDoc(l, idx){
     return {title: clean(T(g.title)), pattern: "", gex, note, exs: exsOf(g._gi), blocks}; });
   const title = T(l.title) || "未命名"; const nm = title.match(/第\s*([0-9０-９一二三四五六七八九十百兩]+)\s*課/);
   return { num: nm ? zhNum(nm[1]) : idx + 1, name: title, pinyin: "", textTitle, goals: "", words: words.join("\n"), words2: words2.join("\n"),
-    dialog: dialog.map(r => Array.isArray(r) ? r.join("｜") : r).join("\n"), dict: "", grammars, cast,
+    dialog: dialog.map(r => Array.isArray(r) ? r.join("｜") : r).join("\n"), dialog2: dialog2.map(r => Array.isArray(r) ? r.join("｜") : r).join("\n"), textTitle2, dict: "", grammars, cast,
     readTitle: paras.length ? readTitle : "", readParas: paras.join("\n"),
     audio: (()=>{ const d = ds.find(x=>x && T(x.audio_url) && /^[^：:\s]{1,8}\s*[：:]/m.test(String(x.content||""))) || ds.find(x=>x && T(x.audio_url)); const u = d ? T(d.audio_url) : T(l.audio_url); return u ? {url: u, name: "課文音檔", path: ""} : null; })(),
     readAudio: (()=>{ const d = ds.find(x=>x && T(x.audio_url) && T(x.content) && !/^[^：:\s]{1,8}\s*[：:]/m.test(String(x.content||""))); return d ? {url: T(d.audio_url), name: "短文音檔"} : null; })(),
@@ -1925,10 +1938,11 @@ async function impGo(){ const b = $("#impBook").value, ls = impOf(b), picks = [.
         { const nz = x => String(x||"").replace(/\s+/g, ""), am = {}; (old.grammars||[]).forEach(g => (g.exs||[]).forEach(e => (e.qs||[]).forEach(q => { if(q && q[1]) am[nz(q[0])] = q[1]; })));
           (doc.grammars||[]).forEach(g => (g.exs||[]).forEach(e => { e.qs = String(e.qs||"").split("\n").map(r => { const p = r.split("｜"); return (p[0] && !p[1] && am[nz(p[0])]) ? p[0] + "｜" + am[nz(p[0])] : r; }).join("\n"); })); }
         if(doc.qa || (old.qa && old.qa.length && old.qaSplit)) addStep("qa", ["text","dict"]); if(doc.qa2 || (old.qa2 && old.qa2.length)) addStep("qa2", ["read"]);
+        if(doc.dialog2 && !doc.flow.includes("text2")){ const t1 = doc.flow.indexOf("text"); if(!doc.flow.includes("words2")) doc.flow.splice(t1 >= 0 ? t1+1 : doc.flow.length-1, 0, "words2"); doc.flow.splice(doc.flow.indexOf("words2")+1, 0, "text2"); }/* DLG2_V1 */
         if(doc.words2 && !doc.flow.includes("words2")){ const ri2 = doc.flow.indexOf("read"); doc.flow.splice(ri2 >= 0 ? ri2 : doc.flow.length - 1, 0, "words2"); } }
       if(!doc.audio) delete doc.audio; if(!doc.readAudio) delete doc.readAudio;
       if(!old && l.kind === "classical"){ doc.flow = ["start","read"].concat(doc.words ? ["words"] : [], doc.qa ? ["qa"] : [], ["review"]); }
-      else if(!old){ const fl = ["start","words"]; if(doc.dialog) fl.push("text","dict"); if(doc.qa) fl.push("qa"); if(doc.words2) fl.push("words2"); if(doc.readParas) fl.push("read"); if(doc.qa2) fl.push("qa2"); if(doc.grammars.length) fl.push("grammar"); fl.push("review"); doc.flow = fl; }
+      else if(!old){ const fl = ["start","words"]; if(doc.dialog) fl.push("text"); if(doc.dialog2) fl.push("words2","text2"); if(doc.dialog) fl.push("dict"); if(doc.qa) fl.push("qa"); if(doc.words2 && !fl.includes("words2")) fl.push("words2"); if(doc.readParas) fl.push("read"); if(doc.qa2) fl.push("qa2"); if(doc.grammars.length) fl.push("grammar"); fl.push("review"); doc.flow = fl; }
       await db.collection(COL).doc(id).set(doc, {merge: true}); ok++; lastId = id; }
     catch(e){ bad++; console.warn(e); } }
   $("#impGo").disabled = false; $("#impMsg").textContent = `完成：匯入 ${ok} 課` + (bad ? `，${bad} 課失敗` : "") + (qErr ? `；練習題讀不到（${qErr}）` : `；上課語法練習 ${qAll} 題` + (qNoGp ? `（其中 ${qNoGp} 題沒有指定語法，放進第 1 個語法）` : ""));
