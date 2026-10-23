@@ -14685,11 +14685,18 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
   let head=`<div class="hint" style="margin-bottom:8px">${esc(w.title||'作業簿')}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'wbrev-fb')}
    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span class="tag tpub-y">自動批改 ${sc.ok||0}/${sc.total||0}</span>${pill('聽力',sc.listen)}${pill('詞彙選擇',sc.vocab)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀',sc.read)}</div>`;
   const bad=wbBadList(sd);
-  head+=bad.length?('<div class="card wb-bad"><b class="wb-bh">錯的題目（'+bad.length+' 題）</b>'
+  /* WBFIRST_V1590 Quinn：「這樣呈現很難批改」。本來一打開就是一長串自動批改的錯題（常常十幾題），
+     真正要她動手批的（完成對話、語法、寫作）被擠到很下面。
+     改成：要她批的放最上面；自動批改的錯題收成一行摘要放在下面，點開才看。
+     裡面的結構（.wb-bad／.wb-b）不變，grade-fix.js 的「改成答對」照樣掛得上去。 */
+  const badCat={};bad.forEach(x=>{const c=String(x.lab||'').replace(/^[一二三四五六七八九十]+、/,'').replace(/\s*[(（]?\d+[)）]?\s*$/,'').trim()||'其他';badCat[c]=(badCat[c]||0)+1;});
+  const badSum=Object.keys(badCat).map(c=>c+'錯 '+badCat[c]).join('、');
+  const badHtml=bad.length?('<details class="wb-bad-fold"><summary><span class="wb-bf-t">自動批改的錯題 '+bad.length+' 題</span><span class="wb-bf-s">'+esc(badSum)+'</span></summary>'
+    +'<div class="card wb-bad">'
     +bad.map(x=>'<div class="wb-b"><div class="wb-bl">'+esc(x.lab)+'</div>'
       +(x.q?('<div class="wb-bq">'+esc(x.q)+'</div>'):'')
-      +'<div class="wb-ba"><span class="no">學生：'+esc(x.stu)+'</span><span class="yes">正解：'+esc(x.ans)+'</span></div></div>').join('')+'</div>')
-    :'<div class="card" style="background:#E1F0EA;border-color:#BFE0CB"><b style="font-size:13px">客觀題全對 🎉</b></div>';
+      +'<div class="wb-ba"><span class="no">學生：'+esc(x.stu)+'</span><span class="yes">正解：'+esc(x.ans)+'</span></div></div>').join('')+'</div></details>')
+    :'<div class="card wb-allok"><b style="font-size:13px">自動批改的題目全對 🎉</b></div>';
   let rows=(d.gram||[]).length?'<h4 style="margin:16px 0 6px">請用語法完成下面的對話</h4>':'';
   (d.gram||[]).forEach(g=>{const v=(a.gram||{})[g.n]||'';
     rows+=`<div class="srev-item"><div class="srev-word">${g.n}. A：${esc(g.a)}　<span class="tag">${esc(g.pattern||'')}</span></div>
@@ -14735,7 +14742,7 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
       ${_wr.ref?`<details style="margin:6px 0"><summary class="hint" style="cursor:pointer">參考範文</summary><div class="hint" style="white-space:pre-wrap;line-height:1.9;margin-top:4px">${esc(_wr.ref)}</div></details>`:''}
       <textarea class="wbrev-fb" data-k="write" rows="3" placeholder="建議">${esc(fb.write||'')}</textarea></div>`;
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>📒 作業簿批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body">${head}${aiBar('wb')}${rows}
+   <div class="modal-body">${head}${aiBar('wb')}${rows}${badHtml}
    <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="wbrev-overall" rows="2" placeholder="">${esc(sd.overall||'')}</textarea>${(typeof cannedBar==='function')?cannedBar('wbrev-overall'):''}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn" data-act="saveWbReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveWbReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveWbReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;

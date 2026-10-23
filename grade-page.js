@@ -97,6 +97,11 @@
       var box=ov.closest('.field')||ov;
       out.push({el:box,t:'整體評語'});
     }
+    /* WBFIRST_V1590 錯題那一塊搬到下面去了：照畫面上的順序排，名字也改成跟摘要一樣；
+       點了先把它打開再捲過去 */
+    out.forEach(function(o){ if(o.t==='錯的題目'){ var f=o.el.closest?o.el.closest('details.wb-bad-fold'):null;
+      if(f){o.el=f;o.t='自動批改錯題';o.open=f;} } });
+    out.sort(function(x,y){return (x.el.compareDocumentPosition(y.el)&Node.DOCUMENT_POSITION_FOLLOWING)?-1:1;});
     return out;
   }
 
@@ -120,6 +125,7 @@
         b.type='button';b.className='gp-j';b.textContent=s.t;
         b.addEventListener('click',function(ev){
           ev.preventDefault();ev.stopPropagation();
+          if(s.open)s.open.open=true;
           try{s.el.scrollIntoView({block:'start',behavior:'smooth'});}catch(e){
             try{s.el.scrollIntoView();}catch(e2){}
           }

@@ -109,6 +109,9 @@
         var lb=row.querySelector('.wb-bl');
         var key=lb?(lb.textContent||'').replace(/\s+/g,' ').trim():'';
         if(!key)return;
+        /* FIXCLOZE_V1590 Quinn：選擇題（聽力、閱讀、配合題）答案很明確，用不到「改成答對」，
+           只留在填空題。以前已經在選擇題改過的，按鈕照樣留著，才能改回來。 */
+        if(!/填空/.test(key)&&!sd.fix[key]){row.__gfix=1;return;}
         var b=document.createElement('button');
         b.type='button';b.className='gfix-b';
         var paint=function(){
