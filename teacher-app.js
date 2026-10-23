@@ -10825,14 +10825,20 @@ async function hwDelTask(arrKey,id){
    「刪除」在 summary 裡面，不擋掉預設行為的話按一下會順便把整行展開，
    所以那一顆自己 preventDefault；原本的 data-act 照樣會被外面的總處理器接到。 */
 function hwItemHtml(o){
+  /* HWROWC_V1595 Quinn：「這邊顯示也很醜」。改成跟開課時間表同一套（C・精簡清單）：
+     種類用一顆小標籤（不用表情符號）、名稱前面重複的「翻牌配對・」「寫字・」拿掉、
+     截止日縮短、完成率用進度條，每一欄對齊。 */
+  const KIND={'🀄':['漢字','hwk-hz'],'✍️':['寫字','hwk-wt'],'🃏':['翻牌','hwk-gt']}[o.ic]||['作業','hwk-gt'];
+  const nm=String(o.title||'').replace(/^(翻牌配對|翻牌|寫字|漢字闖關)\s*[・·]\s*/,'');
+  const md=(d=>{const m=String(d||'').match(/^\d{4}-(\d{2})-(\d{2})$/);return m?(+m[1]+'/'+m[2]):String(d||'');})(o.due);
+  const n=Number(o.n)||0,dn=Number(o.done)||0,pct=n?Math.round(dn/n*100):0;
   return '<details class="hw-it"><summary>'
-    +'<span class="hw-ic">'+o.ic+'</span>'
-    +'<span class="hw-nm">'+esc(o.title||'')+'</span>'
-    +'<span class="grow"></span>'
-    +'<span class="hint">'+(o.due?('截止 '+esc(o.due)):'沒有截止日')+'</span>'
-    +'<span class="hw-done">完成 '+o.done+'／'+o.n+'</span>'
+    +'<span class="hw-k '+KIND[1]+'">'+KIND[0]+'</span>'
+    +'<span class="hw-nm">'+esc(nm)+'</span>'
+    +'<span class="hw-due">'+(o.due?(esc(md)+' 截止'):'<span class="muted">沒有截止日</span>')+'</span>'
+    +'<span class="hw-bar"><span class="hw-tr"><i style="width:'+pct+'%"></i></span><small>'+dn+'/'+n+'</small></span>'
     +'<span class="hw-arw">▾</span>'
-    +'<button class="btn btn-sm btn-ghost" onclick="event.preventDefault()" data-act="'+o.del+'" data-id="'+esc(o.id)+'">刪除</button>'
+    +'<button class="btn btn-sm btn-ghost hw-del" onclick="event.preventDefault()" data-act="'+o.del+'" data-id="'+esc(o.id)+'">刪除</button>'
     +'</summary><div class="hw-who">'+(o.body||'')+'</div></details>';
 }
 /* HWONE_V1577 右上角「＋ 指派作業」按了先問要出哪一種，三種各一句話說清楚差別。
