@@ -2022,6 +2022,8 @@ function acctRow(s){
       +((mail&&!ok&&!selfReg)?('<button class="btn btn-sm btn-accent" data-act="mkLogin" data-id="'+esc(s.id)
         +'" title="用這組 Email 幫他建立登入帳號，密碼由妳自己設">\u{1F511} 建立登入帳號</button>'):'')
       +(mail?('<button class="btn btn-sm" data-act="resetPw" data-id="'+esc(s.id)+'" title="寄一封重設密碼的信到他的信箱">✉️ 寄重設密碼信</button>'):'')
+      /* CHMAIL_V1593 Quinn：學生給錯 Email。開通過的帳號也要改得了 */
+      +((mail&&IS_OWNER)?('<button class="btn btn-sm" data-act="chMail" data-id="'+esc(s.id)+'" title="改這位學生的登入 Email">✏️ 改 Email</button>'):'')
       /* DEADBTN_V1287 本來寫 data-act="student"，可是全站沒有 H.student 這個處理函式，
          按鈕按下去完全沒反應。開學生檔案的動作叫 stuDetail。 */
       +(selfReg?('<button class="btn btn-sm btn-accent" data-act="acctBind" data-id="'+esc(s.id)
@@ -5994,7 +5996,7 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
           改成看 uid：真的開通了才鎖（Firebase 的登入 Email 確實不能改）；
           還沒開通的就讓她改，旁邊也寫清楚現在是什麼狀態。 */''}
      ${(e&&st.uid&&st.email)
-       ? `<div class="field"><label>Email <span class="hint">這組也是他的登入帳號，開通後不能改</span></label><input id="f-email" type="email" value="${esc(st.email||'')}" disabled style="opacity:.65"></div>`
+       ? `<div class="field"><label>Email <span class="hint">這組也是他的登入帳號・<a href="#" data-act="chMailHere" data-id="${esc(st.id)}">改 Email</a></span></label><input id="f-email" type="email" value="${esc(st.email||'')}" disabled style="opacity:.65"></div>`
        : `<div class="field"><label>Email ${(e&&st.email)?'<span class="hint">還沒開通登入，改得動</span>':''}</label><input id="f-email" type="email" value="${esc(st.email||'')}" placeholder="請填寫 Email" autocomplete="off"></div>`}
      <div class="field"><label>電話／Zalo</label><input id="f-phone" type="text" inputmode="tel" value="${esc(st.phone||'')}" placeholder="請填寫電話或 Zalo"></div>
      <div class="field full"><label>臉書連結</label><input id="f-fb" type="text" value="${esc(st.fb||'')}" placeholder="貼上粉專連結"></div>
@@ -6053,7 +6055,7 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
        ? `<div class="field full" style="margin-bottom:0"><div class="hint">${
             /* MAILLOCK_V1397 三種狀態分開講，不要再把「有 Email」當成「已經開通」 */
             st.uid
-              ? ('✅ 已經開通了。登入帳號就是上面那組 Email（'+esc(st.email||'')+'），開通後不能改；要換密碼請按卡片上的「✉️ 寄重設密碼信」。')
+              ? ('✅ 已經開通了。登入帳號就是上面那組 Email（'+esc(st.email||'')+'）。要換密碼請按卡片上的「✉️ 寄重設密碼信」；Email 給錯了按「改 Email」。')
               : (st.email
                   ? ('⏳ 這組 Email（'+esc(st.email)+'）<b>還沒開通登入</b>，他現在登入不了。按下面這顆設一組初始密碼就可以了。'
                      /* MAILLOCK_V1397 Quinn 連續兩次都是在這個視窗裡找密碼，
@@ -18557,6 +18559,99 @@ H.adoptDo=async()=>{
       say('試太多次被暫時擋住了，請等幾分鐘再試。');
     else say('接過來失敗：'+((e&&e.message)||e));
   }};
+/* ══════ CHMAIL_V1593 改登入 Email ══════
+   Quinn：「有一個學生不小心提供給我錯誤的信箱，請給我權限修改信箱」。
+   兩種情況：
+   ① 還沒開通登入（沒有 uid）：Email 只是資料，直接改、存檔就好。
+   ② 已經開通了：Firebase 的登入 Email 前端改不了（要那個人自己登入才改得到，
+      或要伺服器的管理權限）。做法是「用正確的 Email 開一組新的登入帳號，接到這位學生身上」：
+        · 新帳號的初始密碼由 Quinn 自己設（跟「建立登入帳號」同一支程式）
+        · 學生資料換成新的 Email／uid，舊的記在 old_logins 裡（留底，查得到）
+        · 這位學生原本的作答紀錄（results）、分享給他的檔案（shares）裡記的舊 uid 換成新的，
+          不然他用新帳號登入會看不到自己以前的紀錄
+        · 作業的可讀名單（lessons.read_uids）用原本的 ruLater() 重算
+      舊的那組錯誤 Email 帳號會留在 Firebase 裡，但已經沒有接到任何學生，登入只會進不了學生版。
+      學生自己上傳的檔案（uploads）規則上誰都不能改，那幾份他自己會看不到，老師這邊照樣看得到。 */
+let CHM_CTX=null;
+H.chMailHere=(id)=>{closeModal();setTimeout(()=>{H.chMail(id);},120);};
+H.chMail=(id)=>{
+  if(!IS_OWNER)return;
+  const s=(S.students||[]).find(x=>x.id===id);if(!s)return;
+  const on=!!String(s.uid||'').trim();
+  CHM_CTX={id:s.id,name:s.name||'',old:String(s.email||'').trim(),uid:String(s.uid||'').trim(),on:on,adopt:false};
+  chmDraw();};
+function chmDraw(){
+  const C=CHM_CTX;if(!C)return;
+  const pwRow=C.on
+    ?('<div class="field full"><label>'+(C.adopt?'那個帳號目前的密碼':'新的初始密碼')+'</label>'
+      +'<input id="chm-pw" type="'+(C.adopt?'password':'text')+'" autocomplete="off" placeholder="至少 6 碼"></div>')
+    :'';
+  const note=C.on
+    ?(C.adopt
+      ?('<b>'+esc(C.next||'')+'</b> 已經有登入帳號了。如果那就是這位學生的，填那個帳號目前的密碼，就會接到他身上。')
+      :('他已經開通了，所以會用新的 Email 開一組新帳號給他，以前的作業紀錄會跟著搬過去。舊的那組 Email 之後就登入不了學生版。'))
+    :'他還沒開通登入，改了就好。';
+  openModal('<div class="modal" style="max-width:520px"><div class="modal-head"><h3>✏️ 改 Email · '+esc(C.name)+'</h3>'
+    +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+    +'<div class="form-grid">'
+    +'<div class="field full"><label>現在的 Email</label><input type="text" value="'+esc(C.old)+'" disabled style="opacity:.65"></div>'
+    +'<div class="field full"><label>正確的 Email</label><input id="chm-mail" type="email" autocomplete="off" value="'+esc(C.next||'')+'"'+(C.adopt?' disabled':'')+'></div>'
+    +pwRow+'</div>'
+    +'<div class="hint" style="margin-top:8px">'+note+'</div>'
+    +'<div class="err" id="chm-err" style="margin-top:8px"></div></div>'
+    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+    +'<button class="btn btn-primary" data-act="chMailDo">'+(C.adopt?'🔗 接過來':'儲存')+'</button></div></div>');}
+async function chmMove(oldUid,newUid){
+  /* 把這位學生記在舊 uid 底下的東西換到新 uid（只動「他自己的」那幾筆） */
+  let n=0;
+  if(!oldUid||!newUid||oldUid===newUid)return n;
+  try{const rs=await DB.listWhere('results','uid',oldUid);
+    for(const r of (rs||[])){try{await DB.update('results',r.id,{uid:newUid});r.uid=newUid;n++;}catch(e){}}}catch(e){}
+  try{const f=firebase.firestore();const sn=await f.collection('shares').where('uids','array-contains',oldUid).get();
+    for(const d of sn.docs){const u=(d.data().uids||[]).map(x=>x===oldUid?newUid:x);try{await f.collection('shares').doc(d.id).update({uids:u});n++;}catch(e){}}}catch(e){}
+  try{(S.results||[]).forEach(r=>{if(r&&r.uid===oldUid)r.uid=newUid;});}catch(e){}
+  return n;}
+H.chMailDo=async()=>{
+  const C=CHM_CTX;if(!C)return;
+  const s=(S.students||[]).find(x=>x.id===C.id);if(!s)return;
+  const er=document.getElementById('chm-err');const say=m=>{if(er)er.textContent=m;else toast(m);};
+  const mail=C.adopt?String(C.next||''):String(((document.getElementById('chm-mail')||{}).value)||'').trim().toLowerCase();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@.]+$/.test(mail))return say('Email 的格式不對');
+  if(mail===String(C.old||'').toLowerCase())return say('跟現在的一樣，不用改');
+  if((S.students||[]).some(x=>x.id!==s.id&&String(x.email||'').toLowerCase()===mail))return say('這個 Email 已經是別的學生在用了');
+  const btn=document.querySelector('[data-act="chMailDo"]');const busy=t=>{if(btn){btn.disabled=!!t;btn.textContent=t||(C.adopt?'🔗 接過來':'儲存');}};
+  try{
+    await ensureAuthFresh();
+    if(!C.on){
+      busy('儲存中…');
+      await DB.update('students',s.id,{email:mail});s.email=mail;
+      CHM_CTX=null;closeModal();render();toast('Email 改好了');return;}
+    const pw=String(((document.getElementById('chm-pw')||{}).value)||'');
+    if(pw.length<6)return say(C.adopt?'請填那個帳號目前的密碼（至少 6 碼）':'初始密碼至少 6 碼');
+    busy(C.adopt?'確認中…':'建立中…');
+    let nu='';
+    try{nu=C.adopt?await adoptStudentAuth(mail,pw):await createStudentAuth(mail,pw);}
+    catch(e){
+      const c=String((e&&e.code)||'');
+      if(!C.adopt&&c.indexOf('email-already-in-use')>=0){C.adopt=true;C.next=mail;chmDraw();return;}
+      busy('');
+      if(/wrong-password|invalid-credential|invalid-login/.test(c))return say('密碼不對。可以請他用「忘記密碼」重設之後再試。');
+      return say(C.adopt?('接過來失敗：'+((e&&e.message)||e)):('建立失敗：'+authMsg(e)));}
+    const dup=(S.students||[]).find(x=>x.id!==s.id&&String(x.uid||'')===nu);
+    if(dup){busy('');return say('那個帳號已經是學生「'+(dup.name||'')+'」了');}
+    await ensureAuthFresh();
+    const ol=(Array.isArray(s.old_logins)?s.old_logins:[]).concat([{email:C.old,uid:C.uid,at:new Date().toISOString()}]);
+    await DB.update('students',s.id,{email:mail,uid:nu,old_logins:ol});
+    s.email=mail;s.uid=nu;s.old_logins=ol;
+    busy('搬紀錄中…');
+    const n=await chmMove(C.uid,nu);
+    try{ruLater();}catch(e){}
+    CHM_CTX=null;closeModal();
+    try{await loadAll();}catch(e){}
+    render();
+    if(C.adopt){toast('接好了，他用 '+mail+' 原本的密碼登入'+(n?('；搬了 '+n+' 筆紀錄'):''));}
+    else{inviteModal(s.name||'',mail,pw);toast('新帳號建好了'+(n?('，搬了 '+n+' 筆紀錄'):''));}
+  }catch(e){busy('');say('沒有改成：'+((e&&(e.code||e.message))||e));}};
 /* ══════ MKLOGIN_V1395 幫既有的學生開通登入帳號 ══════
    Quinn：「我剛剛建立一個 abcd@gmail.com 的帳號，但是為什麼我沒辦法設定密碼？」
    量出來的狀況：
