@@ -74,7 +74,8 @@
       b.setAttribute('data-sym',m[0]);
       b.setAttribute('data-k',m[2]);
       b.className='gm-b gm-'+m[2];
-      b.textContent=m[0]+' '+m[1];
+      /* MARKICON_V1592 Quinn：「符號已經夠用了，不需要寫對、錯、要改」。字放進提示，滑鼠移上去／報讀器還看得到 */
+      b.textContent=m[0];b.title=m[1];b.setAttribute('aria-label',m[1]);
       b.addEventListener('click',function(ev){
         ev.preventDefault();ev.stopPropagation();
         apply(ta,m[0]);
