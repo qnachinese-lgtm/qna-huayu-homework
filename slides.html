@@ -23,6 +23,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
+<!-- CLRUBY_V1 文言文：原文七成、詞語解釋三成；字一樣大；有拼音的詞直接在原文標讀音；不放詞語解釋卡 -->
 <!-- CLFIT_V1 文言文詞語解釋多時自己捲動 -->
 <!-- SCHIP_V2 學生答案名字不再斷成兩行 -->
 <!-- PENCUR_V1 畫筆游標改成筆的圖示 -->
@@ -335,9 +336,14 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .paras.solo .zh{line-height:1.9}
 .clp{margin:0 0 .35em}
 .clseg{margin-bottom:6px}
-.paras.solo:has(.clgl){display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:22px;align-items:start;height:100%;box-sizing:border-box}
+.paras.solo:has(.clgl){display:grid;grid-template-columns:minmax(0,7fr) minmax(0,3fr);grid-template-rows:minmax(0,1fr);gap:22px;align-items:start;height:100%;box-sizing:border-box}
 /* CLFIT_V1 詞語解釋很多時，在右邊框裡自己捲，不把原文的字擠小 */
 .paras.solo:has(.clgl) .clgl{max-height:100%;box-sizing:border-box;align-self:start}
+/* CLRUBY_V1 */
+.paras.solo:has(.clgl) .clgl{height:100%;align-self:stretch}
+.paras.solo:has(.clgl) > .para{max-height:100%;overflow:auto;box-sizing:border-box}
+.clp ruby rt{font-size:.42em;color:var(--muted);font-family:"Times New Roman",serif;letter-spacing:0}
+.paras.solo .clp{line-height:2.2}
 .clgl{background:var(--ice);border-radius:14px;padding:14px 18px;font-size:max(18px, calc(var(--rfs,24px) * .72));line-height:1.65;max-height:100%;overflow:auto}
 .clglh{font-weight:700;color:var(--navy);margin-bottom:6px;letter-spacing:.08em}
 .clgi{padding:3px 0;border-bottom:1px dashed var(--line)} .clgi:last-child{border-bottom:0}
@@ -1142,7 +1148,10 @@ function render(){
     const solo = big && ri >= 0;
     /* CLGLOSS_V1 文言文：每一段旁邊放這一段的詞語解釋 */
     const isCl = isClL(), clGlBox = g => { const it = clGloss(String(g||"").replace(/⏎/g, "\n")); return it.length ? `<div class="clgl"><div class="clglh">詞語解釋</div>${it.map(x => x.term ? `<div class="clgi"><b>${esc(x.term)}</b>${x.py ? `<span class="clpy">${esc(x.py)}</span>` : ""}：${esc(x.body)}</div>` : `<div class="clgi">${esc(x.raw)}</div>`).join("")}</div>` : ""; };
-    st.innerHTML = ps.length ? `<div class="paras${solo ? " solo" : ""}">${ps.map((x,i)=> solo && i !== ri ? "" : `<div class="para ${i===ri && !solo?'on':''} ${ri>=0&&i!==ri?'dim':''}">${CG && solo ? `<div class="tag clseg"><span>${CG[i].lab}</span></div>` : ""}<div class="zh">${isCl ? String(x[0]).split("\n").map(t=>`<p class="clp">${clMark(t)}</p>`).join("") : clMark(x[0])}</div>${isCl ? "" : `<div class="py">${esc(x[1]||"")}</div>`}${isCl ? "" : `<div class="tr">${esc(x[2]||"")}</div>`}</div>${isCl && solo ? clGlBox(x[1]) : ""}`).join("")}</div>`
+    /* CLRUBY_V1 詞語解釋裡有拼音的詞，在原文第一次出現的地方直接標讀音 */
+    const clRuby = (html, g) => { const it = clGloss(String(g||"").replace(/⏎/g, "\n")).filter(x => x.term && x.py), RB = [];
+      return html.split(/(<[^>]+>)/).map(seg => { if(!seg || seg[0] === "<") return seg; it.forEach(x => { if(x._d) return; const k = esc(x.term), p = seg.indexOf(k); if(p >= 0){ x._d = 1; seg = seg.slice(0, p) + "\u0001" + RB.length + "\u0002" + seg.slice(p + k.length); RB.push(`<ruby>${k}<rt>${esc(x.py)}</rt></ruby>`); } }); return seg; }).join("").replace(/\u0001(\d+)\u0002/g, (m, i) => RB[+i]); };
+    st.innerHTML = ps.length ? `<div class="paras${solo ? " solo" : ""}">${ps.map((x,i)=> solo && i !== ri ? "" : `<div class="para ${i===ri && !solo?'on':''} ${ri>=0&&i!==ri?'dim':''}">${CG && solo ? `<div class="tag clseg"><span>${CG[i].lab}</span></div>` : ""}<div class="zh">${isCl ? clRuby(String(x[0]).split("\n").map(t=>`<p class="clp">${clMark(t)}</p>`).join(""), x[1]) : clMark(x[0])}</div>${isCl ? "" : `<div class="py">${esc(x[1]||"")}</div>`}${isCl ? "" : `<div class="tr">${esc(x[2]||"")}</div>`}</div>${isCl && solo ? clGlBox(x[1]) : ""}`).join("")}</div>`
       : `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有短文，按右上角「老師」→「編輯／匯入」加入。</div></div>`;
     /* RAUDIO_V1 短文也有自己的音檔（從教材與課程的短文段落帶過來） */
     const rau = LESSON.readAudio && LESSON.readAudio.url;
@@ -1150,9 +1159,9 @@ function render(){
       <div class="meta">${ri<0?"全部":CG ? CG[ri].lab.replace("第","第 ").replace("段"," 段") : "第 "+(ri+1)+" 段"}・共 ${ps0.length} 段</div>`;
     if(rau){ setAudio(rau); updA(); }
     /* READFIT_V1 短文整篇放進框裡，不用捲 */
-    { const box = st.querySelector(".paras"); if(box){ st.style.overflow = "hidden"; let fs = solo ? 32 : 24;
+    { const box = st.querySelector(".paras"); if(box){ st.style.overflow = "hidden"; let fs = isCl ? 28 : solo ? 32 : 24;/* CLRUBY_V1 文言文字一樣大 */
       const fitIt = () => { box.style.setProperty("--rfs", fs + "px"); };
-      fitIt(); while(fs > 15 && st.scrollHeight > st.clientHeight + 1){ fs -= 1; fitIt(); }
+      fitIt(); while(!isCl && fs > 15 && st.scrollHeight > st.clientHeight + 1){ fs -= 1; fitIt(); }
       st.style.overflow = ""; } }
   }
   if(k==="speak"){
@@ -2009,7 +2018,7 @@ async function impGo(){ const b = $("#impBook").value, ls = impOf(b), picks = [.
         if(doc.dialog2 && !doc.flow.includes("text2")){ const t1 = doc.flow.indexOf("text"); if(!doc.flow.includes("words2")) doc.flow.splice(t1 >= 0 ? t1+1 : doc.flow.length-1, 0, "words2"); doc.flow.splice(doc.flow.indexOf("words2")+1, 0, "text2"); }/* DLG2_V1 */
         if(doc.words2 && !doc.flow.includes("words2")){ const ri2 = doc.flow.indexOf("read"); doc.flow.splice(ri2 >= 0 ? ri2 : doc.flow.length - 1, 0, "words2"); } }
       if(!doc.audio) delete doc.audio; if(!doc.readAudio) delete doc.readAudio;
-      if(!old && l.kind === "classical"){ doc.flow = ["start","read"].concat(doc.words ? ["words"] : [], doc.qa ? ["qa"] : [], ["review"]); }
+      if(!old && l.kind === "classical"){ doc.flow = ["start","read"].concat(/* CLRUBY_V1 詞語解釋已在原文旁邊 */ doc.qa ? ["qa"] : [], ["review"]); }
       else if(!old){ const fl = ["start","words"]; if(doc.dialog) fl.push("text"); if(doc.dialog2) fl.push("words2","text2"); if(doc.dialog) fl.push("dict"); if(doc.qa) fl.push("qa"); if(doc.words2 && !fl.includes("words2")) fl.push("words2"); if(doc.readParas) fl.push("read"); if(doc.qa2) fl.push("qa2"); if(doc.grammars.length) fl.push("grammar"); fl.push("review"); doc.flow = fl; }
       gFlowFix(doc);/* GSPLIT_V1 */
       await db.collection(COL).doc(id).set(doc, {merge: true}); ok++; lastId = id; }
