@@ -9310,7 +9310,8 @@ function ansHtml(q,resp){
 function gdRefText(q){if(q.type==='match')return (q.options||[]).map(p=>p.l+'→'+p.r).join('、');if(q.type==='order')return (q.options||[]).join(' ');if(q.type==='choice')return (q.options||[])[Number(q.answer)]||'';return (q.answer||[]).join(' / ');}
 /* 批改罐頭評語：點一下插入到指定的評語框，省打字 */
 const FB_PRESETS=['很好，繼續保持！','有進步，加油！','大致正確，注意細節。','請再複習這課的語法。','發音很清楚！','記得多練習生詞。','句子很通順，很棒！','有錯字，請訂正。','理解正確，表達再完整一些。','很用心，讚！'];
-function cannedBar(tgt){return '<div class="canned-bar">'+FB_PRESETS.map(t=>`<button type="button" class="canned-chip" data-act="canned" data-id="${esc(tgt)}" data-t="${esc(t)}">${esc(t)}</button>`).join('')+'</div>';}
+/* GRSLIM_V1589 十句常用評語本來整排攤開在每一份批改的最下面，收進「常用句 ▾」，要用再打開 */
+function cannedBar(tgt){return '<details class="canned-fold"><summary>常用句 ▾</summary><div class="canned-bar">'+FB_PRESETS.map(t=>`<button type="button" class="canned-chip" data-act="canned" data-id="${esc(tgt)}" data-t="${esc(t)}">${esc(t)}</button>`).join('')+'</div></details>';}
 /* AI_DRAFT_V25 AI 批改小幫手：只產生草稿，填進欄位讓老師改，老師按「儲存建議」才會存、才會給學生看到 */
 function aiAnsText(q,resp){try{const d=document.createElement('div');d.innerHTML=ansHtml(q,resp);
   return (d.textContent||'').replace(/\s+/g,' ').trim();}catch(e){return '';}}
@@ -9341,12 +9342,12 @@ function aiAutoRun(rid){
 function aiBar(kind,rid){
   const act=rid?('data-act="aiDraft" data-id="'+esc(rid)+'"'):('data-act="aiDraftBox" data-id="'+esc(kind)+'"');
   const boxId=rid?('aiw-'+esc(rid)):'aiw-box';
-  return '<div class="ai-bar"><span class="ai-ic">✨</span><b>AI 小幫手</b>'
-    +'<span class="ai-sub">擬一份修改建議草稿，你改過、按「儲存建議」學生才看得到。</span>'/* TIDY_V954 */
+  /* GRSLIM_V1589 Quinn：「批改那邊廢話太多」。橫幅和那一句說明拿掉，只留一顆按鈕和「自動」開關 */
+  return '<div class="ai-bar ai-slim">'
     +'<span class="grow"></span>'
-    +'<label class="ai-auto" title="打開這份批改就先幫你擬好，不用再按一次">'
+    +'<label class="ai-auto" title="打開這份批改就先幫你擬好草稿（還沒存、學生看不到）">'
       +'<input type="checkbox" onchange="qnaAiAuto(this)"'+(aiAutoOn()?' checked':'')+'>'
-      +'<span>打開就自動擬</span></label>'/* AIAUTO_V973 */
+      +'<span>自動擬</span></label>'/* AIAUTO_V973 */
     +'<button class="btn btn-ai" type="button" '+act+'>✨ 幫我擬草稿</button></div>'
     +'<div id="'+boxId+'" class="ai-wrap"></div>';
 }
@@ -9378,9 +9379,9 @@ function studentReviewHtml(l,s,r){const qs=answerableOf(l.id);const qn=qs.length
       <div class="gd-ans">${ansHtml(q,resp)}</div>
       ${ref?`<div class="gd-refline">參考答案：${esc(ref)}</div>`:''}
       ${mark}
-      <input class="gd-fb" type="text" data-fb="${r.id}::${q.id}" value="${esc(fb)}" placeholder="這題的修改建議（選填，學生看得到）"></div>`;}).join('');
+      <input class="gd-fb" type="text" data-fb="${r.id}::${q.id}" value="${esc(fb)}" placeholder="建議"></div>`;}).join('');
   return `<div class="gd-stubody">${aiBar('',r.id)}${perQ}
-    <div class="gd-overall"><label>整體評語 / 修改建議 <span class="hint">學生會在「成績」看到</span></label><textarea class="gd-cmt" id="cmt-${r.id}" placeholder="給這位學生的整體建議…">${esc(r.comment||'')}</textarea>${cannedBar('cmt-'+r.id)}</div>
+    <div class="gd-overall"><label>整體評語</label><textarea class="gd-cmt" id="cmt-${r.id}" placeholder="">${esc(r.comment||'')}</textarea>${cannedBar('cmt-'+r.id)}</div>
     <button class="btn btn-primary btn-sm" data-act="saveReview" data-id="${r.id}">💾 儲存建議</button>
     <button class="btn btn-sm btn-danger" data-act="delResult" data-id="${r.id}" style="margin-left:8px">🗑 刪除此作答</button></div>`;}
 /* ---------- 成績 ---------- */
@@ -14693,8 +14694,8 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
   (d.gram||[]).forEach(g=>{const v=(a.gram||{})[g.n]||'';
     rows+=`<div class="srev-item"><div class="srev-word">${g.n}. A：${esc(g.a)}　<span class="tag">${esc(g.pattern||'')}</span></div>
       <div class="srev-sent">${v?esc(v):'<span class="muted">（未作答）</span>'}</div>
-      ${g.ref?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(g.ref)}</div>`:''}
-      <textarea class="wbrev-fb" data-k="g${g.n}" rows="2" placeholder="給這一題的建議（學生會看到）">${esc(fb['g'+g.n]||'')}</textarea></div>`;});
+      ${g.ref?`<div class="hint" style="margin:2px 0 6px">參考答案：${esc(g.ref)}</div>`:''}
+      <textarea class="wbrev-fb" data-k="g${g.n}" rows="2" placeholder="建議">${esc(fb['g'+g.n]||'')}</textarea></div>`;});
   /* 完成對話／語法練習（填空題，老師批改） */
   [['dlg','四 完成對話','d'],['dlg2','六 語法練習','d2']].forEach(([sec,lab,pfx])=>{
     const lines=(d[sec]||[]).filter(ln=>/[_＿]{2,}/.test(String(ln.text||'')));
@@ -14706,8 +14707,8 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
         if(k<parts.length-1)filled+='【'+((((a[sec]||{})[ln.i+'-'+k])||'').trim()||'—')+'】';});
       rows+=`<div class="srev-item"><div class="srev-word">${esc(ln.sp||'')}</div>
         <div class="srev-sent">${esc(filled)}</div>
-        ${ln.ans?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(ln.ans)}</div>`:''}
-        <textarea class="wbrev-fb" data-k="${esc(pfx+ln.i)}" rows="2" placeholder="給這一題的建議（學生會看到）">${esc(fb[pfx+ln.i]||'')}</textarea></div>`;});
+        ${ln.ans?`<div class="hint" style="margin:2px 0 6px">參考答案：${esc(ln.ans)}</div>`:''}
+        <textarea class="wbrev-fb" data-k="${esc(pfx+ln.i)}" rows="2" placeholder="建議">${esc(fb[pfx+ln.i]||'')}</textarea></div>`;});
   });
   /* 手寫作答（時代華語一） */
   const HD=(d.hand)||{};
@@ -14723,19 +14724,19 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
       rows+=`<div class="srev-item"><div class="srev-word">${esc(String(it.k))}.　${esc(it.q)}</div>
         ${it.img?`<div style="margin:6px 0"><img src="${esc(it.img)}" alt="" style="max-height:150px;border:1px solid var(--line);border-radius:8px"></div>`:''}
         ${v?`<div style="margin:6px 0"><img src="${esc(v)}" alt="" style="max-width:100%;border:1px solid var(--line);border-radius:10px;background:#fff"></div>`:'<div class="srev-sent"><span class="muted">（未作答）</span></div>'}
-        ${it.ref?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(it.ref)}</div>`:''}
-        <textarea class="wbrev-fb" data-k="${esc(sec+'-'+it.k)}" rows="2" placeholder="給這一題的建議（學生會看到）">${esc(fb[sec+'-'+it.k]||'')}</textarea></div>`;});
+        ${it.ref?`<div class="hint" style="margin:2px 0 6px">參考答案：${esc(it.ref)}</div>`:''}
+        <textarea class="wbrev-fb" data-k="${esc(sec+'-'+it.k)}" rows="2" placeholder="建議">${esc(fb[sec+'-'+it.k]||'')}</textarea></div>`;});
   });
   const wv=a.write||'';
   const _wr=(d.write||{});
   rows+='<h4 style="margin:16px 0 6px">'+esc(_wr.title||'寫作練習')+'</h4>'
    +`<div class="srev-item"><div class="hint" style="margin-bottom:4px">字數：${String(wv).replace(/\s/g,'').length}</div>
       <div class="srev-sent" style="white-space:pre-wrap;line-height:1.9">${wv?esc(wv):'<span class="muted">（未作答）</span>'}</div>
-      ${_wr.ref?`<details style="margin:6px 0"><summary class="hint" style="cursor:pointer">參考範文（只有你看得到）</summary><div class="hint" style="white-space:pre-wrap;line-height:1.9;margin-top:4px">${esc(_wr.ref)}</div></details>`:''}
-      <textarea class="wbrev-fb" data-k="write" rows="3" placeholder="給這篇作文的建議（學生會看到）">${esc(fb.write||'')}</textarea></div>`;
+      ${_wr.ref?`<details style="margin:6px 0"><summary class="hint" style="cursor:pointer">參考範文</summary><div class="hint" style="white-space:pre-wrap;line-height:1.9;margin-top:4px">${esc(_wr.ref)}</div></details>`:''}
+      <textarea class="wbrev-fb" data-k="write" rows="3" placeholder="建議">${esc(fb.write||'')}</textarea></div>`;
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>📒 作業簿批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">${head}${aiBar('wb')}${rows}
-   <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="wbrev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${(typeof cannedBar==='function')?cannedBar('wbrev-overall'):''}</div></div>
+   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="wbrev-overall" rows="2" placeholder="">${esc(sd.overall||'')}</textarea>${(typeof cannedBar==='function')?cannedBar('wbrev-overall'):''}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn" data-act="saveWbReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveWbReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveWbReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
   const feedback={};document.querySelectorAll('.wbrev-fb').forEach(el=>{const v=(el.value||'').trim();if(v)feedback[el.dataset.k]=v;});
@@ -17338,10 +17339,10 @@ H.reviewSent=(id)=>{const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
   const l=S.lessons.find(x=>x.id===sd.sent_lesson)||{};const ltitle=lesNo(l,'');
   const fb=sd.feedback||{};
-  const rows=(sd.items||[]).map(it=>`<div class="srev-item"><div class="srev-word">${esc(it.word)}</div><div class="srev-sent">${it.sentence?esc(it.sentence):'<span class="muted">（未作答）</span>'}</div><textarea class="srev-fb" data-w="${esc(it.word)}" rows="2" placeholder="給這一句的建議（可留空）">${esc(fb[it.word]||'')}</textarea></div>`).join('');
+  const rows=(sd.items||[]).map(it=>`<div class="srev-item"><div class="srev-word">${esc(it.word)}</div><div class="srev-sent">${it.sentence?esc(it.sentence):'<span class="muted">（未作答）</span>'}</div><textarea class="srev-fb" data-w="${esc(it.word)}" rows="2" placeholder="建議">${esc(fb[it.word]||'')}</textarea></div>`).join('');
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>✍️ 造句批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'srev-fb')}${aiBar('sent')}${rows}
-   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="srev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('srev-overall')}</div></div>
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'srev-fb')}${aiBar('sent')}${rows}
+   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="srev-overall" rows="2" placeholder="">${esc(sd.overall||'')}</textarea>${cannedBar('srev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn" data-act="saveSentReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveSentReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveSentReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.sentences||[]).find(x=>x.id===id);if(!sd)return;
   const feedback={};document.querySelectorAll('.srev-fb').forEach(el=>{const v=(el.value||'').trim();if(v)feedback[el.dataset.w]=v;});
@@ -17361,11 +17362,11 @@ H.reviewDisc=(id)=>{const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)retur
     if(!answered.length)return;
     const bt=(d.title||'').trim()||('段落 '+(di+1));
     rows+=`<div class="lesson-label" style="margin:12px 0 4px;padding-bottom:2px;border-bottom:1px solid var(--line)">💬 ${esc(bt)}</div>`;
-    answered.forEach(x=>{rows+=`<div class="srev-item"><div class="srev-word">${esc(x.q)}</div><div class="srev-sent">${esc(x.a)}</div><textarea class="drev-fb" data-k="${esc(x.key)}" rows="2" placeholder="給這一題的建議（可留空）">${esc(fb[x.key]||'')}</textarea></div>`;});});
+    answered.forEach(x=>{rows+=`<div class="srev-item"><div class="srev-word">${esc(x.q)}</div><div class="srev-sent">${esc(x.a)}</div><textarea class="drev-fb" data-k="${esc(x.key)}" rows="2" placeholder="建議">${esc(fb[x.key]||'')}</textarea></div>`;});});
   if(!rows)rows='<div class="muted">（學生還沒有作答任何問題與討論）</div>';
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>💬 問題與討論批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'drev-fb')}${aiBar('disc')}${rows}
-   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="drev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('drev-overall')}</div></div>
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>${draftBanner(sd,'drev-fb')}${aiBar('disc')}${rows}
+   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="drev-overall" rows="2" placeholder="">${esc(sd.overall||'')}</textarea>${cannedBar('drev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn" data-act="saveDiscReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveDiscReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveDiscReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)return;
   const feedback={};document.querySelectorAll('.drev-fb').forEach(el=>{const v=(el.value||'').trim();if(v)feedback[el.dataset.k]=v;});
@@ -17465,11 +17466,11 @@ H.reviewGprac=(id)=>{const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
   const gpBar=(qsAll.length>_ansQ.length)?('<div class="pagebar" style="margin-bottom:8px"><span class="hint">學生作答 <b>'+_ansQ.length+'</b>／'+qsAll.length+' 題</span><span class="grow"></span><div class="segbar"><button class="segb'+(_showAll?'':' on')+'" data-act="gpAll" data-id="0">只看有作答的</button><button class="segb'+(_showAll?' on':'')+'" data-act="gpAll" data-id="1">全部 '+qsAll.length+' 題</button></div></div>'):'';
   let rows='';qs.forEach((q,i)=>{const a=gpAnsTextT(q,ans[q.id]);const sol=gpSolT(q);
     const _isOpt=(q.type==='opt'&&(q.items||[]).length);
-    rows+=`<div class="srev-item">${gpQHeadT(q,i+1,ans[q.id])}${_isOpt?'':`<div class="lesson-label" style="margin-top:8px">學生的答案</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>`}${(sol&&!_isOpt)?`<div class="hint" style="margin:2px 0 6px">參考答案（只有你看得到）：${esc(sol)}</div>`:''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="給這一題的建議（可留空，學生會看到）">${esc(fb[q.id]||'')}</textarea></div>`;});
+    rows+=`<div class="srev-item">${gpQHeadT(q,i+1,ans[q.id])}${_isOpt?'':`<div class="lesson-label" style="margin-top:8px">學生的答案</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>`}${(sol&&!_isOpt)?`<div class="hint" style="margin:2px 0 6px">參考答案：${esc(sol)}</div>`:''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="建議">${esc(fb[q.id]||'')}</textarea></div>`;});
   if(!rows)rows='<div class="muted">（這一課目前沒有語法練習題）</div>';
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>📘 語法練習批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
-   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 送出時間：'+esc(fmtDT(sd.submitted_at)):''}</div>${gpBar}${draftBanner(sd,'gprev-fb')}${rows}
-   <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="gprev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(((S._gpTmp&&S._gpTmp.id===sd.id&&S._gpTmp.ov!=null)?S._gpTmp.ov:(sd.overall||'')))}</textarea>${cannedBar('gprev-overall')}</div></div>
+   <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>${gpBar}${draftBanner(sd,'gprev-fb')}${rows}
+   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="gprev-overall" rows="2" placeholder="">${esc(((S._gpTmp&&S._gpTmp.id===sd.id&&S._gpTmp.ov!=null)?S._gpTmp.ov:(sd.overall||'')))}</textarea>${cannedBar('gprev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn" data-act="saveGpracReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveGpracReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.gpAll=(v)=>{
   /* 切換前先把已經打好的建議記下來，切完再填回去，不然會白打 */
@@ -17493,7 +17494,7 @@ H.reviewHwv=(id)=>{const sd=(S.hwvs||[]).find(x=>x.id===id);if(!sd)return;
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>✍️ 手寫練習 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:8px">生詞「<b style="font-size:22px">${esc(sd.hwv_word||'')}</b>」　${esc(ltitle)}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>
    <div style="text-align:center;background:#FDF3D8;border-radius:12px;padding:10px">${imgs}</div>
-   <div class="field" style="margin-top:12px"><label>給學生的評語 <span class="hint">學生會看到</span></label><textarea id="hwv-cmt" rows="2" placeholder="給學生的評語">${esc(sd.comment||'')}</textarea>${(typeof cannedBar==='function')?cannedBar('hwv-cmt'):''}</div></div>
+   <div class="field" style="margin-top:12px"><label>給學生的評語</label><textarea id="hwv-cmt" rows="2" placeholder="">${esc(sd.comment||'')}</textarea>${(typeof cannedBar==='function')?cannedBar('hwv-cmt'):''}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn" data-act="saveHwvReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveHwvReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveHwvReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.hwvs||[]).find(x=>x.id===id);if(!sd)return;
   const el=document.getElementById('hwv-cmt');const comment=el?(el.value||'').trim():'';
@@ -17512,11 +17513,11 @@ H.reviewShadow=(id)=>{const sd=(S.shadows||[]).find(x=>x.id===id);if(!sd)return;
     rows+=`<div class="srev-item"><div class="srev-word">${esc(s.t||'')}</div>`+
       (s.audio_url?`<audio controls preload="none" src="${esc(s.audio_url)}" style="width:100%;margin:6px 0"></audio>`:'<div class="muted">（未錄音）</div>')+
       `<div class="hint" style="margin:2px 0 6px">${scTag}${s.tr?(' · 辨識：'+esc(s.tr)):''}</div>`+
-      `<textarea class="shrev-fb" data-k="${i}" rows="2" placeholder="給這一句的建議（可留空，學生會看到）">${esc(fb[i]||'')}</textarea></div>`;});
+      `<textarea class="shrev-fb" data-k="${i}" rows="2" placeholder="建議">${esc(fb[i]||'')}</textarea></div>`;});
   if(!rows)rows='<div class="muted">（沒有錄音內容）</div>';
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>🗣 逐句跟讀批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${avg!=null?(' ｜ 自動平均 '+avg+'%（僅供你參考，學生看不到）'):''}</div>${rows}
-   <div class="field" style="margin-top:12px"><label>整體評語 <span class="hint">學生會看到</span></label><textarea id="shrev-overall" rows="2" placeholder="整體鼓勵或建議…">${esc(sd.overall||'')}</textarea>${cannedBar('shrev-overall')}</div></div>
+   <div class="field" style="margin-top:12px"><label>整體評語</label><textarea id="shrev-overall" rows="2" placeholder="">${esc(sd.overall||'')}</textarea>${cannedBar('shrev-overall')}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn" data-act="saveShadowReview" data-id="${sd.id}" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveShadowReview" data-id="${sd.id}" data-done="1">標記完成</button></div></div>`);};
 H.saveShadowReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.shadows||[]).find(x=>x.id===id);if(!sd)return;
   const feedback={};document.querySelectorAll('.shrev-fb').forEach(el=>{const v=(el.value||'').trim();if(v)feedback[el.dataset.k]=v;});

@@ -182,16 +182,36 @@
     if(!ta)return;
     item.__gsE=1;
     var qid=(ctx.scr.open==='question')?ta.getAttribute('data-k'):'';
+    /* GRSLIM_V1589 本來每一題有兩顆字很多的鈕：〔✎ 改題目〕（這支）和〔✎ 改學生寫的〕（grade-edit.js）。
+       Quinn：「廢話太多了，讓我很難去修改」。合成右上角一顆小小的 ✎，點了才出現兩個選項。
+       〔改學生寫的〕那顆還在（只是藏起來），這裡點選項時去按它，原本的修改／存檔流程完全不變。 */
+    var wrap=document.createElement('span');wrap.className='gs-ed';
     var b=document.createElement('button');
     b.type='button';b.className='gs-edit';
-    b.textContent='✎ 改題目';
-    b.title=(ctx.scr.open==='question')?'直接開到這一題':'開啟這一份的編輯畫面';
+    b.textContent='✎';b.title='改題目／改學生寫的';b.setAttribute('aria-label','改題目或學生寫的');
+    var pop=document.createElement('span');pop.className='gs-pop';pop.hidden=true;
+    function shut(){pop.hidden=true;b.setAttribute('aria-expanded','false');}
     b.addEventListener('click',function(ev){
       ev.preventDefault();ev.stopPropagation();
-      goEdit(ctx,qid,item,ta);
+      if(!pop.hidden){shut();return;}
+      document.querySelectorAll('.gs-pop').forEach(function(x){x.hidden=true;});
+      pop.innerHTML='';
+      var ged=item.querySelector('.ged-b');
+      if(ged){
+        var o1=document.createElement('button');o1.type='button';
+        o1.textContent=ged.classList.contains('on')||item.querySelector('.ged-box')?'改學生寫的（收起來）':'改學生寫的';
+        o1.addEventListener('click',function(e2){e2.preventDefault();e2.stopPropagation();shut();ged.click();});
+        pop.appendChild(o1);
+      }
+      var o2=document.createElement('button');o2.type='button';o2.textContent='改題目';
+      o2.addEventListener('click',function(e2){e2.preventDefault();e2.stopPropagation();shut();goEdit(ctx,qid,item,ta);});
+      pop.appendChild(o2);
+      pop.hidden=false;b.setAttribute('aria-expanded','true');
     });
+    document.addEventListener('click',function(ev){if(!pop.hidden&&!wrap.contains(ev.target))shut();},true);
+    wrap.appendChild(b);wrap.appendChild(pop);
     var head=item.querySelector('.srev-word')||item.firstElementChild;
-    if(head)head.appendChild(b); else item.insertBefore(b,item.firstChild);
+    if(head)head.appendChild(wrap); else item.insertBefore(wrap,item.firstChild);
   }
 
   /* ── ④ 版面收短 ─────────────────────────────────────────────────── */

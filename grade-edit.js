@@ -280,7 +280,7 @@
       });
       var tip=document.createElement('div');
       tip.className='ged-tip';
-      tip.textContent='改完按下面的〔儲存建議〕或〔標記完成〕才會寫進去。學生原本寫的會留一份備份。';
+      tip.textContent='按〔儲存建議〕才會存。';/* GRSLIM_V1589 說明縮短 */
       box.appendChild(tip);
       bar.parentNode.insertBefore(box,bar.nextSibling);
       btn.textContent='收起來';
