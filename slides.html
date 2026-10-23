@@ -10,6 +10,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- IMPORT_V1 從教材與課程匯入 -->
 <!-- APLAYER_V2 對話也有音檔（重新部署） -->
 <!-- DDOCK_V1 聽寫工具列不換行 -->
+<!-- DPICK_V2 自動聽寫每句最多一個空格 -->
 <!-- RAUDIO_V1 短文頁也有音檔 -->
 <!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
@@ -1346,13 +1347,19 @@ function autoBlank(sentence, words){
   return s;
 }
 let dPickMode = false; const dPickStore = {};
-const dWords = L => [...new Set((L.words||[]).filter(w=>w[6]!=="ex").flatMap(w=>String(w[0]||"").split(/[／/]/)).map(x=>x.trim()).filter(x=>x.length))].sort((a,b)=>b.length-a.length);
+const dWords = L => [...new Set((L.words||[]).filter(w=>w[6]!=="ex").flatMap(w=>String(w[0]||"").split(/[／/]/)).concat((L.dict||[]).flatMap(d=>[...String(d[2]||"").matchAll(/【(.+?)】/g)].map(m=>m[1]))).map(x=>x.trim()).filter(x=>x.length))].sort((a,b)=>b.length-a.length); /* DPICK_V2 自己寫的聽寫句，【】裡不是生詞也能挖空 */
 function dTok(text, ws){ const s = String(text||"").replace(/[【】]/g, ""), out = []; let i = 0, buf = "";
   while(i < s.length){ const w = ws.find(w => s.startsWith(w, i)); if(w){ if(buf){ out.push({t:buf}); buf = ""; } out.push({t:w, w:true}); i += w.length; } else { buf += s[i]; i++; } }
   if(buf) out.push({t:buf}); return out; }
 function dPicked(L, ds, ws){ const key = L.id || "x"; if(dPickStore[key]) return dPickStore[key];
   let saved = null; try { saved = JSON.parse(localStorage.getItem("dict-pick-" + key) || "null"); } catch(e){}
-  const set = new Set(Array.isArray(saved) ? saved : ds.flatMap(d => [...String(d[2]||"").matchAll(/【(.+?)】/g)].map(m=>m[1]).filter(w=>ws.includes(w))));
+  /* DPICK_V2 老師自己寫的聽寫句：照【】挖空。自動從對話來的：每句最多挖一個兩個字以上的詞（一個字的詞會到處都被挖掉，所以不自動挖），全部最多 10 個，初級的課才不會整句都是空格 */
+  const own = (L.dict && L.dict.length);
+  const auto = () => { const out = [], used = new Set(); for(const d of ds){ if(d[0] === "S" || out.length >= 10) continue;
+      const toks = dTok(String(d[2]||"").replace(/[【】]/g, ""), ws).filter(t => t.w && !used.has(t.t));
+      const pick = toks.filter(t => [...t.t].length >= 2).sort((x,y) => [...y.t].length - [...x.t].length)[0];
+      if(pick){ out.push(pick.t); used.add(pick.t); } } return out; };
+  const set = new Set(Array.isArray(saved) ? saved : own ? ds.flatMap(d => [...String(d[2]||"").matchAll(/【(.+?)】/g)].map(m=>m[1]).filter(w=>ws.includes(w))) : auto());
   return dPickStore[key] = set; }
 function dSave(L, set){ const key = L.id || "x"; dPickStore[key] = set; try { localStorage.setItem("dict-pick-" + key, JSON.stringify([...set])); } catch(e){} }
 const DICT = L => (L.dict && L.dict.length) ? L.dict : (L.dialog||[]).map(d=> d[0]==="S" ? ["S","",d[2]] : [d[0], d[1], autoBlank(d[2], L.words)]);
