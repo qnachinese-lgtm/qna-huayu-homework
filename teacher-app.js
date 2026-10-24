@@ -5647,18 +5647,19 @@ function leadsCardHtml(){
       l.need,l.edu,l.deadline,l.pref_meet]
       .filter(Boolean).join(' ').toLowerCase();/* LEADF_V1119 + MOREQ_V1131 */
     return `<div class="card lead-row" data-n="${esc(hay)}" style="margin:8px 0;padding:12px 14px${isNew?';border-color:var(--accent)':''}">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <!-- LEADHD_V1606 手機上每一筆排法都一樣：名字一行、時間一行、按鈕排成整齊的兩欄 -->
+      <div class="lead-hd"><div class="lead-top">
         ${isNew?'<span class="badge badge-soon">新</span>':'<span class="badge badge-ok">已處理</span>'}
         ${isDup(l)?'<span class="badge badge-overdue" title="有另一筆報名留了同樣的電話／臉書／Email">可能重複</span>':''/* DUP_V1136 */}
         <b>${esc(l.name||'（未填名）')}</b>${langTag?`<span class="tag">${langTag}</span>`:''}
-        <span class="muted" style="font-size:12px">${esc(when)}</span>
-        <span class="grow"></span>
+        <span class="muted lead-when" style="font-size:12px">${esc(when)}</span></div>
+        <div class="lead-acts">
         ${l.email?`<a class="btn btn-sm" href="mailto:${esc(l.email)}">回信</a>`:''}
         ${(Number(l.files)>0&&l.file_key)?`<button class="btn btn-sm" data-act="leadFiles" data-id="${l.id}" title="學生報名時一起傳上來的檔案">📎 ${Number(l.files)} 個檔案</button>`:''/* LEADFILE_V1123 */}
         <button class="btn btn-sm btn-primary" data-act="leadMake" data-id="${l.id}" title="把這一筆帶進「新增一位」，確認後就建立">👤 建立成客戶</button><!-- JOIN_V1110 -->
         ${isNew?`<button class="btn btn-sm btn-accent" data-act="leadDone" data-id="${l.id}">標記已處理</button>`:`<button class="btn btn-sm" data-act="leadReopen" data-id="${l.id}">改回未處理</button>`}
         <button class="btn btn-sm btn-danger" data-act="leadDel" data-id="${l.id}">刪除</button>
-      </div>
+      </div></div>
       <div style="margin-top:6px;font-size:14px">${esc(contact)||'<span class="muted">（沒留其他聯絡方式）</span>'}</div>
       ${l.fb?`<div style="font-size:13.5px;margin-top:3px">🔗 ${/^(https?:\/\/|www\.|facebook\.com|fb\.com|m\.me|zalo\.me)/i.test(String(l.fb).trim())?`<a href="${esc(/^https?:/i.test(l.fb)?l.fb:'https://'+String(l.fb).trim())}" target="_blank" rel="noopener">${esc(l.fb)}</a>`:esc(l.fb)}</div>`:''/* JOINFB_V1115 */}
       ${(l.real_name||l.birth)?`<div class="muted" style="font-size:13px;margin-top:3px">${l.real_name?`🪪 真實姓名：${esc(l.real_name)}`:''}${(l.real_name&&l.birth)?'　':''}${l.birth?`🎂 ${esc(l.birth)}`:''}</div>`:''/* JOIN_V1110 */}
