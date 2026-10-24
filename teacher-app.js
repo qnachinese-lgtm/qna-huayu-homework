@@ -14708,6 +14708,30 @@ H.unassignWb=async(id)=>{const w=(S.workbooks||[]).find(x=>x.id===id);if(!w)retu
 /* WB_BAD_V29 錯的題目要看得到題目內容，不能只有「答 C，正解 D」
    PERF_V1541 本來寫死在 H.reviewWb 裡面，現在「做題狀況」也要用同一份。
    抽成函式，兩邊永遠講同一件事——不然同一題在兩個畫面上會對不起來。 */
+/* WBPICK_V1604 Quinn：作業簿批改也要跟課本一樣——空格直接填上學生的答案（錯的是紅色），
+   下面一條只寫「學生選 B ✗ 正解 C」。 */
+function wbBadBody(x){
+  const q=String(x.q||'');
+  const fillTxt=x.kind==='cloze'?(x.T||''):(x.T||x.L||'');
+  const span=fillTxt?('<span class="opt-fill no">'+esc(fillTxt)+'</span>'):'<span class="opt-fill no">（沒作答）</span>';
+  let qh='';
+  if(q){
+    if(x.kind==='cloze'&&x.n!=null){const mk='('+x.n+')';const i=q.indexOf(mk);
+      qh=i>=0?(esc(q.slice(0,i))+span+esc(q.slice(i+mk.length))):esc(q);}
+    else if(x.kind){let done=false;
+      qh=esc(q).replace(/[_＿]{2,}|（\s*）|\(\s*\)/g,m=>{if(done)return m;done=true;return span;});}
+    else qh=esc(q);
+  }
+  let bar;
+  if(x.kind==='pick'){
+    bar='<span class="opk-l">學生選</span>'+(x.L?('<b class="opk-k">'+esc(x.L)+'</b>'):'<span class="muted">沒作答</span>')
+      +(x.T&&!/opt-fill/.test(qh)?('<span class="opk-t">'+esc(x.T)+'</span>'):'')
+      +'<span class="opk-v no">✗ 正解 '+esc(x.aL)+(x.aT?('　'+esc(x.aT)):'')+'</span>';}
+  else if(x.kind==='cloze'){
+    bar=(/opt-fill/.test(qh)?'':('<span class="opk-l">學生填</span>'+(x.T?('<b class="opk-w">'+esc(x.T)+'</b>'):'<span class="muted">沒作答</span>')))
+      +'<span class="opk-v no">✗ 正解 '+esc(x.aT)+'</span>';}
+  else bar='<span class="no">學生：'+esc(x.stu)+'</span><span class="yes">正解：'+esc(x.ans)+'</span>';
+  return (qh?('<div class="wb-bq">'+qh+'</div>'):'')+'<div class="wb-ba'+(x.kind?' opk':'')+'">'+bar+'</div>';}
 function wbBadList(sd){
   const w=(S.workbooks||[]).find(x=>x.id===(sd&&sd.wb_lesson))||{};const d=w.wb||{};
   const a=(sd&&sd.answers)||{};
@@ -14718,17 +14742,19 @@ function wbBadList(sd){
     if(i<0)return '';return ((i>40?'…':'')+t.slice(Math.max(0,i-40),Math.min(t.length,i+40)).trim()+((i+40<t.length)?'…':''));};
   const _mr=(rows,code)=>{const r=(rows||[]).find(x=>String(x.code)===String(code));return r?String(r.right||''):'';};
   const _mp=(rows,L)=>{const t=_mr(rows,L);return L?(String(L)+(t?('　'+t):'')):'（未作答）';};
-  const _row=(lab,q,stu,ans)=>bad.push({lab:lab,q:q||'',stu:stu,ans:ans});
+  /* WBPICK_V1604 多存幾個欄位（字母、內容），批改畫面才能把學生的答案直接填進題目裡；舊的 stu/ans 不動 */
+  const _row=(lab,q,stu,ans,x)=>bad.push(Object.assign({lab:lab,q:q||'',stu:stu,ans:ans},x||{}));
+  const _px=(q,v,ans)=>({kind:'pick',L:String(v||''),T:_opt(q,v),aL:String(ans||''),aT:_opt(q,ans)});
   (d.listen||[]).forEach(q=>{const v=(a.listen||{})[q.n]||'';if(q.ans&&v!==q.ans)
-    _row('一、聽力 '+q.n,q.tx||'',_pick(q,v),_pick(q,q.ans));});
+    _row('一、聽力 '+q.n,q.tx||'',_pick(q,v),_pick(q,q.ans),_px(q,v,q.ans));});
   (d.vocab||[]).forEach(q=>{const v=(a.vocab||{})[q.n]||'';if(q.ans&&v!==q.ans)
-    _row('詞彙選擇 '+q.n,q.q||'',_pick(q,v),_pick(q,q.ans));});
+    _row('詞彙選擇 '+q.n,q.q||'',_pick(q,v),_pick(q,q.ans),_px(q,v,q.ans));});
   ((d.cloze||{}).keys||[]).forEach(k=>{const v=(a.cloze||{})[k.n]||'';if(k.ans&&String(v).trim()!==String(k.ans).trim())
-    _row('二、選詞填空 ('+k.n+')',_ctx((d.cloze||{}).paras,k.n),(v?('「'+v+'」'):'（未作答）'),'「'+k.ans+'」');});
+    _row('二、選詞填空 ('+k.n+')',_ctx((d.cloze||{}).paras,k.n),(v?('「'+v+'」'):'（未作答）'),'「'+k.ans+'」',{kind:'cloze',n:k.n,T:String(v||'').trim(),aT:String(k.ans)});});
   (((d.match||{}).rows)||[]).forEach(r=>{const v=(a.match||{})[r.n]||'';if(r.ans&&v!==r.ans)
-    _row('三、配合題 '+r.n,r.left||'',_mp((d.match||{}).rows,v),_mp((d.match||{}).rows,r.ans));});
+    _row('三、配合題 '+r.n,r.left||'',_mp((d.match||{}).rows,v),_mp((d.match||{}).rows,r.ans),{kind:'pick',L:String(v||''),T:_mr((d.match||{}).rows,v),aL:String(r.ans||''),aT:_mr((d.match||{}).rows,r.ans)});});
   (((d.read||{}).qs)||[]).forEach(q=>{const v=(a.read||{})[q.n]||'';if(q.ans&&v!==q.ans)
-    _row('五、閱讀 '+q.n,q.q||'',_pick(q,v),_pick(q,q.ans));});
+    _row('五、閱讀 '+q.n,q.q||'',_pick(q,v),_pick(q,q.ans),_px(q,v,q.ans));});
   return bad;}
 H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
@@ -14746,9 +14772,7 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
   const badSum=Object.keys(badCat).map(c=>c+'錯 '+badCat[c]).join('、');
   const badHtml=bad.length?('<details class="wb-bad-fold"><summary><span class="wb-bf-t">自動批改的錯題 '+bad.length+' 題</span><span class="wb-bf-s">'+esc(badSum)+'</span></summary>'
     +'<div class="card wb-bad">'
-    +bad.map(x=>'<div class="wb-b"><div class="wb-bl">'+esc(x.lab)+'</div>'
-      +(x.q?('<div class="wb-bq">'+esc(x.q)+'</div>'):'')
-      +'<div class="wb-ba"><span class="no">學生：'+esc(x.stu)+'</span><span class="yes">正解：'+esc(x.ans)+'</span></div></div>').join('')+'</div></details>')
+    +bad.map(x=>'<div class="wb-b"><div class="wb-bl">'+esc(x.lab)+'</div>'+wbBadBody(x)+'</div>').join('')+'</div></details>')
     :'<div class="card wb-allok"><b style="font-size:13px">自動批改的題目全對 🎉</b></div>';
   let rows=(d.gram||[]).length?'<h4 style="margin:16px 0 6px">請用語法完成下面的對話</h4>':'';
   (d.gram||[]).forEach(g=>{const v=(a.gram||{})[g.n]||'';
