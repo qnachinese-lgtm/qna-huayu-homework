@@ -15164,7 +15164,12 @@ function lxParse(buf){
       let ans=null;
       const av=lxGet(r,qA);
       if(t==='choice'&&av){const n=parseInt(av,10);if(!isNaN(n)&&n>0)ans=n-1;}
-      else if(t==='fill'&&av)ans=lxSplit(av);
+      else if(t==='fill'&&av){ans=lxSplit(av);
+        /* B5FILL_V1613 好幾個空格的填空：Excel 裡答案用「；」分開寫（一格一個），
+           學生端是把每一格接回整句再比對，所以這裡也先接成整句，才判得對 */
+        const _bt=String(p).split(/[_＿]{2,}/),_nb=_bt.length-1;
+        if(_nb>1)ans=ans.map(x=>{const ps=String(x).split(/[；;]/).map(y=>y.trim());
+          if(ps.length!==_nb)return x;let r=ps[0];for(let k=1;k<_nb;k++)r+=_bt[k]+ps[k];return r;});}
       const _gi=(bk.gp==null)?null:((gpNoIdx[String(bk.gp+1)]!=null)?gpNoIdx[String(bk.gp+1)]:bk.gp);
       qs.push({type:t,prompt:p,options:opts,items:null,answer:ans,
         bank:bk.bank,gp_index:_gi,gp_sub:lxGet(r,qS)||null,
@@ -17483,8 +17488,11 @@ function gpAutoMark(q,resp){try{
       if(sl.join()!==k.join())wrong.push((its.length>1?('第'+(i+1)+'題 '):'')+(sl.length?'':'沒作答 ')+k.join('、'));}
     return wrong.length?('✗ '+wrong.join('；')):'✓';}
   if(q.type==='fill'){const ka=Array.isArray(q.answer)?q.answer:(q.answer?[q.answer]:[]);if(!ka.length||q.input_mode==='write')return '';
-    const ra=Array.isArray(resp)?resp:[resp];const nz=x=>String(x==null?'':x).replace(/[\s。．.，,！!？?]/g,'');
-    if(ka.length===ra.length&&ka.every((k,i)=>nz(k)&&nz(k)===nz(ra[i])))return '✓';return '';}
+    /* B5FILL_V1613 跟學生端一樣：每一格接回整句，再跟任何一個可接受答案比 */
+    const ra=Array.isArray(resp)?resp:[resp];const nz=x=>String(x==null?'':x).trim().toLowerCase().replace(/\s+/g,'');
+    const bt=String(q.prompt||'').split(/[_＿]{2,}/);let r=String(ra[0]==null?'':ra[0]);
+    for(let k=1;k<ra.length;k++)r+=(bt.length>2?(bt[k]||''):'')+String(ra[k]==null?'':ra[k]);
+    if(nz(r)&&ka.some(k=>nz(k)===nz(r)))return '✓';return '';}
   return '';}catch(e){return '';}}
 function gpAnsTextT(q,resp){if(resp==null||resp==='')return '';
   if(q.type==='choice'){const o=(q.options||[])[Number(resp)];return o?String(o):String(resp);}
