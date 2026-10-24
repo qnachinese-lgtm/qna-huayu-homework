@@ -17465,9 +17465,21 @@ function gpQBodyT(q,resp){
   if(ty==='choice'){const co=Number(q.answer);
     return '<div class="opts">'+(q.options||[]).map((o,i)=>`<div class="opt${i===co?' is-correct':''}"><b style="margin-right:6px">${String.fromCharCode(97+i)}.</b><span>${esc(tStripOptLab(o))}</span>${i===co?'<span style="margin-left:auto;color:#1F6A54">✓ 正解</span>':''}</div>`).join('')+'</div>';}
   if(ty==='opt'){const items=(q.items||[]);const rr=Array.isArray(resp)?resp:[];
+    /* OPTPICK_V1602 Quinn：「不是該出現學生那題選 a 還是 b 嗎」。本來灰框只放「a. ～網路推薦～…」，
+       看不出那是學生選的；也沒有跟正解比。改成「學生選 a」大字＋選項內容，有正解就直接標 ✓ 或 ✗ 正解 b。 */
+    const _qa=Array.isArray(q.answer)?q.answer:[];
+    const _lets=v=>{const t=String(v==null?'':v).trim();if(!/^[a-hA-H](\s*[,、，\/]\s*[a-hA-H])*$/.test(t))return null;return t.toLowerCase().split(/\s*[,、，\/]\s*/).sort();};
     return tOptBank(q.options)+items.map((it,i)=>{const r=rr[i]||{};
-      const av=(it&&it.mode==='open')?esc(String(r.t||'')):((r.s||[]).map(oi=>String.fromCharCode(97+oi)+'. '+esc(tStripOptLab((q.options||[])[oi]||''))).join('；'));
-      return `<div class="optitem${items.length<=1?' nonum':''}">${items.length<=1?'':`<span class="optitem-n">${i+1}</span>`}<div class="optitem-body"><div class="optitem-q">${tOptBlank(it&&it.text)}</div><div class="srev-sent" style="margin:4px 0 2px">${av||'<span class="muted">（未作答）</span>'}</div>${(it&&it.ans)?`<div class="hint">參考答案：${esc(String(it.ans).replace(/,/g,'、'))}</div>`:''}</div></div>`;}).join('');}
+      const _open=(it&&it.mode==='open');
+      const _key=(it&&it.ans)||_qa[i]||'';const _kl=_open?null:_lets(_key);
+      let av='';
+      if(_open){av=r.t?('<span class="opk-l">學生寫</span><span class="opk-t">'+esc(String(r.t))+'</span>'):'';}
+      else{const sl=(r.s||[]).map(oi=>String.fromCharCode(97+oi));
+        if(sl.length){const ok=_kl?(sl.slice().sort().join()===_kl.join()):null;
+          av='<span class="opk-l">學生選</span><b class="opk-k">'+sl.join('、')+'</b><span class="opk-t">'
+            +(r.s||[]).map(oi=>esc(tStripOptLab((q.options||[])[oi]||''))).join('；')+'</span>'
+            +(ok===true?'<span class="opk-v ok">✓ 對</span>':ok===false?'<span class="opk-v no">✗ 正解 '+esc(_kl.join('、'))+'</span>':'');}}
+      return `<div class="optitem${items.length<=1?' nonum':''}">${items.length<=1?'':`<span class="optitem-n">${i+1}</span>`}<div class="optitem-body"><div class="optitem-q">${tOptBlank(it&&it.text)}</div><div class="srev-sent opk" style="margin:4px 0 2px">${av||'<span class="muted">（未作答）</span>'}</div>${(_key&&!_kl)?`<div class="hint">參考答案：${esc(String(_key).replace(/,/g,'、'))}</div>`:''}</div></div>`;}).join('');}
   if(ty==='order')return '<div class="hint" style="margin:4px 0">要重組的詞：'+((q.options||[]).map(x=>'<span class="tag" style="margin:0 4px 4px 0;display:inline-block">'+esc(x)+'</span>').join('')||'—')+'</div>';
   if(ty==='match')return (q.options||[]).map(pr=>`<div class="match-row"><span class="l">${esc((pr&&pr.l)||'')}</span><span class="muted">→ ${esc((pr&&pr.r)||'')}</span></div>`).join('');
   return '';
