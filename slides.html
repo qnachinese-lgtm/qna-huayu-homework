@@ -23,6 +23,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
+<!-- LPICK_V2 課次選單：先選教材、編號＋課名、可搜尋 -->
 <!-- DICT2_V1 自動聽寫也包含對話二 -->
 <!-- AVNM_V1 頭像下面的名字不換行 -->
 <!-- ROLE5_V1 對話可以有第五個人（E） -->
@@ -299,6 +300,19 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .lpPanel button{all:unset;display:block;width:100%;box-sizing:border-box;padding:7px 10px;border-radius:8px;font-size:15px;cursor:pointer;color:var(--fg)}
 .lpPanel button:hover{background:var(--ice)}
 .lpPanel button.on{background:var(--navy);color:#fff}
+/* LPICK_V2 */
+.lpPanel{width:460px;max-height:560px;padding:10px;box-sizing:border-box}
+.lpPanel .lpq{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:7px 10px;border:2px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--panel);color:var(--fg)}
+.lpPanel .lpbooks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.lpPanel .lpbooks button{all:unset;cursor:pointer;font-size:13px;padding:5px 12px;border-radius:999px;background:var(--ice);color:var(--fg)}
+.lpPanel .lpbooks button.on{background:var(--navy);color:#fff}
+.lpPanel .lpgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.lpPanel button.lpi{display:flex;align-items:center;gap:8px;padding:7px 8px;font-size:14px;border-radius:8px;min-width:0}
+.lpPanel button.lpi b{flex:none;width:26px;height:26px;border-radius:50%;background:var(--ice);color:var(--navy);display:grid;place-items:center;font-size:13px}
+.lpPanel button.lpi.on b{background:#fff}
+.lpPanel button.lpi span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lpPanel button.lpi small{display:block;font-size:11px;color:var(--muted)}
+.lpPanel button.lpi.on small{color:#dfe8f6}
 .lsel .row button{flex:1;font-size:13px;padding:6px 4px;border-radius:10px;border:2px solid var(--navy);background:var(--panel);color:var(--fg)}
 .lsel .row button.pri{background:var(--navy);color:#fff}
 .modal{position:fixed;inset:0;background:var(--panel);display:flex;z-index:50}
@@ -1497,10 +1511,18 @@ let URL_LESSON = ""; try { URL_LESSON = new URLSearchParams(location.search).get
 /* LPICK_V1 自訂課次選單 */
 function hasNo(L){ return /第\s*[0-9０-９一二三四五六七八九十百兩]+\s*課/.test(L.name||""); }
 function lpLab(L){ return L.id==="sample" ? "範例：" + L.name : (hasNo(L) || !L.num ? L.name : `第${L.num}課 ${L.name}`); }
+/* LPICK_V2 課次選單：先選教材，再用編號＋課名找課；也可以搜尋 */
+let lpBook = null, lpQ = "";
+const lpShort = L => String(L.name||"").replace(/^第\s*[0-9０-９一二三四五六七八九十百兩]+\s*課\s*[：:]?\s*/, "");
+function lpGrid(){ const g = $("#lpPanel .lpgrid"); if(!g) return; const ls = lessons.filter(L=>L.id!=="sample"), q = lpQ.trim();
+  const list = (q ? ls.filter(L => (lpLab(L) + (L.book||"")).includes(q)) : ls.filter(L => (L.book||"未分類") === lpBook)).sort((a,b)=>(a.book||"").localeCompare(b.book||"") || (+a.num||999)-(+b.num||999));
+  g.innerHTML = list.map(L => `<button type="button" role="option" data-lp="${esc(L.id)}" class="lpi${L.id===curId?' on':''}" aria-selected="${L.id===curId}"><b>${esc(L.num||"·")}</b><span>${esc(lpShort(L)||L.name)}${q ? `<small>${esc(L.book||"")}</small>` : ""}</span></button>`).join("") || `<div class="gh">找不到</div>`;
+  $("#lpPanel").querySelectorAll("[data-lpb]").forEach(b => b.classList.toggle("on", !q && b.dataset.lpb === lpBook)); }
 function fillPick(){ const books = [...new Set(lessons.filter(L=>L.id!=="sample").map(L=>L.book||"未分類"))];
-  const it = L => `<button type="button" role="option" data-lp="${esc(L.id)}" class="${L.id===curId?'on':''}" aria-selected="${L.id===curId}">${esc(lpLab(L))}</button>`;
-  $("#lpPanel").innerHTML = books.map(b=>`<div class="gh">${esc(b)}</div>` + lessons.filter(L=>L.id!=="sample" && (L.book||"未分類")===b).map(it).join("")).join("") + `<div class="gh">範例</div>` + it(SAMPLE);
-  $("#lpLab").textContent = lpLab(LESSON); }
+  if(!lpBook || !books.includes(lpBook)) lpBook = (LESSON && LESSON.id !== "sample" && LESSON.book) || books[0];
+  $("#lpPanel").innerHTML = `<input class="lpq" type="search" placeholder="搜尋課名或教材" value="${esc(lpQ)}" aria-label="搜尋課名"><div class="lpbooks">${books.map(b=>`<button type="button" data-lpb="${esc(b)}">${esc(b)}</button>`).join("")}<button type="button" data-lp="sample" class="${curId==="sample"?"on":""}">範例</button></div><div class="lpgrid"></div>`;
+  lpGrid(); $("#lpLab").textContent = lpLab(LESSON); }
+$("#lpPanel").addEventListener("input", e => { if(e.target.classList.contains("lpq")){ lpQ = e.target.value; lpGrid(); } });
 $("#tmBtn").onclick = e => { e.stopPropagation(); const p = $("#tmPanel"); p.hidden = !p.hidden; $("#tmBtn").setAttribute("aria-expanded", !p.hidden); };
 document.addEventListener("click", e => { const gl = $("#glist"); if(gl && !gl.hidden && !e.target.closest(".wpick")){ gl.hidden = true; } const wl = $("#wlist"); if(wl && !wl.hidden && !e.target.closest(".wpick")){ wl.hidden = true; } });
 document.addEventListener("click", e => { if(!e.target.closest(".tmenu")){ $("#tmPanel").hidden = true; $("#tmBtn").setAttribute("aria-expanded", false); } });
@@ -1510,7 +1532,7 @@ document.addEventListener("click", e => { const t = e.target;
   if(t.closest && t.closest("#tmBtn")){ $("#lpPanel").hidden = true; $("#lpBtn").setAttribute("aria-expanded", false); } }, true);
 $("#editBtn").addEventListener("click", ()=>{ $("#tmPanel").hidden = true; }); $("#newBtn").addEventListener("click", ()=>{ $("#tmPanel").hidden = true; }); $("#impBtn").addEventListener("click", ()=>{ $("#tmPanel").hidden = true; });
 $("#lpBtn").onclick = e => { e.stopPropagation(); const p = $("#lpPanel"); p.hidden = !p.hidden; $("#lpBtn").setAttribute("aria-expanded", !p.hidden); if(!p.hidden){ const on = p.querySelector(".on"); if(on) on.scrollIntoView({block:"nearest"}); } };
-$("#lpPanel").onclick = e => { const b = e.target.closest("[data-lp]"); if(!b) return; $("#lpPanel").hidden = true; $("#lpBtn").setAttribute("aria-expanded", false); useLesson(b.dataset.lp); };
+$("#lpPanel").onclick = e => { const bb = e.target.closest("[data-lpb]"); if(bb){ e.stopPropagation(); lpBook = bb.dataset.lpb; lpQ = ""; const qi = $("#lpPanel .lpq"); if(qi) qi.value = ""; lpGrid(); return; } const b = e.target.closest("[data-lp]"); if(!b) return; $("#lpPanel").hidden = true; $("#lpBtn").setAttribute("aria-expanded", false); useLesson(b.dataset.lp); };
 document.addEventListener("click", e => { if(!e.target.closest(".lpick")){ $("#lpPanel").hidden = true; $("#lpBtn").setAttribute("aria-expanded", false); } });
 document.addEventListener("keydown", e => { if(e.key==="Escape" && !$("#lpPanel").hidden){ $("#lpPanel").hidden = true; $("#lpBtn").setAttribute("aria-expanded", false); } }, true);
 function fillSel(){
