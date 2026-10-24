@@ -313,7 +313,7 @@ function showZiPopup(ch,el){
     :('<div class="zi-py">'+esc(py)+(zh?(' · '+esc(zh)):'')+'</div>');
   const modern=mr?`<div class="zi-mean${tgloss?' zi-dim':''}">${tgloss?'<span class="zi-lb">'+LT({zh:'現代',cn:'现代',en:'Modern',vi:'Hiện đại'})+'</span>':''}${mr.pos?'('+esc(mr.pos)+') ':''}<span>${esc((mr.back)||'')}</span></div>`:'';
   const mine=tgloss?`<div class="zi-mine"><span class="zi-tag">${LT({zh:'這一課',cn:'这一课',en:'This lesson',vi:'Bài này'})}</span>${(tword&&tword!==ch)?`<b>${esc(tword)}</b>`:''}<span>${esc(tgloss)}</span></div>`:'';
-  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div>${pyLine}${mine}${modern}${(inCl&&!teach&&!tgloss)?'<div class="zi-note">'+LT({zh:'文言文的讀音和意思常常跟現代不一樣，以老師的注釋為準。',cn:'文言文的读音和意思常常跟现代不一样，以老师的注释为准。',en:'In Classical Chinese the reading and meaning often differ from modern usage — follow your teacher’s note.',vi:'Trong văn ngôn, âm đọc và nghĩa thường khác tiếng Trung hiện đại — hãy theo chú thích của cô giáo.'})+'</div>':''}`;
+  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div>${pyLine}${mine}${modern}${''/* NOZINOTE_V1620 Quinn：下面那句不用寫 */}`;
   hydrateVi(mr?[mr.back]:[]);
   pop.style.display='block';pop.style.visibility='hidden';const r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight;
   let left=r.left+r.width/2-pw/2;left=Math.max(8,Math.min(left,window.innerWidth-pw-8));let top=r.top-ph-10;if(top<6)top=r.bottom+10;
@@ -944,10 +944,10 @@ function clSentsHtml(ln,cx){cx=cx||{};
   const trBox=(i)=>{if(!cx.kb)return '';const k=cx.kb+'_'+i;const a=(cx.ans&&cx.ans[k]!=null)?cx.ans[k]:'';const f=cx.fb&&cx.fb[k];
     const nv=(cx.nts&&cx.nts[k]!=null)?cx.nts[k]:'';const L2=cx.L||(o=>o.zh);
     const nb=cx.canWrite
-      ?'<textarea class="cl-note-in cl-st-in" data-k="'+esc(k)+'" data-lid="'+esc(cx.lid)+'" rows="1" placeholder="'+esc(L2({zh:'上課記下來的…',cn:'上课记下来的…',en:'notes from class…',vi:'ghi chú…'}))+'" oninput="H.clNote&&H.clNote(\''+esc(cx.lid)+'\')">'+esc(nv)+'</textarea>'
+      ?'<textarea class="cl-note-in cl-st-in" data-k="'+esc(k)+'" data-lid="'+esc(cx.lid)+'" rows="3" placeholder="'+esc(L2({zh:'上課記下來的…',cn:'上课记下来的…',en:'notes from class…',vi:'ghi chú…'}))+'" oninput="H.clNote&&H.clNote(\''+esc(cx.lid)+'\')">'+esc(nv)+'</textarea>'
       :(nv?'<div class="cl-ro">'+esc(nv)+'</div>':'<div class="cl-ro"><span class="hint">—</span></div>');
     const box=cx.answerable
-      ?'<textarea class="disc-ans cl-st-in" data-k="'+esc(k)+'" data-lid="'+esc(cx.lid)+'" rows="1" placeholder="'+esc(cx.ph||'')+'" oninput="H.discDraft&&H.discDraft(\''+esc(cx.lid)+'\')">'+esc(a)+'</textarea>'
+      ?'<textarea class="disc-ans cl-st-in" data-k="'+esc(k)+'" data-lid="'+esc(cx.lid)+'" rows="3" placeholder="'+esc(cx.ph||'')+'" oninput="H.discDraft&&H.discDraft(\''+esc(cx.lid)+'\')">'+esc(a)+'</textarea>'
       :(a?'<div class="disc-myans">'+esc(a)+'</div>':'<div class="cl-ro"><span class="hint">—</span></div>');
     return '<div class="cl-cols cl-st-cols"><div class="cl-col"><div class="cl-col-t">✍️ '+esc(L2({zh:'我的筆記',cn:'我的笔记',en:'My notes',vi:'Ghi chú của tôi'}))+'</div>'+nb+'</div>'
       +'<div class="cl-col"><div class="cl-col-t">📝 '+esc(L2({zh:'翻譯',cn:'翻译',en:'Translation',vi:'Dịch'}))+'</div>'+box+'</div></div>'
@@ -6645,3 +6645,8 @@ H.wbRecall=async()=>{
     pop.style.left=x+'px';pop.style.top=y+'px';},true);
   window.addEventListener('scroll',close,{passive:true});
 })();
+
+/* CLBOX_V1620 翻譯／筆記格子：至少三行，字多了自己長高 */
+(function(){function fit(t){if(!t||!t.classList||!t.classList.contains('cl-st-in'))return;t.style.height='auto';t.style.height=Math.max(96,t.scrollHeight+2)+'px';}
+  document.addEventListener('input',e=>fit(e.target),true);
+  try{new MutationObserver(()=>{document.querySelectorAll('textarea.cl-st-in:not([data-fit])').forEach(t=>{t.setAttribute('data-fit','1');fit(t);});}).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}})();
