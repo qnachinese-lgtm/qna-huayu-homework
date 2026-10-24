@@ -20592,7 +20592,8 @@ H.planEditSave=async(key)=>{const p=String(key).split('::');const tgt=p[0],oldDa
     const _drop=(x)=>plSame(x,oldDate,_os)||plSame(x,nd,start);
     if(tgt.indexOf('S:')===0){const s=studentById(tgt.slice(2));if(!s)return;const cur=studentPlanned(s).filter(x=>!_drop(x));cur.push({date:nd,start,end,note});cur.sort((a,b)=>String(a.date).localeCompare(b.date)||String(a.start||'').localeCompare(String(b.start||'')));await DB.update('students',s.id,{planned:cur});s.planned=cur;}
     else{const cls=tgt.indexOf('G:')===0?tgt.slice(2):tgt;const cur=classPlanned(cls).filter(x=>!_drop(x));cur.push({date:nd,start,end,note});cur.sort((a,b)=>String(a.date).localeCompare(b.date)||String(a.start||'').localeCompare(String(b.start||'')));await saveClassMeta(cls,{planned:cur});}
-    toast('預排已更新：'+nd+(start?('　'+start):''));closeModal();renderCalendar();
+    /* PLANRE_V1616 本來只重畫課表，在「今日總覽」按修改，畫面不會變（Quinn：「不是按修改了嗎？為什麼還在」）。改成重畫目前這一頁 */
+    toast('預排已更新：'+nd+(start?('　'+start):''));closeModal();render();
   }catch(e){toast('失敗：'+((e&&e.message)||e));}};
 H.planEditDel=async(key)=>{closeModal();await H.planDel(key);};
 /* ===== 學生檔案上傳區（老師管理） ===== */
