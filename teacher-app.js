@@ -2021,9 +2021,13 @@ function acctRow(s){
       /* MKLOGIN_V1395 有 Email、還沒開通，而且不是「自己註冊過」那一種 → 給她開通的入口 */
       +((mail&&!ok&&!selfReg)?('<button class="btn btn-sm btn-accent" data-act="mkLogin" data-id="'+esc(s.id)
         +'" title="用這組 Email 幫他建立登入帳號，密碼由妳自己設">\u{1F511} 建立登入帳號</button>'):'')
-      +(mail?('<button class="btn btn-sm" data-act="resetPw" data-id="'+esc(s.id)+'" title="寄一封重設密碼的信到他的信箱">✉️ 寄重設密碼信</button>'):'')
-      /* CHMAIL_V1593 Quinn：學生給錯 Email。開通過的帳號也要改得了 */
-      +((mail&&IS_OWNER)?('<button class="btn btn-sm" data-act="chMail" data-id="'+esc(s.id)+'" title="改這位學生的登入 Email">✏️ 改 Email</button>'):'')
+      /* ACMORE_V1615 Quinn：「右手邊的三個按鈕，會不會占太多空間」。
+         寄重設密碼信、改 Email 不常用，收進「⋯」；外面只留「去看」（和要她動手的開通／接過來） */
+      +(mail?('<details class="mini-menu ac-more"><summary class="dots" title="寄重設密碼信、改 Email">⋯</summary><div class="mini-pop">'
+        +'<button class="btn btn-sm" data-act="resetPw" data-id="'+esc(s.id)+'" title="寄一封重設密碼的信到他的信箱">✉️ 寄重設密碼信</button>'
+        /* CHMAIL_V1593 Quinn：學生給錯 Email。開通過的帳號也要改得了 */
+        +(IS_OWNER?('<button class="btn btn-sm" data-act="chMail" data-id="'+esc(s.id)+'" title="改這位學生的登入 Email">✏️ 改 Email</button>'):'')
+        +'</div></details>'):'')
       /* DEADBTN_V1287 本來寫 data-act="student"，可是全站沒有 H.student 這個處理函式，
          按鈕按下去完全沒反應。開學生檔案的動作叫 stuDetail。 */
       +(selfReg?('<button class="btn btn-sm btn-accent" data-act="acctBind" data-id="'+esc(s.id)
