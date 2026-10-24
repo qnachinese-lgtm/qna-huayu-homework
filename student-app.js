@@ -927,8 +927,9 @@ function clGlossHtmlParts(parts){
     const head=m?prose2(m[1]).replace(/（([^）]*)）/g,'<span class="cl-gp">（$1）</span>'):'';
     return '<div class="cl-gi">'+(m?('<b class="cl-gh">'+head+'</b>：'+prose2(m[2])):prose2(it))+'</div>';
   }).join('');
-  return '<details class="cl-gd"><summary>📖 '+esc(LT({zh:'註解',cn:'注解',en:'Notes',vi:'Chú thích'}))+' '+parts.length+'</summary><div class="cl-gloss lookup"><div class="cl-gl-list">'+rows+'</div></div></details>';}
-function clSentsHtml(ln){
+  /* CLSTR2_V1619 照 Quinn 給的講義：註解直接列在那一句下面，不用再點開 */
+  return '<div class="cl-gloss cl-gl-open lookup"><div class="cl-gl-list">'+rows+'</div></div>';}
+function clSentsHtml(ln,cx){cx=cx||{};
   const sents=clSplitSents(ln.orig||'');const parts=clGlossParts(ln.note||'');
   if(sents.length<=1)return null;
   const per=sents.map(()=>[]);const gw={};
@@ -938,7 +939,21 @@ function clSentsHtml(ln){
   const rd=clReadings(ln.note||''),gl=clGlossMap(ln.note||'');
   const attr=(Object.keys(rd).length?(' data-clrd="'+esc(JSON.stringify(rd))+'"'):'')+(Object.keys(gl).length?(' data-clgl="'+esc(JSON.stringify(gl))+'"'):'')
     +(Object.keys(gw).length?(' data-clgw="'+esc(JSON.stringify(gw))+'"'):'');
-  return '<div class="cl-sents">'+sents.map((x,i)=>'<div class="cl-sent"><div class="cl-orig lookup"'+attr+'>'+clNameProse(x)+'</div>'+clGlossHtmlParts(per[i])+'</div>').join('')+'</div>';}
+  /* CLSTR_V1619 Quinn：「翻譯是不是也可以做逐句翻譯」。每一句底下一格翻譯，key＝段_句（0_3_1） */
+  /* CLSTR2_V1619 註解下面留兩格：我的筆記（隨時存、不用交）＋這一句的翻譯（作業） */
+  const trBox=(i)=>{if(!cx.kb)return '';const k=cx.kb+'_'+i;const a=(cx.ans&&cx.ans[k]!=null)?cx.ans[k]:'';const f=cx.fb&&cx.fb[k];
+    const nv=(cx.nts&&cx.nts[k]!=null)?cx.nts[k]:'';const L2=cx.L||(o=>o.zh);
+    const nb=cx.canWrite
+      ?'<textarea class="cl-note-in cl-st-in" data-k="'+esc(k)+'" data-lid="'+esc(cx.lid)+'" rows="1" placeholder="'+esc(L2({zh:'上課記下來的…',cn:'上课记下来的…',en:'notes from class…',vi:'ghi chú…'}))+'" oninput="H.clNote&&H.clNote(\''+esc(cx.lid)+'\')">'+esc(nv)+'</textarea>'
+      :(nv?'<div class="cl-ro">'+esc(nv)+'</div>':'<div class="cl-ro"><span class="hint">—</span></div>');
+    const box=cx.answerable
+      ?'<textarea class="disc-ans cl-st-in" data-k="'+esc(k)+'" data-lid="'+esc(cx.lid)+'" rows="1" placeholder="'+esc(cx.ph||'')+'" oninput="H.discDraft&&H.discDraft(\''+esc(cx.lid)+'\')">'+esc(a)+'</textarea>'
+      :(a?'<div class="disc-myans">'+esc(a)+'</div>':'<div class="cl-ro"><span class="hint">—</span></div>');
+    return '<div class="cl-cols cl-st-cols"><div class="cl-col"><div class="cl-col-t">✍️ '+esc(L2({zh:'我的筆記',cn:'我的笔记',en:'My notes',vi:'Ghi chú của tôi'}))+'</div>'+nb+'</div>'
+      +'<div class="cl-col"><div class="cl-col-t">📝 '+esc(L2({zh:'翻譯',cn:'翻译',en:'Translation',vi:'Dịch'}))+'</div>'+box+'</div></div>'
+      +(f?'<div class="fb-note">💬 '+esc(t('sentFb'))+'：'+esc(f)+'</div>':'');};
+  const n0=cx.n0||0;
+  return '<div class="cl-sents">'+sents.map((x,i)=>'<div class="cl-sent"><div class="cl-sno">'+(n0+i+1)+'</div><div class="cl-sb"><div class="cl-orig lookup"'+attr+'>'+clNameProse(x)+'</div>'+clGlossHtmlParts(per[i])+trBox(i)+'</div></div>').join('')+'</div>';}
 function clGlossHtml(t){
   const parts=clGlossParts(t);
   if(!parts.length)return '';
@@ -962,29 +977,37 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
   const done=(doc&&(doc.status==='submitted'||doc.status==='reviewed'));
   const blockDone=!!(doc&&Object.keys(ans).some(k=>String(ans[k]||'').trim()!==''));
   const when=l.cl_ref_when||'after';
-  const showRef=(when==='always')||(when==='after'&&done);
+  /* NOREF_V1619 Quinn：「參考翻譯不要給學生」。不管後台設定是什麼，學生端一律不顯示參考翻譯 */
+  const showRef=false;const showQAns=(when==='always')||(when==='after'&&done);
   const L=(o)=>wbL(o);
   const canWrite=answerable;
   const noteBox=(key)=>{const v=nts[key]!=null?nts[key]:'';
     return `<div class="cl-col"><div class="cl-col-t">✍️ ${L({zh:'我的筆記',cn:'我的笔记',en:'My notes',vi:'Ghi chú của tôi'})}<span class="cl-col-s">${L({zh:'上課寫，隨時存，不用交',cn:'上课写，随时存，不用交',en:'saved as you type',vi:'tự lưu'})}</span></div>`
       +(!canWrite?`<div class="cl-ro">${v?esc(v):'<span class="hint">—</span>'}</div>`
         :`<textarea class="cl-note-in" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(L({zh:'上課記下來的…',cn:'上课记下来的…',en:'notes from class…',vi:'ghi chú…'}))}" oninput="H.clNote&&H.clNote('${l.id}')">${esc(v)}</textarea>`)+`</div>`;};
+  let _sn=0;/* CLSTR2_V1619 句子從 1 一路編號下去 */
   const items=lines.map((ln,qi)=>{const key=di+'_'+qi;const a=ans[key]!=null?ans[key]:'';const tfb=fb[key];
     const ansBox=answerable
       ?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(clPh())}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`
       :(a?`<div class="disc-myans">${esc(a)}</div>`:`<div class="cl-ro"><span class="hint">—</span></div>`);
-    return `<div class="cl-line">
-      <div class="cl-no">${qi+1}</div>
-      ${clSentsHtml(ln)||`<div class="cl-orig lookup"${(function(){const rd=clReadings(ln.note||'');const gl=clGlossMap(ln.note||'');
+    const _ns=clSplitSents(ln.orig||'').length;
+    const _sh=clSentsHtml(ln,{kb:key,ans,fb,answerable,canWrite,nts,L,n0:_sn,lid:l.id,ph:L({zh:'這一句的白話翻譯…',cn:'这一句的白话翻译…',en:'Translate this sentence…',vi:'Dịch câu này…'})});
+    _sn+=(_ns>1?_ns:1);
+    const _keepNote=!_sh||String(nts[key]||'').trim()!=='';
+    /* CLSTR_V1619 逐句翻譯的時候，下面那一格整段翻譯只在以前寫過的時候才留著（不會不見） */
+    const _keepPara=!_sh||String(a||'').trim()!=='';
+    return `<div class="cl-line${_sh?' cl-line-s':''}">
+      ${_sh?'':`<div class="cl-no">${_sn}</div>`}
+      ${_sh||`<div class="cl-orig lookup"${(function(){const rd=clReadings(ln.note||'');const gl=clGlossMap(ln.note||'');
         const gw={};clGlossParts(ln.note||'').forEach(it=>{const g=clGlossHead(it);if(g)gw[g.head]={py:g.py,b:g.body};});
         return (Object.keys(rd).length?(' data-clrd="'+esc(JSON.stringify(rd))+'"'):'')
              +(Object.keys(gl).length?(' data-clgl="'+esc(JSON.stringify(gl))+'"'):'')
              +(Object.keys(gw).length?(' data-clgw="'+esc(JSON.stringify(gw))+'"'):'');})()}>${clNameProse(ln.orig||'')}</div>
       ${clGlossHtml(ln.note)}`}
       ${ln.img?`<div class="cl-pic"><img src="${esc(ln.img)}" alt="" loading="lazy"></div>`:''}
-      <div class="cl-cols">
-        ${noteBox(key)}
-        <div class="cl-col"><div class="cl-col-t">📝 ${L({zh:'翻譯',cn:'翻译',en:'Translation',vi:'Dịch'})}<span class="cl-col-s">${L({zh:'作業，寫完按下面送出',cn:'作业，写完按下面送出',en:'homework',vi:'bài tập'})}</span></div>${ansBox}</div>
+      <div class="cl-cols"${(_sh&&!_keepNote&&!_keepPara)?' hidden':''}>
+        ${_keepNote?noteBox(key):''}
+        ${_keepPara?`<div class="cl-col"><div class="cl-col-t">📝 ${L({zh:'翻譯',cn:'翻译',en:'Translation',vi:'Dịch'})}<span class="cl-col-s">${L({zh:'作業，寫完按下面送出',cn:'作业，写完按下面送出',en:'homework',vi:'bài tập'})}</span></div>${ansBox}</div>`:''}
       </div>
       ${(showRef&&ln.ref)?`<div class="cl-ref-box"><b>${L({zh:'參考翻譯',cn:'参考翻译',en:'Reference',vi:'Bản dịch tham khảo'})}</b>${clNameEsc(ln.ref)}</div>`:''}
       ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}
@@ -997,7 +1020,7 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
       ${q.img?`<div class="cl-pic"><img src="${esc(q.img)}" alt="" loading="lazy"></div>`:''}
       ${qAns?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(clPh())}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`
         :(qMode==='view'?'':(a?`<div class="disc-myans">${esc(a)}</div>`:`<div class="cl-ro"><span class="hint">—</span></div>`))}
-      ${(showRef&&q.ans)?`<div class="cl-ref-box"><b>${L({zh:'參考答案',cn:'参考答案',en:'Reference',vi:'Đáp án'})}</b>${esc(q.ans)}</div>`:''}
+      ${(showQAns&&q.ans)?`<div class="cl-ref-box"><b>${L({zh:'參考答案',cn:'参考答案',en:'Reference',vi:'Đáp án'})}</b>${esc(q.ans)}</div>`:''}
       ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}</div>`;}).join('')+`</div>`:'';
   const savedLab=L({zh:'上次儲存',cn:'上次保存',en:'Last saved',vi:'Lưu lần cuối'});
   const saveBtn=`<button class="btn cl-save-btn" style="width:100%;padding:11px" data-act="clSave" data-id="${l.id}">💾 ${L({zh:'儲存進度',cn:'保存进度',en:'Save progress',vi:'Lưu tiến độ'})}</button>`

@@ -17541,12 +17541,32 @@ H.saveSentReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(
   try{await DB.update('results',id,patch);const i=S.sentences.findIndex(x=>x.id===id);if(i>=0)S.sentences[i]=Object.assign({},sd,patch);
     closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
   }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
+/* CLSTR_V1619 跟學生端同一套斷句（。！？；，收引號跟著前一句，太短的併到下一句） */
+function tClSplit(t){const s=String(t||'').replace(/\r/g,'').trim();if(!s)return [];
+  const out=[];let buf='';const ch=[...s];
+  for(let i=0;i<ch.length;i++){buf+=ch[i];
+    if(/[。！？；!?]/.test(ch[i])){while(i+1<ch.length&&/[」』”）)]/.test(ch[i+1])){i++;buf+=ch[i];}
+      if(buf.trim()){out.push(buf.trim());buf='';}}}
+  if(buf.trim())out.push(buf.trim());
+  const res=[];out.forEach(x=>{if(res.length&&[...res[res.length-1]].length<=4)res[res.length-1]+=x;else res.push(x);});
+  return res;}
 H.reviewDisc=(id)=>{const sd=(S.discussions||[]).find(x=>x.id===id);if(!sd)return;
   const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
   const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};const ltitle=lesNo(l,'');
   const fb=sd.feedback||{},ans=sd.answers||{};const blocks=Array.isArray(l.dialogues)?l.dialogues:[];
   // 只顯示學生「有作答」的題目，並依段落（對話／短文）分組；沒作答的那一段不會出現
-  let rows='';blocks.forEach((d,di)=>{const qs=(d.discussion||'').split('\n').map(s=>s.trim().replace(/^\d+\s*[.、）)．]\s*/,'')).filter(Boolean);
+  let rows='';
+  /* CLSTR_V1619 文言文改成逐句翻譯（key＝0_段_句）。批改時一句一句列：原文、學生翻譯、建議框 */
+  const _cl=(S.classicals||[]).find(x=>x&&x.id===sd.disc_lesson)||((l&&l.kind==='classical')?l:null);
+  const _clKeys=_cl?Object.keys(ans).filter(k=>/^0_\d+_\d+$/.test(k)&&String(ans[k]||'').trim()):[];
+  if(_cl&&_clKeys.length){const lines=clLinesOf(_cl)||[];
+    lines.forEach((ln,qi)=>{const ss=tClSplit(ln.orig||'');const items=[];
+      if(String(ans['0_'+qi]||'').trim())items.push({q:ln.orig||'',key:'0_'+qi,a:String(ans['0_'+qi])});
+      ss.forEach((x,si)=>{const k='0_'+qi+'_'+si;if(String(ans[k]||'').trim())items.push({q:x,key:k,a:String(ans[k])});});
+      if(!items.length)return;
+      rows+='<div class="lesson-label" style="margin:12px 0 4px;padding-bottom:2px;border-bottom:1px solid var(--line)">📜 第 '+(qi+1)+' 段</div>';
+      items.forEach(x=>{rows+=`<div class="srev-item"><div class="srev-word">${esc(x.q)}</div><div class="srev-sent">${esc(x.a)}</div>${ln.ref&&x.key==='0_'+qi?`<div class="hint" style="margin:2px 0 6px">參考答案：${esc(ln.ref)}</div>`:''}<textarea class="drev-fb" data-k="${esc(x.key)}" rows="2" placeholder="建議">${esc(fb[x.key]||'')}</textarea></div>`;});});}
+  if(!(_cl&&_clKeys.length))blocks.forEach((d,di)=>{const qs=(d.discussion||'').split('\n').map(s=>s.trim().replace(/^\d+\s*[.、）)．]\s*/,'')).filter(Boolean);
     const answered=qs.map((q,qi)=>({q,key:di+'_'+qi,a:(ans[di+'_'+qi]==null?'':String(ans[di+'_'+qi]))})).filter(x=>x.a.trim());
     if(!answered.length)return;
     const bt=(d.title||'').trim()||('段落 '+(di+1));
