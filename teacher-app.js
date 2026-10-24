@@ -2065,6 +2065,43 @@ function acctVisHtml(h){
     +'<button class="btn btn-sm" data-act="siteHits">看詳細（來源・頁面・語言）</button></div>'
     +(days.length?('<div class="vz">'+bars+'</div>')
       :'<div class="hint" style="margin-top:10px">這個月還沒有紀錄。</div>');}
+/* LOGALL_V1614 全部登入紀錄 */
+function acctLogRows(list){
+  const days={'1':1,'7':7,'30':30}[String(S.acctLogDays||'30')];
+  const who=S.acctLogWho||'';
+  const cut=days?(function(){const n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate()-(days-1));})():null;
+  const out=[];
+  list.forEach(st=>{if(who&&st.id!==who)return;const p=progOf(st.id);
+    ((p&&Array.isArray(p.logins))?p.logins:[]).forEach(t=>{const d=new Date(t);if(isNaN(d))return;if(cut&&d<cut)return;
+      out.push({t:String(t),d:d,s:st});});});
+  out.sort((a,b)=>b.d-a.d);return out;}
+function acctLogHtml(list){
+  const rows=acctLogRows(list);
+  const dSel=String(S.acctLogDays||'30');
+  const seg=(k,lb)=>'<button class="segb'+(dSel===k?' on':'')+'" data-act="acctLogDays" data-id="'+k+'">'+lb+'</button>';
+  const people=new Set(rows.map(r=>r.s.id)).size;
+  const opts='<option value="">全部學生</option>'+list.slice().sort(stuNameCmp)
+    .map(st=>'<option value="'+esc(st.id)+'"'+(S.acctLogWho===st.id?' selected':'')+'>'+esc(String(st.name||''))+(st.is_test?' 🧪':'')+'</option>').join('');
+  let h='<div class="stu-bar" style="margin-bottom:10px;gap:10px;flex-wrap:wrap">'
+    +'<div class="segbar">'+seg('1','今天')+seg('7','7 天')+seg('30','30 天')+seg('all','全部')+'</div>'
+    +'<select id="acct-log-who" style="width:auto;min-width:180px">'+opts+'</select>'
+    +'<span class="grow"></span>'
+    +'<span class="muted" style="font-size:13px">'+rows.length+' 次登入・'+people+' 位學生</span>'
+    +'<button class="btn btn-sm" data-act="acctLogXlsx">⬇ 下載 Excel</button></div>';
+  if(!rows.length)return h+emptyHtml('🕒','這段期間沒有人登入','');
+  let last='';
+  h+='<div class="card lg-tbl"><div class="lg-h"><span>時間</span><span>學生</span><span>登入 Email</span></div>';
+  const perDay={};rows.forEach(r=>{const k=r.s.id+'|'+fmtDate(r.t);perDay[k]=(perDay[k]||0)+1;});
+  const seen={};
+  rows.forEach(r=>{const day=fmtDate(r.t);
+    if(day!==last){const n=rows.filter(x=>fmtDate(x.t)===day).length;
+      h+='<div class="lg-day"><b>'+esc(day)+'</b><span class="muted">'+esc(acctAgoTxt(r.t))+'・'+n+' 次</span></div>';last=day;}
+    const k=r.s.id+'|'+day;seen[k]=(seen[k]||0)+1;const nth=perDay[k]-seen[k]+1;
+    h+='<div class="lg-r"><span class="lg-t">'+esc(fmtDT(r.t).slice(-5))+'</span>'
+      +'<span><b>'+snm(r.s.name||'')+'</b>'+(r.s.is_test?' 🧪':'')+'</span>'
+      +'<span class="muted">'+esc(r.s.email||'')+'</span></div>';});
+  h+='</div><div class="hint" style="margin-top:8px">每位學生會留最近 100 次登入。</div>';
+  return h;}
 function renderAcct(){
   const body=document.getElementById('acct-body');if(!body)return;
   if(!IS_OWNER){body.innerHTML=emptyHtml('🔒','沒有權限','這一頁只有主管理員看得到。');return;}
@@ -2132,10 +2169,16 @@ function renderAcct(){
             .filter(Boolean).join('、')
         +'）。剛從「👤 新增一位」建好的學生預設是<b>預約・詢問中</b>，'
         +'按上面的 <button class="btn btn-sm" data-act="acctScope" data-id="all">全部</button> 就看得到。</div>'):'')
-    +(list.length
+    /* LOGALL_V1614 Quinn：「我想要知道的不是最後一次學生登入而已，而要看全部的登入資訊」。
+       多一個分頁：把每位學生的登入時間（__progress.logins）攤成一張總表，新的在上面，
+       可以挑期間、挑學生，也可以下載成 Excel。 */
+    +'<div class="segbar" style="margin:0 0 12px">'
+      +'<button class="segb'+(S.acctView!=='log'?' on':'')+'" data-act="acctView" data-id="list">👥 學生清單</button>'
+      +'<button class="segb'+(S.acctView==='log'?' on':'')+'" data-act="acctView" data-id="log">🕒 全部登入紀錄</button></div>'
+    +(S.acctView==='log'?acctLogHtml(list):(list.length
       ?('<div class="ac-h"><span>學生</span><span>登入 Email</span><span>帳號</span><span>最後登入</span><span>30 天內</span><span>最後動作</span><span>做完</span><span></span></div>'
         +'<div class="ac-list">'+list.map(acctRow).join('')+'</div>')
-      :emptyHtml('👤','沒有學生',''));
+      :emptyHtml('👤','沒有學生','')));
   acctLoadHits().then(h=>{const el=document.getElementById('acct-vis');if(!el)return;
     const open=el.open;
     let today=0;try{const t=localToday();today=(h||[]).filter(r=>String(r.d||'')===t).length;}catch(e){}
@@ -23242,6 +23285,20 @@ H.pubSaveLessons=async(cls)=>{const checked=new Set($$('#pub-lessons .pub-les:ch
 H.gmSchedAdd=()=>{const c=$('#gm-sched');if(c)c.insertAdjacentHTML('beforeend',schedRowHTML({}));};
 H.opsSub=(k)=>{S.opsSub=k||'inc';renderOps();try{window.scrollTo(0,0);}catch(e){}};
 /* ACCT_V1261 這兩顆也要放在 const H={} 之後 */
+/* LOGALL_V1614 */
+H.acctView=(k)=>{S.acctView=(k==='log')?'log':'list';renderAcct();};
+H.acctLogDays=(k)=>{S.acctLogDays=k||'30';renderAcct();};
+document.addEventListener('change',e=>{const t=e.target;if(t&&t.id==='acct-log-who'){S.acctLogWho=t.value||'';renderAcct();}});
+H.acctLogXlsx=()=>{
+  if(typeof XLSX==='undefined')return toast('匯出元件還在載入，請過幾秒再按一次');
+  const scope=(S.acctScope==='all')?'all':'active';
+  const all=(S.students||[]).filter(s=>s&&!s.deleted_at);
+  const list=(scope==='all')?all:all.filter(s=>!s.is_test&&enrollOf(s)==='active');
+  const rows=acctLogRows(list);
+  const A=[['日期','時間','學生','登入 Email']].concat(rows.map(r=>[fmtDate(r.t),fmtDT(r.t).slice(-5),String(r.s.name||''),r.s.email||'']));
+  const ws=XLSX.utils.aoa_to_sheet(A);ws['!cols']=[{wch:12},{wch:8},{wch:24},{wch:32}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'登入紀錄');
+  XLSX.writeFile(wb,'QNA_登入紀錄_'+localToday()+'.xlsx');};
 H.acctSort=(k)=>{S.acctSort=k||'login';renderAcct();};
 /* INCHIDE_V1299 首頁「本月收入」的顯示／隱藏 */
 H.dashInc=()=>{DASHINC=!DASHINC;render();};
