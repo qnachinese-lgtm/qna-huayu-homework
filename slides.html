@@ -23,6 +23,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
+<!-- DICT2_V1 自動聽寫也包含對話二 -->
 <!-- AVNM_V1 頭像下面的名字不換行 -->
 <!-- ROLE5_V1 對話可以有第五個人（E） -->
 <!-- JSAMEL_V1 學生作答頁只顯示老師現在這一課的題目 -->
@@ -1424,7 +1425,7 @@ function autoBlank(sentence, words){
   return s;
 }
 let dPickMode = false; const dPickStore = {};
-const dWords = L => [...new Set((L.words||[]).filter(w=>w[6]!=="ex").flatMap(w=>String(w[0]||"").split(/[／/]/)).concat((L.dict||[]).flatMap(d=>[...String(d[2]||"").matchAll(/【(.+?)】/g)].map(m=>m[1]))).map(x=>x.trim()).filter(x=>x.length))].sort((a,b)=>b.length-a.length); /* DPICK_V2 自己寫的聽寫句，【】裡不是生詞也能挖空 */
+const dWords = L => [...new Set((L.words||[]).concat(L.words2||[]).filter(w=>w[6]!=="ex").flatMap(w=>String(w[0]||"").split(/[／/]/)).concat((L.dict||[]).flatMap(d=>[...String(d[2]||"").matchAll(/【(.+?)】/g)].map(m=>m[1]))).map(x=>x.trim()).filter(x=>x.length))].sort((a,b)=>b.length-a.length); /* DPICK_V2 自己寫的聽寫句，【】裡不是生詞也能挖空 */
 function dTok(text, ws){ const s = String(text||"").replace(/[【】]/g, ""), out = []; let i = 0, buf = "";
   while(i < s.length){ const w = ws.find(w => s.startsWith(w, i)); if(w){ if(buf){ out.push({t:buf}); buf = ""; } out.push({t:w, w:true}); i += w.length; } else { buf += s[i]; i++; } }
   if(buf) out.push({t:buf}); return out; }
@@ -1432,14 +1433,14 @@ function dPicked(L, ds, ws){ const key = L.id || "x"; if(dPickStore[key]) return
   let saved = null; try { saved = JSON.parse(localStorage.getItem("dict-pick-" + key) || "null"); } catch(e){}
   /* DPICK_V2 老師自己寫的聽寫句：照【】挖空。自動從對話來的：每句最多挖一個兩個字以上的詞（一個字的詞會到處都被挖掉，所以不自動挖），全部最多 10 個，初級的課才不會整句都是空格 */
   const own = (L.dict && L.dict.length);
-  const auto = () => { const out = [], used = new Set(); for(const d of ds){ if(d[0] === "S" || out.length >= 10) continue;
+  const auto = () => { const out = [], used = new Set(); for(const d of ds){ if(d[0] === "S" || out.length >= 16) continue;
       const toks = dTok(String(d[2]||"").replace(/[【】]/g, ""), ws).filter(t => t.w && !used.has(t.t));
       const pick = toks.filter(t => [...t.t].length >= 2).sort((x,y) => [...y.t].length - [...x.t].length)[0];
       if(pick){ out.push(pick.t); used.add(pick.t); } } return out; };
   const set = new Set(Array.isArray(saved) ? saved : own ? ds.flatMap(d => [...String(d[2]||"").matchAll(/【(.+?)】/g)].map(m=>m[1]).filter(w=>ws.includes(w))) : auto());
   return dPickStore[key] = set; }
 function dSave(L, set){ const key = L.id || "x"; dPickStore[key] = set; try { localStorage.setItem("dict-pick-" + key, JSON.stringify([...set])); } catch(e){} }
-const DICT = L => (L.dict && L.dict.length) ? L.dict : (L.dialog||[]).map(d=> d[0]==="S" ? ["S","",d[2]] : [d[0], d[1], autoBlank(d[2], L.words)]);
+const DICT = L => (L.dict && L.dict.length) ? L.dict : (L.dialog||[]).concat((L.dialog2||[]).length ? [["S","","（對話二）"]].concat(L.dialog2) : []).map(/* DICT2_V1 */d=> d[0]==="S" ? ["S","",d[2]] : [d[0], d[1], autoBlank(d[2], L.words)]);
 function fmtT(t){ t = Math.floor(t||0); return Math.floor(t/60) + ":" + String(t%60).padStart(2,"0"); }
 /* APLAYER_V2 播放器共用：聽寫、對話都有 */
 const aPlayerHtml = () => `<div class="aplayer" role="group" aria-label="音檔">
