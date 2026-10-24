@@ -23,6 +23,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
+<!-- LPICK_V3 課次選單：教材 → 冊 → 課 -->
 <!-- NOSAMPLE_V1 課次選單拿掉「範例」 -->
 <!-- LPICK_V2 課次選單：先選教材、編號＋課名、可搜尋 -->
 <!-- DICT2_V1 自動聽寫也包含對話二 -->
@@ -307,6 +308,9 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .lpPanel .lpbooks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .lpPanel .lpbooks button{all:unset;cursor:pointer;font-size:13px;padding:5px 12px;border-radius:999px;background:var(--ice);color:var(--fg)}
 .lpPanel .lpbooks button.on{background:var(--navy);color:#fff}
+.lpPanel .lpvols{margin-top:-4px;padding-left:10px;border-left:3px solid var(--line)}
+.lpPanel .lpvols button{font-size:12px;padding:4px 11px}
+.lpPanel .lpvols button.on{background:var(--sky);color:var(--fg)}
 .lpPanel .lpgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .lpPanel button.lpi{display:flex;align-items:center;gap:8px;padding:7px 8px;font-size:14px;border-radius:8px;min-width:0}
 .lpPanel button.lpi b{flex:none;width:26px;height:26px;border-radius:50%;background:var(--ice);color:var(--navy);display:grid;place-items:center;font-size:13px}
@@ -1519,11 +1523,19 @@ function lpGrid(){ const g = $("#lpPanel .lpgrid"); if(!g) return; const ls = le
   const list = (q ? ls.filter(L => (lpLab(L) + (L.book||"")).includes(q)) : ls.filter(L => (L.book||"未分類") === lpBook)).sort((a,b)=>(a.book||"").localeCompare(b.book||"") || (+a.num||999)-(+b.num||999));
   g.innerHTML = list.map(L => `<button type="button" role="option" data-lp="${esc(L.id)}" class="lpi${L.id===curId?' on':''}" aria-selected="${L.id===curId}"><b>${esc(L.num||"·")}</b><span>${esc(lpShort(L)||L.name)}${q ? `<small>${esc(L.book||"")}</small>` : ""}</span></button>`).join("") || `<div class="gh">找不到</div>`;
   $("#lpPanel").querySelectorAll("[data-lpb]").forEach(b => b.classList.toggle("on", !q && b.dataset.lpb === lpBook)); }
+/* LPICK_V3 教材分三層：教材系列 → 第幾冊 → 課 */
+const lpCN = {一:1,二:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9,十:10};
+const lpSer = b => { const m = String(b||"").match(/^(.*?)([一二三四五六七八九十0-9０-９]+)$/); return m && m[1] ? {s: m[1], v: m[2]} : {s: String(b||"未分類"), v: ""}; };
+const lpVn = v => lpCN[v] || parseInt(String(v).replace(/[０-９]/g, d => "０１２３４５６７８９".indexOf(d)), 10) || 99;
+function lpRows(){ const books = [...new Set(lessons.filter(L=>L.id!=="sample").map(L=>L.book||"未分類"))], sers = [...new Set(books.map(b=>lpSer(b).s))], cs = lpSer(lpBook).s;
+  const vols = books.filter(b=>lpSer(b).s===cs).sort((a,b)=>lpVn(lpSer(a).v)-lpVn(lpSer(b).v));
+  return `<div class="lpbooks">${sers.map(x=>`<button type="button" data-lps="${esc(x)}" class="${x===cs && !lpQ.trim() ? "on" : ""}">${esc(x)}</button>`).join("")}</div>`
+    + (lpSer(lpBook).v ? `<div class="lpbooks lpvols">${vols.map(b=>`<button type="button" data-lpb="${esc(b)}" class="${b===lpBook && !lpQ.trim() ? "on" : ""}">第${esc(lpSer(b).v)}冊</button>`).join("")}</div>` : ""); }
 function fillPick(){ const books = [...new Set(lessons.filter(L=>L.id!=="sample").map(L=>L.book||"未分類"))];
   if(!lpBook || !books.includes(lpBook)) lpBook = (LESSON && LESSON.id !== "sample" && LESSON.book) || books[0];
-  $("#lpPanel").innerHTML = `<input class="lpq" type="search" placeholder="搜尋課名或教材" value="${esc(lpQ)}" aria-label="搜尋課名"><div class="lpbooks">${books.map(b=>`<button type="button" data-lpb="${esc(b)}">${esc(b)}</button>`).join("")}</div><div class="lpgrid"></div>`;
+  $("#lpPanel").innerHTML = `<input class="lpq" type="search" placeholder="搜尋課名或教材" value="${esc(lpQ)}" aria-label="搜尋課名"><div class="lprows">${lpRows()}</div><div class="lpgrid"></div>`;/* LPICK_V3 */
   lpGrid(); $("#lpLab").textContent = lpLab(LESSON); }
-$("#lpPanel").addEventListener("input", e => { if(e.target.classList.contains("lpq")){ lpQ = e.target.value; lpGrid(); } });
+$("#lpPanel").addEventListener("input", e => { if(e.target.classList.contains("lpq")){ lpQ = e.target.value; $("#lpPanel .lprows").innerHTML = lpRows(); lpGrid(); } });
 $("#tmBtn").onclick = e => { e.stopPropagation(); const p = $("#tmPanel"); p.hidden = !p.hidden; $("#tmBtn").setAttribute("aria-expanded", !p.hidden); };
 document.addEventListener("click", e => { const gl = $("#glist"); if(gl && !gl.hidden && !e.target.closest(".wpick")){ gl.hidden = true; } const wl = $("#wlist"); if(wl && !wl.hidden && !e.target.closest(".wpick")){ wl.hidden = true; } });
 document.addEventListener("click", e => { if(!e.target.closest(".tmenu")){ $("#tmPanel").hidden = true; $("#tmBtn").setAttribute("aria-expanded", false); } });
@@ -1533,7 +1545,9 @@ document.addEventListener("click", e => { const t = e.target;
   if(t.closest && t.closest("#tmBtn")){ $("#lpPanel").hidden = true; $("#lpBtn").setAttribute("aria-expanded", false); } }, true);
 $("#editBtn").addEventListener("click", ()=>{ $("#tmPanel").hidden = true; }); $("#newBtn").addEventListener("click", ()=>{ $("#tmPanel").hidden = true; }); $("#impBtn").addEventListener("click", ()=>{ $("#tmPanel").hidden = true; });
 $("#lpBtn").onclick = e => { e.stopPropagation(); const p = $("#lpPanel"); p.hidden = !p.hidden; $("#lpBtn").setAttribute("aria-expanded", !p.hidden); if(!p.hidden){ const on = p.querySelector(".on"); if(on) on.scrollIntoView({block:"nearest"}); } };
-$("#lpPanel").onclick = e => { const bb = e.target.closest("[data-lpb]"); if(bb){ e.stopPropagation(); lpBook = bb.dataset.lpb; lpQ = ""; const qi = $("#lpPanel .lpq"); if(qi) qi.value = ""; lpGrid(); return; } const b = e.target.closest("[data-lp]"); if(!b) return; $("#lpPanel").hidden = true; $("#lpBtn").setAttribute("aria-expanded", false); useLesson(b.dataset.lp); };
+$("#lpPanel").onclick = e => { const sb = e.target.closest("[data-lps]"), bb = e.target.closest("[data-lpb]"); if(sb || bb){ e.stopPropagation();
+    if(sb){ const books = [...new Set(lessons.filter(L=>L.id!=="sample").map(L=>L.book||"未分類"))].filter(b=>lpSer(b).s===sb.dataset.lps).sort((a,b)=>lpVn(lpSer(a).v)-lpVn(lpSer(b).v)); if(lpSer(lpBook).s !== sb.dataset.lps) lpBook = books[0]; } else lpBook = bb.dataset.lpb;
+    lpQ = ""; const qi = $("#lpPanel .lpq"); if(qi) qi.value = ""; $("#lpPanel .lprows").innerHTML = lpRows(); lpGrid(); return; } const b = e.target.closest("[data-lp]"); if(!b) return; $("#lpPanel").hidden = true; $("#lpBtn").setAttribute("aria-expanded", false); useLesson(b.dataset.lp); };
 document.addEventListener("click", e => { if(!e.target.closest(".lpick")){ $("#lpPanel").hidden = true; $("#lpBtn").setAttribute("aria-expanded", false); } });
 document.addEventListener("keydown", e => { if(e.key==="Escape" && !$("#lpPanel").hidden){ $("#lpPanel").hidden = true; $("#lpBtn").setAttribute("aria-expanded", false); } }, true);
 function fillSel(){
