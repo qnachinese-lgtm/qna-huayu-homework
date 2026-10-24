@@ -23,6 +23,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
+<!-- CLHL_V1 文言文有解釋的詞用螢光筆標出 -->
 <!-- CLRUBY_V2 讀音標在對的字上（蓋聶 Gě 只標在「蓋」上） -->
 <!-- CLFLOW_V1 文言文只有開始、原文；課次選單沒有冊的教材不顯示課號 -->
 <!-- TZOOM_V1 對話、短文可以放大縮小字 -->
@@ -376,6 +377,7 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 /* CLRUBY_V1 */
 .paras.solo:has(.clgl) .clgl{height:100%;align-self:stretch}
 .paras.solo:has(.clgl) > .para{max-height:100%;overflow:auto;box-sizing:border-box}
+.clhl{background:linear-gradient(transparent 52%, #FFE58A 52%);color:inherit;padding:0 1px}
 .clp ruby rt{font-size:.42em;color:var(--muted);font-family:"Times New Roman",serif;letter-spacing:0}
 .paras.solo .clp{line-height:2.2}
 .clgl{background:var(--ice);border-radius:14px;padding:14px 18px;font-size:max(18px, calc(var(--rfs,24px) * .72));line-height:1.65;max-height:100%;overflow:auto}
@@ -1195,8 +1197,15 @@ function render(){
     /* CLGLOSS_V1 文言文：每一段旁邊放這一段的詞語解釋 */
     const isCl = isClL(), clGlBox = g => { const it = clGloss(String(g||"").replace(/⏎/g, "\n")); return it.length ? `<div class="clgl"><div class="clglh">詞語解釋</div>${it.map(x => x.term ? `<div class="clgi"><b>${esc(x.term)}</b>${x.py ? `<span class="clpy">${esc(x.py)}</span>` : ""}：${esc(x.body)}</div>` : `<div class="clgi">${esc(x.raw)}</div>`).join("")}</div>` : ""; };
     /* CLRUBY_V1 詞語解釋裡有拼音的詞，在原文第一次出現的地方直接標讀音 */
-    const clRuby = (html, g) => { const it = clGloss(String(g||"").replace(/⏎/g, "\n")).filter(x => x.term && x.py), RB = [];
-      return html.split(/(<[^>]+>)/).map(seg => { if(!seg || seg[0] === "<") return seg; it.forEach(x => { if(x._d) return; const k = esc(x.term), p = seg.indexOf(k); if(p >= 0){ x._d = 1; seg = seg.slice(0, p) + "\u0001" + RB.length + "\u0002" + seg.slice(p + k.length); RB.push((() => { /* CLRUBY_V2 一個字一個音；拼音比字少時（蓋聶 Gě）只標在前面的字 */ const ch = [...x.term], sy = String(x.py).trim().split(/[\s　]+/).filter(Boolean); if(sy.length > ch.length) return `<ruby>${k}<rt>${esc(x.py)}</rt></ruby>`; return ch.map((c, j) => j < sy.length ? `<ruby>${esc(c)}<rt>${esc(sy[j])}</rt></ruby>` : esc(c)).join(""); })()); } }); return seg; }).join("").replace(/\u0001(\d+)\u0002/g, (m, i) => RB[+i]); };
+/* CLHL_V1 有解釋的詞用螢光筆標出來；讀音一個字一個音標在字上 */
+    const clHan = c => /[\u3400-\u9fff\uf900-\ufaff]/.test(c);
+    const clMk = (x, k) => { const cj = [...x.term], sy = String(x.py||"").trim().split(/[\s　、，,]+/).filter(Boolean), nh = cj.filter(clHan).length; let inner, j = 0;
+      if(!sy.length) inner = k;
+      else if(sy.length <= nh) inner = cj.map(c => clHan(c) && j < sy.length ? `<ruby>${esc(c)}<rt>${esc(sy[j++])}</rt></ruby>` : esc(c)).join("");
+      else inner = `<ruby>${k}<rt>${esc(x.py)}</rt></ruby>`;
+      return `<mark class="clhl">${inner}</mark>`; };
+    const clRuby = (html, g) => { const it = clGloss(String(g||"").replace(/⏎/g, "\n")).filter(x => x.term).sort((a, b) => [...b.term].length - [...a.term].length), RB = [];
+      return html.split(/(<[^>]+>)/).map(seg => { if(!seg || seg[0] === "<") return seg; it.forEach(x => { if(x._d) return; const k = esc(x.term), p = seg.indexOf(k); if(p >= 0){ x._d = 1; seg = seg.slice(0, p) + "\u0001" + RB.length + "\u0002" + seg.slice(p + k.length); RB.push(clMk(x, k)); } }); return seg; }).join("").replace(/\u0001(\d+)\u0002/g, (m, i) => RB[+i]); };
     st.innerHTML = ps.length ? `<div class="paras${solo ? " solo" : ""}">${ps.map((x,i)=> solo && i !== ri ? "" : `<div class="para ${i===ri && !solo?'on':''} ${ri>=0&&i!==ri?'dim':''}">${CG && solo ? `<div class="tag clseg"><span>${CG[i].lab}</span></div>` : ""}<div class="zh">${isCl ? clRuby(String(x[0]).split("\n").map(t=>`<p class="clp">${clMark(t)}</p>`).join(""), x[1]) : clMark(x[0])}</div>${isCl ? "" : `<div class="py">${esc(x[1]||"")}</div>`}${isCl ? "" : `<div class="tr">${esc(x[2]||"")}</div>`}</div>${isCl && solo ? clGlBox(x[1]) : ""}`).join("")}</div>`
       : `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有短文，按右上角「老師」→「編輯／匯入」加入。</div></div>`;
     /* RAUDIO_V1 短文也有自己的音檔（從教材與課程的短文段落帶過來） */
