@@ -899,6 +899,46 @@ function clGlossMap(t){
   });
   return map;
 }
+/* CLSENT_V1618 Quinn 選「1 加 2」：一段太長，學生上下滑追不到。
+   ① 一句一列：原文照「。！？；」斷成一句一句，每一句底下只放這一句用到的註解（收起來，要看再點）。
+   ② 點詞看註解：有註解的詞畫底線，點一下就跳出解釋。
+   翻譯、筆記還是一段一格（作答的 key 不變，以前寫的不會不見）。 */
+function clSplitSents(t){
+  const s=String(t||'').replace(/\r/g,'').trim();if(!s)return [];
+  const out=[];let buf='',q=0;const ch=[...s];
+  for(let i=0;i<ch.length;i++){const c=ch[i];buf+=c;
+    if(c==='「'||c==='『'||c==='“')q++;else if(c==='」'||c==='』'||c==='”')q=Math.max(0,q-1);
+    if(/[。！？；!?]/.test(c)){
+      /* 後面緊接著的收引號也算這一句 */
+      while(i+1<ch.length&&/[」』”）)]/.test(ch[i+1])){i++;buf+=ch[i];if(/[」』”]/.test(ch[i]))q=Math.max(0,q-1);}
+      if(buf.trim()){out.push(buf.trim());buf='';}}}
+  if(buf.trim())out.push(buf.trim());
+  /* 太短的（例如「曰：」）併到下一句 */
+  const res=[];out.forEach(x=>{if(res.length&&[...res[res.length-1]].length<=4)res[res.length-1]+=x;else res.push(x);});
+  return res;}
+function clGlossHead(it){const m=String(it).match(/^([^：]{1,60})：([\s\S]*)$/);if(!m)return null;
+  const head=String(m[1]).replace(/（[^）]*）/g,'').replace(/[「」『』]/g,'').trim();
+  const py=(String(m[1]).match(/（([^）]*)）/)||[])[1]||'';
+  return head&&/[\u3400-\u9fff]/.test(head)?{head,py,body:String(m[2]).trim()}:null;}
+function clGlossHtmlParts(parts){
+  if(!parts.length)return '';
+  const rows=parts.map(it=>{
+    const m=it.match(/^([^：]{1,60})：([\s\S]*)$/);
+    const head=m?prose2(m[1]).replace(/（([^）]*)）/g,'<span class="cl-gp">（$1）</span>'):'';
+    return '<div class="cl-gi">'+(m?('<b class="cl-gh">'+head+'</b>：'+prose2(m[2])):prose2(it))+'</div>';
+  }).join('');
+  return '<details class="cl-gd"><summary>📖 '+esc(LT({zh:'註解',cn:'注解',en:'Notes',vi:'Chú thích'}))+' '+parts.length+'</summary><div class="cl-gloss lookup"><div class="cl-gl-list">'+rows+'</div></div></details>';}
+function clSentsHtml(ln){
+  const sents=clSplitSents(ln.orig||'');const parts=clGlossParts(ln.note||'');
+  if(sents.length<=1)return null;
+  const per=sents.map(()=>[]);const gw={};
+  parts.forEach(it=>{const g=clGlossHead(it);let k=-1;
+    if(g){gw[g.head]={py:g.py,b:g.body};k=sents.findIndex(x=>x.indexOf(g.head)>=0);}
+    (per[k>=0?k:sents.length-1]).push(it);});
+  const rd=clReadings(ln.note||''),gl=clGlossMap(ln.note||'');
+  const attr=(Object.keys(rd).length?(' data-clrd="'+esc(JSON.stringify(rd))+'"'):'')+(Object.keys(gl).length?(' data-clgl="'+esc(JSON.stringify(gl))+'"'):'')
+    +(Object.keys(gw).length?(' data-clgw="'+esc(JSON.stringify(gw))+'"'):'');
+  return '<div class="cl-sents">'+sents.map((x,i)=>'<div class="cl-sent"><div class="cl-orig lookup"'+attr+'>'+clNameProse(x)+'</div>'+clGlossHtmlParts(per[i])+'</div>').join('')+'</div>';}
 function clGlossHtml(t){
   const parts=clGlossParts(t);
   if(!parts.length)return '';
@@ -935,10 +975,12 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
       :(a?`<div class="disc-myans">${esc(a)}</div>`:`<div class="cl-ro"><span class="hint">—</span></div>`);
     return `<div class="cl-line">
       <div class="cl-no">${qi+1}</div>
-      <div class="cl-orig lookup"${(function(){const rd=clReadings(ln.note||'');const gl=clGlossMap(ln.note||'');
+      ${clSentsHtml(ln)||`<div class="cl-orig lookup"${(function(){const rd=clReadings(ln.note||'');const gl=clGlossMap(ln.note||'');
+        const gw={};clGlossParts(ln.note||'').forEach(it=>{const g=clGlossHead(it);if(g)gw[g.head]={py:g.py,b:g.body};});
         return (Object.keys(rd).length?(' data-clrd="'+esc(JSON.stringify(rd))+'"'):'')
-             +(Object.keys(gl).length?(' data-clgl="'+esc(JSON.stringify(gl))+'"'):'');})()}>${clNameProse(ln.orig||'')}</div>
-      ${clGlossHtml(ln.note)}
+             +(Object.keys(gl).length?(' data-clgl="'+esc(JSON.stringify(gl))+'"'):'')
+             +(Object.keys(gw).length?(' data-clgw="'+esc(JSON.stringify(gw))+'"'):'');})()}>${clNameProse(ln.orig||'')}</div>
+      ${clGlossHtml(ln.note)}`}
       ${ln.img?`<div class="cl-pic"><img src="${esc(ln.img)}" alt="" loading="lazy"></div>`:''}
       <div class="cl-cols">
         ${noteBox(key)}
@@ -6543,4 +6585,40 @@ H.wbRecall=async()=>{
   setInterval(tick,STEP*1000);
   document.addEventListener('visibilitychange',function(){if(document.hidden)save();});
   window.addEventListener('pagehide',save);
+})();
+
+/* CLSENT_V1618 ② 點詞看註解：有註解的詞畫底線，點一下跳出解釋 */
+(function(){
+  function mark(el){
+    if(el.__gw)return;el.__gw=1;let gw={};try{gw=JSON.parse(el.getAttribute('data-clgw')||'{}');}catch(e){}
+    const heads=Object.keys(gw).filter(h=>h&&[...h].length<=12).sort((a,b)=>b.length-a.length);if(!heads.length)return;
+    /* 字被拆在好幾個 span 裡（人名、生詞），所以先把整行文字接起來找，再一段一段包起來 */
+    const tw=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,null);const nodes=[];let n,full='';
+    while((n=tw.nextNode())){nodes.push({n,st:full.length});full+=n.nodeValue;}
+    const taken=new Array(full.length).fill(false);const hits=[];
+    heads.forEach(h=>{let k=full.indexOf(h);while(k>=0){let ok=true;for(let x=k;x<k+h.length;x++)if(taken[x]){ok=false;break;}
+      if(ok){for(let x=k;x<k+h.length;x++)taken[x]=true;hits.push({s:k,e:k+h.length,h});}
+      k=full.indexOf(h,k+h.length);}});
+    hits.sort((a,b)=>b.s-a.s);
+    hits.forEach(hit=>{for(let q=nodes.length-1;q>=0;q--){const o=nodes[q];const len=o.n.nodeValue.length;const a=Math.max(hit.s,o.st),b=Math.min(hit.e,o.st+len);
+      if(a>=b)continue;let tn=o.n;const ls=a-o.st,le=b-o.st;
+      const after=tn.splitText(le);const mid=tn.splitText(ls);
+      const sp=document.createElement('span');sp.className='cl-gw';sp.setAttribute('data-g',hit.h);
+      mid.parentNode.insertBefore(sp,mid);sp.appendChild(mid);}});}
+  function scan(){document.querySelectorAll('.cl-orig[data-clgw]').forEach(mark);}
+  try{new MutationObserver(()=>{clearTimeout(scan._t);scan._t=setTimeout(scan,80);}).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
+  let pop=null;function close(){if(pop){pop.remove();pop=null;}}
+  document.addEventListener('click',function(e){
+    const w=e.target&&e.target.closest&&e.target.closest('.cl-gw');
+    if(!w){if(pop&&!(e.target.closest&&e.target.closest('.cl-gpop')))close();return;}
+    e.preventDefault();e.stopPropagation();close();
+    const host=w.closest('.cl-orig');let gw={};try{gw=JSON.parse(host.getAttribute('data-clgw')||'{}');}catch(_){}
+    const g=gw[w.getAttribute('data-g')];if(!g)return;
+    pop=document.createElement('div');pop.className='cl-gpop';
+    pop.innerHTML='<b>'+esc(w.getAttribute('data-g'))+'</b>'+(g.py?('<span class="cl-gp">（'+esc(g.py)+'）</span>'):'')+'<div>'+esc(g.b)+'</div>';
+    document.body.appendChild(pop);const r=w.getBoundingClientRect();const W=Math.min(320,innerWidth-16);pop.style.width=W+'px';
+    let x=Math.min(Math.max(8,r.left+r.width/2-W/2),innerWidth-W-8);let y=r.bottom+6;
+    if(y+pop.offsetHeight>innerHeight-8)y=Math.max(8,r.top-pop.offsetHeight-6);
+    pop.style.left=x+'px';pop.style.top=y+'px';},true);
+  window.addEventListener('scroll',close,{passive:true});
 })();
