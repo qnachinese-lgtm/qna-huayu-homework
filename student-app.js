@@ -308,12 +308,19 @@ function showZiPopup(ch,el){
         if(best){tgloss=g[best];tword=best;}}}
   }catch(e){}
   const pyLine=teach
-    ?('<div class="zi-py zi-teach">'+esc(teach)+'　<span class="zi-tag">'+LT({zh:'這一課',cn:'这一课',en:'This lesson',vi:'Bài này'})+'</span></div>'
+    ?('<div class="zi-py zi-teach">'+esc(teach)+(inCl?'':('　<span class="zi-tag">'+LT({zh:'這一課',cn:'这一课',en:'This lesson',vi:'Bài này'})+'</span>'))+'</div>'
       +((py&&py!==teach)?('<div class="zi-py zi-alt">'+LT({zh:'一般讀音',cn:'一般读音',en:'Usual reading',vi:'Âm thường dùng'})+' '+esc(py)+(zh?(' · '+esc(zh)):'')+'</div>'):''))
     :('<div class="zi-py">'+esc(py)+(zh?(' · '+esc(zh)):'')+'</div>');
-  const modern=mr?`<div class="zi-mean${tgloss?' zi-dim':''}">${tgloss?'<span class="zi-lb">'+LT({zh:'現代',cn:'现代',en:'Modern',vi:'Hiện đại'})+'</span>':''}${mr.pos?'('+esc(mr.pos)+') ':''}<span>${esc((mr.back)||'')}</span></div>`:'';
-  const mine=tgloss?`<div class="zi-mine"><span class="zi-tag">${LT({zh:'這一課',cn:'这一课',en:'This lesson',vi:'Bài này'})}</span>${(tword&&tword!==ch)?`<b>${esc(tword)}</b>`:''}<span>${esc(tgloss)}</span></div>`:'';
-  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div>${pyLine}${mine}${modern}${''/* NOZINOTE_V1620 Quinn：下面那句不用寫 */}`;
+  /* ZICL_V1621 Quinn：「而為什麼出現英文翻譯」「這些意思哪裡來的」。
+     文言文裡不要拿現代生詞表的英文意思來解釋；只留老師注釋裡寫的，也不用再貼「這一課」標籤。 */
+  const modern=(mr&&!inCl)?`<div class="zi-mean${tgloss?' zi-dim':''}">${tgloss?'<span class="zi-lb">'+LT({zh:'現代',cn:'现代',en:'Modern',vi:'Hiện đại'})+'</span>':''}${mr.pos?'('+esc(mr.pos)+') ':''}<span>${esc((mr.back)||'')}</span></div>`:'';
+  const mine=tgloss?`<div class="zi-mine">${inCl?'':`<span class="zi-tag">${LT({zh:'這一課',cn:'这一课',en:'This lesson',vi:'Bài này'})}</span>`}${(tword&&tword!==ch)?`<b>${esc(tword)}</b>`:''}<span>${esc(tgloss)}</span></div>`:'';
+  /* ZICL2_V1621 Quinn：「這些都是你亂提供，請不要自作主張」。
+     文言文裡點字，只顯示老師自己在注釋寫的東西（讀音、解釋）；老師沒寫到的字就不跳任何東西，
+     不拿字典的拼音、也不拿現代生詞表的意思。 */
+  if(inCl&&!tgloss&&!teach){hideZiPopup();return;}
+  const _py=inCl?(teach?('<div class="zi-py zi-teach">'+esc(teach)+'</div>'):''):pyLine;
+  pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div>${_py}${mine}${inCl?'':modern}${''/* NOZINOTE_V1620 Quinn：下面那句不用寫 */}`;
   hydrateVi(mr?[mr.back]:[]);
   pop.style.display='block';pop.style.visibility='hidden';const r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight;
   let left=r.left+r.width/2-pw/2;left=Math.max(8,Math.min(left,window.innerWidth-pw-8));let top=r.top-ph-10;if(top<6)top=r.bottom+10;
@@ -996,7 +1003,12 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
     const _keepNote=!_sh||String(nts[key]||'').trim()!=='';
     /* CLSTR_V1619 逐句翻譯的時候，下面那一格整段翻譯只在以前寫過的時候才留著（不會不見） */
     const _keepPara=!_sh||String(a||'').trim()!=='';
-    return `<div class="cl-line${_sh?' cl-line-s':''}">
+    /* CLPARA_V1621 Quinn：「有幾百個句子，怎麼知道它在哪一段」。
+       每一段收成一塊：標題寫「第 N 段」加這一段開頭幾個字，點了才展開這一段的句子。第一段預設打開。 */
+    const _pv=[...String(ln.orig||'').replace(/\s+/g,'')];const _pvt=_pv.slice(0,18).join('')+(_pv.length>18?'…':'');
+    const _paraOpen=(S.clParaOpen&&S.clParaOpen[l.id+'::'+qi]!=null)?S.clParaOpen[l.id+'::'+qi]:(qi===0);
+    const _paraH=lines.length>1?`<summary class="cl-ph"><span class="cl-pn2">${LT({zh:'第 '+(qi+1)+' 段',cn:'第 '+(qi+1)+' 段',en:'Paragraph '+(qi+1),vi:'Đoạn '+(qi+1)})}</span><span class="cl-pv">${esc(_pvt)}</span></summary>`:'';
+    return (lines.length>1?`<details class="cl-para" id="clp-${esc(l.id)}-${qi}" data-k="${esc(l.id+'::'+qi)}"${_paraOpen?' open':''}>${_paraH}`:'')+`<div class="cl-line${_sh?' cl-line-s':''}">
       ${_sh?'':`<div class="cl-no">${_sn}</div>`}
       ${_sh||`<div class="cl-orig lookup"${(function(){const rd=clReadings(ln.note||'');const gl=clGlossMap(ln.note||'');
         const gw={};clGlossParts(ln.note||'').forEach(it=>{const g=clGlossHead(it);if(g)gw[g.head]={py:g.py,b:g.body};});
@@ -1011,7 +1023,7 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
       </div>
       ${(showRef&&ln.ref)?`<div class="cl-ref-box"><b>${L({zh:'參考翻譯',cn:'参考翻译',en:'Reference',vi:'Bản dịch tham khảo'})}</b>${clNameEsc(ln.ref)}</div>`:''}
       ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}
-    </div>`;}).join('');
+    </div>`+(lines.length>1?'</details>':'');}).join('');
   const qMode=l.cl_qs_mode||'hw';
   const qAns=answerable&&qMode==='hw';
   const qHtml=(qs.length&&qMode!=='off')?`<div class="cl-qs"><div class="lesson-label">❓ ${L({zh:'課後問答',cn:'课后问答',en:'Questions',vi:'Câu hỏi'})}${qMode==='view'?`<span class="hint" style="font-weight:400;margin-left:8px">${L({zh:'上課一起討論，不用寫',cn:'上课一起讨论，不用写',en:'for class discussion',vi:'thảo luận trên lớp'})}</span>`:''}</div>`
@@ -1026,7 +1038,7 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
   const saveBtn=`<button class="btn cl-save-btn" style="width:100%;padding:11px" data-act="clSave" data-id="${l.id}">💾 ${L({zh:'儲存進度',cn:'保存进度',en:'Save progress',vi:'Lưu tiến độ'})}</button>`
     +`<div class="hint cl-saved-at" data-lid="${l.id}" style="text-align:center;margin:4px 0 10px">${(doc&&doc.saved_at)?('🕒 '+savedLab+'：'+fmtDT(doc.saved_at)):L({zh:'寫到一半可以先存起來，下次打開就在。',cn:'写到一半可以先存起来，下次打开就在。',en:'Save halfway — it will be here next time.',vi:'Lưu giữa chừng — lần sau vẫn còn.'})}</div>`;
   const footer=answerable?`<div class="disc-submit" style="margin-top:10px">${saveBtn}${(blockDone&&doc.status==='submitted')?`<div class="notice">📨 ${t('discSubmitted')}</div>`:''}${(blockDone&&doc.status==='reviewed')?`<div class="notice">✅ ${t('discReviewed')}</div>`:''}${(blockDone&&doc.submitted_at)?`<div class="hint" style="text-align:center;margin-top:4px">🕒 ${t('submittedAt')}：${fmtDT(doc.submitted_at)}</div>`:''}${(blockDone&&doc.status==='reviewed'&&doc.overall)?`<div class="card fb-overall" style="margin:6px 0"><b>${t('discOverall')}</b><div style="margin-top:4px">${esc(doc.overall)}</div></div>`:''}${(blockDone&&doc.status==='submitted')?`<button class="btn btn-sm" style="width:100%;margin-bottom:8px" data-act="recallDisc" data-id="${l.id}">${t('discRecall')}</button>`:''}<button class="btn btn-accent" style="width:100%;padding:11px" data-act="submitDisc" data-id="${l.id}::${di}">${blockDone?t('discResubmit'):t('discSubmit')}</button><div class="hint disc-draft-hint" data-lid="${l.id}" style="text-align:center;margin-top:2px;color:var(--teal,#1E4C86)"></div></div>`:'';
-  return slidesHtml(l)+`<details class="ls-sec noconv" open><summary class="ls-sec-h">${clSecLabel()}</summary><div class="ls-sec-b">${introHtml}<div data-disc-di="${di}" data-disc-lid="${l.id}">${items}${qHtml}${footer}</div></div></details>`;}
+  return slidesHtml(l)+`<details class="ls-sec noconv" open><summary class="ls-sec-h">${clSecLabel()}</summary><div class="ls-sec-b">${introHtml}<div data-disc-di="${di}" data-disc-lid="${l.id}">${lines.length>1?`<div class="cl-pnav"><span class="cl-pnav-l">${LT({zh:'段落',cn:'段落',en:'Paragraphs',vi:'Đoạn'})}</span>${lines.map((x,qi)=>`<button type="button" class="cl-pchip" data-act="clParaGo" data-id="${esc(l.id)}::${qi}">${qi+1}</button>`).join('')}</div>`:''}${items}${qHtml}${footer}</div></div></details>`;}
 function lessonBodyHtml(l,opts){opts=opts||{};if(l.kind==='classical')return classicalBodyHtml(l,opts);
   const _sld=slidesHtml(l);if(_sld)return _sld+lessonBodyHtml2(l,opts);return lessonBodyHtml2(l,opts);}
 function lessonBodyHtml2(l,opts){opts=opts||{};const seq=reconcileLayout(l);const qsAll=questionsOf(l.id).filter(q=>q.bank!=='hw');const gps=l.grammar_points||[];
@@ -2669,9 +2681,8 @@ function modItems(l){
     const b=(d&&(d.status==='submitted'||d.status==='reviewed'))
       ?'<span class="badge badge-ok">'+esc(t('sDone'))+'</span>'
       :((d&&d.status==='draft')?'<span class="badge badge-soon">'+esc(t('sDoing'))+'</span>':'');
-    out.push({ic:'📜',
-      t:LT({zh:'文言文（逐句寫白話翻譯）',cn:'文言文（逐句写白话翻译）',
-            en:'Classical Chinese — translate each line',vi:'Văn ngôn — dịch từng câu'}),
+    /* MODCL_V1621 Quinn：「這裡是不是反了？」——上面一行寫「文言文」，下面寫篇名 */
+    out.push({ic:'📜',t:String(l.title||''),
       s:parts.join('　·　'),badge:b,act:'openLessonView',id:l.id});
     if(l.handout_url)out.push({ic:'📎',t:LT({zh:'講義',cn:'讲义',en:'Handout',vi:'Tài liệu'}),s:'',badge:'',act:'openLessonView',id:l.id});
     return out;
@@ -2772,7 +2783,7 @@ function renderContent(){
         const open=(S.modOpen&&S.modOpen[l.id]===false)?' closed':'';
         return '<div class="mod'+open+'" data-mid="'+esc(l.id)+'">'
           +'<div class="mod-h" data-act="modTog" data-id="'+esc(l.id)+'"><span class="chev">▾</span>'
-          +esc(''+(l.title||''))+'<span class="grow"></span>'+st+'</div>'
+          +esc((l&&l.kind==='classical')?LT({zh:'文言文',cn:'文言文',en:'Classical Chinese',vi:'Văn ngôn'}):(''+(l.title||'')))+'<span class="grow"></span>'+st+'</div>'
           +'<div class="mod-items">'+its.map(it=>'<div class="mitem" data-act="'+it.act+'" data-id="'+esc(it.id)+'">'
             +'<span class="mi">'+it.ic+'</span><span class="mt">'+esc(it.t)+(it.s?'<span class="ms">'+esc(it.s)+'</span>':'')+'</span>'
             +(it.badge||'')+'<span class="pub">✓</span></div>').join('')+'</div></div>';}).join('');
@@ -6650,3 +6661,10 @@ H.wbRecall=async()=>{
 (function(){function fit(t){if(!t||!t.classList||!t.classList.contains('cl-st-in'))return;t.style.height='auto';t.style.height=Math.max(96,t.scrollHeight+2)+'px';}
   document.addEventListener('input',e=>fit(e.target),true);
   try{new MutationObserver(()=>{document.querySelectorAll('textarea.cl-st-in:not([data-fit])').forEach(t=>{t.setAttribute('data-fit','1');fit(t);});}).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}})();
+
+/* CLPARA_V1621 點上面的段落號碼：打開那一段並捲過去；段落開關記住 */
+H.clParaGo=function(id){const p=String(id).split('::');const el=document.getElementById('clp-'+p[0]+'-'+p[1]);if(!el)return;
+  el.open=true;S.clParaOpen=S.clParaOpen||{};S.clParaOpen[p[0]+'::'+p[1]]=true;
+  const top=el.getBoundingClientRect().top+window.scrollY-90;window.scrollTo({top:Math.max(0,top),behavior:'smooth'});};
+document.addEventListener('toggle',function(e){const d=e.target;if(!d||!d.classList||!d.classList.contains('cl-para'))return;
+  S.clParaOpen=S.clParaOpen||{};S.clParaOpen[d.getAttribute('data-k')]=d.open;},true);
