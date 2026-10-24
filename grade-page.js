@@ -112,6 +112,9 @@
       var body=pane.querySelector('.sg-body')||pane;
       var secs=sections(pane);
       var old=pane.querySelector('.gp-jump');
+      /* NOJUMP_V1609 Quinn：「按這些按鈕，畫面直接被拉到下面…我也不需要，請拿掉」。段落按鈕整個不做了 */
+      if(old)old.remove();
+      return;
       if(secs.length<2){ if(old)old.remove(); return; }
       var sig=secs.map(function(s){return s.t;}).join('|');
       if(old&&old.getAttribute('data-sig')===sig)return;   /* 沒變就不要重畫 */
