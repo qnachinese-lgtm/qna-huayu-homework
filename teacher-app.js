@@ -17457,6 +17457,9 @@ function gpSolT(q){if(q.type==='choice'){const o=(q.options||[])[Number(q.answer
   return '';}
 /* ===== 批改畫面：完整顯示題目本身（說明、圖、選項、子題），老師才知道學生在答什麼 ===== */
 function tStripOptLab(x){return String(x||'').replace(/^\s*[a-hA-HＡ-Ｈａ-ｈ]\s*[\.．、）)：:]\s*/,'').trim();}
+function tOptFill(x,fill,cls){const t=String(x||'');const f='<span class="opt-fill'+(cls||'')+'">'+esc(fill)+'</span>';
+  if(!/[_＿]{2,}/.test(t))return esc(t).replace(/\n/g,'<br>');
+  let done=false;return esc(t).replace(/[_＿]{2,}/g,m=>{if(done)return '<span class="opt-blank">＿＿＿</span>';done=true;return f;}).replace(/\n/g,'<br>');}
 function tOptBlank(x){return esc(String(x||'')).replace(/[_＿]{2,}/g,'<span class="opt-blank">＿＿＿</span>').replace(/\n/g,'<br>');}
 function tOptBank(opts){return (opts||[]).length?`<div class="opt-bank"><div class="opt-bank-hd">選項</div>${(opts||[]).map((o,i)=>`<div class="opt-bank-row"><span class="opt-lab">${String.fromCharCode(97+i)}</span><span class="opt-bank-txt">${esc(tStripOptLab(o))}</span></div>`).join('')}</div>`:'';}
 /* 回傳「題目本身」的內容（不含學生答案） */
@@ -17476,10 +17479,13 @@ function gpQBodyT(q,resp){
       if(_open){av=r.t?('<span class="opk-l">學生寫</span><span class="opk-t">'+esc(String(r.t))+'</span>'):'';}
       else{const sl=(r.s||[]).map(oi=>String.fromCharCode(97+oi));
         if(sl.length){const ok=_kl?(sl.slice().sort().join()===_kl.join()):null;
-          av='<span class="opk-l">學生選</span><b class="opk-k">'+sl.join('、')+'</b><span class="opk-t">'
-            +(r.s||[]).map(oi=>esc(tStripOptLab((q.options||[])[oi]||''))).join('；')+'</span>'
+          av='<span class="opk-l">學生選</span><b class="opk-k">'+sl.join('、')+'</b>'
             +(ok===true?'<span class="opk-v ok">✓ 對</span>':ok===false?'<span class="opk-v no">✗ 正解 '+esc(_kl.join('、'))+'</span>':'');}}
-      return `<div class="optitem${items.length<=1?' nonum':''}">${items.length<=1?'':`<span class="optitem-n">${i+1}</span>`}<div class="optitem-body"><div class="optitem-q">${tOptBlank(it&&it.text)}</div><div class="srev-sent opk" style="margin:4px 0 2px">${av||'<span class="muted">（未作答）</span>'}</div>${(_key&&!_kl)?`<div class="hint">參考答案：${esc(String(_key).replace(/,/g,'、'))}</div>`:''}</div></div>`;}).join('');}
+      /* OPTFILL_V1603 空格直接填上學生選的答案，不再顯示「＿＿＿」 */
+      const _fillTxt=_open?String(r.t||'').trim():(r.s||[]).map(oi=>tStripOptLab((q.options||[])[oi]||'')).join('；');
+      const _okF=(!_open&&_kl&&(r.s||[]).length)?((r.s||[]).map(oi=>String.fromCharCode(97+oi)).sort().join()===_kl.join()):null;
+      const _fillCls=_okF===true?' ok':_okF===false?' no':'';
+      return `<div class="optitem${items.length<=1?' nonum':''}">${items.length<=1?'':`<span class="optitem-n">${i+1}</span>`}<div class="optitem-body"><div class="optitem-q">${_fillTxt?tOptFill(it&&it.text,_fillTxt,_fillCls):tOptBlank(it&&it.text)}</div><div class="srev-sent opk" style="margin:4px 0 2px">${av||'<span class="muted">（未作答）</span>'}</div>${(_key&&!_kl)?`<div class="hint">參考答案：${esc(String(_key).replace(/,/g,'、'))}</div>`:''}</div></div>`;}).join('');}
   if(ty==='order')return '<div class="hint" style="margin:4px 0">要重組的詞：'+((q.options||[]).map(x=>'<span class="tag" style="margin:0 4px 4px 0;display:inline-block">'+esc(x)+'</span>').join('')||'—')+'</div>';
   if(ty==='match')return (q.options||[]).map(pr=>`<div class="match-row"><span class="l">${esc((pr&&pr.l)||'')}</span><span class="muted">→ ${esc((pr&&pr.r)||'')}</span></div>`).join('');
   return '';
