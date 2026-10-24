@@ -2079,6 +2079,36 @@ function acctLogRows(list){
     ((p&&Array.isArray(p.logins))?p.logins:[]).forEach(t=>{const d=new Date(t);if(isNaN(d))return;if(cut&&d<cut)return;
       out.push({t:String(t),d:d,s:st});});});
   out.sort((a,b)=>b.d-a.d);return out;}
+/* USAGE_V1617 學生在哪裡待最久：讀學生端寫在 __progress.usage 的秒數 */
+function useFmt(sec){const m=Math.round((Number(sec)||0)/60);if(m<1)return '不到 1 分鐘';if(m<60)return m+' 分鐘';return Math.floor(m/60)+' 小時'+(m%60?(' '+(m%60)+' 分'):'');}
+function useSum(p,days){const u=(p&&p.usage&&typeof p.usage==='object')?p.usage:{};
+  const cut=days?(function(){const n=new Date();const d=new Date(n.getFullYear(),n.getMonth(),n.getDate()-(days-1));
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})():'';
+  const a={},l={};let tot=0;
+  Object.keys(u).forEach(k=>{if(cut&&k<cut)return;const x=u[k]||{};
+    Object.keys(x.a||{}).forEach(n=>{const v=Number(x.a[n])||0;a[n]=(a[n]||0)+v;tot+=v;});
+    Object.keys(x.l||{}).forEach(n=>{l[n]=(l[n]||0)+(Number(x.l[n])||0);});});
+  return {a,l,tot};}
+function acctUseHtml(list){
+  const dSel=String(S.acctUseDays||'7');const days={'1':1,'7':7,'30':30}[dSel]||0;
+  const seg=(k,lb)=>'<button class="segb'+(dSel===k?' on':'')+'" data-act="acctUseDays" data-id="'+k+'">'+lb+'</button>';
+  const rows=list.map(st=>({st,u:useSum(progOf(st.id),days)})).filter(r=>r.u.tot>0).sort((x,y)=>y.u.tot-x.u.tot);
+  const all={};rows.forEach(r=>Object.keys(r.u.a).forEach(n=>{all[n]=(all[n]||0)+r.u.a[n];}));
+  const top=Object.keys(all).sort((x,y)=>all[y]-all[x]);const mx=top.length?all[top[0]]:1;
+  const lesName=id=>{const l=(S.lessons||[]).find(x=>x&&x.id===id);return l?(l.title||''):'';};
+  let h='<div class="stu-bar" style="margin-bottom:10px;gap:10px;flex-wrap:wrap"><div class="segbar">'+seg('1','今天')+seg('7','7 天')+seg('30','30 天')+seg('all','全部')+'</div>'
+    +'<span class="grow"></span><span class="muted" style="font-size:13px">'+rows.length+' 位學生有使用紀錄</span></div>';
+  if(!rows.length)return h+emptyHtml('📊','這段期間還沒有使用紀錄','從 10/24 開始記錄：學生打開平台、而且有在動（滑、點、打字），才會算時間。');
+  h+='<div class="card us-card"><div class="us-t">全部學生加起來</div>'
+    +top.slice(0,10).map(n=>'<div class="us-bar"><span class="us-n">'+esc(n)+'</span><span class="us-tr"><i style="width:'+Math.max(3,Math.round(all[n]/mx*100))+'%"></i></span><span class="us-v">'+useFmt(all[n])+'</span></div>').join('')+'</div>';
+  h+='<div class="card us-card"><div class="us-h"><span>學生</span><span>總共</span><span>最常待的地方</span><span>最常看的課</span></div>'
+    +rows.map(r=>{const ta=Object.keys(r.u.a).sort((x,y)=>r.u.a[y]-r.u.a[x]).slice(0,3);
+      const tl=Object.keys(r.u.l).sort((x,y)=>r.u.l[y]-r.u.l[x]).filter(lesName)[0];
+      return '<div class="us-r"><span><b>'+snm(r.st.name||'')+'</b></span><span class="us-v">'+useFmt(r.u.tot)+'</span>'
+        +'<span>'+ta.map(n=>esc(n)+' <span class="muted">'+useFmt(r.u.a[n])+'</span>').join('<span class="muted">　·　</span>')+'</span>'
+        +'<span>'+(tl?(esc(lesName(tl))+' <span class="muted">'+useFmt(r.u.l[tl])+'</span>'):'<span class="muted">—</span>')+'</span></div>';}).join('')+'</div>'
+    +'<div class="hint" style="margin-top:8px">只算畫面開著、而且 90 秒內有動的時間；放著不動或切到別的視窗不算。</div>';
+  return h;}
 function acctLogHtml(list){
   const rows=acctLogRows(list);
   const dSel=String(S.acctLogDays||'30');
@@ -2178,8 +2208,9 @@ function renderAcct(){
        可以挑期間、挑學生，也可以下載成 Excel。 */
     +'<div class="segbar" style="margin:0 0 12px">'
       +'<button class="segb'+(S.acctView!=='log'?' on':'')+'" data-act="acctView" data-id="list">👥 學生清單</button>'
-      +'<button class="segb'+(S.acctView==='log'?' on':'')+'" data-act="acctView" data-id="log">🕒 全部登入紀錄</button></div>'
-    +(S.acctView==='log'?acctLogHtml(list):(list.length
+      +'<button class="segb'+(S.acctView==='log'?' on':'')+'" data-act="acctView" data-id="log">🕒 全部登入紀錄</button>'
+      +'<button class="segb'+(S.acctView==='use'?' on':'')+'" data-act="acctView" data-id="use">📊 最常用的地方</button></div>'
+    +(S.acctView==='use'?acctUseHtml(list):S.acctView==='log'?acctLogHtml(list):(list.length
       ?('<div class="ac-h"><span>學生</span><span>登入 Email</span><span>帳號</span><span>最後登入</span><span>30 天內</span><span>最後動作</span><span>做完</span><span></span></div>'
         +'<div class="ac-list">'+list.map(acctRow).join('')+'</div>')
       :emptyHtml('👤','沒有學生','')));
@@ -6322,8 +6353,9 @@ function clCardHtml(l){const lines=clLinesOf(l);const na=(l.assigned_ids||[]).le
   const nn=lines.filter(x=>x.note).length,nr=lines.filter(x=>x.ref).length;
   const np=lines.filter(x=>x.img).length+(l.cl_img?1:0)+(Array.isArray(l.cl_qs)?l.cl_qs.filter(x=>x&&x.img).length:0);
   return `<div class="card"><div class="row-between"><h3 style="margin:0">📜 ${esc(l.title||'文言文')}</h3>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${na?'<span class="tag tpub-y">已發佈 '+na+' 人</span>':'<span class="tag tpub-n">未發佈</span>'}${slideTag(l)}</div></div>
-    <div class="hint" style="margin-top:4px">${lines.length} 句 · 注釋 ${nn} · 參考翻譯 ${nr}${nq?(' · 課後問答 '+nq+' 題'):''}${np?(' · 🖼 '+np+' 張圖'):''}</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${slideTag(l)}</div></div>
+    <!-- CLPUB_V1617 Quinn：「為什麼需要圓圓的框子」。發佈狀態改成跟後面同一行的小字 -->
+    <div class="hint" style="margin-top:4px">${na?'<b style="color:#1F6A54">已發佈 '+na+' 人</b>':'未發佈'} · ${lines.length} 句 · 注釋 ${nn} · 參考翻譯 ${nr}${nq?(' · 課後問答 '+nq+' 題'):''}${np?(' · 🖼 '+np+' 張圖'):''}</div>
     <div class="lc-bar"><b class="lc-bar-t">📜 課文</b><span class="grow"></span>
       ${lcRow5({edit:lcBtn('editClassical',l.id,'✏️ 編輯'),
                 prev:lcBtn('previewLesson',l.id,'👁 預覽'),
@@ -7124,6 +7156,7 @@ function edNav(){
   h+='<button type="button" class="ed2-add" data-act="edAddGp">＋ 新增語法點</button>';
   let ntN=0;try{ntN=(NT||[]).filter(n=>edFull(n.title)||edFull(n.text)||edFull(n.ex)).length;}catch(e){}
   h+='<div class="ed2-nav-g">其他</div>'
+   +it('warm','課前活動',edFull(edVal('l-warm')))/* WARMUP_V1617 */
    +it('act','課室活動',edFull(edVal('l-act')))
    +it('cult','文化',edFull(edVal('l-cult')))
    +it('nt','注釋',ntN>0)
@@ -7198,6 +7231,10 @@ function lessonModal(l){const e=!!l;l=l||{};const nextNo=S.lessons.length+1;vaRe
    +'<div class="ed2-pane" data-pane="basic">'+edSec('基本資料','這一課的名字、排序和教材。只有課名一定要填。',basic)+'</div>'
    +'<div class="ed2-pane hide" data-pane="dlg">'+edSec('課文','','<div id="dlg-editor" class="dlg-editor"></div>')+'</div>'
    +'<div class="ed2-pane hide" data-pane="gp">'+edSec('語法點','','<div id="gp-editor" class="gp-editor"></div>')+'</div>'
+   /* WARMUP_V1617 Quinn：「這裡是暖身活動的問題與討論，不是課文的討論」。
+      第五冊每一課最前面有「課前活動」，放在課文的「問題與討論」裡會被當成課文的題目。獨立一區，學生端排在課文前面。 */
+   +'<div class="ed2-pane hide" data-pane="warm">'+edSec('🔥 課前活動','上課前的暖身問題，一行一題。學生端排在課文前面。',
+       '<div class="field full"><textarea id="l-warm" rows="10" placeholder="">'+esc(l.warmup||'')+'</textarea></div>')+'</div>'
    +'<div class="ed2-pane hide" data-pane="act">'+edSec('🗣 課室活動','上課要帶的活動。一個活動一段，學生看得到。',
        '<div class="field full"><textarea id="l-act" rows="14" placeholder="I. 活動標題&#10;【目標 Goal】…&#10;【做法 Task】…">'+esc(l.activities||'')+'</textarea></div>')+'</div>'
    +'<div class="ed2-pane hide" data-pane="cult">'+edSec('🏮 文化','課本的 Bits of Chinese Culture，學生端獨立一區。',
@@ -15107,7 +15144,7 @@ function lxParse(buf){
   const wb=XLSX.read(new Uint8Array(buf),{type:'array'});
   const sT=lxSheet(wb,['課文','對話']),sV=lxSheet(wb,['生詞','單字']),
         sG=lxSheet(wb,['語法']),sC=lxSheet(wb,['課程','基本']),
-        sD=lxSheet(wb,['討論','問題']),sQ=lxSheet(wb,['練習','題目']);
+        sD=lxSheet(wb,['討論','問題']),sQ=lxSheet(wb,['練習','題目']),sW=lxSheet(wb,['課前活動','暖身']);
   if(!sT||sT.length<2)return {err:'這個檔裡找不到「課文」那一張表'};
 
   /* ── 課文：一列一句，同一個段落接成一段 ── */
@@ -15234,7 +15271,11 @@ function lxParse(buf){
     meta.title=lxGet(r,c1);meta.book=lxGet(r,c2);meta.order=lxGet(r,c3);
     meta.act=lxGet(r,c4);meta.cult=lxGet(r,c5);meta.video=lxGet(r,c6);}
 
-  return {lesson:{title:meta.title,textbook:meta.book,order_index:Number(meta.order)||0,
+  /* WARMUP_V1617 課前活動：一列一題 */
+  let warm=[];
+  if(sW&&sW.length>1){const hW=sW[0];const wQ=lxCol(hW,['題目','問題','內容'],0);
+    warm=sW.slice(1).map(r=>lxGet(r,wQ)).filter(Boolean);}
+  return {lesson:{title:meta.title,textbook:meta.book,order_index:Number(meta.order)||0,warmup:warm.join('\n'),
     activities:meta.act,culture:meta.cult,video_url:meta.video,
     dialogues:dialogues,grammar_points:gps,notes:[],examples:'',key_points:''},
     qs:qs,
@@ -15369,6 +15410,8 @@ H.lxOut=(id)=>{
   XLSX.utils.book_append_sheet(wb,mk(V,[12,14,16,10,34,24].concat(Array.from({length:exN},()=>34))),'生詞');
   XLSX.utils.book_append_sheet(wb,mk(G,[8,26,14,10,52,46]),'語法');
   XLSX.utils.book_append_sheet(wb,mk(D,[12,70]),'討論');
+  /* WARMUP_V1617 */
+  XLSX.utils.book_append_sheet(wb,mk([['題目']].concat(String(l.warmup||'').split('\n').map(x=>x.trim()).filter(Boolean).map(x=>[x])),[80]),'課前活動');
   XLSX.utils.book_append_sheet(wb,mk(Q,[12,10,58,34,30,10,8]),'練習');
   const safe=nm.replace(/[\\/:*?"<>|]/g,'').slice(0,40);
   XLSX.writeFile(wb,'QNA_課文_'+safe+'_'+localToday()+'.xlsx');
@@ -19755,7 +19798,7 @@ H.dupLesson=async(id)=>{const l=S.lessons.find(x=>x.id===id);if(!l)return;if(!co
   try{await ensureAuthFresh();}catch(err){return toast(err.message);}
   const btn=document.querySelector('[data-act="dupLesson"][data-id="'+id+'"]');if(btn){btn.disabled=true;btn.textContent='複製中…';}
   const maxOrder=Math.max(0,...S.lessons.map(x=>Number(x.order_index)||0));
-  const copy={order_index:maxOrder+1,title:(l.title||'')+'（複本）',textbook:l.textbook||null,video_url:l.video_url||null,vi_release:l.vi_release||false,activities:l.activities||'',culture:l.culture||'',dialogues:l.dialogues||null,content:l.content||null,vocabulary:l.vocabulary||null,audio_url:l.audio_url||null,vocab_audio_url:l.vocab_audio_url||null,vocab_segments:l.vocab_segments||null,grammar_points:l.grammar_points||[],key_points:l.key_points||'',examples:l.examples||'',handout_url:l.handout_url||null,handout_name:l.handout_name||null,layout:l.layout||[],assigned_ids:[],due_date:null};
+  const copy={order_index:maxOrder+1,title:(l.title||'')+'（複本）',textbook:l.textbook||null,video_url:l.video_url||null,vi_release:l.vi_release||false,warmup:l.warmup||'',activities:l.activities||'',culture:l.culture||'',dialogues:l.dialogues||null,content:l.content||null,vocabulary:l.vocabulary||null,audio_url:l.audio_url||null,vocab_audio_url:l.vocab_audio_url||null,vocab_segments:l.vocab_segments||null,grammar_points:l.grammar_points||[],key_points:l.key_points||'',examples:l.examples||'',handout_url:l.handout_url||null,handout_name:l.handout_name||null,layout:l.layout||[],assigned_ids:[],due_date:null};
   try{const nl=await DB.insert('lessons',copy);
     const qs=questionsOf(l.id);for(const q of qs){const r=Object.assign({},q);delete r.id;delete r.created_at;r.lesson_id=nl.id;await DB.insert('questions',r);}
     /* QCACHE_V1301 同上：題目有 5 分鐘快取，複製完要強制重讀，
@@ -19784,6 +19827,7 @@ H.saveLesson=async(id)=>{const title=$('#l-title').value.trim();if(!title)return
   const dialogues=DLG.map(d=>({title:(d.title||'').trim(),content:d.content||'',content_py:(d.content_py||'').trim(),content_en:(d.content_en||'').trim(),vocabulary:d.vocabulary||'',vocab_vi:(d.vocab_vi||'').trim(),discussion:(d.discussion||'').trim(),image_url:(d.image_url||'').trim()||null,audio_url:(d.audio_url||'').trim()||null,vocab_audio_url:d.vocab_audio_url||null,vocab_segments:d.vocab_segments||[],line_segments:d.line_segments||[]})).filter(d=>d.title||d.content||d.vocabulary||d.discussion||d.image_url||d.audio_url||d.vocab_audio_url);
   const obj={order_index:Number($('#l-order').value)||0,title,textbook:($('#l-textbook')?$('#l-textbook').value.trim():'')||null,video_url:(($('#l-video')&&$('#l-video').value)||'').trim()||null,
     /* ACT_CULT_V44 課室活動／文化是獨立的兩區，不再塞進對話段落 */
+    warmup:(($('#l-warm')&&$('#l-warm').value)||'').trim(),/* WARMUP_V1617 */
     activities:(($('#l-act')&&$('#l-act').value)||'').trim(),culture:(($('#l-cult')&&$('#l-cult').value)||'').trim(),vi_release:!!($('#l-vi-release')&&$('#l-vi-release').checked),dialogues,content:null,vocabulary:null,audio_url:null,vocab_audio_url:null,vocab_segments:null,grammar_points:gps,notes:ntCollect(),key_points:'',examples:$('#l-examples').value,handout_url:(($('#l-handout-url')&&$('#l-handout-url').value)||'')||null,handout_name:(($('#l-handout-name')&&$('#l-handout-name').value)||'')||null,layout:(id?((S.lessons.find(x=>x.id===id)||{}).layout||[]):[]),
   /* SHARE_V1505 勾選框只有主管理員畫得出來；一般管理員在編輯同一課的時候
      畫面上根本沒有那些框，直接收集會收到空陣列＝把主管理員的設定清掉。
@@ -23291,7 +23335,8 @@ H.gmSchedAdd=()=>{const c=$('#gm-sched');if(c)c.insertAdjacentHTML('beforeend',s
 H.opsSub=(k)=>{S.opsSub=k||'inc';renderOps();try{window.scrollTo(0,0);}catch(e){}};
 /* ACCT_V1261 這兩顆也要放在 const H={} 之後 */
 /* LOGALL_V1614 */
-H.acctView=(k)=>{S.acctView=(k==='log')?'log':'list';renderAcct();};
+H.acctView=(k)=>{S.acctView=(k==='log'||k==='use')?k:'list';renderAcct();};
+H.acctUseDays=(k)=>{S.acctUseDays=k||'7';renderAcct();};
 H.acctLogDays=(k)=>{S.acctLogDays=k||'30';renderAcct();};
 document.addEventListener('change',e=>{const t=e.target;if(t&&t.id==='acct-log-who'){S.acctLogWho=t.value||'';renderAcct();}});
 H.acctLogXlsx=()=>{

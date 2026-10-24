@@ -563,7 +563,9 @@ function discSectionHtml(l,di,opts){opts=opts||{};const answerable=!!opts.answer
   const blockDone=!!(doc&&discQs.some((q,qi)=>{const a=ans[di+'_'+qi];return a!=null&&String(a).trim()!=='';}));const bt=(d.title||'').trim();
   const rkey=l.id+'::'+di;const refOn=(S.discRef&&S.discRef[rkey]===false)?false:true;
   const _rt=(d.title||'').trim();
-  const _rlab=(_rt&&[..._rt].length<=6)?_rt:(/短文/.test(_rt)?t('shortText'):t('dlgText'));
+  /* WARMUP_V1617 「課文一：擁有言論自由…」這種長名字，取冒號前面的「課文一」，不要寫成「對話」 */
+  const _rh=_rt.split(/[：:]/)[0].trim();
+  const _rlab=(_rt&&[..._rt].length<=6)?_rt:((_rh&&_rh!==_rt&&[..._rh].length<=6)?_rh:(/短文/.test(_rt)?t('shortText'):(/^課文/.test(_rt)?'課文':t('dlgText'))));
   const refTxt=(d.content||'').trim()?`<aside class="disc-ref${refOn?'':' off'}" data-ref="${esc(rkey)}"><div class="disc-ref-h"><span>📖 ${esc(_rlab)}</span><button type="button" class="disc-ref-x" data-act="discRefTog" data-id="${esc(rkey)}">✕</button></div><div class="disc-ref-b prose lookup">${prose2(d.content)}</div></aside>`:'';
   const refBtn=((d.content||'').trim()&&!refOn)?`<button type="button" class="disc-ref-open" data-act="discRefTog" data-id="${esc(rkey)}">📖 ${t('refShow')}</button>`:'';
   return `<details class="disc sub-fold" open data-disc-di="${di}" data-disc-lid="${l.id}"><summary>💬 ${t('discTitle')}${bt?('（'+esc(bt)+'）'):''}</summary><div class="disc-split${refOn?'':' noref'}">${refTxt}<div class="disc-body">${refBtn}<ol class="disc-qs">${discQs.map((q,qi)=>{const key=di+'_'+qi;const note=fb[key];const a=ans[key]!=null?ans[key]:'';return `<li><div class="disc-q lookup">${prose2(q)}</div>${answerable?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(t('discPh'))}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`:(a?`<div class="disc-myans">${esc(a)}</div>`:'')}${stuOrigHtml(doc,key,a)/* STUORIG_V1534 */}${note?`<div class="fb-note">💬 ${t('sentFb')}：${esc(note)}</div>`:''}</li>`;}).join('')}</ol>${answerable?`<div class="disc-submit" style="margin-top:10px">${(blockDone&&doc.status==='submitted')?`<div class="notice">📨 ${t('discSubmitted')}</div>`:''}${(blockDone&&doc.status==='reviewed')?`<div class="notice">✅ ${t('discReviewed')}</div>`:''}${(blockDone&&doc.submitted_at)?`<div class="hint" style="text-align:center;margin-top:4px">🕒 ${t('submittedAt')}：${fmtDT(doc.submitted_at)}</div>`:''}${(blockDone&&doc.status==='reviewed'&&doc.overall)?`<div class="card fb-overall" style="margin:6px 0"><b>${t('discOverall')}</b><div style="margin-top:4px">${esc(doc.overall)}</div></div>`:''}${(blockDone&&doc.status==='submitted')?`<button class="btn btn-sm" style="width:100%;margin-bottom:8px" data-act="recallDisc" data-id="${l.id}">${t('discRecall')}</button>`:''}<button class="btn btn-accent" style="width:100%;padding:11px" data-act="submitDisc" data-id="${l.id}::${di}">${blockDone?t('discResubmit'):t('discSubmit')}</button><div class="hint disc-draft-hint" data-lid="${l.id}" style="text-align:center;margin-top:2px;color:var(--teal,#1E4C86)"></div></div>`:''}</div></div></details>`;}
@@ -635,6 +637,12 @@ function actBlockHtml(l){
     +items.map((a,i)=>actCardHtml(l,a,i)).join('')+'</div>';
 }
 /* ACT_CULT_V44 課室活動與文化不再擠在課文裡，變成語法後面獨立的兩區 */
+/* WARMUP_V1617 課前活動：排在課文前面的暖身問題（一行一題），只看不用交 */
+function warmSecHtml(sec,l){
+  const qs=String((l&&l.warmup)||'').split('\n').map(x=>x.trim().replace(/^\d+\s*[.、）)．]\s*/,'')).filter(Boolean);
+  if(!qs.length)return '';
+  const h='<div class="lesson-block"><ol class="warm-ol">'+qs.map(q=>'<li class="lookup">'+esc(q)+'</li>').join('')+'</ol></div>';
+  return sec([{k:'w',n:0,h:h}],'🔥',LT({zh:'課前活動',cn:'课前活动',en:'Warm-up',vi:'Khởi động'}),l.id+'::warm',true);}
 function actCultParts(l){
   const out=[];
   const a=String((l&&l.activities)||'').trim();
@@ -1027,15 +1035,17 @@ function lessonBodyHtml2(l,opts){opts=opts||{};const seq=reconcileLayout(l);cons
     actCultParts(l).forEach(x=>{html+=sec([{k:'x',n:0,h:x.h}],x.ic,x.lab,l.id+'::'+x.key);});
     const _nh=notesBlockHtml(l);
     if(_nh)html+=sec([{k:'n',n:0,h:_nh}],'📌',notesLabel(),l.id+'::notes');
-    return gpracBarHtml(l)+videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)+html+tail+examplesHtml(l.examples);
+    return gpracBarHtml(l)+videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)+warmSecHtml(sec,l)+html+tail+examplesHtml(l.examples);
   }
   /* STARTPRAC_V1456 Quinn：「我感覺開始作答這邊沒有存在的必要」。
      同一頁上面是「✏️ 開始作答　還有 28 題」，下面是「📊 本課完成度　0 / 28 題已完成」——
      同一個數字講兩次，而且進度條在整頁最後面，看到的時候早就滑過去了。
      合併成一塊放最上面：進度條、數字、還有那顆會跳到第一題沒寫完的按鈕。 */
-  return gpracBarHtml(l)+videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)
+  return gpracBarHtml(l)+videoHtml(l.video_url)+handoutHtml(l)+resourcesHtml(l)+warmSecHtml(sec,l)
     +(function(){const hd=dlgText.some(x=>x&&x.k==='d'&&String(x.h||'').trim());/*VOCONLY_V66 只有生詞就不要叫「對話內容」*/
-      return sec(dlgText,hd?'📖':'📇',hd?pk(SLAB.dlg,'對話內容'):LT({zh:'生詞',cn:'生词',en:'Vocabulary',vi:'Từ vựng'}),l.id+'::dlg');})()
+      /* WARMUP_V1617 第五冊是文章不是對話：段落名稱都是「課文…」就叫「課文」 */
+      const _ess=lessonDialogues(l).length&&lessonDialogues(l).every(d=>/^課文/.test(String((d&&d.title)||'').trim()));
+      return sec(dlgText,hd?'📖':'📇',hd?(_ess?LT({zh:'課文',cn:'课文',en:'Text',vi:'Bài đọc'}):pk(SLAB.dlg,'對話內容')):LT({zh:'生詞',cn:'生词',en:'Vocabulary',vi:'Từ vựng'}),l.id+'::dlg');})()
     +(function(){/* GRAMONLY_V812 整課只有語法（例如「看圖學中文語法」這種語法書），
         沒有對話也沒有短文，就不要叫「對話語法」，直接叫「語法」。 */
       const hasText=(dlgText||[]).some(x=>x&&String(x.h||'').trim())
@@ -6481,3 +6491,56 @@ H.wbRecall=async()=>{
   else document.addEventListener('DOMContentLoaded',tick);
 })();
 
+
+/* ══════ USAGE_V1617 學生在哪裡待最久 ══════
+   Quinn：「還是看不到他們做了哪個部分最多」。
+   每 10 秒看一次學生現在在哪一頁（首頁、課程的哪一課哪一段、練習、作業…），
+   畫面開著而且 90 秒內有動（滑、點、打字）才算時間，放著不動、切到別的分頁都不算。
+   存在自己的 __progress 那一筆的 usage 欄位：{ 'YYYY-MM-DD': { a:{地方:秒}, l:{課id:秒} } }，
+   只留最近 60 天。每 2 分鐘寫一次，關掉或切走時再補一次。 */
+(function(){
+  'use strict';
+  var STEP=10,IDLE=90000,last=Date.now(),U=null,dirty=false,lastSave=0;
+  ['pointerdown','keydown','scroll','touchstart','mousemove','wheel'].forEach(function(ev){
+    window.addEventListener(ev,function(){last=Date.now();},{passive:true,capture:true});});
+  function day(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+  function clean(t){return String(t||'').replace(/[\u{1F300}-\u{1FAFF}☀-➿️]/gu,'').replace(/\s+/g,' ').trim().slice(0,24);}
+  var who=null;
+  function load(){if(S.me&&S.me.id!==who){U=null;who=S.me.id;}if(U)return U;try{var p=(S.results||[]).find(function(x){return x&&x.lesson_id==='__progress';});
+    U=(p&&p.usage&&typeof p.usage==='object')?JSON.parse(JSON.stringify(p.usage)):{};}catch(e){U={};}return U;}
+  function where(){
+    var scr=document.getElementById('screen'),md=scr&&scr.dataset?scr.dataset.mode:'';
+    if(md==='live'||md==='lqp')return {a:'即時比賽'};
+    if(md==='mist')return {a:'錯題複習'};
+    var ps=S.practiceSet;
+    if(ps){var m={lesson:'練習・課文練習',vocab:'練習・生詞',wrong:'練習・錯題'}[ps.mode]||('練習・'+clean(ps.title||ps.mode||''));
+      return {a:m,l:ps.lessonId||null};}
+    var nav=document.querySelector('#snav button.on');var base=clean(nav?nav.textContent.replace(/\d+$/,''):(S.section||''))||'其他';
+    if(S.section==='content'){
+      var card=null,best=null,mid=innerHeight/2,bd=1e9;
+      document.querySelectorAll('details.ls-card[open]').forEach(function(c){card=card||c;});
+      document.querySelectorAll('details.ls-card[open] details.ls-sec[open]').forEach(function(sx){
+        var r=sx.getBoundingClientRect();if(r.bottom<0||r.top>innerHeight)return;
+        var d=(r.top<=mid&&r.bottom>=mid)?0:Math.min(Math.abs(r.top-mid),Math.abs(r.bottom-mid));
+        if(d<bd){bd=d;best=sx;}});
+      if(best){var c2=best.closest('details.ls-card');var sm=best.querySelector('summary');
+        return {a:'課程・'+(clean(sm&&sm.textContent)||'內容'),l:c2?c2.getAttribute('data-lslid'):null};}
+      if(card)return {a:'課程・看課',l:card.getAttribute('data-lslid')};
+      return {a:'課程・列表'};}
+    return {a:base};}
+  function tick(){
+    try{if(typeof S==='undefined'||!S.me||document.hidden||Date.now()-last>IDLE)return;
+      var w=where();if(!w||!w.a)return;
+      var u=load(),k=day();u[k]=u[k]||{a:{},l:{}};
+      u[k].a[w.a]=(u[k].a[w.a]||0)+STEP;
+      if(w.l){u[k].l[w.l]=(u[k].l[w.l]||0)+STEP;}
+      dirty=true;if(Date.now()-lastSave>120000)save();}catch(e){}}
+  function save(){
+    try{if(!dirty||typeof S==='undefined'||!S.me||typeof DB==='undefined')return;
+      var u=load();var ks=Object.keys(u).sort();while(ks.length>60){delete u[ks.shift()];}
+      dirty=false;lastSave=Date.now();
+      DB.upsertResult('__progress',S.me.id,{uid:myUid(),usage:u}).catch(function(){dirty=true;});}catch(e){}}
+  setInterval(tick,STEP*1000);
+  document.addEventListener('visibilitychange',function(){if(document.hidden)save();});
+  window.addEventListener('pagehide',save);
+})();
