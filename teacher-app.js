@@ -14727,10 +14727,10 @@ function wbBadBody(x){
   if(x.kind==='pick'){
     bar='<span class="opk-l">學生選</span>'+(x.L?('<b class="opk-k">'+esc(x.L)+'</b>'):'<span class="muted">沒作答</span>')
       +(x.T&&!/opt-fill/.test(qh)?('<span class="opk-t">'+esc(x.T)+'</span>'):'')
-      +'<span class="opk-v no">✗ 正解 '+esc(x.aL)+(x.aT?('　'+esc(x.aT)):'')+'</span>';}
+      +'<span class="opk-v ok">✓ '+esc(x.aL)+(x.aT?('　'+esc(x.aT)):'')+'</span>';}
   else if(x.kind==='cloze'){
     bar=(/opt-fill/.test(qh)?'':('<span class="opk-l">學生填</span>'+(x.T?('<b class="opk-w">'+esc(x.T)+'</b>'):'<span class="muted">沒作答</span>')))
-      +'<span class="opk-v no">✗ 正解 '+esc(x.aT)+'</span>';}
+      +'<span class="opk-v ok">✓ '+esc(x.aT)+'</span>';}
   else bar='<span class="no">學生：'+esc(x.stu)+'</span><span class="yes">正解：'+esc(x.ans)+'</span>';
   return (qh?('<div class="wb-bq">'+qh+'</div>'):'')+'<div class="wb-ba'+(x.kind?' opk':'')+'">'+bar+'</div>';}
 function wbBadList(sd){
@@ -15124,8 +15124,10 @@ function lxParse(buf){
     sG.slice(1).forEach(r=>{
       const no=lxGet(r,gNo)||'1';
       const lab=lxGet(r,gLab),tx=lxGet(r,gTx),ex=lxGet(r,gEx),ti=lxGet(r,gTi);
-      if(!lab&&!tx&&!ex&&!ti)return;
-      if(!byNo[no]){byNo[no]={title:'',seg:'',blocks:[],_bk:{}};gps.push(byNo[no]);}
+      /* B5TPL_V1610 範本裡「區塊」那一欄先印好了（原文／結構／解釋／例句），
+         沒填內容的列不算，免得多出一堆空的語法點 */
+      if(!tx&&!ex&&!ti)return;
+      if(!byNo[no]){byNo[no]={title:'',seg:'',blocks:[],_bk:{},_no:no};gps.push(byNo[no]);}
       const g=byNo[no];
       if(ti&&!g.title)g.title=ti;
       const sg=lxGet(r,gSeg);
@@ -15144,6 +15146,8 @@ function lxParse(buf){
       if(tx)b.text=b.text?(b.text+'\n'+tx):tx;
       if(ex)b.ex=b.ex?(b.ex+'\n'+ex):ex;});
     gps.forEach(g=>{delete g._bk;});}
+  /* B5TPL_V1610 練習的「語法5」照語法那張表的序號對，不是照第幾個（中間有空著沒用的序號也不會對錯） */
+  const gpNoIdx={};gps.forEach((g,i)=>{if(g._no!=null)gpNoIdx[String(g._no)]=i;delete g._no;});
 
   /* ── 練習題：課建好之後才掛得上去 ── */
   const qs=[];
@@ -15161,8 +15165,9 @@ function lxParse(buf){
       const av=lxGet(r,qA);
       if(t==='choice'&&av){const n=parseInt(av,10);if(!isNaN(n)&&n>0)ans=n-1;}
       else if(t==='fill'&&av)ans=lxSplit(av);
+      const _gi=(bk.gp==null)?null:((gpNoIdx[String(bk.gp+1)]!=null)?gpNoIdx[String(bk.gp+1)]:bk.gp);
       qs.push({type:t,prompt:p,options:opts,items:null,answer:ans,
-        bank:bk.bank,gp_index:bk.gp,gp_sub:lxGet(r,qS)||null,
+        bank:bk.bank,gp_index:_gi,gp_sub:lxGet(r,qS)||null,
         input_mode:(t==='fill'?'type':null),audio_url:null,image_url:null,
         instruction:lxGet(r,qI)||null,explanation:null});});}
 
@@ -17470,12 +17475,12 @@ function gpLets(v){const t=String(v==null?'':v).trim();if(!/^[a-hA-H](\s*[,、�
 function gpAutoMark(q,resp){try{
   if(resp==null||resp==='')return '';
   if(q.type==='choice'){if(q.answer==null||q.answer===''||isNaN(Number(q.answer)))return '';
-    return Number(resp)===Number(q.answer)?'✓':('✗ 正解 '+String.fromCharCode(97+Number(q.answer)));}
+    return Number(resp)===Number(q.answer)?'✓':('✗ '+String.fromCharCode(97+Number(q.answer)));}
   if(q.type==='opt'){const its=q.items||[];if(!its.length)return '';const qa=Array.isArray(q.answer)?q.answer:[];const rr=Array.isArray(resp)?resp:[];
     const wrong=[];for(let i=0;i<its.length;i++){const it=its[i]||{};if(it.mode==='open')return '';
       const k=gpLets(it.ans||qa[i]||'');if(!k)return '';
       const sl=((rr[i]||{}).s||[]).map(oi=>String.fromCharCode(97+oi)).sort();
-      if(sl.join()!==k.join())wrong.push((its.length>1?('第'+(i+1)+'題'):'')+(sl.length?'':'沒作答，')+'正解 '+k.join('、'));}
+      if(sl.join()!==k.join())wrong.push((its.length>1?('第'+(i+1)+'題 '):'')+(sl.length?'':'沒作答 ')+k.join('、'));}
     return wrong.length?('✗ '+wrong.join('；')):'✓';}
   if(q.type==='fill'){const ka=Array.isArray(q.answer)?q.answer:(q.answer?[q.answer]:[]);if(!ka.length||q.input_mode==='write')return '';
     const ra=Array.isArray(resp)?resp:[resp];const nz=x=>String(x==null?'':x).replace(/[\s。．.，,！!？?]/g,'');
@@ -17507,7 +17512,7 @@ function tOptBank(opts){return (opts||[]).length?`<div class="opt-bank"><div cla
 function gpQBodyT(q,resp){
   const ty=q.type||'';
   if(ty==='choice'){const co=Number(q.answer);
-    return '<div class="opts">'+(q.options||[]).map((o,i)=>`<div class="opt${i===co?' is-correct':''}"><b style="margin-right:6px">${String.fromCharCode(97+i)}.</b><span>${esc(tStripOptLab(o))}</span>${i===co?'<span style="margin-left:auto;color:#1F6A54">✓ 正解</span>':''}</div>`).join('')+'</div>';}
+    return '<div class="opts">'+(q.options||[]).map((o,i)=>`<div class="opt${i===co?' is-correct':''}"><b style="margin-right:6px">${String.fromCharCode(97+i)}.</b><span>${esc(tStripOptLab(o))}</span>${i===co?'<span style="margin-left:auto;color:#1F6A54">✓</span>':''}</div>`).join('')+'</div>';}
   if(ty==='opt'){const items=(q.items||[]);const rr=Array.isArray(resp)?resp:[];
     /* OPTPICK_V1602 Quinn：「不是該出現學生那題選 a 還是 b 嗎」。本來灰框只放「a. ～網路推薦～…」，
        看不出那是學生選的；也沒有跟正解比。改成「學生選 a」大字＋選項內容，有正解就直接標 ✓ 或 ✗ 正解 b。 */
@@ -17521,7 +17526,7 @@ function gpQBodyT(q,resp){
       else{const sl=(r.s||[]).map(oi=>String.fromCharCode(97+oi));
         if(sl.length){const ok=_kl?(sl.slice().sort().join()===_kl.join()):null;
           av='<span class="opk-l">學生選</span><b class="opk-k">'+sl.join('、')+'</b>'
-            +(ok===true?'<span class="opk-v ok">✓ 對</span>':ok===false?'<span class="opk-v no">✗ 正解 '+esc(_kl.join('、'))+'</span>':'');}}
+            +(ok===true?'<span class="opk-v ok">✓ 對</span>':ok===false?'<span class="opk-v ok">✓ '+esc(_kl.join('、'))+'</span>':'');}}
       /* OPTFILL_V1603 空格直接填上學生選的答案，不再顯示「＿＿＿」 */
       const _fillTxt=_open?String(r.t||'').trim():(r.s||[]).map(oi=>tStripOptLab((q.options||[])[oi]||'')).join('；');
       const _okF=(!_open&&_kl&&(r.s||[]).length)?((r.s||[]).map(oi=>String.fromCharCode(97+oi)).sort().join()===_kl.join()):null;
