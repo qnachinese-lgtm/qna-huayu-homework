@@ -934,8 +934,8 @@ function clGlossHtmlParts(parts){
     const head=m?prose2(m[1]).replace(/（([^）]*)）/g,'<span class="cl-gp">（$1）</span>'):'';
     return '<div class="cl-gi">'+(m?('<b class="cl-gh">'+head+'</b>：'+prose2(m[2])):prose2(it))+'</div>';
   }).join('');
-  /* CLSTR2_V1619 照 Quinn 給的講義：註解直接列在那一句下面，不用再點開 */
-  return '<div class="cl-gloss cl-gl-open lookup"><div class="cl-gl-list">'+rows+'</div></div>';}
+  /* CLGFOLD_V1622 Quinn：「收起來注解好了，讓學生點進去就可以看到」 */
+  return '<details class="cl-gd"><summary>📖 '+esc(LT({zh:'註解',cn:'注解',en:'Notes',vi:'Chú thích'}))+' '+parts.length+'</summary><div class="cl-gloss lookup"><div class="cl-gl-list">'+rows+'</div></div></details>';}
 function clSentsHtml(ln,cx){cx=cx||{};
   const sents=clSplitSents(ln.orig||'');const parts=clGlossParts(ln.note||'');
   if(sents.length<=1)return null;
