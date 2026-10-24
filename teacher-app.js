@@ -17464,6 +17464,22 @@ H.saveDiscReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(
   try{await DB.update('results',id,patch);const i=S.discussions.findIndex(x=>x.id===id);if(i>=0)S.discussions[i]=Object.assign({},sd,patch);
     closeModal();render();toast(done?'已批改，學生可看到建議':'已儲存建議');
   }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
+/* GPAUTO_V1605 有標準答案的題目自動給 ✓／✗。沒把握的（沒設答案、開放式、填空不一樣）回傳空字串＝留給老師 */
+function gpLets(v){const t=String(v==null?'':v).trim();if(!/^[a-hA-H](\s*[,、，\/]\s*[a-hA-H])*$/.test(t))return null;return t.toLowerCase().split(/\s*[,、，\/]\s*/).sort();}
+function gpAutoMark(q,resp){try{
+  if(resp==null||resp==='')return '';
+  if(q.type==='choice'){if(q.answer==null||q.answer===''||isNaN(Number(q.answer)))return '';
+    return Number(resp)===Number(q.answer)?'✓':('✗ 正解 '+String.fromCharCode(97+Number(q.answer)));}
+  if(q.type==='opt'){const its=q.items||[];if(!its.length)return '';const qa=Array.isArray(q.answer)?q.answer:[];const rr=Array.isArray(resp)?resp:[];
+    const wrong=[];for(let i=0;i<its.length;i++){const it=its[i]||{};if(it.mode==='open')return '';
+      const k=gpLets(it.ans||qa[i]||'');if(!k)return '';
+      const sl=((rr[i]||{}).s||[]).map(oi=>String.fromCharCode(97+oi)).sort();
+      if(sl.join()!==k.join())wrong.push((its.length>1?('第'+(i+1)+'題'):'')+(sl.length?'':'沒作答，')+'正解 '+k.join('、'));}
+    return wrong.length?('✗ '+wrong.join('；')):'✓';}
+  if(q.type==='fill'){const ka=Array.isArray(q.answer)?q.answer:(q.answer?[q.answer]:[]);if(!ka.length||q.input_mode==='write')return '';
+    const ra=Array.isArray(resp)?resp:[resp];const nz=x=>String(x==null?'':x).replace(/[\s。．.，,！!？?]/g,'');
+    if(ka.length===ra.length&&ka.every((k,i)=>nz(k)&&nz(k)===nz(ra[i])))return '✓';return '';}
+  return '';}catch(e){return '';}}
 function gpAnsTextT(q,resp){if(resp==null||resp==='')return '';
   if(q.type==='choice'){const o=(q.options||[])[Number(resp)];return o?String(o):String(resp);}
   if(q.type==='fill')return Array.isArray(resp)?resp.filter(x=>x!=null&&String(x).trim()!=='').join(' / '):String(resp);
@@ -17570,9 +17586,18 @@ H.reviewGprac=(id)=>{const sd=(S.gpracs||[]).find(x=>x.id===id);if(!sd)return;
   const qs=_showAll?qsAll:_ansQ;
   S._gpId=sd.id;
   const gpBar=(qsAll.length>_ansQ.length)?('<div class="pagebar" style="margin-bottom:8px"><span class="hint">學生作答 <b>'+_ansQ.length+'</b>／'+qsAll.length+' 題</span><span class="grow"></span><div class="segbar"><button class="segb'+(_showAll?'':' on')+'" data-act="gpAll" data-id="0">只看有作答的</button><button class="segb'+(_showAll?' on':'')+'" data-act="gpAll" data-id="1">全部 '+qsAll.length+' 題</button></div></div>'):'';
-  let rows='';qs.forEach((q,i)=>{const a=gpAnsTextT(q,ans[q.id]);const sol=gpSolT(q);
-    const _isOpt=(q.type==='opt'&&(q.items||[]).length);
-    rows+=`<div class="srev-item">${gpQHeadT(q,i+1,ans[q.id])}${_isOpt?'':`<div class="lesson-label" style="margin-top:8px">學生的答案</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>`}${(sol&&!_isOpt)?`<div class="hint" style="margin:2px 0 6px">參考答案：${esc(sol)}</div>`:''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="建議">${esc(fb[q.id]||'')}</textarea></div>`;});
+  /* GPAUTO_V1605 Quinn：「有很明確的答案但是學生答錯，你可以自動幫我評分；語法那種句子，請呈現出來讓我知道」。
+     有固定答案的（選擇、選項題、填空完全一樣）自動在建議框填 ✓ 或 ✗ 正解，算「已批」會自己收起來；
+     造句、語法句子這種沒有標準答案的，留給老師（自動批好的會被 grade-slim 收成一行，剩下的就是要看的）。
+     只在建議框是空的時候才填，老師打過的字不會被蓋掉；按儲存之前學生都看不到。 */
+  let _autoN=0;const _autoK=new Set();
+  qs.forEach(q=>{if(String(fb[q.id]||'').trim())return;const v=gpAutoMark(q,ans[q.id]);if(v){fb[q.id]=v;_autoN++;_autoK.add(q.id);}});
+  const _qsSorted=qs.map((q,i)=>({q,i}));
+  let rows='';_qsSorted.forEach(({q,i})=>{const a=gpAnsTextT(q,ans[q.id]);const sol=gpSolT(q);
+    const _isOpt=(q.type==='opt'&&(q.items||[]).length);const _au=_autoK.has(q.id);
+    rows+=`<div class="srev-item${_au?' gp-auto':''}">${gpQHeadT(q,i+1,ans[q.id])}${_isOpt?'':`<div class="lesson-label" style="margin-top:8px">學生的答案</div><div class="srev-sent">${a?esc(a):'<span class="muted">（未作答）</span>'}</div>`}${(sol&&!_isOpt)?`<div class="hint" style="margin:2px 0 6px">參考答案：${esc(sol)}</div>`:''}${_au?'<div class="gp-auto-t">有固定答案，已自動批改</div>':''}<textarea class="gprev-fb" data-k="${esc(q.id)}" rows="2" placeholder="建議">${esc(fb[q.id]||'')}</textarea></div>`;});
+  const _left=qs.length-qs.filter(q=>String(fb[q.id]||'').trim()).length;
+  if(_autoN)rows=`<div class="gp-auto-bar">已自動批改 <b>${_autoN}</b> 題（有固定答案的）${_left?`，下面 <b>${_left}</b> 題是句子，要妳看`:'，全部都批好了'}</div>`+rows;
   if(!rows)rows='<div class="muted">（這一課目前沒有語法練習題）</div>';
   sgWrap(`<div class="modal wide"><div class="modal-head"><h3>📘 語法練習批改 · ${esc(name)}</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body"><div class="hint" style="margin-bottom:10px">${esc(ltitle)}${sd.submitted_at?' · 🕒 '+esc(fmtDT(sd.submitted_at)):''}</div>${gpBar}${draftBanner(sd,'gprev-fb')}${rows}

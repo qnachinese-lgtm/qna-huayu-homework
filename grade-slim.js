@@ -224,6 +224,11 @@
   function fold(item,on){
     if(item.contains(document.activeElement))return;   /* 正在打字的那一題不要動 */
     item.classList.toggle('gs-fold',!!on);
+    /* FOLDMARK_V1605 收起來那一行寫出實際的批改（✓ 或 ✗ 正解 c），不要一律寫「已批」 */
+    try{var ta=item.querySelector('textarea');var v=ta?String(ta.value||'').trim().split('\n')[0]:'';
+      if(v.length>60)v=v.slice(0,60)+'…';
+      if(on&&v){item.setAttribute('data-mark',v);item.classList.toggle('gs-no',v.charAt(0)==='✗');item.classList.toggle('gs-fix',v.charAt(0)==='✎');}
+      else{item.removeAttribute('data-mark');item.classList.remove('gs-no','gs-fix');}}catch(e){}
   }
 
   function counts(ctx){
