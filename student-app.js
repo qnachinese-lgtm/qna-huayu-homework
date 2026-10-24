@@ -318,8 +318,9 @@ function showZiPopup(ch,el){
   /* ZICL2_V1621 Quinn：「這些都是你亂提供，請不要自作主張」。
      文言文裡點字，只顯示老師自己在注釋寫的東西（讀音、解釋）；老師沒寫到的字就不跳任何東西，
      不拿字典的拼音、也不拿現代生詞表的意思。 */
-  if(inCl&&!tgloss&&!teach){hideZiPopup();return;}
-  const _py=inCl?(teach?('<div class="zi-py zi-teach">'+esc(teach)+'</div>'):''):pyLine;
+  /* ZICL3_V1622 Quinn：「可以提供漢語拼音，但是不要亂提供注解」——老師沒寫注釋的字只給拼音 */
+  if(inCl&&!tgloss&&!teach&&!py){hideZiPopup();return;}
+  const _py=inCl?(teach?('<div class="zi-py zi-teach">'+esc(teach)+'</div>'):(py?('<div class="zi-py">'+esc(py)+'</div>'):'')):pyLine;
   pop.innerHTML=`<button class="zi-x" data-act="ziClose">×</button><div class="zi-big">${esc(ch)}</div>${_py}${mine}${inCl?'':modern}${''/* NOZINOTE_V1620 Quinn：下面那句不用寫 */}`;
   hydrateVi(mr?[mr.back]:[]);
   pop.style.display='block';pop.style.visibility='hidden';const r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight;
@@ -1024,7 +1025,8 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
       ${(showRef&&ln.ref)?`<div class="cl-ref-box"><b>${L({zh:'參考翻譯',cn:'参考翻译',en:'Reference',vi:'Bản dịch tham khảo'})}</b>${clNameEsc(ln.ref)}</div>`:''}
       ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}
     </div>`+(lines.length>1?'</details>':'');}).join('');
-  const qMode=l.cl_qs_mode||'hw';
+  /* NOCLQ_V1622 Quinn：「後面的問題與討論，我不想要給學生現在做」。先一律不給學生看（題目都還留在後台） */
+  const qMode='off';void l.cl_qs_mode;
   const qAns=answerable&&qMode==='hw';
   const qHtml=(qs.length&&qMode!=='off')?`<div class="cl-qs"><div class="lesson-label">❓ ${L({zh:'課後問答',cn:'课后问答',en:'Questions',vi:'Câu hỏi'})}${qMode==='view'?`<span class="hint" style="font-weight:400;margin-left:8px">${L({zh:'上課一起討論，不用寫',cn:'上课一起讨论，不用写',en:'for class discussion',vi:'thảo luận trên lớp'})}</span>`:''}</div>`
     +qs.map((q,qi)=>{const key='q_'+qi;const a=ans[key]!=null?ans[key]:'';const tfb=fb[key];
@@ -2674,7 +2676,7 @@ function modItems(l){
   if(l&&l.kind==='classical'){
     const n=clLinesN(l);
     if(!n)return out;
-    const qN=clQsN(l),qMode=l.cl_qs_mode||'hw';
+    const qN=clQsN(l),qMode='off';/* NOCLQ_V1622 */
     const parts=[n+' '+LT({zh:'句',cn:'句',en:'lines',vi:'câu'})];
     if(qN&&qMode!=='off')parts.push(qN+' '+LT({zh:'題',cn:'题',en:'questions',vi:'câu hỏi'}));
     const d=discDocOf(l.id);
@@ -5282,7 +5284,14 @@ document.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&e.target&&e.target
 
 /* ============ 使用教學（第一次登入引導） ============ */
 function guideHtml(){
-  const steps=[['📖',t('g1t'),t('g1b')],['🔊',t('g2t'),t('g2b')],['✍️',t('g3t'),t('g3b')],['📊',t('g4t'),t('g4b')]];
+  let steps=[['📖',t('g1t'),t('g1b')],['🔊',t('g2t'),t('g2b')],['✍️',t('g3t'),t('g3b')],['📊',t('g4t'),t('g4b')]];
+  /* GDCL_V1622 Quinn：「這個是文言文課，沒有聽發音、練生詞」。只有文言文課的學生，換一套說明 */
+  try{const ms=(typeof myLessons==='function'?myLessons():[])||[];
+    if(ms.length&&ms.every(x=>x&&x.kind==='classical'))steps=[
+      ['📜',LT({zh:'讀原文',cn:'读原文',en:'Read the text',vi:'Đọc bài văn'}),LT({zh:'課文一句一句排好。點黃色的詞看老師的注解，點其他字可以看拼音。',cn:'课文一句一句排好。点黄色的词看老师的注解，点其他字可以看拼音。',en:'The text is shown sentence by sentence. Tap a yellow word for your teacher’s note; tap other characters for pinyin.',vi:'Bài văn được chia từng câu. Chạm vào từ màu vàng để xem chú thích của cô, chạm chữ khác để xem pinyin.'})],
+      ['✍️',LT({zh:'寫筆記和翻譯',cn:'写笔记和翻译',en:'Notes & translation',vi:'Ghi chú và dịch'}),LT({zh:'每一句下面有兩格：「我的筆記」會自動存；「翻譯」寫這一句的白話意思。',cn:'每一句下面有两格：「我的笔记」会自动存；「翻译」写这一句的白话意思。',en:'Under each sentence: “My notes” saves automatically; “Translation” is where you write it in modern Chinese.',vi:'Dưới mỗi câu có hai ô: “Ghi chú” tự lưu; “Dịch” để viết nghĩa bằng tiếng Trung hiện đại.'})],
+      ['📤',LT({zh:'送出',cn:'送出',en:'Send',vi:'Gửi bài'}),LT({zh:'寫完按「送出答案給老師」，老師會批改回覆你。',cn:'写完按「送出答案给老师」，老师会批改回复你。',en:'When finished, tap “Send to teacher”. Your teacher will review it.',vi:'Viết xong bấm “Gửi cho cô”, cô sẽ chấm và phản hồi.'})],
+      ['📊',t('g4t'),LT({zh:'「我的成績」看老師的建議。',cn:'「我的成绩」看老师的建议。',en:'See your teacher’s comments in “My grades”.',vi:'Xem nhận xét của cô trong “Kết quả của tôi”.'})]];}catch(e){}
   const row='display:flex;gap:12px;align-items:flex-start;margin:14px 0';
   return `<div id="guide-ov" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto">
     <div style="background:var(--card,#fff);color:var(--text,#16202E);max-width:440px;width:100%;border-radius:16px;padding:22px 22px 18px;box-shadow:0 20px 60px rgba(0,0,0,.35);max-height:90vh;overflow:auto">
