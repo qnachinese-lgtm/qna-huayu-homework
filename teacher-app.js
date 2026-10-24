@@ -6348,6 +6348,50 @@ function pronTeacherCardHtml(p){const gs=p.pron_groups||[];const ni=gs.reduce((a
   return `<div class="card"><div class="row-between"><h3>🔤 ${esc(p.title||'發音')}</h3><div style="display:flex;gap:6px"><button class="btn btn-sm btn-accent" data-act="editPron" data-id="${p.id}">編輯</button><button class="btn btn-sm btn-danger" data-act="delPron" data-id="${p.id}">刪除</button></div></div><div class="hint" style="margin-top:4px">${gs.length} 組 · ${ni} 個音${nq?(' · 聽辨 '+nq+' 題'):''}${p.handout_url?' · 📄 PDF':''} · 發佈 ${na} 人</div></div>`;}
 let CL=null;
 function clLinesOf(l){if(l&&Array.isArray(l.cl_lines))return l.cl_lines;const d=(Array.isArray(l&&l.dialogues)?l.dialogues[0]:null)||{};const os=(d.discussion||'').split('\n');const ns=(d.cl_notes||'').split('\n');const n=Math.max(os.length,ns.length);const out=[];for(let i=0;i<n;i++){const orig=(os[i]||'').trim(),note=(ns[i]||'').trim();if(orig||note)out.push({orig,note});}return out;}
+/* CLHAND_V1623 Quinn：「教師那邊應該呈現每一個句子的中文、漢語拼音、詞語解釋（要跟學生的一模一樣）、白話翻譯」，
+   而且要能印出來上課用。斷句、注釋分配跟學生端同一套；翻譯存在 cl_tr（key＝段_句），
+   只有一句的段落沿用原本那一段的參考翻譯。學生端看不到 cl_tr。 */
+function tClGlossParts(t){const src=String(t||'').replace(/\r/g,'');const out=[];
+  for(const line of src.split('\n')){const ln=line.trim();if(!ln)continue;const ch=[...ln];let buf='',par=0;
+    for(let i=0;i<ch.length;i++){buf+=ch[i];
+      if(ch[i]==='（'||ch[i]==='(')par++;else if(ch[i]==='）'||ch[i]===')')par=Math.max(0,par-1);
+      else if(!par&&(ch[i]==='。'||ch[i]==='；')){const rest=ch.slice(i+1).join('').trim();if(!rest)break;
+        const probe=rest.replace(/（[^）]*）/g,'').replace(/\([^)]*\)/g,'');
+        if(/^[^。；！？\n]{1,24}：/.test(probe)){out.push(buf.trim());buf='';}}}
+    if(buf.trim())out.push(buf.trim());}
+  return out;}
+function tClHead(it){const m=String(it).match(/^([^：]{1,60})：([\s\S]*)$/);if(!m)return null;
+  const head=String(m[1]).replace(/（[^）]*）/g,'').replace(/[「」『』]/g,'').trim();
+  const py=(String(m[1]).match(/（([^）]*)）/)||[])[1]||'';
+  return head&&/[㐀-鿿]/.test(head)?{head,py}:null;}
+function tClPlain(t){return String(t||'').replace(/[{}\[\]]/g,'');}
+function tClPinyin(sent,parts){
+  const chars=[...sent];let pys=chars.map(()=>'');
+  try{const arr=pinyinPro.pinyin(sent,{type:'all',toneType:'symbol'});
+    arr.forEach((o,i)=>{if(o.isZh)pys[i]=(TW_PY_T[o.origin]||o.pinyin);});}catch(e){}
+  /* 文言文常見的固定讀音（人名、地名、破音字），字典常常讀錯；老師注釋寫的還是最優先 */
+  const CLW={'於':'yú','燕':'yān','樊於期':'fán wū qí','於期':'wū qí','夏無且':'xià wú jū','無且':'wú jū','魯句踐':'lǔ gōu jiàn','句踐':'gōu jiàn',
+    '單于':'chán yú','蓋聶':'gě niè','曹沫':'cáo mèi','督亢':'dū kàng','以術說':'yǐ shù shuì','必說見':'bì yuè jiàn','長者':'zhǎng zhě',
+    '數困':'shuò kùn','數里':'shù lǐ','居有閒':'jū yǒu jiàn','以其閒':'yǐ qí jiàn','閒進':'jiàn jìn','卒惶急':'cù huáng jí','卒起不意':'cù qǐ bù yì',
+    '八創':'bā chuāng','豎子':'shù zǐ','忤視':'wǔ shì','傍偟':'páng huáng','庸保':'yōng bǎo','樸秦':'pū qín','矐':'huò','揕':'zhèn','擿':'zhì'};
+  Object.keys(CLW).sort((x,y)=>[...y].length-[...x].length).reverse().forEach(w=>{const ws=[...w],ys=CLW[w].split(' ');if(ws.length!==ys.length)return;
+    let k=sent.indexOf(w);while(k>=0){const pos=[...sent.slice(0,k)].length;ws.forEach((c,j)=>{pys[pos+j]=ys[j];});k=sent.indexOf(w,k+w.length);}});
+  /* 老師注釋裡寫的讀音優先：亟（jí）、年少時（少 shào）、舍（shè） */
+  const put=(w,py)=>{const ws=[...w],ys=String(py).trim().split(/\s+/).filter(Boolean);if(ws.length!==ys.length)return;
+    let k=sent.indexOf(w);while(k>=0){const pos=[...sent.slice(0,k)].length;ws.forEach((c,j)=>{pys[pos+j]=ys[j];});k=sent.indexOf(w,k+w.length);}};
+  (parts||[]).forEach(it=>{const g=tClHead(it);if(!g||!g.py)return;
+    const inner=g.py.match(/^([㐀-鿿]+)\s+(.+)$/);
+    if(inner)put(inner[1],inner[2]);else put(g.head,g.py.replace(/[；;].*$/,''));});
+  let out='';chars.forEach((c,i)=>{if(pys[i])out+=(out&&!/\s$/.test(out)?' ':'')+pys[i];else if(/[，。！？；：、「」『』（）]/.test(c))out+=c+' ';});
+  return out.replace(/\s+/g,' ').trim();}
+function clHandoutData(l){
+  const lines=clLinesOf(l)||[];const tr=(l&&l.cl_tr)||{};let n=0;
+  return lines.map((ln,qi)=>{const ss=tClSplit(ln.orig||'');const parts=tClGlossParts(ln.note||'');
+    const per=ss.map(()=>[]);
+    parts.forEach(it=>{const g=tClHead(it);let k=-1;if(g)k=ss.findIndex(x=>x.indexOf(g.head)>=0);(per[k>=0?k:ss.length-1]||per[0]).push(it);});
+    return {qi,sents:ss.map((x,si)=>{n++;const plain=tClPlain(x);
+      return {no:n,key:qi+'_'+si,orig:plain,py:tClPinyin(plain,parts),gl:per[si]||[],
+        tr:(tr[qi+'_'+si]!=null?String(tr[qi+'_'+si]):((ss.length===1)?String(ln.ref||''):''))};})};});}
 function clCardHtml(l){const lines=clLinesOf(l);const na=(l.assigned_ids||[]).length;
   const nq=(Array.isArray(l.cl_qs)?l.cl_qs:[]).length;
   const nn=lines.filter(x=>x.note).length,nr=lines.filter(x=>x.ref).length;
@@ -6359,6 +6403,7 @@ function clCardHtml(l){const lines=clLinesOf(l);const na=(l.assigned_ids||[]).le
     <div class="lc-bar"><b class="lc-bar-t">📜 課文</b><span class="grow"></span>
       ${lcRow5({edit:lcBtn('editClassical',l.id,'✏️ 編輯'),
                 prev:lcBtn('previewLesson',l.id,'👁 預覽'),
+                print:lcBtn('clHandout',l.id,'🖨 教師講義'),
                 pub:lcBtn('assign',l.id,'👥 發佈'+(na?('（'+na+'）'):''),'btn-accent'),
                 more:lcBtn('clAll',l.id,'⋯ 更多')})}
       </div></div>`;}
@@ -26287,3 +26332,46 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){
   /* 舊版留下來的提示條，如果還在畫面上就順手清掉 */
   var old=document.getElementById('sw-upd');if(old)old.remove();
 });}
+/* CLHAND_V1623 （H 要在 const H={} 之後才能掛） */
+let CLH=null;
+H.clHandout=(id)=>{const l=(S.classicals||[]).find(x=>x&&x.id===id);if(!l)return toast('找不到這一課');
+  if(!window.pinyinPro)toast('拼音元件還在載入，拼音可能先空著，過幾秒再打開一次');
+  CLH={id};const data=clHandoutData(l);
+  const body=data.map(p=>'<div class="clh-p"><div class="clh-ph">第 '+(p.qi+1)+' 段</div>'
+    +p.sents.map(x=>'<div class="clh-s"><div class="clh-no">'+x.no+'</div><div class="clh-b">'
+      +'<div class="clh-o">'+esc(x.orig)+'</div><div class="clh-py">'+esc(x.py)+'</div>'
+      +(x.gl.length?'<div class="clh-gl">'+x.gl.map(g=>'<div>'+esc(g)+'</div>').join('')+'</div>':'')
+      +'<div class="clh-trl">白話翻譯</div><textarea class="clh-tr" data-k="'+esc(x.key)+'" rows="2">'+esc(x.tr)+'</textarea>'
+      +'</div></div>').join('')+'</div>').join('');
+  const miss=data.reduce((a,p)=>a+p.sents.filter(x=>!x.tr.trim()).length,0);
+  openModal('<div class="modal modal-tall" style="max-width:1000px"><div class="modal-head"><h3>🖨 教師講義 · '+esc(l.title||'')+'</h3><button class="x" data-act="closeModal">×</button></div>'
+    +'<div class="modal-body"><div class="hint" style="margin-bottom:10px">每一句：原文、拼音、詞語解釋（跟學生看到的一樣）、白話翻譯。翻譯可以直接改，改完按「儲存翻譯」；學生看不到這裡的翻譯。'+(miss?('<b style="color:#A33227">　還有 '+miss+' 句沒有翻譯</b>'):'')+'</div>'+body+'</div>'
+    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>'
+    +'<button class="btn" data-act="clHandoutSave" data-id="'+esc(id)+'">💾 儲存翻譯</button>'
+    +'<button class="btn btn-accent" data-act="clHandoutPrint" data-id="'+esc(id)+'">🖨 列印／存成 PDF</button></div></div>');};
+function clHandoutCollect(){const o={};document.querySelectorAll('textarea.clh-tr').forEach(t=>{o[t.dataset.k]=String(t.value||'').trim();});return o;}
+H.clHandoutSave=async(id,b)=>{const l=(S.classicals||[]).find(x=>x&&x.id===id);if(!l)return;
+  const tr=Object.assign({},l.cl_tr||{},clHandoutCollect());
+  if(b){b.disabled=true;b.textContent='儲存中…';}
+  try{await DB.update('lessons',id,{cl_tr:tr});l.cl_tr=tr;toast('翻譯已儲存');}
+  catch(e){toast(writeErr('儲存失敗',e));}
+  finally{if(b){b.disabled=false;b.textContent='💾 儲存翻譯';}}};
+H.clHandoutPrint=(id)=>{const l=(S.classicals||[]).find(x=>x&&x.id===id);if(!l)return;
+  const cur=clHandoutCollect();const data=clHandoutData(Object.assign({},l,{cl_tr:Object.assign({},l.cl_tr||{},cur)}));
+  const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+e2(l.title||'教師講義')+'</title><style>'
+    +'body{font-family:"Noto Serif TC","PMingLiU","Noto Sans TC",serif;color:#111;margin:18mm 16mm;line-height:1.7}'
+    +'h1{font-size:22px;margin:0 0 14px}.p{margin:0 0 8px}.ph{font-weight:700;font-size:15px;margin:16px 0 6px;border-bottom:1px solid #999;padding-bottom:2px}'
+    +'.s{display:flex;gap:10px;padding:8px 0;border-bottom:1px dashed #ccc;page-break-inside:avoid}.no{flex:none;width:26px;font-weight:700}'
+    +'.o{font-size:18px;font-weight:700}.py{font-family:"Times New Roman",serif;font-size:13px;color:#333;margin:1px 0 4px}'
+    +'.gl{font-size:13.5px;margin:2px 0 4px 0;padding-left:10px;border-left:2px solid #bbb}.tr{font-size:14.5px}.tr b{font-size:12px;color:#555;margin-right:6px}'
+    +'@media print{.bar{display:none}}.bar{position:fixed;top:8px;right:8px}</style></head><body>'
+    +'<div class="bar"><button onclick="print()" style="font-size:15px;padding:8px 14px">🖨 列印／存成 PDF</button></div>'
+    +'<h1>'+e2(l.title||'')+'</h1>'
+    +data.map(p=>'<div class="p"><div class="ph">第 '+(p.qi+1)+' 段</div>'+p.sents.map(x=>'<div class="s"><div class="no">'+x.no+'</div><div>'
+      +'<div class="o">'+e2(x.orig)+'</div><div class="py">'+e2(x.py)+'</div>'
+      +(x.gl.length?'<div class="gl">'+x.gl.map(g=>'<div>'+e2(g)+'</div>').join('')+'</div>':'')
+      +'<div class="tr"><b>白話</b>'+e2(x.tr)+'</div></div></div>').join('')+'</div>').join('')
+    +'</body></html>';
+  const w=window.open('','_blank');if(!w)return toast('瀏覽器擋住了新視窗，請允許彈出視窗再按一次');
+  w.document.open();w.document.write(html);w.document.close();};
