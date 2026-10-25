@@ -1652,7 +1652,7 @@ async function loadMine(){
   const [l,siteRows]=await Promise.all([loadLessonsForMe(),DB.list('site').catch(()=>[])]);/* READCUT2_V975 */
   S.site=(siteRows&&siteRows.length)?siteRows[siteRows.length-1]:{};
   const rAll=await pRes; if(_rErr)throw _rErr;
-  S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook'&&x.kind!=='hanzitask'/* HZTASK_V1389 */&&x.kind!=='gametask'/* GAMEHW_V1553 */&&x.kind!=='writetask'/* WRITEHW_V1566 */);S.gameTasks=l.filter(x=>x.kind==='gametask'&&!x.deleted_at);/* GAMEHW_V1553 */S.writeTasks=l.filter(x=>x.kind==='writetask'&&!x.deleted_at);/* WRITEHW_V1566 */S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.lqassigns=l.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;
+  S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook'&&x.kind!=='hanzitask'/* HZTASK_V1389 */&&x.kind!=='gametask'/* GAMEHW_V1553 */&&x.kind!=='writetask'/* WRITEHW_V1566 */&&x.kind!=='freehw'/* FREEHW_V1631 */);S.gameTasks=l.filter(x=>x.kind==='gametask'&&!x.deleted_at);/* GAMEHW_V1553 */S.writeTasks=l.filter(x=>x.kind==='writetask'&&!x.deleted_at);S.freeTasks=l.filter(x=>x.kind==='freehw'&&!x.deleted_at);/* FREEHW_V1631 *//* WRITEHW_V1566 */S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=l.filter(x=>x.kind==='quiz'&&!x.deleted_at);S.lqassigns=l.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.announcements=l.filter(x=>x.kind==='announcement'&&!x.deleted_at);S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;
   S.questions=await loadMyQuestions(l,rAll);
   splitResults(rAll);}
 /* ===================== 📕 錯題本 Mistake notebook ===================== */
@@ -1750,7 +1750,7 @@ function wbWrongList(w,ans){
   (d.listen||[]).forEach(q=>{if(!q.ans)return;const v=(ans.listen||{})[q.n];if(v!==q.ans)push('listen',q.n,q.q||('聽力 '+q.n),v,q.ans);});
   return out;
 }
-function splitResults(rAll){rAll=rAll||[];S.mistDoc=rAll.find(x=>x.kind==='mistake')||null;S.acts=rAll.filter(x=>x.kind==='act');S.results=rAll.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='wt'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq');S.leavereqs=rAll.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');S.wbdocs=rAll.filter(x=>x.kind==='wb');S.lqps=rAll.filter(x=>x.kind==='lqp');S.wts=rAll.filter(x=>x.kind==='wt');/* WRITEHW_V1566 */}
+function splitResults(rAll){rAll=rAll||[];S.mistDoc=rAll.find(x=>x.kind==='mistake')||null;S.acts=rAll.filter(x=>x.kind==='act');S.results=rAll.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='wt'&&x.kind!=='fhw'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq');S.leavereqs=rAll.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=rAll.filter(x=>x.kind==='review');S.sentences=rAll.filter(x=>x.kind==='sentence');S.quizResults=rAll.filter(x=>x.kind==='quizresult');S.discussions=rAll.filter(x=>x.kind==='discussion');S.shadows=rAll.filter(x=>x.kind==='shadow');S.notes=rAll.filter(x=>x.kind==='note');S.annots=rAll.filter(x=>x.kind==='annot');S.gpracs=rAll.filter(x=>x.kind==='gprac');S.hwvs=rAll.filter(x=>x.kind==='hwv');S.wbdocs=rAll.filter(x=>x.kind==='wb');S.lqps=rAll.filter(x=>x.kind==='lqp');S.wts=rAll.filter(x=>x.kind==='wt');S.fhws=rAll.filter(x=>x.kind==='fhw');/* FREEHW_V1631 *//* WRITEHW_V1566 */}
 function hwvDocOf(lid,word){return (S.hwvs||[]).find(x=>x.hwv_lesson===lid&&x.hwv_word===word)||null;}
 function sentDocOf(lid){return (S.sentences||[]).find(x=>x.sent_lesson===lid)||null;}
 function discDocOf(lid){return (S.discussions||[]).find(x=>x.disc_lesson===lid)||null;}
@@ -2031,7 +2031,7 @@ function _renderSectionRaw(){try{syncStickTop();}catch(e){}
   document.body.classList.remove('notes-active');
   renderNav();
   const _cr=document.getElementById('crumb');if(_cr){_cr.classList.add('hide');_cr.innerHTML='';}
-  ({home:renderHome,work:renderWork,content:renderContent,wb:renderWb,pron:renderPron,cards:renderCards,grades:renderGrades,wrong:renderWrong,info:renderInfo}[S.section]||renderHome)();
+  ({fhw:renderFhw,home:renderHome,work:renderWork,content:renderContent,wb:renderWb,pron:renderPron,cards:renderCards,grades:renderGrades,wrong:renderWrong,info:renderInfo}[S.section]||renderHome)();
   convScreen();
 }
 
@@ -2382,7 +2382,8 @@ function renderWork(){
           +(di?('<span class="badge '+esc(di.cls)+'">'+esc(di.label)+'</span>')
               :('<span class="badge badge-soon">'+esc(LT({zh:'未完成',cn:'未完成',en:'To do',vi:'Chưa làm'}))+'</span>'))
           +'</div>';}).join('')+'</div>';})();
-  if(!ls.length&&!myQuizzes.length&&!lqpCard&&!taskCard){$('#screen').innerHTML='<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>'+banner+_wbTodo+uploadCardHtml()+submittedWorkHtml()+(_wbTodo?'':emptyHtml('✍️',t('noWork'),t('noWorkSub')));return;}
+  const fhCard=fhListHtml();/* FREEHW_V1631 */
+  if(!ls.length&&!myQuizzes.length&&!lqpCard&&!taskCard){$('#screen').innerHTML='<div class="pg-h"><h2>✍️ '+esc(t('navWork'))+'</h2></div>'+banner+fhCard+_wbTodo+uploadCardHtml()+submittedWorkHtml()+((_wbTodo||fhCard)?'':emptyHtml('✍️',t('noWork'),t('noWorkSub')));return;}
   let overdue=0,soon=0;ls.forEach(l=>{const r=resultOf(l.id);if(r&&r.status==='done')return;const di=dueInfo(l.due_date);if(di){if(di.cls==='badge-overdue')overdue++;else if(di.cls==='badge-soon')soon++;}});
   const fbN=ls.filter(l=>{const r=resultOf(l.id);return r&&(r.comment||(r.feedback&&Object.keys(r.feedback).length));}).length;
   const sentFbN=(S.sentences||[]).filter(s=>s.status==='reviewed'&&((s.overall&&s.overall.trim())||(s.feedback&&Object.keys(s.feedback).length))).length;
@@ -2457,7 +2458,7 @@ function renderWork(){
   })();
   /* WORKTOP_V1013 本來作業排在最後面，手機上第一張卡在 563px，滑不到。
      這一頁就叫「我的作業」，作業要在最上面。其餘的東西一個都沒拿掉，往下移而已。 */
-  $('#screen').innerHTML=_wh+banner+nb+lesBlk+quizCard+lqpCard+taskCard+_wbTodo
+  $('#screen').innerHTML=_wh+banner+nb+lesBlk+fhCard+quizCard+lqpCard+taskCard+_wbTodo
     +badgeStrip+liveJoinCard+submittedWorkHtml()+classUpcomingHtml()+payCard;
 }
 function lessonTags(l){const tags=[];
@@ -3006,6 +3007,12 @@ function dueRows(){
       title:'✍️ '+(t.title||LT({zh:'寫字作業',cn:'写字作业',en:'Writing practice',vi:'Luyện viết'})),
       due:t.due_date||'',
       cls:di?di.cls:'badge-pending',lab:di?di.label:LT({zh:'未完成',cn:'未完成',en:'To do',vi:'Chưa làm'}),
+      sort:di?di.sort:9999});});}catch(e){}
+  /* FREEHW_V1631 回家作業：還沒送出的才列 */
+  try{fhMine().forEach(t=>{const d=fhDocOf(t.id);if(d&&(d.status==='submitted'||d.status==='reviewed'))return;
+    const di=dueInfo(t.due_date);
+    rows.push({lid:t.id,k:'fhw',act:'startFhw',title:'📝 '+(t.title||LT({zh:'回家作業',cn:'回家作业',en:'Homework',vi:'Bài tập về nhà'})),
+      due:t.due_date||'',cls:di?di.cls:'badge-pending',lab:di?di.label:LT({zh:'未完成',cn:'未完成',en:'To do',vi:'Chưa làm'}),
       sort:di?di.sort:9999});});}catch(e){}
   /* GAMEHW_V1553 翻牌配對作業：玩完一輪就算做完了（紀錄在漢字紀錄的 rec.gt） */
   try{gtMine().forEach(t=>{if(gtMyRec(t.id))return;
@@ -5693,7 +5700,7 @@ function renderPreviewLesson(){
 }
 async function enterPreview(lid){S.me={id:'__preview',name:'預覽'};S.preview=true;S.tryMode=PREVIEW_TRY;
   $('#gate').classList.add('hide');$('#app').classList.remove('hide');applyChrome();
-  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook'&&x.kind!=='hanzitask'/* HZTASK_V1389 */&&x.kind!=='gametask'/* GAMEHW_V1553 */&&x.kind!=='writetask');S.gameTasks=[];S.writeTasks=[];S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=[];S.lqassigns=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];S.hwvs=[];
+  const [l,q]=await Promise.all([DB.list('lessons'),DB.list('questions')]);S.lessons=l.filter(x=>!x.deleted_at&&x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='livesession'&&x.kind!=='livequiz'&&x.kind!=='lqassign'&&x.kind!=='workbook'&&x.kind!=='hanzitask'/* HZTASK_V1389 */&&x.kind!=='gametask'/* GAMEHW_V1553 */&&x.kind!=='writetask'&&x.kind!=='freehw');S.gameTasks=[];S.writeTasks=[];S.freeTasks=[];S.workbooks=l.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,b)=>(a.order_index||0)-(b.order_index||0));S.quizzes=[];S.lqassigns=[];S.announcements=[];S.prons=l.filter(x=>x.kind==='pron'&&!x.deleted_at);S.classMeta=l.find(x=>x.kind==='classmeta')||null;S.questions=q;S.results=[];S.sentences=[];S.quizResults=[];S.discussions=[];S.shadows=[];S.notes=[];S.annots=[];S.hwvs=[];
   S.previewLid=lid;
   renderPreviewLesson();
 }
@@ -6677,3 +6684,142 @@ H.clParaGo=function(id){const p=String(id).split('::');const el=document.getElem
   const top=el.getBoundingClientRect().top+window.scrollY-90;window.scrollTo({top:Math.max(0,top),behavior:'smooth'});};
 document.addEventListener('toggle',function(e){const d=e.target;if(!d||!d.classList||!d.classList.contains('cl-para'))return;
   S.clParaOpen=S.clParaOpen||{};S.clParaOpen[d.getAttribute('data-k')]=d.open;},true);
+
+/* ══════ FREEHW_V1631 回家作業（學生端） ══════
+   Quinn：「能不能開一個作業區，就是『依照老師指定的作業，請回答』」。
+   老師在後台「＋ 指派作業 → 📝 回家作業」出一份（lessons 裡 kind:'freehw'），
+   學生這裡可以打字、拍照上傳、錄音，作答存成 results 裡 kind:'fhw' 的一筆（一份作業一筆）。
+   還沒送出之前會自動先存（status:'draft'）；按「送出給老師」才是 'submitted'，老師批完是 'reviewed'。
+   照片放 Storage 的 uploads/<uid>/、錄音放 speech/，跟現有的檔案上傳、口說同一條路。 */
+function fhMine(){return (S.freeTasks||[]).filter(t=>t&&!t.deleted_at&&assignedToMe(t));}
+function fhDocOf(tid){return (S.fhws||[]).find(x=>x&&x.fh_task===tid)||null;}
+const FHL=(z,c,e,v)=>LT({zh:z,cn:c,en:e,vi:v});
+function fhDefPrompt(){return FHL('依照老師指定的作業，請回答。','依照老师指定的作业，请回答。','Please answer according to the homework your teacher assigned.','Hãy làm theo bài tập cô đã giao và trả lời.');}
+function fhStatLab(d){const st=d?d.status:'';
+  if(st==='reviewed')return ['badge-ok',FHL('老師已批改','老师已批改','Reviewed','Cô đã chấm')];
+  if(st==='submitted')return ['badge-pending',FHL('已送出','已送出','Submitted','Đã nộp')];
+  return null;}
+function fhListHtml(){
+  if(S.preview)return '';
+  const ts=fhMine().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  if(!ts.length)return '';
+  return '<div class="lesson-label" style="margin-top:6px">📝 '+esc(FHL('回家作業','回家作业','Homework','Bài tập về nhà'))+'</div><div class="quiz-list">'
+    +ts.map(t=>{const d=fhDocOf(t.id);const sl=fhStatLab(d);const di=sl?null:dueInfo(t.due_date);
+      const sub=String(t.prompt||'').trim()||fhDefPrompt();
+      return '<div class="quiz-card'+(d&&d.status==='reviewed'?' done':'')+'" data-act="startFhw" data-id="'+esc(t.id)+'">'
+        +'<span class="quiz-ic">📝</span><div style="flex:1;min-width:0"><b>'+esc(t.title||FHL('回家作業','回家作业','Homework','Bài tập về nhà'))+'</b>'
+        +'<div class="muted fh-sub">'+esc(sub.length>40?sub.slice(0,40)+'…':sub)+(t.due_date?('　📅 '+esc(t.due_date)):'')+'</div></div>'
+        +(sl?('<span class="badge '+sl[0]+'">'+esc(sl[1])+'</span>'):(di?('<span class="badge '+esc(di.cls)+'">'+esc(di.label)+'</span>'):('<span class="badge badge-soon">'+esc(FHL('未完成','未完成','To do','Chưa làm'))+'</span>')))
+        +'</div>';}).join('')+'</div>';}
+let FH=null;/* 正在寫的那一份：{tid,text,photos,audios,dirty,busy} */
+let FHMR=null,FHT=null;
+H.startFhw=(id)=>{const t=(S.freeTasks||[]).find(x=>x&&x.id===id);if(!t)return;
+  const d=fhDocOf(id);
+  FH={tid:id,text:(d&&d.text)||'',photos:((d&&d.photos)||[]).slice(),audios:((d&&d.audios)||[]).slice(),dirty:false,busy:0};
+  S.section='fhw';$('#screen').dataset.mode='';window.scrollTo(0,0);renderSection();};
+function renderFhw(){
+  const t=FH&&(S.freeTasks||[]).find(x=>x&&x.id===FH.tid);
+  if(!t){S.section='work';renderWork();return;}
+  const d=fhDocOf(t.id);const st=d?d.status:'';
+  const sent=(st==='submitted'||st==='reviewed');
+  const L=FHL;
+  const back='<button class="btn btn-sm btn-ghost" data-act="section" data-id="work">← '+esc(L('我的作業','我的作业','My work','Bài tập của tôi'))+'</button>';
+  const fb=(st==='reviewed'||(d&&d.comment))&&d&&String(d.comment||'').trim()
+    ?'<div class="fh-fb"><div class="fh-fbh">💬 '+esc(L('老師的回饋','老师的反馈','Teacher feedback','Nhận xét của cô'))+'</div><div class="fh-fbb">'+esc(d.comment)+'</div></div>':'';
+  const stLine=sent?('<div class="fh-st">✅ '+esc(st==='reviewed'?L('老師已批改','老师已批改','Reviewed by your teacher','Cô đã chấm'):L('已送出給老師','已送出给老师','Sent to your teacher','Đã nộp cho cô'))
+      +(d.submitted_at?('　'+esc(String(d.submitted_at).slice(0,16).replace('T',' '))):'')
+      +'<div class="hint">'+esc(L('還可以修改，改完再按一次送出。','还可以修改，改完再按一次送出。','You can still edit it and send again.','Vẫn có thể sửa, sửa xong bấm gửi lại.'))+'</div></div>'):'';
+  const ph=FH.photos.map((x,i)=>'<div class="fh-pt"><a href="'+esc(x.url)+'" target="_blank" rel="noopener"><img src="'+esc(x.url)+'" alt=""></a><button type="button" class="fh-x" data-act="fhDelPhoto" data-id="'+i+'" aria-label="刪除">×</button></div>').join('');
+  const au=FH.audios.map((x,i)=>'<div class="fh-au"><span class="fh-an">'+(i+1)+'</span><audio controls preload="none" src="'+esc(x.url)+'"></audio><button type="button" class="fh-x" data-act="fhDelAudio" data-id="'+i+'" aria-label="刪除">×</button></div>').join('');
+  const rec=FHMR&&FHMR.state==='recording';
+  $('#screen').innerHTML='<div class="fh-wrap">'+back
+    +'<div class="pg-h"><h2>📝 '+esc(t.title||L('回家作業','回家作业','Homework','Bài tập về nhà'))+'</h2></div>'
+    +(t.due_date?('<div class="muted" style="margin:-6px 0 10px">📅 '+esc(L('截止','截止','Due','Hạn nộp'))+' '+esc(t.due_date)+'</div>'):'')
+    +'<div class="fh-q">'+esc(String(t.prompt||'').trim()||fhDefPrompt())+'</div>'
+    +fb+stLine
+    +'<div class="fh-sec"><div class="fh-h">✏️ '+esc(L('打字回答','打字回答','Type your answer','Gõ câu trả lời'))+'</div>'
+    +'<textarea id="fh-text" class="fh-ta" rows="6" placeholder="'+esc(L('在這裡寫你的答案…','在这里写你的答案…','Write your answer here…','Viết câu trả lời ở đây…'))+'">'+esc(FH.text)+'</textarea></div>'
+    +'<div class="fh-sec"><div class="fh-h">📷 '+esc(L('拍照上傳','拍照上传','Photos','Ảnh'))+(FH.photos.length?(' <span class="muted">'+FH.photos.length+'</span>'):'')+'</div>'
+    +(ph?('<div class="fh-phs">'+ph+'</div>'):'')
+    +'<label class="btn fh-pick">📷 '+esc(L('拍照／選照片','拍照／选照片','Take / choose photos','Chụp / chọn ảnh'))+'<input id="fh-file" type="file" accept="image/*" multiple style="display:none"></label></div>'
+    +'<div class="fh-sec"><div class="fh-h">🎙 '+esc(L('錄音','录音','Voice recording','Ghi âm'))+(FH.audios.length?(' <span class="muted">'+FH.audios.length+'</span>'):'')+'</div>'
+    +au
+    +'<button type="button" class="btn fh-rec'+(rec?' on':'')+'" data-act="fhRec">'+(rec?('⏹ '+esc(L('停止錄音','停止录音','Stop','Dừng'))):('🎙 '+esc(L('開始錄音','开始录音','Start recording','Bắt đầu ghi âm'))))+'</button></div>'
+    +'<div class="fh-busy" id="fh-busy">'+(FH.busy?esc(L('上傳中…','上传中…','Uploading…','Đang tải lên…')):'')+'</div>'
+    +'<button type="button" class="btn btn-primary fh-send" data-act="fhSend">📤 '+esc(sent?L('修改後再送出','修改后再送出','Send again','Gửi lại'):L('送出給老師','送出给老师','Send to teacher','Nộp cho cô'))+'</button>'
+    +(sent?'':'<div class="hint" style="text-align:center;margin-top:6px">'+esc(L('還沒送出前會自動先存起來。','还没送出前会自动先存起来。','Your work is saved automatically until you send it.','Bài sẽ được tự lưu cho đến khi bạn nộp.'))+'</div>')
+    +'</div>';
+  const ta=document.getElementById('fh-text');
+  if(ta)ta.addEventListener('input',()=>{FH.text=ta.value;FH.dirty=true;fhAutosave();});
+  const fi=document.getElementById('fh-file');
+  if(fi)fi.addEventListener('change',()=>{const fs=[].slice.call(fi.files||[]);fi.value='';fhAddPhotos(fs);});
+}
+function fhBusy(n){if(!FH)return;FH.busy=Math.max(0,FH.busy+n);const b=document.getElementById('fh-busy');
+  if(b)b.textContent=FH.busy?FHL('上傳中…','上传中…','Uploading…','Đang tải lên…'):'';
+  const s=document.querySelector('[data-act="fhSend"]');if(s)s.disabled=!!FH.busy;}
+/* 手機照片常常 4、5 MB，先縮成長邊 1600 的 JPEG 再傳；縮不了就傳原檔 */
+function fhShrink(file){return new Promise(res=>{
+  try{if(!/^image\//.test(file.type||'')||/gif/.test(file.type)){res(file);return;}
+    const url=URL.createObjectURL(file);const img=new Image();
+    img.onload=()=>{try{const m=1600,k=Math.min(1,m/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);
+      c.toBlob(b=>res(b&&b.size<file.size?b:file),'image/jpeg',0.85);}catch(e){res(file);}};
+    img.onerror=()=>{URL.revokeObjectURL(url);res(file);};img.src=url;}catch(e){res(file);}});}
+async function fhAddPhotos(files){
+  if(!FH||!files.length)return;
+  const uid=myUid();if(!uid||!(window.firebase&&firebase.storage)){toast(FHL('上傳失敗，請重新登入再試','上传失败，请重新登入再试','Upload failed — please sign in again','Tải lên lỗi — vui lòng đăng nhập lại'));return;}
+  const tid=FH.tid;fhBusy(1);let ok=0,bad=0;
+  for(let i=0;i<files.length;i++){
+    try{const b=await fhShrink(files[i]);
+      const ref=firebase.storage().ref('uploads/'+uid+'/fhw_'+tid+'_'+Date.now()+'_'+i+'.jpg');
+      await ref.put(b,{contentType:b.type||'image/jpeg'});const url=await ref.getDownloadURL();
+      if(FH&&FH.tid===tid){FH.photos.push({url:url,path:ref.fullPath});ok++;}}catch(e){bad++;}}
+  fhBusy(-1);
+  if(bad)toast(FHL('有 '+bad+' 張沒傳上去，請再試一次','有 '+bad+' 张没传上去，请再试一次',bad+' photo(s) failed — please try again','Có '+bad+' ảnh lỗi — thử lại nhé'));
+  if(ok&&FH&&FH.tid===tid){FH.dirty=true;await fhPersist(false);renderFhw();}}
+H.fhDelPhoto=(i)=>{if(!FH)return;FH.photos.splice(Number(i),1);FH.dirty=true;fhPersist(false);renderFhw();};
+H.fhDelAudio=(i)=>{if(!FH)return;FH.audios.splice(Number(i),1);FH.dirty=true;fhPersist(false);renderFhw();};
+H.fhRec=async()=>{
+  if(FHMR&&FHMR.state==='recording'){FHMR.stop();return;}
+  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)){toast(FHL('無法使用麥克風，請允許權限','无法使用麦克风，请允许权限','Cannot use the microphone — please allow it','Không dùng được micro — vui lòng cho phép'));return;}
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){toast(FHL('無法使用麥克風，請允許權限','无法使用麦克风，请允许权限','Cannot use the microphone — please allow it','Không dùng được micro — vui lòng cho phép'));return;}
+  const chunks=[];const tid=FH&&FH.tid;
+  FHMR=new MediaRecorder(stream);
+  FHMR.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+  FHMR.onstop=async()=>{try{stream.getTracks().forEach(x=>x.stop());}catch(e){}
+    const blob=new Blob(chunks,{type:(FHMR&&FHMR.mimeType)||'audio/webm'});FHMR=null;
+    if(!FH||FH.tid!==tid){return;}
+    renderFhw();
+    if(!blob.size)return;
+    fhBusy(1);
+    try{const url=await uploadSpeak(blob,'fhw_'+tid);FH.audios.push({url:url});FH.dirty=true;await fhPersist(false);}
+    catch(e){toast(FHL('錄音上傳失敗，請再錄一次','录音上传失败，请再录一次','Upload failed — please record again','Tải lên lỗi — ghi lại nhé'));}
+    fhBusy(-1);renderFhw();};
+  FHMR.start();renderFhw();};
+function fhAutosave(){clearTimeout(FHT);FHT=setTimeout(()=>{fhPersist(false);},2500);}
+/* 存一次。submit=true 是按了「送出給老師」；false 是自動存：
+   還沒送出過就存成 draft；已經送出過的，只記下照片／錄音（不然傳了會不見），狀態不動 */
+async function fhPersist(submit){
+  if(!FH||S.preview)return false;
+  const tid=FH.tid;const d=fhDocOf(tid);const st=d?d.status:'';
+  const ts=now();
+  const patch={text:String(FH.text||''),photos:FH.photos.slice(),audios:FH.audios.slice(),updated_at:ts};
+  if(submit){patch.status='submitted';patch.submitted_at=ts;}
+  else if(!st||st==='draft')patch.status='draft';
+  try{
+    if(d&&d.id){await DB.update('results',d.id,patch);Object.assign(d,patch);}
+    else{const doc=await DB.insert('results',Object.assign({kind:'fhw',fh_task:tid,uid:myUid(),student_id:(S.me||{}).id,student_name:(S.me||{}).name||'',created_at:ts},patch));
+      (S.fhws=S.fhws||[]).push(doc);}
+    FH.dirty=false;return true;
+  }catch(e){if(submit)toast(FHL('送出失敗：','送出失败：','Send failed: ','Gửi lỗi: ')+((e&&e.message)||e));return false;}}
+H.fhSend=async(_,b)=>{
+  if(!FH)return;if(FH.busy){toast(FHL('還在上傳，等一下再送出','还在上传，等一下再送出','Still uploading — please wait','Đang tải lên — đợi chút nhé'));return;}
+  const ta=document.getElementById('fh-text');if(ta)FH.text=ta.value;
+  if(!String(FH.text||'').trim()&&!FH.photos.length&&!FH.audios.length){toast(FHL('先寫一點、拍照或錄音再送出','先写一点、拍照或录音再送出','Type, add a photo or record something first','Hãy viết, thêm ảnh hoặc ghi âm trước'));return;}
+  clearTimeout(FHT);
+  if(b){b.disabled=true;b.textContent=FHL('送出中…','送出中…','Sending…','Đang gửi…');}
+  const ok=await fhPersist(true);
+  if(ok){toast('✅ '+FHL('已送出給老師','已送出给老师','Sent to your teacher','Đã nộp cho cô'));renderFhw();}
+  else if(b){b.disabled=false;b.textContent='📤 '+FHL('送出給老師','送出给老师','Send to teacher','Nộp cho cô');}};
+/* ══════ FREEHW_V1631 end ══════ */

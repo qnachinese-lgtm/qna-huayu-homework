@@ -750,12 +750,12 @@ async function loadAll(){
   try{await pTg;}catch(e){}/* TGUIDE_V973 */
   S.students=a.filter(x=>!x.deleted_at);S.trashStudents=a.filter(x=>!!x.deleted_at);S.questions=c;
   S.rawLessons=b.filter(x=>x&&!x.deleted_at);/* READUID_V973 算讀取名單要看整包，不能只看 S.lessons */
-  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&x.kind!=='lqassign'&&x.kind!=='reply'&&x.kind!=='price'&&x.kind!=='edit_proposal'&&x.kind!=='school'/* SCHOOL_V1046 學校資料不是課 */&&x.kind!=='hanzitask'/* HANZI_V1 */&&x.kind!=='gametask'/* GAMEHW_V1553 */&&x.kind!=='writetask'/* WRITEHW_V1566 */&&!x.deleted_at);
+  S.lessons=b.filter(x=>x.kind!=='quiz'&&x.kind!=='announcement'&&x.kind!=='pron'&&x.kind!=='classmeta'&&x.kind!=='interview'&&x.kind!=='inquiry'&&x.kind!=='agency'&&x.kind!=='writing'&&x.kind!=='livequiz'&&x.kind!=='livesession'&&x.kind!=='workbook'&&x.kind!=='lqassign'&&x.kind!=='reply'&&x.kind!=='price'&&x.kind!=='edit_proposal'&&x.kind!=='school'/* SCHOOL_V1046 學校資料不是課 */&&x.kind!=='hanzitask'/* HANZI_V1 */&&x.kind!=='gametask'/* GAMEHW_V1553 */&&x.kind!=='writetask'/* WRITEHW_V1566 */&&x.kind!=='freehw'/* FREEHW_V1631 */&&!x.deleted_at);
    /* PROP_V944 老師送來的修改提案 */
    S.props=b.filter(x=>x.kind==='edit_proposal'&&!x.deleted_at)
      .sort((p,q)=>String(q.at||'').localeCompare(String(p.at||'')));
    S.ocs=b.filter(x=>x&&x.kind==='oc'&&!x.deleted_at).sort((a,c)=>(Number(a.order_index)||0)-(Number(c.order_index)||0));/* OC_V1257 */
-   S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.lqassigns=b.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.hanziTasks=b.filter(x=>x.kind==='hanzitask'&&!x.deleted_at);/* HANZI_V1 */S.gameTasks=b.filter(x=>x.kind==='gametask'&&!x.deleted_at);/* GAMEHW_V1553 */S.writeTasks=b.filter(x=>x.kind==='writetask'&&!x.deleted_at);/* WRITEHW_V1566 */
+   S.workbooks=b.filter(x=>x.kind==='workbook'&&!x.deleted_at).sort((a,c)=>(a.order_index||0)-(c.order_index||0));S.livequizzes=b.filter(x=>x.kind==='livequiz'&&!x.deleted_at);S.lqassigns=b.filter(x=>x.kind==='lqassign'&&!x.deleted_at);S.hanziTasks=b.filter(x=>x.kind==='hanzitask'&&!x.deleted_at);/* HANZI_V1 */S.gameTasks=b.filter(x=>x.kind==='gametask'&&!x.deleted_at);/* GAMEHW_V1553 */S.writeTasks=b.filter(x=>x.kind==='writetask'&&!x.deleted_at);S.freeTasks=b.filter(x=>x.kind==='freehw'&&!x.deleted_at);/* FREEHW_V1631 *//* WRITEHW_V1566 */
    /* RPMOVE_V945 回覆範本和價目表正在從 lessons 搬到 crm（只有主管理員讀得到）。
       搬家期間兩邊都讀，畫面才不會有空窗；moved_from 用來避免同一筆出現兩次。 */
    {const _rpp=(k)=>{
@@ -779,7 +779,7 @@ S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==
   if(!owner){
     const ids=new Set(S.students.map(s=>s.id)),uids=new Set(S.students.map(s=>s.uid).filter(Boolean));
     const mine=r=>ids.has(r.student_id)||(r.uid&&uids.has(r.uid));
-    S.results=S.results.filter(mine);S.hanzis=(S.hanzis||[]).filter(mine);/* HANZI_V1 */S.sentences=S.sentences.filter(mine);S.quizResults=S.quizResults.filter(mine);S.discussions=S.discussions.filter(mine);S.shadows=(S.shadows||[]).filter(mine);S.gpracs=(S.gpracs||[]).filter(mine);S.hwvs=(S.hwvs||[]).filter(mine);S.wbdocs=(S.wbdocs||[]).filter(mine);S.lqps=(S.lqps||[]).filter(mine);
+    S.results=S.results.filter(mine);S.hanzis=(S.hanzis||[]).filter(mine);/* HANZI_V1 */S.sentences=S.sentences.filter(mine);S.quizResults=S.quizResults.filter(mine);S.discussions=S.discussions.filter(mine);S.shadows=(S.shadows||[]).filter(mine);S.gpracs=(S.gpracs||[]).filter(mine);S.hwvs=(S.hwvs||[]).filter(mine);S.fhws=(S.fhws||[]).filter(mine);S.wbdocs=(S.wbdocs||[]).filter(mine);S.lqps=(S.lqps||[]).filter(mine);
     S.quizzes=S.quizzes.filter(qz=>(qz.assigned_ids||[]).some(id=>ids.has(id)));
     /* SHARE_V1505 教材與課程：只留主管理員指定的、自己建的、以及
        已經指派給自己學生的。公告、發音、班級時間不在這裡過濾——
@@ -803,7 +803,7 @@ S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==
   if(bs)bs.textContent=owner?'Tiếng Trung Quyên Huỳnh':('管理員 · '+(MY_EMAIL||''));
   loadFailBanner();/* READERR_V1419 */
 }
-function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.acts=d.filter(x=>x.kind==='act');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='wt'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq'&&x.kind!=='hanzi');S.hanzis=d.filter(x=>x.kind==='hanzi');/* HANZI_V1 */S.leavereqs=d.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');S.lqps=d.filter(x=>x.kind==='lqp');S.wts=d.filter(x=>x.kind==='wt');/* WRITEHW_V1566 */}
+function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.acts=d.filter(x=>x.kind==='act');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='wt'&&x.kind!=='fhw'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq'&&x.kind!=='hanzi');S.hanzis=d.filter(x=>x.kind==='hanzi');/* HANZI_V1 */S.leavereqs=d.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');S.lqps=d.filter(x=>x.kind==='lqp');S.wts=d.filter(x=>x.kind==='wt');S.fhws=d.filter(x=>x.kind==='fhw');/* FREEHW_V1631 *//* WRITEHW_V1566 */}
 /* MENU_MODAL_V12 一開視窗就把還開著的「⋯」收起來，不然會浮在視窗旁邊 */
 document.addEventListener('toggle',(e)=>{const d=e.target;
   if(d&&d.classList&&d.classList.contains('crm-card')){const id=d.getAttribute('data-cid');
@@ -1522,7 +1522,7 @@ function renderDashboard(){
   const discHtml=discPend.length?discPend.map(sd=>`<div class="dash-row"><span class="badge badge-soon">待批改</span><b>${esc(sentName(sd))}</b><span class="muted">${esc((()=>{const l=S.lessons.find(x=>x.id===sd.disc_lesson)||{};return lesNo(l,'（課文）');})())}</span><span class="grow"></span><span class="muted">${Object.keys(sd.answers||{}).length} 題</span><button class="btn btn-sm btn-accent" data-act="reviewDisc" data-id="${sd.id}">批改</button></div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的問題與討論 👍</div>`;
   /* 統一待批改收件匣：直接用「批改・成績」那一頁的同一份佇列 gradeQueue()，
      這樣首頁的數字跟批改台的「只看待批改」永遠一樣（含作業簿）。 */
-  const _sgAct={gprac:'reviewGprac',disc:'reviewDisc',sent:'reviewSent',shadow:'reviewShadow',hwv:'reviewHwv',wb:'reviewWb'};
+  const _sgAct={gprac:'reviewGprac',disc:'reviewDisc',sent:'reviewSent',shadow:'reviewShadow',hwv:'reviewHwv',wb:'reviewWb',fhw:'reviewFhw'};
   const inbox=gradeQueue().filter(x=>x.pend).map(x=>{
     const m=SGKIND[x.kind]||{lab:'',ic:''};
     const btn=(x.kind==='hw')
@@ -9725,7 +9725,7 @@ async function _filesLoadInbox(){const box=document.getElementById('files-inbox'
 /* ===== 批改台：左邊一排待批改，右邊直接改，改完按「下一位」 ===== */
 const SGKIND={
   hw:{lab:'作業',ic:'✍️'},gprac:{lab:'語法練習',ic:'📘'},disc:{lab:'問題與討論',ic:'💬'},
-  sent:{lab:'造句',ic:'📝'},shadow:{lab:'逐句跟讀',ic:'🗣'},hwv:{lab:'手寫',ic:'🖊'},wb:{lab:'作業簿',ic:'📒'},
+  sent:{lab:'造句',ic:'📝'},shadow:{lab:'逐句跟讀',ic:'🗣'},hwv:{lab:'手寫',ic:'🖊'},wb:{lab:'作業簿',ic:'📒'},fhw:{lab:'回家作業',ic:'📝'},
   /* ACTDO_V746 課室活動是「可作可無」的，學生寫了才會出現在這裡。
      它永遠不算待批改：不會加進上面那個數字，也不會有人催你改。 */
   act:{lab:'課室活動（選作）',ic:'🗣'}};
@@ -9751,6 +9751,10 @@ function gradeQueue(withTest){
   add(S.sentences,'sent','sent_lesson',null);
   add(S.shadows,'shadow','shadow_lesson',null);
   add(S.hwvs,'hwv','hwv_lesson',null);
+  /* FREEHW_V1631 回家作業：les 用作業名稱（它不是一課） */
+  (S.fhws||[]).forEach(sd=>{const done=sd.status==='reviewed';if(sd.status!=='submitted'&&!done)return;
+    const t=(S.freeTasks||[]).find(x=>x.id===sd.fh_task)||{};
+    out.push({kind:'fhw',id:sd.id,sd,name:sgName(sd),test:sgTest(sd),les:(t.title||'回家作業'),lid:sd.fh_task||'',pend:!done,ts:sd.submitted_at||'',extra:''});});
   /* ACTDO_V746 選作的課室活動：一律 pend=false，所以不會進「待批改」的計數 */
   (S.acts||[]).filter(sd=>sd&&sd.status==='submitted'&&String(sd.text||'').trim()).forEach(sd=>{
     out.push({kind:'act',id:sd.id,sd,name:sgName(sd),test:sgTest(sd),les:sgLes(sd.act_lesson),
@@ -9828,7 +9832,7 @@ function sgOpen(it){
       +'<div class="card" style="white-space:pre-wrap;line-height:1.9;font-size:15px">'
       +esc(String(sd.text||''))+'</div>','');
     return;}
-  const fn={gprac:H_.reviewGprac,disc:H_.reviewDisc,sent:H_.reviewSent,shadow:H_.reviewShadow,hwv:H_.reviewHwv,wb:H_.reviewWb}[it.kind];
+  const fn={gprac:H_.reviewGprac,disc:H_.reviewDisc,sent:H_.reviewSent,shadow:H_.reviewShadow,hwv:H_.reviewHwv,wb:H_.reviewWb,fhw:H_.reviewFhw}[it.kind];
   if(fn)fn(it.id);
 }
 function sgFill(title,body,foot){
@@ -11003,7 +11007,7 @@ function hwItemHtml(o){
   /* HWROWC_V1595 Quinn：「這邊顯示也很醜」。改成跟開課時間表同一套（C・精簡清單）：
      種類用一顆小標籤（不用表情符號）、名稱前面重複的「翻牌配對・」「寫字・」拿掉、
      截止日縮短、完成率用進度條，每一欄對齊。 */
-  const KIND={'🀄':['漢字','hwk-hz'],'✍️':['寫字','hwk-wt'],'🃏':['翻牌','hwk-gt']}[o.ic]||['作業','hwk-gt'];
+  const KIND={'🀄':['漢字','hwk-hz'],'✍️':['寫字','hwk-wt'],'🃏':['翻牌','hwk-gt'],'📝':['作業','hwk-fh']}[o.ic]||['作業','hwk-gt'];
   const nm=String(o.title||'').replace(/^(翻牌配對|翻牌|寫字|漢字闖關)\s*[・·]\s*/,'');
   const md=(d=>{const m=String(d||'').match(/^\d{4}-(\d{2})-(\d{2})$/);return m?(+m[1]+'/'+m[2]):String(d||'');})(o.due);
   const n=Number(o.n)||0,dn=Number(o.done)||0,pct=n?Math.round(dn/n*100):0;
@@ -11028,6 +11032,7 @@ H.hzPickKind=()=>{
     +row('hzNew','🀄','漢字遊戲作業','一輪最多 8 個字，拼 → 寫 → 用三步，用的是漢字闖關的關卡。')
     +row('gtNew','🃏','生詞翻牌作業','一張漢字、一張拼音配對，用的是課本生詞。玩完一輪就算完成。')
     +row('wtNew','✍️','寫字作業','照筆順一筆一筆寫，每個字寫滿妳指定的次數就算完成。')
+    +row('fhNew','📝','回家作業','學生依照妳指定的作業回答：可以打字、拍照上傳、錄音。交了會進批改台。')/* FREEHW_V1631 */
     +'</div></div></div>');};
 function gtMount(){
   try{
@@ -11044,7 +11049,7 @@ function gtMount(){
     if(slot){
       if(slot.getAttribute('data-filled')!=='1'){
         slot.setAttribute('data-filled','1');
-        slot.innerHTML=gtCardHtml()+wtCardHtml();}
+        slot.innerHTML=gtCardHtml()+wtCardHtml()+fhCardHtml();}
       return;}
     const put=(html,sel)=>{if(body.querySelector(sel))return null;
       const wrap=document.createElement('div');wrap.innerHTML=html;
@@ -12299,7 +12304,7 @@ H.exportJson=async(_,b)=>{if(!IS_OWNER){toast('這個功能只有主管理員可
     add('作業簿題目',wbq);
 
     const gr=[];RS.forEach(r=>{if(!r||r.kind==='progress')return;
-      const K={undefined:'課文練習',wb:'作業簿',quizresult:'隨堂小考',gprac:'語法練習',discussion:'問題與討論',sentence:'造句',shadow:'跟讀',hwv:'手寫'};
+      const K={undefined:'課文練習',wb:'作業簿',quizresult:'隨堂小考',gprac:'語法練習',discussion:'問題與討論',sentence:'造句',shadow:'跟讀',hwv:'手寫',fhw:'回家作業'};
       const sc=(r.score&&typeof r.score==='object')?(r.score.ok+' / '+r.score.total):(r.score==null?'':r.score+(r.total!=null?(' / '+r.total):''));
       gr.push({學生:nameOf(r.student_id),類型:K[r.kind]||r.kind||'課文練習',
         項目:lesName(r.lesson_id||r.wb_lesson||r.gprac_lesson||r.disc_lesson||r.sent_lesson)||(r.quiz_id?((quizzes.find(q=>q.id===r.quiz_id)||{}).title||'小考'):''),
@@ -13836,7 +13841,7 @@ function renderStudentProfile(){
           return '<div class="sp-tile"><div class="k">目前結餘</div><div class="v" style="color:var(--muted,#8E9CAF)">—</div><div class="s">'+_sub+'</div></div>';}
         return '<div class="sp-tile '+(Math.abs(bill.due)<0.01?'ok':(bill.due>0?'due':''))+'"><div class="k">目前結餘</div><div class="v">'
         +(Math.abs(bill.due)<0.01?'已結清':(bill.due>0?('尚欠 '+money(bill.due,cur)):('預繳 '+money(-bill.due,cur))))
-        +'</div><div class="s">應收 '+money(bill.charge,cur)+'</div></div>';})():'')
+        +'</div><div class="s">應收 '+money(Math.round((bill.charge-(bill.waived||0))*100)/100,cur)+((bill.waived>0)?('<span style="opacity:.75">（原本 '+money(bill.charge,cur)+'，少收 '+money(bill.waived,cur)+'）</span>'):'')+'</div></div>';})():'')/* WVSHOW_V1631 應收要扣掉已處理（少收）的部分 */
     +'<div class="sp-tile"><div class="k">下次上課</div><div class="v">'+(nx?esc(nx):'—')+'</div><div class="s">'+(nx?esc(spWd(nx)):'還沒排')+'</div></div>'
     /* PERF2_V1542 最弱題型放進最上面那排數字卡，點一下就進「做題狀況」。
        本來只有進分頁才看得到，她說「藏得有點深」。 */
@@ -26397,3 +26402,106 @@ H.loginMsg=(id)=>{const s=(S.students||[]).find(x=>x.id===id);if(!s||!s.email)re
   const up=()=>{ta.value=inviteMsg(nm,s.email,pw.value.trim()||'（請填密碼）');};
   up();pw.addEventListener('input',up);try{pw.focus();}catch(e){}
   try{const d=document.querySelector('details.ac-more[open]');if(d)d.open=false;}catch(e){}};
+
+/* ══════ FREEHW_V1631 回家作業（老師端） ══════
+   Quinn：「我教他回家寫作業，但是我沒有限制什麼的。能不能開一個作業區，
+   就是『依照老師指定的作業，請回答』」。她選了：打字、拍照、錄音三種都要；
+   每次可以寫一句說明（可空白，空白時學生看到的就是那一句預設的話）。
+   作業單存 lessons（kind:'freehw'），學生的作答存 results（kind:'fhw'），
+   跟寫字作業同一條現成的路，Firestore 規則不用動。照片、錄音放 Storage 的 uploads／speech，也是現成的。
+   交了（status:'submitted'）就進批改台，標記完成＝'reviewed'。 */
+function fhDocFor(tid,s){
+  return (S.fhws||[]).find(x=>x&&x.fh_task===tid&&((s.uid&&x.uid===s.uid)||x.student_id===s.id))||null;}
+function fhCardHtml(){
+  const tasks=(S.freeTasks||[]).slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  const chip=(t,s)=>{
+    const d=fhDocFor(t.id,s);const st=d?d.status:'';
+    if(st==='reviewed')return '<button class="badge" style="background:#E1F0E8;color:#1F6A54;border:0;cursor:pointer" data-act="reviewFhw" data-id="'+esc(d.id)+'">✓ '+snm(s.name)+'</button>';
+    if(st==='submitted')return '<button class="badge badge-soon" style="border:0;cursor:pointer" data-act="reviewFhw" data-id="'+esc(d.id)+'">'+snm(s.name)+' 已交・去批改</button>';
+    const dd=hwDaysTo(t.due_date);
+    if(dd!=null&&dd<0)return '<span class="badge badge-overdue">'+snm(s.name)+' 逾期 '+(-dd)+' 天</span>';
+    return '<span class="badge">'+snm(s.name)+(st==='draft'?'　寫到一半':'')+'</span>';};
+  return tasks.map(t=>{
+    const who=lessonTargets(t).filter(hzLive);
+    const done=who.filter(s=>{const d=fhDocFor(t.id,s);return d&&(d.status==='submitted'||d.status==='reviewed');}).length;
+    const head='<div class="hint" style="margin-bottom:8px;white-space:pre-wrap">'+esc(String(t.prompt||'').trim()||'（沒有寫說明：學生看到的是「依照老師指定的作業，請回答」）')+'</div>';
+    return hwItemHtml({ic:'📝',title:t.title||'回家作業',due:t.due_date,done:done,n:who.length,del:'fhDel',id:t.id,
+      body:head+(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')});
+  }).join('');
+}
+H.fhNew=()=>{
+  const live=(S.students||[]).filter(s=>s&&!s.deleted_at);
+  const rank=(x)=>{if(x.is_test)return 1;const e=enrollOf(x);
+    return e==='active'?0:(e==='trial'?2:(e==='reserved'?3:4));};
+  const checks=live.slice().sort((a,b)=>rank(a)-rank(b)||stuNameCmp(a,b)).map(s=>{
+    const en=enrollOf(s),act=(en==='active'&&!s.is_test);
+    const show=act||s.is_test;
+    return '<label class="qzw-s"'+(show?'':' data-off="1"')+'>'
+      +'<input type="checkbox" class="fh-stu" value="'+esc(s.id)+'">'
+      +'<span>'+snm(s.name)+'</span>'
+      +(s.is_test?'<i>🧪 測試</i>':(act?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[en]||'')+'）</i>'))
+      +'</label>';}).join('');
+  const offN=live.filter(s=>!(enrollOf(s)==='active'&&!s.is_test)&&!s.is_test).length;
+  const d=new Date();d.setDate(d.getDate()+7);
+  const def=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>📝 指派回家作業</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="hint" style="margin-bottom:8px">學生會看到妳寫的說明，然後可以打字、拍照上傳、錄音回答。交了會進「批改・成績」。</div>'
+   +'<div class="field full"><label>作業說明 <span class="hint">可以不填，不填就顯示「依照老師指定的作業，請回答」</span></label>'
+   +'<textarea id="fh-prompt" rows="3" placeholder="例如：寫課本第 35 頁第二大題，寫完拍照上傳"></textarea></div>'
+   +'<div class="form-grid">'
+   +'<div class="field"><label>截止日 <span class="hint">可以不填</span></label><input id="fh-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
+   +'<div class="field"><label>作業名稱 <span class="hint">可以不填</span></label><input id="fh-title" placeholder="回家作業"></div>'
+   +'</div>'
+   +'<div class="field full"><details class="pickdd" open data-pick="stu">'
+   +'<summary>指派給誰 <span class="pick-sum"></span></summary><div class="pick-body">'
+   +'<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center">'
+   +(offN?('<button class="btn btn-sm" type="button" data-act="stuOffToggle">👀 也顯示休學／預約（'+offN+'）</button>'):'')
+   +stuFindBox(live)+'</div>'
+   +'<div class="qzw-stus off-hide">'+(checks||'<span class="muted">還沒有學生</span>')+'</div>'
+   +'</div></details></div></div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
+   +'<button class="btn btn-primary" data-act="fhSave">📤 指派出去</button></div></div>');
+  gtSums();
+};
+H.fhSave=async()=>{
+  const ids=[].slice.call(document.querySelectorAll('.fh-stu:checked')).map(c=>c.value);
+  if(!ids.length)return toast('請至少選一位學生');
+  const _v=(id)=>{const e=document.getElementById(id);return e?String(e.value||'').trim():'';};
+  const title=_v('fh-title')||'回家作業',prompt=_v('fh-prompt'),due=_v('fh-due');
+  const btn=document.querySelector('[data-act="fhSave"]');if(btn){btn.disabled=true;btn.textContent='指派中…';}
+  try{await ensureAuthFresh();
+    const row={kind:'freehw',title:title,prompt:prompt,due_date:due,assigned_ids:ids,created_at:new Date().toISOString()};
+    row.read_uids=ruCalc(row);
+    await DB.insert('lessons',row);
+    await loadAll();closeModal();render();
+    toast('已指派給 '+ids.length+' 位學生'+(due?('，截止 '+due):''));
+  }catch(e){if(btn){btn.disabled=false;btn.textContent='📤 指派出去';}toast('指派失敗：'+((e&&e.message)||e));}};
+H.fhDel=async(id)=>{const t=(S.freeTasks||[]).find(x=>x.id===id);if(!t)return;
+  const b=document.querySelector('[data-act="fhDel"][data-id="'+id+'"]');
+  if(b&&!b.dataset.sure){b.dataset.sure='1';b.textContent='再按一次確定刪除';b.classList.add('btn-danger');setTimeout(()=>{if(b){delete b.dataset.sure;b.textContent='刪除';b.classList.remove('btn-danger');}},4000);return;}
+  await hwDelTask('freeTasks',id);};
+H.reviewFhw=(id)=>{const sd=(S.fhws||[]).find(x=>x.id===id);if(!sd)return;
+  const st=S.students.find(x=>x.id===sd.student_id);const name=(st&&st.name)||sd.student_name||'學生';
+  const t=(S.freeTasks||[]).find(x=>x.id===sd.fh_task)||{};
+  const txt=String(sd.text||'').trim();
+  const ph=(Array.isArray(sd.photos)?sd.photos:[]).filter(x=>x&&x.url);
+  const au=(Array.isArray(sd.audios)?sd.audios:[]).filter(x=>x&&x.url);
+  const sec=(h,b)=>'<div class="lesson-label" style="margin:14px 0 6px">'+h+'</div>'+b;
+  sgWrap('<div class="modal wide"><div class="modal-head"><h3>📝 '+esc(t.title||'回家作業')+' · '+esc(name)+'</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body"><div class="hint" style="margin-bottom:6px">'+(sd.submitted_at?('🕒 '+esc(fmtDT(sd.submitted_at))):'')+'</div>'
+   +'<div class="fh-q">'+esc(String(t.prompt||'').trim()||'依照老師指定的作業，請回答')+'</div>'
+   +(txt?sec('✏️ 打字回答','<div class="card" style="white-space:pre-wrap;line-height:1.9;font-size:15px">'+esc(txt)+'</div>'):'')
+   +(ph.length?sec('📷 照片 '+ph.length+' 張','<div class="fh-ph">'+ph.map((x,i)=>'<a href="'+esc(x.url)+'" target="_blank" rel="noopener" title="點開看大圖"><img src="'+esc(x.url)+'" alt="第 '+(i+1)+' 張"></a>').join('')+'</div>'):'')
+   +(au.length?sec('🎙 錄音 '+au.length+' 段',au.map((x,i)=>'<div style="margin:4px 0"><span class="hint">第 '+(i+1)+' 段</span> <audio controls preload="none" src="'+esc(x.url)+'" style="vertical-align:middle;max-width:100%"></audio></div>').join('')):'')
+   +((!txt&&!ph.length&&!au.length)?'<div class="muted" style="margin-top:10px">（學生沒有留下內容）</div>':'')
+   +'<div class="field" style="margin-top:14px"><label>給學生的評語</label><textarea id="fhw-cmt" rows="3">'+esc(sd.comment||'')+'</textarea>'+((typeof cannedBar==='function')?cannedBar('fhw-cmt'):'')+'</div></div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn" data-act="saveFhwReview" data-id="'+esc(sd.id)+'" data-done="0">儲存建議</button><button class="btn btn-accent" data-act="saveFhwReview" data-id="'+esc(sd.id)+'" data-done="1">標記完成</button></div></div>');};
+H.saveFhwReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S.fhws||[]).find(x=>x.id===id);if(!sd)return;
+  const el=document.getElementById('fhw-cmt');const comment=el?(el.value||'').trim():'';
+  if(b){b.disabled=true;b.textContent='儲存中…';}
+  const ts=new Date().toISOString();const patch={comment,status:done?'reviewed':(sd.status||'submitted'),reviewed_at:ts};
+  try{await DB.update('results',id,patch);const i=S.fhws.findIndex(x=>x.id===id);if(i>=0)S.fhws[i]=Object.assign({},sd,patch);
+    closeModal();render();toast(done?'已完成，學生看得到你的評語':'已儲存評語');
+  }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
+/* ══════ FREEHW_V1631 end ══════ */
