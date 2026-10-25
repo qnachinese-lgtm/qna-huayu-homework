@@ -999,7 +999,7 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
       ?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(clPh())}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`
       :(a?`<div class="disc-myans">${esc(a)}</div>`:`<div class="cl-ro"><span class="hint">—</span></div>`);
     const _ns=clSplitSents(ln.orig||'').length;
-    const _sh=clSentsHtml(ln,{kb:key,ans,fb,answerable,canWrite,nts,L,n0:_sn,lid:l.id,ph:L({zh:'這一句的白話翻譯…',cn:'这一句的白话翻译…',en:'Translate this sentence…',vi:'Dịch câu này…'})});
+    const _sh=clSentsHtml(ln,{kb:key,ans,fb,answerable,canWrite,nts,L,n0:0/* PARANO_V1629 每一段從 1 開始編號 */,lid:l.id,ph:L({zh:'這一句的白話翻譯…',cn:'这一句的白话翻译…',en:'Translate this sentence…',vi:'Dịch câu này…'})});
     _sn+=(_ns>1?_ns:1);
     const _keepNote=!_sh||String(nts[key]||'').trim()!=='';
     /* CLSTR_V1619 逐句翻譯的時候，下面那一格整段翻譯只在以前寫過的時候才留著（不會不見） */

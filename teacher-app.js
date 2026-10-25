@@ -6391,7 +6391,7 @@ function clHandoutData(l){
     const per=ss.map(()=>[]);
     parts.forEach(it=>{const g=tClHead(it);let k=-1;if(g)k=ss.findIndex(x=>x.indexOf(g.head)>=0);(per[k>=0?k:ss.length-1]||per[0]).push(it);});
     return {qi,sents:ss.map((x,si)=>{n++;const plain=tClPlain(x);
-      return {no:n,key:qi+'_'+si,orig:plain,py:tClPinyin(plain,parts),gl:per[si]||[],
+      return {no:si+1/* PARANO_V1629 每一段從 1 開始 */,key:qi+'_'+si,orig:plain,py:tClPinyin(plain,parts),gl:per[si]||[],
         tr:(tr[qi+'_'+si]!=null?String(tr[qi+'_'+si]):((ss.length===1)?String(ln.ref||''):''))};})};});}
 function clCardHtml(l){const lines=clLinesOf(l);const na=(l.assigned_ids||[]).length;
   const nq=(Array.isArray(l.cl_qs)?l.cl_qs:[]).length;
