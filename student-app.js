@@ -2677,7 +2677,7 @@ function modItems(l){
     const n=clLinesN(l);
     if(!n)return out;
     const qN=clQsN(l),qMode='off';/* NOCLQ_V1622 */
-    const parts=[n+' '+LT({zh:'句',cn:'句',en:'lines',vi:'câu'})];
+    const parts=[n+' '+LT({zh:'段',cn:'段',en:'paragraphs',vi:'đoạn'})];/* PARACNT_V1626 一行原文＝一段 */
     if(qN&&qMode!=='off')parts.push(qN+' '+LT({zh:'題',cn:'题',en:'questions',vi:'câu hỏi'}));
     const d=discDocOf(l.id);
     const b=(d&&(d.status==='submitted'||d.status==='reviewed'))

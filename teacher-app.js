@@ -15604,7 +15604,7 @@ H.clImport=()=>{
         +'<button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
         +'<div class="hint" style="margin-bottom:10px">一次匯一課。選一課，會先開在編輯視窗裡給妳看，確認沒問題再按儲存。</div>'
         +picked.map((x,i)=>'<div class="dash-row"><b>'+esc(x.name)+'</b>'
-          +'<span class="muted" style="margin-left:6px">'+x.lines.length+' 句 · '+x.qs.length+' 題</span>'
+          +'<span class="muted" style="margin-left:6px">'+x.lines.length+' 段 · '+x.qs.length+' 題</span>'
           +'<span class="grow"></span><button class="btn btn-sm btn-accent" data-act="clImpPick" data-id="'+i+'">匯入這一課</button></div>').join('')
         +'</div></div>');
     }catch(e){toast('讀不到這個檔：'+((e&&e.message)||e));}};
@@ -15640,7 +15640,7 @@ H.clxPick=(id)=>{const x=CLXONE;if(!x)return;CLXONE=null;closeModal();
 function clxGo(x,old){
   if(old&&!confirm('要用這個檔覆蓋「'+(old.title||'')+'」嗎？\n\n'
     +'檔案裡有 '+x.lines.length+' 句、'+x.qs.length+' 題；\n'
-    +'現在平台上這一課有 '+((old.cl_lines||[]).length)+' 句、'+((old.cl_qs||[]).length)+' 題。\n\n'
+    +'現在平台上這一課有 '+((old.cl_lines||[]).length)+' 段、'+((old.cl_qs||[]).length)+' 題。\n\n'
     +'⚠️ 按「確定」只是先開在編輯視窗裡，還沒有存。\n'
     +'妳看過覺得沒問題，再按視窗右下角的「💾 儲存」才會真的蓋過去。'))return;
   /* 蓋掉舊課的時候沿用舊課名，免得同一課突然換了名字 */
