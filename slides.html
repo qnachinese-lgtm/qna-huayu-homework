@@ -23,6 +23,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
+<!-- CLPY2_V1 點兩下加拼音 -->
 <!-- CLPYADD_V1 上課中加拼音；RSEL_V1 選段落 -->
 <!-- CLNAME_V1 人名藍色直線、地名褐色雙線 -->
 <!-- CLBOOK_V1 文言文：古籍版面、專名號、點詞看解釋、作者與出處、人物與路線 -->
@@ -2568,24 +2569,31 @@ function clPyAdd(g, html){ const A = (LESSON.clpy || []).map((a, k) => ({...a, k
   return html; }
 async function clPySave(){ const L = LESSON, v = (L.clpy || []).slice(); render();
   if(db && L.id && L.id !== "sample"){ try { await db.collection(COL).doc(L.id).update({clpy: v}); } catch(e){ console.warn("clpy", e); } } }
-function clPyPop(x, y, init){ let P = document.getElementById("clpyPop"); if(!P){ P = document.createElement("div"); P.id = "clpyPop"; document.body.appendChild(P); }
-  P.innerHTML = `<div class="cpw">${esc(init.s)}</div><input type="text" placeholder="拼音，例如 shuì 或 shui4" value="${esc(init.py || "")}" autocomplete="off"><button type="button" data-cp="ok" class="btn">加上</button>${init.k != null ? `<button type="button" data-cp="del" class="btn ghost">刪除</button>` : ""}<button type="button" data-cp="x" class="btn ghost" aria-label="關閉">✕</button>`;
-  P.hidden = false; P.style.left = Math.max(8, Math.min(window.innerWidth - 380, x)) + "px"; P.style.top = Math.min(window.innerHeight - 70, y + 8) + "px"; P._init = init;
-  const inp = P.querySelector("input"); setTimeout(() => inp.focus(), 0);
-  inp.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); P.querySelector('[data-cp="ok"]').click(); } if(e.key === "Escape"){ P.hidden = true; } };
-  P.onclick = e => { const b = e.target.closest("[data-cp]"); if(!b) return; const it = P._init, arr = (LESSON.clpy || []).slice();
-    if(b.dataset.cp === "x"){ P.hidden = true; return; }
-    if(b.dataset.cp === "del" || (b.dataset.cp === "ok" && !inp.value.trim())){ if(it.k != null) arr.splice(it.k, 1); }
-    else { const py = clTone(inp.value); if(it.k != null) arr[it.k] = {...arr[it.k], py}; else arr.push({g: it.g, s: it.s, o: it.o, py}); }
-    LESSON.clpy = arr; P.hidden = true; clPySave(); }; }
-document.addEventListener("mouseup", e => { if(e.target.closest("#clpyPop") || /[?&]join=/i.test(location.search)) return; if(!(STEPS[step] && STEPS[step].key === "read" && isClL())) return;
-  const sel = window.getSelection(); if(!sel || sel.isCollapsed || !sel.rangeCount) return; const s = sel.toString().replace(/\s+/g, "");
-  if(!/^[㐀-鿿豈-﫿]{1,4}$/.test(s)) return; const r = sel.getRangeAt(0), para = r.startContainer.parentElement && r.startContainer.parentElement.closest(".para[data-g]"); if(!para) return;
-  const zh = para.querySelector(".zh"); if(!zh || !zh.contains(r.startContainer)) return;
-  const pre = document.createRange(); pre.setStart(zh, 0); pre.setEnd(r.startContainer, r.startOffset); const fr = pre.cloneContents(); fr.querySelectorAll("rt").forEach(n => n.remove());
-  const t = fr.textContent; let o = 0, f = 0, q; while((q = t.indexOf(s, f)) >= 0){ o++; f = q + s.length; }
-  const rc = r.getBoundingClientRect(); clPyPop(rc.left, rc.bottom, {g: +para.dataset.g, s, o}); });
-document.addEventListener("click", e => { const rb = e.target.closest("ruby.clpyx"); if(!rb) return; const k = +rb.dataset.pk, a = (LESSON.clpy || [])[k]; if(!a) return; e.stopPropagation(); const rc = rb.getBoundingClientRect(); clPyPop(rc.left, rc.bottom, {...a, k}); }, true);
+/* CLPY2_V1 上課中加拼音（簡單版）：在原文的字上點兩下，拼音自動出來；多音字可以點選別的讀音 */
+let PPRO = null;
+const ppLoad = () => PPRO || (PPRO = new Promise((ok, no) => { if(window.pinyinPro) return ok(window.pinyinPro); const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.js"; s.onload = () => ok(window.pinyinPro); s.onerror = () => { PPRO = null; no(new Error("pinyin")); }; document.head.appendChild(s); }));
+if(!/[?&]join=/i.test(location.search)) setTimeout(() => { ppLoad().catch(() => {}); }, 2500);
+function clPyBub(rb){ const k = +rb.dataset.pk, a = (LESSON.clpy || [])[k]; if(!a) return; let P = document.getElementById("clpyPop"); if(!P){ P = document.createElement("div"); P.id = "clpyPop"; document.body.appendChild(P); }
+  let opts = []; try { opts = window.pinyinPro ? window.pinyinPro.pinyin(a.s, {multiple: true, type: "array"}) : []; } catch(e){} if(!opts.includes(a.py)) opts.unshift(a.py);
+  P.innerHTML = `<span class="cpw">${esc(a.s)}</span>${opts.map(p => `<button type="button" data-cpy="${esc(p)}" class="btn${p === a.py ? "" : " ghost"}">${esc(p)}</button>`).join("")}<button type="button" data-cp="del" class="btn ghost">刪除</button>`;
+  const rc = rb.getBoundingClientRect(); P.hidden = false; P.style.left = Math.max(8, Math.min(window.innerWidth - 360, rc.left - 10)) + "px"; P.style.top = Math.min(window.innerHeight - 70, rc.bottom + 8) + "px"; P._k = k;
+  P.onclick = e => { const b = e.target.closest("[data-cpy], [data-cp]"); if(!b) return; const arr = (LESSON.clpy || []).slice(); if(b.dataset.cp === "del") arr.splice(P._k, 1); else arr[P._k] = {...arr[P._k], py: b.dataset.cpy}; LESSON.clpy = arr; P.hidden = true; clPySave(); }; }
+document.addEventListener("dblclick", async e => { if(/[?&]join=/i.test(location.search)) return; if(!(STEPS[step] && STEPS[step].key === "read" && isClL())) return; if(e.target.closest("ruby.clpyx")) return;
+  const zh = e.target.closest(".para[data-g] .zh"); if(!zh) return; let node = null, off = 0;
+  if(document.caretRangeFromPoint){ const r = document.caretRangeFromPoint(e.clientX, e.clientY); if(r){ node = r.startContainer; off = r.startOffset; } }
+  else if(document.caretPositionFromPoint){ const p = document.caretPositionFromPoint(e.clientX, e.clientY); if(p){ node = p.offsetNode; off = p.offset; } }
+  if(!node || node.nodeType !== 3 || !zh.contains(node)) return; const han = c => /[㐀-鿿豈-﫿]/.test(c || "");
+  let i = null; for(const j of [off, off - 1]){ if(j < 0 || j >= node.data.length || !han(node.data[j])) continue; const rr = document.createRange(); rr.setStart(node, j); rr.setEnd(node, j + 1); const b = rr.getBoundingClientRect(); if(e.clientX >= b.left - 2 && e.clientX <= b.right + 2){ i = j; break; } }
+  if(i == null || node.parentElement.closest("ruby, rt")) return; try { window.getSelection().removeAllRanges(); } catch(err){}
+  const ch = node.data[i], pre = document.createRange(); pre.setStart(zh, 0); pre.setEnd(node, i); const fr = pre.cloneContents(); fr.querySelectorAll("rt").forEach(n => n.remove());
+  const t = fr.textContent; let o = 0, f = 0, q; while((q = t.indexOf(ch, f)) >= 0){ o++; f = q + 1; }
+  let a0 = i, b0 = i + 1; while(a0 > 0 && i - a0 < 4 && han(node.data[a0 - 1])) a0--; while(b0 < node.data.length && b0 - i < 5 && han(node.data[b0])) b0++;
+  let py = ""; try { const PP = await ppLoad(), arr = PP.pinyin(node.data.slice(a0, b0), {type: "array"}); py = arr.length === b0 - a0 ? arr[i - a0] : PP.pinyin(ch); } catch(err){ return; }
+  if(!py) return; const g = +zh.closest(".para").dataset.g, L = (LESSON.clpy || []).slice(); L.push({g, s: ch, o, py}); LESSON.clpy = L; await clPySave();
+  let many = []; try { many = window.pinyinPro.pinyin(ch, {multiple: true, type: "array"}); } catch(err){}
+  const rb = document.querySelector(`ruby.clpyx[data-pk="${L.length - 1}"]`); if(rb && many.length > 1) clPyBub(rb); });
+document.addEventListener("click", e => { const P = document.getElementById("clpyPop"); const rb = e.target.closest("ruby.clpyx");
+  if(rb){ e.stopPropagation(); clPyBub(rb); return; } if(P && !P.hidden && !e.target.closest("#clpyPop")) P.hidden = true; }, true);
 /* RSEL_V1 文言文：直接選要看哪一段 */
 document.addEventListener("change", e => { const s = e.target.closest && e.target.closest("[data-rsel]"); if(!s) return; ri = +s.value; render(); });
 /* TZOOM_V1 對話、短文頁：A− A＋ 放大縮小（記在這台電腦） */
