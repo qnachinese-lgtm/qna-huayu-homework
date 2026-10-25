@@ -7959,17 +7959,15 @@ function groupMgrModal(sel){const classes=groupsMgrList();sel=sel||'';/* GMEMPTY
          <button class="btn btn-sm btn-danger" type="button" data-act="gmDelClass" data-id="${esc(sel)}">🗑 刪除此團班</button>
        </div>
        <!-- GMGRID_V1537 成員不在這裡了，改到「誰在哪一班」那張總表 -->
-       <div class="gm-who"><b>👥 這一班有 ${groupSize(sel)} 人</b>
-         <span class="hint">要加人／換班，回上一頁那張表打勾就好</span></div>
+       <div class="gm-who"><b>👥 ${groupSize(sel)} 人</b></div><!-- WORDY4_V1638 -->
        <!-- CLSOFF_V1074 -->
        <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;margin:0 0 10px">
          <input type="checkbox" id="gm-notyet" style="width:auto;margin:3px 0 0"${clsNotYet(sel)?' checked':''}>
-         <span>🚧 這一班還沒開始
-         <span class="hint">勾起來就完全不自動排課（課表、今天的課、還沒點名、固定時段都不會出現）。真的開課再取消。</span></span></label>
+         <span>🚧 還沒開始</span></label>
        <!-- CLSTART_V1091 -->
-       <div class="field" style="margin:0 0 10px"><label>🚀 開課日 <span class="hint">這一天以前不會自動排課；到了那一天自己就會開始。不填＝照舊</span></label>
+       <div class="field" style="margin:0 0 10px"><label>🚀 開課日</label>
        <input id="gm-start" type="date" value="${esc(classMetaOf(sel).start||'')}" style="max-width:190px" min="2000-01-01" max="2100-12-31"></div>
-       <div class="field" style="margin:0"><label>🕒 「${esc(sel)}」上課時段 <span class="hint">整班共用；已依學生時段自動帶入，可再修改</span></label>
+       <div class="field" style="margin:0"><label>🕒 上課時段</label>
        <div id="gm-sched">${(classSchedOf(sel).length?classSchedOf(sel):[{}]).map(r=>schedRowHTML(r)).join('')}</div>
        <button class="btn btn-sm" type="button" data-act="gmSchedAdd" style="margin-top:6px">＋ 新增時段</button>
        <div class="field" style="margin:10px 0 0"><label>📕 這一班用的教材</label>
