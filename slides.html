@@ -23,6 +23,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
+<!-- QSPLIT_V1 練習題回答對齊 -->
 <!-- CLPYFULL_V1 詞語解釋每個字都有拼音 -->
 <!-- CLPY2_V1 點兩下加拼音 -->
 <!-- CLPYADD_V1 上課中加拼音；RSEL_V1 選段落 -->
@@ -509,6 +510,10 @@ ruby.clpyx{cursor:pointer}
 .gex li::marker{font-size:20px}
 .gopts{border:2px dashed var(--sky);border-radius:12px;padding:calc(10px*var(--gs,1)) 16px;font-size:calc(24px*var(--gs,1));line-height:1.6;display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));column-gap:28px}
 .gqs{display:flex;flex-direction:column;gap:calc(10px*var(--gs,1))}
+/* QSPLIT_V1 */
+.qq .qpart{display:inline-block}
+.qq .qresp{display:inline-block;margin-left:28px;color:#2E3A4A}
+.gqs.qstack .qq .qresp{display:block;margin-left:0;margin-top:2px}
 .gq{all:unset;cursor:pointer;display:flex;gap:14px;align-items:flex-start;background:var(--ice);border-radius:14px;padding:calc(10px*var(--gs,1)) 14px}
 .gq:focus-visible{outline:3px solid var(--sky)}
 .qblank{display:inline-block;min-width:5em;border-bottom:2px solid var(--blank);margin:0 .2em;vertical-align:baseline;height:1em}
@@ -1339,7 +1344,7 @@ function render(){
       const ex = exs[gp-1], qs = ex.qs || [];
       st.innerHTML = `<div class="pop gpage"><div class="tag"><span>練習 ${gp}</span>${esc(ex.instr||"")}</div>
         ${(ex.opts||[]).filter(Boolean).length ? `<div class="gopts">${ex.opts.filter(Boolean).map(o=>`<div>${esc(o)}</div>`).join("")}</div>` : ""}
-        ${ex.img && ex.img.url ? `<div class="gximg"><img src="${esc(ex.img.url)}" alt=""></div>` : ""}<div class="gqs">${qs.map((q,i)=>`<button class="gq" data-gq="${i}"><span class="qn">${i+1}</span><span class="qb">${(()=>{ const f = fmtQA(q[0], q[1], gShow||gRev[i]); return f != null ? `<span class="qq">${f}</span>` : `<span class="qq">${fmtQ(q[0])}</span>${q[1] ? `<span class="qans" style="${gShow||gRev[i] ? "" : "visibility:hidden"}">${esc(q[1])}</span>` : ""}`; })()}</span></button>`).join("")}</div></div>`;
+        ${ex.img && ex.img.url ? `<div class="gximg"><img src="${esc(ex.img.url)}" alt=""></div>` : ""}<div class="gqs">${qs.map((q,i)=>`<button class="gq" data-gq="${i}"><span class="qn">${i+1}</span><span class="qb">${(()=>{ const f = fmtQA(q[0], q[1], gShow||gRev[i]); return f != null ? `<span class="qq">${qSplit(f)}</span>` : `<span class="qq">${qSplit(fmtQ(q[0]))}</span>${q[1] ? `<span class="qans" style="${gShow||gRev[i] ? "" : "visibility:hidden"}">${esc(q[1])}</span>` : ""}`; })()}</span></button>`).join("")}</div></div>`;
     }
     /* GDOCK_V1 語法工具列：語法點用下拉選單，頁面用分段按鈕 */
     ct.innerHTML = `${gids.length>1?`<div class="wpick"><button class="chip wlb" id="glBtn" type="button" aria-expanded="false">語法 ${gi+1}${gids.length===gs.length ? ` / ${gs.length}` : ""} ▾</button><div class="glist" id="glist" hidden>${gids.map(i=>{ const x = gs[i]; return `<button type="button" aria-pressed="${i===gi}" data-g="${i}"><b>${i+1}</b>${esc(gTit(x.title) || short(x.pattern) || "語法")}</button>`; }).join("")}</div></div>`:""}
@@ -2602,6 +2607,20 @@ function clPyFull(x){ const py = String(x.py || "").trim(); if(!py) return ""; c
   return cj.map((c, h) => { let p = h >= st0 && h - st0 < sy.length ? sy[h - st0] : au[h]; if(cap) p = p.charAt(0).toUpperCase() + p.slice(1); return p; }).join(" "); }
 /* RSEL_V1 文言文：直接選要看哪一段 */
 document.addEventListener("change", e => { const s = e.target.closest && e.target.closest("[data-rsel]"); if(!s) return; ri = +s.value; render(); });
+/* QSPLIT_V1 練習題「問句？回答。」：回答對齊排成一欄（像表格）；太窄就回答換到下一行 */
+function qSplit(h){ h = String(h||""); if(/<br>/.test(h)) return h;
+  const re = /[？?]/g; let m;
+  while((m = re.exec(h))){ const a = h.slice(0, m.index + 1), b = h.slice(m.index + 1);
+    if((a.match(/<span/g)||[]).length !== (a.match(/<\/span>/g)||[]).length) continue;
+    if(!b.replace(/<[^>]+>/g, "").trim()) return h;
+    return `<span class="qpart">${a}</span><span class="qresp">${b.trim()}</span>`; }
+  return h; }
+function qAlign(){ try { document.querySelectorAll(".gqs").forEach(g => { const ps = [...g.querySelectorAll(".qpart")]; g.classList.remove("qstack"); ps.forEach(p => p.style.minWidth = "");
+    if(ps.length < 2) return; const w = Math.max(...ps.map(p => p.getBoundingClientRect().width)); let ok = true;
+    ps.forEach(p => { const q = p.parentElement, r = q.querySelector(".qresp"), box = q.parentElement; if(r && box && w + r.getBoundingClientRect().width + 40 > box.clientWidth) ok = false; });
+    if(ok) ps.forEach(p => p.style.minWidth = Math.ceil(w) + "px"); else g.classList.add("qstack"); }); } catch(e){} }
+(function(){ const _r = render; render = function(){ _r(); qAlign(); }; })();
+window.addEventListener("resize", () => qAlign());
 /* TZOOM_V1 對話、短文頁：A− A＋ 放大縮小（記在這台電腦） */
 var TZ; try { TZ = +localStorage.getItem("slides-tz") || 1; } catch(e){ TZ = 1; }
 function tzApply(){ const k = STEPS[step] && STEPS[step].key, on = ["text","text2","read"].includes(k), st = $("#stage"); if(!st) return; st.classList.toggle("tzoom", on && TZ !== 1); st.style.setProperty("--tz", TZ);
