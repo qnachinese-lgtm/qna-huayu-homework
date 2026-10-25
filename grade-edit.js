@@ -214,6 +214,41 @@
     return (ta.getAttribute('data-k')||ta.getAttribute('data-w')||ta.getAttribute('data-fb')||'')+'#'+j;
   }
 
+  /* ══════ GSIMPLE_V1 Quinn：「批改很難操作」——一題只留一個地方打字 ══════
+     只有一格的題目（造句、討論、語法練習的問答、寫作…）不再跳出第二個「改學生寫的」框：
+     按〔✎〕＝學生那一句直接變成可以改（就在原來的地方改）；
+     按〔✓〕或〔✗〕＝不改學生的字，剛剛改的也會收回。
+     原文備份、存檔流程跟原本一樣（還是走 put/drop → 存檔時寫 answers_orig）。 */
+  var GS_LEAD=/^[\s　]*([✓✎✗○])/;
+  function simpleItem(ctx,item,ta,disp,f){
+    item.classList.add('gs-simple');
+    var fid=fidOf(ta,0), orig=f.get(), html0=disp.innerHTML, on=false;
+    function lead(){var m=String(ta.value||'').match(GS_LEAD);return m?m[1]:'';}
+    function paint(){item.classList.toggle('ged-on',!!find(ctx.id,fid));paintPill(ctx.id);}
+    function editOn(focus){
+      if(on)return; on=true;
+      var rec=find(ctx.id,fid);
+      disp.textContent=rec?rec.val:orig;
+      try{disp.contentEditable='plaintext-only';}catch(e){}
+      if(disp.contentEditable!=='plaintext-only')disp.contentEditable='true';
+      disp.classList.add('gs-live');disp.title='直接改學生寫的';
+      if(focus)setTimeout(function(){try{disp.focus();var r=document.createRange();r.selectNodeContents(disp);r.collapse(false);var s=window.getSelection();s.removeAllRanges();s.addRange(r);}catch(e){}},0);
+    }
+    function editOff(){
+      if(!on)return; on=false;
+      disp.contentEditable='false';disp.classList.remove('gs-live');disp.removeAttribute('title');
+      drop(ctx.id,fid);disp.innerHTML=html0;paint();
+    }
+    disp.addEventListener('input',function(){
+      if(!on)return;
+      var v=String(disp.innerText||'').replace(/\n+$/,'');
+      if(v===orig)drop(ctx.id,fid); else put(ctx.id,fid,v,f.set);
+      paint();
+    });
+    ta.addEventListener('input',function(){ if(lead()==='✎')editOn(true); else editOff(); });
+    if(lead()==='✎')editOn(false);
+  }
+
   function mountItem(ctx,item){
     if(item.__ged)return;
     var ta=item.querySelector((ctx.scr.fbTag||'textarea')+'.'+ctx.scr.fb);
@@ -223,6 +258,7 @@
     item.__ged=1;
     var fs=fieldsFor(ctx.scr,ctx.sd,item,ta,disp.textContent||'');
     if(!fs||!fs.length)return;
+    if(fs.length===1&&!fs[0].label&&!ctx.scr.exercise){simpleItem(ctx,item,ta,disp,fs[0]);return;}/* GSIMPLE_V1 */
 
     var bar=document.createElement('div');
     bar.className='ged-bar';
