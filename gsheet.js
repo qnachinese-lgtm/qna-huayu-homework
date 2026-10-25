@@ -191,7 +191,14 @@
     var nx=null;
     try{var list=gradeQueue(false).filter(function(x){return x.pend&&(x.kind+'::'+x.id)!==cur;});
       list.sort(function(a,c){return String(a.ts||'').localeCompare(String(c.ts||''));});nx=list[0]||null;}catch(e){}
-    if(nx){location.href='teacher.html?grade='+encodeURIComponent(nx.kind+'::'+nx.id);return;}
+    /* NORELOAD_V1647 Quinn：「每次送出去以後就要重新跑一次登入」——本來是整頁重新載入，
+       改成在同一頁直接換下一份，不重新整理、不重新登入 */
+    if(nx){var nk=nx.kind+'::'+nx.id;
+      try{history.replaceState(null,'','teacher.html?grade='+encodeURIComponent(nk));}catch(e){}
+      try{S.gwin=nk;S.sgSel=nk;S.sgSplit=true;built=false;key='';renderGrades();}catch(e){location.href='teacher.html?grade='+encodeURIComponent(nk);return;}
+      try{window.scrollTo(0,0);}catch(e){}
+      root.innerHTML='<div class="gx-sheet gx-fin"><b>下一位載入中…</b></div>';
+      return;}
     root.innerHTML='<div class="gx-sheet gx-fin"><div style="font-size:44px">🎉</div><b>全部批完了</b><div class="gx-sub">可以關掉這個分頁</div></div>';
   }
   document.addEventListener('click',function(ev){
