@@ -14922,9 +14922,9 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
     :'<div class="card wb-allok"><b style="font-size:13px">自動批改的題目全對 🎉</b></div>';
   let rows=(d.gram||[]).length?'<h4 style="margin:16px 0 6px">請用語法完成下面的對話</h4>':'';
   (d.gram||[]).forEach(g=>{const v=(a.gram||{})[g.n]||'';
-    rows+=`<div class="srev-item"><div class="srev-word">${g.n}. A：${esc(g.a)}　<span class="tag">${esc(g.pattern||'')}</span></div>
-      <div class="srev-sent">${v?esc(v):'<span class="muted">（未作答）</span>'}</div>
-      ${g.ref?`<div class="hint" style="margin:2px 0 6px">參考答案：${esc(g.ref)}</div>`:''}
+    rows+=`<div class="srev-item wb-gq"><div class="srev-word">${g.n}. A：${esc(g.a)}　<span class="tag">${esc(g.pattern||'')}</span></div>
+      <div class="srev-sent${v?' wb-bsay':''}">${v?esc(String(v).replace(/^\s*[BＢ]\s*[：:]\s*/,'')):'<span class="muted">（未作答）</span>'}</div>
+      ${g.ref?`<div class="hint" style="margin:2px 0 6px">參考答案：B：${esc(String(g.ref).replace(/^\s*[BＢ]\s*[：:]\s*/,''))}</div>`:''}
       <textarea class="wbrev-fb" data-k="g${g.n}" rows="2" placeholder="建議">${esc(fb['g'+g.n]||'')}</textarea></div>`;});
   /* 完成對話／語法練習（填空題，老師批改） */
   [['dlg','四 完成對話','d'],['dlg2','六 語法練習','d2']].forEach(([sec,lab,pfx])=>{

@@ -227,6 +227,8 @@
     /* FOLDMARK_V1605 收起來那一行寫出實際的批改（✓ 或 ✗ 正解 c），不要一律寫「已批」 */
     try{var ta=item.querySelector('textarea');var v=ta?String(ta.value||'').trim().split('\n')[0]:'';
       if(v.length>60)v=v.slice(0,60)+'…';
+      /* BSAY_V1635 作業簿「完成對話」：收起來那一行是 B 的回答，前面補「B：」 */
+      if(on&&v&&item.classList.contains('wb-gq'))v=(function(x){var m=x.match(/^([✗✎✓]\s*)?([\s\S]*)$/);var a=m[1]||'',b=m[2]||'';if(!b||/^[BＢ]\s*[：:]/.test(b))return x;return a+'B：'+b;})(v);
       if(on&&v){item.setAttribute('data-mark',v);item.classList.toggle('gs-no',v.charAt(0)==='✗');item.classList.toggle('gs-fix',v.charAt(0)==='✎');}
       else{item.removeAttribute('data-mark');item.classList.remove('gs-no','gs-fix');}}catch(e){}
   }
