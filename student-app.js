@@ -6823,3 +6823,63 @@ H.fhSend=async(_,b)=>{
   if(ok){toast('✅ '+FHL('已送出給老師','已送出给老师','Sent to your teacher','Đã nộp cho cô'));renderFhw();}
   else if(b){b.disabled=false;b.textContent='📤 '+FHL('送出給老師','送出给老师','Send to teacher','Nộp cho cô');}};
 /* ══════ FREEHW_V1631 end ══════ */
+
+/* ══════ HWNOTIFY_V1634 學生交作業 → 寄信通知老師 ══════
+   Quinn：「學生如果送出作業給我，要幫我跳通知到手機或是信箱」。
+   官網報名通知本來就用 EmailJS（設定 › 官網內容 › 📧 有人報名時通知我），這裡用同一組設定，
+   範本用「自動回覆」那一個（它只有 subject／message 兩個欄位，通用），收件人是「收通知的 Email」。
+   手機裝 Gmail App 就會跳通知。
+   做法：不去改每一種作業的送出程式，而是在 DB 這一層看：寫進 results 的資料 status 變成
+   submitted（送出）／pending、done（課文練習做完），就寄一封。同一份作業 10 分鐘內只寄一次。
+   設定裡「學生交作業時通知我」填「關」就不寄。 */
+(function(){
+  if(!window.DB)return;
+  const SKIP={review:1,act:1,mistake:1,note:1,annot:1,wt:1,hanzi:1,leavereq:1,lqp:1};
+  const KL={undefined:'課文練習',wb:'作業簿',gprac:'語法練習',discussion:'問題與討論',sentence:'造句',shadow:'逐句跟讀',hwv:'手寫',fhw:'回家作業'};
+  let EJ=null;
+  function loadEJ(){if(EJ)return EJ;EJ=new Promise((res,rej)=>{if(window.emailjs){res();return;}
+    const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';
+    s.onload=res;s.onerror=()=>{EJ=null;rej();};document.head.appendChild(s);});return EJ;}
+  function titleOf(d){try{
+    const L=(id)=>{const l=(S.lessons||[]).find(x=>x&&x.id===id);return l?(typeof lesTitle==='function'?lesTitle(l):(l.title||'')):'';};
+    if(d.kind==='upload')return (d._area||'')+'（'+(d._up||1)+' 個檔案）';
+    if(d.kind==='fhw'){const t=(S.freeTasks||[]).find(x=>x&&x.id===d.fh_task);return (t&&t.title)||'';}
+    if(d.kind==='wb'){const w=(S.workbooks||[]).find(x=>x&&x.id===d.wb_lesson);return (w&&w.title)||'';}
+    return L(d.gprac_lesson||d.disc_lesson||d.sent_lesson||d.shadow_lesson||d.hwv_lesson||d.lesson_id)||'';}catch(e){return '';}}
+  async function notify(d){
+    try{
+      if(S.preview||S.tryMode||!S.me)return;
+      const site=S.site||{};
+      if(/^(關|关|off|no|0)$/i.test(String(site.hw_notify||'').trim()))return;
+      const pub=site.emailjs_public,svc=site.emailjs_service,tpl=site.emailjs_reply_template,to=site.notify_email;
+      if(!pub||!svc||!tpl||!to)return;
+      if(SKIP[d.kind])return;
+      const lid=String(d.lesson_id||'');if(lid==='__progress'||lid==='__review')return;
+      const st=d.status;if(!(st==='submitted'||st==='pending'||st==='done'))return;
+      const kind=KL[d.kind]||'作業';const title=titleOf(d);
+      const key='hwn_'+(d.kind||'les')+'_'+(d.fh_task||d.wb_lesson||d.gprac_lesson||d.disc_lesson||d.sent_lesson||d.shadow_lesson||d.hwv_lesson||lid);
+      try{const last=Number(localStorage.getItem(key)||0);if(Date.now()-last<600000)return;localStorage.setItem(key,String(Date.now()));}catch(e){}
+      const name=(S.me&&S.me.name)||'學生';
+      const tm=new Date().toLocaleString('zh-TW',{hour12:false});
+      await loadEJ();window.emailjs.init({publicKey:pub});
+      await window.emailjs.send(svc,tpl,{to_email:to,to_name:'老師',from_name:'QNA CHINESE 學生作業',
+        subject:'📥 '+name+' 交了'+kind+(title?('：'+title):''),
+        message:name+' 剛剛交了作業。\n\n種類：'+kind+(title?('\n內容：'+title):'')+'\n時間：'+tm
+          +'\n\n去批改：'+location.origin+'/teacher.html?tab=grades'});
+    }catch(e){/* 通知寄不出去不影響學生交作業 */}}
+  const _ins=DB.insert.bind(DB),_upd=DB.update.bind(DB),_ups=DB.upsertResult.bind(DB);
+  DB.insert=async function(table,obj){const r=await _ins(table,obj);
+    try{if(table==='results'&&obj)notify(Object.assign({},obj));
+      else if(table==='uploads'&&obj)notifyUp(obj);}catch(e){}return r;};
+  DB.update=async function(table,id,patch){const r=await _upd(table,id,patch);
+    try{if(table==='results'&&patch&&patch.status){const ex=[].concat(S.fhws||[],S.wbDocs||[],S.discussions||[],S.gpracs||[],S.sentences||[],S.shadows||[],S.hwvs||[],S.results||[]).find(x=>x&&x.id===id)||{};
+      notify(Object.assign({},ex,patch));}}catch(e){}return r;};
+  DB.upsertResult=async function(lesson_id,student_id,patch){const r=await _ups(lesson_id,student_id,patch);
+    try{if(patch&&patch.status)notify(Object.assign({lesson_id:lesson_id},patch));}catch(e){}return r;};
+  /* 檔案上傳區：一次送好幾個檔，只寄一封 */
+  let upT=null,upN=0,upArea='';
+  function notifyUp(o){upN++;upArea=o.area_name||upArea;clearTimeout(upT);upT=setTimeout(()=>{
+    const n=upN;upN=0;notify({kind:'upload',lesson_id:'__upload_'+(o.area_id||''),status:'submitted',_up:n,_area:upArea});},4000);}
+  KL.upload='上傳檔案';
+})();
+/* ══════ HWNOTIFY_V1634 end ══════ */
