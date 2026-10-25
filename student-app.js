@@ -1006,7 +1006,7 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
     const _keepPara=!_sh||String(a||'').trim()!=='';
     /* CLPARA_V1621 Quinn：「有幾百個句子，怎麼知道它在哪一段」。
        每一段收成一塊：標題寫「第 N 段」加這一段開頭幾個字，點了才展開這一段的句子。第一段預設打開。 */
-    const _pv=[...String(ln.orig||'').replace(/\s+/g,'')];const _pvt=_pv.slice(0,18).join('')+(_pv.length>18?'…':'');
+    const _pv=[...String(ln.orig||'').replace(/[{}\[\]]/g,'').replace(/\s+/g,'')];/* NOBRACE_V1625 段落預覽拿掉 {人名}[地名] 記號 */const _pvt=_pv.slice(0,18).join('')+(_pv.length>18?'…':'');
     const _paraOpen=(S.clParaOpen&&S.clParaOpen[l.id+'::'+qi]!=null)?S.clParaOpen[l.id+'::'+qi]:(qi===0);
     const _paraH=lines.length>1?`<summary class="cl-ph"><span class="cl-pn2">${LT({zh:'第 '+(qi+1)+' 段',cn:'第 '+(qi+1)+' 段',en:'Paragraph '+(qi+1),vi:'Đoạn '+(qi+1)})}</span><span class="cl-pv">${esc(_pvt)}</span></summary>`:'';
     return (lines.length>1?`<details class="cl-para" id="clp-${esc(l.id)}-${qi}" data-k="${esc(l.id+'::'+qi)}"${_paraOpen?' open':''}>${_paraH}`:'')+`<div class="cl-line${_sh?' cl-line-s':''}">
