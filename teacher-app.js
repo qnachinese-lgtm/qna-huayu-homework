@@ -243,6 +243,8 @@ function feeListStr(s){
   return [solo,grp].filter(Boolean).join('<br>');
 }
 function lessonFee(s,e){
+  /* FEEOVR_V1633 這一堂另外講好的價錢（例如試學價），有填就用它 */
+  if(e&&e.fee_override!=null&&e.fee_override!==''&&!isNaN(Number(e.fee_override)))return Number(e.fee_override);
   const ti=eIsGrp(s,e)?tierInfoOf(s):null;/* BOTH_V1485 一對一那幾堂不套團班的級距 */
   if(ti){const h=logHours(e);if(h!=null){const m=ti.tiers.find(x=>Math.abs(Number(x.h)-h)<0.01);if(m)return Number(m.amt);}}
   const _tu=eTuition(s,e);/* BOTH_V1485 */
