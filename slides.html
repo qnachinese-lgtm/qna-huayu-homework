@@ -23,6 +23,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
+<!-- CLPYFULL_V1 詞語解釋每個字都有拼音 -->
 <!-- CLPY2_V1 點兩下加拼音 -->
 <!-- CLPYADD_V1 上課中加拼音；RSEL_V1 選段落 -->
 <!-- CLNAME_V1 人名藍色直線、地名褐色雙線 -->
@@ -1239,7 +1240,7 @@ function render(){
     const big = isClL();/* RPARA_V1 只有文言文才一段一頁 */ if(big && ri === -1) ri = 0;
     const solo = big && ri >= 0;
     /* CLGLOSS_V1 文言文：每一段旁邊放這一段的詞語解釋 */
-    const isCl = isClL(), clGlBox = g => { const it = clGloss(String(g||"").replace(/⏎/g, "\n")); return it.length ? `<div class="clgl"><div class="clglh">詞語解釋</div>${it.map(x => x.term ? `<div class="clgi" data-t="${esc(x.term)}"><b>${esc(x.term)}</b>${x.py ? `<span class="clpy">${esc(x.py)}</span>` : ""}：${esc(x.body)}</div>` : `<div class="clgi">${esc(x.raw)}</div>`).join("")}</div>` : ""; };
+    const isCl = isClL(), clGlBox = g => { const it = clGloss(String(g||"").replace(/⏎/g, "\n")); return it.length ? `<div class="clgl"><div class="clglh">詞語解釋</div>${it.map(x => x.term ? `<div class="clgi" data-t="${esc(x.term)}"><b>${esc(x.term)}</b>${x.py ? `<span class="clpy">${esc(clPyFull(x))}</span>` : ""}：${esc(x.body)}</div>` : `<div class="clgi">${esc(x.raw)}</div>`).join("")}</div>` : ""; };
     /* CLRUBY_V1 詞語解釋裡有拼音的詞，在原文第一次出現的地方直接標讀音 */
 /* CLHL_V1 有解釋的詞用螢光筆標出來；讀音一個字一個音標在字上 */
     const clHan = c => /[\u3400-\u9fff\uf900-\ufaff]/.test(c);
@@ -2572,7 +2573,7 @@ async function clPySave(){ const L = LESSON, v = (L.clpy || []).slice(); render(
 /* CLPY2_V1 上課中加拼音（簡單版）：在原文的字上點兩下，拼音自動出來；多音字可以點選別的讀音 */
 let PPRO = null;
 const ppLoad = () => PPRO || (PPRO = new Promise((ok, no) => { if(window.pinyinPro) return ok(window.pinyinPro); const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.js"; s.onload = () => ok(window.pinyinPro); s.onerror = () => { PPRO = null; no(new Error("pinyin")); }; document.head.appendChild(s); }));
-if(!/[?&]join=/i.test(location.search)) setTimeout(() => { ppLoad().catch(() => {}); }, 2500);
+if(!/[?&]join=/i.test(location.search)) setTimeout(() => { ppLoad().then(() => { if(STEPS[step] && STEPS[step].key === "read" && isClL()) render(); }).catch(() => {}); }, 2500);
 function clPyBub(rb){ const k = +rb.dataset.pk, a = (LESSON.clpy || [])[k]; if(!a) return; let P = document.getElementById("clpyPop"); if(!P){ P = document.createElement("div"); P.id = "clpyPop"; document.body.appendChild(P); }
   let opts = []; try { opts = window.pinyinPro ? window.pinyinPro.pinyin(a.s, {multiple: true, type: "array"}) : []; } catch(e){} if(!opts.includes(a.py)) opts.unshift(a.py);
   P.innerHTML = `<span class="cpw">${esc(a.s)}</span>${opts.map(p => `<button type="button" data-cpy="${esc(p)}" class="btn${p === a.py ? "" : " ghost"}">${esc(p)}</button>`).join("")}<button type="button" data-cp="del" class="btn ghost">刪除</button>`;
@@ -2594,6 +2595,11 @@ document.addEventListener("dblclick", async e => { if(/[?&]join=/i.test(location
   const rb = document.querySelector(`ruby.clpyx[data-pk="${L.length - 1}"]`); if(rb && many.length > 1) clPyBub(rb); });
 document.addEventListener("click", e => { const P = document.getElementById("clpyPop"); const rb = e.target.closest("ruby.clpyx");
   if(rb){ e.stopPropagation(); clPyBub(rb); return; } if(P && !P.hidden && !e.target.closest("#clpyPop")) P.hidden = true; }, true);
+/* CLPYFULL_V1 詞語解釋：每個字的拼音都寫出來（後台有寫的字用後台的） */
+function clPyFull(x){ const py = String(x.py || "").trim(); if(!py) return ""; const cj = [...x.term].filter(c => /[\u3400-\u9fff\uf900-\ufaff]/.test(c)), sy = py.split(/[\s　、，,]+/).filter(Boolean);
+  if(!window.pinyinPro || sy.length >= cj.length) return py; let au = []; try { au = window.pinyinPro.pinyin(cj.join(""), {type: "array"}); } catch(e){ return py; } if(au.length !== cj.length) return py;
+  const st0 = (x.pyAt != null && x.pyAt >= 0) ? Math.max(0, x.pyAt - sy.length + 1) : 0, cap = /^[A-ZĀÁǍÀĒÉĚÈŌÓǑÒ]/.test(sy[0]);
+  return cj.map((c, h) => { let p = h >= st0 && h - st0 < sy.length ? sy[h - st0] : au[h]; if(cap) p = p.charAt(0).toUpperCase() + p.slice(1); return p; }).join(" "); }
 /* RSEL_V1 文言文：直接選要看哪一段 */
 document.addEventListener("change", e => { const s = e.target.closest && e.target.closest("[data-rsel]"); if(!s) return; ri = +s.value; render(); });
 /* TZOOM_V1 對話、短文頁：A− A＋ 放大縮小（記在這台電腦） */
