@@ -99,7 +99,7 @@
   function writeBack(i,sym,cmt){
     var f=fields()[i];if(!f)return;
     var k=kOf(f),fx=FIX[k];
-    var txt=((!isWb&&fx!=null&&fx!==origOf(f))?('改成：'+fx+(cmt?'\n':'')):'')+(cmt||'');
+    var txt=((!isWb&&fx!=null&&String(fx).trim()&&fx!==origOf(f))?('改成：'+fx+(cmt?'\n':'')):'')+(cmt||'');
     f.value=(sym?(sym+' '):'')+txt;
     try{f.dispatchEvent(new Event('input',{bubbles:true}));}catch(e){}
   }
@@ -107,7 +107,7 @@
 
   function sentHtml(i){
     var f=fields()[i];var o=origOf(f);if(o==null)return '';
-    var fx=FIX[kOf(f)];var shown=(fx!=null&&fx!==o)?diffHtml(o,fx):esc(o);
+    var fx=FIX[kOf(f)];var shown=(fx!=null&&String(fx).trim()&&fx!==o)?diffHtml(o,fx):esc(o);/* FIXOK_V1643 空的不算改 */
     return '<div class="gx-b">'+(bSay(f)?'<b class="gx-bl">B：</b>':'')+'<span class="gx-bt" id="gx-bt-'+i+'">'+shown+'</span>'
       +'<button type="button" class="gx-ed" data-gs="edit" data-i="'+i+'">✎ 改句子</button></div>'
       +'<div class="gx-fixbox" id="gx-fx-'+i+'" hidden><textarea class="gx-fxta" data-i="'+i+'" rows="2"></textarea>'
@@ -149,7 +149,7 @@
     [].slice.call(root.querySelectorAll('.gx-fxta')).forEach(function(t){
       t.addEventListener('input',function(){grow(t);var i=+t.getAttribute('data-i');var f=fields()[i];if(!f)return;
         FIX[kOf(f)]=t.value;fixDirty=true;var bt=document.getElementById('gx-bt-'+i);var o=origOf(f);
-        if(bt)bt.innerHTML=(t.value!==o)?diffHtml(o,t.value):esc(o);
+        if(bt)bt.innerHTML=(t.value.trim()&&t.value!==o)?diffHtml(o,t.value):esc(o);
         var st=rowState(i);writeBack(i,st.sym,st.cmt);soon();});});
     var o2=document.getElementById('gx-ov');
     if(o2){grow(o2);o2.addEventListener('input',function(){grow(o2);var x=ovEl();if(x){x.value=o2.value;try{x.dispatchEvent(new Event('input',{bubbles:true}));}catch(e){}soon();}});}
@@ -171,6 +171,10 @@
     var row=root.querySelector('[data-row="'+i+'"]');
     if(row){[].slice.call(row.querySelectorAll('.gx-st')).forEach(function(b){b.classList.toggle('on',b.getAttribute('data-s')===ns);});}
     if(ns==='✗')openFix(i,true);
+    /* FIXOK_V1643 Quinn：「我已經選『對』了，為什麼還會這樣？」——選 ✓ 就是學生寫對了，改過的句子一律收回 */
+    if(ns==='✓'){var f0=fields()[i];if(f0){var k0=kOf(f0);if(FIX[k0]!=null){FIX[k0]=null;fixDirty=true;writeBack(i,ns,st.cmt);}
+      var bt0=document.getElementById('gx-bt-'+i);if(bt0)bt0.textContent=origOf(f0)||'';
+      var bx0=document.getElementById('gx-fx-'+i);if(bx0)bx0.hidden=true;}}
     left();clearTimeout(tmr);save(false);
   }
   async function finish(){
