@@ -26390,25 +26390,39 @@ H.clHandoutSave=async(id,b)=>{const l=(S.classicals||[]).find(x=>x&&x.id===id);i
   try{await DB.update('lessons',id,{cl_tr:tr});l.cl_tr=tr;toast('翻譯已儲存');}
   catch(e){toast(writeErr('儲存失敗',e));}
   finally{if(b){b.disabled=false;b.textContent='💾 儲存翻譯';}}};
+/* HANDSAME_V1652 Quinn：「教師講義列印出來的方式，為什麼跟之前列印出來的不一樣」。
+   改成跟「📄 匯出講義」同一套外框：抬頭、課名／教材欄、頁尾、上方工具列（字體、繁簡）、存成 PDF 的檔名，
+   內容照樣是一句一條：原文、漢語拼音、詞語解釋、白話翻譯。 */
 H.clHandoutPrint=(id)=>{const l=(S.classicals||[]).find(x=>x&&x.id===id);if(!l)return;
   const cur=clHandoutCollect();const data=clHandoutData(Object.assign({},l,{cl_tr:Object.assign({},l.cl_tr||{},cur)}));
-  const e2=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+e2(l.title||'教師講義')+'</title><style>'
-    +'body{font-family:"Noto Serif TC","PMingLiU","Noto Sans TC",serif;color:#111;margin:18mm 16mm;line-height:1.7}'
-    +'h1{font-size:22px;margin:0 0 14px}.p{margin:0 0 8px}.ph{font-weight:700;font-size:15px;margin:16px 0 6px;border-bottom:1px solid #999;padding-bottom:2px}'
-    +'.s{display:flex;gap:10px;padding:8px 0;border-bottom:1px dashed #ccc;page-break-inside:avoid}.no{flex:none;width:26px;font-weight:700}'
-    +'.o{font-size:18px;font-weight:700}.py{font-family:"Times New Roman",serif;font-size:13px;color:#333;margin:1px 0 4px}'
-    +'.gl{font-size:13.5px;margin:2px 0 4px 0;padding-left:10px;border-left:2px solid #bbb}.tr{font-size:14.5px}.tr b{font-size:12px;color:#555;margin-right:6px}'
-    +'@media print{.bar{display:none}}.bar{position:fixed;top:8px;right:8px}</style></head><body>'
-    +'<div class="bar"><button onclick="print()" style="font-size:15px;padding:8px 14px">🖨 列印／存成 PDF</button></div>'
-    +'<h1>'+e2(l.title||'')+'</h1>'
-    +data.map(p=>'<div class="p"><div class="ph">第 '+(p.qi+1)+' 段</div>'+p.sents.map(x=>'<div class="s"><div class="no">'+x.no+'</div><div>'
-      +'<div class="o">'+e2(x.orig)+'</div><div class="py">'+e2(x.py)+'</div>'
-      +(x.gl.length?'<div class="gl">'+x.gl.map(g=>'<div>'+e2(g)+'</div>').join('')+'</div>':'')
-      +'<div class="tr"><b>白話</b>'+e2(x.tr)+'</div></div></div>').join('')+'</div>').join('')
-    +'</body></html>';
-  const w=window.open('','_blank');if(!w)return toast('瀏覽器擋住了新視窗，請允許彈出視窗再按一次');
-  w.document.open();w.document.write(html);w.document.close();};
+  const book=String(l.textbook||'文言文').trim()||'文言文',ttl=String(l.title||'').trim();
+  const _fn=fnm('講義',book,ttl,'教師講義',localToday());
+  const body='<div class="gh-les"><h2 class="gh-lt">'+esc(ttl||'（未命名）')+'</h2><div class="gh-gp">'
+    +data.map(p=>'<div class="gh-gt"><span class="gh-tag">第 '+(p.qi+1)+' 段</span></div><div class="gh-cl">'
+      +p.sents.map(x=>'<div class="gh-cli"><div class="gh-clo"><span class="gh-cn">'+(p.qi+1)+'-'+x.no+'</span>'+esc(x.orig)+'</div>'
+        +(x.py?('<div class="gh-clpy">'+esc(x.py)+'</div>'):'')
+        +(x.gl.length?('<div class="gh-cln">'+x.gl.map(g=>esc(g)).join('<br>')+'</div>'):'')
+        +(String(x.tr||'').trim()?('<div class="gh-clr"><b>白話</b>'+esc(x.tr)+'</div>'):'')
+        +'</div>').join('')+'</div>').join('')
+    +'</div></div>';
+  const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+esc(_fn)+'</title>'
+    +expHead(GHFONT)+'<style>'+fbCss()+ghCss()+expCss()
+    +'.gh-clpy{font-family:"Times New Roman",serif;font-size:12.5px;color:#3B4A5E;margin:1px 0 2px;letter-spacing:.2px}'
+    +'.gh-clr b{margin-right:6px}'
+    +'</style></head><body class="lang-zh">'
+    +'<div class="gh-run"><b>'+esc(window.APP_NAME||'QNA CHINESE')+'</b><span class="vi">Tiếng Trung Quyên Huỳnh</span>'
+    +'<span class="r">'+esc(book)+'　·　教師講義</span></div>'
+    +expBar(1,'<span class="exp-l">字</span><select id="zhs" class="exp-s"><option value="tw">繁體</option><option value="cn">簡體</option></select>',GHFONT)
+    +'<div class="page"><table class="gh-pgt"><tfoot><tr><td></td></tr></tfoot><tbody><tr><td>'
+    +fbHead(L2('華語教學 · 講義','Dạy tiếng Trung · Tài liệu'),L2('講義','Tài liệu'),'HANDOUT')
+    +'<div class="top">'
+    +'<div class="f"><span class="k">'+L2('課名','Bài')+'</span><span class="v">'+esc(ttl)+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('教材','Giáo trình')+'</span><span class="v">'+esc(book)+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('版本','Phiên bản')+'</span><span class="v">'+L2('教師講義（含拼音、註解、白話翻譯）','Bản giáo viên')+'</span></div>'
+    +'</div>'+body
+    +'<div class="foot">'+L2('開立時間 '+esc(nowStr())+'　·　'+esc(window.APP_NAME||'QNA CHINESE'),'Thời gian lập '+esc(nowStr())+'　·　'+esc(window.APP_NAME||'QNA CHINESE'),1)+'</div>'
+    +'</td></tr></tbody></table></div>'+expJs()+zhsJs()+ghBarJs()+'</body></html>';
+  fbWin(ghZh(html));};
 
 /* LOGINMSG_V1627 Quinn：「開通帳號了，想要複製訊息給她，告訴她帳號、密碼、網址」。
    密碼不會存在系統裡（看不到原本的），所以這裡讓她把當初設的密碼打進來，
