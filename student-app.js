@@ -6711,6 +6711,7 @@ document.addEventListener('toggle',function(e){const d=e.target;if(!d||!d.classL
    學生這裡可以打字、拍照上傳、錄音，作答存成 results 裡 kind:'fhw' 的一筆（一份作業一筆）。
    還沒送出之前會自動先存（status:'draft'）；按「送出給老師」才是 'submitted'，老師批完是 'reviewed'。
    照片放 Storage 的 uploads/<uid>/、錄音放 speech/，跟現有的檔案上傳、口說同一條路。 */
+function fhHas(t,m){return !Array.isArray(t&&t.modes)||!t.modes.length||t.modes.indexOf(m)>=0;}/* FHMODE_V1648 */
 function fhMine(){return (S.freeTasks||[]).filter(t=>t&&!t.deleted_at&&assignedToMe(t));}
 function fhDocOf(tid){return (S.fhws||[]).find(x=>x&&x.fh_task===tid)||null;}
 const FHL=(z,c,e,v)=>LT({zh:z,cn:c,en:e,vi:v});
@@ -6757,14 +6758,15 @@ function renderFhw(){
     +(t.due_date?('<div class="muted" style="margin:-6px 0 10px">📅 '+esc(L('截止','截止','Due','Hạn nộp'))+' '+esc(t.due_date)+'</div>'):'')
     +'<div class="fh-q">'+esc(String(t.prompt||'').trim()||fhDefPrompt())+'</div>'
     +fb+stLine
-    +'<div class="fh-sec"><div class="fh-h">✏️ '+esc(L('打字回答','打字回答','Type your answer','Gõ câu trả lời'))+'</div>'
-    +'<textarea id="fh-text" class="fh-ta" rows="6" placeholder="'+esc(L('在這裡寫你的答案…','在这里写你的答案…','Write your answer here…','Viết câu trả lời ở đây…'))+'">'+esc(FH.text)+'</textarea></div>'
-    +'<div class="fh-sec"><div class="fh-h">📷 '+esc(L('拍照上傳','拍照上传','Photos','Ảnh'))+(FH.photos.length?(' <span class="muted">'+FH.photos.length+'</span>'):'')+'</div>'
+    /* FHMODE_V1648 老師選的交法才出現（舊作業沒有 modes＝三種都有） */
+    +(fhHas(t,'text')?'<div class="fh-sec"><div class="fh-h">✏️ '+esc(L('打字回答','打字回答','Type your answer','Gõ câu trả lời'))+'</div>'
+    +'<textarea id="fh-text" class="fh-ta" rows="6" placeholder="'+esc(L('在這裡寫你的答案…','在这里写你的答案…','Write your answer here…','Viết câu trả lời ở đây…'))+'">'+esc(FH.text)+'</textarea></div>':'')
+    +(fhHas(t,'photo')?'<div class="fh-sec"><div class="fh-h">📷 '+esc(L('拍照上傳','拍照上传','Photos','Ảnh'))+(FH.photos.length?(' <span class="muted">'+FH.photos.length+'</span>'):'')+'</div>'
     +(ph?('<div class="fh-phs">'+ph+'</div>'):'')
-    +'<label class="btn fh-pick">📷 '+esc(L('拍照／選照片','拍照／选照片','Take / choose photos','Chụp / chọn ảnh'))+'<input id="fh-file" type="file" accept="image/*" multiple style="display:none"></label></div>'
-    +'<div class="fh-sec"><div class="fh-h">🎙 '+esc(L('錄音','录音','Voice recording','Ghi âm'))+(FH.audios.length?(' <span class="muted">'+FH.audios.length+'</span>'):'')+'</div>'
+    +'<label class="btn fh-pick">📷 '+esc(L('拍照／選照片','拍照／选照片','Take / choose photos','Chụp / chọn ảnh'))+'<input id="fh-file" type="file" accept="image/*" multiple style="display:none"></label></div>':'')
+    +(fhHas(t,'audio')?'<div class="fh-sec"><div class="fh-h">🎙 '+esc(L('錄音','录音','Voice recording','Ghi âm'))+(FH.audios.length?(' <span class="muted">'+FH.audios.length+'</span>'):'')+'</div>'
     +au
-    +'<button type="button" class="btn fh-rec'+(rec?' on':'')+'" data-act="fhRec">'+(rec?('⏹ '+esc(L('停止錄音','停止录音','Stop','Dừng'))):('🎙 '+esc(L('開始錄音','开始录音','Start recording','Bắt đầu ghi âm'))))+'</button></div>'
+    +'<button type="button" class="btn fh-rec'+(rec?' on':'')+'" data-act="fhRec">'+(rec?('⏹ '+esc(L('停止錄音','停止录音','Stop','Dừng'))):('🎙 '+esc(L('開始錄音','开始录音','Start recording','Bắt đầu ghi âm'))))+'</button></div>':'')
     +'<div class="fh-busy" id="fh-busy">'+(FH.busy?esc(L('上傳中…','上传中…','Uploading…','Đang tải lên…')):'')+'</div>'
     +'<button type="button" class="btn btn-primary fh-send" data-act="fhSend">📤 '+esc(sent?L('修改後再送出','修改后再送出','Send again','Gửi lại'):L('送出給老師','送出给老师','Send to teacher','Nộp cho cô'))+'</button>'
     +(sent?'':'<div class="hint" style="text-align:center;margin-top:6px">'+esc(L('還沒送出前會自動先存起來。','还没送出前会自动先存起来。','Your work is saved automatically until you send it.','Bài sẽ được tự lưu cho đến khi bạn nộp.'))+'</div>')

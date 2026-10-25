@@ -26449,12 +26449,19 @@ function fhCardHtml(){
     const who=lessonTargets(t).filter(hzLive);
     const done=who.filter(s=>{const d=fhDocFor(t.id,s);return d&&(d.status==='submitted'||d.status==='reviewed');}).length;
     const head='<div class="hint" style="margin-bottom:8px;white-space:pre-wrap">'+esc(String(t.prompt||'').trim()||'（沒有寫說明：學生看到的是「依照老師指定的作業，請回答」）')+'</div>';
+    const mm=(Array.isArray(t.modes)?t.modes:['text','photo','audio']).map(m=>({text:'✏️ 打字',photo:'📷 拍照',audio:'🎙 錄音'}[m]||'')).join('　');
     return hwItemHtml({ic:'📝',title:t.title||'回家作業',due:t.due_date,done:done,n:who.length,del:'fhDel',id:t.id,
-      body:head+(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')});
+      body:'<div style="display:flex;gap:10px;align-items:center;margin-bottom:6px"><span class="hint">學生可以用：'+mm+'</span><button class="btn btn-sm" data-act="fhEdit" data-id="'+esc(t.id)+'">✏️ 改</button></div>'+head+(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')});
   }).join('');
 }
-H.fhNew=(pre)=>{/* FHPLACE_V1632 從學生頁進來會先勾好那位學生 */
+/* FHMODE_V1648 Quinn：「我給學生不是一次全部給這三個功能」。每一份作業自己選學生能用哪幾種方式交（打字／拍照／錄音），
+   存在 modes；舊的作業沒有 modes＝三種都開。已經派出去的也可以按「✏️ 改」修改。 */
+let FH_EDIT=null;
+H.fhEdit=(id)=>{const t=(S.freeTasks||[]).find(x=>x.id===id);if(!t)return;FH_EDIT=t;fhForm('');};
+H.fhNew=(pre)=>{FH_EDIT=null;fhForm(pre);};
+function fhForm(pre){/* FHPLACE_V1632 從學生頁進來會先勾好那位學生 */
   try{closeModal();}catch(e){}
+  const T=FH_EDIT,tIds=(T&&T.assigned_ids)||[],tModes=(T&&Array.isArray(T.modes))?T.modes:(T?['text','photo','audio']:['text']);
   const live=(S.students||[]).filter(s=>s&&!s.deleted_at);
   const rank=(x)=>{if(x.is_test)return 1;const e=enrollOf(x);
     return e==='active'?0:(e==='trial'?2:(e==='reserved'?3:4));};
@@ -26462,21 +26469,22 @@ H.fhNew=(pre)=>{/* FHPLACE_V1632 從學生頁進來會先勾好那位學生 */
     const en=enrollOf(s),act=(en==='active'&&!s.is_test);
     const show=act||s.is_test;
     return '<label class="qzw-s"'+(show?'':' data-off="1"')+'>'
-      +'<input type="checkbox" class="fh-stu" value="'+esc(s.id)+'"'+(pre===s.id?' checked':'')+'>'
+      +'<input type="checkbox" class="fh-stu" value="'+esc(s.id)+'"'+((pre===s.id||tIds.indexOf(s.id)>=0)?' checked':'')+'>'
       +'<span>'+snm(s.name)+'</span>'
       +(s.is_test?'<i>🧪 測試</i>':(act?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[en]||'')+'）</i>'))
       +'</label>';}).join('');
   const offN=live.filter(s=>!(enrollOf(s)==='active'&&!s.is_test)&&!s.is_test).length;
   const d=new Date();d.setDate(d.getDate()+7);
   const def=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>📝 指派回家作業</h3><button class="x" data-act="closeModal">×</button></div>'
+  const mck=(v,lab)=>'<label style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-weight:600;cursor:pointer"><input type="checkbox" class="fh-mode" value="'+v+'" style="width:auto"'+(tModes.indexOf(v)>=0?' checked':'')+'>'+lab+'</label>';
+  openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>📝 '+(T?'修改回家作業':'指派回家作業')+'</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body">'
-   +'<div class="hint" style="margin-bottom:8px">學生會看到妳寫的說明，然後可以打字、拍照上傳、錄音回答。交了會進「批改・成績」。</div>'
-   +'<div class="field full"><label>作業說明 <span class="hint">可以不填，不填就顯示「依照老師指定的作業，請回答」</span></label>'
-   +'<textarea id="fh-prompt" rows="3" placeholder="例如：寫課本第 35 頁第二大題，寫完拍照上傳"></textarea></div>'
+   +'<div class="field full"><label>作業說明 <span class="hint">可以不填</span></label>'
+   +'<textarea id="fh-prompt" rows="3" placeholder="例如：寫課本第 35 頁第二大題">'+esc((T&&T.prompt)||'')+'</textarea></div>'
+   +'<div class="field full"><label>學生怎麼交</label><div style="padding:4px 0">'+mck('text','✏️ 打字')+mck('photo','📷 拍照')+mck('audio','🎙 錄音')+'</div></div>'
    +'<div class="form-grid">'
-   +'<div class="field"><label>截止日 <span class="hint">可以不填</span></label><input id="fh-due" type="date" value="'+def+'" min="2000-01-01" max="2100-12-31"></div>'
-   +'<div class="field"><label>作業名稱 <span class="hint">可以不填</span></label><input id="fh-title" placeholder="回家作業"></div>'
+   +'<div class="field"><label>截止日 <span class="hint">可以不填</span></label><input id="fh-due" type="date" value="'+esc(T?(T.due_date||''):def)+'" min="2000-01-01" max="2100-12-31"></div>'
+   +'<div class="field"><label>作業名稱 <span class="hint">可以不填</span></label><input id="fh-title" placeholder="回家作業" value="'+esc((T&&T.title)||'')+'"></div>'
    +'</div>'
    +'<div class="field full"><details class="pickdd" open data-pick="stu">'
    +'<summary>指派給誰 <span class="pick-sum"></span></summary><div class="pick-body">'
@@ -26486,17 +26494,22 @@ H.fhNew=(pre)=>{/* FHPLACE_V1632 從學生頁進來會先勾好那位學生 */
    +'<div class="qzw-stus off-hide">'+(checks||'<span class="muted">還沒有學生</span>')+'</div>'
    +'</div></details></div></div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
-   +'<button class="btn btn-primary" data-act="fhSave">📤 指派出去</button></div></div>');
+   +'<button class="btn btn-primary" data-act="fhSave">'+(T?'💾 儲存':'📤 指派出去')+'</button></div></div>');
   gtSums();
-};
+}
 H.fhSave=async()=>{
   const ids=[].slice.call(document.querySelectorAll('.fh-stu:checked')).map(c=>c.value);
   if(!ids.length)return toast('請至少選一位學生');
   const _v=(id)=>{const e=document.getElementById(id);return e?String(e.value||'').trim():'';};
   const title=_v('fh-title')||'回家作業',prompt=_v('fh-prompt'),due=_v('fh-due');
+  const modes=[].slice.call(document.querySelectorAll('.fh-mode:checked')).map(c=>c.value);
+  if(!modes.length)return toast('「學生怎麼交」至少勾一種');
   const btn=document.querySelector('[data-act="fhSave"]');if(btn){btn.disabled=true;btn.textContent='指派中…';}
   try{await ensureAuthFresh();
-    const row={kind:'freehw',title:title,prompt:prompt,due_date:due,assigned_ids:ids,created_at:new Date().toISOString()};
+    if(FH_EDIT){const patch={title:title,prompt:prompt,due_date:due,assigned_ids:ids,modes:modes};patch.read_uids=ruCalc(Object.assign({},FH_EDIT,patch));
+      await DB.update('lessons',FH_EDIT.id,patch);FH_EDIT=null;
+      await loadAll();closeModal();render();toast('已儲存');return;}
+    const row={kind:'freehw',title:title,prompt:prompt,modes:modes,due_date:due,assigned_ids:ids,created_at:new Date().toISOString()};
     row.read_uids=ruCalc(row);
     await DB.insert('lessons',row);
     await loadAll();closeModal();render();
