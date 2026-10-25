@@ -54,6 +54,10 @@
     st.textContent='textarea.gm-hide{display:none!important}'
       +'.srev-item .srev-sent.gs-live{text-decoration:none!important;opacity:1!important;background:#fff!important;outline:2px solid #1E4C86;outline-offset:3px;border-radius:6px;cursor:text}';
     (document.head||document.documentElement).appendChild(st);}catch(e){}})();
+  function stuOf(ta){/* GSIMPLE2_V1 學生寫的那一句 */
+    try{var it=(ta.closest&&ta.closest('.srev-item'))||ta.parentNode;var d=it&&it.querySelector('.srev-sent');
+      if(!d||d.querySelector('.muted'))return '';return String(d.textContent||'').trim();}catch(e){return '';}
+  }
   function leading(v){ var m=String(v||'').match(RE); return m?m[1]:''; }
   function strip(v){ return String(v||'').replace(RE,''); }
 
@@ -62,7 +66,7 @@
     var cur=leading(ta.value);
     /* GSIMPLE_V1 建議框只在需要打字的時候出現：✗（帶入參考答案）、已經有字、或沒有參考答案的題目還沒標 */
     try{var it=ta.closest?ta.closest('.srev-item'):null, txt=!!strip(ta.value).trim(), simple=!!(it&&it.classList.contains('gs-simple'));
-      var hide=!txt&&((cur==='✓')||(cur==='✎'&&simple)||(cur===''&&!!refOf(ta)));
+      var hide=!txt&&((cur==='✓')||(cur===''&&!!refOf(ta)));void simple;
       ta.classList.toggle('gm-hide',hide);}catch(e){}
     var bs=bar.querySelectorAll('button');
     for(var i=0;i<bs.length;i++)
@@ -74,8 +78,12 @@
     /* 再按一次同一顆＝取消標記 */
     /* GSIMPLE_V1 ✗＝自動帶入參考答案；換掉 ✗ 的時候，沒改過的參考答案一起拿掉 */
     var rf=refOf(ta);
+    /* GSIMPLE2_V1 ✎＝把學生的句子抄進建議框，老師在框裡改；學生原本寫的不動 */
+    var sv=stuOf(ta);
     if(cur==='✗'&&rf&&rest.trim()===rf)rest='';
+    if(cur==='✎'&&sv&&rest.trim()===sv)rest='';
     if(sym==='✗'&&cur!==sym&&!rest.trim()&&rf)rest=rf;
+    if(sym==='✎'&&cur!==sym&&!rest.trim()&&sv)rest=sv;
     ta.value=(cur===sym)?rest:(sym+' '+rest);
     paint(ta);
     /* 讓原本的程式知道內容變了（草稿、未存提示那些都是聽 input 的） */
