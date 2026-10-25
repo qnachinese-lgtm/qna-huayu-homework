@@ -13726,6 +13726,7 @@ function spCss(){
    +'.sp-mini:first-child{border-top:0}'
    +'.sp-mini .d{color:#607188;font-size:12px;white-space:nowrap}'
    +'.sp-mini .g{flex:1;min-width:0}'
+   +'.sp-lg{align-items:center}.sp-lg .d{width:120px;flex:none}.sp-lg .tm{width:96px;flex:none;color:#607188;font-size:12.5px;white-space:nowrap}.sp-lg .g{color:#3B4A5E}.sp-lg .st{flex:none;display:flex;gap:4px}.sp-lg .st .sp-pill{margin:0}'
    +'.sp-pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}'
    +'.sp-pill.lv{color:#8A6B1F;background:#EEF0F3}.sp-pill.ab{color:#A33227;background:#F8E7E4}'
    +'.sp-pill.fr{color:#1F6A54;background:#E1F0EA}.sp-pill.mk{color:#1E4C86;background:#E4EDF9}'
@@ -13902,8 +13903,11 @@ function spOverview(s,logs,fbs,fbSums,prog,sc,scOk,scTot){
 
   const recent=logs.slice(0,6).map(x=>{const e=x.e;
     const tm=(e.start||e.end)?((e.start||'')+(e.end?'–'+e.end:'')):'';
-    return '<div class="sp-mini"><span class="d">'+esc(e.date)+' '+esc(spWd(e.date))+'</span>'
-      +'<span class="g">'+spStatPill(e)+(e.free?'<span class="sp-pill fr">免費</span> ':'')+(e.note?esc(e.note):'<span style="color:#607188">'+(tm||'—')+'</span>')+'</span></div>';}).join('')
+    /* LOGROW_V1630 Quinn：「這裡排版不好看」。日期、時間、狀態各一欄對齊，缺席／請假放最右邊，備註接在時間後面 */
+    return '<div class="sp-mini sp-lg"><span class="d">'+esc(e.date)+' '+esc(spWd(e.date))+'</span>'
+      +'<span class="tm">'+(tm||'—')+'</span>'
+      +'<span class="g">'+(e.note?esc(e.note):'')+'</span>'
+      +'<span class="st">'+spStatPill(e)+(e.free?'<span class="sp-pill fr">免費</span>':'')+'</span></div>';}).join('')
     ||'<div class="sp-empty">還沒有上課記錄</div>';
 
   const fbRecent=fbs.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,4).map(f=>
