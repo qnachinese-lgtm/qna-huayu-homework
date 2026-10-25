@@ -272,9 +272,12 @@
     }
     /* GSBAR_V1624 Quinn：「這邊呈現好醜」。改成一條進度條：已批幾題／共幾題，批完變綠色打勾 */
     var pct=c.all?Math.round(c.done/c.all*100):0;
-    bar.querySelector('.gs-n').innerHTML=(c.left?'<span class="gs-lb">批改進度</span>':'<span class="gs-lb gs-ok">✓ 全部批好了</span>')
+    /* LOOPFIX_V1642 只有數字變了才重寫：本來每次都重寫，自己的改動又觸發自己，畫面一秒重畫上百次（會卡、會跳） */
+    var _h=(c.left?'<span class="gs-lb">批改進度</span>':'<span class="gs-lb gs-ok">✓ 全部批好了</span>')
       +'<span class="gs-tr"><i style="width:'+pct+'%"></i></span>'
       +'<span class="gs-ct"><b>'+c.done+'</b> / '+c.all+' 題</span>';
+    var _n=bar.querySelector('.gs-n');
+    if(_n&&_n.__h!==_h){_n.__h=_h;_n.innerHTML=_h;}
   }
 
   var AUTO=true;   /* 批完一題就自動收起來 */
