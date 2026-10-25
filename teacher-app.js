@@ -893,6 +893,11 @@ const CLASS_VIEW=null;
  const _c0=_q.get('class');
  if(_c0){S.clsId=_c0;if(!S.cvTab)S.cvTab='stu';S.tab='class';}
  const _t0=_q.get('tab');const _i0=_q.get('id')||'';
+ /* GWIN_V1637 Quinn：「批改可以變成一個獨立的視窗」。teacher.html?grade=種類::id
+    ＝只有批改的一個分頁：左邊選單、清單、上面那排全部藏起來，整頁就是那一份作答。 */
+ const _g0=_q.get('grade');
+ if(_g0&&/^[a-z]+::[\w-]+$/.test(_g0)){S.gwin=_g0;S.tab='grades';S.sgSel=_g0;S.sgSplit=true;S.sgOnly='all';
+   try{document.documentElement.classList.add('gwin');}catch(e){}}
  if(!_c0&&_t0&&/^[a-z]+$/.test(_t0)){
    /* QUIZBACK_V901 舊網址 ?tab=quiz 導到課堂活動的小考分頁 */
    if(_t0==='quiz'){S.tab='files';S.filesSub='quiz';}else
@@ -905,7 +910,7 @@ const CLASS_VIEW=null;
  /* 學生／班級頁沒帶 id 的話會是一片空白，退回總覽比較不會嚇到人 */
  if((S.tab==='student'&&!S.stuId)||(S.tab==='class'&&!S.clsId))S.tab='dashboard';
 }
-var TABURL_LOCK=false,TABURL_FIRST=true;
+var TABURL_LOCK=!!S.gwin,TABURL_FIRST=true;/* GWIN_V1637 批改分頁不改網址 */
 function tabUrlSync(){
   if(TABURL_LOCK)return;
   try{
@@ -1527,9 +1532,8 @@ function renderDashboard(){
   const _sgAct={gprac:'reviewGprac',disc:'reviewDisc',sent:'reviewSent',shadow:'reviewShadow',hwv:'reviewHwv',wb:'reviewWb',fhw:'reviewFhw'};
   const inbox=gradeQueue().filter(x=>x.pend).map(x=>{
     const m=SGKIND[x.kind]||{lab:'',ic:''};
-    const btn=(x.kind==='hw')
-      ?`<button class="btn btn-sm btn-accent" data-act="tab" data-id="grades">去批改</button>`
-      :`<button class="btn btn-sm btn-accent" data-act="${_sgAct[x.kind]}" data-id="${esc(String(x.id))}">批改</button>`;
+    /* GWIN_V1637 首頁的「批改」也是開批改分頁 */
+    const btn=`<button class="btn btn-sm btn-accent" data-act="gwinOpen" data-id="${esc(x.kind+'::'+String(x.id))}">批改</button>`;void _sgAct;
     return {test:!!x.test,tag:(m.ic?m.ic+' ':'')+m.lab,name:x.name,sub:x.les,extra:x.extra||'',btn:btn,ts:x.ts||''};
   });
   inbox.sort((a,b)=>String(a.ts||'').localeCompare(String(b.ts||'')));/* WAIT_V696 等最久的排最前面 */
@@ -9929,6 +9933,11 @@ function renderGrades(){
   if(S._sgAdvance){S._sgAdvance=false;sgAdvance();return;}
   const cur=list.find(x=>(x.kind+'::'+x.id)===S.sgSel);
   if(cur)sgOpen(cur);
+  else if(S.gwin){const p=document.getElementById('sg-pane');
+    /* GWIN_V1637 要開的那一份不在待批改清單裡（例如已經批完的）也照樣打開 */
+    const g=S.sgSel&&gradeQueue(true).find(x=>(x.kind+'::'+x.id)===S.sgSel);
+    if(g)sgOpen(g);
+    else if(p)p.innerHTML='<div class="sg-empty">🎉 全部批完了<br><span>可以關掉這個分頁</span></div>';}
   else{const p=document.getElementById('sg-pane');if(p)p.innerHTML='<div class="sg-empty">👈 左邊點一位學生開始批改<br><span>改完按「下一位」就會自動跳到下一份</span></div>';}
 }
 function renderGradesMatrix(){
@@ -11420,7 +11429,14 @@ H.guidePrint=()=>{
   fbWin(html);};
 
 H.sgPick=(key)=>{const list=sgVisible();const it=list.find(x=>(x.kind+'::'+x.id)===key);if(!it)return;
+  if(!S.gwin){gwinOpen(key);return;}/* GWIN_V1637 後台點一位 → 開批改分頁 */
   S.sgSel=key;renderGrades();};
+/* GWIN_V1637 同一個名字的分頁重複用：一直點不會開出一堆分頁 */
+function gwinOpen(key){
+  try{const w=window.open('teacher.html?grade='+encodeURIComponent(key),'qna-grade');
+    if(w){try{w.focus();}catch(e){}return;}}catch(e){}
+  S.sgSel=key;S.sgSplit=true;renderGrades();}
+H.gwinOpen=(key)=>gwinOpen(key);
 H.sgNext=()=>{const list=sgVisible();const i=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);if(i>=0&&i<list.length-1){S.sgSel=list[i+1].kind+'::'+list[i+1].id;renderGrades();}};
 H.sgPrev=()=>{const list=sgVisible();const i=list.findIndex(x=>(x.kind+'::'+x.id)===S.sgSel);if(i>0){S.sgSel=list[i-1].kind+'::'+list[i-1].id;renderGrades();}};
 /* DELTEST_V747 刪掉測試帳號的一筆作答。只處理測試帳號的資料，

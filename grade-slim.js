@@ -312,7 +312,8 @@
       if(ev.target&&ev.target.closest&&ev.target.closest('button'))return;
       item.classList.remove('gs-fold');
     });
-    if(AUTO&&done(item,ctx.scr.fb))fold(item,true);
+    /* GWIN_V1637 批改分頁：不收起來，每一題都攤開 */
+    if(AUTO&&!document.documentElement.classList.contains('gwin')&&done(item,ctx.scr.fb))fold(item,true);
   }
 
   /* FOOT_V1520 批改彈出視窗的存檔列貼在畫面底下。
