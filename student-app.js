@@ -42,7 +42,7 @@ Object.assign(I18N.en,{sentBtn:'✍️ Make sentences',sentTitle:'Vocabulary sen
 Object.assign(I18N.vi,{sentBtn:'✍️ Đặt câu',sentTitle:'Đặt câu với từ vựng',sentHint:'Đặt một câu cho mỗi từ, rồi gửi cho giáo viên',sentPh:'Đặt một câu với từ này…',sentSubmit:'Gửi cho giáo viên',sentResubmit:'Gửi lại',sentSubmitted:'Đã gửi, chờ giáo viên',sentReviewed:'Giáo viên đã chấm ✓',sentFb:'Nhận xét',sentOverall:'Nhận xét chung',sentWait:'Chưa chấm',sentPickLesson:'Hãy chọn một bài ở trên trước',sentEmpty:'Bài này chưa có từ vựng',sentSaved:'✓ Đã gửi',sentSaving:'Đang gửi…'});
 Object.assign(I18N.zh,{quizSec:'📝 隨堂小考',quizDefTitle:'隨堂聽寫小考',quizNotTaken:'未考',quizDone:'已完成',quizSaved:'分數已記錄給老師 ✓',quizWordUnit:'字',quizWriteHint:'寫出正確的中文字…',hwClear:'清除重寫',hwHint:'用手指或觸控筆直接寫在格子裡；寫完按下面的按鈕送出。',hwEmpty:'還沒有寫任何東西喔',hwSaving:'儲存中…',qzPendOne:'已送出，等老師批改',qzPendN:'題等老師批改',qzTeacherAudio:'老師的錄音',qmAudio:'聽老師的錄音寫下來',qmDict:'聽寫',qmPinyin:'看拼音寫字',qmMean:'看意思寫字',qmChoice:'看字選意思',qmCloze:'看例句填生詞',qmCustom:'自訂題目',exLabel:'例句'});
 Object.assign(I18N.en,{quizSec:'📝 Pop quiz',quizDefTitle:'Pop dictation quiz',quizNotTaken:'Not taken',quizDone:'Done',quizSaved:'Score saved for your teacher ✓',quizWordUnit:'words',quizWriteHint:'Type the correct Chinese…',hwClear:'Clear',hwHint:'Write with your finger or stylus, then submit below.',hwEmpty:'Nothing written yet',hwSaving:'Saving…',qzPendOne:'Sent — your teacher will grade this',qzPendN:'question(s) awaiting your teacher',qzTeacherAudio:'teacher audio',qmAudio:'Listen & write (teacher audio)',qmDict:'Dictation',qmPinyin:'Pinyin → char',qmMean:'Meaning → char',qmChoice:'Pick the meaning',qmCloze:'Fill word in sentence',qmCustom:'Custom questions',exLabel:'Examples'});
-Object.assign(I18N.vi,{quizSec:'📝 Kiểm tra nhanh',quizDefTitle:'Kiểm tra chính tả',quizNotTaken:'Chưa làm',quizDone:'Đã xong',quizSaved:'Đã lưu điểm cho giáo viên ✓',quizWordUnit:'từ',quizWriteHint:'Gõ chữ Hán đúng…',hwClear:'Xoá viết lại',hwHint:'Viết bằng ngón tay hoặc bút cảm ứng rồi nộp ở dưới.',hwEmpty:'Bạn chưa viết gì',hwSaving:'Đang lưu…',qzPendOne:'Đã nộp — chờ giáo viên chấm',qzPendN:'câu chờ giáo viên chấm',qzTeacherAudio:'giọng đọc của cô',qmAudio:'Nghe cô đọc rồi viết',qmDict:'Chính tả',qmPinyin:'Pinyin → chữ',qmMean:'Nghĩa → chữ',qmChoice:'Chọn nghĩa',qmCloze:'Điền từ vào câu',qmCustom:'Tự ra đề',exLabel:'Ví dụ'});
+Object.assign(I18N.vi,{quizSec:'📝 Kiểm tra nhanh',quizDefTitle:'Kiểm tra chính tả',quizNotTaken:'Chưa làm',quizDone:'Đã xong',quizSaved:'Đã lưu điểm cho giáo viên ✓',quizWordUnit:'từ',quizWriteHint:'Gõ chữ Hán đúng…',hwClear:'Xoá viết lại',hwHint:'Viết bằng ngón tay hoặc bút cảm ứng rồi nộp ở dưới.',hwEmpty:'Bạn chưa viết gì',hwSaving:'Đang lưu…',qzPendOne:'Đã nộp — chờ giáo viên chấm',qzPendN:'câu chờ giáo viên chấm',qzTeacherAudio:'giọng đọc của giáo viên',qmAudio:'Nghe giáo viên đọc rồi viết',qmDict:'Chính tả',qmPinyin:'Pinyin → chữ',qmMean:'Nghĩa → chữ',qmChoice:'Chọn nghĩa',qmCloze:'Điền từ vào câu',qmCustom:'Tự ra đề',exLabel:'Ví dụ'});
 Object.assign(I18N.zh,{refShow:'看課文',refHide:'收起課文',discTitle:'問題與討論',discPh:'可以打字回答（選填）…',discSubmit:'送出答案給老師',discResubmit:'重新送出',discRecall:'↩ 撤回',discRecalled:'已撤回，可以繼續修改後再送出',draftSaved:'✓ 已自動儲存，下次打開會保留',myNotes:'我的筆記',nTypeTab:'⌨️ 打字',nDrawTab:'✍️ 手寫',nSave:'💾 儲存',nSaveInk:'💾 儲存手寫',nClear:'清除',nHandHint:'用手指或觸控筆寫',nPh:'在這裡寫筆記，會自動儲存…',nDownWord:'下載 Word 檔',tgDlg:'💬 對話',tgVocab:'📇 生詞',tgGram:'📐 語法',tgWork:'✍️ 作業',tgQ:'題',tgHandout:'📄 講義',tgDone:'✓ 已完成',learnProg:'📊 學習進度',lessonsDone:'課作業完成',fbGave1:'💬 老師給了你',fbGave2:'則回饋，點這裡看 →',discSubmitted:'已送出，等待老師批改',discReviewed:'老師已批改 ✓',discOverall:'老師整體評語',discEmpty:'還沒有作答內容',discSaved:'✓ 已送出給老師',submittedAt:'送出時間',submittedWork:'已送出的作業',swWaiting:'待老師批改',swReviewed:'老師已批改',swFb:'老師有給評語',swOverall:'老師整體評語',swRecall:'撤回這份作業（改一改再送）',swRecallHint:'撤回後可以修改答案，再重新送出給老師',swRecallConfirm:'老師已經批改過了。撤回後會回到「作答中」，你可以修改後重送。老師的評語會保留。要撤回嗎？',swNone:'還沒有送出任何作業'});
 Object.assign(I18N.en,{refShow:'Show text',refHide:'Hide text',discTitle:'Questions & Discussion',discPh:'You may type an answer (optional)…',discSubmit:'Submit answers to teacher',discResubmit:'Resubmit',discRecall:'↩ Withdraw',discRecalled:'Withdrawn — you can edit and resubmit',draftSaved:'✓ Saved automatically',myNotes:'My notes',nTypeTab:'⌨️ Type',nDrawTab:'✍️ Draw',nSave:'💾 Save',nSaveInk:'💾 Save',nClear:'Clear',nHandHint:'Write with finger or stylus',nPh:'Write your notes here — saved automatically…',nDownWord:'Download Word',tgDlg:'💬 Dialogue',tgVocab:'📇 Vocab',tgGram:'📐 Grammar',tgWork:'✍️ Homework',tgQ:'q',tgHandout:'📄 Handout',tgDone:'✓ Done',learnProg:'📊 Progress',lessonsDone:'lessons done',fbGave1:'💬 Teacher left you',fbGave2:'feedback — tap to see →',discSubmitted:'Submitted, waiting for teacher',discReviewed:'Teacher reviewed ✓',discOverall:'Overall comment',discEmpty:'Nothing answered yet',discSaved:'✓ Submitted',submittedAt:'Submitted at',submittedWork:'Submitted homework',swWaiting:'Awaiting review',swReviewed:'Reviewed',swFb:'Teacher left comments',swOverall:'Overall comment',swRecall:'Withdraw this work (edit & resend)',swRecallHint:'After withdrawing you can edit your answers and submit again',swRecallConfirm:'Your teacher already reviewed this. Withdrawing returns it to draft so you can edit and resend. The teacher\'s comments are kept. Withdraw?',swNone:'No homework submitted yet'});
 Object.assign(I18N.vi,{refShow:'Xem bài đọc',refHide:'Ẩn bài đọc',discTitle:'Câu hỏi & Thảo luận',discPh:'Bạn có thể gõ câu trả lời (không bắt buộc)…',discSubmit:'Gửi câu trả lời cho giáo viên',discResubmit:'Gửi lại',discRecall:'↩ Thu hồi',discRecalled:'Đã thu hồi — có thể sửa và nộp lại',draftSaved:'✓ Đã tự động lưu',myNotes:'Ghi chú của tôi',nTypeTab:'⌨️ Gõ chữ',nDrawTab:'✍️ Viết tay',nSave:'💾 Lưu',nSaveInk:'💾 Lưu chữ viết',nClear:'Xoá',nHandHint:'Viết bằng ngón tay hoặc bút cảm ứng',nPh:'Viết ghi chú ở đây — tự động lưu…',nDownWord:'Tải file Word',tgDlg:'💬 Hội thoại',tgVocab:'📇 Từ vựng',tgGram:'📐 Ngữ pháp',tgWork:'✍️ Bài tập',tgQ:'câu',tgHandout:'📄 Tài liệu',tgDone:'✓ Đã xong',learnProg:'📊 Tiến độ học',lessonsDone:'bài đã xong',fbGave1:'💬 Giáo viên đã để lại',fbGave2:'phản hồi cho bạn, bấm để xem →',discSubmitted:'Đã gửi, chờ giáo viên',discReviewed:'Giáo viên đã chấm ✓',discOverall:'Nhận xét chung',discEmpty:'Chưa có câu trả lời',discSaved:'✓ Đã gửi',submittedAt:'Thời gian nộp',submittedWork:'Bài đã nộp',swWaiting:'Chờ giáo viên chấm',swReviewed:'Đã chấm',swFb:'Có nhận xét',swOverall:'Nhận xét chung của giáo viên',swRecall:'Thu hồi bài này (sửa rồi gửi lại)',swRecallHint:'Sau khi thu hồi bạn có thể sửa câu trả lời rồi gửi lại',swRecallConfirm:'Giáo viên đã chấm bài này. Thu hồi sẽ đưa về bản nháp để bạn sửa và gửi lại. Nhận xét của giáo viên vẫn được giữ. Thu hồi chứ?',swNone:'Chưa nộp bài nào'});
@@ -351,7 +351,7 @@ function renderLiveQuiz(){
     $('#screen').innerHTML=`<div class="card" style="text-align:center;padding:30px">
       <div style="font-size:44px">✅</div>
       <h3 style="margin:10px 0">${L({zh:'已經送出給老師了',cn:'已经送出给老师了',en:'Sent to your teacher',vi:'Đã nộp cho giáo viên'})}</h3>
-      <div class="hint">${L({zh:'老師看過之後會給你回饋，先休息一下。',cn:'老师看过之后会给你回馈，先休息一下。',en:'Your teacher will review it and give feedback.',vi:'Cô sẽ xem và nhận xét sau.'})}</div>
+      <div class="hint">${L({zh:'老師看過之後會給你回饋，先休息一下。',cn:'老师看过之后会给你回馈，先休息一下。',en:'Your teacher will review it and give feedback.',vi:'Giáo viên sẽ xem và nhận xét sau.'})}</div>
       <button class="btn btn-primary" style="margin-top:16px" data-act="liveExit">${L({zh:'回作業頁',cn:'回作业页',en:'Back',vi:'Quay lại'})}</button></div>`;
     return;}
   const rows=q.list.map((it,i)=>{
@@ -362,9 +362,9 @@ function renderLiveQuiz(){
     return `<div class="lq-item"><div class="lq-n">${esc(it.qtext)}</div>${box}</div>`;});
   $('#screen').innerHTML=`<button class="btn btn-sm btn-ghost" data-act="liveExit">${t('back')}</button>
     <div class="section-head" style="margin-top:12px"><h2>📝 ${esc(q.title)}</h2><span class="muted">${q.list.length} ${L({zh:'題',cn:'题',en:'items',vi:'câu'})}</span></div>
-    <div class="card"><div class="hint" style="margin-bottom:12px;font-size:14.5px">${L({zh:'聽老師唸，一句一句寫。五句都寫完再按最下面的「送出給老師」。中途可以回去改。',cn:'听老师念，一句一句写。五句都写完再按最下面的「送出给老师」。中途可以回去改。',en:'Listen and type each sentence. Submit once when all are done.',vi:'Nghe cô đọc và gõ từng câu. Viết xong hết rồi mới nộp.'})}</div>
+    <div class="card"><div class="hint" style="margin-bottom:12px;font-size:14.5px">${L({zh:'聽老師唸，一句一句寫。五句都寫完再按最下面的「送出給老師」。中途可以回去改。',cn:'听老师念，一句一句写。五句都写完再按最下面的「送出给老师」。中途可以回去改。',en:'Listen and type each sentence. Submit once when all are done.',vi:'Nghe giáo viên đọc và gõ từng câu. Viết xong hết rồi mới nộp.'})}</div>
       ${rows.join('')}
-      <div style="margin-top:18px;text-align:right"><button class="btn btn-primary" style="padding:12px 26px;font-size:16px" data-act="liveSubmit">${L({zh:'送出給老師',cn:'送出给老师',en:'Submit to teacher',vi:'Nộp cho cô'})}</button></div>
+      <div style="margin-top:18px;text-align:right"><button class="btn btn-primary" style="padding:12px 26px;font-size:16px" data-act="liveSubmit">${L({zh:'送出給老師',cn:'送出给老师',en:'Submit to teacher',vi:'Nộp cho giáo viên'})}</button></div>
       <div id="lq-msg" class="hint" style="margin-top:8px;text-align:right"></div></div>`;
   if(q.hand){try{setupCanvases();}catch(e){}}
   else{const a=document.getElementById('lq-in-0');if(a)setTimeout(()=>a.focus(),80);}
@@ -377,7 +377,7 @@ function renderDictation(){const dd=S.dict,v=dd.list[dd.idx];const mode=dd.mode|
     :mode==='audio'?`<audio id="qz-aud" preload="auto" src="${esc(v.audioUrl||'')}"></audio><button class="btn btn-primary" style="font-size:16px;padding:11px 22px" data-act="qzAudReplay">🔊 ${t('dictReplay')}</button>`
     :mode==='pinyin'?`<div class="quiz-prompt">${esc(v.py||'')||annotate(v.front)}</div>`
     :mode==='cloze'?`<div class="quiz-prompt cloze">${esc(clozeSentence(v))}</div>`
-    :mode==='live'?`<div class="quiz-prompt cloze" style="font-size:26px">${esc(v.qtext||'')}</div><div class="hint" style="margin-top:6px">${esc(wbL({zh:'聽老師唸，聽完把整句寫下來。',cn:'听老师念，听完把整句写下来。',en:'Listen to your teacher and type the whole sentence.',vi:'Nghe cô đọc rồi gõ lại cả câu.'}))}</div>`
+    :mode==='live'?`<div class="quiz-prompt cloze" style="font-size:26px">${esc(v.qtext||'')}</div><div class="hint" style="margin-top:6px">${esc(wbL({zh:'聽老師唸，聽完把整句寫下來。',cn:'听老师念，听完把整句写下来。',en:'Listen to your teacher and type the whole sentence.',vi:'Nghe giáo viên đọc rồi gõ lại cả câu.'}))}</div>`
     :mode==='custom'?`<div class="quiz-prompt cloze">${esc(v.qtext||'')}</div>`
     :`<div class="quiz-prompt">${esc(v.back||'')}</div>`;
   $('#screen').innerHTML=`<button class="btn btn-sm btn-ghost" data-act="back">${t('back')}</button>
@@ -463,7 +463,7 @@ function fixHtml(doc,key,orig){
   if(fx==null||String(fx).trim()===''||String(fx)===String(orig||'').trim())return '';
   const ok=/^\s*✓/.test(String((doc.feedback||{})[key]||''));
   if(ok)return '<div class="wb-fix ok"><div class="wb-fix-l">👍 '+esc(LT({zh:'也可以這樣說',cn:'也可以这样说',en:'You could also say',vi:'Cũng có thể nói'}))/* ALSO_V1646 */+'</div><div class="wb-fix-t">'+esc(fx)+'</div></div>';
-  return '<div class="wb-fix"><div class="wb-fix-l">✍️ '+esc(LT({zh:'老師的修改',cn:'老师的修改',en:"Teacher's correction",vi:'Cô sửa'}))+'</div><div class="wb-fix-t">'+fixDiffHtml(String(orig||'').trim(),fx)+'</div></div>';}
+  return '<div class="wb-fix"><div class="wb-fix-l">✍️ '+esc(LT({zh:'老師的修改',cn:'老师的修改',en:"Teacher's correction",vi:'Giáo viên sửa'}))+'</div><div class="wb-fix-t">'+fixDiffHtml(String(orig||'').trim(),fx)+'</div></div>';}
 
 function renderSentence(){
   const dd=S.sent,doc=dd.doc;const fb=(doc&&doc.feedback)||{};
@@ -546,7 +546,7 @@ function vocabBlockHtml(l,di,vocab,chips){
          所以她在生詞那邊找不到。這裡補上入口，開的是同一個手寫區、同一份紀錄
          （送出過的會顯示 📤，老師看過的顯示 ✅），不是另外做一套。 */
       +`<div class="vtab-c vt-act">${hasEx?`<button type="button" class="vex-btn" data-act="vexTog" data-id="${exId}">📝 ${t('exLabel')}（${v.ex.length}）</button>`:''}`
-        +`<button type="button" class="vex-btn vhw-btn" data-act="hwrite" data-text="${esc(v.front)}" data-lesson="${esc(l.id)}" title="${esc(LT({zh:'在米字格裡手寫這個詞，可以看筆順，寫完可以送給老師看',cn:'在米字格里手写这个词，可以看笔顺，写完可以送给老师看',en:'Write this word in the grid, with stroke order; you can send it to your teacher',vi:'Viết từ này trong ô kẻ, có thứ tự nét; viết xong có thể gửi cho cô'}))}">✍️</button>`
+        +`<button type="button" class="vex-btn vhw-btn" data-act="hwrite" data-text="${esc(v.front)}" data-lesson="${esc(l.id)}" title="${esc(LT({zh:'在米字格裡手寫這個詞，可以看筆順，寫完可以送給老師看',cn:'在米字格里手写这个词，可以看笔顺，写完可以送给老师看',en:'Write this word in the grid, with stroke order; you can send it to your teacher',vi:'Viết từ này trong ô kẻ, có thứ tự nét; viết xong có thể gửi cho giáo viên'}))}">✍️</button>`
       +`</div>`
       +(hasEx?`<div class="vtab-ex hide" id="${exId}">${v.ex.map(x=>`<div class="ex-item">${exDlg(x)}</div>`).join('')}</div>`:'');
   });
@@ -646,9 +646,9 @@ function actCardHtml(l,a,i){
               en:'Skipping is fine — this is not graded.',vi:'Không viết cũng không sao — phần này không tính điểm.'}))
      +'" oninput="H.actDraft(\''+esc(lid)+'\','+i+')">'+esc(val)+'</textarea>'
      +'<div class="act-f"><span class="act-st" id="act-st-'+esc(lid)+'-'+i+'">'
-     +(sent?('✓ '+esc(LT({zh:'已送給老師看',cn:'已送给老师看',en:'Sent to teacher',vi:'Đã gửi cho cô'}))):'')+'</span>'
+     +(sent?('✓ '+esc(LT({zh:'已送給老師看',cn:'已送给老师看',en:'Sent to teacher',vi:'Đã gửi cho giáo viên'}))):'')+'</span>'
      +'<button class="btn btn-sm btn-accent" data-act="actSubmit" data-id="'+esc(lid)+'::'+i+'">📤 '
-     +esc(LT({zh:'送給老師看',cn:'送给老师看',en:'Send to teacher',vi:'Gửi cho cô'}))+'</button></div></details>'):'';
+     +esc(LT({zh:'送給老師看',cn:'送给老师看',en:'Send to teacher',vi:'Gửi cho giáo viên'}))+'</button></div></details>'):'';
   return '<div class="act-card">'
     +'<div class="act-h">'+(a.no?('<span class="act-no">'+esc(a.no)+'</span>'):'')
     +'<b>'+esc(a.title||LT({zh:'活動',cn:'活动',en:'Activity',vi:'Hoạt động'}))+'</b></div>'
@@ -1560,11 +1560,11 @@ function slqBox(){var b=document.getElementById('slq');if(!b){b=document.createE
 SLQ.join=async function(){
   /* SLQVI_V1302 這幾句越南學生也會看到，改成跟著語言走 */
   if(S.preview){alert(LT({zh:'預覽模式無法加入比賽。',cn:'预览模式无法加入比赛。',en:'You cannot join a live quiz in preview mode.',vi:'Chế độ xem thử không tham gia được cuộc thi.'}));return;}
-  var code=(prompt(LT({zh:'輸入老師給的比賽代碼：',cn:'输入老师给的比赛代码：',en:'Enter the quiz code from your teacher:',vi:'Nhập mã cuộc thi cô giáo cho:'}))||'').trim();
+  var code=(prompt(LT({zh:'輸入老師給的比賽代碼：',cn:'输入老师给的比赛代码：',en:'Enter the quiz code from your teacher:',vi:'Nhập mã cuộc thi giáo viên cho:'}))||'').trim();
   if(!/^\d{4,8}$/.test(code)){if(code)alert(LT({zh:'代碼格式不對（應為數字）。',cn:'代码格式不对（应为数字）。',en:'That code is not valid — it should be digits only.',vi:'Mã không đúng định dạng (chỉ gồm chữ số).'}));return;}
   try{
     var snap=await slqFS().collection('lessons').where('code','==',code).where('kind','==','livesession').limit(1).get();
-    if(snap.empty){alert(LT({zh:'找不到這個代碼的比賽，請確認老師已建立。',cn:'找不到这个代码的比赛，请确认老师已建立。',en:'No quiz found with that code — check that your teacher has started it.',vi:'Không tìm thấy cuộc thi với mã này — hãy kiểm tra xem cô giáo đã tạo chưa.'}));return;}
+    if(snap.empty){alert(LT({zh:'找不到這個代碼的比賽，請確認老師已建立。',cn:'找不到这个代码的比赛，请确认老师已建立。',en:'No quiz found with that code — check that your teacher has started it.',vi:'Không tìm thấy cuộc thi với mã này — hãy kiểm tra xem giáo viên đã tạo chưa.'}));return;}
     var doc=snap.docs[0];SLQ.id=doc.id;SLQ.code=code;SLQ.answered={};
     var name=(S.me&&S.me.name)||'學生';var uid=myUid()||('g'+Math.random().toString(16).slice(2));
     SLQ.playId=code+'_'+uid;
@@ -1588,20 +1588,20 @@ function slqRender(){
   var close='<div style="text-align:right;padding:10px 16px"><button onclick="SLQ.close()" style="background:#ffffff22;color:#fff;border:0;border-radius:8px;padding:6px 12px;cursor:pointer">✕ '+LT({zh:'離開',cn:'离开',en:'Leave',vi:'Thoát'})+'</button></div>';
   if(!s){b.innerHTML=close+'<div style="text-align:center;padding:40px">'+LT({zh:'比賽已結束或找不到。',cn:'比赛已结束或找不到。',en:'This game has ended or cannot be found.',vi:'Cuộc thi đã kết thúc hoặc không tìm thấy.'})+'</div>';return;}
   var body='';
-  if(s.status==='lobby'){body='<div style="text-align:center;padding:44px"><div style="font-size:48px;margin-bottom:10px">🎮</div><div style="font-size:22px;font-weight:700">'+LT({zh:'已加入！',cn:'已加入！',en:'You are in!',vi:'Đã vào phòng!'})+'</div><div style="opacity:.75;margin-top:8px">'+LT({zh:'代碼',cn:'代码',en:'Code',vi:'Mã'})+' '+esc(s.code||'')+'　·　'+LT({zh:'等老師開始…',cn:'等老师开始…',en:'waiting for the teacher to start…',vi:'đang chờ cô giáo bắt đầu…'})+'</div></div>';}
+  if(s.status==='lobby'){body='<div style="text-align:center;padding:44px"><div style="font-size:48px;margin-bottom:10px">🎮</div><div style="font-size:22px;font-weight:700">'+LT({zh:'已加入！',cn:'已加入！',en:'You are in!',vi:'Đã vào phòng!'})+'</div><div style="opacity:.75;margin-top:8px">'+LT({zh:'代碼',cn:'代码',en:'Code',vi:'Mã'})+' '+esc(s.code||'')+'　·　'+LT({zh:'等老師開始…',cn:'等老师开始…',en:'waiting for the teacher to start…',vi:'đang chờ giáo viên bắt đầu…'})+'</div></div>';}
   else if(s.status==='q'||s.status==='reveal'){
     var q=s.q||{};var qi=s.qi;var my=SLQ.answered[qi];var rev=s.status==='reveal';var correct=s.reveal;
     if(!rev){
       if(my==null){var tl=(s.time_limit||20);var remain=Math.max(0,tl-(Date.now()-(s.q_start||Date.now()))/1000);
-        if(remain<=0){body='<div style="text-align:center;padding:50px"><div style="font-size:44px">⏰</div><div style="font-size:22px;font-weight:700;margin-top:10px">'+LT({zh:'時間到！',cn:'时间到！',en:'Time is up!',vi:'Hết giờ!'})+'</div><div style="opacity:.7;margin-top:6px">'+LT({zh:'等老師公布答案…',cn:'等老师公布答案…',en:'waiting for the answer…',vi:'đang chờ cô giáo công bố đáp án…'})+'</div></div>';}
+        if(remain<=0){body='<div style="text-align:center;padding:50px"><div style="font-size:44px">⏰</div><div style="font-size:22px;font-weight:700;margin-top:10px">'+LT({zh:'時間到！',cn:'时间到！',en:'Time is up!',vi:'Hết giờ!'})+'</div><div style="opacity:.7;margin-top:6px">'+LT({zh:'等老師公布答案…',cn:'等老师公布答案…',en:'waiting for the answer…',vi:'đang chờ giáo viên công bố đáp án…'})+'</div></div>';}
         else{SLQ._tmr=setInterval(slqRender,250);body='<div style="padding:16px;max-width:700px;margin:0 auto"><div style="display:flex;justify-content:space-between;align-items:center"><span style="opacity:.7">'+LT({zh:'第 '+(qi+1)+' 題',cn:'第 '+(qi+1)+' 题',en:'Question '+(qi+1),vi:'Câu '+(qi+1)})+'</span><span style="font-weight:800;color:#ffd166;font-size:24px">⏱ '+Math.ceil(remain)+'</span></div><div style="font-size:22px;font-weight:700;margin:14px 0;white-space:pre-line;line-height:1.5">'+esc(q.t||'')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+(q.opts||[]).map(function(o,i){return '<button onclick="SLQ.answer('+i+')" style="background:'+C[i]+';color:#fff;border:0;padding:22px;border-radius:12px;font-size:20px;font-weight:700;cursor:pointer">'+SH[i]+' '+esc(o)+'</button>';}).join('')+'</div></div>';}}
-      else{body='<div style="text-align:center;padding:50px"><div style="font-size:44px">'+SH[my]+'</div><div style="font-size:22px;font-weight:700;margin-top:10px">'+LT({zh:'已作答！',cn:'已作答！',en:'Answer sent!',vi:'Đã trả lời!'})+'</div><div style="opacity:.7;margin-top:6px">'+LT({zh:'等其他人和老師…',cn:'等其他人和老师…',en:'waiting for the others…',vi:'đang chờ các bạn khác và cô giáo…'})+'</div></div>';}
+      else{body='<div style="text-align:center;padding:50px"><div style="font-size:44px">'+SH[my]+'</div><div style="font-size:22px;font-weight:700;margin-top:10px">'+LT({zh:'已作答！',cn:'已作答！',en:'Answer sent!',vi:'Đã trả lời!'})+'</div><div style="opacity:.7;margin-top:6px">'+LT({zh:'等其他人和老師…',cn:'等其他人和老师…',en:'waiting for the others…',vi:'đang chờ các bạn khác và giáo viên…'})+'</div></div>';}
     } else {
       var ok=(my!=null&&my===correct);
       body='<div style="text-align:center;padding:40px"><div style="font-size:56px">'+(ok?'🎉':(my==null?'⏰':'😅'))+'</div><div style="font-size:24px;font-weight:800;margin-top:10px">'+(ok?LT({zh:'答對了！',cn:'答对了！',en:'Correct!',vi:'Chính xác!'}):(my==null?LT({zh:'沒作答',cn:'没作答',en:'No answer',vi:'Chưa trả lời'}):LT({zh:'答錯了',cn:'答错了',en:'Not quite',vi:'Chưa đúng'})))+'</div><div style="margin-top:14px;opacity:.9">'+LT({zh:'正確答案：',cn:'正确答案：',en:'Correct answer: ',vi:'Đáp án đúng: '})+''+SH[correct]+' '+esc((q.opts||[])[correct]||'')+'</div></div>';
     }
   } else if(s.status==='end'){
-    body='<div style="text-align:center;padding:50px"><div style="font-size:48px">🏆</div><div style="font-size:24px;font-weight:800;margin-top:10px">'+LT({zh:'比賽結束！',cn:'比赛结束！',en:'Game over!',vi:'Kết thúc!'})+'</div><div style="opacity:.75;margin-top:8px">'+LT({zh:'看老師畫面的最終排名 😊',cn:'看老师画面的最终排名 😊',en:'See the final ranking on your teacher screen 😊',vi:'Xem bảng xếp hạng trên màn hình của cô giáo 😊'})+'</div><button onclick="SLQ.close()" style="background:#26890c;color:#fff;border:0;border-radius:12px;padding:12px 30px;margin-top:20px;cursor:pointer">完成</button></div>';
+    body='<div style="text-align:center;padding:50px"><div style="font-size:48px">🏆</div><div style="font-size:24px;font-weight:800;margin-top:10px">'+LT({zh:'比賽結束！',cn:'比赛结束！',en:'Game over!',vi:'Kết thúc!'})+'</div><div style="opacity:.75;margin-top:8px">'+LT({zh:'看老師畫面的最終排名 😊',cn:'看老师画面的最终排名 😊',en:'See the final ranking on your teacher screen 😊',vi:'Xem bảng xếp hạng trên màn hình của giáo viên 😊'})+'</div><button onclick="SLQ.close()" style="background:#26890c;color:#fff;border:0;border-radius:12px;padding:12px 30px;margin-top:20px;cursor:pointer">完成</button></div>';
   }
   b.innerHTML=close+body;
 }
@@ -2090,7 +2090,7 @@ function payCardHtml(){
   var s=S.site;
   var remind='';
   if(S.me.pay_remind_on){
-    var rmsg=((S.me.pay_remind_msg||'')+'').trim()||LT({zh:'老師提醒您：該繳學費囉，請參考下方付款方式完成繳費，謝謝您！🙏',cn:'老师提醒您：该缴学费啰，请参考下方付款方式完成缴费，谢谢您！🙏',en:'A reminder from your teacher: tuition is due. Please use the payment details below. Thank you! 🙏',vi:'Cô nhắc bạn: đã đến hạn đóng học phí, vui lòng xem thông tin thanh toán bên dưới nhé. Cảm ơn bạn! 🙏'});
+    var rmsg=((S.me.pay_remind_msg||'')+'').trim()||LT({zh:'老師提醒您：該繳學費囉，請參考下方付款方式完成繳費，謝謝您！🙏',cn:'老师提醒您：该缴学费啰，请参考下方付款方式完成缴费，谢谢您！🙏',en:'A reminder from your teacher: tuition is due. Please use the payment details below. Thank you! 🙏',vi:'Giáo viên nhắc bạn: đã đến hạn đóng học phí, vui lòng xem thông tin thanh toán bên dưới nhé. Cảm ơn bạn! 🙏'});
     remind='<div class="pay-remind" style="background:linear-gradient(135deg,#EDE9FE,#EDE9FE);border:1.5px solid #E2CFFA;border-radius:14px;padding:12px 16px;margin:10px 0;display:flex;gap:10px;align-items:flex-start"><span style="font-size:22px">\ud83d\udcb0</span><div style="flex:1;min-width:0"><b style="color:#A33227">'+esc(LT({zh:'繳費提醒',cn:'缴费提醒',en:'Tuition reminder',vi:'Nhắc học phí'}))+'</b><div style="white-space:pre-line;font-size:14px;line-height:1.6;color:#A33227;margin-top:2px">'+esc(rmsg)+'</div></div></div>';
   }
   var acct=((S.me.pay_acct||'')+'').trim();
@@ -2179,7 +2179,7 @@ function dueCardHtml(){
                 head:['日期','时间','时数','金额'],paid:'已缴',all:'累计上课费用',unk:'有 %n 堂还没设定收费，没有算进去'},
             en:{t:'Amount due',due:'Due now',clear:'Nothing due right now',credit:'Credit balance',n:'sessions',detail:'Breakdown',hint:'Calculated from your attendance; payments your teacher records are deducted automatically.',
                 head:['Date','Time','Hours','Amount'],paid:'Paid',all:'Total charged',unk:'%n session(s) have no rate set and are excluded'},
-            vi:{t:'Học phí cần đóng',due:'Cần đóng',clear:'Hiện không có khoản nào cần đóng',credit:'Số dư đã đóng trước',n:'buổi',detail:'Chi tiết',hint:'Tính theo lịch sử buổi học của bạn; cô ghi nhận thanh toán là tự động trừ.',
+            vi:{t:'Học phí cần đóng',due:'Cần đóng',clear:'Hiện không có khoản nào cần đóng',credit:'Số dư đã đóng trước',n:'buổi',detail:'Chi tiết',hint:'Tính theo lịch sử buổi học của bạn; giáo viên ghi nhận thanh toán là tự động trừ.',
                 head:['Ngày','Giờ','Số giờ','Số tiền'],paid:'Đã đóng',all:'Tổng học phí',unk:'%n buổi chưa đặt học phí nên chưa tính'}})[L]
         ||{t:'待繳費用',due:'本期應繳',clear:'目前沒有待繳費用',credit:'預繳餘額',n:'堂',detail:'費用明細',hint:'',head:['日期','時間','時數','金額'],paid:'已繳',all:'累計上課費用',unk:''};
   const lvLab=LT({zh:'請假',cn:'请假',en:'Absent',vi:'Nghỉ'});
@@ -2210,7 +2210,7 @@ function payLogHtml(bare){
   const T=({zh:{t:'我的繳費記錄',hint:'老師收到款項後會登錄在這裡，可以對照確認。',n:'筆',sess:'堂',total:'累計'},
             cn:{t:'我的缴费记录',hint:'老师收到款项后会登录在这里，可以对照确认。',n:'笔',sess:'堂',total:'累计'},
             en:{t:'My payment records',hint:'Payments your teacher has received are listed here.',n:'',sess:'sessions',total:'Total'},
-            vi:{t:'Lịch sử đóng học phí',hint:'Các khoản cô đã nhận sẽ hiện ở đây để bạn đối chiếu.',n:'lần',sess:'buổi',total:'Tổng'}})[L]
+            vi:{t:'Lịch sử đóng học phí',hint:'Các khoản giáo viên đã nhận sẽ hiện ở đây để bạn đối chiếu.',n:'lần',sess:'buổi',total:'Tổng'}})[L]
         ||{t:'我的繳費記錄',hint:'老師收到款項後會登錄在這裡，可以對照確認。',n:'筆',sess:'堂',total:'累計'};
   const SYM={TWD:'NT$',VND:'VND',USD:'US$'};
   const fmtM=(amt,cur)=>{cur=cur||(S.me&&S.me.currency)||'TWD';const n=Number(amt)||0;
@@ -2237,7 +2237,7 @@ function uploadCardHtml(){
   if(!areas.length)return '';
   const mine=S.myUp||null;
   const W={pick:{zh:'選擇檔案',cn:'选择档案',en:'Choose files',vi:'Chọn tệp'},
-           send:{zh:'送出給老師',cn:'送出给老师',en:'Send to teacher',vi:'Nộp cho cô'},
+           send:{zh:'送出給老師',cn:'送出给老师',en:'Send to teacher',vi:'Nộp cho giáo viên'},
            pend:{zh:'待送出',cn:'待送出',en:'Ready to send',vi:'Chờ nộp'},
            sent:{zh:'已送出',cn:'已送出',en:'Sent',vi:'Đã nộp'},
            none:{zh:'還沒交過任何檔案',cn:'还没交过任何档案',en:'Nothing sent yet',vi:'Chưa nộp tệp nào'},
@@ -2245,7 +2245,7 @@ function uploadCardHtml(){
            hint:{zh:'任何檔案都可以，單檔 25MB 內。選好檔案後要按「送出給老師」才算交出去。',
                  cn:'任何档案都可以，单档 25MB 内。选好档案后要按「送出给老师」才算交出去。',
                  en:'Any file type, up to 25MB each. Tap "Send to teacher" to actually submit.',
-                 vi:'Mọi loại tệp, tối đa 25MB. Phải bấm "Nộp cho cô" thì mới gửi đi.'},
+                 vi:'Mọi loại tệp, tối đa 25MB. Phải bấm "Nộp cho giáo viên" thì mới gửi đi.'},
            mine:{zh:'查看我交過的檔案',cn:'查看我交过的档案',en:'View my submitted files',vi:'Xem tệp đã nộp'}};
   const w=k=>LT(W[k]);
   const lesOpts=myLessons().map(l=>'<option value="'+esc(l.id)+'">'+esc(l.title||'')+'</option>').join('');
@@ -2295,9 +2295,9 @@ function reviewCardHtml(){
   const r=(S.reviews||[])[0];const st=r?(r.status||''):'';
   if(!open&&!r)return '';
   if(st==='approved')return '<div class="ann-card"><div class="ann-h">⭐ '+esc(LT({zh:'你的評價',cn:'你的评价',en:'Your review',vi:'Đánh giá của bạn'}))+'</div><div class="ann-item">'+esc(LT({zh:'感謝你的評價，已顯示在官網 ✓',cn:'感谢你的评价，已显示在官网 ✓',en:'Thanks! Your review is now on the website ✓',vi:'Cảm ơn bạn! Đánh giá đã hiển thị trên web ✓'}))+'</div><div class="ann-item muted" style="white-space:pre-line">'+esc(r.text||'')+'</div></div>';
-  if(!open)return '<div class="ann-card"><div class="ann-h">⭐ '+esc(LT({zh:'你的評價',cn:'你的评价',en:'Your review',vi:'Đánh giá của bạn'}))+'</div><div class="ann-item">'+esc(LT({zh:'已送出，老師確認後會顯示在官網 ⏳',cn:'已送出，老师确认后会显示在官网 ⏳',en:'Submitted — it will appear once your teacher approves ⏳',vi:'Đã gửi — sẽ hiển thị sau khi cô duyệt ⏳'}))+'</div></div>';
+  if(!open)return '<div class="ann-card"><div class="ann-h">⭐ '+esc(LT({zh:'你的評價',cn:'你的评价',en:'Your review',vi:'Đánh giá của bạn'}))+'</div><div class="ann-item">'+esc(LT({zh:'已送出，老師確認後會顯示在官網 ⏳',cn:'已送出，老师确认后会显示在官网 ⏳',en:'Submitted — it will appear once your teacher approves ⏳',vi:'Đã gửi — sẽ hiển thị sau khi giáo viên duyệt ⏳'}))+'</div></div>';
   const prev=r?esc(r.text||''):'';
-  const status=st==='pending'?'<div class="ann-item">'+LT({zh:'已送出，老師確認後會顯示在官網 ⏳（可再修改）',cn:'已送出，老师确认后会显示在官网 ⏳（可再修改）',en:'Submitted — it will appear on the website once your teacher approves ⏳ (you can still edit it)',vi:'Đã gửi — cô duyệt xong sẽ hiển thị trên trang web ⏳ (bạn vẫn sửa được)'})+'</div>':'<div class="ann-item">'+LT({zh:'上了幾堂課，想推薦老師嗎？寫幾句吧 🙌',cn:'上了几堂课，想推荐老师吗？写几句吧 🙌',en:'Had a few lessons? Tell others what you think 🙌',vi:'Bạn muốn giới thiệu cô giáo không? Viết vài câu nhé! 🙌'})+'</div>';
+  const status=st==='pending'?'<div class="ann-item">'+LT({zh:'已送出，老師確認後會顯示在官網 ⏳（可再修改）',cn:'已送出，老师确认后会显示在官网 ⏳（可再修改）',en:'Submitted — it will appear on the website once your teacher approves ⏳ (you can still edit it)',vi:'Đã gửi — giáo viên duyệt xong sẽ hiển thị trên trang web ⏳ (bạn vẫn sửa được)'})+'</div>':'<div class="ann-item">'+LT({zh:'上了幾堂課，想推薦老師嗎？寫幾句吧 🙌',cn:'上了几堂课，想推荐老师吗？写几句吧 🙌',en:'Had a few lessons? Tell others what you think 🙌',vi:'Bạn muốn giới thiệu giáo viên không? Viết vài câu nhé! 🙌'})+'</div>';
   return '<div class="ann-card"><div class="ann-h">⭐ '+esc(LT({zh:'給老師評價',cn:'给老师评价',en:'Review your teacher',vi:'Đánh giá giáo viên'}))+'</div>'+status+'<textarea id="rev-text" style="width:100%;min-height:70px;margin-top:4px" placeholder="寫下你想說的話">'+prev+'</textarea><button class="btn btn-sm btn-accent" onclick="submitReview()" style="margin-top:6px">'+(st==='pending'?'更新評價 / Cập nhật':'送出評價 / Gửi')+'</button></div>';
 }
 async function submitReview(){
@@ -2307,7 +2307,7 @@ async function submitReview(){
     await DB.upsertResult('__review',S.me.id,{uid:myUid(),kind:'review',text:txt,name:(S.me.name||''),status:'pending',created_at:now()});
     const ex=(S.reviews||[])[0];const doc={lesson_id:'__review',student_id:S.me.id,uid:myUid(),kind:'review',text:txt,name:(S.me.name||''),status:'pending'};
     if(ex){Object.assign(ex,doc);}else{S.reviews=[doc];}
-    toast(LT({zh:'已送出，謝謝你！老師確認後會顯示 🙌',cn:'已送出，谢谢你！老师确认后会显示 🙌',en:'Sent — thank you! It will show once your teacher approves 🙌',vi:'Đã gửi, cảm ơn bạn! Cô duyệt xong sẽ hiển thị 🙌'}));renderSection();
+    toast(LT({zh:'已送出，謝謝你！老師確認後會顯示 🙌',cn:'已送出，谢谢你！老师确认后会显示 🙌',en:'Sent — thank you! It will show once your teacher approves 🙌',vi:'Đã gửi, cảm ơn bạn! Giáo viên duyệt xong sẽ hiển thị 🙌'}));renderSection();
   }catch(e){toast(LT({zh:'送出失敗：',cn:'送出失败：',en:'Submit failed: ',vi:'Gửi không thành công: '})+((e&&e.message)||e));}
 }
 function todoWbHtml(){
@@ -2392,7 +2392,7 @@ function renderWork(){
         due:x.due_date||''});});}catch(e){}
     if(!rows.length)return '';
     return '<div class="lesson-label" style="margin-top:6px">'
-      +esc(LT({zh:'老師指派的練習',cn:'老师指派的练习',en:'Assigned practice',vi:'Bài luyện cô giao'}))
+      +esc(LT({zh:'老師指派的練習',cn:'老师指派的练习',en:'Assigned practice',vi:'Bài luyện giáo viên giao'}))
       +'</div><div class="quiz-list">'
       +rows.map(r=>{const di=r.due?dueInfo(r.due):null;
         return '<div class="quiz-card" data-act="'+r.act+'" data-id="'+esc(r.id)+'">'
@@ -2762,7 +2762,7 @@ function renderContent(){
             en:{mod:'Modules',ann:'Announcements',work:'Assignments',grade:'Grades',file:'Files',prog:'Course progress',done:'Completed',items:'items',
                 nomod:'No content published yet',noann:'No announcements',lock:'Not open yet',ing:'In progress',fin:'Done',open:'Open',nofile:'No files for this course yet',nofilesub:'Handouts, audio and worksheets from your teacher will appear here.'},
             vi:{mod:'Bài học',ann:'Thông báo',work:'Bài tập',grade:'Điểm số',file:'Tài liệu',prog:'Tiến độ khoá học',done:'Đã xong',items:'mục',
-                nomod:'Cô chưa đăng nội dung',noann:'Chưa có thông báo',lock:'Chưa mở',ing:'Đang học',fin:'Xong',open:'Mở',nofile:'Khoá này chưa có tài liệu',nofilesub:'Tài liệu, file nghe hoặc bài tập cô gửi sẽ hiện ở đây.'}})[L]
+                nomod:'Giáo viên chưa đăng nội dung',noann:'Chưa có thông báo',lock:'Chưa mở',ing:'Đang học',fin:'Xong',open:'Mở',nofile:'Khoá này chưa có tài liệu',nofilesub:'Tài liệu, file nghe hoặc bài tập giáo viên gửi sẽ hiện ở đây.'}})[L]
         ||{mod:'課程模組',ann:'公告',work:'作業',grade:'成績',file:'檔案',prog:'本課程進度',done:'已完成',items:'個項目',nomod:'老師還沒發佈課程內容',noann:'目前沒有公告',lock:'老師還沒開放',ing:'進行中',fin:'已完成',open:'開啟',nofile:'老師還沒放檔案到這門課',nofilesub:'老師上傳講義、音檔或作業檔之後，會出現在這裡。'};
   const cs=courseList();
   const cur=courseById(S.courseId)||cs[0];
@@ -2896,7 +2896,7 @@ function renderLegacyContent(){
   const _grp=myGroups();
   const clsBanner='';
   const meetTop=infoBarHtml('drive');
-  const liveJoinCard=(S.preview||!(S.site&&S.site.live_on==='on'))?'':'<div class="ann-card" style="cursor:pointer;background:linear-gradient(135deg,#FDF3D8,#FDF3D8)" onclick="SLQ.join()"><div class="ann-h">🎮 '+esc(LT({zh:'加入即時比賽',cn:'加入即时比赛',en:'Join live quiz',vi:'Tham gia thi trực tiếp'}))+'</div><div class="ann-item">'+esc(LT({zh:'老師開始後，點這裡輸入代碼一起玩！',cn:'老师开始后，点这里输入代码一起玩！',en:'When your teacher starts, tap here and enter the code!',vi:'Khi cô bắt đầu, bấm vào đây và nhập mã!'}))+'</div></div>';
+  const liveJoinCard=(S.preview||!(S.site&&S.site.live_on==='on'))?'':'<div class="ann-card" style="cursor:pointer;background:linear-gradient(135deg,#FDF3D8,#FDF3D8)" onclick="SLQ.join()"><div class="ann-h">🎮 '+esc(LT({zh:'加入即時比賽',cn:'加入即时比赛',en:'Join live quiz',vi:'Tham gia thi trực tiếp'}))+'</div><div class="ann-item">'+esc(LT({zh:'老師開始後，點這裡輸入代碼一起玩！',cn:'老师开始后，点这里输入代码一起玩！',en:'When your teacher starts, tap here and enter the code!',vi:'Khi giáo viên bắt đầu, bấm vào đây và nhập mã!'}))+'</div></div>';
   if(!normals.length&&!prons.length){$('#screen').innerHTML=(S.openLesson?backBar:(backBar+liveJoinCard+meetTop+clsBanner+classUpcomingHtml()))+emptyHtml('📖',t('noContent'),t('noContentSub'));return;}
   const entries=[...normals.map(l=>({k:'l',l,b:(l.textbook||'').trim()||t('uncat')})),...prons.map(p=>({k:'p',l:p,b:(p.textbook||'').trim()||t('navPron')}))];
   const books=[];entries.forEach(e=>{if(!books.includes(e.b))books.push(e.b);});
@@ -3151,7 +3151,7 @@ function homeHeroHtml(ls,QL){
   const card='<div class="card hero-go" data-act="openLessonView" data-id="'+esc(r.l.id)+'">'
     +'<div class="hg-lb">'+esc(LT(lab))+'</div>'
     +'<div class="hg-t">'+esc(lesTitle(r.l))+'</div>'
-    +'<div class="hg-s">'+esc([r.l.textbook||'',(r.why==='taught'&&r.at)?(LT({zh:'老師 ',cn:'老师 ',en:'Taught ',vi:'Cô dạy '})+r.at):''].filter(Boolean).join(' · '))+'</div>'
+    +'<div class="hg-s">'+esc([r.l.textbook||'',(r.why==='taught'&&r.at)?(LT({zh:'老師 ',cn:'老师 ',en:'Taught ',vi:'Giáo viên dạy '})+r.at):''].filter(Boolean).join(' · '))+'</div>'
     +(chips?'<div class="hg-chips">'+chips+'</div>':'')
     +'<div class="hg-go"><span class="btn btn-accent">'+esc(QL.go)+' →</span></div>'
     +'</div>';
@@ -3178,7 +3178,7 @@ function homeAnnHtml(course){
       +'<span class="tt"><b>'+esc(_t||cut(_b))+'</b>'
       +((_t&&_b)?'<small>'+esc(cut(_b))+'</small>':'')+'</span></div>';}).join('');
   return '<div class="pg-h" style="margin:18px 0 10px"><h2 style="font-size:16px">📣 '
-      +esc(LT({zh:'老師公告',cn:'老师公告',en:'Announcements',vi:'Thông báo của cô'}))+'</h2></div>'
+      +esc(LT({zh:'老師公告',cn:'老师公告',en:'Announcements',vi:'Thông báo của giáo viên'}))+'</h2></div>'
     +'<div class="card" style="padding:0">'+rows+'</div>'
     +(anns.length>3?('<div style="margin-top:8px;text-align:right"><button class="btn btn-sm" data-act="goAnn" data-id="'+cid+'">'
       +esc(LT({zh:'看全部公告',cn:'看全部公告',en:'All announcements',vi:'Xem tất cả'}))+' →</button></div>'):'');
@@ -3249,7 +3249,7 @@ function renderHome(){
   const QL=({zh:{go:'開始上課',les:'課次',w:'我的作業',m:'錯題本',g:'我的成績',f:'老師給我的檔案',more:'看全部課次'},
              cn:{go:'开始上课',les:'课次',w:'我的作业',m:'错题本',g:'我的成绩',f:'老师给我的档案',more:'看全部课次'},
              en:{go:'Start learning',les:'Lessons',w:'My homework',m:'Mistakes',g:'My grades',f:'Files from teacher',more:'See all lessons'},
-             vi:{go:'Vào học',les:'Bài học',w:'Bài của tôi',m:'Sổ lỗi',g:'Điểm của tôi',f:'Tài liệu cô gửi',more:'Xem tất cả bài'}})[L]
+             vi:{go:'Vào học',les:'Bài học',w:'Bài của tôi',m:'Sổ lỗi',g:'Điểm của tôi',f:'Tài liệu giáo viên gửi',more:'Xem tất cả bài'}})[L]
         ||{go:'開始上課',les:'課次',w:'我的作業',m:'錯題本',g:'我的成績',f:'老師給我的檔案',more:'看全部課次'};
   let mainBlock;
   if(!one){
@@ -3786,9 +3786,9 @@ function lvT(){const L=S.lang||'zh';
    vi:{btn:'🙋 Xin nghỉ / đổi giờ',h:'Xin nghỉ / đổi giờ',back:'Quay lại',which:'Buổi nào',other:'Khác (tự chọn ngày)',
      date:'Ngày',want:'Em muốn',leave:'Xin nghỉ',move:'Đổi sang giờ khác',wdate:'Đổi sang ngày nào',wtime:'Đổi sang mấy giờ',
      why:'Lý do (không bắt buộc)',whyp:'Viết một câu là được',send:'Gửi',
-     sent:'Đã gửi, chờ cô trả lời',need:'Hãy chọn ngày',
-     mine:'Yêu cầu em đã gửi',wait:'Chờ cô trả lời',ok:'Cô đồng ý',no:'Cô không đồng ý',
-     tip:'Cô sẽ nhìn thấy. Lịch học chỉ thay đổi sau khi cô sửa, em đừng tự coi là đã được nghỉ.'}})[L]||null;}
+     sent:'Đã gửi, chờ giáo viên trả lời',need:'Hãy chọn ngày',
+     mine:'Yêu cầu em đã gửi',wait:'Chờ giáo viên trả lời',ok:'Giáo viên đồng ý',no:'Giáo viên không đồng ý',
+     tip:'Giáo viên sẽ nhìn thấy. Lịch học chỉ thay đổi sau khi giáo viên sửa, em đừng tự coi là đã được nghỉ.'}})[L]||null;}
 function lvTT(){return lvT()||{btn:'🙋 我要請假／改時間',h:'請假／改時間',back:'返回',which:'哪一堂',
   other:'其他（自己填日期）',date:'日期',want:'我想',leave:'請假',move:'改到別的時間',
   wdate:'想改到哪一天',wtime:'想改到幾點',why:'原因（選填）',whyp:'寫一句就好',send:'送出',
@@ -3865,7 +3865,7 @@ window.LVWANT=function(){const w=document.getElementById('lv-want'),m=document.g
   if(m)m.style.display=(w&&w.value==='move')?'':'none';};
 H.lvSend=async(_,btn)=>{
   const T=lvTT();
-  if(S.preview)return toast(LT({zh:'試做：正式使用時，這裡會送去給老師（現在不會存）',cn:'试做：正式使用时，这里会送去给老师（现在不会存）',en:'Demo mode: in real use this is sent to your teacher (nothing is saved now)',vi:'Chế độ thử: khi dùng thật, phần này sẽ gửi cho cô giáo (bây giờ chưa lưu)'}));
+  if(S.preview)return toast(LT({zh:'試做：正式使用時，這裡會送去給老師（現在不會存）',cn:'试做：正式使用时，这里会送去给老师（现在不会存）',en:'Demo mode: in real use this is sent to your teacher (nothing is saved now)',vi:'Chế độ thử: khi dùng thật, phần này sẽ gửi cho giáo viên (bây giờ chưa lưu)'}));
   const g=k=>{const e=document.getElementById('lv-'+k);return e?String(e.value||'').trim():'';};
   const pick=g('pick');
   let date='',start='',end='';
@@ -4474,7 +4474,7 @@ function startShadowRec(i,target){const SR=window.SpeechRecognition||window.webk
   r.onresult=e=>{let tr='';try{tr=e.results[0][0].transcript||'';}catch(x){}const a=normHan(target),c=normHan(tr);const sc=a.length?Math.round(lcsLen(a,c)/a.length*100):0;const rec=(SS&&SS.recs)?(SS.recs[i]||(SS.recs[i]={})):null;if(rec){rec.tr=tr;rec.score=sc;}};
   r.onerror=()=>{};SHADOWREC=r;try{r.start();}catch(e){}}
 function stopShadowRec(){if(SHADOWREC){try{SHADOWREC.stop();}catch(e){}SHADOWREC=null;}}
-H.ssSubmit=async()=>{if(!SS)return;if(S.preview){if(S.tryMode)toast(LT({zh:'試做：正式使用時，錄音會送去給老師聽（現在不會存）',cn:'试做：正式使用时，录音会送去给老师听（现在不会存）',en:'Demo mode: in real use the recording is sent to your teacher (nothing is saved now)',vi:'Chế độ thử: khi dùng thật, bản ghi âm sẽ gửi cho cô giáo nghe (bây giờ chưa lưu)'}));return;}
+H.ssSubmit=async()=>{if(!SS)return;if(S.preview){if(S.tryMode)toast(LT({zh:'試做：正式使用時，錄音會送去給老師聽（現在不會存）',cn:'试做：正式使用时，录音会送去给老师听（现在不会存）',en:'Demo mode: in real use the recording is sent to your teacher (nothing is saved now)',vi:'Chế độ thử: khi dùng thật, bản ghi âm sẽ gửi cho giáo viên nghe (bây giờ chưa lưu)'}));return;}
   const recd=Object.keys(SS.recs||{}).filter(i=>SS.recs[i]&&SS.recs[i].url);
   if(!recd.length){toast(t('ssNoRec'));return;}
   const btn=document.getElementById('ss-submit');if(btn){btn.disabled=true;btn.textContent=t('sentSaving');}
@@ -4577,7 +4577,7 @@ H.saveQuizResult=async(quizId,right,total,log)=>{if(S.preview)return;try{const u
   const rAll=u?await DB.listWhere('results','uid',u):(await DB.list('results')).filter(x=>x.student_id===S.me.id);
   splitResults(rAll);
 }catch(e){toast(e.message);}};
-H.submitDisc=async(arg,b)=>{if(S.preview){if(S.tryMode)toast(LT({zh:'試做：正式使用時，這裡會送去給老師批改（現在不會存）',cn:'试做：正式使用时，这里会送去给老师批改（现在不会存）',en:'Demo mode: in real use this is sent to your teacher to correct (nothing is saved now)',vi:'Chế độ thử: khi dùng thật, phần này sẽ gửi cho cô giáo chấm (bây giờ chưa lưu)'}));return;}const p=String(arg).split('::');const lid=p[0];const di=p.length>1?p[1]:null;
+H.submitDisc=async(arg,b)=>{if(S.preview){if(S.tryMode)toast(LT({zh:'試做：正式使用時，這裡會送去給老師批改（現在不會存）',cn:'试做：正式使用时，这里会送去给老师批改（现在不会存）',en:'Demo mode: in real use this is sent to your teacher to correct (nothing is saved now)',vi:'Chế độ thử: khi dùng thật, phần này sẽ gửi cho giáo viên chấm (bây giờ chưa lưu)'}));return;}const p=String(arg).split('::');const lid=p[0];const di=p.length>1?p[1]:null;
   const lscope=document.getElementById('ls-'+lid)||(b&&b.closest('.ls-card'))||(b&&b.closest('.card'));if(!lscope)return;
   let scope=lscope,pre=null; // di 指定時，只收集這一段（對話／短文）的作答，不送其他段
   if(di!=null){const blk=(b&&b.closest('[data-disc-di]'))||lscope.querySelector('[data-disc-di="'+di+'"]');if(blk){scope=blk;pre=di+'_';}}
@@ -4596,7 +4596,7 @@ H.submitDisc=async(arg,b)=>{if(S.preview){if(S.tryMode)toast(LT({zh:'試做：�
     if(di!=null){if(b){b.disabled=false;b.textContent=t('discResubmit');b.classList.add('btn-accent');}} // 單段送出：不整頁重繪，保留其他段作答中的內容
     else renderContent();
   }catch(e){toast(e.message);if(b){b.disabled=false;b.textContent=t('discSubmit');}}};
-H.submitGprac=async(key,b)=>{if(S.preview){if(S.tryMode)toast(LT({zh:'試做：正式使用時，這個語法的練習會送去給老師批改（現在不會存）',cn:'试做：正式使用时，这个语法的练习会送去给老师批改（现在不会存）',en:'Demo mode: in real use this grammar exercise is sent to your teacher to correct (nothing is saved now)',vi:'Chế độ thử: khi dùng thật, bài luyện ngữ pháp này sẽ gửi cho cô giáo chấm (bây giờ chưa lưu)'}));return;}
+H.submitGprac=async(key,b)=>{if(S.preview){if(S.tryMode)toast(LT({zh:'試做：正式使用時，這個語法的練習會送去給老師批改（現在不會存）',cn:'试做：正式使用时，这个语法的练习会送去给老师批改（现在不会存）',en:'Demo mode: in real use this grammar exercise is sent to your teacher to correct (nothing is saved now)',vi:'Chế độ thử: khi dùng thật, bài luyện ngữ pháp này sẽ gửi cho giáo viên chấm (bây giờ chưa lưu)'}));return;}
   const p=String(key).split('::');const lid=p[0];const gp=p.length>1?Number(p[1]):null;
   let pool=questionsOf(lid).filter(q=>q.bank!=='hw'&&q.type!=='note');
   if(gp!=null)pool=pool.filter(q=>q.gp_index===gp);
@@ -4725,7 +4725,7 @@ function buildClassICS(events){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:
     L.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc((ev.title||'中文課')+'快開始了'),'TRIGGER:-PT30M','END:VALARM','END:VEVENT');});});
   L.push('END:VCALENDAR');return L.join('\r\n');}
 function downloadICS(fn,text){try{const b=new Blob([text],{type:'text/calendar;charset=utf-8'});const url=URL.createObjectURL(b);const a=document.createElement('a');a.href=url;a.download=fn;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url);},800);}catch(e){toast(LT({zh:'產生日曆檔失敗',cn:'产生日历档失败',en:'Could not create the calendar file',vi:'Không tạo được tệp lịch'}));}}
-H.addCal=()=>{const sch=Array.isArray(S.me&&S.me.schedule)?S.me.schedule.filter(r=>r&&r.s):[];if(!sch.length){toast(LT({zh:'老師還沒設定你的上課時段',cn:'老师还没设定你的上课时段',en:'Your teacher has not set your lesson times yet',vi:'Cô giáo chưa đặt lịch học cho bạn'}));return;}downloadICS('中文課.ics',buildClassICS([{title:'中文課',schedule:sch,meet:(S.me&&S.me.meet_url)||''}]));toast(LT({zh:'已下載日曆檔，打開它就能加入並開啟課前提醒',cn:'已下载日历档，打开它就能加入并开启课前提醒',en:'Calendar file downloaded — open it to add your lessons and turn on reminders',vi:'Đã tải tệp lịch — mở tệp để thêm vào lịch và bật nhắc trước giờ học'}));};
+H.addCal=()=>{const sch=Array.isArray(S.me&&S.me.schedule)?S.me.schedule.filter(r=>r&&r.s):[];if(!sch.length){toast(LT({zh:'老師還沒設定你的上課時段',cn:'老师还没设定你的上课时段',en:'Your teacher has not set your lesson times yet',vi:'Giáo viên chưa đặt lịch học cho bạn'}));return;}downloadICS('中文課.ics',buildClassICS([{title:'中文課',schedule:sch,meet:(S.me&&S.me.meet_url)||''}]));toast(LT({zh:'已下載日曆檔，打開它就能加入並開啟課前提醒',cn:'已下载日历档，打开它就能加入并开启课前提醒',en:'Calendar file downloaded — open it to add your lessons and turn on reminders',vi:'Đã tải tệp lịch — mở tệp để thêm vào lịch và bật nhắc trước giờ học'}));};
 H.upMine=async()=>{try{const uid=(S.me&&S.me.uid)||(window.firebase&&firebase.auth&&firebase.auth().currentUser&&firebase.auth().currentUser.uid)||'';const fs=await DB.listWhere('uploads','uid',uid);fs.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));S.myUp=fs.map(f=>({id:f.id,area_id:f.area_id,filename:f.filename,lesson_title:f.lesson_title||'',created_at:f.created_at}));renderSection();}catch(e){toast(LT({zh:'載入失敗',cn:'载入失败',en:'Failed to load',vi:'Lỗi tải'}));}};
 function _upB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{res(String(r.result).split(',')[1]||'');};r.onerror=rej;r.readAsDataURL(file);});}
 async function _upShrink(file){
@@ -4785,7 +4785,7 @@ H.upSend=async(areaId)=>{
     }catch(e){fail++;}
   }
   delete UPQ[areaId];
-  if(done)toast('✅ '+LT({zh:'已送出給老師',cn:'已送出给老师',en:'Sent to your teacher',vi:'Đã nộp cho cô'})+'（'+done+'）'+(fail?('，'+LT({zh:'失敗',cn:'失败',en:'failed',vi:'lỗi'})+' '+fail):''));
+  if(done)toast('✅ '+LT({zh:'已送出給老師',cn:'已送出给老师',en:'Sent to your teacher',vi:'Đã nộp cho giáo viên'})+'（'+done+'）'+(fail?('，'+LT({zh:'失敗',cn:'失败',en:'failed',vi:'lỗi'})+' '+fail):''));
   else toast(LT({zh:'送出失敗，請再試一次',cn:'送出失败，请再试一次',en:'Send failed — please try again',vi:'Gửi thất bại — vui lòng thử lại'}));
   renderSection();
 };
@@ -4796,7 +4796,7 @@ H.vocabSentence=()=>{const lid=sentLessonId();if(!lid){toast(t('sentPickLesson')
   if(!words.length){toast(t('sentEmpty'));return;}
   const doc=sentDocOf(lid),vals={};if(doc&&doc.items)doc.items.forEach(it=>{vals[it.word]=it.sentence;});
   S.sent={lessonId:lid,words,vals,doc};$('#screen').dataset.mode='practice';window.scrollTo(0,0);renderSentence();};
-H.sentSubmit=async()=>{if(S.preview){if(S.tryMode)toast(LT({zh:'試做：正式使用時，造句會送去給老師批改（現在不會存）',cn:'试做：正式使用时，造句会送去给老师批改（现在不会存）',en:'Demo mode: in real use your sentences are sent to your teacher to correct (nothing is saved now)',vi:'Chế độ thử: khi dùng thật, câu bạn đặt sẽ gửi cho cô giáo chấm (bây giờ chưa lưu)'}));return;}const dd=S.sent;if(!dd)return;
+H.sentSubmit=async()=>{if(S.preview){if(S.tryMode)toast(LT({zh:'試做：正式使用時，造句會送去給老師批改（現在不會存）',cn:'试做：正式使用时，造句会送去给老师批改（现在不会存）',en:'Demo mode: in real use your sentences are sent to your teacher to correct (nothing is saved now)',vi:'Chế độ thử: khi dùng thật, câu bạn đặt sẽ gửi cho giáo viên chấm (bây giờ chưa lưu)'}));return;}const dd=S.sent;if(!dd)return;
   const items=[...document.querySelectorAll('.sent-inp')].map(el=>({word:el.dataset.w,sentence:(el.value||'').trim()}));
   if(!items.some(it=>it.sentence)){toast(t('sentEmpty'));return;}
   const btn=document.querySelector('[data-act="sentSubmit"]');if(btn){btn.disabled=true;btn.textContent=t('sentSaving');}
@@ -4907,7 +4907,7 @@ function deniedMsg(){return esc(LT({
   zh:'資料庫的權限還沒開放給會員（members），請老師先到 Firebase 更新規則。',
   cn:'数据库的权限还没开放给会员（members），请老师先到 Firebase 更新规则。',
   en:'The database is not open for members yet — the teacher needs to publish the new Firestore rules.',
-  vi:'Cơ sở dữ liệu chưa mở cho hội viên — cô giáo cần cập nhật quy tắc Firestore.'}));}
+  vi:'Cơ sở dữ liệu chưa mở cho hội viên — giáo viên cần cập nhật quy tắc Firestore.'}));}
 /* 帳號已經建好（Firebase Auth 有了），但會員資料那一筆沒建成功時，補建一筆 */
 H.memFix=async()=>{
   const u=firebase.auth().currentUser;if(!u)return;
@@ -5143,18 +5143,18 @@ async function actSave(lid,i,status){
         text:text,status:status||'draft',uid:myUid(),student_id:S.me.id,
         submitted_at:(status==='submitted'?now():''),updated_at:now()});
       (S.acts=S.acts||[]).push(doc);}
-    if(st)st.textContent=(status==='submitted')?('✓ '+LT({zh:'已送給老師看',cn:'已送给老师看',en:'Sent to teacher',vi:'Đã gửi cho cô'}))
+    if(st)st.textContent=(status==='submitted')?('✓ '+LT({zh:'已送給老師看',cn:'已送给老师看',en:'Sent to teacher',vi:'Đã gửi cho giáo viên'}))
       :('✓ '+LT({zh:'已自動存好',cn:'已自动存好',en:'Saved',vi:'Đã lưu'}));
     return true;
   }catch(e){if(st)st.textContent='⚠ '+LT({zh:'存不起來，等一下再試',cn:'存不起来，等一下再试',en:'Save failed',vi:'Lưu không được'});return null;}
 }
 H.actSubmit=async(key)=>{
   const p=String(key).split('::');
-  if(S.preview){if(S.tryMode)toast(LT({zh:'試做：正式使用時會送給老師看（現在不會存）',cn:'试做：正式使用时会送给老师看（现在不会存）',en:'Demo mode: in real use this is sent to your teacher (nothing is saved now)',vi:'Chế độ thử: khi dùng thật sẽ gửi cho cô giáo xem (bây giờ chưa lưu)'}));return;}
+  if(S.preview){if(S.tryMode)toast(LT({zh:'試做：正式使用時會送給老師看（現在不會存）',cn:'试做：正式使用时会送给老师看（现在不会存）',en:'Demo mode: in real use this is sent to your teacher (nothing is saved now)',vi:'Chế độ thử: khi dùng thật sẽ gửi cho giáo viên xem (bây giờ chưa lưu)'}));return;}
   const ta=document.getElementById('act-ta-'+p[0]+'-'+p[1]);
   if(!ta||!String(ta.value||'').trim())return toast(LT({zh:'先寫點東西再送 🙂',cn:'先写点东西再送 🙂',en:'Write something first 🙂',vi:'Viết gì đó trước nhé 🙂'}));
   const ok=await actSave(p[0],p[1],'submitted');
-  if(ok)toast(LT({zh:'已送給老師看，謝謝你 ♡',cn:'已送给老师看，谢谢你 ♡',en:'Sent to your teacher ♡',vi:'Đã gửi cho cô ♡'}));
+  if(ok)toast(LT({zh:'已送給老師看，謝謝你 ♡',cn:'已送给老师看，谢谢你 ♡',en:'Sent to your teacher ♡',vi:'Đã gửi cho giáo viên ♡'}));
 };
 H.pvNoop=()=>{};
 H.backCourse=()=>{S.openLesson=null;window.scrollTo(0,0);renderSection();};
@@ -5315,10 +5315,10 @@ function guideHtml(){
   /* GDCL_V1622 Quinn：「這個是文言文課，沒有聽發音、練生詞」。只有文言文課的學生，換一套說明 */
   try{const ms=(typeof myLessons==='function'?myLessons():[])||[];
     if(ms.length&&ms.every(x=>x&&x.kind==='classical'))steps=[
-      ['📜',LT({zh:'讀原文',cn:'读原文',en:'Read the text',vi:'Đọc bài văn'}),LT({zh:'課文一句一句排好。點黃色的詞看老師的注解，點其他字可以看拼音。',cn:'课文一句一句排好。点黄色的词看老师的注解，点其他字可以看拼音。',en:'The text is shown sentence by sentence. Tap a yellow word for your teacher’s note; tap other characters for pinyin.',vi:'Bài văn được chia từng câu. Chạm vào từ màu vàng để xem chú thích của cô, chạm chữ khác để xem pinyin.'})],
+      ['📜',LT({zh:'讀原文',cn:'读原文',en:'Read the text',vi:'Đọc bài văn'}),LT({zh:'課文一句一句排好。點黃色的詞看老師的注解，點其他字可以看拼音。',cn:'课文一句一句排好。点黄色的词看老师的注解，点其他字可以看拼音。',en:'The text is shown sentence by sentence. Tap a yellow word for your teacher’s note; tap other characters for pinyin.',vi:'Bài văn được chia từng câu. Chạm vào từ màu vàng để xem chú thích của giáo viên, chạm chữ khác để xem pinyin.'})],
       ['✍️',LT({zh:'寫筆記和翻譯',cn:'写笔记和翻译',en:'Notes & translation',vi:'Ghi chú và dịch'}),LT({zh:'每一句下面有兩格：「我的筆記」會自動存；「翻譯」寫這一句的白話意思。',cn:'每一句下面有两格：「我的笔记」会自动存；「翻译」写这一句的白话意思。',en:'Under each sentence: “My notes” saves automatically; “Translation” is where you write it in modern Chinese.',vi:'Dưới mỗi câu có hai ô: “Ghi chú” tự lưu; “Dịch” để viết nghĩa bằng tiếng Trung hiện đại.'})],
-      ['📤',LT({zh:'送出',cn:'送出',en:'Send',vi:'Gửi bài'}),LT({zh:'寫完按「送出答案給老師」，老師會批改回覆你。',cn:'写完按「送出答案给老师」，老师会批改回复你。',en:'When finished, tap “Send to teacher”. Your teacher will review it.',vi:'Viết xong bấm “Gửi cho cô”, cô sẽ chấm và phản hồi.'})],
-      ['📊',t('g4t'),LT({zh:'「我的成績」看老師的建議。',cn:'「我的成绩」看老师的建议。',en:'See your teacher’s comments in “My grades”.',vi:'Xem nhận xét của cô trong “Kết quả của tôi”.'})]];}catch(e){}
+      ['📤',LT({zh:'送出',cn:'送出',en:'Send',vi:'Gửi bài'}),LT({zh:'寫完按「送出答案給老師」，老師會批改回覆你。',cn:'写完按「送出答案给老师」，老师会批改回复你。',en:'When finished, tap “Send to teacher”. Your teacher will review it.',vi:'Viết xong bấm “Gửi cho giáo viên”, giáo viên sẽ chấm và phản hồi.'})],
+      ['📊',t('g4t'),LT({zh:'「我的成績」看老師的建議。',cn:'「我的成绩」看老师的建议。',en:'See your teacher’s comments in “My grades”.',vi:'Xem nhận xét của giáo viên trong “Kết quả của tôi”.'})]];}catch(e){}
   const row='display:flex;gap:12px;align-items:flex-start;margin:14px 0';
   return `<div id="guide-ov" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto">
     <div style="background:var(--card,#fff);color:var(--text,#16202E);max-width:440px;width:100%;border-radius:16px;padding:22px 22px 18px;box-shadow:0 20px 60px rgba(0,0,0,.35);max-height:90vh;overflow:auto">
@@ -5544,7 +5544,7 @@ function renderMemberOne(){
         zh:'這一課要付費會員才看得到。<br>想上課的話，請直接跟老師聯絡。',
         cn:'这一课要付费会员才看得到。<br>想上课的话，请直接跟老师联系。',
         en:'This lesson is for paid members.<br>Please contact the teacher to join.',
-        vi:'Bài này dành cho hội viên trả phí.<br>Bạn liên hệ với cô giáo nhé.'})}</div>
+        vi:'Bài này dành cho hội viên trả phí.<br>Bạn liên hệ với giáo viên nhé.'})}</div>
     </div>`;return;}
   const yt=ocYtId(l.video_url);
   const vs=ocVocabRows(l);
@@ -5592,7 +5592,7 @@ function renderMemberAcct(){
       zh:'想上付費的課，或想跟老師一對一上課，請直接跟老師聯絡。',
       cn:'想上付费的课，或想跟老师一对一上课，请直接跟老师联系。',
       en:'To unlock the paid lessons or take one-on-one classes, please contact the teacher.',
-      vi:'Muốn học bài trả phí hoặc học 1 kèm 1, bạn liên hệ với cô giáo nhé.'})}</div>
+      vi:'Muốn học bài trả phí hoặc học 1 kèm 1, bạn liên hệ với giáo viên nhé.'})}</div>
     </div>`;/* ACCTLO_V1262 右上角本來就有「登出」，這裡不用再放一顆 */
 }
 function renderMemberScreen(){
@@ -6715,9 +6715,9 @@ function fhHas(t,m){return !Array.isArray(t&&t.modes)||!t.modes.length||t.modes.
 function fhMine(){return (S.freeTasks||[]).filter(t=>t&&!t.deleted_at&&assignedToMe(t));}
 function fhDocOf(tid){return (S.fhws||[]).find(x=>x&&x.fh_task===tid)||null;}
 const FHL=(z,c,e,v)=>LT({zh:z,cn:c,en:e,vi:v});
-function fhDefPrompt(){return FHL('依照老師指定的作業，請回答。','依照老师指定的作业，请回答。','Please answer according to the homework your teacher assigned.','Hãy làm theo bài tập cô đã giao và trả lời.');}
+function fhDefPrompt(){return FHL('依照老師指定的作業，請回答。','依照老师指定的作业，请回答。','Please answer according to the homework your teacher assigned.','Hãy làm theo bài tập giáo viên đã giao và trả lời.');}
 function fhStatLab(d){const st=d?d.status:'';
-  if(st==='reviewed')return ['badge-ok',FHL('老師已批改','老师已批改','Reviewed','Cô đã chấm')];
+  if(st==='reviewed')return ['badge-ok',FHL('老師已批改','老师已批改','Reviewed','Giáo viên đã chấm')];
   if(st==='submitted')return ['badge-pending',FHL('已送出','已送出','Submitted','Đã nộp')];
   return null;}
 function fhListHtml(){
@@ -6746,8 +6746,8 @@ function renderFhw(){
   const L=FHL;
   const back='<button class="btn btn-sm btn-ghost" data-act="section" data-id="work">← '+esc(L('我的作業','我的作业','My work','Bài tập của tôi'))+'</button>';
   const fb=(st==='reviewed'||(d&&d.comment))&&d&&String(d.comment||'').trim()
-    ?'<div class="fh-fb"><div class="fh-fbh">💬 '+esc(L('老師的回饋','老师的反馈','Teacher feedback','Nhận xét của cô'))+'</div><div class="fh-fbb">'+esc(d.comment)+'</div></div>':'';
-  const stLine=sent?('<div class="fh-st">✅ '+esc(st==='reviewed'?L('老師已批改','老师已批改','Reviewed by your teacher','Cô đã chấm'):L('已送出給老師','已送出给老师','Sent to your teacher','Đã nộp cho cô'))
+    ?'<div class="fh-fb"><div class="fh-fbh">💬 '+esc(L('老師的回饋','老师的反馈','Teacher feedback','Nhận xét của giáo viên'))+'</div><div class="fh-fbb">'+esc(d.comment)+'</div></div>':'';
+  const stLine=sent?('<div class="fh-st">✅ '+esc(st==='reviewed'?L('老師已批改','老师已批改','Reviewed by your teacher','Giáo viên đã chấm'):L('已送出給老師','已送出给老师','Sent to your teacher','Đã nộp cho giáo viên'))
       +(d.submitted_at?('　'+esc(String(d.submitted_at).slice(0,16).replace('T',' '))):'')
       +'<div class="hint">'+esc(L('還可以修改，改完再按一次送出。','还可以修改，改完再按一次送出。','You can still edit it and send again.','Vẫn có thể sửa, sửa xong bấm gửi lại.'))+'</div></div>'):'';
   const ph=FH.photos.map((x,i)=>'<div class="fh-pt"><a href="'+esc(x.url)+'" target="_blank" rel="noopener"><img src="'+esc(x.url)+'" alt=""></a><button type="button" class="fh-x" data-act="fhDelPhoto" data-id="'+i+'" aria-label="刪除">×</button></div>').join('');
@@ -6768,7 +6768,7 @@ function renderFhw(){
     +au
     +'<button type="button" class="btn fh-rec'+(rec?' on':'')+'" data-act="fhRec">'+(rec?('⏹ '+esc(L('停止錄音','停止录音','Stop','Dừng'))):('🎙 '+esc(L('開始錄音','开始录音','Start recording','Bắt đầu ghi âm'))))+'</button></div>':'')
     +'<div class="fh-busy" id="fh-busy">'+(FH.busy?esc(L('上傳中…','上传中…','Uploading…','Đang tải lên…')):'')+'</div>'
-    +'<button type="button" class="btn btn-primary fh-send" data-act="fhSend">📤 '+esc(sent?L('修改後再送出','修改后再送出','Send again','Gửi lại'):L('送出給老師','送出给老师','Send to teacher','Nộp cho cô'))+'</button>'
+    +'<button type="button" class="btn btn-primary fh-send" data-act="fhSend">📤 '+esc(sent?L('修改後再送出','修改后再送出','Send again','Gửi lại'):L('送出給老師','送出给老师','Send to teacher','Nộp cho giáo viên'))+'</button>'
     +(sent?'':'<div class="hint" style="text-align:center;margin-top:6px">'+esc(L('還沒送出前會自動先存起來。','还没送出前会自动先存起来。','Your work is saved automatically until you send it.','Bài sẽ được tự lưu cho đến khi bạn nộp.'))+'</div>')
     +'</div>';
   const ta=document.getElementById('fh-text');
@@ -6842,8 +6842,8 @@ H.fhSend=async(_,b)=>{
   clearTimeout(FHT);
   if(b){b.disabled=true;b.textContent=FHL('送出中…','送出中…','Sending…','Đang gửi…');}
   const ok=await fhPersist(true);
-  if(ok){toast('✅ '+FHL('已送出給老師','已送出给老师','Sent to your teacher','Đã nộp cho cô'));renderFhw();}
-  else if(b){b.disabled=false;b.textContent='📤 '+FHL('送出給老師','送出给老师','Send to teacher','Nộp cho cô');}};
+  if(ok){toast('✅ '+FHL('已送出給老師','已送出给老师','Sent to your teacher','Đã nộp cho giáo viên'));renderFhw();}
+  else if(b){b.disabled=false;b.textContent='📤 '+FHL('送出給老師','送出给老师','Send to teacher','Nộp cho giáo viên');}};
 /* ══════ FREEHW_V1631 end ══════ */
 
 /* ══════ HWNOTIFY_V1634 學生交作業 → 寄信通知老師 ══════
