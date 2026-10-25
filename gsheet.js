@@ -85,7 +85,7 @@
     window.toast=function(m){if(/失敗|沒改成功|錯/.test(String(m||''))){ok=false;try{t0(m);}catch(e){}}};
     try{
       if(fixDirty){fixDirty=false;var clean={};Object.keys(FIX).forEach(function(k){if(FIX[k]!=null)clean[k]=FIX[k];});
-        await DB.update('results',a.id,{fix:clean});var d=docById(a.id);if(d)d.fix=clean;}
+        await DB.update('results',a.id,{fix_text:clean});var d=docById(a.id);if(d)d.fix_text=clean;}/* BETTER_V1644 欄位改名 fix_text：fix 已經被「改成答對」（grade-fix.js）用掉了 */
       await H[a.act](a.id,{dataset:{done:done?'1':'0'},disabled:false,textContent:''});
     }catch(e){ok=false;}
     finally{window.toast=t0;saving=false;}
@@ -105,11 +105,20 @@
   }
   function rowState(i){var f=fields()[i];return f?{sym:lead(f.value),cmt:cmtOf(f.value)}:{sym:'',cmt:''};}
 
+  /* BETTER_V1644 Quinn：「有更好的答案，我要怎麼寫給他？」
+     ✗＝在學生的句子上直接紅筆刪改；✓＋改句子＝學生沒錯，下面另外列「👍 更好的說法」 */
+  function hasFix(f){var fx=FIX[kOf(f)];return fx!=null&&String(fx).trim()&&fx!==origOf(f);}
+  function sentInner(i){
+    var f=fields()[i];var o=origOf(f);if(o==null)return '';var fx=FIX[kOf(f)];
+    if(!hasFix(f))return esc(o);
+    if(lead(f.value)==='✓')return esc(o)+'<div class="gx-better">👍 更好的說法：<span>'+esc(fx)+'</span></div>';
+    return diffHtml(o,fx);
+  }
+  function updSent(i){var bt=document.getElementById('gx-bt-'+i);if(bt)bt.innerHTML=sentInner(i);}
   function sentHtml(i){
     var f=fields()[i];var o=origOf(f);if(o==null)return '';
-    var fx=FIX[kOf(f)];var shown=(fx!=null&&String(fx).trim()&&fx!==o)?diffHtml(o,fx):esc(o);/* FIXOK_V1643 空的不算改 */
-    return '<div class="gx-b">'+(bSay(f)?'<b class="gx-bl">B：</b>':'')+'<span class="gx-bt" id="gx-bt-'+i+'">'+shown+'</span>'
-      +'<button type="button" class="gx-ed" data-gs="edit" data-i="'+i+'">✎ 改句子</button></div>'
+    return '<div class="gx-b">'+(bSay(f)?'<b class="gx-bl">B：</b>':'')+'<span class="gx-bt" id="gx-bt-'+i+'" data-gs="edit" data-i="'+i+'" title="點一下就可以改">'+sentInner(i)+'</span>'
+      +'<button type="button" class="gx-ed" data-gs="edit" data-i="'+i+'">✎ 改字／寫更好的說法</button></div>'
       +'<div class="gx-fixbox" id="gx-fx-'+i+'" hidden><textarea class="gx-fxta" data-i="'+i+'" rows="2"></textarea>'
       +'<div class="gx-fxbar"><button type="button" class="gx-mini" data-gs="fxdone" data-i="'+i+'">好了</button><button type="button" class="gx-mini" data-gs="fxundo" data-i="'+i+'">還原成學生寫的</button></div></div>';
   }
@@ -148,8 +157,7 @@
       t.addEventListener('input',function(){grow(t);var i=+t.getAttribute('data-i');writeBack(i,rowState(i).sym,t.value);left();soon();});});
     [].slice.call(root.querySelectorAll('.gx-fxta')).forEach(function(t){
       t.addEventListener('input',function(){grow(t);var i=+t.getAttribute('data-i');var f=fields()[i];if(!f)return;
-        FIX[kOf(f)]=t.value;fixDirty=true;var bt=document.getElementById('gx-bt-'+i);var o=origOf(f);
-        if(bt)bt.innerHTML=(t.value.trim()&&t.value!==o)?diffHtml(o,t.value):esc(o);
+        FIX[kOf(f)]=t.value;fixDirty=true;updSent(i);
         var st=rowState(i);writeBack(i,st.sym,st.cmt);soon();});});
     var o2=document.getElementById('gx-ov');
     if(o2){grow(o2);o2.addEventListener('input',function(){grow(o2);var x=ovEl();if(x){x.value=o2.value;try{x.dispatchEvent(new Event('input',{bubbles:true}));}catch(e){}soon();}});}
@@ -171,10 +179,8 @@
     var row=root.querySelector('[data-row="'+i+'"]');
     if(row){[].slice.call(row.querySelectorAll('.gx-st')).forEach(function(b){b.classList.toggle('on',b.getAttribute('data-s')===ns);});}
     if(ns==='✗')openFix(i,true);
-    /* FIXOK_V1643 Quinn：「我已經選『對』了，為什麼還會這樣？」——選 ✓ 就是學生寫對了，改過的句子一律收回 */
-    if(ns==='✓'){var f0=fields()[i];if(f0){var k0=kOf(f0);if(FIX[k0]!=null){FIX[k0]=null;fixDirty=true;writeBack(i,ns,st.cmt);}
-      var bt0=document.getElementById('gx-bt-'+i);if(bt0)bt0.textContent=origOf(f0)||'';
-      var bx0=document.getElementById('gx-fx-'+i);if(bx0)bx0.hidden=true;}}
+    /* BETTER_V1644 ✓ 的時候學生的句子不劃線；有寫改過的就當成「更好的說法」 */
+    updSent(i);
     left();clearTimeout(tmr);save(false);
   }
   async function finish(){
@@ -197,7 +203,7 @@
     else if(k==='edit'){var bx=document.getElementById('gx-fx-'+i);if(bx&&!bx.hidden)bx.hidden=true;else openFix(i,true);}
     else if(k==='fxdone'){var bx2=document.getElementById('gx-fx-'+i);if(bx2)bx2.hidden=true;}
     else if(k==='fxundo'){var f=fields()[i];if(!f)return;FIX[kOf(f)]=null;fixDirty=true;
-      var bt=document.getElementById('gx-bt-'+i);if(bt)bt.textContent=origOf(f)||'';
+      updSent(i);
       var bx3=document.getElementById('gx-fx-'+i);if(bx3)bx3.hidden=true;var st=rowState(i);writeBack(i,st.sym,st.cmt);soon();}
     else if(k==='done')finish();
   });
@@ -224,7 +230,7 @@
       +'.gx-b del{color:#C62828;text-decoration-thickness:2px}'
       +'.gx-b ins{color:#C62828;text-decoration:none;border-bottom:2px solid #C62828;font-family:"Kaiti TC","BiauKai","STKaiti","DFKai-SB",serif}'
       +'.gx-ed{margin-left:8px;border:0;background:none;color:#8A97A8;font:inherit;font-size:12.5px;cursor:pointer;padding:2px 6px;border-radius:6px}'
-      +'.gx-ed:hover{color:#C62828;background:#FCEFEE}'
+      +'.gx-ed:hover{color:#C62828;background:#FCEFEE}.gx-bt{cursor:text}.gx-bt:hover{background:#FFF6F5;border-radius:6px}'+'.gx-better{font-size:15.5px;color:#1F6A54;margin-top:2px}.gx-better span{font-family:"Kaiti TC","BiauKai","STKaiti","DFKai-SB",serif;font-size:17px}'
       +'.gx-fixbox{margin:4px 0 2px}.gx-fxta{width:100%;box-sizing:border-box;font:inherit;font-size:16px;line-height:1.7;border:1.5px solid #E8B4B0;border-radius:10px;padding:6px 10px;color:#16202E;resize:none}'
       +'.gx-fxta:focus{outline:none;border-color:#C62828}.gx-fxbar{display:flex;gap:6px;margin-top:4px}'
       +'.gx-mini{border:1px solid #E3E9F1;background:#fff;border-radius:999px;font:inherit;font-size:12.5px;padding:2px 12px;cursor:pointer;color:#3B4A5E}'
@@ -263,7 +269,7 @@
       if(!mountRoot())return;
       var k=(typeof S!=='undefined'&&S&&S.sgSel)||'';
       if(!built||k!==key){key=k;built=true;
-        var d=docById(a.id);FIX=Object.assign({},(d&&d.fix)||{});fixDirty=false;
+        var d=docById(a.id);FIX=Object.assign({},(d&&d.fix_text)||{});fixDirty=false;
         isWb=!!p.querySelector('textarea.wbrev-fb');
         draw();}
     }catch(e){}
