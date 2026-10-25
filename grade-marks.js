@@ -90,7 +90,7 @@
     try{ta.dispatchEvent(new Event('input',{bubbles:true}));}catch(e){}
     if(cur!==sym){
       /* 標完游標停在符號後面，想補一句就直接打，不用再點一次 */
-      if(!ta.classList.contains('gm-hide'))try{ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);}catch(e){}
+      if(!ta.classList.contains('gm-hide'))try{/* NOJUMP2_V1636 游標放進框裡，但不要讓整頁捲到正中間 */ta.focus({preventScroll:true});ta.setSelectionRange(ta.value.length,ta.value.length);try{ta.scrollIntoView({block:'nearest'});}catch(_){}}catch(e){}
     }
   }
 

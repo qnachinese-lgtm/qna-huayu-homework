@@ -10961,6 +10961,10 @@ function tsyncBlocked(){
     if(TSYNC.busy)return '正在同步';
     if(document.querySelector('#modal-root .modal'))return '有視窗開著';
     if(document.querySelector('#hw-ov,.stroke-ov'))return '有視窗開著';
+    /* KEEPEDIT_V1636 Quinn：「填寫的內容，按儲存後都不見了」。批改台是開在頁面右邊（不是彈出視窗），
+       她切出去看別的視窗再回來，這裡就整頁重讀重畫，打到一半還沒存的建議全被洗掉，
+       接著按儲存，存進去的就是舊的。批改台有開著一份在改的時候不重讀。 */
+    if(document.querySelector('#sg-pane textarea,#sg-pane input'))return '正在批改';
     if(Date.now()-TSYNC.typed<10000)return '正在打字';
     if(window.LQ&&LQ.code)return '正在跑即時比賽';
     const a=document.activeElement;
@@ -14924,7 +14928,7 @@ H.reviewWb=(id)=>{const sd=(S.wbdocs||[]).find(x=>x.id===id);if(!sd)return;
   (d.gram||[]).forEach(g=>{const v=(a.gram||{})[g.n]||'';
     rows+=`<div class="srev-item wb-gq"><div class="srev-word">${g.n}. A：${esc(g.a)}　<span class="tag">${esc(g.pattern||'')}</span></div>
       <div class="srev-sent${v?' wb-bsay':''}">${v?esc(String(v).replace(/^\s*[BＢ]\s*[：:]\s*/,'')):'<span class="muted">（未作答）</span>'}</div>
-      ${g.ref?`<div class="hint" style="margin:2px 0 6px">參考答案：B：${esc(String(g.ref).replace(/^\s*[BＢ]\s*[：:]\s*/,''))}</div>`:''}
+      ${g.ref?`<div class="hint" style="margin:2px 0 6px">參考答案：<span class="wb-bref">${esc(String(g.ref).replace(/^\s*[BＢ]\s*[：:]\s*/,''))}</span></div>`:''}
       <textarea class="wbrev-fb" data-k="g${g.n}" rows="2" placeholder="建議">${esc(fb['g'+g.n]||'')}</textarea></div>`;});
   /* 完成對話／語法練習（填空題，老師批改） */
   [['dlg','四 完成對話','d'],['dlg2','六 語法練習','d2']].forEach(([sec,lab,pfx])=>{

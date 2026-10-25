@@ -301,10 +301,10 @@
     /* 批完一題就收起來；點標題可以再打開 */
     var ta=item.querySelector('textarea.'+ctx.scr.fb);
     if(ta){
-      ta.addEventListener('blur',function(){
-        if(AUTO&&String(ta.value||'').trim())fold(item,true);
-        paintBar(ctx);
-      });
+      /* NOJUMP2_V1636 Quinn：「點進去或是什麼的，都一直跳來跳去」。
+         本來游標一離開建議框，那一題就自動收起來——上面那題一縮，整頁就往上跳。
+         改成：改的時候都不收；只有剛打開時，已經批好的才先收著。 */
+      ta.addEventListener('blur',function(){paintBar(ctx);});
       ta.addEventListener('input',function(){paintBar(ctx);});
     }
     item.addEventListener('click',function(ev){
