@@ -6145,7 +6145,7 @@ function studentModal(st){const e=!!(st&&st.id);st=st||{};
                      +'title="用存檔的 Email 幫他建立登入帳號，密碼由妳自己設">\u{1F511} 建立登入帳號</button></div>')
                   : '上面的 Email 填好、存檔之後，到他的學生卡片按「🔑 建立登入帳號」就能設密碼讓他登入。')
           }</div></div>`
-       : `<div class="field"><label>初始密碼 <span class="hint">留空＝先不開通</span></label><input id="f-pw" type="text" value="" placeholder="選填，至少 6 碼"></div>
+       : `<div class="field"><label>初始密碼 <span class="hint">預設 123456；清空＝先不開通</span></label><input id="f-pw" type="text" value="123456" placeholder="選填，至少 6 碼"></div>
      <div class="field"><div class="hint" style="margin-top:22px">帳號就是上面「聯絡方式」填的 Email。<b>只填 Email、不填密碼</b>的話，Email 只是存起來，不會開通登入。</div></div>`}
     </div></div>
     <details class="form-more hide" data-g="d"><summary>▸ 更多設定 <span class="hint">頭像、國籍、教材資料夾、付款帳號、合併帳戶，設定一次就很少動。</span></summary>
@@ -18778,7 +18778,7 @@ H.saveStudent=async(id)=>{const name=$('#f-name').value.trim();if(!name)return t
         common.email=_em;}
     }catch(_e){}
     try{await DB.update('students',id,common);closeModal();await loadAll();render();toast('已儲存');ruLater();/* READUID_V973 */}catch(err){const m=((err&&(err.code||err.message))||'')+'';toast(/permission|insufficient|unauth/i.test(m)?('儲存失敗：'+RELOGIN_MSG):('儲存失敗：'+m));}return;}
-  const email=($('#f-email').value||'').trim().toLowerCase(),pw=$('#f-pw').value;
+  const email=($('#f-email').value||'').trim().toLowerCase(),pw=email?$('#f-pw').value:'';/* PW123_V1628 沒填 Email 時預設密碼不算數 */
   const btn=document.querySelector('[data-act="saveStudent"]');
   /* EMAILONLY_V1231 Quinn：「我只想純粹存信箱而已」。
      本來只要填了 Email 就一定要連密碼一起填，不然存不進去。
@@ -18876,7 +18876,7 @@ function chmDraw(){
   const C=CHM_CTX;if(!C)return;
   const pwRow=C.on
     ?('<div class="field full"><label>'+(C.adopt?'那個帳號目前的密碼':'新的初始密碼')+'</label>'
-      +'<input id="chm-pw" type="'+(C.adopt?'password':'text')+'" autocomplete="off" placeholder="至少 6 碼"></div>')
+      +'<input id="chm-pw" type="'+(C.adopt?'password':'text')+'" autocomplete="off"'+(C.adopt?'':' value="123456"')+' placeholder="至少 6 碼"></div>')
     :'';
   const note=C.on
     ?(C.adopt
@@ -18989,7 +18989,7 @@ function mklDraw(){
       +'下面填一組初始密碼，建好之後會跳一段訊息給妳複製，傳給學生就能登入。<br>'
       +'<span style="color:#1F6A54">密碼不會存進資料庫，之後忘了只能用「✉️ 寄重設密碼信」重設。</span></div>'
       +'<div class="form-grid"><div class="field full"><label>初始密碼</label>'
-      +'<input id="mkl-pw" type="text" autocomplete="off" placeholder="至少 6 碼"></div></div>';
+      +'<input id="mkl-pw" type="text" autocomplete="off" value="123456" placeholder="至少 6 碼"></div></div>';/* PW123_V1628 預設密碼 123456 */
   openModal('<div class="modal" style="max-width:520px"><div class="modal-head"><h3>'+head+'</h3>'
     +'<button class="x" data-act="closeModal">×</button></div>'
     +'<div class="modal-body">'+body+'<div class="err" id="mkl-err" style="margin-top:8px"></div></div>'
@@ -26384,8 +26384,8 @@ H.loginMsg=(id)=>{const s=(S.students||[]).find(x=>x.id===id);if(!s||!s.email)re
   const nm=s.name||'';
   openModal('<div class="modal"><div class="modal-head"><h3>📋 登入訊息 · '+esc(nm)+'</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body">'
-   +'<div class="field"><label>密碼 <span class="hint">填妳幫他設的密碼（系統不會存）</span></label>'
-   +'<input id="lm-pw" type="text" autocomplete="off" placeholder="例如 123456" style="width:100%"></div>'
+   +'<div class="field"><label>密碼 <span class="hint">預設 123456；當初設別的就改掉（系統不會存）</span></label>'
+   +'<input id="lm-pw" type="text" autocomplete="off" value="123456" placeholder="例如 123456" style="width:100%"></div>'
    +'<textarea id="inv-msg" style="width:100%;min-height:230px;font-size:13px;margin-top:10px" readonly></textarea>'
    +'<div class="hint" style="margin-top:6px">忘了當初設的密碼：關掉這個視窗，按「⋯ → ✉️ 寄重設密碼信」，讓學生自己設。</div></div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn btn-accent" data-act="copyInvite">📋 複製訊息</button></div></div>');
