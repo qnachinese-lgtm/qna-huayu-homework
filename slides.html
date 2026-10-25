@@ -23,6 +23,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
+<!-- CLPYADD_V1 上課中加拼音；RSEL_V1 選段落 -->
 <!-- CLNAME_V1 人名藍色直線、地名褐色雙線 -->
 <!-- CLBOOK_V1 文言文：古籍版面、專名號、點詞看解釋、作者與出處、人物與路線 -->
 <!-- CLHL_V1 文言文有解釋的詞用螢光筆標出 -->
@@ -411,6 +412,15 @@ body.clmode .clglh{color:#B23A2E}
 .paras.solo:has(.clgl) > .para{max-height:100%;overflow:auto;box-sizing:border-box}
 .clhl{background:#FFE58A;color:inherit;padding:0 2px;border-radius:3px;-webkit-box-decoration-break:clone;box-decoration-break:clone}/* CLHLFULL_V1 螢光筆蓋住整個字 */
 .clhl.on{background:#FFC93C;box-shadow:0 0 0 2px #E0A800}
+/* CLPYADD_V1 */
+ruby.clpyx rt{color:#B23A2E}
+ruby.clpyx{cursor:pointer}
+#clpyPop{position:fixed;z-index:9999;display:flex;align-items:center;gap:6px;background:#fff;border:2px solid #E3D3AE;border-radius:12px;padding:8px 10px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+#clpyPop[hidden]{display:none}
+#clpyPop .cpw{font-size:22px;font-weight:700;color:#2B2622;padding:0 4px}
+#clpyPop input{font:inherit;font-size:16px;width:170px;padding:6px 8px;border:2px solid var(--line);border-radius:8px}
+/* RSEL_V1 */
+.rsel{font:inherit;font-size:13px;padding:4px 8px;border:2px solid var(--line);border-radius:999px;background:var(--panel);color:var(--fg);cursor:pointer}
 .clp ruby rt{font-size:.42em;color:var(--muted);font-family:"Times New Roman",serif;letter-spacing:0}
 .paras.solo .clp{line-height:2.2}
 .clgl{background:var(--ice);border-radius:14px;padding:14px 18px;font-size:max(18px, calc(var(--rfs,24px) * .72));line-height:1.65;max-height:100%;overflow:auto}
@@ -1239,12 +1249,12 @@ function render(){
       return `<mark class="clhl" data-t="${esc(x.term)}">${inner}</mark>`; };
     const clRuby = (html, g) => { const it = clGloss(String(g||"").replace(/⏎/g, "\n")).filter(x => x.term).sort((a, b) => [...b.term].length - [...a.term].length), RB = [];
       return html.split(/(<[^>]+>)/).map(seg => seg && seg[0] !== "<" ? seg.replace(/[，。；：、「」『』！？]/g, m => `\u0003${m}\u0004`) : seg).map(seg => { if(!seg || seg[0] === "<") return seg; it.forEach(x => { if(x._d) return; const k = esc(x.term), p = seg.indexOf(k); if(p >= 0){ x._d = 1; seg = seg.slice(0, p) + "\u0001" + RB.length + "\u0002" + seg.slice(p + k.length); RB.push(clMk(x, k)); } }); return seg; }).join("").replace(/\u0001(\d+)\u0002/g, (m, i) => RB[+i]).replace(/\u0003([^\u0004])\u0004/g, `<span class="clpu">$1</span>`); };
-    st.innerHTML = ps.length ? `<div class="paras${solo ? " solo" : ""}">${ps.map((x,i)=> solo && i !== ri ? "" : `<div class="para ${i===ri && !solo?'on':''} ${ri>=0&&i!==ri?'dim':''}">${CG && solo ? `<div class="tag clseg"><span>${CG[i].lab}</span></div>` : ""}<div class="zh">${isCl ? clRuby(String(x[0]).split("\n").map(t=>`<p class="clp">${clMark(t)}</p>`).join(""), x[1]) : clMark(x[0])}</div>${isCl ? "" : `<div class="py">${esc(x[1]||"")}</div>`}${isCl ? "" : `<div class="tr">${esc(x[2]||"")}</div>`}</div>${isCl && solo ? clGlBox(x[1]) : ""}`).join("")}</div>`
+    st.innerHTML = ps.length ? `<div class="paras${solo ? " solo" : ""}">${ps.map((x,i)=> solo && i !== ri ? "" : `<div data-g="${i}" class="para ${i===ri && !solo?'on':''} ${ri>=0&&i!==ri?'dim':''}">${CG && solo ? `<div class="tag clseg"><span>${CG[i].lab}</span></div>` : ""}<div class="zh">${isCl ? clPyAdd(i, clRuby(String(x[0]).split("\n").map(t=>`<p class="clp">${clMark(t)}</p>`).join(""), x[1])) : clMark(x[0])}</div>${isCl ? "" : `<div class="py">${esc(x[1]||"")}</div>`}${isCl ? "" : `<div class="tr">${esc(x[2]||"")}</div>`}</div>${isCl && solo ? clGlBox(x[1]) : ""}`).join("")}</div>`
       : `<div class="center"><div class="tr" style="visibility:visible">這一課還沒有短文，按右上角「老師」→「編輯／匯入」加入。</div></div>`;
     /* RAUDIO_V1 短文也有自己的音檔（從教材與課程的短文段落帶過來） */
     const rau = LESSON.readAudio && LESSON.readAudio.url;
     ct.innerHTML = (rau ? aPlayerHtml() : "") + `<button class="btn ghost" data-a="rall">全部顯示</button>${toggles()}
-      <div class="meta">${ri<0?"全部":CG ? CG[ri].lab.replace("第","第 ").replace("段"," 段") : "第 "+(ri+1)+" 段"}・共 ${ps0.length} 段</div>`;
+      <div class="meta">${CG ? `<select class="rsel" data-rsel aria-label="選段落"><option value="-2"${ri<0?" selected":""}>全部</option>${CG.map((g,j)=>`<option value="${j}"${j===ri?" selected":""}>${g.lab}</option>`).join("")}</select>` : ri<0?"全部":"第 "+(ri+1)+" 段"}・共 ${ps0.length} 段</div>`;
     if(rau){ setAudio(rau); updA(); }
     /* READFIT_V1 短文整篇放進框裡，不用捲 */
     { const box = st.querySelector(".paras"); if(box){ st.style.overflow = (TZ||1) > 1 ? "auto" : "hidden"; let fs = isCl ? 28 : solo ? 32 : 24;/* CLRUBY_V1 文言文字一樣大 */
@@ -1557,7 +1567,7 @@ function fromDoc(id, d){
     book: d.book || "", flow: Array.isArray(d.flow) ? d.flow.filter(k=>STEP_DEFS[k]) : null,
     warm: {qs: rows(d.warmQs), img: d.warmImg || null}, read: {title: d.readTitle || "", paras: cells(d.readParas,3).filter(r=>r[0])},
     speak: cells(d.speak,2).filter(r=>r[0]), qa: cells(d.qa,2).filter(r=>r[0]), qa2: cells(d.qa2,2).filter(r=>r[0]), qaSplit: !!d.qaSplit, culture: {title: d.cultTitle || "", paras: rows(d.cultText), img: d.cultImg || null},
-    dict: cells(d.dict,3).map(r=>{r[0]=normRole(r[0]);return r}).filter(r=>r[2]), audio: d.audio && d.audio.url ? {url:d.audio.url, name:d.audio.name||"", path:d.audio.path||""} : null, readAudio: d.readAudio && d.readAudio.url ? {url:d.readAudio.url, name:d.readAudio.name||""} : null, clmap: d.clmap && typeof d.clmap === "object" ? d.clmap : null,
+    dict: cells(d.dict,3).map(r=>{r[0]=normRole(r[0]);return r}).filter(r=>r[2]), audio: d.audio && d.audio.url ? {url:d.audio.url, name:d.audio.name||"", path:d.audio.path||""} : null, readAudio: d.readAudio && d.readAudio.url ? {url:d.readAudio.url, name:d.readAudio.name||""} : null, clmap: d.clmap && typeof d.clmap === "object" ? d.clmap : null, clpy: Array.isArray(d.clpy) ? d.clpy : [],
     orderImgs: Array.isArray(d.orderImgs) ? d.orderImgs.filter(x=>x && x.url) : [],
     cards: cells(d.cards,5).filter(r=>r[1]), review: rows(d.review), homework: rows(d.homework), src: d.src || "" };
 }
@@ -1935,7 +1945,7 @@ $("#edSave").onclick = async () => {
   const isNew = !editingId || editingId==="sample";
   const id = isNew ? ED._id : editingId;
   const body = { ...d, num: Number(d.num)||0, updatedAt: Date.now() };
-  { const prev = lessons.find(x=>x.id===id); if(prev && prev.readAudio && prev.readAudio.url) body.readAudio = {url: prev.readAudio.url, name: prev.readAudio.name||""}; if(prev && prev.clmap) body.clmap = prev.clmap; }
+  { const prev = lessons.find(x=>x.id===id); if(prev && prev.readAudio && prev.readAudio.url) body.readAudio = {url: prev.readAudio.url, name: prev.readAudio.name||""}; if(prev && prev.clmap) body.clmap = prev.clmap; if(prev && prev.clpy && prev.clpy.length) body.clpy = prev.clpy; }
   const L = fromDoc(id, body); if(ED.audio && ED.audio.local) L.audio = ED.audio; if(ED.warmImg && ED.warmImg.local) L.warm.img = ED.warmImg; if(ED.cultImg && ED.cultImg.local) L.culture.img = ED.cultImg; L.textImgs = ED.textImgs.slice(); L.orderImgs = ED.orderImgs.slice();
   if(!db){ lessons = lessons.filter(x=>x.id!==id).concat(L); useLesson(id); afterSave(id, L); return; }
   $("#edSave").disabled = true; msg("儲存中…");
@@ -2541,6 +2551,43 @@ document.addEventListener("click", e => { const m = e.target.closest(".clhl[data
   st.querySelectorAll(".clhl.on, .clgi.on").forEach(x => x.classList.remove("on"));
   const sel = v => `[data-t="${String(v).replace(/"/g, '\\"')}"]`, g = st.querySelector(".clgi" + sel(t)), w = st.querySelector(".clhl" + sel(t));
   if(g){ g.classList.add("on"); g.scrollIntoView({block: "nearest", behavior: "smooth"}); } if(w){ w.classList.add("on"); if(m === g) w.scrollIntoView({block: "nearest", behavior: "smooth"}); } });
+/* CLPYADD_V1 上課中加拼音：在原文選取字 → 打拼音 → 標在字上（存在這一課） */
+const clTone = t => String(t||"").trim().replace(/v/g, "ü").replace(/V/g, "Ü").replace(/([a-zü]+)([1-5])/gi, (m, s, n) => { if(n === "5") return s; const M = {a:"āáǎà", e:"ēéěè", i:"īíǐì", o:"ōóǒò", u:"ūúǔù", "ü":"ǖǘǚǜ"}; const lo = s.toLowerCase();
+  let p = lo.search(/[ae]/); if(p < 0) p = lo.indexOf("ou"); if(p < 0){ for(let k = lo.length - 1; k >= 0; k--) if("iouü".includes(lo[k])){ p = k; break; } } if(p < 0) return s;
+  const c = lo[p], r = M[c][+n - 1], up = s[p] !== c; return s.slice(0, p) + (up ? r.toUpperCase() : r) + s.slice(p + 1); });
+function clPyAdd(g, html){ const A = (LESSON.clpy || []).map((a, k) => ({...a, k})).filter(a => a.g === g && a.s && a.py); if(!A.length) return html;
+  A.forEach(a => { const parts = html.split(/(<[^>]+>)/); let inRt = 0, inRb = 0, cnt = 0, done = false;
+    for(let j = 0; j < parts.length && !done; j++){ const p = parts[j]; if(!p) continue;
+      if(p[0] === "<"){ const t = p.toLowerCase(); if(t.startsWith("<rt")) inRt++; else if(t.startsWith("</rt")) inRt--; else if(t.startsWith("<ruby")) inRb++; else if(t.startsWith("</ruby")) inRb--; continue; }
+      if(inRt) continue; let from = 0, q;
+      while((q = p.indexOf(a.s, from)) >= 0){ if(cnt === a.o){ if(!inRb){ const cs = [...a.s], sy = a.py.split(/\s+/).filter(Boolean);
+            const rb = cs.length > 1 && sy.length === cs.length ? cs.map((c, z) => `<ruby class="clpyx" data-pk="${a.k}">${c}<rt>${esc(sy[z])}</rt></ruby>`).join("") : `<ruby class="clpyx" data-pk="${a.k}">${a.s}<rt>${esc(a.py)}</rt></ruby>`;
+            parts[j] = p.slice(0, q) + rb + p.slice(q + a.s.length); } done = true; break; }
+        cnt++; from = q + a.s.length; } }
+    html = parts.join(""); });
+  return html; }
+async function clPySave(){ const L = LESSON, v = (L.clpy || []).slice(); render();
+  if(db && L.id && L.id !== "sample"){ try { await db.collection(COL).doc(L.id).update({clpy: v}); } catch(e){ console.warn("clpy", e); } } }
+function clPyPop(x, y, init){ let P = document.getElementById("clpyPop"); if(!P){ P = document.createElement("div"); P.id = "clpyPop"; document.body.appendChild(P); }
+  P.innerHTML = `<div class="cpw">${esc(init.s)}</div><input type="text" placeholder="拼音，例如 shuì 或 shui4" value="${esc(init.py || "")}" autocomplete="off"><button type="button" data-cp="ok" class="btn">加上</button>${init.k != null ? `<button type="button" data-cp="del" class="btn ghost">刪除</button>` : ""}<button type="button" data-cp="x" class="btn ghost" aria-label="關閉">✕</button>`;
+  P.hidden = false; P.style.left = Math.max(8, Math.min(window.innerWidth - 380, x)) + "px"; P.style.top = Math.min(window.innerHeight - 70, y + 8) + "px"; P._init = init;
+  const inp = P.querySelector("input"); setTimeout(() => inp.focus(), 0);
+  inp.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); P.querySelector('[data-cp="ok"]').click(); } if(e.key === "Escape"){ P.hidden = true; } };
+  P.onclick = e => { const b = e.target.closest("[data-cp]"); if(!b) return; const it = P._init, arr = (LESSON.clpy || []).slice();
+    if(b.dataset.cp === "x"){ P.hidden = true; return; }
+    if(b.dataset.cp === "del" || (b.dataset.cp === "ok" && !inp.value.trim())){ if(it.k != null) arr.splice(it.k, 1); }
+    else { const py = clTone(inp.value); if(it.k != null) arr[it.k] = {...arr[it.k], py}; else arr.push({g: it.g, s: it.s, o: it.o, py}); }
+    LESSON.clpy = arr; P.hidden = true; clPySave(); }; }
+document.addEventListener("mouseup", e => { if(e.target.closest("#clpyPop") || /[?&]join=/i.test(location.search)) return; if(!(STEPS[step] && STEPS[step].key === "read" && isClL())) return;
+  const sel = window.getSelection(); if(!sel || sel.isCollapsed || !sel.rangeCount) return; const s = sel.toString().replace(/\s+/g, "");
+  if(!/^[㐀-鿿豈-﫿]{1,4}$/.test(s)) return; const r = sel.getRangeAt(0), para = r.startContainer.parentElement && r.startContainer.parentElement.closest(".para[data-g]"); if(!para) return;
+  const zh = para.querySelector(".zh"); if(!zh || !zh.contains(r.startContainer)) return;
+  const pre = document.createRange(); pre.setStart(zh, 0); pre.setEnd(r.startContainer, r.startOffset); const fr = pre.cloneContents(); fr.querySelectorAll("rt").forEach(n => n.remove());
+  const t = fr.textContent; let o = 0, f = 0, q; while((q = t.indexOf(s, f)) >= 0){ o++; f = q + s.length; }
+  const rc = r.getBoundingClientRect(); clPyPop(rc.left, rc.bottom, {g: +para.dataset.g, s, o}); });
+document.addEventListener("click", e => { const rb = e.target.closest("ruby.clpyx"); if(!rb) return; const k = +rb.dataset.pk, a = (LESSON.clpy || [])[k]; if(!a) return; e.stopPropagation(); const rc = rb.getBoundingClientRect(); clPyPop(rc.left, rc.bottom, {...a, k}); }, true);
+/* RSEL_V1 文言文：直接選要看哪一段 */
+document.addEventListener("change", e => { const s = e.target.closest && e.target.closest("[data-rsel]"); if(!s) return; ri = +s.value; render(); });
 /* TZOOM_V1 對話、短文頁：A− A＋ 放大縮小（記在這台電腦） */
 var TZ; try { TZ = +localStorage.getItem("slides-tz") || 1; } catch(e){ TZ = 1; }
 function tzApply(){ const k = STEPS[step] && STEPS[step].key, on = ["text","text2","read"].includes(k), st = $("#stage"); if(!st) return; st.classList.toggle("tzoom", on && TZ !== 1); st.style.setProperty("--tz", TZ);
