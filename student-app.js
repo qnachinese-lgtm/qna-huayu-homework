@@ -444,6 +444,24 @@ function stuOrigBox(orig,shown){
         vi:'Câu ở trên là bản giáo viên đã sửa'}))+'</div></div>';
 }
 function stuOrigHtml(doc,key,shown){return stuOrigBox(stuOrigRaw(doc,key),shown);}
+/* GSHEET_V1641 老師在批改分頁直接改學生的句子，改好的存在 doc.fix[題目代號]。
+   這裡畫成紅筆刪改：刪掉的劃線、補上的加底線。 */
+function fixDiffHtml(a,b){
+  a=Array.from(String(a||''));b=Array.from(String(b||''));
+  const n=a.length,m=b.length;if(n*m>90000)return '<del>'+esc(a.join(''))+'</del><ins>'+esc(b.join(''))+'</ins>';
+  const L=[];for(let i=0;i<=n;i++)L.push(new Array(m+1).fill(0));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)L[i][j]=a[i]===b[j]?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+  let out='',mode='',buf='';
+  const flush=()=>{if(!buf)return;const t=esc(buf);out+=mode==='d'?'<del>'+t+'</del>':(mode==='i'?'<ins>'+t+'</ins>':t);buf='';};
+  const push=(md,ch)=>{if(md!==mode){flush();mode=md;}buf+=ch;};
+  let i=0,j=0;
+  while(i<n&&j<m){if(a[i]===b[j]){push('s',a[i]);i++;j++;}else if(L[i+1][j]>=L[i][j+1]){push('d',a[i]);i++;}else{push('i',b[j]);j++;}}
+  while(i<n){push('d',a[i]);i++;}while(j<m){push('i',b[j]);j++;}
+  flush();return out;}
+function fixHtml(doc,key,orig){
+  const fx=doc&&doc.fix&&doc.fix[key];
+  if(fx==null||String(fx).trim()===''||String(fx)===String(orig||'').trim())return '';
+  return '<div class="wb-fix"><div class="wb-fix-l">✍️ '+esc(LT({zh:'老師的修改',cn:'老师的修改',en:"Teacher's correction",vi:'Cô sửa'}))+'</div><div class="wb-fix-t">'+fixDiffHtml(String(orig||'').trim(),fx)+'</div></div>';}
 
 function renderSentence(){
   const dd=S.sent,doc=dd.doc;const fb=(doc&&doc.feedback)||{};
@@ -5940,7 +5958,7 @@ function wbGramHtml(w,graded,doc){
     const v=ans[g.n]||'';
     const body=graded?`<div class="wb-ta" style="min-height:auto;background:#FDF3D8">${v?esc(v).replace(/\n/g,'<br>'):('<span class="hint">'+LT({zh:'（未作答）',cn:'（未作答）',en:'(not answered)',vi:'(chưa trả lời)'})+'</span>')}</div>`
       :`<textarea class="wb-ta" rows="2" data-wb="gram" data-n="${g.n}" placeholder="B：…">${esc(v)}</textarea>`;
-    const f=stuOrigHtml(doc,'g'+g.n,v)/* STUORIG_V1534 */
+    const f=stuOrigHtml(doc,'g'+g.n,v)/* STUORIG_V1534 */+fixHtml(doc,'g'+g.n,v)/* GSHEET_V1641 */
       +(fb['g'+g.n]?`<div class="wb-fb">💬 ${esc(fb['g'+g.n])}</div>`:'');
     return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${g.n}</span>A：${esc(g.a)}${g.pattern?`<span class="wb-tag">${esc(g.pattern)}</span>`:''}</div><div style="margin-top:8px">${body}</div>${f}</div>`;
   }).join('');
@@ -5960,7 +5978,7 @@ function wbWriteHtml(w,graded,doc){
   const chips=(arr)=>arr&&arr.length?`<div class="wb-chips">${arr.map(x=>`<span class="wb-chip">${esc(x)}</span>`).join('')}</div>`:'';
   const body=graded?`<div class="wb-ta" style="min-height:auto;background:#FDF3D8;white-space:pre-wrap">${v?esc(v):('<span class="hint">'+LT({zh:'（未作答）',cn:'（未作答）',en:'(not answered)',vi:'(chưa trả lời)'})+'</span>')}</div>`
     :`<textarea class="wb-ta" id="wb-write" rows="14" data-wb="write" placeholder="${esc(wbL({zh:'在這裡寫…',cn:'在这里写…',en:'Write here…',vi:'Viết ở đây…'}))}">${esc(v)}</textarea><div class="wb-cnt ${cls}" id="wb-cnt">${n} ${wbL({zh:'字',cn:'字',en:'chars',vi:'chữ'})}</div>`;
-  const fb=stuOrigHtml(doc,'write',v)/* STUORIG_V1534 */
+  const fb=stuOrigHtml(doc,'write',v)/* STUORIG_V1534 */+fixHtml(doc,'write',v)/* GSHEET_V1641 */
     +((doc&&doc.feedback&&doc.feedback.write)?`<div class="wb-fb">💬 ${esc(doc.feedback.write)}</div>`:'');
   return (wr.intro?`<div class="wb-qt" style="margin-bottom:8px">${esc(wr.intro)}</div>`:'')
     +(wr.points&&wr.points.length?`<div class="wb-sub">${wbL({zh:'內容要包括',cn:'内容要包括',en:'Include',vi:'Cần có'})}</div>`+list(wr.points):'')
