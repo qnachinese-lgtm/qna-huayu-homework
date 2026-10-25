@@ -117,7 +117,7 @@
   function updSent(i){var bt=document.getElementById('gx-bt-'+i);if(bt)bt.innerHTML=sentInner(i);}
   function sentHtml(i){
     var f=fields()[i];var o=origOf(f);if(o==null)return '';
-    return '<div class="gx-b">'+(bSay(f)?'<b class="gx-bl">B：</b>':'')+'<span class="gx-bt" id="gx-bt-'+i+'" data-gs="edit" data-i="'+i+'" title="點一下就可以改">'+sentInner(i)+'</span>'
+    return '<div class="gx-b">'+(bSay(f)?'<span class="gx-num"></span><b class="gx-sp">B：</b>':'')+'<span class="gx-bt" id="gx-bt-'+i+'" data-gs="edit" data-i="'+i+'" title="點一下就可以改">'+sentInner(i)+'</span>'
       +'<button type="button" class="gx-ed" data-gs="edit" data-i="'+i+'">✎ 改字／寫更好的說法</button></div>'
       +'<div class="gx-fixbox" id="gx-fx-'+i+'" hidden><textarea class="gx-fxta" data-i="'+i+'" rows="2"></textarea>'
       +'<div class="gx-fxbar"><button type="button" class="gx-mini" data-gs="fxdone" data-i="'+i+'">好了</button><button type="button" class="gx-mini" data-gs="fxundo" data-i="'+i+'">還原成學生寫的</button></div></div>';
@@ -125,7 +125,7 @@
   function rowHtml(f,i){
     var st=rowState(i),ref=refOf(f),o=origOf(f);
     return '<div class="gx-q" data-row="'+i+'"><div class="gx-body">'
-      +'<div class="gx-ctx">'+cleanClone(boxOf(f),o!=null)+'</div>'
+      +'<div class="gx-ctx">'+cleanClone(boxOf(f),o!=null).replace(/(<div class="srev-word">)\s*(\d+)\.\s*A\s*[：:]\s*/,'$1<span class="gx-num">$2.</span><b class="gx-sp">A：</b>')+'</div>'/* ABEVEN_V1645 A、B 對齊 */
       +sentHtml(i)
       +'<textarea class="gx-red" data-i="'+i+'" rows="1" placeholder="在這裡寫評語（紅字，可以不寫）">'+esc(st.cmt)+'</textarea>'
       +(ref?('<div class="gx-ref">參考：'+esc(ref)+'</div>'):'')
@@ -226,7 +226,7 @@
       +'.gx-ctx{font-size:15px;line-height:1.8;color:#16202E}.gx-ctx .srev-item,.gx-ctx .gd-q{border:0!important;padding:0!important;margin:0!important;background:none!important}'
       +'.gx-ctx .srev-word{font-weight:400!important;font-size:15px!important;margin:0!important}.gx-ctx .tag{font-size:12px;margin-left:6px}'
       +'.gx-ctx img{max-width:100%;border-radius:8px}.gx-ctx audio{max-width:100%}'
-      +'.gx-b{margin-top:6px;font-size:16.5px;line-height:2}.gx-bl{margin-right:2px}'
+      +'.gx-b{margin-top:4px;font-size:16px;line-height:1.9}'+'.gx-num{display:inline-block;width:26px;color:#66758A;font-weight:700}.gx-sp{font-weight:700;margin-right:2px}'+'.gx-ctx .srev-word{font-size:16px!important;line-height:1.9}'+'.gx-better{margin-left:26px}.gx-b:has(.gx-better) .gx-ed{margin-left:26px}'+'.gx-red,.gx-ref,.gx-fixbox,.gx-ctx .tag{margin-left:26px!important}.gx-red{width:calc(100% - 26px)!important}'
       +'.gx-b del{color:#C62828;text-decoration-thickness:2px}'
       +'.gx-b ins{color:#C62828;text-decoration:none;border-bottom:2px solid #C62828;font-family:"Kaiti TC","BiauKai","STKaiti","DFKai-SB",serif}'
       +'.gx-ed{margin-left:8px;border:0;background:none;color:#8A97A8;font:inherit;font-size:12.5px;cursor:pointer;padding:2px 6px;border-radius:6px}'
