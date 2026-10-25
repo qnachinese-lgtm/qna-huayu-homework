@@ -23,6 +23,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
+<!-- GQIMG_V1 練習每一題可以有自己的圖 -->
 <!-- QSPLIT_V1 練習題回答對齊 -->
 <!-- CLPYFULL_V1 詞語解釋每個字都有拼音 -->
 <!-- CLPY2_V1 點兩下加拼音 -->
@@ -293,6 +294,8 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .gpage:has(.gximg){display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);grid-template-rows:auto 1fr;column-gap:22px;align-items:start}
 .gpage:has(.gximg)>.tag,.gpage:has(.gximg)>.gopts{grid-column:1 / -1}
 .gximg img{width:100%;max-height:400px;object-fit:contain;border-radius:12px;display:block}
+/* GQIMG_V1 每一題自己的圖（課本「看圖回答」） */
+.gq .gqimg{flex:none;height:calc(96px*var(--gs,1));width:auto;max-width:180px;object-fit:contain;border-radius:8px;background:#fff}
 .ex .zh{font-size:28px}
 .check{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}
 .check label{display:flex;gap:10px;align-items:center;background:var(--ice);border-radius:12px;padding:12px;font-size:18px;cursor:pointer}
@@ -1344,7 +1347,7 @@ function render(){
       const ex = exs[gp-1], qs = ex.qs || [];
       st.innerHTML = `<div class="pop gpage"><div class="tag"><span>練習 ${gp}</span>${esc(ex.instr||"")}</div>
         ${(ex.opts||[]).filter(Boolean).length ? `<div class="gopts">${ex.opts.filter(Boolean).map(o=>`<div>${esc(o)}</div>`).join("")}</div>` : ""}
-        ${ex.img && ex.img.url ? `<div class="gximg"><img src="${esc(ex.img.url)}" alt=""></div>` : ""}<div class="gqs">${qs.map((q,i)=>`<button class="gq" data-gq="${i}"><span class="qn">${i+1}</span><span class="qb">${(()=>{ const f = fmtQA(q[0], q[1], gShow||gRev[i]); return f != null ? `<span class="qq">${qSplit(f)}</span>` : `<span class="qq">${qSplit(fmtQ(q[0]))}</span>${q[1] ? `<span class="qans" style="${gShow||gRev[i] ? "" : "visibility:hidden"}">${esc(q[1])}</span>` : ""}`; })()}</span></button>`).join("")}</div></div>`;
+        ${ex.img && ex.img.url ? `<div class="gximg"><img src="${esc(ex.img.url)}" alt=""></div>` : ""}<div class="gqs">${qs.map((q,i)=>`<button class="gq" data-gq="${i}"><span class="qn">${i+1}</span>${(ex.qimgs||[])[i] ? `<img class="gqimg" src="${esc(ex.qimgs[i])}" alt="" decoding="async">` : ""}<span class="qb">${(()=>{ const f = fmtQA(q[0], q[1], gShow||gRev[i]); return f != null ? `<span class="qq">${qSplit(f)}</span>` : `<span class="qq">${qSplit(fmtQ(q[0]))}</span>${q[1] ? `<span class="qans" style="${gShow||gRev[i] ? "" : "visibility:hidden"}">${esc(q[1])}</span>` : ""}`; })()}</span></button>`).join("")}</div></div>`;
     }
     /* GDOCK_V1 語法工具列：語法點用下拉選單，頁面用分段按鈕 */
     ct.innerHTML = `${gids.length>1?`<div class="wpick"><button class="chip wlb" id="glBtn" type="button" aria-expanded="false">語法 ${gi+1}${gids.length===gs.length ? ` / ${gs.length}` : ""} ▾</button><div class="glist" id="glist" hidden>${gids.map(i=>{ const x = gs[i]; return `<button type="button" aria-pressed="${i===gi}" data-g="${i}"><b>${i+1}</b>${esc(gTit(x.title) || short(x.pattern) || "語法")}</button>`; }).join("")}</div></div>`:""}
@@ -1568,7 +1571,7 @@ function fromDoc(id, d){
     goals: rows(d.goals).map(g=>g.replace(/\s*[｜|]\s*/,"：").replace(/：$/,"")), words: cells(d.words,7).map(r=>{ if(!/^(sub|ex)$/.test(r[6])) r[6] = ""; return r; }), words2: cells(d.words2,7).map(r=>{ if(!/^(sub|ex)$/.test(r[6])) r[6] = ""; return r; }), dialog: cells(d.dialog,6).map(r=>{r[0]=normRole(r[0]);return r}), dialog2: cells(d.dialog2,6).map(r=>{r[0]=normRole(r[0]);return r}), textTitle2: d.textTitle2 || "", textImgs: Array.isArray(d.textImgs) ? d.textImgs.filter(x=>x && x.url) : [],
     grammars: (Array.isArray(d.grammars) ? d.grammars : (d.pattern||d.gex ? [{pattern:d.pattern, gex:d.gex, note:d.gnote}] : []))
       .map(g=>({ title: g.title || "", pattern: String(g.pattern||"").split(/\s*[＋+]\s*/).filter(Boolean), examples: cells(g.gex,2), note: g.note || "", seg: g.seg === "短文" ? "短文" : "",
-        exs: (Array.isArray(g.exs) ? g.exs : []).map(x=>({instr: x.instr || "", opts: rows(x.opts), qs: cells(x.qs,2).filter(r=>r[0]), img: x.img && x.img.url ? {url: x.img.url, path: x.img.path||""} : null})),
+        exs: (Array.isArray(g.exs) ? g.exs : []).map(x=>({instr: x.instr || "", opts: rows(x.opts), qs: cells(x.qs,2).filter(r=>r[0]), qimgs: Array.isArray(x.qimgs) ? x.qimgs : [], img: x.img && x.img.url ? {url: x.img.url, path: x.img.path||""} : null})),
         blocks: Array.isArray(g.blocks) && g.blocks.length ? g.blocks.map(b=>({label: b.label || "", text: b.text || "", ex: cells(b.ex,2).filter(r=>r[0])})) : null })),
     cast: d.cast || null, avatars: d.avatars && typeof d.avatars === "object" ? d.avatars : {},
     book: d.book || "", flow: Array.isArray(d.flow) ? d.flow.filter(k=>STEP_DEFS[k]) : null,
@@ -1580,7 +1583,7 @@ function fromDoc(id, d){
 }
 function toDoc(L){
   return { num: Number(L.num)||0, name: L.name, pinyin: L.pinyin, textTitle: L.textTitle||"", goals: join(L.goals), words: join(L.words), words2: join(L.words2||[]),
-    dialog: join(L.dialog), dialog2: join(L.dialog2||[]), textTitle2: L.textTitle2||"", grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gex: join(g.examples), note: g.note||"", seg: g.seg||"", exs: (g.exs||[]).map(x=>({instr: x.instr||"", opts: join(x.opts||[]), qs: join(x.qs||[]), img: x.img && x.img.url && !x.img.local ? {url: x.img.url, path: x.img.path||""} : null})), blocks: g.blocks ? g.blocks.map(b=>({label: b.label||"", text: b.text||"", ex: join(b.ex||[])})) : null})), cast: castOf(L), avatars: cleanAv(L.avatars),
+    dialog: join(L.dialog), dialog2: join(L.dialog2||[]), textTitle2: L.textTitle2||"", grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gex: join(g.examples), note: g.note||"", seg: g.seg||"", exs: (g.exs||[]).map(x=>({instr: x.instr||"", opts: join(x.opts||[]), qs: join(x.qs||[]), qimgs: x.qimgs||[], img: x.img && x.img.url && !x.img.local ? {url: x.img.url, path: x.img.path||""} : null})), blocks: g.blocks ? g.blocks.map(b=>({label: b.label||"", text: b.text||"", ex: join(b.ex||[])})) : null})), cast: castOf(L), avatars: cleanAv(L.avatars),
     cards: join(L.cards), review: join(L.review), homework: join(L.homework), textImgs: (L.textImgs||[]).filter(x=>!x.local), orderImgs: (L.orderImgs||[]).filter(x=>x && x.url && !x.local), book: L.book||"", flow: flowOf(L), warmQs: join((L.warm||{}).qs||[]), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: join((L.read||{}).paras||[]), speak: join(L.speak||[]), qa: join(L.qa||[]), cultTitle: (L.culture||{}).title||"", cultText: join((L.culture||{}).paras||[]), cultImg: (L.culture||{}).img||null, dict: join(L.dict||[]), audio: L.audio && !L.audio.local ? L.audio : null };
 }
 let lessons = [SAMPLE], db = null, editingId = null, delArmed = false;
@@ -1663,7 +1666,7 @@ function openEditor(L){
   editingId = L ? L.id : null; delArmed = false;
   const c = x => (x||[]).map(r => Array.isArray(r) ? r.slice() : [r]);
   ED = L ? { num:String(L.num||""), name:L.name||"", pinyin:L.pinyin||"", textTitle:L.textTitle||"",
-      grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", seg:g.seg||"", gex:c(g.examples), _blocks: g.blocks || null, _sig: (g.note||"").trim() + "##" + JSON.stringify((g.examples||[]).map(r=>r[0])), exs:(g.exs||[]).map(x=>({instr:x.instr||"", opts:(x.opts||[]).join("\n"), qs:c(x.qs), img: x.img || null}))})), cast: castOf(L), avatars: JSON.parse(JSON.stringify(L.avatars||{})),
+      grammars: GR(L).map(g=>({title: g.title||"", pattern:(g.pattern||[]).join("＋"), gnote:g.note||"", seg:g.seg||"", gex:c(g.examples), _blocks: g.blocks || null, _sig: (g.note||"").trim() + "##" + JSON.stringify((g.examples||[]).map(r=>r[0])), exs:(g.exs||[]).map(x=>({instr:x.instr||"", opts:(x.opts||[]).join("\n"), qs:c(x.qs), qimgs: x.qimgs||[], img: x.img || null}))})), cast: castOf(L), avatars: JSON.parse(JSON.stringify(L.avatars||{})),
       goals:c(L.goals), words:c(L.words), words2:c(L.words2||[]), dialog:c(L.dialog), dialog2:c(L.dialog2||[]), textTitle2:L.textTitle2||"", cards:c(L.cards), review:c(L.review), homework:c(L.homework), dict:c(L.dict), audio: L.audio ? {...L.audio} : null, textImgs: (L.textImgs||[]).slice(), orderImgs: (L.orderImgs||[]).map(x=>({...x})),
       book: L.book||"", flow: flowOf(L).slice(), warmQs: c((L.warm||{}).qs), warmImg: (L.warm||{}).img||null, readTitle: (L.read||{}).title||"", readParas: c((L.read||{}).paras), speak: c(L.speak), qa: c(L.qa), qa2: c(L.qa2||[]), cultTitle: (L.culture||{}).title||"", cultText: c((L.culture||{}).paras), cultImg: (L.culture||{}).img||null }
     : { num:"", name:"", pinyin:"", textTitle:"", grammars:[{title:"", pattern:"", gnote:"", gex:[blank(2),blank(2)], exs:[]}], cast:{A:"",B:"",C:"",D:"",E:""}, avatars:{}, goals:[[""],[""],[""]], words:[blank(7)], words2:[blank(7)], dialog:[["A","","","",""],["B","","","",""]], dialog2:[], textTitle2:"", cards:[], review:[[""]], homework:[[""]], dict:[], audio:null,
@@ -1930,7 +1933,7 @@ function readForm(){
   const jr = a => a.filter(filled).map(r=>r.map(x=>String(x).replace(/[｜|\n]/g," ").trim()).join("｜")).join("\n");
   return { num: ED.num.trim(), name: ED.name.trim(), pinyin: ED.pinyin.trim(), textTitle: ED.textTitle.trim(),
     grammars: ED.grammars.filter(g=>(g.title||"").trim() || g.pattern.trim() || g.gex.some(filled) || (g.exs||[]).length).map(g=>({title: (g.title||"").trim(), pattern: g.pattern.trim(), note: g.gnote.trim(), seg: g.seg||"", gex: jr(g.gex),
-      exs: (g.exs||[]).map(x=>({instr: x.instr.trim(), opts: x.opts.trim(), qs: jr(x.qs), img: x.img && x.img.url && !x.img.local ? {url: x.img.url, path: x.img.path||""} : null})),
+      exs: (g.exs||[]).map(x=>({instr: x.instr.trim(), opts: x.opts.trim(), qs: jr(x.qs), qimgs: x.qimgs||[], img: x.img && x.img.url && !x.img.local ? {url: x.img.url, path: x.img.path||""} : null})),
       blocks: g._blocks && g._sig === g.gnote.trim() + "##" + JSON.stringify(g.gex.filter(r=>(r[0]||"").trim()).map(r=>r[0].trim())) ? g._blocks.map(b=>({label: b.label||"", text: b.text||"", ex: (b.ex||[]).map(r=>r.join("｜")).join("\n")})) : null})), cast: {...ED.cast}, avatars: cleanAv(ED.avatars),
     goals: j("goals"), words: j("words"), words2: j("words2"), dialog: j("dialog"), dialog2: j("dialog2"), textTitle2: String(ED.textTitle2||"").trim(), dict: j("dict"), audio: ED.audio && !ED.audio.local ? ED.audio : null,
     textImgs: ED.textImgs.filter(x=>!x.local), orderImgs: ED.orderImgs.filter(x=>!x.local).map(x=>({url: x.url, path: x.path||"", cap: String(x.cap||"").trim()})), book: ED.book.trim(), flow: (()=>{ const fl = ED.flow.slice(); if(ED.orderImgs.length && !fl.includes("order")){ const at = Math.max(fl.indexOf("dict"), fl.indexOf("text")); if(at >= 0) fl.splice(at+1, 0, "order"); else fl.splice(Math.max(1, fl.length-1), 0, "order"); } return fl; })(), warmQs: j("warmQs"), warmImg: ED.warmImg && !ED.warmImg.local ? ED.warmImg : null, readTitle: ED.readTitle.trim(), readParas: j("readParas"),
