@@ -2024,6 +2024,7 @@ function acctRow(s){
       /* ACMORE_V1615 Quinn：「右手邊的三個按鈕，會不會占太多空間」。
          寄重設密碼信、改 Email 不常用，收進「⋯」；外面只留「去看」（和要她動手的開通／接過來） */
       +(mail?('<details class="mini-menu ac-more"><summary class="dots" title="寄重設密碼信、改 Email">⋯</summary><div class="mini-pop">'
+        +(ok?('<button class="btn btn-sm" data-act="loginMsg" data-id="'+esc(s.id)+'" title="產生一段有網址、帳號、密碼的訊息，複製傳給學生">📋 複製登入訊息</button>'):'')/* LOGINMSG_V1627 */
         +'<button class="btn btn-sm" data-act="resetPw" data-id="'+esc(s.id)+'" title="寄一封重設密碼的信到他的信箱">✉️ 寄重設密碼信</button>'
         /* CHMAIL_V1593 Quinn：學生給錯 Email。開通過的帳號也要改得了 */
         +(IS_OWNER?('<button class="btn btn-sm" data-act="chMail" data-id="'+esc(s.id)+'" title="改這位學生的登入 Email">✏️ 改 Email</button>'):'')
@@ -18694,9 +18695,9 @@ async function adoptStudentAuth(email,password){
   const cred=await sec.auth().signInWithEmailAndPassword(email,password);
   const u=cred.user.uid;await sec.auth().signOut();return u;}
 function studentPortalUrl(){try{return location.origin+'/student.html';}catch(e){return 'student.html';}}
+function inviteMsg(name,email,pw){const url=studentPortalUrl();return '你好 '+name+'！這是你的 QNA CHINESE 學習帳號 👇\n\n🔗 登入網址：'+url+'\n📧 帳號：'+email+'\n🔑 密碼：'+pw+'\n\n第一次登入後可以自己改密碼；有問題再跟老師說！\n\n— — —\nXin chào '+name+'! Đây là tài khoản học QNA CHINESE của bạn 👇\n🔗 Đăng nhập: '+url+'\n📧 Tài khoản: '+email+'\n🔑 Mật khẩu: '+pw+'\nSau khi đăng nhập lần đầu, bạn có thể tự đổi mật khẩu nhé!';}
 function inviteModal(name,email,pw){
-  const url=studentPortalUrl();
-  const msg='你好 '+name+'！這是你的 QNA CHINESE 學習帳號 👇\n\n🔗 登入網址：'+url+'\n📧 帳號：'+email+'\n🔑 密碼：'+pw+'\n\n第一次登入後可以自己改密碼；有問題再跟老師說！\n\n— — —\nXin chào '+name+'! Đây là tài khoản học QNA CHINESE của bạn 👇\n🔗 Đăng nhập: '+url+'\n📧 Tài khoản: '+email+'\n🔑 Mật khẩu: '+pw+'\nSau khi đăng nhập lần đầu, bạn có thể tự đổi mật khẩu nhé!';
+  const url=studentPortalUrl();const msg=inviteMsg(name,email,pw);
   openModal('<div class="modal"><div class="modal-head"><h3>✅ 帳號已建立 · 邀請 '+esc(name)+'</h3><button class="x" data-act="closeModal">×</button></div>'
    +'<div class="modal-body"><div class="hint" style="margin-bottom:8px">把下面訊息<b>複製後用 Zalo／訊息傳給學生</b>，他就能登入了。⚠️ 密碼之後不會再顯示，請先傳出去（忘了可到列表按「重設密碼」補寄設定信）。</div>'
    +'<textarea id="inv-msg" style="width:100%;min-height:230px;font-size:13px" readonly>'+esc(msg)+'</textarea>'
@@ -26375,3 +26376,20 @@ H.clHandoutPrint=(id)=>{const l=(S.classicals||[]).find(x=>x&&x.id===id);if(!l)r
     +'</body></html>';
   const w=window.open('','_blank');if(!w)return toast('瀏覽器擋住了新視窗，請允許彈出視窗再按一次');
   w.document.open();w.document.write(html);w.document.close();};
+
+/* LOGINMSG_V1627 Quinn：「開通帳號了，想要複製訊息給她，告訴她帳號、密碼、網址」。
+   密碼不會存在系統裡（看不到原本的），所以這裡讓她把當初設的密碼打進來，
+   下面的訊息跟著更新，按「複製訊息」就能貼到 Zalo。密碼只留在這個視窗，不存檔。 */
+H.loginMsg=(id)=>{const s=(S.students||[]).find(x=>x.id===id);if(!s||!s.email)return toast('這位學生沒有 Email');
+  const nm=s.name||'';
+  openModal('<div class="modal"><div class="modal-head"><h3>📋 登入訊息 · '+esc(nm)+'</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div class="field"><label>密碼 <span class="hint">填妳幫他設的密碼（系統不會存）</span></label>'
+   +'<input id="lm-pw" type="text" autocomplete="off" placeholder="例如 123456" style="width:100%"></div>'
+   +'<textarea id="inv-msg" style="width:100%;min-height:230px;font-size:13px;margin-top:10px" readonly></textarea>'
+   +'<div class="hint" style="margin-top:6px">忘了當初設的密碼：關掉這個視窗，按「⋯ → ✉️ 寄重設密碼信」，讓學生自己設。</div></div>'
+   +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span><button class="btn btn-accent" data-act="copyInvite">📋 複製訊息</button></div></div>');
+  const pw=document.getElementById('lm-pw'),ta=document.getElementById('inv-msg');
+  const up=()=>{ta.value=inviteMsg(nm,s.email,pw.value.trim()||'（請填密碼）');};
+  up();pw.addEventListener('input',up);try{pw.focus();}catch(e){}
+  try{const d=document.querySelector('details.ac-more[open]');if(d)d.open=false;}catch(e){}};
