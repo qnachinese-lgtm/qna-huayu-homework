@@ -6236,7 +6236,7 @@ function wbViewHtml(w){
     score=`<div class="wb-score"><div>${wbL({zh:'自動批改結果',cn:'自动批改结果',en:'Auto-graded',vi:'Chấm tự động'})}</div><b>${sc.ok||0} / ${sc.total||0}</b>
       <div class="wb-sgrid">${pill('聽力',sc.listen)}${pill('詞彙選擇',sc.vocab)}${pill('選詞填空',sc.cloze)}${pill('配合題',sc.match)}${pill('閱讀理解',sc.read)}${pill('聲調',sc.tone)}${pill('選發音',sc.pron)}${pill('聽對話選擇',sc.mcq)}${pill('短文O╱X',sc.tf)}${pill('寫漢字',sc.hz)}${pill('句子重組',sc.ord)}${pill('語法練習',sc.g7)}${pill('自己寫',sc.free)}</div>
       <div style="margin-top:9px;font-size:13px;opacity:.9">${doc.status==='reviewed'?wbL({zh:'需要老師批改的部分已批改 ✓',cn:'需要老师批改的部分已批改 ✓',en:'Teacher-graded parts done ✓',vi:'Phần giáo viên chấm đã xong ✓'}):wbL({zh:'語法對話和寫作等老師批改中…',cn:'语法对话和写作等老师批改中…',en:'Grammar & writing awaiting teacher…',vi:'Ngữ pháp & viết đang chờ giáo viên…'})}</div></div>`
-      +((doc.overall&&String(doc.overall).trim())?`<div class="wb-fb">💬 ${esc(doc.overall)}</div>`:'');
+      +((doc.overall&&String(doc.overall).trim())?`<div class="wb-fb"><b>💬 ${esc(LT({zh:'老師的評語',cn:'老师的评语',en:"Teacher's comment",vi:'Nhận xét của giáo viên'}))}</b><div style="margin-top:4px;white-space:pre-wrap">${esc(doc.overall)}</div></div>`:'');/* OVLAB_V1650 */
   }
   const CNN=['一','二','三','四','五','六','七','八','九','十','十一','十二','十三','十四','十五'];
   /* WBSEC_V751 作業簿的每一區本來標題是寫死的（「聽力測驗　A. 聲調辨識」那種），
