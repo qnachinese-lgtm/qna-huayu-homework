@@ -40,12 +40,30 @@
   var SYMS='✓✎✗○';
   var RE=new RegExp('^[\\s\\u3000]*(['+SYMS+'])[\\s\\u3000]*');
 
+  /* GSIMPLE_V1 參考答案（畫面上 .hint 那一行「參考答案：…」） */
+  function refOf(ta){
+    try{
+      var it=(ta.closest&&ta.closest('.srev-item'))||ta.parentNode;
+      var hs=it?it.querySelectorAll('.hint'):[];
+      for(var i=0;i<hs.length;i++){var t=String(hs[i].textContent||'');var p=t.indexOf('參考答案');
+        if(p>=0)return t.slice(p+4).replace(/^[\s：:]+/,'').trim();}
+    }catch(e){}
+    return '';
+  }
+  (function(){try{if(document.getElementById('gs-simple-css'))return;var st=document.createElement('style');st.id='gs-simple-css';
+    st.textContent='textarea.gm-hide{display:none!important}'
+      +'.srev-item .srev-sent.gs-live{text-decoration:none!important;opacity:1!important;background:#fff!important;outline:2px solid #1E4C86;outline-offset:3px;border-radius:6px;cursor:text}';
+    (document.head||document.documentElement).appendChild(st);}catch(e){}})();
   function leading(v){ var m=String(v||'').match(RE); return m?m[1]:''; }
   function strip(v){ return String(v||'').replace(RE,''); }
 
   function paint(ta){
     var bar=ta.__gmBar; if(!bar)return;
     var cur=leading(ta.value);
+    /* GSIMPLE_V1 建議框只在需要打字的時候出現：✗（帶入參考答案）、已經有字、或沒有參考答案的題目還沒標 */
+    try{var it=ta.closest?ta.closest('.srev-item'):null, txt=!!strip(ta.value).trim(), simple=!!(it&&it.classList.contains('gs-simple'));
+      var hide=!txt&&((cur==='✓')||(cur==='✎'&&simple)||(cur===''&&!!refOf(ta)));
+      ta.classList.toggle('gm-hide',hide);}catch(e){}
     var bs=bar.querySelectorAll('button');
     for(var i=0;i<bs.length;i++)
       bs[i].className='gm-b gm-'+bs[i].getAttribute('data-k')+(bs[i].getAttribute('data-sym')===cur?' on':'');
@@ -54,13 +72,17 @@
   function apply(ta,sym){
     var cur=leading(ta.value), rest=strip(ta.value);
     /* 再按一次同一顆＝取消標記 */
+    /* GSIMPLE_V1 ✗＝自動帶入參考答案；換掉 ✗ 的時候，沒改過的參考答案一起拿掉 */
+    var rf=refOf(ta);
+    if(cur==='✗'&&rf&&rest.trim()===rf)rest='';
+    if(sym==='✗'&&cur!==sym&&!rest.trim()&&rf)rest=rf;
     ta.value=(cur===sym)?rest:(sym+' '+rest);
     paint(ta);
     /* 讓原本的程式知道內容變了（草稿、未存提示那些都是聽 input 的） */
     try{ta.dispatchEvent(new Event('input',{bubbles:true}));}catch(e){}
     if(cur!==sym){
       /* 標完游標停在符號後面，想補一句就直接打，不用再點一次 */
-      try{ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);}catch(e){}
+      if(!ta.classList.contains('gm-hide'))try{ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);}catch(e){}
     }
   }
 
