@@ -250,8 +250,9 @@
       bar.innerHTML='<span class="gs-n"></span><span class="gs-sp"></span>'
         +'<button type="button" class="gs-b" data-k="fold">收合已批的</button>'
         +'<button type="button" class="gs-b" data-k="open">全部展開</button>';
-      var jump=pane.querySelector('.gp-jump');
-      if(jump&&jump.parentNode)jump.parentNode.insertBefore(bar,jump.nextSibling);
+      /* GSBAR_V1624 段落按鈕拿掉以後，放在標題列下面（不要卡在最上面貼著左邊） */
+      var mh=pane.querySelector('.sg-head')||pane.querySelector('.modal-head');
+      if(mh&&mh.parentNode)mh.parentNode.insertBefore(bar,mh.nextSibling);
       else pane.insertBefore(bar,pane.firstChild);
       bar.addEventListener('click',function(ev){
         var t=ev.target&&ev.target.closest?ev.target.closest('.gs-b'):null;
@@ -267,8 +268,11 @@
         paintBar(ctx);
       });
     }
-    bar.querySelector('.gs-n').innerHTML='還沒批 <b>'+c.left+'</b> ／ 共 '+c.all+' 題'
-      +(c.done?('　<span class="gs-done">已批 '+c.done+'</span>'):'');
+    /* GSBAR_V1624 Quinn：「這邊呈現好醜」。改成一條進度條：已批幾題／共幾題，批完變綠色打勾 */
+    var pct=c.all?Math.round(c.done/c.all*100):0;
+    bar.querySelector('.gs-n').innerHTML=(c.left?'<span class="gs-lb">批改進度</span>':'<span class="gs-lb gs-ok">✓ 全部批好了</span>')
+      +'<span class="gs-tr"><i style="width:'+pct+'%"></i></span>'
+      +'<span class="gs-ct"><b>'+c.done+'</b> / '+c.all+' 題</span>';
   }
 
   var AUTO=true;   /* 批完一題就自動收起來 */
