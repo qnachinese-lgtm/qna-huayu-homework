@@ -6372,7 +6372,7 @@ function tClHead(it){const m=String(it).match(/^([^：]{1,60})：([\s\S]*)$/);if
   const py=(String(m[1]).match(/（([^）]*)）/)||[])[1]||'';
   return head&&/[㐀-鿿]/.test(head)?{head,py}:null;}
 function tClPlain(t){return String(t||'').replace(/[{}\[\]]/g,'');}
-function tClPinyin(sent,parts){
+function tClPinyin(sent,parts,caps){
   const chars=[...sent];let pys=chars.map(()=>'');
   try{const arr=pinyinPro.pinyin(sent,{type:'all',toneType:'symbol'});
     arr.forEach((o,i)=>{if(o.isZh)pys[i]=(TW_PY_T[o.origin]||o.pinyin);});}catch(e){}
@@ -6389,15 +6389,18 @@ function tClPinyin(sent,parts){
   (parts||[]).forEach(it=>{const g=tClHead(it);if(!g||!g.py)return;
     const inner=g.py.match(/^([㐀-鿿]+)\s+(.+)$/);
     if(inner)put(inner[1],inner[2]);else put(g.head,g.py.replace(/[；;].*$/,''));});
+  /* PYCAP_V1653 Quinn：「人名、地名的拼音要大寫第一個字」。原文用 { } 標的人名、[ ] 標的地名，每個音節開頭大寫：Jīng Kē、Wèi */
+  if(caps)chars.forEach((c,i)=>{if(caps[i]&&pys[i])pys[i]=pys[i].charAt(0).toUpperCase()+pys[i].slice(1);});
   let out='';chars.forEach((c,i)=>{if(pys[i])out+=(out&&!/\s$/.test(out)?' ':'')+pys[i];else if(/[，。！？；：、「」『』（）]/.test(c))out+=c+' ';});
   return out.replace(/\s+/g,' ').trim();}
+function clNameCaps(x){const m=[];let on=0;[...String(x||'')].forEach(c=>{if(c==='{'||c==='['){on=1;return;}if(c==='}'||c===']'){on=0;return;}m.push(!!on);});return m;}
 function clHandoutData(l){
   const lines=clLinesOf(l)||[];const tr=(l&&l.cl_tr)||{};let n=0;
   return lines.map((ln,qi)=>{const ss=tClSplit(ln.orig||'');const parts=tClGlossParts(ln.note||'');
     const per=ss.map(()=>[]);
     parts.forEach(it=>{const g=tClHead(it);let k=-1;if(g)k=ss.findIndex(x=>x.indexOf(g.head)>=0);(per[k>=0?k:ss.length-1]||per[0]).push(it);});
     return {qi,sents:ss.map((x,si)=>{n++;const plain=tClPlain(x);
-      return {no:si+1/* PARANO_V1629 每一段從 1 開始 */,key:qi+'_'+si,orig:plain,py:tClPinyin(plain,parts),gl:per[si]||[],
+      return {no:si+1/* PARANO_V1629 每一段從 1 開始 */,key:qi+'_'+si,orig:plain,py:tClPinyin(plain,parts,clNameCaps(x)),gl:per[si]||[],
         tr:(tr[qi+'_'+si]!=null?String(tr[qi+'_'+si]):((ss.length===1)?String(ln.ref||''):''))};})};});}
 function clCardHtml(l){const lines=clLinesOf(l);const na=(l.assigned_ids||[]).length;
   const nq=(Array.isArray(l.cl_qs)?l.cl_qs:[]).length;
