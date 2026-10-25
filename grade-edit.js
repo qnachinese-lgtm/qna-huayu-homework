@@ -245,8 +245,8 @@
       if(v===orig)drop(ctx.id,fid); else put(ctx.id,fid,v,f.set);
       paint();
     });
-    ta.addEventListener('input',function(){ if(lead()==='✎')editOn(true); else editOff(); });
-    if(lead()==='✎')editOn(false);
+    /* GSIMPLE2_V1 Quinn：「直接改學生的回答很奇怪」——不再改學生的原文，✎ 改成在建議框裡改（grade-marks.js） */
+    void editOn; void editOff; void lead;
   }
 
   function mountItem(ctx,item){
