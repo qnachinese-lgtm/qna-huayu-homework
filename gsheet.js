@@ -111,14 +111,14 @@
   function sentInner(i){
     var f=fields()[i];var o=origOf(f);if(o==null)return '';var fx=FIX[kOf(f)];
     if(!hasFix(f))return esc(o);
-    if(lead(f.value)==='✓')return esc(o)+'<div class="gx-better">👍 更好的說法：<span>'+esc(fx)+'</span></div>';
+    if(lead(f.value)==='✓')return esc(o)+'<div class="gx-better">👍 也可以這樣說：<span>'+esc(fx)+'</span></div>';
     return diffHtml(o,fx);
   }
   function updSent(i){var bt=document.getElementById('gx-bt-'+i);if(bt)bt.innerHTML=sentInner(i);}
   function sentHtml(i){
     var f=fields()[i];var o=origOf(f);if(o==null)return '';
     return '<div class="gx-b">'+(bSay(f)?'<span class="gx-num"></span><b class="gx-sp">B：</b>':'')+'<span class="gx-bt" id="gx-bt-'+i+'" data-gs="edit" data-i="'+i+'" title="點一下就可以改">'+sentInner(i)+'</span>'
-      +'<button type="button" class="gx-ed" data-gs="edit" data-i="'+i+'">✎ 改字／寫更好的說法</button></div>'
+      +'<button type="button" class="gx-ed" data-gs="edit" data-i="'+i+'">✎ 改字／另一種說法</button></div>'
       +'<div class="gx-fixbox" id="gx-fx-'+i+'" hidden><textarea class="gx-fxta" data-i="'+i+'" rows="2"></textarea>'
       +'<div class="gx-fxbar"><button type="button" class="gx-mini" data-gs="fxdone" data-i="'+i+'">好了</button><button type="button" class="gx-mini" data-gs="fxundo" data-i="'+i+'">還原成學生寫的</button></div></div>';
   }

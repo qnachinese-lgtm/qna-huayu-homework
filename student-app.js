@@ -462,7 +462,7 @@ function fixHtml(doc,key,orig){
   const fx=doc&&doc.fix_text&&doc.fix_text[key];/* BETTER_V1644 */
   if(fx==null||String(fx).trim()===''||String(fx)===String(orig||'').trim())return '';
   const ok=/^\s*✓/.test(String((doc.feedback||{})[key]||''));
-  if(ok)return '<div class="wb-fix ok"><div class="wb-fix-l">👍 '+esc(LT({zh:'更好的說法',cn:'更好的说法',en:'A more natural way to say it',vi:'Cách nói hay hơn'}))+'</div><div class="wb-fix-t">'+esc(fx)+'</div></div>';
+  if(ok)return '<div class="wb-fix ok"><div class="wb-fix-l">👍 '+esc(LT({zh:'也可以這樣說',cn:'也可以这样说',en:'You could also say',vi:'Cũng có thể nói'}))/* ALSO_V1646 */+'</div><div class="wb-fix-t">'+esc(fx)+'</div></div>';
   return '<div class="wb-fix"><div class="wb-fix-l">✍️ '+esc(LT({zh:'老師的修改',cn:'老师的修改',en:"Teacher's correction",vi:'Cô sửa'}))+'</div><div class="wb-fix-t">'+fixDiffHtml(String(orig||'').trim(),fx)+'</div></div>';}
 
 function renderSentence(){
