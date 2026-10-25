@@ -9915,7 +9915,11 @@ function renderGrades(){
     :'<div class="muted" style="padding:16px 12px">'+(S.sgOnly==='all'?'還沒有任何作答':'目前沒有待批改的項目 🎉')+'</div>';
   const _hwN=hwPending().filter(x=>x.days!=null&&x.days<0).length;
   wrap.innerHTML=bar+'<div class="sg-wrap"><div class="sg-list">'+rows+'</div><div class="sg-pane" id="sg-pane"></div></div>'
-    +'<details class="disc" style="margin-top:18px"><summary>📊 各課成績總表</summary><div id="grades-matrix" style="margin-top:10px"></div></details>'
+    /* FHPLACE_V1632 Quinn：「那個並不是漢字闖關的作業」。回家作業改放批改頁這裡（和學生頁「⋯ 更多工具」） */
+    +'<details class="disc" style="margin-top:18px"'+((S.freeTasks||[]).length?' open':'')+'><summary>📝 回家作業'+((S.freeTasks||[]).length?('（'+(S.freeTasks||[]).length+' 份）'):'')+'</summary><div style="margin-top:10px">'
+    +'<button class="btn btn-sm btn-primary" data-act="fhNew" style="margin-bottom:10px">＋ 派回家作業</button>'
+    +(fhCardHtml()||'<div class="muted">還沒有派過回家作業。學生會看到妳寫的說明，可以打字、拍照、錄音回答。</div>')+'</div></details>'
+    +'<details class="disc" style="margin-top:12px"><summary>📊 各課成績總表</summary><div id="grades-matrix" style="margin-top:10px"></div></details>'
     +'<details class="disc" style="margin-top:12px"'+(_hwN?' open':'')+'><summary>📮 還沒交作業'+(_hwN?('（逾期 '+_hwN+'）'):'')+'</summary><div style="margin-top:10px">'+hwDueHtml()+'</div></details>'
     +'<details class="disc" style="margin-top:12px"><summary>📈 學生進度</summary><div style="margin-top:10px">'+gradeProgHtml()+'</div></details>'
     ;/* MISTRM_V1352 「📕 錯題本・標錯因」拿掉 */
@@ -11032,7 +11036,6 @@ H.hzPickKind=()=>{
     +row('hzNew','🀄','漢字遊戲作業','一輪最多 8 個字，拼 → 寫 → 用三步，用的是漢字闖關的關卡。')
     +row('gtNew','🃏','生詞翻牌作業','一張漢字、一張拼音配對，用的是課本生詞。玩完一輪就算完成。')
     +row('wtNew','✍️','寫字作業','照筆順一筆一筆寫，每個字寫滿妳指定的次數就算完成。')
-    +row('fhNew','📝','回家作業','學生依照妳指定的作業回答：可以打字、拍照上傳、錄音。交了會進批改台。')/* FREEHW_V1631 */
     +'</div></div></div>');};
 function gtMount(){
   try{
@@ -11049,7 +11052,7 @@ function gtMount(){
     if(slot){
       if(slot.getAttribute('data-filled')!=='1'){
         slot.setAttribute('data-filled','1');
-        slot.innerHTML=gtCardHtml()+wtCardHtml()+fhCardHtml();}
+        slot.innerHTML=gtCardHtml()+wtCardHtml();}
       return;}
     const put=(html,sel)=>{if(body.querySelector(sel))return null;
       const wrap=document.createElement('div');wrap.innerHTML=html;
@@ -14345,6 +14348,7 @@ H.stuTools=(sid)=>{const s=(S.students||[]).find(x=>x.id===sid);if(!s)return;
       /* MKLOGIN_V1395 */
       +((IS_OWNER&&s.email&&!String(s.uid||'').trim())?'<button class="btn btn-sm btn-accent" data-act="mkLogin" data-id="'+sid+'">\u{1F511} 建立登入帳號</button>':'')
       +((s.email)?'<button class="btn btn-sm" data-act="resetPw" data-id="'+sid+'">✉️ 寄重設密碼信</button>':''))
+   +g('📝 作業','<button class="btn btn-sm" data-act="fhNew" data-id="'+sid+'">📝 派回家作業</button>')/* FHPLACE_V1632 */
    +g('📁 檔案與記錄','<button class="btn btn-sm" data-act="uploadAreas" data-id="'+sid+'">📤 上傳區</button>'
       +(/^https?:\/\//i.test(s.drive_url||'')?'<a class="btn btn-sm" href="'+esc(s.drive_url)+'" target="_blank" rel="noopener">📁 教材資料夾</a>':'')
       +'<button class="btn btn-sm" data-act="loginLog" data-id="'+sid+'">🕒 登入記錄</button>'
@@ -26429,7 +26433,8 @@ function fhCardHtml(){
       body:head+(who.map(s=>chip(t,s)).join('')||'<span class="muted">這份作業沒有指派給在學中的學生</span>')});
   }).join('');
 }
-H.fhNew=()=>{
+H.fhNew=(pre)=>{/* FHPLACE_V1632 從學生頁進來會先勾好那位學生 */
+  try{closeModal();}catch(e){}
   const live=(S.students||[]).filter(s=>s&&!s.deleted_at);
   const rank=(x)=>{if(x.is_test)return 1;const e=enrollOf(x);
     return e==='active'?0:(e==='trial'?2:(e==='reserved'?3:4));};
@@ -26437,7 +26442,7 @@ H.fhNew=()=>{
     const en=enrollOf(s),act=(en==='active'&&!s.is_test);
     const show=act||s.is_test;
     return '<label class="qzw-s"'+(show?'':' data-off="1"')+'>'
-      +'<input type="checkbox" class="fh-stu" value="'+esc(s.id)+'">'
+      +'<input type="checkbox" class="fh-stu" value="'+esc(s.id)+'"'+(pre===s.id?' checked':'')+'>'
       +'<span>'+snm(s.name)+'</span>'
       +(s.is_test?'<i>🧪 測試</i>':(act?'':'<i>（'+({trial:'試學',reserved:'預約',paused:'休學'}[en]||'')+'）</i>'))
       +'</label>';}).join('');
