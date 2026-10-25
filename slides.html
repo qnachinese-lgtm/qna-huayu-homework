@@ -23,6 +23,7 @@ document.documentElement.classList.add(/[?&]join=/i.test(location.search) ? "joi
 <!-- PENSCROLL_V1 畫筆模式也能捲動 -->
 <!-- LOTHUMB_V1 看圖排序學生答案用小圖顯示 -->
 <!-- JOFAST_V1 學生手機看圖排序點了不重畫 -->
+<!-- QINNER_V1 「是不是」拆成兩格；IMGBOX_V1 圖片點一下放大 -->
 <!-- GQIMG_V1 練習每一題可以有自己的圖 -->
 <!-- QSPLIT_V1 練習題回答對齊 -->
 <!-- CLPYFULL_V1 詞語解釋每個字都有拼音 -->
@@ -294,6 +295,11 @@ button:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .gpage:has(.gximg){display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);grid-template-rows:auto 1fr;column-gap:22px;align-items:start}
 .gpage:has(.gximg)>.tag,.gpage:has(.gximg)>.gopts{grid-column:1 / -1}
 .gximg img{width:100%;max-height:400px;object-fit:contain;border-radius:12px;display:block}
+/* IMGBOX_V1 */
+#imgbox{position:fixed;inset:0;z-index:9998;background:rgba(20,30,45,.78);display:grid;place-items:center;cursor:zoom-out}
+#imgbox[hidden]{display:none}
+#imgbox img{max-width:92vw;max-height:88vh;border-radius:14px;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+.gq .gqimg,.gximg img{cursor:zoom-in}
 /* GQIMG_V1 每一題自己的圖（課本「看圖回答」） */
 .gq .gqimg{flex:none;height:calc(96px*var(--gs,1));width:auto;max-width:180px;object-fit:contain;border-radius:8px;background:#fff}
 .ex .zh{font-size:28px}
@@ -1060,6 +1066,21 @@ function applyFlow(){ const fl = flowOf(LESSON); STEPS = fl.map(k=>({key:k, name
 let gp = 0, gShow = false, gRev = {};
 /* GBLANK_V1 語法答案寫在空格線上（像聽寫），空格大小先留好，顯示答案時不會跳動 */
 /* GALIGN_V1 參考答案寫的是整句（例：我們坐著聊天吧，一直站著太累了）→ 對照題目，只取出空格裡的字（著、著） */
+/* QINNER_V1 兩個以上的空格、答案只寫「是不是」這種（空格中間的字也寫進去）：照空格中間的字拆開
+   例：李明華＿＿不＿＿臺灣人？｜是不是 → 是、是；喜不喜歡 / 喜歡不喜歡 → 喜、喜歡（學生作業那邊也是這樣存、這樣改的） */
+function qInner(q, ans, n){ const segs = String(q).split(/＿{2,}|_{3,}/), nz = x => String(x||"").replace(/\s+/g, ""), endp = x => x.replace(/[。．.！!？?]+$/, "");
+  const inner = segs.slice(1, -1).map(nz); if(inner.length !== n - 1 || inner.some(x => !x)) return null;
+  const pre = nz(segs[0]), post = endp(nz(segs[segs.length - 1])), rx = t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp("^" + inner.map(x => "(.+?)" + rx(x)).join("") + "(.+)$");
+  const alts = String(ans).split(/\s+\/\s+|／/); for(const a0 of (alts.length > 1 ? alts : [ans])){ const a = endp(nz(a0)); if(!a || (pre && a.startsWith(pre)) || (post && a.endsWith(post))) continue;
+    const mm = a.match(re); if(mm) return mm.slice(1); }
+  return null; }
+/* IMGBOX_V1 練習的圖點一下放大，再點一下關掉 */
+document.addEventListener("click", e => { const im = e.target.closest && e.target.closest(".gq .gqimg, .gximg img"), bx = document.getElementById("imgbox");
+  if(bx && !bx.hidden){ bx.hidden = true; if(!im){ e.stopPropagation(); return; } }
+  if(!im) return; e.preventDefault(); e.stopPropagation();
+  let B = bx; if(!B){ B = document.createElement("div"); B.id = "imgbox"; B.innerHTML = "<img alt=\"\">"; document.body.appendChild(B); }
+  B.querySelector("img").src = im.src; B.hidden = false; }, true);
 function gAlign(segs, ans){ const nz = x => String(x||"").replace(/\s+/g, ""), strip = x => nz(x).replace(/[。．.！!？?]+$/, "");
   const a = strip(ans), S = segs.map((x, i) => i === segs.length - 1 ? strip(x) : nz(x)); if(!a.startsWith(S[0])) return null;
   let pos = S[0].length; const out = [];
@@ -1075,6 +1096,7 @@ function spHtml(raw){ const s = String(raw||""), m = s.split(/\s*例[：:]\s*/),
 function fmtQA(q, ans, show){ const BL = /＿{2,}|_{3,}/g, n = (String(q).match(BL)||[]).length; ans = String(ans||"").trim();
   if(!ans || !n) return null;
   let parts = [ans]; if(n > 1){ const sp = ans.split(/\s*[／；;]\s*|\s+\/\s+/);/* QSEP_V1 兩個以上的空格：答案用 ／、；或 / 分開都可以 */ parts = sp.length === n ? sp.map(x => x.replace(/[（(][^）)]*[）)]/g, "").trim() || x) : [ans]; }
+  if(n > 1){ const inr = qInner(q, ans, n); if(inr && inr.length === n) parts = inr; }/* QINNER_V1 */
   if(parts.length === 1){ const al = gAlign(String(q).split(BL), ans); if(al && al.length === n) parts = al; }/* GALIGN_V1 */
   let k = 0; return esc(q).replace(/(\S)\s*([AB甲乙][：:])/g, "$1<br>$2").replace(BL, () => { const p = (parts[k++] || "").replace(/[。．.！!]+$/, ""); return p ? `<span class="qblank qfill${show ? " on" : ""}"><span class="qfa">${esc(p)}</span></span>` : `<span class="qblank"></span>`; }); }
 function fmtQ(q){ return esc(q).replace(/(\S)\s*([AB甲乙][：:])/g, "$1<br>$2").replace(/＿{2,}|_{3,}/g, `<span class="qblank"></span>`); }
