@@ -2201,7 +2201,8 @@ function renderAcct(){
       +'<span class="grow"></span>'
       +'<div class="segbar">'+seg('login','最近登入')+seg('name','名字')+seg('act','做最多')+'</div></div>'
     /* ACCTHIDE_V1396 現在是「在學中」而且真的有人被擋掉 → 講清楚有誰、按一下就看得到 */
-    +((scope==='active'&&_hidden.length)
+    /* WORDY5_V1655 Quinn：「這句太廢話了」。上面「全部 53」本來就看得到人數，這句不再顯示 */
+    +((false&&scope==='active'&&_hidden.length)
       ?('<div class="hint" style="margin:-2px 0 10px;padding:8px 11px;background:var(--primary-soft,#E8EFF7);'
         +'border-radius:9px;line-height:1.7">\u{1F4CC} 還有 <b>'+_hidden.length+'</b> 位沒有列在這裡（'
         +[['reserved','預約・詢問中'],['trial','試學'],['paused','休學']]
