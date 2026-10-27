@@ -704,17 +704,25 @@ function _lfNote(name,fallback){return function(e){
   if(/permission|insufficient|unauth|unauthenticated/.test(m))LOADAUTH=true;
   if(LOADFAIL.indexOf(name)<0)LOADFAIL.push(name);
   return fallback;};}
+/* LFQUIET_V1658 Quinn：「不需要呈現成這樣吧」。登入過期多半是登入憑證過期，先自己換新的再讀一次，
+   讀到了就什麼都不跳；還是不行才出一行短短的提示。 */
+let LFRETRY=false,LFBUSY=false;
 function loadFailBanner(){
   let b=document.getElementById('load-warn');
-  if(!LOADFAIL.length){if(b)b.remove();return;}
+  if(LFBUSY)return true;
+  if(!LOADFAIL.length){LFRETRY=false;if(b)b.remove();return false;}
+  if(!LFRETRY){LFRETRY=true;LFBUSY=true;if(b)b.remove();
+    (async()=>{try{await ensureAuthFresh();}catch(e){}
+      try{await loadAll();render();}catch(e){if(!LOADFAIL.length)LOADFAIL=['資料'];}
+      LFBUSY=false;loadFailBanner();})();
+    return true;}
   if(!b){b=document.createElement('div');b.id='load-warn';b.className='auth-warn';document.body.insertBefore(b,document.body.firstChild);}
   const list=LOADFAIL.map(function(x){return esc(x);}).join('、');
+  void list;
   b.innerHTML = LOADAUTH
-    ? '⚠️ <b>登入可能已經失效</b>，所以這幾塊讀不到：'+list+'。<b>妳的資料沒有不見</b>，是這一次沒讀到。請重新登入。 '
-      +'<button class="btn btn-sm" type="button" data-act="reloadAll">再讀一次</button> '
-      +'<button class="btn btn-sm" type="button" data-act="goLogin">重新登入</button>'
-    : '⚠️ 這幾塊<b>沒有讀進來</b>：'+list+'。<b>妳的資料沒有不見</b>，是這一次沒讀到（常見原因是訊號不穩）。畫面上那幾塊現在是空的。 '
-      +'<button class="btn btn-sm" type="button" data-act="reloadAll">再讀一次</button>';
+    ? '登入過期了，請重新登入 <button class="btn btn-sm" type="button" data-act="goLogin">重新登入</button>'
+    : '有些資料沒讀到 <button class="btn btn-sm" type="button" data-act="reloadAll">再讀一次</button>';
+  return false;
 }
 async function loadAll(){
   /* SYNCTAG_V1047 讀得回雲端資料＝現在是好的，把警告收起來 */
@@ -26043,7 +26051,7 @@ function boot(){/* HDSAME_V1361 招牌固定寫 QNA CHINESE，跟官網一致；
    if(_f)_f.classList.toggle('hide',!useAuth);
    if(useAuth&&window.TEACHER_EMAIL)$('#gate-email').value=window.TEACHER_EMAIL;}}
 function showLoad(b,soft){let el=document.getElementById('app-loading');if(b){if(!el){el=document.createElement('div');el.id='app-loading';el.className='loading-overlay'+(soft?' soft':'');el.innerHTML='<div class="spinner"></div>';document.body.appendChild(el);}}else if(el){el.remove();}}
-async function enter(){$('#gate').classList.add('hide');$('#app').classList.remove('hide');showLoad(true);try{await loadAll();render();}catch(e){if(!LOADFAIL.length){LOADFAIL=['資料'];}loadFailBanner();/* READERR_V1419 */toast('讀取失敗：'+e.message);}finally{showLoad(false);}}
+async function enter(){$('#gate').classList.add('hide');$('#app').classList.remove('hide');showLoad(true);try{await loadAll();render();}catch(e){if(!LOADFAIL.length){LOADFAIL=['資料'];}if(!loadFailBanner())toast('讀取失敗：'+e.message);/* READERR_V1419 */}finally{showLoad(false);}}
 async function tryLogin(){
   if(useAuth){const email=$('#gate-email').value.trim(),pw=$('#gate-pw').value;
     if(!email||!pw){$('#gate-err').textContent='請輸入 Email 與密碼';return;}
