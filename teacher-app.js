@@ -1533,8 +1533,8 @@ function renderDashboard(){
   const inbox=gradeQueue().filter(x=>x.pend).map(x=>{
     const m=SGKIND[x.kind]||{lab:'',ic:''};
     /* GWIN_V1637 首頁的「批改」也是開批改分頁 */
-    const btn=`<button class="btn btn-sm btn-accent" data-act="gwinOpen" data-id="${esc(x.kind+'::'+String(x.id))}">批改</button>`;void _sgAct;
-    return {test:!!x.test,tag:(m.ic?m.ic+' ':'')+m.lab,name:x.name,sub:x.les,extra:x.extra||'',btn:btn,ts:x.ts||''};
+    const btn=`<button class="btn btn-sm btn-accent" data-act="gwinOpen" data-id="${esc(x.kind+'::'+String(x.id))}">${x.stLab?'看一下':'批改'}</button>`;void _sgAct;
+    return {test:!!x.test,tag:(m.ic?m.ic+' ':'')+m.lab+(x.stLab&&x.kind==='hw'?' 🆕':''),name:x.name,sub:x.les,extra:x.extra||'',btn:btn,ts:x.ts||''};
   });
   inbox.sort((a,b)=>String(a.ts||'').localeCompare(String(b.ts||'')));/* WAIT_V696 等最久的排最前面 */
   const inboxHtml=inbox.length?inbox.map(it=>`<div class="dash-row"${it.test?' style="opacity:.72"':''}><span class="badge badge-soon">${it.tag}</span><b>${snm(it.name)}</b>${it.test?'<span class="badge b-off" >🧪 測試</span>':''}<span class="muted">${esc(it.sub)}</span>${it.extra?`<span class="muted">${esc(it.extra)}</span>`:''}<span class="grow"></span>${sgWaitHtml(it.ts,true)}${it.ts?`<span class="muted">🕒 ${esc(fmtDT(it.ts))}</span>`:''}${it.btn}</div>`).join(''):`<div class="muted" style="padding:8px 2px">目前沒有待批改的項目 🎉</div>`;
@@ -9750,12 +9750,21 @@ const SGKIND={
 function sgName(sd){const st=S.students.find(x=>x.id===(sd&&sd.student_id));return (st&&st.name)||(sd&&sd.student_name)||'學生';}
 function sgTest(sd){const st=S.students.find(x=>x.id===(sd&&sd.student_id));return !!(st&&st.is_test);}
 function sgLes(lid){const l=S.lessons.find(x=>x.id===lid)||{};return lesNo(l,'（課文）');}
+function hwNewDone(r){if(!r||r.kind||r.status!=='done')return false;const t=String(r.completed_at||r.updated_at||'');
+  return t>='2026-10-27'&&t>String(r.t_seen_at||'');}
+function hwMarkSeen(it){try{if(!it||it.kind!=='hw'||!hwNewDone(it.sd)||it.test)return;const r=it.sd;const t=String(r.completed_at||r.updated_at||'');
+  r.t_seen_at=t;DB.update('results',r.id,{t_seen_at:t}).catch(()=>{});}catch(e){}}
 function gradeQueue(withTest){
   const out=[];
   (S.results||[]).filter(r=>r.status==='pending'||r.status==='done').forEach(r=>{
     if(r.kind)return; // 只取「作業」那種 result
+    /* DONENEW_V1657 Quinn：「學生做這些題目，請你在批改那邊也通知我，讓我知道學生有在做事」。
+       課文練習是自動對答案的（status:'done'），本來只放在「全部」裡，待批改看不到。
+       現在新做完、老師還沒打開看過的，排進待批改，標「🆕 做完了」；打開看過就收起來（t_seen_at）。
+       重做一次（completed_at 變新）會再出現。只算 10/27 之後做的，以前的不會一次全冒出來。 */
+    const _nw=hwNewDone(r);
     out.push({kind:'hw',id:r.id,sd:r,name:sgName(r),test:sgTest(r),les:sgLes(r.lesson_id),lid:r.lesson_id||'',
-      pend:r.status==='pending',ts:r.completed_at||r.updated_at||'',extra:''});});
+      pend:r.status==='pending'||_nw,stLab:_nw?'🆕 做完了':'',ts:r.completed_at||r.updated_at||'',extra:''});});
   const add=(arr,kind,lidKey,extraFn)=>{(arr||[]).forEach(sd=>{const done=sd.status==='reviewed';
     if(sd.status!=='submitted'&&!done)return;
     out.push({kind,id:sd.id,sd,name:sgName(sd),test:sgTest(sd),les:sgLes(sd[lidKey]),lid:sd[lidKey]||'',
@@ -9944,11 +9953,11 @@ function renderGrades(){
   renderGradesMatrix();
   if(S._sgAdvance){S._sgAdvance=false;sgAdvance();return;}
   const cur=list.find(x=>(x.kind+'::'+x.id)===S.sgSel);
-  if(cur)sgOpen(cur);
+  if(cur){hwMarkSeen(cur);sgOpen(cur);}
   else if(S.gwin){const p=document.getElementById('sg-pane');
     /* GWIN_V1637 要開的那一份不在待批改清單裡（例如已經批完的）也照樣打開 */
     const g=S.sgSel&&gradeQueue(true).find(x=>(x.kind+'::'+x.id)===S.sgSel);
-    if(g)sgOpen(g);
+    if(g){hwMarkSeen(g);sgOpen(g);}
     else if(p)p.innerHTML='<div class="sg-empty">🎉 全部批完了<br><span>可以關掉這個分頁</span></div>';}
   else{const p=document.getElementById('sg-pane');if(p)p.innerHTML='<div class="sg-empty">👈 左邊點一位學生開始批改<br><span>改完按「下一位」就會自動跳到下一份</span></div>';}
 }
@@ -14292,6 +14301,7 @@ H.spSeeHw=(key)=>{
 H.spSeeAns=(rid)=>{
   const r=(S.results||[]).find(x=>x&&x.id===rid);
   if(!r)return toast('找不到這一份作答了，重新整理看看。');
+  try{hwMarkSeen({kind:'hw',sd:r,test:sgTest(r)});}catch(e){}
   const l=(S.lessons||[]).find(x=>x.id===r.lesson_id)||{};
   const st=(S.students||[]).find(x=>x.id===r.student_id)||{name:'學生'};
   let qs=[];try{qs=answerableOf(l.id)||[];}catch(e){}
