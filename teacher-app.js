@@ -20533,7 +20533,9 @@ function rollLesTitle(id){if(!id)return '';const l=(S.lessons||[]).find(x=>x&&x.
 function rollLesTag(e){const t=(e&&(e.lesson_t||rollLesTitle(e.lesson)))||'';
   return t?('<span class="badge b-info" >📚 '+esc(t)+'</span>'):'';}
 /* ROLL_NOTEST_V652 點名只列真正的學生：測試帳號不進名單，也不會被寫入上課記錄。 */
-function classRollModal(cls,prefill){const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test).sort(stuNameCmp);S._rollCls=cls;S._rollOrig=null;
+/* ROLLEND_V1656 Quinn：「Ánh Tuyết 不是已經結束了嗎？怎麼點名這邊還出現」。已結束、休學的不進點名名單，存檔也不會幫她記出席 */
+function rollMembers(cls){return S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test&&['ended','paused'].indexOf(enrollOf(s))<0);}
+function classRollModal(cls,prefill){const members=rollMembers(cls).sort(stuNameCmp);S._rollCls=cls;S._rollOrig=null;
   CLOG_SCHED=classSchedOf(cls)||[];const today=localToday();const pf=prefill||{};const useDate=pf.date||today;const dslot=clSlotFor(useDate);const slot={s:pf.start||(dslot&&dslot.s)||'',e:pf.end||(dslot&&dslot.e)||''};const useNote=pf.note||'';const useVideo=pf.video||'';const useLes=pf.lesson||'';
   const dateMap={};members.forEach(s=>(Array.isArray(s.class_log)?s.class_log:[]).forEach(e=>{if(!e||!e.date)return;const k=e.date+'|'+(e.start||'')+'|'+(e.end||'');const c=(dateMap[k]=dateMap[k]||{date:e.date,att:0,leave:0,absent:0,start:e.start||'',end:e.end||'',free:false,note:'',lesson:'',lesson_t:''});if(e.status==='leave')c.leave++;else if(e.status==='absent')c.absent++;else c.att++;if(e.free)c.free=true;if(e.note)c.note=e.note;if(e.video)c.video=e.video;if(e.lesson&&!c.lesson){c.lesson=e.lesson;c.lesson_t=e.lesson_t||'';}}));
   const dates=Object.keys(dateMap).sort().reverse().slice(0,10);
@@ -23112,7 +23114,7 @@ H.quickClassToday=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return
 H.calMonth=(delta)=>{const ym=S.calMonth||localToday().slice(0,7);const p=ym.split('-').map(Number);const dt=new Date(p[0],p[1]-1+Number(delta),1);S.calMonth=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');S.calDay='';renderCalendar();};
 H.rollPick=(key)=>{const p=String(key).split('::'),sid=p[0],st=p[1];const seg=document.querySelector('#roll-list .roll-seg[data-sid="'+sid+'"]');if(seg)seg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.st===st));};
 H.rollAllAttend=()=>{document.querySelectorAll('#roll-list .roll-seg').forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.st==='attended')));};
-H.rollEdit=(key)=>{const cls=S._rollCls;const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);
+H.rollEdit=(key)=>{const cls=S._rollCls;const members=rollMembers(cls);
   const kp=String(key).split('|');const date=kp[0];const kS=kp.length>1?kp[1]:null,kE=kp.length>2?kp[2]:null;
   S._rollOrig={date,start:kS,end:kE};
   const hit=(x)=>x&&x.date===date&&(kS==null||((x.start||'')===kS&&(x.end||'')===kE));
@@ -23139,7 +23141,7 @@ H.classRollSave=async(cls)=>{const orig=S._rollOrig;S._rollOrig=null;const date=
     return;
   }const start=hhmmNorm(($('#roll-start')&&$('#roll-start').value)||'');const end=hhmmNorm(($('#roll-end')&&$('#roll-end').value)||'');if(start&&end){const _p=x=>{const a=String(x).split(':');return (+a[0]||0)*60+(+a[1]||0);};let _mm=_p(end)-_p(start);if(_mm<0)_mm+=1440;/* 允許跨午夜 */if(_mm===0)return toast('結束時間不能和開始時間一樣，請重新確認時段');}const note=($('#roll-note')&&$('#roll-note').value||'').trim();const video=($('#roll-video')&&$('#roll-video').value||'').trim();const free=!!($('#roll-free')&&$('#roll-free').checked);
   const lesson=($('#roll-lesson')&&$('#roll-lesson').value||'').trim();const lesson_t=rollLesTitle(lesson);
-  const members=S.students.filter(s=>stuGroups(s).includes(cls)&&!s.is_test);if(!members.length)return toast('這個團班還沒有成員');
+  const members=rollMembers(cls);if(!members.length)return toast('這個團班沒有在學中的成員');
   let _ow=false;
   /* SAMEDAY_V1229 本來只要那天有記錄就問「要不要覆蓋」，取消就什麼都不做，
      所以同一天想上第二堂根本記不進去。改成預設兩堂都留，真的要改時間才選覆蓋。 */
