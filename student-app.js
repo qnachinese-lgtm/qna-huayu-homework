@@ -3521,6 +3521,8 @@ function matHtml(txt){
   return out||esc(String(txt||''));
 }
 function qPromptBreak(s){return String(s||'').replace(/([。！？!?])\s*(?=[A-Za-z\uFF21-\uFF3A\u4e00-\u9fa5]{1,4}[：:])/g,'$1\n');}
+function matViN(q){const m=String((q&&(q.prompt||''))+' '+(q&&q.instruction||'')).match(/第\s*(\d+)\s*題?\s*[到至~～\-－]\s*第?\s*(\d+)\s*題/);
+  const n=m?(Number(m[2])-Number(m[1])+1):0;return (n>0&&n<100)?('Trả lời '+n+' câu bên dưới.'):'Trả lời các câu bên dưới.';}
 function qHtml(q,idx,noInstr){
   if(q.type==='note'){/*MATCARD_V73*/
     const _raw=String(q.instruction||'').trim();
@@ -3534,7 +3536,7 @@ function qHtml(q,idx,noInstr){
     let _tx=_body?matHtml(_body):'';let _inl=false;
     if(_tx&&INLQ){const _m=INLQ;_tx=_tx.replace(BLANKRE,function(mm,d){const t=_m[Number(d)];if(!t)return mm;_inl=true;return inlineSelHtml(t,Number(d));});}
     const _hint=_inl?LT({zh:'請直接在短文的空格上選答案。',cn:'请直接在短文的空格上选答案。',en:'Choose your answer in each blank.',vi:'Chọn đáp án ngay tại mỗi chỗ trống.'})
-      :(q.audio_url?LT({zh:'聽完再回答下面的題目。',cn:'听完再回答下面的题目。',en:'Listen, then answer below.',vi:'Nghe xong rồi trả lời bên dưới.'})
+      :(q.audio_url?LT({zh:'聽完再回答下面的題目。',cn:'听完再回答下面的题目。',en:'Listen, then answer below.',vi:matViN(q)/* VIN5_V1661 Quinn：「Trả lời 5 câu bên dưới.」 */})
       :LT({zh:'看完再回答下面的題目。',cn:'看完再回答下面的题目。',en:'Read it, then answer below.',vi:'Đọc xong rồi trả lời bên dưới.'}));
     const _both=!!(_tx&&pc);/*MATTAB_V74*/
     const _tabs=_both?`<div class="mat-tabs"><button type="button" class="mtb on" onclick="MATTAB(this,0)">📄 ${esc(LT({zh:'文字',cn:'文字',en:'Text',vi:'Văn bản'}))}</button><button type="button" class="mtb" onclick="MATTAB(this,1)">🖼 ${esc(LT({zh:'圖片',cn:'图片',en:'Image',vi:'Hình'}))}</button></div>`:'';
