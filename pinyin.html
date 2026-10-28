@@ -106,6 +106,25 @@ th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);verti
 th{color:var(--muted);font-weight:400;font-size:13px;white-space:nowrap}
 td.num{font-family:var(--latin);font-variant-numeric:tabular-nums;white-space:nowrap}
 .miss{font-size:14px;color:var(--muted)}
+/* 遊戲：漢字往下掉 */
+.gtop{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:15px;color:var(--muted)}
+.gtop b{font-family:var(--latin);font-size:24px;color:var(--ink)}
+.heart{color:var(--bad);font-size:22px;margin-right:2px}.heart.off{color:var(--line)}
+.gcombo{color:var(--primary);font-weight:700;flex:1;text-align:center}
+.field{position:relative;height:clamp(300px,52vh,420px);border:2px solid var(--line);border-radius:18px;background:var(--surface-2);overflow:hidden}
+.drop{position:absolute;top:0;left:0;font-family:var(--kai);font-size:40px;line-height:1.1;padding:6px 14px;border-radius:14px;background:var(--surface);border:2px solid var(--line);white-space:nowrap;will-change:transform;display:flex;flex-direction:column;align-items:center}
+.drop.long{font-size:26px}
+.drop small{font-family:var(--latin);font-size:18px;color:var(--good)}
+.drop.hit{border-color:var(--good);background:var(--primary-soft);opacity:0;transition:opacity .5s .2s}
+.drop.gone{opacity:0;transition:opacity .4s}
+.gstart{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:16px;overflow:auto;background:var(--surface-2);z-index:2}
+.gstart>b{font-size:24px}
+.gstart .big{font-family:var(--latin);font-size:56px;line-height:1;color:var(--primary)}
+.gstart .big small{font-size:22px;color:var(--muted)}
+.gmsg{min-height:1.7em;font-size:15px;color:var(--bad)}
+.gmsg .py{font-family:var(--latin);font-size:19px}
+input.shake{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 @media (max-width:640px){.cols{grid-template-columns:1fr}.inrow input{font-size:26px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -119,9 +138,10 @@ td.num{font-family:var(--latin);font-variant-numeric:tabular-nums;white-space:no
   </header>
   <nav class="tabs" id="tabs" hidden>
     <button class="tab" data-tab="practice" type="button">練習</button>
-    <button class="tab" data-tab="list" type="button">老師詞表</button>
-    <button class="tab" data-tab="scores" type="button">學生成績</button>
-    <button class="tab" data-tab="allow" type="button">開放名單</button>
+    <button class="tab" data-tab="game" type="button">遊戲</button>
+    <button class="tab" data-tab="list" data-teacher type="button">老師詞表</button>
+    <button class="tab" data-tab="scores" data-teacher type="button">學生成績</button>
+    <button class="tab" data-tab="allow" data-teacher type="button">開放名單</button>
   </nav>
   <div class="levels" id="levels" hidden></div>
   <section class="stage" id="stage" aria-live="polite"><p class="tip center" style="margin:auto">正在讀取…</p></section>
@@ -227,11 +247,11 @@ function pool(){return st.level==='custom'?CUSTOM:ITEMS[st.level]}
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a}
 function startRound(items){st.queue=shuffle(items||pool()).slice(0,10);st.i=0;st.res=[];renderPractice()}
 function renderLevels(){
-  const box=$('#levels');box.hidden=st.tab!=='practice';
+  const box=$('#levels');box.hidden=st.tab!=='practice'&&st.tab!=='game';
   const lv=LEVELS.filter(([k])=>k!=='custom'||CUSTOM.length);
   if(!lv.some(([k])=>k===st.level))st.level='l1';
   box.innerHTML='<span class="lab">程度</span>'+lv.map(([k,n])=>`<button class="chip" type="button" data-level="${k}" aria-pressed="${k===st.level}">${n}</button>`).join('');
-  box.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{st.level=b.dataset.level;try{localStorage.setItem('qna-pinyin-level',st.level)}catch(e){}renderLevels();startRound()})}
+  box.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{st.level=b.dataset.level;try{localStorage.setItem('qna-pinyin-level',st.level)}catch(e){}renderLevels();if(st.tab==='game')renderGame();else startRound()})}
 function progHTML(){const n=st.queue.length;return `<div class="prog"><span>第 ${st.i+1} 題／共 ${n} 題</span><div class="dots">${st.queue.map((_,k)=>`<i class="${k<st.res.length?(st.res[k].ok?'ok':'no'):(k===st.i?'now':'')}"></i>`).join('')}</div></div>`}
 function renderPractice(){
   $('#cheat').hidden=false;
@@ -292,10 +312,10 @@ async function renderScores(){
     const rows=snap.docs.map(d=>d.data()).sort((a,b)=>String(b.last_at||'').localeCompare(String(a.last_at||'')));
     if(!rows.length){stage.innerHTML='<p class="tip center" style="margin:auto">還沒有學生練習過。</p>';return}
     const fmt=s=>{if(!s)return'';const d=new Date(s);return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
-    stage.innerHTML=`<div class="tablewrap"><table><thead><tr><th>學生</th><th>練了幾輪</th><th>答題數</th><th>正確率</th><th>最近練習</th><th>常錯的詞</th></tr></thead><tbody>${rows.map(r=>{
+    stage.innerHTML=`<div class="tablewrap"><table><thead><tr><th>學生</th><th>練了幾輪</th><th>答題數</th><th>正確率</th><th>遊戲最高分</th><th>最近練習</th><th>常錯的詞</th></tr></thead><tbody>${rows.map(r=>{
       const rec=r.rec||emptyRec();const pct=r.total_q?Math.round(100*r.total_ok/r.total_q)+'%':'';
       const miss=Object.entries(rec.wrong||{}).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([h,n])=>esc(h)+(n>1?'×'+n:'')).join('、');
-      return `<tr><td>${esc(r.student_name||'（沒有名字）')}</td><td class="num">${r.rounds_n||0}</td><td class="num">${r.total_q||0}</td><td class="num">${pct}</td><td class="num">${fmt(r.last_at)}</td><td class="miss">${miss||'—'}</td></tr>`}).join('')}</tbody></table></div>`;
+      return `<tr><td>${esc(r.student_name||'（沒有名字）')}</td><td class="num">${r.rounds_n||0}</td><td class="num">${r.total_q||0}</td><td class="num">${pct}</td><td class="num">${r.game_best||''}</td><td class="num">${fmt(r.last_at)}</td><td class="miss">${miss||'—'}</td></tr>`}).join('')}</tbody></table></div>`;
   }catch(e){stage.innerHTML='<p class="tip center" style="margin:auto">讀不到成績：'+esc((e&&e.message)||e)+'</p>'}}
 
 /* ====== 老師：開放名單（存在 site/pinyin 的 allow，只有勾選的學生看得到、進得來） ====== */
@@ -314,12 +334,92 @@ async function renderAllow(){
     try{await firebase.firestore().collection('site').doc('pinyin').set({allow:ids,updated_at:new Date().toISOString()},{merge:true});ALLOW=ids;note.textContent='已儲存，開放給 '+ids.length+' 位學生'}
     catch(e){note.textContent='沒存進去：'+String((e&&e.message)||e)}}}
 
-function showTab(t){st.tab=t;document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));renderLevels();
-  if(t==='list')renderList();else if(t==='allow')renderAllow();else if(t==='scores')renderScores();else startRound()}
+/* ====== 遊戲：漢字往下掉，打對拼音就消掉 ====== */
+const G={on:false,raf:0,items:[],score:0,hits:0,miss:[],lives:3,combo:0,spawnGap:2600,speedK:1,last:0,lastSpawn:0,pool:[]};
+function renderGame(){
+  stopGame();
+  $('#cheat').hidden=false;
+  const best=(me.rec&&me.rec.game_best)||0;
+  stage.innerHTML='<div class="gtop"><span id="glives"></span><span class="gcombo" id="gcombo"></span><span>分數 <b id="gscore">0</b></span></div>'
+   +'<div class="field" id="gfield"><div class="gstart" id="gstart"><b>漢字往下掉</b><p class="tip">漢字掉到底之前，打出它的拼音和聲調，打對就消掉。<br>掉到底會少一顆愛心，三顆用完遊戲就結束。'+(best?'<br>你的最高分：'+best:'')+'</p><button class="btn primary" id="gbegin" type="button">開始遊戲</button></div></div>'
+   +'<div class="gmsg" id="gmsg"></div>'
+   +'<div class="inrow"><input id="gin" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" disabled><button class="ukey" id="gukey" type="button" aria-label="輸入 ü">ü</button></div>';
+  drawLives();
+  $('#gbegin').onclick=startGame;
+  const inp=$('#gin');
+  inp.addEventListener('input',e=>{if(e.isComposing)return;autoConvert(inp);tryHit(false)});
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();tryHit(true)}});
+  $('#gukey').onclick=()=>{const c=inp.selectionStart;inp.value=inp.value.slice(0,c)+'ü'+inp.value.slice(inp.selectionEnd);inp.focus();inp.setSelectionRange(c+1,c+1);tryHit(false)};
+}
+function drawLives(){const el=$('#glives');if(el)el.innerHTML='<span class="heart">♥</span>'.repeat(Math.max(0,G.lives))+'<span class="heart off">♥</span>'.repeat(3-Math.max(0,G.lives))}
+function stopGame(){G.on=false;cancelAnimationFrame(G.raf)}
+function startGame(){
+  if(!pool().length)return;
+  Object.assign(G,{on:true,items:[],score:0,hits:0,miss:[],lives:3,combo:0,spawnGap:2600,speedK:1,last:0,lastSpawn:-1e9,pool:[]});
+  const s=$('#gstart');if(s)s.remove();drawLives();$('#gscore').textContent='0';$('#gcombo').textContent='';$('#gmsg').innerHTML='';
+  const inp=$('#gin');inp.disabled=false;inp.value='';inp.focus();
+  G.raf=requestAnimationFrame(tick)}
+function nextWord(){if(!G.pool.length)G.pool=shuffle(pool());return G.pool.pop()}
+function spawn(){
+  const f=$('#gfield');if(!f)return;const it=nextWord();
+  const el=document.createElement('div');el.className='drop'+(it.h.length>4?' long':'');el.textContent=it.h;f.appendChild(el);
+  const W=f.clientWidth,w=el.offsetWidth,h=el.offsetHeight;
+  el.style.left=Math.max(6,6+Math.random()*(W-w-12))+'px';
+  const dur=(6.5+1.3*it.syls.length)/G.speedK;
+  const o={it,el,y:-h,v:(f.clientHeight+h)/dur};el.style.transform='translateY('+o.y+'px)';G.items.push(o)}
+function tick(ts){
+  if(!G.on)return;
+  const f=$('#gfield');if(!f){stopGame();return}
+  const dt=G.last?Math.min(0.05,(ts-G.last)/1000):0;G.last=ts;
+  if(ts-G.lastSpawn>G.spawnGap||!G.items.length){spawn();G.lastSpawn=ts}
+  const H=f.clientHeight;
+  for(const o of G.items.slice()){o.y+=o.v*dt;o.el.style.transform='translateY('+o.y+'px)';if(o.y+o.el.offsetHeight>=H)missItem(o)}
+  if(G.on)G.raf=requestAnimationFrame(tick)}
+function showMsg(html){const m=$('#gmsg');if(!m)return;m.innerHTML=html;clearTimeout(G.msgT);G.msgT=setTimeout(()=>{if(m)m.innerHTML=''},3000)}
+function missItem(o){
+  G.items=G.items.filter(x=>x!==o);G.combo=0;$('#gcombo').textContent='';G.lives--;drawLives();G.miss.push(o.it);
+  showMsg('沒接到：'+esc(o.it.h)+' <span class="py">'+answerHTML(o.it)+'</span>');
+  o.el.classList.add('gone');setTimeout(()=>o.el.remove(),450);
+  if(G.lives<=0)endGame()}
+function tryHit(enter){
+  const inp=$('#gin');if(!G.on||!inp)return;const v=inp.value.trim();if(!v)return;
+  const c=G.items.filter(o=>{const r=checkTyped(v,o.it);return r&&r.ok}).sort((a,b)=>b.y-a.y)[0];
+  if(c){
+    G.items=G.items.filter(x=>x!==c);G.hits++;G.combo++;
+    G.score+=10*c.it.syls.length+(G.combo>=3?5*Math.min(G.combo,10):0);
+    $('#gscore').textContent=G.score;$('#gcombo').textContent=G.combo>=3?('連續答對 '+G.combo+' 個！'):'';
+    c.el.innerHTML=esc(c.it.h)+'<small>'+answerHTML(c.it)+'</small>';c.el.classList.add('hit');setTimeout(()=>c.el.remove(),800);
+    inp.value='';
+    if(G.hits%5===0){G.speedK=Math.min(2.4,G.speedK+0.15);G.spawnGap=Math.max(1100,G.spawnGap-200)}
+    return}
+  if(enter){G.combo=0;$('#gcombo').textContent='';inp.classList.remove('shake');void inp.offsetWidth;inp.classList.add('shake')}}
+function endGame(){
+  stopGame();const inp=$('#gin');if(inp){inp.disabled=true;inp.value=''}
+  G.items.forEach(o=>o.el.remove());G.items=[];
+  const old=(me.rec&&me.rec.game_best)||0,best=Math.max(old,G.score);
+  const ms=[...new Map(G.miss.map(i=>[i.h,i])).values()];
+  $('#gfield').insertAdjacentHTML('beforeend','<div class="gstart"><b>遊戲結束</b><div class="big">'+G.score+'<small> 分</small></div>'
+    +'<p class="tip">打對 '+G.hits+' 個'+(G.score>old&&G.score>0?'，新的最高分！':'，最高分 '+best)+'</p>'
+    +(ms.length?'<p class="tip">這幾個再看一次：</p><div class="wronglist">'+ms.map(i=>'<div><b>'+esc(i.h)+'</b><span>'+answerHTML(i)+'</span></div>').join('')+'</div>':'')
+    +'<p class="save" id="saveNote"></p><button class="btn primary" id="gagain" type="button">再玩一次</button></div>');
+  $('#gagain').onclick=()=>{renderGame();startGame()};
+  saveGame()}
+async function saveGame(){
+  if(!me.student||!me.uid||!window.DB||DB.mode!=='firebase'){const n=$('#saveNote');if(n&&me.teacher)n.textContent='老師帳號試玩，不存成績';return}
+  const rec=me.rec||emptyRec();rec.wrong=rec.wrong||{};
+  rec.game_best=Math.max(rec.game_best||0,G.score);rec.game_n=(rec.game_n||0)+1;
+  G.miss.forEach(i=>{rec.wrong[i.h]=(rec.wrong[i.h]||0)+1});me.rec=rec;
+  const note=$('#saveNote');if(note)note.textContent='正在儲存成績…';
+  try{await DB.upsertResult('__pinyin__',me.student.id,{uid:me.uid,kind:'pinyin',student_name:me.student.name||'',rec:JSON.parse(JSON.stringify(rec)),game_best:rec.game_best,game_n:rec.game_n,last_at:new Date().toISOString()});
+    if(note)note.textContent='成績已儲存，老師看得到'}
+  catch(e){if(note)note.textContent='成績沒存進去，請檢查網路'}}
+
+function showTab(t){stopGame();st.tab=t;document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));renderLevels();
+  if(t==='game')renderGame();else if(t==='list')renderList();else if(t==='allow')renderAllow();else if(t==='scores')renderScores();else startRound()}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 
 /* ====== 登入（沿用學習平台的帳號） ====== */
-function gate(msg,btn){$('#levels').hidden=true;$('#cheat').hidden=true;
+function gate(msg,btn){$('#levels').hidden=true;$('#tabs').hidden=true;$('#cheat').hidden=true;
   stage.innerHTML=`<div class="gate"><p>${msg}</p><a class="btn primary" href="student.html">${btn||'去學習平台登入'}</a></div>`}
 async function loadCustom(){try{const d=await firebase.firestore().collection('site').doc('pinyin').get();CUSTOM_TEXT=(d.exists&&d.data().text)||'';ALLOW=(d.exists&&Array.isArray(d.data().allow))?d.data().allow:[];CUSTOM=parseList(CUSTOM_TEXT).filter(r=>!r.err).map(r=>r.it)}catch(e){}}
 (function boot(){
@@ -332,13 +432,14 @@ async function loadCustom(){try{const d=await firebase.firestore().collection('s
     try{const ss=await DB.listWhere('students','uid',u.uid);me.student=ss.find(x=>x&&!x.deleted_at)||null}catch(e){}
     if(!me.student&&!me.teacher){try{const ms=await DB.listWhere('members','uid',u.uid);const m=(ms||[]).find(x=>x&&!x.deleted_at);if(m)me.student={id:'mem_'+m.id,name:m.name||''}}catch(e){}}
     if(!me.student&&!me.teacher){$('#who').textContent='';gate('這個帳號還不是學生帳號，請用老師給你的學生帳號登入。');return}
-    if(me.teacher){$('#backLink').href='teacher.html';$('#backLink').textContent='← 回老師後台';$('#tabs').hidden=false}
+    if(me.teacher){$('#backLink').href='teacher.html';$('#backLink').textContent='← 回老師後台'}
+    $('#tabs').hidden=false;document.querySelectorAll('.tab[data-teacher]').forEach(b=>b.hidden=!me.teacher);
     $('#who').textContent=me.student?(me.student.name||'已登入'):'老師帳號';
     if(me.student){try{const rs=await DB.listWhere('results','uid',u.uid);const d=rs.find(x=>x&&x.kind==='pinyin'&&x.lesson_id==='__pinyin__');if(d&&d.rec)me.rec=Object.assign(emptyRec(),d.rec)}catch(e){}}
     await loadCustom();
     if(!me.teacher&&ALLOW.indexOf(me.student.id)<0){gate('這個練習還沒有開放給你，需要的話請跟老師說。','回學習平台');return}
     const hs=(location.hash||'').slice(1);   /* 從老師後台「教材與課程」點進來會帶 #allow／#list／#scores */
-    showTab(me.teacher&&['list','scores','allow'].indexOf(hs)>=0?hs:'practice');
+    showTab(hs==='game'||(me.teacher&&['list','scores','allow'].indexOf(hs)>=0)?hs:'practice');
   });
 })();
 })();
