@@ -26,8 +26,22 @@ if (isTeacher){
     a.innerHTML = '<span style="font-family:\'Times New Roman\',Times,serif;font-size:17px;line-height:1">ā</span>';
     box.insertBefore(a, box.firstChild); return true;
   };
+  /* 上面「教學」下拉選單：漢字闖關下面多一個「拼音練習」，點了開新分頁 */
+  var addMenu = function(){
+    try{
+      document.querySelectorAll('#tnav .tn-p').forEach(function(p){
+        if (p.querySelector('[data-py-menu]')) return;
+        var ref = p.querySelector('button[data-id="hanzi"]') || p.querySelector('button[data-id="lessons"]'); if (!ref) return;
+        var b = document.createElement('button'); b.type = 'button'; b.setAttribute('data-py-menu', '1');
+        b.innerHTML = '<span style="font-family:\'Times New Roman\',Times,serif;display:inline-block;width:1.25em;text-align:center">ā</span> 拼音練習';
+        b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); window.open('pinyin.html', '_blank', 'noopener'); });
+        ref.insertAdjacentElement('afterend', b);
+      });
+    }catch(x){}
+  };
+  addMenu();
   if (!add()){ var n = 0, t = setInterval(function(){ if (add() || ++n > 40) clearInterval(t); }, 250); }
-  try { new MutationObserver(function(){ if (!document.getElementById('pinyin-btn')) add(); }).observe(document.body, {childList:true, subtree:true}); } catch(e){}
+  try { new MutationObserver(function(){ if (!document.getElementById('pinyin-btn')) add(); addMenu(); }).observe(document.body, {childList:true, subtree:true}); } catch(e){}
   /* 「教材與課程」頁上面多一張拼音練習的卡片：開放名單、老師詞表、學生成績都從這裡進 */
   var lesCard = function(){
     try{
