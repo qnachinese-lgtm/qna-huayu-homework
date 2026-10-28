@@ -1717,12 +1717,15 @@ function renderDashboard(){
   const _lmHtml='';/* LEADMON_V1189 搬到「招生・官網」那一頁了 */
   const _op=(k,dft)=>{try{const v=localStorage.getItem('hyc_ds_'+k);return v==null?dft:(v==='1');}catch(e){return dft;}};
   const _sec=(k,title,badge,inner,dft)=>`<details class="dash-sec" data-ds="${k}"${_op(k,dft)?' open':''}><summary class="dash-sec-t">${title}${badge?'　<span class="dash-n">'+badge+'</span>':''}</summary><div class="dash-sec-b">${inner}</div></details>`;
+  let _late='';try{_late=weekLateHtml(true);}catch(e){_late='';}
   body.innerHTML=`${_hero}
     ${_sec('today','📅 今天的課','',todayHtml,true)}
     ${_sec('todo','🔥 今天要處理',todoN||'',
       todayJobsHtml(_pend,true)
       +`<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
-       <details class="dash-fold" open style="margin-top:12px"><summary>⏰ 提醒（堂數／補課／交件）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>`,true)}
+       <details class="dash-fold" open style="margin-top:12px"><summary>⏰ 提醒（堂數／補課／交件）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>`
+      +(_late?`<details class="dash-fold" open style="margin-top:12px"><summary>📝 還沒點名（${WKLATE_N}）<span class="hint" style="font-weight:400;margin-left:8px">過去七天上了課、還沒點名的</span></summary><div style="margin-top:10px">${_late}</div></details>`:''),true)}
+    ${(function(){let n=0;try{n=quietStus(7).length;}catch(e){}return n?_sec('quiet','😴 一週沒做練習',n,quietHtml(),true):'';})()/* QUIET_V1660 */}
     ${(function(){const n=idleStus(30).length;return n?_sec('idle','🕰 好久沒上課',n,idleHtml(),true):'';})()/* IDLE_V1253 */}
     ${''/* MEMORM_V1338 Quinn：「暫時用不到備忘錄功能，請拿走」。
          只把總覽上的這一區藏起來，memo 的資料、備份、匯出都原封不動——
@@ -5260,7 +5263,7 @@ function weekActualCard(back){
     (S.students||[]).forEach(s=>{
       if(s.deleted||s.is_test||s.class_type==='團班')return;
       /* TRIAL_V807 試學還沒定下固定時間，別自動推進課表 */
-      if(enrollOf&&(enrollOf(s)==='paused'||enrollOf(s)==='trial'))return;
+      if(enrollOf&&(enrollOf(s)==='paused'||enrollOf(s)==='trial'||ENDED_V1660(s)))return;
       /* SOLOSCH_V1500 這一頁自己有一份固定時段的產生器（跟今日總覽那一份是兩套）。
          「兩種」的人一樣要讀 schedule_solo——她的團班時間由下面 groupsList() 那段推。 */
       const _both=isBoth(s);
@@ -5404,7 +5407,8 @@ function weekBoardHtml(){
 /* LATEROLL_V1031 過去七天裡「應該上、但沒有點名記錄」的那幾堂。
    已經點過名的不會出現（點完就從這一塊消失）；
    按過「這一天不要再推」的固定時段也不會出現。 */
-function weekLateHtml(){
+let WKLATE_N=0;/* LATEDASH_V1660 首頁也要看得到「還沒點名」 */
+function weekLateHtml(bare){WKLATE_N=0;
   let W;try{W=weekActualCard(7);}catch(e){return '';}
   const t=new Date();t.setHours(0,0,0,0);
   const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -5416,7 +5420,8 @@ function weekLateHtml(){
     ||String(a.start||'').localeCompare(String(b.start||'')));
   const keep=WKDATE;WKDATE=true;
   const rows=late.map(it=>{try{return W.rowOf(it);}catch(e){return '';}}).join('');
-  WKDATE=keep;
+  WKDATE=keep;WKLATE_N=late.length;
+  if(bare)return `<div class="wk-late"><div class="wk-late-b">${rows}</div></div>`;
   return `<div class="wk-late"><div class="wk-late-h">⚠️ 還沒點名`
     +`<span class="wk-late-n">${late.length} 堂</span>`
     +`<span class="hint" style="margin-left:8px">過去七天裡沒有上課記錄的。點完名就會從這裡消失。</span></div>`
@@ -5858,6 +5863,33 @@ function enrollBadge(s,short){const m=enrollMeta(enrollOf(s));const ic=({active:
    這裡只是把他們列出來讓她自己決定，系統不會自動改任何人的狀態。 */
 function stuLastLog(s){const lg=(Array.isArray(s&&s.class_log)?s.class_log:[]).filter(e=>e&&e.date);
   return lg.map(e=>String(e.date)).sort().pop()||'';}
+/* ENDED_V1660 已結束的學生，固定時段也不要再推進課表／還沒點名 */
+function ENDED_V1660(s){try{return enrollOf(s)==='ended';}catch(e){return false;}}
+/* QUIET_V1660 Quinn 選的第 3 項：在學中的學生超過 7 天沒登入、也沒做任何練習 → 首頁列出來。
+   跟「🆕 做完了」是一組：一個告訴妳誰有在做，一個告訴妳誰沒在做。沒有帳號的學生不列（他本來就登入不了）。 */
+function quietStus(days){
+  const D=Number(days)||7,T=localToday(),cut=tjAddDays(T,-D);
+  const act={};const bump=(k,t)=>{t=String(t||'').slice(0,10);if(!k||!t)return;if(!act[k]||t>act[k])act[k]=t;};
+  [S.results,S.wbdocs,S.sentences,S.discussions,S.gpracs,S.shadows,S.hwvs,S.fhws,S.acts].forEach(arr=>(arr||[]).forEach(r=>{
+    if(!r||String(r.lesson_id||'').indexOf('__')===0)return;const t=r.submitted_at||r.completed_at||r.updated_at||'';
+    bump(r.student_id,t);bump(r.uid?('u:'+r.uid):'',t);}));
+  return (S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test&&enrollOf(s)==='active'&&(s.uid||s.email)
+      &&String(s.created_at||'').slice(0,10)<cut)
+    .map(s=>{const p=progOf(s.id)||{};let lg=String(p.last_active||p.last_login||'').slice(0,10);
+      (Array.isArray(p.logins)?p.logins:[]).forEach(t=>{t=String(t||'').slice(0,10);if(t>lg)lg=t;});
+      let w=act[s.id]||'';const u=s.uid?act['u:'+s.uid]:'';if(u&&u>w)w=u;
+      const last=(lg>w?lg:w);
+      return {s,lg,w,last,n:last?Math.round((new Date(T)-new Date(last))/864e5):null};})
+    .filter(x=>!x.last||x.last<cut)
+    .sort((a,b)=>String(a.last).localeCompare(String(b.last)));}
+function quietHtml(){
+  const ago=d=>{if(!d)return '從來沒有';const n=Math.round((new Date(localToday())-new Date(d))/864e5);return n<=0?'今天':(n+' 天前');};
+  return quietStus(7).map(x=>'<div class="dash-row" style="flex-wrap:wrap">'
+    +'<span class="badge badge-soon">'+(x.n==null?'沒登入過':(x.n+' 天沒動靜'))+'</span>'
+    +'<b>'+snm(x.s.name||'')+'</b>'
+    +'<span class="muted">登入：'+ago(x.lg)+'・做練習：'+ago(x.w)+'</span>'
+    +'<span class="grow" style="flex:1"></span>'
+    +'<button class="btn btn-sm" data-act="stuDetail" data-id="'+esc(x.s.id)+'">去看</button></div>').join('');}
 function idleStus(days){
   const T=localToday();const D=Number(days)||30;const cut=tjAddDays(T,-D);
   return (S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test&&enrollOf(s)==='active')
@@ -20665,7 +20697,7 @@ function fixSlotsAhead(days){
   const stu=[],grp=[];
   (S.students||[]).forEach(x=>{
     if(x.deleted||x.is_test||x.class_type==='團班')return;
-    if(enrollOf(x)==='paused'||enrollOf(x)==='trial')return; /* TRIAL_V807 */
+    if(enrollOf(x)==='paused'||enrollOf(x)==='trial'||ENDED_V1660(x))return; /* TRIAL_V807 */
     const sch=Array.isArray(x.schedule)?x.schedule:[];if(!sch.length)return;
     const logged=new Set((Array.isArray(x.class_log)?x.class_log:[]).map(e=>e&&e.date).filter(Boolean));
     const planned=new Set(studentPlanned(x).map(p=>p.date));
