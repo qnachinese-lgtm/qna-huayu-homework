@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>拼音練習｜QNA CHINESE</title>
 <link rel="icon" href="icon-192.png">
+<script>try{if(localStorage.getItem('hyc_theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap">
@@ -12,18 +13,22 @@
 /* PINYIN_V1 拼音練習（看字寫拼音）。這一頁的程式全部在這個檔案裡，
    由 db.js 最後面的 PINYIN_LOADER 把入口接到學生端和老師後台。 */
 :root{
-  --bg:#e6f0fb; --surface:#ffffff; --surface-2:#f1f6fd; --ink:#1b2a4a; --muted:#5a6b8c;
-  --primary:#1E4C86; --primary-soft:#d8e5f8; --on-primary:#ffffff; --line:#c3d4ec;
-  --good:#2a63cf; --bad:#c8363d; --star:#f2c53d;
+  --bg:#F4F7FB; --surface:#ffffff; --surface-2:#E8EFF7; --ink:#16202E; --muted:#5B6B80;
+  --primary:#1E4C86; --primary-soft:#E4EDF9; --on-primary:#ffffff; --line:#C0CEE0;
+  --good:#1E4C86; --bad:#A33227; --star:#9C7D2A;
   --kai:"BiauKai","DFKai-SB","標楷體","Kaiti TC","TW-Kai","STKaiti","LXGW WenKai TC",serif;
   --latin:"Times New Roman",Times,"Liberation Serif",serif;
 }
-@media (prefers-color-scheme: dark){:root{
-  --bg:#0f1a30; --surface:#16243f; --surface-2:#1c2d4d; --ink:#e5ecf8; --muted:#9fb0cf;
-  --primary:#8fb3ff; --primary-soft:#243b68; --on-primary:#0f1a30; --line:#2e4570;
-  --good:#8fb3ff; --bad:#ff8080; --star:#f4cf3a; color-scheme:dark}}
+/* 顏色跟學習平台（styles.css）一樣；平台的深色模式開著時（hyc_theme=dark）這裡也跟著深色 */
+html.dark{
+  --bg:#16202E; --surface:#16202E; --surface-2:#1C2838; --ink:#E8EFF7; --muted:#C7D8EF;
+  --primary:#1E4C86; --primary-soft:#1C2838; --on-primary:#ffffff; --line:#5B6B80;
+  --good:#C7D8EF; --bad:#F0C9C2; --star:#FDE68A; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+.allowlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 14px}
+.allowlist label{display:flex;gap:8px;align-items:center;font-size:16px;cursor:pointer}
+.allowlist input{width:18px;height:18px}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--kai);font-size:17px;line-height:1.6}
 .wrap{max-width:820px;margin:0 auto;padding:18px max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:16px}
@@ -49,13 +54,14 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .dots i.now{border-color:var(--primary)}
 .dots i.ok{background:var(--good);border-color:var(--good)}
 .dots i.no{background:var(--bad);border-color:var(--bad)}
-.hanzi{font-size:clamp(56px,12vw,88px);line-height:1.15;text-align:center;letter-spacing:.06em}
-.hanzi.long{font-size:clamp(32px,7vw,48px);letter-spacing:.03em}
+/* 漢字區固定高度：一個字、三個字、一整句都一樣高，下面的輸入框才不會跳來跳去 */
+.hanzi{height:clamp(84px,16vw,116px);display:flex;align-items:center;justify-content:center;font-size:clamp(52px,11vw,80px);line-height:1;text-align:center;letter-spacing:.06em;white-space:nowrap;overflow:hidden}
+.hanzi.long{font-size:clamp(24px,6vw,44px);letter-spacing:.03em}
 .lbl{font-size:14px;color:var(--muted)}
 .inrow{display:flex;gap:8px}
 .inrow input{flex:1;min-width:0;font-family:var(--latin);font-size:30px;padding:8px 16px;border:2px solid var(--line);border-radius:14px;background:var(--surface-2);color:var(--ink)}
 .ukey{flex:none;width:56px;border:2px solid var(--line);border-radius:14px;background:var(--surface);font-family:var(--latin);font-size:26px}
-.fb{min-height:62px;border-radius:14px;padding:10px 14px;display:flex;flex-direction:column;gap:2px;font-size:16px}
+.fb{min-height:88px;border-radius:14px;padding:10px 14px;display:flex;flex-direction:column;gap:2px;font-size:16px}
 .fb:empty{padding:0}
 .fb.ok{background:var(--primary-soft)}
 .fb.no{background:var(--surface-2);border:2px dashed var(--bad)}
@@ -112,6 +118,7 @@ td.num{font-family:var(--latin);font-variant-numeric:tabular-nums;white-space:no
     <button class="tab" data-tab="practice" type="button">練習</button>
     <button class="tab" data-tab="list" type="button">老師詞表</button>
     <button class="tab" data-tab="scores" type="button">學生成績</button>
+    <button class="tab" data-tab="allow" type="button">開放名單</button>
   </nav>
   <div class="levels" id="levels" hidden></div>
   <section class="stage" id="stage" aria-live="polite"><p class="tip center" style="margin:auto">正在讀取…</p></section>
@@ -192,7 +199,7 @@ const $=s=>document.querySelector(s);const stage=$('#stage');
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const st={tab:'practice',level:'l1',queue:[],i:0,res:[],done:false};
 const me={uid:null,student:null,teacher:false,rec:null,docId:null};
-let CUSTOM_TEXT='',CUSTOM=[];
+let CUSTOM_TEXT='',CUSTOM=[],ALLOW=[];
 try{const l=localStorage.getItem('qna-pinyin-level');if(l)st.level=l}catch(e){}
 
 /* ====== 存成績（results，kind:'pinyin'，lesson_id:'__pinyin__'，一位學生一筆） ====== */
@@ -231,7 +238,7 @@ function renderPractice(){
   if(st.i>=st.queue.length)return renderResult();
   st.done=false;
   const it=st.queue[st.i];
-  stage.innerHTML=progHTML()+`<div class="hanzi${it.h.length>5?' long':''}">${esc(it.h)}</div>
+  stage.innerHTML=progHTML()+`<div class="hanzi${it.h.length>4?' long':''}">${esc(it.h)}</div>
   <label class="lbl" for="ans">輸入拼音</label>
   <div class="inrow"><input id="ans" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><button class="ukey" id="ukey" type="button" aria-label="輸入 ü">ü</button></div>
   <div class="fb" id="fb"></div>
@@ -290,14 +297,30 @@ async function renderScores(){
       return `<tr><td>${esc(r.student_name||'（沒有名字）')}</td><td class="num">${r.rounds_n||0}</td><td class="num">${r.total_q||0}</td><td class="num">${pct}</td><td class="num">${fmt(r.last_at)}</td><td class="miss">${miss||'—'}</td></tr>`}).join('')}</tbody></table></div>`;
   }catch(e){stage.innerHTML='<p class="tip center" style="margin:auto">讀不到成績：'+esc((e&&e.message)||e)+'</p>'}}
 
+/* ====== 老師：開放名單（存在 site/pinyin 的 allow，只有勾選的學生看得到、進得來） ====== */
+async function renderAllow(){
+  $('#cheat').hidden=true;
+  stage.innerHTML='<p class="tip center" style="margin:auto">正在讀學生名單…</p>';
+  let list=[];
+  try{const snap=await firebase.firestore().collection('students').get();
+    list=snap.docs.map(d=>Object.assign({id:d.id},d.data())).filter(s=>s&&!s.deleted_at).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'zh-Hant'))}
+  catch(e){stage.innerHTML='<p class="tip center" style="margin:auto">讀不到學生名單：'+esc((e&&e.message)||e)+'</p>';return}
+  const on=new Set(ALLOW);
+  stage.innerHTML='<p class="tip">勾選的學生，首頁才會出現「拼音練習」，也才進得了這一頁。沒勾的學生看不到。</p><div class="allowlist">'
+    +list.map(s=>'<label><input type="checkbox" value="'+esc(s.id)+'"'+(on.has(s.id)?' checked':'')+'>'+esc(s.name||'（沒有名字）')+'</label>').join('')
+    +'</div><div class="acts"><span class="save" id="allowNote"></span><button class="btn primary" id="saveAllow" type="button">儲存名單</button></div>';
+  $('#saveAllow').onclick=async()=>{const ids=[...stage.querySelectorAll('.allowlist input:checked')].map(x=>x.value);const note=$('#allowNote');note.textContent='正在儲存…';
+    try{await firebase.firestore().collection('site').doc('pinyin').set({allow:ids,updated_at:new Date().toISOString()},{merge:true});ALLOW=ids;note.textContent='已儲存，開放給 '+ids.length+' 位學生'}
+    catch(e){note.textContent='沒存進去：'+String((e&&e.message)||e)}}}
+
 function showTab(t){st.tab=t;document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));renderLevels();
-  if(t==='list')renderList();else if(t==='scores')renderScores();else startRound()}
+  if(t==='list')renderList();else if(t==='allow')renderAllow();else if(t==='scores')renderScores();else startRound()}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 
 /* ====== 登入（沿用學習平台的帳號） ====== */
-function gate(msg){$('#levels').hidden=true;$('#cheat').hidden=true;
-  stage.innerHTML=`<div class="gate"><p>${msg}</p><a class="btn primary" href="student.html">去學習平台登入</a></div>`}
-async function loadCustom(){try{const d=await firebase.firestore().collection('site').doc('pinyin').get();CUSTOM_TEXT=(d.exists&&d.data().text)||'';CUSTOM=parseList(CUSTOM_TEXT).filter(r=>!r.err).map(r=>r.it)}catch(e){}}
+function gate(msg,btn){$('#levels').hidden=true;$('#cheat').hidden=true;
+  stage.innerHTML=`<div class="gate"><p>${msg}</p><a class="btn primary" href="student.html">${btn||'去學習平台登入'}</a></div>`}
+async function loadCustom(){try{const d=await firebase.firestore().collection('site').doc('pinyin').get();CUSTOM_TEXT=(d.exists&&d.data().text)||'';ALLOW=(d.exists&&Array.isArray(d.data().allow))?d.data().allow:[];CUSTOM=parseList(CUSTOM_TEXT).filter(r=>!r.err).map(r=>r.it)}catch(e){}}
 (function boot(){
   if(!window.firebase||!firebase.auth||!window.DB||DB.mode!=='firebase'){gate('連不上學習平台，請稍後再試。');$('#who').textContent='';return}
   firebase.auth().onAuthStateChanged(async u=>{
@@ -312,6 +335,7 @@ async function loadCustom(){try{const d=await firebase.firestore().collection('s
     $('#who').textContent=me.student?(me.student.name||'已登入'):'老師帳號';
     if(me.student){try{const rs=await DB.listWhere('results','uid',u.uid);const d=rs.find(x=>x&&x.kind==='pinyin'&&x.lesson_id==='__pinyin__');if(d&&d.rec)me.rec=Object.assign(emptyRec(),d.rec)}catch(e){}}
     await loadCustom();
+    if(!me.teacher&&ALLOW.indexOf(me.student.id)<0){gate('這個練習還沒有開放給你，需要的話請跟老師說。','回學習平台');return}
     showTab('practice');
   });
 })();

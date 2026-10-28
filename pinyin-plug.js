@@ -45,10 +45,13 @@ function addCard(){
   try{
     var me = (typeof S !== 'undefined' && S) ? S.me : null;
     if (!me || me.id === '__preview') return;
+    if (!ALLOW || ALLOW.indexOf(me.id) < 0) return;   /* 只有老師在「開放名單」勾選的學生才看得到 */
     var scr = document.getElementById('screen'); if (!scr || scr.querySelector('.py-card')) return;
     var side = scr.querySelector('.h-side'); if (side) side.insertAdjacentHTML('beforeend', card());
   }catch(x){}
 }
+var ALLOW = null;
+try { firebase.firestore().collection('site').doc('pinyin').get().then(function(d){ ALLOW = (d.exists && Array.isArray(d.data().allow)) ? d.data().allow : []; addCard(); }).catch(function(){ ALLOW = []; }); } catch(x){ ALLOW = []; }
 var _home = window.renderHome;
 if (typeof _home === 'function') window.renderHome = function(){
   var r = _home.apply(this, arguments);
