@@ -6427,9 +6427,10 @@ function clNameMissing(l){const out=[];try{
   lines.forEach((ln,qi)=>{tClSplit(ln.orig||'').forEach((x,si)=>{const plain=[...tClPlain(x)],caps=clNameCaps(x),ps=plain.join('');
     ws.forEach(w=>{let k=ps.indexOf(w);while(k>=0){const pos=[...ps.slice(0,k)].length,n=[...w].length;
       let marked=false;for(let j=0;j<n;j++)if(caps[pos+j])marked=true;
-      if(!marked&&!out.some(o=>o.at===(qi+1)+'-'+(si+1)&&o.w===w))out.push({at:(qi+1)+'-'+(si+1),w});
+      if(!marked&&!out.some(o=>o.at===(qi+1)+'-'+(si+1)&&o.w===w))out.push({at:(qi+1)+'-'+(si+1),w,pos,n});
       k=ps.indexOf(w,k+w.length);}});});});}catch(e){}
-  return out;}
+  /* 同一個位置「秦王」沒標，就不再另外列「秦」「王」 */
+  return out.filter(o=>!out.some(x=>x!==o&&x.at===o.at&&x.n>o.n&&x.pos<=o.pos&&x.pos+x.n>=o.pos+o.n));}
 function clHandoutData(l){
   const lines=clLinesOf(l)||[];const tr=(l&&l.cl_tr)||{};let n=0;
   return lines.map((ln,qi)=>{const ss=tClSplit(ln.orig||'');const parts=tClGlossParts(ln.note||'');
@@ -26431,7 +26432,7 @@ H.clHandout=(id)=>{const l=(S.classicals||[]).find(x=>x&&x.id===id);if(!l)return
   const miss=data.reduce((a,p)=>a+p.sents.filter(x=>!x.tr.trim()).length,0);
   const _um=clNameMissing(l);
   openModal('<div class="modal modal-tall" style="max-width:1000px"><div class="modal-head"><h3>🖨 教師講義 · '+esc(l.title||'')+'</h3><button class="x" data-act="closeModal">×</button></div>'
-    +'<div class="modal-body"><div class="hint" style="margin-bottom:10px">每一句：原文、拼音、詞語解釋（跟學生看到的一樣）、白話翻譯。翻譯可以直接改，改完按「儲存翻譯」；學生看不到這裡的翻譯。'+(miss?('<b style="color:#A33227">　還有 '+miss+' 句沒有翻譯</b>'):'')+'</div>'+(_um.length?('<div class="hint" style="margin:-4px 0 12px;color:#8A6B1F">這幾個人名地名在別的句子有標，這裡沒標，拼音不會大寫：'+_um.map(x=>'<b>'+esc(x.at)+' '+esc(x.w)+'</b>').join('、')+'。要補的話到「✏️ 編輯」選起來按「標人名／標地名」。</div>'):'')+body+'</div>'
+    +'<div class="modal-body"><div class="hint" style="margin-bottom:10px">每一句：原文、拼音、詞語解釋（跟學生看到的一樣）、白話翻譯。翻譯可以直接改，改完按「儲存翻譯」；學生看不到這裡的翻譯。'+(miss?('<b style="color:#A33227">　還有 '+miss+' 句沒有翻譯</b>'):'')+'</div>'+(_um.length?('<div class="hint" style="margin:-4px 0 12px;color:#8A6B1F">這幾個人名地名在別的句子有標，這裡沒標，拼音不會大寫：'+(function(){const g={},o=[];_um.forEach(x=>{if(!g[x.w]){g[x.w]=[];o.push(x.w);}g[x.w].push(x.at);});return o.map(w=>'<b>'+esc(w)+'</b>（'+esc(g[w].join('、'))+'）').join('　');})()+'。要補的話到「✏️ 編輯」選起來按「標人名／標地名」。</div>'):'')+body+'</div>'
     +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>'
     +'<button class="btn" data-act="clHandoutSave" data-id="'+esc(id)+'">💾 儲存翻譯</button>'
     +'<button class="btn" data-act="clHandoutPrintStu" data-id="'+esc(id)+'" title="沒有白話翻譯，留線讓學生自己寫">🖨 學生版</button>'
