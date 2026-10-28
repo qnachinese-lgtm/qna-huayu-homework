@@ -6410,9 +6410,26 @@ function tClPinyin(sent,parts,caps){
     if(inner)put(inner[1],inner[2]);else put(g.head,g.py.replace(/[；;].*$/,''));});
   /* PYCAP_V1653 Quinn：「人名、地名的拼音要大寫第一個字」。原文用 { } 標的人名、[ ] 標的地名，每個音節開頭大寫：Jīng Kē、Wèi */
   if(caps)chars.forEach((c,i)=>{if(caps[i]&&pys[i])pys[i]=pys[i].charAt(0).toUpperCase()+pys[i].slice(1);});
-  let out='';chars.forEach((c,i)=>{if(pys[i])out+=(out&&!/\s$/.test(out)?' ':'')+pys[i];else if(/[，。！？；：、「」『』（）]/.test(c))out+=c+' ';});
+  /* PYPUNCT_V1659 Quinn 選的第 1、2 項：拼音行用半形標點（zhě, wèi rén yě.），每一句開頭的字母大寫 */
+  const PM={'，':',','、':',','。':'.','！':'!','？':'?','；':';','：':':','」':'”','』':'’','）':')'},PO={'「':'“','『':'‘','（':'('};
+  let out='',cap=true;chars.forEach((c,i)=>{
+    if(pys[i]){let y=pys[i];if(cap){y=y.charAt(0).toUpperCase()+y.slice(1);cap=false;}
+      out+=((out&&!/[\s“‘(]$/.test(out))?' ':'')+y;}
+    else if(PO[c])out+=((out&&!/\s$/.test(out))?' ':'')+PO[c];
+    else if(PM[c]){out=out.replace(/\s+$/,'')+PM[c]+' ';if(/[.!?]/.test(PM[c]))cap=true;}});
   return out.replace(/\s+/g,' ').trim();}
 function clNameCaps(x){const m=[];let on=0;[...String(x||'')].forEach(c=>{if(c==='{'||c==='['){on=1;return;}if(c==='}'||c===']'){on=0;return;}m.push(!!on);});return m;}
+/* NAMEMISS_V1659 Quinn 選的第 3 項：同一課裡，某個字在別處標成人名／地名，這一句卻沒標 → 列出來 */
+function clNameMissing(l){const out=[];try{
+  const lines=clLinesOf(l)||[];const names={};
+  lines.forEach(ln=>{String(ln.orig||'').replace(/\{([^{}\[\]]+)\}|\[([^{}\[\]]+)\]/g,(m0,a,b)=>{const w=(a||b||'').trim();if(w)names[w]=1;return m0;});});
+  const ws=Object.keys(names);if(!ws.length)return out;
+  lines.forEach((ln,qi)=>{tClSplit(ln.orig||'').forEach((x,si)=>{const plain=[...tClPlain(x)],caps=clNameCaps(x),ps=plain.join('');
+    ws.forEach(w=>{let k=ps.indexOf(w);while(k>=0){const pos=[...ps.slice(0,k)].length,n=[...w].length;
+      let marked=false;for(let j=0;j<n;j++)if(caps[pos+j])marked=true;
+      if(!marked&&!out.some(o=>o.at===(qi+1)+'-'+(si+1)&&o.w===w))out.push({at:(qi+1)+'-'+(si+1),w});
+      k=ps.indexOf(w,k+w.length);}});});});}catch(e){}
+  return out;}
 function clHandoutData(l){
   const lines=clLinesOf(l)||[];const tr=(l&&l.cl_tr)||{};let n=0;
   return lines.map((ln,qi)=>{const ss=tClSplit(ln.orig||'');const parts=tClGlossParts(ln.note||'');
@@ -26412,10 +26429,12 @@ H.clHandout=(id)=>{const l=(S.classicals||[]).find(x=>x&&x.id===id);if(!l)return
       +'<div class="clh-trl">白話翻譯</div><textarea class="clh-tr" data-k="'+esc(x.key)+'" rows="2">'+esc(x.tr)+'</textarea>'
       +'</div></div>').join('')+'</div>').join('');
   const miss=data.reduce((a,p)=>a+p.sents.filter(x=>!x.tr.trim()).length,0);
+  const _um=clNameMissing(l);
   openModal('<div class="modal modal-tall" style="max-width:1000px"><div class="modal-head"><h3>🖨 教師講義 · '+esc(l.title||'')+'</h3><button class="x" data-act="closeModal">×</button></div>'
-    +'<div class="modal-body"><div class="hint" style="margin-bottom:10px">每一句：原文、拼音、詞語解釋（跟學生看到的一樣）、白話翻譯。翻譯可以直接改，改完按「儲存翻譯」；學生看不到這裡的翻譯。'+(miss?('<b style="color:#A33227">　還有 '+miss+' 句沒有翻譯</b>'):'')+'</div>'+body+'</div>'
+    +'<div class="modal-body"><div class="hint" style="margin-bottom:10px">每一句：原文、拼音、詞語解釋（跟學生看到的一樣）、白話翻譯。翻譯可以直接改，改完按「儲存翻譯」；學生看不到這裡的翻譯。'+(miss?('<b style="color:#A33227">　還有 '+miss+' 句沒有翻譯</b>'):'')+'</div>'+(_um.length?('<div class="hint" style="margin:-4px 0 12px;color:#8A6B1F">這幾個人名地名在別的句子有標，這裡沒標，拼音不會大寫：'+_um.map(x=>'<b>'+esc(x.at)+' '+esc(x.w)+'</b>').join('、')+'。要補的話到「✏️ 編輯」選起來按「標人名／標地名」。</div>'):'')+body+'</div>'
     +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>'
     +'<button class="btn" data-act="clHandoutSave" data-id="'+esc(id)+'">💾 儲存翻譯</button>'
+    +'<button class="btn" data-act="clHandoutPrintStu" data-id="'+esc(id)+'" title="沒有白話翻譯，留線讓學生自己寫">🖨 學生版</button>'
     +'<button class="btn btn-accent" data-act="clHandoutPrint" data-id="'+esc(id)+'">🖨 列印／存成 PDF</button></div></div>');};
 function clHandoutCollect(){const o={};document.querySelectorAll('textarea.clh-tr').forEach(t=>{o[t.dataset.k]=String(t.value||'').trim();});return o;}
 H.clHandoutSave=async(id,b)=>{const l=(S.classicals||[]).find(x=>x&&x.id===id);if(!l)return;
@@ -26427,36 +26446,39 @@ H.clHandoutSave=async(id,b)=>{const l=(S.classicals||[]).find(x=>x&&x.id===id);i
 /* HANDSAME_V1652 Quinn：「教師講義列印出來的方式，為什麼跟之前列印出來的不一樣」。
    改成跟「📄 匯出講義」同一套外框：抬頭、課名／教材欄、頁尾、上方工具列（字體、繁簡）、存成 PDF 的檔名，
    內容照樣是一句一條：原文、漢語拼音、詞語解釋、白話翻譯。 */
-H.clHandoutPrint=(id)=>{const l=(S.classicals||[]).find(x=>x&&x.id===id);if(!l)return;
+/* STUHAND_V1659 Quinn 選的第 4 項：學生版講義＝同一個格式，白話翻譯換成空白線讓學生自己寫 */
+H.clHandoutPrintStu=(id)=>clHandoutPrintDo(id,true);
+H.clHandoutPrint=(id)=>clHandoutPrintDo(id,false);
+function clHandoutPrintDo(id,stu){const l=(S.classicals||[]).find(x=>x&&x.id===id);if(!l)return;
   const cur=clHandoutCollect();const data=clHandoutData(Object.assign({},l,{cl_tr:Object.assign({},l.cl_tr||{},cur)}));
   const book=String(l.textbook||'文言文').trim()||'文言文',ttl=String(l.title||'').trim();
-  const _fn=fnm('講義',book,ttl,'教師講義',localToday());
+  const _fn=fnm('講義',book,ttl,stu?'學生講義':'教師講義',localToday());
   const body='<div class="gh-les"><h2 class="gh-lt">'+esc(ttl||'（未命名）')+'</h2><div class="gh-gp">'
     +data.map(p=>'<div class="gh-gt"><span class="gh-tag">第 '+(p.qi+1)+' 段</span></div><div class="gh-cl">'
       +p.sents.map(x=>'<div class="gh-cli"><div class="gh-clo"><span class="gh-cn">'+(p.qi+1)+'-'+x.no+'</span>'+esc(x.orig)+'</div>'
         +(x.py?('<div class="gh-clpy">'+esc(x.py)+'</div>'):'')
         +(x.gl.length?('<div class="gh-cln">'+x.gl.map(g=>esc(g)).join('<br>')+'</div>'):'')
-        +(String(x.tr||'').trim()?('<div class="gh-clr"><b>白話</b>'+esc(x.tr)+'</div>'):'')
+        +(stu?'<div class="gh-clr gh-clw"><b>白話</b><span></span></div><div class="gh-clw2"></div>':(String(x.tr||'').trim()?('<div class="gh-clr"><b>白話</b>'+esc(x.tr)+'</div>'):''))
         +'</div>').join('')+'</div>').join('')
     +'</div></div>';
   const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>'+esc(_fn)+'</title>'
     +expHead(GHFONT)+'<style>'+fbCss()+ghCss()+expCss()
     +'.gh-clpy{font-family:"Times New Roman",serif;font-size:12.5px;color:#3B4A5E;margin:1px 0 2px;letter-spacing:.2px}'
-    +'.gh-clr b{margin-right:6px}'
+    +'.gh-clr b{margin-right:6px}.gh-clw{display:flex;align-items:flex-end}.gh-clw span{flex:1;border-bottom:1px solid #9AA8BA;height:22px}.gh-clw2{border-bottom:1px solid #9AA8BA;height:26px;margin:0 0 4px 34px}'
     +'</style></head><body class="lang-zh">'
     +'<div class="gh-run"><b>'+esc(window.APP_NAME||'QNA CHINESE')+'</b><span class="vi">Tiếng Trung Quyên Huỳnh</span>'
-    +'<span class="r">'+esc(book)+'　·　教師講義</span></div>'
+    +'<span class="r">'+esc(book)+'　·　'+(stu?'學生講義':'教師講義')+'</span></div>'
     +expBar(1,'<span class="exp-l">字</span><select id="zhs" class="exp-s"><option value="tw">繁體</option><option value="cn">簡體</option></select>',GHFONT)
     +'<div class="page"><table class="gh-pgt"><tfoot><tr><td></td></tr></tfoot><tbody><tr><td>'
     +fbHead(L2('華語教學 · 講義','Dạy tiếng Trung · Tài liệu'),L2('講義','Tài liệu'),'HANDOUT')
     +'<div class="top">'
     +'<div class="f"><span class="k">'+L2('課名','Bài')+'</span><span class="v">'+esc(ttl)+'</span></div>'
     +'<div class="f"><span class="k">'+L2('教材','Giáo trình')+'</span><span class="v">'+esc(book)+'</span></div>'
-    +'<div class="f"><span class="k">'+L2('版本','Phiên bản')+'</span><span class="v">'+L2('教師講義（含拼音、註解、白話翻譯）','Bản giáo viên')+'</span></div>'
+    +'<div class="f"><span class="k">'+L2('版本','Phiên bản')+'</span><span class="v">'+(stu?L2('學生講義（含拼音、註解；白話翻譯自己寫）','Bản học viên'):L2('教師講義（含拼音、註解、白話翻譯）','Bản giáo viên'))+'</span></div>'
     +'</div>'+body
     +'<div class="foot">'+L2('開立時間 '+esc(nowStr())+'　·　'+esc(window.APP_NAME||'QNA CHINESE'),'Thời gian lập '+esc(nowStr())+'　·　'+esc(window.APP_NAME||'QNA CHINESE'),1)+'</div>'
     +'</td></tr></tbody></table></div>'+expJs()+zhsJs()+ghBarJs()+'</body></html>';
-  fbWin(ghZh(html));};
+  fbWin(ghZh(html));}
 
 /* LOGINMSG_V1627 Quinn：「開通帳號了，想要複製訊息給她，告訴她帳號、密碼、網址」。
    密碼不會存在系統裡（看不到原本的），所以這裡讓她把當初設的密碼打進來，
