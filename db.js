@@ -174,3 +174,13 @@
   function go() { if (document.getElementById('slides-btn-js')) return; var s = document.createElement('script'); s.id = 'slides-btn-js'; s.src = 'slides-btn.js?v=3'; document.body.appendChild(s); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
 })();
+
+/* ══════ PINYIN_LOADER 拼音練習外掛 ══════
+   老師後台（teacher.html）和學生端（student.html）自動載入 pinyin-plug.js：
+   學生首頁多一張「拼音練習」卡片，老師後台右上角多一個「拼音練習」圖示。
+   拼音練習本身在 pinyin.html。跟漢字遊戲一樣，teacher.html／student.html 不用寫任何東西。這一段請保留。 */
+(function () {
+  if (!/\/(teacher|student)(\.html)?$/.test(location.pathname)) return;
+  function go() { if (document.getElementById('pinyin-plug-js')) return; var s = document.createElement('script'); s.id = 'pinyin-plug-js'; s.src = 'pinyin-plug.js?v=1'; document.body.appendChild(s); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+})();

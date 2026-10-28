@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>拼音練習｜QNA CHINESE</title>
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap">
+<style>
+/* PINYIN_V1 拼音練習（看字寫拼音）。這一頁的程式全部在這個檔案裡，
+   由 db.js 最後面的 PINYIN_LOADER 把入口接到學生端和老師後台。 */
+:root{
+  --bg:#e6f0fb; --surface:#ffffff; --surface-2:#f1f6fd; --ink:#1b2a4a; --muted:#5a6b8c;
+  --primary:#1E4C86; --primary-soft:#d8e5f8; --on-primary:#ffffff; --line:#c3d4ec;
+  --good:#2a63cf; --bad:#c8363d; --star:#f2c53d;
+  --kai:"BiauKai","DFKai-SB","標楷體","Kaiti TC","TW-Kai","STKaiti","LXGW WenKai TC",serif;
+  --latin:"Times New Roman",Times,"Liberation Serif",serif;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0f1a30; --surface:#16243f; --surface-2:#1c2d4d; --ink:#e5ecf8; --muted:#9fb0cf;
+  --primary:#8fb3ff; --primary-soft:#243b68; --on-primary:#0f1a30; --line:#2e4570;
+  --good:#8fb3ff; --bad:#ff8080; --star:#f4cf3a; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--kai);font-size:17px;line-height:1.6}
+.wrap{max-width:820px;margin:0 auto;padding:18px max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:16px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.back{color:var(--primary);text-decoration:none;font-size:15px}
+.brand{flex:1;min-width:0}
+.brand small{display:block;font-family:var(--latin);letter-spacing:.14em;font-size:12px;color:var(--muted)}
+.brand h1{margin:0;font-size:clamp(24px,4.5vw,30px);line-height:1.2}
+.who{font-size:14px;color:var(--muted)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{border:2px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 16px;font-size:15px}
+.tab[aria-selected="true"]{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.levels{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.levels .lab{font-size:14px;color:var(--muted)}
+.chip{border:2px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 14px;font-size:15px}
+.chip[aria-pressed="true"]{background:var(--primary-soft);border-color:var(--primary);font-weight:700}
+.stage{background:var(--surface);border:2px solid var(--line);border-radius:24px;padding:22px clamp(16px,4vw,30px) 24px;display:flex;flex-direction:column;gap:14px;min-height:360px}
+.prog{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.dots{display:flex;gap:5px;flex-wrap:wrap}
+.dots i{width:12px;height:12px;border-radius:50%;background:var(--surface-2);border:2px solid var(--line)}
+.dots i.now{border-color:var(--primary)}
+.dots i.ok{background:var(--good);border-color:var(--good)}
+.dots i.no{background:var(--bad);border-color:var(--bad)}
+.hanzi{font-size:clamp(56px,12vw,88px);line-height:1.15;text-align:center;letter-spacing:.06em}
+.hanzi.long{font-size:clamp(32px,7vw,48px);letter-spacing:.03em}
+.lbl{font-size:14px;color:var(--muted)}
+.inrow{display:flex;gap:8px}
+.inrow input{flex:1;min-width:0;font-family:var(--latin);font-size:30px;padding:8px 16px;border:2px solid var(--line);border-radius:14px;background:var(--surface-2);color:var(--ink)}
+.ukey{flex:none;width:56px;border:2px solid var(--line);border-radius:14px;background:var(--surface);font-family:var(--latin);font-size:26px}
+.fb{min-height:62px;border-radius:14px;padding:10px 14px;display:flex;flex-direction:column;gap:2px;font-size:16px}
+.fb:empty{padding:0}
+.fb.ok{background:var(--primary-soft)}
+.fb.no{background:var(--surface-2);border:2px dashed var(--bad)}
+.fb .head{font-weight:700}
+.fb.ok .head{color:var(--good)}
+.fb.no .head{color:var(--bad)}
+.ans{font-family:var(--latin);font-size:28px;line-height:1.3}
+.ans .bad{color:var(--bad);text-decoration:underline wavy var(--bad);text-underline-offset:5px}
+.acts{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:auto}
+.btn{border:2px solid var(--line);background:var(--surface);border-radius:999px;padding:9px 22px;font-size:16px;text-decoration:none;color:inherit;display:inline-block}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--on-primary);font-weight:700}
+.tip{font-size:14px;color:var(--muted);margin:0}
+.center{text-align:center}
+.result{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+.result .big{font-family:var(--latin);font-size:64px;line-height:1;color:var(--primary)}
+.result .big small{font-size:28px;color:var(--muted)}
+.wronglist{width:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;text-align:left}
+.wronglist div{border:2px solid var(--line);border-radius:14px;padding:8px 12px;background:var(--surface-2);min-width:0}
+.wronglist b{font-size:22px;font-weight:400;display:block}
+.wronglist span{font-family:var(--latin);font-size:20px;overflow-wrap:anywhere}
+.save{font-size:14px;color:var(--muted)}
+.cheat{background:var(--surface);border:2px dashed var(--line);border-radius:18px;padding:12px 18px;font-size:15px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+.cheat b{margin-right:4px}
+.cheat span{font-family:var(--latin);font-size:19px}
+.cheat code{font-family:var(--latin);background:var(--surface-2);border-radius:6px;padding:0 6px;font-size:16px;color:var(--muted)}
+.gate{text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center;margin:auto}
+/* 老師：詞表、成績 */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cols>*{min-width:0}
+textarea{width:100%;min-height:300px;font-family:var(--kai);font-size:17px;line-height:1.7;padding:10px 12px;border:2px solid var(--line);border-radius:14px;background:var(--surface-2);color:var(--ink);resize:vertical}
+.preview{border:2px solid var(--line);border-radius:14px;padding:8px 12px;max-height:330px;overflow:auto;font-size:15px}
+.preview div{display:flex;gap:10px;align-items:baseline;border-bottom:1px solid var(--line);padding:3px 0}
+.preview div:last-child{border-bottom:none}
+.preview .py{font-family:var(--latin);font-size:19px}
+.preview .err{color:var(--bad);font-size:13px}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:400;font-size:13px;white-space:nowrap}
+td.num{font-family:var(--latin);font-variant-numeric:tabular-nums;white-space:nowrap}
+.miss{font-size:14px;color:var(--muted)}
+@media (max-width:640px){.cols{grid-template-columns:1fr}.inrow input{font-size:26px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="back" href="student.html" id="backLink">← 回學習平台</a>
+    <div class="brand"><small>QNA CHINESE</small><h1>拼音練習</h1></div>
+    <span class="who" id="who">正在登入…</span>
+  </header>
+  <nav class="tabs" id="tabs" hidden>
+    <button class="tab" data-tab="practice" type="button">練習</button>
+    <button class="tab" data-tab="list" type="button">老師詞表</button>
+    <button class="tab" data-tab="scores" type="button">學生成績</button>
+  </nav>
+  <div class="levels" id="levels" hidden></div>
+  <section class="stage" id="stage" aria-live="polite"><p class="tip center" style="margin:auto">正在讀取…</p></section>
+  <aside class="cheat" id="cheat" hidden>
+    <b>聲調怎麼打</b>
+    <span><code>ma1</code> mā</span><span><code>ma2</code> má</span><span><code>ma3</code> mǎ</span><span><code>ma4</code> mà</span><span><code>ma5</code> ma</span>
+    <span><code>nv3</code> nǚ</span><span><code>peng2you3</code> péngyǒu</span>
+  </aside>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script>
+(function(){
+'use strict';
+/* ====== 拼音核心 ====== */
+const TONES={a:'āáǎà',e:'ēéěè',i:'īíǐì',o:'ōóǒò',u:'ūúǔù','ü':'ǖǘǚǜ'};
+const REV={}; for(const b in TONES){[...TONES[b]].forEach((c,i)=>REV[c]=[b,i+1]);}
+const VOW='aeiouü';
+const norm=s=>s.normalize('NFC').toLowerCase().replace(/u:/g,'ü').replace(/v/g,'ü');
+const SYL=/(zh|ch|sh|[bpmfdtnlgkhjqxzcsrwy])?([aeiouü]+)(ng|n|r)?(?![aeiouü])/y;
+function segment(p){const out=[];let i=0;while(i<p.length){SYL.lastIndex=i;const m=SYL.exec(p);
+  if(m&&m[0].length){out.push([i,i+m[0].length,false]);i+=m[0].length}else{out.push([i,i+1,true]);i++}}return out}
+function parsePinyin(str,raw){
+  const s=norm(str),syls=[];let chunk=[];
+  const flush=d=>{if(!chunk.length)return;const plain=chunk.map(c=>c.ch).join('');const segs=segment(plain);
+    segs.forEach(([a,b,junk],k)=>{let t=0;for(let j=a;j<b;j++)if(chunk[j].t)t=chunk[j].t;
+      if(!t&&k===segs.length-1&&d!=null)t=d;
+      let base=plain.slice(a,b);if(!raw)base=base.replace(/^([jqxy])ü/,'$1u');
+      syls.push({base,tone:t||5,junk})});chunk=[]};
+  for(const c of s){
+    if(REV[c])chunk.push({ch:REV[c][0],t:REV[c][1]});
+    else if(/[a-zü]/.test(c))chunk.push({ch:c,t:0});
+    else if(/[0-5]/.test(c))flush(c==='0'?5:+c);
+    else flush(null);
+  }
+  flush(null);return syls}
+function markIndex(b){if(b.includes('a'))return b.indexOf('a');if(b.includes('e'))return b.indexOf('e');
+  if(b.includes('ou'))return b.indexOf('o');for(let i=b.length-1;i>=0;i--)if(VOW.includes(b[i]))return i;return -1}
+function markSyl(b,t){if(t===5)return b;const i=markIndex(b);if(i<0)return b;return b.slice(0,i)+TONES[b[i]][t-1]+b.slice(i+1)}
+const PUNC={'。':'.','？':'?','！':'!','，':','};
+function makeItem(h,p){
+  const words=p.trim().split(/\s+/).map(w=>parsePinyin(w)).filter(w=>w.length);
+  const syls=words.flat();const sent=/[。？！]$/.test(h);
+  return {h,words,syls,sent,bad:syls.some(s=>s.junk)||!syls.length}}
+function answerHTML(it,wrong){let k=0;
+  const html=it.words.map(w=>w.map((s,j)=>{let t=markSyl(s.base,s.tone);if(j>0&&/^[aoe]/.test(s.base))t="'"+t;
+    if(k===0&&it.sent)t=t[0].toUpperCase()+t.slice(1);const c=wrong&&wrong[k]?' class="bad"':'';k++;return `<span${c}>${t}</span>`}).join('')).join(' ');
+  return html+(it.sent?(PUNC[it.h.slice(-1)]||''):'')}
+const plainAnswer=it=>answerHTML(it).replace(/<[^>]+>/g,'');
+function checkTyped(input,it){const st=parsePinyin(input),T=it.syls;
+  if(!st.length)return null;
+  if(st.length===T.length&&st.every((x,i)=>x.base===T[i].base)){const wrong=T.map((t,i)=>st[i].tone!==t.tone);return{ok:!wrong.some(Boolean),kind:'tone',wrong}}
+  const wrong=st.length===T.length?T.map((t,i)=>st[i].base!==t.base||st[i].tone!==t.tone):null;return{ok:false,kind:'spell',wrong}}
+function autoConvert(el){let v=el.value,c=el.selectionStart;
+  v=v.replace(/v/g,'ü').replace(/V/g,'Ü');
+  const left=v.slice(0,c);const m=left.match(/([a-zA-ZüÜāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]+)([0-5])$/);
+  if(m){const syls=parsePinyin(m[1],true);const last=syls[syls.length-1];
+    if(last&&!last.junk){const d=+m[2];last.tone=d===0?5:d;
+      const rep=syls.map(s=>markSyl(s.base,s.tone)).join('');const nl=left.slice(0,left.length-m[0].length)+rep;v=nl+v.slice(c);c=nl.length}}
+  if(v!==el.value){el.value=v;el.setSelectionRange(c,c)}}
+function parseList(text){return String(text||'').split(/\n/).map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^(\S+)\s+(.+)$/);if(!m)return{line:l,err:'少了拼音'};const it=makeItem(m[1],m[2]);return it.bad?{line:l,err:'拼音讀不懂',it}:{line:l,it}})}
+
+/* ====== 內建題庫（臺灣讀音；「一」「不」標變調後聲調；三聲連讀標原調） ====== */
+const BANK={
+ l1:'媽 ma1\n麻 ma2\n馬 ma3\n罵 ma4\n八 ba1\n爸 ba4\n你 ni3\n我 wo3\n他 ta1\n好 hao3\n是 shi4\n有 you3\n大 da4\n小 xiao3\n人 ren2\n水 shui3\n茶 cha2\n書 shu1\n貓 mao1\n狗 gou3\n魚 yu2\n雨 yu3\n去 qu4\n學 xue2\n女 nü3\n綠 lü4\n月 yue4\n六 liu4\n九 jiu3\n對 dui4\n二 er4\n熱 re4\n吃 chi1\n喝 he1\n字 zi4\n錢 qian2',
+ l2:'你好 ni3hao3\n謝謝 xie4xie5\n老師 lao3shi1\n學生 xue2sheng1\n朋友 peng2you3\n中文 zhong1wen2\n臺灣 tai2wan1\n越南 yue4nan2\n泰國 tai4guo2\n法國 fa3guo2\n喜歡 xi3huan1\n咖啡 ka1fei1\n吃飯 chi1fan4\n早安 zao3an1\n名字 ming2zi4\n衣服 yi1fu2\n一定 yi2ding4\n一起 yi4qi3\n不是 bu2shi4\n不好 bu4hao3\n女兒 nü3er2\n旅行 lü3xing2\n音樂 yin1yue4\n上課 shang4ke4\n睡覺 shui4jiao4\n明天 ming2tian1\n星期 xing1qi2\n漂亮 piao4liang4\n便宜 pian2yi2\n時候 shi2hou4\n認識 ren4shi4\n知道 zhi1dao4\n爸爸 ba4ba5\n媽媽 ma1ma5\n手機 shou3ji1\n電腦 dian4nao3\n學校 xue2xiao4',
+ l3:'你好嗎？ ni3 hao3 ma5\n我是學生。 wo3 shi4 xue2sheng1\n我不是老師。 wo3 bu2 shi4 lao3shi1\n你叫什麼名字？ ni3 jiao4 shen2me5 ming2zi4\n我是越南人。 wo3 shi4 yue4nan2ren2\n他是我的朋友。 ta1 shi4 wo3 de5 peng2you3\n我喜歡喝咖啡。 wo3 xi3huan1 he1 ka1fei1\n今天天氣很好。 jin1tian1 tian1qi4 hen3 hao3\n這個多少錢？ zhe4ge5 duo1shao3 qian2\n我想學中文。 wo3 xiang3 xue2 zhong1wen2\n我們一起去吧！ wo3men5 yi4qi3 qu4 ba5\n請問廁所在哪裡？ qing3wen4 ce4suo3 zai4 na3li3\n明天見！ ming2tian1 jian4\n不客氣。 bu2 ke4qi4'
+};
+const ITEMS={};for(const k in BANK)ITEMS[k]=parseList(BANK[k]).map(r=>r.it);
+const LEVELS=[['l1','入門單字'],['l2','初級詞語'],['l3','生活短句'],['custom','老師的詞表']];
+
+/* ====== 狀態 ====== */
+const $=s=>document.querySelector(s);const stage=$('#stage');
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const st={tab:'practice',level:'l1',queue:[],i:0,res:[],done:false};
+const me={uid:null,student:null,teacher:false,rec:null,docId:null};
+let CUSTOM_TEXT='',CUSTOM=[];
+try{const l=localStorage.getItem('qna-pinyin-level');if(l)st.level=l}catch(e){}
+
+/* ====== 存成績（results，kind:'pinyin'，lesson_id:'__pinyin__'，一位學生一筆） ====== */
+function emptyRec(){return{rounds:[],total_q:0,total_ok:0,wrong:{}}}
+async function saveRound(){
+  if(!me.student||!me.uid||!window.DB||DB.mode!=='firebase')return;
+  const rec=me.rec||emptyRec();
+  const ok=st.res.filter(r=>r.ok).length,n=st.res.length;
+  rec.rounds.push({at:new Date().toISOString(),level:st.level,n,ok,miss:st.res.filter(r=>!r.ok).map(r=>r.it.h)});
+  if(rec.rounds.length>100)rec.rounds=rec.rounds.slice(-100);
+  rec.total_q+=n;rec.total_ok+=ok;
+  st.res.filter(r=>!r.ok).forEach(r=>{rec.wrong[r.it.h]=(rec.wrong[r.it.h]||0)+1});
+  me.rec=rec;
+  const note=$('#saveNote');if(note)note.textContent='正在儲存成績…';
+  try{
+    await DB.upsertResult('__pinyin__',me.student.id,{uid:me.uid,kind:'pinyin',student_name:me.student.name||'',
+      rec:JSON.parse(JSON.stringify(rec)),rounds_n:rec.rounds.length,total_q:rec.total_q,total_ok:rec.total_ok,last_at:new Date().toISOString()});
+    if(note)note.textContent='成績已儲存，老師看得到';
+  }catch(e){if(note)note.textContent='成績沒存進去，請檢查網路後再練一輪'}
+}
+
+/* ====== 練習畫面 ====== */
+function pool(){return st.level==='custom'?CUSTOM:ITEMS[st.level]}
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a}
+function startRound(items){st.queue=shuffle(items||pool()).slice(0,10);st.i=0;st.res=[];renderPractice()}
+function renderLevels(){
+  const box=$('#levels');box.hidden=st.tab!=='practice';
+  const lv=LEVELS.filter(([k])=>k!=='custom'||CUSTOM.length);
+  if(!lv.some(([k])=>k===st.level))st.level='l1';
+  box.innerHTML='<span class="lab">程度</span>'+lv.map(([k,n])=>`<button class="chip" type="button" data-level="${k}" aria-pressed="${k===st.level}">${n}</button>`).join('');
+  box.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{st.level=b.dataset.level;try{localStorage.setItem('qna-pinyin-level',st.level)}catch(e){}renderLevels();startRound()})}
+function progHTML(){const n=st.queue.length;return `<div class="prog"><span>第 ${st.i+1} 題／共 ${n} 題</span><div class="dots">${st.queue.map((_,k)=>`<i class="${k<st.res.length?(st.res[k].ok?'ok':'no'):(k===st.i?'now':'')}"></i>`).join('')}</div></div>`}
+function renderPractice(){
+  $('#cheat').hidden=false;
+  if(!st.queue.length){stage.innerHTML='<p class="tip center" style="margin:auto">這個程度還沒有題目。</p>';return}
+  if(st.i>=st.queue.length)return renderResult();
+  st.done=false;
+  const it=st.queue[st.i];
+  stage.innerHTML=progHTML()+`<div class="hanzi${it.h.length>5?' long':''}">${esc(it.h)}</div>
+  <label class="lbl" for="ans">輸入拼音</label>
+  <div class="inrow"><input id="ans" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><button class="ukey" id="ukey" type="button" aria-label="輸入 ü">ü</button></div>
+  <div class="fb" id="fb"></div>
+  <div class="acts"><button class="btn" id="giveup" type="button">看答案</button><button class="btn primary" id="go" type="button">檢查</button></div>`;
+  const inp=$('#ans'),fb=$('#fb'),go=$('#go');
+  inp.addEventListener('input',e=>{if(!e.isComposing)autoConvert(inp)});
+  $('#ukey').onclick=()=>{const c=inp.selectionStart;inp.value=inp.value.slice(0,c)+'ü'+inp.value.slice(inp.selectionEnd);inp.focus();inp.setSelectionRange(c+1,c+1)};
+  const finish=(r,given)=>{st.res.push({it,ok:r.ok});st.done=true;
+    fb.className='fb '+(r.ok?'ok':'no');
+    const msg=r.ok?'答對了！':r.kind==='tone'?'拼法對了，聲調再看一下':given===''?'正確答案':'拼法不太對';
+    fb.innerHTML=`<span class="head">${msg}</span><span class="ans">${answerHTML(it,r.ok?null:r.wrong)}</span>`;
+    go.textContent=st.i+1>=st.queue.length?'看結果':'下一題';$('#giveup').hidden=true;inp.readOnly=true;go.focus()};
+  go.onclick=()=>{if(st.done){st.i++;renderPractice();return}const r=checkTyped(inp.value,it);
+    if(!r){fb.className='fb';fb.innerHTML='<span class="tip">先輸入拼音再按檢查</span>';inp.focus();return}finish(r,inp.value)};
+  $('#giveup').onclick=()=>{if(!st.done)finish({ok:false,kind:'spell',wrong:null},'')};
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();go.click()}});
+  inp.focus({preventScroll:true})}
+function renderResult(){
+  const ok=st.res.filter(r=>r.ok).length,n=st.res.length,wrong=st.res.filter(r=>!r.ok);
+  stage.innerHTML=`<div class="result"><div class="big">${ok}<small> / ${n}</small></div>
+   <p class="tip">${ok===n?'全部答對，太厲害了！':'把下面的再看一次，再練一輪會更熟。'}</p>
+   <p class="save" id="saveNote">${me.student?'':(me.teacher?'老師帳號試做，不存成績':'')}</p>
+   ${wrong.length?`<div class="wronglist">${wrong.map(r=>`<div><b>${esc(r.it.h)}</b><span>${answerHTML(r.it)}</span></div>`).join('')}</div>`:''}
+   <div class="acts" style="justify-content:center">${wrong.length?'<button class="btn" id="redo" type="button">只練錯的</button>':''}<button class="btn primary" id="again" type="button">再練一輪</button></div></div>`;
+  $('#again').onclick=()=>startRound();
+  if(wrong.length)$('#redo').onclick=()=>startRound(wrong.map(r=>r.it));
+  saveRound()}
+
+/* ====== 老師：詞表（存在 site/pinyin，所有登入的學生都讀得到） ====== */
+function renderList(){
+  $('#cheat').hidden=true;
+  stage.innerHTML=`<p class="tip">一行一個詞：漢字、空格、拼音。拼音可以打數字（peng2you3）或聲調符號（péngyǒu），詞和詞之間用空格分開。儲存後，學生在「老師的詞表」就看得到。</p>
+   <div class="cols"><div><label class="lbl" for="customText">詞表內容</label><textarea id="customText" spellcheck="false"></textarea></div>
+   <div><span class="lbl">網站讀到的樣子</span><div class="preview" id="preview"></div></div></div>
+   <div class="acts"><span class="save" id="listNote"></span><button class="btn primary" id="saveList" type="button">儲存詞表</button></div>`;
+  const ta=$('#customText');ta.value=CUSTOM_TEXT;
+  const draw=()=>{const rows=parseList(ta.value);$('#preview').innerHTML=rows.length?rows.map(r=>r.err?`<div><span>${esc(r.line)}</span><span class="err">${r.err}</span></div>`:`<div><span>${esc(r.it.h)}</span><span class="py">${answerHTML(r.it)}</span></div>`).join(''):'<span class="tip">左邊打上詞語，這裡會出現讀到的拼音</span>'};
+  ta.addEventListener('input',draw);draw();
+  $('#saveList').onclick=async()=>{const note=$('#listNote');note.textContent='正在儲存…';
+    try{await firebase.firestore().collection('site').doc('pinyin').set({text:ta.value.trim(),updated_at:new Date().toISOString()},{merge:true});
+      CUSTOM_TEXT=ta.value.trim();CUSTOM=parseList(CUSTOM_TEXT).filter(r=>!r.err).map(r=>r.it);note.textContent='已儲存';renderLevels()}
+    catch(e){note.textContent='沒存進去：'+String((e&&e.message)||e)}}}
+
+/* ====== 老師：學生成績 ====== */
+async function renderScores(){
+  $('#cheat').hidden=true;
+  stage.innerHTML='<p class="tip center" style="margin:auto">正在讀成績…</p>';
+  try{
+    const snap=await firebase.firestore().collection('results').where('kind','==','pinyin').get();
+    const rows=snap.docs.map(d=>d.data()).sort((a,b)=>String(b.last_at||'').localeCompare(String(a.last_at||'')));
+    if(!rows.length){stage.innerHTML='<p class="tip center" style="margin:auto">還沒有學生練習過。</p>';return}
+    const fmt=s=>{if(!s)return'';const d=new Date(s);return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
+    stage.innerHTML=`<div class="tablewrap"><table><thead><tr><th>學生</th><th>練了幾輪</th><th>答題數</th><th>正確率</th><th>最近練習</th><th>常錯的詞</th></tr></thead><tbody>${rows.map(r=>{
+      const rec=r.rec||emptyRec();const pct=r.total_q?Math.round(100*r.total_ok/r.total_q)+'%':'';
+      const miss=Object.entries(rec.wrong||{}).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([h,n])=>esc(h)+(n>1?'×'+n:'')).join('、');
+      return `<tr><td>${esc(r.student_name||'（沒有名字）')}</td><td class="num">${r.rounds_n||0}</td><td class="num">${r.total_q||0}</td><td class="num">${pct}</td><td class="num">${fmt(r.last_at)}</td><td class="miss">${miss||'—'}</td></tr>`}).join('')}</tbody></table></div>`;
+  }catch(e){stage.innerHTML='<p class="tip center" style="margin:auto">讀不到成績：'+esc((e&&e.message)||e)+'</p>'}}
+
+function showTab(t){st.tab=t;document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));renderLevels();
+  if(t==='list')renderList();else if(t==='scores')renderScores();else startRound()}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+
+/* ====== 登入（沿用學習平台的帳號） ====== */
+function gate(msg){$('#levels').hidden=true;$('#cheat').hidden=true;
+  stage.innerHTML=`<div class="gate"><p>${msg}</p><a class="btn primary" href="student.html">去學習平台登入</a></div>`}
+async function loadCustom(){try{const d=await firebase.firestore().collection('site').doc('pinyin').get();CUSTOM_TEXT=(d.exists&&d.data().text)||'';CUSTOM=parseList(CUSTOM_TEXT).filter(r=>!r.err).map(r=>r.it)}catch(e){}}
+(function boot(){
+  if(!window.firebase||!firebase.auth||!window.DB||DB.mode!=='firebase'){gate('連不上學習平台，請稍後再試。');$('#who').textContent='';return}
+  firebase.auth().onAuthStateChanged(async u=>{
+    if(!u){$('#who').textContent='還沒登入';gate('請先用學生帳號登入學習平台，再回到這裡練習。');return}
+    me.uid=u.uid;
+    const em=String(u.email||'').toLowerCase();
+    me.teacher=!!(window.TEACHER_EMAIL&&em===String(window.TEACHER_EMAIL).toLowerCase());
+    try{const ss=await DB.listWhere('students','uid',u.uid);me.student=ss.find(x=>x&&!x.deleted_at)||null}catch(e){}
+    if(!me.student&&!me.teacher){try{const ms=await DB.listWhere('members','uid',u.uid);const m=(ms||[]).find(x=>x&&!x.deleted_at);if(m)me.student={id:'mem_'+m.id,name:m.name||''}}catch(e){}}
+    if(!me.student&&!me.teacher){$('#who').textContent='';gate('這個帳號還不是學生帳號，請用老師給你的學生帳號登入。');return}
+    if(me.teacher){$('#backLink').href='teacher.html';$('#backLink').textContent='← 回老師後台';$('#tabs').hidden=false}
+    $('#who').textContent=me.student?(me.student.name||'已登入'):'老師帳號';
+    if(me.student){try{const rs=await DB.listWhere('results','uid',u.uid);const d=rs.find(x=>x&&x.kind==='pinyin'&&x.lesson_id==='__pinyin__');if(d&&d.rec)me.rec=Object.assign(emptyRec(),d.rec)}catch(e){}}
+    await loadCustom();
+    showTab('practice');
+  });
+})();
+})();
+</script>
+</body>
+</html>
