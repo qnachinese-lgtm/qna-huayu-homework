@@ -6884,7 +6884,7 @@ H.fhSend=async(_,b)=>{
       if(S.preview||S.tryMode||!S.me)return;
       const site=S.site||{};
       if(/^(關|关|off|no|0)$/i.test(String(site.hw_notify||'').trim()))return;
-      const pub=site.emailjs_public,svc=site.emailjs_service,tpl=site.emailjs_reply_template,to=site.notify_email;
+      const pub=site.emailjs_public,svc=site.emailjs_service,tpl=site.emailjs_template||site.emailjs_reply_template,to=site.notify_email;/* MAILTPL_V1665 「自動回覆」範本 ID 在 EmailJS 找不到，交作業通知從來沒寄出去過；改用「報名通知」範本 */
       if(!pub||!svc||!tpl||!to)return;
       if(SKIP[d.kind])return;
       const lid=String(d.lesson_id||'');if(lid==='__progress'||lid==='__review')return;
@@ -6895,7 +6895,7 @@ H.fhSend=async(_,b)=>{
       const name=(S.me&&S.me.name)||'學生';
       const tm=new Date().toLocaleString('zh-TW',{hour12:false});
       await loadEJ();window.emailjs.init({publicKey:pub});
-      await window.emailjs.send(svc,tpl,{to_email:to,to_name:'老師',from_name:'QNA CHINESE 學生作業',
+      await window.emailjs.send(svc,tpl,{to_email:to,to_name:'老師',from_name:'📥 '+name+' 交作業',email:'',line:'',phone:'',level:kind,goal:title||'',
         subject:'📥 '+name+' 交了'+kind+(title?('：'+title):''),
         message:name+' 剛剛交了作業。\n\n種類：'+kind+(title?('\n內容：'+title):'')+'\n時間：'+tm
           +'\n\n去批改：'+location.origin+'/teacher.html?tab=grades'});

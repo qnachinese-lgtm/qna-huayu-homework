@@ -5927,13 +5927,13 @@ async function itvDailyMail(){try{
   if(!IS_OWNER||!S.site||!S.site.id)return;const T=localToday();
   if(String(S.site.itv_mail_day||'')===T)return;
   const g=k=>String((S.site&&S.site[k])||'').trim();
-  const pub=g('emailjs_public'),svc=g('emailjs_service'),tpl=g('emailjs_reply_template'),to=g('notify_email')||TEACHER_EMAIL;
+  const pub=g('emailjs_public'),svc=g('emailjs_service'),tpl=g('emailjs_template')||g('emailjs_reply_template'),to=g('notify_email')||TEACHER_EMAIL;/* MAILTPL_V1665 「自動回覆」那組 ID 在 EmailJS 找不到，改用確定能寄的「報名通知」範本 */
   if(!pub||!svc||!tpl||!to)return;
   const L=itvTodoList();if(!L.length)return;
   S.site.itv_mail_day=T;
   const body=L.map(x=>'・'+(x.c.name||'')+(x.c.target?('（'+x.c.target+'）'):'')+'\n    '+x.it.map(i=>i.t).join('\n    ')).join('\n\n');
   await loadEmailJS();window.emailjs.init({publicKey:pub});
-  await window.emailjs.send(svc,tpl,{to_email:to,to_name:'老師',from_name:'QNA CHINESE 每日提醒',
+  await window.emailjs.send(svc,tpl,{to_email:to,to_name:'老師',from_name:'🎤 面試練習每日提醒',email:'',line:'',phone:'',level:'每日提醒 '+T,goal:L.length+' 位面試客戶有待辦',
     subject:'🎤 面試練習待辦（'+T+'）：'+L.length+' 位',
     message:'今天面試練習還有這些事：\n\n'+body+'\n\n去後台看：'+location.origin+'/teacher.html?tab=interview'});
   try{await ensureAuthFresh();await DB.update('site',S.site.id,{itv_mail_day:T});}catch(e){}
