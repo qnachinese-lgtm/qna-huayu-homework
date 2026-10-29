@@ -125,6 +125,18 @@ td.num{font-family:var(--latin);font-variant-numeric:tabular-nums;white-space:no
 .gmsg .py{font-family:var(--latin);font-size:19px}
 input.shake{animation:shake .3s}
 @keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+/* 作業、我的課本、複習 */
+.lsel{border:2px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:4px 10px;font:inherit;font-size:15px;max-width:100%}
+.chip.task{border-color:var(--primary);color:var(--primary);font-weight:700}
+.taskbar{background:var(--primary-soft);border-radius:12px;padding:6px 12px;font-size:15px;color:var(--ink);margin-bottom:6px}
+.tform{display:flex;flex-direction:column;gap:12px}
+.tform .lbl{display:block;margin-bottom:4px}
+.tform select,.tform input[type=text],.tform input[type=date]{font:inherit;font-size:16px;padding:7px 10px;border:2px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--ink);max-width:100%}
+.tlist{display:flex;flex-direction:column;gap:10px}
+.tcard{border:2px solid var(--line);border-radius:14px;padding:10px 14px;display:flex;flex-direction:column;gap:6px}
+.tcard .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.twho{font-size:14px;color:var(--muted)}
+.done{color:var(--good);font-weight:700}
 @media (max-width:640px){.cols{grid-template-columns:1fr}.inrow input{font-size:26px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -141,6 +153,7 @@ input.shake{animation:shake .3s}
     <button class="tab" data-tab="game" type="button">遊戲</button>
     <button class="tab" data-tab="list" data-teacher type="button">老師詞表</button>
     <button class="tab" data-tab="scores" data-teacher type="button">學生成績</button>
+    <button class="tab" data-tab="tasks" data-teacher type="button">作業</button>
     <button class="tab" data-tab="allow" data-teacher type="button">開放名單</button>
   </nav>
   <div class="levels" id="levels" hidden></div>
@@ -220,8 +233,9 @@ const $=s=>document.querySelector(s);const stage=$('#stage');
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const st={tab:'practice',level:'t1',queue:[],i:0,res:[],done:false};
 const me={uid:null,student:null,teacher:false,rec:null,docId:null};
-let CUSTOM_TEXT='',CUSTOM=[],ALLOW=[];
+let CUSTOM_TEXT='',CUSTOM=[],ALLOW=[],TASKS=[],COURSE=[];
 try{const l=localStorage.getItem('qna-pinyin-level');if(l)st.level=l}catch(e){}
+try{st.lesson=localStorage.getItem('qna-pinyin-lesson')||''}catch(e){}
 
 /* ====== 存成績（results，kind:'pinyin'，lesson_id:'__pinyin__'，一位學生一筆） ====== */
 function emptyRec(){return{rounds:[],total_q:0,total_ok:0,wrong:{}}}
@@ -233,26 +247,78 @@ async function saveRound(){
   if(rec.rounds.length>100)rec.rounds=rec.rounds.slice(-100);
   rec.total_q+=n;rec.total_ok+=ok;
   st.res.filter(r=>!r.ok).forEach(r=>{rec.wrong[r.it.h]=(rec.wrong[r.it.h]||0)+1});
+  reviewUpdate(rec,st.res,st.level==='review');
+  if(String(st.level).indexOf('task:')===0){const tid=st.level.slice(5);rec.tasks=rec.tasks||{};const old=rec.tasks[tid];rec.tasks[tid]={at:new Date().toISOString(),ok:Math.max(ok,(old&&old.ok)||0),n:Math.max(n,(old&&old.n)||0),times:((old&&old.times)||0)+1}}
   me.rec=rec;
   const note=$('#saveNote');if(note)note.textContent='正在儲存成績…';
   try{
     await DB.upsertResult('__pinyin__',me.student.id,{uid:me.uid,kind:'pinyin',student_name:me.student.name||'',
       rec:JSON.parse(JSON.stringify(rec)),rounds_n:rec.rounds.length,total_q:rec.total_q,total_ok:rec.total_ok,last_at:new Date().toISOString()});
-    if(note)note.textContent='成績已儲存，老師看得到';
+    if(note)note.textContent='成績已儲存，老師看得到';renderLevels();
   }catch(e){if(note)note.textContent='成績沒存進去，請檢查網路後再練一輪'}
 }
 
+/* ====== 錯題複習：答錯的詞記在 rec.review，在「複習錯題」答對兩次才拿掉 ====== */
+function reviewItems(){const r=(me.rec&&me.rec.review)||{};return Object.keys(r).map(h=>makeItem(h,String(r[h].p||''))).filter(it=>!it.bad)}
+function reviewUpdate(rec,res,isReview){rec.review=rec.review||{};
+  res.forEach(x=>{const h=x.it.h;if(!x.ok){rec.review[h]={p:plainAnswer(x.it),n:2}}else if(isReview&&rec.review[h]){rec.review[h].n=(rec.review[h].n||1)-1;if(rec.review[h].n<=0)delete rec.review[h]}})}
+/* ====== 我的課本：讀學習平台上指派給我的課，拿生詞來練（生詞有標拼音就用課本的，沒有就查華語八千詞） ====== */
+const DICT8={};Object.keys(ITEMS).forEach(k=>ITEMS[k].forEach(it=>{if(!DICT8[it.h])DICT8[it.h]=it}));
+function vocabLine(raw){
+  let s=String(raw||'').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').trim();if(!s)return null;
+  if(/^[-－・·→*]/.test(s)||/^例[:：]/.test(s))return null;
+  let py='';const grab=x=>String(x||'').replace(/[\[【]([^\]】]*)[\]】]/g,(m,i)=>{if(/[\u3400-\u9fff]/.test(i))return i;if(!py)py=i.trim();return ''});
+  let front;
+  if(/[｜|]/.test(s)){const cols=s.split(/\s*[｜|]\s*/);front=grab(cols[0]);cols.slice(1).forEach(grab)}
+  else{s=grab(s).replace(/[（(][^（）()]{1,10}[）)]/,' ');const p=s.split(/[=＝]/);front=p.length>1?p[0]:s.trim().split(/[：:\t\s]/)[0]}
+  const w=String(front||'').replace(/[^\u3400-\u9fff\uf900-\ufaff]/g,'');
+  if(!w||[...w].length>6)return null;return {w,py}}
+function lessonItems(l){
+  const ds=(Array.isArray(l.dialogues)&&l.dialogues.length)?l.dialogues:[{vocabulary:l.vocabulary||''}];const out=[],seen={};
+  ds.forEach(d=>String((d&&d.vocabulary)||'').split('\n').forEach(raw=>{const r=vocabLine(raw);if(!r||seen[r.w])return;let it=null;
+    if(r.py){const t=makeItem(r.w,r.py.split(/[\/／]/)[0]);if(!t.bad&&t.syls.length===[...r.w].length)it=t}
+    if(!it&&DICT8[r.w])it=DICT8[r.w];
+    if(it){seen[r.w]=1;out.push(it)}}));
+  return out}
+const lesLabel=l=>{const tb=(l.textbook||'').trim(),ti=(l.title||'').trim();return (tb?tb+'・':'')+(ti||(l.order_index?'第'+l.order_index+'課':'課'))};
+async function loadCourse(){
+  try{const fs=firebase.firestore();
+    const sn=me.teacher?await fs.collection('lessons').get():await fs.collection('lessons').where('read_uids','array-contains',me.uid).get();
+    COURSE=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(l=>l&&!l.kind&&!l.deleted_at)
+      .map(l=>({id:l.id,label:lesLabel(l),tb:(l.textbook||'').trim(),order:Number(l.order_index)||0,at:String(l.created_at||''),items:lessonItems(l)}))
+      .filter(x=>x.items.length).sort((a,b)=>a.tb.localeCompare(b.tb)||a.order-b.order||a.at.localeCompare(b.at));
+  }catch(e){COURSE=[]}}
+/* ====== 作業：存在 site/pinyin 的 tasks；學生做完一輪記在自己那一筆的 rec.tasks ====== */
+function assignedToMeP(t){if(!t||t.deleted_at||!me.student)return false;const g=Array.isArray(me.student.groups)?me.student.groups:[];
+  return (t.assigned_ids||[]).indexOf(me.student.id)>=0||(t.assigned_groups||[]).some(x=>g.indexOf(x)>=0)}
+function myTasks(){return TASKS.filter(assignedToMeP)}
+function taskDone(t){return (me.rec&&me.rec.tasks&&me.rec.tasks[t.id])||null}
+
 /* ====== 練習畫面 ====== */
-function pool(){return st.level==='custom'?CUSTOM:ITEMS[st.level]}
+function curLesson(){return COURSE.find(x=>x.id===st.lesson)||COURSE[COURSE.length-1]||null}
+function taskOf(id){return TASKS.find(t=>t&&t.id===id&&!t.deleted_at)||null}
+function taskItems(t){return t?parseList(t.items||'').filter(r=>!r.err).map(r=>r.it):[]}
+function pool(){
+  const lv=String(st.level||'');
+  if(lv.indexOf('task:')===0)return taskItems(taskOf(lv.slice(5)));
+  if(lv==='custom')return CUSTOM;
+  if(lv==='course'){const L=curLesson();return L?L.items:[]}
+  if(lv==='review')return reviewItems();
+  return ITEMS[lv]||[]}
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a}
-function startRound(items){st.queue=shuffle(items||pool()).slice(0,10);st.i=0;st.res=[];renderPractice()}
+function startRound(items){const isT=!items&&String(st.level).indexOf('task:')===0;st.queue=shuffle(items||pool()).slice(0,isT?60:10);st.i=0;st.res=[];renderPractice()}
 function renderLevels(){
   const box=$('#levels');box.hidden=st.tab!=='practice'&&st.tab!=='game';
-  const lv=LEVELS.filter(([k])=>k!=='custom'||CUSTOM.length);
-  if(!lv.some(([k])=>k===st.level))st.level='t1';
-  box.innerHTML='<span class="lab">程度</span>'+lv.map(([k,n])=>`<button class="chip" type="button" data-level="${k}" aria-pressed="${k===st.level}">${n}</button>`).join('');
-  box.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{st.level=b.dataset.level;try{localStorage.setItem('qna-pinyin-level',st.level)}catch(e){}renderLevels();if(st.tab==='game')renderGame();else startRound()})}
-function progHTML(){const n=st.queue.length;return `<div class="prog"><span>第 ${st.i+1} 題／共 ${n} 題</span><div class="dots">${st.queue.map((_,k)=>`<i class="${k<st.res.length?(st.res[k].ok?'ok':'no'):(k===st.i?'now':'')}"></i>`).join('')}</div></div>`}
+  const tk=myTasks().filter(t=>!taskDone(t)),rv=reviewItems().length;
+  const lv=[].concat(tk.map(t=>['task:'+t.id,'作業：'+t.title,'task']),COURSE.length?[['course','我的課本']]:[],rv?[['review','複習錯題（'+rv+'）']]:[],LEVELS.filter(([k])=>k!=='custom'||CUSTOM.length));
+  const isT=String(st.level).indexOf('task:')===0;
+  if(!lv.some(([k])=>k===st.level)&&!(isT&&taskOf(st.level.slice(5))))st.level=COURSE.length?'course':'t1';
+  const L=curLesson();
+  box.innerHTML='<span class="lab">題目</span>'+lv.map(([k,n,c])=>'<button class="chip'+(c?' '+c:'')+'" type="button" data-level="'+esc(k)+'" aria-pressed="'+(k===st.level)+'">'+esc(n)+'</button>').join('')
+    +(st.level==='course'&&COURSE.length?'<select id="lesSel" class="lsel" aria-label="選一課">'+COURSE.map(x=>'<option value="'+esc(x.id)+'"'+(L&&x.id===L.id?' selected':'')+'>'+esc(x.label)+'（'+x.items.length+'）</option>').join('')+'</select>':'');
+  box.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{st.level=b.dataset.level;try{if(st.level.indexOf('task:')!==0)localStorage.setItem('qna-pinyin-level',st.level)}catch(e){}renderLevels();if(st.tab==='game')renderGame();else startRound()});
+  const ls=$('#lesSel');if(ls)ls.onchange=()=>{st.lesson=ls.value;try{localStorage.setItem('qna-pinyin-lesson',st.lesson)}catch(e){}if(st.tab==='game')renderGame();else startRound()}}
+function progHTML(){const n=st.queue.length;const tt=String(st.level).indexOf('task:')===0?taskOf(st.level.slice(5)):null;return (tt?'<div class="taskbar">作業：'+esc(tt.title)+(tt.due?'　截止 '+esc(tt.due):'')+'</div>':'')+`<div class="prog"><span>第 ${st.i+1} 題／共 ${n} 題</span><div class="dots">${st.queue.map((_,k)=>`<i class="${k<st.res.length?(st.res[k].ok?'ok':'no'):(k===st.i?'now':'')}"></i>`).join('')}</div></div>`}
 function renderPractice(){
   $('#cheat').hidden=false;
   if(!st.queue.length){stage.innerHTML='<p class="tip center" style="margin:auto">這個程度還沒有題目。</p>';return}
@@ -280,7 +346,7 @@ function renderPractice(){
 function renderResult(){
   const ok=st.res.filter(r=>r.ok).length,n=st.res.length,wrong=st.res.filter(r=>!r.ok);
   stage.innerHTML=`<div class="result"><div class="big">${ok}<small> / ${n}</small></div>
-   <p class="tip">${ok===n?'全部答對，太厲害了！':'把下面的再看一次，再練一輪會更熟。'}</p>
+   <p class="tip">${String(st.level).indexOf('task:')===0?'這份作業完成了！':''}${ok===n?'全部答對，太厲害了！':'把下面的再看一次，再練一輪會更熟。'}</p>
    <p class="save" id="saveNote">${me.student?'':(me.teacher?'老師帳號試做，不存成績':'')}</p>
    ${wrong.length?`<div class="wronglist">${wrong.map(r=>`<div><b>${esc(r.it.h)}</b><span>${answerHTML(r.it)}</span></div>`).join('')}</div>`:''}
    <div class="acts" style="justify-content:center">${wrong.length?'<button class="btn" id="redo" type="button">只練錯的</button>':''}<button class="btn primary" id="again" type="button">再練一輪</button></div></div>`;
@@ -355,7 +421,7 @@ function drawLives(){const el=$('#glives');if(el)el.innerHTML='<span class="hear
 function stopGame(){G.on=false;cancelAnimationFrame(G.raf)}
 function startGame(){
   if(!pool().length)return;
-  Object.assign(G,{on:true,items:[],score:0,hits:0,miss:[],lives:3,combo:0,spawnGap:2600,speedK:1,last:0,lastSpawn:-1e9,pool:[]});
+  Object.assign(G,{on:true,items:[],score:0,hits:0,miss:[],lives:3,combo:0,spawnGap:2600,speedK:1,last:0,lastSpawn:-1e9,pool:[],hitIts:[]});
   const s=$('#gstart');if(s)s.remove();drawLives();$('#gscore').textContent='0';$('#gcombo').textContent='';$('#gmsg').innerHTML='';
   const inp=$('#gin');inp.disabled=false;inp.value='';inp.focus();
   G.raf=requestAnimationFrame(tick)}
@@ -385,7 +451,7 @@ function tryHit(enter){
   const inp=$('#gin');if(!G.on||!inp)return;const v=inp.value.trim();if(!v)return;
   const c=G.items.filter(o=>{const r=checkTyped(v,o.it);return r&&r.ok}).sort((a,b)=>b.y-a.y)[0];
   if(c){
-    G.items=G.items.filter(x=>x!==c);G.hits++;G.combo++;
+    G.items=G.items.filter(x=>x!==c);G.hits++;(G.hitIts=G.hitIts||[]).push(c.it);G.combo++;
     G.score+=10*c.it.syls.length+(G.combo>=3?5*Math.min(G.combo,10):0);
     $('#gscore').textContent=G.score;$('#gcombo').textContent=G.combo>=3?('連續答對 '+G.combo+' 個！'):'';
     c.el.innerHTML=esc(c.it.h)+'<small>'+answerHTML(c.it)+'</small>';c.el.classList.add('hit');setTimeout(()=>c.el.remove(),800);
@@ -408,20 +474,68 @@ async function saveGame(){
   if(!me.student||!me.uid||!window.DB||DB.mode!=='firebase'){const n=$('#saveNote');if(n&&me.teacher)n.textContent='老師帳號試玩，不存成績';return}
   const rec=me.rec||emptyRec();rec.wrong=rec.wrong||{};
   rec.game_best=Math.max(rec.game_best||0,G.score);rec.game_n=(rec.game_n||0)+1;
-  G.miss.forEach(i=>{rec.wrong[i.h]=(rec.wrong[i.h]||0)+1});me.rec=rec;
+  G.miss.forEach(i=>{rec.wrong[i.h]=(rec.wrong[i.h]||0)+1});reviewUpdate(rec,G.miss.map(it=>({it,ok:false})).concat((G.hitIts||[]).map(it=>({it,ok:true}))),st.level==='review');me.rec=rec;
   const note=$('#saveNote');if(note)note.textContent='正在儲存成績…';
   try{await DB.upsertResult('__pinyin__',me.student.id,{uid:me.uid,kind:'pinyin',student_name:me.student.name||'',rec:JSON.parse(JSON.stringify(rec)),game_best:rec.game_best,game_n:rec.game_n,last_at:new Date().toISOString()});
     if(note)note.textContent='成績已儲存，老師看得到'}
   catch(e){if(note)note.textContent='成績沒存進去，請檢查網路'}}
 
+/* ====== 老師：拼音作業（存在 site/pinyin 的 tasks；指派方式跟課文一樣：學生或整班） ====== */
+let TSTU=null;
+async function tStudents(){if(TSTU)return TSTU;const snap=await firebase.firestore().collection('students').get();
+  TSTU=snap.docs.map(d=>Object.assign({id:d.id},d.data())).filter(s=>s&&!s.deleted_at).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'zh-Hant'));return TSTU}
+function taskWho(t,stu){const g=t.assigned_groups||[];return stu.filter(s=>(t.assigned_ids||[]).indexOf(s.id)>=0||(Array.isArray(s.groups)&&s.groups.some(x=>g.indexOf(x)>=0)))}
+async function saveTasks(){await firebase.firestore().collection('site').doc('pinyin').set({tasks:TASKS,updated_at:new Date().toISOString()},{merge:true})}
+async function renderTasks(){
+  $('#cheat').hidden=true;
+  stage.innerHTML='<p class="tip center" style="margin:auto">正在讀取…</p>';
+  let stu=[],docs=[];
+  try{stu=await tStudents();const sn=await firebase.firestore().collection('results').where('kind','==','pinyin').get();docs=sn.docs.map(d=>d.data())}
+  catch(e){stage.innerHTML='<p class="tip center" style="margin:auto">讀不到資料：'+esc((e&&e.message)||e)+'</p>';return}
+  const recOf={};docs.forEach(d=>{if(d.student_id)recOf[d.student_id]=d.rec||{}});
+  const tr=(s,t)=>{const r=recOf[s.id];return r&&r.tasks&&r.tasks[t.id]};
+  const live=TASKS.filter(t=>t&&!t.deleted_at).slice().reverse();
+  const groups=[...new Set([].concat(...stu.map(s=>Array.isArray(s.groups)?s.groups:[])))].sort();
+  const list=live.map(t=>{const who=taskWho(t,stu),done=who.filter(s=>tr(s,t));
+    return '<div class="tcard"><div class="row"><b style="flex:1">'+esc(t.title)+'</b><span class="twho">'+(t.due?'截止 '+esc(t.due)+'・':'')+parseList(t.items||'').length+' 個詞</span>'
+      +'<span class="'+(done.length===who.length&&who.length?'done':'twho')+'">完成 '+done.length+'／'+who.length+'</span>'
+      +'<button class="btn" type="button" data-del="'+esc(t.id)+'">收回</button></div>'
+      +'<div class="twho">'+who.map(s=>{const r=tr(s,t);return esc(s.name||'')+(r?' <span class="done">✓ '+r.ok+'/'+r.n+'</span>':'（未完成）')}).join('、')+'</div></div>'}).join('');
+  stage.innerHTML='<div class="tform"><b>出一份拼音作業</b>'
+   +'<div><label class="lbl" for="tSrc">題目從哪裡來</label><select id="tSrc">'+(COURSE.length?'<option value="course">課本的某一課</option>':'')+LV8.map(([k,n])=>'<option value="'+k+'">華語八千詞・'+n+'（隨機 20 個詞）</option>').join('')+(CUSTOM.length?'<option value="custom">老師的詞表</option>':'')+'</select></div>'
+   +(COURSE.length?'<div id="tLesBox"><label class="lbl" for="tLes">哪一課</label><select id="tLes">'+COURSE.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.label)+'（'+x.items.length+' 個詞）</option>').join('')+'</select></div>':'')
+   +'<div><label class="lbl" for="tTitle">作業名稱</label><input type="text" id="tTitle" style="width:100%"></div>'
+   +'<div><label class="lbl" for="tDue">截止日（可以不填）</label><input type="date" id="tDue"></div>'
+   +(groups.length?'<div><span class="lbl">發給整班</span><div class="allowlist">'+groups.map(g=>'<label><input type="checkbox" class="tg" value="'+esc(g)+'">'+esc(g)+'</label>').join('')+'</div></div>':'')
+   +'<div><span class="lbl">發給學生</span><div class="allowlist">'+stu.map(s=>'<label><input type="checkbox" class="ts" value="'+esc(s.id)+'">'+esc(s.name||'（沒有名字）')+'</label>').join('')+'</div></div>'
+   +'<div class="acts"><span class="save" id="tNote"></span><button class="btn primary" id="tMake" type="button">發出作業</button></div></div>'
+   +'<hr style="border:none;border-top:2px solid var(--line);margin:6px 0"><b>已經發出的作業</b><div class="tlist">'+(list||'<p class="tip">還沒有作業。</p>')+'</div>';
+  const src=$('#tSrc'),les=$('#tLes'),title=$('#tTitle');
+  const autoTitle=()=>{const v=src.value;title.value=v==='course'?('拼音・'+((COURSE.find(x=>x.id===(les&&les.value))||{}).label||'')):v==='custom'?'拼音・老師的詞表':('拼音・華語八千詞'+((LV8.find(x=>x[0]===v)||[])[1]||''))};
+  src.onchange=()=>{const b=$('#tLesBox');if(b)b.hidden=src.value!=='course';autoTitle()};if(les)les.onchange=autoTitle;src.onchange();
+  $('#tMake').onclick=async()=>{const note=$('#tNote');
+    const ids=[...stage.querySelectorAll('.ts:checked')].map(x=>x.value),gs=[...stage.querySelectorAll('.tg:checked')].map(x=>x.value);
+    if(!ids.length&&!gs.length){note.textContent='請先勾學生或班級';return}
+    let items=[];const v=src.value;
+    if(v==='course'){const L=COURSE.find(x=>x.id===(les&&les.value));items=L?L.items:[]}
+    else if(v==='custom')items=CUSTOM;else items=shuffle(ITEMS[v]||[]).slice(0,20);
+    if(!items.length){note.textContent='這個來源沒有可以練的詞';return}
+    const t={id:'pt'+Date.now().toString(36),title:title.value.trim()||'拼音作業',items:items.map(it=>it.h+' '+plainAnswer(it)).join('\n'),due:$('#tDue').value||'',assigned_ids:ids,assigned_groups:gs,created_at:new Date().toISOString()};
+    note.textContent='正在發出…';
+    try{TASKS.push(t);await saveTasks();renderTasks()}catch(e){TASKS.pop();note.textContent='沒發出去：'+String((e&&e.message)||e)}};
+  stage.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    if(b.dataset.sure!=='1'){b.dataset.sure='1';b.textContent='確定收回？';return}
+    const t=TASKS.find(x=>x.id===b.dataset.del);if(!t)return;t.deleted_at=new Date().toISOString();
+    try{await saveTasks();renderTasks()}catch(e){delete t.deleted_at;b.textContent='沒收回去'}})}
+
 function showTab(t){stopGame();st.tab=t;document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));renderLevels();
-  if(t==='game')renderGame();else if(t==='list')renderList();else if(t==='allow')renderAllow();else if(t==='scores')renderScores();else startRound()}
+  if(t==='game')renderGame();else if(t==='list')renderList();else if(t==='allow')renderAllow();else if(t==='tasks')renderTasks();else if(t==='scores')renderScores();else startRound()}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 
 /* ====== 登入（沿用學習平台的帳號） ====== */
 function gate(msg,btn){$('#levels').hidden=true;$('#tabs').hidden=true;$('#cheat').hidden=true;
   stage.innerHTML=`<div class="gate"><p>${msg}</p><a class="btn primary" href="student.html">${btn||'去學習平台登入'}</a></div>`}
-async function loadCustom(){try{const d=await firebase.firestore().collection('site').doc('pinyin').get();CUSTOM_TEXT=(d.exists&&d.data().text)||'';ALLOW=(d.exists&&Array.isArray(d.data().allow))?d.data().allow:[];CUSTOM=parseList(CUSTOM_TEXT).filter(r=>!r.err).map(r=>r.it)}catch(e){}}
+async function loadCustom(){try{const d=await firebase.firestore().collection('site').doc('pinyin').get();CUSTOM_TEXT=(d.exists&&d.data().text)||'';ALLOW=(d.exists&&Array.isArray(d.data().allow))?d.data().allow:[];TASKS=(d.exists&&Array.isArray(d.data().tasks))?d.data().tasks:[];CUSTOM=parseList(CUSTOM_TEXT).filter(r=>!r.err).map(r=>r.it)}catch(e){}}
 (function boot(){
   if(!window.firebase||!firebase.auth||!window.DB||DB.mode!=='firebase'){gate('連不上學習平台，請稍後再試。');$('#who').textContent='';return}
   firebase.auth().onAuthStateChanged(async u=>{
@@ -437,9 +551,11 @@ async function loadCustom(){try{const d=await firebase.firestore().collection('s
     $('#who').textContent=me.student?(me.student.name||'已登入'):'老師帳號';
     if(me.student){try{const rs=await DB.listWhere('results','uid',u.uid);const d=rs.find(x=>x&&x.kind==='pinyin'&&x.lesson_id==='__pinyin__');if(d&&d.rec)me.rec=Object.assign(emptyRec(),d.rec)}catch(e){}}
     await loadCustom();
-    if(!me.teacher&&ALLOW.indexOf(me.student.id)<0){gate('這個練習還沒有開放給你，需要的話請跟老師說。','回學習平台');return}
+    if(!me.teacher&&ALLOW.indexOf(me.student.id)<0&&!myTasks().length){gate('這個練習還沒有開放給你，需要的話請跟老師說。','回學習平台');return}
+    await loadCourse();
+    try{const q=new URLSearchParams(location.search).get('task');if(q&&taskOf(q))st.level='task:'+q;else if(COURSE.length&&!localStorage.getItem('qna-pinyin-level'))st.level='course'}catch(e){}
     const hs=(location.hash||'').slice(1);   /* 從老師後台「教材與課程」點進來會帶 #allow／#list／#scores */
-    showTab(hs==='game'||(me.teacher&&['list','scores','allow'].indexOf(hs)>=0)?hs:'practice');
+    showTab(hs==='game'||(me.teacher&&['list','scores','allow','tasks'].indexOf(hs)>=0)?hs:'practice');
   });
 })();
 })();

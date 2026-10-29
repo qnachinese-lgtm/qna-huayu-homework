@@ -12,7 +12,8 @@ var isTeacher = /\/teacher(\.html)?$/.test(location.pathname);
 /* 成績分開：kind 是 pinyin 的那一筆不要算進一般作業 */
 var _split = window.splitResults;
 if (typeof _split === 'function') window.splitResults = function(rows){
-  rows = (rows || []).filter(function(x){ return !x || x.kind !== 'pinyin'; });
+  rows = rows || []; var pd = rows.filter(function(x){ return x && x.kind === 'pinyin'; })[0]; if (pd) window.__PY_DOC = pd;
+  rows = rows.filter(function(x){ return !x || x.kind !== 'pinyin'; });
   return _split.call(this, rows);
 };
 
@@ -78,13 +79,34 @@ function addCard(){
   try{
     var me = (typeof S !== 'undefined' && S) ? S.me : null;
     if (!me || me.id === '__preview') return;
-    if (!ALLOW || ALLOW.indexOf(me.id) < 0) return;   /* 只有老師在「開放名單」勾選的學生才看得到 */
+    if (!ALLOW || (ALLOW.indexOf(me.id) < 0 && !pyTasks().length)) return;   /* 開放名單上的學生，或被指派了拼音作業的學生 */   /* 只有老師在「開放名單」勾選的學生才看得到 */
     var scr = document.getElementById('screen'); if (!scr || scr.querySelector('.py-card')) return;
     var side = scr.querySelector('.h-side'); if (side) side.insertAdjacentHTML('beforeend', card());
   }catch(x){}
 }
 var ALLOW = null;
-try { firebase.firestore().collection('site').doc('pinyin').get().then(function(d){ ALLOW = (d.exists && Array.isArray(d.data().allow)) ? d.data().allow : []; addCard(); }).catch(function(){ ALLOW = []; }); } catch(x){ ALLOW = []; }
+/* 拼音作業（存在 site/pinyin 的 tasks）：還沒做完的放進學生的「待完成」清單 */
+var TASKS = [];
+function pyTasks(){ try { return TASKS.filter(function(t){ return t && !t.deleted_at && typeof assignedToMe === 'function' && assignedToMe(t); }); } catch(x){ return []; } }
+function pyDone(t){ var d = window.__PY_DOC; return !!(d && d.rec && d.rec.tasks && d.rec.tasks[t.id]); }
+function pyOpen(){ return pyTasks().filter(function(t){ return !pyDone(t); }); }
+try { firebase.firestore().collection('site').doc('pinyin').get().then(function(d){ var x = d.exists ? d.data() : {}; ALLOW = Array.isArray(x.allow) ? x.allow : []; TASKS = Array.isArray(x.tasks) ? x.tasks : []; addCard(); try { if (pyOpen().length && typeof renderSection === 'function' && S && S.me) renderSection(); } catch(y){} }).catch(function(){ ALLOW = []; }); } catch(x){ ALLOW = []; }
+try { H.openPinyin = function(id){ location.href = 'pinyin.html' + (id ? ('?task=' + encodeURIComponent(id)) : ''); }; } catch(x){}
+var _prow = window.dueRows;
+if (typeof _prow === 'function') window.dueRows = function(){
+  var rows = _prow.apply(this, arguments);
+  try{ if (!rows.some(function(x){ return x && x.k === 'pinyin'; })){
+    pyOpen().forEach(function(t){ var di = (typeof dueInfo === 'function') ? dueInfo(t.due) : null;
+      rows.push({lid:t.id, k:'pinyin', act:'openPinyin', title:'ā ' + (t.title || '拼音作業'), due:t.due || '', cls:di ? di.cls : 'badge-pending', lab:di ? di.label : L({zh:'未完成', cn:'未完成', en:'To do', vi:'Chưa làm'}), sort:di ? di.sort : 9999}); });
+    rows.sort(function(a, b){ return a.sort - b.sort; }); } }catch(x){}
+  return rows;
+};
+var _pcnt = window.dueCounts;
+if (typeof _pcnt === 'function') window.dueCounts = function(){
+  var c = _pcnt.apply(this, arguments);
+  try{ pyOpen().forEach(function(t){ var d = (typeof dueInfo === 'function') ? dueInfo(t.due) : null; if (!d) return; if (d.cls === 'badge-overdue') c.overdue++; else if (d.cls === 'badge-soon') c.soon++; }); }catch(x){}
+  return c;
+};
 var _home = window.renderHome;
 if (typeof _home === 'function') window.renderHome = function(){
   var r = _home.apply(this, arguments);
