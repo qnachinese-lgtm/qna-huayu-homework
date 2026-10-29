@@ -150,6 +150,7 @@ input.shake{animation:shake .3s}
   </aside>
 </div>
 
+<script src="pinyin-words.js?v=1"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
@@ -185,8 +186,10 @@ function markIndex(b){if(b.includes('a'))return b.indexOf('a');if(b.includes('e'
 function markSyl(b,t){if(t===5)return b;const i=markIndex(b);if(i<0)return b;return b.slice(0,i)+TONES[b[i]][t-1]+b.slice(i+1)}
 const PUNC={'。':'.','？':'?','！':'!','，':','};
 function makeItem(h,p){
-  const words=p.trim().split(/\s+/).map(w=>parsePinyin(w)).filter(w=>w.length);
-  const syls=words.flat();const sent=/[。？！]$/.test(h);
+  const pp=String(p).split('|');/* 「|」後面是也算對的讀法（八千詞裡標「可讀輕聲」的詞） */
+  const words=pp[0].trim().split(/\s+/).map(w=>parsePinyin(w)).filter(w=>w.length);
+  const syls=words.flat();
+  if(pp[1]){const A=parsePinyin(pp[1]);if(A.length===syls.length)A.forEach((a,i)=>{if(a.base===syls[i].base&&a.tone!==syls[i].tone)syls[i].alt=a.tone})}const sent=/[。？！]$/.test(h);
   return {h,words,syls,sent,bad:syls.some(s=>s.junk)||!syls.length}}
 function answerHTML(it,wrong){let k=0;
   const html=it.words.map(w=>w.map((s,j)=>{let t=markSyl(s.base,s.tone);if(j>0&&/^[aoe]/.test(s.base))t="'"+t;
@@ -195,8 +198,8 @@ function answerHTML(it,wrong){let k=0;
 const plainAnswer=it=>answerHTML(it).replace(/<[^>]+>/g,'');
 function checkTyped(input,it){const st=parsePinyin(input),T=it.syls;
   if(!st.length)return null;
-  if(st.length===T.length&&st.every((x,i)=>x.base===T[i].base)){const wrong=T.map((t,i)=>st[i].tone!==t.tone);return{ok:!wrong.some(Boolean),kind:'tone',wrong}}
-  const wrong=st.length===T.length?T.map((t,i)=>st[i].base!==t.base||st[i].tone!==t.tone):null;return{ok:false,kind:'spell',wrong}}
+  if(st.length===T.length&&st.every((x,i)=>x.base===T[i].base)){const wrong=T.map((t,i)=>st[i].tone!==t.tone&&st[i].tone!==t.alt);return{ok:!wrong.some(Boolean),kind:'tone',wrong}}
+  const wrong=st.length===T.length?T.map((t,i)=>st[i].base!==t.base||(st[i].tone!==t.tone&&st[i].tone!==t.alt)):null;return{ok:false,kind:'spell',wrong}}
 function autoConvert(el){let v=el.value,c=el.selectionStart;
   v=v.replace(/v/g,'ü').replace(/V/g,'Ü');
   const left=v.slice(0,c);const m=left.match(/([a-zA-ZüÜāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]+)([0-5])$/);
@@ -206,19 +209,16 @@ function autoConvert(el){let v=el.value,c=el.selectionStart;
   if(v!==el.value){el.value=v;el.setSelectionRange(c,c)}}
 function parseList(text){return String(text||'').split(/\n/).map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^(\S+)\s+(.+)$/);if(!m)return{line:l,err:'少了拼音'};const it=makeItem(m[1],m[2]);return it.bad?{line:l,err:'拼音讀不懂',it}:{line:l,it}})}
 
-/* ====== 內建題庫（臺灣讀音；「一」「不」標變調後聲調；三聲連讀標原調） ====== */
-const BANK={
- l1:'媽 ma1\n麻 ma2\n馬 ma3\n罵 ma4\n八 ba1\n爸 ba4\n你 ni3\n我 wo3\n他 ta1\n好 hao3\n是 shi4\n有 you3\n大 da4\n小 xiao3\n人 ren2\n水 shui3\n茶 cha2\n書 shu1\n貓 mao1\n狗 gou3\n魚 yu2\n雨 yu3\n去 qu4\n學 xue2\n女 nü3\n綠 lü4\n月 yue4\n六 liu4\n九 jiu3\n對 dui4\n二 er4\n熱 re4\n吃 chi1\n喝 he1\n字 zi4\n錢 qian2',
- l2:'你好 ni3hao3\n謝謝 xie4xie5\n老師 lao3shi1\n學生 xue2sheng1\n朋友 peng2you3\n中文 zhong1wen2\n臺灣 tai2wan1\n越南 yue4nan2\n泰國 tai4guo2\n法國 fa3guo2\n喜歡 xi3huan1\n咖啡 ka1fei1\n吃飯 chi1fan4\n早安 zao3an1\n名字 ming2zi4\n衣服 yi1fu2\n一定 yi2ding4\n一起 yi4qi3\n不是 bu2shi4\n不好 bu4hao3\n女兒 nü3er2\n旅行 lü3xing2\n音樂 yin1yue4\n上課 shang4ke4\n睡覺 shui4jiao4\n明天 ming2tian1\n星期 xing1qi2\n漂亮 piao4liang4\n便宜 pian2yi2\n時候 shi2hou4\n認識 ren4shi4\n知道 zhi1dao4\n爸爸 ba4ba5\n媽媽 ma1ma5\n手機 shou3ji1\n電腦 dian4nao3\n學校 xue2xiao4',
- l3:'你是哪國人？ ni3 shi4 na3 guo2 ren2\n歡迎你來臺灣。 huan1ying2 ni3 lai2 tai2wan1\n你要不要喝茶？ ni3 yao4 bu2 yao4 he1 cha2\n臺灣人很喜歡喝茶。 tai2wan1ren2 hen3 xi3huan1 he1 cha2\n這是我家人的照片。 zhe4 shi4 wo3 jia1ren2 de5 zhao4pian4\n你家有幾個人？ ni3 jia1 you3 ji3 ge5 ren2\n我有兩個姐姐。 wo3 you3 liang3 ge5 jie3jie5\n他們都很好看。 ta1men5 dou1 hen3 hao3kan4\n你週末常做什麼？ ni3 zhou1mo4 chang2 zuo4 shen2me5\n我喜歡看電影。 wo3 xi3huan1 kan4 dian4ying3\n我們明天一起去打網球吧！ wo3men5 ming2tian1 yi4qi3 qu4 da3 wang3qiu2 ba5\n我覺得打籃球很有意思。 wo3 jue2de5 da3 lan2qiu2 hen3 you3 yi4si5\n你要買什麼？ ni3 yao4 mai3 shen2me5\n我想買一支手機。 wo3 xiang3 mai3 yi4 zhi1 shou3ji1\n這件衣服太貴了。 zhe4 jian4 yi1fu2 tai4 gui4 le5\n有沒有便宜一點的？ you3 mei2you3 pian2yi2 yi4dian3 de5\n這個多少錢？ zhe4ge5 duo1shao3 qian2\n牛肉麵很好吃。 niu2rou4mian4 hen3 hao3chi1\n我不喜歡吃辣的。 wo3 bu4 xi3huan1 chi1 la4 de5\n我們去吃晚飯吧！ wo3men5 qu4 chi1 wan3fan4 ba5\n你的中文說得很好。 ni3 de5 zhong1wen2 shuo1 de5 hen3 hao3\n我每天學一個小時的中文。 wo3 mei3tian1 xue2 yi2 ge5 xiao3shi2 de5 zhong1wen2\n請問廁所在哪裡？ qing3wen4 ce4suo3 zai4 na3li3\n不客氣。 bu2 ke4qi4'
-};
-const ITEMS={};for(const k in BANK)ITEMS[k]=parseList(BANK[k]).map(r=>r.it);
-const LEVELS=[['l1','入門單字'],['l2','初級詞語'],['l3','生活短句'],['custom','老師的詞表']];
+/* ====== 內建題庫：華語八千詞（國家華語測驗推動工作委員會），資料在 pinyin-words.js ======
+   「一」「不」標變調後的聲調；八千詞標「可讀輕聲」的詞，輕聲和原調都算對。 */
+const LV8=[['t1','準備一級'],['t2','準備二級'],['t3','入門級'],['t4','基礎級'],['t5','進階級'],['t6','高階級'],['t7','流利級']];
+const ITEMS={};LV8.forEach(([k],i)=>{ITEMS[k]=parseList((window.PY8000||[])[i]||'').filter(r=>!r.err).map(r=>r.it)});
+const LEVELS=LV8.concat([['custom','老師的詞表']]);
 
 /* ====== 狀態 ====== */
 const $=s=>document.querySelector(s);const stage=$('#stage');
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const st={tab:'practice',level:'l1',queue:[],i:0,res:[],done:false};
+const st={tab:'practice',level:'t1',queue:[],i:0,res:[],done:false};
 const me={uid:null,student:null,teacher:false,rec:null,docId:null};
 let CUSTOM_TEXT='',CUSTOM=[],ALLOW=[];
 try{const l=localStorage.getItem('qna-pinyin-level');if(l)st.level=l}catch(e){}
@@ -249,7 +249,7 @@ function startRound(items){st.queue=shuffle(items||pool()).slice(0,10);st.i=0;st
 function renderLevels(){
   const box=$('#levels');box.hidden=st.tab!=='practice'&&st.tab!=='game';
   const lv=LEVELS.filter(([k])=>k!=='custom'||CUSTOM.length);
-  if(!lv.some(([k])=>k===st.level))st.level='l1';
+  if(!lv.some(([k])=>k===st.level))st.level='t1';
   box.innerHTML='<span class="lab">程度</span>'+lv.map(([k,n])=>`<button class="chip" type="button" data-level="${k}" aria-pressed="${k===st.level}">${n}</button>`).join('');
   box.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{st.level=b.dataset.level;try{localStorage.setItem('qna-pinyin-level',st.level)}catch(e){}renderLevels();if(st.tab==='game')renderGame();else startRound()})}
 function progHTML(){const n=st.queue.length;return `<div class="prog"><span>第 ${st.i+1} 題／共 ${n} 題</span><div class="dots">${st.queue.map((_,k)=>`<i class="${k<st.res.length?(st.res[k].ok?'ok':'no'):(k===st.i?'now':'')}"></i>`).join('')}</div></div>`}
