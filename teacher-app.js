@@ -1725,6 +1725,7 @@ function renderDashboard(){
       +`<details class="dash-fold todo-hero" open><summary>📥 待批改${inbox.length?'（'+inbox.length+'）':''}</summary><div style="margin-top:10px">${inboxHtml}</div></details>
        <details class="dash-fold" open style="margin-top:12px"><summary>⏰ 提醒（堂數／補課／交件）${remRows.length?'（'+remRows.length+'）':''}</summary><div style="margin-top:10px">${remHtml}</div></details>`
       +(_late?`<details class="dash-fold" open style="margin-top:12px"><summary>📝 還沒點名（${WKLATE_N}）<span class="hint" style="font-weight:400;margin-left:8px">過去七天上了課、還沒點名的</span></summary><div style="margin-top:10px">${_late}</div></details>`:''),true)}
+    ${(function(){if(!IS_OWNER)return '';let n=0;try{n=itvTodoList().length;}catch(e){}return n?_sec('itvday','🎤 面試練習待辦',n,itvTodoHtml(),true):'';})()/* ITVDAY_V1663 */}
     ${(function(){let n=0;try{n=quietStus(7).length;}catch(e){}return n?_sec('quiet','😴 一週沒做練習',n,quietHtml(),true):'';})()/* QUIET_V1660 */}
     ${(function(){const n=idleStus(30).length;return n?_sec('idle','🕰 好久沒上課',n,idleHtml(),true):'';})()/* IDLE_V1253 */}
     ${''/* MEMORM_V1338 Quinn：「暫時用不到備忘錄功能，請拿走」。
@@ -4701,6 +4702,7 @@ function renderInterview(){
         <button class="btn btn-accent" data-act="itvLogNew" data-id="${esc(c.id)}">＋ 新增一筆進度</button>
         <button class="btn" data-act="itvSess" data-id="${esc(c.id)}::new">＋ 新增練習時間</button>
         <button class="btn" data-act="itvPayNew" data-id="${esc(c.id)}">💰 記一筆收款</button>
+        ${itvStage(c)==='case'?`<button class="btn${c.docs_in?' itv-docok':''}" data-act="itvDocs" data-id="${esc(c.id)}" title="${c.docs_in?'按一下改回「還沒收到」':'客戶的資料（護照、錄取資料、讀書計劃…）收齊了就按'}">${c.docs_in?'✅ 文件已收到':'📄 文件收到了'}</button>`:''/* ITVDOC_V1663 */}
         ${(function(){const st=itvStage(c);/* ITVSTAGE_V1094 */
           /* ITVEDIT_V1336 客戶資料改放標題那顆 ✏️，這裡不重複 */
           const more='<button class="btn btn-file" data-act="itvFiles" data-id="'+esc(c.id)+'">📎 檔案</button>'
@@ -5890,6 +5892,56 @@ function quietHtml(){
     +'<span class="muted">登入：'+ago(x.lg)+'・做練習：'+ago(x.w)+'</span>'
     +'<span class="grow" style="flex:1"></span>'
     +'<button class="btn btn-sm" data-act="stuDetail" data-id="'+esc(x.s.id)+'">去看</button></div>').join('');}
+/* ══════ ITVDAY_V1663 面試練習每日待辦 ══════
+   Quinn：「每天提醒練習面試那些學生，有哪些還沒送文件、哪些還沒排面試等資訊，我怕錯過訊息」。
+   只看進行中的客戶（諮詢中、沒談成、已結案的不算）。每位列出還缺什麼：
+   文件還沒收到（卡片上的「📄 文件收到了」）、練習次數沒練完卻沒有下一次、練習過了沒點名、
+   正式面試日期沒填、正式面試快到了、面試過了結果沒填。
+   首頁一區；每天第一次打開後台再寄一封摘要信（記在雲端 site.itv_mail_day，換電腦也不會重寄）。 */
+function itvTodoList(){
+  const T=localToday();const dd=d=>Math.round((new Date(d)-new Date(T))/864e5);
+  return itvAll().filter(c=>c&&!c.deleted_at&&(c.status||'active')==='active'&&!itvIsConsult(c)&&!itvIsLost(c))
+    .map(c=>{const it=[];const ss=itvSessions(c);
+      const doneN=ss.filter(e=>e.done).length,fut=ss.filter(e=>!e.done&&e.date>=T).sort((a,b)=>String(a.date).localeCompare(String(b.date))),
+        late=ss.filter(e=>!e.done&&e.date<T),plan=Number(c.plan_n)||0;
+      if(!c.docs_in)it.push({k:'doc',t:'📄 還沒送文件',hot:1});
+      if(late.length)it.push({k:'late',t:'🕓 '+late.map(e=>e.date.slice(5)).join('、')+' 練習過了還沒點名',hot:1});
+      if(!fut.length&&(!plan||doneN<plan))it.push({k:'plan',t:'📅 還沒排練習'+(plan?('（已練 '+doneN+'／'+plan+' 次）'):''),hot:1});
+      if(fut.length){const n=dd(fut[0].date);if(n<=1)it.push({k:'soon',t:'⏰ '+(n<=0?'今天':'明天')+'練習'+(fut[0].start?(' '+fut[0].start):'')});}
+      if(!c.exam_date)it.push({k:'exam0',t:'🗓 正式面試日期還沒填'});
+      else{const n=dd(c.exam_date);
+        if(n>=0&&n<=7)it.push({k:'exam',t:'🎯 '+(n===0?'今天':(n+' 天後'))+'正式面試（'+c.exam_date.slice(5)+'）',hot:1});
+        else if(n<0&&!String(c.result||'').trim())it.push({k:'res',t:'❓ 面試過了，結果還沒填'});}
+      return {c,it};})
+    .filter(x=>x.it.length)
+    .sort((a,b)=>b.it.filter(i=>i.hot).length-a.it.filter(i=>i.hot).length||String(a.c.name||'').localeCompare(String(b.c.name||'')));}
+function itvTodoHtml(){
+  return itvTodoList().map(x=>'<div class="dash-row" style="flex-wrap:wrap;gap:6px">'
+    +'<b style="min-width:120px">'+snm(x.c.name||'')+'</b>'
+    +(x.c.target?'<span class="muted" style="font-size:12.5px">'+esc(String(x.c.target).slice(0,24))+'</span>':'')
+    +x.it.map(i=>'<span class="badge '+(i.hot?'badge-soon':'b-info')+'">'+esc(i.t)+'</span>').join('')
+    +'<span class="grow" style="flex:1"></span>'
+    +(x.it.some(i=>i.k==='doc')?'<button class="btn btn-sm" data-act="itvDocs" data-id="'+esc(x.c.id)+'">📄 收到了</button>':'')
+    +'<button class="btn btn-sm" data-act="pGo" data-id="interview::'+esc(x.c.id)+'">去看</button></div>').join('');}
+H.itvDocs=async(id)=>{const c=itvById(id);if(!c)return;const v=!c.docs_in;
+  try{await ensureAuthFresh();await DB.update(crmCol(id),id,{docs_in:v,docs_in_at:v?localToday():''});
+    c.docs_in=v;c.docs_in_at=v?localToday():'';render();toast(v?'已記下：文件收到了':'已改回：文件還沒收到');}
+  catch(e){toast(writeErr('失敗',e));}};
+async function itvDailyMail(){try{
+  if(!IS_OWNER||!S.site||!S.site.id)return;const T=localToday();
+  if(String(S.site.itv_mail_day||'')===T)return;
+  const g=k=>String((S.site&&S.site[k])||'').trim();
+  const pub=g('emailjs_public'),svc=g('emailjs_service'),tpl=g('emailjs_reply_template'),to=g('notify_email')||TEACHER_EMAIL;
+  if(!pub||!svc||!tpl||!to)return;
+  const L=itvTodoList();if(!L.length)return;
+  S.site.itv_mail_day=T;
+  const body=L.map(x=>'・'+(x.c.name||'')+(x.c.target?('（'+x.c.target+'）'):'')+'\n    '+x.it.map(i=>i.t).join('\n    ')).join('\n\n');
+  await loadEmailJS();window.emailjs.init({publicKey:pub});
+  await window.emailjs.send(svc,tpl,{to_email:to,to_name:'老師',from_name:'QNA CHINESE 每日提醒',
+    subject:'🎤 面試練習待辦（'+T+'）：'+L.length+' 位',
+    message:'今天面試練習還有這些事：\n\n'+body+'\n\n去後台看：'+location.origin+'/teacher.html?tab=interview'});
+  try{await ensureAuthFresh();await DB.update('site',S.site.id,{itv_mail_day:T});}catch(e){}
+}catch(e){try{S.site.itv_mail_day='';}catch(_){}}}
 function idleStus(days){
   const T=localToday();const D=Number(days)||30;const cut=tjAddDays(T,-D);
   return (S.students||[]).filter(s=>s&&!s.deleted_at&&!s.is_test&&enrollOf(s)==='active')
@@ -26101,7 +26153,7 @@ function boot(){/* HDSAME_V1361 招牌固定寫 QNA CHINESE，跟官網一致；
    if(_f)_f.classList.toggle('hide',!useAuth);
    if(useAuth&&window.TEACHER_EMAIL)$('#gate-email').value=window.TEACHER_EMAIL;}}
 function showLoad(b,soft){let el=document.getElementById('app-loading');if(b){if(!el){el=document.createElement('div');el.id='app-loading';el.className='loading-overlay'+(soft?' soft':'');el.innerHTML='<div class="spinner"></div>';document.body.appendChild(el);}}else if(el){el.remove();}}
-async function enter(){$('#gate').classList.add('hide');$('#app').classList.remove('hide');showLoad(true);try{await loadAll();render();}catch(e){if(!LOADFAIL.length){LOADFAIL=['資料'];}if(!loadFailBanner())toast('讀取失敗：'+e.message);/* READERR_V1419 */}finally{showLoad(false);}}
+async function enter(){$('#gate').classList.add('hide');$('#app').classList.remove('hide');showLoad(true);try{await loadAll();render();setTimeout(()=>{itvDailyMail();},4000);/* ITVDAY_V1663 */}catch(e){if(!LOADFAIL.length){LOADFAIL=['資料'];}if(!loadFailBanner())toast('讀取失敗：'+e.message);/* READERR_V1419 */}finally{showLoad(false);}}
 async function tryLogin(){
   if(useAuth){const email=$('#gate-email').value.trim(),pw=$('#gate-pw').value;
     if(!email||!pw){$('#gate-err').textContent='請輸入 Email 與密碼';return;}
