@@ -5923,10 +5923,6 @@ function itvTodoHtml(){
     +'<span class="grow" style="flex:1"></span>'
     +(x.it.some(i=>i.k==='doc')?'<button class="btn btn-sm" data-act="itvDocs" data-id="'+esc(x.c.id)+'">📄 收到了</button>':'')
     +'<button class="btn btn-sm" data-act="pGo" data-id="interview::'+esc(x.c.id)+'">去看</button></div>').join('');}
-H.itvDocs=async(id)=>{const c=itvById(id);if(!c)return;const v=!c.docs_in;
-  try{await ensureAuthFresh();await DB.update(crmCol(id),id,{docs_in:v,docs_in_at:v?localToday():''});
-    c.docs_in=v;c.docs_in_at=v?localToday():'';render();toast(v?'已記下：文件收到了':'已改回：文件還沒收到');}
-  catch(e){toast(writeErr('失敗',e));}};
 async function itvDailyMail(){try{
   if(!IS_OWNER||!S.site||!S.site.id)return;const T=localToday();
   if(String(S.site.itv_mail_day||'')===T)return;
@@ -26698,3 +26694,8 @@ H.saveFhwReview=async(id,b)=>{const done=!!(b&&b.dataset.done==='1');const sd=(S
     closeModal();render();toast(done?'已完成，學生看得到你的評語':'已儲存評語');
   }catch(e){if(b){b.disabled=false;b.textContent=done?'標記完成':'儲存建議';}toast((e&&e.message)||'儲存失敗，請重試');}};
 /* ══════ FREEHW_V1631 end ══════ */
+/* ITVDAY_V1663b 這一段要放在 const H 定義之後（放前面會讓整個後台載入失敗） */
+H.itvDocs=async(id)=>{const c=itvById(id);if(!c)return;const v=!c.docs_in;
+  try{await ensureAuthFresh();await DB.update(crmCol(id),id,{docs_in:v,docs_in_at:v?localToday():''});
+    c.docs_in=v;c.docs_in_at=v?localToday():'';render();toast(v?'已記下：文件收到了':'已改回：文件還沒收到');}
+  catch(e){toast(writeErr('失敗',e));}};
