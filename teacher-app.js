@@ -1112,6 +1112,19 @@ function dashTodayHtml(){
       /* BTNSAME_V851 同上 */
       /* TDDEL_V889 學生臨時取消的時候，直接在這裡就能取消預排 */
       +dashBtns(mb,'<button class="btn btn-sm btn-accent" data-act="rollPlanned" data-id="'+key+'">\u270D\uFE0F \u53BB\u9EDE\u540D</button>','<button class="btn btn-sm" data-act="planEdit" data-id="'+key+'">\u270F\uFE0F \u4FEE\u6539</button>','<button class="btn btn-sm btn-danger btn-icon btn-del" data-act="planDel" data-id="'+key+'" title="\u5B78\u751F\u53D6\u6D88\u4E86\uFF1A\u53D6\u6D88\u9019\u4E00\u5802\u9810\u6392">\uD83D\uDDD1</button>')+'</div>',p.start);});
+  /* FIXTODAY_V1666 Quinn：「本來固定的，為什麼在今天的課就沒有？」
+     課表會照固定時段把今天的課推出來（🔁 固定時段），這裡本來只看已點名、預排、面試，
+     所以固定時段的課只在課表看得到。直接拿課表同一份算法（已點名／已預排的它自己會排掉）。 */
+  try{(weekActualCard().items||[]).filter(it=>it&&it.type==='fix'&&it.date===d).forEach(it=>{
+    const solo=!!it.s;let tm='';try{tm=twVnStr(it.start,it.end);}catch(err){tm=(it.start||'')+(it.end?'–'+it.end:'');}
+    const key=(solo?('S:'+esc(it.s.id)):('G:'+esc(it.cls)))+'::'+esc(it.date)+'::'+esc(it.start||'')+'::'+esc(it.end||'');
+    const lab=solo?('\u{1F464} '+esc(it.s.name||'')):('\u{1F465} '+esc(it.cls)+' 團班');
+    rows.push('<div class="dash-row" style="background:#F4F7FB;border-radius:8px;flex-wrap:wrap">'+(tm?'<span class="badge badge-pending">'+fgTm(tm)+'</span>':'')
+      +'<span class="td-st"><span class="badge b-info">\u{1F501} 固定時段</span></span><b>'+lab+'</b><span class="grow"></span>'
+      +dashBtns(meetBtn(solo?meetOfStudent(it.s.id):meetOfGroup(it.cls),true),
+        '<button class="btn btn-sm btn-accent" data-act="rollFixed" data-id="'+key+'">✍️ 去點名</button>','',
+        '<button class="btn btn-sm btn-danger btn-icon btn-del" data-act="fixSkip" data-id="'+(solo?('S:'+esc(it.s.id)):('G:'+esc(it.cls)))+'::'+esc(it.date)+'::'+esc(it.start||'')+'" title="今天不上（只拿掉這一天）">🗑</button>')
+      +'</div>',it.start);});}catch(err){}
   // 面試練習
   try{itvAll().forEach(c=>itvSessions(c).forEach(e=>{if(e.date!==d)return;let tm='';try{tm=twVnStr(e.start,e.end);}catch(err){tm=(e.start||'')+(e.end?'\u2013'+e.end:'');}
     const _ik=esc(c.id)+'::'+itvSessions(c).indexOf(e);
