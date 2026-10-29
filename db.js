@@ -184,3 +184,12 @@
   function go() { if (document.getElementById('pinyin-plug-js')) return; var s = document.createElement('script'); s.id = 'pinyin-plug-js'; s.src = 'pinyin-plug.js?v=1'; document.body.appendChild(s); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
 })();
+
+/* ══════ HWHUB_LOADER 派作業（一個入口）══════
+   老師後台（teacher.html）自動載入 hw-hub.js：「教學」選單最上面多一個「📝 派作業」，九種作業都從那裡出。
+   跟漢字遊戲一樣，teacher.html／teacher-app.js 不用寫任何東西。這一段請保留。 */
+(function () {
+  if (!/\/teacher(\.html)?$/.test(location.pathname)) return;
+  function go() { if (document.getElementById('hw-hub-js')) return; var s = document.createElement('script'); s.id = 'hw-hub-js'; s.src = 'hw-hub.js?v=1'; document.body.appendChild(s); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+})();
