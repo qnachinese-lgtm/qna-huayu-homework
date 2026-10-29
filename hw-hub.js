@@ -57,37 +57,68 @@ function css(){
     + '.hwh-t small{display:block;color:var(--muted,#5B6B80);font-size:12.5px;line-height:1.45;margin-top:2px}'
     + '.hwh-pk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;padding:10px 12px;background:var(--primary-soft,#E4EDF9);border-radius:12px}'
     + '.hwh-pk select{flex:1;min-width:200px;max-width:100%;font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--line-strong,#C0CEE0);background:var(--surface,#fff);color:inherit}'
-    + '.hwh-py{font-size:13px;margin:4px 0}';
+    + '.hwh-sum{font-size:13.5px;color:var(--muted,#5B6B80);margin:0 0 6px}.hwh-sum .ov{color:#A33227}'
+    + '.hwh-stu{border-top:1px solid var(--line,#DCE5F0);padding:10px 0}'
+    + '.hwh-sh{display:flex;gap:10px;align-items:baseline;margin-bottom:6px}.hwh-sh span{font-size:12.5px;color:var(--muted,#5B6B80)}'
+    + '.hwh-row{display:grid;grid-template-columns:92px 78px minmax(0,1fr);gap:10px;align-items:center;font-size:14px;line-height:1.5;padding:3px 0}'
+    + '.hwh-d{font-size:12.5px;color:var(--muted,#5B6B80);white-space:nowrap}.hwh-d.over{color:#A33227;font-weight:700}.hwh-d.soon{color:var(--primary,#1E4C86);font-weight:700}'
+    + '.hwh-k{font-size:12px;line-height:1.6;text-align:center;border-radius:999px;background:var(--surface-2,#E8EFF7);color:var(--primary,#1E4C86);padding:0 8px;white-space:nowrap}'
+    + '.hwh-w{min-width:0;overflow-wrap:anywhere}.hwh-w small{color:var(--muted,#5B6B80);margin-left:4px}';
   document.head.appendChild(s);
 }
-/* 拼音作業還沒交的（拼音作業存在 site/pinyin 的 tasks，學生的紀錄是 results 裡 kind:pinyin 那一筆） */
-function pyPending(){
-  var box = document.getElementById('hwh-py'); if (!box) return;
+/* 還沒交的作業：平台原本那份（hwPending）＋拼音作業，用同一種排法列出來，種類用「派作業」的名字 */
+var KN = {'課文練習':'課文','隨堂小考':'聽寫','漢字遊戲':'漢字闖關','寫字作業':'寫字','翻牌配對':'翻牌配對','作業簿':'作業簿'};
+function daysTo(d){ try { if (typeof hwDaysTo === 'function') return hwDaysTo(d); } catch(x){} if (!d) return null; var a = new Date(); a.setHours(0,0,0,0); var b = new Date(d); b.setHours(0,0,0,0); return isNaN(b) ? null : Math.round((b - a) / 864e5); }
+function dueLab(n){ if (n == null) return ['未設截止日', '']; if (n < 0) return ['逾期 ' + (-n) + ' 天', 'over']; if (n === 0) return ['今天到期', 'soon']; return ['還有 ' + n + ' 天', n <= 7 ? 'soon' : '']; }
+function renderDue(){
+  var box = document.getElementById('hwh-due'); if (!box) return;
+  var list = []; try { list = (typeof hwPending === 'function') ? hwPending() : []; } catch(x){}
+  list = list.map(function(x){ return {sid:x.sid, name:x.name || '', kind:KN[x.kind] || x.kind, what:x.what || '', days:x.days, draft:!!x.draft}; });
+  function draw(){
+    if (!document.getElementById('hwh-due')) return;
+    if (!list.length){ box.innerHTML = '<div class="hint">每一位學生的作業都交齊了。</div>'; return; }
+    var over = list.filter(function(x){ return x.days != null && x.days < 0; }).length;
+    var soon = list.filter(function(x){ return x.days != null && x.days >= 0 && x.days <= 7; }).length;
+    var by = {}, order = [];
+    list.forEach(function(x){ if (!by[x.sid]){ by[x.sid] = []; order.push(x.sid); } by[x.sid].push(x); });
+    var rank = function(x){ return x.days == null ? 1e6 : x.days; };
+    order.sort(function(a, b){ var ma = Math.min.apply(null, by[a].map(rank)), mb = Math.min.apply(null, by[b].map(rank)); return ma - mb || String(by[a][0].name).localeCompare(String(by[b][0].name)); });
+    box.innerHTML = '<div class="hwh-sum">全部未交 <b>' + list.length + '</b> 份　・　逾期 <b class="ov">' + over + '</b>　・　七天內到期 <b class="ov">' + soon + '</b></div>'
+      + order.map(function(sid){
+        var its = by[sid].slice().sort(function(a, b){ return rank(a) - rank(b); });
+        return '<div class="hwh-stu"><div class="hwh-sh"><b>' + e(its[0].name) + '</b><span>' + its.length + ' 份未交</span></div>'
+          + its.map(function(x){ var d = dueLab(x.days); return '<div class="hwh-row"><span class="hwh-d ' + d[1] + '">' + d[0] + '</span><span class="hwh-k">' + e(x.kind) + '</span><span class="hwh-w">' + e(x.what) + (x.draft ? '<small>寫到一半</small>' : '') + '</span></div>'; }).join('')
+          + '</div>';
+      }).join('');
+  }
+  draw();
+  /* 拼音作業存在 site/pinyin 的 tasks，學生的紀錄是 results 裡 kind:pinyin 那一筆 */
   try {
     firebase.firestore().collection('site').doc('pinyin').get().then(function(d){
       var tasks = ((d.exists && d.data().tasks) || []).filter(function(t){ return t && !t.deleted_at; });
       var docs = window.__PY_DOCS || [];
       var stu = (st().students || []).filter(function(s){ return s && !s.deleted_at && !s.is_test; });
-      var lines = tasks.map(function(t){
+      tasks.forEach(function(t){
         var g = t.assigned_groups || [];
-        var who = stu.filter(function(s){ return (t.assigned_ids || []).indexOf(s.id) >= 0 || (Array.isArray(s.groups) && s.groups.some(function(x){ return g.indexOf(x) >= 0; })); });
-        var left = who.filter(function(s){ var r = docs.filter(function(x){ return x && x.student_id === s.id; })[0]; return !(r && r.rec && r.rec.tasks && r.rec.tasks[t.id]); });
-        if (!left.length) return '';
-        return '<div class="hwh-py"><span class="tag">拼音</span>' + e(t.title || '拼音作業') + (t.due ? ' <span class="muted">截止 ' + e(t.due) + '</span>' : '') + '　還沒交：' + left.map(function(s){ return e(s.name || ''); }).join('、') + '</div>';
-      }).filter(Boolean);
-      box.innerHTML = lines.join('');
+        stu.forEach(function(s){
+          if (!((t.assigned_ids || []).indexOf(s.id) >= 0 || (Array.isArray(s.groups) && s.groups.some(function(x){ return g.indexOf(x) >= 0; })))) return;
+          var r = docs.filter(function(x){ return x && x.student_id === s.id; })[0];
+          if (r && r.rec && r.rec.tasks && r.rec.tasks[t.id]) return;
+          list.push({sid:s.id, name:s.name || '', kind:'拼音', what:t.title || '拼音作業', days:daysTo(t.due), draft:false});
+        });
+      });
+      draw();
     }).catch(function(){});
   } catch(x){}
 }
 function open(){
   css();
   var types = TYPES.map(function(x){ return '<button type="button" class="hwh-t" data-act="hwhubType" data-id="' + x.k + '"><span class="hwh-ic">' + e(x.ic) + '</span><span><b>' + e(x.t) + '</b><small>' + e(x.d) + '</small></span></button>'; }).join('');
-  var due = ''; try { due = (typeof hwDueHtml === 'function') ? hwDueHtml() : ''; } catch(x){}
   openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📝 派作業</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
     + '<p class="hint" style="margin:0 0 10px">先選一種，再選學生和截止日。不管哪一種，學生那邊都出現在「待完成」清單。</p>'
     + '<div class="hwh-grid">' + types + '</div><div id="hwh-pick"></div>'
-    + '<h4 style="margin:18px 0 8px">還沒交的作業</h4>' + due + '<div id="hwh-py"></div></div></div>');
-  pyPending();
+    + '<h4 style="margin:18px 0 8px">還沒交的作業</h4><div id="hwh-due"></div></div></div>');
+  renderDue();
 }
 if (hasH()){
   H.hwhubOpen = open;
