@@ -12,7 +12,7 @@ var isTeacher = /\/teacher(\.html)?$/.test(location.pathname);
 /* 成績分開：kind 是 pinyin 的那一筆不要算進一般作業 */
 var _split = window.splitResults;
 if (typeof _split === 'function') window.splitResults = function(rows){
-  rows = rows || []; var pd = rows.filter(function(x){ return x && x.kind === 'pinyin'; })[0]; if (pd) window.__PY_DOC = pd;
+  rows = rows || []; var pd = rows.filter(function(x){ return x && x.kind === 'pinyin'; })[0]; if (pd) window.__PY_DOC = pd; window.__PY_DOCS = rows.filter(function(x){ return x && x.kind === 'pinyin'; });
   rows = rows.filter(function(x){ return !x || x.kind !== 'pinyin'; });
   return _split.call(this, rows);
 };
