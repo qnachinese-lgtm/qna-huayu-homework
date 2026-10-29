@@ -10,6 +10,18 @@
 if (window.__HWHUB__) return; window.__HWHUB__ = true;
 if (!/\/teacher(\.html)?$/.test(location.pathname)) return;
 
+/* HWHUB_V2 Quinn：「請你統一一個按鈕就好，不用的請先收起來」。
+   各頁原本各自的出作業按鈕先藏起來（不刪，要恢復把 HIDE_OLD 改成 false）。
+   只藏畫面上的按鈕；「派作業」打開的那幾個視窗（在 #modal-root 裡）照常可以按。 */
+var HIDE_OLD = true;
+if (HIDE_OLD && !document.getElementById('hwh-hide')){
+  var OLD = ['assign','assignWb','newQuiz','lqpNew','fhNew','hzNew','hzPickKind','gtNew','wtNew'];
+  var hs = document.createElement('style'); hs.id = 'hwh-hide';
+  hs.textContent = OLD.map(function(k){ return '[data-act="' + k + '"]:not(#modal-root [data-act])'; }).join(',')
+    + ',' + OLD.map(function(k){ return '[data-act="lcmGo"][data-id^="' + k + '::"]'; }).join(',') + '{display:none!important}';
+  (document.head || document.documentElement).appendChild(hs);
+}
+
 function e(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function st(){ try { return (typeof S !== 'undefined' && S) ? S : {}; } catch(x){ return {}; } }
 function hasH(){ try { return typeof H !== 'undefined' && H; } catch(x){ return false; } }
