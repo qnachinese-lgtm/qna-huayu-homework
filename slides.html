@@ -716,6 +716,9 @@ ruby.clpyx{cursor:pointer}
 .cpgrid button{all:unset;box-sizing:border-box;cursor:pointer;text-align:center;padding:16px 10px;border-radius:14px;background:var(--ice);color:var(--navy);font-size:20px;border:2px solid transparent}
 .cpgrid button:hover{border-color:var(--sky)}
 .cpgrid button.on{background:var(--navy);color:#fff}
+.cpsub{margin:22px 0 10px;font-size:15px;color:var(--navy);opacity:.75;text-align:left}
+.cpsolo button{font-size:17px;padding:13px 8px}
+.cpcard{max-height:88vh;overflow:auto}
 .livepill{font:inherit;font-size:14px;padding:7px 12px;border-radius:10px;border:2px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer}
 .livebox{position:fixed;inset:0;background:rgba(20,40,80,.35);display:grid;place-items:center;z-index:80}
 .livebox[hidden]{display:none}
@@ -2345,6 +2348,9 @@ try { LIVE.lastCls = localStorage.getItem("slides-live-cls") || ""; } catch(e){}
 LIVE.roster = {};
 async function liveGroups(){ try { const s = await liveDb().collection("students").get(); const R = {};
     s.docs.forEach(d => { const x = d.data(); if(x.deleted_at) return; (Array.isArray(x.groups) ? x.groups : []).forEach(g => { (R[g] = R[g] || []).push(String(x.name || "").trim()); }); });
+    /* SOLOPICK_V1 一對一的學生也放進「今天上哪一班」，選了就只看這位學生在學習平台寫的答案 */
+    LIVE.solos = s.docs.map(d => ({id: d.id, x: d.data()})).filter(o => !o.x.deleted_at && !o.x.is_test && ["ended","paused"].indexOf(o.x.enroll_status || "active") < 0 && String(o.x.name || "").trim() && (o.x.class_type !== "團班" || o.x.class_type === "兩種"))
+      .map(o => ({id: o.id, n: String(o.x.name).trim()})).sort((a,b) => a.n.localeCompare(b.n, "zh-Hant"));
     Object.keys(R).forEach(g => R[g] = R[g].filter(Boolean).sort((a,b) => a.localeCompare(b, "zh-Hant")));
     LIVE.roster = R; LIVE.groups = Object.keys(R).sort((a,b) => a.localeCompare(b, "zh-Hant", {numeric: true})); }
   catch(e){ LIVE.groups = []; } }
@@ -2383,13 +2389,15 @@ function hwCls(){ if(LIVE.cls) return LIVE.cls; if(LIVE.hwCls == null){ try { LI
 function hwLid(L){ return L && (L.src || (String(L.id).startsWith("src_") ? L.id.slice(4) : "")); }
 async function hwLoad(lid){ if(HW.loading) return; HW.loading = true; const f = liveDb();
   try { const src = await psSrc(lid); const [a, b, s, g] = await Promise.all([f.collection("results").where("lesson_id", "==", lid).get(), f.collection("results").where("disc_lesson", "==", lid).get(), f.collection("students").get(), f.collection("results").where("gprac_lesson", "==", lid).get()]);
-    const stu = {}; s.docs.forEach(d => { const x = d.data(); stu[d.id] = {n: String(x.name || "").trim(), g: Array.isArray(x.groups) ? x.groups : []}; if(x.uid) stu["u:" + x.uid] = stu[d.id]; });
+    const stu = {}; s.docs.forEach(d => { const x = d.data(); stu[d.id] = {id: d.id, n: String(x.name || "").trim(), g: Array.isArray(x.groups) ? x.groups : []}; if(x.uid) stu["u:" + x.uid] = stu[d.id]; });
     const pick = d => ({id: d.id, ...d.data()}); HW.data = {src, res: g.docs.map(pick).concat(a.docs.map(pick)), disc: b.docs.map(pick), stu}; /* HWANS_V2 講義裡的語法練習（gprac）也算 */ HW.lid = lid; }
   catch(e){ console.warn("hw", e); HW.lid = lid; HW.data = null; }
   HW.loading = false; if($("#modal").hidden){ document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); } }
 function hwFor(key, i){ const D = HW.data; if(!ansOn || !D) return []; const mm = String(key).match(/^([^:]+):(.+)$/); if(!mm) return [];
   const L = lessons.find(x => x.id === mm[1]); if(!L || hwLid(L) !== HW.lid) return []; const part = mm[2], cls = hwCls();
-  const who = r => { const s = D.stu[r.student_id] || D.stu["u:" + r.uid]; if(!s) return null; if(cls && !s.g.includes(cls)) return null; return s.n || r.student_name || ""; };
+  const who = r => { const s = D.stu[r.student_id] || D.stu["u:" + r.uid]; if(!s) return null;
+    if(String(cls).charAt(0) === "@"){ if(s.id !== cls.slice(1)) return null; } /* SOLOPICK_V1 選了一對一學生 → 只要他的 */
+    else if(cls && !s.g.includes(cls)) return null; return s.n || r.student_name || ""; };
   const skip = r => false; /* HWANS_V3 不再整份略過，重複的答案在 ansFor 裡去掉 */
   const lt = k => "（" + String.fromCharCode(97 + k) + "）", out = [];
   if(part === "qa" || part === "qa2"){ const q = (L[part]||[])[i]; if(!q) return []; const hit = D.src.disc.find(x => x.n === psN(q[0])); if(!hit) return [];
@@ -2472,17 +2480,19 @@ function liveSub(){ liveUnsub(); if(!LIVE.code || !db || /[?&]join=/i.test(locat
   LIVE.unA = ref.collection("answers").onSnapshot(s => { LIVE.ans = s.docs.map(d => ({_id: d.id, ...d.data()})); livePill(); psSync(); if($("#modal").hidden){ document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); paintAns(); gFit(); } }, err => console.warn("live answers", err)); }
 if(window.firebase && firebase.apps.length) firebase.auth().onAuthStateChanged(u => { const r = $("#liveRow"); if(r) r.hidden = !u; if(u && LIVE.code){ LIVE.open = true; liveSub(); } else if(!u) liveUnsub(); });
 /* CLSMARK_V1 班級顯示在投影片上（標題旁＋右下角浮水印），截圖也看得出是哪一班 */
-function clsMark(){ let v = ""; try { v = (document.documentElement.classList.contains("locked") || /[?&]join=/i.test(location.search)) ? "" : (sessionStorage.getItem("slides-cls-ok") ? hwCls() : ""); } catch(e){}
+function clsMark(){ let v = ""; try { v = (document.documentElement.classList.contains("locked") || /[?&]join=/i.test(location.search)) ? "" : (sessionStorage.getItem("slides-cls-ok") ? hwCls() : ""); if(String(v||"").charAt(0) === "@") v = ""; } catch(e){}
   const n = $("#sNum"); if(n){ const o = n.querySelector(".scls"); if(o) o.remove(); if(v){ const b = document.createElement("span"); b.className = "scls"; b.textContent = v + " 班"; n.appendChild(b); } }
   let w = $("#wmark"); if(!w && $("#app")){ w = document.createElement("div"); w.id = "wmark"; w.className = "wmark"; $("#app").appendChild(w); } if(w){ w.textContent = v ? `QNA CHINESE・${v} 班` : ""; w.hidden = !v; } }
 /* CLSPICK_V1 打開投影片先選今天上哪一班；學生答案只顯示這一班 */
-function clsLab(v){ return v ? v + " 班" : "不分班"; }
-function clsSet(v){ LIVE.hwCls = v; LIVE.lastCls = v; try { localStorage.setItem("slides-hw-cls", v); localStorage.setItem("slides-live-cls", v); sessionStorage.setItem("slides-cls-ok", "1"); } catch(e){}
+function clsLab(v){ if(String(v||"").charAt(0) === "@"){ const o = (LIVE.solos || []).find(x => "@" + x.id === v); return "👤 " + (o ? o.n : "一對一"); } return v ? v + " 班" : "不分班"; }
+function clsSet(v){ const solo = String(v||"").charAt(0) === "@"; LIVE.hwCls = v; if(!solo) LIVE.lastCls = v; try { localStorage.setItem("slides-hw-cls", v); if(!solo) localStorage.setItem("slides-live-cls", v); sessionStorage.setItem("slides-cls-ok", "1"); } catch(e){}
   const c = $("#clsBtn"); if(c) c.textContent = "上課班級：" + clsLab(v); clsMark();
   HW.lid = null; document.querySelectorAll("#stage .sans").forEach(x => { if(!x.querySelector(".sform")) x.innerHTML = ""; }); try { paintAns(); gFit(); } catch(e){} }
 async function clsPick(){ if(!LIVE.groups) await liveGroups(); let ov = $("#clsPick"); if(!ov){ ov = document.createElement("div"); ov.id = "clsPick"; ov.className = "gate"; document.body.appendChild(ov); }
   const cur = hwCls(), gs = LIVE.groups || [];
-  ov.innerHTML = `<div class="cpcard"><h2>今天上哪一班？</h2><div class="cpgrid">${gs.map(g => `<button type="button" data-cp="${esc(g)}" class="${g === cur ? "on" : ""}">${esc(g)} 班</button>`).join("")}<button type="button" data-cp="" class="${!cur ? "on" : ""}">不分班</button></div></div>`;
+  const so = LIVE.solos || [];
+  ov.innerHTML = `<div class="cpcard"><h2>今天上哪一班？</h2><div class="cpgrid">${gs.map(g => `<button type="button" data-cp="${esc(g)}" class="${g === cur ? "on" : ""}">${esc(g)} 班</button>`).join("")}<button type="button" data-cp="" class="${!cur ? "on" : ""}">不分班</button></div>`
+    + (so.length ? `<h3 class="cpsub">一對一</h3><div class="cpgrid cpsolo">${so.map(o => `<button type="button" data-cp="@${esc(o.id)}" class="${("@" + o.id) === cur ? "on" : ""}">👤 ${esc(o.n)}</button>`).join("")}</div>` : "") + `</div>`;
   ov.hidden = false; ov.onclick = e => { const b = e.target.closest("[data-cp]"); if(!b) return; clsSet(b.dataset.cp); ov.hidden = true; }; }
 /* CLSPICK_V2 班級不顯示在投影片上（避免截圖），收在「老師」選單裡 */
 function clsInit(){ const r = $("#clsRow"), c = $("#clsBtn"); if(r) r.hidden = false; if(c){ c.textContent = "上課班級：" + clsLab(hwCls()); c.onclick = () => { $("#tmPanel").hidden = true; clsPick(); }; }
