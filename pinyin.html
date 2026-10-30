@@ -383,7 +383,7 @@ async function renderScores(){
     stage.innerHTML=`<div class="tablewrap"><table><thead><tr><th>學生</th><th>練了幾輪</th><th>答題數</th><th>正確率</th><th>遊戲最高分</th><th>最近練習</th><th>常錯的詞</th></tr></thead><tbody>${rows.map(r=>{
       const rec=r.rec||emptyRec();const pct=r.total_q?Math.round(100*r.total_ok/r.total_q)+'%':'';
       const miss=Object.entries(rec.wrong||{}).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([h,n])=>esc(h)+(n>1?'×'+n:'')).join('、');
-      return `<tr><td>${esc(r.student_name||'（沒有名字）')}</td><td class="num">${r.rounds_n||0}</td><td class="num">${r.total_q||0}</td><td class="num">${pct}</td><td class="num">${r.game_best||''}</td><td class="num">${fmt(r.last_at)}</td><td class="miss">${miss||'—'}</td></tr>`}).join('')}</tbody></table></div>`;
+      return `<tr><td>${esc(r.student_name||'（沒有名字）')}</td><td class="num">${r.rounds_n||0}</td><td class="num">${r.total_q||0}</td><td class="num">${pct}</td><td class="num">${Math.max(r.game_best||0,...Object.values((r.rec&&r.rec.gbest)||{}))||''}</td><td class="num">${fmt(r.last_at)}</td><td class="miss">${miss||'—'}</td></tr>`}).join('')}</tbody></table></div>`;
   }catch(e){stage.innerHTML='<p class="tip center" style="margin:auto">讀不到成績：'+esc((e&&e.message)||e)+'</p>'}}
 
 /* ====== 老師：開放名單（存在 site/pinyin 的 allow，只有勾選的學生看得到、進得來） ====== */
@@ -404,16 +404,19 @@ async function renderAllow(){
 
 /* ====== 遊戲：漢字往下掉，打對拼音就消掉 ====== */
 const G={on:false,raf:0,items:[],score:0,hits:0,miss:[],lives:3,combo:0,spawnGap:2600,speedK:1,last:0,lastSpawn:0,pool:[]};
-function renderGame(){
+/* PINYIN_GAMES_V1 按「遊戲」先選遊戲（pinyin-games.js）；「漢字往下掉」是其中一種 */
+function renderGame(){if(window.PYGAMES)return PYGAMES.render();renderFall()}
+function renderFall(){
   stopGame();
   $('#cheat').hidden=false;
   const best=(me.rec&&me.rec.game_best)||0;
-  stage.innerHTML='<div class="gtop"><span id="glives"></span><span class="gcombo" id="gcombo"></span><span>分數 <b id="gscore">0</b></span></div>'
+  stage.innerHTML='<div class="gtop"><button class="btn" type="button" id="gback" style="padding:4px 12px;font-size:14px">← 換遊戲</button><span id="glives"></span><span class="gcombo" id="gcombo"></span><span>分數 <b id="gscore">0</b></span></div>'
    +'<div class="field" id="gfield"><div class="gstart" id="gstart"><b>漢字往下掉</b><p class="tip">漢字掉到底之前，打出它的拼音和聲調，打對就消掉。<br>掉到底會少一顆愛心，三顆用完遊戲就結束。'+(best?'<br>你的最高分：'+best:'')+'</p><button class="btn primary" id="gbegin" type="button">開始遊戲</button></div></div>'
    +'<div class="gmsg" id="gmsg"></div>'
    +'<div class="inrow"><input id="gin" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" disabled><button class="ukey" id="gukey" type="button" aria-label="輸入 ü">ü</button></div>';
   drawLives();
   $('#gbegin').onclick=startGame;
+  $('#gback').onclick=()=>{stopGame();if(window.PYGAMES)PYGAMES.home()};
   const inp=$('#gin');
   inp.addEventListener('input',e=>{if(e.isComposing)return;autoConvert(inp);tryHit(false)});
   inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();tryHit(true)}});
@@ -470,7 +473,7 @@ function endGame(){
     +'<p class="tip">打對 '+G.hits+' 個'+(G.score>old&&G.score>0?'，新的最高分！':'，最高分 '+best)+'</p>'
     +(ms.length?'<p class="tip">這幾個再看一次：</p><div class="wronglist">'+ms.map(i=>'<div><b>'+esc(i.h)+'</b><span>'+answerHTML(i)+'</span></div>').join('')+'</div>':'')
     +'<p class="save" id="saveNote"></p><button class="btn primary" id="gagain" type="button">再玩一次</button></div>');
-  $('#gagain').onclick=()=>{renderGame();startGame()};
+  $('#gagain').onclick=()=>{renderFall();startGame()};
   saveGame()}
 async function saveGame(){
   if(!me.student||!me.uid||!window.DB||DB.mode!=='firebase'){const n=$('#saveNote');if(n&&me.teacher)n.textContent='老師帳號試玩，不存成績';return}
@@ -530,9 +533,12 @@ async function renderTasks(){
     const t=TASKS.find(x=>x.id===b.dataset.del);if(!t)return;t.deleted_at=new Date().toISOString();
     try{await saveTasks();renderTasks()}catch(e){delete t.deleted_at;b.textContent='沒收回去'}})}
 
-function showTab(t){stopGame();st.tab=t;document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));renderLevels();
+function showTab(t){stopGame();try{if(window.PYGAMES)PYGAMES.stop()}catch(e){}st.tab=t;document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));renderLevels();
   if(t==='game')renderGame();else if(t==='list')renderList();else if(t==='allow')renderAllow();else if(t==='tasks')renderTasks();else if(t==='scores')renderScores();else startRound()}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+
+/* 給 pinyin-games.js 用的介面 */
+window.PYAPI={pool:()=>pool(),markSyl,plainAnswer,answerHTML,shuffle,esc,me,st,reviewUpdate,emptyRec,stage:()=>stage,renderFall,stopFall:stopGame};
 
 /* ====== 登入（沿用學習平台的帳號） ====== */
 function gate(msg,btn){$('#levels').hidden=true;$('#tabs').hidden=true;$('#cheat').hidden=true;
@@ -563,5 +569,6 @@ async function loadCustom(){try{const d=await firebase.firestore().collection('s
 })();
 })();
 </script>
+<script src="pinyin-games.js?v=1"></script>
 </body>
 </html>
