@@ -63,7 +63,11 @@ function css(){
     + '.hwh-row{display:grid;grid-template-columns:92px 78px minmax(0,1fr);gap:10px;align-items:center;font-size:14px;line-height:1.5;padding:3px 0}'
     + '.hwh-d{font-size:12.5px;color:var(--muted,#5B6B80);white-space:nowrap}.hwh-d.over{color:#A33227;font-weight:700}.hwh-d.soon{color:var(--primary,#1E4C86);font-weight:700}'
     + '.hwh-k{font-size:12px;line-height:1.6;text-align:center;border-radius:999px;background:var(--surface-2,#E8EFF7);color:var(--primary,#1E4C86);padding:0 8px;white-space:nowrap}'
-    + '.hwh-w{min-width:0;overflow-wrap:anywhere}.hwh-w small{color:var(--muted,#5B6B80);margin-left:4px}';
+    + '.hwh-w{min-width:0;overflow-wrap:anywhere}.hwh-w small{color:var(--muted,#5B6B80);margin-left:4px}'
+    + '.hwh-names{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}'
+    + '.hwh-nm{font:inherit;font-size:14px;border:1px solid var(--line-strong,#C0CEE0);background:var(--surface,#fff);color:inherit;border-radius:999px;padding:3px 10px;cursor:pointer}'
+    + '.hwh-nm span{font-size:12px;color:var(--muted,#5B6B80);margin-left:4px}.hwh-nm.ov span{color:#A33227;font-weight:700}'
+    + '.hwh-nm.on{border-color:var(--primary,#1E4C86);background:var(--primary,#1E4C86);color:#fff}.hwh-nm.on span{color:#fff}';
   document.head.appendChild(s);
 }
 /* 還沒交的作業：平台原本那份（hwPending）＋拼音作業，用同一種排法列出來，種類用「派作業」的名字 */
@@ -74,6 +78,8 @@ function renderDue(){
   var box = document.getElementById('hwh-due'); if (!box) return;
   var list = []; try { list = (typeof hwPending === 'function') ? hwPending() : []; } catch(x){}
   list = list.map(function(x){ return {sid:x.sid, name:x.name || '', kind:KN[x.kind] || x.kind, what:x.what || '', days:x.days, draft:!!x.draft}; });
+  var sel = '';
+  box.addEventListener('click', function(ev){ var b = ev.target.closest && ev.target.closest('[data-hwh-sid]'); if (!b) return; var v = b.getAttribute('data-hwh-sid'); sel = (sel === v) ? '' : v; draw(); });
   function draw(){
     if (!document.getElementById('hwh-due')) return;
     if (!list.length){ box.innerHTML = '<div class="hint">每一位學生的作業都交齊了。</div>'; return; }
@@ -84,7 +90,10 @@ function renderDue(){
     var rank = function(x){ return x.days == null ? 1e6 : x.days; };
     order.sort(function(a, b){ var ma = Math.min.apply(null, by[a].map(rank)), mb = Math.min.apply(null, by[b].map(rank)); return ma - mb || String(by[a][0].name).localeCompare(String(by[b][0].name)); });
     box.innerHTML = '<div class="hwh-sum">全部未交 <b>' + list.length + '</b> 份　・　逾期 <b class="ov">' + over + '</b>　・　七天內到期 <b class="ov">' + soon + '</b></div>'
-      + order.map(function(sid){
+      + '<div class="hwh-names">' + order.map(function(sid){ var its = by[sid], ov = its.some(function(x){ return x.days != null && x.days < 0; });
+          return '<button type="button" class="hwh-nm' + (ov ? ' ov' : '') + (sid === sel ? ' on' : '') + '" data-hwh-sid="' + e(sid) + '">' + e(its[0].name) + '<span>' + its.length + '</span></button>'; }).join('') + '</div>'
+      + (sel && by[sel] ? '' : '<div class="hint" style="margin-top:6px">點學生的名字，看他還沒交哪些。</div>')
+      + order.filter(function(sid){ return sid === sel; }).map(function(sid){
         var its = by[sid].slice().sort(function(a, b){ return rank(a) - rank(b); });
         return '<div class="hwh-stu"><div class="hwh-sh"><b>' + e(its[0].name) + '</b><span>' + its.length + ' 份未交</span></div>'
           + its.map(function(x){ var d = dueLab(x.days); return '<div class="hwh-row"><span class="hwh-d ' + d[1] + '">' + d[0] + '</span><span class="hwh-k">' + e(x.kind) + '</span><span class="hwh-w">' + e(x.what) + (x.draft ? '<small>寫到一半</small>' : '') + '</span></div>'; }).join('')
@@ -117,11 +126,17 @@ function open(){
   openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📝 派作業</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
     + '<p class="hint" style="margin:0 0 10px">先選一種，再選學生和截止日。不管哪一種，學生那邊都出現在「待完成」清單。</p>'
     + '<div class="hwh-grid">' + types + '</div><div id="hwh-pick"></div>'
-    + '<h4 style="margin:18px 0 8px">還沒交的作業</h4><div id="hwh-due"></div></div></div>');
+    + '<div style="margin-top:16px;text-align:right"><button type="button" class="btn btn-sm" data-act="hwhubDue">📋 看還沒交的作業</button></div></div></div>');
+}
+/* HWHUB_V4 Quinn：「這邊可以變成一個獨立的視窗」——還沒交的作業自己一個視窗，選學生名字才列出他的作業 */
+function openDue(){
+  css();
+  openModal('<div class="modal modal-tall"><div class="modal-head"><h3>📋 還沒交的作業</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div id="hwh-due"></div></div></div>');
   renderDue();
 }
 if (hasH()){
   H.hwhubOpen = open;
+  H.hwhubDue = openDue;
   H.hwhubType = function(k){
     var x = TYPES.filter(function(t){ return t.k === k; })[0]; if (!x) return;
     document.querySelectorAll('.hwh-t').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-id') === k); });
@@ -151,6 +166,10 @@ function addMenu(){
       b.innerHTML = '📝 <b>派作業</b>';
       b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); try { document.querySelectorAll('#tnav .tn-i.open').forEach(function(i){ i.classList.remove('open'); }); } catch(y){} open(); });
       p.insertBefore(b, p.firstChild);
+      var d = document.createElement('button'); d.type = 'button'; d.setAttribute('data-hwhub-due', '1');
+      d.innerHTML = '📋 還沒交的作業';
+      d.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); try { document.querySelectorAll('#tnav .tn-i.open').forEach(function(i){ i.classList.remove('open'); }); } catch(y){} openDue(); });
+      b.insertAdjacentElement('afterend', d);
     });
   } catch(x){}
 }
