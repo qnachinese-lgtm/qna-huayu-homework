@@ -1337,6 +1337,14 @@ function exGroupsOf(qs){
     gs[idx[k]].qs.push(q);});
   return gs;
 }
+/* EXVI_V1669 Quinn：「切換越南文，作業的標題請幫我翻譯成越南文」。
+   練習的說明（例：Give affirmative responses.）是英文；越南文介面時走跟生詞一樣的自動翻譯（存在瀏覽器，同一句只翻一次）。
+   有中文字的說明不動。 */
+function exInsHtml(label){const t=String(label||'');
+  if(S.lang==='vi'&&/[A-Za-z]{3}/.test(t)&&!/[\u3400-\u9fff]/.test(t)){
+    setTimeout(()=>{try{hydrateVi([t]);}catch(e){}},0);
+    return `<div class="pi-ex-ins" data-trvi="${esc(t)}">${esc(viOf(t))}</div>`;}
+  return `<div class="pi-ex-ins">${esc(t)}</div>`;}
 function exBlocksHtml(qs){
   const gs=exGroupsOf(qs);
   if(gs.length<=1&&!(gs[0]&&gs[0].label))return `<div class="pi-wrap">${numberedHtml(qs)}</div>`;
@@ -1345,7 +1353,7 @@ function exBlocksHtml(qs){
     const banks=g.qs.filter(isOptBank);const rest=g.qs.filter(q=>!isOptBank(q));
     const merged=banks.reduce((a,b)=>a.concat(b.options||[]),[]);
     return `<div class="pi-ex"><div class="pi-ex-h">${esc(exLab)} ${EXNO[i]||(i+1)}</div>`
-      +(g.label?`<div class="pi-ex-ins">${esc(g.label)}</div>`:'')
+      +(g.label?exInsHtml(g.label):'')
       +optBankHtml(merged)
       +`<div class="pi-wrap">${numberedHtml(rest,true)}</div></div>`;}).join('');
 }
