@@ -190,6 +190,6 @@
    跟漢字遊戲一樣，teacher.html／teacher-app.js 不用寫任何東西。這一段請保留。 */
 (function () {
   if (!/\/(teacher|student)(\.html)?$/.test(location.pathname)) return;   /* 學生端也載入：待完成清單的作業名稱 */
-  function go() { if (document.getElementById('hw-hub-js')) return; var s = document.createElement('script'); s.id = 'hw-hub-js'; s.src = 'hw-hub.js?v=2'; document.body.appendChild(s); }
+  function go() { if (document.getElementById('hw-hub-js')) return; var s = document.createElement('script'); s.id = 'hw-hub-js'; s.src = 'hw-hub.js?v=3'; document.body.appendChild(s); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
 })();

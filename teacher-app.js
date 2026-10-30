@@ -6454,7 +6454,7 @@ function lessonCardHtml(l,i,ov){try{ov=ov||{};/*VERBAR_V60*/
         <span class="card-chev" title="${open?'收起來':'打開看這一課的按鈕'}">${open?'▾':'▸'}</span></div>
       ${ov.bar||''}
       ${open?`<div class="lc-bar">
-        <b class="lc-bar-t">📖 課本</b><span class="hint">練習題 ${qn}</span>
+        <b class="lc-bar-t">📖 課本</b><span class="hint">${/華語文能力測驗/.test(String(l.textbook||''))?'做題':'課本作業'} ${qn} 題</span>
         <span class="grow"></span>
         ${lcRow5({edit:lcBtn('editLesson',l.id,'✏️ 編輯'),
                   prev:lcBtn('previewLesson',l.id,'👁 預覽'),

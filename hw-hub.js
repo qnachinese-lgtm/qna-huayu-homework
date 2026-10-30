@@ -12,12 +12,14 @@ if (window.__HWHUB__) return; window.__HWHUB__ = true;
    （課文、聽寫、選擇題、寫字、自由回答、翻牌配對、漢字闖關、拼音）。
    漢字遊戲、拼音的外掛也會改這份清單，所以等它們都接好了再接，才包得到最外面。 */
 if (/\/student(\.html)?$/.test(location.pathname)){
-  var KS = {les:'課文', quiz:'聽寫', lqp:'選擇題', write:'寫字', fhw:'自由回答', game:'翻牌配對', hanzi:'漢字闖關', pinyin:'拼音'};
+  /* LESKIND_V1670 課文裡的練習題叫「課本作業」，跟作業簿分開；華語文能力測驗那兩套叫「做題」 */
+  var isDo = function(lid){ try { var ls = (typeof myLessons === 'function') ? myLessons() : []; var l = ls.find(function(x){ return x && x.id === lid; }); return !!(l && /華語文能力測驗/.test(String(l.textbook || ''))); } catch(x){ return false; } };
+  var KS = {les:'課本作業', quiz:'聽寫', lqp:'選擇題', write:'寫字', fhw:'自由回答', game:'翻牌配對', hanzi:'漢字闖關', pinyin:'拼音'};
   var hook = function(){
     var _dr = window.dueRows; if (typeof _dr !== 'function' || _dr.__hwh) return;
     var w = function(){
       var rows = _dr.apply(this, arguments);
-      try { rows.forEach(function(r){ var k = r && KS[r.k]; if (!k || r._hwh) return;
+      try { rows.forEach(function(r){ var k = r && KS[r.k]; if (!k || r._hwh) return; if (r.k === 'les' && isDo(r.lid)) k = '做題';
         var t = String(r.title || '').replace(/^(?:ā\s+|[^\p{L}\p{N}「（(]+)/u, '').trim();
         if (t.indexOf(k) < 0) t = k + '・' + t;
         r.title = t; r._hwh = 1; }); } catch(x){}
@@ -40,7 +42,7 @@ var HIDE_OLD = true;
 if (HIDE_OLD && !document.getElementById('hwh-hide')){
   var OLD = ['assignWb','newQuiz','lqpNew','fhNew','hzNew','hzPickKind','gtNew','wtNew'];
   var hs = document.createElement('style'); hs.id = 'hwh-hide';
-  hs.textContent = OLD.map(function(k){ return '[data-act="' + k + '"]:not(#modal-root [data-act])'; }).join(',')
+  hs.textContent = OLD.map(function(k){ return '[data-act="' + k + '"]:not(#modal-root [data-act]):not(.lc-bar [data-act])'; }).join(',')
     + ',' + OLD.concat(['assign']).map(function(k){ return '[data-act="lcmGo"][data-id^="' + k + '::"]'; }).join(',') + '{display:none!important}'
     /* HWHUB_V5 課卡上原本的「👥 發佈（3）」改成只顯示「已發給 3 人」，不能按 */
     + '.hwh-cnt{pointer-events:none!important;background:none!important;border-color:transparent!important;color:var(--muted,#5B6B80)!important;font-weight:400!important;box-shadow:none!important}';
@@ -62,7 +64,7 @@ function lessons(){
     .map(function(l){ return [l.id, lesName(l)]; });
 }
 var TYPES = [
-  {k:'les',  ic:'📖', t:'課文',     d:'選一課，學生寫那一課的練習題。交了要你批改。', pick:lessons, go:'assign'},
+  {k:'les',  ic:'📖', t:'課本作業', d:'選一課，學生寫那一課課本裡的練習題（華語文能力測驗那兩套叫「做題」）。交了要你批改。', pick:lessons, go:'assign'},
   {k:'wb',   ic:'📒', t:'作業簿',   d:'選一份作業簿。交了要你批改。', pick:function(){ return (st().workbooks || []).filter(function(w){ return w && !w.deleted_at; }).map(function(w){ return [w.id, w.title || '作業簿']; }); }, go:'assignWb'},
   {k:'quiz', ic:'🎧', t:'聽寫',     d:'選一課的生詞做聽寫。交了要你批改。', go:'newQuiz'},
   {k:'lqp',  ic:'☑️', t:'選擇題',   d:'從題庫出選擇題，系統自己對答案。', pick:function(){ return (st().livequizzes || []).filter(function(q){ return q && !q.deleted_at; }).map(function(q){ return [q.id, q.title || '題庫']; }); }, go:'lqpNew'},
@@ -96,13 +98,14 @@ function css(){
   document.head.appendChild(s);
 }
 /* 還沒交的作業：平台原本那份（hwPending）＋拼音作業，用同一種排法列出來，種類用「派作業」的名字 */
-var KN = {'課文練習':'課文','隨堂小考':'聽寫','漢字遊戲':'漢字闖關','寫字作業':'寫字','翻牌配對':'翻牌配對','作業簿':'作業簿'};
+function isDoT(lid){ var l = (st().lessons || []).find(function(x){ return x && x.id === lid; }); return !!(l && /華語文能力測驗/.test(String(l.textbook || ''))); }
+var KN = {'課文練習':'課本作業','隨堂小考':'聽寫','漢字遊戲':'漢字闖關','寫字作業':'寫字','翻牌配對':'翻牌配對','作業簿':'作業簿'};
 function daysTo(d){ try { if (typeof hwDaysTo === 'function') return hwDaysTo(d); } catch(x){} if (!d) return null; var a = new Date(); a.setHours(0,0,0,0); var b = new Date(d); b.setHours(0,0,0,0); return isNaN(b) ? null : Math.round((b - a) / 864e5); }
 function dueLab(n){ if (n == null) return ['未設截止日', '']; if (n < 0) return ['逾期 ' + (-n) + ' 天', 'over']; if (n === 0) return ['今天到期', 'soon']; return ['還有 ' + n + ' 天', n <= 7 ? 'soon' : '']; }
 function renderDue(){
   var box = document.getElementById('hwh-due'); if (!box) return;
   var list = []; try { list = (typeof hwPending === 'function') ? hwPending() : []; } catch(x){}
-  list = list.map(function(x){ return {sid:x.sid, name:x.name || '', kind:KN[x.kind] || x.kind, what:x.what || '', days:x.days, draft:!!x.draft}; });
+  list = list.map(function(x){ return {sid:x.sid, name:x.name || '', kind:(x.kind === '課文練習' && isDoT(x.lid)) ? '做題' : (KN[x.kind] || x.kind), what:x.what || '', days:x.days, draft:!!x.draft}; });
   var sel = '';
   box.addEventListener('click', function(ev){ var b = ev.target.closest && ev.target.closest('[data-hwh-sid]'); if (!b) return; var v = b.getAttribute('data-hwh-sid'); sel = (sel === v) ? '' : v; draw(); });
   function draw(){
@@ -187,7 +190,9 @@ if (hasH()){
 }
 /* 「教學」選單最上面放「📝 派作業」 */
 /* 課卡上的「👥 發佈（N）」→「已發給 N 人」 */
-function relabel(){
+/* LESPUB_V1670 Quinn：「發佈原本的在這裡會比較好」——課卡上的「👥 發佈」恢復成原本可以按的按鈕，
+   作業簿那一列的「👥 發佈」也放回來（上面隱藏的規則排除了 .lc-bar）。 */
+function relabel(){ return;
   try { document.querySelectorAll('button[data-act="assign"]').forEach(function(b){
     if (b.getAttribute('data-hwh-cnt') || (b.closest && b.closest('#modal-root'))) return;
     var m = String(b.textContent || '').match(/（(\d+)）/);
