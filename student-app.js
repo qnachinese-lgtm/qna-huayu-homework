@@ -2637,6 +2637,14 @@ function lesTitle(l){if(!l)return '';const t=String(l.title||'').trim();
 function lessonTitleOf(lid){const l=(S.lessons||[]).find(x=>x.id===lid);if(!l)return '';return lesTitle(l);}
 function swAnsText(a){if(a==null)return '';if(typeof a==='string')return a;if(Array.isArray(a))return a.map(x=>(x&&x.t!=null)?x.t:(typeof x==='string'?x:(x&&x.s?(Array.isArray(x.s)?x.s.join(''):x.s):''))).filter(v=>v!=null&&String(v).trim()).join('、');if(typeof a==='object'){if(a.t!=null)return String(a.t);try{return Object.values(a).filter(v=>v!=null&&String(v).trim()).join('、');}catch(e){return '';}}return String(a);}
 function swQA(kind,doc,lid){const out=[];const fbm=(doc&&doc.feedback)||{};try{
+  /* CLSW_V1670 Quinn：「文言文作業這邊看起來太恐怖了吧」。文言文是一段一個答案，本來把整段原文（連 { } [ ] 記號）當題目印出來。
+     改成「第 N 段：開頭幾個字…」，記號拿掉。 */
+  if(kind==='disc'){const l0=(S.lessons||[]).find(x=>x.id===lid);
+    if(l0&&l0.kind==='classical'){const ans=doc.answers||{};const lines=clLinesOfS(l0)||[];
+      lines.forEach((ln,qi)=>{const k='0_'+qi,a=ans[k];if(a==null||!String(a).trim())return;
+        const t=clNameStrip(String(ln.orig||'')).replace(/\s+/g,'');
+        out.push({q:LT({zh:'第 '+(qi+1)+' 段',cn:'第 '+(qi+1)+' 段',en:'Paragraph '+(qi+1),vi:'Đoạn '+(qi+1)})+'：'+(t.length>18?t.slice(0,18)+'…':t),a:String(a),fb:fbm[k]||''});});
+      return out;}}
   if(kind==='disc'){const l=(S.lessons||[]).find(x=>x.id===lid);const ans=doc.answers||{};if(l)lessonDialogues(l).forEach((d,di)=>{(d.discussion||'').split('\n').map(s=>s.trim()).filter(Boolean).forEach((q,qi)=>{const a=ans[di+'_'+qi];if(a!=null&&String(a).trim())out.push({q,a:String(a),fb:fbm[di+'_'+qi]||''});});});}
   else if(kind==='gprac'){const ans=doc.answers||{};Object.keys(ans).forEach(qid=>{const qq=(S.questions||[]).find(x=>x.id===qid);out.push({q:(qq&&(qq.prompt||''))||'題目',a:swAnsText(ans[qid]),fb:fbm[qid]||''});});}
   else if(kind==='sent'){(doc.items||[]).forEach((it,i)=>{if(it&&it.sentence)out.push({q:it.word||'造句',a:String(it.sentence),fb:fbm[it.word]||fbm[i]||''});});}
