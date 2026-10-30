@@ -2050,8 +2050,9 @@ function acctRow(s){
     +'<span class="ac-c" data-l="做完的作業">'+acctDoneN(s.id)+' 份</span>'
     +'<span class="ac-a">'
       /* MKLOGIN_V1395 有 Email、還沒開通，而且不是「自己註冊過」那一種 → 給她開通的入口 */
-      +((mail&&!ok&&!selfReg)?('<button class="btn btn-sm btn-accent" data-act="mkLogin" data-id="'+esc(s.id)
-        +'" title="用這組 Email 幫他建立登入帳號，密碼由妳自己設">\u{1F511} 建立登入帳號</button>'):'')
+      /* KEYICON_V1668 Quinn：「建立，把它 icon 化，放在 ⋯ 的左手邊」。字拿掉只留 🔑，滑過去看得到說明 */
+      +((mail&&!ok&&!selfReg)?('<button class="btn btn-sm btn-accent btn-icon ac-key" data-act="mkLogin" data-id="'+esc(s.id)
+        +'" title="建立登入帳號（用這組 Email，密碼由妳自己設）" aria-label="建立登入帳號">\u{1F511}</button>'):'')
       /* ACMORE_V1615 Quinn：「右手邊的三個按鈕，會不會占太多空間」。
          寄重設密碼信、改 Email 不常用，收進「⋯」；外面只留「去看」（和要她動手的開通／接過來） */
       +(mail?('<details class="mini-menu ac-more"><summary class="dots" title="寄重設密碼信、改 Email">⋯</summary><div class="mini-pop">'
