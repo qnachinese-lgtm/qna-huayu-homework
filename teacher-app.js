@@ -5934,7 +5934,8 @@ function itvTodoHtml(){
     +(x.c.target?'<span class="muted" style="font-size:12.5px">'+esc(String(x.c.target).slice(0,24))+'</span>':'')
     +x.it.map(i=>'<span class="badge '+(i.hot?'badge-soon':'b-info')+'">'+esc(i.t)+'</span>').join('')
     +'<span class="grow" style="flex:1"></span>'
-    +(x.it.some(i=>i.k==='doc')?'<button class="btn btn-sm" data-act="itvDocs" data-id="'+esc(x.c.id)+'">📄 收到了</button>':'')
+    +itvDocMini(x.c)
+    +'<button class="btn btn-sm" data-act="itvDocBox" data-id="'+esc(x.c.id)+'">📄 文件</button>'
     +'<button class="btn btn-sm" data-act="pGo" data-id="interview::'+esc(x.c.id)+'">去看</button></div>').join('');}
 async function itvDailyMail(){try{
   if(!IS_OWNER||!S.site||!S.site.id)return;const T=localToday();
@@ -26712,3 +26713,50 @@ H.itvDocs=async(id)=>{const c=itvById(id);if(!c)return;const v=!c.docs_in;
   try{await ensureAuthFresh();await DB.update(crmCol(id),id,{docs_in:v,docs_in_at:v?localToday():''});
     c.docs_in=v;c.docs_in_at=v?localToday():'';render();toast(v?'已記下：文件收到了':'已改回：文件還沒收到');}
   catch(e){toast(writeErr('失敗',e));}};
+/* ITVDOCBOX_V1669 Quinn：「文件也要給我一個上傳的窗口或是備註讓我可以直接寫進去」。
+   面試練習待辦每一列的「📄 收到了」改成「📄 文件」，打開一個視窗：
+   ・備註：直接寫（例：護照收到了、還差財力證明），存在這位客戶的 docs_note；
+   ・檔案：直接上傳，跟客戶卡片上「📎 檔案」是同一份（shares，kind:'crm'），只有老師看得到；
+   ・「✅ 文件收齊了」：跟原本的「收到了」一樣（docs_in），收齊了這一列的「還沒送文件」就消失。
+   待辦那一列也把備註的開頭和檔案數量寫出來，不用點開就知道進度。 */
+function itvDocMini(c){let h='';
+  const n=(typeof shareForCrm==='function')?shareForCrm(c.id).length:0;
+  if(n)h+='<span class="muted" style="font-size:12.5px">📎 '+n+' 個檔案</span>';
+  const t=String(c.docs_note||'').trim();
+  if(t)h+='<span class="muted" style="font-size:12.5px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(t)+'">📝 '+esc(t.replace(/\s+/g,' '))+'</span>';
+  return h;}
+function itvDocBoxHtml(c){
+  const files=((typeof shareForCrm==='function')?shareForCrm(c.id):[]).slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  const id=esc(c.id);
+  return '<div class="modal" style="max-width:640px"><div class="modal-head"><h3>📄 文件 · '+snm(c.name||'')+'</h3><button class="x" data-act="closeModal">×</button></div>'
+   +'<div class="modal-body">'
+   +'<div style="margin-bottom:12px">'+(c.docs_in?'<span class="badge badge-ok">✅ 文件收齊了'+(c.docs_in_at?'（'+esc(c.docs_in_at)+'）':'')+'</span>':'<span class="badge badge-soon">📄 還沒收齊</span>')+'</div>'
+   +'<div class="field full"><label>備註</label><textarea id="idb-note" rows="4" placeholder="例：護照影本收到了，還差財力證明、讀書計劃">'+esc(c.docs_note||'')+'</textarea></div>'
+   +'<div style="display:flex;align-items:center;gap:10px;margin:14px 0 6px"><b>檔案</b><span class="muted" style="font-size:12.5px">只有你看得到</span><span style="flex:1"></span>'
+   +'<label class="btn btn-sm" style="cursor:pointer">⬆ 上傳檔案<input type="file" id="idb-file" multiple hidden></label></div>'
+   +'<div id="idb-prog" class="hint"></div>'
+   +'<div>'+(files.length?files.map(f=>shareRowHtml(f,'')).join(''):'<div class="hint">還沒有檔案。</div>')+'</div>'
+   +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button><span style="flex:1"></span>'
+   +'<button class="btn" data-act="itvDocNote" data-id="'+id+'">儲存備註</button>'
+   +'<button class="btn btn-accent" data-act="itvDocDone" data-id="'+id+'">'+(c.docs_in?'改回還沒收齊':'✅ 文件收齊了')+'</button></div></div>';}
+function itvDocBoxOpen(c){openModal(itvDocBoxHtml(c));
+  const inp=document.getElementById('idb-file');if(!inp)return;
+  inp.onchange=async()=>{const fs=inp.files?[...inp.files]:[];if(!fs.length)return;
+    const box=document.getElementById('idb-prog');
+    if(!(window.firebase&&firebase.storage)){if(box)box.textContent='沒有連上檔案空間，上傳不了';return;}
+    const note=document.getElementById('idb-note');const keep=note?note.value:null;
+    const meta={kind:'crm',crm_kind:'interview',crm_id:c.id,crm_name:c.name||'',uids:[],student_ids:[],desc:'',cat:'',given_at:'',visible:true};
+    let done=0;
+    try{await ensureAuthFresh();
+      for(const f of fs){if(box)box.textContent='上傳中… '+f.name+'（'+(done+1)+'/'+fs.length+'）';
+        await shareUpload(f,meta,p=>{if(box)box.textContent='上傳中… '+f.name+' '+p+'%';});done++;}
+      itvDocBoxOpen(c);const n2=document.getElementById('idb-note');if(n2&&keep!=null)n2.value=keep;
+      render();toast('✅ 已上傳 '+done+' 個檔案');}
+    catch(e){if(box)box.textContent='';toast('上傳失敗：'+((e&&e.message)||e));}};}
+H.itvDocBox=(id)=>{const c=itvById(id);if(c)itvDocBoxOpen(c);};
+async function itvDocSave(c,patch){await ensureAuthFresh();await DB.update(crmCol(c.id),c.id,patch);Object.assign(c,patch);}
+H.itvDocNote=async(id)=>{const c=itvById(id);if(!c)return;const el=document.getElementById('idb-note');const note=el?el.value.trim():'';
+  try{await itvDocSave(c,{docs_note:note});closeModal();render();toast('備註已儲存');}catch(e){toast(writeErr('儲存失敗',e));}};
+H.itvDocDone=async(id)=>{const c=itvById(id);if(!c)return;const el=document.getElementById('idb-note');const v=!c.docs_in;
+  const patch={docs_in:v,docs_in_at:v?localToday():''};if(el)patch.docs_note=el.value.trim();
+  try{await itvDocSave(c,patch);closeModal();render();toast(v?'已記下：文件收齊了':'已改回：文件還沒收齊');}catch(e){toast(writeErr('失敗',e));}};
