@@ -5351,7 +5351,7 @@ function weekActualCard(back){
         `<b>👤 ${esc(it.c.name||'')}</b>${it.c.target?`<span class="muted wr-tg">${esc(it.c.target)}</span>`:''}${m?`<span class="badge wr-rs" style="background:${m[1]}18;color:${m[1]}">${m[0]}</span>`:''}`,/* WRWRAP_V1216 */
         ['','',`<button class="btn btn-sm" data-act="itvEdit" data-id="${esc(it.c.id)}">✏️ 填結果</button>`,'']);}
     if(it.type==='itv'){const e=it.e;const ik=esc(it.c.id)+'::'+itvSessions(it.c).indexOf(e);
-      return wrow('background:#E4EDF9',
+      return wrow('background:#F4F7FB;box-shadow:inset 4px 0 0 #6FA3E8'/* WKALIGN_V1667 底色跟其他列一樣，左邊一條藍色表示面試 */,
         dchip('badge','background:#C7D8EF;color:#1E4C86;border-color:#3730a355;white-space:nowrap'),
         e.done?'<span class="badge badge-ok">✅ 已完成</span>':'<span class="badge b-info" >🎤 面試練習</span>',
         `<b>👤 ${esc(it.c.name||'')}</b>${(e.fee!=null&&e.fee!=='')?`<span class="muted">${money(e.fee,e.currency||'VND')}</span>`:''}${itvPayBadge(e,it.c,true)}`,
