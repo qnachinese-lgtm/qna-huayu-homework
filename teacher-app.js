@@ -5363,7 +5363,7 @@ function weekActualCard(back){
       const key=(solo?('S:'+esc(it.s.id)):('G:'+esc(it.cls)))+'::'+esc(it.date)+'::'+esc(it.start||'')+'::'+esc(it.end||'');
       return wrow('background:#F4F7FB',
         dchip('badge','background:#E4EDF9;color:#1E4C86;border-color:#3b5b8055;white-space:nowrap'),
-        '<span class="badge b-info" >🔁 固定時段</span>',
+        '<span class="badge b-info wk-fixb" >🔁 固定時段</span>',
         solo?`<b>👤 ${esc(it.s.name)}</b>${it.solo1?' <span class="tag">一對一</span>':''}`:`<b>👥 ${esc(it.cls)} 團班</b>`,/* SOLOSCH_V1500 */
         [meetBtn(solo?meetOfStudent(it.s.id):meetOfGroup(it.cls),true),
          `<button class="btn btn-sm btn-accent" data-act="rollFixed" data-id="${key}">✍️ 去點名</button>`,
