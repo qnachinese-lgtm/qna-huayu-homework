@@ -12888,11 +12888,19 @@ function wbeRender(){
       <div class="hint" style="margin:2px 0 4px">欄位：${esc(sc.cols)}<br>範例：<code style="background:#EEF0F3;padding:1px 5px;border-radius:4px">${esc(sc.ex.replace(/\t/g,' ⇥ '))}</code></div>
       <textarea id="wbe-${sc.k}" rows="${Math.min(14,Math.max(4,wbeSer(sc.k,d).split('\n').length+1))}" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;white-space:pre;overflow-x:auto">${esc(wbeSer(sc.k,d))}</textarea>
     </div>`).join('')}
-  <div class="field full" style="margin-bottom:14px"><label>七 語法練習：兩個題組的說明</label>
-    <div class="form-grid">
-      <div class="field"><label>A 組說明</label><input id="wbe-g7A" type="text" value="${esc((((d.g7||{}).groups)||[]).find(g=>g.k==='A')?.title||'')}" placeholder="A 組的英文說明"></div>
-      <div class="field"><label>B 組說明</label><input id="wbe-g7B" type="text" value="${esc((((d.g7||{}).groups)||[]).find(g=>g.k==='B')?.title||'')}" placeholder="B 組的英文說明"></div>
-    </div></div>
+  <div class="field full" style="margin-bottom:14px"><label>七 語法練習：每個題組的說明和圖片</label>
+    <div class="hint" style="margin:2px 0 6px">題組要配的短文、名片、表格，拍照或截圖上傳到那一組，學生寫的時候就看得到。</div>
+    ${(function(){/* G7IMG_V1673 Quinn：「這個作業有點問題，短文內容跑哪裡去了」——IV-A 匯入時只有題目、沒有短文，
+        編輯畫面也沒有地方補。每一組都可以上傳一張圖（學生端本來就會顯示 g.img） */
+      const gs=(((d.g7||{}).groups)||[]);const list=gs.length?gs:[{k:'A'},{k:'B'}];
+      return list.map(g=>`<div class="dash-row" style="flex-wrap:wrap;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)">
+        <b style="min-width:52px">${esc(g.k)} 組</b>
+        <input id="wbe-g7${esc(g.k)}" type="text" style="flex:1;min-width:220px" value="${esc(g.title||'')}" placeholder="${esc(g.k)} 組的說明">
+        <button class="btn btn-sm" type="button" data-act="wbeG7Pick" data-id="${esc(g.k)}">⬆ ${g.img?'換圖片':'上傳圖片'}</button>
+        <span class="hint" id="wbe-g7img-${esc(g.k)}">${g.img?'':'（沒有圖片）'}</span>
+        ${g.img?`<img src="${esc(g.img)}" style="height:56px;border:1px solid var(--line);border-radius:8px"><button class="btn btn-sm btn-danger" type="button" data-act="wbeG7Del" data-id="${esc(g.k)}">移除</button>`:''}
+      </div>`).join('');})()}
+    </div>
   <div class="lesson-label" style="margin-top:6px">④ 完成對話上面的圖</div>
   <div class="hint" style="margin-bottom:4px">課本「完成對話」上面的課表、圖片可以放這裡，學生寫的時候看得到。</div>
   <div class="dash-row" style="padding:6px 0;margin-bottom:10px">
@@ -12947,6 +12955,15 @@ H.wbeDlgPick=()=>{const st=document.getElementById('wbe-dlgimg');
     catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
   inp.click();};
 H.wbeDlgDel=()=>{wbeCollect();WBE.d.dlgImg='';wbeRender();};
+/* G7IMG_V1673 語法練習題組的圖 */
+H.wbeG7Pick=(k)=>{const st=document.getElementById('wbe-g7img-'+k);
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.style.display='none';document.body.appendChild(inp);
+  inp.onchange=async()=>{const f=inp.files&&inp.files[0];inp.remove();if(!f)return;if(st)st.textContent='上傳中…';
+    try{const url=await uploadImage(f);wbeCollect();const gr=(((WBE.d.g7||{}).groups)||[]).find(x=>x.k===k);
+      if(gr){gr.img=url;wbeRender();toast('圖片已上傳，記得按「💾 儲存」');}else if(st)st.textContent='找不到這一組';}
+    catch(e){if(st)st.textContent='上傳失敗：'+((e&&e.message)||e);}};
+  inp.click();};
+H.wbeG7Del=(k)=>{wbeCollect();const gr=(((WBE.d.g7||{}).groups)||[]).find(x=>x.k===k);if(gr)gr.img='';wbeRender();};
 H.wbePicDel=(n)=>{wbeCollect();const q=(WBE.d.pic||[]).find(x=>Number(x.n)===Number(n));if(q)q.img='';wbeRender();};
 function wbeModal(){
   openModal(`<div class="modal wide"><div class="modal-head"><h3>✏️ ${WBE.id?'編輯作業簿':'新增作業簿'}</h3><button class="x" data-act="closeModal">×</button></div>
