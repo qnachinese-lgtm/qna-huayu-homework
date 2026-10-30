@@ -52,8 +52,8 @@ if (isTeacher){
       d.id = 'py-les-card'; d.className = 'card';
       d.style.cssText = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px';
       d.innerHTML = '<span style="font-family:\'Times New Roman\',Times,serif;font-size:30px;width:34px;text-align:center">ā</span>'
-        + '<span style="flex:1;min-width:180px"><b>拼音練習</b><br><small class="muted">看漢字打拼音。只有「開放名單」勾選的學生看得到。</small></span>'
-        + '<a class="btn btn-sm btn-primary" href="pinyin.html#allow" target="_blank" rel="noopener">開放名單</a>'
+        + '<span style="flex:1;min-width:180px"><b>拼音練習</b><br><small class="muted">看漢字打拼音。只有被派了拼音作業的學生看得到。</small></span>'
+        + '<a class="btn btn-sm btn-primary" href="pinyin.html#tasks" target="_blank" rel="noopener">拼音作業</a>'
         + '<a class="btn btn-sm" href="pinyin.html#list" target="_blank" rel="noopener">老師詞表</a>'
         + '<a class="btn btn-sm" href="pinyin.html#scores" target="_blank" rel="noopener">學生成績</a>';
       wrap.parentNode.insertBefore(d, wrap);
@@ -79,7 +79,7 @@ function addCard(){
   try{
     var me = (typeof S !== 'undefined' && S) ? S.me : null;
     if (!me || me.id === '__preview') return;
-    if (!ALLOW || (ALLOW.indexOf(me.id) < 0 && !pyTasks().length)) return;   /* 開放名單上的學生，或被指派了拼音作業的學生 */   /* 只有老師在「開放名單」勾選的學生才看得到 */
+    if (!pyTasks().length) return;   /* 有被派拼音作業的學生才看得到（開放名單拿掉了） */
     var scr = document.getElementById('screen'); if (!scr || scr.querySelector('.py-card')) return;
     var side = scr.querySelector('.h-side'); if (side) side.insertAdjacentHTML('beforeend', card());
   }catch(x){}

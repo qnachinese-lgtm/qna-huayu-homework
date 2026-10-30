@@ -8,6 +8,29 @@
 (function(){
 'use strict';
 if (window.__HWHUB__) return; window.__HWHUB__ = true;
+/* HWHUB_V5 學生端：「待完成」清單每一份作業前面都寫種類，名字跟老師「派作業」那邊一樣
+   （課文、聽寫、選擇題、寫字、自由回答、翻牌配對、漢字闖關、拼音）。
+   漢字遊戲、拼音的外掛也會改這份清單，所以等它們都接好了再接，才包得到最外面。 */
+if (/\/student(\.html)?$/.test(location.pathname)){
+  var KS = {les:'課文', quiz:'聽寫', lqp:'選擇題', write:'寫字', fhw:'自由回答', game:'翻牌配對', hanzi:'漢字闖關', pinyin:'拼音'};
+  var hook = function(){
+    var _dr = window.dueRows; if (typeof _dr !== 'function' || _dr.__hwh) return;
+    var w = function(){
+      var rows = _dr.apply(this, arguments);
+      try { rows.forEach(function(r){ var k = r && KS[r.k]; if (!k || r._hwh) return;
+        var t = String(r.title || '').replace(/^(?:ā\s+|[^\p{L}\p{N}「（(]+)/u, '').trim();
+        if (t.indexOf(k) < 0) t = k + '・' + t;
+        r.title = t; r._hwh = 1; }); } catch(x){}
+      return rows;
+    };
+    w.__hwh = 1; window.dueRows = w;
+    try { if (typeof renderSection === 'function' && typeof S !== 'undefined' && S && S.me) renderSection(); } catch(x){}
+  };
+  var tries = 0;
+  var wait = function(){ tries++; if ((window.__PINYIN_PLUG__ && window.__HZ_STUDENT__) || tries > 20) hook(); else setTimeout(wait, 250); };
+  wait();
+  return;
+}
 if (!/\/teacher(\.html)?$/.test(location.pathname)) return;
 
 /* HWHUB_V2 Quinn：「請你統一一個按鈕就好，不用的請先收起來」。
@@ -15,10 +38,12 @@ if (!/\/teacher(\.html)?$/.test(location.pathname)) return;
    只藏畫面上的按鈕；「派作業」打開的那幾個視窗（在 #modal-root 裡）照常可以按。 */
 var HIDE_OLD = true;
 if (HIDE_OLD && !document.getElementById('hwh-hide')){
-  var OLD = ['assign','assignWb','newQuiz','lqpNew','fhNew','hzNew','hzPickKind','gtNew','wtNew'];
+  var OLD = ['assignWb','newQuiz','lqpNew','fhNew','hzNew','hzPickKind','gtNew','wtNew'];
   var hs = document.createElement('style'); hs.id = 'hwh-hide';
   hs.textContent = OLD.map(function(k){ return '[data-act="' + k + '"]:not(#modal-root [data-act])'; }).join(',')
-    + ',' + OLD.map(function(k){ return '[data-act="lcmGo"][data-id^="' + k + '::"]'; }).join(',') + '{display:none!important}';
+    + ',' + OLD.concat(['assign']).map(function(k){ return '[data-act="lcmGo"][data-id^="' + k + '::"]'; }).join(',') + '{display:none!important}'
+    /* HWHUB_V5 課卡上原本的「👥 發佈（3）」改成只顯示「已發給 3 人」，不能按 */
+    + '.hwh-cnt{pointer-events:none!important;background:none!important;border-color:transparent!important;color:var(--muted,#5B6B80)!important;font-weight:400!important;box-shadow:none!important}';
   (document.head || document.documentElement).appendChild(hs);
 }
 
@@ -45,7 +70,7 @@ var TYPES = [
   {k:'hz',   ic:'🀄', t:'漢字闖關', d:'指定關卡和星星數，達到就自動完成。', go:'hzNew'},
   {k:'wt',   ic:'🖊️', t:'寫字',     d:'指定字和要寫幾次，寫滿就自動完成。', go:'wtNew'},
   {k:'gt',   ic:'🃏', t:'翻牌配對', d:'用課本生詞玩翻牌，玩完一輪就完成。', go:'gtNew'},
-  {k:'py',   ic:'ā',  t:'拼音',     d:'看漢字打拼音，寫完一輪就完成。', url:'pinyin.html#tasks'}
+  {k:'py',   ic:'ā',  t:'拼音',     d:'看漢字打拼音，寫完一輪就完成。', frame:'pinyin.html?embed=tasks'}
 ];
 function css(){
   if (document.getElementById('hwh-css')) return;
@@ -97,6 +122,7 @@ function renderDue(){
         var its = by[sid].slice().sort(function(a, b){ return rank(a) - rank(b); });
         return '<div class="hwh-stu"><div class="hwh-sh"><b>' + e(its[0].name) + '</b><span>' + its.length + ' 份未交</span></div>'
           + its.map(function(x){ var d = dueLab(x.days); return '<div class="hwh-row"><span class="hwh-d ' + d[1] + '">' + d[0] + '</span><span class="hwh-k">' + e(x.kind) + '</span><span class="hwh-w">' + e(x.what) + (x.draft ? '<small>寫到一半</small>' : '') + '</span></div>'; }).join('')
+          + ((hasH() && typeof H.hwCopy === 'function' && its.some(function(x){ return x.kind !== '拼音'; })) ? '<div style="margin-top:8px"><button type="button" class="btn btn-sm" data-act="hwCopy" data-id="' + e(sid) + '">📋 複製提醒訊息</button></div>' : '')
           + '</div>';
       }).join('');
   }
@@ -140,6 +166,8 @@ if (hasH()){
   H.hwhubType = function(k){
     var x = TYPES.filter(function(t){ return t.k === k; })[0]; if (!x) return;
     document.querySelectorAll('.hwh-t').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-id') === k); });
+    /* HWHUB_V5 拼音也在後台的視窗裡出（把拼音練習頁的「作業」那一頁放進來），不用另外開分頁 */
+    if (x.frame){ openModal('<div class="modal modal-tall" style="max-width:860px"><div class="modal-head"><h3>ā 拼音作業</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body" style="padding:0"><iframe src="' + x.frame + '" title="拼音作業" style="width:100%;height:76vh;border:0;display:block"></iframe></div></div>'); return; }
     if (x.url){ closeModal(); window.open(x.url, '_blank', 'noopener'); return; }
     if (x.pick){
       var box = document.getElementById('hwh-pick'); if (!box) return;
@@ -158,6 +186,15 @@ if (hasH()){
   };
 }
 /* 「教學」選單最上面放「📝 派作業」 */
+/* 課卡上的「👥 發佈（N）」→「已發給 N 人」 */
+function relabel(){
+  try { document.querySelectorAll('button[data-act="assign"]').forEach(function(b){
+    if (b.getAttribute('data-hwh-cnt') || (b.closest && b.closest('#modal-root'))) return;
+    var m = String(b.textContent || '').match(/（(\d+)）/);
+    b.setAttribute('data-hwh-cnt', '1'); b.textContent = m ? ('已發給 ' + m[1] + ' 人') : '還沒發給學生';
+    b.classList.add('hwh-cnt'); b.setAttribute('tabindex', '-1'); b.setAttribute('aria-disabled', 'true');
+  }); } catch(x){}
+}
 function addMenu(){
   try {
     document.querySelectorAll('#tnav .tn-p').forEach(function(p){
@@ -173,6 +210,6 @@ function addMenu(){
     });
   } catch(x){}
 }
-addMenu();
-try { new MutationObserver(function(){ addMenu(); }).observe(document.body, {childList:true, subtree:true}); } catch(x){}
+addMenu(); relabel();
+try { new MutationObserver(function(){ addMenu(); relabel(); }).observe(document.body, {childList:true, subtree:true}); } catch(x){}
 })();

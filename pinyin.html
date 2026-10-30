@@ -28,6 +28,9 @@ html.dark{
   --good:#C7D8EF; --bad:#F0C9C2; --star:#FDE68A; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+/* 在老師後台「派作業」的視窗裡打開（?embed=tasks）：只留出作業那一頁 */
+body.embed .top,body.embed #tabs,body.embed #levels,body.embed #cheat{display:none!important}
+body.embed .wrap{padding-top:10px}
 .allowlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 14px}
 .allowlist label{display:flex;gap:8px;align-items:center;font-size:16px;cursor:pointer}
 .allowlist input{width:18px;height:18px;flex:none;margin:0}
@@ -154,7 +157,6 @@ input.shake{animation:shake .3s}
     <button class="tab" data-tab="list" data-teacher type="button">老師詞表</button>
     <button class="tab" data-tab="scores" data-teacher type="button">學生成績</button>
     <button class="tab" data-tab="tasks" data-teacher type="button">作業</button>
-    <button class="tab" data-tab="allow" data-teacher type="button">開放名單</button>
   </nav>
   <div class="levels" id="levels" hidden></div>
   <section class="stage" id="stage" aria-live="polite"><p class="tip center" style="margin:auto">正在讀取…</p></section>
@@ -551,11 +553,12 @@ async function loadCustom(){try{const d=await firebase.firestore().collection('s
     $('#who').textContent=me.student?(me.student.name||'已登入'):'老師帳號';
     if(me.student){try{const rs=await DB.listWhere('results','uid',u.uid);const d=rs.find(x=>x&&x.kind==='pinyin'&&x.lesson_id==='__pinyin__');if(d&&d.rec)me.rec=Object.assign(emptyRec(),d.rec)}catch(e){}}
     await loadCustom();
-    if(!me.teacher&&ALLOW.indexOf(me.student.id)<0&&!myTasks().length){gate('這個練習還沒有開放給你，需要的話請跟老師說。','回學習平台');return}
+    if(!me.teacher&&!myTasks().length){gate('老師派拼音作業給你之後，這裡就會打開。','回學習平台');return}   /* 開放名單拿掉了：有拼音作業的學生才進得來 */
     await loadCourse();
     try{const q=new URLSearchParams(location.search).get('task');if(q&&taskOf(q))st.level='task:'+q;else if(COURSE.length&&!localStorage.getItem('qna-pinyin-level'))st.level='course'}catch(e){}
+    const EMB=new URLSearchParams(location.search).get('embed')==='tasks';if(EMB)document.body.classList.add('embed');
     const hs=(location.hash||'').slice(1);   /* 從老師後台「教材與課程」點進來會帶 #allow／#list／#scores */
-    showTab(hs==='game'||(me.teacher&&['list','scores','allow','tasks'].indexOf(hs)>=0)?hs:'practice');
+    showTab(me.teacher&&EMB?'tasks':(hs==='game'||(me.teacher&&['list','scores','tasks'].indexOf(hs)>=0)?hs:'practice'));
   });
 })();
 })();
