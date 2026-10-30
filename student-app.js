@@ -446,6 +446,15 @@ function stuOrigBox(orig,shown){
 function stuOrigHtml(doc,key,shown){return stuOrigBox(stuOrigRaw(doc,key),shown);}
 /* GSHEET_V1641 老師在批改分頁直接改學生的句子，改好的存在 doc.fix[題目代號]。
    這裡畫成紅筆刪改：刪掉的劃線、補上的加底線。 */
+/* FBVI_V1671 Quinn：「學生是初級，用越南文模式時，把『建議修改』這些詞翻成越南文」。
+   老師的建議開頭是符號（✓ ✎ ✗ ○）和「改成：」，這些是固定的字，學生看不懂中文就不知道是什麼意思。
+   越南文／英文介面：符號後面補上那一國的說明，「改成：」換成「Sửa thành:」。老師自己寫的中文評語不動。 */
+function fbTxt(raw){let s=String(raw==null?'':raw);if(S.lang==='zh'||S.lang==='cn')return s;
+  const lab={'✓':{en:'All good',vi:'Đúng rồi'},'✎':{en:'Needs a fix',vi:'Nên sửa'},'✗':{en:'Incorrect',vi:'Sai'},'○':{en:'Not answered',vi:'Chưa trả lời'}};
+  const L=o=>(o&&(o[S.lang]||o.en))||'';
+  s=s.replace(/^\s*([✓✎✗○])\s*/,(m,c)=>c+' '+L(lab[c])+(s.replace(/^\s*[✓✎✗○]\s*/,'').trim()?' · ':''));
+  s=s.replace(/改成：/g,L({en:'Correction: ',vi:'Sửa thành: '})).replace(/也可以這樣說/g,L({en:'You could also say',vi:'Cũng có thể nói'}));
+  return s;}
 function fixDiffHtml(a,b){
   a=Array.from(String(a||''));b=Array.from(String(b||''));
   const n=a.length,m=b.length;if(n*m>90000)return '<del>'+esc(a.join(''))+'</del><ins>'+esc(b.join(''))+'</ins>';
@@ -470,7 +479,7 @@ function fixHtml(doc,key,orig){
    跟作業簿一樣畫成紅筆刪改（✓＝「👍 也可以這樣說」），剩下的評語照舊顯示。 */
 function fbFixNote(note,orig,lab){
   const raw=String(note||'');const m=raw.match(/^\s*([✓✎✗○])?\s*改成：([^\n]*)\n?([\s\S]*)$/);
-  if(!m||!m[2].trim()||m[2].trim()===String(orig||'').trim())return raw.trim()?('<div class="fb-note">💬 '+lab+'：'+esc(raw)+'</div>'):'';
+  if(!m||!m[2].trim()||m[2].trim()===String(orig||'').trim())return raw.trim()?('<div class="fb-note">💬 '+lab+'：'+esc(fbTxt(raw))+'</div>'):'';
   const sym=m[1]||'',fx=m[2].trim(),rest=(m[3]||'').trim();
   const box=fixHtml({fix_text:{k:fx},feedback:{k:sym}},'k',orig);
   return box+(rest?('<div class="fb-note">💬 '+lab+'：'+esc(rest)+'</div>'):'');}
@@ -988,7 +997,7 @@ function clSentsHtml(ln,cx){cx=cx||{};
       :(a?'<div class="disc-myans">'+esc(a)+'</div>':'<div class="cl-ro"><span class="hint">—</span></div>');
     return '<div class="cl-cols cl-st-cols"><div class="cl-col"><div class="cl-col-t">✍️ '+esc(L2({zh:'我的筆記',cn:'我的笔记',en:'My notes',vi:'Ghi chú của tôi'}))+'</div>'+nb+'</div>'
       +'<div class="cl-col"><div class="cl-col-t">📝 '+esc(L2({zh:'翻譯',cn:'翻译',en:'Translation',vi:'Dịch'}))+'</div>'+box+'</div></div>'
-      +(f?'<div class="fb-note">💬 '+esc(t('sentFb'))+'：'+esc(f)+'</div>':'');};
+      +(f?'<div class="fb-note">💬 '+esc(t('sentFb'))+'：'+esc(fbTxt(f))+'</div>':'');};
   const n0=cx.n0||0;
   return '<div class="cl-sents">'+sents.map((x,i)=>'<div class="cl-sent"><div class="cl-sno">'+(n0+i+1)+'</div><div class="cl-sb"><div class="cl-orig lookup"'+attr+'>'+clNameProse(x)+'</div>'+clGlossHtmlParts(per[i])+trBox(i)+'</div></div>').join('')+'</div>';}
 function clGlossHtml(t){
@@ -1052,7 +1061,7 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
         ${_keepPara?`<div class="cl-col"><div class="cl-col-t">📝 ${L({zh:'翻譯',cn:'翻译',en:'Translation',vi:'Dịch'})}<span class="cl-col-s">${L({zh:'作業，寫完按下面送出',cn:'作业，写完按下面送出',en:'homework',vi:'bài tập'})}</span></div>${ansBox}</div>`:''}
       </div>
       ${(showRef&&ln.ref)?`<div class="cl-ref-box"><b>${L({zh:'參考翻譯',cn:'参考翻译',en:'Reference',vi:'Bản dịch tham khảo'})}</b>${clNameEsc(ln.ref)}</div>`:''}
-      ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}
+      ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(fbTxt(tfb))}</div>`:''}
     </div>`+(lines.length>1?'</details>':'');}).join('');
   /* NOCLQ_V1622 Quinn：「後面的問題與討論，我不想要給學生現在做」。先一律不給學生看（題目都還留在後台） */
   const qMode='off';void l.cl_qs_mode;
@@ -1064,7 +1073,7 @@ function classicalBodyHtml(l,opts){opts=opts||{};const answerable=!!opts.answera
       ${qAns?`<textarea class="disc-ans" data-k="${key}" data-lid="${l.id}" rows="2" placeholder="${esc(clPh())}" oninput="H.discDraft&&H.discDraft('${l.id}')">${esc(a)}</textarea>`
         :(qMode==='view'?'':(a?`<div class="disc-myans">${esc(a)}</div>`:`<div class="cl-ro"><span class="hint">—</span></div>`))}
       ${(showQAns&&q.ans)?`<div class="cl-ref-box"><b>${L({zh:'參考答案',cn:'参考答案',en:'Reference',vi:'Đáp án'})}</b>${esc(q.ans)}</div>`:''}
-      ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(tfb)}</div>`:''}</div>`;}).join('')+`</div>`:'';
+      ${tfb?`<div class="fb-note">💬 ${t('sentFb')}：${esc(fbTxt(tfb))}</div>`:''}</div>`;}).join('')+`</div>`:'';
   const savedLab=L({zh:'上次儲存',cn:'上次保存',en:'Last saved',vi:'Lưu lần cuối'});
   const saveBtn=`<button class="btn cl-save-btn" style="width:100%;padding:11px" data-act="clSave" data-id="${l.id}">💾 ${L({zh:'儲存進度',cn:'保存进度',en:'Save progress',vi:'Lưu tiến độ'})}</button>`
     +`<div class="hint cl-saved-at" data-lid="${l.id}" style="text-align:center;margin:4px 0 10px">${(doc&&doc.saved_at)?('🕒 '+savedLab+'：'+fmtDT(doc.saved_at)):L({zh:'寫到一半可以先存起來，下次打開就在。',cn:'写到一半可以先存起来，下次打开就在。',en:'Save halfway — it will be here next time.',vi:'Lưu giữa chừng — lần sau vẫn còn.'})}</div>`;
@@ -2681,10 +2690,10 @@ function submittedWorkHtml(){
   if(S.preview)return '';
   const items=[];const hasFb=d=>!!((d.overall&&String(d.overall).trim())||(d.feedback&&Object.keys(d.feedback).length));
   (S.discussions||[]).forEach(d=>{if(!d||!d.disc_lesson||(d.status!=='submitted'&&d.status!=='reviewed'))return;items.push({lid:d.disc_lesson,type:t('discTitle'),at:d.submitted_at,reviewed:d.status==='reviewed',fb:hasFb(d),kind:'disc',doc:d});});
-  (S.gpracs||[]).forEach(d=>{if(!d||!d.gprac_lesson||(d.status!=='submitted'&&d.status!=='reviewed'))return;items.push({lid:d.gprac_lesson,type:'語法練習',at:d.submitted_at,reviewed:d.status==='reviewed',fb:hasFb(d),kind:'gprac',doc:d});});
-  (S.sentences||[]).forEach(d=>{if(!d||!d.sent_lesson||(d.status!=='submitted'&&d.status!=='reviewed'))return;items.push({lid:d.sent_lesson,type:'造句',at:d.submitted_at,reviewed:d.status==='reviewed',fb:hasFb(d),kind:'sent',doc:d});});
-  (S.results||[]).forEach(d=>{if(!d||(d.status!=='pending'&&d.status!=='done'))return;items.push({lid:d.lesson_id,type:'練習',at:d.completed_at||d.updated_at,reviewed:d.status==='done',fb:!!(d.comment||(d.feedback&&Object.keys(d.feedback).length)),kind:'result',doc:d});});
-  (S.shadows||[]).forEach(d=>{if(!d||!d.shadow_lesson||(d.status!=='submitted'&&d.status!=='reviewed'))return;items.push({lid:d.shadow_lesson,type:'逐句跟讀',at:d.submitted_at,reviewed:d.status==='reviewed',fb:hasFb(d),kind:'shadow',doc:d});});
+  (S.gpracs||[]).forEach(d=>{if(!d||!d.gprac_lesson||(d.status!=='submitted'&&d.status!=='reviewed'))return;items.push({lid:d.gprac_lesson,type:LT({zh:'語法練習',cn:'语法练习',en:'Grammar practice',vi:'Luyện ngữ pháp'}),at:d.submitted_at,reviewed:d.status==='reviewed',fb:hasFb(d),kind:'gprac',doc:d});});
+  (S.sentences||[]).forEach(d=>{if(!d||!d.sent_lesson||(d.status!=='submitted'&&d.status!=='reviewed'))return;items.push({lid:d.sent_lesson,type:LT({zh:'造句',cn:'造句',en:'Sentences',vi:'Đặt câu'}),at:d.submitted_at,reviewed:d.status==='reviewed',fb:hasFb(d),kind:'sent',doc:d});});
+  (S.results||[]).forEach(d=>{if(!d||(d.status!=='pending'&&d.status!=='done'))return;items.push({lid:d.lesson_id,type:LT({zh:'練習',cn:'练习',en:'Exercises',vi:'Bài tập'}),at:d.completed_at||d.updated_at,reviewed:d.status==='done',fb:!!(d.comment||(d.feedback&&Object.keys(d.feedback).length)),kind:'result',doc:d});});
+  (S.shadows||[]).forEach(d=>{if(!d||!d.shadow_lesson||(d.status!=='submitted'&&d.status!=='reviewed'))return;items.push({lid:d.shadow_lesson,type:LT({zh:'逐句跟讀',cn:'逐句跟读',en:'Shadowing',vi:'Đọc theo từng câu'}),at:d.submitted_at,reviewed:d.status==='reviewed',fb:hasFb(d),kind:'shadow',doc:d});});
   if(!items.length)return '';
   items.sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
   const rows=items.map(it=>{
@@ -2697,7 +2706,7 @@ function submittedWorkHtml(){
     const canRecall=!S.preview&&it.doc&&it.doc.id;
     const recallHtml=canRecall?`<div style="margin-top:10px;text-align:center"><button class="btn btn-sm" data-act="recallDoc" data-id="${esc(it.doc.id)}">↩️ ${t('swRecall')}</button><div class="hint" style="margin-top:3px">${t('swRecallHint')}</div></div>`:'';
     if(!qa.length)return `<details class="sw-row"><summary>${head}</summary><div class="sw-qalist">${overallHtml}${recallHtml}</div></details>`;
-    const qaHtml=qa.map((x,i)=>`<div class="sw-qa"><div class="sw-q"><span class="sw-qn">${i+1}</span>${esc(x.q)}</div>${x.a?`<div class="sw-a">${esc(x.a)}</div>`:''}${x.fb?`<div class="fb-note" style="margin-top:4px">💬 ${t('sentFb')}：${esc(x.fb)}</div>`:''}</div>`).join('');
+    const qaHtml=qa.map((x,i)=>`<div class="sw-qa"><div class="sw-q"><span class="sw-qn">${i+1}</span>${esc(x.q)}</div>${x.a?`<div class="sw-a">${esc(x.a)}</div>`:''}${x.fb?`<div class="fb-note" style="margin-top:4px">💬 ${t('sentFb')}：${esc(fbTxt(x.fb))}</div>`:''}</div>`).join('');
     return `<details class="sw-row"><summary>${head}<span class="sw-more">看繳交的 ${qa.length} 題 ▾</span></summary><div class="sw-qalist">${overallHtml}${qaHtml}${recallHtml}</div></details>`;
   }).join('');
   const recallAllBtn=(!S.preview&&items.length&&S.me&&S.me.is_test)?`<div style="margin:0 0 10px;text-align:right"><button class="btn btn-sm" data-act="recallAll">↩️ ${LT({zh:'全部收回（測試用）',cn:'全部收回（测试用）',en:'Take all back (testing)',vi:'Thu hồi tất cả (thử nghiệm)'})}</button></div>`:'';
@@ -3418,7 +3427,7 @@ function renderGrades(){
   const fbCards=ls.map(l=>{const r=resultOf(l.id);if(!r||(!r.comment&&!(r.feedback&&Object.keys(r.feedback).length)))return '';
     const qs=questionsOf(l.id);
     const perQ=qs.map((q,i)=>{const c=(r.feedback||{})[q.id];if(!c)return '';
-      return `<div class="fb-q"><div class="fb-qh">${t('q')} ${i+1}　<span class="fb-prompt">${esc((q.prompt||'').replace(/[_＿]{2,}/g,'＿').slice(0,36))}</span></div><div class="fb-c">💬 ${esc(c)}</div></div>`;}).filter(Boolean).join('');
+      return `<div class="fb-q"><div class="fb-qh">${t('q')} ${i+1}　<span class="fb-prompt">${esc((q.prompt||'').replace(/[_＿]{2,}/g,'＿').slice(0,36))}</span></div><div class="fb-c">💬 ${esc(fbTxt(c))}</div></div>`;}).filter(Boolean).join('');
     return `<div class="card fb-card"><div class="fb-title">📝 ${esc(l.title)}</div>${r.comment?`<div class="fb-overall">${esc(r.comment)}</div>`:''}${perQ}</div>`;}).filter(Boolean).join('');
   $('#screen').innerHTML=_gh+`<div class="card"><div style="overflow:auto"><table class="matrix">
     <thead><tr><th>${t('navContent')}</th><th></th><th>${t('score')}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`+fbCards;
@@ -3673,7 +3682,7 @@ function qHtmlGraded(q,idx){
       <div class="orig-v">${esc(revPlain(_og.v)||LT({zh:'（沒寫）',cn:'（没写）',en:'(blank)',vi:'(bỏ trống)'}))}</div>
       <div class="orig-n">${esc(LT({zh:'上面那一句是老師改過的',cn:'上面那一句是老师改过的',en:'The one above is your teacher\u2019s correction',vi:'Câu ở trên là bản giáo viên đã sửa'}))}</div></div>`:'';
   const tfb=(()=>{try{const c=((GRADE&&GRADE.doc&&GRADE.doc.feedback)||{})[q.id];
-    return c?`<div class="q-explain">💬 ${esc(c)}</div>`:'';}catch(e){return '';}})();
+    return c?`<div class="q-explain">💬 ${esc(fbTxt(c))}</div>`:'';}catch(e){return '';}})();
   return `<div class="q-card">${instr}<div class="q-head">${multiOptG?'':`<span class="q-num">${idx+1}</span>`}
     <div style="flex:1">${showTypeTag(q)?`<span class="q-type-tag tag accent">${TYPE_LABELS[q.type]}</span>`:''}<div class="q-prompt">${esc(multiOptG?(q.prompt||''):qStripNo(q.prompt))}</div></div></div>${audioHtml(q.audio_url)}${pic}${body}
     ${origBox}
@@ -5988,7 +5997,7 @@ function wbGramHtml(w,graded,doc){
     const body=graded?`<div class="wb-ta" style="min-height:auto;background:#FDF3D8">${v?esc(v).replace(/\n/g,'<br>'):('<span class="hint">'+LT({zh:'（未作答）',cn:'（未作答）',en:'(not answered)',vi:'(chưa trả lời)'})+'</span>')}</div>`
       :`<textarea class="wb-ta" rows="2" data-wb="gram" data-n="${g.n}" placeholder="B：…">${esc(v)}</textarea>`;
     const f=stuOrigHtml(doc,'g'+g.n,v)/* STUORIG_V1534 */+fixHtml(doc,'g'+g.n,v)/* GSHEET_V1641 */
-      +(fb['g'+g.n]?`<div class="wb-fb">💬 ${esc(fb['g'+g.n])}</div>`:'');
+      +(fb['g'+g.n]?`<div class="wb-fb">💬 ${esc(fbTxt(fb['g'+g.n]))}</div>`:'');
     return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${g.n}</span>A：${esc(g.a)}${g.pattern?`<span class="wb-tag">${esc(g.pattern)}</span>`:''}</div><div style="margin-top:8px">${body}</div>${f}</div>`;
   }).join('');
 }
@@ -6008,7 +6017,7 @@ function wbWriteHtml(w,graded,doc){
   const body=graded?`<div class="wb-ta" style="min-height:auto;background:#FDF3D8;white-space:pre-wrap">${v?esc(v):('<span class="hint">'+LT({zh:'（未作答）',cn:'（未作答）',en:'(not answered)',vi:'(chưa trả lời)'})+'</span>')}</div>`
     :`<textarea class="wb-ta" id="wb-write" rows="14" data-wb="write" placeholder="${esc(wbL({zh:'在這裡寫…',cn:'在这里写…',en:'Write here…',vi:'Viết ở đây…'}))}">${esc(v)}</textarea><div class="wb-cnt ${cls}" id="wb-cnt">${n} ${wbL({zh:'字',cn:'字',en:'chars',vi:'chữ'})}</div>`;
   const fb=stuOrigHtml(doc,'write',v)/* STUORIG_V1534 */+fixHtml(doc,'write',v)/* GSHEET_V1641 */
-    +((doc&&doc.feedback&&doc.feedback.write)?`<div class="wb-fb">💬 ${esc(doc.feedback.write)}</div>`:'');
+    +((doc&&doc.feedback&&doc.feedback.write)?`<div class="wb-fb">💬 ${esc(fbTxt(doc.feedback.write))}</div>`:'');
   return (wr.intro?`<div class="wb-qt" style="margin-bottom:8px">${esc(wr.intro)}</div>`:'')
     +(wr.points&&wr.points.length?`<div class="wb-sub">${wbL({zh:'內容要包括',cn:'内容要包括',en:'Include',vi:'Cần có'})}</div>`+list(wr.points):'')
     +(wr.notes&&wr.notes.length?`<div class="wb-sub">${wbL({zh:'注意',cn:'注意',en:'Notes',vi:'Lưu ý'})}</div>`+list(wr.notes):'')
@@ -6229,7 +6238,7 @@ function wbDlgHtml(w,graded,doc,sec){
      const ln=c.main;
      const ref=(graded&&ln.ans)?`<div class="wb-ref">${wbL({zh:'參考答案',cn:'参考答案',en:'Answer',vi:'Đáp án'})}：${esc(ln.ans)}</div>`:'';
      const f=stuOrigHtml(doc,pfx+ln.i,(wbAns()[pfx==='d2'?'dlg2':'dlg']||{})[ln.i])/* STUORIG_V1534 */
-       +(fb[pfx+ln.i]?`<div class="wb-fb">💬 ${esc(fb[pfx+ln.i])}</div>`:'');
+       +(fb[pfx+ln.i]?`<div class="wb-fb">💬 ${esc(fbTxt(fb[pfx+ln.i]))}</div>`:'');
      const ctx=c.ctx.length?`<div class="wb-dlg-ctx">${c.ctx.map(lineHtml).join('<br>')}</div>`:'';
      return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${c.n}</span><span class="wb-dlg-main">${lineHtml(ln)}</span></div>${ctx}${ref}${f}</div>`;}).join('');
 }
@@ -6242,7 +6251,7 @@ function wbPicHtml(w,graded,doc){
         :(graded?`<div class="wb-filled">${v?esc(v):('<span class="hint">'+LT({zh:'（未作答）',cn:'（未作答）',en:'(not answered)',vi:'(chưa trả lời)'})+'</span>')}</div>`+(q.ans?`<div class="wb-ref">${wbL({zh:'參考答案',cn:'参考答案',en:'Answer',vi:'Đáp án'})}：${esc(q.ans)}</div>`:'')
         :`<textarea class="wb-ta" rows="2" data-wb="pic" data-n="${q.n}" placeholder="…">${esc(v)}</textarea>`);
       const f=stuOrigHtml(doc,'p'+q.n,v)/* STUORIG_V1534 */
-        +(fb['p'+q.n]?`<div class="wb-fb">💬 ${esc(fb['p'+q.n])}</div>`:'');
+        +(fb['p'+q.n]?`<div class="wb-fb">💬 ${esc(fbTxt(fb['p'+q.n]))}</div>`:'');
       return `<div class="wb-q"><div class="wb-qt"><span class="wb-qn">${wbNo(q)}</span>${(q.hint&&!q.img)?`<span class="wb-tag">${esc(q.hint)}</span>`:''}</div>`
         +(q.img?`<div class="wb-pic"><img src="${esc(q.img)}" alt="" loading="lazy"></div>`:'')
         +`<div style="margin-top:8px">${body}</div>${f}</div>`;}).join('');
