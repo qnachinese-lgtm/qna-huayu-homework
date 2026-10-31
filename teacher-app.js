@@ -1747,6 +1747,7 @@ function renderDashboard(){
     ${healthCheckHtml()}
 `;
   try{body.querySelectorAll('details.dash-sec').forEach(d=>{d.addEventListener('toggle',()=>{try{localStorage.setItem('hyc_ds_'+d.dataset.ds,d.open?'1':'0');}catch(e){}});});}catch(e){}
+  try{tcHomeMount(body);}catch(e){console.warn('tcHome',e);}/* TCHOME_V1675 */
 }
 
 /* ══════ SCHWIZ_V1253 一次設固定時段 ══════
@@ -26806,3 +26807,122 @@ H.itvDocDone=async(id)=>{const c=itvById(id);if(!c)return;const el=document.getE
     try{new MutationObserver(()=>{const l=[...p.children].some(c=>c.tagName==='BUTTON');if(l)regroup();}).observe(p,{childList:true});}catch(e){}}
   let n=0;const t=setInterval(()=>{if(panel()){start();if(++n>40)clearInterval(t);}else if(++n>200)clearInterval(t);},250);
 })();
+/* ══════ TCHOME_V1675 首頁改成「這週課表」 ══════
+   Quinn 選的方向：照課表排、活潑有品牌感（樣式 C）。
+   一打開就是這週（週一～週日）的課表，顏色分一對一／團班／面試；點一堂課，右邊就是這堂課要做的事。
+   課從哪裡來、按鈕做什麼，全部沿用原本課表那一份（weekActualCard 和它的 rowOf），沒有另外一套。
+   原本首頁的其他區塊（今天要處理、提醒、面試待辦…）一個都沒拿掉，收進最下面「更多」。 */
+const TC={items:[],days:[],sel:-1,W:null};
+function tcYmd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function tcWeek(){const t=new Date();t.setHours(0,0,0,0);const dow=(t.getDay()+6)%7;
+  const days=[];for(let i=0;i<7;i++){const d=new Date(t);d.setDate(t.getDate()-dow+i);days.push(tcYmd(d));}
+  let W={items:[],rowOf:()=>''};try{W=weekActualCard(dow);}catch(e){}
+  const items=(W.items||[]).filter(it=>it&&it.date>=days[0]&&it.date<=days[6]);
+  return {days,items,W,today:tcYmd(t)};}
+function tcHm(s){const m=/(\d{1,2}):(\d{2})/.exec(String(s||''));return m?(+m[1]*60+ +m[2]):null;}
+function tcStuOf(id){return (S.students||[]).find(x=>x&&x.id===id)||null;}
+function tcMeta(it,today){
+  const past=it.date<today;
+  switch(it.type){
+    case 'glog':return {n:it.grp+' 團班',sub:(it.members||[]).length+' 人',col:2,done:true,cls:it.grp};
+    case 'log':return {n:(it.s&&it.s.name)||'',sub:'一對一',col:1,done:true,s:it.s};
+    case 'plan':return {n:it.cls+' 團班',sub:'預排',col:2,done:false,cls:it.cls,late:past};
+    case 'splan':return {n:(it.s&&it.s.name)||'',sub:'預排',col:1,done:false,s:it.s,late:past};
+    case 'fix':return it.s?{n:it.s.name||'',sub:'固定時段',col:1,done:false,s:it.s,late:past}:{n:it.cls+' 團班',sub:'固定時段',col:2,done:false,cls:it.cls,late:past};
+    case 'itv':return {n:(it.c&&it.c.name)||'',sub:'面試練習',col:3,done:!!(it.e&&it.e.done),c:it.c,late:past&&!(it.e&&it.e.done)};
+    case 'exam':return {n:(it.c&&it.c.name)||'',sub:'正式面試',col:3,done:past,c:it.c,exam:true};
+  }return {n:'',sub:'',col:1,done:false};}
+function tcPendFor(s){try{return gradeQueue().filter(x=>x.pend&&x.sd&&(x.sd.student_id===s.id||(s.uid&&x.sd.uid===s.uid)));}catch(e){return [];}}
+function tcDueOf(s){try{const b=stuBill(s);return (b&&b.items&&b.items.length&&b.due>0.0001)?b.due:0;}catch(e){return 0;}}
+function tcHot(m){if(m.late)return true;if(m.s&&IS_OWNER&&tcDueOf(m.s))return true;if(m.s&&tcPendFor(m.s).length)return true;
+  if(m.c){try{const x=itvTodoList().find(y=>y.c.id===m.c.id);if(x&&x.it.some(i=>i.hot))return true;}catch(e){}}return false;}
+function tcHomeHtml(){
+  const w=tcWeek();TC.items=w.items;TC.days=w.days;TC.W=w.W;TC.today=w.today;
+  const DN=['一','二','三','四','五','六','日'];
+  const metas=w.items.map(it=>tcMeta(it,w.today));
+  /* 時間軸：照這週有課的時段，前後各留一點；沒有課就 18～22 */
+  let lo=24*60,hi=0;w.items.forEach(it=>{const a=tcHm(it.start),b=tcHm(it.end)||(a!=null?a+60:null);if(a!=null){lo=Math.min(lo,a);hi=Math.max(hi,b);}});
+  let h0=lo<24*60?Math.floor(lo/60):18,h1=hi?Math.ceil(hi/60):22;if(h1-h0<4)h1=h0+4;
+  const RH=54,hours=[];for(let h=h0;h<h1;h++)hours.push(h);
+  const nToday=w.items.filter(it=>it.date===w.today&&it.type!=='exam').length,nWeek=w.items.filter(it=>it.type!=='exam').length;
+  if(TC.sel<0||TC.sel>=w.items.length){TC.sel=w.items.findIndex((it,i)=>it.date===w.today&&!metas[i].done);
+    if(TC.sel<0)TC.sel=w.items.findIndex(it=>it.date===w.today);}
+  const hr=new Date().getHours(),hi2=hr<11?'早安':(hr<18?'午安':'晚安');
+  const fmtD=d=>+d.slice(5,7)+'/'+ +d.slice(8,10);
+  let grid='<div class="tc-dh tc-corner"></div>'+w.days.map((d,i)=>'<div class="tc-dh'+(d===w.today?' today':'')+'"><div class="tc-pill">週'+DN[i]+'<small>'+fmtD(d)+'</small></div></div>').join('');
+  /* 沒填時間的課放在最上面一列 */
+  const noTime=w.items.map((it,i)=>i).filter(i=>tcHm(w.items[i].start)==null);
+  if(noTime.length)grid+='<div class="tc-tl">時間未定</div>'+w.days.map(d=>'<div class="tc-cell tc-nt'+(d===w.today?' td':'')+'">'
+    +noTime.filter(i=>w.items[i].date===d).map(i=>tcEvHtml(i,metas[i],0,0,true)).join('')+'</div>').join('');
+  hours.forEach(h=>{grid+='<div class="tc-tl">'+String(h).padStart(2,'0')+':00</div>'+w.days.map(d=>'<div class="tc-cell'+(d===w.today?' td':'')+'" style="height:'+RH+'px">'
+    +w.items.map((it,i)=>i).filter(i=>{const a=tcHm(w.items[i].start);return w.items[i].date===d&&a!=null&&Math.floor(a/60)===h;})
+      .map(i=>{const it=w.items[i],a=tcHm(it.start),b=tcHm(it.end)||(a+60);return tcEvHtml(i,metas[i],(a%60)/60*RH+2,Math.max(26,(b-a)/60*RH-4),false);}).join('')
+    +'</div>').join('');});
+  let pendN=0,oweN=0,itvN=0,quietN=0;
+  try{pendN=gradeQueue().filter(x=>x.pend).length;}catch(e){}
+  try{oweN=(S.students||[]).filter(s=>s&&!s.is_test&&!s.deleted_at&&enrollOf(s)!=='paused'&&!isTrial(s)&&tcDueOf(s)).length;}catch(e){}
+  try{itvN=IS_OWNER?itvTodoList().length:0;}catch(e){}
+  try{quietN=quietStus(7).length;}catch(e){}
+  const tile=(ic,bg,n,lab,act,id)=>'<button type="button" class="tc-st" data-act="'+act+'" data-id="'+esc(id||'')+'"><span class="tc-ico" style="background:'+bg+'">'+ic+'</span><span><b>'+n+'</b><i>'+lab+'</i></span></button>';
+  return '<div class="tc-home">'
+    +'<div class="tc-hero"><div><h1>'+hi2+'，老師 👋</h1><p>這週有 '+nWeek+' 堂課，今天 '+nToday+' 堂。點一堂課，右邊就是這堂課要做的事。</p></div>'
+    +'<div class="tc-qa"><button class="tc-qb" data-act="tcHw" type="button">📝 派作業</button><button class="tc-qb" data-act="planClass" data-id="" type="button">📌 排一堂課</button>'
+    +(IS_OWNER?'<button class="tc-qb" data-act="payPick" type="button">💰 記一筆錢</button><button class="tc-qb" data-act="newAll" type="button">👤 新增一位</button>':'')+'</div></div>'
+    +'<div class="tc-main"><div class="tc-cal"><div class="tc-leg"><span><i style="background:#2F6FD0"></i>一對一</span><span><i style="background:#E8833A"></i>團班</span><span><i style="background:#8B5CF6"></i>面試</span><span class="tc-leg-r"><i class="tc-dotl"></i>有事要處理</span></div>'
+    +'<div class="tc-scroll"><div class="tc-grid">'+grid+'</div></div></div>'
+    +'<div class="tc-pn" id="tc-pn">'+tcPanelHtml()+'</div></div>'
+    +'<div class="tc-strip">'+tile('📥','#FFF0E3',pendN,'份作業等批改','tab','grades')+(IS_OWNER?tile('💰','#FDE8E8',oweN,'位還沒繳費','tab','pay'):'')
+    +(IS_OWNER?tile('🎤','#F1EAFF',itvN,'位面試客戶有待辦','tab','interview'):'')+tile('😴','#E3EEFF',quietN,'位一週沒做練習','tcMore','quiet')+'</div>'
+    +'</div>';}
+function tcEvHtml(i,m,top,h,nt){
+  const it=TC.items[i];const hot=tcHot(m);
+  return '<button type="button" class="tc-ev e'+m.col+(m.done?' done':'')+(i===TC.sel?' sel':'')+(nt?' nt':'')+'" data-act="tcSel" data-id="'+i+'"'
+    +(nt?'':' style="top:'+top.toFixed(1)+'px;height:'+h.toFixed(1)+'px"')+'>'
+    +'<span class="tc-en">'+esc(m.n)+'</span><small>'+esc((it.start||'')+(it.start?'　':'')+m.sub)+'</small>'
+    +(hot?'<span class="tc-dot" title="有事要處理"></span>':'')+(m.done&&!m.exam?'<span class="tc-ok">✓</span>':'')+'</button>';}
+function tcPanelHtml(){
+  const i=TC.sel;const it=TC.items[i];
+  if(!it)return '<div class="tc-ph"><h2>點一堂課</h2><p>左邊課表點任何一堂，這裡就會出現那堂課要做的事。</p></div>';
+  const m=tcMeta(it,TC.today);const DN=['日','一','二','三','四','五','六'];
+  const dd=new Date(it.date+'T00:00:00');
+  let st=m.done?(m.exam?'已結束':'✅ 已點名'):(m.late?'⚠️ 已經過了，還沒點名':'還沒上');
+  if(it.type==='glog'&&it.lv)st+='・'+it.lv+' 人請假';
+  let h='<div class="tc-ph t'+m.col+'"><div class="k">'+esc(m.sub)+'　·　週'+DN[dd.getDay()]+' '+(dd.getMonth()+1)+'/'+dd.getDate()+(it.start?('　'+esc(it.start)+(it.end?'–'+esc(it.end):'')):'')+'</div>'
+    +'<h2>'+esc(m.n)+'</h2><p>'+st+'</p></div>';
+  /* 按鈕：直接用課表那一列的按鈕（去點名／進入教室／修改／刪除），行為完全一樣 */
+  let row='';try{const k=WKDATE;WKDATE=false;row=TC.W.rowOf(it);WKDATE=k;}catch(e){}
+  h+='<div class="tc-ops">'+row+'</div>';
+  if(m.s){const s=m.s;
+    const pend=tcPendFor(s);let due=[];try{due=hwPending().filter(x=>x.sid===s.id);}catch(e){}
+    h+='<div class="tc-sec"><h4>作業</h4>'
+      +(pend.length?pend.slice(0,3).map(x=>'<div class="tc-li">📥 '+esc(x.les||'')+'<span class="grow"></span><button class="tc-sm p" type="button" data-act="gwinOpen" data-id="'+esc(x.kind+'::'+x.id)+'">'+(x.stLab?'看一下':'批改')+'</button></div>').join(''):'')
+      +(due.length?due.slice(0,3).map(x=>'<div class="tc-li">📒 '+esc(x.what||'')+'<span class="grow"></span><span class="tc-chip red">還沒交'+(x.due?('・'+esc(String(x.due).slice(5).replace('-','/'))):'')+'</span></div>').join(''):'')
+      +((!pend.length&&!due.length)?'<div class="tc-li tc-mut">沒有待批改、也沒有欠交的作業 👍</div>':'')
+      +'<div class="tc-li tc-btns"><button class="tc-sm p" type="button" data-act="tcHw">＋ 派作業</button><button class="tc-sm" type="button" data-act="stuDetail" data-id="'+esc(s.id)+'">看這位學生 →</button></div></div>';
+    if(IS_OWNER){const d=tcDueOf(s);
+      h+='<div class="tc-sec"><h4>學費</h4><div class="tc-li">'+(d?('<span class="tc-chip red">欠 '+esc(money(d,billCur(s)))+'</span>'):'<span class="tc-chip gr">不欠費</span>')
+        +'<span class="grow"></span>'+(d?'<button class="tc-sm" type="button" data-act="remindMsg" data-id="'+esc(s.id)+'">📋 提醒</button>':'')
+        +'<button class="tc-sm" type="button" data-act="payments" data-id="'+esc(s.id)+'">💰 記繳費</button></div></div>';}}
+  else if(m.cls){const mem=(S.students||[]).filter(x=>x&&!x.is_test&&!x.deleted_at&&stuGroups(x).includes(m.cls)&&['ended','paused'].indexOf(enrollOf(x))<0);
+    let pn=0;mem.forEach(x=>{pn+=tcPendFor(x).length;});
+    h+='<div class="tc-sec"><h4>這班的同學（'+mem.length+'）</h4><div class="tc-li tc-wrap">'+mem.map(x=>'<button class="tc-sm" type="button" data-act="stuDetail" data-id="'+esc(x.id)+'">'+esc(x.name||'')+'</button>').join('')+'</div>'
+      +(pn?'<div class="tc-li">📥 班上有 '+pn+' 份作業等批改<span class="grow"></span><button class="tc-sm p" type="button" data-act="tab" data-id="grades">去批改</button></div>':'')
+      +'<div class="tc-li tc-btns"><button class="tc-sm p" type="button" data-act="tcHw">＋ 派作業</button></div></div>';}
+  else if(m.c){let x=null;try{x=itvTodoList().find(y=>y.c.id===m.c.id);}catch(e){}
+    h+='<div class="tc-sec"><h4>面試準備</h4>'+(x&&x.it.length?x.it.map(i2=>'<div class="tc-li"><span class="tc-chip '+(i2.hot?'red':'bl')+'">'+esc(i2.t)+'</span></div>').join(''):'<div class="tc-li tc-mut">都準備好了 👍</div>')
+      +'<div class="tc-li tc-btns"><button class="tc-sm" type="button" data-act="pGo" data-id="interview::'+esc(m.c.id)+'">看這位客戶 →</button></div></div>';}
+  return h;}
+function tcHomeMount(body){
+  if(!body)return;const old=document.createElement('details');old.className='tc-old';old.id='tc-old';
+  old.innerHTML='<summary>📋 更多：今天要處理、提醒、面試待辦、好久沒上課…</summary>';
+  const box=document.createElement('div');box.className='tc-oldb';old.appendChild(box);
+  while(body.firstChild)box.appendChild(body.firstChild);
+  try{if(localStorage.getItem('tc_old_open')==='1')old.open=true;}catch(e){}
+  old.addEventListener('toggle',()=>{try{localStorage.setItem('tc_old_open',old.open?'1':'0');}catch(e){}});
+  body.innerHTML=tcHomeHtml();body.appendChild(old);}
+H.tcSel=(i)=>{TC.sel=+i;document.querySelectorAll('.tc-ev').forEach(b=>b.classList.toggle('sel',b.getAttribute('data-id')===String(i)));
+  const p=document.getElementById('tc-pn');if(p)p.innerHTML=tcPanelHtml();
+  try{if(window.innerWidth<900&&p)p.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}};
+H.tcHw=()=>{const b=document.querySelector('[data-hwhub]');if(b){b.click();return;}toast('派作業還在載入，等一下再按一次');};
+H.tcMore=(k)=>{const o=document.getElementById('tc-old');if(!o)return;o.open=true;
+  const t=k&&o.querySelector('details[data-ds="'+k+'"]');if(t)t.open=true;(t||o).scrollIntoView({behavior:'smooth',block:'start'});};
