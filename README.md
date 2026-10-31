@@ -19,3 +19,11 @@
     }
 ```
 7. 漢字遊戲要註冊才能玩（HZREG_V1400）：沒登入的人打開 hanzi.html 只會看到「免費註冊／登入」。註冊、登入的連結是 student.html?reg=1&next=hanzi，學生端的 hanzi-student.js 看到 next=hanzi 會在登入後自動送回遊戲。自己註冊的會員（members）也能玩，紀錄存在 results（student_id 是 mem_ 開頭），後台「線上課 → 會員」每一列會顯示他的漢字遊戲情形。官網「線上課」那一段有入口（index.html 裡標 HZREG_V1400 的兩處）。
+
+## 📚 補充教材（SUPP_V1）
+
+1. 補充教材是課本以外的練習，第一份是《當代中文課程》第一冊第二課「家人字卡」。程式全部在 supp.html、supp-plug.js、supp-kai.woff2（楷書字型，只留頁面用到的字）。
+2. 靠 db.js 最後面的「SUPP_LOADER」那一段，自動接到老師後台；teacher.html／teacher-app.js／student.html 不用改。
+   目前只開老師端（SUPP_V2）：學生端先不載入，supp.html 的 STUDENT_OPEN 是 false。要開放給學生時，兩個地方一起改。
+3. 老師從「派作業」選「補充教材」出作業；作業存在 Firestore 的 site/supp（tasks），學生的紀錄存在 results（kind:'supp'，lesson_id:'__supp__'，一位學生一筆）。
+4. 以後要加新的補充教材：在 supp.html 裡的 ACTS 清單加一項，再寫它自己的練習（參考 famRun）。

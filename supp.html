@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>補充教材｜QNA CHINESE</title>
+<link rel="icon" href="icon-192.png">
+<script>try{if(localStorage.getItem('hyc_theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Be+Vietnam+Pro:wght@400;500;700&display=swap">
+<style>
+/* SUPP_V1 補充教材（課本以外的練習，例如《當代中文課程》第一冊第二課「家人字卡」）。
+   這一頁的程式全部在這個檔案裡，由 db.js 最後面的 SUPP_LOADER 把入口接到學生端和老師後台（supp-plug.js）。
+   · 作業存在 site/supp 的 tasks（跟拼音作業一樣：學生或整班、截止日）。
+   · 學生的紀錄存在 results（kind:'supp'，lesson_id:'__supp__'，一位學生一筆），做完的作業記在 rec.tasks。
+   · 漢字一律用楷書（supp-kai.woff2 是全字庫正楷體只留這幾個字的版本，教育部標準字形）。 */
+@font-face{font-family:"QKai";src:url("supp-kai.woff2") format("woff2");font-display:swap}
+:root{
+  --bg:#F4F7FB; --surface:#ffffff; --surface-2:#E8EFF7; --ink:#16202E; --muted:#5B6B80;
+  --primary:#1E4C86; --navy:#143A6B; --primary-soft:#E4EDF9; --on-primary:#ffffff; --line:#C0CEE0; --line-2:#DCE5F0;
+  --good:#2E7D4F; --bad:#A33227; --gold:#9C7D2A;
+  --kai:"QKai","BiauKai","DFKai-SB","標楷體","TW-Kai","Kaiti TC",serif;
+  --latin:"Times New Roman",Times,"Liberation Serif",serif;
+  --ui:Calibri,Carlito,"Be Vietnam Pro","Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+}
+html.dark{
+  --bg:#16202E; --surface:#16202E; --surface-2:#1C2838; --ink:#E8EFF7; --muted:#C7D8EF;
+  --primary:#1E4C86; --navy:#C7D8EF; --primary-soft:#1C2838; --line:#5B6B80; --line-2:#2A3A50;
+  --good:#9FD8B4; --bad:#F0C9C2; --gold:#FDE68A; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:17px;line-height:1.6}
+body.embed .top,body.embed #tabs{display:none!important}
+body.embed .wrap{padding-top:10px}
+.wrap{max-width:980px;margin:0 auto;padding:18px max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:16px}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,.fc:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.back{color:var(--primary);text-decoration:none;font-size:15px}
+.brand{flex:1;min-width:0}
+.brand small{display:block;font-family:var(--latin);letter-spacing:.14em;font-size:12px;color:var(--muted)}
+.brand h1{margin:0;font-size:clamp(24px,4.5vw,30px);line-height:1.2}
+.who{font-size:14px;color:var(--muted)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{border:2px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 16px;font-size:15px}
+.tab[aria-selected="true"]{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.stage{background:var(--surface);border:2px solid var(--line);border-radius:24px;padding:22px clamp(14px,4vw,30px) 24px;display:flex;flex-direction:column;gap:14px;min-height:360px}
+.tip{color:var(--muted);font-size:15px;margin:0}
+.center{text-align:center}
+.btn{border:2px solid var(--line);background:var(--surface);border-radius:12px;padding:6px 14px;font-size:16px}
+.btn:hover{border-color:var(--primary)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.btn.on{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.gate{margin:auto;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center}
+.gate a{text-decoration:none}
+h2{font-size:20px;margin:0}
+.sec{display:flex;flex-direction:column;gap:10px}
+.sec+.sec{border-top:2px solid var(--line-2);padding-top:14px}
+.items{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.item{display:flex;gap:12px;align-items:center;text-align:left;border:2px solid var(--line);background:var(--surface);border-radius:16px;padding:12px 14px}
+.item:hover{border-color:var(--primary);background:var(--primary-soft)}
+.item .ic{font-family:var(--kai);font-size:30px;width:46px;height:46px;flex:none;border-radius:12px;background:var(--primary-soft);color:var(--navy);display:flex;align-items:center;justify-content:center}
+.item b{display:block}
+.item small{color:var(--muted);font-size:14px;line-height:1.45}
+.badge{font-size:13px;border-radius:999px;padding:1px 10px;white-space:nowrap}
+.badge.todo{background:var(--primary-soft);color:var(--primary)}
+.badge.over{background:#F6E1DE;color:var(--bad)}
+.badge.ok{background:#E2F1E7;color:var(--good)}
+/* ---------- 家人字卡 ---------- */
+.fam-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fam-head .lab{color:var(--muted);font-size:14px}
+.task{border:2px solid var(--line-2);border-left:6px solid var(--gold);border-radius:14px;padding:10px 14px;font-family:var(--kai);font-size:clamp(20px,3.6vw,26px);min-height:54px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.task .hint{font-family:var(--ui);color:var(--muted);font-size:16px}
+.msg{min-height:26px;font-size:17px}
+.msg.ok{color:var(--good)}.msg.bad{color:var(--bad)}
+.dots{display:flex;gap:6px}
+.dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);background:var(--surface-2)}
+.dots i.now{border-color:var(--primary)}
+.dots i.ok{background:var(--good);border-color:var(--good)}
+.board{border:2px solid var(--line-2);border-radius:18px;padding:16px 8px 12px;background:var(--surface)}
+.tree{position:relative;display:grid;gap:30px}
+.tree svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.row{display:flex;justify-content:center;gap:12px}
+.row.par{gap:40px}
+.slot{width:118px;height:146px;border:2px dashed var(--line);border-radius:12px;background:var(--bg);display:flex;align-items:center;justify-content:center;position:relative}
+.slot.hot{background:var(--primary-soft);border-color:var(--primary)}
+.slot.right{border:2px solid var(--good)}.slot.wrong{border:2px solid var(--bad)}
+.fc{width:106px;height:134px;background:var(--surface);border:3px solid var(--primary);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;position:relative}
+.fc .w{display:flex;gap:4px}
+.fc .g{width:42px;height:42px;border:1px solid #A8BACE;background:#F4F7FB;border-radius:4px;position:relative;display:flex;align-items:center;justify-content:center;font-family:var(--kai);font-size:33px;line-height:1;color:#16202E}
+.fc .g::before,.fc .g::after{content:"";position:absolute;border:0 dashed #C0CEE0}
+.fc .g::before{left:50%;top:0;bottom:0;border-left-width:1px}
+.fc .g::after{top:50%;left:0;right:0;border-top-width:1px}
+.fc .g span{position:relative;z-index:1}
+.fc.one .g{width:64px;height:64px;font-size:48px}
+.fc .p{font-family:var(--latin);font-size:21px;color:var(--navy)}
+.fc .bj{font-family:var(--kai);font-size:17px}
+.fc.flip{border-color:var(--gold)}
+.fc .x{position:absolute;top:-10px;right:-10px;width:26px;height:26px;border-radius:50%;border:0;background:var(--navy);color:#fff;font-size:16px;line-height:26px;padding:0;display:none}
+html.dark .fc .x{background:#1E4C86}
+.slot .fc .x{display:block}
+.fc.picked{outline:4px solid var(--gold)}
+.drag{position:fixed;pointer-events:none;z-index:99;opacity:.92;transform:rotate(-3deg)}
+.tray{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;background:var(--surface-2);border-radius:16px;padding:12px}
+.sents{display:flex;flex-wrap:wrap;gap:8px}
+.sents span{font-family:var(--kai);border:1px solid var(--line-2);border-radius:8px;padding:3px 10px;font-size:18px;background:var(--surface)}
+.done-box{border:2px solid var(--good);border-radius:16px;padding:14px 16px;background:#E2F1E7;color:#1F5A38}
+html.dark .done-box{background:#1C2838;color:var(--good)}
+/* ---------- 老師：作業 ---------- */
+.tform{display:flex;flex-direction:column;gap:10px}
+.lbl{display:block;font-size:14px;color:var(--muted);margin-bottom:2px}
+.tform select,.tform input[type=text],.tform input[type=date]{border:2px solid var(--line);border-radius:10px;padding:6px 10px;background:var(--surface);max-width:100%}
+.allowlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 14px}
+.allowlist label{display:flex;gap:8px;align-items:center;font-size:16px;cursor:pointer;line-height:1.35}
+.allowlist input{width:18px;height:18px;flex:none;margin:0}
+.acts{display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.save{font-size:14px;color:var(--muted)}
+.tlist{display:flex;flex-direction:column;gap:10px}
+.tcard{border:2px solid var(--line-2);border-radius:14px;padding:10px 14px}
+.tcard .row2{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.twho{font-size:14px;color:var(--muted)}
+.okc{color:var(--good);font-weight:700}
+@media (max-width:760px){
+  .slot{width:74px;height:96px}.fc{width:66px;height:86px;border-width:2px}
+  .fc .g{width:27px;height:27px;font-size:21px}.fc.one .g{width:40px;height:40px;font-size:30px}
+  .fc .p{font-size:14px}.fc .bj{font-size:12px}
+  .row{gap:6px}.row.par{gap:20px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.drag{transform:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="back" href="student.html" id="backLink">← 回學習平台</a>
+    <div class="brand"><small>QNA CHINESE</small><h1>補充教材</h1></div>
+    <span class="who" id="who">正在登入…</span>
+  </header>
+  <nav class="tabs" id="tabs" hidden>
+    <button class="tab" data-tab="list" type="button">補充教材</button>
+    <button class="tab" data-tab="tasks" data-teacher type="button">作業</button>
+  </nav>
+  <section class="stage" id="stage" aria-live="polite"><p class="tip center" style="margin:auto">正在讀取…</p></section>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script>
+(function(){
+'use strict';
+const $=s=>document.querySelector(s);const stage=$('#stage');
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const me={uid:null,student:null,teacher:false,rec:null};
+let TASKS=[];
+/* SUPP_V2 Quinn：「先做教師端，學生端請不要放」。學生打開這一頁只會看到「還沒開放」，老師可以看、可以試做。
+   要開放給學生時改成 true（db.js 的 SUPP_LOADER 也要一起改）。 */
+const STUDENT_OPEN=false;
+const EMB=new URLSearchParams(location.search).get('embed')==='tasks';
+if(EMB)document.body.classList.add('embed');
+
+/* ====== 補充教材清單：以後新的教材加在這裡（id 不要改，作業和成績靠它對起來） ====== */
+const ACTS=[
+  {id:'fam-l2',ic:'家',book:'當代中文課程 第一冊',lesson:'第二課 我的家人',title:'家人字卡',
+   desc:'把爸爸、媽媽、哥哥、姐姐、妹妹的字卡放到家族樹上。作業要把六題都放對才算完成。',
+   run:(box,task)=>famRun(box,task)}
+];
+const actOf=id=>ACTS.find(a=>a.id===id)||null;
+
+/* ====== 存紀錄：results（kind:'supp'，lesson_id:'__supp__'，一位學生一筆） ====== */
+function emptyRec(){return{tasks:{},plays:0}}
+async function saveTask(tid,info){
+  if(!me.student||!me.uid||!window.DB||DB.mode!=='firebase')return false;
+  const rec=me.rec||emptyRec();rec.tasks=rec.tasks||{};
+  const old=rec.tasks[tid];
+  rec.tasks[tid]=Object.assign({},info,{at:new Date().toISOString(),times:((old&&old.times)||0)+1,
+    best_wrong:Math.min(info.wrong,(old&&old.best_wrong!=null)?old.best_wrong:info.wrong)});
+  rec.plays=(rec.plays||0)+1;me.rec=rec;
+  try{await DB.upsertResult('__supp__',me.student.id,{uid:me.uid,kind:'supp',student_name:me.student.name||'',
+      rec:JSON.parse(JSON.stringify(rec)),last_at:new Date().toISOString()});return true}
+  catch(e){return false}
+}
+/* ====== 作業：存在 site/supp 的 tasks ====== */
+function assignedToMe(t){if(!t||t.deleted_at||!me.student)return false;const g=Array.isArray(me.student.groups)?me.student.groups:[];
+  return (t.assigned_ids||[]).indexOf(me.student.id)>=0||(t.assigned_groups||[]).some(x=>g.indexOf(x)>=0)}
+const myTasks=()=>TASKS.filter(assignedToMe);
+const taskDone=t=>(me.rec&&me.rec.tasks&&me.rec.tasks[t.id])||null;
+const taskOf=id=>TASKS.find(t=>t&&t.id===id&&!t.deleted_at)||null;
+function dueLab(d){if(!d)return null;const a=new Date();a.setHours(0,0,0,0);const b=new Date(d);b.setHours(0,0,0,0);if(isNaN(b))return null;
+  const n=Math.round((b-a)/864e5);return n<0?['逾期 '+(-n)+' 天','over']:n===0?['今天到期','over']:['還有 '+n+' 天','todo']}
+
+/* ====== 補充教材首頁 ====== */
+function renderList(){
+  const mine=me.student?myTasks().slice().sort((a,b)=>String(a.due||'9').localeCompare(String(b.due||'9'))):[];
+  let h='';
+  if(mine.length){
+    h+='<div class="sec"><h2>老師派的作業</h2><div class="items">'+mine.map(t=>{const a=actOf(t.act),d=taskDone(t),dl=dueLab(t.due);
+      return '<button class="item" type="button" data-task="'+esc(t.id)+'"><span class="ic">'+esc(a?a.ic:'練')+'</span><span style="flex:1"><b>'+esc(t.title||(a&&a.title)||'補充教材')+'</b><small>'+esc(a?(a.book+'・'+a.lesson):'')+'</small></span>'
+        +(d?'<span class="badge ok">完成</span>':dl?'<span class="badge '+dl[1]+'">'+dl[0]+'</span>':'<span class="badge todo">未完成</span>')+'</button>'}).join('')+'</div></div>';
+  }
+  h+='<div class="sec"><h2>自由練習</h2><p class="tip">想多練習就點進去，自由練習不會記成績。</p><div class="items">'+ACTS.map(a=>
+    '<button class="item" type="button" data-act="'+esc(a.id)+'"><span class="ic">'+esc(a.ic)+'</span><span><b>'+esc(a.title)+'</b><small>'+esc(a.book+'・'+a.lesson)+'</small></span></button>').join('')+'</div></div>';
+  stage.innerHTML=h;
+  stage.querySelectorAll('[data-task]').forEach(b=>b.onclick=()=>openTask(b.dataset.task));
+  stage.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>openAct(b.dataset.act,null));
+}
+function openTask(id){const t=taskOf(id);if(!t)return renderList();openAct(t.act,t)}
+function openAct(id,task){const a=actOf(id);if(!a)return renderList();
+  stage.innerHTML='<div class="fam-head"><button class="btn" type="button" id="backList">← 補充教材</button><span class="lab">'+esc(a.book+'・'+a.lesson)+'</span></div><div id="actBox" style="display:flex;flex-direction:column;gap:14px"></div>';
+  $('#backList').onclick=()=>{stopDrag();renderList()};
+  a.run($('#actBox'),task)}
+
+/* ====== 家人字卡（第一冊第二課） ====== */
+const FAM={'爸爸':{py:'bàba',bj:'爸＝父＋巴'},'媽媽':{py:'māma',bj:'媽＝女＋馬'},'哥哥':{py:'gēge',bj:'哥＝可＋可'},
+  '姐姐':{py:'jiějie',bj:'姐＝女＋且'},'妹妹':{py:'mèimei',bj:'妹＝女＋未'},'我':{py:'wǒ',bj:'獨體字'}};
+const P2=['爸爸','媽媽'];
+const FAMQ=[
+  {text:'我家有五個人。我有一個哥哥、一個妹妹。',top:P2,kids:['哥哥','我','妹妹']},
+  {text:'我家有五個人。我有兩個妹妹。',top:P2,kids:['我','妹妹','妹妹']},
+  {text:'我家有五個人。我有兩個姐姐。',top:P2,kids:['姐姐','姐姐','我']},
+  {text:'我家有五個人。我有兩個哥哥。',top:P2,kids:['哥哥','哥哥','我']},
+  {text:'我家有五個人。我有一個姐姐、一個哥哥。',top:P2,kids:['姐姐','哥哥','我']},
+  {text:'我家有爸爸、媽媽。我沒有兄弟姐妹。',top:P2,kids:['我']}
+];
+let drag=null;function stopDrag(){if(drag&&drag.ghost)drag.ghost.remove();drag=null}
+function famRun(box,task){
+  /* 作業：六題照順序做，每題放對才到下一題；自由練習：可以選「我的家人」或任何一題 */
+  const st={q:task?0:-1,wrong:0,okq:[],picked:null,allBack:false};
+  const mode=()=>st.q;
+  box.innerHTML=(task?'<div class="fam-head"><b>'+esc(task.title||'家人字卡')+'</b><span class="dots" id="dots"></span></div>'
+      :'<div class="fam-head" id="modes"><span class="lab">題目</span></div>')
+    +'<div class="fam-head"><button class="btn" type="button" id="flipAll">全部翻面</button><button class="btn" type="button" id="clr">清空</button><button class="btn primary" type="button" id="chk">檢查</button></div>'
+    +'<div class="task" id="ftask"></div><div class="msg" id="fmsg"></div>'
+    +'<div class="board"><div class="tree" id="tree"><svg id="lines" aria-hidden="true"></svg>'
+    +'<div class="row par"><div class="slot" data-row="0"></div><div class="slot" data-row="0"></div></div>'
+    +'<div class="row"><div class="slot" data-row="1"></div><div class="slot" data-row="1"></div><div class="slot" data-row="1"></div><div class="slot" data-row="1"></div></div></div></div>'
+    +'<div class="tray" id="tray"></div>'
+    +'<div class="sents"><span>這是誰？</span><span>這是我____。</span><span>你家有幾個人？</span><span>我家有____個人。</span><span>你有沒有兄弟姐妹？</span><span>我有____個____。</span><span>我沒有____。</span></div>'
+    +'<p class="tip">把字卡拖到格子裡；也可以先點一張字卡，再點格子。點格子裡的字卡可以翻面，看拼音和部件。上排放爸爸、媽媽，下排放兄弟姐妹和「我」。</p>';
+  const slots=[...box.querySelectorAll('.slot')],tray=box.querySelector('#tray');
+  function card(w){const c=document.createElement('div');c.className='fc'+(w.length===1?' one':'');c.dataset.word=w;c.tabIndex=0;c.setAttribute('role','button');c.setAttribute('aria-label',w);(st.allBack?back:front)(c);return c}
+  function front(c){const w=c.dataset.word;c.classList.remove('flip');c.innerHTML='<div class="w">'+[...w].map(ch=>'<div class="g"><span>'+ch+'</span></div>').join('')+'</div><button class="x" type="button" aria-label="拿掉">×</button>'}
+  function back(c){const d=FAM[c.dataset.word];c.classList.add('flip');c.innerHTML='<div class="p">'+d.py+'</div><div class="bj">'+d.bj+'</div><button class="x" type="button" aria-label="拿掉">×</button>'}
+  const toggle=c=>c.classList.contains('flip')?front(c):back(c);
+  Object.keys(FAM).forEach(w=>tray.appendChild(card(w)));
+  function msg(t,c){const m=box.querySelector('#fmsg');m.textContent=t;m.className='msg'+(c?' '+c:'')}
+  function clear(){slots.forEach(s=>{s.innerHTML='';s.classList.remove('right','wrong')})}
+  function place(w,s){s.innerHTML='';s.classList.remove('right','wrong');s.appendChild(card(w));msg('')}
+  function draw(){
+    const ft=box.querySelector('#ftask');
+    if(mode()<0)ft.innerHTML='說一說：你家有幾個人？請放出你的家人。<span class="hint">（這一題沒有標準答案）</span>';
+    else ft.textContent=(task?'第 '+(mode()+1)+' 題　':'')+FAMQ[mode()].text;
+    box.querySelector('#chk').hidden=mode()<0;
+    if(task){box.querySelector('#dots').innerHTML=FAMQ.map((q,i)=>'<i class="'+(st.okq[i]?'ok':i===mode()?'now':'')+'"></i>').join('')}
+    else{const m=box.querySelector('#modes');m.querySelectorAll('button').forEach((b,i)=>b.classList.toggle('on',i-1===mode()))}
+  }
+  if(!task){const m=box.querySelector('#modes');[-1,0,1,2,3,4,5].forEach(i=>{const b=document.createElement('button');b.type='button';b.className='btn';
+    b.textContent=i<0?'我的家人':'題目 '+(i+1);b.onclick=()=>{st.q=i;clear();msg('');draw()};m.appendChild(b)})}
+  function pick(c){if(st.picked)st.picked.classList.remove('picked');st.picked=st.picked===c?null:c;if(st.picked)st.picked.classList.add('picked')}
+  tray.addEventListener('click',e=>{if(Date.now()-justDragged<350)return;const c=e.target.closest('.fc');if(c)pick(c)});
+  slots.forEach(s=>s.addEventListener('click',e=>{if(Date.now()-justDragged<350)return;
+    if(e.target.closest('.x')){s.innerHTML='';s.classList.remove('right','wrong');return}
+    const c=s.querySelector('.fc');if(st.picked){place(st.picked.dataset.word,s);pick(st.picked);return}if(c)toggle(c)}));
+  /* 拖拉（滑鼠、觸控都可以） */
+  let justDragged=0;
+  box.addEventListener('pointerdown',e=>{const c=e.target.closest('.fc');if(!c||e.target.closest('.x'))return;
+    drag={box,w:c.dataset.word,from:c.closest('.slot'),x:e.clientX,y:e.clientY,moved:false,ghost:null}});
+  const mv=e=>{if(!drag||drag.box!==box)return;if(!drag.moved&&Math.hypot(e.clientX-drag.x,e.clientY-drag.y)<6)return;
+    if(!drag.moved){drag.moved=true;drag.ghost=card(drag.w);drag.ghost.classList.add('drag');document.body.appendChild(drag.ghost);if(drag.from)drag.from.innerHTML=''}
+    drag.ghost.style.left=(e.clientX-drag.ghost.offsetWidth/2)+'px';drag.ghost.style.top=(e.clientY-drag.ghost.offsetHeight/2)+'px';
+    slots.forEach(s=>s.classList.remove('hot'));const t=document.elementFromPoint(e.clientX,e.clientY),s=t&&t.closest&&t.closest('.slot');if(s&&box.contains(s))s.classList.add('hot')};
+  const up=e=>{if(!drag||drag.box!==box)return;if(drag.moved){drag.ghost.remove();slots.forEach(s=>s.classList.remove('hot'));
+      const t=document.elementFromPoint(e.clientX,e.clientY),s=t&&t.closest&&t.closest('.slot');if(s&&box.contains(s))place(drag.w,s);justDragged=Date.now()}
+    else if(drag.ghost)drag.ghost.remove();drag=null};
+  document.addEventListener('pointermove',mv);document.addEventListener('pointerup',up);
+  box.addEventListener('keydown',e=>{if(e.key!=='Enter'&&e.key!==' ')return;const c=e.target.closest&&e.target.closest('.fc');if(!c)return;e.preventDefault();if(c.closest('.slot'))toggle(c);else pick(c)});
+  box.querySelector('#clr').onclick=()=>{clear();msg('')};
+  box.querySelector('#flipAll').onclick=e=>{st.allBack=!st.allBack;e.target.classList.toggle('on',st.allBack);box.querySelectorAll('.fc').forEach(c=>st.allBack?back(c):front(c))};
+  const sorted=a=>[...a].sort().join('、');
+  box.querySelector('#chk').onclick=async()=>{
+    const q=FAMQ[mode()];if(!q)return;
+    const wd=s=>{const c=s.querySelector('.fc');return c?c.dataset.word:null};
+    const top=slots.filter(s=>s.dataset.row==='0'),kids=slots.filter(s=>s.dataset.row==='1');
+    const tOK=sorted(top.map(wd).filter(Boolean))===sorted(q.top),kOK=sorted(kids.map(wd).filter(Boolean))===sorted(q.kids);
+    top.forEach(s=>{s.classList.remove('right','wrong');if(wd(s))s.classList.add(tOK?'right':'wrong')});
+    kids.forEach(s=>{s.classList.remove('right','wrong');if(wd(s))s.classList.add(kOK?'right':'wrong')});
+    if(!(tOK&&kOK)){st.wrong++;msg(!tOK&&!kOK?'上排和下排都還不對，再看一次題目。':(tOK?'下排':'上排')+'還不對，再試試看。','bad');return}
+    if(!task){msg('太棒了！全部正確。請用句型說一說：「我家有……」','ok');return}
+    st.okq[mode()]=true;
+    if(mode()<FAMQ.length-1){msg('答對了！請大聲說一次：「'+q.text+'」再按「下一題」。','ok');
+      const b=document.createElement('button');b.className='btn primary';b.type='button';b.textContent='下一題';b.style.marginLeft='10px';
+      b.onclick=()=>{st.q++;clear();msg('');draw()};box.querySelector('#fmsg').appendChild(b);draw();return}
+    draw();msg('六題都完成了！正在儲存……','ok');
+    const ok=await saveTask(task.id,{done:true,ok:FAMQ.length,n:FAMQ.length,wrong:st.wrong});
+    const done=document.createElement('div');done.className='done-box';
+    done.innerHTML='<b>作業完成了！</b><br>'+(ok?'老師看得到你的紀錄。':(me.student?'紀錄沒存進去，請檢查網路，再做一次最後一題。':'（老師帳號試做，不會存紀錄）'))+(st.wrong?'　這次放錯 '+st.wrong+' 次。':'　全部一次就放對！');
+    box.querySelector('#fmsg').replaceWith(done);
+  };
+  function lines(){const tree=box.querySelector('#tree');if(!tree)return;const tr=tree.getBoundingClientRect();
+    const r=el=>{const b=el.getBoundingClientRect();return{x:b.left-tr.left,y:b.top-tr.top,w:b.width,h:b.height}};
+    const a=r(slots[0]),b=r(slots[1]),k=slots.slice(2).map(r),my=a.y+a.h/2,cx=(a.x+a.w+b.x)/2,by=k[0].y-14;
+    const L=(x1,y1,x2,y2)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="#1E4C86" stroke-width="2"/>';
+    let h=L(a.x+a.w,my,b.x,my)+L(cx,my,cx,by)+L(k[0].x+k[0].w/2,by,k[3].x+k[3].w/2,by);k.forEach(s=>h+=L(s.x+s.w/2,by,s.x+s.w/2,s.y));
+    box.querySelector('#lines').innerHTML=h}
+  window.addEventListener('resize',lines);
+  draw();requestAnimationFrame(lines);if(document.fonts)document.fonts.ready.then(lines);
+}
+
+/* ====== 老師：補充教材作業（存在 site/supp 的 tasks；指派方式跟拼音作業一樣：學生或整班） ====== */
+let TSTU=null;
+async function tStudents(){if(TSTU)return TSTU;const snap=await firebase.firestore().collection('students').get();
+  TSTU=snap.docs.map(d=>Object.assign({id:d.id},d.data())).filter(s=>s&&!s.deleted_at).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'zh-Hant'));return TSTU}
+function taskWho(t,stu){const g=t.assigned_groups||[];return stu.filter(s=>(t.assigned_ids||[]).indexOf(s.id)>=0||(Array.isArray(s.groups)&&s.groups.some(x=>g.indexOf(x)>=0)))}
+async function saveTasks(){await firebase.firestore().collection('site').doc('supp').set({tasks:TASKS,updated_at:new Date().toISOString()},{merge:true})}
+async function renderTasks(){
+  stage.innerHTML='<p class="tip center" style="margin:auto">正在讀取…</p>';
+  let stu=[],docs=[];
+  try{stu=await tStudents();const sn=await firebase.firestore().collection('results').where('kind','==','supp').get();docs=sn.docs.map(d=>d.data())}
+  catch(e){stage.innerHTML='<p class="tip center" style="margin:auto">讀不到資料：'+esc((e&&e.message)||e)+'</p>';return}
+  const recOf={};docs.forEach(d=>{if(d.student_id)recOf[d.student_id]=d.rec||{}});
+  const tr=(s,t)=>{const r=recOf[s.id];return r&&r.tasks&&r.tasks[t.id]};
+  const live=TASKS.filter(t=>t&&!t.deleted_at).slice().reverse();
+  const groups=[...new Set([].concat(...stu.map(s=>Array.isArray(s.groups)?s.groups:[])))].sort();
+  const list=live.map(t=>{const who=taskWho(t,stu),done=who.filter(s=>tr(s,t)),a=actOf(t.act);
+    return '<div class="tcard"><div class="row2"><b style="flex:1">'+esc(t.title)+'</b><span class="twho">'+(t.due?'截止 '+esc(t.due)+'・':'')+esc(a?a.title:'')+'</span>'
+      +'<span class="'+(done.length===who.length&&who.length?'okc':'twho')+'">完成 '+done.length+'／'+who.length+'</span>'
+      +'<button class="btn" type="button" data-del="'+esc(t.id)+'">收回</button></div>'
+      +'<div class="twho">'+who.map(s=>{const r=tr(s,t);return esc(s.name||'')+(r?' <span class="okc">✓ 放錯 '+(r.wrong||0)+' 次</span>':'（未完成）')}).join('、')+'</div></div>'}).join('');
+  stage.innerHTML='<div class="tform"><h2>出一份補充教材作業</h2>'
+   +'<div><label class="lbl" for="tAct">哪一份補充教材</label><select id="tAct">'+ACTS.map(a=>'<option value="'+esc(a.id)+'">'+esc(a.book+'・'+a.lesson+'・'+a.title)+'</option>').join('')+'</select></div>'
+   +'<div><label class="lbl" for="tTitle">作業名稱</label><input type="text" id="tTitle" style="width:100%"></div>'
+   +'<div><label class="lbl" for="tDue">截止日（可以不填）</label><input type="date" id="tDue"></div>'
+   +(groups.length?'<div><span class="lbl">發給整班</span><div class="allowlist">'+groups.map(g=>'<label><input type="checkbox" class="tg" value="'+esc(g)+'">'+esc(g)+'</label>').join('')+'</div></div>':'')
+   +'<div><span class="lbl">發給學生</span><div class="allowlist">'+stu.map(s=>'<label><input type="checkbox" class="ts" value="'+esc(s.id)+'">'+esc(s.name||'（沒有名字）')+'</label>').join('')+'</div></div>'
+   +(STUDENT_OPEN?'':'<p class="tip" style="background:var(--primary-soft);border-radius:10px;padding:8px 12px">學生端還沒開放：現在可以先「試做看看」，作業先不能發出去。</p>')
+   +'<div class="acts"><span class="save" id="tNote"></span><button class="btn" id="tTry" type="button">先試做看看</button>'+(STUDENT_OPEN?'<button class="btn primary" id="tMake" type="button">發出作業</button>':'')+'</div></div>'
+   +'<hr style="border:none;border-top:2px solid var(--line-2);margin:6px 0"><h2>已經發出的作業</h2><div class="tlist">'+(list||'<p class="tip">還沒有作業。</p>')+'</div>';
+  const act=$('#tAct'),title=$('#tTitle');
+  const auto=()=>{const a=actOf(act.value);title.value=a?(a.title+'（'+a.lesson.split(' ')[0]+'）'):'補充教材'};act.onchange=auto;auto();
+  $('#tTry').onclick=()=>openAct(act.value,{id:'__try__',title:title.value||'試做',act:act.value});
+  if($('#tMake'))$('#tMake').onclick=async()=>{const note=$('#tNote');
+    const ids=[...stage.querySelectorAll('.ts:checked')].map(x=>x.value),gs=[...stage.querySelectorAll('.tg:checked')].map(x=>x.value);
+    if(!ids.length&&!gs.length){note.textContent='請先勾學生或班級';return}
+    const t={id:'sp'+Date.now().toString(36),act:act.value,title:title.value.trim()||'補充教材',due:$('#tDue').value||'',assigned_ids:ids,assigned_groups:gs,created_at:new Date().toISOString()};
+    note.textContent='正在發出…';
+    try{TASKS.push(t);await saveTasks();renderTasks()}catch(e){TASKS.pop();note.textContent='沒發出去：'+String((e&&e.message)||e)}};
+  stage.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    if(b.dataset.sure!=='1'){b.dataset.sure='1';b.textContent='確定收回？';return}
+    const t=TASKS.find(x=>x.id===b.dataset.del);if(!t)return;t.deleted_at=new Date().toISOString();
+    try{await saveTasks();renderTasks()}catch(e){delete t.deleted_at;b.textContent='沒收回去'}})}
+
+function showTab(t){stopDrag();document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
+  if(t==='tasks')renderTasks();else renderList()}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+
+/* ====== 登入（沿用學習平台的帳號） ====== */
+function gate(msg,btn){$('#tabs').hidden=true;
+  stage.innerHTML='<div class="gate"><p>'+msg+'</p><a class="btn primary" href="student.html">'+(btn||'去學習平台登入')+'</a></div>'}
+(function boot(){
+  if(!window.firebase||!firebase.auth||!window.DB||DB.mode!=='firebase'){gate('連不上學習平台，請稍後再試。');$('#who').textContent='';return}
+  firebase.auth().onAuthStateChanged(async u=>{
+    if(!u){$('#who').textContent='還沒登入';gate('請先用學生帳號登入學習平台，再回到這裡練習。');return}
+    me.uid=u.uid;
+    const em=String(u.email||'').toLowerCase();
+    me.teacher=!!(window.TEACHER_EMAIL&&em===String(window.TEACHER_EMAIL).toLowerCase());
+    try{const ss=await DB.listWhere('students','uid',u.uid);me.student=ss.find(x=>x&&!x.deleted_at)||null}catch(e){}
+    if(!me.student&&!me.teacher){try{const ms=await DB.listWhere('members','uid',u.uid);const m=(ms||[]).find(x=>x&&!x.deleted_at);if(m)me.student={id:'mem_'+m.id,name:m.name||''}}catch(e){}}
+    if(!me.student&&!me.teacher){$('#who').textContent='';gate('這個帳號還不是學生帳號，請用老師給你的學生帳號登入。');return}
+    if(!me.teacher&&!STUDENT_OPEN){$('#who').textContent=me.student.name||'';gate('補充教材還沒開放，請先回學習平台。','回學習平台');return}
+    if(me.teacher){$('#backLink').href='teacher.html';$('#backLink').textContent='← 回老師後台'}
+    $('#tabs').hidden=false;document.querySelectorAll('.tab[data-teacher]').forEach(b=>b.hidden=!me.teacher);
+    $('#who').textContent=me.student?(me.student.name||'已登入'):'老師帳號';
+    if(me.student){try{const rs=await DB.listWhere('results','uid',u.uid);const d=rs.find(x=>x&&x.kind==='supp'&&x.lesson_id==='__supp__');if(d&&d.rec)me.rec=Object.assign(emptyRec(),d.rec)}catch(e){}}
+    try{const d=await firebase.firestore().collection('site').doc('supp').get();TASKS=(d.exists&&Array.isArray(d.data().tasks))?d.data().tasks:[]}catch(e){TASKS=[]}
+    const q=new URLSearchParams(location.search).get('task');
+    if(me.teacher&&EMB)return showTab('tasks');
+    if(q&&taskOf(q)){document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab==='list'));return openTask(q)}
+    showTab(me.teacher&&(location.hash==='#tasks')?'tasks':'list');
+  });
+})();
+})();
+</script>
+</body>
+</html>
