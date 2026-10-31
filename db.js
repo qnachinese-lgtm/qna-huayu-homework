@@ -190,6 +190,17 @@
    跟漢字遊戲一樣，teacher.html／teacher-app.js 不用寫任何東西。這一段請保留。 */
 (function () {
   if (!/\/(teacher|student)(\.html)?$/.test(location.pathname)) return;   /* 學生端也載入：待完成清單的作業名稱 */
-  function go() { if (document.getElementById('hw-hub-js')) return; var s = document.createElement('script'); s.id = 'hw-hub-js'; s.src = 'hw-hub.js?v=3'; document.body.appendChild(s); }
+  function go() { if (document.getElementById('hw-hub-js')) return; var s = document.createElement('script'); s.id = 'hw-hub-js'; s.src = 'hw-hub.js?v=4'; document.body.appendChild(s); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+})();
+
+/* ══════ SUPP_LOADER 補充教材外掛 ══════
+   老師後台（teacher.html）自動載入 supp-plug.js：「教學」選單多一個「補充教材」，「派作業」裡也多一種「補充教材」。
+   SUPP_V2 Quinn：「先做教師端，學生端請不要放」——學生端（student.html）先不載入；
+   要開放給學生時，把下面的 teacher 改回 (teacher|student)，再把 supp.html 裡的 STUDENT_OPEN 改成 true。
+   補充教材本身在 supp.html。跟漢字遊戲一樣，teacher.html／student.html 不用寫任何東西。這一段請保留。 */
+(function () {
+  if (!/\/teacher(\.html)?$/.test(location.pathname)) return;   /* SUPP_V2 先只做老師端：學生端先不載入 */
+  function go() { if (document.getElementById('supp-plug-js')) return; var s = document.createElement('script'); s.id = 'supp-plug-js'; s.src = 'supp-plug.js?v=1'; document.body.appendChild(s); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
 })();

@@ -1,6 +1,6 @@
 /* ══════ HWHUB_V1 派作業：一個入口、一個名稱 ══════
    Quinn：「太亂了，請統一一種就好」，選了「一個入口、一個名稱」。
-   老師後台「教學」選單最上面多一個「📝 派作業」：九種作業都從這裡出。
+   老師後台「教學」選單最上面多一個「📝 派作業」：十種作業都從這裡出。
    選了種類以後，還是走那一種原本的指派視窗（選學生、截止日），程式不重寫，
    已經派出去的作業、學生的作答和成績都不動。
    同一個視窗下面列出「還沒交的作業」（跟今日總覽同一份），再加上拼音作業。
@@ -14,7 +14,7 @@ if (window.__HWHUB__) return; window.__HWHUB__ = true;
 if (/\/student(\.html)?$/.test(location.pathname)){
   /* LESKIND_V1670 課文裡的練習題叫「課本作業」，跟作業簿分開；華語文能力測驗那兩套叫「做題」 */
   var isDo = function(lid){ try { var ls = (typeof myLessons === 'function') ? myLessons() : []; var l = ls.find(function(x){ return x && x.id === lid; }); return !!(l && /華語文能力測驗/.test(String(l.textbook || ''))); } catch(x){ return false; } };
-  var KS = {les:'課本作業', quiz:'聽寫', lqp:'選擇題', write:'寫字', fhw:'自由回答', game:'翻牌配對', hanzi:'漢字闖關', pinyin:'拼音'};
+  var KS = {les:'課本作業', quiz:'聽寫', lqp:'選擇題', write:'寫字', fhw:'自由回答', game:'翻牌配對', hanzi:'漢字闖關', pinyin:'拼音', supp:'補充教材'};   /* SUPP_V1 */
   var hook = function(){
     var _dr = window.dueRows; if (typeof _dr !== 'function' || _dr.__hwh) return;
     var w = function(){
@@ -72,7 +72,9 @@ var TYPES = [
   {k:'hz',   ic:'🀄', t:'漢字闖關', d:'指定關卡和星星數，達到就自動完成。', go:'hzNew'},
   {k:'wt',   ic:'🖊️', t:'寫字',     d:'指定字和要寫幾次，寫滿就自動完成。', go:'wtNew'},
   {k:'gt',   ic:'🃏', t:'翻牌配對', d:'用課本生詞玩翻牌，玩完一輪就完成。', go:'gtNew'},
-  {k:'py',   ic:'ā',  t:'拼音',     d:'看漢字打拼音，寫完一輪就完成。', frame:'pinyin.html?embed=tasks'}
+  {k:'py',   ic:'ā',  t:'拼音',     d:'看漢字打拼音，寫完一輪就完成。', frame:'pinyin.html?embed=tasks'},
+  /* SUPP_V1 補充教材：課本以外的練習（第一份是第一冊第二課「家人字卡」），程式在 supp.html／supp-plug.js */
+  {k:'supp', ic:'📚', t:'補充教材', d:'課本以外的練習，例如第一冊第二課「家人字卡」。學生端還沒開放，現在可以先試做。', frame:'supp.html?embed=tasks'}
 ];
 function css(){
   if (document.getElementById('hwh-css')) return;
@@ -148,6 +150,26 @@ function renderDue(){
       draw();
     }).catch(function(){});
   } catch(x){}
+  /* SUPP_V1 補充教材作業存在 site/supp 的 tasks，學生的紀錄是 results 裡 kind:supp 那一筆 */
+  try {
+    var fs = firebase.firestore();
+    Promise.all([fs.collection('site').doc('supp').get(), fs.collection('results').where('kind', '==', 'supp').get()]).then(function(r2){
+      var d = r2[0];
+      var tasks = ((d.exists && d.data().tasks) || []).filter(function(t){ return t && !t.deleted_at; });
+      var docs = r2[1].docs.map(function(x){ return x.data(); });
+      var stu = (st().students || []).filter(function(s){ return s && !s.deleted_at && !s.is_test; });
+      tasks.forEach(function(t){
+        var g = t.assigned_groups || [];
+        stu.forEach(function(s){
+          if (!((t.assigned_ids || []).indexOf(s.id) >= 0 || (Array.isArray(s.groups) && s.groups.some(function(x){ return g.indexOf(x) >= 0; })))) return;
+          var r = docs.filter(function(x){ return x && x.student_id === s.id; })[0];
+          if (r && r.rec && r.rec.tasks && r.rec.tasks[t.id]) return;
+          list.push({sid:s.id, name:s.name || '', kind:'補充教材', what:t.title || '補充教材', days:daysTo(t.due), draft:false});
+        });
+      });
+      draw();
+    }).catch(function(){});
+  } catch(x){}
 }
 function open(){
   css();
@@ -170,7 +192,7 @@ if (hasH()){
     var x = TYPES.filter(function(t){ return t.k === k; })[0]; if (!x) return;
     document.querySelectorAll('.hwh-t').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-id') === k); });
     /* HWHUB_V5 拼音也在後台的視窗裡出（把拼音練習頁的「作業」那一頁放進來），不用另外開分頁 */
-    if (x.frame){ openModal('<div class="modal modal-tall" style="max-width:860px"><div class="modal-head"><h3>ā 拼音作業</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body" style="padding:0"><iframe src="' + x.frame + '" title="拼音作業" style="width:100%;height:76vh;border:0;display:block"></iframe></div></div>'); return; }
+    if (x.frame){ openModal('<div class="modal modal-tall" style="max-width:' + (x.k === 'supp' ? 980 : 860) + 'px"><div class="modal-head"><h3>' + e(x.ic) + ' ' + e(x.t) + '作業</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body" style="padding:0"><iframe src="' + x.frame + '" title="' + e(x.t) + '作業" style="width:100%;height:76vh;border:0;display:block"></iframe></div></div>'); return; }
     if (x.url){ closeModal(); window.open(x.url, '_blank', 'noopener'); return; }
     if (x.pick){
       var box = document.getElementById('hwh-pick'); if (!box) return;
