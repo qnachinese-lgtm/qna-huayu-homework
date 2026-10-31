@@ -8157,9 +8157,11 @@ function assignModalCore(o){
     : '<div class="hint">還沒有團班。可在「學生名冊 → 👥 團班管理」建立。</div>';
   /* ASACT_V1672 Quinn：「全部一對一學生列出來，我很難去找學生，請只出現在學的學生」。
      只列在學中的；已經發佈給他的（就算現在休學／已結束）照樣留著打勾，存檔才不會默默把他拿掉。 */
-  const _asList=S.students.filter(s=>s&&!s.deleted_at&&(ids.includes(s.id)||(!s.is_test&&enrollOf(s)==='active')));
+  /* ASTEST_V1685 Quinn：「這裡沒有測試帳號？」——上一版連測試帳號也濾掉了，她要先發給測試帳號自己看。
+     測試帳號一律列出來，排在最後面，標「🧪 測試」。 */
+  const _asList=S.students.filter(s=>s&&!s.deleted_at&&(ids.includes(s.id)||s.is_test||enrollOf(s)==='active'));
   const list=_asList.length
-    ? _asList.slice().sort(stuNameCmp).map(s=>`<label class="check-row"><input type="checkbox" value="${s.id}" ${ids.includes(s.id)?'checked':''}> ${snm(s.name)} <span class="tag">${esc(s.class_type||'1對1')}</span>${stuGroups(s).length?(' <span class="tag">'+stuGroups(s).map(esc).join('、')+'</span>'):''}</label>`).join('')
+    ? _asList.slice().sort((a,b)=>((a.is_test?1:0)-(b.is_test?1:0))||stuNameCmp(a,b)).map(s=>`<label class="check-row"><input type="checkbox" value="${s.id}" ${ids.includes(s.id)?'checked':''}> ${snm(s.name)} ${s.is_test?'<span class="tag" style="background:#FFF4D6;color:#8A5A00">🧪 測試</span>':`<span class="tag">${esc(s.class_type||'1對1')}</span>`}${stuGroups(s).length?(' <span class="tag">'+stuGroups(s).map(esc).join('、')+'</span>'):''}</label>`).join('')
     : '<div class="hint">尚無學生，請先到「學生名冊」新增。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>發佈「${esc(o.title||'')}」</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
