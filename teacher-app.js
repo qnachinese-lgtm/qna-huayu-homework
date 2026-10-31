@@ -5218,11 +5218,13 @@ function wkSlotOf(sch,dateStr){
   let d;try{d=(new Date(dateStr+'T00:00:00').getDay()+6)%7;}catch(e){return null;}
   const m=sch.find(r=>r&&((r.d!=null?r.d:0)===d)&&(r.s||r.e));
   return m?{s:m.s||'',e:m.e||''}:null;}
-function weekActualCard(back){
+function weekActualCard(back,fwd){
   back=Math.max(0,Number(back)||0);
+  /* TCWEEK_V1678 首頁要看下週：可以往後多看幾天（沒給就照舊 6 天） */
+  fwd=Math.max(6,Number(fwd)||6);
   const t=new Date();t.setHours(0,0,0,0);const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   const sD=new Date(t);sD.setDate(sD.getDate()-back);
-  const start=ymd(sD);const eD=new Date(t);eD.setDate(eD.getDate()+6);const end=ymd(eD);
+  const start=ymd(sD);const eD=new Date(t);eD.setDate(eD.getDate()+fwd);const end=ymd(eD);
   const items=[];const grpMap={};const recordedGrp=new Set();
   /* DUPPLAN_V1333 同一班同一天的已點名時段，用來判斷預排是不是同一堂（判斷式見 tmOverlap） */
   const recGrpRange={};
@@ -5276,7 +5278,7 @@ function weekActualCard(back){
     const has=(key)=>items.some(x=>x.date===key.date&&(
       (key.sid&&((x.type==='log'&&x.s&&x.s.id===key.sid)||(x.type==='splan'&&x.s&&x.s.id===key.sid)))||
       (key.cls&&((x.type==='glog'&&x.grp===key.cls)||(x.type==='plan'&&x.cls===key.cls)))));
-    const days7=[];for(let i=-back;i<7;i++){const dd=new Date(t);dd.setDate(dd.getDate()+i);days7.push({ymd:ymd(dd),wd:(dd.getDay()+6)%7});}
+    const days7=[];for(let i=-back;i<=fwd;i++){const dd=new Date(t);dd.setDate(dd.getDate()+i);days7.push({ymd:ymd(dd),wd:(dd.getDay()+6)%7});}
     (S.students||[]).forEach(s=>{
       if(s.deleted||s.is_test||s.class_type==='團班')return;
       /* TRIAL_V807 試學還沒定下固定時間，別自動推進課表 */
@@ -26812,11 +26814,11 @@ H.itvDocDone=async(id)=>{const c=itvById(id);if(!c)return;const el=document.getE
    一打開就是這週（週一～週日）的課表，顏色分一對一／團班／面試；點一堂課，右邊就是這堂課要做的事。
    課從哪裡來、按鈕做什麼，全部沿用原本課表那一份（weekActualCard 和它的 rowOf），沒有另外一套。
    原本首頁的其他區塊（今天要處理、提醒、面試待辦…）一個都沒拿掉，收進最下面「更多」。 */
-const TC={items:[],days:[],sel:-1,W:null};
+const TC={items:[],days:[],sel:-1,W:null,off:0};
 function tcYmd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-function tcWeek(){const t=new Date();t.setHours(0,0,0,0);const dow=(t.getDay()+6)%7;
-  const days=[];for(let i=0;i<7;i++){const d=new Date(t);d.setDate(t.getDate()-dow+i);days.push(tcYmd(d));}
-  let W={items:[],rowOf:()=>''};try{W=weekActualCard(dow);}catch(e){}
+function tcWeek(){const t=new Date();t.setHours(0,0,0,0);const dow=(t.getDay()+6)%7;const off=7*(TC.off||0);
+  const days=[];for(let i=0;i<7;i++){const d=new Date(t);d.setDate(t.getDate()-dow+off+i);days.push(tcYmd(d));}
+  let W={items:[],rowOf:()=>''};try{W=weekActualCard(Math.max(0,dow-off),Math.max(6,6-dow+off));}catch(e){}
   const items=(W.items||[]).filter(it=>it&&it.date>=days[0]&&it.date<=days[6]);
   return {days,items,W,today:tcYmd(t)};}
 function tcHm(s){const m=/(\d{1,2}):(\d{2})/.exec(String(s||''));return m?(+m[1]*60+ +m[2]):null;}
@@ -26847,7 +26849,8 @@ function tcHomeHtml(){
   let hours=[...cov].sort((x,y)=>x-y);if(!hours.length)hours=[19,20,21];
   const nToday=w.items.filter(it=>it.date===w.today&&it.type!=='exam').length,nWeek=w.items.filter(it=>it.type!=='exam').length;
   if(TC.sel<0||TC.sel>=w.items.length){TC.sel=w.items.findIndex((it,i)=>it.date===w.today&&!metas[i].done);
-    if(TC.sel<0)TC.sel=w.items.findIndex(it=>it.date===w.today);}
+    if(TC.sel<0)TC.sel=w.items.findIndex(it=>it.date===w.today);
+    if(TC.sel<0&&TC.off)TC.sel=w.items.length?0:-1;}
   const hr=new Date().getHours(),hi2=hr<11?'早安':(hr<18?'午安':'晚安');
   const fmtD=d=>+d.slice(5,7)+'/'+ +d.slice(8,10);
   let grid='<div class="tc-dh tc-corner"></div>'+w.days.map((d,i)=>'<div class="tc-dh'+(d===w.today?' today':'')+'"><div class="tc-pill">週'+DN[i]+'<small>'+fmtD(d)+'</small></div></div>').join('');
@@ -26867,10 +26870,10 @@ function tcHomeHtml(){
   try{quietN=quietStus(7).length;}catch(e){}
   const tile=(ic,bg,n,lab,act,id)=>'<button type="button" class="tc-st" data-act="'+act+'" data-id="'+esc(id||'')+'"><span class="tc-ico" style="background:'+bg+'">'+ic+'</span><span><b>'+n+'</b><i>'+lab+'</i></span></button>';
   return '<div class="tc-home">'
-    +'<div class="tc-hero"><div><h1>'+hi2+'，老師 👋</h1><p>這週有 '+nWeek+' 堂課，今天 '+nToday+' 堂。點一堂課，右邊就是這堂課要做的事。</p></div>'
+    +'<div class="tc-hero"><div><h1>'+hi2+'，老師 👋</h1><p>'+(TC.off?((TC.off<0?'那週':'那週')+'有 '+nWeek+' 堂課。'):('這週有 '+nWeek+' 堂課，今天 '+nToday+' 堂。'))+'點一堂課，右邊就是這堂課要做的事。</p></div>'
     +'<div class="tc-qa"><button class="tc-qb" data-act="tcHw" type="button">📝 派作業</button><button class="tc-qb" data-act="planClass" data-id="" type="button">📌 排一堂課</button>'
     +(IS_OWNER?'<button class="tc-qb" data-act="payPick" type="button">💰 記一筆錢</button><button class="tc-qb" data-act="newAll" type="button">👤 新增一位</button>':'')+'</div></div>'
-    +'<div class="tc-main"><div class="tc-cal"><div class="tc-leg"><span><i style="background:#2F6FD0"></i>一對一</span><span><i style="background:#E8833A"></i>團班</span><span><i style="background:#8B5CF6"></i>面試</span><span class="tc-leg-r"><i class="tc-dotl"></i>有事要處理</span></div>'
+    +'<div class="tc-main"><div class="tc-cal"><div class="tc-wn"><button class="tc-wb" data-act="tcWk" data-id="-1" type="button">‹ 上週</button><b>'+fmtD(w.days[0])+' – '+fmtD(w.days[6])+(TC.off===0?'<small>本週</small>':(TC.off===-1?'<small>上週</small>':(TC.off===1?'<small>下週</small>':'')))+'</b><button class="tc-wb" data-act="tcWk" data-id="1" type="button">下週 ›</button>'+(TC.off?'<button class="tc-wb tc-wnow" data-act="tcWk" data-id="0" type="button">回本週</button>':'')+'</div><div class="tc-leg"><span><i style="background:#2F6FD0"></i>一對一</span><span><i style="background:#E8833A"></i>團班</span><span><i style="background:#8B5CF6"></i>面試</span><span class="tc-leg-r"><i class="tc-dotl"></i>有事要處理</span></div>'
     +'<div class="tc-scroll"><div class="tc-grid">'+grid+'</div></div></div>'
     +'<div class="tc-pn" id="tc-pn">'+tcPanelHtml()+'</div></div>'
     +'<div class="tc-strip">'+tile('📥','#FFF0E3',pendN,'份作業等批改','tab','grades')+(IS_OWNER?tile('💰','#FDE8E8',oweN,'位還沒繳費','tab','pay'):'')
@@ -26941,3 +26944,9 @@ H.tcSel=(i)=>{TC.sel=+i;document.querySelectorAll('.tc-ev').forEach(b=>b.classLi
 H.tcHw=()=>{const b=document.querySelector('[data-hwhub]');if(b){b.click();return;}toast('派作業還在載入，等一下再按一次');};
 H.tcMore=(k)=>{const o=document.getElementById('tc-old');if(!o)return;o.open=true;
   const t=k&&o.querySelector('details[data-ds="'+k+'"]');if(t)t.open=true;(t||o).scrollIntoView({behavior:'smooth',block:'start'});};
+
+/* TCWEEK_V1678 Quinn：「那下週怎麼看，或是上週怎麼看」 */
+H.tcWk=(d)=>{d=+d||0;TC.off=d===0?0:((TC.off||0)+d);TC.sel=-1;
+  const body=document.getElementById('dashboard-body'),old=document.getElementById('tc-old');if(!body)return;
+  [...body.children].forEach(c=>{if(c!==old)c.remove();});
+  if(old)old.insertAdjacentHTML('beforebegin',tcHomeHtml());else body.innerHTML=tcHomeHtml();};
