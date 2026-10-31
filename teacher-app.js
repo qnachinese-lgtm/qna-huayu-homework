@@ -26873,7 +26873,7 @@ function tcHomeHtml(){
     +'<div class="tc-hero"><div><h1>'+hi2+'，老師 👋</h1><p>'+(TC.off?((TC.off<0?'那週':'那週')+'有 '+nWeek+' 堂課。'):('這週有 '+nWeek+' 堂課，今天 '+nToday+' 堂。'))+'點一堂課，右邊就是這堂課要做的事。</p></div>'
     +'<div class="tc-qa"><button class="tc-qb" data-act="tcHw" type="button">📝 派作業</button><button class="tc-qb" data-act="planClass" data-id="" type="button">📌 排一堂課</button>'
     +(IS_OWNER?'<button class="tc-qb" data-act="payPick" type="button">💰 記一筆錢</button><button class="tc-qb" data-act="newAll" type="button">👤 新增一位</button>':'')+'</div></div>'
-    +'<div class="tc-main"><div class="tc-cal"><div class="tc-wn"><button class="tc-wb" data-act="tcWk" data-id="-1" type="button">‹ 上週</button><b>'+fmtD(w.days[0])+' – '+fmtD(w.days[6])+(TC.off===0?'<small>本週</small>':(TC.off===-1?'<small>上週</small>':(TC.off===1?'<small>下週</small>':'')))+'</b><button class="tc-wb" data-act="tcWk" data-id="1" type="button">下週 ›</button>'+(TC.off?'<button class="tc-wb tc-wnow" data-act="tcWk" data-id="0" type="button">回本週</button>':'')+'</div><div class="tc-leg"><span><i style="background:#2F6FD0"></i>一對一</span><span><i style="background:#E8833A"></i>團班</span><span><i style="background:#8B5CF6"></i>面試</span><span class="tc-leg-r"><i class="tc-dotl"></i>有事要處理</span></div>'
+    +'<div class="tc-main"><div class="tc-cal"><div class="tc-wn"><button class="tc-wb" data-act="tcWk" data-id="-1" type="button">‹ 上週</button><b>'+fmtD(w.days[0])+' – '+fmtD(w.days[6])+'<small>'+(TC.off===0?'本週':(TC.off===-1?'上週':(TC.off===1?'下週':(TC.off<0?(-TC.off)+' 週前':TC.off+' 週後'))))+'</small>'+'</b><button class="tc-wb" data-act="tcWk" data-id="1" type="button">下週 ›</button>'+(TC.off?'<button class="tc-wb tc-wnow" data-act="tcWk" data-id="0" type="button">回本週</button>':'')+'</div><div class="tc-leg"><span><i style="background:#2F6FD0"></i>一對一</span><span><i style="background:#E8833A"></i>團班</span><span><i style="background:#8B5CF6"></i>面試</span><span class="tc-leg-r"><i class="tc-dotl"></i>有事要處理</span></div>'
     +'<div class="tc-scroll"><div class="tc-grid">'+grid+'</div></div></div>'
     +'<div class="tc-pn" id="tc-pn">'+tcPanelHtml()+'</div></div>'
     +'<div class="tc-strip">'+tile('📥','#FFF0E3',pendN,'份作業等批改','tab','grades')+(IS_OWNER?tile('💰','#FDE8E8',oweN,'位還沒繳費','tab','pay'):'')
@@ -26949,4 +26949,7 @@ H.tcMore=(k)=>{const o=document.getElementById('tc-old');if(!o)return;o.open=tru
 H.tcWk=(d)=>{d=+d||0;TC.off=d===0?0:((TC.off||0)+d);TC.sel=-1;
   const body=document.getElementById('dashboard-body'),old=document.getElementById('tc-old');if(!body)return;
   [...body.children].forEach(c=>{if(c!==old)c.remove();});
-  if(old)old.insertAdjacentHTML('beforebegin',tcHomeHtml());else body.innerHTML=tcHomeHtml();};
+  const y=window.scrollY;
+  if(old)old.insertAdjacentHTML('beforebegin',tcHomeHtml());else body.innerHTML=tcHomeHtml();
+  /* TCWKFIX_V1679 換週時畫面不要跳，按鈕留在原地 */
+  try{window.scrollTo(0,y);}catch(e){}};
