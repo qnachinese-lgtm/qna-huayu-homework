@@ -26879,7 +26879,7 @@ function tcHomeHtml(){
 function tcEvHtml(i,m,top,h,nt){
   const it=TC.items[i];const hot=tcHot(m);
   return '<button type="button" class="tc-ev e'+m.col+(m.done?' done':'')+(i===TC.sel?' sel':'')+(nt?' nt':'')+'" data-act="tcSel" data-id="'+i+'"'
-    +(nt?'':' style="top:'+top.toFixed(1)+'px;height:'+h.toFixed(1)+'px"')+'>'
+    +(nt?'':' style="top:'+top.toFixed(1)+'px;min-height:'+h.toFixed(1)+'px"')+'>'
     +'<span class="tc-en">'+esc(m.n)+'</span><small>'+esc((it.start||'')+(it.start?'　':'')+m.sub)+'</small>'
     +(hot?'<span class="tc-dot" title="有事要處理"></span>':'')+(m.done&&!m.exam?'<span class="tc-ok">✓</span>':'')+'</button>';}
 function tcPanelHtml(){
