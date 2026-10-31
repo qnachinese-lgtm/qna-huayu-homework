@@ -6810,17 +6810,22 @@ function tjActOf(c){const m=TJ_KIND[c&&c.kind];
    課表、教材庫、漢字遊戲、批改完全沒有分頁列，每一頁都是孤立的。
    併成一排，內容就是側邊選單「教學」那一區原本就有的那幾頁，沒有多也沒有少。 */
 const NAVSIB=[
-  {tabs:[['students','👥 學生名冊',0],['acct','🔑 帳號・使用',1],['calendar','📅 課表',0],
-         ['lessons','📖 教材與課程',0],['files','🎯 課堂活動',0],['oc','▶️ 線上課',1],
-         ['lib','🗂 教材庫',0],['hanzi','🀄 漢字闖關',0],['grades','📝 批改・成績',0]]}
+  /* NAVSIBGRP_V1683 Quinn：「這兩個不對應？」——上面「教學」下拉在 V1674 分成四組
+     （作業／上課／學生／教材），這一排卻還是舊的順序、舊的名字（學生名冊、📖）。
+     改成跟下拉一模一樣：同樣的順序、同樣的字、同樣的圖示，組和組之間一條細線。
+     派作業／還沒交的作業／拼音練習不是分頁，是外掛打開的視窗，按了就去按下拉裡那一顆。 */
+  {tabs:[['@hwhub','📝 派作業',0,'[data-hwhub]'],['@hwdue','📋 還沒交的作業',0,'[data-hwhub-due]'],['grades','📝 批改・成績',0],'|',
+         ['calendar','📅 課表',0],['files','🎯 課堂活動',0],['oc','▶️ 線上課',1],'|',
+         ['students','👥 學生',0],['acct','🔑 帳號・使用',1],'|',
+         ['lessons','📚 教材與課程',0],['lib','🗂 教材庫',0],['hanzi','🀄 漢字闖關',0],['@py','ā 拼音練習',0,'[data-py-menu]']]}
 ];
 function navSibGroup(tab){
   for(let i=0;i<NAVSIB.length;i++){
-    if(NAVSIB[i].tabs.some(t=>t[0]===tab))return NAVSIB[i];}
+    if(NAVSIB[i].tabs.some(t=>Array.isArray(t)&&t[0]===tab))return NAVSIB[i];}
   return null;}
 function navSibHtml(tab){
   const g=navSibGroup(tab);if(!g)return '';
-  const ts=g.tabs.filter(t=>!t[2]||IS_OWNER);/* 只有主管理員看得到的那幾頁 */
+  const ts=g.tabs.filter(t=>t==='|'||(!t[2]||IS_OWNER));/* 只有主管理員看得到的那幾頁 */
   if(ts.length<2)return '';
   /* SEGONE_V1350 Quinn：「每個頁面的那排按鈕長得都不一樣，我要統一」。
      這一排本來是自己一套底線式樣式（.navsib），
@@ -6828,8 +6833,8 @@ function navSibHtml(tab){
      改成直接用 .segbar／.segb，以後改一次就全站一致。
      外層保留 .navsib 只為了 navSibApply 要找得到它來移除，不再帶樣式。 */
   return '<div class="navsib pagebar" style="margin-bottom:10px"><div class="segbar">'
-    +ts.map(t=>'<button class="segb'+(t[0]===tab?' on':'')
-    +'" data-act="tab" data-id="'+t[0]+'">'+t[1]+'</button>').join('')
+    +ts.map((t,i)=>t==='|'?((i&&ts[i-1]!=='|')?'<span class="navsib-sep"></span>':''):(t[3]?('<button class="segb" data-act="navPlug" data-id="'+esc(t[3])+'">'+t[1]+'</button>'):('<button class="segb'+(t[0]===tab?' on':'')
+    +'" data-act="tab" data-id="'+t[0]+'">'+t[1]+'</button>'))).join('')
     +'</div></div>';}
 /* NAVPOS_V1353 Quinn：「還是沒有統一」。這次不是顏色或字級——我量過，全站的篩選鈕
    已經是同一個色、同一個字級、同一個高度（34px）。差的是「位置」：
@@ -26953,3 +26958,6 @@ H.tcWk=(d)=>{d=+d||0;TC.off=d===0?0:((TC.off||0)+d);TC.sel=-1;
   if(old)old.insertAdjacentHTML('beforebegin',tcHomeHtml());else body.innerHTML=tcHomeHtml();
   /* TCWKFIX_V1679 換週時畫面不要跳，按鈕留在原地 */
   try{window.scrollTo(0,y);}catch(e){}};
+
+/* NAVSIBGRP_V1683 分頁列上的外掛項目：去按上面下拉裡同一顆 */
+H.navPlug=(sel)=>{const b=document.querySelector('#tnav '+sel)||document.querySelector(sel);if(b){b.click();return;}toast('還在載入，等一下再按一次');};
