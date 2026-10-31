@@ -95,7 +95,10 @@
       if(!body)return;
       var pane=document.getElementById('panel-dashboard');
       if(pane&&pane.classList.contains('hide'))return;     /* 不在今日總覽就不畫 */
-      var want=PREVIEW||(!owner()&&!dismissed());
+      /* GUIDE_V1680 Quinn：「爲什麼這個會出現？」——登入過期時抓不到是誰，被當成「不是主管理員」，
+         於是給她看了新人引導卡。抓不到 email（沒登入／過期）就不顯示；email 是她的也不顯示。 */
+      var em=email(),boss=false;try{boss=!!(em&&typeof TEACHER_EMAIL!=='undefined'&&em===String(TEACHER_EMAIL).toLowerCase());}catch(e){}
+      var want=PREVIEW||(!!em&&!boss&&!owner()&&!dismissed());
       var old=document.getElementById('gd-card');
       if(!want){ if(old)old.remove(); return; }
       if(old)return;                                        /* 已經在了就不重畫 */
