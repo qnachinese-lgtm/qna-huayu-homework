@@ -26876,7 +26876,9 @@ function tcHomeHtml(){
   const nToday=w.items.filter(it=>it.date===w.today&&it.type!=='exam').length,nWeek=w.items.filter(it=>it.type!=='exam').length;
   if(TC.sel<0||TC.sel>=w.items.length){TC.sel=w.items.findIndex((it,i)=>it.date===w.today&&!metas[i].done);
     if(TC.sel<0)TC.sel=w.items.findIndex(it=>it.date===w.today);
-    if(TC.sel<0&&TC.off)TC.sel=w.items.length?0:-1;}
+    if(TC.sel<0&&TC.off)TC.sel=w.items.length?0:-1;
+    /* TCSIDE_V1688 今天沒課：自動選「接下來最近的一堂」，右邊不要空著 */
+    if(TC.sel<0&&!TC.off){let bi=-1,bk='';w.items.forEach((it,i)=>{if(it.date<w.today||it.type==='exam')return;const k=it.date+' '+(it.start||'99:99');if(bi<0||k<bk){bi=i;bk=k;}});TC.sel=bi;}}
   const hr=new Date().getHours(),hi2=hr<11?'早安':(hr<18?'午安':'晚安');
   const fmtD=d=>+d.slice(5,7)+'/'+ +d.slice(8,10);
   let grid='<div class="tc-dh tc-corner"></div>'+w.days.map((d,i)=>'<div class="tc-dh'+(d===w.today?' today':'')+'"><div class="tc-pill">週'+DN[i]+'<small>'+fmtD(d)+'</small></div></div>').join('');
@@ -26901,9 +26903,11 @@ function tcHomeHtml(){
     +(IS_OWNER?'<button class="tc-qb" data-act="payPick" type="button">💰 記一筆錢</button><button class="tc-qb" data-act="newAll" type="button">👤 新增一位</button>':'')+'</div></div>'
     +'<div class="tc-main"><div class="tc-cal"><div class="tc-wn"><button class="tc-wb" data-act="tcWk" data-id="-1" type="button">‹ 上週</button><b>'+fmtD(w.days[0])+' – '+fmtD(w.days[6])+'<small>'+(TC.off===0?'本週':(TC.off===-1?'上週':(TC.off===1?'下週':(TC.off<0?(-TC.off)+' 週前':TC.off+' 週後'))))+'</small>'+'</b><button class="tc-wb" data-act="tcWk" data-id="1" type="button">下週 ›</button>'+(TC.off?'<button class="tc-wb tc-wnow" data-act="tcWk" data-id="0" type="button">回本週</button>':'')+'</div><div class="tc-leg"><span><i style="background:#2F6FD0"></i>一對一</span><span><i style="background:#E8833A"></i>團班</span><span><i style="background:#8B5CF6"></i>面試</span><span class="tc-leg-r"><i class="tc-dotl"></i>有事要處理</span></div>'
     +'<div class="tc-scroll"><div class="tc-grid">'+grid+'</div></div></div>'
-    +'<div class="tc-pn" id="tc-pn">'+tcPanelHtml()+'</div></div>'
-    +'<div class="tc-strip">'+tile('📥','#FFF0E3',pendN,'份作業等批改','tab','grades')+(IS_OWNER?tile('💰','#FDE8E8',oweN,'位還沒繳費','tab','pay'):'')
-    +(IS_OWNER?tile('🎤','#F1EAFF',itvN,'位面試客戶有待辦','tab','interview'):'')+tile('😴','#E3EEFF',quietN,'位一週沒做練習','tcMore','quiet')+'</div>'
+    /* TCSIDE_V1688 Quinn：「首頁其他地方」重新設計——右邊沒選課時空一大片，底下四張卡又離課表很遠。
+       四張待辦卡搬到右邊面板底下，排成一直列；整頁只剩「課表＋右邊一欄」。 */
+    +'<div class="tc-side"><div class="tc-pn" id="tc-pn">'+tcPanelHtml()+'</div>'
+    +'<div class="tc-strip"><div class="tc-sth">待處理</div>'+tile('📥','#FFF0E3',pendN,'份作業等批改','tab','grades')+(IS_OWNER?tile('💰','#FDE8E8',oweN,'位還沒繳費','tab','pay'):'')
+    +(IS_OWNER?tile('🎤','#F1EAFF',itvN,'位面試客戶有待辦','tab','interview'):'')+tile('😴','#E3EEFF',quietN,'位一週沒做練習','tcMore','quiet')+'</div></div></div>'
     +'</div>';}
 function tcEvHtml(i,m,top,h,nt){
   const it=TC.items[i];const hot=tcHot(m);
@@ -26913,7 +26917,7 @@ function tcEvHtml(i,m,top,h,nt){
     +(hot?'<span class="tc-dot" title="有事要處理"></span>':'')+(m.done&&!m.exam?'<span class="tc-ok">✓</span>':'')+'</button>';}
 function tcPanelHtml(){
   const i=TC.sel;const it=TC.items[i];
-  if(!it)return '<div class="tc-ph"><h2>點一堂課</h2><p>左邊課表點任何一堂，這裡就會出現那堂課要做的事。</p></div>';
+  if(!it)return '<div class="tc-ph tc-none"><div class="k">這週接下來沒有課</div><h2>點左邊任一堂課</h2><p>會出現點名、作業和學費</p></div>';
   const m=tcMeta(it,TC.today);const DN=['日','一','二','三','四','五','六'];
   const dd=new Date(it.date+'T00:00:00');
   let st=m.done?(m.exam?'已結束':'✅ 已點名'):(m.late?'⚠️ 已經過了，還沒點名':'還沒上');
