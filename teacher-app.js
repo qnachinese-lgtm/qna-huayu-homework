@@ -26781,3 +26781,28 @@ H.itvDocNote=async(id)=>{const c=itvById(id);if(!c)return;const el=document.getE
 H.itvDocDone=async(id)=>{const c=itvById(id);if(!c)return;const el=document.getElementById('idb-note');const v=!c.docs_in;
   const patch={docs_in:v,docs_in_at:v?localToday():''};if(el)patch.docs_note=el.value.trim();
   try{await itvDocSave(c,patch);closeModal();render();toast(v?'已記下：文件收齊了':'已改回：文件還沒收齊');}catch(e){toast(writeErr('失敗',e));}};
+/* ══════ TEACHGRP_V1674 Quinn：「教學這邊太多了，請重新設計」 ══════
+   12 項一項都沒拿掉，只是分成四組、排兩欄：作業／上課／學生／教材。
+   「派作業」「還沒交的作業」（hw-hub.js）和「拼音練習」（pinyin-plug.js）是外掛晚一點才塞進來的，
+   所以用 MutationObserver 看著：有新的按鈕直接掛在選單上，就把它收進對的那一組。
+   外掛找自己按鈕用的是 p.querySelector（任何一層都找得到），收進組裡不影響它們。 */
+(function(){
+  const G=[['作業',['[data-hwhub]','[data-hwhub-due]','button[data-id="grades"]']],
+           ['上課',['button[data-id="calendar"]','button[data-k="files"]','button[data-k="oc"]']],
+           ['學生',['button[data-k="students"]','button[data-k="acct"]']],
+           ['教材',['button[data-k="lessons"]','button[data-k="lib"]','button[data-k="hanzi"]','[data-py-menu]']]];
+  function panel(){const ps=document.querySelectorAll('#tnav .tn-p');for(const p of ps){if(p.querySelector('button[data-id="lessons"]'))return p;}return null;}
+  function regroup(){const p=panel();if(!p)return;
+    const loose=[...p.children].filter(c=>c.tagName==='BUTTON');
+    if(p.classList.contains('tn-grp')&&!loose.length)return;
+    p.classList.add('tn-grp');
+    const box={};G.forEach(([t])=>{let g=p.querySelector(':scope>.tn-g[data-g="'+t+'"]');
+      if(!g){g=document.createElement('div');g.className='tn-g';g.setAttribute('data-g',t);g.innerHTML='<div class="tn-gh">'+t+'</div>';p.appendChild(g);}box[t]=g;});
+    G.forEach(([t,sels])=>{sels.forEach(sel=>{const b=p.querySelector(sel);if(b&&b.parentElement!==box[t])box[t].appendChild(b);});});
+    /* 沒有分到組的（以後新加的）放「教材」最後面，不會不見 */
+    [...p.children].filter(c=>c.tagName==='BUTTON').forEach(b=>box['教材'].appendChild(b));
+    G.forEach(([t,sels])=>{const g=box[t];sels.forEach(sel=>{const b=g.querySelector(':scope>'+sel.replace(/^button/,'button'));if(b)g.appendChild(b);});});}
+  function start(){regroup();const p=panel();if(!p||p.__tgObs)return;p.__tgObs=1;
+    try{new MutationObserver(()=>{const l=[...p.children].some(c=>c.tagName==='BUTTON');if(l)regroup();}).observe(p,{childList:true});}catch(e){}}
+  let n=0;const t=setInterval(()=>{if(panel()){start();if(++n>40)clearInterval(t);}else if(++n>200)clearInterval(t);},250);
+})();
