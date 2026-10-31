@@ -26843,7 +26843,7 @@ function tcHomeHtml(){
   /* 時間軸：照這週有課的時段，前後各留一點；沒有課就 18～22 */
   let lo=24*60,hi=0;w.items.forEach(it=>{const a=tcHm(it.start),b=tcHm(it.end)||(a!=null?a+60:null);if(a!=null){lo=Math.min(lo,a);hi=Math.max(hi,b);}});
   /* 只畫有課的那幾個小時；中間空著的時段縮成一條細線，不然 14:00 一堂、20:00 一堂，中間一大片空白 */
-  const RH=54,cov=new Set();w.items.forEach(it=>{const a=tcHm(it.start);if(a==null)return;const b=tcHm(it.end)||(a+60);for(let h=Math.floor(a/60);h<Math.ceil(b/60);h++)cov.add(h);});
+  const RH=66,cov=new Set();w.items.forEach(it=>{const a=tcHm(it.start);if(a==null)return;const b=tcHm(it.end)||(a+60);for(let h=Math.floor(a/60);h<Math.ceil(b/60);h++)cov.add(h);});
   let hours=[...cov].sort((x,y)=>x-y);if(!hours.length)hours=[19,20,21];
   const nToday=w.items.filter(it=>it.date===w.today&&it.type!=='exam').length,nWeek=w.items.filter(it=>it.type!=='exam').length;
   if(TC.sel<0||TC.sel>=w.items.length){TC.sel=w.items.findIndex((it,i)=>it.date===w.today&&!metas[i].done);
