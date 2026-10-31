@@ -26891,9 +26891,8 @@ function tcPanelHtml(){
   if(it.type==='glog'&&it.lv)st+='・'+it.lv+' 人請假';
   let h='<div class="tc-ph t'+m.col+'"><div class="k">'+esc(m.sub)+'　·　週'+DN[dd.getDay()]+' '+(dd.getMonth()+1)+'/'+dd.getDate()+(it.start?('　'+esc(it.start)+(it.end?'–'+esc(it.end):'')):'')+'</div>'
     +'<h2>'+esc(m.n)+'</h2><p>'+st+'</p></div>';
-  /* 按鈕：直接用課表那一列的按鈕（去點名／進入教室／修改／刪除），行為完全一樣 */
-  let row='';try{const k=WKDATE;WKDATE=false;row=TC.W.rowOf(it);WKDATE=k;}catch(e){}
-  h+='<div class="tc-ops">'+row+'</div>';
+  /* TCBTN_V1676 按鈕自己排（沿用課表同樣的動作），不再借用課表那一列——借來的那一列在窄欄裡第一顆會被切掉 */
+  h+='<div class="tc-ops2">'+tcOpsHtml(it,m)+'</div>';
   if(m.s){const s=m.s;
     const pend=tcPendFor(s);let due=[];try{due=hwPending().filter(x=>x.sid===s.id);}catch(e){}
     h+='<div class="tc-sec"><h4>作業</h4>'
@@ -26914,6 +26913,20 @@ function tcPanelHtml(){
     h+='<div class="tc-sec"><h4>面試準備</h4>'+(x&&x.it.length?x.it.map(i2=>'<div class="tc-li"><span class="tc-chip '+(i2.hot?'red':'bl')+'">'+esc(i2.t)+'</span></div>').join(''):'<div class="tc-li tc-mut">都準備好了 👍</div>')
       +'<div class="tc-li tc-btns"><button class="tc-sm" type="button" data-act="pGo" data-id="interview::'+esc(m.c.id)+'">看這位客戶 →</button></div></div>';}
   return h;}
+function tcOpsHtml(it,m){
+  const B=(act,id,lab,cls)=>'<button type="button" class="tc-ob'+(cls?' '+cls:'')+'" data-act="'+act+'" data-id="'+esc(id)+'">'+lab+'</button>';
+  let meet='';try{meet=it.s?meetBtn(meetOfStudent(it.s.id),true):(it.cls||it.grp)?meetBtn(meetOfGroup(it.cls||it.grp),true):it.c?meetBtn(meetOfItv(it.c),true):'';}catch(e){}
+  const meetB=meet?('<span class="tc-meet">'+meet+'</span>'):'';
+  const k=(x)=>esc(x||'');let main='',more='';
+  if(it.type==='fix'){const key=(it.s?('S:'+it.s.id):('G:'+it.cls))+'::'+it.date+'::'+(it.start||'')+'::'+(it.end||'');
+    main=B('rollFixed',key,'✍️ 去點名','pri');more=B('fixSkip',(it.s?('S:'+it.s.id):('G:'+it.cls))+'::'+it.date+'::'+(it.start||''),'🗑 這天不上','del');}
+  else if(it.type==='splan'){const key='S:'+it.s.id+'::'+it.date+'::'+(it.start||'');main=B('rollPlanned',key,'✍️ 去點名','pri');more=B('planEdit',key,'✏️ 修改')+B('planDel',key,'🗑 刪除','del');}
+  else if(it.type==='plan'){const key=it.cls+'::'+it.date+'::'+(it.start||'');main=B('rollPlanned',key,'✍️ 去點名','pri');more=B('planEdit',key,'✏️ 修改')+B('planDel',key,'🗑 刪除','del');}
+  else if(it.type==='glog'){main=B('classRoll',it.grp,'✏️ 改點名','pri');}
+  else if(it.type==='log'){main=B('editLogRow',it.s.id+'::'+(Array.isArray(it.s.class_log)?it.s.class_log:[]).indexOf(it.e),'✏️ 改點名','pri');}
+  else if(it.type==='itv'){const ik=it.c.id+'::'+itvSessions(it.c).indexOf(it.e);main=it.e.done?B('itvSess',ik,'✏️ 修改','pri'):B('itvRoll',ik,'✍️ 去點名','pri');more=it.e.done?'':(B('itvSess',ik,'✏️ 修改')+B('itvSessDel',ik,'🗑 刪除','del'));}
+  else if(it.type==='exam'){main=B('itvEdit',it.c.id,'✏️ 填結果','pri');}
+  return '<div class="tc-ob-main">'+main+meetB+'</div>'+(more?('<div class="tc-ob-more">'+more+'</div>'):'');}
 function tcHomeMount(body){
   if(!body)return;const old=document.createElement('details');old.className='tc-old';old.id='tc-old';
   old.innerHTML='<summary>📋 更多：今天要處理、提醒、面試待辦、好久沒上課…</summary>';
