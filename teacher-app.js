@@ -26842,8 +26842,9 @@ function tcHomeHtml(){
   const metas=w.items.map(it=>tcMeta(it,w.today));
   /* 時間軸：照這週有課的時段，前後各留一點；沒有課就 18～22 */
   let lo=24*60,hi=0;w.items.forEach(it=>{const a=tcHm(it.start),b=tcHm(it.end)||(a!=null?a+60:null);if(a!=null){lo=Math.min(lo,a);hi=Math.max(hi,b);}});
-  let h0=lo<24*60?Math.floor(lo/60):18,h1=hi?Math.ceil(hi/60):22;if(h1-h0<4)h1=h0+4;
-  const RH=54,hours=[];for(let h=h0;h<h1;h++)hours.push(h);
+  /* 只畫有課的那幾個小時；中間空著的時段縮成一條細線，不然 14:00 一堂、20:00 一堂，中間一大片空白 */
+  const RH=54,cov=new Set();w.items.forEach(it=>{const a=tcHm(it.start);if(a==null)return;const b=tcHm(it.end)||(a+60);for(let h=Math.floor(a/60);h<Math.ceil(b/60);h++)cov.add(h);});
+  let hours=[...cov].sort((x,y)=>x-y);if(!hours.length)hours=[19,20,21];
   const nToday=w.items.filter(it=>it.date===w.today&&it.type!=='exam').length,nWeek=w.items.filter(it=>it.type!=='exam').length;
   if(TC.sel<0||TC.sel>=w.items.length){TC.sel=w.items.findIndex((it,i)=>it.date===w.today&&!metas[i].done);
     if(TC.sel<0)TC.sel=w.items.findIndex(it=>it.date===w.today);}
@@ -26854,7 +26855,8 @@ function tcHomeHtml(){
   const noTime=w.items.map((it,i)=>i).filter(i=>tcHm(w.items[i].start)==null);
   if(noTime.length)grid+='<div class="tc-tl">時間未定</div>'+w.days.map(d=>'<div class="tc-cell tc-nt'+(d===w.today?' td':'')+'">'
     +noTime.filter(i=>w.items[i].date===d).map(i=>tcEvHtml(i,metas[i],0,0,true)).join('')+'</div>').join('');
-  hours.forEach(h=>{grid+='<div class="tc-tl">'+String(h).padStart(2,'0')+':00</div>'+w.days.map(d=>'<div class="tc-cell'+(d===w.today?' td':'')+'" style="height:'+RH+'px">'
+  hours.forEach((h,hi3)=>{if(hi3&&h-hours[hi3-1]>1)grid+='<div class="tc-gap">⋯</div>'+w.days.map(d=>'<div class="tc-gapc'+(d===w.today?' td':'')+'"></div>').join('');
+    grid+='<div class="tc-tl">'+String(h).padStart(2,'0')+':00</div>'+w.days.map(d=>'<div class="tc-cell'+(d===w.today?' td':'')+'" style="height:'+RH+'px">'
     +w.items.map((it,i)=>i).filter(i=>{const a=tcHm(w.items[i].start);return w.items[i].date===d&&a!=null&&Math.floor(a/60)===h;})
       .map(i=>{const it=w.items[i],a=tcHm(it.start),b=tcHm(it.end)||(a+60);return tcEvHtml(i,metas[i],(a%60)/60*RH+2,Math.max(26,(b-a)/60*RH-4),false);}).join('')
     +'</div>').join('');});
