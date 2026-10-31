@@ -15003,7 +15003,7 @@ H.repGo=(sid)=>{const ym=($('#rep-ym')&&$('#rep-ym').value)||repYM();
   fbWin(html);
   closeModal();};
 H.hwToggleAll=()=>{S.hwAll=!S.hwAll;render();};
-H.hwCopy=(sid)=>{const its=hwPending().filter(x=>x.sid===sid);if(!its.length)return;
+H.hwCopy=(sid,b)=>{const its=hwPending().filter(x=>x.sid===sid);if(!its.length)return;
   const s=S.students.find(x=>x.id===sid)||{};
   const lines=its.map(x=>'・'+x.kind+'：'+x.what+(x.due?('（截止 '+x.due+(x.days!=null&&x.days<0?('，已逾期 '+(-x.days)+' 天'):'')+'）'):''));
   /* MSG_VI_V696 學生大多是越南人，只有中文的提醒他們不一定看得懂，改成中越對照 */
@@ -15014,9 +15014,28 @@ H.hwCopy=(sid)=>{const its=hwPending().filter(x=>x.sid===sid);if(!its.length)ret
     +'\n— — — — —\n'
     +'Chào '+(s.name||'')+' 👋\nEm còn mấy bài chưa nộp, tranh thủ làm nhé:\n'+vlines.join('\n')
     +'\n\nĐăng nhập rồi vào mục「我的作業」là thấy. Có gì không hiểu cứ hỏi cô nhé.\n— Cô Mỹ Quyên';
+  /* HWCOPYEDIT_V1684 Quinn：「複製訊息後，沒看到內容欸，這樣萬一有修改，怎麽修改」
+     按了不再直接複製，先把訊息攤在按鈕下面一個可以改的框裡；改好再按〔📋 複製〕。 */
+  const host=(b&&b.parentNode)||null;
+  if(host){let box=host.querySelector('.hwc-box');
+    if(box){box.remove();return;}/* 再按一次＝收起來 */
+    box=document.createElement('div');box.className='hwc-box';
+    box.style.cssText='margin-top:8px;display:flex;flex-direction:column;gap:8px;flex-basis:100%;width:100%';
+    box.innerHTML='<textarea class="hwc-ta" spellcheck="false" style="width:100%;min-height:260px;box-sizing:border-box;padding:10px 12px;border:1px solid #C7D8EF;border-radius:10px;font:inherit;font-size:14px;line-height:1.6;resize:vertical"></textarea>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-sm btn-primary" data-act="hwCopyNow">📋 複製</button>'
+      +'<button type="button" class="btn btn-sm" data-act="hwCopyReset" data-id="'+esc(sid)+'">↺ 還原</button>'
+      +'<span class="muted" style="font-size:12.5px;align-self:center">可以直接在框裡改，改好再按複製</span></div>';
+    host.appendChild(box);const ta=box.querySelector('.hwc-ta');ta.value=txt;try{ta.focus();ta.setSelectionRange(0,0);ta.scrollTop=0;}catch(e){}
+    return;}
   try{navigator.clipboard.writeText(txt).then(()=>toast('提醒訊息已複製，貼到 Zalo／LINE 給他'),()=>{});}
   catch(e){toast('複製失敗，請手動選取');}
 };
+H.hwCopyNow=(id,b)=>{const box=b&&b.closest('.hwc-box');const ta=box&&box.querySelector('.hwc-ta');if(!ta)return;
+  const done=()=>toast('已複製，貼到 Zalo／LINE 給他');
+  try{navigator.clipboard.writeText(ta.value).then(done,()=>{ta.select();document.execCommand('copy');done();});}
+  catch(e){try{ta.select();document.execCommand('copy');done();}catch(_){toast('複製失敗，請手動選取');}}};
+H.hwCopyReset=(sid,b)=>{const box=b&&b.closest('.hwc-box');if(!box)return;const host=box.parentNode;box.remove();
+  const ob=host&&host.querySelector('[data-act="hwCopy"]');H.hwCopy(sid,ob);};
 H.previewWb=(id)=>{window.open('student.html?wbpreview='+encodeURIComponent(id),'_blank');};
 H.tryWb=(id)=>{window.open('student.html?wbpreview='+encodeURIComponent(id)+'&try=1','_blank');};
 H.delWb=async(id)=>{if(!confirm('確定刪除這份作業簿？'))return;
