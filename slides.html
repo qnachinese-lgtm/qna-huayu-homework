@@ -2104,14 +2104,15 @@ function srcToDoc(l, idx){
   const exsOf = gi => { const qs = (l._qs||[]).filter(q => q && q.bank !== "hw" && q.type !== "note" && (q.gp_index == null || q.gp_index === "" ? 0 : Number(q.gp_index)) === gi).sort((a,b)=>(String(a.gp_sub||"")).localeCompare(String(b.gp_sub||""), undefined, {numeric: true}) || ((a.type==="opt"?0:1)-(b.type==="opt"?0:1)) || (a.order_index||0)-(b.order_index||0));
     const out = [], byKey = {};
     qs.forEach(q => { const instr = T(q.instruction), key = T(q.gp_sub) ? "s:" + T(q.gp_sub) : "i:" + nIns(instr);
-      let g = byKey[key]; if(!g){ g = byKey[key] = {instr, opts: [], qs: []}; out.push(g); }
+      let g = byKey[key]; if(!g){ g = byKey[key] = {instr, opts: [], qs: [], qimgs: []}; out.push(g); }
       if(instr && (!g.instr || (q.type==="opt" && !g._optI) || (!g._optI && instr.length > g.instr.length))){ g.instr = instr; if(q.type==="opt") g._optI = true; }
-      if(q.type==="opt"){ (q.options||[]).forEach((o,i)=>g.opts.push(oLab(o, g.opts.length))); (q.items||[]).forEach(it=>{ const t = clean(it.text||""); if(t) g.qs.push([t, ""].join("｜")); }); return; }
+      if(q.type==="opt"){ (q.options||[]).forEach((o,i)=>g.opts.push(oLab(o, g.opts.length))); (q.items||[]).forEach(it=>{ const t = clean(it.text||""); if(t){ g.qs.push([t, ""].join("｜")); g.qimgs.push(""); } }); return; }
       let p = T(q.prompt); if(q.type==="choice" && (q.options||[]).length) p += "　" + q.options.map((o,i)=>"（" + String.fromCharCode(97+i) + "）" + o).join(" ");
       if(q.type==="order" && (q.options||[]).length && !p) p = q.options.slice().sort(()=>0).join("／");
       if(!p) return;
-      g.qs.push([clean(p), clean(qRef(q))].join("｜")); });
-    return out.filter(g => g.qs.length || g.opts.length).map(g=>({instr: g.instr, opts: g.opts.join("\n"), qs: g.qs.join("\n")})); };
+      g.qs.push([clean(p), clean(qRef(q))].join("｜")); g.qimgs.push(T(q.image_url)); });
+    /* QIMG_V1 Quinn：「PPT沒有照片」——題目本身有圖（questions.image_url），匯入時沒帶過來。每一題的圖跟著題目走。 */
+    return out.filter(g => g.qs.length || g.opts.length).map(g=>({instr: g.instr, opts: g.opts.join("\n"), qs: g.qs.join("\n"), qimgs: g.qimgs.some(Boolean) ? g.qimgs : []})); };
   const grammars = (l.grammar_points||[]).map((g, gi) => g ? {...g, _gi: gi} : g).filter(g => g && (T(g.title) || (g.blocks||[]).some(b=>T(b.text)||T(b.ex)))).map(g => {
     const bl = g.blocks || [];
     const note = bl.map(b => { const tx = T(b.text); if(!tx) return ""; const lb = T(b.label); return lb && lb !== "說明" ? lb + "：" + tx : tx; }).filter(Boolean).join("\n");
@@ -2174,7 +2175,7 @@ async function impGo(){ const b = $("#impBook").value, ls = impOf(b), picks = [.
       if(old){ doc.flow = flowOf(old); ["goals","dict","cards","review","homework","textImgs","pinyin"].forEach(k=>delete doc[k]); if(old.audio && old.audio.url) delete doc.audio; if(old.qaSplit){ if(old.qa && old.qa.length) delete doc.qa; if(old.qa2 && old.qa2.length) delete doc.qa2; } else { doc.flow = doc.flow.filter(k=>k!=="qa"); }
         const addStep = (k, after) => { if(doc.flow.includes(k)) return; const at = after.map(a=>doc.flow.indexOf(a)).filter(i=>i>=0).pop(); doc.flow.splice(at != null ? at+1 : Math.max(1, doc.flow.length-1), 0, k); };
         /* GEXIMG_V1 再匯入時保留老師放的練習圖片 */
-        (doc.grammars||[]).forEach((g, i) => (g.exs||[]).forEach((e, k) => { const o = (((old.grammars||[])[i]||{}).exs||[])[k]; if(o && o.img && o.img.url) e.img = {url: o.img.url, path: o.img.path||""}; }));
+        (doc.grammars||[]).forEach((g, i) => (g.exs||[]).forEach((e, k) => { const o = (((old.grammars||[])[i]||{}).exs||[])[k]; if(o && o.img && o.img.url) e.img = {url: o.img.url, path: o.img.path||""}; if(o && !(e.qimgs||[]).some(Boolean) && (o.qimgs||[]).some(Boolean)) e.qimgs = o.qimgs; }));
         /* GANS_V1 再匯入時保留老師寫的語法參考答案 */
         { const nz = x => String(x||"").replace(/\s+/g, ""), am = {}; (old.grammars||[]).forEach(g => (g.exs||[]).forEach(e => (e.qs||[]).forEach(q => { if(q && q[1]) am[nz(q[0])] = q[1]; })));
           (doc.grammars||[]).forEach(g => (g.exs||[]).forEach(e => { e.qs = String(e.qs||"").split("\n").map(r => { const p = r.split("｜"); return (p[0] && !p[1] && am[nz(p[0])]) ? p[0] + "｜" + am[nz(p[0])] : r; }).join("\n"); })); }
