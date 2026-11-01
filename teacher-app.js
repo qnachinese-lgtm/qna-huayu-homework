@@ -26902,13 +26902,24 @@ function tcHomeHtml(){
     +'<div class="tc-qa"><button class="tc-qb" data-act="tcHw" type="button">📝 指派作業</button><button class="tc-qb" data-act="planClass" data-id="" type="button">📌 排一堂課</button>'
     +(IS_OWNER?'<button class="tc-qb" data-act="payPick" type="button">💰 記一筆錢</button><button class="tc-qb" data-act="newAll" type="button">👤 新增一位</button>':'')+'</div></div>'
     +'<div class="tc-main"><div class="tc-cal"><div class="tc-wn"><button class="tc-wb" data-act="tcWk" data-id="-1" type="button">‹ 上週</button><b>'+fmtD(w.days[0])+' – '+fmtD(w.days[6])+'<small>'+(TC.off===0?'本週':(TC.off===-1?'上週':(TC.off===1?'下週':(TC.off<0?(-TC.off)+' 週前':TC.off+' 週後'))))+'</small>'+'</b><button class="tc-wb" data-act="tcWk" data-id="1" type="button">下週 ›</button>'+(TC.off?'<button class="tc-wb tc-wnow" data-act="tcWk" data-id="0" type="button">回本週</button>':'')+'</div><div class="tc-leg"><span><i style="background:#2F6FD0"></i>一對一</span><span><i style="background:#E8833A"></i>團班</span><span><i style="background:#8B5CF6"></i>面試</span><span class="tc-leg-r"><i class="tc-dotl"></i>有事要處理</span></div>'
-    +'<div class="tc-scroll"><div class="tc-grid">'+grid+'</div></div></div>'
+    +'<div class="tc-scroll"><div class="tc-grid">'+grid+'</div></div>'+tcAgendaHtml(w,metas)+'</div>'
     /* TCSIDE_V1688 Quinn：「首頁其他地方」重新設計——右邊沒選課時空一大片，底下四張卡又離課表很遠。
        四張待辦卡搬到右邊面板底下，排成一直列；整頁只剩「課表＋右邊一欄」。 */
     +'<div class="tc-side"><div class="tc-pn" id="tc-pn">'+tcPanelHtml()+'</div>'
     +'<div class="tc-strip"><div class="tc-sth">待處理</div>'+tile('📥','#FFF0E3',pendN,'份作業等批改','tab','grades')+(IS_OWNER?tile('💰','#FDE8E8',oweN,'位還沒繳費','tab','pay'):'')
     +(IS_OWNER?tile('🎤','#F1EAFF',itvN,'位面試客戶有待辦','tab','interview'):'')+tile('😴','#E3EEFF',quietN,'位一週沒做練習','tcMore','quiet')+'</div></div></div>'
     +'</div>';}
+/* TCMOB_V1689 Quinn：「手機版出現太多錯誤了」——手機上七天的格子只看得到三天、要左右滑。
+   手機改成一天一段的清單（電腦照舊是格子），點一堂一樣在下面出現那堂課要做的事。 */
+function tcAgendaHtml(w,metas){
+  const DN=['一','二','三','四','五','六','日'];
+  return '<div class="tc-agenda">'+w.days.map((d,di)=>{
+    const ids=w.items.map((it,i)=>i).filter(i=>w.items[i].date===d).sort((a,b)=>String(w.items[a].start||'99').localeCompare(String(w.items[b].start||'99')));
+    const td=d===w.today;
+    return '<div class="tc-ag-d'+(td?' td':'')+(ids.length?'':' empty')+'"><div class="tc-ag-h"><b>週'+DN[di]+'</b><span>'+(+d.slice(5,7))+'/'+(+d.slice(8,10))+'</span>'+(td?'<em>今天</em>':'')+(ids.length?'':'<i>沒有課</i>')+'</div>'
+      +ids.map(i=>{const it=w.items[i],m=metas[i];return '<button type="button" class="tc-ag-it e'+m.col+(m.done?' done':'')+(i===TC.sel?' sel':'')+'" data-act="tcSel" data-id="'+i+'">'
+        +'<span class="t">'+esc(it.start||'—')+'</span><span class="n">'+esc(m.n)+'<small>'+esc(m.sub)+'</small></span>'
+        +(tcHot(m)?'<span class="tc-dot"></span>':'')+(m.done&&!m.exam?'<span class="ok">✓</span>':'')+'</button>';}).join('')+'</div>';}).join('')+'</div>';}
 function tcEvHtml(i,m,top,h,nt){
   const it=TC.items[i];const hot=tcHot(m);
   return '<button type="button" class="tc-ev e'+m.col+(m.done?' done':'')+(i===TC.sel?' sel':'')+(nt?' nt':'')+'" data-act="tcSel" data-id="'+i+'"'
@@ -26968,7 +26979,7 @@ function tcHomeMount(body){
   try{if(localStorage.getItem('tc_old_open')==='1')old.open=true;}catch(e){}
   old.addEventListener('toggle',()=>{try{localStorage.setItem('tc_old_open',old.open?'1':'0');}catch(e){}});
   body.innerHTML=tcHomeHtml();body.appendChild(old);}
-H.tcSel=(i)=>{TC.sel=+i;document.querySelectorAll('.tc-ev').forEach(b=>b.classList.toggle('sel',b.getAttribute('data-id')===String(i)));
+H.tcSel=(i)=>{TC.sel=+i;document.querySelectorAll('.tc-ev,.tc-ag-it').forEach(b=>b.classList.toggle('sel',b.getAttribute('data-id')===String(i)));
   const p=document.getElementById('tc-pn');if(p)p.innerHTML=tcPanelHtml();
   try{if(window.innerWidth<900&&p)p.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}};
 H.tcHw=()=>{const b=document.querySelector('[data-hwhub]');if(b){b.click();return;}toast('派作業還在載入，等一下再按一次');};
@@ -26986,3 +26997,7 @@ H.tcWk=(d)=>{d=+d||0;TC.off=d===0?0:((TC.off||0)+d);TC.sel=-1;
 
 /* NAVSIBGRP_V1683 分頁列上的外掛項目：去按上面下拉裡同一顆 */
 H.navPlug=(sel)=>{const b=document.querySelector('#tnav '+sel)||document.querySelector(sel);if(b){b.click();return;}toast('還在載入，等一下再按一次');};
+
+/* TCMOB_V1689 手機上分頁列太長要左右滑，現在這一頁常常在畫面外面——自動把它捲到看得到的地方 */
+(function(){let t=0;function fix(){t=0;try{document.querySelectorAll('.navsib .segbar').forEach(b=>{const on=b.querySelector('.segb.on');if(!on||b.scrollWidth<=b.clientWidth+2||b._onFix===on)return;b._onFix=on;b.scrollLeft=Math.max(0,on.offsetLeft-(b.clientWidth-on.offsetWidth)/2);});}catch(e){}}
+  try{new MutationObserver(()=>{if(!t)t=requestAnimationFrame(fix);}).observe(document.body,{childList:true,subtree:true});}catch(e){}})();
