@@ -6864,8 +6864,9 @@ const TNAV=[
                  ['files','🎯 課堂活動',''],
                  {k:'oc',id:'oc',t:'▶️ 線上課',ow:1},
                  ['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],/* HANZI_V4 */['grades','📝 批改・成績','c-pending']]},
-  {t:'留學業務',sub:[{k:'msgs',id:'msgs',t:'📨 訊息追蹤'},['agency','🎓 代辦申請','c-ag'],['interview','🎤 面試練習','c-itv'],
-                     ['writing','✍️ 代書','c-wr'],['school','🏫 學校與資料','']]},
+  /* TEAMNOTE_V1702 員工（其他管理員）只看得到「訊息追蹤」；代辦、面試、代書、學校本來就只有主管理員能進，選單上也藏起來，免得點了被彈回首頁 */
+  {t:'留學業務',sub:[{k:'msgs',id:'msgs',t:'📨 訊息追蹤'},{k:'agency',id:'agency',t:'🎓 代辦申請',n:'c-ag',ow:1},{k:'interview',id:'interview',t:'🎤 面試練習',n:'c-itv',ow:1},
+                     {k:'writing',id:'writing',t:'✍️ 代書',n:'c-wr',ow:1},{k:'school',id:'school',t:'🏫 學校與資料',ow:1}]},
   {t:'收費・財務',sub:[['pay','💰 繳費','c-owe'],['ops','📈 財務・營運','']]},
   /* GIVESUB_V1366 Quinn：「能不能也有下拉的方式提供給學生的東西呢？」
      原本它是一顆平的按鈕，只能先進頁面再找。下拉直接把那一頁「不用先選學生」
@@ -27145,3 +27146,34 @@ H.tnNote=async(id)=>{const t=document.getElementById('tn-msg');const v=(t&&t.val
   catch(e){toast('送不出去：'+((e&&e.message)||e));}};
 H.tnDel=async(id)=>{if(!confirm('刪除這一筆？'))return;
   try{await firebase.firestore().collection('teamnotes').doc(id).update({deleted_at:new Date().toISOString()});TN.open=null;closeModal();toast('已刪除');}catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
+
+/* TEAMNOTE_VI_V1702 Quinn：「我跟我的員工一起編輯，所以需要越南文」。
+   訊息追蹤這一頁的字補進越南文字典（vi.js 載入後才併進去；字典裡本來就有的詞不覆蓋）。 */
+(function(){
+  const M={'訊息追蹤':'Theo dõi tin nhắn','進行中':'Đang xử lý','待回覆':'Chờ trả lời','諮詢中':'Đang tư vấn','成交':'Đã chốt','沒談成':'Không thành',
+    '只看我負責的':'Chỉ xem khách tôi phụ trách','搜尋名字、內容…':'Tìm tên, nội dung…','＋ 新增一筆':'＋ Thêm mới','新增一筆':'Thêm mới',
+    '還沒有任何一筆。有人傳訊息來問，就按右上角「＋ 新增一筆」記下來。':'Chưa có mục nào. Khi có người nhắn tin hỏi, bấm “＋ Thêm mới” để ghi lại.',
+    '讀取中…':'Đang tải…','沒有':'Không có','沒有符合的':'Không có kết quả phù hợp','還沒有人負責':'Chưa có người phụ trách','還沒有備註。':'Chưa có ghi chú.',
+    '是誰':'Người hỏi','名字':'Tên','電話／Zalo／FB 連結':'SĐT / Zalo / link Facebook','從哪裡傳來':'Nhắn từ đâu','想問什麼':'Hỏi về việc gì','誰負責':'Ai phụ trách',
+    '— 還沒決定 —':'— Chưa chọn —','他問了什麼':'Khách hỏi gì','把訊息內容或重點貼在這裡':'Dán nội dung tin nhắn hoặc ý chính vào đây',
+    '寫一則備註，例如：已回覆報價，等他考慮':'Viết ghi chú, ví dụ: đã gửi báo giá, chờ khách suy nghĩ','送出':'Gửi',
+    '還沒回訊息':'Chưa trả lời tin nhắn','回了，正在談':'Đã trả lời, đang trao đổi','談成了':'Đã chốt được','沒下文':'Khách không phản hồi',
+    '官網':'Website','電話':'Điện thoại','朋友介紹':'Bạn bè giới thiệu','其他':'Khác',
+    '中文課':'Lớp tiếng Trung','代辦申請':'Hồ sơ du học','面試練習':'Luyện phỏng vấn','代書':'Viết hồ sơ',
+    '取消負責人':'Bỏ người phụ trách','剛剛':'Vừa xong','請填名字':'Vui lòng nhập tên','已儲存':'Đã lưu','已刪除':'Đã xóa','刪除這一筆？':'Xóa mục này?',
+    '還不能用：請主管理員先在 Firebase 加上規則。':'Chưa dùng được: quản trị viên cần thêm quy tắc trong Firebase.',
+    '則訊息待回覆':'tin nhắn chờ trả lời','待處理':'Cần xử lý'};
+  const R=[[/^把階段改成「待回覆」$/,'Đổi giai đoạn thành “Chờ trả lời”'],[/^把階段改成「諮詢中」$/,'Đổi giai đoạn thành “Đang tư vấn”'],
+    [/^把階段改成「成交」$/,'Đổi giai đoạn thành “Đã chốt”'],[/^把階段改成「沒談成」$/,'Đổi giai đoạn thành “Không thành”'],
+    [/^改由 (.+) 負責$/,'Chuyển cho $1 phụ trách'],
+    [/^(\d+) 分鐘前$/,'$1 phút trước'],[/^(\d+) 小時前$/,'$1 giờ trước'],[/^(\d+) 天前$/,'$1 ngày trước'],
+    [/^(\d+) 分鐘前 · (\d+) 則備註$/,'$1 phút trước · $2 ghi chú'],[/^(\d+) 小時前 · (\d+) 則備註$/,'$1 giờ trước · $2 ghi chú'],
+    [/^(\d+) 天前 · (\d+) 則備註$/,'$1 ngày trước · $2 ghi chú'],[/^剛剛 · (\d+) 則備註$/,'Vừa xong · $1 ghi chú'],
+    [/^(\d{4}-\d\d-\d\d) · (\d+) 則備註$/,'$1 · $2 ghi chú'],[/^(\d+) 則訊息待回覆$/,'$1 tin nhắn chờ trả lời']];
+  let done=false;
+  function go(){if(done)return;const d=window.QNA_VI;if(!d||!d.M||!Array.isArray(d.R)||!d.R.length||!(d.R[0][0] instanceof RegExp))return;
+    Object.keys(M).forEach(k=>{if(!Object.prototype.hasOwnProperty.call(d.M,k))d.M[k]=M[k];});
+    R.forEach(r=>d.R.unshift(r));done=true;
+    try{if(S.tab==='msgs')renderMsgs();}catch(e){}}
+  const t=setInterval(()=>{go();if(done)clearInterval(t);},400);
+})();
