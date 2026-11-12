@@ -6100,7 +6100,8 @@ function renderStudents(){
   const cardInner=stuCardInner;
   const card=s=>`<div class="card student-card">${cardInner(s)}</div>`;
   const grpHtml=students=>(S.stuView==='card')?`<div class="cards cols-2" style="margin-top:10px">${students.map(card).join('')}</div>`:stuTableRows(students);
-  const secOpen=(S.stuSecAllOpen===true)?' open':'';
+  /* STUUI_V1701 一對一、各團班預設就打開（本來每次都要先點開才看得到學生）；預約、休學、測試照舊收著 */
+  const secOpen=(S.stuSecAllOpen!==false)?' open':'';
   /* STU_SORT_V7 每一組學生一律照名字 A→Z 排（休學的仍然排最後），跟「預約」「已休學」那兩組一致 */
   const stuSort=(arr)=>arr.slice().sort((a,b)=>((enrollOf(a)==='paused'?1:0)-(enrollOf(b)==='paused'?1:0))||stuNameCmp(a,b));
   const sec=(label,students,cls,note)=>`<details class="stu-sec cool-sec"${secOpen}><summary><span style="font-size:16px;color:var(--primary);font-weight:600">${label}</span> <span class="tag">${students.length} 人</span></summary>${cls?`<div style="margin:8px 0 2px"><button class="btn btn-sm btn-accent" data-act="classPage" data-id="${esc(cls)}">🔎 開啟班級頁</button></div>`:''}${note||''}${grpHtml(stuSort(students))}</details>`;
@@ -19340,7 +19341,7 @@ H.stuNoMail=()=>{
        <span class="grow"></span>
        <button class="btn btn-sm" data-act="editStudent" data-id="${esc(s.id)}">✏️ 去填</button></div>`).join('')}
    </div></div>`);};
-H.stuSecToggle=()=>{S.stuSecAllOpen=!(S.stuSecAllOpen===true);renderStudents();};
+H.stuSecToggle=()=>{S.stuSecAllOpen=(S.stuSecAllOpen===true)?false:true;renderStudents();};
 H.openSld=(id)=>{try{window.open('slides.html?lesson='+encodeURIComponent(id),'_blank','noopener');}catch(e){}};
 H.toggleCard=(id)=>{if(S.openCards.has(id))S.openCards.delete(id);else S.openCards.add(id);renderLessons();};
 H.toggleTranscript=async(id)=>{/*TRANSCRIPT_V75 老師開了學生才看得到聽力文本*/
