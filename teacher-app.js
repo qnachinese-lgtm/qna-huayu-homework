@@ -12379,6 +12379,7 @@ H.settingsCenter=()=>{
     <div class="modal-body">
       <div class="hint" style="margin-bottom:12px">平常只會用到這三個。其他的都寫在「📖 使用說明」那一頁。</div>
       <div style="display:grid;gap:10px">
+        ${card('admins','','👥','員工帳號・指派學生','新增員工、決定誰負責哪些學生、收回')/* ADMASSIGN_V1704 從「很少用到的」搬上來 */}
         ${card('editSite','web','🌐','官網內容','你的招生網站上寫什麼')}
         ${card('payView','','💳','收款帳號','台灣／越南的 QR 和帳號')}
         ${card('dataTools','','🗄️','備份與垃圾桶','存成 Excel · 誤刪的 7 天內可救回')}
@@ -12391,7 +12392,6 @@ H.settingsCenter=()=>{
           ${rare('featureSettings','','🎛️','學生看得到什麼','要不要開放即時比賽、學生寫評價')}
           ${rare('editSite','notify','📧','有人報名時通知我','報名表填好後自動寄信到你的信箱')}
           ${rare('editSite','fab','📱','官網上的聯絡按鈕','官網右下角那排 LINE／Zalo／FB')}
-          ${rare('admins','','👤','其他老師的帳號','新增管理員 · 決定誰帶哪些學生')}
           ${rare('ruRebuild','','🔐','重建學生讀取名單','把每一課「誰讀得到」重算一次。平常會自己維護，不用按')}
           ${rare('mediaMove','','🗂','搬音檔到雲端','2026/09 已經搬完一次。之後只有網站空間又滿了才需要再跑')/* MEDIAMOVE_V1129 */}
           ${rare('obShow','','🚀','新手引導','第一次用的老師：五個基本步驟走一遍')}
@@ -18825,7 +18825,7 @@ H.delStudent=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;if(!
 H.admins=async()=>{if(!isOwner()){toast('只有主管理員可以管理管理員');return;}
   let list=[];try{list=await DB.list('admins');}catch(e){list=[];}
   const cnt=em=>S.students.filter(s=>(s.admin||'').toLowerCase()===(em||'').toLowerCase()).length;
-  const rows=list.length?list.map(a=>`<div class="dash-row"><span class="badge badge-ok">管理員</span><b>${snm(a.name||a.email||'')}</b><span class="muted">${esc(a.email||'')}</span><span class="grow"></span><span class="muted">負責 ${cnt(a.email)} 位學生</span><button class="btn btn-sm btn-danger" data-act="delAdmin" data-id="${a.id}">移除</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">目前沒有一般管理員。</div>';
+  const rows=list.length?list.map(a=>`<div class="dash-row"><span class="badge badge-ok">管理員</span><b>${snm(a.name||a.email||'')}</b><span class="muted">${esc(a.email||'')}</span><span class="grow"></span><span class="muted">負責 ${cnt(a.email)} 位學生</span><button class="btn btn-sm btn-primary" data-act="admAssign" data-id="${esc(a.email||a.id)}">👥 指派學生</button><button class="btn btn-sm btn-danger" data-act="delAdmin" data-id="${a.id}">移除</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">目前沒有一般管理員。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>👤 管理員</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="dash-row"><span class="badge" style="background:var(--accent);color:#fff;border-color:var(--accent)">主管理員</span><b>你</b><span class="muted">${esc(TEACHER_EMAIL)}</span><span class="grow"></span></div>
@@ -27132,7 +27132,11 @@ function tnForm(x){x=x||{};const isNew=!x.id;TN.open=x.id||null;
 H.tnF=(v)=>{TN.f=v;renderMsgs();};
 H.tnMine=()=>{TN.mine=!TN.mine;renderMsgs();};
 H.tnNew=()=>tnForm(null);
-H.tnOpen=(id)=>{const x=(TN.list||[]).find(v=>v.id===id);if(x)tnForm(x);};
+H.tnOpen=(id)=>{const x=(TN.list||[]).find(v=>v.id===id);if(!x)return;
+  if(TN.view!=='board'){TN.exp=(TN.exp===id)?null:id;TN.open=TN.exp;TN.dirty=0;
+    if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();renderMsgs();
+    if(TN.exp){const t=document.getElementById('tn-msg');if(t)t.focus();}return;}
+  tnForm(x);};
 H.tnSave=async(id)=>{const V=k=>((document.getElementById(k)||{}).value||'').trim();
   const name=V('tn-name');if(!name)return toast('請填名字');
   const now=new Date().toISOString(),me=tnMe();
@@ -27199,12 +27203,17 @@ function tnTableHtml(list){
       +'<span>'+sel('topic',x.id,x.topic||'',[['','—']].concat(TN_TOPIC.map(v=>[v,v])))+'</span>'
       +'<span>'+sel('owner',x.id,x.owner||'',[['','—']].concat(ppl.map(p=>[p.k,p.n])),x.owner===me?'mine':'')+'</span>'
       +'<span><input class="tn-in" data-f="contact" data-id="'+esc(x.id)+'" value="'+esc(x.contact||'')+'" placeholder="—"></span>'
-      +'<span><button type="button" class="tn-note" data-act="tnOpen" data-id="'+esc(x.id)+'" title="打開看全部備註、寫備註">'+(ln?('<b>'+esc(ln.by||'')+'</b>'+esc(String(ln.text||'').slice(0,60))):'<i>＋ 寫備註</i>')+(ns.filter(n=>!n.sys).length>1?'<em>'+ns.filter(n=>!n.sys).length+'</em>':'')+'</button></span>'
-      +'<span class="tn-up">'+esc(tnAgo(x.updated_at||x.created_at))+'</span></div>';}).join('');
+      +'<span><button type="button" class="tn-note'+(TN.exp===x.id?' on':'')+'" data-act="tnOpen" data-id="'+esc(x.id)+'" title="點一下在下面展開，看全部備註、寫備註">'+(ln?('<b>'+esc(ln.by||'')+'</b>'+esc(String(ln.text||'').slice(0,60))):'<i>＋ 寫備註</i>')+(ns.filter(n=>!n.sys).length>1?'<em>'+ns.filter(n=>!n.sys).length+'</em>':'')+'</button></span>'
+      +'<span class="tn-up">'+esc(tnAgo(x.updated_at||x.created_at))+'</span></div>'
+      /* TNINLINE_V1705 Quinn：「點這邊還是跳出視窗，很怪」——備註改成在那一列底下直接展開，不跳視窗 */
+      +(TN.exp===x.id?('<div class="tn-exp"><div id="tn-thread" class="tn-thread">'+tnThreadHtml(x)+'</div>'
+        +'<div class="tn-add"><textarea id="tn-msg" rows="2" placeholder="寫一則備註，例如：已回覆報價，等他考慮"></textarea>'
+        +'<button class="btn btn-primary" data-act="tnNote" data-id="'+esc(x.id)+'">送出</button><button class="btn btn-ghost" data-act="tnOpen" data-id="'+esc(x.id)+'">收起</button></div></div>'):'');}).join('');
   return '<div class="tn-table">'+head+(rows||'<div class="tn-none" style="padding:14px 16px">還沒有任何一筆，按右上角「＋ 新增一筆」。</div>')+'<button type="button" class="tn-addrow" data-act="tnAddRow">＋ 新增一筆</button></div>';}
 function tnWire(body){if(body.__tnWired)return;body.__tnWired=1;
   body.addEventListener('change',e=>{const el=e.target.closest&&e.target.closest('.tn-sel');if(!el)return;tnSet(el.dataset.id,el.dataset.f,el.value);});
-  body.addEventListener('keydown',e=>{const el=e.target.closest&&e.target.closest('.tn-in');if(el&&e.key==='Enter'){e.preventDefault();el.blur();}});
+  body.addEventListener('keydown',e=>{const el=e.target.closest&&e.target.closest('.tn-in');if(el&&e.key==='Enter'){e.preventDefault();el.blur();}
+    if(e.target&&e.target.id==='tn-msg'&&e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();const b=e.target.closest('.tn-exp').querySelector('[data-act="tnNote"]');if(b)H.tnNote(b.dataset.id);}});
   body.addEventListener('focusout',e=>{const el=e.target.closest&&e.target.closest('.tn-in');
     if(el){const x=(TN.list||[]).find(v=>v.id===el.dataset.id);const v=el.value.trim();if(x&&String(x[el.dataset.f]||'')!==v)tnSet(el.dataset.id,el.dataset.f,v);}
     setTimeout(()=>{if(TN.dirty&&!(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.tn-table'))){TN.dirty=0;renderMsgs();}},50);});}
@@ -27219,3 +27228,39 @@ try{TN.view=localStorage.getItem('tn_view')||'table';}catch(e){TN.view='table';}
 H.tnAddRow=async()=>{const now=new Date().toISOString();
   try{const r=await firebase.firestore().collection('teamnotes').add({name:'',stage:'new',source:'',topic:'',owner:'',contact:'',notes:[],created_at:now,updated_at:now,created_by:tnMe()});
     TN.focusNew=r.id;if(TN.f!=='all'&&TN.f!=='open'&&TN.f!=='new')TN.f='open';}catch(e){toast('新增失敗：'+((e&&e.message)||e));}};
+
+/* ══════ ADMASSIGN_V1704 Quinn：「我找不出指派學生給某個管理員，或是把學生的管理權還給我自己」 ══════
+   本來只能一位一位進學生的編輯視窗，打開藏起來的「發佈」那一區才改得到。
+   現在在「⚙ 設定 → 員工帳號・指派學生」，每位員工旁邊一顆〔👥 指派學生〕：
+   打勾＝交給他負責，取消勾＝收回給你自己。存好以後，那些學生的課也會自動分享給他（只加不減）。 */
+H.admAssign=(email)=>{if(!isOwner())return;email=String(email||'').toLowerCase();
+  const a=(S.admins||[]).find(x=>String(x.email||x.id||'').toLowerCase()===email)||{email};
+  const nm=a.name||email;
+  const list=(S.students||[]).filter(x=>x&&!x.deleted_at&&!x.is_test).slice()
+    .sort((p,q)=>(((q.admin||'').toLowerCase()===email)-((p.admin||'').toLowerCase()===email))||((enrollOf(p)==='active'?0:1)-(enrollOf(q)==='active'?0:1))||stuNameCmp(p,q));
+  const row=x=>{const cur=(x.admin||'').toLowerCase();const mine=cur===email;
+    const other=cur&&!mine?('<span class="adm-oth">目前：'+esc(adminName?adminName(cur):cur)+'</span>'):'';
+    const st=enrollOf(x)!=='active'?('<span class="adm-st">'+esc(enrollMeta(enrollOf(x))[1])+'</span>'):'';
+    return '<label class="adm-row"><input type="checkbox" value="'+esc(x.id)+'"'+(mine?' checked':'')+'><span class="adm-av" style="background:'+avColor(x.name)+'">'+esc((String(x.name||'?').trim()[0]||'?').toUpperCase())+'</span><b>'+esc(x.name||'')+'</b>'+st+other+'</label>';};
+  openModal('<div class="modal"><div class="modal-head"><h3>👥 指派學生給 '+esc(nm)+'</h3><button class="x" data-act="closeModal">×</button></div>'
+    +'<div class="modal-body"><div class="adm-tip">打勾＝交給 <b>'+esc(nm)+'</b> 負責；取消勾＝收回給你自己。</div>'
+    +'<div class="adm-tools"><button class="btn btn-sm" type="button" data-act="admAll" data-id="0">全部取消（全部收回）</button></div>'
+    +'<div class="adm-list" id="adm-list">'+list.map(row).join('')+'</div></div>'
+    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="admins">← 回員工列表</button><span style="flex:1"></span><button class="btn btn-primary" data-act="admAssignSave" data-id="'+esc(email)+'">💾 儲存</button></div></div>');};
+H.admAll=(v)=>{document.querySelectorAll('#adm-list input[type=checkbox]').forEach(c=>{c.checked=v==='1';});};
+H.admAssignSave=async(email,btn)=>{if(!isOwner())return;email=String(email||'').toLowerCase();
+  const boxes=[...document.querySelectorAll('#adm-list input[type=checkbox]')];
+  const todo=[];boxes.forEach(c=>{const s0=(S.students||[]).find(x=>x.id===c.value);if(!s0)return;const cur=(s0.admin||'').toLowerCase();
+    if(c.checked&&cur!==email)todo.push([s0,email]);else if(!c.checked&&cur===email)todo.push([s0,'']);});
+  if(!todo.length){toast('沒有變更');return;}
+  const moveOther=todo.filter(t=>t[1]&&(t[0].admin||'')).length;
+  if(moveOther&&!confirm('其中 '+moveOther+' 位原本是別的員工負責，會改成這位負責。確定嗎？'))return;
+  if(btn){btn.disabled=true;btn.textContent='儲存中…';}
+  let ok=0,bad=0;
+  for(const t of todo){try{await DB.update('students',t[0].id,{admin:t[1]});t[0].admin=t[1];ok++;}catch(e){bad++;}}
+  /* 交給員工的學生，他上的課也要讓員工看得到（只加不減，跟「補齊教材的分享設定」同一套） */
+  try{const all=(S.lessons||[]).concat(S.workbooks||[],S.classicals||[]);
+    for(const l of all){if(!l||!l.id)continue;const add=adminsForTargets(l.assigned_ids||[],l.assigned_groups||[]);if(!add.length)continue;
+      const cur=shareList(l),next=mergeShare(cur,add);if(next.length!==cur.length){try{await DB.update('lessons',l.id,{share_admins:next});l.share_admins=next;}catch(e){}}}}catch(e){}
+  toast(bad?('存好 '+ok+' 位，'+bad+' 位沒存上'):('已更新 '+ok+' 位學生'));
+  try{render();}catch(e){}H.admins();};
