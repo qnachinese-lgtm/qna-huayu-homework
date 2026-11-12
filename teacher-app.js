@@ -27089,7 +27089,8 @@ function renderMsgs(){
     +TN_STAGES.map(s=>seg(s[0],s[1]+' '+s[2],tnCount(s[0]))).join('')+seg('all','全部',all.length)+'</div><span class="grow"></span>'
     +'<label class="tn-mine"><input type="checkbox" data-act="tnMine"'+(TN.mine?' checked':'')+'> 只看我負責的</label>'
     +'<input class="tn-q" id="tn-q" type="search" placeholder="搜尋名字、內容…" value="'+esc(TN.q)+'">'
-    +'<button class="btn btn-primary" data-act="tnNew">＋ 新增一筆</button></div>';
+    +'<div class="segbar"><button class="segb'+(TN.view!=='board'?' on':'')+'" data-act="tnView" data-id="table">📋 表格</button><button class="segb'+(TN.view==='board'?' on':'')+'" data-act="tnView" data-id="board">🗂 看板</button></div>'
+    +'<button class="btn btn-primary" data-act="'+(TN.view!=='board'?'tnAddRow':'tnNew')+'">＋ 新增一筆</button></div>';
   const card=x=>{const st=TN_STAGES.find(s=>s[0]===(x.stage||'new'))||TN_STAGES[0];const ns=x.notes||[];const ln=ns[ns.length-1];
     return '<button type="button" class="tn-card st-'+st[0]+'" data-act="tnOpen" data-id="'+esc(x.id)+'">'
       +'<div class="tn-c1"><b>'+esc(x.name||'（沒有名字）')+'</b><span class="tn-st">'+st[1]+' '+st[2]+'</span></div>'
@@ -27098,13 +27099,17 @@ function renderMsgs(){
       +(ln?'<div class="tn-c3"><span class="tn-by">'+esc(ln.by||'')+'：</span>'+esc(String(ln.text||'').slice(0,80))+'</div>':'')
       +'<div class="tn-c4">'+esc(tnAgo(last(x)))+(ns.length?'　·　'+ns.length+' 則備註':'')+'</div></button>';};
   let main;
-  if(!all.length)main='<div class="tn-empty">還沒有任何一筆。有人傳訊息來問，就按右上角「＋ 新增一筆」記下來。</div>';
+  /* TNTABLE_V1703 Quinn：「能不能做成類似 Excel 或 Notion 那種」——預設改成表格：一列一位，每一格直接點就能改，改完自動存。 */
+  if(TN.view!=='board'){main=tnTableHtml(list.sort((a,b)=>last(b).localeCompare(last(a))));}
+  else if(!all.length)main='<div class="tn-empty">還沒有任何一筆。有人傳訊息來問，就按右上角「＋ 新增一筆」記下來。</div>';
   else if(TN.f==='open'||TN.f==='all'){
     const cols=(TN.f==='open'?TN_STAGES.slice(0,2):TN_STAGES);
     main='<div class="tn-board c'+cols.length+'">'+cols.map(s=>{const xs=list.filter(x=>(x.stage||'new')===s[0]).sort((a,b)=>last(b).localeCompare(last(a)));
       return '<div class="tn-col"><div class="tn-ch st-'+s[0]+'">'+s[1]+' '+s[2]+'<span>'+xs.length+'</span></div>'+(xs.map(card).join('')||'<div class="tn-none">沒有</div>')+'</div>';}).join('')+'</div>';}
   else main='<div class="tn-grid">'+(list.sort((a,b)=>last(b).localeCompare(last(a))).map(card).join('')||'<div class="tn-empty">沒有符合的</div>')+'</div>';
-  body.innerHTML=bar+top+main;
+  if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.tn-table')){TN.dirty=1;return;}
+  body.innerHTML=bar+top+main;tnWire(body);
+  if(TN.focusNew){const el=body.querySelector('.tn-row[data-id="'+TN.focusNew+'"] input[data-f="name"]');if(el){el.focus();TN.focusNew=null;}}
   const q=document.getElementById('tn-q');if(q)q.oninput=()=>{TN.q=q.value;clearTimeout(TN._qt);TN._qt=setTimeout(()=>{renderMsgs();const q2=document.getElementById('tn-q');if(q2){q2.focus();q2.setSelectionRange(q2.value.length,q2.value.length);}},250);};}
 function tnThreadHtml(x){const ns=x.notes||[];
   return ns.length?ns.map(n=>'<div class="tn-n'+(n.sys?' sys':'')+'"><div class="tn-nh"><b>'+esc(n.by||'')+'</b><span>'+esc(String(n.at||'').replace('T',' ').slice(0,16))+'</span></div><div class="tn-nt">'+esc(n.text||'')+'</div></div>').join('')
@@ -27162,7 +27167,10 @@ H.tnDel=async(id)=>{if(!confirm('刪除這一筆？'))return;
     '中文課':'Lớp tiếng Trung','代辦申請':'Hồ sơ du học','面試練習':'Luyện phỏng vấn','代書':'Viết hồ sơ',
     '取消負責人':'Bỏ người phụ trách','剛剛':'Vừa xong','請填名字':'Vui lòng nhập tên','已儲存':'Đã lưu','已刪除':'Đã xóa','刪除這一筆？':'Xóa mục này?',
     '還不能用：請主管理員先在 Firebase 加上規則。':'Chưa dùng được: quản trị viên cần thêm quy tắc trong Firebase.',
-    '則訊息待回覆':'tin nhắn chờ trả lời','待處理':'Cần xử lý'};
+    '則訊息待回覆':'tin nhắn chờ trả lời','待處理':'Cần xử lý',
+    '狀態':'Trạng thái','來源':'Nguồn','負責人':'Người phụ trách','最新備註':'Ghi chú mới nhất','更新':'Cập nhật','（未命名）':'(Chưa có tên)',
+    '表格':'Bảng','看板':'Bảng Kanban','＋ 寫備註':'＋ Viết ghi chú','打開看全部備註、寫備註':'Mở để xem và viết ghi chú',
+    '還沒有任何一筆，按右上角「＋ 新增一筆」。':'Chưa có mục nào, bấm “＋ Thêm mới” ở góc phải.'};
   const R=[[/^把階段改成「待回覆」$/,'Đổi giai đoạn thành “Chờ trả lời”'],[/^把階段改成「諮詢中」$/,'Đổi giai đoạn thành “Đang tư vấn”'],
     [/^把階段改成「成交」$/,'Đổi giai đoạn thành “Đã chốt”'],[/^把階段改成「沒談成」$/,'Đổi giai đoạn thành “Không thành”'],
     [/^改由 (.+) 負責$/,'Chuyển cho $1 phụ trách'],
@@ -27177,3 +27185,37 @@ H.tnDel=async(id)=>{if(!confirm('刪除這一筆？'))return;
     try{if(S.tab==='msgs')renderMsgs();}catch(e){}}
   const t=setInterval(()=>{go();if(done)clearInterval(t);},400);
 })();
+
+/* TNTABLE_V1703 表格檢視 */
+function tnTableHtml(list){
+  const me=myEmailNow();const ppl=tnPeople();
+  const sel=(f,id,cur,opts,cls)=>'<select class="tn-sel'+(cls?' '+cls:'')+'" data-f="'+f+'" data-id="'+esc(id)+'">'+opts.map(o=>'<option value="'+esc(o[0])+'"'+(o[0]===cur?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select>';
+  const head='<div class="tn-row tn-hd"><span>名字</span><span>狀態</span><span>來源</span><span>想問什麼</span><span>負責人</span><span>聯絡方式</span><span>最新備註</span><span>更新</span></div>';
+  const rows=list.map(x=>{const st=x.stage||'new';const ns=x.notes||[];const ln=[...ns].reverse().find(n=>!n.sys)||ns[ns.length-1];
+    return '<div class="tn-row" data-id="'+esc(x.id)+'">'
+      +'<span><input class="tn-in nm" data-f="name" data-id="'+esc(x.id)+'" value="'+esc(x.name||'')+'" placeholder="（未命名）"></span>'
+      +'<span>'+sel('stage',x.id,st,TN_STAGES.map(z=>[z[0],z[1]+' '+z[2]]),'st st-'+st)+'</span>'
+      +'<span>'+sel('source',x.id,x.source||'',[['','—']].concat(TN_SRC.map(v=>[v,v])))+'</span>'
+      +'<span>'+sel('topic',x.id,x.topic||'',[['','—']].concat(TN_TOPIC.map(v=>[v,v])))+'</span>'
+      +'<span>'+sel('owner',x.id,x.owner||'',[['','—']].concat(ppl.map(p=>[p.k,p.n])),x.owner===me?'mine':'')+'</span>'
+      +'<span><input class="tn-in" data-f="contact" data-id="'+esc(x.id)+'" value="'+esc(x.contact||'')+'" placeholder="—"></span>'
+      +'<span><button type="button" class="tn-note" data-act="tnOpen" data-id="'+esc(x.id)+'" title="打開看全部備註、寫備註">'+(ln?('<b>'+esc(ln.by||'')+'</b>'+esc(String(ln.text||'').slice(0,60))):'<i>＋ 寫備註</i>')+(ns.filter(n=>!n.sys).length>1?'<em>'+ns.filter(n=>!n.sys).length+'</em>':'')+'</button></span>'
+      +'<span class="tn-up">'+esc(tnAgo(x.updated_at||x.created_at))+'</span></div>';}).join('');
+  return '<div class="tn-table">'+head+(rows||'<div class="tn-none" style="padding:14px 16px">還沒有任何一筆，按右上角「＋ 新增一筆」。</div>')+'<button type="button" class="tn-addrow" data-act="tnAddRow">＋ 新增一筆</button></div>';}
+function tnWire(body){if(body.__tnWired)return;body.__tnWired=1;
+  body.addEventListener('change',e=>{const el=e.target.closest&&e.target.closest('.tn-sel');if(!el)return;tnSet(el.dataset.id,el.dataset.f,el.value);});
+  body.addEventListener('keydown',e=>{const el=e.target.closest&&e.target.closest('.tn-in');if(el&&e.key==='Enter'){e.preventDefault();el.blur();}});
+  body.addEventListener('focusout',e=>{const el=e.target.closest&&e.target.closest('.tn-in');
+    if(el){const x=(TN.list||[]).find(v=>v.id===el.dataset.id);const v=el.value.trim();if(x&&String(x[el.dataset.f]||'')!==v)tnSet(el.dataset.id,el.dataset.f,v);}
+    setTimeout(()=>{if(TN.dirty&&!(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.tn-table'))){TN.dirty=0;renderMsgs();}},50);});}
+async function tnSet(id,f,v){const now=new Date().toISOString(),me=tnMe();const x=(TN.list||[]).find(z=>z.id===id)||{};
+  const patch={[f]:v,updated_at:now};let sys=null;
+  if(f==='stage'&&(x.stage||'new')!==v){const s=TN_STAGES.find(z=>z[0]===v);sys='把階段改成「'+(s?s[2]:v)+'」';}
+  if(f==='owner'&&(x.owner||'')!==v)sys=v?('改由 '+tnWho(v)+' 負責'):'取消負責人';
+  if(sys)patch.notes=firebase.firestore.FieldValue.arrayUnion({by:me,at:now,text:sys,sys:1});
+  try{await firebase.firestore().collection('teamnotes').doc(id).update(patch);}catch(e){toast('存不進去：'+((e&&e.message)||e));}}
+H.tnView=(v)=>{TN.view=v;try{localStorage.setItem('tn_view',v);}catch(e){}renderMsgs();};
+try{TN.view=localStorage.getItem('tn_view')||'table';}catch(e){TN.view='table';}
+H.tnAddRow=async()=>{const now=new Date().toISOString();
+  try{const r=await firebase.firestore().collection('teamnotes').add({name:'',stage:'new',source:'',topic:'',owner:'',contact:'',notes:[],created_at:now,updated_at:now,created_by:tnMe()});
+    TN.focusNew=r.id;if(TN.f!=='all'&&TN.f!=='open'&&TN.f!=='new')TN.f='open';}catch(e){toast('新增失敗：'+((e&&e.message)||e));}};
