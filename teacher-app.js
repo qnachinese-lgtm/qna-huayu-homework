@@ -3752,6 +3752,13 @@ function itvStage(c){const v=String((c&&c.stage)||'').trim();
   return (v==='consult'||v==='lost')?v:'case';}
 function itvIsConsult(c){return itvStage(c)==='consult';}
 function itvIsLost(c){return itvStage(c)==='lost';}
+/* STAGESEG_V1697 Quinn：「這裡真的很有問題」——標題「走到哪一步了」底下又一個「目前階段」，
+   下拉選單看不到有哪幾種，底下再一行看不懂的說明。改成三張並排的小卡，每張寫清楚是什麼意思，點一下就選好。
+   原本的 <select> 留著（藏起來），存檔的程式照舊讀它，不用改。報價不算欠款寫在「諮詢中」那張卡上。 */
+function stageSegHtml(id,opts,cur){
+  return '<div class="field stg-field"><select id="'+id+'" hidden style="display:none">'+opts.map(o=>'<option value="'+o[0]+'"'+(o[0]===cur?' selected':'')+'>'+o[2]+'</option>').join('')+'</select>'
+    +'<div class="stg-seg">'+opts.map(o=>'<button type="button" class="stg-b'+(o[0]===cur?' on':'')+' k-'+o[0]+'" data-act="stgPick" data-id="'+id+'|'+o[0]+'">'
+      +'<span class="stg-i">'+o[1]+'</span><b>'+o[2]+'</b><small>'+o[3]+(o[0]==='consult'?'<br>報價不算欠款':'')+'</small></button>').join('')+'</div></div>';}
 const ITV_STAGE={consult:['\u{1F4AC} 諮詢中','#1E4C86'],case:['\u{1F3A4} 進行中','#1E4C86'],lost:['\u2715 沒談成','#607188']};
 function itvStageBadge(c){const m=ITV_STAGE[itvStage(c)]||ITV_STAGE.case;
   return `<span class="badge" style="background:${m[1]}18;color:${m[1]};border-color:${m[1]}55">${m[0]}</span>`;}
@@ -4236,10 +4243,7 @@ function wrForm(c){c=c||{};
     <div class="field"><label>姓名 *</label><input id="wr-name" type="text" value="${esc(c.name||'')}" placeholder="請填寫姓名"></div>
     ${fgSec('🚦 走到哪一步了')}
     <!-- WRCONSULT_V1059 -->
-    <div class="field"><label>階段</label><select id="wr-stage">
-      <option value="consult"${wrStage(c)==='consult'?' selected':''}>💬 諮詢中（報價不算進未收）</option>
-      <option value="case"${wrStage(c)==='case'?' selected':''}>✍️ 進行中</option>
-      <option value="lost"${wrStage(c)==='lost'?' selected':''}>✕ 沒談成</option></select></div>
+    ${stageSegHtml('wr-stage',[['consult','💬','諮詢中','只報了價，還沒決定'],['case','✍️','進行中','確定要做、開始寫'],['lost','✕','沒談成','問了價就沒下文']],wrStage(c))}
     <div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="wr-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>
     ${realField('wr-real',c)/* REALNAME_V1108 */}
     ${crmMailField('wr-email',c)}
@@ -4550,10 +4554,7 @@ function agForm(c){c=c||{};
     ${fgSec('🧍 這個人是誰')}
     <div class="field"><label>姓名 *</label><input id="ag-name" type="text" value="${esc(c.name||'')}" placeholder="請填寫姓名"></div>
     ${fgSec('🚦 走到哪一步了')}
-    <div class="field"><label>階段</label><select id="ag-stage">
-      <option value="consult"${(c.__consult||agStage(c)==='consult')?' selected':''}>💬 諮詢中（報價不算進未收）</option>
-      <option value="case"${(!c.__consult&&agStage(c)!=='consult'&&agStage(c)!=='lost')?' selected':''}>📄 正式案件</option>
-      <option value="lost"${agStage(c)==='lost'?' selected':''}>✕ 沒談成</option></select></div>
+    ${stageSegHtml('ag-stage',[['consult','💬','諮詢中','只報了價，還沒決定'],['case','📄','正式案件','確定要辦、開始跑流程'],['lost','✕','沒談成','問了價就沒下文']],(c.__consult||agStage(c)==='consult')?'consult':(agStage(c)==='lost'?'lost':'case'))}
     <div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="ag-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>
     ${realField('ag-real',c)/* REALNAME_V1108 */}
     ${crmMailField('ag-email',c)}
@@ -5107,7 +5108,7 @@ function itvFormTotalPatch(){const tv=($('#itv-total')&&$('#itv-total').value);
 function itvForm(c){c=c||{};
   /* ITVNEW_V836 新增才開草稿；編輯既有客戶不用 */
   ITVDRAFT=c.id?null:{sessions:[],payments:[],fee_total:null,fee_cur:'VND'};
-  openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🎤 ${c.id?'編輯面試客戶':'新增面試客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">${fgSec('🧍 這個人是誰')}<div class="field"><label>姓名</label><input id="itv-name" type="text" value="${esc(c.name||'')}" placeholder="請填寫姓名"></div><div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="itv-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>${realField('itv-real',c)/* REALNAME_V1108 */}${crmMailField('itv-email',c)}${fgSec('🚦 走到哪一步了')}<div class="field"><label>目前階段</label><select id="itv-stage">${Object.keys(ITV_STAGE).map(k=>`<option value="${k}"${itvStage(c)===k?' selected':''}>${ITV_STAGE[k][0]}</option>`).join('')}</select><span class="hint">諮詢中＝只報了價，不算未收；沒談成＝問了就沒下文</span></div>${crmSoonField('itv-soon',c)}${lifeFields('itv',c)/* LIFE_V1106 */}${pPickField('itv-person','interview',c)}${fgSec('🎤 這一場面試','考什麼、什麼時候、結果')}<div class="field"><label>面試類別 <span class="hint">這位客戶是在準備哪一種面試</span></label>
+  openModal(`<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🎤 ${c.id?'編輯面試客戶':'新增面試客戶'}</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">${fgSec('🧍 這個人是誰')}<div class="field"><label>姓名</label><input id="itv-name" type="text" value="${esc(c.name||'')}" placeholder="請填寫姓名"></div><div class="field"><label>聯絡方式 <span class="hint">選填</span></label><input id="itv-phone" type="text" value="${esc(c.phone||'')}" placeholder="電話／Zalo／LINE"></div>${realField('itv-real',c)/* REALNAME_V1108 */}${crmMailField('itv-email',c)}${fgSec('🚦 走到哪一步了')}${stageSegHtml('itv-stage',[['consult','💬','諮詢中','只報了價，還沒決定'],['case','🎤','進行中','確定要練、開始上課'],['lost','✕','沒談成','問了價就沒下文']],itvStage(c))}${crmSoonField('itv-soon',c)}${lifeFields('itv',c)/* LIFE_V1106 */}${pPickField('itv-person','interview',c)}${fgSec('🎤 這一場面試','考什麼、什麼時候、結果')}<div class="field"><label>面試類別 <span class="hint">這位客戶是在準備哪一種面試</span></label>
      <input id="itv-kind" type="text" list="itv-kindlist" value="${esc(c.itv_kind||(c.id?'':'申請簽證'))}" placeholder="請填面試類別">
      <datalist id="itv-kindlist"><option value="申請簽證"><option value="入學面試"><option value="獎學金面試"><option value="工作面試"><option value="其他"></datalist></div>
      <div class="field"><label>面試目標 <span class="hint">選填。學校、科系或單位</span></label><input id="itv-target" type="text" value="${esc(c.target||'')}" placeholder="請填學校、科系或單位"></div><div class="field"><label>🎯 正式面試日 <span class="hint">選填</span></label><input id="itv-exam" type="date" min="2000-01-01" max="2100-12-31" value="${esc(c.exam_date||'')}"></div>
@@ -27033,3 +27034,8 @@ H.navPlug=(sel)=>{const b=document.querySelector('#tnav '+sel)||document.querySe
 /* TCMOB_V1689 手機上分頁列太長要左右滑，現在這一頁常常在畫面外面——自動把它捲到看得到的地方 */
 (function(){let t=0;function fix(){t=0;try{document.querySelectorAll('.navsib .segbar').forEach(b=>{const on=b.querySelector('.segb.on');if(!on||b.scrollWidth<=b.clientWidth+2||b._onFix===on)return;b._onFix=on;b.scrollLeft=Math.max(0,on.offsetLeft-(b.clientWidth-on.offsetWidth)/2);});}catch(e){}}
   try{new MutationObserver(()=>{if(!t)t=requestAnimationFrame(fix);}).observe(document.body,{childList:true,subtree:true});}catch(e){}})();
+
+/* STAGESEG_V1697 點一張卡＝選那個階段（同步到藏起來的 select，觸發 change 讓原本的連動照舊） */
+H.stgPick=(v,b)=>{const p=String(v||'').split('|');const sel=document.getElementById(p[0]);if(!sel)return;sel.value=p[1];
+  try{sel.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}
+  const box=b&&b.closest('.stg-seg');if(box)box.querySelectorAll('.stg-b').forEach(x=>x.classList.toggle('on',x===b));};
