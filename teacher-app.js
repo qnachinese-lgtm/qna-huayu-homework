@@ -976,7 +976,7 @@ function render(){
   if(CLASS_VIEW){try{renderClassView(CLASS_VIEW);}catch(e){}return;}
   $$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.id===S.tab));
   /* NAV_SLIM_V670 合併起來的兩顆，進去任何一個子分頁都要亮著 */
-  try{const BIZ=['agency','interview','writing','school','bizcal'],MON=['pay','ops'];
+  try{const BIZ=['msgs','agency','interview','writing','school','bizcal'],MON=['pay','ops'];
     $$('.tab[data-act="bizNav"]').forEach(t=>t.classList.toggle('active',BIZ.indexOf(S.tab)>=0));
     $$('.tab[data-act="moneyNav"]').forEach(t=>t.classList.toggle('active',MON.indexOf(S.tab)>=0));
     /* NAVMERGE_V1317 併進去的子分頁，側邊要亮它的「母頁」那一顆，
@@ -1006,7 +1006,7 @@ function render(){
   /* TABFIX_V1192 舊的分頁名稱被拿掉的話，這一行會整個爆掉，畫面會全白。找不到就回總覽。 */
   if(!$('#panel-'+S.tab))S.tab='dashboard';
   $('#panel-'+S.tab).classList.remove('hide');
-  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,bizcal:renderBizCal,oc:renderOC,acct:renderAcct,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,give:renderGive,guide:renderGuide,hanzi:renderHanzi,lib:renderLib/* LIB_V1412 */}[S.tab])();}/* GIVE_V1312 */
+  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,bizcal:renderBizCal,oc:renderOC,acct:renderAcct,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,give:renderGive,guide:renderGuide,hanzi:renderHanzi,lib:renderLib/* LIB_V1412 */,msgs:renderMsgs/* TEAMNOTE_V1700 */}[S.tab])();}/* GIVE_V1312 */
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
   /* NAVMERGE_V1317 一定要在畫完之後才插分頁列——畫面是整個 innerHTML 換掉的，
      先插會被蓋掉。 */
@@ -4914,7 +4914,7 @@ function crmThead(kind){const cs=CRM_COLS[kind]||CRM_COLS.interview;
   const gx=(kind==='interview')?' itv8':'';
   return `<div class="crm-thead"><span class="crm-chev" style="visibility:hidden">▸</span><div class="crm-head${gx}">${cs.map((t,i)=>`<span class="cc ${cls[i]||''}">${esc(t)}</span>`).join('')}</div></div>`;}
 /* NAV_SLIM_V670 合併後的分頁列：留學業務三個、收費財務兩個 */
-const BIZ_TABS=[['agency','🎓 代辦申請'],['interview','🎤 面試練習'],['writing','✍️ 代書'],['school','🏫 學校與資料'],['bizcal','📅 行事曆']];/* BIZCAL_V1245 *//* RENAME_V1214 這一頁現在還裝常用網站和常用檔案，不只是學校名冊 */
+const BIZ_TABS=[['msgs','📨 訊息追蹤'],['agency','🎓 代辦申請'],['interview','🎤 面試練習'],['writing','✍️ 代書'],['school','🏫 學校與資料'],['bizcal','📅 行事曆']];/* BIZCAL_V1245 *//* RENAME_V1214 這一頁現在還裝常用網站和常用檔案，不只是學校名冊 */
 const MONEY_TABS=[['pay','💰 繳費'],['ops','📈 財務・營運']];
 function navSubBar(tabs,cur){
   return '<div class="pagebar" style="margin-bottom:10px"><div class="segbar">'
@@ -6863,7 +6863,7 @@ const TNAV=[
                  ['files','🎯 課堂活動',''],
                  {k:'oc',id:'oc',t:'▶️ 線上課',ow:1},
                  ['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],/* HANZI_V4 */['grades','📝 批改・成績','c-pending']]},
-  {t:'留學業務',sub:[['agency','🎓 代辦申請','c-ag'],['interview','🎤 面試練習','c-itv'],
+  {t:'留學業務',sub:[{k:'msgs',id:'msgs',t:'📨 訊息追蹤'},['agency','🎓 代辦申請','c-ag'],['interview','🎤 面試練習','c-itv'],
                      ['writing','✍️ 代書','c-wr'],['school','🏫 學校與資料','']]},
   {t:'收費・財務',sub:[['pay','💰 繳費','c-owe'],['ops','📈 財務・營運','']]},
   /* GIVESUB_V1366 Quinn：「能不能也有下拉的方式提供給學生的東西呢？」
@@ -26898,7 +26898,7 @@ function tcPendFor(s){try{return gradeQueue().filter(x=>x.pend&&x.sd&&(x.sd.stud
 function tcDueOf(s){try{const b=stuBill(s);return (b&&b.items&&b.items.length&&b.due>0.0001)?b.due:0;}catch(e){return 0;}}
 function tcHot(m){if(m.late)return true;if(m.s&&IS_OWNER&&tcDueOf(m.s))return true;if(m.s&&tcPendFor(m.s).length)return true;
   if(m.c){try{const x=itvTodoList().find(y=>y.c.id===m.c.id);if(x&&x.it.some(i=>i.hot))return true;}catch(e){}}return false;}
-function tcHomeHtml(){
+function tcHomeHtml(){try{tnStart();}catch(e){}
   const w=tcWeek();TC.items=w.items;TC.days=w.days;TC.W=w.W;TC.today=w.today;
   const DN=['一','二','三','四','五','六','日'];
   const metas=w.items.map(it=>tcMeta(it,w.today));
@@ -26941,7 +26941,7 @@ function tcHomeHtml(){
        四張待辦卡搬到右邊面板底下，排成一直列；整頁只剩「課表＋右邊一欄」。 */
     +'<div class="tc-side"><div class="tc-pn" id="tc-pn">'+tcPanelHtml()+'</div>'
     +'<div class="tc-strip"><div class="tc-sth">待處理</div>'+tile('📥','#FFF0E3',pendN,'份作業等批改','tab','grades')+(IS_OWNER?tile('💰','#FDE8E8',oweN,'位還沒繳費','tab','pay'):'')
-    +(IS_OWNER?tile('🎤','#F1EAFF',itvN,'位面試客戶有待辦','tab','interview'):'')+tile('😴','#E3EEFF',quietN,'位一週沒做練習','tcMore','quiet')+'</div></div></div>'
+    +(IS_OWNER?tile('🎤','#F1EAFF',itvN,'位面試客戶有待辦','tab','interview'):'')+((typeof TN!=='undefined'&&TN.list&&!TN.err)?tile('📨','#E8F1FF',tnCount('new'),'則訊息待回覆','tab','msgs'):'')+tile('😴','#E3EEFF',quietN,'位一週沒做練習','tcMore','quiet')+'</div></div></div>'
     +'</div>';}
 /* TCMOB_V1689 Quinn：「手機版出現太多錯誤了」——手機上七天的格子只看得到三天、要左右滑。
    手機改成一天一段的清單（電腦照舊是格子），點一堂一樣在下面出現那堂課要做的事。 */
@@ -27040,3 +27040,107 @@ H.navPlug=(sel)=>{const b=document.querySelector('#tnav '+sel)||document.querySe
 H.stgPick=(v,b)=>{const p=String(v||'').split('|');const sel=document.getElementById(p[0]);if(!sel)return;sel.value=p[1];
   try{sel.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}
   const box=b&&b.closest('.stg-seg');if(box)box.querySelectorAll('.stg-b').forEach(x=>x.classList.toggle('on',x===b));};
+
+/* ══════ TEAMNOTE_V1700 📨 訊息追蹤（團隊一起用） ══════
+   Quinn：「讓我跟團隊可以進行備註，就是哪一位傳訊息，然後工作階段那些等諮詢」。
+   一位來問的人一張卡：誰、從哪裡傳來、想問什麼、誰負責、走到哪個階段（待回覆→諮詢中→成交→沒談成），
+   底下是備註串，團隊每個人都能往下寫，會記是誰、什麼時候寫的。
+   存在獨立的 teamnotes 集合：學生讀不到；主管理員和「其他老師的帳號」(admins) 都能讀寫（規則要 Quinn 自己貼）。
+   畫面即時同步：別人改了、寫了備註，這邊不用重新整理就會出現。 */
+const TN_STAGES=[['new','📥','待回覆'],['talk','💬','諮詢中'],['won','🎉','成交'],['lost','✕','沒談成']];
+const TN_SRC=['Zalo','Facebook','LINE','官網','Email','電話','朋友介紹','其他'];
+const TN_TOPIC=['中文課','代辦申請','面試練習','代書','其他'];
+const TN={list:null,err:'',unsub:null,f:'open',mine:false,q:'',admins:null};
+function tnMe(){const e=myEmailNow();if(!e)return '';if(e===TEACHER_EMAIL)return '美娟老師';
+  const a=(TN.admins||[]).find(x=>String(x.id||x.email||'').toLowerCase()===e);return (a&&a.name)||e.split('@')[0];}
+function tnPeople(){const out=[{k:TEACHER_EMAIL,n:'美娟老師'}];(TN.admins||[]).forEach(a=>{const e=String(a.email||a.id||'').toLowerCase();if(e&&e!==TEACHER_EMAIL)out.push({k:e,n:a.name||e.split('@')[0]});});return out;}
+function tnWho(k){const p=tnPeople().find(x=>x.k===k);return p?p.n:(k?String(k).split('@')[0]:'');}
+function tnStart(){if(TN.unsub||!(window.firebase&&firebase.auth().currentUser))return;
+  if(!TN.admins){DB.list('admins').then(a=>{TN.admins=a||[];if(S.tab==='msgs')renderMsgs();}).catch(()=>{TN.admins=[];});}
+  try{TN.unsub=firebase.firestore().collection('teamnotes').onSnapshot(sn=>{
+      const first=TN.list==null;TN.err='';TN.list=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted_at);
+      if(S.tab==='msgs')renderMsgs();else if(S.tab==='dashboard'&&first&&!document.querySelector('.modal')){try{render();}catch(e){}}
+      if(TN.open){const cur=TN.list.find(x=>x.id===TN.open);const box=document.getElementById('tn-thread');if(cur&&box)box.innerHTML=tnThreadHtml(cur);}},
+    err=>{TN.err=String((err&&(err.code||err.message))||err);TN.list=TN.list||[];TN.unsub=null;if(S.tab==='msgs')renderMsgs();});}catch(e){TN.err=String(e&&e.message||e);}}
+function tnCount(st){return (TN.list||[]).filter(x=>(x.stage||'new')===st).length;}
+function tnAgo(t){const d=Date.parse(t||'');if(!d)return '';const m=Math.round((Date.now()-d)/60000);
+  if(m<1)return '剛剛';if(m<60)return m+' 分鐘前';const h=Math.round(m/60);if(h<24)return h+' 小時前';const dd=Math.round(h/24);if(dd<30)return dd+' 天前';
+  return String(t).slice(0,10);}
+function tnRulesHtml(){return '<div class="tn-rules"><b>還差一步：要在 Firebase 加一段規則，團隊才存得進去</b>'
+  +'<p>到 Firebase 主控台 → Firestore Database → 規則，在 <code>match /databases/{database}/documents {</code> 裡面貼上這一段，按「發布」：</p>'
+  +'<pre>match /teamnotes/{id} {\n  allow read, write: if request.auth != null &amp;&amp; (\n    request.auth.token.email == \''+esc(TEACHER_EMAIL)+'\' ||\n    exists(/databases/$(database)/documents/admins/$(request.auth.token.email)));\n}</pre>'
+  +'<p>發布以後重新整理這一頁就可以用了。學生讀不到這裡的任何東西。</p></div>';}
+function renderMsgs(){
+  const body=document.getElementById('msgs-body');if(!body)return;tnStart();
+  const bar=IS_OWNER?navSubBar(BIZ_TABS,'msgs'):'';
+  if(TN.list==null&&!TN.err){body.innerHTML=bar+'<div class="tn-empty">讀取中…</div>';return;}
+  if(TN.err&&/permission|insufficient/i.test(TN.err)){body.innerHTML=bar+(IS_OWNER?tnRulesHtml():'<div class="tn-empty">還不能用：請主管理員先在 Firebase 加上規則。</div>');return;}
+  const me=myEmailNow();const all=TN.list||[];
+  let list=all.slice();
+  if(TN.f==='open')list=list.filter(x=>(x.stage||'new')==='new'||x.stage==='talk');
+  else if(TN.f!=='all')list=list.filter(x=>(x.stage||'new')===TN.f);
+  if(TN.mine)list=list.filter(x=>x.owner===me);
+  if(TN.q){const q=TN.q.toLowerCase();list=list.filter(x=>[x.name,x.contact,x.topic,x.source,(x.notes||[]).map(n=>n.text).join(' ')].join(' ').toLowerCase().indexOf(q)>=0);}
+  const last=x=>String(x.updated_at||x.created_at||'');
+  const seg=(v,lab,n)=>'<button class="segb'+(TN.f===v?' on':'')+'" data-act="tnF" data-id="'+v+'">'+lab+(n!=null?'<span class="segn">'+n+'</span>':'')+'</button>';
+  const top='<div class="tn-top"><div class="segbar">'+seg('open','進行中',tnCount('new')+tnCount('talk'))
+    +TN_STAGES.map(s=>seg(s[0],s[1]+' '+s[2],tnCount(s[0]))).join('')+seg('all','全部',all.length)+'</div><span class="grow"></span>'
+    +'<label class="tn-mine"><input type="checkbox" data-act="tnMine"'+(TN.mine?' checked':'')+'> 只看我負責的</label>'
+    +'<input class="tn-q" id="tn-q" type="search" placeholder="搜尋名字、內容…" value="'+esc(TN.q)+'">'
+    +'<button class="btn btn-primary" data-act="tnNew">＋ 新增一筆</button></div>';
+  const card=x=>{const st=TN_STAGES.find(s=>s[0]===(x.stage||'new'))||TN_STAGES[0];const ns=x.notes||[];const ln=ns[ns.length-1];
+    return '<button type="button" class="tn-card st-'+st[0]+'" data-act="tnOpen" data-id="'+esc(x.id)+'">'
+      +'<div class="tn-c1"><b>'+esc(x.name||'（沒有名字）')+'</b><span class="tn-st">'+st[1]+' '+st[2]+'</span></div>'
+      +'<div class="tn-c2">'+(x.source?'<span class="tn-chip">'+esc(x.source)+'</span>':'')+(x.topic?'<span class="tn-chip t">'+esc(x.topic)+'</span>':'')
+      +(x.owner?'<span class="tn-who">👤 '+esc(tnWho(x.owner))+'</span>':'<span class="tn-who none">還沒有人負責</span>')+'</div>'
+      +(ln?'<div class="tn-c3"><span class="tn-by">'+esc(ln.by||'')+'：</span>'+esc(String(ln.text||'').slice(0,80))+'</div>':'')
+      +'<div class="tn-c4">'+esc(tnAgo(last(x)))+(ns.length?'　·　'+ns.length+' 則備註':'')+'</div></button>';};
+  let main;
+  if(!all.length)main='<div class="tn-empty">還沒有任何一筆。有人傳訊息來問，就按右上角「＋ 新增一筆」記下來。</div>';
+  else if(TN.f==='open'||TN.f==='all'){
+    const cols=(TN.f==='open'?TN_STAGES.slice(0,2):TN_STAGES);
+    main='<div class="tn-board c'+cols.length+'">'+cols.map(s=>{const xs=list.filter(x=>(x.stage||'new')===s[0]).sort((a,b)=>last(b).localeCompare(last(a)));
+      return '<div class="tn-col"><div class="tn-ch st-'+s[0]+'">'+s[1]+' '+s[2]+'<span>'+xs.length+'</span></div>'+(xs.map(card).join('')||'<div class="tn-none">沒有</div>')+'</div>';}).join('')+'</div>';}
+  else main='<div class="tn-grid">'+(list.sort((a,b)=>last(b).localeCompare(last(a))).map(card).join('')||'<div class="tn-empty">沒有符合的</div>')+'</div>';
+  body.innerHTML=bar+top+main;
+  const q=document.getElementById('tn-q');if(q)q.oninput=()=>{TN.q=q.value;clearTimeout(TN._qt);TN._qt=setTimeout(()=>{renderMsgs();const q2=document.getElementById('tn-q');if(q2){q2.focus();q2.setSelectionRange(q2.value.length,q2.value.length);}},250);};}
+function tnThreadHtml(x){const ns=x.notes||[];
+  return ns.length?ns.map(n=>'<div class="tn-n'+(n.sys?' sys':'')+'"><div class="tn-nh"><b>'+esc(n.by||'')+'</b><span>'+esc(String(n.at||'').replace('T',' ').slice(0,16))+'</span></div><div class="tn-nt">'+esc(n.text||'')+'</div></div>').join('')
+    :'<div class="tn-none">還沒有備註。</div>';}
+function tnForm(x){x=x||{};const isNew=!x.id;TN.open=x.id||null;
+  const opt=(arr,cur)=>'<option value="">—</option>'+arr.map(v=>'<option'+(v===cur?' selected':'')+'>'+esc(v)+'</option>').join('');
+  const ppl=tnPeople();
+  openModal('<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>'+(isNew?'📨 新增一筆':'📨 '+esc(x.name||''))+'</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body"><div class="form-grid">'
+    +'<div class="field"><label>是誰</label><input id="tn-name" type="text" value="'+esc(x.name||'')+'" placeholder="名字"></div>'
+    +'<div class="field"><label>聯絡方式</label><input id="tn-contact" type="text" value="'+esc(x.contact||'')+'" placeholder="電話／Zalo／FB 連結"></div>'
+    +'<div class="field"><label>從哪裡傳來</label><select id="tn-src">'+opt(TN_SRC,x.source||'')+'</select></div>'
+    +'<div class="field"><label>想問什麼</label><select id="tn-topic">'+opt(TN_TOPIC,x.topic||'')+'</select></div>'
+    +'<div class="field"><label>誰負責</label><select id="tn-owner"><option value="">— 還沒決定 —</option>'+ppl.map(p=>'<option value="'+esc(p.k)+'"'+(p.k===x.owner?' selected':'')+'>'+esc(p.n)+'</option>').join('')+'</select></div>'
+    +stageSegHtml('tn-stage',TN_STAGES.map(s=>[s[0],s[1],s[2],({new:'還沒回訊息',talk:'回了，正在談',won:'談成了',lost:'沒下文'})[s[0]]]),x.stage||'new')
+    +(isNew?'<div class="field full"><label>他問了什麼</label><textarea id="tn-first" rows="3" placeholder="把訊息內容或重點貼在這裡"></textarea></div>'
+      :('<div class="field full"><label>備註</label><div id="tn-thread" class="tn-thread">'+tnThreadHtml(x)+'</div>'
+        +'<div class="tn-add"><textarea id="tn-msg" rows="2" placeholder="寫一則備註，例如：已回覆報價，等他考慮"></textarea><button class="btn btn-primary" data-act="tnNote" data-id="'+esc(x.id)+'">送出</button></div></div>'))
+    +'</div></div><div class="modal-foot">'+(isNew?'':'<button class="btn btn-ghost" data-act="tnDel" data-id="'+esc(x.id)+'" style="color:#C03A3A">刪除</button>')
+    +'<button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="tnSave" data-id="'+esc(x.id||'')+'">💾 儲存</button></div></div>');}
+H.tnF=(v)=>{TN.f=v;renderMsgs();};
+H.tnMine=()=>{TN.mine=!TN.mine;renderMsgs();};
+H.tnNew=()=>tnForm(null);
+H.tnOpen=(id)=>{const x=(TN.list||[]).find(v=>v.id===id);if(x)tnForm(x);};
+H.tnSave=async(id)=>{const V=k=>((document.getElementById(k)||{}).value||'').trim();
+  const name=V('tn-name');if(!name)return toast('請填名字');
+  const now=new Date().toISOString(),me=tnMe();
+  const patch={name,contact:V('tn-contact'),source:V('tn-src'),topic:V('tn-topic'),owner:V('tn-owner'),stage:V('tn-stage')||'new',updated_at:now};
+  const col=firebase.firestore().collection('teamnotes');
+  try{if(id){const old=(TN.list||[]).find(v=>v.id===id)||{};const ns=(old.notes||[]).slice();
+      if((old.stage||'new')!==patch.stage){const s=TN_STAGES.find(z=>z[0]===patch.stage);ns.push({by:me,at:now,text:'把階段改成「'+(s?s[2]:patch.stage)+'」',sys:1});}
+      if((old.owner||'')!==patch.owner){ns.push({by:me,at:now,text:patch.owner?('改由 '+tnWho(patch.owner)+' 負責'):'取消負責人',sys:1});}
+      const m=V('tn-msg');if(m)ns.push({by:me,at:now,text:m});
+      patch.notes=ns;await col.doc(id).update(patch);}
+    else{const f=V('tn-first');patch.notes=f?[{by:me,at:now,text:f}]:[];patch.created_at=now;patch.created_by=me;await col.add(patch);}
+    TN.open=null;closeModal();toast('已儲存');}
+  catch(e){toast(/permission|insufficient/i.test(String(e&&(e.code||e.message)))?'存不進去：Firebase 規則還沒加（見訊息追蹤頁的說明）':('儲存失敗：'+((e&&e.message)||e)));}};
+H.tnNote=async(id)=>{const t=document.getElementById('tn-msg');const v=(t&&t.value||'').trim();if(!v)return;
+  try{await firebase.firestore().collection('teamnotes').doc(id).update({notes:firebase.firestore.FieldValue.arrayUnion({by:tnMe(),at:new Date().toISOString(),text:v}),updated_at:new Date().toISOString()});t.value='';}
+  catch(e){toast('送不出去：'+((e&&e.message)||e));}};
+H.tnDel=async(id)=>{if(!confirm('刪除這一筆？'))return;
+  try{await firebase.firestore().collection('teamnotes').doc(id).update({deleted_at:new Date().toISOString()});TN.open=null;closeModal();toast('已刪除');}catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
