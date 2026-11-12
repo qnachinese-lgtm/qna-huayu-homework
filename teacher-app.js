@@ -10128,15 +10128,18 @@ function renderGradesMatrix(){
   if(!ls.length){wrap.innerHTML=emptyHtml('📊','還沒有成績',
     '把課發給學生，他作答之後分數會出現在這裡。',
     {a:'tab',id:'lessons',t:'📖 去教材與課程發課'});return;}
-  wrap.innerHTML=ls.map(l=>{
+  /* GMTX_V1695 Quinn：「xấu quá, thiết kế lại」——本來一課一張大表，每位學生一列，滿滿都是「未開始 —」。
+     改成一課一列：左邊課名＋題數，中間完成進度條，右邊每位學生一顆小標籤（綠＝完成＋分數、紫＝待批改、黃＝作答中、灰＝還沒做）。 */
+  const ord={done:0,pend:1,draft:2,none:3};
+  wrap.innerHTML='<div class="gm-legend"><span class="gm-p done">完成・分數</span><span class="gm-p pend">待批改</span><span class="gm-p draft">作答中</span><span class="gm-p none">還沒做</span></div>'
+   +'<div class="gm-list">'+ls.map(l=>{
     const targets=lessonTargets(l);const qn=answerableOf(l.id).length;
-    const rows=targets.map(s=>{const r=resultOf(l.id,s.id);const draft=r&&r.status==='draft';const pend=r&&r.status==='pending';
-      const stBadge=!r?'<span class="badge badge-pending">未開始</span>':draft?'<span class="badge badge-soon">✍️ 作答中（未送出）</span>':pend?'<span class="badge badge-soon">待批改</span>':'<span class="badge badge-ok">已完成</span>';
-      return `<tr><td><span class="dot ${r&&!draft&&!pend?'ok':'no'}"></span>${snm(s.name)}</td><td>${stBadge}</td><td><b>${(r&&!draft)?(scoreOf(l,r)+'/'+(r.total||qn)):'—'}</b></td></tr>`;}).join('');
-    const doneCount=targets.filter(s=>{const r=resultOf(l.id,s.id);return r&&r.status==='done';}).length;
-    return `<div class="card"><div class="row-between"><div><h3 style="font-size:17px">${esc(lesNo(l,'',' · '))}</h3>
-      <div class="meta" style="margin-top:5px"><span>${qn} 題</span><span>完成 <b>${doneCount}/${targets.length}</b></span></div></div></div>
-      <div style="overflow:auto;margin-top:12px"><table class="matrix"><thead><tr><th>學生</th><th>狀態</th><th>分數</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;}).join('');
+    const ps=targets.map(s=>{const r=resultOf(l.id,s.id);const st=!r?'none':(r.status==='draft'?'draft':(r.status==='pending'?'pend':'done'));
+      return {s,st,sc:st==='done'?(scoreOf(l,r)+'/'+(r.total||qn)):''};}).sort((a,b)=>ord[a.st]-ord[b.st]||String(a.s.name||'').localeCompare(String(b.s.name||'')));
+    const done=ps.filter(p=>p.st==='done').length,pct=targets.length?Math.round(done/targets.length*100):0;
+    return '<div class="gm-row"><div class="gm-l"><b>'+esc(lesNo(l,'',' · '))+'</b><small>'+qn+' 題</small></div>'
+      +'<div class="gm-pr"><span class="gm-bar"><i style="width:'+pct+'%"></i></span><em>'+done+'/'+targets.length+' 完成</em></div>'
+      +'<div class="gm-ps">'+ps.map(p=>'<span class="gm-p '+p.st+'" title="'+esc(p.s.name||'')+'">'+esc(p.s.name||'')+(p.sc?'<b>'+esc(p.sc)+'</b>':'')+'</span>').join('')+'</div></div>';}).join('')+'</div>';
 }
 
 /* ---------- 動作 ---------- */
