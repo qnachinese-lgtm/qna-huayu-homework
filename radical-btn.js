@@ -26,6 +26,21 @@
     row.appendChild(b);
     if(on && !(p.querySelector(".lpq") || {}).value) show(p); else on = false;
   }
+  /* RADICAL_V3 部首直接在原本的投影片裡打開（不換頁） */
+  function find(no){ for(var i = 0; i < U.length; i++) for(var j = 0; j < U[i][1].length; j++) if(U[i][1][j][0] === no) return [U[i][0], U[i][1][j]]; return null; }
+  function openRad(no){
+    var app = document.getElementById("app"); if(!app) return;
+    var f = document.getElementById("radFrame");
+    if(!f){ f = document.createElement("iframe"); f.id = "radFrame"; f.title = "常用部首"; f.style.cssText = "position:absolute;left:0;width:100%;bottom:0;border:0;background:#fff;z-index:30"; app.appendChild(f); }
+    var tb = app.querySelector(".topbar"), top = tb.offsetTop + tb.offsetHeight + 6;
+    f.style.top = top + "px"; f.style.height = (app.clientHeight - top) + "px";
+    f.src = "radical/?embed=1#r" + no; f.hidden = false;
+    var x = find(no), n = document.getElementById("sNum"), m = document.getElementById("sName");
+    if(x && n && m){ n.textContent = "常用部首 · " + x[0].replace("　", " "); m.textContent = no + "　" + x[1][1] + " 部"; }
+    p_ui(no);
+  }
+  function p_ui(no){ var x = find(no); if(!x) return; for(var i = 0; i < U.length; i++) if(U[i][0] === x[0]) ui = i; }
+  function closeRad(){ var f = document.getElementById("radFrame"); if(f){ f.hidden = true; f.src = "about:blank"; } }
   function boot(){
     var p = document.getElementById("lpPanel"); if(!p) return false;
     new MutationObserver(inject).observe(p, {childList: true, subtree: true});
@@ -33,7 +48,8 @@
       var t = e.target;
       if(t.closest("[data-radtab]")){ e.stopPropagation(); show(p); return; }
       var u = t.closest("[data-radu]"); if(u){ e.stopPropagation(); ui = +u.dataset.radu; p.querySelectorAll("[data-radu]").forEach(function(x){ x.classList.toggle("on", x === u); }); grid(p); return; }
-      var r = t.closest("[data-rad]"); if(r){ e.stopPropagation(); location.href = "radical/#r" + r.dataset.rad; return; }
+      var r = t.closest("[data-rad]"); if(r){ e.stopPropagation(); p.hidden = true; var lb = document.getElementById("lpBtn"); if(lb) lb.setAttribute("aria-expanded", false); openRad(r.dataset.rad); return; }
+      if(t.closest("[data-lp]")) closeRad();
       if(t.closest("[data-lps],[data-lpb]")) on = false;
     }, true);
     p.addEventListener("input", function(){ on = false; }, true);
