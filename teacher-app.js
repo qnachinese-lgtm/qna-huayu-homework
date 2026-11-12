@@ -10075,7 +10075,12 @@ function renderGrades(){
       +'<span class="sg-i3">'+(x.extra?esc(x.extra)+'　':'')+(x.ts?('🕒 '+esc(fmtDT(x.ts))):'')+'</span></button>';}).join('')
     :'<div class="muted" style="padding:16px 12px">'+(S.sgOnly==='all'?'還沒有任何作答':'目前沒有待批改的項目 🎉')+'</div>';
   const _hwN=hwPending().filter(x=>x.days!=null&&x.days<0).length;
-  wrap.innerHTML=bar+'<div class="sg-wrap"><div class="sg-list">'+rows+'</div><div class="sg-pane" id="sg-pane"></div></div>'
+  /* GQLIST_V1693 Quinn 要重新設計批改頁。後台點一份本來就是開新分頁批改（GWIN_V1637），
+     右邊那一大塊「👈 左邊點一位學生開始批改」永遠是空的，左邊清單又被擠成窄窄一條。
+     改成整頁寬的清單：一位學生一張卡，等最久的排最上面；每一份一列，右邊一顆〔批改 →〕。
+     開新分頁那邊（S.gwin）、彈出視窗被擋時的左右分割（S.sgSplit）照舊。 */
+  const _main=(!S.gwin&&!S.sgSplit)?gqListHtml(list):('<div class="sg-wrap"><div class="sg-list">'+rows+'</div><div class="sg-pane" id="sg-pane"></div></div>');
+  wrap.innerHTML=bar+_main
     /* FHPLACE_V1632 Quinn：「那個並不是漢字闖關的作業」。回家作業改放批改頁這裡（和學生頁「⋯ 更多工具」） */
     +'<details class="disc" style="margin-top:18px"'+((S.freeTasks||[]).length?' open':'')+'><summary>📝 回家作業'+((S.freeTasks||[]).length?('（'+(S.freeTasks||[]).length+' 份）'):'')+'</summary><div style="margin-top:10px">'
     +'<button class="btn btn-sm btn-primary" data-act="fhNew" style="margin-bottom:10px">＋ 派回家作業</button>'
@@ -10095,6 +10100,29 @@ function renderGrades(){
     else if(p)p.innerHTML='<div class="sg-empty">🎉 全部批完了<br><span>可以關掉這個分頁</span></div>';}
   else{const p=document.getElementById('sg-pane');if(p)p.innerHTML='<div class="sg-empty">👈 左邊點一位學生開始批改<br><span>改完按「下一位」就會自動跳到下一份</span></div>';}
 }
+function gqListHtml(list){
+  if(!list.length)return '<div class="gq-empty">'+(S.sgOnly==='all'?'還沒有任何作答':'🎉 目前沒有待批改的作業')+'</div>';
+  const by={},order=[];list.forEach(x=>{const k=x.sid||x.name||'?';if(!by[k]){by[k]={name:x.name||'',items:[]};order.push(k);}by[k].items.push(x);});
+  const tsN=x=>{const t=Date.parse(x.ts||'');return isNaN(t)?Infinity:t;};
+  order.forEach(k=>by[k].items.sort((a,b)=>(b.pend?1:0)-(a.pend?1:0)||tsN(a)-tsN(b)));
+  order.sort((a,b)=>{const A=by[a].items.filter(x=>x.pend),B=by[b].items.filter(x=>x.pend);
+    return (B.length?1:0)-(A.length?1:0)||Math.min(...A.map(tsN),Infinity)-Math.min(...B.map(tsN),Infinity);});
+  const pend=list.filter(x=>x.pend);let maxD=0;pend.forEach(x=>{const d=sgWaitDays(x.ts);if(d!=null&&d>maxD)maxD=d;});
+  const nStu=order.filter(k=>by[k].items.some(x=>x.pend)).length;
+  const sum=pend.length?('<div class="gq-sum"><span><b>'+pend.length+'</b> 份等批改</span><span><b>'+nStu+'</b> 位學生</span>'+(maxD>=2?('<span class="'+(maxD>=7?'hot':'')+'">最久等了 <b>'+maxD+'</b> 天</span>'):'')+'</div>'):'';
+  const ini=n=>{const t=String(n||'').trim();return esc(t?[...t][0].toUpperCase():'?');};
+  return sum+'<div class="gq-list">'+order.map(k=>{const g=by[k];const p=g.items.filter(x=>x.pend);
+    let d0=null;p.forEach(x=>{const d=sgWaitDays(x.ts);if(d!=null&&(d0==null||d>d0))d0=d;});
+    return '<section class="gq-stu'+(d0!=null&&d0>=7?' late':'')+'"><header><span class="gq-av" style="background:'+avColor(g.name)+'">'+ini(g.name)+'</span><b>'+snm(g.name)+'</b>'
+      +'<span class="gq-n">'+(p.length?(p.length+' 份待批改'):(g.items.length+' 份'))+'</span><span class="grow"></span>'+(d0!=null&&d0>=2?('<span class="gq-w '+(d0>=7?'hot':'')+'">最久 '+d0+' 天</span>'):'')+'</header>'
+      +g.items.map(x=>{const key=x.kind+'::'+x.id;const m=SGKIND[x.kind]||{ic:'',lab:''};const d=x.pend?sgWaitDays(x.ts):null;
+        return '<button type="button" class="gq-row'+(x.pend?'':' done')+'" data-act="sgPick" data-id="'+esc(key)+'">'
+          +'<span class="gq-ic">'+m.ic+'</span>'
+          +'<span class="gq-t"><b>'+esc(x.les||'')+'</b><small>'+esc(m.lab)+(x.extra?('　'+esc(x.extra)):'')+(x.ts?('　'+esc(fmtDT(x.ts))):'')+(x.test?'　🧪 測試':'')+'</small></span>'
+          +(x.hasDraft?'<span class="gq-tag bl">💡 已擬好建議</span>':'')
+          +'<span class="gq-tag '+(x.pend?'pend':'ok')+'">'+esc(x.stLab||(x.pend?'待批改':'已完成'))+'</span>'
+          +'<span class="gq-d">'+(d!=null&&d>=2?('等了 '+d+' 天'):'')+'</span>'
+          +'<span class="gq-go">'+(x.pend?'批改 →':'看一下')+'</span></button>';}).join('')+'</section>';}).join('')+'</div>';}
 function renderGradesMatrix(){
   const wrap=document.getElementById('grades-matrix');if(!wrap)return;
   const ls=sortLessons(S.lessons).filter(l=>assignedCount(l)>0);
