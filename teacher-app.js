@@ -10118,10 +10118,9 @@ function gqListHtml(list){
       +g.items.map(x=>{const key=x.kind+'::'+x.id;const m=SGKIND[x.kind]||{ic:'',lab:''};const d=x.pend?sgWaitDays(x.ts):null;
         return '<button type="button" class="gq-row'+(x.pend?'':' done')+'" data-act="sgPick" data-id="'+esc(key)+'">'
           +'<span class="gq-ic">'+m.ic+'</span>'
-          +'<span class="gq-t"><b>'+esc(x.les||'')+'</b><small>'+esc(m.lab)+(x.extra?('　'+esc(x.extra)):'')+(x.ts?('　'+esc(fmtDT(x.ts))):'')+(x.test?'　🧪 測試':'')+'</small></span>'
-          +(x.hasDraft?'<span class="gq-tag bl">💡 已擬好建議</span>':'')
-          +'<span class="gq-tag '+(x.pend?'pend':'ok')+'">'+esc(x.stLab||(x.pend?'待批改':'已完成'))+'</span>'
-          +'<span class="gq-d">'+(d!=null&&d>=2?('等了 '+d+' 天'):'')+'</span>'
+          +'<span class="gq-t"><b>'+esc(x.les||'')+'</b><small>'+esc(m.lab)+(x.extra?('　'+esc(x.extra)):'')+(x.ts?('　'+esc(fmtDT(x.ts))):'')+(x.test?'　🧪 測試':'')+(x.hasDraft?'　💡 已擬好建議':'')+'</small></span>'
+          +'<span class="gq-tag '+(x.pend?'pend':'ok')+'">'+esc(String(x.stLab||(x.pend?'待批改':'已完成')).replace(/^🆕\s*/,''))+'</span>'
+          +'<span class="gq-d'+(d!=null&&d>=7?' hot':'')+'">'+(d!=null&&d>=2?(d+' 天'):'')+'</span>'
           +'<span class="gq-go">'+(x.pend?'批改 →':'看一下')+'</span></button>';}).join('')+'</section>';}).join('')+'</div>';}
 function renderGradesMatrix(){
   const wrap=document.getElementById('grades-matrix');if(!wrap)return;
