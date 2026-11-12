@@ -6820,7 +6820,7 @@ const NAVSIB=[
   {tabs:[['@hwhub','📝 派作業',0,'[data-hwhub]'],['@hwdue','📋 還沒交的作業',0,'[data-hwhub-due]'],['grades','📝 批改・成績',0],'|',
          ['calendar','📅 課表',0],['files','🎯 課堂活動',0],['oc','▶️ 線上課',1],'|',
          ['students','👥 學生',0],['acct','🔑 帳號・使用',1],'|',
-         ['lessons','📚 教材與課程',0],['lib','🗂 教材庫',0],['hanzi','🀄 漢字闖關',0],['@py','ā 拼音練習',0,'[data-py-menu]']]}
+         ['lessons','📚 教材與課程',0],['@supp','📚 補充教材',0,'[data-supp-menu]'],['lib','🗂 教材庫',0],['hanzi','🀄 漢字闖關',0],['@py','ā 拼音練習',0,'[data-py-menu]']]}
 ];
 function navSibGroup(tab){
   for(let i=0;i<NAVSIB.length;i++){
@@ -26852,7 +26852,7 @@ H.itvDocDone=async(id)=>{const c=itvById(id);if(!c)return;const el=document.getE
   const G=[['作業',['[data-hwhub]','[data-hwhub-due]','button[data-id="grades"]']],
            ['上課',['button[data-id="calendar"]','button[data-k="files"]','button[data-k="oc"]']],
            ['學生',['button[data-k="students"]','button[data-k="acct"]']],
-           ['教材',['button[data-k="lessons"]','button[data-k="lib"]','button[data-k="hanzi"]','[data-py-menu]']]];
+           ['教材',['button[data-k="lessons"]','[data-supp-menu]','button[data-k="lib"]','button[data-k="hanzi"]','[data-py-menu]']]];
   function panel(){const ps=document.querySelectorAll('#tnav .tn-p');for(const p of ps){if(p.querySelector('button[data-id="lessons"]'))return p;}return null;}
   function regroup(){const p=panel();if(!p)return;
     const loose=[...p.children].filter(c=>c.tagName==='BUTTON');
@@ -26864,9 +26864,13 @@ H.itvDocDone=async(id)=>{const c=itvById(id);if(!c)return;const el=document.getE
     /* 沒有分到組的（以後新加的）放「教材」最後面，不會不見 */
     [...p.children].filter(c=>c.tagName==='BUTTON').forEach(b=>box['教材'].appendChild(b));
     G.forEach(([t,sels])=>{const g=box[t];sels.forEach(sel=>{const b=g.querySelector(':scope>'+sel.replace(/^button/,'button'));if(b)g.appendChild(b);});});}
-  function start(){regroup();const p=panel();if(!p||p.__tgObs)return;p.__tgObs=1;
-    try{new MutationObserver(()=>{const l=[...p.children].some(c=>c.tagName==='BUTTON');if(l)regroup();}).observe(p,{childList:true});}catch(e){}}
-  let n=0;const t=setInterval(()=>{if(panel()){start();if(++n>40)clearInterval(t);}else if(++n>200)clearInterval(t);},250);
+  /* TEACHGRP_V1698 Quinn：「爲什麼這邊又變奇怪了」——選單整個重畫（或外掛很晚才加「補充教材」）時，
+     原本只盯著舊的那一塊，新的那一塊沒人管，就變回一長條。改成一直盯著整個 #tnav，任何時候有散落的按鈕就收回組裡。 */
+  let raf=0;function check(){raf=0;const p=panel();if(p&&[...p.children].some(c=>c.tagName==='BUTTON'))regroup();}
+  function start(){const nav=document.getElementById('tnav');if(!nav||nav.__tgObs)return;nav.__tgObs=1;regroup();
+    try{new MutationObserver(()=>{if(!raf)raf=requestAnimationFrame(check);}).observe(nav,{childList:true,subtree:true});}catch(e){}}
+  let n=0;const t=setInterval(()=>{if(document.getElementById('tnav')&&panel()){start();clearInterval(t);}else if(++n>400)clearInterval(t);},250);
+  setInterval(check,3000);
 })();
 /* ══════ TCHOME_V1675 首頁改成「這週課表」 ══════
    Quinn 選的方向：照課表排、活潑有品牌感（樣式 C）。
