@@ -3495,12 +3495,14 @@ function payRowHtml(r,noState){
   const wv=Number(b.waived)||0;
   const wvTag=wv?('<span class="pay-wv" title="'+esc(s.fee_waived_note||'已處理')+'">已處理 '+money(wv,cur)+(s.fee_waived_note?('・'+esc(String(s.fee_waived_note).slice(0,12))):'')+'</span>'):'';
   return '<div class="pay-row'+((owe&&!noState)?' is-owe':'')+'">'
-    +'<span class="pay-nm">'+snm(s.name)+'</span>'
-    +'<span class="pay-tag">'+enrollBadge(s,1)/* PAYTAG_V1082 */+'</span>'
+    /* PAYUI_V1696 名字前面一個頭像圈；在學中的不再每一列都標「在學」（只標休學、結束、預約這種例外） */
+    +'<span class="pay-nm"><i class="pay-av" style="background:'+avColor(s.name)+'">'+esc((String(s.name||'?').trim()[0]||'?').toUpperCase())+'</i>'+snm(s.name)+'</span>'
+    +'<span class="pay-tag">'+(enrollOf(s)==='active'?'':enrollBadge(s,1))/* PAYTAG_V1082 */+'</span>'
     +'<span class="pay-c" data-l="上課">'+(b.items.length?(r.qtyText?('<b>'+r.qtyText+'</b>'):('<b>'+fmtQty(r.qty)+'</b> '+unitLabel(s))):'—')/* PAYQTY_V1489 */
       +(b.unknown?(' <span class="badge badge-soon" title="有課沒設定收費">⚠️ '+b.unknown+'</span>'):'')+'</span>'
     +'<span class="pay-c" data-l="應收"><b>'+(b.items.length?money(b.charge,cur):'—')+'</b></span>'
     +'<span class="pay-c pay-paid" data-l="已繳"><b>'+money(b.paid,cur)+'</b>'
+      +((b.items.length&&b.charge>0)?('<span class="pay-bar"><i style="width:'+Math.max(0,Math.min(100,Math.round(b.paid/b.charge*100)))+'%"></i></span>'):'')
       +(function(){const os=otherPayStr(b);
         const chip=os?('<span class="pay-oth" title="幣別跟帳單不一樣，還沒換算，所以沒抵掉">＋'+os+' 未換算</span>'):'';
         const dt=last?('<span class="pay-dt">'+esc(String(last.date||'').slice(0,10))+'</span>'):'';
@@ -3548,9 +3550,9 @@ function renderPay(){
   const mstr=o=>{const ks=curKeys(o,v=>v);/* CURORD_V1281 */return ks.length?ks.map(c=>money(o[c],c)).join(' ＋ '):'—';};
   /* PAYSUM_V1036 三塊本來全部擠在左邊，右邊一大片空白（Quinn：「放寬一點」）。 */
   const head=navSubBar(MONEY_TABS,'pay')+'<div class="pay-sum pay-sum3">'
-    +'<div><div class="muted">本月已收（'+esc(thisM)+'）</div><b style="color:#1F6A54">'+mstr(paidM)+'</b></div>'
-    +'<div><div class="muted">還沒收到</div><b style="color:'+(Object.keys(dueCur).length?'#A33227':'#C7D8EF')+'">'+mstr(dueCur)+'</b></div>'
-    +'<div><div class="muted">有欠款的學生</div><b style="color:'+(oweN?'#A33227':'#C7D8EF')+'">'+oweN+' 位</b></div>'
+    +'<div class="ps-t ok"><span class="ps-ic">💵</span><div><div class="muted">本月已收（'+esc(thisM)+'）</div><b style="color:#1F6A54">'+mstr(paidM)+'</b></div></div>'
+    +'<div class="ps-t due"><span class="ps-ic">⏳</span><div><div class="muted">還沒收到</div><b style="color:'+(Object.keys(dueCur).length?'#A33227':'#C7D8EF')+'">'+mstr(dueCur)+'</b></div></div>'
+    +'<div class="ps-t who"><span class="ps-ic">👤</span><div><div class="muted">有欠款的學生</div><b style="color:'+(oweN?'#A33227':'#C7D8EF')+'">'+oweN+' 位</b></div></div>'
     +'</div>';
   /* FEEPUB_V910 「費用公開」的對象：非測試帳號、而且沒有休學的學生 */
   const fpAll=feePubList();const fpOn=fpAll.filter(x=>x.pay_remind_on).length;
@@ -10137,7 +10139,7 @@ function renderGradesMatrix(){
     const ps=targets.map(s=>{const r=resultOf(l.id,s.id);const st=!r?'none':(r.status==='draft'?'draft':(r.status==='pending'?'pend':'done'));
       return {s,st,sc:st==='done'?(scoreOf(l,r)+'/'+(r.total||qn)):''};}).sort((a,b)=>ord[a.st]-ord[b.st]||String(a.s.name||'').localeCompare(String(b.s.name||'')));
     const done=ps.filter(p=>p.st==='done').length,pct=targets.length?Math.round(done/targets.length*100):0;
-    return '<div class="gm-row"><div class="gm-l"><b>'+esc(lesNo(l,'',' · '))+'</b><small>'+qn+' 題</small></div>'
+    return '<div class="gm-row"><div class="gm-l"><b>'+esc(lesNo(l,'',' · '))+'</b><small>'+qn+' 題'+(l.textbook?('　'+esc(l.textbook)):'')+'</small></div>'
       +'<div class="gm-pr"><span class="gm-bar"><i style="width:'+pct+'%"></i></span><em>'+done+'/'+targets.length+' 完成</em></div>'
       +'<div class="gm-ps">'+ps.map(p=>'<span class="gm-p '+p.st+'" title="'+esc(p.s.name||'')+'">'+esc(p.s.name||'')+(p.sc?'<b>'+esc(p.sc)+'</b>':'')+'</span>').join('')+'</div></div>';}).join('')+'</div>';
 }
