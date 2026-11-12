@@ -1003,6 +1003,7 @@ function render(){
   /* ROLE_V943 → TABFIX_V1192 權限檔下來要在「顯示那一頁」之前做，
      不然會先把擋下來的那一頁露出來（空白的），真正畫好的却是被藏起來的總覽。 */
   if(!IS_OWNER&&['ops','pay','agency','interview','writing','school','bizcal','oc','acct','reply'].indexOf(S.tab)>=0)S.tab='dashboard';
+  try{permGuard();}catch(e){}/* ROLES_V1706 */
   /* TABFIX_V1192 舊的分頁名稱被拿掉的話，這一行會整個爆掉，畫面會全白。找不到就回總覽。 */
   if(!$('#panel-'+S.tab))S.tab='dashboard';
   $('#panel-'+S.tab).classList.remove('hide');
@@ -1012,6 +1013,7 @@ function render(){
      先插會被蓋掉。 */
   try{navSibApply();}catch(e){}
   try{tnavBuild();tnavSync();}catch(e){}/* TNAV_V1355 */
+  try{permNav();actView();}catch(e){}/* ROLES_V1706 */
 }
 function payInfo(due){if(!due)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(due);if(isNaN(d))return null;d.setHours(0,0,0,0);const diff=Math.round((d-t)/86400000);
   if(diff<0)return{cls:'badge-overdue',label:'已逾期 '+(-diff)+' 天',sort:diff};
@@ -18825,15 +18827,16 @@ H.delStudent=async(id)=>{const s=S.students.find(x=>x.id===id);if(!s)return;if(!
 H.admins=async()=>{if(!isOwner()){toast('只有主管理員可以管理管理員');return;}
   let list=[];try{list=await DB.list('admins');}catch(e){list=[];}
   const cnt=em=>S.students.filter(s=>(s.admin||'').toLowerCase()===(em||'').toLowerCase()).length;
-  const rows=list.length?list.map(a=>`<div class="dash-row"><span class="badge badge-ok">管理員</span><b>${snm(a.name||a.email||'')}</b><span class="muted">${esc(a.email||'')}</span><span class="grow"></span><span class="muted">負責 ${cnt(a.email)} 位學生</span><button class="btn btn-sm btn-primary" data-act="admAssign" data-id="${esc(a.email||a.id)}">👥 指派學生</button><button class="btn btn-sm btn-danger" data-act="delAdmin" data-id="${a.id}">移除</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">目前沒有一般管理員。</div>';
+  const rows=list.length?list.map(a=>`<div class="dash-row"><span class="badge badge-ok">管理員</span><b>${snm(a.name||a.email||'')}</b><span class="muted">${esc(a.email||'')}</span><span class="grow"></span><span class="muted">負責 ${cnt(a.email)} 位學生</span><span class="role-chip r-${esc(roleOf(a))}">${esc(ROLES[roleOf(a)][1])}</span><button class="btn btn-sm" data-act="admRole" data-id="${esc(a.email||a.id)}">🔐 權限</button><button class="btn btn-sm" data-act="actLog" data-id="${esc(a.email||a.id)}">📊 活動記錄</button><button class="btn btn-sm btn-primary" data-act="admAssign" data-id="${esc(a.email||a.id)}">👥 指派學生</button><button class="btn btn-sm btn-danger" data-act="delAdmin" data-id="${a.id}">移除</button></div>`).join(''):'<div class="muted" style="padding:8px 2px">目前沒有一般管理員。</div>';
   openModal(`<div class="modal"><div class="modal-head"><h3>👤 管理員</h3><button class="x" data-act="closeModal">×</button></div>
    <div class="modal-body">
      <div class="dash-row"><span class="badge" style="background:var(--accent);color:#fff;border-color:var(--accent)">主管理員</span><b>你</b><span class="muted">${esc(TEACHER_EMAIL)}</span><span class="grow"></span></div>
-     <div class="lesson-label" style="margin-top:14px">一般管理員（只看得到你分配給他的學生）</div>${rows}
+     <div class="lesson-label" style="margin-top:14px">員工（一般管理員）</div>${rows}<div style="margin-top:8px"><button class="btn btn-sm" data-act="actLog" data-id="all">📊 全部員工的活動記錄</button></div>
      <div class="field full" style="margin-top:16px"><label>新增管理員</label>
        <input id="adm-name" type="text" placeholder="名稱（顯示用，可留空）" autocomplete="off" style="margin-bottom:8px">
        <input id="adm-email" type="email" placeholder="對方的 Email" autocomplete="off" style="margin-bottom:8px">
        <input id="adm-pw" type="text" placeholder="密碼（至少 6 碼，請給對方）" autocomplete="off">
+       ${roleRadiosHtml('adm-role','both')}
        <div class="hint" style="margin-top:6px">系統會用這組 Email＋密碼幫對方建立登入帳號（密碼不會存進資料庫）。新增後，到「學生名冊」<b>編輯學生→負責管理員</b>，把學生分配給他。</div>
        <div class="hint" style="margin-top:8px;background:#F4F7FB;border:1px solid #BFE0CB;border-radius:8px;padding:9px 11px;line-height:1.9">
          <b>管理員能做的（只跟教學有關）</b><br>
@@ -18861,7 +18864,8 @@ H.addAdmin=async(_,b)=>{if(!isOwner())return;const name=$('#adm-name').value.tri
   if(b){b.disabled=true;b.textContent='建立中…';}
   try{await ensureAuthFresh();
     try{await createStudentAuth(email,pw);}catch(e){if(((e&&e.code)||'').indexOf('email-already-in-use')<0)throw e;}
-    await firebase.firestore().collection('admins').doc(email).set({email,name:name||email,created_at:new Date().toISOString()});
+    const _rl=(document.querySelector('input[name="adm-role"]:checked')||{}).value||'both';
+    await firebase.firestore().collection('admins').doc(email).set({email,name:name||email,role:_rl,created_at:new Date().toISOString()});
     toast('已新增管理員');H.admins();
   }catch(err){if(b){b.disabled=false;b.textContent='＋ 新增管理員';}toast(adminWriteErr(err));}};
 /* SHARE_V1505 一次性的補齊：以前指派出去的課還沒有 share_admins 這個欄位，
@@ -27151,6 +27155,7 @@ H.tnSave=async(id)=>{const V=k=>((document.getElementById(k)||{}).value||'').tri
     TN.open=null;closeModal();toast('已儲存');}
   catch(e){toast(/permission|insufficient/i.test(String(e&&(e.code||e.message)))?'存不進去：Firebase 規則還沒加（見訊息追蹤頁的說明）':('儲存失敗：'+((e&&e.message)||e)));}};
 H.tnNote=async(id)=>{const t=document.getElementById('tn-msg');const v=(t&&t.value||'').trim();if(!v)return;
+  try{const x=(TN.list||[]).find(z=>z.id===id)||{};actLog('edit','msgs',(x.name||'（未命名）')+'：寫備註「'+v.slice(0,40)+'」',id);}catch(e){}
   try{await firebase.firestore().collection('teamnotes').doc(id).update({notes:firebase.firestore.FieldValue.arrayUnion({by:tnMe(),at:new Date().toISOString(),text:v}),updated_at:new Date().toISOString()});t.value='';}
   catch(e){toast('送不出去：'+((e&&e.message)||e));}};
 H.tnDel=async(id)=>{if(!confirm('刪除這一筆？'))return;
@@ -27221,6 +27226,10 @@ async function tnSet(id,f,v){const now=new Date().toISOString(),me=tnMe();const 
   const patch={[f]:v,updated_at:now};let sys=null;
   if(f==='stage'&&(x.stage||'new')!==v){const s=TN_STAGES.find(z=>z[0]===v);sys='把階段改成「'+(s?s[2]:v)+'」';}
   if(f==='owner'&&(x.owner||'')!==v)sys=v?('改由 '+tnWho(v)+' 負責'):'取消負責人';
+  /* ROLES_V1706 Quinn：「這邊的編輯記錄也要」——名字、來源、想問什麼、聯絡方式改了也記一行 */
+  const FL={name:'名字',source:'來源',topic:'想問什麼',contact:'聯絡方式'};
+  if(FL[f]&&String(x[f]||'')!==String(v||''))sys='把「'+FL[f]+'」從「'+(x[f]||'空白')+'」改成「'+(v||'空白')+'」';
+  try{actLog('edit','msgs',(x.name||'（未命名）')+'：'+(sys||(f+' → '+v)),id);}catch(e){}
   if(sys)patch.notes=firebase.firestore.FieldValue.arrayUnion({by:me,at:now,text:sys,sys:1});
   try{await firebase.firestore().collection('teamnotes').doc(id).update(patch);}catch(e){toast('存不進去：'+((e&&e.message)||e));}}
 H.tnView=(v)=>{TN.view=v;try{localStorage.setItem('tn_view',v);}catch(e){}renderMsgs();};
@@ -27264,3 +27273,66 @@ H.admAssignSave=async(email,btn)=>{if(!isOwner())return;email=String(email||'').
       const cur=shareList(l),next=mergeShare(cur,add);if(next.length!==cur.length){try{await DB.update('lessons',l.id,{share_admins:next});l.share_admins=next;}catch(e){}}}}catch(e){}
   toast(bad?('存好 '+ok+' 位，'+bad+' 位沒存上'):('已更新 '+ok+' 位學生'));
   try{render();}catch(e){}H.admins();};
+
+/* ══════ ROLES_V1706 員工的身分和權限 ══════
+   Quinn：「新增管理員可以選擇他的權限，類似他是回覆訊息的人，還是老師，有哪些可以看到、哪些不能看到」。
+   三種身分：老師（教學）／客服（只有訊息追蹤）／兩者都要。存在 admins/{email}.role。
+   以前加的管理員沒有 role，一律當「兩者都要」，跟原本能用的一樣，不會突然少東西。
+   錢、代辦面試代書、設定這些，不管哪一種身分都看不到（本來就是這樣）。 */
+const ROLES={teacher:['🧑‍🏫','老師','學生、課表、教材、批改（只看得到你指派給他的學生）'],
+  cs:['💬','客服・回覆訊息','只有「訊息追蹤」：記錄誰傳訊息、回覆進度、寫備註'],
+  both:['⭐','老師＋客服','上面兩種都可以']};
+function roleOf(a){const r=a&&a.role;return ROLES[r]?r:'both';}
+function roleRadiosHtml(name,cur){return '<div class="role-pick"><div class="role-h">身分（決定他看得到什麼）</div>'
+  +Object.keys(ROLES).map(k=>'<label class="role-opt"><input type="radio" name="'+name+'" value="'+k+'"'+(k===cur?' checked':'')+'><span><b>'+ROLES[k][0]+' '+ROLES[k][1]+'</b><small>'+ROLES[k][2]+'</small></span></label>').join('')
+  +'<div class="role-no">不管哪一種都<b>看不到</b>：學費和收入、代辦／面試／代書客戶、設定、其他員工負責的學生。</div></div>';}
+const PERM_TEACH=['dashboard','students','student','class','calendar','lessons','grades','files','hanzi','lib','give','tcourse','quiz','guide'];
+function myRole(){if(IS_OWNER)return 'owner';return S.myRole||'both';}
+function permLoad(){if(IS_OWNER||S._roleLoading||S.myRole)return;S._roleLoading=1;
+  firebase.firestore().collection('admins').doc(myEmailNow()).get().then(d=>{S.myRole=roleOf(d.exists?d.data():{});try{render();}catch(e){}})
+    .catch(()=>{S.myRole='both';});}
+function permGuard(){if(IS_OWNER)return;permLoad();const r=myRole();
+  if(r==='cs'&&S.tab!=='msgs'&&S.tab!=='guide')S.tab='msgs';
+  if(r==='teacher'&&S.tab==='msgs')S.tab='dashboard';}
+function permNav(){const r=myRole();
+  document.body.classList.toggle('role-cs',r==='cs');document.body.classList.toggle('role-teacher',r==='teacher');
+  if(IS_OWNER)return;
+  /* 上方選單：客服只留「留學業務 → 訊息追蹤」；老師把「訊息追蹤」藏起來 */
+  try{const nav=document.getElementById('tnav');if(!nav)return;
+    TNAV.forEach((g,gi)=>{const it=nav.querySelector('.tn-i[data-gi="'+gi+'"]');if(!it)return;
+      const hasMsgs=g.sub&&g.sub.some(x=>(Array.isArray(x)?x[0]:x.id)==='msgs');
+      if(r==='cs')it.style.display=hasMsgs?'':'none';else it.style.display='';
+      if(hasMsgs){const b=it.querySelector('button[data-k="msgs"]');if(b)b.style.display=(r==='teacher')?'none':'';
+        if(r==='teacher'&&g.sub.every(x=>{const sb=tnSub(x);return sb.k==='msgs'||sb.ow;}))it.style.display='none';}});}catch(e){}}
+H.admRole=async(email)=>{if(!isOwner())return;email=String(email||'').toLowerCase();
+  let a=null;try{const d=await firebase.firestore().collection('admins').doc(email).get();a=d.exists?d.data():null;}catch(e){}
+  openModal('<div class="modal"><div class="modal-head"><h3>🔐 '+esc((a&&a.name)||email)+' 的權限</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+    +roleRadiosHtml('role-edit',roleOf(a))+'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="admins">← 回員工列表</button><span style="flex:1"></span><button class="btn btn-primary" data-act="admRoleSave" data-id="'+esc(email)+'">💾 儲存</button></div></div>');};
+H.admRoleSave=async(email)=>{if(!isOwner())return;const v=(document.querySelector('input[name="role-edit"]:checked')||{}).value||'both';
+  try{await firebase.firestore().collection('admins').doc(String(email).toLowerCase()).update({role:v});
+    const a=(S.admins||[]).find(x=>String(x.email||x.id).toLowerCase()===String(email).toLowerCase());if(a)a.role=v;
+    toast('已改成「'+ROLES[v][1]+'」，對方重新整理就生效');H.admins();}catch(e){toast('存不進去：'+((e&&e.message)||e));}};
+/* ══════ ACTLOG_V1706 活動記錄 ══════
+   Quinn：「幫我記錄瀏覽次數等資訊」「瀏覽次數的記錄是要全網都要的」「這邊的編輯記錄也要」。
+   員工（不含你自己）每打開後台的一頁記一筆、改訊息追蹤記一筆。存在 actlog：員工只能新增，只有你看得到。 */
+const TAB_NAME={dashboard:'今日總覽',students:'學生',student:'學生檔案',class:'班級',calendar:'課表',lessons:'教材與課程',grades:'批改・成績',files:'課堂活動',hanzi:'漢字闖關',lib:'教材庫',give:'給學生的東西',msgs:'訊息追蹤',guide:'使用說明',oc:'線上課',acct:'帳號・使用'};
+function actLog(kind,tab,what,ref){if(IS_OWNER)return;const e=myEmailNow();if(!e)return;
+  try{firebase.firestore().collection('actlog').add({by:e,name:(typeof tnMe==='function'?tnMe():e),kind,tab:tab||'',what:String(what||'').slice(0,200),ref:ref||'',t:new Date().toISOString()}).catch(()=>{});}catch(x){}}
+function actView(){if(IS_OWNER)return;const k=S.tab+'|'+(S.stuSel||S.sel||'');if(S._actLast===k)return;S._actLast=k;actLog('view',S.tab,TAB_NAME[S.tab]||S.tab,'');}
+H.actLog=async(email)=>{if(!isOwner())return;email=String(email||'').toLowerCase();
+  openModal('<div class="modal modal-wide"><div class="modal-head"><h3>📊 活動記錄</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body" id="act-body">讀取中…</div>'
+    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="admins">← 回員工列表</button></div></div>');
+  let xs=[];try{const sn=await firebase.firestore().collection('actlog').orderBy('t','desc').limit(1500).get();xs=sn.docs.map(d=>d.data());}
+  catch(e){const b=document.getElementById('act-body');if(b)b.innerHTML='<div class="tn-rules">讀不到記錄：'+esc(String(e&&(e.code||e.message)))+'</div>';return;}
+  if(email&&email!=='all')xs=xs.filter(x=>x.by===email);
+  const b=document.getElementById('act-body');if(!b)return;
+  if(!xs.length){b.innerHTML='<div class="tn-empty">還沒有記錄。他登入後台、打開頁面或改訊息追蹤，就會開始記。</div>';return;}
+  const now=Date.now(),d7=xs.filter(x=>now-Date.parse(x.t)<7*864e5);
+  const views=d7.filter(x=>x.kind==='view'),edits=d7.filter(x=>x.kind==='edit');
+  const days=new Set(d7.map(x=>String(x.t).slice(0,10))).size;
+  const byTab={};views.forEach(x=>{const k=TAB_NAME[x.tab]||x.tab;byTab[k]=(byTab[k]||0)+1;});
+  const tabs=Object.keys(byTab).sort((p,q)=>byTab[q]-byTab[p]);const mx=Math.max(1,...tabs.map(k=>byTab[k]));
+  const fmt=t=>String(t).replace('T',' ').slice(5,16);
+  b.innerHTML='<div class="act-sum"><div><b>'+fmt(xs[0].t)+'</b><span>最後一次活動</span></div><div><b>'+days+'</b><span>這 7 天有上線的天數</span></div><div><b>'+views.length+'</b><span>這 7 天打開頁面次數</span></div><div><b>'+edits.length+'</b><span>這 7 天編輯次數</span></div></div>'
+    +(tabs.length?'<div class="act-h">這 7 天最常看的頁面</div><div class="act-bars">'+tabs.map(k=>'<div class="act-bar"><span>'+esc(k)+'</span><i><em style="width:'+Math.round(byTab[k]/mx*100)+'%"></em></i><b>'+byTab[k]+'</b></div>').join('')+'</div>':'')
+    +'<div class="act-h">最近的紀錄</div><div class="act-list">'+xs.slice(0,200).map(x=>'<div class="act-row k-'+esc(x.kind)+'"><span class="t">'+fmt(x.t)+'</span>'+(email==='all'?'<b>'+esc(x.name||x.by)+'</b>':'')+'<span class="k">'+(x.kind==='edit'?'✏️ 編輯':'👁 瀏覽')+'</span><span class="w">'+esc(x.what||'')+'</span></div>').join('')+'</div>';};
