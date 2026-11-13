@@ -27065,7 +27065,7 @@ function tnWho(k){const p=tnPeople().find(x=>x.k===k);return p?p.n:(k?String(k).
 function tnStart(){if(TN.unsub||!(window.firebase&&firebase.auth().currentUser))return;
   if(!TN.admins){DB.list('admins').then(a=>{TN.admins=a||[];if(S.tab==='msgs')renderMsgs();}).catch(()=>{TN.admins=[];});}
   try{TN.unsub=firebase.firestore().collection('teamnotes').onSnapshot(sn=>{
-      const first=TN.list==null;TN.err='';const _all=sn.docs.map(d=>Object.assign({id:d.id},d.data()));TN.list=_all.filter(x=>!x.deleted_at);TN.trash=_all.filter(x=>x.deleted_at).sort((a,b)=>String(b.deleted_at).localeCompare(String(a.deleted_at)));
+      const first=TN.list==null;TN.err='';const _all=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>{if(x.id==='_config'){TN.cfg=x;return false;}return true;});TN.list=_all.filter(x=>!x.deleted_at);TN.trash=_all.filter(x=>x.deleted_at).sort((a,b)=>String(b.deleted_at).localeCompare(String(a.deleted_at)));
       if(S.tab==='msgs')renderMsgs();else if(S.tab==='dashboard'&&first&&!document.querySelector('.modal')){try{render();}catch(e){}}
       if(TN.open){const cur=TN.list.find(x=>x.id===TN.open);const box=document.getElementById('tn-thread');if(cur&&box)box.innerHTML=tnThreadHtml(cur);}},
     err=>{TN.err=String((err&&(err.code||err.message))||err);TN.list=TN.list||[];TN.unsub=null;if(S.tab==='msgs')renderMsgs();});}catch(e){TN.err=String(e&&e.message||e);}}
@@ -27091,12 +27091,12 @@ function renderMsgs(){
   if(TN.q){const q=TN.q.toLowerCase();list=list.filter(x=>[x.name,x.contact,x.topic,x.source,(x.notes||[]).map(n=>n.text).join(' ')].join(' ').toLowerCase().indexOf(q)>=0);}
   const last=x=>String(x.updated_at||x.created_at||'');
   const seg=(v,lab,n)=>'<button class="segb'+(TN.f===v?' on':'')+'" data-act="tnF" data-id="'+v+'">'+lab+(n!=null?'<span class="segn">'+n+'</span>':'')+'</button>';
-  const top='<div class="tn-top"><div class="segbar">'+seg('open','進行中',tnCount('new')+tnCount('talk'))
-    +TN_STAGES.map(s=>seg(s[0],s[1]+' '+s[2],tnCount(s[0]))).join('')+seg('all','全部',all.length)+((TN.trash||[]).length?seg('trash','🗑 已刪除',(TN.trash||[]).length):'')+'</div><span class="grow"></span>'
-    +'<label class="tn-mine"><input type="checkbox" data-act="tnMine"'+(TN.mine?' checked':'')+'> 只看我負責的</label>'
-    +'<input class="tn-q" id="tn-q" type="search" placeholder="搜尋名字、內容…" value="'+esc(TN.q)+'">'
-    +'<div class="segbar"><button class="segb'+(TN.view!=='board'?' on':'')+'" data-act="tnView" data-id="table">📋 表格</button><button class="segb'+(TN.view==='board'?' on':'')+'" data-act="tnView" data-id="board">🗂 看板</button></div>'
-    +'<button class="btn btn-primary" data-act="'+(TN.view!=='board'?'tnAddRow':'tnNew')+'">＋ 新增一筆</button></div>';
+  /* TNSIMPLE_V1712 Quinn：「看起來非常複雜，很難用」——上面只留：四個分頁、搜尋、新增客人 */
+  const tabs=[['open','進行中',tnCount('new')+tnCount('talk')],['won','成交',tnCount('won')],['lost','沒談成',tnCount('lost')],['all','全部',all.length]];
+  if((TN.trash||[]).length)tabs.push(['trash','🗑 已刪除',(TN.trash||[]).length]);
+  const top='<div class="tns-top"><div class="tns-tabs">'+tabs.map(t=>'<button class="tns-tab'+(TN.f===t[0]?' on':'')+'" data-act="tnF" data-id="'+t[0]+'">'+t[1]+' <span>'+t[2]+'</span></button>').join('')+'</div>'
+    +'<input class="tns-q" id="tn-q" type="search" placeholder="搜尋名字、內容…" value="'+esc(TN.q)+'">'
+    +'<button class="btn btn-primary tns-new" data-act="tnAddRow">＋ 新增客人</button></div>';
   const card=x=>{const st=TN_STAGES.find(s=>s[0]===(x.stage||'new'))||TN_STAGES[0];const ns=x.notes||[];const ln=ns[ns.length-1];
     return '<button type="button" class="tn-card st-'+st[0]+'" data-act="tnOpen" data-id="'+esc(x.id)+'">'
       +'<div class="tn-c1"><b>'+esc(x.name||'（沒有名字）')+'</b><span class="tn-st">'+st[1]+' '+st[2]+'</span></div>'
@@ -27106,7 +27106,7 @@ function renderMsgs(){
       +'<div class="tn-c4">'+esc(tnAgo(last(x)))+(ns.length?'　·　'+ns.length+' 則備註':'')+'</div></button>';};
   let main;
   /* TNTABLE_V1703 Quinn：「能不能做成類似 Excel 或 Notion 那種」——預設改成表格：一列一位，每一格直接點就能改，改完自動存。 */
-  if(TN.view!=='board'){main=tnTableHtml(list.sort((a,b)=>last(b).localeCompare(last(a))));}
+  if(true){main=tnSimpleHtml(list.sort((a,b)=>last(b).localeCompare(last(a))));}
   else if(!all.length)main='<div class="tn-empty">還沒有任何一筆。有人傳訊息來問，就按右上角「＋ 新增一筆」記下來。</div>';
   else if(TN.f==='open'||TN.f==='all'){
     const cols=(TN.f==='open'?TN_STAGES.slice(0,2):TN_STAGES);
@@ -27115,7 +27115,8 @@ function renderMsgs(){
   else main='<div class="tn-grid">'+(list.sort((a,b)=>last(b).localeCompare(last(a))).map(card).join('')||'<div class="tn-empty">沒有符合的</div>')+'</div>';
   if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.tn-table')){TN.dirty=1;return;}
   body.innerHTML=bar+top+main;tnWire(body);
-  if(TN.focusNew){const el=body.querySelector('.tn-row[data-id="'+TN.focusNew+'"] input[data-f="name"]');if(el){el.focus();TN.focusNew=null;}}
+  if(TN.focusNew){if(TN.exp!==TN.focusNew&&(TN.list||[]).some(x=>x.id===TN.focusNew)){TN.exp=TN.focusNew;TN.open=TN.exp;body.innerHTML=bar+top+tnSimpleHtml(list);}
+    const el=body.querySelector('.tns-item[data-id="'+TN.focusNew+'"] input[data-f="name"]');if(el){el.focus();TN.focusNew=null;}}
   const q=document.getElementById('tn-q');if(q)q.oninput=()=>{TN.q=q.value;clearTimeout(TN._qt);TN._qt=setTimeout(()=>{renderMsgs();const q2=document.getElementById('tn-q');if(q2){q2.focus();q2.setSelectionRange(q2.value.length,q2.value.length);}},250);};}
 function tnThreadHtml(x){const ns=x.notes||[];
   return ns.length?ns.map(n=>'<div class="tn-n'+(n.sys?' sys':'')+'"><div class="tn-nh"><b>'+esc(n.by||'')+'</b><span>'+esc(String(n.at||'').replace('T',' ').slice(0,16))+'</span></div><div class="tn-nt">'+esc(n.text||'')+'</div></div>').join('')
@@ -27227,7 +27228,7 @@ function tnTableHtml(list){
         +'<button class="btn btn-primary" data-act="tnNote" data-id="'+esc(x.id)+'">送出</button><button class="btn btn-ghost" data-act="tnOpen" data-id="'+esc(x.id)+'">收起</button><span class="grow"></span><button class="btn btn-ghost tn-delb" data-act="tnDelRow" data-id="'+esc(x.id)+'">🗑 刪除這一筆</button></div></div>'):'');}).join('');
   return '<div class="tn-table">'+head+(rows||'<div class="tn-none" style="padding:14px 16px">還沒有任何一筆，按右上角「＋ 新增一筆」。</div>')+'<button type="button" class="tn-addrow" data-act="tnAddRow">＋ 新增一筆</button></div>';}
 function tnWire(body){if(body.__tnWired)return;body.__tnWired=1;
-  body.addEventListener('change',e=>{const el=e.target.closest&&e.target.closest('.tn-sel');if(!el)return;tnSet(el.dataset.id,el.dataset.f,el.value);});
+  body.addEventListener('change',e=>{const el=e.target.closest&&e.target.closest('.tn-sel');if(!el)return;if(el.value==='__add'){tnAddTopic(el);return;}tnSet(el.dataset.id,el.dataset.f,el.value);});
   body.addEventListener('keydown',e=>{const el=e.target.closest&&e.target.closest('.tn-in');if(el&&e.key==='Enter'){e.preventDefault();el.blur();}
     if(e.target&&e.target.id==='tn-msg'&&e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();const b=e.target.closest('.tn-exp').querySelector('[data-act="tnNote"]');if(b)H.tnNote(b.dataset.id);}});
   body.addEventListener('focusout',e=>{const el=e.target.closest&&e.target.closest('.tn-in');
@@ -27244,7 +27245,7 @@ async function tnSet(id,f,v){const now=new Date().toISOString(),me=tnMe();const 
   if(sys)patch.notes=firebase.firestore.FieldValue.arrayUnion({by:me,at:now,text:sys,sys:1});
   try{await firebase.firestore().collection('teamnotes').doc(id).update(patch);}catch(e){toast('存不進去：'+((e&&e.message)||e));}}
 H.tnView=(v)=>{TN.view=v;try{localStorage.setItem('tn_view',v);}catch(e){}renderMsgs();};
-try{TN.view=localStorage.getItem('tn_view')||'table';}catch(e){TN.view='table';}
+TN.view='table';/* TNSIMPLE_V1712 不再分表格／看板 */
 H.tnAddRow=async()=>{const now=new Date().toISOString();
   try{const r=await firebase.firestore().collection('teamnotes').add({name:'',stage:'new',source:'',topic:'',owner:'',contact:'',notes:[],created_at:now,updated_at:now,created_by:tnMe()});
     TN.focusNew=r.id;if(TN.f!=='all'&&TN.f!=='open'&&TN.f!=='new')TN.f='open';}catch(e){toast('新增失敗：'+((e&&e.message)||e));}};
@@ -27382,3 +27383,68 @@ H.tnRestore=async(id)=>{const x=(TN.trash||[]).find(z=>z.id===id)||{};const now=
     Object.keys(OV).forEach(k=>{d.M[k]=OV[k];});R.forEach(r=>d.R.unshift(r));done=true;
     try{if(S.tab==='reply')render();}catch(e){}}
   const t=setInterval(()=>{go();if(done)clearInterval(t);},400);})();
+
+/* TNSIMPLE_V1712 簡單清單：一位客人一張卡。點開才看到細節、改資料、寫備註。
+   系統自動記的修改紀錄預設收起來，要看再按。 */
+const TN_STC={new:'#E8833A',talk:'#2F6FD0',won:'#2E9B5F',lost:'#98A3B3'};
+function tnSimpleHtml(list){
+  if(!list.length)return '<div class="tns-empty">'+((TN.list||[]).length?'沒有符合的':'還沒有客人。有人傳訊息來，就按「＋ 新增客人」記下來。')+'</div>';
+  const ppl=tnPeople();
+  return '<div class="tn-table tns-list">'+list.map(x=>{
+    const st=x.stage||'new';const S0=TN_STAGES.find(z=>z[0]===st)||TN_STAGES[0];
+    const ns=(x.notes||[]);const real=ns.filter(n=>!n.sys);const ln=real[real.length-1];const open=TN.exp===x.id;
+    const sub=[x.source,(x.contact&&x.contact!==x.source)?x.contact:'',x.topic].filter(Boolean).map(esc).join(' · ');
+    let h='<div class="tns-item'+(open?' open':'')+'" data-id="'+esc(x.id)+'" style="--stc:'+TN_STC[st]+'">'
+      +'<button type="button" class="tns-row" data-act="tnOpen" data-id="'+esc(x.id)+'">'
+      +'<span class="tns-pill">'+S0[2]+'</span>'
+      +'<span class="tns-main"><b>'+esc(x.name||'（未命名）')+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</span>'
+      +'<span class="tns-last">'+(ln?esc(String(ln.text||'')):'<i>還沒有備註</i>')+'</span>'
+      +'<span class="tns-meta">'+(x.owner?'<em>'+esc(tnWho(x.owner))+'</em>':'')+'<time>'+esc(tnAgo(x.updated_at||x.created_at))+'</time></span>'
+      +'</button>';
+    if(open){
+      const sel=(f,cur,opts)=>'<select class="tn-sel" data-f="'+f+'" data-id="'+esc(x.id)+'">'+opts.map(o=>'<option value="'+esc(o[0])+'"'+(o[0]===cur?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select>';
+      const sys=ns.filter(n=>n.sys).length;
+      h+='<div class="tns-body">'
+        +'<div class="tns-stg">'+TN_STAGES.map(z=>'<button type="button" class="tns-sb'+(z[0]===st?' on':'')+'" style="--c:'+TN_STC[z[0]]+'" data-act="tnStg" data-id="'+esc(x.id)+'::'+z[0]+'">'+z[2]+'</button>').join('')+'</div>'
+        +'<div class="tns-f">'
+          +'<label>名字<input class="tn-in" data-f="name" data-id="'+esc(x.id)+'" value="'+esc(x.name||'')+'" placeholder="（未命名）"></label>'
+          /* Quinn：「來源跟聯絡方式本來是差不多的意思」——合成一格：先選管道，旁邊可以貼帳號／電話 */
+          +'<label class="tns-ch">從哪裡聯絡<span>'+sel('source',x.source||'',[['','—']].concat(TN_SRC.map(v=>[v,v])))
+          +'<input class="tn-in" data-f="contact" data-id="'+esc(x.id)+'" value="'+esc((x.contact&&x.contact!==x.source)?x.contact:'')+'" placeholder="帳號、連結或電話（可不填）"></span></label>'
+          +'<label>想問什麼'+sel('topic',x.topic||'',[['','—']].concat(tnTopics(x.topic).map(v=>[v,v])).concat([['__add','＋ 自己新增一個…']]))+'</label>'
+          +'<label>負責人'+sel('owner',x.owner||'',[['','—']].concat(ppl.map(p=>[p.k,p.n])))+'</label>'
+        +'</div>'
+        +'<div class="tns-notes" id="tn-thread">'+tnSimpleNotes(x)+'</div>'
+        +'<div class="tns-add"><textarea id="tn-msg" rows="1" placeholder="寫備註，按 Enter 送出"></textarea><button class="btn btn-primary" data-act="tnNote" data-id="'+esc(x.id)+'">送出</button></div>'
+        +'<div class="tns-foot">'+(sys?'<button type="button" class="tns-link" data-act="tnSys">'+(TN.showSys?'隱藏修改紀錄':'顯示修改紀錄（'+sys+'）')+'</button>':'')
+        +'<span class="grow"></span><button type="button" class="tns-link del" data-act="tnDelRow" data-id="'+esc(x.id)+'">刪除這位客人</button></div>'
+        +'</div>';}
+    return h+'</div>';}).join('')+'</div>';}
+function tnSimpleNotes(x){const ns=(x.notes||[]).filter(n=>TN.showSys||!n.sys);
+  if(!ns.length)return '<div class="tns-none">還沒有備註</div>';
+  return ns.map(n=>'<div class="tns-n'+(n.sys?' sys':'')+'"><div class="tns-nh"><b>'+esc(n.by||'')+'</b><span>'+esc(String(n.at||'').replace('T',' ').slice(5,16))+'</span></div><div class="tns-nt">'+esc(n.text||'')+'</div></div>').join('');}
+tnThreadHtml=function(x){return tnSimpleNotes(x);};
+H.tnStg=(v)=>{const i=String(v).lastIndexOf('::');const id=v.slice(0,i),st=v.slice(i+2);const x=(TN.list||[]).find(z=>z.id===id);if(!x||(x.stage||'new')===st)return;
+  x.stage=st;try{renderMsgs();}catch(e){}tnSet(id,'stage',st);};
+H.tnSys=()=>{TN.showSys=!TN.showSys;renderMsgs();};
+(function(){const M={'＋ 新增客人':'＋ Thêm khách','新增客人':'Thêm khách','進行中':'Đang xử lý','成交':'Đã chốt','沒談成':'Không chốt','全部':'Tất cả',
+  '名字':'Tên','從哪裡聯絡':'Liên hệ qua','帳號、連結或電話（可不填）':'Tài khoản, link hoặc SĐT (không bắt buộc)','想問什麼':'Nhu cầu','負責人':'Phụ trách','還沒有備註':'Chưa có ghi chú',
+  '寫備註，按 Enter 送出':'Viết ghi chú, nhấn Enter để gửi','送出':'Gửi','隱藏修改紀錄':'Ẩn lịch sử sửa','刪除這位客人':'Xóa khách này',
+  '還沒有客人。有人傳訊息來，就按「＋ 新增客人」記下來。':'Chưa có khách. Có ai nhắn tin thì bấm “＋ Thêm khách” để ghi lại.',
+  '沒有符合的':'Không tìm thấy','電話／Zalo／FB 連結':'SĐT / Zalo / Facebook'};
+  const R=[[/^顯示修改紀錄（(\d+)）$/,'Xem lịch sử sửa ($1)']];let done=false;
+  const t=setInterval(()=>{const d=window.QNA_VI;if(done||!d||!d.M||!Array.isArray(d.R)||!d.R.length||!(d.R[0][0] instanceof RegExp))return;
+    Object.keys(M).forEach(k=>{d.M[k]=M[k];});R.forEach(r=>d.R.unshift(r));done=true;clearInterval(t);try{if(S.tab==='msgs')renderMsgs();}catch(e){}},500);})();
+/* TNTOPIC_V1712 Quinn：「需要服務的項目可以讓我自己選多樣一點」——預設多幾種，也可以自己加（存在 teamnotes/_config，全隊共用） */
+const TN_TOPIC2=['諮詢學校','語言學校諮詢','大學諮詢','碩士諮詢','面試','中文課','代辦申請','代書','其他'];
+function tnTopics(cur){const own=((TN.cfg&&TN.cfg.topics)||[]).filter(Boolean);
+  const out=[];TN_TOPIC2.slice(0,-1).concat(own).concat(['其他']).forEach(v=>{if(out.indexOf(v)<0)out.push(v);});
+  if(cur&&out.indexOf(cur)<0)out.splice(out.length-1,0,cur);return out;}
+async function tnAddTopic(el){const id=el.dataset.id;const x=(TN.list||[]).find(z=>z.id===id)||{};
+  const v=String(prompt('新增一個服務項目（例如：交換學生諮詢）')||'').trim();
+  if(!v){el.value=x.topic||'';return;}
+  try{if(tnTopics().indexOf(v)<0)await firebase.firestore().collection('teamnotes').doc('_config').set({topics:firebase.firestore.FieldValue.arrayUnion(v)},{merge:true});}catch(e){toast('存不進去：'+((e&&e.message)||e));}
+  TN.cfg=TN.cfg||{};TN.cfg.topics=(TN.cfg.topics||[]).concat([v]);tnSet(id,'topic',v);}
+(function(){const M={'＋ 自己新增一個…':'＋ Tự thêm mục mới…','新增一個服務項目（例如：交換學生諮詢）':'Thêm dịch vụ mới (ví dụ: tư vấn trao đổi sinh viên)',
+  '諮詢學校':'Tư vấn chọn trường','語言學校諮詢':'Tư vấn trường tiếng','大學諮詢':'Tư vấn đại học','碩士諮詢':'Tư vấn thạc sĩ','面試':'Phỏng vấn'};
+  let done=false;const t=setInterval(()=>{const d=window.QNA_VI;if(done||!d||!d.M)return;Object.keys(M).forEach(k=>{d.M[k]=M[k];});done=true;clearInterval(t);},500);})();
