@@ -27064,7 +27064,7 @@ function tnWho(k){const p=tnPeople().find(x=>x.k===k);return p?p.n:(k?String(k).
 function tnStart(){if(TN.unsub||!(window.firebase&&firebase.auth().currentUser))return;
   if(!TN.admins){DB.list('admins').then(a=>{TN.admins=a||[];if(S.tab==='msgs')renderMsgs();}).catch(()=>{TN.admins=[];});}
   try{TN.unsub=firebase.firestore().collection('teamnotes').onSnapshot(sn=>{
-      const first=TN.list==null;TN.err='';TN.list=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted_at);
+      const first=TN.list==null;TN.err='';const _all=sn.docs.map(d=>Object.assign({id:d.id},d.data()));TN.list=_all.filter(x=>!x.deleted_at);TN.trash=_all.filter(x=>x.deleted_at).sort((a,b)=>String(b.deleted_at).localeCompare(String(a.deleted_at)));
       if(S.tab==='msgs')renderMsgs();else if(S.tab==='dashboard'&&first&&!document.querySelector('.modal')){try{render();}catch(e){}}
       if(TN.open){const cur=TN.list.find(x=>x.id===TN.open);const box=document.getElementById('tn-thread');if(cur&&box)box.innerHTML=tnThreadHtml(cur);}},
     err=>{TN.err=String((err&&(err.code||err.message))||err);TN.list=TN.list||[];TN.unsub=null;if(S.tab==='msgs')renderMsgs();});}catch(e){TN.err=String(e&&e.message||e);}}
@@ -27083,6 +27083,7 @@ function renderMsgs(){
   if(TN.err&&/permission|insufficient/i.test(TN.err)){body.innerHTML=bar+(IS_OWNER?tnRulesHtml():'<div class="tn-empty">還不能用：請主管理員先在 Firebase 加上規則。</div>');return;}
   const me=myEmailNow();const all=TN.list||[];
   let list=all.slice();
+  if(TN.f==='trash'){body.innerHTML=bar+tnTrashHtml(TN.trash||[]);return;}
   if(TN.f==='open')list=list.filter(x=>(x.stage||'new')==='new'||x.stage==='talk');
   else if(TN.f!=='all')list=list.filter(x=>(x.stage||'new')===TN.f);
   if(TN.mine)list=list.filter(x=>x.owner===me);
@@ -27090,7 +27091,7 @@ function renderMsgs(){
   const last=x=>String(x.updated_at||x.created_at||'');
   const seg=(v,lab,n)=>'<button class="segb'+(TN.f===v?' on':'')+'" data-act="tnF" data-id="'+v+'">'+lab+(n!=null?'<span class="segn">'+n+'</span>':'')+'</button>';
   const top='<div class="tn-top"><div class="segbar">'+seg('open','進行中',tnCount('new')+tnCount('talk'))
-    +TN_STAGES.map(s=>seg(s[0],s[1]+' '+s[2],tnCount(s[0]))).join('')+seg('all','全部',all.length)+'</div><span class="grow"></span>'
+    +TN_STAGES.map(s=>seg(s[0],s[1]+' '+s[2],tnCount(s[0]))).join('')+seg('all','全部',all.length)+((TN.trash||[]).length?seg('trash','🗑 已刪除',(TN.trash||[]).length):'')+'</div><span class="grow"></span>'
     +'<label class="tn-mine"><input type="checkbox" data-act="tnMine"'+(TN.mine?' checked':'')+'> 只看我負責的</label>'
     +'<input class="tn-q" id="tn-q" type="search" placeholder="搜尋名字、內容…" value="'+esc(TN.q)+'">'
     +'<div class="segbar"><button class="segb'+(TN.view!=='board'?' on':'')+'" data-act="tnView" data-id="table">📋 表格</button><button class="segb'+(TN.view==='board'?' on':'')+'" data-act="tnView" data-id="board">🗂 看板</button></div>'
@@ -27174,7 +27175,7 @@ H.tnDel=async(id)=>{if(!confirm('刪除這一筆？'))return;
     '還沒回訊息':'Chưa trả lời tin nhắn','回了，正在談':'Đã trả lời, đang trao đổi','談成了':'Đã chốt được','沒下文':'Khách không phản hồi',
     '官網':'Website','電話':'Điện thoại','朋友介紹':'Bạn bè giới thiệu','其他':'Khác',
     '中文課':'Lớp tiếng Trung','代辦申請':'Hồ sơ du học','面試練習':'Luyện phỏng vấn','代書':'Viết hồ sơ',
-    '取消負責人':'Bỏ người phụ trách','剛剛':'Vừa xong','請填名字':'Vui lòng nhập tên','已儲存':'Đã lưu','已刪除':'Đã xóa','刪除這一筆？':'Xóa mục này?',
+    '取消負責人':'Bỏ người phụ trách','剛剛':'Vừa xong','請填名字':'Vui lòng nhập tên','已儲存':'Đã lưu','已刪除':'Đã xóa','刪除這一筆？':'Xóa mục này?','刪除這一筆':'Xóa mục này','🗑 刪除這一筆':'🗑 Xóa mục này','🗑 已刪除':'🗑 Đã xóa','已刪除':'Đã xóa','還原':'Khôi phục','已還原':'Đã khôi phục','刪錯了也沒關係：刪掉的都在這裡，按「還原」就回去。':'Xóa nhầm cũng không sao: mục đã xóa nằm ở đây, bấm “Khôi phục” để lấy lại.','刪除':'Xóa','還原這一筆':'Khôi phục mục này',
     '還不能用：請主管理員先在 Firebase 加上規則。':'Chưa dùng được: quản trị viên cần thêm quy tắc trong Firebase.',
     '則訊息待回覆':'tin nhắn chờ trả lời','待處理':'Cần xử lý',
     '狀態':'Trạng thái','來源':'Nguồn','負責人':'Người phụ trách','最新備註':'Ghi chú mới nhất','更新':'Cập nhật','（未命名）':'(Chưa có tên)',
@@ -27182,7 +27183,7 @@ H.tnDel=async(id)=>{if(!confirm('刪除這一筆？'))return;
     '還沒有任何一筆，按右上角「＋ 新增一筆」。':'Chưa có mục nào, bấm “＋ Thêm mới” ở góc phải.'};
   const R=[[/^把階段改成「待回覆」$/,'Đổi giai đoạn thành “Chờ trả lời”'],[/^把階段改成「諮詢中」$/,'Đổi giai đoạn thành “Đang tư vấn”'],
     [/^把階段改成「成交」$/,'Đổi giai đoạn thành “Đã chốt”'],[/^把階段改成「沒談成」$/,'Đổi giai đoạn thành “Không thành”'],
-    [/^改由 (.+) 負責$/,'Chuyển cho $1 phụ trách'],
+    [/^改由 (.+) 負責$/,'Chuyển cho $1 phụ trách'],[/^刪除「(.*)」？$/,'Xóa “$1”?'],[/^(.+) 刪除 · (.+)$/,'$1 đã xóa · $2'],
     [/^(\d+) 分鐘前$/,'$1 phút trước'],[/^(\d+) 小時前$/,'$1 giờ trước'],[/^(\d+) 天前$/,'$1 ngày trước'],
     [/^(\d+) 分鐘前 · (\d+) 則備註$/,'$1 phút trước · $2 ghi chú'],[/^(\d+) 小時前 · (\d+) 則備註$/,'$1 giờ trước · $2 ghi chú'],
     [/^(\d+) 天前 · (\d+) 則備註$/,'$1 ngày trước · $2 ghi chú'],[/^剛剛 · (\d+) 則備註$/,'Vừa xong · $1 ghi chú'],
@@ -27199,7 +27200,7 @@ H.tnDel=async(id)=>{if(!confirm('刪除這一筆？'))return;
 function tnTableHtml(list){
   const me=myEmailNow();const ppl=tnPeople();
   const sel=(f,id,cur,opts,cls)=>'<select class="tn-sel'+(cls?' '+cls:'')+'" data-f="'+f+'" data-id="'+esc(id)+'">'+opts.map(o=>'<option value="'+esc(o[0])+'"'+(o[0]===cur?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select>';
-  const head='<div class="tn-row tn-hd"><span>名字</span><span>狀態</span><span>來源</span><span>想問什麼</span><span>負責人</span><span>聯絡方式</span><span>最新備註</span><span>更新</span></div>';
+  const head='<div class="tn-row tn-hd"><span>名字</span><span>狀態</span><span>來源</span><span>想問什麼</span><span>負責人</span><span>聯絡方式</span><span>最新備註</span><span>更新</span><span></span></div>';
   const rows=list.map(x=>{const st=x.stage||'new';const ns=x.notes||[];const ln=[...ns].reverse().find(n=>!n.sys)||ns[ns.length-1];
     return '<div class="tn-row" data-id="'+esc(x.id)+'">'
       +'<span><input class="tn-in nm" data-f="name" data-id="'+esc(x.id)+'" value="'+esc(x.name||'')+'" placeholder="（未命名）"></span>'
@@ -27209,11 +27210,12 @@ function tnTableHtml(list){
       +'<span>'+sel('owner',x.id,x.owner||'',[['','—']].concat(ppl.map(p=>[p.k,p.n])),x.owner===me?'mine':'')+'</span>'
       +'<span><input class="tn-in" data-f="contact" data-id="'+esc(x.id)+'" value="'+esc(x.contact||'')+'" placeholder="—"></span>'
       +'<span><button type="button" class="tn-note'+(TN.exp===x.id?' on':'')+'" data-act="tnOpen" data-id="'+esc(x.id)+'" title="點一下在下面展開，看全部備註、寫備註">'+(ln?('<b>'+esc(ln.by||'')+'</b>'+esc(String(ln.text||'').slice(0,60))):'<i>＋ 寫備註</i>')+(ns.filter(n=>!n.sys).length>1?'<em>'+ns.filter(n=>!n.sys).length+'</em>':'')+'</button></span>'
-      +'<span class="tn-up">'+esc(tnAgo(x.updated_at||x.created_at))+'</span></div>'
+      +'<span class="tn-up">'+esc(tnAgo(x.updated_at||x.created_at))+'</span>'
+      +'<span class="tn-delc"><button type="button" class="tn-del" data-act="tnDelRow" data-id="'+esc(x.id)+'" title="刪除這一筆" aria-label="刪除這一筆">🗑</button></span></div>'
       /* TNINLINE_V1705 Quinn：「點這邊還是跳出視窗，很怪」——備註改成在那一列底下直接展開，不跳視窗 */
       +(TN.exp===x.id?('<div class="tn-exp"><div id="tn-thread" class="tn-thread">'+tnThreadHtml(x)+'</div>'
         +'<div class="tn-add"><textarea id="tn-msg" rows="2" placeholder="寫一則備註，例如：已回覆報價，等他考慮"></textarea>'
-        +'<button class="btn btn-primary" data-act="tnNote" data-id="'+esc(x.id)+'">送出</button><button class="btn btn-ghost" data-act="tnOpen" data-id="'+esc(x.id)+'">收起</button></div></div>'):'');}).join('');
+        +'<button class="btn btn-primary" data-act="tnNote" data-id="'+esc(x.id)+'">送出</button><button class="btn btn-ghost" data-act="tnOpen" data-id="'+esc(x.id)+'">收起</button><span class="grow"></span><button class="btn btn-ghost tn-delb" data-act="tnDelRow" data-id="'+esc(x.id)+'">🗑 刪除這一筆</button></div></div>'):'');}).join('');
   return '<div class="tn-table">'+head+(rows||'<div class="tn-none" style="padding:14px 16px">還沒有任何一筆，按右上角「＋ 新增一筆」。</div>')+'<button type="button" class="tn-addrow" data-act="tnAddRow">＋ 新增一筆</button></div>';}
 function tnWire(body){if(body.__tnWired)return;body.__tnWired=1;
   body.addEventListener('change',e=>{const el=e.target.closest&&e.target.closest('.tn-sel');if(!el)return;tnSet(el.dataset.id,el.dataset.f,el.value);});
@@ -27336,3 +27338,29 @@ H.actLog=async(email)=>{if(!isOwner())return;email=String(email||'').toLowerCase
   b.innerHTML='<div class="act-sum"><div><b>'+fmt(xs[0].t)+'</b><span>最後一次活動</span></div><div><b>'+days+'</b><span>這 7 天有上線的天數</span></div><div><b>'+views.length+'</b><span>這 7 天打開頁面次數</span></div><div><b>'+edits.length+'</b><span>這 7 天編輯次數</span></div></div>'
     +(tabs.length?'<div class="act-h">這 7 天最常看的頁面</div><div class="act-bars">'+tabs.map(k=>'<div class="act-bar"><span>'+esc(k)+'</span><i><em style="width:'+Math.round(byTab[k]/mx*100)+'%"></em></i><b>'+byTab[k]+'</b></div>').join('')+'</div>':'')
     +'<div class="act-h">最近的紀錄</div><div class="act-list">'+xs.slice(0,200).map(x=>'<div class="act-row k-'+esc(x.kind)+'"><span class="t">'+fmt(x.t)+'</span>'+(email==='all'?'<b>'+esc(x.name||x.by)+'</b>':'')+'<span class="k">'+(x.kind==='edit'?'✏️ 編輯':'👁 瀏覽')+'</span><span class="w">'+esc(x.what||'')+'</span></div>').join('')+'</div>';};
+
+/* TNDEL_V1707 Quinn：「類似刪除那些呢？例如填錯要刪除」
+   表格每一列最右邊加 🗑；展開備註時也有「刪除這一筆」。
+   刪掉的不會真的消失：放進「🗑 已刪除」，按「還原」就回來（員工刪錯也救得回來）。 */
+function tnTrashHtml(list){
+  if(!list.length)return '<div class="tn-empty">沒有</div>';
+  return '<div class="tn-trash"><p class="tn-trhint">刪錯了也沒關係：刪掉的都在這裡，按「還原」就回去。</p>'
+    +list.map(x=>{const st=TN_STAGES.find(s=>s[0]===(x.stage||'new'))||TN_STAGES[0];
+      return '<div class="tn-trrow"><b>'+esc(x.name||'（未命名）')+'</b><span class="tn-st">'+st[1]+' '+st[2]+'</span>'
+        +'<span class="tn-trsub">'+esc([x.source,x.topic,x.contact].filter(Boolean).join(' · '))+'</span><span class="grow"></span>'
+        +'<span class="tn-trwhen">'+esc((x.deleted_by||'')+' 刪除 · '+tnAgo(x.deleted_at))+'</span>'
+        +'<button class="btn btn-ghost" data-act="tnRestore" data-id="'+esc(x.id)+'">還原</button></div>';}).join('')+'</div>';}
+H.tnDelRow=async(id)=>{const x=(TN.list||[]).find(z=>z.id===id)||{};
+  if(!confirm('刪除「'+(x.name||'（未命名）')+'」？'))return;
+  const now=new Date().toISOString();
+  try{actLog('edit','msgs',(x.name||'（未命名）')+'：刪除',id);}catch(e){}
+  try{await firebase.firestore().collection('teamnotes').doc(id).update({deleted_at:now,deleted_by:tnMe(),
+      notes:firebase.firestore.FieldValue.arrayUnion({by:tnMe(),at:now,text:'刪除這一筆',sys:1})});
+    if(TN.exp===id){TN.exp=null;TN.open=null;}toast('已刪除');}
+  catch(e){toast('刪除失敗：'+((e&&e.message)||e));}};
+H.tnRestore=async(id)=>{const x=(TN.trash||[]).find(z=>z.id===id)||{};const now=new Date().toISOString();
+  try{actLog('edit','msgs',(x.name||'（未命名）')+'：還原',id);}catch(e){}
+  try{await firebase.firestore().collection('teamnotes').doc(id).update({deleted_at:firebase.firestore.FieldValue.delete(),deleted_by:firebase.firestore.FieldValue.delete(),updated_at:now,
+      notes:firebase.firestore.FieldValue.arrayUnion({by:tnMe(),at:now,text:'還原這一筆',sys:1})});
+    toast('已還原');if(!(TN.trash||[]).filter(z=>z.id!==id).length){TN.f='open';renderMsgs();}}
+  catch(e){toast('還原失敗：'+((e&&e.message)||e));}};
