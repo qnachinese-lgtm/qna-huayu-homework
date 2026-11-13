@@ -27188,9 +27188,17 @@ H.tnDel=async(id)=>{if(!confirm('刪除這一筆？'))return;
     [/^(\d+) 分鐘前 · (\d+) 則備註$/,'$1 phút trước · $2 ghi chú'],[/^(\d+) 小時前 · (\d+) 則備註$/,'$1 giờ trước · $2 ghi chú'],
     [/^(\d+) 天前 · (\d+) 則備註$/,'$1 ngày trước · $2 ghi chú'],[/^剛剛 · (\d+) 則備註$/,'Vừa xong · $1 ghi chú'],
     [/^(\d{4}-\d\d-\d\d) · (\d+) 則備註$/,'$1 · $2 ghi chú'],[/^(\d+) 則訊息待回覆$/,'$1 tin nhắn chờ trả lời']];
+  const OV={"訊息追蹤": "Tin nhắn khách", "📨 訊息追蹤": "📨 Tin nhắn khách", "代辦申請": "Hồ sơ du học", "代書": "Viết hồ sơ", "行事曆": "Lịch làm việc", "進行中": "Đang xử lý", "待回覆": "Chưa trả lời", "諮詢中": "Đang tư vấn", "成交": "Đã chốt", "沒談成": "Không chốt", "只看我負責的": "Khách của tôi", "搜尋名字、內容…": "Tìm kiếm…", "表格": "Bảng", "看板": "Thẻ", "＋ 新增一筆": "＋ Thêm khách", "新增一筆": "Thêm khách", "來源": "Kênh", "想問什麼": "Nhu cầu", "負責人": "Phụ trách", "聯絡方式": "Liên hệ", "最新備註": "Ghi chú", "更新": "Cập nhật", "＋ 寫備註": "＋ Thêm ghi chú", "（未命名）": "(Chưa có tên)", "還沒有任何一筆，按右上角「＋ 新增一筆」。": "Chưa có khách nào. Bấm “＋ Thêm khách” để ghi lại.", "還沒有任何一筆。有人傳訊息來問，就按右上角「＋ 新增一筆」記下來。": "Chưa có khách nào. Có ai nhắn tin hỏi thì bấm “＋ Thêm khách” để ghi lại.", "寫一則備註，例如：已回覆報價，等他考慮": "Ghi chú, ví dụ: đã gửi báo giá, chờ khách trả lời", "送出": "Gửi", "收起": "Thu gọn", "🗑 刪除這一筆": "🗑 Xóa", "刪除這一筆": "Xóa", "刪除這一筆？": "Xóa khách này?", "還原": "Khôi phục", "🗑 已刪除": "🗑 Đã xóa", "已刪除": "Đã xóa", "還原這一筆": "Đã khôi phục", "刪錯了也沒關係：刪掉的都在這裡，按「還原」就回去。": "Xóa nhầm thì bấm “Khôi phục” để lấy lại.", "還沒回訊息": "Chưa nhắn lại", "回了，正在談": "Đang trao đổi", "談成了": "Đã chốt", "沒下文": "Khách không phản hồi", "朋友介紹": "Người quen giới thiệu", "中文課": "Học tiếng Trung", "面試練習": "Luyện phỏng vấn", "取消負責人": "Bỏ người phụ trách", "則訊息待回覆": "tin nhắn chưa trả lời", "誰負責": "Ai phụ trách", "從哪裡傳來": "Kênh liên hệ", "是誰": "Khách", "電話／Zalo／FB 連結": "SĐT / Zalo / Facebook", "他問了什麼": "Khách hỏi gì", "把訊息內容或重點貼在這裡": "Dán tin nhắn hoặc ý chính vào đây", "還沒有備註。": "Chưa có ghi chú.", "還沒有人負責": "Chưa có người phụ trách", "沒有符合的": "Không tìm thấy"};
+  const R2=[[/^把階段改成「待回覆」$/,'Chuyển sang “Chưa trả lời”'],[/^把階段改成「諮詢中」$/,'Chuyển sang “Đang tư vấn”'],[/^把階段改成「成交」$/,'Chuyển sang “Đã chốt”'],[/^把階段改成「沒談成」$/,'Chuyển sang “Không chốt”'],
+    [/^改由 (.+) 負責$/,'Giao cho $1'],[/^刪除「(.*)」？$/,'Xóa “$1”?'],[/^(.*) 刪除 · (.+)$/,'$1 đã xóa · $2'],
+    [/^把「名字」從「(.*)」改成「(.*)」$/,'Đổi tên: $1 → $2'],[/^把「來源」從「(.*)」改成「(.*)」$/,'Đổi kênh: $1 → $2'],
+    [/^把「想問什麼」從「(.*)」改成「(.*)」$/,'Đổi nhu cầu: $1 → $2'],[/^把「聯絡方式」從「(.*)」改成「(.*)」$/,'Đổi liên hệ: $1 → $2'],
+    [/^(\d+) 則訊息待回覆$/,'$1 tin nhắn chưa trả lời']];R2.forEach(r=>R.push(r));
   let done=false;
   function go(){if(done)return;const d=window.QNA_VI;if(!d||!d.M||!Array.isArray(d.R)||!d.R.length||!(d.R[0][0] instanceof RegExp))return;
     Object.keys(M).forEach(k=>{if(!Object.prototype.hasOwnProperty.call(d.M,k))d.M[k]=M[k];});
+    /* TNVI2_V1708 Quinn：「翻譯的用字不自然、排版太擠」——這些改成短、口語的說法，蓋過舊翻譯 */
+    Object.keys(OV).forEach(k=>{d.M[k]=OV[k];});
     R.forEach(r=>d.R.unshift(r));done=true;
     try{if(S.tab==='msgs')renderMsgs();}catch(e){}}
   const t=setInterval(()=>{go();if(done)clearInterval(t);},400);
