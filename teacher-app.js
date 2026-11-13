@@ -739,7 +739,7 @@ async function loadAll(){
      原本該等的地方再 await。資料的處理順序一個字都沒改，
      只是把「等待」疊在一起。每一個 promise 建立的當下就掛好 .catch，
      不然其中一個失敗會變成 unhandled rejection。 */
-  const pCrm  = owner?DB.list('crm').catch(_lfNote('諮詢・仲介・學校・備忘・回覆範本・價目表',[])):Promise.resolve([]);/* READERR_V1419 */
+  const pCrm  = owner?DB.list('crm').catch(_lfNote('諮詢・仲介・學校・備忘・回覆範本・價目表',[])):/* CSREPLY_V1711 員工只讀回覆範本和價目表（規則只放行這兩種） */firebase.firestore().collection('crm').where('kind','in',['reply','price']).get().then(sn=>sn.docs.map(d=>Object.assign({id:d.id},d.data()))).catch(()=>[]);/* READERR_V1419 */
   const pShare= shareLoad().catch(_lfNote('分享與教材庫',undefined));/* READERR_V1419 */
   const pTg   = tgLoad().catch(_lfNote('教學指引',undefined));/* READERR_V1419 */
   const pMem  = owner?DB.list('members').catch(_lfNote('自學會員',[])):Promise.resolve([]);/* READERR_V1419 */
@@ -1002,7 +1002,7 @@ function render(){
   $$('.panel').forEach(p=>p.classList.add('hide'));
   /* ROLE_V943 → TABFIX_V1192 權限檔下來要在「顯示那一頁」之前做，
      不然會先把擋下來的那一頁露出來（空白的），真正畫好的却是被藏起來的總覽。 */
-  if(!IS_OWNER&&['ops','pay','agency','interview','writing','school','bizcal','oc','acct','reply'].indexOf(S.tab)>=0)S.tab='dashboard';
+  if(!IS_OWNER&&['ops','pay','agency','interview','writing','school','bizcal','oc','acct'].concat(myRole()==='teacher'?['reply']:[]).indexOf(S.tab)>=0)S.tab='dashboard';
   try{permGuard();}catch(e){}/* ROLES_V1706 */
   /* TABFIX_V1192 舊的分頁名稱被拿掉的話，這一行會整個爆掉，畫面會全白。找不到就回總覽。 */
   if(!$('#panel-'+S.tab))S.tab='dashboard';
@@ -6867,7 +6867,7 @@ const TNAV=[
                  {k:'oc',id:'oc',t:'▶️ 線上課',ow:1},
                  ['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],/* HANZI_V4 */['grades','📝 批改・成績','c-pending']]},
   /* TEAMNOTE_V1702 員工（其他管理員）只看得到「訊息追蹤」；代辦、面試、代書、學校本來就只有主管理員能進，選單上也藏起來，免得點了被彈回首頁 */
-  {t:'留學業務',sub:[{k:'msgs',id:'msgs',t:'📨 訊息追蹤'},{k:'agency',id:'agency',t:'🎓 代辦申請',n:'c-ag',ow:1},{k:'interview',id:'interview',t:'🎤 面試練習',n:'c-itv',ow:1},
+  {t:'留學業務',sub:[{k:'msgs',id:'msgs',t:'📨 訊息追蹤'},{k:'replyst',id:'reply',t:'📮 回覆範本',st:1},{k:'agency',id:'agency',t:'🎓 代辦申請',n:'c-ag',ow:1},{k:'interview',id:'interview',t:'🎤 面試練習',n:'c-itv',ow:1},
                      {k:'writing',id:'writing',t:'✍️ 代書',n:'c-wr',ow:1},{k:'school',id:'school',t:'🏫 學校與資料',ow:1}]},
   {t:'收費・財務',sub:[['pay','💰 繳費','c-owe'],['ops','📈 財務・營運','']]},
   /* GIVESUB_V1366 Quinn：「能不能也有下拉的方式提供給學生的東西呢？」
@@ -6892,7 +6892,7 @@ const TNAV=[
 function tnSub(x){
   if(Array.isArray(x))return {k:x[0],id:x[0],t:x[1],n:x[2]||'',act:'tab',di:x[0],ow:0};
   return {k:x.k||x.id||'',id:x.id||'',t:x.t||'',n:x.n||'',act:x.act||'tab',
-          di:(x.di!==undefined?x.di:(x.id||'')),ow:x.ow?1:0};
+          di:(x.di!==undefined?x.di:(x.id||'')),ow:x.ow?1:0,st:x.st?1:0};
 }
 function tnavBuild(){
   if(document.getElementById('tnav'))return;
@@ -6967,6 +6967,7 @@ function tnavSync(){
       /* GIVESUB_V1366 權限每次重畫都重看一次。本來想在 tnavBuild 就過濾掉，
          但選單只建一次，萬一那時候 IS_OWNER 還沒算出來就會永遠藏著。 */
       if(sb.ow)b.style.display=IS_OWNER?'':'none';
+      if(sb.st)b.style.display=(IS_OWNER||myRole()==='teacher')?'none':'';/* CSREPLY_V1711 只給員工看的捷徑 */
       const me=!!(sb.id&&sb.id===cur);if(me)hit=true;
       b.classList.toggle('on',me);
       const n=b.querySelector('.tn-n');if(n){const v=num(sb.n);n.textContent=v;
@@ -27290,7 +27291,7 @@ H.admAssignSave=async(email,btn)=>{if(!isOwner())return;email=String(email||'').
    以前加的管理員沒有 role，一律當「兩者都要」，跟原本能用的一樣，不會突然少東西。
    錢、代辦面試代書、設定這些，不管哪一種身分都看不到（本來就是這樣）。 */
 const ROLES={teacher:['🧑‍🏫','老師','學生、課表、教材、批改（只看得到你指派給他的學生）'],
-  cs:['💬','客服・回覆訊息','只有「訊息追蹤」：記錄誰傳訊息、回覆進度、寫備註'],
+  cs:['💬','客服・回覆訊息','只有「訊息追蹤」和「回覆範本」：記錄誰傳訊息、寫備註，複製範本回覆客人（範本只能看、不能改）'],
   both:['⭐','老師＋客服','上面兩種都可以']};
 function roleOf(a){const r=a&&a.role;return ROLES[r]?r:'both';}
 function roleRadiosHtml(name,cur){return '<div class="role-pick"><div class="role-h">身分（決定他看得到什麼）</div>'
@@ -27302,8 +27303,8 @@ function permLoad(){if(IS_OWNER||S._roleLoading||S.myRole)return;S._roleLoading=
   firebase.firestore().collection('admins').doc(myEmailNow()).get().then(d=>{S.myRole=roleOf(d.exists?d.data():{});try{render();}catch(e){}})
     .catch(()=>{S.myRole='both';});}
 function permGuard(){if(IS_OWNER)return;permLoad();const r=myRole();
-  if(r==='cs'&&S.tab!=='msgs'&&S.tab!=='guide')S.tab='msgs';
-  if(r==='teacher'&&S.tab==='msgs')S.tab='dashboard';}
+  if(r==='cs'&&S.tab!=='msgs'&&S.tab!=='reply'&&S.tab!=='guide')S.tab='msgs';
+  if(r==='teacher'&&(S.tab==='msgs'||S.tab==='reply'))S.tab='dashboard';}
 function permNav(){const r=myRole();
   document.body.classList.toggle('role-cs',r==='cs');document.body.classList.toggle('role-teacher',r==='teacher');
   if(IS_OWNER)return;
@@ -27312,8 +27313,8 @@ function permNav(){const r=myRole();
     TNAV.forEach((g,gi)=>{const it=nav.querySelector('.tn-i[data-gi="'+gi+'"]');if(!it)return;
       const hasMsgs=g.sub&&g.sub.some(x=>(Array.isArray(x)?x[0]:x.id)==='msgs');
       if(r==='cs')it.style.display=hasMsgs?'':'none';else it.style.display='';
-      if(hasMsgs){const b=it.querySelector('button[data-k="msgs"]');if(b)b.style.display=(r==='teacher')?'none':'';
-        if(r==='teacher'&&g.sub.every(x=>{const sb=tnSub(x);return sb.k==='msgs'||sb.ow;}))it.style.display='none';}});}catch(e){}}
+      if(hasMsgs){const b=it.querySelector('button[data-k="msgs"]');if(b)b.style.display=(r==='teacher')?'none':'';const b2=it.querySelector('button[data-k="replyst"]');if(b2)b2.style.display=(r==='teacher')?'none':'';
+        if(r==='teacher'&&g.sub.every(x=>{const sb=tnSub(x);return sb.k==='msgs'||sb.k==='replyst'||sb.ow;}))it.style.display='none';}});}catch(e){}}
 H.admRole=async(email)=>{if(!isOwner())return;email=String(email||'').toLowerCase();
   let a=null;try{const d=await firebase.firestore().collection('admins').doc(email).get();a=d.exists?d.data():null;}catch(e){}
   openModal('<div class="modal"><div class="modal-head"><h3>🔐 '+esc((a&&a.name)||email)+' 的權限</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
