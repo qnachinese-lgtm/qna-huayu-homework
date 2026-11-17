@@ -17664,9 +17664,11 @@ function mbCnt(){
   const pool=mbPool().filter(s=>pick?pick[s.id]:(sc==='all'||enrollOf(s)!=='paused'));
   const n=pick?pool.length:pool.filter(s=>mbHas(s,ym)).length;
   const skip=pick?0:(pool.length-n);
-  el.innerHTML=n?('這個月會印 <b>'+n+'</b> 位，一位一頁'
-      +(skip?('　<span class="muted">（另外 '+skip+' 位這個月沒有上課也沒有繳費，不印）</span>'):''))
-    :'<span style="color:#A33227">這個月沒有人有記錄，印不出東西</span>';}
+  /* MBUI_V1713 */
+  el.className='mb-sum'+(n?'':' none');
+  el.innerHTML=n?('<b>'+n+'</b> 位，一人一頁'
+      +(skip?('<span>另外 '+skip+' 位這個月沒上課也沒繳費，不印</span>'):''))
+    :'這個月沒有人有記錄，印不出東西';}
 H.mbPickAll=(on)=>{const box=document.getElementById('mb-picklist');if(!box)return;
   box.querySelectorAll('.mb-ck').forEach(c=>{c.checked=(String(on)==='1');});mbCnt();/* MBCNT_V1210 */};
 H.monthBills=()=>{
@@ -17676,24 +17678,21 @@ H.monthBills=()=>{
   const def=(ms.indexOf(cur)>=0?cur:(ms[0]||cur));
   let note='';try{note=localStorage.getItem('qna_mb_note')||'';}catch(e){}
   openModal('<div class="modal" style="max-width:560px"><div class="modal-head"><h3>🧾 產生月結單</h3><button class="x" data-act="closeModal">×</button></div>'
-   +'<div class="modal-body">'
-   +'<div class="form-grid"><div class="field"><label>月份</label><select id="mb-ym" onchange="H.mbYmChg()">'
+   /* MBUI_V1713 Quinn：「好醜」——月份和對象對齊放一排；對象改成三顆按鈕；會印幾位放成一條摘要 */
+   +'<div class="modal-body mb-ui">'
+   +'<div class="mb-row"><div class="mb-f"><label>月份</label><select id="mb-ym" onchange="H.mbYmChg()">'
    +(ms.length?ms.map(m=>'<option value="'+m+'"'+(m===def?' selected':'')+'>'+m.replace('-',' 年 ')+' 月</option>').join('')
               :('<option value="'+def+'">'+def+'</option>'))+'</select></div>'
-   +'<div class="field"><label>要算誰</label><select id="mb-scope" onchange="H.mbScopeChg()">'
-   +'<option value="live">在學中的學生</option><option value="all">全部（含休學）</option>'
-   +'<option value="pick">自己挑（下面勾）</option></select>'
-   /* MBCNT_V1210 本來換了「要算誰」畫面上完全沒有反應，看不出來差在哪，
-      只有印出來翻到最後才知道幾頁。改成當場寫出這個月會印幾位。 */
-   +'<div class="hint" id="mb-cnt" style="margin-top:6px"></div></div>'
+   +'<div class="mb-f"><label>要印誰</label>'
+   +'<select id="mb-scope" onchange="H.mbScopeChg()" hidden><option value="live">在學中的學生</option><option value="all">全部（含休學）</option><option value="pick">自己挑</option></select>'
+   +'<div class="mb-seg">'+[['live','在學中'],['all','全部（含休學）'],['pick','自己挑']].map((o,i)=>'<button type="button" class="'+(i?'':'on')+'" data-v="'+o[0]+'" onclick="H.mbSeg(this)">'+o[1]+'</button>').join('')+'</div></div></div>'
+   +'<div id="mb-cnt" class="mb-sum"></div>'
    /* MBPICK_V1086 挑人 */
-   +'<div class="field full" id="mb-pickbox" style="display:none"><label>要印哪幾位 '
-   +'<button type="button" class="btn btn-sm btn-ghost" onclick="H.mbPickAll(1)">全選</button> '
-   +'<button type="button" class="btn btn-sm btn-ghost" onclick="H.mbPickAll(0)">全部取消</button></label>'
+   +'<div class="mb-f" id="mb-pickbox" style="display:none"><label>要印哪幾位<span class="mb-lk"><button type="button" onclick="H.mbPickAll(1)">全選</button><button type="button" onclick="H.mbPickAll(0)">全部取消</button></span></label>'
    +'<div id="mb-picklist" class="mb-list" onchange="mbCnt()">'+mbPickHtml(def)+'</div>'
-   +'<span class="hint">勾起來的人，就算那個月沒有上課也會印一頁。</span></div>'
-   +'<div class="field full"><label>每一頁最下面要寫的付款方式／叮嚀 <span class="hint">選填，會記住下次不用再打</span></label>'
-   +'<textarea id="mb-note" rows="3" placeholder="付款方式和叮嚀，自己打">'+esc(note)+'</textarea></div></div></div>'
+   +'<small>勾起來的人，就算那個月沒有上課也會印一頁。</small></div>'
+   +'<div class="mb-f"><label>頁尾備註<small>付款方式、叮嚀・選填，下次會記住</small></label>'
+   +'<textarea id="mb-note" rows="3" placeholder="例如：匯款帳號、繳費期限">'+esc(note)+'</textarea></div></div>'
    +'<div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span>'
    +'<button class="btn btn-primary" data-act="monthBillsGo">🖨 列印 / PDF</button></div></div>');
   setTimeout(mbCnt,0);/* MBCNT_V1210 */
@@ -27448,3 +27447,6 @@ async function tnAddTopic(el){const id=el.dataset.id;const x=(TN.list||[]).find(
 (function(){const M={'＋ 自己新增一個…':'＋ Tự thêm mục mới…','新增一個服務項目（例如：交換學生諮詢）':'Thêm dịch vụ mới (ví dụ: tư vấn trao đổi sinh viên)',
   '諮詢學校':'Tư vấn chọn trường','語言學校諮詢':'Tư vấn trường tiếng','大學諮詢':'Tư vấn đại học','碩士諮詢':'Tư vấn thạc sĩ','面試':'Phỏng vấn'};
   let done=false;const t=setInterval(()=>{const d=window.QNA_VI;if(done||!d||!d.M)return;Object.keys(M).forEach(k=>{d.M[k]=M[k];});done=true;clearInterval(t);},500);})();
+/* MBUI_V1713 */
+H.mbSeg=(b)=>{const sel=document.getElementById('mb-scope');if(!sel||!b)return;sel.value=b.dataset.v;
+  b.parentNode.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));H.mbScopeChg();};
