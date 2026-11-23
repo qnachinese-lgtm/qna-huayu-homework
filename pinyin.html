@@ -234,7 +234,10 @@ const LEVELS=LV8.concat([['custom','老師的詞表']]);
 const $=s=>document.querySelector(s);const stage=$('#stage');
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const st={tab:'practice',level:'t1',queue:[],i:0,res:[],done:false};
-const me={uid:null,student:null,teacher:false,rec:null,docId:null};
+const me={uid:null,student:null,teacher:false,rec:null,docId:null,guest:null};
+/* GAMEOPEN_V1714 Quinn：後台一個開關全部開放＋免帳號（填名字）也能玩。開關存在 site/games（誰都讀得到，只有老師能改） */
+let GAMES={};async function loadGames(){try{const d=await firebase.firestore().collection('site').doc('games').get();GAMES=d.exists?d.data():{}}catch(e){GAMES={}}}
+function guestDev(){try{let d=localStorage.getItem('qna_guest_dev');if(!d){d=Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem('qna_guest_dev',d)}return d}catch(e){return 'x'+Date.now()}}
 let CUSTOM_TEXT='',CUSTOM=[],ALLOW=[],TASKS=[],COURSE=[];
 try{const l=localStorage.getItem('qna-pinyin-level');if(l)st.level=l}catch(e){}
 try{st.lesson=localStorage.getItem('qna-pinyin-lesson')||''}catch(e){}
@@ -242,6 +245,7 @@ try{st.lesson=localStorage.getItem('qna-pinyin-lesson')||''}catch(e){}
 /* ====== 存成績（results，kind:'pinyin'，lesson_id:'__pinyin__'，一位學生一筆） ====== */
 function emptyRec(){return{rounds:[],total_q:0,total_ok:0,wrong:{}}}
 async function saveRound(){
+  if(me.guest)return saveGuest();/* GAMEOPEN_V1714 */
   if(!me.student||!me.uid||!window.DB||DB.mode!=='firebase')return;
   const rec=me.rec||emptyRec();
   const ok=st.res.filter(r=>r.ok).length,n=st.res.length;
@@ -540,6 +544,39 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showTab(b.dataset.tab
 /* 給 pinyin-games.js 用的介面 */
 window.PYAPI={pool:()=>pool(),markSyl,plainAnswer,answerHTML,shuffle,esc,me,st,reviewUpdate,emptyRec,stage:()=>stage,renderFall,stopFall:stopGame};
 
+/* GAMEOPEN_V1714 免帳號：填名字就能練。成績存在 guestplays（一台電腦一筆），老師後台看得到 */
+function guestGate(){
+  $('#levels').hidden=true;$('#tabs').hidden=true;$('#cheat').hidden=true;
+  let nm='';try{nm=localStorage.getItem('qna_guest_name')||''}catch(e){}
+  const stage=document.getElementById('stage');
+  stage.innerHTML='<div class="gate"><p style="font-size:20px;font-weight:700;margin:0">拼音練習</p><p style="margin:0">填上你的名字就可以開始練習<br><small style="color:#888">Nhập tên của bạn để bắt đầu luyện tập</small></p>'
+    +'<input id="gname" maxlength="40" placeholder="你的名字 / Tên của bạn" style="font:inherit;font-size:17px;padding:10px 14px;border:1px solid #ccd;border-radius:10px;width:260px;text-align:center">'
+    +'<button class="btn primary" id="gstart" type="button">開始練習 · Bắt đầu</button>'
+    +'<small style="color:#888">有學生帳號？<a href="student.html">登入</a></small></div>';
+  const inp=$('#gname');inp.value=nm;inp.focus();
+  const go=async()=>{const v=inp.value.trim().slice(0,40);if(!v){inp.focus();return}
+    try{localStorage.setItem('qna_guest_name',v)}catch(e){}
+    me.guest={name:v,dev:guestDev()};me.student=null;me.teacher=false;
+    try{me.rec=Object.assign(emptyRec(),JSON.parse(localStorage.getItem('qna-pinyin-guest-rec')||'null')||{})}catch(e){me.rec=emptyRec()}
+    $('#who').textContent=v+'（訪客）';
+    try{await loadCustom()}catch(e){}
+    COURSE=[];
+    $('#tabs').hidden=false;document.querySelectorAll('.tab[data-teacher]').forEach(b=>b.hidden=true);
+    showTab('practice');};
+  $('#gstart').onclick=go;inp.onkeydown=e=>{if(e.key==='Enter')go()};}
+async function saveGuest(){
+  const rec=me.rec||emptyRec();const ok=st.res.filter(r=>r.ok).length,n=st.res.length;if(!n)return;
+  rec.rounds.push({at:new Date().toISOString(),level:st.level,n,ok,miss:st.res.filter(r=>!r.ok).map(r=>r.it.h)});
+  if(rec.rounds.length>30)rec.rounds=rec.rounds.slice(-30);
+  rec.total_q+=n;rec.total_ok+=ok;st.res.filter(r=>!r.ok).forEach(r=>{rec.wrong[r.it.h]=(rec.wrong[r.it.h]||0)+1});
+  reviewUpdate(rec,st.res,st.level==='review');me.rec=rec;
+  try{localStorage.setItem('qna-pinyin-guest-rec',JSON.stringify(rec))}catch(e){}
+  const note=$('#saveNote');if(note)note.textContent='正在儲存…';
+  try{const now=new Date().toISOString();
+    await firebase.firestore().collection('guestplays').doc('py_'+me.guest.dev).set({game:'pinyin',name:me.guest.name,dev:me.guest.dev,last_at:now,
+      n:rec.total_q,ok:rec.total_ok,rounds:rec.rounds.slice(-20).map(r=>({at:r.at,level:String(r.level||''),n:r.n,ok:r.ok}))},{merge:true});
+    if(note)note.textContent='已儲存，老師看得到';}catch(e){if(note)note.textContent='紀錄沒存進去'}
+  try{renderLevels()}catch(e){}}
 /* ====== 登入（沿用學習平台的帳號） ====== */
 function gate(msg,btn){$('#levels').hidden=true;$('#tabs').hidden=true;$('#cheat').hidden=true;
   stage.innerHTML=`<div class="gate"><p>${msg}</p><a class="btn primary" href="student.html">${btn||'去學習平台登入'}</a></div>`}
@@ -547,7 +584,7 @@ async function loadCustom(){try{const d=await firebase.firestore().collection('s
 (function boot(){
   if(!window.firebase||!firebase.auth||!window.DB||DB.mode!=='firebase'){gate('連不上學習平台，請稍後再試。');$('#who').textContent='';return}
   firebase.auth().onAuthStateChanged(async u=>{
-    if(!u){$('#who').textContent='還沒登入';gate('請先用學生帳號登入學習平台，再回到這裡練習。');return}
+    if(!u){$('#who').textContent='還沒登入';await loadGames();if(GAMES.guest_pinyin){guestGate();return}gate('請先用學生帳號登入學習平台，再回到這裡練習。');return}
     me.uid=u.uid;
     const em=String(u.email||'').toLowerCase();
     me.teacher=!!(window.TEACHER_EMAIL&&em===String(window.TEACHER_EMAIL).toLowerCase());
@@ -559,7 +596,8 @@ async function loadCustom(){try{const d=await firebase.firestore().collection('s
     $('#who').textContent=me.student?(me.student.name||'已登入'):'老師帳號';
     if(me.student){try{const rs=await DB.listWhere('results','uid',u.uid);const d=rs.find(x=>x&&x.kind==='pinyin'&&x.lesson_id==='__pinyin__');if(d&&d.rec)me.rec=Object.assign(emptyRec(),d.rec)}catch(e){}}
     await loadCustom();
-    if(!me.teacher&&!myTasks().length){gate('老師派拼音作業給你之後，這裡就會打開。','回學習平台');return}   /* 開放名單拿掉了：有拼音作業的學生才進得來 */
+    await loadGames();
+    if(!me.teacher&&!myTasks().length&&!GAMES.pinyin_all){gate('老師派拼音作業給你之後，這裡就會打開。','回學習平台');return}   /* 開放名單拿掉了：有拼音作業的學生才進得來 */
     await loadCourse();
     try{const q=new URLSearchParams(location.search).get('task');if(q&&taskOf(q))st.level='task:'+q;else if(COURSE.length&&!localStorage.getItem('qna-pinyin-level'))st.level='course'}catch(e){}
     const EMB=new URLSearchParams(location.search).get('embed')==='tasks';if(EMB)document.body.classList.add('embed');

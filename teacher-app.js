@@ -6865,7 +6865,7 @@ const TNAV=[
                  ['lessons','📚 教材與課程','c-lessons'],
                  ['files','🎯 課堂活動',''],
                  {k:'oc',id:'oc',t:'▶️ 線上課',ow:1},
-                 ['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],/* HANZI_V4 */['grades','📝 批改・成績','c-pending']]},
+                 ['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],{k:'games',act:'gamesOpen',di:'',t:'🎮 開放遊戲給學生',ow:1},/* GAMEOPEN_V1714 *//* HANZI_V4 */['grades','📝 批改・成績','c-pending']]},
   /* TEAMNOTE_V1702 員工（其他管理員）只看得到「訊息追蹤」；代辦、面試、代書、學校本來就只有主管理員能進，選單上也藏起來，免得點了被彈回首頁 */
   {t:'留學業務',sub:[{k:'msgs',id:'msgs',t:'📨 訊息追蹤'},{k:'replyst',id:'reply',t:'📮 回覆範本',st:1},{k:'agency',id:'agency',t:'🎓 代辦申請',n:'c-ag',ow:1},{k:'interview',id:'interview',t:'🎤 面試練習',n:'c-itv',ow:1},
                      {k:'writing',id:'writing',t:'✍️ 代書',n:'c-wr',ow:1},{k:'school',id:'school',t:'🏫 學校與資料',ow:1}]},
@@ -27450,3 +27450,31 @@ async function tnAddTopic(el){const id=el.dataset.id;const x=(TN.list||[]).find(
 /* MBUI_V1713 */
 H.mbSeg=(b)=>{const sel=document.getElementById('mb-scope');if(!sel||!b)return;sel.value=b.dataset.v;
   b.parentNode.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));H.mbScopeChg();};
+
+/* GAMEOPEN_V1714 Quinn：「我找不到發佈給學生的管道」——拼音練習和漢字闖關：
+   ① 一個開關讓所有登入的學生都看得到（不用再一個一個派／勾）
+   ② 免帳號：填名字就能玩，成績存在 guestplays，這裡看得到
+   開關存在 site/games（誰都讀得到，只有主管理員能改）。 */
+const GM_KEYS=[['pinyin_all','ā 拼音練習：所有學生都能練','登入的學生首頁都會出現「拼音練習」，不用再派作業'],
+  ['hanzi_all','🀄 漢字闖關：所有學生都能玩','登入的學生首頁都會出現「漢字闖關」，不用再一個一個勾'],
+  ['guest_pinyin','ā 拼音練習：沒有帳號也能練','打開下面的網址，填名字就能開始'],
+  ['guest_hanzi','🀄 漢字闖關：沒有帳號也能玩','打開下面的網址，按「填名字直接玩」']];
+H.gamesOpen=async()=>{if(!IS_OWNER)return toast('只有主管理員可以設定');
+  let g={};try{const d=await firebase.firestore().collection('site').doc('games').get();g=d.exists?d.data():{};}catch(e){}
+  let gp=[],gpErr='';try{const sn=await firebase.firestore().collection('guestplays').get();gp=sn.docs.map(d=>Object.assign({id:d.id},d.data()));}catch(e){gpErr=String((e&&(e.code||e.message))||e);}
+  gp.sort((a,b)=>String(b.last_at||'').localeCompare(String(a.last_at||'')));
+  const base=location.origin;
+  const link=(path,lab)=>'<div class="gm-link"><span>'+lab+'</span><code>'+esc(base+'/'+path)+'</code><button class="btn btn-sm" type="button" onclick="navigator.clipboard.writeText(\''+esc(base+'/'+path)+'\').then(()=>toast(\'已複製\'))">複製</button><a class="btn btn-sm btn-ghost" href="'+esc(path)+'" target="_blank" rel="noopener">打開</a></div>';
+  const row=k=>'<label class="gm-t"><input type="checkbox" id="gm-'+k[0]+'"'+(g[k[0]]?' checked':'')+'><span><b>'+esc(k[1])+'</b><small>'+esc(k[2])+'</small></span></label>';
+  const score=x=>x.game==='pinyin'?((x.n?Math.round((x.ok||0)/x.n*100):0)+'%・'+(x.n||0)+' 題'):(String(x.xp||0)+' XP・⭐ '+((x.stars_easy||0)+(x.stars_normal||0)+(x.stars_hard||0)));
+  const list=gpErr?('<div class="hint">'+(/permission|insufficient/i.test(gpErr)?'Firebase 規則還沒發布，發布後這裡才看得到。':'讀不到：'+esc(gpErr))+'</div>')
+    :(gp.length?('<div class="gm-list">'+gp.slice(0,200).map(x=>'<div class="gm-r"><b>'+esc(x.name||'')+'</b><span class="gm-g">'+(x.game==='pinyin'?'ā 拼音':'🀄 漢字')+'</span><span>'+esc(score(x))+'</span><time>'+esc(typeof tnAgo==='function'?tnAgo(x.last_at):String(x.last_at||'').slice(0,10))+'</time></div>').join('')+'</div>')
+      :'<div class="hint">還沒有人用免帳號玩過。</div>');
+  openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>🎮 開放遊戲給學生</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body gm-ui">'
+    +'<div class="gm-sec"><h4>登入的學生</h4>'+row(GM_KEYS[0])+row(GM_KEYS[1])+'</div>'
+    +'<div class="gm-sec"><h4>沒有帳號（填名字就能玩）</h4>'+row(GM_KEYS[2])+row(GM_KEYS[3])
+      +link('pinyin.html','ā 拼音練習')+link('hanzi.html','🀄 漢字闖關')+'</div>'
+    +'<div class="gm-sec"><h4>免帳號玩過的人 <small>'+gp.length+' 位</small></h4>'+list+'</div>'
+    +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="gamesSave">💾 儲存</button></div></div>');};
+H.gamesSave=async()=>{const o={updated_at:new Date().toISOString()};GM_KEYS.forEach(k=>{const c=document.getElementById('gm-'+k[0]);o[k[0]]=!!(c&&c.checked);});
+  try{await firebase.firestore().collection('site').doc('games').set(o,{merge:true});closeModal();toast('已儲存');}catch(e){toast('存不進去：'+((e&&e.message)||e));}};

@@ -100,7 +100,7 @@ function toast(text){ const t = el("div", {class:"toast", text}); document.body.
 const centerOf = node => { const r = node.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
 
 // ================= 紀錄 =================
-const store = { me:null, uid:null, teacher:false, tasks:[], saved:"" };
+const store = { me:null, uid:null, teacher:false, tasks:[], saved:"", guest:null };
 let LSKEY = "hz-rec-guest";
 function emptyRec(){ return { v:2, xp:0, totalScore:0, found:{}, hard:{}, recall:{done:0, ok:0}, stars:{easy:{}, normal:{}, hard:{}}, badges:{}, bestCombo:0, bonus:{}, originViews:0, wins:0, lastAt:0, sessions:[], course:{}, review:{}, wrong:{} }; }
 function normRec(r){ const e = emptyRec(); r = Object.assign(e, r || {}); r.stars = Object.assign({easy:{}, normal:{}, hard:{}}, r.stars || {}); if (!r.xp && r.totalScore) r.xp = r.totalScore; ['course', 'review', 'wrong'].forEach(k => { if (!r[k] || typeof r[k] !== 'object') r[k] = {}; }); return r; }
@@ -108,6 +108,7 @@ let rec = normRec(JSON.parse(ls.get(LSKEY) || "null"));
 let saveTimer = null, saving = false, dirty = false;
 function save(){ rec.lastAt = Date.now(); rec.totalScore = rec.xp; ls.set(LSKEY, JSON.stringify(rec)); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 1500); renderTasks(); }
 async function flush(){
+  if (store.guest) return flushGuest(); /* GAMEOPEN_V1714 */
   if (!store.me || !store.uid || !window.DB || DB.mode === "local") return;
   if (saving){ dirty = true; return; }
   saving = true;
@@ -1497,7 +1498,7 @@ if (ls.get("hz-hascourse") === "1" && !new URLSearchParams(location.search).get(
   const fb = window.firebase;
   if (!fb || !fb.auth || !window.DB || DB.mode !== "firebase"){ $("#loginNote").hidden = false; setWho("訪客（紀錄只存在這台電腦）"); renderMap(); C.loaded = true; loadCourse(null).then(() => { if (C.lessons.length) showCourseHome(); }); return; }
   fb.auth().onAuthStateChanged(async u => {
-    if (!u){ store.me = null; store.uid = null; hzGate("guest"); return; }
+    if (!u){ store.me = null; store.uid = null; hzGate("guest"); hzGuestOffer(); return; }
     store.uid = u.uid;
     try {
       const em = String(u.email || "").toLowerCase();
@@ -1598,4 +1599,40 @@ window.HZAPI = { zili, makesWord, pySplit, charPy, cvVariants, pysOf, radName, v
   store, getRec: () => rec, save, addXp,
   addReview(c, w, py){ if (!store.me || !c || rec.review[c]) return false; rec.review[c] = { box:0, due:todayStr(1), lid:"", w:w || "", py:py || "", mean:"" }; return true; } };
 document.dispatchEvent(new Event("hzapi"));
+// ================= GAMEOPEN_V1714 免帳號：填名字就能玩（後台打開「免帳號也能玩」才出現） =================
+function hzGuestDev(){ try { let d = localStorage.getItem("qna_guest_dev"); if (!d){ d = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("qna_guest_dev", d); } return d; } catch(e){ return "x" + Date.now(); } }
+async function hzGuestOffer(){
+  let on = false;
+  try { const d = await window.firebase.firestore().collection("site").doc("games").get(); on = !!(d.exists && d.data().guest_hanzi); } catch(e){}
+  const g = $("#hzGate"); if (!on || !g || g.querySelector(".gguest")) return;
+  let nm = ""; try { nm = localStorage.getItem("qna_guest_name") || ""; } catch(e){}
+  const inp = el("input", { maxlength:"40", placeholder:"你的名字 / Tên của bạn" });
+  inp.value = nm;
+  inp.style.cssText = "font:inherit;font-size:17px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;width:240px;text-align:center";
+  const go = () => { const v = inp.value.trim().slice(0, 40); if (!v){ inp.focus(); return; }
+    try { localStorage.setItem("qna_guest_name", v); } catch(e){}
+    store.guest = { name:v, dev:hzGuestDev() }; store.me = null; store.uid = null;
+    LSKEY = "hz-rec-guest"; rec = normRec(JSON.parse(ls.get(LSKEY) || "null"));
+    hzUngate(); $("#loginNote").hidden = true;
+    const w = $("#who"); if (w) w.textContent = v + "（訪客）";
+    renderLevel(); renderBadges(); renderMap(); C.loaded = true;
+    loadCourse(null).then(() => { if (C.lessons.length) showCourseHome(); }).catch(() => {}); };
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+  const b = el("button", { type:"button", class:"btn primary big", text:"開始玩 · Bắt đầu" }); b.onclick = go;
+  const box = el("div", { class:"gguest" }, [
+    el("p", { text:"不想註冊？填名字直接玩" }), el("p", { class:"vi", text:"Không muốn đăng ký? Nhập tên để chơi ngay" }), el("div", { class:"row gbtn" }, [inp, b]) ]);
+  box.style.cssText = "border-top:1px dashed var(--line);margin-top:14px;padding-top:14px;display:grid;gap:6px;justify-items:center;width:100%";
+  g.append(box);
+}
+let hzGuestT = 0;
+async function flushGuest(){
+  const now = Date.now(); if (now - hzGuestT < 4000){ clearTimeout(saveTimer); saveTimer = setTimeout(flush, 4000); return; } hzGuestT = now;
+  try {
+    const sm = k => Object.values(rec.stars[k] || {}).reduce((a, b) => a + b, 0);
+    await window.firebase.firestore().collection("guestplays").doc("hz_" + store.guest.dev).set({ game:"hanzi", name:store.guest.name, dev:store.guest.dev,
+      last_at:new Date().toISOString(), xp:rec.xp || 0, stars_easy:sm("easy"), stars_normal:sm("normal"), stars_hard:sm("hard"), found_n:Object.keys(rec.found || {}).length }, { merge:true });
+    const w = $("#who"); if (w) w.textContent = store.guest.name + "（訪客）・紀錄已儲存";
+  } catch(e){}
+}
 })();
+

@@ -79,12 +79,13 @@ function addCard(){
   try{
     var me = (typeof S !== 'undefined' && S) ? S.me : null;
     if (!me || me.id === '__preview') return;
-    if (!pyTasks().length) return;   /* 有被派拼音作業的學生才看得到（開放名單拿掉了） */
+    if (!pyTasks().length && !(window.__QNA_GAMES && window.__QNA_GAMES.pinyin_all)) return;   /* 有被派拼音作業的學生才看得到；GAMEOPEN_V1714 後台打開「全部學生」就都看得到 */
     var scr = document.getElementById('screen'); if (!scr || scr.querySelector('.py-card')) return;
     var side = scr.querySelector('.h-side'); if (side) side.insertAdjacentHTML('beforeend', card());
   }catch(x){}
 }
 var ALLOW = null;
+try { firebase.firestore().collection('site').doc('games').get().then(function(d){ window.__QNA_GAMES = d.exists ? d.data() : {}; addCard(); }).catch(function(){}); } catch(x){}
 /* 拼音作業（存在 site/pinyin 的 tasks）：還沒做完的放進學生的「待完成」清單 */
 var TASKS = [];
 function pyTasks(){ try { return TASKS.filter(function(t){ return t && !t.deleted_at && typeof assignedToMe === 'function' && assignedToMe(t); }); } catch(x){ return []; } }
