@@ -27531,7 +27531,7 @@ H.tteachView=(uid)=>{TD.view=uid||null;tdRender();try{window.scrollTo(0,0);}catc
 /* TDX_V1739 Quinn：「可以點擊進去詳細看老師的班級以及老師出題的內容，還有學生回答的情形」「越詳細越好」
    一層一層點進去：所有老師 › 老師 › 班級 › 題目／學生。每一層上面都有麵包屑可以回去。
    學生那一層：每份題目做了幾次、每一次的分數、錯了哪些詞；拼音練習還看得到每一題學生打了什麼。 */
-const TD_GN={flip:'翻牌配對',quiz:'快問快答',bingo:'生詞賓果',fw:'大富翁',mole:'聲調打地鼠',wmole:'詞語打地鼠',pinyin:'拼音遊戲'};
+const TD_GN={flip:'翻牌配對',quiz:'快問快答',bingo:'生詞賓果',fw:'大富翁',mole:'聲調打地鼠',wmole:'詞語打地鼠',pinyin:'拼音遊戲',pic:'看圖選詞'};
 function tdKindName(k){return k.kind==='pinyin'?(k.zy?'注音練習':'拼音練習'):k.kind==='game'?'遊戲・'+(TD_GN[k.game]||k.game||'')+(k.zy?'（注音）':''):'漢字闖關・'+tdHz(k.fam)+'・'+(TD_DIFF[k.diff]||'');}
 function tdIc(k){return k.zy?'ㄅ':k.kind==='pinyin'?'ā':k.kind==='game'?'🎮':'字';}
 function tdItems(k){return String(k.items||'').split('\n').map(x=>x.trim()).filter(Boolean).map(x=>{const m=x.split(/[=＝]/);const f=m[0].trim();const sp=f.search(/\s/);
