@@ -657,6 +657,7 @@ function guestGate(){
   try{if(new URLSearchParams(location.search).get('guest')==='1'&&inp.value.trim())go()}catch(e){}/* PLAY_V1719 從入口頁來的直接開始 */}
 async function saveGuest(){
   const rec=me.rec||emptyRec();const ok=st.res.filter(r=>r.ok).length,n=st.res.length;if(!n)return;
+  if(me.guest.cls)return saveClass(rec,ok,n);/* TCLASS_V1722 */
   rec.rounds.push({at:new Date().toISOString(),level:st.level,n,ok,miss:st.res.filter(r=>!r.ok).map(r=>r.it.h)});
   if(rec.rounds.length>30)rec.rounds=rec.rounds.slice(-30);
   rec.total_q+=n;rec.total_ok+=ok;st.res.filter(r=>!r.ok).forEach(r=>{rec.wrong[r.it.h]=(rec.wrong[r.it.h]||0)+1});
@@ -668,12 +669,45 @@ async function saveGuest(){
       n:rec.total_q,ok:rec.total_ok,rounds:rec.rounds.slice(-20).map(r=>({at:r.at,level:String(r.level||''),n:r.n,ok:r.ok}))},{merge:true});
     if(note)note.textContent='已儲存，老師看得到';}catch(e){if(note)note.textContent='紀錄沒存進去'}
   try{renderLevels()}catch(e){}}
+/* TCLASS_V1722 老師教室：從班級頁（room.html）點進來，?class=代碼&task=題目 */
+async function classBoot(code){
+  const fs=firebase.firestore();let c=null;
+  try{const d=await fs.collection('tclasses').doc(code).get();c=d.exists?d.data():null}catch(e){}
+  if(!c||c.deleted_at){$('#who').textContent='';gate('找不到這個班級。','回練習入口');try{stage.querySelector('a').href='play.html'}catch(e){}return}
+  let nm='';try{nm=localStorage.getItem('qna_cls_name_'+code)||''}catch(e){}
+  if(!nm){location.href='room.html?c='+encodeURIComponent(code);return}
+  let ts=[];try{const sn=await fs.collection('ttasks').where('class_code','==',code).get();ts=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(t=>t&&t.kind==='pinyin'&&!t.deleted_at)}catch(e){}
+  TASKS=ts.map(t=>({id:t.id,title:t.title,items:t.items,guest:true}));CUSTOM=[];COURSE=[];
+  me.guest={name:nm,dev:guestDev(),cls:code,owner:c.owner_uid,cname:c.name};me.student=null;me.teacher=false;
+  try{me.rec=Object.assign(emptyRec(),JSON.parse(localStorage.getItem('qna-pinyin-cls-'+code)||'null')||{})}catch(e){me.rec=emptyRec()}
+  document.body.classList.add('is-guest');
+  if(!document.getElementById('gbar'))document.body.insertAdjacentHTML('afterbegin','<header class="gbar" id="gbar"><a class="gb-brand" href="play.html"><span class="gb-l">美</span><b>美娟華語工作室</b><span class="gb-e">QNA CHINESE</span></a><a class="gb-home" href="room.html?c='+encodeURIComponent(code)+'">← 回班級</a></header>');
+  $('#who').textContent=nm+'・'+(c.name||code);
+  $('#tabs').hidden=false;document.querySelectorAll('.tab[data-teacher]').forEach(b=>b.hidden=true);
+  const q=new URLSearchParams(location.search).get('task');if(q&&TASKS.some(t=>t.id===q))st.level='task:'+q;
+  showTab('practice');}
+async function saveClass(rec,ok,n){
+  const code=me.guest.cls,lv=String(st.level||'');
+  rec.rounds.push({at:new Date().toISOString(),level:lv,n,ok});if(rec.rounds.length>30)rec.rounds=rec.rounds.slice(-30);
+  rec.total_q+=n;rec.total_ok+=ok;reviewUpdate(rec,st.res,lv==='review');me.rec=rec;
+  try{localStorage.setItem('qna-pinyin-cls-'+code,JSON.stringify(rec))}catch(e){}
+  const note=$('#saveNote');if(lv.indexOf('task:')!==0){try{renderLevels()}catch(e){}return}
+  const id=lv.slice(5),t=new Date().toISOString();
+  let prog={};try{prog=JSON.parse(localStorage.getItem('qna_cls_prog_'+code)||'{}')||{}}catch(e){}
+  const old=prog[id]||{};const better=ok>(old.ok||0)||!old.n;
+  prog[id]={ok:better?ok:old.ok,n:better?n:old.n,times:(old.times||0)+1,at:t};
+  try{localStorage.setItem('qna_cls_prog_'+code,JSON.stringify(prog))}catch(e){}
+  if(note)note.textContent='正在儲存…';
+  try{await firebase.firestore().collection('tstudents').doc(code+'_'+me.guest.dev).set({class_code:code,owner_uid:me.guest.owner,name:me.guest.name,dev:me.guest.dev,last_at:t,tasks:{[id]:prog[id]}},{merge:true});
+    if(note)note.textContent='已儲存，老師看得到';}catch(e){if(note)note.textContent='紀錄沒存進去'}
+  try{renderLevels()}catch(e){}}
 /* ====== 登入（沿用學習平台的帳號） ====== */
 function gate(msg,btn){$('#levels').hidden=true;$('#tabs').hidden=true;$('#cheat').hidden=true;
   stage.innerHTML=`<div class="gate"><p>${msg}</p><a class="btn primary" href="student.html">${btn||'去學習平台登入'}</a></div>`}
 async function loadCustom(){try{const d=await firebase.firestore().collection('site').doc('pinyin').get();CUSTOM_TEXT=(d.exists&&d.data().text)||'';ALLOW=(d.exists&&Array.isArray(d.data().allow))?d.data().allow:[];TASKS=(d.exists&&Array.isArray(d.data().tasks))?d.data().tasks:[];CUSTOM=parseList(CUSTOM_TEXT).filter(r=>!r.err).map(r=>r.it)}catch(e){}}
 (function boot(){
   if(!window.firebase||!firebase.auth||!window.DB||DB.mode!=='firebase'){gate('連不上學習平台，請稍後再試。');$('#who').textContent='';return}
+  {const CLSQ=String(new URLSearchParams(location.search).get('class')||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(CLSQ){classBoot(CLSQ);return}}/* TCLASS_V1722 */
   firebase.auth().onAuthStateChanged(async u=>{
     if(!u){$('#who').textContent='還沒登入';await loadGames();if(GAMES.guest_pinyin){guestGate();return}gate('請先用學生帳號登入學習平台，再回到這裡練習。');return}
     me.uid=u.uid;

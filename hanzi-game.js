@@ -1497,6 +1497,7 @@ if (ls.get("hz-hascourse") === "1" && !new URLSearchParams(location.search).get(
 (() => {
   const fb = window.firebase;
   if (!fb || !fb.auth || !window.DB || DB.mode !== "firebase"){ $("#loginNote").hidden = false; setWho("訪客（紀錄只存在這台電腦）"); renderMap(); C.loaded = true; loadCourse(null).then(() => { if (C.lessons.length) showCourseHome(); }); return; }
+  { const cq = String(new URLSearchParams(location.search).get("class") || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); if (cq){ hzClassBoot(cq); return; } } /* TCLASS_V1722 */
   fb.auth().onAuthStateChanged(async u => {
     if (!u){ store.me = null; store.uid = null; hzGate("guest"); hzGuestOffer(); return; }
     store.uid = u.uid;
@@ -1628,12 +1629,44 @@ async function hzGuestOffer(){
 }
 let hzGuestT = 0;
 async function flushGuest(){
+  if (store.guest && store.guest.cls) return flushClass(); /* TCLASS_V1722 */
   const now = Date.now(); if (now - hzGuestT < 4000){ clearTimeout(saveTimer); saveTimer = setTimeout(flush, 4000); return; } hzGuestT = now;
   try {
     const sm = k => Object.values(rec.stars[k] || {}).reduce((a, b) => a + b, 0);
     await window.firebase.firestore().collection("guestplays").doc("hz_" + store.guest.dev).set({ game:"hanzi", name:store.guest.name, dev:store.guest.dev,
       last_at:new Date().toISOString(), xp:rec.xp || 0, stars_easy:sm("easy"), stars_normal:sm("normal"), stars_hard:sm("hard"), found_n:Object.keys(rec.found || {}).length }, { merge:true });
     const w = $("#who"); if (w) w.textContent = store.guest.name + "（訪客）・紀錄已儲存";
+  } catch(e){}
+}
+// ================= TCLASS_V1722 老師教室：從班級頁點進來（?class=代碼&task=題目） =================
+async function hzClassBoot(code){
+  const fs = window.firebase.firestore();
+  let c = null; try { const d = await fs.collection("tclasses").doc(code).get(); c = d.exists ? d.data() : null; } catch(e){}
+  if (!c || c.deleted_at){ hzGate("guest"); const g = $("#hzGate"); if (g){ g.innerHTML = ""; g.append(el("div", { class:"gbig", text:"字" }), el("h2", { text:"找不到這個班級" }), el("p", { class:"vi", text:"Class not found. Please check the code with your teacher." }), el("a", { class:"btn primary big", href:"play.html", text:"回練習入口 · Back" })); } return; }
+  let nm = ""; try { nm = localStorage.getItem("qna_cls_name_" + code) || ""; } catch(e){}
+  if (!nm){ location.href = "room.html?c=" + encodeURIComponent(code); return; }
+  const tid = new URLSearchParams(location.search).get("task");
+  let t = null; if (tid){ try { const d = await fs.collection("ttasks").doc(tid).get(); t = d.exists ? Object.assign({ id:d.id }, d.data()) : null; } catch(e){} }
+  if (t && (t.deleted_at || t.class_code !== code || t.kind !== "hanzi")) t = null;
+  store.guest = { name:nm, dev:hzGuestDev(), cls:code, owner:c.owner_uid, task:t }; store.me = null; store.uid = null;
+  LSKEY = "hz-rec-cls-" + code; rec = normRec(JSON.parse(ls.get(LSKEY) || "null"));
+  hzUngate(); $("#loginNote").hidden = true;
+  try { const bl = document.querySelector('a.btn.small[href="student.html"]'); if (bl){ bl.href = "room.html?c=" + encodeURIComponent(code); bl.textContent = "回班級"; } } catch(e){}
+  const w = $("#who"); if (w) w.textContent = nm + "・" + (c.name || code);
+  renderLevel(); renderBadges(); renderMap(); C.loaded = true;
+  if (t && (STAGES[t.fam] || String(t.fam).startsWith("L:"))){ if (DIFF[t.diff]) setDiff(t.diff); playStage(t.fam); }
+}
+let hzClsT = 0;
+async function flushClass(){
+  const g = store.guest, t = g.task; if (!t) return;
+  const nowT = Date.now(); if (nowT - hzClsT < 4000){ clearTimeout(saveTimer); saveTimer = setTimeout(flush, 4000); return; } hzClsT = nowT;
+  const stars = Number(rec.stars && rec.stars[t.diff] && rec.stars[t.diff][t.fam]) || 0;
+  const at = new Date().toISOString();
+  let prog = {}; try { prog = JSON.parse(localStorage.getItem("qna_cls_prog_" + g.cls) || "{}") || {}; } catch(e){}
+  prog[t.id] = { stars, at }; try { localStorage.setItem("qna_cls_prog_" + g.cls, JSON.stringify(prog)); } catch(e){}
+  try {
+    await window.firebase.firestore().collection("tstudents").doc(g.cls + "_" + g.dev).set({ class_code:g.cls, owner_uid:g.owner, name:g.name, dev:g.dev, last_at:at, tasks:{ [t.id]:{ stars, at } } }, { merge:true });
+    const w = $("#who"); if (w) w.textContent = g.name + "・紀錄已儲存";
   } catch(e){}
 }
 })();
