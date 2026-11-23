@@ -494,6 +494,7 @@ function overEl(){
     }
     box.append(card);
   });
+  if (!saved && clsOn()){ try { const p0 = S.players[0]; if (p0 && !p0.bot) window.HZCLS.done({ score:p0.ok || 0, unit:" 題答對", miss:(p0.wrong || []).slice(0, 40) }); } catch(e){} }/* CLSFW_V1740 成績給老師看 */
   if (!saved){ saved = true; const mineP = S.players.filter(p => !p.bot && (S.mode === "C" || (S.mode === "B" && p.uid === myUid())));
     if (mineP.length === 1 && A.store.me){ const p = mineP[0]; let n = 0; p.wrong.forEach(w => { const c = [...w][0]; if (A.addReview(c, w, (S.board.find(b => b.w === w) || {}).py || "")) n++; }); if (p.ok) A.addXp(p.ok * 5); A.save(); if (n) toast(`答錯的 ${n} 個詞已經加到「今天的複習」`); }
     if (W.p && !W.p.bot){ sfx.win(); setTimeout(() => { const [x, y] = centerOf(box); burst(x, y, 70); }, 200); } }
@@ -544,7 +545,34 @@ function srcInfo(){
   if (SET.src === "fam") return { src:{ k:"fam", v:SET.fam }, name: SET.fam === "*" ? "精選字族" : SET.fam };
   return { src:{ k:"lv", v:SET.lv }, name:(LEVELS[SET.lv] || {}).name || "" };
 }
+/* CLSFW_V1740 Quinn：「學生進去最好不要出現太多設定」——老師班級的作業只問一件事：跟電腦玩，還是跟同學輪流玩。
+   生詞固定用老師出的題目，其他設定都用預設值。 */
+function clsOn(){ return !!(window.HZCLS && A.store && A.store.guest && A.store.guest.cls); }
+function renderClsSetup(){
+  const P = panel(); P.innerHTML = ""; const g = A.store.guest || {};
+  SET.src = "course"; SET.lids = C.lessons.length ? [C.lessons[0].id] : []; SET.excl = []; SET.tmul = 1.5; SET.pyCard = false; SET.rounds = 12; SET.bot = SET.bot || "normal";
+  if (SET.mode !== "A") SET.mode = "C"; SET.names[0] = SET.names[0] || g.name || "";
+  const box = el("div", { class:"fwset box clsfw" }); P.append(box);
+  box.append(el("h2", { class:"clsfw-t", text:"🎲 大富翁" }));
+  box.append(el("ol", { class:"clsfw-rule" }, [
+    el("li", { text:"擲骰子，照點數往前走。" }),
+    el("li", { text:"走到生詞地：答對一題就可以買下來。" }),
+    el("li", { text:"別人走到你的地，要付你過路費；地可以蓋房子，過路費會變多。" }),
+    el("li", { text:"走到「機會」「命運」：看懂卡片上的中文，照著做。" }),
+    el("li", { text:"玩完 12 輪，錢和地加起來最多的人贏。" })]));
+  const choice = el("div", { class:"clsfw-pick" });
+  [["C", "🤖", "跟電腦玩", "自己一個人玩"], ["A", "👫", "跟同學一起玩", "用這一台輪流玩"]].forEach(([m, ic, t, d]) => {
+    choice.append(el("button", { type:"button", class:"clsfw-b" + (SET.mode === m ? " on" : ""), onclick: () => { SET.mode = m; keep(); renderClsSetup(); } }, [el("i", { text:ic }), el("b", { text:t }), el("small", { text:d })])); });
+  box.append(choice);
+  if (SET.mode === "A"){
+    box.append(el("div", { class:"clsfw-np" }, [el("span", { text:"幾個人？" }), seg([[2, "2 人"], [3, "3 人"], [4, "4 人"]], SET.np, v => { SET.np = v; keep(); renderClsSetup(); })]));
+    const ns = el("div", { class:"fwcol" }); for (let i = 0; i < SET.np; i++) ns.append(nameRow(i, i ? `同學 ${i + 1} 的名字` : "你的名字")); box.append(ns);
+  } else { SET.nbot = 1; }
+  const go = el("button", { class:"btn primary big", type:"button", text:"開始玩" }); go.onclick = start;
+  box.append(el("div", { class:"row mt", style:"justify-content:center" }, [go]));
+}
 function renderSetup(){
+  if (clsOn()) return renderClsSetup();
   syncMg();
   const P = panel(); P.innerHTML = "";
   if (SET.src === "course" && !C.lessons.length) SET.src = "lv";

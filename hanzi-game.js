@@ -1651,6 +1651,16 @@ async function hzClassBoot(code){
   store.guest = { name:nm, dev:hzGuestDev(), cls:code, owner:c.owner_uid, task:t }; store.me = null; store.uid = null;
   LSKEY = "hz-rec-cls-" + code; rec = normRec(JSON.parse(ls.get(LSKEY) || "null"));
   hzUngate(); $("#loginNote").hidden = true;
+  /* CLSBAR_V1740 Quinn：「遊戲上面的排版又不一樣，好醜」——班級學生進來，上面換成跟拼音練習、班級頁同一條招牌 */
+  try { document.body.classList.add("cls-on");
+    if (!document.getElementById("clsbar")){
+      const st = document.createElement("style"); st.textContent = "body.cls-on header.top{display:none!important}body.cls-on .wrap{padding-top:18px}#clsbar{position:sticky;top:0;z-index:50;height:60px;background:rgba(255,255,255,.94);backdrop-filter:blur(6px);border-bottom:1px solid #DCE4EF;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 max(16px,calc((100vw - 1100px)/2));font-family:\"Noto Serif TC\",\"Songti TC\",PMingLiU,serif}#clsbar .cb-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:#1F2D40;min-width:0}#clsbar .cb-l{width:34px;height:34px;flex:none;border-radius:9px;background:#1E4C86;color:#fff;font-weight:700;font-size:18px;line-height:34px;text-align:center}#clsbar b{font-size:17px;letter-spacing:1px;white-space:nowrap}#clsbar .cb-e{font-size:12px;letter-spacing:1.5px;color:#7A8BA3;padding-left:12px;border-left:1px solid #DCE4EF;white-space:nowrap}#clsbar .cb-r{display:flex;align-items:center;gap:8px;flex:none}#clsbar .cb-who{font-size:13px;color:#5B6B80;white-space:nowrap}#clsbar .cb-home{color:#1E4C86;text-decoration:none;font-size:14px;border:1px solid #DCE4EF;border-radius:999px;padding:6px 14px;background:#fff;white-space:nowrap}@media(max-width:560px){#clsbar .cb-e,#clsbar .cb-who{display:none}#clsbar b{font-size:15.5px}#clsbar .cb-l{width:32px;height:32px;line-height:32px;font-size:17px}}body.cls-on .mgform .row,body.cls-on .mgform>label{display:none!important}body.cls-on .mgform{max-width:420px;margin:24px auto!important;text-align:center}.clsfw{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:14px}.clsfw-t{margin:0;font-size:24px;text-align:center}.clsfw-rule{margin:0;padding:14px 18px 14px 36px;background:#F5F8FD;border:1px solid #E3EAF4;border-radius:14px;line-height:1.9;font-size:15px}.clsfw-pick{display:grid;grid-template-columns:1fr 1fr;gap:12px}.clsfw-b{display:flex;flex-direction:column;align-items:center;gap:4px;padding:16px 10px;border:2px solid #DCE4EF;border-radius:16px;background:#fff;cursor:pointer;font:inherit;color:#1F2D40}.clsfw-b i{font-style:normal;font-size:30px}.clsfw-b b{font-size:17px}.clsfw-b small{font-size:12.5px;color:#7A8BA3}.clsfw-b.on{border-color:#1E4C86;background:#EEF3FA;box-shadow:0 0 0 3px rgba(30,76,134,.15)}.clsfw-np{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}"; document.head.appendChild(st);
+      const hb = document.createElement("header"); hb.id = "clsbar";
+      hb.innerHTML = '<a class="cb-brand" href="play.html"><span class="cb-l">美</span><b>美娟華語工作室</b><span class="cb-e">QNA CHINESE</span></a><span class="cb-r"><span class="cb-who"></span><a class="cb-home" href="room.html?c=' + encodeURIComponent(code) + '">← 回班級</a></span>';
+      hb.querySelector(".cb-who").textContent = nm + "・" + (c.name || code);
+      document.body.insertBefore(hb, document.body.firstChild);
+      const fit = () => { const cs = getComputedStyle(document.body); const l = parseFloat(cs.marginLeft) + parseFloat(cs.paddingLeft), r = parseFloat(cs.marginRight) + parseFloat(cs.paddingRight), t = parseFloat(cs.marginTop) + parseFloat(cs.paddingTop); hb.style.margin = (-t) + "px " + (-r) + "px 0 " + (-l) + "px"; };
+      fit(); addEventListener("resize", fit); } } catch(e){}
   try { const bl = document.querySelector('a.btn.small[href="student.html"]'); if (bl){ bl.href = "room.html?c=" + encodeURIComponent(code); bl.textContent = "回班級"; } } catch(e){}
   const w = $("#who"); if (w) w.textContent = nm + "・" + (c.name || code);
   renderLevel(); renderBadges(); renderMap(); C.loaded = true;
@@ -1680,7 +1690,7 @@ async function flushClassGame(t, r){
   const old = prog[t.id] || {}; const cur = { times:(old.times || 0) + (r ? 0 : 1), at };
   if (old.best != null) cur.best = old.best; if (old.unit) cur.unit = old.unit;
   if (r && r.score != null && (cur.best == null || r.score > cur.best)){ cur.best = r.score; cur.unit = r.unit || " 分"; }
-  { const h = Array.isArray(old.hist) ? old.hist : []; cur.hist = (r && r.score != null ? h.concat([{ at, s:r.score, u:r.unit || " 分" }]) : h).slice(-20); }/* TDX_V1739 每一次的成績 */
+  { const h = Array.isArray(old.hist) ? old.hist : []; cur.hist = (r && r.score != null ? h.concat([{ at, s:r.score, u:r.unit || " 分", miss:Array.isArray(r.miss) ? [...new Set(r.miss)].slice(0, 40) : [] }]) : h).slice(-20); }/* TDX_V1739 每一次的成績 */
   prog[t.id] = cur; try { localStorage.setItem("qna_cls_prog_" + g.cls, JSON.stringify(prog)); } catch(e){}
   try { await window.firebase.firestore().collection("tstudents").doc(g.cls + "_" + g.dev).set({ class_code:g.cls, owner_uid:g.owner, name:g.name, dev:g.dev, last_at:at, tasks:{ [t.id]:cur } }, { merge:true }); } catch(e){}
 }
