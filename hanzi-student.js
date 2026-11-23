@@ -32,7 +32,8 @@ function hzOK(){
     if (m.member) return true;                            /* 免費註冊的會員：直接給 */
     var me = m.me;
     if (!me || me.id === '__preview') return false;
-    if (window.__QNA_GAMES && window.__QNA_GAMES.hanzi_all) return true;   /* GAMEOPEN_V1714 後台「全部學生都能玩」 */
+    if (window.__QNA_GAMES && window.__QNA_GAMES.hanzi_all) return true;
+    if (window.__QNA_GAMES && Array.isArray(window.__QNA_GAMES.hanzi_ids) && window.__QNA_GAMES.hanzi_ids.indexOf(me.id) >= 0) return true;   /* GAMEOPEN_V1715 只開給勾選的學生 */   /* GAMEOPEN_V1714 後台「全部學生都能玩」 */
     if (me.hanzi_ok === true) return true;                /* 後台勾過「開放漢字遊戲」 */
     try{                                                  /* 或是已經被指派過漢字作業 */
       var ts = m.hanziTasks || (m.lessons || []).filter(function(x){ return x && x.kind === 'hanzitask'; });
@@ -175,4 +176,4 @@ try{ if (S.me && (S.lessons || []).length){ splitHz(); if (typeof renderSection 
 })();
 /* GAMEOPEN_V1714 讀後台的開關，打開了就補畫卡片 */
 try { firebase.firestore().collection('site').doc('games').get().then(function(d){ window.__QNA_GAMES = d.exists ? d.data() : {};
-  if (window.__QNA_GAMES.hanzi_all){ try { const scr = document.getElementById('screen'); if (scr && !scr.querySelector('.hz-card')){ const t = scr.querySelector('.h-side'); if (t && typeof window.hzHomeCard === 'function') t.insertAdjacentHTML('beforeend', window.hzHomeCard()); } } catch(e){} } }).catch(function(){}); } catch(e){}
+  if (hzOK()){ try { const scr = document.getElementById('screen'); if (scr && !scr.querySelector('.hz-card')){ const t = scr.querySelector('.h-side'); if (t && typeof window.hzHomeCard === 'function') t.insertAdjacentHTML('beforeend', window.hzHomeCard()); } } catch(e){} } }).catch(function(){}); } catch(e){}

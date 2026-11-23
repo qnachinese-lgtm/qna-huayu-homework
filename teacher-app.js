@@ -27471,10 +27471,28 @@ H.gamesOpen=async()=>{if(!IS_OWNER)return toast('只有主管理員可以設定'
     :(gp.length?('<div class="gm-list">'+gp.slice(0,200).map(x=>'<div class="gm-r"><b>'+esc(x.name||'')+'</b><span class="gm-g">'+(x.game==='pinyin'?'ā 拼音':'🀄 漢字')+'</span><span>'+esc(score(x))+'</span><time>'+esc(typeof tnAgo==='function'?tnAgo(x.last_at):String(x.last_at||'').slice(0,10))+'</time></div>').join('')+'</div>')
       :'<div class="hint">還沒有人用免帳號玩過。</div>');
   openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>🎮 開放遊戲給學生</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body gm-ui">'
-    +'<div class="gm-sec"><h4>登入的學生</h4>'+row(GM_KEYS[0])+row(GM_KEYS[1])+'</div>'
+    +'<div class="gm-sec"><h4>登入的學生</h4>'+gmModeHtml('pinyin','ā 拼音練習',g)+gmModeHtml('hanzi','🀄 漢字闖關',g)+'</div>'
     +'<div class="gm-sec"><h4>沒有帳號（填名字就能玩）</h4>'+row(GM_KEYS[2])+row(GM_KEYS[3])
       +link('pinyin.html','ā 拼音練習')+link('hanzi.html','🀄 漢字闖關')+'</div>'
     +'<div class="gm-sec"><h4>免帳號玩過的人 <small>'+gp.length+' 位</small></h4>'+list+'</div>'
     +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="gamesSave">💾 儲存</button></div></div>');};
-H.gamesSave=async()=>{const o={updated_at:new Date().toISOString()};GM_KEYS.forEach(k=>{const c=document.getElementById('gm-'+k[0]);o[k[0]]=!!(c&&c.checked);});
+H.gamesSave=async()=>{const o={updated_at:new Date().toISOString()};GM_KEYS.slice(2).forEach(k=>{const c=document.getElementById('gm-'+k[0]);o[k[0]]=!!(c&&c.checked);});
+  ['pinyin','hanzi'].forEach(k=>{const m=gmMode(k);o[k+'_all']=(m==='all');o[k+'_ids']=(m==='pick')?[...document.querySelectorAll('#gm-list-'+k+' input:checked')].map(c=>c.value):[];});
   try{await firebase.firestore().collection('site').doc('games').set(o,{merge:true});closeModal();toast('已儲存');}catch(e){toast('存不進去：'+((e&&e.message)||e));}};
+/* GAMEOPEN_V1715 Quinn：「在學的學生能不能有一個選項，就是不想要開放給所有的學生」
+   每個遊戲三種：不另外開放（照原本：派作業／勾「開放漢字遊戲」）、全部學生、只給勾選的學生 */
+function gmModeOf(k,g){if(g[k+'_all'])return 'all';if(Array.isArray(g[k+'_ids'])&&g[k+'_ids'].length)return 'pick';return 'off';}
+function gmMode(k){const c=document.querySelector('input[name="gm-m-'+k+'"]:checked');return c?c.value:'off';}
+function gmModeHtml(k,lab,g){const m=gmModeOf(k,g);const ids={};(g[k+'_ids']||[]).forEach(x=>{ids[x]=1;});
+  const stu=(typeof mbPool==='function'?mbPool():(S.students||[])).filter(s=>typeof enrollOf!=='function'||enrollOf(s)!=='paused'||ids[s.id]);
+  const grps=[...new Set(stu.flatMap(s=>s.groups||[]))].sort();
+  const opt=(v,t)=>'<label class="gm-o"><input type="radio" name="gm-m-'+k+'" value="'+v+'"'+(m===v?' checked':'')+' onchange="gmModeChg(\''+k+'\')"><span>'+t+'</span></label>';
+  return '<div class="gm-t gm-mode"><b>'+lab+'</b><div class="gm-os">'+opt('off','不另外開放')+opt('all','全部學生')+opt('pick','只給勾選的學生')+'</div>'
+    +'<small>「不另外開放」＝照原本：'+(k==='pinyin'?'派了拼音作業的學生才看得到':'派過漢字作業、或在學生資料勾了「開放漢字遊戲」的學生才看得到')+'</small>'
+    +'<div class="gm-pick" id="gm-pick-'+k+'"'+(m==='pick'?'':' hidden')+'>'
+      +(grps.length?'<div class="gm-gs">整班勾：'+grps.map(gr=>'<button type="button" class="btn btn-sm btn-ghost" onclick="gmGrp(\''+k+'\',\''+esc(gr)+'\')">'+esc(gr)+'</button>').join('')+'<button type="button" class="btn btn-sm btn-ghost" onclick="gmGrp(\''+k+'\',\'\')">全部取消</button></div>':'')
+      +'<div class="gm-plist" id="gm-list-'+k+'">'+stu.map(s=>'<label><input type="checkbox" value="'+esc(s.id)+'" data-g="'+esc((s.groups||[]).join('|'))+'"'+(ids[s.id]?' checked':'')+' onchange="gmCnt(\''+k+'\')"><span>'+esc(s.name||'')+'</span>'+((s.groups||[]).length?'<em>'+esc((s.groups||[]).join('、'))+'</em>':'')+'</label>').join('')+'</div>'
+      +'<small id="gm-cnt-'+k+'">已勾 '+Object.keys(ids).length+' 位</small></div></div>';}
+window.gmModeChg=k=>{const b=document.getElementById('gm-pick-'+k);if(b)b.hidden=(gmMode(k)!=='pick');};
+window.gmCnt=k=>{const n=document.querySelectorAll('#gm-list-'+k+' input:checked').length;const e=document.getElementById('gm-cnt-'+k);if(e)e.textContent='已勾 '+n+' 位';};
+window.gmGrp=(k,gr)=>{document.querySelectorAll('#gm-list-'+k+' input').forEach(c=>{if(!gr)c.checked=false;else if(String(c.dataset.g).split('|').indexOf(gr)>=0)c.checked=true;});gmCnt(k);};

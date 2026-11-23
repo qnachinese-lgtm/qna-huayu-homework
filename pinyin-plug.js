@@ -79,7 +79,8 @@ function addCard(){
   try{
     var me = (typeof S !== 'undefined' && S) ? S.me : null;
     if (!me || me.id === '__preview') return;
-    if (!pyTasks().length && !(window.__QNA_GAMES && window.__QNA_GAMES.pinyin_all)) return;   /* 有被派拼音作業的學生才看得到；GAMEOPEN_V1714 後台打開「全部學生」就都看得到 */
+    var G = window.__QNA_GAMES || {};   /* GAMEOPEN_V1715 也可以只開給勾選的學生（pinyin_ids） */
+    if (!pyTasks().length && !G.pinyin_all && !(Array.isArray(G.pinyin_ids) && G.pinyin_ids.indexOf(me.id) >= 0)) return;   /* 有被派拼音作業的學生才看得到；GAMEOPEN_V1714 後台打開「全部學生」就都看得到 */
     var scr = document.getElementById('screen'); if (!scr || scr.querySelector('.py-card')) return;
     var side = scr.querySelector('.h-side'); if (side) side.insertAdjacentHTML('beforeend', card());
   }catch(x){}

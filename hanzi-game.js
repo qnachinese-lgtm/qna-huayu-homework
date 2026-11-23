@@ -1545,12 +1545,12 @@ function hzGate(kind){
   g.innerHTML = "";
   g.append(el("div", { class:"gbig", text:"字" }),
     el("h2", { text: kind === "nomember" ? "這個帳號還沒有會員資料" : "免費註冊，就能玩漢字遊戲" }),
-    el("p", { class:"vi", text: kind === "nomember" ? "Tài khoản này chưa có hồ sơ hội viên." : "Đăng ký miễn phí để chơi trò chơi chữ Hán." }),
+    el("p", { class:"vi", text: kind === "nomember" ? "This account has no member profile yet." : "Sign up for free to play the Hanzi game." }),
     el("p", { text:"只要名字和 Email，不用付款。註冊以後可以玩闖關、課本練習、漢字大富翁，紀錄會自動存起來，老師也看得到你的進度。" }),
-    el("p", { class:"vi", text:"Chỉ cần tên và email, không cần thanh toán. Kết quả được lưu tự động và giáo viên xem được tiến độ của bạn." }),
+    el("p", { class:"vi", text:"Just your name and email, no payment. Your progress is saved automatically and your teacher can see it." }),
     el("div", { class:"row gbtn" }, [
-      el("a", { class:"btn primary big", href:"student.html?reg=1&next=" + back, text:"免費註冊 · Đăng ký miễn phí" }),
-      kind === "nomember" ? null : el("a", { class:"btn big", href:"student.html?next=" + back, text:"已經有帳號，登入 · Đăng nhập" })]));
+      el("a", { class:"btn primary big", href:"student.html?reg=1&next=" + back, text:"免費註冊 · Sign up free" }),
+      kind === "nomember" ? null : el("a", { class:"btn big", href:"student.html?next=" + back, text:"已經有帳號，登入 · Log in" })]));
 }
 function hzUngate(){ document.body.classList.remove("hz-gated"); const g = $("#hzGate"); if (g) g.remove(); }
 
@@ -1606,7 +1606,7 @@ async function hzGuestOffer(){
   try { const d = await window.firebase.firestore().collection("site").doc("games").get(); on = !!(d.exists && d.data().guest_hanzi); } catch(e){}
   const g = $("#hzGate"); if (!on || !g || g.querySelector(".gguest")) return;
   let nm = ""; try { nm = localStorage.getItem("qna_guest_name") || ""; } catch(e){}
-  const inp = el("input", { maxlength:"40", placeholder:"你的名字 / Tên của bạn" });
+  const inp = el("input", { maxlength:"40", placeholder:"你的名字 / Your name" });
   inp.value = nm;
   inp.style.cssText = "font:inherit;font-size:17px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;width:240px;text-align:center";
   const go = () => { const v = inp.value.trim().slice(0, 40); if (!v){ inp.focus(); return; }
@@ -1618,9 +1618,9 @@ async function hzGuestOffer(){
     renderLevel(); renderBadges(); renderMap(); C.loaded = true;
     loadCourse(null).then(() => { if (C.lessons.length) showCourseHome(); }).catch(() => {}); };
   inp.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
-  const b = el("button", { type:"button", class:"btn primary big", text:"開始玩 · Bắt đầu" }); b.onclick = go;
+  const b = el("button", { type:"button", class:"btn primary big", text:"開始玩 · Start" }); b.onclick = go;
   const box = el("div", { class:"gguest" }, [
-    el("p", { text:"不想註冊？填名字直接玩" }), el("p", { class:"vi", text:"Không muốn đăng ký? Nhập tên để chơi ngay" }), el("div", { class:"row gbtn" }, [inp, b]) ]);
+    el("p", { text:"不想註冊？填名字直接玩" }), el("p", { class:"vi", text:"No account? Enter your name and play now" }), el("div", { class:"row gbtn" }, [inp, b]) ]);
   box.style.cssText = "border-top:1px dashed var(--line);margin-top:14px;padding-top:14px;display:grid;gap:6px;justify-items:center;width:100%";
   g.append(box);
 }
