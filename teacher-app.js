@@ -27463,6 +27463,7 @@ H.gamesOpen=async()=>{if(!IS_OWNER)return toast('只有主管理員可以設定'
   let g={};try{const d=await firebase.firestore().collection('site').doc('games').get();g=d.exists?d.data():{};}catch(e){}
   let gp=[],gpErr='';try{const sn=await firebase.firestore().collection('guestplays').get();gp=sn.docs.map(d=>Object.assign({id:d.id},d.data()));}catch(e){gpErr=String((e&&(e.code||e.message))||e);}
   gp.sort((a,b)=>String(b.last_at||'').localeCompare(String(a.last_at||'')));
+  let st={};try{const d=await firebase.firestore().collection('stats').doc('play').get();st=d.exists?d.data():{};}catch(e){}/* PLAY_V1719 */
   const base=location.origin;
   const link=(path,lab)=>'<div class="gm-link"><span>'+lab+'</span><code>'+esc(base+'/'+path)+'</code><button class="btn btn-sm" type="button" onclick="navigator.clipboard.writeText(\''+esc(base+'/'+path)+'\').then(()=>toast(\'已複製\'))">複製</button><a class="btn btn-sm btn-ghost" href="'+esc(path)+'" target="_blank" rel="noopener">打開</a></div>';
   const row=k=>'<label class="gm-t"><input type="checkbox" id="gm-'+k[0]+'"'+(g[k[0]]?' checked':'')+'><span><b>'+esc(k[1])+'</b><small>'+esc(k[2])+'</small></span></label>';
@@ -27473,7 +27474,7 @@ H.gamesOpen=async()=>{if(!IS_OWNER)return toast('只有主管理員可以設定'
   openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>🎮 開放遊戲給學生</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body gm-ui">'
     +'<div class="gm-sec"><h4>登入的學生</h4>'+gmModeHtml('pinyin','ā 拼音練習',g)+gmModeHtml('hanzi','🀄 漢字闖關',g)+'</div>'
     +'<div class="gm-sec"><h4>沒有帳號（填名字就能玩）</h4>'+row(GM_KEYS[2])+row(GM_KEYS[3])
-      +link('pinyin.html','ā 拼音練習')+link('hanzi.html','🀄 漢字闖關')+'</div>'
+      +'<div class="gm-main"><b>🎮 練習入口</b><small>學生填一次名字，再選拼音或漢字。建議貼這個網址給學生</small>'+link('play.html','')+'</div>'+'<details class="gm-more"><summary>單獨的網址</summary>'+link('pinyin.html','ā 拼音練習')+link('hanzi.html','🀄 漢字闖關')+'</details></div>'    +'<div class="gm-sec"><h4>入口頁統計</h4><div class="gm-stat"><span><b>'+(st.visitors||0)+'</b>位訪客</span><span><b>'+(st.views||0)+'</b>次瀏覽</span><span><b>'+(st.py||0)+'</b>次點拼音</span><span><b>'+(st.hz||0)+'</b>次點漢字</span></div></div>'
     +'<div class="gm-sec"><h4>免帳號玩過的人 <small>'+gp.length+' 位</small></h4>'+list+'</div>'
     +'</div><div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">取消</button><span style="flex:1"></span><button class="btn btn-primary" data-act="gamesSave">💾 儲存</button></div></div>');};
 H.gamesSave=async()=>{const o={updated_at:new Date().toISOString()};GM_KEYS.slice(2).forEach(k=>{const c=document.getElementById('gm-'+k[0]);o[k[0]]=!!(c&&c.checked);});

@@ -1623,6 +1623,7 @@ async function hzGuestOffer(){
     el("p", { text:"不想註冊？填名字直接玩" }), el("p", { class:"vi", text:"No account? Enter your name and play now" }), el("div", { class:"row gbtn" }, [inp, b]) ]);
   box.style.cssText = "border-top:1px dashed var(--line);margin-top:14px;padding-top:14px;display:grid;gap:6px;justify-items:center;width:100%";
   g.append(box);
+  try { if (new URLSearchParams(location.search).get("guest") === "1" && inp.value.trim()) go(); } catch(e){} /* PLAY_V1719 從入口頁來的直接開始 */
 }
 let hzGuestT = 0;
 async function flushGuest(){
