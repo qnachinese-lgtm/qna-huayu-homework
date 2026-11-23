@@ -32,6 +32,8 @@ try { GT.id = (new URLSearchParams(location.search).get("task") || "").trim(); }
    GT.id 在讀失敗的時候會被清掉（gtFail），所以另外記一個 only 當旗子——
    不然一失敗就掉回「全部遊戲」那個選單，那正是 Quinn 不要的。 */
 GT.only = !!GT.id;
+/* CGAME_V1736 老師教室的生詞遊戲（?class=代碼&task=題目）：不走平台的作業，題目由 hanzi-game.js 讀好塞進來 */
+try { const _c = new URLSearchParams(location.search).get("class"); if (_c){ GT.id = ""; GT.only = false; GT.cls = _c; } } catch(e){}
 
 // ---------- 題目來源：生詞＋句子 ----------
 function pool(){
@@ -66,7 +68,9 @@ function shell(title, sub){
   const fsb = btn(isFs() ? "縮小" : "全螢幕", () => { isFs() ? fsOff() : fsOn(); setTimeout(() => { fsb.textContent = isFs() ? "縮小" : "全螢幕"; }, 300); }, "small");
   /* GTONLY_V1568 作業模式（?task=）：左上角那顆本來是「← 全部遊戲」，
      按下去就是 Quinn 說的「全部的遊戲都會出現」。這裡改成直接回我的作業。 */
-  const back = GT.only
+  const back = GT.cls
+    ? btn("← 回班級", () => { stopGame(); fsOff(); try { location.href = "room.html?c=" + encodeURIComponent(GT.cls); } catch(e){} }, "small")
+    : GT.only
     ? btn("← 回我的作業", () => { stopGame(); fsOff(); try { location.href = "student.html"; } catch(e){} }, "small")
     : btn(GAPP ? "← 全部遊戲" : "← 小遊戲", () => { stopGame(); fsOff(); home(); }, "small");
   P.append(el("div", { class:"mghead" }, [back, el("b", { class:"hz", text:title }), sub ? el("span", { class:"muted", text:sub }) : null, el("span", { class:"sp" }), fsb]));
@@ -94,6 +98,7 @@ function home(){
   if (GAPP && WANT_JOIN && !JOIN_DONE){ JOIN_DONE = true; try { joinOnly(); return; } catch(e){} }
   /* GAMEHW_V1553 帶著 ?task= 進來＝老師指派的翻牌作業，直接開那一盤，不停在首頁。
      課本還沒讀完的時候 gtBoot 會回 false，等 loadCourse 讀好再呼叫 home() 就會進得來。 */
+  if (GT.cls && !GT.clsReady){ const P0 = panel(); P0.innerHTML = ""; P0.append(el("p", { class:"muted", text:"正在讀取老師出的題目…" })); return; }
   if (GT.only && !GT.saved){ try { if (gtBoot()) return; } catch(e){}
     /* GTONLY_V1568 gtBoot 回 false＝這份作業開不起來，gtFail 已經把說明畫上去了。
        這裡要直接回去，不然底下就會把八款遊戲的選單蓋上來。 */
@@ -458,6 +463,7 @@ function flipPlay(p, st){
     let text = st.np === 2 ? (score[0] === score[1] ? "平手！" : `玩家 ${score[0] > score[1] ? 1 : 2} 贏了！`) : `全部配好了！翻了 ${moves} 次，用了 ${sec} 秒。`;
     const acts = [btn("再玩一次", () => flipPlay(p, st), "primary big"), btn("換設定", () => flipSetup(p))];
     /* GAMEHW_V1553 作業模式：配完就算寫完了，成績存回去，然後讓他一鍵回作業清單 */
+    if (GT.cls && window.HZCLS){ const sc0 = moves ? Math.max(0, Math.min(100, Math.round(ws.length / moves * 100))) : 0; try { window.HZCLS.done({ score:sc0, unit:" 分" }); } catch(e){} text += `　${sc0} 分，老師看得到。`; }
     if (GT.id && GT.doc){
       gtSave(sec, moves, ws.length);
       const sc = moves ? Math.max(0, Math.min(100, Math.round(ws.length / moves * 100))) : 0;
@@ -702,7 +708,7 @@ function quizSolo(p, opt){
     if (opt.onAns) try { opt.onAns(q, good); } catch(e){}/* REVENGE_V1436 */
     const pts = good ? 500 + Math.round(500 * Math.max(0, 1 - (Date.now() - t0) / 1000 / LIM)) : 0; score += pts; if (good){ ok++; sfx.good(); } else sfx.bad(); res = { ok:good, pick:k, pts }; draw(); }
   function nextQ(){ if (i >= qs.length - 1){ end(); return; } i++; res = null; t0 = Date.now(); draw(); tick(); }
-  function end(){ clearTimeout(tm); area.innerHTML = ""; timer.hidden = true; const m = el("div", { class:"mgdone" }, [el("b", { text:`答對 ${ok}／${qs.length} 題，${score} 分` }), el("div", { class:"row center" }, [btn("再玩一次", () => quizSolo(p, opt), "primary big"), btn("回快問快答", () => quizHome(p))])]); area.append(m); sfx.win(); const [x, y] = centerOf(m); burst(x, y, 50); if (A.store.me) A.addXp(ok * 3); }
+  function end(){ clearTimeout(tm); if (GT.cls && window.HZCLS) try { window.HZCLS.done({ score:ok, unit:"／" + qs.length + " 題" }); } catch(e){} area.innerHTML = ""; timer.hidden = true; const m = el("div", { class:"mgdone" }, [el("b", { text:`答對 ${ok}／${qs.length} 題，${score} 分` }), el("div", { class:"row center" }, [btn("再玩一次", () => quizSolo(p, opt), "primary big"), btn("回快問快答", () => quizHome(p))])]); area.append(m); sfx.win(); const [x, y] = centerOf(m); burst(x, y, 50); if (A.store.me) A.addXp(ok * 3); }
   t0 = Date.now(); draw(); tick();
   GAME = { k:"quiz", stop: () => clearTimeout(tm) };
 }
@@ -919,7 +925,9 @@ function orderStart(p){
 document.querySelectorAll('nav.tabs button[data-tab="mg"]').forEach(tab => { tab.setAttribute("data-novi", ""); tab.setAttribute("translate", "no");
   tab.addEventListener("click", () => { A.showTab("mg"); const k = tab.dataset.game || ""; if (GAPP){ stopGame(); fsOff(); if (k){ home(); const p = pool(); const need = { bingo:9, flip:6, quiz:4, order:0, cloze:4 }[k]; if ((k === "order" && p.sents.length < 3) || p.words.length < need){ toast("請先在這一頁勾選要玩哪幾課"); selTab(""); return; } openGame(k); } else home(); } else if (!GAME) home(); }); });
 if (GAPP){ document.querySelectorAll("nav.tabs button").forEach(b => { b.setAttribute("data-novi", ""); b.setAttribute("translate", "no"); }); A.showTab("mg"); home(); }
-window.HZMG = { home, pool, chunks, makeQs, open:openGame, join:joinOnly/* JOIN_V1450 */, get game(){ return GAME; },
+window.HZMG = { playClass(k, lid){ GT.clsReady = true; SET.src = "course"; SET.lids = [lid]; keep();
+    if (k === "fw"){ const tb = document.querySelector('nav.tabs button[data-tab="fw"]'); if (tb){ tb.click(); return; } }
+    openGame(k); }, home, pool, chunks, makeQs, open:openGame, join:joinOnly/* JOIN_V1450 */, get game(){ return GAME; },
   get gt(){ return GT; }/* GAMEHW_V1553 測試用：作業模式的狀態（讀到哪一份、存了沒） */ };
 }
 if (window.HZAPI) boot(); else document.addEventListener("hzapi", boot);

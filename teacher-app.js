@@ -6865,7 +6865,7 @@ const TNAV=[
                  ['lessons','📚 教材與課程','c-lessons'],
                  ['files','🎯 課堂活動',''],
                  {k:'oc',id:'oc',t:'▶️ 線上課',ow:1},
-                 ['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],{k:'games',act:'gamesOpen',di:'',t:'🎮 開放遊戲給學生',ow:1},/* GAMEOPEN_V1714 */{k:'tteach',act:'tteachOpen',di:'',t:'🏫 合作老師',ow:1},/* TCLASS_V1722 */{k:'fbk',act:'feedbackOpen',di:'',t:'📮 問題回報',ow:1},/* QFOOT_V1728 *//* HANZI_V4 */['grades','📝 批改・成績','c-pending']]},
+                 ['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],{k:'games',act:'gamesOpen',di:'',t:'🎮 開放遊戲給學生',ow:1},/* GAMEOPEN_V1714 */{k:'fbk',act:'feedbackOpen',di:'',t:'📮 問題回報',ow:1},/* QFOOT_V1728 *//* HANZI_V4 */['grades','📝 批改・成績','c-pending']]},
   /* TEAMNOTE_V1702 員工（其他管理員）只看得到「訊息追蹤」；代辦、面試、代書、學校本來就只有主管理員能進，選單上也藏起來，免得點了被彈回首頁 */
   {t:'留學業務',sub:[{k:'msgs',id:'msgs',t:'📨 訊息追蹤'},{k:'replyst',id:'reply',t:'📮 回覆範本',st:1},{k:'agency',id:'agency',t:'🎓 代辦申請',n:'c-ag',ow:1},{k:'interview',id:'interview',t:'🎤 面試練習',n:'c-itv',ow:1},
                      {k:'writing',id:'writing',t:'✍️ 代書',n:'c-wr',ow:1},{k:'school',id:'school',t:'🏫 學校與資料',ow:1}]},
@@ -6883,6 +6883,7 @@ const TNAV=[
     {k:'qt',    act:'qtNew',      di:'',      t:'💰 開一張報價單', ow:1},
     {k:'mb',    act:'monthBills', di:'',      t:'📨 月結單',   ow:1}
   ]},
+  {id:'__tteach',t:'🏫 合作老師',act:'tteachOpen',ow:1},/* TDNAV_V1735 Quinn：合作老師要一個獨立的按鈕 */
   {id:'__settings',t:'⚙ 設定',act:'settingsCenter'}
 ];
 /* GIVESUB_V1366 子項目兩種寫法：
@@ -6959,7 +6960,7 @@ function tnavSync(){
     const v=e?String(e.textContent||'').trim():'';return (v==='0'||v==='')?'':v;};
   TNAV.forEach((g,gi)=>{
     const it=nav.querySelector('.tn-i[data-gi="'+gi+'"]');if(!it)return;
-    if(!g.sub){it.classList.toggle('on',g.act==='tab'&&g.id===cur);return;}
+    if(!g.sub){if(g.ow)it.style.display=IS_OWNER?'':'none';it.classList.toggle('on',g.act==='tab'&&g.id===cur);return;}
     let hit=false,tot=0;
     g.sub.forEach(x=>{
       const sb=tnSub(x);
@@ -27517,6 +27518,7 @@ function tdHz(f){try{if(typeof HZ_NAME!=='undefined'&&HZ_NAME[f])return HZ_NAME[
 const TD_DIFF={easy:'入門',normal:'進階',hard:'高手'};
 function tdStat(s,t){const r=(s.tasks||{})[t.id];if(!r)return '<td class="td-no">—</td>';
   if(t.kind==='pinyin')return '<td class="'+(r.n&&r.ok===r.n?'td-ok':'')+'">'+(r.ok||0)+'/'+(r.n||0)+(r.times>1?' <small>做了 '+r.times+' 次</small>':'')+'<br><small>'+esc(tdAgo(r.at))+'</small></td>';
+  if(t.kind==='game')return '<td class="td-ok">玩過 '+(r.times||1)+' 次'+(r.best!=null?'<br><small>最高 '+esc(String(r.best))+esc(r.unit||'')+'</small>':'')+'<br><small>'+esc(tdAgo(r.at))+'</small></td>';/* CGAME_V1736 */
   const st=Number(r.stars)||0;return '<td class="'+(st>=(t.min_stars||1)?'td-ok':'')+'">'+(st?'★'.repeat(Math.min(st,3)):'0 星')+'<br><small>'+esc(tdAgo(r.at))+'</small></td>';}
 H.tteachOpen=async(force)=>{if(!IS_OWNER)return toast('只有主管理員可以管理');
   openModal('<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🏫 合作老師</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body" id="td-body"><div class="hint">讀取中…</div></div></div>');
@@ -27550,9 +27552,9 @@ function tdDetail(uid){const t=TD.t.find(x=>x.id===uid)||{};const cs=TD.c.filter
    +'<div class="td-sec"><h4>班級（'+cs.length+'）</h4>'+(cs.length?cs.map(tdClass).join(''):'<div class="hint">還沒有開班。</div>')+'</div>';}
 function tdClass(c){const ks=TD.k.filter(k=>k.class_code===c.id).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));const ss=TD.s.filter(x=>x.class_code===c.id).sort((a,b)=>String(a.name).localeCompare(String(b.name),'zh-Hant'));
   return '<details class="td-cls" open><summary><b>'+esc(c.name||'')+'</b><code>'+esc(c.id)+'</code><span>'+ks.length+' 份題目・'+ss.length+' 位學生・開班 '+esc(tdDate(c.created_at).slice(0,10))+'</span></summary>'
-   +'<div class="td-in"><h5>題目內容</h5>'+(ks.length?ks.map(k=>'<div class="td-task"><i>'+(k.kind==='pinyin'?'ā':'字')+'</i><div><b>'+esc(k.title||'')+'</b><small>'+(k.kind==='pinyin'?'拼音練習・'+String(k.items||'').split('\n').filter(x=>x.trim()).length+' 個詞':'漢字闖關・'+esc(tdHz(k.fam))+'・'+(TD_DIFF[k.diff]||'')+'・至少 '+(k.min_stars||1)+' 星')+'・'+esc(tdDate(k.created_at))+' 出的</small>'
-       +(k.kind==='pinyin'?'<div class="td-words">'+String(k.items||'').split('\n').filter(x=>x.trim()).map(w=>'<span>'+esc(w)+'</span>').join('')+'</div>':'')+'</div></div>').join(''):'<div class="hint">還沒有出題。</div>')
-   +'<h5>學生成績</h5>'+(ss.length?'<div class="td-tbl"><table><thead><tr><th>學生</th><th>加入</th><th>最後練習</th>'+ks.map(k=>'<th title="'+esc(k.title)+'">'+(k.kind==='pinyin'?'ā ':'字 ')+esc(String(k.title||'').slice(0,10))+'</th>').join('')+'</tr></thead><tbody>'
+   +'<div class="td-in"><h5>題目內容</h5>'+(ks.length?ks.map(k=>'<div class="td-task"><i>'+(k.kind==='pinyin'?'ā':k.kind==='game'?'🎮':'字')+'</i><div><b>'+esc(k.title||'')+'</b><small>'+(k.kind!=='hanzi'?(k.kind==='game'?'生詞遊戲（'+({flip:'翻牌配對',quiz:'快問快答',bingo:'生詞賓果',fw:'大富翁'}[k.game]||k.game)+'）':'拼音練習')+'・'+String(k.items||'').split('\n').filter(x=>x.trim()).length+' 個詞':'漢字闖關・'+esc(tdHz(k.fam))+'・'+(TD_DIFF[k.diff]||'')+'・至少 '+(k.min_stars||1)+' 星')+'・'+esc(tdDate(k.created_at))+' 出的</small>'
+       +(k.kind!=='hanzi'?'<div class="td-words">'+String(k.items||'').split('\n').filter(x=>x.trim()).map(w=>'<span>'+esc(w)+'</span>').join('')+'</div>':'')+'</div></div>').join(''):'<div class="hint">還沒有出題。</div>')
+   +'<h5>學生成績</h5>'+(ss.length?'<div class="td-tbl"><table><thead><tr><th>學生</th><th>加入</th><th>最後練習</th>'+ks.map(k=>'<th title="'+esc(k.title)+'">'+(k.kind==='pinyin'?'ā ':k.kind==='game'?'🎮 ':'字 ')+esc(String(k.title||'').slice(0,10))+'</th>').join('')+'</tr></thead><tbody>'
        +ss.map(x=>'<tr><td><b>'+esc(x.name||'')+'</b></td><td>'+esc(tdDate(x.joined_at).slice(0,10))+'</td><td>'+esc(tdAgo(x.last_at))+'</td>'+ks.map(k=>tdStat(x,k)).join('')+'</tr>').join('')+'</tbody></table></div>':'<div class="hint">還沒有學生加入。</div>')
    +'</div></details>';}
 H.tteachSet=async(v)=>{const i=String(v).lastIndexOf('::');const id=v.slice(0,i),st=v.slice(i+2);

@@ -1647,14 +1647,41 @@ async function hzClassBoot(code){
   if (!nm){ location.href = "room.html?c=" + encodeURIComponent(code); return; }
   const tid = new URLSearchParams(location.search).get("task");
   let t = null; if (tid){ try { const d = await fs.collection("ttasks").doc(tid).get(); t = d.exists ? Object.assign({ id:d.id }, d.data()) : null; } catch(e){} }
-  if (t && (t.deleted_at || t.class_code !== code || t.kind !== "hanzi")) t = null;
+  if (t && (t.deleted_at || t.class_code !== code || (t.kind !== "hanzi" && t.kind !== "game"))) t = null;
   store.guest = { name:nm, dev:hzGuestDev(), cls:code, owner:c.owner_uid, task:t }; store.me = null; store.uid = null;
   LSKEY = "hz-rec-cls-" + code; rec = normRec(JSON.parse(ls.get(LSKEY) || "null"));
   hzUngate(); $("#loginNote").hidden = true;
   try { const bl = document.querySelector('a.btn.small[href="student.html"]'); if (bl){ bl.href = "room.html?c=" + encodeURIComponent(code); bl.textContent = "回班級"; } } catch(e){}
   const w = $("#who"); if (w) w.textContent = nm + "・" + (c.name || code);
   renderLevel(); renderBadges(); renderMap(); C.loaded = true;
+  if (t && t.kind === "game"){ hzClassGame(t); return; } /* CGAME_V1736 生詞遊戲：翻牌、快問快答、賓果、大富翁 */
   if (t && (STAGES[t.fam] || String(t.fam).startsWith("L:"))){ if (DIFF[t.diff]) setDiff(t.diff); playStage(t.fam); }
+}
+function hzPyMark(s){ const T = { a:"āáǎà", e:"ēéěè", i:"īíǐì", o:"ōóǒò", u:"ūúǔù", "ü":"ǖǘǚǜ" };
+  return String(s || "").replace(/u:|v/g, "ü").replace(/([a-zü]+)([1-5])/gi, (m, syl, n) => { n = +n; if (n === 5) return syl;
+    const low = syl.toLowerCase(); let i = low.indexOf("a"); if (i < 0) i = low.indexOf("e"); if (i < 0 && low.indexOf("ou") >= 0) i = low.indexOf("o");
+    if (i < 0){ for (let k = low.length - 1; k >= 0; k--) if ("iouü".indexOf(low[k]) >= 0){ i = k; break; } }
+    if (i < 0) return syl; const v = low[i]; return syl.slice(0, i) + (T[v] ? T[v][n - 1] : v) + syl.slice(i + 1); }); }
+function hzClassGame(t){
+  const chars = String(t.items || "").split("\n").map(x => x.trim()).filter(Boolean).map(line => {
+    const m = /^([\u3400-\u9fff]+)\s*([^=＝]*?)\s*(?:[=＝]\s*(.*))?$/.exec(line); if (!m) return null;
+    const py = hzPyMark(m[2].replace(/\s+/g, " ").trim());
+    return { w:m[1], word:m[1], wpy:py, py:py, mean:(m[3] || "").trim(), ex:[] }; }).filter(Boolean);
+  const L = { id:"cls_" + t.id, label:t.title || "生詞", tb:"", order:0, at:"", chars, sents:[] };
+  C.lessons = [L]; C.byId = { [L.id]:L }; C.loaded = true;
+  window.HZCLS = { task:t, done:r => flushClassGame(t, r) };
+  flushClassGame(t, null);
+  const go = () => { if (window.HZMG && window.HZMG.playClass){ window.HZMG.playClass(t.game || "flip", L.id); return true; } return false; };
+  if (!go()){ let n = 0; const iv = setInterval(() => { if (go() || ++n > 50) clearInterval(iv); }, 200); }
+}
+async function flushClassGame(t, r){
+  const g = store.guest; if (!g || !g.cls) return; const at = new Date().toISOString();
+  let prog = {}; try { prog = JSON.parse(localStorage.getItem("qna_cls_prog_" + g.cls) || "{}") || {}; } catch(e){}
+  const old = prog[t.id] || {}; const cur = { times:(old.times || 0) + (r ? 0 : 1), at };
+  if (old.best != null) cur.best = old.best; if (old.unit) cur.unit = old.unit;
+  if (r && r.score != null && (cur.best == null || r.score > cur.best)){ cur.best = r.score; cur.unit = r.unit || " 分"; }
+  prog[t.id] = cur; try { localStorage.setItem("qna_cls_prog_" + g.cls, JSON.stringify(prog)); } catch(e){}
+  try { await window.firebase.firestore().collection("tstudents").doc(g.cls + "_" + g.dev).set({ class_code:g.cls, owner_uid:g.owner, name:g.name, dev:g.dev, last_at:at, tasks:{ [t.id]:cur } }, { merge:true }); } catch(e){}
 }
 let hzClsT = 0;
 async function flushClass(){
