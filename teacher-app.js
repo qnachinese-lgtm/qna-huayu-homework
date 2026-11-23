@@ -6865,7 +6865,7 @@ const TNAV=[
                  ['lessons','📚 教材與課程','c-lessons'],
                  ['files','🎯 課堂活動',''],
                  {k:'oc',id:'oc',t:'▶️ 線上課',ow:1},
-                 ['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],{k:'games',act:'gamesOpen',di:'',t:'🎮 開放遊戲給學生',ow:1},/* GAMEOPEN_V1714 */{k:'tteach',act:'tteachOpen',di:'',t:'🏫 合作老師',ow:1},/* TCLASS_V1722 *//* HANZI_V4 */['grades','📝 批改・成績','c-pending']]},
+                 ['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],{k:'games',act:'gamesOpen',di:'',t:'🎮 開放遊戲給學生',ow:1},/* GAMEOPEN_V1714 */{k:'tteach',act:'tteachOpen',di:'',t:'🏫 合作老師',ow:1},/* TCLASS_V1722 */{k:'fbk',act:'feedbackOpen',di:'',t:'📮 問題回報',ow:1},/* QFOOT_V1728 *//* HANZI_V4 */['grades','📝 批改・成績','c-pending']]},
   /* TEAMNOTE_V1702 員工（其他管理員）只看得到「訊息追蹤」；代辦、面試、代書、學校本來就只有主管理員能進，選單上也藏起來，免得點了被彈回首頁 */
   {t:'留學業務',sub:[{k:'msgs',id:'msgs',t:'📨 訊息追蹤'},{k:'replyst',id:'reply',t:'📮 回覆範本',st:1},{k:'agency',id:'agency',t:'🎓 代辦申請',n:'c-ag',ow:1},{k:'interview',id:'interview',t:'🎤 面試練習',n:'c-itv',ow:1},
                      {k:'writing',id:'writing',t:'✍️ 代書',n:'c-wr',ow:1},{k:'school',id:'school',t:'🏫 學校與資料',ow:1}]},
@@ -27523,3 +27523,19 @@ H.tteachOpen=async()=>{if(!IS_OWNER)return toast('只有主管理員可以管理
 H.tteachSet=async(v)=>{const i=String(v).lastIndexOf('::');const id=v.slice(0,i),st=v.slice(i+2);
   try{await firebase.firestore().collection('tteachers').doc(id).update({status:st,reviewed_at:new Date().toISOString()});toast(st==='blocked'?'已停用':'已恢復使用');H.tteachOpen();}
   catch(e){toast('存不進去：'+((e&&e.message)||e));}};
+
+/* QFOOT_V1728 練習入口、老師專區、班級頁最下面的「回報問題」：學生和老師直接在網頁裡填，存在 feedback */
+H.feedbackOpen=async()=>{if(!IS_OWNER)return toast('只有主管理員可以看');
+  let fs=[],err='';try{fs=(await firebase.firestore().collection('feedback').get()).docs.map(d=>Object.assign({id:d.id},d.data()));}catch(e){err=String((e&&(e.code||e.message))||e);}
+  fs.sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
+  const K={bug:'🐞 網站壞掉',q:'❓ 問題',idea:'💡 建議'};
+  const row=f=>'<div class="fb-r'+(f.done?' done':'')+'"><div class="fb-h"><b>'+esc(K[f.kind]||'📮')+'</b><span>'+esc(f.name||'（沒留名字）')+(f.email?'・'+esc(f.email):'')+'</span><span class="grow"></span><time>'+esc(String(f.at||'').replace('T',' ').slice(0,16))+'</time></div>'
+    +'<div class="fb-t">'+esc(f.msg||'')+'</div><div class="fb-f"><small>'+esc(f.page||'')+'</small><span class="grow"></span>'
+    +'<button class="btn btn-sm btn-ghost" data-act="feedbackDone" data-id="'+esc(f.id)+'">'+(f.done?'標成未處理':'✓ 處理好了')+'</button>'
+    +'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="feedbackDel" data-id="'+esc(f.id)+'">刪除</button></div></div>';
+  openModal('<div class="modal" style="max-width:680px"><div class="modal-head"><h3>📮 問題回報 <small style="font-weight:400;color:#8796AB">'+fs.filter(f=>!f.done).length+' 則未處理</small></h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+    +(err?'<div class="hint">'+(/permission|insufficient/i.test(err)?'Firebase 規則還沒發布，發布後這裡才看得到。':'讀不到：'+esc(err))+'</div>'
+      :(fs.length?'<div class="fb-list">'+fs.map(row).join('')+'</div>':'<div class="hint">還沒有人回報問題。</div>'))
+    +'</div><div class="modal-foot"><span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');};
+H.feedbackDone=async(id)=>{try{const r=firebase.firestore().collection('feedback').doc(id);const d=await r.get();await r.update({done:!(d.exists&&d.data().done)});H.feedbackOpen();}catch(e){toast('存不進去：'+((e&&e.message)||e));}};
+H.feedbackDel=async(id)=>{if(!confirm('刪除這則回報？'))return;try{await firebase.firestore().collection('feedback').doc(id).delete();H.feedbackOpen();}catch(e){toast('刪不掉：'+((e&&e.message)||e));}};
