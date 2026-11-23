@@ -62,7 +62,9 @@ function css(){
   + '.pq-pic{display:flex;justify-content:center;margin:4px 0 12px}.pq-pic img{max-width:100%;max-height:min(40vh,340px);border-radius:16px;object-fit:contain;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.08)}'
   + '.pq-opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pq-opts button{display:flex;align-items:center;gap:12px;min-height:76px;border:0;border-radius:12px;color:#fff;padding:10px 14px;cursor:pointer;text-align:left;font:inherit;box-shadow:0 4px 0 rgba(0,0,0,.18);transition:opacity .2s,transform .1s}'
   + '.pq-opts button:active{transform:translateY(2px);box-shadow:0 2px 0 rgba(0,0,0,.18)}.pq-opts i{font-style:normal;font-size:26px;width:30px;text-align:center;flex:none}.pq-opts b{display:block;font-size:clamp(22px,5vw,30px);font-family:var(--kai);font-weight:400;line-height:1.1}.pq-opts small{display:block;font-size:14px;opacity:.9;margin-top:2px}.pq-opts small .zyans span{margin-right:.3em}'
-  + '.pq-opts button.dim{opacity:.25}.pq-opts button.wrong{opacity:.55;outline:4px solid #fff;outline-offset:-4px}.pq-opts button.right{outline:4px solid #fff;outline-offset:-4px;transform:scale(1.02)}'
+  + '.kq-q{text-align:center;font-size:clamp(19px,4.4vw,24px);font-weight:700;margin:6px 0 10px;line-height:1.5}.kq-opts b{font-family:var(--ui)!important;font-size:clamp(17px,4vw,22px)!important;font-weight:700!important}'
+  + '.pq-opts button{position:relative}.pq-opts button.right,.pq-opts button.wrong{padding-right:46px}.pq-opts button.right::after,.pq-opts button.wrong::after{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700}.pq-opts button.right::after{content:"✓";color:#26890C}.pq-opts button.wrong::after{content:"✗";color:#C03A3A}'
+  + '.pq-opts button.dim{opacity:.2}.pq-opts button.wrong{opacity:.75;outline:4px solid #fff;outline-offset:-4px}.pq-opts button.right{outline:4px solid #fff;outline-offset:-4px;transform:scale(1.02)}'
   + '@media(max-width:480px){.pq-opts{gap:8px}.pq-opts button{min-height:68px;padding:8px 10px;gap:8px}.pq-opts i{font-size:20px;width:22px}}'
   + '.mpick{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}'
   + '.mpick button{width:min(220px,42vw);border:2px solid var(--line);border-radius:14px;background:var(--surface);padding:6px 6px 10px;cursor:pointer;font:inherit;color:var(--ink)}'
@@ -120,7 +122,7 @@ function words(max){
 function locked(){ return (A.lockGame && A.lockGame()) || ''; }/* CLSONLY_V1742 老師指定的遊戲：不能換別的 */
 function bar(title, right){
   title = zt(title);
-  return '<div class="gbar">' + (locked() ? '' : '<button class="btn gback" type="button" data-g="home">← 換遊戲</button>') + '<b style="font-family:var(--ui);font-size:17px">' + e(title) + '</b><span class="sp"></span>' + (right || '') + '</div>';
+  return '<div class="gbar">' + (locked() ? '' : '<button class="btn gback" type="button" data-g="home">← 換遊戲</button>') + (locked() ? '' : '<b style="font-family:var(--ui);font-size:17px">' + e(title) + '</b>') + '<span class="sp"></span>' + (right || '') + '</div>';
 }
 function empty(msg){ stage().innerHTML = bar('') + '<p class="tip center" style="margin:auto">' + e(msg || '這裡的題目不夠玩這個遊戲，換一個題目再試試。') + '</p>'; wire(); }
 function wire(){ var b = stage().querySelector('[data-g="home"]'); if (b) b.onclick = function(){ stop(); try { A.stopFall(); } catch(x){} home(); }; }
@@ -181,6 +183,7 @@ function render(){
   if (k === 'mole') return mole();
   if (k === 'wmole') return wmole();
   if (k === 'pic') return pic();
+  if (k === 'kq') return kq();
   if (k === 'flip') return flip();
   if (k === 'quiz') return quiz();
   if (k === 'puzzle') return puzzle();
@@ -381,6 +384,49 @@ function picRun(qs, all, imgs){
       G.i++; later(q, ok ? 1100 : 1900);
     }
     bs.forEach(function(b){ b.onclick = function(){ finish(b.getAttribute('data-h')); }; });
+    T.iv = setInterval(function(){ var el = $('#qt'); if (!el){ stop(); return; } var r = 1 - (Date.now() - t0) / LIM; el.style.width = Math.max(0, r * 100) + '%'; if (r <= 0) finish(null); }, 100);
+  }
+  q();
+}
+
+/* ---------- 老師自己出的題（KQ_V1749，像 Kahoot）---------- */
+function kq(){
+  var qs = (A.taskQs && A.taskQs()) || [], title = (A.taskTitle && A.taskTitle()) || '老師出的題';
+  if (!qs.length) return empty('老師還沒出題。');
+  qs.forEach(function(x){ if (x.img){ var im = new Image(); im.src = x.img; } });
+  intro(title, '一共 ' + qs.length + ' 題。看圖和問題，從下面選出對的答案。每題 20 秒，越快答對分數越高。', function(){ kqRun(qs, title); });
+}
+function kqRun(qs, title){
+  var G = {i:0, score:0, right:0, miss:[], hit:[], streak:0}, LIM = 20000;
+  function end(){
+    stop();
+    stage().innerHTML = bar(title) + '<div class="gmid"><b style="font-size:22px">完成了！</b><div class="big">' + G.score + '<small> 分</small></div>'
+      + '<p class="tip">答對 ' + G.right + ' / ' + qs.length + ' 題</p>'
+      + (G.miss.length ? '<p class="tip">答錯的題目：</p><div class="wronglist">' + G.miss.map(function(m){ return '<div><b>' + e(m.q || ('第 ' + m.n + ' 題')) + '</b><span>答案：' + e(m.a) + '</span></div>'; }).join('') + '</div>' : '')
+      + '<p class="save" id="saveNote"></p><button class="btn primary" type="button" id="gagain2">再玩一次</button></div>';
+    wire(); $('#gagain2').onclick = function(){ render(); };
+    save('kq', G.score, G.miss.map(function(m){ return {h:(m.q ? m.q.slice(0, 20) : '第 ' + m.n + ' 題') + '→' + m.a}; }), G.hit);
+  }
+  function q(){
+    if (G.i >= qs.length) return end();
+    var x = qs[G.i], t0 = Date.now(), done = false;
+    stage().innerHTML = bar(title, '<span>第 <b>' + (G.i + 1) + '</b> / ' + qs.length + '</span><span>分數 <b>' + G.score + '</b></span>')
+      + '<div class="tbar"><i id="qt" style="width:100%"></i></div>'
+      + (x.q ? '<div class="kq-q">' + e(x.q) + '</div>' : '')
+      + (x.img ? '<div class="pq-pic"><img src="' + e(x.img) + '" alt=""></div>' : '')
+      + '<div class="pq-opts kq-opts">' + x.opts.map(function(o, k){ return '<button type="button" data-k="' + k + '" style="background:' + KC[k][0] + '"><i>' + KC[k][1] + '</i><span><b>' + e(o) + '</b></span></button>'; }).join('') + '</div>'
+      + '<div class="gfb center" id="pf"></div>';
+    wire();
+    var bs = stage().querySelectorAll('.pq-opts button');
+    function finish(pick){
+      if (done) return; done = true; clearInterval(T.iv);
+      var ok = pick === x.ans, left = Math.max(0, LIM - (Date.now() - t0)), f = $('#pf');
+      bs.forEach(function(b){ var k = +b.getAttribute('data-k'); b.classList.add(k === x.ans ? 'right' : (k === pick ? 'wrong' : 'dim')); b.disabled = true; });
+      if (ok){ G.right++; G.streak++; G.hit.push({h:x.opts[x.ans]}); var add = Math.round(500 + 500 * left / LIM) + (G.streak >= 3 ? 100 : 0); G.score += add; if (f) f.innerHTML = '<span style="color:var(--good);font-weight:700">答對了！＋' + add + '</span>'; }
+      else { G.streak = 0; G.miss.push({n:G.i + 1, q:x.q, a:x.opts[x.ans]}); if (f) f.innerHTML = '<span style="color:var(--bad)">' + (pick == null ? '時間到，' : '') + '答案是「' + e(x.opts[x.ans]) + '」</span>'; }
+      G.i++; later(q, ok ? 1200 : 2000);
+    }
+    bs.forEach(function(b){ b.onclick = function(){ finish(+b.getAttribute('data-k')); }; });
     T.iv = setInterval(function(){ var el = $('#qt'); if (!el){ stop(); return; } var r = 1 - (Date.now() - t0) / LIM; el.style.width = Math.max(0, r * 100) + '%'; if (r <= 0) finish(null); }, 100);
   }
   q();

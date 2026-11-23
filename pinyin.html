@@ -668,7 +668,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showTab(b.dataset.tab
 document.querySelectorAll('#scr button').forEach(b=>b.onclick=()=>{ZYPREF=b.dataset.s==='zy';try{localStorage.setItem('qna-py-script',ZYPREF?'zy':'py')}catch(e){}syncZyUi();if(st.tab==='game'){try{if(window.PYGAMES)PYGAMES.stop()}catch(e){}st.game='';renderGame()}else if(st.tab==='practice')startRound()});
 
 /* 給 pinyin-games.js 用的介面 */
-window.PYAPI={lockGame:()=>{if(!(me.guest&&me.guest.cls))return '';const lv=String(st.level||'');const t=lv.indexOf('task:')===0?TASKS.find(x=>x.id===lv.slice(5)):null;return t&&(t.gk==='mole'||t.gk==='wmole'||t.gk==='pic')?t.gk:''},taskImgs:()=>{const lv=String(st.level||'');const t=lv.indexOf('task:')===0?TASKS.find(x=>x.id===lv.slice(5)):null;return (t&&t.imgs)||{}},pool:()=>pool(),markSyl:(b,t)=>isZY()?ZY.syl(b,t):markSyl(b,t),bare:b=>isZY()?ZY.body(b):b,zy:()=>isZY(),plainAnswer,answerHTML,shuffle,esc,me,st,reviewUpdate,emptyRec,stage:()=>stage,renderFall,stopFall:stopGame};
+window.PYAPI={lockGame:()=>{if(!(me.guest&&me.guest.cls))return '';const lv=String(st.level||'');const t=lv.indexOf('task:')===0?TASKS.find(x=>x.id===lv.slice(5)):null;return t&&(t.gk==='mole'||t.gk==='wmole'||t.gk==='pic'||t.gk==='kq')?t.gk:''},taskQs:()=>{const lv=String(st.level||'');const t=lv.indexOf('task:')===0?TASKS.find(x=>x.id===lv.slice(5)):null;return (t&&t.qs)||[]},taskTitle:()=>{const lv=String(st.level||'');const t=lv.indexOf('task:')===0?TASKS.find(x=>x.id===lv.slice(5)):null;return (t&&t.title)||''},taskImgs:()=>{const lv=String(st.level||'');const t=lv.indexOf('task:')===0?TASKS.find(x=>x.id===lv.slice(5)):null;return (t&&t.imgs)||{}},pool:()=>pool(),markSyl:(b,t)=>isZY()?ZY.syl(b,t):markSyl(b,t),bare:b=>isZY()?ZY.body(b):b,zy:()=>isZY(),plainAnswer,answerHTML,shuffle,esc,me,st,reviewUpdate,emptyRec,stage:()=>stage,renderFall,stopFall:stopGame};
 
 /* GAMEOPEN_V1714 免帳號：填名字就能練。成績存在 guestplays（一台電腦一筆），老師後台看得到 */
 function guestGate(){
@@ -722,8 +722,8 @@ async function classBoot(code){
   if(!c||c.deleted_at){$('#who').textContent='';gate('找不到這個班級。','回練習入口');try{stage.querySelector('a').href='play.html'}catch(e){}return}
   let nm='';try{nm=localStorage.getItem('qna_cls_name_'+code)||''}catch(e){}
   if(!nm){location.href='room.html?c='+encodeURIComponent(code);return}
-  let ts=[];try{const sn=await fs.collection('ttasks').where('class_code','==',code).get();ts=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(t=>t&&!t.deleted_at&&(t.kind==='pinyin'||(t.kind==='game'&&(t.game==='pinyin'||t.game==='mole'||t.game==='wmole'||t.game==='pic'))))}catch(e){}/* PYGAME_V1737 也收拼音遊戲、打地鼠 */
-  TASKS=ts.map(t=>({id:t.id,title:t.title,items:t.kind==='game'?String(t.items||'').split('\n').map(x=>x.split(/[=＝]/)[0].trim()).filter(Boolean).join('\n'):t.items,guest:true,gk:t.kind==='game'?t.game:'',zy:!!t.zy,imgs:t.imgs||null}));CUSTOM=[];COURSE=[];
+  let ts=[];try{const sn=await fs.collection('ttasks').where('class_code','==',code).get();ts=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(t=>t&&!t.deleted_at&&(t.kind==='pinyin'||(t.kind==='game'&&(t.game==='pinyin'||t.game==='mole'||t.game==='wmole'||t.game==='pic'||t.game==='kq'))))}catch(e){}/* PYGAME_V1737 也收拼音遊戲、打地鼠 */
+  TASKS=ts.map(t=>({id:t.id,title:t.title,items:t.kind==='game'?String(t.items||'').split('\n').map(x=>x.split(/[=＝]/)[0].trim()).filter(Boolean).join('\n'):t.items,guest:true,gk:t.kind==='game'?t.game:'',zy:!!t.zy,imgs:t.imgs||null,qs:t.qs||null}));CUSTOM=[];COURSE=[];
   me.guest={name:nm,dev:guestDev(),cls:code,owner:c.owner_uid,cname:c.name};me.guest.scr=((c.scripts||{})[code+'_'+me.guest.dev])||c.script_default||'';/* SCRSTU_V1742 老師幫每位學生選拼音或注音 */me.student=null;me.teacher=false;
   try{me.rec=Object.assign(emptyRec(),JSON.parse(localStorage.getItem('qna-pinyin-cls-'+code)||'null')||{})}catch(e){me.rec=emptyRec()}
   document.body.classList.add('is-guest');
@@ -732,7 +732,7 @@ async function classBoot(code){
   $('#tabs').hidden=true;document.querySelectorAll('.tab[data-teacher]').forEach(b=>b.hidden=true);/* CLSONLY_V1742 */
   const q=new URLSearchParams(location.search).get('task');if(q&&TASKS.some(t=>t.id===q))st.level='task:'+q;
   window.PYCLS={done:(key,score,miss,hit)=>saveClassGame(key,score,miss,hit)};
-  const tk=TASKS.find(t=>t.id===q);if(tk&&tk.gk){st.game=(tk.gk==='mole'||tk.gk==='wmole'||tk.gk==='pic')?tk.gk:'';const goG=()=>{if(window.PYGAMES){showTab('game');return true}return false};if(!goG()){let n=0;const iv=setInterval(()=>{if(goG()||++n>60)clearInterval(iv)},150)}return}
+  const tk=TASKS.find(t=>t.id===q);if(tk&&tk.gk){st.game=(tk.gk==='mole'||tk.gk==='wmole'||tk.gk==='pic'||tk.gk==='kq')?tk.gk:'';const goG=()=>{if(window.PYGAMES){showTab('game');return true}return false};if(!goG()){let n=0;const iv=setInterval(()=>{if(goG()||++n>60)clearInterval(iv)},150)}return}
   showTab('practice');}
 async function saveClassGame(key,score,miss,hit){const code=me.guest.cls,lv=String(st.level||'');if(lv.indexOf('task:')!==0)return;const id=lv.slice(5),t=new Date().toISOString();
   let prog={};try{prog=JSON.parse(localStorage.getItem('qna_cls_prog_'+code)||'{}')||{}}catch(e){}
@@ -787,6 +787,6 @@ async function loadCustom(){try{const d=await firebase.firestore().collection('s
 })();
 })();
 </script>
-<script src="pinyin-games.js?v=1748"></script>
+<script src="pinyin-games.js?v=1749"></script>
 </body>
 </html>
