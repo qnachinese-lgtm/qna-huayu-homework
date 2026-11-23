@@ -1002,12 +1002,12 @@ function render(){
   $$('.panel').forEach(p=>p.classList.add('hide'));
   /* ROLE_V943 → TABFIX_V1192 權限檔下來要在「顯示那一頁」之前做，
      不然會先把擋下來的那一頁露出來（空白的），真正畫好的却是被藏起來的總覽。 */
-  if(!IS_OWNER&&['ops','pay','agency','interview','writing','school','bizcal','oc','acct'].concat(myRole()==='teacher'?['reply']:[]).indexOf(S.tab)>=0)S.tab='dashboard';
+  if(!IS_OWNER&&['ops','pay','agency','interview','writing','school','bizcal','oc','acct','tteach'].concat(myRole()==='teacher'?['reply']:[]).indexOf(S.tab)>=0)S.tab='dashboard';
   try{permGuard();}catch(e){}/* ROLES_V1706 */
   /* TABFIX_V1192 舊的分頁名稱被拿掉的話，這一行會整個爆掉，畫面會全白。找不到就回總覽。 */
   if(!$('#panel-'+S.tab))S.tab='dashboard';
   $('#panel-'+S.tab).classList.remove('hide');
-  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,bizcal:renderBizCal,oc:renderOC,acct:renderAcct,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,give:renderGive,guide:renderGuide,hanzi:renderHanzi,lib:renderLib/* LIB_V1412 */,msgs:renderMsgs/* TEAMNOTE_V1700 */}[S.tab])();}/* GIVE_V1312 */
+  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,bizcal:renderBizCal,oc:renderOC,acct:renderAcct,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,give:renderGive,guide:renderGuide,hanzi:renderHanzi,lib:renderLib/* LIB_V1412 */,msgs:renderMsgs/* TEAMNOTE_V1700 */,tteach:renderTTeach/* TDPAGE_V1738 */}[S.tab])();}/* GIVE_V1312 */
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
   /* NAVMERGE_V1317 一定要在畫完之後才插分頁列——畫面是整個 innerHTML 換掉的，
      先插會被蓋掉。 */
@@ -6883,7 +6883,7 @@ const TNAV=[
     {k:'qt',    act:'qtNew',      di:'',      t:'💰 開一張報價單', ow:1},
     {k:'mb',    act:'monthBills', di:'',      t:'📨 月結單',   ow:1}
   ]},
-  {id:'__tteach',t:'🏫 合作老師',act:'tteachOpen',ow:1},/* TDNAV_V1735 Quinn：合作老師要一個獨立的按鈕 */
+  {id:'tteach',t:'🏫 合作老師',act:'tab',ow:1},/* TDPAGE_V1738 改成整頁，不再是視窗 *//* TDNAV_V1735 Quinn：合作老師要一個獨立的按鈕 */
   {id:'__settings',t:'⚙ 設定',act:'settingsCenter'}
 ];
 /* GIVESUB_V1366 子項目兩種寫法：
@@ -27327,7 +27327,7 @@ H.admRoleSave=async(email)=>{if(!isOwner())return;const v=(document.querySelecto
 /* ══════ ACTLOG_V1706 活動記錄 ══════
    Quinn：「幫我記錄瀏覽次數等資訊」「瀏覽次數的記錄是要全網都要的」「這邊的編輯記錄也要」。
    員工（不含你自己）每打開後台的一頁記一筆、改訊息追蹤記一筆。存在 actlog：員工只能新增，只有你看得到。 */
-const TAB_NAME={dashboard:'今日總覽',students:'學生',student:'學生檔案',class:'班級',calendar:'課表',lessons:'教材與課程',grades:'批改・成績',files:'課堂活動',hanzi:'漢字闖關',lib:'教材庫',give:'給學生的東西',msgs:'訊息追蹤',guide:'使用說明',oc:'線上課',acct:'帳號・使用'};
+const TAB_NAME={dashboard:'今日總覽',students:'學生',student:'學生檔案',class:'班級',calendar:'課表',lessons:'教材與課程',grades:'批改・成績',files:'課堂活動',hanzi:'漢字闖關',lib:'教材庫',give:'給學生的東西',msgs:'訊息追蹤',tteach:'合作老師',guide:'使用說明',oc:'線上課',acct:'帳號・使用'};
 function actLog(kind,tab,what,ref){if(IS_OWNER)return;const e=myEmailNow();if(!e)return;
   try{firebase.firestore().collection('actlog').add({by:e,name:(typeof tnMe==='function'?tnMe():e),kind,tab:tab||'',what:String(what||'').slice(0,200),ref:ref||'',t:new Date().toISOString()}).catch(()=>{});}catch(x){}}
 function actView(){if(IS_OWNER)return;const k=S.tab+'|'+(S.stuSel||S.sel||'');if(S._actLast===k)return;S._actLast=k;actLog('view',S.tab,TAB_NAME[S.tab]||S.tab,'');}
@@ -27520,11 +27520,14 @@ function tdStat(s,t){const r=(s.tasks||{})[t.id];if(!r)return '<td class="td-no"
   if(t.kind==='pinyin')return '<td class="'+(r.n&&r.ok===r.n?'td-ok':'')+'">'+(r.ok||0)+'/'+(r.n||0)+(r.times>1?' <small>做了 '+r.times+' 次</small>':'')+'<br><small>'+esc(tdAgo(r.at))+'</small></td>';
   if(t.kind==='game')return '<td class="td-ok">玩過 '+(r.times||1)+' 次'+(r.best!=null?'<br><small>最高 '+esc(String(r.best))+esc(r.unit||'')+'</small>':'')+'<br><small>'+esc(tdAgo(r.at))+'</small></td>';/* CGAME_V1736 */
   const st=Number(r.stars)||0;return '<td class="'+(st>=(t.min_stars||1)?'td-ok':'')+'">'+(st?'★'.repeat(Math.min(st,3)):'0 星')+'<br><small>'+esc(tdAgo(r.at))+'</small></td>';}
-H.tteachOpen=async(force)=>{if(!IS_OWNER)return toast('只有主管理員可以管理');
-  openModal('<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🏫 合作老師</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body" id="td-body"><div class="hint">讀取中…</div></div></div>');
-  await tdLoad(force===true||force==='1');TD.view=null;tdRender();};
+/* TDPAGE_V1738 Quinn：「希望是作出一整個頁面而不是視窗。這樣很難處理」——合作老師改成一般分頁 */
+H.tteachOpen=()=>{if(!IS_OWNER)return toast('只有主管理員可以管理');closeModal&&closeModal();H.tab('tteach');};
+function renderTTeach(){const p=document.getElementById('panel-tteach');if(!p)return;
+  if(!document.getElementById('td-body'))p.innerHTML='<div class="td-page"><div class="td-ph"><h2>🏫 合作老師</h2><p>老師自己註冊的帳號、他們開的班級、出的題目，和每位學生的成績都在這裡。</p></div><div id="td-body"><div class="hint">讀取中…</div></div></div>';
+  if(TD.at&&TD.t.length){tdRender();}
+  tdLoad(false).then(tdRender).catch(()=>{});}
 H.tteachRefresh=async()=>{await tdLoad(true);tdRender();};
-H.tteachView=(uid)=>{TD.view=uid||null;tdRender();const b=document.getElementById('td-body');if(b)b.scrollTop=0;};
+H.tteachView=(uid)=>{TD.view=uid||null;tdRender();try{window.scrollTo(0,0);}catch(e){}};
 function tdRender(){const box=document.getElementById('td-body');if(!box)return;
   if(TD.err){box.innerHTML='<div class="hint">'+(/permission|insufficient/i.test(TD.err)?'Firebase 規則還沒發布，發布後這裡才看得到。':'讀不到：'+esc(TD.err))+'</div>';return;}
   box.innerHTML=TD.view?tdDetail(TD.view):tdList();}
@@ -27552,7 +27555,7 @@ function tdDetail(uid){const t=TD.t.find(x=>x.id===uid)||{};const cs=TD.c.filter
    +'<div class="td-sec"><h4>班級（'+cs.length+'）</h4>'+(cs.length?cs.map(tdClass).join(''):'<div class="hint">還沒有開班。</div>')+'</div>';}
 function tdClass(c){const ks=TD.k.filter(k=>k.class_code===c.id).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));const ss=TD.s.filter(x=>x.class_code===c.id).sort((a,b)=>String(a.name).localeCompare(String(b.name),'zh-Hant'));
   return '<details class="td-cls" open><summary><b>'+esc(c.name||'')+'</b><code>'+esc(c.id)+'</code><span>'+ks.length+' 份題目・'+ss.length+' 位學生・開班 '+esc(tdDate(c.created_at).slice(0,10))+'</span></summary>'
-   +'<div class="td-in"><h5>題目內容</h5>'+(ks.length?ks.map(k=>'<div class="td-task"><i>'+(k.kind==='pinyin'?'ā':k.kind==='game'?'🎮':'字')+'</i><div><b>'+esc(k.title||'')+'</b><small>'+(k.kind!=='hanzi'?(k.kind==='game'?'生詞遊戲（'+({flip:'翻牌配對',quiz:'快問快答',bingo:'生詞賓果',fw:'大富翁'}[k.game]||k.game)+'）':'拼音練習')+'・'+String(k.items||'').split('\n').filter(x=>x.trim()).length+' 個詞':'漢字闖關・'+esc(tdHz(k.fam))+'・'+(TD_DIFF[k.diff]||'')+'・至少 '+(k.min_stars||1)+' 星')+'・'+esc(tdDate(k.created_at))+' 出的</small>'
+   +'<div class="td-in"><h5>題目內容</h5>'+(ks.length?ks.map(k=>'<div class="td-task"><i>'+(k.kind==='pinyin'?'ā':k.kind==='game'?'🎮':'字')+'</i><div><b>'+esc(k.title||'')+'</b><small>'+(k.kind!=='hanzi'?(k.kind==='game'?'生詞遊戲（'+({flip:'翻牌配對',quiz:'快問快答',bingo:'生詞賓果',fw:'大富翁',mole:'聲調打地鼠',pinyin:'拼音遊戲'}[k.game]||k.game)+'）':'拼音練習')+'・'+String(k.items||'').split('\n').filter(x=>x.trim()).length+' 個詞':'漢字闖關・'+esc(tdHz(k.fam))+'・'+(TD_DIFF[k.diff]||'')+'・至少 '+(k.min_stars||1)+' 星')+'・'+esc(tdDate(k.created_at))+' 出的</small>'
        +(k.kind!=='hanzi'?'<div class="td-words">'+String(k.items||'').split('\n').filter(x=>x.trim()).map(w=>'<span>'+esc(w)+'</span>').join('')+'</div>':'')+'</div></div>').join(''):'<div class="hint">還沒有出題。</div>')
    +'<h5>學生成績</h5>'+(ss.length?'<div class="td-tbl"><table><thead><tr><th>學生</th><th>加入</th><th>最後練習</th>'+ks.map(k=>'<th title="'+esc(k.title)+'">'+(k.kind==='pinyin'?'ā ':k.kind==='game'?'🎮 ':'字 ')+esc(String(k.title||'').slice(0,10))+'</th>').join('')+'</tr></thead><tbody>'
        +ss.map(x=>'<tr><td><b>'+esc(x.name||'')+'</b></td><td>'+esc(tdDate(x.joined_at).slice(0,10))+'</td><td>'+esc(tdAgo(x.last_at))+'</td>'+ks.map(k=>tdStat(x,k)).join('')+'</tr>').join('')+'</tbody></table></div>':'<div class="hint">還沒有學生加入。</div>')

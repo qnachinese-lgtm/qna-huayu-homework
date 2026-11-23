@@ -42,12 +42,18 @@ function css(){
   + '.gmid .big small{font-size:22px;color:var(--muted)}'
   + '.tbar{height:6px;border-radius:6px;background:var(--surface-2);overflow:hidden}.tbar i{display:block;height:100%;background:var(--primary);transition:width .1s linear}'
   /* 打地鼠 */
-  + '.holes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:460px;width:100%;margin:0 auto}'
-  + '.hole{aspect-ratio:1.25;border-radius:50% 50% 18px 18px;background:var(--surface-2);border:2px solid var(--line);position:relative;overflow:hidden}'
-  + '.mole{position:absolute;left:10%;right:10%;bottom:-100%;height:86%;border-radius:46% 46% 12px 12px;background:var(--primary);color:var(--on-primary);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:bottom .18s ease-out}'
-  + '.hole.up .mole{bottom:4%}'
-  + '.mole b{font-family:var(--kai);font-size:clamp(28px,7vw,40px);line-height:1;font-weight:400}.mole small{font-family:var(--latin);font-size:16px;opacity:.9}'
-  + '.hole.ok .mole{background:var(--good)}.hole.no .mole{background:var(--bad)}'
+  /* MOLEFIELD_V1738 Quinn 的農場背景＋地鼠圖，6 格／9 格 */
+  + '.field{position:relative;width:100%;max-width:680px;margin:0 auto;aspect-ratio:1400/788;background:#B9D27A center/100% 100% no-repeat;border-radius:16px;overflow:hidden;container-type:inline-size;box-shadow:0 2px 10px rgba(0,0,0,.08)}'
+  + '.field.f9{background-image:url(field9.webp)}.field.f6{background-image:url(field6.webp)}'
+  + '.hole{position:absolute;overflow:hidden;pointer-events:none}'
+  + '.mole{position:absolute;left:0;right:0;bottom:0;height:100%;background:url(mole.webp) center bottom/contain no-repeat;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 14% 7.5%;box-sizing:border-box;transform:translateY(102%);transition:transform .2s ease,filter .15s}'
+  + '.hole.up .mole{transform:translateY(0)}'
+  + '.mole b{font-family:var(--kai);font-size:var(--fz,3.4cqw);line-height:1.05;font-weight:400;color:#2A1E17}.mole small{font-family:var(--latin);font-size:calc(var(--fz,3.4cqw)*.5);color:#6B5040;margin-top:.2em}'
+  + '.hole.ok .mole{filter:drop-shadow(0 0 1.2cqw #2E9B5F) brightness(1.05)}.hole.no .mole{filter:drop-shadow(0 0 1.2cqw #C03A3A) grayscale(.3)}'
+  + '.mpick{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}'
+  + '.mpick button{width:min(220px,42vw);border:2px solid var(--line);border-radius:14px;background:var(--surface);padding:6px 6px 10px;cursor:pointer;font:inherit;color:var(--ink)}'
+  + '.mpick button img{display:block;width:100%;border-radius:9px;margin-bottom:6px}.mpick button b{font-size:17px}.mpick button span{display:block;font-size:12px;color:var(--muted)}'
+  + '.mpick button.on{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 25%,transparent)}'
   + '.tones{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}'
   + '.tones button{width:min(64px,16vw);height:56px;border:2px solid var(--line);border-radius:14px;background:var(--surface);font-family:var(--latin);font-size:28px;line-height:1;cursor:pointer;color:var(--ink)}'
   + '.tones button small{display:block;font-family:var(--ui);font-size:11px;color:var(--muted);margin-top:2px}'
@@ -104,6 +110,7 @@ function wire(){ var b = stage().querySelector('[data-g="home"]'); if (b) b.oncl
 function note(t){ var n = $('#saveNote'); if (n) n.textContent = t; }
 async function save(key, score, miss, hit){
   var me = A.me;
+  if (me.guest && me.guest.cls && window.PYCLS){ try { await window.PYCLS.done(key, score); } catch(x){} return; } /* PYGAME_V1737 老師教室的學生：成績存到班級 */
   if (!me.student || !me.uid || !window.DB || DB.mode !== 'firebase'){ note(me.teacher ? '老師帳號試玩，不存成績' : ''); return; }
   var rec = me.rec || A.emptyRec(); rec.wrong = rec.wrong || {}; rec.gbest = rec.gbest || {};
   rec.gbest[key] = Math.max(rec.gbest[key] || 0, score); rec.game_n = (rec.game_n || 0) + 1;
@@ -168,15 +175,33 @@ function moleItems(){
   });
   return out;
 }
+var MOLE_LAYOUT = {
+  /* 洞口中心位置（%，量自 Quinn 的背景圖）；w 是地鼠寬度（% 畫面寬） */
+  9: {fz:'3.0cqw', h:[[21.8,50.6,15],[49.6,50.6,15],[77.4,50.6,15],[21.6,63.7,15.6],[49.6,63.7,15.6],[77.5,63.7,15.6],[20.9,77.6,17],[49.4,77.6,17],[78.4,77.6,17]]},
+  6: {fz:'3.5cqw', h:[[21.8,50.6,17],[49.6,50.6,17],[77.4,50.6,17],[20.9,77.6,19],[49.6,77.6,19],[78.4,77.6,19]]}
+};
+function moleN(){ try { var n = localStorage.getItem('qna_mole_n'); return n === '6' ? 6 : 9; } catch(_){ return 9; } }
 function mole(){
   var items = moleItems();
   if (items.length < 3) return empty();
-  intro('聲調打地鼠', '地鼠頭上有一個字和它的拼音（沒有聲調）。在地鼠躲回去之前，按下正確的聲調。也可以用鍵盤的 1、2、3、4、5（5 是輕聲）。一共 60 秒。', function(){ moleRun(items); });
+  var n = moleN();
+  stage().innerHTML = bar('聲調打地鼠', best(curKey()) ? '<span>最高分 <b>' + best(curKey()) + '</b></span>' : '')
+    + '<div class="gmid" style="margin:auto"><p style="margin:0;max-width:30em">地鼠捧著白板，上面有一個字和它的拼音（沒有聲調）。在地鼠躲回去之前，按下正確的聲調。也可以用鍵盤的 1、2、3、4、5（5 是輕聲）。一共 60 秒。</p>'
+    + '<p style="margin:0;font-weight:600">選一種場地 · Choose a field</p>'
+    + '<div class="mpick">' + [6, 9].map(function(k){ return '<button type="button" data-n="' + k + '" class="' + (k === n ? 'on' : '') + '"><img src="field' + k + '.webp" alt=""><b>' + k + ' 個洞</b><span>' + (k === 6 ? '比較簡單 · Easier' : '比較難 · Harder') + '</span></button>'; }).join('') + '</div>'
+    + '<button class="btn primary" type="button" id="gstart2">開始</button></div>';
+  wire();
+  stage().querySelectorAll('.mpick button').forEach(function(b){ b.onclick = function(){
+    n = +b.getAttribute('data-n'); try { localStorage.setItem('qna_mole_n', String(n)); } catch(_){}
+    stage().querySelectorAll('.mpick button').forEach(function(x){ x.classList.toggle('on', x === b); });
+  }; });
+  $('#gstart2').onclick = function(){ moleRun(items, n); };
 }
-function moleRun(items){
+function moleRun(items, n){
+  var L = MOLE_LAYOUT[n === 6 ? 6 : 9];
   var G = {score:0, combo:0, hits:0, miss:[], hit:[], left:60, act:null, next:Date.now() + 600, bag:[]};
   stage().innerHTML = bar('聲調打地鼠', '<span>時間 <b id="mt">60</b></span><span>分數 <b id="ms">0</b></span>')
-    + '<div class="holes">' + [0,1,2,3,4,5,6,7,8].map(function(i){ return '<div class="hole" data-i="' + i + '"><div class="mole"><b></b><small></small></div></div>'; }).join('') + '</div>'
+    + '<div class="field f' + L.h.length + '" style="--fz:' + L.fz + '">' + L.h.map(function(p, i){ var w = p[2], hh = w * 0.79 * 1.0; return '<div class="hole" data-i="' + i + '" style="left:' + (p[0] - w / 2) + '%;width:' + w + '%;height:' + hh + 'cqw;top:calc(' + p[1] + '% - ' + hh + 'cqw);z-index:' + (i + 1) + '"><div class="mole"><b></b><small></small></div></div>'; }).join('') + '</div>'
     + '<div class="gfb center" id="mf"></div>'
     + '<div class="tones">' + TB.map(function(t, i){ return '<button type="button" data-t="' + (i + 1) + '" class="' + (i === 4 ? 'q' : '') + '" aria-label="' + TN[i] + '">' + t + '<small>' + (i + 1) + '</small></button>'; }).join('') + '</div>';
   wire();
