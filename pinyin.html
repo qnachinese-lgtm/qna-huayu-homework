@@ -164,7 +164,7 @@ body.gg-on .top{display:none}
 .gg-acc:hover{background:#F5F8FD}
 html.dark .gg{background:#1C2838;color:#E8EFF7}html.dark body.gg-on{background:#16202E}
 /* GUESTBAR_V1721 訪客：上面一條品牌列 */
-.gbar{position:sticky;top:0;z-index:5;height:60px;background:rgba(255,255,255,.92);backdrop-filter:blur(6px);border-bottom:1px solid #DCE4EF;display:flex;align-items:center;justify-content:space-between;padding:0 max(20px,calc((100vw - 1100px)/2));font-family:"Noto Serif TC","Songti TC",PMingLiU,serif}
+header.gbar{position:sticky;top:0;z-index:5;height:60px;background:rgba(255,255,255,.92);backdrop-filter:blur(6px);border-bottom:1px solid #DCE4EF;display:flex;align-items:center;justify-content:space-between;padding:0 max(20px,calc((100vw - 1100px)/2));font-family:"Noto Serif TC","Songti TC",PMingLiU,serif}
 .gb-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)}
 .gb-l{width:34px;height:34px;border-radius:9px;background:var(--primary);color:#fff;font-weight:700;font-size:18px;line-height:34px;text-align:center}
 .gb-brand b{font-size:17px;letter-spacing:1px}
@@ -300,11 +300,11 @@ const plainAnswer=it=>pyAnswerHTML(it).replace(/<[^>]+>/g,'');
 /* ZHUYIN_V1741 Quinn：「除了拼音練習，我也希望有注音符號練習」——同一頁切成注音：答案、遊戲都改用注音，作答用畫面上的注音鍵盤（zhuyin.js） */
 let ZYPREF=false;try{ZYPREF=localStorage.getItem('qna-py-script')==='zy'||new URLSearchParams(location.search).get('zy')==='1'}catch(e){}
 function curTaskZy(){const lv=String(st.level||'');if(lv.indexOf('task:')!==0)return null;const t=taskOf(lv.slice(5));return t?!!t.zy:null}
-function isZY(){if(!window.ZY)return false;if(me.guest&&me.guest.cls)return !!curTaskZy();return ZYPREF}
+function isZY(){if(!window.ZY)return false;if(me.guest&&me.guest.cls){if(me.guest.scr==='zy')return true;if(me.guest.scr==='py')return false;return !!curTaskZy()}return ZYPREF}
 function zyAnswerHTML(it,wrong){return '<span class="zyans">'+it.syls.map((s,k)=>'<span'+(wrong&&wrong[k]?' class="bad"':'')+'>'+ZY.syl(s.base,s.tone)+'</span>').join('')+'</span>'}
 function answerHTML(it,wrong){return isZY()?zyAnswerHTML(it,wrong):pyAnswerHTML(it,wrong)}
 const zyPlain=it=>isZY()?it.syls.map(s=>ZY.syl(s.base,s.tone)).join(' '):plainAnswer(it);
-function syncZyUi(){const z=isZY();const h=document.querySelector('.top h1');if(h)h.textContent=z?'注音練習':'拼音練習';document.title=(z?'注音練習':'拼音練習')+'｜美娟華語工作室';
+function syncZyUi(){const z=isZY();const h=document.querySelector('.top h1');if(h){h.textContent=z?'注音練習':'拼音練習';if(me.guest&&me.guest.cls){const lv=String(st.level||'');const tk=lv.indexOf('task:')===0?taskOf(lv.slice(5)):null;if(tk&&tk.title)h.textContent=tk.title;}}document.title=(z?'注音練習':'拼音練習')+'｜美娟華語工作室';
   const sw=document.getElementById('scr');if(sw){sw.hidden=document.getElementById('tabs').hidden||!!(me.guest&&me.guest.cls)||!window.ZY;sw.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.s==='zy')===z)))}}
 function checkTyped(input,it){const st=parsePinyin(input),T=it.syls;
   if(!st.length)return null;
@@ -411,7 +411,7 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.rando
 function startRound(items){if(me.guest&&!items&&st.level==='none'){stage.innerHTML='<div class="gate"><p style="font-size:18px;font-weight:700;margin:0">老師還沒出題</p><p class="tip" style="margin:0">No practice yet. Please check back later.</p></div>';return}const isT=!items&&String(st.level).indexOf('task:')===0;st.queue=shuffle(items||pool()).slice(0,isT?60:10);st.i=0;st.res=[];renderPractice()}
 function renderLevels(){
   try{syncZyUi()}catch(e){}
-  const box=$('#levels');box.hidden=st.tab!=='practice'&&st.tab!=='game';
+  const box=$('#levels');box.hidden=(st.tab!=='practice'&&st.tab!=='game')||!!(me.guest&&me.guest.cls);/* CLSONLY_V1742 班級學生只看到老師指派的這一份，不能自己換題目、換遊戲 */
   const tk=myTasks().filter(t=>!taskDone(t)),rv=reviewItems().length;
   const lv=me.guest?[].concat(myTasks().map(t=>['task:'+t.id,t.title,'task']),rv?[['review','複習錯題（'+rv+'）']]:[])/* GTASK_V1721 Quinn：免帳號只出老師出的題，不給全部題庫 */
     :[].concat(tk.map(t=>['task:'+t.id,'作業：'+t.title,'task']),COURSE.length?[['course','我的課本']]:[],rv?[['review','複習錯題（'+rv+'）']]:[],LEVELS.filter(([k])=>k!=='custom'||CUSTOM.length));
@@ -668,7 +668,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showTab(b.dataset.tab
 document.querySelectorAll('#scr button').forEach(b=>b.onclick=()=>{ZYPREF=b.dataset.s==='zy';try{localStorage.setItem('qna-py-script',ZYPREF?'zy':'py')}catch(e){}syncZyUi();if(st.tab==='game'){try{if(window.PYGAMES)PYGAMES.stop()}catch(e){}st.game='';renderGame()}else if(st.tab==='practice')startRound()});
 
 /* 給 pinyin-games.js 用的介面 */
-window.PYAPI={pool:()=>pool(),markSyl:(b,t)=>isZY()?ZY.syl(b,t):markSyl(b,t),bare:b=>isZY()?ZY.body(b):b,zy:()=>isZY(),plainAnswer,answerHTML,shuffle,esc,me,st,reviewUpdate,emptyRec,stage:()=>stage,renderFall,stopFall:stopGame};
+window.PYAPI={lockGame:()=>{if(!(me.guest&&me.guest.cls))return '';const lv=String(st.level||'');const t=lv.indexOf('task:')===0?TASKS.find(x=>x.id===lv.slice(5)):null;return t&&(t.gk==='mole'||t.gk==='wmole')?t.gk:''},pool:()=>pool(),markSyl:(b,t)=>isZY()?ZY.syl(b,t):markSyl(b,t),bare:b=>isZY()?ZY.body(b):b,zy:()=>isZY(),plainAnswer,answerHTML,shuffle,esc,me,st,reviewUpdate,emptyRec,stage:()=>stage,renderFall,stopFall:stopGame};
 
 /* GAMEOPEN_V1714 免帳號：填名字就能練。成績存在 guestplays（一台電腦一筆），老師後台看得到 */
 function guestGate(){
@@ -724,12 +724,12 @@ async function classBoot(code){
   if(!nm){location.href='room.html?c='+encodeURIComponent(code);return}
   let ts=[];try{const sn=await fs.collection('ttasks').where('class_code','==',code).get();ts=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(t=>t&&!t.deleted_at&&(t.kind==='pinyin'||(t.kind==='game'&&(t.game==='pinyin'||t.game==='mole'||t.game==='wmole'))))}catch(e){}/* PYGAME_V1737 也收拼音遊戲、打地鼠 */
   TASKS=ts.map(t=>({id:t.id,title:t.title,items:t.kind==='game'?String(t.items||'').split('\n').map(x=>x.split(/[=＝]/)[0].trim()).filter(Boolean).join('\n'):t.items,guest:true,gk:t.kind==='game'?t.game:'',zy:!!t.zy}));CUSTOM=[];COURSE=[];
-  me.guest={name:nm,dev:guestDev(),cls:code,owner:c.owner_uid,cname:c.name};me.student=null;me.teacher=false;
+  me.guest={name:nm,dev:guestDev(),cls:code,owner:c.owner_uid,cname:c.name};me.guest.scr=((c.scripts||{})[code+'_'+me.guest.dev])||c.script_default||'';/* SCRSTU_V1742 老師幫每位學生選拼音或注音 */me.student=null;me.teacher=false;
   try{me.rec=Object.assign(emptyRec(),JSON.parse(localStorage.getItem('qna-pinyin-cls-'+code)||'null')||{})}catch(e){me.rec=emptyRec()}
   document.body.classList.add('is-guest');
   if(!document.getElementById('gbar'))document.body.insertAdjacentHTML('afterbegin','<header class="gbar" id="gbar"><a class="gb-brand" href="play.html"><span class="gb-l">美</span><b>美娟華語工作室</b><span class="gb-e">QNA CHINESE</span></a><a class="gb-home" href="room.html?c='+encodeURIComponent(code)+'">← 回班級</a></header>');
   $('#who').textContent=nm+'・'+(c.name||code);
-  $('#tabs').hidden=false;document.querySelectorAll('.tab[data-teacher]').forEach(b=>b.hidden=true);
+  $('#tabs').hidden=true;document.querySelectorAll('.tab[data-teacher]').forEach(b=>b.hidden=true);/* CLSONLY_V1742 */
   const q=new URLSearchParams(location.search).get('task');if(q&&TASKS.some(t=>t.id===q))st.level='task:'+q;
   window.PYCLS={done:(key,score,miss,hit)=>saveClassGame(key,score,miss,hit)};
   const tk=TASKS.find(t=>t.id===q);if(tk&&tk.gk){st.game=(tk.gk==='mole'||tk.gk==='wmole')?tk.gk:'';const goG=()=>{if(window.PYGAMES){showTab('game');return true}return false};if(!goG()){let n=0;const iv=setInterval(()=>{if(goG()||++n>60)clearInterval(iv)},150)}return}
@@ -787,6 +787,6 @@ async function loadCustom(){try{const d=await firebase.firestore().collection('s
 })();
 })();
 </script>
-<script src="pinyin-games.js?v=1741"></script>
+<script src="pinyin-games.js?v=1742b"></script>
 </body>
 </html>

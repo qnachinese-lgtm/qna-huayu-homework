@@ -40,21 +40,22 @@ function css(){
   + '.gbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:15px;color:var(--muted)}'
   + '.gbar .sp{flex:1}.gbar b{font-family:var(--latin);font-size:22px;color:var(--ink)}'
   + '.gback{padding:4px 12px!important;font-size:14px!important}'
+  + '@media(max-width:560px){.gbar{gap:6px 8px;flex-wrap:nowrap;font-size:13px}.gbar>b{font-size:15px!important;white-space:nowrap}.gbar b{font-size:18px}.gbar span{white-space:nowrap}.gbar .gback{padding:3px 9px!important;font-size:13px!important;white-space:nowrap}}'
   + '.gmid{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}'
   + '.gmid .big{font-family:var(--latin);font-size:56px;line-height:1;color:var(--primary)}'
   + '.gmid .big small{font-size:22px;color:var(--muted)}'
   + '.tbar{height:6px;border-radius:6px;background:var(--surface-2);overflow:hidden}.tbar i{display:block;height:100%;background:var(--primary);transition:width .1s linear}'
   /* 打地鼠 */
   /* MOLEFIELD_V1738 Quinn 的農場背景＋地鼠圖，6 格／9 格 */
-  + '.field{position:relative;width:100%;max-width:680px;margin:0 auto;aspect-ratio:1400/788;background:#B9D27A center/100% 100% no-repeat;border-radius:16px;overflow:hidden;container-type:inline-size;box-shadow:0 2px 10px rgba(0,0,0,.08)}'
+  + '.field{position:relative;width:100%;max-width:680px;margin:0 auto;height:56vw;max-height:383px;background:#B9D27A center/100% 100% no-repeat;border-radius:16px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.08)}'
   + '.field.f9{background-image:url(field9.webp)}.field.f6{background-image:url(field6.webp)}'
   + '.hole{position:absolute;overflow:hidden;pointer-events:none}'
   + '.mole{position:absolute;left:0;right:0;bottom:0;height:100%;background:url(mole.webp) center bottom/contain no-repeat;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 14% 7.5%;box-sizing:border-box;transform:translateY(102%);transition:transform .2s ease,filter .15s}'
   + '.hole.up .mole{transform:translateY(0)}'
-  + '.mole b{font-family:var(--kai);font-size:var(--fz,3.4cqw);line-height:1.05;font-weight:400;color:#2A1E17}.mole small{font-family:var(--latin);font-size:calc(var(--fz,3.4cqw)*.5);color:#6B5040;margin-top:.2em}'
-  + '.hole.ok .mole{filter:drop-shadow(0 0 1.2cqw #2E9B5F) brightness(1.05)}.hole.no .mole{filter:drop-shadow(0 0 1.2cqw #C03A3A) grayscale(.3)}'
+  + '.mole b{font-family:var(--kai);font-size:var(--fz,20px);line-height:1.05;font-weight:400;color:#2A1E17}.mole small{font-family:var(--latin);font-size:calc(var(--fz,20px)*.5);color:#6B5040;margin-top:.2em}'
+  + '.hole.ok .mole{filter:drop-shadow(0 0 8px #2E9B5F) brightness(1.05)}.hole.no .mole{filter:drop-shadow(0 0 8px #C03A3A) grayscale(.3)}'
   + '.field.wm .hole{pointer-events:auto}.field.wm .hole.up .mole{cursor:pointer}'
-  + '.mole b.l3{font-size:calc(var(--fz,3.4cqw)*.8)}.mole b.l4{font-size:calc(var(--fz,3.4cqw)*.64)}'
+  + '.mole b.l3{font-size:calc(var(--fz,20px)*.8)}.mole b.l4{font-size:calc(var(--fz,20px)*.64)}'
   + '.wmq{display:flex;align-items:center;justify-content:center;gap:12px;margin:2px 0 10px;min-height:52px}'
   + '.wmq .py{font-family:var(--latin);font-size:clamp(26px,5vw,36px);color:var(--primary);line-height:1}'
   + '.wmq button{border:1.5px solid var(--line);background:var(--surface);border-radius:999px;width:42px;height:42px;font-size:19px;cursor:pointer}'
@@ -111,9 +112,10 @@ function words(max){
   A.pool().forEach(function(it){ if (!it || it.sent || seen[it.h] || it.syls.length > (max || 4)) return; seen[it.h] = 1; out.push(it); });
   return out;
 }
+function locked(){ return (A.lockGame && A.lockGame()) || ''; }/* CLSONLY_V1742 老師指定的遊戲：不能換別的 */
 function bar(title, right){
   title = zt(title);
-  return '<div class="gbar"><button class="btn gback" type="button" data-g="home">← 換遊戲</button><b style="font-family:var(--ui);font-size:17px">' + e(title) + '</b><span class="sp"></span>' + (right || '') + '</div>';
+  return '<div class="gbar">' + (locked() ? '' : '<button class="btn gback" type="button" data-g="home">← 換遊戲</button>') + '<b style="font-family:var(--ui);font-size:17px">' + e(title) + '</b><span class="sp"></span>' + (right || '') + '</div>';
 }
 function empty(msg){ stage().innerHTML = bar('') + '<p class="tip center" style="margin:auto">' + e(msg || '這裡的題目不夠玩這個遊戲，換一個題目再試試。') + '</p>'; wire(); }
 function wire(){ var b = stage().querySelector('[data-g="home"]'); if (b) b.onclick = function(){ stop(); try { A.stopFall(); } catch(x){} home(); }; }
@@ -157,6 +159,7 @@ function curKey(){ return A.st.game || ''; }
 /* ---------- 選遊戲 ---------- */
 function home(){
   stop(); css(); A.st.game = '';
+  if (locked()){ A.st.game = locked(); return render(); }
   $('#cheat').hidden = true;
   stage().innerHTML = '<p class="tip" style="margin:0">選一個遊戲。題目用上面選的那一組。</p><div class="gpick">'
     + GAMES.filter(function(g){ return !zy() || (g.k !== 'fall' && g.k !== 'puzzle'); }).map(function(g){ var b = best(g.k); return '<button type="button" class="gcard" data-k="' + g.k + '"><span class="gi">' + e(zy() && g.ic === 'ˇ' ? 'ˇ' : g.ic) + '</span><b>' + e(zt(g.n)) + '</b><span>' + e(zt(g.d)) + '</span>' + (b ? '<em>最高分 ' + b + '</em>' : '') + '</button>'; }).join('')
@@ -223,8 +226,25 @@ function fieldWire(set){
 }
 function fieldHtml(n, extra){
   var L = MOLE_LAYOUT[n === 6 ? 6 : 9];
-  return '<div class="field f' + L.h.length + (extra ? ' ' + extra : '') + '" style="--fz:' + L.fz + '">' + L.h.map(function(p, i){ var w = p[2], hh = w * 0.79; return '<div class="hole" data-i="' + i + '" style="left:' + (p[0] - w / 2) + '%;width:' + w + '%;height:' + hh + 'cqw;top:calc(' + p[1] + '% - ' + hh + 'cqw);z-index:' + (i + 1) + '"><div class="mole"><b></b><small></small></div></div>'; }).join('') + '</div>';
+  return '<div class="field f' + L.h.length + (extra ? ' ' + extra : '') + '" data-n="' + L.h.length + '">' + L.h.map(function(p, i){ return '<div class="hole" data-i="' + i + '" style="z-index:' + (i + 1) + '"><div class="mole"><b></b><small></small></div></div>'; }).join('') + '</div>';
 }
+/* MOLEFIT_V1742 Quinn：「手機版又太醜了」——不用 aspect-ratio／cqw（iPhone 上會被撐成直的），改成用 JS 量寬度、算位置。
+   手機上把背景左右各裁掉一點、地鼠放大，洞和字才不會太小。 */
+function fieldFit(){
+  var f = stage().querySelector('.field'); if (!f) return;
+  var L = MOLE_LAYOUT[+f.getAttribute('data-n') === 6 ? 6 : 9];
+  var W = f.clientWidth; if (!W) return;
+  var narrow = W < 560, c = narrow ? 9 : 0, vis = 1 - c * 2 / 100;     /* 左右各裁 c% */
+  var big = narrow ? (L.h.length === 6 ? 1.3 : 1.18) : 1;
+  var H = W * (788 / 1400) / vis; f.style.height = H + 'px';
+  f.style.backgroundSize = (100 / vis) + '% 100%'; f.style.backgroundPosition = '50% 50%';
+  var fz = parseFloat(L.fz) * big / vis; f.style.setProperty('--fz', (W * fz / 100) + 'px');
+  f.querySelectorAll('.hole').forEach(function(h, i){
+    var p = L.h[i], w = p[2] * big / vis, x = (p[0] - c) / vis, hh = W * w / 100 * 0.79;
+    h.style.width = w + '%'; h.style.left = (x - w / 2) + '%'; h.style.height = hh + 'px'; h.style.top = (H * p[1] / 100 - hh) + 'px';
+  });
+}
+window.addEventListener('resize', function(){ try { fieldFit(); } catch(_){} });
 function say(t){ try { var u = new SpeechSynthesisUtterance(t); u.lang = 'zh-TW'; u.rate = .85; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch(_){} }
 function wmole(){
   var ws = words(4);
@@ -242,14 +262,18 @@ function wmoleRun(ws, n){
   stage().innerHTML = bar('詞語打地鼠', '<span>時間 <b id="mt">60</b></span><span>分數 <b id="ms">0</b></span>')
     + '<div class="wmq"><span class="py" id="wq">　</span><button type="button" id="wsay" aria-label="聽">🔊</button></div>'
     + fieldHtml(n, 'wm') + '<div class="gfb center" id="mf"></div>';
-  wire();
+  wire(); fieldFit();
   var holes = stage().querySelectorAll('.hole'), t0 = Date.now();
   function fb(html){ var f = $('#mf'); if (f) f.innerHTML = html; }
   function pick(){ if (!G.bag.length) G.bag = A.shuffle(ws.slice()); return G.bag.pop(); }
   function down(after){ holes.forEach(function(h){ h.classList.remove('up'); }); later(function(){ holes.forEach(function(h){ h.classList.remove('ok', 'no'); }); }, 260); G.round = null; G.next = Date.now() + (after || 500); }
   function spawn(){
     var ans = pick(), others = A.shuffle(ws.filter(function(w){ return w.h !== ans.h; })).slice(0, many - 1);
-    var set = A.shuffle([ans].concat(others)), spots = A.shuffle(Array.prototype.slice.call(holes)).slice(0, set.length);
+    var set = A.shuffle([ans].concat(others)), spots = [];
+    /* 同一直行上下相鄰的洞不要同時冒出來，免得地鼠疊在一起、字被擋住 */
+    A.shuffle(Array.prototype.slice.call(holes)).forEach(function(h){ if (spots.length >= set.length) return; var i = +h.getAttribute('data-i'), r = Math.floor(i / 3), c = i % 3;
+      if (spots.some(function(o){ var j = +o.getAttribute('data-i'); return j % 3 === c && Math.abs(Math.floor(j / 3) - r) === 1; })) return; spots.push(h); });
+    set = set.slice(0, spots.length); if (set.indexOf(ans) < 0) set[0] = ans;
     spots.forEach(function(h, i){ var w = set[i], b = h.querySelector('b'), L = Array.from(w.h).length;
       b.textContent = w.h; b.className = L >= 4 ? 'l4' : (L === 3 ? 'l3' : ''); h.querySelector('small').textContent = '';
       h.__w = w; h.classList.remove('ok', 'no'); h.classList.add('up'); });
@@ -281,10 +305,10 @@ function moleRun(items, n){
   var L = MOLE_LAYOUT[n === 6 ? 6 : 9];
   var G = {score:0, combo:0, hits:0, miss:[], hit:[], left:60, act:null, next:Date.now() + 600, bag:[]};
   stage().innerHTML = bar('聲調打地鼠', '<span>時間 <b id="mt">60</b></span><span>分數 <b id="ms">0</b></span>')
-    + '<div class="field f' + L.h.length + '" style="--fz:' + L.fz + '">' + L.h.map(function(p, i){ var w = p[2], hh = w * 0.79 * 1.0; return '<div class="hole" data-i="' + i + '" style="left:' + (p[0] - w / 2) + '%;width:' + w + '%;height:' + hh + 'cqw;top:calc(' + p[1] + '% - ' + hh + 'cqw);z-index:' + (i + 1) + '"><div class="mole"><b></b><small></small></div></div>'; }).join('') + '</div>'
+    + fieldHtml(n)
     + '<div class="gfb center" id="mf"></div>'
     + '<div class="tones">' + TB.map(function(t, i){ return '<button type="button" data-t="' + (i + 1) + '" class="' + (i === 4 ? 'q' : '') + '" aria-label="' + TN[i] + '">' + t + '<small>' + (i + 1) + '</small></button>'; }).join('') + '</div>';
-  wire();
+  wire(); fieldFit();
   var holes = stage().querySelectorAll('.hole'), t0 = Date.now();
   function pick(){ if (!G.bag.length) G.bag = A.shuffle(items); return G.bag.pop(); }
   function clear(h){ later(function(){ h.classList.remove('up', 'ok', 'no'); }, 380); }

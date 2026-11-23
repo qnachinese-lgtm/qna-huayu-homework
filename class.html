@@ -79,7 +79,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}
 th,td{padding:9px 10px;border-bottom:1px solid #EEF2F8;text-align:left;white-space:nowrap}
 th{font-size:12.5px;color:var(--mut);font-weight:700}
 td.ok{color:var(--ok);font-weight:700}td.no{color:#B4BFCE}
-.zyrow{margin-top:4px}.zyrow.hide{display:none}.kseg{display:flex;gap:6px;margin-bottom:12px}
+.scrbar{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;margin:0 0 10px;font-size:14px;color:#4A5B75}.scrbar .grow{flex:1}.scrseg{display:inline-flex;background:#EEF3FA;border-radius:999px;padding:3px;gap:2px}.scrseg button{border:0;background:none;border-radius:999px;padding:5px 12px;font:inherit;font-size:13.5px;color:#4A5B75;cursor:pointer;white-space:nowrap}.scrseg button.on{background:#fff;color:#1E4C86;font-weight:700;box-shadow:0 1px 3px rgba(20,40,80,.12)}.scrsum{font-size:12.5px;color:#7A8BA3;margin:0 0 10px}.zyrow{margin-top:4px}.zyrow.hide{display:none}.kseg{display:flex;gap:6px;margin-bottom:12px}
 .kseg button{flex:1;height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;font:inherit;font-size:14px;cursor:pointer;color:#4A5B75}
 .kseg button.on{border-color:var(--p);background:var(--ps);color:var(--p);font-weight:700}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -273,7 +273,7 @@ async function classView(code){bar();
    +'<div style="display:flex;flex-direction:column;gap:8px"><button class="btn sm pri" id="qrbig">📱 放大 QR Code</button><button class="btn sm" id="cp">複製連結</button></div></div>'
    +'<div class="cols"><div class="card"><h3>題目（'+S.tasks.length+'）</h3><div id="tl">'+(S.tasks.length?S.tasks.map(taskRow).join(''):'<p class="empty">還沒有題目，右邊出第一份。</p>')+'</div></div>'
    +'<div class="card"><h3>出一份新題目</h3>'+formHtml()+'</div></div>'
-   +'<div class="card sec"><h3>學生（'+S.studs.length+' 位）</h3>'+studHtml()+'</div>';
+   +'<div class="card sec"><h3>學生（'+S.studs.length+' 位）</h3><div id="studbox">'+studHtml()+'</div></div>';
   $('#cp').onclick=()=>navigator.clipboard.writeText(link).then(()=>{$('#cp').textContent='已複製';});
   /* QR_V1736 Quinn：「顯示 QR Code，學生可以立即掃描進去」 */
   try{new QRCode($('#qr'),{text:link,width:112,height:112,correctLevel:QRCode.CorrectLevel.M});}catch(e){$('#qr').remove();}
@@ -303,7 +303,7 @@ function formHtml(){return '<div class="kseg"><button data-k="pinyin" class="'+(
   +'<div id="zyrow" class="zyrow"><label class="l">學生用什麼作答</label><div class="kseg zyseg"><button type="button" data-z="0" class="'+(S.zy?'':'on')+'">ā 拼音</button><button type="button" data-z="1" class="'+(S.zy?'on':'')+'">ㄅ 注音符號</button></div><p class="gneed" id="zynote"></p></div>'
   +'<div class="msg" id="t-msg"></div><button class="btn pri" id="t-go">發給這個班</button></div>';}
 function wireForm(code){
-  const zyOk=()=>S.kind==='pinyin'||(S.kind==='game'&&['mole','wmole','pinyin'].includes(S.gk));
+  const zyOk=()=>false;/* SCRSTU_V1742 改成在學生名單上一位一位設定 */
   const zySync=()=>{const r=$('#zyrow');if(!r)return;r.classList.toggle('hide',!zyOk());$('#zynote').textContent=S.zy?'詞語還是打拼音，學生看到的會自動變成注音，用畫面上的注音鍵盤作答。':'';};
   app.querySelectorAll('.zyseg button').forEach(b=>b.onclick=()=>{S.zy=b.dataset.z==='1';app.querySelectorAll('.zyseg button').forEach(x=>x.classList.toggle('on',x===b));zySync();});
   setTimeout(zySync,0);
@@ -337,10 +337,27 @@ function stat(s,t){const r=(s.tasks||{})[t.id];if(!r)return '<td class="no">—<
   if(t.kind==='pinyin')return '<td class="'+(r.n&&r.ok===r.n?'ok':'')+'">'+(r.ok||0)+'/'+(r.n||0)+(r.times>1?' <small style="color:var(--mut)">×'+r.times+'</small>':'')+'</td>';
   if(t.kind==='game')return '<td class="ok">玩過 '+(r.times||1)+' 次'+(r.best!=null?'<br><small style="color:var(--mut)">最高 '+r.best+(r.unit||'')+'</small>':'')+'</td>';
   const st=Number(r.stars)||0;return '<td class="'+(st>=(t.min_stars||1)?'ok':'')+'">'+'★'.repeat(Math.min(st,3))+(st?'':'0')+'</td>';}
+/* SCRSTU_V1742 Quinn：「班級裡有的人學拼音，有的人學注音，老師可以選擇哪些學生用拼音、哪些用注音」
+   設定存在班級（tclasses.scripts：學生編號 → 'py'／'zy'；script_default：新加入的學生預設）。
+   學生那邊的拼音練習、拼音遊戲、打地鼠都照這個設定顯示拼音或注音。 */
+function scrOf(s){const m=(S.cur&&S.cur.scripts)||{};return m[s.id]||(S.cur&&S.cur.script_default)||'py';}
 function studHtml(){if(S.studErr)return '<p class="msg">讀不到學生：'+esc(S.studErr)+'</p>';
-  if(!S.studs.length)return '<p class="empty">還沒有學生加入。把上面的代碼或連結給學生。</p>';
-  return '<div class="tbl"><table><thead><tr><th>名字</th><th>最後上線</th>'+S.tasks.map(t=>'<th title="'+esc(t.title)+'">'+(t.kind==='pinyin'?'ā ':t.kind==='game'?'🎮 ':'字 ')+esc(t.title.length>10?t.title.slice(0,10)+'…':t.title)+'</th>').join('')+'<th></th></tr></thead><tbody>'
-   +S.studs.map(s=>'<tr><td><b>'+esc(s.name)+'</b></td><td>'+esc(ago(s.last_at||s.joined_at))+'</td>'+S.tasks.map(t=>stat(s,t)).join('')+'<td><button class="btn sm del" data-rs="'+esc(s.id)+'">移除</button></td></tr>').join('')+'</tbody></table></div>';}
+  const def=(S.cur&&S.cur.script_default)||'py';
+  const top='<div class="scrbar"><span>新加入的學生預設用</span><div class="scrseg" data-def="1"><button type="button" data-v="py" class="'+(def==='py'?'on':'')+'">ā 拼音</button><button type="button" data-v="zy" class="'+(def==='zy'?'on':'')+'">ㄅ 注音</button></div>'
+    +(S.studs.length?'<span class="grow"></span><button type="button" class="btn sm" data-all="py">全部改成拼音</button><button type="button" class="btn sm" data-all="zy">全部改成注音</button>':'')+'</div>';
+  if(!S.studs.length)return top+'<p class="empty">還沒有學生加入。把上面的代碼或連結給學生。</p>';
+  const nz=S.studs.filter(s=>scrOf(s)==='zy').length;
+  return top+'<p class="scrsum">拼音 '+(S.studs.length-nz)+' 位・注音 '+nz+' 位。拼音練習、拼音遊戲、打地鼠會照每位學生的設定出拼音或注音（翻牌、快問快答、賓果、大富翁是看漢字，不受影響）。</p>'
+   +'<div class="tbl"><table><thead><tr><th>名字</th><th>用什麼學</th><th>最後上線</th>'+S.tasks.map(t=>'<th title="'+esc(t.title)+'">'+(t.kind==='pinyin'?'ā ':t.kind==='game'?'🎮 ':'字 ')+esc(t.title.length>10?t.title.slice(0,10)+'…':t.title)+'</th>').join('')+'<th></th></tr></thead><tbody>'
+   +S.studs.map(s=>{const v=scrOf(s);return '<tr><td><b>'+esc(s.name)+'</b></td><td><div class="scrseg" data-sid="'+esc(s.id)+'"><button type="button" data-v="py" class="'+(v==='py'?'on':'')+'">拼音</button><button type="button" data-v="zy" class="'+(v==='zy'?'on':'')+'">注音</button></div></td><td>'+esc(ago(s.last_at||s.joined_at))+'</td>'+S.tasks.map(t=>stat(s,t)).join('')+'<td><button class="btn sm del" data-rs="'+esc(s.id)+'">移除</button></td></tr>';}).join('')+'</tbody></table></div>';}
+async function scrSave(patch,msg){const c=S.cur;if(!c)return;
+  try{await db.collection('tclasses').doc(c.id).update(patch);}catch(x){dlg({title:'存不進去',text:String(x&&x.message||x),ok:'知道了',noCancel:1});return}
+  if(patch.scripts)c.scripts=patch.scripts;if(patch.script_default)c.script_default=patch.script_default;
+  const box=document.getElementById('studbox');if(box)box.innerHTML=studHtml();}
+document.addEventListener('click',e=>{const t=e.target.closest&&e.target.closest('.scrseg button');if(t){const g=t.parentNode,v=t.dataset.v;
+    if(g.dataset.def){scrSave({script_default:v});return}
+    const m=Object.assign({},(S.cur&&S.cur.scripts)||{});m[g.dataset.sid]=v;scrSave({scripts:m});return}
+  const a=e.target.closest&&e.target.closest('[data-all]');if(a){const m={};S.studs.forEach(s=>m[s.id]=a.dataset.all);scrSave({scripts:m,script_default:a.dataset.all});}});
 document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('[data-rs]');if(!b)return;if(!await dlg({title:'移除這位學生？',text:'他在這個班的紀錄會一起刪掉。',ok:'移除',danger:1}))return;
   try{await db.collection('tstudents').doc(b.dataset.rs).delete();classView(S.cur.id);}catch(x){dlg({title:'移除失敗',text:String(x&&x.message||x),ok:'知道了',noCancel:1})}});
 
