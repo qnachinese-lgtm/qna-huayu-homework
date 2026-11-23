@@ -18,7 +18,10 @@ function stop(){
   T.to.forEach(clearTimeout); T.to = [];
   if (T.key){ document.removeEventListener('keydown', T.key); T.key = null; }
 }
+function zy(){ return !!(A.zy && A.zy()); }/* ZHUYIN_V1741 注音模式 */
+function zt(x){ return zy() ? String(x).replace(/拼音/g, '注音') : x; }
 function word(syls){
+  if (zy()) return syls.map(function(s){ return A.markSyl(s.base, s.tone); }).join(' ');
   return syls.map(function(s, j){ var t = A.markSyl(s.base, s.tone); return (j > 0 && /^[aoe]/.test(s.base)) ? "'" + t : t; }).join('');
 }
 var TB = ['ˉ', 'ˊ', 'ˇ', 'ˋ', '輕'];
@@ -109,6 +112,7 @@ function words(max){
   return out;
 }
 function bar(title, right){
+  title = zt(title);
   return '<div class="gbar"><button class="btn gback" type="button" data-g="home">← 換遊戲</button><b style="font-family:var(--ui);font-size:17px">' + e(title) + '</b><span class="sp"></span>' + (right || '') + '</div>';
 }
 function empty(msg){ stage().innerHTML = bar('') + '<p class="tip center" style="margin:auto">' + e(msg || '這裡的題目不夠玩這個遊戲，換一個題目再試試。') + '</p>'; wire(); }
@@ -143,6 +147,7 @@ function over(key, title, score, line, miss, hit){
   save(key, score, miss, hit);
 }
 function intro(title, text, go){
+  text = zt(text);
   stage().innerHTML = bar(title, best(curKey()) ? '<span>最高分 <b>' + best(curKey()) + '</b></span>' : '')
     + '<div class="gmid" style="margin:auto"><p style="margin:0;max-width:30em">' + e(text) + '</p><button class="btn primary" type="button" id="gstart2">開始</button></div>';
   wire(); $('#gstart2').onclick = go;
@@ -154,7 +159,7 @@ function home(){
   stop(); css(); A.st.game = '';
   $('#cheat').hidden = true;
   stage().innerHTML = '<p class="tip" style="margin:0">選一個遊戲。題目用上面選的那一組。</p><div class="gpick">'
-    + GAMES.map(function(g){ var b = best(g.k); return '<button type="button" class="gcard" data-k="' + g.k + '"><span class="gi">' + e(g.ic) + '</span><b>' + e(g.n) + '</b><span>' + e(g.d) + '</span>' + (b ? '<em>最高分 ' + b + '</em>' : '') + '</button>'; }).join('')
+    + GAMES.filter(function(g){ return !zy() || (g.k !== 'fall' && g.k !== 'puzzle'); }).map(function(g){ var b = best(g.k); return '<button type="button" class="gcard" data-k="' + g.k + '"><span class="gi">' + e(zy() && g.ic === 'ˇ' ? 'ˇ' : g.ic) + '</span><b>' + e(zt(g.n)) + '</b><span>' + e(zt(g.d)) + '</span>' + (b ? '<em>最高分 ' + b + '</em>' : '') + '</button>'; }).join('')
     + '</div>';
   stage().querySelectorAll('.gcard').forEach(function(c){ c.onclick = function(){ A.st.game = c.getAttribute('data-k'); render(); }; });
 }
@@ -287,7 +292,7 @@ function moleRun(items, n){
   function spawn(){
     var free = Array.prototype.filter.call(holes, function(h){ return !h.classList.contains('up'); });
     var h = free[Math.floor(Math.random() * free.length)], it = pick();
-    h.querySelector('b').textContent = it.c; h.querySelector('small').textContent = it.base;
+    h.querySelector('b').textContent = it.c; h.querySelector('small').textContent = A.bare ? A.bare(it.base) : it.base;
     h.classList.remove('ok', 'no'); h.classList.add('up');
     G.act = {h:h, it:it, until:Date.now() + Math.max(1300, 2900 - G.hits * 70)};
   }

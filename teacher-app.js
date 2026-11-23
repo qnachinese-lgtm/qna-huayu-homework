@@ -27532,8 +27532,8 @@ H.tteachView=(uid)=>{TD.view=uid||null;tdRender();try{window.scrollTo(0,0);}catc
    一層一層點進去：所有老師 › 老師 › 班級 › 題目／學生。每一層上面都有麵包屑可以回去。
    學生那一層：每份題目做了幾次、每一次的分數、錯了哪些詞；拼音練習還看得到每一題學生打了什麼。 */
 const TD_GN={flip:'翻牌配對',quiz:'快問快答',bingo:'生詞賓果',fw:'大富翁',mole:'聲調打地鼠',wmole:'詞語打地鼠',pinyin:'拼音遊戲'};
-function tdKindName(k){return k.kind==='pinyin'?'拼音練習':k.kind==='game'?'遊戲・'+(TD_GN[k.game]||k.game||''):'漢字闖關・'+tdHz(k.fam)+'・'+(TD_DIFF[k.diff]||'');}
-function tdIc(k){return k.kind==='pinyin'?'ā':k.kind==='game'?'🎮':'字';}
+function tdKindName(k){return k.kind==='pinyin'?(k.zy?'注音練習':'拼音練習'):k.kind==='game'?'遊戲・'+(TD_GN[k.game]||k.game||'')+(k.zy?'（注音）':''):'漢字闖關・'+tdHz(k.fam)+'・'+(TD_DIFF[k.diff]||'');}
+function tdIc(k){return k.zy?'ㄅ':k.kind==='pinyin'?'ā':k.kind==='game'?'🎮':'字';}
 function tdItems(k){return String(k.items||'').split('\n').map(x=>x.trim()).filter(Boolean).map(x=>{const m=x.split(/[=＝]/);const f=m[0].trim();const sp=f.search(/\s/);
   return {w:sp>0?f.slice(0,sp):f,p:sp>0?f.slice(sp+1).trim():'',m:(m[1]||'').trim()};});}
 function tdScore(r,k){if(!r)return '';if(k.kind==='pinyin')return (r.ok||0)+'/'+(r.n||0);if(k.kind==='game')return r.best!=null?String(r.best)+(r.unit||''):'玩過';const st=Number(r.stars)||0;return st?'★'.repeat(Math.min(st,3)):'0 星';}
@@ -27580,7 +27580,7 @@ function tdHistRows(r,k){const h=(r&&Array.isArray(r.hist))?r.hist.slice().rever
   return '<div class="td-tbl"><table><thead><tr><th>第幾次</th><th>時間</th><th>成績</th><th>錯的詞</th></tr></thead><tbody>'
    +h.map((x,i)=>'<tr><td>'+(h.length-i)+'</td><td>'+esc(tdDate(x.at))+'</td><td>'+(x.n!=null?(x.ok||0)+'/'+x.n+'（'+Math.round((x.ok||0)/(x.n||1)*100)+'%）':x.s!=null?esc(String(x.s))+esc(x.u||' 分')+(x.hits!=null?'・打中 '+x.hits:''):'—')+'</td><td class="tdx-wr">'+((x.wr||x.miss||[]).length?(x.wr||x.miss).map(w=>'<span>'+esc(w)+'</span>').join(''):'<span class="ok">全對</span>')+'</td></tr>').join('')+'</tbody></table></div>';}
 function tdLastRows(r){const l=(r&&Array.isArray(r.last))?r.last:[];if(!l.length)return '';
-  return '<h5>最近一次每一題的作答</h5><div class="td-tbl"><table><thead><tr><th>#</th><th>詞</th><th>正確拼音</th><th>學生打的</th><th>結果</th></tr></thead><tbody>'
+  return '<h5>最近一次每一題的作答</h5><div class="td-tbl"><table><thead><tr><th>#</th><th>詞</th><th>正確答案</th><th>學生打的</th><th>結果</th></tr></thead><tbody>'
    +l.map((x,i)=>'<tr class="'+(x.ok?'':'tdx-bad')+'"><td>'+(i+1)+'</td><td><b>'+esc(x.w||'')+'</b></td><td>'+esc(x.p||'')+'</td><td>'+(x.a?esc(x.a):'<span style="color:#8796AB">（按了看答案）</span>')+'</td><td>'+(x.ok?'<span class="tt-c ok">✓ 對</span>':'<span class="tt-c wait">✗ '+(x.k==='tone'?'聲調錯':'拼法錯')+'</span>')+'</td></tr>').join('')+'</tbody></table></div>';}
 function tdStuPage(id){const s=TD.s.find(x=>x.id===id);if(!s)return tdCrumb([['','所有老師'],['','找不到學生']]);const c=TD.c.find(x=>x.id===s.class_code)||{id:s.class_code,name:s.class_code};
   const ks=TD.k.filter(k=>k.class_code===s.class_code).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
