@@ -1614,6 +1614,7 @@ async function hzGuestOffer(){
     store.guest = { name:v, dev:hzGuestDev() }; store.me = null; store.uid = null;
     LSKEY = "hz-rec-guest"; rec = normRec(JSON.parse(ls.get(LSKEY) || "null"));
     hzUngate(); $("#loginNote").hidden = true;
+    try { const bl = document.querySelector('a.btn.small[href="student.html"]'); if (bl){ bl.href = "index.html"; bl.textContent = "回官網"; } } catch(e){} /* 訪客回官網 */
     const w = $("#who"); if (w) w.textContent = v + "（訪客）";
     renderLevel(); renderBadges(); renderMap(); C.loaded = true;
     loadCourse(null).then(() => { if (C.lessons.length) showCourseHome(); }).catch(() => {}); };
