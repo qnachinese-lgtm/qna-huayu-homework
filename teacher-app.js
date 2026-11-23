@@ -27500,28 +27500,63 @@ window.gmGrp=(k,gr)=>{document.querySelectorAll('#gm-list-'+k+' input').forEach(
 
 /* TCLASS_V1722 Quinn：「老師可以建立自己的帳號，出題給學生；學生加入班級」
    其他老師在 class.html 註冊 → 這裡批准 → 他們就能開班、出拼音／漢字題，學生用班級代碼＋名字加入。 */
-H.tteachOpen=async()=>{if(!IS_OWNER)return toast('只有主管理員可以管理');
-  const fs=firebase.firestore();let ts=[],cs=[],ss=[],err='';
-  try{ts=(await fs.collection('tteachers').get()).docs.map(d=>Object.assign({id:d.id},d.data()));}catch(e){err=String((e&&(e.code||e.message))||e);}
-  try{cs=(await fs.collection('tclasses').get()).docs.map(d=>Object.assign({id:d.id},d.data())).filter(c=>!c.deleted_at);}catch(e){}
-  try{ss=(await fs.collection('tstudents').get()).docs.map(d=>d.data());}catch(e){}
-  const ord={active:0,pending:0,approved:0,blocked:1,rejected:1};ts.sort((a,b)=>(ord[a.status]||0)-(ord[b.status]||0)||String(b.created_at).localeCompare(String(a.created_at)));
-  const off=st=>st==='blocked'||st==='rejected';/* TCLASS_V1723 註冊就能用，這裡可以隨時停用 */
-  const chip=st=>off(st)?'<span class="tt-c no">已停用</span>':'<span class="tt-c ok">使用中</span>';
-  const row=t=>{const my=cs.filter(c=>c.owner_uid===t.id);const n=ss.filter(x=>my.some(c=>c.id===x.class_code)).length;
-    return '<div class="tt-r"><div class="tt-m"><b>'+esc(t.name||'')+'</b>'+chip(t.status)+(t.email_verified?'<span class="tt-c ok">Email 已驗證</span>':'<span class="tt-c wait">Email 未驗證</span>')+'<small>'+esc(t.email||'')+(t.school?'・'+esc(t.school):'')+'</small>'
-      +'<small>'+my.length+' 個班級・'+n+' 位學生'+(my.length?'（'+my.map(c=>esc(c.name)+' '+esc(c.id)).join('、')+'）':'')+'</small></div>'
-      +'<div class="tt-a">'+(off(t.status)?'<button class="btn btn-sm btn-primary" data-act="tteachSet" data-id="'+esc(t.id)+'::active">恢復使用</button>'
-        :'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachSet" data-id="'+esc(t.id)+'::blocked">停用</button>')+'</div></div>';};
-  const link=location.origin+'/class.html';
-  openModal('<div class="modal" style="max-width:680px"><div class="modal-head"><h3>🏫 合作老師</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-    +'<div class="gm-main"><b>老師教室網址</b><small>老師註冊完就能開班、出拼音和漢字題，看自己學生的成績。您在這裡可以隨時「停用」某位老師，他就不能再登入使用。</small>'
-    +'<div class="gm-link"><code>'+esc(link)+'</code><button class="btn btn-sm" type="button" onclick="navigator.clipboard.writeText(\''+esc(link)+'\').then(()=>toast(\'已複製\'))">複製</button><a class="btn btn-sm btn-ghost" href="class.html" target="_blank" rel="noopener">打開</a></div></div>'
-    +(err?'<div class="hint" style="margin-top:12px">'+(/permission|insufficient/i.test(err)?'Firebase 規則還沒發布，發布後這裡才看得到。':'讀不到：'+esc(err))+'</div>'
-      :('<div class="tt-list">'+(ts.length?ts.map(row).join(''):'<div class="hint" style="padding:14px">還沒有老師註冊。</div>')+'</div>'))
-    +'</div><div class="modal-foot"><span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');};
+/* TDASH_V1734 Quinn：「後台要看得非常清楚：老師使用的資料、內容」
+   一頁看全部：總數 → 每位老師（註冊、驗證、最後登入、班級、題目、學生）→ 點進去看每個班的題目內容和每位學生的成績。 */
+const TD={t:[],c:[],k:[],s:[],view:null,at:0};
+async function tdLoad(force){if(!force&&Date.now()-TD.at<20000&&TD.t.length)return;const fs=firebase.firestore();TD.err='';
+  const get=async(col)=>(await fs.collection(col).get()).docs.map(d=>Object.assign({id:d.id},d.data()));
+  try{TD.t=await get('tteachers');}catch(e){TD.err=String((e&&(e.code||e.message))||e);}
+  try{TD.c=(await get('tclasses')).filter(c=>!c.deleted_at);}catch(e){TD.c=[];}
+  try{TD.k=(await get('ttasks')).filter(t=>!t.deleted_at);}catch(e){TD.k=[];}
+  try{TD.s=await get('tstudents');}catch(e){TD.s=[];}
+  TD.at=Date.now();}
+const tdOff=st=>st==='blocked'||st==='rejected';
+const tdDate=t=>t?String(t).replace('T',' ').slice(0,16):'—';
+const tdAgo=t=>t?(typeof tnAgo==='function'?tnAgo(t):tdDate(t)):'—';
+function tdHz(f){try{if(typeof HZ_NAME!=='undefined'&&HZ_NAME[f])return HZ_NAME[f];}catch(e){}return f;}
+const TD_DIFF={easy:'入門',normal:'進階',hard:'高手'};
+function tdStat(s,t){const r=(s.tasks||{})[t.id];if(!r)return '<td class="td-no">—</td>';
+  if(t.kind==='pinyin')return '<td class="'+(r.n&&r.ok===r.n?'td-ok':'')+'">'+(r.ok||0)+'/'+(r.n||0)+(r.times>1?' <small>做了 '+r.times+' 次</small>':'')+'<br><small>'+esc(tdAgo(r.at))+'</small></td>';
+  const st=Number(r.stars)||0;return '<td class="'+(st>=(t.min_stars||1)?'td-ok':'')+'">'+(st?'★'.repeat(Math.min(st,3)):'0 星')+'<br><small>'+esc(tdAgo(r.at))+'</small></td>';}
+H.tteachOpen=async(force)=>{if(!IS_OWNER)return toast('只有主管理員可以管理');
+  openModal('<div class="modal modal-wide modal-tall"><div class="modal-head"><h3>🏫 合作老師</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body" id="td-body"><div class="hint">讀取中…</div></div></div>');
+  await tdLoad(force===true||force==='1');TD.view=null;tdRender();};
+H.tteachRefresh=async()=>{await tdLoad(true);tdRender();};
+H.tteachView=(uid)=>{TD.view=uid||null;tdRender();const b=document.getElementById('td-body');if(b)b.scrollTop=0;};
+function tdRender(){const box=document.getElementById('td-body');if(!box)return;
+  if(TD.err){box.innerHTML='<div class="hint">'+(/permission|insufficient/i.test(TD.err)?'Firebase 規則還沒發布，發布後這裡才看得到。':'讀不到：'+esc(TD.err))+'</div>';return;}
+  box.innerHTML=TD.view?tdDetail(TD.view):tdList();}
+function tdList(){const link=location.origin+'/class.html';
+  const per=t=>{const cs=TD.c.filter(c=>c.owner_uid===t.id),codes=cs.map(c=>c.id);const ks=TD.k.filter(k=>codes.includes(k.class_code));const ss=TD.s.filter(x=>codes.includes(x.class_code));
+    const last=[t.last_at].concat(ss.map(x=>x.last_at)).filter(Boolean).sort().pop();return {cs,ks,ss,last};};
+  const ts=TD.t.slice().sort((a,b)=>(tdOff(a.status)-tdOff(b.status))||String(b.last_at||b.created_at||'').localeCompare(String(a.last_at||a.created_at||'')));
+  const wk=Date.now()-7*864e5;const act7=TD.s.filter(x=>Date.parse(x.last_at||'')>wk).length;
+  const tile=(n,l)=>'<div class="td-tile"><b>'+n+'</b><span>'+l+'</span></div>';
+  return '<div class="td-top"><div class="gm-link" style="flex:1"><span>老師註冊網址</span><code>'+esc(link)+'</code><button class="btn btn-sm" type="button" onclick="navigator.clipboard.writeText(\''+esc(link)+'\').then(()=>toast(\'已複製\'))">複製</button></div><button class="btn btn-sm btn-ghost" data-act="tteachRefresh">↻ 重新整理</button></div>'
+   +'<div class="td-tiles">'+tile(TD.t.length,'位老師（'+TD.t.filter(t=>!tdOff(t.status)).length+' 位使用中）')+tile(TD.c.length,'個班級')+tile(TD.k.length,'份題目')+tile(TD.s.length,'位學生')+tile(act7,'位學生 7 天內有練習')+'</div>'
+   +(ts.length?'<div class="td-tbl"><table><thead><tr><th>老師</th><th>狀態</th><th>註冊</th><th>最後登入</th><th>班級</th><th>題目</th><th>學生</th><th>最近有人練習</th><th></th></tr></thead><tbody>'
+     +ts.map(t=>{const x=per(t);return '<tr class="'+(tdOff(t.status)?'td-off':'')+'"><td><b>'+esc(t.name||'')+'</b><small>'+esc(t.email||'')+(t.school?'<br>'+esc(t.school):'')+'</small></td>'
+       +'<td>'+(tdOff(t.status)?'<span class="tt-c no">已停用</span>':'<span class="tt-c ok">使用中</span>')+'<br>'+(t.email_verified?'<span class="tt-c ok">Email 已驗證</span>':'<span class="tt-c wait">Email 未驗證</span>')+'</td>'
+       +'<td>'+esc(tdDate(t.created_at).slice(0,10))+'</td><td>'+esc(tdAgo(t.last_at))+'</td><td>'+x.cs.length+'</td><td>'+x.ks.length+'</td><td>'+x.ss.length+'</td><td>'+esc(tdAgo(x.ss.map(z=>z.last_at).filter(Boolean).sort().pop()))+'</td>'
+       +'<td class="td-act"><button class="btn btn-sm btn-primary" data-act="tteachView" data-id="'+esc(t.id)+'">查看 →</button>'
+       +(tdOff(t.status)?'<button class="btn btn-sm btn-ghost" data-act="tteachSet" data-id="'+esc(t.id)+'::active">恢復使用</button>':'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachSet" data-id="'+esc(t.id)+'::blocked">停用</button>')+'</td></tr>';}).join('')
+     +'</tbody></table></div>':'<div class="hint" style="padding:14px">還沒有老師註冊。</div>')
+   +(TD.c.some(c=>!TD.t.some(t=>t.id===c.owner_uid))?'<div class="td-sec"><h4>您自己開的班級</h4>'+TD.c.filter(c=>!TD.t.some(t=>t.id===c.owner_uid)).map(tdClass).join('')+'</div>':'');}
+function tdDetail(uid){const t=TD.t.find(x=>x.id===uid)||{};const cs=TD.c.filter(c=>c.owner_uid===uid).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+  return '<button class="btn btn-sm btn-ghost" data-act="tteachView" data-id="">← 所有老師</button>'
+   +'<div class="td-prof"><div><h3>'+esc(t.name||'')+' '+(tdOff(t.status)?'<span class="tt-c no">已停用</span>':'<span class="tt-c ok">使用中</span>')+(t.email_verified?'<span class="tt-c ok">Email 已驗證</span>':'<span class="tt-c wait">Email 未驗證</span>')+'</h3>'
+   +'<div class="td-kv"><span>Email</span><b>'+esc(t.email||'—')+'</b><span>學校／單位</span><b>'+esc(t.school||'—')+'</b><span>註冊時間</span><b>'+esc(tdDate(t.created_at))+'</b><span>最後登入</span><b>'+esc(tdDate(t.last_at))+'（'+esc(tdAgo(t.last_at))+'）</b></div></div>'
+   +'<div>'+(tdOff(t.status)?'<button class="btn btn-sm btn-primary" data-act="tteachSet" data-id="'+esc(uid)+'::active">恢復使用</button>':'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachSet" data-id="'+esc(uid)+'::blocked">停用這位老師</button>')+'</div></div>'
+   +'<div class="td-sec"><h4>班級（'+cs.length+'）</h4>'+(cs.length?cs.map(tdClass).join(''):'<div class="hint">還沒有開班。</div>')+'</div>';}
+function tdClass(c){const ks=TD.k.filter(k=>k.class_code===c.id).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));const ss=TD.s.filter(x=>x.class_code===c.id).sort((a,b)=>String(a.name).localeCompare(String(b.name),'zh-Hant'));
+  return '<details class="td-cls" open><summary><b>'+esc(c.name||'')+'</b><code>'+esc(c.id)+'</code><span>'+ks.length+' 份題目・'+ss.length+' 位學生・開班 '+esc(tdDate(c.created_at).slice(0,10))+'</span></summary>'
+   +'<div class="td-in"><h5>題目內容</h5>'+(ks.length?ks.map(k=>'<div class="td-task"><i>'+(k.kind==='pinyin'?'ā':'字')+'</i><div><b>'+esc(k.title||'')+'</b><small>'+(k.kind==='pinyin'?'拼音練習・'+String(k.items||'').split('\n').filter(x=>x.trim()).length+' 個詞':'漢字闖關・'+esc(tdHz(k.fam))+'・'+(TD_DIFF[k.diff]||'')+'・至少 '+(k.min_stars||1)+' 星')+'・'+esc(tdDate(k.created_at))+' 出的</small>'
+       +(k.kind==='pinyin'?'<div class="td-words">'+String(k.items||'').split('\n').filter(x=>x.trim()).map(w=>'<span>'+esc(w)+'</span>').join('')+'</div>':'')+'</div></div>').join(''):'<div class="hint">還沒有出題。</div>')
+   +'<h5>學生成績</h5>'+(ss.length?'<div class="td-tbl"><table><thead><tr><th>學生</th><th>加入</th><th>最後練習</th>'+ks.map(k=>'<th title="'+esc(k.title)+'">'+(k.kind==='pinyin'?'ā ':'字 ')+esc(String(k.title||'').slice(0,10))+'</th>').join('')+'</tr></thead><tbody>'
+       +ss.map(x=>'<tr><td><b>'+esc(x.name||'')+'</b></td><td>'+esc(tdDate(x.joined_at).slice(0,10))+'</td><td>'+esc(tdAgo(x.last_at))+'</td>'+ks.map(k=>tdStat(x,k)).join('')+'</tr>').join('')+'</tbody></table></div>':'<div class="hint">還沒有學生加入。</div>')
+   +'</div></details>';}
 H.tteachSet=async(v)=>{const i=String(v).lastIndexOf('::');const id=v.slice(0,i),st=v.slice(i+2);
-  try{await firebase.firestore().collection('tteachers').doc(id).update({status:st,reviewed_at:new Date().toISOString()});toast(st==='blocked'?'已停用':'已恢復使用');H.tteachOpen();}
+  try{await firebase.firestore().collection('tteachers').doc(id).update({status:st,reviewed_at:new Date().toISOString()});toast(st==='blocked'?'已停用':'已恢復使用');const t=TD.t.find(x=>x.id===id);if(t)t.status=st;tdRender();}
   catch(e){toast('存不進去：'+((e&&e.message)||e));}};
 
 /* QFOOT_V1728 練習入口、老師專區、班級頁最下面的「回報問題」：學生和老師直接在網頁裡填，存在 feedback */
