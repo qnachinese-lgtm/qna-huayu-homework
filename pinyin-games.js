@@ -50,6 +50,11 @@ function css(){
   + '.hole.up .mole{transform:translateY(0)}'
   + '.mole b{font-family:var(--kai);font-size:var(--fz,3.4cqw);line-height:1.05;font-weight:400;color:#2A1E17}.mole small{font-family:var(--latin);font-size:calc(var(--fz,3.4cqw)*.5);color:#6B5040;margin-top:.2em}'
   + '.hole.ok .mole{filter:drop-shadow(0 0 1.2cqw #2E9B5F) brightness(1.05)}.hole.no .mole{filter:drop-shadow(0 0 1.2cqw #C03A3A) grayscale(.3)}'
+  + '.field.wm .hole{pointer-events:auto}.field.wm .hole.up .mole{cursor:pointer}'
+  + '.mole b.l3{font-size:calc(var(--fz,3.4cqw)*.8)}.mole b.l4{font-size:calc(var(--fz,3.4cqw)*.64)}'
+  + '.wmq{display:flex;align-items:center;justify-content:center;gap:12px;margin:2px 0 10px;min-height:52px}'
+  + '.wmq .py{font-family:var(--latin);font-size:clamp(26px,5vw,36px);color:var(--primary);line-height:1}'
+  + '.wmq button{border:1.5px solid var(--line);background:var(--surface);border-radius:999px;width:42px;height:42px;font-size:19px;cursor:pointer}'
   + '.mpick{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}'
   + '.mpick button{width:min(220px,42vw);border:2px solid var(--line);border-radius:14px;background:var(--surface);padding:6px 6px 10px;cursor:pointer;font:inherit;color:var(--ink)}'
   + '.mpick button img{display:block;width:100%;border-radius:9px;margin-bottom:6px}.mpick button b{font-size:17px}.mpick button span{display:block;font-size:12px;color:var(--muted)}'
@@ -92,6 +97,7 @@ function css(){
 var GAMES = [
   {k:'fall',   ic:'↓',  n:'漢字往下掉',   d:'漢字掉到底之前，打出拼音和聲調'},
   {k:'mole',   ic:'ˇ',  n:'聲調打地鼠',   d:'地鼠冒出來，按對聲調把它打下去'},
+  {k:'wmole',  ic:'詞', n:'詞語打地鼠',   d:'看拼音，打中拿著正確詞語的地鼠'},/* WMOLE_V1739 */
   {k:'flip',   ic:'?',  n:'拼音配對翻牌', d:'翻兩張牌，把漢字和它的拼音配成一對'},
   {k:'quiz',   ic:'⚡', n:'拼音選擇搶答', d:'四個很像的拼音，越快選對分數越高'},
   {k:'puzzle', ic:'ü',  n:'拼音拼字拼圖', d:'把打亂的字母排回去，再選聲調'}
@@ -110,7 +116,7 @@ function wire(){ var b = stage().querySelector('[data-g="home"]'); if (b) b.oncl
 function note(t){ var n = $('#saveNote'); if (n) n.textContent = t; }
 async function save(key, score, miss, hit){
   var me = A.me;
-  if (me.guest && me.guest.cls && window.PYCLS){ try { await window.PYCLS.done(key, score); } catch(x){} return; } /* PYGAME_V1737 老師教室的學生：成績存到班級 */
+  if (me.guest && me.guest.cls && window.PYCLS){ try { await window.PYCLS.done(key, score, miss, hit); } catch(x){} return; } /* PYGAME_V1737 老師教室的學生：成績存到班級 */
   if (!me.student || !me.uid || !window.DB || DB.mode !== 'firebase'){ note(me.teacher ? '老師帳號試玩，不存成績' : ''); return; }
   var rec = me.rec || A.emptyRec(); rec.wrong = rec.wrong || {}; rec.gbest = rec.gbest || {};
   rec.gbest[key] = Math.max(rec.gbest[key] || 0, score); rec.game_n = (rec.game_n || 0) + 1;
@@ -160,6 +166,7 @@ function render(){
   if (k === 'fall'){ A.renderFall(); return; }
   $('#cheat').hidden = true;
   if (k === 'mole') return mole();
+  if (k === 'wmole') return wmole();
   if (k === 'flip') return flip();
   if (k === 'quiz') return quiz();
   if (k === 'puzzle') return puzzle();
@@ -196,6 +203,74 @@ function mole(){
     stage().querySelectorAll('.mpick button').forEach(function(x){ x.classList.toggle('on', x === b); });
   }; });
   $('#gstart2').onclick = function(){ moleRun(items, n); };
+}
+/* WMOLE_V1739 Quinn：「除了聲調打地鼠，我也想要有詞語的打地鼠」
+   上面出拼音（可以按 🔊 聽），幾隻地鼠同時拿著不同的詞冒出來，打中拿著正確詞語的那一隻。 */
+function fieldPick(n){
+  return '<p style="margin:0;font-weight:600">選一種場地 · Choose a field</p>'
+    + '<div class="mpick">' + [6, 9].map(function(k){ return '<button type="button" data-n="' + k + '" class="' + (k === n ? 'on' : '') + '"><img src="field' + k + '.webp" alt=""><b>' + k + ' 個洞</b><span>' + (k === 6 ? '比較簡單 · Easier' : '比較難 · Harder') + '</span></button>'; }).join('') + '</div>';
+}
+function fieldWire(set){
+  stage().querySelectorAll('.mpick button').forEach(function(b){ b.onclick = function(){
+    var n = +b.getAttribute('data-n'); try { localStorage.setItem('qna_mole_n', String(n)); } catch(_){}
+    stage().querySelectorAll('.mpick button').forEach(function(x){ x.classList.toggle('on', x === b); }); set(n);
+  }; });
+}
+function fieldHtml(n, extra){
+  var L = MOLE_LAYOUT[n === 6 ? 6 : 9];
+  return '<div class="field f' + L.h.length + (extra ? ' ' + extra : '') + '" style="--fz:' + L.fz + '">' + L.h.map(function(p, i){ var w = p[2], hh = w * 0.79; return '<div class="hole" data-i="' + i + '" style="left:' + (p[0] - w / 2) + '%;width:' + w + '%;height:' + hh + 'cqw;top:calc(' + p[1] + '% - ' + hh + 'cqw);z-index:' + (i + 1) + '"><div class="mole"><b></b><small></small></div></div>'; }).join('') + '</div>';
+}
+function say(t){ try { var u = new SpeechSynthesisUtterance(t); u.lang = 'zh-TW'; u.rate = .85; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch(_){} }
+function wmole(){
+  var ws = words(4);
+  if (ws.length < 4) return empty('詞語打地鼠至少要 4 個詞，換一個題目再試試。');
+  var n = moleN();
+  stage().innerHTML = bar('詞語打地鼠', best(curKey()) ? '<span>最高分 <b>' + best(curKey()) + '</b></span>' : '')
+    + '<div class="gmid" style="margin:auto"><p style="margin:0;max-width:30em">上面會出現一個拼音（可以按 🔊 聽）。好幾隻地鼠會拿著不同的詞冒出來，在牠們躲回去之前，點拿著正確詞語的那一隻。一共 60 秒。</p>'
+    + fieldPick(n) + '<button class="btn primary" type="button" id="gstart2">開始</button></div>';
+  wire(); fieldWire(function(k){ n = k; });
+  $('#gstart2').onclick = function(){ wmoleRun(ws, n); };
+}
+function wmoleRun(ws, n){
+  var G = {score:0, combo:0, hits:0, miss:[], hit:[], left:60, round:null, next:Date.now() + 500, bag:[]};
+  var many = n === 6 ? 3 : 4;
+  stage().innerHTML = bar('詞語打地鼠', '<span>時間 <b id="mt">60</b></span><span>分數 <b id="ms">0</b></span>')
+    + '<div class="wmq"><span class="py" id="wq">　</span><button type="button" id="wsay" aria-label="聽">🔊</button></div>'
+    + fieldHtml(n, 'wm') + '<div class="gfb center" id="mf"></div>';
+  wire();
+  var holes = stage().querySelectorAll('.hole'), t0 = Date.now();
+  function fb(html){ var f = $('#mf'); if (f) f.innerHTML = html; }
+  function pick(){ if (!G.bag.length) G.bag = A.shuffle(ws.slice()); return G.bag.pop(); }
+  function down(after){ holes.forEach(function(h){ h.classList.remove('up'); }); later(function(){ holes.forEach(function(h){ h.classList.remove('ok', 'no'); }); }, 260); G.round = null; G.next = Date.now() + (after || 500); }
+  function spawn(){
+    var ans = pick(), others = A.shuffle(ws.filter(function(w){ return w.h !== ans.h; })).slice(0, many - 1);
+    var set = A.shuffle([ans].concat(others)), spots = A.shuffle(Array.prototype.slice.call(holes)).slice(0, set.length);
+    spots.forEach(function(h, i){ var w = set[i], b = h.querySelector('b'), L = Array.from(w.h).length;
+      b.textContent = w.h; b.className = L >= 4 ? 'l4' : (L === 3 ? 'l3' : ''); h.querySelector('small').textContent = '';
+      h.__w = w; h.classList.remove('ok', 'no'); h.classList.add('up'); });
+    $('#wq').innerHTML = A.answerHTML(ans);
+    G.round = {ans:ans, until:Date.now() + Math.max(2600, 5200 - G.hits * 120)};
+  }
+  holes.forEach(function(h){ h.onclick = function(){
+    var r = G.round; if (!r || !h.classList.contains('up') || h.classList.contains('no')) return;
+    if (h.__w && h.__w.h === r.ans.h){
+      G.hits++; G.combo++; G.score += 10 + (G.combo >= 3 ? 5 : 0); G.hit.push(r.ans);
+      h.classList.add('ok'); fb('<span class="py">' + e(r.ans.h) + ' ' + A.answerHTML(r.ans) + '</span>' + (G.combo >= 3 ? '　連續 ' + G.combo + ' 個！' : ''));
+      $('#ms').textContent = G.score; G.round = null; later(function(){ down(450); }, 350);
+    } else {
+      G.combo = 0; G.miss.push(r.ans); h.classList.add('no');
+      fb('<span style="color:var(--bad)">不是「' + e(h.__w ? h.__w.h : '') + '」，再找找看</span>');
+    }
+  }; });
+  $('#wsay').onclick = function(){ if (G.round) say(G.round.ans.h); };
+  T.iv = setInterval(function(){
+    if (!document.body.contains(holes[0])){ stop(); return; }
+    var now = Date.now(), left = Math.max(0, 60 - Math.floor((now - t0) / 1000));
+    if (left !== G.left){ G.left = left; $('#mt').textContent = left; }
+    if (left <= 0){ over('wmole', '詞語打地鼠', G.score, '打中 ' + G.hits + ' 隻', G.miss, G.hit); return; }
+    if (G.round && now > G.round.until){ var a = G.round.ans; G.combo = 0; G.miss.push(a); fb('<span style="color:var(--bad)">跑掉了：答案是 ' + e(a.h) + ' <span class="py">' + A.answerHTML(a) + '</span></span>'); holes.forEach(function(h){ if (h.classList.contains('up') && h.__w && h.__w.h === a.h) h.classList.add('ok'); }); later(function(){ down(600); }, 700); G.round = null; G.next = now + 99999; }
+    if (!G.round && now >= G.next) spawn();
+  }, 100);
 }
 function moleRun(items, n){
   var L = MOLE_LAYOUT[n === 6 ? 6 : 9];

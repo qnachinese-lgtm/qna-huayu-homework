@@ -1680,6 +1680,7 @@ async function flushClassGame(t, r){
   const old = prog[t.id] || {}; const cur = { times:(old.times || 0) + (r ? 0 : 1), at };
   if (old.best != null) cur.best = old.best; if (old.unit) cur.unit = old.unit;
   if (r && r.score != null && (cur.best == null || r.score > cur.best)){ cur.best = r.score; cur.unit = r.unit || " 分"; }
+  { const h = Array.isArray(old.hist) ? old.hist : []; cur.hist = (r && r.score != null ? h.concat([{ at, s:r.score, u:r.unit || " 分" }]) : h).slice(-20); }/* TDX_V1739 每一次的成績 */
   prog[t.id] = cur; try { localStorage.setItem("qna_cls_prog_" + g.cls, JSON.stringify(prog)); } catch(e){}
   try { await window.firebase.firestore().collection("tstudents").doc(g.cls + "_" + g.dev).set({ class_code:g.cls, owner_uid:g.owner, name:g.name, dev:g.dev, last_at:at, tasks:{ [t.id]:cur } }, { merge:true }); } catch(e){}
 }

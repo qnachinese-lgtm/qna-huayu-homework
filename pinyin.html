@@ -415,7 +415,7 @@ function renderPractice(){
   const inp=$('#ans'),fb=$('#fb'),go=$('#go');
   inp.addEventListener('input',e=>{if(!e.isComposing)autoConvert(inp)});
   $('#ukey').onclick=()=>{const c=inp.selectionStart;inp.value=inp.value.slice(0,c)+'ü'+inp.value.slice(inp.selectionEnd);inp.focus();inp.setSelectionRange(c+1,c+1)};
-  const finish=(r,given)=>{st.res.push({it,ok:r.ok});st.done=true;
+  const finish=(r,given)=>{st.res.push({it,ok:r.ok,a:String(given||'').slice(0,40),k:r.kind||''});/* TDX_V1739 記下學生打了什麼 */st.done=true;
     fb.className='fb '+(r.ok?'ok':'no');
     const msg=r.ok?'答對了！':r.kind==='tone'?'拼法對了，聲調再看一下':given===''?'正確答案':'拼法不太對';
     fb.innerHTML=`<span class="head">${msg}</span><span class="ans">${answerHTML(it,r.ok?null:r.wrong)}</span>`;
@@ -678,7 +678,7 @@ async function classBoot(code){
   if(!c||c.deleted_at){$('#who').textContent='';gate('找不到這個班級。','回練習入口');try{stage.querySelector('a').href='play.html'}catch(e){}return}
   let nm='';try{nm=localStorage.getItem('qna_cls_name_'+code)||''}catch(e){}
   if(!nm){location.href='room.html?c='+encodeURIComponent(code);return}
-  let ts=[];try{const sn=await fs.collection('ttasks').where('class_code','==',code).get();ts=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(t=>t&&!t.deleted_at&&(t.kind==='pinyin'||(t.kind==='game'&&(t.game==='pinyin'||t.game==='mole'))))}catch(e){}/* PYGAME_V1737 也收拼音遊戲、打地鼠 */
+  let ts=[];try{const sn=await fs.collection('ttasks').where('class_code','==',code).get();ts=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(t=>t&&!t.deleted_at&&(t.kind==='pinyin'||(t.kind==='game'&&(t.game==='pinyin'||t.game==='mole'||t.game==='wmole'))))}catch(e){}/* PYGAME_V1737 也收拼音遊戲、打地鼠 */
   TASKS=ts.map(t=>({id:t.id,title:t.title,items:t.kind==='game'?String(t.items||'').split('\n').map(x=>x.split(/[=＝]/)[0].trim()).filter(Boolean).join('\n'):t.items,guest:true,gk:t.kind==='game'?t.game:''}));CUSTOM=[];COURSE=[];
   me.guest={name:nm,dev:guestDev(),cls:code,owner:c.owner_uid,cname:c.name};me.student=null;me.teacher=false;
   try{me.rec=Object.assign(emptyRec(),JSON.parse(localStorage.getItem('qna-pinyin-cls-'+code)||'null')||{})}catch(e){me.rec=emptyRec()}
@@ -687,12 +687,13 @@ async function classBoot(code){
   $('#who').textContent=nm+'・'+(c.name||code);
   $('#tabs').hidden=false;document.querySelectorAll('.tab[data-teacher]').forEach(b=>b.hidden=true);
   const q=new URLSearchParams(location.search).get('task');if(q&&TASKS.some(t=>t.id===q))st.level='task:'+q;
-  window.PYCLS={done:(key,score)=>saveClassGame(key,score)};
-  const tk=TASKS.find(t=>t.id===q);if(tk&&tk.gk){st.game=tk.gk==='mole'?'mole':'';const goG=()=>{if(window.PYGAMES){showTab('game');return true}return false};if(!goG()){let n=0;const iv=setInterval(()=>{if(goG()||++n>60)clearInterval(iv)},150)}return}
+  window.PYCLS={done:(key,score,miss,hit)=>saveClassGame(key,score,miss,hit)};
+  const tk=TASKS.find(t=>t.id===q);if(tk&&tk.gk){st.game=(tk.gk==='mole'||tk.gk==='wmole')?tk.gk:'';const goG=()=>{if(window.PYGAMES){showTab('game');return true}return false};if(!goG()){let n=0;const iv=setInterval(()=>{if(goG()||++n>60)clearInterval(iv)},150)}return}
   showTab('practice');}
-async function saveClassGame(key,score){const code=me.guest.cls,lv=String(st.level||'');if(lv.indexOf('task:')!==0)return;const id=lv.slice(5),t=new Date().toISOString();
+async function saveClassGame(key,score,miss,hit){const code=me.guest.cls,lv=String(st.level||'');if(lv.indexOf('task:')!==0)return;const id=lv.slice(5),t=new Date().toISOString();
   let prog={};try{prog=JSON.parse(localStorage.getItem('qna_cls_prog_'+code)||'{}')||{}}catch(e){}
   const old=prog[id]||{};const cur={times:(old.times||0)+1,at:t,best:Math.max(Number(old.best)||0,Number(score)||0),unit:' 分'};prog[id]=Object.assign({},old,cur);
+  {const mw=[...new Set((miss||[]).map(x=>x&&x.h).filter(Boolean))].slice(0,40);const h=(Array.isArray(old.hist)?old.hist:[]).concat([{at:t,s:Number(score)||0,g:key,hits:(hit||[]).length,miss:mw}]);prog[id].hist=h.slice(-20);}/* TDX_V1739 每一次的分數和錯的詞 */
   try{localStorage.setItem('qna_cls_prog_'+code,JSON.stringify(prog))}catch(e){}
   const n=$('#saveNote');try{await firebase.firestore().collection('tstudents').doc(code+'_'+me.guest.dev).set({class_code:code,owner_uid:me.guest.owner,name:me.guest.name,dev:me.guest.dev,last_at:t,tasks:{[id]:prog[id]}},{merge:true});if(n)n.textContent='已儲存，老師看得到'}catch(e){if(n)n.textContent='紀錄沒存進去'}}
 async function saveClass(rec,ok,n){
@@ -705,6 +706,7 @@ async function saveClass(rec,ok,n){
   let prog={};try{prog=JSON.parse(localStorage.getItem('qna_cls_prog_'+code)||'{}')||{}}catch(e){}
   const old=prog[id]||{};const better=ok>(old.ok||0)||!old.n;
   prog[id]={ok:better?ok:old.ok,n:better?n:old.n,times:(old.times||0)+1,at:t};
+  {const res=st.res||[];prog[id].last=res.slice(0,60).map(x=>({w:x.it.h,p:plainAnswer(x.it),a:x.a||'',ok:x.ok?1:0,k:x.ok?'':(x.k||'')}));const wr=[...new Set(res.filter(x=>!x.ok).map(x=>x.it.h))];const h=(Array.isArray(old.hist)?old.hist:[]).concat([{at:t,ok,n,wr}]);prog[id].hist=h.slice(-20);}/* TDX_V1739 每一題學生打了什麼、每一次錯哪些 */
   try{localStorage.setItem('qna_cls_prog_'+code,JSON.stringify(prog))}catch(e){}
   if(note)note.textContent='正在儲存…';
   try{await firebase.firestore().collection('tstudents').doc(code+'_'+me.guest.dev).set({class_code:code,owner_uid:me.guest.owner,name:me.guest.name,dev:me.guest.dev,last_at:t,tasks:{[id]:prog[id]}},{merge:true});
@@ -741,6 +743,6 @@ async function loadCustom(){try{const d=await firebase.firestore().collection('s
 })();
 })();
 </script>
-<script src="pinyin-games.js?v=1738"></script>
+<script src="pinyin-games.js?v=1739b"></script>
 </body>
 </html>

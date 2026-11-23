@@ -27528,9 +27528,79 @@ function renderTTeach(){const p=document.getElementById('panel-tteach');if(!p)re
   tdLoad(false).then(tdRender).catch(()=>{});}
 H.tteachRefresh=async()=>{await tdLoad(true);tdRender();};
 H.tteachView=(uid)=>{TD.view=uid||null;tdRender();try{window.scrollTo(0,0);}catch(e){}};
+/* TDX_V1739 Quinn：「可以點擊進去詳細看老師的班級以及老師出題的內容，還有學生回答的情形」「越詳細越好」
+   一層一層點進去：所有老師 › 老師 › 班級 › 題目／學生。每一層上面都有麵包屑可以回去。
+   學生那一層：每份題目做了幾次、每一次的分數、錯了哪些詞；拼音練習還看得到每一題學生打了什麼。 */
+const TD_GN={flip:'翻牌配對',quiz:'快問快答',bingo:'生詞賓果',fw:'大富翁',mole:'聲調打地鼠',wmole:'詞語打地鼠',pinyin:'拼音遊戲'};
+function tdKindName(k){return k.kind==='pinyin'?'拼音練習':k.kind==='game'?'遊戲・'+(TD_GN[k.game]||k.game||''):'漢字闖關・'+tdHz(k.fam)+'・'+(TD_DIFF[k.diff]||'');}
+function tdIc(k){return k.kind==='pinyin'?'ā':k.kind==='game'?'🎮':'字';}
+function tdItems(k){return String(k.items||'').split('\n').map(x=>x.trim()).filter(Boolean).map(x=>{const m=x.split(/[=＝]/);const f=m[0].trim();const sp=f.search(/\s/);
+  return {w:sp>0?f.slice(0,sp):f,p:sp>0?f.slice(sp+1).trim():'',m:(m[1]||'').trim()};});}
+function tdScore(r,k){if(!r)return '';if(k.kind==='pinyin')return (r.ok||0)+'/'+(r.n||0);if(k.kind==='game')return r.best!=null?String(r.best)+(r.unit||''):'玩過';const st=Number(r.stars)||0;return st?'★'.repeat(Math.min(st,3)):'0 星';}
+function tdPct(r,k){if(!r||k.kind!=='pinyin'||!r.n)return null;return Math.round((r.ok||0)/r.n*100);}
+function tdCrumb(parts){return '<div class="tdx-crumb">'+parts.map((p,i)=>i<parts.length-1?'<button type="button" data-act="tteachView" data-id="'+esc(p[0])+'">'+esc(p[1])+'</button><i>›</i>':'<b>'+esc(p[1])+'</b>').join('')+'</div>';}
+function tdTeacherOf(c){return TD.t.find(t=>t.id===c.owner_uid)||null;}
+function tdClassBase(c){const t=tdTeacherOf(c);return [['','所有老師']].concat(t?[['t:'+t.id,t.name||t.email||'老師']]:[['','（您自己的班級）']]);}
 function tdRender(){const box=document.getElementById('td-body');if(!box)return;
   if(TD.err){box.innerHTML='<div class="hint">'+(/permission|insufficient/i.test(TD.err)?'Firebase 規則還沒發布，發布後這裡才看得到。':'讀不到：'+esc(TD.err))+'</div>';return;}
-  box.innerHTML=TD.view?tdDetail(TD.view):tdList();}
+  const v=String(TD.view||'');let h='';
+  try{if(!v)h=tdList();else if(v.indexOf('c:')===0)h=tdClassPage(v.slice(2));else if(v.indexOf('k:')===0)h=tdTaskPage(v.slice(2));else if(v.indexOf('s:')===0)h=tdStuPage(v.slice(2));else h=tdDetail(v.replace(/^t:/,''));}
+  catch(e){h='<div class="hint">顯示時出錯：'+esc(String(e&&e.message||e))+'</div>';}
+  box.innerHTML=h;}
+function tdClassCard(c){const ks=TD.k.filter(k=>k.class_code===c.id),ss=TD.s.filter(x=>x.class_code===c.id);
+  const last=ss.map(x=>x.last_at).filter(Boolean).sort().pop();let done=0;ss.forEach(s=>ks.forEach(k=>{if((s.tasks||{})[k.id])done++;}));
+  const rate=ks.length&&ss.length?Math.round(done/(ks.length*ss.length)*100):null;
+  return '<button type="button" class="tdx-card" data-act="tteachView" data-id="c:'+esc(c.id)+'"><div class="tdx-ch"><b>'+esc(c.name||'')+'</b><code>'+esc(c.id)+'</code></div>'
+    +'<div class="tdx-cn"><span><b>'+ks.length+'</b>份題目</span><span><b>'+ss.length+'</b>位學生</span><span><b>'+(rate==null?'—':rate+'%')+'</b>完成率</span></div>'
+    +'<small>開班 '+esc(tdDate(c.created_at).slice(0,10))+'・最近練習 '+esc(tdAgo(last))+'</small><em>點進去看詳細 →</em></button>';}
+function tdDetail(uid){const t=TD.t.find(x=>x.id===uid)||{};const cs=TD.c.filter(c=>c.owner_uid===uid).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+  const codes=cs.map(c=>c.id),ks=TD.k.filter(k=>codes.includes(k.class_code)),ss=TD.s.filter(x=>codes.includes(x.class_code));
+  const tile=(n,l)=>'<div class="td-tile"><b>'+n+'</b><span>'+l+'</span></div>';
+  return tdCrumb([['','所有老師'],['t:'+uid,t.name||'老師']])
+   +'<div class="td-prof"><div><h3>'+esc(t.name||'')+' '+(tdOff(t.status)?'<span class="tt-c no">已停用</span>':'<span class="tt-c ok">使用中</span>')+(t.email_verified?'<span class="tt-c ok">Email 已驗證</span>':'<span class="tt-c wait">Email 未驗證</span>')+'</h3>'
+   +'<div class="td-kv"><span>Email</span><b>'+esc(t.email||'—')+'</b><span>學校／單位</span><b>'+esc(t.school||'—')+'</b><span>註冊時間</span><b>'+esc(tdDate(t.created_at))+'</b><span>最後登入</span><b>'+esc(tdDate(t.last_at))+'（'+esc(tdAgo(t.last_at))+'）</b></div></div>'
+   +'<div>'+(tdOff(t.status)?'<button class="btn btn-sm btn-primary" data-act="tteachSet" data-id="'+esc(uid)+'::active">恢復使用</button>':'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachSet" data-id="'+esc(uid)+'::blocked">停用這位老師</button>')+'</div></div>'
+   +'<div class="td-tiles">'+tile(cs.length,'個班級')+tile(ks.length,'份題目')+tile(ss.length,'位學生')+tile(ss.reduce((a,s)=>a+Object.values(s.tasks||{}).reduce((b,r)=>b+(Number(r.times)||1),0),0),'次練習（全部加起來）')+tile(esc(tdAgo(ss.map(x=>x.last_at).filter(Boolean).sort().pop())),'最近有學生練習')+'</div>'
+   +'<div class="td-sec"><h4>班級（'+cs.length+'）・點一個班進去看</h4>'+(cs.length?'<div class="tdx-cards">'+cs.map(tdClassCard).join('')+'</div>':'<div class="hint">還沒有開班。</div>')+'</div>'
+   +(ks.length?'<div class="td-sec"><h4>這位老師出過的全部題目</h4><div class="td-tbl"><table><thead><tr><th>題目</th><th>班級</th><th>種類</th><th>詞數</th><th>出題時間</th><th>做過的學生</th><th></th></tr></thead><tbody>'
+     +ks.slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(k=>{const c=cs.find(x=>x.id===k.class_code)||{};const n=TD.s.filter(s=>s.class_code===k.class_code);const d=n.filter(s=>(s.tasks||{})[k.id]).length;
+       return '<tr class="tdx-row" data-act="tteachView" data-id="k:'+esc(k.id)+'"><td><b>'+esc(k.title||'')+'</b></td><td>'+esc(c.name||k.class_code)+'</td><td>'+esc(tdKindName(k))+'</td><td>'+(k.kind!=='hanzi'?tdItems(k).length:'—')+'</td><td>'+esc(tdDate(k.created_at))+'</td><td>'+d+' / '+n.length+'</td><td><span class="tdx-go">看 →</span></td></tr>';}).join('')+'</tbody></table></div></div>':'');}
+function tdClassPage(code){const c=TD.c.find(x=>x.id===code);if(!c)return tdCrumb([['','所有老師'],['','找不到班級']])+'<div class="hint">這個班級已經不在了。</div>';
+  const ks=TD.k.filter(k=>k.class_code===c.id).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));const ss=TD.s.filter(x=>x.class_code===c.id).sort((a,b)=>String(a.name).localeCompare(String(b.name),'zh-Hant'));
+  const t=tdTeacherOf(c);const room=location.origin+'/room.html?c='+encodeURIComponent(c.id);
+  return tdCrumb(tdClassBase(c).concat([['c:'+c.id,c.name||c.id]]))
+   +'<div class="td-prof"><div><h3>'+esc(c.name||'')+' <code class="tdx-code">'+esc(c.id)+'</code></h3><div class="td-kv"><span>老師</span><b>'+esc(t?(t.name||'')+'（'+(t.email||'')+'）':'您自己')+'</b><span>開班</span><b>'+esc(tdDate(c.created_at))+'</b><span>題目</span><b>'+ks.length+' 份</b><span>學生</span><b>'+ss.length+' 位</b><span>學生入口</span><b><a href="'+esc(room)+'" target="_blank" rel="noopener">'+esc(room)+'</a></b></div></div></div>'
+   +'<div class="td-sec"><h4>題目（'+ks.length+'）・點一份看每個詞、每位學生的情形</h4>'+(ks.length?ks.map(k=>{const its=tdItems(k);const d=ss.filter(s=>(s.tasks||{})[k.id]);
+       return '<button type="button" class="tdx-task" data-act="tteachView" data-id="k:'+esc(k.id)+'"><i>'+tdIc(k)+'</i><div><b>'+esc(k.title||'')+'</b><small>'+esc(tdKindName(k))+(k.kind!=='hanzi'?'・'+its.length+' 個詞':'・至少 '+(k.min_stars||1)+' 星')+'・'+esc(tdDate(k.created_at))+' 出的・'+d.length+'/'+ss.length+' 位學生做過</small>'
+        +(its.length?'<div class="td-words">'+its.slice(0,24).map(w=>'<span>'+esc(w.w)+(w.p?' <em>'+esc(w.p)+'</em>':'')+'</span>').join('')+(its.length>24?'<span>…還有 '+(its.length-24)+' 個</span>':'')+'</div>':'')+'</div><span class="tdx-go">看 →</span></button>';}).join(''):'<div class="hint">還沒有出題。</div>')+'</div>'
+   +'<div class="td-sec"><h4>學生成績（'+ss.length+'）・點學生名字看他每一次的作答</h4>'+(ss.length?'<div class="td-tbl"><table><thead><tr><th>學生</th><th>加入</th><th>最後練習</th><th>完成</th>'+ks.map(k=>'<th title="'+esc(k.title)+'">'+tdIc(k)+' '+esc(String(k.title||'').slice(0,10))+'</th>').join('')+'</tr></thead><tbody>'
+       +ss.map(x=>'<tr><td><button type="button" class="tdx-name" data-act="tteachView" data-id="s:'+esc(x.id)+'">'+esc(x.name||'')+' →</button></td><td>'+esc(tdDate(x.joined_at).slice(0,10))+'</td><td>'+esc(tdAgo(x.last_at))+'</td><td>'+ks.filter(k=>(x.tasks||{})[k.id]).length+'/'+ks.length+'</td>'+ks.map(k=>tdStat(x,k)).join('')+'</tr>').join('')+'</tbody></table></div>':'<div class="hint">還沒有學生加入。</div>')+'</div>';}
+function tdHistRows(r,k){const h=(r&&Array.isArray(r.hist))?r.hist.slice().reverse():[];
+  if(!h.length)return '<div class="hint">這份題目是舊版紀錄，只有總成績；之後學生再做，每一次的細節都會記在這裡。</div>';
+  return '<div class="td-tbl"><table><thead><tr><th>第幾次</th><th>時間</th><th>成績</th><th>錯的詞</th></tr></thead><tbody>'
+   +h.map((x,i)=>'<tr><td>'+(h.length-i)+'</td><td>'+esc(tdDate(x.at))+'</td><td>'+(x.n!=null?(x.ok||0)+'/'+x.n+'（'+Math.round((x.ok||0)/(x.n||1)*100)+'%）':x.s!=null?esc(String(x.s))+esc(x.u||' 分')+(x.hits!=null?'・打中 '+x.hits:''):'—')+'</td><td class="tdx-wr">'+((x.wr||x.miss||[]).length?(x.wr||x.miss).map(w=>'<span>'+esc(w)+'</span>').join(''):'<span class="ok">全對</span>')+'</td></tr>').join('')+'</tbody></table></div>';}
+function tdLastRows(r){const l=(r&&Array.isArray(r.last))?r.last:[];if(!l.length)return '';
+  return '<h5>最近一次每一題的作答</h5><div class="td-tbl"><table><thead><tr><th>#</th><th>詞</th><th>正確拼音</th><th>學生打的</th><th>結果</th></tr></thead><tbody>'
+   +l.map((x,i)=>'<tr class="'+(x.ok?'':'tdx-bad')+'"><td>'+(i+1)+'</td><td><b>'+esc(x.w||'')+'</b></td><td>'+esc(x.p||'')+'</td><td>'+(x.a?esc(x.a):'<span style="color:#8796AB">（按了看答案）</span>')+'</td><td>'+(x.ok?'<span class="tt-c ok">✓ 對</span>':'<span class="tt-c wait">✗ '+(x.k==='tone'?'聲調錯':'拼法錯')+'</span>')+'</td></tr>').join('')+'</tbody></table></div>';}
+function tdStuPage(id){const s=TD.s.find(x=>x.id===id);if(!s)return tdCrumb([['','所有老師'],['','找不到學生']]);const c=TD.c.find(x=>x.id===s.class_code)||{id:s.class_code,name:s.class_code};
+  const ks=TD.k.filter(k=>k.class_code===s.class_code).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
+  const times=Object.values(s.tasks||{}).reduce((a,r)=>a+(Number(r.times)||1),0);
+  return tdCrumb(tdClassBase(c).concat([['c:'+c.id,c.name||c.id],['s:'+s.id,s.name||'學生']]))
+   +'<div class="td-prof"><div><h3>'+esc(s.name||'')+'</h3><div class="td-kv"><span>班級</span><b>'+esc(c.name||'')+'（'+esc(c.id)+'）</b><span>加入時間</span><b>'+esc(tdDate(s.joined_at))+'</b><span>最後練習</span><b>'+esc(tdDate(s.last_at))+'（'+esc(tdAgo(s.last_at))+'）</b><span>完成題目</span><b>'+ks.filter(k=>(s.tasks||{})[k.id]).length+' / '+ks.length+' 份</b><span>總共練習</span><b>'+times+' 次</b><span>裝置代號</span><b style="font-family:monospace;font-size:12px">'+esc(String(s.dev||'').slice(0,12))+'</b></div><small style="color:#8796AB">學生沒有帳號，是用「名字＋這台裝置」認人；換一台手機會變成另一筆。</small></div></div>'
+   +ks.map(k=>{const r=(s.tasks||{})[k.id];return '<div class="tdx-blk"><div class="tdx-bh"><i>'+tdIc(k)+'</i><div><b>'+esc(k.title||'')+'</b><small>'+esc(tdKindName(k))+'</small></div><span class="grow"></span>'
+     +(r?'<span class="tdx-big">'+esc(tdScore(r,k))+'</span><small>做了 '+(r.times||1)+' 次・最後 '+esc(tdAgo(r.at))+'</small>':'<span class="tt-c no">還沒做</span>')+'</div>'
+     +(r?(k.kind==='hanzi'?'<div class="hint">漢字闖關記錄的是星星數，最近一次：'+esc(tdDate(r.at))+'</div>':tdHistRows(r,k)+tdLastRows(r)):'')+'</div>';}).join('');}
+function tdTaskPage(id){const k=TD.k.find(x=>x.id===id);if(!k)return tdCrumb([['','所有老師'],['','找不到題目']]);const c=TD.c.find(x=>x.id===k.class_code)||{id:k.class_code,name:k.class_code};
+  const ss=TD.s.filter(x=>x.class_code===k.class_code).sort((a,b)=>String(a.name).localeCompare(String(b.name),'zh-Hant'));const its=tdItems(k);
+  const wrong={};ss.forEach(s=>{const r=(s.tasks||{})[k.id];if(!r)return;const seen={};(r.hist||[]).forEach(h=>(h.wr||h.miss||[]).forEach(w=>{wrong[w]=wrong[w]||{n:0,who:{}};wrong[w].n++;wrong[w].who[s.name||'?']=1;}));});
+  const done=ss.filter(s=>(s.tasks||{})[k.id]);const pcts=done.map(s=>tdPct(s.tasks[k.id],k)).filter(x=>x!=null);
+  return tdCrumb(tdClassBase(c).concat([['c:'+c.id,c.name||c.id],['k:'+k.id,k.title||'題目']]))
+   +'<div class="td-prof"><div><h3>'+tdIc(k)+' '+esc(k.title||'')+'</h3><div class="td-kv"><span>種類</span><b>'+esc(tdKindName(k))+'</b><span>班級</span><b>'+esc(c.name||'')+'</b><span>出題時間</span><b>'+esc(tdDate(k.created_at))+'</b><span>做過的學生</span><b>'+done.length+' / '+ss.length+' 位</b>'+(pcts.length?'<span>平均答對率</span><b>'+Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length)+'%</b>':'')+'</div></div></div>'
+   +(its.length?'<div class="td-sec"><h4>題目內容（'+its.length+' 個詞）</h4><div class="td-tbl"><table><thead><tr><th>#</th><th>詞</th><th>拼音</th><th>意思</th><th>學生答錯幾次</th><th>誰錯過</th></tr></thead><tbody>'
+     +its.map((w,i)=>{const x=wrong[w.w];return '<tr class="'+(x?'tdx-bad':'')+'"><td>'+(i+1)+'</td><td><b>'+esc(w.w)+'</b></td><td>'+esc(w.p||'—')+'</td><td>'+esc(w.m||'—')+'</td><td>'+(x?x.n+' 次':'0')+'</td><td style="white-space:normal">'+(x?esc(Object.keys(x.who).join('、')):'')+'</td></tr>';}).join('')+'</tbody></table></div></div>':'')
+   +'<div class="td-sec"><h4>每位學生的情形</h4>'+(ss.length?'<div class="td-tbl"><table><thead><tr><th>學生</th><th>成績</th><th>做了幾次</th><th>最後一次</th><th>最近錯的詞</th></tr></thead><tbody>'
+     +ss.map(s=>{const r=(s.tasks||{})[k.id];const lh=r&&Array.isArray(r.hist)&&r.hist.length?r.hist[r.hist.length-1]:null;
+       return '<tr><td><button type="button" class="tdx-name" data-act="tteachView" data-id="s:'+esc(s.id)+'">'+esc(s.name||'')+' →</button></td><td>'+(r?esc(tdScore(r,k)):'<span style="color:#B4BFCE">還沒做</span>')+'</td><td>'+(r?(r.times||1):'—')+'</td><td>'+(r?esc(tdDate(r.at)):'—')+'</td><td class="tdx-wr" style="white-space:normal">'+(lh?((lh.wr||lh.miss||[]).length?(lh.wr||lh.miss).map(w=>'<span>'+esc(w)+'</span>').join(''):'<span class="ok">全對</span>'):'')+'</td></tr>';}).join('')+'</tbody></table></div>':'<div class="hint">還沒有學生加入。</div>')+'</div>';}
 function tdList(){const link=location.origin+'/class.html';
   const per=t=>{const cs=TD.c.filter(c=>c.owner_uid===t.id),codes=cs.map(c=>c.id);const ks=TD.k.filter(k=>codes.includes(k.class_code));const ss=TD.s.filter(x=>codes.includes(x.class_code));
     const last=[t.last_at].concat(ss.map(x=>x.last_at)).filter(Boolean).sort().pop();return {cs,ks,ss,last};};
@@ -27540,26 +27610,15 @@ function tdList(){const link=location.origin+'/class.html';
   return '<div class="td-top"><div class="gm-link" style="flex:1"><span>老師註冊網址</span><code>'+esc(link)+'</code><button class="btn btn-sm" type="button" onclick="navigator.clipboard.writeText(\''+esc(link)+'\').then(()=>toast(\'已複製\'))">複製</button></div><button class="btn btn-sm btn-ghost" data-act="tteachRefresh">↻ 重新整理</button></div>'
    +'<div class="td-tiles">'+tile(TD.t.length,'位老師（'+TD.t.filter(t=>!tdOff(t.status)).length+' 位使用中）')+tile(TD.c.length,'個班級')+tile(TD.k.length,'份題目')+tile(TD.s.length,'位學生')+tile(act7,'位學生 7 天內有練習')+'</div>'
    +(ts.length?'<div class="td-tbl"><table><thead><tr><th>老師</th><th>狀態</th><th>註冊</th><th>最後登入</th><th>班級</th><th>題目</th><th>學生</th><th>最近有人練習</th><th></th></tr></thead><tbody>'
-     +ts.map(t=>{const x=per(t);return '<tr class="'+(tdOff(t.status)?'td-off':'')+'"><td><b>'+esc(t.name||'')+'</b><small>'+esc(t.email||'')+(t.school?'<br>'+esc(t.school):'')+'</small></td>'
+     +ts.map(t=>{const x=per(t);return '<tr class="tdx-row '+(tdOff(t.status)?'td-off':'')+'" data-act="tteachView" data-id="t:'+esc(t.id)+'"><td><b>'+esc(t.name||'')+'</b><small>'+esc(t.email||'')+(t.school?'<br>'+esc(t.school):'')+'</small></td>'
        +'<td>'+(tdOff(t.status)?'<span class="tt-c no">已停用</span>':'<span class="tt-c ok">使用中</span>')+'<br>'+(t.email_verified?'<span class="tt-c ok">Email 已驗證</span>':'<span class="tt-c wait">Email 未驗證</span>')+'</td>'
        +'<td>'+esc(tdDate(t.created_at).slice(0,10))+'</td><td>'+esc(tdAgo(t.last_at))+'</td><td>'+x.cs.length+'</td><td>'+x.ks.length+'</td><td>'+x.ss.length+'</td><td>'+esc(tdAgo(x.ss.map(z=>z.last_at).filter(Boolean).sort().pop()))+'</td>'
        +'<td class="td-act"><button class="btn btn-sm btn-primary" data-act="tteachView" data-id="'+esc(t.id)+'">查看 →</button>'
        +(tdOff(t.status)?'<button class="btn btn-sm btn-ghost" data-act="tteachSet" data-id="'+esc(t.id)+'::active">恢復使用</button>':'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachSet" data-id="'+esc(t.id)+'::blocked">停用</button>')+'</td></tr>';}).join('')
      +'</tbody></table></div>':'<div class="hint" style="padding:14px">還沒有老師註冊。</div>')
-   +(TD.c.some(c=>!TD.t.some(t=>t.id===c.owner_uid))?'<div class="td-sec"><h4>您自己開的班級</h4>'+TD.c.filter(c=>!TD.t.some(t=>t.id===c.owner_uid)).map(tdClass).join('')+'</div>':'');}
-function tdDetail(uid){const t=TD.t.find(x=>x.id===uid)||{};const cs=TD.c.filter(c=>c.owner_uid===uid).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
-  return '<button class="btn btn-sm btn-ghost" data-act="tteachView" data-id="">← 所有老師</button>'
-   +'<div class="td-prof"><div><h3>'+esc(t.name||'')+' '+(tdOff(t.status)?'<span class="tt-c no">已停用</span>':'<span class="tt-c ok">使用中</span>')+(t.email_verified?'<span class="tt-c ok">Email 已驗證</span>':'<span class="tt-c wait">Email 未驗證</span>')+'</h3>'
-   +'<div class="td-kv"><span>Email</span><b>'+esc(t.email||'—')+'</b><span>學校／單位</span><b>'+esc(t.school||'—')+'</b><span>註冊時間</span><b>'+esc(tdDate(t.created_at))+'</b><span>最後登入</span><b>'+esc(tdDate(t.last_at))+'（'+esc(tdAgo(t.last_at))+'）</b></div></div>'
-   +'<div>'+(tdOff(t.status)?'<button class="btn btn-sm btn-primary" data-act="tteachSet" data-id="'+esc(uid)+'::active">恢復使用</button>':'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachSet" data-id="'+esc(uid)+'::blocked">停用這位老師</button>')+'</div></div>'
-   +'<div class="td-sec"><h4>班級（'+cs.length+'）</h4>'+(cs.length?cs.map(tdClass).join(''):'<div class="hint">還沒有開班。</div>')+'</div>';}
-function tdClass(c){const ks=TD.k.filter(k=>k.class_code===c.id).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));const ss=TD.s.filter(x=>x.class_code===c.id).sort((a,b)=>String(a.name).localeCompare(String(b.name),'zh-Hant'));
-  return '<details class="td-cls" open><summary><b>'+esc(c.name||'')+'</b><code>'+esc(c.id)+'</code><span>'+ks.length+' 份題目・'+ss.length+' 位學生・開班 '+esc(tdDate(c.created_at).slice(0,10))+'</span></summary>'
-   +'<div class="td-in"><h5>題目內容</h5>'+(ks.length?ks.map(k=>'<div class="td-task"><i>'+(k.kind==='pinyin'?'ā':k.kind==='game'?'🎮':'字')+'</i><div><b>'+esc(k.title||'')+'</b><small>'+(k.kind!=='hanzi'?(k.kind==='game'?'生詞遊戲（'+({flip:'翻牌配對',quiz:'快問快答',bingo:'生詞賓果',fw:'大富翁',mole:'聲調打地鼠',pinyin:'拼音遊戲'}[k.game]||k.game)+'）':'拼音練習')+'・'+String(k.items||'').split('\n').filter(x=>x.trim()).length+' 個詞':'漢字闖關・'+esc(tdHz(k.fam))+'・'+(TD_DIFF[k.diff]||'')+'・至少 '+(k.min_stars||1)+' 星')+'・'+esc(tdDate(k.created_at))+' 出的</small>'
-       +(k.kind!=='hanzi'?'<div class="td-words">'+String(k.items||'').split('\n').filter(x=>x.trim()).map(w=>'<span>'+esc(w)+'</span>').join('')+'</div>':'')+'</div></div>').join(''):'<div class="hint">還沒有出題。</div>')
-   +'<h5>學生成績</h5>'+(ss.length?'<div class="td-tbl"><table><thead><tr><th>學生</th><th>加入</th><th>最後練習</th>'+ks.map(k=>'<th title="'+esc(k.title)+'">'+(k.kind==='pinyin'?'ā ':k.kind==='game'?'🎮 ':'字 ')+esc(String(k.title||'').slice(0,10))+'</th>').join('')+'</tr></thead><tbody>'
-       +ss.map(x=>'<tr><td><b>'+esc(x.name||'')+'</b></td><td>'+esc(tdDate(x.joined_at).slice(0,10))+'</td><td>'+esc(tdAgo(x.last_at))+'</td>'+ks.map(k=>tdStat(x,k)).join('')+'</tr>').join('')+'</tbody></table></div>':'<div class="hint">還沒有學生加入。</div>')
-   +'</div></details>';}
+   +(TD.c.some(c=>TD.t.some(t=>t.id===c.owner_uid))?'<div class="td-sec"><h4>全部班級・點一個班進去看題目和學生作答</h4><div class="tdx-cards">'+TD.c.filter(c=>TD.t.some(t=>t.id===c.owner_uid)).slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(c=>tdClassCard(c).replace('<small>','<small>'+esc((tdTeacherOf(c)||{}).name||'')+'・')).join('')+'</div></div>':'')
+   +(TD.c.some(c=>!TD.t.some(t=>t.id===c.owner_uid))?'<div class="td-sec"><h4>您自己開的班級</h4><div class="tdx-cards">'+TD.c.filter(c=>!TD.t.some(t=>t.id===c.owner_uid)).map(tdClass).join('')+'</div></div>':'');}
+function tdClass(c){return tdClassCard(c);}
 H.tteachSet=async(v)=>{const i=String(v).lastIndexOf('::');const id=v.slice(0,i),st=v.slice(i+2);
   try{await firebase.firestore().collection('tteachers').doc(id).update({status:st,reviewed_at:new Date().toISOString()});toast(st==='blocked'?'已停用':'已恢復使用');const t=TD.t.find(x=>x.id===id);if(t)t.status=st;tdRender();}
   catch(e){toast('存不進去：'+((e&&e.message)||e));}};
