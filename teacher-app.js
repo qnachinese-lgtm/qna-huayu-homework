@@ -6865,7 +6865,7 @@ const TNAV=[
                  ['lessons','📚 教材與課程','c-lessons'],
                  ['files','🎯 課堂活動',''],
                  {k:'oc',id:'oc',t:'▶️ 線上課',ow:1},
-                 ['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],{k:'games',act:'gamesOpen',di:'',t:'🎮 開放遊戲給學生',ow:1},/* GAMEOPEN_V1714 */{k:'tteach',act:'tteachOpen',di:'',t:'🏫 合作老師審核',ow:1},/* TCLASS_V1722 *//* HANZI_V4 */['grades','📝 批改・成績','c-pending']]},
+                 ['lib','🗂 教材庫','']/* LIB_V1412 */,['hanzi','🀄 漢字闖關',''],{k:'games',act:'gamesOpen',di:'',t:'🎮 開放遊戲給學生',ow:1},/* GAMEOPEN_V1714 */{k:'tteach',act:'tteachOpen',di:'',t:'🏫 合作老師',ow:1},/* TCLASS_V1722 *//* HANZI_V4 */['grades','📝 批改・成績','c-pending']]},
   /* TEAMNOTE_V1702 員工（其他管理員）只看得到「訊息追蹤」；代辦、面試、代書、學校本來就只有主管理員能進，選單上也藏起來，免得點了被彈回首頁 */
   {t:'留學業務',sub:[{k:'msgs',id:'msgs',t:'📨 訊息追蹤'},{k:'replyst',id:'reply',t:'📮 回覆範本',st:1},{k:'agency',id:'agency',t:'🎓 代辦申請',n:'c-ag',ow:1},{k:'interview',id:'interview',t:'🎤 面試練習',n:'c-itv',ow:1},
                      {k:'writing',id:'writing',t:'✍️ 代書',n:'c-wr',ow:1},{k:'school',id:'school',t:'🏫 學校與資料',ow:1}]},
@@ -27500,25 +27500,26 @@ window.gmGrp=(k,gr)=>{document.querySelectorAll('#gm-list-'+k+' input').forEach(
 
 /* TCLASS_V1722 Quinn：「老師可以建立自己的帳號，出題給學生；學生加入班級」
    其他老師在 class.html 註冊 → 這裡批准 → 他們就能開班、出拼音／漢字題，學生用班級代碼＋名字加入。 */
-H.tteachOpen=async()=>{if(!IS_OWNER)return toast('只有主管理員可以審核');
+H.tteachOpen=async()=>{if(!IS_OWNER)return toast('只有主管理員可以管理');
   const fs=firebase.firestore();let ts=[],cs=[],ss=[],err='';
   try{ts=(await fs.collection('tteachers').get()).docs.map(d=>Object.assign({id:d.id},d.data()));}catch(e){err=String((e&&(e.code||e.message))||e);}
   try{cs=(await fs.collection('tclasses').get()).docs.map(d=>Object.assign({id:d.id},d.data())).filter(c=>!c.deleted_at);}catch(e){}
   try{ss=(await fs.collection('tstudents').get()).docs.map(d=>d.data());}catch(e){}
-  const ord={pending:0,approved:1,rejected:2};ts.sort((a,b)=>(ord[a.status]||0)-(ord[b.status]||0)||String(b.created_at).localeCompare(String(a.created_at)));
-  const chip=st=>st==='approved'?'<span class="tt-c ok">已批准</span>':st==='rejected'?'<span class="tt-c no">沒通過</span>':'<span class="tt-c wait">等待審核</span>';
+  const ord={active:0,pending:0,approved:0,blocked:1,rejected:1};ts.sort((a,b)=>(ord[a.status]||0)-(ord[b.status]||0)||String(b.created_at).localeCompare(String(a.created_at)));
+  const off=st=>st==='blocked'||st==='rejected';/* TCLASS_V1723 註冊就能用，這裡可以隨時停用 */
+  const chip=st=>off(st)?'<span class="tt-c no">已停用</span>':'<span class="tt-c ok">使用中</span>';
   const row=t=>{const my=cs.filter(c=>c.owner_uid===t.id);const n=ss.filter(x=>my.some(c=>c.id===x.class_code)).length;
     return '<div class="tt-r"><div class="tt-m"><b>'+esc(t.name||'')+'</b>'+chip(t.status)+'<small>'+esc(t.email||'')+(t.school?'・'+esc(t.school):'')+'</small>'
       +'<small>'+my.length+' 個班級・'+n+' 位學生'+(my.length?'（'+my.map(c=>esc(c.name)+' '+esc(c.id)).join('、')+'）':'')+'</small></div>'
-      +'<div class="tt-a">'+(t.status!=='approved'?'<button class="btn btn-sm btn-primary" data-act="tteachSet" data-id="'+esc(t.id)+'::approved">批准</button>':'')
-      +(t.status!=='rejected'?'<button class="btn btn-sm btn-ghost" data-act="tteachSet" data-id="'+esc(t.id)+'::rejected">'+(t.status==='approved'?'停用':'不通過')+'</button>':'')+'</div></div>';};
+      +'<div class="tt-a">'+(off(t.status)?'<button class="btn btn-sm btn-primary" data-act="tteachSet" data-id="'+esc(t.id)+'::active">恢復使用</button>'
+        :'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachSet" data-id="'+esc(t.id)+'::blocked">停用</button>')+'</div></div>';};
   const link=location.origin+'/class.html';
-  openModal('<div class="modal" style="max-width:680px"><div class="modal-head"><h3>🏫 合作老師審核</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
-    +'<div class="gm-main"><b>老師教室網址</b><small>給想用平台出題的老師：註冊後您在這裡按「批准」，他們就能開班、出拼音和漢字題。學生用班級代碼加入，不用帳號。</small>'
+  openModal('<div class="modal" style="max-width:680px"><div class="modal-head"><h3>🏫 合作老師</h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
+    +'<div class="gm-main"><b>老師教室網址</b><small>老師註冊完就能開班、出拼音和漢字題，看自己學生的成績。您在這裡可以隨時「停用」某位老師，他就不能再登入使用。</small>'
     +'<div class="gm-link"><code>'+esc(link)+'</code><button class="btn btn-sm" type="button" onclick="navigator.clipboard.writeText(\''+esc(link)+'\').then(()=>toast(\'已複製\'))">複製</button><a class="btn btn-sm btn-ghost" href="class.html" target="_blank" rel="noopener">打開</a></div></div>'
     +(err?'<div class="hint" style="margin-top:12px">'+(/permission|insufficient/i.test(err)?'Firebase 規則還沒發布，發布後這裡才看得到。':'讀不到：'+esc(err))+'</div>'
       :('<div class="tt-list">'+(ts.length?ts.map(row).join(''):'<div class="hint" style="padding:14px">還沒有老師註冊。</div>')+'</div>'))
     +'</div><div class="modal-foot"><span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');};
 H.tteachSet=async(v)=>{const i=String(v).lastIndexOf('::');const id=v.slice(0,i),st=v.slice(i+2);
-  try{await firebase.firestore().collection('tteachers').doc(id).update({status:st,reviewed_at:new Date().toISOString()});toast(st==='approved'?'已批准':'已更新');H.tteachOpen();}
+  try{await firebase.firestore().collection('tteachers').doc(id).update({status:st,reviewed_at:new Date().toISOString()});toast(st==='blocked'?'已停用':'已恢復使用');H.tteachOpen();}
   catch(e){toast('存不進去：'+((e&&e.message)||e));}};
