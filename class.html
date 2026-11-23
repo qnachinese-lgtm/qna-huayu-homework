@@ -121,6 +121,8 @@ td.ok{color:var(--ok);font-weight:700}td.no{color:#B4BFCE}
 .swap{display:block;margin:20px auto 0;padding-top:16px;border-top:1px solid #EEF2F8;font-size:13.5px;color:var(--mut);text-decoration:none;text-align:center}.swap:hover{color:var(--p)}
 .rchip{display:inline-flex;align-items:center;gap:6px;margin:14px auto 4px;padding:5px 14px;border-radius:999px;background:#E4EDF9;color:#1E4C86;font-size:13.5px;font-weight:700;letter-spacing:1px}
 .rchip small{font-weight:400;opacity:.8;letter-spacing:0}
+.vbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#FFF6E8;border:1px solid #F3DDB6;border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:14px;color:#6B4A12;line-height:1.6}
+.vbar>span:first-child{flex:1;min-width:220px}.vbar small{display:block;color:#9A7A40;font-size:12.5px}.vb-a{display:flex;gap:8px;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -144,7 +146,7 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const app=$('#app');
 if(!firebase.apps.length)firebase.initializeApp(window.FIREBASE_CONFIG);
-const auth=firebase.auth(),db=firebase.firestore();
+const auth=firebase.auth(),db=firebase.firestore();try{auth.languageCode='zh-TW'}catch(e){}
 const OWNER=String(window.TEACHER_EMAIL||'').toLowerCase();
 const S={user:null,prof:null,classes:[],cur:null,tasks:[],studs:[],kind:'pinyin'};
 const now=()=>new Date().toISOString();
@@ -184,7 +186,7 @@ function authView(mode){mode=mode||'login';bar();
     if(!em||!pw){msg.textContent='請填 Email 和密碼';return}
     try{if(mode==='reg'){const nm=$('#a-name').value.trim();if(!nm){msg.textContent='請填名字';return}
         S.pending={name:nm,school:$('#a-school').value.trim()};
-        await auth.createUserWithEmailAndPassword(em,pw);}
+        const cr=await auth.createUserWithEmailAndPassword(em,pw);try{await cr.user.sendEmailVerification();S.sentVerify=1}catch(e){}/* VERIFY_V1733 跟對外華語認證網站一樣寄驗證信；Quinn：之後再驗證也可以，所以先讓他用 */}
       else await auth.signInWithEmailAndPassword(em,pw);}
     catch(e){const c=String(e&&e.code||'');msg.textContent=/email-already/.test(c)?'這個 Email 已經註冊過，請直接登入':/weak-password/.test(c)?'密碼太短，至少 6 個字':/invalid-email/.test(c)?'Email 格式不對':/wrong-password|invalid-credential|user-not-found/.test(c)?'Email 或密碼不對':('失敗：'+(e&&e.message||e));}};
   const fg=$('#a-fg');if(fg)fg.onclick=async()=>{const em=$('#a-mail').value.trim();if(!em){msg.textContent='先填 Email，再按忘記密碼';return}
@@ -202,8 +204,15 @@ function profileView(){bar();
 async function mkProfile(p){const u=S.user;await db.collection('tteachers').doc(u.uid).set({uid:u.uid,email:String(u.email||'').toLowerCase(),name:p.name.slice(0,40),school:(p.school||'').slice(0,80),status:'active',created_at:now()});}/* TCLASS_V1723 註冊就能用；主管理員可以隨時停用 */
 
 /* ---------- 班級列表 ---------- */
+function verifyBar(){const u=S.user;if(!u||u.emailVerified||String(u.email||'').toLowerCase()===OWNER)return '';
+  return '<div class="vbar" id="vbar"><span>📧 你的 Email（'+esc(u.email)+'）還沒驗證。'+(S.sentVerify?'驗證信已經寄出，':'')+'請到信箱點驗證連結（找不到請看垃圾信匣）。<small>Please verify your email.</small></span>'
+    +'<span class="vb-a"><button class="btn sm" id="vb-re">重寄驗證信</button><button class="btn sm pri" id="vb-ok">我已經驗證了</button></span></div>';}
+function wireVerify(){const re=$('#vb-re'),ok=$('#vb-ok');if(!re)return;
+  re.onclick=async()=>{try{await S.user.sendEmailVerification();re.textContent='已寄出 ✓';re.disabled=true;}catch(e){re.textContent=/too-many/.test(String(e&&e.code))?'太頻繁，稍後再試':'寄不出去';}};
+  ok.onclick=async()=>{try{await S.user.reload();}catch(e){}if(auth.currentUser&&auth.currentUser.emailVerified){S.user=auth.currentUser;try{await S.user.getIdToken(true);await db.collection('tteachers').doc(S.user.uid).update({email_verified:true});}catch(e){}const b=$('#vbar');if(b)b.remove();}
+    else{ok.textContent='還沒收到驗證，再試一次';}};}
 async function listView(){bar();
-  app.innerHTML='<div class="head"><h2>我的班級</h2><span class="grow"></span></div><div class="grid" id="grid"><p class="empty">讀取中…</p></div>';
+  app.innerHTML=verifyBar()+'<div class="head"><h2>我的班級</h2><span class="grow"></span></div><div class="grid" id="grid"><p class="empty">讀取中…</p></div>';wireVerify();
   try{const sn=await db.collection('tclasses').where('owner_uid','==',S.user.uid).get();
     S.classes=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(c=>!c.deleted_at).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));}
   catch(e){$('#grid').innerHTML='<p class="msg">讀不到班級：'+esc(e.message||e)+'</p>';return}
@@ -286,6 +295,7 @@ async function load(){const u=S.user;
   S.prof=p||(own?{name:'美娟老師',status:'approved'}:null);
   if(!S.prof)return profileView();
   if(!own&&(S.prof.status==='blocked'||S.prof.status==='rejected'))return waitView(S.prof.status);
+  if(u.emailVerified&&p&&!p.email_verified){try{await u.getIdToken(true);await db.collection('tteachers').doc(u.uid).update({email_verified:true});}catch(e){}}
   route();}
 function route(){if(!S.user||!S.prof)return;const m=/c=([A-Z0-9]+)/.exec(location.hash||'');if(m)classView(m[1]);else listView();}
 window.addEventListener('hashchange',route);

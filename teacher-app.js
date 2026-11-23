@@ -27509,7 +27509,7 @@ H.tteachOpen=async()=>{if(!IS_OWNER)return toast('只有主管理員可以管理
   const off=st=>st==='blocked'||st==='rejected';/* TCLASS_V1723 註冊就能用，這裡可以隨時停用 */
   const chip=st=>off(st)?'<span class="tt-c no">已停用</span>':'<span class="tt-c ok">使用中</span>';
   const row=t=>{const my=cs.filter(c=>c.owner_uid===t.id);const n=ss.filter(x=>my.some(c=>c.id===x.class_code)).length;
-    return '<div class="tt-r"><div class="tt-m"><b>'+esc(t.name||'')+'</b>'+chip(t.status)+'<small>'+esc(t.email||'')+(t.school?'・'+esc(t.school):'')+'</small>'
+    return '<div class="tt-r"><div class="tt-m"><b>'+esc(t.name||'')+'</b>'+chip(t.status)+(t.email_verified?'<span class="tt-c ok">Email 已驗證</span>':'<span class="tt-c wait">Email 未驗證</span>')+'<small>'+esc(t.email||'')+(t.school?'・'+esc(t.school):'')+'</small>'
       +'<small>'+my.length+' 個班級・'+n+' 位學生'+(my.length?'（'+my.map(c=>esc(c.name)+' '+esc(c.id)).join('、')+'）':'')+'</small></div>'
       +'<div class="tt-a">'+(off(t.status)?'<button class="btn btn-sm btn-primary" data-act="tteachSet" data-id="'+esc(t.id)+'::active">恢復使用</button>'
         :'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachSet" data-id="'+esc(t.id)+'::blocked">停用</button>')+'</div></div>';};
