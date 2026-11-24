@@ -52,9 +52,11 @@ function css(){
   + '.hole{position:absolute;overflow:hidden;pointer-events:none}'
   + '.mole{position:absolute;left:0;right:0;bottom:0;height:100%;background:url(mole.webp) center bottom/contain no-repeat;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 14% 7.5%;box-sizing:border-box;transform:translateY(102%);transition:transform .2s ease,filter .15s}'
   + '.hole.up .mole{transform:translateY(0)}'
-  + '.mole b{font-family:var(--kai);font-size:var(--fz,20px);line-height:1.05;font-weight:400;color:#2A1E17}.mole small{font-family:var(--latin);font-size:calc(var(--fz,20px)*.5);color:#6B5040;margin-top:.2em}'
+  + '.mole b{font-family:var(--kai);font-size:var(--fz,20px);line-height:1.05;font-weight:400;color:#2A1E17}.mole small{font-family:var(--latin);font-size:calc(var(--fz,20px)*.58);color:#4A3628;font-weight:600;margin-top:.15em}'
   + '.hole.ok .mole{filter:drop-shadow(0 0 8px #2E9B5F) brightness(1.05)}.hole.no .mole{filter:drop-shadow(0 0 8px #C03A3A) grayscale(.3)}'
-  + '.field.wm .hole{pointer-events:auto}.field.wm .hole.up .mole{cursor:pointer}'
+  + '.field .hole{pointer-events:none}.field .hole.up{z-index:30!important}.field.wm .hole.up .mole{pointer-events:auto;cursor:pointer}'/* MOLEFIX_V1751 空的洞不會擋住別隻地鼠 */
+  + '.field:not(.wm) .mole b{font-size:calc(var(--fz,20px)*.82)}.field:not(.wm) .mole small{font-size:calc(var(--fz,20px)*.48)}.field:not(.wm) .mole{padding-bottom:6%}'
+  + '@media(max-width:560px){.tones{flex-wrap:nowrap;gap:6px}.tones button{width:auto;flex:1 1 0;min-width:0;height:54px}}'
   + '.mole b.l3{font-size:calc(var(--fz,20px)*.8)}.mole b.l4{font-size:calc(var(--fz,20px)*.64)}'
   + '.wmq{display:flex;align-items:center;justify-content:center;gap:12px;margin:2px 0 10px;min-height:52px}'
   + '.wmq .py{font-family:var(--latin);font-size:clamp(26px,5vw,36px);color:var(--primary);line-height:1}'
@@ -67,7 +69,7 @@ function css(){
   + '.pq-opts button.dim{opacity:.2}.pq-opts button.wrong{opacity:.75;outline:4px solid #fff;outline-offset:-4px}.pq-opts button.right{outline:4px solid #fff;outline-offset:-4px;transform:scale(1.02)}'
   + '@media(max-width:480px){.pq-opts{gap:8px}.pq-opts button{min-height:68px;padding:8px 10px;gap:8px}.pq-opts i{font-size:20px;width:22px}}'
   + '.mpick{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}'
-  + '.mpick button{width:min(220px,42vw);border:2px solid var(--line);border-radius:14px;background:var(--surface);padding:6px 6px 10px;cursor:pointer;font:inherit;color:var(--ink)}'
+  + '.mpick button{width:calc(50% - 6px);max-width:220px;border:2px solid var(--line);border-radius:14px;background:var(--surface);padding:6px 6px 10px;cursor:pointer;font:inherit;color:var(--ink)}'
   + '.mpick button img{display:block;width:100%;border-radius:9px;margin-bottom:6px}.mpick button b{font-size:17px}.mpick button span{display:block;font-size:12px;color:var(--muted)}'
   + '.mpick button.on{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 25%,transparent)}'
   + '.tones{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}'
@@ -204,13 +206,13 @@ var MOLE_LAYOUT = {
   9: {fz:'3.0cqw', h:[[21.8,50.6,15],[49.6,50.6,15],[77.4,50.6,15],[21.6,63.7,15.6],[49.6,63.7,15.6],[77.5,63.7,15.6],[20.9,77.6,17],[49.4,77.6,17],[78.4,77.6,17]]},
   6: {fz:'3.5cqw', h:[[21.8,50.6,17],[49.6,50.6,17],[77.4,50.6,17],[20.9,77.6,19],[49.6,77.6,19],[78.4,77.6,19]]}
 };
-function moleN(){ try { var n = localStorage.getItem('qna_mole_n'); return n === '6' ? 6 : 9; } catch(_){ return 9; } }
+function moleN(){ var d = innerWidth < 560 ? 6 : 9; try { var n = localStorage.getItem('qna_mole_n'); return n === '6' ? 6 : n === '9' ? 9 : d; } catch(_){ return d; } }/* 手機預設 6 格 */
 function mole(){
   var items = moleItems();
   if (items.length < 3) return empty();
   var n = moleN();
   stage().innerHTML = bar('聲調打地鼠', best(curKey()) ? '<span>最高分 <b>' + best(curKey()) + '</b></span>' : '')
-    + '<div class="gmid" style="margin:auto"><p style="margin:0;max-width:30em">地鼠捧著白板，上面有一個字和它的拼音（沒有聲調）。在地鼠躲回去之前，按下正確的聲調。也可以用鍵盤的 1、2、3、4、5（5 是輕聲）。一共 60 秒。</p>'
+    + '<div class="gmid" style="margin:auto"><p style="margin:0;max-width:30em">看地鼠白板上的字，按下正確的聲調。60 秒。</p>'
     + '<p style="margin:0;font-weight:600">選一種場地 · Choose a field</p>'
     + '<div class="mpick">' + [6, 9].map(function(k){ return '<button type="button" data-n="' + k + '" class="' + (k === n ? 'on' : '') + '"><img src="field' + k + '.webp" alt=""><b>' + k + ' 個洞</b><span>' + (k === 6 ? '比較簡單 · Easier' : '比較難 · Harder') + '</span></button>'; }).join('') + '</div>'
     + '<button class="btn primary" type="button" id="gstart2">開始</button></div>';
@@ -244,10 +246,10 @@ function fieldFit(){
   var L = MOLE_LAYOUT[+f.getAttribute('data-n') === 6 ? 6 : 9];
   var W = f.clientWidth; if (!W) return;
   var narrow = W < 560, c = narrow ? 9 : 0, vis = 1 - c * 2 / 100;     /* 左右各裁 c% */
-  var big = narrow ? (L.h.length === 6 ? 1.3 : 1.18) : 1;
+  var big = narrow ? (L.h.length === 6 ? 1.15 : 1.05) : 1;
   var H = W * (788 / 1400) / vis; f.style.height = H + 'px';
   f.style.backgroundSize = (100 / vis) + '% 100%'; f.style.backgroundPosition = '50% 50%';
-  var fz = parseFloat(L.fz) * big / vis; f.style.setProperty('--fz', (W * fz / 100) + 'px');
+  var mw0 = W * (L.h.length === 6 ? 17 : 15) * big / vis / 100; f.style.setProperty('--fz', Math.max(13, Math.round(mw0 * 0.21)) + 'px');/* 字的大小跟著地鼠的大小 */
   f.querySelectorAll('.hole').forEach(function(h, i){
     var p = L.h[i], w = p[2] * big / vis, x = (p[0] - c) / vis, hh = W * w / 100 * 0.79;
     h.style.width = w + '%'; h.style.left = (x - w / 2) + '%'; h.style.height = hh + 'px'; h.style.top = (H * p[1] / 100 - hh) + 'px';
@@ -260,7 +262,7 @@ function wmole(){
   if (ws.length < 4) return empty('詞語打地鼠至少要 4 個詞，換一個題目再試試。');
   var n = moleN();
   stage().innerHTML = bar('詞語打地鼠', best(curKey()) ? '<span>最高分 <b>' + best(curKey()) + '</b></span>' : '')
-    + '<div class="gmid" style="margin:auto"><p style="margin:0;max-width:30em">上面會出現一個拼音（可以按 🔊 聽）。好幾隻地鼠會拿著不同的詞冒出來，在牠們躲回去之前，點拿著正確詞語的那一隻。一共 60 秒。</p>'
+    + '<div class="gmid" style="margin:auto"><p style="margin:0;max-width:30em">看上面的拼音，點拿著對的詞的地鼠。60 秒。</p>'
     + fieldPick(n) + '<button class="btn primary" type="button" id="gstart2">開始</button></div>';
   wire(); fieldWire(function(k){ n = k; });
   $('#gstart2').onclick = function(){ wmoleRun(ws, n); };
@@ -271,7 +273,7 @@ function wmoleRun(ws, n){
   stage().innerHTML = bar('詞語打地鼠', '<span>時間 <b id="mt">60</b></span><span>分數 <b id="ms">0</b></span>')
     + '<div class="wmq"><span class="py" id="wq">　</span><button type="button" id="wsay" aria-label="聽">🔊</button></div>'
     + fieldHtml(n, 'wm') + '<div class="gfb center" id="mf"></div>';
-  wire(); fieldFit();
+  wire(); fieldFit(); try { stage().scrollIntoView({block:'start', behavior:'smooth'}); } catch(_){}
   var holes = stage().querySelectorAll('.hole'), t0 = Date.now();
   function fb(html){ var f = $('#mf'); if (f) f.innerHTML = html; }
   function pick(){ if (!G.bag.length) G.bag = A.shuffle(ws.slice()); return G.bag.pop(); }
@@ -317,7 +319,7 @@ function moleRun(items, n){
     + fieldHtml(n)
     + '<div class="gfb center" id="mf"></div>'
     + '<div class="tones">' + TB.map(function(t, i){ return '<button type="button" data-t="' + (i + 1) + '" class="' + (i === 4 ? 'q' : '') + '" aria-label="' + TN[i] + '">' + t + '<small>' + (i + 1) + '</small></button>'; }).join('') + '</div>';
-  wire(); fieldFit();
+  wire(); fieldFit(); try { stage().scrollIntoView({block:'start', behavior:'smooth'}); } catch(_){}
   var holes = stage().querySelectorAll('.hole'), t0 = Date.now();
   function pick(){ if (!G.bag.length) G.bag = A.shuffle(items); return G.bag.pop(); }
   function clear(h){ later(function(){ h.classList.remove('up', 'ok', 'no'); }, 380); }
