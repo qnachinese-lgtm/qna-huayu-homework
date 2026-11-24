@@ -91,6 +91,8 @@ html{overflow-y:scroll;scrollbar-gutter:stable}
 .tc-bar{height:6px;border-radius:6px;background:#EEF2F8;overflow:hidden}.tc-bar i{display:block;height:100%;background:#2E9B5F;border-radius:6px}.tc-f{display:flex;align-items:center;gap:8px;font-size:13px;color:#5B6B80}.tc-f .grow{flex:1}
 .cempty{text-align:center;background:#fff;border:1.5px dashed #C9D6E8;border-radius:18px;padding:40px 20px}.cempty b{font-size:18px}.cempty p{color:#7A8BA3;margin:8px 0 18px}
 .steph{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;margin:6px 0 10px}.steph span{width:26px;height:26px;border-radius:50%;background:var(--p);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex:none}.steph.s3{margin-top:14px;order:90}.f>.ttl{order:91}
+.pmseg{display:flex;align-items:center;gap:10px;margin-bottom:4px;font-size:13px;font-weight:700}#pm-words.hide,#pm-seg.hide{display:none}#pm-seg{display:flex;flex-direction:column;gap:10px}#seg-auto{align-self:flex-start}
+.segrow{display:flex;flex-wrap:wrap;gap:4px 2px;align-items:flex-end;padding:8px 0;border-bottom:1px dashed #E3E9F2}.segc{display:flex;flex-direction:column;align-items:center;border:1px solid transparent;border-radius:8px;background:none;padding:2px 3px;cursor:pointer;font:inherit;min-width:34px}.segc:hover{border-color:#B9CBE4;background:#F5F8FD}.segc i{font-style:normal;font-size:12.5px;color:#1E4C86;font-family:"Times New Roman",serif;line-height:1.2}.segc b{font-size:22px;font-weight:400;line-height:1.2}.segc.miss i{color:#C03A3A}.segp{font-size:22px;padding:0 2px}.segopts{display:flex;gap:6px;flex-wrap:wrap}
 .tpick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}.tp-g{grid-column:1/-1;font-size:12.5px;color:#7A8BA3;font-weight:700;margin-top:2px}.tpick button{border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px 12px;text-align:left;font:inherit;cursor:pointer;display:flex;flex-direction:column;gap:2px;color:var(--ink)}.tpick button small{font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tpick button.on{border-color:var(--p);background:var(--ps);box-shadow:0 0 0 1px var(--p) inset}
 .lnkrow{display:flex;gap:8px;align-items:center;width:100%;background:#F5F8FD;border-radius:10px;padding:8px 10px}.lnkrow code{flex:1;min-width:0;font-size:12px;word-break:break-all;text-align:left;color:var(--p)}
 @media(max-width:760px){.tpick{grid-template-columns:1fr 1fr}.chead h2{font-size:23px}.ch-r{width:100%}.ch-r #qrbig{flex:1}}
@@ -321,8 +323,8 @@ async function classView(code){bar();
   $('#rm').onclick=async()=>{if(!await dlg({title:'刪除「'+c.name+'」？',text:'刪除以後，學生就進不來這個班了。',ok:'刪除',danger:1}))return;await db.collection('tclasses').doc(code).update({deleted_at:now()});location.hash='';};
   app.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(!await dlg({title:'收回這份題目？',text:'學生就看不到這份題目了。',ok:'收回',danger:1}))return;await db.collection('ttasks').doc(b.dataset.del).update({deleted_at:now()});classView(code);});
   wireForm(code);}
-function taskCard(t,dn){const n=S.studs.length;const nw=t.game==='kq'?(t.qs||[]).length+' 題':String(t.items||'').split('\n').filter(x=>x.trim()).length+' 個詞';
-  const type=t.kind==='pinyin'?(t.zy?'注音練習':'拼音練習'):t.kind==='game'?((GKINDS.find(g=>g[0]===t.game)||[])[1]||'遊戲').replace(/^\S+\s/,''):'漢字闖關';
+function taskCard(t,dn){const n=S.studs.length;const nw=t.pm?(t.segs||[]).reduce((a,x)=>a+Array.from(x.h).filter(c=>HANRE.test(c)).length,0)+' 個字':t.game==='kq'?(t.qs||[]).length+' 題':String(t.items||'').split('\n').filter(x=>x.trim()).length+' 個詞';
+  const type=t.kind==='pinyin'?(t.pm==='sent'?'短句練習':t.pm==='text'?'短文練習':t.zy?'注音練習':'拼音練習'):t.kind==='game'?((GKINDS.find(g=>g[0]===t.game)||[])[1]||'遊戲').replace(/^\S+\s/,''):'漢字闖關';
   const ic=t.kind==='pinyin'?(t.zy?'ㄅ':'ā'):t.kind==='game'?(((GKINDS.find(g=>g[0]===t.game)||[])[1]||'🎮').split(' ')[0]):'字';const pct=n?Math.round(dn/n*100):0;
   return '<div class="tcard"><div class="tc-top"><i>'+esc(ic)+'</i><div class="tc-t"><b>'+esc(t.title)+'</b><small>'+esc(type)+'・'+esc(nw)+'・'+esc(String(t.created_at||'').slice(5,10).replace('-','/'))+'</small></div></div>'
    +'<div class="tc-bar"><i style="width:'+pct+'%"></i></div><div class="tc-f"><span>'+(n?dn+' / '+n+' 位做過':'還沒有學生')+'</span><span class="grow"></span><button class="btn sm del" data-del="'+esc(t.id)+'">收回</button></div></div>';}
@@ -334,8 +336,10 @@ function formHtml(){return '<div class="steph"><span>1</span>要學生做什麼�
   +'<div class="kseg" hidden><button data-k="pinyin" class="'+(S.kind==='pinyin'?'on':'')+'">ā 拼音／注音練習</button><button data-k="game" class="'+(S.kind==='game'?'on':'')+'">🎮 生詞遊戲</button></div>'
   +'<div class="f">'
   +'<div id="fk-pinyin" class="f'+(S.kind==='pinyin'?'':' hide')+'"><div class="steph s3"><span>3</span>取個名字，發給學生</div><label class="l ttl">題目名稱</label><input class="ttl" id="t-title" maxlength="60" placeholder="幫這份題目取個名字，學生會看到">'
-  +'<label class="l">詞語</label><textarea id="t-items" placeholder="一行打一個詞：先打漢字，空一格，再打拼音。聲調用數字或符號都可以。"></textarea>'
+  +'<div class="pmseg"><span>難度</span><div class="scrseg" id="pmseg"><button type="button" data-pm="" class="on">生詞</button><button type="button" data-pm="sent">短句</button><button type="button" data-pm="text">短文</button></div></div>'
+  +'<div id="pm-words"><label class="l">詞語</label><textarea id="t-items" placeholder="一行打一個詞：先打漢字，空一格，再打拼音。聲調用數字或符號都可以。"></textarea>'
   +'<button type="button" class="bankbtn" data-bank="t"><b>📚 從題庫選詞</b><small>華語八千詞，分區挑選、勾選要的詞</small></button></div>'
+  +'<div id="pm-seg" class="hide"><label class="l" id="seg-lab">句子</label><textarea id="seg-text"></textarea><button type="button" class="btn" id="seg-auto">✨ 自動標拼音</button><div id="seg-grid"></div></div></div>'
   /* CGAME_V1736 Quinn：「我要的是中文遊戲，也就是翻牌、大富翁等」——漢字闖關換成生詞遊戲 */
   +'<div id="fk-game" class="f'+(S.kind==='game'?'':' hide')+'"><div class="steph s3"><span>3</span>取個名字，發給學生</div><label class="l ttl">題目名稱</label><input class="ttl" id="g-title" maxlength="60" placeholder="幫這份遊戲取個名字，學生會看到">'
   +'<div class="gpick" id="g-kind" hidden>'+GKINDS.map((g,i)=>'<button type="button" data-g="'+g[0]+'" class="'+(i?'':'on')+'"><b>'+g[1]+'</b><small>'+g[2]+'</small></button>').join('')+'</div>'
@@ -423,7 +427,36 @@ function kqCheck(){if(Object.keys(KQBUSY).length)return {err:'圖片還在上傳
     const keep=opts.map((o,k)=>({o,k})).filter(z=>z.o);if(keep.length<2)return {err:'第 '+(i+1)+' 題至少要寫兩個選項'};
     qs.push({img:x.img||'',q:x.q.trim(),opts:keep.map(z=>z.o),ans:keep.findIndex(z=>z.k===x.ans)});}
   if(!qs.length)return {err:'至少要出一題'};return {qs};}
+
+/* SEGP_V1755 Quinn：「除了練習單子以外，還想要增加難度：生詞、短句、短文」
+   短句、短文：老師只貼漢字，按「自動標拼音」（pinyin-pro，放在自己網站上），每個字下面標好拼音；破音字點一下可以改。
+   學生那邊：每個字下面一格，逐字打拼音（或注音）。 */
+S.pm='';let SEG=[];
+const HANRE=/[\u3400-\u9fff\uf900-\ufaff]/;
+function pmSync(){const w=$('#pm-words'),g=$('#pm-seg');if(!w)return;w.classList.toggle('hide',!!S.pm);g.classList.toggle('hide',!S.pm);
+  $('#seg-lab').textContent=S.pm==='text'?'短文':'句子';$('#seg-text').placeholder=S.pm==='text'?'貼上一段短文，只要漢字和標點就好。':'一行貼一個句子，只要漢字和標點就好。';
+  $('#seg-text').style.minHeight=S.pm==='text'?'180px':'130px';segPaint();}
+function loadPP(){return window.pinyinPro?Promise.resolve():new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='pinyin-pro.js?v=3260';sc.onload=res;sc.onerror=()=>rej(new Error('自動標拼音的程式載不進來，請重新整理再試'));document.head.appendChild(sc);});}
+async function segAuto(){const raw=$('#seg-text').value.trim();if(!raw){dlg({title:'先貼上漢字',ok:'知道了',noCancel:1});return}
+  try{await loadPP();}catch(e){dlg({title:'標不了拼音',text:e.message,ok:'知道了',noCancel:1});return}
+  const lines=S.pm==='text'?raw.split(/\n+/):raw.split(/\n+/);
+  SEG=lines.map(x=>x.trim()).filter(Boolean).map(h=>{const cs=Array.from(h);const py=pinyinPro.pinyin(h,{type:'array'});return {h,p:cs.map((c,i)=>HANRE.test(c)?(py[i]||''):'')};});segPaint();}
+function segPaint(){const g=$('#seg-grid');if(!g)return;if(!S.pm||!SEG.length){g.innerHTML='';return}
+  g.innerHTML='<p class="gneed">請檢查拼音；不對的字點一下就能改。</p>'+SEG.map((sg,si)=>'<div class="segrow">'+Array.from(sg.h).map((c,ci)=>HANRE.test(c)?'<button type="button" class="segc'+(sg.p[ci]?'':' miss')+'" data-s="'+si+':'+ci+'"><i>'+esc(sg.p[ci]||'?')+'</i><b>'+esc(c)+'</b></button>':'<span class="segp">'+esc(c)+'</span>').join('')+'</div>').join('');
+  g.querySelectorAll('.segc').forEach(b=>b.onclick=()=>segEdit(b));}
+async function segEdit(b){const [si,ci]=b.dataset.s.split(':').map(Number);const c=Array.from(SEG[si].h)[ci];let opts=[];try{opts=pinyinPro.pinyin(c,{multiple:true,type:'array'})||[];}catch(e){}
+  {const base=String(SEG[si].p[ci]||opts[0]||'').normalize('NFD').replace(/[\u0300\u0301\u030c\u0300-\u0302\u0304\u030b]/g,'').normalize('NFC');if(base&&opts.indexOf(base)<0)opts=opts.concat([base]);}/* 多一個「輕聲」選項 */
+  const cur=SEG[si].p[ci];const w=document.createElement('div');w.className='dlg';
+  w.innerHTML='<div class="dlg-b" style="max-width:340px"><h3 style="margin:0">「'+esc(c)+'」的拼音</h3>'+(opts.length>1?'<p class="gneed" style="margin:0">點一個讀音（最後一個沒有聲調的是輕聲）</p><div class="segopts">'+opts.map(o=>'<button type="button" class="btn sm'+(o===cur?' pri':'')+'" data-o="'+esc(o)+'">'+esc(o)+'</button>').join('')+'</div>':'')
+    +'<label class="l">或自己打（數字或聲調符號都可以，輕聲不用打數字）</label><input id="seg-in" value="'+esc(cur)+'"><div class="dlg-a"><button class="btn" data-x>取消</button><button class="btn pri" data-ok>確定</button></div></div>';
+  document.body.appendChild(w);const inp=w.querySelector('#seg-in');inp.focus();inp.select();
+  const set=v=>{v=String(v||'').trim();if(v){SEG[si].p[ci]=numToMark(v);}w.remove();segPaint();};
+  w.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>set(x.dataset.o));w.querySelector('[data-ok]').onclick=()=>set(inp.value);w.querySelector('[data-x]').onclick=()=>w.remove();
+  inp.onkeydown=e=>{if(e.key==='Enter')set(inp.value);};w.onclick=e=>{if(e.target===w)w.remove();};}
+function numToMark(s){const T={a:'āáǎà',e:'ēéěè',i:'īíǐì',o:'ōóǒò',u:'ūúǔù','ü':'ǖǘǚǜ'};return String(s).toLowerCase().replace(/v/g,'ü').replace(/([a-zü]+)([1-5])/g,(m,y,n)=>{n=+n;if(n===5)return y;let i=y.indexOf('a');if(i<0)i=y.indexOf('e');if(i<0&&y.indexOf('ou')>=0)i=y.indexOf('o');if(i<0){for(let k=y.length-1;k>=0;k--)if('iouü'.indexOf(y[k])>=0){i=k;break;}}return i<0?y:y.slice(0,i)+T[y[i]][n-1]+y.slice(i+1);});}
 function wireForm(code){
+  app.querySelectorAll('#pmseg button').forEach(b=>b.onclick=()=>{S.pm=b.dataset.pm;app.querySelectorAll('#pmseg button').forEach(x=>x.classList.toggle('on',x===b));pmSync();});
+  {const a=$('#seg-auto');if(a)a.onclick=segAuto;}
   app.querySelectorAll('.tpick button').forEach(b=>b.onclick=()=>{const v=b.dataset.tp;app.querySelectorAll('.tpick button').forEach(x=>x.classList.toggle('on',x===b));
     if(v==='pinyin'){const k=app.querySelector('.kseg:not(.zyseg) button[data-k="pinyin"]');if(k)k.click();}
     else{const k=app.querySelector('.kseg:not(.zyseg) button[data-k="game"]');if(k&&S.kind!=='game')k.click();const g=app.querySelector('#g-kind button[data-g="'+v+'"]');if(g)g.click();}});
@@ -436,7 +469,10 @@ function wireForm(code){
   $('#g-kind').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.gk=b.dataset.g;$('#g-kind').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));gNeed();zySync();picPaint();kqPaint();});
   $('#h-fam').onchange=()=>{const t=$('#h-title');if(!t.value.trim()||t.dataset.auto==='1'){t.value=HZ_NAME[$('#h-fam').value]||'';t.dataset.auto='1';}};$('#h-fam').onchange();
   $('#t-go').onclick=async()=>{const msg=$('#t-msg');msg.className='msg';msg.textContent='';let t;
-    if(S.kind==='pinyin'){const items=$('#t-items').value.split('\n').map(x=>x.trim()).filter(Boolean);
+    if(S.kind==='pinyin'&&S.pm){if(!SEG.length){msg.textContent=$('#seg-text').value.trim()?'請先按「自動標拼音」':'請先貼上'+(S.pm==='text'?'短文':'句子');return}
+      const bad=SEG.some(sg=>Array.from(sg.h).some((c,i)=>HANRE.test(c)&&!sg.p[i]));if(bad){msg.textContent='有字還沒有拼音（標成 ? 的那幾個），點一下補上';return}
+      t={kind:'pinyin',pm:S.pm,title:$('#t-title').value.trim()||(S.pm==='text'?'短文練習':'短句練習'),segs:SEG.map(x=>({h:x.h,p:x.p})),items:SEG.map(x=>x.h).join('\n')};}
+    else if(S.kind==='pinyin'){const items=$('#t-items').value.split('\n').map(x=>x.trim()).filter(Boolean);
       if(!items.length){msg.textContent='請先打詞語';return}
       const bad=items.filter(x=>!/[㐀-鿿]/.test(x)||!/[a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/.test(x));
       if(bad.length){msg.textContent='這幾行格式不對（要有漢字和拼音）：'+bad.slice(0,3).join('、');return}
@@ -452,7 +488,7 @@ function wireForm(code){
       if(S.gk==='pic'){const ws=items.map(x=>x.split(/\s+/)[0]);const miss=ws.filter(w=>!PIC[w]);if(PICBUSY){msg.textContent='圖片還在上傳，請等一下';return}if(miss.length){msg.textContent='這幾個詞還沒有圖：'+miss.slice(0,5).join('、');return}t.imgs={};ws.forEach(w=>t.imgs[w]=PIC[w]);}}
     else return;
     Object.assign(t,{class_code:code,owner_uid:S.user.uid,created_at:now()});
-    try{await db.collection('ttasks').add(t);S.ctab='tasks';if(t.game==='kq')KQ=[];if(t.game==='pic')Object.keys(PIC).forEach(k=>delete PIC[k]);classView(code);}catch(e){msg.textContent='發不出去：'+(e&&e.message||e)}};}
+    try{await db.collection('ttasks').add(t);S.ctab='tasks';if(t.pm){SEG=[];}if(t.game==='kq')KQ=[];if(t.game==='pic')Object.keys(PIC).forEach(k=>delete PIC[k]);classView(code);}catch(e){msg.textContent='發不出去：'+(e&&e.message||e)}};}
 function stat(s,t){const r=(s.tasks||{})[t.id];if(!r)return '<td class="no">—</td>';
   if(t.kind==='pinyin')return '<td class="'+(r.n&&r.ok===r.n?'ok':'')+'">'+(r.ok||0)+'/'+(r.n||0)+(r.times>1?' <small style="color:var(--mut)">×'+r.times+'</small>':'')+'</td>';
   if(t.kind==='game')return '<td class="ok">玩過 '+(r.times||1)+' 次'+(r.best!=null?'<br><small style="color:var(--mut)">最高 '+r.best+(r.unit||'')+'</small>':'')+'</td>';

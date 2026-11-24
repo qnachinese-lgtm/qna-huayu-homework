@@ -213,6 +213,20 @@ html.dark .stage,html.dark .chip,html.dark .btn,html.dark .who{background:var(--
 html.dark .tabs{background:var(--surface-2)}html.dark .tab[aria-selected="true"]{background:var(--surface)}
 html.dark .cheat{background:var(--surface-2)}html.dark .inrow input{background:var(--surface-2)}
 /* MOLEIMG_V1737 → 已改到 pinyin-games.js 的 MOLEFIELD_V1738 */
+/* SEGP_V1755 短句、短文 */
+.sg-tip{margin:0;color:#5B6B80;font-size:14px;text-align:center}
+.sg-box{display:flex;flex-direction:column;gap:12px;margin:4px 0}
+.sg-row{display:flex;flex-wrap:wrap;gap:10px 6px;align-items:flex-start;justify-content:center}
+.sg-c{display:flex;flex-direction:column;align-items:center;gap:4px;width:64px}
+.sg-c b{font-size:30px;font-weight:400;line-height:1.1;font-family:"Noto Serif TC","Songti TC",PMingLiU,serif}
+.sg-in{width:64px;height:38px;border:1.5px solid #C9D6E8;border-radius:9px;text-align:center;font-family:"Times New Roman",serif;font-size:17px;background:#fff;padding:0 2px;box-sizing:border-box;outline:none;display:flex;align-items:center;justify-content:center;cursor:text}
+.sg-in.cur,.sg-in:focus{border-color:#1E4C86;box-shadow:0 0 0 3px rgba(30,76,134,.15)}
+.sg-zy{font-family:"Noto Serif TC","Songti TC",PMingLiU,serif;font-size:15px}
+.sg-c.ok .sg-in{border-color:#2E9B5F;background:#EAF6EF}.sg-c.bad .sg-in{border-color:#C03A3A;background:#FDF0F0}
+.sg-ans{font-style:normal;font-size:14px;color:#C03A3A;min-height:1em;font-family:"Times New Roman",serif}
+.sg-p{font-size:30px;line-height:1.1;padding-top:2px}
+.sg-in{white-space:nowrap;overflow:hidden}.sg-zy{font-size:13px;letter-spacing:-.5px}.sg-zy .zys{margin:0}
+@media(max-width:480px){.sg-row{gap:8px 2px}.sg-p{font-size:20px!important;padding-top:6px}.sg-c{width:48px}.sg-in{width:48px;height:36px;font-size:14px}.sg-zy{font-size:12px}.sg-c b{font-size:25px}.sg-p{font-size:25px}.sg-ans{font-size:12.5px}}
 /* ZHUYIN_V1741 拼音／注音切換 */
 .tabrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .scr{display:inline-flex;background:#EEF3FA;border-radius:999px;padding:3px;gap:2px;align-self:center}
@@ -408,7 +422,7 @@ function pool(){
   if(lv==='review')return reviewItems();
   return ITEMS[lv]||[]}
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a}
-function startRound(items){if(me.guest&&!items&&st.level==='none'){stage.innerHTML='<div class="gate"><p style="font-size:18px;font-weight:700;margin:0">老師還沒出題</p><p class="tip" style="margin:0">No practice yet. Please check back later.</p></div>';return}const isT=!items&&String(st.level).indexOf('task:')===0;st.queue=shuffle(items||pool()).slice(0,isT?60:10);st.i=0;st.res=[];renderPractice()}
+function startRound(items){if(me.guest&&!items&&st.level==='none'){stage.innerHTML='<div class="gate"><p style="font-size:18px;font-weight:700;margin:0">老師還沒出題</p><p class="tip" style="margin:0">No practice yet. Please check back later.</p></div>';return}const isT=!items&&String(st.level).indexOf('task:')===0;st.plain=!!items;st.queue=shuffle(items||pool()).slice(0,isT?60:10);st.i=0;st.res=[];st.sp=null;renderPractice()}
 function renderLevels(){
   try{syncZyUi()}catch(e){}
   const box=$('#levels');box.hidden=(st.tab!=='practice'&&st.tab!=='game')||!!(me.guest&&me.guest.cls);/* CLSONLY_V1742 班級學生只看到老師指派的這一份，不能自己換題目、換遊戲 */
@@ -426,6 +440,7 @@ function renderLevels(){
 function progHTML(){const n=st.queue.length;const tt=String(st.level).indexOf('task:')===0?taskOf(st.level.slice(5)):null;return (tt?'<div class="taskbar">作業：'+esc(tt.title)+(tt.due?'　截止 '+esc(tt.due):'')+'</div>':'')+`<div class="prog"><span>第 ${st.i+1} 題／共 ${n} 題</span><div class="dots">${st.queue.map((_,k)=>`<i class="${k<st.res.length?(st.res[k].ok?'ok':'no'):(k===st.i?'now':'')}"></i>`).join('')}</div></div>`}
 function renderPractice(){
   syncZyUi();$('#cheat').hidden=isZY();
+  {const lv=String(st.level||'');const tk=lv.indexOf('task:')===0?taskOf(lv.slice(5)):null;if(tk&&tk.pm&&Array.isArray(tk.segs)&&!st.plain){$('#cheat').hidden=true;return renderSeg(tk);}}
   if(isZY())return renderPracticeZy();
   if(!st.queue.length){stage.innerHTML='<p class="tip center" style="margin:auto">這個程度還沒有題目。</p>';return}
   if(st.i>=st.queue.length)return renderResult();
@@ -468,6 +483,48 @@ function renderPracticeZy(){
   go.onclick=()=>{if(st.done){st.i++;renderPractice();return}const r=ZY.check(ctl.keys(),it.syls);
     if(!r){fb.className='fb';fb.innerHTML='<span class="tip">先點注音再按檢查</span>';return}finish(r,ctl.text())};
   $('#giveup').onclick=()=>{if(!st.done)finish({ok:false,kind:'spell',wrong:null},'')};}
+
+/* SEGP_V1755 短句、短文：每個字下面一格，逐字打拼音（注音模式用注音鍵盤）。短句一句一頁，短文整段一頁。 */
+const HAN1=/[㐀-鿿豈-﫿]/;
+function renderSeg(tk){
+  if(!st.sp)st.sp={i:0,res:[]};const sp=st.sp,pages=tk.pm==='text'?[tk.segs]:tk.segs.map(x=>[x]);
+  if(sp.i>=pages.length){st.res=sp.res;st.queue=sp.res.map(r=>r.it);st.sp=null;st.plain=false;return renderResult()}
+  const z=isZY();const segs=pages[sp.i];let k=0;const cells=[];
+  const head=(tk.pm==='text'?'':'<div class="prog"><span>第 '+(sp.i+1)+' 句／共 '+pages.length+' 句</span><div class="dots">'+pages.map((_,j)=>'<i class="'+(j<sp.i?'ok':j===sp.i?'now':'')+'"></i>').join('')+'</div></div>');
+  stage.innerHTML='<div class="taskbar">'+esc(tk.title||'')+'</div>'+head
+    +'<p class="sg-tip">'+(z?'點一個字，用下面的注音鍵盤打；按聲調就會跳到下一個字。':'在每個字下面打拼音，聲調打數字（例如 ma3），打完會自動跳到下一個字。')+'</p>'
+    +'<div class="sg-box">'+segs.map(sg=>'<div class="sg-row">'+Array.from(sg.h).map((c,ci)=>{if(!HAN1.test(c))return '<span class="sg-p">'+esc(c)+'</span>';const i=k++;cells.push({c,p:sg.p[ci]||''});
+      return '<label class="sg-c" data-i="'+i+'"><b>'+esc(c)+'</b>'+(z?'<span class="sg-in sg-zy" tabindex="0" data-i="'+i+'"></span>':'<input class="sg-in" data-i="'+i+'" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">')+'<em class="sg-ans"></em></label>';}).join('')+'</div>').join('')+'</div>'
+    +(z?ZY.kbHTML():'')
+    +'<div class="fb" id="fb"></div><div class="acts"><button class="btn primary" id="go" type="button">檢查</button></div>';
+  const ins=[...stage.querySelectorAll('.sg-in')],go=$('#go'),fb=$('#fb');let done=false,cur=0;const ZK=cells.map(()=>[]);
+  const focus=i=>{cur=Math.max(0,Math.min(ins.length-1,i));ins.forEach((el,j)=>el.classList.toggle('cur',j===cur));if(!z)ins[cur].focus();else ins[cur].scrollIntoView({block:'nearest'});};
+  if(!z){ins.forEach((el,i)=>{el.addEventListener('input',e=>{if(e.isComposing)return;const tone=/[1-5]$/.test(el.value);autoConvert(el);if(tone&&i<ins.length-1)focus(i+1);});
+      el.addEventListener('focus',()=>{cur=i;ins.forEach((x,j)=>x.classList.toggle('cur',j===i));});
+      el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();go.click();}else if(e.key===' '&&el.value.trim()){e.preventDefault();focus(i+1);}else if(e.key==='Backspace'&&!el.value&&i>0){e.preventDefault();focus(i-1);}});});}
+  else{css0();ins.forEach((el,i)=>el.addEventListener('click',()=>focus(i)));
+    const paint=i=>{ins[i].innerHTML=ZY.render(ZK[i]);};
+    const press=key=>{if(done)return;if(key==='BS'){if(ZK[cur].length)ZK[cur].pop();else if(cur>0){focus(cur-1);ZK[cur].pop();}paint(cur);return}
+      ZK[cur].push(key);paint(cur);if(/[ˉˊˇˋ˙]/.test(key)&&cur<ins.length-1)focus(cur+1);};
+    stage.querySelectorAll('.zykb button').forEach(b=>b.addEventListener('click',()=>press(b.dataset.k)));
+    const KB={'1':'ㄅ',q:'ㄆ',a:'ㄇ',z:'ㄈ','2':'ㄉ',w:'ㄊ',s:'ㄋ',x:'ㄌ',e:'ㄍ',d:'ㄎ',c:'ㄏ',r:'ㄐ',f:'ㄑ',v:'ㄒ','5':'ㄓ',t:'ㄔ',g:'ㄕ',b:'ㄖ',y:'ㄗ',h:'ㄘ',n:'ㄙ',u:'ㄧ',j:'ㄨ',m:'ㄩ','8':'ㄚ',i:'ㄛ',k:'ㄜ',',':'ㄝ','9':'ㄞ',o:'ㄟ',l:'ㄠ','.':'ㄡ','0':'ㄢ',p:'ㄣ',';':'ㄤ','/':'ㄥ','-':'ㄦ',' ':'ˉ','6':'ˊ','3':'ˇ','4':'ˋ','7':'˙'};
+    const onKey=ev=>{if(!document.body.contains(go)){document.removeEventListener('keydown',onKey);return}if(ev.ctrlKey||ev.metaKey||ev.altKey)return;if(ev.key==='Enter'){ev.preventDefault();go.click();return}if(ev.key==='Backspace'){ev.preventDefault();press('BS');return}const kk=KB[String(ev.key).toLowerCase()];if(kk){ev.preventDefault();press(kk);}};
+    document.addEventListener('keydown',onKey);}
+  focus(0);
+  go.onclick=()=>{if(done){sp.i++;renderSeg(tk);try{stage.scrollIntoView({block:'start'})}catch(e){}return}
+    const empty=z?ZK.some(x=>!x.length):ins.some(x=>!x.value.trim());
+    if(empty&&!go.dataset.warned){go.dataset.warned='1';fb.className='fb';fb.innerHTML='<span class="tip">還有字沒打，再按一次「檢查」就直接對答案。</span>';return}
+    done=true;let ok=0;
+    cells.forEach((cl,i)=>{const it=makeItem(cl.c,cl.p);const T=it.syls[0]||{base:'',tone:5};let good=false,a='';
+      if(z){const r=ZY.check(ZK[i],it.syls);good=!!(r&&r.ok);a=ins[i].textContent;}
+      else{a=ins[i].value.trim();const g=parsePinyin(a);good=g.length===1&&g[0].base===T.base&&g[0].tone===T.tone;ins[i].readOnly=true;}
+      if(good)ok++;const lab=ins[i].closest('.sg-c');lab.classList.add(good?'ok':'bad');if(!good)lab.querySelector('.sg-ans').innerHTML=z?ZY.syl(T.base,T.tone):esc(cl.p);
+      sp.res.push({it,ok:good,a,k:good?'':'spell'});});
+    if(z){const kb=stage.querySelector('.zykb');if(kb)kb.setAttribute('aria-disabled','true');}
+    fb.className='fb '+(ok===cells.length?'ok':'no');fb.innerHTML='<span class="head">'+(ok===cells.length?'全部答對！':'答對 '+ok+' / '+cells.length+' 個字，紅色的是正確答案')+'</span>';
+    go.textContent=sp.i+1>=pages.length?'看結果':'下一句';go.focus();};
+}
+let css0done=false;function css0(){if(css0done)return;css0done=true;try{ZY.css()}catch(e){}}
 function renderResult(){
   const ok=st.res.filter(r=>r.ok).length,n=st.res.length,wrong=st.res.filter(r=>!r.ok);
   stage.innerHTML=`<div class="result"><div class="big">${ok}<small> / ${n}</small></div>
@@ -723,7 +780,7 @@ async function classBoot(code){
   let nm='';try{nm=localStorage.getItem('qna_cls_name_'+code)||''}catch(e){}
   if(!nm){location.href='room.html?c='+encodeURIComponent(code);return}
   let ts=[];try{const sn=await fs.collection('ttasks').where('class_code','==',code).get();ts=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(t=>t&&!t.deleted_at&&(t.kind==='pinyin'||(t.kind==='game'&&(t.game==='pinyin'||t.game==='mole'||t.game==='wmole'||t.game==='pic'||t.game==='kq'))))}catch(e){}/* PYGAME_V1737 也收拼音遊戲、打地鼠 */
-  TASKS=ts.map(t=>({id:t.id,title:t.title,items:t.kind==='game'?String(t.items||'').split('\n').map(x=>x.split(/[=＝]/)[0].trim()).filter(Boolean).join('\n'):t.items,guest:true,gk:t.kind==='game'?t.game:'',zy:!!t.zy,imgs:t.imgs||null,qs:t.qs||null}));CUSTOM=[];COURSE=[];
+  TASKS=ts.map(t=>({id:t.id,title:t.title,items:t.kind==='game'?String(t.items||'').split('\n').map(x=>x.split(/[=＝]/)[0].trim()).filter(Boolean).join('\n'):t.items,guest:true,gk:t.kind==='game'?t.game:'',zy:!!t.zy,imgs:t.imgs||null,qs:t.qs||null,pm:t.pm||'',segs:t.segs||null}));CUSTOM=[];COURSE=[];
   me.guest={name:nm,dev:guestDev(),cls:code,owner:c.owner_uid,cname:c.name};me.guest.scr=((c.scripts||{})[code+'_'+me.guest.dev])||c.script_default||'';/* SCRSTU_V1742 老師幫每位學生選拼音或注音 */me.student=null;me.teacher=false;
   try{me.rec=Object.assign(emptyRec(),JSON.parse(localStorage.getItem('qna-pinyin-cls-'+code)||'null')||{})}catch(e){me.rec=emptyRec()}
   document.body.classList.add('is-guest');
