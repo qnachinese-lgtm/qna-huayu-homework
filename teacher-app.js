@@ -810,7 +810,7 @@ S.writings=_all.filter(x=>x.kind==='writing');}S.classicals=b.filter(x=>x.kind==
      官網寫的是越南文店名，兩邊的招牌就長得不一樣。妳是主管理員，改成跟官網一字不差；
      協作的管理員還是留「管理員 · email」——他們需要知道自己是用哪個帳號登入的。 */
   const bs=document.querySelector('.brand-sub');
-  if(bs)bs.textContent=owner?'Tiếng Trung Quyên Huỳnh':('管理員 · '+(MY_EMAIL||''));
+  if(bs)bs.textContent=owner?'QNA CHINESE':('管理員 · '+(MY_EMAIL||''));
   loadFailBanner();/* READERR_V1419 */
 }
 function splitResults(d){d=d||[];S.mistakes=d.filter(x=>x.kind==='mistake');S.acts=d.filter(x=>x.kind==='act');S.results=d.filter(x=>x.kind!=='mistake'&&x.kind!=='sentence'&&x.kind!=='quizresult'&&x.kind!=='discussion'&&x.kind!=='shadow'&&x.kind!=='note'&&x.kind!=='annot'&&x.kind!=='gprac'&&x.kind!=='hwv'&&x.kind!=='wb'&&x.kind!=='lqp'&&x.kind!=='wt'&&x.kind!=='fhw'&&x.kind!=='review'&&x.kind!=='act'&&x.kind!=='leavereq'&&x.kind!=='hanzi');S.hanzis=d.filter(x=>x.kind==='hanzi');/* HANZI_V1 */S.leavereqs=d.filter(x=>x.kind==='leavereq');/* LEAVEREQ_V1204 */S.reviews=d.filter(x=>x.kind==='review');S.sentences=d.filter(x=>x.kind==='sentence');S.quizResults=d.filter(x=>x.kind==='quizresult');S.discussions=d.filter(x=>x.kind==='discussion');S.shadows=d.filter(x=>x.kind==='shadow');S.gpracs=d.filter(x=>x.kind==='gprac');S.hwvs=d.filter(x=>x.kind==='hwv');S.wbdocs=d.filter(x=>x.kind==='wb');S.lqps=d.filter(x=>x.kind==='lqp');S.wts=d.filter(x=>x.kind==='wt');S.fhws=d.filter(x=>x.kind==='fhw');/* FREEHW_V1631 *//* WRITEHW_V1566 */}
@@ -9149,8 +9149,8 @@ function ghBuild(book,lids,mode,wide,noimg){
     +'<style>'+fbCss()+ghCss()+expCss()+'</style></head><body class="lang-zh'
     +(GHWIDE?' gh-hand':'')+(GHNOIMG?' gh-noimg':'')+'">'/* PRINTBAR_V960 */
     /* GHFOOT_V829 每一頁的頁尾（只有列印時看得到） */
-    +'<div class="gh-run"><b>'+esc(window.APP_NAME||'QNA CHINESE')+'</b>'
-    +'<span class="vi">Tiếng Trung Quyên Huỳnh</span>'
+    +'<div class="gh-run"><b>美娟華語工作室</b>'
+    +'<span class="vi">QNA CHINESE</span>'
     +'<span class="r">'+esc(book)+'　·　'+esc(ttl)+'</span></div>'
     /* PRINTBAR_V959 繁／簡移到這裡，按了立刻換，不用重出一份 */
     +expBar(1,'<span class="exp-l">字</span><select id="zhs" class="exp-s">'
@@ -11839,8 +11839,8 @@ H.qrFlyer=()=>{
         foot:'報名表有 中文 / Tiếng Việt / English'}};
   const sheet=(k)=>{const t=T[k];
     return `<div class="sheet s-${k}">
-  <div class="top"><div class="logo">華</div>
-    <div class="mk">QNA CHINESE<span>Tiếng Trung Quyên Huỳnh</span></div></div>
+  <div class="top"><div class="logo">美</div>
+    <div class="mk">美娟華語工作室<span>QNA CHINESE</span></div></div>
   <h1>${t.h1}<br><em>${t.h2}</em></h1>
   <div class="sub">${t.sub}</div>
   <div class="chips">${t.chips.map(c=>`<div class="chip">${c}</div>`).join('')}</div>
