@@ -18781,7 +18781,7 @@ H.viewQuizResult=(key)=>{const p=String(key).split('::'),quizId=p[0],sid=p[1];co
    ${nPend?`<div class="hint" style="margin:0 0 8px"><button class="btn btn-sm btn-accent" data-act="qrvAuto" data-id="${esc(quizId)}">⚡ 自動對答案</button>　還有 ${nPend} 題沒對；也可以下面一題一題自己按。</div>`:''}
    <div id="qrv-body">${qrvRows()||'<div class="muted" style="padding:8px 0">這次沒有逐題明細（可能是更新前考的，重考一次就會記錄）。</div>'}</div></div>
    <div class="modal-foot"><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>`);};
-H.logout=()=>{try{if(window.firebase&&firebase.auth&&firebase.apps&&firebase.apps.length)firebase.auth().signOut();}catch(e){}sessionStorage.removeItem('teacher_ok');location.reload();};
+H.logout=()=>{try{localStorage.removeItem('qna_t_rem');}catch(e){}try{if(window.firebase&&firebase.auth&&firebase.apps&&firebase.apps.length)firebase.auth().signOut();}catch(e){}sessionStorage.removeItem('teacher_ok');location.reload();};
 H.closeModal=closeModal;
 H.genCode=()=>{$('#f-code').value=genCodeStr();};
 
@@ -26255,6 +26255,10 @@ async function tryLogin(){
   if(useAuth){const email=$('#gate-email').value.trim(),pw=$('#gate-pw').value;
     if(!email||!pw){$('#gate-err').textContent='請輸入 Email 與密碼';return;}
     $('#gate-err').textContent='登入中…';
+    /* REMEMBER_V1777 勾了記住我：關掉瀏覽器再開也還登入著；沒勾：關掉瀏覽器就登出 */
+    {const _r=!!(document.getElementById('gate-rem')&&document.getElementById('gate-rem').checked);
+     try{await firebase.auth().setPersistence(_r?firebase.auth.Auth.Persistence.LOCAL:firebase.auth.Auth.Persistence.SESSION);}catch(e){}
+     try{if(_r)localStorage.setItem('qna_t_rem','1');else localStorage.removeItem('qna_t_rem');}catch(e){}}
     try{const cred=await firebase.auth().signInWithEmailAndPassword(email,pw);
       if(!(await emailAllowed(cred.user.email))){await firebase.auth().signOut();$('#gate-err').textContent='此帳號沒有管理權限';return;}
       $('#gate-err').textContent='';
@@ -26516,7 +26520,9 @@ try{const _al=Number(localStorage.getItem('qna_alive')||0);
   if(!_al||(Date.now()-_al)>COLD_GRACE)WAS_COLD=true;}catch(e){}
 try{localStorage.setItem('qna_alive',String(Date.now()));}catch(e){}
 if(useAuth){
-  const _ready=WAS_COLD?firebase.auth().signOut().catch(function(){}):Promise.resolve();
+  /* REMEMBER_V1777 有勾「記住我」就不因為「瀏覽器關過」把人登出 */
+  let _rem=false;try{_rem=localStorage.getItem('qna_t_rem')==='1';}catch(e){}
+  const _ready=(WAS_COLD&&!_rem)?firebase.auth().signOut().catch(function(){}):Promise.resolve();
   _ready.then(function(){
     firebase.auth().onAuthStateChanged(async function(user){const ok=user&&await emailAllowed(user.email);
       if(ok){authBanner(false);updateAdminBtn();if($('#app').classList.contains('hide'))enter();}
@@ -26534,8 +26540,10 @@ setInterval(function(){try{const u=window.firebase&&firebase.auth&&firebase.auth
    要改分鐘數：把下面 IDLE_MIN 改掉就好；臨時想調也可以在網址列打
    localStorage.setItem('qna_idle_min','60') 再重新整理。 */
 (function(){
-  var IDLE_MIN=30;
+  /* NOIDLE_V1777 Quinn：「不要限制 30 分鐘就自動退出」——預設不再閒置登出；改用登入時的「記住我」決定要不要留著登入 */
+  var IDLE_MIN=0;
   try{var _m=Number(localStorage.getItem('qna_idle_min'));if(_m>=5&&_m<=720)IDLE_MIN=_m;}catch(e){}
+  if(!IDLE_MIN){setInterval(function(){try{localStorage.setItem('qna_alive',String(Date.now()));}catch(e){}},10000);try{localStorage.setItem('qna_alive',String(Date.now()));}catch(e){}return;}
   var IDLE=IDLE_MIN*60*1000,WARN=Math.min(2*60*1000,Math.round(IDLE*0.3)),t=null,wt=null,last=0,GRACE=5*60*1000;
   function bye(){try{if(!(window.firebase&&firebase.auth&&firebase.auth().currentUser))return;}catch(e){return;}
     try{sessionStorage.setItem('qna_idle_out','1');}catch(e){}

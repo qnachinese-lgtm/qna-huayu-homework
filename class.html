@@ -187,6 +187,7 @@ html{overflow-y:scroll;scrollbar-gutter:stable}
   .cpill,.home{font-size:13px!important;padding:6px 11px!important;line-height:1.2}
 }
 @media(max-width:360px){.brand b{font-size:14px!important}.home{padding:6px 9px!important}}
+.rem{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);margin:4px 0 2px;cursor:pointer}.rem input{width:17px;height:17px;margin:0;accent-color:#1E4C86}.rem span{font-size:12.5px;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -195,6 +196,7 @@ html{overflow-y:scroll;scrollbar-gutter:stable}
 <div class="qf-m" id="qf-cm" hidden><div class="qf-box qf-c" role="dialog" aria-modal="true"><button type="button" class="qf-x" id="qf-cx" aria-label="關閉">×</button><div class="qf-av">美</div><h3>聯絡我 <small>Contact</small></h3><div class="qf-line"><b>黃美娟 Quinn Huang</b>・<span id="qf-mail">qnachinese@gmail.com</span> <button type="button" class="qf-cp" id="qf-cp">複製</button></div><p class="qf-sub">有任何問題都可以聯絡我 · Questions? Contact me anytime.</p><button type="button" class="qf-rp qf-go" id="qf-rp">回報問題 · Report a problem</button></div></div><!-- CTOP_V1736 Quinn：聯絡資料放最上面，不要放最下面 -->
 
 <script src="config.js"></script>
+<script src="remember.js?v=1778"></script><!-- REMEMBER_V1778 要在 firebase 前面 -->
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -219,7 +221,7 @@ const S={user:null,prof:null,classes:[],cur:null,tasks:[],studs:[],kind:'pinyin'
 const now=()=>new Date().toISOString();
 function ago(t){const d=Date.parse(t||'');if(!d)return '—';const m=Math.round((Date.now()-d)/60000);if(m<1)return '剛剛';if(m<60)return m+' 分鐘前';const h=Math.round(m/60);if(h<24)return h+' 小時前';const dd=Math.round(h/24);return dd<30?dd+' 天前':String(t).slice(0,10);}
 function bar(){const b=$('#barr');if(!S.user){b.innerHTML='<a class="pill" href="index.html">官網 →</a>';return}
-  b.innerHTML='<span>'+esc((S.prof&&S.prof.name)||S.user.email)+'</span><button class="pill" id="lo">登出</button>';$('#lo').onclick=()=>auth.signOut();}
+  b.innerHTML='<span>'+esc((S.prof&&S.prof.name)||S.user.email)+'</span><button class="pill" id="lo">登出</button>';$('#lo').onclick=()=>{try{localStorage.removeItem('qna_tclass_rem');sessionStorage.removeItem('qna_tclass_ses');}catch(e){}auth.signOut();};}
 
 /* ---------- DLG_V1728 Quinn：瀏覽器內建的跳出視窗很醜——改成網頁自己的視窗 ---------- */
 function dlg(o){return new Promise(res=>{const w=document.createElement('div');w.className='dlg';
@@ -243,7 +245,7 @@ function authView(mode){mode=mode||'login';bar();
    +(mode==='reg'?'<label class="l">你的名字</label><input id="a-name" maxlength="40" placeholder="請填你的名字，學生會看到"><label class="l">學校或單位 <span>（選填）</span></label><input id="a-school" maxlength="80">':'')
    +'<label class="l">Email</label><input id="a-mail" type="email" autocomplete="email">'
    +'<label class="l">密碼 <span>'+(mode==='reg'?'（至少 6 個字）':'')+'</span></label><input id="a-pw" type="password" autocomplete="'+(mode==='reg'?'new-password':'current-password')+'">'
-   +'<div class="msg" id="a-msg"></div>'
+   +'<label class="rem"><input type="checkbox" id="a-rem" class="qrem"> 記住我 <span>（公用電腦請不要勾）</span></label>'+'<div class="msg" id="a-msg"></div>'
    +'<button class="btn pri" id="a-go">'+(mode==='reg'?'送出註冊':'登入')+'</button>'
    +(mode==='login'?'<button class="back" id="a-fg" style="align-self:center;margin:4px 0 0">忘記密碼？</button>':'<p style="font-size:12.5px;color:var(--mut);margin:0">註冊完就可以開班出題。</p>')
    +'</div><a class="swap" href="play.html">← 返回 · Back</a></div>';/* ROLEBACK_V1729 Quinn：點了老師如果選錯，要回得去 */
@@ -251,6 +253,9 @@ function authView(mode){mode=mode||'login';bar();
   const msg=$('#a-msg');
   $('#a-go').onclick=async()=>{const em=$('#a-mail').value.trim(),pw=$('#a-pw').value;msg.className='msg';msg.textContent='';
     if(!em||!pw){msg.textContent='請填 Email 和密碼';return}
+    /* REMEMBER_V1777 Quinn：「要有打勾記住我，否則不要自動幫別人登入」 */
+    const rem=!!($('#a-rem')&&$('#a-rem').checked);try{await auth.setPersistence(rem?firebase.auth.Auth.Persistence.LOCAL:firebase.auth.Auth.Persistence.SESSION);}catch(e){}
+    S.loginHere=rem?'local':'session';
     try{if(mode==='reg'){const nm=$('#a-name').value.trim();if(!nm){msg.textContent='請填名字';return}
         S.pending={name:nm,school:$('#a-school').value.trim()};
         const cr=await auth.createUserWithEmailAndPassword(em,pw);try{await cr.user.sendEmailVerification();S.sentVerify=1}catch(e){}/* VERIFY_V1733 跟對外華語認證網站一樣寄驗證信；Quinn：之後再驗證也可以，所以先讓他用 */}
@@ -268,7 +273,7 @@ function profileView(){bar();
   app.innerHTML='<div class="card auth"><div class="logo">美</div><h2>建立老師資料</h2><p class="sub">這個帳號還沒有老師資料，填好就可以開始用。</p><div class="f"><label class="l">你的名字</label><input id="p-name" maxlength="40"><label class="l">學校或單位 <span>（選填）</span></label><input id="p-school" maxlength="80"><div class="msg" id="p-msg"></div><button class="btn pri" id="p-go">送出</button></div></div>';
   $('#p-go').onclick=async()=>{const nm=$('#p-name').value.trim();if(!nm){$('#p-msg').textContent='請填名字';return}
     try{await mkProfile({name:nm,school:$('#p-school').value.trim()});load();}catch(e){$('#p-msg').textContent='失敗：'+(e&&e.message||e)}};}
-async function mkProfile(p){const u=S.user;await db.collection('tteachers').doc(u.uid).set({uid:u.uid,email:String(u.email||'').toLowerCase(),name:p.name.slice(0,40),school:(p.school||'').slice(0,80),status:'active',created_at:now()});}/* TCLASS_V1723 註冊就能用；主管理員可以隨時停用 */
+async function mkProfile(p){const u=S.user;/* PROFSAFE_V1776 已經有老師資料就不要蓋掉（不然停用狀態、名字都會被洗掉） */try{const ex=await db.collection('tteachers').doc(u.uid).get();if(ex.exists)return;}catch(e){throw e}await db.collection('tteachers').doc(u.uid).set({uid:u.uid,email:String(u.email||'').toLowerCase(),name:p.name.slice(0,40),school:(p.school||'').slice(0,80),status:'active',created_at:now()});}/* TCLASS_V1723 註冊就能用；主管理員可以隨時停用 */
 
 /* ---------- 班級列表 ---------- */
 function verifyBar(){const u=S.user;if(!u||u.emailVerified||String(u.email||'').toLowerCase()===OWNER)return '';
@@ -520,7 +525,9 @@ document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.c
 /* ---------- 開機 ---------- */
 async function load(){const u=S.user;
   const own=String(u.email||'').toLowerCase()===OWNER;
-  let p=null;try{const d=await db.collection('tteachers').doc(u.uid).get();p=d.exists?d.data():null;}catch(e){}
+  let p=null,rerr=null;try{const d=await db.collection('tteachers').doc(u.uid).get();p=d.exists?d.data():null;}catch(e){rerr=e;}
+  /* PROFSAFE_V1776 Quinn：「已經註冊的人怎麼辦？」——讀不到（網路或權限問題）時不要當成沒註冊，請他重新整理，避免已經註冊的老師看到「建立老師資料」 */
+  if(rerr&&!own){bar();app.innerHTML='<div class="card auth"><div class="logo">美</div><h2>暫時讀不到你的老師資料</h2><p class="sub">可能是網路不穩。請重新整理再試一次；還是不行的話，請聯絡美娟老師。</p><button class="btn pri" onclick="location.reload()">重新整理</button></div>';return;}
   if(!p&&S.pending){try{await mkProfile(S.pending);p={name:S.pending.name,status:'active'};}catch(e){}S.pending=null;}
   S.prof=p||(own?{name:'美娟老師',status:'approved'}:null);
   if(!S.prof)return profileView();
@@ -530,7 +537,11 @@ async function load(){const u=S.user;
   route();}
 function route(){if(!S.user||!S.prof)return;const m=/c=([A-Z0-9]+)/.exec(location.hash||'');if(m)classView(m[1]);else listView();}
 window.addEventListener('hashchange',route);
-auth.onAuthStateChanged(u=>{S.user=u;S.prof=null;if(!u)return authView(/reg/.test(location.search+location.hash)?'reg':'login');load();});
+/* REMEMBER_V1777 只有「在老師專區登入、而且勾了記住我」（或這個分頁剛登入）才自動進去；
+   在學生頁或別的地方登入的帳號，不會自動變成老師專區的登入 */
+function tkOK(u){try{if(S.loginHere){if(S.loginHere==='local')localStorage.setItem('qna_tclass_rem',u.uid);else{localStorage.removeItem('qna_tclass_rem');sessionStorage.setItem('qna_tclass_ses',u.uid);}S.loginHere=null;return true;}
+  return localStorage.getItem('qna_tclass_rem')===u.uid||sessionStorage.getItem('qna_tclass_ses')===u.uid;}catch(e){return false}}
+auth.onAuthStateChanged(u=>{S.user=u;S.prof=null;if(!u||!tkOK(u)){S.user=null;return authView(/reg/.test(location.search+location.hash)?'reg':'login');}load();});
 })();
 </script>
 <div class="qf-m" id="qf-m" hidden><div class="qf-box" role="dialog" aria-modal="true" aria-labelledby="qf-h">
