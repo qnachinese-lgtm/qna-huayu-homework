@@ -240,8 +240,10 @@ function openGame(k){
 const LINES = n => { const L = []; for (let i = 0; i < n; i++){ L.push([...Array(n)].map((_, j) => i * n + j)); L.push([...Array(n)].map((_, j) => j * n + i)); } L.push([...Array(n)].map((_, j) => j * n + j)); L.push([...Array(n)].map((_, j) => j * n + n - 1 - j)); return L; };
 const lineCount = (marks, n) => LINES(n).filter(l => l.every(i => marks[i])).length;
 function bingoHome(p){
-  const b = shell("生詞賓果", srcName());
   const size = p.words.length >= 25 ? 5 : p.words.length >= 16 ? 4 : 3;
+  /* STUONLY_V1786 Quinn：「學生那邊進去，通通都可以當老師了」——從班級作業進來的學生只能跟電腦玩，投影叫詞、印卡是老師上課用的 */
+  if (GT.cls) return bingoBot(p, Math.min(size, 4));
+  const b = shell("生詞賓果", srcName());
   b.append(el("div", { class:"mgmenu" }, [
     el("button", { class:"mgcard", type:"button", onclick: () => bingoBot(p, Math.min(size, 4)) }, [el("b", { text:"跟電腦玩" }), el("small", { text:"畫面出拼音，在你的卡上找到那個詞點下去。先連成一條線的人贏。" })]),
     el("button", { class:"mgcard", type:"button", onclick: () => bingoCaller(p) }, [el("b", { text:"老師叫詞（投影用）" }), el("small", { text:"老師的螢幕一次出一個詞，老師唸給學生聽。學生用自己的手機「我的賓果卡」或印出來的卡。" })]),
@@ -256,7 +258,11 @@ function bingoGrid(words, n, marks, onTap, cls){
 }
 function bingoBot(p, n){
   const b = shell("生詞賓果・跟電腦玩", srcName());
-  const N2 = n * n, words = shuffle(p.words.slice()).slice(0, Math.max(N2 + 6, Math.min(p.words.length, N2 * 2)));
+  /* BINGOPY_V1786 Quinn：「jí 我這邊也有『急』，怎麼評判？」「臺灣跟台灣其實是一樣的」——同一盤不放拼音一樣的詞（同音詞、異體字都會被排掉），叫一個拼音只會有一個答案 */
+  const pyKey = x => String(x.py || "").toLowerCase().replace(/[\s'’·-]/g, ""), seenPy = new Set();
+  const uniq = shuffle(p.words.slice()).filter(x => { const k = pyKey(x); if (!k || seenPy.has(k)) return false; seenPy.add(k); return true; });
+  if (uniq.length < n * n) n = uniq.length >= 16 ? 4 : 3;
+  const N2 = n * n, words = uniq.slice(0, Math.max(N2 + 6, Math.min(uniq.length, N2 * 2)));
   const mine = shuffle(words.slice()).slice(0, N2), bot = shuffle(words.slice()).slice(0, N2);
   const calls = shuffle([...new Set(mine.concat(bot).map(x => x.w))]).map(w => words.find(x => x.w === w));
   const mm = Array(N2).fill(false), bm = Array(N2).fill(false); let ci = -1, over = false, mode = "py";
@@ -608,6 +614,7 @@ function qzQs(items, n){
   }).filter(Boolean);
 }
 function quizHome(p){
+  if (GT.cls) return quizSolo(p);/* STUONLY_V1786 學生只自己練習，不出現「老師開房（投影用）」 */
   const b = shell("快問快答", srcName());
   const uid = A.store && A.store.uid;
   /* 題目來源：預設還是這幾課的生詞；老師有出自訂小考才會多一排可以挑 */
