@@ -27541,7 +27541,7 @@ H.tteachView=(uid)=>{TD.view=uid||null;tdRender();try{window.scrollTo(0,0);}catc
 /* TDX_V1739 Quinn：「可以點擊進去詳細看老師的班級以及老師出題的內容，還有學生回答的情形」「越詳細越好」
    一層一層點進去：所有老師 › 老師 › 班級 › 題目／學生。每一層上面都有麵包屑可以回去。
    學生那一層：每份題目做了幾次、每一次的分數、錯了哪些詞；拼音練習還看得到每一題學生打了什麼。 */
-const TD_GN={flip:'翻牌配對',quiz:'快問快答',bingo:'生詞賓果',fw:'大富翁',mole:'聲調打地鼠',wmole:'詞語打地鼠',pinyin:'拼音遊戲',pic:'看圖選詞',kq:'自己出題'};
+const TD_GN={flip:'翻牌配對',quiz:'快問快答',bingo:'生詞賓果',fw:'大富翁',mole:'聲調打地鼠',wmole:'詞語打地鼠',pinyin:'拼音遊戲',pic:'看圖選詞',kq:'選擇題',fill:'填空題',order:'句子排序',listen:'聽音選詞'};/* QTYPE_V1784 */
 function tdKindName(k){return k.kind==='pinyin'?(k.zy?'注音練習':'拼音練習'):k.kind==='game'?'遊戲・'+(TD_GN[k.game]||k.game||'')+(k.zy?'（注音）':''):'漢字闖關・'+tdHz(k.fam)+'・'+(TD_DIFF[k.diff]||'');}
 function tdIc(k){return k.zy?'ㄅ':k.kind==='pinyin'?'ā':k.kind==='game'?'🎮':'字';}
 function tdItems(k){if(Array.isArray(k.segs))return k.segs.map(sg=>({w:sg.h,p:(sg.p||[]).filter(Boolean).join(' '),m:''}));
@@ -27552,8 +27552,8 @@ function tdPy(p){const T={a:'āáǎà',e:'ēéěè',i:'īíǐì',o:'ōóǒò',u:
 function tdWordsHtml(its,max){const long=its.some(w=>Array.from(w.w).length>6);
   if(long)return '<div class="td-sents">'+its.slice(0,max).map(w=>'<div><b>'+esc(w.w)+'</b>'+(w.p?'<small>'+esc(tdPy(w.p))+'</small>':'')+'</div>').join('')+(its.length>max?'<div class="more">…還有 '+(its.length-max)+' 句</div>':'')+'</div>';
   return '<div class="td-words">'+its.slice(0,max).map(w=>'<span>'+esc(w.w)+(w.p?' <em>'+esc(tdPy(w.p))+'</em>':'')+'</span>').join('')+(its.length>max?'<span>…還有 '+(its.length-max)+' 個</span>':'')+'</div>';}
-function tdScore(r,k){if(!r)return '';if(k.kind==='pinyin')return (r.ok||0)+'/'+(r.n||0);if(k.kind==='game')return r.best!=null?String(r.best)+(r.unit||''):'玩過';const st=Number(r.stars)||0;return st?'★'.repeat(Math.min(st,3)):'0 星';}
-function tdPct(r,k){if(!r||k.kind!=='pinyin'||!r.n)return null;return Math.round((r.ok||0)/r.n*100);}
+function tdScore(r,k){if(!r)return '';if(k.kind==='pinyin'||(k.kind==='game'&&r.n!=null))return (r.ok||0)+'/'+(r.n||0);if(k.kind==='game')return r.best!=null?String(r.best)+(r.unit||''):'玩過';const st=Number(r.stars)||0;return st?'★'.repeat(Math.min(st,3)):'0 星';}
+function tdPct(r,k){if(!r||!(k.kind==='pinyin'||k.kind==='game')||!r.n)return null;return Math.round((r.ok||0)/r.n*100);}
 function tdCrumb(parts){return '<div class="tdx-crumb">'+parts.map((p,i)=>i<parts.length-1?'<button type="button" data-act="tteachView" data-id="'+esc(p[0])+'">'+esc(p[1])+'</button><i>›</i>':'<b>'+esc(p[1])+'</b>').join('')+'</div>';}
 function tdScr(c,s){const v=((c&&c.scripts)||{})[s.id]||(c&&c.script_default)||'py';return v==='zy'?'ㄅ 注音':'ā 拼音';}/* SCRSTU_V1742 */
 function tdTeacherOf(c){return TD.t.find(t=>t.id===c.owner_uid)||null;}
@@ -27604,7 +27604,7 @@ function tdHistRows(r,k){const h=(r&&Array.isArray(r.hist))?r.hist.slice().rever
    +h.map((x,i)=>'<tr><td>'+(h.length-i)+'</td><td>'+esc(tdDate(x.at))+'</td><td>'+(x.n!=null?(x.ok||0)+'/'+x.n+'（'+Math.round((x.ok||0)/(x.n||1)*100)+'%）':x.s!=null?esc(String(x.s))+esc(x.u||' 分')+(x.hits!=null?'・打中 '+x.hits:''):'—')+'</td><td class="tdx-wr">'+((x.wr||x.miss||[]).length?(x.wr||x.miss).map(w=>'<span>'+esc(w)+'</span>').join(''):'<span class="ok">全對</span>')+'</td></tr>').join('')+'</tbody></table></div>';}
 function tdLastRows(r){const l=(r&&Array.isArray(r.last))?r.last:[];if(!l.length)return '';
   return '<h5>最近一次每一題的作答</h5><div class="td-tbl"><table><thead><tr><th>#</th><th>詞</th><th>正確答案</th><th>學生打的</th><th>結果</th></tr></thead><tbody>'
-   +l.map((x,i)=>'<tr class="'+(x.ok?'':'tdx-bad')+'"><td>'+(i+1)+'</td><td><b>'+esc(x.w||'')+'</b></td><td>'+esc(x.p||'')+'</td><td>'+(x.a?esc(x.a):'<span style="color:#8796AB">（按了看答案）</span>')+'</td><td>'+(x.ok?'<span class="tt-c ok">✓ 對</span>':'<span class="tt-c wait">✗ '+(x.k==='tone'?'聲調錯':'拼法錯')+'</span>')+'</td></tr>').join('')+'</tbody></table></div>';}
+   +l.map((x,i)=>'<tr class="'+(x.ok?'':'tdx-bad')+'"><td>'+(i+1)+'</td><td><b>'+esc(x.w||'')+'</b></td><td>'+esc(x.p||'')+'</td><td>'+(x.a?esc(x.a):'<span style="color:#8796AB">（按了看答案）</span>')+'</td><td>'+(x.ok?'<span class="tt-c ok">✓ 對</span>':'<span class="tt-c wait">✗ '+(x.k==='tone'?'聲調錯':x.k==='x'?'答錯':'拼法錯')+'</span>')+'</td></tr>').join('')+'</tbody></table></div>';}
 function tdStuPage(id){const s=TD.s.find(x=>x.id===id);if(!s)return tdCrumb([['','所有老師'],['','找不到學生']]);const c=TD.c.find(x=>x.id===s.class_code)||{id:s.class_code,name:s.class_code};
   const ks=TD.k.filter(k=>k.class_code===s.class_code).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
   const times=Object.values(s.tasks||{}).reduce((a,r)=>a+(Number(r.times)||1),0);
