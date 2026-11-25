@@ -1002,12 +1002,12 @@ function render(){
   $$('.panel').forEach(p=>p.classList.add('hide'));
   /* ROLE_V943 → TABFIX_V1192 權限檔下來要在「顯示那一頁」之前做，
      不然會先把擋下來的那一頁露出來（空白的），真正畫好的却是被藏起來的總覽。 */
-  if(!IS_OWNER&&['ops','pay','agency','interview','writing','school','bizcal','oc','acct','tteach'].concat(myRole()==='teacher'?['reply']:[]).indexOf(S.tab)>=0)S.tab='dashboard';
+  if(!IS_OWNER&&['ops','pay','agency','interview','writing','school','bizcal','oc','acct','tteach','pstud'].concat(myRole()==='teacher'?['reply']:[]).indexOf(S.tab)>=0)S.tab='dashboard';
   try{permGuard();}catch(e){}/* ROLES_V1706 */
   /* TABFIX_V1192 舊的分頁名稱被拿掉的話，這一行會整個爆掉，畫面會全白。找不到就回總覽。 */
   if(!$('#panel-'+S.tab))S.tab='dashboard';
   $('#panel-'+S.tab).classList.remove('hide');
-  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,bizcal:renderBizCal,oc:renderOC,acct:renderAcct,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,give:renderGive,guide:renderGuide,hanzi:renderHanzi,lib:renderLib/* LIB_V1412 */,msgs:renderMsgs/* TEAMNOTE_V1700 */,tteach:renderTTeach/* TDPAGE_V1738 */}[S.tab])();}/* GIVE_V1312 */
+  try{({dashboard:renderDashboard,students:renderStudents,student:renderStudentProfile,class:renderClassProfile,calendar:renderCalendar,lessons:renderLessons,grades:renderGrades,files:renderFiles,interview:renderInterview,agency:renderAgency,writing:renderWriting,school:renderSchools,bizcal:renderBizCal,oc:renderOC,acct:renderAcct,ops:renderOps,pay:renderPay,tcourse:renderTCourse,quiz:renderQuiz,reply:renderReply,give:renderGive,guide:renderGuide,hanzi:renderHanzi,lib:renderLib/* LIB_V1412 */,msgs:renderMsgs/* TEAMNOTE_V1700 */,tteach:renderTTeach/* TDPAGE_V1738 */,pstud:renderPStud/* PSTUD_V1781 */}[S.tab])();}/* GIVE_V1312 */
   catch(err){const p=$('#panel-'+S.tab);if(p)p.innerHTML='<div class="card"><b>這個分頁顯示時發生問題</b><div class="hint" style="margin-top:6px">你的資料都還在、沒有遺失。請先按 Ctrl+Shift+R 重新整理；若仍這樣，把這行訊息回報給我：'+esc(((err&&err.message)||err)+'')+'</div></div>';}
   /* NAVMERGE_V1317 一定要在畫完之後才插分頁列——畫面是整個 innerHTML 換掉的，
      先插會被蓋掉。 */
@@ -6883,7 +6883,8 @@ const TNAV=[
     {k:'qt',    act:'qtNew',      di:'',      t:'💰 開一張報價單', ow:1},
     {k:'mb',    act:'monthBills', di:'',      t:'📨 月結單',   ow:1}
   ]},
-  {id:'tteach',t:'🏫 合作老師',act:'tab',ow:1},/* TDPAGE_V1738 改成整頁，不再是視窗 *//* TDNAV_V1735 Quinn：合作老師要一個獨立的按鈕 */
+  {id:'tteach',t:'🏫 合作老師',act:'tab',ow:1},
+  {id:'pstud',t:'🎒 練習學生',act:'tab',ow:1},/* PSTUD_V1781 *//* TDPAGE_V1738 改成整頁，不再是視窗 *//* TDNAV_V1735 Quinn：合作老師要一個獨立的按鈕 */
   {id:'__settings',t:'⚙ 設定',act:'settingsCenter'}
 ];
 /* GIVESUB_V1366 子項目兩種寫法：
@@ -27660,3 +27661,64 @@ H.feedbackOpen=async()=>{if(!IS_OWNER)return toast('只有主管理員可以看'
     .catch(()=>{a.textContent='讀不到（Storage 規則未發布？）';a.style.padding='6px';a.style.textAlign='center';});});}catch(e){}};
 H.feedbackDone=async(id)=>{try{const r=firebase.firestore().collection('feedback').doc(id);const d=await r.get();await r.update({done:!(d.exists&&d.data().done)});H.feedbackOpen();}catch(e){toast('存不進去：'+((e&&e.message)||e));}};
 H.feedbackDel=async(id)=>{if(!confirm('刪除這則回報？'))return;try{await firebase.firestore().collection('feedback').doc(id).delete();H.feedbackOpen();}catch(e){toast('刪不掉：'+((e&&e.message)||e));}};
+
+/* ══════════ PSTUD_V1781 練習學生（learn.html 註冊的練習帳號） ══════════
+   Quinn：「後台除了合作老師以外，還要有免費學習學生的入口，觀察學生的各個內容，越詳細越好」
+   資料：pstudents/{uid}（基本資料、統計、錯題本、開通申請）、pstudents/{uid}/sessions（每一次練習）、psettings/main.free_to（免費開放到第幾級）。 */
+const PS_LV=['準備一級','準備二級','入門級','基礎級','進階級','高階級','流利級'];
+const PS_MODE={choose:'選讀音',tone:'聲調練習',type:'打讀音'};
+const PS={list:[],set:{free_to:1},view:null,q:'',err:'',ses:{},open:null};
+function psDays(d,n){let s=0;const now=new Date();for(let i=0;i<n;i++){const x=new Date(now);x.setDate(now.getDate()-i);const k=x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');s+=+((d||{})[k])||0;}return s;}
+function psWhen(iso){if(!iso)return '—';const d=new Date(iso);if(isNaN(d))return '—';const df=Math.floor((Date.now()-d)/86400000);const hm=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  return df<=0&&new Date().getDate()===d.getDate()?'今天 '+hm:df<=1?'昨天 '+hm:df<7?df+' 天前':(d.getMonth()+1)+'/'+d.getDate();}
+async function psLoad(){PS.err='';try{const [a,b]=await Promise.all([firebase.firestore().collection('pstudents').get(),firebase.firestore().collection('psettings').doc('main').get()]);
+  PS.list=a.docs.map(d=>Object.assign({id:d.id},d.data()));if(b.exists&&b.data().free_to!=null)PS.set.free_to=+b.data().free_to;}catch(e){PS.err=String((e&&(e.code||e.message))||e);}}
+function renderPStud(){const p=document.getElementById('panel-pstud');if(!p)return;
+  p.innerHTML='<div class="td-page"><div class="td-ph"><h2>🎒 練習學生</h2><p>在「練習入口」自己註冊的練習帳號：每個人練了什麼、錯了哪些、開通申請和回饋。跟學習平台的學生分開。</p></div><div id="ps-body" class="ps-body"><div class="hint">讀取中…</div></div></div>';
+  psLoad().then(psRender);}
+function psRender(){const box=document.getElementById('ps-body');if(!box)return;
+  if(PS.err){box.innerHTML='<div class="hint">'+(/permission|insufficient/i.test(PS.err)?'Firebase 規則還沒發布，發布後這裡才看得到。':'讀不到：'+esc(PS.err))+'</div>';return;}
+  if(PS.view)return psDetail(PS.view);
+  const L=PS.list.slice().sort((a,b)=>String(b.last_at||'').localeCompare(String(a.last_at||'')));
+  const reqs=L.filter(x=>x.req&&x.req.status==='pending');const wk=L.filter(x=>psDays(x.days,7)>0).length,qs=L.reduce((s,x)=>s+psDays(x.days,7),0);
+  const agg={};L.forEach(x=>Object.keys(x.wrong||{}).forEach(h=>{agg[h]=agg[h]||{h,p:(x.wrong[h]||{}).p,n:0};agg[h].n++;}));const top=Object.values(agg).sort((a,b)=>b.n-a.n).slice(0,16);
+  const q=PS.q.trim().toLowerCase();
+  box.innerHTML='<div class="ps-stats"><div><small>練習帳號</small><b>'+L.length+'</b></div><div><small>這週有練習</small><b>'+wk+'</b></div><div><small>這週一共做了</small><b>'+qs+'<em>題</em></b></div><div><small>等開通</small><b'+(reqs.length?' class="red"':'')+'>'+reqs.length+'</b></div></div>'
+   +'<div class="ps-set">練習帳號免費開放到：<select data-ps-free>'+PS_LV.map((x,j)=>'<option value="'+j+'"'+(j===PS.set.free_to?' selected':'')+'>'+x+'</option>').join('')+'</select><span>再往上要學生申請、你開通。</span></div>'
+   +(reqs.length?'<div class="ps-sec"><h3>開通申請 <small>'+reqs.length+' 位等你處理</small></h3>'+reqs.map(psReqCard).join('')+'</div>':'')
+   +'<div class="ps-sec"><h3>每個學生 <small>按一列看這個學生的全部紀錄</small></h3><input class="ps-q" data-ps-q placeholder="搜尋名字、Email 或國籍" value="'+esc(PS.q)+'">'
+   +(L.length?'<table class="ps-t ps-list"><tr><th>名字</th><th>國籍</th><th>拼音／注音</th><th>最近練習</th><th>這週題數</th><th>答對率</th><th>開通到</th></tr>'
+     +L.filter(x=>!q||(String(x.name)+String(x.email)+String(x.country)).toLowerCase().indexOf(q)>=0).map(x=>{const acc=x.total?Math.round((x.ok||0)/x.total*100):null;const lt=Math.max(PS.set.free_to,x.lv_to!=null?+x.lv_to:-1);
+       return '<tr data-act="pstudView" data-id="'+esc(x.id)+'"><td><b>'+esc(x.name||'')+'</b>'+(x.email_verified?'':' <span class="ps-pill red">未驗證</span>')+(x.req&&x.req.status==='pending'?' <span class="ps-pill warm">申請中</span>':'')+'<br><small>'+esc(x.email||'')+'</small></td><td>'+esc(x.country||'')+'</td><td>'+(x.scr==='zy'?'注音':'拼音')+'</td><td>'+psWhen(x.last_at)+'</td><td>'+psDays(x.days,7)+'</td><td>'+(acc==null?'<small>還沒練</small>':'<span class="ps-bar"><i style="width:'+acc+'%"></i></span>'+acc+'%')+'</td><td>'+PS_LV[lt]+'</td></tr>';}).join('')+'</table>'
+     :'<div class="hint">還沒有人註冊練習帳號。</div>')+'</div>'
+   +(top.length?'<div class="ps-sec"><h3>大家最常錯的詞 <small>上課可以加強這些</small></h3><div class="ps-words">'+top.map(w=>'<span><b>'+esc(w.h)+'</b><small>'+esc(w.p||'')+'・'+w.n+' 人錯</small></span>').join('')+'</div></div>':'');}
+function psReqCard(x){const r=x.req||{};const opts=PS_LV.map((v,j)=>'<option value="'+j+'"'+(j===r.lv?' selected':'')+'>'+v+'</option>').join('');
+  return '<div class="ps-req"><div class="ps-rh"><b>'+esc(x.name||'')+'</b><span>想開通「'+esc(r.lv_name||PS_LV[r.lv]||'')+'」・'+psWhen(r.at)+'</span></div><dl><dt>練習下來覺得</dt><dd>'+esc(r.a1||'')+'</dd><dt>想加強</dt><dd>'+esc(r.a2||'')+'</dd>'+(r.a3?'<dt>聯絡方式</dt><dd>'+esc(r.a3)+'</dd>':'')+'</dl>'
+   +'<div class="ps-ra">開通到 <select id="psl-'+esc(x.id)+'">'+opts+'</select><button class="btn btn-sm btn-primary" data-act="pstudGrant" data-id="'+esc(x.id)+'">開通</button><button class="btn btn-sm btn-ghost" data-act="pstudDeny" data-id="'+esc(x.id)+'">先不要</button></div></div>';}
+async function psDetail(id){const box=document.getElementById('ps-body');const x=PS.list.find(z=>z.id===id);if(!x){PS.view=null;return psRender();}
+  if(!PS.ses[id]){box.innerHTML='<div class="hint">讀取中…</div>';try{const s=await firebase.firestore().collection('pstudents').doc(id).collection('sessions').get();PS.ses[id]=s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>String(b.at).localeCompare(String(a.at)));}catch(e){PS.ses[id]=[];}}
+  const ses=PS.ses[id],acc=x.total?Math.round((x.ok||0)/x.total*100):null,lt=Math.max(PS.set.free_to,x.lv_to!=null?+x.lv_to:-1);
+  const wl=Object.keys(x.wrong||{}).map(h=>({h,p:x.wrong[h].p,n:x.wrong[h].n||1})).sort((a,b)=>b.n-a.n);
+  let streak=0;const d0=new Date();for(let i=0;i<400;i++){const t=new Date(d0);t.setDate(d0.getDate()-i);const k=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');if((x.days||{})[k])streak++;else if(i>0)break;}
+  const kv=(k,v)=>'<div><small>'+k+'</small><b>'+v+'</b></div>';
+  box.innerHTML='<button class="btn btn-sm btn-ghost" data-act="pstudView" data-id="">← 回練習學生</button>'
+   +'<div class="ps-sec"><div class="ps-dh"><div class="ps-av">'+esc(String(x.name||'?').slice(0,1))+'</div><div><h3 style="margin:0">'+esc(x.name||'')+'</h3><small>'+esc(x.email||'')+'　'+(x.email_verified?'<span class="ps-pill green">Email 已驗證</span>':'<span class="ps-pill red">Email 還沒驗證</span>')+'</small></div></div>'
+   +'<div class="ps-kv">'+kv('國籍',esc(x.country||'—'))+kv('拼音／注音',x.scr==='zy'?'注音':'拼音')+kv('註冊日期',esc(String(x.created_at||'').slice(0,10)))+kv('最近登入',psWhen(x.last_at))+kv('開通到',PS_LV[lt])+kv('加入的班級',(x.classes||[]).length?esc((x.classes||[]).join('、')):'沒有')+'</div>'
+   +'<div class="ps-stats" style="margin-top:12px">'+kv('連續練習',streak+'<em>天</em>')+kv('這週做了',psDays(x.days,7)+'<em>題</em>')+kv('總共做了',(x.total||0)+'<em>題</em>')+kv('答對率',acc==null?'—':acc+'<em>%</em>')+'</div>'
+   +'<div class="ps-ra" style="margin-top:12px">手動開通到 <select id="psl-'+esc(id)+'">'+PS_LV.map((v,j)=>'<option value="'+j+'"'+(j===lt?' selected':'')+'>'+v+'</option>').join('')+'</select><button class="btn btn-sm btn-primary" data-act="pstudGrant" data-id="'+esc(id)+'">儲存</button></div></div>'
+   +(x.req?'<div class="ps-sec"><h3>開通申請和回饋 <small>'+({pending:'等你處理',ok:'已開通',no:'先不開'}[x.req.status]||'')+'</small></h3>'+psReqCard(x).replace('<div class="ps-req">','<div class="ps-req flat">')+'</div>':'')
+   +'<div class="ps-sec"><h3>每一次練習 <small>按一列看每一題怎麼答</small></h3>'+(ses.length?'<table class="ps-t"><tr><th>時間</th><th>練習</th><th>等級</th><th>成績</th><th>花多久</th></tr>'
+     +ses.map(s=>{const open=PS.open===s.id;return '<tr data-act="pstudSes" data-id="'+esc(s.id)+'"><td>'+psWhen(s.at)+'</td><td>'+(PS_MODE[s.mode]||s.mode||'')+'</td><td>'+esc(s.lv_name||'')+'</td><td><b>'+(s.ok||0)+'/'+(s.n||0)+'</b></td><td>'+(s.dur>=60?Math.floor(s.dur/60)+' 分 ':'')+((s.dur||0)%60)+' 秒</td></tr>'
+       +(open?'<tr class="ps-items"><td colspan="5">'+(s.items||[]).map(it=>'<span class="'+(it.ok?'ok':'no')+'"><b>'+esc(it.h)+'</b> '+esc(it.p||'')+'<small>'+(it.ok?'✓':'✗ 他答：'+esc(String(it.a==null?'':it.a)))+'</small></span>').join('')+'</td></tr>':'');}).join('')+'</table>':'<div class="hint">還沒有練習紀錄。</div>')+'</div>'
+   +'<div class="ps-sec"><h3>錯題本 <small>這個學生最常錯的</small></h3>'+(wl.length?'<div class="ps-words">'+wl.map(w=>'<span><b>'+esc(w.h)+'</b><small>'+esc(w.p||'')+'・錯 '+w.n+' 次</small></span>').join('')+'</div>':'<div class="hint">沒有錯題。</div>')+'</div>';}
+H.pstudView=(id)=>{PS.view=id||null;PS.open=null;psRender();try{window.scrollTo(0,0);}catch(e){}};
+H.pstudSes=(id)=>{PS.open=PS.open===id?null:id;psRender();};
+H.pstudGrant=async(id)=>{const sel=document.getElementById('psl-'+id);const j=sel?+sel.value:null;if(j==null)return;
+  try{const x=PS.list.find(z=>z.id===id)||{};const up={lv_to:j};if(x.req&&x.req.status==='pending'){up['req.status']='ok';up['req.done_at']=new Date().toISOString();}
+    await firebase.firestore().collection('pstudents').doc(id).update(up);Object.assign(x,{lv_to:j});if(x.req&&up['req.status'])x.req.status='ok';toast('已開通到「'+PS_LV[j]+'」');psRender();}
+  catch(e){toast('存不進去：'+((e&&e.message)||e));}};
+H.pstudDeny=async(id)=>{try{await firebase.firestore().collection('pstudents').doc(id).update({'req.status':'no','req.done_at':new Date().toISOString()});const x=PS.list.find(z=>z.id===id);if(x&&x.req)x.req.status='no';toast('已標成「先不開」，學生可以再申請');psRender();}
+  catch(e){toast('存不進去：'+((e&&e.message)||e));}};
+document.addEventListener('input',e=>{const t=e.target;if(t&&t.matches&&t.matches('[data-ps-q]')){PS.q=t.value;const pos=t.selectionStart;psRender();const n=document.querySelector('[data-ps-q]');if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(_){}}}});
+document.addEventListener('change',async e=>{const t=e.target;if(t&&t.matches&&t.matches('[data-ps-free]')){const j=+t.value;
+  try{await firebase.firestore().collection('psettings').doc('main').set({free_to:j},{merge:true});PS.set.free_to=j;toast('練習帳號免費開放到「'+PS_LV[j]+'」');psRender();}catch(e2){toast('存不進去：'+((e2&&e2.message)||e2));}}});
