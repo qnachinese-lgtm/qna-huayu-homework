@@ -27534,8 +27534,14 @@ H.tteachView=(uid)=>{TD.view=uid||null;tdRender();try{window.scrollTo(0,0);}catc
 const TD_GN={flip:'翻牌配對',quiz:'快問快答',bingo:'生詞賓果',fw:'大富翁',mole:'聲調打地鼠',wmole:'詞語打地鼠',pinyin:'拼音遊戲',pic:'看圖選詞',kq:'自己出題'};
 function tdKindName(k){return k.kind==='pinyin'?(k.zy?'注音練習':'拼音練習'):k.kind==='game'?'遊戲・'+(TD_GN[k.game]||k.game||'')+(k.zy?'（注音）':''):'漢字闖關・'+tdHz(k.fam)+'・'+(TD_DIFF[k.diff]||'');}
 function tdIc(k){return k.zy?'ㄅ':k.kind==='pinyin'?'ā':k.kind==='game'?'🎮':'字';}
-function tdItems(k){return String(k.items||'').split('\n').map(x=>x.trim()).filter(Boolean).map(x=>{const m=x.split(/[=＝]/);const f=m[0].trim();const sp=f.search(/\s/);
-  return {w:sp>0?f.slice(0,sp):f,p:sp>0?f.slice(sp+1).trim():'',m:(m[1]||'').trim()};});}
+function tdItems(k){if(Array.isArray(k.segs))return k.segs.map(sg=>({w:sg.h,p:(sg.p||[]).filter(Boolean).join(' '),m:''}));
+  return String(k.items||'').split('\n').map(x=>x.trim()).filter(Boolean).map(x=>{const m=x.split(/[=＝]/);const f=m[0].trim();
+  const i=f.search(/[A-Za-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/);/* TDITEM_V1756 漢字和拼音中間沒有空格也分得開（例如對話） */
+  return {w:(i>0?f.slice(0,i):f).trim(),p:i>0?f.slice(i).trim():'',m:(m[1]||'').trim()};});}
+function tdPy(p){const T={a:'āáǎà',e:'ēéěè',i:'īíǐì',o:'ōóǒò',u:'ūúǔù','ü':'ǖǘǚǜ'};return String(p||'').replace(/v/g,'ü').replace(/([a-zA-Zü]+)([1-5])/g,(m,y,n)=>{n=+n;if(n===5)return y;const l=y.toLowerCase();let i=l.indexOf('a');if(i<0)i=l.indexOf('e');if(i<0&&l.indexOf('ou')>=0)i=l.indexOf('o');if(i<0){for(let k=l.length-1;k>=0;k--)if('iouü'.indexOf(l[k])>=0){i=k;break;}}return i<0?y:y.slice(0,i)+T[l[i]][n-1]+y.slice(i+1);});}
+function tdWordsHtml(its,max){const long=its.some(w=>Array.from(w.w).length>6);
+  if(long)return '<div class="td-sents">'+its.slice(0,max).map(w=>'<div><b>'+esc(w.w)+'</b>'+(w.p?'<small>'+esc(tdPy(w.p))+'</small>':'')+'</div>').join('')+(its.length>max?'<div class="more">…還有 '+(its.length-max)+' 句</div>':'')+'</div>';
+  return '<div class="td-words">'+its.slice(0,max).map(w=>'<span>'+esc(w.w)+(w.p?' <em>'+esc(tdPy(w.p))+'</em>':'')+'</span>').join('')+(its.length>max?'<span>…還有 '+(its.length-max)+' 個</span>':'')+'</div>';}
 function tdScore(r,k){if(!r)return '';if(k.kind==='pinyin')return (r.ok||0)+'/'+(r.n||0);if(k.kind==='game')return r.best!=null?String(r.best)+(r.unit||''):'玩過';const st=Number(r.stars)||0;return st?'★'.repeat(Math.min(st,3)):'0 星';}
 function tdPct(r,k){if(!r||k.kind!=='pinyin'||!r.n)return null;return Math.round((r.ok||0)/r.n*100);}
 function tdCrumb(parts){return '<div class="tdx-crumb">'+parts.map((p,i)=>i<parts.length-1?'<button type="button" data-act="tteachView" data-id="'+esc(p[0])+'">'+esc(p[1])+'</button><i>›</i>':'<b>'+esc(p[1])+'</b>').join('')+'</div>';}
@@ -27573,7 +27579,7 @@ function tdClassPage(code){const c=TD.c.find(x=>x.id===code);if(!c)return tdCrum
    +'<div class="td-prof"><div><h3>'+esc(c.name||'')+' <code class="tdx-code">'+esc(c.id)+'</code></h3><div class="td-kv"><span>老師</span><b>'+esc(t?(t.name||'')+'（'+(t.email||'')+'）':'您自己')+'</b><span>開班</span><b>'+esc(tdDate(c.created_at))+'</b><span>題目</span><b>'+ks.length+' 份</b><span>學生</span><b>'+ss.length+' 位</b><span>學生入口</span><b><a href="'+esc(room)+'" target="_blank" rel="noopener">'+esc(room)+'</a></b></div></div></div>'
    +'<div class="td-sec"><h4>題目（'+ks.length+'）・點一份看每個詞、每位學生的情形</h4>'+(ks.length?ks.map(k=>{const its=tdItems(k);const d=ss.filter(s=>(s.tasks||{})[k.id]);
        return '<button type="button" class="tdx-task" data-act="tteachView" data-id="k:'+esc(k.id)+'"><i>'+tdIc(k)+'</i><div><b>'+esc(k.title||'')+'</b><small>'+esc(tdKindName(k))+(k.kind!=='hanzi'?'・'+its.length+' 個詞':'・至少 '+(k.min_stars||1)+' 星')+'・'+esc(tdDate(k.created_at))+' 出的・'+d.length+'/'+ss.length+' 位學生做過</small>'
-        +(its.length?'<div class="td-words">'+its.slice(0,24).map(w=>'<span>'+esc(w.w)+(w.p?' <em>'+esc(w.p)+'</em>':'')+'</span>').join('')+(its.length>24?'<span>…還有 '+(its.length-24)+' 個</span>':'')+'</div>':'')+'</div><span class="tdx-go">看 →</span></button>';}).join(''):'<div class="hint">還沒有出題。</div>')+'</div>'
+        +(its.length?tdWordsHtml(its,24):'')+'</div><span class="tdx-go">看 →</span></button>';}).join(''):'<div class="hint">還沒有出題。</div>')+'</div>'
    +'<div class="td-sec"><h4>學生成績（'+ss.length+'）・點學生名字看他每一次的作答</h4>'+(ss.length?'<div class="td-tbl"><table><thead><tr><th>學生</th><th>拼音／注音</th><th>加入</th><th>最後練習</th><th>完成</th>'+ks.map(k=>'<th title="'+esc(k.title)+'">'+tdIc(k)+' '+esc(String(k.title||'').slice(0,10))+'</th>').join('')+'</tr></thead><tbody>'
        +ss.map(x=>'<tr><td><button type="button" class="tdx-name" data-act="tteachView" data-id="s:'+esc(x.id)+'">'+esc(x.name||'')+' →</button></td><td>'+tdScr(c,x)+'</td><td>'+esc(tdDate(x.joined_at).slice(0,10))+'</td><td>'+esc(tdAgo(x.last_at))+'</td><td>'+ks.filter(k=>(x.tasks||{})[k.id]).length+'/'+ks.length+'</td>'+ks.map(k=>tdStat(x,k)).join('')+'</tr>').join('')+'</tbody></table></div>':'<div class="hint">還沒有學生加入。</div>')+'</div>';}
 function tdHistRows(r,k){const h=(r&&Array.isArray(r.hist))?r.hist.slice().reverse():[];
