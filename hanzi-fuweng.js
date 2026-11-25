@@ -6,6 +6,8 @@
 "use strict";
 function boot(){
 const A = window.HZAPI; if (!A || window.__FW) return; window.__FW = true;
+/* V1785 新的題型、卡片題用到的樣式；框子固定高度（Quinn：「每一個框大小不一，看起來很躁」） */
+try { const st = document.createElement("style"); st.textContent = '#p-fw .fwov:not(.low) .fwmodal{min-height:min(460px,calc(100vh - 32px))}.cqfb{border-radius:12px;padding:12px 16px;font-size:18px;font-weight:600;font-family:var(--f-ui)}.cqfb.ok{background:#E3F4EA;color:#1F6B43}.cqfb.no{background:#FDECEA;color:#A33227}.cqask{font-weight:700;text-align:center;margin:8px 0 2px!important;font-size:18px}.opts.pyo .opt{font-family:"Noto Serif","Noto Sans","Segoe UI",sans-serif}'; document.head.append(st); } catch(e){}
 const { CH, LEVELS, FAM, C, NOSTROKE, shuffle, pyOf, sfx, burst, toast, centerOf, distractors, okDistract, sameWord } = A;/* VAR_V1468 */
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, kids = []) => { const fn = {}, at = {}; for (const k in attrs){ if (typeof attrs[k] === "function") fn[k] = attrs[k]; else at[k] = attrs[k]; } const n = A.el(tag, at, kids); Object.assign(n, fn); return n; };
@@ -53,6 +55,31 @@ const FATE = [
   { z:"你在路上撿到錢包，還給主人，主人給你八十塊。", p:"Nǐ zài lù shang jiǎn dào qiánbāo, huán gěi zhǔrén, zhǔrén gěi nǐ bāshí kuài.", t:"money", n:80 }
 ];
 const cardOf = (s, ref) => (ref[0] === "c" ? CHANCE : FATE)[ref[1]];
+/* CARDQ_V1785 Quinn：「這裡是不是可以請他們做一些東西而不是純粹看？」
+   機會卡、命運卡：看完要選「這張卡要你做什麼？」，答對多拿 20 元；答錯一樣照卡片做，再告訴他正確的意思。 */
+const CQBONUS = 20;
+const PLACE = { 0:"回到起點", 6:"走到塞車那一格", 12:"走到公園" };
+const NUMZ = ["零","一","兩","三","四","五","六","七","八","九","十"];
+function effText(c){
+  if (c.t === "money") return c.n > 0 ? `拿 ${c.n} 塊` : `付 ${-c.n} 塊`;
+  if (c.t === "each") return c.n > 0 ? `每個人給你 ${c.n} 塊` : `你給每個人 ${-c.n} 塊`;
+  if (c.t === "move") return `往前走 ${NUMZ[c.n] || c.n} 格`;
+  if (c.t === "back") return `往後走 ${NUMZ[c.n] || c.n} 格`;
+  if (c.t === "goto") return PLACE[c.to] || "走到別的格子";
+  if (c.t === "skip") return "下一次不能擲骰子";
+  if (c.t === "free") return "下一次不用付過路費";
+  if (c.t === "repair") return `每一棟房子付 ${c.n} 塊`;
+  return "";
+}
+function mkCQ(ref){
+  const c = cardOf(null, ref), a = effText(c); if (!a) return null;
+  const pool = [...new Set(CHANCE.concat(FATE).map(effText))].filter(x => x && x !== a);
+  /* 誘答先挑同一類的（都是錢、都是走路），才不會一眼就猜到 */
+  const kindOf = x => /塊/.test(x) ? "m" : /格|起點|公園/.test(x) ? "w" : "o", k = kindOf(a);
+  const same = shuffle(pool.filter(x => kindOf(x) === k)), other = shuffle(pool.filter(x => kindOf(x) !== k));
+  const opts = shuffle([a].concat(same.concat(other).slice(0, 3)));
+  return { opts, ans:opts.indexOf(a), res:null };
+}
 
 // ---------- 小工具 ----------
 const rnd = n => Math.floor(Math.random() * n);
@@ -130,6 +157,22 @@ function mkQ(s, w){
         opts, ans:opts.indexOf(w), t0:Date.now(), lim:lim ? Math.round(lim * 1.6) : 0, res:null };
     }
   }
+  /* FWQ2_V1785 Quinn：「可以嘗試出現拼音或注音，請他們選漢字，或是反之」
+     沒有例句的詞：三分之一「看拼音選詞」、三分之一「看詞選拼音」、三分之一照舊「□ 是哪個字」。
+     誘答一樣要過 okDistract，拼音也不能跟答案一樣；湊不到三個就退回選字題。 */
+  const pyOf2 = x => (s.board.find(b => b.w === x) || {}).py || sylOf(x, s.words[x]).join("");
+  const r2 = Math.random();
+  if (others.length >= 3 && r2 < 0.67){
+    const pool = others.filter(x => okDistract(w, x, "") && pyOf2(x) !== py);
+    const same = pool.filter(x => [...x].length === [...w].length);
+    const bag = shuffle((same.length >= 3 ? same : pool).slice()).slice(0, 3);
+    shuffle(pool.slice()).forEach(x => { if (bag.length < 3 && bag.indexOf(x) < 0) bag.push(x); });
+    if (bag.length >= 3){
+      if (r2 < 0.335){ const opts = shuffle([w].concat(bag)); return { kind:"pyword", w, py, opts, ans:opts.indexOf(w), t0:Date.now(), lim, res:null }; }
+      const ps = [...new Set(bag.map(pyOf2))].filter(x => x !== py).slice(0, 3);
+      if (ps.length >= 3){ const opts = shuffle([py].concat(ps)); return { kind:"wpy", w, py, opts, ans:opts.indexOf(py), t0:Date.now(), lim, res:null }; }
+    }
+  }
   const cs = [...w]; const allow = new Set(Object.keys(s.words).join(""));
   let best = null;
   cs.forEach((c, i) => { const ds = distractors({ c, py:syl[i], w }, 3, allow).filter(x => x !== c && !cs.includes(x)); if (!best || ds.length > best.ds.length || (ds.length === best.ds.length && Math.random() < .5)) best = { i, c, ds }; });
@@ -143,7 +186,7 @@ function land(s){
   if (sq.t === "lot"){
     if (sq.owner < 0){
       if (p.coins < sq.price){ note(s, `${p.name} 的錢不夠買「${sq.w}」。`); s.phase = "end"; return; }
-      s.phase = "buy"; return;
+      s.q0 = mkQ(s, sq.w); s.phase = "buy"; return;
     }
     if (sq.owner === s.turn){
       if (sq.lv < MAXH && p.coins >= houseCost(sq)){ s.phase = "build"; return; }
@@ -158,7 +201,7 @@ function land(s){
   }
   if (sq.t === "chance" || sq.t === "fate"){
     const deck = sq.t === "chance" ? CHANCE : FATE; s.card = [sq.t === "chance" ? "c" : "f", rnd(deck.length)];
-    s.phase = "card"; return;
+    s.cq = mkCQ(s.card); s.phase = "card"; return;
   }
   if (sq.t === "jam"){ p.skip = 1; note(s, "塞車了！下一次不能擲骰子。", "bad"); log(s, `${p.name} 遇到塞車`); s.phase = "end"; return; }
   if (sq.t === "park"){ note(s, "在公園休息一下。"); s.phase = "end"; return; }
@@ -182,7 +225,7 @@ const ACT = {
   buy(s, yes){
     if (s.phase !== "buy") return false; const sq = s.board[cur(s).pos];
     if (!yes){ note(s, `${cur(s).name} 沒有買「${sq.w}」。`); s.phase = "end"; return true; }
-    s.q = mkQ(s, sq.w); s.phase = "q"; return true;
+    s.q = (s.q0 && s.q0.w === sq.w) ? Object.assign(s.q0, { t0:Date.now() }) : mkQ(s, sq.w); s.q0 = null; s.phase = "q"; return true;
   },
   answer(s, v){
     if (s.phase !== "q" || !s.q || s.q.res) return false;
@@ -201,9 +244,13 @@ const ACT = {
     s.phase = "end"; return true;
   },
   // 看懂機會卡／命運卡以後，按「照做」
-  card(s){
+  card(s, v){
     if (s.phase !== "card" || !s.card) return false;
     const P = cur(s), c = cardOf(s, s.card), ref = s.card; let res = "";
+    /* CARDQ_V1785 先看懂了沒 */
+    let qz = "";
+    if (s.cq && typeof v === "number"){ const ok = v === s.cq.ans; P.n++; if (ok){ P.ok++; money(s, s.turn, CQBONUS); qz = `看懂了！答對多拿 ${CQBONUS} 元`; } else qz = `答錯了。這張卡的意思是：${s.cq.opts[s.cq.ans]}`; }
+    s.cq = null;
     if (c.t === "money"){ money(s, s.turn, c.n); res = (c.n > 0 ? "+" : "−") + Math.abs(c.n) + " 元"; }
     if (c.t === "each"){ s.players.forEach((o, i) => { if (i !== s.turn && !o.out){ money(s, i, -c.n); money(s, s.turn, c.n); } }); res = c.n > 0 ? `每個人給你 ${c.n} 元` : `你給每個人 ${-c.n} 元`; }
     if (c.t === "free"){ P.free++; res = "拿到免過路費卡"; }
@@ -214,9 +261,9 @@ const ACT = {
       let n = c.t === "move" ? c.n : c.t === "back" ? -c.n : (c.to - P.pos + N) % N;
       if (c.t === "goto" && c.to === 0){ n = (N - P.pos) % N || N; }
       if (c.skip) P.skip = 1;
-      walk(s, n); land(s); s.prev = { ref, res: c.t === "goto" && c.to === 0 ? "回到起點 +" + PASS : "" }; bankrupt(s); return true;
+      walk(s, n); land(s); s.prev = { ref, res: c.t === "goto" && c.to === 0 ? "回到起點 +" + PASS : "", qz }; bankrupt(s); return true;
     }
-    s.card = null; s.prev = { ref, res }; bankrupt(s); if (s.phase !== "over") s.phase = "end"; return true;
+    s.card = null; s.prev = { ref, res, qz }; bankrupt(s); if (s.phase !== "over") s.phase = "end"; return true;
   },
   next(s){
     if (s.phase === "over" || s.phase === "lobby") return false;
@@ -346,7 +393,7 @@ function rollThenWalk(a){
     let k = 0; const over = {}; over[a.i] = a.from; placeTokens(over); const dir = a.n < 0 ? -1 : 1, n = Math.abs(a.n);
     if (!n){ animating = false; placeTokens(); afterAnim(); return; }
     const step = () => { k++; over[a.i] = (a.from + dir * k + N) % N; placeTokens(over); A.sfx.pick();
-      if (k < n) setTimeout(step, n > 8 ? 130 : 230); else setTimeout(() => { animating = false; placeTokens(); const t = panel().querySelector(`.tile[data-i="${S.players[a.i].pos}"]`); if (t) t.classList.add("land"); afterAnim(); }, 280); };
+      if (k < n) setTimeout(step, n > 8 ? 220 : 360); else setTimeout(() => { animating = false; placeTokens(); const t = panel().querySelector(`.tile[data-i="${S.players[a.i].pos}"]`); if (t) t.classList.add("land"); afterAnim(); }, 280); };
     setTimeout(step, 180);
   };
   if (a.d && dz){ let f = 0; dz.classList.add("rolling");
@@ -369,7 +416,7 @@ function floats(d){
 }
 function showBanner(f){
   const bw = panel().querySelector(".fwbw"); if (!bw) return;
-  const b = el("div", { class:"fwban k-" + f.k }, [f.c ? el("b", { class:"hz", text:f.c }) : null, el("span", { text:f.text })]); bw.append(b); setTimeout(() => b.remove(), 2200);
+  const b = el("div", { class:"fwban k-" + f.k }, [f.c ? el("b", { class:"hz", text:f.c }) : null, el("span", { text:f.text })]); bw.append(b); setTimeout(() => b.remove(), 3200);
   if (["buy", "up", "side"].includes(f.k)){ const [x, y] = centerOf(b); burst(x, y, f.k === "side" ? 60 : 24); }
   if (f.k === "bust"){ sfx.lose(); } else sfx.good();
 }
@@ -387,6 +434,11 @@ function centerEl(){
 
 // ---------- 跳出的視窗 ----------
 function lotCard(sq){ return el("div", { class:"lotcard g" + sq.g }, [el("span", { class:"band" }), el("b", { class:"hz", text:sq.w }), el("div", { class:"pyl", text:sq.py }), el("small", { text:`地價 $${sq.price}・過路費 $${rent(S, sq)}` })]); }
+function lotCardQ(sq, q){
+  if (!q) return lotCard(sq);
+  const hz = q.kind === "wpy" ? sq.w : (q.kind === "blank" ? blank(q.w, q.i) : "？"), py = q.kind === "wpy" ? "" : (q.kind === "cloze" ? "" : sq.py);
+  return el("div", { class:"lotcard g" + sq.g }, [el("span", { class:"band" }), el("b", { class:"hz", text:hz }), py ? el("div", { class:"pyl", text:py }) : null, el("small", { text:`地價 $${sq.price}・過路費 $${rent(S, sq)}` })]);
+}
 function cardEl(ref, live, res){
   const c = cardOf(S, ref), kind = ref[0] === "c" ? "機會" : "命運";
   const box = el("div", { class:"fcard " + (ref[0] === "c" ? "ch" : "fa") }, [el("div", { class:"fk" }, [el("span", { text:kind })]), el("div", { class:"fz hz", text:c.z })]);
@@ -404,7 +456,8 @@ function modalEl(){
   const ph = S.phase, p = cur(S), me = mine(S.turn), sq = S.board[p.pos], box = el("div", { class:"fwmodal fwcard2 m7 fwq" });
   const who = el("div", { class:"mwho" }, [avEl(p, S.turn), el("b", { text:p.name })]);
   if (ph === "buy"){
-    box.append(who, lotCard(sq), el("p", { class:"mq", text:`要買「${sq.w}」嗎？要先答對一題才買得到。` }));
+    /* FWQ2_V1785 Quinn：「這裡出現明天了，所以不是已經出現了嗎？」——買地之前只露出題目會給的那一半，答完才看到整個詞 */
+    box.append(who, lotCardQ(sq, S.q0), el("p", { class:"mq", text:"要買這塊地嗎？要先答對一題才買得到。" }));
     if (me) box.append(el("div", { class:"mbtns" }, [el("button", { class:"btn primary big", type:"button", text:`買（$${sq.price}）`, onclick: () => act("buy", true) }), el("button", { class:"btn big", type:"button", text:"不買", onclick: () => act("buy", false) })]));
     else box.append(el("p", { class:"muted", text:`${p.name} 正在決定……` }));
     return box;
@@ -417,6 +470,14 @@ function modalEl(){
   }
   if (ph === "card"){
     box.append(who, cardEl(S.card, me));
+    if (S.cq){
+      box.append(el("p", { class:"ask cqask", text:"這張卡要你做什麼？" }));
+      const g = el("div", { class:"opts words cqopts" });
+      S.cq.opts.forEach((o, i) => { const b = el("button", { class:"opt", type:"button", text:o }); if (me) b.onclick = () => act("card", i); else b.disabled = true; g.append(b); });
+      box.append(g);
+      if (!me) box.append(el("p", { class:"muted", text:`${p.name} 正在看卡片……` }));
+      return box;
+    }
     if (me) box.append(el("div", { class:"mbtns" }, [el("button", { class:"btn primary big", type:"button", text:"看懂了，照做", onclick: () => act("card") })]));
     else box.append(el("p", { class:"muted", text:`${p.name} 正在看卡片……` }));
     return box;
@@ -426,15 +487,16 @@ function modalEl(){
     /* QLEAK_V1468 Quinn：「不是已經出現過『臺灣』，然後選擇答案那邊『臺灣』跟『台灣』其實都是對的啊？」
        這一行本來寫 `買地「${q.w}」$${價}`——標頭直接把答案印出來，三種題型都一樣。
        答完再印（q.res）沒問題，作答中不能印。 */
-    box.append(el("div", { class:"qhead" }, [el("span", { class:"kind", text: q.kind === "blank" ? "選字" : (q.kind === "cloze" ? "填空" : "看拼音") }), el("b", { text: q.res ? `買地「${q.w}」$${sq.price}` : `買這一格　$${sq.price}` }), el("span", { class:"who", text:p.name + " 作答" })]));
+    box.append(el("div", { class:"qhead" }, [el("span", { class:"kind", text: q.kind === "blank" ? "選字" : (q.kind === "cloze" ? "填空" : (q.kind === "wpy" ? "選拼音" : "看拼音")) }), el("b", { text: q.res ? `買地「${q.w}」$${sq.price}` : `買這一格　$${sq.price}` }), el("span", { class:"who", text:p.name + " 作答" })]));
     if (!q.res && q.lim) box.append(el("div", { class:"timer" }, [el("i")]));
     const pr = el("div", { class:"prompt" });
     if (q.kind === "blank"){ pr.append(el("div", { class:"w", text:blank(q.w, q.i) }), el("div", { class:"py pyl", text:q.py })); }
     else if (q.kind === "cloze") pr.append(el("div", { class:"w cz", text:q.blank }));/* FWCLOZE_V1430 */
+    else if (q.kind === "wpy") pr.append(el("div", { class:"w", text:q.w }));
     else pr.append(el("div", { class:"py pyl big", text:q.py }));
-    box.append(pr, el("p", { class:"ask", text: q.kind === "blank" ? "□ 是哪一個字？" : (q.kind === "cloze" ? "這一句少了哪一個詞？" : "這是哪一個詞？") }));
+    box.append(pr, el("p", { class:"ask", text: q.kind === "blank" ? "□ 是哪一個字？" : (q.kind === "cloze" ? "這一句少了哪一個詞？" : (q.kind === "wpy" ? "這個詞怎麼念？" : "這是哪一個詞？")) }));
     if (q.kind === "cloze" && q.res) box.append(el("p", { class:"ask czfull", text:q.sent }));/* 答完把整句印出來 */
-    const g = el("div", { class:"opts" + (q.kind === "pyword" || q.kind === "cloze" ? " words" : "") });
+    const g = el("div", { class:"opts" + (q.kind === "pyword" || q.kind === "cloze" ? " words" : (q.kind === "wpy" ? " words pyo" : "")) });
     q.opts.forEach((o, i) => { const b = el("button", { class:"opt", type:"button", text:o });
       if (q.res){ b.disabled = true; if (i === q.ans) b.classList.add("right"); else if (i === q.res.pick) b.classList.add("wrong"); }
       else if (live) b.onclick = () => answered(i); else b.disabled = true;
@@ -444,7 +506,7 @@ function modalEl(){
   }
   if (ph === "end"){
     const kids = [];
-    if (S.prev){ kids.push(cardEl(S.prev.ref, false, S.prev.res || "")); }
+    if (S.prev){ kids.push(cardEl(S.prev.ref, false, S.prev.res || "")); if (S.prev.qz) kids.push(el("div", { class:"cqfb " + (/^看懂/.test(S.prev.qz) ? "ok" : "no"), text:S.prev.qz })); }
     if (S.q && S.q.res){ const q = S.q, ok = q.res.ok, tm = q.res.pick === "timeout";
       kids.push(el("div", { class:"fwfb " + (ok ? "ok" : "no") }, [el("b", { text: ok ? `答對了！買下「${q.w}」` : (tm ? "時間到！" : "答錯了！") + "沒買到" }), el("div", { class:"fbw" }, [el("span", { class:"hz", text:q.w }), "　", el("span", { class:"pyl", text:q.py })])])); }
     if (S.note) kids.push(el("div", { class:"mnote " + (S.note.k || ""), text:S.note.text }));
@@ -476,7 +538,7 @@ function scheduleAuto(){
   clearTimeout(autoT);
   if (!S || S.phase !== "end" || animating) return;
   if (!(isHost() || mine(S.turn))) return;
-  const wait = S.prev ? 6000 : S.q ? 3500 : S.note ? 2600 : 1200;
+  const wait = S.prev ? 9000 : S.q ? 6500 : S.note ? 4500 : 2200;/* SLOW_V1785 Quinn：「速度慢一點，學生剛學中文」 */
   const bar = panel().querySelector(".autonext i"); if (bar){ bar.style.transitionDuration = wait + "ms"; requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = "0%"; })); }
   const seq = S.seq; autoT = setTimeout(() => { if (S && S.seq === seq && S.phase === "end") act("next"); }, wait + (isHost() && !mine(S.turn) && S.mode === "B" ? 1500 : 0));
 }
@@ -507,11 +569,11 @@ function scheduleBot(){
   const p = cur(S); if (!p || !p.bot) return;
   const lv = BOTLV[p.bot] || BOTLV.normal, seq = S.seq, sq = S.board[p.pos];
   const go = (fn, ms) => { botT = setTimeout(() => { if (S && S.seq === seq && !animating) fn(); }, ms); };
-  if (S.phase === "roll") go(() => act("roll"), 900);
-  else if (S.phase === "buy") go(() => act("buy", p.coins - sq.price >= 150), 1300);
-  else if (S.phase === "q" && S.q && !S.q.res){ const q = S.q, ok = Math.random() < lv.p; go(() => act("answer", ok ? q.ans : pick(q.opts.map((o, i) => i).filter(i => i !== q.ans))), 2000 + rnd(3000)); }
-  else if (S.phase === "build") go(() => act("build", p.coins - houseCost(sq) >= 250), 1300);
-  else if (S.phase === "card") go(() => act("card"), 3500);
+  if (S.phase === "roll") go(() => act("roll"), 1800);
+  else if (S.phase === "buy") go(() => act("buy", p.coins - sq.price >= 150), 2600);
+  else if (S.phase === "q" && S.q && !S.q.res){ const q = S.q, ok = Math.random() < lv.p; go(() => act("answer", ok ? q.ans : pick(q.opts.map((o, i) => i).filter(i => i !== q.ans))), 4500 + rnd(3500)); }
+  else if (S.phase === "build") go(() => act("build", p.coins - houseCost(sq) >= 250), 2600);
+  else if (S.phase === "card") go(() => act("card", S.cq ? (Math.random() < lv.p ? S.cq.ans : rnd(S.cq.opts.length)) : undefined), 6000);
 }
 
 // ---------- 開始畫面 ----------
