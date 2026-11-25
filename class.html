@@ -197,6 +197,11 @@ html{overflow-y:scroll;scrollbar-gutter:stable}
 .mbt{flex:1;font-size:15px;word-break:break-all}.mbrow small{color:#7A8BA3;font-size:12.5px;white-space:nowrap}
 .mbws{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))!important}.mbws label b{font-weight:400;font-size:14px}
 @media(max-width:600px){.mybk{grid-template-columns:1fr}.mbrow{flex-wrap:wrap}#mb-q{width:100%}}
+/* DUE_V1785 */.duerow{margin:18px 0 4px}.duerow .l span{font-weight:400;color:var(--mut,#7A8BA3);font-size:12.5px}.duein{display:flex;gap:8px;align-items:center}.duein input{max-width:220px}
+.tc-due{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 2px}.dueb{font-size:12.5px;padding:3px 9px;border-radius:20px;background:#EEF3FA;color:#1E4C86}.dueb.soon{background:#FFF4E0;color:#A6620A}.dueb.past{background:#FDECEA;color:#A33227}.dueb.none{background:none;color:#9AA8BC;padding-left:0}
+.tc-due .lnk{border:0;background:none;color:#1E4C86;text-decoration:underline;cursor:pointer;font-size:12.5px;padding:2px 4px}
+.late{display:inline-block;font-size:11.5px;font-weight:600;color:#A33227;background:#FDECEA;border-radius:10px;padding:1px 7px;margin-top:2px}.thdue{font-weight:400;color:#A6620A;font-size:11px}
+input.dlg-in[type=date]{width:100%;margin-top:6px}
 </style>
 </head>
 <body>
@@ -336,11 +341,18 @@ async function classView(code){bar();
   $('#ren').onclick=async()=>{const nm=String(await dlg({title:'班級改名',label:'新的班級名稱',value:c.name,ok:'儲存'})||'').trim().slice(0,60);if(!nm)return;await db.collection('tclasses').doc(code).update({name:nm});classView(code);};
   $('#rm').onclick=async()=>{if(!await dlg({title:'刪除「'+c.name+'」？',text:'刪除以後，學生就進不來這個班了。',ok:'刪除',danger:1}))return;await db.collection('tclasses').doc(code).update({deleted_at:now()});location.hash='';};
   app.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(!await dlg({title:'收回這份題目？',text:'學生就看不到這份題目了。',ok:'收回',danger:1}))return;await db.collection('ttasks').doc(b.dataset.del).update({deleted_at:now()});classView(code);});
+  app.querySelectorAll('[data-due]').forEach(b=>b.onclick=()=>dueEdit(S.tasks.find(x=>x.id===b.dataset.due),code));
   wireForm(code);}
+function dueEdit(t,code){if(!t)return;const w=document.createElement('div');w.className='dlg';
+  w.innerHTML='<div class="dlg-b" role="dialog" aria-modal="true"><h3>截止日期 <small>'+esc(t.title)+'</small></h3><p>過了截止日期學生還是可以做，你這邊會標「遲交」。</p><input type="date" class="dlg-in" id="de-in" value="'+esc(t.due||'')+'"><div class="dlg-a">'+(t.due?'<button class="btn" data-v="clr">不設截止日期</button>':'')+'<button class="btn" data-v="0">取消</button><button class="btn pri" data-v="1">儲存</button></div></div>';
+  document.body.appendChild(w);const close=()=>w.remove();w.addEventListener('click',e=>{if(e.target===w)close();});
+  w.querySelectorAll('[data-v]').forEach(b=>b.onclick=async()=>{const v=b.dataset.v;if(v==='0')return close();const nv=v==='clr'?'':w.querySelector('#de-in').value;if(v==='1'&&!dueEnd(nv)){w.querySelector('#de-in').focus();return}
+    try{await db.collection('ttasks').doc(t.id).update({due:nv?nv:firebase.firestore.FieldValue.delete()});close();classView(code);}catch(e){close();dlg({title:'存不進去',text:String(e&&e.message||e),ok:'知道了',noCancel:1});}});}
 function taskCard(t,dn){const n=S.studs.length;const nw=t.pm?(t.segs||[]).reduce((a,x)=>a+Array.from(x.h).filter(c=>HANRE.test(c)).length,0)+' 個字':t.game==='kq'?(t.qs||[]).length+' 題':String(t.items||'').split('\n').filter(x=>x.trim()).length+((t.game==='fill'||t.game==='order')?' 題':' 個詞');
   const type=t.kind==='pinyin'?(t.pm==='sent'?'短句練習':t.pm==='text'?'短文練習':t.zy?'注音練習':'拼音練習'):t.kind==='game'?((GKINDS.find(g=>g[0]===t.game)||[])[1]||'遊戲').replace(/^\S+\s/,''):'漢字闖關';
   const ic=t.kind==='pinyin'?(t.zy?'ㄅ':'ā'):t.kind==='game'?(((GKINDS.find(g=>g[0]===t.game)||[])[1]||'🎮').split(' ')[0]):'字';const pct=n?Math.round(dn/n*100):0;
   return '<div class="tcard"><div class="tc-top"><i>'+esc(ic)+'</i><div class="tc-t"><b>'+esc(t.title)+'</b><small>'+esc(type)+'・'+esc(nw)+'・'+esc(String(t.created_at||'').slice(5,10).replace('-','/'))+'</small></div></div>'
+   +(()=>{const L=dueLab(t.due);const late=t.due?S.studs.filter(s=>isLate(t,(s.tasks||{})[t.id])).length:0;return '<div class="tc-due">'+(L?'<span class="dueb '+L.c+'">📅 '+esc(L.t)+'</span>'+(late?'<span class="dueb past">'+late+' 位遲交</span>':''):'<span class="dueb none">沒有截止日期</span>')+'<button type="button" class="lnk" data-due="'+esc(t.id)+'">'+(L?'改':'設定')+'</button></div>';})()
    +'<div class="tc-bar"><i style="width:'+pct+'%"></i></div><div class="tc-f"><span>'+(n?dn+' / '+n+' 位做過':'還沒有學生')+'</span><span class="grow"></span><button class="btn sm del" data-del="'+esc(t.id)+'">收回</button></div></div>';}
 function taskRow(t){const nw=t.game==='kq'?(t.qs||[]).length+' 題':String(t.items||'').split('\n').filter(x=>x.trim()).length+((t.game==='fill'||t.game==='order')?' 題':' 個詞');const n=t.kind==='pinyin'?nw:t.kind==='game'?((GKINDS.find(g=>g[0]===t.game)||[])[1]||'遊戲')+'・'+nw:(HZ_NAME[t.fam]||t.fam)+'・'+(HZ_DIFF[t.diff]||'')+'・至少 '+(t.min_stars||1)+' 星';
   return '<div class="task"><i>'+(t.zy?'ㄅ':t.kind==='pinyin'?'ā':t.kind==='game'?'🎮':'字')+'</i><div class="t"><b>'+esc(t.title)+'</b><small>'+(t.kind==='pinyin'?(t.zy?'注音練習':'拼音練習'):t.kind==='game'?'生詞遊戲'+(t.zy?'（注音）':''):'漢字闖關')+'・'+esc(n)+'</small></div><button class="btn sm del" data-del="'+esc(t.id)+'">收回</button></div>';}
@@ -369,7 +381,15 @@ function formHtml(){return '<div class="steph"><span>1</span>要學生做什麼�
   +'<div class="f"><label class="l">至少幾顆星算完成</label><select id="h-min"><option>1</option><option>2</option><option>3</option></select></div></div></div>'
   /* ZHUYIN_V1741 Quinn：「我也希望有注音符號練習」——老師一樣打拼音，學生那邊自動變成注音、用注音鍵盤作答 */
   +'<div id="zyrow" class="zyrow"><label class="l">學生用什麼作答</label><div class="kseg zyseg"><button type="button" data-z="0" class="'+(S.zy?'':'on')+'">ā 拼音</button><button type="button" data-z="1" class="'+(S.zy?'on':'')+'">ㄅ 注音符號</button></div><p class="gneed" id="zynote"></p></div>'
+  /* DUE_V1785 Quinn：「可以提供截止日期給學生做」——選填；過了還能做，老師這邊標「遲交」 */
+  +'<div class="duerow"><label class="l" for="t-due">截止日期 <span>（選填，過了學生還是可以做，會標「遲交」）</span></label><div class="duein"><input type="date" id="t-due" min="'+today()+'"><button type="button" class="btn sm" id="t-due-x">不設</button></div></div>'
   +'<div class="msg" id="t-msg"></div><button class="btn pri" id="t-go">發給這個班</button></div>';}
+function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function dueEnd(due){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(due||'');return m?new Date(+m[1],+m[2]-1,+m[3],23,59,59,999):null;}
+function dueLab(due){const e=dueEnd(due);if(!e)return null;const t0=new Date();t0.setHours(0,0,0,0);const d=Math.round((new Date(e.getFullYear(),e.getMonth(),e.getDate())-t0)/864e5);
+  const md=(e.getMonth()+1)+'/'+e.getDate();return d<0?{c:'past',t:'截止 '+md+'・已過'}:d===0?{c:'soon',t:'今天截止'}:d<=2?{c:'soon',t:'截止 '+md+'・剩 '+d+' 天'}:{c:'',t:'截止 '+md};}
+function firstAt(r){if(!r)return '';if(r.first)return r.first;const h=Array.isArray(r.hist)?r.hist:[];return (h.length&&h.length<20&&h[0].at)||r.at||'';}
+function isLate(t,r){const e=dueEnd(t.due);const f=firstAt(r);return !!(e&&f&&new Date(f)>e);}
 
 /* BANK_V1745 Quinn：「最好是出現題庫，然後問是否要選擇這些」「就是分區啦」
    題庫（華語八千詞）先選等級，每 20 個詞一區；點一區看裡面的詞，勾選要的再按「加入」。 */
@@ -528,7 +548,7 @@ async function segEdit(b){const [si,ci]=b.dataset.s.split(':').map(Number);const
   w.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>set(x.dataset.o));w.querySelector('[data-ok]').onclick=()=>set(inp.value);w.querySelector('[data-x]').onclick=()=>w.remove();
   inp.onkeydown=e=>{if(e.key==='Enter')set(inp.value);};w.onclick=e=>{if(e.target===w)w.remove();};}
 function numToMark(s){const T={a:'āáǎà',e:'ēéěè',i:'īíǐì',o:'ōóǒò',u:'ūúǔù','ü':'ǖǘǚǜ'};return String(s).toLowerCase().replace(/v/g,'ü').replace(/([a-zü]+)([1-5])/g,(m,y,n)=>{n=+n;if(n===5)return y;let i=y.indexOf('a');if(i<0)i=y.indexOf('e');if(i<0&&y.indexOf('ou')>=0)i=y.indexOf('o');if(i<0){for(let k=y.length-1;k>=0;k--)if('iouü'.indexOf(y[k])>=0){i=k;break;}}return i<0?y:y.slice(0,i)+T[y[i]][n-1]+y.slice(i+1);});}
-function wireForm(code){
+function wireForm(code){{const x=$('#t-due-x');if(x)x.onclick=()=>{$('#t-due').value='';};}
   app.querySelectorAll('#pmseg button').forEach(b=>b.onclick=()=>{S.pm=b.dataset.pm;app.querySelectorAll('#pmseg button').forEach(x=>x.classList.toggle('on',x===b));pmSync();});
   {const a=$('#seg-auto');if(a)a.onclick=segAuto;}
   app.querySelectorAll('.tpick button').forEach(b=>b.onclick=()=>{const v=b.dataset.tp;app.querySelectorAll('.tpick button').forEach(x=>x.classList.toggle('on',x===b));
@@ -569,9 +589,10 @@ function wireForm(code){
       t={kind:'game',game:S.gk,title:$('#g-title').value.trim()||g[1],items:items.join('\n')};if(S.zy&&zyOk())t.zy=true;
       if(S.gk==='pic'){const ws=items.map(x=>x.split(/\s+/)[0]);const miss=ws.filter(w=>!PIC[w]);if(PICBUSY){msg.textContent='圖片還在上傳，請等一下';return}if(miss.length){msg.textContent='這幾個詞還沒有圖：'+miss.slice(0,5).join('、');return}t.imgs={};ws.forEach(w=>t.imgs[w]=PIC[w]);}}
     else return;
-    Object.assign(t,{class_code:code,owner_uid:S.user.uid,created_at:now()});
+    Object.assign(t,{class_code:code,owner_uid:S.user.uid,created_at:now()});{const dv=($('#t-due')||{}).value||'';if(dueEnd(dv))t.due=dv;}
     try{await db.collection('ttasks').add(t);S.ctab='tasks';if(t.pm){SEG=[];}if(t.game==='kq')KQ=[];if(t.game==='pic')Object.keys(PIC).forEach(k=>delete PIC[k]);classView(code);}catch(e){msg.textContent='發不出去：'+(e&&e.message||e)}};}
-function stat(s,t){const r=(s.tasks||{})[t.id];if(!r)return '<td class="no">—</td>';
+function stat(s,t){const r=(s.tasks||{})[t.id];if(!r)return '<td class="no">'+(t.due&&dueEnd(t.due)<new Date()?'<span class="late">未交</span>':'—')+'</td>';const h=stat0(s,t,r);return isLate(t,r)?h.replace(/<\/td>$/,'<br><span class="late">遲交</span></td>'):h;}
+function stat0(s,t,r){
   if(t.kind==='pinyin')return '<td class="'+(r.n&&r.ok===r.n?'ok':'')+'">'+(r.ok||0)+'/'+(r.n||0)+(r.times>1?' <small style="color:var(--mut)">×'+r.times+'</small>':'')+'</td>';
   if(t.kind==='game'&&['fill','order','listen'].includes(t.game)&&r.n)return '<td class="'+(r.ok===r.n?'ok':'')+'">'+(r.ok||0)+'/'+r.n+(r.times>1?' <small style="color:var(--mut)">×'+r.times+'</small>':'')+'</td>';/* QTYPE_V1784 */
   if(t.kind==='game')return '<td class="ok">玩過 '+(r.times||1)+' 次'+(r.best!=null?'<br><small style="color:var(--mut)">最高 '+r.best+(r.unit||'')+'</small>':'')+'</td>';
@@ -587,7 +608,7 @@ function studHtml(){if(S.studErr)return '<p class="msg">讀不到學生：'+esc(
   if(!S.studs.length)return top+'<p class="empty">還沒有學生加入。把上面的代碼或連結給學生。</p>';
   const nz=S.studs.filter(s=>scrOf(s)==='zy').length;
   return top+'<p class="scrsum">拼音 '+(S.studs.length-nz)+' 位・注音 '+nz+' 位</p>'
-   +'<div class="tbl"><table><thead><tr><th>名字</th><th>用什麼學</th><th>最後上線</th>'+S.tasks.map(t=>'<th title="'+esc(t.title)+'">'+(t.kind==='pinyin'?'ā ':t.kind==='game'?'🎮 ':'字 ')+esc(t.title.length>10?t.title.slice(0,10)+'…':t.title)+'</th>').join('')+'<th></th></tr></thead><tbody>'
+   +'<div class="tbl"><table><thead><tr><th>名字</th><th>用什麼學</th><th>最後上線</th>'+S.tasks.map(t=>'<th title="'+esc(t.title)+'">'+(t.kind==='pinyin'?'ā ':t.kind==='game'?'🎮 ':'字 ')+esc(t.title.length>10?t.title.slice(0,10)+'…':t.title)+(dueEnd(t.due)?'<br><small class="thdue">截止 '+esc(t.due.slice(5).replace('-','/'))+'</small>':'')+'</th>').join('')+'<th></th></tr></thead><tbody>'
    +S.studs.map(s=>{const v=scrOf(s);return '<tr><td><b>'+esc(s.name)+'</b></td><td><div class="scrseg" data-sid="'+esc(s.id)+'"><button type="button" data-v="py" class="'+(v==='py'?'on':'')+'">拼音</button><button type="button" data-v="zy" class="'+(v==='zy'?'on':'')+'">注音</button></div></td><td>'+esc(ago(s.last_at||s.joined_at))+'</td>'+S.tasks.map(t=>stat(s,t)).join('')+'<td><button class="btn sm del" data-rs="'+esc(s.id)+'">移除</button></td></tr>';}).join('')+'</tbody></table></div>';}
 async function scrSave(patch,msg){const c=S.cur;if(!c)return;
   try{await db.collection('tclasses').doc(c.id).update(patch);}catch(x){dlg({title:'存不進去',text:String(x&&x.message||x),ok:'知道了',noCancel:1});return}

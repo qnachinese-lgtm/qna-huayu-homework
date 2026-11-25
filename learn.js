@@ -6,7 +6,7 @@
    - 每一次練習存在 pstudents/{uid}/sessions；錯的詞記在 pstudents.wrong（錯題本）。 */
 (function(){
 'use strict';
-var VER='2026.11.25';
+var VER='2026.11.26';
 var $=function(id){return document.getElementById(id)};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 var tt=null;function toast(s,ms){var t=$('toast');t.textContent=s;t.hidden=false;clearTimeout(tt);tt=setTimeout(function(){t.hidden=true},ms||2400)}
@@ -89,7 +89,7 @@ async function goCode(){var c=$('cc').value.trim().toUpperCase().replace(/[^A-Z0
   var ok=false;try{ok=(await db.collection('tclasses').doc(c).get()).exists}catch(e){ok=true}
   $('go').disabled=false;if(!ok)return say('找不到這個班級，請再確認代碼');
   try{localStorage.setItem('qna_guest_name',n)}catch(e){}
-  location.href='room.html?c='+encodeURIComponent(c)}
+  location.href='room.html?c='+encodeURIComponent(c)+'&join=1'}/* JOIN1_V1785 名字已經在這裡填過了，班級頁不要再問一次 */
 async function goLogin(){var em=$('le').value.trim(),pw=$('lp').value;if(!em||!pw)return say('請填 Email 和密碼');
   $('go').disabled=true;say('登入中…',1);
   try{await auth.signInWithEmailAndPassword(em,pw)}

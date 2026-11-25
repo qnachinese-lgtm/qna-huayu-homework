@@ -89,6 +89,7 @@ input:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(30,76,134,.12)}
   .cpill,.home{font-size:13px!important;padding:6px 11px!important;line-height:1.2}
 }
 @media(max-width:360px){.brand b{font-size:14px!important}.home{padding:6px 9px!important}}
+em.due{display:block;font-style:normal;font-size:12px;color:#1E4C86;margin-top:3px}em.due.soon{color:#A6620A;font-weight:600}em.due.past{color:#A33227}
 </style>
 </head>
 <body>
@@ -125,7 +126,9 @@ function ask(c){
     ls.set('qna_cls_name_'+code,v);ls.set('qna_guest_name',v);
     try{const t=new Date().toISOString();await db.collection('tstudents').doc(code+'_'+dev()).set({class_code:code,owner_uid:c.owner_uid,name:v,dev:dev(),joined_at:t,last_at:t},{merge:true});}catch(e){}
     show(c,v);};
-  $('#go').onclick=go;inp.onkeydown=e=>{if(e.key==='Enter')go()};}
+  $('#go').onclick=go;inp.onkeydown=e=>{if(e.key==='Enter')go()};
+  /* JOIN1_V1785 Quinn：「重複出現欸」——從練習入口已經填過名字，就直接加入，不再問一次 */
+  if(/[?&]join=1/.test(location.search)){try{history.replaceState(null,'',location.pathname+'?c='+encodeURIComponent(code))}catch(e){}if(inp.value.trim()){app.style.visibility='hidden';go().then(()=>{app.style.visibility=''});}}}
 async function show(c,nm){const SCR=((c.scripts||{})[code+'_'+dev()])||c.script_default||'';/* SCRSTU_V1742 */
   app.innerHTML='<div class="logo">美</div><h1>'+esc(c.name)+'</h1><p class="sub">'+(c.owner_name?esc(c.owner_name)+' 的班級':'')+'</p><div class="code">'+esc(code)+'</div>'
    +'<div class="me" style="margin-top:16px">'+esc(nm)+' <button id="chg">換名字</button></div><div class="list" id="list"><p class="none">讀取題目中…</p></div>';
@@ -133,12 +136,15 @@ async function show(c,nm){const SCR=((c.scripts||{})[code+'_'+dev()])||c.script_
   let ts=[];try{const sn=await db.collection('ttasks').where('class_code','==',code).get();ts=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(t=>!t.deleted_at).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))}catch(e){}
   let prog={};try{prog=JSON.parse(ls.get('qna_cls_prog_'+code)||'{}')||{}}catch(e){}
   const GN={flip:'翻牌配對 · Memory',quiz:'快問快答 · Quiz',bingo:'生詞賓果 · Bingo',fw:'大富翁 · Board game',mole:'聲調打地鼠 · Whack-a-mole',wmole:'詞語打地鼠 · Word whack-a-mole',pic:'看圖選詞 · Picture quiz',kq:'選擇題 · Quiz',pinyin:'拼音遊戲 · Pinyin games',fill:'填空題 · Fill in the blank',order:'句子排序 · Word order',listen:'聽音選詞 · Listening'};/* CGAME_V1736 */
+  /* DUE_V1785 題目有截止日期就顯示；過了還是可以做 */
+  const dueTag=(t,p)=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(t.due||'');if(!m)return '';const e=new Date(+m[1],+m[2]-1,+m[3]);const t0=new Date();t0.setHours(0,0,0,0);const d=Math.round((e-t0)/864e5);const md=(+m[2])+'/'+(+m[3]);
+    if(p)return '<em class="due">截止 '+md+'</em>';return d<0?'<em class="due past">已過截止日 '+md+'・還是可以做</em>':d===0?'<em class="due soon">今天截止</em>':'<em class="due'+(d<=2?' soon':'')+'">截止 '+md+(d<=7?'・剩 '+d+' 天':'')+'</em>';};
   $('#list').innerHTML=ts.length?ts.map(t=>{const p=prog[t.id];const hz=t.kind==='hanzi';const gm=t.kind==='game';
     /* QTYPE_V1784 填空、排序、聽音 → quiz.html，跟練習一樣顯示答對幾題 */
-    if(gm&&['fill','order','listen'].includes(t.game))return '<a class="t" href="quiz.html?class='+encodeURIComponent(code)+'&task='+encodeURIComponent(t.id)+'"><i>'+({fill:'✍️',order:'🔀',listen:'🔊'}[t.game])+'</i><span class="x"><b>'+esc(t.title)+'</b><small>'+GN[t.game]+'</small></span>'+(p?'<span class="st'+(p.n&&p.ok===p.n?' ok':'')+'">'+(p.ok||0)+'/'+(p.n||0)+'</span>':'<span class="st">還沒做</span>')+'</a>';
-    if(gm)return '<a class="t" href="'+((t.game==='mole'||t.game==='wmole'||t.game==='pinyin'||t.game==='pic'||t.game==='kq')?'pinyin.html':'games.html')+'?class='+encodeURIComponent(code)+'&task='+encodeURIComponent(t.id)+'"><i>🎮</i><span class="x"><b>'+esc(t.title)+'</b><small>'+(GN[t.game]||'生詞遊戲')+((['mole','wmole','pinyin','pic'].includes(t.game)&&(SCR?SCR==='zy':t.zy))?'（注音）':'')+'</small></span>'+(p?'<span class="st ok">玩過 '+(p.times||1)+' 次</span>':'<span class="st">還沒玩</span>')+'</a>';
+    if(gm&&['fill','order','listen'].includes(t.game))return '<a class="t" href="quiz.html?class='+encodeURIComponent(code)+'&task='+encodeURIComponent(t.id)+'"><i>'+({fill:'✍️',order:'🔀',listen:'🔊'}[t.game])+'</i><span class="x"><b>'+esc(t.title)+'</b><small>'+GN[t.game]+'</small>'+dueTag(t,p)+'</span>'+(p?'<span class="st'+(p.n&&p.ok===p.n?' ok':'')+'">'+(p.ok||0)+'/'+(p.n||0)+'</span>':'<span class="st">還沒做</span>')+'</a>';
+    if(gm)return '<a class="t" href="'+((t.game==='mole'||t.game==='wmole'||t.game==='pinyin'||t.game==='pic'||t.game==='kq')?'pinyin.html':'games.html')+'?class='+encodeURIComponent(code)+'&task='+encodeURIComponent(t.id)+'"><i>🎮</i><span class="x"><b>'+esc(t.title)+'</b><small>'+(GN[t.game]||'生詞遊戲')+((['mole','wmole','pinyin','pic'].includes(t.game)&&(SCR?SCR==='zy':t.zy))?'（注音）':'')+'</small>'+dueTag(t,p)+'</span>'+(p?'<span class="st ok">玩過 '+(p.times||1)+' 次</span>':'<span class="st">還沒玩</span>')+'</a>';
     const st=p?(hz?(p.stars>=(t.min_stars||1)?'<span class="st ok">✓ 完成</span>':'<span class="st">★ '+(p.stars||0)+'</span>'):'<span class="st'+(p.n&&p.ok===p.n?' ok':'')+'">'+(p.ok||0)+'/'+(p.n||0)+'</span>'):'<span class="st">還沒做</span>';
-    return '<a class="t" href="'+(hz?'hanzi.html':'pinyin.html')+'?class='+encodeURIComponent(code)+'&task='+encodeURIComponent(t.id)+'"><i class="'+(hz?'hz':'')+'">'+(hz?'字':(SCR?SCR==='zy':t.zy)?'ㄅ':'ā')+'</i><span class="x"><b>'+esc(t.title)+'</b><small>'+(hz?'漢字闖關 · Hanzi game':(SCR?SCR==='zy':t.zy)?'注音練習 · Zhuyin practice':'拼音練習 · Pinyin practice')+'</small></span>'+st+'</a>';}).join('')
+    return '<a class="t" href="'+(hz?'hanzi.html':'pinyin.html')+'?class='+encodeURIComponent(code)+'&task='+encodeURIComponent(t.id)+'"><i class="'+(hz?'hz':'')+'">'+(hz?'字':(SCR?SCR==='zy':t.zy)?'ㄅ':'ā')+'</i><span class="x"><b>'+esc(t.title)+'</b><small>'+(hz?'漢字闖關 · Hanzi game':(SCR?SCR==='zy':t.zy)?'注音練習 · Zhuyin practice':'拼音練習 · Pinyin practice')+'</small>'+dueTag(t,p)+'</span>'+st+'</a>';}).join('')
     :'<p class="none">老師還沒出題 · No practice yet</p>';}
 boot();
 })();
