@@ -27637,12 +27637,18 @@ H.feedbackOpen=async()=>{if(!IS_OWNER)return toast('只有主管理員可以看'
   fs.sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
   const K={bug:'🐞 網站壞掉',q:'❓ 問題',idea:'💡 建議'};
   const row=f=>'<div class="fb-r'+(f.done?' done':'')+'"><div class="fb-h"><b>'+esc(K[f.kind]||'📮')+'</b><span>'+esc(f.name||'（沒留名字）')+(f.email?'・'+esc(f.email):'')+'</span><span class="grow"></span><time>'+esc(String(f.at||'').replace('T',' ').slice(0,16))+'</time></div>'
-    +'<div class="fb-t">'+esc(f.msg||'')+'</div><div class="fb-f"><small>'+esc(f.page||'')+'</small><span class="grow"></span>'
+    +'<div class="fb-t">'+esc(f.msg||'')+'</div>'
+    /* QFATT_V1770 回報附的照片／影片：路徑存在 files，打開時再去拿網址 */
+    +(Array.isArray(f.files)&&f.files.length?'<div class="fb-att" style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">'+f.files.map(x=>'<a class="fb-a" target="_blank" rel="noopener" data-path="'+esc(x.path||'')+'" data-v="'+(/^video/.test(x.type||'')?1:0)+'" style="width:96px;height:96px;border-radius:10px;overflow:hidden;background:#EEF3FA;border:1px solid #DCE4EF;display:flex;align-items:center;justify-content:center;font-size:12px;color:#8796AB;text-decoration:none">'+(/^video/.test(x.type||'')?'🎬 影片':'🖼 照片')+'</a>').join('')+'</div>':'')
+    +'<div class="fb-f"><small>'+esc(f.page||'')+'</small><span class="grow"></span>'
     +'<button class="btn btn-sm btn-ghost" data-act="feedbackDone" data-id="'+esc(f.id)+'">'+(f.done?'標成未處理':'✓ 處理好了')+'</button>'
     +'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="feedbackDel" data-id="'+esc(f.id)+'">刪除</button></div></div>';
   openModal('<div class="modal" style="max-width:680px"><div class="modal-head"><h3>📮 問題回報 <small style="font-weight:400;color:#8796AB">'+fs.filter(f=>!f.done).length+' 則未處理</small></h3><button class="x" data-act="closeModal">×</button></div><div class="modal-body">'
     +(err?'<div class="hint">'+(/permission|insufficient/i.test(err)?'Firebase 規則還沒發布，發布後這裡才看得到。':'讀不到：'+esc(err))+'</div>'
       :(fs.length?'<div class="fb-list">'+fs.map(row).join('')+'</div>':'<div class="hint">還沒有人回報問題。</div>'))
-    +'</div><div class="modal-foot"><span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');};
+    +'</div><div class="modal-foot"><span style="flex:1"></span><button class="btn btn-ghost" data-act="closeModal">關閉</button></div></div>');
+  try{if(firebase.storage)document.querySelectorAll('.fb-a[data-path]').forEach(a=>{const p=a.dataset.path;if(!p)return;
+    firebase.storage().ref(p).getDownloadURL().then(u=>{a.href=u;a.innerHTML=a.dataset.v==='1'?'<video src="'+u+'" muted preload="metadata" style="width:100%;height:100%;object-fit:cover"></video>':'<img src="'+u+'" alt="" style="width:100%;height:100%;object-fit:cover">';})
+    .catch(()=>{a.textContent='讀不到（Storage 規則未發布？）';a.style.padding='6px';a.style.textAlign='center';});});}catch(e){}};
 H.feedbackDone=async(id)=>{try{const r=firebase.firestore().collection('feedback').doc(id);const d=await r.get();await r.update({done:!(d.exists&&d.data().done)});H.feedbackOpen();}catch(e){toast('存不進去：'+((e&&e.message)||e));}};
 H.feedbackDel=async(id)=>{if(!confirm('刪除這則回報？'))return;try{await firebase.firestore().collection('feedback').doc(id).delete();H.feedbackOpen();}catch(e){toast('刪不掉：'+((e&&e.message)||e));}};
