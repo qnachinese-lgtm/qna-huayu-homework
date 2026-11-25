@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-Hant">
-<head>
+<head><script src="stu-shell.js?v=1788"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>老師出的題｜美娟華語工作室 QNA CHINESE</title>
@@ -37,6 +37,7 @@ button{font:inherit;cursor:pointer}[hidden]{display:none!important}
 .big{font-size:44px;font-weight:700;color:var(--p);margin:8px 0}
 .res{text-align:left;margin-top:14px;border-top:1px solid #EEF2F8;padding-top:10px}.res div{padding:7px 0;border-bottom:1px dashed #EEF2F8;font-size:14.5px;line-height:1.7}.res small{color:var(--mut)}.res .c{color:var(--ok)}.res .y{color:var(--bad)}
 .note{font-size:12.5px;color:var(--mut);margin-top:10px}
+.sayb{border:1px solid #DCE4EF;background:#fff;border-radius:999px;padding:2px 9px;cursor:pointer;margin-left:4px}
 </style>
 </head>
 <body>
@@ -68,17 +69,21 @@ function build(t){var lines=String(t.items||'').split('\n').map(function(x){retu
       parts.push(l.slice(last));return ans.length?{type:'fill',parts:parts,ans:ans,src:l}:null}).filter(Boolean);
   if(t.game==='order')return lines.map(function(l){var w=l.split(/\s+/).filter(Boolean);if(w.length<2)return null;var s;var n=0;do{s=shuffle(w);n++}while(s.join('')===w.join('')&&n<10);return {type:'order',words:w,mix:s,src:w.join('')}}).filter(Boolean);
   if(t.game==='listen'){var ws=lines.map(function(l){var h=(/^[㐀-鿿]+/.exec(l)||[''])[0];return h}).filter(Boolean);ws=ws.filter(function(w,i){return ws.indexOf(w)===i});
-    return shuffle(ws).map(function(w){var others=shuffle(ws.filter(function(x){return x!==w})).slice(0,3);return {type:'listen',w:w,opts:shuffle(others.concat([w])),src:w}})}
+    /* VOICE_V1788 只出老師錄過聲音的詞（不用電腦的聲音），一次最多 10 題 */
+    var rec=ws.filter(function(w){return window.QSH&&QSH.has(w)});if(rec.length<4)return [];
+    var all=ws;ws=shuffle(rec).slice(0,10);
+    return ws.map(function(w){var others=shuffle(all.filter(function(x){return x!==w})).slice(0,3);return {type:'listen',w:w,opts:shuffle(others.concat([w])),src:w}})}
   return []}
 async function boot(){
   try{var a=await db.collection('ttasks').doc(tid).get();T=a.exists?a.data():null;var b=await db.collection('tclasses').doc(code).get();C=b.exists?b.data():null}catch(e){}
   if(!T||T.deleted_at||T.class_code!==code)return bad('找不到這份題目');if(!C||C.deleted_at)return bad('找不到這個班級');
-  QS=build(T);if(!QS.length)return bad('這份題目還沒有內容');
+  if(T.game==='listen'){try{await (window.QSH&&QSH.ready)}catch(e){}}
+  QS=build(T);if(!QS.length)return bad(T.game==='listen'?'老師還沒錄好這份題目的聲音（至少要錄 4 個詞）':'這份題目還沒有內容');
   if(T.game==='listen'){try{speechSynthesis.getVoices()}catch(e){}}
   show()}
 var TN={fill:'填空題',order:'句子排序',listen:'聽音選詞'};
 function head(){return '<div class="qhead"><span>'+esc(T.title||TN[T.game])+'・'+TN[T.game]+'</span><span>'+(R.i+1)+' / '+QS.length+'</span></div><div class="prog"><i style="width:'+(R.i/QS.length*100)+'%"></i></div>'}
-function say(w){try{var u=new SpeechSynthesisUtterance(w);u.lang='zh-TW';u.rate=.85;var vs=speechSynthesis.getVoices().filter(function(v){return /zh[-_](TW|HK|CN)|cmn|Chinese/i.test(v.lang+' '+v.name)});
+function say(w){if(window.QSH&&QSH.code){QSH.play(w);return}try{var u=new SpeechSynthesisUtterance(w);u.lang='zh-TW';u.rate=.85;var vs=speechSynthesis.getVoices().filter(function(v){return /zh[-_](TW|HK|CN)|cmn|Chinese/i.test(v.lang+' '+v.name)});
   var tw=vs.find(function(v){return /TW/i.test(v.lang)})||vs[0];if(tw)u.voice=tw;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}}
 function show(){var q=QS[R.i],h='<div class="card">'+head();
   if(q.type==='fill'){h+='<p class="sub">在空格裡填上正確的字詞</p><div class="sent">'+q.parts.map(function(p,j){return esc(p)+(j<q.ans.length?'<input data-b="'+j+'" autocomplete="off" autocapitalize="off" spellcheck="false">':'')}).join('')+'</div>'}
@@ -113,8 +118,9 @@ async function finish(){var n=QS.length,ok=R.ok,t=new Date().toISOString();
   var saved='';try{await db.collection('tstudents').doc(code+'_'+dev).set({class_code:code,owner_uid:C.owner_uid,name:name,dev:dev,last_at:t,tasks:{[tid]:prog[tid]}},{merge:true});saved='已儲存，老師看得到'}catch(e){saved='紀錄沒存進去（網路不穩？）'}
   var wr=R.res.filter(function(x){return !x.ok});
   $('stage').innerHTML='<div class="card"><p class="sub" style="margin:0">做完了！</p><div class="big">'+ok+' / '+n+'</div><p class="sub">'+saved+'</p>'
-   +(wr.length?'<div class="res">'+wr.map(function(x){return '<div><span class="y">✗ '+esc(x.a)+'</span><br><small>正確：</small><span class="c">'+esc(x.p)+'</span></div>'}).join('')+'</div>':'')
+   +(wr.length?'<div class="res">'+wr.map(function(x){return '<div><span class="y">✗ '+esc(x.a)+'</span><br><small>正確：</small><span class="c">'+esc(x.p)+'</span>'+(window.QSH&&QSH.has(x.w||x.p)?' <button type="button" class="sayb" data-say="'+esc(x.w||x.p)+'">🔈</button>':'')+'</div>'}).join('')+'</div>':'<div class="res" style="text-align:center;color:#1F6B43;font-weight:700">全部都對了，很棒！</div>')
    +'<button class="btn" id="ag" type="button">再做一次</button><a class="btn ghost" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="room.html?c='+encodeURIComponent(code)+'">回班級</a></div>';
+  $('stage').querySelectorAll('[data-say]').forEach(function(b){b.onclick=function(){QSH.play(b.dataset.say)}});
   $('ag').onclick=function(){QS=build(T);R={i:0,ok:0,res:[],t0:Date.now()};show()}}
 boot();
 })();

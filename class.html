@@ -203,6 +203,16 @@ html{overflow-y:scroll;scrollbar-gutter:stable}
 .late{display:inline-block;font-size:11.5px;font-weight:600;color:#A33227;background:#FDECEA;border-radius:10px;padding:1px 7px;margin-top:2px}.thdue{font-weight:400;color:#A6620A;font-size:11px}
 input.dlg-in[type=date]{width:100%;margin-top:6px}
 /* FWBANK_V1785 */.bank-ws label.no{opacity:.45;cursor:not-allowed}
+/* VOICE_V1788 */.vb.done{color:#1F6B43;border-color:#BFE3CD}.vbox{max-width:620px!important;width:100%}.vtip{color:#5B6B82;font-size:14px;margin:4px 0 12px;line-height:1.7}
+.vlist{display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow:auto}.vrow{display:flex;align-items:center;gap:8px;border:1px solid #DCE4EF;border-radius:12px;padding:8px 12px}.vrow.on{border-color:#C23B3B;background:#FFF5F5}
+.vrow .vt{flex:1;font-size:18px;letter-spacing:1px;min-width:0}.vrow .btn.rec{background:#C23B3B;color:#fff;border-color:#C23B3B}.vst{font-size:12.5px;color:#9AA8BC;min-width:64px;text-align:right}.vst.ok{color:#1F6B43;font-weight:700}
+.vdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#C23B3B;margin-right:4px;animation:vbl 1s infinite}@keyframes vbl{50%{opacity:.2}}
+/* SDETAIL_V1788 */.snm{border:0;background:none;font:inherit;font-weight:700;color:#1E4C86;cursor:pointer;padding:4px 0;text-align:left}.snm span{color:#9AA8BC}.snm:hover{text-decoration:underline}
+.sbox{max-width:760px!important;width:100%}.sdl{display:flex;flex-direction:column;gap:10px;max-height:65vh;overflow:auto;padding-right:2px}
+.sdt{border:1px solid #DCE4EF;border-radius:14px;padding:12px 14px}.sdh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sdh b{font-size:16px}.sdh small{color:#7A8BA3;font-size:12.5px}
+.sdok{font-weight:700;color:#1E4C86}.sdno{color:#9AA8BC;font-size:13px}.sdm{color:#7A8BA3;font-size:12.5px;margin-top:4px}
+.sdhist{margin-top:8px;display:flex;flex-direction:column;gap:4px}.sdhist div{display:flex;gap:10px;align-items:baseline;font-size:13.5px;flex-wrap:wrap}.sdd{color:#9AA8BC;min-width:82px}.sdw{color:#A33227}.sdw.ok{color:#1F6B43}
+.sdlast{margin-top:8px;font-size:13.5px}.sdlast summary{cursor:pointer;color:#1E4C86}.sdlast table{width:100%;border-collapse:collapse;margin-top:6px}.sdlast td,.sdlast th{border-bottom:1px solid #EEF2F8;padding:5px 6px;text-align:left}.sdlast tr.bad td{color:#A33227}
 /* TIDY_V1785 Quinn：「這裡感覺好亂」——三顆大按鈕收成一排小按鈕 */
 .srcbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}.srcbar .sl{font-size:13px;color:#7A8BA3;margin-right:2px}.srcbar .grow{flex:1}
 .srcbar .sb{border:1px solid #DCE4EF;background:#fff;color:#1E4C86;border-radius:20px;padding:6px 13px;font:inherit;font-size:13.5px;cursor:pointer;white-space:nowrap}.srcbar .sb:hover{background:#EEF3FA;border-color:#B9CBE4}.srcbar .sb.gh{border-color:transparent;color:#5B6B82}.srcbar .sb.gh:hover{background:#F2F5FA}
@@ -327,6 +337,7 @@ async function classView(code){bar();
   S.cur=c;
   try{const t=await db.collection('ttasks').where('class_code','==',code).get();S.tasks=t.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted_at).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));}catch(e){S.tasks=[]}
   try{const s=await db.collection('tstudents').where('owner_uid','==',S.user.uid).where('class_code','==',code).get();S.studs=s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>String(a.name).localeCompare(String(b.name),'zh-Hant'));}catch(e){S.studs=[];S.studErr=String(e&&e.message||e)}
+  try{await vLoad(true);}catch(e){}/* VOICE_V1788 */
   const link=location.origin+'/room.html?c='+code;
   /* TLAY_V1752 Quinn：「老師頁面不好」——班級頁改成：上面一條班級資訊，下面三個分頁（題目／出新題目／學生和成績），不再一路往下拉 */
   const done=t=>S.studs.filter(x=>(x.tasks||{})[t.id]).length;
@@ -367,12 +378,78 @@ function taskCard(t,dn){const n=S.studs.length;const nw=t.pm?(t.segs||[]).reduce
   const ic=t.kind==='pinyin'?(t.zy?'ㄅ':'ā'):t.kind==='game'?(((GKINDS.find(g=>g[0]===t.game)||[])[1]||'🎮').split(' ')[0]):'字';const pct=n?Math.round(dn/n*100):0;
   return '<div class="tcard"><div class="tc-top"><i>'+esc(ic)+'</i><div class="tc-t"><b>'+esc(t.title)+'</b><small>'+esc(type)+'・'+esc(nw)+'・'+esc(String(t.created_at||'').slice(5,10).replace('-','/'))+'</small></div></div>'
    +(()=>{const L=dueLab(t.due);const late=t.due?S.studs.filter(s=>isLate(t,(s.tasks||{})[t.id])).length:0;return '<div class="tc-due">'+(L?'<span class="dueb '+L.c+'">📅 '+esc(L.t)+'</span>'+(late?'<span class="dueb past">'+late+' 位遲交</span>':''):'<span class="dueb none">沒有截止日期</span>')+'<button type="button" class="lnk" data-due="'+esc(t.id)+'">'+(L?'改':'設定')+'</button></div>';})()
-   +'<div class="tc-bar"><i style="width:'+pct+'%"></i></div><div class="tc-f"><span>'+(n?dn+' / '+n+' 位做過':'還沒有學生')+'</span><span class="grow"></span><button class="btn sm del" data-del="'+esc(t.id)+'">收回</button></div></div>';}
+   +'<div class="tc-bar"><i style="width:'+pct+'%"></i></div><div class="tc-f"><span>'+(n?dn+' / '+n+' 位做過':'還沒有學生')+'</span><span class="grow"></span>'+vBtn(t)+'<button class="btn sm del" data-del="'+esc(t.id)+'">收回</button></div></div>';}
 function taskRow(t){const nw=t.game==='kq'?(t.qs||[]).length+' 題':String(t.items||'').split('\n').filter(x=>x.trim()).length+((t.game==='fill'||t.game==='order')?' 題':' 個詞');const n=t.kind==='pinyin'?nw:t.kind==='game'?((GKINDS.find(g=>g[0]===t.game)||[])[1]||'遊戲')+'・'+nw:(HZ_NAME[t.fam]||t.fam)+'・'+(HZ_DIFF[t.diff]||'')+'・至少 '+(t.min_stars||1)+' 星';
   return '<div class="task"><i>'+(t.zy?'ㄅ':t.kind==='pinyin'?'ā':t.kind==='game'?'🎮':'字')+'</i><div class="t"><b>'+esc(t.title)+'</b><small>'+(t.kind==='pinyin'?(t.zy?'注音練習':'拼音練習'):t.kind==='game'?'生詞遊戲'+(t.zy?'（注音）':''):'漢字闖關')+'・'+esc(n)+'</small></div><button class="btn sm del" data-del="'+esc(t.id)+'">收回</button></div>';}
+
+/* PYSUB_V1788 */
+const PYSUB=[['fall','↓ 漢字往下掉'],['mole','ˇ 聲調打地鼠'],['wmole','詞 詞語打地鼠'],['flip','? 拼音配對翻牌'],['quiz','⚡ 拼音選擇搶答'],['puzzle','ü 拼音拼字拼圖']];
+/* ================= VOICE_V1788 老師自己錄聲音 =================
+   Quinn：「我是希望可以使用老師的真實聲音錄音，而不是使用 AI 聲音」
+   錄好的檔案放在 Storage tvoice/老師編號/…；Firestore tvoice 記「哪一句 → 檔案網址」。
+   學生那邊（stu-shell.js）要念的時候就播這裡的錄音；沒錄的不念。同一句話錄一次，每份題目都用得到。 */
+let VOICE=null;
+const vnorm=t=>String(t||'').replace(/[\s，。！？、；：,.!?;:「」『』（）()／\/…—\-·]/g,'').replace(/臺/g,'台');
+function vid(t){let h=5381;const s=vnorm(t);for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(36)+s.length.toString(36);}
+async function vLoad(force){if(VOICE&&!force)return VOICE;VOICE={};try{const sn=await db.collection('tvoice').where('owner_uid','==',S.user.uid).get();sn.docs.forEach(d=>{const v=d.data();if(v&&v.text)VOICE[vnorm(v.text)]=Object.assign({id:d.id},v);});}catch(e){VOICE.__err=String(e&&(e.code||e.message)||e);}return VOICE;}
+/* 一份題目要錄的句子：詞（每行第一段漢字）、填空和排序是整句、短句短文是每一句 */
+function vTexts(t){if(!t)return[];let out=[];
+  if(t.pm&&Array.isArray(t.segs))out=t.segs.map(x=>x.h);
+  else if(t.game==='kq')out=[];
+  else if(t.game==='fill')out=String(t.items||'').split('\n').map(l=>l.trim().replace(/[（(]([^）)]+)[）)]/g,(m,a)=>a.split(/[／\/]/)[0])).filter(Boolean);
+  else if(t.game==='order')out=String(t.items||'').split('\n').map(l=>l.trim().replace(/\s+/g,'')).filter(Boolean);
+  else if(t.kind==='hanzi')out=[];
+  else out=String(t.items||'').split('\n').map(l=>(/^[㐀-鿿]+/.exec(l.trim())||[''])[0]).filter(Boolean);
+  return [...new Set(out)].slice(0,80);}
+function vBtn(t){const ts=vTexts(t);if(!ts.length)return '';const n=VOICE?ts.filter(x=>VOICE[vnorm(x)]).length:0;return '<button type="button" class="btn sm vb'+(n===ts.length?' done':'')+'" data-vt="'+esc(t.id)+'">🎤 錄聲音 '+n+'/'+ts.length+'</button>';}
+let VREC=null;
+async function vRecStart(){const st=await navigator.mediaDevices.getUserMedia({audio:true});const ch=[];const r=new MediaRecorder(st);r.ondataavailable=e=>ch.push(e.data);
+  const done=new Promise(res=>{r.onstop=()=>{try{st.getTracks().forEach(x=>x.stop())}catch(e){}res(new Blob(ch,{type:r.mimeType||'audio/webm'}));};});r.start();return {stop:()=>{try{r.stop()}catch(e){}return done;}};}
+async function vSave(text,blob){const id=vid(text),uid=S.user.uid;const ext=/mp4|aac/.test(blob.type)?'m4a':/ogg/.test(blob.type)?'ogg':'webm';
+  const ref=firebase.storage().ref('tvoice/'+uid+'/'+id+'.'+ext);await ref.put(blob,{contentType:blob.type||'audio/webm'});const url=await ref.getDownloadURL();
+  const doc={owner_uid:uid,text:String(text).slice(0,200),url,at:now()};await db.collection('tvoice').doc(uid+'_'+id).set(doc);VOICE[vnorm(text)]=Object.assign({id:uid+'_'+id},doc);}
+async function voiceDlg(title,texts,after){await vLoad();
+  if(VOICE.__err&&/permission|insufficient/i.test(VOICE.__err)){dlg({title:'還不能錄音',text:'Firebase 規則還沒發布，請主管理員按「發布」。',ok:'知道了',noCancel:1});return}
+  const w=document.createElement('div');w.className='dlg vdlg';document.body.appendChild(w);let cur=-1,rec=null,busy=-1,au=null;
+  const close=()=>{if(rec){rec.stop();rec=null;}try{au&&au.pause()}catch(e){}w.remove();if(after)after();};
+  const paint=()=>{const n=texts.filter(x=>VOICE[vnorm(x)]).length;
+    w.innerHTML='<div class="dlg-b vbox"><div class="bank-h"><h3>🎤 錄聲音 <small>'+esc(title)+'</small></h3><button type="button" class="bank-x" aria-label="關閉">×</button></div>'
+     +'<p class="vtip">按「● 錄音」念一次，念完按「■ 停止」就會存起來。學生那邊會聽到你的聲音；沒錄的詞，學生那邊不會念（也不會出聽力題）。已經錄 <b>'+n+'</b> / '+texts.length+'。</p>'
+     +'<div class="vlist">'+texts.map((x,i)=>{const v=VOICE[vnorm(x)];return '<div class="vrow'+(cur===i?' on':'')+'"><span class="vt">'+esc(x)+'</span>'
+       +(busy===i?'<span class="vst">儲存中…</span>':cur===i?'<button type="button" class="btn sm rec" data-stop="'+i+'">■ 停止</button><span class="vst"><i class="vdot"></i>錄音中</span>'
+        :'<button type="button" class="btn sm" data-rec="'+i+'">'+(v?'↻ 重錄':'● 錄音')+'</button><button type="button" class="btn sm" data-play="'+i+'"'+(v?'':' disabled')+'>▶</button><span class="vst'+(v?' ok':'')+'">'+(v?'✓ 錄好了':'還沒錄')+'</span>')+'</div>';}).join('')+'</div>'
+     +'<div class="dlg-a"><button type="button" class="btn pri" id="v-ok">完成</button></div></div>';
+    w.querySelector('.bank-x').onclick=close;$('#v-ok').onclick=close;
+    w.querySelectorAll('[data-rec]').forEach(b=>b.onclick=async()=>{if(rec||busy>=0)return;const i=+b.dataset.rec;try{rec=await vRecStart();cur=i;paint();}catch(e){dlg({title:'沒辦法用麥克風',text:'請允許這個網頁使用麥克風，再試一次。',ok:'知道了',noCancel:1});}});
+    w.querySelectorAll('[data-stop]').forEach(b=>b.onclick=async()=>{if(!rec)return;const i=+b.dataset.stop;const r=rec;rec=null;cur=-1;busy=i;paint();
+      try{const bl=await r.stop();if(bl.size<800)throw new Error('錄音太短，請再錄一次');await vSave(texts[i],bl);}catch(e){dlg({title:'存不進去',text:/permission|unauthorized/i.test(String(e&&(e.code||e.message)))?'Firebase 規則還沒發布，請主管理員按「發布」。':String(e&&e.message||e),ok:'知道了',noCancel:1});}
+      busy=-1;paint();});
+    w.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>{const v=VOICE[vnorm(texts[+b.dataset.play])];if(!v)return;try{au&&au.pause()}catch(e){}au=new Audio(v.url);au.play().catch(()=>{});});};
+  paint();}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-vt]');if(!b)return;const t=(S.tasks||[]).find(x=>x.id===b.dataset.vt);if(!t)return;
+  voiceDlg(t.title,vTexts(t),()=>{document.querySelectorAll('[data-vt="'+t.id+'"]').forEach(x=>x.outerHTML=vBtn(t));});});
+/* ================= SDETAIL_V1788 點學生看紀錄 =================
+   Quinn：「老師可以點學生看細節」——每一份題目：做了幾次、最好成績、最近幾次的分數、錯了哪些詞、每一題打了什麼 */
+function fmtT(s){if(!s)return '';const d=new Date(s);if(isNaN(d))return '';return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+function tType(t){return t.kind==='pinyin'?(t.pm==='sent'?'短句練習':t.pm==='text'?'短文練習':t.zy?'注音練習':'拼音練習'):t.kind==='game'?((GKINDS.find(g=>g[0]===t.game)||[])[1]||'遊戲').replace(/^\S+\s/,''):'漢字闖關';}
+function studDetail(id){const s=(S.studs||[]).find(x=>x.id===id);if(!s)return;const tk=s.tasks||{};
+  const done=S.tasks.filter(t=>tk[t.id]).length;
+  const rows=S.tasks.slice().reverse().map(t=>{const r=tk[t.id];const late=r&&isLate(t,r);
+    let h='<div class="sdt"><div class="sdh"><b>'+esc(t.title)+'</b><small>'+esc(tType(t))+(t.due?'・截止 '+esc(t.due.slice(5).replace('-','/')):'')+'</small><span class="grow"></span>'
+      +(r?(late?'<span class="late">遲交</span>':'')+'<span class="sdok">'+(r.n?(r.ok||0)+' / '+r.n:r.stars!=null?'★ '+r.stars:r.best!=null?'最高 '+esc(r.best+(r.unit||'')):'做過')+'</span>':'<span class="sdno">'+(t.due&&dueEnd(t.due)<new Date()?'未交':'還沒做')+'</span>')+'</div>';
+    if(r){h+='<div class="sdm">做了 '+(r.times||1)+' 次・第一次 '+esc(fmtT(firstAt(r)))+'・最近 '+esc(fmtT(r.at))+'</div>';
+      const hist=(Array.isArray(r.hist)?r.hist:[]).slice(-5).reverse();
+      if(hist.length)h+='<div class="sdhist">'+hist.map(x=>{const wr=(x.wr||x.miss||[]);return '<div><span class="sdd">'+esc(fmtT(x.at))+'</span><b>'+(x.n?(x.ok||0)+'/'+x.n:x.s!=null?esc(x.s+(x.u||' 分')):'')+'</b>'+(wr.length?'<span class="sdw">錯：'+wr.slice(0,12).map(esc).join('、')+'</span>':'<span class="sdw ok">全對</span>')+'</div>';}).join('')+'</div>';
+      const last=Array.isArray(r.last)?r.last:[];
+      if(last.length)h+='<details class="sdlast"><summary>最近一次每一題的作答（'+last.filter(x=>x.ok).length+'/'+last.length+'）</summary><table><tr><th>題目</th><th>正確</th><th>學生的答案</th></tr>'+last.map(x=>'<tr class="'+(x.ok?'':'bad')+'"><td>'+esc(x.w)+'</td><td>'+esc(x.p)+'</td><td>'+(x.ok?'✓':'✗ '+esc(x.a||'（沒作答）'))+'</td></tr>').join('')+'</table></details>';}
+    return h+'</div>';}).join('');
+  const w=document.createElement('div');w.className='dlg sdlg';document.body.appendChild(w);
+  w.innerHTML='<div class="dlg-b sbox"><div class="bank-h"><h3>'+esc(s.name)+' <small>做了 '+done+' / '+S.tasks.length+' 份・最後上線 '+esc(ago(s.last_at||s.joined_at))+'</small></h3><button type="button" class="bank-x" aria-label="關閉">×</button></div><div class="sdl">'+(rows||'<p class="empty">還沒有題目</p>')+'</div></div>';
+  const close=()=>w.remove();w.querySelector('.bank-x').onclick=close;w.addEventListener('click',e=>{if(e.target===w)close();});}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-sv]');if(b)studDetail(b.dataset.sv);});
 /* QTYPE_V1784 出題類型分兩組：遊戲／題目 */
 const QK=['kq','fill','order','listen'];
-function tpBtn(g){return '<button type="button" data-tp="'+g[0]+'" class="'+(S.kind==='game'&&(S.gk||'flip')===g[0]?'on':'')+'"><b>'+g[1]+'</b><small>'+g[2]+'</small></button>';}
+function tpBtn(g){return '<button type="button" data-tp="g_'+g[0]+'" class="'+(S.kind==='game'&&(S.gk||'flip')===g[0]?'on':'')+'"><b>'+g[1]+'</b><small>'+g[2]+'</small></button>';}
 function formHtml(){return '<div class="steph"><span>1</span>要學生做什麼？</div>'
   +'<div class="tpick"><div class="tp-g">練習</div><button type="button" data-tp="pinyin" class="'+(S.kind==='pinyin'?'on':'')+'"><b>ā 拼音／注音練習</b><small>看漢字，打拼音或注音</small></button><div class="tp-g">遊戲</div>'+GKINDS.filter(g=>!QK.includes(g[0])).map(tpBtn).join('')+'<div class="tp-g">題目</div>'+GKINDS.filter(g=>QK.includes(g[0])).map(tpBtn).join('')+'</div>'
   +'<div class="steph"><span>2</span>題目內容</div>'
@@ -388,7 +465,9 @@ function formHtml(){return '<div class="steph"><span>1</span>要學生做什麼�
   +'<div class="gpick" id="g-kind" hidden>'+GKINDS.map((g,i)=>'<button type="button" data-g="'+g[0]+'" class="'+(i?'':'on')+'"><b>'+g[1]+'</b><small>'+g[2]+'</small></button>').join('')+'</div>'
   +'<div id="kqbox" class="kqbox hide"></div><div id="gwords"><label class="l" id="g-lab">生詞</label><textarea id="g-items" placeholder="一行打一個詞：先打漢字，空一格，再打拼音。想加意思的話，在最後打「＝」再寫意思。"></textarea>'
   +'<div class="srcbar"><span class="sl">從題庫加：</span><button type="button" class="sb" data-bank="g">📚 華語八千詞</button><button type="button" class="sb" data-mybank="g">📒 我的題庫</button><span class="grow"></span><button type="button" class="sb gh" data-mysave="g" title="把上面打好的內容存進我的題庫，下次再用">💾 存進我的題庫</button></div>'
-  +'<div id="picbox" class="picbox hide"></div><p class="gneed" id="g-need"></p></div></div>'
+  +'<div id="picbox" class="picbox hide"></div><p class="gneed" id="g-need"></p></div>'
+  /* PYSUB_V1788 Quinn：「作業直接進指定的遊戲」——拼音遊戲要選是哪一種，學生點進去直接開始 */
+  +'<div id="g-subw" class="hide"><label class="l">哪一種拼音遊戲</label><select id="g-sub">'+PYSUB.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')+'</select></div></div>'
   +'<div id="fk-hanzi" class="f hide"><label class="l">題目名稱</label><input id="h-title" maxlength="60" placeholder="幫這份題目取個名字，學生會看到">'
   +'<label class="l">關卡</label><select id="h-fam">'+HZ_LIST.map(L=>'<optgroup label="'+esc(L.lv)+'">'+L.stages.map((s,i)=>'<option value="'+esc(s[0])+'">'+(i+1)+'・'+esc(s[1])+(s[2]?'（'+s[2]+' 字）':'')+'</option>').join('')+'</optgroup>').join('')+'</select>'
   +'<div class="row2"><div class="f"><label class="l">難度</label><select id="h-diff"><option value="easy">入門</option><option value="normal" selected>進階</option><option value="hard">高手</option></select></div>'
@@ -449,7 +528,7 @@ async function mbAdd(lines,tag){const t=now();const have=new Set((MB||[]).filter
   const add=lines.map(x=>x.trim()).filter(x=>x&&!have.has(x));for(let i=0;i<add.length;i+=400){const b=db.batch();add.slice(i,i+400).forEach(x=>b.set(db.collection('tbank').doc(),{owner_uid:S.user.uid,text:x.slice(0,300),tag:(tag||'未分類').slice(0,40),created_at:t}));await b.commit();}
   await mbLoad(true);return add.length;}
 const MBV={tag:'',q:''};
-async function myBankView(){bar();app.innerHTML='<div class="head"><button class="btn" id="mb-back" type="button">← 我的班級</button><h2>📒 我的題庫</h2><span class="grow"></span></div><div class="mbwrap" id="mbw"><p class="empty">讀取中…</p></div>';
+async function myBankView(){bar();try{await vLoad();}catch(e){}app.innerHTML='<div class="head"><button class="btn" id="mb-back" type="button">← 我的班級</button><h2>📒 我的題庫</h2><span class="grow"></span></div><div class="mbwrap" id="mbw"><p class="empty">讀取中…</p></div>';
   $('#mb-back').onclick=()=>{location.hash='';};
   try{await mbLoad(true);}catch(e){$('#mbw').innerHTML='<p class="msg">讀不到題庫：'+esc(/permission|insufficient/i.test(String(e&&(e.code||e.message)))?'Firebase 規則還沒發布，請主管理員按「發布」。':(e.message||e))+'</p>';return}
   mbPaint();}
@@ -460,7 +539,7 @@ function mbPaint(){const w=$('#mbw');if(!w)return;const tags=mbTags();const q=MB
    +'<div class="mbbtns"><button type="button" class="btn" data-bank="b">📚 從華語八千詞挑</button><button type="button" class="btn pri" id="b-add">加入題庫</button></div><div class="msg" id="b-msg"></div></div>'
    +'<div class="mbbar"><div class="mbtags"><button type="button" data-tag="" class="'+(MBV.tag?'':'on')+'">全部（'+(MB||[]).length+'）</button>'+tags.map(t=>'<button type="button" data-tag="'+esc(t)+'" class="'+(MBV.tag===t?'on':'')+'">'+esc(t)+'（'+(MB||[]).filter(x=>(x.tag||'未分類')===t).length+'）</button>').join('')+'</div>'
    +'<input id="mb-q" placeholder="搜尋題庫" value="'+esc(MBV.q)+'"></div>'
-   +(list.length?'<div class="mblist">'+list.map(x=>'<div class="mbrow"><span class="mbt">'+esc(x.text)+'</span><small>'+esc(x.tag||'未分類')+'</small><button type="button" class="btn sm" data-mbed="'+esc(x.id)+'">修改</button><button type="button" class="btn sm del" data-mbdel="'+esc(x.id)+'">刪除</button></div>').join('')+'</div>'
+   +(list.length?'<div class="mblist">'+list.map(x=>'<div class="mbrow"><span class="mbt">'+esc(x.text)+'</span><small>'+esc(x.tag||'未分類')+'</small><button type="button" class="btn sm'+(VOICE&&VOICE[vnorm(x.text)]?' vb done':'')+'" data-mbv="'+esc(x.id)+'">🎤'+(VOICE&&VOICE[vnorm(x.text)]?' ✓':'')+'</button><button type="button" class="btn sm" data-mbed="'+esc(x.id)+'">修改</button><button type="button" class="btn sm del" data-mbdel="'+esc(x.id)+'">刪除</button></div>').join('')+'</div>'
      :'<p class="empty">'+((MB||[]).length?'找不到符合的內容':'題庫還是空的。在上面打內容，按「加入題庫」。')+'</p>');
   $('#b-add').onclick=async()=>{const lines=$('#b-items').value.split('\n').map(x=>x.trim()).filter(Boolean);const m=$('#b-msg');m.className='msg';if(!lines.length){m.textContent='請先打內容';return}
     try{const n=await mbAdd(lines,$('#b-tag').value.trim());MBV.tag=$('#b-tag').value.trim()||'未分類';mbPaint();const m2=$('#b-msg');m2.className='msg ok';m2.textContent='加入了 '+n+' 筆'+(lines.length>n?'（'+(lines.length-n)+' 筆本來就有）':'');}catch(e){m.textContent='存不進去：'+(e&&e.message||e)}};
@@ -468,6 +547,7 @@ function mbPaint(){const w=$('#mbw');if(!w)return;const tags=mbTags();const q=MB
   const qi=$('#mb-q');qi.oninput=()=>{MBV.q=qi.value;const pos=qi.selectionStart;mbPaint();const n=$('#mb-q');n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}};
   w.querySelectorAll('[data-mbdel]').forEach(b=>b.onclick=async()=>{const x=MB.find(y=>y.id===b.dataset.mbdel);if(!x)return;if(!await dlg({title:'刪除這一筆？',text:x.text,ok:'刪除'}))return;
     try{await db.collection('tbank').doc(x.id).delete();MB=MB.filter(y=>y.id!==x.id);mbPaint();}catch(e){dlg({title:'刪不掉',text:String(e&&e.message||e),ok:'知道了',noCancel:1})}});
+  w.querySelectorAll('[data-mbv]').forEach(b=>b.onclick=()=>{const x=MB.find(y=>y.id===b.dataset.mbv);if(!x)return;const tx=/^[㐀-鿿]+\s+[a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/.test(x.text)?(/^[㐀-鿿]+/.exec(x.text)||[x.text])[0]:x.text.replace(/[（(]([^）)]+)[）)]/g,(m,a)=>a.split(/[／\/]/)[0]).replace(/\s+/g,'');voiceDlg(x.tag||'我的題庫',[tx],mbPaint);});
   w.querySelectorAll('[data-mbed]').forEach(b=>b.onclick=async()=>{const x=MB.find(y=>y.id===b.dataset.mbed);if(!x)return;
     const v=await dlg({title:'修改內容',label:'內容',value:x.text,ok:'儲存',max:300});if(v==null||v===false)return;const nv=String(v).trim();if(!nv||nv===x.text)return;
     try{await db.collection('tbank').doc(x.id).update({text:nv.slice(0,300)});x.text=nv;mbPaint();}catch(e){dlg({title:'存不進去',text:String(e&&e.message||e),ok:'知道了',noCancel:1})}});}
@@ -569,7 +649,7 @@ function wireForm(code){{const x=$('#t-due-x');if(x)x.onclick=()=>{$('#t-due').v
   {const a=$('#seg-auto');if(a)a.onclick=segAuto;}
   app.querySelectorAll('.tpick button').forEach(b=>b.onclick=()=>{const v=b.dataset.tp;app.querySelectorAll('.tpick button').forEach(x=>x.classList.toggle('on',x===b));
     if(v==='pinyin'){const k=app.querySelector('.kseg:not(.zyseg) button[data-k="pinyin"]');if(k)k.click();}
-    else{const k=app.querySelector('.kseg:not(.zyseg) button[data-k="game"]');if(k&&S.kind!=='game')k.click();const g=app.querySelector('#g-kind button[data-g="'+v+'"]');if(g)g.click();}});
+    else{const k=app.querySelector('.kseg:not(.zyseg) button[data-k="game"]');if(k&&S.kind!=='game')k.click();const g=app.querySelector('#g-kind button[data-g="'+v.replace(/^g_/,'')+'"]');/* FIXTP_V1788 「拼音遊戲」跟「拼音練習」本來都叫 pinyin，點拼音遊戲會跑去拼音練習 */if(g)g.click();}});
   const zyOk=()=>false;/* SCRSTU_V1742 改成在學生名單上一位一位設定 */
   const zySync=()=>{const r=$('#zyrow');if(!r)return;r.classList.toggle('hide',!zyOk());$('#zynote').textContent=S.zy?'詞語還是打拼音，學生看到的會自動變成注音，用畫面上的注音鍵盤作答。':'';};
   app.querySelectorAll('.zyseg button').forEach(b=>b.onclick=()=>{S.zy=b.dataset.z==='1';app.querySelectorAll('.zyseg button').forEach(x=>x.classList.toggle('on',x===b));zySync();});
@@ -578,6 +658,8 @@ function wireForm(code){{const x=$('#t-due-x');if(x)x.onclick=()=>{$('#t-due').v
   S.gk=S.gk||'flip';const gNeed=()=>{const g=GKINDS.find(x=>x[0]===S.gk);$('#g-need').textContent=(S.gk==='fill'||S.gk==='order')?'':'這個'+(QK.includes(S.gk)?'題目':'遊戲')+'至少要 '+g[3]+' 個詞'+(S.gk==='fw'?'（而且要 2～4 個字的詞）':'')+'。';};gNeed();
   $('#g-kind').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.gk=b.dataset.g;$('#g-kind').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));gNeed();zySync();picPaint();kqPaint();gLab();});
   /* QTYPE_V1784 填空題、句子排序：說明文字跟著換 */
+  function gSub(){const w=$('#g-subw');if(w)w.classList.toggle('hide',S.gk!=='pinyin');}gSub();
+  $('#g-kind').querySelectorAll('button').forEach(b=>b.addEventListener('click',gSub));
   function gLab(){const L=$('#g-lab'),ta=$('#g-items');if(!L||!ta)return;const m={fill:['句子','一行打一句，要學生填的地方用括號（ ）括起來；有兩種以上的答案用 ／ 分開'],order:['句子','一行打一句，詞跟詞中間空一格，學生會看到打亂的詞'],listen:['生詞','一行打一個詞：先打漢字，空一格，再打拼音。學生會聽到這個詞的發音']}[S.gk]||['生詞','一行打一個詞：先打漢字，空一格，再打拼音。想加意思的話，在最後打「＝」再寫意思。'];L.textContent=m[0];ta.placeholder=m[1];}
   gLab();
   $('#h-fam').onchange=()=>{const t=$('#h-title');if(!t.value.trim()||t.dataset.auto==='1'){t.value=HZ_NAME[$('#h-fam').value]||'';t.dataset.auto='1';}};$('#h-fam').onchange();
@@ -605,6 +687,7 @@ function wireForm(code){{const x=$('#t-due-x');if(x)x.onclick=()=>{$('#t-due').v
       t={kind:'game',game:S.gk,title:$('#g-title').value.trim()||g[1],items:items.join('\n')};if(S.zy&&zyOk())t.zy=true;
       if(S.gk==='pic'){const ws=items.map(x=>x.split(/\s+/)[0]);const miss=ws.filter(w=>!PIC[w]);if(PICBUSY){msg.textContent='圖片還在上傳，請等一下';return}if(miss.length){msg.textContent='這幾個詞還沒有圖：'+miss.slice(0,5).join('、');return}t.imgs={};ws.forEach(w=>t.imgs[w]=PIC[w]);}}
     else return;
+    if(t.game==='pinyin'){const v=($('#g-sub')||{}).value||'';if(v)t.sub=v;}
     Object.assign(t,{class_code:code,owner_uid:S.user.uid,created_at:now()});{const dv=($('#t-due')||{}).value||'';if(dueEnd(dv))t.due=dv;}
     try{await db.collection('ttasks').add(t);S.ctab='tasks';if(t.pm){SEG=[];}if(t.game==='kq')KQ=[];if(t.game==='pic')Object.keys(PIC).forEach(k=>delete PIC[k]);classView(code);}catch(e){msg.textContent='發不出去：'+(e&&e.message||e)}};}
 function stat(s,t){const r=(s.tasks||{})[t.id];if(!r)return '<td class="no">'+(t.due&&dueEnd(t.due)<new Date()?'<span class="late">未交</span>':'—')+'</td>';const h=stat0(s,t,r);return isLate(t,r)?h.replace(/<\/td>$/,'<br><span class="late">遲交</span></td>'):h;}
@@ -625,7 +708,7 @@ function studHtml(){if(S.studErr)return '<p class="msg">讀不到學生：'+esc(
   const nz=S.studs.filter(s=>scrOf(s)==='zy').length;
   return top+'<p class="scrsum">拼音 '+(S.studs.length-nz)+' 位・注音 '+nz+' 位</p>'
    +'<div class="tbl"><table><thead><tr><th>名字</th><th>用什麼學</th><th>最後上線</th>'+S.tasks.map(t=>'<th title="'+esc(t.title)+'">'+(t.kind==='pinyin'?'ā ':t.kind==='game'?'🎮 ':'字 ')+esc(t.title.length>10?t.title.slice(0,10)+'…':t.title)+(dueEnd(t.due)?'<br><small class="thdue">截止 '+esc(t.due.slice(5).replace('-','/'))+'</small>':'')+'</th>').join('')+'<th></th></tr></thead><tbody>'
-   +S.studs.map(s=>{const v=scrOf(s);return '<tr><td><b>'+esc(s.name)+'</b></td><td><div class="scrseg" data-sid="'+esc(s.id)+'"><button type="button" data-v="py" class="'+(v==='py'?'on':'')+'">拼音</button><button type="button" data-v="zy" class="'+(v==='zy'?'on':'')+'">注音</button></div></td><td>'+esc(ago(s.last_at||s.joined_at))+'</td>'+S.tasks.map(t=>stat(s,t)).join('')+'<td><button class="btn sm del" data-rs="'+esc(s.id)+'">移除</button></td></tr>';}).join('')+'</tbody></table></div>';}
+   +S.studs.map(s=>{const v=scrOf(s);return '<tr><td><button type="button" class="snm" data-sv="'+esc(s.id)+'" title="看這位學生的紀錄">'+esc(s.name)+' <span>›</span></button></td><td><div class="scrseg" data-sid="'+esc(s.id)+'"><button type="button" data-v="py" class="'+(v==='py'?'on':'')+'">拼音</button><button type="button" data-v="zy" class="'+(v==='zy'?'on':'')+'">注音</button></div></td><td>'+esc(ago(s.last_at||s.joined_at))+'</td>'+S.tasks.map(t=>stat(s,t)).join('')+'<td><button class="btn sm del" data-rs="'+esc(s.id)+'">移除</button></td></tr>';}).join('')+'</tbody></table></div>';}
 async function scrSave(patch,msg){const c=S.cur;if(!c)return;
   try{await db.collection('tclasses').doc(c.id).update(patch);}catch(x){dlg({title:'存不進去',text:String(x&&x.message||x),ok:'知道了',noCancel:1});return}
   if(patch.scripts)c.scripts=patch.scripts;if(patch.script_default)c.script_default=patch.script_default;

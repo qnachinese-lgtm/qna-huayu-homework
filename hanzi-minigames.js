@@ -701,7 +701,7 @@ function revengeStart(){
 }
 function quizSolo(p, opt){
   opt = opt || {};/* CLOZE_V1428 句子挖空沿用這一套畫面，只換出題方式和秒數 */
-  const qs = (opt.make || makeQs)(p, opt.n || 10), LIM = opt.lim || 15; let i = 0, score = 0, ok = 0, t0 = 0, tm = null, res = null;
+  const qs = (opt.make || makeQs)(p, opt.n || 10), LIM = opt.lim || 15; let i = 0, score = 0, ok = 0, t0 = 0, tm = null, res = null; const missW = [];/* RESULT_V1788 記下答錯的詞，結果頁和老師都看得到 */
   const b = shell(opt.title || "快問快答・自己練習", ("sub" in opt) ? opt.sub : srcName());/* REVENGE_V1436 */
   const top = el("div", { class:"qtop" }), area = el("div"), timer = el("div", { class:"qtimer" }, [el("i")]);
   b.append(top, timer, area);
@@ -713,9 +713,9 @@ function quizSolo(p, opt){
   const tick = () => { const left = LIM - (Date.now() - t0) / 1000; const bar = timer.querySelector("i"); bar.style.width = Math.max(0, left / LIM * 100) + "%"; if (left <= 0){ pickIt(-1); return; } tm = setTimeout(tick, 100); };
   function pickIt(k){ if (res) return; clearTimeout(tm); const q = qs[i], good = k === q.ans;
     if (opt.onAns) try { opt.onAns(q, good); } catch(e){}/* REVENGE_V1436 */
-    const pts = good ? 500 + Math.round(500 * Math.max(0, 1 - (Date.now() - t0) / 1000 / LIM)) : 0; score += pts; if (good){ ok++; sfx.good(); } else sfx.bad(); res = { ok:good, pick:k, pts }; draw(); }
+    const pts = good ? 500 + Math.round(500 * Math.max(0, 1 - (Date.now() - t0) / 1000 / LIM)) : 0; score += pts; if (good){ ok++; sfx.good(); } else { sfx.bad(); const mw = q.w || q.word || (q.opts || [])[q.ans]; if (mw && typeof mw === "string") missW.push(mw); } res = { ok:good, pick:k, pts }; draw(); }
   function nextQ(){ if (i >= qs.length - 1){ end(); return; } i++; res = null; t0 = Date.now(); draw(); tick(); }
-  function end(){ clearTimeout(tm); if (GT.cls && window.HZCLS) try { window.HZCLS.done({ score:ok, unit:"／" + qs.length + " 題" }); } catch(e){} area.innerHTML = ""; timer.hidden = true; const m = el("div", { class:"mgdone" }, [el("b", { text:`答對 ${ok}／${qs.length} 題，${score} 分` }), el("div", { class:"row center" }, [btn("再玩一次", () => quizSolo(p, opt), "primary big"), btn("回快問快答", () => quizHome(p))])]); area.append(m); sfx.win(); const [x, y] = centerOf(m); burst(x, y, 50); if (A.store.me) A.addXp(ok * 3); }
+  function end(){ clearTimeout(tm); if (GT.cls && window.HZCLS) try { window.HZCLS.done({ score:ok, unit:"／" + qs.length + " 題", miss:missW }); } catch(e){} area.innerHTML = ""; timer.hidden = true; const m = el("div", { class:"mgdone" }, [el("b", { text:`答對 ${ok}／${qs.length} 題，${score} 分` }), el("div", { class:"row center" }, [btn("再玩一次", () => quizSolo(p, opt), "primary big"), btn("回快問快答", () => quizHome(p))])]); area.append(m); sfx.win(); const [x, y] = centerOf(m); burst(x, y, 50); if (A.store.me) A.addXp(ok * 3); }
   t0 = Date.now(); draw(); tick();
   GAME = { k:"quiz", stop: () => clearTimeout(tm) };
 }

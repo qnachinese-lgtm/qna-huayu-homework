@@ -1685,6 +1685,7 @@ function hzClassGame(t){
   if (!go()){ let n = 0; const iv = setInterval(() => { if (go() || ++n > 50) clearInterval(iv); }, 200); }
 }
 async function flushClassGame(t, r){
+  if (r && window.QSH && window.QSH.code){ try { const rr = r; setTimeout(() => window.QSH.result({ score:rr.score, unit:rr.unit || " 分", miss:rr.miss || [] }), 1200); } catch(e){} }/* RESULT_V1788 每個遊戲結束都有結果頁 */
   const g = store.guest; if (!g || !g.cls) return; const at = new Date().toISOString();
   let prog = {}; try { prog = JSON.parse(localStorage.getItem("qna_cls_prog_" + g.cls) || "{}") || {}; } catch(e){}
   const old = prog[t.id] || {}; const cur = { times:(old.times || 0) + (r ? 0 : 1), at };
