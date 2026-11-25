@@ -6883,9 +6883,9 @@ const TNAV=[
     {k:'qt',    act:'qtNew',      di:'',      t:'💰 開一張報價單', ow:1},
     {k:'mb',    act:'monthBills', di:'',      t:'📨 月結單',   ow:1}
   ]},
-  {id:'tteach',t:'🏫 合作老師',act:'tab',ow:1},
-  {id:'pstud',t:'🎒 練習學生',act:'tab',ow:1},/* PSTUD_V1781 *//* TDPAGE_V1738 改成整頁，不再是視窗 *//* TDNAV_V1735 Quinn：合作老師要一個獨立的按鈕 */
-  {id:'__settings',t:'⚙ 設定',act:'settingsCenter'}
+  /* TNAVGRP_V1782 Quinn：頂部選單「重新設計」——合作老師、練習學生收成一個下拉「線上練習」，選單才不會擠到換行 */
+  {t:'線上練習',ow:1,sub:[{k:'tteach',id:'tteach',t:'🏫 合作老師',ow:1},{k:'pstud',id:'pstud',t:'🎒 練習學生',ow:1}]},/* TDPAGE_V1738 改成整頁，不再是視窗 *//* TDNAV_V1735 Quinn：合作老師要一個獨立的按鈕 */
+  {id:'__settings',t:'設定',act:'settingsCenter'}
 ];
 /* GIVESUB_V1366 子項目兩種寫法：
      ['students','👥 學生','c-students']  ← 原本的，一律是切頁
@@ -6962,6 +6962,7 @@ function tnavSync(){
   TNAV.forEach((g,gi)=>{
     const it=nav.querySelector('.tn-i[data-gi="'+gi+'"]');if(!it)return;
     if(!g.sub){if(g.ow)it.style.display=IS_OWNER?'':'none';it.classList.toggle('on',g.act==='tab'&&g.id===cur);return;}
+    if(g.ow)it.style.display=IS_OWNER?'':'none';/* TNAVGRP_V1782 */
     let hit=false,tot=0;
     g.sub.forEach(x=>{
       const sb=tnSub(x);
@@ -27575,7 +27576,7 @@ function tdDetail(uid){const t=TD.t.find(x=>x.id===uid)||{};const cs=TD.c.filter
   return tdCrumb([['','所有老師'],['t:'+uid,t.name||'老師']])
    +'<div class="td-prof"><div><h3>'+esc(t.name||'')+' '+(tdOff(t.status)?'<span class="tt-c no">已停用</span>':'<span class="tt-c ok">使用中</span>')+(t.email_verified?'<span class="tt-c ok">Email 已驗證</span>':'<span class="tt-c wait">Email 未驗證</span>')+'</h3>'
    +'<div class="td-kv"><span>Email</span><b>'+esc(t.email||'—')+'</b><span>學校／單位</span><b>'+esc(t.school||'—')+'</b><span>註冊時間</span><b>'+esc(tdDate(t.created_at))+'</b><span>最後登入</span><b>'+esc(tdDate(t.last_at))+'（'+esc(tdAgo(t.last_at))+'）</b></div></div>'
-   +'<div>'+(tdOff(t.status)?'<button class="btn btn-sm btn-primary" data-act="tteachSet" data-id="'+esc(uid)+'::active">恢復使用</button>':'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachSet" data-id="'+esc(uid)+'::blocked">停用這位老師</button>')+'</div></div>'
+   +'<div>'+(tdOff(t.status)?'<button class="btn btn-sm btn-primary" data-act="tteachSet" data-id="'+esc(uid)+'::active">恢復使用</button>':'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachSet" data-id="'+esc(uid)+'::blocked">停用這位老師</button>')+'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachDel" data-id="'+esc(uid)+'">🗑 刪除</button></div></div>'
    +'<div class="td-tiles">'+tile(cs.length,'個班級')+tile(ks.length,'份題目')+tile(ss.length,'位學生')+tile(ss.reduce((a,s)=>a+Object.values(s.tasks||{}).reduce((b,r)=>b+(Number(r.times)||1),0),0),'次練習（全部加起來）')+tile(esc(tdAgo(ss.map(x=>x.last_at).filter(Boolean).sort().pop())),'最近有學生練習')+'</div>'
    +'<div class="td-sec"><h4>班級（'+cs.length+'）・點一個班進去看</h4>'+(cs.length?'<div class="tdx-cards">'+cs.map(tdClassCard).join('')+'</div>':'<div class="hint">還沒有開班。</div>')+'</div>'
    +(ks.length?'<div class="td-sec"><h4>這位老師出過的全部題目</h4><div class="td-tbl"><table><thead><tr><th>題目</th><th>班級</th><th>種類</th><th>詞數</th><th>出題時間</th><th>做過的學生</th><th></th></tr></thead><tbody>'
@@ -27631,7 +27632,7 @@ function tdList(){const link=location.origin+'/class.html';
        +'<td>'+(tdOff(t.status)?'<span class="tt-c no">已停用</span>':'<span class="tt-c ok">使用中</span>')+'<br>'+(t.email_verified?'<span class="tt-c ok">Email 已驗證</span>':'<span class="tt-c wait">Email 未驗證</span>')+'</td>'
        +'<td>'+esc(tdDate(t.created_at).slice(0,10))+'</td><td>'+esc(tdAgo(t.last_at))+'</td><td>'+x.cs.length+'</td><td>'+x.ks.length+'</td><td>'+x.ss.length+'</td><td>'+esc(tdAgo(x.ss.map(z=>z.last_at).filter(Boolean).sort().pop()))+'</td>'
        +'<td class="td-act"><button class="btn btn-sm btn-primary" data-act="tteachView" data-id="'+esc(t.id)+'">查看 →</button>'
-       +(tdOff(t.status)?'<button class="btn btn-sm btn-ghost" data-act="tteachSet" data-id="'+esc(t.id)+'::active">恢復使用</button>':'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachSet" data-id="'+esc(t.id)+'::blocked">停用</button>')+'</td></tr>';}).join('')
+       +(tdOff(t.status)?'<button class="btn btn-sm btn-ghost" data-act="tteachSet" data-id="'+esc(t.id)+'::active">恢復使用</button>':'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachSet" data-id="'+esc(t.id)+'::blocked">停用</button>')+'<button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="tteachDel" data-id="'+esc(t.id)+'">刪除</button></td></tr>';}).join('')
      +'</tbody></table></div>':'<div class="hint" style="padding:14px">還沒有老師註冊。</div>')
    +(TD.c.some(c=>TD.t.some(t=>t.id===c.owner_uid))?'<div class="td-sec"><h4>全部班級・點一個班進去看題目和學生作答</h4><div class="tdx-cards">'+TD.c.filter(c=>TD.t.some(t=>t.id===c.owner_uid)).slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(c=>tdClassCard(c).replace('<small>','<small>'+esc((tdTeacherOf(c)||{}).name||'')+'・')).join('')+'</div></div>':'')
    +(TD.c.some(c=>!TD.t.some(t=>t.id===c.owner_uid))?'<div class="td-sec"><h4>您自己開的班級</h4><div class="tdx-cards">'+TD.c.filter(c=>!TD.t.some(t=>t.id===c.owner_uid)).map(tdClass).join('')+'</div></div>':'');}
@@ -27705,7 +27706,7 @@ async function psDetail(id){const box=document.getElementById('ps-body');const x
    +'<div class="ps-sec"><div class="ps-dh"><div class="ps-av">'+esc(String(x.name||'?').slice(0,1))+'</div><div><h3 style="margin:0">'+esc(x.name||'')+'</h3><small>'+esc(x.email||'')+'　'+(x.email_verified?'<span class="ps-pill green">Email 已驗證</span>':'<span class="ps-pill red">Email 還沒驗證</span>')+'</small></div></div>'
    +'<div class="ps-kv">'+kv('國籍',esc(x.country||'—'))+kv('拼音／注音',x.scr==='zy'?'注音':'拼音')+kv('註冊日期',esc(String(x.created_at||'').slice(0,10)))+kv('最近登入',psWhen(x.last_at))+kv('開通到',PS_LV[lt])+kv('加入的班級',(x.classes||[]).length?esc((x.classes||[]).join('、')):'沒有')+'</div>'
    +'<div class="ps-stats" style="margin-top:12px">'+kv('連續練習',streak+'<em>天</em>')+kv('這週做了',psDays(x.days,7)+'<em>題</em>')+kv('總共做了',(x.total||0)+'<em>題</em>')+kv('答對率',acc==null?'—':acc+'<em>%</em>')+'</div>'
-   +'<div class="ps-ra" style="margin-top:12px">手動開通到 <select id="psl-'+esc(id)+'">'+PS_LV.map((v,j)=>'<option value="'+j+'"'+(j===lt?' selected':'')+'>'+v+'</option>').join('')+'</select><button class="btn btn-sm btn-primary" data-act="pstudGrant" data-id="'+esc(id)+'">儲存</button></div></div>'
+   +'<div class="ps-ra" style="margin-top:12px">手動開通到 <select id="psl-'+esc(id)+'">'+PS_LV.map((v,j)=>'<option value="'+j+'"'+(j===lt?' selected':'')+'>'+v+'</option>').join('')+'</select><button class="btn btn-sm btn-primary" data-act="pstudGrant" data-id="'+esc(id)+'">儲存</button><span style="flex:1"></span><button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="pstudDel" data-id="'+esc(id)+'">🗑 刪除這個學生</button></div></div>'
    +(x.req?'<div class="ps-sec"><h3>開通申請和回饋 <small>'+({pending:'等你處理',ok:'已開通',no:'先不開'}[x.req.status]||'')+'</small></h3>'+psReqCard(x).replace('<div class="ps-req">','<div class="ps-req flat">')+'</div>':'')
    +'<div class="ps-sec"><h3>每一次練習 <small>按一列看每一題怎麼答</small></h3>'+(ses.length?'<table class="ps-t"><tr><th>時間</th><th>練習</th><th>等級</th><th>成績</th><th>花多久</th></tr>'
      +ses.map(s=>{const open=PS.open===s.id;return '<tr data-act="pstudSes" data-id="'+esc(s.id)+'"><td>'+psWhen(s.at)+'</td><td>'+(PS_MODE[s.mode]||s.mode||'')+'</td><td>'+esc(s.lv_name||'')+'</td><td><b>'+(s.ok||0)+'/'+(s.n||0)+'</b></td><td>'+(s.dur>=60?Math.floor(s.dur/60)+' 分 ':'')+((s.dur||0)%60)+' 秒</td></tr>'
@@ -27722,3 +27723,23 @@ H.pstudDeny=async(id)=>{try{await firebase.firestore().collection('pstudents').d
 document.addEventListener('input',e=>{const t=e.target;if(t&&t.matches&&t.matches('[data-ps-q]')){PS.q=t.value;const pos=t.selectionStart;psRender();const n=document.querySelector('[data-ps-q]');if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(_){}}}});
 document.addEventListener('change',async e=>{const t=e.target;if(t&&t.matches&&t.matches('[data-ps-free]')){const j=+t.value;
   try{await firebase.firestore().collection('psettings').doc('main').set({free_to:j},{merge:true});PS.set.free_to=j;toast('練習帳號免費開放到「'+PS_LV[j]+'」');psRender();}catch(e2){toast('存不進去：'+((e2&&e2.message)||e2));}}});
+
+/* TDDEL_V1782 Quinn：「新增刪除」——合作老師可以整個刪掉（他的班級、題目、學生作答一起刪）。
+   登入帳號本身（Firebase Authentication）從網頁刪不到；刪掉後他還能用同一個 Email 重新建立老師資料，
+   所以只是不想讓他用的話，用「停用」比較好。 */
+H.tteachDel=async(uid)=>{if(!IS_OWNER)return toast('只有主管理員可以刪除');const fs=firebase.firestore();const t=TD.t.find(x=>x.id===uid)||{};
+  let cls=[],tasks=[],studs=[];
+  try{cls=(await fs.collection('tclasses').where('owner_uid','==',uid).get()).docs;const codes=cls.map(d=>d.id);
+    for(const c of codes){tasks=tasks.concat((await fs.collection('ttasks').where('class_code','==',c).get()).docs);studs=studs.concat((await fs.collection('tstudents').where('class_code','==',c).get()).docs);}}
+  catch(e){return toast('讀不到這位老師的資料：'+((e&&e.message)||e));}
+  if(!confirm('確定要刪除「'+(t.name||t.email||'這位老師')+'」？\n\n會一起刪掉：'+cls.length+' 個班級、'+tasks.length+' 份題目、'+studs.length+' 位學生的作答紀錄。\n刪了就救不回來。\n\n（只是不想讓他用的話，按「停用」就好，資料會留著。）'))return;
+  if(prompt('真的要刪，請在下面打「刪除」兩個字')!=='刪除')return toast('沒有刪除');
+  try{const all=studs.concat(tasks).concat(cls);for(let i=0;i<all.length;i+=400){const b=fs.batch();all.slice(i,i+400).forEach(d=>b.delete(d.ref));await b.commit();}
+    await fs.collection('tteachers').doc(uid).delete();toast('已刪除');TD.view=null;await tdLoad(true);tdRender();}
+  catch(e){toast('刪不掉：'+((e&&e.message)||e));}};
+/* PSDEL_V1782 練習學生也可以刪除（資料和每一次練習紀錄） */
+H.pstudDel=async(id)=>{if(!IS_OWNER)return toast('只有主管理員可以刪除');const x=PS.list.find(z=>z.id===id)||{};const fs=firebase.firestore();
+  if(!confirm('確定要刪除練習學生「'+(x.name||x.email||'')+'」？\n他的練習紀錄、錯題本、開通申請會一起刪掉，救不回來。'))return;
+  try{const ss=(await fs.collection('pstudents').doc(id).collection('sessions').get()).docs;for(let i=0;i<ss.length;i+=400){const b=fs.batch();ss.slice(i,i+400).forEach(d=>b.delete(d.ref));await b.commit();}
+    await fs.collection('pstudents').doc(id).delete();PS.list=PS.list.filter(z=>z.id!==id);PS.view=null;toast('已刪除');psRender();}
+  catch(e){toast('刪不掉：'+((e&&e.message)||e));}};
