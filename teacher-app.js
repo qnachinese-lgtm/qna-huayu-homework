@@ -27673,7 +27673,7 @@ H.feedbackDel=async(id)=>{if(!confirm('刪除這則回報？'))return;try{await 
    Quinn：「後台除了合作老師以外，還要有免費學習學生的入口，觀察學生的各個內容，越詳細越好」
    資料：pstudents/{uid}（基本資料、統計、錯題本、開通申請）、pstudents/{uid}/sessions（每一次練習）、psettings/main.free_to（免費開放到第幾級）。 */
 const PS_LV=['準備一級','準備二級','入門級','基礎級','進階級','高階級','流利級'];
-const PS_MODE={choose:'選讀音',tone:'聲調練習',type:'打讀音'};
+const PS_MODE={choose:'選讀音',tone:'聲調練習',type:'打讀音',lesson:'免費課程'};
 const PS={list:[],set:{free_to:1},view:null,q:'',err:'',ses:{},open:null};
 function psDays(d,n){let s=0;const now=new Date();for(let i=0;i<n;i++){const x=new Date(now);x.setDate(now.getDate()-i);const k=x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');s+=+((d||{})[k])||0;}return s;}
 function psWhen(iso){if(!iso)return '—';const d=new Date(iso);if(isNaN(d))return '—';const df=Math.floor((Date.now()-d)/86400000);const hm=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');

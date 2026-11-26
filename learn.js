@@ -6,7 +6,7 @@
    - 每一次練習存在 pstudents/{uid}/sessions；錯的詞記在 pstudents.wrong（錯題本）。 */
 (function(){
 'use strict';
-var VER='2026.11.27';
+var VER='2026.11.28';
 var $=function(id){return document.getElementById(id)};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 var tt=null;function toast(s,ms){var t=$('toast');t.textContent=s;t.hidden=false;clearTimeout(tt);tt=setTimeout(function(){t.hidden=true},ms||2400)}
@@ -183,6 +183,7 @@ async function home(){clearInterval(vt);S.run=null;var p=S.prof;await loadClasse
       return '<div class="row"><div class="ic">班</div><div><b>'+esc(x.name||c)+'</b><small>代碼 '+esc(c)+'</small></div>'+(x.gone?'':'<a class="go" href="room.html?c='+encodeURIComponent(c)+'">去做</a>')+'</div>'}).join('')
     +'<div class="join"><input class="t cc" id="jc" maxlength="8" placeholder="輸入代碼加入新班級"><button id="jb" type="button">加入</button></div></div>'}
   var r=p.req,mo=maxOpen();
+  h+=courseHTML();
   h+='<div class="sec" id="self"><h3>自己練習 <small>題目來自華語八千詞（TOCFL 官方詞表）</small></h3>'
    +'<div class="lvrow"><span>等級</span><div class="lvs">'+LVS.map(function(x,j){var o=j<=mo;return '<button type="button" class="lv'+(j===S.lv?' on':'')+(o?'':' lock')+'" data-j="'+j+'">'+(o?'':'🔒 ')+x+'</button>'}).join('')+'</div></div>'
    +(r&&r.status==='pending'?'<div class="reqst">已送出「'+esc(r.lv_name||'')+'」的開通申請，美娟老師看過後會幫你打開。</div>':'')
@@ -197,16 +198,105 @@ async function home(){clearInterval(vt);S.run=null;var p=S.prof;await loadClasse
    +wl.slice(0,24).map(function(w){return '<div class="wd"><b>'+esc(w.h)+'</b><small>錯 '+w.n+' 次</small></div>'}).join('')+(wl.length>24?'<div class="wd"><b>…</b><small>還有 '+(wl.length-24)+' 個</small></div>':'')+'</div></div>';
   if(!cs.length)h+='<div class="joinlink"><button type="button" id="jopen">有老師給的班級代碼？</button><div class="join" id="jbox" hidden><input class="t cc" id="jc" maxlength="8" placeholder="輸入代碼"><button id="jb" type="button">加入班級</button></div></div>';
   $('stage').innerHTML=h;
-  $('out').onclick=function(){auth.signOut()};
+  $('out').onclick=function(){auth.signOut()};courseBind();
   if($('jopen'))$('jopen').onclick=function(){$('jbox').hidden=false;this.hidden=true;$('jc').focus()};
   if($('jb'))$('jb').onclick=joinClass;if($('jc'))$('jc').onkeydown=function(e){if(e.key==='Enter')joinClass()};
   if($('wr'))$('wr').onclick=function(){startRun('choose',null,wrongList().slice(0,10))};
-  document.querySelectorAll('.lv').forEach(function(b){b.onclick=function(){var j=+b.dataset.j;if(!lvOpen(j))return askOpen(j);S.lv=j;home()}});
+  document.querySelectorAll('.lv:not(.clv)').forEach(function(b){b.onclick=function(){var j=+b.dataset.j;if(!lvOpen(j))return askOpen(j);S.lv=j;home()}});
   document.querySelectorAll('button.gm').forEach(function(b){b.onclick=function(){startRun(b.dataset.mode,S.lv)}});}
 async function joinClass(){var c=$('jc').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');if(!c)return toast('請輸入代碼');
   var d=null;try{d=await db.collection('tclasses').doc(c).get()}catch(e){}if(!d||!d.exists)return toast('找不到這個班級，請再確認代碼');
   var cs=(S.prof.classes||[]).slice();if(cs.indexOf(c)<0)cs.push(c);
   try{await pref().update({classes:cs});S.prof.classes=cs;S.cls[c]=d.data();try{localStorage.setItem('qna_guest_name',S.prof.name)}catch(e){}toast('已加入「'+(d.data().name||c)+'」');home()}catch(e){toast('加入失敗，請稍後再試')}}
+
+/* ====== FREECOURSE_V1796 免費課程 ======
+   Quinn：練習帳號首頁的「免費課程」。華語八千詞照順序每 10 個詞一課；
+   每課四步：看詞 → 翻牌 → 快問快答 → 打地鼠。等級開放照 free_to / lv_to。
+   進度存在 pstudents.lessons["等級_課"] = {at, ok, n, best, times}。老師錄過的詞（tvoice）會播老師的聲音。 */
+(function(){var st=document.createElement('style');st.textContent=
+ '.lsn{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;max-height:232px;overflow:auto;padding:2px}'
++'.lsn button{height:44px;border:1px solid var(--line);background:#fff;border-radius:10px;font-size:14px;color:#4A5B75;cursor:pointer;font-family:inherit}'
++'.lsn button.dn{background:#EAF6EF;border-color:#BFE3CC;color:var(--ok);font-weight:700}.lsn button.nx{border:2px solid var(--p);color:var(--p);font-weight:700}'
++'.cbar{display:flex;align-items:center;gap:10px;margin:0 0 12px;flex-wrap:wrap}.cbar .go{margin-left:auto}'
++'.steps{display:flex;gap:4px;margin:0 0 14px}.steps span{flex:1;text-align:center;font-size:12.5px;padding:6px 2px;border-radius:8px;background:#EEF3FA;color:#7A8BA3}.steps span.on{background:var(--p);color:#fff;font-weight:700}.steps span.ok{background:#EAF6EF;color:var(--ok)}'
++'.wl{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 4px;text-align:left}.wl div{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px}'
++'.wl b{font-family:"BiauKai","DFKai-SB","標楷體","Kaiti TC",serif;font-size:26px;font-weight:400}.wl .py{font-size:16px}.wl .sv{margin-left:auto;border:0;background:var(--ps);color:var(--p);border-radius:8px;padding:6px 9px;cursor:pointer}'
++'.fg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}.fg button{height:76px;border:1px solid var(--line);border-radius:12px;background:#EEF3FA;font-size:20px;cursor:pointer;color:var(--ink);font-family:inherit;padding:2px}'
++'.fg button.up{background:#fff;border-color:var(--p)}.fg button.pp{font-family:"Times New Roman",serif;font-size:15px}.fg button.dn{background:#EAF6EF;border-color:#BFE3CC;color:var(--ok)}'
++'.ml{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}.ml button{height:96px;border:0;border-radius:50% 50% 16px 16px;background:#8A5A3C;color:#fff;font-size:26px;cursor:pointer;font-family:"BiauKai","DFKai-SB","標楷體","Kaiti TC",serif;box-shadow:inset 0 -10px 0 rgba(0,0,0,.18)}'
++'.ml button.r{background:var(--ok)}.ml button.w{background:var(--bad)}.fbk{margin-top:14px;padding:10px 12px;border-radius:12px;font-size:14.5px}.fbk.y{background:#EAF6EF;color:var(--ok)}.fbk.n{background:#FDECEC;color:var(--bad)}'
++'@media(max-width:560px){.wl{grid-template-columns:1fr}.fg button{height:64px;font-size:17px}.fg button.pp{font-size:12.5px}}';document.head.appendChild(st)})();
+function lsnCount(j){return Math.ceil(levelItems(j).length/10)}
+function lsnWords(j,k){return levelItems(j).slice(k*10,k*10+10)}
+function lsnDone(j,k){var L=(S.prof&&S.prof.lessons)||{};return L[j+'_'+k]}
+function lsnNext(j){var n=lsnCount(j);for(var k=0;k<n;k++)if(!lsnDone(j,k))return k;return 0}
+function courseHTML(){var mo=maxOpen(),j=S.clv||0,n=lsnCount(j),nx=lsnNext(j),dn=0;for(var k=0;k<n;k++)if(lsnDone(j,k))dn++;
+  return '<div class="sec" id="course"><h3>免費課程 <small>華語八千詞・每課 10 個詞・看詞 → 翻牌 → 快問快答 → 打地鼠</small></h3>'
+   +'<div class="lvrow"><span>等級</span><div class="lvs">'+LVS.map(function(x,i){var o=i<=mo;return '<button type="button" class="lv clv'+(i===j?' on':'')+(o?'':' lock')+'" data-j="'+i+'">'+(o?'':'🔒 ')+x+'</button>'}).join('')+'</div></div>'
+   +(n?'<div class="cbar"><span class="sub" style="margin:0">'+LVS[j]+'：一共 '+n+' 課，做完 '+dn+' 課</span><button type="button" class="go" id="cgo">'+(dn?'繼續：第 '+(nx+1)+' 課':'開始第 1 課')+'</button></div>'
+     +'<div class="lsn">'+Array.apply(null,Array(n)).map(function(_,k){return '<button type="button" data-k="'+k+'" class="'+(lsnDone(j,k)?'dn':k===nx?'nx':'')+'">'+(lsnDone(j,k)?'✓':'')+(k+1)+'</button>'}).join('')+'</div>':'<p class="sub">這個等級讀不到詞</p>')+'</div>'}
+function courseBind(){document.querySelectorAll('.clv').forEach(function(b){b.onclick=function(){var j=+b.dataset.j;if(!lvOpen(j))return askOpen(j);S.clv=j;home()}});
+  if($('cgo'))$('cgo').onclick=function(){lesson(S.clv||0,lsnNext(S.clv||0))};
+  document.querySelectorAll('.lsn button').forEach(function(b){b.onclick=function(){lesson(S.clv||0,+b.dataset.k)}})}
+var LV=null;/* 這一課的狀態 */
+var VCACHE={};
+async function lsnVoices(ws){await Promise.all(ws.map(async function(w){if(w.h in VCACHE)return;VCACHE[w.h]='';
+  try{var sn=await db.collection('tvoice').where('text','==',w.h).get();var best=null;sn.docs.forEach(function(d){var v=d.data();if(v&&v.url&&(!best||String(v.at||'')>String(best.at||'')))best=v});if(best)VCACHE[w.h]=best.url}catch(e){}}))}
+function vbtn(h){return VCACHE[h]?'<button type="button" class="sv" data-v="'+esc(h)+'">🔈</button>':''}
+function vplay(h){if(VCACHE[h])new Audio(VCACHE[h]).play().catch(function(){})}
+document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-v]');if(b)vplay(b.dataset.v)});
+async function lesson(j,k){if(!lvOpen(j))return askOpen(j);var ws=lsnWords(j,k);if(!ws.length)return toast('這一課讀不到詞');
+  $('stage').innerHTML='<div class="card narrow"><p class="sub">讀取中…</p></div>';await lsnVoices(ws);
+  LV={j:j,k:k,ws:ws,step:0,ok:0,n:0,miss:{},t0:Date.now()};lsnLook()}
+function lsnHead(){var nm=['看詞','翻牌','快問快答','打地鼠'];return '<div class="qhead"><span>免費課程・'+LVS[LV.j]+'・第 '+(LV.k+1)+' 課</span><button type="button" class="lnk" id="lq">← 回首頁</button></div>'
+  +'<div class="steps">'+nm.map(function(x,i){return '<span class="'+(i===LV.step?'on':i<LV.step?'ok':'')+'">'+(i+1)+' '+x+'</span>'}).join('')+'</div>'}
+function lsnBind(){$('lq').onclick=function(){if(LV.step>0&&!confirm('現在離開，這一課要從頭開始。確定嗎？'))return;LV=null;home()}}
+function lsnLook(){LV.step=0;var zy=isZY();
+  $('stage').innerHTML='<div class="card" style="max-width:640px;margin:0 auto">'+lsnHead()+'<p class="sub" style="margin:0 0 6px">先看一看這 10 個詞'+(Object.keys(VCACHE).some(function(h){return VCACHE[h]&&LV.ws.some(function(w){return w.h===h})})?'，有 🔈 的可以聽老師念':'')+'。看熟了再按「下一步」。</p>'
+   +'<div class="wl">'+LV.ws.map(function(w){return '<div><b>'+esc(w.h)+'</b><span class="py">'+esc(sylAnswer(w))+'</span>'+vbtn(w.h)+'</div>'}).join('')+'</div>'
+   +'<button class="btn" id="ln" type="button">下一步：翻牌 →</button></div>';lsnBind();$('ln').onclick=lsnFlip}
+function lsnFlip(){LV.step=1;var ws=shuffle(LV.ws).slice(0,6);var cards=shuffle([].concat.apply([],ws.map(function(w){return [{k:w.h,t:w.h,p:0},{k:w.h,t:sylAnswer(w),p:1}]})));
+  var open=[],dn={},lock=false,tries=0,wrong={};
+  function draw(msg){$('stage').innerHTML='<div class="card" style="max-width:640px;margin:0 auto">'+lsnHead()+'<p class="sub" style="margin:0 0 6px">把漢字和它的'+(isZY()?'注音':'拼音')+'配成一對。翻了 '+tries+' 次，配好 '+Object.keys(dn).length+' / '+ws.length+' 對。</p>'
+    +'<div class="fg">'+cards.map(function(c,i){var up=open.indexOf(i)>=0||dn[c.k];return '<button type="button" data-i="'+i+'" class="'+(up?'up ':'')+(c.p?'pp ':'')+(dn[c.k]?'dn':'')+'">'+(up?esc(c.t):'？')+'</button>'}).join('')+'</div>'
+    +(msg||'')+(Object.keys(dn).length===ws.length?'<button class="btn" id="ln" type="button">下一步：快問快答 →</button>':'')+'</div>';lsnBind();
+    document.querySelectorAll('.fg button').forEach(function(b){b.onclick=function(){tap(+b.dataset.i)}});if($('ln'))$('ln').onclick=lsnQuiz}
+  function tap(i){if(lock||open.indexOf(i)>=0||dn[cards[i].k])return;open.push(i);if(open.length<2)return draw();tries++;var a=cards[open[0]],b=cards[open[1]];
+    if(a.k===b.k&&a.p!==b.p){dn[a.k]=1;open=[];vplay(a.k);draw('<div class="fbk y">配對了！'+esc(a.k)+'　'+esc(sylAnswer(LV.ws.filter(function(w){return w.h===a.k})[0]))+'</div>')}
+    else{lock=true;draw('<div class="fbk n">不是一對，再找找看。</div>');setTimeout(function(){open=[];lock=false;draw()},1200)}}
+  draw()}
+function lsnQuiz(){LV.step=2;var ws=shuffle(LV.ws),i=0,res=null,ok=0;
+  var Q=ws.map(function(w,x){var others=shuffle(LV.ws.filter(function(y){return y!==w&&sylAnswer(y)!==sylAnswer(w)})).slice(0,3);
+    var kind=VCACHE[w.h]&&x%3===2?'listen':x%2?'pyw':'wpy';
+    if(kind==='wpy'){var o=distractors(w);return {w:w,ask:'這個詞怎麼念？',show:'<div class="hz">'+esc(w.h)+'</div>',opts:o,ans:o.indexOf(sylAnswer(w)),py:1}}
+    var o2=shuffle([w].concat(others));return {w:w,ask:kind==='listen'?'聽老師念，選出你聽到的詞':'這是哪一個詞？',show:kind==='listen'?'<button type="button" class="sv" data-v="'+esc(w.h)+'" style="font-size:30px;padding:10px 24px;margin:8px 0">🔈</button>':'<div class="py" style="font-size:30px;margin:10px 0">'+esc(sylAnswer(w))+'</div>',opts:o2.map(function(y){return y.h}),ans:o2.indexOf(w),auto:kind==='listen'}});
+  function draw(){var q=Q[i];$('stage').innerHTML='<div class="card narrow">'+lsnHead()+'<div class="qhead"><span>第 '+(i+1)+' / '+Q.length+' 題</span><span>答對 '+ok+'</span></div><p class="sub" style="margin:0">'+esc(q.ask)+'</p>'+q.show
+    +'<div class="opts">'+q.opts.map(function(o,k){return '<button type="button" data-o="'+k+'" class="'+(res?(k===q.ans?'ok':k===res?'sel':''):'')+'"'+(q.py?' style="font-family:\'Times New Roman\',serif;font-size:18px"':' style="font-size:22px"')+(res!=null?' disabled':'')+'>'+esc(o)+'</button>'}).join('')+'</div>'
+    +(res!=null?'<div class="fbk '+(res===q.ans?'y':'n')+'">'+(res===q.ans?'答對了！':'答錯了。')+' '+esc(q.w.h)+'　'+esc(sylAnswer(q.w))+' '+vbtn(q.w.h)+'</div><button class="btn" id="qn" type="button">'+(i+1<Q.length?'下一題 →':'下一步：打地鼠 →')+'</button>':'')+'</div>';lsnBind();
+    document.querySelectorAll('.opts button').forEach(function(b){b.onclick=function(){if(res!=null)return;res=+b.dataset.o;LV.n++;if(res===q.ans){ok++;LV.ok++}else LV.miss[q.w.h]=q.w;draw()}});
+    if($('qn'))$('qn').onclick=function(){i++;res=null;if(i<Q.length){draw();if(Q[i].auto)vplay(Q[i].w.h)}else lsnMole()}}
+  draw();if(Q[0].auto)vplay(Q[0].w.h)}
+function lsnMole(){LV.step=3;var ws=shuffle(LV.ws).slice(0,8),i=0,res=null,ok=0,opts=[];
+  function q(){var w=ws[i];opts=shuffle([w].concat(shuffle(LV.ws.filter(function(y){return y!==w&&sylAnswer(y)!==sylAnswer(w)})).slice(0,2)));res=null;draw();vplay(w.h)}
+  function draw(){var w=ws[i];$('stage').innerHTML='<div class="card narrow">'+lsnHead()+'<div class="qhead"><span>第 '+(i+1)+' / '+ws.length+' 隻</span><span>打中 '+ok+'</span></div><p class="sub" style="margin:0">打拿著這個詞的地鼠</p>'
+    +'<div class="py" style="font-size:30px;margin:10px 0 0">'+esc(sylAnswer(w))+'</div>'+vbtn(w.h)
+    +'<div class="ml">'+opts.map(function(o,k){return '<button type="button" data-m="'+k+'" class="'+(res!=null?(o===w?'r':k===res?'w':''):'')+'"'+(res!=null?' disabled':'')+'>'+esc(o.h)+'</button>'}).join('')+'</div>'
+    +(res!=null?'<div class="fbk '+(opts[res]===w?'y':'n')+'">'+(opts[res]===w?'打中了！':'不是這一隻。')+' '+esc(w.h)+'　'+esc(sylAnswer(w))+'</div><button class="btn" id="mn" type="button">'+(i+1<ws.length?'下一隻 →':'看這一課的成績')+'</button>':'')+'</div>';lsnBind();
+    document.querySelectorAll('.ml button').forEach(function(b){b.onclick=function(){if(res!=null)return;res=+b.dataset.m;LV.n++;if(opts[res]===w){ok++;LV.ok++}else LV.miss[w.h]=w;draw()}});
+    if($('mn'))$('mn').onclick=function(){i++;if(i<ws.length)q();else lsnEnd()}}
+  q()}
+async function lsnEnd(){var L=LV,key=L.j+'_'+L.k,old=lsnDone(L.j,L.k)||{},miss=Object.keys(L.miss).map(function(h){return L.miss[h]});
+  var rec={at:new Date().toISOString(),ok:L.ok,n:L.n,best:Math.max(old.best||0,L.n?Math.round(L.ok/L.n*100):0),times:(old.times||0)+1};
+  try{var ref=pref(),FP=firebase.firestore.FieldPath,inc=FV.increment;var args=[new FP('lessons',key),rec,'total',inc(L.n),'ok',inc(L.ok),'last_at',rec.at,new FP('days',today()),inc(L.n)];
+    miss.forEach(function(w){args.push(new FP('wrong',w.h,'n'),inc(1),new FP('wrong',w.h,'p'),w.p,new FP('wrong',w.h,'r'),0)});
+    await ref.update.apply(ref,args);
+    await ref.collection('sessions').add({at:rec.at,mode:'lesson',lv:L.j,lv_name:LVS[L.j]+' 第 '+(L.k+1)+' 課',n:L.n,ok:L.ok,dur:Math.round((Date.now()-L.t0)/1000),items:miss.map(function(w){return {h:w.h,p:w.p,a:'',ok:false}})});
+    var d=await ref.get();if(d.exists)S.prof=d.data();}catch(e){toast('紀錄沒存成功（網路不穩？），成績還是看得到',3500)}
+  var more=L.k+1<lsnCount(L.j);LV=null;
+  $('stage').innerHTML='<div class="card narrow"><span class="chip">第 '+(L.k+1)+' 課做完了！</span><div class="big">'+L.ok+' / '+L.n+'</div><p class="sub" style="margin:0">'+(miss.length?'這幾個詞再看一下，已經收進錯題本：':'全部答對，好厲害！')+'</p>'
+   +(miss.length?'<div class="res">'+miss.map(function(w){return '<div><b>'+esc(w.h)+'</b><span class="c">'+esc(sylAnswer(w))+'</span></div>'}).join('')+'</div>':'')
+   +(more?'<button class="btn" id="lnx" type="button">下一課：第 '+(L.k+2)+' 課 →</button>':'')+'<button class="btn ghost" id="lag" type="button">這一課再做一次</button><button class="btn ghost" id="hm" type="button">回首頁</button></div>';
+  if($('lnx'))$('lnx').onclick=function(){lesson(L.j,L.k+1)};$('lag').onclick=function(){lesson(L.j,L.k)};$('hm').onclick=home}
 
 /* ====== 做題 ====== */
 function pickItems(j,n){var all=levelItems(j).filter(function(x){return x.syls.length<=4});return shuffle(all).slice(0,n)}
