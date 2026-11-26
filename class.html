@@ -460,7 +460,7 @@ function formHtml(){return '<div class="steph"><span>1</span>要學生做什麼�
   +'<div class="pmseg"><span>難度</span><div class="scrseg" id="pmseg"><button type="button" data-pm="" class="on">生詞</button><button type="button" data-pm="sent">短句</button><button type="button" data-pm="text">短文</button></div></div>'
   +'<div id="pm-words"><label class="l">詞語</label><textarea id="t-items" placeholder="一行打一個詞：先打漢字，空一格，再打拼音。聲調用數字或符號都可以。"></textarea>'
   +'<div class="srcbar"><span class="sl">從題庫加：</span><button type="button" class="sb" data-bank="t">📚 華語八千詞</button><button type="button" class="sb" data-mybank="t">📒 我的題庫</button><span class="grow"></span><button type="button" class="sb gh" data-mysave="t" title="把上面打好的內容存進我的題庫，下次再用">💾 存進我的題庫</button></div></div>'
-  +'<div id="pm-seg" class="hide"><label class="l" id="seg-lab">句子</label><textarea id="seg-text"></textarea><button type="button" class="btn" id="seg-auto">✨ 自動標拼音</button><div id="seg-grid"></div></div></div>'
+  +'<div id="pm-seg" class="hide"><label class="l" id="seg-lab">句子</label><textarea id="seg-text"></textarea><button type="button" class="btn" id="seg-auto">✨ 自動標拼音</button><p class="gneed" style="margin:6px 0 0">拼音照華語八千詞和教育部《重編國語辭典修訂本》。</p><div id="seg-grid"></div></div></div>'
   /* CGAME_V1736 Quinn：「我要的是中文遊戲，也就是翻牌、大富翁等」——漢字闖關換成生詞遊戲 */
   +'<div id="fk-game" class="f'+(S.kind==='game'?'':' hide')+'"><div class="steph s3"><span>3</span>取個名字，發給學生</div><label class="l ttl">題目名稱</label><input class="ttl" id="g-title" maxlength="60" placeholder="幫這份遊戲取個名字，學生會看到">'
   +'<div class="gpick" id="g-kind" hidden>'+GKINDS.map((g,i)=>'<button type="button" data-g="'+g[0]+'" class="'+(i?'':'on')+'"><b>'+g[1]+'</b><small>'+g[2]+'</small></button>').join('')+'</div>'
@@ -629,9 +629,27 @@ function pmSync(){const w=$('#pm-words'),g=$('#pm-seg');if(!w)return;w.classList
   $('#seg-text').style.minHeight=S.pm==='text'?'180px':'130px';segPaint();}
 function loadPP(){return window.pinyinPro?Promise.resolve():new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='pinyin-pro.js?v=3260';sc.onload=res;sc.onerror=()=>rej(new Error('自動標拼音的程式載不進來，請重新整理再試'));document.head.appendChild(sc);});}
 async function segAuto(){const raw=$('#seg-text').value.trim();if(!raw){dlg({title:'先貼上漢字',ok:'知道了',noCancel:1});return}
-  try{await loadPP();}catch(e){dlg({title:'標不了拼音',text:e.message,ok:'知道了',noCancel:1});return}
+  try{await loadPP();await loadMOEDict();}catch(e){dlg({title:'標不了拼音',text:e.message,ok:'知道了',noCancel:1});return}
   const lines=S.pm==='text'?raw.split(/\n+/):raw.split(/\n+/);
-  SEG=lines.map(x=>x.trim()).filter(Boolean).map(h=>{const cs=Array.from(h);const py=moeFix(cs,pinyinPro.pinyin(h,{type:'array'}));return {h,p:cs.map((c,i)=>HANRE.test(c)?(py[i]||''):'')};});segPaint();}
+  SEG=lines.map(x=>x.trim()).filter(Boolean).map(h=>{const cs=Array.from(h);const py=moeFix(cs,moeDictFix(cs,pinyinPro.pinyin(h,{type:'array'})));return {h,p:cs.map((c,i)=>HANRE.test(c)?(py[i]||''):'')};});segPaint();}
+
+/* MOEDICT_V1790 Quinn：「如果要全部照教育部《重編國語辭典》……做這個部分」
+   moe-py.txt：教育部《重編國語辭典修訂本》每個詞的拼音、每個字的所有讀音（CC BY-ND 3.0 TW，資料整理自 g0v/moedict-data）。
+   自動標拼音的順序：① 華語八千詞 ② 教育部辭典（詞，從最長的開始比對）③ 單字：程式標的讀音如果是辭典裡有的讀音就留著，不是的話用辭典的讀音。
+   檔案有 3 MB，只有按「自動標拼音」或點字改拼音的時候才載入。 */
+let MD=null,MDP=null;
+function loadMOEDict(){if(MD)return Promise.resolve(MD);if(MDP)return MDP;
+  MDP=fetch('moe-py.txt?v=1790').then(r=>{if(!r.ok)throw new Error('教育部辭典資料載不進來，請重新整理再試');return r.text();}).then(t=>{const W=new Map(),C={};let sec='W';
+    t.split('\n').forEach(l=>{if(!l)return;if(l[0]==='#'){if(l==='#C')sec='C';return}const i=l.indexOf(' ');if(i<1)return;const k=l.slice(0,i),v=l.slice(i+1);if(sec==='W')W.set(k,v.split(' '));else C[k]=v.split(',');});
+    MD={W,C};return MD;}).catch(e=>{MDP=null;throw e;});return MDP;}
+const TW2=s=>s.replace(/台/g,'臺');
+function moeDictFix(cs,py){if(!MD)return py;const out=py.slice(),done=Array(cs.length).fill(false);let i=0;
+  while(i<cs.length){let L=0;
+    if(HANRE.test(cs[i])){for(let n=Math.min(6,cs.length-i);n>=2;n--){const w=cs.slice(i,i+n).join('');if(!/^[㐀-鿿豈-﫿]+$/.test(w))continue;const p=MD.W.get(w)||MD.W.get(TW2(w));if(p&&p.length===n){for(let k=0;k<n;k++){out[i+k]=p[k];done[i+k]=true;}L=n;break;}}}
+    i+=L||1;}
+  cs.forEach((c,k)=>{if(done[k]||!HANRE.test(c))return;const rs=MD.C[c]||MD.C[TW2(c)];if(!rs||!rs.length)return;
+    const tone=rs.filter(x=>/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/.test(x));if(rs.indexOf(out[k])>=0)return;out[k]=(tone[0]||rs[0]);});
+  return out;}
 /* MOEPY_V1789 Quinn：「拼音部分，請你使用教育部現在的語料庫」
    自動標拼音的程式（pinyin-pro）是照大陸的念法，例如 喜歡 xǐhuan、朋友 péngyou。
    華語八千詞是照教育部的標準（喜歡 xǐhuān、朋友 péngyǒu、學生 xuéshēng）。
@@ -652,7 +670,9 @@ function moeFix(cs,py){const M=moeMap();const out=py.slice();let i=0;
 function segPaint(){const g=$('#seg-grid');if(!g)return;if(!S.pm||!SEG.length){g.innerHTML='';return}
   g.innerHTML='<p class="gneed">請檢查拼音；不對的字點一下就能改。</p>'+SEG.map((sg,si)=>'<div class="segrow">'+Array.from(sg.h).map((c,ci)=>HANRE.test(c)?'<button type="button" class="segc'+(sg.p[ci]?'':' miss')+'" data-s="'+si+':'+ci+'"><i>'+esc(sg.p[ci]||'?')+'</i><b>'+esc(c)+'</b></button>':'<span class="segp">'+esc(c)+'</span>').join('')+'</div>').join('');
   g.querySelectorAll('.segc').forEach(b=>b.onclick=()=>segEdit(b));}
-async function segEdit(b){const [si,ci]=b.dataset.s.split(':').map(Number);const c=Array.from(SEG[si].h)[ci];let opts=[];try{opts=pinyinPro.pinyin(c,{multiple:true,type:'array'})||[];}catch(e){}
+async function segEdit(b){const [si,ci]=b.dataset.s.split(':').map(Number);const c=Array.from(SEG[si].h)[ci];let opts=[];try{await loadMOEDict();}catch(e){}
+  if(MD&&MD.C[c])opts=MD.C[c].filter(x=>/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/.test(x));/* MOEDICT_V1790 讀音照教育部辭典 */
+  if(!opts.length){try{opts=pinyinPro.pinyin(c,{multiple:true,type:'array'})||[];}catch(e){}}
   {const base=String(SEG[si].p[ci]||opts[0]||'').normalize('NFD').replace(/[\u0300\u0301\u030c\u0300-\u0302\u0304\u030b]/g,'').normalize('NFC');if(base&&opts.indexOf(base)<0)opts=opts.concat([base]);}/* 多一個「輕聲」選項 */
   const cur=SEG[si].p[ci];const w=document.createElement('div');w.className='dlg';
   w.innerHTML='<div class="dlg-b" style="max-width:340px"><h3 style="margin:0">「'+esc(c)+'」的拼音</h3>'+(opts.length>1?'<p class="gneed" style="margin:0">點一個讀音（最後一個沒有聲調的是輕聲）</p><div class="segopts">'+opts.map(o=>'<button type="button" class="btn sm'+(o===cur?' pri':'')+'" data-o="'+esc(o)+'">'+esc(o)+'</button>').join('')+'</div>':'')
