@@ -13,6 +13,7 @@
   var IS_ROOM = /\/room\.html$/.test(location.pathname);
   var CODE = String(qs.get('class') || (IS_ROOM ? qs.get('c') : '') || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
   var TASK = String(qs.get('task') || '').trim();
+  var LANG = 'zh'; try { LANG = localStorage.getItem('qna_ui_lang') || 'zh'; } catch(e){}
   var Q = window.QSH = { code: CODE, task: TASK, voices: {}, owner: '', words: {}, ready: Promise.resolve(), has: function(){ return false; }, play: function(){ return false; }, result: function(){} };
   if (!CODE) return;
   var MAIL = function(){ return String(window.TEACHER_EMAIL || '').trim(); };
@@ -32,9 +33,10 @@
    + '.qsh-e{font-size:12.5px;color:#7A8BA3;letter-spacing:2px;border-left:1px solid #DCE4EF;padding-left:10px;white-space:nowrap}'
    + '.qsh-sp{flex:1}.qsh-t{font-size:15px;font-weight:700;color:#1E4C86;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:12px;border-left:1px solid #DCE4EF}.qsh-t:empty{display:none}'
    + '.qsh-me{font-size:13.5px;color:#5B6B82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:36vw}'
-   + '.qsh-back{border:1px solid #DCE4EF;background:#fff;color:#1E4C86;border-radius:999px;padding:7px 15px;font-size:14px;text-decoration:none;white-space:nowrap;font-family:inherit}'
+   + '.qsh-lang{display:inline-flex;background:#E6EDF6;border-radius:999px;padding:3px;gap:2px;flex:none}.qsh-lang button{border:0;background:none;border-radius:999px;width:44px;height:28px;padding:0;font-size:12.5px;color:#5B6B82;cursor:pointer;font-family:inherit}.qsh-lang button.on{background:#fff;color:#1E4C86;font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.08)}'
+   + '.qsh-back{width:118px;text-align:center;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;flex:none;border:1px solid #DCE4EF;background:#fff;color:#1E4C86;border-radius:999px;padding:7px 15px;font-size:14px;text-decoration:none;white-space:nowrap;font-family:inherit}'
    + '.qsh-back:hover{background:#F3F6FB}'
-   + '@media(max-width:600px){.qsh-in{padding:8px 14px;gap:8px}.qsh-e{display:none}.qsh-t{font-size:13.5px;padding-left:8px}.qsh-brand b{font-size:15.5px}.qsh-me{display:none}}'
+   + '@media(max-width:600px){.qsh-lang button{width:34px;font-size:11.5px}.qsh-back{width:82px;font-size:12px!important;padding:6px 4px!important}.qsh-t{display:none}.qsh-in{padding:8px 14px;gap:8px}.qsh-e{display:none}.qsh-t{font-size:13.5px;padding-left:8px}.qsh-brand b{font-size:15.5px}.qsh-me{display:none}}'
    + '.qsh-foot{margin-top:28px;background:#fff;border-top:1px solid #DCE4EF;color:#7A8BA3;font-family:' + F + ';position:relative;z-index:5}'
    + '.qsh-fi{max-width:1100px;margin:0 auto;padding:16px 20px 12px;display:flex;align-items:center;gap:10px 22px;flex-wrap:wrap}'
    + '.qsh-mail{display:flex;align-items:center;gap:7px;color:#4A5B75;font-size:14px}.qsh-mail a{color:#4A5B75}'
@@ -73,6 +75,7 @@
     var bar = document.createElement('div'); bar.className = 'qsh-bar';
     bar.innerHTML = '<div class="qsh-in"><a class="qsh-brand" href="room.html?c=' + encodeURIComponent(CODE) + '"><span class="qsh-l">美</span><b>美娟華語工作室</b><span class="qsh-e">QNA CHINESE</span></a><span class="qsh-t" id="qsh-t"></span><span class="qsh-sp"></span>'
       + '<span class="qsh-me" id="qsh-me">' + esc(meText()) + '</span>'
+      + '<span class="qsh-lang" id="qsh-lang">' + [['zh','中文'],['en','EN'],['vi','VI']].map(function(x){ return '<button type="button" data-l="' + x[0] + '" class="' + (LANG === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</span>'
       + (IS_ROOM ? '' : '<a class="qsh-back" href="room.html?c=' + encodeURIComponent(CODE) + '">← 回班級</a>') + '</div>';
     document.body.insertBefore(bar, document.body.firstChild);
     var ft = document.createElement('footer'); ft.className = 'qsh-foot';
@@ -88,6 +91,7 @@
     if (!setMail()){ var n = 0, iv = setInterval(function(){ if (setMail() || ++n > 40) clearInterval(iv); }, 150); }
     $('#qsh-cp').onclick = function(){ var b = this, m = MAIL(); var ok = function(){ b.textContent = '已複製 ✓'; setTimeout(function(){ b.textContent = '複製'; }, 1600); }; try { navigator.clipboard.writeText(m).then(ok, function(){ prompt('Email', m); }); } catch(e){ prompt('Email', m); } };
     $('#qsh-rp').onclick = report;
+    bar.querySelectorAll('#qsh-lang button').forEach(function(b){ b.onclick = function(){ try { localStorage.setItem('qna_ui_lang', b.dataset.l); } catch(e){} location.reload(); }; });
     tidy(); new MutationObserver(tidy).observe(document.body, { childList: true, subtree: true });
   }
   var tidyT = 0;
@@ -148,6 +152,45 @@
     })();
   });
 
+
+  /* ---------- 介面語言（LANG_V1792）----------
+     Quinn：「學生可以選英文、中文、越南文，因為我學生語言背景很豐富」
+     只翻說明、按鈕、回饋；要學的中文（詞、拼音、注音、句子）不翻：放在 .zhk 或 [data-zhk] 裡的字不動。 */
+  Q.lang = LANG;
+  var TR = window.QSH_TR || [];
+  Q.addTr = function(list){ TR = TR.concat(list); TRS = null; };
+  var TRS = null, TRX = [];
+  Q.addTrx = function(list){ TRX = TRX.concat(list); };
+  function trText(t){ if (LANG === 'zh') return t; var k = LANG === 'en' ? 1 : 2; var tt = t.trim(); if (!tt) return t;
+    for (var i = 0; i < TRX.length; i++){ if (TRX[i][0].test(tt)) return t.replace(tt, tt.replace(TRX[i][0], TRX[i][k])); }
+    if (!TRS) TRS = TR.slice().sort(function(a, b){ return b[0].length - a[0].length; });
+    var out = t; for (var j = 0; j < TRS.length; j++){ var key = TRS[j][0]; if (key.length <= 3){ if (tt === key) return t.replace(tt, TRS[j][k]); continue; } if (out.indexOf(key) >= 0) out = out.split(key).join(TRS[j][k]); } return out; }/* 三個字以內的只在整段一模一樣時才換，免得把要學的中文換掉 */
+  Q.tr = function(t){ return trText(String(t)); };
+  var trBusy = false, trT = 0;
+  function trAll(){ if (LANG === 'zh' || trBusy) return; trBusy = true;
+    try { var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), ns = []; while (w.nextNode()) ns.push(w.currentNode);
+      ns.forEach(function(n){ var p = n.parentElement; if (!p || p.closest('script,style,.qsh-lang,.zhk,[data-zhk],textarea')) return; if (n.__o == null || (n.__t !== n.nodeValue)) n.__o = n.nodeValue; var v = trText(n.__o); if (v !== n.nodeValue){ n.nodeValue = v; } n.__t = n.nodeValue; });
+      document.querySelectorAll('input[placeholder],textarea[placeholder]').forEach(function(x){ if (x.closest('.zhk')) return; if (x.__p == null) x.__p = x.getAttribute('placeholder'); x.setAttribute('placeholder', trText(x.__p)); });
+    } finally { trBusy = false; } }
+  if (LANG !== 'zh'){ var startTr = function(){ trAll(); new MutationObserver(function(){ if (trBusy) return; clearTimeout(trT); trT = setTimeout(trAll, 30); }).observe(document.body, { childList: true, subtree: true, characterData: true }); };
+    if (document.body) setTimeout(startTr, 0); else document.addEventListener('DOMContentLoaded', startTr); }
+  Q.addTr([
+   ['← 回班級','← Back','← Về lớp'],['回班級','Back to class','Về lớp'],['回報問題 · Report a problem','Report a problem','Báo lỗi'],['複製','Copy','Sao chép'],['已複製 ✓','Copied ✓','Đã chép ✓'],
+   ['這一次的結果','Your result','Kết quả lần này'],['這幾個詞再練習一下：','Practice these words again:','Luyện lại những từ này:'],['全部都對了，很棒！','All correct, great job!','Đúng hết, giỏi lắm!'],['做完了！','Finished!','Xong rồi!'],
+   ['老師看得到這一次的紀錄。','Your teacher can see this result.','Giáo viên xem được kết quả lần này.'],['看剛剛的畫面','Look back','Xem lại'],['再玩一次','Play again','Chơi lại'],['看結果','See results','Xem kết quả'],['題答對','correct','câu đúng'],['🔈 聽老師念','🔈 Teacher','🔈 Giáo viên'],
+   ['網站壞掉、看不懂、有建議，都可以寫給老師。','Something broken, unclear, or an idea? Write to your teacher.','Trang bị lỗi, không hiểu, hay có góp ý? Hãy viết cho giáo viên.'],['內容','Message','Nội dung'],['你的名字','Your name','Tên của bạn'],['（想收到回覆再填）','(if you want a reply)','(nếu muốn được trả lời)'],['送出 · Send','Send','Gửi'],
+   ['請寫下遇到的問題（在哪一頁、按了什麼）','What happened? (which page, what you pressed)','Chuyện gì xảy ra? (trang nào, bạn đã bấm gì)'],['網站壞掉 · Bug','Bug','Lỗi'],['問題 · Question','Question','Câu hỏi'],['建議 · Idea','Idea','Góp ý'],
+   ['讀取題目中…','Loading…','Đang tải…'],['讀取中…','Loading…','Đang tải…'],['還沒做','Not done','Chưa làm'],['還沒玩','Not played','Chưa chơi'],['換名字','Change name','Đổi tên'],['的班級',' — class',' — lớp'],
+   ['我要練習 · I practise','I practise','Tôi luyện'],['老師設定：注音 · Zhuyin','Teacher setting: Zhuyin','Giáo viên chọn: Zhuyin'],['老師還沒出題 · No practice yet','No practice yet','Chưa có bài'],
+   ['填上名字加入班級 · Enter your name to join','Enter your name to join','Nhập tên để vào lớp'],['加入班級 · Join','Join','Vào lớp'],['請填老師認得的名字','A name your teacher knows','Tên mà giáo viên biết'],
+   ['今天截止','Due today','Hạn hôm nay'],
+   ['做完了！','Finished!','Xong rồi!'],['再做一次','Try again','Làm lại'],['確定','Check','Kiểm tra'],['下一題 →','Next →','Câu tiếp →'],['正確：','Correct: ','Đúng: '],['答對了','Correct','Đúng rồi'],['答錯了','Wrong','Sai rồi'],
+   ['在空格裡填上正確的字詞','Fill in the blank','Điền vào chỗ trống'],['依照順序點下面的詞，排成正確的句子（點上面的詞可以拿回來）','Tap the words in order to make the sentence (tap a word above to take it back)','Bấm các từ theo thứ tự để tạo câu (bấm từ ở trên để lấy lại)'],
+   ['聽聽看，選出你聽到的詞','Listen and choose the word you hear','Nghe và chọn từ bạn nghe được'],['聽不清楚可以再按一次','Press again to listen again','Bấm lại để nghe lại'],['已儲存，老師看得到','Saved — your teacher can see it','Đã lưu — giáo viên xem được'],
+   ['老師還沒錄好這份題目的聲音（至少要錄 4 個詞）','The teacher has not recorded this yet','Giáo viên chưa ghi âm bài này'],['找不到這份題目','Practice not found','Không tìm thấy bài'],
+   ['檢查','Check','Kiểm tra'],['看答案','Show answer','Xem đáp án'],['輸入拼音','Type the pinyin','Gõ pinyin'],['開始','Start','Bắt đầu']
+  ]);
+  Q.addTrx([[/^玩過 (\d+) 次$/,'Played $1×','Đã chơi $1 lần'],[/^截止 ([\d\/]+)・剩 (\d+) 天$/,'Due $1 · $2 days left','Hạn $1 · còn $2 ngày'],[/^截止 ([\d\/]+)$/,'Due $1','Hạn $1'],[/^已過截止日 ([\d\/]+)・還是可以做$/,'Past due $1 · you can still do it','Quá hạn $1 · vẫn làm được'],[/^第 (\d+) 題／共 (\d+) 題$/,'Question $1 of $2','Câu $1 / $2'],[/^(\d+) \/ (\d+)$/,'$1 / $2','$1 / $2']]);
   /* ---------- 結果頁 ---------- */
   var lastR = null;
   Q.result = function(r){

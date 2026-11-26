@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-Hant">
-<head><script src="stu-shell.js?v=1788"></script>
+<head><script src="stu-shell.js?v=1792"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>拼音練習｜QNA CHINESE</title>
@@ -611,7 +611,10 @@ function drawLives(){const el=$('#glives');if(el)el.innerHTML='<span class="hear
 function stopGame(){G.on=false;cancelAnimationFrame(G.raf)}
 function startGame(){
   if(!pool().length)return;
-  Object.assign(G,{on:true,items:[],score:0,hits:0,miss:[],lives:3,combo:0,spawnGap:2600,speedK:1,last:0,lastSpawn:-1e9,pool:[],hitIts:[]});
+  /* FALLSPD_V1792 Quinn：「字掉得太快」——老師出題時選速度：慢／中／快（預設慢）；慢的時候也不會越掉越快 */
+  const _tk=(()=>{const lv=String(st.level||'');return lv.indexOf('task:')===0?TASKS.find(x=>x.id===lv.slice(5)):null})();const _sp=(_tk&&_tk.speed)||(me.guest&&me.guest.cls?'slow':'mid');
+  G.k0={slow:.55,mid:1,fast:1.35}[_sp]||1;G.kmax={slow:.75,mid:2.4,fast:2.8}[_sp]||2.4;G.gap0={slow:4200,mid:2600,fast:2200}[_sp]||2600;
+  Object.assign(G,{on:true,items:[],score:0,hits:0,miss:[],lives:3,combo:0,spawnGap:G.gap0,speedK:G.k0,last:0,lastSpawn:-1e9,pool:[],hitIts:[]});
   const s=$('#gstart');if(s)s.remove();drawLives();$('#gscore').textContent='0';$('#gcombo').textContent='';$('#gmsg').innerHTML='';
   const inp=$('#gin');inp.disabled=false;inp.value='';inp.focus();
   G.raf=requestAnimationFrame(tick)}
@@ -646,7 +649,7 @@ function tryHit(enter){
     $('#gscore').textContent=G.score;$('#gcombo').textContent=G.combo>=3?('連續答對 '+G.combo+' 個！'):'';
     c.el.innerHTML=esc(c.it.h)+'<small>'+answerHTML(c.it)+'</small>';c.el.classList.add('hit');setTimeout(()=>c.el.remove(),800);
     inp.value='';
-    if(G.hits%5===0){G.speedK=Math.min(2.4,G.speedK+0.15);G.spawnGap=Math.max(1100,G.spawnGap-200)}
+    if(G.hits%5===0){G.speedK=Math.min(G.kmax||2.4,G.speedK+0.15*(G.k0||1));G.spawnGap=Math.max((G.gap0||2600)*.45,G.spawnGap-200)}
     return}
   if(enter){G.combo=0;$('#gcombo').textContent='';inp.classList.remove('shake');void inp.offsetWidth;inp.classList.add('shake')}}
 function endGame(){
@@ -785,7 +788,7 @@ async function classBoot(code){
   let nm='';try{nm=localStorage.getItem('qna_cls_name_'+code)||''}catch(e){}
   if(!nm){location.href='room.html?c='+encodeURIComponent(code);return}
   let ts=[];try{const sn=await fs.collection('ttasks').where('class_code','==',code).get();ts=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(t=>t&&!t.deleted_at&&(t.kind==='pinyin'||(t.kind==='game'&&(t.game==='pinyin'||t.game==='mole'||t.game==='wmole'||t.game==='pic'||t.game==='kq'))))}catch(e){}/* PYGAME_V1737 也收拼音遊戲、打地鼠 */
-  TASKS=ts.map(t=>({id:t.id,title:t.title,items:t.kind==='game'?String(t.items||'').split('\n').map(x=>x.split(/[=＝]/)[0].trim()).filter(Boolean).join('\n'):t.items,guest:true,gk:t.kind==='game'?t.game:'',sub:t.sub||'',zy:!!t.zy,imgs:t.imgs||null,qs:t.qs||null,pm:t.pm||'',segs:t.segs||null}));CUSTOM=[];COURSE=[];
+  TASKS=ts.map(t=>({id:t.id,title:t.title,items:t.kind==='game'?String(t.items||'').split('\n').map(x=>x.split(/[=＝]/)[0].trim()).filter(Boolean).join('\n'):t.items,guest:true,gk:t.kind==='game'?t.game:'',sub:t.sub||'',speed:t.speed||'',zy:!!t.zy,imgs:t.imgs||null,qs:t.qs||null,pm:t.pm||'',segs:t.segs||null}));CUSTOM=[];COURSE=[];
   me.guest={name:nm,dev:guestDev(),cls:code,owner:c.owner_uid,cname:c.name};me.guest.scr=((c.scripts||{})[code+'_'+me.guest.dev])||c.script_default||'';try{const my=localStorage.getItem('qna_cls_scr_'+code);if(c.scr_free&&my)me.guest.scr=my;}catch(e){}/* SCRFREE_V1789 *//* SCRSTU_V1742 老師幫每位學生選拼音或注音 */me.student=null;me.teacher=false;
   try{me.rec=Object.assign(emptyRec(),JSON.parse(localStorage.getItem('qna-pinyin-cls-'+code)||'null')||{})}catch(e){me.rec=emptyRec()}
   document.body.classList.add('is-guest');
