@@ -63,7 +63,7 @@
    + '.qsh-reopen{position:fixed;right:16px;bottom:16px;z-index:8000;border:0;background:#1E4C86;color:#fff;border-radius:999px;padding:12px 18px;font-size:15px;font-weight:700;box-shadow:0 6px 20px rgba(30,76,134,.3);cursor:pointer;font-family:' + F + '}'
    + '.qsh-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9500;background:#1B2533;color:#fff;border-radius:12px;padding:10px 16px;font-size:14px;font-family:' + F + ';max-width:90vw;text-align:center}'
    + '.qsh .qsh-hide{display:none!important}'
-   + (/\/hanzi\.html$/.test(location.pathname) ? '.qsh nav.tabs [data-tab=recall],.qsh nav.tabs [data-tab=atlas],.qsh nav.tabs [data-tab=me]{display:none!important}' : '');/* 作業只做老師指定的關卡 */
+   + (/\/hanzi\.html$/.test(location.pathname) ? '.qsh nav.tabs [data-tab=recall],.qsh nav.tabs [data-tab=atlas],.qsh nav.tabs [data-tab=me],.qsh #lvSeg,.qsh #lvInfo,.qsh #map .node.basic{display:none!important}' : '');/* 作業只做老師指定的關卡 */
   try { var st = document.createElement('style'); st.textContent = css; (document.head || document.documentElement).appendChild(st); } catch(e){}
   function toast(t){ var o = $('.qsh-toast'); if (o) o.remove(); var d = document.createElement('div'); d.className = 'qsh-toast'; d.textContent = t; document.body.appendChild(d); setTimeout(function(){ d.remove(); }, 2600); }
   Q.toast = toast;

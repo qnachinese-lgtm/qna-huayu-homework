@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant-TW"><head><script src="stu-shell.js?v=1792"></script>
+<html lang="zh-Hant-TW"><head><script src="stu-shell.js?v=1794"></script>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>練習遊戲｜美娟華語工作室 QNA CHINESE</title>
 <!-- CGAME_V1792 Quinn：「大富翁、賓果、打地鼠、翻牌的試用版」→「12345」
@@ -25,7 +25,7 @@ h2{margin:0 0 4px;font-size:24px}.sub{color:var(--mut);font-size:14.5px;margin:0
 .fb .w{font-size:24px;letter-spacing:2px;color:var(--ink)}.fb .p{color:#4A5B75;font-size:18px}
 .say{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;font-size:13px;color:var(--navy);cursor:pointer}
 .prog{display:flex;justify-content:space-between;color:#5B6B82;font-size:14.5px;margin-bottom:10px}
-.py{font-family:"Noto Serif",serif}
+.py{font-family:"Noto Serif",serif}.mean{color:#5B6B82;font-size:15px;border-left:1px solid #CFD8E5;padding-left:10px}
 /* 翻牌 */
 .fgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:640px;margin:0 auto}
 .fc{aspect-ratio:4/3;border-radius:14px;border:2px solid var(--line);background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;cursor:pointer;user-select:none;text-align:center;padding:4px}
@@ -81,6 +81,7 @@ h2{margin:0 0 4px;font-size:24px}.sub{color:var(--mut);font-size:14.5px;margin:0
 /* 快問快答 */
 .qcard{border:1px solid var(--line);border-radius:18px;padding:18px;text-align:center}
 .timer{height:6px;background:#EEF2F8;border-radius:6px;overflow:hidden;margin-bottom:12px}.timer i{display:block;height:100%;background:#2F64A8}
+.kqo button{display:flex;align-items:center;gap:12px;text-align:left;font-size:20px}.kqo button i{width:34px;height:34px;border-radius:9px;color:#fff;display:grid;place-items:center;font-style:normal;font-size:15px;flex:none}
 </style></head><body>
 <main class="wrap" id="g"><div class="panel"><p class="sub">讀取中…</p></div></main>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -136,6 +137,7 @@ async function save(ok,n,miss,extra){const t=new Date().toISOString();let prog={
   prog[tid]=cur;lss('qna_cls_prog_'+code,JSON.stringify(prog));
   try{await db.collection('tstudents').doc(code+'_'+DEV).set({class_code:code,owner_uid:C.owner_uid,name:NAME,dev:DEV,last_at:t,tasks:{[tid]:cur}},{merge:true});}catch(e){}}
 function done(title,ok,n,miss,again,extra){if(ENDED)return;ENDED=true;/* 連按兩下不要存兩次 */save(ok,n,miss,extra);later(()=>QSH.result({title,ok,n,miss,again}),700);}
+const meanOf=w=>{const x=W.find(y=>y.w===w);return x&&x.m?'<span class="mean">'+esc(x.m)+'</span>':''};
 const sayBtn=w=>(window.QSH&&QSH.has(w))?'<button class="say" data-say="'+esc(w)+'">🔈 聽老師念</button>':'';
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-say]');if(b&&window.QSH)QSH.play(b.dataset.say);});
 const intro=(title,sub,rules,go,btn)=>{G.innerHTML='<div class="panel"><h2>'+title+'</h2><p class="sub">'+sub+'</p><div class="rules"><ol>'+rules.map(r=>'<li>'+r+'</li>').join('')+'</ol></div><div class="row cen"><button class="btn pri" id="go">'+(btn||'開始')+'</button></div></div>';$('#go').onclick=go;};
@@ -143,7 +145,7 @@ const need=(n,what)=>{if(W.length>=n)return true;bad('這份題目的詞不夠�
 
 /* ================= 翻牌 ================= */
 function flipHome(){if(!need(3,'翻牌'))return;intro('🃏 翻牌配對','把「漢字」和它的「'+(SCR==='zy'?'注音':'拼音')+'」配成一對。',['牌一開始都是蓋著的。','每次翻兩張：一張漢字、一張'+(SCR==='zy'?'注音':'拼音')+'，配對了就留著，旁邊會顯示詞和'+(SCR==='zy'?'注音':'拼音')+'。','不急，沒有時間限制。翻錯 2 次以上的詞，最後會列出來再練習。'],flipPlay);}
-function flipPlay(){clearT();const ws=shuffle(W).slice(0,Math.min(6,W.length));let cards=shuffle(ws.flatMap(x=>[{k:x.w,t:x.w,py:0},{k:x.w,t:D(x.p),py:1}]));
+function flipPlay(){clearT();const ws=shuffle(W).slice(0,Math.min(+T.count||6,W.length));let cards=shuffle(ws.flatMap(x=>[{k:x.w,t:x.w,py:0},{k:x.w,t:D(x.p),py:1}]));
   let open=[],dn=new Set(),wrong={},moves=0,lock=false,last=null;
   const draw=()=>{G.innerHTML='<div class="panel"><div class="prog"><span>翻了 '+moves+' 次</span><span>配好 '+dn.size+' / '+ws.length+' 對</span></div><div class="fgrid">'
     +cards.map((c,i)=>{const up=open.includes(i)||dn.has(c.k);return '<div class="fc zhk'+(up?' up':'')+(c.py?' pyc py':'')+(dn.has(c.k)?' done':'')+'" data-i="'+i+'">'+(up?esc(c.t):'<span class="q">？</span>')+'</div>'}).join('')+'</div>'
@@ -157,22 +159,22 @@ function flipPlay(){clearT();const ws=shuffle(W).slice(0,Math.min(6,W.length));l
 
 /* ================= 打地鼠 ================= */
 function moleWordHome(){if(!need(3,'詞語打地鼠'))return;intro('🐹 詞語打地鼠','看'+(SCR==='zy'?'注音':'拼音')+'，打拿著那個詞的地鼠。一次三隻，不計時。',['上面出現'+(SCR==='zy'?'注音':'拼音')+'（老師錄過音的詞也可以聽），打拿著那個詞的地鼠。','打錯沒關係，會告訴你正確答案，按「下一題」再繼續。'],moleWord);}
-function moleWord(){clearT();const qs=shuffle(W).slice(0,Math.min(10,W.length));let i=0,ok=0,miss=[];
+function moleWord(){clearT();const qs=shuffle(W).slice(0,Math.min(+T.count||10,W.length));let i=0,ok=0,miss=[];
   const q=()=>{const x=qs[i];const others=shuffle(W.filter(y=>y!==x&&pyKey(y.p)!==pyKey(x.p))).slice(0,2);const opts=shuffle([x,...others]);const holes=shuffle([0,1,2,3,4,5]).slice(0,opts.length);let fin=false;
     const draw=fb=>{G.innerHTML='<div class="panel"><div class="prog"><span>第 '+(i+1)+' / '+qs.length+' 題</span><span>答對 '+ok+'</span></div>'
       +'<div class="mprompt"><div class="big zhk py">'+esc(D(x.p))+'</div><small>打拿著這個詞的地鼠</small><div style="margin-top:6px">'+sayBtn(x.w)+'</div></div>'
       +'<div class="field">'+[0,1,2,3,4,5].map(h=>{const k=holes.indexOf(h);return '<div class="hole">'+(k>=0?'<button class="mole zhk'+(fin&&opts[k]===x?' right':'')+(fin&&fb&&fb.pick===k&&opts[k]!==x?' wrong':'')+'" data-k="'+k+'">'+esc(opts[k].w)+'</button>':'')+'</div>'}).join('')+'</div>'
-      +(fb?'<div class="fb '+(fb.ok?'ok':'no')+'">'+(fb.ok?'打對了！':'不是這一隻。')+'<span class="w zhk">'+esc(x.w)+'</span><span class="p zhk py">'+esc(D(x.p))+'</span>'+sayBtn(x.w)+'<span class="sp"></span><button class="btn pri" id="nx">'+(i+1<qs.length?'下一題 →':'看結果')+'</button></div>':'')+'</div>';
+      +(fb?'<div class="fb '+(fb.ok?'ok':'no')+'">'+(fb.ok?'打對了！':'不是這一隻。')+'<span class="w zhk">'+esc(x.w)+'</span><span class="p zhk py">'+esc(D(x.p))+'</span>'+meanOf(x.w)+sayBtn(x.w)+'<span class="sp"></span><button class="btn pri" id="nx">'+(i+1<qs.length?'下一題 →':'看結果')+'</button></div>':'')+'</div>';
       document.querySelectorAll('.mole').forEach(b=>b.onclick=()=>{if(fin)return;fin=true;const k=+b.dataset.k,good=opts[k]===x;if(good)ok++;else miss.push(x.w);draw({ok:good,pick:k})});
       const nx=$('#nx');if(nx)nx.onclick=()=>{i++;if(i<qs.length)q();else done('詞語打地鼠',ok,qs.length,miss,moleWord)};};
     draw();if(window.QSH&&QSH.has(x.w))later(()=>QSH.play(x.w),300);};q();}
 function moleToneHome(){if(!need(1,'聲調打地鼠'))return;intro('🐹 聲調打地鼠','看詞，按出每一個字的聲調。不計時。',['地鼠拿著一個詞，按下面的聲調按鈕；兩個字的詞要按兩次（第一個字、第二個字）。','按錯了可以按「↶ 退一格」。','答完會告訴你正確的'+(SCR==='zy'?'注音':'拼音')+'，按「下一題」再繼續。'],moleTone);}
-function moleTone(){clearT();const qs=shuffle(W.filter(x=>TNUM(x.p).length===[...x.w].length)).slice(0,10);if(!qs.length){bad('這份題目的拼音讀不出聲調，請老師檢查拼音');return}let i=0,ok=0,miss=[];
+function moleTone(){clearT();const qs=shuffle(W.filter(x=>TNUM(x.p).length===[...x.w].length)).slice(0,+T.count||10);if(!qs.length){bad('這份題目的拼音讀不出聲調，請老師檢查拼音');return}let i=0,ok=0,miss=[];
   const q=()=>{const x=qs[i];const ans=TNUM(x.p);let pk=[],fb=null;const hole=Math.floor(Math.random()*6);
     const draw=()=>{G.innerHTML='<div class="panel"><div class="prog"><span>第 '+(i+1)+' / '+qs.length+' 題</span><span>答對 '+ok+'</span></div>'
       +'<div class="mprompt"><small>按出每一個字的聲調（'+ans.length+' 個字）</small><div class="big zhk">'+[...x.w].map((c,k)=>'<span style="'+(k===pk.length&&!fb?'border-bottom:3px solid #1E4C86':'')+'">'+esc(c)+'</span>').join(' ')+'</div><small>你按的：'+(pk.length?pk.map(t=>['','ˉ 1','ˊ 2','ˇ 3','ˋ 4','˙ 輕'][t]).join('　'):'—')+'</small></div>'
       +'<div class="field">'+[0,1,2,3,4,5].map(h=>'<div class="hole">'+(h===hole?'<div class="mole zhk'+(fb?(fb.ok?' right':' wrong'):'')+'" style="cursor:default">'+esc(x.w)+'</div>':'')+'</div>').join('')+'</div>'
-      +(fb?'<div class="fb '+(fb.ok?'ok':'no')+'">'+(fb.ok?'聲調都對了！':'有聲調不對。')+'<span class="w zhk">'+esc(x.w)+'</span><span class="p zhk py">'+esc(D(x.p))+'</span>'+sayBtn(x.w)+'<span class="sp"></span><button class="btn pri" id="nx">'+(i+1<qs.length?'下一題 →':'看結果')+'</button></div>'
+      +(fb?'<div class="fb '+(fb.ok?'ok':'no')+'">'+(fb.ok?'聲調都對了！':'有聲調不對。')+'<span class="w zhk">'+esc(x.w)+'</span><span class="p zhk py">'+esc(D(x.p))+'</span>'+meanOf(x.w)+sayBtn(x.w)+'<span class="sp"></span><button class="btn pri" id="nx">'+(i+1<qs.length?'下一題 →':'看結果')+'</button></div>'
         :'<div class="tones">'+[1,2,3,4,5].map(t=>'<button data-t="'+t+'">'+['','ˉ','ˊ','ˇ','ˋ','˙'][t]+'<small>'+(t<5?t+' 聲':'輕聲')+'</small></button>').join('')+(pk.length?'<button data-t="0" style="width:auto;padding:0 14px;font-size:15px">↶ 退一格</button>':'')+'</div>')+'</div>';
       document.querySelectorAll('.tones button').forEach(b=>b.onclick=()=>{const t=+b.dataset.t;if(!t){pk.pop();return draw()}pk.push(t);if(pk.length===ans.length){const good=pk.every((v,k)=>v===ans[k]);if(good)ok++;else miss.push(x.w);fb={ok:good};}draw();});
       const nx=$('#nx');if(nx)nx.onclick=()=>{i++;if(i<qs.length)q();else done('聲調打地鼠',ok,qs.length,miss,moleTone)};};
@@ -205,20 +207,21 @@ function bingoPlay(){clearT();const u=uniqW();const n=u.length>=16?4:3,N2=n*n;co
 
 /* ================= 快問快答 ================= */
 function mkQ(x,kinds){const others=shuffle(W.filter(y=>y!==x&&pyKey(y.p)!==pyKey(x.p)&&tw(y.w)!==tw(x.w)));
-  const ks=kinds.filter(k=>k!=='listen'||(window.QSH&&QSH.has(x.w)));const k=ks.length?pick(ks):'wpy';
+  const ks=kinds.filter(k=>(k!=='listen'||(window.QSH&&QSH.has(x.w)))&&(k!=='mean'||(x.m&&W.filter(y=>y.m).length>=4)));const k=ks.length?pick(ks):'wpy';
   if(k==='blank'&&[...x.w].length>1){const cs=[...x.w],i=Math.floor(Math.random()*cs.length);const pool=shuffle([...new Set(W.flatMap(y=>[...y.w]))].filter(c=>!cs.includes(c))).slice(0,3);if(pool.length>=3){const o=shuffle([cs[i],...pool]);return {k,x,ask:'□ 是哪一個字？',show:'<div class="qbig zhk">'+esc(cs.map((c,j)=>j===i?'□':c).join(''))+'</div><div class="qpy zhk py">'+esc(D(x.p))+'</div>',opts:o,ans:o.indexOf(cs[i])};}}
   const o3=others.slice(0,3);if(o3.length<3)return null;
   if(k==='listen'){const o=shuffle([x,...o3]);return {k,x,ask:'聽老師念，選出你聽到的詞',show:'<button class="btn pri" data-say="'+esc(x.w)+'" style="font-size:30px;padding:10px 26px">🔈</button>',opts:o.map(y=>y.w),ans:o.indexOf(x),auto:1};}
+  if(k==='mean'&&x.m){const om=others.filter(y=>y.m&&y.m!==x.m).slice(0,3);if(om.length>=3){const o=shuffle([x,...om]);return {k,x,ask:'哪一個詞是這個意思？',show:'<div class="qbig" style="font-size:30px;letter-spacing:0">'+esc(x.m)+'</div>',opts:o.map(y=>y.w),ans:o.indexOf(x)};}}
   if(k==='pyw'){const o=shuffle([x,...o3]);return {k,x,ask:'這是哪一個詞？',show:'<div class="qbig zhk py">'+esc(D(x.p))+'</div>',opts:o.map(y=>y.w),ans:o.indexOf(x)};}
   const o=shuffle([x,...o3]);return {k:'wpy',x,ask:'這個詞怎麼念？',show:'<div class="qbig zhk">'+esc(x.w)+'</div>',opts:o.map(y=>D(y.p)),ans:o.indexOf(x),pyo:1};}
-function quizHome(){if(!need(4,'快問快答'))return;const lim=+T.timer||0;intro('⚡ 快問快答','一共 '+Math.min(10,W.length)+' 題。'+(lim?'每題 '+lim+' 秒。':'不計時，慢慢想。'),['題目有：看'+(SCR==='zy'?'注音':'拼音')+'選詞、看詞選'+(SCR==='zy'?'注音':'拼音')+'、□ 是哪個字'+(W.some(x=>window.QSH&&QSH.has(x.w))?'、聽老師念選詞':'')+'。','答完會告訴你正確答案，按「下一題」再繼續。'],quizPlay);}
-function quizPlay(){clearT();const lim=+T.timer||0;const xs=shuffle(W).slice(0,Math.min(10,W.length));const Q=xs.map(x=>mkQ(x,['wpy','pyw','blank','listen'])).filter(Boolean);let i=0,ok=0,miss=[],res=null,t0=0;
+function quizHome(){if(!need(4,'快問快答'))return;const lim=+T.timer||0;intro('⚡ 快問快答','一共 '+Math.min(+T.count||10,W.length)+' 題。'+(lim?'每題 '+lim+' 秒。':'不計時，慢慢想。'),['題目有：看'+(SCR==='zy'?'注音':'拼音')+'選詞、看詞選'+(SCR==='zy'?'注音':'拼音')+'、□ 是哪個字'+(W.some(x=>window.QSH&&QSH.has(x.w))?'、聽老師念選詞':'')+'。','答完會告訴你正確答案，按「下一題」再繼續。'],quizPlay);}
+function quizPlay(){clearT();const lim=+T.timer||0;const xs=shuffle(W).slice(0,Math.min(+T.count||10,W.length));const Q=xs.map(x=>mkQ(x,['wpy','pyw','blank','listen','mean'])).filter(Boolean);let i=0,ok=0,miss=[],res=null,t0=0;
   const q=()=>{res=null;t0=Date.now();draw();const cur=Q[i];if(cur.auto)later(()=>QSH.play(cur.x.w),300);if(lim)tick();};
   const tick=()=>{if(res)return;const left=lim-(Date.now()-t0)/1000;const b=$('.timer i');if(b)b.style.width=Math.max(0,left/lim*100)+'%';if(left<=0){answer(-1);return}later(tick,200);};
   const answer=k=>{if(res)return;const cur=Q[i],good=k===cur.ans;if(good)ok++;else miss.push(cur.x.w);res={good,k};draw();};
   const draw=()=>{const cur=Q[i];G.innerHTML='<div class="panel"><div class="prog"><span>第 '+(i+1)+' / '+Q.length+' 題</span><span>答對 '+ok+'</span></div>'+(lim&&!res?'<div class="timer"><i style="width:100%"></i></div>':'')
     +'<div class="qcard"><div class="ask">'+esc(cur.ask)+'</div>'+cur.show+'</div><div class="opts'+(cur.pyo?' pyo':'')+'">'+cur.opts.map((o,k)=>'<button class="zhk'+(cur.pyo?' py':'')+(res?(k===cur.ans?' right':k===res.k?' wrong':''):'')+'" data-k="'+k+'"'+(res?' disabled':'')+'>'+esc(o)+'</button>').join('')+'</div>'
-    +(res?'<div class="fb '+(res.good?'ok':'no')+'">'+(res.good?'答對了！':res.k<0?'時間到了。':'答錯了。')+'<span class="w zhk">'+esc(cur.x.w)+'</span><span class="p zhk py">'+esc(D(cur.x.p))+'</span>'+sayBtn(cur.x.w)+'<span class="sp"></span><button class="btn pri" id="nx">'+(i+1<Q.length?'下一題 →':'看結果')+'</button></div>':'')+'</div>';
+    +(res?'<div class="fb '+(res.good?'ok':'no')+'">'+(res.good?'答對了！':res.k<0?'時間到了。':'答錯了。')+'<span class="w zhk">'+esc(cur.x.w)+'</span><span class="p zhk py">'+esc(D(cur.x.p))+'</span>'+meanOf(cur.x.w)+sayBtn(cur.x.w)+'<span class="sp"></span><button class="btn pri" id="nx">'+(i+1<Q.length?'下一題 →':'看結果')+'</button></div>':'')+'</div>';
     document.querySelectorAll('.opts button').forEach(b=>b.onclick=()=>answer(+b.dataset.k));const nx=$('#nx');if(nx)nx.onclick=()=>{i++;if(i<Q.length)q();else done('快問快答',ok,Q.length,miss,quizPlay)};};
   if(!Q.length){bad('這份題目的詞不夠');return}q();}
 
@@ -245,7 +248,7 @@ function fwPlay(){clearT();
     if(s.sp==='機會'||s.sp==='命運'){const c=(turn===0&&Math.random()<.5)?speakCard():Object.assign({t:'act'},pick(ACTS));M={k:'card',c,f:s.sp==='命運'};if(c.t==='act'){const o=shuffle([c.e,...shuffle([...new Set(ACTS.map(a=>a.e))].filter(x=>x!==c.e)).slice(0,3)]);M.opts=o;M.ans=o.indexOf(c.e);}return draw();}
     if(s.x&&s.own<0){if(p.$<s.price){M={k:'note',t:(turn?'電腦':'你')+'的錢不夠買。'};return draw();}
       if(turn===1){if(Math.random()<.7){s.own=1;p.$-=s.price;M={k:'note',t:'電腦答對了，買下「'+s.x.w+'」。'};}else M={k:'note',t:'電腦答錯了，沒買到。'};return draw();}
-      const q=mkQ(s.x,['wpy','pyw','blank','listen']);if(!q){M={k:'note',t:'這一格先休息。'};return draw();}M={k:'q',s,q};if(q.auto)later(()=>QSH.play(s.x.w),300);return draw();}
+      const q=mkQ(s.x,['wpy','pyw','blank','listen','mean']);if(!q){M={k:'note',t:'這一格先休息。'};return draw();}M={k:'q',s,q};if(q.auto)later(()=>QSH.play(s.x.w),300);return draw();}
     if(s.x&&s.own!==turn){const fee=Math.round(s.price/2);p.$-=fee;P[s.own].$+=fee;M={k:'note',t:(turn?'電腦':'你')+'走到'+(s.own?'電腦':'你')+'的地「'+s.x.w+'」，付過路費 '+fee+' 元。'};return draw();}
     M={k:'note',t:s.sp==='起點'?'停在起點。':'回到自己的地。'};draw();};
   const nextTurn=()=>{M=null;dice=0;if(turn===1)round++;turn=1-turn;if(round>ROUNDS){const worth=i=>P[i].$+B.filter(b=>b.own===i).reduce((a,b)=>a+b.price,0);return done(worth(0)>worth(1)?'你贏了！':worth(0)<worth(1)?'電腦贏了':'平手',ok,n,miss,fwPlay,{recs});}draw();};
@@ -253,7 +256,7 @@ function fwPlay(){clearT();
   const modal=()=>{const m=document.createElement('div');m.className='m';let h='<div class="mb qm">';
     if(M.k==='note')h+='<p style="font-size:18px" class="zhk-no">'+esc(M.t)+'</p><div class="mbtn"><button class="btn pri" id="nx">下一步 →</button></div>';
     if(M.k==='q'){const q=M.q;h+='<span class="tag">買這塊地 $'+M.s.price+'</span><div class="card"><div class="ask">'+esc(q.ask)+'</div>'+q.show+'</div><div class="opts'+(q.pyo?' pyo':'')+'">'+q.opts.map((o,i)=>'<button data-i="'+i+'" class="zhk'+(q.pyo?' py':'')+(M.res?(i===q.ans?' right':i===M.res.pick?' wrong':''):'')+'"'+(M.res?' disabled':'')+'>'+esc(o)+'</button>').join('')+'</div>';
-      if(M.res)h+='<div class="fb '+(M.res.ok?'ok':'no')+'">'+(M.res.ok?'答對了！買下來了':'答錯了，沒買到')+'<span class="w zhk">'+esc(M.s.x.w)+'</span><span class="p zhk py">'+esc(D(M.s.x.p))+'</span>'+sayBtn(M.s.x.w)+'</div><div class="mbtn"><button class="btn pri" id="nx">下一步 →</button></div>';}
+      if(M.res)h+='<div class="fb '+(M.res.ok?'ok':'no')+'">'+(M.res.ok?'答對了！買下來了':'答錯了，沒買到')+'<span class="w zhk">'+esc(M.s.x.w)+'</span><span class="p zhk py">'+esc(D(M.s.x.p))+'</span>'+meanOf(M.s.x.w)+sayBtn(M.s.x.w)+'</div><div class="mbtn"><button class="btn pri" id="nx">下一步 →</button></div>';}
     if(M.k==='card'){const c=M.c;h+='<span class="tag'+(M.f?' f':'')+'">'+(M.f?'命運':'機會')+'</span><div class="card"><div class="big zhk" style="font-size:24px;letter-spacing:1px;line-height:1.6">'+esc(c.z)+'</div>'+(c.x?'<div class="qpy zhk py" style="margin-top:4px">'+esc(c.x.w)+'　'+esc(D(c.x.p))+'</div>':'')+(c.x&&c.t==='repeat'?'<div style="margin-top:8px">'+sayBtn(c.x.w)+'</div>':'')+'</div>';
       if(c.t==='act'){h+='<p class="ask" style="margin:12px 0 0">這張卡要你做什麼？</p><div class="opts">'+M.opts.map((o,i)=>'<button data-c="'+i+'" class="'+(M.res?(i===M.ans?'right':i===M.res.pick?'wrong':''):'')+'"'+(M.res?' disabled':'')+' style="font-size:17px">'+esc(o)+'</button>').join('')+'</div>'
         +(M.res?'<div class="fb '+(M.res.ok?'ok':'no')+'">'+(M.res.ok?'看懂了！多拿 20 元':'這張卡的意思是：'+esc(c.e))+'</div><div class="mbtn"><button class="btn pri" id="nx">照著做，下一步 →</button></div>':'');
@@ -270,8 +273,23 @@ function fwPlay(){clearT();
     const sd=$('#sd');if(sd)sd.onclick=async()=>{sd.disabled=true;sd.textContent='送出中…';M.up=await upload(rec.blob,M.c.z,M.c.t);M.sent=true;draw();};};
   draw();}
 
+/* ================= 選擇題（老師自己出的） ================= */
+const KQC=[['#E5484D','▲'],['#1E6FD9','◆'],['#D9A100','●'],['#2E8B3A','■']];
+function kqHome(){const qs0=(T.qs||[]).filter(q=>q&&Array.isArray(q.opts)&&q.opts.filter(Boolean).length>=2);if(!qs0.length){bad('這份題目還沒有內容');return}
+  const lim=+T.timer||0;intro('📝 選擇題','一共 '+qs0.length+' 題。'+(lim?'每題 '+lim+' 秒。':'不計時，慢慢想。'),['看圖和問題，從下面選出對的答案。','答完會告訴你正確答案，按「下一題」再繼續。'],kqPlay);}
+function kqPlay(){clearT();const lim=+T.timer||0;const Q=(T.qs||[]).filter(q=>q&&Array.isArray(q.opts)&&q.opts.filter(Boolean).length>=2);let i=0,ok=0,miss=[],res=null,t0=0;
+  const tick=()=>{if(res)return;const left=lim-(Date.now()-t0)/1000;const b=$('.timer i');if(b)b.style.width=Math.max(0,left/lim*100)+'%';if(left<=0){answer(-1);return}later(tick,200);};
+  const answer=k=>{if(res)return;const q=Q[i],good=k===q.ans;if(good)ok++;else miss.push(q.opts[q.ans]||'');res={good,k};draw();};
+  const draw=()=>{const q=Q[i];G.innerHTML='<div class="panel"><div class="prog"><span>第 '+(i+1)+' / '+Q.length+' 題</span><span>答對 '+ok+'</span></div>'+(lim&&!res?'<div class="timer"><i style="width:100%"></i></div>':'')
+    +'<div class="qcard zhk">'+(q.img?'<img src="'+esc(q.img)+'" alt="" style="max-width:100%;max-height:260px;border-radius:12px;display:block;margin:0 auto 10px">':'')+(q.q?'<div class="ask" style="font-size:22px">'+esc(q.q)+'</div>':'')+'</div>'
+    +'<div class="opts kqo">'+q.opts.map((o,k)=>o?'<button class="zhk'+(res?(k===q.ans?' right':k===res.k?' wrong':''):'')+'" data-k="'+k+'"'+(res?' disabled':'')+'><i style="background:'+KQC[k][0]+'">'+KQC[k][1]+'</i>'+esc(o)+'</button>':'').join('')+'</div>'
+    +(res?'<div class="fb '+(res.good?'ok':'no')+'">'+(res.good?'答對了！':res.k<0?'時間到了。':'答錯了。')+(res.good?'':'<span>正確答案：</span><span class="w zhk">'+esc(q.opts[q.ans])+'</span>')+'<span class="sp"></span><button class="btn pri" id="nx">'+(i+1<Q.length?'下一題 →':'看結果')+'</button></div>':'')+'</div>';
+    document.querySelectorAll('.kqo button').forEach(b=>b.onclick=()=>answer(+b.dataset.k));const nx=$('#nx');if(nx)nx.onclick=()=>{i++;if(i<Q.length){res=null;t0=Date.now();draw();if(lim)tick();}else done('選擇題',ok,Q.length,miss.filter(Boolean),kqPlay)};};
+  t0=Date.now();draw();if(lim)tick();}
+
 /* ---------- 開始 ---------- */
 QSH.addTr&&QSH.addTr([
+ ['📝 選擇題','📝 Multiple choice','📝 Trắc nghiệm'],['選擇題','Multiple choice','Trắc nghiệm'],['看圖和問題，從下面選出對的答案。','Look at the picture and question, then choose the right answer.','Xem hình và câu hỏi, chọn đáp án đúng.'],['正確答案：','Answer: ','Đáp án: '],['哪一個詞是這個意思？','Which word has this meaning?','Từ nào có nghĩa này?'],
  ['🃏 翻牌配對','🃏 Memory match','🃏 Lật thẻ ghép cặp'],['🐹 詞語打地鼠','🐹 Word whack-a-mole','🐹 Đập chuột chũi — từ'],['🐹 聲調打地鼠','🐹 Tone whack-a-mole','🐹 Đập chuột chũi — thanh điệu'],['🎯 生詞賓果','🎯 Word Bingo','🎯 Bingo từ vựng'],['⚡ 快問快答','⚡ Quick quiz','⚡ Hỏi nhanh'],['🎲 大富翁','🎲 Board game','🎲 Cờ tỷ phú'],
  ['翻牌配對','Memory match','Lật thẻ ghép cặp'],['詞語打地鼠','Word whack-a-mole','Đập chuột chũi — từ'],['聲調打地鼠','Tone whack-a-mole','Đập chuột chũi — thanh điệu'],['快問快答','Quick quiz','Hỏi nhanh'],
  ['牌一開始都是蓋著的。','All cards start face down.','Lúc đầu tất cả các thẻ đều úp.'],['不急，沒有時間限制。翻錯 2 次以上的詞，最後會列出來再練習。','No hurry, no time limit. Words you miss 2 or more times are listed at the end.','Không vội, không giới hạn thời gian. Từ nào sai từ 2 lần trở lên sẽ được liệt kê cuối bài.'],
@@ -310,9 +328,9 @@ async function boot(){
   try{const a=await db.collection('ttasks').doc(tid).get();T=a.exists?a.data():null;const b=await db.collection('tclasses').doc(code).get();C=b.exists?b.data():null}catch(e){}
   if(!T||T.deleted_at||T.class_code!==code)return bad('找不到這份題目');if(!C||C.deleted_at)return bad('找不到這個班級');
   const TS=((C.scripts||{})[code+'_'+DEV])||C.script_default||'';const MY=lsg('qna_cls_scr_'+code);SCR=(C.scr_free&&MY)?MY:(TS||'py');if(T.zy&&!TS)SCR='zy';
-  const seen=new Set();String(T.items||'').split('\n').forEach(l=>{const m=/^([㐀-鿿豈-﫿]+)\s*([^=＝]*)/.exec(l.trim());if(!m)return;const w=m[1],p=normPy(m[2]);if(!p||seen.has(w))return;seen.add(w);W.push({w,p});});
+  const seen=new Set();String(T.items||'').split('\n').forEach(l=>{const m=/^([㐀-鿿豈-﫿]+)\s*([^=＝]*)(?:[=＝]\s*(.*))?$/.exec(l.trim());if(!m)return;const w=m[1],p=normPy(m[2]);if(!p||seen.has(w))return;seen.add(w);W.push({w,p,m:(m[3]||'').trim()});});/* MEAN_V1794 「＝」後面是意思 */
   try{await QSH.ready}catch(e){}
-  ({flip:flipHome,bingo:bingoHome,fw:fwHome,mole:moleToneHome,wmole:moleWordHome,quiz:quizHome}[T.game]||(()=>bad('找不到這份題目')))();}
+  ({flip:flipHome,bingo:bingoHome,fw:fwHome,mole:moleToneHome,wmole:moleWordHome,quiz:quizHome,kq:kqHome}[T.game]||(()=>bad('找不到這份題目')))();}
 boot();
 })();
 </script>

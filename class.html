@@ -215,6 +215,10 @@ input.dlg-in[type=date]{width:100%;margin-top:6px}
 .sdlast{margin-top:8px;font-size:13.5px}.sdlast summary{cursor:pointer;color:#1E4C86}.sdlast table{width:100%;border-collapse:collapse;margin-top:6px}.sdlast td,.sdlast th{border-bottom:1px solid #EEF2F8;padding:5px 6px;text-align:left}.sdlast tr.bad td{color:#A33227}
 /* SCRFREE_V1789 */.scrfree{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}.scrfree>span{font-size:13.5px;color:#5B6B82}
 /* SREC_V1792 */.sdrec{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:13.5px}.sdrec audio{height:32px;max-width:100%}
+/* CINFO_V1794 */.ciform{max-width:560px!important;width:100%}.ciform .l span{font-weight:400;color:#7A8BA3;font-size:12.5px}.cisub{color:#7A8BA3;font-size:13px;margin:14px 0 0;padding-top:12px;border-top:1px solid #EEF2F8}
+.ci2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ciform textarea{min-height:84px}@media(max-width:560px){.ci2{grid-template-columns:1fr}}
+.ch-info{margin-top:6px;font-size:13.5px;color:#4A5B75}.ch-info i{font-style:normal;color:#B9C4D4;margin:0 4px}.ch-note{margin-top:4px;font-size:13px;color:#7A8BA3;white-space:pre-wrap;max-width:640px}
+.clsi{display:block;font-style:normal;font-size:12.5px;color:#4A5B75;margin-top:2px}
 /* TIDY_V1785 Quinn：「這裡感覺好亂」——三顆大按鈕收成一排小按鈕 */
 .srcbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}.srcbar .sl{font-size:13px;color:#7A8BA3;margin-right:2px}.srcbar .grow{flex:1}
 .srcbar .sb{border:1px solid #DCE4EF;background:#fff;color:#1E4C86;border-radius:20px;padding:6px 13px;font:inherit;font-size:13.5px;cursor:pointer;white-space:nowrap}.srcbar .sb:hover{background:#EEF3FA;border-color:#B9CBE4}.srcbar .sb.gh{border-color:transparent;color:#5B6B82}.srcbar .sb.gh:hover{background:#F2F5FA}
@@ -320,15 +324,35 @@ async function listView(){bar();
   try{const sn=await db.collection('tclasses').where('owner_uid','==',S.user.uid).get();
     S.classes=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(c=>!c.deleted_at).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));}
   catch(e){$('#grid').innerHTML='<p class="msg">讀不到班級：'+esc(e.message||e)+'</p>';return}
-  $('#grid').innerHTML=S.classes.map(c=>'<button class="cls" data-c="'+esc(c.id)+'"><b>'+esc(c.name)+'</b><span>代碼 <code>'+esc(c.id)+'</code></span><small>建立於 '+esc(String(c.created_at||'').slice(0,10))+'</small></button>').join('')
+  let INF={};try{const q=await db.collection('tclassinfo').where('owner_uid','==',S.user.uid).get();q.docs.forEach(d=>INF[d.id]=d.data());}catch(e){}
+  $('#grid').innerHTML=S.classes.map(c=>{const v=INF[c.id];const sub=v?[v.level,v.schedule].filter(Boolean).join('・'):'';return '<button class="cls" data-c="'+esc(c.id)+'"><b>'+esc(c.name)+'</b><span>代碼 <code>'+esc(c.id)+'</code></span>'+(sub?'<em class="clsi">'+esc(sub)+'</em>':'')+'<small>建立於 '+esc(String(c.created_at||'').slice(0,10))+'</small></button>';}).join('')
     +'<button class="cls new" id="mk">＋ 開一個新班級</button>';
   app.querySelectorAll('.cls[data-c]').forEach(b=>b.onclick=()=>{location.hash='c='+b.dataset.c;});
   $('#mk').onclick=newClass;$('#tobank').onclick=()=>{location.hash='bank';};}
 function genCode(){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<6;i++)s+=A[Math.floor(Math.random()*A.length)];return s;}
-async function newClass(){const nm=String(await dlg({title:'開一個新班級',sub:'Create a class',label:'班級名稱',ph:'幫班級取個名字，學生會看到',ok:'建立班級'})||'').trim().slice(0,60);if(!nm)return;
+/* CINFO_V1794 Quinn：「班級的話，可以再填寫一些課程的基本資料吧？」——程度／教材、上課時間、開始／結束日期、班級說明，只有老師看得到（存在 tclassinfo，學生讀不到） */
+function infoDlg(title,v,ok){return new Promise(res=>{v=v||{};const w=document.createElement('div');w.className='dlg';
+  w.innerHTML='<div class="dlg-b ciform" role="dialog" aria-modal="true"><h3>'+esc(title)+'</h3>'
+   +'<label class="l">班級名稱 <span>學生會看到</span></label><input id="ci-name" maxlength="60" value="'+esc(v.name||'')+'" placeholder="幫班級取個名字">'
+   +'<p class="cisub">下面是課程資料，只有你看得到，都可以不填。</p>'
+   +'<div class="ci2"><div><label class="l">程度</label><input id="ci-level" maxlength="40" value="'+esc(v.level||'')+'" placeholder="例如：入門級、A2"></div><div><label class="l">教材</label><input id="ci-book" maxlength="60" value="'+esc(v.book||'')+'" placeholder="例如：當代中文課程 1"></div></div>'
+   +'<label class="l">上課時間</label><input id="ci-sched" maxlength="80" value="'+esc(v.schedule||'')+'" placeholder="例如：每週六 10:00–12:00">'
+   +'<div class="ci2"><div><label class="l">開始日期</label><input id="ci-start" type="date" value="'+esc(v.start||'')+'"></div><div><label class="l">結束日期</label><input id="ci-end" type="date" value="'+esc(v.end||'')+'"></div></div>'
+   +'<label class="l">班級說明</label><textarea id="ci-note" maxlength="1000" placeholder="例如：上課連結、學生的程度、要注意的事">'+esc(v.note||'')+'</textarea>'
+   +'<div class="msg" id="ci-msg"></div><div class="dlg-a"><button class="btn" data-v="0" type="button">取消</button><button class="btn pri" data-v="1" type="button">'+esc(ok||'儲存')+'</button></div></div>';
+  document.body.appendChild(w);const close=r=>{w.remove();res(r);};setTimeout(()=>{const n=w.querySelector('#ci-name');n.focus();},30);
+  w.querySelector('[data-v="0"]').onclick=()=>close(null);
+  w.querySelector('[data-v="1"]').onclick=()=>{const g=id=>w.querySelector('#'+id).value.trim();const o={name:g('ci-name').slice(0,60),level:g('ci-level'),book:g('ci-book'),schedule:g('ci-sched'),start:g('ci-start'),end:g('ci-end'),note:g('ci-note')};
+    if(!o.name){w.querySelector('#ci-msg').textContent='請先寫班級名稱';return}if(o.start&&o.end&&o.end<o.start){w.querySelector('#ci-msg').textContent='結束日期比開始日期早';return}close(o);};});}
+async function saveInfo(code,o){const d={owner_uid:S.user.uid,level:o.level||'',book:o.book||'',schedule:o.schedule||'',start:o.start||'',end:o.end||'',note:o.note||'',updated_at:now()};await db.collection('tclassinfo').doc(code).set(d);return d;}
+async function getInfo(code){try{const d=await db.collection('tclassinfo').doc(code).get();return d.exists?d.data():null;}catch(e){return null}}
+function infoLine(v){if(!v)return '';const a=[];if(v.level)a.push('程度：'+v.level);if(v.book)a.push('教材：'+v.book);if(v.schedule)a.push('上課：'+v.schedule);if(v.start||v.end)a.push((v.start||'？').replace(/-/g,'/')+' ～ '+(v.end||'？').replace(/-/g,'/'));return a.map(esc).join('<i>・</i>');}
+async function newClass(){const o=await infoDlg('開一個新班級',{}, '建立班級');if(!o)return;const nm=o.name;
   let code='';for(let i=0;i<6;i++){const c=genCode();const d=await db.collection('tclasses').doc(c).get();if(!d.exists){code=c;break;}}
   if(!code){await dlg({title:'代碼產生失敗',text:'請再試一次。',ok:'知道了',noCancel:1});return}
-  try{await db.collection('tclasses').doc(code).set({name:nm,owner_uid:S.user.uid,owner_name:(S.prof&&S.prof.name)||'',created_at:now()});location.hash='c='+code;}
+  try{await db.collection('tclasses').doc(code).set({name:nm,owner_uid:S.user.uid,owner_name:(S.prof&&S.prof.name)||'',created_at:now()});
+    if(o.level||o.book||o.schedule||o.start||o.end||o.note){try{await saveInfo(code,o);}catch(e){await dlg({title:'班級開好了，但課程資料沒存進去',text:/permission|insufficient/i.test(String(e&&(e.code||e.message)))?'Firebase 規則還沒發布，請主管理員按「發布」，再到班級裡按「班級資料」補上。':String(e&&e.message||e),ok:'知道了',noCancel:1});}}
+    location.hash='c='+code;}
   catch(e){await dlg({title:'開班失敗',text:String(e&&e.message||e),ok:'知道了',noCancel:1});}}
 
 /* ---------- 單一班級 ---------- */
@@ -339,14 +363,15 @@ async function classView(code){bar();
   S.cur=c;
   try{const t=await db.collection('ttasks').where('class_code','==',code).get();S.tasks=t.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted_at).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));}catch(e){S.tasks=[]}
   try{const s=await db.collection('tstudents').where('owner_uid','==',S.user.uid).where('class_code','==',code).get();S.studs=s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>String(a.name).localeCompare(String(b.name),'zh-Hant'));}catch(e){S.studs=[];S.studErr=String(e&&e.message||e)}
+  S.info=await getInfo(code);/* CINFO_V1794 */
   try{await vLoad(true);}catch(e){}/* VOICE_V1788 */
   const link=location.origin+'/room.html?c='+code;
   /* TLAY_V1752 Quinn：「老師頁面不好」——班級頁改成：上面一條班級資訊，下面三個分頁（題目／出新題目／學生和成績），不再一路往下拉 */
   const done=t=>S.studs.filter(x=>(x.tasks||{})[t.id]).length;
   S.ctab=S.ctab||(S.tasks.length?'tasks':'new');
   app.innerHTML='<button class="back" onclick="location.hash=\'\'">← 我的班級</button>'
-   +'<div class="chead"><div class="ch-l"><h2>'+esc(c.name)+'</h2><div class="ch-sub"><span>班級代碼 <code class="code">'+esc(code)+'</code></span><span>'+S.studs.length+' 位學生</span><span>'+S.tasks.length+' 份題目</span></div></div>'
-   +'<div class="ch-r"><button class="btn pri" id="qrbig">📱 學生加入方式</button><button class="btn sm" id="ren">改名</button><button class="btn sm del" id="rm">刪除班級</button></div></div>'
+   +'<div class="chead"><div class="ch-l"><h2>'+esc(c.name)+'</h2><div class="ch-sub"><span>班級代碼 <code class="code">'+esc(code)+'</code></span><span>'+S.studs.length+' 位學生</span><span>'+S.tasks.length+' 份題目</span></div>'+(S.info&&infoLine(S.info)?'<div class="ch-info">'+infoLine(S.info)+'</div>':'')+(S.info&&S.info.note?'<div class="ch-note">'+esc(S.info.note)+'</div>':'')+'</div>'
+   +'<div class="ch-r"><button class="btn pri" id="qrbig">📱 學生加入方式</button><button class="btn sm" id="ren">班級資料</button><button class="btn sm del" id="rm">刪除班級</button></div></div>'
    +'<div class="ctabs" role="tablist"><button data-ct="tasks">📋 題目<em>'+S.tasks.length+'</em></button><button data-ct="new">➕ 出新題目</button><button data-ct="studs">👥 學生和成績<em>'+S.studs.length+'</em></button></div>'
    +'<section class="cpane" data-cp="tasks">'+(S.tasks.length?'<div class="tcards">'+S.tasks.slice().reverse().map(t=>taskCard(t,done(t))).join('')+'</div>':'<div class="cempty"><b>還沒有題目</b><p>出一份題目給學生做，他們做完你就看得到成績。</p><button class="btn pri" data-goct="new">➕ 出第一份題目</button></div>')+'</section>'
    +'<section class="cpane" data-cp="new"><div class="card">'+formHtml()+'</div></section>'
@@ -357,7 +382,8 @@ async function classView(code){bar();
   $('#cp').onclick=()=>navigator.clipboard.writeText(link).then(()=>{$('#cp').textContent='已複製';});
   /* QR_V1736 Quinn：「顯示 QR Code，學生可以立即掃描進去」 */
   $('#qrbig').onclick=()=>{const w=document.createElement('div');w.className='dlg qrfull';w.innerHTML='<div class="dlg-b" style="max-width:520px;align-items:center;text-align:center"><h3>掃描加入「'+esc(c.name)+'」<small>Scan to join</small></h3><div id="qrL" style="margin:10px auto"></div><div class="code" style="font-size:34px">'+esc(code)+'</div><p style="margin:0">① 手機相機掃 QR Code，填名字就能加入<br>② 或打開 <b>'+esc(location.host)+'/play.html</b> 輸入代碼</p><div class="lnkrow"><code>'+esc(link)+'</code><button class="btn sm" id="cplnk" type="button">複製連結</button></div><div class="dlg-a" style="align-self:stretch"><button class="btn pri" style="flex:1">關閉</button></div></div>';document.body.appendChild(w);const sz=Math.min(380,innerWidth-80,innerHeight-300);try{new QRCode(w.querySelector('#qrL'),{text:link,width:sz,height:sz,correctLevel:QRCode.CorrectLevel.M});}catch(e){}w.querySelector('#cplnk').onclick=ev=>{ev.stopPropagation();navigator.clipboard.writeText(link).then(()=>{ev.target.textContent='已複製';});};w.onclick=e=>{if(e.target===w||(e.target.closest('.btn')&&e.target.id!=='cplnk'))w.remove();};};
-  $('#ren').onclick=async()=>{const nm=String(await dlg({title:'班級改名',label:'新的班級名稱',value:c.name,ok:'儲存'})||'').trim().slice(0,60);if(!nm)return;await db.collection('tclasses').doc(code).update({name:nm});classView(code);};
+  $('#ren').onclick=async()=>{const o=await infoDlg('班級資料',Object.assign({name:c.name},S.info||{}),'儲存');if(!o)return;
+    try{if(o.name!==c.name)await db.collection('tclasses').doc(code).update({name:o.name});S.info=await saveInfo(code,o);}catch(e){dlg({title:'存不進去',text:/permission|insufficient/i.test(String(e&&(e.code||e.message)))?'Firebase 規則還沒發布，請主管理員按「發布」。':String(e&&e.message||e),ok:'知道了',noCancel:1});}classView(code);};
   $('#rm').onclick=async()=>{if(!await dlg({title:'刪除「'+c.name+'」？',text:'刪除以後，學生就進不來這個班了。',ok:'刪除',danger:1}))return;await db.collection('tclasses').doc(code).update({deleted_at:now()});location.hash='';};
   const wt=()=>{
   app.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(!await dlg({title:'收回這份題目？',text:'學生就看不到這份題目了。',ok:'收回',danger:1}))return;await db.collection('ttasks').doc(b.dataset.del).update({deleted_at:now()});classView(code);});
@@ -474,6 +500,9 @@ function formHtml(){return '<div class="steph"><span>1</span>要學生做什麼�
   +'<div id="g-subw" class="hide"><label class="l">哪一種拼音遊戲</label><select id="g-sub">'+PYSUB.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')+'</select></div>'
   /* GOPT_V1792 快問快答要不要計時、漢字往下掉的速度 */
   +'<div id="g-timew" class="hide"><label class="l">每一題的時間</label><select id="g-time"><option value="0">不計時（建議初學者）</option><option value="20">每題 20 秒</option><option value="12">每題 12 秒</option></select></div>'
+  /* QOPT_V1794 題數、填空題怎麼作答 */
+  +'<div id="g-cntw" class="hide"><label class="l">一次幾題</label><select id="g-cnt"></select></div>'
+  +'<div id="g-fmodew" class="hide"><label class="l">學生怎麼作答</label><select id="g-fmode"><option value="type">自己打字</option><option value="choice">從選項選（建議初學者）</option></select></div>'
   +'<div id="g-spdw" class="hide"><label class="l">字往下掉的速度</label><select id="g-spd"><option value="slow">慢（建議初學者）</option><option value="mid">中</option><option value="fast">快</option></select></div></div>'
   +'<div id="fk-hanzi" class="f hide"><label class="l">題目名稱</label><input id="h-title" maxlength="60" placeholder="幫這份題目取個名字，學生會看到">'
   +'<label class="l">關卡</label><select id="h-fam">'+HZ_LIST.map(L=>'<optgroup label="'+esc(L.lv)+'">'+L.stages.map((s,i)=>'<option value="'+esc(s[0])+'">'+(i+1)+'・'+esc(s[1])+(s[2]?'（'+s[2]+' 字）':'')+'</option>').join('')+'</optgroup>').join('')+'</select>'
@@ -726,7 +755,9 @@ function wireForm(code){{const x=$('#t-due-x');if(x)x.onclick=()=>{$('#t-due').v
   S.gk=S.gk||'flip';const gNeed=()=>{const g=GKINDS.find(x=>x[0]===S.gk);$('#g-need').textContent=(S.gk==='fill'||S.gk==='order')?'':'這個'+(QK.includes(S.gk)?'題目':'遊戲')+'至少要 '+g[3]+' 個詞'+(S.gk==='fw'?'（而且要 2～4 個字的詞）':'')+'。';};gNeed();
   $('#g-kind').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.gk=b.dataset.g;$('#g-kind').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));gNeed();zySync();picPaint();kqPaint();gLab();});
   /* QTYPE_V1784 填空題、句子排序：說明文字跟著換 */
-  function gSub(){const w=$('#g-subw');if(w)w.classList.toggle('hide',S.gk!=='pinyin');const tw=$('#g-timew');if(tw)tw.classList.toggle('hide',S.gk!=='quiz');const sw=$('#g-spdw');if(sw)sw.classList.toggle('hide',!(S.gk==='pinyin'&&($('#g-sub')||{}).value==='fall'));}gSub();
+  function gSub(){const w=$('#g-subw');if(w)w.classList.toggle('hide',S.gk!=='pinyin');const tw=$('#g-timew');if(tw)tw.classList.toggle('hide',S.gk!=='quiz'&&S.gk!=='kq');const sw=$('#g-spdw');if(sw)sw.classList.toggle('hide',!(S.gk==='pinyin'&&($('#g-sub')||{}).value==='fall'));
+    const cw=$('#g-cntw'),cs=$('#g-cnt');const CNT={quiz:[5,10,15,20],mole:[5,10,15,20],wmole:[5,10,15,20],flip:[4,6,8]};if(cw){cw.classList.toggle('hide',!CNT[S.gk]);if(CNT[S.gk]&&cs.dataset.k!==S.gk){cs.dataset.k=S.gk;cs.innerHTML=CNT[S.gk].map(n=>'<option value="'+n+'"'+(n===(S.gk==='flip'?6:10)?' selected':'')+'>'+(S.gk==='flip'?n+' 對':n+' 題')+'</option>').join('');}}
+    const fw=$('#g-fmodew');if(fw)fw.classList.toggle('hide',S.gk!=='fill');}gSub();
   {const gs=$('#g-sub');if(gs)gs.addEventListener('change',gSub);}
   $('#g-kind').querySelectorAll('button').forEach(b=>b.addEventListener('click',gSub));
   function gLab(){const L=$('#g-lab'),ta=$('#g-items');if(!L||!ta)return;const m={fill:['句子','一行打一句，要學生填的地方用括號（ ）括起來；有兩種以上的答案用 ／ 分開'],order:['句子','一行打一句，詞跟詞中間空一格，學生會看到打亂的詞'],listen:['生詞','一行打一個詞：先打漢字，空一格，再打拼音。學生會聽到這個詞的發音']}[S.gk]||['生詞','一行打一個詞：先打漢字，空一格，再打拼音。想加意思的話，在最後打「＝」再寫意思。'];L.textContent=m[0];ta.placeholder=m[1];}
@@ -757,13 +788,17 @@ function wireForm(code){{const x=$('#t-due-x');if(x)x.onclick=()=>{$('#t-due').v
       if(S.gk==='pic'){const ws=items.map(x=>x.split(/\s+/)[0]);const miss=ws.filter(w=>!PIC[w]);if(PICBUSY){msg.textContent='圖片還在上傳，請等一下';return}if(miss.length){msg.textContent='這幾個詞還沒有圖：'+miss.slice(0,5).join('、');return}t.imgs={};ws.forEach(w=>t.imgs[w]=PIC[w]);}}
     else return;
     if(t.game==='pinyin'){const v=($('#g-sub')||{}).value||'';if(v)t.sub=v;if(v==='fall')t.speed=($('#g-spd')||{}).value||'slow';}
-    if(t.game==='quiz')t.timer=+(($('#g-time')||{}).value||0);
+    if(t.game==='quiz'||t.game==='kq')t.timer=+(($('#g-time')||{}).value||0);
+    if(['quiz','mole','wmole','flip'].includes(t.game))t.count=+(($('#g-cnt')||{}).value||0)||undefined;if(t.count===undefined)delete t.count;
+    if(t.game==='fill')t.mode=($('#g-fmode')||{}).value||'type';
+    /* ORDERPY_V1794 句子排序：發出去的時候先幫每一塊標好拼音（照教育部和八千詞），學生的詞卡下面會有小字拼音 */
+    if(t.game==='order'){try{await loadPP();await loadMOEDict();t.pys=String(t.items).split('\n').map(l=>{const ch=l.trim().split(/\s+/).filter(Boolean);const cs=Array.from(ch.join(''));const pp0=pinyinPro.pinyin(cs.join(''),{type:'array'});const py=yiBu(cs,moeFix(cs,moeDictFix(cs,pp0)),pp0);let k=0;return ch.map(c=>{const n=Array.from(c).length;const seg=py.slice(k,k+n).filter((x,i)=>HANRE.test(Array.from(c)[i]));k+=n;return seg.join('');}).join('|');});}catch(e){}}
     Object.assign(t,{class_code:code,owner_uid:S.user.uid,created_at:now()});{const dv=($('#t-due')||{}).value||'';if(dueEnd(dv))t.due=dv;}
     try{await db.collection('ttasks').add(t);S.ctab='tasks';if(t.pm){SEG=[];}if(t.game==='kq')KQ=[];if(t.game==='pic')Object.keys(PIC).forEach(k=>delete PIC[k]);classView(code);}catch(e){msg.textContent='發不出去：'+(e&&e.message||e)}};}
 function stat(s,t){const r=(s.tasks||{})[t.id];if(!r)return '<td class="no">'+(t.due&&dueEnd(t.due)<new Date()?'<span class="late">未交</span>':'—')+'</td>';const h=stat0(s,t,r);return isLate(t,r)?h.replace(/<\/td>$/,'<br><span class="late">遲交</span></td>'):h;}
 function stat0(s,t,r){
   if(t.kind==='pinyin')return '<td class="'+(r.n&&r.ok===r.n?'ok':'')+'">'+(r.ok||0)+'/'+(r.n||0)+(r.times>1?' <small style="color:var(--mut)">×'+r.times+'</small>':'')+'</td>';
-  if(t.kind==='game'&&['fill','order','listen','flip','quiz','bingo','fw','mole','wmole'].includes(t.game)&&r.n)return '<td class="'+(r.ok===r.n?'ok':'')+'">'+(r.ok||0)+'/'+r.n+(r.times>1?' <small style="color:var(--mut)">×'+r.times+'</small>':'')+'</td>';/* QTYPE_V1784 */
+  if(t.kind==='game'&&['fill','order','listen','flip','quiz','bingo','fw','mole','wmole','kq'].includes(t.game)&&r.n)return '<td class="'+(r.ok===r.n?'ok':'')+'">'+(r.ok||0)+'/'+r.n+(r.times>1?' <small style="color:var(--mut)">×'+r.times+'</small>':'')+'</td>';/* QTYPE_V1784 */
   if(t.kind==='game')return '<td class="ok">玩過 '+(r.times||1)+' 次'+(r.best!=null?'<br><small style="color:var(--mut)">最高 '+r.best+(r.unit||'')+'</small>':'')+'</td>';
   const st=Number(r.stars)||0;return '<td class="'+(st>=(t.min_stars||1)?'ok':'')+'">'+'★'.repeat(Math.min(st,3))+(st?'':'0')+'</td>';}
 /* SCRSTU_V1742 Quinn：「班級裡有的人學拼音，有的人學注音，老師可以選擇哪些學生用拼音、哪些用注音」

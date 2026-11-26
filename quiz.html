@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-Hant">
-<head><script src="stu-shell.js?v=1792"></script>
+<head><script src="stu-shell.js?v=1794"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>老師出的題｜美娟華語工作室 QNA CHINESE</title>
@@ -38,12 +38,16 @@ button{font:inherit;cursor:pointer}[hidden]{display:none!important}
 .res{text-align:left;margin-top:14px;border-top:1px solid #EEF2F8;padding-top:10px}.res div{padding:7px 0;border-bottom:1px dashed #EEF2F8;font-size:14.5px;line-height:1.7}.res small{color:var(--mut)}.res .c{color:var(--ok)}.res .y{color:var(--bad)}
 .note{font-size:12.5px;color:var(--mut);margin-top:10px}
 .sayb{border:1px solid #DCE4EF;background:#fff;border-radius:999px;padding:2px 9px;cursor:pointer;margin-left:4px}
+.pc{display:inline-flex;flex-direction:column;align-items:center;line-height:1.25}.pcpy{font-size:12px;color:#2F64A8;font-family:"Noto Serif",serif;letter-spacing:0;margin-top:2px}
+.fbk{display:inline-block;min-width:2.4em;border-bottom:2px solid #1E4C86;color:#1E4C86;text-align:center;margin:0 4px;padding:0 4px}.fbk.ok{color:#1F6B43;border-color:#1F6B43}.fbk.no{color:#A33227;border-color:#A33227}
+.fopt{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:12px 0 0;align-items:center}.fopt small{color:#7A8BA3;width:100%;text-align:center}.fopt button{border:1px solid #DCE4EF;background:#fff;border-radius:12px;padding:10px 18px;font:inherit;font-size:20px;cursor:pointer;min-width:84px}.fopt button.on{border-color:#1E4C86;background:#EEF3FA;color:#1E4C86;font-weight:700}.fopt button.right{background:#E3F4EA;border-color:#7CCBA4;color:#1F6B43}
 </style>
 </head>
 <body>
 <header class="bar"><a class="brand" href="index.html"><span class="bl">美</span><b>美娟華語工作室</b></a><a class="back" id="back" href="play.html">← 回班級</a></header>
 <main class="stage" id="stage"><div class="card"><p class="sub">讀取中…</p></div></main>
 <script src="config.js"></script>
+<script src="zhuyin.js?v=1741"></script><script src="pyutil.js?v=1794"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script>
@@ -66,8 +70,12 @@ var T=null,C=null,QS=[],R={i:0,ok:0,res:[],t0:Date.now()};
 function build(t){var lines=String(t.items||'').split('\n').map(function(x){return x.trim()}).filter(Boolean);
   if(t.game==='fill')return lines.map(function(l){var parts=[],ans=[],re=/[（(]([^）)]+)[）)]/g,last=0,m;
       while((m=re.exec(l))){parts.push(l.slice(last,m.index));ans.push(m[1].split(/[／\/]/).map(function(x){return x.trim()}).filter(Boolean));last=re.lastIndex}
-      parts.push(l.slice(last));return ans.length?{type:'fill',parts:parts,ans:ans,src:l}:null}).filter(Boolean);
-  if(t.game==='order')return lines.map(function(l){var w=l.split(/\s+/).filter(Boolean);if(w.length<2)return null;var s;var n=0;do{s=shuffle(w);n++}while(s.join('')===w.join('')&&n<10);return {type:'order',words:w,mix:s,src:w.join('')}}).filter(Boolean);
+      parts.push(l.slice(last));return ans.length?{type:'fill',parts:parts,ans:ans,src:l}:null}).filter(Boolean).map(function(q,qi,all){
+      /* FILLCH_V1794 「從選項選」：每一格給四個選項（其他句子的答案當誘答） */
+      if(t.mode==='choice'){var pool=[];all.forEach(function(o){o.ans.forEach(function(a){if(pool.indexOf(a[0])<0)pool.push(a[0])})});
+        q.opts=q.ans.map(function(a){var d=shuffle(pool.filter(function(x){return a.indexOf(x)<0})).slice(0,3);return d.length>=1?shuffle([a[0]].concat(d)):null});if(q.opts.some(function(o){return !o}))q.opts=null;}
+      return q;});
+  if(t.game==='order')return lines.map(function(l,li){var w=l.split(/\s+/).filter(Boolean);if(w.length<2)return null;var py=String((t.pys||[])[li]||'').split('|');var pm={};w.forEach(function(x,i){if(py[i])pm[x]=py[i]});var s;var n=0;do{s=shuffle(w);n++}while(s.join('')===w.join('')&&n<10);return {type:'order',words:w,mix:s,src:w.join(''),pm:pm}}).filter(Boolean);
   if(t.game==='listen'){var ws=lines.map(function(l){var h=(/^[㐀-鿿]+/.exec(l)||[''])[0];return h}).filter(Boolean);ws=ws.filter(function(w,i){return ws.indexOf(w)===i});
     /* VOICE_V1788 只出老師錄過聲音的詞（不用電腦的聲音），一次最多 10 題 */
     var rec=ws.filter(function(w){return window.QSH&&QSH.has(w)});if(rec.length<4)return [];
@@ -82,25 +90,35 @@ async function boot(){
   if(T.game==='listen'){try{speechSynthesis.getVoices()}catch(e){}}
   show()}
 var TN={fill:'填空題',order:'句子排序',listen:'聽音選詞'};
+/* ORDERPY_V1794 詞卡下面的小字拼音（學生選注音的就顯示注音） */
+function SCRZ(){try{var TS=((C.scripts||{})[code+'_'+(localStorage.getItem('qna_guest_dev')||'')])||C.script_default||'';var my=localStorage.getItem('qna_cls_scr_'+code)||'';return ((C.scr_free&&my)?my:TS)==='zy'}catch(e){return false}}
+function PYS(q,w){var p=q.pm&&q.pm[w];if(!p)return '';return '<small class="pcpy">'+esc(SCRZ()&&window.PYU?PYU.toZy(p):p)+'</small>'}
 function head(){return '<div class="qhead"><span>'+esc(T.title||TN[T.game])+'・'+TN[T.game]+'</span><span>'+(R.i+1)+' / '+QS.length+'</span></div><div class="prog"><i style="width:'+(R.i/QS.length*100)+'%"></i></div>'}
 function say(w){if(window.QSH&&QSH.code){QSH.play(w);return}try{var u=new SpeechSynthesisUtterance(w);u.lang='zh-TW';u.rate=.85;var vs=speechSynthesis.getVoices().filter(function(v){return /zh[-_](TW|HK|CN)|cmn|Chinese/i.test(v.lang+' '+v.name)});
   var tw=vs.find(function(v){return /TW/i.test(v.lang)})||vs[0];if(tw)u.voice=tw;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}}
 function show(){var q=QS[R.i],h='<div class="card">'+head();
-  if(q.type==='fill'){h+='<p class="sub">在空格裡填上正確的字詞</p><div class="sent">'+q.parts.map(function(p,j){return esc(p)+(j<q.ans.length?'<input data-b="'+j+'" autocomplete="off" autocapitalize="off" spellcheck="false">':'')}).join('')+'</div>'}
-  if(q.type==='order'){h+='<p class="sub">依照順序點下面的詞，排成正確的句子（點上面的詞可以拿回來）</p><div class="build" id="bd"></div><div class="pool" id="pl">'+q.mix.map(function(w,j){return '<button type="button" class="pc" data-j="'+j+'">'+esc(w)+'</button>'}).join('')+'</div>'}
+  if(q.type==='fill'&&q.opts){h+='<p class="sub">選出空格裡正確的字詞</p><div class="sent">'+q.parts.map(function(p,j){return esc(p)+(j<q.ans.length?'<span class="fbk" data-b="'+j+'">'+'＿'.repeat(Math.max(2,Array.from(q.ans[j][0]).length))+'</span>':'')}).join('')+'</div>'
+     +q.opts.map(function(o,j){return '<div class="fopt">'+(q.opts.length>1?'<small>第 '+(j+1)+' 格</small>':'')+o.map(function(x){return '<button type="button" data-j="'+j+'" data-v="'+esc(x)+'">'+esc(x)+'</button>'}).join('')+'</div>'}).join('')}
+  else if(q.type==='fill'){h+='<p class="sub">在空格裡填上正確的字詞</p><div class="sent">'+q.parts.map(function(p,j){return esc(p)+(j<q.ans.length?'<input data-b="'+j+'" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="'+'□'.repeat(Array.from(q.ans[j][0]).length)+'" style="width:'+(Array.from(q.ans[j][0]).length*1.3+1.6)+'em">':'')}).join('')+'</div><p class="note">□ 是要填幾個字</p>'}
+  if(q.type==='order'){h+='<p class="sub">依照順序點下面的詞，排成正確的句子（點上面的詞可以拿回來）</p><div class="build" id="bd"></div><div class="pool" id="pl">'+q.mix.map(function(w,j){return '<button type="button" class="pc" data-j="'+j+'">'+esc(w)+PYS(q,w)+'</button>'}).join('')+'</div>'}
   if(q.type==='listen'){h+='<p class="sub">聽聽看，選出你聽到的詞</p><button type="button" class="play" id="pv" aria-label="再聽一次">🔊</button><div class="note">聽不清楚可以再按一次</div><div class="opts">'+q.opts.map(function(o){return '<button type="button" data-o="'+esc(o)+'">'+esc(o)+'</button>'}).join('')+'</div>'}
   h+='<div class="fb" id="fb"></div>'+(q.type==='listen'?'<button class="btn" id="nx" type="button" hidden>下一題 →</button>':'<button class="btn" id="ck" type="button">確定</button>')+'</div>';
   $('stage').innerHTML=h;var done=false;
   function next(){R.i++;if(R.i>=QS.length)return finish();show()}
   function mark(ok,ans,shown){R.res.push({w:q.src,p:shown,a:ans,ok:ok?1:0,k:ok?'':'x'});if(ok)R.ok++;
     $('fb').className='fb '+(ok?'ok':'no');$('fb').innerHTML=ok?'✓ 答對了':'✗ 正確答案：'+esc(shown);done=true}
-  if(q.type==='fill'){var ins=document.querySelectorAll('.sent input');if(ins[0])ins[0].focus();
+  if(q.type==='fill'&&q.opts){var sel=q.ans.map(function(){return ''});
+    document.querySelectorAll('.fopt button').forEach(function(b){b.onclick=function(){if(done)return;var j=+b.dataset.j;sel[j]=b.dataset.v;document.querySelectorAll('.fopt button[data-j="'+j+'"]').forEach(function(x){x.classList.toggle('on',x===b)});var bk=document.querySelector('.fbk[data-b="'+j+'"]');if(bk){bk.textContent=b.dataset.v;bk.classList.add('on')}}});
+    $('ck').onclick=function(){if(done)return next();if(sel.some(function(v){return !v}))return void($('fb').textContent='每一格都要選');
+      var good=sel.map(function(v,j){return q.ans[j].some(function(a){return norm(a)===norm(v)})});document.querySelectorAll('.fbk').forEach(function(x,j){x.classList.add(good[j]?'ok':'no')});document.querySelectorAll('.fopt button').forEach(function(x){x.disabled=true;if(q.ans[+x.dataset.j][0]===x.dataset.v)x.classList.add('right')});
+      mark(good.every(Boolean),sel.join('／'),q.ans.map(function(a){return a[0]}).join('／'));$('ck').textContent=R.i===QS.length-1?'看成績':'下一題 →'}}
+  else if(q.type==='fill'){var ins=document.querySelectorAll('.sent input');if(ins[0])ins[0].focus();
     ins.forEach(function(x){x.onkeydown=function(e){if(e.key==='Enter')$('ck').click()}});
     $('ck').onclick=function(){if(done)return next();var vals=[].map.call(ins,function(x){return x.value.trim()});if(vals.some(function(v){return !v}))return void($('fb').textContent='每一格都要填');
       var good=vals.map(function(v,j){return q.ans[j].some(function(a){return norm(a)===norm(v)})});ins.forEach(function(x,j){x.classList.add(good[j]?'ok':'no');x.disabled=true});
       mark(good.every(Boolean),vals.join('／'),q.ans.map(function(a){return a[0]}).join('／'));$('ck').textContent=R.i===QS.length-1?'看成績':'下一題 →'}}
   if(q.type==='order'){var pick=[];
-    function paint(){$('bd').innerHTML=pick.map(function(j,k){return '<button type="button" class="pc" data-k="'+k+'">'+esc(q.mix[j])+'</button>'}).join('');
+    function paint(){$('bd').innerHTML=pick.map(function(j,k){return '<button type="button" class="pc" data-k="'+k+'">'+esc(q.mix[j])+PYS(q,q.mix[j])+'</button>'}).join('');
       document.querySelectorAll('#pl .pc').forEach(function(b){b.classList.toggle('used',pick.indexOf(+b.dataset.j)>=0)});
       document.querySelectorAll('#bd .pc').forEach(function(b){b.onclick=function(){if(done)return;pick.splice(+b.dataset.k,1);paint()}})}
     document.querySelectorAll('#pl .pc').forEach(function(b){b.onclick=function(){if(done)return;var j=+b.dataset.j;if(pick.indexOf(j)<0){pick.push(j);paint()}}});paint();

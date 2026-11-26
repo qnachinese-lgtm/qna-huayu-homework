@@ -711,12 +711,16 @@ function renderLvSeg(){
 function renderMap(){
   renderLvSeg();
   try { renderTimerToggle(); } catch(e){}   /* HZTIMER_V1406 */
+  { const gt0 = store.guest && store.guest.task && store.guest.task.kind === "hanzi" ? store.guest.task.fam : ""; if (gt0){ const li = LEVELS.findIndex(x => x.stages.some(s => s.id === gt0)); if (li >= 0) curLv = li; } }
   const L = LEVELS[curLv]; const map = $("#map"); map.innerHTML = "";
   let sum = 0;
   $("#lvInfo").textContent = curLv === 0 ? "老師挑選的 27 個字族，有字源和記憶提示。" : `華語八千詞・${L.name}：${L.stages.length} 關、${L.stages.reduce((a, s) => a + s.chars.length, 0)} 個字。關卡依「同一個部件」自動分組。`;
+  /* ONLYTASK_V1794 Quinn：「漢字闖關：作業只顯示老師指定的那一關」——班級作業進來的學生，地圖上只有那一關 */
+  const _gt = store.guest && store.guest.task && store.guest.task.kind === "hanzi" ? store.guest.task.fam : "";
   L.stages.forEach((sg, i) => {
+    if (_gt && sg.id !== _gt) return;
     const stars = rec.stars[diff][sg.id] || 0; sum += stars;
-    const open = unlocked(sg), boss = sg.name === "形近字";
+    const open = unlocked(sg) || (_gt && sg.id === _gt), boss = sg.name === "形近字";
     const node = el("button", {class:"node" + (boss ? " boss" : "") + (stars ? " cleared" : ""), type:"button"});
     if (!open) node.setAttribute("disabled", "");
     node.append(el("span", {class:"num", text:String(i + 1)}));
