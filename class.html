@@ -219,6 +219,7 @@ input.dlg-in[type=date]{width:100%;margin-top:6px}
 .ci2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ciform textarea{min-height:84px}@media(max-width:560px){.ci2{grid-template-columns:1fr}}
 .ch-info{margin-top:6px;font-size:13.5px;color:#4A5B75}.ch-info i{font-style:normal;color:#B9C4D4;margin:0 4px}.ch-note{margin-top:4px;font-size:13px;color:#7A8BA3;white-space:pre-wrap;max-width:640px}
 .clsi{display:block;font-style:normal;font-size:12.5px;color:#4A5B75;margin-top:2px}
+.kacc{font-style:normal;font-size:12px}
 /* TIDY_V1785 Quinn：「這裡感覺好亂」——三顆大按鈕收成一排小按鈕 */
 .srcbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}.srcbar .sl{font-size:13px;color:#7A8BA3;margin-right:2px}.srcbar .grow{flex:1}
 .srcbar .sb{border:1px solid #DCE4EF;background:#fff;color:#1E4C86;border-radius:20px;padding:6px 13px;font:inherit;font-size:13.5px;cursor:pointer;white-space:nowrap}.srcbar .sb:hover{background:#EEF3FA;border-color:#B9CBE4}.srcbar .sb.gh{border-color:transparent;color:#5B6B82}.srcbar .sb.gh:hover{background:#F2F5FA}
@@ -809,20 +810,22 @@ function studHtml(){if(S.studErr)return '<p class="msg">讀不到學生：'+esc(
   const def=(S.cur&&S.cur.script_default)||'py';
   const top='<h3 style="margin:0 0 12px">學生（'+S.studs.length+' 位）和成績</h3><div class="scrbar"><span>新加入的學生預設用</span><div class="scrseg" data-def="1"><button type="button" data-v="py" class="'+(def==='py'?'on':'')+'">ā 拼音</button><button type="button" data-v="zy" class="'+(def==='zy'?'on':'')+'">ㄅ 注音</button></div>'
    /* SCRFREE_V1789 Quinn：「學生可以選擇他要練習的是拼音還是注音，老師那邊也可以強制設定」 */
+   +'</div><div class="scrbar"><span>學生怎麼進來</span><div class="scrseg" data-nl="1"><button type="button" data-v="0" class="'+(S.cur&&S.cur.need_login?'':'on')+'">打班級代碼就可以</button><button type="button" data-v="1" class="'+(S.cur&&S.cur.need_login?'on':'')+'">一定要登入練習帳號</button></div>'
    +'<div class="scrfree"><span>學生可不可以自己改？</span><div class="scrseg" data-free="1"><button type="button" data-v="1" class="'+(S.cur&&S.cur.scr_free?'on':'')+'">可以自己選</button><button type="button" data-v="0" class="'+(S.cur&&S.cur.scr_free?'':'on')+'">照老師設定</button></div></div>'
     +(S.studs.length?'<span class="grow"></span><button type="button" class="btn sm" data-all="py">全部改成拼音</button><button type="button" class="btn sm" data-all="zy">全部改成注音</button>':'')+'</div>';
   if(!S.studs.length)return top+'<p class="empty">還沒有學生加入。把上面的代碼或連結給學生。</p>';
   const nz=S.studs.filter(s=>scrOf(s)==='zy').length;
   return top+'<p class="scrsum">拼音 '+(S.studs.length-nz)+' 位・注音 '+nz+' 位</p>'
    +'<div class="tbl"><table><thead><tr><th>名字</th><th>用什麼學</th><th>最後上線</th>'+S.tasks.map(t=>'<th title="'+esc(t.title)+'">'+(t.kind==='pinyin'?'ā ':t.kind==='game'?'🎮 ':'字 ')+esc(t.title.length>10?t.title.slice(0,10)+'…':t.title)+(dueEnd(t.due)?'<br><small class="thdue">截止 '+esc(t.due.slice(5).replace('-','/'))+'</small>':'')+'</th>').join('')+'<th></th></tr></thead><tbody>'
-   +S.studs.map(s=>{const v=scrOf(s);return '<tr><td><button type="button" class="snm" data-sv="'+esc(s.id)+'" title="看這位學生的紀錄">'+esc(s.name)+' <span>›</span></button></td><td><div class="scrseg" data-sid="'+esc(s.id)+'"><button type="button" data-v="py" class="'+(v==='py'?'on':'')+'">拼音</button><button type="button" data-v="zy" class="'+(v==='zy'?'on':'')+'">注音</button></div></td><td>'+esc(ago(s.last_at||s.joined_at))+'</td>'+S.tasks.map(t=>stat(s,t)).join('')+'<td><button class="btn sm del" data-rs="'+esc(s.id)+'">移除</button></td></tr>';}).join('')+'</tbody></table></div>';}
+   +S.studs.map(s=>{const v=scrOf(s);return '<tr><td><button type="button" class="snm" data-sv="'+esc(s.id)+'" title="看這位學生的紀錄">'+esc(s.name)+(String(s.dev||'').indexOf('u_')===0?' <em class="kacc" title="用練習帳號登入">🔑</em>':'')+' <span>›</span></button></td><td><div class="scrseg" data-sid="'+esc(s.id)+'"><button type="button" data-v="py" class="'+(v==='py'?'on':'')+'">拼音</button><button type="button" data-v="zy" class="'+(v==='zy'?'on':'')+'">注音</button></div></td><td>'+esc(ago(s.last_at||s.joined_at))+'</td>'+S.tasks.map(t=>stat(s,t)).join('')+'<td><button class="btn sm del" data-rs="'+esc(s.id)+'">移除</button></td></tr>';}).join('')+'</tbody></table></div>';}
 async function scrSave(patch,msg){const c=S.cur;if(!c)return;
   try{await db.collection('tclasses').doc(c.id).update(patch);}catch(x){dlg({title:'存不進去',text:String(x&&x.message||x),ok:'知道了',noCancel:1});return}
-  if(patch.scripts)c.scripts=patch.scripts;if(patch.script_default)c.script_default=patch.script_default;if('scr_free' in patch)c.scr_free=patch.scr_free;
+  if(patch.scripts)c.scripts=patch.scripts;if(patch.script_default)c.script_default=patch.script_default;if('scr_free' in patch)c.scr_free=patch.scr_free;if('need_login' in patch)c.need_login=patch.need_login;
   const box=document.getElementById('studbox');if(box)box.innerHTML=studHtml();}
 document.addEventListener('click',e=>{const t=e.target.closest&&e.target.closest('.scrseg button');if(t){const g=t.parentNode,v=t.dataset.v;
     if(g.dataset.def){scrSave({script_default:v});return}
     if(g.dataset.free){scrSave({scr_free:v==='1'});return}
+    if(g.dataset.nl){scrSave({need_login:v==='1'});return}/* ACCT_V1795 */
     if(!g.dataset.sid||!v)return;/* FIXSID_V1785 出題的「難度」按鈕也長這樣，不是學生的拼音／注音設定 */
     const m=Object.assign({},(S.cur&&S.cur.scripts)||{});m[g.dataset.sid]=v;scrSave({scripts:m});return}
   const a=e.target.closest&&e.target.closest('[data-all]');if(a){const m={};S.studs.forEach(s=>m[s.id]=a.dataset.all);scrSave({scripts:m,script_default:a.dataset.all});}});

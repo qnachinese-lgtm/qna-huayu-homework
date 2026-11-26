@@ -27702,7 +27702,19 @@ function psRender(){const box=document.getElementById('ps-body');if(!box)return;
 function psReqCard(x){const r=x.req||{};const opts=PS_LV.map((v,j)=>'<option value="'+j+'"'+(j===r.lv?' selected':'')+'>'+v+'</option>').join('');
   return '<div class="ps-req"><div class="ps-rh"><b>'+esc(x.name||'')+'</b><span>想開通「'+esc(r.lv_name||PS_LV[r.lv]||'')+'」・'+psWhen(r.at)+'</span></div><dl><dt>練習下來覺得</dt><dd>'+esc(r.a1||'')+'</dd><dt>想加強</dt><dd>'+esc(r.a2||'')+'</dd>'+(r.a3?'<dt>聯絡方式</dt><dd>'+esc(r.a3)+'</dd>':'')+'</dl>'
    +'<div class="ps-ra">開通到 <select id="psl-'+esc(x.id)+'">'+opts+'</select><button class="btn btn-sm btn-primary" data-act="pstudGrant" data-id="'+esc(x.id)+'">開通</button><button class="btn btn-sm btn-ghost" data-act="pstudDeny" data-id="'+esc(x.id)+'">先不要</button></div></div>';}
-async function psDetail(id){const box=document.getElementById('ps-body');const x=PS.list.find(z=>z.id===id);if(!x){PS.view=null;return psRender();}
+/* PSLINK_V1795 Quinn：「練習帳號和班級成績連在一起」——練習學生用帳號做班級作業，紀錄存在 tstudents（編號是 班級代碼_u_帳號）。這裡列出來。 */
+async function psClassRecs(id){const box=document.getElementById('ps-body');if(!box)return;let rows=[];
+  try{const s=await firebase.firestore().collection('tstudents').where('dev','==','u_'+id).get();rows=s.docs.map(d=>Object.assign({id:d.id},d.data()));}catch(e){}
+  for(let k=0;k<60;k++){const b=document.getElementById('ps-body');if(!b||PS.view!==id)return;if(b.querySelector('.ps-dh')&&!b.querySelector('.ps-cls'))break;if(b.querySelector('.ps-cls'))return;await new Promise(r=>setTimeout(r,100));}
+  const box2=document.getElementById('ps-body');if(!box2||PS.view!==id)return;
+  const sec=document.createElement('div');sec.className='ps-sec ps-cls';
+  if(!rows.length){sec.innerHTML='<h3>班級作業 <small>用這個帳號做的老師作業</small></h3><div class="hint">還沒有用這個帳號做過班級作業。</div>';box2.appendChild(sec);return;}
+  const tids=[...new Set(rows.flatMap(r=>Object.keys(r.tasks||{})))];const tt={};
+  await Promise.all(tids.map(async t=>{try{const d=await firebase.firestore().collection('ttasks').doc(t).get();if(d.exists)tt[t]=d.data();}catch(e){}}));
+  sec.innerHTML='<h3>班級作業 <small>用這個帳號做的老師作業</small></h3>'+rows.map(r=>'<div style="margin:8px 0"><b>班級 '+esc(r.class_code||'')+'</b><table class="ps-t"><tr><th>題目</th><th>成績</th><th>次數</th><th>最近</th></tr>'
+    +Object.keys(r.tasks||{}).map(t=>{const v=r.tasks[t]||{};const T=tt[t]||{};return '<tr><td>'+esc(T.title||t)+'</td><td>'+(v.n?(v.ok||0)+' / '+v.n:v.stars!=null?'★ '+v.stars:v.best!=null?esc(v.best+(v.unit||'')):'做過')+'</td><td>'+(v.times||1)+'</td><td>'+psWhen(v.at)+'</td></tr>';}).join('')+'</table></div>').join('');
+  box2.appendChild(sec);}
+async function psDetail(id){setTimeout(()=>psClassRecs(id),50);const box=document.getElementById('ps-body');const x=PS.list.find(z=>z.id===id);if(!x){PS.view=null;return psRender();}
   if(!PS.ses[id]){box.innerHTML='<div class="hint">讀取中…</div>';try{const s=await firebase.firestore().collection('pstudents').doc(id).collection('sessions').get();PS.ses[id]=s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>String(b.at).localeCompare(String(a.at)));}catch(e){PS.ses[id]=[];}}
   const ses=PS.ses[id],acc=x.total?Math.round((x.ok||0)/x.total*100):null,lt=Math.max(PS.set.free_to,x.lv_to!=null?+x.lv_to:-1);
   const wl=Object.keys(x.wrong||{}).map(h=>({h,p:x.wrong[h].p,n:x.wrong[h].n||1})).sort((a,b)=>b.n-a.n);

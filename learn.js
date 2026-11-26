@@ -6,7 +6,7 @@
    - 每一次練習存在 pstudents/{uid}/sessions；錯的詞記在 pstudents.wrong（錯題本）。 */
 (function(){
 'use strict';
-var VER='2026.11.26';
+var VER='2026.11.27';
 var $=function(id){return document.getElementById(id)};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 var tt=null;function toast(s,ms){var t=$('toast');t.textContent=s;t.hidden=false;clearTimeout(tt);tt=setTimeout(function(){t.hidden=true},ms||2400)}
@@ -125,7 +125,10 @@ async function afterAuth(u){S.user=u;var d=null;
   if(!u.emailVerified)return verify();
   var up={last_at:new Date().toISOString()};if(!S.prof.email_verified)up.email_verified=true;pref().update(up).catch(function(){});
   try{var st=await db.collection('psettings').doc('main').get();if(st.exists&&st.data().free_to!=null)S.set.free_to=+st.data().free_to}catch(e){}
-  S.lv=Math.min(S.lv,maxOpen());home()}
+  S.lv=Math.min(S.lv,maxOpen());
+  /* ACCT_V1795 從「這個班要登入」過來的：登入後加入班級、回到班級頁 */
+  try{var rc=String(new URLSearchParams(location.search).get('cls')||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(rc){var cs0=(S.prof.classes||[]).slice();if(cs0.indexOf(rc)<0){cs0.push(rc);try{await pref().update({classes:cs0})}catch(e){}}location.replace('room.html?c='+encodeURIComponent(rc));return}}catch(e){}
+  home()}
 if(auth)auth.onAuthStateChanged(function(u){if(S.registering)return;if(!u){S.user=null;S.prof=null;var pm=S.pendMsg;S.pendMsg=null;entry(pm);return}afterAuth(u)});
 else $('stage').innerHTML='<div class="card narrow"><h2>連不上</h2><p class="sub">請重新整理再試一次。</p></div>';
 

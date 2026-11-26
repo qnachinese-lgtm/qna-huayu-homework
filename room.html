@@ -91,6 +91,7 @@ input:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(30,76,134,.12)}
 @media(max-width:360px){.brand b{font-size:14px!important}.home{padding:6px 9px!important}}
 em.due{display:block;font-style:normal;font-size:12px;color:#1E4C86;margin-top:3px}em.due.soon{color:#A6620A;font-weight:600}em.due.past{color:#A33227}
 .scrpick{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin:12px 0 4px;font-size:13.5px;color:#5B6B82}.sseg{display:inline-flex;background:#E6EDF6;border-radius:12px;padding:4px;gap:4px}.sseg button{border:0;background:none;border-radius:9px;width:120px;height:34px;font:inherit;font-size:14px;color:#5B6B82;cursor:pointer}.sseg button.on{background:#fff;color:#1E4C86;font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.08)}.scrfix{text-align:center;color:#7A8BA3;font-size:13px;margin:8px 0 0}
+.acct{font-size:12.5px;color:#1E4C86;background:#EEF3FA;border-radius:999px;padding:2px 10px;margin-left:6px}
 </style>
 </head>
 <body>
@@ -100,6 +101,7 @@ em.due{display:block;font-style:normal;font-size:12px;color:#1E4C86;margin-top:3
 <script src="config.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="remember.js?v=1779"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script>window.QREM_PATCH&&QREM_PATCH();</script>
 <script>
 (function(){
 const $=s=>document.querySelector(s);
@@ -109,12 +111,23 @@ const code=String(new URLSearchParams(location.search).get('c')||'').trim().toUp
 if(!firebase.apps.length)firebase.initializeApp(window.FIREBASE_CONFIG);
 const db=firebase.firestore();
 const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+let ACC=null;
 function dev(){let d=ls.get('qna_guest_dev');if(!d){d=Math.random().toString(36).slice(2)+Date.now().toString(36);ls.set('qna_guest_dev',d)}return d}
 function bad(t){app.innerHTML='<div class="logo">美</div><h1>'+t+'</h1><p class="sub2" style="margin-top:10px">請跟老師確認班級代碼 · Please check the class code with your teacher</p><a class="go" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="play.html">回練習入口 · Back</a>';}
 async function boot(){
   if(!code)return bad('沒有班級代碼');
   let c=null;try{const d=await db.collection('tclasses').doc(code).get();c=d.exists?d.data():null}catch(e){}
   if(!c||c.deleted_at)return bad('找不到這個班級');
+  /* ACCT_V1795 Quinn：「班級可以要求一定要登入」「練習帳號和班級成績連在一起」
+     用練習帳號登入的學生：用帳號的名字，紀錄的編號是 u_帳號（換手機、換電腦紀錄都在），班級也會加到他的帳號裡。
+     老師設定「一定要登入」的班：沒登入就請他先登入練習帳號。 */
+  let acct=null;try{acct=await new Promise(res=>{let done=false;const off=firebase.auth().onAuthStateChanged(u=>{if(done)return;done=true;try{off()}catch(e){}res(u)});setTimeout(()=>{if(!done){done=true;res(null)}},4000);});}catch(e){acct=null}
+  let prof=null;if(acct){try{const pd=await db.collection('pstudents').doc(acct.uid).get();prof=pd.exists?pd.data():null}catch(e){}}
+  if(prof&&acct.emailVerified){const cur=ls.get('qna_guest_dev')||'';if(cur&&cur.indexOf('u_')!==0)ls.set('qna_guest_dev_anon',cur);ls.set('qna_guest_dev','u_'+acct.uid);ls.set('qna_cls_name_'+code,prof.name||'同學');ACC=prof;
+    try{const cs=(prof.classes||[]).slice();if(cs.indexOf(code)<0){cs.push(code);db.collection('pstudents').doc(acct.uid).update({classes:cs}).catch(()=>{});}}catch(e){}
+    try{const t=new Date().toISOString();db.collection('tstudents').doc(code+'_u_'+acct.uid).set({class_code:code,owner_uid:c.owner_uid,name:prof.name||'同學',dev:'u_'+acct.uid,last_at:t},{merge:true}).catch(()=>{});}catch(e){}}
+  else{const cur=ls.get('qna_guest_dev')||'';if(cur.indexOf('u_')===0){ls.set('qna_guest_dev',ls.get('qna_guest_dev_anon')||'');try{localStorage.removeItem('qna_cls_name_'+code)}catch(e){}}
+    if(c.need_login){app.innerHTML='<div class="logo">美</div><h1>'+esc(c.name)+'</h1><p class="sub">'+(c.owner_name?esc(c.owner_name)+' 的班級':'')+'</p><div class="code">'+esc(code)+'</div><p class="sub2" style="margin-top:14px">這個班要用<b>練習帳號</b>登入才能做題目。<br>This class needs a practice account.</p><a class="go" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="learn.html?cls='+encodeURIComponent(code)+'">登入或註冊練習帳號 · Log in</a>';return}}
   const nk='qna_cls_name_'+code;const nm=ls.get(nk);
   if(!nm)return ask(c);
   show(c,nm);}
@@ -133,12 +146,12 @@ function ask(c){
 async function show(c,nm){const TS=((c.scripts||{})[code+'_'+dev()])||c.script_default||'';let MYS='';try{MYS=localStorage.getItem('qna_cls_scr_'+code)||''}catch(e){}
   const SCR=(c.scr_free&&MYS)?MYS:TS;/* SCRSTU_V1742 老師幫每位學生選拼音或注音；SCRFREE_V1789 老師開放的話，學生可以自己改 */
   app.innerHTML='<div class="logo">美</div><h1>'+esc(c.name)+'</h1><p class="sub">'+(c.owner_name?esc(c.owner_name)+' 的班級':'')+'</p><div class="code">'+esc(code)+'</div>'
-   +'<div class="me" style="margin-top:16px">'+esc(nm)+' <button id="chg">換名字</button></div>'
+   +'<div class="me" style="margin-top:16px">'+esc(nm)+(ACC?' <span class="acct">🔑 練習帳號</span>':' <button id="chg">換名字</button>')+'</div>'
    +(c.scr_free?'<div class="scrpick"><span>我要練習 · I practise</span><div class="sseg"><button type="button" data-s="py" class="'+((SCR||'py')==='py'?'on':'')+'">ā 拼音 Pinyin</button><button type="button" data-s="zy" class="'+(SCR==='zy'?'on':'')+'">ㄅ 注音 Zhuyin</button></div></div>'
      :(SCR==='zy'?'<p class="scrfix">老師設定：注音 · Zhuyin</p>':''))
    +'<div class="list" id="list"><p class="none">讀取題目中…</p></div>';
   app.querySelectorAll('.sseg button').forEach(b=>b.onclick=()=>{try{localStorage.setItem('qna_cls_scr_'+code,b.dataset.s)}catch(e){}show(c,nm);});
-  $('#chg').onclick=()=>{try{localStorage.removeItem('qna_cls_name_'+code)}catch(e){}ask(c)};
+  {const cg=$('#chg');if(cg)cg.onclick=()=>{try{localStorage.removeItem('qna_cls_name_'+code)}catch(e){}ask(c)};}
   /* LIVE_V1785 Quinn：「老師按發佈，學生那邊可以即時更新」——題目清單改成即時監聽，老師一發、收回、改截止日，學生這頁馬上跟著變 */
   const qy=db.collection('ttasks').where('class_code','==',code);const toTs=sn=>sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(t=>!t.deleted_at).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
   const paint=ts=>{if(!$('#list'))return;
