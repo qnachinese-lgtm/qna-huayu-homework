@@ -631,8 +631,32 @@ function loadPP(){return window.pinyinPro?Promise.resolve():new Promise((res,rej
 async function segAuto(){const raw=$('#seg-text').value.trim();if(!raw){dlg({title:'先貼上漢字',ok:'知道了',noCancel:1});return}
   try{await loadPP();await loadMOEDict();}catch(e){dlg({title:'標不了拼音',text:e.message,ok:'知道了',noCancel:1});return}
   const lines=S.pm==='text'?raw.split(/\n+/):raw.split(/\n+/);
-  SEG=lines.map(x=>x.trim()).filter(Boolean).map(h=>{const cs=Array.from(h);const py=moeFix(cs,moeDictFix(cs,pinyinPro.pinyin(h,{type:'array'})));return {h,p:cs.map((c,i)=>HANRE.test(c)?(py[i]||''):'')};});segPaint();}
+  SEG=lines.map(x=>x.trim()).filter(Boolean).map(h=>{const cs=Array.from(h);const pp0=pinyinPro.pinyin(h,{type:'array'});const py=yiBu(cs,moeFix(cs,moeDictFix(cs,pp0)),pp0);return {h,p:cs.map((c,i)=>HANRE.test(c)?(py[i]||''):'')};});segPaint();}
 
+
+/* YIBU_V1791 Quinn：「一跟不的變調，請你依照一跟不的規則來製作」
+   不：後面是第四聲 → bú（不是 búshì）；其他 → bù。本來標輕聲的（對不起 duìbuqǐ）不動。
+   一：後面是第四聲 → yí（一下 yíxià、一個 yí ge）；後面是一、二、三聲 → yì（一起 yìqǐ、一年 yìnián、一點 yìdiǎn）；
+       單獨念、在句子最後、後面是標點、數字和序數（第一、十一、一二三、一月、一號）→ yī。
+   後面那個字標輕聲的，看它本來的聲調（個 gè → 一個 yí ge）。 */
+const TMARK=[[/[āēīōūǖ]/,1],[/[áéíóúǘ]/,2],[/[ǎěǐǒǔǚ]/,3],[/[àèìòùǜ]/,4]];
+function toneOf(p){for(const [r,t] of TMARK)if(r.test(p))return t;return 5;}
+const NUMC='零〇一二三四五六七八九十百千萬億兩';
+function baseTone(c,p,hint){let t=toneOf(p);if(t===5&&hint&&toneOf(hint)<5)return toneOf(hint);if(t===5&&MD&&MD.C[c]){const r=MD.C[c].find(x=>toneOf(x)<5);if(r)t=toneOf(r);}return t;}
+function yiBu(cs,py,pp){const out=py.slice();pp=pp||[];const cov=py.cov||new Set();/* 八千詞裡的詞本來就標好變調（一起 yìqǐ、一樣 yíyàng），不再改 */
+  for(let i=0;i<cs.length;i++){const c=cs[i];if(c!=='一'&&c!=='不')continue;if(cov.has(i))continue;const nx=cs[i+1],np=out[i+1];
+    if(c==='不'){if(!/^b[uúùǔū]$/.test(out[i]||'')||out[i]==='bu')continue;/* 輕聲不動 */
+      out[i]=(nx&&HANRE.test(nx)&&np&&baseTone(nx,np,pp[i+1])===4)?'bú':'bù';continue;}
+    /* 一 */
+    if(!/^y[iīíǐì]$/.test(out[i]||''))continue;
+    const pv=cs[i-1];
+    const numCtx=(pv&&(NUMC.includes(pv)||pv==='第'||/[0-9０-９]/.test(pv)))||(nx&&('零〇一二三四五六七八九十'.includes(nx)||/[0-9０-９]/.test(nx)));
+    /* 詞的最後一個字是「一」（唯一、統一、萬一、同一）→ yī */
+    let wordEnd=false;if(MD&&i>0){for(let L=2;L<=4&&i-L+1>=0;L++){const w=cs.slice(i-L+1,i+1).join('');if(MD.W.has(w)||MD.W.has(TW2(w))){wordEnd=true;break;}}}
+    if(!nx||!HANRE.test(nx)||!np||numCtx||wordEnd){out[i]='yī';continue;}
+    if('月號'.includes(nx)){out[i]='yī';continue;}/* 一月、一號 */
+    out[i]=baseTone(nx,np,pp[i+1])===4?'yí':'yì';}
+  return out;}
 /* MOEDICT_V1790 Quinn：「如果要全部照教育部《重編國語辭典》……做這個部分」
    moe-py.txt：教育部《重編國語辭典修訂本》每個詞的拼音、每個字的所有讀音（CC BY-ND 3.0 TW，資料整理自 g0v/moedict-data）。
    自動標拼音的順序：① 華語八千詞 ② 教育部辭典（詞，從最長的開始比對）③ 單字：程式標的讀音如果是辭典裡有的讀音就留著，不是的話用辭典的讀音。
@@ -657,14 +681,14 @@ function moeDictFix(cs,py){if(!MD)return py;const out=py.slice(),done=Array(cs.l
 let MOE=null;
 function moeMap(){if(MOE)return MOE;MOE={};const src=window.PY8000||{};Object.keys(src).forEach(k=>String(src[k]||'').split('\n').forEach(l=>{l=l.trim();if(!l||l[0]==='#')return;const m=/^([㐀-鿿]+)\s+([^|]+)/.exec(l.split('|')[0]+(l.includes('|')?'':''));if(m&&!MOE[m[1]])MOE[m[1]]=m[2].trim();}));return MOE;}
 const plain=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ü/g,'v').toLowerCase().replace(/[^a-zv]/g,'');
-function moeFix(cs,py){const M=moeMap();const out=py.slice();let i=0;
+function moeFix(cs,py){const M=moeMap();const out=py.slice();const cov=new Set();out.cov=cov;let i=0;
   while(i<cs.length){let hit=0;
     for(let L=Math.min(6,cs.length-i);L>=2;L--){const w=cs.slice(i,i+L).join('');const mp=M[w];if(!mp)continue;
       const mine=py.slice(i,i+L);const flat=String(mp).replace(/[\s'’·-]/g,'').toLowerCase();
       if(plain(flat)!==mine.map(plain).join(''))continue;/* 字母要一樣才換（只差聲調），不一樣的不動 */
       const n=flat.normalize('NFD');let pos=0;const segs=[];
       for(const sy of mine){const want=plain(sy).length;let got=0,start=pos;while(pos<n.length&&got<want){if(!/[\u0300-\u036f]/.test(n[pos]))got++;pos++;}while(pos<n.length&&/[\u0300-\u036f]/.test(n[pos]))pos++;segs.push(n.slice(start,pos).normalize('NFC'));}
-      for(let k=0;k<L;k++)out[i+k]=segs[k]||out[i+k];hit=L;break;}
+      for(let k=0;k<L;k++){out[i+k]=segs[k]||out[i+k];cov.add(i+k);}hit=L;break;}
     i+=hit||1;}
   return out;}
 function segPaint(){const g=$('#seg-grid');if(!g)return;if(!S.pm||!SEG.length){g.innerHTML='';return}
