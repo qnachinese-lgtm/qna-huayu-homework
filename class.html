@@ -213,6 +213,7 @@ input.dlg-in[type=date]{width:100%;margin-top:6px}
 .sdok{font-weight:700;color:#1E4C86}.sdno{color:#9AA8BC;font-size:13px}.sdm{color:#7A8BA3;font-size:12.5px;margin-top:4px}
 .sdhist{margin-top:8px;display:flex;flex-direction:column;gap:4px}.sdhist div{display:flex;gap:10px;align-items:baseline;font-size:13.5px;flex-wrap:wrap}.sdd{color:#9AA8BC;min-width:82px}.sdw{color:#A33227}.sdw.ok{color:#1F6B43}
 .sdlast{margin-top:8px;font-size:13.5px}.sdlast summary{cursor:pointer;color:#1E4C86}.sdlast table{width:100%;border-collapse:collapse;margin-top:6px}.sdlast td,.sdlast th{border-bottom:1px solid #EEF2F8;padding:5px 6px;text-align:left}.sdlast tr.bad td{color:#A33227}
+/* SCRFREE_V1789 */.scrfree{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}.scrfree>span{font-size:13.5px;color:#5B6B82}
 /* TIDY_V1785 Quinn：「這裡感覺好亂」——三顆大按鈕收成一排小按鈕 */
 .srcbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}.srcbar .sl{font-size:13px;color:#7A8BA3;margin-right:2px}.srcbar .grow{flex:1}
 .srcbar .sb{border:1px solid #DCE4EF;background:#fff;color:#1E4C86;border-radius:20px;padding:6px 13px;font:inherit;font-size:13.5px;cursor:pointer;white-space:nowrap}.srcbar .sb:hover{background:#EEF3FA;border-color:#B9CBE4}.srcbar .sb.gh{border-color:transparent;color:#5B6B82}.srcbar .sb.gh:hover{background:#F2F5FA}
@@ -630,7 +631,24 @@ function loadPP(){return window.pinyinPro?Promise.resolve():new Promise((res,rej
 async function segAuto(){const raw=$('#seg-text').value.trim();if(!raw){dlg({title:'先貼上漢字',ok:'知道了',noCancel:1});return}
   try{await loadPP();}catch(e){dlg({title:'標不了拼音',text:e.message,ok:'知道了',noCancel:1});return}
   const lines=S.pm==='text'?raw.split(/\n+/):raw.split(/\n+/);
-  SEG=lines.map(x=>x.trim()).filter(Boolean).map(h=>{const cs=Array.from(h);const py=pinyinPro.pinyin(h,{type:'array'});return {h,p:cs.map((c,i)=>HANRE.test(c)?(py[i]||''):'')};});segPaint();}
+  SEG=lines.map(x=>x.trim()).filter(Boolean).map(h=>{const cs=Array.from(h);const py=moeFix(cs,pinyinPro.pinyin(h,{type:'array'}));return {h,p:cs.map((c,i)=>HANRE.test(c)?(py[i]||''):'')};});segPaint();}
+/* MOEPY_V1789 Quinn：「拼音部分，請你使用教育部現在的語料庫」
+   自動標拼音的程式（pinyin-pro）是照大陸的念法，例如 喜歡 xǐhuan、朋友 péngyou。
+   華語八千詞是照教育部的標準（喜歡 xǐhuān、朋友 péngyǒu、學生 xuéshēng）。
+   所以：句子裡有八千詞的詞，就用八千詞的拼音蓋過去；沒有的才用程式標的，老師可以點一下改。 */
+let MOE=null;
+function moeMap(){if(MOE)return MOE;MOE={};const src=window.PY8000||{};Object.keys(src).forEach(k=>String(src[k]||'').split('\n').forEach(l=>{l=l.trim();if(!l||l[0]==='#')return;const m=/^([㐀-鿿]+)\s+([^|]+)/.exec(l.split('|')[0]+(l.includes('|')?'':''));if(m&&!MOE[m[1]])MOE[m[1]]=m[2].trim();}));return MOE;}
+const plain=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ü/g,'v').toLowerCase().replace(/[^a-zv]/g,'');
+function moeFix(cs,py){const M=moeMap();const out=py.slice();let i=0;
+  while(i<cs.length){let hit=0;
+    for(let L=Math.min(6,cs.length-i);L>=2;L--){const w=cs.slice(i,i+L).join('');const mp=M[w];if(!mp)continue;
+      const mine=py.slice(i,i+L);const flat=String(mp).replace(/[\s'’·-]/g,'').toLowerCase();
+      if(plain(flat)!==mine.map(plain).join(''))continue;/* 字母要一樣才換（只差聲調），不一樣的不動 */
+      const n=flat.normalize('NFD');let pos=0;const segs=[];
+      for(const sy of mine){const want=plain(sy).length;let got=0,start=pos;while(pos<n.length&&got<want){if(!/[\u0300-\u036f]/.test(n[pos]))got++;pos++;}while(pos<n.length&&/[\u0300-\u036f]/.test(n[pos]))pos++;segs.push(n.slice(start,pos).normalize('NFC'));}
+      for(let k=0;k<L;k++)out[i+k]=segs[k]||out[i+k];hit=L;break;}
+    i+=hit||1;}
+  return out;}
 function segPaint(){const g=$('#seg-grid');if(!g)return;if(!S.pm||!SEG.length){g.innerHTML='';return}
   g.innerHTML='<p class="gneed">請檢查拼音；不對的字點一下就能改。</p>'+SEG.map((sg,si)=>'<div class="segrow">'+Array.from(sg.h).map((c,ci)=>HANRE.test(c)?'<button type="button" class="segc'+(sg.p[ci]?'':' miss')+'" data-s="'+si+':'+ci+'"><i>'+esc(sg.p[ci]||'?')+'</i><b>'+esc(c)+'</b></button>':'<span class="segp">'+esc(c)+'</span>').join('')+'</div>').join('');
   g.querySelectorAll('.segc').forEach(b=>b.onclick=()=>segEdit(b));}
@@ -703,6 +721,8 @@ function scrOf(s){const m=(S.cur&&S.cur.scripts)||{};return m[s.id]||(S.cur&&S.c
 function studHtml(){if(S.studErr)return '<p class="msg">讀不到學生：'+esc(S.studErr)+'</p>';
   const def=(S.cur&&S.cur.script_default)||'py';
   const top='<h3 style="margin:0 0 12px">學生（'+S.studs.length+' 位）和成績</h3><div class="scrbar"><span>新加入的學生預設用</span><div class="scrseg" data-def="1"><button type="button" data-v="py" class="'+(def==='py'?'on':'')+'">ā 拼音</button><button type="button" data-v="zy" class="'+(def==='zy'?'on':'')+'">ㄅ 注音</button></div>'
+   /* SCRFREE_V1789 Quinn：「學生可以選擇他要練習的是拼音還是注音，老師那邊也可以強制設定」 */
+   +'<div class="scrfree"><span>學生可不可以自己改？</span><div class="scrseg" data-free="1"><button type="button" data-v="1" class="'+(S.cur&&S.cur.scr_free?'on':'')+'">可以自己選</button><button type="button" data-v="0" class="'+(S.cur&&S.cur.scr_free?'':'on')+'">照老師設定</button></div></div>'
     +(S.studs.length?'<span class="grow"></span><button type="button" class="btn sm" data-all="py">全部改成拼音</button><button type="button" class="btn sm" data-all="zy">全部改成注音</button>':'')+'</div>';
   if(!S.studs.length)return top+'<p class="empty">還沒有學生加入。把上面的代碼或連結給學生。</p>';
   const nz=S.studs.filter(s=>scrOf(s)==='zy').length;
@@ -711,10 +731,11 @@ function studHtml(){if(S.studErr)return '<p class="msg">讀不到學生：'+esc(
    +S.studs.map(s=>{const v=scrOf(s);return '<tr><td><button type="button" class="snm" data-sv="'+esc(s.id)+'" title="看這位學生的紀錄">'+esc(s.name)+' <span>›</span></button></td><td><div class="scrseg" data-sid="'+esc(s.id)+'"><button type="button" data-v="py" class="'+(v==='py'?'on':'')+'">拼音</button><button type="button" data-v="zy" class="'+(v==='zy'?'on':'')+'">注音</button></div></td><td>'+esc(ago(s.last_at||s.joined_at))+'</td>'+S.tasks.map(t=>stat(s,t)).join('')+'<td><button class="btn sm del" data-rs="'+esc(s.id)+'">移除</button></td></tr>';}).join('')+'</tbody></table></div>';}
 async function scrSave(patch,msg){const c=S.cur;if(!c)return;
   try{await db.collection('tclasses').doc(c.id).update(patch);}catch(x){dlg({title:'存不進去',text:String(x&&x.message||x),ok:'知道了',noCancel:1});return}
-  if(patch.scripts)c.scripts=patch.scripts;if(patch.script_default)c.script_default=patch.script_default;
+  if(patch.scripts)c.scripts=patch.scripts;if(patch.script_default)c.script_default=patch.script_default;if('scr_free' in patch)c.scr_free=patch.scr_free;
   const box=document.getElementById('studbox');if(box)box.innerHTML=studHtml();}
 document.addEventListener('click',e=>{const t=e.target.closest&&e.target.closest('.scrseg button');if(t){const g=t.parentNode,v=t.dataset.v;
     if(g.dataset.def){scrSave({script_default:v});return}
+    if(g.dataset.free){scrSave({scr_free:v==='1'});return}
     if(!g.dataset.sid||!v)return;/* FIXSID_V1785 出題的「難度」按鈕也長這樣，不是學生的拼音／注音設定 */
     const m=Object.assign({},(S.cur&&S.cur.scripts)||{});m[g.dataset.sid]=v;scrSave({scripts:m});return}
   const a=e.target.closest&&e.target.closest('[data-all]');if(a){const m={};S.studs.forEach(s=>m[s.id]=a.dataset.all);scrSave({scripts:m,script_default:a.dataset.all});}});
