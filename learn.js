@@ -111,18 +111,28 @@ async function goReg(){var R=S.rd,n=(R.n||'').trim(),em=(R.e||'').trim(),pw=R.p|
   if(!n)return say('請寫你的名字');if(!em)return say('請寫 Email');if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em))return say('Email 格式不對');
   if(pw.length<6)return say('密碼至少 6 個字');if(!c)return say('請選國籍');if(!R.z)return say('請選拼音或注音');
   $('go').disabled=true;say('註冊中…',1);S.registering=true;
+  /* SAMEMAIL_V1806 Quinn：「這兩邊的帳號可以是同一個信箱」——老師帳號的 Email 也能開練習帳號（同一組密碼） */
+  function mkP(uid,ver){return db.collection('pstudents').doc(uid).set({uid:uid,name:n.slice(0,40),email:em.toLowerCase(),country:c.slice(0,40),scr:R.z,
+      created_at:new Date().toISOString(),last_at:new Date().toISOString(),email_verified:!!ver,total:0,ok:0,days:{},wrong:{},classes:[],ua:String(navigator.userAgent||'').slice(0,160)})}
   try{var cr=await auth.createUserWithEmailAndPassword(em,pw);
-    await db.collection('pstudents').doc(cr.user.uid).set({uid:cr.user.uid,name:n.slice(0,40),email:em.toLowerCase(),country:c.slice(0,40),scr:R.z,
-      created_at:new Date().toISOString(),last_at:new Date().toISOString(),email_verified:false,total:0,ok:0,days:{},wrong:{},classes:[],ua:String(navigator.userAgent||'').slice(0,160)});
+    await mkP(cr.user.uid,false);
     setMailLang();try{await cr.user.sendEmailVerification({url:location.origin+'/learn.html'})}catch(e){setMailLang();try{await cr.user.sendEmailVerification()}catch(e2){}}
     S.registering=false;await afterAuth(cr.user)}
-  catch(e){S.registering=false;$('go').disabled=false;var code=String(e&&e.code||'');
-    say(/email-already/.test(code)?'這個 Email 已經註冊過。如果是練習帳號，請按「登入練習帳號」；如果是上課用的學習平台帳號，請用另一個 Email 註冊練習帳號。':/weak-password/.test(code)?'密碼太短，至少 6 個字':/invalid-email/.test(code)?'Email 格式不對':('註冊失敗：'+(e&&e.message||e)))}}
+  catch(e){var code=String(e&&e.code||'');
+    if(/email-already/.test(code)){var si=null;try{si=await auth.signInWithEmailAndPassword(em,pw)}catch(e2){}
+      if(si){try{var ex=await db.collection('pstudents').doc(si.user.uid).get();if(!ex.exists)await mkP(si.user.uid,si.user.emailVerified);
+          if(!si.user.emailVerified){setMailLang();try{await si.user.sendEmailVerification({url:location.origin+'/learn.html'})}catch(e3){}}
+          S.registering=false;await afterAuth(si.user);return}
+        catch(e4){try{await auth.signOut()}catch(e5){}}}
+      S.registering=false;$('go').disabled=false;
+      return say(si?'開不了練習帳號，請再試一次':'這個 Email 已經有帳號了（例如老師帳號）。請用同一組密碼註冊，就會開通練習帳號；已經是練習帳號的話，請按「登入練習帳號」。')}
+    S.registering=false;$('go').disabled=false;
+    say(/email-already/.test(code)?'這個 Email 已經註冊過，請按「登入練習帳號」。':/weak-password/.test(code)?'密碼太短，至少 6 個字':/invalid-email/.test(code)?'Email 格式不對':('註冊失敗：'+(e&&e.message||e)))}}
 
 /* ====== 登入之後 ====== */
 async function afterAuth(u){S.user=u;var d=null;
   try{d=await pref().get()}catch(e){$('stage').innerHTML='<div class="card narrow"><h2>暫時讀不到資料</h2><p class="sub">可能是網路不穩，請重新整理再試一次。</p><button class="btn" onclick="location.reload()">重新整理</button></div>';return}
-  if(!d.exists){S.user=null;S.mode='acc';S.pendMsg='這個帳號不是練習帳號（可能是上課用的學習平台帳號）。練習帳號請按「註冊」另外建立。';await auth.signOut();return}
+  if(!d.exists){S.user=null;S.mode='reg';S.rd=S.rd||{};S.rd.e=u.email;S.pendMsg='這個 Email 還沒開練習帳號（可能是老師帳號）。填好下面的資料，密碼用同一組，就能開通。';await auth.signOut();return}/* SAMEMAIL_V1806 */
   S.prof=d.data();
   if(!u.emailVerified&&!S.prof.t_ok)return verify();/* TOK_V1797 老師直接開通的，不用等驗證信 */
   var up={last_at:new Date().toISOString()};if(!S.prof.email_verified&&u.emailVerified)up.email_verified=true;pref().update(up).catch(function(){});
