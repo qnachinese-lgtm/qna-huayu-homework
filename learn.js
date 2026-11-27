@@ -6,7 +6,7 @@
    - 每一次練習存在 pstudents/{uid}/sessions；錯的詞記在 pstudents.wrong（錯題本）。 */
 (function(){
 'use strict';
-var VER='2026.11.30';
+var VER='2026.12.01';
 var $=function(id){return document.getElementById(id)};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 var tt=null;function toast(s,ms){var t=$('toast');t.textContent=s;t.hidden=false;clearTimeout(tt);tt=setTimeout(function(){t.hidden=true},ms||2400)}
@@ -256,7 +256,7 @@ var VCACHE={};
 async function lsnVoices(ws){await Promise.all(ws.map(async function(w){if(w.h in VCACHE)return;VCACHE[w.h]='';
   try{var sn=await db.collection('tvoice').where('text','==',w.h).get();var best=null;sn.docs.forEach(function(d){var v=d.data();if(v&&v.url&&(!best||String(v.at||'')>String(best.at||'')))best=v});if(best)VCACHE[w.h]=best.url}catch(e){}}))}
 function vbtn(h){return VCACHE[h]?'<button type="button" class="sv" data-v="'+esc(h)+'">🔈</button>':''}
-function vplay(h){if(VCACHE[h])new Audio(VCACHE[h]).play().catch(function(){})}
+function vplay(h){if(!VCACHE[h])return;var a=new Audio(VCACHE[h]);a.onerror=function(){toast('這台裝置播不了老師的這段錄音')};a.play().catch(function(){})}
 document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-v]');if(b)vplay(b.dataset.v)});
 async function lesson(j,k){if(!lvOpen(j))return askOpen(j);var ws=lsnWords(j,k);if(!ws.length)return toast('這一課讀不到詞');
   $('stage').innerHTML='<div class="card narrow"><p class="sub">讀取中…</p></div>';await lsnVoices(ws);

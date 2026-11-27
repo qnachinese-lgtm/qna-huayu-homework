@@ -37,12 +37,13 @@
    + '.qsh-back{width:118px;text-align:center;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;flex:none;border:1px solid #DCE4EF;background:#fff;color:#1E4C86;border-radius:999px;padding:7px 15px;font-size:14px;text-decoration:none;white-space:nowrap;font-family:inherit}'
    + '.qsh-back:hover{background:#F3F6FB}'
    + '@media(max-width:600px){.qsh-lang button{width:34px;font-size:11.5px}.qsh-back{width:82px;font-size:12px!important;padding:6px 4px!important}.qsh-t{display:none}.qsh-in{padding:8px 14px;gap:8px}.qsh-e{display:none}.qsh-t{font-size:13.5px;padding-left:8px}.qsh-brand b{font-size:15.5px}.qsh-me{display:none}}'
-   + '.qsh-foot{margin-top:28px;background:#fff;border-top:1px solid #DCE4EF;color:#7A8BA3;font-family:' + F + ';position:relative;z-index:5}'
-   + '.qsh-fi{max-width:1100px;margin:0 auto;padding:16px 20px 12px;display:flex;align-items:center;gap:10px 22px;flex-wrap:wrap}'
-   + '.qsh-mail{display:flex;align-items:center;gap:7px;color:#4A5B75;font-size:14px}.qsh-mail a{color:#4A5B75}'
-   + '.qsh-mail button{border:0;background:#EEF3FA;color:#1E4C86;border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer;font-family:inherit}'
-   + '.qsh-rp{border:0;background:none;color:#1E4C86;font:inherit;font-size:14px;cursor:pointer;padding:0}.qsh-rp:hover{text-decoration:underline}'
-   + '.qsh-c{width:100%;text-align:center;font-size:12px;color:#9AA9BD;letter-spacing:.5px;border-top:1px solid #EEF2F8;padding-top:10px}'
+   /* FOOTV2_V1801 Quinn：「下面太醜」——頁尾改成置中、兩顆小按鈕，沒有白色色塊和分隔線 */
+   + '.qsh-foot{margin-top:28px;background:transparent;color:#8A99AE;font-family:' + F + ';position:relative;z-index:5}'
+   + '.qsh-fi{max-width:640px;margin:0 auto;padding:14px 16px 22px;display:flex;flex-direction:column;align-items:center;gap:10px}'
+   + '.qsh-pills{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}'
+   + '.qsh-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #DCE4EF;background:#fff;color:#1E4C86;border-radius:999px;padding:7px 14px;font-size:13.5px;text-decoration:none;cursor:pointer;font-family:inherit;line-height:1.2}'
+   + '.qsh-pill[hidden]{display:none}.qsh-pill:hover{background:#F3F6FB}.qsh-pill svg{width:15px;height:15px;flex:none}'
+   + '.qsh-c{font-size:11.5px;color:#9AA9BD;letter-spacing:.4px;text-align:center;line-height:1.7}.qsh-c a{color:#9AA9BD;text-decoration:none}'
    + '.qsh-m{position:fixed;inset:0;z-index:9000;background:rgba(16,28,48,.45);display:flex;align-items:center;justify-content:center;padding:16px;font-family:' + F + '}'
    + '.qsh-box{position:relative;width:100%;max-width:520px;max-height:calc(100vh - 32px);overflow:auto;background:#fff;border-radius:22px;padding:24px 24px 20px;box-shadow:0 20px 60px rgba(16,28,48,.25);color:#1B2533;text-align:left}'
    + '.qsh-box h3{margin:0 0 4px;font-size:21px}.qsh-box .sub{color:#7A8BA3;font-size:14px;margin:0 0 12px}'
@@ -79,17 +80,19 @@
       + (IS_ROOM ? '' : '<a class="qsh-back" href="room.html?c=' + encodeURIComponent(CODE) + '">← 回班級</a>') + '</div>';
     document.body.insertBefore(bar, document.body.firstChild);
     var ft = document.createElement('footer'); ft.className = 'qsh-foot';
-    ft.innerHTML = '<div class="qsh-fi"><span class="qsh-mail" id="qsh-mailw" hidden>✉ <a id="qsh-mail"></a><button type="button" id="qsh-cp">複製</button></span>'
-      + '<button type="button" class="qsh-rp" id="qsh-rp">⚠ 回報問題 · Report a problem</button><span class="qsh-c">© 美娟華語工作室 QNA CHINESE</span></div>';
+    var IM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
+    var IR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>';
+    ft.innerHTML = '<div class="qsh-fi"><div class="qsh-pills"><a class="qsh-pill" id="qsh-mail" hidden>' + IM + '<span>寫信給老師</span></a>'
+      + '<button type="button" class="qsh-pill" id="qsh-rp">' + IR + '<span>回報問題</span></button></div>'
+      + '<div class="qsh-c"><span id="qsh-mailt"></span><br>© 美娟華語工作室 QNA CHINESE</div></div>';
     document.body.appendChild(ft);
     /* 頂條是固定在最上面的：頁面本來沒留位置就補一塊；頁尾貼齊左右和最下面 */
     var fit = function(){ try { var cs = getComputedStyle(document.body), pt = parseFloat(cs.paddingTop) || 0, h = bar.offsetHeight || 56;
       var sp = $('.qsh-space'); if (pt < h + 8){ if (!sp){ sp = document.createElement('div'); sp.className = 'qsh-space'; document.body.insertBefore(sp, bar.nextSibling); } sp.style.height = (h + 8 - pt) + 'px'; } else if (sp) sp.remove();
       ft.style.marginLeft = -(parseFloat(cs.paddingLeft) || 0) + 'px'; ft.style.marginRight = -(parseFloat(cs.paddingRight) || 0) + 'px'; ft.style.marginBottom = -(parseFloat(cs.paddingBottom) || 0) + 'px'; } catch(e){} };
     fit(); addEventListener('resize', fit); setTimeout(fit, 500);
-    var setMail = function(){ var m = MAIL(); if (!m) return false; var a = $('#qsh-mail'); a.textContent = m; a.href = 'mailto:' + m; $('#qsh-mailw').hidden = false; return true; };
+    var setMail = function(){ var m = MAIL(); if (!m) return false; var a = $('#qsh-mail'); a.href = 'mailto:' + m; a.title = m; a.hidden = false; var t = $('#qsh-mailt'); if (t) t.textContent = m; return true; };
     if (!setMail()){ var n = 0, iv = setInterval(function(){ if (setMail() || ++n > 40) clearInterval(iv); }, 150); }
-    $('#qsh-cp').onclick = function(){ var b = this, m = MAIL(); var ok = function(){ b.textContent = '已複製 ✓'; setTimeout(function(){ b.textContent = '複製'; }, 1600); }; try { navigator.clipboard.writeText(m).then(ok, function(){ prompt('Email', m); }); } catch(e){ prompt('Email', m); } };
     $('#qsh-rp').onclick = report;
     bar.querySelectorAll('#qsh-lang button').forEach(function(b){ b.onclick = function(){ try { localStorage.setItem('qna_ui_lang', b.dataset.l); } catch(e){} location.reload(); }; });
     tidy(); new MutationObserver(tidy).observe(document.body, { childList: true, subtree: true });
@@ -176,7 +179,7 @@
     if (document.body) setTimeout(startTr, 0); else document.addEventListener('DOMContentLoaded', startTr); }
   Q.addTr([
    ['← 回班級','← Back','← Về lớp'],['回班級','Back to class','Về lớp'],['回報問題 · Report a problem','Report a problem','Báo lỗi'],['複製','Copy','Sao chép'],['已複製 ✓','Copied ✓','Đã chép ✓'],
-   ['這一次的結果','Your result','Kết quả lần này'],['這幾個詞再練習一下：','Practice these words again:','Luyện lại những từ này:'],['全部都對了，很棒！','All correct, great job!','Đúng hết, giỏi lắm!'],['做完了！','Finished!','Xong rồi!'],
+   ['寫信給老師','Email the teacher','Gửi email cho cô'],['回報問題','Report a problem','Báo lỗi'],['這一次的結果','Your result','Kết quả lần này'],['這幾個詞再練習一下：','Practice these words again:','Luyện lại những từ này:'],['全部都對了，很棒！','All correct, great job!','Đúng hết, giỏi lắm!'],['做完了！','Finished!','Xong rồi!'],
    ['老師看得到這一次的紀錄。','Your teacher can see this result.','Giáo viên xem được kết quả lần này.'],['看剛剛的畫面','Look back','Xem lại'],['再玩一次','Play again','Chơi lại'],['看結果','See results','Xem kết quả'],['題答對','correct','câu đúng'],['🔈 聽老師念','🔈 Teacher','🔈 Giáo viên'],
    ['網站壞掉、看不懂、有建議，都可以寫給老師。','Something broken, unclear, or an idea? Write to your teacher.','Trang bị lỗi, không hiểu, hay có góp ý? Hãy viết cho giáo viên.'],['內容','Message','Nội dung'],['你的名字','Your name','Tên của bạn'],['（想收到回覆再填）','(if you want a reply)','(nếu muốn được trả lời)'],['送出 · Send','Send','Gửi'],
    ['請寫下遇到的問題（在哪一頁、按了什麼）','What happened? (which page, what you pressed)','Chuyện gì xảy ra? (trang nào, bạn đã bấm gì)'],['網站壞掉 · Bug','Bug','Lỗi'],['問題 · Question','Question','Câu hỏi'],['建議 · Idea','Idea','Góp ý'],

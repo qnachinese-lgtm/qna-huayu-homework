@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant-TW"><head><script src="stu-shell.js?v=1794"></script>
+<html lang="zh-Hant-TW"><head><script src="stu-shell.js?v=1801"></script>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>練習遊戲｜美娟華語工作室 QNA CHINESE</title>
 <!-- CGAME_V1792 Quinn：「大富翁、賓果、打地鼠、翻牌的試用版」→「12345」
@@ -160,6 +160,14 @@ if(!code||!tid){bad('找不到這份題目');return}
 if(!NAME||!DEV){location.replace('room.html?c='+encodeURIComponent(code));return}
 if(!firebase.apps.length)firebase.initializeApp(window.FIREBASE_CONFIG);
 const db=firebase.firestore();
+/* LOADFIX_V1801 Quinn：手機上「遊戲跑不出來」，一直停在讀取中。
+   1. 有些手機網路擋掉 Firestore 的連線方式，讓它自己偵測、改用比較穩的方式。
+   2. 每一步最多等 10 秒；等不到就說「網路比較慢」，給一顆重新整理，不會一直停在讀取中。
+   3. 程式出錯時把原因顯示出來，學生截圖給老師就知道是哪裡。 */
+try{db.settings({experimentalAutoDetectLongPolling:true,merge:true});}catch(e){}
+const withT=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
+const slowMsg=()=>{G.innerHTML='<div class="panel" style="text-align:center"><h2 style="margin-bottom:8px">網路比較慢，讀不到題目</h2><p class="sub">請確認網路，再按一次重新整理。</p><button class="btn pri" onclick="location.reload()">重新整理</button></div>';};
+window.addEventListener('error',e=>{if(document.querySelector('#g .sub')&&/讀取中/.test(G.textContent))G.innerHTML='<div class="panel" style="text-align:center"><h2 style="margin-bottom:8px">遊戲打不開</h2><p class="sub">請截圖給老師：'+esc(String(e.message||e.error||'').slice(0,160))+'</p><button class="btn pri" onclick="location.reload()">重新整理</button></div>';});
 let C=null,T=null,W=[],SCR='py';
 let TIMERS=[],ENDED=false;const later=(f,ms)=>TIMERS.push(setTimeout(f,ms));const clearT=()=>{TIMERS.forEach(clearTimeout);TIMERS=[];ENDED=false};
 
@@ -323,8 +331,8 @@ function fwPlay(){clearT();
     m.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{if(!M||M.res)return;const i=+b.dataset.i,good=i===M.q.ans;n++;if(good){ok++;M.s.own=0;P[0].$-=M.s.price;}else miss.push(M.s.x.w);M.res={ok:good,pick:i};draw();});
     m.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{if(!M||M.res)return;const i=+b.dataset.c,good=i===M.ans;M.res={ok:good,pick:i};if(good)P[turn].$+=20;draw();});
     const nx=$('#nx');if(nx)nx.onclick=()=>{if(!M)return;const c=M.k==='card'&&M.c;if(c&&c.t==='act'){if(c.$)P[turn].$+=c.$;if(c.mv)P[turn].pos=(P[turn].pos+c.mv+20)%20;}if(c&&c.t!=='act'&&M.sent)P[turn].$+=50;rec=null;nextTurn();};
-    const rb=$('#rec');if(rb)rb.onclick=async()=>{if(recOn){rec.stop();return}try{const st=await navigator.mediaDevices.getUserMedia({audio:true});const ch=[];const r=new MediaRecorder(st);r.ondataavailable=e=>ch.push(e.data);
-      r.onstop=()=>{st.getTracks().forEach(t=>t.stop());rec={blob:new Blob(ch,{type:r.mimeType||'audio/webm'})};recOn=false;draw();};r.start();rec={stop:()=>r.stop()};recOn=true;draw();}catch(e){QSH.toast('請允許這個網頁使用麥克風');}};
+    const rb=$('#rec');if(rb)rb.onclick=async()=>{if(recOn){rec.stop();return}try{const st=await navigator.mediaDevices.getUserMedia({audio:true});const ch=[];const mt=(()=>{if(!window.MediaRecorder||!MediaRecorder.isTypeSupported)return '';return ['audio/mp4;codecs=mp4a.40.2','audio/mp4','audio/webm;codecs=opus','audio/webm'].find(t=>{try{return MediaRecorder.isTypeSupported(t)}catch(e){return false}})||''})();const r=mt?new MediaRecorder(st,{mimeType:mt}):new MediaRecorder(st);/* RECFIX_V1801 先用手機也播得出來的 mp4 */r.ondataavailable=e=>ch.push(e.data);
+      r.onstop=()=>{st.getTracks().forEach(t=>t.stop());rec={blob:new Blob(ch,{type:(r.mimeType||'audio/webm').split(';')[0]})};recOn=false;draw();};r.start();rec={stop:()=>r.stop()};recOn=true;draw();}catch(e){QSH.toast('請允許這個網頁使用麥克風');}};
     const pl=$('#pl');if(pl)pl.onclick=()=>{if(rec&&rec.blob)new Audio(URL.createObjectURL(rec.blob)).play().catch(()=>{})};
     const sd=$('#sd');if(sd)sd.onclick=async()=>{sd.disabled=true;sd.textContent='送出中…';M.up=await upload(rec.blob,M.c.z,M.c.t);M.sent=true;draw();};};
   draw();}
@@ -425,8 +433,8 @@ function netModal(){const N=NET,L=N.LM;const m=document.createElement('div');m.c
     if(L.k==='q'){if(L.res.ok&&t.own[L.i]<0&&p.$>=L.pr){t.own[L.i]=N.me;p.$-=L.pr;t.ev.push(nm+' 答對了，買下「'+L.x.w+'」。');}else t.ev.push(nm+' 答錯了，沒買到「'+L.x.w+'」。');}
     else if(L.c.t==='act'){if(L.res.ok)p.$+=20;if(L.c.$)p.$+=L.c.$;if(L.c.mv)p.pos=(p.pos+L.c.mv+20)%20;t.ev.push(nm+' 的卡：'+L.c.e+'。');}
     else{p.$+=50;t.ev.push(nm+' 錄音送出了，拿到 50 元。');}});
-  const rb=m.querySelector('#rec');if(rb)rb.onclick=async()=>{if(N.recOn){N.rec.stop();return}try{const st=await navigator.mediaDevices.getUserMedia({audio:true});const ch=[];const r=new MediaRecorder(st);r.ondataavailable=e=>ch.push(e.data);
-    r.onstop=()=>{st.getTracks().forEach(t=>t.stop());N.rec={blob:new Blob(ch,{type:r.mimeType||'audio/webm'})};N.recOn=false;netDraw();};r.start();N.rec={stop:()=>r.stop()};N.recOn=true;netDraw();}catch(e){QSH.toast('請允許這個網頁使用麥克風');}};
+  const rb=m.querySelector('#rec');if(rb)rb.onclick=async()=>{if(N.recOn){N.rec.stop();return}try{const st=await navigator.mediaDevices.getUserMedia({audio:true});const ch=[];const mt=(()=>{if(!window.MediaRecorder||!MediaRecorder.isTypeSupported)return '';return ['audio/mp4;codecs=mp4a.40.2','audio/mp4','audio/webm;codecs=opus','audio/webm'].find(t=>{try{return MediaRecorder.isTypeSupported(t)}catch(e){return false}})||''})();const r=mt?new MediaRecorder(st,{mimeType:mt}):new MediaRecorder(st);/* RECFIX_V1801 先用手機也播得出來的 mp4 */r.ondataavailable=e=>ch.push(e.data);
+    r.onstop=()=>{st.getTracks().forEach(t=>t.stop());N.rec={blob:new Blob(ch,{type:(r.mimeType||'audio/webm').split(';')[0]})};N.recOn=false;netDraw();};r.start();N.rec={stop:()=>r.stop()};N.recOn=true;netDraw();}catch(e){QSH.toast('請允許這個網頁使用麥克風');}};
   const pl=m.querySelector('#pl');if(pl)pl.onclick=()=>{if(N.rec&&N.rec.blob)new Audio(URL.createObjectURL(N.rec.blob)).play().catch(()=>{})};
   const sd=m.querySelector('#sd');if(sd)sd.onclick=async()=>{sd.disabled=true;sd.textContent='送出中…';L.up=await netUp(N.rec.blob,L.c.z,L.c.t);L.sent=true;netDraw();};}
 
@@ -628,11 +636,11 @@ QSH.addTrx&&QSH.addTrx([[/^第 (\d+) \/ (\d+) 題$/,'Question $1 / $2','Câu $1 
  [/^這是「(.+)」，(.+)$/,'That is $1. Try again','Đây là $1. Thử lại nhé'],[/^牠不要「(.+)」，(.+)$/,'It doesn\'t want $1. Try again','Nó không muốn $1. Thử lại nhé'],[/^謝謝你！(.+)$/,'Thank you!','Cảm ơn bạn!'],[/^貼紙 (\d+) 張$/,'Stickers: $1','Nhãn dán: $1'],[/^選 (\d+) 塊積木，拼出上面的字$/,'Pick $1 blocks to build the character','Chọn $1 khối để ghép chữ'],
  [/^你$/,'You','Bạn'],[/^電腦$/,'Computer','Máy']]);
 async function boot(){
-  try{const a=await db.collection('ttasks').doc(tid).get();T=a.exists?a.data():null;const b=await db.collection('tclasses').doc(code).get();C=b.exists?b.data():null}catch(e){}
+  try{const [a,b]=await withT(Promise.all([db.collection('ttasks').doc(tid).get(),db.collection('tclasses').doc(code).get()]),10000);T=a.exists?a.data():null;C=b.exists?b.data():null}catch(e){if(String(e&&e.message)==='timeout')return slowMsg();}
   if(!T||T.deleted_at||T.class_code!==code)return bad('找不到這份題目');if(!C||C.deleted_at)return bad('找不到這個班級');
   const TS=((C.scripts||{})[code+'_'+DEV])||C.script_default||'';const MY=lsg('qna_cls_scr_'+code);SCR=(C.scr_free&&MY)?MY:(TS||'py');if(T.zy&&!TS)SCR='zy';
   const seen=new Set();String(T.items||'').split('\n').forEach(l=>{const m=/^([㐀-鿿豈-﫿]+)\s*([^=＝]*)(?:[=＝]\s*(.*))?$/.exec(l.trim());if(!m)return;const w=m[1],p=normPy(m[2]);if(!p||seen.has(w))return;seen.add(w);W.push({w,p,m:(m[3]||'').trim()});});/* MEAN_V1794 「＝」後面是意思 */
-  try{await QSH.ready}catch(e){}
+  try{await withT(QSH.ready,6000)}catch(e){}/* 老師的錄音等不到就先開始，不要卡住 */
   ({flip:flipHome,bingo:bingoHome,fw:fwHome,mole:moleToneHome,wmole:moleWordHome,quiz:quizHome,kq:kqHome,kfish:kfishHome,kbub:kbubHome,kfeed:kfeedHome,kflip:kflipHome,kfrog:kfrogHome,kblk:kblkHome,ktrain:ktrainHome}[T.game]||(()=>bad('找不到這份題目')))();}
 boot();
 })();
