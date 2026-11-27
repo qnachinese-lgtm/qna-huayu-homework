@@ -10481,7 +10481,6 @@ function guideCardHtml(g,i){
    收費財務、首頁更多），同一類事情要記四個位置。
    這一頁只是把入口收在一起，原本的位置全部保留，不改她現有的習慣。 */
 const GIVE_FREE=[
- {a:'printRules', id:'',  ic:'📋', t:'上課約定',   d:'請假、補課、退費的約定。中越對照，印出來給新學生簽。'},
  /* GIVESUB_V1366 這兩張本來的 id 都是 'reply'，H.giveTab 用 .find(x=>x.id===id) 去找，
     永遠只會找到排在前面的那一張——所以「價目表」按下去是開「回覆範本」。
     加一個 key 讓兩張分得開（原本的 id 保留，切頁還是要用它）。 */
@@ -10492,7 +10491,6 @@ const GIVE_FREE=[
  {a:'monthBills', id:'', ic:'📨', t:'月結單',      d:'選一個月份，一次產生所有人的月結單，一位一頁。'}
 ];
 const GIVE_STU=[
- {a:'printRules',   ic:'📋', t:'上課約定（帶姓名）', d:'同一份約定，自動填好這位學生的姓名和日期。'},
  {a:'billStatement',ic:'🧾', t:'對帳單',   d:'一堂一堂列出來：哪天上課、收多少、繳多少、還差多少。'},
  {a:'stuCardPdf',   ic:'📄', t:'檔案卡',   d:'一頁的學生摘要，可以列印或存 PDF。'},
  {a:'printReport',  ic:'📈', t:'學習報告', d:'各課成績、較需加強的地方、各題型正確率。'},
@@ -27692,12 +27690,35 @@ async function psClassRecs(id){const box=document.getElementById('ps-body');if(!
   for(let k=0;k<60;k++){const b=document.getElementById('ps-body');if(!b||PS.view!==id)return;if(b.querySelector('.ps-dh')&&!b.querySelector('.ps-cls'))break;if(b.querySelector('.ps-cls'))return;await new Promise(r=>setTimeout(r,100));}
   const box2=document.getElementById('ps-body');if(!box2||PS.view!==id)return;
   const sec=document.createElement('div');sec.className='ps-sec ps-cls';
-  if(!rows.length){sec.innerHTML='<h3>班級作業 <small>用這個帳號做的老師作業</small></h3><div class="hint">還沒有用這個帳號做過班級作業。</div>';box2.appendChild(sec);return;}
+  if(!rows.length){sec.innerHTML='<h3>班級作業 <small>用這個帳號做的老師作業</small></h3><div class="hint">還沒有用這個帳號做過班級作業。</div>';box2.appendChild(sec);psOldRecs(id,rows);return;}
   const tids=[...new Set(rows.flatMap(r=>Object.keys(r.tasks||{})))];const tt={};
   await Promise.all(tids.map(async t=>{try{const d=await firebase.firestore().collection('ttasks').doc(t).get();if(d.exists)tt[t]=d.data();}catch(e){}}));
   sec.innerHTML='<h3>班級作業 <small>用這個帳號做的老師作業</small></h3>'+rows.map(r=>'<div style="margin:8px 0"><b>班級 '+esc(r.class_code||'')+'</b><table class="ps-t"><tr><th>題目</th><th>成績</th><th>次數</th><th>最近</th></tr>'
     +Object.keys(r.tasks||{}).map(t=>{const v=r.tasks[t]||{};const T=tt[t]||{};return '<tr><td>'+esc(T.title||t)+'</td><td>'+(v.n?(v.ok||0)+' / '+v.n:v.stars!=null?'★ '+v.stars:v.best!=null?esc(v.best+(v.unit||'')):'做過')+'</td><td>'+(v.times||1)+'</td><td>'+psWhen(v.at)+'</td></tr>';}).join('')+'</table></div>').join('');
-  box2.appendChild(sec);}
+  box2.appendChild(sec);psOldRecs(id,rows);}
+/* MERGE_V1798 Quinn：學生先用班級代碼做作業，後來才註冊練習帳號，舊成績留在舊名字下。
+   這裡列出「他加入的班級裡，用班級代碼（沒登入）做的紀錄」，老師確認是同一個人，按「合併到這個帳號」：
+   成績、次數、每一次的紀錄、錄音都搬到帳號那一筆，搬完把舊的那一筆移除（學生表格才不會出現兩個人）。 */
+async function psOldRecs(id,rows){const x=PS.list.find(z=>z.id===id)||{};const codes=[...new Set([...(x.classes||[]),...rows.map(r=>r.class_code)].filter(Boolean))];if(!codes.length)return;
+  let old=[];await Promise.all(codes.map(async c=>{try{const sn=await firebase.firestore().collection('tstudents').where('class_code','==',c).get();sn.docs.forEach(d=>{const v=d.data();if(v&&!String(v.dev||'').startsWith('u_')&&v.tasks&&Object.keys(v.tasks).length)old.push(Object.assign({id:d.id},v));});}catch(e){}}));
+  const box=document.getElementById('ps-body');if(!box||PS.view!==id||!old.length)return;const nm=String(x.name||'').trim();
+  old.sort((a,b)=>(String(b.name).trim()===nm)-(String(a.name).trim()===nm)||String(a.class_code).localeCompare(String(b.class_code)));
+  const sec=document.createElement('div');sec.className='ps-sec ps-old';
+  sec.innerHTML='<h3>同班用班級代碼做的紀錄 <small>如果有一筆是他註冊前做的，可以合併到這個帳號</small></h3><table class="ps-t"><tr><th>班級</th><th>名字</th><th>做過幾份</th><th>最近</th><th></th></tr>'
+    +old.map(o=>'<tr><td>'+esc(o.class_code||'')+'</td><td><b>'+esc(o.name||'')+'</b>'+(String(o.name||'').trim()===nm?' <span class="ps-pill green">同名</span>':'')+'</td><td>'+Object.keys(o.tasks||{}).length+'</td><td>'+psWhen(o.last_at)+'</td><td><button class="btn btn-sm btn-primary" data-act="psMerge" data-id="'+esc(id)+'|'+esc(o.id)+'">合併到這個帳號</button></td></tr>').join('')+'</table>';
+  box.appendChild(sec);}
+function psMergeTask(a,b){if(!a)return b;if(!b)return a;const ra=(a.n?(a.ok||0)/a.n:-1),rb=(b.n?(b.ok||0)/b.n:-1);const best=rb>ra?b:a;
+  const o=Object.assign({},a,b,{times:(+a.times||1)+(+b.times||1),first:[a.first||a.at,b.first||b.at].filter(Boolean).sort()[0]||'',at:[a.at,b.at].filter(Boolean).sort().pop()||'',ok:best.ok,n:best.n});
+  if(a.hist||b.hist)o.hist=[...(a.hist||[]),...(b.hist||[])].sort((p,q)=>String(p.at).localeCompare(String(q.at))).slice(-20);
+  if(a.recs||b.recs)o.recs=[...(a.recs||[]),...(b.recs||[])].slice(-30);
+  ['stars','best'].forEach(k=>{if(a[k]!=null||b[k]!=null)o[k]=Math.max(+a[k]||0,+b[k]||0);});return o;}
+H.psMerge=async(v)=>{if(!IS_OWNER)return toast('只有主管理員可以合併');const [uid,oid]=String(v).split('|');const x=PS.list.find(z=>z.id===uid)||{};const fs=firebase.firestore();
+  let o;try{const d=await fs.collection('tstudents').doc(oid).get();if(!d.exists)return toast('找不到那一筆紀錄');o=d.data();}catch(e){return toast('讀不到：'+String(e&&(e.code||e.message)||e));}
+  if(!confirm('把「'+(o.name||'')+'」在班級 '+(o.class_code||'')+' 的 '+Object.keys(o.tasks||{}).length+' 份作業成績，合併到練習帳號「'+(x.name||'')+'」嗎？\n\n成績和錄音都會搬過去；搬完以後，舊的那一筆會從學生表格移除，不能復原。'))return;
+  const aid=o.class_code+'_u_'+uid;try{const ad=await fs.collection('tstudents').doc(aid).get();const a=ad.exists?ad.data():{};const tasks=Object.assign({},a.tasks||{});
+    Object.keys(o.tasks||{}).forEach(t=>{tasks[t]=psMergeTask(tasks[t],o.tasks[t]);});
+    const t0=new Date().toISOString();await fs.collection('tstudents').doc(aid).set({class_code:o.class_code,owner_uid:o.owner_uid||a.owner_uid,name:a.name||x.name||o.name||'',dev:'u_'+uid,joined_at:[a.joined_at,o.joined_at].filter(Boolean).sort()[0]||t0,last_at:[a.last_at,o.last_at].filter(Boolean).sort().pop()||t0,tasks});
+    await fs.collection('tstudents').doc(oid).delete();toast('合併好了');psRender();}catch(e){toast('合併失敗：'+String(e&&(e.code||e.message)||e));}};
 async function psDetail(id){setTimeout(()=>psClassRecs(id),50);const box=document.getElementById('ps-body');const x=PS.list.find(z=>z.id===id);if(!x){PS.view=null;return psRender();}
   if(!PS.ses[id]){box.innerHTML='<div class="hint">讀取中…</div>';try{const s=await firebase.firestore().collection('pstudents').doc(id).collection('sessions').get();PS.ses[id]=s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>String(b.at).localeCompare(String(a.at)));}catch(e){PS.ses[id]=[];}}
   const ses=PS.ses[id],acc=x.total?Math.round((x.ok||0)/x.total*100):null,lt=Math.max(PS.set.free_to,x.lv_to!=null?+x.lv_to:-1);

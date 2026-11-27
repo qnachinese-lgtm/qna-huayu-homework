@@ -6,7 +6,7 @@
    - 每一次練習存在 pstudents/{uid}/sessions；錯的詞記在 pstudents.wrong（錯題本）。 */
 (function(){
 'use strict';
-var VER='2026.11.29';
+var VER='2026.11.30';
 var $=function(id){return document.getElementById(id)};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 var tt=null;function toast(s,ms){var t=$('toast');t.textContent=s;t.hidden=false;clearTimeout(tt);tt=setTimeout(function(){t.hidden=true},ms||2400)}
@@ -38,6 +38,8 @@ function makeItem(line){var sp=line.indexOf(' ');if(sp<0)return null;var h=line.
   var syls=[].concat.apply([],words);
   if(pp[1]){var A=parsePinyin(pp[1]);if(A.length===syls.length)A.forEach(function(a,i){if(a.base===syls[i].base&&a.tone!==syls[i].tone)syls[i].alt=a.tone})}
   var hz=Array.from(h).filter(function(c){return /[\u3400-\u9fff]/.test(c)});
+  /* BUNEU_V1798 Quinn：「對不起應該是 duì bù qǐ」——詞中間輕聲的「不」改成本調（照變調規則），輕聲的讀法當「也算對」 */
+  if(hz.length===syls.length)hz.forEach(function(c,i){var s=syls[i];if(c==='不'&&s.tone===5&&s.base==='bu'){var nt=syls[i+1]&&syls[i+1].tone===4?2:4;s.alt=5;s.tone=nt;}});
   return {h:h,p:pp[0].trim(),syls:syls,ok:syls.length&&!syls.some(function(s){return s.junk})&&hz.length===syls.length&&hz.length===Array.from(h).length}}
 var LEVEL_CACHE={};
 function levelItems(j){if(LEVEL_CACHE[j])return LEVEL_CACHE[j];var raw=(window.PY8000||[])[j]||'';
@@ -79,7 +81,7 @@ function entry(msg){var m=S.mode;
     $('cc').onkeydown=$('nm').onkeydown=function(e){if(e.key==='Enter')$('go').click()}}
   if(m==='acc'){$('lp').onkeydown=function(e){if(e.key==='Enter')$('go').click()};
     $('fg').onclick=async function(){var em=$('le').value.trim();if(!em){say('先填 Email，再按忘記密碼');return}
-      try{await auth.sendPasswordResetEmail(em);say('已寄出重設密碼的信，請收信',1)}catch(e){say('寄不出去，請確認 Email')}}}
+      try{setMailLang();await auth.sendPasswordResetEmail(em);say('已寄出重設密碼的信，請收信',1)}catch(e){say('寄不出去，請確認 Email')}}}
   if(m==='reg')regBind();
   $('go').onclick=function(){({code:goCode,acc:goLogin,reg:goReg})[m]()};}
 function say(s,ok){var e=$('msg');if(!e)return toast(s);e.className='msg'+(ok?' ok':'');e.textContent=s}
@@ -112,7 +114,7 @@ async function goReg(){var R=S.rd,n=(R.n||'').trim(),em=(R.e||'').trim(),pw=R.p|
   try{var cr=await auth.createUserWithEmailAndPassword(em,pw);
     await db.collection('pstudents').doc(cr.user.uid).set({uid:cr.user.uid,name:n.slice(0,40),email:em.toLowerCase(),country:c.slice(0,40),scr:R.z,
       created_at:new Date().toISOString(),last_at:new Date().toISOString(),email_verified:false,total:0,ok:0,days:{},wrong:{},classes:[],ua:String(navigator.userAgent||'').slice(0,160)});
-    try{await cr.user.sendEmailVerification({url:location.origin+'/learn.html'})}catch(e){try{await cr.user.sendEmailVerification()}catch(e2){}}
+    setMailLang();try{await cr.user.sendEmailVerification({url:location.origin+'/learn.html'})}catch(e){setMailLang();try{await cr.user.sendEmailVerification()}catch(e2){}}
     S.registering=false;await afterAuth(cr.user)}
   catch(e){S.registering=false;$('go').disabled=false;var code=String(e&&e.code||'');
     say(/email-already/.test(code)?'這個 Email 已經註冊過。如果是練習帳號，請按「登入練習帳號」；如果是上課用的學習平台帳號，請用另一個 Email 註冊練習帳號。':/weak-password/.test(code)?'密碼太短，至少 6 個字':/invalid-email/.test(code)?'Email 格式不對':('註冊失敗：'+(e&&e.message||e)))}}
@@ -134,6 +136,10 @@ else $('stage').innerHTML='<div class="card narrow"><h2>連不上</h2><p class="
 
 /* ====== Email 驗證 ====== */
 var vt=null,lastSend=Date.now();
+/* MAILLANG_V1798 Quinn：驗證信照學生的語言寄。介面選了英文／越南文就用那個；沒選的話越南用越南文、台灣用中文、其他國家用英文 */
+function mailLang(){var ui='';try{ui=localStorage.getItem('qna_ui_lang')||''}catch(e){}if(ui==='en'||ui==='vi')return ui;
+  var c=(S.prof&&S.prof.country)||(S.rd&&(S.rd.c==='其他'?S.rd.co:S.rd.c))||'';if(c==='越南')return 'vi';if(c==='台灣'||ui==='zh')return 'zh-TW';return c?'en':'zh-TW';}
+function setMailLang(){try{auth.languageCode=mailLang()}catch(e){}}
 function verify(){var u=S.user;clearInterval(vt);
   $('stage').innerHTML='<div class="card narrow"><div style="font-size:44px">✉️</div><h2>請到信箱驗證</h2><p class="sub">驗證信已經寄到<br><b style="color:var(--ink)">'+esc(u.email)+'</b><br>打開信，按裡面的連結，帳號就會開通。<br>信可能要幾分鐘才會到。沒收到的話，看看垃圾郵件、促銷內容，或在信箱搜尋 <b>firebaseapp</b>。<br>一直收不到，可以請老師直接幫你開通。</p>'
    +'<button class="btn" id="vd" type="button">我已經驗證好了</button><button class="btn ghost" id="vr" type="button">重寄驗證信</button>'
@@ -150,7 +156,7 @@ function verify(){var u=S.user;clearInterval(vt);
   function vtick(){var b=$('vr');if(!b)return;var w=Math.ceil((60000-(Date.now()-lastSend))/1000);if(w>0){b.disabled=true;b.textContent=w+' 秒後可以重寄';setTimeout(vtick,1000)}else{b.disabled=false;b.textContent='重寄驗證信'}}
   vtick();
   $('vr').onclick=async function(){var w=Math.ceil((60000-(Date.now()-lastSend))/1000);if(w>0)return vtick();
-    var ok=false,err=null;try{await u.sendEmailVerification({url:location.origin+'/learn.html'});ok=true}catch(e){err=e;if(!/too-many/.test(String(e&&e.code))){try{await u.sendEmailVerification();ok=true}catch(e2){err=e2}}}
+    var ok=false,err=null;setMailLang();try{await u.sendEmailVerification({url:location.origin+'/learn.html'});ok=true}catch(e){err=e;if(!/too-many/.test(String(e&&e.code))){try{await u.sendEmailVerification();ok=true}catch(e2){err=e2}}}
     lastSend=Date.now();vtick();
     if(ok)say('已重寄到 '+u.email+'，請等幾分鐘再看信箱',1);
     else say(/too-many/.test(String(err&&err.code))?'剛剛已經寄過了，信可能還在路上。請先去信箱找（包含垃圾郵件），10 分鐘後還沒收到再按一次':'寄不出去，請稍後再試，或請老師直接幫你開通')};
