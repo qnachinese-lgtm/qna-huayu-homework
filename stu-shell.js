@@ -26,17 +26,17 @@
   var css = ''
    + '.qsh body>header,.qsh header.bar,.qsh header.top,.qsh header.gbar,.qsh #gbar{display:none!important}'
    + '.qsh-bar{position:fixed;top:0;left:0;right:0;z-index:60;background:#fff;border-bottom:1px solid #DCE4EF;font-family:' + F + '}'
-   + '.qsh-in{max-width:1100px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:12px}'
+   + '.qsh-in{height:68px;box-sizing:border-box;padding:0 max(20px,calc((100vw - 1440px)/2 + 20px));display:flex;align-items:center;gap:12px}'
    + '.qsh-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:#1B2533;min-width:0}'
-   + '.qsh-l{width:34px;height:34px;border-radius:9px;background:#1E4C86;color:#fff;display:grid;place-items:center;font-size:19px;font-weight:700;flex:none}'
-   + '.qsh-brand b{font-size:17px;letter-spacing:1px;white-space:nowrap}'
-   + '.qsh-e{font-size:12.5px;color:#7A8BA3;letter-spacing:2px;border-left:1px solid #DCE4EF;padding-left:10px;white-space:nowrap}'
+   + '.qsh-bn{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;min-width:0}.qsh-l{width:38px;height:38px;border-radius:11px;background:#1E4C86;color:#fff;display:grid;place-items:center;font-size:20px;font-weight:700;flex:none}'
+   + '.qsh-brand b{font-size:19px;letter-spacing:1px;white-space:nowrap}'
+   + '.qsh-e{font-size:10px;color:#7A8BA3;letter-spacing:2.2px;margin-top:3px;white-space:nowrap}'
    + '.qsh-sp{flex:1}.qsh-t{font-size:15px;font-weight:700;color:#1E4C86;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:12px;border-left:1px solid #DCE4EF}.qsh-t:empty{display:none}'
    + '.qsh-me{font-size:13.5px;color:#5B6B82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:36vw}'
    + '.qsh-lang{display:inline-flex;background:#E6EDF6;border-radius:999px;padding:3px;gap:2px;flex:none}.qsh-lang button{border:0;background:none;border-radius:999px;width:44px;height:28px;padding:0;font-size:12.5px;color:#5B6B82;cursor:pointer;font-family:inherit}.qsh-lang button.on{background:#fff;color:#1E4C86;font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.08)}'
    + '.qsh-back{width:118px;text-align:center;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;flex:none;border:1px solid #DCE4EF;background:#fff;color:#1E4C86;border-radius:999px;padding:7px 15px;font-size:14px;text-decoration:none;white-space:nowrap;font-family:inherit}'
    + '.qsh-back:hover{background:#F3F6FB}'
-   + '@media(max-width:600px){.qsh-lang button{width:34px;font-size:11.5px}.qsh-back{width:82px;font-size:12px!important;padding:6px 4px!important}.qsh-t{display:none}.qsh-in{padding:8px 14px;gap:8px}.qsh-e{display:none}.qsh-t{font-size:13.5px;padding-left:8px}.qsh-brand b{font-size:15.5px}.qsh-me{display:none}}'
+   + '@media(max-width:600px){.qsh-lang button{width:34px;font-size:11.5px}.qsh-back{width:82px;font-size:12px!important;padding:6px 4px!important}.qsh-t{display:none}.qsh-in{height:56px;padding:0 14px;gap:8px}.qsh-l{width:34px;height:34px;border-radius:10px;font-size:18px}.qsh-e{font-size:9px;letter-spacing:1.8px}.qsh-t{font-size:13.5px;padding-left:8px}.qsh-brand b{font-size:16px}.qsh-me{display:none}}'
    /* FOOTV2_V1801 Quinn：「下面太醜」——頁尾改成置中、兩顆小按鈕，沒有白色色塊和分隔線 */
    + '.qsh-foot{margin-top:28px;background:transparent;color:#8A99AE;font-family:' + F + ';position:relative;z-index:5}'
    + '.qsh-fi{max-width:640px;margin:0 auto;padding:14px 16px 22px;display:flex;flex-direction:column;align-items:center;gap:10px}'
@@ -74,7 +74,7 @@
   function mount(){
     if ($('.qsh-bar')) return;
     var bar = document.createElement('div'); bar.className = 'qsh-bar';
-    bar.innerHTML = '<div class="qsh-in"><a class="qsh-brand" href="room.html?c=' + encodeURIComponent(CODE) + '"><span class="qsh-l">美</span><b>美娟華語工作室</b><span class="qsh-e">QNA CHINESE</span></a><span class="qsh-t" id="qsh-t"></span><span class="qsh-sp"></span>'
+    bar.innerHTML = '<div class="qsh-in"><a class="qsh-brand" href="room.html?c=' + encodeURIComponent(CODE) + '"><span class="qsh-l">美</span><span class="qsh-bn"><b>美娟華語工作室</b><span class="qsh-e">QNA CHINESE</span></span></a><span class="qsh-t" id="qsh-t"></span><span class="qsh-sp"></span>'
       + '<span class="qsh-me" id="qsh-me">' + esc(meText()) + '</span>'
       + '<span class="qsh-lang" id="qsh-lang">' + [['zh','中文'],['en','EN'],['vi','VI']].map(function(x){ return '<button type="button" data-l="' + x[0] + '" class="' + (LANG === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</span>'
       + (IS_ROOM ? '' : '<a class="qsh-back" href="room.html?c=' + encodeURIComponent(CODE) + '">← 回班級</a>') + '</div>';
