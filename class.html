@@ -470,8 +470,11 @@ function recMime(){if(!window.MediaRecorder||!MediaRecorder.isTypeSupported)retu
 async function vRecStart(){const st=await navigator.mediaDevices.getUserMedia({audio:true});const ch=[];const mt=recMime();const r=mt?new MediaRecorder(st,{mimeType:mt}):new MediaRecorder(st);r.ondataavailable=e=>{if(e.data&&e.data.size)ch.push(e.data)};
   let peak=0,ac=null,iv=null,live=false;try{ac=new (window.AudioContext||window.webkitAudioContext)();try{ac.resume()}catch(e){}const an=ac.createAnalyser();an.fftSize=1024;ac.createMediaStreamSource(st).connect(an);const buf=new Float32Array(an.fftSize);iv=setInterval(()=>{if(ac.state==='running')live=true;else return;an.getFloatTimeDomainData(buf);for(let i=0;i<buf.length;i++){const v=Math.abs(buf[i]);if(v>peak)peak=v;}},60);}catch(e){peak=1;}
   const done=new Promise(res=>{r.onstop=()=>{clearInterval(iv);try{ac&&ac.close()}catch(e){}try{st.getTracks().forEach(x=>x.stop())}catch(e){}const bl=new Blob(ch,{type:(r.mimeType||mt||'audio/webm').split(';')[0]});bl.peak=live?peak:null;res(bl);/* 量不到音量（瀏覽器不讓量）就不要擋 */};});r.start();return {stop:()=>{try{r.stop()}catch(e){}return done;}};}
-function vPlay(url){const a=new Audio(url);a.onerror=()=>dlg({title:'播不出來',text:'這台裝置播不了這個錄音的格式（舊的錄音是 webm，部分 iPhone／iPad 播不了）。請按「↻ 重錄」再錄一次，新的錄音手機和電腦都播得出來。',ok:'知道了',noCancel:1});
-  a.play().catch(e=>{if(e&&e.name==='NotAllowedError')return;if(e&&e.name==='NotSupportedError')a.onerror();});return a;}
+function vPlay(url,btn){const a=new Audio(url);const st=btn&&btn.parentNode&&btn.parentNode.querySelector('.vst');const old=st?st.innerHTML:'';
+  const say=t=>{if(st)st.innerHTML=t;};
+  a.onerror=()=>{say(old);dlg({title:'播不出來',text:'這台裝置播不了這個錄音（舊的錄音是 webm 格式，Safari 和部分 iPhone／iPad 播不了）。請按「↻ 重錄」再錄一次，新的錄音手機和電腦都播得出來。',ok:'知道了',noCancel:1});};
+  a.onplaying=()=>say('🔊 播放中…');a.onended=()=>say(old);
+  a.play().catch(e=>{if(e&&e.name==='NotSupportedError')return a.onerror();say(old);dlg({title:'播不出來',text:'瀏覽器沒有讓這段錄音播放（'+esc(String(e&&e.name||e))+'）。請再按一次 ▶；還是不行的話，請按「↻ 重錄」。',ok:'知道了',noCancel:1});});return a;}/* 播的時候顯示「播放中」：有顯示但聽不到，就是錄音本身沒聲音或喇叭沒開 */
 async function vSave(text,blob){const id=vid(text),uid=S.user.uid;const ext=/mp4|aac/.test(blob.type)?'m4a':/ogg/.test(blob.type)?'ogg':'webm';
   const ref=firebase.storage().ref('tvoice/'+uid+'/'+id+'.'+ext);await ref.put(blob,{contentType:blob.type||'audio/webm'});const url=await ref.getDownloadURL();
   const doc={owner_uid:uid,text:String(text).slice(0,200),url,at:now()};await db.collection('tvoice').doc(uid+'_'+id).set(doc);VOICE[vnorm(text)]=Object.assign({id:uid+'_'+id},doc);}
@@ -491,7 +494,7 @@ async function voiceDlg(title,texts,after){await vLoad();
     w.querySelectorAll('[data-stop]').forEach(b=>b.onclick=async()=>{if(!rec)return;const i=+b.dataset.stop;const r=rec;rec=null;cur=-1;busy=i;paint();
       try{const bl=await r.stop();if(bl.size<800)throw new Error('錄音太短，請再錄一次');if(bl.peak!=null&&bl.peak<0.003)throw new Error('沒有收到聲音，這次沒有存起來。請檢查麥克風有沒有接好、有沒有選對（電腦的音效設定），再錄一次。');await vSave(texts[i],bl);}catch(e){dlg({title:'存不進去',text:/permission|unauthorized/i.test(String(e&&(e.code||e.message)))?'Firebase 規則還沒發布，請主管理員按「發布」。':String(e&&e.message||e),ok:'知道了',noCancel:1});}
       busy=-1;paint();});
-    w.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>{const v=VOICE[vnorm(texts[+b.dataset.play])];if(!v)return;try{au&&au.pause()}catch(e){}au=vPlay(v.url);});};
+    w.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>{const v=VOICE[vnorm(texts[+b.dataset.play])];if(!v)return;try{au&&au.pause()}catch(e){}au=vPlay(v.url,b);});};
   paint();}
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-vt]');if(!b)return;const t=(S.tasks||[]).find(x=>x.id===b.dataset.vt);if(!t)return;
   voiceDlg(t.title,vTexts(t),()=>{document.querySelectorAll('[data-vt="'+t.id+'"]').forEach(x=>x.outerHTML=vBtn(t));});});
