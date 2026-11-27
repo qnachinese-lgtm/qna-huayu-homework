@@ -1382,8 +1382,6 @@ const QS_ACTS=[
  {k:'plan',   ic:'📌', t:'排一堂課',          w:'課表',                  kw:'排課 預排 行事曆 約時間 plan', go:()=>{H.planClass('');return true;}},
  {k:'pay',    ic:'💰', t:'記繳費',            w:'今日總覽',              kw:'繳費 收錢 付款 學費 收款 pay', go:()=>{H.payPick();return true;}},
 
- {k:'quote',  ic:'🧾', t:'開一張報價單',      w:'給學生的東西 › 回覆範本',  kw:'報價 報價單 估價 quote 價錢', go:()=>{H.qtNew();return true;}},
- {k:'price',  ic:'🏷️', t:'價目表',            w:'給學生的東西 › 價目表',    kw:'價目 價格 收費 定價 price', tab:'reply', sub:['rpSub','price']},
  {k:'tpl',    ic:'📮', t:'回覆範本',          w:'給學生的東西 › 回覆範本',  kw:'範本 罐頭 回覆 客人 常用句 template', tab:'reply', sub:['rpSub','tpl']},
  {k:'gap',    ic:'🔍', t:'回覆範本・缺口檢查', w:'給學生的東西 › 缺口檢查',  kw:'缺口 檢查 還沒寫 稱呼 補範本', tab:'reply', sub:['rpSub','gap']},
 
@@ -2778,7 +2776,7 @@ function rpCardHtml(r){
 }
 function renderReply(){
   const body=$('#panel-reply');if(!body)return;
-  const sub=(S.rpSub==='price'||S.rpSub==='gap')?S.rpSub:'tpl';/* RPGAP_V1305 */
+  const sub=(S.rpSub==='gap')?S.rpSub:'tpl';/* RPGAP_V1305 *//* NOQUOTE_V1797 Quinn：「開一張報價單跟價目表感覺很多餘，不需要」——入口全部拿掉，資料留著不刪 */
   const all=rpSorted();const q=String(S.rpQ||'').trim();
   const list=all.filter(r=>rpPass(r)&&rpMatch(r,q));/* RPFILT_V1182 */
   const nEmpty=all.filter(r=>!rpPreview(r)).length;
@@ -2791,12 +2789,10 @@ function renderReply(){
     +((sub==='tpl'&&all.length)?('<button class="btn" data-act="rpPrintOpen" title="把範本列印或存成 PDF，可以挑分類、語言和字體">🖨 列印 / PDF</button>'):'')
     +((sub==='price'&&(S.prices||[]).length)?('<button class="btn" data-act="prPrint">🖨 列印 / PDF</button>'
       +'<button class="btn" data-act="prWord">⬇ Word</button>'):'')
-    +'<button class="btn btn-accent" data-act="qtNew">💰 開一張報價單</button>'
     +'<button class="btn btn-primary" data-act="'+(sub==='price'?'prNew':'rpNew')+'">＋ 新增'+(sub==='price'?'項目':'一份')+'</button>'
     +'</div></div>';
   const bar='<div class="pagebar"><div class="segbar">'
     +'<button class="segb'+(sub==='tpl'?' on':'')+'" data-act="rpSub" data-id="tpl">📮 回覆範本<span class="segn">'+all.length+'</span></button>'
-    +'<button class="segb'+(sub==='price'?' on':'')+'" data-act="rpSub" data-id="price">🧾 價目表<span class="segn">'+(S.prices||[]).length+'</span></button>'
     /* RPGAP_V1305 */
     +'<button class="segb'+(sub==='gap'?' on':'')+'" data-act="rpSub" data-id="gap">🔍 缺口檢查'
       +(function(){try{const m=rpGapRows().reduce((a,x)=>a+x.miss,0);return m?('<span class="segn">'+m+'</span>'):'';}catch(e){return '';}})()
@@ -6862,6 +6858,7 @@ const TNAV=[
   {t:'教學',sub:[['students','👥 學生','c-students'],
                  {k:'acct',id:'acct',t:'🔑 帳號・使用',ow:1},
                  ['calendar','📅 課表',''],
+                 {k:'rules',act:'printRules',di:'',t:'📋 上課約定'},/* NOQUOTE_V1797 Quinn：上課約定跟教學有關，從「給學生的東西」搬到「教學」 */
                  ['lessons','📚 教材與課程','c-lessons'],
                  ['files','🎯 課堂活動',''],
                  {k:'oc',id:'oc',t:'▶️ 線上課',ow:1},
@@ -6877,10 +6874,7 @@ const TNAV=[
      ow:1 的那幾項只有主管理員看得到，跟頁面上的條件完全一樣。 */
   {t:'給學生的東西',sub:[
     {k:'give',  id:'give', t:'📤 全部文件'},
-    {k:'rules', act:'printRules', di:'', t:'📋 上課約定'},
     {k:'tpl',   act:'giveTab',    di:'tpl',   t:'📮 回覆範本', ow:1},
-    {k:'price', act:'giveTab',    di:'price', t:'🏷️ 價目表',  ow:1},
-    {k:'qt',    act:'qtNew',      di:'',      t:'💰 開一張報價單', ow:1},
     {k:'mb',    act:'monthBills', di:'',      t:'📨 月結單',   ow:1}
   ]},
   /* TNAVGRP_V1782 Quinn：頂部選單「重新設計」——合作老師、練習學生收成一個下拉「線上練習」，選單才不會擠到換行 */
@@ -10290,14 +10284,6 @@ const GUIDE=[
          '學生回傳之後，到「📄 文件清單」把收到的日期記上去'],
   note:'這張是通用版，不是照哪一間學校做的。學校另外要的欄位，填完之後自己在「其他」那一欄補上就好。下面的文件勾選表，如果這位客戶已經有自己的文件清單，會照他的清單印；還沒建的話就印通用範本。'},
 
- {ic:'💰',t:'開一張報價單給客人',owner:true,ord:21,go:'reply',goLab:'去開報價單',
-  lead:'客人問完費用，常常還想要一份正式一點、可以轉給家裡人看的東西。報價單就是幹這個用的：挑幾個項目、填客人的名字，印成一頁 A4 或存成 PDF 傳過去。',
-  steps:['先到「📮 回覆客人」上面的「🧾 價目表」，把項目和單價設好（中文和越南文各填一次，之後報價單會兩種語言一起印）',
-         '同一個項目如果有臺幣和越南盾兩種定價，就在「另一種幣別的價格」那一格把第二個數字也填進去',
-         '回到上面按「💰 開一張報價單」',
-         '填客人姓名、先選這張單要用哪一種幣別，再勾要報的項目，需要的話改數量',
-         '按「🖨 產生報價單」，會另開一頁；按上面的列印就可以存成 PDF'],
-  note:'單價一律是你自己在價目表填的，系統不會替你算或猜任何價錢。報價單不會自動寄給任何人，要傳給誰、傳不傳，都是你決定。'},
 
  {ic:'🏠',t:'每天從「今日總覽」開始',ord:2,go:'dashboard',goLab:'去今日總覽',
   lead:'這一頁會直接告訴你今天要做什麼，不用自己一頁一頁翻。每天上線先看它就好。',
@@ -10500,8 +10486,6 @@ const GIVE_FREE=[
     永遠只會找到排在前面的那一張——所以「價目表」按下去是開「回覆範本」。
     加一個 key 讓兩張分得開（原本的 id 保留，切頁還是要用它）。 */
  {a:'tab', key:'tpl',   id:'reply', sub:['rpSub','tpl'],   ic:'📮', t:'回覆範本', d:'客人問價錢、問流程，挑一張複製貼過去。'},
- {a:'tab', key:'price', id:'reply', sub:['rpSub','price'], ic:'🏷️', t:'價目表',   d:'所有項目的收費，可以列印或存成 Word。'},
- {a:'qtNew',      id:'',  ic:'💰', t:'開一張報價單', d:'針對某個人、某幾項服務，開一張正式報價。'},
  /* GIVE_V1314 本來直接叫 monthBillsGo，但它是去讀月結單設定表上的 #mb-ym，
     這一頁沒有那張表，所以永遠跳「請選月份」——等於一顆按不動的按鈕。
     改成開 monthBills（那張設定表本身），選完月份再產生。 */
@@ -16889,7 +16873,7 @@ H.docSave=async(id)=>{
   catch(e){toast(writeErr('儲存失敗',e));}
 };
 /* QUOTE_V713 價目表的操作 */
-H.rpSub=(k)=>{S.rpSub=(k==='price'||k==='gap')?k:'tpl';render();};
+H.rpSub=(k)=>{S.rpSub=(k==='gap')?k:'tpl';render();};
 /* RPGAP_V1305 從缺口那一格直接開新增，組合先填好，她只要寫內容 */
 H.rpGapNew=(i)=>{const g=RPGAP[+i];if(!g)return;
   openModal(rpFormHtml({title:rpTitleBare(g.title||''),grp:g.grp||'',
@@ -27721,7 +27705,8 @@ async function psDetail(id){setTimeout(()=>psClassRecs(id),50);const box=documen
   let streak=0;const d0=new Date();for(let i=0;i<400;i++){const t=new Date(d0);t.setDate(d0.getDate()-i);const k=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');if((x.days||{})[k])streak++;else if(i>0)break;}
   const kv=(k,v)=>'<div><small>'+k+'</small><b>'+v+'</b></div>';
   box.innerHTML='<button class="btn btn-sm btn-ghost" data-act="pstudView" data-id="">← 回練習學生</button>'
-   +'<div class="ps-sec"><div class="ps-dh"><div class="ps-av">'+esc(String(x.name||'?').slice(0,1))+'</div><div><h3 style="margin:0">'+esc(x.name||'')+'</h3><small>'+esc(x.email||'')+'　'+(x.email_verified?'<span class="ps-pill green">Email 已驗證</span>':'<span class="ps-pill red">Email 還沒驗證</span>')+'</small></div></div>'
+   +'<div class="ps-sec"><div class="ps-dh"><div class="ps-av">'+esc(String(x.name||'?').slice(0,1))+'</div><div><h3 style="margin:0">'+esc(x.name||'')+'</h3><small>'+esc(x.email||'')+'　'+(x.email_verified?'<span class="ps-pill green">Email 已驗證</span>':x.t_ok?'<span class="ps-pill green">老師已開通</span>':'<span class="ps-pill red">Email 還沒驗證</span>')+'</small></div></div>'
+   +((!x.email_verified&&!x.t_ok)?'<div class="ps-ra" style="margin:10px 0 0;background:#FFF7E8;border-radius:10px;padding:10px 12px">學生收不到驗證信？<span style="flex:1"></span><button class="btn btn-sm btn-primary" data-act="pstudTok" data-id="'+esc(id)+'">老師直接開通</button></div>':'')/* TOK_V1797 */
    +'<div class="ps-kv">'+kv('國籍',esc(x.country||'—'))+kv('拼音／注音',x.scr==='zy'?'注音':'拼音')+kv('註冊日期',esc(String(x.created_at||'').slice(0,10)))+kv('最近登入',psWhen(x.last_at))+kv('開通到',PS_LV[lt])+kv('加入的班級',(x.classes||[]).length?esc((x.classes||[]).join('、')):'沒有')+'</div>'
    +'<div class="ps-stats" style="margin-top:12px">'+kv('連續練習',streak+'<em>天</em>')+kv('這週做了',psDays(x.days,7)+'<em>題</em>')+kv('總共做了',(x.total||0)+'<em>題</em>')+kv('答對率',acc==null?'—':acc+'<em>%</em>')+'</div>'
    +'<div class="ps-ra" style="margin-top:12px">手動開通到 <select id="psl-'+esc(id)+'">'+PS_LV.map((v,j)=>'<option value="'+j+'"'+(j===lt?' selected':'')+'>'+v+'</option>').join('')+'</select><button class="btn btn-sm btn-primary" data-act="pstudGrant" data-id="'+esc(id)+'">儲存</button><span style="flex:1"></span><button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="pstudDel" data-id="'+esc(id)+'">🗑 刪除這個學生</button></div></div>'
@@ -27732,6 +27717,9 @@ async function psDetail(id){setTimeout(()=>psClassRecs(id),50);const box=documen
    +'<div class="ps-sec"><h3>錯題本 <small>這個學生最常錯的</small></h3>'+(wl.length?'<div class="ps-words">'+wl.map(w=>'<span><b>'+esc(w.h)+'</b><small>'+esc(w.p||'')+'・錯 '+w.n+' 次</small></span>').join('')+'</div>':'<div class="hint">沒有錯題。</div>')+'</div>';}
 H.pstudView=(id)=>{PS.view=id||null;PS.open=null;psRender();try{window.scrollTo(0,0);}catch(e){}};
 H.pstudSes=(id)=>{PS.open=PS.open===id?null:id;psRender();};
+/* TOK_V1797 Quinn：學生收不到驗證信。老師按一下，學生不用驗證 Email 也能進練習帳號（他那邊重新整理或等幾秒就會自己進去） */
+H.pstudTok=async(id)=>{if(!IS_OWNER)return toast('只有主管理員可以開通');const x=PS.list.find(z=>z.id===id)||{};if(!confirm('確定要直接開通「'+(x.name||'')+'」嗎？他不用驗證 Email 也能登入練習。'))return;
+  try{const t=new Date().toISOString();await firebase.firestore().collection('pstudents').doc(id).update({t_ok:true,t_ok_at:t});x.t_ok=true;x.t_ok_at=t;toast('已開通，學生重新整理就能進去');psRender();}catch(e){toast('開通失敗：'+String(e&&(e.code||e.message)||e));}};
 H.pstudGrant=async(id)=>{const sel=document.getElementById('psl-'+id);const j=sel?+sel.value:null;if(j==null)return;
   try{const x=PS.list.find(z=>z.id===id)||{};const up={lv_to:j};if(x.req&&x.req.status==='pending'){up['req.status']='ok';up['req.done_at']=new Date().toISOString();}
     await firebase.firestore().collection('pstudents').doc(id).update(up);Object.assign(x,{lv_to:j});if(x.req&&up['req.status'])x.req.status='ok';toast('已開通到「'+PS_LV[j]+'」');psRender();}

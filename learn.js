@@ -6,7 +6,7 @@
    - 每一次練習存在 pstudents/{uid}/sessions；錯的詞記在 pstudents.wrong（錯題本）。 */
 (function(){
 'use strict';
-var VER='2026.11.28';
+var VER='2026.11.29';
 var $=function(id){return document.getElementById(id)};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 var tt=null;function toast(s,ms){var t=$('toast');t.textContent=s;t.hidden=false;clearTimeout(tt);tt=setTimeout(function(){t.hidden=true},ms||2400)}
@@ -122,8 +122,8 @@ async function afterAuth(u){S.user=u;var d=null;
   try{d=await pref().get()}catch(e){$('stage').innerHTML='<div class="card narrow"><h2>暫時讀不到資料</h2><p class="sub">可能是網路不穩，請重新整理再試一次。</p><button class="btn" onclick="location.reload()">重新整理</button></div>';return}
   if(!d.exists){S.user=null;S.mode='acc';S.pendMsg='這個帳號不是練習帳號（可能是上課用的學習平台帳號）。練習帳號請按「註冊」另外建立。';await auth.signOut();return}
   S.prof=d.data();
-  if(!u.emailVerified)return verify();
-  var up={last_at:new Date().toISOString()};if(!S.prof.email_verified)up.email_verified=true;pref().update(up).catch(function(){});
+  if(!u.emailVerified&&!S.prof.t_ok)return verify();/* TOK_V1797 老師直接開通的，不用等驗證信 */
+  var up={last_at:new Date().toISOString()};if(!S.prof.email_verified&&u.emailVerified)up.email_verified=true;pref().update(up).catch(function(){});
   try{var st=await db.collection('psettings').doc('main').get();if(st.exists&&st.data().free_to!=null)S.set.free_to=+st.data().free_to}catch(e){}
   S.lv=Math.min(S.lv,maxOpen());
   /* ACCT_V1795 從「這個班要登入」過來的：登入後加入班級、回到班級頁 */
@@ -135,18 +135,25 @@ else $('stage').innerHTML='<div class="card narrow"><h2>連不上</h2><p class="
 /* ====== Email 驗證 ====== */
 var vt=null,lastSend=Date.now();
 function verify(){var u=S.user;clearInterval(vt);
-  $('stage').innerHTML='<div class="card narrow"><div style="font-size:44px">✉️</div><h2>請到信箱驗證</h2><p class="sub">驗證信已經寄到<br><b style="color:var(--ink)">'+esc(u.email)+'</b><br>打開信，按裡面的連結，帳號就會開通。<br>沒收到？看看垃圾郵件匣。</p>'
+  $('stage').innerHTML='<div class="card narrow"><div style="font-size:44px">✉️</div><h2>請到信箱驗證</h2><p class="sub">驗證信已經寄到<br><b style="color:var(--ink)">'+esc(u.email)+'</b><br>打開信，按裡面的連結，帳號就會開通。<br>信可能要幾分鐘才會到。沒收到的話，看看垃圾郵件、促銷內容，或在信箱搜尋 <b>firebaseapp</b>。<br>一直收不到，可以請老師直接幫你開通。</p>'
    +'<button class="btn" id="vd" type="button">我已經驗證好了</button><button class="btn ghost" id="vr" type="button">重寄驗證信</button>'
    +'<p class="foot"><button class="lnk" id="vb" type="button">Email 寫錯了？回去改</button>　·　<button class="lnk" id="vo" type="button">登出</button></p><div class="msg" id="msg"></div></div>';
   async function check(manual){try{await u.reload()}catch(e){}var cu=auth.currentUser;
     if(cu&&cu.emailVerified){clearInterval(vt);try{await cu.getIdToken(true)}catch(e){}
       $('stage').innerHTML='<div class="card narrow"><div class="okc">✓</div><h2>Email 已驗證</h2><p class="sub">帳號開通了，歡迎！</p></div>';
       setTimeout(function(){afterAuth(cu)},1200);return}
-    if(manual)say('還沒驗證喔，請先按信裡的連結')}
+    try{var dd=await pref().get();if(dd.exists&&dd.data().t_ok){clearInterval(vt);S.prof=dd.data();$('stage').innerHTML='<div class="card narrow"><div class="okc">✓</div><h2>老師幫你開通了</h2><p class="sub">歡迎！</p></div>';setTimeout(function(){afterAuth(u)},1200);return}}catch(e){}
+    if(manual)say('還沒驗證喔，請先按信裡的連結。收不到信的話，可以請老師幫你開通')}
   vt=setInterval(function(){check(false)},4000);
   $('vd').onclick=function(){check(true)};
-  $('vr').onclick=async function(){var w=Math.ceil((60000-(Date.now()-lastSend))/1000);if(w>0)return say('請等 '+w+' 秒再重寄');
-    try{await u.sendEmailVerification({url:location.origin+'/learn.html'});lastSend=Date.now();say('已重寄到 '+u.email,1)}catch(e){say(/too-many/.test(String(e&&e.code))?'寄太多次了，請過幾分鐘再試':'寄不出去，請稍後再試')}};
+  /* TOK_V1797 重寄按鈕倒數；被 Firebase 擋下來的時候講清楚是「剛剛寄過了」 */
+  function vtick(){var b=$('vr');if(!b)return;var w=Math.ceil((60000-(Date.now()-lastSend))/1000);if(w>0){b.disabled=true;b.textContent=w+' 秒後可以重寄';setTimeout(vtick,1000)}else{b.disabled=false;b.textContent='重寄驗證信'}}
+  vtick();
+  $('vr').onclick=async function(){var w=Math.ceil((60000-(Date.now()-lastSend))/1000);if(w>0)return vtick();
+    var ok=false,err=null;try{await u.sendEmailVerification({url:location.origin+'/learn.html'});ok=true}catch(e){err=e;if(!/too-many/.test(String(e&&e.code))){try{await u.sendEmailVerification();ok=true}catch(e2){err=e2}}}
+    lastSend=Date.now();vtick();
+    if(ok)say('已重寄到 '+u.email+'，請等幾分鐘再看信箱',1);
+    else say(/too-many/.test(String(err&&err.code))?'剛剛已經寄過了，信可能還在路上。請先去信箱找（包含垃圾郵件），10 分鐘後還沒收到再按一次':'寄不出去，請稍後再試，或請老師直接幫你開通')};
   $('vo').onclick=function(){clearInterval(vt);auth.signOut()};
   $('vb').onclick=async function(){if(!confirm('要回去改 Email 嗎？剛剛這個帳號會刪掉，重新註冊一次。'))return;clearInterval(vt);
     var p=S.prof||{};S.rd={n:p.name,c:COUNTRIES.indexOf(p.country)>=0?p.country:'其他',co:COUNTRIES.indexOf(p.country)>=0?'':p.country,z:p.scr,e:u.email};
