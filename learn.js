@@ -230,12 +230,12 @@ async function loadClasses(){var cs=S.prof.classes||[];for(var i=0;i<cs.length;i
 +'.hm-st{display:flex;gap:10px}.hm-st div{background:#fff;border:1px solid var(--line);border-radius:14px;padding:7px 14px;text-align:center;min-width:84px}.hm-st b{display:block;font-size:20px;color:var(--p)}.hm-st span{font-size:12px;color:var(--mut)}'
 +'.hm-me .out{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 16px;cursor:pointer;font-family:inherit;font-size:15px}'
 +'.hm-q{font-size:18px;font-weight:700;margin:0 0 12px}'
-+'.hm-pk{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}'
-+'.hm-pk button{border:2px solid var(--line);background:#fff;border-radius:18px;padding:16px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:6px;position:relative;font-family:inherit;color:var(--ink)}'
-+'.hm-pk button:hover{border-color:#B9CBE4}.hm-pk i{font-style:normal;width:44px;height:44px;border-radius:12px;background:var(--ps);display:grid;place-items:center;font-size:22px}'
-+'.hm-pk b{font-size:17px}.hm-pk small{color:var(--mut);font-size:13px;line-height:1.5}.hm-pk button.on{border-color:var(--p);background:#F0F5FC;box-shadow:0 8px 22px rgba(30,76,134,.12)}'
-+'.hm-pk em{position:absolute;top:12px;right:12px;font-style:normal;font-size:11px;background:#FFF3CF;color:#8A5A00;border-radius:999px;padding:2px 8px}'
-+'.hm-pn{background:#fff;border-radius:22px;box-shadow:0 10px 30px rgba(30,60,110,.07);padding:24px;min-height:340px;margin-bottom:14px}'
++'.hm-pk{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}'
++'.hm-pk button{border:2px solid transparent;background:#fff;border-radius:16px;padding:12px 14px;text-align:left;cursor:pointer;display:grid;grid-template-columns:40px 1fr;column-gap:12px;row-gap:2px;align-items:center;position:relative;font-family:inherit;color:var(--ink);box-shadow:0 2px 10px rgba(30,60,110,.06)}.hm-pk button i{grid-row:1/3}'
++'.hm-pk button:hover{border-color:#D6E3F4}.hm-pk i{font-style:normal;width:40px;height:40px;border-radius:12px;background:var(--ps);display:grid;place-items:center;font-size:20px}'
++'.hm-pk b{font-size:16px;align-self:end}.hm-pk small{color:var(--mut);font-size:12.5px;line-height:1.4;align-self:start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hm-pk button.on{border-color:var(--p);background:var(--p);color:#fff;box-shadow:0 8px 22px rgba(30,76,134,.22)}.hm-pk button.on small{color:#CFDCEE}.hm-pk button.on i{background:rgba(255,255,255,.16)}'
++'.hm-pk em{position:absolute;top:8px;right:10px;font-style:normal;font-size:11px;background:#FFF3CF;color:#8A5A00;border-radius:999px;padding:2px 8px}'
++'.hm-pn{background:#fff;border-radius:22px;box-shadow:0 10px 30px rgba(30,60,110,.07);padding:24px;margin-bottom:18px}'
 +'.hm-ph{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:16px}.hm-ph h3{margin:0;font-size:20px}.hm-ph small{color:var(--mut);font-size:13.5px}'
 +'.hm-nx{display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#EEF4FC,#F7FAFE);border:1px solid #D6E3F4;border-radius:18px;padding:18px 20px;margin:4px 0 18px}'
 +'.hm-nx .bg{width:64px;height:64px;border-radius:16px;background:var(--p);color:#fff;display:grid;place-items:center;flex:none;font-size:13px;line-height:1.2;text-align:center}.hm-nx .bg b{display:block;font-size:24px}'
@@ -251,14 +251,26 @@ async function loadClasses(){var cs=S.prof.classes||[];for(var i=0;i<cs.length;i
 +'.cl-w{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cl-s{font-size:12px;color:var(--mut)}'
 +'.cl-c.dn{background:#F3FAF6;border-color:#CBE8D6}.cl-c.dn .cl-s{color:var(--ok)}.cl-c.nx{border:2px solid var(--p);padding:11px 11px 9px}'
 +'.hm-pn .lsn{grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;max-height:none}.hm-pn .lsn button{height:52px;font-size:16px;border-radius:12px}'
-+'.hm-tp{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}.hm-tp div{border:1px solid var(--line);border-radius:16px;padding:16px 12px;text-align:center;opacity:.6}'
-+'.hm-tp i{font-style:normal;font-size:34px;display:block}.hm-tp b{display:block;font-size:16px;margin-top:6px}.hm-tp small{color:#8A5A00;font-size:12.5px}'
++'.hm-tp{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.hm-tp button{border:1px solid var(--line);background:#fff;border-radius:16px;padding:14px 10px;text-align:center;cursor:pointer;font-family:inherit;color:var(--ink)}.hm-tp button:hover{border-color:#B9CBE4;box-shadow:0 4px 14px rgba(30,60,110,.08)}'
++'.hm-tp i{font-style:normal;font-size:32px;display:block}.hm-tp b{display:block;font-size:16px;margin-top:6px}.hm-tp small{color:var(--mut);font-size:12.5px}'
++'.tp-back{border:0;background:none;color:var(--p);font-family:inherit;font-size:14px;cursor:pointer;padding:0;margin-bottom:10px}.tp-ws{display:flex;flex-wrap:wrap;gap:8px}.tp-ws span{border:1px solid var(--line);border-radius:12px;padding:8px 12px;display:flex;flex-direction:column;align-items:center;min-width:72px}.tp-ws b{font-size:20px;font-weight:400}.tp-ws i{font-style:normal;color:var(--p);font-size:13.5px;font-family:"Times New Roman",serif}'
++'.cls-empty{display:flex;gap:26px;align-items:center;padding:8px 4px}.ce-ic{width:120px;height:120px;border-radius:50%;background:var(--ps);display:grid;place-items:center;font-size:60px;flex:none}.ce-t{flex:1;min-width:0}.ce-t h3{margin:0 0 4px;font-size:20px}.ce-t p{margin:0 0 14px;color:#4A5B75;font-size:14.5px;line-height:1.7}'
++'.ce-join{max-width:440px}.ce-join input{font-size:18px;letter-spacing:3px;text-align:center}.ce-st{display:flex;gap:18px;margin:14px 0 0;padding:0;list-style:none;counter-reset:s;flex-wrap:wrap}.ce-st li{counter-increment:s;font-size:13px;color:var(--mut);display:flex;align-items:center;gap:6px}.ce-st li:before{content:counter(s);width:20px;height:20px;border-radius:50%;background:var(--ps);color:var(--p);display:grid;place-items:center;font-size:12px;font-weight:700}'
++'.hm-ft{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin:6px 0 4px;font-size:13.5px;color:var(--mut)}.hm-ft button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;font-family:inherit;font-size:13.5px;color:#1E4C86;cursor:pointer}.hm-ft button:hover{background:#F3F6FB}'
++'.ft-em{background:#F4F7FB;border-radius:12px;padding:12px;font-size:16px;margin:8px 0 4px;word-break:break-all;font-family:Georgia,serif}'
 +'.hm-sub{color:var(--mut);font-size:13.5px;margin:0 0 8px}'
 +'.hm-cl{display:flex;flex-direction:column;gap:10px;max-width:560px}.hm-cl .row{margin:0}'
 +'.hm-cl .join{display:flex;gap:8px;margin-top:6px}.hm-cl .join input{flex:1}'
 +'@media(max-width:760px){.hm-me .av{width:46px;height:46px;font-size:20px}.hm-me h2{font-size:20px}.hm-me>div:nth-child(2){flex:1;min-width:0}.hm-me .grow{display:none}.hm-me .out{order:2}.hm-st{order:3;width:100%}.hm-st div{flex:1;min-width:0}'
-+'.hm-pk{grid-template-columns:1fr 1fr;gap:10px}.hm-pk button{padding:13px}.hm-pk small{font-size:12px}.hm-pn{padding:18px 16px}.hm-nx{flex-wrap:wrap}.hm-nx .hm-go{width:100%}.hm-pn .lsn{grid-template-columns:repeat(5,1fr)}.cl-grid{grid-template-columns:1fr 1fr;gap:8px}.cl-w{font-size:16px}}';document.head.appendChild(st)})();
-var TOPICS=[['👨‍👩‍👧','家庭',10],['🍜','食物',10],['🍎','水果',9],['🧋','飲料',9],['🐼','動物',12],['🎨','顏色',7],['👂','身體',11],['👕','衣服',10],['🎒','學校和文具',11],['🚌','交通',9]];
++'.hm-pk{grid-template-columns:1fr 1fr;gap:8px}.hm-pk button{padding:10px 11px;grid-template-columns:34px 1fr;column-gap:9px}.hm-pk i{width:34px;height:34px;font-size:17px}.hm-pk b{font-size:15px}.hm-pk small{font-size:11.5px}.hm-tp{grid-template-columns:repeat(3,1fr);gap:8px}.cls-empty{flex-direction:column;text-align:center;gap:14px}.ce-ic{width:90px;height:90px;font-size:44px}.ce-join{margin:0 auto}.ce-st{justify-content:center;gap:10px}.hm-pn{padding:18px 16px}.hm-nx{flex-wrap:wrap}.hm-nx .hm-go{width:100%}.hm-pn .lsn{grid-template-columns:repeat(5,1fr)}.cl-grid{grid-template-columns:1fr 1fr;gap:8px}.cl-w{font-size:16px}}';document.head.appendChild(st)})();
+/* TOPICPY_V1814 Quinn：「主題生詞那邊，是否也可以變成拼音練習？」——詞都從華語八千詞挑，拼音照八千詞；圖片遊戲等圖片做好再開 */
+var TOPICS=[['👨‍👩‍👧','家庭','爸爸 媽媽 哥哥 姊姊 弟弟 妹妹 爺爺 奶奶 寶寶 家人'],['🍜','食物','飯 麵 麵包 餃子 包子 蛋 蛋糕 漢堡 湯 冰淇淋'],['🍎','水果','蘋果 香蕉 西瓜 葡萄 橘子 芒果 梨 桃子 櫻桃'],
+ ['🧋','飲料','水 茶 咖啡 牛奶 果汁 可樂 奶茶 汽水 豆漿'],['🐼','動物','狗 貓 魚 鳥 牛 馬 豬 羊 雞 兔子 老虎 熊貓'],['🎨','顏色','紅色 藍色 黃色 綠色 白色 黑色 灰色'],
+ ['👂','身體','頭 眼睛 耳朵 鼻 嘴巴 臉 頭髮 手 腳 肚子 牙齒'],['👕','衣服','衣服 褲子 裙子 鞋子 襪子 帽子 外套 毛衣 襯衫 眼鏡'],['🎒','學校和文具','書 筆 鉛筆 尺 書包 本子 書桌 椅子 黑板 剪刀 電腦'],['🚌','交通','汽車 公共汽車 火車 捷運 飛機 船 腳踏車 摩托車 計程車']];
+var TOPIC_CACHE={};
+function topicItems(name){if(TOPIC_CACHE[name])return TOPIC_CACHE[name];var t=TOPICS.filter(function(x){return x[1]===name})[0];if(!t)return [];var map={};
+  for(var j=0;j<LVS.length;j++)levelItems(j).forEach(function(it){if(!(it.h in map))map[it.h]=it});
+  return TOPIC_CACHE[name]=t[2].split(' ').map(function(h){return map[h]}).filter(Boolean)}
 function hmTab(){var t=S.tab;if(!t){try{t=localStorage.getItem('qna_learn_tab')||''}catch(e){}}if(['course','topic','self','class'].indexOf(t)<0)t=(S.prof.classes||[]).length?'class':'course';return t}
 /* COURSEUI_V1812 Quinn：「這裡太醜了」——課程改成卡片（看得到這課有哪些詞、做過幾分），鎖住的等級收成一行 */
 function hmCourse(){var mo=maxOpen(),j=S.clv||0,n=lsnCount(j),nx=lsnNext(j),dn=0,r=S.prof.req;for(var k=0;k<n;k++)if(lsnDone(j,k))dn++;
@@ -283,10 +295,35 @@ function hmSelf(zy,mo,r,wl){return '<div class="hm-ph"><h3>自己練習</h3><sma
    +'</div>'/* NOHZ_V1813 Quinn：「練習拼音只要選拼音、聲調練習、打拼音」——漢字闖關先拿掉 */
    +(wl.length?'<div style="margin-top:22px"><div class="hm-ph" style="margin-bottom:10px"><h3 style="font-size:17px">錯題本</h3><small>答對 2 次就會自動移出</small><button type="button" class="hm-go" id="wr" style="margin-left:auto;padding:8px 16px;font-size:14px">再練一次</button></div><div class="wrong">'
      +wl.slice(0,24).map(function(w){return '<div class="wd"><b>'+esc(w.h)+'</b><small>錯 '+w.n+' 次</small></div>'}).join('')+(wl.length>24?'<div class="wd"><b>…</b><small>還有 '+(wl.length-24)+' 個</small></div>':'')+'</div></div>':'')}
-function hmClass(cs){return '<div class="hm-ph"><h3>老師的班級</h3><small>輸入老師給的代碼，加入後就看得到作業</small></div><div class="hm-cl">'
+function hmTopic(zy){var t=S.topic&&TOPICS.filter(function(x){return x[1]===S.topic})[0];
+  if(!t)return '<div class="hm-ph"><h3>主題生詞</h3><small>選一個主題，練這些詞的'+(zy?'注音':'拼音')+'和聲調；圖片遊戲之後開放</small></div><div class="hm-tp">'
+    +TOPICS.map(function(x){return '<button type="button" data-tp="'+x[1]+'"><i>'+x[0]+'</i><b>'+x[1]+'</b><small>'+topicItems(x[1]).length+' 個詞</small></button>'}).join('')+'</div>';
+  var its=topicItems(t[1]);
+  return '<button type="button" class="tp-back" id="tp-back">← 全部主題</button><div class="hm-ph"><h3>'+t[0]+' '+t[1]+'</h3><small>'+its.length+' 個詞</small></div>'
+   +'<div class="tp-ws">'+its.map(function(it){return '<span><b>'+esc(it.h)+'</b><i>'+esc(sylAnswer(it))+'</i></span>'}).join('')+'</div>'
+   +'<p class="hm-sub" style="margin-top:18px">用這些詞練習：</p><div class="grid" style="grid-template-columns:repeat(3,1fr)">'
+   +'<button type="button" class="gm" data-tmode="choose"><i>'+(zy?'ㄅ':'ā')+'</i><b>'+(zy?'選注音':'選拼音')+'</b><small>看字選讀音</small></button>'
+   +'<button type="button" class="gm" data-tmode="tone"><i>ˇ</i><b>聲調練習</b><small>選出正確的聲調</small></button>'
+   +'<button type="button" class="gm" data-tmode="type"><i>⌨</i><b>'+(zy?'打注音':'打拼音')+'</b><small>看字自己打出來</small></button></div>'
+   +'<p class="hm-sub" style="margin-top:14px">🖼 看圖選詞、圖片翻牌：圖片做好後開放</p>'}
+function hmClass(cs){
+  if(!cs.length)return '<div class="cls-empty"><div class="ce-ic">👩‍🏫</div><div class="ce-t"><h3>還沒有加入班級</h3><p>跟老師拿「班級代碼」，輸入以後就看得到老師出的作業。</p>'
+    +'<div class="join ce-join"><input class="t cc" id="jc" maxlength="8" placeholder="班級代碼" autocomplete="off"><button id="jb" type="button">加入班級</button></div>'
+    +'<ol class="ce-st"><li>跟老師拿代碼</li><li>輸入代碼，按加入</li><li>按「去做」寫作業</li></ol></div></div>';
+  return '<div class="hm-ph"><h3>老師的班級</h3><small>已加入 '+cs.length+' 個班</small></div><div class="hm-cl">'
    +cs.map(function(c){var x=S.cls[c]||{};return '<div class="row"><div class="ic">班</div><div><b>'+esc(x.name||c)+'</b><small>代碼 '+esc(c)+'</small></div>'+(x.gone?'':'<a class="go" href="room.html?c='+encodeURIComponent(c)+'">去做</a>')+'</div>'}).join('')
-   +'<div class="join"><input class="t cc" id="jc" maxlength="8" placeholder="輸入班級代碼"><button id="jb" type="button">加入</button></div>'
-   +(cs.length?'':'<p class="hm-sub" style="margin-top:6px">還沒有加入班級。</p>')+'</div>'}
+   +'<div class="join"><input class="t cc" id="jc" maxlength="8" placeholder="輸入代碼加入新班級"><button id="jb" type="button">加入</button></div></div>'}
+/* CONTACT_V1814 Quinn：「沒有聯繫我的地方？」 */
+function hmFoot(){return '<div class="hm-ft"><span>有問題嗎？</span><button type="button" id="ft-mail">✉️ 寫信給老師</button><button type="button" id="ft-bug">⚠️ 回報問題</button></div>'}
+function ftBind(){var em=String(window.TEACHER_EMAIL||'').trim();
+  if($('ft-mail'))$('ft-mail').onclick=function(){var m=document.createElement('div');m.className='mdl';m.innerHTML='<div class="mbox"><button class="mx" type="button">×</button><div style="font-size:34px">✉️</div><h2>寫信給美娟老師</h2><p class="sub">把下面的 Email 複製起來，用你的信箱寄信。</p><div class="ft-em">'+esc(em)+'</div><button class="btn" id="ft-cp" type="button">複製 Email</button></div>';
+    document.body.appendChild(m);var c=function(){m.remove()};m.querySelector('.mx').onclick=c;m.onclick=function(e){if(e.target===m)c()};
+    $('ft-cp').onclick=function(){var b=this;(navigator.clipboard?navigator.clipboard.writeText(em):Promise.reject()).then(function(){b.textContent='已複製 ✓'},function(){b.textContent='請長按上面的 Email 複製'})}};
+  if($('ft-bug'))$('ft-bug').onclick=function(){var m=document.createElement('div');m.className='mdl';m.innerHTML='<div class="mbox" style="text-align:left"><button class="mx" type="button">×</button><h2 style="text-align:center">回報問題</h2><p class="sub" style="text-align:center">哪裡不能用、看不懂，都可以寫，老師會看到。</p><div class="f"><textarea class="t" id="ft-msg" maxlength="2000" placeholder="例如：按「檢查」沒有反應" style="min-height:110px"></textarea><button class="btn" id="ft-go" type="button">送出</button><div class="msg" id="ft-m"></div></div></div>';
+    document.body.appendChild(m);var c=function(){m.remove()};m.querySelector('.mx').onclick=c;m.onclick=function(e){if(e.target===m)c()};
+    $('ft-go').onclick=async function(){var t=$('ft-msg').value.trim();if(!t){$('ft-m').textContent='請寫一下問題';return}this.disabled=true;
+      try{await db.collection('feedback').add({kind:'bug',msg:t.slice(0,2000),name:String((S.prof&&S.prof.name)||'').slice(0,60),email:String((S.user&&S.user.email)||'').slice(0,100),page:(location.pathname+location.search).slice(0,200),at:new Date().toISOString(),ua:String(navigator.userAgent||'').slice(0,200)});c();toast('已送出，謝謝你！')}
+      catch(e){this.disabled=false;$('ft-m').textContent='送不出去，請改用「寫信給老師」'}}}}
 async function home(){clearInterval(vt);S.run=null;var p=S.prof;await loadClasses();var st=stats(),wl=wrongList(),cs=p.classes||[],zy=isZY(),r=p.req,mo=maxOpen();
   var tab=S.tab=hmTab();var nd=Object.keys(p.lessons||{}).length;
   var h='<div class="hm-me"><div class="av">'+esc((p.name||'?').slice(0,1))+'</div><div><h2>'+esc(p.name)+'，今天想學什麼？</h2><small>練習帳號・'+(zy?'注音':'拼音')+'</small></div><span class="grow"></span>'
@@ -294,21 +331,24 @@ async function home(){clearInterval(vt);S.run=null;var p=S.prof;await loadClasse
    +'<button class="out" id="out" type="button">登出</button></div>'
    +'<p class="hm-q">選一個開始</p><div class="hm-pk">'
    +'<button type="button" data-tab="course"'+(tab==='course'?' class="on"':'')+'><i>📘</i><b>免費課程</b><small>照等級一課一課學，每課 10 個詞</small></button>'
-   +'<button type="button" data-tab="topic"'+(tab==='topic'?' class="on"':'')+'><em>新</em><i>🍎</i><b>主題生詞</b><small>家庭、食物、動物…有圖片</small></button>'
+   +'<button type="button" data-tab="topic"'+(tab==='topic'?' class="on"':'')+'><em>新</em><i>🍎</i><b>主題生詞</b><small>家庭、食物、動物…</small></button>'
    +'<button type="button" data-tab="self"'+(tab==='self'?' class="on"':'')+'><i>'+(zy?'ㄅ':'ā')+'</i><b>自己練習</b><small>'+(zy?'注音':'拼音')+'、聲調、打字'+(wl.length?'、錯題本':'')+'</small></button>'
    +'<button type="button" data-tab="class"'+(tab==='class'?' class="on"':'')+'><i>👩‍🏫</i><b>老師的班級</b><small>'+(cs.length?'已加入 '+cs.length+' 個班':'輸入代碼，做老師出的作業')+'</small></button></div>'
    +'<section class="hm-pn">'
-   +(tab==='course'?hmCourse():tab==='topic'?'<div class="hm-ph"><h3>主題生詞</h3><small>每個主題 7～12 個詞，有圖片，可以玩翻牌、看圖選詞</small></div><div class="hm-tp">'+TOPICS.map(function(t){return '<div><i>'+t[0]+'</i><b>'+t[1]+'</b><small>'+t[2]+' 個詞・即將開放</small></div>'}).join('')+'</div>'
+   +(tab==='course'?hmCourse():tab==='topic'?hmTopic(zy)
      :tab==='self'?hmSelf(zy,mo,r,wl):hmClass(cs))
-   +'</section>';
-  $('stage').innerHTML=h;
+   +'</section>'+hmFoot();
+  $('stage').innerHTML=h;ftBind();
   $('out').onclick=function(){auth.signOut()};
   document.querySelectorAll('.hm-pk button').forEach(function(b){b.onclick=function(){S.tab=b.dataset.tab;try{localStorage.setItem('qna_learn_tab',S.tab)}catch(e){}home()}});
   if(tab==='course')courseBind();
+  document.querySelectorAll('[data-tp]').forEach(function(b){b.onclick=function(){S.topic=b.dataset.tp;home()}});
+  if($('tp-back'))$('tp-back').onclick=function(){S.topic='';home()};
+  document.querySelectorAll('[data-tmode]').forEach(function(b){b.onclick=function(){startRun(b.dataset.tmode,null,null,S.topic)}});
   if($('jb'))$('jb').onclick=joinClass;if($('jc'))$('jc').onkeydown=function(e){if(e.key==='Enter')joinClass()};
   if($('wr'))$('wr').onclick=function(){startRun('choose',null,wrongList().slice(0,10))};
   document.querySelectorAll('.lv:not(.clv)').forEach(function(b){b.onclick=function(){var j=+b.dataset.j;if(!lvOpen(j))return askOpen(j);S.lv=j;home()}});
-  document.querySelectorAll('button.gm').forEach(function(b){b.onclick=function(){startRun(b.dataset.mode,S.lv)}});}
+  document.querySelectorAll('button.gm[data-mode]').forEach(function(b){b.onclick=function(){startRun(b.dataset.mode,S.lv)}});}
 async function joinClass(){var c=$('jc').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');if(!c)return toast('請輸入代碼');
   var d=null;try{d=await db.collection('tclasses').doc(c).get()}catch(e){}if(!d||!d.exists)return toast('找不到這個班級，請再確認代碼');
   var cs=(S.prof.classes||[]).slice();if(cs.indexOf(c)<0)cs.push(c);
@@ -413,14 +453,15 @@ function distractors(it){var out={},key=sylAnswer(it);out[key]=1;var tries=0,res
     if(tries>20&&s.length>1){var k2=(k+1)%s.length;s[k2].tone=[1,2,3,4][Math.floor(Math.random()*4)]}
     var str=showSyls(s);if(!out[str]){out[str]=1;res.push(str)}}
   return shuffle(res.concat([key]))}
-function startRun(mode,lv,fromWrong){var items;
-  if(fromWrong){items=fromWrong.map(function(w){var it=makeItem(w.h+' '+w.p);return it&&it.ok?it:null}).filter(Boolean);if(!items.length)return toast('錯題本是空的')}
+function startRun(mode,lv,fromWrong,topic){var items;
+  if(topic){items=shuffle(topicItems(topic));if(!items.length)return toast('這個主題讀不到詞')}
+  else if(fromWrong){items=fromWrong.map(function(w){var it=makeItem(w.h+' '+w.p);return it&&it.ok?it:null}).filter(Boolean);if(!items.length)return toast('錯題本是空的')}
   else{items=pickItems(lv,10);if(!items.length)return toast('這個等級的題目讀不到')}
   var qs=items.map(function(it){var q={it:it};if(mode==='choose')q.opts=distractors(it);if(mode==='tone'){q.k=Math.floor(Math.random()*it.syls.length)}return q});
-  S.run={mode:mode,lv:fromWrong?null:lv,wrongMode:!!fromWrong,qs:qs,i:0,ans:[],t0:Date.now()};quiz()}
+  S.run={mode:mode,lv:(fromWrong||topic)?null:lv,wrongMode:!!fromWrong&&!topic,topic:topic||'',qs:qs,i:0,ans:[],t0:Date.now()};quiz()}
 var TONE_LABEL_PY=['一聲 ˉ','二聲 ˊ','三聲 ˇ','四聲 ˋ','輕聲'],TONE_LABEL_ZY=['ˉ 一聲','ˊ 二聲','ˇ 三聲','ˋ 四聲','˙ 輕聲'];
 function quiz(){var r=S.run,q=r.qs[r.i],it=q.it,n=r.qs.length,last=r.i===n-1,done=r.ans.filter(function(x){return x!=null}).length,zy=isZY();
-  var title=r.wrongMode?'錯題本':LVS[r.lv],mname={choose:zy?'選注音':'選拼音',tone:'聲調練習',type:zy?'打注音':'打拼音'}[r.mode];
+  var title=r.topic?'主題・'+r.topic:r.wrongMode?'錯題本':LVS[r.lv],mname={choose:zy?'選注音':'選拼音',tone:'聲調練習',type:zy?'打注音':'打拼音'}[r.mode];
   var h='<div class="card narrow"'+(r.mode==='type'&&zy?' style="max-width:620px"':'')+'><div class="qhead"><span>'+mname+'・'+title+'</span><span>'+(r.i+1)+' / '+n+'</span></div><div class="prog"><i style="width:'+(done/n*100)+'%"></i></div>'
    +(r.mode==='type'?'':'<div class="dots">'+r.qs.map(function(x,j){return '<button type="button" class="'+(j===r.i?'cur ':'')+(r.ans[j]!=null?'done':'')+'" data-j="'+j+'">'+(j+1)+'</button>'}).join('')+'</div>');
   if(r.mode==='choose'){h+='<p class="sub" style="margin:0">選出正確的'+(zy?'注音':'拼音')+'</p><div class="hz">'+esc(it.h)+'</div><div class="opts">'+q.opts.map(function(o,j){return '<button type="button" data-o="'+j+'" class="'+(r.ans[r.i]===o?'sel':'')+'">'+esc(o)+'</button>'}).join('')+'</div>'}
@@ -463,7 +504,7 @@ async function finish(){var r=S.run,mode=r.mode,dur=Math.round((Date.now()-r.t0)
     wrong.forEach(function(q){args.push(new FP('wrong',q.it.h,'n'),inc(1),new FP('wrong',q.it.h,'p'),q.it.p,new FP('wrong',q.it.h,'r'),0)});
     var W=S.prof.wrong||{};right.forEach(function(q){var w=W[q.it.h];if(!w)return;if((w.r||0)+1>=2)args.push(new FP('wrong',q.it.h),FV.delete());else args.push(new FP('wrong',q.it.h,'r'),inc(1))});
     await ref.update.apply(ref,args);
-    await ref.collection('sessions').add({at:new Date().toISOString(),mode:mode,lv:r.lv,lv_name:r.lv==null?'錯題本':LVS[r.lv],n:n,ok:ok,dur:dur,
+    await ref.collection('sessions').add({at:new Date().toISOString(),mode:mode,lv:r.lv,lv_name:r.topic?'主題・'+r.topic:r.lv==null?'錯題本':LVS[r.lv],n:n,ok:ok,dur:dur,
       items:r.qs.map(function(q,j){var a=r.ans[j];return a==null?null:{h:q.it.h,p:q.it.p,a:mode==='type'?a.v:mode==='tone'?('第'+q.k+'字 '+a+'聲'):a,ok:isRight(q,a,mode)}}).filter(Boolean)});
     var d=await ref.get();if(d.exists)S.prof=d.data();}
   catch(e){toast('紀錄沒存成功（網路不穩？），成績還是看得到',3500)}
@@ -471,7 +512,7 @@ async function finish(){var r=S.run,mode=r.mode,dur=Math.round((Date.now()-r.t0)
   $('stage').innerHTML='<div class="card narrow"><span class="chip">做完了！</span><div class="big">'+ok+' / '+n+'</div><p class="sub" style="margin:0">'+(wrong.length?'錯了 '+wrong.length+' 個，已經收進錯題本':'全部答對，好厲害！')+'</p>'
    +(wrong.length?'<div class="res">'+wrong.map(function(q){return '<div><b>'+esc(q.it.h)+'</b><span class="c">'+esc(sylAnswer(q.it))+'</span></div>'}).join('')+'</div>':'')
    +'<button class="btn" id="again" type="button">再做一次</button><button class="btn ghost" id="hm" type="button">回首頁</button></div>';
-  $('again').onclick=function(){if(r.wrongMode)startRun('choose',null,wrongList().slice(0,10));else startRun(mode,r.lv)};$('hm').onclick=home}
+  $('again').onclick=function(){if(r.topic)startRun(mode,null,null,r.topic);else if(r.wrongMode)startRun('choose',null,wrongList().slice(0,10));else startRun(mode,r.lv)};$('hm').onclick=home}
 
 /* ====== 版本 ====== */
 $('vnum').textContent=VER;
