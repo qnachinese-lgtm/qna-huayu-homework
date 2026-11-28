@@ -200,29 +200,71 @@ function stats(){var p=S.prof,days=p.days||{},week=0,streak=0;for(var i=0;i<7;i+
 function wrongList(){var w=S.prof.wrong||{};return Object.keys(w).map(function(h){return {h:h,p:w[h].p,n:w[h].n||1,r:w[h].r||0}}).sort(function(a,b){return b.n-a.n})}
 async function loadClasses(){var cs=S.prof.classes||[];for(var i=0;i<cs.length;i++){var c=cs[i];if(S.cls[c])continue;
   try{var d=await db.collection('tclasses').doc(c).get();S.cls[c]=d.exists?d.data():{name:'（找不到這個班級）',gone:1}}catch(e){S.cls[c]={name:c}}}}
-async function home(){clearInterval(vt);S.run=null;var p=S.prof;await loadClasses();var st=stats(),wl=wrongList(),cs=p.classes||[],zy=isZY();
-  var h='<div class="hi"><div class="av">'+esc((p.name||'?').slice(0,1))+'</div><div><b>'+esc(p.name)+'</b><small>練習帳號・'+(zy?'注音':'拼音')+'</small></div><button class="out" id="out" type="button">登出</button></div>';
-  if(cs.length){h+='<div class="sec"><h3>我的班級 <small>老師出的題目</small></h3>'+cs.map(function(c){var x=S.cls[c]||{};
-      return '<div class="row"><div class="ic">班</div><div><b>'+esc(x.name||c)+'</b><small>代碼 '+esc(c)+'</small></div>'+(x.gone?'':'<a class="go" href="room.html?c='+encodeURIComponent(c)+'">去做</a>')+'</div>'}).join('')
-    +'<div class="join"><input class="t cc" id="jc" maxlength="8" placeholder="輸入代碼加入新班級"><button id="jb" type="button">加入</button></div></div>'}
-  var r=p.req,mo=maxOpen();
-  h+=courseHTML();
-  h+='<div class="sec" id="self"><h3>自己練習 <small>題目來自華語八千詞（TOCFL 官方詞表）</small></h3>'
-   +'<div class="lvrow"><span>等級</span><div class="lvs">'+LVS.map(function(x,j){var o=j<=mo;return '<button type="button" class="lv'+(j===S.lv?' on':'')+(o?'':' lock')+'" data-j="'+j+'">'+(o?'':'🔒 ')+x+'</button>'}).join('')+'</div></div>'
+/* HOME_V1811 Quinn：「學生可以選擇他要學習什麼」「畫面有點醜，重新排版」——先選要學什麼（免費課程／主題生詞／自己練習／老師的班級），下面只顯示那一塊 */
+(function(){var st=document.createElement('style');st.textContent=
+ '.hm-me{display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap}.hm-me .av{width:54px;height:54px;font-size:23px}.hm-me h2{margin:0;font-size:23px;line-height:1.3}.hm-me small{color:var(--mut);font-size:13.5px}.hm-me .grow{flex:1}'
++'.hm-st{display:flex;gap:10px}.hm-st div{background:#fff;border:1px solid var(--line);border-radius:14px;padding:7px 14px;text-align:center;min-width:84px}.hm-st b{display:block;font-size:20px;color:var(--p)}.hm-st span{font-size:12px;color:var(--mut)}'
++'.hm-me .out{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 16px;cursor:pointer;font-family:inherit;font-size:15px}'
++'.hm-q{font-size:18px;font-weight:700;margin:0 0 12px}'
++'.hm-pk{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}'
++'.hm-pk button{border:2px solid var(--line);background:#fff;border-radius:18px;padding:16px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:6px;position:relative;font-family:inherit;color:var(--ink)}'
++'.hm-pk button:hover{border-color:#B9CBE4}.hm-pk i{font-style:normal;width:44px;height:44px;border-radius:12px;background:var(--ps);display:grid;place-items:center;font-size:22px}'
++'.hm-pk b{font-size:17px}.hm-pk small{color:var(--mut);font-size:13px;line-height:1.5}.hm-pk button.on{border-color:var(--p);background:#F0F5FC;box-shadow:0 8px 22px rgba(30,76,134,.12)}'
++'.hm-pk em{position:absolute;top:12px;right:12px;font-style:normal;font-size:11px;background:#FFF3CF;color:#8A5A00;border-radius:999px;padding:2px 8px}'
++'.hm-pn{background:#fff;border-radius:22px;box-shadow:0 10px 30px rgba(30,60,110,.07);padding:24px;min-height:340px;margin-bottom:14px}'
++'.hm-ph{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:16px}.hm-ph h3{margin:0;font-size:20px}.hm-ph small{color:var(--mut);font-size:13.5px}'
++'.hm-nx{display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#EEF4FC,#F7FAFE);border:1px solid #D6E3F4;border-radius:18px;padding:18px 20px;margin:4px 0 18px}'
++'.hm-nx .bg{width:64px;height:64px;border-radius:16px;background:var(--p);color:#fff;display:grid;place-items:center;flex:none;font-size:13px;line-height:1.2;text-align:center}.hm-nx .bg b{display:block;font-size:24px}'
++'.hm-nx .t{flex:1;min-width:0}.hm-nx .t b{font-size:17px;display:block}.hm-nx .t small{color:var(--mut);font-size:13.5px}'
++'.hm-bar{height:8px;border-radius:9px;background:var(--line);overflow:hidden;margin-top:8px}.hm-bar i{display:block;height:100%;background:var(--ok);border-radius:9px}'
++'.hm-go{border:0;background:var(--p);color:#fff;border-radius:14px;padding:12px 22px;font-size:16px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;text-decoration:none}'
++'.hm-pn .lsn{grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;max-height:none}.hm-pn .lsn button{height:52px;font-size:16px;border-radius:12px}'
++'.hm-tp{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}.hm-tp div{border:1px solid var(--line);border-radius:16px;padding:16px 12px;text-align:center;opacity:.6}'
++'.hm-tp i{font-style:normal;font-size:34px;display:block}.hm-tp b{display:block;font-size:16px;margin-top:6px}.hm-tp small{color:#8A5A00;font-size:12.5px}'
++'.hm-sub{color:var(--mut);font-size:13.5px;margin:0 0 8px}'
++'.hm-cl{display:flex;flex-direction:column;gap:10px;max-width:560px}.hm-cl .row{margin:0}'
++'.hm-cl .join{display:flex;gap:8px;margin-top:6px}.hm-cl .join input{flex:1}'
++'@media(max-width:760px){.hm-me .av{width:46px;height:46px;font-size:20px}.hm-me h2{font-size:20px}.hm-me>div:nth-child(2){flex:1;min-width:0}.hm-me .grow{display:none}.hm-me .out{order:2}.hm-st{order:3;width:100%}.hm-st div{flex:1;min-width:0}'
++'.hm-pk{grid-template-columns:1fr 1fr;gap:10px}.hm-pk button{padding:13px}.hm-pk small{font-size:12px}.hm-pn{padding:18px 16px}.hm-nx{flex-wrap:wrap}.hm-nx .hm-go{width:100%}.hm-pn .lsn{grid-template-columns:repeat(5,1fr)}}';document.head.appendChild(st)})();
+var TOPICS=[['👨‍👩‍👧','家庭',10],['🍜','食物',10],['🍎','水果',9],['🧋','飲料',9],['🐼','動物',12],['🎨','顏色',7],['👂','身體',11],['👕','衣服',10],['🎒','學校和文具',11],['🚌','交通',9]];
+function hmTab(){var t=S.tab;if(!t){try{t=localStorage.getItem('qna_learn_tab')||''}catch(e){}}if(['course','topic','self','class'].indexOf(t)<0)t=(S.prof.classes||[]).length?'class':'course';return t}
+function hmCourse(){var mo=maxOpen(),j=S.clv||0,n=lsnCount(j),nx=lsnNext(j),dn=0;for(var k=0;k<n;k++)if(lsnDone(j,k))dn++;
+  return '<div class="hm-ph"><h3>免費課程</h3><small>華語八千詞・每課 10 個詞・看詞 → 翻牌 → 快問快答 → 打地鼠</small></div>'
+   +'<div class="lvrow"><div class="lvs">'+LVS.map(function(x,i){var o=i<=mo;return '<button type="button" class="lv clv'+(i===j?' on':'')+(o?'':' lock')+'" data-j="'+i+'">'+(o?'':'🔒 ')+x+'</button>'}).join('')+'</div></div>'
+   +(n?'<div class="hm-nx"><div class="bg">第<b>'+(nx+1)+'</b>課</div><div class="t"><b>'+LVS[j]+'・第 '+(nx+1)+' 課</b><small>做完 '+dn+' / '+n+' 課</small><div class="hm-bar"><i style="width:'+Math.round(dn/n*100)+'%"></i></div></div><button type="button" class="hm-go" id="cgo">'+(dn?'繼續學 →':'開始 →')+'</button></div>'
+     +'<p class="hm-sub">或選一課：</p><div class="lsn">'+Array.apply(null,Array(n)).map(function(_,k){return '<button type="button" data-k="'+k+'" class="'+(lsnDone(j,k)?'dn':k===nx?'nx':'')+'">'+(lsnDone(j,k)?'✓':'')+(k+1)+'</button>'}).join('')+'</div>':'<p class="sub">這個等級讀不到詞</p>')}
+function hmSelf(zy,mo,r,wl){return '<div class="hm-ph"><h3>自己練習</h3><small>題目來自華語八千詞（TOCFL 官方詞表）・每次 10 題</small></div>'
+   +'<div class="lvrow"><div class="lvs">'+LVS.map(function(x,j){var o=j<=mo;return '<button type="button" class="lv'+(j===S.lv?' on':'')+(o?'':' lock')+'" data-j="'+j+'">'+(o?'':'🔒 ')+x+'</button>'}).join('')+'</div></div>'
    +(r&&r.status==='pending'?'<div class="reqst">已送出「'+esc(r.lv_name||'')+'」的開通申請，美娟老師看過後會幫你打開。</div>':'')
    +'<div class="grid">'
    +'<button type="button" class="gm" data-mode="choose"><i>'+(zy?'ㄅ':'ā')+'</i><b>'+(zy?'選注音':'選拼音')+'</b><small>看字選讀音</small></button>'
    +'<button type="button" class="gm" data-mode="tone"><i>ˇ</i><b>聲調練習</b><small>選出正確的聲調</small></button>'
    +'<button type="button" class="gm" data-mode="type"><i>⌨</i><b>'+(zy?'打注音':'打拼音')+'</b><small>看字自己打出來</small></button>'
-   +'<a class="gm" href="hanzi.html?guest=1"><i>字</i><b>漢字闖關</b><small>認字、寫字</small></a>'
-   +'</div><p class="sub" style="margin:10px 0 0">目前：'+LVS[S.lv]+'・每次 10 題</p></div>';
-  if(p.total)h+='<div class="stats"><div class="st"><small>連續練習</small><b>'+st.streak+'<em>天</em></b></div><div class="st"><small>這週做了</small><b>'+st.week+'<em>題</em></b></div><div class="st"><small>答對率</small><b>'+(st.acc==null?'—':st.acc+'<em>%</em>')+'</b></div></div>';
-  if(wl.length)h+='<div class="sec"><h3>錯題本 <small>答對 2 次就會自動移出</small><button type="button" class="go r" id="wr">再練一次</button></h3><div class="wrong">'
-   +wl.slice(0,24).map(function(w){return '<div class="wd"><b>'+esc(w.h)+'</b><small>錯 '+w.n+' 次</small></div>'}).join('')+(wl.length>24?'<div class="wd"><b>…</b><small>還有 '+(wl.length-24)+' 個</small></div>':'')+'</div></div>';
-  if(!cs.length)h+='<div class="joinlink"><button type="button" id="jopen">有老師給的班級代碼？</button><div class="join" id="jbox" hidden><input class="t cc" id="jc" maxlength="8" placeholder="輸入代碼"><button id="jb" type="button">加入班級</button></div></div>';
+   +'<a class="gm" href="hanzi.html?guest=1"><i>字</i><b>漢字闖關</b><small>認字、寫字</small></a></div>'
+   +(wl.length?'<div style="margin-top:22px"><div class="hm-ph" style="margin-bottom:10px"><h3 style="font-size:17px">錯題本</h3><small>答對 2 次就會自動移出</small><button type="button" class="hm-go" id="wr" style="margin-left:auto;padding:8px 16px;font-size:14px">再練一次</button></div><div class="wrong">'
+     +wl.slice(0,24).map(function(w){return '<div class="wd"><b>'+esc(w.h)+'</b><small>錯 '+w.n+' 次</small></div>'}).join('')+(wl.length>24?'<div class="wd"><b>…</b><small>還有 '+(wl.length-24)+' 個</small></div>':'')+'</div></div>':'')}
+function hmClass(cs){return '<div class="hm-ph"><h3>老師的班級</h3><small>輸入老師給的代碼，加入後就看得到作業</small></div><div class="hm-cl">'
+   +cs.map(function(c){var x=S.cls[c]||{};return '<div class="row"><div class="ic">班</div><div><b>'+esc(x.name||c)+'</b><small>代碼 '+esc(c)+'</small></div>'+(x.gone?'':'<a class="go" href="room.html?c='+encodeURIComponent(c)+'">去做</a>')+'</div>'}).join('')
+   +'<div class="join"><input class="t cc" id="jc" maxlength="8" placeholder="輸入班級代碼"><button id="jb" type="button">加入</button></div>'
+   +(cs.length?'':'<p class="hm-sub" style="margin-top:6px">還沒有加入班級。</p>')+'</div>'}
+async function home(){clearInterval(vt);S.run=null;var p=S.prof;await loadClasses();var st=stats(),wl=wrongList(),cs=p.classes||[],zy=isZY(),r=p.req,mo=maxOpen();
+  var tab=S.tab=hmTab();var nd=Object.keys(p.lessons||{}).length;
+  var h='<div class="hm-me"><div class="av">'+esc((p.name||'?').slice(0,1))+'</div><div><h2>'+esc(p.name)+'，今天想學什麼？</h2><small>練習帳號・'+(zy?'注音':'拼音')+'</small></div><span class="grow"></span>'
+   +'<div class="hm-st"><div><b>'+st.streak+'</b><span>連續天數</span></div><div><b>'+st.week+'</b><span>這週做的題</span></div><div><b>'+nd+'</b><span>完成的課</span></div></div>'
+   +'<button class="out" id="out" type="button">登出</button></div>'
+   +'<p class="hm-q">選一個開始</p><div class="hm-pk">'
+   +'<button type="button" data-tab="course"'+(tab==='course'?' class="on"':'')+'><i>📘</i><b>免費課程</b><small>照等級一課一課學，每課 10 個詞</small></button>'
+   +'<button type="button" data-tab="topic"'+(tab==='topic'?' class="on"':'')+'><em>新</em><i>🍎</i><b>主題生詞</b><small>家庭、食物、動物…有圖片</small></button>'
+   +'<button type="button" data-tab="self"'+(tab==='self'?' class="on"':'')+'><i>'+(zy?'ㄅ':'ā')+'</i><b>自己練習</b><small>'+(zy?'注音':'拼音')+'、聲調、打字、漢字'+(wl.length?'、錯題本':'')+'</small></button>'
+   +'<button type="button" data-tab="class"'+(tab==='class'?' class="on"':'')+'><i>👩‍🏫</i><b>老師的班級</b><small>'+(cs.length?'已加入 '+cs.length+' 個班':'輸入代碼，做老師出的作業')+'</small></button></div>'
+   +'<section class="hm-pn">'
+   +(tab==='course'?hmCourse():tab==='topic'?'<div class="hm-ph"><h3>主題生詞</h3><small>每個主題 7～12 個詞，有圖片，可以玩翻牌、看圖選詞</small></div><div class="hm-tp">'+TOPICS.map(function(t){return '<div><i>'+t[0]+'</i><b>'+t[1]+'</b><small>'+t[2]+' 個詞・即將開放</small></div>'}).join('')+'</div>'
+     :tab==='self'?hmSelf(zy,mo,r,wl):hmClass(cs))
+   +'</section>';
   $('stage').innerHTML=h;
-  $('out').onclick=function(){auth.signOut()};courseBind();
-  if($('jopen'))$('jopen').onclick=function(){$('jbox').hidden=false;this.hidden=true;$('jc').focus()};
+  $('out').onclick=function(){auth.signOut()};
+  document.querySelectorAll('.hm-pk button').forEach(function(b){b.onclick=function(){S.tab=b.dataset.tab;try{localStorage.setItem('qna_learn_tab',S.tab)}catch(e){}home()}});
+  if(tab==='course')courseBind();
   if($('jb'))$('jb').onclick=joinClass;if($('jc'))$('jc').onkeydown=function(e){if(e.key==='Enter')joinClass()};
   if($('wr'))$('wr').onclick=function(){startRun('choose',null,wrongList().slice(0,10))};
   document.querySelectorAll('.lv:not(.clv)').forEach(function(b){b.onclick=function(){var j=+b.dataset.j;if(!lvOpen(j))return askOpen(j);S.lv=j;home()}});
