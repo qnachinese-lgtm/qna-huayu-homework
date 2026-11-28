@@ -60,6 +60,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .dots i.now{border-color:var(--primary)}
 .dots i.ok{background:var(--good);border-color:var(--good)}
 .dots i.no{background:var(--bad);border-color:var(--bad)}
+.dots i.dn{background:#9DB6D8;border-color:#9DB6D8}
 /* 漢字區固定高度：一個字、三個字、一整句都一樣高，下面的輸入框才不會跳來跳去 */
 .hanzi{font-family:var(--kai);height:clamp(84px,16vw,116px);display:flex;align-items:center;justify-content:center;font-size:clamp(52px,11vw,80px);line-height:1;text-align:center;letter-spacing:.06em;white-space:nowrap;overflow:hidden}
 .hanzi.long{font-size:clamp(24px,6vw,44px);letter-spacing:.03em}
@@ -418,6 +419,8 @@ function taskDone(t){return (me.rec&&me.rec.tasks&&me.rec.tasks[t.id])||null}
 /* ====== 練習畫面 ====== */
 function curLesson(){return COURSE.find(x=>x.id===st.lesson)||COURSE[COURSE.length-1]||null}
 function taskOf(id){return TASKS.find(t=>t&&t.id===id&&!t.deleted_at)||null}
+/* ANSMODE_V1808 老師選的給答案方式：now 馬上給、retry 只說對錯可再試（3 次）、exam 考試模式（做完才公布） */
+function ansMode(){const lv=String(st.level||'');const tk=lv.indexOf('task:')===0?taskOf(lv.slice(5)):null;return (tk&&tk.ans)||'now';}
 function taskItems(t){return t?parseList(t.items||'').filter(r=>!r.err).map(r=>r.it):[]}
 function pool(){
   const lv=String(st.level||'');
@@ -442,7 +445,7 @@ function renderLevels(){
     +(st.level==='course'&&COURSE.length?'<select id="lesSel" class="lsel" aria-label="選一課">'+COURSE.map(x=>'<option value="'+esc(x.id)+'"'+(L&&x.id===L.id?' selected':'')+'>'+esc(x.label)+'（'+x.items.length+'）</option>').join('')+'</select>':'');
   box.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{st.level=b.dataset.level;try{if(st.level.indexOf('task:')!==0)localStorage.setItem('qna-pinyin-level',st.level)}catch(e){}renderLevels();if(st.tab==='game')renderGame();else startRound()});
   const ls=$('#lesSel');if(ls)ls.onchange=()=>{st.lesson=ls.value;try{localStorage.setItem('qna-pinyin-lesson',st.lesson)}catch(e){}if(st.tab==='game')renderGame();else startRound()}}
-function progHTML(){const n=st.queue.length;const tt=String(st.level).indexOf('task:')===0?taskOf(st.level.slice(5)):null;return (tt?'<div class="taskbar">作業：'+esc(tt.title)+(tt.due?'　截止 '+esc(tt.due):'')+'</div>':'')+`<div class="prog"><span>第 ${st.i+1} 題／共 ${n} 題</span><div class="dots">${st.queue.map((_,k)=>`<i class="${k<st.res.length?(st.res[k].ok?'ok':'no'):(k===st.i?'now':'')}"></i>`).join('')}</div></div>`}
+function progHTML(){const n=st.queue.length;const tt=String(st.level).indexOf('task:')===0?taskOf(st.level.slice(5)):null;return (tt?'<div class="taskbar">作業：'+esc(tt.title)+(tt.due?'　截止 '+esc(tt.due):'')+'</div>':'')+`<div class="prog"><span>第 ${st.i+1} 題／共 ${n} 題</span><div class="dots">${st.queue.map((_,k)=>`<i class="${k<st.res.length?(ansMode()==='exam'?'dn':(st.res[k].ok?'ok':'no')):(k===st.i?'now':'')}"></i>`).join('')}</div></div>`}
 function renderPractice(){
   syncZyUi();$('#cheat').hidden=isZY();
   {const lv=String(st.level||'');const tk=lv.indexOf('task:')===0?taskOf(lv.slice(5)):null;if(tk&&tk.pm&&Array.isArray(tk.segs)&&!st.plain){$('#cheat').hidden=true;return renderSeg(tk);}}
@@ -464,8 +467,13 @@ function renderPractice(){
     const msg=r.ok?'答對了！':r.kind==='tone'?'拼法對了，聲調再看一下':given===''?'正確答案':'拼法不太對';
     fb.innerHTML=`<span class="head">${msg}</span><span class="ans">${answerHTML(it,r.ok?null:r.wrong)}</span>`;
     go.textContent=st.i+1>=st.queue.length?'看結果':'下一題';$('#giveup').hidden=true;inp.readOnly=true;go.focus()};
+  const AM=ansMode();let tries=0;if(AM!=='now')$('#giveup').hidden=true;
   go.onclick=()=>{if(st.done){st.i++;renderPractice();return}const r=checkTyped(inp.value,it);
-    if(!r){fb.className='fb';fb.innerHTML='<span class="tip">先輸入拼音再按檢查</span>';inp.focus();return}finish(r,inp.value)};
+    if(!r){fb.className='fb';fb.innerHTML='<span class="tip">先輸入拼音再按檢查</span>';inp.focus();return}
+    if(AM==='exam'){st.res.push({it,ok:r.ok,a:String(inp.value||'').slice(0,40),k:r.kind||''});st.i++;renderPractice();return}
+    if(AM==='retry'&&!r.ok){tries++;if(tries<3){fb.className='fb no';fb.innerHTML='<span class="head">'+(r.kind==='tone'?'拼法對了，聲調再想想':'還不對，再想想')+'</span><span class="tip">還可以試 '+(3-tries)+' 次</span>';inp.focus();inp.select();return}
+      st.res.push({it,ok:false,a:String(inp.value||'').slice(0,40),k:r.kind||''});st.done=true;fb.className='fb no';fb.innerHTML='<span class="head">先跳過，全部做完會看到答案</span>';go.textContent=st.i+1>=st.queue.length?'看結果':'下一題';inp.readOnly=true;go.focus();return}
+    finish(r,inp.value)};
   $('#giveup').onclick=()=>{if(!st.done)finish({ok:false,kind:'spell',wrong:null},'')};
   inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();go.click()}});
   inp.focus({preventScroll:true})}
@@ -485,8 +493,13 @@ function renderPracticeZy(){
     const msg=r.ok?'答對了！':r.kind==='tone'?'注音對了，聲調再看一下':given===''?'正確答案':'注音不太對';
     fb.innerHTML=`<span class="head">${msg}</span><span class="ans">${answerHTML(it,r.ok?null:r.wrong)}</span>`;
     go.textContent=st.i+1>=st.queue.length?'看結果':'下一題';$('#giveup').hidden=true;go.focus()};
+  const AM=ansMode();let tries=0;if(AM!=='now')$('#giveup').hidden=true;
   go.onclick=()=>{if(st.done){st.i++;renderPractice();return}const r=ZY.check(ctl.keys(),it.syls);
-    if(!r){fb.className='fb';fb.innerHTML='<span class="tip">先點注音再按檢查</span>';return}finish(r,ctl.text())};
+    if(!r){fb.className='fb';fb.innerHTML='<span class="tip">先點注音再按檢查</span>';return}
+    if(AM==='exam'){st.res.push({it,ok:r.ok,a:String(ctl.text()||'').slice(0,40),k:r.kind||''});st.i++;renderPractice();return}
+    if(AM==='retry'&&!r.ok){tries++;if(tries<3){out.classList.add('bad');fb.className='fb no';fb.innerHTML='<span class="head">'+(r.kind==='tone'?'注音對了，聲調再想想':'還不對，再想想')+'</span><span class="tip">還可以試 '+(3-tries)+' 次</span>';return}
+      st.res.push({it,ok:false,a:String(ctl.text()||'').slice(0,40),k:r.kind||''});st.done=true;ctl.lock(true);out.classList.add('bad');fb.className='fb no';fb.innerHTML='<span class="head">先跳過，全部做完會看到答案</span>';go.textContent=st.i+1>=st.queue.length?'看結果':'下一題';go.focus();return}
+    finish(r,ctl.text())};
   $('#giveup').onclick=()=>{if(!st.done)finish({ok:false,kind:'spell',wrong:null},'')};}
 
 /* SEGP_V1755 短句、短文：每個字下面一格，逐字打拼音（注音模式用注音鍵盤）。短句一句一頁，短文整段一頁。 */
@@ -502,7 +515,7 @@ function renderSeg(tk){
       return '<label class="sg-c" data-i="'+i+'"><b>'+esc(c)+'</b>'+(z?'<span class="sg-in sg-zy" tabindex="0" data-i="'+i+'"></span>':'<input class="sg-in" data-i="'+i+'" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">')+'<em class="sg-ans"></em></label>';}).join('')+'</div>').join('')+'</div>'
     +(z?ZY.kbHTML():'')
     +'<div class="fb" id="fb"></div><div class="acts"><button class="btn primary" id="go" type="button">檢查</button></div>';
-  const ins=[...stage.querySelectorAll('.sg-in')],go=$('#go'),fb=$('#fb');let done=false,cur=0;const ZK=cells.map(()=>[]);
+  const ins=[...stage.querySelectorAll('.sg-in')],go=$('#go'),fb=$('#fb');let done=false,cur=0,rounds=0;const ZK=cells.map(()=>[]);
   const focus=i=>{cur=Math.max(0,Math.min(ins.length-1,i));ins.forEach((el,j)=>el.classList.toggle('cur',j===cur));if(!z)ins[cur].focus();else ins[cur].scrollIntoView({block:'nearest'});};
   if(!z){ins.forEach((el,i)=>{el.addEventListener('input',e=>{if(e.isComposing)return;const tone=/[0-5]$/.test(el.value);/* NEUTRAL_V1807 輕聲打 5 或 0 也會跳下一格 */autoConvert(el);if(tone&&i<ins.length-1)focus(i+1);});
       el.addEventListener('focus',()=>{cur=i;ins.forEach((x,j)=>x.classList.toggle('cur',j===i));});
@@ -519,14 +532,20 @@ function renderSeg(tk){
   go.onclick=()=>{if(done){sp.i++;renderSeg(tk);try{stage.scrollIntoView({block:'start'})}catch(e){}return}
     const empty=z?ZK.some(x=>!x.length):ins.some(x=>!x.value.trim());
     if(empty&&!go.dataset.warned){go.dataset.warned='1';fb.className='fb';fb.innerHTML='<span class="tip">還有字沒打，再按一次「檢查」就直接對答案。</span>';return}
-    done=true;let ok=0;
-    cells.forEach((cl,i)=>{const it=makeItem(cl.c,cl.p);const T=it.syls[0]||{base:'',tone:5};let good=false,a='';
+    const AM=ansMode();rounds++;
+    const g=cells.map((cl,i)=>{const it=makeItem(cl.c,cl.p);const T=it.syls[0]||{base:'',tone:5};let good=false,a='';
       if(z){const r=ZY.check(ZK[i],it.syls);good=!!(r&&r.ok);a=ins[i].textContent;}
-      else{a=ins[i].value.trim();const g=parsePinyin(a);good=g.length===1&&g[0].base===T.base&&g[0].tone===T.tone;ins[i].readOnly=true;}
-      if(good)ok++;const lab=ins[i].closest('.sg-c');lab.classList.add(good?'ok':'bad');if(!good)lab.querySelector('.sg-ans').innerHTML=z?ZY.syl(T.base,T.tone):esc(cl.p);
-      sp.res.push({it,ok:good,a,k:good?'':'spell'});});
-    if(z){const kb=stage.querySelector('.zykb');if(kb)kb.setAttribute('aria-disabled','true');}
-    fb.className='fb '+(ok===cells.length?'ok':'no');fb.innerHTML='<span class="head">'+(ok===cells.length?'全部答對！':'答對 '+ok+' / '+cells.length+' 個字，紅色的是正確答案')+'</span>';
+      else{a=ins[i].value.trim();const gg=parsePinyin(a);good=gg.length===1&&gg[0].base===T.base&&gg[0].tone===T.tone;}
+      return {it,T,good,a};});
+    const ok=g.filter(x=>x.good).length;
+    const fin=()=>{done=true;g.forEach(x=>sp.res.push({it:x.it,ok:x.good,a:x.a,k:x.good?'':'spell'}));if(!z)ins.forEach(el=>el.readOnly=true);else{const kb=stage.querySelector('.zykb');if(kb)kb.setAttribute('aria-disabled','true');}};
+    /* ANSMODE_V1808 */
+    if(AM==='exam'){fin();sp.i++;renderSeg(tk);try{stage.scrollIntoView({block:'start'})}catch(e){}return}
+    if(AM==='retry'&&ok<cells.length&&rounds<3){g.forEach((x,i)=>{const lab=ins[i].closest('.sg-c');lab.classList.toggle('ok',x.good);lab.classList.toggle('bad',!x.good);if(!z)ins[i].readOnly=x.good;});
+      delete go.dataset.warned;fb.className='fb no';fb.innerHTML='<span class="head">答對 '+ok+' / '+cells.length+' 個字，紅色的再改一下</span><span class="tip">還可以試 '+(3-rounds)+' 次</span>';focus(g.findIndex(x=>!x.good));return}
+    g.forEach((x,i)=>{const lab=ins[i].closest('.sg-c');lab.classList.remove('ok','bad');lab.classList.add(x.good?'ok':'bad');if(!x.good&&AM==='now')lab.querySelector('.sg-ans').innerHTML=z?ZY.syl(x.T.base,x.T.tone):esc(cells[i].p);});
+    fin();
+    fb.className='fb '+(ok===cells.length?'ok':'no');fb.innerHTML='<span class="head">'+(ok===cells.length?'全部答對！':'答對 '+ok+' / '+cells.length+' 個字，'+(AM==='now'?'紅色的是正確答案':'全部做完會看到答案'))+'</span>';
     go.textContent=sp.i+1>=pages.length?'看結果':'下一句';go.focus();};
 }
 let css0done=false;function css0(){if(css0done)return;css0done=true;try{ZY.css()}catch(e){}}
@@ -788,7 +807,7 @@ async function classBoot(code){
   let nm='';try{nm=localStorage.getItem('qna_cls_name_'+code)||''}catch(e){}
   if(!nm){location.href='room.html?c='+encodeURIComponent(code);return}
   let ts=[];try{const sn=await fs.collection('ttasks').where('class_code','==',code).get();ts=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(t=>t&&!t.deleted_at&&(t.kind==='pinyin'||(t.kind==='game'&&(t.game==='pinyin'||t.game==='mole'||t.game==='wmole'||t.game==='pic'||t.game==='kq'))))}catch(e){}/* PYGAME_V1737 也收拼音遊戲、打地鼠 */
-  TASKS=ts.map(t=>({id:t.id,title:t.title,items:t.kind==='game'?String(t.items||'').split('\n').map(x=>x.split(/[=＝]/)[0].trim()).filter(Boolean).join('\n'):t.items,guest:true,gk:t.kind==='game'?t.game:'',sub:t.sub||'',speed:t.speed||'',zy:!!t.zy,imgs:t.imgs||null,qs:t.qs||null,pm:t.pm||'',segs:t.segs||null}));CUSTOM=[];COURSE=[];
+  TASKS=ts.map(t=>({id:t.id,title:t.title,items:t.kind==='game'?String(t.items||'').split('\n').map(x=>x.split(/[=＝]/)[0].trim()).filter(Boolean).join('\n'):t.items,guest:true,gk:t.kind==='game'?t.game:'',sub:t.sub||'',speed:t.speed||'',zy:!!t.zy,imgs:t.imgs||null,qs:t.qs||null,pm:t.pm||'',segs:t.segs||null,ans:t.ans||''}));CUSTOM=[];COURSE=[];
   me.guest={name:nm,dev:guestDev(),cls:code,owner:c.owner_uid,cname:c.name};me.guest.scr=((c.scripts||{})[code+'_'+me.guest.dev])||c.script_default||'';try{const my=localStorage.getItem('qna_cls_scr_'+code);if(c.scr_free&&my)me.guest.scr=my;}catch(e){}/* SCRFREE_V1789 *//* SCRSTU_V1742 老師幫每位學生選拼音或注音 */me.student=null;me.teacher=false;
   try{me.rec=Object.assign(emptyRec(),JSON.parse(localStorage.getItem('qna-pinyin-cls-'+code)||'null')||{})}catch(e){me.rec=emptyRec()}
   document.body.classList.add('is-guest');

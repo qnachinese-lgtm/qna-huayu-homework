@@ -499,7 +499,7 @@ function dueEdit(t,code){if(!t)return;const w=document.createElement('div');w.cl
 function taskCard(t,dn){const n=S.studs.length;const nw=t.pm?(t.segs||[]).reduce((a,x)=>a+Array.from(x.h).filter(c=>HANRE.test(c)).length,0)+' 個字':t.game==='kq'?(t.qs||[]).length+' 題':String(t.items||'').split('\n').filter(x=>x.trim()).length+((t.game==='fill'||t.game==='order')?' 題':t.game==='kblk'?' 個字':t.game==='ktrain'?' 串':' 個詞');
   const type=t.kind==='pinyin'?(t.pm==='sent'?'短句練習':t.pm==='text'?'短文練習':t.zy?'注音練習':'拼音練習'):t.kind==='game'?((GKINDS.find(g=>g[0]===t.game)||[])[1]||'遊戲').replace(/^\S+\s/,''):'漢字闖關';
   const ic=t.kind==='pinyin'?(t.zy?'ㄅ':'ā'):t.kind==='game'?(((GKINDS.find(g=>g[0]===t.game)||[])[1]||'🎮').split(' ')[0]):'字';const pct=n?Math.round(dn/n*100):0;
-  return '<div class="tcard"><div class="tc-top"><i>'+esc(ic)+'</i><div class="tc-t"><b>'+esc(t.title)+'</b><small>'+esc(type)+'・'+esc(nw)+'・'+esc(String(t.created_at||'').slice(5,10).replace('-','/'))+'</small></div></div>'
+  return '<div class="tcard"><div class="tc-top"><i>'+esc(ic)+'</i><div class="tc-t"><b>'+esc(t.title)+'</b><small>'+esc(type)+(t.ans==='exam'?'・考試模式':t.ans==='retry'?'・做完才給答案':'')+'・'+esc(nw)+'・'+esc(String(t.created_at||'').slice(5,10).replace('-','/'))+'</small></div></div>'
    +(()=>{const L=dueLab(t.due);const late=t.due?S.studs.filter(s=>isLate(t,(s.tasks||{})[t.id])).length:0;return '<div class="tc-due">'+(L?'<span class="dueb '+L.c+'">📅 '+esc(L.t)+'</span>'+(late?'<span class="dueb past">'+late+' 位遲交</span>':''):'<span class="dueb none">沒有截止日期</span>')+'<button type="button" class="lnk" data-due="'+esc(t.id)+'">'+(L?'改':'設定')+'</button></div>';})()
    +'<div class="tc-bar"><i style="width:'+pct+'%"></i></div><div class="tc-f"><span>'+(n?dn+' / '+n+' 位做過':'還沒有學生')+'</span><span class="grow"></span>'+vBtn(t)+'<button class="btn sm del" data-del="'+esc(t.id)+'">收回</button></div></div>';}
 function taskRow(t){const nw=t.game==='kq'?(t.qs||[]).length+' 題':String(t.items||'').split('\n').filter(x=>x.trim()).length+((t.game==='fill'||t.game==='order')?' 題':t.game==='kblk'?' 個字':t.game==='ktrain'?' 串':' 個詞');const n=t.kind==='pinyin'?nw:t.kind==='game'?((GKINDS.find(g=>g[0]===t.game)||[])[1]||'遊戲')+'・'+nw:(HZ_NAME[t.fam]||t.fam)+'・'+(HZ_DIFF[t.diff]||'')+'・至少 '+(t.min_stars||1)+' 星';
@@ -1005,6 +1005,7 @@ function wzSum(){const nm=$('#wz-name');nm.placeholder=wzDefName();const n0=nm.v
   if(WZ.cat==='w'){const ks=[...WZ.sel];h='會發出 <b>'+ks.length+' 份</b>：'+ks.map(wzNm).join('、')+'<br>生詞 '+wzWords().length+' 個<br><small style="color:var(--mut)">題目名稱：'+esc(n0)+'・'+esc(wzNm(ks[0]||'flip'))+(ks.length>1?' …':'')+'</small>';}
   else if(WZ.cat==='s')h='會發出 <b>1 份</b>：'+wzNm(WZ.ty)+'<br><small style="color:var(--mut)">題目名稱：'+esc(n0)+'</small>';
   else h='會發出 <b>1 份</b>：'+(S.pm==='sent'?'短句練習':S.pm==='text'?'短文練習':'拼音練習')+'<br><small style="color:var(--mut)">題目名稱：'+esc(n0)+'</small>';
+  {const aw=$('#wz-answ');if(aw)aw.hidden=WZ.cat!=='p';}/* ANSMODE_V1808 */
   $('#wz-sum').innerHTML=h;const sv=$('#wz-savew');const can=!(WZ.cat==='s'&&WZ.ty==='kq');sv.hidden=!can;$('#wz-savet').textContent='也存進「我的題庫」（分類：'+n0+'）';}
 function wzEnter(){const p=wzSteps()[WZ.st];$('#wz-body').scrollTop=0;
   if(p==='gitems'){if(WZ.cat==='w'){wzKind('game');if(['kq','fill','order','kblk','ktrain'].includes(S.gk))wzSetG('flip');}else{wzKind('game');wzSetG(WZ.ty);}
@@ -1026,6 +1027,8 @@ async function wzGo(code){const msg=$('#t-msg'),nx=$('#wz-next');const nm=($('#w
         S.dry=[];await $('#t-go').onclick();if(!S.dry.length)return fail(ks.length>1?'【'+wzNm(k)+'】'+msg.textContent:'');out.push(...S.dry);}}}
   catch(e){return fail('發不出去：'+(e&&e.message||e));}
   S.dry=null;
+  /* ANSMODE_V1808 Quinn：答案要不要馬上給學生看——①馬上給 ②只說對錯可再試 ③考試模式 */
+  if(WZ.cat==='p'){const a=($('#wz-ans')||{}).value||'now';if(a!=='now')out.forEach(t=>t.ans=a);}
   try{for(const t of out)await db.collection('ttasks').add(t);}catch(e){return fail('發不出去：'+(e&&e.message||e));}
   /* 自動存進我的題庫（分類＝題目名稱，重複的不會再存） */
   if($('#wz-save').checked&&!(WZ.cat==='s'&&WZ.ty==='kq')){const L=WZ.cat==='p'?(S.pm?String(($('#seg-text')||{}).value||'').split(/\n+/).map(x=>x.trim()).filter(Boolean):wzLines('t-items')):wzLines();
@@ -1045,6 +1048,7 @@ function wizInit(code){const card=app.querySelector('.wzcard');if(!card)return;
    +'<section data-wp="pics"><div class="wz-h">每個詞放一張圖 <small>看圖選詞、圖片翻牌要用</small></div><div id="wz-pics"></div></section>'
    +'<section data-wp="py"><div class="wz-h">拼音練習</div><div id="wz-py"></div></section>'
    +'<section data-wp="send"><div class="wz-h">發給學生</div><label class="l">題目名稱 <span>（不寫就用下面灰字）</span></label><input id="wz-name" maxlength="50"><div id="wz-due"></div>'
+   +'<div id="wz-answ" hidden><label class="l">答案什麼時候給學生看</label><select id="wz-ans"><option value="now">① 馬上給答案（平常練習）</option><option value="retry">② 只說對錯，可以再試，做完才給答案</option><option value="exam">③ 考試模式：做完才公布對錯和答案</option></select></div>'
    +'<div class="wz-sum" id="wz-sum"></div><label class="wz-save" id="wz-savew"><input type="checkbox" id="wz-save" checked><span id="wz-savet"></span></label><div id="wz-msg"></div></section>'
    +'</div><div class="wz-foot"><button type="button" class="wz-back" id="wz-back">← 上一步</button><span class="grow"></span><button type="button" class="wz-next" id="wz-next">下一步 →</button></div>';
   card.appendChild(w);
