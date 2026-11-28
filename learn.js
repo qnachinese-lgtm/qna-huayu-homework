@@ -463,9 +463,19 @@ function startRun(mode,lv,fromWrong,topic){var items;
   var qs=items.map(function(it){var q={it:it};if(mode==='choose')q.opts=distractors(it);if(mode==='tone'){q.k=Math.floor(Math.random()*it.syls.length)}return q});
   S.run={mode:mode,lv:(fromWrong||topic)?null:lv,wrongMode:!!fromWrong&&!topic,topic:topic||'',qs:qs,i:0,ans:[],t0:Date.now()};quiz()}
 var TONE_LABEL_PY=['一聲 ˉ','二聲 ˊ','三聲 ˇ','四聲 ˋ','輕聲'],TONE_LABEL_ZY=['ˉ 一聲','ˊ 二聲','ˇ 三聲','ˋ 四聲','˙ 輕聲'];
+/* QUIZUI_V1816 Quinn：「回首頁的按鈕也太醜了」「重新設計」——上面一條：左邊 ✕ 離開、中間題型、右邊題號；離開用自己的小視窗問 */
+(function(){var st=document.createElement('style');st.textContent=
+ '.qtop{display:flex;align-items:center;gap:12px;margin-bottom:14px}.qx{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:#fff;color:#5B6B82;font-size:15px;cursor:pointer;flex:none;font-family:inherit}.qx:hover{background:#F3F6FB;color:var(--ink)}'
++'.qt{flex:1;text-align:center;min-width:0}.qt b{display:block;font-size:16.5px}.qt small{color:var(--mut);font-size:12.5px}'
++'.qn{flex:none;min-width:38px;text-align:center;font-size:13px;color:var(--p);background:var(--ps);border-radius:999px;padding:5px 10px;font-weight:700}'
++'.card .prog{height:8px;border-radius:9px}.opts button{transition:.12s}.opts button:hover{border-color:#B9CBE4;background:#FAFCFF}'
++'.nav .pv{border:0!important;background:none!important;color:#5B6B82!important}.nav .pv:disabled{opacity:0!important}'
++'.ql{max-width:360px}.ql .row2{display:flex;gap:10px;margin-top:18px}.ql .row2 button{flex:1;height:46px;border-radius:12px;font-family:inherit;font-size:15.5px;cursor:pointer}.ql .k{border:0;background:var(--p);color:#fff;font-weight:700}.ql .o{border:1px solid var(--line);background:#fff;color:#B23B2E}';document.head.appendChild(st)})();
+function qLeave(){var m=document.createElement('div');m.className='mdl';m.innerHTML='<div class="mbox ql"><div style="font-size:34px">🚪</div><h2>要離開嗎？</h2><p class="sub">現在離開，這次的作答不會存起來。</p><div class="row2"><button type="button" class="o" id="ql-o">離開</button><button type="button" class="k" id="ql-k">繼續作答</button></div></div>';
+  document.body.appendChild(m);var c=function(){m.remove()};m.onclick=function(e){if(e.target===m)c()};$('ql-k').onclick=c;$('ql-o').onclick=function(){c();home()}}
 function quiz(){var r=S.run,q=r.qs[r.i],it=q.it,n=r.qs.length,last=r.i===n-1,done=r.ans.filter(function(x){return x!=null}).length,zy=isZY();
   var title=r.topic?'主題・'+r.topic:r.wrongMode?'錯題本':LVS[r.lv],mname={choose:zy?'選注音':'選拼音',tone:'聲調練習',type:zy?'打注音':'打拼音'}[r.mode];
-  var h='<div class="card narrow"'+(r.mode==='type'&&zy?' style="max-width:620px"':'')+'><div class="qhead"><span>'+mname+'・'+title+'</span><span>'+(r.i+1)+' / '+n+'</span></div><div class="prog"><i style="width:'+(done/n*100)+'%"></i></div>'
+  var h='<div class="card narrow"'+(r.mode==='type'&&zy?' style="max-width:620px"':'')+'><div class="qtop"><button type="button" class="qx" id="back" aria-label="離開" title="離開">✕</button><div class="qt"><b>'+mname+'</b><small>'+esc(title)+'</small></div><span class="qn">'+(r.i+1)+' / '+n+'</span></div><div class="prog"><i style="width:'+(done/n*100)+'%"></i></div>'
    +(r.mode==='type'?'':'<div class="dots">'+r.qs.map(function(x,j){return '<button type="button" class="'+(j===r.i?'cur ':'')+(r.ans[j]!=null?'done':'')+'" data-j="'+j+'">'+(j+1)+'</button>'}).join('')+'</div>');
   if(r.mode==='choose'){h+='<p class="sub" style="margin:0">選出正確的'+(zy?'注音':'拼音')+'</p><div class="hz">'+esc(it.h)+'</div><div class="opts">'+q.opts.map(function(o,j){return '<button type="button" data-o="'+j+'" class="'+(r.ans[r.i]===o?'sel':'')+'">'+esc(o)+'</button>'}).join('')+'</div>'}
   if(r.mode==='tone'){var chars=Array.from(it.h);
@@ -477,14 +487,15 @@ function quiz(){var r=S.run,q=r.qs[r.i],it=q.it,n=r.qs.length,last=r.i===n-1,don
      +(zy?'<div id="zyb"><div class="zyout"></div>'+ZY.kbHTML()+'</div>':'<input class="t tin" id="tin" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="打拼音">')
      +'<div id="tres" class="msg" style="text-align:center"></div>'}
   h+='<div class="nav">'+(r.mode==='type'?'<button type="button" class="pv" id="quit">結束</button><button type="button" class="nx" id="chk">確定</button>'
-     :'<button type="button" class="pv" id="pv" '+(r.i?'':'disabled')+'>← 上一題</button>'+(last?'<button type="button" class="nx" id="sb">交卷</button>':'<button type="button" class="nx" id="nx">下一題 →</button>'))+'</div>'
-   +'<p class="foot"><button type="button" class="lnk" id="back">← 回首頁（這次不算）</button></p></div>';
-  $('stage').innerHTML=h;$('back').onclick=function(){if(r.ans.some(function(x){return x!=null})&&!confirm('現在離開，這次的作答不會存起來。確定嗎？'))return;home()};
-  if(r.mode==='choose')document.querySelectorAll('.opts button').forEach(function(b){b.onclick=function(){r.ans[r.i]=q.opts[+b.dataset.o];if(!last)r.i++;quiz()}});
-  if(r.mode==='tone')document.querySelectorAll('.opts button').forEach(function(b){b.onclick=function(){r.ans[r.i]=+b.dataset.t;if(!last)r.i++;quiz()}});
+     :'<button type="button" class="pv" id="pv" '+(r.i?'':'disabled')+'>← 上一題</button>'+(last?'<button type="button" class="nx" id="sb">交卷</button>':'<button type="button" class="nx" id="nx"'+(r.ans[r.i]==null?' style="opacity:.45"':'')+'>下一題 →</button>'))+'</div>'
+   +'</div>';
+  $('stage').innerHTML=h;$('back').onclick=function(){if(!r.ans.some(function(x){return x!=null}))return home();qLeave()};
+  /* NOAUTO_V1816 Quinn：「選完以後應該讓學生可以考慮一下，他可以自己按下一步」——選了只標起來，不自動跳 */
+  if(r.mode==='choose')document.querySelectorAll('.opts button').forEach(function(b){b.onclick=function(){r.ans[r.i]=q.opts[+b.dataset.o];quiz()}});
+  if(r.mode==='tone')document.querySelectorAll('.opts button').forEach(function(b){b.onclick=function(){r.ans[r.i]=+b.dataset.t;quiz()}});
   document.querySelectorAll('.dots button').forEach(function(b){b.onclick=function(){r.i=+b.dataset.j;quiz()}});
   if($('pv'))$('pv').onclick=function(){if(r.i){r.i--;quiz()}};
-  if($('nx'))$('nx').onclick=function(){r.i++;quiz()};
+  if($('nx'))$('nx').onclick=function(){if(r.ans[r.i]==null)return toast('先選一個答案');r.i++;quiz()};
   if($('sb'))$('sb').onclick=function(){var miss=r.qs.filter(function(x,j){return r.ans[j]==null}).length;if(miss)return toast('還有 '+miss+' 題沒做，可以點上面的數字回去');finish()};
   if(r.mode==='type'){var zk=null,checked=false;
     if(zy)zk=ZY.attach($('zyb'),{onEnter:function(){$('chk').click()}});else{$('tin').focus();$('tin').onkeydown=function(e){if(e.key==='Enter')$('chk').click()}}
