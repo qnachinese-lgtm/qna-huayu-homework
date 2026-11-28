@@ -11,7 +11,7 @@ var $=function(id){return document.getElementById(id)};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 var tt=null;function toast(s,ms){var t=$('toast');t.textContent=s;t.hidden=false;clearTimeout(tt);tt=setTimeout(function(){t.hidden=true},ms||2400)}
 var LVS=['準備一級','準備二級','入門級','基礎級','進階級','高階級','流利級'];
-var COUNTRIES=['越南','台灣','泰國','印尼','菲律賓','日本','韓國','美國','其他'];
+var COUNTRIES=['越南','臺灣','泰國','印尼','菲律賓','日本','韓國','美國','其他'];
 var FREE_DEFAULT=1;
 function today(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function dayStr(off){var d=new Date();d.setDate(d.getDate()-off);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
@@ -148,7 +148,7 @@ else $('stage').innerHTML='<div class="card narrow"><h2>連不上</h2><p class="
 var vt=null,lastSend=Date.now();
 /* MAILLANG_V1798 Quinn：驗證信照學生的語言寄。介面選了英文／越南文就用那個；沒選的話越南用越南文、台灣用中文、其他國家用英文 */
 function mailLang(){var ui='';try{ui=localStorage.getItem('qna_ui_lang')||''}catch(e){}if(ui==='en'||ui==='vi')return ui;
-  var c=(S.prof&&S.prof.country)||(S.rd&&(S.rd.c==='其他'?S.rd.co:S.rd.c))||'';if(c==='越南')return 'vi';if(c==='台灣'||ui==='zh')return 'zh-TW';return c?'en':'zh-TW';}
+  var c=(S.prof&&S.prof.country)||(S.rd&&(S.rd.c==='其他'?S.rd.co:S.rd.c))||'';if(c==='越南')return 'vi';if(c==='臺灣'||c==='台灣'||ui==='zh')return 'zh-TW';return c?'en':'zh-TW';}
 function setMailLang(){try{auth.languageCode=mailLang()}catch(e){}}
 function verify(){var u=S.user;clearInterval(vt);
   $('stage').innerHTML='<div class="card narrow"><div style="font-size:44px">✉️</div><h2>請到信箱驗證</h2><p class="sub">驗證信已經寄到<br><b style="color:var(--ink)">'+esc(u.email)+'</b><br>打開信，按裡面的連結，帳號就會開通。<br>信可能要幾分鐘才會到。沒收到的話，看看垃圾郵件、促銷內容，或在信箱搜尋 <b>firebaseapp</b>。<br>一直收不到，可以請老師直接幫你開通。</p>'
@@ -172,7 +172,7 @@ function verify(){var u=S.user;clearInterval(vt);
     else say(/too-many/.test(String(err&&err.code))?'剛剛已經寄過了，信可能還在路上。請先去信箱找（包含垃圾郵件），10 分鐘後還沒收到再按一次':'寄不出去，請稍後再試，或請老師直接幫你開通')};
   $('vo').onclick=function(){clearInterval(vt);auth.signOut()};
   $('vb').onclick=async function(){if(!confirm('要回去改 Email 嗎？剛剛這個帳號會刪掉，重新註冊一次。'))return;clearInterval(vt);
-    var p=S.prof||{};S.rd={n:p.name,c:COUNTRIES.indexOf(p.country)>=0?p.country:'其他',co:COUNTRIES.indexOf(p.country)>=0?'':p.country,z:p.scr,e:u.email};
+    var p=Object.assign({},S.prof||{});if(p.country==='台灣')p.country='臺灣';/* TW_V1809 */S.rd={n:p.name,c:COUNTRIES.indexOf(p.country)>=0?p.country:'其他',co:COUNTRIES.indexOf(p.country)>=0?'':p.country,z:p.scr,e:u.email};
     try{await pref().delete()}catch(e){}try{await u.delete()}catch(e){await auth.signOut()}
     S.mode='reg';S.focusEmail=1;S.user=null;S.prof=null;S.pendMsg='請改好 Email，再按一次註冊';if(!auth.currentUser){var pm=S.pendMsg;S.pendMsg=null;entry(pm)}}}
 
