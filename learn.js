@@ -253,6 +253,15 @@ async function loadClasses(){var cs=S.prof.classes||[];for(var i=0;i<cs.length;i
 +'.hm-pn .lsn{grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;max-height:none}.hm-pn .lsn button{height:52px;font-size:16px;border-radius:12px}'
 +'.hm-tp{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.hm-tp button{border:1px solid var(--line);background:#fff;border-radius:16px;padding:14px 10px;text-align:center;cursor:pointer;font-family:inherit;color:var(--ink)}.hm-tp button:hover{border-color:#B9CBE4;box-shadow:0 4px 14px rgba(30,60,110,.08)}'
 +'.hm-tp i{font-style:normal;font-size:32px;display:block}.hm-tp b{display:block;font-size:16px;margin-top:6px}.hm-tp small{color:var(--mut);font-size:12.5px}'
++'.qimg{text-align:center;margin:6px 0 10px}.qimg img{width:190px;height:190px;object-fit:contain;border-radius:18px;background:#fff}'
++'.tp-im{width:64px;height:64px;object-fit:contain;display:block;margin:0 auto}.tp-ws.im span{min-width:96px}.tp-ws img{width:72px;height:72px;object-fit:contain;margin-bottom:2px}'
++'.tp-pic{display:flex!important;align-items:center;gap:12px;width:100%;margin-top:10px;text-align:left!important;padding:12px 16px!important}.tp-pic i{margin:0!important}.tp-pic small{margin-left:auto}'
++'.src-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.src-row button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 15px;font-size:14.5px;cursor:pointer;font-family:inherit;color:var(--ink)}.src-row button.on{background:var(--p);border-color:var(--p);color:#fff;font-weight:700}.src-row .tw{border-color:#E8C77A;background:#FFF8E6}.src-row .tw.on{background:#C98A1B;border-color:#C98A1B;color:#fff}'
++'.pr-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}.pr-grid div{border:1px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center}.pr-grid b{display:block;font-size:22px;font-family:"Times New Roman",serif;color:var(--p)}.pr-grid em{display:block;font-style:normal;font-size:18px}.pr-grid small{color:var(--mut);font-size:12.5px}'
++'.pr-tb{border:1px solid var(--line);border-radius:12px;overflow:hidden}.pr-tb>div{display:grid;grid-template-columns:1.2fr 1fr 1fr 1.3fr;padding:8px 12px;border-top:1px solid #EEF2F8;align-items:center}.pr-tb>div:first-child{border-top:0}.pr-hd{background:#F4F7FB;font-size:12.5px;color:var(--mut)}.pr-tb b{font-size:18px;font-family:"Times New Roman",serif;color:var(--p);font-weight:700}.pr-tb em{font-style:normal;font-size:17px}.pr-tb .zhk span{font-family:"Times New Roman",serif;font-size:16px}.pr-tb small{font-size:14px}'
++'.pr-tone{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.pr-tone>div{border:1px solid var(--line);border-radius:14px;padding:14px 8px;text-align:center;display:flex;flex-direction:column;gap:4px}.pr-tone .tn{font-weight:700}.pr-tone b{font-size:34px;font-family:"Times New Roman",serif;color:var(--p)}.pr-tone em{font-style:normal;font-size:14px}.pr-tone small{color:var(--mut)}'
++'.pr-rule{display:flex;flex-direction:column;gap:10px}.pr-rule>div{display:flex;gap:12px;border:1px solid var(--line);border-radius:14px;padding:12px 14px}.pr-rule .no{flex:none;width:26px;height:26px;border-radius:50%;background:var(--ps);color:var(--p);display:grid;place-items:center;font-size:13px;font-weight:700}.pr-rule b{font-size:15.5px}.pr-rule p{margin:4px 0 6px;font-size:14px;color:#4A5B75;line-height:1.7}.pr-rule code{background:#F4F7FB;border-radius:8px;padding:3px 8px;font-family:"Times New Roman",serif;font-size:15px;color:var(--p)}'
++'@media(max-width:760px){.pr-grid{grid-template-columns:repeat(4,1fr)}.pr-tone{grid-template-columns:repeat(3,1fr)}.pr-tb>div{grid-template-columns:1.1fr .9fr .9fr 1.3fr;padding:8px}}'
 +'.tp-back{border:0;background:none;color:var(--p);font-family:inherit;font-size:14px;cursor:pointer;padding:0;margin-bottom:10px}.tp-ws{display:flex;flex-wrap:wrap;gap:8px}.tp-ws span{border:1px solid var(--line);border-radius:12px;padding:8px 12px;display:flex;flex-direction:column;align-items:center;min-width:72px}.tp-ws b{font-size:20px;font-weight:400}.tp-ws i{font-style:normal;color:var(--p);font-size:13.5px;font-family:"Times New Roman",serif}'
 +'.cls-empty{display:flex;gap:26px;align-items:center;padding:8px 4px}.ce-ic{width:120px;height:120px;border-radius:50%;background:var(--ps);display:grid;place-items:center;font-size:60px;flex:none}.ce-t{flex:1;min-width:0}.ce-t h3{margin:0 0 4px;font-size:20px}.ce-t p{margin:0 0 14px;color:#4A5B75;font-size:14.5px;line-height:1.7}'
 +'.ce-join{max-width:440px}.ce-join input{font-size:18px;letter-spacing:3px;text-align:center}.ce-st{display:flex;gap:18px;margin:14px 0 0;padding:0;list-style:none;counter-reset:s;flex-wrap:wrap}.ce-st li{counter-increment:s;font-size:13px;color:var(--mut);display:flex;align-items:center;gap:6px}.ce-st li:before{content:counter(s);width:20px;height:20px;border-radius:50%;background:var(--ps);color:var(--p);display:grid;place-items:center;font-size:12px;font-weight:700}'
@@ -268,11 +277,16 @@ var TOPICS=[['👨‍👩‍👧','家庭','爸爸 媽媽 哥哥 姊姊 弟弟 �
  ['🧋','飲料','水 茶 咖啡 牛奶 果汁 可樂 奶茶 汽水 豆漿'],['🐼','動物','狗 貓 魚 鳥 牛 馬 豬 羊 雞 兔子 老虎 熊貓'],['🎨','顏色','紅色 藍色 黃色 綠色 白色 黑色 灰色'],
  ['👂','身體','頭 眼睛 耳朵 鼻 嘴巴 臉 頭髮 手 腳 肚子 牙齒'],['👕','衣服','衣服 褲子 裙子 鞋子 襪子 帽子 外套 毛衣 襯衫 眼鏡'],['🎒','學校和文具','書 筆 鉛筆 尺 書包 本子 書桌 椅子 黑板 剪刀 電腦'],['🚌','交通','汽車 公共汽車 火車 捷運 飛機 船 腳踏車 摩托車 計程車']];
 var TOPIC_CACHE={};
-function topicItems(name){if(TOPIC_CACHE[name])return TOPIC_CACHE[name];var t=TOPICS.filter(function(x){return x[1]===name})[0];if(!t)return [];var map={};
+/* TOPICIMG_V1817 Quinn 給的主題圖片：topics/<前綴>_<順序>.webp，順序照 TOPICS 裡的詞 */
+var TIMG={'家庭':'family','食物':'food','水果':'fruit','飲料':'drinks'};
+var TLIST='__t';/* TWORDS_V1817 老師給這位學生的詞表（pstudents.words） */
+function topicTitle(t){return t===TLIST?'老師給你的詞':'主題・'+t}
+function teacherItems(){var raw=String((S.prof&&S.prof.words)||'');return raw.split(/\n/).map(function(l){l=l.trim().replace(/[=＝].*$/,'').trim();if(!l)return null;var it=makeItem(l);return it&&it.ok?it:null}).filter(Boolean)}
+function topicItems(name){if(name===TLIST)return teacherItems();if(TOPIC_CACHE[name])return TOPIC_CACHE[name];var t=TOPICS.filter(function(x){return x[1]===name})[0];if(!t)return [];var map={};
   for(var j=0;j<LVS.length;j++)levelItems(j).forEach(function(it){if(!(it.h in map))map[it.h]=it});
-  return TOPIC_CACHE[name]=t[2].split(' ').map(function(h){return map[h]}).filter(Boolean)}
+  var pf=TIMG[name];return TOPIC_CACHE[name]=t[2].split(' ').map(function(h,i){var it=map[h];if(!it)return null;return pf?Object.assign({},it,{img:'topics/'+pf+'_'+String(i+1).padStart(2,'0')+'.webp'}):it}).filter(Boolean)}
 /* SHOW_V1815 老師可以設定學生首頁出現哪幾塊（pstudents.show），沒設定就全部 */
-function hmShow(){var a=['course','topic','self','class'],sh=S.prof&&S.prof.show;return Array.isArray(sh)&&sh.length?a.filter(function(k){return sh.indexOf(k)>=0}):a}
+function hmShow(){var a=['course','topic','self','class','pyref'],sh=S.prof&&S.prof.show;return Array.isArray(sh)&&sh.length?a.filter(function(k){return sh.indexOf(k)>=0}):a.slice(0,4)}/* PYREF_V1817 拼音表只給老師打開的學生 */
 function hmTab(){var ok=hmShow(),t=S.tab;if(!t){try{t=localStorage.getItem('qna_learn_tab')||''}catch(e){}}if(ok.indexOf(t)<0)t=((S.prof.classes||[]).length&&ok.indexOf('class')>=0)?'class':ok.indexOf('course')>=0?'course':ok[0];return t}
 /* COURSEUI_V1812 Quinn：「這裡太醜了」——課程改成卡片（看得到這課有哪些詞、做過幾分），鎖住的等級收成一行 */
 function hmCourse(){var mo=maxOpen(),j=S.clv||0,n=lsnCount(j),nx=lsnNext(j),dn=0,r=S.prof.req;for(var k=0;k<n;k++)if(lsnDone(j,k))dn++;
@@ -287,8 +301,11 @@ function hmCourse(){var mo=maxOpen(),j=S.clv||0,n=lsnCount(j),nx=lsnNext(j),dn=0
   h+='<div class="cl-grid">';for(var k=pg*per;k<Math.min(n,(pg+1)*per);k++){var d=lsnDone(j,k),w=lsnWords(j,k).map(function(x){return x.h});
     h+='<button type="button" data-k="'+k+'" class="cl-c'+(d?' dn':k===nx?' nx':'')+'"><span class="cl-n">第 '+(k+1)+' 課'+(d?'<em>✓</em>':k===nx?'<em class="nx">下一課</em>':'')+'</span><span class="cl-w">'+esc(w.slice(0,3).join('、'))+(w.length>3?'…':'')+'</span><span class="cl-s">'+(d?'答對 '+(d.ok!=null?d.ok:'')+'/'+(d.n||10)+(d.times>1?'・練 '+d.times+' 次':''):w.length+' 個詞')+'</span></button>'}
   return h+'</div>'}
-function hmSelf(zy,mo,r,wl){return '<div class="hm-ph"><h3>自己練習</h3><small>題目來自華語八千詞（TOCFL 官方詞表）・每次 10 題</small></div>'
-   +'<div class="lvrow"><div class="lvs">'+LVS.map(function(x,j){var o=j<=mo;return '<button type="button" class="lv'+(j===S.lv?' on':'')+(o?'':' lock')+'" data-j="'+j+'">'+(o?'':'🔒 ')+x+'</button>'}).join('')+'</div></div>'
+function hmSelf(zy,mo,r,wl){var tw=teacherItems();if(S.src==null)S.src=tw.length?'t':'';if(!tw.length)S.src='';var T=S.src==='t';
+  return '<div class="hm-ph"><h3>自己練習</h3><small>'+(T?'老師幫你挑的詞・每次 10 題':'題目來自華語八千詞（TOCFL 官方詞表）・每次 10 題')+'</small></div>'
+   +'<div class="src-row">'+(tw.length?'<button type="button" class="tw'+(T?' on':'')+'" data-src="t">📝 老師給你的詞（'+tw.length+'）</button>':'')
+   +LVS.map(function(x,j){var o=j<=mo;return '<button type="button" class="lv'+(!T&&j===S.lv?' on':'')+(o?'':' lock')+'" data-j="'+j+'">'+(o?'':'🔒 ')+x+'</button>'}).join('')+'</div>'
+   +(T?'<div class="tp-ws" style="margin-bottom:14px">'+tw.slice(0,30).map(function(it){return '<span><b>'+esc(it.h)+'</b><i>'+esc(sylAnswer(it))+'</i></span>'}).join('')+(tw.length>30?'<span><b>…</b><i>還有 '+(tw.length-30)+' 個</i></span>':'')+'</div>':'')
    +(r&&r.status==='pending'?'<div class="reqst">已送出「'+esc(r.lv_name||'')+'」的開通申請，美娟老師看過後會幫你打開。</div>':'')
    +'<div class="grid" style="grid-template-columns:repeat(3,1fr)">'
    +'<button type="button" class="gm" data-mode="choose"><i>'+(zy?'ㄅ':'ā')+'</i><b>'+(zy?'選注音':'選拼音')+'</b><small>看字選讀音</small></button>'
@@ -299,15 +316,15 @@ function hmSelf(zy,mo,r,wl){return '<div class="hm-ph"><h3>自己練習</h3><sma
      +wl.slice(0,24).map(function(w){return '<div class="wd"><b>'+esc(w.h)+'</b><small>錯 '+w.n+' 次</small></div>'}).join('')+(wl.length>24?'<div class="wd"><b>…</b><small>還有 '+(wl.length-24)+' 個</small></div>':'')+'</div></div>':'')}
 function hmTopic(zy){var t=S.topic&&TOPICS.filter(function(x){return x[1]===S.topic})[0];
   if(!t)return '<div class="hm-ph"><h3>主題生詞</h3><small>選一個主題，練這些詞的'+(zy?'注音':'拼音')+'和聲調；圖片遊戲之後開放</small></div><div class="hm-tp">'
-    +TOPICS.map(function(x){return '<button type="button" data-tp="'+x[1]+'"><i>'+x[0]+'</i><b>'+x[1]+'</b><small>'+topicItems(x[1]).length+' 個詞</small></button>'}).join('')+'</div>';
+    +TOPICS.map(function(x){var f=topicItems(x[1])[0];return '<button type="button" data-tp="'+x[1]+'">'+(f&&f.img?'<img class="tp-im" src="'+f.img+'" alt="">':'<i>'+x[0]+'</i>')+'<b>'+x[1]+'</b><small>'+topicItems(x[1]).length+' 個詞'+(TIMG[x[1]]?'・有圖':'')+'</small></button>'}).join('')+'</div>';
   var its=topicItems(t[1]);
   return '<button type="button" class="tp-back" id="tp-back">← 全部主題</button><div class="hm-ph"><h3>'+t[0]+' '+t[1]+'</h3><small>'+its.length+' 個詞</small></div>'
-   +'<div class="tp-ws">'+its.map(function(it){return '<span><b>'+esc(it.h)+'</b><i>'+esc(sylAnswer(it))+'</i></span>'}).join('')+'</div>'
+   +'<div class="tp-ws'+(TIMG[t[1]]?' im':'')+'">'+its.map(function(it){return '<span>'+(it.img?'<img src="'+it.img+'" alt="" loading="lazy">':'')+'<b>'+esc(it.h)+'</b><i>'+esc(sylAnswer(it))+'</i></span>'}).join('')+'</div>'
    +'<p class="hm-sub" style="margin-top:18px">用這些詞練習：</p><div class="grid" style="grid-template-columns:repeat(3,1fr)">'
    +'<button type="button" class="gm" data-tmode="choose"><i>'+(zy?'ㄅ':'ā')+'</i><b>'+(zy?'選注音':'選拼音')+'</b><small>看字選讀音</small></button>'
    +'<button type="button" class="gm" data-tmode="tone"><i>ˇ</i><b>聲調練習</b><small>選出正確的聲調</small></button>'
    +'<button type="button" class="gm" data-tmode="type"><i>⌨</i><b>'+(zy?'打注音':'打拼音')+'</b><small>看字自己打出來</small></button></div>'
-   +'<p class="hm-sub" style="margin-top:14px">🖼 看圖選詞、圖片翻牌：圖片做好後開放</p>'}
+   +(TIMG[t[1]]?'<button type="button" class="gm tp-pic" data-tmode="pic"><i>🖼</i><b>看圖選詞</b><small>看圖片，選出對的詞</small></button>':'<p class="hm-sub" style="margin-top:14px">🖼 看圖選詞：圖片做好後開放</p>')}
 function hmClass(cs){
   if(!cs.length)return '<div class="cls-empty"><div class="ce-ic">👩‍🏫</div><div class="ce-t"><h3>還沒有加入班級</h3><p>跟老師拿「班級代碼」，輸入以後就看得到老師出的作業。</p>'
     +'<div class="join ce-join"><input class="t cc" id="jc" maxlength="8" placeholder="班級代碼" autocomplete="off"><button id="jb" type="button">加入班級</button></div>'
@@ -315,6 +332,38 @@ function hmClass(cs){
   return '<div class="hm-ph"><h3>老師的班級</h3><small>已加入 '+cs.length+' 個班</small></div><div class="hm-cl">'
    +cs.map(function(c){var x=S.cls[c]||{};return '<div class="row"><div class="ic">班</div><div><b>'+esc(x.name||c)+'</b><small>代碼 '+esc(c)+'</small></div>'+(x.gone?'':'<a class="go" href="room.html?c='+encodeURIComponent(c)+'">去做</a>')+'</div>'}).join('')
    +'<div class="join"><input class="t cc" id="jc" maxlength="8" placeholder="輸入代碼加入新班級"><button id="jb" type="button">加入</button></div></div>'}
+/* PYREF_V1817 Quinn：「拼音規則表、拼音和注音對照表、拼音書寫要注意哪些規則」（給程度比較高的學生；老師在後台打開才看得到）
+   依《漢語拼音方案》與教育部注音符號；本站拼音照華語八千詞和教育部《重編國語辭典》。 */
+var PR_INIT=[['b','ㄅ','爸','bà'],['p','ㄆ','怕','pà'],['m','ㄇ','媽','mā'],['f','ㄈ','飯','fàn'],['d','ㄉ','大','dà'],['t','ㄊ','他','tā'],['n','ㄋ','你','nǐ'],['l','ㄌ','老','lǎo'],
+ ['g','ㄍ','哥','gē'],['k','ㄎ','看','kàn'],['h','ㄏ','好','hǎo'],['j','ㄐ','家','jiā'],['q','ㄑ','去','qù'],['x','ㄒ','學','xué'],
+ ['zh','ㄓ','中','zhōng'],['ch','ㄔ','吃','chī'],['sh','ㄕ','是','shì'],['r','ㄖ','人','rén'],['z','ㄗ','在','zài'],['c','ㄘ','菜','cài'],['s','ㄙ','三','sān']];
+var PR_FIN=[['單韻母',[['a','ㄚ','a','他','tā'],['o','ㄛ','o','波','bō'],['e','ㄜ','e','喝','hē'],['ê','ㄝ','ê','欸','ê'],['i','ㄧ','yi','你','nǐ'],['u','ㄨ','wu','不','bù'],['ü','ㄩ','yu','女','nǚ'],['er','ㄦ','er','二','èr']]],
+ ['複韻母・鼻韻母',[['ai','ㄞ','ai','愛','ài'],['ei','ㄟ','ei','給','gěi'],['ao','ㄠ','ao','好','hǎo'],['ou','ㄡ','ou','狗','gǒu'],['an','ㄢ','an','看','kàn'],['en','ㄣ','en','人','rén'],['ang','ㄤ','ang','忙','máng'],['eng','ㄥ','eng','冷','lěng'],['ong','ㄨㄥ','—','中','zhōng']]],
+ ['i 開頭',[['ia','ㄧㄚ','ya','家','jiā'],['ie','ㄧㄝ','ye','謝','xiè'],['iao','ㄧㄠ','yao','小','xiǎo'],['iu（iou）','ㄧㄡ','you','六','liù'],['ian','ㄧㄢ','yan','天','tiān'],['in','ㄧㄣ','yin','今','jīn'],['iang','ㄧㄤ','yang','想','xiǎng'],['ing','ㄧㄥ','ying','明','míng'],['iong','ㄩㄥ','yong','用','yòng']]],
+ ['u 開頭',[['ua','ㄨㄚ','wa','花','huā'],['uo','ㄨㄛ','wo','多','duō'],['uai','ㄨㄞ','wai','快','kuài'],['ui（uei）','ㄨㄟ','wei','對','duì'],['uan','ㄨㄢ','wan','短','duǎn'],['un（uen）','ㄨㄣ','wen','春','chūn'],['uang','ㄨㄤ','wang','黃','huáng'],['ueng','ㄨㄥ','weng','翁','wēng']]],
+ ['ü 開頭',[['üe','ㄩㄝ','yue','學','xué'],['üan','ㄩㄢ','yuan','遠','yuǎn'],['ün','ㄩㄣ','yun','雲','yún']]]];
+var PR_RULE=[
+ ['聲調標在哪個字母上','照 a → o、e → i、u 的順序標；i 和 u 在一起時，標在後面那個。','hǎo・duō・xiè・liù・duì'],
+ ['i 上面標調要去點','寫成 ī í ǐ ì，i 上面不再加點。','nǐ・jīn'],
+ ['y 和 w','i、u、ü 開頭又沒有聲母時，改寫 y、w：i→yi、in→yin、ing→ying、ia→ya；u→wu、uo→wo；ü→yu、üe→yue。','yī・wǒ・yuè'],
+ ['ü 的兩點','j、q、x、y 後面的 ü 省略兩點寫成 u；n、l 後面要保留兩點。電腦上 ü 打 v。','jù・qù・xué ／ nǚ・lǜ'],
+ ['iou、uei、uen 的省寫','前面有聲母時寫成 iu、ui、un；沒有聲母時寫 you、wei、wen。','liù・duì・chūn ／ yǒu・wèi・wèn'],
+ ['zhi chi shi ri zi ci si','這七個音節的 i 不是「衣」的音，注音只寫聲母：ㄓ ㄔ ㄕ ㄖ ㄗ ㄘ ㄙ。','zhī = ㄓ・sì = ㄙˋ'],
+ ['隔音符號 \'','a、o、e 開頭的音節接在別的音節後面，中間加 \'，避免看錯。','Xī\'ān（西安）≠ xiān（先）'],
+ ['輕聲','拼音的輕聲不標調號；注音的輕聲點「˙」寫在前面。','māma ＝ ㄇㄚ ˙ㄇㄚ'],
+ ['注音的一聲','注音一聲不標符號；拼音一聲標「ˉ」。','mā ＝ ㄇㄚ'],
+ ['三聲變調','兩個三聲連在一起，前一個讀成二聲，但寫的時候照原調標。','nǐ hǎo（讀 ní hǎo）'],
+ ['「一」「不」變調','「一」在四聲前讀二聲，在一、二、三聲前讀四聲；「不」在四聲前讀二聲。本站照華語八千詞標變調後的聲調。','yíyàng・yìqǐ・búyào'],
+ ['兒化','在音節後面加 r。','huār（花兒）'],
+ ['詞要連寫','以「詞」為單位連在一起寫，詞和詞之間空一格。','wǒ xǐhuan hē chá'],
+ ['大寫','句子第一個字母、人名地名的第一個字母大寫；姓和名分開寫。','Wáng Xiǎomíng zhù zài Táiběi.']];
+function hmPyref(){var k=S.pr||'init';var tabs=[['init','聲母'],['fin','韻母'],['tone','聲調'],['rule','書寫規則']];
+  var h='<div class="hm-ph"><h3>拼音表</h3><small>拼音、注音對照和書寫規則</small></div><div class="src-row">'+tabs.map(function(t){return '<button type="button" data-pr="'+t[0]+'" class="'+(k===t[0]?'on':'')+'">'+t[1]+'</button>'}).join('')+'</div>';
+  if(k==='init')h+='<p class="hm-sub">一共 21 個聲母</p><div class="pr-grid zhk">'+PR_INIT.map(function(x){return '<div><b>'+x[0]+'</b><em>'+x[1]+'</em><small>'+x[2]+' '+x[3]+'</small></div>'}).join('')+'</div>';
+  if(k==='fin')h+=PR_FIN.map(function(g){return '<p class="hm-sub" style="margin-top:14px">'+g[0]+'</p><div class="pr-tb"><div class="pr-hd"><span>拼音</span><span>注音</span><span>自成音節</span><span>例字</span></div>'+g[1].map(function(x){return '<div class="zhk"><b>'+x[0]+'</b><em>'+x[1]+'</em><span>'+x[2]+'</span><small>'+x[3]+' '+x[4]+'</small></div>'}).join('')+'</div>'}).join('');
+  if(k==='tone')h+='<div class="pr-tone">'+[['一聲','ā','ˉ（注音不標）','媽 mā','高、平'],['二聲','á','ˊ','麻 má','往上'],['三聲','ǎ','ˇ','馬 mǎ','先低再上'],['四聲','à','ˋ','罵 mà','往下'],['輕聲','a','˙（寫在前）','嗎 ma','短、輕']].map(function(x){return '<div><span class="tn">'+x[0]+'</span><b class="zhk">'+x[1]+'</b><em>'+x[2]+'</em><span class="zhk">'+x[3]+'</span><small>'+x[4]+'</small></div>'}).join('')+'</div>';
+  if(k==='rule')h+='<div class="pr-rule">'+PR_RULE.map(function(x,i){return '<div><span class="no">'+(i+1)+'</span><div><b>'+x[0]+'</b><p>'+x[1]+'</p><code class="zhk">'+esc(x[2])+'</code></div></div>'}).join('')+'</div>';
+  return h+'<p class="hm-sub" style="margin-top:16px;font-size:12.5px">依《漢語拼音方案》和教育部注音符號；本站拼音照華語八千詞和教育部《重編國語辭典》。</p>'}
 /* CONTACT_V1814 Quinn：「沒有聯繫我的地方？」 */
 function hmFoot(){return '<div class="hm-ft"><span>有問題嗎？</span><button type="button" id="ft-mail">✉️ 寫信給老師</button><button type="button" id="ft-bug">⚠️ 回報問題</button></div>'}
 function ftBind(){var em=String(window.TEACHER_EMAIL||'').trim();
@@ -335,23 +384,26 @@ async function home(){clearInterval(vt);S.run=null;var p=S.prof;await loadClasse
    +'<button type="button" data-tab="course"'+(tab==='course'?' class="on"':'')+'><i>📘</i><b>免費課程</b><small>照等級一課一課學，每課 10 個詞</small></button>'
    +'<button type="button" data-tab="topic"'+(tab==='topic'?' class="on"':'')+'><em>新</em><i>🍎</i><b>主題生詞</b><small>家庭、食物、動物…</small></button>'
    +'<button type="button" data-tab="self"'+(tab==='self'?' class="on"':'')+'><i>'+(zy?'ㄅ':'ā')+'</i><b>自己練習</b><small>'+(zy?'注音':'拼音')+'、聲調、打字'+(wl.length?'、錯題本':'')+'</small></button>'
-   +'<button type="button" data-tab="class"'+(tab==='class'?' class="on"':'')+'><i>👩‍🏫</i><b>老師的班級</b><small>'+(cs.length?'已加入 '+cs.length+' 個班':'輸入代碼，做老師出的作業')+'</small></button>'+'</div>'
+   +'<button type="button" data-tab="class"'+(tab==='class'?' class="on"':'')+'><i>👩‍🏫</i><b>老師的班級</b><small>'+(cs.length?'已加入 '+cs.length+' 個班':'輸入代碼，做老師出的作業')+'</small></button>'
+   +'<button type="button" data-tab="pyref"'+(tab==='pyref'?' class="on"':'')+'><i>📖</i><b>拼音表</b><small>拼音、注音、書寫規則</small></button>'+'</div>'
    +'<section class="hm-pn">'
    +(tab==='course'?hmCourse():tab==='topic'?hmTopic(zy)
-     :tab==='self'?hmSelf(zy,mo,r,wl):hmClass(cs))
+     :tab==='self'?hmSelf(zy,mo,r,wl):tab==='pyref'?hmPyref():hmClass(cs))
    +'</section>'+hmFoot();
   $('stage').innerHTML=h;ftBind();
   $('out').onclick=function(){auth.signOut()};
   var okT=hmShow();document.querySelectorAll('.hm-pk button').forEach(function(b){if(okT.indexOf(b.dataset.tab)<0)b.remove()});
   document.querySelectorAll('.hm-pk button').forEach(function(b){b.onclick=function(){S.tab=b.dataset.tab;try{localStorage.setItem('qna_learn_tab',S.tab)}catch(e){}home()}});
   if(tab==='course')courseBind();
+  document.querySelectorAll('[data-pr]').forEach(function(b){b.onclick=function(){S.pr=b.dataset.pr;home()}});
   document.querySelectorAll('[data-tp]').forEach(function(b){b.onclick=function(){S.topic=b.dataset.tp;home()}});
   if($('tp-back'))$('tp-back').onclick=function(){S.topic='';home()};
   document.querySelectorAll('[data-tmode]').forEach(function(b){b.onclick=function(){startRun(b.dataset.tmode,null,null,S.topic)}});
   if($('jb'))$('jb').onclick=joinClass;if($('jc'))$('jc').onkeydown=function(e){if(e.key==='Enter')joinClass()};
   if($('wr'))$('wr').onclick=function(){startRun('choose',null,wrongList().slice(0,10))};
-  document.querySelectorAll('.lv:not(.clv)').forEach(function(b){b.onclick=function(){var j=+b.dataset.j;if(!lvOpen(j))return askOpen(j);S.lv=j;home()}});
-  document.querySelectorAll('button.gm[data-mode]').forEach(function(b){b.onclick=function(){startRun(b.dataset.mode,S.lv)}});}
+  document.querySelectorAll('.lv:not(.clv)').forEach(function(b){b.onclick=function(){var j=+b.dataset.j;if(!lvOpen(j))return askOpen(j);S.lv=j;S.src='';home()}});
+  document.querySelectorAll('[data-src]').forEach(function(b){b.onclick=function(){S.src='t';home()}});
+  document.querySelectorAll('button.gm[data-mode]').forEach(function(b){b.onclick=function(){if(S.src==='t')startRun(b.dataset.mode,null,null,TLIST);else startRun(b.dataset.mode,S.lv)}});}
 async function joinClass(){var c=$('jc').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');if(!c)return toast('請輸入代碼');
   var d=null;try{d=await db.collection('tclasses').doc(c).get()}catch(e){}if(!d||!d.exists)return toast('找不到這個班級，請再確認代碼');
   var cs=(S.prof.classes||[]).slice();if(cs.indexOf(c)<0)cs.push(c);
@@ -457,10 +509,10 @@ function distractors(it){var out={},key=sylAnswer(it);out[key]=1;var tries=0,res
     var str=showSyls(s);if(!out[str]){out[str]=1;res.push(str)}}
   return shuffle(res.concat([key]))}
 function startRun(mode,lv,fromWrong,topic){var items;
-  if(topic){items=shuffle(topicItems(topic));if(!items.length)return toast('這個主題讀不到詞')}
+  if(topic){items=shuffle(topicItems(topic)).slice(0,topic===TLIST?10:20);if(!items.length)return toast('這個主題讀不到詞')}
   else if(fromWrong){items=fromWrong.map(function(w){var it=makeItem(w.h+' '+w.p);return it&&it.ok?it:null}).filter(Boolean);if(!items.length)return toast('錯題本是空的')}
   else{items=pickItems(lv,10);if(!items.length)return toast('這個等級的題目讀不到')}
-  var qs=items.map(function(it){var q={it:it};if(mode==='choose')q.opts=distractors(it);if(mode==='tone'){q.k=Math.floor(Math.random()*it.syls.length)}return q});
+  var qs=items.map(function(it){var q={it:it};if(mode==='choose')q.opts=distractors(it);if(mode==='pic')q.opts=shuffle([it.h].concat(shuffle(items.filter(function(x){return x.h!==it.h})).slice(0,3).map(function(x){return x.h})));if(mode==='tone'){q.k=Math.floor(Math.random()*it.syls.length)}return q});
   S.run={mode:mode,lv:(fromWrong||topic)?null:lv,wrongMode:!!fromWrong&&!topic,topic:topic||'',qs:qs,i:0,ans:[],t0:Date.now()};quiz()}
 var TONE_LABEL_PY=['一聲 ˉ','二聲 ˊ','三聲 ˇ','四聲 ˋ','輕聲'],TONE_LABEL_ZY=['ˉ 一聲','ˊ 二聲','ˇ 三聲','ˋ 四聲','˙ 輕聲'];
 /* QUIZUI_V1816 Quinn：「回首頁的按鈕也太醜了」「重新設計」——上面一條：左邊 ✕ 離開、中間題型、右邊題號；離開用自己的小視窗問 */
@@ -474,10 +526,11 @@ var TONE_LABEL_PY=['一聲 ˉ','二聲 ˊ','三聲 ˇ','四聲 ˋ','輕聲'],TON
 function qLeave(){var m=document.createElement('div');m.className='mdl';m.innerHTML='<div class="mbox ql"><div style="font-size:34px">🚪</div><h2>要離開嗎？</h2><p class="sub">現在離開，這次的作答不會存起來。</p><div class="row2"><button type="button" class="o" id="ql-o">離開</button><button type="button" class="k" id="ql-k">繼續作答</button></div></div>';
   document.body.appendChild(m);var c=function(){m.remove()};m.onclick=function(e){if(e.target===m)c()};$('ql-k').onclick=c;$('ql-o').onclick=function(){c();home()}}
 function quiz(){var r=S.run,q=r.qs[r.i],it=q.it,n=r.qs.length,last=r.i===n-1,done=r.ans.filter(function(x){return x!=null}).length,zy=isZY();
-  var title=r.topic?'主題・'+r.topic:r.wrongMode?'錯題本':LVS[r.lv],mname={choose:zy?'選注音':'選拼音',tone:'聲調練習',type:zy?'打注音':'打拼音'}[r.mode];
+  var title=r.topic?topicTitle(r.topic):r.wrongMode?'錯題本':LVS[r.lv],mname={choose:zy?'選注音':'選拼音',tone:'聲調練習',type:zy?'打注音':'打拼音',pic:'看圖選詞'}[r.mode];
   var h='<div class="card narrow"'+(r.mode==='type'&&zy?' style="max-width:620px"':'')+'><div class="qtop"><button type="button" class="qx" id="back" aria-label="離開" title="離開">✕</button><div class="qt"><b>'+mname+'</b><small>'+esc(title)+'</small></div><span class="qn">'+(r.i+1)+' / '+n+'</span></div><div class="prog"><i style="width:'+(done/n*100)+'%"></i></div>'
    +(r.mode==='type'?'':'<div class="dots">'+r.qs.map(function(x,j){return '<button type="button" class="'+(j===r.i?'cur ':'')+(r.ans[j]!=null?'done':'')+'" data-j="'+j+'">'+(j+1)+'</button>'}).join('')+'</div>');
   if(r.mode==='choose'){h+='<p class="sub" style="margin:0">選出正確的'+(zy?'注音':'拼音')+'</p><div class="hz">'+esc(it.h)+'</div><div class="opts">'+q.opts.map(function(o,j){return '<button type="button" data-o="'+j+'" class="'+(r.ans[r.i]===o?'sel':'')+'">'+esc(o)+'</button>'}).join('')+'</div>'}
+  if(r.mode==='pic'){h+='<p class="sub" style="margin:0">這是什麼？選出正確的詞</p><div class="qimg"><img src="'+esc(it.img||'')+'" alt=""></div><div class="opts">'+q.opts.map(function(o,j){return '<button type="button" data-o="'+j+'" class="'+(r.ans[r.i]===o?'sel':'')+'" style="font-size:22px">'+esc(o)+'</button>'}).join('')+'</div>'}
   if(r.mode==='tone'){var chars=Array.from(it.h);
     h+='<p class="sub" style="margin:0">畫線的字是第幾聲？</p><div class="hz">'+chars.map(function(c,j){return j===q.k?'<span class="k">'+esc(c)+'</span>':esc(c)}).join('')+'</div>'
      +'<div class="py">'+it.syls.map(function(s,j){var t=j===q.k?(zy?ZY.body(s.base):s.base.replace(/^([nl])u$/,'$1u')):(zy?ZY.syl(s.base,s.tone):markSyl(s.base,s.tone));return j===q.k?'<span class="k">'+esc(t)+'</span>':esc(t)}).join(zy?' ':' ')+'</div>'
@@ -491,7 +544,7 @@ function quiz(){var r=S.run,q=r.qs[r.i],it=q.it,n=r.qs.length,last=r.i===n-1,don
    +'</div>';
   $('stage').innerHTML=h;$('back').onclick=function(){if(!r.ans.some(function(x){return x!=null}))return home();qLeave()};
   /* NOAUTO_V1816 Quinn：「選完以後應該讓學生可以考慮一下，他可以自己按下一步」——選了只標起來，不自動跳 */
-  if(r.mode==='choose')document.querySelectorAll('.opts button').forEach(function(b){b.onclick=function(){r.ans[r.i]=q.opts[+b.dataset.o];quiz()}});
+  if(r.mode==='choose'||r.mode==='pic')document.querySelectorAll('.opts button').forEach(function(b){b.onclick=function(){r.ans[r.i]=q.opts[+b.dataset.o];quiz()}});
   if(r.mode==='tone')document.querySelectorAll('.opts button').forEach(function(b){b.onclick=function(){r.ans[r.i]=+b.dataset.t;quiz()}});
   document.querySelectorAll('.dots button').forEach(function(b){b.onclick=function(){r.i=+b.dataset.j;quiz()}});
   if($('pv'))$('pv').onclick=function(){if(r.i){r.i--;quiz()}};
@@ -507,7 +560,7 @@ function quiz(){var r=S.run,q=r.qs[r.i],it=q.it,n=r.qs.length,last=r.i===n-1,don
         good=A.length===it.syls.length&&A.every(function(a,j){var s=it.syls[j];return a.base===s.base&&(a.tone===s.tone||a.tone===s.alt)});r.ans[r.i]={v:v,ok:good};$('tin').disabled=true}
       checked=true;$('tres').className='msg'+(good?' ok':'');$('tres').innerHTML=good?'✓ 答對了':'✗ 正確答案：'+esc(sylAnswer(it));
       $('chk').textContent=last?'看成績':'下一題 →';$('quit').textContent='結束'}}}
-function isRight(q,a,mode){if(a==null)return false;if(mode==='choose')return a===sylAnswer(q.it);if(mode==='tone'){var s=q.it.syls[q.k];return a===s.tone||a===s.alt}return !!a.ok}
+function isRight(q,a,mode){if(a==null)return false;if(mode==='pic')return a===q.it.h;if(mode==='choose')return a===sylAnswer(q.it);if(mode==='tone'){var s=q.it.syls[q.k];return a===s.tone||a===s.alt}return !!a.ok}
 async function finish(){var r=S.run,mode=r.mode,dur=Math.round((Date.now()-r.t0)/1000),zy=isZY();
   var qs=r.qs.filter(function(q,j){return r.ans[j]!=null}),ok=0,wrong=[],right=[];
   r.qs.forEach(function(q,j){if(r.ans[j]==null)return;var g=isRight(q,r.ans[j],mode);if(g){ok++;right.push(q)}else wrong.push(q)});
@@ -518,7 +571,7 @@ async function finish(){var r=S.run,mode=r.mode,dur=Math.round((Date.now()-r.t0)
     wrong.forEach(function(q){args.push(new FP('wrong',q.it.h,'n'),inc(1),new FP('wrong',q.it.h,'p'),q.it.p,new FP('wrong',q.it.h,'r'),0)});
     var W=S.prof.wrong||{};right.forEach(function(q){var w=W[q.it.h];if(!w)return;if((w.r||0)+1>=2)args.push(new FP('wrong',q.it.h),FV.delete());else args.push(new FP('wrong',q.it.h,'r'),inc(1))});
     await ref.update.apply(ref,args);
-    await ref.collection('sessions').add({at:new Date().toISOString(),mode:mode,lv:r.lv,lv_name:r.topic?'主題・'+r.topic:r.lv==null?'錯題本':LVS[r.lv],n:n,ok:ok,dur:dur,
+    await ref.collection('sessions').add({at:new Date().toISOString(),mode:mode,lv:r.lv,lv_name:r.topic?topicTitle(r.topic):r.lv==null?'錯題本':LVS[r.lv],n:n,ok:ok,dur:dur,
       items:r.qs.map(function(q,j){var a=r.ans[j];return a==null?null:{h:q.it.h,p:q.it.p,a:mode==='type'?a.v:mode==='tone'?('第'+q.k+'字 '+a+'聲'):a,ok:isRight(q,a,mode)}}).filter(Boolean)});
     var d=await ref.get();if(d.exists)S.prof=d.data();}
   catch(e){toast('紀錄沒存成功（網路不穩？），成績還是看得到',3500)}
