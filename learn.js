@@ -262,7 +262,7 @@ async function loadClasses(){var cs=S.prof.classes||[];for(var i=0;i<cs.length;i
 +'.hm-cl{display:flex;flex-direction:column;gap:10px;max-width:560px}.hm-cl .row{margin:0}'
 +'.hm-cl .join{display:flex;gap:8px;margin-top:6px}.hm-cl .join input{flex:1}'
 +'@media(max-width:760px){.hm-me .av{width:46px;height:46px;font-size:20px}.hm-me h2{font-size:20px}.hm-me>div:nth-child(2){flex:1;min-width:0}.hm-me .grow{display:none}.hm-me .out{order:2}.hm-st{order:3;width:100%}.hm-st div{flex:1;min-width:0}'
-+'.hm-pk{grid-template-columns:1fr 1fr;gap:8px}.hm-pk button{padding:10px 11px;grid-template-columns:34px 1fr;column-gap:9px}.hm-pk i{width:34px;height:34px;font-size:17px}.hm-pk b{font-size:15px}.hm-pk small{font-size:11.5px}.hm-tp{grid-template-columns:repeat(3,1fr);gap:8px}.cls-empty{flex-direction:column;text-align:center;gap:14px}.ce-ic{width:90px;height:90px;font-size:44px}.ce-join{margin:0 auto}.ce-st{justify-content:center;gap:10px}.hm-pn{padding:18px 16px}.hm-nx{flex-wrap:wrap}.hm-nx .hm-go{width:100%}.hm-pn .lsn{grid-template-columns:repeat(5,1fr)}.cl-grid{grid-template-columns:1fr 1fr;gap:8px}.cl-w{font-size:16px}}';document.head.appendChild(st)})();
++'.hm-pk{grid-template-columns:1fr 1fr!important;gap:8px}.hm-pk button{padding:10px 11px;grid-template-columns:34px 1fr;column-gap:9px}.hm-pk i{width:34px;height:34px;font-size:17px}.hm-pk b{font-size:15px}.hm-pk small{font-size:11.5px}.hm-tp{grid-template-columns:repeat(3,1fr);gap:8px}.cls-empty{flex-direction:column;text-align:center;gap:14px}.ce-ic{width:90px;height:90px;font-size:44px}.ce-join{margin:0 auto}.ce-st{justify-content:center;gap:10px}.hm-pn{padding:18px 16px}.hm-nx{flex-wrap:wrap}.hm-nx .hm-go{width:100%}.hm-pn .lsn{grid-template-columns:repeat(5,1fr)}.cl-grid{grid-template-columns:1fr 1fr;gap:8px}.cl-w{font-size:16px}}';document.head.appendChild(st)})();
 /* TOPICPY_V1814 Quinn：「主題生詞那邊，是否也可以變成拼音練習？」——詞都從華語八千詞挑，拼音照八千詞；圖片遊戲等圖片做好再開 */
 var TOPICS=[['👨‍👩‍👧','家庭','爸爸 媽媽 哥哥 姊姊 弟弟 妹妹 爺爺 奶奶 寶寶 家人'],['🍜','食物','飯 麵 麵包 餃子 包子 蛋 蛋糕 漢堡 湯 冰淇淋'],['🍎','水果','蘋果 香蕉 西瓜 葡萄 橘子 芒果 梨 桃子 櫻桃'],
  ['🧋','飲料','水 茶 咖啡 牛奶 果汁 可樂 奶茶 汽水 豆漿'],['🐼','動物','狗 貓 魚 鳥 牛 馬 豬 羊 雞 兔子 老虎 熊貓'],['🎨','顏色','紅色 藍色 黃色 綠色 白色 黑色 灰色'],
@@ -271,7 +271,9 @@ var TOPIC_CACHE={};
 function topicItems(name){if(TOPIC_CACHE[name])return TOPIC_CACHE[name];var t=TOPICS.filter(function(x){return x[1]===name})[0];if(!t)return [];var map={};
   for(var j=0;j<LVS.length;j++)levelItems(j).forEach(function(it){if(!(it.h in map))map[it.h]=it});
   return TOPIC_CACHE[name]=t[2].split(' ').map(function(h){return map[h]}).filter(Boolean)}
-function hmTab(){var t=S.tab;if(!t){try{t=localStorage.getItem('qna_learn_tab')||''}catch(e){}}if(['course','topic','self','class'].indexOf(t)<0)t=(S.prof.classes||[]).length?'class':'course';return t}
+/* SHOW_V1815 老師可以設定學生首頁出現哪幾塊（pstudents.show），沒設定就全部 */
+function hmShow(){var a=['course','topic','self','class'],sh=S.prof&&S.prof.show;return Array.isArray(sh)&&sh.length?a.filter(function(k){return sh.indexOf(k)>=0}):a}
+function hmTab(){var ok=hmShow(),t=S.tab;if(!t){try{t=localStorage.getItem('qna_learn_tab')||''}catch(e){}}if(ok.indexOf(t)<0)t=((S.prof.classes||[]).length&&ok.indexOf('class')>=0)?'class':ok.indexOf('course')>=0?'course':ok[0];return t}
 /* COURSEUI_V1812 Quinn：「這裡太醜了」——課程改成卡片（看得到這課有哪些詞、做過幾分），鎖住的等級收成一行 */
 function hmCourse(){var mo=maxOpen(),j=S.clv||0,n=lsnCount(j),nx=lsnNext(j),dn=0,r=S.prof.req;for(var k=0;k<n;k++)if(lsnDone(j,k))dn++;
   var per=15,pg=Math.floor(nx/per);if(S.cpg!=null&&S.cpgLv===j)pg=S.cpg;var pages=Math.ceil(n/per);if(pg>=pages)pg=0;
@@ -329,17 +331,18 @@ async function home(){clearInterval(vt);S.run=null;var p=S.prof;await loadClasse
   var h='<div class="hm-me"><div class="av">'+esc((p.name||'?').slice(0,1))+'</div><div><h2>'+esc(p.name)+'，今天想學什麼？</h2><small>練習帳號・'+(zy?'注音':'拼音')+'</small></div><span class="grow"></span>'
    +'<div class="hm-st"><div><b>'+st.streak+'</b><span>連續天數</span></div><div><b>'+st.week+'</b><span>這週做的題</span></div><div><b>'+nd+'</b><span>完成的課</span></div></div>'
    +'<button class="out" id="out" type="button">登出</button></div>'
-   +'<p class="hm-q">選一個開始</p><div class="hm-pk">'
+   +(hmShow().length>1?'<p class="hm-q">選一個開始</p><div class="hm-pk" style="grid-template-columns:repeat('+hmShow().length+',1fr)">':'<div class="hm-pk" hidden>')
    +'<button type="button" data-tab="course"'+(tab==='course'?' class="on"':'')+'><i>📘</i><b>免費課程</b><small>照等級一課一課學，每課 10 個詞</small></button>'
    +'<button type="button" data-tab="topic"'+(tab==='topic'?' class="on"':'')+'><em>新</em><i>🍎</i><b>主題生詞</b><small>家庭、食物、動物…</small></button>'
    +'<button type="button" data-tab="self"'+(tab==='self'?' class="on"':'')+'><i>'+(zy?'ㄅ':'ā')+'</i><b>自己練習</b><small>'+(zy?'注音':'拼音')+'、聲調、打字'+(wl.length?'、錯題本':'')+'</small></button>'
-   +'<button type="button" data-tab="class"'+(tab==='class'?' class="on"':'')+'><i>👩‍🏫</i><b>老師的班級</b><small>'+(cs.length?'已加入 '+cs.length+' 個班':'輸入代碼，做老師出的作業')+'</small></button></div>'
+   +'<button type="button" data-tab="class"'+(tab==='class'?' class="on"':'')+'><i>👩‍🏫</i><b>老師的班級</b><small>'+(cs.length?'已加入 '+cs.length+' 個班':'輸入代碼，做老師出的作業')+'</small></button>'+'</div>'
    +'<section class="hm-pn">'
    +(tab==='course'?hmCourse():tab==='topic'?hmTopic(zy)
      :tab==='self'?hmSelf(zy,mo,r,wl):hmClass(cs))
    +'</section>'+hmFoot();
   $('stage').innerHTML=h;ftBind();
   $('out').onclick=function(){auth.signOut()};
+  var okT=hmShow();document.querySelectorAll('.hm-pk button').forEach(function(b){if(okT.indexOf(b.dataset.tab)<0)b.remove()});
   document.querySelectorAll('.hm-pk button').forEach(function(b){b.onclick=function(){S.tab=b.dataset.tab;try{localStorage.setItem('qna_learn_tab',S.tab)}catch(e){}home()}});
   if(tab==='course')courseBind();
   document.querySelectorAll('[data-tp]').forEach(function(b){b.onclick=function(){S.topic=b.dataset.tp;home()}});
