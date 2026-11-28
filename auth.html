@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>帳號驗證｜美娟華語工作室 QNA CHINESE</title>
+<meta name="robots" content="noindex">
+<!-- AUTHPAGE_V1810 Quinn：「驗證畫面能不能設計好看一點」「中文跟英文一起，學生不限於越南人」
+     Firebase 驗證信／重設密碼信的連結改到這一頁（Firebase 主控台 → Authentication → 範本 → 自訂動作網址）。 -->
+<style>
+:root{--p:#1E4C86;--ps:#E4EDF9;--ink:#16202E;--mut:#7A8BA3;--line:#DCE4EF;--bg:#F4F7FB;--ok:#2E8B57;--bad:#B23B2E}
+*{box-sizing:border-box}html,body{margin:0}
+body{min-height:100vh;min-height:100dvh;background:var(--bg);color:var(--ink);font-family:"Noto Serif TC","Songti TC",PMingLiU,serif;display:flex;flex-direction:column}
+.bar{height:68px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 max(20px,calc((100vw - 1440px)/2 + 20px));flex:none}
+.bl{width:38px;height:38px;border-radius:11px;background:var(--p);color:#fff;display:grid;place-items:center;font-size:21px;font-weight:700}
+.bn{display:flex;flex-direction:column;line-height:1.1}.bn b{font-size:19px}.bn span{font-size:10px;letter-spacing:2.2px;color:var(--mut);margin-top:3px}
+main{flex:1;display:flex;align-items:center;justify-content:center;padding:28px 16px 48px}
+.card{width:100%;max-width:460px;background:#fff;border-radius:22px;box-shadow:0 14px 40px rgba(30,60,110,.10);padding:34px 28px 28px;text-align:center}
+.ic{width:76px;height:76px;border-radius:50%;margin:0 auto 18px;display:grid;place-items:center;font-size:36px;background:var(--ps);color:var(--p)}
+.ic.ok{background:#E7F5EC;color:var(--ok)}.ic.bad{background:#FBEAE8;color:var(--bad)}
+.spin{width:34px;height:34px;border:4px solid var(--ps);border-top-color:var(--p);border-radius:50%;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+h1{font-size:23px;margin:0 0 4px;line-height:1.35}
+.en{font-family:Georgia,"Times New Roman",serif;color:var(--mut);font-size:15px;margin:0 0 2px;line-height:1.5}
+.vi{font-family:Georgia,"Times New Roman",serif;color:var(--mut);font-size:14px;margin:0;line-height:1.5}
+.txt{margin:18px 0 0;font-size:15.5px;line-height:1.75}
+.txt .en,.txt .vi{font-size:13.5px}
+.mail{display:inline-block;margin-top:10px;background:var(--bg);border-radius:999px;padding:5px 14px;font-size:14px;color:var(--p);word-break:break-all;font-family:Georgia,serif}
+.f{text-align:left;margin-top:20px}.f label{display:block;font-size:14px;font-weight:700;margin:12px 0 6px}.f label small{font-weight:400;color:var(--mut);font-family:Georgia,serif}
+.f input{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font:inherit;font-size:16px;outline:none}.f input:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(30,76,134,.12)}
+.msg{min-height:20px;margin-top:10px;font-size:14px;color:var(--bad)}
+.btn{display:block;width:100%;margin-top:22px;border:0;border-radius:14px;background:var(--p);color:#fff;font:inherit;font-size:17px;font-weight:700;padding:14px;cursor:pointer;text-decoration:none}
+.btn small{display:block;font-weight:400;font-size:12.5px;opacity:.85;font-family:Georgia,serif;margin-top:2px}
+.btn:disabled{background:#AFC0D8;cursor:not-allowed}
+.btn.gh{background:#fff;color:var(--p);border:1px solid var(--line);margin-top:10px;font-size:15px;padding:11px}
+.foot{text-align:center;font-size:12px;color:var(--mut);padding:0 16px 22px}
+@media(max-width:600px){.bar{height:56px;padding:0 14px}.bl{width:34px;height:34px;font-size:18px}.bn b{font-size:16px}.bn span{font-size:9px}.card{padding:28px 20px 22px}h1{font-size:21px}}
+</style></head><body>
+<header class="bar"><span class="bl">美</span><span class="bn"><b>美娟華語工作室</b><span>QNA CHINESE</span></span></header>
+<main><div class="card" id="card"><div class="ic"><div class="spin"></div></div><h1>處理中…</h1><p class="en">Please wait…</p></div></main>
+<div class="foot">© 美娟華語工作室 QNA CHINESE</div>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="config.js"></script>
+<script>
+(function(){
+const Q=new URLSearchParams(location.search),mode=Q.get('mode')||'',code=Q.get('oobCode')||'',lang=(Q.get('lang')||'').toLowerCase();
+const VI=lang.indexOf('vi')===0;
+const card=document.getElementById('card');
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* 只接受自己網站的 continueUrl，避免被導到別的網站 */
+function next(){let u=Q.get('continueUrl')||'';try{const x=new URL(u);const ok=/(^|\.)qnachinese\.vercel\.app$|(^|\.)qna-huayu-homework\.vercel\.app$|^localhost$|^127\.0\.0\.1$/.test(x.hostname);if(ok)return x.href;}catch(e){}return 'play.html';}
+function T(zh,en,vi,tag){tag=tag||'p';return '<'+(tag==='h1'?'h1':'span')+'>'+zh+'</'+(tag==='h1'?'h1':'span')+'>'+(en?'<p class="en">'+en+'</p>':'')+(VI&&vi?'<p class="vi">'+vi+'</p>':'');}
+function show(o){card.innerHTML='<div class="ic '+(o.cls||'')+'">'+o.icon+'</div>'+T(o.zh,o.en,o.vi,'h1')
+  +(o.body?'<div class="txt">'+o.body+'</div>':'')+(o.extra||'')
+  +(o.btn?'<a class="btn" id="go" href="'+esc(o.href||next())+'">'+o.btn[0]+'<small>'+o.btn[1]+(VI&&o.btn[2]?' · '+o.btn[2]:'')+'</small></a>':'');}
+function body(zh,en,vi){return '<div>'+zh+'</div><div class="en">'+en+'</div>'+(VI&&vi?'<div class="vi">'+vi+'</div>':'');}
+const CK='<svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const BTN_GO=['繼續','Continue','Tiếp tục'];
+function fail(e){const c=String(e&&e.code||'');
+  const used=/expired|invalid-action-code/.test(c);
+  show({cls:'bad',icon:'<b style="font-size:38px;font-family:Georgia,serif">!</b>',zh:used?'這個連結已經失效':'出了點問題',en:used?'This link has expired or was already used':'Something went wrong',vi:used?'Liên kết đã hết hạn hoặc đã được dùng':'Đã xảy ra lỗi',
+    body:used?body('如果你剛剛已經按過這個連結，帳號可能已經開通了，直接登入試試看。<br>還是不行的話，回網站按「重寄驗證信」。','If you already clicked this link, your account may already be active — just try logging in. Otherwise, go back and request a new email.','Nếu bạn đã bấm liên kết này, hãy thử đăng nhập. Nếu không được, hãy quay lại và gửi lại email.')
+      :body('請再試一次，或聯絡美娟老師。','Please try again or contact the teacher.','Vui lòng thử lại hoặc liên hệ giáo viên.')+'<div class="en" style="margin-top:8px;font-size:12px">'+esc(c)+'</div>',
+    btn:['回到網站','Back to the website','Quay lại trang web']});}
+if(!window.firebase||!window.FIREBASE_CONFIG){fail({code:'no-firebase'});return}
+try{if(!firebase.apps.length)firebase.initializeApp(window.FIREBASE_CONFIG);}catch(e){}
+const auth=firebase.auth();try{auth.languageCode=VI?'vi':'zh-TW'}catch(e){}
+if(!code){fail({code:'invalid-action-code'});return}
+
+if(mode==='verifyEmail'||mode==='verifyAndChangeEmail'){
+  auth.applyActionCode(code).then(()=>{
+    show({cls:'ok',icon:CK,zh:'Email 驗證成功！',en:'Your email has been verified',vi:'Email của bạn đã được xác minh',
+      body:body('帳號已經開通了。按下面的按鈕回到網站，就可以開始使用。<br><small style="color:var(--mut)">如果原本的頁面還開著，它會自動進去。</small>','Your account is ready. Tap the button below to go back and start.','Tài khoản đã sẵn sàng. Bấm nút bên dưới để quay lại.'),
+      btn:BTN_GO});
+  }).catch(fail);
+}
+else if(mode==='resetPassword'){
+  auth.verifyPasswordResetCode(code).then(email=>{
+    show({icon:'🔑',zh:'設定新密碼',en:'Set a new password',vi:'Đặt mật khẩu mới',
+      extra:'<div class="mail">'+esc(email)+'</div><div class="f"><label for="p1">新密碼 <small>New password（至少 6 個字 / at least 6 characters）</small></label><input id="p1" type="password" autocomplete="new-password">'
+        +'<label for="p2">再打一次 <small>Type it again</small></label><input id="p2" type="password" autocomplete="new-password"><div class="msg" id="msg"></div>'
+        +'<button class="btn" id="save" type="button">儲存新密碼<small>Save new password</small></button></div>'});
+    const m=document.getElementById('msg'),b=document.getElementById('save');
+    b.onclick=()=>{const a=document.getElementById('p1').value,c=document.getElementById('p2').value;m.textContent='';
+      if(a.length<6){m.textContent='密碼至少 6 個字 · At least 6 characters';return}
+      if(a!==c){m.textContent='兩次打的不一樣 · The passwords do not match';return}
+      b.disabled=true;auth.confirmPasswordReset(code,a).then(()=>{
+        show({cls:'ok',icon:CK,zh:'密碼改好了！',en:'Your password has been changed',vi:'Đã đổi mật khẩu',
+          body:body('請用新密碼登入。','Please log in with your new password.','Vui lòng đăng nhập bằng mật khẩu mới.'),btn:['回去登入','Go to login','Đăng nhập']});
+      }).catch(e=>{b.disabled=false;const c2=String(e&&e.code||'');if(/weak-password/.test(c2))m.textContent='密碼太簡單，換一個 · Password is too weak';else fail(e);});};
+  }).catch(fail);
+}
+else if(mode==='recoverEmail'){
+  auth.checkActionCode(code).then(info=>{const em=(info&&info.data&&info.data.email)||'';return auth.applyActionCode(code).then(()=>em);}).then(em=>{
+    show({cls:'ok',icon:CK,zh:'Email 已經改回來了',en:'Your sign-in email has been restored',vi:'Đã khôi phục email',
+      body:body('登入用的 Email 已恢復成：','Your sign-in email is now:','Email đăng nhập hiện là:')+'<div class="mail">'+esc(em)+'</div>',btn:BTN_GO});
+  }).catch(fail);
+}
+else fail({code:'invalid-action-code'});
+})();
+</script>
+</body></html>
