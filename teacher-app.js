@@ -27732,9 +27732,9 @@ async function psDetail(id){setTimeout(()=>psClassRecs(id),50);const box=documen
    +'<div class="ps-stats" style="margin-top:12px">'+kv('連續練習',streak+'<em>天</em>')+kv('這週做了',psDays(x.days,7)+'<em>題</em>')+kv('總共做了',(x.total||0)+'<em>題</em>')+kv('答對率',acc==null?'—':acc+'<em>%</em>')+'</div>'
    +'<div class="ps-ra" style="margin-top:12px">手動開通到 <select id="psl-'+esc(id)+'">'+PS_LV.map((v,j)=>'<option value="'+j+'"'+(j===lt?' selected':'')+'>'+v+'</option>').join('')+'</select><button class="btn btn-sm btn-primary" data-act="pstudGrant" data-id="'+esc(id)+'">儲存</button><span style="flex:1"></span><button class="btn btn-sm btn-ghost" style="color:#C03A3A" data-act="pstudDel" data-id="'+esc(id)+'">🗑 刪除這個學生</button></div></div>'
    /* TWORDS_V1817 Quinn：「老師給他一份詞表」——這位學生的「自己練習」會先出現「老師給你的詞」 */
-   +'<div class="ps-sec"><h3>給這位學生的詞表 <small>一行一個：漢字 空格 拼音（拼音可以打數字，例如 ming2tian1）。存了以後，他的「自己練習」會先出現這些詞</small></h3>'
+   +'<div class="ps-sec"><h3>給這位學生的詞表 <small>可以只打漢字（一行一個，或用空格、頓號隔開），按「✨ 自動補拼音」就會補上，你檢查一下再儲存。存了以後，他的「自己練習」會先出現這些詞</small></h3>'
    +'<textarea id="psw-'+esc(id)+'" rows="8" style="width:100%;font-size:16px;line-height:1.7;border:1px solid #DCE4EF;border-radius:12px;padding:10px 12px;box-sizing:border-box" placeholder="例：\n明天 ming2tian1\n學生 xuéshēng">'+esc(x.words||'')+'</textarea>'
-   +'<div class="ps-ra" style="margin-top:8px"><span class="hint" id="pswc-'+esc(id)+'">'+(x.words?String(x.words).split('\n').filter(l=>l.trim()).length+' 個詞':'還沒有詞表')+'</span><span style="flex:1"></span><button class="btn btn-sm btn-ghost" data-act="pstudWordsClear" data-id="'+esc(id)+'">清空</button><button class="btn btn-sm btn-primary" data-act="pstudWords" data-id="'+esc(id)+'">儲存詞表</button></div></div>'
+   +'<div class="ps-ra" style="margin-top:8px"><span class="hint" id="pswc-'+esc(id)+'">'+(x.words?String(x.words).split('\n').filter(l=>l.trim()).length+' 個詞':'還沒有詞表')+'</span><span style="flex:1"></span><button class="btn btn-sm btn-ghost" data-act="pstudWordsAuto" data-id="'+esc(id)+'">✨ 自動補拼音</button><button class="btn btn-sm btn-ghost" data-act="pstudWordsClear" data-id="'+esc(id)+'">清空</button><button class="btn btn-sm btn-primary" data-act="pstudWords" data-id="'+esc(id)+'">儲存詞表</button></div></div>'
    /* SHOW_V1815 Quinn：「我可以設定學生只會出現練拼音，或是他可以學什麼」——沒設定就是全部都看得到 */
    +(()=>{const all=[['course','📘 免費課程'],['topic','🍎 主題生詞'],['self','ā 自己練習（選拼音・聲調・打拼音）'],['class','👩‍🏫 老師的班級'],['pyref','📖 拼音表（拼音、注音、書寫規則）']];const sh=Array.isArray(x.show)&&x.show.length?x.show:all.slice(0,4).map(z=>z[0]);/* PYREF_V1817 拼音表預設不給，要勾才看得到 */
      return '<div class="ps-sec"><h3>這個學生看得到什麼 <small>首頁只會出現勾起來的</small></h3><div style="display:flex;flex-wrap:wrap;gap:8px 18px;margin:6px 0 10px">'
@@ -27745,11 +27745,19 @@ async function psDetail(id){setTimeout(()=>psClassRecs(id),50);const box=documen
      +ses.map(s=>{const open=PS.open===s.id;return '<tr data-act="pstudSes" data-id="'+esc(s.id)+'"><td>'+psWhen(s.at)+'</td><td>'+(PS_MODE[s.mode]||s.mode||'')+'</td><td>'+esc(s.lv_name||'')+'</td><td><b>'+(s.ok||0)+'/'+(s.n||0)+'</b></td><td>'+(s.dur>=60?Math.floor(s.dur/60)+' 分 ':'')+((s.dur||0)%60)+' 秒</td></tr>'
        +(open?'<tr class="ps-items"><td colspan="5">'+(s.items||[]).map(it=>'<span class="'+(it.ok?'ok':'no')+'"><b>'+esc(it.h)+'</b> '+esc(it.p||'')+'<small>'+(it.ok?'✓':'✗ 他答：'+esc(String(it.a==null?'':it.a)))+'</small></span>').join('')+'</td></tr>':'');}).join('')+'</table>':'<div class="hint">還沒有練習紀錄。</div>')+'</div>'
    +'<div class="ps-sec"><h3>錯題本 <small>這個學生最常錯的</small></h3>'+(wl.length?'<div class="ps-words">'+wl.map(w=>'<span><b>'+esc(w.h)+'</b><small>'+esc(w.p||'')+'・錯 '+w.n+' 次</small></span>').join('')+'</div>':'<div class="hint">沒有錯題。</div>')+'</div>';}
+/* TWAUTO_V1818 Quinn：「我是否可以直接打漢字，然後自動出現對應的拼音，我只要檢查就好」——先查華語八千詞（跟網站練習同一套），查不到才用拼音元件 */
+let PY8K=null;
+function py8kLoad(){if(PY8K)return Promise.resolve(PY8K);return new Promise(res=>{const done=()=>{PY8K={};(window.PY8000||[]).forEach(raw=>String(raw||'').split('\n').forEach(l=>{l=l.trim();if(!l||l[0]==='#')return;const i=l.indexOf(' ');if(i<1)return;const h=l.slice(0,i),p=l.slice(i+1).split('|')[0].trim();if(!(h in PY8K))PY8K[h]=p;}));res(PY8K);};
+  if(window.PY8000)return done();const sc=document.createElement('script');sc.src='pinyin-words.js?v=1';sc.onload=done;sc.onerror=done;document.head.appendChild(sc);});}
+H.pstudWordsAuto=async(id)=>{const t=document.getElementById('psw-'+id);if(!t)return;const M=await py8kLoad();let a=0,b=0;const LAT=/[a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/;
+  const out=[];t.value.split('\n').forEach(line=>{const L=line.trim();if(!L)return;if(LAT.test(L.replace(/[=＝].*$/,''))){out.push(L);return;}
+    L.split(/[\s,，、;；]+/).filter(Boolean).forEach(h=>{h=h.replace(/[^\u3400-\u9fff]/g,'');if(!h)return;if(M[h]){out.push(h+' '+M[h]);a++;}else{const p=window.pinyinPro?twPyT(h).replace(/\s+/g,''):'';out.push(p?h+' '+p+'   ← 請檢查':h);b++;}});});
+  t.value=out.join('\n');toast(b?'補好了：'+a+' 個照華語八千詞；'+b+' 個不在八千詞裡，標了「← 請檢查」':'補好了：'+a+' 個都照華語八千詞，檢查一下就可以儲存');};
 H.pstudWordsClear=(id)=>{const t=document.getElementById('psw-'+id);if(t)t.value='';};
 H.pstudWords=async(id)=>{const t=document.getElementById('psw-'+id);if(!t)return;
-  const lines=t.value.split('\n').map(l=>l.trim()).filter(Boolean);
+  const lines=t.value.split('\n').map(l=>l.replace(/\s*←\s*請檢查\s*$/,'').trim()).filter(Boolean);
   const bad=lines.filter(l=>!/[\u3400-\u9fff]/.test(l)||!/[a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/.test(l.replace(/[=＝].*$/,'')));
-  if(bad.length)return toast('這幾行要有漢字和拼音：'+bad.slice(0,3).join('、'));
+  if(bad.length){if(bad.every(l=>/[\u3400-\u9fff]/.test(l)))return toast('有 '+bad.length+' 行還沒有拼音，先按「✨ 自動補拼音」，檢查後再儲存');return toast('這幾行要有漢字和拼音：'+bad.slice(0,3).join('、'));}
   const v=lines.join('\n').slice(0,6000);const x=PS.list.find(z=>z.id===id)||{};
   try{await firebase.firestore().collection('pstudents').doc(id).update({words:v,words_at:new Date().toISOString()});x.words=v;toast(lines.length?'已儲存 '+lines.length+' 個詞，學生重新整理就會看到':'已清空詞表');psRender();}catch(e){toast('存不進去：'+String(e&&(e.code||e.message)||e));}};
 H.pstudShowPreset=(v)=>{const [id,k]=String(v).split('|');document.querySelectorAll('.pss-'+CSS.escape(id)).forEach(c=>{c.checked=k==='all'?c.value!=='pyref':(c.value===k||(k==='self'&&c.value==='pyref'&&c.checked));});};

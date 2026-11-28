@@ -257,11 +257,25 @@ async function loadClasses(){var cs=S.prof.classes||[];for(var i=0;i<cs.length;i
 +'.tp-im{width:64px;height:64px;object-fit:contain;display:block;margin:0 auto}.tp-ws.im span{min-width:96px}.tp-ws img{width:72px;height:72px;object-fit:contain;margin-bottom:2px}'
 +'.tp-pic{display:flex!important;align-items:center;gap:12px;width:100%;margin-top:10px;text-align:left!important;padding:12px 16px!important}.tp-pic i{margin:0!important}.tp-pic small{margin-left:auto}'
 +'.src-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.src-row button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 15px;font-size:14.5px;cursor:pointer;font-family:inherit;color:var(--ink)}.src-row button.on{background:var(--p);border-color:var(--p);color:#fff;font-weight:700}.src-row .tw{border-color:#E8C77A;background:#FFF8E6}.src-row .tw.on{background:#C98A1B;border-color:#C98A1B;color:#fff}'
++'.pr-hero{display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#1E4C86,#3D6FB0);color:#fff;border-radius:18px;padding:16px 20px;margin-bottom:14px}.pr-hero h3{margin:0;font-size:21px}.pr-hero small{color:#CFDCEE;font-size:13px}.pr-hero span{font-family:"Times New Roman",serif;font-size:20px;text-align:right;line-height:1.3;opacity:.85;letter-spacing:2px}'
++'.pr-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}.pr-tabs button{border:1px solid var(--line);background:#fff;border-radius:14px;padding:9px 6px;font-family:inherit;font-size:14.5px;cursor:pointer;color:var(--ink);display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}.pr-tabs i{font-style:normal;width:24px;height:24px;border-radius:8px;background:var(--ps);color:var(--p);display:grid;place-items:center;font-size:14px}.pr-tabs button.on{background:var(--p);border-color:var(--p);color:#fff;font-weight:700}.pr-tabs button.on i{background:rgba(255,255,255,.2);color:#fff}'
++'.pr-g{background:var(--bg);border-radius:16px;padding:10px 12px 12px;margin-bottom:10px}.pr-gh{font-size:13px;font-weight:700;color:var(--c);margin-bottom:8px}.pr-gi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.pr-gi div{background:#fff;border-radius:12px;padding:10px 6px;text-align:center;box-shadow:0 1px 4px rgba(30,60,110,.06)}.pr-gi b{display:block;font-size:24px;font-family:"Times New Roman",serif;color:var(--c)}.pr-gi em{display:block;font-style:normal;font-size:18px}.pr-gi small{color:var(--mut);font-size:12.5px}'
++'.pr-cv{width:64px;height:60px;margin:2px auto}.pr-tone>div{border-top:4px solid var(--c)!important}.pr-tone b{color:var(--c)!important}.pr-tone .ex{font-size:15px}'
++'.pr-say{margin-top:14px;background:#F4F7FB;border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-family:"Times New Roman",serif}.pr-say span{font-family:inherit;color:var(--mut);font-size:14px}.pr-say b{font-size:26px}'
++'.pr-ex{display:flex;gap:8px;flex-wrap:wrap}.pr-ex span{border-radius:8px;padding:3px 10px;font-family:"Times New Roman",serif;font-size:15px}.pr-ex .ok{background:#EAF6EF;color:#2E7D4F}.pr-ex .no2{background:#FDECEC;color:#B23B2E;text-decoration:line-through;text-decoration-thickness:1px}'
++'@media(max-width:760px){.pr-tabs{grid-template-columns:repeat(4,1fr);gap:6px}.pr-tabs button{font-size:13px;padding:8px 2px;gap:3px}.pr-tabs i{display:none}.pr-hero span{font-size:16px}}'
 +'.pr-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}.pr-grid div{border:1px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center}.pr-grid b{display:block;font-size:22px;font-family:"Times New Roman",serif;color:var(--p)}.pr-grid em{display:block;font-style:normal;font-size:18px}.pr-grid small{color:var(--mut);font-size:12.5px}'
 +'.pr-tb{border:1px solid var(--line);border-radius:12px;overflow:hidden}.pr-tb>div{display:grid;grid-template-columns:1.2fr 1fr 1fr 1.3fr;padding:8px 12px;border-top:1px solid #EEF2F8;align-items:center}.pr-tb>div:first-child{border-top:0}.pr-hd{background:#F4F7FB;font-size:12.5px;color:var(--mut)}.pr-tb b{font-size:18px;font-family:"Times New Roman",serif;color:var(--p);font-weight:700}.pr-tb em{font-style:normal;font-size:17px}.pr-tb .zhk span{font-family:"Times New Roman",serif;font-size:16px}.pr-tb small{font-size:14px}'
 +'.pr-tone{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.pr-tone>div{border:1px solid var(--line);border-radius:14px;padding:14px 8px;text-align:center;display:flex;flex-direction:column;gap:4px}.pr-tone .tn{font-weight:700}.pr-tone b{font-size:34px;font-family:"Times New Roman",serif;color:var(--p)}.pr-tone em{font-style:normal;font-size:14px}.pr-tone small{color:var(--mut)}'
 +'.pr-rule{display:flex;flex-direction:column;gap:10px}.pr-rule>div{display:flex;gap:12px;border:1px solid var(--line);border-radius:14px;padding:12px 14px}.pr-rule .no{flex:none;width:26px;height:26px;border-radius:50%;background:var(--ps);color:var(--p);display:grid;place-items:center;font-size:13px;font-weight:700}.pr-rule b{font-size:15.5px}.pr-rule p{margin:4px 0 6px;font-size:14px;color:#4A5B75;line-height:1.7}.pr-rule code{background:#F4F7FB;border-radius:8px;padding:3px 8px;font-family:"Times New Roman",serif;font-size:15px;color:var(--p)}'
 +'@media(max-width:760px){.pr-grid{grid-template-columns:repeat(4,1fr)}.pr-tone{grid-template-columns:repeat(3,1fr)}.pr-tb>div{grid-template-columns:1.1fr .9fr .9fr 1.3fr;padding:8px}}'
++'.hm-td{display:grid;grid-template-columns:1.35fr .7fr 1.1fr 1.15fr;gap:10px;margin:-4px 0 20px}.hm-td>div{background:#fff;border-radius:18px;box-shadow:0 2px 10px rgba(30,60,110,.06);padding:12px 14px;min-width:0;height:84px;box-sizing:border-box;display:flex;align-items:center;gap:12px}'
++'.td-ring{--p:0;width:58px;height:58px;border-radius:50%;flex:none;background:conic-gradient(#2E8B57 calc(var(--p)*1%),#E4EDF9 0);display:grid;place-items:center;position:relative}.td-ring:before{content:"";position:absolute;inset:6px;background:#fff;border-radius:50%}.td-ring b,.td-ring span{position:relative;line-height:1}.td-ring b{font-size:18px;color:var(--p);margin-top:6px}.td-ring span{font-size:10px;color:var(--mut);margin-top:-14px}'
++'.td-t{min-width:0}.td-t b{display:block;font-size:15.5px}.td-t small{display:block;color:var(--mut);font-size:12.5px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
++'.td-fire{flex-direction:column;justify-content:center;gap:2px!important}.td-f{font-size:22px;display:flex;align-items:center;gap:4px}.td-f b{font-size:24px;color:#D9531E}.td-fire small{color:var(--mut);font-size:12px}'
++'.td-week{flex-direction:column;justify-content:center;gap:4px!important}.tw-bars{display:flex;gap:6px;align-items:flex-end;height:46px}.tw-d{display:flex;flex-direction:column;align-items:center;gap:3px;justify-content:flex-end;height:100%}.tw-d i{display:block;width:12px;border-radius:5px;background:#E4EDF9}.tw-d i.some{background:#9DB6D8}.tw-d i.full{background:#2E8B57}.tw-d span{font-size:10.5px;color:var(--mut)}.tw-d.td span{color:var(--p);font-weight:700}.td-week small{color:var(--mut);font-size:12px}'
++'.td-word{background:linear-gradient(135deg,#FFF8E6,#FFFDF7)!important}.td-word img{width:58px;height:58px;object-fit:contain;flex:none}.td-word div{min-width:0}.td-lab{display:block;font-size:11px;color:#8A5A00}.td-word b{display:block;font-size:22px;font-weight:400;line-height:1.2}.td-word span{font-family:"Times New Roman",serif;color:var(--p);font-size:14px}'
++'@media(max-width:760px){.hm-td{grid-template-columns:1fr 1fr;gap:8px}.hm-td>div{height:76px;padding:10px 12px}.td-goal{grid-column:1/-1}.td-week{display:none!important}}'
 +'.tp-back{border:0;background:none;color:var(--p);font-family:inherit;font-size:14px;cursor:pointer;padding:0;margin-bottom:10px}.tp-ws{display:flex;flex-wrap:wrap;gap:8px}.tp-ws span{border:1px solid var(--line);border-radius:12px;padding:8px 12px;display:flex;flex-direction:column;align-items:center;min-width:72px}.tp-ws b{font-size:20px;font-weight:400}.tp-ws i{font-style:normal;color:var(--p);font-size:13.5px;font-family:"Times New Roman",serif}'
 +'.cls-empty{display:flex;gap:26px;align-items:center;padding:8px 4px}.ce-ic{width:120px;height:120px;border-radius:50%;background:var(--ps);display:grid;place-items:center;font-size:60px;flex:none}.ce-t{flex:1;min-width:0}.ce-t h3{margin:0 0 4px;font-size:20px}.ce-t p{margin:0 0 14px;color:#4A5B75;font-size:14.5px;line-height:1.7}'
 +'.ce-join{max-width:440px}.ce-join input{font-size:18px;letter-spacing:3px;text-align:center}.ce-st{display:flex;gap:18px;margin:14px 0 0;padding:0;list-style:none;counter-reset:s;flex-wrap:wrap}.ce-st li{counter-increment:s;font-size:13px;color:var(--mut);display:flex;align-items:center;gap:6px}.ce-st li:before{content:counter(s);width:20px;height:20px;border-radius:50%;background:var(--ps);color:var(--p);display:grid;place-items:center;font-size:12px;font-weight:700}'
@@ -343,27 +357,43 @@ var PR_FIN=[['單韻母',[['a','ㄚ','a','他','tā'],['o','ㄛ','o','波','bō'
  ['u 開頭',[['ua','ㄨㄚ','wa','花','huā'],['uo','ㄨㄛ','wo','多','duō'],['uai','ㄨㄞ','wai','快','kuài'],['ui（uei）','ㄨㄟ','wei','對','duì'],['uan','ㄨㄢ','wan','短','duǎn'],['un（uen）','ㄨㄣ','wen','春','chūn'],['uang','ㄨㄤ','wang','黃','huáng'],['ueng','ㄨㄥ','weng','翁','wēng']]],
  ['ü 開頭',[['üe','ㄩㄝ','yue','學','xué'],['üan','ㄩㄢ','yuan','遠','yuǎn'],['ün','ㄩㄣ','yun','雲','yún']]]];
 var PR_RULE=[
- ['聲調標在哪個字母上','照 a → o、e → i、u 的順序標；i 和 u 在一起時，標在後面那個。','hǎo・duō・xiè・liù・duì'],
+ ['聲調標在哪個字母上','照 a → o、e → i、u 的順序標；i 和 u 在一起時，標在後面那個。','hǎo・duō・xiè・liù・duì','lìu・haŏ'],
  ['i 上面標調要去點','寫成 ī í ǐ ì，i 上面不再加點。','nǐ・jīn'],
- ['y 和 w','i、u、ü 開頭又沒有聲母時，改寫 y、w：i→yi、in→yin、ing→ying、ia→ya；u→wu、uo→wo；ü→yu、üe→yue。','yī・wǒ・yuè'],
- ['ü 的兩點','j、q、x、y 後面的 ü 省略兩點寫成 u；n、l 後面要保留兩點。電腦上 ü 打 v。','jù・qù・xué ／ nǚ・lǜ'],
- ['iou、uei、uen 的省寫','前面有聲母時寫成 iu、ui、un；沒有聲母時寫 you、wei、wen。','liù・duì・chūn ／ yǒu・wèi・wèn'],
+ ['y 和 w','i、u、ü 開頭又沒有聲母時，改寫 y、w：i→yi、in→yin、ing→ying、ia→ya；u→wu、uo→wo；ü→yu、üe→yue。','yī・wǒ・yuè','ī・uǒ・üè'],
+ ['ü 的兩點','j、q、x、y 後面的 ü 省略兩點寫成 u；n、l 後面要保留兩點。電腦上 ü 打 v。','jù・qù・xué ／ nǚ・lǜ','qǜ・nu（女）'],
+ ['iou、uei、uen 的省寫','前面有聲母時寫成 iu、ui、un；沒有聲母時寫 you、wei、wen。','liù・duì・chūn ／ yǒu・wèi・wèn','lioù・iǒu'],
  ['zhi chi shi ri zi ci si','這七個音節的 i 不是「衣」的音，注音只寫聲母：ㄓ ㄔ ㄕ ㄖ ㄗ ㄘ ㄙ。','zhī = ㄓ・sì = ㄙˋ'],
- ['隔音符號 \'','a、o、e 開頭的音節接在別的音節後面，中間加 \'，避免看錯。','Xī\'ān（西安）≠ xiān（先）'],
- ['輕聲','拼音的輕聲不標調號；注音的輕聲點「˙」寫在前面。','māma ＝ ㄇㄚ ˙ㄇㄚ'],
+ ['隔音符號 \'','a、o、e 開頭的音節接在別的音節後面，中間加 \'，避免看錯。','Xī\'ān（西安）≠ xiān（先）','Xīān'],
+ ['輕聲','拼音的輕聲不標調號；注音的輕聲點「˙」寫在前面。','māma ＝ ㄇㄚ ˙ㄇㄚ','māmā'],
  ['注音的一聲','注音一聲不標符號；拼音一聲標「ˉ」。','mā ＝ ㄇㄚ'],
  ['三聲變調','兩個三聲連在一起，前一個讀成二聲，但寫的時候照原調標。','nǐ hǎo（讀 ní hǎo）'],
  ['「一」「不」變調','「一」在四聲前讀二聲，在一、二、三聲前讀四聲；「不」在四聲前讀二聲。本站照華語八千詞標變調後的聲調。','yíyàng・yìqǐ・búyào'],
  ['兒化','在音節後面加 r。','huār（花兒）'],
- ['詞要連寫','以「詞」為單位連在一起寫，詞和詞之間空一格。','wǒ xǐhuan hē chá'],
- ['大寫','句子第一個字母、人名地名的第一個字母大寫；姓和名分開寫。','Wáng Xiǎomíng zhù zài Táiběi.']];
+ ['詞要連寫','以「詞」為單位連在一起寫，詞和詞之間空一格。','wǒ xǐhuan hē chá','wǒ xǐ huan hē chá'],
+ ['大寫','句子第一個字母、人名地名的第一個字母大寫；姓和名分開寫。','Wáng Xiǎomíng zhù zài Táiběi.','wáng xiǎomíng zhù zài táiběi.']];
 function hmPyref(){var k=S.pr||'init';var tabs=[['init','聲母'],['fin','韻母'],['tone','聲調'],['rule','書寫規則']];
-  var h='<div class="hm-ph"><h3>拼音表</h3><small>拼音、注音對照和書寫規則</small></div><div class="src-row">'+tabs.map(function(t){return '<button type="button" data-pr="'+t[0]+'" class="'+(k===t[0]?'on':'')+'">'+t[1]+'</button>'}).join('')+'</div>';
-  if(k==='init')h+='<p class="hm-sub">一共 21 個聲母</p><div class="pr-grid zhk">'+PR_INIT.map(function(x){return '<div><b>'+x[0]+'</b><em>'+x[1]+'</em><small>'+x[2]+' '+x[3]+'</small></div>'}).join('')+'</div>';
+  var IC={init:'ㄅ',fin:'ㄚ',tone:'ˇ',rule:'✎'};
+  var h='<div class="pr-hero"><div><h3>拼音表</h3><small>拼音、注音對照和書寫規則</small></div><span class="zhk">b p m f<br>ㄅㄆㄇㄈ</span></div><div class="pr-tabs">'+tabs.map(function(t){return '<button type="button" data-pr="'+t[0]+'" class="'+(k===t[0]?'on':'')+'"><i>'+IC[t[0]]+'</i>'+t[1]+'</button>'}).join('')+'</div>';
+  if(k==='init'){var G=[['雙唇・唇齒','b p m f','#E8F1FC','#1E4C86'],['舌尖','d t n l','#EAF6EF','#2E7D4F'],['舌根','g k h','#FFF4E5','#B36B00'],['舌面','j q x','#FDEEF3','#B23B6B'],['翹舌','zh ch sh r','#F1EEFB','#5B46A8'],['平舌','z c s','#E9F7F8','#1F7A84']];
+    h+='<p class="hm-sub">一共 21 個聲母，照發音的位置分成六組</p>'+G.map(function(g){var ks=g[1].split(' ');return '<div class="pr-g" style="--bg:'+g[2]+';--c:'+g[3]+'"><div class="pr-gh">'+g[0]+'</div><div class="pr-gi zhk">'+PR_INIT.filter(function(x){return ks.indexOf(x[0])>=0}).map(function(x){return '<div><b>'+x[0]+'</b><em>'+x[1]+'</em><small>'+x[2]+' '+x[3]+'</small></div>'}).join('')+'</div></div>'}).join('')}
   if(k==='fin')h+=PR_FIN.map(function(g){return '<p class="hm-sub" style="margin-top:14px">'+g[0]+'</p><div class="pr-tb"><div class="pr-hd"><span>拼音</span><span>注音</span><span>自成音節</span><span>例字</span></div>'+g[1].map(function(x){return '<div class="zhk"><b>'+x[0]+'</b><em>'+x[1]+'</em><span>'+x[2]+'</span><small>'+x[3]+' '+x[4]+'</small></div>'}).join('')+'</div>'}).join('');
-  if(k==='tone')h+='<div class="pr-tone">'+[['一聲','ā','ˉ（注音不標）','媽 mā','高、平'],['二聲','á','ˊ','麻 má','往上'],['三聲','ǎ','ˇ','馬 mǎ','先低再上'],['四聲','à','ˋ','罵 mà','往下'],['輕聲','a','˙（寫在前）','嗎 ma','短、輕']].map(function(x){return '<div><span class="tn">'+x[0]+'</span><b class="zhk">'+x[1]+'</b><em>'+x[2]+'</em><span class="zhk">'+x[3]+'</span><small>'+x[4]+'</small></div>'}).join('')+'</div>';
-  if(k==='rule')h+='<div class="pr-rule">'+PR_RULE.map(function(x,i){return '<div><span class="no">'+(i+1)+'</span><div><b>'+x[0]+'</b><p>'+x[1]+'</p><code class="zhk">'+esc(x[2])+'</code></div></div>'}).join('')+'</div>';
+  if(k==='tone'){var TC=['#E0533C','#E8A317','#2E8B57','#2F6FD6','#8A97AB'],TP=['M8 8 L56 8','M8 32 L56 8','M8 24 L26 44 L56 14','M8 8 L56 52',''];
+    h+='<p class="hm-sub">線是聲音的高低：上面高、下面低</p><div class="pr-tone">'+[['一聲','ā','ˉ（注音不標）','媽 mā','高、平'],['二聲','á','ˊ','麻 má','往上'],['三聲','ǎ','ˇ','馬 mǎ','先低再上'],['四聲','à','ˋ','罵 mà','往下'],['輕聲','a','˙（寫在前）','嗎 ma','短、輕']].map(function(x,i){
+      return '<div style="--c:'+TC[i]+'"><span class="tn">'+x[0]+'</span><svg viewBox="0 0 64 60" class="pr-cv"><path d="M4 8H60M4 30H60M4 52H60" stroke="#EEF2F8" stroke-width="1.5"/>'+(TP[i]?'<path d="'+TP[i]+'" fill="none" stroke="'+TC[i]+'" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>':'<circle cx="32" cy="40" r="6" fill="'+TC[i]+'"/>')+'</svg><b class="zhk">'+x[1]+'</b><em>'+x[2]+'</em><span class="zhk ex">'+x[3]+'</span><small>'+x[4]+'</small></div>'}).join('')+'</div>'
+     +'<div class="pr-say zhk"><span>唸唸看：</span><b style="color:#E0533C">mā</b><b style="color:#E8A317">má</b><b style="color:#2E8B57">mǎ</b><b style="color:#2F6FD6">mà</b><b style="color:#8A97AB">ma</b></div>'}
+  if(k==='rule')h+='<p class="hm-sub">綠色是對的寫法，紅色是常見的錯</p><div class="pr-rule">'+PR_RULE.map(function(x,i){return '<div><span class="no">'+(i+1)+'</span><div><b>'+x[0]+'</b><p>'+x[1]+'</p><div class="pr-ex zhk"><span class="ok">✓ '+esc(x[2])+'</span>'+(x[3]?'<span class="no2">✗ '+esc(x[3])+'</span>':'')+'</div></div></div>'}).join('')+'</div>';
   return h+'<p class="hm-sub" style="margin-top:16px;font-size:12.5px">依《漢語拼音方案》和教育部注音符號；本站拼音照華語八千詞和教育部《重編國語辭典》。</p>'}
+/* TODAY_V1818 Quinn：「設計排版好看，增加學習者學習中文的興趣」——今天的目標、連續天數、這週每天練了沒、今日一詞 */
+var GOAL=20;
+function hmToday(st){var days=(S.prof&&S.prof.days)||{},td=+days[dayStr(0)]||0,pct=Math.min(100,Math.round(td/GOAL*100));
+  var msg=td===0?'今天還沒練習，來做幾題吧！':td<GOAL?'再 '+(GOAL-td)+' 題就達成今天的目標':'今天的目標達成了！🎉';
+  var wk=['日','一','二','三','四','五','六'],bars='';for(var i=6;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);var n=+days[dayStr(i)]||0;bars+='<div class="tw-d'+(i===0?' td':'')+'"><i style="height:'+Math.max(4,Math.min(36,Math.round(n/GOAL*36)))+'px" class="'+(n?(n>=GOAL?'full':'some'):'')+'"></i><span>'+wk[d.getDay()]+'</span></div>'}
+  var pool=[];Object.keys(TIMG).forEach(function(t){topicItems(t).forEach(function(it){if(it.img)pool.push(it)})});
+  var dd=new Date(),seed=dd.getFullYear()*372+dd.getMonth()*31+dd.getDate(),w=pool.length?pool[seed%pool.length]:null;
+  return '<div class="hm-td"><div class="td-goal"><div class="td-ring" style="--p:'+pct+'"><b>'+td+'</b><span>/ '+GOAL+'</span></div><div class="td-t"><b>今天的目標</b><small>'+msg+'</small></div></div>'
+   +'<div class="td-fire"><div class="td-f">🔥<b>'+st.streak+'</b></div><small>連續天數</small></div>'
+   +'<div class="td-week"><div class="tw-bars">'+bars+'</div><small>這週 '+st.week+' 題</small></div>'
+   +(w?'<div class="td-word zhk"><img src="'+w.img+'" alt=""><div><small class="td-lab">今日一詞</small><b>'+esc(w.h)+'</b><span>'+esc(sylAnswer(w))+'</span></div></div>':'')+'</div>'}
 /* CONTACT_V1814 Quinn：「沒有聯繫我的地方？」 */
 function hmFoot(){return '<div class="hm-ft"><span>有問題嗎？</span><button type="button" id="ft-mail">✉️ 寫信給老師</button><button type="button" id="ft-bug">⚠️ 回報問題</button></div>'}
 function ftBind(){var em=String(window.TEACHER_EMAIL||'').trim();
@@ -378,8 +408,9 @@ function ftBind(){var em=String(window.TEACHER_EMAIL||'').trim();
 async function home(){clearInterval(vt);S.run=null;var p=S.prof;await loadClasses();var st=stats(),wl=wrongList(),cs=p.classes||[],zy=isZY(),r=p.req,mo=maxOpen();
   var tab=S.tab=hmTab();var nd=Object.keys(p.lessons||{}).length;
   var h='<div class="hm-me"><div class="av">'+esc((p.name||'?').slice(0,1))+'</div><div><h2>'+esc(p.name)+'，今天想學什麼？</h2><small>練習帳號・'+(zy?'注音':'拼音')+'</small></div><span class="grow"></span>'
-   +'<div class="hm-st"><div><b>'+st.streak+'</b><span>連續天數</span></div><div><b>'+st.week+'</b><span>這週做的題</span></div><div><b>'+nd+'</b><span>完成的課</span></div></div>'
+
    +'<button class="out" id="out" type="button">登出</button></div>'
+   +hmToday(st)
    +(hmShow().length>1?'<p class="hm-q">選一個開始</p><div class="hm-pk" style="grid-template-columns:repeat('+hmShow().length+',1fr)">':'<div class="hm-pk" hidden>')
    +'<button type="button" data-tab="course"'+(tab==='course'?' class="on"':'')+'><i>📘</i><b>免費課程</b><small>照等級一課一課學，每課 10 個詞</small></button>'
    +'<button type="button" data-tab="topic"'+(tab==='topic'?' class="on"':'')+'><em>新</em><i>🍎</i><b>主題生詞</b><small>家庭、食物、動物…</small></button>'

@@ -67,6 +67,9 @@
   ['拼音表','Pinyin chart','Bảng pinyin'],['拼音、注音、書寫規則','Pinyin, zhuyin, rules','Pinyin, zhuyin, quy tắc'],['拼音、注音對照和書寫規則','Pinyin–zhuyin & rules','Pinyin–zhuyin & quy tắc'],
   ['聲母','Initials','Phụ âm đầu'],['韻母','Finals','Vần'],['聲調','Tones','Thanh điệu'],['書寫規則','Rules','Quy tắc'],['自成音節','Alone','Đứng riêng'],['例字','Example','Ví dụ'],
   ['一共 21 個聲母','21 initials','21 phụ âm đầu'],['一聲','Tone 1','Thanh 1'],['二聲','Tone 2','Thanh 2'],['三聲','Tone 3','Thanh 3'],['四聲','Tone 4','Thanh 4'],
+  ['今天的目標',"Today's goal",'Mục tiêu hôm nay'],['今天還沒練習，來做幾題吧！','Not yet today — try a few!','Hôm nay chưa luyện!'],['今天的目標達成了！🎉','Goal reached! 🎉','Đạt mục tiêu! 🎉'],['今日一詞','Word of the day','Từ hôm nay'],
+  ['線是聲音的高低：上面高、下面低','Line = pitch (high to low)','Đường = cao độ'],['唸唸看：','Say it:','Đọc thử:'],['綠色是對的寫法，紅色是常見的錯','Green = right, red = common mistake','Xanh = đúng, đỏ = lỗi thường gặp'],
+  ['一共 21 個聲母，照發音的位置分成六組','21 initials in 6 groups','21 phụ âm, 6 nhóm'],
   ['做完了！','Done!','Xong rồi!'],['全部答對，好厲害！','All correct, great!','Đúng hết, giỏi quá!'],['再做一次','Again','Làm lại'],['回首頁','Home','Trang chủ'],
   ['已經收進錯題本','added to Mistakes','đã vào Sổ lỗi'],['錯了','Wrong','Sai'],['已經是最新版本 ✓','Up to date ✓','Đã mới nhất ✓'],
   ['紀錄沒存成功（網路不穩？），成績還是看得到',"Couldn't save (network?)",'Chưa lưu được (mạng?)'],['（公用電腦請不要勾）','(not on shared PCs)','(không dùng máy chung)']
@@ -74,7 +77,7 @@
   var TRX=[
    [/^已加入 (\d+) 個班$/,'Joined $1','Đã vào $1 lớp'],[/^(\d+) 個詞・有圖$/,'$1 words · pics','$1 từ · hình'],[/^(\d+) 個詞$/,'$1 words','$1 từ'],
    [/^第 (\d+)–(\d+) 課$/,'L$1–$2','Bài $1–$2'],[/^第 (\d+) 課$/,'Lesson $1','Bài $1'],[/^代碼 (\S+)$/,'Code $1','Mã $1'],
-   [/^答對 (\d+)\/(\d+)・練 (\d+) 次$/,'$1/$2 · $3×','$1/$2 · $3 lần'],[/^答對 (\d+)\/(\d+)$/,'$1/$2 right','Đúng $1/$2'],[/^錯 (\d+) 次$/,'$1× wrong','Sai $1 lần'],
+   [/^答對 (\d+)\/(\d+)・練 (\d+) 次$/,'$1/$2 · $3×','$1/$2 · $3 lần'],[/^答對 (\d+)\/(\d+)$/,'$1/$2 right','Đúng $1/$2'],[/^錯 (\d+) 次$/,'$1× wrong','Sai $1 lần'],[/^再 (\d+) 題就達成今天的目標$/,'$1 more to reach the goal','Còn $1 câu nữa'],[/^這週 (\d+) 題$/,'$1 this week','$1 câu tuần này'],
    [/^📝 老師給你的詞（(\d+)）$/,"📝 Teacher's ($1)",'📝 Của GV ($1)'],[/^主題・(.+)$/,'Topic · $1','Chủ đề · $1'],[/^還有 (\d+) 個$/,'+$1 more','+$1 nữa']
   ];
   var TRS=TR.slice().sort(function(a,b){return b[0].length-a[0].length});
