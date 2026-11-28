@@ -1,5 +1,15 @@
 /* ZHUYIN_V1741 注音符號：拼音轉注音、注音鍵盤、比對答案。給 pinyin.html（練習和遊戲）用。
    Quinn：「除了拼音練習，我也希望有注音符號練習」——學生點畫面上的注音鍵盤作答；老師出題還是打拼音，這裡自動轉成注音。 */
+/* ZYKAI_V1820 Quinn：「注音符號，我要使用標楷體的」——只有注音符號（和聲調符號）換成標楷體；電腦有標楷體就用，手機沒有就用免費的楷體字型（霞鶩文楷，只下載注音這幾個字） */
+(function(){try{if(document.getElementById('zykai'))return;
+  var Z='ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦㄧㄨㄩˉˊˇˋ˙';
+  var l=document.createElement('link');l.rel='stylesheet';l.href='https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&text='+encodeURIComponent(Z)+'&display=swap';document.head.appendChild(l);
+  var st=document.createElement('style');st.id='zykai';st.textContent=
+   '@font-face{font-family:"ZYKai";src:local("BiauKai"),local("DFKai-SB"),local("標楷體"),local("BiauKaiTC"),local("TW-Kai"),local("Kaiti TC"),local("STKaiti");unicode-range:U+3100-312F,U+31A0-31BF,U+02C7,U+02C9-02CB,U+02D9}'
+   +'.zykb button,.zyout,.sg-zy,.zy,.zyk,.pr-gi em,.pr-tb em,.pr-tone em{font-family:"ZYKai","LXGW WenKai TC","BiauKai","DFKai-SB",serif!important}';
+  document.head.appendChild(st);
+  var pre=function(){var b=document.body;if(!b)return;var f=getComputedStyle(b).fontFamily||'serif';if(f.indexOf('ZYKai')<0)b.style.fontFamily='"ZYKai","LXGW WenKai TC",'+f;};
+  if(document.body)pre();else document.addEventListener('DOMContentLoaded',pre);}catch(e){}})();
 (function(){
 'use strict';
 var INI = {b:'ㄅ',p:'ㄆ',m:'ㄇ',f:'ㄈ',d:'ㄉ',t:'ㄊ',n:'ㄋ',l:'ㄌ',g:'ㄍ',k:'ㄎ',h:'ㄏ',j:'ㄐ',q:'ㄑ',x:'ㄒ',zh:'ㄓ',ch:'ㄔ',sh:'ㄕ',r:'ㄖ',z:'ㄗ',c:'ㄘ',s:'ㄙ'};
