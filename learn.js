@@ -276,11 +276,11 @@ function hmCourse(){var mo=maxOpen(),j=S.clv||0,n=lsnCount(j),nx=lsnNext(j),dn=0
 function hmSelf(zy,mo,r,wl){return '<div class="hm-ph"><h3>自己練習</h3><small>題目來自華語八千詞（TOCFL 官方詞表）・每次 10 題</small></div>'
    +'<div class="lvrow"><div class="lvs">'+LVS.map(function(x,j){var o=j<=mo;return '<button type="button" class="lv'+(j===S.lv?' on':'')+(o?'':' lock')+'" data-j="'+j+'">'+(o?'':'🔒 ')+x+'</button>'}).join('')+'</div></div>'
    +(r&&r.status==='pending'?'<div class="reqst">已送出「'+esc(r.lv_name||'')+'」的開通申請，美娟老師看過後會幫你打開。</div>':'')
-   +'<div class="grid">'
+   +'<div class="grid" style="grid-template-columns:repeat(3,1fr)">'
    +'<button type="button" class="gm" data-mode="choose"><i>'+(zy?'ㄅ':'ā')+'</i><b>'+(zy?'選注音':'選拼音')+'</b><small>看字選讀音</small></button>'
    +'<button type="button" class="gm" data-mode="tone"><i>ˇ</i><b>聲調練習</b><small>選出正確的聲調</small></button>'
    +'<button type="button" class="gm" data-mode="type"><i>⌨</i><b>'+(zy?'打注音':'打拼音')+'</b><small>看字自己打出來</small></button>'
-   +'<a class="gm" href="hanzi.html?guest=1"><i>字</i><b>漢字闖關</b><small>認字、寫字</small></a></div>'
+   +'</div>'/* NOHZ_V1813 Quinn：「練習拼音只要選拼音、聲調練習、打拼音」——漢字闖關先拿掉 */
    +(wl.length?'<div style="margin-top:22px"><div class="hm-ph" style="margin-bottom:10px"><h3 style="font-size:17px">錯題本</h3><small>答對 2 次就會自動移出</small><button type="button" class="hm-go" id="wr" style="margin-left:auto;padding:8px 16px;font-size:14px">再練一次</button></div><div class="wrong">'
      +wl.slice(0,24).map(function(w){return '<div class="wd"><b>'+esc(w.h)+'</b><small>錯 '+w.n+' 次</small></div>'}).join('')+(wl.length>24?'<div class="wd"><b>…</b><small>還有 '+(wl.length-24)+' 個</small></div>':'')+'</div></div>':'')}
 function hmClass(cs){return '<div class="hm-ph"><h3>老師的班級</h3><small>輸入老師給的代碼，加入後就看得到作業</small></div><div class="hm-cl">'
@@ -295,7 +295,7 @@ async function home(){clearInterval(vt);S.run=null;var p=S.prof;await loadClasse
    +'<p class="hm-q">選一個開始</p><div class="hm-pk">'
    +'<button type="button" data-tab="course"'+(tab==='course'?' class="on"':'')+'><i>📘</i><b>免費課程</b><small>照等級一課一課學，每課 10 個詞</small></button>'
    +'<button type="button" data-tab="topic"'+(tab==='topic'?' class="on"':'')+'><em>新</em><i>🍎</i><b>主題生詞</b><small>家庭、食物、動物…有圖片</small></button>'
-   +'<button type="button" data-tab="self"'+(tab==='self'?' class="on"':'')+'><i>'+(zy?'ㄅ':'ā')+'</i><b>自己練習</b><small>'+(zy?'注音':'拼音')+'、聲調、打字、漢字'+(wl.length?'、錯題本':'')+'</small></button>'
+   +'<button type="button" data-tab="self"'+(tab==='self'?' class="on"':'')+'><i>'+(zy?'ㄅ':'ā')+'</i><b>自己練習</b><small>'+(zy?'注音':'拼音')+'、聲調、打字'+(wl.length?'、錯題本':'')+'</small></button>'
    +'<button type="button" data-tab="class"'+(tab==='class'?' class="on"':'')+'><i>👩‍🏫</i><b>老師的班級</b><small>'+(cs.length?'已加入 '+cs.length+' 個班':'輸入代碼，做老師出的作業')+'</small></button></div>'
    +'<section class="hm-pn">'
    +(tab==='course'?hmCourse():tab==='topic'?'<div class="hm-ph"><h3>主題生詞</h3><small>每個主題 7～12 個詞，有圖片，可以玩翻牌、看圖選詞</small></div><div class="hm-tp">'+TOPICS.map(function(t){return '<div><i>'+t[0]+'</i><b>'+t[1]+'</b><small>'+t[2]+' 個詞・即將開放</small></div>'}).join('')+'</div>'
