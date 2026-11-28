@@ -179,18 +179,42 @@ function verify(){var u=S.user;clearInterval(vt);
 /* ====== 等級開通 ====== */
 function maxOpen(){var a=S.set.free_to==null?FREE_DEFAULT:S.set.free_to,b=S.prof&&S.prof.lv_to!=null?+S.prof.lv_to:-1;return Math.max(a,b)}
 function lvOpen(j){return j<=maxOpen()}
+/* ASKOPEN_V1812 Quinn：「這裡資訊不夠」——申請開通：先說這個等級有什麼、你目前的進度、開通後會怎樣；再問學多久、為什麼學、想加強什麼、想不想上課 */
+(function(){var st=document.createElement('style');st.textContent=
+ '.ao{max-width:520px!important;text-align:left!important}.ao h2{text-align:center;margin:4px 0 6px}.ao .lead{text-align:center;color:var(--mut);font-size:14px;margin:0 0 14px;line-height:1.6}'
++'.ao-info{background:#F4F7FB;border-radius:14px;padding:12px 14px;margin-bottom:10px;font-size:14px;line-height:1.7}.ao-info b{color:var(--p)}.ao-info .ex{font-size:17px;letter-spacing:1px}'
++'.ao-pr{display:flex;flex-direction:column;gap:6px;margin-top:4px}.ao-pr div{display:flex;align-items:center;gap:8px;font-size:13.5px}.ao-pr span{flex:none;width:5.5em;color:#4A5B75}.ao-pr i{flex:1;height:7px;border-radius:9px;background:#DCE4EF;overflow:hidden;display:block}.ao-pr i u{display:block;height:100%;background:var(--ok)}.ao-pr em{font-style:normal;color:var(--mut);font-size:12.5px;flex:none;min-width:4.5em;text-align:right}'
++'.ao .l{display:block;font-weight:700;font-size:14.5px;margin:16px 0 8px}.ao .l span{font-weight:400;color:var(--mut);font-size:12.5px}'
++'.ao-ch{display:flex;flex-wrap:wrap;gap:6px}.ao-ch button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 13px;font-size:14px;cursor:pointer;font-family:inherit;color:var(--ink)}.ao-ch button.on{background:var(--ps);border-color:var(--p);color:var(--p);font-weight:700}'
++'.ao textarea.t{min-height:70px}.ao .btn{margin-top:18px;width:100%}';document.head.appendChild(st)})();
 function askOpen(j){var r=S.prof.req;if(r&&r.status==='pending')return toast('已經送出申請了，請等老師開通');
+  var mo=maxOpen(),its=levelItems(j),nL=lsnCount(j),ex=shuffle(its.filter(function(x){return x.h.length<=2})).slice(0,6).map(function(x){return x.h});
+  var prog=[];for(var i=0;i<=mo&&i<LVS.length;i++){var n=lsnCount(i),d=0;for(var k=0;k<n;k++)if(lsnDone(i,k))d++;prog.push({lv:LVS[i],d:d,n:n})}
+  var acc=S.prof.total?Math.round((S.prof.ok||0)/S.prof.total*100):null;
+  var progTxt=prog.map(function(x){return x.lv+' '+x.d+'/'+x.n+' 課'}).join('、')+(acc!=null?'；答對率 '+acc+'%（'+S.prof.total+' 題）':'');
+  var CH=function(id,arr,multi){return '<div class="ao-ch" id="'+id+'" data-multi="'+(multi?1:0)+'">'+arr.map(function(x){return '<button type="button">'+x+'</button>'}).join('')+'</div>'};
   var m=document.createElement('div');m.className='mdl';
-  m.innerHTML='<div class="mbox"><button class="mx" type="button">×</button><div style="font-size:36px">🔒</div><h2>「'+LVS[j]+'」要老師開通</h2>'
-   +'<p class="sub">前面的等級可以免費練習。想繼續往上學，請填一下回饋，美娟老師看過後會幫你打開。</p><div class="f">'
-   +'<label class="l">目前練習下來，覺得怎麼樣？</label><textarea class="t" id="fb1" maxlength="500" placeholder="寫你的感想，例如哪裡好用、哪裡不好用"></textarea>'
-   +'<label class="l">接下來想加強什麼？</label><textarea class="t" id="fb2" maxlength="500" placeholder="寫你想學的，例如聲調、生詞、會話"></textarea>'
+  m.innerHTML='<div class="mbox ao"><button class="mx" type="button">×</button><div style="font-size:34px;text-align:center">🔒</div><h2>「'+LVS[j]+'」要老師開通</h2>'
+   +'<p class="lead">前面的等級可以免費練習。想繼續往上學，填一下下面的問題，美娟老師看過後會幫你打開。</p>'
+   +'<div class="ao-info"><div>「'+LVS[j]+'」有 <b>'+its.length+'</b> 個詞，分成 <b>'+nL+'</b> 課，例如：</div><div class="ex">'+esc(ex.join('、'))+'…</div></div>'
+   +'<div class="ao-info"><div style="margin-bottom:4px">你目前的進度'+(acc!=null?'・答對率 <b>'+acc+'%</b>':'')+'</div><div class="ao-pr">'+prog.map(function(x){return '<div><span>'+x.lv+'</span><i><u style="width:'+(x.n?Math.round(x.d/x.n*100):0)+'%"></u></i><em>'+x.d+' / '+x.n+' 課</em></div>'}).join('')+'</div></div>'
+   +'<div class="ao-info">開通以後，「免費課程」和「自己練習」都能選「'+LVS[j]+'」。不用重新註冊，回到這頁就看得到。</div>'
+   +'<label class="l">學華語多久了？</label>'+CH('ao-y',['剛開始','不到半年','半年到一年','一到三年','三年以上'])
+   +'<label class="l">為什麼學華語？ <span>可以選好幾個</span></label>'+CH('ao-w',['工作','考 TOCFL','在臺灣生活','上學','興趣','其他'],1)
+   +'<label class="l">接下來想加強什麼？ <span>可以選好幾個，也可以自己寫</span></label>'+CH('ao-s',['聲調','生詞','聽力','會話','漢字','閱讀'],1)
+   +'<textarea class="t" id="fb2" maxlength="500" placeholder="還想加強的，寫在這裡（選填）" style="margin-top:8px"></textarea>'
+   +'<label class="l">目前練習下來，覺得怎麼樣？</label><textarea class="t" id="fb1" maxlength="500" placeholder="例如哪裡好用、哪裡不好用、太難還是太簡單"></textarea>'
+   +'<label class="l">想跟美娟老師上課嗎？</label>'+CH('ao-c',['想了解上課','先自己練習就好'])
    +'<label class="l">怎麼聯絡你比較方便？ <span>選填</span></label><input class="t" id="fb3" maxlength="100" placeholder="寫 LINE、Zalo、電話都可以">'
-   +'<button class="btn" id="fbgo" type="button">送出申請</button><div class="msg" id="fbm"></div></div></div>';
+   +'<button class="btn" id="fbgo" type="button">送出申請</button><div class="msg" id="fbm"></div></div>';
   document.body.appendChild(m);function close(){m.remove()}
   m.querySelector('.mx').onclick=close;m.onclick=function(e){if(e.target===m)close()};
-  m.querySelector('#fbgo').onclick=async function(){var a1=$('fb1').value.trim(),a2=$('fb2').value.trim();if(!a1||!a2){$('fbm').textContent='請填前兩題';return}
-    var req={lv:j,lv_name:LVS[j],a1:a1,a2:a2,a3:$('fb3').value.trim(),at:new Date().toISOString(),status:'pending'};
+  m.querySelectorAll('.ao-ch').forEach(function(g){var multi=g.dataset.multi==='1';g.querySelectorAll('button').forEach(function(b){b.onclick=function(){if(!multi)g.querySelectorAll('button').forEach(function(x){if(x!==b)x.classList.remove('on')});b.classList.toggle('on')}})});
+  var pick=function(id){return [].map.call(m.querySelectorAll('#'+id+' button.on'),function(b){return b.textContent})};
+  m.querySelector('#fbgo').onclick=async function(){var y=pick('ao-y')[0]||'',w=pick('ao-w'),sk=pick('ao-s'),t2=$('fb2').value.trim(),a1=$('fb1').value.trim(),c=pick('ao-c')[0]||'';
+    var miss=!y?'學華語多久了':!w.length?'為什麼學華語':(!sk.length&&!t2)?'想加強什麼':!a1?'練習下來覺得怎麼樣':'';
+    if(miss){$('fbm').textContent='請填「'+miss+'」';return}
+    var req={lv:j,lv_name:LVS[j],a1:a1,a2:sk.join('、')+(t2?(sk.length?'；':'')+t2:''),a3:$('fb3').value.trim(),yrs:y,why:w.join('、'),cls:c,prog:progTxt,at:new Date().toISOString(),status:'pending'};
     this.disabled=true;try{await pref().update({req:req});S.prof.req=req;close();toast('已送出，老師開通後就能練了');home()}catch(e){this.disabled=false;$('fbm').textContent='送不出去，請稍後再試'}}}
 
 /* ====== ③④ 首頁 ====== */
@@ -218,6 +242,14 @@ async function loadClasses(){var cs=S.prof.classes||[];for(var i=0;i<cs.length;i
 +'.hm-nx .t{flex:1;min-width:0}.hm-nx .t b{font-size:17px;display:block}.hm-nx .t small{color:var(--mut);font-size:13.5px}'
 +'.hm-bar{height:8px;border-radius:9px;background:var(--line);overflow:hidden;margin-top:8px}.hm-bar i{display:block;height:100%;background:var(--ok);border-radius:9px}'
 +'.hm-go{border:0;background:var(--p);color:#fff;border-radius:14px;padding:12px 22px;font-size:16px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;text-decoration:none}'
++'.cl-lv{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}.cl-lv .lv{margin:0}'
++'.cl-lk{border:0;background:none;color:var(--mut);font-size:13.5px;font-family:inherit;cursor:pointer;padding:6px 4px}button.cl-lk:hover{color:var(--p);text-decoration:underline}'
++'.cl-pg{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}.cl-pg button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;font-family:inherit;color:#4A5B75}.cl-pg button.on{background:var(--ps);border-color:var(--p);color:var(--p);font-weight:700}'
++'.cl-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}'
++'.cl-c{border:1px solid var(--line);background:#fff;border-radius:14px;padding:12px 12px 10px;text-align:left;cursor:pointer;font-family:inherit;color:var(--ink);display:flex;flex-direction:column;gap:4px;min-width:0;transition:.12s}.cl-c:hover{border-color:#B9CBE4;box-shadow:0 4px 14px rgba(30,60,110,.08)}'
++'.cl-n{font-size:13px;color:var(--mut);display:flex;align-items:center;gap:6px}.cl-n em{font-style:normal;margin-left:auto;font-size:12px;color:var(--ok);font-weight:700}.cl-n em.nx{color:#fff;background:var(--p);border-radius:999px;padding:1px 8px;font-weight:400}'
++'.cl-w{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cl-s{font-size:12px;color:var(--mut)}'
++'.cl-c.dn{background:#F3FAF6;border-color:#CBE8D6}.cl-c.dn .cl-s{color:var(--ok)}.cl-c.nx{border:2px solid var(--p);padding:11px 11px 9px}'
 +'.hm-pn .lsn{grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;max-height:none}.hm-pn .lsn button{height:52px;font-size:16px;border-radius:12px}'
 +'.hm-tp{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}.hm-tp div{border:1px solid var(--line);border-radius:16px;padding:16px 12px;text-align:center;opacity:.6}'
 +'.hm-tp i{font-style:normal;font-size:34px;display:block}.hm-tp b{display:block;font-size:16px;margin-top:6px}.hm-tp small{color:#8A5A00;font-size:12.5px}'
@@ -225,14 +257,22 @@ async function loadClasses(){var cs=S.prof.classes||[];for(var i=0;i<cs.length;i
 +'.hm-cl{display:flex;flex-direction:column;gap:10px;max-width:560px}.hm-cl .row{margin:0}'
 +'.hm-cl .join{display:flex;gap:8px;margin-top:6px}.hm-cl .join input{flex:1}'
 +'@media(max-width:760px){.hm-me .av{width:46px;height:46px;font-size:20px}.hm-me h2{font-size:20px}.hm-me>div:nth-child(2){flex:1;min-width:0}.hm-me .grow{display:none}.hm-me .out{order:2}.hm-st{order:3;width:100%}.hm-st div{flex:1;min-width:0}'
-+'.hm-pk{grid-template-columns:1fr 1fr;gap:10px}.hm-pk button{padding:13px}.hm-pk small{font-size:12px}.hm-pn{padding:18px 16px}.hm-nx{flex-wrap:wrap}.hm-nx .hm-go{width:100%}.hm-pn .lsn{grid-template-columns:repeat(5,1fr)}}';document.head.appendChild(st)})();
++'.hm-pk{grid-template-columns:1fr 1fr;gap:10px}.hm-pk button{padding:13px}.hm-pk small{font-size:12px}.hm-pn{padding:18px 16px}.hm-nx{flex-wrap:wrap}.hm-nx .hm-go{width:100%}.hm-pn .lsn{grid-template-columns:repeat(5,1fr)}.cl-grid{grid-template-columns:1fr 1fr;gap:8px}.cl-w{font-size:16px}}';document.head.appendChild(st)})();
 var TOPICS=[['👨‍👩‍👧','家庭',10],['🍜','食物',10],['🍎','水果',9],['🧋','飲料',9],['🐼','動物',12],['🎨','顏色',7],['👂','身體',11],['👕','衣服',10],['🎒','學校和文具',11],['🚌','交通',9]];
 function hmTab(){var t=S.tab;if(!t){try{t=localStorage.getItem('qna_learn_tab')||''}catch(e){}}if(['course','topic','self','class'].indexOf(t)<0)t=(S.prof.classes||[]).length?'class':'course';return t}
-function hmCourse(){var mo=maxOpen(),j=S.clv||0,n=lsnCount(j),nx=lsnNext(j),dn=0;for(var k=0;k<n;k++)if(lsnDone(j,k))dn++;
-  return '<div class="hm-ph"><h3>免費課程</h3><small>華語八千詞・每課 10 個詞・看詞 → 翻牌 → 快問快答 → 打地鼠</small></div>'
-   +'<div class="lvrow"><div class="lvs">'+LVS.map(function(x,i){var o=i<=mo;return '<button type="button" class="lv clv'+(i===j?' on':'')+(o?'':' lock')+'" data-j="'+i+'">'+(o?'':'🔒 ')+x+'</button>'}).join('')+'</div></div>'
-   +(n?'<div class="hm-nx"><div class="bg">第<b>'+(nx+1)+'</b>課</div><div class="t"><b>'+LVS[j]+'・第 '+(nx+1)+' 課</b><small>做完 '+dn+' / '+n+' 課</small><div class="hm-bar"><i style="width:'+Math.round(dn/n*100)+'%"></i></div></div><button type="button" class="hm-go" id="cgo">'+(dn?'繼續學 →':'開始 →')+'</button></div>'
-     +'<p class="hm-sub">或選一課：</p><div class="lsn">'+Array.apply(null,Array(n)).map(function(_,k){return '<button type="button" data-k="'+k+'" class="'+(lsnDone(j,k)?'dn':k===nx?'nx':'')+'">'+(lsnDone(j,k)?'✓':'')+(k+1)+'</button>'}).join('')+'</div>':'<p class="sub">這個等級讀不到詞</p>')}
+/* COURSEUI_V1812 Quinn：「這裡太醜了」——課程改成卡片（看得到這課有哪些詞、做過幾分），鎖住的等級收成一行 */
+function hmCourse(){var mo=maxOpen(),j=S.clv||0,n=lsnCount(j),nx=lsnNext(j),dn=0,r=S.prof.req;for(var k=0;k<n;k++)if(lsnDone(j,k))dn++;
+  var per=15,pg=Math.floor(nx/per);if(S.cpg!=null&&S.cpgLv===j)pg=S.cpg;var pages=Math.ceil(n/per);if(pg>=pages)pg=0;
+  var ws=lsnWords(j,nx).map(function(w){return w.h});
+  var h='<div class="hm-ph"><h3>免費課程</h3><small>華語八千詞・每課 10 個詞・看詞 → 翻牌 → 快問快答 → 打地鼠</small></div>'
+   +'<div class="cl-lv">'+LVS.map(function(x,i){return i<=mo?'<button type="button" class="lv clv'+(i===j?' on':'')+'" data-j="'+i+'">'+x+'</button>':''}).join('')
+   +(mo<LVS.length-1?(r&&r.status==='pending'?'<span class="cl-lk">🔒 已申請「'+esc(r.lv_name||'')+'」，等老師開通</span>':'<button type="button" class="cl-lk" id="cl-ask">🔒 '+LVS[mo+1]+(mo+2<LVS.length?'以上':'')+'要老師開通 · 申請</button>'):'')+'</div>';
+  if(!n)return h+'<p class="sub">這個等級讀不到詞</p>';
+  h+='<div class="hm-nx"><div class="bg">第<b>'+(nx+1)+'</b>課</div><div class="t"><b>'+(dn?'下一課：':'第一課：')+esc(ws.slice(0,4).join('・'))+(ws.length>4?'…':'')+'</b><small>'+LVS[j]+'・做完 '+dn+' / '+n+' 課</small><div class="hm-bar"><i style="width:'+Math.round(dn/n*100)+'%"></i></div></div><button type="button" class="hm-go" id="cgo">'+(dn?'繼續學 →':'開始 →')+'</button></div>';
+  if(pages>1)h+='<div class="cl-pg">'+Array.apply(null,Array(pages)).map(function(_,i){var a=i*per+1,z=Math.min(n,(i+1)*per);return '<button type="button" data-pg="'+i+'" class="'+(i===pg?'on':'')+'">第 '+a+'–'+z+' 課</button>'}).join('')+'</div>';
+  h+='<div class="cl-grid">';for(var k=pg*per;k<Math.min(n,(pg+1)*per);k++){var d=lsnDone(j,k),w=lsnWords(j,k).map(function(x){return x.h});
+    h+='<button type="button" data-k="'+k+'" class="cl-c'+(d?' dn':k===nx?' nx':'')+'"><span class="cl-n">第 '+(k+1)+' 課'+(d?'<em>✓</em>':k===nx?'<em class="nx">下一課</em>':'')+'</span><span class="cl-w">'+esc(w.slice(0,3).join('、'))+(w.length>3?'…':'')+'</span><span class="cl-s">'+(d?'答對 '+(d.ok!=null?d.ok:'')+'/'+(d.n||10)+(d.times>1?'・練 '+d.times+' 次':''):w.length+' 個詞')+'</span></button>'}
+  return h+'</div>'}
 function hmSelf(zy,mo,r,wl){return '<div class="hm-ph"><h3>自己練習</h3><small>題目來自華語八千詞（TOCFL 官方詞表）・每次 10 題</small></div>'
    +'<div class="lvrow"><div class="lvs">'+LVS.map(function(x,j){var o=j<=mo;return '<button type="button" class="lv'+(j===S.lv?' on':'')+(o?'':' lock')+'" data-j="'+j+'">'+(o?'':'🔒 ')+x+'</button>'}).join('')+'</div></div>'
    +(r&&r.status==='pending'?'<div class="reqst">已送出「'+esc(r.lv_name||'')+'」的開通申請，美娟老師看過後會幫你打開。</div>':'')
@@ -302,7 +342,9 @@ function courseHTML(){var mo=maxOpen(),j=S.clv||0,n=lsnCount(j),nx=lsnNext(j),dn
      +'<div class="lsn">'+Array.apply(null,Array(n)).map(function(_,k){return '<button type="button" data-k="'+k+'" class="'+(lsnDone(j,k)?'dn':k===nx?'nx':'')+'">'+(lsnDone(j,k)?'✓':'')+(k+1)+'</button>'}).join('')+'</div>':'<p class="sub">這個等級讀不到詞</p>')+'</div>'}
 function courseBind(){document.querySelectorAll('.clv').forEach(function(b){b.onclick=function(){var j=+b.dataset.j;if(!lvOpen(j))return askOpen(j);S.clv=j;home()}});
   if($('cgo'))$('cgo').onclick=function(){lesson(S.clv||0,lsnNext(S.clv||0))};
-  document.querySelectorAll('.lsn button').forEach(function(b){b.onclick=function(){lesson(S.clv||0,+b.dataset.k)}})}
+  document.querySelectorAll('.lsn button,.cl-c').forEach(function(b){b.onclick=function(){lesson(S.clv||0,+b.dataset.k)}});
+  document.querySelectorAll('.cl-pg button').forEach(function(b){b.onclick=function(){S.cpg=+b.dataset.pg;S.cpgLv=S.clv||0;home()}});
+  if($('cl-ask'))$('cl-ask').onclick=function(){askOpen(maxOpen()+1)}}
 var LV=null;/* 這一課的狀態 */
 var VCACHE={};
 async function lsnVoices(ws){await Promise.all(ws.map(async function(w){if(w.h in VCACHE)return;VCACHE[w.h]='';
